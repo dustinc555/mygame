@@ -1,0 +1,151 @@
+[gd_scene load_steps=9 format=3 uid="uid://jsg3qe0fcfw2"]
+
+[ext_resource type="Script" uid="uid://b4pen1iyyyihv" path="res://scripts/main.gd" id="1_0w3ld"]
+[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="2_p4rty"]
+[ext_resource type="Script" path="res://scripts/party_manager.gd" id="3_m4n4g"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(60, 1, 60)
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(60, 1, 60)
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_member"]
+radius = 0.45
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
+top_radius = 0.72
+bottom_radius = 0.72
+height = 0.05
+radial_segments = 24
+rings = 2
+
+[node name="MovementControlsTest" type="Node3D"]
+script = ExtResource("1_0w3ld")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 8, 0)
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+mesh = SubResource("BoxMesh_floor")
+
+[node name="PartyMembers" type="Node3D" parent="."]
+
+[node name="Avery" type="CharacterBody3D" parent="PartyMembers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.6, -1)
+script = ExtResource("2_p4rty")
+member_name = "Avery"
+base_color = Color(0.84, 0.43, 0.31, 1)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Avery"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Avery"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Avery"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="Bram" type="CharacterBody3D" parent="PartyMembers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 2)
+script = ExtResource("2_p4rty")
+member_name = "Bram"
+base_color = Color(0.29, 0.53, 0.75, 1)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Bram"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Bram"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Bram"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="Cora" type="CharacterBody3D" parent="PartyMembers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0.6, -1)
+script = ExtResource("2_p4rty")
+member_name = "Cora"
+base_color = Color(0.42, 0.72, 0.4, 1)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Cora"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Cora"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Cora"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="PartyManager" type="Node" parent="."]
+script = ExtResource("3_m4n4g")
+
+[node name="CameraRig" type="Node3D" parent="."]
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 11)
+current = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Instructions" type="Label" parent="CanvasLayer"]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 470.0
+offset_bottom = 102.0
+text = "Left-click selects. Double-click makes the camera follow. Middle mouse always orbits. WASD moves the free camera and breaks follow. Right-click moves selected party members."
+autowrap_mode = 3
+
+[node name="SelectionRect" type="ColorRect" parent="CanvasLayer"]
+visible = false
+offset_right = 1.0
+offset_bottom = 1.0
+mouse_filter = 2
+color = Color(1, 0.85, 0.35, 0.18)
+
+[node name="PortraitBar" type="PanelContainer" parent="CanvasLayer"]
+offset_left = 220.0
+offset_top = 624.0
+offset_right = 1060.0
+offset_bottom = 704.0
+
+[node name="PortraitRow" type="HBoxContainer" parent="CanvasLayer/PortraitBar"]
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="AveryPortrait" type="Button" parent="CanvasLayer/PortraitBar/PortraitRow"]
+custom_minimum_size = Vector2(160, 56)
+layout_mode = 2
+text = "Avery"
+
+[node name="BramPortrait" type="Button" parent="CanvasLayer/PortraitBar/PortraitRow"]
+custom_minimum_size = Vector2(160, 56)
+layout_mode = 2
+text = "Bram"
+
+[node name="CoraPortrait" type="Button" parent="CanvasLayer/PortraitBar/PortraitRow"]
+custom_minimum_size = Vector2(160, 56)
+layout_mode = 2
+text = "Cora"
