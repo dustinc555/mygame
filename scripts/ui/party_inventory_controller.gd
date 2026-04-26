@@ -3,6 +3,7 @@ extends Node
 class_name PartyInventoryController
 
 const INVENTORY_WINDOW_SCENE = preload("res://scenes/ui/inventory_window.tscn")
+const SILVER_ITEM = preload("res://resources/items/silver.tres")
 
 @export var inventory_toggle_key := KEY_I
 
@@ -73,6 +74,7 @@ func open_inventory_for_owner(inventory_owner) -> void:
 	window.notice_requested.connect(_show_floating_notice)
 	window.transfer_requested.connect(_on_inventory_transfer_requested)
 	window.quick_transfer_requested.connect(_on_inventory_quick_transfer_requested)
+	window.item_action_requested.connect(_on_inventory_item_action_requested)
 
 
 func _on_inventory_window_close_requested(inventory_owner) -> void:
@@ -91,6 +93,8 @@ func _on_inventory_transfer_requested(source_owner, target_owner, entry, target_
 		return
 	if source_owner == target_owner:
 		source_owner.inventory.move_entry(entry, target_cell)
+		return
+	if _try_handle_trade(source_owner, target_owner, entry, target_cell):
 		return
 	var target_window = open_inventory_windows.get(target_owner.get_instance_id())
 	if _owners_too_far(source_owner, target_owner):
@@ -117,6 +121,8 @@ func _on_inventory_quick_transfer_requested(source_owner, entry) -> void:
 	var target_cell: Vector2i = target_owner.inventory.find_first_space(entry.definition)
 	if target_cell == Vector2i(-1, -1):
 		return
+	if _try_handle_trade(source_owner, target_owner, entry, target_cell):
+		return
 	source_owner.inventory.move_entry_to_inventory(entry, target_owner.inventory, target_cell)
 
 
@@ -139,3 +145,72 @@ func _owners_too_far(source_owner, target_owner) -> bool:
 	if source_owner.has_method("get_inventory_world_position") and target_owner.has_method("get_inventory_world_position"):
 		return source_owner.get_inventory_world_position().distance_to(target_owner.get_inventory_world_position()) > 5.0
 	return false
+
+
+func _on_inventory_item_action_requested(inventory_owner, entry, action: String) -> void:
+	if inventory_owner == null or entry == null:
+		return
+	if action == "eat" and inventory_owner.has_method("eat_item"):
+		inventory_owner.eat_item(entry.definition)
+
+
+func _try_handle_trade(source_owner, target_owner, entry, target_cell: Vector2i) -> bool:
+	var source_role = _get_merchant_role(source_owner)
+	var target_role = _get_merchant_role(target_owner)
+	if source_role == null and target_role == null:
+		return false
+	if source_role != null and target_role != null:
+		return false
+	if source_role != null:
+		return _buy_from_merchant(source_owner, target_owner, entry, target_cell, source_role)
+	return _sell_to_merchant(source_owner, target_owner, entry, target_cell, target_role)
+
+
+func _buy_from_merchant(merchant_owner, buyer_owner, entry, target_cell: Vector2i, merchant_role) -> bool:
+	var price: int = merchant_role.get_sell_price(entry.definition)
+	if price < 0:
+		_show_floating_notice("Cannot afford")
+		return true
+	price *= entry.count
+	if buyer_owner.inventory.count_item(SILVER_ITEM) < price:
+		_show_floating_notice("Cannot afford")
+		return true
+	if not buyer_owner.inventory.can_place_item(entry.definition, target_cell):
+		_show_floating_notice("Not enough space")
+		return true
+	if not merchant_owner.inventory.can_add_item_count(SILVER_ITEM, price):
+		_show_floating_notice("Merchant does not have space")
+		return true
+	if not buyer_owner.inventory.remove_item_count(SILVER_ITEM, price):
+		_show_floating_notice("Cannot afford")
+		return true
+	merchant_owner.inventory.add_item_count(SILVER_ITEM, price)
+	merchant_owner.inventory.move_entry_to_inventory(entry, buyer_owner.inventory, target_cell)
+	return true
+
+
+func _sell_to_merchant(seller_owner, merchant_owner, entry, target_cell: Vector2i, merchant_role) -> bool:
+	var price: int = merchant_role.get_buy_price(entry.definition)
+	if price < 0:
+		_show_floating_notice("Cannot trade")
+		return true
+	price *= entry.count
+	if not merchant_owner.inventory.can_place_item(entry.definition, target_cell):
+		_show_floating_notice("Merchant does not have space")
+		return true
+	if merchant_owner.inventory.count_item(SILVER_ITEM) < price:
+		_show_floating_notice("Cannot afford")
+		return true
+	if not seller_owner.inventory.can_add_item_count(SILVER_ITEM, price):
+		_show_floating_notice("Not enough space")
+		return true
+	merchant_owner.inventory.remove_item_count(SILVER_ITEM, price)
+	seller_owner.inventory.add_item_count(SILVER_ITEM, price)
+	seller_owner.inventory.move_entry_to_inventory(entry, merchant_owner.inventory, target_cell)
+	return true
+
+
+func _get_merchant_role(owner):
+	if owner != null and owner.has_method("get_merchant_role"):
+		return owner.get_merchant_role()
+	return null

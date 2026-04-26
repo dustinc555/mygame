@@ -38,22 +38,57 @@ func get_total_weight() -> float:
 
 
 func can_add_item(definition) -> bool:
+	return can_add_item_count(definition, 1)
+
+
+func can_add_item_count(definition, amount: int) -> bool:
 	if definition == null:
 		return false
-	if use_weight and get_total_weight() + definition.unit_weight > max_weight:
+	if amount <= 0:
+		return true
+	if use_weight and get_total_weight() + definition.unit_weight * amount > max_weight:
 		return false
-	return find_first_space(definition) != Vector2i(-1, -1)
+	var remaining := amount
+	if definition.max_stack > 1:
+		for entry in entries:
+			if entry.definition == definition and entry.count < definition.max_stack:
+				remaining -= min(remaining, definition.max_stack - entry.count)
+				if remaining <= 0:
+					return true
+	var reserved: Array[Vector2i] = []
+	while remaining > 0:
+		var slot := _find_first_space_with_reserved(definition, reserved)
+		if slot == Vector2i(-1, -1):
+			return false
+		reserved.append(slot)
+		remaining -= min(remaining, max(definition.max_stack, 1))
+	return true
 
 
 func add_item(definition) -> bool:
-	if not can_add_item(definition):
-		return false
+	return add_item_count(definition, 1)
 
-	var slot := find_first_space(definition)
-	if slot == Vector2i(-1, -1):
-		return false
 
-	entries.append(InventoryEntry.new(definition, slot, 1))
+func add_item_count(definition, amount: int) -> bool:
+	if not can_add_item_count(definition, amount):
+		return false
+	var remaining := amount
+	if definition.max_stack > 1:
+		for entry in entries:
+			if entry.definition == definition and entry.count < definition.max_stack:
+				var added: int = min(remaining, definition.max_stack - entry.count)
+				entry.count += added
+				remaining -= added
+				if remaining <= 0:
+					changed.emit()
+					return true
+	while remaining > 0:
+		var slot: Vector2i = find_first_space(definition)
+		if slot == Vector2i(-1, -1):
+			return false
+		var stack_count: int = min(remaining, max(definition.max_stack, 1))
+		entries.append(InventoryEntry.new(definition, slot, stack_count))
+		remaining -= stack_count
 	changed.emit()
 	return true
 
@@ -81,6 +116,36 @@ func move_entry_to_inventory(entry, target_inventory, target_position: Vector2i)
 	target_inventory.entries.append(InventoryEntry.new(entry.definition, target_position, entry.count))
 	changed.emit()
 	target_inventory.changed.emit()
+	return true
+
+
+func count_item(definition) -> int:
+	var total := 0
+	for entry in entries:
+		if entry.definition == definition:
+			total += entry.count
+	return total
+
+
+func remove_item_count(definition, amount: int) -> bool:
+	if definition == null or amount <= 0:
+		return false
+	if count_item(definition) < amount:
+		return false
+	var remaining := amount
+	for index in range(entries.size() - 1, -1, -1):
+		var entry = entries[index]
+		if entry.definition != definition:
+			continue
+		var removed: int = min(remaining, entry.count)
+		entry.count -= removed
+		remaining -= removed
+		if entry.count <= 0:
+			entries.remove_at(index)
+		if remaining <= 0:
+			changed.emit()
+			return true
+	changed.emit()
 	return true
 
 
@@ -153,3 +218,19 @@ func _sort_entries_for_packing(a, b) -> bool:
 	if a_area == b_area:
 		return a.definition.display_name < b.definition.display_name
 	return a_area > b_area
+
+
+func _find_first_space_with_reserved(definition, reserved: Array[Vector2i]) -> Vector2i:
+	for y in range(rows - definition.grid_size.y + 1):
+		for x in range(columns - definition.grid_size.x + 1):
+			var cell := Vector2i(x, y)
+			if not can_place_item(definition, cell):
+				continue
+			var overlaps_reserved := false
+			for reserved_cell in reserved:
+				if _rects_overlap(cell, definition.grid_size, reserved_cell, definition.grid_size):
+					overlaps_reserved = true
+					break
+			if not overlaps_reserved:
+				return cell
+	return Vector2i(-1, -1)

@@ -52,6 +52,10 @@ func _draw() -> void:
 			var draw_size: Vector2 = texture_size * scale_factor
 			var draw_position: Vector2 = content_rect.position + (content_rect.size - draw_size) * 0.5
 			draw_texture_rect(entry.definition.icon, Rect2(draw_position, draw_size), false)
+		else:
+			draw_string(get_theme_default_font(), item_rect.position + Vector2(6, 20), entry.definition.display_name, HORIZONTAL_ALIGNMENT_LEFT, item_rect.size.x - 12, 16, Color(0.94, 0.94, 0.94, 1.0))
+		if entry.count > 1:
+			draw_string(get_theme_default_font(), item_rect.position + Vector2(6, item_rect.size.y - 6), str(entry.count), HORIZONTAL_ALIGNMENT_LEFT, item_rect.size.x - 12, 14, Color(1.0, 0.94, 0.7, 1.0))
 
 	if _preview_visible:
 		draw_rect(_preview_rect, Color(1.0, 0.85, 0.35, 0.22), true)
@@ -74,11 +78,13 @@ func _get_drag_data(at_position: Vector2):
 	if entry == null:
 		return null
 
-	var preview := TextureRect.new()
-	preview.texture = entry.definition.icon
-	preview.custom_minimum_size = Vector2(72.0, 48.0)
-	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var preview := PanelContainer.new()
+	preview.custom_minimum_size = Vector2(max(72.0, cell_size.x * entry.definition.grid_size.x), max(32.0, cell_size.y * entry.definition.grid_size.y))
+	var label := Label.new()
+	label.text = entry.definition.display_name if entry.definition.icon == null else entry.definition.display_name
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	preview.add_child(label)
 	set_drag_preview(preview)
 	return {
 		"entry": entry,

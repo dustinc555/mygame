@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://dx3m6v8xbo456"]
+[gd_scene load_steps=25 format=3 uid="uid://dx3m6v8xbo456"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
 [ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_mgr"]
@@ -6,6 +6,13 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/floating_notice.tscn" id="4_notice"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
 [ext_resource type="PackedScene" uid="uid://cxk5vgdnfkroq" path="res://scenes/world/containers/barrel_container.tscn" id="6_barrel"]
+[ext_resource type="Script" uid="uid://c8shyhe4pxqhe" path="res://scripts/characters/merchant_humanoid.gd" id="7_merchant"]
+[ext_resource type="Script" uid="uid://bid84rrfurtuw" path="res://scripts/roles/merchant_role.gd" id="8_role"]
+[ext_resource type="Script" path="res://scripts/items/merchant_price.gd" id="9_price_script"]
+[ext_resource type="Script" path="res://scripts/items/merchant_stock.gd" id="10_stock_script"]
+[ext_resource type="Resource" path="res://resources/items/copper_ore.tres" id="11_copper_item"]
+[ext_resource type="Resource" path="res://resources/items/silver.tres" id="12_silver"]
+[ext_resource type="Resource" path="res://resources/items/food.tres" id="13_food"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(70, 1, 70)
@@ -31,6 +38,34 @@ height = 0.05
 radial_segments = 24
 rings = 2
 
+[sub_resource type="Resource" id="MerchantPrice_copper"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("11_copper_item")
+buy_price = 1
+sell_price = 1
+
+[sub_resource type="Resource" id="MerchantPrice_food"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("13_food")
+buy_price = 1
+sell_price = 1
+
+[sub_resource type="Resource" id="MerchantPrice_silver"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("12_silver")
+buy_price = 1
+sell_price = 1
+
+[sub_resource type="Resource" id="MerchantStock_silver"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("12_silver")
+quantity = 500
+
+[sub_resource type="Resource" id="MerchantStock_food"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("13_food")
+quantity = 8
+
 [node name="MiningTest" type="Node3D"]
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
@@ -52,8 +87,8 @@ mesh = SubResource("BoxMesh_floor")
 [node name="Mira" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.6, 4)
 script = ExtResource("1_party")
-member_name = "Mira"
 base_color = Color(0.82, 0.43, 0.31, 1)
+member_name = "Mira"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Mira"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -70,8 +105,8 @@ mesh = SubResource("CylinderMesh_ring")
 [node name="Tomas" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.6, 5)
 script = ExtResource("1_party")
-member_name = "Tomas"
 base_color = Color(0.33, 0.55, 0.78, 1)
+member_name = "Tomas"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Tomas"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -84,6 +119,29 @@ mesh = SubResource("CapsuleMesh_member")
 [node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Tomas"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
 mesh = SubResource("CylinderMesh_ring")
+
+[node name="Jim" type="CharacterBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.6, 4)
+script = ExtResource("7_merchant")
+member_name = "Jim"
+inventory_columns = 15
+inventory_rows = 12
+max_carry_weight = 9999.0
+show_inventory_weight = false
+faction_name = "Surf City"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Jim"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="Jim"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="MerchantRole" type="Node" parent="Jim"]
+script = ExtResource("8_role")
+prices = Array[Resource]([SubResource("MerchantPrice_copper"), SubResource("MerchantPrice_food"), SubResource("MerchantPrice_silver")])
+initial_stock = Array[Resource]([SubResource("MerchantStock_silver"), SubResource("MerchantStock_food")])
 
 [node name="CopperNode" parent="." instance=ExtResource("3_copper")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, -2)

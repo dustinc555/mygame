@@ -9,6 +9,8 @@ const ACTION_INVENTORY := 1
 const ACTION_MINE := 2
 const ACTION_OPEN_CONTAINER := 3
 const ACTION_UNLOCK_CONTAINER := 4
+const ACTION_ATTACK := 5
+const ACTION_TRADE := 6
 const FREE_CAMERA_PITCH := -0.65
 const FOLLOW_CAMERA_HEIGHT := 1.35
 const ORBIT_MIN_PITCH := -1.2
@@ -35,7 +37,7 @@ var is_left_mouse_down := false
 var is_drag_selecting := false
 var left_mouse_press_position := Vector2.ZERO
 var left_mouse_press_double_click := false
-var context_member: PartyMember
+var context_member
 var context_resource
 var context_container
 var root: Node
@@ -85,6 +87,7 @@ func _do_initialize() -> void:
 		if child is PartyMember:
 			party_members.append(child)
 			child.container_reached.connect(_on_party_member_container_reached)
+			child.trade_target_reached.connect(_on_party_member_trade_target_reached)
 
 	party_manager.set_party_members(party_members)
 	party_manager.selection_changed.connect(_update_portraits)
@@ -207,7 +210,7 @@ func _handle_left_mouse_release(screen_position: Vector2) -> void:
 
 
 func _handle_world_selection(screen_position: Vector2, should_follow: bool) -> void:
-	var member := _pick_party_member(screen_position)
+	var member: PartyMember = _pick_party_member(screen_position)
 	if member == null:
 		party_manager.clear_selection()
 		return
@@ -238,6 +241,10 @@ func _handle_right_click(screen_position: Vector2) -> void:
 		_show_context_menu(screen_position, ACTION_INVENTORY, "Inventory")
 		context_member = collider
 		return
+	if collider is CharacterBody3D and collider.has_method("get_merchant_role") and collider.get_merchant_role() != null and not party_manager.selected_members.is_empty():
+		context_member = collider
+		_show_context_menu_actions(screen_position, [{"id": ACTION_ATTACK, "label": "Attack"}, {"id": ACTION_TRADE, "label": "Trade"}])
+		return
 	if collider is Node and collider.is_in_group("world_container") and not party_manager.selected_members.is_empty():
 		context_container = collider
 		if context_container.is_locked:
@@ -249,10 +256,15 @@ func _handle_right_click(screen_position: Vector2) -> void:
 
 
 func _show_context_menu(screen_position: Vector2, action_id: int, label: String) -> void:
+	_show_context_menu_actions(screen_position, [{"id": action_id, "label": label}])
+
+
+func _show_context_menu_actions(screen_position: Vector2, actions: Array) -> void:
 	if context_menu == null:
 		return
 	context_menu.clear()
-	context_menu.add_item(label, action_id)
+	for action in actions:
+		context_menu.add_item(action["label"], action["id"])
 	context_menu.position = Vector2i(screen_position)
 	context_menu.popup()
 
@@ -261,7 +273,7 @@ func _apply_drag_selection() -> void:
 	var rect := _get_selection_rect(left_mouse_press_position, get_viewport().get_mouse_position())
 	var drag_selected: Array[PartyMember] = []
 	for member in party_members:
-		var sample_position := member.global_position + Vector3(0.0, 1.0, 0.0)
+		var sample_position: Vector3 = member.global_position + Vector3(0.0, 1.0, 0.0)
 		if camera.is_position_behind(sample_position):
 			continue
 		var screen_point := camera.unproject_position(sample_position)
@@ -300,7 +312,7 @@ func issue_move_command(screen_position: Vector2) -> void:
 		center += member.global_position
 	center /= party_manager.selected_members.size()
 	for member in party_manager.selected_members:
-		var offset := member.global_position - center
+		var offset: Vector3 = member.global_position - center
 		offset.y = 0.0
 		if offset.length() > move_command_spacing:
 			offset = offset.normalized() * move_command_spacing
@@ -359,9 +371,9 @@ func _update_portraits() -> void:
 	for index in range(min(party_members.size(), portrait_buttons.size())):
 		var member: PartyMember = party_members[index]
 		var button: Button = portrait_buttons[index]
-		var is_selected := member.is_selected
-		var is_followed := member.is_focused
-		var label := member.member_name
+		var is_selected: bool = member.is_selected
+		var is_followed: bool = member.is_focused
+		var label: String = member.member_name
 		if is_followed:
 			label = "[Follow] %s" % label
 		elif is_selected:
@@ -383,7 +395,7 @@ func _update_progress_bars() -> void:
 		if not member.is_actively_mining():
 			bar.visible = false
 			continue
-		var world_position := member.global_position + Vector3(0.0, 2.35, 0.0)
+		var world_position: Vector3 = member.global_position + Vector3(0.0, 2.35, 0.0)
 		if camera.is_position_behind(world_position):
 			bar.visible = false
 			continue
@@ -446,6 +458,13 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 		ACTION_UNLOCK_CONTAINER:
 			if context_container != null:
 				_spawn_world_notice(context_container.global_position + Vector3(0.0, 1.6, 0.0), "Lockpicking not implemented")
+		ACTION_ATTACK:
+			if context_member != null:
+				inventory_controller._show_floating_notice("Attack not implemented")
+		ACTION_TRADE:
+			if context_member != null:
+				for member in party_manager.selected_members:
+					member.assign_trade_target(context_member)
 
 
 func _configure_portrait_button(button: Button) -> void:
@@ -488,6 +507,16 @@ func _on_party_member_container_reached(member: PartyMember, container) -> void:
 		return
 	inventory_controller.open_inventory_for_owner(container)
 	inventory_controller.open_inventory_for_owner(member)
+
+
+func _on_party_member_trade_target_reached(member: PartyMember, target) -> void:
+	if member == null or target == null:
+		return
+	if target is CharacterBody3D and target.has_method("resolve_trade"):
+		if not target.resolve_trade(member):
+			return
+		inventory_controller.open_inventory_for_owner(member)
+		inventory_controller.open_inventory_for_owner(target)
 
 
 func _spawn_world_notice(world_position: Vector3, message: String) -> void:

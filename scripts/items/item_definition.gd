@@ -7,3 +7,4 @@ class_name ItemDefinition
 @export var grid_size := Vector2i(1, 1)
 @export var unit_weight := 1.0
 @export var max_stack := 1
+@export var nutrition_value := 0.0

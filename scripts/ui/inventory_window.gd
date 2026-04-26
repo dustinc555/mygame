@@ -6,6 +6,7 @@ signal close_requested(inventory_owner)
 signal transfer_requested(source_owner, target_owner, entry, target_cell)
 signal quick_transfer_requested(inventory_owner, entry)
 signal notice_requested(message)
+signal item_action_requested(inventory_owner, entry, action)
 
 @export var transfer_distance := 5.0
 
@@ -20,6 +21,9 @@ var _drag_offset := Vector2.ZERO
 @onready var weight_label: Label = $Margin/WindowVBox/WeightLabel
 @onready var inventory_grid: InventoryGridControl = $Margin/WindowVBox/InventoryGrid
 @onready var title_bar: PanelContainer = $Margin/WindowVBox/TitleBar
+@onready var item_menu: PopupMenu = $ItemMenu
+
+var _context_entry
 
 
 func _ready() -> void:
@@ -31,6 +35,7 @@ func _ready() -> void:
 	inventory_grid.drop_error_provider = Callable(self, "_get_drop_error")
 	inventory_grid.item_right_clicked.connect(_on_inventory_item_right_clicked)
 	inventory_grid.invalid_drop_attempted.connect(_on_invalid_drop_attempted)
+	item_menu.id_pressed.connect(_on_item_menu_id_pressed)
 
 
 func setup(target_owner) -> void:
@@ -115,7 +120,19 @@ func _on_auto_sort_pressed() -> void:
 func _on_inventory_item_right_clicked(entry) -> void:
 	if inventory_owner == null or entry == null:
 		return
-	quick_transfer_requested.emit(inventory_owner, entry)
+	var can_eat: bool = inventory_owner.has_method("can_eat_item") and inventory_owner.can_eat_item(entry.definition)
+	var can_quick_transfer := true
+	if not can_eat:
+		quick_transfer_requested.emit(inventory_owner, entry)
+		return
+	_context_entry = entry
+	item_menu.clear()
+	if can_eat:
+		item_menu.add_item("Eat", 1)
+	if can_quick_transfer:
+		item_menu.add_item("Quick Transfer", 2)
+	item_menu.position = DisplayServer.mouse_get_position()
+	item_menu.popup()
 
 
 func _on_invalid_drop_attempted(message: String) -> void:
@@ -161,3 +178,14 @@ func _owner_shows_weight() -> bool:
 	if inventory_owner != null and inventory_owner.has_method("shows_inventory_weight"):
 		return inventory_owner.shows_inventory_weight()
 	return true
+
+
+func _on_item_menu_id_pressed(action_id: int) -> void:
+	if inventory_owner == null or _context_entry == null:
+		return
+	match action_id:
+		1:
+			item_action_requested.emit(inventory_owner, _context_entry, "eat")
+		2:
+			quick_transfer_requested.emit(inventory_owner, _context_entry)
+	_context_entry = null

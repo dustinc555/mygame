@@ -1,9 +1,9 @@
-[gd_scene load_steps=12 format=3 uid="uid://jsg3qe0fcfw2"]
+[gd_scene load_steps=11 format=3 uid="uid://jsg3qe0fcfw2"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_p4rty"]
 [ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_m4n4g"]
 [ext_resource type="PackedScene" path="res://scenes/ui/floating_notice.tscn" id="3_notice"]
-[ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="4_bootstrap"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="4_bootstrap"]
 [ext_resource type="PackedScene" uid="uid://cxk5vgdnfkroq" path="res://scenes/world/containers/barrel_container.tscn" id="6_366s7"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
@@ -46,8 +46,8 @@ mesh = SubResource("BoxMesh_floor")
 [node name="Avery" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.6, -1)
 script = ExtResource("1_p4rty")
-member_name = "Avery"
 base_color = Color(0.84, 0.43, 0.31, 1)
+member_name = "Avery"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Avery"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -64,8 +64,8 @@ mesh = SubResource("CylinderMesh_ring")
 [node name="Bram" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 2)
 script = ExtResource("1_p4rty")
-member_name = "Bram"
 base_color = Color(0.29, 0.53, 0.75, 1)
+member_name = "Bram"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Bram"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -82,8 +82,8 @@ mesh = SubResource("CylinderMesh_ring")
 [node name="Cora" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0.6, -1)
 script = ExtResource("1_p4rty")
-member_name = "Cora"
 base_color = Color(0.42, 0.72, 0.4, 1)
+member_name = "Cora"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Cora"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -182,4 +182,4 @@ layout_mode = 2
 text = "Cora"
 
 [node name="BarrelContainer" parent="." instance=ExtResource("6_366s7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.2919, 0, 0.305737)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.7566, 0, 0.305737)

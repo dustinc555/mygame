@@ -69,7 +69,7 @@ func resolve_interaction(member: PartyMember) -> bool:
 		return false
 	if is_locked:
 		return false
-	var actor_id := member.get_instance_id()
+	var actor_id: int = member.get_instance_id()
 	if not _pending_actor_ids.has(actor_id):
 		return false
 	_pending_actor_ids.clear()
@@ -100,7 +100,7 @@ func shows_inventory_weight() -> bool:
 
 
 func _get_slot_index(member: PartyMember) -> int:
-	var key := member.get_instance_id()
+	var key: int = member.get_instance_id()
 	if _assigned_slots.has(key):
 		return _assigned_slots[key]
 
@@ -114,7 +114,7 @@ func _get_slot_index(member: PartyMember) -> int:
 		if used.has(slot_index):
 			continue
 		var slot_position := _slot_position_from_index(slot_index)
-		var distance := member.global_position.distance_squared_to(slot_position)
+		var distance: float = member.global_position.distance_squared_to(slot_position)
 		if distance < best_distance:
 			best_distance = distance
 			best_slot = slot_index
@@ -122,7 +122,7 @@ func _get_slot_index(member: PartyMember) -> int:
 	if best_distance == INF:
 		for slot_index in range(slot_count):
 			var slot_position := _slot_position_from_index(slot_index)
-			var distance := member.global_position.distance_squared_to(slot_position)
+			var distance: float = member.global_position.distance_squared_to(slot_position)
 			if distance < best_distance:
 				best_distance = distance
 				best_slot = slot_index
