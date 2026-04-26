@@ -1,0 +1,51 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/inventory_window.gd" id="1_win"]
+[ext_resource type="Script" path="res://scripts/ui/inventory_grid_control.gd" id="2_grid"]
+
+[node name="InventoryWindow" type="PanelContainer"]
+custom_minimum_size = Vector2(360, 290)
+offset_right = 360.0
+offset_bottom = 290.0
+script = ExtResource("1_win")
+
+[node name="Margin" type="MarginContainer" parent="."]
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="WindowVBox" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TitleBar" type="PanelContainer" parent="Margin/WindowVBox"]
+layout_mode = 2
+mouse_default_cursor_shape = 4
+
+[node name="TitleBarHBox" type="HBoxContainer" parent="Margin/WindowVBox/TitleBar"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Margin/WindowVBox/TitleBar/TitleBarHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Inventory"
+
+[node name="CloseButton" type="Button" parent="Margin/WindowVBox/TitleBar/TitleBarHBox"]
+layout_mode = 2
+text = "X"
+
+[node name="WarningLabel" type="Label" parent="Margin/WindowVBox"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.32, 0.32, 1)
+text = "Too far away"
+
+[node name="WeightLabel" type="Label" parent="Margin/WindowVBox"]
+layout_mode = 2
+text = "Weight"
+
+[node name="InventoryGrid" type="Control" parent="Margin/WindowVBox"]
+custom_minimum_size = Vector2(318, 190)
+layout_mode = 2
+script = ExtResource("2_grid")

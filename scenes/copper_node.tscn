@@ -1,0 +1,30 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/mining_resource_node.gd" id="1_node"]
+[ext_resource type="Resource" path="res://resources/items/copper_ore.tres" id="2_item"]
+[ext_resource type="Texture2D" path="res://assets/items/ore/copper.png" id="3_tex"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_copper"]
+size = Vector3(4.2, 1.8, 4.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_copper"]
+size = Vector3(4.0, 1.4, 4.0)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_copper"]
+albedo_color = Color(0.58, 0.4, 0.26, 1)
+albedo_texture = ExtResource("3_tex")
+roughness = 0.92
+
+[node name="CopperNode" type="StaticBody3D"]
+script = ExtResource("1_node")
+display_name = "Copper Vein"
+item_definition = ExtResource("2_item")
+mine_duration = 2.4
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_copper")
+
+[node name="Visual" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.96644, 0, 0.256894, 0, 1, 0, -0.256894, 0, 0.96644, 0, 0.7, 0)
+mesh = SubResource("BoxMesh_copper")
+material_override = SubResource("StandardMaterial3D_copper")
