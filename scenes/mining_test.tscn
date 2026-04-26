@@ -1,9 +1,10 @@
-[gd_scene load_steps=10 format=3 uid="uid://dx3m6v8xbo456"]
+[gd_scene load_steps=11 format=3 uid="uid://dx3m6v8xbo456"]
 
 [ext_resource type="Script" uid="uid://dwsdsu6x11kbe" path="res://scripts/test_scenes/mining_test.gd" id="1_test"]
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="2_party"]
 [ext_resource type="Script" path="res://scripts/party_manager.gd" id="3_mgr"]
 [ext_resource type="PackedScene" path="res://scenes/copper_node.tscn" id="4_copper"]
+[ext_resource type="PackedScene" path="res://scenes/ui/floating_notice.tscn" id="5_notice"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(70, 1, 70)
@@ -129,6 +130,10 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="ContextMenu" type="PopupMenu" parent="CanvasLayer"]
+
+[node name="FloatingNotice" parent="CanvasLayer" instance=ExtResource("5_notice")]
+layout_mode = 3
+anchors_preset = 5
 
 [node name="PortraitBar" type="PanelContainer" parent="CanvasLayer"]
 offset_left = 340.0

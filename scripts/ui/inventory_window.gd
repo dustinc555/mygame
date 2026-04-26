@@ -4,6 +4,8 @@ class_name InventoryWindow
 
 signal close_requested(member)
 signal transfer_requested(source_member, target_member, entry, target_cell)
+signal quick_transfer_requested(member, entry)
+signal notice_requested(message)
 
 @export var transfer_distance := 5.0
 
@@ -26,6 +28,7 @@ func _ready() -> void:
 	title_bar.gui_input.connect(_on_title_bar_gui_input)
 	inventory_grid.drop_validator = Callable(self, "_can_accept_drop")
 	inventory_grid.drop_handler = Callable(self, "_handle_drop")
+	inventory_grid.item_right_clicked.connect(_on_inventory_item_right_clicked)
 
 
 func setup(target_member: PartyMember) -> void:
@@ -66,7 +69,7 @@ func _can_accept_drop(data, target_cell: Vector2i) -> bool:
 			return true
 		return false
 	if source_member.global_position.distance_to(member.global_position) > transfer_distance:
-		show_warning("Too far away")
+		notice_requested.emit("Too far away")
 		return false
 	if member.inventory.get_total_weight() + entry.definition.unit_weight * entry.count > member.inventory.max_weight:
 		show_warning("Too heavy")
@@ -92,6 +95,12 @@ func _on_auto_sort_pressed() -> void:
 	clear_warning()
 	if not member.inventory.auto_sort():
 		show_warning("Sort failed")
+
+
+func _on_inventory_item_right_clicked(entry) -> void:
+	if member == null or entry == null:
+		return
+	quick_transfer_requested.emit(member, entry)
 
 
 func _on_title_bar_gui_input(event: InputEvent) -> void:

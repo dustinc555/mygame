@@ -3,6 +3,7 @@ extends Control
 class_name InventoryGridControl
 
 signal item_clicked(entry)
+signal item_right_clicked(entry)
 
 @export var cell_size := Vector2(30.0, 30.0)
 @export var cell_gap := 2.0
@@ -59,6 +60,10 @@ func _gui_input(event: InputEvent) -> void:
 		var entry = _entry_at_local_position(event.position)
 		if entry != null:
 			item_clicked.emit(entry)
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+		var right_clicked_entry = _entry_at_local_position(event.position)
+		if right_clicked_entry != null:
+			item_right_clicked.emit(right_clicked_entry)
 
 
 func _get_drag_data(at_position: Vector2):
