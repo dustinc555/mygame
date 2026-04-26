@@ -1,0 +1,42 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/move_command_indicator.gd" id="1_mvfx"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
+top_radius = 0.65
+bottom_radius = 0.65
+height = 0.04
+radial_segments = 24
+rings = 2
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_shaft"]
+top_radius = 0.08
+bottom_radius = 0.08
+height = 0.75
+radial_segments = 12
+rings = 2
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_head"]
+top_radius = 0.0
+bottom_radius = 0.24
+height = 0.34
+radial_segments = 12
+rings = 1
+
+[node name="MoveCommandIndicator" type="Node3D"]
+script = ExtResource("1_mvfx")
+
+[node name="Ring" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="Arrow" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.24, 0)
+
+[node name="Shaft" type="MeshInstance3D" parent="Arrow"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.38, 0)
+mesh = SubResource("CylinderMesh_shaft")
+
+[node name="Head" type="MeshInstance3D" parent="Arrow"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, 0)
+mesh = SubResource("CylinderMesh_head")

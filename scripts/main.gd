@@ -1,7 +1,6 @@
 extends Node3D
 
-const PartyMember = preload("res://scripts/party_member.gd")
-const PartyManager = preload("res://scripts/party_manager.gd")
+const MOVE_COMMAND_INDICATOR_SCENE = preload("res://scenes/move_command_indicator.tscn")
 
 const FREE_CAMERA_PITCH := -0.65
 const FOLLOW_CAMERA_HEIGHT := 1.35
@@ -12,7 +11,7 @@ const GROUND_Y := 0.0
 @export var free_camera_move_speed := 14.0
 @export var camera_zoom_step := 1.0
 @export var camera_min_distance := 4.0
-@export var camera_max_distance := 18.0
+@export var camera_max_distance := 36.0
 @export var orbit_sensitivity := 0.01
 @export var move_command_spacing := 1.4
 @export var drag_select_threshold := 12.0
@@ -203,6 +202,7 @@ func _issue_move_command(screen_position: Vector2) -> void:
 		return
 
 	var target: Vector3 = target_variant
+	_spawn_move_command_indicator(target)
 	var center := Vector3.ZERO
 	for member in party_manager.selected_members:
 		center += member.global_position
@@ -239,6 +239,15 @@ func _raycast_from_screen(screen_position: Vector2) -> Dictionary:
 	var ray_end := ray_origin + camera.project_ray_normal(screen_position) * 500.0
 	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
 	return get_world_3d().direct_space_state.intersect_ray(query)
+
+
+func _spawn_move_command_indicator(target: Vector3) -> void:
+	var indicator := MOVE_COMMAND_INDICATOR_SCENE.instantiate()
+	if indicator is Node3D:
+		indicator.position = target
+		add_child(indicator)
+		if indicator.has_method("setup_at"):
+			indicator.setup_at(target)
 
 
 func _set_follow_target(member: PartyMember) -> void:
