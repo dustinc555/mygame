@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="2_p4rty"]
 [ext_resource type="Script" path="res://scripts/party_manager.gd" id="3_m4n4g"]
 [ext_resource type="PackedScene" path="res://scenes/ui/floating_notice.tscn" id="4_notice"]
-[ext_resource type="Script" path="res://scripts/ui/party_inventory_controller.gd" id="5_invctrl"]
+[ext_resource type="Script" uid="uid://ct7v1sup3ap2w" path="res://scripts/ui/party_inventory_controller.gd" id="5_invctrl"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(60, 1, 60)

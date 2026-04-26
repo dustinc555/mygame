@@ -1,6 +1,6 @@
 extends Node3D
 
-const MOVE_COMMAND_INDICATOR_SCENE = preload("res://scenes/move_command_indicator.tscn")
+const MOVE_COMMAND_INDICATOR_SCENE = preload("res://scenes/world/move_command_indicator.tscn")
 
 const FREE_CAMERA_PITCH := -0.65
 const FOLLOW_CAMERA_HEIGHT := 1.35

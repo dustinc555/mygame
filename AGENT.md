@@ -1,5 +1,9 @@
 # AGENT.md
 
+## Test Levels
+- Test/demo levels live in `scenes/test_levels/`.
+- Follow `scenes/test_levels/AGENT.md` when working in those scenes.
+
 ## Required Validation
 - Whole project: run `godot --headless --editor --path . --quit`
   - This must exit with code `0`.

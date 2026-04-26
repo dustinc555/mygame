@@ -3,9 +3,9 @@
 [ext_resource type="Script" uid="uid://dwsdsu6x11kbe" path="res://scripts/test_scenes/mining_test.gd" id="1_test"]
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="2_party"]
 [ext_resource type="Script" path="res://scripts/party_manager.gd" id="3_mgr"]
-[ext_resource type="PackedScene" path="res://scenes/copper_node.tscn" id="4_copper"]
+[ext_resource type="PackedScene" path="res://scenes/world/copper_node.tscn" id="4_copper"]
 [ext_resource type="PackedScene" path="res://scenes/ui/floating_notice.tscn" id="5_notice"]
-[ext_resource type="Script" path="res://scripts/ui/party_inventory_controller.gd" id="6_invctrl"]
+[ext_resource type="Script" uid="uid://ct7v1sup3ap2w" path="res://scripts/ui/party_inventory_controller.gd" id="6_invctrl"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(70, 1, 70)
