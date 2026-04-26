@@ -1,7 +1,6 @@
 extends Node3D
 
 const MOVE_COMMAND_INDICATOR_SCENE = preload("res://scenes/move_command_indicator.tscn")
-const INVENTORY_WINDOW_SCENE = preload("res://scenes/ui/inventory_window.tscn")
 const FLOATING_NOTICE_SCENE = preload("res://scenes/ui/floating_notice.tscn")
 
 const ACTION_INVENTORY := 1
@@ -23,7 +22,6 @@ const GROUND_Y := 0.0
 var party_members: Array[PartyMember] = []
 var portrait_buttons: Array[Button] = []
 var mining_progress_bars: Dictionary = {}
-var open_inventory_windows: Dictionary = {}
 var camera_anchor := Vector3.ZERO
 var camera_yaw := deg_to_rad(45.0)
 var camera_pitch := FREE_CAMERA_PITCH
@@ -46,8 +44,7 @@ var context_resource
 @onready var portrait_one: Button = $CanvasLayer/PortraitBar/PortraitRow/PartyPortrait1
 @onready var portrait_two: Button = $CanvasLayer/PortraitBar/PortraitRow/PartyPortrait2
 @onready var progress_layer: Control = $CanvasLayer/ProgressLayer
-@onready var inventory_window_layer: Control = $CanvasLayer/InventoryWindowLayer
-@onready var floating_notice = $CanvasLayer/FloatingNotice
+@onready var inventory_controller = $PartyInventoryController
 
 
 func _ready() -> void:
@@ -113,10 +110,6 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_I:
-		_open_selected_inventory()
-		return
-
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
 			camera_distance = max(camera_min_distance, camera_distance - camera_zoom_step)
@@ -404,96 +397,11 @@ func _on_portrait_gui_input(event: InputEvent, member: PartyMember) -> void:
 func _on_context_menu_id_pressed(action_id: int) -> void:
 	match action_id:
 		ACTION_INVENTORY:
-			_open_inventory(context_member)
+			inventory_controller.open_inventory_for_member(context_member)
 		ACTION_MINE:
 			if context_resource != null:
 				for member in party_manager.selected_members:
 					member.assign_mining_resource(context_resource)
-
-
-func _open_inventory(member: PartyMember) -> void:
-	if member == null:
-		return
-	var key := member.get_instance_id()
-	if open_inventory_windows.has(key):
-		var existing = open_inventory_windows[key]
-		existing.visible = true
-		existing.grab_click_focus()
-		return
-
-	var window = INVENTORY_WINDOW_SCENE.instantiate()
-	open_inventory_windows[key] = window
-	inventory_window_layer.add_child(window)
-	window.position = Vector2(36 + open_inventory_windows.size() * 24, 160 + open_inventory_windows.size() * 18)
-	window.setup(member)
-	window.close_requested.connect(_on_inventory_window_close_requested)
-	window.notice_requested.connect(_show_floating_notice)
-	window.transfer_requested.connect(_on_inventory_transfer_requested)
-	window.quick_transfer_requested.connect(_on_inventory_quick_transfer_requested)
-
-
-func _on_inventory_window_close_requested(member: PartyMember) -> void:
-	if member == null:
-		return
-	var key := member.get_instance_id()
-	if not open_inventory_windows.has(key):
-		return
-	var window = open_inventory_windows[key]
-	open_inventory_windows.erase(key)
-	window.queue_free()
-
-
-func _on_inventory_transfer_requested(source_member: PartyMember, target_member: PartyMember, entry, target_cell: Vector2i) -> void:
-	if source_member == null or target_member == null or entry == null:
-		return
-	if source_member == target_member:
-		source_member.inventory.move_entry(entry, target_cell)
-		return
-	var target_window = open_inventory_windows.get(target_member.get_instance_id())
-	if source_member.global_position.distance_to(target_member.global_position) > 5.0:
-		_show_floating_notice("Too far away")
-		return
-
-	if source_member.inventory.move_entry_to_inventory(entry, target_member.inventory, target_cell):
-		if target_window != null:
-			target_window.clear_warning()
-
-
-func _on_inventory_quick_transfer_requested(source_member: PartyMember, entry) -> void:
-	if source_member == null or entry == null:
-		return
-	var target_window = _first_other_inventory_window(source_member)
-	if target_window == null:
-		return
-	var target_member: PartyMember = target_window.member
-	if target_member == null:
-		return
-	if source_member.global_position.distance_to(target_member.global_position) > 5.0:
-		_show_floating_notice("Too far away")
-		return
-	var target_cell: Vector2i = target_member.inventory.find_first_space(entry.definition)
-	if target_cell == Vector2i(-1, -1):
-		return
-	source_member.inventory.move_entry_to_inventory(entry, target_member.inventory, target_cell)
-
-
-func _first_other_inventory_window(source_member: PartyMember):
-	for key in open_inventory_windows.keys():
-		var window = open_inventory_windows[key]
-		if window.member != source_member:
-			return window
-	return null
-
-
-func _show_floating_notice(message: String) -> void:
-	if floating_notice != null and floating_notice.has_method("show_message"):
-		floating_notice.show_message(message)
-
-
-func _open_selected_inventory() -> void:
-	if party_manager.selected_members.is_empty():
-		return
-	_open_inventory(party_manager.selected_members[0])
 
 
 func _configure_portrait_button(button: Button) -> void:
