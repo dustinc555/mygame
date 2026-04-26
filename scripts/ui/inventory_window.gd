@@ -2,14 +2,14 @@ extends PanelContainer
 
 class_name InventoryWindow
 
-signal close_requested(member)
-signal transfer_requested(source_member, target_member, entry, target_cell)
-signal quick_transfer_requested(member, entry)
+signal close_requested(inventory_owner)
+signal transfer_requested(source_owner, target_owner, entry, target_cell)
+signal quick_transfer_requested(inventory_owner, entry)
 signal notice_requested(message)
 
 @export var transfer_distance := 5.0
 
-var member: PartyMember
+var inventory_owner
 var _dragging := false
 var _drag_offset := Vector2.ZERO
 
@@ -33,19 +33,29 @@ func _ready() -> void:
 	inventory_grid.invalid_drop_attempted.connect(_on_invalid_drop_attempted)
 
 
-func setup(target_member: PartyMember) -> void:
-	member = target_member
-	member.inventory_changed.connect(refresh)
+func setup(target_owner) -> void:
+	inventory_owner = target_owner
+	if inventory_owner.has_signal("inventory_changed"):
+		inventory_owner.inventory_changed.connect(refresh)
 	refresh()
 
 
 func refresh() -> void:
-	if member == null:
+	if inventory_owner == null:
 		return
-	title_label.text = "%s Inventory" % member.member_name
-	weight_label.text = "Weight: %.1f / %.1f" % [member.inventory.get_total_weight(), member.inventory.max_weight]
-	inventory_grid.set_inventory_data(member.inventory)
-	inventory_grid.set_meta("source_member", member)
+	title_label.text = "%s Inventory" % _get_owner_display_name()
+	var inventory = _get_owner_inventory()
+	if _owner_shows_weight():
+		weight_label.visible = true
+		weight_label.text = "Weight: %.1f / %.1f" % [inventory.get_total_weight(), inventory.max_weight]
+	else:
+		weight_label.visible = false
+	if inventory_owner.has_method("get_inventory_cell_size"):
+		inventory_grid.cell_size = inventory_owner.get_inventory_cell_size()
+	else:
+		inventory_grid.cell_size = Vector2(30.0, 30.0)
+	inventory_grid.set_inventory_data(inventory)
+	inventory_grid.set_meta("source_owner", inventory_owner)
 
 
 func show_warning(message: String) -> void:
@@ -64,21 +74,22 @@ func _can_accept_drop(data, target_cell: Vector2i) -> bool:
 
 
 func _get_drop_error(data, target_cell: Vector2i) -> String:
-	if member == null or typeof(data) != TYPE_DICTIONARY:
+	if inventory_owner == null or typeof(data) != TYPE_DICTIONARY:
 		return ""
-	if not data.has("entry") or not data.has("source_member"):
+	if not data.has("entry") or not data.has("source_owner"):
 		return ""
-	var source_member = data["source_member"]
+	var source_owner = data["source_owner"]
 	var entry = data["entry"]
-	if source_member == member:
-		if member.inventory.can_place_item(entry.definition, target_cell, entry):
+	var inventory = _get_owner_inventory()
+	if source_owner == inventory_owner:
+		if inventory.can_place_item(entry.definition, target_cell, entry):
 			return ""
 		return "No room"
-	if source_member.global_position.distance_to(member.global_position) > transfer_distance:
+	if _owners_too_far(source_owner, inventory_owner):
 		return "Too far away"
-	if member.inventory.get_total_weight() + entry.definition.unit_weight * entry.count > member.inventory.max_weight:
+	if inventory.use_weight and inventory.get_total_weight() + entry.definition.unit_weight * entry.count > inventory.max_weight:
 		return "Too heavy"
-	if not member.inventory.can_place_item(entry.definition, target_cell):
+	if not inventory.can_place_item(entry.definition, target_cell):
 		return "No room"
 	return ""
 
@@ -86,25 +97,25 @@ func _get_drop_error(data, target_cell: Vector2i) -> String:
 func _handle_drop(data, target_cell: Vector2i) -> void:
 	if not _can_accept_drop(data, target_cell):
 		return
-	transfer_requested.emit(data["source_member"], member, data["entry"], target_cell)
+	transfer_requested.emit(data["source_owner"], inventory_owner, data["entry"], target_cell)
 
 
 func _on_close_pressed() -> void:
-	close_requested.emit(member)
+	close_requested.emit(inventory_owner)
 
 
 func _on_auto_sort_pressed() -> void:
-	if member == null:
+	if inventory_owner == null:
 		return
 	clear_warning()
-	if not member.inventory.auto_sort():
+	if not _get_owner_inventory().auto_sort():
 		show_warning("Sort failed")
 
 
 func _on_inventory_item_right_clicked(entry) -> void:
-	if member == null or entry == null:
+	if inventory_owner == null or entry == null:
 		return
-	quick_transfer_requested.emit(member, entry)
+	quick_transfer_requested.emit(inventory_owner, entry)
 
 
 func _on_invalid_drop_attempted(message: String) -> void:
@@ -113,8 +124,11 @@ func _on_invalid_drop_attempted(message: String) -> void:
 
 
 func _on_title_bar_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_dragging = event.pressed
+	if event is InputEventMouseButton:
+		var mouse_button := event as InputEventMouseButton
+		if mouse_button.button_index != MOUSE_BUTTON_LEFT:
+			return
+		_dragging = mouse_button.pressed
 		if _dragging:
 			_drag_offset = get_global_mouse_position() - position
 		accept_event()
@@ -123,3 +137,27 @@ func _on_title_bar_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and _dragging:
 		position = get_global_mouse_position() - _drag_offset
 		accept_event()
+
+
+func _get_owner_display_name() -> String:
+	if inventory_owner != null and inventory_owner.has_method("get_inventory_display_name"):
+		return inventory_owner.get_inventory_display_name()
+	return inventory_owner.name
+
+
+func _get_owner_inventory():
+	return inventory_owner.inventory
+
+
+func _owners_too_far(source_owner, target_owner) -> bool:
+	if source_owner == null or target_owner == null:
+		return false
+	if source_owner.has_method("get_inventory_world_position") and target_owner.has_method("get_inventory_world_position"):
+		return source_owner.get_inventory_world_position().distance_to(target_owner.get_inventory_world_position()) > transfer_distance
+	return false
+
+
+func _owner_shows_weight() -> bool:
+	if inventory_owner != null and inventory_owner.has_method("shows_inventory_weight"):
+		return inventory_owner.shows_inventory_weight()
+	return true

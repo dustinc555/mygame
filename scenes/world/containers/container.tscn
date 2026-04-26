@@ -1,0 +1,15 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/containers/world_container.gd" id="1_container"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_default"]
+size = Vector3(1, 1, 1)
+
+[node name="Container" type="StaticBody3D"]
+script = ExtResource("1_container")
+collision_shape = SubResource("BoxShape3D_default")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_default")
+
+[node name="ModelRoot" type="Node3D" parent="."]

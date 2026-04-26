@@ -22,6 +22,7 @@ var _has_move_target := false
 var _current_mining_node
 var _mining_progress_by_node: Dictionary = {}
 var _mining_active := false
+var _current_container_target
 
 @onready var body_mesh: MeshInstance3D = $BodyMesh
 @onready var selection_ring: MeshInstance3D = $SelectionRing
@@ -32,6 +33,7 @@ var _nameplate: Label3D
 
 signal inventory_changed
 signal mining_changed
+signal container_reached(member, container)
 
 
 func _ready() -> void:
@@ -69,6 +71,7 @@ func _physics_process(delta: float) -> void:
 	velocity.z = horizontal_velocity.z
 	move_and_slide()
 	_process_mining(delta)
+	_process_container_interaction()
 
 
 func set_selected(value: bool) -> void:
@@ -83,6 +86,7 @@ func set_focused(value: bool) -> void:
 
 func set_move_target(target: Vector3) -> void:
 	_mining_active = false
+	stop_container_interaction()
 	mining_changed.emit()
 	_move_target = target
 	_has_move_target = true
@@ -94,6 +98,25 @@ func stop_mining_assignment() -> void:
 	_current_mining_node = null
 	_mining_active = false
 	mining_changed.emit()
+
+
+func stop_container_interaction() -> void:
+	if _current_container_target != null and _current_container_target.has_method("release_interactor"):
+		_current_container_target.release_interactor(self)
+	_current_container_target = null
+
+
+func assign_open_container(container) -> void:
+	if container == null:
+		return
+	if _current_container_target != null and _current_container_target != container and _current_container_target.has_method("release_interactor"):
+		_current_container_target.release_interactor(self)
+	_current_container_target = container
+	if _current_container_target.has_method("register_interactor"):
+		_current_container_target.register_interactor(self)
+	var target: Vector3 = _current_container_target.get_interaction_position(self)
+	_move_target = target
+	_has_move_target = true
 
 
 func assign_mining_resource(resource_node) -> void:
@@ -154,6 +177,22 @@ func _process_mining(delta: float) -> void:
 	mining_changed.emit()
 
 
+func _process_container_interaction() -> void:
+	if _current_container_target == null:
+		return
+	var interaction_position: Vector3 = _current_container_target.get_interaction_position(self)
+	if global_position.distance_to(interaction_position) > interact_distance:
+		if not _has_move_target:
+			_move_target = interaction_position
+			_has_move_target = true
+		return
+	if _has_move_target:
+		return
+	var container = _current_container_target
+	_current_container_target = null
+	container_reached.emit(self, container)
+
+
 func _get_stored_mining_progress(resource_node) -> float:
 	return _mining_progress_by_node.get(resource_node.get_instance_id(), 0.0)
 
@@ -164,6 +203,22 @@ func _store_mining_progress(resource_node, progress: float) -> void:
 
 func _on_inventory_data_changed() -> void:
 	inventory_changed.emit()
+
+
+func get_inventory_display_name() -> String:
+	return member_name
+
+
+func get_inventory_world_position() -> Vector3:
+	return global_position
+
+
+func get_inventory_cell_size() -> Vector2:
+	return Vector2(30.0, 30.0)
+
+
+func shows_inventory_weight() -> bool:
+	return true
 
 
 func _setup_nameplate() -> void:

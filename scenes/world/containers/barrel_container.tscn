@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3 uid="uid://cxk5vgdnfkroq"]
+
+[ext_resource type="PackedScene" path="res://scenes/world/containers/container.tscn" id="1_container"]
+[ext_resource type="PackedScene" path="res://assets/models/props/containers/medieval_barrel_model.tscn" id="2_barrel"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_barrel"]
+height = 1.15
+radius = 0.55
+
+[node name="BarrelContainer" instance=ExtResource("1_container")]
+display_name = "Barrel"
+interaction_distance = 2.2
+slot_distance = 2.0
+cell_size = Vector2(26, 26)
+visual_scene = ExtResource("2_barrel")
+visual_transform = Transform3D(0.65, 0, 0, 0, 0.65, 0, 0, 0, 0.65, 0, 0, 0)
+collision_shape = SubResource("CylinderShape3D_barrel")
+collision_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, 0)

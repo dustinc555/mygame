@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/world_text_notice.gd" id="1_notice"]
+
+[node name="WorldTextNotice" type="Node3D"]
+script = ExtResource("1_notice")
+
+[node name="Label3D" type="Label3D" parent="."]
+billboard = 1
+font_size = 42
+modulate = Color(1, 0.28, 0.28, 1)
+outline_size = 0
+text = "Locked"

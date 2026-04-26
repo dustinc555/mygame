@@ -19,13 +19,15 @@ class InventoryEntry:
 var columns := 10
 var rows := 6
 var max_weight := 60.0
+var use_weight := true
 var entries: Array[InventoryEntry] = []
 
 
-func _init(inventory_columns: int = 10, inventory_rows: int = 6, inventory_max_weight: float = 60.0) -> void:
+func _init(inventory_columns: int = 10, inventory_rows: int = 6, inventory_max_weight: float = 60.0, inventory_use_weight: bool = true) -> void:
 	columns = inventory_columns
 	rows = inventory_rows
 	max_weight = inventory_max_weight
+	use_weight = inventory_use_weight
 
 
 func get_total_weight() -> float:
@@ -38,7 +40,7 @@ func get_total_weight() -> float:
 func can_add_item(definition) -> bool:
 	if definition == null:
 		return false
-	if get_total_weight() + definition.unit_weight > max_weight:
+	if use_weight and get_total_weight() + definition.unit_weight > max_weight:
 		return false
 	return find_first_space(definition) != Vector2i(-1, -1)
 
@@ -70,7 +72,7 @@ func move_entry_to_inventory(entry, target_inventory, target_position: Vector2i)
 		return false
 	if target_inventory == self:
 		return move_entry(entry, target_position)
-	if target_inventory.get_total_weight() + entry.definition.unit_weight * entry.count > target_inventory.max_weight:
+	if target_inventory.use_weight and target_inventory.get_total_weight() + entry.definition.unit_weight * entry.count > target_inventory.max_weight:
 		return false
 	if not target_inventory.can_place_item(entry.definition, target_position):
 		return false

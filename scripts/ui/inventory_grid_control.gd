@@ -83,7 +83,7 @@ func _get_drag_data(at_position: Vector2):
 	return {
 		"entry": entry,
 		"source_inventory": inventory_data,
-		"source_member": get_meta("source_member", null),
+		"source_owner": get_meta("source_owner", null),
 	}
 
 

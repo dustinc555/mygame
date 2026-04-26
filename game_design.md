@@ -36,10 +36,21 @@
 - Equipped items count toward carry weight.
 - Items use both carry weight and inventory space.
 - Backpack items still take inventory space, but apply reduced carry weight by a configurable factor.
-- Only one character inventory window is open at a time.
+- Multiple inventory windows can be open at once.
 - Right-clicking a character and choosing `Inventory` opens that character's inventory.
 - If a backpack is equipped, an `Open Backpack` button opens its inventory.
 - Items can be dragged between nearby inventories to transfer.
+- Containers have configurable inventory shapes by type.
+- Opening a container also opens the acting character's inventory unless it is already open.
+
+## Containers
+- Containers can be opened by any party member or NPC.
+- Containers default to unlocked, but can be locked.
+- Right-clicking an unlocked container shows `Open`.
+- Right-clicking a locked container shows `Unlock`.
+- If multiple selected party members are ordered to open a container, the first to reach it interacts.
+- Locked containers show `Locked` when an open attempt fails.
+- Lockpicking is stubbed for now.
 
 ## Health And Recovery
 - Characters have HP and blood.
