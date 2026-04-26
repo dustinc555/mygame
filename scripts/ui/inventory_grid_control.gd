@@ -11,6 +11,8 @@ signal item_clicked(entry)
 var inventory_data
 var drop_validator: Callable
 var drop_handler: Callable
+var _preview_visible := false
+var _preview_rect := Rect2()
 
 
 func set_inventory_data(data) -> void:
@@ -47,6 +49,10 @@ func _draw() -> void:
 			var draw_position: Vector2 = content_rect.position + (content_rect.size - draw_size) * 0.5
 			draw_texture_rect(entry.definition.icon, Rect2(draw_position, draw_size), false)
 
+	if _preview_visible:
+		draw_rect(_preview_rect, Color(1.0, 0.85, 0.35, 0.22), true)
+		draw_rect(_preview_rect, Color(1.0, 0.88, 0.45, 1.0), false, 2.0)
+
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
@@ -75,14 +81,29 @@ func _get_drag_data(at_position: Vector2):
 
 func _can_drop_data(at_position: Vector2, data) -> bool:
 	if drop_validator.is_null():
+		_clear_preview()
 		return false
-	return drop_validator.call(data, _position_to_cell(at_position))
+	var target_cell := _position_to_cell(at_position)
+	var is_valid: bool = drop_validator.call(data, target_cell)
+	if is_valid and typeof(data) == TYPE_DICTIONARY and data.has("entry"):
+		_preview_visible = true
+		_preview_rect = _item_rect_from_data(data["entry"], target_cell)
+		queue_redraw()
+	else:
+		_clear_preview()
+	return is_valid
 
 
 func _drop_data(at_position: Vector2, data) -> void:
+	_clear_preview()
 	if drop_handler.is_null():
 		return
 	drop_handler.call(data, _position_to_cell(at_position))
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_DRAG_END:
+		_clear_preview()
 
 
 func _grid_pixel_size() -> Vector2:
@@ -118,3 +139,19 @@ func _entry_at_local_position(local_position: Vector2):
 	if inventory_data == null:
 		return null
 	return inventory_data.get_entry_at_cell(_position_to_cell(local_position))
+
+
+func _item_rect_from_data(entry, grid_position: Vector2i) -> Rect2:
+	var item_position := Vector2(grid_position.x, grid_position.y) * (cell_size + Vector2.ONE * cell_gap)
+	var grid_cells := Vector2(entry.definition.grid_size.x, entry.definition.grid_size.y)
+	var item_size := grid_cells * cell_size
+	item_size += Vector2.ONE * cell_gap * Vector2(maxi(entry.definition.grid_size.x - 1, 0), maxi(entry.definition.grid_size.y - 1, 0))
+	return Rect2(item_position, item_size)
+
+
+func _clear_preview() -> void:
+	if not _preview_visible:
+		return
+	_preview_visible = false
+	_preview_rect = Rect2()
+	queue_redraw()

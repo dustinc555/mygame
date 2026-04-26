@@ -111,6 +111,10 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_I:
+		_open_selected_inventory()
+		return
+
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
 			camera_distance = max(camera_min_distance, camera_distance - camera_zoom_step)
@@ -438,6 +442,9 @@ func _on_inventory_window_close_requested(member: PartyMember) -> void:
 func _on_inventory_transfer_requested(source_member: PartyMember, target_member: PartyMember, entry, target_cell: Vector2i) -> void:
 	if source_member == null or target_member == null or entry == null:
 		return
+	if source_member == target_member:
+		source_member.inventory.move_entry(entry, target_cell)
+		return
 	var target_window = open_inventory_windows.get(target_member.get_instance_id())
 	if source_member.global_position.distance_to(target_member.global_position) > 5.0:
 		if target_window != null:
@@ -447,6 +454,12 @@ func _on_inventory_transfer_requested(source_member: PartyMember, target_member:
 	if source_member.inventory.move_entry_to_inventory(entry, target_member.inventory, target_cell):
 		if target_window != null:
 			target_window.clear_warning()
+
+
+func _open_selected_inventory() -> void:
+	if party_manager.selected_members.is_empty():
+		return
+	_open_inventory(party_manager.selected_members[0])
 
 
 func _configure_portrait_button(button: Button) -> void:
