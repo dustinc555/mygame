@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://dx3m6v8xbo456"]
+[gd_scene load_steps=12 format=3 uid="uid://dx3m6v8xbo456"]
 
 [ext_resource type="Script" uid="uid://dwsdsu6x11kbe" path="res://scripts/test_scenes/mining_test.gd" id="1_test"]
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="2_party"]
@@ -8,6 +8,10 @@
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(70, 1, 70)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.43, 0.34, 0.24, 1)
+roughness = 0.96
 
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(70, 1, 70)
@@ -40,6 +44,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 shape = SubResource("BoxShape3D_floor")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+material_override = SubResource("StandardMaterial3D_floor")
 mesh = SubResource("BoxMesh_floor")
 
 [node name="PartyMembers" type="Node3D" parent="."]
@@ -134,6 +139,9 @@ mouse_filter = 2
 [node name="FloatingNotice" parent="CanvasLayer" instance=ExtResource("5_notice")]
 layout_mode = 3
 anchors_preset = 5
+offset_top = 0.0
+offset_bottom = 36.0
+grow_vertical = 1
 
 [node name="PortraitBar" type="PanelContainer" parent="CanvasLayer"]
 offset_left = 340.0

@@ -4,6 +4,7 @@ class_name InventoryGridControl
 
 signal item_clicked(entry)
 signal item_right_clicked(entry)
+signal invalid_drop_attempted(message)
 
 @export var cell_size := Vector2(30.0, 30.0)
 @export var cell_gap := 2.0
@@ -12,8 +13,10 @@ signal item_right_clicked(entry)
 var inventory_data
 var drop_validator: Callable
 var drop_handler: Callable
+var drop_error_provider: Callable
 var _preview_visible := false
 var _preview_rect := Rect2()
+var _last_invalid_drop_message := ""
 
 
 func set_inventory_data(data) -> void:
@@ -87,14 +90,20 @@ func _get_drag_data(at_position: Vector2):
 func _can_drop_data(at_position: Vector2, data) -> bool:
 	if drop_validator.is_null():
 		_clear_preview()
+		_last_invalid_drop_message = ""
 		return false
 	var target_cell := _position_to_cell(at_position)
 	var is_valid: bool = drop_validator.call(data, target_cell)
 	if is_valid and typeof(data) == TYPE_DICTIONARY and data.has("entry"):
 		_preview_visible = true
 		_preview_rect = _item_rect_from_data(data["entry"], target_cell)
+		_last_invalid_drop_message = ""
 		queue_redraw()
 	else:
+		if not drop_error_provider.is_null():
+			_last_invalid_drop_message = str(drop_error_provider.call(data, target_cell))
+		else:
+			_last_invalid_drop_message = ""
 		_clear_preview()
 	return is_valid
 
@@ -108,6 +117,11 @@ func _drop_data(at_position: Vector2, data) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END:
+		if not _preview_visible and _last_invalid_drop_message != "":
+			var local_mouse := get_local_mouse_position()
+			if Rect2(Vector2.ZERO, size).has_point(local_mouse):
+				invalid_drop_attempted.emit(_last_invalid_drop_message)
+		_last_invalid_drop_message = ""
 		_clear_preview()
 
 

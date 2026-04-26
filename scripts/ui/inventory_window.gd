@@ -28,7 +28,9 @@ func _ready() -> void:
 	title_bar.gui_input.connect(_on_title_bar_gui_input)
 	inventory_grid.drop_validator = Callable(self, "_can_accept_drop")
 	inventory_grid.drop_handler = Callable(self, "_handle_drop")
+	inventory_grid.drop_error_provider = Callable(self, "_get_drop_error")
 	inventory_grid.item_right_clicked.connect(_on_inventory_item_right_clicked)
+	inventory_grid.invalid_drop_attempted.connect(_on_invalid_drop_attempted)
 
 
 func setup(target_member: PartyMember) -> void:
@@ -58,25 +60,27 @@ func clear_warning() -> void:
 
 func _can_accept_drop(data, target_cell: Vector2i) -> bool:
 	clear_warning()
+	return _get_drop_error(data, target_cell) == ""
+
+
+func _get_drop_error(data, target_cell: Vector2i) -> String:
 	if member == null or typeof(data) != TYPE_DICTIONARY:
-		return false
+		return ""
 	if not data.has("entry") or not data.has("source_member"):
-		return false
+		return ""
 	var source_member = data["source_member"]
 	var entry = data["entry"]
 	if source_member == member:
 		if member.inventory.can_place_item(entry.definition, target_cell, entry):
-			return true
-		return false
+			return ""
+		return "No room"
 	if source_member.global_position.distance_to(member.global_position) > transfer_distance:
-		notice_requested.emit("Too far away")
-		return false
+		return "Too far away"
 	if member.inventory.get_total_weight() + entry.definition.unit_weight * entry.count > member.inventory.max_weight:
-		show_warning("Too heavy")
-		return false
+		return "Too heavy"
 	if not member.inventory.can_place_item(entry.definition, target_cell):
-		return false
-	return true
+		return "No room"
+	return ""
 
 
 func _handle_drop(data, target_cell: Vector2i) -> void:
@@ -101,6 +105,11 @@ func _on_inventory_item_right_clicked(entry) -> void:
 	if member == null or entry == null:
 		return
 	quick_transfer_requested.emit(member, entry)
+
+
+func _on_invalid_drop_attempted(message: String) -> void:
+	if message == "Too far away":
+		notice_requested.emit(message)
 
 
 func _on_title_bar_gui_input(event: InputEvent) -> void:

@@ -12,6 +12,7 @@ class_name PartyMember
 @export var inventory_columns := 10
 @export var inventory_rows := 6
 @export var max_carry_weight := 60.0
+@export var show_nameplate := true
 
 var is_selected := false
 var is_focused := false
@@ -27,6 +28,7 @@ var _mining_active := false
 
 var _body_material := StandardMaterial3D.new()
 var _ring_material := StandardMaterial3D.new()
+var _nameplate: Label3D
 
 signal inventory_changed
 signal mining_changed
@@ -44,6 +46,7 @@ func _ready() -> void:
 	_ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	selection_ring.material_override = _ring_material
+	_setup_nameplate()
 	_update_visuals()
 
 
@@ -161,6 +164,24 @@ func _store_mining_progress(resource_node, progress: float) -> void:
 
 func _on_inventory_data_changed() -> void:
 	inventory_changed.emit()
+
+
+func _setup_nameplate() -> void:
+	if not show_nameplate:
+		return
+	_nameplate = get_node_or_null("Nameplate")
+	if _nameplate == null:
+		_nameplate = Label3D.new()
+		_nameplate.name = "Nameplate"
+		add_child(_nameplate)
+	_nameplate.text = member_name
+	_nameplate.position = Vector3(0.0, 2.15, 0.0)
+	_nameplate.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_nameplate.no_depth_test = false
+	_nameplate.font_size = 50
+	_nameplate.modulate = Color(0.56, 0.56, 0.6, 0.96)
+	_nameplate.outline_size = 0
+	_nameplate.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
 func _update_visuals() -> void:
