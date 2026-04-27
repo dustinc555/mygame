@@ -73,6 +73,8 @@ func open_inventory_for_owner(inventory_owner) -> void:
 	inventory_window_layer.add_child(window)
 	window.position = Vector2(36 + open_inventory_windows.size() * 24, 160 + open_inventory_windows.size() * 18)
 	window.setup(inventory_owner)
+	if window.has_method("clamp_to_viewport"):
+		window.clamp_to_viewport()
 	window.close_requested.connect(_on_inventory_window_close_requested)
 	window.notice_requested.connect(_show_floating_notice)
 	window.transfer_requested.connect(_on_inventory_transfer_requested)

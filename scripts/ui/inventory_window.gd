@@ -43,6 +43,7 @@ func setup(target_owner) -> void:
 	if inventory_owner.has_signal("inventory_changed"):
 		inventory_owner.inventory_changed.connect(refresh)
 	refresh()
+	call_deferred("clamp_to_viewport")
 
 
 func refresh() -> void:
@@ -153,7 +154,7 @@ func _on_title_bar_gui_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventMouseMotion and _dragging:
-		position = get_global_mouse_position() - _drag_offset
+		position = _clamp_position_to_viewport(get_global_mouse_position() - _drag_offset)
 		accept_event()
 
 
@@ -188,3 +189,14 @@ func _on_item_menu_id_pressed(action_id: int) -> void:
 		1:
 			item_action_requested.emit(inventory_owner, _context_entry, "eat")
 	_context_entry = null
+
+
+func clamp_to_viewport() -> void:
+	position = _clamp_position_to_viewport(position)
+
+
+func _clamp_position_to_viewport(target_position: Vector2) -> Vector2:
+	var viewport_rect := get_viewport_rect()
+	var max_x := maxf(0.0, viewport_rect.size.x - size.x)
+	var max_y := maxf(0.0, viewport_rect.size.y - size.y)
+	return Vector2(clampf(target_position.x, 0.0, max_x), clampf(target_position.y, 0.0, max_y))
