@@ -212,25 +212,15 @@ grow_vertical = 1
 [node name="HumanoidDetailsPanel" parent="CanvasLayer" instance=ExtResource("14_details")]
 
 [node name="PortraitBar" type="PanelContainer" parent="CanvasLayer"]
-offset_left = 340.0
-offset_top = 626.0
-offset_right = 940.0
-offset_bottom = 704.0
+offset_left = 330.0
+offset_top = 510.0
+offset_right = 1090.0
+offset_bottom = 694.0
 
 [node name="PortraitRow" type="HBoxContainer" parent="CanvasLayer/PortraitBar"]
 layout_mode = 2
 theme_override_constants/separation = 12
 alignment = 1
-
-[node name="PartyPortrait1" type="Button" parent="CanvasLayer/PortraitBar/PortraitRow"]
-custom_minimum_size = Vector2(180, 56)
-layout_mode = 2
-text = "Mira"
-
-[node name="PartyPortrait2" type="Button" parent="CanvasLayer/PortraitBar/PortraitRow"]
-custom_minimum_size = Vector2(180, 56)
-layout_mode = 2
-text = "Tomas"
 
 [node name="BarrelContainer" parent="." instance=ExtResource("6_barrel")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.41255, 0, 11.5216)

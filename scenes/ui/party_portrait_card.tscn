@@ -1,0 +1,61 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/party_portrait_card.gd" id="1_card"]
+
+[sub_resource type="Environment" id="Environment_portrait"]
+background_mode = 1
+background_color = Color(0.35, 0.35, 0.38, 1)
+
+[node name="PartyPortraitCard" type="Button"]
+custom_minimum_size = Vector2(200, 136)
+script = ExtResource("1_card")
+text = ""
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 0.0
+offset_bottom = 0.0
+mouse_filter = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBox" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PortraitViewportContainer" type="SubViewportContainer" parent="Margin/VBox"]
+custom_minimum_size = Vector2(176, 92)
+layout_mode = 2
+mouse_filter = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="Margin/VBox/PortraitViewportContainer"]
+transparent_bg = false
+handle_input_locally = false
+own_world_3d = true
+size = Vector2i(256, 128)
+render_target_update_mode = 1
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="Margin/VBox/PortraitViewportContainer/SubViewport"]
+environment = SubResource("Environment_portrait")
+
+[node name="Camera3D" type="Camera3D" parent="Margin/VBox/PortraitViewportContainer/SubViewport"]
+transform = Transform3D(0.996195, 0, -0.0871557, -0.020257, 0.972744, -0.231177, 0.0847791, 0.23206, 0.968657, 0, 1.2, 2.5)
+current = true
+
+[node name="Light" type="DirectionalLight3D" parent="Margin/VBox/PortraitViewportContainer/SubViewport"]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 2, 0)
+
+[node name="PortraitRoot" type="Node3D" parent="Margin/VBox/PortraitViewportContainer/SubViewport"]
+
+[node name="Name" type="Label" parent="Margin/VBox"]
+layout_mode = 2
+horizontal_alignment = 1
+text = "Name"

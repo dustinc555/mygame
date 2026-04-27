@@ -4,6 +4,7 @@ class_name WorldInteractionController
 
 const MOVE_COMMAND_INDICATOR_SCENE = preload("res://scenes/world/move_command_indicator.tscn")
 const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/world_text_notice.tscn")
+const PARTY_PORTRAIT_CARD_SCENE = preload("res://scenes/ui/party_portrait_card.tscn")
 
 const ACTION_INVENTORY := 1
 const ACTION_MINE := 2
@@ -26,7 +27,7 @@ const GROUND_Y := 0.0
 @export var drag_select_threshold := 12.0
 
 var party_members: Array[PartyMember] = []
-var portrait_buttons: Array[Button] = []
+var portrait_cards: Array[PartyPortraitCard] = []
 var mining_progress_bars: Dictionary = {}
 var camera_anchor := Vector3.ZERO
 var camera_yaw := deg_to_rad(45.0)
@@ -98,14 +99,14 @@ func _do_initialize() -> void:
 
 	if portrait_row != null:
 		for child in portrait_row.get_children():
-			if child is Button:
-				portrait_buttons.append(child)
-		for index in range(min(party_members.size(), portrait_buttons.size())):
-			var member: PartyMember = party_members[index]
-			var button: Button = portrait_buttons[index]
-			_configure_portrait_button(button)
-			button.text = member.member_name
-			button.gui_input.connect(_on_portrait_gui_input.bind(member))
+			child.queue_free()
+		portrait_cards.clear()
+		for member in party_members:
+			var card := PARTY_PORTRAIT_CARD_SCENE.instantiate() as PartyPortraitCard
+			portrait_row.add_child(card)
+			card.setup(member)
+			card.portrait_pressed.connect(_on_portrait_pressed)
+			portrait_cards.append(card)
 
 	if progress_layer != null:
 		for member in party_members:
@@ -394,21 +395,12 @@ func _clear_follow_target() -> void:
 
 
 func _update_portraits() -> void:
-	for index in range(min(party_members.size(), portrait_buttons.size())):
+	for index in range(min(party_members.size(), portrait_cards.size())):
 		var member: PartyMember = party_members[index]
-		var button: Button = portrait_buttons[index]
+		var card: PartyPortraitCard = portrait_cards[index]
 		var is_selected: bool = member.is_selected
 		var is_followed: bool = member.is_focused
-		var label: String = member.member_name
-		if is_followed:
-			label = "[Follow] %s" % label
-		elif is_selected:
-			label = "[Selected] %s" % label
-		button.text = label
-		if is_selected or is_followed:
-			_set_button_style(button, Color(0.26, 0.22, 0.12, 0.98), Color(1.0, 0.88, 0.45, 1.0), 3)
-		else:
-			_set_button_style(button, Color(0.16, 0.16, 0.18, 0.96), Color(0.34, 0.34, 0.38, 1.0), 1)
+		card.apply_state(is_selected, is_followed)
 
 
 func _update_progress_bars() -> void:
@@ -459,14 +451,15 @@ func _apply_camera_transform() -> void:
 	camera.position = Vector3(0.0, 0.0, camera_distance)
 
 
-func _on_portrait_gui_input(event: InputEvent, member: PartyMember) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		if Input.is_key_pressed(KEY_ALT):
-			party_manager.add_selection(member)
-		else:
-			party_manager.select_only(member)
-		if event.double_click:
-			_set_follow_target(member)
+func _on_portrait_pressed(member: PartyMember, double_click: bool, add_select: bool) -> void:
+	if add_select:
+		party_manager.add_selection(member)
+	else:
+		party_manager.select_only(member)
+	if humanoid_details_controller != null:
+		humanoid_details_controller.inspect_humanoid(member)
+	if double_click:
+		_set_follow_target(member)
 
 
 func _on_context_menu_id_pressed(action_id: int) -> void:
@@ -493,34 +486,6 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 					member.assign_trade_target(context_member)
 
 
-func _configure_portrait_button(button: Button) -> void:
-	button.focus_mode = Control.FOCUS_NONE
-	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	button.add_theme_color_override("font_color", Color(0.92, 0.92, 0.92, 1.0))
-	button.add_theme_color_override("font_hover_color", Color(0.92, 0.92, 0.92, 1.0))
-	button.add_theme_color_override("font_pressed_color", Color(0.92, 0.92, 0.92, 1.0))
-	button.add_theme_color_override("font_focus_color", Color(0.92, 0.92, 0.92, 1.0))
-	button.add_theme_color_override("font_disabled_color", Color(0.92, 0.92, 0.92, 1.0))
-	_set_button_style(button, Color(0.16, 0.16, 0.18, 0.96), Color(0.34, 0.34, 0.38, 1.0), 1)
-
-
-func _set_button_style(button: Button, background: Color, border: Color, border_width: int) -> void:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.border_color = border
-	style.set_border_width_all(border_width)
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
-	style.content_margin_left = 12
-	style.content_margin_right = 12
-	style.content_margin_top = 10
-	style.content_margin_bottom = 10
-	button.add_theme_stylebox_override("normal", style)
-	button.add_theme_stylebox_override("hover", style)
-	button.add_theme_stylebox_override("pressed", style)
-	button.add_theme_stylebox_override("focus", style)
 
 
 func _on_party_member_container_reached(member: PartyMember, container) -> void:

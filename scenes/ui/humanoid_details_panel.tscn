@@ -3,9 +3,9 @@
 [node name="HumanoidDetailsPanel" type="PanelContainer"]
 visible = false
 offset_left = 20.0
-offset_top = 500.0
-offset_right = 320.0
-offset_bottom = 700.0
+offset_top = 472.0
+offset_right = 300.0
+offset_bottom = 690.0
 
 [node name="Margin" type="MarginContainer" parent="."]
 theme_override_constants/margin_left = 14
