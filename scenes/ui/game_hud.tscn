@@ -97,7 +97,7 @@ mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 64)
+custom_minimum_size = Vector2(0, 124)
 mouse_filter = 2
 
 [node name="PortraitScroll" type="ScrollContainer" parent="HudLayout/BottomHud/RightHud/PortraitBar"]
@@ -105,7 +105,7 @@ layout_mode = 2
 vertical_scroll_mode = 1
 horizontal_scroll_mode = 0
 follow_focus = true
-mouse_filter = 2
+mouse_filter = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_scroll")
 
 [node name="PortraitFlow" type="HFlowContainer" parent="HudLayout/BottomHud/RightHud/PortraitBar/PortraitScroll"]
