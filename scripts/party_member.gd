@@ -50,3 +50,5 @@ func _update_visuals() -> void:
 		_ring_material.albedo_color = focused_color
 	elif is_selected:
 		_ring_material.albedo_color = selected_color
+	if _inspect_ring != null:
+		_inspect_ring.visible = is_inspected and not is_selected and not is_focused

@@ -8,4 +8,4 @@ display_name = "FOOD"
 grid_size = Vector2i(2, 1)
 unit_weight = 0.5
 max_stack = 1
-nutrition_value = 20.0
+nutrition_value = 25.0

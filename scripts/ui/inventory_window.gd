@@ -117,21 +117,22 @@ func _on_auto_sort_pressed() -> void:
 		show_warning("Sort failed")
 
 
-func _on_inventory_item_right_clicked(entry) -> void:
+func _on_inventory_item_right_clicked(entry, local_position: Vector2, shift_pressed: bool) -> void:
 	if inventory_owner == null or entry == null:
 		return
-	var can_eat: bool = inventory_owner.has_method("can_eat_item") and inventory_owner.can_eat_item(entry.definition)
-	var can_quick_transfer := true
-	if not can_eat:
+	if shift_pressed:
 		quick_transfer_requested.emit(inventory_owner, entry)
+		return
+	var can_eat: bool = inventory_owner.has_method("can_eat_item") and inventory_owner.can_eat_item(entry.definition)
+	if not can_eat:
 		return
 	_context_entry = entry
 	item_menu.clear()
 	if can_eat:
 		item_menu.add_item("Eat", 1)
-	if can_quick_transfer:
-		item_menu.add_item("Quick Transfer", 2)
-	item_menu.position = DisplayServer.mouse_get_position()
+	var item_rect := inventory_grid._item_rect(entry)
+	var popup_position := inventory_grid.get_global_position() + item_rect.position + Vector2(item_rect.size.x + 8.0, 0.0)
+	item_menu.position = Vector2i(popup_position)
 	item_menu.popup()
 
 
@@ -186,6 +187,4 @@ func _on_item_menu_id_pressed(action_id: int) -> void:
 	match action_id:
 		1:
 			item_action_requested.emit(inventory_owner, _context_entry, "eat")
-		2:
-			quick_transfer_requested.emit(inventory_owner, _context_entry)
 	_context_entry = null

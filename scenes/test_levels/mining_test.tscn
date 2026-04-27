@@ -1,4 +1,4 @@
-[gd_scene load_steps=25 format=3 uid="uid://dx3m6v8xbo456"]
+[gd_scene load_steps=26 format=3 uid="uid://dx3m6v8xbo456"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
 [ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_mgr"]
@@ -13,6 +13,7 @@
 [ext_resource type="Resource" path="res://resources/items/copper_ore.tres" id="11_copper_item"]
 [ext_resource type="Resource" path="res://resources/items/silver.tres" id="12_silver"]
 [ext_resource type="Resource" path="res://resources/items/food.tres" id="13_food"]
+[ext_resource type="PackedScene" path="res://scenes/ui/humanoid_details_panel.tscn" id="14_details"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(70, 1, 70)
@@ -89,6 +90,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.6, 4)
 script = ExtResource("1_party")
 base_color = Color(0.82, 0.43, 0.31, 1)
 member_name = "Mira"
+hunger_enabled = true
+hunger_drain_rate = 0.2
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Mira"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -107,6 +110,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.6, 5)
 script = ExtResource("1_party")
 base_color = Color(0.33, 0.55, 0.78, 1)
 member_name = "Tomas"
+hunger_enabled = true
+hunger_drain_rate = 0.2
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Tomas"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -203,6 +208,8 @@ anchors_preset = 5
 offset_top = 0.0
 offset_bottom = 36.0
 grow_vertical = 1
+
+[node name="HumanoidDetailsPanel" parent="CanvasLayer" instance=ExtResource("14_details")]
 
 [node name="PortraitBar" type="PanelContainer" parent="CanvasLayer"]
 offset_left = 340.0

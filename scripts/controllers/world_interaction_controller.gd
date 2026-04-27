@@ -51,6 +51,7 @@ var context_menu: PopupMenu
 var progress_layer: Control
 var portrait_row: HBoxContainer
 var inventory_controller: PartyInventoryController
+var humanoid_details_controller
 var _initialized := false
 
 
@@ -81,6 +82,7 @@ func _do_initialize() -> void:
 	progress_layer = root.get_node_or_null("CanvasLayer/ProgressLayer")
 	portrait_row = root.get_node_or_null("CanvasLayer/PortraitBar/PortraitRow")
 	inventory_controller = get_parent().get_node("PartyInventoryController")
+	humanoid_details_controller = get_parent().get_node("HumanoidDetailsController")
 	_initialized = true
 
 	for child in party_root.get_children():
@@ -92,6 +94,7 @@ func _do_initialize() -> void:
 	party_manager.set_party_members(party_members)
 	party_manager.selection_changed.connect(_update_portraits)
 	party_manager.follow_changed.connect(_update_portraits)
+	party_manager.selection_changed.connect(_sync_inspected_party_member)
 
 	if portrait_row != null:
 		for child in portrait_row.get_children():
@@ -121,6 +124,8 @@ func _do_initialize() -> void:
 
 	if not party_members.is_empty():
 		party_manager.select_only(party_members[0])
+		if humanoid_details_controller != null:
+			humanoid_details_controller.inspect_humanoid(party_members[0])
 
 	camera_anchor = _get_anchor_position()
 	_apply_camera_transform()
@@ -210,10 +215,17 @@ func _handle_left_mouse_release(screen_position: Vector2) -> void:
 
 
 func _handle_world_selection(screen_position: Vector2, should_follow: bool) -> void:
-	var member: PartyMember = _pick_party_member(screen_position)
-	if member == null:
+	var humanoid = _pick_humanoid(screen_position)
+	if humanoid == null:
 		party_manager.clear_selection()
+		if humanoid_details_controller != null:
+			humanoid_details_controller.clear_if_not_party_target()
 		return
+	if humanoid_details_controller != null:
+		humanoid_details_controller.inspect_humanoid(humanoid)
+	if not (humanoid is PartyMember):
+		return
+	var member: PartyMember = humanoid
 	if Input.is_key_pressed(KEY_ALT):
 		party_manager.add_selection(member)
 	else:
@@ -285,8 +297,12 @@ func _apply_drag_selection() -> void:
 			if not merged_selection.has(member):
 				merged_selection.append(member)
 		party_manager.set_selection(merged_selection)
+		if humanoid_details_controller != null and not merged_selection.is_empty():
+			humanoid_details_controller.inspect_humanoid(merged_selection[0])
 		return
 	party_manager.set_selection(drag_selected)
+	if humanoid_details_controller != null and not drag_selected.is_empty():
+		humanoid_details_controller.inspect_humanoid(drag_selected[0])
 
 
 func _pick_party_member(screen_position: Vector2) -> PartyMember:
@@ -295,6 +311,16 @@ func _pick_party_member(screen_position: Vector2) -> PartyMember:
 		return null
 	var collider: Object = result["collider"]
 	if collider is PartyMember:
+		return collider
+	return null
+
+
+func _pick_humanoid(screen_position: Vector2):
+	var result := _raycast_from_screen(screen_position)
+	if result.is_empty():
+		return null
+	var collider: Object = result["collider"]
+	if collider is CharacterBody3D and collider.has_method("set_inspected"):
 		return collider
 	return null
 
@@ -524,3 +550,12 @@ func _spawn_world_notice(world_position: Vector3, message: String) -> void:
 	root.add_child(notice)
 	if notice.has_method("setup"):
 		notice.setup(world_position, message)
+
+
+func _sync_inspected_party_member() -> void:
+	if humanoid_details_controller == null:
+		return
+	if party_manager.selected_members.is_empty():
+		return
+	if humanoid_details_controller.current_target == null or humanoid_details_controller.current_target is PartyMember:
+		humanoid_details_controller.inspect_humanoid(party_manager.selected_members[0])

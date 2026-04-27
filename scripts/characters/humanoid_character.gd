@@ -16,8 +16,13 @@ class_name HumanoidCharacter
 @export var hunger_drain_rate := 0.02
 @export var faction_name := "Player"
 @export var squad_name := "Default"
+@export var max_hp := 100.0
+@export var hp := 100.0
+@export var max_blood := 100.0
+@export var blood := 100.0
 
 var inventory
+var is_inspected := false
 var _move_target := Vector3.ZERO
 var _has_move_target := false
 var _current_mining_node
@@ -26,6 +31,8 @@ var _mining_active := false
 var _current_container_target
 var _current_trade_target
 var _nameplate: Label3D
+var _inspect_ring: MeshInstance3D
+var _inspect_ring_material := StandardMaterial3D.new()
 
 signal inventory_changed
 signal mining_changed
@@ -38,6 +45,7 @@ func _ready() -> void:
 	inventory = inventory_data_script.new(inventory_columns, inventory_rows, max_carry_weight, true)
 	inventory.changed.connect(_on_inventory_data_changed)
 	_setup_nameplate()
+	_setup_inspect_ring()
 
 
 func _process(delta: float) -> void:
@@ -180,6 +188,11 @@ func shows_inventory_weight() -> bool:
 	return show_inventory_weight
 
 
+func set_inspected(value: bool) -> void:
+	is_inspected = value
+	_update_inspect_visual()
+
+
 func _process_mining(delta: float) -> void:
 	if _current_mining_node == null:
 		return
@@ -266,3 +279,27 @@ func _setup_nameplate() -> void:
 	_nameplate.modulate = Color(0.56, 0.56, 0.6, 0.96)
 	_nameplate.outline_size = 0
 	_nameplate.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+
+func _setup_inspect_ring() -> void:
+	var ring_mesh := CylinderMesh.new()
+	ring_mesh.top_radius = 0.74
+	ring_mesh.bottom_radius = 0.74
+	ring_mesh.height = 0.04
+	ring_mesh.radial_segments = 24
+	ring_mesh.rings = 2
+	_inspect_ring = MeshInstance3D.new()
+	_inspect_ring.name = "InspectRing"
+	_inspect_ring.mesh = ring_mesh
+	_inspect_ring.position = Vector3(0.0, 0.025, 0.0)
+	_inspect_ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_inspect_ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_inspect_ring_material.albedo_color = Color(0.72, 0.72, 0.76, 0.95)
+	_inspect_ring.material_override = _inspect_ring_material
+	_inspect_ring.visible = false
+	add_child(_inspect_ring)
+
+
+func _update_inspect_visual() -> void:
+	if _inspect_ring != null:
+		_inspect_ring.visible = is_inspected
