@@ -3,6 +3,7 @@ extends Node
 class_name HumanoidDetailsController
 
 var root_scene: Node
+var hud_layer: CanvasLayer
 var details_panel: Control
 var name_label: Label
 var faction_label: Label
@@ -16,18 +17,18 @@ var current_target
 var _initialized := false
 
 
-func initialize(target_root: Node) -> void:
+func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
 	root_scene = target_root
+	hud_layer = target_hud
 	if is_inside_tree():
 		_do_initialize()
 
 
 func _ready() -> void:
-	if root_scene == null:
-		var parent_node := get_parent()
-		if parent_node != null and parent_node.get_parent() != null:
-			root_scene = parent_node.get_parent()
-	_do_initialize()
+	if root_scene != null:
+		if hud_layer == null and root_scene != null:
+			hud_layer = root_scene.get_node_or_null("GameHUD")
+		_do_initialize()
 
 
 func _process(_delta: float) -> void:
@@ -55,7 +56,9 @@ func clear_if_not_party_target() -> void:
 func _do_initialize() -> void:
 	if _initialized or root_scene == null:
 		return
-	details_panel = root_scene.get_node_or_null("CanvasLayer/HumanoidDetailsPanel")
+	if hud_layer == null:
+		hud_layer = root_scene.get_node_or_null("GameHUD")
+	details_panel = hud_layer.get_node_or_null("HumanoidDetailsPanel")
 	if details_panel == null:
 		return
 	name_label = details_panel.get_node("Margin/DetailsVBox/Name")

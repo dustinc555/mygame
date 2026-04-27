@@ -9,32 +9,35 @@ const SILVER_ITEM = preload("res://resources/items/silver.tres")
 
 var open_inventory_windows: Dictionary = {}
 var root_scene: Node
+var hud_layer: CanvasLayer
 var party_manager: PartyManager
 var inventory_window_layer: Control
 var floating_notice
 var _initialized := false
 
 
-func initialize(target_root: Node) -> void:
+func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
 	root_scene = target_root
+	hud_layer = target_hud
 	if is_inside_tree():
 		_do_initialize()
 
 
 func _ready() -> void:
-	if root_scene == null:
-		var parent_node := get_parent()
-		if parent_node != null and parent_node.get_parent() != null:
-			root_scene = parent_node.get_parent()
-	_do_initialize()
+	if root_scene != null:
+		if hud_layer == null and root_scene != null:
+			hud_layer = root_scene.get_node_or_null("GameHUD")
+		_do_initialize()
 
 
 func _do_initialize() -> void:
 	if _initialized or root_scene == null:
 		return
 	party_manager = root_scene.get_node("PartyManager")
-	inventory_window_layer = root_scene.get_node("CanvasLayer/InventoryWindowLayer")
-	floating_notice = root_scene.get_node_or_null("CanvasLayer/FloatingNotice")
+	if hud_layer == null:
+		hud_layer = root_scene.get_node_or_null("GameHUD")
+	inventory_window_layer = hud_layer.get_node("InventoryWindowLayer")
+	floating_notice = hud_layer.get_node_or_null("FloatingNotice")
 	_initialized = true
 
 

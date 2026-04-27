@@ -1,0 +1,77 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/ui/floating_notice.tscn" id="1_notice"]
+[ext_resource type="PackedScene" path="res://scenes/ui/humanoid_details_panel.tscn" id="2_details"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_party_bar"]
+bg_color = Color(0.16, 0.16, 0.18, 0.96)
+border_width_top = 1
+border_width_left = 1
+border_width_bottom = 1
+border_color = Color(0.34, 0.34, 0.38, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_divider"]
+bg_color = Color(0.34, 0.34, 0.38, 1)
+
+[node name="GameHUD" type="CanvasLayer"]
+
+[node name="SelectionRect" type="ColorRect" parent="."]
+visible = false
+offset_right = 1.0
+offset_bottom = 1.0
+mouse_filter = 2
+color = Color(1, 0.85, 0.35, 0.18)
+
+[node name="ProgressLayer" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="InventoryWindowLayer" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="ContextMenu" type="PopupMenu" parent="."]
+
+[node name="FloatingNotice" parent="." instance=ExtResource("1_notice")]
+layout_mode = 3
+anchors_preset = 5
+offset_top = 0.0
+offset_bottom = 36.0
+grow_vertical = 1
+
+[node name="HumanoidDetailsPanel" parent="." instance=ExtResource("2_details")]
+
+[node name="HudDivider" type="Panel" parent="."]
+anchor_left = 0.0
+anchor_top = 1.0
+anchor_right = 0.0
+anchor_bottom = 1.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_divider")
+offset_left = 280.0
+offset_top = -164.0
+offset_right = 282.0
+offset_bottom = 0.0
+
+[node name="PortraitBar" type="PanelContainer" parent="."]
+theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 282.0
+offset_top = -164.0
+offset_right = 1180.0
+offset_bottom = 0.0
+
+[node name="PortraitRow" type="HBoxContainer" parent="PortraitBar"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 0

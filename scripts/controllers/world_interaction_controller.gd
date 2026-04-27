@@ -42,6 +42,7 @@ var context_member
 var context_resource
 var context_container
 var root: Node
+var hud_layer: CanvasLayer
 var party_root: Node3D
 var party_manager: PartyManager
 var camera_rig: Node3D
@@ -56,18 +57,18 @@ var humanoid_details_controller
 var _initialized := false
 
 
-func initialize(target_root: Node) -> void:
+func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
 	root = target_root
+	hud_layer = target_hud
 	if is_inside_tree():
 		_do_initialize()
 
 
 func _ready() -> void:
-	if root == null:
-		var parent_node := get_parent()
-		if parent_node != null and parent_node.get_parent() != null:
-			root = parent_node.get_parent()
-	_do_initialize()
+	if root != null:
+		if hud_layer == null and root != null:
+			hud_layer = root.get_node_or_null("GameHUD")
+		_do_initialize()
 
 
 func _do_initialize() -> void:
@@ -78,10 +79,12 @@ func _do_initialize() -> void:
 	camera_rig = root.get_node("CameraRig")
 	camera_pivot = root.get_node("CameraRig/CameraPivot")
 	camera = root.get_node("CameraRig/CameraPivot/Camera3D")
-	selection_rect = root.get_node("CanvasLayer/SelectionRect")
-	context_menu = root.get_node_or_null("CanvasLayer/ContextMenu")
-	progress_layer = root.get_node_or_null("CanvasLayer/ProgressLayer")
-	portrait_row = root.get_node_or_null("CanvasLayer/PortraitBar/PortraitRow")
+	if hud_layer == null:
+		hud_layer = root.get_node_or_null("GameHUD")
+	selection_rect = hud_layer.get_node("SelectionRect")
+	context_menu = hud_layer.get_node_or_null("ContextMenu")
+	progress_layer = hud_layer.get_node_or_null("ProgressLayer")
+	portrait_row = hud_layer.get_node_or_null("PortraitBar/PortraitRow")
 	inventory_controller = get_parent().get_node("PartyInventoryController")
 	humanoid_details_controller = get_parent().get_node("HumanoidDetailsController")
 	_initialized = true

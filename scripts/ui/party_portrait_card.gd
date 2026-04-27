@@ -8,6 +8,7 @@ var member: PartyMember
 
 @onready var viewport: SubViewport = $Margin/VBox/PortraitViewportContainer/SubViewport
 @onready var portrait_root: Node3D = $Margin/VBox/PortraitViewportContainer/SubViewport/PortraitRoot
+@onready var portrait_image: TextureRect = $Margin/VBox/PortraitImage
 @onready var name_label: Label = $Margin/VBox/Name
 
 
@@ -33,12 +34,7 @@ func setup(target_member: PartyMember) -> void:
 func apply_state(is_selected: bool, is_followed: bool) -> void:
 	if name_label == null or member == null:
 		return
-	var prefix := ""
-	if is_followed:
-		prefix = "[Follow] "
-	elif is_selected:
-		prefix = "[Selected] "
-	name_label.text = prefix + member.member_name
+	name_label.text = member.member_name
 	if is_selected or is_followed:
 		_set_style(Color(0.26, 0.22, 0.12, 0.98), Color(1.0, 0.88, 0.45, 1.0), 3)
 	else:
@@ -77,6 +73,19 @@ func _rebuild_portrait() -> void:
 				copy.material_override = child.material_override.duplicate()
 			portrait_root.add_child(copy)
 	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	call_deferred("_capture_snapshot")
+
+
+func _capture_snapshot() -> void:
+	if not is_inside_tree():
+		return
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var image := viewport.get_texture().get_image()
+	if image == null:
+		return
+	var texture := ImageTexture.create_from_image(image)
+	portrait_image.texture = texture
 
 
 func _set_style(background: Color, border: Color, border_width: int) -> void:
@@ -84,14 +93,10 @@ func _set_style(background: Color, border: Color, border_width: int) -> void:
 	style.bg_color = background
 	style.border_color = border
 	style.set_border_width_all(border_width)
-	style.corner_radius_top_left = 10
-	style.corner_radius_top_right = 10
-	style.corner_radius_bottom_left = 10
-	style.corner_radius_bottom_right = 10
-	style.content_margin_left = 8
-	style.content_margin_right = 8
-	style.content_margin_top = 8
-	style.content_margin_bottom = 8
+	style.content_margin_left = 5
+	style.content_margin_right = 5
+	style.content_margin_top = 5
+	style.content_margin_bottom = 5
 	add_theme_stylebox_override("normal", style)
 	add_theme_stylebox_override("hover", style)
 	add_theme_stylebox_override("pressed", style)

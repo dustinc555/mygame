@@ -1,9 +1,8 @@
-[gd_scene load_steps=26 format=3 uid="uid://dx3m6v8xbo456"]
+[gd_scene load_steps=24 format=3 uid="uid://dx3m6v8xbo456"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
 [ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_mgr"]
 [ext_resource type="PackedScene" path="res://scenes/world/copper_node.tscn" id="3_copper"]
-[ext_resource type="PackedScene" path="res://scenes/ui/floating_notice.tscn" id="4_notice"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
 [ext_resource type="PackedScene" uid="uid://cxk5vgdnfkroq" path="res://scenes/world/containers/barrel_container.tscn" id="6_barrel"]
 [ext_resource type="Script" uid="uid://c8shyhe4pxqhe" path="res://scripts/characters/merchant_humanoid.gd" id="7_merchant"]
@@ -13,7 +12,6 @@
 [ext_resource type="Resource" path="res://resources/items/copper_ore.tres" id="11_copper_item"]
 [ext_resource type="Resource" path="res://resources/items/silver.tres" id="12_silver"]
 [ext_resource type="Resource" path="res://resources/items/food.tres" id="13_food"]
-[ext_resource type="PackedScene" path="res://scenes/ui/humanoid_details_panel.tscn" id="14_details"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(70, 1, 70)
@@ -174,53 +172,6 @@ offset_right = 560.0
 offset_bottom = 118.0
 text = "Left-click selects. Right-click copper for Mine. Right-click a character for Inventory. Right-click containers for Open or Unlock. Right-click ground moves and pauses mining."
 autowrap_mode = 3
-
-[node name="SelectionRect" type="ColorRect" parent="CanvasLayer"]
-visible = false
-offset_right = 1.0
-offset_bottom = 1.0
-mouse_filter = 2
-color = Color(1, 0.85, 0.35, 0.18)
-
-[node name="ProgressLayer" type="Control" parent="CanvasLayer"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="InventoryWindowLayer" type="Control" parent="CanvasLayer"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="ContextMenu" type="PopupMenu" parent="CanvasLayer"]
-
-[node name="FloatingNotice" parent="CanvasLayer" instance=ExtResource("4_notice")]
-layout_mode = 3
-anchors_preset = 5
-offset_top = 0.0
-offset_bottom = 36.0
-grow_vertical = 1
-
-[node name="HumanoidDetailsPanel" parent="CanvasLayer" instance=ExtResource("14_details")]
-
-[node name="PortraitBar" type="PanelContainer" parent="CanvasLayer"]
-offset_left = 330.0
-offset_top = 510.0
-offset_right = 1090.0
-offset_bottom = 694.0
-
-[node name="PortraitRow" type="HBoxContainer" parent="CanvasLayer/PortraitBar"]
-layout_mode = 2
-theme_override_constants/separation = 12
-alignment = 1
 
 [node name="BarrelContainer" parent="." instance=ExtResource("6_barrel")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.41255, 0, 11.5216)

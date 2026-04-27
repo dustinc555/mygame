@@ -1,10 +1,8 @@
-[gd_scene load_steps=12 format=3 uid="uid://jsg3qe0fcfw2"]
+[gd_scene load_steps=10 format=3 uid="uid://jsg3qe0fcfw2"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_p4rty"]
 [ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_m4n4g"]
-[ext_resource type="PackedScene" path="res://scenes/ui/floating_notice.tscn" id="3_notice"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="4_bootstrap"]
-[ext_resource type="PackedScene" path="res://scenes/ui/humanoid_details_panel.tscn" id="5_details"]
 [ext_resource type="PackedScene" uid="uid://cxk5vgdnfkroq" path="res://scenes/world/containers/barrel_container.tscn" id="6_366s7"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
@@ -127,53 +125,6 @@ offset_right = 470.0
 offset_bottom = 102.0
 text = "Left-click selects. Double-click makes the camera follow. Middle mouse always orbits. WASD moves the free camera and breaks follow. Right-click moves selected party members."
 autowrap_mode = 3
-
-[node name="SelectionRect" type="ColorRect" parent="CanvasLayer"]
-visible = false
-offset_right = 1.0
-offset_bottom = 1.0
-mouse_filter = 2
-color = Color(1, 0.85, 0.35, 0.18)
-
-[node name="InventoryWindowLayer" type="Control" parent="CanvasLayer"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="ProgressLayer" type="Control" parent="CanvasLayer"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="ContextMenu" type="PopupMenu" parent="CanvasLayer"]
-
-[node name="FloatingNotice" parent="CanvasLayer" instance=ExtResource("3_notice")]
-layout_mode = 3
-anchors_preset = 5
-offset_top = 0.0
-offset_bottom = 36.0
-grow_vertical = 1
-
-[node name="HumanoidDetailsPanel" parent="CanvasLayer" instance=ExtResource("5_details")]
-
-[node name="PortraitBar" type="PanelContainer" parent="CanvasLayer"]
-offset_left = 330.0
-offset_top = 510.0
-offset_right = 1120.0
-offset_bottom = 694.0
-
-[node name="PortraitRow" type="HBoxContainer" parent="CanvasLayer/PortraitBar"]
-layout_mode = 2
-theme_override_constants/separation = 12
-alignment = 1
 
 [node name="BarrelContainer" parent="." instance=ExtResource("6_366s7")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.7566, 0, 0.305737)
