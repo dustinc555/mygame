@@ -50,7 +50,7 @@ func resolve_trade(member: PartyMember) -> bool:
 func get_interaction_position(member: PartyMember) -> Vector3:
 	var slot_index := _get_trader_slot(member)
 	var angle := TAU * float(slot_index) / 6.0
-	return global_position + Vector3(cos(angle), 0.0, sin(angle)) * 2.0
+	return global_position + Vector3(cos(angle), 0.0, sin(angle)) * 1.5
 
 
 func _get_trader_slot(member: PartyMember) -> int:

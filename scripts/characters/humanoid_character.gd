@@ -14,6 +14,7 @@ class_name HumanoidCharacter
 @export var hunger_enabled := false
 @export var hunger := 100.0
 @export var hunger_drain_rate := 0.02
+@export var trade_interaction_distance := 3.0
 @export var faction_name := "Player"
 @export var squad_name := "Default"
 @export var max_hp := 100.0
@@ -239,13 +240,13 @@ func _process_trade_interaction() -> void:
 	if _current_trade_target == null:
 		return
 	var interaction_position: Vector3 = _current_trade_target.get_interaction_position(self)
-	if global_position.distance_to(interaction_position) > interact_distance:
+	var target_position: Vector3 = _current_trade_target.global_position
+	if global_position.distance_to(target_position) > trade_interaction_distance:
 		if not _has_move_target:
 			_move_target = interaction_position
 			_has_move_target = true
 		return
-	if _has_move_target:
-		return
+	_has_move_target = false
 	var target = _current_trade_target
 	_current_trade_target = null
 	trade_target_reached.emit(self, target)

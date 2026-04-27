@@ -126,7 +126,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
 mesh = SubResource("CylinderMesh_ring")
 
 [node name="Jim" type="CharacterBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.6, 4)
+transform = Transform3D(0.805897, 0, -0.592055, 0, 1, 0, 0.592055, 0, 0.805897, 12, 0.6, 4)
 script = ExtResource("7_merchant")
 member_name = "Jim"
 inventory_columns = 15

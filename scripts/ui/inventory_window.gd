@@ -117,7 +117,7 @@ func _on_auto_sort_pressed() -> void:
 		show_warning("Sort failed")
 
 
-func _on_inventory_item_right_clicked(entry, local_position: Vector2, shift_pressed: bool) -> void:
+func _on_inventory_item_right_clicked(entry, _local_position: Vector2, shift_pressed: bool) -> void:
 	if inventory_owner == null or entry == null:
 		return
 	if shift_pressed:

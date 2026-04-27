@@ -210,7 +210,7 @@ func _sell_to_merchant(seller_owner, merchant_owner, entry, target_cell: Vector2
 	return true
 
 
-func _get_merchant_role(owner):
-	if owner != null and owner.has_method("get_merchant_role"):
-		return owner.get_merchant_role()
+func _get_merchant_role(inventory_owner):
+	if inventory_owner != null and inventory_owner.has_method("get_merchant_role"):
+		return inventory_owner.get_merchant_role()
 	return null
