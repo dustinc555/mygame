@@ -34,15 +34,6 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="InventoryWindowLayer" type="Control" parent="."]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
 [node name="ContextMenu" type="PopupMenu" parent="."]
 
 [node name="FloatingNotice" parent="." instance=ExtResource("1_notice")]
@@ -113,4 +104,13 @@ layout_mode = 2
 theme_override_constants/separation = 4
 theme_override_constants/v_separation = 4
 size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="InventoryWindowLayer" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
