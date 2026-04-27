@@ -93,10 +93,10 @@ func _set_style(background: Color, border: Color, border_width: int) -> void:
 	style.bg_color = background
 	style.border_color = border
 	style.set_border_width_all(border_width)
-	style.content_margin_left = 5
-	style.content_margin_right = 5
-	style.content_margin_top = 5
-	style.content_margin_bottom = 5
+	style.content_margin_left = 4
+	style.content_margin_right = 4
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
 	add_theme_stylebox_override("normal", style)
 	add_theme_stylebox_override("hover", style)
 	add_theme_stylebox_override("pressed", style)

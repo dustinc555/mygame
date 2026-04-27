@@ -77,7 +77,15 @@ func _update_panel() -> void:
 	if details_panel == null:
 		return
 	if current_target == null:
-		details_panel.visible = false
+		details_panel.visible = true
+		name_label.text = ""
+		faction_label.text = ""
+		hunger_bar.value = 0.0
+		hunger_value.text = ""
+		blood_bar.value = 0.0
+		blood_value.text = ""
+		hp_bar.value = 0.0
+		hp_value.text = ""
 		return
 	details_panel.visible = true
 	name_label.text = current_target.member_name

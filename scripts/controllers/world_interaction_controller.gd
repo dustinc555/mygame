@@ -51,7 +51,7 @@ var camera: Camera3D
 var selection_rect: ColorRect
 var context_menu: PopupMenu
 var progress_layer: Control
-var portrait_row: HBoxContainer
+var portrait_flow: Container
 var inventory_controller: PartyInventoryController
 var humanoid_details_controller
 var _initialized := false
@@ -84,7 +84,7 @@ func _do_initialize() -> void:
 	selection_rect = hud_layer.get_node("SelectionRect")
 	context_menu = hud_layer.get_node_or_null("ContextMenu")
 	progress_layer = hud_layer.get_node_or_null("ProgressLayer")
-	portrait_row = hud_layer.get_node_or_null("PortraitBar/PortraitRow")
+	portrait_flow = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/PortraitBar/PortraitScroll/PortraitFlow")
 	inventory_controller = get_parent().get_node("PartyInventoryController")
 	humanoid_details_controller = get_parent().get_node("HumanoidDetailsController")
 	_initialized = true
@@ -100,13 +100,13 @@ func _do_initialize() -> void:
 	party_manager.follow_changed.connect(_update_portraits)
 	party_manager.selection_changed.connect(_sync_inspected_party_member)
 
-	if portrait_row != null:
-		for child in portrait_row.get_children():
+	if portrait_flow != null:
+		for child in portrait_flow.get_children():
 			child.queue_free()
 		portrait_cards.clear()
 		for member in party_members:
 			var card := PARTY_PORTRAIT_CARD_SCENE.instantiate() as PartyPortraitCard
-			portrait_row.add_child(card)
+			portrait_flow.add_child(card)
 			card.setup(member)
 			card.portrait_pressed.connect(_on_portrait_pressed)
 			portrait_cards.append(card)

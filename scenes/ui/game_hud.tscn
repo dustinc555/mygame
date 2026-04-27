@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/ui/floating_notice.tscn" id="1_notice"]
 [ext_resource type="PackedScene" path="res://scenes/ui/humanoid_details_panel.tscn" id="2_details"]
@@ -12,6 +12,9 @@ border_color = Color(0.34, 0.34, 0.38, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_divider"]
 bg_color = Color(0.34, 0.34, 0.38, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_scroll"]
+bg_color = Color(0, 0, 0, 0)
 
 [node name="GameHUD" type="CanvasLayer"]
 
@@ -49,29 +52,65 @@ offset_top = 0.0
 offset_bottom = 36.0
 grow_vertical = 1
 
-[node name="HumanoidDetailsPanel" parent="." instance=ExtResource("2_details")]
-
-[node name="HudDivider" type="Panel" parent="."]
-anchor_left = 0.0
-anchor_top = 1.0
-anchor_right = 0.0
+[node name="HudLayout" type="VBoxContainer" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Spacer" type="Control" parent="HudLayout"]
+custom_minimum_size = Vector2(0, 0)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="BottomHud" type="HBoxContainer" parent="HudLayout"]
+layout_mode = 2
+alignment = 0
+mouse_filter = 2
+
+[node name="HumanoidDetailsPanel" parent="HudLayout/BottomHud" instance=ExtResource("2_details")]
+layout_mode = 2
+
+[node name="HudDivider" type="Panel" parent="HudLayout/BottomHud"]
+custom_minimum_size = Vector2(2, 0)
+layout_mode = 2
+size_flags_vertical = 3
 theme_override_styles/panel = SubResource("StyleBoxFlat_divider")
-offset_left = 280.0
-offset_top = -164.0
-offset_right = 282.0
-offset_bottom = 0.0
 
-[node name="PortraitBar" type="PanelContainer" parent="."]
+[node name="RightHud" type="VBoxContainer" parent="HudLayout/BottomHud"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="RightSpacer" type="Control" parent="HudLayout/BottomHud/RightHud"]
+custom_minimum_size = Vector2(0, 0)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="PortraitBar" type="PanelContainer" parent="HudLayout/BottomHud/RightHud"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 282.0
-offset_top = -164.0
-offset_right = 1180.0
-offset_bottom = 0.0
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 64)
+mouse_filter = 2
 
-[node name="PortraitRow" type="HBoxContainer" parent="PortraitBar"]
+[node name="PortraitScroll" type="ScrollContainer" parent="HudLayout/BottomHud/RightHud/PortraitBar"]
+layout_mode = 2
+vertical_scroll_mode = 1
+horizontal_scroll_mode = 0
+follow_focus = true
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_scroll")
+
+[node name="PortraitFlow" type="HFlowContainer" parent="HudLayout/BottomHud/RightHud/PortraitBar/PortraitScroll"]
 layout_mode = 2
 theme_override_constants/separation = 4
-alignment = 0
+theme_override_constants/v_separation = 4
+size_flags_horizontal = 3
+mouse_filter = 2
