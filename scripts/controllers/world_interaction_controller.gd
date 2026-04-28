@@ -12,6 +12,11 @@ const ACTION_OPEN_CONTAINER := 3
 const ACTION_UNLOCK_CONTAINER := 4
 const ACTION_ATTACK := 5
 const ACTION_TRADE := 6
+const ACTION_HEAL := 7
+const ACTION_FINISH_OFF := 8
+const ACTION_CARRY := 9
+const ACTION_DROP_CARRY := 10
+const STANCE_OPTION_MIXED := 3
 const FREE_CAMERA_PITCH := -0.65
 const FOLLOW_CAMERA_HEIGHT := 1.35
 const ORBIT_MIN_PITCH := -1.2
@@ -38,7 +43,8 @@ var is_left_mouse_down := false
 var is_drag_selecting := false
 var left_mouse_press_position := Vector2.ZERO
 var left_mouse_press_double_click := false
-var context_member
+var context_member: PartyMember
+var context_humanoid: HumanoidCharacter
 var context_resource
 var context_container
 var root: Node
@@ -52,6 +58,8 @@ var selection_rect: ColorRect
 var context_menu: PopupMenu
 var progress_layer: Control
 var portrait_flow: Container
+var running_button: CheckButton
+var stance_option: OptionButton
 var inventory_controller: PartyInventoryController
 var humanoid_details_controller
 var _initialized := false
@@ -84,6 +92,8 @@ func _do_initialize() -> void:
 	selection_rect = hud_layer.get_node("SelectionRect")
 	context_menu = hud_layer.get_node_or_null("ContextMenu")
 	progress_layer = hud_layer.get_node_or_null("ProgressLayer")
+	running_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandRow/RunningButton")
+	stance_option = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandRow/StanceOption")
 	portrait_flow = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/PortraitBar/PortraitScroll/PortraitFlow")
 	inventory_controller = get_parent().get_node("PartyInventoryController")
 	humanoid_details_controller = get_parent().get_node("HumanoidDetailsController")
@@ -94,11 +104,13 @@ func _do_initialize() -> void:
 			party_members.append(child)
 			child.container_reached.connect(_on_party_member_container_reached)
 			child.trade_target_reached.connect(_on_party_member_trade_target_reached)
+			child.state_changed.connect(_update_command_bar)
 
 	party_manager.set_party_members(party_members)
 	party_manager.selection_changed.connect(_update_portraits)
 	party_manager.follow_changed.connect(_update_portraits)
 	party_manager.selection_changed.connect(_sync_inspected_party_member)
+	party_manager.selection_changed.connect(_update_command_bar)
 
 	if portrait_flow != null:
 		for child in portrait_flow.get_children():
@@ -125,6 +137,7 @@ func _do_initialize() -> void:
 
 	if context_menu != null:
 		context_menu.id_pressed.connect(_on_context_menu_id_pressed)
+	_setup_command_bar()
 
 	if not party_members.is_empty():
 		party_manager.select_only(party_members[0])
@@ -134,6 +147,7 @@ func _do_initialize() -> void:
 	camera_anchor = _get_anchor_position()
 	_apply_camera_transform()
 	_update_portraits()
+	_update_command_bar()
 
 
 func _process(delta: float) -> void:
@@ -242,6 +256,7 @@ func _handle_right_click(screen_position: Vector2) -> void:
 	if context_menu != null:
 		context_menu.hide()
 	context_member = null
+	context_humanoid = null
 	context_resource = null
 	context_container = null
 	var result := _raycast_from_screen(screen_position)
@@ -254,12 +269,31 @@ func _handle_right_click(screen_position: Vector2) -> void:
 		context_resource = collider
 		return
 	if collider is PartyMember:
-		_show_context_menu(screen_position, ACTION_INVENTORY, "Inventory")
+		var party_actions := [{"id": ACTION_INVENTORY, "label": "Inventory"}]
+		if collider.life_state == NpcRules.LifeState.UNCONSCIOUS:
+			_append_downed_target_actions(party_actions, collider)
+		elif _selection_can_heal_target(collider):
+			party_actions.append({"id": ACTION_HEAL, "label": "Heal"})
+		if _selection_can_put_down_from_carrier(collider):
+			party_actions.append({"id": ACTION_DROP_CARRY, "label": "Put Down"})
+		_show_context_menu_actions(screen_position, party_actions)
 		context_member = collider
+		context_humanoid = collider
 		return
-	if collider is CharacterBody3D and collider.has_method("get_merchant_role") and collider.get_merchant_role() != null and not party_manager.selected_members.is_empty():
-		context_member = collider
-		_show_context_menu_actions(screen_position, [{"id": ACTION_ATTACK, "label": "Attack"}, {"id": ACTION_TRADE, "label": "Trade"}])
+	if collider is HumanoidCharacter and not party_manager.selected_members.is_empty():
+		context_humanoid = collider
+		var humanoid_actions: Array = []
+		if collider.life_state == NpcRules.LifeState.UNCONSCIOUS:
+			_append_downed_target_actions(humanoid_actions, collider)
+		else:
+			humanoid_actions.append({"id": ACTION_ATTACK, "label": "Attack"})
+			if _selection_can_heal_target(collider):
+				humanoid_actions.append({"id": ACTION_HEAL, "label": "Heal"})
+		if _selection_can_put_down_from_carrier(collider):
+			humanoid_actions.append({"id": ACTION_DROP_CARRY, "label": "Put Down"})
+		if collider.has_method("get_merchant_role") and collider.get_merchant_role() != null and collider.life_state == NpcRules.LifeState.ALIVE:
+			humanoid_actions.append({"id": ACTION_TRADE, "label": "Trade"})
+		_show_context_menu_actions(screen_position, humanoid_actions)
 		return
 	if collider is Node and collider.is_in_group("world_container") and not party_manager.selected_members.is_empty():
 		context_container = collider
@@ -406,6 +440,43 @@ func _update_portraits() -> void:
 		card.apply_state(is_selected, is_followed)
 
 
+func _setup_command_bar() -> void:
+	if running_button != null:
+		running_button.toggled.connect(_on_running_button_toggled)
+	if stance_option != null:
+		stance_option.clear()
+		stance_option.add_item("Aggressive", NpcRules.CombatStance.AGGRESSIVE)
+		stance_option.add_item("Defensive", NpcRules.CombatStance.DEFENSIVE)
+		stance_option.add_item("Passive", NpcRules.CombatStance.PASSIVE)
+		stance_option.add_item("Mixed", STANCE_OPTION_MIXED)
+		stance_option.item_selected.connect(_on_stance_option_selected)
+
+
+func _update_command_bar() -> void:
+	if running_button == null or stance_option == null:
+		return
+	var has_selection := not party_manager.selected_members.is_empty()
+	running_button.disabled = not has_selection
+	stance_option.disabled = not has_selection
+	if not has_selection:
+		running_button.set_pressed_no_signal(false)
+		stance_option.select(NpcRules.CombatStance.DEFENSIVE)
+		return
+	var any_running := false
+	var first_stance: int = party_manager.selected_members[0].combat_stance
+	var mixed_stance := false
+	for member in party_manager.selected_members:
+		if member.is_running_enabled() or member.running:
+			any_running = true
+		if member.combat_stance != first_stance:
+			mixed_stance = true
+	running_button.set_pressed_no_signal(any_running)
+	if mixed_stance:
+		stance_option.select(STANCE_OPTION_MIXED)
+	else:
+		stance_option.select(first_stance)
+
+
 func _update_progress_bars() -> void:
 	if progress_layer == null:
 		return
@@ -465,6 +536,20 @@ func _on_portrait_pressed(member: PartyMember, double_click: bool, add_select: b
 		_set_follow_target(member)
 
 
+func _on_running_button_toggled(button_pressed: bool) -> void:
+	for member in party_manager.selected_members:
+		member.set_running_enabled(button_pressed)
+	_update_command_bar()
+
+
+func _on_stance_option_selected(index: int) -> void:
+	if index == STANCE_OPTION_MIXED:
+		return
+	for member in party_manager.selected_members:
+		member.set_combat_stance(index)
+	_update_command_bar()
+
+
 func _on_context_menu_id_pressed(action_id: int) -> void:
 	match action_id:
 		ACTION_INVENTORY:
@@ -481,12 +566,76 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 			if context_container != null:
 				_spawn_world_notice(context_container.global_position + Vector3(0.0, 1.6, 0.0), "Lockpicking not implemented")
 		ACTION_ATTACK:
-			if context_member != null:
-				inventory_controller._show_floating_notice("Attack not implemented")
-		ACTION_TRADE:
-			if context_member != null:
+			if context_humanoid != null:
 				for member in party_manager.selected_members:
-					member.assign_trade_target(context_member)
+					member.assign_attack_target(context_humanoid)
+		ACTION_TRADE:
+			if context_humanoid != null:
+				for member in party_manager.selected_members:
+					member.assign_trade_target(context_humanoid)
+		ACTION_HEAL:
+			if context_humanoid != null:
+				for member in party_manager.selected_members:
+					member.assign_heal_target(context_humanoid)
+		ACTION_FINISH_OFF:
+			if context_humanoid != null:
+				for member in party_manager.selected_members:
+					member.assign_finish_off_target(context_humanoid)
+		ACTION_CARRY:
+			if context_humanoid != null:
+				for member in party_manager.selected_members:
+					member.assign_carry_target(context_humanoid)
+		ACTION_DROP_CARRY:
+			for member in party_manager.selected_members:
+				member.drop_carried_character()
+
+
+func _selection_can_heal_target(target: HumanoidCharacter) -> bool:
+	if target == null or party_manager.selected_members.is_empty() or not target.can_receive_bandage():
+		return false
+	for member in party_manager.selected_members:
+		if member.can_bandage_target(target):
+			return true
+	return false
+
+
+func _append_downed_target_actions(actions: Array, target: HumanoidCharacter) -> void:
+	if target == null:
+		return
+	actions.append({"id": ACTION_FINISH_OFF, "label": "Finish Off"})
+	if _selection_can_heal_target(target):
+		actions.append({"id": ACTION_HEAL, "label": "Heal"})
+	if _selection_can_carry_target(target):
+		actions.append({"id": ACTION_CARRY, "label": "Carry"})
+	if _selection_can_drop_carry(target):
+		actions.append({"id": ACTION_DROP_CARRY, "label": "Put Down"})
+
+
+func _selection_can_carry_target(target: HumanoidCharacter) -> bool:
+	if target == null or not target.can_be_carried() or party_manager.selected_members.is_empty():
+		return false
+	for member in party_manager.selected_members:
+		if not member.is_carrying_someone():
+			return true
+	return false
+
+
+func _selection_can_drop_carry(target: HumanoidCharacter) -> bool:
+	if target == null or party_manager.selected_members.is_empty():
+		return false
+	for member in party_manager.selected_members:
+		if member.get_carried_character() == target:
+			return true
+	return false
+
+
+func _selection_can_put_down_from_carrier(target: HumanoidCharacter) -> bool:
+	if target == null or party_manager.selected_members.is_empty():
+		return false
+	for member in party_manager.selected_members:
+		if member == target and member.is_carrying_someone():
+			return true
+	return false
 
 
 

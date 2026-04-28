@@ -8,3 +8,4 @@ class_name ItemDefinition
 @export var unit_weight := 1.0
 @export var max_stack := 1
 @export var nutrition_value := 0.0
+@export var bandage_power := 0.0

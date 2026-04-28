@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=5 format=3]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_details"]
 bg_color = Color(0.16, 0.16, 0.18, 0.96)
@@ -7,9 +7,33 @@ border_width_bottom = 1
 border_width_right = 1
 border_color = Color(0.34, 0.34, 0.38, 1)
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hp_frame"]
+bg_color = Color(0.12, 0.12, 0.14, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.28, 0.28, 0.32, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_cut_outline"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.87, 0.33, 0.33, 0.95)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
 [node name="HumanoidDetailsPanel" type="PanelContainer"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_details")
-custom_minimum_size = Vector2(280, 0)
+custom_minimum_size = Vector2(236, 0)
 mouse_filter = 2
 
 [node name="Margin" type="MarginContainer" parent="."]
@@ -32,6 +56,16 @@ text = "Name"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.68, 0.68, 0.72, 1)
 text = "Faction"
+
+[node name="State" type="Label" parent="Margin/DetailsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.84, 0.84, 0.76, 1)
+text = "Alive"
+
+[node name="Stance" type="Label" parent="Margin/DetailsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.74, 0.74, 0.78, 1)
+text = "Defensive"
 
 [node name="HungerRow" type="VBoxContainer" parent="Margin/DetailsVBox"]
 layout_mode = 2
@@ -74,12 +108,48 @@ layout_mode = 2
 layout_mode = 2
 text = "HP"
 
-[node name="HpBar" type="ProgressBar" parent="Margin/DetailsVBox/HpRow"]
+[node name="HpBarFrame" type="PanelContainer" parent="Margin/DetailsVBox/HpRow"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_hp_frame")
+custom_minimum_size = Vector2(0, 18)
+
+[node name="HpBarStack" type="Control" parent="Margin/DetailsVBox/HpRow/HpBarFrame"]
+custom_minimum_size = Vector2(0, 18)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="HealthFill" type="ColorRect" parent="Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack"]
+offset_right = 180.0
+offset_bottom = 18.0
+color = Color(0.47, 0.78, 0.43, 1)
+
+[node name="BandagedFill" type="ColorRect" parent="Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack"]
+visible = false
+offset_bottom = 18.0
+color = Color(0.76, 0.64, 0.33, 0.9)
+
+[node name="CutOutline" type="Panel" parent="Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack"]
+visible = false
+offset_bottom = 18.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_cut_outline")
+
+[node name="HpValue" type="Label" parent="Margin/DetailsVBox/HpRow"]
+layout_mode = 2
+text = "100 / 100"
+
+[node name="FatigueRow" type="VBoxContainer" parent="Margin/DetailsVBox"]
+layout_mode = 2
+
+[node name="FatigueLabel" type="Label" parent="Margin/DetailsVBox/FatigueRow"]
+layout_mode = 2
+text = "Fatigue"
+
+[node name="FatigueBar" type="ProgressBar" parent="Margin/DetailsVBox/FatigueRow"]
 layout_mode = 2
 max_value = 100.0
 value = 100.0
 show_percentage = false
 
-[node name="HpValue" type="Label" parent="Margin/DetailsVBox/HpRow"]
+[node name="FatigueValue" type="Label" parent="Margin/DetailsVBox/FatigueRow"]
 layout_mode = 2
 text = "100 / 100"

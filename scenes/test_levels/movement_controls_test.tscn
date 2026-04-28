@@ -123,7 +123,7 @@ offset_left = 20.0
 offset_top = 20.0
 offset_right = 470.0
 offset_bottom = 102.0
-text = "Left-click selects. Double-click makes the camera follow. Middle mouse always orbits. WASD moves the free camera and breaks follow. Right-click moves selected party members."
+text = "Left-click selects. Double-click makes the camera follow. Middle mouse always orbits. WASD moves the free camera and breaks follow. Use the bottom-right bar for Running and stance. Right-click moves selected party members."
 autowrap_mode = 3
 
 [node name="BarrelContainer" parent="." instance=ExtResource("6_366s7")]

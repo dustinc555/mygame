@@ -1,4 +1,4 @@
-[gd_scene load_steps=24 format=3 uid="uid://dx3m6v8xbo456"]
+[gd_scene load_steps=28 format=3 uid="uid://dx3m6v8xbo456"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
 [ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_mgr"]
@@ -12,6 +12,8 @@
 [ext_resource type="Resource" path="res://resources/items/copper_ore.tres" id="11_copper_item"]
 [ext_resource type="Resource" path="res://resources/items/silver.tres" id="12_silver"]
 [ext_resource type="Resource" path="res://resources/items/food.tres" id="13_food"]
+[ext_resource type="Script" path="res://scripts/items/inventory_stock.gd" id="16_inventory_stock"]
+[ext_resource type="Resource" path="res://resources/items/bandage.tres" id="17_bandage"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(70, 1, 70)
@@ -22,6 +24,11 @@ roughness = 0.96
 
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(70, 1, 70)
+
+[sub_resource type="Resource" id="InventoryStock_mira_bandage"]
+script = ExtResource("16_inventory_stock")
+item_definition = ExtResource("17_bandage")
+quantity = 4
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
 radius = 0.45
@@ -36,6 +43,11 @@ bottom_radius = 0.72
 height = 0.05
 radial_segments = 24
 rings = 2
+
+[sub_resource type="Resource" id="InventoryStock_tomas_bandage"]
+script = ExtResource("16_inventory_stock")
+item_definition = ExtResource("17_bandage")
+quantity = 4
 
 [sub_resource type="Resource" id="MerchantPrice_copper"]
 script = ExtResource("9_price_script")
@@ -88,6 +100,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.6, 4)
 script = ExtResource("1_party")
 base_color = Color(0.82, 0.43, 0.31, 1)
 member_name = "Mira"
+starting_items = Array[Resource]([SubResource("InventoryStock_mira_bandage")])
 hunger_enabled = true
 hunger_drain_rate = 0.2
 
@@ -108,6 +121,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.6, 5)
 script = ExtResource("1_party")
 base_color = Color(0.33, 0.55, 0.78, 1)
 member_name = "Tomas"
+starting_items = Array[Resource]([SubResource("InventoryStock_tomas_bandage")])
 hunger_enabled = true
 hunger_drain_rate = 0.2
 
@@ -170,7 +184,7 @@ offset_left = 20.0
 offset_top = 20.0
 offset_right = 560.0
 offset_bottom = 118.0
-text = "Left-click selects. Right-click copper for Mine. Right-click a character for Inventory. Right-click containers for Open or Unlock. Right-click ground moves and pauses mining."
+text = "Left-click selects. Use the bottom-right bar for Running and stance. Right-click copper for Mine. Right-click characters for Inventory, Attack, Heal, or Trade. Right-click ground moves and interrupts jobs."
 autowrap_mode = 3
 
 [node name="BarrelContainer" parent="." instance=ExtResource("6_barrel")]
