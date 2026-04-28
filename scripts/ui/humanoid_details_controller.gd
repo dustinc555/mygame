@@ -58,7 +58,9 @@ func _do_initialize() -> void:
 		return
 	if hud_layer == null:
 		hud_layer = root_scene.get_node_or_null("GameHUD")
-	details_panel = hud_layer.get_node_or_null("HumanoidDetailsPanel")
+	if hud_layer == null:
+		return
+	details_panel = hud_layer.get_node_or_null("HudLayout/BottomHud/HumanoidDetailsPanel")
 	if details_panel == null:
 		return
 	name_label = details_panel.get_node("Margin/DetailsVBox/Name")
