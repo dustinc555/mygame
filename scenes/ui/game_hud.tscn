@@ -88,7 +88,7 @@ mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 48)
+custom_minimum_size = Vector2(0, 58)
 mouse_filter = 2
 
 [node name="Margin" type="MarginContainer" parent="HudLayout/BottomHud/RightHud/CommandBar"]
@@ -98,17 +98,34 @@ theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 8
 
-[node name="CommandRow" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin"]
+[node name="CommandColumn" type="VBoxContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="CommandRow" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="RunningButton" type="CheckButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandRow"]
+[node name="LocomotionColumn" type="VBoxContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow"]
 layout_mode = 2
-text = "Running"
+custom_minimum_size = Vector2(124, 0)
+theme_override_constants/separation = 4
 
-[node name="StanceOption" type="OptionButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandRow"]
+[node name="RunningButton" type="CheckButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn"]
 layout_mode = 2
 size_flags_horizontal = 3
+text = "Running"
+
+[node name="SneakingButton" type="CheckButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn"]
+layout_mode = 2
+text = "Sneaking"
+
+[node name="StanceOption" type="OptionButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 52)
+size_flags_horizontal = 3
+size_flags_vertical = 4
+vertical_alignment = 1
 
 [node name="PortraitBar" type="PanelContainer" parent="HudLayout/BottomHud/RightHud"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")

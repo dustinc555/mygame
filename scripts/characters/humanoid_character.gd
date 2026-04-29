@@ -17,7 +17,7 @@ enum OrderType {
 }
 
 @export var member_name := "Character"
-@export var move_speed := 4.5
+@export var move_speed := 3.2
 @export var acceleration := 10.0
 @export var interact_distance := 1.8
 @export var inventory_columns := 10
@@ -32,11 +32,14 @@ enum OrderType {
 @export var hostile_factions: PackedStringArray = PackedStringArray()
 
 @export var hunger_enabled := false
+@export_range(0, 2, 1) var hunger_stage := NpcRules.HungerStage.WELL_NOURISHED
 @export var hunger := 100.0
-@export var hunger_drain_rate := 0.02
+@export var hunger_drain_rate := 0.08
 @export var fatigue_enabled := true
+@export_range(0, 2, 1) var fatigue_stage := NpcRules.FatigueStage.WELL_RESTED
 @export var fatigue := 100.0
 @export var running := false
+@export var sneaking := false
 @export_range(0, 2, 1) var combat_stance := NpcRules.CombatStance.DEFENSIVE
 
 @export var max_hp := 100.0
@@ -85,7 +88,6 @@ var _bleed_rate := 0.0
 var _pending_nourishment := 0.0
 var _combat_cooldown_remaining := 0.0
 var _ai_tick_remaining := 0.0
-var _starvation_blackout_check_remaining := 1.0
 var _downed_recover_delay_remaining := 0.0
 var _downed_target_rotation_z := 0.0
 var _downed_is_settled := false
@@ -117,6 +119,8 @@ func _ready() -> void:
 	_setup_inspect_ring()
 	add_to_group("humanoid_character")
 	add_to_group("npc_character")
+	hunger = clampf(hunger, 0.0, 100.0)
+	fatigue = clampf(fatigue, 0.0, 100.0)
 	_recalculate_vitals()
 
 
@@ -129,7 +133,6 @@ func _process(delta: float) -> void:
 	_process_needs(delta)
 	_process_bleeding(delta)
 	_process_recovery(delta)
-	_process_starvation(delta)
 	_process_ai(delta)
 	_recalculate_vitals()
 
@@ -373,11 +376,11 @@ func set_inspected(value: bool) -> void:
 
 
 func get_hunger_stage() -> int:
-	return NpcRules.get_hunger_stage(hunger)
+	return hunger_stage
 
 
 func get_fatigue_stage() -> int:
-	return NpcRules.get_fatigue_stage(fatigue)
+	return fatigue_stage
 
 
 func get_total_wound_damage() -> float:
@@ -416,12 +419,84 @@ func get_fatigue_stage_label() -> String:
 	return NpcRules.get_fatigue_stage_label(get_fatigue_stage())
 
 
+func _apply_hunger_delta(amount: float) -> void:
+	if is_zero_approx(amount):
+		return
+	var remaining := amount
+	while not is_zero_approx(remaining):
+		if remaining > 0.0:
+			var recoverable := 100.0 - hunger
+			var recovery_step := minf(remaining, recoverable)
+			hunger += recovery_step
+			remaining -= recovery_step
+			if hunger >= 100.0 and hunger_stage > NpcRules.HungerStage.WELL_NOURISHED and remaining > 0.0:
+				hunger_stage -= 1
+				hunger = 0.0
+				continue
+			break
+		var drainable := hunger
+		var drain_step := minf(-remaining, drainable)
+		hunger -= drain_step
+		remaining += drain_step
+		if hunger <= 0.0:
+			if hunger_stage < NpcRules.HungerStage.STARVING:
+				hunger_stage += 1
+				hunger = 100.0
+				continue
+			if life_state != NpcRules.LifeState.DEAD:
+				hunger = 0.0
+				_enter_dead_state()
+			break
+		break
+	hunger = clampf(hunger, 0.0, 100.0)
+
+
+func _apply_fatigue_delta(amount: float) -> void:
+	if is_zero_approx(amount):
+		return
+	var remaining := amount
+	while not is_zero_approx(remaining):
+		if remaining > 0.0:
+			var recoverable := 100.0 - fatigue
+			var recovery_step := minf(remaining, recoverable)
+			fatigue += recovery_step
+			remaining -= recovery_step
+			if fatigue >= 100.0 and fatigue_stage > NpcRules.FatigueStage.WELL_RESTED and remaining > 0.0:
+				fatigue_stage -= 1
+				fatigue = 0.0
+				continue
+			break
+		var drainable := fatigue
+		var drain_step := minf(-remaining, drainable)
+		fatigue -= drain_step
+		remaining += drain_step
+		if fatigue <= 0.0:
+			if fatigue_stage < NpcRules.FatigueStage.EXHAUSTED:
+				fatigue_stage += 1
+				fatigue = 100.0
+				continue
+			fatigue = 0.0
+			if life_state == NpcRules.LifeState.ALIVE:
+				_enter_unconscious_state()
+			break
+		break
+	fatigue = clampf(fatigue, 0.0, 100.0)
+
+
 func is_running_enabled() -> bool:
-	return running and can_run()
+	return running and can_continue_running()
 
 
-func can_run() -> bool:
-	return life_state == NpcRules.LifeState.ALIVE and get_fatigue_stage() != NpcRules.FatigueStage.EXHAUSTED and fatigue > 0.0
+func can_continue_running() -> bool:
+	if life_state != NpcRules.LifeState.ALIVE:
+		return false
+	if fatigue_stage < NpcRules.FatigueStage.EXHAUSTED:
+		return true
+	return fatigue > NpcRules.FATIGUE_RUN_LOCKOUT_THRESHOLD
+
+
+func can_enable_running() -> bool:
+	return can_continue_running()
 
 
 func is_in_combat() -> bool:
@@ -480,8 +555,20 @@ func clear_personal_hostility(other: HumanoidCharacter) -> void:
 	_personal_hostile_ids.erase(other.get_instance_id())
 
 
-func set_running_enabled(value: bool) -> void:
-	running = value and can_run()
+func set_running_enabled(value: bool) -> bool:
+	if value:
+		sneaking = false
+		running = can_enable_running()
+	else:
+		running = false
+	state_changed.emit()
+	return running == value
+
+
+func set_sneaking_enabled(value: bool) -> void:
+	if value:
+		running = false
+	sneaking = value and life_state == NpcRules.LifeState.ALIVE
 	state_changed.emit()
 
 
@@ -625,32 +712,28 @@ func _process_needs(delta: float) -> void:
 		if _pending_nourishment > 0.0:
 			var nourishment_step := minf(_pending_nourishment, NpcRules.NOURISHMENT_APPLY_RATE * delta * 100.0)
 			_pending_nourishment -= nourishment_step
-			hunger = clampf(hunger + nourishment_step, 0.0, 100.0)
+			_apply_hunger_delta(nourishment_step)
 		else:
-			hunger = clampf(hunger - get_stat_value("hunger_drain_rate") * delta, 0.0, 100.0)
-		if hunger <= 0.0 and life_state != NpcRules.LifeState.DEAD:
-			_enter_dead_state()
+			_apply_hunger_delta(-get_stat_value("hunger_drain_rate") * NpcRules.WORLD_HUNGER_DRAIN_MULTIPLIER * delta)
 
 	if fatigue_enabled:
 		var was_running := running
 		var fatigue_delta := 0.0
 		if life_state != NpcRules.LifeState.ALIVE:
-			fatigue_delta -= get_stat_value("fatigue_recovery_rate") * delta
+			fatigue_delta += get_stat_value("fatigue_recovery_rate") * delta
 		elif _is_working():
-			fatigue_delta += NpcRules.FATIGUE_WORK_DRAIN * delta
+			fatigue_delta -= NpcRules.FATIGUE_WORK_DRAIN * delta
 		elif is_in_combat():
-			fatigue_delta += NpcRules.FATIGUE_COMBAT_DRAIN * delta
+			fatigue_delta -= NpcRules.FATIGUE_COMBAT_DRAIN * delta
 		elif is_running_enabled() and _has_move_target:
-			fatigue_delta += NpcRules.FATIGUE_RUN_DRAIN * delta
+			fatigue_delta -= NpcRules.FATIGUE_RUN_DRAIN * delta
 		else:
-			fatigue_delta -= get_stat_value("fatigue_recovery_rate") * delta
-		fatigue = clampf(fatigue - fatigue_delta, 0.0, 100.0)
-		if not can_run():
+			fatigue_delta += get_stat_value("fatigue_recovery_rate") * delta
+		_apply_fatigue_delta(fatigue_delta)
+		if running and not can_continue_running():
 			running = false
 		if was_running != running:
 			state_changed.emit()
-		if fatigue <= 0.0 and life_state == NpcRules.LifeState.ALIVE:
-			_enter_unconscious_state()
 
 
 func _process_bleeding(delta: float) -> void:
@@ -675,20 +758,6 @@ func _process_recovery(delta: float) -> void:
 	if life_state == NpcRules.LifeState.UNCONSCIOUS:
 		_downed_recover_delay_remaining = maxf(0.0, _downed_recover_delay_remaining - delta)
 	_recalculate_vitals()
-
-
-func _process_starvation(delta: float) -> void:
-	if life_state != NpcRules.LifeState.ALIVE or get_hunger_stage() != NpcRules.HungerStage.STARVING:
-		_starvation_blackout_check_remaining = 1.0
-		return
-	_starvation_blackout_check_remaining -= delta
-	if _starvation_blackout_check_remaining > 0.0:
-		return
-	_starvation_blackout_check_remaining = 1.0
-	if hunger <= 0.0:
-		return
-	if _rng.randf() <= NpcRules.HUNGER_STARVING_UNCONSCIOUS_CHANCE_PER_SECOND:
-		_enter_unconscious_state()
 
 
 func _process_ai(delta: float) -> void:
@@ -964,7 +1033,7 @@ func _enter_unconscious_state() -> void:
 	_clear_all_active_orders()
 	if _carried_character != null:
 		drop_carried_character()
-	_downed_recover_delay_remaining = 4.0
+	_downed_recover_delay_remaining = 15.0
 	_enter_downed_state(false)
 	_show_world_notice("Unconscious", Color(1.0, 0.85, 0.45, 1.0))
 	state_changed.emit()
@@ -1017,7 +1086,9 @@ func _collect_stat_modifiers() -> Array:
 	if life_state == NpcRules.LifeState.UNCONSCIOUS:
 		modifiers.append({"stat": "healing_rate", "mul": NpcRules.UNCONSCIOUS_HEAL_MULTIPLIER})
 	if running and _has_move_target:
-		modifiers.append({"stat": "move_speed_multiplier", "mul": get_stat_value("run_speed_multiplier", false)})
+		modifiers.append({"stat": "move_speed_multiplier", "mul": _get_base_stat_value("run_speed_multiplier")})
+	if sneaking:
+		modifiers.append({"stat": "move_speed_multiplier", "mul": 0.65})
 	if is_carrying_someone():
 		modifiers.append({"stat": "move_speed_multiplier", "mul": carry_move_speed_multiplier})
 	return modifiers

@@ -59,9 +59,11 @@ var context_menu: PopupMenu
 var progress_layer: Control
 var portrait_flow: Container
 var running_button: CheckButton
+var sneaking_button: CheckButton
 var stance_option: OptionButton
 var inventory_controller: PartyInventoryController
 var humanoid_details_controller
+var floating_notice: FloatingNotice
 var _initialized := false
 
 
@@ -92,9 +94,11 @@ func _do_initialize() -> void:
 	selection_rect = hud_layer.get_node("SelectionRect")
 	context_menu = hud_layer.get_node_or_null("ContextMenu")
 	progress_layer = hud_layer.get_node_or_null("ProgressLayer")
-	running_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandRow/RunningButton")
-	stance_option = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandRow/StanceOption")
+	running_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn/RunningButton")
+	sneaking_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn/SneakingButton")
+	stance_option = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/StanceOption")
 	portrait_flow = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/PortraitBar/PortraitScroll/PortraitFlow")
+	floating_notice = hud_layer.get_node_or_null("FloatingNotice")
 	inventory_controller = get_parent().get_node("PartyInventoryController")
 	humanoid_details_controller = get_parent().get_node("HumanoidDetailsController")
 	_initialized = true
@@ -443,6 +447,8 @@ func _update_portraits() -> void:
 func _setup_command_bar() -> void:
 	if running_button != null:
 		running_button.toggled.connect(_on_running_button_toggled)
+	if sneaking_button != null:
+		sneaking_button.toggled.connect(_on_sneaking_button_toggled)
 	if stance_option != null:
 		stance_option.clear()
 		stance_option.add_item("Aggressive", NpcRules.CombatStance.AGGRESSIVE)
@@ -453,24 +459,30 @@ func _setup_command_bar() -> void:
 
 
 func _update_command_bar() -> void:
-	if running_button == null or stance_option == null:
+	if running_button == null or sneaking_button == null or stance_option == null:
 		return
 	var has_selection := not party_manager.selected_members.is_empty()
 	running_button.disabled = not has_selection
+	sneaking_button.disabled = not has_selection
 	stance_option.disabled = not has_selection
 	if not has_selection:
 		running_button.set_pressed_no_signal(false)
+		sneaking_button.set_pressed_no_signal(false)
 		stance_option.select(NpcRules.CombatStance.DEFENSIVE)
 		return
 	var any_running := false
+	var any_sneaking := false
 	var first_stance: int = party_manager.selected_members[0].combat_stance
 	var mixed_stance := false
 	for member in party_manager.selected_members:
 		if member.is_running_enabled() or member.running:
 			any_running = true
+		if member.sneaking:
+			any_sneaking = true
 		if member.combat_stance != first_stance:
 			mixed_stance = true
 	running_button.set_pressed_no_signal(any_running)
+	sneaking_button.set_pressed_no_signal(any_sneaking)
 	if mixed_stance:
 		stance_option.select(STANCE_OPTION_MIXED)
 	else:
@@ -537,8 +549,18 @@ func _on_portrait_pressed(member: PartyMember, double_click: bool, add_select: b
 
 
 func _on_running_button_toggled(button_pressed: bool) -> void:
+	var any_failed := false
 	for member in party_manager.selected_members:
-		member.set_running_enabled(button_pressed)
+		if not member.set_running_enabled(button_pressed):
+			any_failed = true
+	if any_failed and button_pressed:
+		_show_center_notice("Too Exhausted to run")
+	_update_command_bar()
+
+
+func _on_sneaking_button_toggled(button_pressed: bool) -> void:
+	for member in party_manager.selected_members:
+		member.set_sneaking_enabled(button_pressed)
 	_update_command_bar()
 
 
@@ -667,6 +689,11 @@ func _spawn_world_notice(world_position: Vector3, message: String) -> void:
 	root.add_child(notice)
 	if notice.has_method("setup"):
 		notice.setup(world_position, message)
+
+
+func _show_center_notice(message: String) -> void:
+	if floating_notice != null:
+		floating_notice.show_message(message)
 
 
 func _sync_inspected_party_member() -> void:

@@ -1,0 +1,319 @@
+[gd_scene load_steps=14 format=3 uid="uid://bi5cfiajj18yp"]
+
+[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
+[ext_resource type="Script" uid="uid://bjnsg3gd8jbp1" path="res://scripts/characters/humanoid_character.gd" id="2_humanoid"]
+[ext_resource type="Script" path="res://scripts/party_manager.gd" id="3_manager"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="4_bootstrap"]
+[ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://scripts/items/inventory_stock.gd" id="5_inventory_stock"]
+[ext_resource type="Resource" path="res://resources/items/bandage.tres" id="6_bandage"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(80, 1, 60)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.34, 0.37, 0.3, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(80, 1, 60)
+
+[sub_resource type="Resource" id="InventoryStock_skirmish_bandage"]
+script = ExtResource("5_inventory_stock")
+item_definition = ExtResource("6_bandage")
+quantity = 3
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_member"]
+radius = 0.45
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
+top_radius = 0.72
+bottom_radius = 0.72
+height = 0.05
+radial_segments = 24
+rings = 2
+
+[node name="CombatSkirmish5v5" type="Node3D"]
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 8, 0)
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+material_override = SubResource("StandardMaterial3D_floor")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="PartyMembers" type="Node3D" parent="."]
+
+[node name="Mira" type="CharacterBody3D" parent="PartyMembers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.6, -6)
+script = ExtResource("1_party")
+base_color = Color(0.82, 0.43, 0.31, 1)
+member_name = "Mira"
+starting_items = Array[Resource]([SubResource("InventoryStock_skirmish_bandage")])
+hunger_enabled = true
+hunger_drain_rate = 0.2
+max_hp = 118.0
+base_attack_damage = 20.0
+base_dodge_chance = 0.11
+base_block_chance = 0.1
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Mira"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Mira"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Mira"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="Tomas" type="CharacterBody3D" parent="PartyMembers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.6, -3)
+script = ExtResource("1_party")
+base_color = Color(0.33, 0.55, 0.78, 1)
+member_name = "Tomas"
+starting_items = Array[Resource]([SubResource("InventoryStock_skirmish_bandage")])
+hunger_enabled = true
+hunger_drain_rate = 0.2
+max_hp = 114.0
+base_attack_damage = 19.0
+base_dodge_chance = 0.1
+base_block_chance = 0.09
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Tomas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Tomas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Tomas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="Sable" type="CharacterBody3D" parent="PartyMembers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.6, 0)
+script = ExtResource("1_party")
+base_color = Color(0.58, 0.72, 0.38, 1)
+member_name = "Sable"
+starting_items = Array[Resource]([SubResource("InventoryStock_skirmish_bandage")])
+hunger_enabled = true
+hunger_drain_rate = 0.2
+max_hp = 112.0
+base_attack_damage = 19.0
+base_dodge_chance = 0.09
+base_block_chance = 0.08
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Sable"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Sable"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Sable"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="Vale" type="CharacterBody3D" parent="PartyMembers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.6, 3)
+script = ExtResource("1_party")
+base_color = Color(0.77, 0.67, 0.38, 1)
+member_name = "Vale"
+starting_items = Array[Resource]([SubResource("InventoryStock_skirmish_bandage")])
+hunger_enabled = true
+hunger_drain_rate = 0.2
+max_hp = 110.0
+base_attack_damage = 18.5
+base_dodge_chance = 0.09
+base_block_chance = 0.08
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Vale"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Vale"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Vale"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="Nika" type="CharacterBody3D" parent="PartyMembers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.6, 6)
+script = ExtResource("1_party")
+base_color = Color(0.67, 0.45, 0.75, 1)
+member_name = "Nika"
+starting_items = Array[Resource]([SubResource("InventoryStock_skirmish_bandage")])
+hunger_enabled = true
+hunger_drain_rate = 0.2
+max_hp = 116.0
+base_attack_damage = 19.5
+base_dodge_chance = 0.1
+base_block_chance = 0.09
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Nika"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Nika"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Nika"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="RaiderA" type="CharacterBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 10, 0.6, -6)
+script = ExtResource("2_humanoid")
+member_name = "Raider A"
+faction_name = "Raiders"
+squad_name = "Raiders"
+hostile_factions = PackedStringArray("Player")
+hunger_enabled = true
+hunger_drain_rate = 0.2
+combat_stance = 0
+max_hp = 96.0
+base_attack_damage = 17.0
+base_dodge_chance = 0.06
+base_block_chance = 0.05
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RaiderA"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="RaiderA"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="RaiderB" type="CharacterBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 10, 0.6, -3)
+script = ExtResource("2_humanoid")
+member_name = "Raider B"
+faction_name = "Raiders"
+squad_name = "Raiders"
+hostile_factions = PackedStringArray("Player")
+hunger_enabled = true
+hunger_drain_rate = 0.2
+combat_stance = 0
+max_hp = 94.0
+base_attack_damage = 16.5
+base_dodge_chance = 0.06
+base_block_chance = 0.04
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RaiderB"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="RaiderB"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="RaiderC" type="CharacterBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 10, 0.6, 0)
+script = ExtResource("2_humanoid")
+member_name = "Raider C"
+faction_name = "Raiders"
+squad_name = "Raiders"
+hostile_factions = PackedStringArray("Player")
+hunger_enabled = true
+hunger_drain_rate = 0.2
+combat_stance = 0
+max_hp = 92.0
+base_attack_damage = 16.0
+base_dodge_chance = 0.05
+base_block_chance = 0.04
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RaiderC"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="RaiderC"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="RaiderD" type="CharacterBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 10, 0.6, 3)
+script = ExtResource("2_humanoid")
+member_name = "Raider D"
+faction_name = "Raiders"
+squad_name = "Raiders"
+hostile_factions = PackedStringArray("Player")
+hunger_enabled = true
+hunger_drain_rate = 0.2
+combat_stance = 0
+max_hp = 95.0
+base_attack_damage = 16.5
+base_dodge_chance = 0.06
+base_block_chance = 0.04
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RaiderD"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="RaiderD"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="RaiderE" type="CharacterBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 10, 0.6, 6)
+script = ExtResource("2_humanoid")
+member_name = "Raider E"
+faction_name = "Raiders"
+squad_name = "Raiders"
+hostile_factions = PackedStringArray("Player")
+hunger_enabled = true
+hunger_drain_rate = 0.2
+combat_stance = 0
+max_hp = 93.0
+base_attack_damage = 16.0
+base_dodge_chance = 0.05
+base_block_chance = 0.04
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RaiderE"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="RaiderE"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="PartyManager" type="Node" parent="."]
+script = ExtResource("3_manager")
+
+[node name="GameBootstrap" type="Node" parent="."]
+script = ExtResource("4_bootstrap")
+
+[node name="CameraRig" type="Node3D" parent="."]
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 22)
+current = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Instructions" type="Label" parent="CanvasLayer"]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 660.0
+offset_bottom = 132.0
+text = "5v5 skirmish: the Raiders are hostile to the Player faction and aggressive, so they auto-charge on sight. Your five party members are slightly stronger and should usually win while still taking real wounds. Use right-click for Attack, Heal, Carry, Finish Off, and Put Down once the melee breaks open."
+autowrap_mode = 3
