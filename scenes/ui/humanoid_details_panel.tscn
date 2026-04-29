@@ -47,25 +47,29 @@ theme_override_constants/margin_bottom = 14
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Name" type="Label" parent="Margin/DetailsVBox"]
+[node name="HeaderRow" type="HBoxContainer" parent="Margin/DetailsVBox"]
 layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Name" type="Label" parent="Margin/DetailsVBox/HeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 20
 text = "Name"
+
+[node name="State" type="Label" parent="Margin/DetailsVBox/HeaderRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 2
+vertical_alignment = 1
+text = "Alive"
 
 [node name="Faction" type="Label" parent="Margin/DetailsVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.68, 0.68, 0.72, 1)
+theme_override_font_sizes/font_size = 10
 text = "Faction"
-
-[node name="State" type="Label" parent="Margin/DetailsVBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.84, 0.84, 0.76, 1)
-text = "Alive"
-
-[node name="Stance" type="Label" parent="Margin/DetailsVBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.74, 0.74, 0.78, 1)
-text = "Defensive"
 
 [node name="HungerRow" type="VBoxContainer" parent="Margin/DetailsVBox"]
 layout_mode = 2

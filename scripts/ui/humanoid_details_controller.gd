@@ -8,7 +8,6 @@ var details_panel: Control
 var name_label: Label
 var faction_label: Label
 var state_label: Label
-var stance_label: Label
 var hunger_bar_stack: Control
 var hunger_fill: ColorRect
 var hunger_value: Label
@@ -73,10 +72,9 @@ func _do_initialize() -> void:
 	details_panel = hud_layer.get_node_or_null("HudLayout/BottomHud/HumanoidDetailsPanel")
 	if details_panel == null:
 		return
-	name_label = details_panel.get_node("Margin/DetailsVBox/Name")
+	name_label = details_panel.get_node("Margin/DetailsVBox/HeaderRow/Name")
 	faction_label = details_panel.get_node("Margin/DetailsVBox/Faction")
-	state_label = details_panel.get_node("Margin/DetailsVBox/State")
-	stance_label = details_panel.get_node("Margin/DetailsVBox/Stance")
+	state_label = details_panel.get_node("Margin/DetailsVBox/HeaderRow/State")
 	hunger_bar_stack = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack")
 	hunger_fill = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack/HungerFill")
 	hunger_value = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack/HungerValue")
@@ -103,7 +101,7 @@ func _update_panel() -> void:
 		name_label.text = ""
 		faction_label.text = ""
 		state_label.text = ""
-		stance_label.text = ""
+		state_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
 		_update_fill_bar(hunger_bar_stack, hunger_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
 		hunger_value.text = ""
 		_update_fill_bar(blood_bar_stack, blood_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
@@ -115,9 +113,9 @@ func _update_panel() -> void:
 		return
 	details_panel.visible = true
 	name_label.text = current_target.member_name
-	faction_label.text = "%s / %s" % [current_target.faction_name, current_target.squad_name]
+	faction_label.text = current_target.faction_name
 	state_label.text = current_target.get_life_state_label()
-	stance_label.text = current_target.get_stance_label()
+	state_label.modulate = _get_life_state_color(current_target.life_state)
 	var hunger_stage_label: String = current_target.get_hunger_stage_label()
 	hunger_value.text = "%s %d / 100" % [hunger_stage_label, int(round(current_target.hunger))]
 	_update_fill_bar(hunger_bar_stack, hunger_fill, current_target.hunger / 100.0, _get_stage_color(current_target.get_hunger_stage(), NpcRules.HungerStage.WELL_NOURISHED, NpcRules.HungerStage.HUNGRY, NpcRules.HungerStage.STARVING))
@@ -181,3 +179,13 @@ func _get_ratio_color(ratio: float) -> Color:
 	if ratio <= 0.66:
 		return Color(0.82, 0.69, 0.22, 1.0)
 	return Color(0.47, 0.78, 0.43, 1.0)
+
+
+func _get_life_state_color(life_state: int) -> Color:
+	match life_state:
+		NpcRules.LifeState.DEAD:
+			return Color(0.9, 0.2, 0.2, 1.0)
+		NpcRules.LifeState.UNCONSCIOUS:
+			return Color(0.95, 0.6, 0.2, 1.0)
+		_:
+			return Color(1.0, 1.0, 1.0, 1.0)
