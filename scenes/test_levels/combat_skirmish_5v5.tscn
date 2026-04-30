@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
 [ext_resource type="Script" uid="uid://bjnsg3gd8jbp1" path="res://scripts/characters/humanoid_character.gd" id="2_humanoid"]
-[ext_resource type="Script" path="res://scripts/party_manager.gd" id="3_manager"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="3_manager"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="4_bootstrap"]
 [ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://scripts/items/inventory_stock.gd" id="5_inventory_stock"]
 [ext_resource type="Resource" path="res://resources/items/bandage.tres" id="6_bandage"]

@@ -16,21 +16,21 @@ func _ready() -> void:
 	add_to_group("mining_resource")
 
 
-func get_mining_position(member: PartyMember) -> Vector3:
+func get_mining_position(member: HumanoidCharacter) -> Vector3:
 	var slot_index := _get_slot_index(member)
 	var angle := TAU * float(slot_index) / float(max(slot_count, 1))
 	return global_position + Vector3(cos(angle), 0.0, sin(angle)) * slot_distance
 
 
-func register_miner(member: PartyMember) -> void:
+func register_miner(member: HumanoidCharacter) -> void:
 	_get_slot_index(member)
 
 
-func release_miner(member: PartyMember) -> void:
+func release_miner(member: HumanoidCharacter) -> void:
 	_assigned_slots.erase(member.get_instance_id())
 
 
-func _get_slot_index(member: PartyMember) -> int:
+func _get_slot_index(member: HumanoidCharacter) -> int:
 	var key: int = member.get_instance_id()
 	if _assigned_slots.has(key):
 		return _assigned_slots[key]

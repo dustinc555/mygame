@@ -54,7 +54,7 @@ func open_selected_inventory() -> void:
 	open_inventory_for_owner(party_manager.selected_members[0])
 
 
-func open_inventory_for_member(member: PartyMember) -> void:
+func open_inventory_for_member(member: HumanoidCharacter) -> void:
 	open_inventory_for_owner(member)
 
 

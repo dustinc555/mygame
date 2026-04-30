@@ -54,17 +54,17 @@ func _enter_tree() -> void:
 		call_deferred("_refresh_editor_preview")
 
 
-func register_interactor(member: PartyMember) -> void:
+func register_interactor(member: HumanoidCharacter) -> void:
 	_get_slot_index(member)
 	_pending_actor_ids[member.get_instance_id()] = true
 
 
-func release_interactor(member: PartyMember) -> void:
+func release_interactor(member: HumanoidCharacter) -> void:
 	_pending_actor_ids.erase(member.get_instance_id())
 	_assigned_slots.erase(member.get_instance_id())
 
 
-func resolve_interaction(member: PartyMember) -> bool:
+func resolve_interaction(member: HumanoidCharacter) -> bool:
 	if member == null:
 		return false
 	if is_locked:
@@ -77,7 +77,7 @@ func resolve_interaction(member: PartyMember) -> bool:
 	return true
 
 
-func get_interaction_position(member: PartyMember) -> Vector3:
+func get_interaction_position(member: HumanoidCharacter) -> Vector3:
 	var slot_index := _get_slot_index(member)
 	var angle := TAU * float(slot_index) / float(max(slot_count, 1))
 	return global_position + Vector3(cos(angle), 0.0, sin(angle)) * slot_distance
@@ -99,7 +99,7 @@ func shows_inventory_weight() -> bool:
 	return false
 
 
-func _get_slot_index(member: PartyMember) -> int:
+func _get_slot_index(member: HumanoidCharacter) -> int:
 	var key: int = member.get_instance_id()
 	if _assigned_slots.has(key):
 		return _assigned_slots[key]

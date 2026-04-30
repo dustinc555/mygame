@@ -16,6 +16,7 @@ const ACTION_HEAL := 7
 const ACTION_FINISH_OFF := 8
 const ACTION_CARRY := 9
 const ACTION_DROP_CARRY := 10
+const ACTION_TALK := 11
 const STANCE_OPTION_MIXED := 3
 const FREE_CAMERA_PITCH := -0.65
 const FOLLOW_CAMERA_HEIGHT := 1.35
@@ -31,7 +32,7 @@ const GROUND_Y := 0.0
 @export var move_command_spacing := 1.4
 @export var drag_select_threshold := 12.0
 
-var party_members: Array[PartyMember] = []
+var party_members: Array[HumanoidCharacter] = []
 var portrait_cards: Array[PartyPortraitCard] = []
 var mining_progress_bars: Dictionary = {}
 var camera_anchor := Vector3.ZERO
@@ -43,7 +44,7 @@ var is_left_mouse_down := false
 var is_drag_selecting := false
 var left_mouse_press_position := Vector2.ZERO
 var left_mouse_press_double_click := false
-var context_member: PartyMember
+var context_member: HumanoidCharacter
 var context_humanoid: HumanoidCharacter
 var context_resource
 var context_container
@@ -63,6 +64,7 @@ var sneaking_button: CheckButton
 var stance_option: OptionButton
 var inventory_controller: PartyInventoryController
 var humanoid_details_controller
+var conversation_controller
 var floating_notice: FloatingNotice
 var _initialized := false
 
@@ -101,43 +103,30 @@ func _do_initialize() -> void:
 	floating_notice = hud_layer.get_node_or_null("FloatingNotice")
 	inventory_controller = get_parent().get_node("PartyInventoryController")
 	humanoid_details_controller = get_parent().get_node("HumanoidDetailsController")
+	conversation_controller = get_parent().get_node("ConversationController")
 	_initialized = true
 
 	for child in party_root.get_children():
-		if child is PartyMember:
-			party_members.append(child)
-			child.container_reached.connect(_on_party_member_container_reached)
-			child.trade_target_reached.connect(_on_party_member_trade_target_reached)
-			child.state_changed.connect(_update_command_bar)
+		if child is HumanoidCharacter and child.is_player_party_member():
+			_register_party_member(child)
 
 	party_manager.set_party_members(party_members)
 	party_manager.selection_changed.connect(_update_portraits)
 	party_manager.follow_changed.connect(_update_portraits)
 	party_manager.selection_changed.connect(_sync_inspected_party_member)
 	party_manager.selection_changed.connect(_update_command_bar)
+	party_manager.party_member_added.connect(_on_party_member_added)
 
 	if portrait_flow != null:
 		for child in portrait_flow.get_children():
 			child.queue_free()
 		portrait_cards.clear()
 		for member in party_members:
-			var card := PARTY_PORTRAIT_CARD_SCENE.instantiate() as PartyPortraitCard
-			portrait_flow.add_child(card)
-			card.setup(member)
-			card.portrait_pressed.connect(_on_portrait_pressed)
-			portrait_cards.append(card)
+			_add_portrait_for_member(member)
 
 	if progress_layer != null:
 		for member in party_members:
-			var bar := ProgressBar.new()
-			bar.min_value = 0.0
-			bar.max_value = 100.0
-			bar.value = 0.0
-			bar.custom_minimum_size = Vector2(90.0, 12.0)
-			bar.show_percentage = false
-			bar.visible = false
-			progress_layer.add_child(bar)
-			mining_progress_bars[member] = bar
+			_ensure_progress_bar(member)
 
 	if context_menu != null:
 		context_menu.id_pressed.connect(_on_context_menu_id_pressed)
@@ -152,6 +141,40 @@ func _do_initialize() -> void:
 	_apply_camera_transform()
 	_update_portraits()
 	_update_command_bar()
+
+
+func _register_party_member(member: HumanoidCharacter) -> void:
+	if member == null or party_members.has(member):
+		return
+	party_members.append(member)
+	member.container_reached.connect(_on_party_member_container_reached)
+	member.trade_target_reached.connect(_on_party_member_trade_target_reached)
+	member.conversation_target_reached.connect(_on_party_member_conversation_target_reached)
+	member.state_changed.connect(_update_command_bar)
+
+
+func _add_portrait_for_member(member: HumanoidCharacter) -> void:
+	if portrait_flow == null or member == null:
+		return
+	var card := PARTY_PORTRAIT_CARD_SCENE.instantiate() as PartyPortraitCard
+	portrait_flow.add_child(card)
+	card.setup(member)
+	card.portrait_pressed.connect(_on_portrait_pressed)
+	portrait_cards.append(card)
+
+
+func _ensure_progress_bar(member: HumanoidCharacter) -> void:
+	if progress_layer == null or member == null or mining_progress_bars.has(member):
+		return
+	var bar := ProgressBar.new()
+	bar.min_value = 0.0
+	bar.max_value = 100.0
+	bar.value = 0.0
+	bar.custom_minimum_size = Vector2(90.0, 12.0)
+	bar.show_percentage = false
+	bar.visible = false
+	progress_layer.add_child(bar)
+	mining_progress_bars[member] = bar
 
 
 func _process(delta: float) -> void:
@@ -245,9 +268,9 @@ func _handle_world_selection(screen_position: Vector2, should_follow: bool) -> v
 		return
 	if humanoid_details_controller != null:
 		humanoid_details_controller.inspect_humanoid(humanoid)
-	if not (humanoid is PartyMember):
+	if not humanoid.is_player_party_member():
 		return
-	var member: PartyMember = humanoid
+	var member: HumanoidCharacter = humanoid
 	if Input.is_key_pressed(KEY_ALT):
 		party_manager.add_selection(member)
 	else:
@@ -272,7 +295,7 @@ func _handle_right_click(screen_position: Vector2) -> void:
 		_show_context_menu(screen_position, ACTION_MINE, "Mine")
 		context_resource = collider
 		return
-	if collider is PartyMember:
+	if collider is HumanoidCharacter and collider.is_player_party_member():
 		var party_actions := [{"id": ACTION_INVENTORY, "label": "Inventory"}]
 		if collider.life_state == NpcRules.LifeState.UNCONSCIOUS:
 			_append_downed_target_actions(party_actions, collider)
@@ -295,6 +318,8 @@ func _handle_right_click(screen_position: Vector2) -> void:
 				humanoid_actions.append({"id": ACTION_HEAL, "label": "Heal"})
 		if _selection_can_put_down_from_carrier(collider):
 			humanoid_actions.append({"id": ACTION_DROP_CARRY, "label": "Put Down"})
+		if collider.has_conversation_definition() and collider.life_state == NpcRules.LifeState.ALIVE:
+			humanoid_actions.append({"id": ACTION_TALK, "label": "Talk To"})
 		if collider.has_method("get_merchant_role") and collider.get_merchant_role() != null and collider.life_state == NpcRules.LifeState.ALIVE:
 			humanoid_actions.append({"id": ACTION_TRADE, "label": "Trade"})
 		_show_context_menu_actions(screen_position, humanoid_actions)
@@ -325,7 +350,7 @@ func _show_context_menu_actions(screen_position: Vector2, actions: Array) -> voi
 
 func _apply_drag_selection() -> void:
 	var rect := _get_selection_rect(left_mouse_press_position, get_viewport().get_mouse_position())
-	var drag_selected: Array[PartyMember] = []
+	var drag_selected: Array[HumanoidCharacter] = []
 	for member in party_members:
 		var sample_position: Vector3 = member.global_position + Vector3(0.0, 1.0, 0.0)
 		if camera.is_position_behind(sample_position):
@@ -347,12 +372,12 @@ func _apply_drag_selection() -> void:
 		humanoid_details_controller.inspect_humanoid(drag_selected[0])
 
 
-func _pick_party_member(screen_position: Vector2) -> PartyMember:
+func _pick_party_member(screen_position: Vector2) -> HumanoidCharacter:
 	var result := _raycast_from_screen(screen_position)
 	if result.is_empty():
 		return null
 	var collider: Object = result["collider"]
-	if collider is PartyMember:
+	if collider is HumanoidCharacter and collider.is_player_party_member():
 		return collider
 	return null
 
@@ -393,7 +418,7 @@ func _pick_ground_position(screen_position: Vector2) -> Variant:
 	var result := _raycast_from_screen(screen_position)
 	if not result.is_empty():
 		var collider: Object = result["collider"]
-		if not (collider is PartyMember):
+		if not (collider is HumanoidCharacter and collider.is_player_party_member()):
 			return result["position"]
 	var ray_origin := camera.project_ray_origin(screen_position)
 	var ray_direction := camera.project_ray_normal(screen_position)
@@ -421,7 +446,7 @@ func _spawn_move_command_indicator(target: Vector3) -> void:
 			indicator.setup_at(target)
 
 
-func _set_follow_target(member: PartyMember) -> void:
+func _set_follow_target(member: HumanoidCharacter) -> void:
 	party_manager.set_followed_member(member)
 	camera_anchor = _get_anchor_position()
 	_apply_camera_transform()
@@ -437,7 +462,7 @@ func _clear_follow_target() -> void:
 
 func _update_portraits() -> void:
 	for index in range(min(party_members.size(), portrait_cards.size())):
-		var member: PartyMember = party_members[index]
+		var member: HumanoidCharacter = party_members[index]
 		var card: PartyPortraitCard = portrait_cards[index]
 		var is_selected: bool = member.is_selected
 		var is_followed: bool = member.is_focused
@@ -537,7 +562,7 @@ func _apply_camera_transform() -> void:
 	camera.position = Vector3(0.0, 0.0, camera_distance)
 
 
-func _on_portrait_pressed(member: PartyMember, double_click: bool, add_select: bool) -> void:
+func _on_portrait_pressed(member: HumanoidCharacter, double_click: bool, add_select: bool) -> void:
 	if add_select:
 		party_manager.add_selection(member)
 	else:
@@ -595,6 +620,10 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 			if context_humanoid != null:
 				for member in party_manager.selected_members:
 					member.assign_trade_target(context_humanoid)
+		ACTION_TALK:
+			if context_humanoid != null:
+				for member in party_manager.selected_members:
+					member.assign_conversation_target(context_humanoid)
 		ACTION_HEAL:
 			if context_humanoid != null:
 				for member in party_manager.selected_members:
@@ -662,7 +691,7 @@ func _selection_can_put_down_from_carrier(target: HumanoidCharacter) -> bool:
 
 
 
-func _on_party_member_container_reached(member: PartyMember, container) -> void:
+func _on_party_member_container_reached(member: HumanoidCharacter, container) -> void:
 	if container == null or member == null:
 		return
 	if container.is_locked:
@@ -674,7 +703,7 @@ func _on_party_member_container_reached(member: PartyMember, container) -> void:
 	inventory_controller.open_inventory_for_owner(member)
 
 
-func _on_party_member_trade_target_reached(member: PartyMember, target) -> void:
+func _on_party_member_trade_target_reached(member: HumanoidCharacter, target) -> void:
 	if member == null or target == null:
 		return
 	if target is CharacterBody3D and target.has_method("resolve_trade"):
@@ -682,6 +711,23 @@ func _on_party_member_trade_target_reached(member: PartyMember, target) -> void:
 			return
 		inventory_controller.open_inventory_for_owner(member)
 		inventory_controller.open_inventory_for_owner(target)
+
+
+func _on_party_member_conversation_target_reached(member: HumanoidCharacter, target) -> void:
+	if member == null or target == null or conversation_controller == null:
+		return
+	if target is CharacterBody3D and target.has_method("resolve_talk"):
+		if not target.resolve_talk(member):
+			return
+		conversation_controller.begin_conversation(member, target)
+
+
+func _on_party_member_added(member: HumanoidCharacter) -> void:
+	_register_party_member(member)
+	_add_portrait_for_member(member)
+	_ensure_progress_bar(member)
+	_update_portraits()
+	_update_command_bar()
 
 
 func _spawn_world_notice(world_position: Vector3, message: String) -> void:
@@ -701,5 +747,5 @@ func _sync_inspected_party_member() -> void:
 		return
 	if party_manager.selected_members.is_empty():
 		return
-	if humanoid_details_controller.current_target == null or humanoid_details_controller.current_target is PartyMember:
+	if humanoid_details_controller.current_target == null or humanoid_details_controller.current_target.is_player_party_member():
 		humanoid_details_controller.inspect_humanoid(party_manager.selected_members[0])

@@ -1,7 +1,7 @@
 [gd_scene load_steps=10 format=3 uid="uid://eu1as112bdqf"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
-[ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_mgr"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_mgr"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]

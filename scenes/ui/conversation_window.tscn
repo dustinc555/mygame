@@ -1,0 +1,212 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/conversation_window.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_window"]
+bg_color = Color(0.09, 0.08, 0.07, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.56, 0.47, 0.28, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0, 0, 0, 0.3)
+shadow_size = 8
+
+[sub_resource type="Environment" id="Environment_portrait"]
+background_mode = 1
+background_color = Color(0.32, 0.31, 0.29, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_portrait"]
+bg_color = Color(0.16, 0.15, 0.13, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.42, 0.36, 0.23, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_response"]
+bg_color = Color(0.2, 0.17, 0.13, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.46, 0.38, 0.24, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 8.0
+
+[node name="ConversationWindow" type="PanelContainer"]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -360.0
+offset_top = -190.0
+offset_right = 360.0
+offset_bottom = 120.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_window")
+mouse_filter = 1
+script = ExtResource("1_script")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="Layout" type="HBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="LeftPortraitPanel" type="PanelContainer" parent="Margin/Layout"]
+custom_minimum_size = Vector2(132, 0)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_portrait")
+
+[node name="Margin" type="MarginContainer" parent="Margin/Layout/LeftPortraitPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBox" type="VBoxContainer" parent="Margin/Layout/LeftPortraitPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Name" type="Label" parent="Margin/Layout/LeftPortraitPanel/Margin/VBox"]
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 13
+text = "Speaker"
+
+[node name="PortraitImage" type="TextureRect" parent="Margin/Layout/LeftPortraitPanel/Margin/VBox"]
+custom_minimum_size = Vector2(116, 132)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 6
+
+[node name="PortraitViewportContainer" type="SubViewportContainer" parent="Margin/Layout/LeftPortraitPanel/Margin/VBox"]
+visible = false
+custom_minimum_size = Vector2(116, 132)
+layout_mode = 2
+mouse_filter = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="Margin/Layout/LeftPortraitPanel/Margin/VBox/PortraitViewportContainer"]
+transparent_bg = false
+handle_input_locally = false
+own_world_3d = true
+size = Vector2i(220, 300)
+render_target_update_mode = 1
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="Margin/Layout/LeftPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport"]
+environment = SubResource("Environment_portrait")
+
+[node name="Camera3D" type="Camera3D" parent="Margin/Layout/LeftPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport"]
+transform = Transform3D(0.996195, 0, -0.0871557, -0.020257, 0.972744, -0.231177, 0.0847791, 0.23206, 0.968657, 0, 1.2, 2.5)
+current = true
+
+[node name="Light" type="DirectionalLight3D" parent="Margin/Layout/LeftPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport"]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 2, 0)
+
+[node name="PortraitRoot" type="Node3D" parent="Margin/Layout/LeftPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport"]
+
+[node name="CenterColumn" type="VBoxContainer" parent="Margin/Layout"]
+custom_minimum_size = Vector2(0, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="SpeakerLabel" type="Label" parent="Margin/Layout/CenterColumn"]
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 18
+text = "Speaker"
+
+[node name="Transcript" type="RichTextLabel" parent="Margin/Layout/CenterColumn"]
+custom_minimum_size = Vector2(0, 118)
+layout_mode = 2
+bbcode_enabled = false
+scroll_following = true
+fit_content = false
+selection_enabled = false
+scroll_active = true
+
+[node name="Responses" type="VBoxContainer" parent="Margin/Layout/CenterColumn"]
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="RightPortraitPanel" type="PanelContainer" parent="Margin/Layout"]
+custom_minimum_size = Vector2(132, 0)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_portrait")
+
+[node name="Margin" type="MarginContainer" parent="Margin/Layout/RightPortraitPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBox" type="VBoxContainer" parent="Margin/Layout/RightPortraitPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Name" type="Label" parent="Margin/Layout/RightPortraitPanel/Margin/VBox"]
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 13
+text = "Listener"
+
+[node name="PortraitImage" type="TextureRect" parent="Margin/Layout/RightPortraitPanel/Margin/VBox"]
+custom_minimum_size = Vector2(116, 132)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 6
+
+[node name="PortraitViewportContainer" type="SubViewportContainer" parent="Margin/Layout/RightPortraitPanel/Margin/VBox"]
+visible = false
+custom_minimum_size = Vector2(116, 132)
+layout_mode = 2
+mouse_filter = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="Margin/Layout/RightPortraitPanel/Margin/VBox/PortraitViewportContainer"]
+transparent_bg = false
+handle_input_locally = false
+own_world_3d = true
+size = Vector2i(220, 300)
+render_target_update_mode = 1
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="Margin/Layout/RightPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport"]
+environment = SubResource("Environment_portrait")
+
+[node name="Camera3D" type="Camera3D" parent="Margin/Layout/RightPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport"]
+transform = Transform3D(0.996195, 0, -0.0871557, -0.020257, 0.972744, -0.231177, 0.0847791, 0.23206, 0.968657, 0, 1.2, 2.5)
+current = true
+
+[node name="Light" type="DirectionalLight3D" parent="Margin/Layout/RightPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport"]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 2, 0)
+
+[node name="PortraitRoot" type="Node3D" parent="Margin/Layout/RightPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport"]

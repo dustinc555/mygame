@@ -4,7 +4,7 @@ class_name PartyPortraitCard
 
 signal portrait_pressed(member, double_click, add_select)
 
-var member: PartyMember
+var member: HumanoidCharacter
 
 @onready var viewport: SubViewport = $Margin/VBox/PortraitViewportContainer/SubViewport
 @onready var portrait_root: Node3D = $Margin/VBox/PortraitViewportContainer/SubViewport/PortraitRoot
@@ -22,7 +22,7 @@ func _ready() -> void:
 	add_theme_color_override("font_disabled_color", Color(0.92, 0.92, 0.92, 1.0))
 
 
-func setup(target_member: PartyMember) -> void:
+func setup(target_member: HumanoidCharacter) -> void:
 	member = target_member
 	if name_label == null:
 		call_deferred("_deferred_setup")

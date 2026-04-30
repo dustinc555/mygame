@@ -1,7 +1,8 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/ui/floating_notice.tscn" id="1_notice"]
 [ext_resource type="PackedScene" path="res://scenes/ui/humanoid_details_panel.tscn" id="2_details"]
+[ext_resource type="PackedScene" path="res://scenes/ui/conversation_window.tscn" id="3_conversation"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_party_bar"]
 bg_color = Color(0.16, 0.16, 0.18, 0.96)
@@ -157,3 +158,17 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+
+[node name="ConversationWindow" parent="." instance=ExtResource("3_conversation")]
+layout_mode = 0
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -360.0
+offset_top = -190.0
+offset_right = 360.0
+offset_bottom = 120.0
+grow_horizontal = 2
+grow_vertical = 2

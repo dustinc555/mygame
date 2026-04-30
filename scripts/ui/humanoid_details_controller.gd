@@ -58,7 +58,7 @@ func inspect_humanoid(target) -> void:
 
 
 func clear_if_not_party_target() -> void:
-	if current_target != null and not (current_target is PartyMember):
+	if current_target != null and (not current_target.has_method("is_player_party_member") or not current_target.is_player_party_member()):
 		inspect_humanoid(null)
 
 

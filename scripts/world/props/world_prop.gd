@@ -49,11 +49,10 @@ func _rebuild_collision_shapes() -> void:
 		collision_node.shape = shape
 		if index < collision_transforms.size():
 			collision_node.transform = collision_transforms[index]
-		if Engine.is_editor_hint():
-			var edited_root := get_tree().edited_scene_root
-			if edited_root != null:
-				collision_node.owner = edited_root
 		add_child(collision_node)
+		if Engine.is_editor_hint():
+			if owner != null:
+				collision_node.owner = owner
 
 
 func _rebuild_visual() -> void:
@@ -67,9 +66,8 @@ func _rebuild_visual() -> void:
 	var visual_instance := visual_scene.instantiate()
 	model_root.add_child(visual_instance)
 	if Engine.is_editor_hint():
-		var edited_root := get_tree().edited_scene_root
-		if edited_root != null:
-			visual_instance.owner = edited_root
+		if model_root.owner != null:
+			visual_instance.owner = model_root.owner
 	if visual_instance is Node3D:
 		visual_instance.transform = visual_transform
 

@@ -1,7 +1,7 @@
 [gd_scene load_steps=10 format=3 uid="uid://jsg3qe0fcfw2"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_p4rty"]
-[ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_m4n4g"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_m4n4g"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="4_bootstrap"]
 [ext_resource type="PackedScene" uid="uid://cxk5vgdnfkroq" path="res://scenes/world/containers/barrel_container.tscn" id="6_366s7"]
 

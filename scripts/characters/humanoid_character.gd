@@ -10,6 +10,7 @@ enum OrderType {
 	MINE,
 	OPEN_CONTAINER,
 	TRADE,
+	TALK,
 	ATTACK,
 	HEAL,
 	FINISH_OFF,
@@ -17,6 +18,7 @@ enum OrderType {
 }
 
 @export var member_name := "Character"
+@export var stable_id := ""
 @export var move_speed := 3.2
 @export var acceleration := 10.0
 @export var interact_distance := 1.8
@@ -30,6 +32,7 @@ enum OrderType {
 @export var faction_name := "Player"
 @export var squad_name := "Default"
 @export var hostile_factions: PackedStringArray = PackedStringArray()
+@export var conversation_definition: Resource
 
 @export var hunger_enabled := false
 @export_range(0, 2, 1) var hunger_stage := NpcRules.HungerStage.WELL_NOURISHED
@@ -61,6 +64,9 @@ enum OrderType {
 
 var inventory: InventoryData
 var is_inspected := false
+var is_selected := false
+var is_focused := false
+var player_party_member := false
 var life_state := NpcRules.LifeState.ALIVE
 var gravity := ProjectSettings.get_setting("physics/3d/default_gravity") as float
 
@@ -74,6 +80,7 @@ var _mining_progress_by_node: Dictionary = {}
 var _mining_active := false
 var _current_container_target
 var _current_trade_target
+var _current_conversation_target
 var _current_attack_target: HumanoidCharacter
 var _current_heal_target: HumanoidCharacter
 var _current_finish_off_target: HumanoidCharacter
@@ -96,6 +103,8 @@ var _stored_collision_mask := 1
 
 var _personal_hostile_ids: Dictionary = {}
 var _last_direct_attacker_id := 0
+var _assigned_talkers: Dictionary = {}
+var _pending_talker_ids: Dictionary = {}
 
 var _nameplate: Label3D
 var _inspect_ring: MeshInstance3D
@@ -108,6 +117,7 @@ signal state_changed
 signal combat_state_changed
 signal container_reached(member, container)
 signal trade_target_reached(member, target)
+signal conversation_target_reached(member, target)
 
 
 func _ready() -> void:
@@ -119,6 +129,7 @@ func _ready() -> void:
 	_setup_inspect_ring()
 	add_to_group("humanoid_character")
 	add_to_group("npc_character")
+	_sync_party_membership_group()
 	hunger = clampf(hunger, 0.0, 100.0)
 	fatigue = clampf(fatigue, 0.0, 100.0)
 	_recalculate_vitals()
@@ -154,6 +165,8 @@ func _physics_process(delta: float) -> void:
 			_process_container_interaction()
 		OrderType.TRADE:
 			_process_trade_interaction()
+		OrderType.TALK:
+			_process_conversation_interaction()
 		OrderType.ATTACK:
 			_process_attack_interaction()
 		OrderType.HEAL:
@@ -193,6 +206,14 @@ func stop_trade_interaction() -> void:
 		_current_trade_target.release_trader(self)
 	_current_trade_target = null
 	if _current_order_type == OrderType.TRADE:
+		_current_order_type = OrderType.NONE
+
+
+func stop_conversation_interaction() -> void:
+	if _current_conversation_target != null and _current_conversation_target.has_method("release_talker"):
+		_current_conversation_target.release_talker(self)
+	_current_conversation_target = null
+	if _current_order_type == OrderType.TALK:
 		_current_order_type = OrderType.NONE
 
 
@@ -244,6 +265,19 @@ func assign_trade_target(target_character, issued_by_player: bool = true) -> voi
 	if _current_trade_target.has_method("register_trader"):
 		_current_trade_target.register_trader(self)
 	_move_target = _current_trade_target.get_interaction_position(self)
+	_has_move_target = true
+
+
+func assign_conversation_target(target_character, issued_by_player: bool = true) -> void:
+	if target_character == null or not target_character.has_conversation_definition():
+		return
+	_set_order(OrderType.TALK, issued_by_player)
+	if _current_conversation_target != null and _current_conversation_target != target_character and _current_conversation_target.has_method("release_talker"):
+		_current_conversation_target.release_talker(self)
+	_current_conversation_target = target_character
+	if _current_conversation_target.has_method("register_talker"):
+		_current_conversation_target.register_talker(self)
+	_move_target = _current_conversation_target.get_interaction_position(self)
 	_has_move_target = true
 
 
@@ -638,8 +672,10 @@ func apply_bandage_from(actor: HumanoidCharacter) -> bool:
 	return true
 
 
-func get_interaction_position(_member) -> Vector3:
-	return global_position
+func get_interaction_position(member: HumanoidCharacter) -> Vector3:
+	var slot_index := _get_talker_slot(member)
+	var angle := TAU * float(slot_index) / 6.0
+	return global_position + Vector3(cos(angle), 0.0, sin(angle)) * interact_distance
 
 
 func get_combat_approach_position(attacker: HumanoidCharacter) -> Vector3:
@@ -838,6 +874,22 @@ func _process_trade_interaction() -> void:
 	trade_target_reached.emit(self, target)
 
 
+func _process_conversation_interaction() -> void:
+	if _current_conversation_target == null:
+		return
+	var interaction_position: Vector3 = _current_conversation_target.get_interaction_position(self)
+	var target_position: Vector3 = _current_conversation_target.global_position
+	if global_position.distance_to(target_position) > interact_distance:
+		_move_target = interaction_position
+		_has_move_target = true
+		return
+	_has_move_target = false
+	var target = _current_conversation_target
+	_current_conversation_target = null
+	_current_order_type = OrderType.NONE
+	conversation_target_reached.emit(self, target)
+
+
 func _process_attack_interaction() -> void:
 	if _current_attack_target == null or not is_instance_valid(_current_attack_target):
 		stop_attack_assignment()
@@ -927,6 +979,76 @@ func _on_inventory_data_changed() -> void:
 	inventory_changed.emit()
 
 
+func has_conversation_definition() -> bool:
+	return conversation_definition != null
+
+
+func get_conversation_definition():
+	return conversation_definition
+
+
+func register_talker(member: HumanoidCharacter) -> void:
+	_get_talker_slot(member)
+	_pending_talker_ids[member.get_instance_id()] = true
+
+
+func release_talker(member: HumanoidCharacter) -> void:
+	_pending_talker_ids.erase(member.get_instance_id())
+	_assigned_talkers.erase(member.get_instance_id())
+
+
+func resolve_talk(member: HumanoidCharacter) -> bool:
+	if member == null:
+		return false
+	var actor_id := member.get_instance_id()
+	if not _pending_talker_ids.has(actor_id):
+		return false
+	_pending_talker_ids.clear()
+	return true
+
+
+func _get_talker_slot(member: HumanoidCharacter) -> int:
+	var key := member.get_instance_id()
+	if _assigned_talkers.has(key):
+		return _assigned_talkers[key]
+	for slot_index in range(6):
+		if not _assigned_talkers.values().has(slot_index):
+			_assigned_talkers[key] = slot_index
+			return slot_index
+	_assigned_talkers[key] = 0
+	return 0
+
+
+func is_player_party_member() -> bool:
+	return player_party_member
+
+
+func set_player_party_member(value: bool) -> void:
+	player_party_member = value
+	_sync_party_membership_group()
+
+
+func set_selected(value: bool) -> void:
+	is_selected = value
+	_update_selection_state()
+
+
+func set_focused(value: bool) -> void:
+	is_focused = value
+	_update_selection_state()
+
+
+func _update_selection_state() -> void:
+	_update_inspect_visual()
+
+
+func _sync_party_membership_group() -> void:
+	if player_party_member:
+		add_to_group("party_member")
+	else:
+		remove_from_group("party_member")
+
+
 func _setup_nameplate() -> void:
 	if not show_nameplate:
 		return
@@ -985,6 +1107,8 @@ func _cancel_non_matching_assignments(next_order_type: int) -> void:
 		stop_container_interaction()
 	if next_order_type != OrderType.TRADE:
 		stop_trade_interaction()
+	if next_order_type != OrderType.TALK:
+		stop_conversation_interaction()
 	if next_order_type != OrderType.ATTACK:
 		stop_attack_assignment()
 	if next_order_type != OrderType.HEAL:
@@ -1267,6 +1391,7 @@ func _clear_all_active_orders() -> void:
 	stop_mining_assignment()
 	stop_container_interaction()
 	stop_trade_interaction()
+	stop_conversation_interaction()
 	stop_attack_assignment()
 	stop_heal_assignment()
 	stop_finish_off_assignment()

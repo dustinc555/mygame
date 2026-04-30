@@ -1,0 +1,143 @@
+[gd_resource type="Resource" script_class="ConversationDefinition" load_steps=23 format=3 uid="uid://6ec7t6l86odf"]
+
+[ext_resource type="Script" uid="uid://oln7awi2fw1o" path="res://scripts/conversation/conversation_definition.gd" id="1_definition"]
+[ext_resource type="Script" uid="uid://c21vtwxjyyyyi" path="res://scripts/conversation/conversation_node.gd" id="2_node"]
+[ext_resource type="Script" uid="uid://d2gwynnqbm0iq" path="res://scripts/conversation/conversation_response.gd" id="3_response"]
+[ext_resource type="Script" uid="uid://chy0yv7e33qft" path="res://scripts/conversation/conversation_condition.gd" id="4_condition"]
+[ext_resource type="Script" uid="uid://cpf8b6pq8heil" path="res://scripts/conversation/conversation_effect.gd" id="5_effect"]
+[ext_resource type="Resource" path="res://resources/items/silver.tres" id="6_silver"]
+
+[sub_resource type="Resource" id="ConversationEffect_mug"]
+script = ExtResource("5_effect")
+action_id = "core.start_combat"
+parameters = {}
+
+[sub_resource type="Resource" id="ConversationResponse_mug"]
+script = ExtResource("3_response")
+text = "Put your hands in the air."
+next_node_id = ""
+visible_conditions = Array[Resource]([])
+effects = Array[Resource]([SubResource("ConversationEffect_mug")])
+
+[sub_resource type="Resource" id="ConversationEffect_trade"]
+script = ExtResource("5_effect")
+action_id = "core.start_trade"
+parameters = {}
+
+[sub_resource type="Resource" id="ConversationResponse_trade"]
+script = ExtResource("3_response")
+text = "Got anything to trade?"
+next_node_id = ""
+visible_conditions = Array[Resource]([])
+effects = Array[Resource]([SubResource("ConversationEffect_trade")])
+
+[sub_resource type="Resource" id="ConversationResponse_recruit_offer"]
+script = ExtResource("3_response")
+text = "Wanna come along with us?"
+next_node_id = "join_offer"
+visible_conditions = Array[Resource]([])
+effects = Array[Resource]([])
+
+[sub_resource type="Resource" id="ConversationNode_intro"]
+script = ExtResource("2_node")
+node_id = "intro"
+speaker_name = "Jim"
+text = "Hello"
+responses = Array[Resource]([SubResource("ConversationResponse_mug"), SubResource("ConversationResponse_trade"), SubResource("ConversationResponse_recruit_offer")])
+effects = Array[Resource]([])
+ends_conversation = false
+
+[sub_resource type="Resource" id="ConversationCondition_has_silver"]
+script = ExtResource("4_condition")
+condition_id = "inventory.has_item_count"
+parameters = {
+"count": 5,
+"item_definition": ExtResource("6_silver"),
+"subject": "speaker_member"
+}
+negate = false
+disabled_reason = ""
+
+[sub_resource type="Resource" id="ConversationResponse_pay"]
+script = ExtResource("3_response")
+text = "Here you go!"
+next_node_id = "join_yes"
+visible_conditions = Array[Resource]([SubResource("ConversationCondition_has_silver")])
+effects = Array[Resource]([])
+
+[sub_resource type="Resource" id="ConversationCondition_not_enough_silver"]
+script = ExtResource("4_condition")
+condition_id = "inventory.has_item_count"
+parameters = {
+"count": 5,
+"item_definition": ExtResource("6_silver"),
+"subject": "speaker_member"
+}
+negate = true
+disabled_reason = ""
+
+[sub_resource type="Resource" id="ConversationResponse_cannot_pay"]
+script = ExtResource("3_response")
+text = "Sorry, I don't have that much money."
+next_node_id = "join_no"
+visible_conditions = Array[Resource]([SubResource("ConversationCondition_not_enough_silver")])
+effects = Array[Resource]([])
+
+[sub_resource type="Resource" id="ConversationNode_join_offer"]
+script = ExtResource("2_node")
+node_id = "join_offer"
+speaker_name = "Jim"
+text = "I'll join you for 5 silver."
+responses = Array[Resource]([SubResource("ConversationResponse_pay"), SubResource("ConversationResponse_cannot_pay")])
+effects = Array[Resource]([])
+ends_conversation = false
+
+[sub_resource type="Resource" id="ConversationEffect_pay_silver"]
+script = ExtResource("5_effect")
+action_id = "core.transfer_item"
+parameters = {
+"count": 5,
+"from_subject": "speaker_member",
+"item_definition": ExtResource("6_silver"),
+"to_subject": "conversation_target"
+}
+
+[sub_resource type="Resource" id="ConversationEffect_join_party"]
+script = ExtResource("5_effect")
+action_id = "core.join_party"
+parameters = {
+"subject": "conversation_target"
+}
+
+[sub_resource type="Resource" id="ConversationEffect_set_faction"]
+script = ExtResource("5_effect")
+action_id = "core.set_faction"
+parameters = {
+"faction_name": "Player",
+"subject": "conversation_target"
+}
+
+[sub_resource type="Resource" id="ConversationNode_join_yes"]
+script = ExtResource("2_node")
+node_id = "join_yes"
+speaker_name = "Jim"
+text = "Sure!"
+responses = Array[Resource]([])
+effects = Array[Resource]([SubResource("ConversationEffect_pay_silver"), SubResource("ConversationEffect_join_party"), SubResource("ConversationEffect_set_faction")])
+ends_conversation = true
+
+[sub_resource type="Resource" id="ConversationNode_join_no"]
+script = ExtResource("2_node")
+node_id = "join_no"
+speaker_name = "Jim"
+text = "Come back when you've got it."
+responses = Array[Resource]([])
+effects = Array[Resource]([])
+ends_conversation = true
+
+[resource]
+script = ExtResource("1_definition")
+conversation_id = "conv.mining_test.jim_intro"
+display_name = "Jim Intro"
+start_node_id = "intro"
+nodes = Array[Resource]([SubResource("ConversationNode_intro"), SubResource("ConversationNode_join_offer"), SubResource("ConversationNode_join_yes"), SubResource("ConversationNode_join_no")])

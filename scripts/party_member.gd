@@ -6,9 +6,6 @@ class_name PartyMember
 @export var selected_color := Color(1.0, 0.88, 0.48, 1.0)
 @export var focused_color := Color(1.0, 0.97, 0.7, 1.0)
 
-var is_selected := false
-var is_focused := false
-
 @onready var body_mesh: MeshInstance3D = $BodyMesh
 @onready var selection_ring: MeshInstance3D = $SelectionRing
 
@@ -17,8 +14,8 @@ var _ring_material := StandardMaterial3D.new()
 
 
 func _ready() -> void:
+	player_party_member = true
 	super._ready()
-	add_to_group("party_member")
 	_body_material.roughness = 0.85
 	_body_material.albedo_color = base_color
 	body_mesh.material_override = _body_material
