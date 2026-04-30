@@ -1,0 +1,17 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/world/props/prop.tscn" id="1_prop"]
+[ext_resource type="PackedScene" path="res://assets/models/props/vehicles/dirty_lada_model.tscn" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="1_body"]
+size = Vector3(1.9, 1.1, 4.1)
+
+[sub_resource type="BoxShape3D" id="2_cabin"]
+size = Vector3(1.5, 0.8, 2.0)
+
+[node name="DirtyLadaProp" instance=ExtResource("1_prop")]
+display_name = "Dirty Lada"
+visual_scene = ExtResource("2_model")
+visual_transform = Transform3D(0.021, 0, 0, 0, 0.021, 0, 0, 0, 0.021, 0.004, -0.0009, -0.045)
+collision_shapes = Array[Shape3D]([SubResource("1_body"), SubResource("2_cabin")])
+collision_transforms = Array[Transform3D]([Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.05, 1.15, -0.15)])

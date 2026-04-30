@@ -27,6 +27,7 @@
   - Any parse error means validation failed.
 
 ## Implementation Notes
+- Import and scale new models using `IMPORT_GUIDELINES.md`.
 - When instantiating a scene that depends on its initial transform in `_ready()`, set its position before `add_child()` or provide an explicit setup method and call it immediately after adding it.
 - Keep typed `@onready` variables aligned with the exact node type in the scene tree; mismatches can pass parse checks and fail only at runtime.
 

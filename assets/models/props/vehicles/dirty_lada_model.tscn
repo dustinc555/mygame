@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" uid="uid://d12pr5863nphw" path="res://assets/models/props/vehicles/dirty_lada.glb" id="1_model"]
+
+[node name="DirtyLadaModel" type="Node3D"]
+
+[node name="DirtyLada" parent="." instance=ExtResource("1_model")]

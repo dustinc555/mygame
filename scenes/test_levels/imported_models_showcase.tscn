@@ -1,0 +1,70 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/world/props/medieval_tent_prop.tscn" id="1_tent"]
+[ext_resource type="PackedScene" path="res://scenes/world/props/wooden_fence_sections_prop.tscn" id="2_fence"]
+[ext_resource type="PackedScene" path="res://scenes/world/props/mutant_skull_prop.tscn" id="3_skull"]
+[ext_resource type="PackedScene" path="res://scenes/world/props/dirty_lada_prop.tscn" id="4_lada"]
+[ext_resource type="PackedScene" path="res://scenes/world/props/stylized_classroom_prop.tscn" id="5_classroom"]
+[ext_resource type="PackedScene" path="res://assets/models/props/containers/medieval_barrel_model.tscn" id="6_barrel"]
+[ext_resource type="PackedScene" path="res://assets/models/props/instruments/bugle_model.tscn" id="7_bugle"]
+
+[sub_resource type="BoxShape3D" id="1"]
+size = Vector3(160, 1, 160)
+
+[sub_resource type="BoxMesh" id="2"]
+size = Vector3(160, 1, 160)
+
+[node name="ImportedModelsShowcase" type="Node3D"]
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 18, 0)
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("1")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+mesh = SubResource("2")
+
+[node name="CameraRig" type="Node3D" parent="."]
+transform = Transform3D(0.978148, 0, -0.207912, -0.0711094, 0.939693, -0.334546, 0.195374, 0.34202, 0.91865, 0, 18, 44)
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+current = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Label" type="Label" parent="CanvasLayer"]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 640.0
+offset_bottom = 88.0
+text = "Collision-ready prop showcase. Drag the *_prop.tscn files from scenes/world/props into your own scenes for ready-to-place blockers."
+autowrap_mode = 3
+
+[node name="StylizedClassroom" parent="." instance=ExtResource("5_classroom")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 22)
+
+[node name="MedievalTent" parent="." instance=ExtResource("1_tent")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24, 0, -8)
+
+[node name="FenceA" parent="." instance=ExtResource("2_fence")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, -12)
+
+[node name="FenceB" parent="." instance=ExtResource("2_fence")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2, 0, -12)
+
+[node name="DirtyLada" parent="." instance=ExtResource("4_lada")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, -6)
+
+[node name="MutantSkull" parent="." instance=ExtResource("3_skull")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, 4)
+
+[node name="Barrel" parent="." instance=ExtResource("6_barrel")]
+transform = Transform3D(0.65, 0, 0, 0, 0.65, 0, 0, 0, 0.65, -18, 0, 0)
+
+[node name="Bugle" parent="." instance=ExtResource("7_bugle")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0.2, 0)

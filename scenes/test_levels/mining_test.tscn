@@ -1,4 +1,4 @@
-[gd_scene load_steps=28 format=3 uid="uid://dx3m6v8xbo456"]
+[gd_scene load_steps=30 format=3 uid="uid://dx3m6v8xbo456"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
 [ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_mgr"]
@@ -12,7 +12,9 @@
 [ext_resource type="Resource" path="res://resources/items/copper_ore.tres" id="11_copper_item"]
 [ext_resource type="Resource" path="res://resources/items/silver.tres" id="12_silver"]
 [ext_resource type="Resource" path="res://resources/items/food.tres" id="13_food"]
+[ext_resource type="PackedScene" path="res://scenes/world/props/medieval_tent_prop.tscn" id="15_h0hn2"]
 [ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://scripts/items/inventory_stock.gd" id="16_inventory_stock"]
+[ext_resource type="PackedScene" path="res://scenes/world/props/mutant_skull_prop.tscn" id="16_tmo3f"]
 [ext_resource type="Resource" path="res://resources/items/bandage.tres" id="17_bandage"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
@@ -90,6 +92,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 shape = SubResource("BoxShape3D_floor")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+transform = Transform3D(1.01732, 0, 0, 0, 1.01732, 0, 0, 0, 1.01732, -0.0971575, -0.116747, 0.0940533)
 material_override = SubResource("StandardMaterial3D_floor")
 mesh = SubResource("BoxMesh_floor")
 
@@ -189,3 +192,9 @@ autowrap_mode = 3
 
 [node name="BarrelContainer" parent="." instance=ExtResource("6_barrel")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.41255, 0, 11.5216)
+
+[node name="MedievalTentProp" parent="." instance=ExtResource("15_h0hn2")]
+transform = Transform3D(0.0314979, 0, -0.999504, 0, 1, 0, 0.999504, 0, 0.0314979, 23.6967, 9.53674e-07, 5.19957)
+
+[node name="MutantSkullProp" parent="." instance=ExtResource("16_tmo3f")]
+transform = Transform3D(0.798121, 0, 0.602498, 0, 1, 0, -0.602498, 0, 0.798121, 4.81769, 3.8147e-06, 9.40398)

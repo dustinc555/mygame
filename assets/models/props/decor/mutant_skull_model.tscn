@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" uid="uid://b7hqob0d6rv85" path="res://assets/models/props/decor/mutant_skull.glb" id="1_model"]
+
+[node name="MutantSkullModel" type="Node3D"]
+
+[node name="MutantSkull" parent="." instance=ExtResource("1_model")]

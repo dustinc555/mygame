@@ -1,0 +1,38 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://ducpxmawvv2lu"
+path.s3tc="res://.godot/imported/stylized_classroom_37.jpg-9b5a9becd1e7b1a3d79bddcbc9e42ddf.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "65a76b8de5092a5dd6c4be712e58340b"
+}
+
+[deps]
+
+source_file="res://assets/models/environments/interiors/stylized_classroom_37.jpg"
+dest_files=["res://.godot/imported/stylized_classroom_37.jpg-9b5a9becd1e7b1a3d79bddcbc9e42ddf.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0

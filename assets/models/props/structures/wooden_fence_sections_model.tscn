@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" uid="uid://d1pxiyxbma4is" path="res://assets/models/props/structures/wooden_fence_sections.glb" id="1_model"]
+
+[node name="WoodenFenceSectionsModel" type="Node3D"]
+
+[node name="WoodenFenceSections" parent="." instance=ExtResource("1_model")]

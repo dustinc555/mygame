@@ -1,0 +1,20 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/world/props/prop.tscn" id="1_prop"]
+[ext_resource type="PackedScene" path="res://assets/models/props/structures/medieval_tent_model.tscn" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="1_collision"]
+size = Vector3(0.35, 7.0, 9.4)
+
+[sub_resource type="BoxShape3D" id="2_collision"]
+size = Vector3(6.2, 7.0, 1.4)
+
+[sub_resource type="BoxShape3D" id="3_collision"]
+size = Vector3(4.0, 4.5, 1.4)
+
+[node name="MedievalTentProp" instance=ExtResource("1_prop")]
+display_name = "Medieval Tent"
+visual_scene = ExtResource("2_model")
+visual_transform = Transform3D(0.2, 0, 0, 0, 0.2, 0, 0, 0, 0.2, 3.8196, 0.5208, -2.5744)
+collision_shapes = Array[Shape3D]([SubResource("1_collision"), SubResource("1_collision"), SubResource("2_collision"), SubResource("2_collision"), SubResource("3_collision"), SubResource("3_collision")])
+collision_transforms = Array[Transform3D]([Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.6, 3.5, 0), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.6, 3.5, 0), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.0, 3.5, -7.6), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.0, 3.5, -7.6), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.0, 2.25, 7.6), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.0, 2.25, 7.6)])
