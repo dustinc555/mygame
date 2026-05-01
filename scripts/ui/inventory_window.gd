@@ -49,7 +49,7 @@ func setup(target_owner) -> void:
 func refresh() -> void:
 	if inventory_owner == null:
 		return
-	title_label.text = "%s Inventory" % _get_owner_display_name()
+	title_label.text = _get_owner_inventory_title()
 	var inventory = _get_owner_inventory()
 	if _owner_shows_weight():
 		weight_label.visible = true
@@ -124,7 +124,11 @@ func _on_inventory_item_right_clicked(entry, _local_position: Vector2, shift_pre
 	if shift_pressed:
 		quick_transfer_requested.emit(inventory_owner, entry)
 		return
-	var can_eat: bool = inventory_owner.has_method("can_eat_item") and inventory_owner.can_eat_item(entry.definition)
+	var can_eat := false
+	if inventory_owner.has_method("can_eat_inventory_entry"):
+		can_eat = inventory_owner.can_eat_inventory_entry(entry)
+	else:
+		can_eat = inventory_owner.has_method("can_eat_item") and inventory_owner.can_eat_item(entry.definition)
 	if not can_eat:
 		return
 	_context_entry = entry
@@ -164,7 +168,15 @@ func _get_owner_display_name() -> String:
 	return inventory_owner.name
 
 
+func _get_owner_inventory_title() -> String:
+	if inventory_owner != null and inventory_owner.has_method("get_inventory_display_title"):
+		return inventory_owner.get_inventory_display_title()
+	return "%s Inventory" % _get_owner_display_name()
+
+
 func _get_owner_inventory():
+	if inventory_owner != null and inventory_owner.has_method("get_inventory_for_display"):
+		return inventory_owner.get_inventory_for_display()
 	return inventory_owner.inventory
 
 
@@ -187,7 +199,10 @@ func _on_item_menu_id_pressed(action_id: int) -> void:
 		return
 	match action_id:
 		1:
-			item_action_requested.emit(inventory_owner, _context_entry, "eat")
+			if inventory_owner.has_method("consume_inventory_entry"):
+				inventory_owner.consume_inventory_entry(_context_entry)
+			else:
+				item_action_requested.emit(inventory_owner, _context_entry, "eat")
 	_context_entry = null
 
 

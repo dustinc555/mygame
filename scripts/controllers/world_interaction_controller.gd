@@ -2,8 +2,8 @@ extends Node
 
 class_name WorldInteractionController
 
-const MOVE_COMMAND_INDICATOR_SCENE = preload("res://scenes/world/move_command_indicator.tscn")
-const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/world_text_notice.tscn")
+const MOVE_COMMAND_INDICATOR_SCENE = preload("res://scenes/world/effects/move_command_indicator.tscn")
+const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/effects/world_text_notice.tscn")
 const PARTY_PORTRAIT_CARD_SCENE = preload("res://scenes/ui/party_portrait_card.tscn")
 
 const ACTION_INVENTORY := 1
@@ -65,6 +65,7 @@ var stance_option: OptionButton
 var inventory_controller: PartyInventoryController
 var humanoid_details_controller
 var conversation_controller
+var ownership_controller
 var floating_notice: FloatingNotice
 var _initialized := false
 
@@ -104,6 +105,7 @@ func _do_initialize() -> void:
 	inventory_controller = get_parent().get_node("PartyInventoryController")
 	humanoid_details_controller = get_parent().get_node("HumanoidDetailsController")
 	conversation_controller = get_parent().get_node("ConversationController")
+	ownership_controller = get_parent().get_node_or_null("OwnershipController")
 	_initialized = true
 
 	for child in party_root.get_children():
@@ -604,11 +606,13 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 		ACTION_MINE:
 			if context_resource != null:
 				for member in party_manager.selected_members:
-					member.assign_mining_resource(context_resource)
+					if ownership_controller == null or ownership_controller.request_interaction(member, context_resource, "Mining"):
+						member.assign_mining_resource(context_resource)
 		ACTION_OPEN_CONTAINER:
 			if context_container != null:
 				for member in party_manager.selected_members:
-					member.assign_open_container(context_container)
+					if ownership_controller == null or ownership_controller.request_interaction(member, context_container, "Opening"):
+						member.assign_open_container(context_container)
 		ACTION_UNLOCK_CONTAINER:
 			if context_container != null:
 				_spawn_world_notice(context_container.global_position + Vector3(0.0, 1.6, 0.0), "Lockpicking not implemented")

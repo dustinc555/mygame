@@ -2,7 +2,7 @@ extends CharacterBody3D
 
 class_name HumanoidCharacter
 
-const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/world_text_notice.tscn")
+const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/effects/world_text_notice.tscn")
 
 enum OrderType {
 	NONE,
@@ -26,6 +26,7 @@ enum OrderType {
 @export var inventory_rows := 6
 @export var max_carry_weight := 60.0
 @export var show_inventory_weight := true
+@export var overhead_text_height := 2.4
 @export var show_nameplate := true
 @export var starting_items: Array[Resource] = []
 
@@ -110,6 +111,9 @@ var _nameplate: Label3D
 var _inspect_ring: MeshInstance3D
 var _inspect_ring_material := StandardMaterial3D.new()
 var _rng := RandomNumberGenerator.new()
+var _work_inventory_override: InventoryData
+var _active_job_provider
+var _active_job_label := ""
 
 signal inventory_changed
 signal mining_changed
@@ -352,6 +356,10 @@ func has_mining_assignment() -> bool:
 	return _current_mining_node != null
 
 
+func get_assigned_mining_node():
+	return _current_mining_node
+
+
 func is_actively_mining() -> bool:
 	return _mining_active
 
@@ -373,6 +381,104 @@ func eat_item(definition: ItemDefinition) -> bool:
 		return false
 	_pending_nourishment += definition.nutrition_value
 	return true
+
+
+func begin_job_assignment(provider, job_label: String, work_inventory: InventoryData) -> void:
+	if _work_inventory_override != null and _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
+		_work_inventory_override.changed.disconnect(_on_inventory_data_changed)
+	_active_job_provider = provider
+	_active_job_label = job_label
+	_work_inventory_override = work_inventory
+	if _work_inventory_override != null and not _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
+		_work_inventory_override.changed.connect(_on_inventory_data_changed)
+	inventory_changed.emit()
+	state_changed.emit()
+
+
+func end_job_assignment() -> void:
+	if _work_inventory_override != null and _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
+		_work_inventory_override.changed.disconnect(_on_inventory_data_changed)
+	_active_job_provider = null
+	_active_job_label = ""
+	_work_inventory_override = null
+	inventory_changed.emit()
+	state_changed.emit()
+
+
+func get_active_job_provider():
+	return _active_job_provider
+
+
+func get_inventory_for_display() -> InventoryData:
+	if _work_inventory_override != null:
+		return _work_inventory_override
+	return inventory
+
+
+func is_displaying_work_inventory() -> bool:
+	return _work_inventory_override != null
+
+
+func get_inventory_display_title() -> String:
+	if is_displaying_work_inventory():
+		return "%s Work Inventory" % member_name
+	return "%s Inventory" % member_name
+
+
+func can_transfer_display_inventory_to(_target_owner) -> bool:
+	return not is_displaying_work_inventory()
+
+
+func can_receive_inventory_transfer_from(_source_owner) -> bool:
+	return not is_displaying_work_inventory()
+
+
+func can_eat_inventory_entry(entry) -> bool:
+	if entry == null:
+		return false
+	var display_inventory := get_inventory_for_display()
+	return can_eat_item(entry.definition) and display_inventory != null and display_inventory.entries.has(entry)
+
+
+func consume_inventory_entry(entry) -> bool:
+	if not can_eat_inventory_entry(entry):
+		return false
+	var display_inventory := get_inventory_for_display()
+	if not display_inventory.remove_item_count(entry.definition, 1):
+		return false
+	_pending_nourishment += entry.definition.nutrition_value
+	if display_inventory != inventory:
+		inventory_changed.emit()
+	return true
+
+
+func get_job_status_text() -> String:
+	if _active_job_provider == null:
+		return ""
+	if _active_job_provider.has_method("get_provider_name"):
+		return "Working for %s" % _active_job_provider.get_provider_name()
+	return "Working"
+
+
+func is_authorized_for_owner(owner_character: HumanoidCharacter, owner_faction: String = "") -> bool:
+	if owner_character != null and owner_character == self:
+		return true
+	if _active_job_provider == null:
+		return owner_character == null and not owner_faction.is_empty() and faction_name == owner_faction
+	if not _active_job_provider.has_method("get_provider_character"):
+		return false
+	var provider_owner: HumanoidCharacter = _active_job_provider.get_provider_character()
+	if owner_character != null:
+		return provider_owner == owner_character
+	return owner_faction == provider_owner.faction_name
+
+
+func show_world_notice(message: String, color: Color = Color(1.0, 0.28, 0.28, 1.0), lifetime: float = 1.0) -> void:
+	_show_world_notice(message, color, lifetime)
+
+
+func show_world_speech(message: String, lifetime: float = 5.0) -> void:
+	_show_world_notice(message, Color(0.94, 0.92, 0.86, 1.0), lifetime, 0.22)
 
 
 func can_use_bandage_item(definition: ItemDefinition) -> bool:
@@ -401,6 +507,8 @@ func get_inventory_cell_size() -> Vector2:
 
 
 func shows_inventory_weight() -> bool:
+	if is_displaying_work_inventory():
+		return false
 	return show_inventory_weight
 
 
@@ -832,8 +940,9 @@ func _process_mining(delta: float) -> void:
 	_mining_active = true
 	var progress := _get_stored_mining_progress(_current_mining_node) + delta
 	var duration := maxf(_current_mining_node.mine_duration, 0.01)
+	var mining_inventory := _work_inventory_override if _work_inventory_override != null else inventory
 	if progress >= duration:
-		if inventory.add_item(_current_mining_node.item_definition):
+		if mining_inventory.add_item(_current_mining_node.item_definition):
 			progress = 0.0
 		else:
 			progress = duration
@@ -1092,6 +1201,8 @@ func _update_inspect_visual() -> void:
 
 
 func _set_order(order_type: int, issued_by_player: bool) -> void:
+	if issued_by_player and _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):
+		_active_job_provider.pause_worker_job(self, true)
 	_cancel_non_matching_assignments(order_type)
 	_current_order_type = int(order_type)
 	_order_was_player_issued = issued_by_player
@@ -1157,6 +1268,8 @@ func _enter_unconscious_state() -> void:
 	_clear_all_active_orders()
 	if _carried_character != null:
 		drop_carried_character()
+	if _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):
+		_active_job_provider.pause_worker_job(self, false)
 	_downed_recover_delay_remaining = 15.0
 	_enter_downed_state(false)
 	_show_world_notice("Unconscious", Color(1.0, 0.85, 0.45, 1.0))
@@ -1173,6 +1286,8 @@ func _enter_dead_state() -> void:
 	_clear_all_active_orders()
 	if _carried_character != null:
 		drop_carried_character()
+	if _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):
+		_active_job_provider.pause_worker_job(self, false)
 	_enter_downed_state(true)
 	_show_world_notice("Dead", Color(1.0, 0.2, 0.2, 1.0))
 	velocity = Vector3.ZERO
@@ -1467,14 +1582,14 @@ func _restore_from_downed_state() -> void:
 	_show_world_notice("Recovered", Color(0.5, 1.0, 0.65, 1.0))
 
 
-func _show_world_notice(message: String, color: Color = Color(1.0, 0.28, 0.28, 1.0)) -> void:
+func _show_world_notice(message: String, color: Color = Color(1.0, 0.28, 0.28, 1.0), lifetime: float = 1.0, rise_height: float = 0.4) -> void:
 	var tree := get_tree()
 	if tree == null or tree.current_scene == null:
 		return
 	var notice = WORLD_TEXT_NOTICE_SCENE.instantiate()
 	tree.current_scene.add_child(notice)
 	if notice.has_method("setup"):
-		notice.setup(global_position + Vector3(0.0, 1.8, 0.0), message, color)
+		notice.setup(global_position + Vector3(0.0, overhead_text_height, 0.0), message, color, lifetime, rise_height)
 
 
 func _is_working() -> bool:

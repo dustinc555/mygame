@@ -96,17 +96,26 @@ func _on_inventory_window_close_requested(inventory_owner) -> void:
 func _on_inventory_transfer_requested(source_owner, target_owner, entry, target_cell: Vector2i) -> void:
 	if source_owner == null or target_owner == null or entry == null:
 		return
+	if source_owner != target_owner and not _can_transfer_between_owners(source_owner, target_owner):
+		_show_floating_notice("Job inventory is locked")
+		return
 	if source_owner == target_owner:
-		source_owner.inventory.move_entry(entry, target_cell)
+		var source_inventory = _get_owner_inventory(source_owner)
+		if source_inventory != null:
+			source_inventory.move_entry(entry, target_cell)
 		return
 	if _try_handle_trade(source_owner, target_owner, entry, target_cell):
+		return
+	var source_inventory = _get_owner_inventory(source_owner)
+	var target_inventory = _get_owner_inventory(target_owner)
+	if source_inventory == null or target_inventory == null:
 		return
 	var target_window = open_inventory_windows.get(target_owner.get_instance_id())
 	if _owners_too_far(source_owner, target_owner):
 		_show_floating_notice("Too far away")
 		return
 
-	if source_owner.inventory.move_entry_to_inventory(entry, target_owner.inventory, target_cell):
+	if source_inventory.move_entry_to_inventory(entry, target_inventory, target_cell):
 		if target_window != null:
 			target_window.clear_warning()
 
@@ -120,15 +129,22 @@ func _on_inventory_quick_transfer_requested(source_owner, entry) -> void:
 	var target_owner = target_window.inventory_owner
 	if target_owner == null:
 		return
+	if not _can_transfer_between_owners(source_owner, target_owner):
+		_show_floating_notice("Job inventory is locked")
+		return
 	if _owners_too_far(source_owner, target_owner):
 		_show_floating_notice("Too far away")
 		return
-	var target_cell: Vector2i = target_owner.inventory.find_first_space(entry.definition)
+	var source_inventory = _get_owner_inventory(source_owner)
+	var target_inventory = _get_owner_inventory(target_owner)
+	if source_inventory == null or target_inventory == null:
+		return
+	var target_cell: Vector2i = target_inventory.find_first_space(entry.definition)
 	if target_cell == Vector2i(-1, -1):
 		return
 	if _try_handle_trade(source_owner, target_owner, entry, target_cell):
 		return
-	source_owner.inventory.move_entry_to_inventory(entry, target_owner.inventory, target_cell)
+	source_inventory.move_entry_to_inventory(entry, target_inventory, target_cell)
 
 
 func _first_other_inventory_window(source_owner):
@@ -157,6 +173,24 @@ func _on_inventory_item_action_requested(inventory_owner, entry, action: String)
 		return
 	if action == "eat" and inventory_owner.has_method("eat_item"):
 		inventory_owner.eat_item(entry.definition)
+
+
+func _get_owner_inventory(inventory_owner):
+	if inventory_owner != null and inventory_owner.has_method("get_inventory_for_display"):
+		return inventory_owner.get_inventory_for_display()
+	if inventory_owner == null:
+		return null
+	return inventory_owner.inventory
+
+
+func _can_transfer_between_owners(source_owner, target_owner) -> bool:
+	if source_owner != null and source_owner.has_method("can_transfer_display_inventory_to"):
+		if not source_owner.can_transfer_display_inventory_to(target_owner):
+			return false
+	if target_owner != null and target_owner.has_method("can_receive_inventory_transfer_from"):
+		if not target_owner.can_receive_inventory_transfer_from(source_owner):
+			return false
+	return true
 
 
 func _try_handle_trade(source_owner, target_owner, entry, target_cell: Vector2i) -> bool:

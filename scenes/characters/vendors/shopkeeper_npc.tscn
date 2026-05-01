@@ -1,0 +1,49 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/merchant_humanoid.gd" id="1_merchant"]
+[ext_resource type="Script" path="res://scripts/roles/merchant_role.gd" id="2_role"]
+[ext_resource type="Script" path="res://scripts/jobs/job_provider.gd" id="3_provider"]
+[ext_resource type="Resource" path="res://resources/conversations/generic_shopkeeper.tres" id="4_conversation"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_member"]
+radius = 0.45
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
+top_radius = 0.72
+bottom_radius = 0.72
+height = 0.05
+radial_segments = 24
+rings = 2
+
+[node name="ShopkeeperNpc" type="CharacterBody3D"]
+script = ExtResource("1_merchant")
+member_name = "Shopkeeper"
+inventory_columns = 15
+inventory_rows = 12
+max_carry_weight = 9999.0
+show_inventory_weight = false
+faction_name = "Town"
+conversation_definition = ExtResource("4_conversation")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+visible = false
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="MerchantRole" type="Node" parent="."]
+script = ExtResource("2_role")
+
+[node name="JobProvider" type="Node" parent="."]
+script = ExtResource("3_provider")

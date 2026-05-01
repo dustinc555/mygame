@@ -1,12 +1,19 @@
-[gd_scene load_steps=10 format=3 uid="uid://jsg3qe0fcfw2"]
+[gd_scene load_steps=15 format=3 uid="uid://jsg3qe0fcfw2"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_p4rty"]
 [ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_m4n4g"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="4_bootstrap"]
+[ext_resource type="PackedScene" path="res://scenes/world/resource_nodes/copper_node.tscn" id="5_366s7"]
+[ext_resource type="PackedScene" path="res://scenes/characters/vendors/shopkeeper_npc.tscn" id="5_shopkeeper"]
+[ext_resource type="Script" uid="uid://h8defgmhh62v" path="res://scripts/jobs/job_definition.gd" id="5_si735"]
 [ext_resource type="PackedScene" uid="uid://cxk5vgdnfkroq" path="res://scenes/world/containers/barrel_container.tscn" id="6_366s7"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(60, 1, 60)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.76, 0.68, 0.46, 1)
+roughness = 0.95
 
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(60, 1, 60)
@@ -25,6 +32,21 @@ height = 0.05
 radial_segments = 24
 rings = 2
 
+[sub_resource type="Resource" id="Resource_hyvva"]
+script = ExtResource("5_si735")
+display_name = "Mining"
+job_id = ""
+algorithm_id = "mine_and_haul"
+slot_count = 1
+pay_interval_seconds = 20.0
+pay_per_interval = 2
+carry_item_threshold = 4
+output_mode = "abstract_sink"
+resource_paths = Array[NodePath]([NodePath("../../CopperNode")])
+container_paths = Array[NodePath]([NodePath("../../BarrelContainer")])
+requirements = Array[Resource]([])
+metadata/_custom_type_script = "uid://h8defgmhh62v"
+
 [node name="MovementControlsTest" type="Node3D"]
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
@@ -38,6 +60,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 shape = SubResource("BoxShape3D_floor")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+material_override = SubResource("StandardMaterial3D_floor")
 mesh = SubResource("BoxMesh_floor")
 
 [node name="PartyMembers" type="Node3D" parent="."]
@@ -126,5 +149,18 @@ offset_bottom = 102.0
 text = "Left-click selects. Double-click makes the camera follow. Middle mouse always orbits. WASD moves the free camera and breaks follow. Use the bottom-right bar for Running and stance. Right-click moves selected party members."
 autowrap_mode = 3
 
+[node name="ShopkeeperNpc" parent="." instance=ExtResource("5_shopkeeper")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.9939, 0.05, -8.61037)
+
+[node name="JobProvider" parent="ShopkeeperNpc" index="4"]
+jobs = Array[ExtResource("5_si735")]([SubResource("Resource_hyvva")])
+
 [node name="BarrelContainer" parent="." instance=ExtResource("6_366s7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.7566, 0, 0.305737)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17.3753, 0, 0.691222)
+owner_character_path = NodePath("../ShopkeeperNpc")
+
+[node name="CopperNode" parent="." instance=ExtResource("5_366s7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.7359, 0, 8.75851)
+owner_character_path = NodePath("../ShopkeeperNpc")
+
+[editable path="ShopkeeperNpc"]

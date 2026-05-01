@@ -7,6 +7,7 @@ var hud_layer: CanvasLayer
 var details_panel: Control
 var name_label: Label
 var faction_label: Label
+var work_label: Label
 var state_label: Label
 var hunger_bar_stack: Control
 var hunger_fill: ColorRect
@@ -74,6 +75,7 @@ func _do_initialize() -> void:
 		return
 	name_label = details_panel.get_node("Margin/DetailsVBox/HeaderRow/Name")
 	faction_label = details_panel.get_node("Margin/DetailsVBox/Faction")
+	work_label = details_panel.get_node("Margin/DetailsVBox/WorkStatus")
 	state_label = details_panel.get_node("Margin/DetailsVBox/HeaderRow/State")
 	hunger_bar_stack = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack")
 	hunger_fill = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack/HungerFill")
@@ -100,6 +102,7 @@ func _update_panel() -> void:
 		details_panel.visible = true
 		name_label.text = ""
 		faction_label.text = ""
+		work_label.text = ""
 		state_label.text = ""
 		state_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
 		_update_fill_bar(hunger_bar_stack, hunger_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
@@ -114,6 +117,7 @@ func _update_panel() -> void:
 	details_panel.visible = true
 	name_label.text = current_target.member_name
 	faction_label.text = current_target.faction_name
+	work_label.text = current_target.get_job_status_text() if current_target.has_method("get_job_status_text") else ""
 	state_label.text = current_target.get_life_state_label()
 	state_label.modulate = _get_life_state_color(current_target.life_state)
 	var hunger_stage_label: String = current_target.get_hunger_stage_label()

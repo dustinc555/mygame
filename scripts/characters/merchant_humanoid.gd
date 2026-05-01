@@ -36,6 +36,10 @@ func get_merchant_role() -> MerchantRole:
 	return get_node_or_null("MerchantRole") as MerchantRole
 
 
+func get_job_provider() -> JobProvider:
+	return get_node_or_null("JobProvider") as JobProvider
+
+
 func register_trader(member: HumanoidCharacter) -> void:
 	_get_trader_slot(member)
 	_pending_trader_ids[member.get_instance_id()] = true

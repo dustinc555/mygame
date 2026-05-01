@@ -33,7 +33,7 @@ corner_radius_bottom_left = 3
 
 [node name="HumanoidDetailsPanel" type="PanelContainer"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_details")
-custom_minimum_size = Vector2(236, 332)
+custom_minimum_size = Vector2(236, 352)
 mouse_filter = 2
 
 [node name="Margin" type="MarginContainer" parent="."]
@@ -70,6 +70,12 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.68, 0.68, 0.72, 1)
 theme_override_font_sizes/font_size = 10
 text = "Faction"
+
+[node name="WorkStatus" type="Label" parent="Margin/DetailsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.76, 0.72, 0.54, 1)
+theme_override_font_sizes/font_size = 10
+text = ""
 
 [node name="HungerRow" type="VBoxContainer" parent="Margin/DetailsVBox"]
 layout_mode = 2

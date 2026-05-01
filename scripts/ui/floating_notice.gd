@@ -2,7 +2,7 @@ extends Control
 
 class_name FloatingNotice
 
-@export var lifetime := 1.25
+@export var lifetime := 5.0
 
 @onready var label: Label = $Label
 

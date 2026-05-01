@@ -31,3 +31,10 @@ func get_sell_price(definition: ItemDefinition) -> int:
 		if price.item_definition == definition:
 			return price.sell_price
 	return -1
+
+
+func get_job_provider() -> JobProvider:
+	var owner_character = get_parent()
+	if owner_character == null:
+		return null
+	return owner_character.get_node_or_null("JobProvider") as JobProvider

@@ -1,6 +1,6 @@
 [gd_scene load_steps=5 format=3 uid="uid://bkvc0qfadrlyd"]
 
-[ext_resource type="Script" uid="uid://dk6jfs3xm6581" path="res://scripts/move_command_indicator.gd" id="1_mvfx"]
+[ext_resource type="Script" uid="uid://dk6jfs3xm6581" path="res://scripts/world/effects/move_command_indicator.gd" id="1_mvfx"]
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
 top_radius = 0.65

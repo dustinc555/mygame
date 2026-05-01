@@ -3,6 +3,7 @@ extends Node
 class_name ConversationController
 
 const SILVER_ITEM = preload("res://resources/items/silver.tres")
+const ACTOR_CONDITION_EVALUATOR_SCRIPT = preload("res://scripts/conditions/actor_condition_evaluator.gd")
 
 var root_scene: Node
 var hud_layer: CanvasLayer
@@ -15,6 +16,7 @@ var active_target
 var active_definition
 var active_node
 var transcript_lines: PackedStringArray = PackedStringArray()
+var displayed_actions: Array = []
 var _initialized := false
 
 
@@ -72,8 +74,14 @@ func _show_node(node) -> void:
 	var speaker_name: String = node.speaker_name
 	if speaker_name.is_empty():
 		speaker_name = active_target.member_name if active_target != null else ""
-	transcript_lines.append("%s: %s" % [speaker_name, node.text])
+	var node_text: String = node.text
+	if active_target != null and active_target.has_method("get_job_provider"):
+		var provider = active_target.get_job_provider()
+		if provider != null and provider.has_method("get_greeting_text_for") and node == active_definition.get_node_by_id(active_definition.start_node_id):
+			node_text = provider.get_greeting_text_for(active_speaker, node_text)
+	transcript_lines.append("%s: %s" % [speaker_name, node_text])
 	var response_data: Array = []
+	displayed_actions.clear()
 	for response in node.responses:
 		if response == null:
 			continue
@@ -83,8 +91,20 @@ func _show_node(node) -> void:
 				"text": response.text,
 				"disabled": evaluation.get("disabled", false)
 			})
+			displayed_actions.append({"type": "authored", "response": response})
 	if node.ends_conversation and response_data.is_empty():
 		response_data.append({"text": "End conversation", "disabled": false})
+	if active_target != null and active_target.has_method("get_job_provider"):
+		var provider = active_target.get_job_provider()
+		if provider != null:
+			for option in provider.build_conversation_options(active_speaker):
+				response_data.append({
+					"text": option.get("text", ""),
+					"disabled": false,
+				})
+				displayed_actions.append({"type": "dynamic", "option": option})
+	response_data.append({"text": "Leave", "disabled": false})
+	displayed_actions.append({"type": "leave"})
 	if conversation_window != null:
 		conversation_window.show_conversation(speaker_name, "\n\n".join(transcript_lines), response_data, active_speaker, active_target)
 	get_tree().paused = true
@@ -93,29 +113,54 @@ func _show_node(node) -> void:
 func _on_response_selected(response_index: int) -> void:
 	if active_node == null:
 		return
-	var visible_responses: Array = []
-	for response in active_node.responses:
-		if response == null:
-			continue
-		var evaluation := _evaluate_response(response)
-		if evaluation.get("visible", true):
-			visible_responses.append(response)
-	if response_index < 0 or response_index >= visible_responses.size():
-		if active_node.ends_conversation and active_node.responses.is_empty() and response_index == 0:
+	if response_index < 0 or response_index >= displayed_actions.size():
+		return
+	var action: Dictionary = displayed_actions[response_index]
+	match str(action.get("type", "")):
+		"authored":
+			var response = action.get("response")
+			if response == null:
+				return
+			transcript_lines.append("%s: %s" % [active_speaker.member_name, response.text])
+			_apply_effects(response.effects)
+			if response.next_node_id.is_empty():
+				_end_conversation()
+				return
+			_show_node(active_definition.get_node_by_id(response.next_node_id))
+		"dynamic":
+			_handle_dynamic_response(action.get("option", {}))
+		"leave":
 			_end_conversation()
+		_:
+			_end_conversation()
+
+
+func _handle_dynamic_response(option: Dictionary) -> void:
+	if active_target == null or not active_target.has_method("get_job_provider"):
 		return
-	var response = visible_responses[response_index]
-	var evaluation := _evaluate_response(response)
-	if evaluation.get("disabled", false):
-		if floating_notice != null and evaluation.get("reason", "") != "":
-			floating_notice.show_message(evaluation.get("reason", ""))
+	var provider = active_target.get_job_provider()
+	if provider == null:
 		return
-	transcript_lines.append("%s: %s" % [active_speaker.member_name, response.text])
-	_apply_effects(response.effects)
-	if response.next_node_id.is_empty():
+	if option.get("disabled", false):
+		if floating_notice != null and option.get("reason", "") != "":
+			floating_notice.show_message(option.get("reason", ""))
+		return
+	transcript_lines.append("%s: %s" % [active_speaker.member_name, option.get("text", "")])
+	var result: Dictionary = provider.handle_conversation_option(active_speaker, option)
+	var provider_name: String = active_target.member_name if active_target != null else ""
+	if result.get("speaker_text", "") != "":
+		transcript_lines.append("%s: %s" % [provider_name, result.get("speaker_text", "")])
+	_show_result_speech(result)
+	_show_result_world_notice(result)
+	if result.has("follow_up_options"):
+		_show_follow_up_options(provider_name, result.get("follow_up_options", []))
+		return
+	if result.get("end_conversation", true):
+		if floating_notice != null and result.get("speaker_text", "") != "" and result.get("show_floating_notice", true):
+			floating_notice.show_message(result.get("speaker_text", ""))
 		_end_conversation()
 		return
-	_show_node(active_definition.get_node_by_id(response.next_node_id))
+	_show_node(active_node)
 
 
 func _evaluate_response(response) -> Dictionary:
@@ -123,25 +168,14 @@ func _evaluate_response(response) -> Dictionary:
 	for condition in response.visible_conditions:
 		if condition == null:
 			continue
-		if not _evaluate_condition(condition):
-			reason = condition.disabled_reason
+		var result := ACTOR_CONDITION_EVALUATOR_SCRIPT.evaluate(condition, {
+			"speaker_member": active_speaker,
+			"conversation_target": active_target,
+		})
+		if not result.get("passed", false):
+			reason = result.get("reason", condition.disabled_reason)
 			return {"visible": false, "disabled": false, "reason": reason}
 	return {"visible": true, "disabled": false, "reason": reason}
-
-
-func _evaluate_condition(condition) -> bool:
-	var result := true
-	match condition.condition_id:
-		"inventory.has_item_count":
-			var actor = _resolve_subject(condition.parameters.get("subject", "speaker_member"))
-			var item_definition = condition.parameters.get("item_definition")
-			var count := int(condition.parameters.get("count", 0))
-			result = actor != null and actor.inventory != null and item_definition != null and actor.inventory.count_item(item_definition) >= count
-		_:
-			result = false
-	if condition.negate:
-		return not result
-	return result
 
 
 func _apply_effects(effects: Array) -> void:
@@ -210,3 +244,45 @@ func _end_conversation() -> void:
 	active_definition = null
 	active_node = null
 	transcript_lines.clear()
+	displayed_actions.clear()
+
+
+func _show_follow_up_options(speaker_name: String, options: Array) -> void:
+	var response_data: Array = []
+	displayed_actions.clear()
+	for option in options:
+		response_data.append({"text": option.get("text", ""), "disabled": false})
+		displayed_actions.append({"type": "dynamic", "option": option})
+	if conversation_window != null:
+		conversation_window.show_conversation(speaker_name, "\n\n".join(transcript_lines), response_data, active_speaker, active_target)
+
+
+func _show_result_world_notice(result: Dictionary) -> void:
+	var notice_target = result.get("world_notice_target")
+	if notice_target == null:
+		return
+	if not is_instance_valid(notice_target):
+		return
+	if not notice_target.has_method("show_world_notice"):
+		return
+	var notice_text := str(result.get("world_notice_text", ""))
+	if notice_text.is_empty():
+		return
+	var notice_color: Color = result.get("world_notice_color", Color(0.5, 1.0, 0.65, 1.0))
+	var notice_lifetime := float(result.get("world_notice_lifetime", 1.0))
+	notice_target.show_world_notice(notice_text, notice_color, notice_lifetime)
+
+
+func _show_result_speech(result: Dictionary) -> void:
+	var speech_target = result.get("speech_target")
+	if speech_target == null:
+		return
+	if not is_instance_valid(speech_target):
+		return
+	if not speech_target.has_method("show_world_speech"):
+		return
+	var speech_text := str(result.get("speech_text", ""))
+	if speech_text.is_empty():
+		return
+	var speech_lifetime := float(result.get("speech_lifetime", 5.0))
+	speech_target.show_world_speech(speech_text, speech_lifetime)

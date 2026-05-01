@@ -8,6 +8,8 @@ class_name MiningResourceNode
 @export var interaction_radius := 1.8
 @export var slot_distance := 3.2
 @export var slot_count := 6
+@export var owner_character_path: NodePath
+@export var owner_faction_name := ""
 
 var _assigned_slots: Dictionary = {}
 
@@ -28,6 +30,17 @@ func register_miner(member: HumanoidCharacter) -> void:
 
 func release_miner(member: HumanoidCharacter) -> void:
 	_assigned_slots.erase(member.get_instance_id())
+
+
+func get_explicit_owner_character() -> HumanoidCharacter:
+	return get_node_or_null(owner_character_path) as HumanoidCharacter
+
+
+func get_owner_faction_name() -> String:
+	if not owner_faction_name.is_empty():
+		return owner_faction_name
+	var owner_character := get_explicit_owner_character()
+	return owner_character.faction_name if owner_character != null else ""
 
 
 func _get_slot_index(member: HumanoidCharacter) -> int:
