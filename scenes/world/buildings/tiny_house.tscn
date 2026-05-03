@@ -1,6 +1,7 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/buildings/world_building.gd" id="1_building"]
+[ext_resource type="Script" path="res://scripts/world/buildings/building_level_definition.gd" id="2_level"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_walls"]
 albedo_color = Color(0.72, 0.64, 0.54, 1)
@@ -53,15 +54,31 @@ size = Vector3(6.4, 0.25, 6.4)
 [sub_resource type="BoxShape3D" id="BoxShape3D_roof"]
 size = Vector3(6.4, 0.25, 6.4)
 
+[sub_resource type="Resource" id="BuildingLevelDefinition_ground"]
+script = ExtResource("2_level")
+display_name = "Ground Floor"
+occupancy_area_path = NodePath("InteriorArea")
+min_local_y = -1.0
+max_local_y = 3.1
+click_local_y = 0.1
+content_paths = Array[NodePath]([NodePath("CollisionShape3D"), NodePath("Floor"), NodePath("BackWallCollision"), NodePath("BackWall"), NodePath("LeftWallCollision"), NodePath("LeftWall"), NodePath("RightWallCollision"), NodePath("RightWall"), NodePath("FrontWallLeftCollision"), NodePath("FrontWallLeft"), NodePath("FrontWallRightCollision"), NodePath("FrontWallRight"), NodePath("FrontWallTopCollision"), NodePath("FrontWallTop")])
+front_occluder_paths = Array[NodePath]([NodePath("FrontWallLeftCollision"), NodePath("FrontWallLeft"), NodePath("FrontWallRightCollision"), NodePath("FrontWallRight"), NodePath("FrontWallTopCollision"), NodePath("FrontWallTop")])
+right_occluder_paths = Array[NodePath]([NodePath("RightWallCollision"), NodePath("RightWall")])
+back_occluder_paths = Array[NodePath]([NodePath("BackWallCollision"), NodePath("BackWall")])
+left_occluder_paths = Array[NodePath]([NodePath("LeftWallCollision"), NodePath("LeftWall")])
+
+[sub_resource type="Resource" id="BuildingLevelDefinition_roof"]
+script = ExtResource("2_level")
+display_name = "Roof"
+min_local_y = 3.1
+click_local_y = 2.65
+content_paths = Array[NodePath]([NodePath("Roof"), NodePath("RoofCollision")])
+is_roof = true
+
 [node name="TinyHouse" type="StaticBody3D"]
 script = ExtResource("1_building")
 display_name = "Tiny House"
-interior_area_path = NodePath("InteriorArea")
-roof_occluder_paths = Array[NodePath]([NodePath("Roof"), NodePath("RoofCollision")])
-front_occluder_paths = Array[NodePath]([NodePath("FrontWallLeft"), NodePath("FrontWallLeftCollision"), NodePath("FrontWallRight"), NodePath("FrontWallRightCollision"), NodePath("FrontWallTop"), NodePath("FrontWallTopCollision")])
-right_occluder_paths = Array[NodePath]([NodePath("RightWall"), NodePath("RightWallCollision")])
-back_occluder_paths = Array[NodePath]([NodePath("BackWall"), NodePath("BackWallCollision")])
-left_occluder_paths = Array[NodePath]([NodePath("LeftWall"), NodePath("LeftWallCollision")])
+levels = Array[Resource]([SubResource("BuildingLevelDefinition_ground"), SubResource("BuildingLevelDefinition_roof")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("BoxShape3D_floor")

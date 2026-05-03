@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ConversationDefinition" load_steps=8 format=3 uid="uid://c7erbkidwaaai"]
+[gd_resource type="Resource" script_class="ConversationDefinition" format=3 uid="uid://c7erbkidwaaai"]
 
 [ext_resource type="Script" uid="uid://oln7awi2fw1o" path="res://scripts/conversation/conversation_definition.gd" id="1_definition"]
 [ext_resource type="Script" uid="uid://c21vtwxjyyyyi" path="res://scripts/conversation/conversation_node.gd" id="2_node"]
@@ -8,23 +8,17 @@
 [sub_resource type="Resource" id="ConversationEffect_trade"]
 script = ExtResource("4_effect")
 action_id = "core.start_trade"
-parameters = {}
 
 [sub_resource type="Resource" id="ConversationResponse_trade"]
 script = ExtResource("3_response")
 text = "Show me your goods."
-next_node_id = ""
-visible_conditions = Array[Resource]([])
 effects = Array[Resource]([SubResource("ConversationEffect_trade")])
 
 [sub_resource type="Resource" id="ConversationNode_intro"]
 script = ExtResource("2_node")
 node_id = "intro"
-speaker_name = ""
 text = "Welcome."
 responses = Array[Resource]([SubResource("ConversationResponse_trade")])
-effects = Array[Resource]([])
-ends_conversation = false
 
 [resource]
 script = ExtResource("1_definition")

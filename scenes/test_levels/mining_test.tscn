@@ -205,11 +205,11 @@ wage_item_definition = ExtResource("12_silver")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, -2)
 owner_character_path = NodePath("../Jim")
 
-[node name="TinyHouse" parent="." instance=ExtResource("18_house")]
-transform = Transform3D(-0.115475, 0, -0.993311, 0, 1, 0, 0.993311, 0, -0.115475, 21.5291, 0, 6.23198)
-
 [node name="TwoStoryHouse" parent="." instance=ExtResource("19_two_story_house")]
 transform = Transform3D(0.990268, 0, -0.139173, 0, 1, 0, 0.139173, 0, 0.990268, 29.4527, 0, -1.98264)
+
+[node name="TinyHouse" parent="." instance=ExtResource("18_house")]
+transform = Transform3D(-0.115475, 0, -0.993311, 0, 1, 0, 0.993311, 0, -0.115475, 21.5291, 0, 6.23198)
 
 [node name="PartyManager" type="Node" parent="."]
 script = ExtResource("2_mgr")
