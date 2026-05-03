@@ -66,6 +66,7 @@ var inventory_controller: PartyInventoryController
 var humanoid_details_controller
 var conversation_controller
 var ownership_controller
+var building_visibility_controller
 var floating_notice: FloatingNotice
 var _initialized := false
 
@@ -106,6 +107,7 @@ func _do_initialize() -> void:
 	humanoid_details_controller = get_parent().get_node("HumanoidDetailsController")
 	conversation_controller = get_parent().get_node("ConversationController")
 	ownership_controller = get_parent().get_node_or_null("OwnershipController")
+	building_visibility_controller = get_parent().get_node_or_null("BuildingVisibilityController")
 	_initialized = true
 
 	for child in party_root.get_children():
@@ -426,6 +428,14 @@ func _pick_ground_position(screen_position: Vector2) -> Variant:
 	var result := _raycast_from_screen(screen_position)
 	if not result.is_empty():
 		var collider: Object = result["collider"]
+		if collider != null and collider.has_method("project_click_to_active_level") and collider.has_method("should_project_click_shape") and building_visibility_controller != null and building_visibility_controller.get_active_building() == collider:
+			var shape_index := int(result.get("shape", -1))
+			if collider.should_project_click_shape(shape_index):
+				var ray_origin := camera.project_ray_origin(screen_position)
+				var ray_direction := camera.project_ray_normal(screen_position)
+				var building_target: Variant = collider.project_click_to_active_level(ray_origin, ray_direction)
+				if building_target != null:
+					return building_target
 		if not (collider is HumanoidCharacter and collider.is_player_party_member()):
 			return result["position"]
 	var ray_origin := camera.project_ray_origin(screen_position)

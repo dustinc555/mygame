@@ -21,6 +21,9 @@ enum OrderType {
 @export var stable_id := ""
 @export var move_speed := 3.2
 @export var acceleration := 10.0
+@export var floor_snap_distance := 0.9
+@export var max_walkable_slope_degrees := 55.0
+@export var move_target_vertical_tolerance := 0.75
 @export var interact_distance := 1.8
 @export var inventory_columns := 10
 @export var inventory_rows := 6
@@ -126,6 +129,8 @@ signal conversation_target_reached(member, target)
 
 func _ready() -> void:
 	_rng.randomize()
+	floor_snap_length = floor_snap_distance
+	floor_max_angle = deg_to_rad(max_walkable_slope_degrees)
 	inventory = InventoryData.new(inventory_columns, inventory_rows, max_carry_weight, true)
 	inventory.changed.connect(_on_inventory_data_changed)
 	_seed_starting_inventory()
@@ -811,20 +816,23 @@ func _process_movement(delta: float) -> void:
 		velocity.y -= gravity * delta
 	else:
 		velocity.y = 0.0
+		apply_floor_snap()
 	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
 	if _has_move_target and life_state == NpcRules.LifeState.ALIVE:
 		var to_target := _move_target - global_position
-		to_target.y = 0.0
-		if to_target.length() <= 0.1:
+		var horizontal_to_target := Vector3(to_target.x, 0.0, to_target.z)
+		var horizontal_distance := horizontal_to_target.length()
+		if horizontal_distance <= 0.15 and absf(to_target.y) <= move_target_vertical_tolerance:
 			_has_move_target = false
 			if _current_order_type == OrderType.MOVE:
 				_current_order_type = OrderType.NONE
 			horizontal_velocity = Vector3.ZERO
 		else:
-			var direction := to_target.normalized()
+			var direction := horizontal_to_target.normalized() if horizontal_distance > 0.001 else Vector3.ZERO
 			var target_speed := _get_current_move_speed()
 			horizontal_velocity = horizontal_velocity.lerp(direction * target_speed, min(1.0, acceleration * delta))
-			look_at(global_position + direction, Vector3.UP)
+			if direction.length_squared() > 0.0001:
+				look_at(global_position + direction, Vector3.UP)
 	else:
 		horizontal_velocity = horizontal_velocity.lerp(Vector3.ZERO, min(1.0, acceleration * delta))
 	velocity.x = horizontal_velocity.x

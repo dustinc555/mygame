@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3 uid="uid://jsg3qe0fcfw2"]
+[gd_scene load_steps=21 format=3 uid="uid://jsg3qe0fcfw2"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_p4rty"]
 [ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_m4n4g"]
@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" path="res://scenes/characters/vendors/shopkeeper_npc.tscn" id="5_shopkeeper"]
 [ext_resource type="Script" uid="uid://h8defgmhh62v" path="res://scripts/jobs/job_definition.gd" id="5_si735"]
 [ext_resource type="PackedScene" uid="uid://cxk5vgdnfkroq" path="res://scenes/world/containers/barrel_container.tscn" id="6_366s7"]
+[ext_resource type="PackedScene" path="res://scenes/world/buildings/interior_stairs.tscn" id="7_stairs"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(60, 1, 60)
@@ -17,6 +18,22 @@ roughness = 0.95
 
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(60, 1, 60)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ramp"]
+albedo_color = Color(0.63, 0.56, 0.41, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_ramp"]
+size = Vector3(3.2, 0.25, 8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ramp"]
+size = Vector3(3.2, 0.35, 8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_top_platform"]
+size = Vector3(3.2, 0.35, 4.9)
+
+[sub_resource type="BoxMesh" id="BoxMesh_top_platform"]
+size = Vector3(3.2, 0.25, 4.9)
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
 radius = 0.45
@@ -60,8 +77,50 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 shape = SubResource("BoxShape3D_floor")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+transform = Transform3D(0.99981, 0.0195115, 0, -0.0195115, 0.99981, 0, 0, 0, 1, 0, 0, 0)
 material_override = SubResource("StandardMaterial3D_floor")
 mesh = SubResource("BoxMesh_floor")
+
+[node name="RampProof" type="Node3D" parent="."]
+
+[node name="UpRamp" type="StaticBody3D" parent="RampProof"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -2)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="RampProof/UpRamp"]
+transform = Transform3D(1, 0, 0, 0, 0.9, 0.43589, 0, -0.43589, 0.9, 0, 1.7, 0)
+material_override = SubResource("StandardMaterial3D_ramp")
+mesh = SubResource("BoxMesh_ramp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RampProof/UpRamp"]
+transform = Transform3D(1, 0, 0, 0, 0.9, 0.43589, 0, -0.43589, 0.9, 0, 1.7, 0)
+shape = SubResource("BoxShape3D_ramp")
+
+[node name="TopPlatform" type="StaticBody3D" parent="RampProof"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 3.45, 4.05)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RampProof/TopPlatform"]
+shape = SubResource("BoxShape3D_top_platform")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="RampProof/TopPlatform"]
+material_override = SubResource("StandardMaterial3D_ramp")
+mesh = SubResource("BoxMesh_top_platform")
+
+[node name="DownRamp" type="StaticBody3D" parent="RampProof"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 10, 0, 10.1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="RampProof/DownRamp"]
+transform = Transform3D(1, 0, 0, 0, 0.9, 0.43589, 0, -0.43589, 0.9, 0, 1.7, 0)
+material_override = SubResource("StandardMaterial3D_ramp")
+mesh = SubResource("BoxMesh_ramp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RampProof/DownRamp"]
+transform = Transform3D(1, 0, 0, 0, 0.9, 0.43589, 0, -0.43589, 0.9, 0, 1.7, 0)
+shape = SubResource("BoxShape3D_ramp")
+
+[node name="StairProof" type="Node3D" parent="."]
+
+[node name="InteriorStairs" parent="StairProof" instance=ExtResource("7_stairs")]
+transform = Transform3D(0.996195, 0, -0.0871557, 0, 1, 0, 0.0871557, 0, 0.996195, 18, 0, -6)
 
 [node name="PartyMembers" type="Node3D" parent="."]
 
@@ -146,7 +205,7 @@ offset_left = 20.0
 offset_top = 20.0
 offset_right = 470.0
 offset_bottom = 102.0
-text = "Left-click selects. Double-click makes the camera follow. Middle mouse always orbits. WASD moves the free camera and breaks follow. Use the bottom-right bar for Running and stance. Right-click moves selected party members."
+text = "Left-click selects. Double-click makes the camera follow. Middle mouse always orbits. WASD moves the free camera and breaks follow. Use the bottom-right bar for Running and stance. Right-click moves selected party members. The ramp proof is on the right side of the map. The isolated stairs proof is farther right."
 autowrap_mode = 3
 
 [node name="ShopkeeperNpc" parent="." instance=ExtResource("5_shopkeeper")]

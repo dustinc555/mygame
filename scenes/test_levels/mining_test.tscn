@@ -1,4 +1,4 @@
-[gd_scene load_steps=36 format=3 uid="uid://dx3m6v8xbo456"]
+[gd_scene load_steps=37 format=3 uid="uid://dx3m6v8xbo456"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
 [ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_mgr"]
@@ -19,6 +19,7 @@
 [ext_resource type="PackedScene" path="res://scenes/world/props/mutant_skull_prop.tscn" id="16_tmo3f"]
 [ext_resource type="Resource" path="res://resources/items/bandage.tres" id="17_bandage"]
 [ext_resource type="PackedScene" path="res://scenes/world/buildings/tiny_house.tscn" id="18_house"]
+[ext_resource type="PackedScene" path="res://scenes/world/buildings/two_story_house.tscn" id="19_two_story_house"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(70, 1, 70)
@@ -206,6 +207,9 @@ owner_character_path = NodePath("../Jim")
 
 [node name="TinyHouse" parent="." instance=ExtResource("18_house")]
 transform = Transform3D(-0.115475, 0, -0.993311, 0, 1, 0, 0.993311, 0, -0.115475, 21.5291, 0, 6.23198)
+
+[node name="TwoStoryHouse" parent="." instance=ExtResource("19_two_story_house")]
+transform = Transform3D(0.990268, 0, -0.139173, 0, 1, 0, 0.139173, 0, 0.990268, 29.4527, 0, -1.98264)
 
 [node name="PartyManager" type="Node" parent="."]
 script = ExtResource("2_mgr")

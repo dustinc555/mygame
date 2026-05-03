@@ -37,13 +37,13 @@ func _process(_delta: float) -> void:
 	var next_building: Node = _find_building_for_actor(meaningful_actor)
 	if _active_building == next_building:
 		if _active_building != null and is_instance_valid(_active_building):
-			_active_building.set_visibility_for_camera(next_building != null, _camera.global_position)
+			_active_building.set_visibility_for_camera(true, _camera.global_position, meaningful_actor)
 		return
 	if _active_building != null and is_instance_valid(_active_building):
-		_active_building.set_visibility_for_camera(false, _camera.global_position)
+		_active_building.set_visibility_for_camera(false, _camera.global_position, null)
 	_active_building = next_building
 	if _active_building != null:
-		_active_building.set_visibility_for_camera(true, _camera.global_position)
+		_active_building.set_visibility_for_camera(true, _camera.global_position, meaningful_actor)
 
 
 func _get_meaningful_actor() -> HumanoidCharacter:
@@ -63,3 +63,7 @@ func _find_building_for_actor(actor: HumanoidCharacter) -> Node:
 		if node != null and node.get_script() == WORLD_BUILDING_SCRIPT and node.is_actor_inside(actor):
 			return node
 	return null
+
+
+func get_active_building() -> Node:
+	return _active_building
