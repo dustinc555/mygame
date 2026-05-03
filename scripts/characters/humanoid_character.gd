@@ -324,8 +324,6 @@ func assign_heal_target(target_character: HumanoidCharacter, issued_by_player: b
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
-	if not target_character.can_receive_bandage() or not can_bandage_target(target_character):
-		return
 	_set_order(OrderType.HEAL, issued_by_player)
 	_current_heal_target = target_character
 
@@ -915,7 +913,7 @@ func _process_recovery(delta: float) -> void:
 func _process_ai(delta: float) -> void:
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
-	if _current_order_type == OrderType.HEAL and (_current_heal_target == null or not is_instance_valid(_current_heal_target) or not _current_heal_target.can_receive_bandage()):
+	if _current_order_type == OrderType.HEAL and (_current_heal_target == null or not is_instance_valid(_current_heal_target)):
 		stop_heal_assignment()
 	if _current_order_type == OrderType.FINISH_OFF and (_current_finish_off_target == null or not is_instance_valid(_current_finish_off_target) or _current_finish_off_target.life_state != NpcRules.LifeState.UNCONSCIOUS):
 		stop_finish_off_assignment()
@@ -1035,7 +1033,12 @@ func _process_heal_interaction() -> void:
 	if _current_heal_target == null or not is_instance_valid(_current_heal_target):
 		stop_heal_assignment()
 		return
-	if not _current_heal_target.can_receive_bandage() or not can_bandage_target(_current_heal_target):
+	if not _current_heal_target.can_receive_bandage():
+		show_world_speech("They don't need bandaging", 5.0)
+		stop_heal_assignment()
+		return
+	if _get_best_bandage_definition() == null:
+		show_world_speech("I don't have anything to heal with", 5.0)
 		stop_heal_assignment()
 		return
 	var target_position := _current_heal_target.get_combat_approach_position(self)

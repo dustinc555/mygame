@@ -303,8 +303,7 @@ func _handle_right_click(screen_position: Vector2) -> void:
 			_append_downed_target_actions(party_actions, collider)
 		elif _selection_can_carry_target(collider):
 			party_actions.append({"id": ACTION_CARRY, "label": "Carry"})
-		elif _selection_can_heal_target(collider):
-			party_actions.append({"id": ACTION_HEAL, "label": "Heal"})
+		party_actions.append({"id": ACTION_HEAL, "label": "Heal"})
 		if _selection_can_put_down_from_carrier(collider):
 			party_actions.append({"id": ACTION_DROP_CARRY, "label": "Put Down"})
 		_show_context_menu_actions(screen_position, party_actions)
@@ -319,10 +318,10 @@ func _handle_right_click(screen_position: Vector2) -> void:
 		elif collider.life_state == NpcRules.LifeState.DEAD or collider.life_state == NpcRules.LifeState.ASLEEP:
 			if _selection_can_carry_target(collider):
 				humanoid_actions.append({"id": ACTION_CARRY, "label": "Carry"})
+			humanoid_actions.append({"id": ACTION_HEAL, "label": "Heal"})
 		else:
 			humanoid_actions.append({"id": ACTION_ATTACK, "label": "Attack"})
-			if _selection_can_heal_target(collider):
-				humanoid_actions.append({"id": ACTION_HEAL, "label": "Heal"})
+			humanoid_actions.append({"id": ACTION_HEAL, "label": "Heal"})
 			if _selection_can_carry_target(collider):
 				humanoid_actions.append({"id": ACTION_CARRY, "label": "Carry"})
 		if _selection_can_put_down_from_carrier(collider):
@@ -666,8 +665,7 @@ func _append_downed_target_actions(actions: Array, target: HumanoidCharacter) ->
 		return
 	if _selection_can_finish_off_target(target):
 		actions.append({"id": ACTION_FINISH_OFF, "label": "Finish Off"})
-	if _selection_can_heal_target(target):
-		actions.append({"id": ACTION_HEAL, "label": "Heal"})
+	actions.append({"id": ACTION_HEAL, "label": "Heal"})
 	if _selection_can_carry_target(target):
 		actions.append({"id": ACTION_CARRY, "label": "Carry"})
 	if _selection_can_drop_carry(target):
