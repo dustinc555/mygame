@@ -217,12 +217,32 @@ func _handle_collect_pay(worker: HumanoidCharacter) -> Dictionary:
 	var record := _get_worker_record(worker)
 	var owed_currency := int(record.get("owed_currency", 0))
 	if owed_currency <= 0:
-		return {"speaker_text": "You have not earned anything yet.", "end_conversation": true}
+		return {
+			"speaker_text": "You have not earned anything yet.",
+			"end_conversation": true,
+			"show_floating_notice": false,
+			"speech_target": provider,
+			"speech_text": "You have not earned anything yet.",
+			"speech_lifetime": 5.0,
+		}
 	if wage_item_definition == null:
-		record["owed_currency"] = 0
-		return {"speaker_text": "Your pay is settled.", "end_conversation": true}
+		return {
+			"speaker_text": "I can't pay you right now.",
+			"end_conversation": true,
+			"show_floating_notice": false,
+			"speech_target": provider,
+			"speech_text": "I can't pay you right now.",
+			"speech_lifetime": 5.0,
+		}
 	if worker.inventory == null or not worker.inventory.add_item_count(wage_item_definition, owed_currency):
-		return {"speaker_text": "Make some room first.", "end_conversation": true}
+		return {
+			"speaker_text": "Make some room first.",
+			"end_conversation": true,
+			"show_floating_notice": false,
+			"speech_target": provider,
+			"speech_text": "Make some room first.",
+			"speech_lifetime": 5.0,
+		}
 	record["owed_currency"] = 0
 	return {
 		"speaker_text": "Here you go.",
