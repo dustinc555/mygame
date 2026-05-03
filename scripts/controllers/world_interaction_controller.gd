@@ -290,7 +290,7 @@ func _handle_right_click(screen_position: Vector2) -> void:
 	context_humanoid = null
 	context_resource = null
 	context_container = null
-	var result := _raycast_from_screen(screen_position)
+	var result := _raycast_target_from_screen(screen_position)
 	if result.is_empty():
 		issue_move_command(screen_position)
 		return
@@ -383,7 +383,7 @@ func _apply_drag_selection() -> void:
 
 
 func _pick_party_member(screen_position: Vector2) -> HumanoidCharacter:
-	var result := _raycast_from_screen(screen_position)
+	var result := _raycast_target_from_screen(screen_position)
 	if result.is_empty():
 		return null
 	var collider: Object = result["collider"]
@@ -393,7 +393,7 @@ func _pick_party_member(screen_position: Vector2) -> HumanoidCharacter:
 
 
 func _pick_humanoid(screen_position: Vector2):
-	var result := _raycast_from_screen(screen_position)
+	var result := _raycast_target_from_screen(screen_position)
 	if result.is_empty():
 		return null
 	var collider: Object = result["collider"]
@@ -448,10 +448,40 @@ func _pick_ground_position(screen_position: Vector2) -> Variant:
 	return ray_origin + ray_direction * distance
 
 
-func _raycast_from_screen(screen_position: Vector2) -> Dictionary:
+func _raycast_target_from_screen(screen_position: Vector2) -> Dictionary:
+	var excluded_rids: Array[RID] = []
+	for _attempt in range(4):
+		var result := _raycast_from_screen(screen_position, excluded_rids)
+		if result.is_empty():
+			return result
+		var collider: Object = result["collider"]
+		if not _should_skip_building_target_hit(collider, int(result.get("shape", -1))):
+			return result
+		if not (collider is CollisionObject3D):
+			return result
+		var collision_object := collider as CollisionObject3D
+		var collider_rid: RID = collision_object.get_rid()
+		if excluded_rids.has(collider_rid):
+			return result
+		excluded_rids.append(collider_rid)
+	return {}
+
+
+func _should_skip_building_target_hit(collider: Object, shape_index: int) -> bool:
+	if building_visibility_controller == null:
+		return false
+	if collider == null or collider != building_visibility_controller.get_active_building():
+		return false
+	if not collider.has_method("should_project_click_shape"):
+		return false
+	return collider.should_project_click_shape(shape_index)
+
+
+func _raycast_from_screen(screen_position: Vector2, excluded_rids: Array[RID] = []) -> Dictionary:
 	var ray_origin := camera.project_ray_origin(screen_position)
 	var ray_end := ray_origin + camera.project_ray_normal(screen_position) * 500.0
 	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
+	query.exclude = excluded_rids
 	return camera.get_world_3d().direct_space_state.intersect_ray(query)
 
 
