@@ -664,7 +664,8 @@ func _selection_can_heal_target(target: HumanoidCharacter) -> bool:
 func _append_downed_target_actions(actions: Array, target: HumanoidCharacter) -> void:
 	if target == null:
 		return
-	actions.append({"id": ACTION_FINISH_OFF, "label": "Finish Off"})
+	if _selection_can_finish_off_target(target):
+		actions.append({"id": ACTION_FINISH_OFF, "label": "Finish Off"})
 	if _selection_can_heal_target(target):
 		actions.append({"id": ACTION_HEAL, "label": "Heal"})
 	if _selection_can_carry_target(target):
@@ -678,6 +679,15 @@ func _selection_can_carry_target(target: HumanoidCharacter) -> bool:
 		return false
 	for member in party_manager.selected_members:
 		if not member.is_carrying_someone() and target.can_be_carried_by(member):
+			return true
+	return false
+
+
+func _selection_can_finish_off_target(target: HumanoidCharacter) -> bool:
+	if target == null or target.life_state != NpcRules.LifeState.UNCONSCIOUS or party_manager.selected_members.is_empty():
+		return false
+	for member in party_manager.selected_members:
+		if member != null and member.faction_name != target.faction_name:
 			return true
 	return false
 
