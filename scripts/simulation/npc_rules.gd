@@ -4,6 +4,7 @@ class_name NpcRules
 
 enum LifeState {
 	ALIVE,
+	ASLEEP,
 	UNCONSCIOUS,
 	DEAD,
 }
@@ -34,6 +35,7 @@ const STANCE_LABELS := {
 
 const LIFE_LABELS := {
 	LifeState.ALIVE: "Alive",
+	LifeState.ASLEEP: "Asleep",
 	LifeState.UNCONSCIOUS: "Unconscious",
 	LifeState.DEAD: "Dead",
 }

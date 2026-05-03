@@ -301,6 +301,8 @@ func _handle_right_click(screen_position: Vector2) -> void:
 		var party_actions := [{"id": ACTION_INVENTORY, "label": "Inventory"}]
 		if collider.life_state == NpcRules.LifeState.UNCONSCIOUS:
 			_append_downed_target_actions(party_actions, collider)
+		elif _selection_can_carry_target(collider):
+			party_actions.append({"id": ACTION_CARRY, "label": "Carry"})
 		elif _selection_can_heal_target(collider):
 			party_actions.append({"id": ACTION_HEAL, "label": "Heal"})
 		if _selection_can_put_down_from_carrier(collider):
@@ -314,10 +316,15 @@ func _handle_right_click(screen_position: Vector2) -> void:
 		var humanoid_actions: Array = []
 		if collider.life_state == NpcRules.LifeState.UNCONSCIOUS:
 			_append_downed_target_actions(humanoid_actions, collider)
+		elif collider.life_state == NpcRules.LifeState.DEAD or collider.life_state == NpcRules.LifeState.ASLEEP:
+			if _selection_can_carry_target(collider):
+				humanoid_actions.append({"id": ACTION_CARRY, "label": "Carry"})
 		else:
 			humanoid_actions.append({"id": ACTION_ATTACK, "label": "Attack"})
 			if _selection_can_heal_target(collider):
 				humanoid_actions.append({"id": ACTION_HEAL, "label": "Heal"})
+			if _selection_can_carry_target(collider):
+				humanoid_actions.append({"id": ACTION_CARRY, "label": "Carry"})
 		if _selection_can_put_down_from_carrier(collider):
 			humanoid_actions.append({"id": ACTION_DROP_CARRY, "label": "Put Down"})
 		if collider.has_conversation_definition() and collider.life_state == NpcRules.LifeState.ALIVE:
@@ -667,10 +674,10 @@ func _append_downed_target_actions(actions: Array, target: HumanoidCharacter) ->
 
 
 func _selection_can_carry_target(target: HumanoidCharacter) -> bool:
-	if target == null or not target.can_be_carried() or party_manager.selected_members.is_empty():
+	if target == null or party_manager.selected_members.is_empty():
 		return false
 	for member in party_manager.selected_members:
-		if not member.is_carrying_someone():
+		if not member.is_carrying_someone() and target.can_be_carried_by(member):
 			return true
 	return false
 

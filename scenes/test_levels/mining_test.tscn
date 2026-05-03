@@ -101,7 +101,7 @@ resource_paths = Array[NodePath]([NodePath("../../CopperNode")])
 container_paths = Array[NodePath]([NodePath("../../BarrelContainer")])
 requirements = Array[Resource]([])
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_hxbvl"]
+[sub_resource type="SphereShape3D" id="1_collision"]
 radius = 0.7
 
 [node name="MiningTest" type="Node3D"]
@@ -206,11 +206,6 @@ owner_character_path = NodePath("../Jim")
 
 [node name="TinyHouse" parent="." instance=ExtResource("18_house")]
 transform = Transform3D(-0.115475, 0, -0.993311, 0, 1, 0, 0.993311, 0, -0.115475, 21.5291, 0, 6.23198)
-roof_occluder_paths = null
-front_occluder_paths = null
-right_occluder_paths = null
-back_occluder_paths = null
-left_occluder_paths = null
 
 [node name="PartyManager" type="Node" parent="."]
 script = ExtResource("2_mgr")
@@ -245,4 +240,4 @@ transform = Transform3D(0.798121, 0, 0.602498, 0, 1, 0, -0.602498, 0, 0.798121, 
 
 [node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="MutantSkullProp"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
-shape = SubResource("SphereShape3D_hxbvl")
+shape = SubResource("1_collision")

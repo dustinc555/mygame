@@ -346,7 +346,7 @@ func assign_carry_target(target_character: HumanoidCharacter, issued_by_player: 
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
-	if not target_character.can_be_carried() or _carried_character != null:
+	if not target_character.can_be_carried_by(self) or _carried_character != null:
 		return
 	_set_order(OrderType.CARRY, issued_by_player)
 	_current_carry_target = target_character
@@ -658,7 +658,15 @@ func can_receive_bandage() -> bool:
 
 
 func can_be_carried() -> bool:
-	return life_state == NpcRules.LifeState.UNCONSCIOUS and _carried_by == null
+	return can_be_carried_by(null)
+
+
+func can_be_carried_by(carrier: HumanoidCharacter) -> bool:
+	if _carried_by != null:
+		return false
+	if carrier != null and carrier.faction_name == faction_name:
+		return true
+	return life_state == NpcRules.LifeState.ASLEEP or life_state == NpcRules.LifeState.UNCONSCIOUS or life_state == NpcRules.LifeState.DEAD
 
 
 func is_carried() -> bool:
@@ -911,7 +919,7 @@ func _process_ai(delta: float) -> void:
 		stop_heal_assignment()
 	if _current_order_type == OrderType.FINISH_OFF and (_current_finish_off_target == null or not is_instance_valid(_current_finish_off_target) or _current_finish_off_target.life_state != NpcRules.LifeState.UNCONSCIOUS):
 		stop_finish_off_assignment()
-	if _current_order_type == OrderType.CARRY and (_current_carry_target == null or not is_instance_valid(_current_carry_target) or not _current_carry_target.can_be_carried()):
+	if _current_order_type == OrderType.CARRY and (_current_carry_target == null or not is_instance_valid(_current_carry_target) or not _current_carry_target.can_be_carried_by(self)):
 		stop_carry_assignment()
 	if _current_order_type == OrderType.ATTACK and (_current_attack_target == null or not is_instance_valid(_current_attack_target) or _current_attack_target.life_state != NpcRules.LifeState.ALIVE):
 		stop_attack_assignment()
@@ -1062,7 +1070,7 @@ func _process_carry_interaction() -> void:
 	if _current_carry_target == null or not is_instance_valid(_current_carry_target):
 		stop_carry_assignment()
 		return
-	if not _current_carry_target.can_be_carried() or _carried_character != null:
+	if not _current_carry_target.can_be_carried_by(self) or _carried_character != null:
 		stop_carry_assignment()
 		return
 	var target_position := _current_carry_target.global_position
