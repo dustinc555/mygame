@@ -6,6 +6,7 @@ const WORLD_INTERACTION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/w
 const CONVERSATION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/conversation_controller.gd")
 const JOB_SYSTEM_CONTROLLER_SCRIPT = preload("res://scripts/controllers/job_system_controller.gd")
 const OWNERSHIP_CONTROLLER_SCRIPT = preload("res://scripts/controllers/ownership_controller.gd")
+const BUILDING_VISIBILITY_CONTROLLER_SCRIPT = preload("res://scripts/controllers/building_visibility_controller.gd")
 const GAME_HUD_SCENE = preload("res://scenes/ui/game_hud.tscn")
 
 var root_scene: Node
@@ -24,6 +25,7 @@ func _deferred_bootstrap() -> void:
 	_ensure_controller("ConversationController", CONVERSATION_CONTROLLER_SCRIPT)
 	_ensure_controller("OwnershipController", OWNERSHIP_CONTROLLER_SCRIPT)
 	_ensure_controller("JobSystemController", JOB_SYSTEM_CONTROLLER_SCRIPT)
+	_ensure_controller("BuildingVisibilityController", BUILDING_VISIBILITY_CONTROLLER_SCRIPT)
 	_ensure_controller("WorldInteractionController", WORLD_INTERACTION_CONTROLLER_SCRIPT)
 
 

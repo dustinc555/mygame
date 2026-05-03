@@ -1,0 +1,29 @@
+# Job System Future Notes
+
+- Keep `JobBoard` in mind as a backend concept, even if the player-facing settlement UI is a compact panel with buttons, dropdowns, and slot rows instead of a literal billboard in the world.
+- Split the system into three layers:
+  - `JobDefinition` for authored data
+  - shared `JobRuntime` for autonomous work, slot occupancy, pause/resume, shift progress, and output handling
+  - frontends like `JobProvider` for NPC conversations and future player settlement assignment UI
+- Player settlement workflow target:
+  - create a job
+  - assign world assets to it (`resource nodes`, `containers`, `buildings`, `fields`, `wells`, etc.)
+  - drag party portraits into job slots
+  - assigned party members become active contributors running that job autonomously
+- Do not lock the runtime to NPC-provider conversations; settlement jobs must be assignable directly by the player without talking to an employer NPC.
+- Mining is the current prototype slice, but future jobs should support multiple work object types and multi-stage routines.
+- Farming target shape:
+  - assign crop fields
+  - assign one or more wells or water sources
+  - assign output containers
+  - algorithm chooses between watering, harvesting, hauling, and waiting
+- Keep jobs lightweight in UI: small buttons, dropdowns, and slot controls are preferred over a giant board-style presentation.
+- Drag-and-drop portraits into slots should be the core assignment interaction for player-owned towns.
+- World assets attached to a job should be explicit and human-authorable in a clear editor/UI flow.
+- Long-term, consider a distinction between:
+  - `Worksite` as the world-owned holder of job assets and definitions
+  - `JobBoard` as the management/assignment surface
+  - player settlement UI as the compact panel view of that system
+- Continue designing so the same runtime can support both:
+  - NPC-offered jobs with wages and dialogue
+  - player-owned settlement jobs with direct party assignment
