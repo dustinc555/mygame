@@ -201,13 +201,13 @@ func _refresh_level_visibility(show_interior: bool, camera_world_position: Vecto
 	_hidden_side = next_hidden_side
 	if _active_level_index < 0:
 		for level_index in range(levels.size()):
-			_apply_level_visibility(level_index, true)
+			_apply_level_visibility(level_index, true, false)
 		return
 	for level_index in range(levels.size()):
-		_apply_level_visibility(level_index, level_index == _active_level_index)
+		_apply_level_visibility(level_index, level_index <= _active_level_index, level_index == _active_level_index)
 
 
-func _apply_level_visibility(level_index: int, visible: bool) -> void:
+func _apply_level_visibility(level_index: int, visible: bool, active: bool = true) -> void:
 	if level_index < 0 or level_index >= levels.size():
 		return
 	var level: BuildingLevelDefinition = levels[level_index]
@@ -215,10 +215,10 @@ func _apply_level_visibility(level_index: int, visible: bool) -> void:
 		return
 	for node_path in level.content_paths:
 		_apply_node_visibility(get_node_or_null(node_path), visible)
-	_apply_occluder_visibility(level.front_occluder_paths, visible and _hidden_side == "front")
-	_apply_occluder_visibility(level.right_occluder_paths, visible and _hidden_side == "right")
-	_apply_occluder_visibility(level.back_occluder_paths, visible and _hidden_side == "back")
-	_apply_occluder_visibility(level.left_occluder_paths, visible and _hidden_side == "left")
+	_apply_occluder_visibility(level.front_occluder_paths, not visible or (active and _hidden_side == "front"))
+	_apply_occluder_visibility(level.right_occluder_paths, not visible or (active and _hidden_side == "right"))
+	_apply_occluder_visibility(level.back_occluder_paths, not visible or (active and _hidden_side == "back"))
+	_apply_occluder_visibility(level.left_occluder_paths, not visible or (active and _hidden_side == "left"))
 
 
 func _apply_node_visibility(node: Node, visible: bool) -> void:
