@@ -17,6 +17,10 @@ const ACTION_FINISH_OFF := 8
 const ACTION_CARRY := 9
 const ACTION_DROP_CARRY := 10
 const ACTION_TALK := 11
+const ACTION_SLEEP := 12
+const ACTION_SIT := 13
+const ACTION_WAKE_UP := 14
+const ACTION_STAND_UP := 15
 const STANCE_OPTION_MIXED := 3
 const FREE_CAMERA_PITCH := -0.65
 const FOLLOW_CAMERA_HEIGHT := 1.35
@@ -48,6 +52,8 @@ var context_member: HumanoidCharacter
 var context_humanoid: HumanoidCharacter
 var context_resource
 var context_container
+var context_sleep_target
+var context_seat_target
 var root: Node
 var hud_layer: CanvasLayer
 var party_root: Node3D
@@ -154,6 +160,8 @@ func _register_party_member(member: HumanoidCharacter) -> void:
 	member.container_reached.connect(_on_party_member_container_reached)
 	member.trade_target_reached.connect(_on_party_member_trade_target_reached)
 	member.conversation_target_reached.connect(_on_party_member_conversation_target_reached)
+	if member.has_signal("center_notice_requested"):
+		member.center_notice_requested.connect(_show_center_notice)
 	member.state_changed.connect(_update_command_bar)
 
 
@@ -290,18 +298,32 @@ func _handle_right_click(screen_position: Vector2) -> void:
 	context_humanoid = null
 	context_resource = null
 	context_container = null
+	context_sleep_target = null
+	context_seat_target = null
 	var result := _raycast_target_from_screen(screen_position)
 	if result.is_empty():
 		issue_move_command(screen_position)
 		return
 	var collider: Object = result["collider"]
+	if collider is Node and collider.is_in_group("sleepable_bed") and not party_manager.selected_members.is_empty():
+		context_sleep_target = collider
+		_show_context_menu(screen_position, ACTION_SLEEP, "Sleep")
+		return
+	if collider is Node and collider.is_in_group("sittable_seat") and not party_manager.selected_members.is_empty():
+		context_seat_target = collider
+		_show_context_menu(screen_position, ACTION_SIT, "Sit")
+		return
 	if collider is Node and collider.is_in_group("mining_resource") and not party_manager.selected_members.is_empty():
 		_show_context_menu(screen_position, ACTION_MINE, "Mine")
 		context_resource = collider
 		return
 	if collider is HumanoidCharacter and collider.is_player_party_member():
 		var party_actions := [{"id": ACTION_INVENTORY, "label": "Inventory"}]
-		if collider.life_state == NpcRules.LifeState.UNCONSCIOUS:
+		if collider.life_state == NpcRules.LifeState.ASLEEP:
+			party_actions.append({"id": ACTION_WAKE_UP, "label": "Wake Up"})
+		elif collider.has_method("is_sitting") and collider.is_sitting():
+			party_actions.append({"id": ACTION_STAND_UP, "label": "Stand Up"})
+		elif collider.life_state == NpcRules.LifeState.UNCONSCIOUS:
 			_append_downed_target_actions(party_actions, collider)
 		elif _selection_can_carry_target(collider):
 			party_actions.append({"id": ACTION_CARRY, "label": "Carry"})
@@ -405,11 +427,12 @@ func _pick_humanoid(screen_position: Vector2):
 func issue_move_command(screen_position: Vector2) -> void:
 	if party_manager.selected_members.is_empty():
 		return
-	var target_variant: Variant = _pick_ground_position(screen_position)
-	if target_variant == null:
+	var ground_hit := _pick_ground_hit(screen_position)
+	if ground_hit.is_empty():
 		return
-	var target: Vector3 = target_variant
-	_spawn_move_command_indicator(target)
+	var target: Vector3 = ground_hit["position"]
+	var surface_normal: Vector3 = ground_hit.get("normal", Vector3.UP)
+	_spawn_move_command_indicator(target + surface_normal.normalized() * 0.08)
 	var center := Vector3.ZERO
 	for member in party_manager.selected_members:
 		center += member.global_position
@@ -425,27 +448,57 @@ func issue_move_command(screen_position: Vector2) -> void:
 
 
 func _pick_ground_position(screen_position: Vector2) -> Variant:
+	var ground_hit := _pick_ground_hit(screen_position)
+	return ground_hit.get("position", null) if not ground_hit.is_empty() else null
+
+
+func _pick_ground_hit(screen_position: Vector2) -> Dictionary:
 	var result := _raycast_from_screen(screen_position)
 	if not result.is_empty():
 		var collider: Object = result["collider"]
 		if collider != null and collider.has_method("project_click_to_active_level") and collider.has_method("should_project_click_shape") and building_visibility_controller != null and building_visibility_controller.get_active_building() == collider:
+			var child_hit := _raycast_building_child_hit(screen_position, collider)
+			if not child_hit.is_empty():
+				return {"position": child_hit["position"], "normal": child_hit.get("normal", Vector3.UP)}
 			var shape_index := int(result.get("shape", -1))
 			if collider.should_project_click_shape(shape_index):
 				var ray_origin := camera.project_ray_origin(screen_position)
 				var ray_direction := camera.project_ray_normal(screen_position)
 				var building_target: Variant = collider.project_click_to_active_level(ray_origin, ray_direction)
 				if building_target != null:
-					return building_target
+					return {"position": building_target, "normal": Vector3.UP}
 		if not (collider is HumanoidCharacter and collider.is_player_party_member()):
-			return result["position"]
+			return {"position": result["position"], "normal": result.get("normal", Vector3.UP)}
 	var ray_origin := camera.project_ray_origin(screen_position)
 	var ray_direction := camera.project_ray_normal(screen_position)
 	if absf(ray_direction.y) < 0.0001:
-		return null
+		return {}
 	var distance := (GROUND_Y - ray_origin.y) / ray_direction.y
 	if distance <= 0.0:
-		return null
-	return ray_origin + ray_direction * distance
+		return {}
+	return {"position": ray_origin + ray_direction * distance, "normal": Vector3.UP}
+
+
+func _raycast_past_collider(screen_position: Vector2, collider: Object) -> Dictionary:
+	if not (collider is CollisionObject3D):
+		return {}
+	var collision_object := collider as CollisionObject3D
+	return _raycast_from_screen(screen_position, [collision_object.get_rid()])
+
+
+func _raycast_building_child_hit(screen_position: Vector2, building: Object) -> Dictionary:
+	if not (building is Node):
+		return {}
+	var building_node := building as Node
+	var hit := _raycast_past_collider(screen_position, building)
+	if hit.is_empty():
+		return {}
+	var hit_collider: Object = hit.get("collider")
+	if hit_collider is HumanoidCharacter and hit_collider.is_player_party_member():
+		return {}
+	if hit_collider is Node and building_node.is_ancestor_of(hit_collider):
+		return hit
+	return {}
 
 
 func _raycast_target_from_screen(screen_position: Vector2) -> Dictionary:
@@ -689,6 +742,20 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 		ACTION_DROP_CARRY:
 			for member in party_manager.selected_members:
 				member.drop_carried_character()
+		ACTION_SLEEP:
+			if context_sleep_target != null:
+				for member in party_manager.selected_members:
+					member.assign_sleep_target(context_sleep_target)
+		ACTION_SIT:
+			if context_seat_target != null:
+				for member in party_manager.selected_members:
+					member.assign_seat_target(context_seat_target)
+		ACTION_WAKE_UP:
+			if context_humanoid != null and context_humanoid.has_method("wake_up_from_rest"):
+				context_humanoid.wake_up_from_rest()
+		ACTION_STAND_UP:
+			if context_humanoid != null and context_humanoid.has_method("wake_up_from_rest"):
+				context_humanoid.wake_up_from_rest()
 
 
 func _selection_can_heal_target(target: HumanoidCharacter) -> bool:

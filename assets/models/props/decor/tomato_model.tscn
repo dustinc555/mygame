@@ -1,0 +1,66 @@
+[gd_scene load_steps=9 format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tomato_skin"]
+albedo_color = Color(0.82, 0.06, 0.035, 1)
+roughness = 0.78
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tomato_shadow"]
+albedo_color = Color(0.47, 0.025, 0.018, 1)
+roughness = 0.86
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_stem"]
+albedo_color = Color(0.14, 0.32, 0.08, 1)
+roughness = 0.9
+
+[sub_resource type="SphereMesh" id="SphereMesh_body"]
+radius = 0.22
+height = 0.38
+radial_segments = 32
+rings = 16
+
+[sub_resource type="SphereMesh" id="SphereMesh_dimple"]
+radius = 0.07
+height = 0.03
+radial_segments = 18
+rings = 8
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_stem"]
+top_radius = 0.025
+bottom_radius = 0.035
+height = 0.13
+radial_segments = 10
+
+[sub_resource type="BoxMesh" id="BoxMesh_leaf"]
+size = Vector3(0.2, 0.018, 0.05)
+
+[node name="TomatoModel" type="Node3D"]
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.15, 0, 0, 0, 0.92, 0, 0, 0, 1.05, 0, 0.22, 0)
+mesh = SubResource("SphereMesh_body")
+material_override = SubResource("StandardMaterial3D_tomato_skin")
+
+[node name="TopDimple" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.4, 0, 0, 0, 0.45, 0, 0, 0, 1.4, 0, 0.39, 0)
+mesh = SubResource("SphereMesh_dimple")
+material_override = SubResource("StandardMaterial3D_tomato_shadow")
+
+[node name="Stem" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.946709, -0.32209, 0, 0.32209, 0.946709, 0, 0, 0, 1, 0.02, 0.48, 0)
+mesh = SubResource("CylinderMesh_stem")
+material_override = SubResource("StandardMaterial3D_stem")
+
+[node name="LeafA" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 0, 0.425, 0)
+mesh = SubResource("BoxMesh_leaf")
+material_override = SubResource("StandardMaterial3D_stem")
+
+[node name="LeafB" type="MeshInstance3D" parent="."]
+transform = Transform3D(-0.258819, 0, -0.965926, 0, 1, 0, 0.965926, 0, -0.258819, 0, 0.426, 0)
+mesh = SubResource("BoxMesh_leaf")
+material_override = SubResource("StandardMaterial3D_stem")
+
+[node name="LeafC" type="MeshInstance3D" parent="."]
+transform = Transform3D(-0.258819, 0, 0.965926, 0, 1, 0, -0.965926, 0, -0.258819, 0, 0.427, 0)
+mesh = SubResource("BoxMesh_leaf")
+material_override = SubResource("StandardMaterial3D_stem")

@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="ConversationDefinition" format=3 uid="uid://cyqjgr5vytwd2"]
+
+[ext_resource type="Script" uid="uid://oln7awi2fw1o" path="res://scripts/conversation/conversation_definition.gd" id="1_definition"]
+[ext_resource type="Script" uid="uid://c21vtwxjyyyyi" path="res://scripts/conversation/conversation_node.gd" id="2_node"]
+[ext_resource type="Script" uid="uid://d2gwynnqbm0iq" path="res://scripts/conversation/conversation_response.gd" id="3_response"]
+[ext_resource type="Script" uid="uid://cpf8b6pq8heil" path="res://scripts/conversation/conversation_effect.gd" id="4_effect"]
+
+[sub_resource type="Resource" id="ConversationEffect_order"]
+script = ExtResource("4_effect")
+action_id = "bar.start_venue_trade"
+
+[sub_resource type="Resource" id="ConversationResponse_order"]
+script = ExtResource("3_response")
+text = "Order"
+effects = Array[Resource]([SubResource("ConversationEffect_order")])
+
+[sub_resource type="Resource" id="ConversationResponse_nothing"]
+script = ExtResource("3_response")
+text = "Nothing."
+
+[sub_resource type="Resource" id="ConversationNode_intro"]
+script = ExtResource("2_node")
+node_id = "intro"
+text = "Hi, what do you want?"
+responses = Array[Resource]([SubResource("ConversationResponse_order"), SubResource("ConversationResponse_nothing")])
+
+[resource]
+script = ExtResource("1_definition")
+conversation_id = "conv.bar.waiter.order"
+display_name = "Waiter Order"
+start_node_id = "intro"
+nodes = Array[Resource]([SubResource("ConversationNode_intro")])

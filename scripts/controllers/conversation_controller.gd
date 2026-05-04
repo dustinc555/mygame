@@ -191,6 +191,17 @@ func _execute_action(effect) -> void:
 			if inventory_controller != null and active_speaker != null and active_target != null:
 				inventory_controller.open_inventory_for_owner(active_speaker)
 				inventory_controller.open_inventory_for_owner(active_target)
+		"bar.start_venue_trade":
+			if inventory_controller != null and active_speaker != null and active_target != null:
+				var venue := _resolve_bar_venue(active_target)
+				if venue == null:
+					return
+				if venue.get_owner_character() == null:
+					return
+				if venue.has_method("set_trade_proxy_position"):
+					venue.set_trade_proxy_position(active_target.global_position)
+				inventory_controller.open_inventory_for_owner(active_speaker)
+				inventory_controller.open_inventory_for_owner(venue)
 		"core.start_combat":
 			if active_target == null:
 				return
@@ -232,6 +243,15 @@ func _resolve_subject(subject_key: Variant):
 			return active_speaker
 		"conversation_target", "npc_self":
 			return active_target
+	return null
+
+
+func _resolve_bar_venue(start_node: Node) -> BarVenue:
+	var node := start_node
+	while node != null:
+		if node is BarVenue:
+			return node
+		node = node.get_parent()
 	return null
 
 

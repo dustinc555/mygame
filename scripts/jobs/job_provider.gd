@@ -9,6 +9,7 @@ const ACTOR_CONDITION_EVALUATOR_SCRIPT = preload("res://scripts/conditions/actor
 
 @export var jobs: Array[JobDefinition] = []
 @export var wage_item_definition: Resource
+@export var bar_venue_path: NodePath
 @export var max_on_duty_seconds := 90.0
 @export var break_duration_seconds := 45.0
 @export var greeting_return_threshold_seconds := 30.0
@@ -135,6 +136,8 @@ func _initialize_slots() -> void:
 				"work_inventory": null,
 				"claimed_resource": null,
 				"target_container": null,
+				"target_guard_post": null,
+				"target_service_point": null,
 				"accrued_interval_time": 0.0,
 			})
 		_active_slots[job_index] = slots
@@ -277,6 +280,10 @@ func _process_slot(job_index: int, job, slot_state: Dictionary, delta: float) ->
 	match job.algorithm_id:
 		"mine_and_haul":
 			is_meaningfully_working = _process_mine_and_haul(job_index, job, slot_state, worker)
+		"guard_post":
+			is_meaningfully_working = _process_guard_post(job_index, job, slot_state, worker)
+		"server_shift":
+			is_meaningfully_working = _process_server_shift(job_index, job, slot_state, worker)
 	if not is_meaningfully_working:
 		return
 	var record := _get_worker_record(worker)
@@ -319,6 +326,46 @@ func _process_mine_and_haul(job_index: int, job, slot_state: Dictionary, worker:
 		slot_state["claimed_resource"] = resource_node
 	if worker.get_assigned_mining_node() != resource_node:
 		worker.assign_mining_resource(resource_node, false)
+	return true
+
+
+func _process_guard_post(_job_index: int, _job, slot_state: Dictionary, worker: HumanoidCharacter) -> bool:
+	var post = slot_state.get("target_guard_post")
+	if post == null or not is_instance_valid(post):
+		var venue := _resolve_bar_venue()
+		if venue == null:
+			return false
+		post = venue.get_available_guard_post(worker)
+		if post == null:
+			return false
+		if post.has_method("claim_worker") and not post.claim_worker(worker):
+			return false
+		slot_state["target_guard_post"] = post
+	var work_position: Vector3 = post.get_work_position()
+	if worker.global_position.distance_to(work_position) > worker.interact_distance:
+		worker.set_move_target(work_position, false)
+		return false
+	if post.has_method("is_worker_at_post"):
+		return post.is_worker_at_post(worker)
+	return true
+
+
+func _process_server_shift(_job_index: int, _job, slot_state: Dictionary, worker: HumanoidCharacter) -> bool:
+	var service_point = slot_state.get("target_service_point")
+	if service_point == null or not is_instance_valid(service_point):
+		var venue := _resolve_bar_venue()
+		if venue == null:
+			return false
+		service_point = venue.get_service_point()
+		if service_point == null:
+			return false
+		slot_state["target_service_point"] = service_point
+	var work_position: Vector3 = service_point.get_work_position()
+	if worker.global_position.distance_to(work_position) > worker.interact_distance:
+		worker.set_move_target(work_position, false)
+		return false
+	if service_point.has_method("is_worker_at_point"):
+		return service_point.is_worker_at_point(worker)
 	return true
 
 
@@ -417,6 +464,9 @@ func _end_slot_assignment(job_index: int, slot_state: Dictionary, _caused_by_pla
 	if worker != null and is_instance_valid(worker):
 		worker.end_job_assignment()
 		worker.stop_mining_assignment()
+	var guard_post = slot_state.get("target_guard_post")
+	if guard_post != null and is_instance_valid(guard_post) and guard_post.has_method("release_worker"):
+		guard_post.release_worker(worker)
 	if worker != null:
 		var record := _get_worker_record(worker)
 		record["current_shift_seconds"] = float(record.get("current_shift_seconds", 0.0))
@@ -424,6 +474,8 @@ func _end_slot_assignment(job_index: int, slot_state: Dictionary, _caused_by_pla
 	slot_state["work_inventory"] = null
 	slot_state["claimed_resource"] = null
 	slot_state["target_container"] = null
+	slot_state["target_guard_post"] = null
+	slot_state["target_service_point"] = null
 	slot_state["accrued_interval_time"] = 0.0
 
 
@@ -438,6 +490,12 @@ func _is_job_configured(job) -> bool:
 	match str(job.algorithm_id):
 		"mine_and_haul":
 			return not _resolve_nodes(job.resource_paths).is_empty() and not _resolve_nodes(job.container_paths).is_empty()
+		"guard_post":
+			var venue := _resolve_bar_venue()
+			return venue != null and not venue.get_guard_posts().is_empty()
+		"server_shift":
+			var venue := _resolve_bar_venue()
+			return venue != null and not venue.get_service_points().is_empty()
 	return false
 
 
@@ -451,7 +509,24 @@ func _build_job_offer_text(job) -> String:
 	match str(job.algorithm_id):
 		"mine_and_haul":
 			return "Yeah, if you want to mine %s, I'll pay you %d every %d seconds you work." % [target_label, int(job.pay_per_interval), int(round(job.pay_interval_seconds))]
+		"guard_post":
+			return "I need someone watching this place. Stand guard and I'll pay you %d every %d seconds on duty." % [int(job.pay_per_interval), int(round(job.pay_interval_seconds))]
+		"server_shift":
+			return "I need help serving tables. Stay ready for orders and I'll pay you %d every %d seconds." % [int(job.pay_per_interval), int(round(job.pay_interval_seconds))]
 	return "I've got work if you want it. I'll pay you %d every %d seconds you work." % [int(job.pay_per_interval), int(round(job.pay_interval_seconds))]
+
+
+func _resolve_bar_venue() -> BarVenue:
+	if not bar_venue_path.is_empty():
+		var explicit_venue := get_node_or_null(bar_venue_path) as BarVenue
+		if explicit_venue != null:
+			return explicit_venue
+	var node: Node = get_parent()
+	while node != null:
+		if node is BarVenue:
+			return node
+		node = node.get_parent()
+	return null
 
 
 func _clear_pending_offer(worker: HumanoidCharacter) -> void:

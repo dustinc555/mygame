@@ -1,0 +1,512 @@
+[gd_scene load_steps=55 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/buildings/world_building.gd" id="1_building"]
+[ext_resource type="Script" path="res://scripts/world/buildings/building_level_definition.gd" id="2_level"]
+[ext_resource type="PackedScene" path="res://scenes/world/buildings/bar_stairs.tscn" id="3_stairs"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_walls"]
+albedo_color = Color(0.76, 0.71, 0.62, 1)
+roughness = 0.97
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.56, 0.45, 0.32, 1)
+roughness = 0.95
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_roof"]
+albedo_color = Color(0.41, 0.22, 0.18, 1)
+roughness = 0.93
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor_full"]
+size = Vector3(16, 0.2, 16)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor_full"]
+size = Vector3(16, 0.2, 16)
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor_right"]
+size = Vector3(11.6, 0.2, 16)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor_right"]
+size = Vector3(11.6, 0.2, 16)
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor_left_cap"]
+size = Vector3(4.4, 0.2, 2.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor_left_cap"]
+size = Vector3(4.4, 0.2, 2.5)
+
+[sub_resource type="BoxMesh" id="BoxMesh_wall_long"]
+size = Vector3(16, 2.8, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wall_long"]
+size = Vector3(16, 2.8, 0.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_wall_short"]
+size = Vector3(0.2, 2.8, 16)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wall_short"]
+size = Vector3(0.2, 2.8, 16)
+
+[sub_resource type="BoxMesh" id="BoxMesh_front_side"]
+size = Vector3(6, 2.8, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_front_side"]
+size = Vector3(6, 2.8, 0.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_front_top"]
+size = Vector3(4, 0.8, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_front_top"]
+size = Vector3(4, 0.8, 0.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_roof_right"]
+size = Vector3(12, 0.25, 16.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_roof_right"]
+size = Vector3(12, 0.25, 16.8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_roof_left_cap"]
+size = Vector3(4.4, 0.25, 2.7)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_roof_left_cap"]
+size = Vector3(4.4, 0.25, 2.7)
+
+[sub_resource type="BoxMesh" id="BoxMesh_parapet_long"]
+size = Vector3(16.4, 0.8, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_parapet_long"]
+size = Vector3(16.4, 0.8, 0.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_parapet_short"]
+size = Vector3(0.2, 0.8, 16.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_parapet_short"]
+size = Vector3(0.2, 0.8, 16.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_level0_area"]
+size = Vector3(15.4, 2.7, 15.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_level1_area"]
+size = Vector3(15.4, 2.7, 15.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_roof_area"]
+size = Vector3(15.8, 1.9, 15.8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_upper_stair_tread"]
+size = Vector3(3.8, 0.22, 0.8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_upper_stair_riser"]
+size = Vector3(3.8, 0.25, 0.08)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_upper_stair_ramp"]
+size = Vector3(3.8, 0.35, 10.4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_upper_stair_bottom_landing"]
+size = Vector3(3.8, 0.2, 1.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_upper_stair_bottom_landing"]
+size = Vector3(3.8, 0.2, 1.2)
+
+[sub_resource type="Resource" id="BuildingLevelDefinition_ground"]
+script = ExtResource("2_level")
+display_name = "Ground Floor"
+occupancy_area_path = NodePath("GroundFloorArea")
+min_local_y = -1.0
+max_local_y = 3.1
+click_local_y = 0.1
+content_paths = Array[NodePath]([NodePath("GroundFloorMesh"), NodePath("GroundFloorCollision"), NodePath("GroundBackWall"), NodePath("GroundBackWallCollision"), NodePath("GroundLeftWall"), NodePath("GroundLeftWallCollision"), NodePath("GroundRightWall"), NodePath("GroundRightWallCollision"), NodePath("GroundFrontWallLeft"), NodePath("GroundFrontWallLeftCollision"), NodePath("GroundFrontWallRight"), NodePath("GroundFrontWallRightCollision"), NodePath("GroundFrontWallTop"), NodePath("GroundFrontWallTopCollision"), NodePath("LowerStairs")])
+front_occluder_paths = Array[NodePath]([NodePath("GroundFrontWallLeft"), NodePath("GroundFrontWallLeftCollision"), NodePath("GroundFrontWallRight"), NodePath("GroundFrontWallRightCollision"), NodePath("GroundFrontWallTop"), NodePath("GroundFrontWallTopCollision")])
+right_occluder_paths = Array[NodePath]([NodePath("GroundRightWall"), NodePath("GroundRightWallCollision")])
+back_occluder_paths = Array[NodePath]([NodePath("GroundBackWall"), NodePath("GroundBackWallCollision")])
+left_occluder_paths = Array[NodePath]([NodePath("GroundLeftWall"), NodePath("GroundLeftWallCollision")])
+
+[sub_resource type="Resource" id="BuildingLevelDefinition_upper"]
+script = ExtResource("2_level")
+display_name = "Upper Floor"
+occupancy_area_path = NodePath("UpperFloorArea")
+min_local_y = 3.1
+max_local_y = 6.0
+click_local_y = 3.0
+content_paths = Array[NodePath]([NodePath("UpperFloorRightMesh"), NodePath("UpperFloorRightCollision"), NodePath("UpperFloorFrontLeftMesh"), NodePath("UpperFloorFrontLeftCollision"), NodePath("UpperFloorBackLeftMesh"), NodePath("UpperFloorBackLeftCollision"), NodePath("UpperStairBottomLandingMesh"), NodePath("UpperStairBottomLandingCollision"), NodePath("UpperBackWall"), NodePath("UpperBackWallCollision"), NodePath("UpperLeftWall"), NodePath("UpperLeftWallCollision"), NodePath("UpperRightWall"), NodePath("UpperRightWallCollision"), NodePath("UpperFrontWall"), NodePath("UpperFrontWallCollision"), NodePath("UpperStairs")])
+front_occluder_paths = Array[NodePath]([NodePath("UpperFrontWall"), NodePath("UpperFrontWallCollision")])
+right_occluder_paths = Array[NodePath]([NodePath("UpperRightWall"), NodePath("UpperRightWallCollision")])
+back_occluder_paths = Array[NodePath]([NodePath("UpperBackWall"), NodePath("UpperBackWallCollision")])
+left_occluder_paths = Array[NodePath]([NodePath("UpperLeftWall"), NodePath("UpperLeftWallCollision")])
+
+[sub_resource type="Resource" id="BuildingLevelDefinition_roof"]
+script = ExtResource("2_level")
+display_name = "Roof"
+occupancy_area_path = NodePath("RoofArea")
+min_local_y = 6.0
+click_local_y = 5.95
+content_paths = Array[NodePath]([NodePath("RoofRightMesh"), NodePath("RoofRightCollision"), NodePath("RoofFrontLeftMesh"), NodePath("RoofFrontLeftCollision"), NodePath("RoofBackLeftMesh"), NodePath("RoofBackLeftCollision"), NodePath("RoofFrontParapet"), NodePath("RoofFrontParapetCollision"), NodePath("RoofBackParapet"), NodePath("RoofBackParapetCollision"), NodePath("RoofLeftParapet"), NodePath("RoofLeftParapetCollision"), NodePath("RoofRightParapet"), NodePath("RoofRightParapetCollision")])
+front_occluder_paths = Array[NodePath]([NodePath("RoofFrontParapet"), NodePath("RoofFrontParapetCollision")])
+right_occluder_paths = Array[NodePath]([NodePath("RoofRightParapet"), NodePath("RoofRightParapetCollision")])
+back_occluder_paths = Array[NodePath]([NodePath("RoofBackParapet"), NodePath("RoofBackParapetCollision")])
+left_occluder_paths = Array[NodePath]([NodePath("RoofLeftParapet"), NodePath("RoofLeftParapetCollision")])
+is_roof = true
+
+[node name="BarScene" type="StaticBody3D"]
+script = ExtResource("1_building")
+display_name = "Bar"
+levels = Array[Resource]([SubResource("BuildingLevelDefinition_ground"), SubResource("BuildingLevelDefinition_upper"), SubResource("BuildingLevelDefinition_roof")])
+
+[node name="GroundFloorMesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_floor_full")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="GroundFloorCollision" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_floor_full")
+
+[node name="GroundBackWall" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.45, -7.9)
+mesh = SubResource("BoxMesh_wall_long")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="GroundBackWallCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.45, -7.9)
+shape = SubResource("BoxShape3D_wall_long")
+
+[node name="GroundLeftWall" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.9, 1.45, 0)
+mesh = SubResource("BoxMesh_wall_short")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="GroundLeftWallCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.9, 1.45, 0)
+shape = SubResource("BoxShape3D_wall_short")
+
+[node name="GroundRightWall" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.9, 1.45, 0)
+mesh = SubResource("BoxMesh_wall_short")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="GroundRightWallCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.9, 1.45, 0)
+shape = SubResource("BoxShape3D_wall_short")
+
+[node name="GroundFrontWallLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 1.45, 7.9)
+mesh = SubResource("BoxMesh_front_side")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="GroundFrontWallLeftCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 1.45, 7.9)
+shape = SubResource("BoxShape3D_front_side")
+
+[node name="GroundFrontWallRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 1.45, 7.9)
+mesh = SubResource("BoxMesh_front_side")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="GroundFrontWallRightCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 1.45, 7.9)
+shape = SubResource("BoxShape3D_front_side")
+
+[node name="GroundFrontWallTop" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.45, 7.9)
+mesh = SubResource("BoxMesh_front_top")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="GroundFrontWallTopCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.45, 7.9)
+shape = SubResource("BoxShape3D_front_top")
+
+[node name="LowerStairs" parent="." instance=ExtResource("3_stairs")]
+transform = Transform3D(0.996195, 0, 0.0871557, 0, 1, 0, -0.0871557, 0, 0.996195, -5.5, 0, 0.3)
+
+[node name="UpperFloorRightMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.2, 2.9, 0)
+mesh = SubResource("BoxMesh_floor_right")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="UpperFloorRightCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.2, 2.9, 0)
+shape = SubResource("BoxShape3D_floor_right")
+
+[node name="UpperFloorFrontLeftMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.8, 2.9, 6.75)
+mesh = SubResource("BoxMesh_floor_left_cap")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="UpperFloorFrontLeftCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.8, 2.9, 6.75)
+shape = SubResource("BoxShape3D_floor_left_cap")
+
+[node name="UpperFloorBackLeftMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.8, 2.9, -6.75)
+mesh = SubResource("BoxMesh_floor_left_cap")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="UpperFloorBackLeftCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.8, 2.9, -6.75)
+shape = SubResource("BoxShape3D_floor_left_cap")
+
+[node name="UpperStairBottomLandingMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 2.9, -5.05)
+mesh = SubResource("BoxMesh_upper_stair_bottom_landing")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="UpperStairBottomLandingCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 2.9, -5.05)
+shape = SubResource("BoxShape3D_upper_stair_bottom_landing")
+
+[node name="UpperBackWall" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.35, -7.9)
+mesh = SubResource("BoxMesh_wall_long")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="UpperBackWallCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.35, -7.9)
+shape = SubResource("BoxShape3D_wall_long")
+
+[node name="UpperLeftWall" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.9, 4.35, 0)
+mesh = SubResource("BoxMesh_wall_short")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="UpperLeftWallCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.9, 4.35, 0)
+shape = SubResource("BoxShape3D_wall_short")
+
+[node name="UpperRightWall" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.9, 4.35, 0)
+mesh = SubResource("BoxMesh_wall_short")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="UpperRightWallCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.9, 4.35, 0)
+shape = SubResource("BoxShape3D_wall_short")
+
+[node name="UpperFrontWall" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.35, 7.9)
+mesh = SubResource("BoxMesh_wall_long")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="UpperFrontWallCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.35, 7.9)
+shape = SubResource("BoxShape3D_wall_long")
+
+[node name="UpperStairs" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 2.9, 0.3)
+
+[node name="WalkRampCollision" type="CollisionShape3D" parent="UpperStairs"]
+transform = Transform3D(1, 0, 0, 0, 0.960337, 0.278846, 0, -0.278846, 0.960337, 0, 1.45, 0.4)
+shape = SubResource("BoxShape3D_upper_stair_ramp")
+
+[node name="Visual" type="Node3D" parent="UpperStairs"]
+
+[node name="Tread01" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -4.8)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Riser01" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1115, -4.4)
+mesh = SubResource("BoxMesh_upper_stair_riser")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="Tread02" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.223, -4.0)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Riser02" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3345, -3.6)
+mesh = SubResource("BoxMesh_upper_stair_riser")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="Tread03" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.446, -3.2)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Riser03" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5575, -2.8)
+mesh = SubResource("BoxMesh_upper_stair_riser")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="Tread04" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.669, -2.4)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Riser04" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7805, -2.0)
+mesh = SubResource("BoxMesh_upper_stair_riser")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="Tread05" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.892, -1.6)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Riser05" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0035, -1.2)
+mesh = SubResource("BoxMesh_upper_stair_riser")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="Tread06" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.115, -0.8)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Riser06" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2265, -0.4)
+mesh = SubResource("BoxMesh_upper_stair_riser")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="Tread07" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.338, 0)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Riser07" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.45, 0.4)
+mesh = SubResource("BoxMesh_upper_stair_riser")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="Tread08" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.562, 0.8)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Riser08" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6735, 1.2)
+mesh = SubResource("BoxMesh_upper_stair_riser")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="Tread09" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.785, 1.6)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Riser09" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8965, 2.0)
+mesh = SubResource("BoxMesh_upper_stair_riser")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="Tread10" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.008, 2.4)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Riser10" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.1195, 2.8)
+mesh = SubResource("BoxMesh_upper_stair_riser")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="Tread11" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.231, 3.2)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Riser11" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.3425, 3.6)
+mesh = SubResource("BoxMesh_upper_stair_riser")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="Tread12" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.454, 4.0)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Riser12" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5655, 4.4)
+mesh = SubResource("BoxMesh_upper_stair_riser")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="Tread13" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.677, 4.8)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Riser13" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7885, 5.2)
+mesh = SubResource("BoxMesh_upper_stair_riser")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="Tread14" type="MeshInstance3D" parent="UpperStairs/Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.9, 5.6)
+mesh = SubResource("BoxMesh_upper_stair_tread")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="RoofRightMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 5.85, 0)
+mesh = SubResource("BoxMesh_roof_right")
+material_override = SubResource("StandardMaterial3D_roof")
+
+[node name="RoofRightCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 5.85, 0)
+shape = SubResource("BoxShape3D_roof_right")
+
+[node name="RoofFrontLeftMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.8, 5.85, 6.95)
+mesh = SubResource("BoxMesh_roof_left_cap")
+material_override = SubResource("StandardMaterial3D_roof")
+
+[node name="RoofFrontLeftCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.8, 5.85, 6.95)
+shape = SubResource("BoxShape3D_roof_left_cap")
+
+[node name="RoofBackLeftMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.8, 5.85, -6.95)
+mesh = SubResource("BoxMesh_roof_left_cap")
+material_override = SubResource("StandardMaterial3D_roof")
+
+[node name="RoofBackLeftCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.8, 5.85, -6.95)
+shape = SubResource("BoxShape3D_roof_left_cap")
+
+[node name="RoofFrontParapet" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.4, 8.1)
+mesh = SubResource("BoxMesh_parapet_long")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="RoofFrontParapetCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.4, 8.1)
+shape = SubResource("BoxShape3D_parapet_long")
+
+[node name="RoofBackParapet" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.4, -8.1)
+mesh = SubResource("BoxMesh_parapet_long")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="RoofBackParapetCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.4, -8.1)
+shape = SubResource("BoxShape3D_parapet_long")
+
+[node name="RoofLeftParapet" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.1, 6.4, 0)
+mesh = SubResource("BoxMesh_parapet_short")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="RoofLeftParapetCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.1, 6.4, 0)
+shape = SubResource("BoxShape3D_parapet_short")
+
+[node name="RoofRightParapet" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.1, 6.4, 0)
+mesh = SubResource("BoxMesh_parapet_short")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="RoofRightParapetCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.1, 6.4, 0)
+shape = SubResource("BoxShape3D_parapet_short")
+
+[node name="GroundFloorArea" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.35, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="GroundFloorArea"]
+shape = SubResource("BoxShape3D_level0_area")
+
+[node name="UpperFloorArea" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.2, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="UpperFloorArea"]
+shape = SubResource("BoxShape3D_level1_area")
+
+[node name="RoofArea" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.85, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RoofArea"]
+shape = SubResource("BoxShape3D_roof_area")

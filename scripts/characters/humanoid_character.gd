@@ -15,6 +15,8 @@ enum OrderType {
 	HEAL,
 	FINISH_OFF,
 	CARRY,
+	SLEEP,
+	SIT,
 }
 
 @export var member_name := "Character"
@@ -89,6 +91,9 @@ var _current_attack_target: HumanoidCharacter
 var _current_heal_target: HumanoidCharacter
 var _current_finish_off_target: HumanoidCharacter
 var _current_carry_target: HumanoidCharacter
+var _current_sleep_target
+var _current_seat_target
+var _current_seat_stand_position: Variant = null
 var _carried_by: HumanoidCharacter
 var _carried_character: HumanoidCharacter
 
@@ -117,6 +122,7 @@ var _rng := RandomNumberGenerator.new()
 var _work_inventory_override: InventoryData
 var _active_job_provider
 var _active_job_label := ""
+var _is_sitting := false
 
 signal inventory_changed
 signal mining_changed
@@ -125,6 +131,7 @@ signal combat_state_changed
 signal container_reached(member, container)
 signal trade_target_reached(member, target)
 signal conversation_target_reached(member, target)
+signal center_notice_requested(message)
 
 
 func _ready() -> void:
@@ -184,6 +191,10 @@ func _physics_process(delta: float) -> void:
 			_process_finish_off_interaction()
 		OrderType.CARRY:
 			_process_carry_interaction()
+		OrderType.SLEEP:
+			_process_sleep_interaction()
+		OrderType.SIT:
+			_process_seat_interaction()
 
 
 func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
@@ -248,6 +259,42 @@ func stop_finish_off_assignment() -> void:
 func stop_carry_assignment() -> void:
 	_current_carry_target = null
 	if _current_order_type == OrderType.CARRY:
+		_current_order_type = OrderType.NONE
+
+
+func stop_sleep_assignment() -> void:
+	if life_state == NpcRules.LifeState.ASLEEP and _current_sleep_target != null and _current_sleep_target.has_method("get_interaction_position"):
+		global_position = _current_sleep_target.get_interaction_position(self)
+	if _current_sleep_target != null and _current_sleep_target.has_method("release_sleeper"):
+		_current_sleep_target.release_sleeper(self)
+	_current_sleep_target = null
+	if life_state == NpcRules.LifeState.ASLEEP:
+		life_state = NpcRules.LifeState.ALIVE
+		rotation = Vector3(0.0, rotation.y, 0.0)
+		velocity = Vector3.ZERO
+		state_changed.emit()
+	if _current_order_type == OrderType.SLEEP:
+		_current_order_type = OrderType.NONE
+
+
+func stop_seat_assignment() -> void:
+	if _is_sitting and _current_seat_target != null:
+		if _current_seat_stand_position != null:
+			global_position = _current_seat_stand_position
+		elif _current_seat_target.has_method("get_stand_position"):
+			global_position = _current_seat_target.get_stand_position()
+		elif _current_seat_target.has_method("get_interaction_position"):
+			global_position = _current_seat_target.get_interaction_position(self)
+	if _current_seat_target != null and _current_seat_target.has_method("release_sitter"):
+		_current_seat_target.release_sitter(self)
+	_current_seat_target = null
+	_current_seat_stand_position = null
+	if _is_sitting:
+		_is_sitting = false
+		rotation = Vector3(0.0, rotation.y, 0.0)
+		velocity = Vector3.ZERO
+		state_changed.emit()
+	if _current_order_type == OrderType.SIT:
 		_current_order_type = OrderType.NONE
 
 
@@ -353,6 +400,60 @@ func assign_carry_target(target_character: HumanoidCharacter, issued_by_player: 
 		return
 	_set_order(OrderType.CARRY, issued_by_player)
 	_current_carry_target = target_character
+
+
+func assign_sleep_target(bed, issued_by_player: bool = true) -> void:
+	if bed == null or not bed.has_method("get_interaction_position"):
+		return
+	if life_state != NpcRules.LifeState.ALIVE:
+		return
+	_set_order(OrderType.SLEEP, issued_by_player)
+	_current_sleep_target = bed
+	_move_target = bed.get_interaction_position(self)
+	_has_move_target = true
+
+
+func assign_seat_target(seat, issued_by_player: bool = true) -> void:
+	if seat == null or not seat.has_method("get_interaction_position"):
+		return
+	if life_state != NpcRules.LifeState.ALIVE:
+		return
+	_set_order(OrderType.SIT, issued_by_player)
+	_current_seat_target = seat
+	_current_seat_stand_position = global_position
+	_move_target = seat.get_interaction_position(self)
+	_has_move_target = not (seat.has_method("can_sit_from_position") and seat.can_sit_from_position(global_position))
+
+
+func wake_up_from_rest(show_notice: bool = true) -> void:
+	var did_wake := life_state == NpcRules.LifeState.ASLEEP
+	var did_stand := _is_sitting
+	var stand_position: Variant = null
+	if did_wake and _current_sleep_target != null and _current_sleep_target.has_method("get_interaction_position"):
+		stand_position = _current_sleep_target.get_interaction_position(self)
+	elif did_stand and _current_seat_target != null:
+		if _current_seat_stand_position != null:
+			stand_position = _current_seat_stand_position
+		elif _current_seat_target.has_method("get_stand_position"):
+			stand_position = _current_seat_target.get_stand_position()
+		elif _current_seat_target.has_method("get_interaction_position"):
+			stand_position = _current_seat_target.get_interaction_position(self)
+	stop_sleep_assignment()
+	stop_seat_assignment()
+	if stand_position != null:
+		global_position = stand_position
+	if did_wake or did_stand:
+		life_state = NpcRules.LifeState.ALIVE
+		_has_move_target = false
+		_current_order_type = OrderType.NONE
+		velocity = Vector3.ZERO
+		if show_notice:
+			_show_world_notice("Awake" if did_wake else "Standing", Color(0.5, 1.0, 0.65, 1.0))
+		state_changed.emit()
+
+
+func is_sitting() -> bool:
+	return _is_sitting
 
 
 func has_mining_assignment() -> bool:
@@ -728,6 +829,8 @@ func set_sneaking_enabled(value: bool) -> void:
 func notify_incoming_attack(attacker: HumanoidCharacter) -> void:
 	if attacker == null or attacker == self:
 		return
+	if life_state == NpcRules.LifeState.ASLEEP:
+		wake_up_from_rest(false)
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
 	mark_hostile(attacker)
@@ -752,6 +855,8 @@ func set_combat_stance(value: int) -> void:
 func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage: float) -> String:
 	if attacker == null or life_state == NpcRules.LifeState.DEAD:
 		return "ignored"
+	if life_state == NpcRules.LifeState.ASLEEP:
+		wake_up_from_rest(false)
 	mark_hostile(attacker)
 	attacker.mark_hostile(self)
 	_last_direct_attacker_id = attacker.get_instance_id()
@@ -806,6 +911,12 @@ func get_combat_approach_position(attacker: HumanoidCharacter) -> Vector3:
 
 
 func _process_movement(delta: float) -> void:
+	if _is_sitting:
+		velocity = Vector3.ZERO
+		return
+	if life_state == NpcRules.LifeState.ASLEEP:
+		velocity = Vector3.ZERO
+		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		_process_downed_movement(delta)
 		if _downed_is_settled and is_on_floor():
@@ -906,6 +1017,8 @@ func _process_recovery(delta: float) -> void:
 	if life_state == NpcRules.LifeState.DEAD:
 		return
 	var healing_step := get_stat_value("healing_rate") * delta
+	if life_state == NpcRules.LifeState.ASLEEP:
+		healing_step *= 6.0
 	if healing_step <= 0.0:
 		return
 	_current_blunt_damage = maxf(0.0, _current_blunt_damage - healing_step)
@@ -1011,6 +1124,81 @@ func _process_conversation_interaction() -> void:
 	_current_conversation_target = null
 	_current_order_type = OrderType.NONE
 	conversation_target_reached.emit(self, target)
+
+
+func _process_sleep_interaction() -> void:
+	if _current_sleep_target == null or not is_instance_valid(_current_sleep_target):
+		stop_sleep_assignment()
+		return
+	var interaction_position: Vector3 = _current_sleep_target.get_interaction_position(self)
+	if global_position.distance_to(interaction_position) > interact_distance:
+		_move_target = interaction_position
+		_has_move_target = true
+		return
+	if _has_move_target:
+		return
+	var sleep_result: Dictionary = _current_sleep_target.request_sleep(self) if _current_sleep_target.has_method("request_sleep") else {"allowed": true, "message": ""}
+	if not sleep_result.get("allowed", false):
+		var failure_message := str(sleep_result.get("message", "Cannot sleep here"))
+		if not failure_message.is_empty():
+			center_notice_requested.emit(failure_message)
+			_show_world_notice(failure_message, Color(1.0, 0.78, 0.38, 1.0))
+		stop_sleep_assignment()
+		return
+	if not _current_sleep_target.claim_sleeper(self):
+		center_notice_requested.emit("Bed occupied")
+		_show_world_notice("Bed occupied", Color(1.0, 0.78, 0.38, 1.0))
+		stop_sleep_assignment()
+		return
+	var success_message := str(sleep_result.get("message", ""))
+	if not success_message.is_empty():
+		center_notice_requested.emit(success_message)
+	global_position = _current_sleep_target.get_sleep_position()
+	rotation = _current_sleep_target.get_sleep_rotation()
+	velocity = Vector3.ZERO
+	running = false
+	sneaking = false
+	_has_move_target = false
+	life_state = NpcRules.LifeState.ASLEEP
+	_show_world_notice("Sleeping", Color(0.55, 0.72, 1.0, 1.0))
+	state_changed.emit()
+
+
+func _process_seat_interaction() -> void:
+	if _current_seat_target == null or not is_instance_valid(_current_seat_target):
+		stop_seat_assignment()
+		return
+	if _is_sitting:
+		velocity = Vector3.ZERO
+		return
+	var interaction_position: Vector3 = _current_seat_target.get_interaction_position(self)
+	var arrival_distance := interact_distance
+	if _current_seat_target.has_method("get_arrival_distance"):
+		arrival_distance = maxf(arrival_distance, float(_current_seat_target.get_arrival_distance()))
+	var can_snap_to_seat := false
+	if _current_seat_target.has_method("can_sit_from_position"):
+		can_snap_to_seat = _current_seat_target.can_sit_from_position(global_position)
+	else:
+		can_snap_to_seat = global_position.distance_to(interaction_position) <= arrival_distance
+	if not can_snap_to_seat:
+		_move_target = interaction_position
+		_has_move_target = true
+		return
+	_has_move_target = false
+	if not _current_seat_target.claim_sitter(self):
+		_show_world_notice("Seat occupied", Color(1.0, 0.78, 0.38, 1.0))
+		stop_seat_assignment()
+		return
+	global_position = _current_seat_target.get_seat_position()
+	rotation = _current_seat_target.get_seat_rotation()
+	velocity = Vector3.ZERO
+	running = false
+	sneaking = false
+	_has_move_target = false
+	_is_sitting = true
+	_current_order_type = OrderType.NONE
+	_show_world_notice("Sitting", Color(0.55, 0.72, 1.0, 1.0))
+	state_changed.emit()
 
 
 func _process_attack_interaction() -> void:
@@ -1247,6 +1435,10 @@ func _cancel_non_matching_assignments(next_order_type: int) -> void:
 		stop_finish_off_assignment()
 	if next_order_type != OrderType.CARRY:
 		stop_carry_assignment()
+	if next_order_type != OrderType.SLEEP:
+		stop_sleep_assignment()
+	if next_order_type != OrderType.SIT:
+		stop_seat_assignment()
 
 
 func _seed_starting_inventory() -> void:
@@ -1271,7 +1463,7 @@ func _recalculate_vitals() -> void:
 		if life_state == NpcRules.LifeState.ALIVE:
 			_enter_unconscious_state()
 		return
-	if life_state != NpcRules.LifeState.ALIVE and _downed_recover_delay_remaining <= 0.0 and _carried_by == null:
+	if life_state != NpcRules.LifeState.ALIVE and life_state != NpcRules.LifeState.ASLEEP and _downed_recover_delay_remaining <= 0.0 and _carried_by == null:
 		life_state = NpcRules.LifeState.ALIVE
 		_restore_from_downed_state()
 		state_changed.emit()
@@ -1530,6 +1722,8 @@ func _clear_all_active_orders() -> void:
 	stop_heal_assignment()
 	stop_finish_off_assignment()
 	stop_carry_assignment()
+	stop_sleep_assignment()
+	stop_seat_assignment()
 	_current_order_type = OrderType.NONE
 	_has_move_target = false
 
