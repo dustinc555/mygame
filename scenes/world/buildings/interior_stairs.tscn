@@ -15,7 +15,7 @@ size = Vector3(1.9, 0.22, 0.8)
 size = Vector3(1.9, 0.4, 0.12)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_stairs"]
-size = Vector3(1.9, 0.35, 5.2)
+size = Vector3(2.4, 0.35, 5.2)
 
 [node name="InteriorStairs" type="StaticBody3D"]
 
@@ -79,3 +79,8 @@ mesh = SubResource("BoxMesh_step")
 [node name="WalkRampCollision" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.84, 0.542, 0, -0.542, 0.84, 0, 1.45, 0)
 shape = SubResource("BoxShape3D_stairs")
+
+[node name="NavigationLink3D" type="NavigationLink3D" parent="."]
+bidirectional = true
+start_position = Vector3(0, 0.5, -2.5)
+end_position = Vector3(0, 3.4, 2.5)

@@ -140,7 +140,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 shape = SubResource("BoxShape3D_floor")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Floor" unique_id=1173496914]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0016880035, -0.054164886, 0.03712654)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07460117, -0.10611725, 0.084329605)
 material_override = SubResource("StandardMaterial3D_floor")
 mesh = SubResource("BoxMesh_floor")
 
@@ -155,7 +155,7 @@ transform = Transform3D(0.9999937, 0, 0.0036476627, 0, 1, 0, -0.0036476627, 0, 0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.7567067, 2.9, -5.027541)
 
 [node name="UpperStairs" parent="BarScene" index="31"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.8458548, 2.9, 0.33025837)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.8458548, 2.9, 0.73025835)
 
 [node name="BarVenue" type="Node3D" parent="BarScene" unique_id=1412605220]
 script = ExtResource("16_bar_venue")

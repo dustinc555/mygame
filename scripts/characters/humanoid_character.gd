@@ -1,4 +1,4 @@
-extends CharacterBody3D
+extends "res://scripts/actors/world_actor.gd"
 
 class_name HumanoidCharacter
 
@@ -22,11 +22,6 @@ enum OrderType {
 
 @export var member_name := "Character"
 @export var stable_id := ""
-@export var move_speed := 3.2
-@export var acceleration := 10.0
-@export var floor_snap_distance := 0.9
-@export var max_walkable_slope_degrees := 55.0
-@export var move_target_vertical_tolerance := 0.75
 @export var interact_distance := 1.8
 @export var inventory_columns := 10
 @export var inventory_rows := 6
@@ -75,10 +70,6 @@ var is_selected := false
 var is_focused := false
 var player_party_member := false
 var life_state := NpcRules.LifeState.ALIVE
-var gravity := ProjectSettings.get_setting("physics/3d/default_gravity") as float
-
-var _move_target := Vector3.ZERO
-var _has_move_target := false
 var _current_order_type: int = OrderType.NONE
 var _order_was_player_issued := false
 
@@ -137,9 +128,8 @@ signal center_notice_requested(message)
 
 
 func _ready() -> void:
+	super._ready()
 	_rng.randomize()
-	floor_snap_length = floor_snap_distance
-	floor_max_angle = deg_to_rad(max_walkable_slope_degrees)
 	inventory = InventoryData.new(inventory_columns, inventory_rows, max_carry_weight, true)
 	inventory.changed.connect(_on_inventory_data_changed)
 	_seed_starting_inventory()
@@ -203,8 +193,7 @@ func _physics_process(delta: float) -> void:
 
 func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
 	_set_order(OrderType.MOVE, issued_by_player)
-	_move_target = target
-	_has_move_target = true
+	_set_actor_move_target(target)
 
 
 func stop_mining_assignment() -> void:
@@ -323,8 +312,7 @@ func assign_open_container(container, issued_by_player: bool = true) -> void:
 	_current_container_target = container
 	if _current_container_target.has_method("register_interactor"):
 		_current_container_target.register_interactor(self)
-	_move_target = _current_container_target.get_interaction_position(self)
-	_has_move_target = true
+	_set_actor_move_target(_current_container_target.get_interaction_position(self))
 
 
 func assign_trade_target(target_character, issued_by_player: bool = true) -> void:
@@ -336,8 +324,7 @@ func assign_trade_target(target_character, issued_by_player: bool = true) -> voi
 	_current_trade_target = target_character
 	if _current_trade_target.has_method("register_trader"):
 		_current_trade_target.register_trader(self)
-	_move_target = _current_trade_target.get_interaction_position(self)
-	_has_move_target = true
+	_set_actor_move_target(_current_trade_target.get_interaction_position(self))
 
 
 func assign_conversation_target(target_character, issued_by_player: bool = true) -> void:
@@ -349,8 +336,7 @@ func assign_conversation_target(target_character, issued_by_player: bool = true)
 	_current_conversation_target = target_character
 	if _current_conversation_target.has_method("register_talker"):
 		_current_conversation_target.register_talker(self)
-	_move_target = _current_conversation_target.get_interaction_position(self)
-	_has_move_target = true
+	_set_actor_move_target(_current_conversation_target.get_interaction_position(self))
 
 
 func assign_mining_resource(resource_node, issued_by_player: bool = true) -> void:
@@ -362,8 +348,7 @@ func assign_mining_resource(resource_node, issued_by_player: bool = true) -> voi
 	_current_mining_node = resource_node
 	_current_mining_node.register_miner(self)
 	_mining_active = false
-	_move_target = _current_mining_node.get_mining_position(self)
-	_has_move_target = true
+	_set_actor_move_target(_current_mining_node.get_mining_position(self))
 	mining_changed.emit()
 
 
@@ -430,8 +415,7 @@ func assign_sleep_target(bed, issued_by_player: bool = true) -> void:
 		return
 	_set_order(OrderType.SLEEP, issued_by_player)
 	_current_sleep_target = bed
-	_move_target = bed.get_interaction_position(self)
-	_has_move_target = true
+	_set_actor_move_target(bed.get_interaction_position(self))
 
 
 func assign_place_carried_in_bed_target(bed, issued_by_player: bool = true) -> void:
@@ -443,8 +427,7 @@ func assign_place_carried_in_bed_target(bed, issued_by_player: bool = true) -> v
 		return
 	_set_order(OrderType.PLACE_IN_BED, issued_by_player)
 	_current_place_bed_target = bed
-	_move_target = bed.get_interaction_position(self)
-	_has_move_target = true
+	_set_actor_move_target(bed.get_interaction_position(self))
 
 
 func assign_seat_target(seat, issued_by_player: bool = true) -> void:
@@ -455,8 +438,10 @@ func assign_seat_target(seat, issued_by_player: bool = true) -> void:
 	_set_order(OrderType.SIT, issued_by_player)
 	_current_seat_target = seat
 	_current_seat_stand_position = global_position
-	_move_target = seat.get_interaction_position(self)
-	_has_move_target = not (seat.has_method("can_sit_from_position") and seat.can_sit_from_position(global_position))
+	if seat.has_method("can_sit_from_position") and seat.can_sit_from_position(global_position):
+		_clear_actor_move_target()
+	else:
+		_set_actor_move_target(seat.get_interaction_position(self))
 
 
 func wake_up_from_rest(show_notice: bool = true) -> void:
@@ -478,7 +463,7 @@ func wake_up_from_rest(show_notice: bool = true) -> void:
 		global_position = stand_position
 	if did_wake or did_stand:
 		life_state = NpcRules.LifeState.ALIVE
-		_has_move_target = false
+		_clear_actor_move_target()
 		_current_order_type = OrderType.NONE
 		velocity = Vector3.ZERO
 		if show_notice:
@@ -957,34 +942,46 @@ func _process_movement(delta: float) -> void:
 			return
 		move_and_slide()
 		return
-	if not is_on_floor():
-		velocity.y -= gravity * delta
-	else:
-		velocity.y = 0.0
-		apply_floor_snap()
-	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
-	if _has_move_target and life_state == NpcRules.LifeState.ALIVE:
-		var to_target := _move_target - global_position
-		var horizontal_to_target := Vector3(to_target.x, 0.0, to_target.z)
-		var horizontal_distance := horizontal_to_target.length()
-		if horizontal_distance <= 0.15 and absf(to_target.y) <= move_target_vertical_tolerance:
-			_has_move_target = false
-			if _current_order_type == OrderType.MOVE:
-				_current_order_type = OrderType.NONE
-			horizontal_velocity = Vector3.ZERO
-		else:
-			var direction := horizontal_to_target.normalized() if horizontal_distance > 0.001 else Vector3.ZERO
-			var target_speed := _get_current_move_speed()
-			horizontal_velocity = horizontal_velocity.lerp(direction * target_speed, min(1.0, acceleration * delta))
-			if direction.length_squared() > 0.0001:
-				look_at(global_position + direction, Vector3.UP)
-	else:
-		horizontal_velocity = horizontal_velocity.lerp(Vector3.ZERO, min(1.0, acceleration * delta))
-	velocity.x = horizontal_velocity.x
-	velocity.z = horizontal_velocity.z
-	move_and_slide()
-	rotation.x = lerp_angle(rotation.x, 0.0, minf(1.0, 10.0 * delta))
-	rotation.z = lerp_angle(rotation.z, 0.0, minf(1.0, 10.0 * delta))
+	process_world_actor_movement(delta)
+
+
+func _get_actor_move_speed() -> float:
+	return _get_current_move_speed()
+
+
+func _on_actor_move_target_reached() -> void:
+	if _current_order_type == OrderType.MOVE:
+		_current_order_type = OrderType.NONE
+
+
+func _on_actor_move_target_unreachable() -> void:
+	if _order_was_player_issued:
+		show_world_speech("I can't reach that", 4.0)
+	match _current_order_type:
+		OrderType.MOVE:
+			_current_order_type = OrderType.NONE
+		OrderType.MINE:
+			stop_mining_assignment()
+		OrderType.OPEN_CONTAINER:
+			stop_container_interaction()
+		OrderType.TRADE:
+			stop_trade_interaction()
+		OrderType.TALK:
+			stop_conversation_interaction()
+		OrderType.ATTACK:
+			stop_attack_assignment()
+		OrderType.HEAL:
+			stop_heal_assignment()
+		OrderType.FINISH_OFF:
+			stop_finish_off_assignment()
+		OrderType.CARRY:
+			stop_carry_assignment()
+		OrderType.SLEEP:
+			stop_sleep_assignment()
+		OrderType.PLACE_IN_BED:
+			stop_place_in_bed_assignment()
+		OrderType.SIT:
+			stop_seat_assignment()
 
 
 func _process_downed_movement(delta: float) -> void:
@@ -1093,8 +1090,7 @@ func _process_mining(delta: float) -> void:
 		return
 	var mining_position: Vector3 = _current_mining_node.get_mining_position(self)
 	if global_position.distance_to(mining_position) > interact_distance:
-		_move_target = mining_position
-		_has_move_target = true
+		_set_actor_move_target(mining_position)
 		_mining_active = false
 		mining_changed.emit()
 		return
@@ -1119,8 +1115,7 @@ func _process_container_interaction() -> void:
 		return
 	var interaction_position: Vector3 = _current_container_target.get_interaction_position(self)
 	if global_position.distance_to(interaction_position) > interact_distance:
-		_move_target = interaction_position
-		_has_move_target = true
+		_set_actor_move_target(interaction_position)
 		return
 	if _has_move_target:
 		return
@@ -1136,10 +1131,9 @@ func _process_trade_interaction() -> void:
 	var interaction_position: Vector3 = _current_trade_target.get_interaction_position(self)
 	var target_position: Vector3 = _current_trade_target.global_position
 	if global_position.distance_to(target_position) > trade_interaction_distance:
-		_move_target = interaction_position
-		_has_move_target = true
+		_set_actor_move_target(interaction_position)
 		return
-	_has_move_target = false
+	_clear_actor_move_target()
 	var target = _current_trade_target
 	_current_trade_target = null
 	_current_order_type = OrderType.NONE
@@ -1152,10 +1146,9 @@ func _process_conversation_interaction() -> void:
 	var interaction_position: Vector3 = _current_conversation_target.get_interaction_position(self)
 	var target_position: Vector3 = _current_conversation_target.global_position
 	if global_position.distance_to(target_position) > interact_distance:
-		_move_target = interaction_position
-		_has_move_target = true
+		_set_actor_move_target(interaction_position)
 		return
-	_has_move_target = false
+	_clear_actor_move_target()
 	var target = _current_conversation_target
 	_current_conversation_target = null
 	_current_order_type = OrderType.NONE
@@ -1168,8 +1161,7 @@ func _process_sleep_interaction() -> void:
 		return
 	var interaction_position: Vector3 = _current_sleep_target.get_interaction_position(self)
 	if global_position.distance_to(interaction_position) > interact_distance:
-		_move_target = interaction_position
-		_has_move_target = true
+		_set_actor_move_target(interaction_position)
 		return
 	if _has_move_target:
 		return
@@ -1194,7 +1186,7 @@ func _process_sleep_interaction() -> void:
 	velocity = Vector3.ZERO
 	running = false
 	sneaking = false
-	_has_move_target = false
+	_clear_actor_move_target()
 	life_state = NpcRules.LifeState.ASLEEP
 	_show_world_notice("Sleeping", Color(0.55, 0.72, 1.0, 1.0))
 	state_changed.emit()
@@ -1209,8 +1201,7 @@ func _process_place_in_bed_interaction() -> void:
 		return
 	var interaction_position: Vector3 = _current_place_bed_target.get_interaction_position(self)
 	if global_position.distance_to(interaction_position) > interact_distance:
-		_move_target = interaction_position
-		_has_move_target = true
+		_set_actor_move_target(interaction_position)
 		return
 	if _has_move_target:
 		return
@@ -1236,7 +1227,7 @@ func _process_place_in_bed_interaction() -> void:
 	carried.velocity = Vector3.ZERO
 	carried.running = false
 	carried.sneaking = false
-	carried._has_move_target = false
+	carried._clear_actor_move_target()
 	carried._current_order_type = OrderType.SLEEP
 	carried._current_sleep_target = bed
 	if carried.life_state != NpcRules.LifeState.DEAD:
@@ -1244,7 +1235,7 @@ func _process_place_in_bed_interaction() -> void:
 	var success_message := str(sleep_result.get("message", ""))
 	if not success_message.is_empty():
 		center_notice_requested.emit(success_message)
-	_has_move_target = false
+	_clear_actor_move_target()
 	_current_place_bed_target = null
 	_current_order_type = OrderType.NONE
 	_show_world_notice("Placed in bed", Color(0.55, 0.72, 1.0, 1.0))
@@ -1269,10 +1260,9 @@ func _process_seat_interaction() -> void:
 	else:
 		can_snap_to_seat = global_position.distance_to(interaction_position) <= arrival_distance
 	if not can_snap_to_seat:
-		_move_target = interaction_position
-		_has_move_target = true
+		_set_actor_move_target(interaction_position)
 		return
-	_has_move_target = false
+	_clear_actor_move_target()
 	if not _current_seat_target.claim_sitter(self):
 		_show_world_notice("Seat occupied", Color(1.0, 0.78, 0.38, 1.0))
 		stop_seat_assignment()
@@ -1282,7 +1272,7 @@ func _process_seat_interaction() -> void:
 	velocity = Vector3.ZERO
 	running = false
 	sneaking = false
-	_has_move_target = false
+	_clear_actor_move_target()
 	_is_sitting = true
 	_current_order_type = OrderType.NONE
 	_show_world_notice("Sitting", Color(0.55, 0.72, 1.0, 1.0))
@@ -1299,10 +1289,9 @@ func _process_attack_interaction() -> void:
 	var target_position := _current_attack_target.get_combat_approach_position(self)
 	var target_distance := global_position.distance_to(_current_attack_target.global_position)
 	if target_distance > attack_range:
-		_move_target = target_position
-		_has_move_target = true
+		_set_actor_move_target(target_position)
 		return
-	_has_move_target = false
+	_clear_actor_move_target()
 	look_at(_current_attack_target.global_position, Vector3.UP)
 	if _combat_cooldown_remaining > 0.0:
 		return
@@ -1327,10 +1316,9 @@ func _process_heal_interaction() -> void:
 		return
 	var target_position := _current_heal_target.get_combat_approach_position(self)
 	if global_position.distance_to(_current_heal_target.global_position) > interact_distance:
-		_move_target = target_position
-		_has_move_target = true
+		_set_actor_move_target(target_position)
 		return
-	_has_move_target = false
+	_clear_actor_move_target()
 	if _current_heal_target.apply_bandage_from(self):
 		stop_heal_assignment()
 
@@ -1344,10 +1332,9 @@ func _process_finish_off_interaction() -> void:
 		return
 	var target_position := _current_finish_off_target.get_combat_approach_position(self)
 	if global_position.distance_to(_current_finish_off_target.global_position) > interact_distance:
-		_move_target = target_position
-		_has_move_target = true
+		_set_actor_move_target(target_position)
 		return
-	_has_move_target = false
+	_clear_actor_move_target()
 	_current_finish_off_target.force_kill(self)
 	_show_world_notice("Finished", Color(0.95, 0.2, 0.2, 1.0))
 	stop_finish_off_assignment()
@@ -1362,10 +1349,9 @@ func _process_carry_interaction() -> void:
 		return
 	var target_position := _current_carry_target.global_position
 	if global_position.distance_to(target_position) > interact_distance:
-		_move_target = target_position
-		_has_move_target = true
+		_set_actor_move_target(target_position)
 		return
-	_has_move_target = false
+	_clear_actor_move_target()
 	_attach_carried_character(_current_carry_target)
 	_show_world_notice("Carrying %s" % _current_carry_target.member_name, Color(0.86, 0.92, 1.0, 1.0))
 	stop_carry_assignment()
@@ -1564,7 +1550,7 @@ func _enter_unconscious_state() -> void:
 		return
 	life_state = NpcRules.LifeState.UNCONSCIOUS
 	running = false
-	_has_move_target = false
+	_clear_actor_move_target()
 	_downed_is_settled = false
 	_clear_all_active_orders()
 	if _carried_character != null:
@@ -1582,7 +1568,7 @@ func _enter_dead_state() -> void:
 		return
 	life_state = NpcRules.LifeState.DEAD
 	running = false
-	_has_move_target = false
+	_clear_actor_move_target()
 	_downed_is_settled = false
 	_clear_all_active_orders()
 	if _carried_character != null:
@@ -1745,8 +1731,7 @@ func _try_start_self_defense(attacker: HumanoidCharacter) -> void:
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
 	assign_attack_target(attacker, false, false, false)
-	_move_target = attacker.get_combat_approach_position(self)
-	_has_move_target = true
+	_set_actor_move_target(attacker.get_combat_approach_position(self))
 
 
 func _notify_defensive_allies_of_attack(attacker: HumanoidCharacter) -> void:
@@ -1816,7 +1801,7 @@ func _clear_all_active_orders() -> void:
 	stop_place_in_bed_assignment()
 	stop_seat_assignment()
 	_current_order_type = OrderType.NONE
-	_has_move_target = false
+	_clear_actor_move_target()
 
 
 func force_kill(_attacker: HumanoidCharacter = null) -> void:
@@ -1874,7 +1859,7 @@ func _update_carried_transform() -> void:
 func _enter_downed_state(is_dead: bool) -> void:
 	if _carried_by != null:
 		return
-	_has_move_target = false
+	_clear_actor_move_target()
 	_downed_is_settled = false
 	velocity = transform.basis.z * -0.8
 	velocity.y = 0.0

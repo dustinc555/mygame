@@ -1,4 +1,4 @@
-[gd_scene load_steps=55 format=3]
+[gd_scene load_steps=52 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/buildings/world_building.gd" id="1_building"]
 [ext_resource type="Script" path="res://scripts/world/buildings/building_level_definition.gd" id="2_level"]
@@ -90,15 +90,6 @@ size = Vector3(15.4, 2.7, 15.4)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_roof_area"]
 size = Vector3(15.8, 1.9, 15.8)
-
-[sub_resource type="BoxMesh" id="BoxMesh_upper_stair_tread"]
-size = Vector3(3.8, 0.22, 0.8)
-
-[sub_resource type="BoxMesh" id="BoxMesh_upper_stair_riser"]
-size = Vector3(3.8, 0.25, 0.08)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_upper_stair_ramp"]
-size = Vector3(3.8, 0.35, 10.4)
 
 [sub_resource type="BoxMesh" id="BoxMesh_upper_stair_bottom_landing"]
 size = Vector3(3.8, 0.2, 1.2)
@@ -286,149 +277,8 @@ material_override = SubResource("StandardMaterial3D_walls")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.35, 7.9)
 shape = SubResource("BoxShape3D_wall_long")
 
-[node name="UpperStairs" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 2.9, 0.3)
-
-[node name="WalkRampCollision" type="CollisionShape3D" parent="UpperStairs"]
-transform = Transform3D(1, 0, 0, 0, 0.960337, 0.278846, 0, -0.278846, 0.960337, 0, 1.45, 0.4)
-shape = SubResource("BoxShape3D_upper_stair_ramp")
-
-[node name="Visual" type="Node3D" parent="UpperStairs"]
-
-[node name="Tread01" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -4.8)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
-
-[node name="Riser01" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1115, -4.4)
-mesh = SubResource("BoxMesh_upper_stair_riser")
-material_override = SubResource("StandardMaterial3D_walls")
-
-[node name="Tread02" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.223, -4.0)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
-
-[node name="Riser02" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3345, -3.6)
-mesh = SubResource("BoxMesh_upper_stair_riser")
-material_override = SubResource("StandardMaterial3D_walls")
-
-[node name="Tread03" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.446, -3.2)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
-
-[node name="Riser03" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5575, -2.8)
-mesh = SubResource("BoxMesh_upper_stair_riser")
-material_override = SubResource("StandardMaterial3D_walls")
-
-[node name="Tread04" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.669, -2.4)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
-
-[node name="Riser04" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7805, -2.0)
-mesh = SubResource("BoxMesh_upper_stair_riser")
-material_override = SubResource("StandardMaterial3D_walls")
-
-[node name="Tread05" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.892, -1.6)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
-
-[node name="Riser05" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0035, -1.2)
-mesh = SubResource("BoxMesh_upper_stair_riser")
-material_override = SubResource("StandardMaterial3D_walls")
-
-[node name="Tread06" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.115, -0.8)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
-
-[node name="Riser06" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2265, -0.4)
-mesh = SubResource("BoxMesh_upper_stair_riser")
-material_override = SubResource("StandardMaterial3D_walls")
-
-[node name="Tread07" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.338, 0)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
-
-[node name="Riser07" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.45, 0.4)
-mesh = SubResource("BoxMesh_upper_stair_riser")
-material_override = SubResource("StandardMaterial3D_walls")
-
-[node name="Tread08" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.562, 0.8)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
-
-[node name="Riser08" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6735, 1.2)
-mesh = SubResource("BoxMesh_upper_stair_riser")
-material_override = SubResource("StandardMaterial3D_walls")
-
-[node name="Tread09" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.785, 1.6)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
-
-[node name="Riser09" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8965, 2.0)
-mesh = SubResource("BoxMesh_upper_stair_riser")
-material_override = SubResource("StandardMaterial3D_walls")
-
-[node name="Tread10" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.008, 2.4)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
-
-[node name="Riser10" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.1195, 2.8)
-mesh = SubResource("BoxMesh_upper_stair_riser")
-material_override = SubResource("StandardMaterial3D_walls")
-
-[node name="Tread11" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.231, 3.2)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
-
-[node name="Riser11" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.3425, 3.6)
-mesh = SubResource("BoxMesh_upper_stair_riser")
-material_override = SubResource("StandardMaterial3D_walls")
-
-[node name="Tread12" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.454, 4.0)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
-
-[node name="Riser12" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5655, 4.4)
-mesh = SubResource("BoxMesh_upper_stair_riser")
-material_override = SubResource("StandardMaterial3D_walls")
-
-[node name="Tread13" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.677, 4.8)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
-
-[node name="Riser13" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7885, 5.2)
-mesh = SubResource("BoxMesh_upper_stair_riser")
-material_override = SubResource("StandardMaterial3D_walls")
-
-[node name="Tread14" type="MeshInstance3D" parent="UpperStairs/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.9, 5.6)
-mesh = SubResource("BoxMesh_upper_stair_tread")
-material_override = SubResource("StandardMaterial3D_floor")
+[node name="UpperStairs" parent="." instance=ExtResource("3_stairs")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 2.9, 0.7)
 
 [node name="RoofRightMesh" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 5.85, 0)

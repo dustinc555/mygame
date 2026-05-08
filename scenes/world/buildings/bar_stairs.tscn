@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=19 format=3]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_stairs"]
 albedo_color = Color(0.57, 0.46, 0.33, 1)
@@ -16,6 +16,9 @@ size = Vector3(3.8, 0.4, 0.12)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_stairs"]
 size = Vector3(3.8, 0.35, 10.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_side_guard"]
+size = Vector3(0.3, 0.9, 10)
 
 [node name="BarStairs" type="StaticBody3D"]
 
@@ -159,3 +162,16 @@ mesh = SubResource("BoxMesh_step")
 [node name="WalkRampCollision" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.960337, 0.278846, 0, -0.278846, 0.960337, 0, 1.45, 0)
 shape = SubResource("BoxShape3D_stairs")
+
+[node name="LeftSideGuardCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.05, 0.45, 0)
+shape = SubResource("BoxShape3D_side_guard")
+
+[node name="RightSideGuardCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.05, 0.45, 0)
+shape = SubResource("BoxShape3D_side_guard")
+
+[node name="NavigationLink3D" type="NavigationLink3D" parent="."]
+bidirectional = true
+start_position = Vector3(0, 0.5, -5.2)
+end_position = Vector3(0, 3.4, 5.2)
