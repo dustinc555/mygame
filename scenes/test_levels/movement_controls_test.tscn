@@ -91,11 +91,11 @@ mesh = SubResource("BoxMesh_ramp")
 transform = Transform3D(1, 0, 0, 0, 0.9, 0.43589, 0, -0.43589, 0.9, 0, 1.7, 0)
 shape = SubResource("BoxShape3D_ramp")
 
-[node name="LeftSideGuardCollision" type="CollisionShape3D" parent="RampProof/UpRamp"]
+[node name="LeftSideGuardCollision" type="CollisionShape3D" parent="RampProof/UpRamp" unique_id=121260740]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.75, 1.7, 0)
 shape = SubResource("BoxShape3D_ramp_side_guard")
 
-[node name="RightSideGuardCollision" type="CollisionShape3D" parent="RampProof/UpRamp"]
+[node name="RightSideGuardCollision" type="CollisionShape3D" parent="RampProof/UpRamp" unique_id=440416481]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.75, 1.7, 0)
 shape = SubResource("BoxShape3D_ramp_side_guard")
 
@@ -121,11 +121,11 @@ mesh = SubResource("BoxMesh_ramp")
 transform = Transform3D(1, 0, 0, 0, 0.9, 0.43589, 0, -0.43589, 0.9, 0, 1.7, 0)
 shape = SubResource("BoxShape3D_ramp")
 
-[node name="LeftSideGuardCollision" type="CollisionShape3D" parent="RampProof/DownRamp"]
+[node name="LeftSideGuardCollision" type="CollisionShape3D" parent="RampProof/DownRamp" unique_id=233727973]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.75, 1.7, 0)
 shape = SubResource("BoxShape3D_ramp_side_guard")
 
-[node name="RightSideGuardCollision" type="CollisionShape3D" parent="RampProof/DownRamp"]
+[node name="RightSideGuardCollision" type="CollisionShape3D" parent="RampProof/DownRamp" unique_id=1164739826]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.75, 1.7, 0)
 shape = SubResource("BoxShape3D_ramp_side_guard")
 

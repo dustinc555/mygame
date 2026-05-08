@@ -36,6 +36,8 @@ const GROUND_Y := 0.0
 @export var orbit_sensitivity := 0.01
 @export var move_command_spacing := 1.4
 @export var drag_select_threshold := 12.0
+@export var hold_move_repeat_seconds := 0.15
+@export var hold_move_indicator_seconds := 0.3
 
 var party_members: Array[HumanoidCharacter] = []
 var portrait_cards: Array[PartyPortraitCard] = []
@@ -46,6 +48,10 @@ var camera_pitch := FREE_CAMERA_PITCH
 var camera_distance := 11.0
 var is_orbiting := false
 var is_left_mouse_down := false
+var is_right_mouse_down := false
+var is_hold_move_active := false
+var hold_move_repeat_remaining := 0.0
+var hold_move_indicator_remaining := 0.0
 var is_drag_selecting := false
 var left_mouse_press_position := Vector2.ZERO
 var left_mouse_press_double_click := false
@@ -214,6 +220,7 @@ func _process(delta: float) -> void:
 		_apply_camera_transform()
 
 	_update_progress_bars()
+	_process_hold_move(delta)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -244,7 +251,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			_handle_left_mouse_release(event.position)
 			return
 		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
-			_handle_right_click(event.position)
+			is_right_mouse_down = true
+			is_hold_move_active = _handle_right_click(event.position)
+			hold_move_repeat_remaining = hold_move_repeat_seconds
+			hold_move_indicator_remaining = hold_move_indicator_seconds
+			return
+		if event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed:
+			is_right_mouse_down = false
+			is_hold_move_active = false
 			return
 
 	if event is InputEventMouseMotion and is_left_mouse_down:
@@ -292,7 +306,23 @@ func _handle_world_selection(screen_position: Vector2, should_follow: bool) -> v
 		_set_follow_target(member)
 
 
-func _handle_right_click(screen_position: Vector2) -> void:
+func _process_hold_move(delta: float) -> void:
+	if not is_right_mouse_down or not is_hold_move_active:
+		return
+	hold_move_repeat_remaining -= delta
+	hold_move_indicator_remaining = maxf(0.0, hold_move_indicator_remaining - delta)
+	if hold_move_repeat_remaining > 0.0:
+		return
+	hold_move_repeat_remaining = hold_move_repeat_seconds
+	var screen_position := get_viewport().get_mouse_position()
+	if _is_hold_move_blocked(screen_position):
+		return
+	var show_indicator := hold_move_indicator_remaining <= 0.0
+	if issue_move_command(screen_position, show_indicator) and show_indicator:
+		hold_move_indicator_remaining = hold_move_indicator_seconds
+
+
+func _handle_right_click(screen_position: Vector2) -> bool:
 	if context_menu != null:
 		context_menu.hide()
 	context_member = null
@@ -303,8 +333,7 @@ func _handle_right_click(screen_position: Vector2) -> void:
 	context_seat_target = null
 	var result := _raycast_target_from_screen(screen_position)
 	if result.is_empty():
-		issue_move_command(screen_position)
-		return
+		return issue_move_command(screen_position)
 	var collider: Object = result["collider"]
 	if collider is Node and collider.is_in_group("sleepable_bed") and not party_manager.selected_members.is_empty():
 		context_sleep_target = collider
@@ -316,15 +345,15 @@ func _handle_right_click(screen_position: Vector2) -> void:
 			_show_context_menu(screen_position, ACTION_PLACE_IN_BED, "Place in bed")
 		else:
 			_show_context_menu(screen_position, ACTION_SLEEP, "Sleep")
-		return
+		return false
 	if collider is Node and collider.is_in_group("sittable_seat") and not party_manager.selected_members.is_empty():
 		context_seat_target = collider
 		_show_context_menu(screen_position, ACTION_SIT, "Sit")
-		return
+		return false
 	if collider is Node and collider.is_in_group("mining_resource") and not party_manager.selected_members.is_empty():
 		_show_context_menu(screen_position, ACTION_MINE, "Mine")
 		context_resource = collider
-		return
+		return false
 	if collider is HumanoidCharacter and collider.is_player_party_member():
 		var party_actions := [{"id": ACTION_INVENTORY, "label": "Inventory"}]
 		if collider.life_state == NpcRules.LifeState.ASLEEP:
@@ -343,7 +372,7 @@ func _handle_right_click(screen_position: Vector2) -> void:
 		_show_context_menu_actions(screen_position, party_actions)
 		context_member = collider
 		context_humanoid = collider
-		return
+		return false
 	if collider is HumanoidCharacter and not party_manager.selected_members.is_empty():
 		context_humanoid = collider
 		var humanoid_actions: Array = []
@@ -365,15 +394,27 @@ func _handle_right_click(screen_position: Vector2) -> void:
 		if collider.has_method("get_merchant_role") and collider.get_merchant_role() != null and collider.life_state == NpcRules.LifeState.ALIVE:
 			humanoid_actions.append({"id": ACTION_TRADE, "label": "Trade"})
 		_show_context_menu_actions(screen_position, humanoid_actions)
-		return
+		return false
 	if collider is Node and collider.is_in_group("world_container") and not party_manager.selected_members.is_empty():
 		context_container = collider
 		if context_container.is_locked:
 			_show_context_menu(screen_position, ACTION_UNLOCK_CONTAINER, "Unlock")
 		else:
 			_show_context_menu(screen_position, ACTION_OPEN_CONTAINER, "Open")
-		return
-	issue_move_command(screen_position)
+		return false
+	return issue_move_command(screen_position)
+
+
+func _is_hold_move_blocked(screen_position: Vector2) -> bool:
+	var result := _raycast_target_from_screen(screen_position)
+	if result.is_empty():
+		return false
+	var collider: Object = result["collider"]
+	if collider is HumanoidCharacter:
+		return true
+	if collider is Node:
+		return collider.is_in_group("sleepable_bed") or collider.is_in_group("sittable_seat") or collider.is_in_group("mining_resource") or collider.is_in_group("world_container")
+	return false
 
 
 func _show_context_menu(screen_position: Vector2, action_id: int, label: String) -> void:
@@ -434,15 +475,17 @@ func _pick_humanoid(screen_position: Vector2):
 	return null
 
 
-func issue_move_command(screen_position: Vector2) -> void:
+func issue_move_command(screen_position: Vector2, show_indicator: bool = true) -> bool:
 	if party_manager.selected_members.is_empty():
-		return
+		return false
 	var ground_hit := _pick_ground_hit(screen_position)
 	if ground_hit.is_empty():
-		return
+		return false
 	var target: Vector3 = ground_hit["position"]
 	var surface_normal: Vector3 = ground_hit.get("normal", Vector3.UP)
-	_spawn_move_command_indicator(target + surface_normal.normalized() * 0.08)
+	var indicator_position := target + surface_normal.normalized() * 0.08
+	if show_indicator:
+		_spawn_move_command_indicator(indicator_position)
 	var center := Vector3.ZERO
 	for member in party_manager.selected_members:
 		center += member.global_position
@@ -455,6 +498,7 @@ func issue_move_command(screen_position: Vector2) -> void:
 		member.stop_mining_assignment()
 		member.stop_container_interaction()
 		member.set_move_target(target + offset)
+	return true
 
 
 func _pick_ground_position(screen_position: Vector2) -> Variant:
