@@ -21,6 +21,7 @@ const ACTION_SLEEP := 12
 const ACTION_SIT := 13
 const ACTION_WAKE_UP := 14
 const ACTION_STAND_UP := 15
+const ACTION_PLACE_IN_BED := 16
 const STANCE_OPTION_MIXED := 3
 const FREE_CAMERA_PITCH := -0.65
 const FOLLOW_CAMERA_HEIGHT := 1.35
@@ -307,7 +308,14 @@ func _handle_right_click(screen_position: Vector2) -> void:
 	var collider: Object = result["collider"]
 	if collider is Node and collider.is_in_group("sleepable_bed") and not party_manager.selected_members.is_empty():
 		context_sleep_target = collider
-		_show_context_menu(screen_position, ACTION_SLEEP, "Sleep")
+		var sleeper := _get_bed_sleeper(collider)
+		if sleeper != null and _selection_can_carry_target(sleeper):
+			context_humanoid = sleeper
+			_show_context_menu(screen_position, ACTION_CARRY, "Carry")
+		elif _selection_can_place_carried_in_bed():
+			_show_context_menu(screen_position, ACTION_PLACE_IN_BED, "Place in bed")
+		else:
+			_show_context_menu(screen_position, ACTION_SLEEP, "Sleep")
 		return
 	if collider is Node and collider.is_in_group("sittable_seat") and not party_manager.selected_members.is_empty():
 		context_seat_target = collider
@@ -320,6 +328,8 @@ func _handle_right_click(screen_position: Vector2) -> void:
 	if collider is HumanoidCharacter and collider.is_player_party_member():
 		var party_actions := [{"id": ACTION_INVENTORY, "label": "Inventory"}]
 		if collider.life_state == NpcRules.LifeState.ASLEEP:
+			if _selection_can_carry_target(collider):
+				party_actions.append({"id": ACTION_CARRY, "label": "Carry"})
 			party_actions.append({"id": ACTION_WAKE_UP, "label": "Wake Up"})
 		elif collider.has_method("is_sitting") and collider.is_sitting():
 			party_actions.append({"id": ACTION_STAND_UP, "label": "Stand Up"})
@@ -746,6 +756,11 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 			if context_sleep_target != null:
 				for member in party_manager.selected_members:
 					member.assign_sleep_target(context_sleep_target)
+		ACTION_PLACE_IN_BED:
+			if context_sleep_target != null:
+				for member in party_manager.selected_members:
+					if member.is_carrying_someone() and member.has_method("assign_place_carried_in_bed_target"):
+						member.assign_place_carried_in_bed_target(context_sleep_target)
 		ACTION_SIT:
 			if context_seat_target != null:
 				for member in party_manager.selected_members:
@@ -783,7 +798,23 @@ func _selection_can_carry_target(target: HumanoidCharacter) -> bool:
 	if target == null or party_manager.selected_members.is_empty():
 		return false
 	for member in party_manager.selected_members:
-		if not member.is_carrying_someone() and target.can_be_carried_by(member):
+		if member != target and not member.is_carrying_someone() and target.can_be_carried_by(member):
+			return true
+	return false
+
+
+func _get_bed_sleeper(bed) -> HumanoidCharacter:
+	if bed == null or not bed.has_method("get_sleeper"):
+		return null
+	var sleeper = bed.get_sleeper()
+	return sleeper if sleeper is HumanoidCharacter and sleeper.life_state == NpcRules.LifeState.ASLEEP else null
+
+
+func _selection_can_place_carried_in_bed() -> bool:
+	if party_manager.selected_members.is_empty():
+		return false
+	for member in party_manager.selected_members:
+		if member.is_carrying_someone():
 			return true
 	return false
 

@@ -58,6 +58,10 @@ func is_occupied() -> bool:
 	return _sleeper != null and is_instance_valid(_sleeper)
 
 
+func get_sleeper() -> HumanoidCharacter:
+	return _sleeper if is_occupied() else null
+
+
 func _resolve_bar_venue() -> BarVenue:
 	if _bar_venue != null and is_instance_valid(_bar_venue):
 		return _bar_venue

@@ -16,6 +16,7 @@ enum OrderType {
 	FINISH_OFF,
 	CARRY,
 	SLEEP,
+	PLACE_IN_BED,
 	SIT,
 }
 
@@ -92,6 +93,7 @@ var _current_heal_target: HumanoidCharacter
 var _current_finish_off_target: HumanoidCharacter
 var _current_carry_target: HumanoidCharacter
 var _current_sleep_target
+var _current_place_bed_target
 var _current_seat_target
 var _current_seat_stand_position: Variant = null
 var _carried_by: HumanoidCharacter
@@ -193,6 +195,8 @@ func _physics_process(delta: float) -> void:
 			_process_carry_interaction()
 		OrderType.SLEEP:
 			_process_sleep_interaction()
+		OrderType.PLACE_IN_BED:
+			_process_place_in_bed_interaction()
 		OrderType.SIT:
 			_process_seat_interaction()
 
@@ -265,14 +269,26 @@ func stop_carry_assignment() -> void:
 func stop_sleep_assignment() -> void:
 	if life_state == NpcRules.LifeState.ASLEEP and _current_sleep_target != null and _current_sleep_target.has_method("get_interaction_position"):
 		global_position = _current_sleep_target.get_interaction_position(self)
-	if _current_sleep_target != null and _current_sleep_target.has_method("release_sleeper"):
-		_current_sleep_target.release_sleeper(self)
-	_current_sleep_target = null
+	_release_sleep_target_without_waking()
 	if life_state == NpcRules.LifeState.ASLEEP:
 		life_state = NpcRules.LifeState.ALIVE
 		rotation = Vector3(0.0, rotation.y, 0.0)
 		velocity = Vector3.ZERO
 		state_changed.emit()
+	if _current_order_type == OrderType.SLEEP:
+		_current_order_type = OrderType.NONE
+
+
+func stop_place_in_bed_assignment() -> void:
+	_current_place_bed_target = null
+	if _current_order_type == OrderType.PLACE_IN_BED:
+		_current_order_type = OrderType.NONE
+
+
+func _release_sleep_target_without_waking() -> void:
+	if _current_sleep_target != null and _current_sleep_target.has_method("release_sleeper"):
+		_current_sleep_target.release_sleeper(self)
+	_current_sleep_target = null
 	if _current_order_type == OrderType.SLEEP:
 		_current_order_type = OrderType.NONE
 
@@ -407,8 +423,26 @@ func assign_sleep_target(bed, issued_by_player: bool = true) -> void:
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
+	if is_carrying_someone():
+		if issued_by_player:
+			center_notice_requested.emit("Place them in bed first")
+			_show_world_notice("Place them in bed first", Color(1.0, 0.78, 0.38, 1.0))
+		return
 	_set_order(OrderType.SLEEP, issued_by_player)
 	_current_sleep_target = bed
+	_move_target = bed.get_interaction_position(self)
+	_has_move_target = true
+
+
+func assign_place_carried_in_bed_target(bed, issued_by_player: bool = true) -> void:
+	if bed == null or not bed.has_method("get_interaction_position"):
+		return
+	if life_state != NpcRules.LifeState.ALIVE:
+		return
+	if _carried_character == null or not is_instance_valid(_carried_character):
+		return
+	_set_order(OrderType.PLACE_IN_BED, issued_by_player)
+	_current_place_bed_target = bed
 	_move_target = bed.get_interaction_position(self)
 	_has_move_target = true
 
@@ -1040,6 +1074,8 @@ func _process_ai(delta: float) -> void:
 		stop_finish_off_assignment()
 	if _current_order_type == OrderType.CARRY and (_current_carry_target == null or not is_instance_valid(_current_carry_target) or not _current_carry_target.can_be_carried_by(self)):
 		stop_carry_assignment()
+	if _current_order_type == OrderType.PLACE_IN_BED and (_current_place_bed_target == null or not is_instance_valid(_current_place_bed_target) or _carried_character == null or not is_instance_valid(_carried_character)):
+		stop_place_in_bed_assignment()
 	if _current_order_type == OrderType.ATTACK and (_current_attack_target == null or not is_instance_valid(_current_attack_target) or _current_attack_target.life_state != NpcRules.LifeState.ALIVE):
 		stop_attack_assignment()
 	_ai_tick_remaining -= delta
@@ -1162,6 +1198,58 @@ func _process_sleep_interaction() -> void:
 	life_state = NpcRules.LifeState.ASLEEP
 	_show_world_notice("Sleeping", Color(0.55, 0.72, 1.0, 1.0))
 	state_changed.emit()
+
+
+func _process_place_in_bed_interaction() -> void:
+	if _current_place_bed_target == null or not is_instance_valid(_current_place_bed_target):
+		stop_place_in_bed_assignment()
+		return
+	if _carried_character == null or not is_instance_valid(_carried_character):
+		stop_place_in_bed_assignment()
+		return
+	var interaction_position: Vector3 = _current_place_bed_target.get_interaction_position(self)
+	if global_position.distance_to(interaction_position) > interact_distance:
+		_move_target = interaction_position
+		_has_move_target = true
+		return
+	if _has_move_target:
+		return
+	var carried := _carried_character
+	var sleep_result: Dictionary = _current_place_bed_target.request_sleep(self) if _current_place_bed_target.has_method("request_sleep") else {"allowed": true, "message": ""}
+	if not sleep_result.get("allowed", false):
+		var failure_message := str(sleep_result.get("message", "Cannot use this bed"))
+		if not failure_message.is_empty():
+			center_notice_requested.emit(failure_message)
+			_show_world_notice(failure_message, Color(1.0, 0.78, 0.38, 1.0))
+		stop_place_in_bed_assignment()
+		return
+	carried.stop_sleep_assignment()
+	if not _current_place_bed_target.claim_sleeper(carried):
+		center_notice_requested.emit("Bed occupied")
+		_show_world_notice("Bed occupied", Color(1.0, 0.78, 0.38, 1.0))
+		stop_place_in_bed_assignment()
+		return
+	var bed = _current_place_bed_target
+	_detach_carried_character()
+	carried.global_position = bed.get_sleep_position()
+	carried.rotation = bed.get_sleep_rotation()
+	carried.velocity = Vector3.ZERO
+	carried.running = false
+	carried.sneaking = false
+	carried._has_move_target = false
+	carried._current_order_type = OrderType.SLEEP
+	carried._current_sleep_target = bed
+	if carried.life_state != NpcRules.LifeState.DEAD:
+		carried.life_state = NpcRules.LifeState.ASLEEP
+	var success_message := str(sleep_result.get("message", ""))
+	if not success_message.is_empty():
+		center_notice_requested.emit(success_message)
+	_has_move_target = false
+	_current_place_bed_target = null
+	_current_order_type = OrderType.NONE
+	_show_world_notice("Placed in bed", Color(0.55, 0.72, 1.0, 1.0))
+	state_changed.emit()
+	carried.state_changed.emit()
 
 
 func _process_seat_interaction() -> void:
@@ -1437,6 +1525,8 @@ func _cancel_non_matching_assignments(next_order_type: int) -> void:
 		stop_carry_assignment()
 	if next_order_type != OrderType.SLEEP:
 		stop_sleep_assignment()
+	if next_order_type != OrderType.PLACE_IN_BED:
+		stop_place_in_bed_assignment()
 	if next_order_type != OrderType.SIT:
 		stop_seat_assignment()
 
@@ -1723,6 +1813,7 @@ func _clear_all_active_orders() -> void:
 	stop_finish_off_assignment()
 	stop_carry_assignment()
 	stop_sleep_assignment()
+	stop_place_in_bed_assignment()
 	stop_seat_assignment()
 	_current_order_type = OrderType.NONE
 	_has_move_target = false
@@ -1735,17 +1826,24 @@ func force_kill(_attacker: HumanoidCharacter = null) -> void:
 
 
 func drop_carried_character() -> void:
-	if _carried_character == null:
+	var carried := _detach_carried_character()
+	if carried == null:
 		return
+	carried.global_position = global_position - transform.basis.z * 0.9
+	carried.velocity = Vector3(transform.basis.z.x, 0.0, transform.basis.z.z) * 0.5
+	carried._enter_downed_state(carried.life_state == NpcRules.LifeState.DEAD)
+	state_changed.emit()
+
+
+func _detach_carried_character() -> HumanoidCharacter:
+	if _carried_character == null:
+		return null
 	var carried := _carried_character
 	_carried_character = null
 	carried._carried_by = null
 	carried.collision_layer = carried._stored_collision_layer
 	carried.collision_mask = carried._stored_collision_mask
-	carried.global_position = global_position - transform.basis.z * 0.9
-	carried.velocity = Vector3(transform.basis.z.x, 0.0, transform.basis.z.z) * 0.5
-	carried._enter_downed_state(carried.life_state == NpcRules.LifeState.DEAD)
-	state_changed.emit()
+	return carried
 
 
 func _attach_carried_character(target_character: HumanoidCharacter) -> void:
@@ -1760,6 +1858,7 @@ func _attach_carried_character(target_character: HumanoidCharacter) -> void:
 	target_character.stop_heal_assignment()
 	target_character.stop_finish_off_assignment()
 	target_character.stop_carry_assignment()
+	target_character._release_sleep_target_without_waking()
 	target_character._update_carried_transform()
 	state_changed.emit()
 
