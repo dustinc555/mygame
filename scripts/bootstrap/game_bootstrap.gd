@@ -7,6 +7,9 @@ const CONVERSATION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/conver
 const JOB_SYSTEM_CONTROLLER_SCRIPT = preload("res://scripts/controllers/job_system_controller.gd")
 const OWNERSHIP_CONTROLLER_SCRIPT = preload("res://scripts/controllers/ownership_controller.gd")
 const BUILDING_VISIBILITY_CONTROLLER_SCRIPT = preload("res://scripts/controllers/building_visibility_controller.gd")
+const WORLD_TIME_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_time_controller.gd")
+const DAY_NIGHT_LIGHTING_CONTROLLER_SCRIPT = preload("res://scripts/controllers/day_night_lighting_controller.gd")
+const WORLD_STATUS_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_status_controller.gd")
 const WORLD_NAVIGATION_BAKER_SCRIPT = preload("res://scripts/navigation/world_navigation_baker.gd")
 const GAME_HUD_SCENE = preload("res://scenes/ui/game_hud.tscn")
 
@@ -22,12 +25,15 @@ func _ready() -> void:
 func _deferred_bootstrap() -> void:
 	_ensure_world_navigation()
 	_ensure_hud()
+	_ensure_controller("WorldTimeController", WORLD_TIME_CONTROLLER_SCRIPT)
+	_ensure_controller("DayNightLightingController", DAY_NIGHT_LIGHTING_CONTROLLER_SCRIPT)
 	_ensure_controller("PartyInventoryController", PARTY_INVENTORY_CONTROLLER_SCRIPT)
 	_ensure_controller("HumanoidDetailsController", HUMANOID_DETAILS_CONTROLLER_SCRIPT)
 	_ensure_controller("ConversationController", CONVERSATION_CONTROLLER_SCRIPT)
 	_ensure_controller("OwnershipController", OWNERSHIP_CONTROLLER_SCRIPT)
 	_ensure_controller("JobSystemController", JOB_SYSTEM_CONTROLLER_SCRIPT)
 	_ensure_controller("BuildingVisibilityController", BUILDING_VISIBILITY_CONTROLLER_SCRIPT)
+	_ensure_controller("WorldStatusController", WORLD_STATUS_CONTROLLER_SCRIPT)
 	_ensure_controller("WorldInteractionController", WORLD_INTERACTION_CONTROLLER_SCRIPT)
 
 

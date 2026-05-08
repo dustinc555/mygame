@@ -77,6 +77,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_divider")
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+theme_override_constants/separation = 4
 mouse_filter = 2
 
 [node name="RightSpacer" type="Control" parent="HudLayout/BottomHud/RightHud"]
@@ -89,15 +90,15 @@ mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 58)
+custom_minimum_size = Vector2(0, 44)
 mouse_filter = 2
 
 [node name="Margin" type="MarginContainer" parent="HudLayout/BottomHud/RightHud/CommandBar"]
 layout_mode = 2
 theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 8
+theme_override_constants/margin_top = 5
 theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 8
+theme_override_constants/margin_bottom = 5
 
 [node name="CommandColumn" type="VBoxContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin"]
 layout_mode = 2
@@ -107,35 +108,42 @@ theme_override_constants/separation = 0
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="LocomotionColumn" type="VBoxContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow"]
+[node name="LocomotionColumn" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(124, 0)
-theme_override_constants/separation = 4
+custom_minimum_size = Vector2(178, 0)
+theme_override_constants/separation = 6
 
 [node name="RunningButton" type="CheckButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn"]
 layout_mode = 2
-size_flags_horizontal = 3
-text = "Running"
+custom_minimum_size = Vector2(82, 0)
+text = "Run"
 
 [node name="SneakingButton" type="CheckButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn"]
 layout_mode = 2
-text = "Sneaking"
+custom_minimum_size = Vector2(90, 0)
+text = "Sneak"
 
 [node name="StanceOption" type="OptionButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 52)
-size_flags_horizontal = 3
+custom_minimum_size = Vector2(220, 34)
 size_flags_vertical = 4
 vertical_alignment = 1
 
-[node name="PortraitBar" type="PanelContainer" parent="HudLayout/BottomHud/RightHud"]
+[node name="BottomInfoRow" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud"]
+custom_minimum_size = Vector2(0, 86)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+mouse_filter = 2
+
+[node name="PortraitBar" type="PanelContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 124)
+custom_minimum_size = Vector2(0, 86)
 mouse_filter = 2
 
-[node name="PortraitScroll" type="ScrollContainer" parent="HudLayout/BottomHud/RightHud/PortraitBar"]
+[node name="PortraitScroll" type="ScrollContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar"]
 layout_mode = 2
 vertical_scroll_mode = 1
 horizontal_scroll_mode = 0
@@ -143,12 +151,49 @@ follow_focus = true
 mouse_filter = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_scroll")
 
-[node name="PortraitFlow" type="HFlowContainer" parent="HudLayout/BottomHud/RightHud/PortraitBar/PortraitScroll"]
+[node name="PortraitFlow" type="HFlowContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/PortraitScroll"]
 layout_mode = 2
 theme_override_constants/separation = 4
 theme_override_constants/v_separation = 4
 size_flags_horizontal = 3
 mouse_filter = 2
+
+[node name="WorldStatusPanel" type="PanelContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow"]
+theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
+layout_mode = 2
+custom_minimum_size = Vector2(220, 86)
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 6
+
+[node name="StatusColumn" type="VBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="TimeLabel" type="Label" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Mon 08:00"
+
+[node name="PhaseLabel" type="Label" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Morning  Normal"
+
+[node name="StatsLabel" type="Label" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "World: Stable"
+
+[node name="SpeedOption" type="OptionButton" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn"]
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="InventoryWindowLayer" type="Control" parent="."]
 layout_mode = 3

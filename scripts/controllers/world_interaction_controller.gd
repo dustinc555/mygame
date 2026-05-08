@@ -26,7 +26,7 @@ const STANCE_OPTION_MIXED := 3
 const FREE_CAMERA_PITCH := -0.65
 const FOLLOW_CAMERA_HEIGHT := 1.35
 const ORBIT_MIN_PITCH := -1.2
-const ORBIT_MAX_PITCH := -0.2
+const ORBIT_MAX_PITCH := 0.18
 const GROUND_Y := 0.0
 
 @export var free_camera_move_speed := 14.0
@@ -114,7 +114,7 @@ func _do_initialize() -> void:
 	running_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn/RunningButton")
 	sneaking_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn/SneakingButton")
 	stance_option = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/StanceOption")
-	portrait_flow = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/PortraitBar/PortraitScroll/PortraitFlow")
+	portrait_flow = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/PortraitScroll/PortraitFlow")
 	floating_notice = hud_layer.get_node_or_null("FloatingNotice")
 	inventory_controller = get_parent().get_node("PartyInventoryController")
 	humanoid_details_controller = get_parent().get_node("HumanoidDetailsController")
