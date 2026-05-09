@@ -3,6 +3,26 @@ extends "res://scripts/actors/world_actor.gd"
 class_name HumanoidCharacter
 
 const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/effects/world_text_notice.tscn")
+const MALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf")
+const FEMALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Female_FullBody.gltf")
+const UAL1_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_1/UAL1_Standard.glb")
+const UAL2_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_2/UAL2_Standard.glb")
+const CHARACTER_VISUAL_NODE_NAME := "CharacterVisual"
+const CHARACTER_ANIMATION_PLAYER_NAME := "CharacterAnimationPlayer"
+const CHARACTER_VISUAL_YAW_OFFSET := PI
+const CHARACTER_VISUAL_FOOT_CLEARANCE := 0.02
+const IDLE_ANIMATION_NAME := "Idle"
+const FOLD_ARMS_IDLE_ANIMATION_NAME := "Idle_FoldArms"
+const WALK_ANIMATION_NAME := "Walk"
+const CROUCH_IDLE_ANIMATION_NAME := "Crouch_Idle"
+const CROUCH_WALK_ANIMATION_NAME := "Crouch_Fwd"
+const JOG_ANIMATION_NAME := "Jog_Fwd"
+const SPRINT_ANIMATION_NAME := "Sprint"
+const IDLE_ANIMATION_NAMES := [IDLE_ANIMATION_NAME, FOLD_ARMS_IDLE_ANIMATION_NAME]
+const IDLE_ANIMATION_MIN_SECONDS := 4.0
+const IDLE_ANIMATION_MAX_SECONDS := 8.0
+const MOVE_ANIMATION_BLEND_SECONDS := 0.12
+const SPRINT_ANIMATION_SPEED_RATIO := 0.82
 
 enum OrderType {
 	NONE,
@@ -20,6 +40,34 @@ enum OrderType {
 	SIT,
 }
 
+enum VisualBodyType {
+	AUTO,
+	NONE,
+	MALE,
+	FEMALE,
+}
+
+const FEMALE_VISUAL_NAME_KEYS := {
+	"anya": true,
+	"avery": true,
+	"cleo": true,
+	"cora": true,
+	"esme": true,
+	"gwen": true,
+	"iris": true,
+	"kaia": true,
+	"mira": true,
+	"nika": true,
+	"orla": true,
+	"quinn": true,
+	"rhea": true,
+	"sable": true,
+	"talia": true,
+	"vera": true,
+	"wren": true,
+	"yara": true,
+}
+
 @export var member_name := "Character"
 @export var stable_id := ""
 @export var interact_distance := 1.8
@@ -29,6 +77,7 @@ enum OrderType {
 @export var show_inventory_weight := true
 @export var overhead_text_height := 2.4
 @export var show_nameplate := true
+@export_enum("Auto", "None", "Male", "Female") var visual_body_type: int = VisualBodyType.AUTO
 @export var starting_items: Array[Resource] = []
 
 @export var faction_name := "Player"
@@ -111,6 +160,9 @@ var _pending_talker_ids: Dictionary = {}
 var _nameplate: Label3D
 var _inspect_ring: MeshInstance3D
 var _inspect_ring_material := StandardMaterial3D.new()
+var _character_animation_player: AnimationPlayer
+var _current_character_animation := ""
+var _idle_animation_change_remaining := 0.0
 var _rng := RandomNumberGenerator.new()
 var _work_inventory_override: InventoryData
 var _active_job_provider
@@ -135,6 +187,7 @@ func _ready() -> void:
 	_seed_starting_inventory()
 	_setup_nameplate()
 	_setup_inspect_ring()
+	_setup_character_visual()
 	add_to_group("humanoid_character")
 	add_to_group("npc_character")
 	_sync_party_membership_group()
@@ -154,6 +207,7 @@ func _process(delta: float) -> void:
 	_process_recovery(delta)
 	_process_ai(delta)
 	_recalculate_vitals()
+	_update_character_animation(delta)
 
 
 func _physics_process(delta: float) -> void:
@@ -1479,6 +1533,316 @@ func _setup_inspect_ring() -> void:
 func _update_inspect_visual() -> void:
 	if _inspect_ring != null:
 		_inspect_ring.visible = is_inspected
+
+
+func _setup_character_visual() -> void:
+	var old_visual := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
+	if old_visual != null:
+		old_visual.free()
+
+	var body_mesh := get_node_or_null("BodyMesh") as MeshInstance3D
+	if body_mesh == null:
+		return
+	body_mesh.visible = true
+	var resolved_body_type := _resolve_visual_body_type()
+	if resolved_body_type == VisualBodyType.NONE:
+		return
+	var visual_scene := _get_character_visual_scene(resolved_body_type)
+	if visual_scene == null:
+		return
+
+	var model := visual_scene.instantiate()
+	if not (model is Node3D):
+		model.queue_free()
+		return
+	var model_root := model as Node3D
+	model_root.rotation.y = CHARACTER_VISUAL_YAW_OFFSET
+
+	var visual_root := Node3D.new()
+	visual_root.name = CHARACTER_VISUAL_NODE_NAME
+	add_child(visual_root)
+	visual_root.add_child(model_root)
+	_fit_visual_to_body_mesh(visual_root, body_mesh)
+	_setup_character_animation(model_root)
+	body_mesh.visible = false
+
+
+func _resolve_visual_body_type() -> int:
+	if visual_body_type != VisualBodyType.AUTO:
+		return visual_body_type
+	return _infer_visual_body_type()
+
+
+func _infer_visual_body_type() -> int:
+	var name_key := member_name.strip_edges().to_lower()
+	if name_key.contains(" "):
+		name_key = name_key.get_slice(" ", 0)
+	if FEMALE_VISUAL_NAME_KEYS.has(name_key):
+		return VisualBodyType.FEMALE
+	return VisualBodyType.MALE
+
+
+func _get_character_visual_scene(body_type: int) -> PackedScene:
+	match body_type:
+		VisualBodyType.MALE:
+			return MALE_VISUAL_SCENE
+		VisualBodyType.FEMALE:
+			return FEMALE_VISUAL_SCENE
+	return null
+
+
+func _fit_visual_to_body_mesh(visual_root: Node3D, body_mesh: MeshInstance3D) -> void:
+	var body_bounds := _calculate_local_mesh_bounds(body_mesh)
+	var visual_bounds := _calculate_local_mesh_bounds(visual_root)
+	if body_bounds.size.y <= 0.001 or visual_bounds.size.y <= 0.001:
+		return
+
+	var fit_scale := body_bounds.size.y / visual_bounds.size.y
+	var body_center := body_bounds.position + body_bounds.size * 0.5
+	var visual_center := visual_bounds.position + visual_bounds.size * 0.5
+	var visual_ground_y := _get_visual_ground_y(body_bounds.position.y) + CHARACTER_VISUAL_FOOT_CLEARANCE
+	visual_root.scale = Vector3.ONE * fit_scale
+	visual_root.position = Vector3(
+		body_center.x - visual_center.x * fit_scale,
+		visual_ground_y - visual_bounds.position.y * fit_scale,
+		body_center.z - visual_center.z * fit_scale
+	)
+
+
+func _get_visual_ground_y(fallback_y: float) -> float:
+	var collision_shape := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if collision_shape == null or collision_shape.shape == null:
+		return fallback_y
+	var shape_bounds := _get_collision_shape_local_bounds(collision_shape)
+	if shape_bounds.size.y <= 0.001:
+		return fallback_y
+	return shape_bounds.position.y
+
+
+func _get_collision_shape_local_bounds(collision_shape: CollisionShape3D) -> AABB:
+	var shape := collision_shape.shape
+	var shape_bounds := AABB()
+	if shape is CapsuleShape3D:
+		var capsule := shape as CapsuleShape3D
+		shape_bounds = AABB(
+			Vector3(-capsule.radius, -capsule.height * 0.5, -capsule.radius),
+			Vector3(capsule.radius * 2.0, capsule.height, capsule.radius * 2.0)
+		)
+	elif shape is SphereShape3D:
+		var sphere := shape as SphereShape3D
+		shape_bounds = AABB(
+			Vector3(-sphere.radius, -sphere.radius, -sphere.radius),
+			Vector3(sphere.radius * 2.0, sphere.radius * 2.0, sphere.radius * 2.0)
+		)
+	elif shape is BoxShape3D:
+		var box := shape as BoxShape3D
+		shape_bounds = AABB(-box.size * 0.5, box.size)
+	else:
+		return AABB()
+	return _transform_aabb(shape_bounds, collision_shape.transform)
+
+
+func _setup_character_animation(model_root: Node3D) -> void:
+	_current_character_animation = ""
+	_idle_animation_change_remaining = 0.0
+	_character_animation_player = null
+
+	_character_animation_player = AnimationPlayer.new()
+	_character_animation_player.name = CHARACTER_ANIMATION_PLAYER_NAME
+	_character_animation_player.root_node = NodePath("..")
+	model_root.add_child(_character_animation_player)
+	var animation_library := AnimationLibrary.new()
+	_copy_character_animations(animation_library)
+	if animation_library.get_animation_list().is_empty():
+		_character_animation_player.queue_free()
+		_character_animation_player = null
+		return
+	_character_animation_player.add_animation_library("", animation_library)
+	_play_random_idle_animation(true)
+
+
+func _copy_character_animations(animation_library: AnimationLibrary) -> void:
+	var ual1_source := UAL1_ANIMATION_SOURCE_SCENE.instantiate()
+	var ual1_player := _find_animation_player(ual1_source)
+	if ual1_player != null:
+		_copy_animation(ual1_player, animation_library, IDLE_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, WALK_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, CROUCH_IDLE_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, CROUCH_WALK_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, JOG_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, SPRINT_ANIMATION_NAME)
+	ual1_source.queue_free()
+
+	var ual2_source := UAL2_ANIMATION_SOURCE_SCENE.instantiate()
+	var ual2_player := _find_animation_player(ual2_source)
+	if ual2_player != null:
+		_copy_animation(ual2_player, animation_library, FOLD_ARMS_IDLE_ANIMATION_NAME)
+	ual2_source.queue_free()
+
+
+func _copy_animation(source_player: AnimationPlayer, animation_library: AnimationLibrary, animation_name: String) -> void:
+	if not source_player.has_animation(animation_name) or animation_library.has_animation(animation_name):
+		return
+	var source_animation := source_player.get_animation(animation_name)
+	if source_animation == null:
+		return
+	var copied_animation := source_animation.duplicate(true) as Animation
+	animation_library.add_animation(animation_name, copied_animation)
+
+
+func _find_animation_player(root: Node) -> AnimationPlayer:
+	if root is AnimationPlayer:
+		return root
+	for child in root.get_children():
+		var player := _find_animation_player(child)
+		if player != null:
+			return player
+	return null
+
+
+func _update_character_animation(delta: float) -> void:
+	if _character_animation_player == null:
+		return
+	if life_state != NpcRules.LifeState.ALIVE or _is_sitting or _carried_by != null:
+		_update_idle_character_animation(delta)
+		return
+	var horizontal_speed := Vector2(velocity.x, velocity.z).length()
+	var is_moving := horizontal_speed > 0.18 and _has_move_target
+	if sneaking:
+		if is_moving:
+			_play_character_animation(CROUCH_WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed * 0.65))
+		else:
+			_play_character_animation(CROUCH_IDLE_ANIMATION_NAME)
+		return
+	if not is_moving:
+		_update_idle_character_animation(delta)
+		return
+	if is_running_enabled():
+		var sprint_speed_ratio := _get_animation_speed_ratio(horizontal_speed, move_speed * NpcRules.RUN_SPEED_MULTIPLIER)
+		if _should_use_sprint_animation(sprint_speed_ratio):
+			_play_character_animation(SPRINT_ANIMATION_NAME, sprint_speed_ratio)
+		else:
+			_play_character_animation(JOG_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed))
+	else:
+		_play_character_animation(WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed))
+
+
+func _should_use_sprint_animation(speed_ratio: float) -> bool:
+	if not is_running_enabled():
+		return false
+	if hunger_stage != NpcRules.HungerStage.WELL_NOURISHED:
+		return false
+	if fatigue_stage != NpcRules.FatigueStage.WELL_RESTED:
+		return false
+	return speed_ratio >= SPRINT_ANIMATION_SPEED_RATIO
+
+
+func _get_animation_speed_ratio(horizontal_speed: float, reference_speed: float) -> float:
+	return clampf(horizontal_speed / maxf(reference_speed, 0.001), 0.0, 1.0)
+
+
+func _update_idle_character_animation(delta: float) -> void:
+	if not _is_idle_animation(_current_character_animation) or not _character_animation_player.is_playing():
+		_play_random_idle_animation(true)
+		return
+	_idle_animation_change_remaining -= delta
+	if _idle_animation_change_remaining <= 0.0:
+		_play_random_idle_animation(false)
+
+
+func _play_random_idle_animation(force: bool) -> void:
+	var idle_names := _get_available_idle_animation_names()
+	if idle_names.is_empty():
+		return
+	var animation_index := _rng.randi_range(0, idle_names.size() - 1)
+	var animation_name := idle_names[animation_index]
+	if not force and idle_names.size() > 1 and animation_name == _current_character_animation:
+		animation_name = idle_names[(animation_index + 1) % idle_names.size()]
+	_play_character_animation(animation_name)
+	_reset_idle_animation_timer()
+
+
+func _get_available_idle_animation_names() -> Array[String]:
+	var idle_names: Array[String] = []
+	for animation_name_value in IDLE_ANIMATION_NAMES:
+		var animation_name := String(animation_name_value)
+		if _character_animation_player.has_animation(animation_name):
+			idle_names.append(animation_name)
+	return idle_names
+
+
+func _is_idle_animation(animation_name: String) -> bool:
+	return IDLE_ANIMATION_NAMES.has(animation_name)
+
+
+func _reset_idle_animation_timer() -> void:
+	_idle_animation_change_remaining = _rng.randf_range(IDLE_ANIMATION_MIN_SECONDS, IDLE_ANIMATION_MAX_SECONDS)
+
+
+func _play_character_animation(animation_name: String, speed_ratio: float = 0.0) -> void:
+	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
+		return
+	var custom_speed := _get_character_animation_speed(animation_name, speed_ratio)
+	if _current_character_animation == animation_name and _character_animation_player.is_playing():
+		_character_animation_player.speed_scale = custom_speed
+		return
+	_current_character_animation = animation_name
+	_character_animation_player.speed_scale = custom_speed
+	_character_animation_player.play(animation_name, MOVE_ANIMATION_BLEND_SECONDS)
+
+
+func _get_character_animation_speed(animation_name: String, speed_ratio: float) -> float:
+	match animation_name:
+		WALK_ANIMATION_NAME:
+			return lerpf(0.85, 1.25, speed_ratio)
+		CROUCH_WALK_ANIMATION_NAME:
+			return lerpf(0.85, 1.15, speed_ratio)
+		JOG_ANIMATION_NAME:
+			return lerpf(0.9, 1.35, speed_ratio)
+		SPRINT_ANIMATION_NAME:
+			return lerpf(0.9, 1.25, speed_ratio)
+	return 1.0
+
+
+func _calculate_local_mesh_bounds(root: Node) -> AABB:
+	var result := {
+		"has_bounds": false,
+		"bounds": AABB(),
+	}
+	_accumulate_local_mesh_bounds(root, Transform3D.IDENTITY, result)
+	return result["bounds"]
+
+
+func _accumulate_local_mesh_bounds(node: Node, parent_transform: Transform3D, result: Dictionary) -> void:
+	var local_transform := parent_transform
+	if node is Node3D:
+		local_transform = parent_transform * node.transform
+
+	if node is MeshInstance3D and node.mesh != null:
+		var mesh_bounds := _transform_aabb(node.mesh.get_aabb(), local_transform)
+		if result["has_bounds"]:
+			result["bounds"] = (result["bounds"] as AABB).merge(mesh_bounds)
+		else:
+			result["bounds"] = mesh_bounds
+			result["has_bounds"] = true
+
+	for child in node.get_children():
+		_accumulate_local_mesh_bounds(child, local_transform, result)
+
+
+func _transform_aabb(bounds: AABB, transform: Transform3D) -> AABB:
+	var first := true
+	var transformed_bounds := AABB()
+	for x in [bounds.position.x, bounds.position.x + bounds.size.x]:
+		for y in [bounds.position.y, bounds.position.y + bounds.size.y]:
+			for z in [bounds.position.z, bounds.position.z + bounds.size.z]:
+				var point := transform * Vector3(x, y, z)
+				if first:
+					transformed_bounds = AABB(point, Vector3.ZERO)
+					first = false
+				else:
+					transformed_bounds = transformed_bounds.expand(point)
+	return transformed_bounds
 
 
 func _set_order(order_type: int, issued_by_player: bool) -> void:

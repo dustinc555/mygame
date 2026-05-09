@@ -1,0 +1,240 @@
+{
+  "$schema": "https://opencode.ai/theme.json",
+  "defs": {
+    "abyss": "#030B1F",
+    "deep": "#061B3B",
+    "ocean": "#08285A",
+    "tide": "#0B3D7A",
+    "reef": "#1456A8",
+    "textBright": "#F4FBFF",
+    "fg": "#E8F4FF",
+    "fgMuted": "#A6C4F6",
+    "fgFaint": "#7EA0D8",
+    "starlight": "#E6FCFF",
+    "planTeal": "#4DFFF3",
+    "moon": "#CDEAFF",
+    "cyanGlow": "#67FFF7",
+    "blueGlow": "#7CC7FF",
+    "deepSky": "#5BAEFF",
+    "periwinkle": "#C4B8FF",
+    "lilac": "#D4CCFF",
+    "seafoam": "#83FFEA",
+    "aqua": "#9AECFF",
+    "rose": "#FF8FA3",
+    "coral": "#FF7D93",
+    "line": "#2E75C8",
+    "lineActive": "#4DFFF3",
+    "lineSubtle": "#1A3F78",
+    "addedBg": "#073943",
+    "removedBg": "#35162A",
+    "contextBg": "#071C3A",
+    "lightBg": "#EEF7FF",
+    "lightPanel": "#DDEEFF",
+    "lightElement": "#C9DFFF",
+    "lightText": "#10243D",
+    "lightMuted": "#48688E",
+    "lightBorder": "#8CB8E8"
+  },
+  "theme": {
+    "primary": {
+      "dark": "planTeal",
+      "light": "deepSky"
+    },
+    "secondary": {
+      "dark": "blueGlow",
+      "light": "deepSky"
+    },
+    "accent": {
+      "dark": "periwinkle",
+      "light": "periwinkle"
+    },
+    "error": {
+      "dark": "rose",
+      "light": "coral"
+    },
+    "warning": {
+      "dark": "lilac",
+      "light": "periwinkle"
+    },
+    "success": {
+      "dark": "seafoam",
+      "light": "#1D8D77"
+    },
+    "info": {
+      "dark": "planTeal",
+      "light": "deepSky"
+    },
+    "text": {
+      "dark": "fg",
+      "light": "lightText"
+    },
+    "textMuted": {
+      "dark": "fgMuted",
+      "light": "lightMuted"
+    },
+    "background": {
+      "dark": "abyss",
+      "light": "lightBg"
+    },
+    "backgroundPanel": {
+      "dark": "deep",
+      "light": "lightPanel"
+    },
+    "backgroundElement": {
+      "dark": "tide",
+      "light": "lightElement"
+    },
+    "border": {
+      "dark": "line",
+      "light": "lightBorder"
+    },
+    "borderActive": {
+      "dark": "lineActive",
+      "light": "deepSky"
+    },
+    "borderSubtle": {
+      "dark": "lineSubtle",
+      "light": "lightBorder"
+    },
+    "diffAdded": {
+      "dark": "seafoam",
+      "light": "#1D8D77"
+    },
+    "diffRemoved": {
+      "dark": "rose",
+      "light": "coral"
+    },
+    "diffContext": {
+      "dark": "fgMuted",
+      "light": "lightMuted"
+    },
+    "diffHunkHeader": {
+      "dark": "planTeal",
+      "light": "deepSky"
+    },
+    "diffHighlightAdded": {
+      "dark": "aqua",
+      "light": "#1D8D77"
+    },
+    "diffHighlightRemoved": {
+      "dark": "rose",
+      "light": "coral"
+    },
+    "diffAddedBg": {
+      "dark": "addedBg",
+      "light": "#DDF4ED"
+    },
+    "diffRemovedBg": {
+      "dark": "removedBg",
+      "light": "#FFE3EA"
+    },
+    "diffContextBg": {
+      "dark": "contextBg",
+      "light": "#E8F3FF"
+    },
+    "diffLineNumber": {
+      "dark": "fgFaint",
+      "light": "lightMuted"
+    },
+    "diffAddedLineNumberBg": {
+      "dark": "addedBg",
+      "light": "#DDF4ED"
+    },
+    "diffRemovedLineNumberBg": {
+      "dark": "removedBg",
+      "light": "#FFE3EA"
+    },
+    "markdownText": {
+      "dark": "fg",
+      "light": "lightText"
+    },
+    "markdownHeading": {
+      "dark": "planTeal",
+      "light": "deepSky"
+    },
+    "markdownLink": {
+      "dark": "moon",
+      "light": "deepSky"
+    },
+    "markdownLinkText": {
+      "dark": "planTeal",
+      "light": "deepSky"
+    },
+    "markdownCode": {
+      "dark": "seafoam",
+      "light": "#1D8D77"
+    },
+    "markdownBlockQuote": {
+      "dark": "fgMuted",
+      "light": "lightMuted"
+    },
+    "markdownEmph": {
+      "dark": "periwinkle",
+      "light": "periwinkle"
+    },
+    "markdownStrong": {
+      "dark": "starlight",
+      "light": "deepSky"
+    },
+    "markdownHorizontalRule": {
+      "dark": "line",
+      "light": "lightBorder"
+    },
+    "markdownListItem": {
+      "dark": "planTeal",
+      "light": "deepSky"
+    },
+    "markdownListEnumeration": {
+      "dark": "blueGlow",
+      "light": "deepSky"
+    },
+    "markdownImage": {
+      "dark": "moon",
+      "light": "deepSky"
+    },
+    "markdownImageText": {
+      "dark": "seafoam",
+      "light": "#1D8D77"
+    },
+    "markdownCodeBlock": {
+      "dark": "textBright",
+      "light": "lightText"
+    },
+    "syntaxComment": {
+      "dark": "fgFaint",
+      "light": "lightMuted"
+    },
+    "syntaxKeyword": {
+      "dark": "planTeal",
+      "light": "deepSky"
+    },
+    "syntaxFunction": {
+      "dark": "moon",
+      "light": "deepSky"
+    },
+    "syntaxVariable": {
+      "dark": "textBright",
+      "light": "lightText"
+    },
+    "syntaxString": {
+      "dark": "seafoam",
+      "light": "#1D8D77"
+    },
+    "syntaxNumber": {
+      "dark": "periwinkle",
+      "light": "#6C5FC7"
+    },
+    "syntaxType": {
+      "dark": "blueGlow",
+      "light": "deepSky"
+    },
+    "syntaxOperator": {
+      "dark": "planTeal",
+      "light": "deepSky"
+    },
+    "syntaxPunctuation": {
+      "dark": "fgMuted",
+      "light": "lightMuted"
+    }
+  }
+}
