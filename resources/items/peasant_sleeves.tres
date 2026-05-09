@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://bski5epwi7em"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Texture2D" uid="uid://c6p7le3rc1t4l" path="res://assets/items/equipment/peasant_gloves.svg" id="2_icon"]
+[ext_resource type="PackedScene" uid="uid://cmmlu4k6833ag" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Arms.gltf" id="3_male"]
+[ext_resource type="PackedScene" uid="uid://bq484oyyia838" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Female_Peasant_Arms.gltf" id="4_female"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="5_y16hg"]
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Peasant Sleeves"
+icon = ExtResource("2_icon")
+grid_size = Vector2i(1, 2)
+unit_weight = 0.5
+equip_slot = "gloves"
+alternate_equip_slots = null
+world_scene = ExtResource("3_male")
+male_equipped_scene = ExtResource("3_male")
+female_equipped_scene = ExtResource("4_female")
+equipped_surface_offset_ratio = 0.014

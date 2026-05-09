@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/world/containers/container.tscn" id="1_container"]
+[ext_resource type="PackedScene" path="res://scenes/world/containers/weapon_chest_model.tscn" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_chest"]
+size = Vector3(1.75, 0.8, 1.0)
+
+[node name="WeaponChestContainer" instance=ExtResource("1_container")]
+display_name = "Weapon Chest"
+inventory_columns = 8
+inventory_rows = 5
+interaction_distance = 2.1
+slot_distance = 1.8
+cell_size = Vector2(25, 25)
+visual_scene = ExtResource("2_model")
+collision_shape = SubResource("BoxShape3D_chest")
+collision_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)

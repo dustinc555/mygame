@@ -294,7 +294,7 @@ script = ExtResource("17_guard_post")
 [node name="ServicePoints" type="Node3D" parent="BarScene/BarVenue" unique_id=1193049064]
 
 [node name="BarkeeperCounterPoint" type="Node3D" parent="BarScene/BarVenue/ServicePoints" unique_id=1133941220]
-transform = Transform3D(0.766044, 0, -0.642788, 0, 1, 0, 0.642788, 0, 0.766044, -2.6, 0.05, -4.8)
+transform = Transform3D(0.766044, 0, -0.642788, 0, 1, 0, 0.642788, 0, 0.766044, 0.18420357, 0.3651874, -1.7914188)
 script = ExtResource("18_service_point")
 
 [node name="PartyMembers" type="Node3D" parent="." unique_id=1814419339]

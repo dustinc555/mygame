@@ -149,6 +149,14 @@ func remove_item_count(definition, amount: int) -> bool:
 	return true
 
 
+func remove_entry(entry) -> bool:
+	if entry == null or not entries.has(entry):
+		return false
+	entries.erase(entry)
+	changed.emit()
+	return true
+
+
 func move_entry(entry, target_position: Vector2i) -> bool:
 	if entry == null:
 		return false

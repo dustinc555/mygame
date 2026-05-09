@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://d2aqrvmv6ajlq"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
+[ext_resource type="Texture2D" uid="uid://j85cnyd2ln7h" path="res://assets/items/equipment/ranger_legs.svg" id="3_icon"]
+[ext_resource type="PackedScene" uid="uid://d2xq6e5ayf03q" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Legs.gltf" id="4_male"]
+[ext_resource type="PackedScene" uid="uid://b7m6xvf68a5ii" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Female_Ranger_Legs.gltf" id="5_female"]
+
+[sub_resource type="Resource" id="ItemStatModifier_dodge"]
+script = ExtResource("2_mod")
+stat_name = "dodge_chance"
+add = 0.03
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Ranger Leggings"
+icon = ExtResource("3_icon")
+grid_size = Vector2i(2, 2)
+unit_weight = 1.2
+equip_slot = "legs"
+alternate_equip_slots = null
+world_scene = ExtResource("4_male")
+male_equipped_scene = ExtResource("4_male")
+female_equipped_scene = ExtResource("5_female")
+equipped_surface_offset_ratio = 0.016
+stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_dodge")])

@@ -4,7 +4,7 @@
 [ext_resource type="Script" path="res://scripts/ui/inventory_grid_control.gd" id="2_grid"]
 
 [node name="InventoryWindow" type="PanelContainer"]
-custom_minimum_size = Vector2(360, 290)
+custom_minimum_size = Vector2(360, 0)
 offset_right = 360.0
 offset_bottom = 290.0
 script = ExtResource("1_win")

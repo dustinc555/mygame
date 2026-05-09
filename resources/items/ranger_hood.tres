@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://ce37ea6u42yu7"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
+[ext_resource type="Texture2D" uid="uid://dq4l3goaa2t5k" path="res://assets/items/equipment/ranger_hood.svg" id="3_icon"]
+[ext_resource type="PackedScene" uid="uid://dukbvcb1plio0" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Head_Hood.gltf" id="4_male"]
+[ext_resource type="PackedScene" uid="uid://yi1c6ryw6xjl" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Female_Ranger_Head_Hood.gltf" id="5_female"]
+
+[sub_resource type="Resource" id="ItemStatModifier_dodge"]
+script = ExtResource("2_mod")
+stat_name = "dodge_chance"
+add = 0.02
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Ranger Hood"
+icon = ExtResource("3_icon")
+grid_size = Vector2i(2, 2)
+unit_weight = 0.7
+equip_slot = "head"
+alternate_equip_slots = null
+world_scene = ExtResource("4_male")
+male_equipped_scene = ExtResource("4_male")
+female_equipped_scene = ExtResource("5_female")
+equipped_surface_offset_ratio = 0.004
+stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_dodge")])

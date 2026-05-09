@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://dl6mt20md0f0h"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
+[ext_resource type="Texture2D" uid="uid://cags8l261yht" path="res://assets/items/equipment/peasant_chest.svg" id="3_icon"]
+[ext_resource type="PackedScene" uid="uid://4f44ahq0yfnm" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Body.gltf" id="4_male"]
+[ext_resource type="PackedScene" uid="uid://dig4k01p8hhbh" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Female_Peasant_Body.gltf" id="5_female"]
+
+[sub_resource type="Resource" id="ItemStatModifier_block"]
+script = ExtResource("2_mod")
+stat_name = "block_chance"
+add = 0.02
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Peasant Tunic"
+icon = ExtResource("3_icon")
+grid_size = Vector2i(2, 3)
+unit_weight = 1.6
+equip_slot = "chest"
+alternate_equip_slots = null
+world_scene = ExtResource("4_male")
+male_equipped_scene = ExtResource("4_male")
+female_equipped_scene = ExtResource("5_female")
+equipped_surface_offset_ratio = 0.018
+stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_block")])

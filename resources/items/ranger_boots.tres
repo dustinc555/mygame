@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://co4qqg3dq7m2u"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
+[ext_resource type="Texture2D" uid="uid://dd1mcvs61r2ku" path="res://assets/items/equipment/ranger_feet.svg" id="3_icon"]
+[ext_resource type="PackedScene" uid="uid://cclvoe44jdoin" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Feet_Boots.gltf" id="4_male"]
+[ext_resource type="PackedScene" uid="uid://c35rwtky2s54t" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Female_Ranger_Feet.gltf" id="5_female"]
+
+[sub_resource type="Resource" id="ItemStatModifier_speed"]
+script = ExtResource("2_mod")
+stat_name = "move_speed_multiplier"
+mul = 1.05
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Ranger Boots"
+icon = ExtResource("3_icon")
+grid_size = Vector2i(2, 1)
+unit_weight = 1.1
+equip_slot = "feet"
+alternate_equip_slots = null
+world_scene = ExtResource("4_male")
+male_equipped_scene = ExtResource("4_male")
+female_equipped_scene = ExtResource("5_female")
+equipped_surface_offset_ratio = 0.012
+stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_speed")])

@@ -22,6 +22,7 @@ const ACTION_SIT := 13
 const ACTION_WAKE_UP := 14
 const ACTION_STAND_UP := 15
 const ACTION_PLACE_IN_BED := 16
+const ACTION_PICKUP_ITEM := 17
 const STANCE_OPTION_MIXED := 3
 const FREE_CAMERA_PITCH := -0.65
 const FOLLOW_CAMERA_HEIGHT := 1.35
@@ -59,6 +60,7 @@ var context_member: HumanoidCharacter
 var context_humanoid: HumanoidCharacter
 var context_resource
 var context_container
+var context_world_item
 var context_sleep_target
 var context_seat_target
 var root: Node
@@ -287,6 +289,11 @@ func _handle_left_mouse_release(screen_position: Vector2) -> void:
 
 
 func _handle_world_selection(screen_position: Vector2, should_follow: bool) -> void:
+	if Input.is_key_pressed(KEY_SHIFT) and not party_manager.selected_members.is_empty():
+		var world_item = _pick_world_item(screen_position)
+		if world_item != null:
+			_assign_pickup_to_selection(world_item)
+			return
 	var humanoid = _pick_humanoid(screen_position)
 	if humanoid == null:
 		party_manager.clear_selection()
@@ -329,6 +336,7 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 	context_humanoid = null
 	context_resource = null
 	context_container = null
+	context_world_item = null
 	context_sleep_target = null
 	context_seat_target = null
 	var result := _raycast_target_from_screen(screen_position)
@@ -402,6 +410,13 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 		else:
 			_show_context_menu(screen_position, ACTION_OPEN_CONTAINER, "Open")
 		return false
+	if collider is Node and collider.is_in_group("world_item") and not party_manager.selected_members.is_empty():
+		context_world_item = collider
+		if Input.is_key_pressed(KEY_SHIFT):
+			_assign_pickup_to_selection(context_world_item)
+		else:
+			_show_context_menu(screen_position, ACTION_PICKUP_ITEM, "Pick Up")
+		return false
 	return issue_move_command(screen_position)
 
 
@@ -413,7 +428,7 @@ func _is_hold_move_blocked(screen_position: Vector2) -> bool:
 	if collider is HumanoidCharacter:
 		return true
 	if collider is Node:
-		return collider.is_in_group("sleepable_bed") or collider.is_in_group("sittable_seat") or collider.is_in_group("mining_resource") or collider.is_in_group("world_container")
+		return collider.is_in_group("sleepable_bed") or collider.is_in_group("sittable_seat") or collider.is_in_group("mining_resource") or collider.is_in_group("world_container") or collider.is_in_group("world_item")
 	return false
 
 
@@ -471,6 +486,16 @@ func _pick_humanoid(screen_position: Vector2):
 		return null
 	var collider: Object = result["collider"]
 	if collider is CharacterBody3D and collider.has_method("set_inspected"):
+		return collider
+	return null
+
+
+func _pick_world_item(screen_position: Vector2):
+	var result := _raycast_target_from_screen(screen_position)
+	if result.is_empty():
+		return null
+	var collider: Object = result["collider"]
+	if collider is Node and collider.is_in_group("world_item"):
 		return collider
 	return null
 
@@ -815,6 +840,23 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 		ACTION_STAND_UP:
 			if context_humanoid != null and context_humanoid.has_method("wake_up_from_rest"):
 				context_humanoid.wake_up_from_rest()
+		ACTION_PICKUP_ITEM:
+			if context_world_item != null:
+				_assign_pickup_to_selection(context_world_item)
+
+
+func _assign_pickup_to_selection(world_item) -> void:
+	if world_item == null or party_manager.selected_members.is_empty():
+		return
+	var best_member: HumanoidCharacter
+	var best_distance := INF
+	for member in party_manager.selected_members:
+		var distance := member.global_position.distance_squared_to(world_item.global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best_member = member
+	if best_member != null:
+		best_member.assign_pickup_item(world_item)
 
 
 func _selection_can_heal_target(target: HumanoidCharacter) -> bool:

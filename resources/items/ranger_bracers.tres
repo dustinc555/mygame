@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://cskja0vt31ffc"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
+[ext_resource type="Texture2D" uid="uid://m1svknomvs7s" path="res://assets/items/equipment/ranger_gloves.svg" id="3_icon"]
+[ext_resource type="PackedScene" uid="uid://gw6pfcgasyxb" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Arms.gltf" id="4_male"]
+[ext_resource type="PackedScene" uid="uid://c1jjffrtkc0m4" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Female_Ranger_Arms.gltf" id="5_female"]
+
+[sub_resource type="Resource" id="ItemStatModifier_block"]
+script = ExtResource("2_mod")
+stat_name = "block_chance"
+add = 0.03
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Ranger Bracers"
+icon = ExtResource("3_icon")
+grid_size = Vector2i(1, 2)
+unit_weight = 0.8
+equip_slot = "gloves"
+alternate_equip_slots = null
+world_scene = ExtResource("4_male")
+male_equipped_scene = ExtResource("4_male")
+female_equipped_scene = ExtResource("5_female")
+equipped_surface_offset_ratio = 0.014
+stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_block")])

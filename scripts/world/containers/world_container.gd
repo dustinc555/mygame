@@ -16,6 +16,7 @@ signal interaction_resolved(container, actor)
 @export var owner_character_path: NodePath
 @export var owner_faction_name := ""
 @export var cell_size := Vector2(22.0, 22.0)
+@export var starting_items: Array[InventoryStock] = []
 @export var visual_scene: PackedScene:
 	set(value):
 		visual_scene = value
@@ -46,6 +47,7 @@ func _ready() -> void:
 		var inventory_data_script = load("res://scripts/items/inventory_data.gd")
 		inventory = inventory_data_script.new(inventory_columns, inventory_rows, 0.0, false)
 		inventory.changed.connect(_on_inventory_changed)
+		_seed_starting_inventory()
 	add_to_group("world_container")
 	_apply_collision_settings()
 	_rebuild_visual()
@@ -151,6 +153,13 @@ func _slot_position_from_index(slot_index: int) -> Vector3:
 
 func _on_inventory_changed() -> void:
 	inventory_changed.emit()
+
+
+func _seed_starting_inventory() -> void:
+	for stock in starting_items:
+		if stock == null or stock.item_definition == null or stock.quantity <= 0:
+			continue
+		inventory.add_item_count(stock.item_definition, stock.quantity)
 
 
 func _apply_collision_settings() -> void:

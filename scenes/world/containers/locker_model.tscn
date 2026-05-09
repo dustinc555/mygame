@@ -1,0 +1,45 @@
+[gd_scene load_steps=6 format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wood"]
+albedo_color = Color(0.38, 0.24, 0.13, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dark"]
+albedo_color = Color(0.12, 0.09, 0.06, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+size = Vector3(1.1, 2.0, 0.45)
+
+[sub_resource type="BoxMesh" id="BoxMesh_door"]
+size = Vector3(0.46, 1.72, 0.04)
+
+[sub_resource type="BoxMesh" id="BoxMesh_handle"]
+size = Vector3(0.05, 0.22, 0.05)
+
+[node name="LockerModel" type="Node3D"]
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+mesh = SubResource("BoxMesh_body")
+material_override = SubResource("StandardMaterial3D_wood")
+
+[node name="LeftDoor" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.255, 1, 0.245)
+mesh = SubResource("BoxMesh_door")
+material_override = SubResource("StandardMaterial3D_dark")
+
+[node name="RightDoor" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.255, 1, 0.245)
+mesh = SubResource("BoxMesh_door")
+material_override = SubResource("StandardMaterial3D_dark")
+
+[node name="LeftHandle" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.06, 1, 0.29)
+mesh = SubResource("BoxMesh_handle")
+material_override = SubResource("StandardMaterial3D_wood")
+
+[node name="RightHandle" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.06, 1, 0.29)
+mesh = SubResource("BoxMesh_handle")
+material_override = SubResource("StandardMaterial3D_wood")

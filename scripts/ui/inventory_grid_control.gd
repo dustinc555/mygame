@@ -5,6 +5,7 @@ class_name InventoryGridControl
 signal item_clicked(entry)
 signal item_right_clicked(entry, local_position, shift_pressed)
 signal invalid_drop_attempted(message)
+signal item_dropped_outside(source_owner, entry)
 
 @export var cell_size := Vector2(30.0, 30.0)
 @export var cell_gap := 2.0
@@ -17,6 +18,7 @@ var drop_error_provider: Callable
 var _preview_visible := false
 var _preview_rect := Rect2()
 var _last_invalid_drop_message := ""
+var _active_drag_data: Dictionary = {}
 
 
 func set_inventory_data(data) -> void:
@@ -86,11 +88,12 @@ func _get_drag_data(at_position: Vector2):
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	preview.add_child(label)
 	set_drag_preview(preview)
-	return {
+	_active_drag_data = {
 		"entry": entry,
 		"source_inventory": inventory_data,
 		"source_owner": get_meta("source_owner", null),
 	}
+	return _active_drag_data
 
 
 func _can_drop_data(at_position: Vector2, data) -> bool:
@@ -123,11 +126,16 @@ func _drop_data(at_position: Vector2, data) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END:
+		if not _active_drag_data.is_empty() and not is_drag_successful():
+			var local_mouse_for_drop := get_local_mouse_position()
+			if not Rect2(Vector2.ZERO, size).has_point(local_mouse_for_drop):
+				item_dropped_outside.emit(_active_drag_data.get("source_owner", null), _active_drag_data.get("entry", null))
 		if not _preview_visible and _last_invalid_drop_message != "":
 			var local_mouse := get_local_mouse_position()
 			if Rect2(Vector2.ZERO, size).has_point(local_mouse):
 				invalid_drop_attempted.emit(_last_invalid_drop_message)
 		_last_invalid_drop_message = ""
+		_active_drag_data.clear()
 		_clear_preview()
 
 

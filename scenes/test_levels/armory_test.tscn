@@ -1,0 +1,195 @@
+[gd_scene format=3 uid="uid://cp73mjas8wdqn"]
+
+[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_manager"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
+[ext_resource type="PackedScene" path="res://scenes/world/buildings/two_story_house.tscn" id="4_house"]
+[ext_resource type="PackedScene" path="res://scenes/world/containers/locker_container.tscn" id="5_locker"]
+[ext_resource type="PackedScene" path="res://scenes/world/containers/weapon_chest_container.tscn" id="6_chest"]
+[ext_resource type="PackedScene" path="res://scenes/world/items/world_item.tscn" id="7_world_item"]
+[ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://scripts/items/inventory_stock.gd" id="8_stock"]
+[ext_resource type="Resource" uid="uid://bkw28d3jsab1n" path="res://resources/items/iron_sword.tres" id="9_sword"]
+[ext_resource type="Resource" uid="uid://c0avcbruqei8v" path="res://resources/items/iron_axe.tres" id="10_axe"]
+[ext_resource type="Resource" uid="uid://cc26yahy7c18b" path="res://resources/items/iron_dagger.tres" id="11_dagger"]
+[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/round_shield.tres" id="12_shield"]
+[ext_resource type="Resource" uid="uid://dl6mt20md0f0h" path="res://resources/items/peasant_tunic.tres" id="13_peasant_tunic"]
+[ext_resource type="Resource" uid="uid://b1tg50i80y8xm" path="res://resources/items/peasant_trousers.tres" id="14_peasant_trousers"]
+[ext_resource type="Resource" uid="uid://dc3425jyf5t2g" path="res://resources/items/peasant_shoes.tres" id="15_peasant_shoes"]
+[ext_resource type="Resource" uid="uid://bski5epwi7em" path="res://resources/items/peasant_sleeves.tres" id="16_peasant_sleeves"]
+[ext_resource type="Resource" uid="uid://dobeoitcyev7o" path="res://resources/items/ranger_jerkin.tres" id="17_ranger_jerkin"]
+[ext_resource type="Resource" uid="uid://d2aqrvmv6ajlq" path="res://resources/items/ranger_leggings.tres" id="18_ranger_leggings"]
+[ext_resource type="Resource" uid="uid://co4qqg3dq7m2u" path="res://resources/items/ranger_boots.tres" id="19_ranger_boots"]
+[ext_resource type="Resource" uid="uid://cskja0vt31ffc" path="res://resources/items/ranger_bracers.tres" id="20_ranger_bracers"]
+[ext_resource type="Resource" uid="uid://ce37ea6u42yu7" path="res://resources/items/ranger_hood.tres" id="21_ranger_hood"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(30, 1, 30)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.42, 0.34, 0.24, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(30, 1, 30)
+
+[sub_resource type="Resource" id="InventoryStock_peasant_tunic"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("13_peasant_tunic")
+
+[sub_resource type="Resource" id="InventoryStock_peasant_trousers"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("14_peasant_trousers")
+
+[sub_resource type="Resource" id="InventoryStock_peasant_shoes"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("15_peasant_shoes")
+
+[sub_resource type="Resource" id="InventoryStock_peasant_sleeves"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("16_peasant_sleeves")
+
+[sub_resource type="Resource" id="InventoryStock_ranger_jerkin"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("17_ranger_jerkin")
+
+[sub_resource type="Resource" id="InventoryStock_ranger_leggings"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("18_ranger_leggings")
+
+[sub_resource type="Resource" id="InventoryStock_ranger_boots"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("19_ranger_boots")
+
+[sub_resource type="Resource" id="InventoryStock_ranger_bracers"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("20_ranger_bracers")
+
+[sub_resource type="Resource" id="InventoryStock_ranger_hood"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("21_ranger_hood")
+
+[sub_resource type="Resource" id="InventoryStock_sword"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("9_sword")
+
+[sub_resource type="Resource" id="InventoryStock_axe"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("10_axe")
+
+[sub_resource type="Resource" id="InventoryStock_dagger"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("11_dagger")
+
+[sub_resource type="Resource" id="InventoryStock_shield"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("12_shield")
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_member"]
+radius = 0.45
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
+top_radius = 0.72
+bottom_radius = 0.72
+height = 0.05
+radial_segments = 24
+rings = 2
+
+[node name="ArmoryTest" type="Node3D" unique_id=1605527693]
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=518242550]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 8, 0)
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="." unique_id=514859615]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor" unique_id=580737840]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor" unique_id=1035076122]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.044140577, 1.9073486e-06, -0.0026197433)
+material_override = SubResource("StandardMaterial3D_floor")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="TwoStoryHouse" parent="." unique_id=2102512227 instance=ExtResource("4_house")]
+
+[node name="ArmoryContainers" type="Node3D" parent="." unique_id=564829923]
+
+[node name="ClothesLocker" parent="ArmoryContainers" unique_id=567802198 instance=ExtResource("5_locker")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1, 0, -3.45)
+starting_items = Array[ExtResource("8_stock")]([SubResource("InventoryStock_peasant_tunic"), SubResource("InventoryStock_peasant_trousers"), SubResource("InventoryStock_peasant_shoes"), SubResource("InventoryStock_peasant_sleeves"), SubResource("InventoryStock_ranger_jerkin"), SubResource("InventoryStock_ranger_leggings"), SubResource("InventoryStock_ranger_boots"), SubResource("InventoryStock_ranger_bracers"), SubResource("InventoryStock_ranger_hood")])
+
+[node name="WeaponChest" parent="ArmoryContainers" unique_id=822534733 instance=ExtResource("6_chest")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.45, 0, -3.35)
+starting_items = Array[ExtResource("8_stock")]([SubResource("InventoryStock_sword"), SubResource("InventoryStock_axe"), SubResource("InventoryStock_dagger"), SubResource("InventoryStock_shield")])
+
+[node name="LooseDagger" parent="." unique_id=545951349 instance=ExtResource("7_world_item")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 5.8)
+item_definition = ExtResource("11_dagger")
+
+[node name="PartyMembers" type="Node3D" parent="." unique_id=526884549]
+
+[node name="Mira" type="CharacterBody3D" parent="PartyMembers" unique_id=1283271330]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0.6, 6.8)
+script = ExtResource("1_party")
+base_color = Color(0.72, 0.48, 0.78, 1)
+member_name = "Mira"
+starting_equipment = Array[Resource]([ExtResource("11_dagger")])
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Mira" unique_id=1117274475]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Mira" unique_id=258417021]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Mira" unique_id=2119391868]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="Tomas" type="CharacterBody3D" parent="PartyMembers" unique_id=1797988460]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.6, 6.8)
+script = ExtResource("1_party")
+base_color = Color(0.35, 0.56, 0.42, 1)
+member_name = "Tomas"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Tomas" unique_id=339394952]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Tomas" unique_id=1392332404]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Tomas" unique_id=97535540]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="PartyManager" type="Node" parent="." unique_id=1223072705]
+script = ExtResource("2_manager")
+
+[node name="GameBootstrap" type="Node" parent="." unique_id=877267229]
+script = ExtResource("3_bootstrap")
+
+[node name="CameraRig" type="Node3D" parent="." unique_id=463958980]
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig" unique_id=1161981787]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot" unique_id=1569989531]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 13)
+current = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1463939251]
+
+[node name="Instructions" type="Label" parent="CanvasLayer" unique_id=2015588452]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 720.0
+offset_bottom = 116.0
+text = "Armory test: Mira and Tomas start outside a reusable two-story house. Open the clothes locker and weapon chest inside, drag gear onto equipment slots, drag gear outside inventory windows to drop it, and Shift-click the loose dagger to pick it up."
+autowrap_mode = 3

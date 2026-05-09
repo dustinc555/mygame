@@ -22,7 +22,7 @@ const SITTING_ENTER_ANIMATION_NAME := "Sitting_Enter"
 const SITTING_IDLE_ANIMATION_NAME := "Sitting_Idle"
 const SITTING_TALKING_ANIMATION_NAME := "Sitting_Talking"
 const SITTING_EXIT_ANIMATION_NAME := "Sitting_Exit"
-const IDLE_ANIMATION_NAMES := [IDLE_ANIMATION_NAME, FOLD_ARMS_IDLE_ANIMATION_NAME]
+const IDLE_ANIMATION_NAMES := [IDLE_ANIMATION_NAME]
 const IDLE_ANIMATION_MIN_SECONDS := 4.0
 const IDLE_ANIMATION_MAX_SECONDS := 8.0
 const SITTING_IDLE_MIN_SECONDS := 5.0
@@ -30,6 +30,22 @@ const SITTING_IDLE_MAX_SECONDS := 11.0
 const SITTING_TALKING_CHANCE := 0.28
 const MOVE_ANIMATION_BLEND_SECONDS := 0.12
 const SPRINT_ANIMATION_SPEED_RATIO := 0.82
+const EQUIPMENT_SLOTS: Array[String] = ["head", "chest", "backpack", "legs", "gloves", "feet", "weapon", "offhand"]
+const EQUIPMENT_SLOT_LABELS := {
+	"head": "Head",
+	"chest": "Chest",
+	"backpack": "Backpack",
+	"legs": "Legs",
+	"gloves": "Gloves",
+	"feet": "Feet",
+	"weapon": "Weapon",
+	"offhand": "Offhand",
+}
+const CLOTHING_EQUIPMENT_SLOTS := ["head", "chest", "backpack", "legs", "gloves", "feet"]
+const BONE_EQUIPMENT_SLOTS := {
+	"weapon": "hand_r",
+	"offhand": "hand_l",
+}
 
 enum OrderType {
 	NONE,
@@ -45,6 +61,7 @@ enum OrderType {
 	SLEEP,
 	PLACE_IN_BED,
 	SIT,
+	PICKUP_ITEM,
 }
 
 enum VisualBodyType {
@@ -79,13 +96,14 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var stable_id := ""
 @export var interact_distance := 1.8
 @export var inventory_columns := 10
-@export var inventory_rows := 6
+@export var inventory_rows := 4
 @export var max_carry_weight := 60.0
 @export var show_inventory_weight := true
 @export var overhead_text_height := 2.4
 @export var show_nameplate := true
 @export_enum("Auto", "None", "Male", "Female") var visual_body_type: int = VisualBodyType.AUTO
 @export var starting_items: Array[Resource] = []
+@export var starting_equipment: Array[Resource] = []
 
 @export var faction_name := "Player"
 @export var squad_name := "Default"
@@ -142,9 +160,11 @@ var _current_carry_target: HumanoidCharacter
 var _current_sleep_target
 var _current_place_bed_target
 var _current_seat_target
+var _current_pickup_item
 var _current_seat_stand_position: Variant = null
 var _carried_by: HumanoidCharacter
 var _carried_character: HumanoidCharacter
+var equipped_items: Dictionary = {}
 
 var _current_blunt_damage := 0.0
 var _current_open_cut_damage := 0.0
@@ -168,6 +188,7 @@ var _nameplate: Label3D
 var _inspect_ring: MeshInstance3D
 var _inspect_ring_material := StandardMaterial3D.new()
 var _character_animation_player: AnimationPlayer
+var _character_animation_players: Array[AnimationPlayer] = []
 var _current_character_animation := ""
 var _idle_animation_change_remaining := 0.0
 var _sitting_enter_animation_remaining := 0.0
@@ -195,6 +216,7 @@ func _ready() -> void:
 	inventory = InventoryData.new(inventory_columns, inventory_rows, max_carry_weight, true)
 	inventory.changed.connect(_on_inventory_data_changed)
 	_seed_starting_inventory()
+	_seed_starting_equipment()
 	_setup_nameplate()
 	_setup_inspect_ring()
 	_setup_character_visual()
@@ -253,6 +275,8 @@ func _physics_process(delta: float) -> void:
 			_process_place_in_bed_interaction()
 		OrderType.SIT:
 			_process_seat_interaction()
+		OrderType.PICKUP_ITEM:
+			_process_pickup_interaction()
 
 
 func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
@@ -366,6 +390,12 @@ func stop_seat_assignment() -> void:
 		velocity = Vector3.ZERO
 		state_changed.emit()
 	if _current_order_type == OrderType.SIT:
+		_current_order_type = OrderType.NONE
+
+
+func stop_pickup_assignment() -> void:
+	_current_pickup_item = null
+	if _current_order_type == OrderType.PICKUP_ITEM:
 		_current_order_type = OrderType.NONE
 
 
@@ -510,6 +540,19 @@ func assign_seat_target(seat, issued_by_player: bool = true) -> void:
 		_set_actor_move_target(seat.get_interaction_position(self))
 
 
+func assign_pickup_item(world_item, issued_by_player: bool = true) -> void:
+	if world_item == null or not is_instance_valid(world_item):
+		return
+	if life_state != NpcRules.LifeState.ALIVE:
+		return
+	_set_order(OrderType.PICKUP_ITEM, issued_by_player)
+	_current_pickup_item = world_item
+	if world_item.has_method("get_pickup_position"):
+		_set_actor_move_target(world_item.get_pickup_position(self))
+	else:
+		_set_actor_move_target(world_item.global_position)
+
+
 func wake_up_from_rest(show_notice: bool = true) -> void:
 	var did_wake := life_state == NpcRules.LifeState.ASLEEP
 	var did_stand := _is_sitting
@@ -632,6 +675,60 @@ func can_transfer_display_inventory_to(_target_owner) -> bool:
 
 func can_receive_inventory_transfer_from(_source_owner) -> bool:
 	return not is_displaying_work_inventory()
+
+
+func get_equipment_slot_names() -> Array[String]:
+	return EQUIPMENT_SLOTS.duplicate()
+
+
+func get_equipment_slot_label(slot_name: String) -> String:
+	return str(EQUIPMENT_SLOT_LABELS.get(slot_name, slot_name.capitalize()))
+
+
+func get_equipped_item(slot_name: String) -> ItemDefinition:
+	return equipped_items.get(slot_name) as ItemDefinition
+
+
+func can_equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> bool:
+	if definition == null or not definition.is_equippable():
+		return false
+	if not EQUIPMENT_SLOTS.has(slot_name):
+		return false
+	return definition.can_equip_to_slot(slot_name)
+
+
+func equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> ItemDefinition:
+	if not can_equip_item_to_slot(definition, slot_name):
+		return null
+	var previous := get_equipped_item(slot_name)
+	equipped_items[slot_name] = definition
+	_rebuild_character_visual_for_equipment()
+	inventory_changed.emit()
+	state_changed.emit()
+	return previous
+
+
+func unequip_item_from_slot(slot_name: String) -> ItemDefinition:
+	var previous := get_equipped_item(slot_name)
+	if previous == null:
+		return null
+	equipped_items.erase(slot_name)
+	_rebuild_character_visual_for_equipment()
+	inventory_changed.emit()
+	state_changed.emit()
+	return previous
+
+
+func has_equipment() -> bool:
+	return not equipped_items.is_empty()
+
+
+func get_equipped_weight() -> float:
+	var total := 0.0
+	for item in equipped_items.values():
+		if item is ItemDefinition:
+			total += (item as ItemDefinition).unit_weight
+	return total
 
 
 func can_eat_inventory_entry(entry) -> bool:
@@ -1060,6 +1157,8 @@ func _on_actor_move_target_unreachable() -> void:
 			stop_place_in_bed_assignment()
 		OrderType.SIT:
 			stop_seat_assignment()
+		OrderType.PICKUP_ITEM:
+			stop_pickup_assignment()
 
 
 func _process_downed_movement(delta: float) -> void:
@@ -1151,6 +1250,8 @@ func _process_ai(delta: float) -> void:
 		stop_carry_assignment()
 	if _current_order_type == OrderType.PLACE_IN_BED and (_current_place_bed_target == null or not is_instance_valid(_current_place_bed_target) or _carried_character == null or not is_instance_valid(_carried_character)):
 		stop_place_in_bed_assignment()
+	if _current_order_type == OrderType.PICKUP_ITEM and (_current_pickup_item == null or not is_instance_valid(_current_pickup_item)):
+		stop_pickup_assignment()
 	if _current_order_type == OrderType.ATTACK and (_current_attack_target == null or not is_instance_valid(_current_attack_target) or _current_attack_target.life_state != NpcRules.LifeState.ALIVE):
 		stop_attack_assignment()
 	_ai_tick_remaining -= delta
@@ -1436,6 +1537,22 @@ func _process_carry_interaction() -> void:
 	stop_carry_assignment()
 
 
+func _process_pickup_interaction() -> void:
+	if _current_pickup_item == null or not is_instance_valid(_current_pickup_item):
+		stop_pickup_assignment()
+		return
+	var pickup_position: Vector3 = _current_pickup_item.global_position
+	if _current_pickup_item.has_method("get_pickup_position"):
+		pickup_position = _current_pickup_item.get_pickup_position(self)
+	if global_position.distance_to(pickup_position) > interact_distance:
+		_set_actor_move_target(pickup_position)
+		return
+	_clear_actor_move_target()
+	if _current_pickup_item.has_method("try_pickup"):
+		_current_pickup_item.try_pickup(self)
+	stop_pickup_assignment()
+
+
 func _get_stored_mining_progress(resource_node) -> float:
 	return _mining_progress_by_node.get(resource_node.get_instance_id(), 0.0)
 
@@ -1527,7 +1644,7 @@ func _setup_nameplate() -> void:
 		_nameplate.name = "Nameplate"
 		add_child(_nameplate)
 	_nameplate.text = member_name
-	_nameplate.position = Vector3(0.0, 2.15, 0.0)
+	_nameplate.position = Vector3(0.0, overhead_text_height, 0.0)
 	_nameplate.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_nameplate.no_depth_test = false
 	_nameplate.font_size = 50
@@ -1564,6 +1681,9 @@ func _setup_character_visual() -> void:
 	var old_visual := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
 	if old_visual != null:
 		old_visual.free()
+	_character_animation_player = null
+	_character_animation_players.clear()
+	_current_character_animation = ""
 
 	var body_mesh := get_node_or_null("BodyMesh") as MeshInstance3D
 	if body_mesh == null:
@@ -1587,9 +1707,81 @@ func _setup_character_visual() -> void:
 	visual_root.name = CHARACTER_VISUAL_NODE_NAME
 	add_child(visual_root)
 	visual_root.add_child(model_root)
-	_fit_visual_to_body_mesh(visual_root, body_mesh)
+	var visual_fit_scale := _fit_visual_to_body_mesh(visual_root, body_mesh)
 	_setup_character_animation(model_root)
+	_setup_equipped_clothing_visuals(visual_root, resolved_body_type, body_mesh, visual_fit_scale)
+	_setup_equipped_bone_visuals(visual_root)
+	_play_random_idle_animation(true)
 	body_mesh.visible = false
+
+
+func _rebuild_character_visual_for_equipment() -> void:
+	if not is_inside_tree():
+		return
+	_setup_character_visual()
+
+
+func _has_equipped_clothing_visuals() -> bool:
+	for slot_name in CLOTHING_EQUIPMENT_SLOTS:
+		var item := get_equipped_item(slot_name)
+		if item != null and item.get_equipped_scene_for_body_type(_resolve_visual_body_type()) != null:
+			return true
+	return false
+
+
+func _setup_equipped_clothing_visuals(visual_root: Node3D, body_type: int, body_mesh: MeshInstance3D, visual_fit_scale: float) -> void:
+	var surface_offset_base := _get_clothing_surface_offset_base(body_mesh, visual_fit_scale)
+	for slot_name in CLOTHING_EQUIPMENT_SLOTS:
+		var item := get_equipped_item(slot_name)
+		if item == null:
+			continue
+		var equipped_scene := item.get_equipped_scene_for_body_type(body_type)
+		if equipped_scene == null:
+			continue
+		var instance := equipped_scene.instantiate()
+		if not (instance is Node3D):
+			instance.queue_free()
+			continue
+		var model_root := instance as Node3D
+		model_root.name = "Equipped_%s" % slot_name.capitalize()
+		model_root.transform = Transform3D(Basis(Vector3.UP, CHARACTER_VISUAL_YAW_OFFSET), Vector3.ZERO) * item.equipped_transform
+		_inflate_clothing_visual(model_root, surface_offset_base * item.equipped_surface_offset_ratio)
+		visual_root.add_child(model_root)
+		_setup_character_animation(model_root)
+
+
+func _setup_equipped_bone_visuals(visual_root: Node3D) -> void:
+	var skeleton := _find_skeleton(visual_root)
+	if skeleton == null:
+		return
+	for slot_name in BONE_EQUIPMENT_SLOTS.keys():
+		var item := get_equipped_item(slot_name)
+		if item == null:
+			continue
+		var equipped_scene := item.get_equipped_scene_for_body_type(_resolve_visual_body_type())
+		if equipped_scene == null:
+			continue
+		var bone_name := str(BONE_EQUIPMENT_SLOTS[slot_name])
+		if skeleton.find_bone(bone_name) < 0:
+			continue
+		var attachment := BoneAttachment3D.new()
+		attachment.name = "Equipped%sAttachment" % slot_name.capitalize()
+		attachment.bone_name = bone_name
+		skeleton.add_child(attachment)
+		var instance := equipped_scene.instantiate()
+		attachment.add_child(instance)
+		if instance is Node3D:
+			(instance as Node3D).transform = item.equipped_transform
+
+
+func _find_skeleton(root: Node) -> Skeleton3D:
+	if root is Skeleton3D:
+		return root as Skeleton3D
+	for child in root.get_children():
+		var skeleton := _find_skeleton(child)
+		if skeleton != null:
+			return skeleton
+	return null
 
 
 func _resolve_visual_body_type() -> int:
@@ -1616,11 +1808,11 @@ func _get_character_visual_scene(body_type: int) -> PackedScene:
 	return null
 
 
-func _fit_visual_to_body_mesh(visual_root: Node3D, body_mesh: MeshInstance3D) -> void:
+func _fit_visual_to_body_mesh(visual_root: Node3D, body_mesh: MeshInstance3D) -> float:
 	var body_bounds := _calculate_local_mesh_bounds(body_mesh)
 	var visual_bounds := _calculate_local_mesh_bounds(visual_root)
 	if body_bounds.size.y <= 0.001 or visual_bounds.size.y <= 0.001:
-		return
+		return 1.0
 
 	var fit_scale := body_bounds.size.y / visual_bounds.size.y
 	var body_center := body_bounds.position + body_bounds.size * 0.5
@@ -1632,6 +1824,43 @@ func _fit_visual_to_body_mesh(visual_root: Node3D, body_mesh: MeshInstance3D) ->
 		visual_ground_y - visual_bounds.position.y * fit_scale,
 		body_center.z - visual_center.z * fit_scale
 	)
+	return fit_scale
+
+
+func _get_clothing_surface_offset_base(body_mesh: MeshInstance3D, visual_fit_scale: float) -> float:
+	var body_bounds := _calculate_local_mesh_bounds(body_mesh)
+	if body_bounds.size.y <= 0.001:
+		return 0.0
+	return body_bounds.size.y / maxf(visual_fit_scale, 0.001)
+
+
+func _inflate_clothing_visual(root: Node, surface_offset: float) -> void:
+	if surface_offset <= 0.0:
+		return
+	if root is MeshInstance3D:
+		_inflate_mesh_instance(root as MeshInstance3D, surface_offset)
+	for child in root.get_children():
+		_inflate_clothing_visual(child, surface_offset)
+
+
+func _inflate_mesh_instance(mesh_instance: MeshInstance3D, surface_offset: float) -> void:
+	if mesh_instance.mesh == null or not (mesh_instance.mesh is ArrayMesh):
+		return
+	var source_mesh := mesh_instance.mesh as ArrayMesh
+	var inflated_mesh := ArrayMesh.new()
+	for surface_index in range(source_mesh.get_surface_count()):
+		var arrays := source_mesh.surface_get_arrays(surface_index)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		if not vertices.is_empty() and normals.size() == vertices.size():
+			for vertex_index in range(vertices.size()):
+				var normal := normals[vertex_index]
+				if normal.length_squared() > 0.0001:
+					vertices[vertex_index] += normal.normalized() * surface_offset
+			arrays[Mesh.ARRAY_VERTEX] = vertices
+		inflated_mesh.add_surface_from_arrays(source_mesh.surface_get_primitive_type(surface_index), arrays)
+		inflated_mesh.surface_set_material(surface_index, source_mesh.surface_get_material(surface_index))
+	mesh_instance.mesh = inflated_mesh
 
 
 func _get_visual_ground_y(fallback_y: float) -> float:
@@ -1668,22 +1897,19 @@ func _get_collision_shape_local_bounds(collision_shape: CollisionShape3D) -> AAB
 
 
 func _setup_character_animation(model_root: Node3D) -> void:
-	_current_character_animation = ""
-	_idle_animation_change_remaining = 0.0
-	_character_animation_player = null
-
-	_character_animation_player = AnimationPlayer.new()
-	_character_animation_player.name = CHARACTER_ANIMATION_PLAYER_NAME
-	_character_animation_player.root_node = NodePath("..")
-	model_root.add_child(_character_animation_player)
+	var animation_player := AnimationPlayer.new()
+	animation_player.name = CHARACTER_ANIMATION_PLAYER_NAME
+	animation_player.root_node = NodePath("..")
+	model_root.add_child(animation_player)
 	var animation_library := AnimationLibrary.new()
 	_copy_character_animations(animation_library)
 	if animation_library.get_animation_list().is_empty():
-		_character_animation_player.queue_free()
-		_character_animation_player = null
+		animation_player.queue_free()
 		return
-	_character_animation_player.add_animation_library("", animation_library)
-	_play_random_idle_animation(true)
+	animation_player.add_animation_library("", animation_library)
+	_character_animation_players.append(animation_player)
+	if _character_animation_player == null:
+		_character_animation_player = animation_player
 
 
 func _copy_character_animations(animation_library: AnimationLibrary) -> void:
@@ -1800,6 +2026,8 @@ func _play_random_idle_animation(force: bool) -> void:
 
 func _get_available_idle_animation_names() -> Array[String]:
 	var idle_names: Array[String] = []
+	if _character_animation_player == null:
+		return idle_names
 	for animation_name_value in IDLE_ANIMATION_NAMES:
 		var animation_name := String(animation_name_value)
 		if _character_animation_player.has_animation(animation_name):
@@ -1903,12 +2131,15 @@ func _play_character_animation(animation_name: String, speed_ratio: float = 0.0)
 	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
 		return false
 	var custom_speed := _get_character_animation_speed(animation_name, speed_ratio)
-	if _current_character_animation == animation_name and _character_animation_player.is_playing():
-		_character_animation_player.speed_scale = custom_speed
-		return true
+	var already_current := _current_character_animation == animation_name
 	_current_character_animation = animation_name
-	_character_animation_player.speed_scale = custom_speed
-	_character_animation_player.play(animation_name, MOVE_ANIMATION_BLEND_SECONDS)
+	for animation_player in _character_animation_players:
+		if animation_player == null or not animation_player.has_animation(animation_name):
+			continue
+		animation_player.speed_scale = custom_speed
+		if already_current and animation_player.is_playing():
+			continue
+		animation_player.play(animation_name, MOVE_ANIMATION_BLEND_SECONDS)
 	return true
 
 
@@ -2000,12 +2231,29 @@ func _cancel_non_matching_assignments(next_order_type: int) -> void:
 		stop_place_in_bed_assignment()
 	if next_order_type != OrderType.SIT:
 		stop_seat_assignment()
+	if next_order_type != OrderType.PICKUP_ITEM:
+		stop_pickup_assignment()
 
 
 func _seed_starting_inventory() -> void:
 	for stock in starting_items:
 		if stock != null and stock.item_definition != null and stock.quantity > 0:
 			inventory.add_item_count(stock.item_definition, stock.quantity)
+
+
+func _seed_starting_equipment() -> void:
+	for stock in starting_equipment:
+		if stock == null:
+			continue
+		var item_definition: ItemDefinition = null
+		if stock is ItemDefinition:
+			item_definition = stock
+		elif stock.get("item_definition") is ItemDefinition:
+			item_definition = stock.item_definition
+		if item_definition == null or not item_definition.is_equippable():
+			continue
+		if get_equipped_item(item_definition.equip_slot) == null:
+			equipped_items[item_definition.equip_slot] = item_definition
 
 
 func _recalculate_vitals() -> void:
@@ -2102,6 +2350,13 @@ func _collect_stat_modifiers() -> Array:
 		modifiers.append({"stat": "move_speed_multiplier", "mul": 0.65})
 	if is_carrying_someone():
 		modifiers.append({"stat": "move_speed_multiplier", "mul": carry_move_speed_multiplier})
+	for item in equipped_items.values():
+		if not (item is ItemDefinition):
+			continue
+		for modifier in (item as ItemDefinition).stat_modifiers:
+			if modifier == null:
+				continue
+			modifiers.append(modifier.to_modifier_dictionary())
 	return modifiers
 
 
@@ -2285,6 +2540,7 @@ func _clear_all_active_orders() -> void:
 	stop_sleep_assignment()
 	stop_place_in_bed_assignment()
 	stop_seat_assignment()
+	stop_pickup_assignment()
 	_current_order_type = OrderType.NONE
 	_clear_actor_move_target()
 
