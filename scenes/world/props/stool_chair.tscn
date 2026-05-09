@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/props/sittable_seat.gd" id="1_seat"]
 
@@ -7,29 +7,33 @@ albedo_color = Color(0.46, 0.27, 0.14, 1)
 roughness = 0.9
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_seat"]
-top_radius = 0.42
-bottom_radius = 0.42
+top_radius = 0.34
+bottom_radius = 0.34
 height = 0.12
 radial_segments = 16
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_seat"]
-radius = 0.42
+radius = 0.34
 height = 0.12
 
 [sub_resource type="BoxMesh" id="BoxMesh_leg"]
 size = Vector3(0.12, 0.55, 0.12)
 
+[sub_resource type="BoxMesh" id="BoxMesh_back_post"]
+size = Vector3(0.08, 0.64, 0.08)
+
 [sub_resource type="BoxShape3D" id="BoxShape3D_stool"]
-size = Vector3(0.9, 0.7, 0.9)
+size = Vector3(0.68, 0.7, 0.68)
 
 [sub_resource type="BoxMesh" id="BoxMesh_back"]
-size = Vector3(0.75, 0.75, 0.1)
+size = Vector3(0.58, 0.7, 0.08)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_back"]
-size = Vector3(0.75, 0.75, 0.1)
+size = Vector3(0.58, 0.7, 0.08)
 
 [node name="StoolChair" type="StaticBody3D"]
 script = ExtResource("1_seat")
+seated_floor_local_offset = Vector3(0, 0.08, 0.36)
 
 [node name="Seat" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
@@ -41,28 +45,38 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
 shape = SubResource("CylinderShape3D_seat")
 
 [node name="LegFrontLeft" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.25, 0.3, 0.25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, 0.2)
 mesh = SubResource("BoxMesh_leg")
 material_override = SubResource("StandardMaterial3D_wood")
 
 [node name="LegFrontRight" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.25, 0.3, 0.25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, 0.2)
 mesh = SubResource("BoxMesh_leg")
 material_override = SubResource("StandardMaterial3D_wood")
 
 [node name="LegBackLeft" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.25, 0.3, -0.25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, -0.2)
 mesh = SubResource("BoxMesh_leg")
 material_override = SubResource("StandardMaterial3D_wood")
 
 [node name="LegBackRight" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.25, 0.3, -0.25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, -0.2)
 mesh = SubResource("BoxMesh_leg")
 material_override = SubResource("StandardMaterial3D_wood")
 
 [node name="Back" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, -0.36)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
 mesh = SubResource("BoxMesh_back")
+material_override = SubResource("StandardMaterial3D_wood")
+
+[node name="BackPostLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.24, 0.64, -0.34)
+mesh = SubResource("BoxMesh_back_post")
+material_override = SubResource("StandardMaterial3D_wood")
+
+[node name="BackPostRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.24, 0.64, -0.34)
+mesh = SubResource("BoxMesh_back_post")
 material_override = SubResource("StandardMaterial3D_wood")
 
 [node name="BodyCollision" type="CollisionShape3D" parent="."]
@@ -70,5 +84,5 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
 shape = SubResource("BoxShape3D_stool")
 
 [node name="BackCollision" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, -0.36)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
 shape = SubResource("BoxShape3D_back")

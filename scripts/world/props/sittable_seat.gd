@@ -3,7 +3,8 @@ extends StaticBody3D
 class_name SittableSeat
 
 @export var interaction_local_offset := Vector3(0.0, 0.0, 0.9)
-@export var seat_local_offset := Vector3(0.0, 0.72, 0.0)
+@export var seated_floor_local_offset := Vector3.ZERO
+@export var seated_yaw_offset_degrees := 180.0
 @export var stand_local_offset := Vector3(0.0, 0.0, 1.15)
 @export var sit_arrival_distance := 3.0
 
@@ -22,12 +23,15 @@ func get_interaction_position(_member: HumanoidCharacter) -> Vector3:
 	return global_transform * interaction_local_offset
 
 
-func get_seat_position() -> Vector3:
-	return global_transform * seat_local_offset
+func get_seat_position(member: HumanoidCharacter = null) -> Vector3:
+	var seated_floor_position := global_transform * seated_floor_local_offset
+	if member != null:
+		return member.get_floor_aligned_origin_position(seated_floor_position)
+	return seated_floor_position
 
 
-func get_seat_rotation() -> Vector3:
-	return Vector3(0.0, global_rotation.y, 0.0)
+func get_seat_rotation(_member: HumanoidCharacter = null) -> Vector3:
+	return Vector3(0.0, global_rotation.y + deg_to_rad(seated_yaw_offset_degrees), 0.0)
 
 
 func get_stand_position() -> Vector3:
@@ -43,7 +47,7 @@ func can_sit_from_position(world_position: Vector3) -> bool:
 
 
 func get_sit_distance_to(world_position: Vector3) -> float:
-	var seat_position := get_seat_position()
+	var seat_position := global_transform * seated_floor_local_offset
 	var flat_delta := Vector3(world_position.x - seat_position.x, 0.0, world_position.z - seat_position.z)
 	return flat_delta.length()
 
@@ -102,3 +106,7 @@ func mark_service_requested() -> void:
 func mark_service_completed() -> void:
 	_service_requested = false
 	_service_completed = true
+
+
+func should_use_sitting_talking_idle(member: HumanoidCharacter) -> bool:
+	return _bar_venue != null and member != null and not member.is_player_party_member()

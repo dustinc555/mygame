@@ -18,9 +18,16 @@ const CROUCH_IDLE_ANIMATION_NAME := "Crouch_Idle"
 const CROUCH_WALK_ANIMATION_NAME := "Crouch_Fwd"
 const JOG_ANIMATION_NAME := "Jog_Fwd"
 const SPRINT_ANIMATION_NAME := "Sprint"
+const SITTING_ENTER_ANIMATION_NAME := "Sitting_Enter"
+const SITTING_IDLE_ANIMATION_NAME := "Sitting_Idle"
+const SITTING_TALKING_ANIMATION_NAME := "Sitting_Talking"
+const SITTING_EXIT_ANIMATION_NAME := "Sitting_Exit"
 const IDLE_ANIMATION_NAMES := [IDLE_ANIMATION_NAME, FOLD_ARMS_IDLE_ANIMATION_NAME]
 const IDLE_ANIMATION_MIN_SECONDS := 4.0
 const IDLE_ANIMATION_MAX_SECONDS := 8.0
+const SITTING_IDLE_MIN_SECONDS := 5.0
+const SITTING_IDLE_MAX_SECONDS := 11.0
+const SITTING_TALKING_CHANCE := 0.28
 const MOVE_ANIMATION_BLEND_SECONDS := 0.12
 const SPRINT_ANIMATION_SPEED_RATIO := 0.82
 
@@ -163,6 +170,9 @@ var _inspect_ring_material := StandardMaterial3D.new()
 var _character_animation_player: AnimationPlayer
 var _current_character_animation := ""
 var _idle_animation_change_remaining := 0.0
+var _sitting_enter_animation_remaining := 0.0
+var _sitting_exit_animation_remaining := 0.0
+var _sitting_idle_change_remaining := 0.0
 var _rng := RandomNumberGenerator.new()
 var _work_inventory_override: InventoryData
 var _active_job_provider
@@ -337,6 +347,7 @@ func _release_sleep_target_without_waking() -> void:
 
 
 func stop_seat_assignment() -> void:
+	var did_stop_sitting := _is_sitting
 	if _is_sitting and _current_seat_target != null:
 		if _current_seat_stand_position != null:
 			global_position = _current_seat_stand_position
@@ -348,8 +359,9 @@ func stop_seat_assignment() -> void:
 		_current_seat_target.release_sitter(self)
 	_current_seat_target = null
 	_current_seat_stand_position = null
-	if _is_sitting:
+	if did_stop_sitting:
 		_is_sitting = false
+		_start_sitting_exit_animation()
 		rotation = Vector3(0.0, rotation.y, 0.0)
 		velocity = Vector3.ZERO
 		state_changed.emit()
@@ -527,6 +539,18 @@ func wake_up_from_rest(show_notice: bool = true) -> void:
 
 func is_sitting() -> bool:
 	return _is_sitting
+
+
+func get_floor_aligned_origin_position(floor_position: Vector3) -> Vector3:
+	return Vector3(floor_position.x, floor_position.y - get_collision_bottom_local_y(), floor_position.z)
+
+
+func get_collision_bottom_local_y() -> float:
+	var collision_shape := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if collision_shape == null or collision_shape.shape == null:
+		return 0.0
+	var shape_bounds := _get_collision_shape_local_bounds(collision_shape)
+	return shape_bounds.position.y if shape_bounds.size.y > 0.001 else 0.0
 
 
 func has_mining_assignment() -> bool:
@@ -1321,13 +1345,14 @@ func _process_seat_interaction() -> void:
 		_show_world_notice("Seat occupied", Color(1.0, 0.78, 0.38, 1.0))
 		stop_seat_assignment()
 		return
-	global_position = _current_seat_target.get_seat_position()
-	rotation = _current_seat_target.get_seat_rotation()
+	global_position = _current_seat_target.get_seat_position(self)
+	rotation = _current_seat_target.get_seat_rotation(self)
 	velocity = Vector3.ZERO
 	running = false
 	sneaking = false
 	_clear_actor_move_target()
 	_is_sitting = true
+	_start_sitting_enter_animation()
 	_current_order_type = OrderType.NONE
 	_show_world_notice("Sitting", Color(0.55, 0.72, 1.0, 1.0))
 	state_changed.emit()
@@ -1671,6 +1696,10 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 		_copy_animation(ual1_player, animation_library, CROUCH_WALK_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, JOG_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, SPRINT_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, SITTING_ENTER_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, SITTING_IDLE_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, SITTING_TALKING_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, SITTING_EXIT_ANIMATION_NAME)
 	ual1_source.queue_free()
 
 	var ual2_source := UAL2_ANIMATION_SOURCE_SCENE.instantiate()
@@ -1703,7 +1732,14 @@ func _find_animation_player(root: Node) -> AnimationPlayer:
 func _update_character_animation(delta: float) -> void:
 	if _character_animation_player == null:
 		return
-	if life_state != NpcRules.LifeState.ALIVE or _is_sitting or _carried_by != null:
+	if _is_sitting:
+		_update_sitting_character_animation(delta)
+		return
+	if _sitting_exit_animation_remaining > 0.0 and not _has_move_target:
+		_update_sitting_exit_animation(delta)
+		return
+	_sitting_exit_animation_remaining = 0.0
+	if life_state != NpcRules.LifeState.ALIVE or _carried_by != null:
 		_update_idle_character_animation(delta)
 		return
 	var horizontal_speed := Vector2(velocity.x, velocity.z).length()
@@ -1779,16 +1815,101 @@ func _reset_idle_animation_timer() -> void:
 	_idle_animation_change_remaining = _rng.randf_range(IDLE_ANIMATION_MIN_SECONDS, IDLE_ANIMATION_MAX_SECONDS)
 
 
-func _play_character_animation(animation_name: String, speed_ratio: float = 0.0) -> void:
-	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
+func _start_sitting_enter_animation() -> void:
+	_sitting_exit_animation_remaining = 0.0
+	_sitting_idle_change_remaining = 0.0
+	if _play_character_animation(SITTING_ENTER_ANIMATION_NAME):
+		_sitting_enter_animation_remaining = _get_character_animation_length(SITTING_ENTER_ANIMATION_NAME)
+	else:
+		_sitting_enter_animation_remaining = 0.0
+		_play_sitting_idle_animation(true)
+
+
+func _start_sitting_exit_animation() -> void:
+	_sitting_enter_animation_remaining = 0.0
+	_sitting_idle_change_remaining = 0.0
+	if _play_character_animation(SITTING_EXIT_ANIMATION_NAME):
+		_sitting_exit_animation_remaining = _get_character_animation_length(SITTING_EXIT_ANIMATION_NAME)
+	else:
+		_sitting_exit_animation_remaining = 0.0
+
+
+func _update_sitting_character_animation(delta: float) -> void:
+	velocity = Vector3.ZERO
+	if _sitting_enter_animation_remaining > 0.0:
+		_sitting_enter_animation_remaining -= delta
+		if _sitting_enter_animation_remaining > 0.0:
+			_play_character_animation(SITTING_ENTER_ANIMATION_NAME)
+			return
+		_sitting_enter_animation_remaining = 0.0
+		_play_sitting_idle_animation(true)
 		return
+	if not _is_sitting_idle_animation(_current_character_animation) or not _character_animation_player.is_playing():
+		_play_sitting_idle_animation(true)
+		return
+	_sitting_idle_change_remaining -= delta
+	if _sitting_idle_change_remaining <= 0.0:
+		_play_sitting_idle_animation(false)
+
+
+func _update_sitting_exit_animation(delta: float) -> void:
+	_sitting_exit_animation_remaining = maxf(0.0, _sitting_exit_animation_remaining - delta)
+	if _sitting_exit_animation_remaining > 0.0:
+		_play_character_animation(SITTING_EXIT_ANIMATION_NAME)
+
+
+func _play_sitting_idle_animation(force: bool) -> void:
+	if _character_animation_player == null:
+		return
+	var animation_name := SITTING_IDLE_ANIMATION_NAME
+	if _should_use_sitting_talking_idle() and _rng.randf() <= SITTING_TALKING_CHANCE:
+		animation_name = SITTING_TALKING_ANIMATION_NAME
+	if not _character_animation_player.has_animation(animation_name):
+		animation_name = SITTING_IDLE_ANIMATION_NAME
+	if not _character_animation_player.has_animation(animation_name):
+		return
+	if not force and animation_name == _current_character_animation and animation_name == SITTING_TALKING_ANIMATION_NAME:
+		animation_name = SITTING_IDLE_ANIMATION_NAME
+	_play_character_animation(animation_name)
+	_reset_sitting_idle_animation_timer()
+
+
+func _should_use_sitting_talking_idle() -> bool:
+	if _current_seat_target == null or not is_instance_valid(_current_seat_target):
+		return false
+	if player_party_member:
+		return false
+	if not _current_seat_target.has_method("should_use_sitting_talking_idle"):
+		return false
+	return bool(_current_seat_target.should_use_sitting_talking_idle(self))
+
+
+func _is_sitting_idle_animation(animation_name: String) -> bool:
+	return animation_name == SITTING_IDLE_ANIMATION_NAME or animation_name == SITTING_TALKING_ANIMATION_NAME
+
+
+func _reset_sitting_idle_animation_timer() -> void:
+	_sitting_idle_change_remaining = _rng.randf_range(SITTING_IDLE_MIN_SECONDS, SITTING_IDLE_MAX_SECONDS)
+
+
+func _get_character_animation_length(animation_name: String) -> float:
+	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
+		return 0.0
+	var animation := _character_animation_player.get_animation(animation_name)
+	return animation.length if animation != null else 0.0
+
+
+func _play_character_animation(animation_name: String, speed_ratio: float = 0.0) -> bool:
+	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
+		return false
 	var custom_speed := _get_character_animation_speed(animation_name, speed_ratio)
 	if _current_character_animation == animation_name and _character_animation_player.is_playing():
 		_character_animation_player.speed_scale = custom_speed
-		return
+		return true
 	_current_character_animation = animation_name
 	_character_animation_player.speed_scale = custom_speed
 	_character_animation_player.play(animation_name, MOVE_ANIMATION_BLEND_SECONDS)
+	return true
 
 
 func _get_character_animation_speed(animation_name: String, speed_ratio: float) -> float:
