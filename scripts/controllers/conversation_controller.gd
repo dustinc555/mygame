@@ -189,8 +189,7 @@ func _execute_action(effect) -> void:
 	match effect.action_id:
 		"core.start_trade":
 			if inventory_controller != null and active_speaker != null and active_target != null:
-				inventory_controller.open_inventory_for_owner(active_speaker)
-				inventory_controller.open_inventory_for_owner(active_target)
+				inventory_controller.open_inventory_pair(active_speaker, active_target)
 		"bar.start_venue_trade":
 			if inventory_controller != null and active_speaker != null and active_target != null:
 				var venue := _resolve_bar_venue(active_target)
@@ -200,8 +199,7 @@ func _execute_action(effect) -> void:
 					return
 				if venue.has_method("set_trade_proxy_position"):
 					venue.set_trade_proxy_position(active_target.global_position)
-				inventory_controller.open_inventory_for_owner(active_speaker)
-				inventory_controller.open_inventory_for_owner(venue)
+				inventory_controller.open_inventory_pair(active_speaker, venue)
 		"core.start_combat":
 			if active_target == null:
 				return

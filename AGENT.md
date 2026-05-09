@@ -5,6 +5,7 @@
 - Follow `scenes/test_levels/AGENT.md` when working in those scenes.
 
 ## Architecture Rules
+- Before editing, search for all applicable `AGENT.md` files in the project and follow the most specific guidance for the files being touched.
 - Scenes are composition only. Test/demo scenes place content and shared anchor nodes; they do not own gameplay features.
 - Bootstrap owns systems. Shared gameplay, UI, and controller wiring must live in `GameBootstrap` or another reusable bootstrap layer.
 - No scene-specific feature logic. If a feature only works in one demo scene, stop and refactor it into a reusable system before continuing.

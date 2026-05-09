@@ -1761,17 +1761,29 @@ func _setup_equipped_bone_visuals(visual_root: Node3D) -> void:
 		var equipped_scene := item.get_equipped_scene_for_body_type(_resolve_visual_body_type())
 		if equipped_scene == null:
 			continue
-		var bone_name := str(BONE_EQUIPMENT_SLOTS[slot_name])
+		var bone_name := _get_equipment_attachment_bone(item, slot_name)
+		if bone_name.is_empty():
+			continue
 		if skeleton.find_bone(bone_name) < 0:
 			continue
 		var attachment := BoneAttachment3D.new()
 		attachment.name = "Equipped%sAttachment" % slot_name.capitalize()
 		attachment.bone_name = bone_name
 		skeleton.add_child(attachment)
+		var pivot := Node3D.new()
+		pivot.name = "Equipped%sPivot" % slot_name.capitalize()
+		pivot.transform = item.equipped_transform
+		attachment.add_child(pivot)
 		var instance := equipped_scene.instantiate()
-		attachment.add_child(instance)
-		if instance is Node3D:
-			(instance as Node3D).transform = item.equipped_transform
+		pivot.add_child(instance)
+
+
+func _get_equipment_attachment_bone(item: ItemDefinition, slot_name: String) -> String:
+	if item != null and item.grip_profile != null:
+		var primary_bone := str(item.grip_profile.get("primary_bone"))
+		if not primary_bone.is_empty():
+			return primary_bone
+	return str(BONE_EQUIPMENT_SLOTS.get(slot_name, ""))
 
 
 func _find_skeleton(root: Node) -> Skeleton3D:

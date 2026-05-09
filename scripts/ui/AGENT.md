@@ -7,6 +7,8 @@
 - Drag/drop behavior should work for character inventories, containers, equipment slots, and world drops without scene-specific code.
 - Character inventory windows should stay compact by using an appropriate row count; do not add arbitrary slot scrolling to hide unused rows.
 - Containers may keep their natural grid height unless there is a reusable reason to cap them.
+- Inventory interactions should keep at most two windows open: the focused character inventory on the left and one external container/shop/trade inventory on the right.
+- Opening a standalone character inventory should close any external context inventory.
 
 ## Drop And Pickup
 - Dropping inventory/equipment to the world should spawn reusable `WorldItem` scenes through controller logic.

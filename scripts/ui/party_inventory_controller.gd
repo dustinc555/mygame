@@ -5,10 +5,15 @@ class_name PartyInventoryController
 const INVENTORY_WINDOW_SCENE = preload("res://scenes/ui/inventory_window.tscn")
 const WORLD_ITEM_SCENE = preload("res://scenes/world/items/world_item.tscn")
 const SILVER_ITEM = preload("res://resources/items/silver.tres")
+const WINDOW_EDGE_PADDING := 36.0
+const WINDOW_TOP_PADDING := 160.0
+const WINDOW_GAP := 24.0
 
 @export var inventory_toggle_key := KEY_I
 
 var open_inventory_windows: Dictionary = {}
+var primary_character_window: InventoryWindow
+var secondary_inventory_window: InventoryWindow
 var root_scene: Node
 var hud_layer: CanvasLayer
 var party_manager: PartyManager
@@ -52,32 +57,83 @@ func _unhandled_input(event: InputEvent) -> void:
 func open_selected_inventory() -> void:
 	if party_manager.selected_members.is_empty():
 		return
-	open_inventory_for_owner(party_manager.selected_members[0])
+	_open_primary_inventory(party_manager.selected_members[0], true)
 
 
 func open_inventory_for_member(member: HumanoidCharacter) -> void:
-	open_inventory_for_owner(member)
+	_open_primary_inventory(member, true)
 
 
 func open_inventory_for_owner(inventory_owner) -> void:
 	if inventory_owner == null:
 		return
-	var key: int = inventory_owner.get_instance_id()
-	if open_inventory_windows.has(key):
-		var existing = open_inventory_windows[key]
-		existing.visible = true
-		existing.grab_click_focus()
+	if _owner_is_primary_character(inventory_owner):
+		_open_primary_inventory(inventory_owner, true)
 		return
+	var focused_owner = _get_focused_character_owner()
+	if focused_owner != null and focused_owner != inventory_owner:
+		open_inventory_pair(focused_owner, inventory_owner)
+		return
+	_open_secondary_inventory(inventory_owner)
+
+
+func open_inventory_pair(primary_owner, secondary_owner) -> void:
+	if primary_owner == null:
+		return
+	if secondary_owner == null or secondary_owner == primary_owner:
+		_open_primary_inventory(primary_owner, true)
+		return
+	if _open_primary_inventory(primary_owner, false) == null:
+		return
+	_open_secondary_inventory(secondary_owner)
+
+
+func _open_primary_inventory(inventory_owner, close_secondary := true):
+	if inventory_owner == null:
+		return null
+	if _is_live_window(secondary_inventory_window) and secondary_inventory_window.inventory_owner == inventory_owner:
+		_close_inventory_window(secondary_inventory_window)
+	if _is_live_window(primary_character_window) and primary_character_window.inventory_owner != inventory_owner:
+		_close_inventory_window(primary_character_window)
+	if close_secondary:
+		_close_inventory_window(secondary_inventory_window)
+	primary_character_window = _ensure_inventory_window(inventory_owner)
+	_layout_inventory_windows()
+	return primary_character_window
+
+
+func _open_secondary_inventory(inventory_owner):
+	if inventory_owner == null:
+		return null
+	if _is_live_window(primary_character_window) and primary_character_window.inventory_owner == inventory_owner:
+		secondary_inventory_window = null
+		_layout_inventory_windows()
+		return primary_character_window
+	if _is_live_window(secondary_inventory_window) and secondary_inventory_window.inventory_owner != inventory_owner:
+		_close_inventory_window(secondary_inventory_window)
+	secondary_inventory_window = _ensure_inventory_window(inventory_owner)
+	_layout_inventory_windows()
+	return secondary_inventory_window
+
+
+func _ensure_inventory_window(inventory_owner):
+	var existing = _get_window_for_owner(inventory_owner)
+	if existing != null:
+		existing.visible = true
+		if existing.has_method("refresh"):
+			existing.refresh()
+		if existing.has_method("fit_to_content"):
+			existing.fit_to_content()
+		existing.grab_click_focus()
+		inventory_window_layer.move_child(existing, inventory_window_layer.get_child_count() - 1)
+		return existing
 
 	var window = INVENTORY_WINDOW_SCENE.instantiate()
-	open_inventory_windows[key] = window
+	open_inventory_windows[inventory_owner.get_instance_id()] = window
 	inventory_window_layer.add_child(window)
-	window.position = Vector2(36 + open_inventory_windows.size() * 24, 160 + open_inventory_windows.size() * 18)
 	window.setup(inventory_owner)
 	if window.has_method("fit_to_content"):
-		window.call_deferred("fit_to_content")
-	if window.has_method("clamp_to_viewport"):
-		window.clamp_to_viewport()
+		window.fit_to_content()
 	window.close_requested.connect(_on_inventory_window_close_requested)
 	window.notice_requested.connect(_show_floating_notice)
 	window.transfer_requested.connect(_on_inventory_transfer_requested)
@@ -88,17 +144,104 @@ func open_inventory_for_owner(inventory_owner) -> void:
 	window.unequip_requested.connect(_on_inventory_unequip_requested)
 	window.item_drop_requested.connect(_on_inventory_item_drop_requested)
 	window.equipment_drop_requested.connect(_on_inventory_equipment_drop_requested)
+	window.grab_click_focus()
+	return window
 
 
 func _on_inventory_window_close_requested(inventory_owner) -> void:
 	if inventory_owner == null:
 		return
-	var key: int = inventory_owner.get_instance_id()
-	if not open_inventory_windows.has(key):
+	var window = _get_window_for_owner(inventory_owner)
+	if window == null:
 		return
-	var window = open_inventory_windows[key]
-	open_inventory_windows.erase(key)
+	var closing_primary: bool = window == primary_character_window
+	_close_inventory_window(window)
+	if closing_primary:
+		_close_inventory_window(secondary_inventory_window)
+	_layout_inventory_windows()
+
+
+func _close_inventory_window(window) -> void:
+	if not _is_live_window(window):
+		return
+	var inventory_owner = window.inventory_owner
+	if inventory_owner != null:
+		open_inventory_windows.erase(inventory_owner.get_instance_id())
+	if window == primary_character_window:
+		primary_character_window = null
+	if window == secondary_inventory_window:
+		secondary_inventory_window = null
 	window.queue_free()
+
+
+func _get_window_for_owner(inventory_owner):
+	if inventory_owner == null:
+		return null
+	var key: int = inventory_owner.get_instance_id()
+	var window = open_inventory_windows.get(key)
+	if not _is_live_window(window):
+		open_inventory_windows.erase(key)
+		return null
+	return window
+
+
+func _is_live_window(window) -> bool:
+	return window != null and is_instance_valid(window) and not window.is_queued_for_deletion()
+
+
+func _owner_is_primary_character(inventory_owner) -> bool:
+	return inventory_owner is HumanoidCharacter and inventory_owner.is_player_party_member()
+
+
+func _get_focused_character_owner():
+	if party_manager != null and not party_manager.selected_members.is_empty():
+		return party_manager.selected_members[0]
+	if _is_live_window(primary_character_window):
+		return primary_character_window.inventory_owner
+	return null
+
+
+func _layout_inventory_windows() -> void:
+	var primary_window = primary_character_window if _is_live_window(primary_character_window) else null
+	var secondary_window = secondary_inventory_window if _is_live_window(secondary_inventory_window) else null
+	if primary_window == null and secondary_window == null:
+		return
+	_fit_inventory_window(primary_window)
+	_fit_inventory_window(secondary_window)
+	var viewport_size := inventory_window_layer.get_viewport_rect().size
+	if primary_window != null:
+		primary_window.position = _clamp_window_position(primary_window, Vector2(WINDOW_EDGE_PADDING, WINDOW_TOP_PADDING), viewport_size)
+	if secondary_window != null:
+		var secondary_position := _secondary_window_position(primary_window, secondary_window, viewport_size)
+		secondary_window.position = _clamp_window_position(secondary_window, secondary_position, viewport_size)
+
+
+func _fit_inventory_window(window) -> void:
+	if _is_live_window(window) and window.has_method("fit_to_content"):
+		window.fit_to_content()
+
+
+func _secondary_window_position(primary_window, secondary_window, viewport_size: Vector2) -> Vector2:
+	if primary_window == null:
+		return Vector2(maxf(WINDOW_EDGE_PADDING, viewport_size.x - secondary_window.size.x - WINDOW_EDGE_PADDING), WINDOW_TOP_PADDING)
+	var candidates: Array[Vector2] = [
+		Vector2(primary_window.position.x + primary_window.size.x + WINDOW_GAP, primary_window.position.y),
+		Vector2(maxf(WINDOW_EDGE_PADDING, viewport_size.x - secondary_window.size.x - WINDOW_EDGE_PADDING), primary_window.position.y),
+		Vector2(primary_window.position.x, primary_window.position.y + primary_window.size.y + WINDOW_GAP),
+		Vector2(primary_window.position.x, primary_window.position.y - secondary_window.size.y - WINDOW_GAP),
+	]
+	var primary_rect := Rect2(primary_window.position, primary_window.size)
+	for candidate in candidates:
+		var clamped := _clamp_window_position(secondary_window, candidate, viewport_size)
+		if not primary_rect.intersects(Rect2(clamped, secondary_window.size)):
+			return clamped
+	return candidates[0]
+
+
+func _clamp_window_position(window, target_position: Vector2, viewport_size: Vector2) -> Vector2:
+	var max_x := maxf(0.0, viewport_size.x - window.size.x)
+	var max_y := maxf(0.0, viewport_size.y - window.size.y)
+	return Vector2(clampf(target_position.x, 0.0, max_x), clampf(target_position.y, 0.0, max_y))
 
 
 func _on_inventory_transfer_requested(source_owner, target_owner, entry, target_cell: Vector2i) -> void:
@@ -118,7 +261,7 @@ func _on_inventory_transfer_requested(source_owner, target_owner, entry, target_
 	var target_inventory = _get_owner_inventory(target_owner)
 	if source_inventory == null or target_inventory == null:
 		return
-	var target_window = open_inventory_windows.get(target_owner.get_instance_id())
+	var target_window = _get_window_for_owner(target_owner)
 	if _owners_too_far(source_owner, target_owner):
 		_show_floating_notice("Too far away")
 		return
@@ -156,9 +299,13 @@ func _on_inventory_quick_transfer_requested(source_owner, entry) -> void:
 
 
 func _first_other_inventory_window(source_owner):
+	if _is_live_window(primary_character_window) and primary_character_window.inventory_owner != source_owner:
+		return primary_character_window
+	if _is_live_window(secondary_inventory_window) and secondary_inventory_window.inventory_owner != source_owner:
+		return secondary_inventory_window
 	for key in open_inventory_windows.keys():
 		var window = open_inventory_windows[key]
-		if window.inventory_owner != source_owner:
+		if _is_live_window(window) and window.inventory_owner != source_owner:
 			return window
 	return null
 
@@ -311,8 +458,9 @@ func _refresh_inventory_windows_for(owner_a, owner_b = null) -> void:
 		if owner == null:
 			continue
 		var window = open_inventory_windows.get(owner.get_instance_id())
-		if window != null and window.has_method("refresh"):
+		if _is_live_window(window) and window.has_method("refresh"):
 			window.refresh()
+	_layout_inventory_windows()
 
 
 func _spawn_world_item(source_owner, definition: ItemDefinition, count: int) -> void:

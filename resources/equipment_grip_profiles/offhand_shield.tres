@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EquipmentGripProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/items/equipment_grip_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "offhand_shield"
+display_name = "Offhand Shield"
+primary_bone = "hand_l"
+animation_stance_id = "shield"
+authoring_notes = "Shield visuals attach to the left hand in phase 1. Future shield stances can refine blocking/guard poses without changing item data."

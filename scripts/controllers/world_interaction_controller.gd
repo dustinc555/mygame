@@ -32,7 +32,7 @@ const GROUND_Y := 0.0
 
 @export var free_camera_move_speed := 14.0
 @export var camera_zoom_step := 1.0
-@export var camera_min_distance := 4.0
+@export var camera_min_distance := 2.0
 @export var camera_max_distance := 36.0
 @export var orbit_sensitivity := 0.01
 @export var move_command_spacing := 1.4
@@ -329,6 +329,12 @@ func _process_hold_move(delta: float) -> void:
 		hold_move_indicator_remaining = hold_move_indicator_seconds
 
 
+func _get_focused_party_member() -> HumanoidCharacter:
+	if party_manager == null or party_manager.selected_members.is_empty():
+		return null
+	return party_manager.selected_members[0] as HumanoidCharacter
+
+
 func _handle_right_click(screen_position: Vector2) -> bool:
 	if context_menu != null:
 		context_menu.hide()
@@ -363,7 +369,9 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 		context_resource = collider
 		return false
 	if collider is HumanoidCharacter and collider.is_player_party_member():
-		var party_actions := [{"id": ACTION_INVENTORY, "label": "Inventory"}]
+		var focused_member := _get_focused_party_member()
+		var inventory_action_label := "Trade" if focused_member != null and focused_member != collider else "Inventory"
+		var party_actions := [{"id": ACTION_INVENTORY, "label": inventory_action_label}]
 		if collider.life_state == NpcRules.LifeState.ASLEEP:
 			if _selection_can_carry_target(collider):
 				party_actions.append({"id": ACTION_CARRY, "label": "Carry"})
@@ -780,7 +788,11 @@ func _on_stance_option_selected(index: int) -> void:
 func _on_context_menu_id_pressed(action_id: int) -> void:
 	match action_id:
 		ACTION_INVENTORY:
-			inventory_controller.open_inventory_for_member(context_member)
+			var focused_member := _get_focused_party_member()
+			if focused_member != null and context_member != null and focused_member != context_member:
+				inventory_controller.open_inventory_pair(focused_member, context_member)
+			elif context_member != null:
+				inventory_controller.open_inventory_for_member(context_member)
 		ACTION_MINE:
 			if context_resource != null:
 				for member in party_manager.selected_members:
@@ -942,8 +954,7 @@ func _on_party_member_container_reached(member: HumanoidCharacter, container) ->
 		return
 	if not container.resolve_interaction(member):
 		return
-	inventory_controller.open_inventory_for_owner(container)
-	inventory_controller.open_inventory_for_owner(member)
+	inventory_controller.open_inventory_pair(member, container)
 
 
 func _on_party_member_trade_target_reached(member: HumanoidCharacter, target) -> void:
@@ -952,8 +963,7 @@ func _on_party_member_trade_target_reached(member: HumanoidCharacter, target) ->
 	if target is CharacterBody3D and target.has_method("resolve_trade"):
 		if not target.resolve_trade(member):
 			return
-		inventory_controller.open_inventory_for_owner(member)
-		inventory_controller.open_inventory_for_owner(target)
+		inventory_controller.open_inventory_pair(member, target)
 
 
 func _on_party_member_conversation_target_reached(member: HumanoidCharacter, target) -> void:

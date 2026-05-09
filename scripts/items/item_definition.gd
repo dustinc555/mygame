@@ -25,6 +25,7 @@ const EQUIP_SLOT_OFFHAND := "offhand"
 @export var equipped_scene: PackedScene
 @export var male_equipped_scene: PackedScene
 @export var female_equipped_scene: PackedScene
+@export var grip_profile: Resource
 @export var equipped_transform := Transform3D.IDENTITY
 @export_range(0.0, 0.08, 0.001) var equipped_surface_offset_ratio := 0.0
 @export var stat_modifiers: Array[ItemStatModifier] = []

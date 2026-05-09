@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://dp5joxq33kp1p"]
 
-[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_weapons/fbx/Axe.fbx" id="1_model"]
+[ext_resource type="PackedScene" uid="uid://b0lxmaxgjeutf" path="res://assets/vendor/quaternius/medieval_weapons/fbx/Axe.fbx" id="1_model"]
 
-[node name="AxeModel" type="Node3D"]
+[node name="AxeModel" type="Node3D" unique_id=402236447]
 
-[node name="Model" parent="." instance=ExtResource("1_model")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+[node name="Model" parent="." unique_id=1696778059 instance=ExtResource("1_model")]
+transform = Transform3D(-0.102479994, -0.0075520696, 0.99470645, 0.994735, -0.0007780323, 0.10247704, 0, 0.99997115, 0.0075920406, -0.044141293, 0.22179496, 0.090019524)

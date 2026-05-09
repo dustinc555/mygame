@@ -134,11 +134,11 @@ item_definition = ExtResource("11_dagger")
 [node name="PartyMembers" type="Node3D" parent="." unique_id=526884549]
 
 [node name="Mira" type="CharacterBody3D" parent="PartyMembers" unique_id=1283271330]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0.6, 6.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0.6, 1.6890645)
 script = ExtResource("1_party")
 base_color = Color(0.72, 0.48, 0.78, 1)
 member_name = "Mira"
-starting_equipment = Array[Resource]([ExtResource("11_dagger")])
+starting_equipment = Array[Resource]([ExtResource("10_axe")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Mira" unique_id=1117274475]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -153,7 +153,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
 mesh = SubResource("CylinderMesh_ring")
 
 [node name="Tomas" type="CharacterBody3D" parent="PartyMembers" unique_id=1797988460]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.6, 6.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.21883821, 0.6, 1.7181473)
 script = ExtResource("1_party")
 base_color = Color(0.35, 0.56, 0.42, 1)
 member_name = "Tomas"
