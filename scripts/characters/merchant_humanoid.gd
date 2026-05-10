@@ -36,6 +36,27 @@ func get_merchant_role() -> MerchantRole:
 	return get_node_or_null("MerchantRole") as MerchantRole
 
 
+func get_inventory_for_display() -> InventoryData:
+	if is_displaying_work_inventory():
+		return super.get_inventory_for_display()
+	var merchant_role := get_merchant_role()
+	if merchant_role != null:
+		return merchant_role.get_shop_inventory()
+	return super.get_inventory_for_display()
+
+
+func get_inventory_display_title() -> String:
+	if is_displaying_work_inventory():
+		return super.get_inventory_display_title()
+	return "%s Stock" % member_name
+
+
+func shows_inventory_weight() -> bool:
+	if is_displaying_work_inventory():
+		return super.shows_inventory_weight()
+	return false
+
+
 func get_job_provider() -> JobProvider:
 	return get_node_or_null("JobProvider") as JobProvider
 

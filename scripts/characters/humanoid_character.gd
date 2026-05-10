@@ -199,6 +199,9 @@ var _work_inventory_override: InventoryData
 var _active_job_provider
 var _active_job_label := ""
 var _is_sitting := false
+var _equipment_update_batch_depth := 0
+var _equipment_change_pending := false
+var _equipment_changed_slots: Dictionary = {}
 
 signal inventory_changed
 signal mining_changed
@@ -702,9 +705,7 @@ func equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> ItemDe
 		return null
 	var previous := get_equipped_item(slot_name)
 	equipped_items[slot_name] = definition
-	_rebuild_character_visual_for_equipment()
-	inventory_changed.emit()
-	state_changed.emit()
+	_mark_equipment_changed(slot_name)
 	return previous
 
 
@@ -713,10 +714,43 @@ func unequip_item_from_slot(slot_name: String) -> ItemDefinition:
 	if previous == null:
 		return null
 	equipped_items.erase(slot_name)
-	_rebuild_character_visual_for_equipment()
+	_mark_equipment_changed(slot_name)
+	return previous
+
+
+func begin_equipment_update_batch() -> void:
+	_equipment_update_batch_depth += 1
+
+
+func end_equipment_update_batch() -> void:
+	if _equipment_update_batch_depth <= 0:
+		return
+	_equipment_update_batch_depth -= 1
+	if _equipment_update_batch_depth > 0 or not _equipment_change_pending:
+		return
+	_equipment_change_pending = false
+	_apply_equipment_changed()
+
+
+func _mark_equipment_changed(slot_name := "") -> void:
+	if not slot_name.is_empty():
+		_equipment_changed_slots[slot_name] = true
+	if _equipment_update_batch_depth > 0:
+		_equipment_change_pending = true
+		return
+	_apply_equipment_changed()
+
+
+func _apply_equipment_changed() -> void:
+	_equipment_change_pending = false
+	var changed_slots := _equipment_changed_slots.keys()
+	_equipment_changed_slots.clear()
+	if _can_refresh_bone_equipment_only(changed_slots):
+		_refresh_bone_equipment_slots(changed_slots)
+	else:
+		_rebuild_character_visual_for_equipment()
 	inventory_changed.emit()
 	state_changed.emit()
-	return previous
 
 
 func has_equipment() -> bool:
@@ -1721,6 +1755,56 @@ func _rebuild_character_visual_for_equipment() -> void:
 	_setup_character_visual()
 
 
+func _can_refresh_bone_equipment_only(changed_slots: Array) -> bool:
+	if not is_inside_tree() or changed_slots.is_empty():
+		return false
+	for slot_name in changed_slots:
+		if not BONE_EQUIPMENT_SLOTS.has(str(slot_name)):
+			return false
+	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
+	if visual_root == null:
+		return false
+	return _find_skeleton(visual_root) != null
+
+
+func _refresh_bone_equipment_slots(changed_slots: Array) -> void:
+	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
+	if visual_root == null:
+		_rebuild_character_visual_for_equipment()
+		return
+	var skeleton := _find_skeleton(visual_root)
+	if skeleton == null:
+		_rebuild_character_visual_for_equipment()
+		return
+	for slot_name in changed_slots:
+		_refresh_bone_equipment_slot(skeleton, str(slot_name))
+
+
+func _refresh_bone_equipment_slot(skeleton: Skeleton3D, slot_name: String) -> void:
+	var existing_attachment := skeleton.get_node_or_null(_get_bone_attachment_name(slot_name))
+	if existing_attachment != null:
+		existing_attachment.free()
+	var item := get_equipped_item(slot_name)
+	if item == null:
+		return
+	var equipped_scene := item.get_equipped_scene_for_body_type(_resolve_visual_body_type())
+	if equipped_scene == null:
+		return
+	var bone_name := _get_equipment_attachment_bone(item, slot_name)
+	if bone_name.is_empty() or skeleton.find_bone(bone_name) < 0:
+		return
+	var attachment := BoneAttachment3D.new()
+	attachment.name = _get_bone_attachment_name(slot_name)
+	attachment.bone_name = bone_name
+	skeleton.add_child(attachment)
+	var pivot := Node3D.new()
+	pivot.name = "Equipped%sPivot" % slot_name.capitalize()
+	pivot.transform = item.equipped_transform
+	attachment.add_child(pivot)
+	var instance := equipped_scene.instantiate()
+	pivot.add_child(instance)
+
+
 func _has_equipped_clothing_visuals() -> bool:
 	for slot_name in CLOTHING_EQUIPMENT_SLOTS:
 		var item := get_equipped_item(slot_name)
@@ -1767,7 +1851,7 @@ func _setup_equipped_bone_visuals(visual_root: Node3D) -> void:
 		if skeleton.find_bone(bone_name) < 0:
 			continue
 		var attachment := BoneAttachment3D.new()
-		attachment.name = "Equipped%sAttachment" % slot_name.capitalize()
+		attachment.name = _get_bone_attachment_name(slot_name)
 		attachment.bone_name = bone_name
 		skeleton.add_child(attachment)
 		var pivot := Node3D.new()
@@ -1776,6 +1860,10 @@ func _setup_equipped_bone_visuals(visual_root: Node3D) -> void:
 		attachment.add_child(pivot)
 		var instance := equipped_scene.instantiate()
 		pivot.add_child(instance)
+
+
+func _get_bone_attachment_name(slot_name: String) -> String:
+	return "Equipped%sAttachment" % slot_name.capitalize()
 
 
 func _get_equipment_attachment_bone(item: ItemDefinition, slot_name: String) -> String:

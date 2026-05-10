@@ -9,6 +9,8 @@
 - Containers may keep their natural grid height unless there is a reusable reason to cap them.
 - Inventory interactions should keep at most two windows open: the focused character inventory on the left and one external container/shop/trade inventory on the right.
 - Opening a standalone character inventory should close any external context inventory.
+- Replaced equipment should route through reusable inventory rules: non-merchant source inventory first, equipped character inventory second, then a cursor-held loose item if no inventory can fit it.
+- Cursor-held loose items should remain on the cursor after invalid drops inside inventory UI; dropping outside inventory windows may spawn a reusable `WorldItem`.
 
 ## Drop And Pickup
 - Dropping inventory/equipment to the world should spawn reusable `WorldItem` scenes through controller logic.

@@ -45,9 +45,11 @@ func refresh() -> void:
 	if item == null:
 		_label.text = "%s\n-" % slot_label
 		_label.modulate = Color(0.74, 0.72, 0.68, 1.0)
+		tooltip_text = slot_label
 		return
 	_label.text = "%s\n%s" % [slot_label, item.display_name]
 	_label.modulate = Color(0.96, 0.9, 0.72, 1.0)
+	tooltip_text = item.display_name
 
 
 func _get_equipped_item():

@@ -75,6 +75,13 @@ func _gui_input(event: InputEvent) -> void:
 			item_right_clicked.emit(right_clicked_entry, event.position, event.shift_pressed)
 
 
+func _get_tooltip(at_position: Vector2) -> String:
+	var entry = _entry_at_local_position(at_position)
+	if entry == null or entry.definition == null:
+		return ""
+	return entry.definition.display_name
+
+
 func _get_drag_data(at_position: Vector2):
 	var entry = _entry_at_local_position(at_position)
 	if entry == null:
@@ -106,6 +113,11 @@ func _can_drop_data(at_position: Vector2, data) -> bool:
 	if is_valid and typeof(data) == TYPE_DICTIONARY and data.has("entry"):
 		_preview_visible = true
 		_preview_rect = _item_rect_from_data(data["entry"], target_cell)
+		_last_invalid_drop_message = ""
+		queue_redraw()
+	elif is_valid and typeof(data) == TYPE_DICTIONARY and data.has("cursor_item") and data.has("item_definition"):
+		_preview_visible = true
+		_preview_rect = _item_rect_from_definition(data["item_definition"], target_cell)
 		_last_invalid_drop_message = ""
 		queue_redraw()
 	else:
@@ -179,6 +191,14 @@ func _item_rect_from_data(entry, grid_position: Vector2i) -> Rect2:
 	var grid_cells := Vector2(entry.definition.grid_size.x, entry.definition.grid_size.y)
 	var item_size := grid_cells * cell_size
 	item_size += Vector2.ONE * cell_gap * Vector2(maxi(entry.definition.grid_size.x - 1, 0), maxi(entry.definition.grid_size.y - 1, 0))
+	return Rect2(item_position, item_size)
+
+
+func _item_rect_from_definition(definition: ItemDefinition, grid_position: Vector2i) -> Rect2:
+	var item_position := Vector2(grid_position.x, grid_position.y) * (cell_size + Vector2.ONE * cell_gap)
+	var grid_cells := Vector2(definition.grid_size.x, definition.grid_size.y)
+	var item_size := grid_cells * cell_size
+	item_size += Vector2.ONE * cell_gap * Vector2(maxi(definition.grid_size.x - 1, 0), maxi(definition.grid_size.y - 1, 0))
 	return Rect2(item_position, item_size)
 
 

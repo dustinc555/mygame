@@ -12,6 +12,8 @@ signal equipment_transfer_requested(source_owner, source_slot_name, target_owner
 signal unequip_requested(source_owner, slot_name, target_owner, target_cell)
 signal item_drop_requested(source_owner, entry)
 signal equipment_drop_requested(source_owner, slot_name)
+signal cursor_item_place_requested(data, target_owner, target_cell)
+signal cursor_item_equip_requested(data, target_owner, slot_name)
 
 @export var transfer_distance := 5.0
 
@@ -96,6 +98,8 @@ func _can_accept_drop(data, target_cell: Vector2i) -> bool:
 func _get_drop_error(data, target_cell: Vector2i) -> String:
 	if inventory_owner == null or typeof(data) != TYPE_DICTIONARY:
 		return ""
+	if data.has("cursor_item") and data.has("item_definition"):
+		return _get_cursor_item_drop_error(data, target_cell)
 	if data.has("equipment_owner") and data.has("equip_slot") and data.has("item_definition"):
 		return _get_equipment_drop_to_grid_error(data, target_cell)
 	if not data.has("entry") or not data.has("source_owner"):
@@ -119,7 +123,9 @@ func _get_drop_error(data, target_cell: Vector2i) -> String:
 func _handle_drop(data, target_cell: Vector2i) -> void:
 	if not _can_accept_drop(data, target_cell):
 		return
-	if data.has("equipment_owner") and data.has("equip_slot"):
+	if data.has("cursor_item") and data.has("item_definition"):
+		cursor_item_place_requested.emit(data, inventory_owner, target_cell)
+	elif data.has("equipment_owner") and data.has("equip_slot"):
 		unequip_requested.emit(data["equipment_owner"], data["equip_slot"], inventory_owner, target_cell)
 	else:
 		transfer_requested.emit(data["source_owner"], inventory_owner, data["entry"], target_cell)
@@ -284,10 +290,26 @@ func _get_equipment_drop_to_grid_error(data: Dictionary, target_cell: Vector2i) 
 	return ""
 
 
+func _get_cursor_item_drop_error(data: Dictionary, target_cell: Vector2i) -> String:
+	var source_owner = data.get("source_owner", null)
+	var definition: ItemDefinition = data["item_definition"]
+	var count := int(data.get("count", 1))
+	if source_owner != inventory_owner and _owners_too_far(source_owner, inventory_owner):
+		return "Too far away"
+	var inventory = _get_owner_inventory()
+	if inventory.use_weight and inventory.get_total_weight() + definition.unit_weight * count > inventory.max_weight:
+		return "Too heavy"
+	if not inventory.can_place_item(definition, target_cell):
+		return "No room"
+	return ""
+
+
 func _on_equipment_slot_drop_requested(slot_name: String, data) -> void:
 	if typeof(data) != TYPE_DICTIONARY:
 		return
-	if data.has("entry") and data.has("source_owner"):
+	if data.has("cursor_item") and data.has("item_definition"):
+		cursor_item_equip_requested.emit(data, inventory_owner, slot_name)
+	elif data.has("entry") and data.has("source_owner"):
 		equip_requested.emit(data["source_owner"], data["entry"], inventory_owner, slot_name)
 	elif data.has("equipment_owner") and data.has("equip_slot"):
 		equipment_transfer_requested.emit(data["equipment_owner"], data["equip_slot"], inventory_owner, slot_name)

@@ -55,6 +55,9 @@ func get_owner_faction_name() -> String:
 
 func get_barkeeper_inventory():
 	var owner_character := get_owner_character()
+	var merchant_role := get_merchant_role()
+	if merchant_role != null:
+		return merchant_role.get_shop_inventory()
 	return owner_character.inventory if owner_character != null else null
 
 
@@ -107,9 +110,15 @@ func get_merchant_role() -> MerchantRole:
 
 func _sync_trade_inventory() -> bool:
 	var owner_character := get_owner_character()
-	if owner_character == null or owner_character.inventory == null:
+	if owner_character == null:
 		return false
-	inventory = owner_character.inventory
+	var merchant_role := get_merchant_role()
+	if merchant_role != null:
+		inventory = merchant_role.get_shop_inventory()
+	elif owner_character.inventory != null:
+		inventory = owner_character.inventory
+	else:
+		return false
 	if _proxied_owner != owner_character:
 		if _proxied_owner != null and _proxied_owner.inventory_changed.is_connected(_on_proxy_inventory_changed):
 			_proxied_owner.inventory_changed.disconnect(_on_proxy_inventory_changed)

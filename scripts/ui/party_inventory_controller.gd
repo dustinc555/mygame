@@ -4,6 +4,7 @@ class_name PartyInventoryController
 
 const INVENTORY_WINDOW_SCENE = preload("res://scenes/ui/inventory_window.tscn")
 const WORLD_ITEM_SCENE = preload("res://scenes/world/items/world_item.tscn")
+const CURSOR_ITEM_DRAG_SOURCE_SCRIPT = preload("res://scripts/ui/cursor_item_drag_source.gd")
 const SILVER_ITEM = preload("res://resources/items/silver.tres")
 const WINDOW_EDGE_PADDING := 36.0
 const WINDOW_TOP_PADDING := 160.0
@@ -19,6 +20,7 @@ var hud_layer: CanvasLayer
 var party_manager: PartyManager
 var inventory_window_layer: Control
 var floating_notice
+var cursor_item_drag_source
 var _initialized := false
 
 
@@ -44,7 +46,18 @@ func _do_initialize() -> void:
 		hud_layer = root_scene.get_node_or_null("GameHUD")
 	inventory_window_layer = hud_layer.get_node("InventoryWindowLayer")
 	floating_notice = hud_layer.get_node_or_null("FloatingNotice")
+	_ensure_cursor_item_drag_source()
 	_initialized = true
+
+
+func _ensure_cursor_item_drag_source() -> void:
+	if cursor_item_drag_source != null and is_instance_valid(cursor_item_drag_source):
+		return
+	cursor_item_drag_source = CURSOR_ITEM_DRAG_SOURCE_SCRIPT.new()
+	cursor_item_drag_source.name = "CursorItemDragSource"
+	inventory_window_layer.add_child(cursor_item_drag_source)
+	cursor_item_drag_source.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cursor_item_drag_source.item_dropped_outside.connect(_on_cursor_item_dropped_outside)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -144,6 +157,8 @@ func _ensure_inventory_window(inventory_owner):
 	window.unequip_requested.connect(_on_inventory_unequip_requested)
 	window.item_drop_requested.connect(_on_inventory_item_drop_requested)
 	window.equipment_drop_requested.connect(_on_inventory_equipment_drop_requested)
+	window.cursor_item_place_requested.connect(_on_cursor_item_place_requested)
+	window.cursor_item_equip_requested.connect(_on_cursor_item_equip_requested)
 	window.grab_click_focus()
 	return window
 
@@ -348,18 +363,13 @@ func _on_inventory_equip_requested(source_owner, entry, target_owner, slot_name:
 	if source_inventory == null or target_inventory == null or not source_inventory.entries.has(entry):
 		return
 	var previous = target_owner.get_equipped_item(slot_name) if target_owner.has_method("get_equipped_item") else null
-	if previous != null and source_inventory != target_inventory and not target_inventory.can_add_item(previous):
-		_show_floating_notice("No room")
-		return
 	if not _try_pay_for_equipment_transfer(source_owner, target_owner, entry):
 		return
 	if not source_inventory.remove_entry(entry):
 		return
 	var replaced = target_owner.equip_item_to_slot(entry.definition, slot_name)
-	if replaced != null and not target_inventory.add_item(replaced):
-		target_owner.equip_item_to_slot(replaced, slot_name)
-		source_inventory.add_item_count(entry.definition, entry.count)
-		_show_floating_notice("No room")
+	if replaced != null and not _try_store_replaced_equipment(source_owner, target_owner, replaced):
+		_start_cursor_item_drag(target_owner, replaced, 1)
 	_refresh_inventory_windows_for(source_owner, target_owner)
 
 
@@ -380,18 +390,16 @@ func _on_equipment_transfer_requested(source_owner, source_slot_name: String, ta
 	if source_owner == target_owner and source_slot_name == target_slot_name:
 		return
 	var target_previous: ItemDefinition = target_owner.get_equipped_item(target_slot_name)
-	var target_inventory = _get_owner_inventory(target_owner)
-	var can_swap_back: bool = source_owner == target_owner and target_previous != null and target_previous.can_equip_to_slot(source_slot_name)
-	if target_previous != null and not can_swap_back and (target_inventory == null or not target_inventory.can_add_item(target_previous)):
-		_show_floating_notice("No room")
-		return
+	var can_swap_back: bool = target_previous != null and source_owner.has_method("can_equip_item_to_slot") and source_owner.has_method("equip_item_to_slot") and source_owner.can_equip_item_to_slot(target_previous, source_slot_name)
+	var batched_owners := _begin_equipment_update_batch(source_owner, target_owner)
 	source_owner.unequip_item_from_slot(source_slot_name)
 	var replaced = target_owner.equip_item_to_slot(moving_item, target_slot_name)
 	if replaced != null:
 		if can_swap_back:
 			source_owner.equip_item_to_slot(replaced, source_slot_name)
 		else:
-			target_inventory.add_item(replaced)
+			_start_cursor_item_drag(target_owner, replaced, 1)
+	_end_equipment_update_batch(batched_owners)
 	_refresh_inventory_windows_for(source_owner, target_owner)
 
 
@@ -445,6 +453,77 @@ func _on_inventory_equipment_drop_requested(source_owner, slot_name: String) -> 
 	_spawn_world_item(source_owner, item, 1)
 
 
+func _on_cursor_item_place_requested(data: Dictionary, target_owner, target_cell: Vector2i) -> void:
+	var definition: ItemDefinition = data.get("item_definition") as ItemDefinition
+	var source_owner = data.get("source_owner", null)
+	var count := int(data.get("count", 1))
+	if definition == null or target_owner == null or count <= 0:
+		_keep_cursor_drag(data)
+		return
+	if source_owner != null and source_owner != target_owner:
+		if not _can_transfer_between_owners(source_owner, target_owner):
+			_show_floating_notice("Job inventory is locked")
+			_keep_cursor_drag(data)
+			return
+		if _owners_too_far(source_owner, target_owner):
+			_show_floating_notice("Too far away")
+			_keep_cursor_drag(data)
+			return
+	var target_role = _get_merchant_role(target_owner)
+	var source_role = _get_merchant_role(source_owner)
+	if target_role != null and source_role == null and source_owner != target_owner:
+		if _try_sell_cursor_item(source_owner, target_owner, definition, count, target_cell, target_role):
+			_consume_cursor_drag(data)
+			_refresh_inventory_windows_for(source_owner, target_owner)
+		else:
+			_keep_cursor_drag(data)
+		return
+	if source_role != null and target_role == null and source_owner != target_owner:
+		_show_floating_notice("Cannot trade")
+		_keep_cursor_drag(data)
+		return
+	var target_inventory = _get_owner_inventory(target_owner)
+	if target_inventory == null:
+		_keep_cursor_drag(data)
+		return
+	if not _place_cursor_item_in_inventory(target_inventory, definition, count, target_cell):
+		_keep_cursor_drag(data)
+		return
+	_consume_cursor_drag(data)
+	_refresh_inventory_windows_for(source_owner, target_owner)
+
+
+func _on_cursor_item_equip_requested(data: Dictionary, target_owner, slot_name: String) -> void:
+	var definition: ItemDefinition = data.get("item_definition") as ItemDefinition
+	var source_owner = data.get("source_owner", null)
+	if definition == null or target_owner == null:
+		_keep_cursor_drag(data)
+		return
+	if not target_owner.has_method("can_equip_item_to_slot") or not target_owner.can_equip_item_to_slot(definition, slot_name):
+		_show_floating_notice("Cannot equip")
+		_keep_cursor_drag(data)
+		return
+	if source_owner != null and source_owner != target_owner:
+		if not _can_transfer_between_owners(source_owner, target_owner):
+			_show_floating_notice("Job inventory is locked")
+			_keep_cursor_drag(data)
+			return
+		if _owners_too_far(source_owner, target_owner):
+			_show_floating_notice("Too far away")
+			_keep_cursor_drag(data)
+			return
+	var replaced = target_owner.equip_item_to_slot(definition, slot_name)
+	if replaced != null:
+		_replace_cursor_drag(data, target_owner, replaced, 1)
+	else:
+		_consume_cursor_drag(data)
+	_refresh_inventory_windows_for(source_owner, target_owner)
+
+
+func _on_cursor_item_dropped_outside(source_owner, definition: ItemDefinition, count: int) -> void:
+	_spawn_world_item(source_owner, definition, count)
+
+
 func _get_owner_inventory(inventory_owner):
 	if inventory_owner != null and inventory_owner.has_method("get_inventory_for_display"):
 		return inventory_owner.get_inventory_for_display()
@@ -460,7 +539,6 @@ func _refresh_inventory_windows_for(owner_a, owner_b = null) -> void:
 		var window = open_inventory_windows.get(owner.get_instance_id())
 		if _is_live_window(window) and window.has_method("refresh"):
 			window.refresh()
-	_layout_inventory_windows()
 
 
 func _spawn_world_item(source_owner, definition: ItemDefinition, count: int) -> void:
@@ -488,6 +566,98 @@ func _get_world_drop_position(source_owner) -> Vector3:
 	return origin + forward * 0.9 + Vector3(0.0, 0.08, 0.0)
 
 
+func _start_cursor_item_drag(owner, definition: ItemDefinition, count: int) -> void:
+	if definition == null or count <= 0:
+		return
+	_ensure_cursor_item_drag_source()
+	cursor_item_drag_source.start_drag(owner, definition, count)
+
+
+func _begin_equipment_update_batch(owner_a, owner_b = null) -> Array:
+	var owners := []
+	for owner in [owner_a, owner_b]:
+		if owner == null or owners.has(owner) or not owner.has_method("begin_equipment_update_batch"):
+			continue
+		owner.begin_equipment_update_batch()
+		owners.append(owner)
+	return owners
+
+
+func _end_equipment_update_batch(owners: Array) -> void:
+	for owner in owners:
+		if owner != null and owner.has_method("end_equipment_update_batch"):
+			owner.end_equipment_update_batch()
+
+
+func _consume_cursor_drag(data: Dictionary) -> void:
+	var source = data.get("cursor_source", null)
+	if source != null and source.has_method("consume_drag"):
+		source.consume_drag(int(data.get("cursor_drag_id", 0)))
+
+
+func _keep_cursor_drag(data: Dictionary) -> void:
+	var source = data.get("cursor_source", null)
+	if source != null and source.has_method("keep_drag"):
+		source.keep_drag(int(data.get("cursor_drag_id", 0)))
+
+
+func _replace_cursor_drag(data: Dictionary, owner, definition: ItemDefinition, count: int) -> void:
+	var source = data.get("cursor_source", null)
+	if source != null and source.has_method("replace_drag_item"):
+		source.replace_drag_item(int(data.get("cursor_drag_id", 0)), owner, definition, count)
+
+
+func _try_store_replaced_equipment(source_owner, target_owner, definition: ItemDefinition) -> bool:
+	if definition == null:
+		return true
+	var source_inventory = _get_owner_inventory(source_owner)
+	if source_inventory != null and _get_merchant_role(source_owner) == null and source_inventory.can_add_item(definition):
+		return source_inventory.add_item(definition)
+	var target_inventory = _get_owner_inventory(target_owner)
+	if target_inventory != null and target_inventory != source_inventory and target_inventory.can_add_item(definition):
+		return target_inventory.add_item(definition)
+	return false
+
+
+func _place_cursor_item_in_inventory(target_inventory, definition: ItemDefinition, count: int, target_cell: Vector2i) -> bool:
+	if target_inventory == null or definition == null or count <= 0:
+		return false
+	if target_inventory.use_weight and target_inventory.get_total_weight() + definition.unit_weight * count > target_inventory.max_weight:
+		_show_floating_notice("Too heavy")
+		return false
+	if not target_inventory.can_place_item(definition, target_cell):
+		_show_floating_notice("No room")
+		return false
+	target_inventory.entries.append(InventoryData.InventoryEntry.new(definition, target_cell, count))
+	target_inventory.changed.emit()
+	return true
+
+
+func _try_sell_cursor_item(source_owner, merchant_owner, definition: ItemDefinition, count: int, target_cell: Vector2i, merchant_role) -> bool:
+	if source_owner == null or merchant_owner == null or definition == null or count <= 0:
+		return false
+	var price: int = merchant_role.get_buy_price(definition)
+	if price < 0:
+		_show_floating_notice("Cannot trade")
+		return false
+	price *= count
+	var merchant_inventory = _get_owner_inventory(merchant_owner)
+	if merchant_inventory == null or not merchant_inventory.can_place_item(definition, target_cell):
+		_show_floating_notice("Merchant does not have space")
+		return false
+	if merchant_inventory.count_item(SILVER_ITEM) < price:
+		_show_floating_notice("Cannot afford")
+		return false
+	if not source_owner.inventory.can_add_item_count(SILVER_ITEM, price):
+		_show_floating_notice("Not enough space")
+		return false
+	merchant_inventory.remove_item_count(SILVER_ITEM, price)
+	source_owner.inventory.add_item_count(SILVER_ITEM, price)
+	merchant_inventory.entries.append(InventoryData.InventoryEntry.new(definition, target_cell, count))
+	merchant_inventory.changed.emit()
+	return true
+
+
 func _try_pay_for_equipment_transfer(source_owner, target_owner, entry) -> bool:
 	var source_role = _get_merchant_role(source_owner)
 	var target_role = _get_merchant_role(target_owner)
@@ -495,14 +665,15 @@ func _try_pay_for_equipment_transfer(source_owner, target_owner, entry) -> bool:
 		return true
 	if source_role != null and target_role == null:
 		var price: int = source_role.get_sell_price(entry.definition) * entry.count
+		var source_inventory = _get_owner_inventory(source_owner)
 		if price < 0 or target_owner.inventory.count_item(SILVER_ITEM) < price:
 			_show_floating_notice("Cannot afford")
 			return false
-		if not source_owner.inventory.can_add_item_count(SILVER_ITEM, price):
+		if source_inventory == null or not source_inventory.can_add_item_count(SILVER_ITEM, price):
 			_show_floating_notice("Merchant does not have space")
 			return false
 		target_owner.inventory.remove_item_count(SILVER_ITEM, price)
-		source_owner.inventory.add_item_count(SILVER_ITEM, price)
+		source_inventory.add_item_count(SILVER_ITEM, price)
 		return true
 	_show_floating_notice("Cannot trade")
 	return false
@@ -536,20 +707,24 @@ func _buy_from_merchant(merchant_owner, buyer_owner, entry, target_cell: Vector2
 		_show_floating_notice("Cannot afford")
 		return true
 	price *= entry.count
+	var merchant_inventory = _get_owner_inventory(merchant_owner)
+	if merchant_inventory == null:
+		_show_floating_notice("Cannot trade")
+		return true
 	if buyer_owner.inventory.count_item(SILVER_ITEM) < price:
 		_show_floating_notice("Cannot afford")
 		return true
 	if not buyer_owner.inventory.can_place_item(entry.definition, target_cell):
 		_show_floating_notice("Not enough space")
 		return true
-	if not merchant_owner.inventory.can_add_item_count(SILVER_ITEM, price):
+	if not merchant_inventory.can_add_item_count(SILVER_ITEM, price):
 		_show_floating_notice("Merchant does not have space")
 		return true
 	if not buyer_owner.inventory.remove_item_count(SILVER_ITEM, price):
 		_show_floating_notice("Cannot afford")
 		return true
-	merchant_owner.inventory.add_item_count(SILVER_ITEM, price)
-	merchant_owner.inventory.move_entry_to_inventory(entry, buyer_owner.inventory, target_cell)
+	merchant_inventory.add_item_count(SILVER_ITEM, price)
+	merchant_inventory.move_entry_to_inventory(entry, buyer_owner.inventory, target_cell)
 	return true
 
 
@@ -559,18 +734,23 @@ func _sell_to_merchant(seller_owner, merchant_owner, entry, target_cell: Vector2
 		_show_floating_notice("Cannot trade")
 		return true
 	price *= entry.count
-	if not merchant_owner.inventory.can_place_item(entry.definition, target_cell):
+	var merchant_inventory = _get_owner_inventory(merchant_owner)
+	var seller_inventory = _get_owner_inventory(seller_owner)
+	if merchant_inventory == null or seller_inventory == null:
+		_show_floating_notice("Cannot trade")
+		return true
+	if not merchant_inventory.can_place_item(entry.definition, target_cell):
 		_show_floating_notice("Merchant does not have space")
 		return true
-	if merchant_owner.inventory.count_item(SILVER_ITEM) < price:
+	if merchant_inventory.count_item(SILVER_ITEM) < price:
 		_show_floating_notice("Cannot afford")
 		return true
 	if not seller_owner.inventory.can_add_item_count(SILVER_ITEM, price):
 		_show_floating_notice("Not enough space")
 		return true
-	merchant_owner.inventory.remove_item_count(SILVER_ITEM, price)
+	merchant_inventory.remove_item_count(SILVER_ITEM, price)
 	seller_owner.inventory.add_item_count(SILVER_ITEM, price)
-	seller_owner.inventory.move_entry_to_inventory(entry, merchant_owner.inventory, target_cell)
+	seller_inventory.move_entry_to_inventory(entry, merchant_inventory, target_cell)
 	return true
 
 

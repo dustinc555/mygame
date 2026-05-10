@@ -4,6 +4,7 @@
 - Equipment belongs on `HumanoidCharacter`, not `PartyMember`, so NPCs and party members share the same system.
 - Do not add player-only assumptions to equipment code. Non-party humanoids should still be able to equip and render gear.
 - Equipment visuals should be rebuilt from item data and reusable visual scenes, not from test-level-specific logic.
+- Multi-step equipment changes should use the reusable equipment update batch so visuals rebuild once after the final equipment state is known.
 - Clothing visuals should animate in sync with the base character animation players.
 - Hand-held equipment should attach through `BoneAttachment3D` using grip profile metadata, falling back to the configured slot-to-bone mapping.
 - Equipped bone visuals must use an attachment pivot: apply item `equipped_transform` to the pivot, then add the equipped scene under it without overwriting the scene root transform.

@@ -20,6 +20,18 @@
 [ext_resource type="Resource" path="res://resources/items/bandage.tres" id="17_bandage"]
 [ext_resource type="PackedScene" path="res://scenes/world/buildings/tiny_house.tscn" id="18_house"]
 [ext_resource type="PackedScene" path="res://scenes/world/buildings/two_story_house.tscn" id="19_two_story_house"]
+[ext_resource type="Resource" path="res://resources/items/iron_sword.tres" id="20_sword"]
+[ext_resource type="Resource" path="res://resources/items/iron_axe.tres" id="21_axe"]
+[ext_resource type="Resource" path="res://resources/items/ranger_hood.tres" id="22_hood"]
+[ext_resource type="Resource" path="res://resources/items/round_shield.tres" id="23_shield"]
+[ext_resource type="Resource" path="res://resources/items/ranger_jerkin.tres" id="24_ranger_jerkin"]
+[ext_resource type="Resource" path="res://resources/items/ranger_leggings.tres" id="25_ranger_leggings"]
+[ext_resource type="Resource" path="res://resources/items/ranger_bracers.tres" id="26_ranger_bracers"]
+[ext_resource type="Resource" path="res://resources/items/ranger_boots.tres" id="27_ranger_boots"]
+[ext_resource type="Resource" path="res://resources/items/peasant_tunic.tres" id="28_peasant_tunic"]
+[ext_resource type="Resource" path="res://resources/items/peasant_trousers.tres" id="29_peasant_trousers"]
+[ext_resource type="Resource" path="res://resources/items/peasant_sleeves.tres" id="30_peasant_sleeves"]
+[ext_resource type="Resource" path="res://resources/items/peasant_shoes.tres" id="31_peasant_shoes"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(70, 1, 70)
@@ -39,7 +51,7 @@ quantity = 4
 [sub_resource type="Resource" id="InventoryStock_mira_silver"]
 script = ExtResource("16_inventory_stock")
 item_definition = ExtResource("12_silver")
-quantity = 8
+quantity = 100
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
 radius = 0.45
@@ -60,6 +72,11 @@ script = ExtResource("16_inventory_stock")
 item_definition = ExtResource("17_bandage")
 quantity = 4
 
+[sub_resource type="Resource" id="InventoryStock_tomas_silver"]
+script = ExtResource("16_inventory_stock")
+item_definition = ExtResource("12_silver")
+quantity = 100
+
 [sub_resource type="Resource" id="MerchantPrice_copper"]
 script = ExtResource("9_price_script")
 item_definition = ExtResource("11_copper_item")
@@ -72,6 +89,78 @@ item_definition = ExtResource("13_food")
 script = ExtResource("9_price_script")
 item_definition = ExtResource("12_silver")
 
+[sub_resource type="Resource" id="MerchantPrice_sword"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("20_sword")
+buy_price = 6
+sell_price = 16
+
+[sub_resource type="Resource" id="MerchantPrice_axe"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("21_axe")
+buy_price = 5
+sell_price = 14
+
+[sub_resource type="Resource" id="MerchantPrice_hood"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("22_hood")
+buy_price = 3
+sell_price = 9
+
+[sub_resource type="Resource" id="MerchantPrice_shield"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("23_shield")
+buy_price = 4
+sell_price = 12
+
+[sub_resource type="Resource" id="MerchantPrice_ranger_jerkin"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("24_ranger_jerkin")
+buy_price = 4
+sell_price = 12
+
+[sub_resource type="Resource" id="MerchantPrice_ranger_leggings"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("25_ranger_leggings")
+buy_price = 3
+sell_price = 10
+
+[sub_resource type="Resource" id="MerchantPrice_ranger_bracers"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("26_ranger_bracers")
+buy_price = 2
+sell_price = 7
+
+[sub_resource type="Resource" id="MerchantPrice_ranger_boots"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("27_ranger_boots")
+buy_price = 2
+sell_price = 7
+
+[sub_resource type="Resource" id="MerchantPrice_peasant_tunic"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("28_peasant_tunic")
+buy_price = 2
+sell_price = 6
+
+[sub_resource type="Resource" id="MerchantPrice_peasant_trousers"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("29_peasant_trousers")
+buy_price = 2
+sell_price = 6
+
+[sub_resource type="Resource" id="MerchantPrice_peasant_sleeves"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("30_peasant_sleeves")
+buy_price = 1
+sell_price = 4
+
+[sub_resource type="Resource" id="MerchantPrice_peasant_shoes"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("31_peasant_shoes")
+buy_price = 1
+sell_price = 4
+
 [sub_resource type="Resource" id="MerchantStock_silver"]
 script = ExtResource("10_stock_script")
 item_definition = ExtResource("12_silver")
@@ -80,7 +169,67 @@ quantity = 500
 [sub_resource type="Resource" id="MerchantStock_food"]
 script = ExtResource("10_stock_script")
 item_definition = ExtResource("13_food")
-quantity = 8
+quantity = 12
+
+[sub_resource type="Resource" id="MerchantStock_sword"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("20_sword")
+quantity = 2
+
+[sub_resource type="Resource" id="MerchantStock_axe"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("21_axe")
+quantity = 2
+
+[sub_resource type="Resource" id="MerchantStock_hood"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("22_hood")
+quantity = 3
+
+[sub_resource type="Resource" id="MerchantStock_shield"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("23_shield")
+quantity = 2
+
+[sub_resource type="Resource" id="MerchantStock_ranger_jerkin"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("24_ranger_jerkin")
+quantity = 2
+
+[sub_resource type="Resource" id="MerchantStock_ranger_leggings"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("25_ranger_leggings")
+quantity = 2
+
+[sub_resource type="Resource" id="MerchantStock_ranger_bracers"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("26_ranger_bracers")
+quantity = 2
+
+[sub_resource type="Resource" id="MerchantStock_ranger_boots"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("27_ranger_boots")
+quantity = 2
+
+[sub_resource type="Resource" id="MerchantStock_peasant_tunic"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("28_peasant_tunic")
+quantity = 2
+
+[sub_resource type="Resource" id="MerchantStock_peasant_trousers"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("29_peasant_trousers")
+quantity = 2
+
+[sub_resource type="Resource" id="MerchantStock_peasant_sleeves"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("30_peasant_sleeves")
+quantity = 2
+
+[sub_resource type="Resource" id="MerchantStock_peasant_shoes"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("31_peasant_shoes")
+quantity = 2
 
 [sub_resource type="Resource" id="JobDefinition_jim_mine"]
 script = ExtResource("8_job_definition")
@@ -120,6 +269,7 @@ script = ExtResource("1_party")
 base_color = Color(0.82, 0.43, 0.31, 1)
 member_name = "Mira"
 starting_items = Array[Resource]([SubResource("InventoryStock_mira_bandage"), SubResource("InventoryStock_mira_silver")])
+starting_equipment = Array[Resource]([ExtResource("20_sword"), ExtResource("23_shield"), ExtResource("22_hood"), ExtResource("24_ranger_jerkin"), ExtResource("25_ranger_leggings"), ExtResource("26_ranger_bracers"), ExtResource("27_ranger_boots")])
 hunger_enabled = true
 hunger_drain_rate = 0.2
 
@@ -140,7 +290,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.6, 5)
 script = ExtResource("1_party")
 base_color = Color(0.33, 0.55, 0.78, 1)
 member_name = "Tomas"
-starting_items = Array[Resource]([SubResource("InventoryStock_tomas_bandage")])
+starting_items = Array[Resource]([SubResource("InventoryStock_tomas_bandage"), SubResource("InventoryStock_tomas_silver")])
+starting_equipment = Array[Resource]([ExtResource("21_axe"), ExtResource("23_shield"), ExtResource("28_peasant_tunic"), ExtResource("29_peasant_trousers"), ExtResource("30_peasant_sleeves"), ExtResource("31_peasant_shoes")])
 hunger_enabled = true
 hunger_drain_rate = 0.2
 
@@ -167,6 +318,7 @@ max_carry_weight = 9999.0
 show_inventory_weight = false
 faction_name = "Surf City"
 conversation_definition = ExtResource("14_jim_conversation")
+starting_equipment = Array[Resource]([ExtResource("22_hood"), ExtResource("28_peasant_tunic"), ExtResource("29_peasant_trousers"), ExtResource("30_peasant_sleeves"), ExtResource("31_peasant_shoes")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Jim" unique_id=1098743020]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -183,8 +335,8 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="MerchantRole" type="Node" parent="Jim" unique_id=1653657744]
 script = ExtResource("8_role")
-prices = Array[Resource]([SubResource("MerchantPrice_copper"), SubResource("MerchantPrice_food"), SubResource("MerchantPrice_silver")])
-initial_stock = Array[Resource]([SubResource("MerchantStock_silver"), SubResource("MerchantStock_food")])
+prices = Array[Resource]([SubResource("MerchantPrice_copper"), SubResource("MerchantPrice_food"), SubResource("MerchantPrice_silver"), SubResource("MerchantPrice_sword"), SubResource("MerchantPrice_axe"), SubResource("MerchantPrice_hood"), SubResource("MerchantPrice_shield"), SubResource("MerchantPrice_ranger_jerkin"), SubResource("MerchantPrice_ranger_leggings"), SubResource("MerchantPrice_ranger_bracers"), SubResource("MerchantPrice_ranger_boots"), SubResource("MerchantPrice_peasant_tunic"), SubResource("MerchantPrice_peasant_trousers"), SubResource("MerchantPrice_peasant_sleeves"), SubResource("MerchantPrice_peasant_shoes")])
+initial_stock = Array[Resource]([SubResource("MerchantStock_silver"), SubResource("MerchantStock_food"), SubResource("MerchantStock_sword"), SubResource("MerchantStock_axe"), SubResource("MerchantStock_hood"), SubResource("MerchantStock_shield"), SubResource("MerchantStock_ranger_jerkin"), SubResource("MerchantStock_ranger_leggings"), SubResource("MerchantStock_ranger_bracers"), SubResource("MerchantStock_ranger_boots"), SubResource("MerchantStock_peasant_tunic"), SubResource("MerchantStock_peasant_trousers"), SubResource("MerchantStock_peasant_sleeves"), SubResource("MerchantStock_peasant_shoes")])
 
 [node name="JobProvider" type="Node" parent="Jim" unique_id=280627450]
 script = ExtResource("8_job_provider")
