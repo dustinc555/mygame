@@ -22,6 +22,7 @@
 [ext_resource type="PackedScene" path="res://scenes/world/buildings/two_story_house.tscn" id="19_two_story_house"]
 [ext_resource type="Resource" path="res://resources/items/iron_sword.tres" id="20_sword"]
 [ext_resource type="Resource" path="res://resources/items/iron_axe.tres" id="21_axe"]
+[ext_resource type="Resource" path="res://resources/items/iron_dagger.tres" id="32_dagger"]
 [ext_resource type="Resource" path="res://resources/items/ranger_hood.tres" id="22_hood"]
 [ext_resource type="Resource" path="res://resources/items/round_shield.tres" id="23_shield"]
 [ext_resource type="Resource" path="res://resources/items/ranger_jerkin.tres" id="24_ranger_jerkin"]
@@ -101,6 +102,12 @@ item_definition = ExtResource("21_axe")
 buy_price = 5
 sell_price = 14
 
+[sub_resource type="Resource" id="MerchantPrice_dagger"]
+script = ExtResource("9_price_script")
+item_definition = ExtResource("32_dagger")
+buy_price = 4
+sell_price = 11
+
 [sub_resource type="Resource" id="MerchantPrice_hood"]
 script = ExtResource("9_price_script")
 item_definition = ExtResource("22_hood")
@@ -179,6 +186,11 @@ quantity = 2
 [sub_resource type="Resource" id="MerchantStock_axe"]
 script = ExtResource("10_stock_script")
 item_definition = ExtResource("21_axe")
+quantity = 2
+
+[sub_resource type="Resource" id="MerchantStock_dagger"]
+script = ExtResource("10_stock_script")
+item_definition = ExtResource("32_dagger")
 quantity = 2
 
 [sub_resource type="Resource" id="MerchantStock_hood"]
@@ -335,8 +347,8 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="MerchantRole" type="Node" parent="Jim" unique_id=1653657744]
 script = ExtResource("8_role")
-prices = Array[Resource]([SubResource("MerchantPrice_copper"), SubResource("MerchantPrice_food"), SubResource("MerchantPrice_silver"), SubResource("MerchantPrice_sword"), SubResource("MerchantPrice_axe"), SubResource("MerchantPrice_hood"), SubResource("MerchantPrice_shield"), SubResource("MerchantPrice_ranger_jerkin"), SubResource("MerchantPrice_ranger_leggings"), SubResource("MerchantPrice_ranger_bracers"), SubResource("MerchantPrice_ranger_boots"), SubResource("MerchantPrice_peasant_tunic"), SubResource("MerchantPrice_peasant_trousers"), SubResource("MerchantPrice_peasant_sleeves"), SubResource("MerchantPrice_peasant_shoes")])
-initial_stock = Array[Resource]([SubResource("MerchantStock_silver"), SubResource("MerchantStock_food"), SubResource("MerchantStock_sword"), SubResource("MerchantStock_axe"), SubResource("MerchantStock_hood"), SubResource("MerchantStock_shield"), SubResource("MerchantStock_ranger_jerkin"), SubResource("MerchantStock_ranger_leggings"), SubResource("MerchantStock_ranger_bracers"), SubResource("MerchantStock_ranger_boots"), SubResource("MerchantStock_peasant_tunic"), SubResource("MerchantStock_peasant_trousers"), SubResource("MerchantStock_peasant_sleeves"), SubResource("MerchantStock_peasant_shoes")])
+prices = Array[Resource]([SubResource("MerchantPrice_copper"), SubResource("MerchantPrice_food"), SubResource("MerchantPrice_silver"), SubResource("MerchantPrice_sword"), SubResource("MerchantPrice_axe"), SubResource("MerchantPrice_dagger"), SubResource("MerchantPrice_hood"), SubResource("MerchantPrice_shield"), SubResource("MerchantPrice_ranger_jerkin"), SubResource("MerchantPrice_ranger_leggings"), SubResource("MerchantPrice_ranger_bracers"), SubResource("MerchantPrice_ranger_boots"), SubResource("MerchantPrice_peasant_tunic"), SubResource("MerchantPrice_peasant_trousers"), SubResource("MerchantPrice_peasant_sleeves"), SubResource("MerchantPrice_peasant_shoes")])
+initial_stock = Array[Resource]([SubResource("MerchantStock_silver"), SubResource("MerchantStock_food"), SubResource("MerchantStock_sword"), SubResource("MerchantStock_axe"), SubResource("MerchantStock_dagger"), SubResource("MerchantStock_hood"), SubResource("MerchantStock_shield"), SubResource("MerchantStock_ranger_jerkin"), SubResource("MerchantStock_ranger_leggings"), SubResource("MerchantStock_ranger_bracers"), SubResource("MerchantStock_ranger_boots"), SubResource("MerchantStock_peasant_tunic"), SubResource("MerchantStock_peasant_trousers"), SubResource("MerchantStock_peasant_sleeves"), SubResource("MerchantStock_peasant_shoes")])
 
 [node name="JobProvider" type="Node" parent="Jim" unique_id=280627450]
 script = ExtResource("8_job_provider")

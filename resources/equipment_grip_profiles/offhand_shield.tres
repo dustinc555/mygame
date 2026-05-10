@@ -1,11 +1,13 @@
-[gd_resource type="Resource" script_class="EquipmentGripProfile" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="EquipmentGripProfile" format=3 uid="uid://btj2x7kgya5se"]
 
-[ext_resource type="Script" path="res://scripts/items/equipment_grip_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://dvj7n3q5e6s0r" path="res://scripts/items/equipment_grip_profile.gd" id="1_profile"]
 
 [resource]
 script = ExtResource("1_profile")
 profile_id = "offhand_shield"
 display_name = "Offhand Shield"
+grip_class_id = "offhand_shield"
 primary_bone = "hand_l"
+primary_socket_id = "left_hand_shield"
 animation_stance_id = "shield"
-authoring_notes = "Shield visuals attach to the left hand in phase 1. Future shield stances can refine blocking/guard poses without changing item data."
+authoring_notes = "Shield visuals attach to LeftHandGrip in phase 1. GripPoint_Primary is the shield handle/strap point. Future shield stances can refine blocking/guard poses without changing item data."

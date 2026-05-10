@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
 [ext_resource type="Texture2D" uid="uid://b42eioyk6bgjj" path="res://assets/items/equipment/sword.svg" id="3_icon"]
 [ext_resource type="PackedScene" uid="uid://doh8nkdb3pef6" path="res://scenes/world/equipment/sword_model.tscn" id="4_model"]
-[ext_resource type="Resource" path="res://resources/equipment_grip_profiles/one_hand_melee.tres" id="5_grip"]
+[ext_resource type="Resource" uid="uid://ddoq1y4fkfw0i" path="res://resources/equipment_grip_profiles/one_hand_melee.tres" id="5_grip"]
 
 [sub_resource type="Resource" id="ItemStatModifier_damage"]
 script = ExtResource("2_mod")

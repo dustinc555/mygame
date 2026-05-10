@@ -7,6 +7,8 @@ const MALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base
 const FEMALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Female_FullBody.gltf")
 const UAL1_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_1/UAL1_Standard.glb")
 const UAL2_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_2/UAL2_Standard.glb")
+const DEFAULT_GRIP_SOCKET_PROFILE = preload("res://resources/humanoid_grip_socket_profiles/default.tres")
+const HUMANOID_GRIP_SOCKET_MARKER_SCRIPT = preload("res://scripts/characters/humanoid_grip_socket_marker.gd")
 const CHARACTER_VISUAL_NODE_NAME := "CharacterVisual"
 const CHARACTER_ANIMATION_PLAYER_NAME := "CharacterAnimationPlayer"
 const CHARACTER_VISUAL_YAW_OFFSET := PI
@@ -102,6 +104,8 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var overhead_text_height := 2.4
 @export var show_nameplate := true
 @export_enum("Auto", "None", "Male", "Female") var visual_body_type: int = VisualBodyType.AUTO
+@export var grip_socket_profile: Resource = DEFAULT_GRIP_SOCKET_PROFILE
+@export var show_grip_socket_markers := false
 @export var starting_items: Array[Resource] = []
 @export var starting_equipment: Array[Resource] = []
 
@@ -1744,9 +1748,18 @@ func _setup_character_visual() -> void:
 	var visual_fit_scale := _fit_visual_to_body_mesh(visual_root, body_mesh)
 	_setup_character_animation(model_root)
 	_setup_equipped_clothing_visuals(visual_root, resolved_body_type, body_mesh, visual_fit_scale)
+	_setup_humanoid_grip_sockets(visual_root)
 	_setup_equipped_bone_visuals(visual_root)
 	_play_random_idle_animation(true)
 	body_mesh.visible = false
+
+
+func refresh_grip_sockets_for_body() -> void:
+	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
+	if visual_root == null:
+		return
+	_setup_humanoid_grip_sockets(visual_root)
+	_refresh_bone_equipment_slots(BONE_EQUIPMENT_SLOTS.keys())
 
 
 func _rebuild_character_visual_for_equipment() -> void:
@@ -1781,28 +1794,18 @@ func _refresh_bone_equipment_slots(changed_slots: Array) -> void:
 
 
 func _refresh_bone_equipment_slot(skeleton: Skeleton3D, slot_name: String) -> void:
-	var existing_attachment := skeleton.get_node_or_null(_get_bone_attachment_name(slot_name))
-	if existing_attachment != null:
-		existing_attachment.free()
+	_remove_bone_equipment_slot(skeleton, slot_name)
 	var item := get_equipped_item(slot_name)
-	if item == null:
-		return
-	var equipped_scene := item.get_equipped_scene_for_body_type(_resolve_visual_body_type())
-	if equipped_scene == null:
-		return
-	var bone_name := _get_equipment_attachment_bone(item, slot_name)
-	if bone_name.is_empty() or skeleton.find_bone(bone_name) < 0:
-		return
-	var attachment := BoneAttachment3D.new()
-	attachment.name = _get_bone_attachment_name(slot_name)
-	attachment.bone_name = bone_name
-	skeleton.add_child(attachment)
-	var pivot := Node3D.new()
-	pivot.name = "Equipped%sPivot" % slot_name.capitalize()
-	pivot.transform = item.equipped_transform
-	attachment.add_child(pivot)
-	var instance := equipped_scene.instantiate()
-	pivot.add_child(instance)
+	_add_bone_equipment_slot(skeleton, slot_name, item)
+
+
+func _remove_bone_equipment_slot(skeleton: Skeleton3D, slot_name: String) -> void:
+	var existing_visual := _find_node3d_by_name(skeleton, _get_bone_equipment_visual_name(slot_name))
+	if existing_visual != null:
+		existing_visual.free()
+	var legacy_attachment := skeleton.get_node_or_null(_get_bone_attachment_name(slot_name))
+	if legacy_attachment != null:
+		legacy_attachment.free()
 
 
 func _has_equipped_clothing_visuals() -> bool:
@@ -1840,30 +1843,163 @@ func _setup_equipped_bone_visuals(visual_root: Node3D) -> void:
 		return
 	for slot_name in BONE_EQUIPMENT_SLOTS.keys():
 		var item := get_equipped_item(slot_name)
-		if item == null:
-			continue
-		var equipped_scene := item.get_equipped_scene_for_body_type(_resolve_visual_body_type())
-		if equipped_scene == null:
-			continue
-		var bone_name := _get_equipment_attachment_bone(item, slot_name)
-		if bone_name.is_empty():
-			continue
-		if skeleton.find_bone(bone_name) < 0:
-			continue
-		var attachment := BoneAttachment3D.new()
-		attachment.name = _get_bone_attachment_name(slot_name)
-		attachment.bone_name = bone_name
-		skeleton.add_child(attachment)
-		var pivot := Node3D.new()
-		pivot.name = "Equipped%sPivot" % slot_name.capitalize()
-		pivot.transform = item.equipped_transform
-		attachment.add_child(pivot)
-		var instance := equipped_scene.instantiate()
-		pivot.add_child(instance)
+		_add_bone_equipment_slot(skeleton, slot_name, item)
+
+
+func _add_bone_equipment_slot(skeleton: Skeleton3D, slot_name: String, item: ItemDefinition) -> void:
+	if item == null:
+		return
+	var equipped_scene := item.get_equipped_scene_for_body_type(_resolve_visual_body_type())
+	if equipped_scene == null:
+		return
+	var instance := equipped_scene.instantiate()
+	if not (instance is Node3D):
+		instance.queue_free()
+		return
+	var socket_id := _get_equipment_socket_id(item, slot_name)
+	var fallback_bone_name := _get_equipment_attachment_bone(item, slot_name)
+	var socket := _get_or_create_humanoid_grip_socket(skeleton, socket_id, fallback_bone_name)
+	if socket == null:
+		instance.queue_free()
+		return
+	var slot_visual := Node3D.new()
+	slot_visual.name = _get_bone_equipment_visual_name(slot_name)
+	socket.add_child(slot_visual)
+	var model_root := instance as Node3D
+	model_root.transform = item.equipped_transform * _get_item_grip_transform(model_root, item, slot_name).affine_inverse()
+	slot_visual.add_child(model_root)
 
 
 func _get_bone_attachment_name(slot_name: String) -> String:
 	return "Equipped%sAttachment" % slot_name.capitalize()
+
+
+func _get_bone_equipment_visual_name(slot_name: String) -> String:
+	return "Equipped%sVisual" % slot_name.capitalize()
+
+
+func _setup_humanoid_grip_sockets(visual_root: Node3D) -> void:
+	var skeleton := _find_skeleton(visual_root)
+	if skeleton == null:
+		return
+	var socket_profile := _get_grip_socket_profile()
+	if socket_profile == null or not socket_profile.has_method("get_socket_ids"):
+		return
+	for socket_id in socket_profile.get_socket_ids():
+		_get_or_create_humanoid_grip_socket(skeleton, str(socket_id))
+
+
+func _get_or_create_humanoid_grip_socket(skeleton: Skeleton3D, socket_id: String, fallback_bone_name := "") -> Node3D:
+	if socket_id.is_empty():
+		return null
+	var socket_name := _get_equipment_socket_node_name(socket_id)
+	var attachment_name := _get_humanoid_grip_socket_attachment_name(socket_id)
+	var attachment := skeleton.get_node_or_null(attachment_name) as BoneAttachment3D
+	if attachment == null:
+		var bone_name := _get_equipment_socket_bone_name(socket_id)
+		if bone_name.is_empty():
+			bone_name = fallback_bone_name
+		if bone_name.is_empty() or skeleton.find_bone(bone_name) < 0:
+			return null
+		attachment = BoneAttachment3D.new()
+		attachment.name = attachment_name
+		attachment.bone_name = bone_name
+		skeleton.add_child(attachment)
+	var socket := attachment.get_node_or_null(socket_name) as Node3D
+	if socket == null:
+		socket = HUMANOID_GRIP_SOCKET_MARKER_SCRIPT.new() as Node3D
+		socket.name = socket_name
+		attachment.add_child(socket)
+	if socket.get_script() == HUMANOID_GRIP_SOCKET_MARKER_SCRIPT:
+		socket.set("socket_id", socket_id)
+		socket.set("show_runtime_visual", show_grip_socket_markers)
+	socket.transform = _get_equipment_socket_transform(socket_id)
+	return socket
+
+
+func _get_humanoid_grip_socket_attachment_name(socket_id: String) -> String:
+	return "%sAttachment" % _get_equipment_socket_node_name(socket_id)
+
+
+func _get_equipment_socket_transform(socket_id: String) -> Transform3D:
+	var socket_profile := _get_grip_socket_profile()
+	if socket_profile != null and socket_profile.has_method("get_socket_transform"):
+		return socket_profile.get_socket_transform(socket_id)
+	return Transform3D.IDENTITY
+
+
+func _get_equipment_socket_node_name(socket_id: String) -> String:
+	var socket_profile := _get_grip_socket_profile()
+	if socket_profile != null and socket_profile.has_method("get_socket_node_name"):
+		return socket_profile.get_socket_node_name(socket_id)
+	return "GripSocket"
+
+
+func _get_equipment_socket_bone_name(socket_id: String) -> String:
+	var socket_profile := _get_grip_socket_profile()
+	if socket_profile != null and socket_profile.has_method("get_socket_bone_name"):
+		return socket_profile.get_socket_bone_name(socket_id)
+	return ""
+
+
+func _get_grip_socket_profile() -> Resource:
+	if grip_socket_profile != null:
+		return grip_socket_profile
+	return DEFAULT_GRIP_SOCKET_PROFILE
+
+
+func _get_equipment_socket_id(item: ItemDefinition, slot_name: String) -> String:
+	if item != null and item.grip_profile != null:
+		var socket_id := str(item.grip_profile.get("primary_socket_id"))
+		if not socket_id.is_empty():
+			return socket_id
+	match slot_name:
+		"weapon":
+			return "right_hand_one_hand"
+		"offhand":
+			return "left_hand_shield"
+	return ""
+
+
+func _get_item_grip_transform(model_root: Node3D, item: ItemDefinition, slot_name: String) -> Transform3D:
+	var marker_name := _get_item_grip_marker_name(item, slot_name)
+	if marker_name.is_empty():
+		return Transform3D.IDENTITY
+	var marker := _find_node3d_by_name(model_root, marker_name)
+	if marker == null:
+		push_warning("Missing %s marker in %s; using wrapper root as grip point." % [marker_name, item.display_name])
+		return Transform3D.IDENTITY
+	return _get_node3d_transform_relative_to_root(model_root, marker)
+
+
+func _get_item_grip_marker_name(item: ItemDefinition, _slot_name: String) -> String:
+	if item != null and item.grip_profile != null:
+		var marker_name := str(item.grip_profile.get("primary_grip_marker"))
+		if not marker_name.is_empty():
+			return marker_name
+	return "GripPoint_Primary"
+
+
+func _find_node3d_by_name(root: Node, node_name: String) -> Node3D:
+	if root is Node3D and root.name == node_name:
+		return root as Node3D
+	for child in root.get_children():
+		var found := _find_node3d_by_name(child, node_name)
+		if found != null:
+			return found
+	return null
+
+
+func _get_node3d_transform_relative_to_root(root: Node3D, target: Node3D) -> Transform3D:
+	if target == root:
+		return Transform3D.IDENTITY
+	var current: Node = target
+	var result := Transform3D.IDENTITY
+	while current != null and current != root:
+		if current is Node3D:
+			result = (current as Node3D).transform * result
+		current = current.get_parent()
+	return result
 
 
 func _get_equipment_attachment_bone(item: ItemDefinition, slot_name: String) -> String:

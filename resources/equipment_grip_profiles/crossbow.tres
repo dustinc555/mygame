@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="EquipmentGripProfile" format=3]
+
+[ext_resource type="Script" uid="uid://dvj7n3q5e6s0r" path="res://scripts/items/equipment_grip_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "crossbow"
+display_name = "Crossbow"
+grip_class_id = "crossbow"
+primary_bone = "hand_r"
+secondary_bone = "hand_l"
+primary_socket_id = "right_hand_crossbow_grip"
+secondary_socket_id = "left_hand_crossbow_support"
+requires_two_hands = true
+animation_stance_id = "crossbow"
+authoring_notes = "Metadata-only until crossbow animation/IK lands. GripPoint_Primary aligns to RightHandCrossbowGrip; GripPoint_Secondary should mark the left-hand support target."

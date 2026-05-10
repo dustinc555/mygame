@@ -1,8 +1,13 @@
 [gd_scene format=3 uid="uid://doh8nkdb3pef6"]
 
 [ext_resource type="PackedScene" uid="uid://divylpc43r6ng" path="res://assets/vendor/quaternius/medieval_weapons/fbx/Sword.fbx" id="1_model"]
+[ext_resource type="Script" uid="uid://c6ncuf7x61vvu" path="res://scripts/world/equipment/grip_point_marker.gd" id="2_grip"]
 
 [node name="SwordModel" type="Node3D" unique_id=57454295]
+
+[node name="GripPoint_Primary" type="Marker3D" parent="." unique_id=884702514]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.22870246, 0.54964817, 0)
+script = ExtResource("2_grip")
 
 [node name="Model" parent="." unique_id=603466460 instance=ExtResource("1_model")]
 transform = Transform3D(-0.10248, -0.0075520696, 0.99470645, 0.99436957, -0.02787865, 0.10223364, 0.026958996, 0.9995827, 0.0103665525, -0.21617484, 0.51358044, 0.090019524)

@@ -1,8 +1,13 @@
 [gd_scene format=3 uid="uid://dar6jv0cjxpop"]
 
 [ext_resource type="PackedScene" uid="uid://cuusise5v55rm" path="res://assets/vendor/quaternius/medieval_weapons/fbx/Dagger.fbx" id="1_model"]
+[ext_resource type="Script" uid="uid://c6ncuf7x61vvu" path="res://scripts/world/equipment/grip_point_marker.gd" id="2_grip"]
 
 [node name="DaggerModel" type="Node3D" unique_id=1159089694]
+
+[node name="GripPoint_Primary" type="Marker3D" parent="." unique_id=1341298389]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.16038841, 0.2032662, -0.09580165)
+script = ExtResource("2_grip")
 
 [node name="Model" parent="." unique_id=540569463 instance=ExtResource("1_model")]
 transform = Transform3D(-0.102479994, -0.0075520696, 0.99470645, 0.994735, -0.0007780323, 0.10247704, 0, 0.99997115, 0.0075920406, -0.044141293, 0.22179496, 0.090019524)

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="EquipmentGripProfile" format=3]
+
+[ext_resource type="Script" uid="uid://dvj7n3q5e6s0r" path="res://scripts/items/equipment_grip_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "two_hand_weapon"
+display_name = "Two-Hand Weapon"
+grip_class_id = "two_hand_weapon"
+primary_bone = "hand_r"
+secondary_bone = "hand_l"
+primary_socket_id = "right_hand_two_hand_primary"
+secondary_socket_id = "left_hand_two_hand_secondary"
+requires_two_hands = true
+animation_stance_id = "two_hand_weapon"
+authoring_notes = "Metadata-only until two-hand animation/IK lands. GripPoint_Primary aligns to RightHandTwoHandGrip; GripPoint_Secondary should mark the left-hand support grip."

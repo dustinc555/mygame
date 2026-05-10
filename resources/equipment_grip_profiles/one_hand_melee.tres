@@ -1,11 +1,7 @@
-[gd_resource type="Resource" script_class="EquipmentGripProfile" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="EquipmentGripProfile" format=3 uid="uid://ddoq1y4fkfw0i"]
 
-[ext_resource type="Script" path="res://scripts/items/equipment_grip_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://dvj7n3q5e6s0r" path="res://scripts/items/equipment_grip_profile.gd" id="1_profile"]
 
 [resource]
 script = ExtResource("1_profile")
-profile_id = "one_hand_melee"
-display_name = "One-Hand Melee"
-primary_bone = "hand_r"
-animation_stance_id = "one_hand_melee"
-authoring_notes = "Use dagger_model.tscn as the current reference: wrapper/root is the grip contract and the visible model is oriented so it looks naturally clenched in the right fist."
+authoring_notes = "Use dagger_model.tscn as the current reference: GripPoint_Primary aligns to RightHandGrip and should be oriented so the handle sits naturally clenched in the right fist."
