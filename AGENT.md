@@ -13,6 +13,13 @@
 - Test levels are proofs, not implementations. Levels may customize content and instructions, but not core interaction, inventory, combat, trade, HUD, AI, or simulation logic.
 - Before writing code, ask: `If I drag this asset into another bootstrapped scene, will it still work?` If not, refactor first.
 
+## Character And Equipment Modeling
+- Characters use race definitions and body archetype definitions. Do not treat sex/body/race as hardcoded scene-specific state.
+- `ItemDefinition` is gameplay-facing item data. Worn clothing model selection belongs in `EquipmentVisualDefinition` entries, usually stored in `ItemDefinition.equipped_visuals`.
+- Clothing should bind to the live character skeleton when possible. Do not create scene-specific clothing animation hacks.
+- Body hiding is off by default. Do not hide or delete body meshes to fix clipping unless an explicit, operator-authored body-region system is in place for that asset.
+- Avoid a full race-by-sex-by-item matrix when adding races. Reuse compatible body fit families where possible and add exact archetype visuals only where the shared fit fails.
+
 ## Required Validation
 - Whole project: run `godot --headless --editor --path . --quit`
   - This must exit with code `0`.

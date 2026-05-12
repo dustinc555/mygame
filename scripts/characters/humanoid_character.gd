@@ -3,6 +3,9 @@ extends "res://scripts/actors/world_actor.gd"
 class_name HumanoidCharacter
 
 const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/effects/world_text_notice.tscn")
+const HUMAN_RACE = preload("res://resources/character_races/human.tres")
+const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_male.tres")
+const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_female.tres")
 const MALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf")
 const FEMALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Female_FullBody.gltf")
 const UAL1_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_1/UAL1_Standard.glb")
@@ -32,18 +35,19 @@ const SITTING_IDLE_MAX_SECONDS := 11.0
 const SITTING_TALKING_CHANCE := 0.28
 const MOVE_ANIMATION_BLEND_SECONDS := 0.12
 const SPRINT_ANIMATION_SPEED_RATIO := 0.82
-const EQUIPMENT_SLOTS: Array[String] = ["head", "chest", "backpack", "legs", "gloves", "feet", "weapon", "offhand"]
+const EQUIPMENT_SLOTS: Array[String] = ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head", "weapon", "offhand"]
 const EQUIPMENT_SLOT_LABELS := {
+	"undershirt": "Undershirt",
+	"hands": "Hands",
 	"head": "Head",
 	"chest": "Chest",
 	"backpack": "Backpack",
 	"legs": "Legs",
-	"gloves": "Gloves",
 	"feet": "Feet",
 	"weapon": "Weapon",
 	"offhand": "Offhand",
 }
-const CLOTHING_EQUIPMENT_SLOTS := ["head", "chest", "backpack", "legs", "gloves", "feet"]
+const CLOTHING_EQUIPMENT_SLOTS := ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head"]
 const BONE_EQUIPMENT_SLOTS := {
 	"weapon": "hand_r",
 	"offhand": "hand_l",
@@ -103,6 +107,8 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var show_inventory_weight := true
 @export var overhead_text_height := 2.4
 @export var show_nameplate := true
+@export var character_race: Resource = HUMAN_RACE
+@export var body_archetype: Resource
 @export_enum("Auto", "None", "Male", "Female") var visual_body_type: int = VisualBodyType.AUTO
 @export var grip_socket_profile: Resource = DEFAULT_GRIP_SOCKET_PROFILE
 @export var show_grip_socket_markers := false
@@ -685,10 +691,18 @@ func can_receive_inventory_transfer_from(_source_owner) -> bool:
 
 
 func get_equipment_slot_names() -> Array[String]:
+	var race := _get_character_race()
+	if race != null and race.has_method("get_equipment_slots"):
+		var race_slots: Array[String] = race.get_equipment_slots()
+		if not race_slots.is_empty():
+			return race_slots
 	return EQUIPMENT_SLOTS.duplicate()
 
 
 func get_equipment_slot_label(slot_name: String) -> String:
+	var race := _get_character_race()
+	if race != null and race.has_method("get_slot_label"):
+		return race.get_slot_label(slot_name)
 	return str(EQUIPMENT_SLOT_LABELS.get(slot_name, slot_name.capitalize()))
 
 
@@ -699,7 +713,7 @@ func get_equipped_item(slot_name: String) -> ItemDefinition:
 func can_equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> bool:
 	if definition == null or not definition.is_equippable():
 		return false
-	if not EQUIPMENT_SLOTS.has(slot_name):
+	if not get_equipment_slot_names().has(slot_name):
 		return false
 	return definition.can_equip_to_slot(slot_name)
 
@@ -1727,10 +1741,11 @@ func _setup_character_visual() -> void:
 	if body_mesh == null:
 		return
 	body_mesh.visible = true
+	var resolved_body_archetype := _resolve_body_archetype()
 	var resolved_body_type := _resolve_visual_body_type()
 	if resolved_body_type == VisualBodyType.NONE:
 		return
-	var visual_scene := _get_character_visual_scene(resolved_body_type)
+	var visual_scene := _get_character_visual_scene(resolved_body_type, resolved_body_archetype)
 	if visual_scene == null:
 		return
 
@@ -1747,7 +1762,8 @@ func _setup_character_visual() -> void:
 	visual_root.add_child(model_root)
 	var visual_fit_scale := _fit_visual_to_body_mesh(visual_root, body_mesh)
 	_setup_character_animation(model_root)
-	_setup_equipped_clothing_visuals(visual_root, resolved_body_type, body_mesh, visual_fit_scale)
+	var character_skeleton := _find_skeleton(model_root)
+	_setup_equipped_clothing_visuals(visual_root, character_skeleton, resolved_body_archetype, body_mesh, visual_fit_scale)
 	_setup_humanoid_grip_sockets(visual_root)
 	_setup_equipped_bone_visuals(visual_root)
 	_play_random_idle_animation(true)
@@ -1809,20 +1825,22 @@ func _remove_bone_equipment_slot(skeleton: Skeleton3D, slot_name: String) -> voi
 
 
 func _has_equipped_clothing_visuals() -> bool:
+	var resolved_body_archetype := _resolve_body_archetype()
 	for slot_name in CLOTHING_EQUIPMENT_SLOTS:
 		var item := get_equipped_item(slot_name)
-		if item != null and item.get_equipped_scene_for_body_type(_resolve_visual_body_type()) != null:
+		if item != null and item.get_equipped_scene_for_body_archetype(resolved_body_archetype) != null:
 			return true
 	return false
 
 
-func _setup_equipped_clothing_visuals(visual_root: Node3D, body_type: int, body_mesh: MeshInstance3D, visual_fit_scale: float) -> void:
+func _setup_equipped_clothing_visuals(visual_root: Node3D, character_skeleton: Skeleton3D, body_archetype: Resource, body_mesh: MeshInstance3D, visual_fit_scale: float) -> void:
 	var surface_offset_base := _get_clothing_surface_offset_base(body_mesh, visual_fit_scale)
 	for slot_name in CLOTHING_EQUIPMENT_SLOTS:
 		var item := get_equipped_item(slot_name)
 		if item == null:
 			continue
-		var equipped_scene := item.get_equipped_scene_for_body_type(body_type)
+		var equipment_visual := item.get_equipment_visual_for_body_archetype(body_archetype)
+		var equipped_scene := item.get_equipped_scene_for_body_archetype(body_archetype)
 		if equipped_scene == null:
 			continue
 		var instance := equipped_scene.instantiate()
@@ -1831,10 +1849,73 @@ func _setup_equipped_clothing_visuals(visual_root: Node3D, body_type: int, body_
 			continue
 		var model_root := instance as Node3D
 		model_root.name = "Equipped_%s" % slot_name.capitalize()
-		model_root.transform = Transform3D(Basis(Vector3.UP, CHARACTER_VISUAL_YAW_OFFSET), Vector3.ZERO) * item.equipped_transform
-		_inflate_clothing_visual(model_root, surface_offset_base * item.equipped_surface_offset_ratio)
-		visual_root.add_child(model_root)
-		_setup_character_animation(model_root)
+		var visual_transform := item.equipped_transform
+		var surface_offset_ratio := 0.0
+		if equipment_visual != null:
+			visual_transform = equipment_visual.get("equipped_transform")
+			surface_offset_ratio = float(equipment_visual.get("surface_offset_ratio"))
+		var surface_offset := surface_offset_base * surface_offset_ratio
+		if character_skeleton != null and _setup_shared_skeleton_clothing_visual(visual_root, character_skeleton, model_root, visual_transform, surface_offset):
+			model_root.free()
+			continue
+		_setup_legacy_clothing_visual(visual_root, model_root, visual_transform, surface_offset)
+
+
+func _setup_shared_skeleton_clothing_visual(visual_root: Node3D, character_skeleton: Skeleton3D, source_root: Node3D, visual_transform: Transform3D, surface_offset: float) -> bool:
+	var source_meshes: Array[MeshInstance3D] = []
+	_collect_mesh_instances(source_root, source_meshes)
+	if source_meshes.is_empty():
+		return false
+
+	var slot_root := Node3D.new()
+	slot_root.name = source_root.name
+	slot_root.transform = Transform3D(Basis(Vector3.UP, CHARACTER_VISUAL_YAW_OFFSET), Vector3.ZERO) * visual_transform
+	visual_root.add_child(slot_root)
+	var copied_mesh_count := 0
+	for source_mesh in source_meshes:
+		if source_mesh == null or source_mesh.mesh == null:
+			continue
+		var clothing_mesh := _copy_clothing_mesh_instance(source_root, source_mesh)
+		slot_root.add_child(clothing_mesh)
+		clothing_mesh.skeleton = clothing_mesh.get_path_to(character_skeleton)
+		_inflate_clothing_visual(clothing_mesh, surface_offset)
+		copied_mesh_count += 1
+
+	if copied_mesh_count <= 0:
+		slot_root.free()
+		return false
+	return true
+
+
+func _setup_legacy_clothing_visual(visual_root: Node3D, model_root: Node3D, visual_transform: Transform3D, surface_offset: float) -> void:
+	model_root.transform = Transform3D(Basis(Vector3.UP, CHARACTER_VISUAL_YAW_OFFSET), Vector3.ZERO) * visual_transform
+	_inflate_clothing_visual(model_root, surface_offset)
+	visual_root.add_child(model_root)
+	_setup_character_animation(model_root)
+
+
+func _collect_mesh_instances(root: Node, meshes: Array[MeshInstance3D]) -> void:
+	if root is MeshInstance3D:
+		meshes.append(root as MeshInstance3D)
+	for child in root.get_children():
+		_collect_mesh_instances(child, meshes)
+
+
+func _copy_clothing_mesh_instance(source_root: Node3D, source_mesh: MeshInstance3D) -> MeshInstance3D:
+	var clothing_mesh := MeshInstance3D.new()
+	clothing_mesh.name = source_mesh.name
+	clothing_mesh.transform = _get_node3d_transform_relative_to_root(source_root, source_mesh)
+	clothing_mesh.mesh = source_mesh.mesh
+	clothing_mesh.skin = source_mesh.skin
+	clothing_mesh.visible = source_mesh.visible
+	clothing_mesh.layers = source_mesh.layers
+	clothing_mesh.cast_shadow = source_mesh.cast_shadow
+	clothing_mesh.material_override = source_mesh.material_override
+	for surface_index in range(source_mesh.get_surface_override_material_count()):
+		clothing_mesh.set_surface_override_material(surface_index, source_mesh.get_surface_override_material(surface_index))
+	for blend_shape_index in range(source_mesh.get_blend_shape_count()):
+		clothing_mesh.set_blend_shape_value(blend_shape_index, source_mesh.get_blend_shape_value(blend_shape_index))
+	return clothing_mesh
 
 
 func _setup_equipped_bone_visuals(visual_root: Node3D) -> void:
@@ -1849,7 +1930,7 @@ func _setup_equipped_bone_visuals(visual_root: Node3D) -> void:
 func _add_bone_equipment_slot(skeleton: Skeleton3D, slot_name: String, item: ItemDefinition) -> void:
 	if item == null:
 		return
-	var equipped_scene := item.get_equipped_scene_for_body_type(_resolve_visual_body_type())
+	var equipped_scene := item.get_equipped_scene_for_body_archetype(_resolve_body_archetype())
 	if equipped_scene == null:
 		return
 	var instance := equipped_scene.instantiate()
@@ -2023,7 +2104,35 @@ func _find_skeleton(root: Node) -> Skeleton3D:
 func _resolve_visual_body_type() -> int:
 	if visual_body_type != VisualBodyType.AUTO:
 		return visual_body_type
+	if body_archetype != null:
+		var archetype_body_type := int(body_archetype.get("visual_body_type"))
+		if archetype_body_type != VisualBodyType.NONE:
+			return archetype_body_type
 	return _infer_visual_body_type()
+
+
+func _resolve_body_archetype() -> Resource:
+	if body_archetype != null:
+		return body_archetype
+	var race := _get_character_race()
+	match _resolve_visual_body_type():
+		VisualBodyType.MALE:
+			if race != null and race.get("default_male_archetype") != null:
+				return race.get("default_male_archetype") as Resource
+			return HUMAN_MALE_BODY_ARCHETYPE
+		VisualBodyType.FEMALE:
+			if race != null and race.get("default_female_archetype") != null:
+				return race.get("default_female_archetype") as Resource
+			return HUMAN_FEMALE_BODY_ARCHETYPE
+	return null
+
+
+func _get_character_race() -> Resource:
+	if character_race != null:
+		return character_race
+	if body_archetype != null and body_archetype.get("race") != null:
+		return body_archetype.get("race") as Resource
+	return HUMAN_RACE
 
 
 func _infer_visual_body_type() -> int:
@@ -2035,7 +2144,11 @@ func _infer_visual_body_type() -> int:
 	return VisualBodyType.MALE
 
 
-func _get_character_visual_scene(body_type: int) -> PackedScene:
+func _get_character_visual_scene(body_type: int, resolved_body_archetype: Resource) -> PackedScene:
+	if resolved_body_archetype != null:
+		var archetype_visual_scene := resolved_body_archetype.get("visual_scene") as PackedScene
+		if archetype_visual_scene != null:
+			return archetype_visual_scene
 	match body_type:
 		VisualBodyType.MALE:
 			return MALE_VISUAL_SCENE

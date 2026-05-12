@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="ItemDefinition" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://c24tlcnkcfnv4"]
 
-[ext_resource type="Script" path="res://scripts/items/item_definition.gd" id="1_item"]
-[ext_resource type="Texture2D" path="res://assets/items/ore/copper.png" id="2_icon"]
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Texture2D" uid="uid://c8ntf053v68ne" path="res://assets/items/ore/copper.png" id="2_icon"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="3_g8fqn"]
 
 [resource]
 script = ExtResource("1_item")
@@ -9,4 +10,4 @@ display_name = "Copper Ore"
 icon = ExtResource("2_icon")
 grid_size = Vector2i(3, 2)
 unit_weight = 4.0
-max_stack = 1
+alternate_equip_slots = null

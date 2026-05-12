@@ -1,10 +1,11 @@
-[gd_resource type="Resource" script_class="ItemDefinition" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://bhx1scgadb5d7"]
 
-[ext_resource type="Script" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_cjkov"]
 
 [resource]
 script = ExtResource("1_item")
 display_name = "SILVER"
-grid_size = Vector2i(1, 1)
 unit_weight = 0.01
 max_stack = 100
+alternate_equip_slots = null

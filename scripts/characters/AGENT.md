@@ -5,7 +5,7 @@
 - Do not add player-only assumptions to equipment code. Non-party humanoids should still be able to equip and render gear.
 - Equipment visuals should be rebuilt from item data and reusable visual scenes, not from test-level-specific logic.
 - Multi-step equipment changes should use the reusable equipment update batch so visuals rebuild once after the final equipment state is known.
-- Clothing visuals should animate in sync with the base character animation players.
+- Clothing visuals should follow the active base character skeleton. Prefer rebinding skinned clothing meshes to the live `Skeleton3D` over running separate parallel clothing animation players.
 - Hand-held equipment should attach through generated body grip sockets, not directly through one-off item pivots.
 - `HumanoidCharacter` should create named socket markers such as `RightHandGrip` and `LeftHandGrip` under `BoneAttachment3D` nodes attached to the final `hand_r` / `hand_l` bones.
 - Equipped bone visuals must align the item's grip marker, usually `GripPoint_Primary`, to the generated body socket from `HumanoidGripSocketProfile`.
@@ -26,8 +26,12 @@
 
 ## Clothing Rendering
 - Keep the base character model visible when clothing is equipped.
-- Use item `equipped_surface_offset_ratio` for clothing shell fit over the base body.
+- Runtime clothing uses `EquipmentVisualDefinition` selected by body archetype. Do not read or reintroduce legacy top-level clothing fields on `ItemDefinition`.
+- Use `EquipmentVisualDefinition.surface_offset_ratio` and `EquipmentVisualDefinition.equipped_transform` for per-body-archetype clothing fit.
 - Runtime clothing mesh inflation must duplicate/replace the equipped mesh instance, not mutate imported shared mesh assets in place.
+- Body hiding is not an automatic clipping fix. Leave body regions visible unless a specific item/archetype has explicit operator-authored region data and an approved hiding implementation.
+- If an item has no compatible worn visual for the resolved body archetype or fit family, prefer rendering no clothing over rendering a broken human fallback.
+- Current human base archetypes are `human_male` using `Superhero_Male_FullBody.gltf` and `human_female` using `Superhero_Female_FullBody.gltf`.
 
 ## Animation Baseline
 - Normal standing idle is the baseline pose for equipment placement tuning.

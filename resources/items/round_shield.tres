@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
 [ext_resource type="Texture2D" uid="uid://blxlcfhluaxsy" path="res://assets/items/equipment/round_shield.svg" id="3_icon"]
-[ext_resource type="PackedScene" path="res://scenes/world/equipment/round_shield_model.tscn" id="4_model"]
+[ext_resource type="PackedScene" uid="uid://deob4lyi7y8mi" path="res://scenes/world/equipment/round_shield_model.tscn" id="4_model"]
 [ext_resource type="Resource" uid="uid://btj2x7kgya5se" path="res://resources/equipment_grip_profiles/offhand_shield.tres" id="5_grip"]
 
 [sub_resource type="Resource" id="ItemStatModifier_block"]

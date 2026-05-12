@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://daah02snvbxpu"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
+[ext_resource type="Texture2D" uid="uid://dtk8mh4mc5u8b" path="res://assets/items/equipment/axe.svg" id="3_icon"]
+[ext_resource type="PackedScene" path="res://scenes/world/equipment/hammer_double_model.tscn" id="4_model"]
+[ext_resource type="Resource" path="res://resources/equipment_grip_profiles/two_hand_weapon.tres" id="5_grip"]
+
+[sub_resource type="Resource" id="ItemStatModifier_damage"]
+script = ExtResource("2_mod")
+stat_name = "attack_damage"
+add = 17.0
+
+[sub_resource type="Resource" id="ItemStatModifier_cut"]
+script = ExtResource("2_mod")
+stat_name = "cut_ratio"
+add = 0.05
+
+[sub_resource type="Resource" id="ItemStatModifier_cooldown"]
+script = ExtResource("2_mod")
+stat_name = "attack_cooldown"
+add = 0.7
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Maul"
+icon = ExtResource("3_icon")
+grid_size = Vector2i(2, 4)
+unit_weight = 6.0
+equip_slot = "weapon"
+alternate_equip_slots = null
+world_scene = ExtResource("4_model")
+equipped_scene = ExtResource("4_model")
+grip_profile = ExtResource("5_grip")
+equipped_transform = Transform3D(0.189, 0, 0, 0, 0.189, 0, 0, 0, 0.189, 0, 0, 0)
+stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_damage"), SubResource("ItemStatModifier_cut"), SubResource("ItemStatModifier_cooldown")])

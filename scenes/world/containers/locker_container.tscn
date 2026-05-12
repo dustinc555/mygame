@@ -9,7 +9,7 @@ size = Vector3(1.15, 2.05, 0.5)
 [node name="LockerContainer" instance=ExtResource("1_container")]
 display_name = "Clothes Locker"
 inventory_columns = 8
-inventory_rows = 6
+inventory_rows = 12
 interaction_distance = 2.1
 slot_distance = 1.8
 cell_size = Vector2(25, 25)

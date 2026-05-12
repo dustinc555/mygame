@@ -5,21 +5,34 @@
 - Equipment must be represented by `ItemDefinition` `.tres` resources. Visual-only `.tscn` scenes are not valid `starting_equipment` entries.
 - `starting_equipment` should reference item resources such as `res://resources/items/iron_dagger.tres`.
 - `world_scene` is the scene used for world item display.
-- `equipped_scene` or body-specific equipped scenes define the visual used when equipped.
+- `equipped_scene` is for hand-held equipment that uses grip/socket attachment.
+- `equipped_visuals` is for worn clothing/armor. Each entry should be an `EquipmentVisualDefinition` matched to a body archetype.
 - `grip_profile` chooses the reusable grip/stance contract for equipped items.
-- `equipped_transform` is applied after body-socket to item-marker alignment and should be used for scale and small final placement tweaks after the visual wrapper scene has a good origin/orientation.
+- Item-level `equipped_transform` is for hand-held equipment scale and small final placement tweaks after body-socket to item-marker alignment.
 
 ## Clothing Fit
 - Clothing should layer over the visible base character model.
-- Do not hide base body meshes to solve clothing clipping.
-- Use `equipped_surface_offset_ratio` to inflate clothing over the base body at runtime.
+- Do not hide base body meshes to solve clothing clipping unless an explicit operator-authored body-region system exists for that item and archetype.
+- Use `EquipmentVisualDefinition.surface_offset_ratio` to inflate clothing over the base body at runtime.
+- Use `EquipmentVisualDefinition.equipped_transform` for per-archetype fit corrections such as small torso width/depth changes.
 - Offset ratios are character-relative, not fixed world sizes, so they scale with the equipped character.
+- Do not use or reintroduce top-level `equipped_surface_offset_ratio`, `male_equipped_scene`, or `female_equipped_scene`; migrated clothing fit lives in `equipped_visuals`.
+- Reuse visual entries across compatible body fit families when possible. Add exact archetype variants only when the shared fit fails.
+- If a clothing piece is fake or visually wrong for the slot, remove it from content instead of keeping it as a misleading item. Peasant Sleeves were removed for this reason.
 - Current clothing fit baselines:
   - Chest/body: about `0.018`
   - Legs: about `0.016`
-  - Gloves/arms: about `0.014`
+  - Hands/arms: about `0.014`
   - Feet: about `0.012`
   - Hood/head: about `0.004` or lower
+
+## New Clothing Resource Checklist
+- Create an `ItemDefinition` resource in this folder with the correct `equip_slot`.
+- Add `EquipmentVisualDefinition` entries under `equipped_visuals` for supported body archetypes.
+- Point each visual entry at a skinned clothing mesh compatible with the target skeleton/body fit.
+- Tune `surface_offset_ratio` and visual `equipped_transform` per archetype; do not change the gameplay item for one body's fit.
+- Validate on `human_male` and `human_female` when both are supported, because Tomas and Mira can require different visual fit values.
+- If a race/body has no acceptable visual, leave it unsupported rather than falling back to broken human clothing.
 
 ## Weapon Fit
 - Weapon model orientation and grip/pivot corrections should usually live in `scenes/world/equipment/*.tscn`.

@@ -5,6 +5,28 @@
 [ext_resource type="Texture2D" uid="uid://cct0nisfg1vmy" path="res://assets/items/equipment/peasant_feet.svg" id="3_icon"]
 [ext_resource type="PackedScene" uid="uid://uigbmhpsujm2" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Feet.gltf" id="4_male"]
 [ext_resource type="PackedScene" uid="uid://cfcne424nox32" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Female_Peasant_Feet.gltf" id="5_female"]
+[ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://scripts/items/equipment_visual_definition.gd" id="6_visual"]
+[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_male.tres" id="7_human_male"]
+[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_female.tres" id="8_human_female"]
+
+[sub_resource type="Resource" id="EquipmentVisual_human_male"]
+script = ExtResource("6_visual")
+body_archetype = ExtResource("7_human_male")
+visual_scene = ExtResource("4_male")
+surface_offset_ratio = 0.018
+visual_layer = "underlayer"
+visual_coverage = "feet"
+replaces_body_slots = PackedStringArray()
+visual_notes = "Human male fit tuned against Tomas."
+
+[sub_resource type="Resource" id="EquipmentVisual_human_female"]
+script = ExtResource("6_visual")
+body_archetype = ExtResource("8_human_female")
+visual_scene = ExtResource("5_female")
+surface_offset_ratio = 0.012
+visual_layer = "underlayer"
+visual_coverage = "feet"
+replaces_body_slots = PackedStringArray()
 
 [sub_resource type="Resource" id="ItemStatModifier_speed"]
 script = ExtResource("2_mod")
@@ -20,7 +42,5 @@ unit_weight = 0.8
 equip_slot = "feet"
 alternate_equip_slots = null
 world_scene = ExtResource("4_male")
-male_equipped_scene = ExtResource("4_male")
-female_equipped_scene = ExtResource("5_female")
-equipped_surface_offset_ratio = 0.012
+equipped_visuals = Array[Resource]([SubResource("EquipmentVisual_human_male"), SubResource("EquipmentVisual_human_female")])
 stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_speed")])

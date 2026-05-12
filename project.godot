@@ -15,13 +15,17 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="MyGame"
-run/main_scene="uid://dx3m6v8xbo456"
+run/main_scene="uid://cp73mjas8wdqn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
 
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/job_authoring/plugin.cfg")
+
+[gui]
+
+timers/tooltip_delay_sec=0.0
 
 [rendering]
 

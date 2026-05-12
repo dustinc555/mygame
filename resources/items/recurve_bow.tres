@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://4a4hl5u8qmk6"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
+[ext_resource type="Texture2D" uid="uid://b42eioyk6bgjj" path="res://assets/items/equipment/sword.svg" id="3_icon"]
+[ext_resource type="PackedScene" path="res://scenes/world/equipment/bow_wooden2_model.tscn" id="4_model"]
+[ext_resource type="Resource" path="res://resources/equipment_grip_profiles/bow.tres" id="5_grip"]
+
+[sub_resource type="Resource" id="ItemStatModifier_damage"]
+script = ExtResource("2_mod")
+stat_name = "attack_damage"
+add = 7.0
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Recurve Bow"
+icon = ExtResource("3_icon")
+grid_size = Vector2i(2, 4)
+unit_weight = 1.7
+equip_slot = "weapon"
+alternate_equip_slots = null
+world_scene = ExtResource("4_model")
+equipped_scene = ExtResource("4_model")
+grip_profile = ExtResource("5_grip")
+equipped_transform = Transform3D(0.189, 0, 0, 0, 0.189, 0, 0, 0, 0.189, 0, 0, 0)
+stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_damage")])

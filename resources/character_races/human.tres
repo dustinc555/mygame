@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="CharacterRaceDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/character_race_definition.gd" id="1_script"]
+[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_male.tres" id="2_male"]
+[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_female.tres" id="3_female"]
+
+[resource]
+script = ExtResource("1_script")
+race_id = "human"
+display_name = "Human"
+equipment_slots = PackedStringArray("undershirt", "hands", "chest", "legs", "feet", "backpack", "head", "weapon", "offhand")
+equipment_slot_labels = {
+"backpack": "Backpack",
+"chest": "Chest",
+"feet": "Feet",
+"hands": "Hands",
+"head": "Head",
+"legs": "Legs",
+"offhand": "Offhand",
+"undershirt": "Undershirt",
+"weapon": "Weapon"
+}
+default_male_archetype = ExtResource("2_male")
+default_female_archetype = ExtResource("3_female")

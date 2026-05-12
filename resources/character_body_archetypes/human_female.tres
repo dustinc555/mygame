@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="CharacterBodyArchetypeDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/character_body_archetype_definition.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Female_FullBody.gltf" id="2_visual"]
+
+[resource]
+script = ExtResource("1_script")
+archetype_id = "human_female"
+display_name = "Human Female"
+race_id = "human"
+visual_scene = ExtResource("2_visual")
+visual_body_type = 3

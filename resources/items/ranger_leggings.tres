@@ -5,6 +5,27 @@
 [ext_resource type="Texture2D" uid="uid://j85cnyd2ln7h" path="res://assets/items/equipment/ranger_legs.svg" id="3_icon"]
 [ext_resource type="PackedScene" uid="uid://d2xq6e5ayf03q" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Legs.gltf" id="4_male"]
 [ext_resource type="PackedScene" uid="uid://b7m6xvf68a5ii" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Female_Ranger_Legs.gltf" id="5_female"]
+[ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://scripts/items/equipment_visual_definition.gd" id="6_visual"]
+[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_male.tres" id="7_human_male"]
+[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_female.tres" id="8_human_female"]
+
+[sub_resource type="Resource" id="EquipmentVisual_human_male"]
+script = ExtResource("6_visual")
+body_archetype = ExtResource("7_human_male")
+visual_scene = ExtResource("4_male")
+surface_offset_ratio = 0.016
+visual_layer = "armor"
+visual_coverage = "legs"
+replaces_body_slots = PackedStringArray()
+
+[sub_resource type="Resource" id="EquipmentVisual_human_female"]
+script = ExtResource("6_visual")
+body_archetype = ExtResource("8_human_female")
+visual_scene = ExtResource("5_female")
+surface_offset_ratio = 0.016
+visual_layer = "armor"
+visual_coverage = "legs"
+replaces_body_slots = PackedStringArray()
 
 [sub_resource type="Resource" id="ItemStatModifier_dodge"]
 script = ExtResource("2_mod")
@@ -20,7 +41,5 @@ unit_weight = 1.2
 equip_slot = "legs"
 alternate_equip_slots = null
 world_scene = ExtResource("4_male")
-male_equipped_scene = ExtResource("4_male")
-female_equipped_scene = ExtResource("5_female")
-equipped_surface_offset_ratio = 0.016
+equipped_visuals = Array[Resource]([SubResource("EquipmentVisual_human_male"), SubResource("EquipmentVisual_human_female")])
 stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_dodge")])

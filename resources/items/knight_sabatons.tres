@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://1jvsswcrb5x1"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Texture2D" uid="uid://dd1mcvs61r2ku" path="res://assets/items/equipment/ranger_feet.svg" id="2_icon"]
+[ext_resource type="PackedScene" uid="uid://dmpkhfn2uoynu" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Feet_Armor.gltf" id="3_male"]
+[ext_resource type="PackedScene" uid="uid://dn4u8478s1wt" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Female_Knight_Feet.gltf" id="4_female"]
+[ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://scripts/items/equipment_visual_definition.gd" id="5_visual"]
+[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_male.tres" id="6_human_male"]
+[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_female.tres" id="7_human_female"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="8_duxus"]
+
+[sub_resource type="Resource" id="EquipmentVisual_human_male"]
+script = ExtResource("5_visual")
+body_archetype = ExtResource("6_human_male")
+visual_scene = ExtResource("3_male")
+surface_offset_ratio = 0.012
+visual_layer = "armor"
+visual_coverage = "feet"
+replaces_body_slots = PackedStringArray()
+
+[sub_resource type="Resource" id="EquipmentVisual_human_female"]
+script = ExtResource("5_visual")
+body_archetype = ExtResource("7_human_female")
+visual_scene = ExtResource("4_female")
+surface_offset_ratio = 0.012
+visual_layer = "armor"
+visual_coverage = "feet"
+replaces_body_slots = PackedStringArray()
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Knight Sabatons"
+icon = ExtResource("2_icon")
+grid_size = Vector2i(2, 1)
+unit_weight = 1.6
+equip_slot = "feet"
+alternate_equip_slots = null
+world_scene = ExtResource("3_male")
+equipped_visuals = Array[Resource]([SubResource("EquipmentVisual_human_male"), SubResource("EquipmentVisual_human_female")])

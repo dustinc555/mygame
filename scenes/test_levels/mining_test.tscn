@@ -31,7 +31,6 @@
 [ext_resource type="Resource" path="res://resources/items/ranger_boots.tres" id="27_ranger_boots"]
 [ext_resource type="Resource" path="res://resources/items/peasant_tunic.tres" id="28_peasant_tunic"]
 [ext_resource type="Resource" path="res://resources/items/peasant_trousers.tres" id="29_peasant_trousers"]
-[ext_resource type="Resource" path="res://resources/items/peasant_sleeves.tres" id="30_peasant_sleeves"]
 [ext_resource type="Resource" path="res://resources/items/peasant_shoes.tres" id="31_peasant_shoes"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
@@ -156,12 +155,6 @@ item_definition = ExtResource("29_peasant_trousers")
 buy_price = 2
 sell_price = 6
 
-[sub_resource type="Resource" id="MerchantPrice_peasant_sleeves"]
-script = ExtResource("9_price_script")
-item_definition = ExtResource("30_peasant_sleeves")
-buy_price = 1
-sell_price = 4
-
 [sub_resource type="Resource" id="MerchantPrice_peasant_shoes"]
 script = ExtResource("9_price_script")
 item_definition = ExtResource("31_peasant_shoes")
@@ -233,11 +226,6 @@ script = ExtResource("10_stock_script")
 item_definition = ExtResource("29_peasant_trousers")
 quantity = 2
 
-[sub_resource type="Resource" id="MerchantStock_peasant_sleeves"]
-script = ExtResource("10_stock_script")
-item_definition = ExtResource("30_peasant_sleeves")
-quantity = 2
-
 [sub_resource type="Resource" id="MerchantStock_peasant_shoes"]
 script = ExtResource("10_stock_script")
 item_definition = ExtResource("31_peasant_shoes")
@@ -303,7 +291,7 @@ script = ExtResource("1_party")
 base_color = Color(0.33, 0.55, 0.78, 1)
 member_name = "Tomas"
 starting_items = Array[Resource]([SubResource("InventoryStock_tomas_bandage"), SubResource("InventoryStock_tomas_silver")])
-starting_equipment = Array[Resource]([ExtResource("21_axe"), ExtResource("23_shield"), ExtResource("28_peasant_tunic"), ExtResource("29_peasant_trousers"), ExtResource("30_peasant_sleeves"), ExtResource("31_peasant_shoes")])
+starting_equipment = Array[Resource]([ExtResource("21_axe"), ExtResource("23_shield"), ExtResource("28_peasant_tunic"), ExtResource("29_peasant_trousers"), ExtResource("31_peasant_shoes")])
 hunger_enabled = true
 hunger_drain_rate = 0.2
 
@@ -330,7 +318,7 @@ max_carry_weight = 9999.0
 show_inventory_weight = false
 faction_name = "Surf City"
 conversation_definition = ExtResource("14_jim_conversation")
-starting_equipment = Array[Resource]([ExtResource("22_hood"), ExtResource("28_peasant_tunic"), ExtResource("29_peasant_trousers"), ExtResource("30_peasant_sleeves"), ExtResource("31_peasant_shoes")])
+starting_equipment = Array[Resource]([ExtResource("22_hood"), ExtResource("28_peasant_tunic"), ExtResource("29_peasant_trousers"), ExtResource("31_peasant_shoes")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Jim" unique_id=1098743020]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -347,8 +335,8 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="MerchantRole" type="Node" parent="Jim" unique_id=1653657744]
 script = ExtResource("8_role")
-prices = Array[Resource]([SubResource("MerchantPrice_copper"), SubResource("MerchantPrice_food"), SubResource("MerchantPrice_silver"), SubResource("MerchantPrice_sword"), SubResource("MerchantPrice_axe"), SubResource("MerchantPrice_dagger"), SubResource("MerchantPrice_hood"), SubResource("MerchantPrice_shield"), SubResource("MerchantPrice_ranger_jerkin"), SubResource("MerchantPrice_ranger_leggings"), SubResource("MerchantPrice_ranger_bracers"), SubResource("MerchantPrice_ranger_boots"), SubResource("MerchantPrice_peasant_tunic"), SubResource("MerchantPrice_peasant_trousers"), SubResource("MerchantPrice_peasant_sleeves"), SubResource("MerchantPrice_peasant_shoes")])
-initial_stock = Array[Resource]([SubResource("MerchantStock_silver"), SubResource("MerchantStock_food"), SubResource("MerchantStock_sword"), SubResource("MerchantStock_axe"), SubResource("MerchantStock_dagger"), SubResource("MerchantStock_hood"), SubResource("MerchantStock_shield"), SubResource("MerchantStock_ranger_jerkin"), SubResource("MerchantStock_ranger_leggings"), SubResource("MerchantStock_ranger_bracers"), SubResource("MerchantStock_ranger_boots"), SubResource("MerchantStock_peasant_tunic"), SubResource("MerchantStock_peasant_trousers"), SubResource("MerchantStock_peasant_sleeves"), SubResource("MerchantStock_peasant_shoes")])
+prices = Array[Resource]([SubResource("MerchantPrice_copper"), SubResource("MerchantPrice_food"), SubResource("MerchantPrice_silver"), SubResource("MerchantPrice_sword"), SubResource("MerchantPrice_axe"), SubResource("MerchantPrice_dagger"), SubResource("MerchantPrice_hood"), SubResource("MerchantPrice_shield"), SubResource("MerchantPrice_ranger_jerkin"), SubResource("MerchantPrice_ranger_leggings"), SubResource("MerchantPrice_ranger_bracers"), SubResource("MerchantPrice_ranger_boots"), SubResource("MerchantPrice_peasant_tunic"), SubResource("MerchantPrice_peasant_trousers"), SubResource("MerchantPrice_peasant_shoes")])
+initial_stock = Array[Resource]([SubResource("MerchantStock_silver"), SubResource("MerchantStock_food"), SubResource("MerchantStock_sword"), SubResource("MerchantStock_axe"), SubResource("MerchantStock_dagger"), SubResource("MerchantStock_hood"), SubResource("MerchantStock_shield"), SubResource("MerchantStock_ranger_jerkin"), SubResource("MerchantStock_ranger_leggings"), SubResource("MerchantStock_ranger_bracers"), SubResource("MerchantStock_ranger_boots"), SubResource("MerchantStock_peasant_tunic"), SubResource("MerchantStock_peasant_trousers"), SubResource("MerchantStock_peasant_shoes")])
 
 [node name="JobProvider" type="Node" parent="Jim" unique_id=280627450]
 script = ExtResource("8_job_provider")
