@@ -3,6 +3,7 @@ extends "res://scripts/actors/world_actor.gd"
 class_name HumanoidCharacter
 
 const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/effects/world_text_notice.tscn")
+const COMBAT_COORDINATOR = preload("res://scripts/characters/combat_coordinator.gd")
 const HUMAN_RACE = preload("res://resources/character_races/human.tres")
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_female.tres")
@@ -31,9 +32,9 @@ const SITTING_ENTER_ANIMATION_NAME := "Sitting_Enter"
 const SITTING_IDLE_ANIMATION_NAME := "Sitting_Idle"
 const SITTING_TALKING_ANIMATION_NAME := "Sitting_Talking"
 const SITTING_EXIT_ANIMATION_NAME := "Sitting_Exit"
-const COMBAT_IDLE_ANIMATION_NAME := "Counter_Idle"
 const UNARMED_JAB_ANIMATION_NAME := "Punch_Jab"
 const UNARMED_CROSS_ANIMATION_NAME := "Punch_Cross"
+const UNARMED_UPPERCUT_ANIMATION_NAME := "Punch_Uppercut"
 const UNARMED_KICK_ANIMATION_NAME := "Kick"
 const UNARMED_HOOK_ANIMATION_NAMES: Array[String] = ["Melee_Hook", "Melee_Hook_Rec"]
 const UNARMED_KNEE_ANIMATION_NAMES: Array[String] = ["Melee_Knee", "Melee_Knee_Rec"]
@@ -43,7 +44,6 @@ const HIT_HEAD_ANIMATION_NAME := "Hit_Head"
 const HIT_STOMACH_ANIMATION_NAME := "Hit_Stomach"
 const HIT_SHOULDER_L_ANIMATION_NAME := "Hit_Shoulder_L"
 const HIT_SHOULDER_R_ANIMATION_NAME := "Hit_Shoulder_R"
-const HIT_KNOCKBACK_ANIMATION_NAME := "Hit_Knockback"
 const IDLE_ANIMATION_NAMES := [IDLE_ANIMATION_NAME]
 const IDLE_ANIMATION_MIN_SECONDS := 4.0
 const IDLE_ANIMATION_MAX_SECONDS := 8.0
@@ -156,9 +156,12 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var trade_interaction_distance := 3.0
 @export var aggressive_scan_radius := NpcRules.AGGRO_RANGE
 @export var assist_scan_radius := NpcRules.ASSIST_RANGE
-@export var attack_range := 1.8
+@export var attack_range := 1.15
+@export var combat_approach_arrival_distance := 0.08
+@export var combat_direct_chase_distance := 3.0
 @export var attack_cooldown_seconds := 1.2
 @export var base_attack_damage := 18.0
+@export var base_dexterity := 10.0
 @export_range(0.0, 1.0, 0.01) var attack_cut_ratio := 0.05
 @export var base_dodge_chance := 0.08
 @export var base_block_chance := 0.06
@@ -211,6 +214,7 @@ var _combat_action_attack_id := ""
 var _combat_action_blunt_damage := 0.0
 var _combat_action_cut_damage := 0.0
 var _combat_reaction_remaining := 0.0
+var _combat_reaction_source: HumanoidCharacter
 var _ai_tick_remaining := 0.0
 var _downed_recover_delay_remaining := 0.0
 var _downed_target_rotation_z := 0.0
@@ -325,6 +329,8 @@ func _physics_process(delta: float) -> void:
 			_process_seat_interaction()
 		OrderType.PICKUP_ITEM:
 			_process_pickup_interaction()
+	if _current_order_type == OrderType.ATTACK:
+		_face_combat_focus()
 
 
 func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
@@ -368,6 +374,7 @@ func stop_conversation_interaction() -> void:
 
 func stop_attack_assignment() -> void:
 	_current_attack_target = null
+	COMBAT_COORDINATOR.release_character(self)
 	if _current_order_type == OrderType.ATTACK:
 		_current_order_type = OrderType.NONE
 	combat_state_changed.emit()
@@ -1034,6 +1041,24 @@ func get_current_combat_target() -> HumanoidCharacter:
 	return _current_attack_target
 
 
+func is_ready_for_combat_exchange(target: HumanoidCharacter) -> bool:
+	if target == null or not is_instance_valid(target):
+		return false
+	if life_state != NpcRules.LifeState.ALIVE or target.life_state != NpcRules.LifeState.ALIVE:
+		return false
+	if _current_order_type != OrderType.ATTACK or _current_attack_target != target:
+		return false
+	if _combat_action_active or _combat_reaction_remaining > 0.0 or _combat_cooldown_remaining > 0.0:
+		return false
+	if COMBAT_COORDINATOR.is_character_locked(self):
+		return false
+	return global_position.distance_to(target.global_position) <= get_attack_range()
+
+
+func get_attack_range() -> float:
+	return get_stat_value("attack_range")
+
+
 func has_bandageable_wounds() -> bool:
 	return _current_open_cut_damage > 0.0 or _bleed_rate > 0.0
 
@@ -1158,6 +1183,7 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	mark_hostile(attacker)
 	attacker.mark_hostile(self)
 	_last_direct_attacker_id = attacker.get_instance_id()
+	_face_character(attacker)
 	if _rng.randf() <= get_stat_value("dodge_chance"):
 		_show_world_notice("Dodge", Color(0.74, 0.94, 1.0, 1.0))
 		_try_start_self_defense(attacker)
@@ -1167,7 +1193,9 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	if _rng.randf() <= get_stat_value("block_chance"):
 		final_blunt *= block_damage_multiplier
 		final_cut *= block_damage_multiplier
+		_prepare_combat_reaction(attacker)
 		_play_combat_reaction(BLOCK_ANIMATION_NAME)
+		COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
 		_show_world_notice("Block", Color(0.86, 0.9, 1.0, 1.0))
 		_current_blunt_damage += final_blunt
 		_current_open_cut_damage += final_cut
@@ -1175,7 +1203,9 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		_recalculate_vitals()
 		_try_start_self_defense(attacker)
 		return "blocked"
+	_prepare_combat_reaction(attacker)
 	_play_combat_reaction(_pick_hit_reaction_animation(attack_id))
+	COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
 	_current_blunt_damage += final_blunt
 	_current_open_cut_damage += final_cut
 	_bleed_rate += final_cut * 0.12
@@ -1209,11 +1239,29 @@ func get_interaction_position(member: HumanoidCharacter) -> Vector3:
 
 
 func get_combat_approach_position(attacker: HumanoidCharacter) -> Vector3:
-	var away := global_position - attacker.global_position
-	away.y = 0.0
-	if away.length_squared() <= 0.0001:
-		away = Vector3.FORWARD
-	return global_position - away.normalized() * maxf(attack_range - 0.2, 0.9)
+	var preferred_range := attacker.get_attack_range() if attacker != null and attacker.has_method("get_attack_range") else get_attack_range()
+	return COMBAT_COORDINATOR.get_combat_approach_position(self, attacker, preferred_range)
+
+
+func _face_character(character: HumanoidCharacter) -> void:
+	if character == null or not is_instance_valid(character):
+		return
+	var look_position := character.global_position
+	look_position.y = global_position.y
+	if global_position.distance_squared_to(look_position) <= 0.0001:
+		return
+	look_at(look_position, Vector3.UP)
+
+
+func _face_combat_focus() -> void:
+	if _combat_reaction_source != null and is_instance_valid(_combat_reaction_source):
+		_face_character(_combat_reaction_source)
+		return
+	if _combat_action_target != null and is_instance_valid(_combat_action_target):
+		_face_character(_combat_action_target)
+		return
+	if _current_attack_target != null and is_instance_valid(_current_attack_target):
+		_face_character(_current_attack_target)
 
 
 func _process_movement(delta: float) -> void:
@@ -1230,16 +1278,56 @@ func _process_movement(delta: float) -> void:
 		move_and_slide()
 		return
 	if _combat_action_active or _combat_reaction_remaining > 0.0:
+		_face_combat_focus()
 		_apply_floor_motion(delta)
 		velocity.x = 0.0
 		velocity.z = 0.0
 		move_and_slide()
+		return
+	if _should_direct_combat_chase():
+		_process_direct_combat_chase(delta)
 		return
 	process_world_actor_movement(delta)
 
 
 func _get_actor_move_speed() -> float:
 	return _get_current_move_speed()
+
+
+func _should_direct_combat_chase() -> bool:
+	if _current_order_type != OrderType.ATTACK:
+		return false
+	if _current_attack_target == null or not is_instance_valid(_current_attack_target):
+		return false
+	if _current_attack_target.life_state != NpcRules.LifeState.ALIVE:
+		return false
+	var target_distance := global_position.distance_to(_current_attack_target.global_position)
+	if target_distance <= get_attack_range():
+		return false
+	return target_distance <= maxf(combat_direct_chase_distance, get_attack_range() + 1.0)
+
+
+func _process_direct_combat_chase(delta: float) -> void:
+	_apply_floor_motion(delta)
+	var target_position := _current_attack_target.get_combat_approach_position(self)
+	var to_target := target_position - global_position
+	to_target.y = 0.0
+	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
+	if to_target.length() > combat_approach_arrival_distance:
+		var desired_direction := to_target.normalized()
+		horizontal_velocity = horizontal_velocity.lerp(desired_direction * _get_actor_move_speed(), minf(1.0, acceleration * delta))
+	else:
+		horizontal_velocity = horizontal_velocity.lerp(Vector3.ZERO, minf(1.0, acceleration * delta))
+	velocity.x = horizontal_velocity.x
+	velocity.z = horizontal_velocity.z
+	move_and_slide()
+	_face_character(_current_attack_target)
+
+
+func _get_move_target_arrival_distance() -> float:
+	if _current_order_type == OrderType.ATTACK:
+		return combat_approach_arrival_distance
+	return super._get_move_target_arrival_distance()
 
 
 func _on_actor_move_target_reached() -> void:
@@ -1376,6 +1464,11 @@ func _process_ai(delta: float) -> void:
 	if _ai_tick_remaining > 0.0:
 		return
 	_ai_tick_remaining = 0.35 + _rng.randf_range(0.0, 0.15)
+	if _should_consider_combat_retarget():
+		var replacement_target := _find_ai_target()
+		if replacement_target != null and replacement_target != _current_attack_target and COMBAT_COORDINATOR.should_switch_target(self, _current_attack_target, replacement_target, maxf(aggressive_scan_radius, assist_scan_radius)):
+			assign_attack_target(replacement_target, false, true, false)
+			return
 	if _should_seek_combat_target():
 		var target := _find_ai_target()
 		if target != null:
@@ -1578,7 +1671,8 @@ func _process_seat_interaction() -> void:
 
 
 func _process_attack_interaction() -> void:
-	if _combat_action_active:
+	if _combat_action_active or _combat_reaction_remaining > 0.0:
+		_face_combat_focus()
 		return
 	if _current_attack_target == null or not is_instance_valid(_current_attack_target):
 		stop_attack_assignment()
@@ -1586,13 +1680,19 @@ func _process_attack_interaction() -> void:
 	if _current_attack_target.life_state != NpcRules.LifeState.ALIVE:
 		stop_attack_assignment()
 		return
+	_face_character(_current_attack_target)
 	var target_position := _current_attack_target.get_combat_approach_position(self)
 	var target_distance := global_position.distance_to(_current_attack_target.global_position)
-	if target_distance > attack_range:
+	if COMBAT_COORDINATOR.is_character_locked(self):
+		if target_distance > get_attack_range() * 0.95:
+			_set_actor_move_target(target_position)
+		else:
+			_clear_actor_move_target()
+		return
+	if target_distance > get_attack_range():
 		_set_actor_move_target(target_position)
 		return
 	_clear_actor_move_target()
-	look_at(_current_attack_target.global_position, Vector3.UP)
 	if _combat_cooldown_remaining > 0.0:
 		return
 	_start_unarmed_combat_attack(_current_attack_target)
@@ -1600,12 +1700,16 @@ func _process_attack_interaction() -> void:
 
 func _process_combat_animation_state(delta: float) -> void:
 	if _combat_reaction_remaining > 0.0:
+		_face_combat_focus()
 		_combat_reaction_remaining = maxf(0.0, _combat_reaction_remaining - delta)
+		if _combat_reaction_remaining <= 0.0:
+			_combat_reaction_source = null
 	if not _combat_action_active:
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		_clear_combat_action()
 		return
+	_face_combat_focus()
 
 	_combat_action_remaining = maxf(0.0, _combat_action_remaining - delta)
 	_combat_action_clip_remaining = maxf(0.0, _combat_action_clip_remaining - delta)
@@ -1620,19 +1724,27 @@ func _process_combat_animation_state(delta: float) -> void:
 		return
 
 	if _combat_action_remaining <= 0.0:
+		if not _combat_action_has_impacted:
+			_resolve_combat_action_impact()
 		_finish_combat_action()
 
 
 func _start_unarmed_combat_attack(target: HumanoidCharacter) -> void:
 	var attack := _choose_unarmed_attack()
 	if attack.is_empty():
+		if not COMBAT_COORDINATOR.try_begin_exchange(self, target, 0.45):
+			return
 		var total_damage := get_stat_value("attack_damage")
 		var cut_damage := total_damage * get_stat_value("cut_ratio")
 		target.receive_attack(self, total_damage - cut_damage, cut_damage)
 		_combat_cooldown_remaining = maxf(0.2, get_stat_value("attack_cooldown"))
 		return
 
-	_combat_action_names = _dictionary_string_array(attack, "animations")
+	var action_names := _dictionary_string_array(attack, "animations")
+	var action_seconds := _get_animation_sequence_length(action_names)
+	if not COMBAT_COORDINATOR.try_begin_exchange(self, target, action_seconds):
+		return
+	_combat_action_names = action_names
 	_combat_action_index = 0
 	_combat_action_clip_remaining = _get_character_animation_length(_combat_action_names[0])
 	_combat_action_remaining = _get_animation_sequence_length(_combat_action_names)
@@ -1652,6 +1764,7 @@ func _choose_unarmed_attack() -> Dictionary:
 	var attacks: Array[Dictionary] = []
 	_add_unarmed_attack_candidate(attacks, "jab", [UNARMED_JAB_ANIMATION_NAME], 30.0, 0.42)
 	_add_unarmed_attack_candidate(attacks, "cross", [UNARMED_CROSS_ANIMATION_NAME], 24.0, 0.44)
+	_add_unarmed_attack_candidate(attacks, "uppercut", [UNARMED_UPPERCUT_ANIMATION_NAME], 12.0, 0.5)
 	_add_unarmed_attack_candidate(attacks, "hook", UNARMED_HOOK_ANIMATION_NAMES, 20.0, 0.55)
 	_add_unarmed_attack_candidate(attacks, "knee", UNARMED_KNEE_ANIMATION_NAMES, 14.0, 0.55)
 	_add_unarmed_attack_candidate(attacks, "kick", [UNARMED_KICK_ANIMATION_NAME], 12.0, 0.5)
@@ -1723,13 +1836,12 @@ func _resolve_combat_action_impact() -> void:
 		return
 	if _combat_action_target.life_state != NpcRules.LifeState.ALIVE:
 		return
+	_face_character(_combat_action_target)
 	_combat_action_target.receive_attack(self, _combat_action_blunt_damage, _combat_action_cut_damage, _combat_action_attack_id)
 
 
 func _finish_combat_action() -> void:
 	_clear_combat_action()
-	if _should_use_combat_idle_animation():
-		_play_character_animation(COMBAT_IDLE_ANIMATION_NAME)
 
 
 func _clear_combat_action() -> void:
@@ -1746,9 +1858,18 @@ func _clear_combat_action() -> void:
 	_combat_action_cut_damage = 0.0
 
 
+func _prepare_combat_reaction(attacker: HumanoidCharacter) -> void:
+	if _combat_action_active:
+		_clear_combat_action()
+	_combat_reaction_source = attacker
+	_face_character(attacker)
+
+
 func _play_combat_reaction(animation_name: String) -> bool:
-	if _combat_action_active or animation_name.is_empty():
+	if animation_name.is_empty():
 		return false
+	if _combat_action_active:
+		_clear_combat_action()
 	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
 		return false
 	_combat_reaction_remaining = maxf(0.1, _get_character_animation_length(animation_name))
@@ -1760,7 +1881,9 @@ func _pick_hit_reaction_animation(attack_id: String) -> String:
 		"knee":
 			return _pick_available_animation([HIT_STOMACH_ANIMATION_NAME])
 		"kick":
-			return _pick_available_animation([HIT_STOMACH_ANIMATION_NAME, HIT_KNOCKBACK_ANIMATION_NAME])
+			return _pick_available_animation([HIT_HEAD_ANIMATION_NAME])
+		"uppercut":
+			return _pick_available_animation([HIT_HEAD_ANIMATION_NAME])
 		"hook":
 			return _pick_available_animation([HIT_HEAD_ANIMATION_NAME, HIT_SHOULDER_L_ANIMATION_NAME, HIT_SHOULDER_R_ANIMATION_NAME])
 		"cross":
@@ -1794,7 +1917,7 @@ func _process_heal_interaction() -> void:
 		show_world_speech("I don't have anything to heal with", 5.0)
 		stop_heal_assignment()
 		return
-	var target_position := _current_heal_target.get_combat_approach_position(self)
+	var target_position := _current_heal_target.get_interaction_position(self)
 	if global_position.distance_to(_current_heal_target.global_position) > interact_distance:
 		_set_actor_move_target(target_position)
 		return
@@ -1810,7 +1933,7 @@ func _process_finish_off_interaction() -> void:
 	if _current_finish_off_target.life_state != NpcRules.LifeState.UNCONSCIOUS:
 		stop_finish_off_assignment()
 		return
-	var target_position := _current_finish_off_target.get_combat_approach_position(self)
+	var target_position := _current_finish_off_target.get_interaction_position(self)
 	if global_position.distance_to(_current_finish_off_target.global_position) > interact_distance:
 		_set_actor_move_target(target_position)
 		return
@@ -2527,9 +2650,9 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 		_copy_animation(ual1_player, animation_library, SITTING_IDLE_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, SITTING_TALKING_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, SITTING_EXIT_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, COMBAT_IDLE_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, UNARMED_JAB_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, UNARMED_CROSS_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, UNARMED_UPPERCUT_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, UNARMED_KICK_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, HIT_CHEST_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, HIT_HEAD_ANIMATION_NAME)
@@ -2547,7 +2670,6 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 		for animation_name in UNARMED_KNEE_ANIMATION_NAMES:
 			_copy_animation(ual2_player, animation_library, animation_name)
 		_copy_animation(ual2_player, animation_library, BLOCK_ANIMATION_NAME)
-		_copy_animation(ual2_player, animation_library, HIT_KNOCKBACK_ANIMATION_NAME)
 	ual2_source.queue_free()
 
 
@@ -2559,7 +2681,6 @@ func _copy_animation(source_player: AnimationPlayer, animation_library: Animatio
 		return
 	var copied_animation := source_animation.duplicate(true) as Animation
 	animation_library.add_animation(animation_name, copied_animation)
-
 
 func _find_animation_player(root: Node) -> AnimationPlayer:
 	if root is AnimationPlayer:
@@ -2591,7 +2712,7 @@ func _update_character_animation(delta: float) -> void:
 		_update_idle_character_animation(delta)
 		return
 	var horizontal_speed := Vector2(velocity.x, velocity.z).length()
-	var is_moving := horizontal_speed > 0.18 and _has_move_target
+	var is_moving := horizontal_speed > 0.18 and (_has_move_target or _current_order_type == OrderType.ATTACK)
 	var wants_run_animation := is_running_enabled() and is_moving and not sneaking
 	if _crouch_enter_animation_remaining > 0.0:
 		_update_crouch_enter_animation(delta)
@@ -2608,9 +2729,6 @@ func _update_character_animation(delta: float) -> void:
 			_play_character_animation(CROUCH_IDLE_ANIMATION_NAME)
 		return
 	if not is_moving:
-		if _should_use_combat_idle_animation():
-			_play_character_animation(COMBAT_IDLE_ANIMATION_NAME)
-			return
 		_update_idle_character_animation(delta)
 		return
 	if wants_run_animation:
@@ -2672,15 +2790,6 @@ func _should_use_tired_idle_animation() -> bool:
 		and fatigue_stage == NpcRules.FatigueStage.EXHAUSTED \
 		and _character_animation_player != null \
 		and _character_animation_player.has_animation(TIRED_IDLE_ANIMATION_NAME)
-
-
-func _should_use_combat_idle_animation() -> bool:
-	return is_in_combat() \
-		and _current_attack_target != null \
-		and is_instance_valid(_current_attack_target) \
-		and _current_attack_target.life_state == NpcRules.LifeState.ALIVE \
-		and _character_animation_player != null \
-		and _character_animation_player.has_animation(COMBAT_IDLE_ANIMATION_NAME)
 
 
 func _start_crouch_enter_animation() -> void:
@@ -3008,6 +3117,7 @@ func _enter_unconscious_state() -> void:
 	if life_state == NpcRules.LifeState.DEAD or life_state == NpcRules.LifeState.UNCONSCIOUS:
 		return
 	life_state = NpcRules.LifeState.UNCONSCIOUS
+	COMBAT_COORDINATOR.release_character(self)
 	running = false
 	_clear_actor_move_target()
 	_downed_is_settled = false
@@ -3026,6 +3136,7 @@ func _enter_dead_state() -> void:
 	if life_state == NpcRules.LifeState.DEAD:
 		return
 	life_state = NpcRules.LifeState.DEAD
+	COMBAT_COORDINATOR.release_character(self)
 	running = false
 	_clear_actor_move_target()
 	_downed_is_settled = false
@@ -3044,6 +3155,10 @@ func _get_base_stat_value(stat_name: String) -> float:
 	match stat_name:
 		"attack_damage":
 			return base_attack_damage
+		"attack_range":
+			return attack_range
+		"dexterity":
+			return base_dexterity
 		"attack_cooldown":
 			return attack_cooldown_seconds
 		"cut_ratio":
@@ -3102,13 +3217,25 @@ func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true)
 				value = clampf(value, 0.0, 0.95)
 			"attack_cooldown":
 				value = maxf(0.2, value)
-			"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate":
+			"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "attack_range", "dexterity", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate":
 				value = maxf(0.0, value)
 	return value
 
 
 func _get_current_move_speed() -> float:
 	return move_speed * get_stat_value("move_speed_multiplier")
+
+
+func _should_consider_combat_retarget() -> bool:
+	if life_state != NpcRules.LifeState.ALIVE:
+		return false
+	if _order_was_player_issued:
+		return false
+	if _current_order_type != OrderType.ATTACK or _current_attack_target == null or not is_instance_valid(_current_attack_target):
+		return false
+	if _combat_action_active or _combat_reaction_remaining > 0.0:
+		return false
+	return _current_attack_target.life_state == NpcRules.LifeState.ALIVE
 
 
 func _should_seek_combat_target() -> bool:
@@ -3146,6 +3273,7 @@ func _get_last_direct_attacker_target() -> HumanoidCharacter:
 
 
 func _find_defensive_assist_target() -> HumanoidCharacter:
+	var candidates: Array[HumanoidCharacter] = []
 	for node in get_tree().get_nodes_in_group("npc_character"):
 		if not (node is HumanoidCharacter):
 			continue
@@ -3157,9 +3285,9 @@ func _find_defensive_assist_target() -> HumanoidCharacter:
 		if global_position.distance_to(ally.global_position) > assist_scan_radius:
 			continue
 		var ally_target := ally.get_current_combat_target()
-		if ally_target != null and is_instance_valid(ally_target) and ally_target.life_state == NpcRules.LifeState.ALIVE and has_hostility_with(ally_target):
-			return ally_target
-	return null
+		if ally_target != null and is_instance_valid(ally_target) and ally_target.life_state == NpcRules.LifeState.ALIVE and has_hostility_with(ally_target) and not candidates.has(ally_target):
+			candidates.append(ally_target)
+	return COMBAT_COORDINATOR.choose_target(self, candidates, maxf(assist_scan_radius, aggressive_scan_radius)) as HumanoidCharacter
 
 
 func _should_defend_ally(ally: HumanoidCharacter) -> bool:
@@ -3174,8 +3302,7 @@ func _should_defend_ally(ally: HumanoidCharacter) -> bool:
 
 
 func _find_nearest_hostile(scan_radius: float) -> HumanoidCharacter:
-	var best_target: HumanoidCharacter
-	var best_distance := scan_radius
+	var candidates: Array[HumanoidCharacter] = []
 	for node in get_tree().get_nodes_in_group("npc_character"):
 		if not (node is HumanoidCharacter):
 			continue
@@ -3184,11 +3311,9 @@ func _find_nearest_hostile(scan_radius: float) -> HumanoidCharacter:
 			continue
 		if not has_hostility_with(candidate):
 			continue
-		var distance := global_position.distance_to(candidate.global_position)
-		if distance < best_distance:
-			best_distance = distance
-			best_target = candidate
-	return best_target
+		if global_position.distance_to(candidate.global_position) <= scan_radius:
+			candidates.append(candidate)
+	return COMBAT_COORDINATOR.choose_target(self, candidates, scan_radius) as HumanoidCharacter
 
 
 func _try_start_self_defense(attacker: HumanoidCharacter) -> void:
@@ -3233,6 +3358,8 @@ func _respond_to_ally_under_attack(ally: HumanoidCharacter, attacker: HumanoidCh
 		return
 	mark_hostile(attacker)
 	attacker.mark_hostile(self)
+	if _current_attack_target != null and _current_attack_target != attacker and not COMBAT_COORDINATOR.should_switch_target(self, _current_attack_target, attacker, maxf(assist_scan_radius, aggressive_scan_radius)):
+		return
 	assign_attack_target(attacker, false, false, false)
 
 
@@ -3251,6 +3378,8 @@ func _respond_to_ally_engagement(ally: HumanoidCharacter, target: HumanoidCharac
 		return
 	mark_hostile(target)
 	target.mark_hostile(self)
+	if _current_attack_target != null and _current_attack_target != target and not COMBAT_COORDINATOR.should_switch_target(self, _current_attack_target, target, maxf(assist_scan_radius, aggressive_scan_radius)):
+		return
 	assign_attack_target(target, false, false, false)
 
 

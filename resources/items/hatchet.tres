@@ -21,6 +21,11 @@ script = ExtResource("2_mod")
 stat_name = "attack_cooldown"
 add = -0.05
 
+[sub_resource type="Resource" id="ItemStatModifier_range"]
+script = ExtResource("2_mod")
+stat_name = "attack_range"
+add = 0.25
+
 [resource]
 script = ExtResource("1_item")
 display_name = "Hatchet"
@@ -33,4 +38,4 @@ world_scene = ExtResource("4_model")
 equipped_scene = ExtResource("4_model")
 grip_profile = ExtResource("5_grip")
 equipped_transform = Transform3D(0.189, 0, 0, 0, 0.189, 0, 0, 0, 0.189, 0, 0, 0)
-stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_damage"), SubResource("ItemStatModifier_cut"), SubResource("ItemStatModifier_cooldown")])
+stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_damage"), SubResource("ItemStatModifier_cut"), SubResource("ItemStatModifier_cooldown"), SubResource("ItemStatModifier_range")])

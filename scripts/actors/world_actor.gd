@@ -106,7 +106,7 @@ func _configure_navigation_agent() -> void:
 	_navigation_agent.radius = navigation_agent_radius
 	_navigation_agent.height = navigation_agent_height
 	_navigation_agent.path_desired_distance = navigation_path_desired_distance
-	_navigation_agent.target_desired_distance = navigation_target_desired_distance
+	_navigation_agent.target_desired_distance = _get_move_target_arrival_distance()
 	_navigation_agent.path_height_offset = navigation_path_height_offset
 	_navigation_agent.avoidance_enabled = navigation_avoidance_enabled
 	_navigation_agent.neighbor_distance = navigation_neighbor_distance
@@ -205,7 +205,7 @@ func _get_navigation_intermediate_move_direction() -> Vector3:
 
 func _get_navigation_final_move_direction() -> Vector3:
 	var final_position := _navigation_agent.get_final_position()
-	if _is_close_to_navigation_point(final_position, maxf(move_target_vertical_tolerance, 1.2), navigation_target_desired_distance):
+	if _is_close_to_navigation_point(final_position, maxf(move_target_vertical_tolerance, 1.2), _get_move_target_arrival_distance()):
 		_finish_actor_move_target()
 		return Vector3.ZERO
 	return _get_navigation_point_move_direction(final_position)
@@ -233,6 +233,7 @@ func _get_navigation_vertical_speed(to_next: Vector3) -> float:
 func _sync_navigation_target_if_needed() -> void:
 	if not _navigation_intermediate_targets_built:
 		_build_navigation_intermediate_targets()
+	_navigation_agent.target_desired_distance = _get_move_target_arrival_distance()
 	var navigation_target := _get_current_navigation_target()
 	if _navigation_target_synced and _navigation_synced_target.distance_squared_to(navigation_target) <= 0.0025:
 		return
@@ -263,10 +264,10 @@ func _advance_navigation_intermediate_target() -> bool:
 
 func _get_navigation_intermediate_horizontal_tolerance() -> float:
 	if _navigation_intermediate_targets.is_empty():
-		return navigation_target_desired_distance
+		return _get_move_target_arrival_distance()
 	if _is_current_navigation_intermediate_entry():
 		return navigation_unreachable_tolerance
-	return maxf(navigation_target_desired_distance, navigation_agent_radius * 2.0)
+	return maxf(_get_move_target_arrival_distance(), navigation_agent_radius * 2.0)
 
 
 func _is_current_navigation_intermediate_entry() -> bool:
@@ -351,8 +352,12 @@ func _is_close_to_navigation_point(point: Vector3, vertical_tolerance: float, ho
 
 
 func _is_close_to_navigation_point_from(from: Vector3, point: Vector3, vertical_tolerance: float, horizontal_tolerance: float = -1.0) -> bool:
-	var effective_horizontal_tolerance := navigation_target_desired_distance if horizontal_tolerance < 0.0 else horizontal_tolerance
+	var effective_horizontal_tolerance := _get_move_target_arrival_distance() if horizontal_tolerance < 0.0 else horizontal_tolerance
 	return _horizontal_distance(from, point) <= effective_horizontal_tolerance and absf(from.y - point.y) <= vertical_tolerance
+
+
+func _get_move_target_arrival_distance() -> float:
+	return navigation_target_desired_distance
 
 
 func _has_navigation_data() -> bool:
@@ -362,7 +367,7 @@ func _has_navigation_data() -> bool:
 func _is_close_to_move_target() -> bool:
 	var to_target := _move_target - global_position
 	var horizontal_to_target := Vector3(to_target.x, 0.0, to_target.z)
-	return horizontal_to_target.length() <= navigation_target_desired_distance and absf(to_target.y) <= move_target_vertical_tolerance
+	return horizontal_to_target.length() <= _get_move_target_arrival_distance() and absf(to_target.y) <= move_target_vertical_tolerance
 
 
 func _is_navigation_final_position_close_enough() -> bool:
