@@ -20,6 +20,16 @@
 - Body hiding is off by default. Do not hide or delete body meshes to fix clipping unless an explicit, operator-authored body-region system is in place for that asset.
 - Avoid a full race-by-sex-by-item matrix when adding races. Reuse compatible body fit families where possible and add exact archetype visuals only where the shared fit fails.
 
+## Imported Assets
+- Imported third-party assets must live under `assets/vendor/<author>/<pack>/` unless explicitly approved otherwise.
+- Every imported asset pack must be listed in `ATTRIBUTION.md` with author, license, source URL, and project path.
+- Do not add, keep, or reference imported assets that are missing approved source and license information.
+- Always validate current and newly introduced license terms from the live/source license text before importing or retaining third-party assets.
+- Prefer simple permissive/free-use licenses such as `CC0`, public domain, `MIT`, `BSD`, `Apache-2.0`, or equivalent commercial-use-safe terms.
+- Red alert: stop and flag any license or source terms that could require payment, royalties, revenue share, source disclosure, project relicensing, ownership transfer, loss of project ownership, restrictions on commercial use, restrictions on modification or redistribution, copyleft/share-alike obligations, or any obligation that could compromise the project.
+- Red alert: stop and flag unclear custom licenses, marketplace-only terms, personal-use-only terms, educational-use-only terms, no-derivatives terms, AI-generated/copyright-ambiguous assets, and licenses such as `GPL`, `AGPL`, `LGPL`, or `CC BY-SA` unless explicitly approved before import.
+- Project-authored meshes built from Godot primitives or custom code do not need attribution entries.
+
 ## Required Validation
 - Whole project: run `godot --headless --editor --path . --quit`
   - This must exit with code `0`.

@@ -44,6 +44,7 @@
 - Tent/building: scale from real dimensions, not from what "looks right"
 
 ## Wrapper Scene Rule
-- Keep raw imported visuals in `assets/models/.../*_model.tscn`
+- Keep imported third-party assets in `assets/vendor/<author>/<pack>/...` and list each pack in `ATTRIBUTION.md`.
+- Keep project-authored primitive/custom visuals in `assets/models/.../*_model.tscn` when a shared raw visual scene is useful.
 - Keep placeable world assets in `scenes/world/...`
 - Collision should match the intended real occupied footprint, not an arbitrary visual guess
