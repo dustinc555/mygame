@@ -9,7 +9,7 @@ const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://resources/character_body_arch
 const MALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf")
 const FEMALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Female_FullBody.gltf")
 const UAL1_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_1_pro/UAL1_Pro.glb")
-const UAL2_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_2/UAL2_Standard.glb")
+const UAL2_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_2/UAL2.glb")
 const DEFAULT_GRIP_SOCKET_PROFILE = preload("res://resources/humanoid_grip_socket_profiles/default.tres")
 const HUMANOID_GRIP_SOCKET_MARKER_SCRIPT = preload("res://scripts/characters/humanoid_grip_socket_marker.gd")
 const CHARACTER_VISUAL_NODE_NAME := "CharacterVisual"
@@ -31,6 +31,19 @@ const SITTING_ENTER_ANIMATION_NAME := "Sitting_Enter"
 const SITTING_IDLE_ANIMATION_NAME := "Sitting_Idle"
 const SITTING_TALKING_ANIMATION_NAME := "Sitting_Talking"
 const SITTING_EXIT_ANIMATION_NAME := "Sitting_Exit"
+const COMBAT_IDLE_ANIMATION_NAME := "Counter_Idle"
+const UNARMED_JAB_ANIMATION_NAME := "Punch_Jab"
+const UNARMED_CROSS_ANIMATION_NAME := "Punch_Cross"
+const UNARMED_KICK_ANIMATION_NAME := "Kick"
+const UNARMED_HOOK_ANIMATION_NAMES: Array[String] = ["Melee_Hook", "Melee_Hook_Rec"]
+const UNARMED_KNEE_ANIMATION_NAMES: Array[String] = ["Melee_Knee", "Melee_Knee_Rec"]
+const BLOCK_ANIMATION_NAME := "Sword_Block"
+const HIT_CHEST_ANIMATION_NAME := "Hit_Chest"
+const HIT_HEAD_ANIMATION_NAME := "Hit_Head"
+const HIT_STOMACH_ANIMATION_NAME := "Hit_Stomach"
+const HIT_SHOULDER_L_ANIMATION_NAME := "Hit_Shoulder_L"
+const HIT_SHOULDER_R_ANIMATION_NAME := "Hit_Shoulder_R"
+const HIT_KNOCKBACK_ANIMATION_NAME := "Hit_Knockback"
 const IDLE_ANIMATION_NAMES := [IDLE_ANIMATION_NAME]
 const IDLE_ANIMATION_MIN_SECONDS := 4.0
 const IDLE_ANIMATION_MAX_SECONDS := 8.0
@@ -38,6 +51,7 @@ const SITTING_IDLE_MIN_SECONDS := 5.0
 const SITTING_IDLE_MAX_SECONDS := 11.0
 const SITTING_TALKING_CHANCE := 0.28
 const MOVE_ANIMATION_BLEND_SECONDS := 0.12
+const COMBAT_ACTION_BLEND_SECONDS := 0.05
 const EQUIPMENT_SLOTS: Array[String] = ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head", "weapon", "offhand"]
 const EQUIPMENT_SLOT_LABELS := {
 	"undershirt": "Undershirt",
@@ -185,6 +199,18 @@ var _current_bandaged_cut_damage := 0.0
 var _bleed_rate := 0.0
 var _pending_nourishment := 0.0
 var _combat_cooldown_remaining := 0.0
+var _combat_action_active := false
+var _combat_action_names: Array[String] = []
+var _combat_action_index := 0
+var _combat_action_clip_remaining := 0.0
+var _combat_action_remaining := 0.0
+var _combat_action_impact_remaining := 0.0
+var _combat_action_has_impacted := false
+var _combat_action_target: HumanoidCharacter
+var _combat_action_attack_id := ""
+var _combat_action_blunt_damage := 0.0
+var _combat_action_cut_damage := 0.0
+var _combat_reaction_remaining := 0.0
 var _ai_tick_remaining := 0.0
 var _downed_recover_delay_remaining := 0.0
 var _downed_target_rotation_z := 0.0
@@ -260,6 +286,7 @@ func _process(delta: float) -> void:
 	_process_recovery(delta)
 	_process_ai(delta)
 	_recalculate_vitals()
+	_process_combat_animation_state(delta)
 	_update_character_animation(delta)
 
 
@@ -1123,7 +1150,7 @@ func set_combat_stance(value: int) -> void:
 	state_changed.emit()
 
 
-func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage: float) -> String:
+func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage: float, attack_id: String = "") -> String:
 	if attacker == null or life_state == NpcRules.LifeState.DEAD:
 		return "ignored"
 	if life_state == NpcRules.LifeState.ASLEEP:
@@ -1140,7 +1167,15 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	if _rng.randf() <= get_stat_value("block_chance"):
 		final_blunt *= block_damage_multiplier
 		final_cut *= block_damage_multiplier
+		_play_combat_reaction(BLOCK_ANIMATION_NAME)
 		_show_world_notice("Block", Color(0.86, 0.9, 1.0, 1.0))
+		_current_blunt_damage += final_blunt
+		_current_open_cut_damage += final_cut
+		_bleed_rate += final_cut * 0.12
+		_recalculate_vitals()
+		_try_start_self_defense(attacker)
+		return "blocked"
+	_play_combat_reaction(_pick_hit_reaction_animation(attack_id))
 	_current_blunt_damage += final_blunt
 	_current_open_cut_damage += final_cut
 	_bleed_rate += final_cut * 0.12
@@ -1192,6 +1227,12 @@ func _process_movement(delta: float) -> void:
 		_process_downed_movement(delta)
 		if _downed_is_settled and is_on_floor():
 			return
+		move_and_slide()
+		return
+	if _combat_action_active or _combat_reaction_remaining > 0.0:
+		_apply_floor_motion(delta)
+		velocity.x = 0.0
+		velocity.z = 0.0
 		move_and_slide()
 		return
 	process_world_actor_movement(delta)
@@ -1537,6 +1578,8 @@ func _process_seat_interaction() -> void:
 
 
 func _process_attack_interaction() -> void:
+	if _combat_action_active:
+		return
 	if _current_attack_target == null or not is_instance_valid(_current_attack_target):
 		stop_attack_assignment()
 		return
@@ -1552,11 +1595,191 @@ func _process_attack_interaction() -> void:
 	look_at(_current_attack_target.global_position, Vector3.UP)
 	if _combat_cooldown_remaining > 0.0:
 		return
+	_start_unarmed_combat_attack(_current_attack_target)
+
+
+func _process_combat_animation_state(delta: float) -> void:
+	if _combat_reaction_remaining > 0.0:
+		_combat_reaction_remaining = maxf(0.0, _combat_reaction_remaining - delta)
+	if not _combat_action_active:
+		return
+	if life_state != NpcRules.LifeState.ALIVE:
+		_clear_combat_action()
+		return
+
+	_combat_action_remaining = maxf(0.0, _combat_action_remaining - delta)
+	_combat_action_clip_remaining = maxf(0.0, _combat_action_clip_remaining - delta)
+	if not _combat_action_has_impacted:
+		_combat_action_impact_remaining -= delta
+		if _combat_action_impact_remaining <= 0.0:
+			_resolve_combat_action_impact()
+
+	if _combat_action_clip_remaining <= 0.0 and _combat_action_index < _combat_action_names.size() - 1:
+		_combat_action_index += 1
+		_play_current_combat_action_clip()
+		return
+
+	if _combat_action_remaining <= 0.0:
+		_finish_combat_action()
+
+
+func _start_unarmed_combat_attack(target: HumanoidCharacter) -> void:
+	var attack := _choose_unarmed_attack()
+	if attack.is_empty():
+		var total_damage := get_stat_value("attack_damage")
+		var cut_damage := total_damage * get_stat_value("cut_ratio")
+		target.receive_attack(self, total_damage - cut_damage, cut_damage)
+		_combat_cooldown_remaining = maxf(0.2, get_stat_value("attack_cooldown"))
+		return
+
+	_combat_action_names = _dictionary_string_array(attack, "animations")
+	_combat_action_index = 0
+	_combat_action_clip_remaining = _get_character_animation_length(_combat_action_names[0])
+	_combat_action_remaining = _get_animation_sequence_length(_combat_action_names)
+	_combat_action_impact_remaining = _get_combat_attack_impact_seconds(_combat_action_names[0], float(attack.get("impact_ratio", 0.45)))
+	_combat_action_has_impacted = false
+	_combat_action_target = target
+	_combat_action_attack_id = String(attack.get("id", ""))
 	var total_damage := get_stat_value("attack_damage")
-	var cut_damage := total_damage * get_stat_value("cut_ratio")
-	var blunt_damage := total_damage - cut_damage
-	_current_attack_target.receive_attack(self, blunt_damage, cut_damage)
+	_combat_action_cut_damage = total_damage * get_stat_value("cut_ratio")
+	_combat_action_blunt_damage = total_damage - _combat_action_cut_damage
+	_combat_action_active = true
 	_combat_cooldown_remaining = maxf(0.2, get_stat_value("attack_cooldown"))
+	_play_current_combat_action_clip()
+
+
+func _choose_unarmed_attack() -> Dictionary:
+	var attacks: Array[Dictionary] = []
+	_add_unarmed_attack_candidate(attacks, "jab", [UNARMED_JAB_ANIMATION_NAME], 30.0, 0.42)
+	_add_unarmed_attack_candidate(attacks, "cross", [UNARMED_CROSS_ANIMATION_NAME], 24.0, 0.44)
+	_add_unarmed_attack_candidate(attacks, "hook", UNARMED_HOOK_ANIMATION_NAMES, 20.0, 0.55)
+	_add_unarmed_attack_candidate(attacks, "knee", UNARMED_KNEE_ANIMATION_NAMES, 14.0, 0.55)
+	_add_unarmed_attack_candidate(attacks, "kick", [UNARMED_KICK_ANIMATION_NAME], 12.0, 0.5)
+	if attacks.is_empty():
+		return {}
+	var total_weight := 0.0
+	for attack in attacks:
+		total_weight += float(attack.get("weight", 0.0))
+	var roll := _rng.randf_range(0.0, total_weight)
+	for attack in attacks:
+		roll -= float(attack.get("weight", 0.0))
+		if roll <= 0.0:
+			return attack
+	return attacks[attacks.size() - 1]
+
+
+func _add_unarmed_attack_candidate(attacks: Array[Dictionary], attack_id: String, animation_names: Array[String], weight: float, impact_ratio: float) -> void:
+	if not _has_all_character_animations(animation_names):
+		return
+	attacks.append({
+		"id": attack_id,
+		"animations": animation_names,
+		"weight": weight,
+		"impact_ratio": impact_ratio,
+	})
+
+
+func _has_all_character_animations(animation_names: Array[String]) -> bool:
+	if _character_animation_player == null:
+		return false
+	for animation_name in animation_names:
+		if not _character_animation_player.has_animation(animation_name):
+			return false
+	return true
+
+
+func _dictionary_string_array(source: Dictionary, key: String) -> Array[String]:
+	var result: Array[String] = []
+	for value in source.get(key, []):
+		result.append(String(value))
+	return result
+
+
+func _get_animation_sequence_length(animation_names: Array[String]) -> float:
+	var total := 0.0
+	for animation_name in animation_names:
+		total += _get_character_animation_length(animation_name)
+	return total
+
+
+func _get_combat_attack_impact_seconds(animation_name: String, impact_ratio: float) -> float:
+	var animation_length := _get_character_animation_length(animation_name)
+	if animation_length <= 0.0:
+		return 0.0
+	return clampf(animation_length * impact_ratio, 0.05, maxf(0.05, animation_length - 0.03))
+
+
+func _play_current_combat_action_clip() -> void:
+	if _combat_action_index < 0 or _combat_action_index >= _combat_action_names.size():
+		return
+	var animation_name := _combat_action_names[_combat_action_index]
+	_combat_action_clip_remaining = _get_character_animation_length(animation_name)
+	_play_character_animation(animation_name, 0.0, true, COMBAT_ACTION_BLEND_SECONDS)
+
+
+func _resolve_combat_action_impact() -> void:
+	_combat_action_has_impacted = true
+	if _combat_action_target == null or not is_instance_valid(_combat_action_target):
+		return
+	if _combat_action_target.life_state != NpcRules.LifeState.ALIVE:
+		return
+	_combat_action_target.receive_attack(self, _combat_action_blunt_damage, _combat_action_cut_damage, _combat_action_attack_id)
+
+
+func _finish_combat_action() -> void:
+	_clear_combat_action()
+	if _should_use_combat_idle_animation():
+		_play_character_animation(COMBAT_IDLE_ANIMATION_NAME)
+
+
+func _clear_combat_action() -> void:
+	_combat_action_active = false
+	_combat_action_names.clear()
+	_combat_action_index = 0
+	_combat_action_clip_remaining = 0.0
+	_combat_action_remaining = 0.0
+	_combat_action_impact_remaining = 0.0
+	_combat_action_has_impacted = false
+	_combat_action_target = null
+	_combat_action_attack_id = ""
+	_combat_action_blunt_damage = 0.0
+	_combat_action_cut_damage = 0.0
+
+
+func _play_combat_reaction(animation_name: String) -> bool:
+	if _combat_action_active or animation_name.is_empty():
+		return false
+	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
+		return false
+	_combat_reaction_remaining = maxf(0.1, _get_character_animation_length(animation_name))
+	return _play_character_animation(animation_name, 0.0, true, COMBAT_ACTION_BLEND_SECONDS)
+
+
+func _pick_hit_reaction_animation(attack_id: String) -> String:
+	match attack_id:
+		"knee":
+			return _pick_available_animation([HIT_STOMACH_ANIMATION_NAME])
+		"kick":
+			return _pick_available_animation([HIT_STOMACH_ANIMATION_NAME, HIT_KNOCKBACK_ANIMATION_NAME])
+		"hook":
+			return _pick_available_animation([HIT_HEAD_ANIMATION_NAME, HIT_SHOULDER_L_ANIMATION_NAME, HIT_SHOULDER_R_ANIMATION_NAME])
+		"cross":
+			return _pick_available_animation([HIT_HEAD_ANIMATION_NAME, HIT_CHEST_ANIMATION_NAME, HIT_SHOULDER_L_ANIMATION_NAME])
+		"jab":
+			return _pick_available_animation([HIT_HEAD_ANIMATION_NAME, HIT_CHEST_ANIMATION_NAME])
+	return _pick_available_animation([HIT_CHEST_ANIMATION_NAME, HIT_HEAD_ANIMATION_NAME, HIT_STOMACH_ANIMATION_NAME])
+
+
+func _pick_available_animation(animation_names: Array[String]) -> String:
+	if _character_animation_player == null:
+		return ""
+	var available: Array[String] = []
+	for animation_name in animation_names:
+		if _character_animation_player.has_animation(animation_name):
+			available.append(animation_name)
+	if available.is_empty():
+		return ""
+	return available[_rng.randi_range(0, available.size() - 1)]
 
 
 func _process_heal_interaction() -> void:
@@ -2304,12 +2527,27 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 		_copy_animation(ual1_player, animation_library, SITTING_IDLE_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, SITTING_TALKING_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, SITTING_EXIT_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, COMBAT_IDLE_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, UNARMED_JAB_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, UNARMED_CROSS_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, UNARMED_KICK_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, HIT_CHEST_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, HIT_HEAD_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, HIT_STOMACH_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, HIT_SHOULDER_L_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, HIT_SHOULDER_R_ANIMATION_NAME)
 	ual1_source.queue_free()
 
 	var ual2_source := UAL2_ANIMATION_SOURCE_SCENE.instantiate()
 	var ual2_player := _find_animation_player(ual2_source)
 	if ual2_player != null:
 		_copy_animation(ual2_player, animation_library, FOLD_ARMS_IDLE_ANIMATION_NAME)
+		for animation_name in UNARMED_HOOK_ANIMATION_NAMES:
+			_copy_animation(ual2_player, animation_library, animation_name)
+		for animation_name in UNARMED_KNEE_ANIMATION_NAMES:
+			_copy_animation(ual2_player, animation_library, animation_name)
+		_copy_animation(ual2_player, animation_library, BLOCK_ANIMATION_NAME)
+		_copy_animation(ual2_player, animation_library, HIT_KNOCKBACK_ANIMATION_NAME)
 	ual2_source.queue_free()
 
 
@@ -2335,6 +2573,8 @@ func _find_animation_player(root: Node) -> AnimationPlayer:
 
 func _update_character_animation(delta: float) -> void:
 	if _character_animation_player == null:
+		return
+	if _combat_action_active or _combat_reaction_remaining > 0.0:
 		return
 	if _is_sitting:
 		_cancel_crouch_transition()
@@ -2368,6 +2608,9 @@ func _update_character_animation(delta: float) -> void:
 			_play_character_animation(CROUCH_IDLE_ANIMATION_NAME)
 		return
 	if not is_moving:
+		if _should_use_combat_idle_animation():
+			_play_character_animation(COMBAT_IDLE_ANIMATION_NAME)
+			return
 		_update_idle_character_animation(delta)
 		return
 	if wants_run_animation:
@@ -2429,6 +2672,15 @@ func _should_use_tired_idle_animation() -> bool:
 		and fatigue_stage == NpcRules.FatigueStage.EXHAUSTED \
 		and _character_animation_player != null \
 		and _character_animation_player.has_animation(TIRED_IDLE_ANIMATION_NAME)
+
+
+func _should_use_combat_idle_animation() -> bool:
+	return is_in_combat() \
+		and _current_attack_target != null \
+		and is_instance_valid(_current_attack_target) \
+		and _current_attack_target.life_state == NpcRules.LifeState.ALIVE \
+		and _character_animation_player != null \
+		and _character_animation_player.has_animation(COMBAT_IDLE_ANIMATION_NAME)
 
 
 func _start_crouch_enter_animation() -> void:
@@ -2603,7 +2855,7 @@ func _get_character_animation_length(animation_name: String) -> float:
 	return animation.length if animation != null else 0.0
 
 
-func _play_character_animation(animation_name: String, speed_ratio: float = 0.0) -> bool:
+func _play_character_animation(animation_name: String, speed_ratio: float = 0.0, force_restart: bool = false, blend_seconds: float = MOVE_ANIMATION_BLEND_SECONDS) -> bool:
 	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
 		return false
 	var custom_speed := _get_character_animation_speed(animation_name, speed_ratio)
@@ -2613,9 +2865,9 @@ func _play_character_animation(animation_name: String, speed_ratio: float = 0.0)
 		if animation_player == null or not animation_player.has_animation(animation_name):
 			continue
 		animation_player.speed_scale = custom_speed
-		if already_current and animation_player.is_playing():
+		if not force_restart and already_current and animation_player.is_playing():
 			continue
-		animation_player.play(animation_name, MOVE_ANIMATION_BLEND_SECONDS)
+		animation_player.play(animation_name, blend_seconds)
 	return true
 
 
