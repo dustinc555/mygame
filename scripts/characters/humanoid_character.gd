@@ -4,6 +4,8 @@ class_name HumanoidCharacter
 
 const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/effects/world_text_notice.tscn")
 const COMBAT_COORDINATOR = preload("res://scripts/characters/combat_coordinator.gd")
+const COMBAT_ANIMATION_SET_SCRIPT = preload("res://scripts/characters/combat_animation_set.gd")
+const COMBAT_ATTACK_ANIMATION_SCRIPT = preload("res://scripts/characters/combat_attack_animation.gd")
 const HUMAN_RACE = preload("res://resources/character_races/human.tres")
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_female.tres")
@@ -32,6 +34,11 @@ const SITTING_ENTER_ANIMATION_NAME := "Sitting_Enter"
 const SITTING_IDLE_ANIMATION_NAME := "Sitting_Idle"
 const SITTING_TALKING_ANIMATION_NAME := "Sitting_Talking"
 const SITTING_EXIT_ANIMATION_NAME := "Sitting_Exit"
+const UNARMED_STANCE_ID := "unarmed"
+const UNARMED_COMBAT_IDLE_ANIMATION_NAME := "Unarmed_Combat_Idle"
+const UNARMED_STANCE_ENTER_ANIMATION_NAME := "PunchKick_Enter"
+const UNARMED_STANCE_EXIT_ANIMATION_NAME := "PunchKick_Exit"
+const UNARMED_COMBAT_IDLE_SEGMENT_SECONDS := 0.3
 const UNARMED_JAB_ANIMATION_NAME := "Punch_Jab"
 const UNARMED_CROSS_ANIMATION_NAME := "Punch_Cross"
 const UNARMED_UPPERCUT_ANIMATION_NAME := "Punch_Uppercut"
@@ -211,6 +218,7 @@ var _combat_action_impact_remaining := 0.0
 var _combat_action_has_impacted := false
 var _combat_action_target: HumanoidCharacter
 var _combat_action_attack_id := ""
+var _combat_action_hit_reaction_names: Array[String] = []
 var _combat_action_blunt_damage := 0.0
 var _combat_action_cut_damage := 0.0
 var _combat_reaction_remaining := 0.0
@@ -226,6 +234,7 @@ var _personal_hostile_ids: Dictionary = {}
 var _last_direct_attacker_id := 0
 var _assigned_talkers: Dictionary = {}
 var _pending_talker_ids: Dictionary = {}
+var _combat_animation_sets: Dictionary = {}
 
 var _nameplate: Label3D
 var _inspect_ring: MeshInstance3D
@@ -1059,6 +1068,59 @@ func get_attack_range() -> float:
 	return get_stat_value("attack_range")
 
 
+func _get_current_combat_animation_stance_id() -> String:
+	var weapon := get_equipped_item(ItemDefinition.EQUIP_SLOT_WEAPON)
+	if weapon == null:
+		return UNARMED_STANCE_ID
+	if weapon.grip_profile != null:
+		var stance_id := str(weapon.grip_profile.get("animation_stance_id"))
+		if not stance_id.is_empty():
+			return stance_id
+	return EquipmentGripProfile.GRIP_CLASS_ONE_HAND_MELEE
+
+
+func _is_unarmed_combat_stance() -> bool:
+	return _get_current_combat_animation_stance_id() == UNARMED_STANCE_ID
+
+
+func _get_current_combat_animation_set():
+	_ensure_default_combat_animation_sets()
+	return _combat_animation_sets.get(_get_current_combat_animation_stance_id(), null)
+
+
+func _ensure_default_combat_animation_sets() -> void:
+	if not _combat_animation_sets.is_empty():
+		return
+	_combat_animation_sets[UNARMED_STANCE_ID] = _build_unarmed_combat_animation_set()
+
+
+func _build_unarmed_combat_animation_set():
+	var animation_set = COMBAT_ANIMATION_SET_SCRIPT.new()
+	animation_set.stance_id = UNARMED_STANCE_ID
+	animation_set.idle_animation_name = UNARMED_COMBAT_IDLE_ANIMATION_NAME
+	animation_set.block_animation_name = BLOCK_ANIMATION_NAME
+	animation_set.fallback_hit_reaction_names = PackedStringArray([HIT_CHEST_ANIMATION_NAME, HIT_HEAD_ANIMATION_NAME, HIT_STOMACH_ANIMATION_NAME])
+	animation_set.attacks = [
+		_make_combat_attack("jab", [UNARMED_JAB_ANIMATION_NAME], 30.0, 0.42, [HIT_HEAD_ANIMATION_NAME, HIT_CHEST_ANIMATION_NAME]),
+		_make_combat_attack("cross", [UNARMED_CROSS_ANIMATION_NAME], 24.0, 0.44, [HIT_HEAD_ANIMATION_NAME, HIT_CHEST_ANIMATION_NAME, HIT_SHOULDER_L_ANIMATION_NAME]),
+		_make_combat_attack("uppercut", [UNARMED_UPPERCUT_ANIMATION_NAME], 12.0, 0.5, [HIT_HEAD_ANIMATION_NAME]),
+		_make_combat_attack("hook", UNARMED_HOOK_ANIMATION_NAMES, 20.0, 0.55, [HIT_HEAD_ANIMATION_NAME, HIT_SHOULDER_L_ANIMATION_NAME, HIT_SHOULDER_R_ANIMATION_NAME]),
+		_make_combat_attack("knee", UNARMED_KNEE_ANIMATION_NAMES, 14.0, 0.55, [HIT_STOMACH_ANIMATION_NAME]),
+		_make_combat_attack("kick", [UNARMED_KICK_ANIMATION_NAME], 12.0, 0.5, [HIT_HEAD_ANIMATION_NAME]),
+	]
+	return animation_set
+
+
+func _make_combat_attack(attack_id: String, animation_names: Array[String], weight: float, impact_ratio: float, hit_reaction_names: Array[String]):
+	var attack = COMBAT_ATTACK_ANIMATION_SCRIPT.new()
+	attack.attack_id = attack_id
+	attack.animation_names = PackedStringArray(animation_names)
+	attack.weight = weight
+	attack.impact_ratio = impact_ratio
+	attack.hit_reaction_names = PackedStringArray(hit_reaction_names)
+	return attack
+
+
 func has_bandageable_wounds() -> bool:
 	return _current_open_cut_damage > 0.0 or _bleed_rate > 0.0
 
@@ -1175,7 +1237,7 @@ func set_combat_stance(value: int) -> void:
 	state_changed.emit()
 
 
-func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage: float, attack_id: String = "") -> String:
+func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage: float, attack_id: String = "", hit_reaction_names: Array[String] = []) -> String:
 	if attacker == null or life_state == NpcRules.LifeState.DEAD:
 		return "ignored"
 	if life_state == NpcRules.LifeState.ASLEEP:
@@ -1194,7 +1256,7 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		final_blunt *= block_damage_multiplier
 		final_cut *= block_damage_multiplier
 		_prepare_combat_reaction(attacker)
-		_play_combat_reaction(BLOCK_ANIMATION_NAME)
+		_play_combat_reaction(_get_current_block_animation_name())
 		COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
 		_show_world_notice("Block", Color(0.86, 0.9, 1.0, 1.0))
 		_current_blunt_damage += final_blunt
@@ -1204,7 +1266,7 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		_try_start_self_defense(attacker)
 		return "blocked"
 	_prepare_combat_reaction(attacker)
-	_play_combat_reaction(_pick_hit_reaction_animation(attack_id))
+	_play_combat_reaction(_pick_hit_reaction_animation(attack_id, hit_reaction_names))
 	COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
 	_current_blunt_damage += final_blunt
 	_current_open_cut_damage += final_cut
@@ -1695,7 +1757,7 @@ func _process_attack_interaction() -> void:
 	_clear_actor_move_target()
 	if _combat_cooldown_remaining > 0.0:
 		return
-	_start_unarmed_combat_attack(_current_attack_target)
+	_start_combat_attack(_current_attack_target)
 
 
 func _process_combat_animation_state(delta: float) -> void:
@@ -1729,9 +1791,10 @@ func _process_combat_animation_state(delta: float) -> void:
 		_finish_combat_action()
 
 
-func _start_unarmed_combat_attack(target: HumanoidCharacter) -> void:
-	var attack := _choose_unarmed_attack()
-	if attack.is_empty():
+func _start_combat_attack(target: HumanoidCharacter) -> void:
+	var animation_set = _get_current_combat_animation_set()
+	var attack = animation_set.choose_attack(_character_animation_player, _rng) if animation_set != null else null
+	if attack == null:
 		if not COMBAT_COORDINATOR.try_begin_exchange(self, target, 0.45):
 			return
 		var total_damage := get_stat_value("attack_damage")
@@ -1740,7 +1803,7 @@ func _start_unarmed_combat_attack(target: HumanoidCharacter) -> void:
 		_combat_cooldown_remaining = maxf(0.2, get_stat_value("attack_cooldown"))
 		return
 
-	var action_names := _dictionary_string_array(attack, "animations")
+	var action_names: Array[String] = attack.get_animation_names()
 	var action_seconds := _get_animation_sequence_length(action_names)
 	if not COMBAT_COORDINATOR.try_begin_exchange(self, target, action_seconds):
 		return
@@ -1748,65 +1811,17 @@ func _start_unarmed_combat_attack(target: HumanoidCharacter) -> void:
 	_combat_action_index = 0
 	_combat_action_clip_remaining = _get_character_animation_length(_combat_action_names[0])
 	_combat_action_remaining = _get_animation_sequence_length(_combat_action_names)
-	_combat_action_impact_remaining = _get_combat_attack_impact_seconds(_combat_action_names[0], float(attack.get("impact_ratio", 0.45)))
+	_combat_action_impact_remaining = _get_combat_attack_impact_seconds(_combat_action_names[0], attack.impact_ratio)
 	_combat_action_has_impacted = false
 	_combat_action_target = target
-	_combat_action_attack_id = String(attack.get("id", ""))
+	_combat_action_attack_id = attack.attack_id
+	_combat_action_hit_reaction_names = attack.get_hit_reaction_names()
 	var total_damage := get_stat_value("attack_damage")
 	_combat_action_cut_damage = total_damage * get_stat_value("cut_ratio")
 	_combat_action_blunt_damage = total_damage - _combat_action_cut_damage
 	_combat_action_active = true
 	_combat_cooldown_remaining = maxf(0.2, get_stat_value("attack_cooldown"))
 	_play_current_combat_action_clip()
-
-
-func _choose_unarmed_attack() -> Dictionary:
-	var attacks: Array[Dictionary] = []
-	_add_unarmed_attack_candidate(attacks, "jab", [UNARMED_JAB_ANIMATION_NAME], 30.0, 0.42)
-	_add_unarmed_attack_candidate(attacks, "cross", [UNARMED_CROSS_ANIMATION_NAME], 24.0, 0.44)
-	_add_unarmed_attack_candidate(attacks, "uppercut", [UNARMED_UPPERCUT_ANIMATION_NAME], 12.0, 0.5)
-	_add_unarmed_attack_candidate(attacks, "hook", UNARMED_HOOK_ANIMATION_NAMES, 20.0, 0.55)
-	_add_unarmed_attack_candidate(attacks, "knee", UNARMED_KNEE_ANIMATION_NAMES, 14.0, 0.55)
-	_add_unarmed_attack_candidate(attacks, "kick", [UNARMED_KICK_ANIMATION_NAME], 12.0, 0.5)
-	if attacks.is_empty():
-		return {}
-	var total_weight := 0.0
-	for attack in attacks:
-		total_weight += float(attack.get("weight", 0.0))
-	var roll := _rng.randf_range(0.0, total_weight)
-	for attack in attacks:
-		roll -= float(attack.get("weight", 0.0))
-		if roll <= 0.0:
-			return attack
-	return attacks[attacks.size() - 1]
-
-
-func _add_unarmed_attack_candidate(attacks: Array[Dictionary], attack_id: String, animation_names: Array[String], weight: float, impact_ratio: float) -> void:
-	if not _has_all_character_animations(animation_names):
-		return
-	attacks.append({
-		"id": attack_id,
-		"animations": animation_names,
-		"weight": weight,
-		"impact_ratio": impact_ratio,
-	})
-
-
-func _has_all_character_animations(animation_names: Array[String]) -> bool:
-	if _character_animation_player == null:
-		return false
-	for animation_name in animation_names:
-		if not _character_animation_player.has_animation(animation_name):
-			return false
-	return true
-
-
-func _dictionary_string_array(source: Dictionary, key: String) -> Array[String]:
-	var result: Array[String] = []
-	for value in source.get(key, []):
-		result.append(String(value))
-	return result
-
 
 func _get_animation_sequence_length(animation_names: Array[String]) -> float:
 	var total := 0.0
@@ -1837,7 +1852,7 @@ func _resolve_combat_action_impact() -> void:
 	if _combat_action_target.life_state != NpcRules.LifeState.ALIVE:
 		return
 	_face_character(_combat_action_target)
-	_combat_action_target.receive_attack(self, _combat_action_blunt_damage, _combat_action_cut_damage, _combat_action_attack_id)
+	_combat_action_target.receive_attack(self, _combat_action_blunt_damage, _combat_action_cut_damage, _combat_action_attack_id, _combat_action_hit_reaction_names)
 
 
 func _finish_combat_action() -> void:
@@ -1854,6 +1869,7 @@ func _clear_combat_action() -> void:
 	_combat_action_has_impacted = false
 	_combat_action_target = null
 	_combat_action_attack_id = ""
+	_combat_action_hit_reaction_names.clear()
 	_combat_action_blunt_damage = 0.0
 	_combat_action_cut_damage = 0.0
 
@@ -1876,7 +1892,16 @@ func _play_combat_reaction(animation_name: String) -> bool:
 	return _play_character_animation(animation_name, 0.0, true, COMBAT_ACTION_BLEND_SECONDS)
 
 
-func _pick_hit_reaction_animation(attack_id: String) -> String:
+func _get_current_block_animation_name() -> String:
+	var animation_set = _get_current_combat_animation_set()
+	if animation_set != null and not animation_set.block_animation_name.is_empty():
+		return animation_set.block_animation_name
+	return BLOCK_ANIMATION_NAME
+
+
+func _pick_hit_reaction_animation(attack_id: String, hit_reaction_names: Array[String] = []) -> String:
+	if not hit_reaction_names.is_empty():
+		return _pick_available_animation(hit_reaction_names)
 	match attack_id:
 		"knee":
 			return _pick_available_animation([HIT_STOMACH_ANIMATION_NAME])
@@ -2650,26 +2675,15 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 		_copy_animation(ual1_player, animation_library, SITTING_IDLE_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, SITTING_TALKING_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, SITTING_EXIT_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, UNARMED_JAB_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, UNARMED_CROSS_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, UNARMED_UPPERCUT_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, UNARMED_KICK_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, HIT_CHEST_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, HIT_HEAD_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, HIT_STOMACH_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, HIT_SHOULDER_L_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, HIT_SHOULDER_R_ANIMATION_NAME)
+		_copy_default_combat_set_animations(ual1_player, animation_library)
+		_copy_unarmed_combat_idle_animation(ual1_player, animation_library)
 	ual1_source.queue_free()
 
 	var ual2_source := UAL2_ANIMATION_SOURCE_SCENE.instantiate()
 	var ual2_player := _find_animation_player(ual2_source)
 	if ual2_player != null:
 		_copy_animation(ual2_player, animation_library, FOLD_ARMS_IDLE_ANIMATION_NAME)
-		for animation_name in UNARMED_HOOK_ANIMATION_NAMES:
-			_copy_animation(ual2_player, animation_library, animation_name)
-		for animation_name in UNARMED_KNEE_ANIMATION_NAMES:
-			_copy_animation(ual2_player, animation_library, animation_name)
-		_copy_animation(ual2_player, animation_library, BLOCK_ANIMATION_NAME)
+		_copy_default_combat_set_animations(ual2_player, animation_library)
 	ual2_source.queue_free()
 
 
@@ -2681,6 +2695,89 @@ func _copy_animation(source_player: AnimationPlayer, animation_library: Animatio
 		return
 	var copied_animation := source_animation.duplicate(true) as Animation
 	animation_library.add_animation(animation_name, copied_animation)
+
+
+func _copy_default_combat_set_animations(source_player: AnimationPlayer, animation_library: AnimationLibrary) -> void:
+	_ensure_default_combat_animation_sets()
+	for animation_set_value in _combat_animation_sets.values():
+		var animation_set = animation_set_value
+		if animation_set == null:
+			continue
+		for animation_name in animation_set.get_all_animation_names():
+			_copy_animation(source_player, animation_library, animation_name)
+
+
+func _copy_unarmed_combat_idle_animation(source_player: AnimationPlayer, animation_library: AnimationLibrary) -> void:
+	if animation_library.has_animation(UNARMED_COMBAT_IDLE_ANIMATION_NAME):
+		return
+	if not source_player.has_animation(UNARMED_STANCE_ENTER_ANIMATION_NAME) or not source_player.has_animation(UNARMED_STANCE_EXIT_ANIMATION_NAME):
+		return
+	var enter_animation := source_player.get_animation(UNARMED_STANCE_ENTER_ANIMATION_NAME)
+	var exit_animation := source_player.get_animation(UNARMED_STANCE_EXIT_ANIMATION_NAME)
+	if enter_animation == null or exit_animation == null:
+		return
+	var enter_duration := minf(UNARMED_COMBAT_IDLE_SEGMENT_SECONDS, enter_animation.length)
+	var exit_duration := minf(UNARMED_COMBAT_IDLE_SEGMENT_SECONDS, exit_animation.length)
+	if enter_duration <= 0.0 or exit_duration <= 0.0:
+		return
+	var generated_animation := Animation.new()
+	generated_animation.length = enter_duration + exit_duration
+	generated_animation.loop_mode = Animation.LOOP_LINEAR
+	var track_map: Dictionary = {}
+	_copy_animation_time_window(enter_animation, generated_animation, maxf(0.0, enter_animation.length - enter_duration), enter_animation.length, 0.0, track_map)
+	_copy_animation_time_window(exit_animation, generated_animation, 0.0, exit_duration, enter_duration, track_map)
+	if generated_animation.get_track_count() == 0:
+		return
+	animation_library.add_animation(UNARMED_COMBAT_IDLE_ANIMATION_NAME, generated_animation)
+
+
+func _copy_animation_time_window(source_animation: Animation, target_animation: Animation, source_start: float, source_end: float, target_offset: float, track_map: Dictionary) -> void:
+	for source_track_index in range(source_animation.get_track_count()):
+		var target_track_index := _get_or_create_copied_animation_track(source_animation, target_animation, source_track_index, track_map)
+		var did_insert_key := false
+		for key_index in range(source_animation.track_get_key_count(source_track_index)):
+			var key_time := source_animation.track_get_key_time(source_track_index, key_index)
+			if key_time < source_start or key_time > source_end:
+				continue
+			_target_insert_animation_key(source_animation, target_animation, source_track_index, target_track_index, key_index, target_offset + key_time - source_start)
+			did_insert_key = true
+		if not did_insert_key:
+			var sample_key_index := _get_animation_sample_key_index(source_animation, source_track_index, source_start)
+			if sample_key_index >= 0:
+				_target_insert_animation_key(source_animation, target_animation, source_track_index, target_track_index, sample_key_index, target_offset)
+
+
+func _get_or_create_copied_animation_track(source_animation: Animation, target_animation: Animation, source_track_index: int, track_map: Dictionary) -> int:
+	var track_key := "%s|%s" % [str(source_animation.track_get_path(source_track_index)), str(source_animation.track_get_type(source_track_index))]
+	if track_map.has(track_key):
+		return int(track_map[track_key])
+	var target_track_index := target_animation.add_track(source_animation.track_get_type(source_track_index))
+	target_animation.track_set_path(target_track_index, source_animation.track_get_path(source_track_index))
+	target_animation.track_set_interpolation_type(target_track_index, source_animation.track_get_interpolation_type(source_track_index))
+	track_map[track_key] = target_track_index
+	return target_track_index
+
+
+func _get_animation_sample_key_index(source_animation: Animation, source_track_index: int, sample_time: float) -> int:
+	var key_count := source_animation.track_get_key_count(source_track_index)
+	if key_count <= 0:
+		return -1
+	var sample_key_index := 0
+	for key_index in range(key_count):
+		if source_animation.track_get_key_time(source_track_index, key_index) <= sample_time:
+			sample_key_index = key_index
+		else:
+			break
+	return sample_key_index
+
+
+func _target_insert_animation_key(source_animation: Animation, target_animation: Animation, source_track_index: int, target_track_index: int, source_key_index: int, target_time: float) -> void:
+	target_animation.track_insert_key(
+		target_track_index,
+		clampf(target_time, 0.0, target_animation.length),
+		source_animation.track_get_key_value(source_track_index, source_key_index),
+		source_animation.track_get_key_transition(source_track_index, source_key_index)
+	)
 
 func _find_animation_player(root: Node) -> AnimationPlayer:
 	if root is AnimationPlayer:
@@ -2729,6 +2826,8 @@ func _update_character_animation(delta: float) -> void:
 			_play_character_animation(CROUCH_IDLE_ANIMATION_NAME)
 		return
 	if not is_moving:
+		if _play_combat_idle_animation_if_available():
+			return
 		_update_idle_character_animation(delta)
 		return
 	if wants_run_animation:
@@ -2739,6 +2838,19 @@ func _update_character_animation(delta: float) -> void:
 
 func _get_animation_speed_ratio(horizontal_speed: float, reference_speed: float) -> float:
 	return clampf(horizontal_speed / maxf(reference_speed, 0.001), 0.0, 1.0)
+
+
+func _play_combat_idle_animation_if_available() -> bool:
+	if not is_in_combat() or not _is_unarmed_combat_stance():
+		return false
+	if _current_attack_target == null or not is_instance_valid(_current_attack_target) or _current_attack_target.life_state != NpcRules.LifeState.ALIVE:
+		return false
+	var animation_set = _get_current_combat_animation_set()
+	if animation_set == null or animation_set.idle_animation_name.is_empty():
+		return false
+	if _character_animation_player == null or not _character_animation_player.has_animation(animation_set.idle_animation_name):
+		return false
+	return _play_character_animation(animation_set.idle_animation_name)
 
 
 func _update_idle_character_animation(delta: float) -> void:
