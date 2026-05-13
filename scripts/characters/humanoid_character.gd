@@ -8,7 +8,7 @@ const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archet
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_female.tres")
 const MALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf")
 const FEMALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Female_FullBody.gltf")
-const UAL1_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_1/UAL1_Standard.glb")
+const UAL1_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_1_pro/UAL1_Pro.glb")
 const UAL2_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_2/UAL2_Standard.glb")
 const DEFAULT_GRIP_SOCKET_PROFILE = preload("res://resources/humanoid_grip_socket_profiles/default.tres")
 const HUMANOID_GRIP_SOCKET_MARKER_SCRIPT = preload("res://scripts/characters/humanoid_grip_socket_marker.gd")
@@ -17,12 +17,16 @@ const CHARACTER_ANIMATION_PLAYER_NAME := "CharacterAnimationPlayer"
 const CHARACTER_VISUAL_YAW_OFFSET := PI
 const CHARACTER_VISUAL_FOOT_CLEARANCE := 0.02
 const IDLE_ANIMATION_NAME := "Idle"
+const TIRED_IDLE_ANIMATION_NAME := "Idle_Tired"
 const FOLD_ARMS_IDLE_ANIMATION_NAME := "Idle_FoldArms"
 const WALK_ANIMATION_NAME := "Walk"
+const CROUCH_ENTER_ANIMATION_NAME := "Crouch_Enter"
 const CROUCH_IDLE_ANIMATION_NAME := "Crouch_Idle"
 const CROUCH_WALK_ANIMATION_NAME := "Crouch_Fwd"
+const CROUCH_EXIT_ANIMATION_NAME := "Crouch_Exit"
+const RUN_ENTER_ANIMATION_NAME := "Sprint_Enter"
 const JOG_ANIMATION_NAME := "Jog_Fwd"
-const SPRINT_ANIMATION_NAME := "Sprint"
+const RUN_EXIT_ANIMATION_NAME := "Sprint_Exit"
 const SITTING_ENTER_ANIMATION_NAME := "Sitting_Enter"
 const SITTING_IDLE_ANIMATION_NAME := "Sitting_Idle"
 const SITTING_TALKING_ANIMATION_NAME := "Sitting_Talking"
@@ -34,7 +38,6 @@ const SITTING_IDLE_MIN_SECONDS := 5.0
 const SITTING_IDLE_MAX_SECONDS := 11.0
 const SITTING_TALKING_CHANCE := 0.28
 const MOVE_ANIMATION_BLEND_SECONDS := 0.12
-const SPRINT_ANIMATION_SPEED_RATIO := 0.82
 const EQUIPMENT_SLOTS: Array[String] = ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head", "weapon", "offhand"]
 const EQUIPMENT_SLOT_LABELS := {
 	"undershirt": "Undershirt",
@@ -201,6 +204,11 @@ var _character_animation_player: AnimationPlayer
 var _character_animation_players: Array[AnimationPlayer] = []
 var _current_character_animation := ""
 var _idle_animation_change_remaining := 0.0
+var _crouch_enter_animation_remaining := 0.0
+var _crouch_exit_animation_remaining := 0.0
+var _run_enter_animation_remaining := 0.0
+var _run_exit_animation_remaining := 0.0
+var _running_locomotion_active := false
 var _sitting_enter_animation_remaining := 0.0
 var _sitting_exit_animation_remaining := 0.0
 var _sitting_idle_change_remaining := 0.0
@@ -1057,7 +1065,7 @@ func clear_personal_hostility(other: HumanoidCharacter) -> void:
 
 func set_running_enabled(value: bool) -> bool:
 	if value:
-		sneaking = false
+		_set_sneaking_state(false, true)
 		running = can_enable_running()
 	else:
 		running = false
@@ -1068,8 +1076,25 @@ func set_running_enabled(value: bool) -> bool:
 func set_sneaking_enabled(value: bool) -> void:
 	if value:
 		running = false
-	sneaking = value and life_state == NpcRules.LifeState.ALIVE
+	_set_sneaking_state(value, true)
 	state_changed.emit()
+
+
+func _set_sneaking_state(value: bool, play_transition: bool) -> bool:
+	var next_sneaking := value and life_state == NpcRules.LifeState.ALIVE
+	if sneaking == next_sneaking:
+		return false
+	sneaking = next_sneaking
+	if play_transition:
+		if sneaking:
+			_cancel_run_transition()
+			_start_crouch_enter_animation()
+		else:
+			_start_crouch_exit_animation()
+	else:
+		_cancel_crouch_transition()
+		_cancel_run_transition()
+	return true
 
 
 func notify_incoming_attack(attacker: HumanoidCharacter) -> void:
@@ -1416,7 +1441,7 @@ func _process_sleep_interaction() -> void:
 	rotation = _current_sleep_target.get_sleep_rotation()
 	velocity = Vector3.ZERO
 	running = false
-	sneaking = false
+	_set_sneaking_state(false, false)
 	_clear_actor_move_target()
 	life_state = NpcRules.LifeState.ASLEEP
 	_show_world_notice("Sleeping", Color(0.55, 0.72, 1.0, 1.0))
@@ -1457,7 +1482,7 @@ func _process_place_in_bed_interaction() -> void:
 	carried.rotation = bed.get_sleep_rotation()
 	carried.velocity = Vector3.ZERO
 	carried.running = false
-	carried.sneaking = false
+	carried._set_sneaking_state(false, false)
 	carried._clear_actor_move_target()
 	carried._current_order_type = OrderType.SLEEP
 	carried._current_sleep_target = bed
@@ -1502,7 +1527,7 @@ func _process_seat_interaction() -> void:
 	rotation = _current_seat_target.get_seat_rotation(self)
 	velocity = Vector3.ZERO
 	running = false
-	sneaking = false
+	_set_sneaking_state(false, false)
 	_clear_actor_move_target()
 	_is_sitting = true
 	_start_sitting_enter_animation()
@@ -2266,11 +2291,15 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 	var ual1_player := _find_animation_player(ual1_source)
 	if ual1_player != null:
 		_copy_animation(ual1_player, animation_library, IDLE_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, TIRED_IDLE_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, WALK_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, CROUCH_ENTER_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, CROUCH_IDLE_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, CROUCH_WALK_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, CROUCH_EXIT_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, RUN_ENTER_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, JOG_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, SPRINT_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, RUN_EXIT_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, SITTING_ENTER_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, SITTING_IDLE_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, SITTING_TALKING_ANIMATION_NAME)
@@ -2308,6 +2337,8 @@ func _update_character_animation(delta: float) -> void:
 	if _character_animation_player == null:
 		return
 	if _is_sitting:
+		_cancel_crouch_transition()
+		_cancel_run_transition()
 		_update_sitting_character_animation(delta)
 		return
 	if _sitting_exit_animation_remaining > 0.0 and not _has_move_target:
@@ -2315,10 +2346,21 @@ func _update_character_animation(delta: float) -> void:
 		return
 	_sitting_exit_animation_remaining = 0.0
 	if life_state != NpcRules.LifeState.ALIVE or _carried_by != null:
+		_cancel_crouch_transition()
+		_cancel_run_transition()
 		_update_idle_character_animation(delta)
 		return
 	var horizontal_speed := Vector2(velocity.x, velocity.z).length()
 	var is_moving := horizontal_speed > 0.18 and _has_move_target
+	var wants_run_animation := is_running_enabled() and is_moving and not sneaking
+	if _crouch_enter_animation_remaining > 0.0:
+		_update_crouch_enter_animation(delta)
+		return
+	if _crouch_exit_animation_remaining > 0.0:
+		_update_crouch_exit_animation(delta)
+		return
+	if _update_run_transition(delta, wants_run_animation):
+		return
 	if sneaking:
 		if is_moving:
 			_play_character_animation(CROUCH_WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed * 0.65))
@@ -2328,24 +2370,10 @@ func _update_character_animation(delta: float) -> void:
 	if not is_moving:
 		_update_idle_character_animation(delta)
 		return
-	if is_running_enabled():
-		var sprint_speed_ratio := _get_animation_speed_ratio(horizontal_speed, move_speed * NpcRules.RUN_SPEED_MULTIPLIER)
-		if _should_use_sprint_animation(sprint_speed_ratio):
-			_play_character_animation(SPRINT_ANIMATION_NAME, sprint_speed_ratio)
-		else:
-			_play_character_animation(JOG_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed))
+	if wants_run_animation:
+		_play_character_animation(JOG_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed * NpcRules.RUN_SPEED_MULTIPLIER))
 	else:
 		_play_character_animation(WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed))
-
-
-func _should_use_sprint_animation(speed_ratio: float) -> bool:
-	if not is_running_enabled():
-		return false
-	if hunger_stage != NpcRules.HungerStage.WELL_NOURISHED:
-		return false
-	if fatigue_stage != NpcRules.FatigueStage.WELL_RESTED:
-		return false
-	return speed_ratio >= SPRINT_ANIMATION_SPEED_RATIO
 
 
 func _get_animation_speed_ratio(horizontal_speed: float, reference_speed: float) -> float:
@@ -2353,6 +2381,10 @@ func _get_animation_speed_ratio(horizontal_speed: float, reference_speed: float)
 
 
 func _update_idle_character_animation(delta: float) -> void:
+	if _should_use_tired_idle_animation():
+		if _current_character_animation != TIRED_IDLE_ANIMATION_NAME or not _character_animation_player.is_playing():
+			_play_character_animation(TIRED_IDLE_ANIMATION_NAME)
+		return
 	if not _is_idle_animation(_current_character_animation) or not _character_animation_player.is_playing():
 		_play_random_idle_animation(true)
 		return
@@ -2390,6 +2422,101 @@ func _is_idle_animation(animation_name: String) -> bool:
 
 func _reset_idle_animation_timer() -> void:
 	_idle_animation_change_remaining = _rng.randf_range(IDLE_ANIMATION_MIN_SECONDS, IDLE_ANIMATION_MAX_SECONDS)
+
+
+func _should_use_tired_idle_animation() -> bool:
+	return life_state == NpcRules.LifeState.ALIVE \
+		and fatigue_stage == NpcRules.FatigueStage.EXHAUSTED \
+		and _character_animation_player != null \
+		and _character_animation_player.has_animation(TIRED_IDLE_ANIMATION_NAME)
+
+
+func _start_crouch_enter_animation() -> void:
+	_crouch_exit_animation_remaining = 0.0
+	if _play_character_animation(CROUCH_ENTER_ANIMATION_NAME):
+		_crouch_enter_animation_remaining = _get_character_animation_length(CROUCH_ENTER_ANIMATION_NAME)
+	else:
+		_crouch_enter_animation_remaining = 0.0
+
+
+func _start_crouch_exit_animation() -> void:
+	_crouch_enter_animation_remaining = 0.0
+	if _play_character_animation(CROUCH_EXIT_ANIMATION_NAME):
+		_crouch_exit_animation_remaining = _get_character_animation_length(CROUCH_EXIT_ANIMATION_NAME)
+	else:
+		_crouch_exit_animation_remaining = 0.0
+
+
+func _cancel_crouch_transition() -> void:
+	_crouch_enter_animation_remaining = 0.0
+	_crouch_exit_animation_remaining = 0.0
+
+
+func _update_crouch_enter_animation(delta: float) -> void:
+	_crouch_enter_animation_remaining = maxf(0.0, _crouch_enter_animation_remaining - delta)
+	if _crouch_enter_animation_remaining > 0.0:
+		_play_character_animation(CROUCH_ENTER_ANIMATION_NAME)
+
+
+func _update_crouch_exit_animation(delta: float) -> void:
+	_crouch_exit_animation_remaining = maxf(0.0, _crouch_exit_animation_remaining - delta)
+	if _crouch_exit_animation_remaining > 0.0:
+		_play_character_animation(CROUCH_EXIT_ANIMATION_NAME)
+
+
+func _update_run_transition(delta: float, wants_run_animation: bool) -> bool:
+	if wants_run_animation:
+		_run_exit_animation_remaining = 0.0
+		if not _running_locomotion_active and _run_enter_animation_remaining <= 0.0:
+			_start_run_enter_animation()
+		_running_locomotion_active = true
+		if _run_enter_animation_remaining > 0.0:
+			_update_run_enter_animation(delta)
+			return true
+		return false
+
+	_run_enter_animation_remaining = 0.0
+	if _running_locomotion_active and _run_exit_animation_remaining <= 0.0:
+		_start_run_exit_animation()
+	_running_locomotion_active = false
+	if _run_exit_animation_remaining > 0.0:
+		_update_run_exit_animation(delta)
+		return true
+	return false
+
+
+func _start_run_enter_animation() -> void:
+	_run_exit_animation_remaining = 0.0
+	if _play_character_animation(RUN_ENTER_ANIMATION_NAME):
+		_run_enter_animation_remaining = _get_character_animation_length(RUN_ENTER_ANIMATION_NAME)
+	else:
+		_run_enter_animation_remaining = 0.0
+
+
+func _start_run_exit_animation() -> void:
+	_run_enter_animation_remaining = 0.0
+	if _play_character_animation(RUN_EXIT_ANIMATION_NAME):
+		_run_exit_animation_remaining = _get_character_animation_length(RUN_EXIT_ANIMATION_NAME)
+	else:
+		_run_exit_animation_remaining = 0.0
+
+
+func _cancel_run_transition() -> void:
+	_run_enter_animation_remaining = 0.0
+	_run_exit_animation_remaining = 0.0
+	_running_locomotion_active = false
+
+
+func _update_run_enter_animation(delta: float) -> void:
+	_run_enter_animation_remaining = maxf(0.0, _run_enter_animation_remaining - delta)
+	if _run_enter_animation_remaining > 0.0:
+		_play_character_animation(RUN_ENTER_ANIMATION_NAME)
+
+
+func _update_run_exit_animation(delta: float) -> void:
+	_run_exit_animation_remaining = maxf(0.0, _run_exit_animation_remaining - delta)
+	if _run_exit_animation_remaining > 0.0:
+		_play_character_animation(RUN_EXIT_ANIMATION_NAME)
 
 
 func _start_sitting_enter_animation() -> void:
@@ -2500,8 +2627,6 @@ func _get_character_animation_speed(animation_name: String, speed_ratio: float) 
 			return lerpf(0.85, 1.15, speed_ratio)
 		JOG_ANIMATION_NAME:
 			return lerpf(0.9, 1.35, speed_ratio)
-		SPRINT_ANIMATION_NAME:
-			return lerpf(0.9, 1.25, speed_ratio)
 	return 1.0
 
 
