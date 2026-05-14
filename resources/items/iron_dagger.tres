@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
-[ext_resource type="Texture2D" uid="uid://itx88iuxnrw2" path="res://assets/items/equipment/dagger.svg" id="3_icon"]
+[ext_resource type="Texture2D" uid="uid://b4oed2p36777w" path="res://assets/items/equipment/iron_dagger_icon.svg" id="3_icon"]
 [ext_resource type="PackedScene" uid="uid://dar6jv0cjxpop" path="res://scenes/world/equipment/dagger_model.tscn" id="4_model"]
 [ext_resource type="Resource" uid="uid://ddoq1y4fkfw0i" path="res://resources/equipment_grip_profiles/one_hand_melee.tres" id="5_grip"]
 

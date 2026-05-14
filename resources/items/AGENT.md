@@ -48,6 +48,14 @@
 - The current `iron_dagger.tres` plus `dagger_model.tscn` is the one-hand melee visual reference.
 - Sword, axe, and dagger share the same grip contract, but their wrapper transforms may differ because imported model axes/pivots differ.
 
+## Current Weapon Families
+- One-hand melee: `iron_sword.tres`, `steel_sword.tres`, `golden_sword.tres`, `iron_axe.tres`, `hatchet.tres`, `war_hammer.tres`, `iron_dagger.tres`, `steel_dagger.tres`.
+- Two-handed weapons: `greatsword.tres`, `claymore.tres`, `maul.tres`, `iron_axe_double.tres`.
+- Polearms: `spear.tres`, `scythe.tres`.
+- Bows: `wooden_bow.tres`, `recurve_bow.tres`, `golden_bow.tres`, `evil_bow.tres`.
+- Shields: `round_shield.tres`, `round_shield_2.tres`, `heater_shield.tres`, `heater_shield_2.tres`, `golden_celtic_shield.tres`.
+- Keep future-family item resources available as data, but do not treat them as fully supported combat items until matching animation/IK support and grip calibration exist.
+
 ## New Weapon Resource Checklist
 - Create or reuse an equipment wrapper scene under `scenes/world/equipment/`.
 - Create an item resource in this folder.

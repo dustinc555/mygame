@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
-[ext_resource type="Texture2D" uid="uid://dtk8mh4mc5u8b" path="res://assets/items/equipment/axe.svg" id="3_icon"]
+[ext_resource type="Texture2D" uid="uid://shaqyt8h6f1m" path="res://assets/items/equipment/maul_icon.svg" id="3_icon"]
 [ext_resource type="PackedScene" path="res://scenes/world/equipment/hammer_double_model.tscn" id="4_model"]
 [ext_resource type="Resource" path="res://resources/equipment_grip_profiles/two_hand_weapon.tres" id="5_grip"]
 
