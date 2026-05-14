@@ -46,7 +46,12 @@ const UNARMED_UPPERCUT_ANIMATION_NAME := "Punch_Uppercut"
 const UNARMED_KICK_ANIMATION_NAME := "Kick"
 const UNARMED_HOOK_ANIMATION_NAMES: Array[String] = ["Melee_Hook", "Melee_Hook_Rec"]
 const UNARMED_KNEE_ANIMATION_NAMES: Array[String] = ["Melee_Knee", "Melee_Knee_Rec"]
+const ONE_HAND_MELEE_IDLE_ANIMATION_NAME := "Sword_Idle"
+const ONE_HAND_LIGHT_A_ANIMATION_NAMES: Array[String] = ["Sword_Light_A", "Sword_Light_A_Rec"]
+const ONE_HAND_LIGHT_B_ANIMATION_NAMES: Array[String] = ["Sword_Light_B", "Sword_Light_B_Rec"]
 const BLOCK_ANIMATION_NAME := "Sword_Block"
+const SHIELD_COMBAT_IDLE_ANIMATION_NAME := "Idle_Shield_Loop"
+const SHIELD_BLOCK_ANIMATION_NAMES: Array[String] = ["Shield_OneShot", "Idle_Shield_Break", "Sword_Block"]
 const HIT_CHEST_ANIMATION_NAME := "Hit_Chest"
 const HIT_HEAD_ANIMATION_NAME := "Hit_Head"
 const HIT_STOMACH_ANIMATION_NAME := "Hit_Stomach"
@@ -1109,6 +1114,7 @@ func _ensure_default_combat_animation_sets() -> void:
 	if not _combat_animation_sets.is_empty():
 		return
 	_combat_animation_sets[UNARMED_STANCE_ID] = _build_unarmed_combat_animation_set()
+	_combat_animation_sets[EquipmentGripProfile.GRIP_CLASS_ONE_HAND_MELEE] = _build_one_hand_melee_combat_animation_set()
 
 
 func _build_unarmed_combat_animation_set():
@@ -1124,6 +1130,19 @@ func _build_unarmed_combat_animation_set():
 		_make_combat_attack("hook", UNARMED_HOOK_ANIMATION_NAMES, 20.0, 0.55, [HIT_HEAD_ANIMATION_NAME, HIT_SHOULDER_L_ANIMATION_NAME, HIT_SHOULDER_R_ANIMATION_NAME]),
 		_make_combat_attack("knee", UNARMED_KNEE_ANIMATION_NAMES, 14.0, 0.55, [HIT_STOMACH_ANIMATION_NAME]),
 		_make_combat_attack("kick", [UNARMED_KICK_ANIMATION_NAME], 12.0, 0.5, [HIT_HEAD_ANIMATION_NAME]),
+	]
+	return animation_set
+
+
+func _build_one_hand_melee_combat_animation_set():
+	var animation_set = COMBAT_ANIMATION_SET_SCRIPT.new()
+	animation_set.stance_id = EquipmentGripProfile.GRIP_CLASS_ONE_HAND_MELEE
+	animation_set.idle_animation_name = ONE_HAND_MELEE_IDLE_ANIMATION_NAME
+	animation_set.block_animation_name = BLOCK_ANIMATION_NAME
+	animation_set.fallback_hit_reaction_names = PackedStringArray([HIT_CHEST_ANIMATION_NAME, HIT_HEAD_ANIMATION_NAME, HIT_STOMACH_ANIMATION_NAME])
+	animation_set.attacks = [
+		_make_combat_attack("one_hand_light_a", ONE_HAND_LIGHT_A_ANIMATION_NAMES, 18.0, 0.42, [HIT_HEAD_ANIMATION_NAME, HIT_CHEST_ANIMATION_NAME]),
+		_make_combat_attack("one_hand_light_b", ONE_HAND_LIGHT_B_ANIMATION_NAMES, 18.0, 0.42, [HIT_CHEST_ANIMATION_NAME, HIT_SHOULDER_L_ANIMATION_NAME]),
 	]
 	return animation_set
 
@@ -1307,7 +1326,7 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		_prepare_combat_reaction(attacker)
 		_play_combat_reaction(_get_current_block_animation_name())
 		COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
-		_show_world_notice("Block", Color(0.86, 0.9, 1.0, 1.0))
+		_show_world_notice(_get_current_block_notice_label(), Color(0.86, 0.9, 1.0, 1.0))
 		_current_blunt_damage += final_blunt
 		_current_open_cut_damage += final_cut
 		_bleed_rate += final_cut * 0.12
@@ -1925,10 +1944,25 @@ func _play_combat_reaction(animation_name: String) -> bool:
 
 
 func _get_current_block_animation_name() -> String:
+	if _has_equipped_shield():
+		var shield_block_animation := _pick_available_animation(SHIELD_BLOCK_ANIMATION_NAMES)
+		if not shield_block_animation.is_empty():
+			return shield_block_animation
 	var animation_set = _get_current_combat_animation_set()
 	if animation_set != null and not animation_set.block_animation_name.is_empty():
 		return animation_set.block_animation_name
 	return BLOCK_ANIMATION_NAME
+
+
+func _get_current_block_notice_label() -> String:
+	return "Shield Block" if _has_equipped_shield() else "Parry"
+
+
+func _has_equipped_shield() -> bool:
+	var offhand_item := get_equipped_item(ItemDefinition.EQUIP_SLOT_OFFHAND)
+	if offhand_item == null or offhand_item.grip_profile == null:
+		return false
+	return str(offhand_item.grip_profile.get("grip_class_id")) == EquipmentGripProfile.GRIP_CLASS_OFFHAND_SHIELD
 
 
 func _pick_hit_reaction_animation(attack_id: String, hit_reaction_names: Array[String] = []) -> String:
@@ -2643,9 +2677,16 @@ func _inflate_mesh_instance(mesh_instance: MeshInstance3D, surface_offset: float
 				if normal.length_squared() > 0.0001:
 					vertices[vertex_index] += normal.normalized() * surface_offset
 			arrays[Mesh.ARRAY_VERTEX] = vertices
-		inflated_mesh.add_surface_from_arrays(source_mesh.surface_get_primitive_type(surface_index), arrays)
+		inflated_mesh.add_surface_from_arrays(
+			source_mesh.surface_get_primitive_type(surface_index),
+			arrays,
+			source_mesh.surface_get_blend_shape_arrays(surface_index),
+			{},
+			source_mesh.surface_get_format(surface_index)
+		)
 		inflated_mesh.surface_set_material(surface_index, source_mesh.surface_get_material(surface_index))
-	mesh_instance.mesh = inflated_mesh
+	if inflated_mesh.get_surface_count() == source_mesh.get_surface_count():
+		mesh_instance.mesh = inflated_mesh
 
 
 func _get_visual_ground_y(fallback_y: float) -> float:
@@ -2716,6 +2757,7 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 		_copy_animation(ual1_player, animation_library, SITTING_TALKING_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, SITTING_EXIT_ANIMATION_NAME)
 		_copy_default_combat_set_animations(ual1_player, animation_library)
+		_copy_contextual_combat_reaction_animations(ual1_player, animation_library)
 		_copy_ragdoll_profile_animations(ual1_player, animation_library)
 		_copy_unarmed_combat_idle_animation(ual1_player, animation_library)
 	ual1_source.queue_free()
@@ -2725,6 +2767,7 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 	if ual2_player != null:
 		_copy_animation(ual2_player, animation_library, FOLD_ARMS_IDLE_ANIMATION_NAME)
 		_copy_default_combat_set_animations(ual2_player, animation_library)
+		_copy_contextual_combat_reaction_animations(ual2_player, animation_library)
 		_copy_ragdoll_profile_animations(ual2_player, animation_library)
 	ual2_source.queue_free()
 
@@ -2747,6 +2790,12 @@ func _copy_default_combat_set_animations(source_player: AnimationPlayer, animati
 			continue
 		for animation_name in animation_set.get_all_animation_names():
 			_copy_animation(source_player, animation_library, animation_name)
+
+
+func _copy_contextual_combat_reaction_animations(source_player: AnimationPlayer, animation_library: AnimationLibrary) -> void:
+	_copy_animation(source_player, animation_library, SHIELD_COMBAT_IDLE_ANIMATION_NAME)
+	for animation_name in SHIELD_BLOCK_ANIMATION_NAMES:
+		_copy_animation(source_player, animation_library, animation_name)
 
 
 func _copy_ragdoll_profile_animations(source_player: AnimationPlayer, animation_library: AnimationLibrary) -> void:
@@ -2892,16 +2941,25 @@ func _get_animation_speed_ratio(horizontal_speed: float, reference_speed: float)
 
 
 func _play_combat_idle_animation_if_available() -> bool:
-	if not is_in_combat() or not _is_unarmed_combat_stance():
+	if not is_in_combat():
 		return false
 	if _current_attack_target == null or not is_instance_valid(_current_attack_target) or _current_attack_target.life_state != NpcRules.LifeState.ALIVE:
 		return false
 	var animation_set = _get_current_combat_animation_set()
-	if animation_set == null or animation_set.idle_animation_name.is_empty():
+	var idle_animation_name := _get_current_combat_idle_animation_name(animation_set)
+	if idle_animation_name.is_empty():
 		return false
-	if _character_animation_player == null or not _character_animation_player.has_animation(animation_set.idle_animation_name):
+	if _character_animation_player == null or not _character_animation_player.has_animation(idle_animation_name):
 		return false
-	return _play_character_animation(animation_set.idle_animation_name)
+	return _play_character_animation(idle_animation_name)
+
+
+func _get_current_combat_idle_animation_name(animation_set) -> String:
+	if _has_equipped_shield() and _character_animation_player != null and _character_animation_player.has_animation(SHIELD_COMBAT_IDLE_ANIMATION_NAME):
+		return SHIELD_COMBAT_IDLE_ANIMATION_NAME
+	if animation_set != null:
+		return str(animation_set.idle_animation_name)
+	return ""
 
 
 func _update_idle_character_animation(delta: float) -> void:

@@ -1,0 +1,370 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/party_member.gd" id="1_party"]
+[ext_resource type="Script" path="res://scripts/characters/humanoid_character.gd" id="2_humanoid"]
+[ext_resource type="Script" path="res://scripts/party_manager.gd" id="3_manager"]
+[ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="4_bootstrap"]
+[ext_resource type="Script" path="res://scripts/items/inventory_stock.gd" id="5_stock"]
+[ext_resource type="PackedScene" path="res://scenes/world/containers/locker_container.tscn" id="6_locker"]
+[ext_resource type="PackedScene" path="res://scenes/world/containers/weapon_chest_container.tscn" id="7_chest"]
+[ext_resource type="Resource" path="res://resources/items/iron_sword.tres" id="10_iron_sword"]
+[ext_resource type="Resource" path="res://resources/items/iron_axe.tres" id="11_iron_axe"]
+[ext_resource type="Resource" path="res://resources/items/iron_dagger.tres" id="12_iron_dagger"]
+[ext_resource type="Resource" path="res://resources/items/steel_sword.tres" id="13_steel_sword"]
+[ext_resource type="Resource" path="res://resources/items/golden_sword.tres" id="14_golden_sword"]
+[ext_resource type="Resource" path="res://resources/items/hatchet.tres" id="15_hatchet"]
+[ext_resource type="Resource" path="res://resources/items/steel_dagger.tres" id="16_steel_dagger"]
+[ext_resource type="Resource" path="res://resources/items/war_hammer.tres" id="17_war_hammer"]
+[ext_resource type="Resource" path="res://resources/items/greatsword.tres" id="18_greatsword"]
+[ext_resource type="Resource" path="res://resources/items/claymore.tres" id="19_claymore"]
+[ext_resource type="Resource" path="res://resources/items/iron_axe_double.tres" id="20_axe_double"]
+[ext_resource type="Resource" path="res://resources/items/maul.tres" id="21_maul"]
+[ext_resource type="Resource" path="res://resources/items/spear.tres" id="22_spear"]
+[ext_resource type="Resource" path="res://resources/items/scythe.tres" id="23_scythe"]
+[ext_resource type="Resource" path="res://resources/items/round_shield.tres" id="28_round_shield"]
+[ext_resource type="Resource" path="res://resources/items/heater_shield.tres" id="29_heater_shield"]
+[ext_resource type="Resource" path="res://resources/items/heater_shield_2.tres" id="30_heater_shield_2"]
+[ext_resource type="Resource" path="res://resources/items/round_shield_2.tres" id="31_round_shield_2"]
+[ext_resource type="Resource" path="res://resources/items/golden_celtic_shield.tres" id="32_celtic_shield"]
+[ext_resource type="Resource" path="res://resources/items/peasant_tunic.tres" id="40_peasant_tunic"]
+[ext_resource type="Resource" path="res://resources/items/peasant_trousers.tres" id="41_peasant_trousers"]
+[ext_resource type="Resource" path="res://resources/items/peasant_shoes.tres" id="42_peasant_shoes"]
+[ext_resource type="Resource" path="res://resources/items/ranger_jerkin.tres" id="43_ranger_jerkin"]
+[ext_resource type="Resource" path="res://resources/items/ranger_leggings.tres" id="44_ranger_leggings"]
+[ext_resource type="Resource" path="res://resources/items/ranger_boots.tres" id="45_ranger_boots"]
+[ext_resource type="Resource" path="res://resources/items/ranger_bracers.tres" id="46_ranger_bracers"]
+[ext_resource type="Resource" path="res://resources/items/ranger_hood.tres" id="47_ranger_hood"]
+[ext_resource type="Resource" path="res://resources/items/knight_gambeson.tres" id="48_knight_gambeson"]
+[ext_resource type="Resource" path="res://resources/items/knight_cuirass.tres" id="49_knight_cuirass"]
+[ext_resource type="Resource" path="res://resources/items/knight_gauntlets.tres" id="50_knight_gauntlets"]
+[ext_resource type="Resource" path="res://resources/items/knight_greaves.tres" id="51_knight_greaves"]
+[ext_resource type="Resource" path="res://resources/items/knight_sabatons.tres" id="52_knight_sabatons"]
+[ext_resource type="Resource" path="res://resources/items/knight_armet.tres" id="53_knight_armet"]
+[ext_resource type="Resource" path="res://resources/items/knight_horned_helm.tres" id="54_knight_horned_helm"]
+[ext_resource type="Resource" path="res://resources/items/noble_doublet.tres" id="55_noble_doublet"]
+[ext_resource type="Resource" path="res://resources/items/noble_sleeves.tres" id="56_noble_sleeves"]
+[ext_resource type="Resource" path="res://resources/items/noble_trousers.tres" id="57_noble_trousers"]
+[ext_resource type="Resource" path="res://resources/items/noble_shoes.tres" id="58_noble_shoes"]
+[ext_resource type="Resource" path="res://resources/items/noble_crown.tres" id="59_noble_crown"]
+[ext_resource type="Resource" path="res://resources/items/wizard_robes.tres" id="60_wizard_robes"]
+[ext_resource type="Resource" path="res://resources/items/wizard_sleeves.tres" id="61_wizard_sleeves"]
+[ext_resource type="Resource" path="res://resources/items/wizard_trousers.tres" id="62_wizard_trousers"]
+[ext_resource type="Resource" path="res://resources/items/wizard_shoes.tres" id="63_wizard_shoes"]
+[ext_resource type="Resource" path="res://resources/items/bandage.tres" id="70_bandage"]
+[ext_resource type="Resource" path="res://resources/items/food.tres" id="71_food"]
+[ext_resource type="Resource" path="res://resources/items/silver.tres" id="72_silver"]
+[ext_resource type="Resource" path="res://resources/items/copper_ore.tres" id="73_copper_ore"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(44, 1, 32)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.34, 0.32, 0.27, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(44, 1, 32)
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_member"]
+radius = 0.45
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
+top_radius = 0.72
+bottom_radius = 0.72
+height = 0.05
+radial_segments = 24
+rings = 2
+
+[sub_resource type="Resource" id="Stock_cloth_peasant_tunic"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("40_peasant_tunic")
+
+[sub_resource type="Resource" id="Stock_cloth_peasant_trousers"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("41_peasant_trousers")
+
+[sub_resource type="Resource" id="Stock_cloth_peasant_shoes"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("42_peasant_shoes")
+
+[sub_resource type="Resource" id="Stock_cloth_ranger_jerkin"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("43_ranger_jerkin")
+
+[sub_resource type="Resource" id="Stock_cloth_ranger_leggings"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("44_ranger_leggings")
+
+[sub_resource type="Resource" id="Stock_cloth_ranger_boots"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("45_ranger_boots")
+
+[sub_resource type="Resource" id="Stock_cloth_ranger_bracers"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("46_ranger_bracers")
+
+[sub_resource type="Resource" id="Stock_cloth_ranger_hood"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("47_ranger_hood")
+
+[sub_resource type="Resource" id="Stock_cloth_knight_gambeson"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("48_knight_gambeson")
+
+[sub_resource type="Resource" id="Stock_cloth_knight_cuirass"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("49_knight_cuirass")
+
+[sub_resource type="Resource" id="Stock_cloth_knight_gauntlets"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("50_knight_gauntlets")
+
+[sub_resource type="Resource" id="Stock_cloth_knight_greaves"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("51_knight_greaves")
+
+[sub_resource type="Resource" id="Stock_cloth_knight_sabatons"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("52_knight_sabatons")
+
+[sub_resource type="Resource" id="Stock_cloth_knight_armet"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("53_knight_armet")
+
+[sub_resource type="Resource" id="Stock_cloth_knight_horned_helm"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("54_knight_horned_helm")
+
+[sub_resource type="Resource" id="Stock_cloth_noble_doublet"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("55_noble_doublet")
+
+[sub_resource type="Resource" id="Stock_cloth_noble_sleeves"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("56_noble_sleeves")
+
+[sub_resource type="Resource" id="Stock_cloth_noble_trousers"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("57_noble_trousers")
+
+[sub_resource type="Resource" id="Stock_cloth_noble_shoes"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("58_noble_shoes")
+
+[sub_resource type="Resource" id="Stock_cloth_noble_crown"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("59_noble_crown")
+
+[sub_resource type="Resource" id="Stock_cloth_wizard_robes"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("60_wizard_robes")
+
+[sub_resource type="Resource" id="Stock_cloth_wizard_sleeves"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("61_wizard_sleeves")
+
+[sub_resource type="Resource" id="Stock_cloth_wizard_trousers"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("62_wizard_trousers")
+
+[sub_resource type="Resource" id="Stock_cloth_wizard_shoes"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("63_wizard_shoes")
+
+[sub_resource type="Resource" id="Stock_item_iron_sword"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("10_iron_sword")
+
+[sub_resource type="Resource" id="Stock_item_iron_axe"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("11_iron_axe")
+
+[sub_resource type="Resource" id="Stock_item_iron_dagger"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("12_iron_dagger")
+
+[sub_resource type="Resource" id="Stock_item_steel_sword"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("13_steel_sword")
+
+[sub_resource type="Resource" id="Stock_item_golden_sword"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("14_golden_sword")
+
+[sub_resource type="Resource" id="Stock_item_hatchet"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("15_hatchet")
+
+[sub_resource type="Resource" id="Stock_item_steel_dagger"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("16_steel_dagger")
+
+[sub_resource type="Resource" id="Stock_item_war_hammer"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("17_war_hammer")
+
+[sub_resource type="Resource" id="Stock_item_greatsword"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("18_greatsword")
+
+[sub_resource type="Resource" id="Stock_item_claymore"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("19_claymore")
+
+[sub_resource type="Resource" id="Stock_item_axe_double"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("20_axe_double")
+
+[sub_resource type="Resource" id="Stock_item_maul"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("21_maul")
+
+[sub_resource type="Resource" id="Stock_item_spear"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("22_spear")
+
+[sub_resource type="Resource" id="Stock_item_scythe"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("23_scythe")
+
+[sub_resource type="Resource" id="Stock_item_round_shield"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("28_round_shield")
+
+[sub_resource type="Resource" id="Stock_item_heater_shield"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("29_heater_shield")
+
+[sub_resource type="Resource" id="Stock_item_heater_shield_2"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("30_heater_shield_2")
+
+[sub_resource type="Resource" id="Stock_item_round_shield_2"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("31_round_shield_2")
+
+[sub_resource type="Resource" id="Stock_item_celtic_shield"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("32_celtic_shield")
+
+[sub_resource type="Resource" id="Stock_item_bandage"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("70_bandage")
+quantity = 10
+
+[sub_resource type="Resource" id="Stock_item_food"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("71_food")
+quantity = 10
+
+[sub_resource type="Resource" id="Stock_item_silver"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("72_silver")
+quantity = 200
+
+[sub_resource type="Resource" id="Stock_item_copper_ore"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("73_copper_ore")
+quantity = 10
+
+[node name="CombatDuel1v1Armory" type="Node3D"]
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 8, 0)
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+material_override = SubResource("StandardMaterial3D_floor")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="Dresser" parent="." instance=ExtResource("6_locker")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.5, 0, -6.2)
+display_name = "Dresser"
+inventory_columns = 10
+inventory_rows = 14
+starting_items = Array[ExtResource("5_stock")]([SubResource("Stock_cloth_peasant_tunic"), SubResource("Stock_cloth_peasant_trousers"), SubResource("Stock_cloth_peasant_shoes"), SubResource("Stock_cloth_ranger_jerkin"), SubResource("Stock_cloth_ranger_leggings"), SubResource("Stock_cloth_ranger_boots"), SubResource("Stock_cloth_ranger_bracers"), SubResource("Stock_cloth_ranger_hood"), SubResource("Stock_cloth_knight_gambeson"), SubResource("Stock_cloth_knight_cuirass"), SubResource("Stock_cloth_knight_gauntlets"), SubResource("Stock_cloth_knight_greaves"), SubResource("Stock_cloth_knight_sabatons"), SubResource("Stock_cloth_knight_armet"), SubResource("Stock_cloth_knight_horned_helm"), SubResource("Stock_cloth_noble_doublet"), SubResource("Stock_cloth_noble_sleeves"), SubResource("Stock_cloth_noble_trousers"), SubResource("Stock_cloth_noble_shoes"), SubResource("Stock_cloth_noble_crown"), SubResource("Stock_cloth_wizard_robes"), SubResource("Stock_cloth_wizard_sleeves"), SubResource("Stock_cloth_wizard_trousers"), SubResource("Stock_cloth_wizard_shoes")])
+
+[node name="ItemChest" parent="." instance=ExtResource("7_chest")]
+transform = Transform3D(0.996195, 0, -0.0871557, 0, 1, 0, 0.0871557, 0, 0.996195, -3.8, 0, -6.2)
+display_name = "Item Chest"
+inventory_columns = 12
+inventory_rows = 14
+starting_items = Array[ExtResource("5_stock")]([SubResource("Stock_item_iron_sword"), SubResource("Stock_item_iron_axe"), SubResource("Stock_item_iron_dagger"), SubResource("Stock_item_steel_sword"), SubResource("Stock_item_golden_sword"), SubResource("Stock_item_hatchet"), SubResource("Stock_item_steel_dagger"), SubResource("Stock_item_war_hammer"), SubResource("Stock_item_greatsword"), SubResource("Stock_item_claymore"), SubResource("Stock_item_axe_double"), SubResource("Stock_item_maul"), SubResource("Stock_item_spear"), SubResource("Stock_item_scythe"), SubResource("Stock_item_round_shield"), SubResource("Stock_item_heater_shield"), SubResource("Stock_item_heater_shield_2"), SubResource("Stock_item_round_shield_2"), SubResource("Stock_item_celtic_shield"), SubResource("Stock_item_bandage"), SubResource("Stock_item_food"), SubResource("Stock_item_silver"), SubResource("Stock_item_copper_ore")])
+
+[node name="PartyMembers" type="Node3D" parent="."]
+
+[node name="Mira" type="CharacterBody3D" parent="PartyMembers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.6, 1)
+script = ExtResource("1_party")
+base_color = Color(0.72, 0.48, 0.78, 1)
+member_name = "Mira"
+max_hp = 500.0
+base_attack_damage = 12.0
+base_dodge_chance = 0.08
+base_block_chance = 0.08
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Mira"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Mira"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Mira"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="Duelist" type="CharacterBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 5, 0.6, 1)
+script = ExtResource("2_humanoid")
+member_name = "Duelist"
+faction_name = "Sparring"
+squad_name = "Duelists"
+starting_equipment = Array[Resource]([ExtResource("14_golden_sword"), ExtResource("32_celtic_shield"), ExtResource("48_knight_gambeson"), ExtResource("49_knight_cuirass"), ExtResource("50_knight_gauntlets"), ExtResource("51_knight_greaves"), ExtResource("52_knight_sabatons"), ExtResource("54_knight_horned_helm")])
+max_hp = 500.0
+base_attack_damage = 12.0
+base_dodge_chance = 0.08
+base_block_chance = 0.12
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Duelist"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="Duelist"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="PartyManager" type="Node" parent="."]
+script = ExtResource("3_manager")
+
+[node name="GameBootstrap" type="Node" parent="."]
+script = ExtResource("4_bootstrap")
+
+[node name="CameraRig" type="Node3D" parent="."]
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 14)
+current = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Instructions" type="Label" parent="CanvasLayer"]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 760.0
+offset_bottom = 132.0
+text = "1v1 armory duel: Mira starts with no clothes or gear and both duelists have 500 HP. Open the Dresser for clothing and armor, open the Item Chest for weapons, shields, consumables, and trade goods, then right-click the Duelist and choose Attack when ready."
+autowrap_mode = 3
