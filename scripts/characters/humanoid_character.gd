@@ -6,6 +6,7 @@ const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/effects/world_text_n
 const COMBAT_COORDINATOR = preload("res://scripts/characters/combat_coordinator.gd")
 const COMBAT_ANIMATION_SET_SCRIPT = preload("res://scripts/characters/combat_animation_set.gd")
 const COMBAT_ATTACK_ANIMATION_SCRIPT = preload("res://scripts/characters/combat_attack_animation.gd")
+const HUMANOID_RAGDOLL_PROFILE_SCRIPT = preload("res://scripts/characters/humanoid_ragdoll_profile.gd")
 const HUMAN_RACE = preload("res://resources/character_races/human.tres")
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_female.tres")
@@ -135,6 +136,7 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var body_archetype: Resource
 @export_enum("Auto", "None", "Male", "Female") var visual_body_type: int = VisualBodyType.AUTO
 @export var grip_socket_profile: Resource = DEFAULT_GRIP_SOCKET_PROFILE
+@export var ragdoll_profile: Resource
 @export var show_grip_socket_markers := false
 @export var starting_items: Array[Resource] = []
 @export var starting_equipment: Array[Resource] = []
@@ -225,8 +227,22 @@ var _combat_reaction_remaining := 0.0
 var _combat_reaction_source: HumanoidCharacter
 var _ai_tick_remaining := 0.0
 var _downed_recover_delay_remaining := 0.0
-var _downed_target_rotation_z := 0.0
 var _downed_is_settled := false
+var _is_getting_up := false
+var _get_up_animation_name := ""
+var _get_up_animation_remaining := 0.0
+var _get_up_animation_total := 0.0
+var _default_ragdoll_profile: Resource
+var _ragdoll_simulator: PhysicalBoneSimulator3D
+var _ragdoll_skeleton: Skeleton3D
+var _ragdoll_physical_bones: Dictionary = {}
+var _is_ragdoll_active := false
+var _last_ragdoll_impulse := Vector3.ZERO
+var _stored_collision_shape: Shape3D
+var _stored_collision_transform := Transform3D.IDENTITY
+var _stored_collision_disabled := false
+var _downed_collision_applied := false
+var _stored_navigation_avoidance_enabled := true
 var _stored_collision_layer := 1
 var _stored_collision_mask := 1
 
@@ -299,6 +315,7 @@ func _process(delta: float) -> void:
 	_process_recovery(delta)
 	_process_ai(delta)
 	_recalculate_vitals()
+	_process_downed_animation_state(delta)
 	_process_combat_animation_state(delta)
 	_update_character_animation(delta)
 
@@ -1121,6 +1138,36 @@ func _make_combat_attack(attack_id: String, animation_names: Array[String], weig
 	return attack
 
 
+func _get_ragdoll_profile():
+	if ragdoll_profile != null:
+		return ragdoll_profile
+	if _default_ragdoll_profile == null:
+		_default_ragdoll_profile = HUMANOID_RAGDOLL_PROFILE_SCRIPT.new()
+	return _default_ragdoll_profile
+
+
+func _get_ragdoll_profile_animation_names() -> Array[String]:
+	var profile = _get_ragdoll_profile()
+	if profile != null and profile.has_method("get_all_animation_names"):
+		return profile.get_all_animation_names()
+	return []
+
+
+func _choose_get_up_animation() -> String:
+	var profile = _get_ragdoll_profile()
+	if profile != null and profile.has_method("choose_get_up_animation"):
+		return profile.choose_get_up_animation(_character_animation_player, _rng)
+	return ""
+
+
+func _get_ragdoll_profile_float(property_name: String, fallback: float) -> float:
+	var profile = _get_ragdoll_profile()
+	if profile == null:
+		return fallback
+	var value = profile.get(property_name)
+	return float(value) if value != null else fallback
+
+
 func has_bandageable_wounds() -> bool:
 	return _current_open_cut_damage > 0.0 or _bleed_rate > 0.0
 
@@ -1246,13 +1293,15 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	attacker.mark_hostile(self)
 	_last_direct_attacker_id = attacker.get_instance_id()
 	_face_character(attacker)
-	if _rng.randf() <= get_stat_value("dodge_chance"):
+	_last_ragdoll_impulse = _get_attack_ragdoll_impulse(attacker, blunt_damage + cut_damage)
+	var can_actively_defend := life_state == NpcRules.LifeState.ALIVE and not _is_getting_up
+	if can_actively_defend and _rng.randf() <= get_stat_value("dodge_chance"):
 		_show_world_notice("Dodge", Color(0.74, 0.94, 1.0, 1.0))
 		_try_start_self_defense(attacker)
 		return "dodged"
 	var final_blunt := maxf(blunt_damage, 0.0)
 	var final_cut := maxf(cut_damage, 0.0)
-	if _rng.randf() <= get_stat_value("block_chance"):
+	if can_actively_defend and _rng.randf() <= get_stat_value("block_chance"):
 		final_blunt *= block_damage_multiplier
 		final_cut *= block_damage_multiplier
 		_prepare_combat_reaction(attacker)
@@ -1265,9 +1314,10 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		_recalculate_vitals()
 		_try_start_self_defense(attacker)
 		return "blocked"
-	_prepare_combat_reaction(attacker)
-	_play_combat_reaction(_pick_hit_reaction_animation(attack_id, hit_reaction_names))
-	COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
+	if can_actively_defend:
+		_prepare_combat_reaction(attacker)
+		_play_combat_reaction(_pick_hit_reaction_animation(attack_id, hit_reaction_names))
+		COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
 	_current_blunt_damage += final_blunt
 	_current_open_cut_damage += final_cut
 	_bleed_rate += final_cut * 0.12
@@ -1335,7 +1385,7 @@ func _process_movement(delta: float) -> void:
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		_process_downed_movement(delta)
-		if _downed_is_settled and is_on_floor():
+		if _is_ragdoll_active or _is_getting_up or _downed_is_settled:
 			return
 		move_and_slide()
 		return
@@ -1430,26 +1480,8 @@ func _on_actor_move_target_unreachable() -> void:
 
 
 func _process_downed_movement(delta: float) -> void:
-	if _downed_is_settled and is_on_floor():
-		velocity = Vector3.ZERO
-		rotation.z = _downed_target_rotation_z
-		rotation.x = 0.0
-		return
-	velocity.y -= gravity * delta
-	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
-	horizontal_velocity = horizontal_velocity.lerp(Vector3.ZERO, minf(1.0, 9.0 * delta))
-	velocity.x = horizontal_velocity.x
-	velocity.z = horizontal_velocity.z
-	rotation.z = lerp_angle(rotation.z, _downed_target_rotation_z, minf(1.0, 10.0 * delta))
-	rotation.x = lerp_angle(rotation.x, 0.0, minf(1.0, 7.5 * delta))
-	if is_on_floor():
-		var floor_is_flat := get_floor_normal().dot(Vector3.UP) >= 0.98
-		var horizontal_speed := Vector2(velocity.x, velocity.z).length()
-		var rotation_delta := absf(wrapf(rotation.z - _downed_target_rotation_z, -PI, PI))
-		if floor_is_flat and horizontal_speed <= 0.08 and absf(velocity.y) <= 0.15 and rotation_delta <= 0.04:
-			_downed_is_settled = true
-			velocity = Vector3.ZERO
-			rotation.z = _downed_target_rotation_z
+	velocity = Vector3.ZERO
+	_downed_is_settled = true
 
 
 func _process_needs(delta: float) -> void:
@@ -2162,7 +2194,10 @@ func _setup_character_visual() -> void:
 	_setup_equipped_clothing_visuals(visual_root, character_skeleton, resolved_body_archetype, body_mesh, visual_fit_scale)
 	_setup_humanoid_grip_sockets(visual_root)
 	_setup_equipped_bone_visuals(visual_root)
-	_play_random_idle_animation(true)
+	if life_state == NpcRules.LifeState.ALIVE:
+		_play_random_idle_animation(true)
+	else:
+		_stop_character_animation(true)
 	body_mesh.visible = false
 
 
@@ -2676,6 +2711,7 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 		_copy_animation(ual1_player, animation_library, SITTING_TALKING_ANIMATION_NAME)
 		_copy_animation(ual1_player, animation_library, SITTING_EXIT_ANIMATION_NAME)
 		_copy_default_combat_set_animations(ual1_player, animation_library)
+		_copy_ragdoll_profile_animations(ual1_player, animation_library)
 		_copy_unarmed_combat_idle_animation(ual1_player, animation_library)
 	ual1_source.queue_free()
 
@@ -2684,6 +2720,7 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 	if ual2_player != null:
 		_copy_animation(ual2_player, animation_library, FOLD_ARMS_IDLE_ANIMATION_NAME)
 		_copy_default_combat_set_animations(ual2_player, animation_library)
+		_copy_ragdoll_profile_animations(ual2_player, animation_library)
 	ual2_source.queue_free()
 
 
@@ -2705,6 +2742,11 @@ func _copy_default_combat_set_animations(source_player: AnimationPlayer, animati
 			continue
 		for animation_name in animation_set.get_all_animation_names():
 			_copy_animation(source_player, animation_library, animation_name)
+
+
+func _copy_ragdoll_profile_animations(source_player: AnimationPlayer, animation_library: AnimationLibrary) -> void:
+	for animation_name in _get_ragdoll_profile_animation_names():
+		_copy_animation(source_player, animation_library, animation_name)
 
 
 func _copy_unarmed_combat_idle_animation(source_player: AnimationPlayer, animation_library: AnimationLibrary) -> void:
@@ -2803,7 +2845,11 @@ func _update_character_animation(delta: float) -> void:
 		_update_sitting_exit_animation(delta)
 		return
 	_sitting_exit_animation_remaining = 0.0
-	if life_state != NpcRules.LifeState.ALIVE or _carried_by != null:
+	if life_state != NpcRules.LifeState.ALIVE:
+		_cancel_crouch_transition()
+		_cancel_run_transition()
+		return
+	if _carried_by != null:
 		_cancel_crouch_transition()
 		_cancel_run_transition()
 		_update_idle_character_animation(delta)
@@ -3092,6 +3138,15 @@ func _play_character_animation(animation_name: String, speed_ratio: float = 0.0,
 	return true
 
 
+func _stop_character_animation(keep_state: bool = true) -> void:
+	_current_character_animation = ""
+	for animation_player in _character_animation_players:
+		if animation_player == null:
+			continue
+		animation_player.stop(keep_state)
+		animation_player.speed_scale = 1.0
+
+
 func _get_character_animation_speed(animation_name: String, speed_ratio: float) -> float:
 	match animation_name:
 		WALK_ANIMATION_NAME:
@@ -3216,19 +3271,22 @@ func _recalculate_vitals() -> void:
 			_enter_dead_state()
 		return
 	if hp <= 0.0:
+		if _is_getting_up:
+			_cancel_get_up()
+			_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, 5.0)
+			_enter_downed_state(false)
 		if life_state == NpcRules.LifeState.ALIVE:
 			_enter_unconscious_state()
 		return
 	if life_state != NpcRules.LifeState.ALIVE and life_state != NpcRules.LifeState.ASLEEP and _downed_recover_delay_remaining <= 0.0 and _carried_by == null:
-		life_state = NpcRules.LifeState.ALIVE
-		_restore_from_downed_state()
-		state_changed.emit()
+		_begin_get_up()
 
 
 func _enter_unconscious_state() -> void:
 	if life_state == NpcRules.LifeState.DEAD or life_state == NpcRules.LifeState.UNCONSCIOUS:
 		return
 	life_state = NpcRules.LifeState.UNCONSCIOUS
+	_cancel_get_up()
 	COMBAT_COORDINATOR.release_character(self)
 	running = false
 	_clear_actor_move_target()
@@ -3248,6 +3306,7 @@ func _enter_dead_state() -> void:
 	if life_state == NpcRules.LifeState.DEAD:
 		return
 	life_state = NpcRules.LifeState.DEAD
+	_cancel_get_up()
 	COMBAT_COORDINATOR.release_character(self)
 	running = false
 	_clear_actor_move_target()
@@ -3542,6 +3601,9 @@ func _detach_carried_character() -> HumanoidCharacter:
 func _attach_carried_character(target_character: HumanoidCharacter) -> void:
 	_carried_character = target_character
 	target_character._carried_by = self
+	target_character._cancel_get_up()
+	target_character._stop_ragdoll_simulation(true)
+	target_character._restore_downed_collision_shape()
 	target_character._stored_collision_layer = target_character.collision_layer
 	target_character._stored_collision_mask = target_character.collision_mask
 	target_character.collision_layer = 0
@@ -3567,24 +3629,301 @@ func _update_carried_transform() -> void:
 func _enter_downed_state(is_dead: bool) -> void:
 	if _carried_by != null:
 		return
+	_cancel_get_up()
 	_clear_actor_move_target()
-	_downed_is_settled = false
-	velocity = transform.basis.z * -0.8
-	velocity.y = 0.0
-	_downed_target_rotation_z = deg_to_rad(90.0 if _rng.randf() > 0.5 else -90.0)
-	if is_dead:
-		_downed_target_rotation_z *= 1.0
+	_clear_combat_action()
+	_combat_reaction_remaining = 0.0
+	_combat_reaction_source = null
+	_downed_is_settled = true
+	rotation = Vector3(0.0, rotation.y, 0.0)
+	_apply_downed_collision_shape()
+	velocity = Vector3.ZERO
+	_stop_character_animation(true)
+	_start_ragdoll_simulation(is_dead)
 
 
 func _restore_from_downed_state() -> void:
 	if _carried_by != null:
 		return
 	_downed_is_settled = false
-	rotation = Vector3.ZERO
+	rotation = Vector3(0.0, rotation.y, 0.0)
 	velocity = Vector3.ZERO
-	collision_layer = _stored_collision_layer
-	collision_mask = _stored_collision_mask
+	_stop_ragdoll_simulation(true)
+	_restore_downed_collision_shape()
 	_show_world_notice("Recovered", Color(0.5, 1.0, 0.65, 1.0))
+
+
+func _begin_get_up() -> void:
+	if _is_getting_up or life_state == NpcRules.LifeState.DEAD or _carried_by != null:
+		return
+	_clear_all_active_orders()
+	_clear_actor_move_target()
+	velocity = Vector3.ZERO
+	_downed_is_settled = true
+	_prepare_ragdoll_get_up()
+	_is_getting_up = true
+	_get_up_animation_name = _choose_get_up_animation()
+	_get_up_animation_total = _get_character_animation_length(_get_up_animation_name) if not _get_up_animation_name.is_empty() else 0.0
+	if _get_up_animation_total <= 0.0:
+		_get_up_animation_total = _get_ragdoll_profile_float("get_up_fallback_seconds", 1.15)
+	_get_up_animation_remaining = _get_up_animation_total
+	if not _get_up_animation_name.is_empty():
+		_play_character_animation(_get_up_animation_name, 0.0, true, MOVE_ANIMATION_BLEND_SECONDS)
+	_show_world_notice("Getting up", Color(0.5, 1.0, 0.65, 1.0))
+	state_changed.emit()
+
+
+func _process_downed_animation_state(delta: float) -> void:
+	if not _is_getting_up:
+		return
+	_process_get_up_animation(delta)
+
+
+func _process_get_up_animation(delta: float) -> void:
+	_get_up_animation_remaining = maxf(0.0, _get_up_animation_remaining - delta)
+	if not _get_up_animation_name.is_empty() and _character_animation_player != null and not _character_animation_player.is_playing() and _get_up_animation_remaining > 0.0:
+		_play_character_animation(_get_up_animation_name)
+	if _get_up_animation_remaining <= 0.0:
+		_finish_get_up()
+
+
+func _finish_get_up() -> void:
+	if not _is_getting_up:
+		return
+	_is_getting_up = false
+	_get_up_animation_name = ""
+	_get_up_animation_remaining = 0.0
+	_get_up_animation_total = 0.0
+	life_state = NpcRules.LifeState.ALIVE
+	_restore_from_downed_state()
+	state_changed.emit()
+
+
+func _cancel_get_up() -> void:
+	if not _is_getting_up:
+		return
+	_is_getting_up = false
+	_get_up_animation_name = ""
+	_get_up_animation_remaining = 0.0
+	_get_up_animation_total = 0.0
+	_stop_character_animation(true)
+	_apply_downed_collision_shape()
+	_stop_ragdoll_simulation(false)
+
+
+func _apply_downed_collision_shape() -> void:
+	var collision_shape := _get_main_collision_shape()
+	if collision_shape == null:
+		return
+	if not _downed_collision_applied:
+		_stored_collision_shape = collision_shape.shape
+		_stored_collision_transform = collision_shape.transform
+		_stored_collision_disabled = collision_shape.disabled
+		_stored_collision_layer = collision_layer
+		_stored_collision_mask = collision_mask
+		_stored_navigation_avoidance_enabled = _get_navigation_avoidance_enabled()
+	collision_shape.disabled = true
+	collision_layer = 0
+	collision_mask = 0
+	_downed_collision_applied = true
+	_set_navigation_avoidance_enabled(false)
+
+
+func _restore_downed_collision_shape() -> void:
+	var collision_shape := _get_main_collision_shape()
+	if _downed_collision_applied and collision_shape != null:
+		collision_shape.shape = _stored_collision_shape
+		collision_shape.transform = _stored_collision_transform
+		collision_shape.disabled = _stored_collision_disabled
+		collision_layer = _stored_collision_layer
+		collision_mask = _stored_collision_mask
+	_downed_collision_applied = false
+	_set_navigation_avoidance_enabled(_stored_navigation_avoidance_enabled)
+
+
+func _get_main_collision_shape() -> CollisionShape3D:
+	return get_node_or_null("CollisionShape3D") as CollisionShape3D
+
+
+func _get_navigation_avoidance_enabled() -> bool:
+	_ensure_navigation_agent()
+	return _navigation_agent.avoidance_enabled if _navigation_agent != null else navigation_avoidance_enabled
+
+
+func _set_navigation_avoidance_enabled(enabled: bool) -> void:
+	_ensure_navigation_agent()
+	if _navigation_agent != null:
+		_navigation_agent.avoidance_enabled = enabled
+
+
+func _start_ragdoll_simulation(_is_dead: bool) -> void:
+	if not _ensure_runtime_ragdoll():
+		return
+	_is_ragdoll_active = true
+	if _ragdoll_skeleton != null:
+		_ragdoll_skeleton.set_animate_physical_bones(true)
+	_ragdoll_simulator.active = true
+	_ragdoll_simulator.influence = 1.0
+	_ragdoll_simulator.physical_bones_add_collision_exception(get_rid())
+	_ragdoll_simulator.physical_bones_start_simulation()
+	_apply_pending_ragdoll_impulse()
+
+
+func _stop_ragdoll_simulation(reset_pose: bool) -> void:
+	if _ragdoll_simulator != null and is_instance_valid(_ragdoll_simulator):
+		if _ragdoll_simulator.is_simulating_physics():
+			_ragdoll_simulator.physical_bones_stop_simulation()
+		_ragdoll_simulator.active = false
+	if _ragdoll_skeleton != null and is_instance_valid(_ragdoll_skeleton):
+		_ragdoll_skeleton.set_animate_physical_bones(false)
+		if reset_pose:
+			_ragdoll_skeleton.reset_bone_poses()
+	_is_ragdoll_active = false
+
+
+func _prepare_ragdoll_get_up() -> void:
+	var anchor_position: Variant = _get_ragdoll_anchor_position()
+	_stop_ragdoll_simulation(true)
+	if anchor_position is Vector3:
+		global_position = Vector3(anchor_position.x, global_position.y, anchor_position.z)
+	rotation = Vector3(0.0, rotation.y, 0.0)
+
+
+func _ensure_runtime_ragdoll() -> bool:
+	if _ragdoll_skeleton == null or not is_instance_valid(_ragdoll_skeleton):
+		var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
+		_ragdoll_skeleton = _find_skeleton(visual_root) if visual_root != null else null
+		_ragdoll_physical_bones.clear()
+		_ragdoll_simulator = null
+	if _ragdoll_skeleton == null:
+		return false
+	if _ragdoll_simulator == null or not is_instance_valid(_ragdoll_simulator):
+		_ragdoll_simulator = _ragdoll_skeleton.get_node_or_null("HumanoidRagdollSimulator") as PhysicalBoneSimulator3D
+		if _ragdoll_simulator == null:
+			_ragdoll_simulator = PhysicalBoneSimulator3D.new()
+			_ragdoll_simulator.name = "HumanoidRagdollSimulator"
+			_ragdoll_skeleton.add_child(_ragdoll_simulator)
+		_ragdoll_simulator.active = false
+		_ragdoll_simulator.influence = 1.0
+	_create_missing_ragdoll_physical_bones()
+	return not _ragdoll_physical_bones.is_empty()
+
+
+func _create_missing_ragdoll_physical_bones() -> void:
+	var profile = _get_ragdoll_profile()
+	if profile == null:
+		return
+	for bone_name_value in profile.physical_bone_names:
+		var bone_name := String(bone_name_value)
+		if bone_name.is_empty() or _ragdoll_physical_bones.has(bone_name):
+			continue
+		var bone_index := _ragdoll_skeleton.find_bone(bone_name)
+		if bone_index < 0:
+			continue
+		var physical_bone := _build_ragdoll_physical_bone(profile, bone_name, bone_index)
+		_ragdoll_simulator.add_child(physical_bone)
+		_ragdoll_physical_bones[bone_name] = physical_bone
+
+
+func _build_ragdoll_physical_bone(profile, bone_name: String, bone_index: int) -> PhysicalBone3D:
+	var physical_bone := PhysicalBone3D.new()
+	physical_bone.name = "PhysicalBone_%s" % bone_name
+	physical_bone.bone_name = bone_name
+	physical_bone.mass = maxf(0.05, float(profile.get_bone_mass(bone_name)))
+	physical_bone.gravity_scale = float(profile.get("gravity_scale"))
+	physical_bone.linear_damp = float(profile.get("linear_damp"))
+	physical_bone.angular_damp = float(profile.get("angular_damp"))
+	physical_bone.friction = float(profile.get("friction"))
+	physical_bone.bounce = float(profile.get("bounce"))
+	physical_bone.collision_layer = int(profile.get("collision_layer"))
+	physical_bone.collision_mask = int(profile.get("collision_mask"))
+	physical_bone.joint_type = int(profile.get_bone_joint_type(bone_name))
+	physical_bone.joint_offset = Transform3D.IDENTITY
+	var shape := CollisionShape3D.new()
+	shape.name = "CollisionShape3D"
+	var bone_length := _get_ragdoll_bone_length(profile, bone_name, bone_index)
+	var radius := float(profile.get_bone_radius(bone_name))
+	if bool(profile.should_use_box_shape(bone_name)):
+		var box := BoxShape3D.new()
+		box.size = _get_ragdoll_box_size(bone_name, bone_length, radius)
+		shape.shape = box
+		physical_bone.body_offset = Transform3D(Basis.IDENTITY, Vector3(0.0, box.size.y * 0.5, 0.0))
+	else:
+		var capsule := CapsuleShape3D.new()
+		capsule.radius = radius
+		capsule.height = maxf(bone_length, radius * 2.2)
+		shape.shape = capsule
+		physical_bone.body_offset = Transform3D(Basis.IDENTITY, Vector3(0.0, capsule.height * 0.5, 0.0))
+	physical_bone.add_child(shape)
+	return physical_bone
+
+
+func _get_ragdoll_bone_length(profile, bone_name: String, bone_index: int) -> float:
+	var best_length := 0.0
+	for child_index in _ragdoll_skeleton.get_bone_children(bone_index):
+		var child_name := _ragdoll_skeleton.get_bone_name(child_index)
+		if not profile.has_physical_bone(child_name):
+			continue
+		best_length = maxf(best_length, _ragdoll_skeleton.get_bone_rest(child_index).origin.length())
+	if best_length <= 0.0:
+		best_length = _get_fallback_ragdoll_bone_length(bone_name)
+	return best_length
+
+
+func _get_fallback_ragdoll_bone_length(bone_name: String) -> float:
+	if bone_name == "Head":
+		return 0.22
+	if bone_name.begins_with("hand") or bone_name.begins_with("foot"):
+		return 0.16
+	if bone_name.begins_with("spine"):
+		return 0.16
+	if bone_name == "pelvis":
+		return 0.22
+	return 0.25
+
+
+func _get_ragdoll_box_size(bone_name: String, bone_length: float, radius: float) -> Vector3:
+	if bone_name == "pelvis":
+		return Vector3(radius * 2.5, maxf(0.16, bone_length), radius * 1.8)
+	if bone_name == "Head":
+		return Vector3(radius * 1.6, radius * 1.8, radius * 1.5)
+	return Vector3(radius * 2.0, maxf(0.12, bone_length), radius * 1.6)
+
+
+func _get_ragdoll_anchor_position() -> Variant:
+	var profile = _get_ragdoll_profile()
+	var root_bone_name := str(profile.get("root_bone_name")) if profile != null else "pelvis"
+	var physical_bone := _ragdoll_physical_bones.get(root_bone_name, null) as PhysicalBone3D
+	if physical_bone == null or not is_instance_valid(physical_bone):
+		return null
+	return physical_bone.global_position
+
+
+func _apply_pending_ragdoll_impulse() -> void:
+	if _last_ragdoll_impulse.length_squared() <= 0.0001:
+		return
+	var profile = _get_ragdoll_profile()
+	var root_bone_name := str(profile.get("root_bone_name")) if profile != null else "pelvis"
+	var root_bone := _ragdoll_physical_bones.get(root_bone_name, null) as PhysicalBone3D
+	if root_bone != null and is_instance_valid(root_bone):
+		root_bone.apply_central_impulse(_last_ragdoll_impulse)
+	for bone_name in ["spine_02", "spine_03"]:
+		var physical_bone := _ragdoll_physical_bones.get(bone_name, null) as PhysicalBone3D
+		if physical_bone != null and is_instance_valid(physical_bone):
+			physical_bone.apply_central_impulse(_last_ragdoll_impulse * 0.35)
+	_last_ragdoll_impulse = Vector3.ZERO
+
+
+func _get_attack_ragdoll_impulse(attacker: HumanoidCharacter, damage: float) -> Vector3:
+	if attacker == null or not is_instance_valid(attacker):
+		return Vector3.ZERO
+	var direction := global_position - attacker.global_position
+	direction.y = 0.22
+	if direction.length_squared() <= 0.0001:
+		direction = -transform.basis.z + Vector3.UP * 0.22
+	var profile = _get_ragdoll_profile()
+	var impulse_scale := float(profile.get("impulse_scale")) if profile != null else 2.4
+	return direction.normalized() * clampf(damage * 0.045 * impulse_scale, 0.45, 4.5)
 
 
 func _show_world_notice(message: String, color: Color = Color(1.0, 0.28, 0.28, 1.0), lifetime: float = 1.0, rise_height: float = 0.4) -> void:

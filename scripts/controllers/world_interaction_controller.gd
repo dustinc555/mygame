@@ -543,6 +543,7 @@ func _pick_ground_hit(screen_position: Vector2) -> Dictionary:
 	var result := _raycast_from_screen(screen_position)
 	if not result.is_empty():
 		var collider: Object = result["collider"]
+		var humanoid_collider := _resolve_humanoid_collider(collider)
 		if collider != null and collider.has_method("project_click_to_active_level") and collider.has_method("should_project_click_shape") and building_visibility_controller != null and building_visibility_controller.get_active_building() == collider:
 			var child_hit := _raycast_building_child_hit(screen_position, collider)
 			if not child_hit.is_empty():
@@ -554,7 +555,7 @@ func _pick_ground_hit(screen_position: Vector2) -> Dictionary:
 				var building_target: Variant = collider.project_click_to_active_level(ray_origin, ray_direction)
 				if building_target != null:
 					return {"position": building_target, "normal": Vector3.UP}
-		if not (collider is HumanoidCharacter and collider.is_player_party_member()):
+		if not (humanoid_collider != null and humanoid_collider.is_player_party_member()):
 			return {"position": result["position"], "normal": result.get("normal", Vector3.UP)}
 	var ray_origin := camera.project_ray_origin(screen_position)
 	var ray_direction := camera.project_ray_normal(screen_position)
@@ -595,6 +596,10 @@ func _raycast_target_from_screen(screen_position: Vector2) -> Dictionary:
 		if result.is_empty():
 			return result
 		var collider: Object = result["collider"]
+		var humanoid_collider := _resolve_humanoid_collider(collider)
+		if humanoid_collider != null:
+			result["collider"] = humanoid_collider
+			return result
 		if not _should_skip_building_target_hit(collider, int(result.get("shape", -1))):
 			return result
 		if not (collider is CollisionObject3D):
@@ -615,6 +620,19 @@ func _should_skip_building_target_hit(collider: Object, shape_index: int) -> boo
 	if not collider.has_method("should_project_click_shape"):
 		return false
 	return collider.should_project_click_shape(shape_index)
+
+
+func _resolve_humanoid_collider(collider: Object) -> HumanoidCharacter:
+	if collider is HumanoidCharacter:
+		return collider as HumanoidCharacter
+	if not (collider is Node):
+		return null
+	var current: Node = collider as Node
+	while current != null:
+		if current is HumanoidCharacter:
+			return current as HumanoidCharacter
+		current = current.get_parent()
+	return null
 
 
 func _raycast_from_screen(screen_position: Vector2, excluded_rids: Array[RID] = []) -> Dictionary:
