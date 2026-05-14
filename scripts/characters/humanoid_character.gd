@@ -135,7 +135,7 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var character_race: Resource = HUMAN_RACE
 @export var body_archetype: Resource
 @export_enum("Auto", "None", "Male", "Female") var visual_body_type: int = VisualBodyType.AUTO
-@export var grip_socket_profile: Resource = DEFAULT_GRIP_SOCKET_PROFILE
+@export var grip_socket_profile: Resource
 @export var ragdoll_profile: Resource
 @export var show_grip_socket_markers := false
 @export var starting_items: Array[Resource] = []
@@ -2457,6 +2457,11 @@ func _get_equipment_socket_bone_name(socket_id: String) -> String:
 func _get_grip_socket_profile() -> Resource:
 	if grip_socket_profile != null:
 		return grip_socket_profile
+	var resolved_body_archetype := _resolve_body_archetype()
+	if resolved_body_archetype != null:
+		var body_profile := resolved_body_archetype.get("grip_socket_profile") as Resource
+		if body_profile != null:
+			return body_profile
 	return DEFAULT_GRIP_SOCKET_PROFILE
 
 

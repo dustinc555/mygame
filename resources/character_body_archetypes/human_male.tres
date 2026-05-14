@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="CharacterBodyArchetypeDefinition" format=3]
+[gd_resource type="Resource" script_class="CharacterBodyArchetypeDefinition" format=3 uid="uid://dvxmf3kr3l6cp"]
 
-[ext_resource type="Script" path="res://scripts/characters/character_body_archetype_definition.gd" id="1_script"]
-[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf" id="2_visual"]
+[ext_resource type="Script" uid="uid://sa213mic48vf" path="res://scripts/characters/character_body_archetype_definition.gd" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://cdm4dgu4fafyd" path="res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf" id="2_visual"]
+[ext_resource type="Resource" path="res://resources/humanoid_grip_socket_profiles/human_male.tres" id="3_grip"]
 
 [resource]
 script = ExtResource("1_script")
@@ -9,4 +10,5 @@ archetype_id = "human_male"
 display_name = "Human Male"
 race_id = "human"
 visual_scene = ExtResource("2_visual")
+grip_socket_profile = ExtResource("3_grip")
 visual_body_type = 2

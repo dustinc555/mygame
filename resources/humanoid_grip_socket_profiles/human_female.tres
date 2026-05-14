@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="HumanoidGripSocketProfile" format=3 uid="uid://dalkever0wmlw"]
+
+[ext_resource type="Script" uid="uid://cpmpdxof5fqtg" path="res://scripts/characters/humanoid_grip_socket_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "human_female"
+right_hand_one_hand = Transform3D(0.9999674, -0.008080745, 3.0274805e-10, 0.0080807805, 0.99996793, 0, -3.0559022e-10, 0, 1, -0.03097117, 0.052304804, -0.0005973056)

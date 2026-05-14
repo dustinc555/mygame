@@ -1,0 +1,54 @@
+[gd_scene format=3 uid="uid://cx6pe3hwwaak1"]
+
+[ext_resource type="Script" uid="uid://dit13sqm5hf82" path="res://scripts/tools/humanoid_grip_socket_calibrator.gd" id="1_calibrator"]
+[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_female.tres" id="2_body"]
+[ext_resource type="Script" uid="uid://cwj2s41umpq7y" path="res://scripts/characters/humanoid_grip_socket_marker.gd" id="3_socket_marker"]
+
+[node name="HumanoidGripSocketCalibratorHumanFemale" type="Node3D" unique_id=1236447942]
+script = ExtResource("1_calibrator")
+preview_body_archetype = ExtResource("2_body")
+profile_dirty = true
+last_status = "Preview applied to profile in memory. Toggle save_grips_to_profile to write res://resources/humanoid_grip_socket_profiles/human_female.tres."
+
+[node name="PreviewHumanoid" type="Node3D" parent="." unique_id=1629342503]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="GripHandles" type="Node3D" parent="." unique_id=1201912052]
+
+[node name="RightHandBoneGuide" type="Node3D" parent="GripHandles" unique_id=172073882]
+transform = Transform3D(3.825076e-08, 0.99987406, 0.015870813, 0.99999976, -5.668238e-08, 9.756541e-07, 1.0075548e-06, 0.01587075, -0.9998741, 0.64110005, 1.4181001, 0.051599864)
+
+[node name="RightHandGrip" type="Marker3D" parent="GripHandles/RightHandBoneGuide" unique_id=361060160]
+transform = Transform3D(0.9999674, -0.008080745, 3.0274805e-10, 0.0080807805, 0.99996793, 0, -3.0559022e-10, 0, 1, -0.03097117, 0.052304804, -0.0005973056)
+script = ExtResource("3_socket_marker")
+socket_id = "right_hand_one_hand"
+show_runtime_visual = true
+axis_length = 0.36
+center_radius = 0.035
+
+[node name="LeftHandBoneGuide" type="Node3D" parent="GripHandles" unique_id=1157547266]
+transform = Transform3D(3.825076e-08, -0.99987406, -0.015870813, -0.99999976, -5.668238e-08, 9.756541e-07, -1.0075548e-06, 0.01587075, -0.9998741, -0.64110005, 1.4181001, 0.051599864)
+
+[node name="LeftHandGrip" type="Marker3D" parent="GripHandles/LeftHandBoneGuide" unique_id=462837079]
+script = ExtResource("3_socket_marker")
+socket_id = "left_hand_shield"
+show_runtime_visual = true
+axis_length = 0.36
+center_radius = 0.035
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1193246426]
+transform = Transform3D(0.8660254, -0.35355338, 0.35355338, 0, 0.70710677, 0.70710677, -0.5, -0.6123724, 0.6123724, 0, 2.5, 2.5)
+light_energy = 1.8
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1436320904]
+transform = Transform3D(1, 0, 0, 0, 0.8660254, 0.5, 0, -0.5, 0.8660254, 0, 1.25, 3.25)
+current = true
+fov = 38.0
+
+[node name="StatusLabel" type="Label3D" parent="." unique_id=1988950524]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.55, 0)
+billboard = 1
+no_depth_test = true
+text = "Preview applied to profile in memory. Toggle save_grips_to_profile to write res://resources/humanoid_grip_socket_profiles/human_female.tres.
+Profile dirty: toggle save_grips_to_profile before testing runtime."
+font_size = 28

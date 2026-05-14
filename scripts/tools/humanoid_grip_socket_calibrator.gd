@@ -4,6 +4,7 @@ extends Node3D
 class_name HumanoidGripSocketCalibrator
 
 const DEFAULT_GRIP_SOCKET_PROFILE = preload("res://resources/humanoid_grip_socket_profiles/default.tres")
+const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_male.tres")
 const PREVIEW_ITEMS := [
 	preload("res://resources/items/iron_sword.tres"),
 	preload("res://resources/items/iron_axe.tres"),
@@ -29,7 +30,14 @@ const RIGHT_HAND_COLOR := Color(1.0, 0.9, 0.2, 1.0)
 const LEFT_HAND_COLOR := Color(0.2, 1.0, 0.95, 1.0)
 const JOINT_COLOR := Color(0.85, 0.95, 1.0, 0.92)
 
-@export var socket_profile: Resource = DEFAULT_GRIP_SOCKET_PROFILE
+@export var preview_body_archetype: Resource = HUMAN_MALE_BODY_ARCHETYPE:
+	set(value):
+		preview_body_archetype = value
+		_rebuild_preview_humanoid_deferred()
+@export var socket_profile: Resource:
+	set(value):
+		socket_profile = value
+		_load_grips_from_profile_deferred()
 @export_enum("RightHandGrip", "LeftHandGrip") var preview_socket := "RightHandGrip":
 	set(value):
 		preview_socket = value
@@ -71,6 +79,7 @@ var _has_grip_snapshot := false
 
 func _ready() -> void:
 	set_process(Engine.is_editor_hint())
+	call_deferred("_rebuild_preview_humanoid")
 	call_deferred("_sync_preview")
 	call_deferred("_rebuild_preview_item")
 	call_deferred("_rebuild_skeleton_overlay")
@@ -88,6 +97,31 @@ func _sync_preview() -> void:
 	_prepare_grip_marker(RIGHT_GRIP_PATH, RIGHT_SOCKET_ID)
 	_prepare_grip_marker(LEFT_GRIP_PATH, LEFT_SOCKET_ID)
 	_rebuild_skeleton_overlay()
+
+
+func _rebuild_preview_humanoid_deferred() -> void:
+	if not is_inside_tree():
+		return
+	call_deferred("_rebuild_preview_humanoid")
+
+
+func _rebuild_preview_humanoid() -> void:
+	var preview_root := get_node_or_null(PREVIEW_HUMANOID_PATH) as Node3D
+	if preview_root == null:
+		return
+	for child in preview_root.get_children():
+		preview_root.remove_child(child)
+		child.free()
+	var visual_scene := _get_preview_visual_scene()
+	if visual_scene == null:
+		return
+	var instance := visual_scene.instantiate()
+	if not (instance is Node3D):
+		instance.queue_free()
+		return
+	preview_root.add_child(instance)
+	_sync_preview()
+	_load_grips_from_profile()
 
 
 func _sync_grip_guides_to_bones() -> void:
@@ -132,18 +166,25 @@ func _load_grips_from_profile() -> void:
 	_set_status("Loaded hand grip transforms from %s." % _get_profile_path())
 
 
+func _load_grips_from_profile_deferred() -> void:
+	if not is_inside_tree():
+		return
+	call_deferred("_load_grips_from_profile")
+
+
 func _save_grips_to_profile() -> void:
-	if socket_profile == null:
+	var active_profile := _get_socket_profile()
+	if active_profile == null:
 		push_warning("Grip socket calibrator has no writable socket profile.")
 		_set_status("Save failed: no socket_profile resource assigned.")
 		return
 	_apply_grips_to_profile_memory()
-	var save_path := socket_profile.resource_path
+	var save_path := active_profile.resource_path
 	if save_path.is_empty():
 		push_warning("Grip socket profile has no resource path; cannot save socket calibration.")
 		_set_status("Save failed: socket profile has no resource path.")
 		return
-	var save_error := ResourceSaver.save(socket_profile, save_path)
+	var save_error := ResourceSaver.save(active_profile, save_path)
 	if save_error != OK:
 		push_error("Failed to save grip socket profile '%s' with error %s." % [save_path, save_error])
 		_set_status("Save failed: ResourceSaver error %s." % save_error)
@@ -184,14 +225,15 @@ func _capture_grip_snapshot() -> void:
 
 
 func _apply_grips_to_profile_memory() -> void:
-	if socket_profile == null:
+	var active_profile := _get_socket_profile()
+	if active_profile == null:
 		return
 	var right_grip := get_node_or_null(RIGHT_GRIP_PATH) as Node3D
 	var left_grip := get_node_or_null(LEFT_GRIP_PATH) as Node3D
 	if right_grip != null:
-		socket_profile.set(RIGHT_PROFILE_PROPERTY, right_grip.transform)
+		active_profile.set(RIGHT_PROFILE_PROPERTY, right_grip.transform)
 	if left_grip != null:
-		socket_profile.set(LEFT_PROFILE_PROPERTY, left_grip.transform)
+		active_profile.set(LEFT_PROFILE_PROPERTY, left_grip.transform)
 
 
 func _rebuild_preview_item_deferred() -> void:
@@ -340,6 +382,32 @@ func _get_preview_skeleton() -> Skeleton3D:
 	return _find_skeleton(preview_humanoid)
 
 
+func _get_preview_visual_scene() -> PackedScene:
+	var body := _get_preview_body_archetype()
+	if body != null:
+		var visual_scene := body.get("visual_scene") as PackedScene
+		if visual_scene != null:
+			return visual_scene
+	return HUMAN_MALE_BODY_ARCHETYPE.get("visual_scene") as PackedScene
+
+
+func _get_preview_body_archetype() -> Resource:
+	if preview_body_archetype != null:
+		return preview_body_archetype
+	return HUMAN_MALE_BODY_ARCHETYPE
+
+
+func _get_socket_profile() -> Resource:
+	if socket_profile != null:
+		return socket_profile
+	var body := _get_preview_body_archetype()
+	if body != null:
+		var body_profile := body.get("grip_socket_profile") as Resource
+		if body_profile != null:
+			return body_profile
+	return DEFAULT_GRIP_SOCKET_PROFILE
+
+
 func _get_socket_bone_name(socket_id: String) -> String:
 	match socket_id:
 		RIGHT_SOCKET_ID:
@@ -350,18 +418,20 @@ func _get_socket_bone_name(socket_id: String) -> String:
 
 
 func _get_profile_transform(property_name: String) -> Transform3D:
-	if socket_profile == null:
+	var active_profile := _get_socket_profile()
+	if active_profile == null:
 		return Transform3D.IDENTITY
-	var value = socket_profile.get(property_name)
+	var value = active_profile.get(property_name)
 	if value is Transform3D:
 		return value
 	return Transform3D.IDENTITY
 
 
 func _get_profile_path() -> String:
-	if socket_profile == null or socket_profile.resource_path.is_empty():
+	var active_profile := _get_socket_profile()
+	if active_profile == null or active_profile.resource_path.is_empty():
 		return "<unsaved profile>"
-	return socket_profile.resource_path
+	return active_profile.resource_path
 
 
 func _set_status(message: String) -> void:
