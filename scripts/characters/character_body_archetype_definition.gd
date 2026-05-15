@@ -14,6 +14,7 @@ const VISUAL_BODY_TYPE_FEMALE := 3
 @export var visual_scene: PackedScene
 @export var grip_socket_profile: Resource
 @export_enum("None:1", "Male:2", "Female:3") var visual_body_type := VISUAL_BODY_TYPE_NONE
+@export var bone_pose_position_offsets: Dictionary = {}
 
 
 func get_race_id() -> String:

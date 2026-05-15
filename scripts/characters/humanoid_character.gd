@@ -262,6 +262,8 @@ var _inspect_ring: MeshInstance3D
 var _inspect_ring_material := StandardMaterial3D.new()
 var _character_animation_player: AnimationPlayer
 var _character_animation_players: Array[AnimationPlayer] = []
+var _character_skeleton: Skeleton3D
+var _bone_pose_position_offsets: Dictionary = {}
 var _current_character_animation := ""
 var _idle_animation_change_remaining := 0.0
 var _crouch_enter_animation_remaining := 0.0
@@ -323,6 +325,7 @@ func _process(delta: float) -> void:
 	_process_downed_animation_state(delta)
 	_process_combat_animation_state(delta)
 	_update_character_animation(delta)
+	_apply_bone_pose_position_offsets()
 
 
 func _physics_process(delta: float) -> void:
@@ -2197,6 +2200,8 @@ func _setup_character_visual() -> void:
 		old_visual.free()
 	_character_animation_player = null
 	_character_animation_players.clear()
+	_character_skeleton = null
+	_bone_pose_position_offsets.clear()
 	_current_character_animation = ""
 
 	var body_mesh := get_node_or_null("BodyMesh") as MeshInstance3D
@@ -2225,6 +2230,8 @@ func _setup_character_visual() -> void:
 	var visual_fit_scale := _fit_visual_to_body_mesh(visual_root, body_mesh)
 	_setup_character_animation(model_root)
 	var character_skeleton := _find_skeleton(model_root)
+	_character_skeleton = character_skeleton
+	_bone_pose_position_offsets = _get_bone_pose_position_offsets(resolved_body_archetype)
 	_setup_equipped_clothing_visuals(visual_root, character_skeleton, resolved_body_archetype, body_mesh, visual_fit_scale)
 	_setup_humanoid_grip_sockets(visual_root)
 	_setup_equipped_bone_visuals(visual_root)
@@ -2232,7 +2239,36 @@ func _setup_character_visual() -> void:
 		_play_random_idle_animation(true)
 	else:
 		_stop_character_animation(true)
+	_apply_bone_pose_position_offsets()
 	body_mesh.visible = false
+
+
+func _get_bone_pose_position_offsets(body_archetype: Resource) -> Dictionary:
+	if body_archetype == null:
+		return {}
+	var raw_offsets = body_archetype.get("bone_pose_position_offsets")
+	if not (raw_offsets is Dictionary):
+		return {}
+	var result: Dictionary = {}
+	for bone_name_value in raw_offsets.keys():
+		var offset_value = raw_offsets[bone_name_value]
+		if offset_value is Vector3:
+			result[str(bone_name_value)] = offset_value
+	return result
+
+
+func _apply_bone_pose_position_offsets() -> void:
+	if _character_skeleton == null or not is_instance_valid(_character_skeleton):
+		return
+	if _bone_pose_position_offsets.is_empty() or _is_ragdoll_active:
+		return
+	for bone_name in _bone_pose_position_offsets.keys():
+		var bone_index := _character_skeleton.find_bone(str(bone_name))
+		if bone_index < 0:
+			continue
+		var offset: Vector3 = _bone_pose_position_offsets[bone_name]
+		var rest_position := _character_skeleton.get_bone_rest(bone_index).origin
+		_character_skeleton.set_bone_pose_position(bone_index, rest_position + offset)
 
 
 func refresh_grip_sockets_for_body() -> void:

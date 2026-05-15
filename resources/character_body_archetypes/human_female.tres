@@ -12,3 +12,6 @@ race_id = "human"
 visual_scene = ExtResource("2_visual")
 grip_socket_profile = ExtResource("3_grip")
 visual_body_type = 3
+bone_pose_position_offsets = {
+"Head": Vector3(0, -0.04, 0)
+}
