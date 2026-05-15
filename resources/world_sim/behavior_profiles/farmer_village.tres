@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="SettlementBehaviorProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_behavior_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "farmer_village"
+display_name = "Farmer Village"
+food_production_per_day = 28.0
+food_consumption_per_person_per_day = 1.0
+base_aggression = 0.0
+can_initiate_food_raids = false
+can_attack_when_starving = true
+desperate_attack_pressure_threshold = 0.06
+daily_upkeep_hour = 6
+action_cooldown_hours = 24.0

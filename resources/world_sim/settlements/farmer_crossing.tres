@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SettlementDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_definition.gd" id="1_settlement"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/farmers.tres" id="2_faction"]
+[ext_resource type="Resource" path="res://resources/world_sim/behavior_profiles/farmer_village.tres" id="3_profile"]
+[ext_resource type="Resource" path="res://resources/world_sim/squad_templates/farmer_militia.tres" id="4_militia"]
+
+[resource]
+script = ExtResource("1_settlement")
+settlement_id = "farmer_crossing"
+display_name = "Farmer Crossing"
+faction_definition = ExtResource("2_faction")
+behavior_profile = ExtResource("3_profile")
+world_position = Vector3(-58, 0, 0)
+max_occupancy = 20
+occupancy_state = 2
+population = 20
+starting_food = 130.0
+max_food = 240.0
+known_settlement_ids = PackedStringArray("raider_camp")
+default_target_settlement_id = "raider_camp"
+raid_squad_template = ExtResource("4_militia")
+defense_squad_template = ExtResource("4_militia")

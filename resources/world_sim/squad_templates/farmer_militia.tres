@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="SquadTemplate" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/squad_template.gd" id="1_template"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/farmers.tres" id="2_faction"]
+[ext_resource type="Resource" path="res://resources/items/hatchet.tres" id="3_hatchet"]
+
+[resource]
+script = ExtResource("1_template")
+template_id = "farmer_militia"
+display_name = "Farmer Militia"
+faction_definition = ExtResource("2_faction")
+member_name_prefix = "Farmer Militia"
+member_count = 3
+base_strength = 18.0
+food_capacity = 18.0
+base_color = Color(0.42, 0.62, 0.32, 1)
+max_hp = 92.0
+base_attack_damage = 14.0
+combat_stance = 1
+hostile_faction_ids = PackedStringArray("Raiders")
+starting_equipment = Array[Resource]([ExtResource("3_hatchet")])

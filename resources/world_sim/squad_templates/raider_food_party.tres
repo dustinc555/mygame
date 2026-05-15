@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="SquadTemplate" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/squad_template.gd" id="1_template"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/raiders.tres" id="2_faction"]
+[ext_resource type="Resource" path="res://resources/items/iron_sword.tres" id="3_sword"]
+
+[resource]
+script = ExtResource("1_template")
+template_id = "raider_food_party"
+display_name = "Raider Food Party"
+faction_definition = ExtResource("2_faction")
+member_name_prefix = "Food Raider"
+member_count = 6
+base_strength = 28.0
+food_capacity = 42.0
+base_color = Color(0.62, 0.22, 0.18, 1)
+max_hp = 100.0
+base_attack_damage = 17.0
+combat_stance = 0
+hostile_faction_ids = PackedStringArray("Farmers", "Player")
+starting_equipment = Array[Resource]([ExtResource("3_sword")])

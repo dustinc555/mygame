@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="FactionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
+
+[resource]
+script = ExtResource("1_faction")
+faction_id = "Player"
+display_name = "Homeless Drifters"
+description = "A nobody faction with no settlement, land, or political weight."
+open_access = true

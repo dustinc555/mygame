@@ -5,6 +5,7 @@ class_name WorldStatusController
 var root: Node
 var hud_layer: CanvasLayer
 var world_time: Node
+var world_simulation: Node
 var time_label: Label
 var phase_label: Label
 var stats_label: Label
@@ -28,6 +29,7 @@ func _try_initialize() -> void:
 	world_time = get_parent().get_node_or_null("WorldTimeController")
 	if world_time == null:
 		return
+	world_simulation = get_parent().get_node_or_null("WorldSimulationController")
 	time_label = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/TimeLabel") as Label
 	phase_label = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/PhaseLabel") as Label
 	stats_label = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/StatsLabel") as Label
@@ -70,4 +72,7 @@ func _refresh_labels() -> void:
 	time_label.text = world_time.format_time()
 	phase_label.text = "%s  %s" % [world_time.get_phase_name(), world_time.get_speed_label()]
 	if stats_label != null:
-		stats_label.text = "World: Stable"
+		if world_simulation != null and world_simulation.has_method("get_summary_text"):
+			stats_label.text = world_simulation.get_summary_text()
+		else:
+			stats_label.text = "World: Stable"

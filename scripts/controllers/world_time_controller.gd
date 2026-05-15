@@ -4,6 +4,9 @@ class_name WorldTimeController
 
 signal time_changed(day_index: int, weekday_name: String, hour: int, minute: int, phase_name: String, speed_label: String)
 signal speed_changed(speed_index: int, speed_label: String, speed_scale: float)
+signal minute_changed(absolute_minute: int, day_index: int, hour: int, minute: int)
+signal hour_changed(absolute_hour: int, day_index: int, hour: int)
+signal day_changed(day_index: int)
 
 const MINUTES_PER_DAY := 24.0 * 60.0
 const WEEKDAYS: Array[String] = ["Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun"]
@@ -18,22 +21,31 @@ const SPEED_SCALES: Array[float] = [0.5, 1.0, 4.0, 12.0]
 var total_world_minutes := 0.0
 var speed_index := 1
 var _last_emitted_absolute_minute := -1
+var _last_boundary_absolute_minute := -1
 
 
 func _ready() -> void:
 	total_world_minutes = float(start_hour * 60 + start_minute)
 	speed_index = clampi(default_speed_index, 0, SPEED_LABELS.size() - 1)
+	_last_boundary_absolute_minute = get_absolute_minute()
 	_emit_time_changed(true)
 
 
 func _process(delta: float) -> void:
 	var seconds_per_minute := maxf(real_seconds_per_game_minute, 0.01)
-	total_world_minutes += delta / seconds_per_minute * get_speed_scale()
-	_emit_time_changed(false)
+	advance_minutes(delta / seconds_per_minute * get_speed_scale())
 
 
 func get_day_index() -> int:
 	return int(floor(total_world_minutes / MINUTES_PER_DAY))
+
+
+func get_absolute_minute() -> int:
+	return int(floor(total_world_minutes))
+
+
+func get_absolute_hour() -> int:
+	return int(floor(total_world_minutes / 60.0))
 
 
 func get_weekday_name() -> String:
@@ -90,6 +102,22 @@ func set_speed_index(value: int) -> void:
 	_emit_time_changed(true)
 
 
+func advance_minutes(minutes: float) -> void:
+	if minutes <= 0.0:
+		return
+	total_world_minutes += minutes
+	_emit_time_boundaries()
+	_emit_time_changed(false)
+
+
+func advance_hours(hours: float) -> void:
+	advance_minutes(hours * 60.0)
+
+
+func advance_days(days: float) -> void:
+	advance_minutes(days * MINUTES_PER_DAY)
+
+
 func format_time() -> String:
 	return "%s %02d:%02d" % [get_weekday_name(), get_hour(), get_minute()]
 
@@ -100,3 +128,23 @@ func _emit_time_changed(force: bool) -> void:
 		return
 	_last_emitted_absolute_minute = absolute_minute
 	time_changed.emit(get_day_index(), get_weekday_name(), get_hour(), get_minute(), get_phase_name(), get_speed_label())
+
+
+func _emit_time_boundaries() -> void:
+	var current_absolute_minute := get_absolute_minute()
+	if _last_boundary_absolute_minute < 0:
+		_last_boundary_absolute_minute = current_absolute_minute
+		return
+	if current_absolute_minute <= _last_boundary_absolute_minute:
+		return
+	for absolute_minute in range(_last_boundary_absolute_minute + 1, current_absolute_minute + 1):
+		var day_index := int(floor(float(absolute_minute) / MINUTES_PER_DAY))
+		var minute_of_day := int(fposmod(float(absolute_minute), MINUTES_PER_DAY))
+		var hour := int(floor(float(minute_of_day) / 60.0))
+		var minute := int(fposmod(float(minute_of_day), 60.0))
+		minute_changed.emit(absolute_minute, day_index, hour, minute)
+		if minute == 0:
+			hour_changed.emit(int(floor(float(absolute_minute) / 60.0)), day_index, hour)
+			if minute_of_day == 0:
+				day_changed.emit(day_index)
+	_last_boundary_absolute_minute = current_absolute_minute

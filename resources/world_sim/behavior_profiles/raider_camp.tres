@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="SettlementBehaviorProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_behavior_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "raider_camp"
+display_name = "Raider Camp"
+food_production_per_day = 0.0
+food_consumption_per_person_per_day = 1.0
+base_aggression = 0.85
+can_initiate_food_raids = true
+food_raid_pressure_threshold = 0.45
+daily_upkeep_hour = 6
+action_cooldown_hours = 8.0

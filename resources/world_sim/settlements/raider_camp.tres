@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SettlementDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_definition.gd" id="1_settlement"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/raiders.tres" id="2_faction"]
+[ext_resource type="Resource" path="res://resources/world_sim/behavior_profiles/raider_camp.tres" id="3_profile"]
+[ext_resource type="Resource" path="res://resources/world_sim/squad_templates/raider_food_party.tres" id="4_raiders"]
+
+[resource]
+script = ExtResource("1_settlement")
+settlement_id = "raider_camp"
+display_name = "Raider Camp"
+faction_definition = ExtResource("2_faction")
+behavior_profile = ExtResource("3_profile")
+world_position = Vector3(58, 0, 0)
+max_occupancy = 16
+occupancy_state = 3
+population = 20
+starting_food = 26.0
+max_food = 110.0
+known_settlement_ids = PackedStringArray("farmer_crossing")
+default_target_settlement_id = "farmer_crossing"
+raid_squad_template = ExtResource("4_raiders")
+defense_squad_template = ExtResource("4_raiders")

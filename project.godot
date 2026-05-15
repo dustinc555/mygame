@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="MyGame"
-run/main_scene="res://scenes/test_levels/combat_duel_1v1_armory.tscn"
+run/main_scene="res://scenes/test_levels/two_towns_road_test.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
 

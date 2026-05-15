@@ -1,0 +1,785 @@
+[gd_scene format=3 uid="uid://da1og6bfgrmil"]
+
+[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_manager"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
+[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://scripts/characters/faction_humanoid.gd" id="4_faction_humanoid"]
+[ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://scripts/items/inventory_stock.gd" id="5_stock"]
+[ext_resource type="Resource" uid="uid://cighg4y750kcr" path="res://resources/items/food.tres" id="6_food"]
+[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/bandage.tres" id="7_bandage"]
+[ext_resource type="Script" uid="uid://dcymtqxym02y2" path="res://scripts/world_sim/settlement_anchor.gd" id="8_anchor"]
+[ext_resource type="Script" uid="uid://xeerew1ncyjs" path="res://scripts/world_sim/world_sim_registry.gd" id="9_registry"]
+[ext_resource type="Script" uid="uid://dou4gsojqabfy" path="res://scripts/world_sim/world_sim_debug_action.gd" id="10_debug_action"]
+[ext_resource type="PackedScene" uid="uid://cxk5vgdnfkroq" path="res://scenes/world/containers/barrel_container.tscn" id="11_barrel"]
+[ext_resource type="PackedScene" path="res://scenes/world/containers/weapon_chest_container.tscn" id="12_chest"]
+[ext_resource type="PackedScene" path="res://scenes/world/buildings/tiny_house.tscn" id="13_house"]
+[ext_resource type="Resource" path="res://resources/world_sim/settlements/farmer_crossing.tres" id="14_farmer_settlement"]
+[ext_resource type="Resource" path="res://resources/world_sim/settlements/raider_camp.tres" id="15_raider_settlement"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/player_drifters.tres" id="16_player_faction"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/farmers.tres" id="17_farmer_faction"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/raiders.tres" id="18_raider_faction"]
+[ext_resource type="Resource" path="res://resources/world_sim/squad_templates/farmer_militia.tres" id="19_farmer_militia"]
+[ext_resource type="Resource" path="res://resources/world_sim/squad_templates/raider_food_party.tres" id="20_raider_squad"]
+[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/hatchet.tres" id="21_hatchet"]
+[ext_resource type="Resource" uid="uid://bkw28d3jsab1n" path="res://resources/items/iron_sword.tres" id="22_sword"]
+[ext_resource type="Script" uid="uid://c808ce2djlw3n" path="res://scripts/world_sim/settlement_population_spawner.gd" id="23_population_spawner"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(180, 1, 128)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.36, 0.31, 0.23, 1)
+roughness = 0.96
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(180, 1, 128)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_road"]
+albedo_color = Color(0.18, 0.16, 0.13, 1)
+roughness = 0.98
+
+[sub_resource type="BoxMesh" id="BoxMesh_road"]
+size = Vector3(124, 0.08, 4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_town_lane"]
+size = Vector3(24, 0.07, 4)
+
+[sub_resource type="Resource" id="InventoryStock_farmer_food"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("6_food")
+quantity = 18
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_member"]
+radius = 0.45
+
+[sub_resource type="Resource" id="InventoryStock_raider_food"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("6_food")
+quantity = 4
+
+[sub_resource type="Resource" id="InventoryStock_party_bandage"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("7_bandage")
+quantity = 4
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
+top_radius = 0.72
+bottom_radius = 0.72
+height = 0.05
+radial_segments = 24
+rings = 2
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_action"]
+size = Vector3(1.2, 1.2, 1.2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_action"]
+albedo_color = Color(1, 0.78, 0.08, 1)
+roughness = 0.78
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_action_farmer"]
+albedo_color = Color(0.16, 0.72, 0.18, 1)
+roughness = 0.78
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_action_raider"]
+albedo_color = Color(0.82, 0.08, 0.04, 1)
+roughness = 0.78
+
+[sub_resource type="BoxMesh" id="BoxMesh_action"]
+size = Vector3(1.2, 1.2, 1.2)
+
+[node name="TwoTownsRoadTest" type="Node3D" unique_id=398802922]
+
+[node name="WorldSimRegistry" type="Node" parent="." unique_id=820281711]
+script = ExtResource("9_registry")
+faction_definitions = Array[Resource]([ExtResource("16_player_faction"), ExtResource("17_farmer_faction"), ExtResource("18_raider_faction")])
+settlement_definitions = Array[Resource]([ExtResource("14_farmer_settlement"), ExtResource("15_raider_settlement")])
+squad_templates = Array[Resource]([ExtResource("19_farmer_militia"), ExtResource("20_raider_squad")])
+
+[node name="Floor" type="StaticBody3D" parent="." unique_id=1964291095]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor" unique_id=2127128023]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor" unique_id=1046016050]
+material_override = SubResource("StandardMaterial3D_floor")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="Road" type="MeshInstance3D" parent="." unique_id=1068321164]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+material_override = SubResource("StandardMaterial3D_road")
+mesh = SubResource("BoxMesh_road")
+
+[node name="Settlements" type="Node3D" parent="." unique_id=63163481]
+
+[node name="FarmerCrossing" type="Node3D" parent="Settlements" unique_id=1061383372]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -58, 0, 0)
+script = ExtResource("8_anchor")
+settlement_definition = ExtResource("14_farmer_settlement")
+resident_root_path = NodePath("Residents")
+raid_spawn_path = NodePath("RoadSpawn")
+defense_spawn_path = NodePath("DefenseSpawn")
+storage_paths = Array[NodePath]([NodePath("Storage/FoodBarrelA"), NodePath("Storage/FoodBarrelB")])
+state_label_path = NodePath("StateLabel")
+
+[node name="EntryRoad" type="MeshInstance3D" parent="Settlements/FarmerCrossing" unique_id=543294551]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0.065, 0)
+material_override = SubResource("StandardMaterial3D_road")
+mesh = SubResource("BoxMesh_town_lane")
+
+[node name="StateLabel" type="Label3D" parent="Settlements/FarmerCrossing" unique_id=282820372]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 46, -86)
+modulate = Color(0.72, 1, 0.22, 1)
+outline_modulate = Color(0, 0, 0, 1)
+billboard = 1
+no_depth_test = true
+text = "Farmer Crossing
+Loading..."
+font_size = 120
+outline_size = 28
+pixel_size = 0.055
+
+[node name="HouseA" parent="Settlements/FarmerCrossing" unique_id=57726035 instance=ExtResource("13_house")]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -8, 0, -11)
+
+[node name="HouseB" parent="Settlements/FarmerCrossing" unique_id=507904691 instance=ExtResource("13_house")]
+transform = Transform3D(-0.8164604, 0, 0.5774014, 0, 1, 0, -0.5774014, 0, -0.8164604, -8, 0, 11)
+
+[node name="HouseC" parent="Settlements/FarmerCrossing" unique_id=344220963 instance=ExtResource("13_house")]
+transform = Transform3D(0.9999057, 0, 0.013752788, 0, 1, 0, -0.013752788, 0, 0.9999057, 2, 0, -13)
+
+[node name="HouseD" parent="Settlements/FarmerCrossing" unique_id=20670277 instance=ExtResource("13_house")]
+transform = Transform3D(-0.99989057, 0, -0.014817387, 0, 1, 0, 0.014817387, 0, -0.99989057, 2, 0, 13)
+
+[node name="HouseE" parent="Settlements/FarmerCrossing" unique_id=1471424239 instance=ExtResource("13_house")]
+transform = Transform3D(0.258819, 0, 0.965926, 0, 1, 0, -0.965926, 0, 0.258819, -14, 0, 0)
+
+[node name="HouseF" parent="Settlements/FarmerCrossing" unique_id=2047919881 instance=ExtResource("13_house")]
+transform = Transform3D(-0.3186453, 0, -0.94787425, 0, 1, 0, 0.94787425, 0, -0.3186453, 9, 0, 8)
+
+[node name="Storage" type="Node3D" parent="Settlements/FarmerCrossing" unique_id=1580021934]
+
+[node name="FoodBarrelA" parent="Settlements/FarmerCrossing/Storage" unique_id=1109077067 instance=ExtResource("11_barrel")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -4)
+owner_faction_name = "Farmers"
+starting_items = Array[ExtResource("5_stock")]([SubResource("InventoryStock_farmer_food")])
+
+[node name="FoodBarrelB" parent="Settlements/FarmerCrossing/Storage" unique_id=757116607 instance=ExtResource("11_barrel")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 0, -4.3)
+owner_faction_name = "Farmers"
+starting_items = Array[ExtResource("5_stock")]([SubResource("InventoryStock_farmer_food")])
+
+[node name="Residents" type="Node3D" parent="Settlements/FarmerCrossing" unique_id=1903780194]
+script = ExtResource("23_population_spawner")
+settlement_definition = ExtResource("14_farmer_settlement")
+member_name_prefix = "Farmer"
+stable_id_prefix = "npc.farmer_crossing"
+faction_id = "Farmers"
+squad_name = "FarmerCrossing"
+base_color = Color(0.42, 0.62, 0.32, 1)
+color_variation = 0.11
+hostile_faction_ids = PackedStringArray("Raiders")
+starting_equipment = Array[Resource]([ExtResource("21_hatchet")])
+spawn_radius = 8.5
+spawn_inner_radius = 3.0
+random_seed = 11
+
+[node name="FarmerA" type="CharacterBody3D" parent="Settlements/FarmerCrossing/Residents" unique_id=1045433508]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.6, 3)
+script = ExtResource("4_faction_humanoid")
+base_color = Color(0.42, 0.62, 0.32, 1)
+member_name = "Farmer A"
+stable_id = "npc.farmer_crossing.a"
+starting_equipment = Array[Resource]([ExtResource("21_hatchet")])
+faction_name = "Farmers"
+squad_name = "FarmerCrossing"
+hostile_factions = PackedStringArray("Raiders")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Settlements/FarmerCrossing/Residents/FarmerA" unique_id=1572765683]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Residents/FarmerA" unique_id=675729592]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="FarmerB" type="CharacterBody3D" parent="Settlements/FarmerCrossing/Residents" unique_id=1932900324]
+transform = Transform3D(0.866025, 0, -0.5, 0, 1, 0, 0.5, 0, 0.866025, -1, 0.6, -2)
+script = ExtResource("4_faction_humanoid")
+base_color = Color(0.48, 0.66, 0.36, 1)
+member_name = "Farmer B"
+stable_id = "npc.farmer_crossing.b"
+starting_equipment = Array[Resource]([ExtResource("21_hatchet")])
+faction_name = "Farmers"
+squad_name = "FarmerCrossing"
+hostile_factions = PackedStringArray("Raiders")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Settlements/FarmerCrossing/Residents/FarmerB" unique_id=1325716983]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Residents/FarmerB" unique_id=917010192]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="FarmerC" type="CharacterBody3D" parent="Settlements/FarmerCrossing/Residents" unique_id=983603608]
+transform = Transform3D(0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866025, 1, 0.6, -1)
+script = ExtResource("4_faction_humanoid")
+base_color = Color(0.35, 0.58, 0.28, 1)
+member_name = "Farmer C"
+stable_id = "npc.farmer_crossing.c"
+starting_equipment = Array[Resource]([ExtResource("21_hatchet")])
+faction_name = "Farmers"
+squad_name = "FarmerCrossing"
+hostile_factions = PackedStringArray("Raiders")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Settlements/FarmerCrossing/Residents/FarmerC" unique_id=1572714778]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Residents/FarmerC" unique_id=1252765129]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="RoadSpawn" type="Marker3D" parent="Settlements/FarmerCrossing" unique_id=834803788]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0.05, 0)
+
+[node name="DefenseSpawn" type="Marker3D" parent="Settlements/FarmerCrossing" unique_id=610937255]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.05, 0)
+
+[node name="RaiderCamp" type="Node3D" parent="Settlements" unique_id=1384639635]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58, 0, 0)
+script = ExtResource("8_anchor")
+settlement_definition = ExtResource("15_raider_settlement")
+resident_root_path = NodePath("Residents")
+raid_spawn_path = NodePath("RoadSpawn")
+defense_spawn_path = NodePath("DefenseSpawn")
+storage_paths = Array[NodePath]([NodePath("Storage/FoodBarrel"), NodePath("Storage/WeaponChest")])
+state_label_path = NodePath("StateLabel")
+
+[node name="BrokenEntryRoad" type="MeshInstance3D" parent="Settlements/RaiderCamp" unique_id=85882630]
+transform = Transform3D(0.984808, 0, -0.173648, 0, 1, 0, 0.173648, 0, 0.984808, -11, 0.065, 0.8)
+material_override = SubResource("StandardMaterial3D_road")
+mesh = SubResource("BoxMesh_town_lane")
+
+[node name="SideTrackA" type="MeshInstance3D" parent="Settlements/RaiderCamp" unique_id=763524479]
+transform = Transform3D(0.5, 0, 0.866025, 0, 1, 0, -0.866025, 0, 0.5, 4, 0.067, -5)
+material_override = SubResource("StandardMaterial3D_road")
+mesh = SubResource("BoxMesh_town_lane")
+
+[node name="StateLabel" type="Label3D" parent="Settlements/RaiderCamp" unique_id=1275654839]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 46, -86)
+modulate = Color(1, 0.24, 0.08, 1)
+outline_modulate = Color(0, 0, 0, 1)
+billboard = 1
+no_depth_test = true
+text = "Raider Camp
+Loading..."
+font_size = 120
+outline_size = 28
+pixel_size = 0.055
+
+[node name="ShackA" parent="Settlements/RaiderCamp" unique_id=1535015457 instance=ExtResource("13_house")]
+transform = Transform3D(-0.63821656, 0, -0.76985645, 0, 1, 0, 0.76985645, 0, -0.63821656, 8.802101, 0, 6)
+
+[node name="ShackB" parent="Settlements/RaiderCamp" unique_id=277085555 instance=ExtResource("13_house")]
+transform = Transform3D(0.258819, 0, 0.965926, 0, 1, 0, -0.965926, 0, 0.258819, -8, 0, -9)
+
+[node name="ShackC" parent="Settlements/RaiderCamp" unique_id=1519121001 instance=ExtResource("13_house")]
+transform = Transform3D(-0.45016098, 0, -0.8929477, 0, 1, 0, 0.8929477, 0, -0.45016098, 13.863586, 0, -3.7702694)
+
+[node name="ShackD" parent="Settlements/RaiderCamp" unique_id=302939994 instance=ExtResource("13_house")]
+transform = Transform3D(-0.99421674, 0, 0.10739139, 0, 1, 0, -0.10739139, 0, -0.99421674, -8.689499, 0, 8.168952)
+
+[node name="ShackE" parent="Settlements/RaiderCamp" unique_id=1243493602 instance=ExtResource("13_house")]
+transform = Transform3D(-0.98564184, 0, -0.16885093, 0, 1, 0, 0.16885093, 0, -0.98564184, 1, 0, 13)
+
+[node name="Storage" type="Node3D" parent="Settlements/RaiderCamp" unique_id=618313681]
+
+[node name="FoodBarrel" parent="Settlements/RaiderCamp/Storage" unique_id=2044039156 instance=ExtResource("11_barrel")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -6)
+owner_faction_name = "Raiders"
+starting_items = Array[ExtResource("5_stock")]([SubResource("InventoryStock_raider_food")])
+
+[node name="WeaponChest" parent="Settlements/RaiderCamp/Storage" unique_id=1693433475 instance=ExtResource("12_chest")]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -5, 0, -4.5)
+owner_faction_name = "Raiders"
+
+[node name="Residents" type="Node3D" parent="Settlements/RaiderCamp" unique_id=1600855031]
+script = ExtResource("23_population_spawner")
+settlement_definition = ExtResource("15_raider_settlement")
+member_name_prefix = "Raider"
+stable_id_prefix = "npc.raider_camp"
+faction_id = "Raiders"
+squad_name = "RaiderCamp"
+base_color = Color(0.62, 0.22, 0.18, 1)
+color_variation = 0.12
+hostile_faction_ids = PackedStringArray("Farmers", "Player")
+combat_stance = 0
+starting_equipment = Array[Resource]([ExtResource("22_sword")])
+spawn_layout = 1
+spawn_radius = 9.5
+random_seed = 37
+
+[node name="RaiderA" type="CharacterBody3D" parent="Settlements/RaiderCamp/Residents" unique_id=754245204]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -1, 0.6, 2)
+script = ExtResource("4_faction_humanoid")
+base_color = Color(0.62, 0.22, 0.18, 1)
+member_name = "Raider A"
+stable_id = "npc.raider_camp.a"
+starting_equipment = Array[Resource]([ExtResource("22_sword")])
+faction_name = "Raiders"
+squad_name = "RaiderCamp"
+hostile_factions = PackedStringArray("Farmers", "Player")
+combat_stance = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Settlements/RaiderCamp/Residents/RaiderA" unique_id=678416619]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="Settlements/RaiderCamp/Residents/RaiderA" unique_id=1990073411]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="RaiderB" type="CharacterBody3D" parent="Settlements/RaiderCamp/Residents" unique_id=1743932355]
+transform = Transform3D(-0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, -0.866025, 2, 0.6, -1)
+script = ExtResource("4_faction_humanoid")
+base_color = Color(0.54, 0.18, 0.16, 1)
+member_name = "Raider B"
+stable_id = "npc.raider_camp.b"
+starting_equipment = Array[Resource]([ExtResource("22_sword")])
+faction_name = "Raiders"
+squad_name = "RaiderCamp"
+hostile_factions = PackedStringArray("Farmers", "Player")
+combat_stance = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Settlements/RaiderCamp/Residents/RaiderB" unique_id=589598171]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="Settlements/RaiderCamp/Residents/RaiderB" unique_id=1762347504]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="RaiderC" type="CharacterBody3D" parent="Settlements/RaiderCamp/Residents" unique_id=1737715632]
+transform = Transform3D(-0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, -0.965926, 0, 0.6, -3)
+script = ExtResource("4_faction_humanoid")
+base_color = Color(0.68, 0.26, 0.2, 1)
+member_name = "Raider C"
+stable_id = "npc.raider_camp.c"
+starting_equipment = Array[Resource]([ExtResource("22_sword")])
+faction_name = "Raiders"
+squad_name = "RaiderCamp"
+hostile_factions = PackedStringArray("Farmers", "Player")
+combat_stance = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Settlements/RaiderCamp/Residents/RaiderC" unique_id=598852219]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="Settlements/RaiderCamp/Residents/RaiderC" unique_id=1802421259]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="RoadSpawn" type="Marker3D" parent="Settlements/RaiderCamp" unique_id=1234420943]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0.05, 0)
+
+[node name="DefenseSpawn" type="Marker3D" parent="Settlements/RaiderCamp" unique_id=674666623]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.05, 0)
+
+[node name="PartyMembers" type="Node3D" parent="." unique_id=753189579]
+
+[node name="Mira" type="CharacterBody3D" parent="PartyMembers" unique_id=1341169635]
+transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, -6, 0.6, 14)
+script = ExtResource("1_party")
+base_color = Color(0.82, 0.43, 0.31, 1)
+member_name = "Mira"
+stable_id = "player.mira"
+starting_items = Array[Resource]([SubResource("InventoryStock_party_bandage")])
+starting_equipment = Array[Resource]([ExtResource("21_hatchet")])
+squad_name = "Drifters"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Mira" unique_id=180065369]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Mira" unique_id=1451575969]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Mira" unique_id=542244806]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="Tomas" type="CharacterBody3D" parent="PartyMembers" unique_id=1968142942]
+transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, -3, 0.6, 16)
+script = ExtResource("1_party")
+base_color = Color(0.33, 0.55, 0.78, 1)
+member_name = "Tomas"
+stable_id = "player.tomas"
+starting_items = Array[Resource]([SubResource("InventoryStock_party_bandage")])
+starting_equipment = Array[Resource]([ExtResource("22_sword")])
+squad_name = "Drifters"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Tomas" unique_id=287892875]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Tomas" unique_id=1170066788]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Tomas" unique_id=226304761]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="WorldSimActions" type="Node3D" parent="." unique_id=1054731485]
+
+[node name="AdvanceHour" type="StaticBody3D" parent="WorldSimActions" unique_id=1139078908]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 0.6, 54)
+script = ExtResource("10_debug_action")
+display_name = "Advance Hour"
+action_key = "advance_hours:1"
+action_label = "Advance 1 Hour"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/AdvanceHour" unique_id=1341740394]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/AdvanceHour" unique_id=626697159]
+material_override = SubResource("StandardMaterial3D_action")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/AdvanceHour" unique_id=1257837436]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Advance
+Hour"
+
+[node name="AdvanceSixHours" type="StaticBody3D" parent="WorldSimActions" unique_id=829507052]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.6, 54)
+script = ExtResource("10_debug_action")
+display_name = "Advance 6 Hours"
+action_key = "advance_hours:6"
+action_label = "Advance 6 Hours"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/AdvanceSixHours" unique_id=750968271]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/AdvanceSixHours" unique_id=1416822463]
+material_override = SubResource("StandardMaterial3D_action")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/AdvanceSixHours" unique_id=66592518]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Advance
+6 Hours"
+
+[node name="AdvanceDay" type="StaticBody3D" parent="WorldSimActions" unique_id=745301594]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0.6, 54)
+script = ExtResource("10_debug_action")
+display_name = "Advance Day"
+action_key = "advance_days:1"
+action_label = "Advance 1 Day"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/AdvanceDay" unique_id=1437933744]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/AdvanceDay" unique_id=1091036457]
+material_override = SubResource("StandardMaterial3D_action")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/AdvanceDay" unique_id=1597380690]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Advance
+Day"
+
+[node name="StarveRaiders" type="StaticBody3D" parent="WorldSimActions" unique_id=1367055252]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 54, 0.6, 54)
+script = ExtResource("10_debug_action")
+display_name = "Starve Raiders"
+action_key = "set_food:raider_camp:0"
+action_label = "Starve Raiders"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/StarveRaiders" unique_id=1863094162]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/StarveRaiders" unique_id=1592450017]
+material_override = SubResource("StandardMaterial3D_action_raider")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/StarveRaiders" unique_id=1228987169]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Starve
+Raiders"
+
+[node name="FeedRaiders" type="StaticBody3D" parent="WorldSimActions" unique_id=408800421]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0.6, 54)
+script = ExtResource("10_debug_action")
+display_name = "Feed Raiders"
+action_key = "set_food:raider_camp:70"
+action_label = "Feed Raiders"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/FeedRaiders" unique_id=1048996733]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/FeedRaiders" unique_id=36511340]
+material_override = SubResource("StandardMaterial3D_action_raider")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/FeedRaiders" unique_id=347858281]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Feed
+Raiders"
+
+[node name="StarveFarmers" type="StaticBody3D" parent="WorldSimActions" unique_id=261941436]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -72, 0.6, 54)
+script = ExtResource("10_debug_action")
+display_name = "Starve Farmers"
+action_key = "set_food:farmer_crossing:0"
+action_label = "Starve Farmers"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/StarveFarmers" unique_id=1529682097]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/StarveFarmers" unique_id=274333497]
+material_override = SubResource("StandardMaterial3D_action_farmer")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/StarveFarmers" unique_id=2144901813]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Starve
+Farmers"
+
+[node name="FeedFarmers" type="StaticBody3D" parent="WorldSimActions" unique_id=1846675037]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -66, 0.6, 54)
+script = ExtResource("10_debug_action")
+display_name = "Feed Farmers"
+action_key = "set_food:farmer_crossing:150"
+action_label = "Feed Farmers"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/FeedFarmers" unique_id=953784710]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/FeedFarmers" unique_id=1379503353]
+material_override = SubResource("StandardMaterial3D_action_farmer")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/FeedFarmers" unique_id=1268762502]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Feed
+Farmers"
+
+[node name="ForceRaid" type="StaticBody3D" parent="WorldSimActions" unique_id=1204576910]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0.6, 54)
+script = ExtResource("10_debug_action")
+display_name = "Force Raider Raid"
+action_key = "force_raid:raider_camp:farmer_crossing"
+action_label = "Force Raider Raid"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/ForceRaid" unique_id=73544071]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/ForceRaid" unique_id=1740015670]
+material_override = SubResource("StandardMaterial3D_action")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/ForceRaid" unique_id=1260253175]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Force
+Raid"
+
+[node name="RaidersDepopulated" type="StaticBody3D" parent="WorldSimActions" unique_id=1649662779]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 54, 0.6, 60)
+script = ExtResource("10_debug_action")
+display_name = "Raiders Depopulated"
+action_key = "set_occupancy:raider_camp:depopulated"
+action_label = "Raiders Depopulated"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/RaidersDepopulated" unique_id=1626571016]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/RaidersDepopulated" unique_id=1784291029]
+material_override = SubResource("StandardMaterial3D_action_raider")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/RaidersDepopulated" unique_id=1582342468]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Raiders
+Depop"
+
+[node name="RaidersSparse" type="StaticBody3D" parent="WorldSimActions" unique_id=1730518426]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0.6, 60)
+script = ExtResource("10_debug_action")
+display_name = "Raiders Sparse"
+action_key = "set_occupancy:raider_camp:sparse"
+action_label = "Raiders Sparse"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/RaidersSparse" unique_id=926128604]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/RaidersSparse" unique_id=1767660593]
+material_override = SubResource("StandardMaterial3D_action_raider")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/RaidersSparse" unique_id=219811583]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Raiders
+Sparse"
+
+[node name="RaidersPopulated" type="StaticBody3D" parent="WorldSimActions" unique_id=452270942]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 66, 0.6, 60)
+script = ExtResource("10_debug_action")
+display_name = "Raiders Populated"
+action_key = "set_occupancy:raider_camp:populated"
+action_label = "Raiders Populated"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/RaidersPopulated" unique_id=987059223]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/RaidersPopulated" unique_id=1315516342]
+material_override = SubResource("StandardMaterial3D_action_raider")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/RaidersPopulated" unique_id=2024523603]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Raiders
+Pop"
+
+[node name="RaidersOvercrowded" type="StaticBody3D" parent="WorldSimActions" unique_id=1450964178]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 72, 0.6, 60)
+script = ExtResource("10_debug_action")
+display_name = "Raiders Overcrowded"
+action_key = "set_occupancy:raider_camp:overcrowded"
+action_label = "Raiders Overcrowded"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/RaidersOvercrowded" unique_id=564000231]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/RaidersOvercrowded" unique_id=1223200015]
+material_override = SubResource("StandardMaterial3D_action_raider")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/RaidersOvercrowded" unique_id=253237485]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Raiders
+Over"
+
+[node name="FarmersDepopulated" type="StaticBody3D" parent="WorldSimActions" unique_id=756915227]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -72, 0.6, 60)
+script = ExtResource("10_debug_action")
+display_name = "Farmers Depopulated"
+action_key = "set_occupancy:farmer_crossing:depopulated"
+action_label = "Farmers Depopulated"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/FarmersDepopulated" unique_id=1865911206]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/FarmersDepopulated" unique_id=289262286]
+material_override = SubResource("StandardMaterial3D_action_farmer")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/FarmersDepopulated" unique_id=2079807377]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Farmers
+Depop"
+
+[node name="FarmersSparse" type="StaticBody3D" parent="WorldSimActions" unique_id=1785011400]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -66, 0.6, 60)
+script = ExtResource("10_debug_action")
+display_name = "Farmers Sparse"
+action_key = "set_occupancy:farmer_crossing:sparse"
+action_label = "Farmers Sparse"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/FarmersSparse" unique_id=1290537206]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/FarmersSparse" unique_id=742316788]
+material_override = SubResource("StandardMaterial3D_action_farmer")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/FarmersSparse" unique_id=557621603]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Farmers
+Sparse"
+
+[node name="FarmersPopulated" type="StaticBody3D" parent="WorldSimActions" unique_id=867131128]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60, 0.6, 60)
+script = ExtResource("10_debug_action")
+display_name = "Farmers Populated"
+action_key = "set_occupancy:farmer_crossing:populated"
+action_label = "Farmers Populated"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/FarmersPopulated" unique_id=34621960]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/FarmersPopulated" unique_id=407242083]
+material_override = SubResource("StandardMaterial3D_action_farmer")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/FarmersPopulated" unique_id=340751125]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Farmers
+Pop"
+
+[node name="FarmersOvercrowded" type="StaticBody3D" parent="WorldSimActions" unique_id=773919240]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -54, 0.6, 60)
+script = ExtResource("10_debug_action")
+display_name = "Farmers Overcrowded"
+action_key = "set_occupancy:farmer_crossing:overcrowded"
+action_label = "Farmers Overcrowded"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/FarmersOvercrowded" unique_id=2133188224]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/FarmersOvercrowded" unique_id=1492482295]
+material_override = SubResource("StandardMaterial3D_action_farmer")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/FarmersOvercrowded" unique_id=1747456129]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Farmers
+Over"
+
+[node name="PartyManager" type="Node" parent="." unique_id=708464445]
+script = ExtResource("2_manager")
+
+[node name="GameBootstrap" type="Node" parent="." unique_id=464750617]
+script = ExtResource("3_bootstrap")
+
+[node name="CameraRig" type="Node3D" parent="." unique_id=1004415086]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, 18)
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig" unique_id=163445458]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot" unique_id=1719836419]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 24)
+current = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1000151314]
+
+[node name="Instructions" type="Label" parent="CanvasLayer" unique_id=749467398]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 850.0
+offset_bottom = 118.0
+text = "Two-town world sim: Farmer Crossing is an orderly populated cul-de-sac. Raider Camp is an overcrowded crooked camp. Right-click blue blocks to advance time, change food, change occupancy, or force a raid. Floating town labels show food, pressure, population, occupancy, and current action."
+autowrap_mode = 3

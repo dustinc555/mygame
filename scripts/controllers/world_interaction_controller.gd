@@ -23,6 +23,7 @@ const ACTION_WAKE_UP := 14
 const ACTION_STAND_UP := 15
 const ACTION_PLACE_IN_BED := 16
 const ACTION_PICKUP_ITEM := 17
+const ACTION_WORLD_CONTEXT_BASE := 10000
 const STANCE_OPTION_MIXED := 3
 const FREE_CAMERA_PITCH := -0.65
 const FOLLOW_CAMERA_HEIGHT := 1.35
@@ -61,6 +62,8 @@ var context_humanoid: HumanoidCharacter
 var context_resource
 var context_container
 var context_world_item
+var context_world_action_target
+var context_world_actions: Array = []
 var context_sleep_target
 var context_seat_target
 var root: Node
@@ -343,6 +346,8 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 	context_resource = null
 	context_container = null
 	context_world_item = null
+	context_world_action_target = null
+	context_world_actions.clear()
 	context_sleep_target = null
 	context_seat_target = null
 	var result := _raycast_target_from_screen(screen_position)
@@ -425,6 +430,16 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 		else:
 			_show_context_menu(screen_position, ACTION_PICKUP_ITEM, "Pick Up")
 		return false
+	if collider is Node and collider.has_method("get_world_context_actions"):
+		context_world_action_target = collider
+		context_world_actions = collider.get_world_context_actions(_get_focused_party_member())
+		if not context_world_actions.is_empty():
+			var actions: Array = []
+			for index in range(context_world_actions.size()):
+				var action: Dictionary = context_world_actions[index]
+				actions.append({"id": ACTION_WORLD_CONTEXT_BASE + index, "label": str(action.get("label", "Action"))})
+			_show_context_menu_actions(screen_position, actions)
+			return false
 	return issue_move_command(screen_position)
 
 
@@ -436,7 +451,7 @@ func _is_hold_move_blocked(screen_position: Vector2) -> bool:
 	if collider is HumanoidCharacter:
 		return true
 	if collider is Node:
-		return collider.is_in_group("sleepable_bed") or collider.is_in_group("sittable_seat") or collider.is_in_group("mining_resource") or collider.is_in_group("world_container") or collider.is_in_group("world_item")
+		return collider.is_in_group("sleepable_bed") or collider.is_in_group("sittable_seat") or collider.is_in_group("mining_resource") or collider.is_in_group("world_container") or collider.is_in_group("world_item") or collider.has_method("get_world_context_actions")
 	return false
 
 
@@ -804,6 +819,9 @@ func _on_stance_option_selected(index: int) -> void:
 
 
 func _on_context_menu_id_pressed(action_id: int) -> void:
+	if action_id >= ACTION_WORLD_CONTEXT_BASE:
+		_perform_world_context_action(action_id - ACTION_WORLD_CONTEXT_BASE)
+		return
 	match action_id:
 		ACTION_INVENTORY:
 			var focused_member := _get_focused_party_member()
@@ -873,6 +891,20 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 		ACTION_PICKUP_ITEM:
 			if context_world_item != null:
 				_assign_pickup_to_selection(context_world_item)
+
+
+func _perform_world_context_action(action_index: int) -> void:
+	if context_world_action_target == null or action_index < 0 or action_index >= context_world_actions.size():
+		return
+	var action: Dictionary = context_world_actions[action_index]
+	var action_key := str(action.get("key", ""))
+	if action_key.is_empty() or not context_world_action_target.has_method("perform_world_context_action"):
+		return
+	var message := str(context_world_action_target.perform_world_context_action(action_key, party_manager.selected_members))
+	if not message.is_empty() and context_world_action_target is Node3D:
+		_spawn_world_notice(context_world_action_target.global_position + Vector3(0.0, 1.6, 0.0), message)
+	elif not message.is_empty():
+		_show_center_notice(message)
 
 
 func _assign_pickup_to_selection(world_item) -> void:
