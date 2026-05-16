@@ -16,6 +16,7 @@ Current examples:
 - `SettlementController`: settlement states, food, population, facility totals, events, and settlement action requests.
 - `WorldSquadController`: active squads and raid execution state.
 - `TerritoryController`: faction territory records, town border records, and build-permission queries.
+- `RoadController`: authored road records, road debug visibility, and settlement-to-settlement route lookup.
 - `WorldSimulationController`: facade for serialized world state and debug actions.
 - `WorldTimeController`: authoritative world time for simulation ticks.
 
@@ -33,7 +34,7 @@ Use stable IDs in state records and resolve them back to resources or nodes at r
 
 Long-lived actions should be dictionaries with stable IDs.
 
-Examples include settlement food changes, occupancy changes, raid requests, squad actions, territory updates, and future construction claims.
+Examples include settlement food changes, occupancy changes, raid requests, squad actions, territory updates, road route selection, and future construction claims.
 
 Events should include enough context to replay, audit, save, or send over a network later.
 
@@ -58,6 +59,7 @@ Examples:
 - `SettlementTown` bridges town layout, facilities, residents, borders, and activity points into settlement systems.
 - `SettlementFacilityInstance` bridges a placed building slot, facility function resource, staff, service points, storage links, jobs, and activity points into settlement facility records.
 - `FactionTerritoryAnchor` bridges authored territory shape data into territory records.
+- `RoadPath` bridges authored path points between stable settlement IDs into road records and squad route waypoints.
 - Containers, bars, mines, and job providers execute local interactions but can be discovered by town and job systems.
 
 The bridge may use node paths internally, but persisted state should refer to stable IDs.

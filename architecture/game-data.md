@@ -4,7 +4,7 @@ Game data is primarily authored with Godot resources and nodes.
 
 Resources define reusable data such as items, factions, settlement definitions, facility function definitions, behavior profiles, squad templates, prices, stock, jobs, race data, and body archetypes.
 
-Scene nodes define authored world composition such as towns, facilities, NPCs, containers, bars, mines, activity points, territory anchors, buildings, and debug objects.
+Scene nodes define authored world composition such as towns, facilities, NPCs, containers, bars, mines, activity points, territory anchors, road paths, buildings, and debug objects.
 
 ## Node Data Graph
 
@@ -29,6 +29,7 @@ digraph GameData {
 
   Nodes -> SettlementTown;
   Nodes -> FactionTerritoryAnchor;
+  Nodes -> RoadPath;
   Nodes -> NPCs;
   Nodes -> Containers;
   Nodes -> Bars;
@@ -49,6 +50,9 @@ digraph GameData {
   BuildRules -> ForeignFactionResponse;
   BuildRules -> TownNoBuildRadius;
 
+  RoadPath -> Roads;
+  Roads -> SquadRoutes;
+
   SettlementDefinitions -> Towns;
   SettlementTown -> Towns;
   Towns -> Facilities;
@@ -56,6 +60,7 @@ digraph GameData {
   Towns -> Storage;
   Towns -> TownBorders;
   Towns -> ActivityPoints;
+  Towns -> Roads;
 
   SettlementFacilityInstance -> Facilities;
   FacilityFunctionDefinitions -> FacilityFunctions;
@@ -96,12 +101,14 @@ digraph GameData {
   Controllers -> FactionController;
   Controllers -> SettlementController;
   Controllers -> TerritoryController;
+  Controllers -> RoadController;
   Controllers -> WorldSquadController;
   Controllers -> WorldTimeController;
 
   FactionController -> FactionState;
   SettlementController -> SettlementState;
   TerritoryController -> TerritoryState;
+  RoadController -> RoadState;
   WorldSquadController -> SquadState;
   WorldTimeController -> DailyUpkeep;
 
@@ -110,7 +117,9 @@ digraph GameData {
   DailyUpkeep -> SettlementState;
   SettlementState -> Events;
   SquadState -> Events;
+  SquadState -> SquadRoutes;
   TerritoryState -> BuildRules;
+  RoadState -> SquadRoutes;
 }
 ```
 
@@ -128,12 +137,13 @@ Examples:
 - `FacilityFunctionDefinition` defines what a placed facility does, such as bar, farm, shop, police, weapon shop, armor shop, travel shop, potion shop, tavern, mine, or storage.
 - `SettlementFacilityInstance` bridges the placed building slot, staff, service points, storage links, jobs, and activity points into a serializable facility record.
 - `SettlementTown` and child nodes define authored town layout; controllers use stable IDs to serialize the town's runtime truth.
+- `RoadPath` defines an authored invisible route between stable settlement IDs; `RoadController` stores road records and provides route waypoints for squad actions.
 
 ## Stable IDs
 
 Anything referenced by save data, world simulation, faction logic, server records, or long-lived events needs a stable ID.
 
-Use IDs like `farmer_crossing`, `raider_camp`, `Farmers`, `Raiders`, `farmer_crossing.farm_fields`, `farmer_crossing.bar`, `bar`, and `npc.farmer_crossing.01`.
+Use IDs like `farmer_crossing`, `raider_camp`, `Farmers`, `Raiders`, `farmer_crossing.farm_fields`, `farmer_crossing.bar`, `farmer_crossing_raider_camp`, `bar`, and `npc.farmer_crossing.01`.
 
 Do not rely on node names or `NodePath` values as permanent identity when the state may need to persist or replicate.
 

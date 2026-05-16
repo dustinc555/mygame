@@ -31,6 +31,8 @@ Example record fields:
 - `storage_link_count`
 - `shape_points`
 - `inventory_entries`
+- `road_id`
+- `route_points`
 - `population`
 - `food`
 - `event_type`
@@ -61,7 +63,7 @@ Avoid these if the state may persist, save, or replicate:
 
 Prefer these for future-proof systems:
 
-- Stable IDs for factions, settlements, facilities, items, squads, characters, and territories.
+- Stable IDs for factions, settlements, facilities, items, squads, characters, territories, and roads.
 - Serializable controller dictionaries for mutable state.
 - Resource definitions for reusable data.
 - Facility function definitions for reusable building roles.

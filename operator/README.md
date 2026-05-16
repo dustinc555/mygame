@@ -7,6 +7,7 @@ Use these docs when adding reusable content to towns, scenes, facilities, or fut
 ## Workflows
 
 - `add-bar-to-town.md`: add a reusable `SettlementBar` to a town and place a building model under it.
+- `add-road-path.md`: add an invisible road path that NPC squads can use between settlements.
 
 ## Documentation Rule
 

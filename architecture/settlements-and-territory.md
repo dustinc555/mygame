@@ -110,6 +110,18 @@ The town border protects authored settlements from being crowded by future playe
 
 Town borders and territories are visible as editor helper meshes by default, but invisible at runtime unless toggled with debug actions.
 
+## Roads
+
+Roads are authored as `RoadPath` nodes, not visible terrain meshes.
+
+A road path is invisible world logic: it stores stable source and target settlement IDs plus path points that NPC squads can follow for world actions such as raids.
+
+If the world has a visible road model, texture, or terrain mark, that art is optional and separate from the road path data.
+
+Road paths are visible in the editor as helper meshes by default and invisible at runtime unless toggled with the roads debug action.
+
+`RoadController` collects road records and provides route waypoints to `WorldSquadController`.
+
 ## Future Player Bases
 
 Player base construction is not implemented yet.

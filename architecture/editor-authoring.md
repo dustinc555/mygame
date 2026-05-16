@@ -12,7 +12,7 @@ Use `scenes/world_sim/settlement_town.tscn` as the starting point for a town.
 
 Assign a `SettlementDefinition` and set key exported paths such as residents, storage, facilities, territory, raid spawn, defense spawn, and state label.
 
-Place visible buildings, roads, props, containers, NPCs, bars, fields, mines, and activity points under the town.
+Place visible buildings, optional road art, props, containers, NPCs, bars, fields, mines, and activity points under the town.
 
 The test scene should only compose the town; it should not own town-specific gameplay code.
 
@@ -59,6 +59,18 @@ Territory and borders should be visible in the editor as helper meshes and invis
 
 Use debug buttons to show faction territories and town borders when authoring or testing.
 
+## Roads
+
+Add `RoadPath` nodes under a scene-level `Roads` root or another clear world-data root.
+
+Set `road_id`, `display_name`, `source_settlement_id`, `target_settlement_id`, `bidirectional`, and `path_points`.
+
+Use settlement IDs from the linked `SettlementDefinition` resources, not node names or paths.
+
+Roads are invisible gameplay data. Keep any visible road mesh, decal, or terrain paint separate from the `RoadPath` node.
+
+Road debug paths should be visible in the editor and hidden at runtime unless the roads debug action is toggled.
+
 ## Validation
 
 After changing shared systems, run the validation listed in root `AGENT.md`.
@@ -86,4 +98,5 @@ Before considering a town ready, check:
 - Storage ownership uses the correct faction.
 - Activity points are spread around meaningful places.
 - Territory and town border debug toggles display expected fields.
+- Road paths use stable settlement IDs and the roads debug toggle displays expected routes.
 - No gameplay logic is hardcoded in the test scene.
