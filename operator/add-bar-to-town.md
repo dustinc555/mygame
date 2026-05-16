@@ -30,4 +30,6 @@ staff_squad_name = FarmerCrossing
 
 10. Rename the new building child to `CurrentBuilding`.
 
+11. Leave the default beds under `FarmerBar/Furniture/Beds` if you want them upstairs. The bar registers that root as upper-floor building content so they hide when the active actor is on the ground floor.
+
 Done: the building is the visual shell, and `SettlementBar` provides the bar function, staff, service points, jobs, and venue wiring.

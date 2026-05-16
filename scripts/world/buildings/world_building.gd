@@ -17,6 +17,7 @@ var _roof_hidden := false
 var _hidden_side := ""
 var _level_actor_ids: Array[Dictionary] = []
 var _active_level_index := -1
+var _extra_level_content_paths: Dictionary = {}
 const SIDE_SWITCH_HYSTERESIS := 0.45
 
 
@@ -68,6 +69,17 @@ func set_visibility_for_camera(show_interior: bool, camera_world_position: Vecto
 	_roof_hidden = next_roof_hidden
 	_hidden_side = next_hidden_side
 	_refresh_occluders()
+
+
+func register_extra_level_content(level_index: int, content_path: NodePath) -> void:
+	if not _is_valid_level_index(level_index) or content_path.is_empty():
+		return
+	var paths: Array = _extra_level_content_paths.get(level_index, [])
+	if paths.has(content_path):
+		return
+	paths.append(content_path)
+	_extra_level_content_paths[level_index] = paths
+	_apply_registered_level_visibility(level_index)
 
 
 func _refresh_occluders() -> void:
@@ -136,7 +148,7 @@ func should_project_click_shape(shape_index: int) -> bool:
 		var level: BuildingLevelDefinition = levels[level_index]
 		if level == null:
 			continue
-		if level.content_paths.has(node_path):
+		if _level_has_content_path(level_index, level, node_path):
 			return true
 		if level.front_occluder_paths.has(node_path) or level.right_occluder_paths.has(node_path) or level.back_occluder_paths.has(node_path) or level.left_occluder_paths.has(node_path):
 			return true
@@ -215,10 +227,23 @@ func _apply_level_visibility(level_index: int, visible: bool, active: bool = tru
 		return
 	for node_path in level.content_paths:
 		_apply_node_visibility(get_node_or_null(node_path), visible)
+	_apply_extra_level_visibility(level_index, visible)
 	_apply_occluder_visibility(level.front_occluder_paths, not visible or (active and _hidden_side == "front"))
 	_apply_occluder_visibility(level.right_occluder_paths, not visible or (active and _hidden_side == "right"))
 	_apply_occluder_visibility(level.back_occluder_paths, not visible or (active and _hidden_side == "back"))
 	_apply_occluder_visibility(level.left_occluder_paths, not visible or (active and _hidden_side == "left"))
+
+
+func _apply_registered_level_visibility(level_index: int) -> void:
+	var visible := true
+	if _active_level_index >= 0:
+		visible = level_index <= _active_level_index
+	_apply_extra_level_visibility(level_index, visible)
+
+
+func _apply_extra_level_visibility(level_index: int, visible: bool) -> void:
+	for node_path in _extra_level_content_paths.get(level_index, []):
+		_apply_node_visibility(get_node_or_null(node_path), visible)
 
 
 func _apply_node_visibility(node: Node, visible: bool) -> void:
@@ -231,12 +256,34 @@ func _apply_node_visibility(node: Node, visible: bool) -> void:
 
 
 func _get_level_area(level_index: int) -> Area3D:
-	if level_index < 0 or level_index >= levels.size():
+	if not _is_valid_level_index(level_index):
 		return null
 	var level: BuildingLevelDefinition = levels[level_index]
 	if level == null:
 		return null
 	return get_node_or_null(level.occupancy_area_path) as Area3D
+
+
+func _level_has_content_path(level_index: int, level: BuildingLevelDefinition, node_path: NodePath) -> bool:
+	for content_path in level.content_paths:
+		if _node_path_is_or_descendant(node_path, content_path):
+			return true
+	for content_path in _extra_level_content_paths.get(level_index, []):
+		if _node_path_is_or_descendant(node_path, content_path):
+			return true
+	return false
+
+
+func _node_path_is_or_descendant(node_path: NodePath, ancestor_path: NodePath) -> bool:
+	if node_path == ancestor_path:
+		return true
+	var node_path_text := str(node_path)
+	var ancestor_path_text := str(ancestor_path)
+	return not ancestor_path_text.is_empty() and node_path_text.begins_with("%s/" % ancestor_path_text)
+
+
+func _is_valid_level_index(level_index: int) -> bool:
+	return level_index >= 0 and level_index < levels.size()
 
 
 func project_click_to_active_level(ray_origin: Vector3, ray_direction: Vector3) -> Variant:

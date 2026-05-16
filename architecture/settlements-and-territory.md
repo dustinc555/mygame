@@ -49,6 +49,8 @@ Facility records include the stable facility ID, function ID, owner faction, wor
 
 Use `SettlementBar` under a town's `Bars` root when the operator wants a bar with a building slot, `BarVenue`, barkeeper, waiter, guard, furniture, service point, guard post, merchant role, and job provider already wired.
 
+Bar furniture can live outside the building shell under `Furniture`. The reusable bar registers its `Furniture/Beds` root as upper-floor content on the placed `WorldBuilding` so the building level-visibility system hides second-floor beds when the active actor is on the ground floor.
+
 Use `SettlementField` under a town's `Fields` root when the operator wants a food-producing farm field with visible rows and farm activity points already wired.
 
 ## Activity Points
@@ -85,6 +87,8 @@ The town ties these systems together through discovery and stable facility recor
 For bar authoring, prefer `scenes/world_sim/settlement_bar.tscn` or `Add Child Node > SettlementBar` over manually rebuilding the `BarVenue` tree.
 
 The bar scene does not require a baked-in building. Put the desired building model under `BuildingSlot`, or replace the current `BuildingSlot/CurrentBuilding` child in a composed town scene.
+
+If a bar bed is moved, keep it under `Furniture/Beds` so the bar can continue registering it with the building's upper-floor visibility.
 
 ## Territory
 

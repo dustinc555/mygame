@@ -30,6 +30,7 @@ const BED_SCENE = preload("res://scenes/world/props/simple_bed.tscn")
 @export var staff_stable_id_prefix := ""
 @export var staff_squad_name := ""
 @export var sync_staff_from_owner := true
+@export_range(0, 8, 1) var beds_building_level_index := 1
 
 
 func _ready() -> void:
@@ -49,6 +50,7 @@ func _repair_authoring_tree() -> void:
 	_ensure_staff()
 	_ensure_guard_and_service_points()
 	_sync_bar_authoring()
+	_sync_building_level_content()
 
 
 func get_bar_venue() -> Node:
@@ -90,6 +92,8 @@ func _ensure_furniture() -> void:
 	_ensure_scene_child(stools, "StoolAFront", STOOL_SCENE, Transform3D(Basis(Vector3.UP, deg_to_rad(184.0)), Vector3(1.25, 0.0, 2.55)))
 	_ensure_scene_child(stools, "StoolABack", STOOL_SCENE, Transform3D(Basis(Vector3.UP, deg_to_rad(4.0)), Vector3(1.25, 0.0, -0.05)))
 	_ensure_scene_child(beds, "BedA", BED_SCENE, Transform3D(Basis(Vector3.UP, deg_to_rad(-90.0)), Vector3(2.5, 3.0, -2.3)))
+	_ensure_scene_child(beds, "BedB", BED_SCENE, Transform3D(Basis(Vector3.UP, deg_to_rad(-90.0)), Vector3(2.5, 3.0, 0.0)))
+	_ensure_scene_child(beds, "BedC", BED_SCENE, Transform3D(Basis(Vector3.UP, deg_to_rad(-90.0)), Vector3(2.5, 3.0, 2.3)))
 
 
 func _ensure_staff() -> void:
@@ -150,6 +154,15 @@ func _sync_bar_authoring() -> void:
 	var job_provider := barkeeper.get_node_or_null("JobProvider") if barkeeper != null else null
 	if job_provider != null and _has_property(job_provider, "bar_venue_path"):
 		job_provider.set("bar_venue_path", job_provider.get_path_to(venue))
+
+
+func _sync_building_level_content() -> void:
+	var building := _get_current_building()
+	var beds := get_node_or_null("%s/Beds" % str(furniture_root_path))
+	if building == null or beds == null:
+		return
+	if building.has_method("register_extra_level_content"):
+		building.call("register_extra_level_content", beds_building_level_index, building.get_path_to(beds))
 
 
 func _ensure_staff_member(root: Node, node_name: String, member_name: String, color: Color, local_position: Vector3, conversation: Resource) -> Node:
@@ -302,6 +315,27 @@ func _get_bar_squad_name() -> String:
 func _set_node_path_property(target: Object, property_name: String, value: String) -> void:
 	if _has_property(target, property_name):
 		target.set(property_name, NodePath(value))
+
+
+func _get_current_building() -> Node:
+	var root := get_building_root()
+	if root == null:
+		return null
+	for child in root.get_children():
+		var building := _find_building_with_level_content(child)
+		if building != null:
+			return building
+	return null
+
+
+func _find_building_with_level_content(root: Node) -> Node:
+	if root.has_method("register_extra_level_content"):
+		return root
+	for child in root.get_children():
+		var building := _find_building_with_level_content(child)
+		if building != null:
+			return building
+	return null
 
 
 func _has_property(target: Object, property_name: String) -> bool:
