@@ -9,7 +9,7 @@ const ACTOR_CONDITION_EVALUATOR_SCRIPT = preload("res://scripts/conditions/actor
 
 @export var jobs: Array[JobDefinition] = []
 @export var wage_item_definition: Resource
-@export var bar_venue_path: NodePath
+@export var bar_service_area_path: NodePath
 @export var max_on_duty_seconds := 90.0
 @export var break_duration_seconds := 45.0
 @export var greeting_return_threshold_seconds := 30.0
@@ -332,10 +332,10 @@ func _process_mine_and_haul(job_index: int, job, slot_state: Dictionary, worker:
 func _process_guard_post(_job_index: int, _job, slot_state: Dictionary, worker: HumanoidCharacter) -> bool:
 	var post = slot_state.get("target_guard_post")
 	if post == null or not is_instance_valid(post):
-		var venue := _resolve_bar_venue()
-		if venue == null:
+		var service_area := _resolve_bar_service_area()
+		if service_area == null:
 			return false
-		post = venue.get_available_guard_post(worker)
+		post = service_area.get_available_guard_post(worker)
 		if post == null:
 			return false
 		if post.has_method("claim_worker") and not post.claim_worker(worker):
@@ -353,10 +353,10 @@ func _process_guard_post(_job_index: int, _job, slot_state: Dictionary, worker: 
 func _process_server_shift(_job_index: int, _job, slot_state: Dictionary, worker: HumanoidCharacter) -> bool:
 	var service_point = slot_state.get("target_service_point")
 	if service_point == null or not is_instance_valid(service_point):
-		var venue := _resolve_bar_venue()
-		if venue == null:
+		var service_area := _resolve_bar_service_area()
+		if service_area == null:
 			return false
-		service_point = venue.get_service_point()
+		service_point = service_area.get_service_point()
 		if service_point == null:
 			return false
 		slot_state["target_service_point"] = service_point
@@ -491,11 +491,11 @@ func _is_job_configured(job) -> bool:
 		"mine_and_haul":
 			return not _resolve_nodes(job.resource_paths).is_empty() and not _resolve_nodes(job.container_paths).is_empty()
 		"guard_post":
-			var venue := _resolve_bar_venue()
-			return venue != null and not venue.get_guard_posts().is_empty()
+			var service_area := _resolve_bar_service_area()
+			return service_area != null and not service_area.get_guard_posts().is_empty()
 		"server_shift":
-			var venue := _resolve_bar_venue()
-			return venue != null and not venue.get_service_points().is_empty()
+			var service_area := _resolve_bar_service_area()
+			return service_area != null and not service_area.get_service_points().is_empty()
 	return false
 
 
@@ -516,14 +516,14 @@ func _build_job_offer_text(job) -> String:
 	return "I've got work if you want it. I'll pay you %d every %d seconds you work." % [int(job.pay_per_interval), int(round(job.pay_interval_seconds))]
 
 
-func _resolve_bar_venue() -> BarVenue:
-	if not bar_venue_path.is_empty():
-		var explicit_venue := get_node_or_null(bar_venue_path) as BarVenue
-		if explicit_venue != null:
-			return explicit_venue
+func _resolve_bar_service_area() -> BarServiceArea:
+	if not bar_service_area_path.is_empty():
+		var explicit_service_area := get_node_or_null(bar_service_area_path) as BarServiceArea
+		if explicit_service_area != null:
+			return explicit_service_area
 	var node: Node = get_parent()
 	while node != null:
-		if node is BarVenue:
+		if node is BarServiceArea:
 			return node
 		node = node.get_parent()
 	return null

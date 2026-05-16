@@ -1,10 +1,11 @@
+@tool
 extends Node3D
 
-class_name BarVenue
+class_name BarServiceArea
 
 const SILVER_ITEM = preload("res://resources/items/silver.tres")
 
-@export var venue_id := ""
+@export var service_area_id := ""
 @export var owner_character_path: NodePath
 @export var owner_faction_name := ""
 @export var currency_item: Resource = SILVER_ITEM
@@ -33,13 +34,24 @@ signal inventory_changed
 
 
 func _ready() -> void:
-	add_to_group("bar_venue")
+	add_to_group("bar_service_area")
+	if Engine.is_editor_hint():
+		return
 	_register_scoped_children()
 	_sync_trade_inventory()
 
 
 func _process(_delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
 	_process_waiter_service()
+
+
+func refresh_scope() -> void:
+	if Engine.is_editor_hint():
+		return
+	_register_scoped_children()
+	_sync_trade_inventory()
 
 
 func get_owner_character() -> HumanoidCharacter:
@@ -173,6 +185,12 @@ func get_waiter_character() -> HumanoidCharacter:
 	return get_node_or_null(waiter_character_path) as HumanoidCharacter
 
 
+func serves_actor(actor: Node) -> bool:
+	if actor == null:
+		return false
+	return actor == get_owner_character() or actor == get_waiter_character()
+
+
 func _is_bed_rented_to_faction(bed, faction_name: String) -> bool:
 	if bed == null or faction_name.is_empty():
 		return false
@@ -193,11 +211,11 @@ func _record_bed_rental(bed, faction_name: String) -> void:
 
 func _register_scoped_children() -> void:
 	for bed in _collect_nodes(beds_root_path):
-		if bed.has_method("set_bar_venue"):
-			bed.set_bar_venue(self)
+		if bed.has_method("set_bar_service_area"):
+			bed.set_bar_service_area(self)
 	for seat in _collect_nodes(seats_root_path):
-		if seat.has_method("set_bar_venue"):
-			seat.set_bar_venue(self)
+		if seat.has_method("set_bar_service_area"):
+			seat.set_bar_service_area(self)
 
 
 func _process_waiter_service() -> void:
@@ -232,7 +250,7 @@ func _continue_waiter_service(waiter: HumanoidCharacter) -> void:
 		_return_waiter_to_service_point(waiter)
 		_clear_waiter_service()
 		return
-	var target_position: Vector3 = _active_service_seat.get_interaction_position(waiter)
+	var target_position: Vector3 = _get_waiter_service_position(waiter, _active_service_seat)
 	if waiter.global_position.distance_to(target_position) > waiter_service_distance:
 		waiter.set_move_target(target_position, false)
 		return
@@ -252,6 +270,12 @@ func _find_waiting_player_seat():
 		if seat != null and seat.has_method("is_waiting_for_service") and seat.is_waiting_for_service(waiter_service_delay_seconds):
 			return seat
 	return null
+
+
+func _get_waiter_service_position(waiter: HumanoidCharacter, seat) -> Vector3:
+	if seat != null and seat.has_method("get_service_position"):
+		return seat.get_service_position(waiter)
+	return seat.get_interaction_position(waiter)
 
 
 func _mark_table_service_requested(origin_seat) -> void:

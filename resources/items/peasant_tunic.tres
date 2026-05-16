@@ -6,8 +6,8 @@
 [ext_resource type="PackedScene" uid="uid://4f44ahq0yfnm" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Body.gltf" id="4_male"]
 [ext_resource type="PackedScene" uid="uid://dig4k01p8hhbh" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Female_Peasant_Body.gltf" id="5_female"]
 [ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://scripts/items/equipment_visual_definition.gd" id="6_visual"]
-[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_male.tres" id="7_human_male"]
-[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_female.tres" id="8_human_female"]
+[ext_resource type="Resource" uid="uid://dvxmf3kr3l6cp" path="res://resources/character_body_archetypes/human_male.tres" id="7_human_male"]
+[ext_resource type="Resource" uid="uid://63d1ddh3frua" path="res://resources/character_body_archetypes/human_female.tres" id="8_human_female"]
 
 [sub_resource type="Resource" id="EquipmentVisual_human_male"]
 script = ExtResource("6_visual")

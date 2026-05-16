@@ -3,13 +3,14 @@ extends StaticBody3D
 class_name SittableSeat
 
 @export var interaction_local_offset := Vector3(0.0, 0.0, 0.9)
+@export var service_local_offset := Vector3(0.0, 0.0, -1.15)
 @export var seated_floor_local_offset := Vector3.ZERO
 @export var seated_yaw_offset_degrees := 180.0
 @export var stand_local_offset := Vector3(0.0, 0.0, 1.15)
 @export var sit_arrival_distance := 3.0
 
 var _sitter: HumanoidCharacter
-var _bar_venue: BarVenue
+var _bar_service_area: BarServiceArea
 var _seated_since_seconds := 0.0
 var _service_requested := false
 var _service_completed := false
@@ -21,6 +22,10 @@ func _ready() -> void:
 
 func get_interaction_position(_member: HumanoidCharacter) -> Vector3:
 	return global_transform * interaction_local_offset
+
+
+func get_service_position(_member: HumanoidCharacter) -> Vector3:
+	return global_transform * service_local_offset
 
 
 func get_seat_position(member: HumanoidCharacter = null) -> Vector3:
@@ -52,8 +57,8 @@ func get_sit_distance_to(world_position: Vector3) -> float:
 	return flat_delta.length()
 
 
-func set_bar_venue(venue: BarVenue) -> void:
-	_bar_venue = venue
+func set_bar_service_area(service_area: BarServiceArea) -> void:
+	_bar_service_area = service_area
 
 
 func claim_sitter(member: HumanoidCharacter) -> bool:
@@ -109,4 +114,4 @@ func mark_service_completed() -> void:
 
 
 func should_use_sitting_talking_idle(member: HumanoidCharacter) -> bool:
-	return _bar_venue != null and member != null and not member.is_player_party_member()
+	return _bar_service_area != null and member != null and not member.is_player_party_member()

@@ -1,16 +1,18 @@
 # Add Bar To Town
 
-Use this to add a reusable bar facility to Farmer Crossing or another `SettlementTown`.
+Use this to add a reusable drag-and-play bar facility to Farmer Crossing or another `SettlementTown`.
 
 1. Select `Settlements/FarmerCrossing/Bars`.
 
-2. Click `Add Child Node`.
+2. Right-click `Bars`.
 
-3. Search `SettlementBar` and add it.
+3. Click `Instantiate Child Scene...`.
 
-4. Rename it `FarmerBar`.
+4. Choose `res://scenes/world_sim/settlement_bar.tscn`.
 
-5. Set these inspector fields:
+5. Rename it `FarmerBar`.
+
+6. Set these inspector fields on `FarmerBar`:
 
 ```text
 facility_id = farmer_crossing.bar
@@ -20,16 +22,16 @@ staff_stable_id_prefix = npc.farmer_crossing.bar
 staff_squad_name = FarmerCrossing
 ```
 
-6. Select `Settlements/FarmerCrossing/Bars/FarmerBar/BuildingSlot`.
+7. Done for the default bar: it already includes a building, barkeeper, waiter, guard, shop stock, jobs, service point, guard post, furniture, and beds.
 
-7. Right-click `BuildingSlot`.
+8. To use a different visual building, select `Settlements/FarmerCrossing/Bars/FarmerBar/BuildingSlot/CurrentBuilding`.
 
-8. Click `Instantiate Child Scene...`.
+9. Replace that child with another building scene, or delete it and instantiate a different child under `BuildingSlot` named `CurrentBuilding`.
 
-9. Choose `res://scenes/world/buildings/two_story_house.tscn`.
+10. If the replacement building should contribute town population capacity, set its `population_capacity` and a stable `population_capacity_id`.
 
-10. Rename the new building child to `CurrentBuilding`.
+Do not manually add or configure `BarServiceArea`; it is an internal child of `SettlementBar` and is wired by the bar asset.
 
-11. Leave the default beds under `FarmerBar/Furniture/Beds` if you want them upstairs. The bar registers that root as upper-floor building content so they hide when the active actor is on the ground floor.
+Leave beds under `FarmerBar/Furniture/Beds` if you want them upstairs. The bar registers that root as upper-floor building content so beds hide when the active actor is on the ground floor.
 
-Done: the building is the visual shell, and `SettlementBar` provides the bar function, staff, service points, jobs, and venue wiring.
+Done: `SettlementBar` is the reusable operator-facing asset; its internal service area handles waiter ordering, shop inventory, bed rental, and bar jobs.

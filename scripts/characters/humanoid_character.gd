@@ -938,6 +938,10 @@ func shows_inventory_weight() -> bool:
 	return show_inventory_weight
 
 
+func shows_inventory_equipment() -> bool:
+	return not is_displaying_work_inventory()
+
+
 func set_inspected(value: bool) -> void:
 	is_inspected = value
 	_update_inspect_visual()

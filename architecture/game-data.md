@@ -79,6 +79,7 @@ digraph GameData {
   Facilities -> Housing;
   Facilities -> SocialAreas;
   SettlementBar -> Bars;
+  SettlementBar -> BarServiceArea;
   SettlementField -> Farms;
   BuildingSlots -> BuildingModels;
   BuildingModels -> PopulationCapacity;
@@ -86,6 +87,8 @@ digraph GameData {
   PopulationCapacity -> Towns;
 
   Bars -> BarOwner;
+  BarServiceArea -> BarOwner;
+  BarServiceArea -> ShopInventory;
   Shops -> Merchant;
   Mines -> ResourceNodes;
   Farms -> FoodProduction;
@@ -141,6 +144,7 @@ Examples:
 - `SettlementDefinition` defines town identity, faction, behavior, food defaults, and world-sim targets; `SettlementController` stores food, population, events, and facility totals.
 - `FacilityFunctionDefinition` defines what a placed facility does, such as bar, farm, shop, police, weapon shop, armor shop, travel shop, potion shop, tavern, mine, or storage.
 - `SettlementFacilityInstance` bridges the placed building slot, staff, service points, storage links, jobs, and activity points into a serializable facility record.
+- `SettlementBar` is the operator-facing reusable bar asset; its internal `BarServiceArea` coordinates waiter service, bed rental, and barkeeper stock handoff.
 - `SettlementTown` and child nodes define authored town layout; controllers use stable IDs to serialize the town's runtime truth.
 - `RoadPath` defines an authored invisible route between stable settlement IDs; `RoadController` stores road records and provides route waypoints for squad actions.
 - `WorldBuilding.population_capacity` and `PopulationCapacitySource` define authored housing/camp capacity; `SettlementController.max_occupancy` is derived from those sources.

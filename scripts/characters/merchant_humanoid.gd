@@ -57,6 +57,12 @@ func shows_inventory_weight() -> bool:
 	return false
 
 
+func shows_inventory_equipment() -> bool:
+	if is_displaying_work_inventory():
+		return super.shows_inventory_equipment()
+	return get_merchant_role() == null
+
+
 func get_job_provider() -> JobProvider:
 	return get_node_or_null("JobProvider") as JobProvider
 

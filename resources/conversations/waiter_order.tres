@@ -7,7 +7,7 @@
 
 [sub_resource type="Resource" id="ConversationEffect_order"]
 script = ExtResource("4_effect")
-action_id = "bar.start_venue_trade"
+action_id = "bar.start_service_area_trade"
 
 [sub_resource type="Resource" id="ConversationResponse_order"]
 script = ExtResource("3_response")

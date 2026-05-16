@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3]
+[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3 uid="uid://c61gqpdemh37e"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/facility_function_definition.gd" id="1_function"]
+[ext_resource type="Script" uid="uid://cugx5hdqn8thn" path="res://scripts/world_sim/facility_function_definition.gd" id="1_function"]
 
 [resource]
 script = ExtResource("1_function")

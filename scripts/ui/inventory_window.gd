@@ -225,6 +225,12 @@ func _owner_shows_weight() -> bool:
 	return true
 
 
+func _owner_shows_equipment() -> bool:
+	if inventory_owner != null and inventory_owner.has_method("shows_inventory_equipment"):
+		return inventory_owner.shows_inventory_equipment()
+	return true
+
+
 func _ensure_equipment_section() -> void:
 	if _equipment_section != null:
 		return
@@ -251,7 +257,7 @@ func _ensure_equipment_section() -> void:
 func _refresh_equipment_slots() -> void:
 	if _equipment_section == null or _equipment_grid == null:
 		return
-	if inventory_owner == null or not inventory_owner.has_method("get_equipment_slot_names"):
+	if inventory_owner == null or not _owner_shows_equipment() or not inventory_owner.has_method("get_equipment_slot_names"):
 		_equipment_section.visible = false
 		return
 	_equipment_section.visible = true

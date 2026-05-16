@@ -1,7 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/world_sim/settlement_bar.gd" id="1_bar"]
 [ext_resource type="Resource" path="res://resources/world_sim/facility_functions/bar.tres" id="2_function"]
+[ext_resource type="PackedScene" path="res://scenes/world/buildings/bar_scene.tscn" id="3_building"]
+[ext_resource type="Script" path="res://scripts/world/venues/bar_service_area.gd" id="4_service_area"]
 
 [node name="SettlementBar" type="Node3D"]
 script = ExtResource("1_bar")
@@ -10,3 +12,38 @@ display_name = "Settlement Bar"
 facility_function = ExtResource("2_function")
 owner_faction_id = ""
 staff_stable_id_prefix = "settlement_bar"
+
+[node name="BuildingSlot" type="Node3D" parent="."]
+
+[node name="CurrentBuilding" parent="BuildingSlot" instance=ExtResource("3_building")]
+
+[node name="Staff" type="Node3D" parent="."]
+
+[node name="ServicePoints" type="Node3D" parent="."]
+
+[node name="Storage" type="Node3D" parent="."]
+
+[node name="JobProviders" type="Node3D" parent="."]
+
+[node name="ActivityPoints" type="Node3D" parent="."]
+
+[node name="GuardPosts" type="Node3D" parent="."]
+
+[node name="Furniture" type="Node3D" parent="."]
+
+[node name="Tables" type="Node3D" parent="Furniture"]
+
+[node name="Stools" type="Node3D" parent="Furniture"]
+
+[node name="Beds" type="Node3D" parent="Furniture"]
+
+[node name="BarServiceArea" type="Node3D" parent="."]
+script = ExtResource("4_service_area")
+service_area_id = "settlement_bar.service_area"
+owner_character_path = NodePath("../Staff/Barkeeper")
+beds_root_path = NodePath("../Furniture/Beds")
+seats_root_path = NodePath("../Furniture/Stools")
+tables_root_path = NodePath("../Furniture/Tables")
+guard_posts_root_path = NodePath("../GuardPosts")
+service_points_root_path = NodePath("../ServicePoints")
+waiter_character_path = NodePath("../Staff/Waiter")

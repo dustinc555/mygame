@@ -389,7 +389,7 @@ func _recalculate_facility_totals(settlement_id: String) -> void:
 		"storage_capacity_bonus": 0.0,
 		"activity_point_count": 0,
 		"job_provider_count": 0,
-		"bar_venue_count": 0,
+		"bar_service_area_count": 0,
 	}
 	for record in facilities.values():
 		if not (record is Dictionary):
@@ -399,7 +399,7 @@ func _recalculate_facility_totals(settlement_id: String) -> void:
 		totals["storage_capacity_bonus"] = float(totals["storage_capacity_bonus"]) + float(record.get("storage_capacity_bonus", 0.0))
 		totals["activity_point_count"] = int(totals["activity_point_count"]) + int(record.get("activity_point_count", 0))
 		totals["job_provider_count"] = int(totals["job_provider_count"]) + int(record.get("job_provider_count", 0))
-		totals["bar_venue_count"] = int(totals["bar_venue_count"]) + int(record.get("bar_venue_count", 0))
+		totals["bar_service_area_count"] = int(totals["bar_service_area_count"]) + int(record.get("bar_service_area_count", 0))
 	state["facility_totals"] = totals
 
 

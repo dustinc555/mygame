@@ -190,16 +190,16 @@ func _execute_action(effect) -> void:
 		"core.start_trade":
 			if inventory_controller != null and active_speaker != null and active_target != null:
 				inventory_controller.open_inventory_pair(active_speaker, active_target)
-		"bar.start_venue_trade":
+		"bar.start_service_area_trade":
 			if inventory_controller != null and active_speaker != null and active_target != null:
-				var venue := _resolve_bar_venue(active_target)
-				if venue == null:
+				var service_area := _resolve_bar_service_area(active_target)
+				if service_area == null:
 					return
-				if venue.get_owner_character() == null:
+				if service_area.get_owner_character() == null:
 					return
-				if venue.has_method("set_trade_proxy_position"):
-					venue.set_trade_proxy_position(active_target.global_position)
-				inventory_controller.open_inventory_pair(active_speaker, venue)
+				if service_area.has_method("set_trade_proxy_position"):
+					service_area.set_trade_proxy_position(active_target.global_position)
+				inventory_controller.open_inventory_pair(active_speaker, service_area)
 		"core.start_combat":
 			if active_target == null:
 				return
@@ -244,12 +244,22 @@ func _resolve_subject(subject_key: Variant):
 	return null
 
 
-func _resolve_bar_venue(start_node: Node) -> BarVenue:
+func _resolve_bar_service_area(start_node: Node) -> BarServiceArea:
 	var node := start_node
 	while node != null:
-		if node is BarVenue:
+		if node is BarServiceArea:
 			return node
+		if node.has_method("get_bar_service_area"):
+			var service_area = node.call("get_bar_service_area")
+			if service_area is BarServiceArea:
+				return service_area
 		node = node.get_parent()
+	var tree := get_tree()
+	if tree == null:
+		return null
+	for service_area in tree.get_nodes_in_group("bar_service_area"):
+		if service_area is BarServiceArea and service_area.serves_actor(start_node):
+			return service_area
 	return null
 
 

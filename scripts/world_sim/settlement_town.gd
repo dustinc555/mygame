@@ -88,10 +88,10 @@ func get_job_provider_nodes() -> Array:
 	return providers
 
 
-func get_bar_venue_nodes() -> Array:
-	var venues: Array = []
-	_collect_nodes_with_group(self, "bar_venue", venues)
-	return venues
+func get_bar_service_area_nodes() -> Array:
+	var service_areas: Array = []
+	_collect_nodes_with_group(self, "bar_service_area", service_areas)
+	return service_areas
 
 
 func get_town_border_record() -> Dictionary:

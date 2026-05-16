@@ -139,6 +139,7 @@ is_roof = true
 [node name="BarScene" type="StaticBody3D"]
 script = ExtResource("1_building")
 display_name = "Bar"
+population_capacity = 6
 levels = Array[Resource]([SubResource("BuildingLevelDefinition_ground"), SubResource("BuildingLevelDefinition_upper"), SubResource("BuildingLevelDefinition_roof")])
 
 [node name="GroundFloorMesh" type="MeshInstance3D" parent="."]

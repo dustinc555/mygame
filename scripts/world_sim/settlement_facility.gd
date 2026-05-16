@@ -36,7 +36,7 @@ func get_facility_record(settlement_id := "") -> Dictionary:
 		"storage_capacity_bonus": storage_capacity_bonus if enabled else 0.0,
 		"activity_point_count": get_activity_points().size(),
 		"job_provider_count": get_job_providers().size(),
-		"bar_venue_count": get_bar_venues().size(),
+		"bar_service_area_count": get_bar_service_areas().size(),
 	}
 
 
@@ -66,12 +66,12 @@ func get_job_providers() -> Array:
 	return providers
 
 
-func get_bar_venues() -> Array:
-	var venues: Array = []
-	_collect_nodes_with_group(self, "bar_venue", venues)
+func get_bar_service_areas() -> Array:
+	var service_areas: Array = []
+	_collect_nodes_with_group(self, "bar_service_area", service_areas)
 	for node in get_linked_nodes():
-		_collect_nodes_with_group(node, "bar_venue", venues)
-	return venues
+		_collect_nodes_with_group(node, "bar_service_area", service_areas)
+	return service_areas
 
 
 func _collect_activity_points(root: Node, points: Array) -> void:

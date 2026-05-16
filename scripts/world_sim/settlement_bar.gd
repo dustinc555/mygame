@@ -4,7 +4,7 @@ extends "res://scripts/world_sim/settlement_facility_instance.gd"
 class_name SettlementBar
 
 const BAR_FUNCTION = preload("res://resources/world_sim/facility_functions/bar.tres")
-const BAR_VENUE_SCRIPT = preload("res://scripts/world/venues/bar_venue.gd")
+const BAR_SERVICE_AREA_SCRIPT = preload("res://scripts/world/venues/bar_service_area.gd")
 const MERCHANT_HUMANOID_SCRIPT = preload("res://scripts/characters/merchant_humanoid.gd")
 const MERCHANT_ROLE_SCRIPT = preload("res://scripts/roles/merchant_role.gd")
 const JOB_PROVIDER_SCRIPT = preload("res://scripts/jobs/job_provider.gd")
@@ -17,13 +17,15 @@ const FOOD_ITEM = preload("res://resources/items/food.tres")
 const SILVER_ITEM = preload("res://resources/items/silver.tres")
 const SHOPKEEPER_CONVERSATION = preload("res://resources/conversations/generic_shopkeeper.tres")
 const WAITER_CONVERSATION = preload("res://resources/conversations/waiter_order.tres")
+const DEFAULT_BUILDING_SCENE = preload("res://scenes/world/buildings/bar_scene.tscn")
 const TABLE_SCENE = preload("res://scenes/world/props/bar_table.tscn")
 const STOOL_SCENE = preload("res://scenes/world/props/stool_chair.tscn")
 const BED_SCENE = preload("res://scenes/world/props/simple_bed.tscn")
 
-@export var bar_venue_path: NodePath = NodePath("BarVenue")
+@export var bar_service_area_path: NodePath = NodePath("BarServiceArea")
 @export var guard_posts_root_path: NodePath = NodePath("GuardPosts")
 @export var furniture_root_path: NodePath = NodePath("Furniture")
+@export var auto_create_default_building := true
 @export var barkeeper_name := "Barkeeper"
 @export var waiter_name := "Waiter"
 @export var guard_name := "Bar Guard"
@@ -45,7 +47,8 @@ func _repair_authoring_tree() -> void:
 		return
 	_ensure_root(guard_posts_root_path)
 	_ensure_root(furniture_root_path)
-	_ensure_bar_venue()
+	_ensure_bar_service_area()
+	_ensure_default_building()
 	_ensure_furniture()
 	_ensure_staff()
 	_ensure_guard_and_service_points()
@@ -53,8 +56,8 @@ func _repair_authoring_tree() -> void:
 	_sync_building_level_content()
 
 
-func get_bar_venue() -> Node:
-	return get_node_or_null(bar_venue_path)
+func get_bar_service_area() -> Node:
+	return get_node_or_null(bar_service_area_path)
 
 
 func _apply_bar_defaults() -> void:
@@ -71,16 +74,33 @@ func _apply_bar_defaults() -> void:
 		display_name = "Settlement Bar"
 
 
-func _ensure_bar_venue() -> Node:
-	var venue := get_bar_venue()
-	if venue != null:
-		return venue
-	venue = Node3D.new()
-	venue.name = "BarVenue"
-	venue.set_script(BAR_VENUE_SCRIPT)
-	add_child(venue)
-	_set_editor_owner(venue)
-	return venue
+func _ensure_bar_service_area() -> Node:
+	var service_area := get_bar_service_area()
+	if service_area != null:
+		return service_area
+	var legacy_venue := get_node_or_null("BarVenue")
+	if legacy_venue != null:
+		legacy_venue.name = "BarServiceArea"
+		legacy_venue.set_script(BAR_SERVICE_AREA_SCRIPT)
+		return legacy_venue
+	service_area = Node3D.new()
+	service_area.name = "BarServiceArea"
+	service_area.set_script(BAR_SERVICE_AREA_SCRIPT)
+	add_child(service_area)
+	_set_editor_owner(service_area)
+	return service_area
+
+
+func _ensure_default_building() -> void:
+	if not auto_create_default_building:
+		return
+	var root := get_building_root()
+	if root == null or root.get_child_count() > 0:
+		return
+	var building := DEFAULT_BUILDING_SCENE.instantiate()
+	building.name = "CurrentBuilding"
+	root.add_child(building)
+	_set_editor_owner_recursive(building)
 
 
 func _ensure_furniture() -> void:
@@ -129,22 +149,26 @@ func _ensure_guard_and_service_points() -> void:
 
 
 func _sync_bar_authoring() -> void:
-	var venue := get_bar_venue()
-	if venue == null:
+	var service_area := get_bar_service_area()
+	if service_area == null:
 		return
 	var barkeeper := get_node_or_null("Staff/Barkeeper")
 	var waiter := get_node_or_null("Staff/Waiter")
-	if not owner_faction_id.is_empty() and _has_property(venue, "owner_faction_name"):
-		venue.set("owner_faction_name", owner_faction_id)
-	if _has_property(venue, "owner_character_path"):
-		venue.set("owner_character_path", venue.get_path_to(barkeeper))
-	if _has_property(venue, "waiter_character_path"):
-		venue.set("waiter_character_path", venue.get_path_to(waiter))
-	_set_node_path_property(venue, "beds_root_path", "../Furniture/Beds")
-	_set_node_path_property(venue, "seats_root_path", "../Furniture/Stools")
-	_set_node_path_property(venue, "tables_root_path", "../Furniture/Tables")
-	_set_node_path_property(venue, "guard_posts_root_path", "../GuardPosts")
-	_set_node_path_property(venue, "service_points_root_path", "../ServicePoints")
+	if _has_property(service_area, "service_area_id"):
+		var current_service_area_id := str(service_area.get("service_area_id"))
+		if current_service_area_id.is_empty() or current_service_area_id.begins_with("settlement_bar."):
+			service_area.set("service_area_id", "%s.service_area" % get_facility_id())
+	if not owner_faction_id.is_empty() and _has_property(service_area, "owner_faction_name"):
+		service_area.set("owner_faction_name", owner_faction_id)
+	if _has_property(service_area, "owner_character_path"):
+		service_area.set("owner_character_path", service_area.get_path_to(barkeeper))
+	if _has_property(service_area, "waiter_character_path"):
+		service_area.set("waiter_character_path", service_area.get_path_to(waiter))
+	_set_node_path_property(service_area, "beds_root_path", "../Furniture/Beds")
+	_set_node_path_property(service_area, "seats_root_path", "../Furniture/Stools")
+	_set_node_path_property(service_area, "tables_root_path", "../Furniture/Tables")
+	_set_node_path_property(service_area, "guard_posts_root_path", "../GuardPosts")
+	_set_node_path_property(service_area, "service_points_root_path", "../ServicePoints")
 	for staff_record in [
 		{"node": barkeeper, "role": "barkeeper"},
 		{"node": waiter, "role": "waiter"},
@@ -152,17 +176,26 @@ func _sync_bar_authoring() -> void:
 	]:
 		_sync_staff_member(staff_record.get("node"), str(staff_record.get("role")))
 	var job_provider := barkeeper.get_node_or_null("JobProvider") if barkeeper != null else null
-	if job_provider != null and _has_property(job_provider, "bar_venue_path"):
-		job_provider.set("bar_venue_path", job_provider.get_path_to(venue))
+	if job_provider != null and _has_property(job_provider, "bar_service_area_path"):
+		job_provider.set("bar_service_area_path", job_provider.get_path_to(service_area))
+	if service_area.has_method("refresh_scope"):
+		service_area.call("refresh_scope")
 
 
 func _sync_building_level_content() -> void:
 	var building := _get_current_building()
-	var beds := get_node_or_null("%s/Beds" % str(furniture_root_path))
-	if building == null or beds == null:
+	if building == null:
 		return
 	if building.has_method("register_extra_level_content"):
-		building.call("register_extra_level_content", beds_building_level_index, building.get_path_to(beds))
+		_register_building_level_content(building, 0, get_node_or_null("%s/Tables" % str(furniture_root_path)))
+		_register_building_level_content(building, 0, get_node_or_null("%s/Stools" % str(furniture_root_path)))
+		_register_building_level_content(building, beds_building_level_index, get_node_or_null("%s/Beds" % str(furniture_root_path)))
+
+
+func _register_building_level_content(building: Node, level_index: int, content: Node) -> void:
+	if content == null:
+		return
+	building.call("register_extra_level_content", level_index, building.get_path_to(content))
 
 
 func _ensure_staff_member(root: Node, node_name: String, member_name: String, color: Color, local_position: Vector3, conversation: Resource) -> Node:

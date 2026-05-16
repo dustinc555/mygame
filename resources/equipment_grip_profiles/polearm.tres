@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EquipmentGripProfile" format=3]
+[gd_resource type="Resource" script_class="EquipmentGripProfile" format=3 uid="uid://bo3pvoqs08uxo"]
 
 [ext_resource type="Script" uid="uid://dvj7n3q5e6s0r" path="res://scripts/items/equipment_grip_profile.gd" id="1_profile"]
 
@@ -7,7 +7,6 @@ script = ExtResource("1_profile")
 profile_id = "polearm"
 display_name = "Polearm"
 grip_class_id = "polearm"
-primary_bone = "hand_r"
 secondary_bone = "hand_l"
 primary_socket_id = "right_hand_polearm_primary"
 secondary_socket_id = "left_hand_polearm_secondary"

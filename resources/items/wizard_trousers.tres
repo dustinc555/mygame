@@ -6,8 +6,8 @@
 [ext_resource type="PackedScene" uid="uid://bnm68atn6plhl" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Female_Wizard_Legs.gltf" id="4_female"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="5_28yx1"]
 [ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://scripts/items/equipment_visual_definition.gd" id="5_visual"]
-[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_male.tres" id="6_human_male"]
-[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_female.tres" id="7_human_female"]
+[ext_resource type="Resource" uid="uid://dvxmf3kr3l6cp" path="res://resources/character_body_archetypes/human_male.tres" id="6_human_male"]
+[ext_resource type="Resource" uid="uid://63d1ddh3frua" path="res://resources/character_body_archetypes/human_female.tres" id="7_human_female"]
 
 [sub_resource type="Resource" id="EquipmentVisual_human_male"]
 script = ExtResource("5_visual")

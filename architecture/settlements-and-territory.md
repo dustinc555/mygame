@@ -49,7 +49,7 @@ Depopulated, sparse, populated, and overcrowded states still multiply the author
 
 Facility types include `generic`, `housing`, `farm`, `mine`, `bar`, `shop`, `storage`, `guard`, `social`, `police`, `weapon_shop`, `armor_shop`, `travel_shop`, `potion_shop`, and `tavern`.
 
-Facilities can contribute daily food production, food consumption, storage capacity, job provider count, bar venue count, and activity point count.
+Facilities can contribute daily food production, food consumption, storage capacity, job provider count, bar service area count, and activity point count.
 
 The current facility data is simple on purpose so it can grow without forcing every town to use complicated setup.
 
@@ -57,11 +57,13 @@ The current facility data is simple on purpose so it can grow without forcing ev
 
 The building or model under `BuildingSlot` is a neutral shell. The `FacilityFunctionDefinition` makes that placed instance behave like a bar, farm, shop, police station, weapon shop, armor shop, travel shop, potion shop, tavern, mine, or storage facility.
 
-Facility records include the stable facility ID, function ID, owner faction, world position, production and consumption values, storage bonus, activity count, job provider count, bar venue count, building count, staff count, service point count, and storage link count.
+Facility records include the stable facility ID, function ID, owner faction, world position, production and consumption values, storage bonus, activity count, job provider count, bar service area count, building count, staff count, service point count, and storage link count.
 
 `SettlementBar` and `SettlementField` are higher-level authoring presets over `SettlementFacilityInstance` for common facilities.
 
-Use `SettlementBar` under a town's `Bars` root when the operator wants a bar with a building slot, `BarVenue`, barkeeper, waiter, guard, furniture, service point, guard post, merchant role, and job provider already wired.
+Use `SettlementBar` under a town's `Bars` root when the operator wants a drag-and-play bar with a building slot, barkeeper, waiter, guard, furniture, service point, guard post, merchant role, and job provider already wired.
+
+`BarServiceArea` is an internal service component owned by `SettlementBar`. It handles waiter table service, bed rental checks, barkeeper stock handoff, and service/guard point lookup; operators should configure the `SettlementBar`, not the service area directly.
 
 Bar furniture can live outside the building shell under `Furniture`. The reusable bar registers its `Furniture/Beds` root as upper-floor content on the placed `WorldBuilding` so the building level-visibility system hides second-floor beds when the active actor is on the ground floor.
 
@@ -91,16 +93,16 @@ The job provider and job algorithms stay reusable for other contexts like carava
 
 Existing systems should be reused.
 
-- Bars use `BarVenue` and related bar service/guard nodes.
+- Bars use `SettlementBar`; its internal `BarServiceArea` coordinates bar service/guard nodes.
 - Shops use `MerchantHumanoid` and `MerchantRole`.
 - Mines use `MiningResourceNode` and job provider resource paths.
 - Storage uses `WorldContainer`.
 
 The town ties these systems together through discovery and stable facility records, not scene-specific logic.
 
-For bar authoring, prefer `scenes/world_sim/settlement_bar.tscn` or `Add Child Node > SettlementBar` over manually rebuilding the `BarVenue` tree.
+For bar authoring, instantiate `scenes/world_sim/settlement_bar.tscn` under a town's `Bars` root instead of manually rebuilding internal bar service nodes.
 
-The bar scene does not require a baked-in building. Put the desired building model under `BuildingSlot`, or replace the current `BuildingSlot/CurrentBuilding` child in a composed town scene.
+The bar scene includes a default building. Replace `BuildingSlot/CurrentBuilding` when a different building model is wanted.
 
 If a bar bed is moved, keep it under `Furniture/Beds` so the bar can continue registering it with the building's upper-floor visibility.
 

@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://da1og6bfgrmil"]
+[gd_scene format=4 uid="uid://da1og6bfgrmil"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
 [ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_manager"]
@@ -15,7 +15,7 @@
 [ext_resource type="Script" uid="uid://c354oqtn4bw75" path="res://scripts/world_sim/settlement_bar.gd" id="14_50l0v"]
 [ext_resource type="Resource" path="res://resources/world_sim/settlements/farmer_crossing.tres" id="14_farmer_settlement"]
 [ext_resource type="Resource" path="res://resources/world_sim/settlements/raider_camp.tres" id="15_raider_settlement"]
-[ext_resource type="Resource" path="res://resources/world_sim/facility_functions/bar.tres" id="15_v3gon"]
+[ext_resource type="Resource" uid="uid://c61gqpdemh37e" path="res://resources/world_sim/facility_functions/bar.tres" id="15_v3gon"]
 [ext_resource type="Resource" path="res://resources/world_sim/factions/player_drifters.tres" id="16_player_faction"]
 [ext_resource type="Resource" path="res://resources/world_sim/factions/farmers.tres" id="17_farmer_faction"]
 [ext_resource type="Script" uid="uid://c8shyhe4pxqhe" path="res://scripts/characters/merchant_humanoid.gd" id="17_kv8yx"]
@@ -44,8 +44,8 @@
 [ext_resource type="PackedScene" path="res://scenes/world/buildings/two_story_house.tscn" id="30_two_story_house"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/stool_chair.tscn" id="30_v4og7"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/simple_bed.tscn" id="32_co0cp"]
-[ext_resource type="Script" uid="uid://dw7e6d4p7nh3q" path="res://scripts/world/venues/bar_venue.gd" id="34_l8nq8"]
-[ext_resource type="Script" path="res://scripts/world_sim/road_path.gd" id="35_road"]
+[ext_resource type="Script" uid="uid://dw7e6d4p7nh3q" path="res://scripts/world/venues/bar_service_area.gd" id="34_l8nq8"]
+[ext_resource type="Script" uid="uid://bbqcb1koha5i4" path="res://scripts/world_sim/road_path.gd" id="35_road"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(180, 1, 128)
@@ -57,23 +57,42 @@ roughness = 0.96
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(180, 1, 128)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_f34o7"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gxy6m"]
+transparency = 1
+cull_mode = 2
+no_depth_test = true
+shading_mode = 0
+albedo_color = Color(1, 0.72, 0.08, 0.58)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_50l0v"]
+_surfaces = [{
+"aabb": AABB(-38.036, 0.08, -2.1239624, 76.072, 1e-05, 4.247925),
+"format": 34359742465,
+"index_count": 18,
+"index_data": PackedByteArray("AAABAAIAAQADAAIABAAFAAYABQAHAAYACAAJAAoACQALAAoA"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 12,
+"vertex_data": PackedByteArray("3SQYwgrXoz0AvB+/I9sXwgrXoz0AvB8/cpNAwQrXoz0A7wfAjmw/wQrXoz0ARGC/ecI+wQrXoz3tsAfAhz1BwQrXoz1MPGG/hz1BQQrXoz1MPGE/ecI+QQrXoz3tsAdAjmw/QQrXoz0ARGA/cpNAQQrXoz0A7wdAI9sXQgrXoz0AvB+/3SQYQgrXoz0AvB8/")
+}]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_v3gon"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0, 0.72, 0.72, 0.28)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_gxy6m"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_kv8yx"]
 _surfaces = [{
 "aabb": AABB(-44, 0, -42, 78, 1e-05, 84),
 "format": 34359742465,
 "index_count": 12,
-"index_data": PackedByteArray(0, 0, 1, 0, 2, 0, 0, 0, 2, 0, 3, 0, 0, 0, 3, 0, 4, 0, 0, 0, 4, 0, 1, 0),
+"index_data": PackedByteArray("AAABAAIAAAACAAMAAAADAAQAAAAEAAEA"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 5,
-"vertex_data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 194, 0, 0, 0, 0, 0, 0, 40, 194, 0, 0, 224, 65, 0, 0, 0, 0, 0, 0, 24, 194, 0, 0, 8, 66, 0, 0, 0, 0, 0, 0, 8, 66, 0, 0, 48, 194, 0, 0, 0, 0, 0, 0, 40, 66)
+"vertex_data": PackedByteArray("AAAAAAAAAAAAAAAAAAAgwgAAAAAAACjCAADgQQAAAAAAABjCAAAIQgAAAAAAAAhCAAAwwgAAAAAAAChC")
 }]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ikrwl"]
@@ -212,32 +231,32 @@ size = Vector3(0.95, 0.16, 0.38)
 [sub_resource type="BoxShape3D" id="BoxShape3D_bed"]
 size = Vector3(1.45, 0.6, 2.45)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_50l0v"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_o05ov"]
 albedo_color = Color(0.34, 0.48, 0.2, 0.62)
 roughness = 0.95
 
-[sub_resource type="BoxMesh" id="BoxMesh_v3gon"]
+[sub_resource type="BoxMesh" id="BoxMesh_otbxr"]
 size = Vector3(16, 0.04, 10)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kv8yx"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wncmk"]
 albedo_color = Color(0.23, 0.16, 0.08, 1)
 roughness = 0.95
 
-[sub_resource type="BoxMesh" id="BoxMesh_o05ov"]
+[sub_resource type="BoxMesh" id="BoxMesh_1trl3"]
 size = Vector3(15, 0.05, 0.35)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_otbxr"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_250jy"]
 albedo_color = Color(0.23, 0.16, 0.08, 1)
 roughness = 0.95
 
-[sub_resource type="BoxMesh" id="BoxMesh_wncmk"]
+[sub_resource type="BoxMesh" id="BoxMesh_08stj"]
 size = Vector3(15, 0.05, 0.35)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1trl3"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_abfu4"]
 albedo_color = Color(0.23, 0.16, 0.08, 1)
 roughness = 0.95
 
-[sub_resource type="BoxMesh" id="BoxMesh_250jy"]
+[sub_resource type="BoxMesh" id="BoxMesh_j7uke"]
 size = Vector3(15, 0.05, 0.35)
 
 [sub_resource type="Resource" id="InventoryStock_farmer_food"]
@@ -252,36 +271,36 @@ height = 1.1
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_member"]
 radius = 0.45
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_08stj"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_12p45"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="CylinderMesh" id="CylinderMesh_abfu4"]
+[sub_resource type="CylinderMesh" id="CylinderMesh_wbyr3"]
 top_radius = 24.0
 bottom_radius = 24.0
 height = 0.04
 radial_segments = 96
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_j7uke"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ykhgb"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0, 0.72, 0.72, 0.28)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_12p45"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_v4og7"]
 _surfaces = [{
 "aabb": AABB(-34, 0, -42, 78, 1e-05, 84),
 "format": 34359742465,
 "index_count": 12,
-"index_data": PackedByteArray(0, 0, 1, 0, 2, 0, 0, 0, 2, 0, 3, 0, 0, 0, 3, 0, 4, 0, 0, 0, 4, 0, 1, 0),
+"index_data": PackedByteArray("AAABAAIAAAACAAMAAAADAAQAAAAEAAEA"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 5,
-"vertex_data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 194, 0, 0, 0, 0, 0, 0, 40, 194, 0, 0, 40, 66, 0, 0, 0, 0, 0, 0, 16, 194, 0, 0, 48, 66, 0, 0, 0, 0, 0, 0, 24, 66, 0, 0, 224, 193, 0, 0, 0, 0, 0, 0, 40, 66)
+"vertex_data": PackedByteArray("AAAAAAAAAAAAAAAAAAAIwgAAAAAAACjCAAAoQgAAAAAAABDCAAAwQgAAAAAAABhCAADgwQAAAAAAAChC")
 }]
 
 [sub_resource type="Resource" id="InventoryStock_raider_food"]
@@ -289,14 +308,14 @@ script = ExtResource("5_stock")
 item_definition = ExtResource("6_food")
 quantity = 4
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wbyr3"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_esk4d"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="CylinderMesh" id="CylinderMesh_ykhgb"]
+[sub_resource type="CylinderMesh" id="CylinderMesh_co0cp"]
 top_radius = 22.0
 bottom_radius = 22.0
 height = 0.04
@@ -306,6 +325,11 @@ radial_segments = 96
 script = ExtResource("5_stock")
 item_definition = ExtResource("7_bandage")
 quantity = 4
+
+[sub_resource type="Resource" id="InventoryStock_party_silver"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("22_1trl3")
+quantity = 10
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
 top_radius = 0.72
@@ -350,15 +374,20 @@ shape = SubResource("BoxShape3D_floor")
 material_override = SubResource("StandardMaterial3D_floor")
 mesh = SubResource("BoxMesh_floor")
 
-[node name="Roads" type="Node3D" parent="."]
+[node name="Roads" type="Node3D" parent="." unique_id=1470918845]
 
-[node name="FarmerCrossingToRaiderCamp" type="Node3D" parent="Roads"]
+[node name="FarmerCrossingToRaiderCamp" type="Node3D" parent="Roads" unique_id=916319959]
 script = ExtResource("35_road")
 road_id = "farmer_crossing_raider_camp"
 display_name = "Farmer Crossing / Raider Camp Road"
 source_settlement_id = "farmer_crossing"
 target_settlement_id = "raider_camp"
 path_points = PackedVector3Array(-38, 0.08, 0, -12, 0.08, -1.5, 12, 0.08, 1.5, 38, 0.08, 0)
+
+[node name="RoadDebug" type="MeshInstance3D" parent="Roads/FarmerCrossingToRaiderCamp" unique_id=1241173532]
+material_override = SubResource("StandardMaterial3D_gxy6m")
+cast_shadow = 0
+mesh = SubResource("ArrayMesh_50l0v")
 
 [node name="Settlements" type="Node3D" parent="." unique_id=63163481]
 
@@ -383,7 +412,7 @@ Loading..."
 font_size = 120
 outline_size = 28
 
-[node name="Housing" type="Node3D" parent="Settlements/FarmerCrossing"]
+[node name="Housing" type="Node3D" parent="Settlements/FarmerCrossing" unique_id=872472634]
 
 [node name="HouseA" parent="Settlements/FarmerCrossing/Housing" unique_id=57726035 instance=ExtResource("13_house")]
 transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -8, 0, -11)
@@ -418,9 +447,9 @@ polygon_points = PackedVector2Array(-40, -42, 28, -38, 34, 34, -44, 42)
 
 [node name="TerritoryDebug" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Territory" unique_id=1749945787]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.14, 0)
-material_override = SubResource("StandardMaterial3D_f34o7")
+material_override = SubResource("StandardMaterial3D_v3gon")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_gxy6m")
+mesh = SubResource("ArrayMesh_kv8yx")
 
 [node name="Facilities" type="Node3D" parent="Settlements/FarmerCrossing" unique_id=1155546947]
 
@@ -475,7 +504,7 @@ population_capacity_id = "farmer_crossing.tavern"
 [node name="Staff" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=1808305516]
 
 [node name="Barkeeper" type="CharacterBody3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff" unique_id=151008028]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.6, -2.85)
+transform = Transform3D(-0.99997145, 0, 0.007557233, 0, 1, 0, -0.007557233, 0, -0.99997145, -0.15000153, 0.6, -2.8500004)
 script = ExtResource("17_kv8yx")
 base_color = Color(0.58, 0.43, 0.2, 1)
 member_name = "Barkeeper"
@@ -489,7 +518,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
 shape = SubResource("CapsuleShape3D_ikrwl")
 
 [node name="BodyMesh" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff/Barkeeper" unique_id=417890112]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+transform = Transform3D(0.990507, 0, 0.13746187, 0, 1, 0, -0.13746187, 0, 0.990507, 0, 0.9499999, 0)
 mesh = SubResource("CapsuleMesh_ieqkg")
 
 [node name="SelectionRing" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff/Barkeeper" unique_id=215843070]
@@ -506,10 +535,10 @@ initial_stock = Array[Resource]([SubResource("Resource_aja2c"), SubResource("Res
 script = ExtResource("24_08stj")
 jobs = Array[ExtResource("25_abfu4")]([SubResource("Resource_jua3c"), SubResource("Resource_stnqu")])
 wage_item_definition = ExtResource("22_1trl3")
-bar_venue_path = NodePath("../../../BarVenue")
+bar_service_area_path = NodePath("../../../BarServiceArea")
 
 [node name="Waiter" type="CharacterBody3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff" unique_id=1090906859]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5595207, 0.6, 2.0300064)
+transform = Transform3D(-0.36940622, 0, -0.929268, 0, 1, 0, 0.929268, 0, -0.36940622, -1.5595207, 0.6, 2.0300064)
 script = ExtResource("17_kv8yx")
 base_color = Color(0.28, 0.47, 0.56, 1)
 member_name = "Waiter"
@@ -523,7 +552,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
 shape = SubResource("CapsuleShape3D_sxot0")
 
 [node name="BodyMesh" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff/Waiter" unique_id=1090155388]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+transform = Transform3D(-0.114104874, 0, -0.9934687, 0, 1, 0, 0.9934687, 0, -0.114104874, 0, 0.9499999, 0)
 mesh = SubResource("CapsuleMesh_bdgxq")
 
 [node name="SelectionRing" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff/Waiter" unique_id=1503544816]
@@ -532,7 +561,7 @@ visible = false
 mesh = SubResource("CylinderMesh_bdn7o")
 
 [node name="Guard" type="CharacterBody3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff" unique_id=1190330139]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6532669, 0.6, 5.0384483)
+transform = Transform3D(-0.9998269, 0, 0.018604072, 0, 1, 0, -0.018604072, 0, -0.9998269, -1.6532669, 0.6, 5.0384483)
 script = ExtResource("17_kv8yx")
 base_color = Color(0.42, 0.42, 0.48, 1)
 member_name = "Bar Guard"
@@ -546,7 +575,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
 shape = SubResource("CapsuleShape3D_v8cns")
 
 [node name="BodyMesh" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff/Guard" unique_id=1601404961]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+transform = Transform3D(-0.70790845, 0, 0.7063042, 0, 1, 0, -0.7063042, 0, -0.70790845, 0, 0.9499999, 0)
 mesh = SubResource("CapsuleMesh_typig")
 
 [node name="SelectionRing" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff/Guard" unique_id=1346751991]
@@ -711,12 +740,6 @@ shape = SubResource("BoxShape3D_back")
 [node name="BedA" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Beds" unique_id=641683217 instance=ExtResource("32_co0cp")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 2.5, 3, -2.3)
 
-[node name="BedB" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Beds" instance=ExtResource("32_co0cp")]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 2.5, 3, 0)
-
-[node name="BedC" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Beds" instance=ExtResource("32_co0cp")]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 2.5, 3, 2.3)
-
 [node name="Frame2" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Beds/BedA" unique_id=1853304975]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 material_override = SubResource("StandardMaterial3D_frame")
@@ -736,7 +759,13 @@ mesh = SubResource("BoxMesh_pillow")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 shape = SubResource("BoxShape3D_bed")
 
-[node name="BarVenue" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=4406242]
+[node name="BedB" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Beds" unique_id=238541062 instance=ExtResource("32_co0cp")]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 2.5, 3, 0)
+
+[node name="BedC" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Beds" unique_id=1487989653 instance=ExtResource("32_co0cp")]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 2.5, 3, 2.3)
+
+[node name="BarServiceArea" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=4406242]
 script = ExtResource("34_l8nq8")
 owner_character_path = NodePath("../Staff/Barkeeper")
 owner_faction_name = "Farmers"
@@ -796,25 +825,25 @@ active_end_hour = 19
 
 [node name="FieldVisual" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Fields/FarmFields" unique_id=772628388]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.035, 0)
-material_override = SubResource("StandardMaterial3D_50l0v")
-mesh = SubResource("BoxMesh_v3gon")
+material_override = SubResource("StandardMaterial3D_o05ov")
+mesh = SubResource("BoxMesh_otbxr")
 
 [node name="Rows" type="Node3D" parent="Settlements/FarmerCrossing/Fields/FarmFields" unique_id=1051609713]
 
 [node name="RowA" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Fields/FarmFields/Rows" unique_id=241064490]
 transform = Transform3D(0.9961947, 0, 0.08715574, 0, 1, 0, -0.08715574, 0, 0.9961947, 0, 0.075, -3)
-material_override = SubResource("StandardMaterial3D_kv8yx")
-mesh = SubResource("BoxMesh_o05ov")
+material_override = SubResource("StandardMaterial3D_wncmk")
+mesh = SubResource("BoxMesh_1trl3")
 
 [node name="RowB" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Fields/FarmFields/Rows" unique_id=1537323590]
 transform = Transform3D(0.9961947, 0, 0.08715574, 0, 1, 0, -0.08715574, 0, 0.9961947, 0, 0.075, 0)
-material_override = SubResource("StandardMaterial3D_otbxr")
-mesh = SubResource("BoxMesh_wncmk")
+material_override = SubResource("StandardMaterial3D_250jy")
+mesh = SubResource("BoxMesh_08stj")
 
 [node name="RowC" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Fields/FarmFields/Rows" unique_id=1805956557]
 transform = Transform3D(0.9961947, 0, 0.08715574, 0, 1, 0, -0.08715574, 0, 0.9961947, 0, 0.075, 3)
-material_override = SubResource("StandardMaterial3D_1trl3")
-mesh = SubResource("BoxMesh_250jy")
+material_override = SubResource("StandardMaterial3D_abfu4")
+mesh = SubResource("BoxMesh_j7uke")
 
 [node name="ActivityPoints" type="Node3D" parent="Settlements/FarmerCrossing" unique_id=680287415]
 
@@ -925,9 +954,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.05, 0)
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Settlements/FarmerCrossing" unique_id=488512487]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_08stj")
+material_override = SubResource("StandardMaterial3D_12p45")
 cast_shadow = 0
-mesh = SubResource("CylinderMesh_abfu4")
+mesh = SubResource("CylinderMesh_wbyr3")
 
 [node name="RaiderCamp" type="Node3D" parent="Settlements" unique_id=1384639635]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58, 0, 0)
@@ -951,7 +980,7 @@ Loading..."
 font_size = 120
 outline_size = 28
 
-[node name="Housing" type="Node3D" parent="Settlements/RaiderCamp"]
+[node name="Housing" type="Node3D" parent="Settlements/RaiderCamp" unique_id=1373322570]
 
 [node name="ShackA" parent="Settlements/RaiderCamp/Housing" unique_id=1535015457 instance=ExtResource("13_house")]
 transform = Transform3D(-0.63821656, 0, -0.76985645, 0, 1, 0, 0.76985645, 0, -0.63821656, 8.802101, 0, 6)
@@ -982,9 +1011,9 @@ polygon_points = PackedVector2Array(-34, -42, 42, -36, 44, 38, -28, 42)
 
 [node name="TerritoryDebug" type="MeshInstance3D" parent="Settlements/RaiderCamp/Territory" unique_id=983510861]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.14, 0)
-material_override = SubResource("StandardMaterial3D_j7uke")
+material_override = SubResource("StandardMaterial3D_ykhgb")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_12p45")
+mesh = SubResource("ArrayMesh_v4og7")
 
 [node name="Facilities" type="Node3D" parent="Settlements/RaiderCamp" unique_id=1165239842]
 
@@ -1137,9 +1166,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.05, 0)
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Settlements/RaiderCamp" unique_id=280983370]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_wbyr3")
+material_override = SubResource("StandardMaterial3D_esk4d")
 cast_shadow = 0
-mesh = SubResource("CylinderMesh_ykhgb")
+mesh = SubResource("CylinderMesh_co0cp")
 
 [node name="PartyMembers" type="Node3D" parent="." unique_id=753189579]
 
@@ -1149,7 +1178,7 @@ script = ExtResource("1_party")
 base_color = Color(0.82, 0.43, 0.31, 1)
 member_name = "Mira"
 stable_id = "player.mira"
-starting_items = Array[Resource]([SubResource("InventoryStock_party_bandage")])
+starting_items = Array[Resource]([SubResource("InventoryStock_party_bandage"), SubResource("InventoryStock_party_silver")])
 starting_equipment = Array[Resource]([ExtResource("21_hatchet")])
 squad_name = "Drifters"
 
@@ -1171,7 +1200,7 @@ script = ExtResource("1_party")
 base_color = Color(0.33, 0.55, 0.78, 1)
 member_name = "Tomas"
 stable_id = "player.tomas"
-starting_items = Array[Resource]([SubResource("InventoryStock_party_bandage")])
+starting_items = Array[Resource]([SubResource("InventoryStock_party_bandage"), SubResource("InventoryStock_party_silver")])
 starting_equipment = Array[Resource]([ExtResource("22_sword")])
 squad_name = "Drifters"
 
@@ -1389,21 +1418,21 @@ billboard = 1
 text = "Town
 Borders"
 
-[node name="ToggleRoads" type="StaticBody3D" parent="WorldSimActions"]
+[node name="ToggleRoads" type="StaticBody3D" parent="WorldSimActions" unique_id=1318253350]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0.6, 54)
 script = ExtResource("10_debug_action")
 display_name = "Show Roads"
 action_key = "toggle_roads"
 action_label = "Show/Hide Roads"
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/ToggleRoads"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/ToggleRoads" unique_id=14561161]
 shape = SubResource("BoxShape3D_action")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/ToggleRoads"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/ToggleRoads" unique_id=22204912]
 material_override = SubResource("StandardMaterial3D_action")
 mesh = SubResource("BoxMesh_action")
 
-[node name="Label3D" type="Label3D" parent="WorldSimActions/ToggleRoads"]
+[node name="Label3D" type="Label3D" parent="WorldSimActions/ToggleRoads" unique_id=244684550]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 billboard = 1
 text = "Roads"

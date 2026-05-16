@@ -20,7 +20,7 @@ Current examples:
 - `WorldSimulationController`: facade for serialized world state and debug actions.
 - `WorldTimeController`: authoritative world time for simulation ticks.
 
-Facility records are controller-owned state once discovered. A record should use stable IDs and simple values such as `facility_id`, `function_id`, `owner_faction_id`, `world_position`, production and consumption totals, building count, staff count, service point count, storage link count, activity point count, job provider count, and venue count.
+Facility records are controller-owned state once discovered. A record should use stable IDs and simple values such as `facility_id`, `function_id`, `owner_faction_id`, `world_position`, production and consumption totals, building count, staff count, service point count, storage link count, activity point count, job provider count, and bar service area count.
 
 Settlement max occupancy is derived from authored population capacity sources under the town, such as `WorldBuilding.population_capacity` and explicit `PopulationCapacitySource` nodes. `SettlementDefinition` does not define town capacity.
 

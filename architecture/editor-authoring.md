@@ -32,10 +32,11 @@ For generic facilities, set `facility_id`, `display_name`, `owner_faction_id`, a
 
 For common facilities, prefer drag-in authoring scenes over manual node assembly:
 
-- Add `scenes/world_sim/settlement_bar.tscn` under `SettlementTown/Bars`, or use `Add Child Node > SettlementBar`, for a ready-to-wire bar.
-- Add or replace the child under `SettlementBar/BuildingSlot` if a different building model is wanted.
+- Instantiate `scenes/world_sim/settlement_bar.tscn` under `SettlementTown/Bars` for a drag-and-play bar.
+- Use the default child under `SettlementBar/BuildingSlot`, or replace `BuildingSlot/CurrentBuilding` if a different building model is wanted.
 - Set `facility_id`, `display_name`, `owner_faction_id`, `staff_stable_id_prefix`, and `staff_squad_name` on the bar.
 - Keep second-floor bar beds under `SettlementBar/Furniture/Beds`; the bar registers that root with the placed building's upper-floor visibility.
+- Do not manually configure `BarServiceArea`; it is the internal service component owned by `SettlementBar`.
 - Add `scenes/world_sim/settlement_field.tscn` under `SettlementTown/Fields`, or use `Add Child Node > SettlementField`, for a food-producing field.
 - Set `facility_id`, `display_name`, `owner_faction_id`, and `food_production_per_day` on the field.
 
