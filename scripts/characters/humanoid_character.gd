@@ -363,7 +363,7 @@ func _physics_process(delta: float) -> void:
 			_process_seat_interaction()
 		OrderType.PICKUP_ITEM:
 			_process_pickup_interaction()
-	if _current_order_type == OrderType.ATTACK:
+	if _should_face_combat_focus_after_movement():
 		_face_combat_focus()
 
 
@@ -1381,6 +1381,12 @@ func get_combat_approach_position(attacker: HumanoidCharacter) -> Vector3:
 	return COMBAT_COORDINATOR.get_combat_approach_position(self, attacker, preferred_range)
 
 
+func get_combat_move_position(attacker: HumanoidCharacter) -> Vector3:
+	if attacker != null and absf(global_position.y - attacker.global_position.y) > attacker.move_target_vertical_tolerance:
+		return global_position
+	return get_combat_approach_position(attacker)
+
+
 func _face_character(character: HumanoidCharacter) -> void:
 	if character == null or not is_instance_valid(character):
 		return
@@ -1400,6 +1406,17 @@ func _face_combat_focus() -> void:
 		return
 	if _current_attack_target != null and is_instance_valid(_current_attack_target):
 		_face_character(_current_attack_target)
+
+
+func _should_face_combat_focus_after_movement() -> bool:
+	if _current_order_type != OrderType.ATTACK:
+		return false
+	if _combat_action_active or _combat_reaction_remaining > 0.0:
+		return true
+	if _has_move_target:
+		return false
+	var horizontal_speed := Vector2(velocity.x, velocity.z).length()
+	return horizontal_speed <= 0.15
 
 
 func _process_movement(delta: float) -> void:
@@ -1439,6 +1456,8 @@ func _should_direct_combat_chase() -> bool:
 		return false
 	if _current_attack_target.life_state != NpcRules.LifeState.ALIVE:
 		return false
+	if absf(_current_attack_target.global_position.y - global_position.y) > move_target_vertical_tolerance:
+		return false
 	var target_distance := global_position.distance_to(_current_attack_target.global_position)
 	if target_distance <= get_attack_range():
 		return false
@@ -1447,19 +1466,23 @@ func _should_direct_combat_chase() -> bool:
 
 func _process_direct_combat_chase(delta: float) -> void:
 	_apply_floor_motion(delta)
-	var target_position := _current_attack_target.get_combat_approach_position(self)
+	var target_position := _current_attack_target.get_combat_move_position(self)
 	var to_target := target_position - global_position
 	to_target.y = 0.0
 	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
+	var desired_direction := Vector3.ZERO
 	if to_target.length() > combat_approach_arrival_distance:
-		var desired_direction := to_target.normalized()
+		desired_direction = to_target.normalized()
 		horizontal_velocity = horizontal_velocity.lerp(desired_direction * _get_actor_move_speed(), minf(1.0, acceleration * delta))
 	else:
 		horizontal_velocity = horizontal_velocity.lerp(Vector3.ZERO, minf(1.0, acceleration * delta))
 	velocity.x = horizontal_velocity.x
 	velocity.z = horizontal_velocity.z
 	move_and_slide()
-	_face_character(_current_attack_target)
+	if desired_direction.length_squared() > 0.0001:
+		look_at(global_position + desired_direction, Vector3.UP)
+	else:
+		_face_character(_current_attack_target)
 
 
 func _get_move_target_arrival_distance() -> float:
@@ -1800,19 +1823,20 @@ func _process_attack_interaction() -> void:
 	if _current_attack_target.life_state != NpcRules.LifeState.ALIVE:
 		stop_attack_assignment()
 		return
-	_face_character(_current_attack_target)
-	var target_position := _current_attack_target.get_combat_approach_position(self)
+	var target_position := _current_attack_target.get_combat_move_position(self)
 	var target_distance := global_position.distance_to(_current_attack_target.global_position)
 	if COMBAT_COORDINATOR.is_character_locked(self):
 		if target_distance > get_attack_range() * 0.95:
 			_set_actor_move_target(target_position)
 		else:
 			_clear_actor_move_target()
+			_face_character(_current_attack_target)
 		return
 	if target_distance > get_attack_range():
 		_set_actor_move_target(target_position)
 		return
 	_clear_actor_move_target()
+	_face_character(_current_attack_target)
 	if _combat_cooldown_remaining > 0.0:
 		return
 	_start_combat_attack(_current_attack_target)
@@ -3596,7 +3620,7 @@ func _try_start_self_defense(attacker: HumanoidCharacter) -> void:
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
 	assign_attack_target(attacker, false, false, false)
-	_set_actor_move_target(attacker.get_combat_approach_position(self))
+	_set_actor_move_target(attacker.get_combat_move_position(self))
 
 
 func _notify_defensive_allies_of_attack(attacker: HumanoidCharacter) -> void:

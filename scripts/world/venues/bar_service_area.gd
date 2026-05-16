@@ -335,6 +335,8 @@ func _process_guard_staff(delta: float) -> void:
 		if guard == null or guard.life_state != NpcRules.LifeState.ALIVE:
 			_release_guard_post_for(guard)
 			continue
+		if guard.is_in_combat():
+			continue
 		_process_guard_post_assignment(guard, delta)
 
 

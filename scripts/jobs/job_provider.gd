@@ -460,6 +460,8 @@ func _process_mine_and_haul(job_index: int, job, slot_state: Dictionary, worker:
 
 
 func _process_guard_post(_job_index: int, _job, slot_state: Dictionary, worker: HumanoidCharacter, delta: float) -> bool:
+	if worker.is_in_combat():
+		return true
 	var service_area := _resolve_bar_service_area()
 	if service_area == null:
 		return false

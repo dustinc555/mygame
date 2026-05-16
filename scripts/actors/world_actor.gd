@@ -122,13 +122,15 @@ func _configure_navigation_agent() -> void:
 
 func _set_actor_move_target(target: Vector3) -> void:
 	var target_changed := not _has_move_target or _move_target.distance_squared_to(target) > 0.0025
+	var should_keep_intermediate_targets := target_changed and _should_keep_navigation_intermediate_targets(target)
 	_move_target = target
 	_has_move_target = true
 	if not target_changed:
 		return
-	_navigation_target_synced = false
-	_navigation_intermediate_targets.clear()
-	_navigation_intermediate_targets_built = false
+	if not should_keep_intermediate_targets:
+		_navigation_target_synced = false
+		_navigation_intermediate_targets.clear()
+		_navigation_intermediate_targets_built = false
 	_navigation_query_grace_remaining = 0.25
 	_has_avoidance_velocity = false
 	_stuck_origin = global_position
@@ -175,6 +177,8 @@ func _get_navigation_move_direction(delta: float) -> Vector3:
 	if not _navigation_intermediate_targets.is_empty() and _is_close_to_navigation_point(_get_current_navigation_target(), maxf(move_target_vertical_tolerance, 1.4), _get_navigation_intermediate_horizontal_tolerance()):
 		_advance_navigation_intermediate_target()
 		return Vector3.ZERO
+	if _is_traversing_navigation_link():
+		return _get_navigation_link_exit_move_direction(_get_current_navigation_target())
 	var next_path_position := _navigation_agent.get_next_path_position()
 	_navigation_query_grace_remaining = maxf(0.0, _navigation_query_grace_remaining - delta)
 	if _navigation_agent.is_navigation_finished():
@@ -214,6 +218,18 @@ func _get_navigation_final_move_direction() -> Vector3:
 func _get_navigation_point_move_direction(point: Vector3) -> Vector3:
 	var to_point := point - global_position
 	_navigation_vertical_speed = _get_navigation_vertical_speed(to_point)
+	to_point.y = 0.0
+	if to_point.length_squared() <= 0.0001:
+		return Vector3.ZERO
+	return to_point.normalized()
+
+
+func _get_navigation_link_exit_move_direction(point: Vector3) -> Vector3:
+	var to_point := point - global_position
+	if to_point.y > move_target_vertical_tolerance:
+		_navigation_vertical_speed = minf(_get_actor_move_speed(), maxf(0.75, to_point.y * 1.35))
+	else:
+		_navigation_vertical_speed = _get_navigation_vertical_speed(to_point)
 	to_point.y = 0.0
 	if to_point.length_squared() <= 0.0001:
 		return Vector3.ZERO
@@ -285,9 +301,29 @@ func _build_navigation_intermediate_targets() -> void:
 	var upward := vertical_delta > 0.0
 	var links: Array[NavigationLink3D] = []
 	_collect_navigation_links(get_tree().root, links)
-	var candidates: Array[Dictionary] = []
+	var current_position := global_position
+	var used_links: Dictionary = {}
+	for _step in range(links.size()):
+		if absf(_move_target.y - current_position.y) <= move_target_vertical_tolerance:
+			return
+		var candidate := _find_navigation_link_step(links, current_position, upward, used_links)
+		if candidate.is_empty():
+			return
+		_navigation_intermediate_targets.append(candidate["entry"] as Vector3)
+		_navigation_intermediate_targets.append(candidate["exit"] as Vector3)
+		used_links[int(candidate["link_id"])] = true
+		current_position = candidate["exit"] as Vector3
+
+
+func _find_navigation_link_step(links: Array[NavigationLink3D], current_position: Vector3, upward: bool, used_links: Dictionary) -> Dictionary:
+	var best_candidate: Dictionary = {}
+	var best_score := INF
+	var level_tolerance := maxf(move_target_vertical_tolerance, 1.4)
 	for link in links:
 		if link == null or not link.enabled:
+			continue
+		var link_id := link.get_instance_id()
+		if used_links.has(link_id):
 			continue
 		var start := link.to_global(link.start_position)
 		var end := link.to_global(link.end_position)
@@ -296,24 +332,31 @@ func _build_navigation_intermediate_targets() -> void:
 			continue
 		var entry := start if start_is_entry else end
 		var exit := end if start_is_entry else start
+		if absf(entry.y - current_position.y) > level_tolerance:
+			continue
+		if _horizontal_distance(current_position, entry) > navigation_vertical_link_search_radius:
+			continue
 		if upward:
-			if exit.y <= global_position.y + move_target_vertical_tolerance or entry.y >= _move_target.y + move_target_vertical_tolerance:
+			if exit.y <= current_position.y + move_target_vertical_tolerance:
+				continue
+			if exit.y > _move_target.y + level_tolerance:
 				continue
 		else:
-			if exit.y >= global_position.y - move_target_vertical_tolerance or entry.y <= _move_target.y - move_target_vertical_tolerance:
+			if exit.y >= current_position.y - move_target_vertical_tolerance:
 				continue
-		if _horizontal_distance(entry, _move_target) > navigation_vertical_link_search_radius and _horizontal_distance(exit, _move_target) > navigation_vertical_link_search_radius:
+			if exit.y < _move_target.y - level_tolerance:
+				continue
+		var entry_distance := _horizontal_distance(current_position, entry)
+		var entry_tolerance := maxf(navigation_unreachable_tolerance, navigation_agent_radius * 3.0)
+		if not _can_reach_navigation_point(current_position, entry, entry_tolerance, level_tolerance) and entry_distance > entry_tolerance:
 			continue
-		candidates.append({"entry": entry, "exit": exit})
-	if upward:
-		candidates.sort_custom(_sort_navigation_link_up)
-	else:
-		candidates.sort_custom(_sort_navigation_link_down)
-	if candidates.is_empty() or not _can_reach_navigation_point(global_position, candidates[0]["entry"] as Vector3):
-		return
-	for candidate in candidates:
-		_navigation_intermediate_targets.append(candidate["entry"] as Vector3)
-		_navigation_intermediate_targets.append(candidate["exit"] as Vector3)
+		var score := entry_distance + absf(exit.y - _move_target.y) * 0.05
+		if not _can_reach_move_target_from(exit):
+			score += navigation_vertical_link_search_radius
+		if score < best_score:
+			best_score = score
+			best_candidate = {"entry": entry, "exit": exit, "link_id": link_id}
+	return best_candidate
 
 
 func _collect_navigation_links(node: Node, links: Array[NavigationLink3D]) -> void:
@@ -325,26 +368,37 @@ func _collect_navigation_links(node: Node, links: Array[NavigationLink3D]) -> vo
 		_collect_navigation_links(child, links)
 
 
-func _sort_navigation_link_up(a: Dictionary, b: Dictionary) -> bool:
-	return (a["entry"] as Vector3).y < (b["entry"] as Vector3).y
-
-
-func _sort_navigation_link_down(a: Dictionary, b: Dictionary) -> bool:
-	return (a["entry"] as Vector3).y > (b["entry"] as Vector3).y
-
-
 func _horizontal_distance(from: Vector3, to: Vector3) -> float:
 	return Vector2(from.x - to.x, from.z - to.z).length()
 
 
-func _can_reach_navigation_point(from: Vector3, to: Vector3) -> bool:
+func _is_traversing_navigation_link() -> bool:
+	return not _navigation_intermediate_targets.is_empty() and not _is_current_navigation_intermediate_entry()
+
+
+func _should_keep_navigation_intermediate_targets(target: Vector3) -> bool:
+	if _navigation_intermediate_targets.is_empty():
+		return false
+	var old_delta := _move_target.y - global_position.y
+	var new_delta := target.y - global_position.y
+	if absf(old_delta) <= move_target_vertical_tolerance or absf(new_delta) <= move_target_vertical_tolerance:
+		return false
+	return signf(old_delta) == signf(new_delta)
+
+
+func _can_reach_move_target_from(from: Vector3) -> bool:
+	return _can_reach_navigation_point(from, _move_target, maxf(navigation_unreachable_tolerance, _get_move_target_arrival_distance()), move_target_vertical_tolerance)
+
+
+func _can_reach_navigation_point(from: Vector3, to: Vector3, horizontal_tolerance: float = -1.0, vertical_tolerance: float = -1.0) -> bool:
 	if _navigation_agent == null:
 		return false
 	var path := NavigationServer3D.map_get_path(_navigation_agent.get_navigation_map(), from, to, true)
 	if path.size() < 2:
 		return false
 	var final_position := path[path.size() - 1]
-	return _is_close_to_navigation_point_from(final_position, to, move_target_vertical_tolerance)
+	var effective_vertical_tolerance := move_target_vertical_tolerance if vertical_tolerance < 0.0 else vertical_tolerance
+	return _is_close_to_navigation_point_from(final_position, to, effective_vertical_tolerance, horizontal_tolerance)
 
 
 func _is_close_to_navigation_point(point: Vector3, vertical_tolerance: float, horizontal_tolerance: float) -> bool:
@@ -390,7 +444,7 @@ func _fail_actor_move_target() -> void:
 
 
 func _should_apply_avoidance(desired_direction: Vector3) -> bool:
-	return navigation_avoidance_enabled and _navigation_agent != null and _has_move_target and desired_direction.length_squared() > 0.0001
+	return navigation_avoidance_enabled and _navigation_agent != null and _has_move_target and not _is_traversing_navigation_link() and desired_direction.length_squared() > 0.0001
 
 
 func _update_stuck_state(delta: float, desired_direction: Vector3) -> void:
