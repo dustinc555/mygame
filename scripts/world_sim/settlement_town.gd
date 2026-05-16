@@ -56,6 +56,19 @@ func get_facility_records() -> Array[Dictionary]:
 	return records
 
 
+func get_population_capacity_records() -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	_collect_population_capacity_records(self, records, get_settlement_id())
+	return records
+
+
+func get_authored_population_capacity() -> int:
+	var total := 0
+	for record in get_population_capacity_records():
+		total += max(0, int(record.get("population_capacity", 0)))
+	return total
+
+
 func get_activity_points() -> Array:
 	var points: Array = []
 	var activity_root := get_node_or_null(activity_points_root_path)
@@ -110,6 +123,18 @@ func _collect_facilities(root: Node, facilities: Array) -> void:
 		if child.has_method("get_facility_record") and not facilities.has(child):
 			facilities.append(child)
 		_collect_facilities(child, facilities)
+
+
+func _collect_population_capacity_records(root: Node, records: Array[Dictionary], settlement_id: String) -> void:
+	for child in root.get_children():
+		if child.is_in_group("settlement_town"):
+			continue
+		if child.has_method("get_population_capacity_record"):
+			var record: Dictionary = child.call("get_population_capacity_record", settlement_id)
+			if int(record.get("population_capacity", 0)) > 0:
+				records.append(record)
+			continue
+		_collect_population_capacity_records(child, records, settlement_id)
 
 
 func _get_facility_root_paths() -> Array[NodePath]:

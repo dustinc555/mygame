@@ -188,6 +188,7 @@ func _register_settlement_definition(definition: Resource, anchor: Node3D) -> vo
 	elif anchor != null:
 		var state: Dictionary = settlement_states[settlement_id]
 		state["world_position"] = anchor.global_position
+		_register_anchor_population_capacity(settlement_id, anchor)
 		_register_anchor_facilities(settlement_id, anchor)
 		_notify_state_changed(settlement_id)
 	if faction_controller != null and faction_controller.has_method("register_faction"):
@@ -203,8 +204,9 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 		"settlement_id": settlement_id,
 		"display_name": _resource_string(definition, "display_name", settlement_id),
 		"faction_id": _definition_faction_id(definition),
-		"population": 1,
-		"max_occupancy": max(1, _resource_int(definition, "max_occupancy", _resource_int(definition, "population", 1))),
+		"population": 0,
+		"max_occupancy": 0,
+		"population_capacity_sources": [],
 		"occupancy_state": _definition_occupancy_key(definition),
 		"occupancy_label": _definition_occupancy_label(definition),
 		"occupancy_multiplier": _definition_occupancy_multiplier(definition),
@@ -221,7 +223,7 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 		"facilities": {},
 		"facility_totals": {},
 	}
-	_apply_population_from_occupancy(settlement_id)
+	_register_anchor_population_capacity(settlement_id, anchor)
 	_register_anchor_facilities(settlement_id, anchor)
 	_update_pressure_state(settlement_id)
 	_notify_state_changed(settlement_id)
@@ -358,6 +360,26 @@ func _register_anchor_facilities(settlement_id: String, anchor: Node3D) -> void:
 	_recalculate_facility_totals(settlement_id)
 
 
+func _register_anchor_population_capacity(settlement_id: String, anchor: Node3D) -> void:
+	if anchor == null or not settlement_states.has(settlement_id):
+		return
+	var state: Dictionary = settlement_states[settlement_id]
+	var records: Array[Dictionary] = []
+	var total := 0
+	if anchor.has_method("get_population_capacity_records"):
+		for record in anchor.call("get_population_capacity_records"):
+			if not (record is Dictionary):
+				continue
+			var capacity: int = max(0, int(record.get("population_capacity", 0)))
+			if capacity <= 0:
+				continue
+			records.append(record.duplicate(true))
+			total += capacity
+	state["population_capacity_sources"] = records
+	state["max_occupancy"] = total
+	_apply_population_from_occupancy(settlement_id)
+
+
 func _recalculate_facility_totals(settlement_id: String) -> void:
 	var state: Dictionary = settlement_states[settlement_id]
 	var facilities: Dictionary = state.get("facilities", {})
@@ -383,8 +405,12 @@ func _recalculate_facility_totals(settlement_id: String) -> void:
 
 func _apply_population_from_occupancy(settlement_id: String) -> void:
 	var state: Dictionary = settlement_states[settlement_id]
-	var max_occupancy := maxf(float(state.get("max_occupancy", 1)), 1.0)
-	state["population"] = max(1, int(round(max_occupancy * float(state.get("occupancy_multiplier", 1.0)))))
+	var max_occupancy := maxf(float(state.get("max_occupancy", 0)), 0.0)
+	if max_occupancy <= 0.0:
+		state["population"] = 0
+		state["occupancy_ratio"] = 0.0
+		return
+	state["population"] = max(0, int(round(max_occupancy * float(state.get("occupancy_multiplier", 1.0)))))
 	state["occupancy_ratio"] = float(state["population"]) / max_occupancy
 
 

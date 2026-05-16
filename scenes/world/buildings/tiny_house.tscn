@@ -78,6 +78,7 @@ is_roof = true
 [node name="TinyHouse" type="StaticBody3D"]
 script = ExtResource("1_building")
 display_name = "Tiny House"
+population_capacity = 3
 levels = Array[Resource]([SubResource("BuildingLevelDefinition_ground"), SubResource("BuildingLevelDefinition_roof")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]

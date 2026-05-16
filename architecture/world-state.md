@@ -22,6 +22,8 @@ Current examples:
 
 Facility records are controller-owned state once discovered. A record should use stable IDs and simple values such as `facility_id`, `function_id`, `owner_faction_id`, `world_position`, production and consumption totals, building count, staff count, service point count, storage link count, activity point count, job provider count, and venue count.
 
+Settlement max occupancy is derived from authored population capacity sources under the town, such as `WorldBuilding.population_capacity` and explicit `PopulationCapacitySource` nodes. `SettlementDefinition` does not define town capacity.
+
 ## Serializable State
 
 Controller state should serialize to dictionaries, arrays, strings, numbers, booleans, and basic Godot value types.
@@ -60,6 +62,7 @@ Examples:
 - `SettlementFacilityInstance` bridges a placed building slot, facility function resource, staff, service points, storage links, jobs, and activity points into settlement facility records.
 - `FactionTerritoryAnchor` bridges authored territory shape data into territory records.
 - `RoadPath` bridges authored path points between stable settlement IDs into road records and squad route waypoints.
+- `WorldBuilding` and `PopulationCapacitySource` bridge authored housing/camp capacity into settlement max occupancy.
 - Containers, bars, mines, and job providers execute local interactions but can be discovered by town and job systems.
 
 The bridge may use node paths internally, but persisted state should refer to stable IDs.

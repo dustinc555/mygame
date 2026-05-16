@@ -383,23 +383,31 @@ Loading..."
 font_size = 120
 outline_size = 28
 
-[node name="HouseA" parent="Settlements/FarmerCrossing" unique_id=57726035 instance=ExtResource("13_house")]
+[node name="Housing" type="Node3D" parent="Settlements/FarmerCrossing"]
+
+[node name="HouseA" parent="Settlements/FarmerCrossing/Housing" unique_id=57726035 instance=ExtResource("13_house")]
 transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -8, 0, -11)
+population_capacity_id = "farmer_crossing.house_a"
 
-[node name="HouseB" parent="Settlements/FarmerCrossing" unique_id=507904691 instance=ExtResource("13_house")]
+[node name="HouseB" parent="Settlements/FarmerCrossing/Housing" unique_id=507904691 instance=ExtResource("13_house")]
 transform = Transform3D(-0.8164604, 0, 0.5774014, 0, 1, 0, -0.5774014, 0, -0.8164604, -8, 0, 11)
+population_capacity_id = "farmer_crossing.house_b"
 
-[node name="HouseC" parent="Settlements/FarmerCrossing" unique_id=344220963 instance=ExtResource("13_house")]
+[node name="HouseC" parent="Settlements/FarmerCrossing/Housing" unique_id=344220963 instance=ExtResource("13_house")]
 transform = Transform3D(0.9999057, 0, 0.013752788, 0, 1, 0, -0.013752788, 0, 0.9999057, 2, 0, -13)
+population_capacity_id = "farmer_crossing.house_c"
 
-[node name="HouseD" parent="Settlements/FarmerCrossing" unique_id=20670277 instance=ExtResource("13_house")]
+[node name="HouseD" parent="Settlements/FarmerCrossing/Housing" unique_id=20670277 instance=ExtResource("13_house")]
 transform = Transform3D(-0.99989057, 0, -0.014817387, 0, 1, 0, 0.014817387, 0, -0.99989057, 2, 0, 13)
+population_capacity_id = "farmer_crossing.house_d"
 
-[node name="HouseE" parent="Settlements/FarmerCrossing" unique_id=1471424239 instance=ExtResource("13_house")]
+[node name="HouseE" parent="Settlements/FarmerCrossing/Housing" unique_id=1471424239 instance=ExtResource("13_house")]
 transform = Transform3D(0.258819, 0, 0.965926, 0, 1, 0, -0.965926, 0, 0.258819, -14, 0, 0)
+population_capacity_id = "farmer_crossing.house_e"
 
-[node name="HouseF" parent="Settlements/FarmerCrossing" unique_id=2047919881 instance=ExtResource("13_house")]
+[node name="HouseF" parent="Settlements/FarmerCrossing/Housing" unique_id=2047919881 instance=ExtResource("13_house")]
 transform = Transform3D(-0.3186453, 0, -0.94787425, 0, 1, 0, 0.94787425, 0, -0.3186453, 9, 0, 8)
+population_capacity_id = "farmer_crossing.house_f"
 
 [node name="Territory" type="Node3D" parent="Settlements/FarmerCrossing" unique_id=1816135088]
 script = ExtResource("27_territory")
@@ -462,6 +470,7 @@ metadata/_custom_type_script = "uid://c354oqtn4bw75"
 [node name="BuildingSlot" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=2023458293]
 
 [node name="TwoStoryHouse" parent="Settlements/FarmerCrossing/Bars/FarmerBar/BuildingSlot" unique_id=763509149 instance=ExtResource("30_two_story_house")]
+population_capacity_id = "farmer_crossing.tavern"
 
 [node name="Staff" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=1808305516]
 
@@ -942,20 +951,27 @@ Loading..."
 font_size = 120
 outline_size = 28
 
-[node name="ShackA" parent="Settlements/RaiderCamp" unique_id=1535015457 instance=ExtResource("13_house")]
+[node name="Housing" type="Node3D" parent="Settlements/RaiderCamp"]
+
+[node name="ShackA" parent="Settlements/RaiderCamp/Housing" unique_id=1535015457 instance=ExtResource("13_house")]
 transform = Transform3D(-0.63821656, 0, -0.76985645, 0, 1, 0, 0.76985645, 0, -0.63821656, 8.802101, 0, 6)
+population_capacity_id = "raider_camp.shack_a"
 
-[node name="ShackB" parent="Settlements/RaiderCamp" unique_id=277085555 instance=ExtResource("13_house")]
+[node name="ShackB" parent="Settlements/RaiderCamp/Housing" unique_id=277085555 instance=ExtResource("13_house")]
 transform = Transform3D(0.258819, 0, 0.965926, 0, 1, 0, -0.965926, 0, 0.258819, -8, 0, -9)
+population_capacity_id = "raider_camp.shack_b"
 
-[node name="ShackC" parent="Settlements/RaiderCamp" unique_id=1519121001 instance=ExtResource("13_house")]
+[node name="ShackC" parent="Settlements/RaiderCamp/Housing" unique_id=1519121001 instance=ExtResource("13_house")]
 transform = Transform3D(-0.45016098, 0, -0.8929477, 0, 1, 0, 0.8929477, 0, -0.45016098, 13.863586, 0, -3.7702694)
+population_capacity_id = "raider_camp.shack_c"
 
-[node name="ShackD" parent="Settlements/RaiderCamp" unique_id=302939994 instance=ExtResource("13_house")]
+[node name="ShackD" parent="Settlements/RaiderCamp/Housing" unique_id=302939994 instance=ExtResource("13_house")]
 transform = Transform3D(-0.99421674, 0, 0.10739139, 0, 1, 0, -0.10739139, 0, -0.99421674, -8.689499, 0, 8.168952)
+population_capacity_id = "raider_camp.shack_d"
 
-[node name="ShackE" parent="Settlements/RaiderCamp" unique_id=1243493602 instance=ExtResource("13_house")]
+[node name="ShackE" parent="Settlements/RaiderCamp/Housing" unique_id=1243493602 instance=ExtResource("13_house")]
 transform = Transform3D(-0.98564184, 0, -0.16885093, 0, 1, 0, 0.16885093, 0, -0.98564184, 1, 0, 13)
+population_capacity_id = "raider_camp.shack_e"
 
 [node name="Territory" type="Node3D" parent="Settlements/RaiderCamp" unique_id=1630031440]
 script = ExtResource("27_territory")

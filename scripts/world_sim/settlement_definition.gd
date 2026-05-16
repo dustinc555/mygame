@@ -7,9 +7,7 @@ class_name SettlementDefinition
 @export var faction_definition: Resource
 @export var behavior_profile: Resource
 @export var world_position := Vector3.ZERO
-@export_range(1, 10000, 1) var max_occupancy := 12
 @export_enum("Depopulated", "Sparse", "Populated", "Overcrowded") var occupancy_state := 2
-@export_range(1, 10000, 1) var population := 12
 @export var starting_food := 60.0
 @export var max_food := 160.0
 @export var known_settlement_ids: PackedStringArray = PackedStringArray()
@@ -48,7 +46,3 @@ func get_occupancy_label() -> String:
 			return "Overcrowded"
 		_:
 			return "Populated"
-
-
-func get_effective_population() -> int:
-	return max(1, int(round(float(max_occupancy) * get_occupancy_multiplier())))

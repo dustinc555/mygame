@@ -4,7 +4,7 @@ Game data is primarily authored with Godot resources and nodes.
 
 Resources define reusable data such as items, factions, settlement definitions, facility function definitions, behavior profiles, squad templates, prices, stock, jobs, race data, and body archetypes.
 
-Scene nodes define authored world composition such as towns, facilities, NPCs, containers, bars, mines, activity points, territory anchors, road paths, buildings, and debug objects.
+Scene nodes define authored world composition such as towns, facilities, NPCs, containers, bars, mines, activity points, territory anchors, road paths, population capacity sources, buildings, and debug objects.
 
 ## Node Data Graph
 
@@ -30,6 +30,7 @@ digraph GameData {
   Nodes -> SettlementTown;
   Nodes -> FactionTerritoryAnchor;
   Nodes -> RoadPath;
+  Nodes -> PopulationCapacitySource;
   Nodes -> NPCs;
   Nodes -> Containers;
   Nodes -> Bars;
@@ -80,6 +81,9 @@ digraph GameData {
   SettlementBar -> Bars;
   SettlementField -> Farms;
   BuildingSlots -> BuildingModels;
+  BuildingModels -> PopulationCapacity;
+  PopulationCapacitySource -> PopulationCapacity;
+  PopulationCapacity -> Towns;
 
   Bars -> BarOwner;
   Shops -> Merchant;
@@ -116,6 +120,7 @@ digraph GameData {
   DailyUpkeep -> FoodConsumption;
   DailyUpkeep -> SettlementState;
   SettlementState -> Events;
+  SettlementState -> PopulationCapacity;
   SquadState -> Events;
   SquadState -> SquadRoutes;
   TerritoryState -> BuildRules;
@@ -133,17 +138,18 @@ Examples:
 
 - `ItemDefinition` defines an item type; inventory data stores item counts and ownership state.
 - `FactionDefinition` defines faction defaults; `FactionController` stores reputation and discovered faction state.
-- `SettlementDefinition` defines a town's authored defaults; `SettlementController` stores food, population, events, and facility totals.
+- `SettlementDefinition` defines town identity, faction, behavior, food defaults, and world-sim targets; `SettlementController` stores food, population, events, and facility totals.
 - `FacilityFunctionDefinition` defines what a placed facility does, such as bar, farm, shop, police, weapon shop, armor shop, travel shop, potion shop, tavern, mine, or storage.
 - `SettlementFacilityInstance` bridges the placed building slot, staff, service points, storage links, jobs, and activity points into a serializable facility record.
 - `SettlementTown` and child nodes define authored town layout; controllers use stable IDs to serialize the town's runtime truth.
 - `RoadPath` defines an authored invisible route between stable settlement IDs; `RoadController` stores road records and provides route waypoints for squad actions.
+- `WorldBuilding.population_capacity` and `PopulationCapacitySource` define authored housing/camp capacity; `SettlementController.max_occupancy` is derived from those sources.
 
 ## Stable IDs
 
 Anything referenced by save data, world simulation, faction logic, server records, or long-lived events needs a stable ID.
 
-Use IDs like `farmer_crossing`, `raider_camp`, `Farmers`, `Raiders`, `farmer_crossing.farm_fields`, `farmer_crossing.bar`, `farmer_crossing_raider_camp`, `bar`, and `npc.farmer_crossing.01`.
+Use IDs like `farmer_crossing`, `raider_camp`, `Farmers`, `Raiders`, `farmer_crossing.farm_fields`, `farmer_crossing.bar`, `farmer_crossing.house_a`, `farmer_crossing_raider_camp`, `bar`, and `npc.farmer_crossing.01`.
 
 Do not rely on node names or `NodePath` values as permanent identity when the state may need to persist or replicate.
 

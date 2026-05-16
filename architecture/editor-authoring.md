@@ -14,6 +14,8 @@ Assign a `SettlementDefinition` and set key exported paths such as residents, st
 
 Place visible buildings, optional road art, props, containers, NPCs, bars, fields, mines, and activity points under the town.
 
+At least one building or explicit `PopulationCapacitySource` must contribute population capacity for the town to have residents.
+
 The test scene should only compose the town; it should not own town-specific gameplay code.
 
 ## Facilities
@@ -36,6 +38,18 @@ For common facilities, prefer drag-in authoring scenes over manual node assembly
 - Keep second-floor bar beds under `SettlementBar/Furniture/Beds`; the bar registers that root with the placed building's upper-floor visibility.
 - Add `scenes/world_sim/settlement_field.tscn` under `SettlementTown/Fields`, or use `Add Child Node > SettlementField`, for a food-producing field.
 - Set `facility_id`, `display_name`, `owner_faction_id`, and `food_production_per_day` on the field.
+
+## Population Capacity
+
+Set `population_capacity` on reusable `WorldBuilding` scenes that represent housing or other resident capacity.
+
+Use whole-structure counts, such as `3` for a tiny house and `6` for a two-story house.
+
+Do not count beds inside a building as extra population.
+
+For outdoor slums, tents, sleeping rolls, or other non-building shelters, add a `PopulationCapacitySource` node under the town and set its capacity explicitly.
+
+`SettlementDefinition` does not define town capacity; authored town content does.
 
 ## Activity Points
 
@@ -92,6 +106,7 @@ Instructions should name the exact scene tree path to select, the exact editor a
 Before considering a town ready, check:
 
 - The town has a stable settlement ID through its definition.
+- The town has at least one building or explicit capacity source contributing population capacity.
 - The town has facilities with stable facility IDs.
 - Drag-in bars and fields live under the named `Bars` and `Fields` roots when used.
 - Residents have stable IDs or are spawned from a stable prefix.

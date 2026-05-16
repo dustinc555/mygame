@@ -52,10 +52,10 @@ func _spawn_missing_residents() -> void:
 
 
 func _get_desired_population() -> int:
-	if settlement_definition != null and settlement_definition.has_method("get_effective_population"):
-		return max(1, int(settlement_definition.call("get_effective_population")))
-	var max_occupancy := _resource_int(settlement_definition, "max_occupancy", _resource_int(settlement_definition, "population", 1))
-	return max(1, max_occupancy)
+	var max_occupancy := _get_authored_population_capacity()
+	if max_occupancy <= 0:
+		return 0
+	return max(0, int(round(float(max_occupancy) * _get_occupancy_multiplier())))
 
 
 func _count_existing_residents() -> int:
@@ -72,6 +72,21 @@ func _get_faction_id() -> String:
 	if settlement_definition != null and settlement_definition.has_method("get_faction_id"):
 		return str(settlement_definition.call("get_faction_id"))
 	return ""
+
+
+func _get_authored_population_capacity() -> int:
+	var node: Node = get_parent()
+	while node != null:
+		if node.has_method("get_authored_population_capacity"):
+			return max(0, int(node.call("get_authored_population_capacity")))
+		node = node.get_parent()
+	return 0
+
+
+func _get_occupancy_multiplier() -> float:
+	if settlement_definition != null and settlement_definition.has_method("get_occupancy_multiplier"):
+		return maxf(0.0, float(settlement_definition.call("get_occupancy_multiplier")))
+	return 1.0
 
 
 func _spawn_position(index: int, count: int, rng: RandomNumberGenerator) -> Vector3:
@@ -111,10 +126,3 @@ func _add_basic_humanoid_children(actor: Node) -> void:
 	capsule_mesh.radius = 0.45
 	body.mesh = capsule_mesh
 	actor.add_child(body)
-
-
-func _resource_int(resource: Resource, property_name: String, fallback: int) -> int:
-	if resource == null:
-		return fallback
-	var value = resource.get(property_name)
-	return fallback if value == null else int(value)

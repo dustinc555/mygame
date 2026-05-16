@@ -29,6 +29,20 @@ The root exports the settlement definition, resident root, storage paths, facili
 
 The operator should be able to drag in a town scene, assign a settlement definition, add bars, fields, facilities, and points under named roots, then press play.
 
+## Population Capacity
+
+A town's max population comes from authored structures in the town scene.
+
+`WorldBuilding.population_capacity` is the normal source. Current defaults are `Tiny House = 3` and `Two-Story House = 6`.
+
+Use `PopulationCapacitySource` for explicit non-building housing such as an outdoor bedroll, tent, slum camp, or similar world-authored shelter.
+
+Do not count beds inside a home separately. The whole building contributes its authored capacity.
+
+A valid town should have at least one building or explicit population capacity source. Without authored capacity, `SettlementController.max_occupancy` is zero and the town has no population capacity.
+
+Depopulated, sparse, populated, and overcrowded states still multiply the authored max capacity.
+
 ## Facilities
 
 `SettlementFacility` describes authored places inside a town.

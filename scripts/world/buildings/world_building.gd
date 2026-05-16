@@ -4,6 +4,8 @@ extends StaticBody3D
 class_name WorldBuilding
 
 @export var display_name := "Building"
+@export var population_capacity_id := ""
+@export_range(0, 1000, 1) var population_capacity := 0
 @export var levels: Array[BuildingLevelDefinition] = []
 @export var interior_area_path: NodePath
 @export var roof_occluder_paths: Array[NodePath] = []
@@ -80,6 +82,21 @@ func register_extra_level_content(level_index: int, content_path: NodePath) -> v
 	paths.append(content_path)
 	_extra_level_content_paths[level_index] = paths
 	_apply_registered_level_visibility(level_index)
+
+
+func get_population_capacity_id() -> String:
+	return population_capacity_id if not population_capacity_id.is_empty() else name
+
+
+func get_population_capacity_record(settlement_id := "") -> Dictionary:
+	return {
+		"capacity_id": get_population_capacity_id(),
+		"settlement_id": settlement_id,
+		"display_name": display_name if not display_name.is_empty() else get_population_capacity_id().capitalize(),
+		"source_type": "building",
+		"world_position": global_position,
+		"population_capacity": max(0, population_capacity),
+	}
 
 
 func _refresh_occluders() -> void:
