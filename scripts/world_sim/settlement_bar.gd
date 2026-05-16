@@ -29,6 +29,22 @@ const BED_SCENE = preload("res://scenes/world/props/simple_bed.tscn")
 @export var barkeeper_name := "Barkeeper"
 @export var waiter_name := "Waiter"
 @export var guard_name := "Bar Guard"
+@export_range(1, 12, 1) var waiter_count: int = 1:
+	set(value):
+		waiter_count = _clamp_count(value, 1, 12)
+		_repair_authoring_tree()
+@export_range(0, 12, 1) var waiter_point_count: int = 1:
+	set(value):
+		waiter_point_count = _clamp_count(value, 0, 12)
+		_repair_authoring_tree()
+@export_range(0, 12, 1) var guard_count: int = 1:
+	set(value):
+		guard_count = _clamp_count(value, 0, 12)
+		_repair_authoring_tree()
+@export_range(0, 12, 1) var guard_post_count: int = 1:
+	set(value):
+		guard_post_count = _clamp_count(value, 0, 12)
+		_repair_authoring_tree()
 @export var staff_stable_id_prefix := ""
 @export var staff_squad_name := ""
 @export var sync_staff_from_owner := true
@@ -121,31 +137,28 @@ func _ensure_staff() -> void:
 	var barkeeper := _ensure_staff_member(staff_root, "Barkeeper", barkeeper_name, Color(0.58, 0.43, 0.2, 1.0), Vector3(-0.15, 0.6, -2.85), SHOPKEEPER_CONVERSATION)
 	_ensure_merchant_role(barkeeper)
 	_ensure_job_provider(barkeeper)
-	_ensure_staff_member(staff_root, "Waiter", waiter_name, Color(0.28, 0.47, 0.56, 1.0), Vector3(-1.1, 0.6, 0.5), WAITER_CONVERSATION)
-	var guard := _ensure_staff_member(staff_root, "Guard", guard_name, Color(0.42, 0.42, 0.48, 1.0), Vector3(0.0, 0.6, 4.6), null)
-	if _has_property(guard, "base_attack_damage"):
-		guard.set("base_attack_damage", 20.0)
+	_sync_job_provider_jobs(barkeeper.get_node_or_null("JobProvider") if barkeeper != null else null)
+	for waiter_index in range(waiter_count):
+		_ensure_staff_member(staff_root, _indexed_name("Waiter", waiter_index), _indexed_display_name(waiter_name, waiter_index), Color(0.28, 0.47, 0.56, 1.0), _waiter_local_position(waiter_index), WAITER_CONVERSATION)
+	_trim_generated_children(staff_root, "Waiter", waiter_count)
+	for guard_index in range(guard_count):
+		var guard := _ensure_staff_member(staff_root, _indexed_name("Guard", guard_index), _indexed_display_name(guard_name, guard_index), Color(0.42, 0.42, 0.48, 1.0), _guard_local_position(guard_index), null)
+		if _has_property(guard, "base_attack_damage"):
+			guard.set("base_attack_damage", 20.0)
+	_trim_generated_children(staff_root, "Guard", guard_count)
 
 
 func _ensure_guard_and_service_points() -> void:
 	var guard_posts := _ensure_root(guard_posts_root_path)
 	var service_points := _ensure_root(service_points_root_path)
-	var guard_post := guard_posts.get_node_or_null("EntranceGuardPost")
-	if guard_post == null:
-		guard_post = Node3D.new()
-		guard_post.name = "EntranceGuardPost"
-		guard_post.transform = Transform3D(Basis(Vector3.UP, deg_to_rad(-85.0)), Vector3(0.0, 0.05, 3.45))
-		guard_post.set_script(BAR_GUARD_POST_SCRIPT)
-		guard_posts.add_child(guard_post)
-		_set_editor_owner(guard_post)
-	var service_point := service_points.get_node_or_null("BarkeeperCounterPoint")
-	if service_point == null:
-		service_point = Node3D.new()
-		service_point.name = "BarkeeperCounterPoint"
-		service_point.transform = Transform3D(Basis(Vector3.UP, deg_to_rad(40.0)), Vector3(0.0, 0.35, -1.85))
-		service_point.set_script(BAR_SERVICE_POINT_SCRIPT)
-		service_points.add_child(service_point)
-		_set_editor_owner(service_point)
+	_migrate_legacy_guard_post_names(guard_posts)
+	for guard_index in range(guard_post_count):
+		_ensure_guard_post(guard_posts, _guard_post_name(guard_index), _guard_post_transform(guard_index))
+	_trim_generated_children(guard_posts, "GuardPost", guard_post_count)
+	_ensure_service_point(service_points, "BarkeeperCounterPoint", Transform3D(Basis(Vector3.UP, deg_to_rad(40.0)), Vector3(0.0, 0.35, -1.85)), "barkeeper", Color(0.36, 1.0, 0.48, 0.76))
+	for waiter_index in range(waiter_point_count):
+		_ensure_service_point(service_points, _waiter_point_name(waiter_index), _waiter_point_transform(waiter_index), "waiter", Color(0.0, 0.82, 0.78, 0.76))
+	_trim_generated_children(service_points, "WaiterPoint", waiter_point_count)
 
 
 func _sync_bar_authoring() -> void:
@@ -169,13 +182,15 @@ func _sync_bar_authoring() -> void:
 	_set_node_path_property(service_area, "tables_root_path", "../Furniture/Tables")
 	_set_node_path_property(service_area, "guard_posts_root_path", "../GuardPosts")
 	_set_node_path_property(service_area, "service_points_root_path", "../ServicePoints")
-	for staff_record in [
-		{"node": barkeeper, "role": "barkeeper"},
-		{"node": waiter, "role": "waiter"},
-		{"node": get_node_or_null("Staff/Guard"), "role": "guard"},
-	]:
-		_sync_staff_member(staff_record.get("node"), str(staff_record.get("role")))
+	_set_node_path_property(service_area, "guards_root_path", "../Staff")
+	_set_node_path_property(service_area, "waiters_root_path", "../Staff")
+	_sync_staff_member(barkeeper, "barkeeper")
+	for waiter_index in range(waiter_count):
+		_sync_staff_member(get_node_or_null("Staff/%s" % _indexed_name("Waiter", waiter_index)), _indexed_name("waiter", waiter_index))
+	for guard_index in range(guard_count):
+		_sync_staff_member(get_node_or_null("Staff/%s" % _indexed_name("Guard", guard_index)), _indexed_name("guard", guard_index))
 	var job_provider := barkeeper.get_node_or_null("JobProvider") if barkeeper != null else null
+	_sync_job_provider_jobs(job_provider)
 	if job_provider != null and _has_property(job_provider, "bar_service_area_path"):
 		job_provider.set("bar_service_area_path", job_provider.get_path_to(service_area))
 	if service_area.has_method("refresh_scope"):
@@ -196,6 +211,40 @@ func _register_building_level_content(building: Node, level_index: int, content:
 	if content == null:
 		return
 	building.call("register_extra_level_content", level_index, building.get_path_to(content))
+
+
+func _ensure_service_point(root: Node, point_name: String, point_transform: Transform3D, role: String, color: Color) -> Node:
+	var point := root.get_node_or_null(point_name)
+	if point == null:
+		point = Node3D.new()
+		point.name = point_name
+		point.transform = point_transform
+		point.set_script(BAR_SERVICE_POINT_SCRIPT)
+		root.add_child(point)
+		_set_editor_owner(point)
+	elif not point.has_method("get_work_position"):
+		point.set_script(BAR_SERVICE_POINT_SCRIPT)
+	if _has_property(point, "point_role"):
+		point.set("point_role", role)
+	if _has_property(point, "debug_color"):
+		point.set("debug_color", color)
+	_refresh_authoring_marker(point)
+	return point
+
+
+func _ensure_guard_post(root: Node, post_name: String, post_transform: Transform3D) -> Node:
+	var post := root.get_node_or_null(post_name)
+	if post == null:
+		post = Node3D.new()
+		post.name = post_name
+		post.transform = post_transform
+		post.set_script(BAR_GUARD_POST_SCRIPT)
+		root.add_child(post)
+		_set_editor_owner(post)
+	elif not post.has_method("get_work_position"):
+		post.set_script(BAR_GUARD_POST_SCRIPT)
+	_refresh_authoring_marker(post)
+	return post
 
 
 func _ensure_staff_member(root: Node, node_name: String, member_name: String, color: Color, local_position: Vector3, conversation: Resource) -> Node:
@@ -273,6 +322,20 @@ func _ensure_job_provider(barkeeper: Node) -> void:
 	_set_editor_owner(provider)
 
 
+func _sync_job_provider_jobs(provider: Node) -> void:
+	if provider == null or not _has_property(provider, "jobs"):
+		return
+	var provider_jobs: Array = provider.get("jobs")
+	for job in provider_jobs:
+		if job == null:
+			continue
+		match str(job.get("algorithm_id")):
+			"guard_post":
+				job.set("slot_count", max(guard_count, 1))
+			"server_shift":
+				job.set("slot_count", max(waiter_count, 1))
+
+
 func _merchant_price(item: Resource) -> Resource:
 	var price: Resource = MERCHANT_PRICE_SCRIPT.new()
 	price.set("item_definition", item)
@@ -294,6 +357,88 @@ func _job_definition(display: String, job_id: String, algorithm: String, interva
 	job.set("pay_interval_seconds", interval)
 	job.set("pay_per_interval", pay)
 	return job
+
+
+func _indexed_name(base_name: String, index: int) -> String:
+	return base_name if index == 0 else "%s%d" % [base_name, index + 1]
+
+
+func _indexed_display_name(base_name: String, index: int) -> String:
+	return base_name if index == 0 else "%s %d" % [base_name, index + 1]
+
+
+func _waiter_point_name(index: int) -> String:
+	return _indexed_name("WaiterPoint", index)
+
+
+func _guard_post_name(index: int) -> String:
+	return _indexed_name("GuardPost", index)
+
+
+func _waiter_point_transform(index: int) -> Transform3D:
+	var column := index % 4
+	var row := int(index / 4)
+	return Transform3D(Basis(Vector3.UP, deg_to_rad(8.0)), Vector3(-1.25 + float(column) * 0.75, 0.35, 0.65 + float(row) * 0.9))
+
+
+func _guard_post_transform(index: int) -> Transform3D:
+	if index == 0:
+		return Transform3D(Basis(Vector3.UP, deg_to_rad(-85.0)), Vector3(0.0, 0.05, 3.45))
+	var guard_index := index - 1
+	var column := guard_index % 3
+	var row := int(guard_index / 3)
+	return Transform3D(Basis(Vector3.UP, deg_to_rad(-85.0)), Vector3(-1.4 + float(column) * 1.4, 0.05, 4.25 + float(row) * 0.85))
+
+
+func _waiter_local_position(index: int) -> Vector3:
+	var point_transform := _waiter_point_transform(index)
+	return Vector3(point_transform.origin.x, 0.6, point_transform.origin.z)
+
+
+func _guard_local_position(index: int) -> Vector3:
+	var post_transform := _guard_post_transform(index)
+	return Vector3(post_transform.origin.x, 0.6, post_transform.origin.z + 1.15)
+
+
+func _clamp_count(value, minimum: int, maximum: int) -> int:
+	if value == null:
+		return minimum
+	return clampi(int(value), minimum, maximum)
+
+
+func _migrate_legacy_guard_post_names(root: Node) -> void:
+	if root == null or root.get_node_or_null("GuardPost") != null:
+		return
+	var legacy_post := root.get_node_or_null("EntranceGuardPost")
+	if legacy_post != null:
+		legacy_post.name = "GuardPost"
+
+
+func _trim_generated_children(root: Node, base_name: String, kept_count: int) -> void:
+	if root == null:
+		return
+	for child in root.get_children():
+		var child_index := _generated_child_index(str(child.name), base_name)
+		if child_index >= kept_count:
+			root.remove_child(child)
+			child.queue_free()
+
+
+func _generated_child_index(child_name: String, base_name: String) -> int:
+	if child_name == base_name:
+		return 0
+	if not child_name.begins_with(base_name):
+		return -1
+	var suffix := child_name.substr(base_name.length())
+	if suffix.is_empty() or not suffix.is_valid_int():
+		return -1
+	var ordinal := int(suffix)
+	return ordinal - 1 if ordinal >= 2 else -1
+
+
+func _refresh_authoring_marker(node: Node) -> void:
+	if Engine.is_editor_hint() and node.has_method("_refresh_debug_marker"):
+		node.call("_refresh_debug_marker")
 
 
 func _ensure_child_root(parent: Node, root_name: String) -> Node:

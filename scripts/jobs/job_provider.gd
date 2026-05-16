@@ -13,15 +13,19 @@ const ACTOR_CONDITION_EVALUATOR_SCRIPT = preload("res://scripts/conditions/actor
 @export var max_on_duty_seconds := 90.0
 @export var break_duration_seconds := 45.0
 @export var greeting_return_threshold_seconds := 30.0
+@export var guard_shuffle_min_seconds := 120.0
+@export var guard_shuffle_max_seconds := 180.0
 
 var _worker_records: Dictionary = {}
 var _active_slots: Dictionary = {}
 var _sim_time := 0.0
 var _pending_job_offers: Dictionary = {}
+var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
 	add_to_group("job_provider")
+	_rng.randomize()
 	_initialize_slots()
 
 
@@ -126,21 +130,24 @@ func _initialize_slots() -> void:
 		var job = jobs[job_index]
 		if job == null:
 			continue
-		if _active_slots.has(job_index):
-			continue
-		var slots: Array = []
-		for slot_index in range(max(job.slot_count, 1)):
-			slots.append({
-				"slot_index": slot_index,
-				"worker": null,
-				"work_inventory": null,
-				"claimed_resource": null,
-				"target_container": null,
-				"target_guard_post": null,
-				"target_service_point": null,
-				"accrued_interval_time": 0.0,
-			})
+		var slots: Array = _active_slots.get(job_index, [])
+		for slot_index in range(slots.size(), max(job.slot_count, 1)):
+			slots.append(_new_slot_state(slot_index))
 		_active_slots[job_index] = slots
+
+
+func _new_slot_state(slot_index: int) -> Dictionary:
+	return {
+		"slot_index": slot_index,
+		"worker": null,
+		"work_inventory": null,
+		"claimed_resource": null,
+		"target_container": null,
+		"target_guard_post": null,
+		"target_service_point": null,
+		"guard_shuffle_remaining": _next_guard_shuffle_seconds(),
+		"accrued_interval_time": 0.0,
+	}
 
 
 func _evaluate_job_request(worker: HumanoidCharacter, job_index: int) -> Dictionary:
@@ -200,6 +207,9 @@ func _handle_job_accept(worker: HumanoidCharacter, job_index: int) -> Dictionary
 	slot_state["work_inventory"] = work_inventory
 	slot_state["claimed_resource"] = null
 	slot_state["target_container"] = null
+	slot_state["target_guard_post"] = null
+	slot_state["target_service_point"] = null
+	slot_state["guard_shuffle_remaining"] = _next_guard_shuffle_seconds()
 	slot_state["accrued_interval_time"] = 0.0
 	var record := _get_worker_record(worker)
 	record["current_shift_seconds"] = 0.0
@@ -281,7 +291,7 @@ func _process_slot(job_index: int, job, slot_state: Dictionary, delta: float) ->
 		"mine_and_haul":
 			is_meaningfully_working = _process_mine_and_haul(job_index, job, slot_state, worker)
 		"guard_post":
-			is_meaningfully_working = _process_guard_post(job_index, job, slot_state, worker)
+			is_meaningfully_working = _process_guard_post(job_index, job, slot_state, worker, delta)
 		"server_shift":
 			is_meaningfully_working = _process_server_shift(job_index, job, slot_state, worker)
 	if not is_meaningfully_working:
@@ -329,18 +339,20 @@ func _process_mine_and_haul(job_index: int, job, slot_state: Dictionary, worker:
 	return true
 
 
-func _process_guard_post(_job_index: int, _job, slot_state: Dictionary, worker: HumanoidCharacter) -> bool:
+func _process_guard_post(_job_index: int, _job, slot_state: Dictionary, worker: HumanoidCharacter, delta: float) -> bool:
+	var service_area := _resolve_bar_service_area()
+	if service_area == null:
+		return false
 	var post = slot_state.get("target_guard_post")
 	if post == null or not is_instance_valid(post):
-		var service_area := _resolve_bar_service_area()
-		if service_area == null:
-			return false
 		post = service_area.get_available_guard_post(worker)
 		if post == null:
 			return false
 		if post.has_method("claim_worker") and not post.claim_worker(worker):
 			return false
 		slot_state["target_guard_post"] = post
+		slot_state["guard_shuffle_remaining"] = _next_guard_shuffle_seconds()
+	post = _process_guard_post_shuffle(service_area, slot_state, worker, post, delta)
 	var work_position: Vector3 = post.get_work_position()
 	if worker.global_position.distance_to(work_position) > worker.interact_distance:
 		worker.set_move_target(work_position, false)
@@ -356,8 +368,10 @@ func _process_server_shift(_job_index: int, _job, slot_state: Dictionary, worker
 		var service_area := _resolve_bar_service_area()
 		if service_area == null:
 			return false
-		service_point = service_area.get_service_point()
+		service_point = service_area.get_available_waiter_point(worker)
 		if service_point == null:
+			return false
+		if service_area.has_method("claim_waiter_point") and not service_area.claim_waiter_point(worker, service_point):
 			return false
 		slot_state["target_service_point"] = service_point
 	var work_position: Vector3 = service_point.get_work_position()
@@ -367,6 +381,26 @@ func _process_server_shift(_job_index: int, _job, slot_state: Dictionary, worker
 	if service_point.has_method("is_worker_at_point"):
 		return service_point.is_worker_at_point(worker)
 	return true
+
+
+func _process_guard_post_shuffle(service_area: BarServiceArea, slot_state: Dictionary, worker: HumanoidCharacter, current_post, delta: float):
+	var remaining := float(slot_state.get("guard_shuffle_remaining", _next_guard_shuffle_seconds()))
+	remaining -= delta
+	if remaining > 0.0:
+		slot_state["guard_shuffle_remaining"] = remaining
+		return current_post
+	slot_state["guard_shuffle_remaining"] = _next_guard_shuffle_seconds()
+	if service_area.get_guard_posts().size() <= 1:
+		return current_post
+	var next_post = service_area.get_available_guard_post(worker, current_post)
+	if next_post == null:
+		return current_post
+	if next_post.has_method("claim_worker") and not next_post.claim_worker(worker):
+		return current_post
+	if current_post != null and current_post.has_method("release_worker"):
+		current_post.release_worker(worker)
+	slot_state["target_guard_post"] = next_post
+	return next_post
 
 
 func _resolve_best_resource(job_index: int, job, slot_state: Dictionary, worker: HumanoidCharacter):
@@ -467,6 +501,9 @@ func _end_slot_assignment(job_index: int, slot_state: Dictionary, _caused_by_pla
 	var guard_post = slot_state.get("target_guard_post")
 	if guard_post != null and is_instance_valid(guard_post) and guard_post.has_method("release_worker"):
 		guard_post.release_worker(worker)
+	var service_point = slot_state.get("target_service_point")
+	if service_point != null and is_instance_valid(service_point) and service_point.has_method("release_worker"):
+		service_point.release_worker(worker)
 	if worker != null:
 		var record := _get_worker_record(worker)
 		record["current_shift_seconds"] = float(record.get("current_shift_seconds", 0.0))
@@ -476,6 +513,7 @@ func _end_slot_assignment(job_index: int, slot_state: Dictionary, _caused_by_pla
 	slot_state["target_container"] = null
 	slot_state["target_guard_post"] = null
 	slot_state["target_service_point"] = null
+	slot_state["guard_shuffle_remaining"] = _next_guard_shuffle_seconds()
 	slot_state["accrued_interval_time"] = 0.0
 
 
@@ -495,7 +533,7 @@ func _is_job_configured(job) -> bool:
 			return service_area != null and not service_area.get_guard_posts().is_empty()
 		"server_shift":
 			var service_area := _resolve_bar_service_area()
-			return service_area != null and not service_area.get_service_points().is_empty()
+			return service_area != null and not service_area.get_waiter_service_points().is_empty()
 	return false
 
 
@@ -556,3 +594,9 @@ func _get_worker_key(worker: HumanoidCharacter) -> String:
 	if not worker.stable_id.is_empty():
 		return worker.stable_id
 	return str(worker.get_instance_id())
+
+
+func _next_guard_shuffle_seconds() -> float:
+	var min_seconds := maxf(1.0, guard_shuffle_min_seconds)
+	var max_seconds := maxf(min_seconds, guard_shuffle_max_seconds)
+	return _rng.randf_range(min_seconds, max_seconds)

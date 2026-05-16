@@ -16,24 +16,33 @@ const SILVER_ITEM = preload("res://resources/items/silver.tres")
 @export var tables_root_path: NodePath = NodePath("Furniture/Tables")
 @export var guard_posts_root_path: NodePath = NodePath("GuardPosts")
 @export var service_points_root_path: NodePath = NodePath("ServicePoints")
+@export var guards_root_path: NodePath = NodePath("Staff")
+@export var waiters_root_path: NodePath = NodePath("Staff")
 @export var waiter_character_path: NodePath = NodePath("Staff/Waiter")
 @export var waiter_service_delay_seconds := 7.0
 @export var waiter_service_distance := 2.4
 @export var table_service_radius := 2.8
+@export var guard_shuffle_min_seconds := 120.0
+@export var guard_shuffle_max_seconds := 180.0
 
 var _bed_rentals: Dictionary = {}
 var _active_service_seat
 var _active_service_customer: HumanoidCharacter
+var _active_service_waiter: HumanoidCharacter
 var _service_conversation_started := false
 var inventory: InventoryData
 var _trade_proxy_position := Vector3.ZERO
 var _has_trade_proxy_position := false
 var _proxied_owner: HumanoidCharacter
+var _guard_post_by_actor_id: Dictionary = {}
+var _guard_shuffle_remaining_by_actor_id: Dictionary = {}
+var _rng := RandomNumberGenerator.new()
 
 signal inventory_changed
 
 
 func _ready() -> void:
+	_rng.randomize()
 	add_to_group("bar_service_area")
 	if Engine.is_editor_hint():
 		return
@@ -41,10 +50,11 @@ func _ready() -> void:
 	_sync_trade_inventory()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 	_process_waiter_service()
+	_process_guard_staff(delta)
 
 
 func refresh_scope() -> void:
@@ -161,34 +171,116 @@ func request_bed_sleep(actor: HumanoidCharacter, bed) -> Dictionary:
 	return {"allowed": true, "message": "Bed rented for %d silver" % bed_rent_price}
 
 
-func get_available_guard_post(worker: HumanoidCharacter):
+func get_available_guard_post(worker: HumanoidCharacter, excluded_post = null):
+	var available_posts: Array = []
 	for post in _collect_nodes(guard_posts_root_path):
-		if post != null and post.has_method("is_available_for") and post.is_available_for(worker):
-			return post
-	return null
+		if post == null or post == excluded_post:
+			continue
+		if post.has_method("is_available_for") and post.is_available_for(worker):
+			available_posts.append(post)
+	if available_posts.is_empty():
+		return null
+	return available_posts[_rng.randi_range(0, available_posts.size() - 1)]
 
 
 func get_service_point():
+	return get_barkeeper_service_point()
+
+
+func get_barkeeper_service_point():
+	for point in _collect_nodes(service_points_root_path):
+		if _is_service_point_role(point, "barkeeper"):
+			return point
 	var points := _collect_nodes(service_points_root_path)
 	return points[0] if not points.is_empty() else null
+
+
+func get_available_waiter_point(worker: HumanoidCharacter, excluded_point = null):
+	var fallback = null
+	for point in get_waiter_service_points():
+		if point == excluded_point:
+			continue
+		if not point.has_method("is_available_for"):
+			continue
+		if not point.is_available_for(worker):
+			continue
+		if point.has_method("get_assigned_worker") and point.get_assigned_worker() == null:
+			return point
+		if fallback == null:
+			fallback = point
+	return fallback
+
+
+func claim_waiter_point(worker: HumanoidCharacter, point) -> bool:
+	if worker == null or point == null:
+		return false
+	for service_point in get_waiter_service_points():
+		if service_point != point and service_point.has_method("release_worker"):
+			service_point.release_worker(worker)
+	if point.has_method("claim_worker"):
+		return point.claim_worker(worker)
+	return true
+
+
+func release_waiter_point(worker: HumanoidCharacter, point = null) -> void:
+	for service_point in get_waiter_service_points():
+		if point != null and service_point != point:
+			continue
+		if service_point.has_method("release_worker"):
+			service_point.release_worker(worker)
 
 
 func get_guard_posts() -> Array:
 	return _collect_nodes(guard_posts_root_path)
 
 
+func get_guard_characters() -> Array[HumanoidCharacter]:
+	var guards: Array[HumanoidCharacter] = []
+	var root := get_node_or_null(guards_root_path)
+	if root != null:
+		for child in root.get_children():
+			if child is HumanoidCharacter and str(child.name).begins_with("Guard"):
+				guards.append(child as HumanoidCharacter)
+	return guards
+
+
 func get_service_points() -> Array:
 	return _collect_nodes(service_points_root_path)
 
 
+func get_waiter_service_points() -> Array:
+	var points: Array = []
+	for point in _collect_nodes(service_points_root_path):
+		if _is_service_point_role(point, "waiter"):
+			points.append(point)
+	return points
+
+
 func get_waiter_character() -> HumanoidCharacter:
-	return get_node_or_null(waiter_character_path) as HumanoidCharacter
+	var explicit_waiter := get_node_or_null(waiter_character_path) as HumanoidCharacter
+	if explicit_waiter != null:
+		return explicit_waiter
+	var waiters := get_waiter_characters()
+	return waiters[0] if not waiters.is_empty() else null
+
+
+func get_waiter_characters() -> Array[HumanoidCharacter]:
+	var waiters: Array[HumanoidCharacter] = []
+	var explicit_waiter := get_node_or_null(waiter_character_path) as HumanoidCharacter
+	if explicit_waiter != null:
+		waiters.append(explicit_waiter)
+	var root := get_node_or_null(waiters_root_path)
+	if root != null:
+		for child in root.get_children():
+			if child is HumanoidCharacter and str(child.name).begins_with("Waiter") and not waiters.has(child):
+				waiters.append(child as HumanoidCharacter)
+	return waiters
 
 
 func serves_actor(actor: Node) -> bool:
 	if actor == null:
 		return false
-	return actor == get_owner_character() or actor == get_waiter_character()
+	return actor == get_owner_character() or get_waiter_characters().has(actor)
 
 
 func _is_bed_rented_to_faction(bed, faction_name: String) -> bool:
@@ -219,11 +311,8 @@ func _register_scoped_children() -> void:
 
 
 func _process_waiter_service() -> void:
-	var waiter: HumanoidCharacter = get_waiter_character()
-	if waiter == null or waiter.life_state != NpcRules.LifeState.ALIVE:
-		return
 	if _active_service_seat != null:
-		_continue_waiter_service(waiter)
+		_continue_waiter_service(_active_service_waiter)
 		return
 	var seat = _find_waiting_player_seat()
 	if seat == null:
@@ -231,13 +320,83 @@ func _process_waiter_service() -> void:
 	var customer: HumanoidCharacter = seat.get_sitter()
 	if customer == null:
 		return
+	var waiter := _find_waiter_for_service(seat)
+	if waiter == null:
+		return
 	_mark_table_service_requested(seat)
 	_active_service_seat = seat
 	_active_service_customer = customer
+	_active_service_waiter = waiter
 	_service_conversation_started = false
 
 
+func _process_guard_staff(delta: float) -> void:
+	for guard in get_guard_characters():
+		if guard == null or guard.life_state != NpcRules.LifeState.ALIVE:
+			_release_guard_post_for(guard)
+			continue
+		_process_guard_post_assignment(guard, delta)
+
+
+func _process_guard_post_assignment(guard: HumanoidCharacter, delta: float) -> void:
+	var actor_id := guard.get_instance_id()
+	var post = _guard_post_by_actor_id.get(actor_id)
+	if post == null or not is_instance_valid(post) or (post.has_method("is_available_for") and not post.is_available_for(guard)):
+		post = _claim_guard_post_for(guard)
+		if post == null:
+			return
+	var remaining := float(_guard_shuffle_remaining_by_actor_id.get(actor_id, _next_guard_shuffle_seconds())) - delta
+	if remaining <= 0.0:
+		post = _try_shuffle_guard_post(guard, post)
+		remaining = _next_guard_shuffle_seconds()
+	_guard_shuffle_remaining_by_actor_id[actor_id] = remaining
+	if post == null or not post.has_method("get_work_position"):
+		return
+	var work_position: Vector3 = post.get_work_position()
+	if guard.global_position.distance_to(work_position) > guard.interact_distance:
+		guard.set_move_target(work_position, false)
+
+
+func _claim_guard_post_for(guard: HumanoidCharacter):
+	var post = get_available_guard_post(guard)
+	if post == null:
+		return null
+	if post.has_method("claim_worker") and not post.claim_worker(guard):
+		return null
+	_guard_post_by_actor_id[guard.get_instance_id()] = post
+	_guard_shuffle_remaining_by_actor_id[guard.get_instance_id()] = _next_guard_shuffle_seconds()
+	return post
+
+
+func _try_shuffle_guard_post(guard: HumanoidCharacter, current_post):
+	if get_guard_posts().size() <= 1:
+		return current_post
+	var next_post = get_available_guard_post(guard, current_post)
+	if next_post == null:
+		return current_post
+	if next_post.has_method("claim_worker") and not next_post.claim_worker(guard):
+		return current_post
+	if current_post != null and current_post.has_method("release_worker"):
+		current_post.release_worker(guard)
+	_guard_post_by_actor_id[guard.get_instance_id()] = next_post
+	return next_post
+
+
+func _release_guard_post_for(guard: HumanoidCharacter) -> void:
+	if guard == null:
+		return
+	var actor_id := guard.get_instance_id()
+	var post = _guard_post_by_actor_id.get(actor_id)
+	if post != null and is_instance_valid(post) and post.has_method("release_worker"):
+		post.release_worker(guard)
+	_guard_post_by_actor_id.erase(actor_id)
+	_guard_shuffle_remaining_by_actor_id.erase(actor_id)
+
+
 func _continue_waiter_service(waiter: HumanoidCharacter) -> void:
+	if waiter == null or not is_instance_valid(waiter) or waiter.life_state != NpcRules.LifeState.ALIVE:
+		_clear_waiter_service()
+		return
 	if _active_service_seat == null or not is_instance_valid(_active_service_seat):
 		_return_waiter_to_service_point(waiter)
 		_clear_waiter_service()
@@ -272,6 +431,22 @@ func _find_waiting_player_seat():
 	return null
 
 
+func _find_waiter_for_service(seat) -> HumanoidCharacter:
+	var best_waiter: HumanoidCharacter
+	var best_distance := INF
+	var target_position := global_position
+	if seat != null and seat.has_method("get_service_position"):
+		target_position = seat.get_service_position(null)
+	for waiter in get_waiter_characters():
+		if waiter == null or waiter.life_state != NpcRules.LifeState.ALIVE:
+			continue
+		var distance := waiter.global_position.distance_squared_to(target_position)
+		if distance < best_distance:
+			best_distance = distance
+			best_waiter = waiter
+	return best_waiter
+
+
 func _get_waiter_service_position(waiter: HumanoidCharacter, seat) -> Vector3:
 	if seat != null and seat.has_method("get_service_position"):
 		return seat.get_service_position(waiter)
@@ -293,14 +468,17 @@ func _mark_table_service_completed(origin_seat) -> void:
 func _clear_waiter_service() -> void:
 	_active_service_seat = null
 	_active_service_customer = null
+	_active_service_waiter = null
 	_service_conversation_started = false
 
 
 func _return_waiter_to_service_point(waiter: HumanoidCharacter) -> void:
 	if waiter == null or waiter.life_state != NpcRules.LifeState.ALIVE:
 		return
-	var service_point = get_service_point()
+	var service_point = get_available_waiter_point(waiter)
 	if service_point == null or not is_instance_valid(service_point):
+		return
+	if not claim_waiter_point(waiter, service_point):
 		return
 	if not service_point.has_method("get_work_position"):
 		return
@@ -314,6 +492,19 @@ func _get_conversation_controller():
 	if scene == null:
 		return null
 	return scene.get_node_or_null("GameBootstrap/ConversationController")
+
+
+func _is_service_point_role(point, role: String) -> bool:
+	if point == null:
+		return false
+	if point.has_method("is_point_role"):
+		return point.is_point_role(role)
+	var point_name := str(point.name).to_lower()
+	if role == "barkeeper":
+		return point_name.contains("barkeeper") or point_name.contains("counter")
+	if role == "waiter":
+		return point_name.contains("waiter")
+	return false
 
 
 func _collect_nodes(root_path: NodePath) -> Array:
@@ -330,6 +521,12 @@ func _node_key(node) -> String:
 	if node == null:
 		return ""
 	return str(node.get_path())
+
+
+func _next_guard_shuffle_seconds() -> float:
+	var min_seconds := maxf(1.0, guard_shuffle_min_seconds)
+	var max_seconds := maxf(min_seconds, guard_shuffle_max_seconds)
+	return randf_range(min_seconds, max_seconds)
 
 
 func _now_seconds() -> float:

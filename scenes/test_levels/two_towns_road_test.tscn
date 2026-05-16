@@ -487,6 +487,7 @@ activity_type = "social"
 [node name="FarmerBar" type="Node3D" parent="Settlements/FarmerCrossing/Bars" unique_id=1065394785]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17.523285, 0, -13.375732)
 script = ExtResource("14_50l0v")
+guard_post_count = 3
 staff_squad_name = "FarmerCrossing"
 facility_function = ExtResource("15_v3gon")
 facility_id = "farmer_crossing_bar"
@@ -586,8 +587,14 @@ mesh = SubResource("CylinderMesh_5owu1")
 [node name="ServicePoints" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=922062950]
 
 [node name="BarkeeperCounterPoint" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/ServicePoints" unique_id=335538092]
-transform = Transform3D(0.76604444, 0, 0.6427876, 0, 1, 0, -0.6427876, 0, 0.76604444, 0.73431015, 0.35, -2.955906)
+transform = Transform3D(0.99935067, 0, -0.036033273, 0, 1, 0, 0.036033273, 0, 0.99935067, 0.73431015, 0.35, -2.955906)
 script = ExtResource("27_12p45")
+debug_color = Color(0.36, 1, 0.48, 0.76)
+
+[node name="WaiterPoint" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/ServicePoints" unique_id=619312585]
+transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, -1.25, 0.35, 0.60417557)
+script = ExtResource("27_12p45")
+point_role = "waiter"
 
 [node name="Storage" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=434853625]
 
@@ -597,8 +604,16 @@ script = ExtResource("27_12p45")
 
 [node name="GuardPosts" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=349742852]
 
-[node name="EntranceGuardPost" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/GuardPosts" unique_id=420214629]
-transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -2.2061615, 0.05, 4.6198215)
+[node name="GuardPost" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/GuardPosts" unique_id=420214629]
+transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -2.2061615, 0.05, 4.591627)
+script = ExtResource("28_wbyr3")
+
+[node name="GuardPost2" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/GuardPosts" unique_id=2023908346]
+transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 1.8671455, 0.05, 4.6303062)
+script = ExtResource("28_wbyr3")
+
+[node name="GuardPost3" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/GuardPosts" unique_id=1915391627]
+transform = Transform3D(0.22802807, 0, -0.97365457, 0, 1, 0, 0.97365457, 0, 0.22802807, 1.0502968, 5.7394495, 2.8257008)
 script = ExtResource("28_wbyr3")
 
 [node name="Furniture" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=1625272198]
@@ -767,6 +782,7 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 2.5,
 
 [node name="BarServiceArea" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=4406242]
 script = ExtResource("34_l8nq8")
+service_area_id = "farmer_crossing_bar.service_area"
 owner_character_path = NodePath("../Staff/Barkeeper")
 owner_faction_name = "Farmers"
 beds_root_path = NodePath("../Furniture/Beds")
@@ -774,6 +790,8 @@ seats_root_path = NodePath("../Furniture/Stools")
 tables_root_path = NodePath("../Furniture/Tables")
 guard_posts_root_path = NodePath("../GuardPosts")
 service_points_root_path = NodePath("../ServicePoints")
+guards_root_path = NodePath("../Staff")
+waiters_root_path = NodePath("../Staff")
 waiter_character_path = NodePath("../Staff/Waiter")
 
 [node name="Fields" type="Node3D" parent="Settlements/FarmerCrossing" unique_id=710126475]
@@ -953,7 +971,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0.05, 0)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.05, 0)
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Settlements/FarmerCrossing" unique_id=488512487]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.012554169, 0.15999976, -0.0058250427)
 material_override = SubResource("StandardMaterial3D_12p45")
 cast_shadow = 0
 mesh = SubResource("CylinderMesh_wbyr3")

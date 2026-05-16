@@ -1,9 +1,11 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/world_sim/settlement_bar.gd" id="1_bar"]
 [ext_resource type="Resource" path="res://resources/world_sim/facility_functions/bar.tres" id="2_function"]
 [ext_resource type="PackedScene" path="res://scenes/world/buildings/bar_scene.tscn" id="3_building"]
 [ext_resource type="Script" path="res://scripts/world/venues/bar_service_area.gd" id="4_service_area"]
+[ext_resource type="Script" path="res://scripts/world/venues/bar_service_point.gd" id="5_service_point"]
+[ext_resource type="Script" path="res://scripts/world/venues/bar_guard_post.gd" id="6_guard_post"]
 
 [node name="SettlementBar" type="Node3D"]
 script = ExtResource("1_bar")
@@ -12,6 +14,10 @@ display_name = "Settlement Bar"
 facility_function = ExtResource("2_function")
 owner_faction_id = ""
 staff_stable_id_prefix = "settlement_bar"
+waiter_count = 1
+waiter_point_count = 1
+guard_count = 1
+guard_post_count = 1
 
 [node name="BuildingSlot" type="Node3D" parent="."]
 
@@ -21,6 +27,16 @@ staff_stable_id_prefix = "settlement_bar"
 
 [node name="ServicePoints" type="Node3D" parent="."]
 
+[node name="BarkeeperCounterPoint" type="Node3D" parent="ServicePoints"]
+transform = Transform3D(0.76604444, 0, 0.6427876, 0, 1, 0, -0.6427876, 0, 0.76604444, 0, 0.35, -1.85)
+script = ExtResource("5_service_point")
+debug_color = Color(0.36, 1, 0.48, 0.76)
+
+[node name="WaiterPoint" type="Node3D" parent="ServicePoints"]
+transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, -1.25, 0.35, 0.65)
+script = ExtResource("5_service_point")
+point_role = "waiter"
+
 [node name="Storage" type="Node3D" parent="."]
 
 [node name="JobProviders" type="Node3D" parent="."]
@@ -28,6 +44,10 @@ staff_stable_id_prefix = "settlement_bar"
 [node name="ActivityPoints" type="Node3D" parent="."]
 
 [node name="GuardPosts" type="Node3D" parent="."]
+
+[node name="GuardPost" type="Node3D" parent="GuardPosts"]
+transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 0, 0.05, 3.45)
+script = ExtResource("6_guard_post")
 
 [node name="Furniture" type="Node3D" parent="."]
 
@@ -46,4 +66,6 @@ seats_root_path = NodePath("../Furniture/Stools")
 tables_root_path = NodePath("../Furniture/Tables")
 guard_posts_root_path = NodePath("../GuardPosts")
 service_points_root_path = NodePath("../ServicePoints")
+guards_root_path = NodePath("../Staff")
+waiters_root_path = NodePath("../Staff")
 waiter_character_path = NodePath("../Staff/Waiter")
