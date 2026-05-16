@@ -6,6 +6,7 @@ const FACTION_HUMANOID_SCRIPT = preload("res://scripts/characters/faction_humano
 
 var root_scene: Node
 var settlement_controller: Node
+var road_controller: Node
 var active_squads: Dictionary = {}
 var _squad_index := 0
 var _check_remaining := 0.0
@@ -46,7 +47,8 @@ func start_action(action_record: Dictionary) -> Dictionary:
 	var target_anchor: Node3D = settlement_controller.call("get_settlement_anchor", target_id) as Node3D
 	var spawn_position: Vector3 = source_anchor.call("get_spawn_position", "raid") if source_anchor != null and source_anchor.has_method("get_spawn_position") else Vector3.ZERO
 	var target_position: Vector3 = target_anchor.call("get_spawn_position", "defense") if target_anchor != null and target_anchor.has_method("get_spawn_position") else spawn_position
-	var actors := _spawn_squad_members(squad_id, template, spawn_position, target_position)
+	var route_waypoints := _get_route_waypoints(source_id, target_id)
+	var actors := _spawn_squad_members(squad_id, template, spawn_position, target_position, route_waypoints)
 	var squad_state := {
 		"squad_id": squad_id,
 		"action": action_record.duplicate(true),
@@ -56,6 +58,8 @@ func start_action(action_record: Dictionary) -> Dictionary:
 		"cargo_capacity": _resource_float(template, "food_capacity", 0.0),
 		"combat_engaged": false,
 		"resolved": false,
+		"route_waypoints": route_waypoints,
+		"route_index": 0,
 		"actor_paths": _actor_paths(actors),
 	}
 	active_squads[squad_id] = squad_state
@@ -70,15 +74,17 @@ func _try_initialize() -> void:
 	if _initialized or root_scene == null or not is_inside_tree():
 		return
 	settlement_controller = get_parent().get_node_or_null("SettlementController")
+	road_controller = get_parent().get_node_or_null("RoadController")
 	if settlement_controller == null:
 		return
 	_initialized = true
 
 
-func _spawn_squad_members(squad_id: String, template: Resource, spawn_position: Vector3, target_position: Vector3) -> Array:
+func _spawn_squad_members(squad_id: String, template: Resource, spawn_position: Vector3, target_position: Vector3, route_waypoints: Array[Vector3]) -> Array:
 	var actors: Array = []
 	var actor_root := _ensure_actor_root()
 	var count: int = max(1, _resource_int(template, "member_count", 1))
+	var initial_target := target_position if route_waypoints.is_empty() else route_waypoints[0]
 	var hostile_factions = template.get("hostile_faction_ids")
 	var faction_id: String = _resource_faction_id(template)
 	for index in range(count):
@@ -101,7 +107,7 @@ func _spawn_squad_members(squad_id: String, template: Resource, spawn_position: 
 		actor_root.add_child(actor)
 		actors.append(actor)
 		if actor.has_method("set_move_target"):
-			actor.call("set_move_target", target_position + offset, false)
+			actor.call("set_move_target", initial_target + offset, false)
 	return actors
 
 
@@ -152,7 +158,11 @@ func _process_active_squads() -> void:
 		var target_anchor: Node3D = settlement_controller.call("get_settlement_anchor", target_id) as Node3D
 		if target_anchor == null:
 			continue
-		if not _has_actor_reached_target(squad_state, target_anchor.global_position):
+		var target_position: Vector3 = target_anchor.call("get_spawn_position", "defense") if target_anchor.has_method("get_spawn_position") else target_anchor.global_position
+		if _advance_squad_route(squad_state, target_position):
+			active_squads[squad_id] = squad_state
+			continue
+		if not _has_actor_reached_position(squad_state, target_position, 7.5):
 			continue
 		if not bool(squad_state.get("combat_engaged", false)):
 			_assign_targets(_actors_from_paths(squad_state), target_anchor)
@@ -161,15 +171,59 @@ func _process_active_squads() -> void:
 		var stolen: float = float(settlement_controller.call("resolve_food_transfer", source_id, target_id, float(squad_state.get("cargo_capacity", 0.0)), "visible_food_raid"))
 		squad_state["resolved"] = true
 		squad_state["resolved_food"] = stolen
+		active_squads[squad_id] = squad_state
 
 
-func _has_actor_reached_target(squad_state: Dictionary, target_position: Vector3) -> bool:
+func _advance_squad_route(squad_state: Dictionary, target_position: Vector3) -> bool:
+	var route_waypoints := _route_waypoints_from_state(squad_state)
+	if route_waypoints.is_empty():
+		return false
+	var route_index := int(squad_state.get("route_index", 0))
+	if route_index >= route_waypoints.size():
+		return false
+	if not _has_actor_reached_position(squad_state, route_waypoints[route_index], 3.0):
+		return true
+	route_index += 1
+	squad_state["route_index"] = route_index
+	var next_target := target_position if route_index >= route_waypoints.size() else route_waypoints[route_index]
+	_assign_squad_move_targets(squad_state, next_target)
+	return route_index < route_waypoints.size()
+
+
+func _assign_squad_move_targets(squad_state: Dictionary, target_position: Vector3) -> void:
+	var actors := _actors_from_paths(squad_state)
+	var count := actors.size()
+	for index in range(count):
+		var actor = actors[index]
+		if actor != null and actor.has_method("set_move_target"):
+			actor.call("set_move_target", target_position + _formation_offset(index, count), false)
+
+
+func _has_actor_reached_position(squad_state: Dictionary, target_position: Vector3, arrival_distance: float) -> bool:
 	for path in squad_state.get("actor_paths", []):
 		var actor := get_node_or_null(path)
 		if actor is Node3D and int(actor.get("life_state")) == NpcRules.LifeState.ALIVE:
-			if actor.global_position.distance_to(target_position) <= 7.5:
+			if actor.global_position.distance_to(target_position) <= arrival_distance:
 				return true
 	return false
+
+
+func _route_waypoints_from_state(squad_state: Dictionary) -> Array[Vector3]:
+	var route_waypoints: Array[Vector3] = []
+	for waypoint in squad_state.get("route_waypoints", []):
+		if waypoint is Vector3:
+			route_waypoints.append(waypoint)
+	return route_waypoints
+
+
+func _get_route_waypoints(source_settlement_id: String, target_settlement_id: String) -> Array[Vector3]:
+	var route_waypoints: Array[Vector3] = []
+	if road_controller == null or not road_controller.has_method("get_route_waypoints"):
+		return route_waypoints
+	for waypoint in road_controller.call("get_route_waypoints", source_settlement_id, target_settlement_id):
+		if waypoint is Vector3:
+			route_waypoints.append(waypoint)
+	return route_waypoints
 
 
 func _actor_paths(actors: Array) -> Array[NodePath]:

@@ -6,6 +6,7 @@ var root_scene: Node
 var world_time: Node
 var settlement_controller: Node
 var territory_controller: Node
+var road_controller: Node
 var world_squad_controller: Node
 var _initialized := false
 
@@ -76,6 +77,10 @@ func perform_world_sim_debug_action(action_key: String) -> String:
 			if territory_controller != null and territory_controller.has_method("toggle_town_borders_visible"):
 				return str(territory_controller.call("toggle_town_borders_visible"))
 			return "Territory controller is not available"
+		"toggle_roads":
+			if road_controller != null and road_controller.has_method("toggle_roads_visible"):
+				return str(road_controller.call("toggle_roads_visible"))
+			return "Road controller is not available"
 		_:
 			return "Unknown world sim action"
 
@@ -85,6 +90,7 @@ func serialize_state() -> Dictionary:
 		"settlements": settlement_controller.call("serialize_state") if settlement_controller != null and settlement_controller.has_method("serialize_state") else {},
 		"squads": world_squad_controller.call("serialize_state") if world_squad_controller != null and world_squad_controller.has_method("serialize_state") else {},
 		"territories": territory_controller.call("serialize_state") if territory_controller != null and territory_controller.has_method("serialize_state") else {},
+		"roads": road_controller.call("serialize_state") if road_controller != null and road_controller.has_method("serialize_state") else {},
 	}
 
 
@@ -94,6 +100,7 @@ func _try_initialize() -> void:
 	world_time = get_parent().get_node_or_null("WorldTimeController")
 	settlement_controller = get_parent().get_node_or_null("SettlementController")
 	territory_controller = get_parent().get_node_or_null("TerritoryController")
+	road_controller = get_parent().get_node_or_null("RoadController")
 	world_squad_controller = get_parent().get_node_or_null("WorldSquadController")
 	if world_time == null or settlement_controller == null or world_squad_controller == null:
 		return

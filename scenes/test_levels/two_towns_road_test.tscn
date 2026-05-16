@@ -45,6 +45,7 @@
 [ext_resource type="PackedScene" path="res://scenes/world/props/stool_chair.tscn" id="30_v4og7"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/simple_bed.tscn" id="32_co0cp"]
 [ext_resource type="Script" uid="uid://dw7e6d4p7nh3q" path="res://scripts/world/venues/bar_venue.gd" id="34_l8nq8"]
+[ext_resource type="Script" path="res://scripts/world_sim/road_path.gd" id="35_road"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(180, 1, 128)
@@ -55,16 +56,6 @@ roughness = 0.96
 
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(180, 1, 128)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_road"]
-albedo_color = Color(0.18, 0.16, 0.13, 1)
-roughness = 0.98
-
-[sub_resource type="BoxMesh" id="BoxMesh_road"]
-size = Vector3(124, 0.08, 4)
-
-[sub_resource type="BoxMesh" id="BoxMesh_town_lane"]
-size = Vector3(24, 0.07, 4)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_f34o7"]
 transparency = 1
@@ -359,10 +350,15 @@ shape = SubResource("BoxShape3D_floor")
 material_override = SubResource("StandardMaterial3D_floor")
 mesh = SubResource("BoxMesh_floor")
 
-[node name="Road" type="MeshInstance3D" parent="." unique_id=1068321164]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
-material_override = SubResource("StandardMaterial3D_road")
-mesh = SubResource("BoxMesh_road")
+[node name="Roads" type="Node3D" parent="."]
+
+[node name="FarmerCrossingToRaiderCamp" type="Node3D" parent="Roads"]
+script = ExtResource("35_road")
+road_id = "farmer_crossing_raider_camp"
+display_name = "Farmer Crossing / Raider Camp Road"
+source_settlement_id = "farmer_crossing"
+target_settlement_id = "raider_camp"
+path_points = PackedVector3Array(-38, 0.08, 0, -12, 0.08, -1.5, 12, 0.08, 1.5, 38, 0.08, 0)
 
 [node name="Settlements" type="Node3D" parent="." unique_id=63163481]
 
@@ -375,11 +371,6 @@ raid_spawn_path = NodePath("RoadSpawn")
 defense_spawn_path = NodePath("DefenseSpawn")
 storage_paths = Array[NodePath]([NodePath("Storage/FoodBarrelA"), NodePath("Storage/FoodBarrelB")])
 state_label_path = NodePath("StateLabel")
-
-[node name="EntryRoad" type="MeshInstance3D" parent="Settlements/FarmerCrossing" unique_id=543294551]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0.065, 0)
-material_override = SubResource("StandardMaterial3D_road")
-mesh = SubResource("BoxMesh_town_lane")
 
 [node name="StateLabel" type="Label3D" parent="Settlements/FarmerCrossing" unique_id=282820372]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 46, -86)
@@ -940,16 +931,6 @@ defense_spawn_path = NodePath("DefenseSpawn")
 storage_paths = Array[NodePath]([NodePath("Storage/FoodBarrel"), NodePath("Storage/WeaponChest")])
 state_label_path = NodePath("StateLabel")
 
-[node name="BrokenEntryRoad" type="MeshInstance3D" parent="Settlements/RaiderCamp" unique_id=85882630]
-transform = Transform3D(0.984808, 0, -0.173648, 0, 1, 0, 0.173648, 0, 0.984808, -11, 0.065, 0.8)
-material_override = SubResource("StandardMaterial3D_road")
-mesh = SubResource("BoxMesh_town_lane")
-
-[node name="SideTrackA" type="MeshInstance3D" parent="Settlements/RaiderCamp" unique_id=763524479]
-transform = Transform3D(0.5, 0, 0.866025, 0, 1, 0, -0.866025, 0, 0.5, 4, 0.067, -5)
-material_override = SubResource("StandardMaterial3D_road")
-mesh = SubResource("BoxMesh_town_lane")
-
 [node name="StateLabel" type="Label3D" parent="Settlements/RaiderCamp" unique_id=1275654839]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 46, -86)
 pixel_size = 0.055
@@ -1392,6 +1373,25 @@ billboard = 1
 text = "Town
 Borders"
 
+[node name="ToggleRoads" type="StaticBody3D" parent="WorldSimActions"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0.6, 54)
+script = ExtResource("10_debug_action")
+display_name = "Show Roads"
+action_key = "toggle_roads"
+action_label = "Show/Hide Roads"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/ToggleRoads"]
+shape = SubResource("BoxShape3D_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WorldSimActions/ToggleRoads"]
+material_override = SubResource("StandardMaterial3D_action")
+mesh = SubResource("BoxMesh_action")
+
+[node name="Label3D" type="Label3D" parent="WorldSimActions/ToggleRoads"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+text = "Roads"
+
 [node name="RaidersDepopulated" type="StaticBody3D" parent="WorldSimActions" unique_id=1649662779]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 54, 0.6, 60)
 script = ExtResource("10_debug_action")
@@ -1574,5 +1574,5 @@ offset_left = 20.0
 offset_top = 20.0
 offset_right = 850.0
 offset_bottom = 118.0
-text = "Two-town world sim: towns are SettlementTown nodes with facilities, activity points, territories, and no-build town borders. Right-click debug blocks to advance time, change food/occupancy, force a raid, or show faction territories/town borders. Floating town labels show food, pressure, population, occupancy, and current action."
+text = "Two-town world sim: towns are SettlementTown nodes with facilities, activity points, territories, road paths, and no-build town borders. Right-click debug blocks to advance time, change food/occupancy, force a raid, or show faction territories/town borders/roads. Floating town labels show food, pressure, population, occupancy, and current action."
 autowrap_mode = 3
