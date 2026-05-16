@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_bar.gd" id="1_bar"]
+[ext_resource type="Resource" path="res://resources/world_sim/facility_functions/bar.tres" id="2_function"]
+
+[node name="SettlementBar" type="Node3D"]
+script = ExtResource("1_bar")
+facility_id = "settlement_bar"
+display_name = "Settlement Bar"
+facility_function = ExtResource("2_function")
+owner_faction_id = ""
+staff_stable_id_prefix = "settlement_bar"

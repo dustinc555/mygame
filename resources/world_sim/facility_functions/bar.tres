@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/facility_function_definition.gd" id="1_function"]
+
+[resource]
+script = ExtResource("1_function")
+function_id = "bar"
+display_name = "Bar"
+facility_type = "bar"
+description = "A social and trade facility with a barkeeper, waiter, guard, service points, and bar jobs."
+expected_staff_roles = PackedStringArray("barkeeper", "waiter", "guard")
+expected_service_points = PackedStringArray("counter", "guard_post")
+expected_activity_types = PackedStringArray("social", "sit", "guard")

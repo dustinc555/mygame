@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_field.gd" id="1_field"]
+[ext_resource type="Resource" path="res://resources/world_sim/facility_functions/field.tres" id="2_function"]
+
+[node name="SettlementField" type="Node3D"]
+script = ExtResource("1_field")
+facility_id = "settlement_field"
+display_name = "Settlement Field"
+facility_function = ExtResource("2_function")
+food_production_per_day = 12.0

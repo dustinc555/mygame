@@ -188,6 +188,7 @@ func _register_settlement_definition(definition: Resource, anchor: Node3D) -> vo
 	elif anchor != null:
 		var state: Dictionary = settlement_states[settlement_id]
 		state["world_position"] = anchor.global_position
+		_register_anchor_facilities(settlement_id, anchor)
 		_notify_state_changed(settlement_id)
 	if faction_controller != null and faction_controller.has_method("register_faction"):
 		faction_controller.call("register_faction", definition.get("faction_definition") as Resource)
@@ -217,8 +218,11 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 		"last_action_absolute_hour": -999999,
 		"last_action": "Idle",
 		"world_position": position,
+		"facilities": {},
+		"facility_totals": {},
 	}
 	_apply_population_from_occupancy(settlement_id)
+	_register_anchor_facilities(settlement_id, anchor)
 	_update_pressure_state(settlement_id)
 	_notify_state_changed(settlement_id)
 
@@ -241,8 +245,9 @@ func _process_daily_upkeep(settlement_id: String, day_index: int, hour: int) -> 
 	if int(state.get("last_upkeep_day", -1)) == day_index:
 		return
 	state["last_upkeep_day"] = day_index
-	var produced := maxf(_resource_float(profile, "food_production_per_day", 0.0), 0.0)
-	var consumed := maxf(float(state.get("population", 1)) * _resource_float(profile, "food_consumption_per_person_per_day", 1.0), 0.0)
+	var facility_totals: Dictionary = state.get("facility_totals", {})
+	var produced := maxf(_resource_float(profile, "food_production_per_day", 0.0) + float(facility_totals.get("food_production_per_day", 0.0)), 0.0)
+	var consumed := maxf(float(state.get("population", 1)) * _resource_float(profile, "food_consumption_per_person_per_day", 1.0) + float(facility_totals.get("food_consumption_per_day", 0.0)), 0.0)
 	var previous_food := float(state.get("food", 0.0))
 	state["food"] = clampf(previous_food + produced - consumed, 0.0, float(state.get("max_food", 1.0)))
 	_update_pressure_state(settlement_id)
@@ -333,6 +338,47 @@ func _notify_state_changed(settlement_id: String) -> void:
 	if anchor != null and anchor.has_method("apply_settlement_state"):
 		anchor.call("apply_settlement_state", state)
 	settlement_state_changed.emit(settlement_id, state)
+
+
+func _register_anchor_facilities(settlement_id: String, anchor: Node3D) -> void:
+	if anchor == null or not settlement_states.has(settlement_id):
+		return
+	if not anchor.has_method("get_facility_records"):
+		return
+	var state: Dictionary = settlement_states[settlement_id]
+	var facilities: Dictionary = state.get("facilities", {})
+	for record in anchor.call("get_facility_records"):
+		if not (record is Dictionary):
+			continue
+		var facility_id := str(record.get("facility_id", ""))
+		if facility_id.is_empty():
+			continue
+		facilities[facility_id] = record.duplicate(true)
+	state["facilities"] = facilities
+	_recalculate_facility_totals(settlement_id)
+
+
+func _recalculate_facility_totals(settlement_id: String) -> void:
+	var state: Dictionary = settlement_states[settlement_id]
+	var facilities: Dictionary = state.get("facilities", {})
+	var totals := {
+		"food_production_per_day": 0.0,
+		"food_consumption_per_day": 0.0,
+		"storage_capacity_bonus": 0.0,
+		"activity_point_count": 0,
+		"job_provider_count": 0,
+		"bar_venue_count": 0,
+	}
+	for record in facilities.values():
+		if not (record is Dictionary):
+			continue
+		totals["food_production_per_day"] = float(totals["food_production_per_day"]) + float(record.get("food_production_per_day", 0.0))
+		totals["food_consumption_per_day"] = float(totals["food_consumption_per_day"]) + float(record.get("food_consumption_per_day", 0.0))
+		totals["storage_capacity_bonus"] = float(totals["storage_capacity_bonus"]) + float(record.get("storage_capacity_bonus", 0.0))
+		totals["activity_point_count"] = int(totals["activity_point_count"]) + int(record.get("activity_point_count", 0))
+		totals["job_provider_count"] = int(totals["job_provider_count"]) + int(record.get("job_provider_count", 0))
+		totals["bar_venue_count"] = int(totals["bar_venue_count"]) + int(record.get("bar_venue_count", 0))
+	state["facility_totals"] = totals
 
 
 func _apply_population_from_occupancy(settlement_id: String) -> void:

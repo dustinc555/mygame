@@ -6,12 +6,25 @@
 
 ## Architecture Rules
 - Before editing, search for all applicable `AGENT.md` files in the project and follow the most specific guidance for the files being touched.
+- Before shared system, gameplay architecture, persistence, world simulation, settlement, faction, inventory, job, or bootstrap work, read `architecture/README.md` and the relevant docs in `architecture/`.
+- When changing system ownership, scene contracts, runtime state shape, editor workflow, or online/server compatibility assumptions, update the relevant `architecture/` docs in the same task.
+- When changing world-sim data relationships, settlement/faction/territory/job/inventory ownership, or controller serialization, update the node data graph in `architecture/game-data.md`.
+- Reusable editor-authored content must be designed for a human operator using the Godot editor, not just for code-driven setup.
+- Prefer drag-in scenes, `class_name` nodes, exported fields, named child roots, safe defaults, stable IDs, and clear editor workflows.
+- If reusable content only works in one test/demo scene, refactor it into a reusable contract before continuing.
+- When changing how a human operator adds, configures, or composes reusable content, update concise instructions in `operator/` in the same task.
 - Scenes are composition only. Test/demo scenes place content and shared anchor nodes; they do not own gameplay features.
 - Bootstrap owns systems. Shared gameplay, UI, and controller wiring must live in `GameBootstrap` or another reusable bootstrap layer.
 - No scene-specific feature logic. If a feature only works in one demo scene, stop and refactor it into a reusable system before continuing.
 - Shared scene contract first. When adding a new system, define the nodes/components the bootstrap expects instead of hardcoding feature behavior into a level.
 - Test levels are proofs, not implementations. Levels may customize content and instructions, but not core interaction, inventory, combat, trade, HUD, AI, or simulation logic.
 - Before writing code, ask: `If I drag this asset into another bootstrapped scene, will it still work?` If not, refactor first.
+
+## Human Operator Design
+- A human operator should be able to add reusable gameplay content from the editor without reading implementation code.
+- Visual shells should stay separate from gameplay function; for example, a building model is neutral and a facility function makes it a bar, field, shop, police station, mine, or other facility.
+- Generated or self-built node trees must remain readable, editable, and stable in the editor.
+- Before considering reusable editor content complete, confirm the operator can add it with `Add Child Node` or `Instantiate Child Scene...`, set obvious exported fields, replace visual models safely, and reuse it in another bootstrapped scene.
 
 ## Character And Equipment Modeling
 - Characters use race definitions and body archetype definitions. Do not treat sex/body/race as hardcoded scene-specific state.

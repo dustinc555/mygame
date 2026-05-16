@@ -1,0 +1,46 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_town.gd" id="1_town"]
+
+[node name="SettlementTown" type="Node3D"]
+script = ExtResource("1_town")
+resident_root_path = NodePath("Residents")
+storage_paths = Array[NodePath]([])
+facilities_root_path = NodePath("Facilities")
+bars_root_path = NodePath("Bars")
+fields_root_path = NodePath("Fields")
+shops_root_path = NodePath("Shops")
+mines_root_path = NodePath("Mines")
+housing_root_path = NodePath("Housing")
+activity_points_root_path = NodePath("ActivityPoints")
+storage_root_path = NodePath("Storage")
+territory_root_path = NodePath("Territory")
+
+[node name="Facilities" type="Node3D" parent="."]
+
+[node name="Bars" type="Node3D" parent="."]
+
+[node name="Fields" type="Node3D" parent="."]
+
+[node name="Shops" type="Node3D" parent="."]
+
+[node name="Mines" type="Node3D" parent="."]
+
+[node name="Housing" type="Node3D" parent="."]
+
+[node name="Residents" type="Node3D" parent="."]
+
+[node name="Storage" type="Node3D" parent="."]
+
+[node name="ActivityPoints" type="Node3D" parent="."]
+
+[node name="Territory" type="Node3D" parent="."]
+
+[node name="RoadSpawn" type="Marker3D" parent="."]
+
+[node name="DefenseSpawn" type="Marker3D" parent="."]
+
+[node name="StateLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8, -10)
+billboard = 1
+text = "Settlement\nUnconfigured"

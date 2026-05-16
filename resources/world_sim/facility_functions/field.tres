@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/facility_function_definition.gd" id="1_function"]
+
+[resource]
+script = ExtResource("1_function")
+function_id = "field"
+display_name = "Field"
+facility_type = "farm"
+description = "A food-producing farm field with farming activity points."
+default_food_production_per_day = 12.0
+expected_activity_types = PackedStringArray("farm")

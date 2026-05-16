@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://sa213mic48vf" path="res://scripts/characters/character_body_archetype_definition.gd" id="1_script"]
 [ext_resource type="PackedScene" uid="uid://q8elrj0lpnj3" path="res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Female_FullBody.gltf" id="2_visual"]
-[ext_resource type="Resource" path="res://resources/humanoid_grip_socket_profiles/human_female.tres" id="3_grip"]
+[ext_resource type="Resource" uid="uid://dalkever0wmlw" path="res://resources/humanoid_grip_socket_profiles/human_female.tres" id="3_grip"]
 
 [resource]
 script = ExtResource("1_script")
