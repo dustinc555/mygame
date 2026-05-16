@@ -45,6 +45,10 @@ const BED_SCENE = preload("res://scenes/world/props/simple_bed.tscn")
 	set(value):
 		guard_post_count = _clamp_count(value, 0, 12)
 		_repair_authoring_tree()
+@export_range(1, 12, 1) var guard_job_slot_count: int = 1:
+	set(value):
+		guard_job_slot_count = _clamp_count(value, 1, 12)
+		_repair_authoring_tree()
 @export var staff_stable_id_prefix := ""
 @export var staff_squad_name := ""
 @export var sync_staff_from_owner := true
@@ -331,7 +335,7 @@ func _sync_job_provider_jobs(provider: Node) -> void:
 			continue
 		match str(job.get("algorithm_id")):
 			"guard_post":
-				job.set("slot_count", max(guard_count, 1))
+				job.set("slot_count", max(guard_job_slot_count, 1))
 			"server_shift":
 				job.set("slot_count", max(waiter_count, 1))
 

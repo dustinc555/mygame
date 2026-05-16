@@ -97,7 +97,7 @@ func _show_node(node) -> void:
 	if active_target != null and active_target.has_method("get_job_provider"):
 		var provider = active_target.get_job_provider()
 		if provider != null:
-			for option in provider.build_conversation_options(active_speaker):
+			for option in provider.build_conversation_options(active_speaker, _build_dynamic_option_context()):
 				response_data.append({
 					"text": option.get("text", ""),
 					"disabled": false,
@@ -146,7 +146,7 @@ func _handle_dynamic_response(option: Dictionary) -> void:
 			floating_notice.show_message(option.get("reason", ""))
 		return
 	transcript_lines.append("%s: %s" % [active_speaker.member_name, option.get("text", "")])
-	var result: Dictionary = provider.handle_conversation_option(active_speaker, option)
+	var result: Dictionary = provider.handle_conversation_option(active_speaker, option, _build_dynamic_option_context())
 	var provider_name: String = active_target.member_name if active_target != null else ""
 	if result.get("speaker_text", "") != "":
 		transcript_lines.append("%s: %s" % [provider_name, result.get("speaker_text", "")])
@@ -176,6 +176,15 @@ func _evaluate_response(response) -> Dictionary:
 			reason = result.get("reason", condition.disabled_reason)
 			return {"visible": false, "disabled": false, "reason": reason}
 	return {"visible": true, "disabled": false, "reason": reason}
+
+
+func _build_dynamic_option_context() -> Dictionary:
+	var selected_members: Array = []
+	if party_manager != null:
+		for member in party_manager.selected_members:
+			if member is HumanoidCharacter and is_instance_valid(member):
+				selected_members.append(member)
+	return {"selected_party_members": selected_members}
 
 
 func _apply_effects(effects: Array) -> void:

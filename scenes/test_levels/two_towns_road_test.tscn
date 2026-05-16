@@ -131,6 +131,7 @@ script = ExtResource("25_abfu4")
 display_name = "Guard duty"
 job_id = "bar_guard"
 algorithm_id = "guard_post"
+slot_count = 2
 
 [sub_resource type="Resource" id="Resource_stnqu"]
 script = ExtResource("25_abfu4")
@@ -488,6 +489,7 @@ activity_type = "social"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17.523285, 0, -13.375732)
 script = ExtResource("14_50l0v")
 guard_post_count = 3
+guard_job_slot_count = 2
 staff_squad_name = "FarmerCrossing"
 facility_function = ExtResource("15_v3gon")
 facility_id = "farmer_crossing_bar"

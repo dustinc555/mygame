@@ -49,7 +49,7 @@ func get_greeting_text_for(worker: HumanoidCharacter, fallback: String) -> Strin
 	return fallback
 
 
-func build_conversation_options(worker: HumanoidCharacter) -> Array:
+func build_conversation_options(worker: HumanoidCharacter, _context: Dictionary = {}) -> Array:
 	var options: Array = []
 	if worker == null:
 		return options
@@ -75,14 +75,16 @@ func build_conversation_options(worker: HumanoidCharacter) -> Array:
 	return options
 
 
-func handle_conversation_option(worker: HumanoidCharacter, option: Dictionary) -> Dictionary:
+func handle_conversation_option(worker: HumanoidCharacter, option: Dictionary, context: Dictionary = {}) -> Dictionary:
 	var action := str(option.get("job_provider_action", ""))
 	match action:
 		"request_job":
 			var job_index := int(option.get("job_index", -1))
-			return _handle_job_request_prompt(worker, job_index)
+			return _handle_job_request_prompt(worker, job_index, context)
 		"accept_job_offer":
 			return _handle_job_accept(worker, int(option.get("job_index", -1)))
+		"accept_selected_job_offer":
+			return _handle_selected_job_accept(worker, int(option.get("job_index", -1)), context)
 		"decline_job_offer":
 			_clear_pending_offer(worker)
 			return {
@@ -151,6 +153,8 @@ func _new_slot_state(slot_index: int) -> Dictionary:
 
 
 func _evaluate_job_request(worker: HumanoidCharacter, job_index: int) -> Dictionary:
+	if worker == null or job_index < 0 or job_index >= jobs.size():
+		return {"allowed": false, "reason": "No job configured"}
 	var job = jobs[job_index]
 	if job == null:
 		return {"allowed": false, "reason": "No job configured"}
@@ -173,12 +177,35 @@ func _evaluate_job_request(worker: HumanoidCharacter, job_index: int) -> Diction
 	return {"allowed": true, "reason": ""}
 
 
-func _handle_job_request_prompt(worker: HumanoidCharacter, job_index: int) -> Dictionary:
+func _handle_job_request_prompt(worker: HumanoidCharacter, job_index: int, context: Dictionary = {}) -> Dictionary:
 	var evaluation := _evaluate_job_request(worker, job_index)
 	if not evaluation.get("allowed", false):
-		return {"end_conversation": true}
+		return _job_unavailable_response(jobs[job_index] if job_index >= 0 and job_index < jobs.size() else null, evaluation)
 	var job = jobs[job_index]
 	_pending_job_offers[_get_worker_key(worker)] = job_index
+	if _supports_selected_group_offer(job):
+		var selected_workers := _get_selected_job_group(worker, context)
+		if selected_workers.size() > 1:
+			var selected_evaluation := _evaluate_group_job_request(selected_workers, job_index)
+			if selected_evaluation.get("allowed", false):
+				return {
+					"speaker_text": "%s You taking the watch alone, or bringing the others?" % _build_job_offer_text(job),
+					"end_conversation": false,
+					"follow_up_options": [
+						{"text": "Just me.", "job_provider_action": "accept_job_offer", "job_index": job_index},
+						{"text": "All of us.", "job_provider_action": "accept_selected_job_offer", "job_index": job_index},
+						{"text": "Not right now", "job_provider_action": "decline_job_offer", "job_index": job_index},
+					],
+				}
+			var fallback_text := "I only have room for one. You still want it?" if str(selected_evaluation.get("reason", "")) == "No openings right now" else "I can't put everyone on this. You still want it?"
+			return {
+				"speaker_text": fallback_text,
+				"end_conversation": false,
+				"follow_up_options": [
+					{"text": "I'll do it.", "job_provider_action": "accept_job_offer", "job_index": job_index},
+					{"text": "Not right now", "job_provider_action": "decline_job_offer", "job_index": job_index},
+				],
+			}
 	return {
 		"speaker_text": _build_job_offer_text(job),
 		"end_conversation": false,
@@ -194,12 +221,52 @@ func _handle_job_accept(worker: HumanoidCharacter, job_index: int) -> Dictionary
 	if _pending_job_offers.get(_get_worker_key(worker), -1) != job_index:
 		return {"end_conversation": true}
 	_clear_pending_offer(worker)
+	var job = jobs[job_index]
+	var assignment := _assign_worker_to_open_slot(worker, job_index)
+	if not assignment.get("allowed", false):
+		return _job_unavailable_response(job, assignment)
+	return {
+		"speaker_text": "Good. Get to work on %s." % job.get_display_name().to_lower(),
+		"end_conversation": true,
+		"show_floating_notice": false,
+		"speech_target": get_provider_character(),
+		"speech_text": "Good. Get to work.",
+		"speech_lifetime": 5.0,
+	}
+
+
+func _handle_selected_job_accept(worker: HumanoidCharacter, job_index: int, context: Dictionary = {}) -> Dictionary:
+	if _pending_job_offers.get(_get_worker_key(worker), -1) != job_index:
+		return {"end_conversation": true}
+	var job = jobs[job_index]
+	var selected_workers := _get_selected_job_group(worker, context)
+	if selected_workers.size() <= 1:
+		return _handle_job_accept(worker, job_index)
+	var evaluation := _evaluate_group_job_request(selected_workers, job_index)
+	if not evaluation.get("allowed", false):
+		return _job_unavailable_response(job, evaluation)
+	_clear_pending_offer(worker)
+	for selected_worker in selected_workers:
+		var assignment := _assign_worker_to_open_slot(selected_worker, job_index)
+		if not assignment.get("allowed", false):
+			return _job_unavailable_response(job, assignment)
+	return {
+		"speaker_text": "Good. All of you, get to work on %s." % job.get_display_name().to_lower(),
+		"end_conversation": true,
+		"show_floating_notice": false,
+		"speech_target": get_provider_character(),
+		"speech_text": "Good. All of you, get to work.",
+		"speech_lifetime": 5.0,
+	}
+
+
+func _assign_worker_to_open_slot(worker: HumanoidCharacter, job_index: int) -> Dictionary:
 	var evaluation := _evaluate_job_request(worker, job_index)
 	if not evaluation.get("allowed", false):
-		return {"end_conversation": true}
+		return evaluation
 	var slot_index := _find_open_slot(job_index)
 	if slot_index < 0:
-		return {"end_conversation": true}
+		return {"allowed": false, "reason": "No openings right now"}
 	var job = jobs[job_index]
 	var slot_state: Dictionary = _active_slots[job_index][slot_index]
 	var work_inventory := InventoryData.new(DEFAULT_WORK_INVENTORY_COLUMNS, DEFAULT_WORK_INVENTORY_ROWS, 0.0, false)
@@ -215,14 +282,7 @@ func _handle_job_accept(worker: HumanoidCharacter, job_index: int) -> Dictionary
 	record["current_shift_seconds"] = 0.0
 	record["last_job_index"] = job_index
 	worker.begin_job_assignment(self, job.get_display_name(), work_inventory)
-	return {
-		"speaker_text": "Good. Get to work on %s." % job.get_display_name().to_lower(),
-		"end_conversation": true,
-		"show_floating_notice": false,
-		"speech_target": get_provider_character(),
-		"speech_text": "Good. Get to work.",
-		"speech_lifetime": 5.0,
-	}
+	return {"allowed": true, "reason": ""}
 
 
 func _handle_collect_pay(worker: HumanoidCharacter) -> Dictionary:
@@ -274,6 +334,66 @@ func _find_open_slot(job_index: int) -> int:
 		if slots[slot_index].get("worker") == null:
 			return slot_index
 	return -1
+
+
+func _get_open_slot_count(job_index: int) -> int:
+	var open_count := 0
+	var slots: Array = _active_slots.get(job_index, [])
+	for slot_state in slots:
+		if slot_state.get("worker") == null:
+			open_count += 1
+	return open_count
+
+
+func _evaluate_group_job_request(workers: Array, job_index: int) -> Dictionary:
+	if workers.is_empty():
+		return {"allowed": false, "reason": "No workers selected"}
+	if _get_open_slot_count(job_index) < workers.size():
+		return {"allowed": false, "reason": "No openings right now"}
+	for worker in workers:
+		if not (worker is HumanoidCharacter):
+			return {"allowed": false, "reason": "No workers selected"}
+		var evaluation := _evaluate_job_request(worker, job_index)
+		if not evaluation.get("allowed", false):
+			return evaluation
+	return {"allowed": true, "reason": ""}
+
+
+func _get_selected_job_group(worker: HumanoidCharacter, context: Dictionary) -> Array:
+	var selected_workers: Array = []
+	var context_selected: Array = context.get("selected_party_members", [])
+	for selected_worker in context_selected:
+		if selected_worker == null or not is_instance_valid(selected_worker):
+			continue
+		if not (selected_worker is HumanoidCharacter):
+			continue
+		if selected_workers.has(selected_worker):
+			continue
+		selected_workers.append(selected_worker)
+	if worker == null or not selected_workers.has(worker):
+		return [worker] if worker != null else []
+	return selected_workers
+
+
+func _supports_selected_group_offer(job) -> bool:
+	return job != null and str(job.algorithm_id) == "guard_post"
+
+
+func _job_unavailable_response(job, evaluation: Dictionary) -> Dictionary:
+	var reason := str(evaluation.get("reason", ""))
+	var message := reason
+	if job != null and str(job.get("algorithm_id")) == "guard_post" and reason == "No openings right now":
+		message = "No. I have enough guards right now."
+	elif message.is_empty():
+		message = "I don't have work for you right now."
+	return {
+		"speaker_text": message,
+		"end_conversation": true,
+		"show_floating_notice": false,
+		"speech_target": get_provider_character(),
+		"speech_text": message,
+		"speech_lifetime": 5.0,
+	}
 
 
 func _process_slot(job_index: int, job, slot_state: Dictionary, delta: float) -> void:
@@ -518,8 +638,9 @@ func _end_slot_assignment(job_index: int, slot_state: Dictionary, _caused_by_pla
 
 
 func _is_job_offer_visible(worker: HumanoidCharacter, job_index: int) -> bool:
-	var evaluation := _evaluate_job_request(worker, job_index)
-	return evaluation.get("allowed", false)
+	if worker == null or job_index < 0 or job_index >= jobs.size():
+		return false
+	return _is_job_configured(jobs[job_index])
 
 
 func _is_job_configured(job) -> bool:

@@ -18,6 +18,7 @@ waiter_count = 1
 waiter_point_count = 1
 guard_count = 1
 guard_post_count = 1
+guard_job_slot_count = 1
 
 [node name="BuildingSlot" type="Node3D" parent="."]
 
