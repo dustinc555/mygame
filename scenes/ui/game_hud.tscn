@@ -190,10 +190,40 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 10
 text = "World: Stable"
 
-[node name="SpeedOption" type="OptionButton" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn"]
-custom_minimum_size = Vector2(0, 28)
+[node name="SpeedButtonRow" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn"]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_constants/separation = 3
+
+[node name="PauseButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow"]
+custom_minimum_size = Vector2(34, 28)
+layout_mode = 2
+toggle_mode = true
+text = "||"
+
+[node name="SlowButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow"]
+custom_minimum_size = Vector2(42, 28)
+layout_mode = 2
+toggle_mode = true
+text = "1/2"
+
+[node name="NormalButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow"]
+custom_minimum_size = Vector2(34, 28)
+layout_mode = 2
+toggle_mode = true
+text = ">"
+
+[node name="FastButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow"]
+custom_minimum_size = Vector2(38, 28)
+layout_mode = 2
+toggle_mode = true
+text = ">>"
+
+[node name="VeryFastButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow"]
+custom_minimum_size = Vector2(42, 28)
+layout_mode = 2
+toggle_mode = true
+text = ">>>"
 
 [node name="InventoryWindowLayer" type="Control" parent="."]
 layout_mode = 3
@@ -203,6 +233,45 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+
+[node name="PauseOverlay" type="Control" parent="."]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Scrim" type="ColorRect" parent="PauseOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.02, 0.02, 0.03, 0.32)
+
+[node name="PausedLabel" type="Label" parent="PauseOverlay"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -160.0
+offset_top = -42.0
+offset_right = 160.0
+offset_bottom = 42.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 42
+text = "PAUSED"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="ConversationWindow" parent="." instance=ExtResource("3_conversation")]
 layout_mode = 0

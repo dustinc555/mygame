@@ -8,6 +8,7 @@ const ACTOR_CONDITION_EVALUATOR_SCRIPT = preload("res://scripts/conditions/actor
 var root_scene: Node
 var hud_layer: CanvasLayer
 var inventory_controller
+var world_time: Node
 var party_manager
 var floating_notice
 var conversation_window
@@ -17,6 +18,7 @@ var active_definition
 var active_node
 var transcript_lines: PackedStringArray = PackedStringArray()
 var displayed_actions: Array = []
+var _conversation_pause_requested := false
 var _initialized := false
 
 
@@ -28,7 +30,7 @@ func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
 
 
 func _ready() -> void:
-	process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	if root_scene != null:
 		if hud_layer == null:
 			hud_layer = root_scene.get_node_or_null("GameHUD")
@@ -44,10 +46,11 @@ func _do_initialize() -> void:
 	if hud_layer == null:
 		return
 	inventory_controller = get_parent().get_node_or_null("PartyInventoryController")
+	world_time = get_parent().get_node_or_null("WorldTimeController")
 	conversation_window = hud_layer.get_node_or_null("ConversationWindow")
 	floating_notice = hud_layer.get_node_or_null("FloatingNotice")
 	if conversation_window != null:
-		conversation_window.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+		conversation_window.process_mode = Node.PROCESS_MODE_ALWAYS
 		conversation_window.response_selected.connect(_on_response_selected)
 	_initialized = true
 
@@ -62,6 +65,7 @@ func begin_conversation(speaker, target) -> void:
 	active_target = target
 	active_definition = definition
 	transcript_lines.clear()
+	_request_conversation_pause()
 	_show_node(definition.get_node_by_id(definition.start_node_id))
 
 
@@ -107,7 +111,6 @@ func _show_node(node) -> void:
 	displayed_actions.append({"type": "leave"})
 	if conversation_window != null:
 		conversation_window.show_conversation(speaker_name, "\n\n".join(transcript_lines), response_data, active_speaker, active_target)
-	get_tree().paused = true
 
 
 func _on_response_selected(response_index: int) -> void:
@@ -273,7 +276,7 @@ func _resolve_bar_service_area(start_node: Node) -> BarServiceArea:
 
 
 func _end_conversation() -> void:
-	get_tree().paused = false
+	_release_conversation_pause()
 	if conversation_window != null:
 		conversation_window.hide_conversation()
 	active_speaker = null
@@ -282,6 +285,20 @@ func _end_conversation() -> void:
 	active_node = null
 	transcript_lines.clear()
 	displayed_actions.clear()
+
+
+func _request_conversation_pause() -> void:
+	_conversation_pause_requested = false
+	if world_time != null and world_time.has_method("request_conversation_pause"):
+		_conversation_pause_requested = bool(world_time.call("request_conversation_pause"))
+
+
+func _release_conversation_pause() -> void:
+	if not _conversation_pause_requested:
+		return
+	_conversation_pause_requested = false
+	if world_time != null and world_time.has_method("release_conversation_pause"):
+		world_time.call("release_conversation_pause")
 
 
 func _show_follow_up_options(speaker_name: String, options: Array) -> void:

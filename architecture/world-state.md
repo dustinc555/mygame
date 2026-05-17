@@ -52,6 +52,12 @@ Short-lived animation or UI timers may still use local process time.
 
 Simulation changes that affect the world should use world time when possible.
 
+Local world speed is also owned by `WorldTimeController`. Its speed presets drive `Engine.time_scale`, so movement, animation, hunger, bleeding, recovery, mining, jobs, guard shifts, raids, lighting, weather-style effects, and world-clock advancement derive from the same world-sim speed.
+
+Manual pause is a world pause and shows the HUD `PAUSED` overlay. Conversation pause is also requested through `WorldTimeController` for local/offline play, but it does not show the `PAUSED` overlay because the conversation window is the active modal UI.
+
+The current `server_authoritative_mode` flag is only a future-proof policy seam. If a future online/server-authoritative mode is enabled, conversation pause requests should not pause server-owned world state; server simulation speed should default to Normal unless an explicit server/admin setting changes it.
+
 ## Scene Bridge Pattern
 
 Spatial nodes bridge authored scene data into controller state.

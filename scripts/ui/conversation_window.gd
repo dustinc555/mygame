@@ -33,7 +33,7 @@ var _response_hover_style := StyleBoxFlat.new()
 
 func _ready() -> void:
 	visible = false
-	process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_response_style.bg_color = Color(0.2, 0.17, 0.13, 1.0)
 	_response_style.border_color = Color(0.46, 0.38, 0.24, 1.0)

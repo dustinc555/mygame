@@ -50,6 +50,10 @@ Examples include construction claims, faction territory response, settlement foo
 
 Clients can still predict movement, show UI, animate, and request actions.
 
+World speed is local/offline-controlled for now, but future online play should treat server world time as authoritative and hard-lock normal simulation speed unless a server/admin setting explicitly changes it. Client-side pause should not stop server-owned world state.
+
+Local conversations pause world state through `WorldTimeController`; future online conversations should keep the dialog UI local and let the server simulation continue. If danger, combat, distance, or participant state invalidates the conversation, the client should close the dialog rather than expecting the server world to pause.
+
 ## Anti-Patterns
 
 Avoid these if the state may persist, save, or replicate:

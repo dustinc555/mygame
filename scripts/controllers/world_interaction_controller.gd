@@ -205,6 +205,7 @@ func _ensure_progress_bar(member: HumanoidCharacter) -> void:
 func _process(delta: float) -> void:
 	if not _initialized:
 		return
+	var input_delta := _get_unscaled_input_delta(delta)
 	var move_input := Vector2(
 		float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A)),
 		float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_W))
@@ -217,7 +218,7 @@ func _process(delta: float) -> void:
 		var move_basis := Basis(Vector3.UP, camera_yaw)
 		var move_direction := move_basis * Vector3(move_input.x, 0.0, move_input.y)
 		if move_direction.length() > 0.0:
-			camera_anchor += move_direction.normalized() * free_camera_move_speed * delta
+			camera_anchor += move_direction.normalized() * free_camera_move_speed * input_delta
 
 	if party_manager.followed_member != null:
 		camera_anchor = _get_anchor_position()
@@ -226,7 +227,11 @@ func _process(delta: float) -> void:
 		_apply_camera_transform()
 
 	_update_progress_bars()
-	_process_hold_move(delta)
+	_process_hold_move(input_delta)
+
+
+func _get_unscaled_input_delta(delta: float) -> float:
+	return delta / maxf(Engine.time_scale, 0.001)
 
 
 func _unhandled_input(event: InputEvent) -> void:
