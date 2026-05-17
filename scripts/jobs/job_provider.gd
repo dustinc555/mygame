@@ -406,6 +406,8 @@ func _process_slot(job_index: int, job, slot_state: Dictionary, delta: float) ->
 	if worker.get_active_job_provider() != self:
 		_end_slot_assignment(job_index, slot_state, false)
 		return
+	if worker.is_in_combat():
+		return
 	var is_meaningfully_working := false
 	match job.algorithm_id:
 		"mine_and_haul":

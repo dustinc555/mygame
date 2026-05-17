@@ -71,6 +71,8 @@ const MIN_EXHAUSTED_MOVE_MULTIPLIER := 0.2
 
 const ASSIST_RANGE := 8.5
 const AGGRO_RANGE := 8.5
+const COMBAT_WITNESS_RANGE := 16.0
+const RAID_ALARM_APPROACH_RANGE := 8.0
 
 
 static func get_stance_label(stance: int) -> String:

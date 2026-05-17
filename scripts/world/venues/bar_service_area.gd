@@ -4,6 +4,7 @@ extends Node3D
 class_name BarServiceArea
 
 const SILVER_ITEM = preload("res://resources/items/silver.tres")
+const COMBAT_INTERVENTION_STAFF_GROUP := "combat_intervention_staff"
 
 @export var service_area_id := ""
 @export var owner_character_path: NodePath
@@ -308,6 +309,22 @@ func _register_scoped_children() -> void:
 	for seat in _collect_nodes(seats_root_path):
 		if seat.has_method("set_bar_service_area"):
 			seat.set_bar_service_area(self)
+	_register_combat_intervention_staff()
+
+
+func _register_combat_intervention_staff() -> void:
+	var staff: Array[HumanoidCharacter] = []
+	var owner := get_owner_character()
+	if owner != null:
+		staff.append(owner)
+	for guard in get_guard_characters():
+		if guard != null and not staff.has(guard):
+			staff.append(guard)
+	for waiter in get_waiter_characters():
+		if waiter != null and not staff.has(waiter):
+			staff.append(waiter)
+	for actor in staff:
+		actor.add_to_group(COMBAT_INTERVENTION_STAFF_GROUP)
 
 
 func _process_waiter_service() -> void:
@@ -399,6 +416,9 @@ func _continue_waiter_service(waiter: HumanoidCharacter) -> void:
 	if waiter == null or not is_instance_valid(waiter) or waiter.life_state != NpcRules.LifeState.ALIVE:
 		_clear_waiter_service()
 		return
+	if waiter.is_in_combat():
+		_clear_waiter_service()
+		return
 	if _active_service_seat == null or not is_instance_valid(_active_service_seat):
 		_return_waiter_to_service_point(waiter)
 		_clear_waiter_service()
@@ -442,6 +462,8 @@ func _find_waiter_for_service(seat) -> HumanoidCharacter:
 	for waiter in get_waiter_characters():
 		if waiter == null or waiter.life_state != NpcRules.LifeState.ALIVE:
 			continue
+		if waiter.is_in_combat():
+			continue
 		var distance := waiter.global_position.distance_squared_to(target_position)
 		if distance < best_distance:
 			best_distance = distance
@@ -475,7 +497,7 @@ func _clear_waiter_service() -> void:
 
 
 func _return_waiter_to_service_point(waiter: HumanoidCharacter) -> void:
-	if waiter == null or waiter.life_state != NpcRules.LifeState.ALIVE:
+	if waiter == null or waiter.life_state != NpcRules.LifeState.ALIVE or waiter.is_in_combat():
 		return
 	var service_point = get_available_waiter_point(waiter)
 	if service_point == null or not is_instance_valid(service_point):

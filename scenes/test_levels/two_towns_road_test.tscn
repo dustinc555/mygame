@@ -23,7 +23,7 @@
 [ext_resource type="Resource" path="res://resources/world_sim/factions/raiders.tres" id="18_raider_faction"]
 [ext_resource type="Resource" path="res://resources/world_sim/squad_templates/farmer_militia.tres" id="19_farmer_militia"]
 [ext_resource type="Script" uid="uid://bid84rrfurtuw" path="res://scripts/roles/merchant_role.gd" id="19_otbxr"]
-[ext_resource type="Resource" path="res://resources/world_sim/squad_templates/raider_food_party.tres" id="20_raider_squad"]
+[ext_resource type="Resource" uid="uid://dtbjlvj3dehp8" path="res://resources/world_sim/squad_templates/raider_food_party.tres" id="20_raider_squad"]
 [ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/hatchet.tres" id="21_hatchet"]
 [ext_resource type="Script" uid="uid://cwebktnxurrer" path="res://scripts/items/merchant_price.gd" id="21_wncmk"]
 [ext_resource type="Resource" uid="uid://bhx1scgadb5d7" path="res://resources/items/silver.tres" id="22_1trl3"]
@@ -378,6 +378,7 @@ mesh = SubResource("BoxMesh_floor")
 [node name="Roads" type="Node3D" parent="." unique_id=1470918845]
 
 [node name="FarmerCrossingToRaiderCamp" type="Node3D" parent="Roads" unique_id=916319959]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3.8469534)
 script = ExtResource("35_road")
 road_id = "farmer_crossing_raider_camp"
 display_name = "Farmer Crossing / Raider Camp Road"
@@ -973,7 +974,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0.05, 0)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.05, 0)
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Settlements/FarmerCrossing" unique_id=488512487]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.012554169, 0.15999976, -0.0058250427)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
 material_override = SubResource("StandardMaterial3D_12p45")
 cast_shadow = 0
 mesh = SubResource("CylinderMesh_wbyr3")

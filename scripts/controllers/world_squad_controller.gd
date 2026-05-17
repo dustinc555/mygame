@@ -56,6 +56,7 @@ func start_action(action_record: Dictionary) -> Dictionary:
 		"target_settlement_id": target_id,
 		"template_id": _resource_id(template),
 		"cargo_capacity": _resource_float(template, "food_capacity", 0.0),
+		"alarm_raised": false,
 		"combat_engaged": false,
 		"resolved": false,
 		"route_waypoints": route_waypoints,
@@ -159,6 +160,10 @@ func _process_active_squads() -> void:
 		if target_anchor == null:
 			continue
 		var target_position: Vector3 = target_anchor.call("get_spawn_position", "defense") if target_anchor.has_method("get_spawn_position") else target_anchor.global_position
+		if not bool(squad_state.get("alarm_raised", false)) and _has_actor_reached_town_alarm_range(squad_state, target_anchor):
+			_raise_settlement_alarm(squad_state, target_anchor)
+			squad_state["alarm_raised"] = true
+			active_squads[squad_id] = squad_state
 		if _advance_squad_route(squad_state, target_position):
 			active_squads[squad_id] = squad_state
 			continue
@@ -206,6 +211,43 @@ func _has_actor_reached_position(squad_state: Dictionary, target_position: Vecto
 			if actor.global_position.distance_to(target_position) <= arrival_distance:
 				return true
 	return false
+
+
+func _has_actor_reached_town_alarm_range(squad_state: Dictionary, target_anchor: Node3D) -> bool:
+	if target_anchor == null:
+		return false
+	var border_radius := 0.0
+	var border_radius_value = target_anchor.get("town_border_radius")
+	if border_radius_value != null:
+		border_radius = maxf(float(border_radius_value), 0.0)
+	var alarm_radius := border_radius + NpcRules.RAID_ALARM_APPROACH_RANGE
+	for actor in _actors_from_paths(squad_state):
+		if not (actor is Node3D) or int(actor.get("life_state")) != NpcRules.LifeState.ALIVE:
+			continue
+		if target_anchor.has_method("contains_town_border_position") and bool(target_anchor.call("contains_town_border_position", actor.global_position)):
+			return true
+		var center := Vector2(target_anchor.global_position.x, target_anchor.global_position.z)
+		var position := Vector2(actor.global_position.x, actor.global_position.z)
+		if center.distance_to(position) <= alarm_radius:
+			return true
+	return false
+
+
+func _raise_settlement_alarm(squad_state: Dictionary, target_anchor: Node3D) -> void:
+	var attacker = _first_alive_actor(squad_state)
+	if attacker == null:
+		return
+	for node in get_tree().get_nodes_in_group("npc_character"):
+		if node == attacker or not node.has_method("respond_to_settlement_alarm"):
+			continue
+		node.call("respond_to_settlement_alarm", attacker, target_anchor, null)
+
+
+func _first_alive_actor(squad_state: Dictionary):
+	for actor in _actors_from_paths(squad_state):
+		if actor is Node3D and int(actor.get("life_state")) == NpcRules.LifeState.ALIVE:
+			return actor
+	return null
 
 
 func _route_waypoints_from_state(squad_state: Dictionary) -> Array[Vector3]:

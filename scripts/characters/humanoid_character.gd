@@ -65,6 +65,7 @@ const SITTING_IDLE_MAX_SECONDS := 11.0
 const SITTING_TALKING_CHANCE := 0.28
 const MOVE_ANIMATION_BLEND_SECONDS := 0.12
 const COMBAT_ACTION_BLEND_SECONDS := 0.05
+const COMBAT_INTERVENTION_STAFF_GROUP := "combat_intervention_staff"
 const EQUIPMENT_SLOTS: Array[String] = ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head", "weapon", "offhand"]
 const EQUIPMENT_SLOT_LABELS := {
 	"undershirt": "Undershirt",
@@ -170,6 +171,7 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var trade_interaction_distance := 3.0
 @export var aggressive_scan_radius := NpcRules.AGGRO_RANGE
 @export var assist_scan_radius := NpcRules.ASSIST_RANGE
+@export var combat_witness_radius := NpcRules.COMBAT_WITNESS_RANGE
 @export var attack_range := 1.15
 @export var combat_approach_arrival_distance := 0.08
 @export var combat_direct_chase_distance := 3.0
@@ -1235,7 +1237,32 @@ func is_hostile_to(other: HumanoidCharacter) -> bool:
 		return false
 	if _personal_hostile_ids.has(other.get_instance_id()):
 		return true
-	return hostile_factions.has(other.faction_name)
+	if hostile_factions.has(other.faction_name):
+		return true
+	return _factions_are_hostile(faction_name, other.faction_name)
+
+
+func _factions_are_hostile(faction_a: String, faction_b: String) -> bool:
+	if faction_a.is_empty() or faction_b.is_empty() or faction_a == faction_b:
+		return false
+	if not is_inside_tree():
+		return false
+	for node in get_tree().get_nodes_in_group("faction_controller"):
+		if node.has_method("are_hostile"):
+			return bool(node.call("are_hostile", faction_a, faction_b))
+	return false
+
+
+func _is_actor_hostile_to_faction(actor: HumanoidCharacter, target_faction: String) -> bool:
+	if actor == null or target_faction.is_empty() or actor.faction_name == target_faction:
+		return false
+	if actor.hostile_factions.has(target_faction):
+		return true
+	return _factions_are_hostile(actor.faction_name, target_faction)
+
+
+func _is_friendly_to_faction(target_faction: String) -> bool:
+	return not _is_actor_hostile_to_faction(self, target_faction)
 
 
 func mark_hostile(other: HumanoidCharacter) -> void:
@@ -1318,6 +1345,7 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	mark_hostile(attacker)
 	attacker.mark_hostile(self)
 	_last_direct_attacker_id = attacker.get_instance_id()
+	_notify_defensive_allies_of_attack(attacker)
 	_face_character(attacker)
 	_last_ragdoll_impulse = _get_attack_ragdoll_impulse(attacker, blunt_damage + cut_damage)
 	var can_actively_defend := life_state == NpcRules.LifeState.ALIVE and not _is_getting_up
@@ -1489,6 +1517,10 @@ func _get_move_target_arrival_distance() -> float:
 	if _current_order_type == OrderType.ATTACK:
 		return combat_approach_arrival_distance
 	return super._get_move_target_arrival_distance()
+
+
+func _should_persist_move_target_navigation() -> bool:
+	return _current_order_type != OrderType.MOVE or not _order_was_player_issued
 
 
 func _on_actor_move_target_reached() -> void:
@@ -3576,27 +3608,60 @@ func _find_defensive_assist_target() -> HumanoidCharacter:
 		if not (node is HumanoidCharacter):
 			continue
 		var ally: HumanoidCharacter = node
-		if ally == self or ally.life_state == NpcRules.LifeState.DEAD:
+		if ally == self or ally.life_state != NpcRules.LifeState.ALIVE:
 			continue
-		if not _should_defend_ally(ally):
-			continue
-		if global_position.distance_to(ally.global_position) > assist_scan_radius:
+		if global_position.distance_to(ally.global_position) > _get_combat_witness_radius():
 			continue
 		var ally_target := ally.get_current_combat_target()
-		if ally_target != null and is_instance_valid(ally_target) and ally_target.life_state == NpcRules.LifeState.ALIVE and has_hostility_with(ally_target) and not candidates.has(ally_target):
+		if ally_target != null and is_instance_valid(ally_target) and ally_target.life_state == NpcRules.LifeState.ALIVE and _should_help_against(ally, ally_target, true) and not candidates.has(ally_target):
 			candidates.append(ally_target)
-	return COMBAT_COORDINATOR.choose_target(self, candidates, maxf(assist_scan_radius, aggressive_scan_radius)) as HumanoidCharacter
+	return COMBAT_COORDINATOR.choose_target(self, candidates, _get_combat_switch_radius()) as HumanoidCharacter
 
 
 func _should_defend_ally(ally: HumanoidCharacter) -> bool:
-	if ally == null:
+	var ally_target := ally.get_current_combat_target() if ally != null else null
+	return _should_help_against(ally, ally_target, true)
+
+
+func _should_help_against(protected_actor: HumanoidCharacter, threat: HumanoidCharacter, allow_public_intervention: bool) -> bool:
+	if protected_actor == null or threat == null or threat == self:
 		return false
-	if ally.faction_name != faction_name:
+	if threat.life_state != NpcRules.LifeState.ALIVE:
 		return false
-	if ally.squad_name != squad_name:
+	if has_hostility_with(protected_actor):
 		return false
-	# Allied faction assistance can expand here once deeper faction relations are added.
-	return true
+	if _are_party_allies(protected_actor):
+		return true
+	if has_hostility_with(threat):
+		return true
+	return allow_public_intervention and _is_public_order_defender()
+
+
+func _are_party_allies(other: HumanoidCharacter) -> bool:
+	return other != null and player_party_member and other.player_party_member
+
+
+func _is_public_order_defender() -> bool:
+	if is_in_group(COMBAT_INTERVENTION_STAFF_GROUP):
+		return true
+	var role_text := "%s %s %s" % [str(name), member_name, _active_job_label]
+	role_text = role_text.to_lower()
+	return role_text.contains("guard") or role_text.contains("barkeeper") or role_text.contains("waiter")
+
+
+func _get_combat_witness_radius() -> float:
+	return maxf(assist_scan_radius, combat_witness_radius)
+
+
+func _get_combat_switch_radius() -> float:
+	return maxf(maxf(assist_scan_radius, aggressive_scan_radius), combat_witness_radius)
+
+
+func _can_witness_combat(protected_actor: HumanoidCharacter, threat: HumanoidCharacter) -> bool:
+	var witness_radius := _get_combat_witness_radius()
+	if protected_actor != null and global_position.distance_to(protected_actor.global_position) <= witness_radius:
+		return true
+	return threat != null and global_position.distance_to(threat.global_position) <= witness_radius
 
 
 func _find_nearest_hostile(scan_radius: float) -> HumanoidCharacter:
@@ -3619,8 +3684,7 @@ func _try_start_self_defense(attacker: HumanoidCharacter) -> void:
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
-	assign_attack_target(attacker, false, false, false)
-	_set_actor_move_target(attacker.get_combat_move_position(self))
+	_join_defense_against(attacker)
 
 
 func _notify_defensive_allies_of_attack(attacker: HumanoidCharacter) -> void:
@@ -3631,6 +3695,7 @@ func _notify_defensive_allies_of_attack(attacker: HumanoidCharacter) -> void:
 		if ally == self:
 			continue
 		ally._respond_to_ally_under_attack(self, attacker)
+	_notify_settlement_alarm_of_attack(attacker)
 
 
 func _notify_defensive_allies_of_engagement(target: HumanoidCharacter) -> void:
@@ -3650,15 +3715,11 @@ func _respond_to_ally_under_attack(ally: HumanoidCharacter, attacker: HumanoidCh
 		return
 	if combat_stance == NpcRules.CombatStance.PASSIVE:
 		return
-	if not _should_defend_ally(ally):
+	if not _can_witness_combat(ally, attacker):
 		return
-	if global_position.distance_to(ally.global_position) > assist_scan_radius:
+	if not _should_help_against(ally, attacker, true):
 		return
-	mark_hostile(attacker)
-	attacker.mark_hostile(self)
-	if _current_attack_target != null and _current_attack_target != attacker and not COMBAT_COORDINATOR.should_switch_target(self, _current_attack_target, attacker, maxf(assist_scan_radius, aggressive_scan_radius)):
-		return
-	assign_attack_target(attacker, false, false, false)
+	_join_defense_against(attacker)
 
 
 func _respond_to_ally_engagement(ally: HumanoidCharacter, target: HumanoidCharacter) -> void:
@@ -3668,17 +3729,132 @@ func _respond_to_ally_engagement(ally: HumanoidCharacter, target: HumanoidCharac
 		return
 	if combat_stance == NpcRules.CombatStance.PASSIVE:
 		return
-	if not _should_defend_ally(ally):
+	if not _can_witness_combat(ally, target):
 		return
-	if global_position.distance_to(ally.global_position) > assist_scan_radius:
+	if not _should_help_against(ally, target, false):
 		return
-	if target.life_state != NpcRules.LifeState.ALIVE:
+	_join_defense_against(target)
+
+
+func _join_defense_against(threat: HumanoidCharacter) -> void:
+	if threat == null or not is_instance_valid(threat) or threat.life_state != NpcRules.LifeState.ALIVE:
 		return
-	mark_hostile(target)
-	target.mark_hostile(self)
-	if _current_attack_target != null and _current_attack_target != target and not COMBAT_COORDINATOR.should_switch_target(self, _current_attack_target, target, maxf(assist_scan_radius, aggressive_scan_radius)):
+	mark_hostile(threat)
+	threat.mark_hostile(self)
+	if _current_attack_target != null and _current_attack_target != threat and not COMBAT_COORDINATOR.should_switch_target(self, _current_attack_target, threat, _get_combat_switch_radius()):
 		return
-	assign_attack_target(target, false, false, false)
+	assign_attack_target(threat, false, false, false)
+	_set_actor_move_target(threat.get_combat_move_position(self))
+
+
+func respond_to_settlement_alarm(attacker: HumanoidCharacter, alarm_town: Node, victim: HumanoidCharacter = null) -> void:
+	_respond_to_settlement_alarm(victim, attacker, alarm_town)
+
+
+func _notify_settlement_alarm_of_attack(attacker: HumanoidCharacter) -> void:
+	var alarm_town := _find_alarm_town_for_attack(attacker)
+	if alarm_town == null or not _should_attack_raise_settlement_alarm(attacker, alarm_town):
+		return
+	for node in get_tree().get_nodes_in_group("npc_character"):
+		if not (node is HumanoidCharacter):
+			continue
+		var responder: HumanoidCharacter = node
+		if responder == self or responder == attacker:
+			continue
+		responder._respond_to_settlement_alarm(self, attacker, alarm_town)
+
+
+func _respond_to_settlement_alarm(victim: HumanoidCharacter, attacker: HumanoidCharacter, alarm_town: Node) -> void:
+	if attacker == null or not is_instance_valid(attacker) or attacker == self:
+		return
+	if attacker.life_state != NpcRules.LifeState.ALIVE or life_state != NpcRules.LifeState.ALIVE:
+		return
+	if combat_stance == NpcRules.CombatStance.PASSIVE:
+		return
+	if not _should_answer_settlement_alarm(victim, attacker, alarm_town):
+		return
+	_join_defense_against(attacker)
+
+
+func _find_alarm_town_for_attack(attacker: HumanoidCharacter) -> Node:
+	var town := _get_owning_settlement_town(self)
+	if town != null:
+		return town
+	town = _get_containing_settlement_town(global_position)
+	if town != null:
+		return town
+	return _get_containing_settlement_town(attacker.global_position) if attacker != null else null
+
+
+func _should_attack_raise_settlement_alarm(attacker: HumanoidCharacter, alarm_town: Node) -> bool:
+	if attacker == null or alarm_town == null:
+		return false
+	var town_faction := _get_settlement_faction_id(alarm_town)
+	if town_faction.is_empty() or not _is_actor_hostile_to_faction(attacker, town_faction):
+		return false
+	return _is_actor_in_or_attached_to_town(self, alarm_town) or _is_actor_in_or_attached_to_town(attacker, alarm_town)
+
+
+func _should_answer_settlement_alarm(victim: HumanoidCharacter, attacker: HumanoidCharacter, alarm_town: Node) -> bool:
+	if alarm_town == null or not _is_actor_in_or_attached_to_town(self, alarm_town):
+		return false
+	var town_faction := _get_settlement_faction_id(alarm_town)
+	if not town_faction.is_empty():
+		if not _is_friendly_to_faction(town_faction):
+			return false
+		if not _is_actor_hostile_to_faction(attacker, town_faction):
+			return false
+	if victim != null and has_hostility_with(victim):
+		return false
+	if faction_name == town_faction or _is_node_descendant_of(self, alarm_town):
+		return true
+	if has_hostility_with(attacker):
+		return true
+	return _is_public_order_defender()
+
+
+func _get_owning_settlement_town(node: Node) -> Node:
+	var current := node
+	while current != null:
+		if current.is_in_group("settlement_town"):
+			return current
+		current = current.get_parent()
+	return null
+
+
+func _get_containing_settlement_town(world_position: Vector3) -> Node:
+	if not is_inside_tree():
+		return null
+	for node in get_tree().get_nodes_in_group("settlement_town"):
+		if node.has_method("contains_town_border_position") and bool(node.call("contains_town_border_position", world_position)):
+			return node
+	return null
+
+
+func _get_settlement_faction_id(alarm_town: Node) -> String:
+	if alarm_town == null:
+		return ""
+	var definition = alarm_town.get("settlement_definition")
+	if definition != null and definition.has_method("get_faction_id"):
+		return str(definition.call("get_faction_id"))
+	return ""
+
+
+func _is_actor_in_or_attached_to_town(actor: HumanoidCharacter, alarm_town: Node) -> bool:
+	if actor == null or alarm_town == null:
+		return false
+	if _is_node_descendant_of(actor, alarm_town):
+		return true
+	return alarm_town.has_method("contains_town_border_position") and bool(alarm_town.call("contains_town_border_position", actor.global_position))
+
+
+func _is_node_descendant_of(node: Node, ancestor: Node) -> bool:
+	var current := node
+	while current != null:
+		if current == ancestor:
+			return true
+		current = current.get_parent()
+	return false
 
 
 func _clear_all_active_orders() -> void:
