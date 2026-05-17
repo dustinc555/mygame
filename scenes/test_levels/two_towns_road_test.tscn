@@ -41,7 +41,7 @@
 [ext_resource type="Script" uid="uid://c32mdje85i12b" path="res://scripts/world/venues/bar_guard_post.gd" id="28_wbyr3"]
 [ext_resource type="PackedScene" path="res://scenes/world_sim/settlement_field.tscn" id="29_settlement_field"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/bar_table.tscn" id="29_ykhgb"]
-[ext_resource type="PackedScene" path="res://scenes/world/buildings/two_story_house.tscn" id="30_two_story_house"]
+[ext_resource type="PackedScene" path="res://scenes/world/buildings/small_bar_scene.tscn" id="30_small_bar_scene"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/stool_chair.tscn" id="30_v4og7"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/simple_bed.tscn" id="32_co0cp"]
 [ext_resource type="Script" uid="uid://dw7e6d4p7nh3q" path="res://scripts/world/venues/bar_service_area.gd" id="34_l8nq8"]
@@ -502,13 +502,13 @@ metadata/_custom_type_script = "uid://c354oqtn4bw75"
 
 [node name="BuildingSlot" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=2023458293]
 
-[node name="TwoStoryHouse" parent="Settlements/FarmerCrossing/Bars/FarmerBar/BuildingSlot" unique_id=763509149 instance=ExtResource("30_two_story_house")]
+[node name="SmallBarScene" parent="Settlements/FarmerCrossing/Bars/FarmerBar/BuildingSlot" unique_id=763509149 instance=ExtResource("30_small_bar_scene")]
 population_capacity_id = "farmer_crossing.tavern"
 
 [node name="Staff" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=1808305516]
 
 [node name="Barkeeper" type="CharacterBody3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff" unique_id=151008028]
-transform = Transform3D(-0.99997145, 0, 0.007557233, 0, 1, 0, -0.007557233, 0, -0.99997145, -0.15000153, 0.6, -2.8500004)
+transform = Transform3D(-0.99997145, 0, 0.007557233, 0, 1, 0, -0.007557233, 0, -0.99997145, -0.52851486, 0.6, -2.579792)
 script = ExtResource("17_kv8yx")
 base_color = Color(0.58, 0.43, 0.2, 1)
 member_name = "Barkeeper"
@@ -522,7 +522,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
 shape = SubResource("CapsuleShape3D_ikrwl")
 
 [node name="BodyMesh" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff/Barkeeper" unique_id=417890112]
-transform = Transform3D(0.990507, 0, 0.13746187, 0, 1, 0, -0.13746187, 0, 0.990507, 0, 0.9499999, 0)
+transform = Transform3D(0.9905072, 0, 0.13746187, 0, 1, 0, -0.13746187, 0, 0.9905072, -0.41197205, 0.9499999, 0.0031137466)
 mesh = SubResource("CapsuleMesh_ieqkg")
 
 [node name="SelectionRing" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff/Barkeeper" unique_id=215843070]
@@ -542,7 +542,7 @@ wage_item_definition = ExtResource("22_1trl3")
 bar_service_area_path = NodePath("../../../BarServiceArea")
 
 [node name="Waiter" type="CharacterBody3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff" unique_id=1090906859]
-transform = Transform3D(-0.36940622, 0, -0.929268, 0, 1, 0, 0.929268, 0, -0.36940622, -1.5595207, 0.6, 2.0300064)
+transform = Transform3D(-0.36940622, 0, -0.929268, 0, 1, 0, 0.929268, 0, -0.36940622, -0.7486801, 0.6, 2.3999996)
 script = ExtResource("17_kv8yx")
 base_color = Color(0.28, 0.47, 0.56, 1)
 member_name = "Waiter"
@@ -565,7 +565,7 @@ visible = false
 mesh = SubResource("CylinderMesh_bdn7o")
 
 [node name="Guard" type="CharacterBody3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff" unique_id=1190330139]
-transform = Transform3D(-0.9998269, 0, 0.018604072, 0, 1, 0, -0.018604072, 0, -0.9998269, -1.6532669, 0.6, 5.0384483)
+transform = Transform3D(-0.9998269, 0, 0.018604072, 0, 1, 0, -0.018604072, 0, -0.9998269, 4.6, 0.6, 4.8)
 script = ExtResource("17_kv8yx")
 base_color = Color(0.42, 0.42, 0.48, 1)
 member_name = "Bar Guard"
@@ -590,12 +590,12 @@ mesh = SubResource("CylinderMesh_5owu1")
 [node name="ServicePoints" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=922062950]
 
 [node name="BarkeeperCounterPoint" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/ServicePoints" unique_id=335538092]
-transform = Transform3D(0.99935067, 0, -0.036033273, 0, 1, 0, 0.036033273, 0, 0.99935067, 0.73431015, 0.35, -2.955906)
+transform = Transform3D(0.99935067, 0, -0.036033273, 0, 1, 0, 0.036033273, 0, 0.99935067, 1.7355347, 0.35, -4.0736885)
 script = ExtResource("27_12p45")
 debug_color = Color(0.36, 1, 0.48, 0.76)
 
 [node name="WaiterPoint" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/ServicePoints" unique_id=619312585]
-transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, -1.25, 0.35, 0.60417557)
+transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, 1.2, 0.35, 1.5)
 script = ExtResource("27_12p45")
 point_role = "waiter"
 
@@ -608,24 +608,23 @@ point_role = "waiter"
 [node name="GuardPosts" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=349742852]
 
 [node name="GuardPost" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/GuardPosts" unique_id=420214629]
-transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -2.2061615, 0.05, 4.591627)
+transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -3.2359924, 0.05, 4.4015694)
 script = ExtResource("28_wbyr3")
 
 [node name="GuardPost2" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/GuardPosts" unique_id=2023908346]
-transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 1.8671455, 0.05, 4.6303062)
+transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -2.2333717, 0.05, 6.826962)
 script = ExtResource("28_wbyr3")
 
 [node name="GuardPost3" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/GuardPosts" unique_id=1915391627]
-transform = Transform3D(0.22802807, 0, -0.97365457, 0, 1, 0, 0.97365457, 0, 0.22802807, 1.0502968, 5.7394495, 2.8257008)
+transform = Transform3D(0.22802807, 0, -0.97365457, 0, 1, 0, 0.97365457, 0, 0.22802807, 4.5, 5.95, 4.7)
 script = ExtResource("28_wbyr3")
 
 [node name="Furniture" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=1625272198]
 
 [node name="Tables" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture" unique_id=657080723]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.49354172, 0, -0.55694294)
 
 [node name="TableA" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Tables" unique_id=1758148129 instance=ExtResource("29_ykhgb")]
-transform = Transform3D(0.9975641, 0, 0.06975647, 0, 1, 0, -0.06975647, 0, 0.9975641, 1.25, 0, 1.25)
+transform = Transform3D(0.9975641, 0, 0.06975647, 0, 1, 0, -0.06975647, 0, 0.9975641, 1.3, 0, 1.2)
 
 [node name="Top2" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Tables/TableA" unique_id=485608208]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.78, 0)
@@ -661,10 +660,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
 shape = SubResource("BoxShape3D_table")
 
 [node name="Stools" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture" unique_id=54099340]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6472702, 0, -0.61281776)
 
 [node name="StoolAFront" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Stools" unique_id=810577737 instance=ExtResource("30_v4og7")]
-transform = Transform3D(-0.9975641, 0, -0.0697564, 0, 1, 0, 0.0697564, 0, -0.9975641, 1.25, 0, 2.55)
+transform = Transform3D(-0.9975641, 0, -0.0697564, 0, 1, 0, 0.0697564, 0, -0.9975641, 1.3, 0, 2.5)
 
 [node name="Seat2" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Stools/StoolAFront" unique_id=305562326]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
@@ -709,7 +707,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, -0.36)
 shape = SubResource("BoxShape3D_back")
 
 [node name="StoolABack" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Stools" unique_id=820894795 instance=ExtResource("30_v4og7")]
-transform = Transform3D(0.9975641, 0, 0.06975647, 0, 1, 0, -0.06975647, 0, 0.9975641, 1.25, 0, -0.05)
+transform = Transform3D(0.9975641, 0, 0.06975647, 0, 1, 0, -0.06975647, 0, 0.9975641, 1.3, 0, -0.1)
 
 [node name="Seat2" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Stools/StoolABack" unique_id=1992714377]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
@@ -756,7 +754,7 @@ shape = SubResource("BoxShape3D_back")
 [node name="Beds" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture" unique_id=10350868]
 
 [node name="BedA" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Beds" unique_id=641683217 instance=ExtResource("32_co0cp")]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 2.5, 3, -2.3)
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 1, 3, 3.6)
 
 [node name="Frame2" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Beds/BedA" unique_id=1853304975]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
@@ -778,12 +776,13 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 shape = SubResource("BoxShape3D_bed")
 
 [node name="BedB" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Beds" unique_id=238541062 instance=ExtResource("32_co0cp")]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 2.5, 3, 0)
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 3.3, 3, 3.6)
 
 [node name="BedC" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Furniture/Beds" unique_id=1487989653 instance=ExtResource("32_co0cp")]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 2.5, 3, 2.3)
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.6, 3, 3.6)
 
 [node name="BarServiceArea" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=4406242]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.9207802, 0, -4.6205063)
 script = ExtResource("34_l8nq8")
 service_area_id = "farmer_crossing_bar.service_area"
 owner_character_path = NodePath("../Staff/Barkeeper")

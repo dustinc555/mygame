@@ -9,6 +9,7 @@ var _party_manager: PartyManager
 var _camera: Camera3D
 var _initialized := false
 var _active_building: Node
+var _visibility_actor: HumanoidCharacter
 
 
 func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
@@ -49,11 +50,51 @@ func _process(_delta: float) -> void:
 func _get_meaningful_actor() -> HumanoidCharacter:
 	if _party_manager == null:
 		return null
-	if _party_manager.followed_member != null:
-		return _party_manager.followed_member
+	if _is_valid_actor(_party_manager.followed_member):
+		_visibility_actor = _party_manager.followed_member
+		return _visibility_actor
 	if _party_manager.selected_members.size() == 1:
-		return _party_manager.selected_members[0]
+		_visibility_actor = _party_manager.selected_members[0]
+		return _visibility_actor
+	if _party_manager.selected_members.size() > 1:
+		if _is_valid_actor(_visibility_actor) and _party_manager.selected_members.has(_visibility_actor):
+			return _visibility_actor
+		var shared_level_actor := _get_shared_selected_building_level_actor()
+		if shared_level_actor != null:
+			_visibility_actor = shared_level_actor
+			return _visibility_actor
+		return null
+	if _is_valid_actor(_visibility_actor) and _find_building_for_actor(_visibility_actor) != null:
+		return _visibility_actor
 	return null
+
+
+func _is_valid_actor(actor: HumanoidCharacter) -> bool:
+	return actor != null and is_instance_valid(actor)
+
+
+func _get_shared_selected_building_level_actor() -> HumanoidCharacter:
+	var selected_members := _party_manager.selected_members
+	var shared_actor: HumanoidCharacter
+	var shared_building: Node
+	var shared_level_index := -1
+	for member in selected_members:
+		if not _is_valid_actor(member):
+			return null
+		var member_building := _find_building_for_actor(member)
+		if member_building == null:
+			return null
+		var member_level_index := -1
+		if member_building.has_method("get_level_index_for_actor"):
+			member_level_index = int(member_building.call("get_level_index_for_actor", member))
+		if shared_building == null:
+			shared_actor = member
+			shared_building = member_building
+			shared_level_index = member_level_index
+			continue
+		if member_building != shared_building or member_level_index != shared_level_index:
+			return null
+	return shared_actor
 
 
 func _find_building_for_actor(actor: HumanoidCharacter) -> Node:

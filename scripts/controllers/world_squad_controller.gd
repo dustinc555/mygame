@@ -103,7 +103,7 @@ func _spawn_squad_members(squad_id: String, template: Resource, spawn_position: 
 		actor.set("base_attack_damage", _resource_float(template, "base_attack_damage", 18.0))
 		actor.set("starting_equipment", template.get("starting_equipment"))
 		var offset := _formation_offset(index, count)
-		actor.position = spawn_position + offset
+		actor.position = spawn_position + offset + Vector3(0.0, 0.6, 0.0)
 		_add_basic_humanoid_children(actor)
 		actor_root.add_child(actor)
 		actors.append(actor)
@@ -134,7 +134,7 @@ func _formation_offset(index: int, count: int) -> Vector3:
 	var columns := ceili(sqrt(float(count)))
 	var row := index / columns
 	var column := index % columns
-	return Vector3((float(column) - float(columns - 1) * 0.5) * 1.35, 0.6, float(row) * 1.35)
+	return Vector3((float(column) - float(columns - 1) * 0.5) * 1.35, 0.0, float(row) * 1.35)
 
 
 func _assign_targets(actors: Array, target_anchor: Node) -> void:
@@ -155,19 +155,25 @@ func _process_active_squads() -> void:
 		var squad_state: Dictionary = active_squads[squad_id]
 		if bool(squad_state.get("resolved", false)):
 			continue
+		if _is_squad_defeated(squad_state):
+			_resolve_defeated_squad(squad_state)
+			active_squads[squad_id] = squad_state
+			continue
 		var target_id := str(squad_state.get("target_settlement_id", ""))
 		var target_anchor: Node3D = settlement_controller.call("get_settlement_anchor", target_id) as Node3D
 		if target_anchor == null:
 			continue
 		var target_position: Vector3 = target_anchor.call("get_spawn_position", "defense") if target_anchor.has_method("get_spawn_position") else target_anchor.global_position
 		if not bool(squad_state.get("alarm_raised", false)) and _has_actor_reached_town_alarm_range(squad_state, target_anchor):
-			_raise_settlement_alarm(squad_state, target_anchor)
+			if _raise_settlement_alarm(squad_state, target_anchor):
+				squad_state["combat_engaged"] = true
 			squad_state["alarm_raised"] = true
 			active_squads[squad_id] = squad_state
 		if _advance_squad_route(squad_state, target_position):
 			active_squads[squad_id] = squad_state
 			continue
 		if not _has_actor_reached_position(squad_state, target_position, 7.5):
+			_ensure_squad_move_targets(squad_state, target_position)
 			continue
 		if not bool(squad_state.get("combat_engaged", false)):
 			_assign_targets(_actors_from_paths(squad_state), target_anchor)
@@ -187,6 +193,7 @@ func _advance_squad_route(squad_state: Dictionary, target_position: Vector3) -> 
 	if route_index >= route_waypoints.size():
 		return false
 	if not _has_actor_reached_position(squad_state, route_waypoints[route_index], 3.0):
+		_ensure_squad_move_targets(squad_state, route_waypoints[route_index])
 		return true
 	route_index += 1
 	squad_state["route_index"] = route_index
@@ -200,8 +207,22 @@ func _assign_squad_move_targets(squad_state: Dictionary, target_position: Vector
 	var count := actors.size()
 	for index in range(count):
 		var actor = actors[index]
-		if actor != null and actor.has_method("set_move_target"):
+		if actor != null and int(actor.get("life_state")) == NpcRules.LifeState.ALIVE and actor.has_method("set_move_target"):
 			actor.call("set_move_target", target_position + _formation_offset(index, count), false)
+
+
+func _ensure_squad_move_targets(squad_state: Dictionary, target_position: Vector3) -> void:
+	var actors := _actors_from_paths(squad_state)
+	var count := actors.size()
+	for index in range(count):
+		var actor = actors[index]
+		if actor == null or int(actor.get("life_state")) != NpcRules.LifeState.ALIVE or not actor.has_method("set_move_target"):
+			continue
+		var desired_target := target_position + _formation_offset(index, count)
+		var current_target = actor.get("_move_target")
+		if bool(actor.get("_has_move_target")) and current_target is Vector3 and current_target.distance_squared_to(desired_target) <= 0.0025:
+			continue
+		actor.call("set_move_target", desired_target, false)
 
 
 func _has_actor_reached_position(squad_state: Dictionary, target_position: Vector3, arrival_distance: float) -> bool:
@@ -233,14 +254,37 @@ func _has_actor_reached_town_alarm_range(squad_state: Dictionary, target_anchor:
 	return false
 
 
-func _raise_settlement_alarm(squad_state: Dictionary, target_anchor: Node3D) -> void:
+func _raise_settlement_alarm(squad_state: Dictionary, target_anchor: Node3D) -> bool:
 	var attacker = _first_alive_actor(squad_state)
 	if attacker == null:
-		return
+		return false
+	var combat_started := false
 	for node in get_tree().get_nodes_in_group("npc_character"):
-		if node == attacker or not node.has_method("respond_to_settlement_alarm"):
+		if node == attacker or not (node is HumanoidCharacter) or not node.has_method("respond_to_settlement_alarm"):
 			continue
 		node.call("respond_to_settlement_alarm", attacker, target_anchor, null)
+		if node.get("_current_attack_target") == attacker:
+			combat_started = true
+	return combat_started
+
+
+func _is_squad_defeated(squad_state: Dictionary) -> bool:
+	var paths: Array = squad_state.get("actor_paths", [])
+	if paths.is_empty():
+		return false
+	for path in paths:
+		var actor := get_node_or_null(path)
+		if actor != null and int(actor.get("life_state")) == NpcRules.LifeState.ALIVE:
+			return false
+	return true
+
+
+func _resolve_defeated_squad(squad_state: Dictionary) -> void:
+	squad_state["resolved"] = true
+	squad_state["resolution"] = "defeated"
+	squad_state["resolved_food"] = 0.0
+	if bool(squad_state.get("alarm_raised", false)):
+		squad_state["combat_engaged"] = true
 
 
 func _first_alive_actor(squad_state: Dictionary):

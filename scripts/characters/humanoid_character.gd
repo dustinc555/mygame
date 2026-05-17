@@ -1519,9 +1519,10 @@ func _get_move_target_arrival_distance() -> float:
 	return super._get_move_target_arrival_distance()
 
 
-func _should_persist_move_target_navigation() -> bool:
-	return _current_order_type != OrderType.MOVE or not _order_was_player_issued
-
+func _get_navigation_stuck_arrival_distance() -> float:
+	if _current_order_type == OrderType.MOVE:
+		return maxf(super._get_navigation_stuck_arrival_distance(), minf(navigation_unreachable_tolerance, 1.2))
+	return super._get_navigation_stuck_arrival_distance()
 
 func _on_actor_move_target_reached() -> void:
 	if _current_order_type == OrderType.MOVE:

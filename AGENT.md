@@ -4,6 +4,11 @@
 - Test/demo levels live in `scenes/test_levels/`.
 - Follow `scenes/test_levels/AGENT.md` when working in those scenes.
 
+## 3D Navigation
+- Before editing 3D navigation, actor movement, stair traversal, building collision, or squad route code, read `scripts/navigation/AGENT.md`, `scripts/actors/AGENT.md`, and `scenes/world/buildings/AGENT.md`.
+- Validate navigation fixes with live `CharacterBody3D` movement through the actual scene, not only with static navmesh path queries.
+- Treat unexpected vertical offsets, path simplification through collision, disconnected stair landings, and dropped move targets as first-suspect causes for 3D navigation failures.
+
 ## Architecture Rules
 - Before editing, search for all applicable `AGENT.md` files in the project and follow the most specific guidance for the files being touched.
 - Before shared system, gameplay architecture, persistence, world simulation, settlement, faction, inventory, job, or bootstrap work, read `architecture/README.md` and the relevant docs in `architecture/`.

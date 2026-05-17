@@ -37,6 +37,7 @@ const GROUND_Y := 0.0
 @export var camera_max_distance := 36.0
 @export var orbit_sensitivity := 0.01
 @export var move_command_spacing := 1.4
+@export var vertical_move_formation_height_threshold := 1.0
 @export var drag_select_threshold := 12.0
 @export var hold_move_repeat_seconds := 0.15
 @export var hold_move_indicator_seconds := 0.3
@@ -538,11 +539,14 @@ func issue_move_command(screen_position: Vector2, show_indicator: bool = true) -
 	for member in party_manager.selected_members:
 		center += member.global_position
 	center /= party_manager.selected_members.size()
+	var preserve_formation := absf(target.y - center.y) <= vertical_move_formation_height_threshold
 	for member in party_manager.selected_members:
-		var offset: Vector3 = member.global_position - center
-		offset.y = 0.0
-		if offset.length() > move_command_spacing:
-			offset = offset.normalized() * move_command_spacing
+		var offset := Vector3.ZERO
+		if preserve_formation:
+			offset = member.global_position - center
+			offset.y = 0.0
+			if offset.length() > move_command_spacing:
+				offset = offset.normalized() * move_command_spacing
 		member.stop_mining_assignment()
 		member.stop_container_interaction()
 		member.set_move_target(target + offset)
