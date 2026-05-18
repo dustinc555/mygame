@@ -30,6 +30,7 @@ const FOLLOW_CAMERA_HEIGHT := 1.35
 const ORBIT_MIN_PITCH := -1.2
 const ORBIT_MAX_PITCH := 0.18
 const GROUND_Y := 0.0
+const MOVE_COMMAND_NAV_PROJECTION_VERTICAL_TOLERANCE := 0.8
 
 @export var free_camera_move_speed := 14.0
 @export var camera_zoom_step := 1.0
@@ -545,6 +546,8 @@ func issue_move_command(screen_position: Vector2, show_indicator: bool = true) -
 		center += member.global_position
 	center /= party_manager.selected_members.size()
 	var preserve_formation := absf(target.y - center.y) <= vertical_move_formation_height_threshold
+	var member_index := 0
+	var selected_count := party_manager.selected_members.size()
 	for member in party_manager.selected_members:
 		var offset := Vector3.ZERO
 		if preserve_formation:
@@ -552,10 +555,44 @@ func issue_move_command(screen_position: Vector2, show_indicator: bool = true) -
 			offset.y = 0.0
 			if offset.length() > move_command_spacing:
 				offset = offset.normalized() * move_command_spacing
+		else:
+			offset = _get_cross_level_move_offset(member_index, selected_count)
+		var member_target := _project_move_command_target(target + offset, target, target.y)
 		member.stop_mining_assignment()
 		member.stop_container_interaction()
-		member.set_move_target(target + offset)
+		member.set_move_target(member_target)
+		member_index += 1
 	return true
+
+
+func _get_cross_level_move_offset(member_index: int, selected_count: int) -> Vector3:
+	if selected_count <= 1:
+		return Vector3.ZERO
+	var columns := ceili(sqrt(float(selected_count)))
+	var rows := ceili(float(selected_count) / float(columns))
+	var column := member_index % columns
+	var row := int(member_index / columns)
+	var x := (float(column) - float(columns - 1) * 0.5) * move_command_spacing
+	var z := (float(row) - float(rows - 1) * 0.5) * move_command_spacing
+	return Vector3(x, 0.0, z)
+
+
+func _project_move_command_target(candidate: Vector3, fallback: Vector3, target_y: float) -> Vector3:
+	if camera == null:
+		return candidate
+	var world_3d := camera.get_world_3d()
+	if world_3d == null:
+		return candidate
+	var navigation_map: RID = world_3d.navigation_map
+	if NavigationServer3D.map_get_iteration_id(navigation_map) == 0:
+		return candidate
+	var closest := NavigationServer3D.map_get_closest_point(navigation_map, candidate)
+	if absf(closest.y - target_y) > MOVE_COMMAND_NAV_PROJECTION_VERTICAL_TOLERANCE:
+		return fallback
+	var horizontal_offset := Vector2(closest.x - candidate.x, closest.z - candidate.z).length()
+	if horizontal_offset > move_command_spacing * 1.5:
+		return fallback
+	return Vector3(closest.x, target_y, closest.z)
 
 
 func _pick_ground_position(screen_position: Vector2) -> Variant:

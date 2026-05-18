@@ -11,7 +11,9 @@
 
 ## NavigationAgent3D Practices
 - Disable path simplification for tight interior, stair, roof, or multi-level traversal unless live testing proves simplification is safe.
-- Preserve useful Y motion from `NavigationAgent3D.get_next_path_position()` so actors can climb ramps naturally.
+- For `CharacterBody3D` stairs and ramps, steer from navigation path XZ only; let `move_and_slide()`, floor snapping, and walkable collision change actor Y naturally.
+- Use `NavigationAgent3D.path_height_offset` only to align returned path point Y with the actor's movement origin for waypoint distance checks. It is subtracted from returned path positions and does not change navmesh/pathfinding.
+- Never set positive actor `velocity.y` from navigation path point Y to fix stairs. Fix stair/ramp collision, landing overlap, and navmesh bake settings instead.
 - Keep arrival and unreachable tolerances separate. Arrival can be tight for interaction points; unreachable tolerance should account for nearest valid navmesh points.
 - If navigation data may still be baking, use a short grace period before declaring unreachable.
 - If an actor reaches the agent final position but not the requested target, check whether the requested target is off-mesh before changing movement code.

@@ -34,7 +34,7 @@ script = ExtResource("5_service_point")
 debug_color = Color(0.36, 1, 0.48, 0.76)
 
 [node name="WaiterPoint" type="Node3D" parent="ServicePoints"]
-transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, -1.25, 0.35, 0.65)
+transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, 3, 0.35, 0.65)
 script = ExtResource("5_service_point")
 point_role = "waiter"
 
@@ -47,7 +47,7 @@ point_role = "waiter"
 [node name="GuardPosts" type="Node3D" parent="."]
 
 [node name="GuardPost" type="Node3D" parent="GuardPosts"]
-transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 0, 0.05, 3.45)
+transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 3.1, 0.05, 4.35)
 script = ExtResource("6_guard_post")
 
 [node name="Furniture" type="Node3D" parent="."]

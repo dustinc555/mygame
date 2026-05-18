@@ -226,7 +226,9 @@ func _ensure_service_point(root: Node, point_name: String, point_transform: Tran
 		point.set_script(BAR_SERVICE_POINT_SCRIPT)
 		root.add_child(point)
 		_set_editor_owner(point)
-	elif not point.has_method("get_work_position"):
+	elif point is Node3D:
+		(point as Node3D).transform = point_transform
+	if not point.has_method("get_work_position"):
 		point.set_script(BAR_SERVICE_POINT_SCRIPT)
 	if _has_property(point, "point_role"):
 		point.set("point_role", role)
@@ -245,7 +247,7 @@ func _ensure_guard_post(root: Node, post_name: String, post_transform: Transform
 		post.set_script(BAR_GUARD_POST_SCRIPT)
 		root.add_child(post)
 		_set_editor_owner(post)
-	elif not post.has_method("get_work_position"):
+	if not post.has_method("get_work_position"):
 		post.set_script(BAR_GUARD_POST_SCRIPT)
 	_refresh_authoring_marker(post)
 	return post
@@ -254,6 +256,8 @@ func _ensure_guard_post(root: Node, post_name: String, post_transform: Transform
 func _ensure_staff_member(root: Node, node_name: String, member_name: String, color: Color, local_position: Vector3, conversation: Resource) -> Node:
 	var staff := root.get_node_or_null(node_name)
 	if staff != null:
+		if staff is Node3D and _should_sync_generated_staff_position(staff):
+			(staff as Node3D).position = local_position
 		return staff
 	staff = CharacterBody3D.new()
 	staff.name = node_name
@@ -268,6 +272,13 @@ func _ensure_staff_member(root: Node, node_name: String, member_name: String, co
 	root.add_child(staff)
 	_set_editor_owner_recursive(staff)
 	return staff
+
+
+func _should_sync_generated_staff_position(staff: Node) -> bool:
+	if not _has_property(staff, "stable_id"):
+		return false
+	var current_stable_id := str(staff.get("stable_id"))
+	return current_stable_id.is_empty() or current_stable_id.begins_with("SettlementBar.") or current_stable_id.begins_with("settlement_bar.") or current_stable_id.begins_with("%s." % _get_staff_id_prefix())
 
 
 func _add_basic_humanoid_children(actor: Node) -> void:
@@ -382,12 +393,12 @@ func _guard_post_name(index: int) -> String:
 func _waiter_point_transform(index: int) -> Transform3D:
 	var column := index % 4
 	var row := int(index / 4)
-	return Transform3D(Basis(Vector3.UP, deg_to_rad(8.0)), Vector3(-1.25 + float(column) * 0.75, 0.35, 0.65 + float(row) * 0.9))
+	return Transform3D(Basis(Vector3.UP, deg_to_rad(8.0)), Vector3(3.0 + float(column) * 0.75, 0.35, 0.65 + float(row) * 0.9))
 
 
 func _guard_post_transform(index: int) -> Transform3D:
 	if index == 0:
-		return Transform3D(Basis(Vector3.UP, deg_to_rad(-85.0)), Vector3(0.0, 0.05, 3.45))
+		return Transform3D(Basis(Vector3.UP, deg_to_rad(-85.0)), Vector3(3.1, 0.05, 4.35))
 	var guard_index := index - 1
 	var column := guard_index % 3
 	var row := int(guard_index / 3)

@@ -2,6 +2,8 @@ extends CharacterBody3D
 
 class_name WorldActor
 
+const NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
+
 @export var move_speed := 3.2
 @export var acceleration := 10.0
 @export var floor_snap_distance := 0.9
@@ -21,6 +23,7 @@ class_name WorldActor
 @export var navigation_time_horizon_agents := 0.7
 @export var stuck_check_seconds := 2.0
 @export var stuck_min_progress := 0.12
+@export var stuck_repath_attempt_limit := 8
 
 var gravity := ProjectSettings.get_setting("physics/3d/default_gravity") as float
 var _move_target := Vector3.ZERO
@@ -32,7 +35,6 @@ var _navigation_synced_target := Vector3.ZERO
 var _navigation_query_grace_remaining := 0.0
 var _avoidance_velocity := Vector3.ZERO
 var _has_avoidance_velocity := false
-var _navigation_vertical_speed := 0.0
 var _stuck_origin := Vector3.ZERO
 var _stuck_target_distance := INF
 var _stuck_seconds := 0.0
@@ -53,7 +55,6 @@ func process_world_actor_movement(delta: float) -> void:
 	_apply_floor_motion(delta)
 	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
 	var desired_direction := Vector3.ZERO
-	_navigation_vertical_speed = 0.0
 	if _has_move_target:
 		desired_direction = _get_move_direction(delta)
 		if desired_direction.length_squared() > 0.0001:
@@ -72,8 +73,6 @@ func process_world_actor_movement(delta: float) -> void:
 			horizontal_velocity.z = _avoidance_velocity.z
 	velocity.x = horizontal_velocity.x
 	velocity.z = horizontal_velocity.z
-	if _navigation_vertical_speed > 0.0:
-		velocity.y = _navigation_vertical_speed
 	move_and_slide()
 	rotation.x = lerp_angle(rotation.x, 0.0, minf(1.0, 10.0 * delta))
 	rotation.z = lerp_angle(rotation.z, 0.0, minf(1.0, 10.0 * delta))
@@ -137,7 +136,6 @@ func _clear_actor_move_target() -> void:
 	_navigation_query_grace_remaining = 0.0
 	_navigation_zero_waypoint_blocked = false
 	_has_avoidance_velocity = false
-	_navigation_vertical_speed = 0.0
 	_reset_stuck_tracking()
 	if _navigation_agent != null and is_instance_valid(_navigation_agent):
 		_navigation_agent.velocity = Vector3.ZERO
@@ -180,31 +178,30 @@ func _get_navigation_move_direction(delta: float) -> Vector3:
 		if _navigation_query_grace_remaining <= 0.0:
 			_fail_actor_move_target()
 		return Vector3.ZERO
-	var to_next := next_path_position - global_position
-	_navigation_vertical_speed = _get_navigation_vertical_speed(to_next)
-	to_next.y = 0.0
-	if to_next.length_squared() <= 0.0001:
-		_navigation_zero_waypoint_blocked = true
-		return Vector3.ZERO
-	return to_next.normalized()
+	return _get_navigation_path_move_direction(next_path_position)
+
+
+func _get_navigation_path_move_direction(next_path_position: Vector3) -> Vector3:
+	var direct_direction := _get_navigation_point_move_direction(next_path_position)
+	if direct_direction.length_squared() > 0.0001:
+		return direct_direction
+	var path := _navigation_agent.get_current_navigation_path()
+	var path_index := maxi(0, _navigation_agent.get_current_navigation_path_index())
+	for index in range(path_index, path.size()):
+		var to_point := path[index] - global_position
+		to_point.y = 0.0
+		if to_point.length_squared() > NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED:
+			return to_point.normalized()
+	_navigation_zero_waypoint_blocked = true
+	return Vector3.ZERO
 
 
 func _get_navigation_point_move_direction(point: Vector3) -> Vector3:
 	var to_point := point - global_position
-	_navigation_vertical_speed = _get_navigation_vertical_speed(to_point)
 	to_point.y = 0.0
 	if to_point.length_squared() <= 0.0001:
 		return Vector3.ZERO
 	return to_point.normalized()
-
-
-func _get_navigation_vertical_speed(to_next: Vector3) -> float:
-	if to_next.y <= 0.02:
-		return 0.0
-	var distance := to_next.length()
-	if distance <= 0.001:
-		return 0.0
-	return minf(_get_actor_move_speed(), (to_next.y / distance) * _get_actor_move_speed())
 
 
 func _sync_navigation_target_if_needed() -> void:
@@ -313,7 +310,7 @@ func _handle_navigation_stuck() -> void:
 	if _is_close_to_navigation_point(_move_target, move_target_vertical_tolerance, _get_navigation_stuck_arrival_distance()):
 		_finish_actor_move_target()
 		return
-	if _is_navigation_final_position_close_enough() and _stuck_repath_attempts < 1:
+	if _is_navigation_final_position_close_enough() and _stuck_repath_attempts < stuck_repath_attempt_limit:
 		_navigation_target_synced = false
 		_stuck_repath_attempts += 1
 		_reset_stuck_tracking()

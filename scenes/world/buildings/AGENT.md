@@ -16,6 +16,7 @@
 - Keep walkable collision aligned with what the global `WorldNavigation` bake should consider walkable.
 - Use visible steps for readability and hidden ramp collisions for reliable `CharacterBody3D` traversal.
 - Add invisible side guard collisions to stairs when needed so navmesh cannot enter ramps from the side.
+- Reusable stair scenes should own their hidden side guard collisions. Do not patch only a test level or one placed stair instance unless that instance intentionally has different geometry.
 - Keep side guard meshes hidden unless they are intentionally part of the art.
 - Make stair bottom/top landings overlap neighboring floor collisions enough for both physics and navmesh baking.
 - Do not use `NavigationLink3D` for ordinary stairs, ramps, or roof access. Fix the walkable geometry, collision overlap, clearance, and bake settings so the navmesh is continuous.
@@ -24,4 +25,4 @@
 - Make sure upper floors and roofs do not leave tiny lips, gaps, or side openings that let simplified paths cut through walls or collide with parapets.
 - Watch for furniture, walls, and props creating accidental navmesh shortcuts or blocked doorways.
 - Validate actual traversal to each intended level: outside, ground floor, upper floors, and roof when present.
-- If actors get stuck on stairs, inspect actual actor movement and agent state before changing geometry: actor position, `_move_target`, `_has_move_target`, `NavigationAgent3D.get_next_path_position()`, `NavigationAgent3D.get_final_position()`, velocity, and whether the path is being simplified.
+- If actors get stuck on stairs, inspect actual actor movement and agent state before changing actor code: actor position, `_move_target`, `_has_move_target`, `NavigationAgent3D.get_next_path_position()`, `NavigationAgent3D.get_final_position()`, velocity, and whether the path is being simplified. Fix reusable stair/ramp geometry and bake settings instead of adding movement lift.

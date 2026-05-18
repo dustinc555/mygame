@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_stairs"]
 albedo_color = Color(0.57, 0.46, 0.33, 1)
@@ -16,6 +16,9 @@ size = Vector3(3.8, 0.34, 0.1)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ramp"]
 size = Vector3(3.8, 0.35, 8.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ramp_side_guard"]
+size = Vector3(0.3, 3.2, 6.8)
 
 [node name="SmallBarStairs" type="StaticBody3D"]
 
@@ -104,3 +107,11 @@ mesh = SubResource("BoxMesh_step")
 [node name="RampCollision" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.9425, 0.334205, 0, -0.334205, 0.9425, 0, 1.45, 0)
 shape = SubResource("BoxShape3D_ramp")
+
+[node name="RampLeftSideGuardCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.25, 1.6, -0.7)
+shape = SubResource("BoxShape3D_ramp_side_guard")
+
+[node name="RampRightSideGuardCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.25, 1.6, -0.7)
+shape = SubResource("BoxShape3D_ramp_side_guard")

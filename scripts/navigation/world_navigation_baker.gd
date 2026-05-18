@@ -9,7 +9,7 @@ class_name WorldNavigationBaker
 @export var agent_radius := 0.5
 @export var agent_height := 1.5
 @export var agent_max_slope := 60.0
-@export var agent_max_climb := 0.5
+@export var agent_max_climb := 0.25
 @export var cell_size := 0.25
 @export var cell_height := 0.25
 

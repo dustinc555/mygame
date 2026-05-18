@@ -10,7 +10,7 @@
 - Do not place move targets above the navmesh. Spawn clearance and move target height are separate concerns.
 - Formation offsets should normally be horizontal only. If an actor needs spawn clearance, add Y only to the spawn position, not to route or move targets.
 - Be suspicious of path simplification when actors cut through stair walls, parapets, railings, or corners. Prefer `NavigationAgent3D.simplify_path = false` for precise building traversal unless there is a measured reason to enable it.
-- Preserve the Y component from the navigation path when following ramps. Do not invent vertical boosts unless there is a specific physics reason and a live traversal test proves it is needed.
+- Do not turn navigation path point Y into upward actor velocity for stairs or ramps. `CharacterBody3D` Y movement should come from physics against continuous walkable collision, not navigation lift.
 
 ## Debugging Checklist
 - Validate with a live `CharacterBody3D` walking through the actual scene. Static `NavigationServer3D.map_get_path()` success is not enough.
@@ -18,6 +18,7 @@
 - Log `NavigationAgent3D.get_next_path_position()` and `NavigationAgent3D.get_final_position()` to confirm whether the agent is chasing a reachable point or an off-mesh target.
 - Compare target Y to the nearest baked navmesh surface. A target slightly above the floor can make an otherwise correct path look unreachable.
 - Check whether the actor dropped its move target because the final position was outside tolerance, because no navigation data was available yet, or because stuck handling failed it.
+- If an actor gets horizontally close to a multi-floor target but remains on the wrong level, compare target Y to the nearest baked navmesh surface and inspect stair/ramp connectivity, landing overlap, side guards, and bake settings before changing movement logic.
 - Test both single actors and small groups. Group avoidance can reveal corridor width, formation offset, and side-wall issues that single-actor tests miss.
 - Test with avoidance enabled first. Disable avoidance only to isolate whether crowd steering is masking a geometry or target-height issue.
 - When a route spans roads, settlements, and interiors, verify each route waypoint is on or very near the navmesh and reissue long-lived squad targets if actors can legitimately drop movement orders.

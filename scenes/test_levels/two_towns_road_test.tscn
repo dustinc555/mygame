@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://da1og6bfgrmil"]
+[gd_scene format=4 uid="uid://da1og6bfgrmil"]
 
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
 [ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_manager"]
@@ -45,8 +45,8 @@
 [ext_resource type="PackedScene" path="res://scenes/world/props/stool_chair.tscn" id="30_v4og7"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/simple_bed.tscn" id="32_co0cp"]
 [ext_resource type="Script" uid="uid://dw7e6d4p7nh3q" path="res://scripts/world/venues/bar_service_area.gd" id="34_l8nq8"]
-[ext_resource type="Script" uid="uid://bbqcb1koha5i4" path="res://scripts/world_sim/road_network.gd" id="35_road"]
-[ext_resource type="Script" uid="uid://cvjcobaa8uvry" path="res://scripts/world_sim/road_waypoint.gd" id="36_waypoint"]
+[ext_resource type="Script" path="res://scripts/world_sim/road_network.gd" id="35_road"]
+[ext_resource type="Script" path="res://scripts/world_sim/road_waypoint.gd" id="36_waypoint"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(180, 1, 128)
@@ -162,23 +162,42 @@ height = 1.5
 radial_segments = 16
 rings = 8
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_co0cp"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_v3gon"]
+transparency = 1
+cull_mode = 2
+no_depth_test = true
+shading_mode = 0
+albedo_color = Color(1, 0.72, 0.08, 0.58)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_kv8yx"]
+_surfaces = [{
+"aabb": AABB(-38.036, 0.08, -30.071426, 76.072, 1e-05, 60.62703),
+"format": 34359742465,
+"index_count": 42,
+"index_data": PackedByteArray("AAABAAIAAQADAAIABAAFAAYABQAHAAYACAAJAAoACQALAAoADAANAA4ADQAPAA4AEAARABIAEQATABIAFAAVABYAFQAXABYAGAAZABoAGQAbABoA"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 28,
+"vertex_data": PackedByteArray("3SQYwgrXoz0AvB+/I9sXwgrXoz0AvB8/cpNAwQrXoz0A7wfAjmw/wQrXoz0ARGC/ecI+wQrXoz3tsAfAhz1BwQrXoz1MPGG/hz1BQQrXoz1MPGE/ecI+QQrXoz3tsAdAZD82wQrXoz1XsdG/nMBJwQrXoz2pTq6/yH7swArXoz3nAIBBnMAJwQrXoz0RN4JBjmw/QQrXoz0ARGA/cpNAQQrXoz0A7wdAI9sXQgrXoz0AvB+/3SQYQgrXoz0AvB8/ZxQ2QQrXoz1+67U/metJQQrXoz2CFMo/ZxR2QQrXoz1IkvDBzPWEQQrXoz24T+/BAAAAwQrXoz34N3hBAAAAwQrXoz38G4ZBcKk1QQrXoz34N3hBcKk1QQrXoz38G4ZB9308QQrXoz3mwoRB6dQuQQrXoz0l6npBA3tJwArXoz3gcfRBnw+AwArXoz0MJO1B")
+}]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_l8nq8"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0, 0.72, 0.72, 0.28)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_vllf3"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_0xrdr"]
 _surfaces = [{
 "aabb": AABB(-44, 0, -42, 78, 1e-05, 84),
 "format": 34359742465,
 "index_count": 12,
-"index_data": PackedByteArray(0, 0, 1, 0, 2, 0, 0, 0, 2, 0, 3, 0, 0, 0, 3, 0, 4, 0, 0, 0, 4, 0, 1, 0),
+"index_data": PackedByteArray("AAABAAIAAAACAAMAAAADAAQAAAAEAAEA"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 5,
-"vertex_data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 194, 0, 0, 0, 0, 0, 0, 40, 194, 0, 0, 224, 65, 0, 0, 0, 0, 0, 0, 24, 194, 0, 0, 8, 66, 0, 0, 0, 0, 0, 0, 8, 66, 0, 0, 48, 194, 0, 0, 0, 0, 0, 0, 40, 66)
+"vertex_data": PackedByteArray("AAAAAAAAAAAAAAAAAAAgwgAAAAAAACjCAADgQQAAAAAAABjCAAAIQgAAAAAAAAhCAAAwwgAAAAAAAChC")
 }]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ikrwl"]
@@ -318,19 +337,12 @@ size = Vector3(0.95, 0.16, 0.38)
 [sub_resource type="BoxShape3D" id="BoxShape3D_bed"]
 size = Vector3(1.45, 0.6, 2.45)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_l8nq8"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_doj6v"]
 albedo_color = Color(0.34, 0.48, 0.2, 0.62)
 roughness = 0.95
 
-[sub_resource type="BoxMesh" id="BoxMesh_0xrdr"]
-size = Vector3(16, 0.04, 10)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_doj6v"]
-albedo_color = Color(0.23, 0.16, 0.08, 1)
-roughness = 0.95
-
 [sub_resource type="BoxMesh" id="BoxMesh_ikrwl"]
-size = Vector3(15, 0.05, 0.35)
+size = Vector3(16, 0.04, 10)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ieqkg"]
 albedo_color = Color(0.23, 0.16, 0.08, 1)
@@ -346,6 +358,13 @@ roughness = 0.95
 [sub_resource type="BoxMesh" id="BoxMesh_qagoh"]
 size = Vector3(15, 0.05, 0.35)
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_aja2c"]
+albedo_color = Color(0.23, 0.16, 0.08, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="BoxMesh_atwts"]
+size = Vector3(15, 0.05, 0.35)
+
 [sub_resource type="Resource" id="InventoryStock_farmer_food"]
 script = ExtResource("5_stock")
 item_definition = ExtResource("6_food")
@@ -358,36 +377,36 @@ height = 1.1
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_member"]
 radius = 0.45
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_aja2c"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_jua3c"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="CylinderMesh" id="CylinderMesh_atwts"]
+[sub_resource type="CylinderMesh" id="CylinderMesh_stnqu"]
 top_radius = 24.0
 bottom_radius = 24.0
 height = 0.04
 radial_segments = 96
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_jua3c"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_sxot0"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0, 0.72, 0.72, 0.28)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_stnqu"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_bdgxq"]
 _surfaces = [{
 "aabb": AABB(-34, 0, -42, 78, 1e-05, 84),
 "format": 34359742465,
 "index_count": 12,
-"index_data": PackedByteArray(0, 0, 1, 0, 2, 0, 0, 0, 2, 0, 3, 0, 0, 0, 3, 0, 4, 0, 0, 0, 4, 0, 1, 0),
+"index_data": PackedByteArray("AAABAAIAAAACAAMAAAADAAQAAAAEAAEA"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 5,
-"vertex_data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 194, 0, 0, 0, 0, 0, 0, 40, 194, 0, 0, 40, 66, 0, 0, 0, 0, 0, 0, 16, 194, 0, 0, 48, 66, 0, 0, 0, 0, 0, 0, 24, 66, 0, 0, 224, 193, 0, 0, 0, 0, 0, 0, 40, 66)
+"vertex_data": PackedByteArray("AAAAAAAAAAAAAAAAAAAIwgAAAAAAACjCAAAoQgAAAAAAABDCAAAwQgAAAAAAABhCAADgwQAAAAAAAChC")
 }]
 
 [sub_resource type="Resource" id="InventoryStock_raider_food"]
@@ -395,14 +414,14 @@ script = ExtResource("5_stock")
 item_definition = ExtResource("6_food")
 quantity = 4
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_sxot0"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bdn7o"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="CylinderMesh" id="CylinderMesh_bdgxq"]
+[sub_resource type="CylinderMesh" id="CylinderMesh_v8cns"]
 top_radius = 22.0
 bottom_radius = 22.0
 height = 0.04
@@ -466,7 +485,6 @@ mesh = SubResource("BoxMesh_floor")
 [node name="FarmerCrossingToRaiderCamp" type="Node3D" parent="Roads" unique_id=916319959]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3.8469534)
 script = ExtResource("35_road")
-network_id = "farmer_crossing_raider_camp"
 display_name = "Farmer Crossing / Raider Camp Road"
 
 [node name="FarmerCrossingGate" type="MeshInstance3D" parent="Roads/FarmerCrossingToRaiderCamp" unique_id=299709343]
@@ -544,6 +562,11 @@ mesh = SubResource("SphereMesh_esk4d")
 script = ExtResource("36_waypoint")
 waypoint_id = "farmer_crossing_raider_camp.wp_0004"
 
+[node name="RoadDebug" type="MeshInstance3D" parent="Roads/FarmerCrossingToRaiderCamp" unique_id=1470176521]
+material_override = SubResource("StandardMaterial3D_v3gon")
+cast_shadow = 0
+mesh = SubResource("ArrayMesh_kv8yx")
+
 [node name="Settlements" type="Node3D" parent="." unique_id=63163481]
 
 [node name="FarmerCrossing" type="Node3D" parent="Settlements" unique_id=1061383372]
@@ -602,9 +625,9 @@ polygon_points = PackedVector2Array(-40, -42, 28, -38, 34, 34, -44, 42)
 
 [node name="TerritoryDebug" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Territory" unique_id=1749945787]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.14, 0)
-material_override = SubResource("StandardMaterial3D_co0cp")
+material_override = SubResource("StandardMaterial3D_l8nq8")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_vllf3")
+mesh = SubResource("ArrayMesh_0xrdr")
 
 [node name="Facilities" type="Node3D" parent="Settlements/FarmerCrossing" unique_id=1155546947]
 
@@ -662,7 +685,7 @@ population_capacity_id = "farmer_crossing.tavern"
 [node name="Staff" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=1808305516]
 
 [node name="Barkeeper" type="CharacterBody3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff" unique_id=151008028]
-transform = Transform3D(-0.99997145, 0, 0.007557233, 0, 1, 0, -0.007557233, 0, -0.99997145, -0.52851486, 0.6, -2.579792)
+transform = Transform3D(-0.99997145, 0, 0.007557233, 0, 1, 0, -0.007557233, 0, -0.99997145, -0.15, 0.6, -2.85)
 script = ExtResource("17_kv8yx")
 base_color = Color(0.58, 0.43, 0.2, 1)
 member_name = "Barkeeper"
@@ -696,7 +719,7 @@ wage_item_definition = ExtResource("22_1trl3")
 bar_service_area_path = NodePath("../../../BarServiceArea")
 
 [node name="Waiter" type="CharacterBody3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff" unique_id=1090906859]
-transform = Transform3D(-0.36940622, 0, -0.929268, 0, 1, 0, 0.929268, 0, -0.36940622, 3.730072, 0.6, -1.9561815)
+transform = Transform3D(-0.36940622, 0, -0.929268, 0, 1, 0, 0.929268, 0, -0.36940622, 3, 0.6, 0.65)
 script = ExtResource("17_kv8yx")
 base_color = Color(0.28, 0.47, 0.56, 1)
 member_name = "Waiter"
@@ -719,7 +742,7 @@ visible = false
 mesh = SubResource("CylinderMesh_bdn7o")
 
 [node name="Guard" type="CharacterBody3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/Staff" unique_id=1190330139]
-transform = Transform3D(-0.9998269, 0, 0.018604072, 0, 1, 0, -0.018604072, 0, -0.9998269, 4.5999985, 0.6, 3.9204788)
+transform = Transform3D(-0.9998269, 0, 0.018604072, 0, 1, 0, -0.018604072, 0, -0.9998269, 3.1, 0.6, 5.5)
 script = ExtResource("17_kv8yx")
 base_color = Color(0.42, 0.42, 0.48, 1)
 member_name = "Bar Guard"
@@ -744,12 +767,12 @@ mesh = SubResource("CylinderMesh_5owu1")
 [node name="ServicePoints" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=922062950]
 
 [node name="BarkeeperCounterPoint" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/ServicePoints" unique_id=335538092]
-transform = Transform3D(0.99935067, 0, -0.036033273, 0, 1, 0, 0.036033273, 0, 0.99935067, 1.7355347, 0.35, -4.0736885)
+transform = Transform3D(0.76604444, 0, 0.6427876, 0, 1, 0, -0.6427876, 0, 0.76604444, 0, 0.35, -1.85)
 script = ExtResource("27_12p45")
 debug_color = Color(0.36, 1, 0.48, 0.76)
 
 [node name="WaiterPoint" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/ServicePoints" unique_id=619312585]
-transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, 4.6827774, 0.35, -0.57622814)
+transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, 3, 0.35, 0.65)
 script = ExtResource("27_12p45")
 point_role = "waiter"
 
@@ -762,15 +785,15 @@ point_role = "waiter"
 [node name="GuardPosts" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=349742852]
 
 [node name="GuardPost" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/GuardPosts" unique_id=420214629]
-transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -3.2359924, 0.05, 4.4015694)
+transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 3.1, 0.05, 4.35)
 script = ExtResource("28_wbyr3")
 
 [node name="GuardPost2" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/GuardPosts" unique_id=2023908346]
-transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -2.2333717, 0.05, 6.826962)
+transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -1.4, 0.05, 4.25)
 script = ExtResource("28_wbyr3")
 
 [node name="GuardPost3" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar/GuardPosts" unique_id=1915391627]
-transform = Transform3D(0.22802807, 0, -0.97365457, 0, 1, 0, 0.97365457, 0, 0.22802807, 4.5, 5.95, 4.7)
+transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 4.6104774, 5.7289076, -4.437813)
 script = ExtResource("28_wbyr3")
 
 [node name="Furniture" type="Node3D" parent="Settlements/FarmerCrossing/Bars/FarmerBar" unique_id=1625272198]
@@ -1002,25 +1025,25 @@ active_end_hour = 19
 
 [node name="FieldVisual" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Fields/FarmFields" unique_id=772628388]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.035, 0)
-material_override = SubResource("StandardMaterial3D_l8nq8")
-mesh = SubResource("BoxMesh_0xrdr")
+material_override = SubResource("StandardMaterial3D_doj6v")
+mesh = SubResource("BoxMesh_ikrwl")
 
 [node name="Rows" type="Node3D" parent="Settlements/FarmerCrossing/Fields/FarmFields" unique_id=1051609713]
 
 [node name="RowA" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Fields/FarmFields/Rows" unique_id=241064490]
 transform = Transform3D(0.9961947, 0, 0.08715574, 0, 1, 0, -0.08715574, 0, 0.9961947, 0, 0.075, -3)
-material_override = SubResource("StandardMaterial3D_doj6v")
-mesh = SubResource("BoxMesh_ikrwl")
-
-[node name="RowB" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Fields/FarmFields/Rows" unique_id=1537323590]
-transform = Transform3D(0.9961947, 0, 0.08715574, 0, 1, 0, -0.08715574, 0, 0.9961947, 0, 0.075, 0)
 material_override = SubResource("StandardMaterial3D_ieqkg")
 mesh = SubResource("BoxMesh_wktbk")
 
-[node name="RowC" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Fields/FarmFields/Rows" unique_id=1805956557]
-transform = Transform3D(0.9961947, 0, 0.08715574, 0, 1, 0, -0.08715574, 0, 0.9961947, 0, 0.075, 3)
+[node name="RowB" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Fields/FarmFields/Rows" unique_id=1537323590]
+transform = Transform3D(0.9961947, 0, 0.08715574, 0, 1, 0, -0.08715574, 0, 0.9961947, 0, 0.075, 0)
 material_override = SubResource("StandardMaterial3D_xg3ub")
 mesh = SubResource("BoxMesh_qagoh")
+
+[node name="RowC" type="MeshInstance3D" parent="Settlements/FarmerCrossing/Fields/FarmFields/Rows" unique_id=1805956557]
+transform = Transform3D(0.9961947, 0, 0.08715574, 0, 1, 0, -0.08715574, 0, 0.9961947, 0, 0.075, 3)
+material_override = SubResource("StandardMaterial3D_aja2c")
+mesh = SubResource("BoxMesh_atwts")
 
 [node name="ActivityPoints" type="Node3D" parent="Settlements/FarmerCrossing" unique_id=680287415]
 
@@ -1131,9 +1154,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.05, 0)
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Settlements/FarmerCrossing" unique_id=488512487]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_aja2c")
+material_override = SubResource("StandardMaterial3D_jua3c")
 cast_shadow = 0
-mesh = SubResource("CylinderMesh_atwts")
+mesh = SubResource("CylinderMesh_stnqu")
 
 [node name="RaiderCamp" type="Node3D" parent="Settlements" unique_id=1384639635]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58, 0, 0)
@@ -1188,9 +1211,9 @@ polygon_points = PackedVector2Array(-34, -42, 42, -36, 44, 38, -28, 42)
 
 [node name="TerritoryDebug" type="MeshInstance3D" parent="Settlements/RaiderCamp/Territory" unique_id=983510861]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.14, 0)
-material_override = SubResource("StandardMaterial3D_jua3c")
+material_override = SubResource("StandardMaterial3D_sxot0")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_stnqu")
+mesh = SubResource("ArrayMesh_bdgxq")
 
 [node name="Facilities" type="Node3D" parent="Settlements/RaiderCamp" unique_id=1165239842]
 
@@ -1343,9 +1366,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.05, 0)
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Settlements/RaiderCamp" unique_id=280983370]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_sxot0")
+material_override = SubResource("StandardMaterial3D_bdn7o")
 cast_shadow = 0
-mesh = SubResource("CylinderMesh_bdgxq")
+mesh = SubResource("CylinderMesh_v8cns")
 
 [node name="PartyMembers" type="Node3D" parent="." unique_id=753189579]
 
