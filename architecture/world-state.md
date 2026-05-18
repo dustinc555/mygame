@@ -67,7 +67,7 @@ Examples:
 - `SettlementTown` bridges town layout, facilities, residents, borders, and activity points into settlement systems.
 - `SettlementFacilityInstance` bridges a placed building slot, facility function resource, staff, service points, storage links, jobs, and activity points into settlement facility records.
 - `FactionTerritoryAnchor` bridges authored territory shape data into territory records.
-- `RoadPath` bridges authored path points between stable settlement IDs into road records and squad route waypoints.
+- `RoadNetwork` and `RoadWaypoint` bridge authored road graph data between stable settlement IDs into road records and squad route waypoints.
 - `WorldBuilding` and `PopulationCapacitySource` bridge authored housing/camp capacity into settlement max occupancy.
 - Containers, bars, mines, and job providers execute local interactions but can be discovered by town and job systems.
 

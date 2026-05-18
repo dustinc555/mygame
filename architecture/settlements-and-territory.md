@@ -128,15 +128,17 @@ Town borders and territories are visible as editor helper meshes by default, but
 
 ## Roads
 
-Roads are authored as `RoadPath` nodes, not visible terrain meshes.
+Roads are authored as `RoadNetwork` roots with `RoadWaypoint` child nodes, not visible terrain meshes.
 
-A road path is invisible world logic: it stores stable source and target settlement IDs plus path points that NPC squads can follow for world actions such as raids.
+A road network is invisible world logic: endpoint waypoints store stable settlement IDs, intermediate waypoints shape the route, and authored waypoint connections define the graph that NPC squads can follow for world actions such as raids.
 
-If the world has a visible road model, texture, or terrain mark, that art is optional and separate from the road path data.
+Operators normally use the inspector `Road Authoring` panel to create connected waypoints, set an existing waypoint as a connection source, connect it to another waypoint, and fill missing or duplicate waypoint IDs. The buttons maintain `connected_waypoint_paths`; `RoadController` compiles those links bidirectionally into an `AStar3D` graph and picks the shortest route between settlement endpoint waypoints.
 
-Road paths are visible in the editor as helper meshes by default and invisible at runtime unless toggled with the roads debug action.
+If the world has a visible road model, texture, or terrain mark, that art is optional and separate from the road network data.
 
-`RoadController` collects road records and provides route waypoints to `WorldSquadController`.
+Road networks are visible in the editor as line helpers and waypoint orbs by default, and invisible at runtime unless toggled with the roads debug action.
+
+`RoadController` collects road network records and provides route waypoints to `WorldSquadController`.
 
 ## Future Player Bases
 

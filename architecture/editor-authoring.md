@@ -76,15 +76,23 @@ Use debug buttons to show faction territories and town borders when authoring or
 
 ## Roads
 
-Add `RoadPath` nodes under a scene-level `Roads` root or another clear world-data root.
+Add `RoadNetwork` nodes under a scene-level `Roads` root or another clear world-data root.
 
-Set `road_id`, `display_name`, `source_settlement_id`, `target_settlement_id`, `bidirectional`, and `path_points`.
+Set `network_id` and `display_name` on the network.
+
+Use the inspector `Road Authoring` panel to create, connect, and remove `RoadWaypoint` children. `Create First Waypoint` starts a network, `Create Additional Waypoint From This` adds an attached sibling waypoint, `Set As Connection Source` plus `Connect From Source` connects two existing waypoints, and `Delete This Waypoint` removes a waypoint while cleaning inbound connection paths.
+
+Move waypoints in the 3D viewport and set `settlement_id` on waypoints that represent settlement road entrances. Road waypoints are visible clickable meshes so operators can click the orb instead of finding the node in a large scene tree.
 
 Use settlement IDs from the linked `SettlementDefinition` resources, not node names or paths.
 
-Roads are invisible gameplay data. Keep any visible road mesh, decal, or terrain paint separate from the `RoadPath` node.
+The authoring buttons maintain `connected_waypoint_paths`; manual edits are only needed for unusual cleanup. Author each connection once; the runtime graph compiles links bidirectionally.
 
-Road debug paths should be visible in the editor and hidden at runtime unless the roads debug action is toggled.
+Use `Ensure All Waypoint IDs` or `Ensure Network IDs` to fill missing IDs and fix duplicates. Waypoint node names are only editor handles; stable route identity comes from `waypoint_id`.
+
+Roads are invisible gameplay data. Keep any visible road mesh, decal, or terrain paint separate from `RoadNetwork` and `RoadWaypoint` nodes.
+
+Road debug lines and waypoint markers should be visible in the editor and hidden at runtime unless the roads debug action is toggled.
 
 ## Validation
 
@@ -114,5 +122,5 @@ Before considering a town ready, check:
 - Storage ownership uses the correct faction.
 - Activity points are spread around meaningful places.
 - Territory and town border debug toggles display expected fields.
-- Road paths use stable settlement IDs and the roads debug toggle displays expected routes.
+- Road waypoint endpoints use stable settlement IDs, waypoint IDs are unique within each network, and the roads debug toggle displays expected routes.
 - No gameplay logic is hardcoded in the test scene.

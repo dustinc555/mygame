@@ -4,7 +4,7 @@ Game data is primarily authored with Godot resources and nodes.
 
 Resources define reusable data such as items, factions, settlement definitions, facility function definitions, behavior profiles, squad templates, prices, stock, jobs, race data, and body archetypes.
 
-Scene nodes define authored world composition such as towns, facilities, NPCs, containers, bars, mines, activity points, territory anchors, road paths, population capacity sources, buildings, and debug objects.
+Scene nodes define authored world composition such as towns, facilities, NPCs, containers, bars, mines, activity points, territory anchors, road networks, road waypoints, population capacity sources, buildings, and debug objects.
 
 ## Node Data Graph
 
@@ -29,7 +29,8 @@ digraph GameData {
 
   Nodes -> SettlementTown;
   Nodes -> FactionTerritoryAnchor;
-  Nodes -> RoadPath;
+  Nodes -> RoadNetwork;
+  Nodes -> RoadWaypoint;
   Nodes -> PopulationCapacitySource;
   Nodes -> NPCs;
   Nodes -> Containers;
@@ -51,7 +52,8 @@ digraph GameData {
   BuildRules -> ForeignFactionResponse;
   BuildRules -> TownNoBuildRadius;
 
-  RoadPath -> Roads;
+  RoadNetwork -> Roads;
+  RoadWaypoint -> Roads;
   Roads -> SquadRoutes;
 
   SettlementDefinitions -> Towns;
@@ -146,7 +148,7 @@ Examples:
 - `SettlementFacilityInstance` bridges the placed building slot, staff, service points, storage links, jobs, and activity points into a serializable facility record.
 - `SettlementBar` is the operator-facing reusable bar asset; its internal `BarServiceArea` coordinates waiter service, bed rental, and barkeeper stock handoff.
 - `SettlementTown` and child nodes define authored town layout; controllers use stable IDs to serialize the town's runtime truth.
-- `RoadPath` defines an authored invisible route between stable settlement IDs; `RoadController` stores road records and provides route waypoints for squad actions.
+- `RoadNetwork` and child `RoadWaypoint` nodes define authored invisible route graphs between stable settlement IDs; `RoadController` stores road records and provides shortest route waypoints for squad actions.
 - `WorldBuilding.population_capacity` and `PopulationCapacitySource` define authored housing/camp capacity; `SettlementController.max_occupancy` is derived from those sources.
 
 ## Stable IDs

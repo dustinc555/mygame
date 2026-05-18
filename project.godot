@@ -21,7 +21,7 @@ config/icon="res://icon.svg"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/job_authoring/plugin.cfg")
+enabled=PackedStringArray("res://addons/job_authoring/plugin.cfg", "res://addons/road_authoring/plugin.cfg")
 
 [gui]
 
