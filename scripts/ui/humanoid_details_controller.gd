@@ -2,6 +2,8 @@ extends Node
 
 class_name HumanoidDetailsController
 
+const BLOOD_GLOW_CRITICAL_LOSS_PER_SECOND := 8.0
+
 var root_scene: Node
 var hud_layer: CanvasLayer
 var details_panel: Control
@@ -15,6 +17,8 @@ var hunger_value: Label
 var blood_bar_stack: Control
 var blood_fill: ColorRect
 var blood_value: Label
+var blood_bleed_glow: Panel
+var _blood_bleed_glow_style := StyleBoxFlat.new()
 var hp_bar_stack: Control
 var hp_health_fill: ColorRect
 var hp_bandaged_fill: ColorRect
@@ -83,6 +87,7 @@ func _do_initialize() -> void:
 	blood_bar_stack = details_panel.get_node("Margin/DetailsVBox/BloodRow/BloodBarFrame/BloodBarStack")
 	blood_fill = details_panel.get_node("Margin/DetailsVBox/BloodRow/BloodBarFrame/BloodBarStack/BloodFill")
 	blood_value = details_panel.get_node("Margin/DetailsVBox/BloodRow/BloodBarFrame/BloodBarStack/BloodValue")
+	_setup_blood_bleed_glow()
 	hp_bar_stack = details_panel.get_node("Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack")
 	hp_health_fill = details_panel.get_node("Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack/HealthFill")
 	hp_bandaged_fill = details_panel.get_node("Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack/BandagedFill")
@@ -108,6 +113,7 @@ func _update_panel() -> void:
 		_update_fill_bar(hunger_bar_stack, hunger_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
 		hunger_value.text = ""
 		_update_fill_bar(blood_bar_stack, blood_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
+		_update_blood_bleed_glow(0.0)
 		blood_value.text = ""
 		_update_hp_bar_visuals(0.0, 0.0, 0.0, 1.0)
 		hp_value.text = ""
@@ -125,6 +131,7 @@ func _update_panel() -> void:
 	_update_fill_bar(hunger_bar_stack, hunger_fill, current_target.hunger / 100.0, _get_stage_color(current_target.get_hunger_stage(), NpcRules.HungerStage.WELL_NOURISHED, NpcRules.HungerStage.HUNGRY, NpcRules.HungerStage.STARVING))
 	blood_value.text = "%d / %d" % [int(round(current_target.blood)), int(round(current_target.max_blood))]
 	_update_fill_bar(blood_bar_stack, blood_fill, current_target.blood / maxf(current_target.max_blood, 1.0), _get_ratio_color(current_target.blood / maxf(current_target.max_blood, 1.0)))
+	_update_blood_bleed_glow(current_target.get_bleed_rate() if current_target.has_method("get_bleed_rate") else 0.0)
 	_update_hp_bar_visuals(current_target.hp, current_target.get_open_cut_damage(), current_target.get_bandaged_cut_damage(), current_target.max_hp, current_target.get_blunt_damage())
 	hp_value.text = "%d / %d" % [int(round(current_target.hp)), int(round(current_target.max_hp))]
 	var fatigue_stage_label: String = current_target.get_fatigue_stage_label()
@@ -165,6 +172,48 @@ func _update_fill_bar(bar_stack: Control, fill_rect: ColorRect, ratio: float, co
 	fill_rect.color = color
 	fill_rect.position = Vector2.ZERO
 	fill_rect.size = Vector2(total_width * clampf(ratio, 0.0, 1.0), bar_stack.size.y)
+
+
+func _setup_blood_bleed_glow() -> void:
+	if blood_bar_stack == null:
+		return
+	blood_bleed_glow = Panel.new()
+	blood_bleed_glow.name = "BloodBleedGlow"
+	blood_bleed_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_blood_bleed_glow_style.bg_color = Color(1.0, 0.0, 0.0, 0.0)
+	_blood_bleed_glow_style.border_width_left = 2
+	_blood_bleed_glow_style.border_width_top = 2
+	_blood_bleed_glow_style.border_width_right = 2
+	_blood_bleed_glow_style.border_width_bottom = 2
+	_blood_bleed_glow_style.corner_radius_top_left = 4
+	_blood_bleed_glow_style.corner_radius_top_right = 4
+	_blood_bleed_glow_style.corner_radius_bottom_right = 4
+	_blood_bleed_glow_style.corner_radius_bottom_left = 4
+	_blood_bleed_glow_style.shadow_size = 5
+	blood_bleed_glow.add_theme_stylebox_override("panel", _blood_bleed_glow_style)
+	blood_bleed_glow.visible = false
+	blood_bar_stack.add_child(blood_bleed_glow)
+	blood_bar_stack.move_child(blood_value, blood_bar_stack.get_child_count() - 1)
+
+
+func _update_blood_bleed_glow(bleed_rate: float) -> void:
+	if blood_bleed_glow == null or blood_bar_stack == null:
+		return
+	if bleed_rate <= 0.01:
+		blood_bleed_glow.visible = false
+		return
+	var blood_loss_per_second := bleed_rate * NpcRules.BLEED_TO_BLOOD_RATE
+	var severity := clampf(blood_loss_per_second / BLOOD_GLOW_CRITICAL_LOSS_PER_SECOND, 0.0, 1.0)
+	var pulse_rate := lerpf(0.55, 0.8, severity)
+	var pulse := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.001 * TAU * pulse_rate)
+	var minimum_alpha := lerpf(0.04, 0.82, severity)
+	var maximum_alpha := lerpf(0.48, 1.0, severity)
+	var alpha := lerpf(minimum_alpha, maximum_alpha, pulse)
+	_blood_bleed_glow_style.border_color = Color(1.0, 0.04, 0.02, alpha)
+	_blood_bleed_glow_style.shadow_color = Color(1.0, 0.0, 0.0, alpha * 0.7)
+	blood_bleed_glow.position = Vector2(-3.0, -3.0)
+	blood_bleed_glow.size = blood_bar_stack.size + Vector2(6.0, 6.0)
+	blood_bleed_glow.visible = true
 
 
 func _get_stage_color(stage: int, good_stage: int, warning_stage: int, danger_stage: int) -> Color:

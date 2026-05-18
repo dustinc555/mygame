@@ -12,7 +12,7 @@ signal day_changed(day_index: int)
 const MINUTES_PER_DAY := 24.0 * 60.0
 const WEEKDAYS: Array[String] = ["Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun"]
 const SPEED_LABELS: Array[String] = ["Slow", "Normal", "Fast", "Very Fast"]
-const SPEED_SCALES: Array[float] = [0.5, 1.0, 4.0, 12.0]
+const SPEED_SCALES: Array[float] = [0.5, 1.0, 4.0, 18.0]
 const PAUSE_REASON_MANUAL := "manual"
 const PAUSE_REASON_CONVERSATION := "conversation"
 

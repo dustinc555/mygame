@@ -15,8 +15,8 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="MyGame"
-run/main_scene="res://scenes/test_levels/two_towns_road_test.tscn"
-config/features=PackedStringArray("4.6", "GL Compatibility")
+run/main_scene="res://scenes/test_levels/combat_skirmish_10v10_armory.tscn"
+config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
 [editor_plugins]
@@ -29,5 +29,5 @@ timers/tooltip_delay_sec=0.0
 
 [rendering]
 
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="mobile"

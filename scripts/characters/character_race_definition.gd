@@ -7,6 +7,7 @@ class_name CharacterRaceDefinition
 @export var display_name := "Race"
 @export var equipment_slots: PackedStringArray = PackedStringArray()
 @export var equipment_slot_labels: Dictionary = {}
+@export var bleed_fluid: Resource
 @export var default_male_archetype: Resource
 @export var default_female_archetype: Resource
 

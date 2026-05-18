@@ -216,6 +216,9 @@ var _current_blunt_damage := 0.0
 var _current_open_cut_damage := 0.0
 var _current_bandaged_cut_damage := 0.0
 var _bleed_rate := 0.0
+var _bleed_burst_rate := 0.0
+var _bleed_drip_progress := 0.0
+var _bleed_pool_progress := 0.0
 var _pending_nourishment := 0.0
 var _combat_cooldown_remaining := 0.0
 var _combat_action_active := false
@@ -974,7 +977,14 @@ func get_blunt_damage() -> float:
 
 
 func get_bleed_rate() -> float:
-	return _bleed_rate
+	return _bleed_rate + _bleed_burst_rate
+
+
+func get_bleed_fluid() -> Resource:
+	var race := _get_character_race()
+	if race != null and race.get("bleed_fluid") != null:
+		return race.get("bleed_fluid") as Resource
+	return null
 
 
 func get_stance_label() -> String:
@@ -1197,7 +1207,7 @@ func _get_ragdoll_profile_float(property_name: String, fallback: float) -> float
 
 
 func has_bandageable_wounds() -> bool:
-	return _current_open_cut_damage > 0.0 or _bleed_rate > 0.0
+	return _current_open_cut_damage > 0.0 or _bleed_rate > 0.0 or _bleed_burst_rate > 0.0
 
 
 func can_receive_bandage() -> bool:
@@ -1364,7 +1374,7 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		_show_world_notice(_get_current_block_notice_label(), Color(0.86, 0.9, 1.0, 1.0))
 		_current_blunt_damage += final_blunt
 		_current_open_cut_damage += final_cut
-		_bleed_rate += final_cut * 0.12
+		_add_bleeding_from_cut(final_blunt, final_cut)
 		_recalculate_vitals()
 		_try_start_self_defense(attacker)
 		return "blocked"
@@ -1374,11 +1384,30 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
 	_current_blunt_damage += final_blunt
 	_current_open_cut_damage += final_cut
-	_bleed_rate += final_cut * 0.12
+	_add_bleeding_from_cut(final_blunt, final_cut)
 	_show_world_notice("Hit", Color(1.0, 0.42, 0.42, 1.0))
 	_recalculate_vitals()
 	_try_start_self_defense(attacker)
 	return "hit"
+
+
+func _add_bleeding_from_cut(final_blunt: float, final_cut: float) -> void:
+	if final_cut <= 0.0:
+		return
+	var total_damage := maxf(final_blunt + final_cut, 0.001)
+	var cut_ratio := clampf(final_cut / total_damage, 0.0, 1.0)
+	var sharp_excess := maxf(0.0, cut_ratio - NpcRules.BLEED_SHARP_CUT_RATIO_THRESHOLD)
+	var immediate_loss := final_cut * (NpcRules.BLEED_IMMEDIATE_BLOOD_LOSS_PER_CUT + sharp_excess * NpcRules.BLEED_IMMEDIATE_SHARPNESS_SCALE)
+	_apply_blood_loss(immediate_loss)
+	_bleed_burst_rate += final_cut * (NpcRules.BLEED_BURST_FROM_CUT_BASE + sharp_excess * NpcRules.BLEED_BURST_SHARPNESS_SCALE)
+	_bleed_rate += final_cut * (NpcRules.BLEED_SUSTAINED_FROM_CUT_BASE + sharp_excess * NpcRules.BLEED_SUSTAINED_SHARPNESS_SCALE)
+	_spawn_bleed_hit_splotches(final_cut)
+
+
+func _apply_blood_loss(amount: float) -> void:
+	if amount <= 0.0:
+		return
+	blood = maxf(blood - amount, -maxf(max_blood, 1.0) * NpcRules.BLOOD_LOSS_DEATH_FACTOR)
 
 
 func apply_bandage_from(actor: HumanoidCharacter) -> bool:
@@ -1391,9 +1420,10 @@ func apply_bandage_from(actor: HumanoidCharacter) -> bool:
 		return false
 	_current_bandaged_cut_damage += _current_open_cut_damage
 	_current_open_cut_damage = 0.0
-	_bleed_rate = maxf(0.0, _bleed_rate - bandage_definition.bandage_power)
-	if _bleed_rate <= 0.01:
-		_bleed_rate = 0.0
+	_bleed_rate = 0.0
+	_bleed_burst_rate = 0.0
+	_bleed_drip_progress = 0.0
+	_bleed_pool_progress = 0.0
 	_recalculate_vitals()
 	return true
 
@@ -1596,11 +1626,15 @@ func _process_needs(delta: float) -> void:
 
 
 func _process_bleeding(delta: float) -> void:
-	if _bleed_rate <= 0.0 or life_state == NpcRules.LifeState.DEAD:
+	if life_state == NpcRules.LifeState.DEAD:
 		return
-	blood = clampf(blood - _bleed_rate * NpcRules.BLEED_TO_BLOOD_RATE * delta, 0.0, max_blood)
-	if blood <= 0.0:
-		_enter_dead_state()
+	var total_bleed_rate := get_bleed_rate()
+	if total_bleed_rate <= 0.0:
+		return
+	var blood_loss_amount := total_bleed_rate * NpcRules.BLEED_TO_BLOOD_RATE * delta
+	_apply_blood_loss(blood_loss_amount)
+	_recalculate_vitals()
+	_process_bleed_splotches(total_bleed_rate, blood_loss_amount, delta)
 
 
 func _process_recovery(delta: float) -> void:
@@ -1614,11 +1648,70 @@ func _process_recovery(delta: float) -> void:
 	_current_blunt_damage = maxf(0.0, _current_blunt_damage - healing_step)
 	_current_bandaged_cut_damage = maxf(0.0, _current_bandaged_cut_damage - healing_step * 0.8)
 	_current_open_cut_damage = maxf(0.0, _current_open_cut_damage - healing_step * 0.35)
+	if _bleed_burst_rate > 0.0:
+		var burst_clot_step := maxf(NpcRules.BLEED_BURST_MIN_CLOT_RATE, _bleed_burst_rate * NpcRules.BLEED_BURST_CLOT_FRACTION_PER_SECOND) * delta + healing_step * NpcRules.BLEED_HEALING_BURST_CLOT_MULTIPLIER
+		_bleed_burst_rate = maxf(0.0, _bleed_burst_rate - burst_clot_step)
 	if _bleed_rate > 0.0:
-		_bleed_rate = maxf(0.0, _bleed_rate - healing_step * 0.02)
+		var clot_step := NpcRules.BLEED_CLOT_RATE * delta + healing_step * NpcRules.BLEED_HEALING_CLOT_MULTIPLIER
+		_bleed_rate = maxf(0.0, _bleed_rate - clot_step)
+	if get_bleed_rate() <= 0.0 and blood < max_blood:
+		var blood_recovery_step := NpcRules.BLOOD_RECOVERY_RATE * delta
+		if life_state == NpcRules.LifeState.ASLEEP:
+			blood_recovery_step *= NpcRules.BLOOD_RECOVERY_SLEEP_MULTIPLIER
+		blood = minf(max_blood, blood + blood_recovery_step)
 	if life_state == NpcRules.LifeState.UNCONSCIOUS:
 		_downed_recover_delay_remaining = maxf(0.0, _downed_recover_delay_remaining - delta)
 	_recalculate_vitals()
+
+
+func _process_bleed_splotches(total_bleed_rate: float, blood_loss_amount: float, delta: float) -> void:
+	if life_state == NpcRules.LifeState.DEAD or total_bleed_rate <= 0.0 or blood_loss_amount <= 0.0:
+		return
+	var blood_loss_per_second := total_bleed_rate * NpcRules.BLEED_TO_BLOOD_RATE
+	var severity := clampf(blood_loss_per_second / 8.0, 0.0, 1.0)
+	_bleed_drip_progress += delta * clampf(blood_loss_per_second / 2.5, 0.08, 2.2)
+	var drip_count := 0
+	while _bleed_drip_progress >= 1.0 and drip_count < 3:
+		_spawn_bleed_drip_splotch(severity)
+		_bleed_drip_progress -= 1.0
+		drip_count += 1
+	if life_state != NpcRules.LifeState.ALIVE:
+		_bleed_pool_progress += delta * clampf(blood_loss_per_second / 4.0, 0.04, 1.25)
+		var pool_count := 0
+		while _bleed_pool_progress >= 1.0 and pool_count < 2:
+			_spawn_bleed_pool_splotch(severity)
+			_bleed_pool_progress -= 1.0
+			pool_count += 1
+
+
+func _spawn_bleed_hit_splotches(cut_damage: float) -> void:
+	var controller := _get_bleed_splotch_controller()
+	if controller != null and controller.has_method("spawn_hit_splash"):
+		controller.call("spawn_hit_splash", self, get_bleed_fluid(), cut_damage)
+
+
+func _spawn_bleed_drip_splotch(severity: float) -> void:
+	var controller := _get_bleed_splotch_controller()
+	if controller != null and controller.has_method("spawn_bleed_drip"):
+		controller.call("spawn_bleed_drip", self, get_bleed_fluid(), severity)
+
+
+func _spawn_bleed_pool_splotch(severity: float) -> void:
+	var controller := _get_bleed_splotch_controller()
+	if controller != null and controller.has_method("spawn_bleed_pool"):
+		controller.call("spawn_bleed_pool", self, get_bleed_fluid(), severity)
+
+
+func _get_bleed_splotch_controller() -> Node:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	var controllers := tree.get_nodes_in_group("bleed_splotch_controller")
+	if not controllers.is_empty():
+		return controllers[0] as Node
+	if tree.current_scene == null:
+		return null
+	return tree.current_scene.get_node_or_null("GameBootstrap/BleedSplotchController")
 
 
 func _process_ai(delta: float) -> void:
@@ -3422,9 +3515,18 @@ func _recalculate_vitals() -> void:
 	hp = max_hp - get_total_wound_damage()
 	if life_state == NpcRules.LifeState.DEAD:
 		return
-	if blood <= 0.0:
+	var blood_death_threshold := -maxf(max_blood, 1.0) * NpcRules.BLOOD_LOSS_DEATH_FACTOR
+	if blood <= blood_death_threshold:
 		if life_state != NpcRules.LifeState.DEAD:
 			_enter_dead_state()
+		return
+	if blood <= 0.0:
+		if _is_getting_up:
+			_cancel_get_up()
+			_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, 5.0)
+			_enter_downed_state(false)
+		if life_state == NpcRules.LifeState.ALIVE or life_state == NpcRules.LifeState.ASLEEP:
+			_enter_unconscious_state()
 		return
 	if hp <= -max_hp * NpcRules.DEATH_HP_FACTOR:
 		if life_state != NpcRules.LifeState.DEAD:

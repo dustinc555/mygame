@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="BleedFluidDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world/effects/bleed_fluid_definition.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+fluid_id = "human_blood"
+display_name = "Blood"
+fresh_color = Color(0.48, 0.012, 0.008, 0.94)
+dried_color = Color(0.12, 0.022, 0.016, 0.78)

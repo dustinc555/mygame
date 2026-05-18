@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="CharacterRaceDefinition" format=3 uid="uid://bkfqbbmnqo3dp"]
+[gd_resource type="Resource" script_class="CharacterRaceDefinition" load_steps=5 format=3 uid="uid://bkfqbbmnqo3dp"]
 
 [ext_resource type="Script" uid="uid://dlvt70v5440ul" path="res://scripts/characters/character_race_definition.gd" id="1_script"]
 [ext_resource type="Resource" uid="uid://dvxmf3kr3l6cp" path="res://resources/character_body_archetypes/human_male.tres" id="2_male"]
 [ext_resource type="Resource" uid="uid://63d1ddh3frua" path="res://resources/character_body_archetypes/human_female.tres" id="3_female"]
+[ext_resource type="Resource" path="res://resources/bleed_fluids/human_blood.tres" id="4_fluid"]
 
 [resource]
 script = ExtResource("1_script")
@@ -20,5 +21,6 @@ equipment_slot_labels = {
 "undershirt": "Undershirt",
 "weapon": "Weapon"
 }
+bleed_fluid = ExtResource("4_fluid")
 default_male_archetype = ExtResource("2_male")
 default_female_archetype = ExtResource("3_female")
