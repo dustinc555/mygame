@@ -12,13 +12,13 @@ signal day_changed(day_index: int)
 const MINUTES_PER_DAY := 24.0 * 60.0
 const WEEKDAYS: Array[String] = ["Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun"]
 const SPEED_LABELS: Array[String] = ["Slow", "Normal", "Fast", "Very Fast"]
-const SPEED_SCALES: Array[float] = [0.5, 1.0, 4.0, 18.0]
+const SPEED_SCALES: Array[float] = [0.5, 1.0, 3.0, 8.0]
 const PAUSE_REASON_MANUAL := "manual"
 const PAUSE_REASON_CONVERSATION := "conversation"
 
 @export_range(0, 23, 1) var start_hour := 8
 @export_range(0, 59, 1) var start_minute := 0
-@export var real_seconds_per_game_minute := 5.0
+@export var real_seconds_per_game_minute := 1.0
 @export_range(0, 3, 1) var default_speed_index := 1
 @export var server_authoritative_mode := false
 
@@ -27,10 +27,14 @@ var speed_index := 1
 var _pause_reasons: Dictionary = {}
 var _last_emitted_absolute_minute := -1
 var _last_boundary_absolute_minute := -1
+var _base_physics_ticks_per_second := 60
+var _base_max_physics_steps_per_frame := 8
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_base_physics_ticks_per_second = Engine.physics_ticks_per_second
+	_base_max_physics_steps_per_frame = Engine.max_physics_steps_per_frame
 	total_world_minutes = float(start_hour * 60 + start_minute)
 	speed_index = clampi(default_speed_index, 0, SPEED_LABELS.size() - 1)
 	_last_boundary_absolute_minute = get_absolute_minute()
@@ -40,6 +44,8 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	Engine.time_scale = 1.0
+	Engine.physics_ticks_per_second = _base_physics_ticks_per_second
+	Engine.max_physics_steps_per_frame = _base_max_physics_steps_per_frame
 	var tree := get_tree()
 	if tree != null:
 		tree.paused = false
@@ -204,7 +210,11 @@ func _emit_time_changed(force: bool) -> void:
 
 
 func _apply_world_speed_state() -> void:
-	Engine.time_scale = 1.0 if is_world_paused() else get_speed_scale()
+	var active_speed_scale := 1.0 if is_world_paused() else get_speed_scale()
+	Engine.time_scale = active_speed_scale
+	var physics_precision_scale := maxf(active_speed_scale, 1.0)
+	Engine.physics_ticks_per_second = max(1, int(roundi(float(_base_physics_ticks_per_second) * physics_precision_scale)))
+	Engine.max_physics_steps_per_frame = max(1, int(ceili(float(_base_max_physics_steps_per_frame) * physics_precision_scale)))
 	var tree := get_tree()
 	if tree != null:
 		tree.paused = is_world_paused()

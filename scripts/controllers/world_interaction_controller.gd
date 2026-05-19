@@ -233,6 +233,15 @@ func _process(delta: float) -> void:
 	_process_hold_move(input_delta)
 
 
+func _physics_process(_delta: float) -> void:
+	if not _initialized or party_manager == null or party_manager.followed_member == null:
+		return
+	if not party_manager.followed_member.is_ragdoll_active():
+		return
+	camera_anchor = _get_anchor_position()
+	_apply_camera_transform()
+
+
 func _get_unscaled_input_delta(delta: float) -> float:
 	return delta / maxf(Engine.time_scale, 0.001)
 
@@ -831,7 +840,7 @@ func _get_selection_rect(start: Vector2, finish: Vector2) -> Rect2:
 
 func _get_anchor_position() -> Vector3:
 	if party_manager.followed_member != null:
-		return party_manager.followed_member.global_position + Vector3(0.0, FOLLOW_CAMERA_HEIGHT, 0.0)
+		return party_manager.followed_member.get_follow_anchor_position() + Vector3(0.0, FOLLOW_CAMERA_HEIGHT, 0.0)
 	return camera_anchor
 
 

@@ -7,6 +7,7 @@ const COMBAT_COORDINATOR = preload("res://scripts/characters/combat_coordinator.
 const COMBAT_ANIMATION_SET_SCRIPT = preload("res://scripts/characters/combat_animation_set.gd")
 const COMBAT_ATTACK_ANIMATION_SCRIPT = preload("res://scripts/characters/combat_attack_animation.gd")
 const HUMANOID_RAGDOLL_PROFILE_SCRIPT = preload("res://scripts/characters/humanoid_ragdoll_profile.gd")
+const STABLE_PHYSICAL_BONE_SCRIPT = preload("res://scripts/characters/stable_physical_bone.gd")
 const HUMAN_RACE = preload("res://resources/character_races/human.tres")
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_female.tres")
@@ -66,6 +67,16 @@ const SITTING_TALKING_CHANCE := 0.28
 const MOVE_ANIMATION_BLEND_SECONDS := 0.12
 const COMBAT_ACTION_BLEND_SECONDS := 0.05
 const ACTUAL_LOCOMOTION_SPEED_THRESHOLD := 0.18
+const RAGDOLL_IMPULSE_MEMORY_SECONDS := 4.0
+const RAGDOLL_COLLIDER_LENGTH_SCALE := 0.82
+const RAGDOLL_MAX_LINEAR_SPEED := 10.0
+const RAGDOLL_MAX_ANGULAR_SPEED := 18.0
+const RAGDOLL_ACTIVATION_SURFACE_CLEARANCE := 0.06
+const RAGDOLL_ACTIVATION_MAX_LIFT := 2.5
+const RAGDOLL_ACTIVATION_RAY_UP := 8.0
+const RAGDOLL_ACTIVATION_RAY_DOWN := 16.0
+const GROUND_MARKER_RAYCAST_UP := 5.0
+const GROUND_MARKER_RAYCAST_DOWN := 24.0
 const COMBAT_INTERVENTION_STAFF_GROUP := "combat_intervention_staff"
 const EQUIPMENT_SLOTS: Array[String] = ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head", "weapon", "offhand"]
 const EQUIPMENT_SLOT_LABELS := {
@@ -243,12 +254,17 @@ var _is_getting_up := false
 var _get_up_animation_name := ""
 var _get_up_animation_remaining := 0.0
 var _get_up_animation_total := 0.0
+var _ragdoll_preroll_active := false
+var _ragdoll_preroll_is_dead := false
+var _ragdoll_preroll_animation_name := ""
+var _ragdoll_preroll_remaining := 0.0
 var _default_ragdoll_profile: Resource
 var _ragdoll_simulator: PhysicalBoneSimulator3D
 var _ragdoll_skeleton: Skeleton3D
 var _ragdoll_physical_bones: Dictionary = {}
 var _is_ragdoll_active := false
 var _last_ragdoll_impulse := Vector3.ZERO
+var _last_ragdoll_impulse_remaining := 0.0
 var _stored_collision_shape: Shape3D
 var _stored_collision_transform := Transform3D.IDENTITY
 var _stored_collision_disabled := false
@@ -323,6 +339,10 @@ func _process(delta: float) -> void:
 		return
 	if _combat_cooldown_remaining > 0.0:
 		_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
+	if _last_ragdoll_impulse_remaining > 0.0:
+		_last_ragdoll_impulse_remaining = maxf(0.0, _last_ragdoll_impulse_remaining - delta)
+		if _last_ragdoll_impulse_remaining <= 0.0:
+			_last_ragdoll_impulse = Vector3.ZERO
 	_process_needs(delta)
 	_process_bleeding(delta)
 	_process_recovery(delta)
@@ -332,12 +352,16 @@ func _process(delta: float) -> void:
 	_process_combat_animation_state(delta)
 	_update_character_animation(delta)
 	_apply_bone_pose_position_offsets()
+	_update_ground_markers()
 
 
 func _physics_process(delta: float) -> void:
 	if _carried_by != null:
 		velocity = Vector3.ZERO
 		return
+	if _is_ragdoll_active:
+		_stabilize_active_ragdoll()
+		_update_ground_markers()
 	if life_state != NpcRules.LifeState.ALIVE and _downed_is_settled and is_on_floor():
 		velocity = Vector3.ZERO
 		return
@@ -1199,6 +1223,20 @@ func _choose_get_up_animation() -> String:
 	return ""
 
 
+func _choose_downed_preroll_animation() -> String:
+	var profile = _get_ragdoll_profile()
+	if profile != null and profile.has_method("choose_downed_preroll_animation"):
+		return profile.choose_downed_preroll_animation(_character_animation_player, _rng)
+	return ""
+
+
+func _choose_downed_preroll_duration(animation_length: float) -> float:
+	var profile = _get_ragdoll_profile()
+	if profile != null and profile.has_method("choose_downed_preroll_duration"):
+		return profile.choose_downed_preroll_duration(animation_length, _rng)
+	return animation_length
+
+
 func _get_ragdoll_profile_float(property_name: String, fallback: float) -> float:
 	var profile = _get_ragdoll_profile()
 	if profile == null:
@@ -1233,6 +1271,35 @@ func is_carried() -> bool:
 
 func is_carrying_someone() -> bool:
 	return _carried_character != null
+
+
+func is_ragdoll_active() -> bool:
+	return _is_ragdoll_active
+
+
+func get_follow_anchor_position() -> Vector3:
+	if _is_ragdoll_active:
+		var ragdoll_anchor: Variant = _get_ragdoll_anchor_position()
+		if ragdoll_anchor is Vector3:
+			return ragdoll_anchor
+	return global_position
+
+
+func get_ground_marker_position(marker_height: float = 0.03) -> Vector3:
+	var anchor := get_follow_anchor_position()
+	var fallback := Vector3(anchor.x, global_position.y + marker_height, anchor.z)
+	var world := get_world_3d()
+	if world == null:
+		return fallback
+	var start_y := maxf(anchor.y, global_position.y) + GROUND_MARKER_RAYCAST_UP
+	var end_y := minf(anchor.y, global_position.y) - GROUND_MARKER_RAYCAST_DOWN
+	var query := PhysicsRayQueryParameters3D.create(Vector3(anchor.x, start_y, anchor.z), Vector3(anchor.x, end_y, anchor.z))
+	query.exclude = _get_ground_marker_raycast_exclusions()
+	var hit := world.direct_space_state.intersect_ray(query)
+	if hit.has("position"):
+		var hit_position: Vector3 = hit["position"]
+		return hit_position + Vector3(0.0, marker_height, 0.0)
+	return fallback
 
 
 func get_carried_character() -> HumanoidCharacter:
@@ -1359,6 +1426,7 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	_notify_defensive_allies_of_attack(attacker)
 	_face_character(attacker)
 	_last_ragdoll_impulse = _get_attack_ragdoll_impulse(attacker, blunt_damage + cut_damage)
+	_last_ragdoll_impulse_remaining = RAGDOLL_IMPULSE_MEMORY_SECONDS if _last_ragdoll_impulse.length_squared() > 0.0001 else 0.0
 	var can_actively_defend := life_state == NpcRules.LifeState.ALIVE and not _is_getting_up
 	if can_actively_defend and _rng.randf() <= get_stat_value("dodge_chance"):
 		_spend_fatigue(NpcRules.FATIGUE_DODGE_COST)
@@ -2355,6 +2423,34 @@ func _setup_inspect_ring() -> void:
 func _update_inspect_visual() -> void:
 	if _inspect_ring != null:
 		_inspect_ring.visible = is_inspected
+
+
+func _update_ground_markers() -> void:
+	_update_ground_marker_transform(_inspect_ring, 0.025)
+	_update_ground_marker_transform(get_node_or_null("SelectionRing") as Node3D, 0.03)
+
+
+func _update_ground_marker_transform(marker: Node3D, marker_height: float) -> void:
+	if marker == null or not is_instance_valid(marker):
+		return
+	if not _is_ragdoll_active:
+		if marker.top_level:
+			marker.top_level = false
+		marker.position = Vector3(0.0, marker_height, 0.0)
+		marker.rotation = Vector3.ZERO
+		return
+	marker.top_level = true
+	marker.global_position = get_ground_marker_position(marker_height)
+	marker.rotation = Vector3.ZERO
+
+
+func _get_ground_marker_raycast_exclusions() -> Array[RID]:
+	var exclusions: Array[RID] = [get_rid()]
+	for physical_bone_value in _ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone != null and is_instance_valid(physical_bone):
+			exclusions.append(physical_bone.get_rid())
+	return exclusions
 
 
 func _setup_character_visual() -> void:
@@ -4008,6 +4104,12 @@ func force_kill(_attacker: HumanoidCharacter = null) -> void:
 	_enter_dead_state()
 
 
+func force_unconscious() -> void:
+	if life_state == NpcRules.LifeState.DEAD:
+		return
+	_enter_unconscious_state()
+
+
 func drop_carried_character() -> void:
 	var carried := _detach_carried_character()
 	if carried == null:
@@ -4032,6 +4134,7 @@ func _detach_carried_character() -> HumanoidCharacter:
 func _attach_carried_character(target_character: HumanoidCharacter) -> void:
 	_carried_character = target_character
 	target_character._carried_by = self
+	target_character._cancel_ragdoll_preroll()
 	target_character._cancel_get_up()
 	target_character._stop_ragdoll_simulation(true)
 	target_character._restore_downed_collision_shape()
@@ -4060,6 +4163,7 @@ func _update_carried_transform() -> void:
 func _enter_downed_state(is_dead: bool) -> void:
 	if _carried_by != null:
 		return
+	_cancel_ragdoll_preroll()
 	_cancel_get_up()
 	_clear_actor_move_target()
 	_clear_combat_action()
@@ -4070,12 +4174,16 @@ func _enter_downed_state(is_dead: bool) -> void:
 	_apply_downed_collision_shape()
 	velocity = Vector3.ZERO
 	_stop_character_animation(true)
-	_start_ragdoll_simulation(is_dead)
+	if _begin_downed_ragdoll_preroll(is_dead):
+		return
+	if not _start_ragdoll_simulation(is_dead):
+		_restore_downed_collision_shape()
 
 
 func _restore_from_downed_state() -> void:
 	if _carried_by != null:
 		return
+	_cancel_ragdoll_preroll()
 	_downed_is_settled = false
 	rotation = Vector3(0.0, rotation.y, 0.0)
 	velocity = Vector3.ZERO
@@ -4105,9 +4213,56 @@ func _begin_get_up() -> void:
 
 
 func _process_downed_animation_state(delta: float) -> void:
+	if _ragdoll_preroll_active:
+		_process_downed_ragdoll_preroll(delta)
+		return
 	if not _is_getting_up:
 		return
 	_process_get_up_animation(delta)
+
+
+func _begin_downed_ragdoll_preroll(is_dead: bool) -> bool:
+	if _character_animation_player == null:
+		return false
+	var animation_name := _choose_downed_preroll_animation()
+	if animation_name.is_empty():
+		return false
+	var animation_length := _get_character_animation_length(animation_name)
+	var preroll_duration := _choose_downed_preroll_duration(animation_length)
+	if preroll_duration <= 0.0:
+		return false
+	_ragdoll_preroll_active = true
+	_ragdoll_preroll_is_dead = is_dead
+	_ragdoll_preroll_animation_name = animation_name
+	_ragdoll_preroll_remaining = preroll_duration
+	if not _play_character_animation(animation_name, 0.0, true, 0.0):
+		_cancel_ragdoll_preroll()
+		return false
+	return true
+
+
+func _process_downed_ragdoll_preroll(delta: float) -> void:
+	_ragdoll_preroll_remaining = maxf(0.0, _ragdoll_preroll_remaining - delta)
+	if _ragdoll_preroll_remaining > 0.0 and _character_animation_player != null and _character_animation_player.is_playing():
+		return
+	_finish_downed_ragdoll_preroll()
+
+
+func _finish_downed_ragdoll_preroll() -> void:
+	if not _ragdoll_preroll_active:
+		return
+	var was_dead := _ragdoll_preroll_is_dead
+	_cancel_ragdoll_preroll()
+	_stop_character_animation(true)
+	if not _start_ragdoll_simulation(was_dead):
+		_restore_downed_collision_shape()
+
+
+func _cancel_ragdoll_preroll() -> void:
+	_ragdoll_preroll_active = false
+	_ragdoll_preroll_is_dead = false
+	_ragdoll_preroll_animation_name = ""
+	_ragdoll_preroll_remaining = 0.0
 
 
 func _process_get_up_animation(delta: float) -> void:
@@ -4187,26 +4342,32 @@ func _set_navigation_avoidance_enabled(enabled: bool) -> void:
 		_navigation_agent.avoidance_enabled = enabled
 
 
-func _start_ragdoll_simulation(_is_dead: bool) -> void:
+func _start_ragdoll_simulation(_is_dead: bool) -> bool:
 	if not _ensure_runtime_ragdoll():
-		return
+		return false
 	_is_ragdoll_active = true
-	if _ragdoll_skeleton != null:
-		_ragdoll_skeleton.set_animate_physical_bones(true)
+	if _ragdoll_skeleton != null and is_instance_valid(_ragdoll_skeleton):
+		_ragdoll_skeleton.force_update_all_bone_transforms()
 	_ragdoll_simulator.active = true
 	_ragdoll_simulator.influence = 1.0
 	_ragdoll_simulator.physical_bones_add_collision_exception(get_rid())
+	_configure_ragdoll_internal_collision_exceptions()
+	_sync_ragdoll_physical_bones_to_current_pose()
+	_apply_ragdoll_activation_clearance()
+	_reset_ragdoll_body_velocities()
 	_ragdoll_simulator.physical_bones_start_simulation()
+	_reset_ragdoll_body_velocities()
 	_apply_pending_ragdoll_impulse()
+	return true
 
 
 func _stop_ragdoll_simulation(reset_pose: bool) -> void:
 	if _ragdoll_simulator != null and is_instance_valid(_ragdoll_simulator):
 		if _ragdoll_simulator.is_simulating_physics():
 			_ragdoll_simulator.physical_bones_stop_simulation()
+		_ragdoll_simulator.physical_bones_remove_collision_exception(get_rid())
 		_ragdoll_simulator.active = false
 	if _ragdoll_skeleton != null and is_instance_valid(_ragdoll_skeleton):
-		_ragdoll_skeleton.set_animate_physical_bones(false)
 		if reset_pose:
 			_ragdoll_skeleton.reset_bone_poses()
 	_is_ragdoll_active = false
@@ -4257,45 +4418,263 @@ func _create_missing_ragdoll_physical_bones() -> void:
 
 
 func _build_ragdoll_physical_bone(profile, bone_name: String, bone_index: int) -> PhysicalBone3D:
-	var physical_bone := PhysicalBone3D.new()
+	var physical_bone := STABLE_PHYSICAL_BONE_SCRIPT.new() as PhysicalBone3D
 	physical_bone.name = "PhysicalBone_%s" % bone_name
 	physical_bone.bone_name = bone_name
+	physical_bone.transform = _ragdoll_skeleton.get_bone_global_rest(bone_index)
+	physical_bone.set("max_linear_speed", RAGDOLL_MAX_LINEAR_SPEED)
+	physical_bone.set("max_angular_speed", RAGDOLL_MAX_ANGULAR_SPEED)
 	physical_bone.mass = maxf(0.05, float(profile.get_bone_mass(bone_name)))
 	physical_bone.gravity_scale = float(profile.get("gravity_scale"))
 	physical_bone.linear_damp = float(profile.get("linear_damp"))
 	physical_bone.angular_damp = float(profile.get("angular_damp"))
 	physical_bone.friction = float(profile.get("friction"))
 	physical_bone.bounce = float(profile.get("bounce"))
+	physical_bone.linear_damp_mode = PhysicalBone3D.DAMP_MODE_REPLACE
+	physical_bone.angular_damp_mode = PhysicalBone3D.DAMP_MODE_REPLACE
+	physical_bone.can_sleep = false
 	physical_bone.collision_layer = int(profile.get("collision_layer"))
 	physical_bone.collision_mask = int(profile.get("collision_mask"))
 	physical_bone.joint_type = int(profile.get_bone_joint_type(bone_name))
 	physical_bone.joint_offset = Transform3D.IDENTITY
+	_apply_ragdoll_joint_constraints(profile, physical_bone, bone_name)
 	var shape := CollisionShape3D.new()
 	shape.name = "CollisionShape3D"
 	var bone_length := _get_ragdoll_bone_length(profile, bone_name, bone_index)
 	var radius := float(profile.get_bone_radius(bone_name))
+	var body_basis := _get_ragdoll_body_basis(profile, bone_name, bone_index)
+	var center_distance := 0.0 if bone_name == str(profile.get("root_bone_name")) else bone_length * 0.5
 	if bool(profile.should_use_box_shape(bone_name)):
 		var box := BoxShape3D.new()
 		box.size = _get_ragdoll_box_size(bone_name, bone_length, radius)
 		shape.shape = box
-		physical_bone.body_offset = Transform3D(Basis.IDENTITY, Vector3(0.0, box.size.y * 0.5, 0.0))
+		physical_bone.body_offset = Transform3D(body_basis, body_basis.y * center_distance)
 	else:
 		var capsule := CapsuleShape3D.new()
 		capsule.radius = radius
-		capsule.height = maxf(bone_length, radius * 2.2)
+		capsule.height = maxf(bone_length * RAGDOLL_COLLIDER_LENGTH_SCALE, radius * 2.2)
 		shape.shape = capsule
-		physical_bone.body_offset = Transform3D(Basis.IDENTITY, Vector3(0.0, capsule.height * 0.5, 0.0))
+		physical_bone.body_offset = Transform3D(body_basis, body_basis.y * center_distance)
 	physical_bone.add_child(shape)
 	return physical_bone
 
 
-func _get_ragdoll_bone_length(profile, bone_name: String, bone_index: int) -> float:
-	var best_length := 0.0
+func _apply_ragdoll_joint_constraints(profile, physical_bone: PhysicalBone3D, bone_name: String) -> void:
+	match int(profile.get_bone_joint_type(bone_name)):
+		PhysicalBone3D.JOINT_TYPE_CONE:
+			var swing_span := float(profile.get_bone_cone_swing_span_degrees(bone_name)) if profile.has_method("get_bone_cone_swing_span_degrees") else 45.0
+			var twist_span := float(profile.get_bone_cone_twist_span_degrees(bone_name)) if profile.has_method("get_bone_cone_twist_span_degrees") else 25.0
+			physical_bone.set("joint_constraints/swing_span", swing_span)
+			physical_bone.set("joint_constraints/twist_span", twist_span)
+			physical_bone.set("joint_constraints/bias", _get_ragdoll_profile_float("cone_bias", 0.25))
+			physical_bone.set("joint_constraints/softness", _get_ragdoll_profile_float("cone_softness", 0.65))
+			physical_bone.set("joint_constraints/relaxation", _get_ragdoll_profile_float("cone_relaxation", 0.8))
+		PhysicalBone3D.JOINT_TYPE_HINGE:
+			physical_bone.set("joint_constraints/angular_limit_enabled", true)
+			physical_bone.set("joint_constraints/angular_limit_lower", _get_ragdoll_profile_float("hinge_limit_lower_degrees", -12.0))
+			physical_bone.set("joint_constraints/angular_limit_upper", _get_ragdoll_profile_float("hinge_limit_upper_degrees", 95.0))
+			physical_bone.set("joint_constraints/angular_limit_bias", _get_ragdoll_profile_float("hinge_bias", 0.25))
+			physical_bone.set("joint_constraints/angular_limit_softness", _get_ragdoll_profile_float("hinge_softness", 0.75))
+			physical_bone.set("joint_constraints/angular_limit_relaxation", _get_ragdoll_profile_float("hinge_relaxation", 0.8))
+
+
+func _configure_ragdoll_internal_collision_exceptions() -> void:
+	var profile = _get_ragdoll_profile()
+	if profile == null or not bool(profile.get("disable_internal_collisions")):
+		return
+	var bones: Array[PhysicalBone3D] = []
+	for physical_bone_value in _ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone != null and is_instance_valid(physical_bone):
+			bones.append(physical_bone)
+	for first_index in range(bones.size()):
+		for second_index in range(first_index + 1, bones.size()):
+			PhysicsServer3D.body_add_collision_exception(bones[first_index].get_rid(), bones[second_index].get_rid())
+			PhysicsServer3D.body_add_collision_exception(bones[second_index].get_rid(), bones[first_index].get_rid())
+
+
+func _reset_ragdoll_body_velocities() -> void:
+	for physical_bone_value in _ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone == null or not is_instance_valid(physical_bone):
+			continue
+		physical_bone.linear_velocity = Vector3.ZERO
+		physical_bone.angular_velocity = Vector3.ZERO
+
+
+func _sync_ragdoll_physical_bones_to_current_pose() -> void:
+	if _ragdoll_skeleton == null or not is_instance_valid(_ragdoll_skeleton):
+		return
+	_ragdoll_skeleton.force_update_all_bone_transforms()
+	for bone_name_value in _ragdoll_physical_bones.keys():
+		var bone_name := str(bone_name_value)
+		var physical_bone := _ragdoll_physical_bones.get(bone_name, null) as PhysicalBone3D
+		if physical_bone == null or not is_instance_valid(physical_bone):
+			continue
+		var bone_index := _ragdoll_skeleton.find_bone(bone_name)
+		if bone_index < 0:
+			continue
+		physical_bone.transform = _ragdoll_skeleton.get_bone_global_pose(bone_index)
+
+
+func _apply_ragdoll_activation_clearance() -> void:
+	var world := get_world_3d()
+	if world == null:
+		return
+	var required_lift := 0.0
+	for physical_bone_value in _ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone == null or not is_instance_valid(physical_bone):
+			continue
+		var shape_transform := _get_ragdoll_shape_global_transform(physical_bone)
+		var surface_y = _get_ragdoll_surface_y_below(shape_transform.origin)
+		if surface_y == null:
+			continue
+		var vertical_extent := _get_ragdoll_collision_vertical_extent(physical_bone, shape_transform.basis)
+		var lift := float(surface_y) + vertical_extent + RAGDOLL_ACTIVATION_SURFACE_CLEARANCE - shape_transform.origin.y
+		required_lift = maxf(required_lift, lift)
+	if required_lift <= 0.0:
+		return
+	global_position.y += minf(required_lift, RAGDOLL_ACTIVATION_MAX_LIFT)
+	velocity.y = 0.0
+	if _ragdoll_skeleton != null and is_instance_valid(_ragdoll_skeleton):
+		_ragdoll_skeleton.force_update_all_bone_transforms()
+
+
+func _get_ragdoll_shape_global_transform(physical_bone: PhysicalBone3D) -> Transform3D:
+	var body_transform := physical_bone.global_transform * physical_bone.body_offset
+	var shape_node := physical_bone.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if shape_node == null:
+		return body_transform
+	return body_transform * shape_node.transform
+
+
+func _get_ragdoll_surface_y_below(position: Vector3):
+	var world := get_world_3d()
+	if world == null:
+		return null
+	var query := PhysicsRayQueryParameters3D.create(
+		position + Vector3(0.0, RAGDOLL_ACTIVATION_RAY_UP, 0.0),
+		position - Vector3(0.0, RAGDOLL_ACTIVATION_RAY_DOWN, 0.0)
+	)
+	query.exclude = _get_ragdoll_activation_ray_exclusions()
+	query.collide_with_bodies = true
+	query.collide_with_areas = false
+	var hit := world.direct_space_state.intersect_ray(query)
+	if not hit.has("position"):
+		return null
+	var hit_position: Vector3 = hit["position"]
+	return hit_position.y
+
+
+func _get_ragdoll_activation_ray_exclusions() -> Array[RID]:
+	var exclusions: Array[RID] = [get_rid()]
+	for physical_bone_value in _ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone != null and is_instance_valid(physical_bone):
+			exclusions.append(physical_bone.get_rid())
+	return exclusions
+
+
+func _get_ragdoll_collision_vertical_extent(physical_bone: PhysicalBone3D, shape_basis: Basis) -> float:
+	var shape_node := physical_bone.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if shape_node == null or shape_node.shape == null:
+		return 0.25
+	var basis := shape_basis.orthonormalized()
+	var box := shape_node.shape as BoxShape3D
+	if box != null:
+		return _get_basis_vertical_extent(basis, box.size * 0.5)
+	var capsule := shape_node.shape as CapsuleShape3D
+	if capsule != null:
+		var half_height := maxf(capsule.height * 0.5, capsule.radius)
+		return absf(basis.y.y) * half_height + (absf(basis.x.y) + absf(basis.z.y)) * capsule.radius
+	var sphere := shape_node.shape as SphereShape3D
+	if sphere != null:
+		return sphere.radius
+	return 0.25
+
+
+func _get_basis_vertical_extent(basis: Basis, half_extents: Vector3) -> float:
+	return absf(basis.x.y) * half_extents.x + absf(basis.y.y) * half_extents.y + absf(basis.z.y) * half_extents.z
+
+
+func _stabilize_active_ragdoll() -> void:
+	for physical_bone_value in _ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone == null or not is_instance_valid(physical_bone):
+			continue
+		var linear_velocity := physical_bone.linear_velocity
+		if linear_velocity.length() > RAGDOLL_MAX_LINEAR_SPEED:
+			physical_bone.linear_velocity = linear_velocity.normalized() * RAGDOLL_MAX_LINEAR_SPEED
+		var angular_velocity := physical_bone.angular_velocity
+		if angular_velocity.length() > RAGDOLL_MAX_ANGULAR_SPEED:
+			physical_bone.angular_velocity = angular_velocity.normalized() * RAGDOLL_MAX_ANGULAR_SPEED
+
+
+func _get_ragdoll_body_basis(profile, bone_name: String, bone_index: int) -> Basis:
+	if profile != null and bone_name == str(profile.get("root_bone_name")):
+		return Basis.IDENTITY
+	return _make_y_axis_basis(_get_ragdoll_bone_axis(profile, bone_name, bone_index))
+
+
+func _get_ragdoll_bone_axis(profile, bone_name: String, bone_index: int) -> Vector3:
+	var child_vector := _get_ragdoll_child_vector(profile, bone_index)
+	if child_vector.length_squared() > 0.0001:
+		return child_vector.normalized()
+	var parent_axis := _get_ragdoll_parent_continuation_axis(bone_index)
+	if parent_axis.length_squared() > 0.0001:
+		return parent_axis.normalized()
+	return _get_fallback_ragdoll_bone_axis(bone_name)
+
+
+func _get_ragdoll_child_vector(profile, bone_index: int) -> Vector3:
+	if profile == null:
+		return Vector3.ZERO
+	var best_vector := Vector3.ZERO
+	var best_length_squared := 0.0
 	for child_index in _ragdoll_skeleton.get_bone_children(bone_index):
 		var child_name := _ragdoll_skeleton.get_bone_name(child_index)
 		if not profile.has_physical_bone(child_name):
 			continue
-		best_length = maxf(best_length, _ragdoll_skeleton.get_bone_rest(child_index).origin.length())
+		var child_vector := _ragdoll_skeleton.get_bone_rest(child_index).origin
+		var child_length_squared := child_vector.length_squared()
+		if child_length_squared > best_length_squared:
+			best_vector = child_vector
+			best_length_squared = child_length_squared
+	return best_vector
+
+
+func _get_ragdoll_parent_continuation_axis(bone_index: int) -> Vector3:
+	var bone_rest := _ragdoll_skeleton.get_bone_rest(bone_index)
+	if bone_rest.origin.length_squared() <= 0.0001:
+		return Vector3.ZERO
+	return bone_rest.basis.inverse() * bone_rest.origin
+
+
+func _get_fallback_ragdoll_bone_axis(bone_name: String) -> Vector3:
+	if bone_name.ends_with("_l"):
+		return Vector3.LEFT
+	if bone_name.ends_with("_r"):
+		return Vector3.RIGHT
+	if bone_name.begins_with("foot"):
+		return Vector3.FORWARD
+	return Vector3.UP
+
+
+func _make_y_axis_basis(axis: Vector3) -> Basis:
+	var y_axis := axis.normalized()
+	if y_axis.length_squared() <= 0.0001:
+		return Basis.IDENTITY
+	var reference_axis := Vector3.UP
+	if absf(y_axis.dot(reference_axis)) > 0.92:
+		reference_axis = Vector3.FORWARD
+	var x_axis := reference_axis.cross(y_axis).normalized()
+	var z_axis := x_axis.cross(y_axis).normalized()
+	return Basis(x_axis, y_axis, z_axis).orthonormalized()
+
+
+func _get_ragdoll_bone_length(profile, bone_name: String, bone_index: int) -> float:
+	var best_length := _get_ragdoll_child_vector(profile, bone_index).length()
 	if best_length <= 0.0:
 		best_length = _get_fallback_ragdoll_bone_length(bone_name)
 	return best_length
@@ -4315,10 +4694,10 @@ func _get_fallback_ragdoll_bone_length(bone_name: String) -> float:
 
 func _get_ragdoll_box_size(bone_name: String, bone_length: float, radius: float) -> Vector3:
 	if bone_name == "pelvis":
-		return Vector3(radius * 2.5, maxf(0.16, bone_length), radius * 1.8)
+		return Vector3(radius * 2.5, maxf(0.14, bone_length * 0.55), radius * 1.8)
 	if bone_name == "Head":
 		return Vector3(radius * 1.6, radius * 1.8, radius * 1.5)
-	return Vector3(radius * 2.0, maxf(0.12, bone_length), radius * 1.6)
+	return Vector3(radius * 2.0, maxf(0.12, bone_length * RAGDOLL_COLLIDER_LENGTH_SCALE), radius * 1.6)
 
 
 func _get_ragdoll_anchor_position() -> Variant:
@@ -4331,7 +4710,9 @@ func _get_ragdoll_anchor_position() -> Variant:
 
 
 func _apply_pending_ragdoll_impulse() -> void:
-	if _last_ragdoll_impulse.length_squared() <= 0.0001:
+	if _last_ragdoll_impulse.length_squared() <= 0.0001 or _last_ragdoll_impulse_remaining <= 0.0:
+		_last_ragdoll_impulse = Vector3.ZERO
+		_last_ragdoll_impulse_remaining = 0.0
 		return
 	var profile = _get_ragdoll_profile()
 	var root_bone_name := str(profile.get("root_bone_name")) if profile != null else "pelvis"
@@ -4343,6 +4724,7 @@ func _apply_pending_ragdoll_impulse() -> void:
 		if physical_bone != null and is_instance_valid(physical_bone):
 			physical_bone.apply_central_impulse(_last_ragdoll_impulse * 0.35)
 	_last_ragdoll_impulse = Vector3.ZERO
+	_last_ragdoll_impulse_remaining = 0.0
 
 
 func _get_attack_ragdoll_impulse(attacker: HumanoidCharacter, damage: float) -> Vector3:
