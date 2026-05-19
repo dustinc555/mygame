@@ -65,6 +65,7 @@ const SITTING_IDLE_MAX_SECONDS := 11.0
 const SITTING_TALKING_CHANCE := 0.28
 const MOVE_ANIMATION_BLEND_SECONDS := 0.12
 const COMBAT_ACTION_BLEND_SECONDS := 0.05
+const ACTUAL_LOCOMOTION_SPEED_THRESHOLD := 0.18
 const COMBAT_INTERVENTION_STAFF_GROUP := "combat_intervention_staff"
 const EQUIPMENT_SLOTS: Array[String] = ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head", "weapon", "offhand"]
 const EQUIPMENT_SLOT_LABELS := {
@@ -1360,12 +1361,14 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	_last_ragdoll_impulse = _get_attack_ragdoll_impulse(attacker, blunt_damage + cut_damage)
 	var can_actively_defend := life_state == NpcRules.LifeState.ALIVE and not _is_getting_up
 	if can_actively_defend and _rng.randf() <= get_stat_value("dodge_chance"):
+		_spend_fatigue(NpcRules.FATIGUE_DODGE_COST)
 		_show_world_notice("Dodge", Color(0.74, 0.94, 1.0, 1.0))
 		_try_start_self_defense(attacker)
 		return "dodged"
 	var final_blunt := maxf(blunt_damage, 0.0)
 	var final_cut := maxf(cut_damage, 0.0)
 	if can_actively_defend and _rng.randf() <= get_stat_value("block_chance"):
+		_spend_fatigue(NpcRules.FATIGUE_BLOCK_COST)
 		final_blunt *= block_damage_multiplier
 		final_cut *= block_damage_multiplier
 		_prepare_combat_reaction(attacker)
@@ -1608,14 +1611,18 @@ func _process_needs(delta: float) -> void:
 	if fatigue_enabled:
 		var was_running := running
 		var fatigue_delta := 0.0
-		if life_state != NpcRules.LifeState.ALIVE:
+		if life_state == NpcRules.LifeState.ASLEEP:
+			fatigue_delta += get_stat_value("fatigue_recovery_rate") * NpcRules.FATIGUE_SLEEP_RECOVERY_MULTIPLIER * delta
+		elif life_state != NpcRules.LifeState.ALIVE:
 			fatigue_delta += get_stat_value("fatigue_recovery_rate") * delta
 		elif _is_working():
 			fatigue_delta -= NpcRules.FATIGUE_WORK_DRAIN * delta
-		elif is_in_combat():
-			fatigue_delta -= NpcRules.FATIGUE_COMBAT_DRAIN * delta
-		elif is_running_enabled() and _has_move_target:
+		elif is_running_enabled() and _is_actual_locomotion_active():
 			fatigue_delta -= NpcRules.FATIGUE_RUN_DRAIN * delta
+		elif _is_sitting:
+			fatigue_delta += get_stat_value("fatigue_recovery_rate") * NpcRules.FATIGUE_SIT_RECOVERY_MULTIPLIER * delta
+		elif _is_actual_locomotion_active():
+			fatigue_delta += get_stat_value("fatigue_recovery_rate") * NpcRules.FATIGUE_WALK_RECOVERY_MULTIPLIER * delta
 		else:
 			fatigue_delta += get_stat_value("fatigue_recovery_rate") * delta
 		_apply_fatigue_delta(fatigue_delta)
@@ -2005,6 +2012,7 @@ func _start_combat_attack(target: HumanoidCharacter) -> void:
 	if attack == null:
 		if not COMBAT_COORDINATOR.try_begin_exchange(self, target, 0.45):
 			return
+		_spend_fatigue(NpcRules.FATIGUE_ATTACK_COST)
 		var total_damage := get_stat_value("attack_damage")
 		var cut_damage := total_damage * get_stat_value("cut_ratio")
 		target.receive_attack(self, total_damage - cut_damage, cut_damage)
@@ -2015,6 +2023,7 @@ func _start_combat_attack(target: HumanoidCharacter) -> void:
 	var action_seconds := _get_animation_sequence_length(action_names)
 	if not COMBAT_COORDINATOR.try_begin_exchange(self, target, action_seconds):
 		return
+	_spend_fatigue(NpcRules.FATIGUE_ATTACK_COST)
 	_combat_action_names = action_names
 	_combat_action_index = 0
 	_combat_action_clip_remaining = _get_character_animation_length(_combat_action_names[0])
@@ -3098,8 +3107,8 @@ func _update_character_animation(delta: float) -> void:
 		_cancel_run_transition()
 		_update_idle_character_animation(delta)
 		return
-	var horizontal_speed := Vector2(velocity.x, velocity.z).length()
-	var is_moving := horizontal_speed > 0.18 and (_has_move_target or _current_order_type == OrderType.ATTACK)
+	var horizontal_speed := _get_horizontal_speed()
+	var is_moving := horizontal_speed > ACTUAL_LOCOMOTION_SPEED_THRESHOLD and (_has_move_target or _current_order_type == OrderType.ATTACK)
 	var wants_run_animation := is_running_enabled() and is_moving and not sneaking
 	if _crouch_enter_animation_remaining > 0.0:
 		_update_crouch_enter_animation(delta)
@@ -3618,7 +3627,7 @@ func _collect_stat_modifiers() -> Array:
 	NpcRules.append_stage_modifiers(modifiers, get_hunger_stage(), get_fatigue_stage(), _current_open_cut_damage, max_hp)
 	if life_state == NpcRules.LifeState.UNCONSCIOUS:
 		modifiers.append({"stat": "healing_rate", "mul": NpcRules.UNCONSCIOUS_HEAL_MULTIPLIER})
-	if running and _has_move_target:
+	if running and (_has_move_target or _should_direct_combat_chase()):
 		modifiers.append({"stat": "move_speed_multiplier", "mul": _get_base_stat_value("run_speed_multiplier")})
 	if sneaking:
 		modifiers.append({"stat": "move_speed_multiplier", "mul": 0.65})
@@ -3657,6 +3666,22 @@ func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true)
 
 func _get_current_move_speed() -> float:
 	return move_speed * get_stat_value("move_speed_multiplier")
+
+
+func _get_horizontal_speed() -> float:
+	return Vector2(velocity.x, velocity.z).length()
+
+
+func _is_actual_locomotion_active() -> bool:
+	if life_state != NpcRules.LifeState.ALIVE or _is_sitting or _carried_by != null:
+		return false
+	return _get_horizontal_speed() > ACTUAL_LOCOMOTION_SPEED_THRESHOLD
+
+
+func _spend_fatigue(amount: float) -> void:
+	if not fatigue_enabled or amount <= 0.0:
+		return
+	_apply_fatigue_delta(-amount)
 
 
 func _should_consider_combat_retarget() -> bool:

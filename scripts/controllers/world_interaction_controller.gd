@@ -38,6 +38,8 @@ const MOVE_COMMAND_NAV_PROJECTION_VERTICAL_TOLERANCE := 0.8
 @export var camera_max_distance := 36.0
 @export var orbit_sensitivity := 0.01
 @export var move_command_spacing := 1.4
+@export var close_move_command_spacing := 0.85
+@export var close_move_command_radius := 2.0
 @export var vertical_move_formation_height_threshold := 1.0
 @export var drag_select_threshold := 12.0
 @export var hold_move_repeat_seconds := 0.15
@@ -545,18 +547,21 @@ func issue_move_command(screen_position: Vector2, show_indicator: bool = true) -
 	for member in party_manager.selected_members:
 		center += member.global_position
 	center /= party_manager.selected_members.size()
-	var preserve_formation := absf(target.y - center.y) <= vertical_move_formation_height_threshold
-	var member_index := 0
 	var selected_count := party_manager.selected_members.size()
+	var preserve_formation := absf(target.y - center.y) <= vertical_move_formation_height_threshold
+	var use_close_formation := preserve_formation and selected_count > 1 and _horizontal_distance(target, center) <= close_move_command_radius
+	var member_index := 0
 	for member in party_manager.selected_members:
 		var offset := Vector3.ZERO
-		if preserve_formation:
+		if use_close_formation:
+			offset = _get_group_grid_move_offset(member_index, selected_count, close_move_command_spacing)
+		elif preserve_formation:
 			offset = member.global_position - center
 			offset.y = 0.0
 			if offset.length() > move_command_spacing:
 				offset = offset.normalized() * move_command_spacing
 		else:
-			offset = _get_cross_level_move_offset(member_index, selected_count)
+			offset = _get_group_grid_move_offset(member_index, selected_count, move_command_spacing)
 		var member_target := _project_move_command_target(target + offset, target, target.y)
 		member.stop_mining_assignment()
 		member.stop_container_interaction()
@@ -566,15 +571,23 @@ func issue_move_command(screen_position: Vector2, show_indicator: bool = true) -
 
 
 func _get_cross_level_move_offset(member_index: int, selected_count: int) -> Vector3:
+	return _get_group_grid_move_offset(member_index, selected_count, move_command_spacing)
+
+
+func _get_group_grid_move_offset(member_index: int, selected_count: int, spacing: float) -> Vector3:
 	if selected_count <= 1:
 		return Vector3.ZERO
 	var columns := ceili(sqrt(float(selected_count)))
 	var rows := ceili(float(selected_count) / float(columns))
 	var column := member_index % columns
 	var row := int(member_index / columns)
-	var x := (float(column) - float(columns - 1) * 0.5) * move_command_spacing
-	var z := (float(row) - float(rows - 1) * 0.5) * move_command_spacing
+	var x := (float(column) - float(columns - 1) * 0.5) * spacing
+	var z := (float(row) - float(rows - 1) * 0.5) * spacing
 	return Vector3(x, 0.0, z)
+
+
+func _horizontal_distance(from: Vector3, to: Vector3) -> float:
+	return Vector2(from.x - to.x, from.z - to.z).length()
 
 
 func _project_move_command_target(candidate: Vector3, fallback: Vector3, target_y: float) -> Vector3:

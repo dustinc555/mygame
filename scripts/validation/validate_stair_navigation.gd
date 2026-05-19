@@ -311,7 +311,7 @@ func _record_actor_state(test_name: String, actor: HumanoidCharacter) -> void:
 
 func _nearby_actor_summary(actor: HumanoidCharacter, radius: float) -> Array[String]:
 	var summaries: Array[String] = []
-	for node in root.get_nodes_in_group("world_actor"):
+	for node in get_nodes_in_group("world_actor"):
 		if node == actor or not (node is Node3D):
 			continue
 		var node3d := node as Node3D
