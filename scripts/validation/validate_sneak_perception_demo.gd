@@ -7,9 +7,12 @@ var _scene: Node
 var _player: HumanoidCharacter
 var _observer: HumanoidCharacter
 var _perception_controller: Node
+var _ownership_controller: OwnershipController
 var _interaction_controller: WorldInteractionController
 var _world_time: WorldTimeController
 var _camera: Camera3D
+var _owned_sword: WorldItem
+var _owned_vase: WorldItem
 
 
 func _initialize() -> void:
@@ -23,6 +26,7 @@ func _run() -> void:
 	await _run_lighting_cases()
 	await _run_camera_center_case()
 	await _run_debug_toggle_case()
+	await _run_stealing_cases()
 	if _failures.is_empty():
 		print("SNEAK_PERCEPTION_DEMO_OK")
 		quit(0)
@@ -40,19 +44,30 @@ func _load_scene() -> void:
 	_player = _scene.get_node_or_null("PartyMembers/Mira") as HumanoidCharacter
 	_observer = _scene.get_node_or_null("PartyMembers/Watcher") as HumanoidCharacter
 	_perception_controller = _scene.get_node_or_null("GameBootstrap/PerceptionController")
+	_ownership_controller = _scene.get_node_or_null("GameBootstrap/OwnershipController") as OwnershipController
 	_interaction_controller = _scene.get_node_or_null("GameBootstrap/WorldInteractionController") as WorldInteractionController
 	_world_time = _scene.get_node_or_null("GameBootstrap/WorldTimeController") as WorldTimeController
 	_camera = _scene.get_node_or_null("CameraRig/CameraPivot/Camera3D") as Camera3D
+	_owned_sword = _scene.get_node_or_null("OwnedSword") as WorldItem
+	_owned_vase = _scene.get_node_or_null("OwnedVase") as WorldItem
 	if _player == null:
 		_fail("Mira was not found")
 	if _observer == null:
 		_fail("Watcher was not found")
 	if _perception_controller == null:
 		_fail("PerceptionController was not found")
+	if _ownership_controller == null:
+		_fail("OwnershipController was not found")
 	if _interaction_controller == null:
 		_fail("WorldInteractionController was not found")
+	if _world_time == null:
+		_fail("WorldTimeController was not found")
 	if _camera == null:
 		_fail("Camera3D was not found")
+	if _owned_sword == null:
+		_fail("OwnedSword was not found")
+	if _owned_vase == null:
+		_fail("OwnedVase was not found")
 	if _scene != null:
 		_scene.set("observer_rotation_enabled", false)
 	if _player != null:
@@ -86,6 +101,50 @@ func _run_lighting_cases() -> void:
 	var torch_lit := await _evaluate_case("night_torch_lit", Vector3(-5.8, 0.6, -5.45))
 	if float(torch_lit.get("light_exposure", 0.0)) <= float(dark.get("light_exposure", 0.0)) + 0.18:
 		_fail("Expected torch-lit exposure above dark exposure, dark=%s torch=%s" % [dark, torch_lit])
+
+
+func _run_stealing_cases() -> void:
+	if _player == null or _observer == null or _ownership_controller == null or _owned_sword == null or _owned_vase == null:
+		return
+	_world_time.total_world_minutes = 16.0 * 60.0 + 30.0
+	_player.set_sneaking_enabled(true)
+	await _wait_frames(4)
+	var steal_label := str(_ownership_controller.get_take_item_label(_player, _owned_sword))
+	var steal_color := _ownership_controller.get_take_item_color(_player, _owned_sword)
+	if steal_label != "Steal" or steal_color.a <= 0.0:
+		_fail("Expected owned sword to show soft-red Steal action, label=%s color=%s" % [steal_label, steal_color])
+	_player.global_position = Vector3(0.0, 0.6, -7.5)
+	_player.velocity = Vector3.ZERO
+	_face_observer_to_player()
+	await _wait_frames(8)
+	var hidden_pickup := bool(_owned_vase.try_pickup(_player))
+	if not hidden_pickup:
+		_fail("Expected hidden owned vase pickup to succeed silently")
+	await _wait_frames(2)
+	if is_instance_valid(_owned_vase):
+		_fail("Expected hidden stolen vase to leave the world")
+	_player.global_position = Vector3(1.45, 0.6, -7.5)
+	_player.velocity = Vector3.ZERO
+	_face_observer_to_player()
+	await _wait_frames(8)
+	var first_seen_pickup := bool(_owned_sword.try_pickup(_player))
+	if first_seen_pickup:
+		_fail("Expected first witnessed sword steal attempt to be blocked")
+	if not is_instance_valid(_owned_sword):
+		_fail("Expected blocked witnessed sword steal to remain in the world")
+	var second_seen_pickup := bool(_owned_sword.try_pickup(_player))
+	if second_seen_pickup:
+		_fail("Expected second witnessed sword steal attempt to be blocked before escalation")
+	var escalated_pickup := bool(_owned_sword.try_pickup(_player))
+	if not escalated_pickup:
+		_fail("Expected repeated witnessed sword steal to escalate and allow grab-and-run pickup")
+	if not _observer.has_hostility_with(_player):
+		_fail("Expected repeated witnessed stealing to make observer hostile")
+	if _player.sneaking:
+		_fail("Expected combat escalation to break player sneaking")
+	await _wait_frames(2)
+	if is_instance_valid(_owned_sword):
+		_fail("Expected escalated stolen sword to leave the world")
 
 
 func _run_camera_center_case() -> void:

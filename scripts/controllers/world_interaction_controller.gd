@@ -446,7 +446,7 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 		if Input.is_key_pressed(KEY_SHIFT):
 			_assign_pickup_to_selection(context_world_item)
 		else:
-			_show_context_menu(screen_position, ACTION_PICKUP_ITEM, "Pick Up")
+			_show_context_menu_actions(screen_position, [_get_pickup_item_action(context_world_item)])
 		return false
 	if collider is Node and collider.has_method("get_world_context_actions"):
 		context_world_action_target = collider
@@ -481,10 +481,30 @@ func _show_context_menu_actions(screen_position: Vector2, actions: Array) -> voi
 	if context_menu == null:
 		return
 	context_menu.clear()
+	context_menu.remove_theme_color_override("font_color")
+	context_menu.remove_theme_color_override("font_hover_color")
+	if actions.size() == 1:
+		var action_color = actions[0].get("color", null)
+		if action_color is Color and (action_color as Color).a > 0.0:
+			context_menu.add_theme_color_override("font_color", action_color)
+			context_menu.add_theme_color_override("font_hover_color", (action_color as Color).lerp(Color.WHITE, 0.25))
 	for action in actions:
 		context_menu.add_item(action["label"], action["id"])
 	context_menu.position = Vector2i(screen_position)
 	context_menu.popup()
+
+
+func _get_pickup_item_action(world_item) -> Dictionary:
+	var action := {"id": ACTION_PICKUP_ITEM, "label": "Pick Up"}
+	var actor := _get_focused_party_member()
+	if ownership_controller == null or actor == null or not ownership_controller.has_method("get_take_item_label"):
+		return action
+	action["label"] = str(ownership_controller.call("get_take_item_label", actor, world_item))
+	if ownership_controller.has_method("get_take_item_color"):
+		var color = ownership_controller.call("get_take_item_color", actor, world_item)
+		if color is Color and (color as Color).a > 0.0:
+			action["color"] = color
+	return action
 
 
 func _apply_drag_selection() -> void:

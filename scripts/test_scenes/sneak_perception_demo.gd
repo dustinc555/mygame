@@ -5,6 +5,7 @@ const FACTION_HUMANOID_SCRIPT = preload("res://scripts/characters/faction_humano
 const SNEAK_DEMO_BUTTON_SCRIPT = preload("res://scripts/test_scenes/sneak_demo_button.gd")
 const WORLD_ITEM_SCENE = preload("res://scenes/world/items/world_item.tscn")
 const IRON_SWORD = preload("res://resources/items/iron_sword.tres")
+const EXPENSIVE_VASE = preload("res://resources/items/expensive_vase.tres")
 
 @export var observer_turn_interval := 15.0
 @export var observer_turn_seconds := 1.8
@@ -243,13 +244,26 @@ func _make_humanoid(node_name: String, script_resource: Script, position: Vector
 
 func _ensure_owned_sword_placeholder() -> void:
 	if get_node_or_null("OwnedSword") != null:
-		return
-	var item := WORLD_ITEM_SCENE.instantiate() as WorldItem
-	item.name = "OwnedSword"
-	item.position = Vector3(2.15, 0.08, -1.7)
-	item.setup(IRON_SWORD, 1)
-	item.owner_faction_name = "Townsfolk"
-	add_child(item)
+		if get_node_or_null("OwnedVase") != null:
+			return
+	var sword := get_node_or_null("OwnedSword") as WorldItem
+	if sword == null:
+		sword = WORLD_ITEM_SCENE.instantiate() as WorldItem
+		sword.name = "OwnedSword"
+		sword.position = Vector3(2.15, 0.08, -1.7)
+		sword.setup(IRON_SWORD, 1)
+		sword.owner_faction_name = "Townsfolk"
+		sword.theft_value = 45
+		add_child(sword)
+	var vase := get_node_or_null("OwnedVase") as WorldItem
+	if vase == null:
+		vase = WORLD_ITEM_SCENE.instantiate() as WorldItem
+		vase.name = "OwnedVase"
+		vase.position = Vector3(-2.25, 0.08, -1.45)
+		vase.setup(EXPENSIVE_VASE, 1)
+		vase.owner_faction_name = "Townsfolk"
+		vase.theft_value = 80
+		add_child(vase)
 
 
 func _ensure_demo_buttons() -> void:

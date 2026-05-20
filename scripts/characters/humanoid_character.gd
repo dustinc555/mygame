@@ -574,6 +574,7 @@ func assign_attack_target(target_character: HumanoidCharacter, issued_by_player:
 		return
 	if target_character.life_state != NpcRules.LifeState.ALIVE:
 		return
+	_break_stealth_for_combat()
 	if _current_attack_target == target_character and _current_order_type == OrderType.ATTACK:
 		return
 	_set_order(OrderType.ATTACK, issued_by_player)
@@ -1389,6 +1390,17 @@ func _set_sneaking_state(value: bool, play_transition: bool) -> bool:
 	return true
 
 
+func _break_stealth_for_combat() -> void:
+	var changed := false
+	if running:
+		running = false
+		changed = true
+	if _set_sneaking_state(false, true):
+		changed = true
+	if changed:
+		state_changed.emit()
+
+
 func notify_incoming_attack(attacker: HumanoidCharacter) -> void:
 	if attacker == null or attacker == self:
 		return
@@ -1396,6 +1408,7 @@ func notify_incoming_attack(attacker: HumanoidCharacter) -> void:
 		wake_up_from_rest(false)
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
+	_break_stealth_for_combat()
 	mark_hostile(attacker)
 	attacker.mark_hostile(self)
 	_last_direct_attacker_id = attacker.get_instance_id()
@@ -1420,6 +1433,8 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		return "ignored"
 	if life_state == NpcRules.LifeState.ASLEEP:
 		wake_up_from_rest(false)
+	if life_state == NpcRules.LifeState.ALIVE:
+		_break_stealth_for_combat()
 	mark_hostile(attacker)
 	attacker.mark_hostile(self)
 	_last_direct_attacker_id = attacker.get_instance_id()

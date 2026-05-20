@@ -16,6 +16,7 @@ const PICKUP_NOTICE := "I don't have enough room"
 	set(value):
 		owner_faction_name = value
 		_refresh_label()
+@export var theft_value := 10
 
 @onready var collision_shape_node: CollisionShape3D = $CollisionShape3D
 @onready var model_root: Node3D = $ModelRoot
@@ -43,8 +44,15 @@ func get_owner_faction_name() -> String:
 	return owner_faction_name
 
 
+func get_theft_value() -> int:
+	return theft_value
+
+
 func try_pickup(actor) -> bool:
 	if actor == null or item_definition == null:
+		return false
+	var ownership_controller := _find_ownership_controller()
+	if ownership_controller != null and ownership_controller.has_method("request_take_item") and not bool(ownership_controller.call("request_take_item", actor, self)):
 		return false
 	var actor_inventory = actor.inventory if actor.get("inventory") != null else null
 	if actor_inventory == null or not actor_inventory.can_add_item_count(item_definition, quantity):
@@ -55,6 +63,13 @@ func try_pickup(actor) -> bool:
 		return false
 	queue_free()
 	return true
+
+
+func _find_ownership_controller() -> Node:
+	for node in get_tree().get_nodes_in_group("ownership_controller"):
+		return node
+	var bootstrap := get_tree().current_scene.get_node_or_null("GameBootstrap") if get_tree().current_scene != null else null
+	return bootstrap.get_node_or_null("OwnershipController") if bootstrap != null else null
 
 
 func get_inventory_world_position() -> Vector3:
