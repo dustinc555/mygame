@@ -23,6 +23,7 @@ var moon_halo_outer: MeshInstance3D
 var moon_glimmer: MeshInstance3D
 var _glimmer_time := 0.0
 var _initialized := false
+var _stealth_ambient_visibility := 0.75
 
 
 func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
@@ -159,7 +160,12 @@ func _apply_lighting(day_fraction: float) -> void:
 	var day_ambient := Color(0.62, 0.62, 0.58, 1.0)
 	environment.ambient_light_color = night_ambient.lerp(twilight_ambient, twilight_amount).lerp(day_ambient, day_amount)
 	environment.ambient_light_energy = lerpf(0.32, 1.08, day_amount) + twilight_amount * 0.12
+	_stealth_ambient_visibility = clampf(lerpf(0.16, 0.95, day_amount) + twilight_amount * 0.12 + night_amount * 0.06, 0.08, 1.0)
 	_apply_celestial_bodies(-sun_direction, -moon_direction, day_amount, night_amount, twilight_amount)
+
+
+func get_stealth_ambient_visibility() -> float:
+	return _stealth_ambient_visibility
 
 
 func _apply_celestial_bodies(sun_body_direction: Vector3, moon_body_direction: Vector3, day_amount: float, night_amount: float, twilight_amount: float) -> void:

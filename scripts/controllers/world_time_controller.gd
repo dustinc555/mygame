@@ -16,8 +16,8 @@ const SPEED_SCALES: Array[float] = [0.5, 1.0, 3.0, 8.0]
 const PAUSE_REASON_MANUAL := "manual"
 const PAUSE_REASON_CONVERSATION := "conversation"
 
-@export_range(0, 23, 1) var start_hour := 8
-@export_range(0, 59, 1) var start_minute := 0
+@export_range(0, 23, 1) var start_hour := 16
+@export_range(0, 59, 1) var start_minute := 30
 @export var real_seconds_per_game_minute := 1.0
 @export_range(0, 3, 1) var default_speed_index := 1
 @export var server_authoritative_mode := false

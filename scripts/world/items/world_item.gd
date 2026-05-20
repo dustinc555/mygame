@@ -12,6 +12,10 @@ const PICKUP_NOTICE := "I don't have enough room"
 	set(value):
 		quantity = maxi(1, value)
 @export var pickup_distance := 1.4
+@export var owner_faction_name := "":
+	set(value):
+		owner_faction_name = value
+		_refresh_label()
 
 @onready var collision_shape_node: CollisionShape3D = $CollisionShape3D
 @onready var model_root: Node3D = $ModelRoot
@@ -33,6 +37,10 @@ func setup(definition: ItemDefinition, amount: int = 1) -> void:
 
 func get_pickup_position(_actor) -> Vector3:
 	return global_position
+
+
+func get_owner_faction_name() -> String:
+	return owner_faction_name
 
 
 func try_pickup(actor) -> bool:
@@ -64,9 +72,10 @@ func _refresh_label() -> void:
 	if label == null:
 		return
 	if item_definition == null:
-		label.text = "Item"
+		label.text = "Owned Item" if not owner_faction_name.is_empty() else "Item"
 		return
-	label.text = item_definition.display_name if quantity <= 1 else "%s x%d" % [item_definition.display_name, quantity]
+	var item_label := item_definition.display_name if quantity <= 1 else "%s x%d" % [item_definition.display_name, quantity]
+	label.text = "%s (Owned)" % item_label if not owner_faction_name.is_empty() else item_label
 
 
 func _rebuild_visual() -> void:

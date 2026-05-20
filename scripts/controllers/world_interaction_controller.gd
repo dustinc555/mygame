@@ -848,6 +848,7 @@ func _apply_camera_transform() -> void:
 	camera_rig.global_position = _get_anchor_position()
 	camera_rig.rotation = Vector3(0.0, camera_yaw, 0.0)
 	camera_pivot.rotation = Vector3(camera_pitch, 0.0, 0.0)
+	camera.rotation = Vector3.ZERO
 	camera.position = Vector3(0.0, 0.0, camera_distance)
 
 
