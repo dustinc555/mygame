@@ -17,6 +17,12 @@ const THEFT_WARNING_LINES: Array[String] = [
 	"Don't touch our things.",
 	"Careful. That belongs to someone.",
 ]
+const THEFT_SUSPICION_LINES: Array[String] = [
+	"What was that?",
+	"Who's there?",
+	"Careful around that.",
+	"I heard something.",
+]
 
 var root_scene: Node
 var _warning_counts: Dictionary = {}
@@ -65,7 +71,11 @@ func request_take_item(actor: HumanoidCharacter, item) -> bool:
 		return true
 	var witnesses := _find_theft_witnesses(actor, item)
 	if witnesses.is_empty():
-		return true
+		var suspicious_witness := _find_theft_suspicion_witness(actor, item)
+		if suspicious_witness == null:
+			return true
+		_warn_suspicious_witness(suspicious_witness, actor)
+		return false
 	var key := _warning_key(actor, item)
 	var warning_count := int(_warning_counts.get(key, 0))
 	_warning_counts[key] = warning_count + 1
@@ -138,6 +148,60 @@ func _find_theft_witnesses(actor: HumanoidCharacter, target) -> Array[HumanoidCh
 	return witnesses
 
 
+func _find_theft_suspicion_witness(actor: HumanoidCharacter, target) -> HumanoidCharacter:
+	var noise_radius := _get_theft_noise_radius(target)
+	if noise_radius <= 0.01 or not (target is Node3D):
+		return null
+	var target_node := target as Node3D
+	var actor_skill := _get_actor_sleight_of_hand(actor)
+	var best_witness: HumanoidCharacter = null
+	var best_margin := -1.0
+	for humanoid in _find_relevant_owner_witnesses(target):
+		if actor == humanoid or humanoid.life_state != NpcRules.LifeState.ALIVE:
+			continue
+		var witness_distance := humanoid.global_position.distance_to(target_node.global_position)
+		if witness_distance > noise_radius:
+			continue
+		var required_skill := _get_required_theft_skill(actor, target, witness_distance, noise_radius)
+		if actor_skill >= required_skill:
+			continue
+		var margin := required_skill - actor_skill
+		if margin > best_margin:
+			best_margin = margin
+			best_witness = humanoid
+	return best_witness
+
+
+func _warn_suspicious_witness(witness: HumanoidCharacter, actor: HumanoidCharacter) -> void:
+	if witness == null or actor == null:
+		return
+	_turn_witness_toward_actor(witness, actor)
+	witness.show_world_speech(THEFT_SUSPICION_LINES[_rng.randi_range(0, THEFT_SUSPICION_LINES.size() - 1)], 3.0)
+
+
+func _turn_witness_toward_actor(witness: HumanoidCharacter, actor: HumanoidCharacter) -> void:
+	var target_position := Vector3(actor.global_position.x, witness.global_position.y, actor.global_position.z)
+	if witness.global_position.distance_squared_to(target_position) <= 0.001:
+		return
+	witness.look_at(target_position, Vector3.UP)
+	witness.rotation.x = 0.0
+	witness.rotation.z = 0.0
+
+
+func _get_required_theft_skill(actor: HumanoidCharacter, target, witness_distance: float, noise_radius: float) -> float:
+	var difficulty := float(_get_theft_difficulty(target))
+	var proximity_pressure := 35.0 * (1.0 - clampf(witness_distance / maxf(noise_radius, 0.001), 0.0, 1.0))
+	var posture_penalty := 0.0 if actor != null and actor.sneaking else 15.0
+	return clampf(difficulty + proximity_pressure + posture_penalty, 0.0, 100.0)
+
+
+func _get_actor_sleight_of_hand(actor: HumanoidCharacter) -> float:
+	if actor == null:
+		return 0.0
+	var skill_value = actor.get("sleight_of_hand")
+	return clampf(float(skill_value) if skill_value != null else 0.0, 0.0, 100.0)
+
+
 func _find_relevant_owner_witnesses(target) -> Array[HumanoidCharacter]:
 	var witnesses: Array[HumanoidCharacter] = []
 	var explicit_owner = OWNERSHIP_UTILS_SCRIPT.get_explicit_owner(target)
@@ -181,6 +245,18 @@ func _get_theft_value(target) -> int:
 	if target != null and target.has_method("get_theft_value"):
 		return int(target.call("get_theft_value"))
 	return 10
+
+
+func _get_theft_noise_radius(target) -> float:
+	if target != null and target.has_method("get_theft_noise_radius"):
+		return float(target.call("get_theft_noise_radius"))
+	return 0.0
+
+
+func _get_theft_difficulty(target) -> int:
+	if target != null and target.has_method("get_theft_difficulty"):
+		return int(target.call("get_theft_difficulty"))
+	return 25
 
 
 func _find_witnesses(target) -> Array[HumanoidCharacter]:

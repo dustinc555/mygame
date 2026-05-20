@@ -17,6 +17,8 @@ const PICKUP_NOTICE := "I don't have enough room"
 		owner_faction_name = value
 		_refresh_label()
 @export var theft_value := 10
+@export var theft_noise_radius := 0.0
+@export_range(0, 100, 1) var theft_difficulty := 25
 
 @onready var collision_shape_node: CollisionShape3D = $CollisionShape3D
 @onready var model_root: Node3D = $ModelRoot
@@ -46,6 +48,14 @@ func get_owner_faction_name() -> String:
 
 func get_theft_value() -> int:
 	return theft_value
+
+
+func get_theft_noise_radius() -> float:
+	return theft_noise_radius
+
+
+func get_theft_difficulty() -> int:
+	return theft_difficulty
 
 
 func try_pickup(actor) -> bool:

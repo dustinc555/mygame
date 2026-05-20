@@ -104,7 +104,7 @@ func _run_lighting_cases() -> void:
 
 
 func _run_stealing_cases() -> void:
-	if _player == null or _observer == null or _ownership_controller == null or _owned_sword == null or _owned_vase == null:
+	if _player == null or _observer == null or _perception_controller == null or _ownership_controller == null or _owned_sword == null or _owned_vase == null:
 		return
 	_world_time.total_world_minutes = 16.0 * 60.0 + 30.0
 	_player.set_sneaking_enabled(true)
@@ -113,16 +113,31 @@ func _run_stealing_cases() -> void:
 	var steal_color := _ownership_controller.get_take_item_color(_player, _owned_sword)
 	if steal_label != "Steal" or steal_color.a <= 0.0:
 		_fail("Expected owned sword to show soft-red Steal action, label=%s color=%s" % [steal_label, steal_color])
-	_player.global_position = Vector3(0.0, 0.6, -7.5)
+	_owned_vase.global_position = Vector3(0.0, 0.08, 1.65)
+	_player.global_position = Vector3(0.0, 0.6, 1.85)
 	_player.velocity = Vector3.ZERO
-	_face_observer_to_player()
+	_player.sleight_of_hand = 0
+	_face_observer_away_from_player()
 	await _wait_frames(8)
-	var hidden_pickup := bool(_owned_vase.try_pickup(_player))
-	if not hidden_pickup:
-		_fail("Expected hidden owned vase pickup to succeed silently")
+	var hidden_result := _perception_controller.call("evaluate_observer", _observer, _player) as Dictionary
+	if bool(hidden_result.get("clearly_seen", false)):
+		_fail("Expected behind-watcher vase steal setup to stay visually hidden, got %s" % hidden_result)
+	var noisy_pickup := bool(_owned_vase.try_pickup(_player))
+	if noisy_pickup:
+		_fail("Expected low-skill close vase steal to be blocked by theft noise suspicion")
+	await _wait_frames(2)
+	if not is_instance_valid(_owned_vase):
+		_fail("Expected blocked noisy vase steal to remain in the world")
+	_player.sleight_of_hand = 100
+	_face_observer_away_from_player()
+	await _wait_frames(4)
+	var skilled_pickup := bool(_owned_vase.try_pickup(_player))
+	if not skilled_pickup:
+		_fail("Expected high-skill close vase steal to beat theft noise suspicion")
 	await _wait_frames(2)
 	if is_instance_valid(_owned_vase):
-		_fail("Expected hidden stolen vase to leave the world")
+		_fail("Expected high-skill stolen vase to leave the world")
+	_player.sleight_of_hand = 0
 	_player.global_position = Vector3(1.45, 0.6, -7.5)
 	_player.velocity = Vector3.ZERO
 	_face_observer_to_player()
@@ -172,6 +187,17 @@ func _run_debug_toggle_case() -> void:
 		var message := str(_scene.call("perform_sneak_demo_action", "toggle_vision_cone", [])) if _scene.has_method("perform_sneak_demo_action") else ""
 		if message.is_empty():
 			_fail("Sneak demo action button target did not respond")
+		var noise_message := str(_scene.call("perform_sneak_demo_action", "toggle_theft_noise_radius", [])) if _scene.has_method("perform_sneak_demo_action") else ""
+		if noise_message.is_empty() or not bool(_scene.get("show_theft_noise_radius")):
+			_fail("Sneak demo theft-noise radius toggle did not respond")
+		var noise_visual_root := _scene.get_node_or_null("TheftNoiseRadiusVisuals")
+		var visible_noise_visuals := 0
+		if noise_visual_root != null:
+			for child in noise_visual_root.get_children():
+				if child is MeshInstance3D and child.visible:
+					visible_noise_visuals += 1
+		if visible_noise_visuals < 2:
+			_fail("Expected theft-noise radius visuals for owned sword and vase, got %d" % visible_noise_visuals)
 
 
 func _evaluate_case(label: String, player_position: Vector3) -> Dictionary:
@@ -193,6 +219,16 @@ func _evaluate_case(label: String, player_position: Vector3) -> Dictionary:
 
 func _face_observer_to_player() -> void:
 	var target := Vector3(_player.global_position.x, _observer.global_position.y, _player.global_position.z)
+	if _observer.global_position.distance_squared_to(target) <= 0.001:
+		return
+	_observer.look_at(target, Vector3.UP)
+	_observer.rotation.x = 0.0
+	_observer.rotation.z = 0.0
+
+
+func _face_observer_away_from_player() -> void:
+	var target := _observer.global_position * 2.0 - _player.global_position
+	target.y = _observer.global_position.y
 	if _observer.global_position.distance_squared_to(target) <= 0.001:
 		return
 	_observer.look_at(target, Vector3.UP)

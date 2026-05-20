@@ -10,12 +10,14 @@ const EXPENSIVE_VASE = preload("res://resources/items/expensive_vase.tres")
 @export var observer_turn_interval := 15.0
 @export var observer_turn_seconds := 1.8
 @export var show_vision_cone := false
+@export var show_theft_noise_radius := false
 @export var observer_rotation_enabled := true
 
 var player: HumanoidCharacter
 var observer: HumanoidCharacter
 var perception_controller: Node
 var vision_cone: MeshInstance3D
+var theft_noise_radius_visuals: Array[MeshInstance3D] = []
 var _turn_timer := 15.0
 var _turn_progress := 1.0
 var _turn_start_yaw := 0.0
@@ -28,12 +30,14 @@ func _ready() -> void:
 	_ensure_owned_sword_placeholder()
 	_ensure_demo_buttons()
 	_ensure_vision_cone()
+	_ensure_theft_noise_radius_visuals()
 	call_deferred("_finish_demo_setup")
 
 
 func _process(delta: float) -> void:
 	_process_observer_rotation(delta)
 	_update_vision_cone()
+	_update_theft_noise_radius_visuals()
 
 
 func perform_sneak_demo_action(key: String, _actors: Array = []) -> String:
@@ -49,6 +53,10 @@ func perform_sneak_demo_action(key: String, _actors: Array = []) -> String:
 			var next_value := not bool(perception_controller.get("debug_show_los_rays"))
 			perception_controller.set("debug_show_los_rays", next_value)
 			return "Line-of-sight rays: %s" % ("shown" if next_value else "hidden")
+		"toggle_theft_noise_radius":
+			show_theft_noise_radius = not show_theft_noise_radius
+			_update_theft_noise_radius_visuals()
+			return "Theft noise radius: %s" % ("shown" if show_theft_noise_radius else "hidden")
 		"toggle_rotation":
 			observer_rotation_enabled = not observer_rotation_enabled
 			return "Observer rotation: %s" % ("running" if observer_rotation_enabled else "paused")
@@ -254,6 +262,8 @@ func _ensure_owned_sword_placeholder() -> void:
 		sword.setup(IRON_SWORD, 1)
 		sword.owner_faction_name = "Townsfolk"
 		sword.theft_value = 45
+		sword.theft_noise_radius = 1.8
+		sword.theft_difficulty = 25
 		add_child(sword)
 	var vase := get_node_or_null("OwnedVase") as WorldItem
 	if vase == null:
@@ -263,6 +273,8 @@ func _ensure_owned_sword_placeholder() -> void:
 		vase.setup(EXPENSIVE_VASE, 1)
 		vase.owner_faction_name = "Townsfolk"
 		vase.theft_value = 80
+		vase.theft_noise_radius = 5.0
+		vase.theft_difficulty = 45
 		add_child(vase)
 
 
@@ -275,6 +287,7 @@ func _ensure_demo_buttons() -> void:
 	_make_button(buttons, "VisionConeButton", Vector3(-7.5, 0.22, -7.8), "toggle_vision_cone", "Toggle Vision Cone", Color(0.16, 0.44, 0.95, 1.0))
 	_make_button(buttons, "LosRaysButton", Vector3(-5.9, 0.22, -7.8), "toggle_los_rays", "Toggle LOS Rays", Color(0.95, 0.66, 0.14, 1.0))
 	_make_button(buttons, "RotationButton", Vector3(-4.3, 0.22, -7.8), "toggle_rotation", "Pause/Resume Watcher", Color(0.32, 0.74, 0.35, 1.0))
+	_make_button(buttons, "TheftNoiseButton", Vector3(-2.7, 0.22, -7.8), "toggle_theft_noise_radius", "Toggle Noise Radius", Color(0.56, 0.35, 0.94, 1.0))
 
 
 func _make_button(parent: Node, node_name: String, position: Vector3, key: String, label_text: String, color: Color) -> void:
@@ -341,6 +354,50 @@ func _update_vision_cone() -> void:
 		return
 	vision_cone.global_position = Vector3(observer.global_position.x, 0.045, observer.global_position.z)
 	vision_cone.rotation = Vector3(0.0, observer.rotation.y, 0.0)
+
+
+func _ensure_theft_noise_radius_visuals() -> void:
+	if not theft_noise_radius_visuals.is_empty():
+		return
+	var root := Node3D.new()
+	root.name = "TheftNoiseRadiusVisuals"
+	add_child(root)
+	for node_name in ["OwnedSword", "OwnedVase"]:
+		var item := get_node_or_null(node_name) as WorldItem
+		if item == null or item.theft_noise_radius <= 0.01:
+			continue
+		var visual := MeshInstance3D.new()
+		visual.name = "%sNoiseRadius" % node_name
+		visual.top_level = true
+		visual.mesh = _build_radius_disc_mesh(item.theft_noise_radius)
+		visual.material_override = _make_transparent_material(Color(0.56, 0.35, 0.94, 0.18))
+		visual.visible = false
+		visual.set_meta("item_path", get_path_to(item))
+		root.add_child(visual)
+		theft_noise_radius_visuals.append(visual)
+
+
+func _update_theft_noise_radius_visuals() -> void:
+	if theft_noise_radius_visuals.is_empty():
+		return
+	for visual in theft_noise_radius_visuals:
+		if visual == null:
+			continue
+		var item_path := NodePath(str(visual.get_meta("item_path", "")))
+		var item := get_node_or_null(item_path) as WorldItem
+		visual.visible = show_theft_noise_radius and item != null and is_instance_valid(item)
+		if item == null or not is_instance_valid(item):
+			continue
+		visual.global_position = Vector3(item.global_position.x, 0.04, item.global_position.z)
+
+
+func _build_radius_disc_mesh(radius: float) -> Mesh:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = 0.025
+	mesh.radial_segments = 72
+	return mesh
 
 
 func _process_observer_rotation(delta: float) -> void:

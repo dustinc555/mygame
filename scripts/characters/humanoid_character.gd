@@ -173,6 +173,7 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var fatigue := 100.0
 @export var running := false
 @export var sneaking := false
+@export_range(0, 100, 1) var sleight_of_hand := 0
 @export_range(0, 2, 1) var combat_stance := NpcRules.CombatStance.DEFENSIVE
 
 @export var max_hp := 100.0
