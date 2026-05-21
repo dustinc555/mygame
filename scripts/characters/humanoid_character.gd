@@ -82,6 +82,7 @@ const RUNNING_ENDURANCE_XP_PER_SECOND := 0.05
 const CARRY_STRENGTH_XP_PER_SECOND := 0.1
 const MINING_ORE_WORTH_FOR_FIRST_LEVEL := 4.0
 const MINING_STRENGTH_XP_FACTOR := 0.08
+const SCAVENGING_ATTEMPTS_FOR_FIRST_LEVEL := 4.0
 const COMBAT_ATTACK_SKILL_XP := 0.85
 const TOUGHNESS_DAMAGE_XP_MULTIPLIER := 0.18
 const MEDICAL_BANDAGE_XP := 3.0
@@ -108,6 +109,7 @@ enum OrderType {
 	NONE,
 	MOVE,
 	MINE,
+	SCAVENGE,
 	OPEN_CONTAINER,
 	TRADE,
 	TALK,
@@ -216,6 +218,9 @@ var _order_was_player_issued := false
 var _current_mining_node
 var _mining_progress_by_node: Dictionary = {}
 var _mining_active := false
+var _current_scavenging_node
+var _scavenging_progress_by_node: Dictionary = {}
+var _scavenging_active := false
 var _current_container_target
 var _current_trade_target
 var _current_conversation_target
@@ -315,6 +320,7 @@ var _equipment_changed_slots: Dictionary = {}
 
 signal inventory_changed
 signal mining_changed
+signal scavenging_changed
 signal state_changed
 signal combat_state_changed
 signal container_reached(member, container)
@@ -379,6 +385,8 @@ func _physics_process(delta: float) -> void:
 	match _current_order_type:
 		OrderType.MINE:
 			_process_mining(delta)
+		OrderType.SCAVENGE:
+			_process_scavenging(delta)
 		OrderType.OPEN_CONTAINER:
 			_process_container_interaction()
 		OrderType.TRADE:
@@ -418,6 +426,16 @@ func stop_mining_assignment() -> void:
 	if _current_order_type == OrderType.MINE:
 		_current_order_type = OrderType.NONE
 	mining_changed.emit()
+
+
+func stop_scavenging_assignment() -> void:
+	if _current_scavenging_node != null and _current_scavenging_node.has_method("release_scavenger"):
+		_current_scavenging_node.release_scavenger(self)
+	_current_scavenging_node = null
+	_scavenging_active = false
+	if _current_order_type == OrderType.SCAVENGE:
+		_current_order_type = OrderType.NONE
+	scavenging_changed.emit()
 
 
 func stop_container_interaction() -> void:
@@ -573,6 +591,25 @@ func assign_mining_resource(resource_node, issued_by_player: bool = true) -> voi
 	_mining_active = false
 	_set_actor_move_target(_current_mining_node.get_mining_position(self))
 	mining_changed.emit()
+
+
+func assign_scavenging_resource(resource_node, issued_by_player: bool = true) -> void:
+	if resource_node == null:
+		return
+	if resource_node.has_method("is_depleted") and resource_node.is_depleted():
+		if issued_by_player:
+			center_notice_requested.emit("Depleted")
+		_show_world_notice("Depleted", Color(0.75, 0.72, 0.62, 1.0), 1.2, 0.45)
+		return
+	_set_order(OrderType.SCAVENGE, issued_by_player)
+	if _current_scavenging_node != null and _current_scavenging_node != resource_node and _current_scavenging_node.has_method("release_scavenger"):
+		_current_scavenging_node.release_scavenger(self)
+	_current_scavenging_node = resource_node
+	if _current_scavenging_node.has_method("register_scavenger"):
+		_current_scavenging_node.register_scavenger(self)
+	_scavenging_active = false
+	_set_actor_move_target(_current_scavenging_node.get_scavenging_position(self))
+	scavenging_changed.emit()
 
 
 func assign_attack_target(target_character: HumanoidCharacter, issued_by_player: bool = true, notify_target: bool = true, notify_allies: bool = true) -> void:
@@ -740,6 +777,24 @@ func get_mining_progress_ratio() -> float:
 	if _current_mining_node == null:
 		return 0.0
 	return clampf(_get_stored_mining_progress(_current_mining_node), 0.0, 1.0)
+
+
+func has_scavenging_assignment() -> bool:
+	return _current_scavenging_node != null
+
+
+func get_assigned_scavenging_node():
+	return _current_scavenging_node
+
+
+func is_actively_scavenging() -> bool:
+	return _scavenging_active
+
+
+func get_scavenging_progress_ratio() -> float:
+	if _current_scavenging_node == null:
+		return 0.0
+	return clampf(_get_stored_scavenging_progress(_current_scavenging_node), 0.0, 1.0)
 
 
 func can_eat_item(definition: ItemDefinition) -> bool:
@@ -1672,6 +1727,8 @@ func _on_actor_move_target_unreachable() -> void:
 			_current_order_type = OrderType.NONE
 		OrderType.MINE:
 			stop_mining_assignment()
+		OrderType.SCAVENGE:
+			stop_scavenging_assignment()
 		OrderType.OPEN_CONTAINER:
 			stop_container_interaction()
 		OrderType.TRADE:
@@ -1917,6 +1974,67 @@ func _show_mining_requirement_notice(mining_node: MiningResourceNode) -> void:
 	if _order_was_player_issued:
 		center_notice_requested.emit(message)
 	_show_world_notice(message, Color(1.0, 0.68, 0.24, 1.0), 1.2, 0.45)
+
+
+func _process_scavenging(delta: float) -> void:
+	if _current_scavenging_node == null:
+		return
+	var scavenging_node := _current_scavenging_node as ScavengingResourceNode
+	if scavenging_node == null:
+		return
+	if scavenging_node.is_depleted():
+		_show_scavenging_notice("Depleted", Color(0.75, 0.72, 0.62, 1.0), true)
+		stop_scavenging_assignment()
+		return
+	var scavenging_position: Vector3 = scavenging_node.get_scavenging_position(self)
+	if global_position.distance_to(scavenging_position) > interact_distance:
+		_set_actor_move_target(scavenging_position)
+		_scavenging_active = false
+		scavenging_changed.emit()
+		return
+	if _has_move_target:
+		return
+	var duration := maxf(scavenging_node.get_effective_scavenge_duration(self), 0.01)
+	var progress_before := clampf(_get_stored_scavenging_progress(scavenging_node), 0.0, 1.0)
+	_scavenging_active = true
+	var progress_delta := minf(delta / duration, maxf(1.0 - progress_before, 0.0))
+	_award_scavenging_progress_xp(progress_delta)
+	var progress := progress_before + progress_delta
+	if progress >= 1.0:
+		var result := scavenging_node.complete_scavenge_attempt(self)
+		progress = 0.0
+		var message := str(result.get("message", ""))
+		if not message.is_empty():
+			_show_scavenging_notice(message, _get_scavenging_notice_color(result), false)
+		if bool(result.get("depleted", false)):
+			_store_scavenging_progress(scavenging_node, progress)
+			stop_scavenging_assignment()
+			return
+	_store_scavenging_progress(scavenging_node, progress)
+	scavenging_changed.emit()
+
+
+func _award_scavenging_progress_xp(progress_delta: float) -> void:
+	if progress_delta <= 0.0:
+		return
+	var scavenging_xp := SkillRules.get_xp_to_next_level(SkillRules.DEFAULT_LEVEL) / SCAVENGING_ATTEMPTS_FOR_FIRST_LEVEL * progress_delta
+	add_skill_xp(SkillRules.LABOR_SCAVENGING, scavenging_xp, "scavenging")
+	add_skill_xp(SkillRules.ATTRIBUTE_PERCEPTION, scavenging_xp * 0.03, "scavenging")
+	add_skill_xp(SkillRules.ATTRIBUTE_DEXTERITY, scavenging_xp * 0.02, "scavenging")
+
+
+func _show_scavenging_notice(message: String, color: Color, center_notice: bool) -> void:
+	if center_notice and _order_was_player_issued:
+		center_notice_requested.emit(message)
+	_show_world_notice(message, color, 1.2, 0.45)
+
+
+func _get_scavenging_notice_color(result: Dictionary) -> Color:
+	if bool(result.get("useful", false)):
+		return Color(0.5, 1.0, 0.65, 1.0)
+	if bool(result.get("dropped", false)):
+		return Color(1.0, 0.82, 0.36, 1.0)
+	return Color(0.74, 0.68, 0.55, 1.0)
 
 
 func _process_container_interaction() -> void:
@@ -2384,6 +2502,14 @@ func _get_stored_mining_progress(resource_node) -> float:
 
 func _store_mining_progress(resource_node, progress: float) -> void:
 	_mining_progress_by_node[resource_node.get_instance_id()] = clampf(progress, 0.0, 1.0)
+
+
+func _get_stored_scavenging_progress(resource_node) -> float:
+	return clampf(_scavenging_progress_by_node.get(resource_node.get_instance_id(), 0.0), 0.0, 1.0)
+
+
+func _store_scavenging_progress(resource_node, progress: float) -> void:
+	_scavenging_progress_by_node[resource_node.get_instance_id()] = clampf(progress, 0.0, 1.0)
 
 
 func _on_inventory_data_changed() -> void:
@@ -3643,11 +3769,16 @@ func _set_order(order_type: int, issued_by_player: bool) -> void:
 	if order_type != OrderType.MINE:
 		_mining_active = false
 		mining_changed.emit()
+	if order_type != OrderType.SCAVENGE:
+		_scavenging_active = false
+		scavenging_changed.emit()
 
 
 func _cancel_non_matching_assignments(next_order_type: int) -> void:
 	if next_order_type != OrderType.MINE:
 		stop_mining_assignment()
+	if next_order_type != OrderType.SCAVENGE:
+		stop_scavenging_assignment()
 	if next_order_type != OrderType.OPEN_CONTAINER:
 		stop_container_interaction()
 	if next_order_type != OrderType.TRADE:
@@ -3917,7 +4048,7 @@ func _should_seek_combat_target() -> bool:
 		return false
 	if _current_order_type == OrderType.ATTACK and _current_attack_target != null:
 		return false
-	if _order_was_player_issued and _current_order_type in [OrderType.MOVE, OrderType.MINE, OrderType.OPEN_CONTAINER, OrderType.TRADE]:
+	if _order_was_player_issued and _current_order_type in [OrderType.MOVE, OrderType.MINE, OrderType.SCAVENGE, OrderType.OPEN_CONTAINER, OrderType.TRADE]:
 		return false
 	if combat_stance == NpcRules.CombatStance.PASSIVE and _last_direct_attacker_id == 0:
 		return false
@@ -4201,6 +4332,7 @@ func _is_node_descendant_of(node: Node, ancestor: Node) -> bool:
 
 func _clear_all_active_orders() -> void:
 	stop_mining_assignment()
+	stop_scavenging_assignment()
 	stop_container_interaction()
 	stop_trade_interaction()
 	stop_conversation_interaction()
@@ -4868,7 +5000,7 @@ func _show_world_notice(message: String, color: Color = Color(1.0, 0.28, 0.28, 1
 
 
 func _is_working() -> bool:
-	return _current_order_type == OrderType.MINE and _mining_active
+	return (_current_order_type == OrderType.MINE and _mining_active) or (_current_order_type == OrderType.SCAVENGE and _scavenging_active)
 
 
 func _get_best_bandage_definition() -> ItemDefinition:

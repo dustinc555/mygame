@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="SkillCatalog" load_steps=27 format=3]
+[gd_resource type="Resource" script_class="SkillCatalog" load_steps=28 format=3]
 
 [ext_resource type="Script" path="res://scripts/skills/skill_catalog.gd" id="1_catalog"]
 [ext_resource type="Script" path="res://scripts/skills/skill_definition.gd" id="2_definition"]
@@ -129,6 +129,16 @@ sort_order = 10
 description = "Mining speed, mining technique, and resource extraction."
 training_hint = "Train by mining."
 
+[sub_resource type="Resource" id="SkillDefinition_scavenging"]
+script = ExtResource("2_definition")
+skill_id = "labor.scavenging"
+display_name = "Scavenging"
+category_id = "labor"
+category_name = "Labor"
+sort_order = 15
+description = "Searching ruins, junk piles, and old-world scrap without ruining useful parts."
+training_hint = "Train by scavenging scrap piles and ruined machinery."
+
 [sub_resource type="Resource" id="SkillDefinition_farming"]
 script = ExtResource("2_definition")
 skill_id = "labor.farming"
@@ -251,4 +261,4 @@ training_hint = "Train by reading ancient books and exploring ancient ruins."
 
 [resource]
 script = ExtResource("1_catalog")
-definitions = Array[Resource]([SubResource("SkillDefinition_strength"), SubResource("SkillDefinition_perception"), SubResource("SkillDefinition_dexterity"), SubResource("SkillDefinition_toughness"), SubResource("SkillDefinition_endurance"), SubResource("SkillDefinition_charisma"), SubResource("SkillDefinition_swords_one_handed"), SubResource("SkillDefinition_axes_one_handed"), SubResource("SkillDefinition_daggers"), SubResource("SkillDefinition_unarmed"), SubResource("SkillDefinition_running"), SubResource("SkillDefinition_mining"), SubResource("SkillDefinition_farming"), SubResource("SkillDefinition_fishing"), SubResource("SkillDefinition_construction"), SubResource("SkillDefinition_blacksmithing"), SubResource("SkillDefinition_weaving"), SubResource("SkillDefinition_leatherworking"), SubResource("SkillDefinition_sneaking"), SubResource("SkillDefinition_sleight_of_hand"), SubResource("SkillDefinition_lockpicking"), SubResource("SkillDefinition_medicine"), SubResource("SkillDefinition_robotics"), SubResource("SkillDefinition_archeology")])
+definitions = Array[Resource]([SubResource("SkillDefinition_strength"), SubResource("SkillDefinition_perception"), SubResource("SkillDefinition_dexterity"), SubResource("SkillDefinition_toughness"), SubResource("SkillDefinition_endurance"), SubResource("SkillDefinition_charisma"), SubResource("SkillDefinition_swords_one_handed"), SubResource("SkillDefinition_axes_one_handed"), SubResource("SkillDefinition_daggers"), SubResource("SkillDefinition_unarmed"), SubResource("SkillDefinition_running"), SubResource("SkillDefinition_mining"), SubResource("SkillDefinition_scavenging"), SubResource("SkillDefinition_farming"), SubResource("SkillDefinition_fishing"), SubResource("SkillDefinition_construction"), SubResource("SkillDefinition_blacksmithing"), SubResource("SkillDefinition_weaving"), SubResource("SkillDefinition_leatherworking"), SubResource("SkillDefinition_sneaking"), SubResource("SkillDefinition_sleight_of_hand"), SubResource("SkillDefinition_lockpicking"), SubResource("SkillDefinition_medicine"), SubResource("SkillDefinition_robotics"), SubResource("SkillDefinition_archeology")])

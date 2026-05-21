@@ -47,7 +47,7 @@ const MOVE_COMMAND_NAV_PROJECTION_VERTICAL_TOLERANCE := 0.8
 
 var party_members: Array[HumanoidCharacter] = []
 var portrait_cards: Array[PartyPortraitCard] = []
-var mining_progress_bars: Dictionary = {}
+var work_progress_bars: Dictionary = {}
 var camera_anchor := Vector3.ZERO
 var camera_yaw := deg_to_rad(45.0)
 var camera_pitch := FREE_CAMERA_PITCH
@@ -152,7 +152,7 @@ func _do_initialize() -> void:
 
 	if progress_layer != null:
 		for member in party_members:
-			_ensure_progress_bar(member)
+			_ensure_work_progress_bar(member)
 
 	if context_menu != null:
 		context_menu.id_pressed.connect(_on_context_menu_id_pressed)
@@ -191,8 +191,8 @@ func _add_portrait_for_member(member: HumanoidCharacter) -> void:
 	portrait_cards.append(card)
 
 
-func _ensure_progress_bar(member: HumanoidCharacter) -> void:
-	if progress_layer == null or member == null or mining_progress_bars.has(member):
+func _ensure_work_progress_bar(member: HumanoidCharacter) -> void:
+	if progress_layer == null or member == null or work_progress_bars.has(member):
 		return
 	var bar := ProgressBar.new()
 	bar.min_value = 0.0
@@ -202,7 +202,7 @@ func _ensure_progress_bar(member: HumanoidCharacter) -> void:
 	bar.show_percentage = false
 	bar.visible = false
 	progress_layer.add_child(bar)
-	mining_progress_bars[member] = bar
+	work_progress_bars[member] = bar
 
 
 func _process(delta: float) -> void:
@@ -827,10 +827,11 @@ func _update_progress_bars() -> void:
 	if progress_layer == null:
 		return
 	for member in party_members:
-		var bar: ProgressBar = mining_progress_bars.get(member)
+		var bar: ProgressBar = work_progress_bars.get(member)
 		if bar == null:
 			continue
-		if not member.is_actively_mining():
+		var progress_ratio := _get_member_work_progress_ratio(member)
+		if progress_ratio <= 0.0:
 			bar.visible = false
 			continue
 		var world_position: Vector3 = member.global_position + Vector3(0.0, 2.35, 0.0)
@@ -840,7 +841,17 @@ func _update_progress_bars() -> void:
 		var screen_position := camera.unproject_position(world_position)
 		bar.visible = true
 		bar.position = screen_position - Vector2(bar.size.x * 0.5, bar.size.y * 0.5)
-		bar.value = member.get_mining_progress_ratio() * 100.0
+		bar.value = progress_ratio * 100.0
+
+
+func _get_member_work_progress_ratio(member: HumanoidCharacter) -> float:
+	if member == null:
+		return 0.0
+	if member.is_actively_mining():
+		return member.get_mining_progress_ratio()
+	if member.has_method("is_actively_scavenging") and member.is_actively_scavenging():
+		return member.get_scavenging_progress_ratio()
+	return 0.0
 
 
 func _update_selection_rect(current_position: Vector2) -> void:
@@ -1117,7 +1128,7 @@ func _on_party_member_conversation_target_reached(member: HumanoidCharacter, tar
 func _on_party_member_added(member: HumanoidCharacter) -> void:
 	_register_party_member(member)
 	_add_portrait_for_member(member)
-	_ensure_progress_bar(member)
+	_ensure_work_progress_bar(member)
 	_update_portraits()
 	_update_command_bar()
 

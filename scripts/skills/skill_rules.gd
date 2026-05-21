@@ -23,6 +23,7 @@ const COMBAT_UNARMED := "combat.unarmed"
 const MOVEMENT_RUNNING := "movement.running"
 
 const LABOR_MINING := "labor.mining"
+const LABOR_SCAVENGING := "labor.scavenging"
 const LABOR_FARMING := "labor.farming"
 const LABOR_FISHING := "labor.fishing"
 const LABOR_CONSTRUCTION := "labor.construction"

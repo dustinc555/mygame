@@ -3,6 +3,7 @@
 ## Test Levels
 - Test/demo levels live in `scenes/test_levels/`.
 - Follow `scenes/test_levels/AGENT.md` when working in those scenes.
+- `project.godot` `run/main_scene` may point at the active demo/test scene during development. Do not flag this as a cleanup issue unless it breaks validation or the user asks.
 
 ## 3D Navigation
 - Before editing 3D navigation, actor movement, stair traversal, building collision, or squad route code, read `scripts/navigation/AGENT.md`, `scripts/actors/AGENT.md`, and `scenes/world/buildings/AGENT.md`.

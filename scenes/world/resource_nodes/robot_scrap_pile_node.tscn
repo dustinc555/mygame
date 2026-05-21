@@ -1,0 +1,44 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/scavenging_resource_node.gd" id="1_node"]
+[ext_resource type="PackedScene" path="res://assets/items/scrap/meshy_scrap_2.glb" id="2_model"]
+[ext_resource type="Resource" path="res://resources/items/scrap_metal.tres" id="3_scrap"]
+[ext_resource type="Resource" path="res://resources/items/copper_wire.tres" id="4_wire"]
+[ext_resource type="Resource" path="res://resources/items/broken_electronics.tres" id="5_electronics"]
+[ext_resource type="Resource" path="res://resources/items/robot_parts.tres" id="6_robot"]
+[ext_resource type="Resource" path="res://resources/items/rusted_junk.tres" id="7_rusted"]
+[ext_resource type="Resource" path="res://resources/items/moldy_boot.tres" id="8_boot"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_robot_scrap"]
+size = Vector3(4.4, 1.9, 4.4)
+
+[node name="RobotScrapPileNode" type="StaticBody3D"]
+script = ExtResource("1_node")
+display_name = "Half-Buried Robot Wreck"
+pile_size = 2
+scavenging_difficulty = 24
+slow_scavenge_seconds = 15.0
+fast_scavenge_seconds = 6.5
+levels_to_fast_speed = 34
+base_rare_chance = 0.05
+max_rare_chance = 0.34
+robotics_difficulty = 12
+scavenge_noise_radius = 16.0
+slot_distance = 3.4
+useful_loot = Array[Resource]([ExtResource("5_electronics"), ExtResource("4_wire"), ExtResource("3_scrap")])
+rare_loot = Array[Resource]([ExtResource("6_robot")])
+junk_loot = Array[Resource]([ExtResource("7_rusted"), ExtResource("8_boot")])
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("BoxShape3D_robot_scrap")
+
+[node name="Visual" parent="." instance=ExtResource("2_model")]
+
+[node name="Label3D" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.25, 0)
+billboard = 1
+no_depth_test = true
+font_size = 34
+outline_size = 4
+text = "Half-Buried Robot Wreck"

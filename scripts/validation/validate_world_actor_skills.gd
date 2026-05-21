@@ -23,6 +23,7 @@ func _run() -> void:
 	_validate_mining_speed_rules()
 	_validate_world_actor_api()
 	_validate_weighted_initiative()
+	await _validate_scavenging_rules()
 	await _validate_locked_mining_attempt_trains_without_ore()
 	await _validate_stalled_mining_awards_no_xp()
 	await _validate_skills_window_live_update()
@@ -50,6 +51,7 @@ func _validate_catalog() -> void:
 		SkillRules.COMBAT_UNARMED,
 		SkillRules.MOVEMENT_RUNNING,
 		SkillRules.LABOR_MINING,
+		SkillRules.LABOR_SCAVENGING,
 		SkillRules.LABOR_FARMING,
 		SkillRules.LABOR_FISHING,
 		SkillRules.LABOR_CONSTRUCTION,
@@ -179,6 +181,79 @@ func _validate_weighted_initiative() -> void:
 		_fail("Expected high dex participant to win more initiative contests, low=%d high=%d" % [low_wins, high_wins])
 	if low_wins < 45 or low_wins > 180:
 		_fail("Expected 1-vs-3 dex initiative to stay near weighted range, low=%d high=%d" % [low_wins, high_wins])
+
+
+func _validate_scavenging_rules() -> void:
+	var useful_item := ItemDefinition.new()
+	useful_item.display_name = "Validation Scrap"
+	useful_item.grid_size = Vector2i(1, 1)
+	useful_item.unit_weight = 1.0
+	useful_item.max_stack = 1
+
+	var low_actor := WorldActor.new()
+	var high_actor := WorldActor.new()
+	low_actor.set_skill_level(SkillRules.LABOR_SCAVENGING, 1)
+	high_actor.set_skill_level(SkillRules.LABOR_SCAVENGING, 45)
+	high_actor.set_skill_level(SkillRules.ATTRIBUTE_PERCEPTION, 30)
+	high_actor.set_skill_level(SkillRules.ATTRIBUTE_DEXTERITY, 30)
+	var chance_node := ScavengingResourceNode.new()
+	chance_node.scavenging_difficulty = 25
+	var low_chance := chance_node.get_useful_loot_chance(low_actor)
+	var high_chance := chance_node.get_useful_loot_chance(high_actor)
+	if low_chance <= 0.0:
+		_fail("Expected low scavenging useful chance to remain possible")
+	if high_chance <= low_chance:
+		_fail("Expected high scavenging useful chance to exceed low chance")
+	low_actor.queue_free()
+	high_actor.queue_free()
+	chance_node.queue_free()
+
+	var scavenger := HumanoidCharacter.new()
+	scavenger.name = "ValidationScavenger"
+	scavenger.show_nameplate = false
+	scavenger.inventory_columns = 1
+	scavenger.inventory_rows = 1
+	scavenger.max_carry_weight = 0.0
+	scavenger.fatigue_enabled = false
+	root.add_child(scavenger)
+	await process_frame
+
+	var node := ScavengingResourceNode.new()
+	node.name = "ValidationScrapPile"
+	node.randomize_charges_on_ready = false
+	node.current_charges = 1
+	node.slow_scavenge_seconds = 1.0
+	node.fast_scavenge_seconds = 1.0
+	node.slot_distance = 0.0
+	node.min_useful_chance = 1.0
+	node.max_useful_chance = 1.0
+	node.useful_loot = [useful_item]
+	var label := Label3D.new()
+	label.name = "Label3D"
+	node.add_child(label)
+	root.add_child(node)
+	await process_frame
+
+	scavenger._current_scavenging_node = node
+	var xp_before := scavenger.get_skill_xp(SkillRules.LABOR_SCAVENGING)
+	scavenger._process_scavenging(1.2)
+	var xp_after := scavenger.get_skill_xp(SkillRules.LABOR_SCAVENGING)
+	if xp_after <= xp_before:
+		_fail("Expected scavenging attempt to award XP")
+	if node.current_charges != 0:
+		_fail("Expected scavenging attempt to consume exactly one charge")
+	if not node.is_depleted():
+		_fail("Expected empty scrap pile to be depleted")
+	if not label.text.contains("Depleted"):
+		_fail("Expected depleted scrap pile label to say Depleted")
+	var dropped_item_count := 0
+	for child in root.get_children():
+		if child is WorldItem and (child as WorldItem).item_definition == useful_item:
+			dropped_item_count += 1
+	if dropped_item_count <= 0:
+		_fail("Expected full scavenger inventory to drop loot beside the pile")
+	scavenger.queue_free()
+	node.queue_free()
 
 
 func _validate_locked_mining_attempt_trains_without_ore() -> void:
