@@ -2,23 +2,28 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c8ntf053v68ne"
-path.s3tc="res://.godot/imported/copper.png-5a89d397b8d7f74f9e748b2910a50c21.s3tc.ctex"
+uid="uid://cxf1pb3xn8wak"
+path.s3tc="res://.godot/imported/meshy_scrap_3_Image_0.jpg-9ce5de557a8bcc78190bdce8b13f9eb1.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
+generator_parameters={
+"md5": "736b7d2457a8dca583a3a194d0011d3a"
+}
 
 [deps]
 
-source_file="res://assets/items/ore/copper.png"
-dest_files=["res://.godot/imported/copper.png-5a89d397b8d7f74f9e748b2910a50c21.s3tc.ctex"]
+source_file="res://assets/items/scrap/meshy_scrap_3_Image_0.jpg"
+dest_files=["res://.godot/imported/meshy_scrap_3_Image_0.jpg-9ce5de557a8bcc78190bdce8b13f9eb1.s3tc.ctex"]
 
 [params]
 
 compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
@@ -26,6 +31,10 @@ mipmaps/generate=true
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
 process/fix_alpha_border=true
 process/premult_alpha=false
 process/normal_map_invert_y=false

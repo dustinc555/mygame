@@ -2,6 +2,7 @@ extends Node3D
 
 const PARTY_MEMBER_SCRIPT = preload("res://scripts/party_member.gd")
 const SCRAP_PILE_SCENE = preload("res://scenes/world/resource_nodes/scrap_pile_node.tscn")
+const SCRAP_PILE_VARIANT_2_SCENE = preload("res://scenes/world/resource_nodes/scrap_pile_variant_2_node.tscn")
 const ROBOT_SCRAP_PILE_SCENE = preload("res://scenes/world/resource_nodes/robot_scrap_pile_node.tscn")
 const SNEAK_DEMO_BUTTON_SCRIPT = preload("res://scripts/test_scenes/sneak_demo_button.gd")
 const ROBOT_PARTS = preload("res://resources/items/robot_parts.tres")
@@ -201,6 +202,7 @@ func _ensure_scrap_piles() -> void:
 	root_node.name = "ScrapPiles"
 	add_child(root_node)
 	_make_scrap_pile(root_node, "BasicJunkPile", "Basic Junk Pile", Vector3(-5.8, 0.0, -1.0), 0, ScavengingResourceNode.PileSize.SMALL, Vector3.ONE * 0.82)
+	_make_scrap_pile_variant_2(root_node, Vector3(-8.0, 0.0, 3.0))
 	_make_robot_scrap_pile(root_node, Vector3(0.5, 0.0, 0.2))
 	_make_scrap_pile(root_node, "OldWorldPile", "Old-World Wreckage", Vector3(6.8, 0.0, -2.0), 28, ScavengingResourceNode.PileSize.LARGE, Vector3.ONE * 1.25)
 
@@ -220,6 +222,14 @@ func _make_scrap_pile(parent: Node, node_name: String, label: String, position: 
 		pile.scavenge_noise_radius = 16.0
 	elif difficulty >= 10:
 		pile.scavenge_noise_radius = 12.0
+	parent.add_child(pile)
+
+
+func _make_scrap_pile_variant_2(parent: Node, position: Vector3) -> void:
+	var pile := SCRAP_PILE_VARIANT_2_SCENE.instantiate() as ScavengingResourceNode
+	pile.name = "TwistedScrapHeap"
+	pile.position = position
+	pile.show_charge_count = show_charge_labels
 	parent.add_child(pile)
 
 

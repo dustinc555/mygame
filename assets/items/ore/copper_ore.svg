@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="stone" x1="12" y1="10" x2="52" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5d5348"/>
+      <stop offset="0.55" stop-color="#352f2b"/>
+      <stop offset="1" stop-color="#1f1d1b"/>
+    </linearGradient>
+    <linearGradient id="copper" x1="17" y1="11" x2="49" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffb36b"/>
+      <stop offset="0.5" stop-color="#c76f35"/>
+      <stop offset="1" stop-color="#7a3c1f"/>
+    </linearGradient>
+    <linearGradient id="patina" x1="18" y1="18" x2="45" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7ed4b2"/>
+      <stop offset="1" stop-color="#2f8f7d"/>
+    </linearGradient>
+  </defs>
+  <path d="M9 38 15 17 35 7 54 18 58 39 45 57 21 55Z" fill="url(#stone)"/>
+  <path d="M15 39 19 22 35 13 49 21 52 38 42 51 23 50Z" fill="#28231f" opacity="0.55"/>
+  <path d="M18 38 24 22 36 16 47 23 45 34 32 42Z" fill="url(#copper)"/>
+  <path d="M26 49 34 37 48 31 52 39 42 51Z" fill="url(#copper)"/>
+  <path d="M20 31 28 27 24 39Z" fill="#ffca8a" opacity="0.55"/>
+  <path d="M34 18 45 24 39 28Z" fill="#ffd29b" opacity="0.45"/>
+  <path d="M34 40 48 33 43 42Z" fill="#ffb56c" opacity="0.45"/>
+  <path d="M22 44 31 39 27 50Z" fill="#7a3c1f" opacity="0.65"/>
+  <path d="M16 24 24 16 35 11" fill="none" stroke="#756a5f" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+  <path d="M12 39 23 50 43 54" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+  <path d="M27 25 35 20 42 25" fill="none" stroke="url(#patina)" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+  <path d="M36 38 45 35" fill="none" stroke="url(#patina)" stroke-width="3" stroke-linecap="round" opacity="0.75"/>
+  <path d="M31 48 36 42" fill="none" stroke="#57b596" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+</svg>
