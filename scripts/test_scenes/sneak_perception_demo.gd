@@ -14,6 +14,8 @@ const EXPENSIVE_VASE = preload("res://resources/items/expensive_vase.tres")
 @export var observer_rotation_enabled := true
 
 var player: HumanoidCharacter
+var noisy_player: HumanoidCharacter
+var invisible_player: HumanoidCharacter
 var observer: HumanoidCharacter
 var perception_controller: Node
 var vision_cone: MeshInstance3D
@@ -199,13 +201,29 @@ func _ensure_characters() -> void:
 		player = _make_humanoid("Mira", PARTY_MEMBER_SCRIPT, Vector3(0.0, 0.6, -7.5), Color(0.82, 0.43, 0.31, 1.0), "Player", true)
 		player.stable_id = "player.sneak_demo.mira"
 		player.fatigue_enabled = false
+		player.set_skill_level(SkillRules.SUBTERFUGE_SLEIGHT_OF_HAND, 20)
 		party_root.add_child(player)
+	if noisy_player == null:
+		noisy_player = _make_humanoid("Noisy", PARTY_MEMBER_SCRIPT, Vector3(-1.2, 0.6, -7.5), Color(0.66, 0.48, 0.34, 1.0), "Player", true)
+		noisy_player.stable_id = "player.sneak_demo.noisy"
+		noisy_player.fatigue_enabled = false
+		noisy_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 1)
+		noisy_player.set_skill_level(SkillRules.SUBTERFUGE_SLEIGHT_OF_HAND, 1)
+		party_root.add_child(noisy_player)
+	if invisible_player == null:
+		invisible_player = _make_humanoid("Invisible", PARTY_MEMBER_SCRIPT, Vector3(1.2, 0.6, -7.5), Color(0.38, 0.50, 0.86, 1.0), "Player", true)
+		invisible_player.stable_id = "player.sneak_demo.invisible"
+		invisible_player.fatigue_enabled = false
+		invisible_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 80)
+		invisible_player.set_skill_level(SkillRules.SUBTERFUGE_SLEIGHT_OF_HAND, 80)
+		party_root.add_child(invisible_player)
 	if observer == null:
 		observer = _make_humanoid("Watcher", FACTION_HUMANOID_SCRIPT, Vector3.ZERO + Vector3(0.0, 0.6, 0.0), Color(0.52, 0.60, 0.70, 1.0), "Townsfolk", false)
 		observer.member_name = "Watcher"
 		observer.stable_id = "town.sneak_demo.watcher"
 		observer.combat_stance = NpcRules.CombatStance.PASSIVE
 		observer.fatigue_enabled = false
+		observer.set_skill_level(SkillRules.ATTRIBUTE_PERCEPTION, 1)
 		observer.add_to_group("sneak_demo_observer")
 		party_root.add_child(observer)
 		_turn_target_yaw = observer.rotation.y

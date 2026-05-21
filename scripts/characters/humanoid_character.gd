@@ -77,6 +77,14 @@ const RAGDOLL_ACTIVATION_RAY_UP := 8.0
 const RAGDOLL_ACTIVATION_RAY_DOWN := 16.0
 const GROUND_MARKER_RAYCAST_UP := 5.0
 const GROUND_MARKER_RAYCAST_DOWN := 24.0
+const RUNNING_SKILL_XP_PER_SECOND := 0.35
+const RUNNING_ENDURANCE_XP_PER_SECOND := 0.05
+const CARRY_STRENGTH_XP_PER_SECOND := 0.1
+const MINING_ORE_WORTH_FOR_FIRST_LEVEL := 4.0
+const MINING_STRENGTH_XP_FACTOR := 0.08
+const COMBAT_ATTACK_SKILL_XP := 0.85
+const TOUGHNESS_DAMAGE_XP_MULTIPLIER := 0.18
+const MEDICAL_BANDAGE_XP := 3.0
 const COMBAT_INTERVENTION_STAFF_GROUP := "combat_intervention_staff"
 const EQUIPMENT_SLOTS: Array[String] = ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head", "weapon", "offhand"]
 const EQUIPMENT_SLOT_LABELS := {
@@ -173,7 +181,6 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var fatigue := 100.0
 @export var running := false
 @export var sneaking := false
-@export_range(0, 100, 1) var sleight_of_hand := 0
 @export_range(0, 2, 1) var combat_stance := NpcRules.CombatStance.DEFENSIVE
 
 @export var max_hp := 100.0
@@ -732,7 +739,7 @@ func is_actively_mining() -> bool:
 func get_mining_progress_ratio() -> float:
 	if _current_mining_node == null:
 		return 0.0
-	return minf(_get_stored_mining_progress(_current_mining_node) / _current_mining_node.mine_duration, 1.0)
+	return clampf(_get_stored_mining_progress(_current_mining_node), 0.0, 1.0)
 
 
 func can_eat_item(definition: ItemDefinition) -> bool:
@@ -1446,6 +1453,7 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	var can_actively_defend := life_state == NpcRules.LifeState.ALIVE and not _is_getting_up
 	if can_actively_defend and _rng.randf() <= get_stat_value("dodge_chance"):
 		_spend_fatigue(NpcRules.FATIGUE_DODGE_COST)
+		add_skill_xp(SkillRules.ATTRIBUTE_DEXTERITY, 0.35, "combat_dodge")
 		_show_world_notice("Dodge", Color(0.74, 0.94, 1.0, 1.0))
 		_try_start_self_defense(attacker)
 		return "dodged"
@@ -1453,8 +1461,12 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	var final_cut := maxf(cut_damage, 0.0)
 	if can_actively_defend and _rng.randf() <= get_stat_value("block_chance"):
 		_spend_fatigue(NpcRules.FATIGUE_BLOCK_COST)
+		add_skill_xp(SkillRules.ATTRIBUTE_TOUGHNESS, 0.12, "combat_block")
 		final_blunt *= block_damage_multiplier
 		final_cut *= block_damage_multiplier
+		var block_damage_reduction := _get_toughness_damage_reduction()
+		final_blunt *= 1.0 - block_damage_reduction
+		final_cut *= 1.0 - block_damage_reduction
 		_prepare_combat_reaction(attacker)
 		_play_combat_reaction(_get_current_block_animation_name())
 		COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
@@ -1462,6 +1474,7 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		_current_blunt_damage += final_blunt
 		_current_open_cut_damage += final_cut
 		_add_bleeding_from_cut(final_blunt, final_cut)
+		_award_toughness_xp(final_blunt + final_cut)
 		_recalculate_vitals()
 		_try_start_self_defense(attacker)
 		return "blocked"
@@ -1469,9 +1482,13 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		_prepare_combat_reaction(attacker)
 		_play_combat_reaction(_pick_hit_reaction_animation(attack_id, hit_reaction_names))
 		COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
+	var damage_reduction := _get_toughness_damage_reduction()
+	final_blunt *= 1.0 - damage_reduction
+	final_cut *= 1.0 - damage_reduction
 	_current_blunt_damage += final_blunt
 	_current_open_cut_damage += final_cut
 	_add_bleeding_from_cut(final_blunt, final_cut)
+	_award_toughness_xp(final_blunt + final_cut)
 	_show_world_notice("Hit", Color(1.0, 0.42, 0.42, 1.0))
 	_recalculate_vitals()
 	_try_start_self_defense(attacker)
@@ -1512,6 +1529,7 @@ func apply_bandage_from(actor: HumanoidCharacter) -> bool:
 	_bleed_drip_progress = 0.0
 	_bleed_pool_progress = 0.0
 	_recalculate_vitals()
+	actor.add_skill_xp(SkillRules.KNOWLEDGE_MEDICINE, MEDICAL_BANDAGE_XP, "bandage")
 	return true
 
 
@@ -1703,6 +1721,8 @@ func _process_needs(delta: float) -> void:
 			fatigue_delta -= NpcRules.FATIGUE_WORK_DRAIN * delta
 		elif is_running_enabled() and _is_actual_locomotion_active():
 			fatigue_delta -= NpcRules.FATIGUE_RUN_DRAIN * delta
+			add_skill_xp(SkillRules.MOVEMENT_RUNNING, RUNNING_SKILL_XP_PER_SECOND * delta, "running")
+			add_skill_xp(SkillRules.ATTRIBUTE_ENDURANCE, RUNNING_ENDURANCE_XP_PER_SECOND * delta, "running")
 		elif _is_sitting:
 			fatigue_delta += get_stat_value("fatigue_recovery_rate") * NpcRules.FATIGUE_SIT_RECOVERY_MULTIPLIER * delta
 		elif _is_actual_locomotion_active():
@@ -1710,6 +1730,8 @@ func _process_needs(delta: float) -> void:
 		else:
 			fatigue_delta += get_stat_value("fatigue_recovery_rate") * delta
 		_apply_fatigue_delta(fatigue_delta)
+		if life_state == NpcRules.LifeState.ALIVE and is_carrying_someone() and _is_actual_locomotion_active():
+			add_skill_xp(SkillRules.ATTRIBUTE_STRENGTH, CARRY_STRENGTH_XP_PER_SECOND * delta, "carrying")
 		if running and not can_continue_running():
 			running = false
 		if was_running != running:
@@ -1838,7 +1860,10 @@ func _process_ai(delta: float) -> void:
 func _process_mining(delta: float) -> void:
 	if _current_mining_node == null:
 		return
-	var mining_position: Vector3 = _current_mining_node.get_mining_position(self)
+	var mining_node := _current_mining_node as MiningResourceNode
+	if mining_node == null:
+		return
+	var mining_position: Vector3 = mining_node.get_mining_position(self)
 	if global_position.distance_to(mining_position) > interact_distance:
 		_set_actor_move_target(mining_position)
 		_mining_active = false
@@ -1846,18 +1871,52 @@ func _process_mining(delta: float) -> void:
 		return
 	if _has_move_target:
 		return
-	_mining_active = true
-	var progress := _get_stored_mining_progress(_current_mining_node) + delta
-	var duration := maxf(_current_mining_node.mine_duration, 0.01)
+	var duration := maxf(mining_node.get_effective_mine_duration(self), 0.01)
 	var mining_inventory := _work_inventory_override if _work_inventory_override != null else inventory
-	if progress >= duration:
-		if mining_inventory.add_item(_current_mining_node.item_definition):
-			progress = 0.0
+	var progress_before := clampf(_get_stored_mining_progress(mining_node), 0.0, 1.0)
+	if progress_before >= 1.0:
+		if mining_node.can_produce_ore_for(self):
+			if mining_inventory.add_item(mining_node.item_definition):
+				progress_before = 0.0
+			else:
+				_store_mining_progress(mining_node, 1.0)
+				_mining_active = false
+				mining_changed.emit()
+				return
 		else:
-			progress = duration
-			_mining_active = false
-	_store_mining_progress(_current_mining_node, progress)
+			_show_mining_requirement_notice(mining_node)
+			progress_before = 0.0
+	_mining_active = true
+	var progress_delta := minf(delta / duration, maxf(1.0 - progress_before, 0.0))
+	_award_mining_progress_xp(progress_delta, mining_node.get_locked_attempt_xp_multiplier_for(self))
+	var progress := progress_before + progress_delta
+	if progress >= 1.0:
+		if mining_node.can_produce_ore_for(self):
+			if mining_inventory.add_item(mining_node.item_definition):
+				progress = 0.0
+			else:
+				progress = 1.0
+				_mining_active = false
+		else:
+			progress = 0.0
+			_show_mining_requirement_notice(mining_node)
+	_store_mining_progress(mining_node, progress)
 	mining_changed.emit()
+
+
+func _award_mining_progress_xp(progress_delta: float, xp_multiplier: float = 1.0) -> void:
+	if progress_delta <= 0.0 or xp_multiplier <= 0.0:
+		return
+	var mining_xp := SkillRules.get_xp_to_next_level(SkillRules.DEFAULT_LEVEL) / MINING_ORE_WORTH_FOR_FIRST_LEVEL * progress_delta * xp_multiplier
+	add_skill_xp(SkillRules.LABOR_MINING, mining_xp, "mining")
+	add_skill_xp(SkillRules.ATTRIBUTE_STRENGTH, mining_xp * MINING_STRENGTH_XP_FACTOR, "mining")
+
+
+func _show_mining_requirement_notice(mining_node: MiningResourceNode) -> void:
+	var message := "Mining %d required" % mining_node.required_mining_level
+	if _order_was_player_issued:
+		center_notice_requested.emit(message)
+	_show_world_notice(message, Color(1.0, 0.68, 0.24, 1.0), 1.2, 0.45)
 
 
 func _process_container_interaction() -> void:
@@ -2097,6 +2156,7 @@ func _start_combat_attack(target: HumanoidCharacter) -> void:
 		if not COMBAT_COORDINATOR.try_begin_exchange(self, target, 0.45):
 			return
 		_spend_fatigue(NpcRules.FATIGUE_ATTACK_COST)
+		_award_combat_attack_xp()
 		var total_damage := get_stat_value("attack_damage")
 		var cut_damage := total_damage * get_stat_value("cut_ratio")
 		target.receive_attack(self, total_damage - cut_damage, cut_damage)
@@ -2108,6 +2168,7 @@ func _start_combat_attack(target: HumanoidCharacter) -> void:
 	if not COMBAT_COORDINATOR.try_begin_exchange(self, target, action_seconds):
 		return
 	_spend_fatigue(NpcRules.FATIGUE_ATTACK_COST)
+	_award_combat_attack_xp()
 	_combat_action_names = action_names
 	_combat_action_index = 0
 	_combat_action_clip_remaining = _get_character_animation_length(_combat_action_names[0])
@@ -2318,11 +2379,11 @@ func _process_pickup_interaction() -> void:
 
 
 func _get_stored_mining_progress(resource_node) -> float:
-	return _mining_progress_by_node.get(resource_node.get_instance_id(), 0.0)
+	return clampf(_mining_progress_by_node.get(resource_node.get_instance_id(), 0.0), 0.0, 1.0)
 
 
 func _store_mining_progress(resource_node, progress: float) -> void:
-	_mining_progress_by_node[resource_node.get_instance_id()] = progress
+	_mining_progress_by_node[resource_node.get_instance_id()] = clampf(progress, 0.0, 1.0)
 
 
 func _on_inventory_data_changed() -> void:
@@ -3705,30 +3766,71 @@ func _enter_dead_state() -> void:
 	state_changed.emit()
 
 
+func _award_combat_attack_xp() -> void:
+	var skill_id := _get_current_weapon_skill_id()
+	add_skill_xp(skill_id, COMBAT_ATTACK_SKILL_XP, "combat_attack")
+	add_skill_xp(SkillRules.ATTRIBUTE_DEXTERITY, COMBAT_ATTACK_SKILL_XP * 0.01, "weapon_attack")
+	match skill_id:
+		SkillRules.COMBAT_DAGGERS:
+			add_skill_xp(SkillRules.ATTRIBUTE_DEXTERITY, COMBAT_ATTACK_SKILL_XP * 0.12, "finesse_attack")
+		SkillRules.COMBAT_AXES_ONE_HANDED:
+			add_skill_xp(SkillRules.ATTRIBUTE_STRENGTH, COMBAT_ATTACK_SKILL_XP * 0.08, "axe_attack")
+		SkillRules.COMBAT_UNARMED:
+			add_skill_xp(SkillRules.ATTRIBUTE_STRENGTH, COMBAT_ATTACK_SKILL_XP * 0.04, "unarmed_attack")
+		_:
+			add_skill_xp(SkillRules.ATTRIBUTE_DEXTERITY, COMBAT_ATTACK_SKILL_XP * 0.025, "weapon_attack")
+
+
+func _get_current_weapon_skill_id() -> String:
+	var weapon_item = equipped_items.get(ItemDefinition.EQUIP_SLOT_WEAPON, null)
+	if not (weapon_item is ItemDefinition):
+		return SkillRules.COMBAT_UNARMED
+	var item := weapon_item as ItemDefinition
+	var descriptor := "%s %s" % [item.display_name.to_lower(), item.resource_path.to_lower()]
+	if descriptor.contains("dagger"):
+		return SkillRules.COMBAT_DAGGERS
+	if descriptor.contains("axe"):
+		return SkillRules.COMBAT_AXES_ONE_HANDED
+	if descriptor.contains("sword"):
+		return SkillRules.COMBAT_SWORDS_ONE_HANDED
+	return SkillRules.COMBAT_SWORDS_ONE_HANDED
+
+
+func _get_toughness_damage_reduction() -> float:
+	return SkillRules.get_diminishing_bonus(float(get_skill_level(SkillRules.ATTRIBUTE_TOUGHNESS)), 0.24, 70.0)
+
+
+func _award_toughness_xp(real_damage: float) -> void:
+	if real_damage <= 0.0:
+		return
+	add_skill_xp(SkillRules.ATTRIBUTE_TOUGHNESS, real_damage * TOUGHNESS_DAMAGE_XP_MULTIPLIER, "damage_taken")
+
+
 func _get_base_stat_value(stat_name: String) -> float:
 	match stat_name:
 		"attack_damage":
-			return base_attack_damage
+			return base_attack_damage + SkillRules.get_diminishing_bonus(float(get_skill_level(SkillRules.ATTRIBUTE_STRENGTH)), 8.0, 50.0)
 		"attack_range":
 			return attack_range
 		"dexterity":
-			return base_dexterity
+			return float(get_skill_level(SkillRules.ATTRIBUTE_DEXTERITY))
 		"attack_cooldown":
 			return attack_cooldown_seconds
 		"cut_ratio":
 			return attack_cut_ratio
 		"dodge_chance":
-			return base_dodge_chance
+			return base_dodge_chance + SkillRules.get_diminishing_bonus(float(get_skill_level(SkillRules.ATTRIBUTE_DEXTERITY)), 0.18, 45.0)
 		"block_chance":
 			return base_block_chance
 		"move_speed_multiplier":
 			return 1.0
 		"run_speed_multiplier":
-			return NpcRules.RUN_SPEED_MULTIPLIER
+			return NpcRules.RUN_SPEED_MULTIPLIER + SkillRules.get_diminishing_bonus(float(get_skill_level(SkillRules.MOVEMENT_RUNNING)), 0.42, 55.0)
 		"hunger_drain_rate":
-			return hunger_drain_rate
+			var endurance_hunger_reduction := SkillRules.get_diminishing_bonus(float(get_skill_level(SkillRules.ATTRIBUTE_ENDURANCE)), 0.16, 65.0)
+			return hunger_drain_rate * (1.0 - endurance_hunger_reduction)
 		"fatigue_recovery_rate":
-			return NpcRules.FATIGUE_IDLE_RECOVERY
+			return NpcRules.FATIGUE_IDLE_RECOVERY + SkillRules.get_diminishing_bonus(float(get_skill_level(SkillRules.ATTRIBUTE_ENDURANCE)), 0.9, 60.0)
 		"healing_rate":
 			return NpcRules.BASE_HEAL_RATE
 	return 0.0

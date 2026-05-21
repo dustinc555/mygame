@@ -10,6 +10,10 @@ const OWNERSHIP_UTILS_SCRIPT = preload("res://scripts/ownership/ownership_utils.
 @export var beloved_free_take_value := 5
 
 const STEAL_ACTION_COLOR := Color(0.92, 0.34, 0.30, 1.0)
+const THEFT_ATTEMPT_XP := 0.7
+const THEFT_SUCCESS_XP := 1.8
+const THEFT_DEXTERITY_XP_FACTOR := 0.08
+const THEFT_DETECTION_PERCEPTION_XP := 1.1
 const THEFT_WARNING_LINES: Array[String] = [
 	"That isn't yours.",
 	"Put that back.",
@@ -73,9 +77,15 @@ func request_take_item(actor: HumanoidCharacter, item) -> bool:
 	if witnesses.is_empty():
 		var suspicious_witness := _find_theft_suspicion_witness(actor, item)
 		if suspicious_witness == null:
+			_award_theft_attempt_xp(actor, true)
 			return true
+		_award_theft_attempt_xp(actor, false)
+		var suspicious_witnesses: Array[HumanoidCharacter] = [suspicious_witness]
+		_award_theft_detection_xp(suspicious_witnesses)
 		_warn_suspicious_witness(suspicious_witness, actor)
 		return false
+	_award_theft_attempt_xp(actor, false)
+	_award_theft_detection_xp(witnesses)
 	var key := _warning_key(actor, item)
 	var warning_count := int(_warning_counts.get(key, 0))
 	_warning_counts[key] = warning_count + 1
@@ -153,7 +163,7 @@ func _find_theft_suspicion_witness(actor: HumanoidCharacter, target) -> Humanoid
 	if noise_radius <= 0.01 or not (target is Node3D):
 		return null
 	var target_node := target as Node3D
-	var actor_skill := _get_actor_sleight_of_hand(actor)
+	var actor_skill := _get_actor_theft_skill(actor)
 	var best_witness: HumanoidCharacter = null
 	var best_margin := -1.0
 	for humanoid in _find_relevant_owner_witnesses(target):
@@ -162,7 +172,7 @@ func _find_theft_suspicion_witness(actor: HumanoidCharacter, target) -> Humanoid
 		var witness_distance := humanoid.global_position.distance_to(target_node.global_position)
 		if witness_distance > noise_radius:
 			continue
-		var required_skill := _get_required_theft_skill(actor, target, witness_distance, noise_radius)
+		var required_skill := _get_required_theft_skill(actor, target, humanoid, witness_distance, noise_radius)
 		if actor_skill >= required_skill:
 			continue
 		var margin := required_skill - actor_skill
@@ -188,18 +198,37 @@ func _turn_witness_toward_actor(witness: HumanoidCharacter, actor: HumanoidChara
 	witness.rotation.z = 0.0
 
 
-func _get_required_theft_skill(actor: HumanoidCharacter, target, witness_distance: float, noise_radius: float) -> float:
+func _get_required_theft_skill(actor: HumanoidCharacter, target, observer: HumanoidCharacter, witness_distance: float, noise_radius: float) -> float:
 	var difficulty := float(_get_theft_difficulty(target))
 	var proximity_pressure := 35.0 * (1.0 - clampf(witness_distance / maxf(noise_radius, 0.001), 0.0, 1.0))
+	var perception_pressure := SkillRules.get_diminishing_bonus(float(observer.get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION)) if observer != null else 0.0, 24.0, 45.0)
 	var posture_penalty := 0.0 if actor != null and actor.sneaking else 15.0
-	return clampf(difficulty + proximity_pressure + posture_penalty, 0.0, 100.0)
+	return maxf(0.0, difficulty + proximity_pressure + perception_pressure + posture_penalty)
 
 
-func _get_actor_sleight_of_hand(actor: HumanoidCharacter) -> float:
+func _get_actor_theft_skill(actor: HumanoidCharacter) -> float:
 	if actor == null:
 		return 0.0
-	var skill_value = actor.get("sleight_of_hand")
-	return clampf(float(skill_value) if skill_value != null else 0.0, 0.0, 100.0)
+	return SkillRules.get_assisted_skill_score(
+		float(actor.get_skill_level(SkillRules.SUBTERFUGE_SLEIGHT_OF_HAND)),
+		float(actor.get_skill_level(SkillRules.ATTRIBUTE_DEXTERITY)),
+		18.0,
+		38.0
+	)
+
+
+func _award_theft_attempt_xp(actor: HumanoidCharacter, succeeded: bool) -> void:
+	if actor == null:
+		return
+	var amount := THEFT_SUCCESS_XP if succeeded else THEFT_ATTEMPT_XP
+	actor.add_skill_xp(SkillRules.SUBTERFUGE_SLEIGHT_OF_HAND, amount, "theft")
+	actor.add_skill_xp(SkillRules.ATTRIBUTE_DEXTERITY, amount * THEFT_DEXTERITY_XP_FACTOR, "theft")
+
+
+func _award_theft_detection_xp(witnesses: Array[HumanoidCharacter]) -> void:
+	for witness in witnesses:
+		if witness != null:
+			witness.add_skill_xp(SkillRules.ATTRIBUTE_PERCEPTION, THEFT_DETECTION_PERCEPTION_XP, "theft_detection")
 
 
 func _find_relevant_owner_witnesses(target) -> Array[HumanoidCharacter]:

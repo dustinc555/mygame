@@ -8,10 +8,13 @@ const RETARGET_SCORE_MARGIN := 1.25
 const TURN_RESERVATION_SECONDS := 0.65
 const EXCHANGE_RECOVERY_SECONDS := 0.22
 const MIN_EXCHANGE_LOCK_SECONDS := 0.35
+const INITIATIVE_LOSS_CREDIT := 0.65
+const INITIATIVE_MAX_CREDIT := 8.0
 
 static var _participant_locks: Dictionary = {}
 static var _turn_reservations: Dictionary = {}
 static var _slots_by_defender: Dictionary = {}
+static var _initiative_credit: Dictionary = {}
 
 
 static func choose_target(attacker, candidates: Array, scan_radius: float):
@@ -95,6 +98,10 @@ static func try_begin_exchange(attacker, defender, action_seconds: float) -> boo
 	return true
 
 
+static func choose_initiative_winner_for_validation(contestants: Array):
+	return _choose_initiative_winner(contestants)
+
+
 static func is_character_locked(character) -> bool:
 	if not _is_valid_combatant(character):
 		return false
@@ -117,6 +124,7 @@ static func release_character(character) -> void:
 		return
 	var character_id: int = character.get_instance_id()
 	_participant_locks.erase(character_id)
+	_initiative_credit.erase(character_id)
 	_clear_reservations_involving(character_id)
 	_slots_by_defender.erase(character_id)
 	for defender_id in _slots_by_defender.keys():
@@ -129,17 +137,12 @@ static func _wins_pressure_contest(attacker) -> bool:
 	var pressure_attackers := _get_ready_attackers_against(attacker)
 	if pressure_attackers.is_empty():
 		return true
-	var attacker_roll := _roll_initiative(attacker)
-	var winning_attacker = null
-	var winning_roll := -INF
-	for pressure_attacker in pressure_attackers:
-		var pressure_roll := _roll_initiative(pressure_attacker)
-		if pressure_roll >= attacker_roll and pressure_roll > winning_roll:
-			winning_roll = pressure_roll
-			winning_attacker = pressure_attacker
-	if winning_attacker == null:
+	var contestants: Array = [attacker]
+	contestants.append_array(pressure_attackers)
+	var winner = _choose_initiative_winner(contestants)
+	if winner == attacker or winner == null:
 		return true
-	_reserve_turn(attacker, winning_attacker)
+	_reserve_turn(attacker, winner)
 	return false
 
 
@@ -156,16 +159,60 @@ static func _get_ready_attackers_against(defender) -> Array:
 			continue
 		if is_character_locked(node):
 			continue
+		if node.has_method("is_ranged_combatant") and node.is_ranged_combatant():
+			continue
 		if node.has_method("is_ready_for_combat_exchange") and node.is_ready_for_combat_exchange(defender):
 			result.append(node)
 	return result
 
 
-static func _roll_initiative(character) -> float:
-	var dexterity := 10.0
+static func _choose_initiative_winner(contestants: Array):
+	if contestants.is_empty():
+		return null
+	var weights: Array[Dictionary] = []
+	var total_weight := 0.0
+	for contestant in contestants:
+		if not _is_valid_combatant(contestant):
+			continue
+		var character_id: int = contestant.get_instance_id()
+		var dexterity := _get_initiative_dexterity(contestant)
+		var credit := clampf(float(_initiative_credit.get(character_id, 0.0)), 0.0, maxf(INITIATIVE_MAX_CREDIT, dexterity * 2.0))
+		var weight := maxf(0.01, dexterity + credit)
+		weights.append({"character": contestant, "weight": weight, "dexterity": dexterity})
+		total_weight += weight
+	if weights.is_empty() or total_weight <= 0.0:
+		return null
+	var roll := randf() * total_weight
+	var cumulative := 0.0
+	var winner = weights[weights.size() - 1]["character"]
+	for entry in weights:
+		cumulative += float(entry["weight"])
+		if roll <= cumulative:
+			winner = entry["character"]
+			break
+	_update_initiative_credit(weights, winner)
+	return winner
+
+
+static func _update_initiative_credit(weights: Array[Dictionary], winner) -> void:
+	for entry in weights:
+		var character = entry["character"]
+		if not _is_valid_combatant(character):
+			continue
+		var character_id: int = character.get_instance_id()
+		if character == winner:
+			_initiative_credit[character_id] = 0.0
+			continue
+		var dexterity := float(entry.get("dexterity", 1.0))
+		var current_credit := float(_initiative_credit.get(character_id, 0.0))
+		_initiative_credit[character_id] = minf(current_credit + INITIATIVE_LOSS_CREDIT, maxf(INITIATIVE_MAX_CREDIT, dexterity * 2.0))
+
+
+static func _get_initiative_dexterity(character) -> float:
+	var dexterity := 1.0
 	if character != null and character.has_method("get_stat_value"):
-		dexterity = maxf(float(character.get_stat_value("dexterity")), 0.01)
-	return randf() * dexterity
+		dexterity = float(character.get_stat_value("dexterity"))
+	return maxf(dexterity, 0.01)
 
 
 static func _reserve_turn(defender, attacker) -> void:

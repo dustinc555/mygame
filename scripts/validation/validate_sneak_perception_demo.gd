@@ -5,6 +5,8 @@ const SNEAK_DEMO_SCENE := preload("res://scenes/test_levels/sneak_perception_dem
 var _failures: Array[String] = []
 var _scene: Node
 var _player: HumanoidCharacter
+var _noisy_player: HumanoidCharacter
+var _invisible_player: HumanoidCharacter
 var _observer: HumanoidCharacter
 var _perception_controller: Node
 var _ownership_controller: OwnershipController
@@ -42,6 +44,8 @@ func _load_scene() -> void:
 	root.add_child(_scene)
 	await _wait_frames(50)
 	_player = _scene.get_node_or_null("PartyMembers/Mira") as HumanoidCharacter
+	_noisy_player = _scene.get_node_or_null("PartyMembers/Noisy") as HumanoidCharacter
+	_invisible_player = _scene.get_node_or_null("PartyMembers/Invisible") as HumanoidCharacter
 	_observer = _scene.get_node_or_null("PartyMembers/Watcher") as HumanoidCharacter
 	_perception_controller = _scene.get_node_or_null("GameBootstrap/PerceptionController")
 	_ownership_controller = _scene.get_node_or_null("GameBootstrap/OwnershipController") as OwnershipController
@@ -52,6 +56,10 @@ func _load_scene() -> void:
 	_owned_vase = _scene.get_node_or_null("OwnedVase") as WorldItem
 	if _player == null:
 		_fail("Mira was not found")
+	if _noisy_player == null:
+		_fail("Noisy was not found")
+	if _invisible_player == null:
+		_fail("Invisible was not found")
 	if _observer == null:
 		_fail("Watcher was not found")
 	if _perception_controller == null:
@@ -72,9 +80,33 @@ func _load_scene() -> void:
 		_scene.set("observer_rotation_enabled", false)
 	if _player != null:
 		_player.set_sneaking_enabled(true)
+		if _player.get_skill_level(SkillRules.SUBTERFUGE_SLEIGHT_OF_HAND) != 20:
+			_fail("Expected Mira sleight of hand to start at 20")
+	if _noisy_player != null and _noisy_player.get_skill_level(SkillRules.SUBTERFUGE_SNEAKING) != 1:
+		_fail("Expected Noisy sneaking to start at 1")
+	if _noisy_player != null and _noisy_player.get_skill_level(SkillRules.SUBTERFUGE_SLEIGHT_OF_HAND) != 1:
+		_fail("Expected Noisy sleight of hand to start at 1")
+	if _invisible_player != null and _invisible_player.get_skill_level(SkillRules.SUBTERFUGE_SNEAKING) != 80:
+		_fail("Expected Invisible sneaking to start at 80")
+	if _invisible_player != null and _invisible_player.get_skill_level(SkillRules.SUBTERFUGE_SLEIGHT_OF_HAND) != 80:
+		_fail("Expected Invisible sleight of hand to start at 80")
+	if _observer != null and _observer.get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION) != 1:
+		_fail("Expected Watcher perception to start at 1")
 	var party_manager := _scene.get_node_or_null("PartyManager") as PartyManager
 	if party_manager != null and _player != null:
 		party_manager.select_only(_player)
+	await _wait_frames(2)
+	var skills_button := _scene.get_node_or_null("GameHUD/HudLayout/BottomHud/HumanoidDetailsPanel/Margin/DetailsVBox/VitalsAttributeRow/AttributeColumn/SkillsButton") as Button
+	if skills_button == null:
+		_fail("Skills button was not added to selected party member details")
+	elif not skills_button.visible or skills_button.disabled:
+		_fail("Skills button should be visible and enabled for selected party member")
+	else:
+		skills_button.pressed.emit()
+		await _wait_frames(2)
+		var skills_window := _scene.get_node_or_null("GameHUD/CharacterSkillsWindow") as Control
+		if skills_window == null or not skills_window.visible:
+			_fail("Skills window did not open from selected party member details")
 
 
 func _run_visibility_cases() -> void:
@@ -90,6 +122,12 @@ func _run_visibility_cases() -> void:
 	var partial_los := float(partial.get("line_of_sight_fraction", 0.0))
 	if partial_los <= 0.05 or partial_los >= 0.95:
 		_fail("Expected partial pillar visibility, got %s" % partial)
+	var legendary_normal := await _evaluate_subject_case(_invisible_player, "legendary_sneak_normal", Vector3(1.45, 0.6, -7.5))
+	if bool(legendary_normal.get("clearly_seen", false)):
+		_fail("Expected sneak 80 to avoid clear detection by perception 1 at normal range, got %s" % legendary_normal)
+	var legendary_close := await _evaluate_subject_case(_invisible_player, "legendary_sneak_close", Vector3(0.2, 0.6, -1.0))
+	if not bool(legendary_close.get("clearly_seen", false)):
+		_fail("Expected sneak 80 to still be clearly seen by perception 1 at close range, got %s" % legendary_close)
 
 
 func _run_lighting_cases() -> void:
@@ -116,7 +154,7 @@ func _run_stealing_cases() -> void:
 	_owned_vase.global_position = Vector3(0.0, 0.08, 1.65)
 	_player.global_position = Vector3(0.0, 0.6, 1.85)
 	_player.velocity = Vector3.ZERO
-	_player.sleight_of_hand = 0
+	_player.set_skill_level(SkillRules.SUBTERFUGE_SLEIGHT_OF_HAND, 0)
 	_face_observer_away_from_player()
 	await _wait_frames(8)
 	var hidden_result := _perception_controller.call("evaluate_observer", _observer, _player) as Dictionary
@@ -128,7 +166,7 @@ func _run_stealing_cases() -> void:
 	await _wait_frames(2)
 	if not is_instance_valid(_owned_vase):
 		_fail("Expected blocked noisy vase steal to remain in the world")
-	_player.sleight_of_hand = 100
+	_player.set_skill_level(SkillRules.SUBTERFUGE_SLEIGHT_OF_HAND, 100)
 	_face_observer_away_from_player()
 	await _wait_frames(4)
 	var skilled_pickup := bool(_owned_vase.try_pickup(_player))
@@ -137,7 +175,7 @@ func _run_stealing_cases() -> void:
 	await _wait_frames(2)
 	if is_instance_valid(_owned_vase):
 		_fail("Expected high-skill stolen vase to leave the world")
-	_player.sleight_of_hand = 0
+	_player.set_skill_level(SkillRules.SUBTERFUGE_SLEIGHT_OF_HAND, 20)
 	_player.global_position = Vector3(1.45, 0.6, -7.5)
 	_player.velocity = Vector3.ZERO
 	_face_observer_to_player()
@@ -206,6 +244,24 @@ func _evaluate_case(label: String, player_position: Vector3) -> Dictionary:
 	_face_observer_to_player()
 	await _wait_frames(8)
 	var result := _perception_controller.call("evaluate_observer", _observer, _player) as Dictionary
+	_print_perception_case(label, result)
+	return result
+
+
+func _evaluate_subject_case(subject: HumanoidCharacter, label: String, subject_position: Vector3) -> Dictionary:
+	if subject == null:
+		return {}
+	subject.global_position = subject_position
+	subject.velocity = Vector3.ZERO
+	subject.set_sneaking_enabled(true)
+	_face_observer_to_subject(subject)
+	await _wait_frames(8)
+	var result := _perception_controller.call("evaluate_observer", _observer, subject) as Dictionary
+	_print_perception_case(label, result)
+	return result
+
+
+func _print_perception_case(label: String, result: Dictionary) -> void:
 	print("SNEAK_PERCEPTION_CASE %s los=%.2f score=%.2f light=%.2f clear=%s partial=%s" % [
 		label,
 		float(result.get("line_of_sight_fraction", 0.0)),
@@ -214,17 +270,21 @@ func _evaluate_case(label: String, player_position: Vector3) -> Dictionary:
 		bool(result.get("clearly_seen", false)),
 		bool(result.get("partially_seen", false)),
 	])
-	return result
 
 
 func _face_observer_to_player() -> void:
-	var target := Vector3(_player.global_position.x, _observer.global_position.y, _player.global_position.z)
+	_face_observer_to_subject(_player)
+
+
+func _face_observer_to_subject(subject: HumanoidCharacter) -> void:
+	if subject == null:
+		return
+	var target := Vector3(subject.global_position.x, _observer.global_position.y, subject.global_position.z)
 	if _observer.global_position.distance_squared_to(target) <= 0.001:
 		return
 	_observer.look_at(target, Vector3.UP)
 	_observer.rotation.x = 0.0
 	_observer.rotation.z = 0.0
-
 
 func _face_observer_away_from_player() -> void:
 	var target := _observer.global_position * 2.0 - _player.global_position

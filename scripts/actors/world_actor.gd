@@ -2,7 +2,12 @@ extends CharacterBody3D
 
 class_name WorldActor
 
+const ACTOR_SKILL_SET_SCRIPT = preload("res://scripts/skills/actor_skill_set.gd")
+
 const NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
+
+@export var skill_set: ActorSkillSet
+@export var starting_skill_levels: Dictionary = {}
 
 @export var move_speed := 3.2
 @export var acceleration := 10.0
@@ -40,10 +45,66 @@ var _stuck_target_distance := INF
 var _stuck_seconds := 0.0
 var _stuck_repath_attempts := 0
 var _navigation_zero_waypoint_blocked := false
+var _starting_skill_levels_applied := false
 
 
 func _ready() -> void:
+	_ensure_skill_set()
 	_configure_world_actor_movement()
+
+
+func get_skill_level(skill_id: String) -> int:
+	_ensure_skill_set()
+	return skill_set.get_skill_level(skill_id)
+
+
+func set_skill_level(skill_id: String, level: int, clear_xp := true) -> void:
+	_ensure_skill_set()
+	skill_set.set_skill_level(skill_id, level, clear_xp)
+
+
+func add_skill_xp(skill_id: String, amount: float, reason := "") -> int:
+	_ensure_skill_set()
+	return skill_set.add_skill_xp(skill_id, amount, reason)
+
+
+func get_skill_xp(skill_id: String) -> float:
+	_ensure_skill_set()
+	return skill_set.get_skill_xp(skill_id)
+
+
+func get_skill_xp_to_next(skill_id: String) -> float:
+	_ensure_skill_set()
+	return skill_set.get_skill_xp_to_next(skill_id)
+
+
+func get_skill_progress_ratio(skill_id: String) -> float:
+	_ensure_skill_set()
+	return skill_set.get_skill_progress_ratio(skill_id)
+
+
+func get_skill_entry_snapshot(skill_id: String) -> Dictionary:
+	_ensure_skill_set()
+	return skill_set.get_entry_snapshot(skill_id)
+
+
+func _ensure_skill_set() -> void:
+	if skill_set != null:
+		_apply_starting_skill_levels_if_needed()
+		return
+	skill_set = ACTOR_SKILL_SET_SCRIPT.new() as ActorSkillSet
+	_apply_starting_skill_levels_if_needed()
+
+
+func _apply_starting_skill_levels_if_needed() -> void:
+	if _starting_skill_levels_applied or skill_set == null:
+		return
+	_starting_skill_levels_applied = true
+	for skill_id_value in starting_skill_levels.keys():
+		var skill_id := str(skill_id_value)
+		if skill_id.is_empty():
+			continue
+		skill_set.set_skill_level(skill_id, int(starting_skill_levels[skill_id_value]))
 
 
 func set_move_target(target: Vector3, _issued_by_player: bool = true) -> void:

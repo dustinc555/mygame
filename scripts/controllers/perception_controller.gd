@@ -21,6 +21,8 @@ const BARK_LINES: Array[String] = [
 	"Careful. I'm watching.",
 	"That's close enough.",
 ]
+const SNEAK_DETECTION_PERCEPTION_XP_PER_SECOND := 0.08
+const SNEAKING_RISK_XP_PER_SECOND := 0.05
 
 @export var observer_radius := 18.0
 @export var view_distance := 15.0
@@ -119,6 +121,7 @@ func _update_perception(delta: float) -> void:
 		var subject_results: Array[Dictionary] = []
 		for observer in _get_observers_for_subject(subject):
 			var result := _evaluate_observer(observer, subject)
+			_award_sneak_perception_xp(delta, observer, subject, result)
 			var key := _pair_key(observer, subject)
 			active_keys[key] = true
 			next_by_pair[key] = result
@@ -167,6 +170,7 @@ func _evaluate_observer(observer: HumanoidCharacter, subject: HumanoidCharacter)
 	var cone_samples := 0
 	var segments: Array[Dictionary] = []
 	var max_distance_factor := 0.0
+	var nearest_visible_distance := INF
 	for offset in SAMPLE_OFFSETS:
 		var sample_position := subject.global_position + offset
 		var to_sample := sample_position - eye_position
@@ -179,11 +183,23 @@ func _evaluate_observer(observer: HumanoidCharacter, subject: HumanoidCharacter)
 			if clear_los:
 				visible_samples += 1
 				max_distance_factor = maxf(max_distance_factor, _distance_factor(distance, view_distance))
+				nearest_visible_distance = minf(nearest_visible_distance, distance)
 		segments.append({"from": eye_position, "to": sample_position, "visible": in_cone and clear_los})
 	var los_fraction := float(visible_samples) / float(SAMPLE_OFFSETS.size())
 	var light_exposure := _calculate_light_exposure(subject)
 	var posture := sneak_posture_visibility if subject.sneaking else standing_posture_visibility
-	var visibility_score := clampf(los_fraction * light_exposure * max_distance_factor * posture, 0.0, 1.0)
+	var base_visibility_score := los_fraction * light_exposure * max_distance_factor * posture
+	var observer_perception := float(observer.get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION))
+	var subject_sneaking := float(subject.get_skill_level(SkillRules.SUBTERFUGE_SNEAKING))
+	var skill_gap := subject_sneaking - observer_perception
+	var contested_multiplier := exp(-maxf(skill_gap, 0.0) / 42.0)
+	if skill_gap < 0.0:
+		contested_multiplier = 1.0 + SkillRules.get_diminishing_bonus(-skill_gap, 0.65, 35.0)
+	var close_ratio := 0.0
+	if nearest_visible_distance < INF:
+		close_ratio = clampf(1.0 - (nearest_visible_distance - 1.0) / 3.0, 0.0, 1.0)
+	var close_reveal := los_fraction * light_exposure * posture * close_ratio * 0.95 / (1.0 + maxf(skill_gap, 0.0) / 140.0)
+	var visibility_score := clampf(base_visibility_score * contested_multiplier + close_reveal, 0.0, 1.0)
 	return {
 		"observer": observer,
 		"subject": subject,
@@ -194,11 +210,28 @@ func _evaluate_observer(observer: HumanoidCharacter, subject: HumanoidCharacter)
 		"light_exposure": light_exposure,
 		"distance_factor": max_distance_factor,
 		"posture_visibility": posture,
+		"observer_perception": observer_perception,
+		"subject_sneaking": subject_sneaking,
+		"contested_multiplier": contested_multiplier,
+		"close_reveal": close_reveal,
+		"base_visibility_score": base_visibility_score,
 		"visibility_score": visibility_score,
 		"clearly_seen": visibility_score >= clear_seen_threshold,
 		"partially_seen": visibility_score >= partial_seen_threshold and visibility_score < clear_seen_threshold,
 		"sample_segments": segments,
 	}
+
+
+func _award_sneak_perception_xp(delta: float, observer: HumanoidCharacter, subject: HumanoidCharacter, result: Dictionary) -> void:
+	if observer == null or subject == null:
+		return
+	var score := float(result.get("visibility_score", 0.0))
+	if bool(result.get("clearly_seen", false)):
+		observer.add_skill_xp(SkillRules.ATTRIBUTE_PERCEPTION, SNEAK_DETECTION_PERCEPTION_XP_PER_SECOND * delta, "sneak_detection")
+	elif bool(result.get("partially_seen", false)):
+		observer.add_skill_xp(SkillRules.ATTRIBUTE_PERCEPTION, SNEAK_DETECTION_PERCEPTION_XP_PER_SECOND * 0.35 * delta, "sneak_detection")
+	if score > 0.02:
+		subject.add_skill_xp(SkillRules.SUBTERFUGE_SNEAKING, SNEAKING_RISK_XP_PER_SECOND * clampf(score, 0.1, 1.0) * delta, "sneaking_risk")
 
 
 func _is_in_front_cone(observer: HumanoidCharacter, to_sample: Vector3) -> bool:

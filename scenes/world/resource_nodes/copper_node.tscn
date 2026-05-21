@@ -19,7 +19,10 @@ roughness = 0.92
 script = ExtResource("1_node")
 display_name = "Copper Vein"
 item_definition = ExtResource("2_item")
-mine_duration = 2.4
+required_mining_level = 0
+slow_mine_seconds = 15.0
+fast_mine_seconds = 7.0
+levels_to_fast_speed = 30
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("BoxShape3D_copper")

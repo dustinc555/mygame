@@ -2,6 +2,8 @@ extends Node
 
 class_name HumanoidDetailsController
 
+const CHARACTER_SKILLS_WINDOW_SCRIPT = preload("res://scripts/ui/character_skills_window.gd")
+
 const BLOOD_GLOW_CRITICAL_LOSS_PER_SECOND := 8.0
 
 var root_scene: Node
@@ -27,6 +29,9 @@ var hp_value: Label
 var fatigue_bar_stack: Control
 var fatigue_fill: ColorRect
 var fatigue_value: Label
+var skills_button: Button
+var skills_window: Control
+var attribute_value_labels: Dictionary = {}
 var current_target
 var _initialized := false
 
@@ -96,6 +101,7 @@ func _do_initialize() -> void:
 	fatigue_bar_stack = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack")
 	fatigue_fill = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack/FatigueFill")
 	fatigue_value = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack/FatigueValue")
+	_setup_attribute_column()
 	details_panel.visible = false
 	_initialized = true
 
@@ -119,6 +125,8 @@ func _update_panel() -> void:
 		hp_value.text = ""
 		_update_fill_bar(fatigue_bar_stack, fatigue_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
 		fatigue_value.text = ""
+		_update_attribute_summary(null)
+		_update_skills_button()
 		return
 	details_panel.visible = true
 	name_label.text = current_target.member_name
@@ -137,6 +145,117 @@ func _update_panel() -> void:
 	var fatigue_stage_label: String = current_target.get_fatigue_stage_label()
 	fatigue_value.text = "%s %d / 100" % [fatigue_stage_label, int(round(current_target.fatigue))]
 	_update_fill_bar(fatigue_bar_stack, fatigue_fill, current_target.fatigue / 100.0, _get_stage_color(current_target.get_fatigue_stage(), NpcRules.FatigueStage.WELL_RESTED, NpcRules.FatigueStage.WINDED, NpcRules.FatigueStage.EXHAUSTED))
+	_update_attribute_summary(current_target)
+	_update_skills_button()
+
+
+func _setup_attribute_column() -> void:
+	var details_vbox := details_panel.get_node_or_null("Margin/DetailsVBox") as VBoxContainer
+	if details_vbox == null or details_vbox.get_node_or_null("VitalsAttributeRow") != null:
+		return
+	details_panel.custom_minimum_size = Vector2(430.0, 352.0)
+	var vitals_row := HBoxContainer.new()
+	vitals_row.name = "VitalsAttributeRow"
+	vitals_row.add_theme_constant_override("separation", 12)
+	details_vbox.add_child(vitals_row)
+
+	var vitals_column := VBoxContainer.new()
+	vitals_column.name = "VitalsColumn"
+	vitals_column.custom_minimum_size = Vector2(220.0, 0.0)
+	vitals_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vitals_column.add_theme_constant_override("separation", 8)
+	vitals_row.add_child(vitals_column)
+
+	for row_path in ["HungerRow", "BloodRow", "HpRow", "FatigueRow"]:
+		var row := details_vbox.get_node_or_null(row_path)
+		if row == null:
+			continue
+		details_vbox.remove_child(row)
+		vitals_column.add_child(row)
+
+	var attribute_column := VBoxContainer.new()
+	attribute_column.name = "AttributeColumn"
+	attribute_column.custom_minimum_size = Vector2(148.0, 0.0)
+	attribute_column.add_theme_constant_override("separation", 5)
+	vitals_row.add_child(attribute_column)
+
+	var title := Label.new()
+	title.text = "Attributes"
+	title.add_theme_font_size_override("font_size", 13)
+	title.add_theme_color_override("font_color", Color(1.0, 0.86, 0.48, 1.0))
+	attribute_column.add_child(title)
+
+	_add_attribute_row(attribute_column, SkillRules.ATTRIBUTE_STRENGTH, "STR")
+	_add_attribute_row(attribute_column, SkillRules.ATTRIBUTE_PERCEPTION, "PER")
+	_add_attribute_row(attribute_column, SkillRules.ATTRIBUTE_DEXTERITY, "DEX")
+	_add_attribute_row(attribute_column, SkillRules.ATTRIBUTE_TOUGHNESS, "TGH")
+	_add_attribute_row(attribute_column, SkillRules.ATTRIBUTE_ENDURANCE, "END")
+	_add_attribute_row(attribute_column, SkillRules.ATTRIBUTE_CHARISMA, "CHA")
+
+	skills_button = Button.new()
+	skills_button.name = "SkillsButton"
+	skills_button.text = "Skills"
+	skills_button.focus_mode = Control.FOCUS_NONE
+	skills_button.tooltip_text = "Open selected party member skills"
+	skills_button.pressed.connect(_on_skills_button_pressed)
+	attribute_column.add_child(skills_button)
+
+
+func _add_attribute_row(parent: Control, skill_id: String, label_text: String) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 5)
+	parent.add_child(row)
+	var label := Label.new()
+	label.text = label_text
+	label.custom_minimum_size = Vector2(42.0, 0.0)
+	label.add_theme_font_size_override("font_size", 11)
+	row.add_child(label)
+	var value_label := Label.new()
+	value_label.text = "-"
+	value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	value_label.add_theme_font_size_override("font_size", 11)
+	row.add_child(value_label)
+	attribute_value_labels[skill_id] = value_label
+
+
+func _update_attribute_summary(target) -> void:
+	for skill_id in attribute_value_labels.keys():
+		var value_label := attribute_value_labels[skill_id] as Label
+		if value_label == null:
+			continue
+		if target != null and target.has_method("get_skill_level"):
+			value_label.text = str(int(target.get_skill_level(str(skill_id))))
+		else:
+			value_label.text = "-"
+
+
+func _update_skills_button() -> void:
+	if skills_button == null:
+		return
+	var can_open := _target_can_open_skills()
+	skills_button.visible = can_open
+	skills_button.disabled = not can_open
+
+
+func _target_can_open_skills() -> bool:
+	return current_target != null and current_target.has_method("is_player_party_member") and current_target.is_player_party_member() and bool(current_target.get("is_selected"))
+
+
+func _on_skills_button_pressed() -> void:
+	if not _target_can_open_skills():
+		return
+	_ensure_skills_window()
+	skills_window.call("show_for_actor", current_target)
+
+
+func _ensure_skills_window() -> void:
+	if skills_window != null and is_instance_valid(skills_window):
+		return
+	skills_window = CHARACTER_SKILLS_WINDOW_SCRIPT.new() as Control
+	skills_window.name = "CharacterSkillsWindow"
+	hud_layer.add_child(skills_window)
+	skills_window.visible = false
 
 
 func _update_hp_bar_visuals(current_hp: float, open_cut: float, bandaged_cut: float, max_hp: float, blunt_damage: float = 0.0) -> void:
