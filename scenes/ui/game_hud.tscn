@@ -5,14 +5,17 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/conversation_window.tscn" id="3_conversation"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_party_bar"]
-bg_color = Color(0.16, 0.16, 0.18, 0.96)
+bg_color = Color(0.075, 0.07, 0.065, 0.96)
 border_width_top = 1
 border_width_left = 1
+border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.34, 0.34, 0.38, 1)
+border_color = Color(0.35, 0.29, 0.2, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_divider"]
-bg_color = Color(0.34, 0.34, 0.38, 1)
+bg_color = Color(0.35, 0.29, 0.2, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_scroll"]
 bg_color = Color(0, 0, 0, 0)
@@ -90,15 +93,15 @@ mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 44)
+custom_minimum_size = Vector2(0, 58)
 mouse_filter = 2
 
 [node name="Margin" type="MarginContainer" parent="HudLayout/BottomHud/RightHud/CommandBar"]
 layout_mode = 2
 theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 5
+theme_override_constants/margin_top = 6
 theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 5
+theme_override_constants/margin_bottom = 6
 
 [node name="CommandColumn" type="VBoxContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin"]
 layout_mode = 2
@@ -106,28 +109,66 @@ theme_override_constants/separation = 0
 
 [node name="CommandRow" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 7
 
 [node name="LocomotionColumn" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(178, 0)
-theme_override_constants/separation = 6
+custom_minimum_size = Vector2(158, 0)
+theme_override_constants/separation = 5
 
 [node name="RunningButton" type="CheckButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn"]
 layout_mode = 2
-custom_minimum_size = Vector2(82, 0)
+custom_minimum_size = Vector2(74, 0)
 text = "Run"
 
 [node name="SneakingButton" type="CheckButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn"]
 layout_mode = 2
-custom_minimum_size = Vector2(90, 0)
+custom_minimum_size = Vector2(82, 0)
 text = "Sneak"
 
 [node name="StanceOption" type="OptionButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(220, 34)
+custom_minimum_size = Vector2(168, 34)
 size_flags_vertical = 4
 vertical_alignment = 1
+
+[node name="UtilityFlow" type="HFlowContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 5
+theme_override_constants/v_separation = 4
+
+[node name="BuildButton" type="Button" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/UtilityFlow"]
+custom_minimum_size = Vector2(70, 30)
+layout_mode = 2
+disabled = true
+focus_mode = 0
+tooltip_text = "Build controls are not implemented yet"
+text = "Build"
+
+[node name="FormationButton" type="Button" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/UtilityFlow"]
+custom_minimum_size = Vector2(92, 30)
+layout_mode = 2
+disabled = true
+focus_mode = 0
+tooltip_text = "Squad formation controls are not implemented yet"
+text = "Formation"
+
+[node name="AutoHealButton" type="Button" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/UtilityFlow"]
+custom_minimum_size = Vector2(82, 30)
+layout_mode = 2
+disabled = true
+focus_mode = 0
+tooltip_text = "Auto-heal rules are not implemented yet"
+text = "Auto Heal"
+
+[node name="FactionButton" type="Button" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/UtilityFlow"]
+custom_minimum_size = Vector2(78, 30)
+layout_mode = 2
+disabled = true
+focus_mode = 0
+tooltip_text = "Faction controls are not implemented yet"
+text = "Faction"
 
 [node name="BottomInfoRow" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud"]
 custom_minimum_size = Vector2(0, 86)
@@ -161,7 +202,7 @@ mouse_filter = 2
 [node name="WorldStatusPanel" type="PanelContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
 layout_mode = 2
-custom_minimum_size = Vector2(220, 86)
+custom_minimum_size = Vector2(196, 86)
 mouse_filter = 2
 
 [node name="Margin" type="MarginContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel"]

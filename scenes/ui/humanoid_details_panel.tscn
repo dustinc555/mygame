@@ -1,23 +1,26 @@
 [gd_scene load_steps=5 format=3]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_details"]
-bg_color = Color(0.16, 0.16, 0.18, 0.96)
-border_width_top = 1
-border_width_bottom = 1
-border_width_right = 1
-border_color = Color(0.34, 0.34, 0.38, 1)
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hp_frame"]
-bg_color = Color(0.12, 0.12, 0.14, 1)
+bg_color = Color(0.075, 0.07, 0.065, 0.97)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.28, 0.28, 0.32, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+border_color = Color(0.43, 0.34, 0.22, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hp_frame"]
+bg_color = Color(0.035, 0.035, 0.035, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.26, 0.24, 0.2, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_cut_outline"]
 bg_color = Color(0, 0, 0, 0)
@@ -31,21 +34,34 @@ corner_radius_top_right = 3
 corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_flat"]
+bg_color = Color(0.15, 0.13, 0.105, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.38, 0.31, 0.2, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
 [node name="HumanoidDetailsPanel" type="PanelContainer"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_details")
-custom_minimum_size = Vector2(236, 352)
+custom_minimum_size = Vector2(284, 148)
 mouse_filter = 2
 
 [node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 14
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 14
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
 
 [node name="DetailsVBox" type="VBoxContainer" parent="Margin"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 3
 
 [node name="HeaderRow" type="HBoxContainer" parent="Margin/DetailsVBox"]
 layout_mode = 2
@@ -54,171 +70,224 @@ theme_override_constants/separation = 8
 [node name="Name" type="Label" parent="Margin/DetailsVBox/HeaderRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 20
-text = "Name"
+theme_override_colors/font_color = Color(0.92, 0.84, 0.66, 1)
+theme_override_font_sizes/font_size = 15
+text = "No target"
+text_overrun_behavior = 3
 
 [node name="State" type="Label" parent="Margin/DetailsVBox/HeaderRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.58, 0.55, 0.5, 1)
+theme_override_font_sizes/font_size = 10
 horizontal_alignment = 2
 vertical_alignment = 1
-text = "Alive"
+text = "IDLE"
 
 [node name="Faction" type="Label" parent="Margin/DetailsVBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.68, 0.68, 0.72, 1)
+theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
 theme_override_font_sizes/font_size = 10
-text = "Faction"
+text = "Left-click a world object"
+text_overrun_behavior = 3
 
 [node name="WorkStatus" type="Label" parent="Margin/DetailsVBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.76, 0.72, 0.54, 1)
+theme_override_colors/font_color = Color(0.78, 0.66, 0.42, 1)
 theme_override_font_sizes/font_size = 10
-text = ""
+text = "Inspector ready"
+text_overrun_behavior = 3
 
-[node name="HungerRow" type="VBoxContainer" parent="Margin/DetailsVBox"]
+[node name="HungerRow" type="HBoxContainer" parent="Margin/DetailsVBox"]
 layout_mode = 2
+theme_override_constants/separation = 6
 
 [node name="HungerLabel" type="Label" parent="Margin/DetailsVBox/HungerRow"]
+custom_minimum_size = Vector2(42, 0)
 layout_mode = 2
-text = "Hunger"
+theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
+theme_override_font_sizes/font_size = 9
+vertical_alignment = 1
+text = "HNG"
 
 [node name="HungerBarFrame" type="PanelContainer" parent="Margin/DetailsVBox/HungerRow"]
+custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StyleBoxFlat_hp_frame")
-custom_minimum_size = Vector2(0, 22)
 
 [node name="HungerBarStack" type="Control" parent="Margin/DetailsVBox/HungerRow/HungerBarFrame"]
+custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
 mouse_filter = 2
 
 [node name="HungerFill" type="ColorRect" parent="Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack"]
-offset_right = 180.0
-offset_bottom = 22.0
+offset_right = 160.0
+offset_bottom = 14.0
 color = Color(0.47, 0.78, 0.43, 1)
 
 [node name="HungerValue" type="Label" parent="Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack"]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_bottom = 0.0
 horizontal_alignment = 1
 vertical_alignment = 1
+theme_override_font_sizes/font_size = 9
 text = "100 / 100"
 
-[node name="BloodRow" type="VBoxContainer" parent="Margin/DetailsVBox"]
+[node name="BloodRow" type="HBoxContainer" parent="Margin/DetailsVBox"]
 layout_mode = 2
+theme_override_constants/separation = 6
 
 [node name="BloodLabel" type="Label" parent="Margin/DetailsVBox/BloodRow"]
+custom_minimum_size = Vector2(42, 0)
 layout_mode = 2
-text = "Blood"
+theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
+theme_override_font_sizes/font_size = 9
+vertical_alignment = 1
+text = "BLD"
 
 [node name="BloodBarFrame" type="PanelContainer" parent="Margin/DetailsVBox/BloodRow"]
+custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StyleBoxFlat_hp_frame")
-custom_minimum_size = Vector2(0, 22)
 
 [node name="BloodBarStack" type="Control" parent="Margin/DetailsVBox/BloodRow/BloodBarFrame"]
+custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
 mouse_filter = 2
 
 [node name="BloodFill" type="ColorRect" parent="Margin/DetailsVBox/BloodRow/BloodBarFrame/BloodBarStack"]
-offset_right = 180.0
-offset_bottom = 22.0
+offset_right = 160.0
+offset_bottom = 14.0
 color = Color(0.47, 0.78, 0.43, 1)
 
 [node name="BloodValue" type="Label" parent="Margin/DetailsVBox/BloodRow/BloodBarFrame/BloodBarStack"]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_bottom = 0.0
 horizontal_alignment = 1
 vertical_alignment = 1
+theme_override_font_sizes/font_size = 9
 text = "100 / 100"
 
-[node name="HpRow" type="VBoxContainer" parent="Margin/DetailsVBox"]
+[node name="HpRow" type="HBoxContainer" parent="Margin/DetailsVBox"]
 layout_mode = 2
+theme_override_constants/separation = 6
 
 [node name="HpLabel" type="Label" parent="Margin/DetailsVBox/HpRow"]
+custom_minimum_size = Vector2(42, 0)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
+theme_override_font_sizes/font_size = 9
+vertical_alignment = 1
 text = "HP"
 
 [node name="HpBarFrame" type="PanelContainer" parent="Margin/DetailsVBox/HpRow"]
+custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StyleBoxFlat_hp_frame")
-custom_minimum_size = Vector2(0, 22)
 
 [node name="HpBarStack" type="Control" parent="Margin/DetailsVBox/HpRow/HpBarFrame"]
-custom_minimum_size = Vector2(0, 22)
+custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
 mouse_filter = 2
 
 [node name="HealthFill" type="ColorRect" parent="Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack"]
-offset_right = 180.0
-offset_bottom = 22.0
+offset_right = 160.0
+offset_bottom = 14.0
 color = Color(0.47, 0.78, 0.43, 1)
 
 [node name="BandagedFill" type="ColorRect" parent="Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack"]
 visible = false
-offset_bottom = 22.0
+offset_bottom = 14.0
 color = Color(0.76, 0.64, 0.33, 0.9)
 
 [node name="CutOutline" type="Panel" parent="Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack"]
 visible = false
-offset_bottom = 22.0
+offset_bottom = 14.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_cut_outline")
 
 [node name="HpValue" type="Label" parent="Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack"]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_bottom = 0.0
 horizontal_alignment = 1
 vertical_alignment = 1
+theme_override_font_sizes/font_size = 9
 text = "100 / 100"
 
-[node name="FatigueRow" type="VBoxContainer" parent="Margin/DetailsVBox"]
+[node name="FatigueRow" type="HBoxContainer" parent="Margin/DetailsVBox"]
 layout_mode = 2
+theme_override_constants/separation = 6
 
 [node name="FatigueLabel" type="Label" parent="Margin/DetailsVBox/FatigueRow"]
+custom_minimum_size = Vector2(42, 0)
 layout_mode = 2
-text = "Fatigue"
+theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
+theme_override_font_sizes/font_size = 9
+vertical_alignment = 1
+text = "FTG"
 
 [node name="FatigueBarFrame" type="PanelContainer" parent="Margin/DetailsVBox/FatigueRow"]
+custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StyleBoxFlat_hp_frame")
-custom_minimum_size = Vector2(0, 22)
 
 [node name="FatigueBarStack" type="Control" parent="Margin/DetailsVBox/FatigueRow/FatigueBarFrame"]
+custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
 mouse_filter = 2
 
 [node name="FatigueFill" type="ColorRect" parent="Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack"]
-offset_right = 180.0
-offset_bottom = 22.0
+offset_right = 160.0
+offset_bottom = 14.0
 color = Color(0.47, 0.78, 0.43, 1)
 
 [node name="FatigueValue" type="Label" parent="Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack"]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_bottom = 0.0
 horizontal_alignment = 1
 vertical_alignment = 1
+theme_override_font_sizes/font_size = 9
 text = "100 / 100"
+
+[node name="ActionRow" type="HBoxContainer" parent="Margin/DetailsVBox"]
+custom_minimum_size = Vector2(0, 26)
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="PrimaryActionButton" type="Button" parent="Margin/DetailsVBox/ActionRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_flat")
+theme_override_font_sizes/font_size = 10
+text = "Action"
+
+[node name="SecondaryActionButton" type="Button" parent="Margin/DetailsVBox/ActionRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_flat")
+theme_override_font_sizes/font_size = 10
+text = "Action"
+
+[node name="TertiaryActionButton" type="Button" parent="Margin/DetailsVBox/ActionRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_flat")
+theme_override_font_sizes/font_size = 10
+text = "Action"
+
+[node name="MoreActionButton" type="Button" parent="Margin/DetailsVBox/ActionRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_flat")
+theme_override_font_sizes/font_size = 10
+text = "More"

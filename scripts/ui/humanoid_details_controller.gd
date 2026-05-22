@@ -2,9 +2,26 @@ extends Node
 
 class_name HumanoidDetailsController
 
+signal inspector_action_requested(target, action_key: String)
+
 const CHARACTER_SKILLS_WINDOW_SCRIPT = preload("res://scripts/ui/character_skills_window.gd")
 
 const BLOOD_GLOW_CRITICAL_LOSS_PER_SECOND := 8.0
+const ACTION_ATTACK := "attack"
+const ACTION_CARRY := "carry"
+const ACTION_FINISH_OFF := "finish_off"
+const ACTION_HEAL := "heal"
+const ACTION_INVENTORY := "inventory"
+const ACTION_MINE := "mine"
+const ACTION_OPEN_CONTAINER := "open_container"
+const ACTION_PICKUP_ITEM := "pickup_item"
+const ACTION_SKILLS := "skills"
+const ACTION_STAND_UP := "stand_up"
+const ACTION_TALK := "talk"
+const ACTION_TRADE := "trade"
+const ACTION_UNLOCK_CONTAINER := "unlock_container"
+const ACTION_WAKE_UP := "wake_up"
+const WORLD_ACTION_PREFIX := "world:"
 
 var root_scene: Node
 var hud_layer: CanvasLayer
@@ -29,9 +46,9 @@ var hp_value: Label
 var fatigue_bar_stack: Control
 var fatigue_fill: ColorRect
 var fatigue_value: Label
-var skills_button: Button
+var action_buttons: Array[Button] = []
+var vital_rows: Array[Control] = []
 var skills_window: Control
-var attribute_value_labels: Dictionary = {}
 var current_target
 var _initialized := false
 
@@ -57,19 +74,25 @@ func _process(_delta: float) -> void:
 
 
 func inspect_humanoid(target) -> void:
+	inspect_target(target)
+
+
+func inspect_target(target) -> void:
 	if current_target == target:
+		_update_panel()
 		return
-	if current_target != null and current_target.has_method("set_inspected"):
-		current_target.set_inspected(false)
+	_set_target_inspected(current_target, false)
 	current_target = target
-	if current_target != null and current_target.has_method("set_inspected"):
-		current_target.set_inspected(true)
+	_set_target_inspected(current_target, true)
 	_update_panel()
 
 
 func clear_if_not_party_target() -> void:
-	if current_target != null and (not current_target.has_method("is_player_party_member") or not current_target.is_player_party_member()):
-		inspect_humanoid(null)
+	if not _has_valid_current_target():
+		inspect_target(null)
+		return
+	if not _target_is_player_party_member(current_target):
+		inspect_target(null)
 
 
 func _do_initialize() -> void:
@@ -101,145 +124,311 @@ func _do_initialize() -> void:
 	fatigue_bar_stack = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack")
 	fatigue_fill = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack/FatigueFill")
 	fatigue_value = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack/FatigueValue")
-	_setup_attribute_column()
-	details_panel.visible = false
+	vital_rows = [
+		details_panel.get_node("Margin/DetailsVBox/HungerRow"),
+		details_panel.get_node("Margin/DetailsVBox/BloodRow"),
+		details_panel.get_node("Margin/DetailsVBox/HpRow"),
+		details_panel.get_node("Margin/DetailsVBox/FatigueRow"),
+	]
+	_register_action_button("Margin/DetailsVBox/ActionRow/PrimaryActionButton")
+	_register_action_button("Margin/DetailsVBox/ActionRow/SecondaryActionButton")
+	_register_action_button("Margin/DetailsVBox/ActionRow/TertiaryActionButton")
+	_register_action_button("Margin/DetailsVBox/ActionRow/MoreActionButton")
+	details_panel.visible = true
 	_initialized = true
+	_update_panel()
+
+
+func _register_action_button(path: String) -> void:
+	var button := details_panel.get_node_or_null(path) as Button
+	if button == null:
+		return
+	button.pressed.connect(_on_action_button_pressed.bind(button))
+	action_buttons.append(button)
 
 
 func _update_panel() -> void:
 	if details_panel == null:
 		return
+	if current_target != null and not is_instance_valid(current_target):
+		current_target = null
 	if current_target == null:
-		details_panel.visible = true
-		name_label.text = ""
-		faction_label.text = ""
-		work_label.text = ""
-		state_label.text = ""
-		state_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
-		_update_fill_bar(hunger_bar_stack, hunger_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
-		hunger_value.text = ""
-		_update_fill_bar(blood_bar_stack, blood_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
-		_update_blood_bleed_glow(0.0)
-		blood_value.text = ""
-		_update_hp_bar_visuals(0.0, 0.0, 0.0, 1.0)
-		hp_value.text = ""
-		_update_fill_bar(fatigue_bar_stack, fatigue_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
-		fatigue_value.text = ""
-		_update_attribute_summary(null)
-		_update_skills_button()
+		_update_empty_panel()
 		return
-	details_panel.visible = true
-	name_label.text = current_target.member_name
-	faction_label.text = current_target.faction_name
-	work_label.text = current_target.get_job_status_text() if current_target.has_method("get_job_status_text") else ""
-	state_label.text = current_target.get_life_state_label()
-	state_label.modulate = _get_life_state_color(current_target.life_state)
-	var hunger_stage_label: String = current_target.get_hunger_stage_label()
-	hunger_value.text = "%s %d / 100" % [hunger_stage_label, int(round(current_target.hunger))]
-	_update_fill_bar(hunger_bar_stack, hunger_fill, current_target.hunger / 100.0, _get_stage_color(current_target.get_hunger_stage(), NpcRules.HungerStage.WELL_NOURISHED, NpcRules.HungerStage.HUNGRY, NpcRules.HungerStage.STARVING))
-	blood_value.text = "%d / %d" % [int(round(current_target.blood)), int(round(current_target.max_blood))]
-	_update_fill_bar(blood_bar_stack, blood_fill, current_target.blood / maxf(current_target.max_blood, 1.0), _get_ratio_color(current_target.blood / maxf(current_target.max_blood, 1.0)))
-	_update_blood_bleed_glow(current_target.get_bleed_rate() if current_target.has_method("get_bleed_rate") else 0.0)
-	_update_hp_bar_visuals(current_target.hp, current_target.get_open_cut_damage(), current_target.get_bandaged_cut_damage(), current_target.max_hp, current_target.get_blunt_damage())
-	hp_value.text = "%d / %d" % [int(round(current_target.hp)), int(round(current_target.max_hp))]
-	var fatigue_stage_label: String = current_target.get_fatigue_stage_label()
-	fatigue_value.text = "%s %d / 100" % [fatigue_stage_label, int(round(current_target.fatigue))]
-	_update_fill_bar(fatigue_bar_stack, fatigue_fill, current_target.fatigue / 100.0, _get_stage_color(current_target.get_fatigue_stage(), NpcRules.FatigueStage.WELL_RESTED, NpcRules.FatigueStage.WINDED, NpcRules.FatigueStage.EXHAUSTED))
-	_update_attribute_summary(current_target)
-	_update_skills_button()
-
-
-func _setup_attribute_column() -> void:
-	var details_vbox := details_panel.get_node_or_null("Margin/DetailsVBox") as VBoxContainer
-	if details_vbox == null or details_vbox.get_node_or_null("VitalsAttributeRow") != null:
+	if current_target is HumanoidCharacter:
+		_update_humanoid_panel(current_target as HumanoidCharacter)
 		return
-	details_panel.custom_minimum_size = Vector2(430.0, 352.0)
-	var vitals_row := HBoxContainer.new()
-	vitals_row.name = "VitalsAttributeRow"
-	vitals_row.add_theme_constant_override("separation", 12)
-	details_vbox.add_child(vitals_row)
+	_update_world_target_panel(current_target)
 
-	var vitals_column := VBoxContainer.new()
-	vitals_column.name = "VitalsColumn"
-	vitals_column.custom_minimum_size = Vector2(220.0, 0.0)
-	vitals_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vitals_column.add_theme_constant_override("separation", 8)
-	vitals_row.add_child(vitals_column)
 
-	for row_path in ["HungerRow", "BloodRow", "HpRow", "FatigueRow"]:
-		var row := details_vbox.get_node_or_null(row_path)
-		if row == null:
+func _update_empty_panel() -> void:
+	_set_vitals_visible(false)
+	name_label.text = "No target"
+	faction_label.text = "Left-click a person, item, or resource"
+	work_label.text = "Inspector ready"
+	state_label.text = "IDLE"
+	state_label.modulate = Color(0.58, 0.55, 0.5, 1.0)
+	_clear_bar_values()
+	_set_actions([])
+
+
+func _update_humanoid_panel(target: HumanoidCharacter) -> void:
+	_set_vitals_visible(true)
+	name_label.text = target.member_name
+	faction_label.text = target.faction_name
+	work_label.text = target.get_job_status_text() if target.has_method("get_job_status_text") else ""
+	state_label.text = target.get_life_state_label().to_upper()
+	state_label.modulate = _get_life_state_color(target.life_state)
+	var hunger_stage_label: String = target.get_hunger_stage_label()
+	hunger_value.text = "%s %d / 100" % [hunger_stage_label, int(round(target.hunger))]
+	_update_fill_bar(hunger_bar_stack, hunger_fill, target.hunger / 100.0, _get_stage_color(target.get_hunger_stage(), NpcRules.HungerStage.WELL_NOURISHED, NpcRules.HungerStage.HUNGRY, NpcRules.HungerStage.STARVING))
+	blood_value.text = "%d / %d" % [int(round(target.blood)), int(round(target.max_blood))]
+	_update_fill_bar(blood_bar_stack, blood_fill, target.blood / maxf(target.max_blood, 1.0), _get_ratio_color(target.blood / maxf(target.max_blood, 1.0)))
+	_update_blood_bleed_glow(target.get_bleed_rate() if target.has_method("get_bleed_rate") else 0.0)
+	_update_hp_bar_visuals(target.hp, target.get_open_cut_damage(), target.get_bandaged_cut_damage(), target.max_hp, target.get_blunt_damage())
+	hp_value.text = "%d / %d" % [int(round(target.hp)), int(round(target.max_hp))]
+	var fatigue_stage_label: String = target.get_fatigue_stage_label()
+	fatigue_value.text = "%s %d / 100" % [fatigue_stage_label, int(round(target.fatigue))]
+	_update_fill_bar(fatigue_bar_stack, fatigue_fill, target.fatigue / 100.0, _get_stage_color(target.get_fatigue_stage(), NpcRules.FatigueStage.WELL_RESTED, NpcRules.FatigueStage.WINDED, NpcRules.FatigueStage.EXHAUSTED))
+	_set_actions(_get_humanoid_actions(target))
+
+
+func _update_world_target_panel(target) -> void:
+	_set_vitals_visible(false)
+	_clear_bar_values()
+	name_label.text = _get_target_display_name(target)
+	faction_label.text = _get_target_subtitle(target)
+	work_label.text = _get_target_detail(target)
+	state_label.text = _get_target_state_label(target)
+	state_label.modulate = _get_target_state_color(target)
+	_set_actions(_get_world_target_actions(target))
+
+
+func _get_humanoid_actions(target: HumanoidCharacter) -> Array:
+	var actions: Array = []
+	if target.is_player_party_member():
+		actions.append({"key": ACTION_INVENTORY, "label": "Inventory"})
+		if _target_can_open_skills():
+			actions.append({"key": ACTION_SKILLS, "label": "Skills"})
+		if target.life_state == NpcRules.LifeState.ASLEEP:
+			actions.append({"key": ACTION_WAKE_UP, "label": "Wake"})
+		elif target.has_method("is_sitting") and target.is_sitting():
+			actions.append({"key": ACTION_STAND_UP, "label": "Stand"})
+		return actions
+	if target.life_state == NpcRules.LifeState.UNCONSCIOUS:
+		actions.append({"key": ACTION_HEAL, "label": "Heal"})
+		actions.append({"key": ACTION_CARRY, "label": "Carry"})
+		actions.append({"key": ACTION_FINISH_OFF, "label": "Finish"})
+		return actions
+	if target.life_state == NpcRules.LifeState.DEAD:
+		return actions
+	if target.has_conversation_definition():
+		actions.append({"key": ACTION_TALK, "label": "Talk"})
+	if target.has_method("get_merchant_role") and target.get_merchant_role() != null:
+		actions.append({"key": ACTION_TRADE, "label": "Trade"})
+	actions.append({"key": ACTION_ATTACK, "label": "Attack"})
+	actions.append({"key": ACTION_HEAL, "label": "Heal"})
+	return actions
+
+
+func _get_world_target_actions(target) -> Array:
+	var actions: Array = []
+	if target is Node and target.is_in_group("mining_resource"):
+		actions.append({"key": ACTION_MINE, "label": "Mine"})
+	if target is Node and target.is_in_group("world_container"):
+		var is_locked := bool(target.get("is_locked"))
+		actions.append({"key": ACTION_UNLOCK_CONTAINER if is_locked else ACTION_OPEN_CONTAINER, "label": "Unlock" if is_locked else "Open"})
+	if target is Node and target.is_in_group("world_item"):
+		actions.append({"key": ACTION_PICKUP_ITEM, "label": "Pick Up"})
+	if target is Node and target.has_method("get_world_context_actions"):
+		var context_actions: Array = target.get_world_context_actions(null)
+		for action in context_actions:
+			if actions.size() >= action_buttons.size():
+				break
+			var action_key := str(action.get("key", ""))
+			if action_key.is_empty():
+				continue
+			actions.append({
+				"key": WORLD_ACTION_PREFIX + action_key,
+				"label": str(action.get("label", "Action")),
+				"disabled": bool(action.get("disabled", false)) or action_key == "depleted",
+			})
+	while actions.size() > action_buttons.size():
+		actions.pop_back()
+	return actions
+
+
+func _set_actions(actions: Array) -> void:
+	for index in range(action_buttons.size()):
+		var button := action_buttons[index]
+		if button == null:
 			continue
-		details_vbox.remove_child(row)
-		vitals_column.add_child(row)
-
-	var attribute_column := VBoxContainer.new()
-	attribute_column.name = "AttributeColumn"
-	attribute_column.custom_minimum_size = Vector2(148.0, 0.0)
-	attribute_column.add_theme_constant_override("separation", 5)
-	vitals_row.add_child(attribute_column)
-
-	var title := Label.new()
-	title.text = "Attributes"
-	title.add_theme_font_size_override("font_size", 13)
-	title.add_theme_color_override("font_color", Color(1.0, 0.86, 0.48, 1.0))
-	attribute_column.add_child(title)
-
-	_add_attribute_row(attribute_column, SkillRules.ATTRIBUTE_STRENGTH, "STR")
-	_add_attribute_row(attribute_column, SkillRules.ATTRIBUTE_PERCEPTION, "PER")
-	_add_attribute_row(attribute_column, SkillRules.ATTRIBUTE_DEXTERITY, "DEX")
-	_add_attribute_row(attribute_column, SkillRules.ATTRIBUTE_TOUGHNESS, "TGH")
-	_add_attribute_row(attribute_column, SkillRules.ATTRIBUTE_ENDURANCE, "END")
-	_add_attribute_row(attribute_column, SkillRules.ATTRIBUTE_CHARISMA, "CHA")
-
-	skills_button = Button.new()
-	skills_button.name = "SkillsButton"
-	skills_button.text = "Skills"
-	skills_button.focus_mode = Control.FOCUS_NONE
-	skills_button.tooltip_text = "Open selected party member skills"
-	skills_button.pressed.connect(_on_skills_button_pressed)
-	attribute_column.add_child(skills_button)
-
-
-func _add_attribute_row(parent: Control, skill_id: String, label_text: String) -> void:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 5)
-	parent.add_child(row)
-	var label := Label.new()
-	label.text = label_text
-	label.custom_minimum_size = Vector2(42.0, 0.0)
-	label.add_theme_font_size_override("font_size", 11)
-	row.add_child(label)
-	var value_label := Label.new()
-	value_label.text = "-"
-	value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	value_label.add_theme_font_size_override("font_size", 11)
-	row.add_child(value_label)
-	attribute_value_labels[skill_id] = value_label
-
-
-func _update_attribute_summary(target) -> void:
-	for skill_id in attribute_value_labels.keys():
-		var value_label := attribute_value_labels[skill_id] as Label
-		if value_label == null:
+		if index >= actions.size():
+			button.visible = false
+			button.disabled = true
+			button.set_meta("inspector_action_key", "")
 			continue
-		if target != null and target.has_method("get_skill_level"):
-			value_label.text = str(int(target.get_skill_level(str(skill_id))))
-		else:
-			value_label.text = "-"
+		var action: Dictionary = actions[index]
+		button.visible = true
+		button.text = str(action.get("label", "Action"))
+		button.disabled = bool(action.get("disabled", false))
+		button.set_meta("inspector_action_key", str(action.get("key", "")))
 
 
-func _update_skills_button() -> void:
-	if skills_button == null:
+func _on_action_button_pressed(button: Button) -> void:
+	var action_key := str(button.get_meta("inspector_action_key", ""))
+	if action_key.is_empty():
 		return
-	var can_open := _target_can_open_skills()
-	skills_button.visible = can_open
-	skills_button.disabled = not can_open
+	if action_key == ACTION_SKILLS:
+		_on_skills_button_pressed()
+		return
+	if not _has_valid_current_target():
+		return
+	inspector_action_requested.emit(current_target, action_key)
+
+
+func _set_vitals_visible(is_visible: bool) -> void:
+	for row in vital_rows:
+		if row != null:
+			row.visible = is_visible
+
+
+func _clear_bar_values() -> void:
+	hunger_value.text = ""
+	blood_value.text = ""
+	hp_value.text = ""
+	fatigue_value.text = ""
+	_update_fill_bar(hunger_bar_stack, hunger_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
+	_update_fill_bar(blood_bar_stack, blood_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
+	_update_blood_bleed_glow(0.0)
+	_update_hp_bar_visuals(0.0, 0.0, 0.0, 1.0)
+	_update_fill_bar(fatigue_bar_stack, fatigue_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
+
+
+func _get_target_display_name(target) -> String:
+	if target is HumanoidCharacter:
+		return target.member_name
+	if target is Node and target.is_in_group("world_item"):
+		var definition = target.get("item_definition")
+		if definition != null:
+			var item_name := _get_string_property(definition, "display_name", "Item")
+			var quantity := _get_int_property(target, "quantity", 1)
+			return item_name if quantity <= 1 else "%s x%d" % [item_name, quantity]
+	var display_name := _get_string_property(target, "display_name", "")
+	if not display_name.is_empty():
+		return display_name
+	if target is Node:
+		return target.name.capitalize()
+	return "World Target"
+
+
+func _get_target_subtitle(target) -> String:
+	if target == null:
+		return ""
+	if target.has_method("get_owner_faction_name"):
+		var owner := str(target.call("get_owner_faction_name"))
+		if not owner.is_empty():
+			return "Owned by %s" % owner
+	if target is Node and target.is_in_group("mining_resource"):
+		return "Mining resource"
+	if target is Node and target.is_in_group("scavenging_resource"):
+		return "Scavenging site"
+	if target is Node and target.is_in_group("world_container"):
+		return "Storage"
+	if target is Node and target.is_in_group("world_item"):
+		return "Dropped item"
+	return "World object"
+
+
+func _get_target_detail(target) -> String:
+	if target == null:
+		return ""
+	if target is Node and target.is_in_group("mining_resource"):
+		var tool_label := _get_string_property(target, "required_tool_label", "Tool")
+		var required_level := _get_int_property(target, "required_mining_level", 0)
+		return "%s required | Mining %d+" % [tool_label, required_level]
+	if target is Node and target.is_in_group("scavenging_resource"):
+		if target.has_method("is_depleted") and target.is_depleted():
+			return "Picked clean"
+		var charges := _get_int_property(target, "current_charges", -1)
+		return "Charges unknown" if charges < 0 else "%d searches left" % charges
+	if target is Node and target.is_in_group("world_container"):
+		var locked := bool(target.get("is_locked"))
+		return "Locked" if locked else "Can be opened"
+	if target is Node and target.is_in_group("world_item"):
+		var owner := _get_target_subtitle(target)
+		return owner if owner != "Dropped item" else "On the ground"
+	if target is Node and target.has_method("get_world_context_actions"):
+		var actions: Array = target.get_world_context_actions(null)
+		return "No available actions" if actions.is_empty() else "Context actions available"
+	return "Right-click for context actions"
+
+
+func _get_target_state_label(target) -> String:
+	if target is Node and target.is_in_group("mining_resource"):
+		return "VEIN"
+	if target is Node and target.is_in_group("scavenging_resource"):
+		if target.has_method("is_depleted") and target.is_depleted():
+			return "DEPLETED"
+		return "SCRAP"
+	if target is Node and target.is_in_group("world_container"):
+		return "LOCKED" if bool(target.get("is_locked")) else "CACHE"
+	if target is Node and target.is_in_group("world_item"):
+		return "OWNED" if not _get_string_property(target, "owner_faction_name", "").is_empty() else "ITEM"
+	if target is Node and target.is_in_group("sleepable_bed"):
+		return "BED"
+	if target is Node and target.is_in_group("sittable_seat"):
+		return "SEAT"
+	return "OBJECT"
+
+
+func _get_target_state_color(target) -> Color:
+	var state := _get_target_state_label(target)
+	match state:
+		"LOCKED", "OWNED":
+			return Color(0.83, 0.52, 0.24, 1.0)
+		"DEPLETED":
+			return Color(0.46, 0.44, 0.4, 1.0)
+		"ITEM", "CACHE":
+			return Color(0.78, 0.66, 0.42, 1.0)
+		_:
+			return Color(0.66, 0.62, 0.52, 1.0)
+
+
+func _get_string_property(target, property_name: String, fallback: String = "") -> String:
+	if target == null:
+		return fallback
+	var value = target.get(property_name)
+	if value == null:
+		return fallback
+	var text := str(value)
+	return fallback if text.is_empty() else text
+
+
+func _get_int_property(target, property_name: String, fallback: int = 0) -> int:
+	if target == null:
+		return fallback
+	var value = target.get(property_name)
+	if value == null:
+		return fallback
+	return int(value)
+
+
+func _has_valid_current_target() -> bool:
+	return current_target != null and is_instance_valid(current_target)
+
+
+func _target_is_player_party_member(target) -> bool:
+	return target != null and target.has_method("is_player_party_member") and target.is_player_party_member()
+
+
+func _set_target_inspected(target, inspected: bool) -> void:
+	if target != null and is_instance_valid(target) and target.has_method("set_inspected"):
+		target.set_inspected(inspected)
 
 
 func _target_can_open_skills() -> bool:
-	return current_target != null and current_target.has_method("is_player_party_member") and current_target.is_player_party_member() and bool(current_target.get("is_selected"))
+	return _has_valid_current_target() and current_target is HumanoidCharacter and current_target.is_player_party_member() and bool(current_target.get("is_selected"))
 
 
 func _on_skills_button_pressed() -> void:
@@ -263,7 +452,10 @@ func _update_hp_bar_visuals(current_hp: float, open_cut: float, bandaged_cut: fl
 		return
 	var total_width := hp_bar_stack.size.x
 	if total_width <= 0.0:
-		total_width = maxf(hp_bar_stack.custom_minimum_size.x, 180.0)
+		total_width = maxf(hp_bar_stack.custom_minimum_size.x, 160.0)
+	var total_height := hp_bar_stack.size.y
+	if total_height <= 0.0:
+		total_height = maxf(hp_bar_stack.custom_minimum_size.y, 14.0)
 	var safe_max_hp := maxf(max_hp, 1.0)
 	var health_width := total_width * clampf(current_hp / safe_max_hp, 0.0, 1.0)
 	var bandaged_width := total_width * clampf(bandaged_cut / safe_max_hp, 0.0, 1.0)
@@ -273,13 +465,13 @@ func _update_hp_bar_visuals(current_hp: float, open_cut: float, bandaged_cut: fl
 	var bandaged_start := minf(health_width, occupied_width)
 	var cut_start := minf(bandaged_start + bandaged_width, max_cut_start)
 	hp_health_fill.position = Vector2.ZERO
-	hp_health_fill.size = Vector2(maxf(0.0, minf(health_width, occupied_width)), hp_bar_stack.size.y)
+	hp_health_fill.size = Vector2(maxf(0.0, minf(health_width, occupied_width)), total_height)
 	hp_bandaged_fill.visible = bandaged_width > 0.5
 	hp_bandaged_fill.position = Vector2(bandaged_start, 0.0)
-	hp_bandaged_fill.size = Vector2(maxf(0.0, minf(bandaged_width, maxf(0.0, occupied_width - bandaged_start))), hp_bar_stack.size.y)
+	hp_bandaged_fill.size = Vector2(maxf(0.0, minf(bandaged_width, maxf(0.0, occupied_width - bandaged_start))), total_height)
 	hp_cut_outline.visible = cut_width > 0.5
 	hp_cut_outline.position = Vector2(cut_start, 0.0)
-	hp_cut_outline.size = Vector2(maxf(0.0, minf(cut_width, maxf(0.0, occupied_width - cut_start))), hp_bar_stack.size.y)
+	hp_cut_outline.size = Vector2(maxf(0.0, minf(cut_width, maxf(0.0, occupied_width - cut_start))), total_height)
 
 
 func _update_fill_bar(bar_stack: Control, fill_rect: ColorRect, ratio: float, color: Color) -> void:
@@ -287,10 +479,13 @@ func _update_fill_bar(bar_stack: Control, fill_rect: ColorRect, ratio: float, co
 		return
 	var total_width := bar_stack.size.x
 	if total_width <= 0.0:
-		total_width = maxf(bar_stack.custom_minimum_size.x, 180.0)
+		total_width = maxf(bar_stack.custom_minimum_size.x, 160.0)
+	var total_height := bar_stack.size.y
+	if total_height <= 0.0:
+		total_height = maxf(bar_stack.custom_minimum_size.y, 14.0)
 	fill_rect.color = color
 	fill_rect.position = Vector2.ZERO
-	fill_rect.size = Vector2(total_width * clampf(ratio, 0.0, 1.0), bar_stack.size.y)
+	fill_rect.size = Vector2(total_width * clampf(ratio, 0.0, 1.0), total_height)
 
 
 func _setup_blood_bleed_glow() -> void:
@@ -360,4 +555,4 @@ func _get_life_state_color(life_state: int) -> Color:
 		NpcRules.LifeState.UNCONSCIOUS:
 			return Color(0.95, 0.6, 0.2, 1.0)
 		_:
-			return Color(1.0, 1.0, 1.0, 1.0)
+			return Color(0.82, 0.78, 0.66, 1.0)

@@ -127,6 +127,10 @@ func _do_initialize() -> void:
 	floating_notice = hud_layer.get_node_or_null("FloatingNotice")
 	inventory_controller = get_parent().get_node("PartyInventoryController")
 	humanoid_details_controller = get_parent().get_node("HumanoidDetailsController")
+	if humanoid_details_controller != null and humanoid_details_controller.has_signal("inspector_action_requested"):
+		var inspector_action_callable := Callable(self, "_on_inspector_action_requested")
+		if not humanoid_details_controller.is_connected("inspector_action_requested", inspector_action_callable):
+			humanoid_details_controller.connect("inspector_action_requested", inspector_action_callable)
 	conversation_controller = get_parent().get_node("ConversationController")
 	ownership_controller = get_parent().get_node_or_null("OwnershipController")
 	building_visibility_controller = get_parent().get_node_or_null("BuildingVisibilityController")
@@ -315,14 +319,17 @@ func _handle_world_selection(screen_position: Vector2, should_follow: bool) -> v
 		if world_item != null:
 			_assign_pickup_to_selection(world_item)
 			return
-	var humanoid = _pick_humanoid(screen_position)
-	if humanoid == null:
+	var inspected_target = _pick_inspectable_target(screen_position)
+	if inspected_target == null:
 		party_manager.clear_selection()
 		if humanoid_details_controller != null:
 			humanoid_details_controller.clear_if_not_party_target()
 		return
 	if humanoid_details_controller != null:
-		humanoid_details_controller.inspect_humanoid(humanoid)
+		humanoid_details_controller.inspect_target(inspected_target)
+	if not (inspected_target is HumanoidCharacter):
+		return
+	var humanoid: HumanoidCharacter = inspected_target
 	if not humanoid.is_player_party_member():
 		return
 	var member: HumanoidCharacter = humanoid
@@ -559,6 +566,37 @@ func _pick_world_item(screen_position: Vector2):
 	if collider is Node and collider.is_in_group("world_item"):
 		return collider
 	return null
+
+
+func _pick_inspectable_target(screen_position: Vector2):
+	var result := _raycast_target_from_screen(screen_position)
+	if result.is_empty():
+		return null
+	return _resolve_inspectable_target(result["collider"])
+
+
+func _resolve_inspectable_target(collider: Object):
+	if collider is HumanoidCharacter:
+		return collider
+	if not (collider is Node):
+		return null
+	var current: Node = collider as Node
+	while current != null:
+		if _is_inspectable_node(current):
+			return current
+		current = current.get_parent()
+	return null
+
+
+func _is_inspectable_node(node: Node) -> bool:
+	return node.is_in_group("mining_resource") \
+		or node.is_in_group("scavenging_resource") \
+		or node.is_in_group("world_container") \
+		or node.is_in_group("world_item") \
+		or node.is_in_group("sleepable_bed") \
+		or node.is_in_group("sittable_seat") \
+		or node.has_method("get_world_context_actions") \
+		or node.get("display_name") != null
 
 
 func issue_move_command(screen_position: Vector2, show_indicator: bool = true) -> bool:
@@ -918,6 +956,86 @@ func _on_stance_option_selected(index: int) -> void:
 	_update_command_bar()
 
 
+func _on_inspector_action_requested(target, action_key: String) -> void:
+	if target == null or not is_instance_valid(target):
+		return
+	if action_key.begins_with("world:"):
+		_perform_direct_world_context_action(target, action_key.substr("world:".length()))
+		return
+	match action_key:
+		"inventory":
+			_perform_inspector_inventory_action(target)
+		"mine":
+			if target is Node:
+				for member in party_manager.selected_members:
+					if ownership_controller == null or ownership_controller.request_interaction(member, target, "Mining"):
+						member.assign_mining_resource(target)
+		"open_container":
+			if target is Node:
+				for member in party_manager.selected_members:
+					if ownership_controller == null or ownership_controller.request_interaction(member, target, "Opening"):
+						member.assign_open_container(target)
+		"unlock_container":
+			if target is Node3D:
+				_spawn_world_notice(target.global_position + Vector3(0.0, 1.6, 0.0), "Lockpicking not implemented")
+			else:
+				_show_center_notice("Lockpicking not implemented")
+		"pickup_item":
+			_assign_pickup_to_selection(target)
+		"attack":
+			if target is HumanoidCharacter:
+				for member in party_manager.selected_members:
+					member.assign_attack_target(target)
+		"trade":
+			if target is HumanoidCharacter:
+				for member in party_manager.selected_members:
+					member.assign_trade_target(target)
+		"talk":
+			if target is HumanoidCharacter:
+				for member in party_manager.selected_members:
+					member.assign_conversation_target(target)
+		"heal":
+			if target is HumanoidCharacter:
+				for member in party_manager.selected_members:
+					member.assign_heal_target(target)
+		"finish_off":
+			if target is HumanoidCharacter:
+				for member in party_manager.selected_members:
+					member.assign_finish_off_target(target)
+		"carry":
+			if target is HumanoidCharacter:
+				for member in party_manager.selected_members:
+					member.assign_carry_target(target)
+		"wake_up", "stand_up":
+			if target is HumanoidCharacter and target.has_method("wake_up_from_rest"):
+				target.wake_up_from_rest()
+
+
+func _perform_inspector_inventory_action(target) -> void:
+	if not (target is HumanoidCharacter):
+		return
+	var focused_member := _get_focused_party_member()
+	if focused_member != null and focused_member != target:
+		if focused_member.global_position.distance_to(target.global_position) <= focused_member.trade_interaction_distance:
+			inventory_controller.open_inventory_pair(focused_member, target)
+		else:
+			focused_member.assign_trade_target(target)
+	elif target.is_player_party_member():
+		inventory_controller.open_inventory_for_member(target)
+
+
+func _perform_direct_world_context_action(target, action_key: String) -> void:
+	if action_key.is_empty() or target == null or not target.has_method("perform_world_context_action"):
+		return
+	var message := str(target.perform_world_context_action(action_key, party_manager.selected_members))
+	if message.is_empty():
+		return
+	if target is Node3D:
+		_spawn_world_notice(target.global_position + Vector3(0.0, 1.6, 0.0), message)
+	else:
+		_show_center_notice(message)
+
+
 func _on_context_menu_id_pressed(action_id: int) -> void:
 	if action_id >= ACTION_WORLD_CONTEXT_BASE:
 		_perform_world_context_action(action_id - ACTION_WORLD_CONTEXT_BASE)
@@ -1156,5 +1274,6 @@ func _sync_inspected_party_member() -> void:
 		return
 	if party_manager.selected_members.is_empty():
 		return
-	if humanoid_details_controller.current_target == null or humanoid_details_controller.current_target.is_player_party_member():
-		humanoid_details_controller.inspect_humanoid(party_manager.selected_members[0])
+	var inspected_target = humanoid_details_controller.current_target
+	if inspected_target == null or (inspected_target.has_method("is_player_party_member") and inspected_target.is_player_party_member()):
+		humanoid_details_controller.inspect_target(party_manager.selected_members[0])
