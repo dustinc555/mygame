@@ -18,7 +18,6 @@
 [ext_resource type="Resource" uid="uid://dobeoitcyev7o" path="res://resources/items/ranger_jerkin.tres" id="17_ranger_jerkin"]
 [ext_resource type="Resource" uid="uid://d2aqrvmv6ajlq" path="res://resources/items/ranger_leggings.tres" id="18_ranger_leggings"]
 [ext_resource type="Resource" uid="uid://co4qqg3dq7m2u" path="res://resources/items/ranger_boots.tres" id="19_ranger_boots"]
-[ext_resource type="Resource" uid="uid://cskja0vt31ffc" path="res://resources/items/ranger_bracers.tres" id="20_ranger_bracers"]
 [ext_resource type="Resource" uid="uid://ce37ea6u42yu7" path="res://resources/items/ranger_hood.tres" id="21_ranger_hood"]
 [ext_resource type="Resource" uid="uid://cnk2482snyleq" path="res://resources/items/knight_gambeson.tres" id="22_knight_gambeson"]
 [ext_resource type="Resource" uid="uid://cpp7n728gohor" path="res://resources/items/knight_cuirass.tres" id="23_knight_cuirass"]
@@ -89,10 +88,6 @@ item_definition = ExtResource("18_ranger_leggings")
 [sub_resource type="Resource" id="InventoryStock_ranger_boots"]
 script = ExtResource("8_stock")
 item_definition = ExtResource("19_ranger_boots")
-
-[sub_resource type="Resource" id="InventoryStock_ranger_bracers"]
-script = ExtResource("8_stock")
-item_definition = ExtResource("20_ranger_bracers")
 
 [sub_resource type="Resource" id="InventoryStock_ranger_hood"]
 script = ExtResource("8_stock")
@@ -291,7 +286,7 @@ mesh = SubResource("BoxMesh_floor")
 
 [node name="ClothesLocker" parent="ArmoryContainers" unique_id=567802198 instance=ExtResource("5_locker")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1, 0, -3.45)
-starting_items = Array[ExtResource("8_stock")]([SubResource("InventoryStock_peasant_tunic"), SubResource("InventoryStock_peasant_trousers"), SubResource("InventoryStock_peasant_shoes"), SubResource("InventoryStock_ranger_jerkin"), SubResource("InventoryStock_ranger_leggings"), SubResource("InventoryStock_ranger_boots"), SubResource("InventoryStock_ranger_bracers"), SubResource("InventoryStock_ranger_hood")])
+starting_items = Array[ExtResource("8_stock")]([SubResource("InventoryStock_peasant_tunic"), SubResource("InventoryStock_peasant_trousers"), SubResource("InventoryStock_peasant_shoes"), SubResource("InventoryStock_ranger_jerkin"), SubResource("InventoryStock_ranger_leggings"), SubResource("InventoryStock_ranger_boots"), SubResource("InventoryStock_ranger_hood")])
 
 [node name="ArmorLocker" parent="ArmoryContainers" unique_id=1209971148 instance=ExtResource("5_locker")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.35, 0, -3.45)

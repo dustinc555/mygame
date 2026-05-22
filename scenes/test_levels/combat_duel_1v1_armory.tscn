@@ -32,7 +32,6 @@
 [ext_resource type="Resource" path="res://resources/items/ranger_jerkin.tres" id="43_ranger_jerkin"]
 [ext_resource type="Resource" path="res://resources/items/ranger_leggings.tres" id="44_ranger_leggings"]
 [ext_resource type="Resource" path="res://resources/items/ranger_boots.tres" id="45_ranger_boots"]
-[ext_resource type="Resource" path="res://resources/items/ranger_bracers.tres" id="46_ranger_bracers"]
 [ext_resource type="Resource" path="res://resources/items/ranger_hood.tres" id="47_ranger_hood"]
 [ext_resource type="Resource" path="res://resources/items/knight_gambeson.tres" id="48_knight_gambeson"]
 [ext_resource type="Resource" path="res://resources/items/knight_cuirass.tres" id="49_knight_cuirass"]
@@ -102,10 +101,6 @@ item_definition = ExtResource("44_ranger_leggings")
 [sub_resource type="Resource" id="Stock_cloth_ranger_boots"]
 script = ExtResource("5_stock")
 item_definition = ExtResource("45_ranger_boots")
-
-[sub_resource type="Resource" id="Stock_cloth_ranger_bracers"]
-script = ExtResource("5_stock")
-item_definition = ExtResource("46_ranger_bracers")
 
 [sub_resource type="Resource" id="Stock_cloth_ranger_hood"]
 script = ExtResource("5_stock")
@@ -292,7 +287,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.5, 0, -6.2)
 display_name = "Dresser"
 inventory_columns = 10
 inventory_rows = 14
-starting_items = Array[ExtResource("5_stock")]([SubResource("Stock_cloth_peasant_tunic"), SubResource("Stock_cloth_peasant_trousers"), SubResource("Stock_cloth_peasant_shoes"), SubResource("Stock_cloth_ranger_jerkin"), SubResource("Stock_cloth_ranger_leggings"), SubResource("Stock_cloth_ranger_boots"), SubResource("Stock_cloth_ranger_bracers"), SubResource("Stock_cloth_ranger_hood"), SubResource("Stock_cloth_knight_gambeson"), SubResource("Stock_cloth_knight_cuirass"), SubResource("Stock_cloth_knight_gauntlets"), SubResource("Stock_cloth_knight_greaves"), SubResource("Stock_cloth_knight_sabatons"), SubResource("Stock_cloth_knight_armet"), SubResource("Stock_cloth_knight_horned_helm"), SubResource("Stock_cloth_noble_doublet"), SubResource("Stock_cloth_noble_sleeves"), SubResource("Stock_cloth_noble_trousers"), SubResource("Stock_cloth_noble_shoes"), SubResource("Stock_cloth_noble_crown"), SubResource("Stock_cloth_wizard_robes"), SubResource("Stock_cloth_wizard_sleeves"), SubResource("Stock_cloth_wizard_trousers"), SubResource("Stock_cloth_wizard_shoes")])
+starting_items = Array[ExtResource("5_stock")]([SubResource("Stock_cloth_peasant_tunic"), SubResource("Stock_cloth_peasant_trousers"), SubResource("Stock_cloth_peasant_shoes"), SubResource("Stock_cloth_ranger_jerkin"), SubResource("Stock_cloth_ranger_leggings"), SubResource("Stock_cloth_ranger_boots"), SubResource("Stock_cloth_ranger_hood"), SubResource("Stock_cloth_knight_gambeson"), SubResource("Stock_cloth_knight_cuirass"), SubResource("Stock_cloth_knight_gauntlets"), SubResource("Stock_cloth_knight_greaves"), SubResource("Stock_cloth_knight_sabatons"), SubResource("Stock_cloth_knight_armet"), SubResource("Stock_cloth_knight_horned_helm"), SubResource("Stock_cloth_noble_doublet"), SubResource("Stock_cloth_noble_sleeves"), SubResource("Stock_cloth_noble_trousers"), SubResource("Stock_cloth_noble_shoes"), SubResource("Stock_cloth_noble_crown"), SubResource("Stock_cloth_wizard_robes"), SubResource("Stock_cloth_wizard_sleeves"), SubResource("Stock_cloth_wizard_trousers"), SubResource("Stock_cloth_wizard_shoes")])
 
 [node name="ItemChest" parent="." instance=ExtResource("7_chest")]
 transform = Transform3D(0.996195, 0, -0.0871557, 0, 1, 0, 0.0871557, 0, 0.996195, -3.8, 0, -6.2)

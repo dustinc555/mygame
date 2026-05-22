@@ -8,6 +8,8 @@ class_name MiningResourceNode
 @export var slow_mine_seconds := 15.0
 @export var fast_mine_seconds := 7.0
 @export var levels_to_fast_speed := 30
+@export var required_tool_tag := "tool.pickaxe"
+@export var required_tool_label := "Pickaxe"
 @export_range(0.0, 1.0, 0.01) var locked_attempt_xp_multiplier := 0.35
 @export_range(0.0, 2.0, 0.01) var vein_quality := 1.0
 @export var depletion_enabled := false
@@ -33,6 +35,10 @@ func get_mining_position(member: HumanoidCharacter) -> Vector3:
 	var slot_index := _get_slot_index(member)
 	var angle := TAU * float(slot_index) / float(max(slot_count, 1))
 	return global_position + Vector3(cos(angle), 0.0, sin(angle)) * slot_distance
+
+
+func get_mining_interaction_radius() -> float:
+	return maxf(interaction_radius, 0.05)
 
 
 func register_miner(member: HumanoidCharacter) -> void:

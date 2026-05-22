@@ -2,6 +2,10 @@ extends SceneTree
 
 const COMBAT_COORDINATOR = preload("res://scripts/characters/combat_coordinator.gd")
 const CHARACTER_SKILLS_WINDOW_SCRIPT = preload("res://scripts/ui/character_skills_window.gd")
+const COPPER_ORE = preload("res://resources/items/copper_ore.tres")
+const PICKAXE = preload("res://resources/items/rusted_pickaxe.tres")
+const WORLD_ITEM_SCENE = preload("res://scenes/world/items/world_item.tscn")
+const PARTY_INVENTORY_CONTROLLER_SCRIPT = preload("res://scripts/ui/party_inventory_controller.gd")
 
 class InitiativeDummy:
 	extends Node3D
@@ -9,6 +13,17 @@ class InitiativeDummy:
 
 	func get_stat_value(stat_name: String) -> float:
 		return dexterity if stat_name == "dexterity" else 0.0
+
+
+class OffsetDropOwner:
+	extends Node3D
+	var collision_bottom_local_y := 0.0
+
+	func get_inventory_world_position() -> Vector3:
+		return global_position
+
+	func get_collision_bottom_local_y() -> float:
+		return collision_bottom_local_y
 
 var _failures: Array[String] = []
 
@@ -21,8 +36,11 @@ func _run() -> void:
 	_validate_catalog()
 	_validate_progression()
 	_validate_mining_speed_rules()
+	await _validate_mining_interaction_radius()
+	await _validate_copper_ore_world_visual()
 	_validate_world_actor_api()
 	_validate_weighted_initiative()
+	await _validate_mining_pickaxe_requirement()
 	await _validate_scavenging_rules()
 	await _validate_locked_mining_attempt_trains_without_ore()
 	await _validate_stalled_mining_awards_no_xp()
@@ -154,6 +172,145 @@ func _validate_mining_speed_rules() -> void:
 	node.queue_free()
 
 
+func _validate_mining_interaction_radius() -> void:
+	var ore := ItemDefinition.new()
+	ore.display_name = "Validation Radius Ore"
+	ore.unit_weight = 1.0
+	ore.grid_size = Vector2i(1, 1)
+
+	var node := MiningResourceNode.new()
+	node.name = "ValidationRadiusNode"
+	node.item_definition = ore
+	node.required_tool_tag = ""
+	node.slow_mine_seconds = 1.0
+	node.fast_mine_seconds = 1.0
+	node.slot_distance = 0.0
+	node.interaction_radius = 0.25
+	root.add_child(node)
+
+	var far_miner := HumanoidCharacter.new()
+	far_miner.name = "ValidationFarMiner"
+	far_miner.show_nameplate = false
+	far_miner.fatigue_enabled = false
+	root.add_child(far_miner)
+	far_miner.position = Vector3(0.35, 0.0, 0.0)
+	await process_frame
+	far_miner._current_mining_node = node
+	var far_xp_before := far_miner.get_skill_xp(SkillRules.LABOR_MINING)
+	far_miner._process_mining(0.5)
+	if far_miner._get_stored_mining_progress(node) > 0.001:
+		_fail("Expected mining outside node interaction radius to make no progress")
+	if far_miner.get_skill_xp(SkillRules.LABOR_MINING) > far_xp_before + 0.001:
+		_fail("Expected mining outside node interaction radius to award no XP")
+
+	var near_miner := HumanoidCharacter.new()
+	near_miner.name = "ValidationNearMiner"
+	near_miner.show_nameplate = false
+	near_miner.fatigue_enabled = false
+	root.add_child(near_miner)
+	near_miner.position = Vector3(0.2, 0.0, 0.0)
+	await process_frame
+	near_miner._current_mining_node = node
+	near_miner._process_mining(0.5)
+	if near_miner._get_stored_mining_progress(node) <= 0.001:
+		_fail("Expected mining inside node interaction radius to progress")
+
+	far_miner.queue_free()
+	near_miner.queue_free()
+	node.queue_free()
+
+
+func _validate_copper_ore_world_visual() -> void:
+	if COPPER_ORE.world_scene == null:
+		_fail("Expected copper ore to have a world scene")
+		return
+	if absf(COPPER_ORE.world_visual_height_meters - 0.14) > 0.001:
+		_fail("Expected copper ore world visual height override to be 0.14m")
+
+	var world_item := WORLD_ITEM_SCENE.instantiate() as WorldItem
+	root.add_child(world_item)
+	await process_frame
+	world_item.setup(COPPER_ORE, 1)
+	await process_frame
+	if not (world_item is RigidBody3D):
+		_fail("Expected dropped world items to use RigidBody3D physics")
+	var model_root := world_item.get_node_or_null("ModelRoot")
+	var bounds := _calculate_local_mesh_bounds(model_root)
+	if bounds.size.y < 0.12 or bounds.size.y > 0.16:
+		_fail("Expected dropped copper ore visual to be head-sized, got height %.3fm" % bounds.size.y)
+	var collision_shape := world_item.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if collision_shape == null or not (collision_shape.shape is BoxShape3D):
+		_fail("Expected dropped copper ore to rebuild a visual-bounds physics collider")
+	world_item.place_on_ground_at(Vector3(1.0, 0.0, 1.0))
+	var bottom_y := world_item.global_position.y + bounds.position.y
+	if bottom_y <= 0.0 or bottom_y > 0.04:
+		_fail("Expected dropped copper ore visual bottom above ground, got y=%.3f" % bottom_y)
+	world_item.queue_free()
+
+	var drop_root := Node3D.new()
+	root.add_child(drop_root)
+	var floor_body := StaticBody3D.new()
+	floor_body.position = Vector3(0.0, -0.5, 0.0)
+	drop_root.add_child(floor_body)
+	var floor_shape := CollisionShape3D.new()
+	var floor_box := BoxShape3D.new()
+	floor_box.size = Vector3(10.0, 1.0, 10.0)
+	floor_shape.shape = floor_box
+	floor_body.add_child(floor_shape)
+	var drop_source := OffsetDropOwner.new()
+	drop_source.position = Vector3(2.0, -0.6, 2.0)
+	drop_source.collision_bottom_local_y = 0.6
+	drop_root.add_child(drop_source)
+	var expected_drop_xz := Vector2(drop_source.position.x, drop_source.position.z - 0.9)
+	var blocking_character := CharacterBody3D.new()
+	blocking_character.name = "ValidationDropBlockingCharacter"
+	blocking_character.add_to_group("humanoid_character")
+	blocking_character.add_to_group("party_member")
+	blocking_character.position = Vector3(expected_drop_xz.x, 0.0, expected_drop_xz.y)
+	drop_root.add_child(blocking_character)
+	var blocking_collision := CollisionShape3D.new()
+	var blocking_capsule := CapsuleShape3D.new()
+	blocking_capsule.radius = 0.45
+	blocking_capsule.height = 1.1
+	blocking_collision.shape = blocking_capsule
+	blocking_collision.position.y = 0.95
+	blocking_character.add_child(blocking_collision)
+	await physics_frame
+	var controller := PARTY_INVENTORY_CONTROLLER_SCRIPT.new() as PartyInventoryController
+	controller.root_scene = drop_root
+	controller.call("_spawn_world_item", drop_source, COPPER_ORE, 5)
+	await process_frame
+	var spawned_items: Array[WorldItem] = []
+	for child in drop_root.get_children():
+		if child is WorldItem:
+			spawned_items.append(child as WorldItem)
+	if spawned_items.size() != 5:
+		_fail("Expected dropping copper ore to spawn separate physical items, got %d" % spawned_items.size())
+	else:
+		for index in range(spawned_items.size()):
+			if spawned_items[index].quantity != 1:
+				_fail("Expected stacked copper ore world item quantity to stay 1")
+			var world_bounds := spawned_items[index].get_visual_world_bounds()
+			if world_bounds.position.y < -0.001:
+				_fail("Expected stacked copper ore visual bottom above floor, got y=%.3f" % world_bounds.position.y)
+			var item_xz := Vector2(spawned_items[index].global_position.x, spawned_items[index].global_position.z)
+			if item_xz.distance_to(expected_drop_xz) > 0.05:
+				_fail("Expected dropped copper ore to stay beside source, got %.3f from target" % item_xz.distance_to(expected_drop_xz))
+			if index > 0 and spawned_items[index].global_position.y <= spawned_items[index - 1].global_position.y:
+				_fail("Expected stacked copper ore Y positions to increase")
+	var falling_item := WORLD_ITEM_SCENE.instantiate() as WorldItem
+	drop_root.add_child(falling_item)
+	falling_item.setup(COPPER_ORE, 1)
+	falling_item.place_bottom_at(Vector3(-2.0, 0.0, 0.0), 1.5)
+	await _wait_physics_frames(90)
+	var falling_bounds := falling_item.get_visual_world_bounds()
+	if falling_bounds.position.y > 0.25:
+		_fail("Expected dropped copper ore physics to fall to the floor, got bottom y=%.3f" % falling_bounds.position.y)
+	if falling_bounds.position.y < -0.08:
+		_fail("Expected dropped copper ore physics to stop on the floor, got bottom y=%.3f" % falling_bounds.position.y)
+	drop_root.queue_free()
+
+
 func _validate_weighted_initiative() -> void:
 	var low_dex := InitiativeDummy.new()
 	low_dex.name = "LowDex"
@@ -181,6 +338,114 @@ func _validate_weighted_initiative() -> void:
 		_fail("Expected high dex participant to win more initiative contests, low=%d high=%d" % [low_wins, high_wins])
 	if low_wins < 45 or low_wins > 180:
 		_fail("Expected 1-vs-3 dex initiative to stay near weighted range, low=%d high=%d" % [low_wins, high_wins])
+
+
+func _validate_mining_pickaxe_requirement() -> void:
+	var ore := ItemDefinition.new()
+	ore.display_name = "Validation Copper"
+	ore.unit_weight = 1.0
+	ore.grid_size = Vector2i(1, 1)
+	ore.max_stack = 1
+
+	var node := MiningResourceNode.new()
+	node.name = "ValidationPickaxeCopper"
+	node.item_definition = ore
+	node.slow_mine_seconds = 1.0
+	node.fast_mine_seconds = 1.0
+	node.slot_distance = 0.0
+	root.add_child(node)
+
+	var no_pick_miner := HumanoidCharacter.new()
+	no_pick_miner.name = "ValidationNoPickMiner"
+	no_pick_miner.show_nameplate = false
+	no_pick_miner.fatigue_enabled = false
+	root.add_child(no_pick_miner)
+	await process_frame
+	no_pick_miner._current_mining_node = node
+	var no_pick_xp_before := no_pick_miner.get_skill_xp(SkillRules.LABOR_MINING)
+	no_pick_miner._process_mining(1.2)
+	if no_pick_miner.get_skill_xp(SkillRules.LABOR_MINING) > no_pick_xp_before + 0.001:
+		_fail("Expected mining without a pickaxe to award no XP")
+	if no_pick_miner.has_mining_assignment():
+		_fail("Expected mining without a pickaxe to stop the mining assignment")
+
+	var swap_miner := HumanoidCharacter.new()
+	swap_miner.name = "ValidationPickMiner"
+	swap_miner.show_nameplate = false
+	swap_miner.inventory_columns = 4
+	swap_miner.inventory_rows = 4
+	swap_miner.fatigue_enabled = false
+	root.add_child(swap_miner)
+	await process_frame
+	var old_weapon := ItemDefinition.new()
+	old_weapon.display_name = "Validation Sword"
+	old_weapon.grid_size = Vector2i(1, 1)
+	old_weapon.unit_weight = 1.0
+	old_weapon.equip_slot = ItemDefinition.EQUIP_SLOT_WEAPON
+	swap_miner.equip_item_to_slot(old_weapon, ItemDefinition.EQUIP_SLOT_WEAPON)
+	swap_miner.inventory.add_item(PICKAXE)
+	swap_miner.assign_mining_resource(node, false)
+	if swap_miner.get_equipped_item(ItemDefinition.EQUIP_SLOT_WEAPON) != PICKAXE:
+		_fail("Expected mining assignment to auto-equip inventory pickaxe")
+	if swap_miner.inventory.count_item(old_weapon) != 1:
+		_fail("Expected mining auto-equip to stow previous weapon in inventory")
+
+	var blocked_miner := HumanoidCharacter.new()
+	blocked_miner.name = "ValidationBlockedPickMiner"
+	blocked_miner.show_nameplate = false
+	blocked_miner.inventory_columns = 2
+	blocked_miner.inventory_rows = 3
+	blocked_miner.fatigue_enabled = false
+	root.add_child(blocked_miner)
+	await process_frame
+	var oversized_weapon := ItemDefinition.new()
+	oversized_weapon.display_name = "Oversized Validation Weapon"
+	oversized_weapon.grid_size = Vector2i(3, 3)
+	oversized_weapon.unit_weight = 1.0
+	oversized_weapon.equip_slot = ItemDefinition.EQUIP_SLOT_WEAPON
+	blocked_miner.equip_item_to_slot(oversized_weapon, ItemDefinition.EQUIP_SLOT_WEAPON)
+	blocked_miner.inventory.add_item(PICKAXE)
+	blocked_miner.assign_mining_resource(node, false)
+	if blocked_miner.get_equipped_item(ItemDefinition.EQUIP_SLOT_WEAPON) != oversized_weapon:
+		_fail("Expected mining to keep current weapon equipped when it cannot be stowed")
+	if blocked_miner.has_mining_assignment():
+		_fail("Expected mining to be blocked when current weapon cannot be stowed")
+	if blocked_miner.inventory.count_item(PICKAXE) != 1:
+		_fail("Expected blocked mining swap to return pickaxe to inventory")
+
+	var visual_miner := HumanoidCharacter.new()
+	visual_miner.name = "ValidationAnimationMiner"
+	visual_miner.show_nameplate = false
+	visual_miner.fatigue_enabled = false
+	var collision := CollisionShape3D.new()
+	collision.name = "CollisionShape3D"
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.45
+	capsule.height = 1.1
+	collision.shape = capsule
+	collision.position.y = 0.95
+	visual_miner.add_child(collision)
+	var body_mesh := MeshInstance3D.new()
+	body_mesh.name = "BodyMesh"
+	body_mesh.mesh = CapsuleMesh.new()
+	body_mesh.position.y = 0.95
+	visual_miner.add_child(body_mesh)
+	root.add_child(visual_miner)
+	await process_frame
+	var animation_player = visual_miner.get("_character_animation_player") as AnimationPlayer
+	if animation_player == null or not animation_player.has_animation("Mining"):
+		_fail("Expected humanoid character animation library to include Mining")
+	visual_miner._current_mining_node = node
+	visual_miner._mining_active = true
+	visual_miner._update_character_animation(0.1)
+	if str(visual_miner.get("_current_character_animation")) != "Mining":
+		_fail("Expected active mining to play Mining")
+
+	no_pick_miner.queue_free()
+	swap_miner.queue_free()
+	blocked_miner.queue_free()
+	visual_miner.queue_free()
+	node.queue_free()
 
 
 func _validate_scavenging_rules() -> void:
@@ -275,6 +540,7 @@ func _validate_locked_mining_attempt_trains_without_ore() -> void:
 	var node := MiningResourceNode.new()
 	node.name = "ValidationLockedOre"
 	node.item_definition = ore
+	node.required_tool_tag = ""
 	node.required_mining_level = 10
 	node.slow_mine_seconds = 1.0
 	node.fast_mine_seconds = 0.5
@@ -316,6 +582,7 @@ func _validate_stalled_mining_awards_no_xp() -> void:
 	var node := MiningResourceNode.new()
 	node.name = "ValidationCopper"
 	node.item_definition = ore
+	node.required_tool_tag = ""
 	node.slow_mine_seconds = 1.0
 	node.fast_mine_seconds = 1.0
 	node.slot_distance = 0.0
@@ -362,6 +629,51 @@ func _validate_skills_window_live_update() -> void:
 func _wait_frames(frames: int) -> void:
 	for _index in range(frames):
 		await process_frame
+
+
+func _wait_physics_frames(frames: int) -> void:
+	for _index in range(frames):
+		await physics_frame
+
+
+func _calculate_local_mesh_bounds(root_node: Node) -> AABB:
+	var result := {
+		"has_bounds": false,
+		"bounds": AABB(),
+	}
+	if root_node != null:
+		_accumulate_local_mesh_bounds(root_node, Transform3D.IDENTITY, result)
+	return result["bounds"]
+
+
+func _accumulate_local_mesh_bounds(node: Node, parent_transform: Transform3D, result: Dictionary) -> void:
+	var local_transform := parent_transform
+	if node is Node3D:
+		local_transform = parent_transform * (node as Node3D).transform
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		var mesh_bounds := _transform_aabb((node as MeshInstance3D).mesh.get_aabb(), local_transform)
+		if result["has_bounds"]:
+			result["bounds"] = (result["bounds"] as AABB).merge(mesh_bounds)
+		else:
+			result["bounds"] = mesh_bounds
+			result["has_bounds"] = true
+	for child in node.get_children():
+		_accumulate_local_mesh_bounds(child, local_transform, result)
+
+
+func _transform_aabb(bounds: AABB, transform: Transform3D) -> AABB:
+	var first := true
+	var transformed_bounds := AABB()
+	for x in [bounds.position.x, bounds.position.x + bounds.size.x]:
+		for y in [bounds.position.y, bounds.position.y + bounds.size.y]:
+			for z in [bounds.position.z, bounds.position.z + bounds.size.z]:
+				var point := transform * Vector3(x, y, z)
+				if first:
+					transformed_bounds = AABB(point, Vector3.ZERO)
+					first = false
+				else:
+					transformed_bounds = transformed_bounds.expand(point)
+	return transformed_bounds
 
 
 func _fail(message: String) -> void:

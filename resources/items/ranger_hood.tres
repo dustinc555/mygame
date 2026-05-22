@@ -43,3 +43,4 @@ alternate_equip_slots = null
 world_scene = ExtResource("4_male")
 equipped_visuals = Array[Resource]([SubResource("EquipmentVisual_human_male"), SubResource("EquipmentVisual_human_female")])
 stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_dodge")])
+tool_tags = null

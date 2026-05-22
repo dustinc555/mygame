@@ -1,8 +1,10 @@
-extends StaticBody3D
+extends RigidBody3D
 
 class_name WorldItem
 
 const PICKUP_NOTICE := "I don't have enough room"
+const GROUND_CLEARANCE := 0.015
+const MIN_COLLIDER_SIZE := Vector3(0.08, 0.03, 0.08)
 
 @export var item_definition: ItemDefinition:
 	set(value):
@@ -86,6 +88,38 @@ func get_inventory_world_position() -> Vector3:
 	return global_position
 
 
+func place_on_ground_at(world_position: Vector3, stack_offset_meters: float = 0.0) -> float:
+	return place_bottom_at(world_position, world_position.y + stack_offset_meters + GROUND_CLEARANCE)
+
+
+func place_bottom_at(world_position: Vector3, bottom_y: float) -> float:
+	var bounds := _calculate_local_mesh_bounds(model_root)
+	linear_velocity = Vector3.ZERO
+	angular_velocity = Vector3.ZERO
+	sleeping = false
+	if bounds.size.length() <= 0.001:
+		global_position = Vector3(world_position.x, bottom_y, world_position.z)
+		return 0.0
+	global_position = Vector3(
+		world_position.x,
+		bottom_y - bounds.position.y,
+		world_position.z
+	)
+	return bounds.size.y
+
+
+func get_visual_world_bounds() -> AABB:
+	var bounds := _calculate_local_mesh_bounds(model_root)
+	if bounds.size.length() <= 0.001:
+		return AABB(global_position, Vector3.ZERO)
+	return _transform_aabb(bounds, global_transform)
+
+
+func get_visual_top_y() -> float:
+	var bounds := get_visual_world_bounds()
+	return bounds.position.y + bounds.size.y
+
+
 func _show_pickup_failure(actor) -> void:
 	if actor.has_method("show_world_speech"):
 		actor.show_world_speech(PICKUP_NOTICE, 4.0)
@@ -111,17 +145,20 @@ func _rebuild_visual() -> void:
 		child.queue_free()
 	if item_definition == null:
 		_add_fallback_visual()
+		_refresh_collision_from_visual()
 		return
 	var visual_scene := item_definition.world_scene
 	if visual_scene == null:
 		visual_scene = item_definition.equipped_scene
 	if visual_scene == null:
 		_add_fallback_visual()
+		_refresh_collision_from_visual()
 		return
 	var visual_instance := visual_scene.instantiate()
 	model_root.add_child(visual_instance)
 	if visual_instance is Node3D:
-		_normalize_visual(visual_instance as Node3D)
+		_normalize_visual(visual_instance as Node3D, item_definition.world_visual_height_meters)
+	_refresh_collision_from_visual()
 
 
 func _add_fallback_visual() -> void:
@@ -137,16 +174,42 @@ func _add_fallback_visual() -> void:
 	model_root.add_child(mesh_instance)
 
 
-func _normalize_visual(visual_root: Node3D) -> void:
+func _normalize_visual(visual_root: Node3D, target_height_meters: float = 0.0) -> void:
 	var bounds := _calculate_local_mesh_bounds(visual_root)
 	if bounds.size.length() <= 0.001:
 		return
-	var max_dimension := maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
-	if max_dimension <= 0.001:
+	var scale_dimension := bounds.size.y if target_height_meters > 0.0 else maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
+	if scale_dimension <= 0.001:
 		return
-	var scale_factor := 0.72 / max_dimension
+	var target_dimension := target_height_meters if target_height_meters > 0.0 else 0.72
+	var scale_factor := target_dimension / scale_dimension
 	visual_root.scale = Vector3.ONE * scale_factor
 	visual_root.position = Vector3(-bounds.get_center().x * scale_factor, -bounds.position.y * scale_factor + 0.05, -bounds.get_center().z * scale_factor)
+
+
+func _refresh_collision_from_visual() -> void:
+	if collision_shape_node == null or model_root == null:
+		return
+	var bounds := _calculate_local_mesh_bounds(model_root)
+	if bounds.size.length() <= 0.001:
+		collision_shape_node.disabled = true
+		return
+	var collision_size := Vector3(
+		maxf(bounds.size.x, MIN_COLLIDER_SIZE.x),
+		maxf(bounds.size.y, MIN_COLLIDER_SIZE.y),
+		maxf(bounds.size.z, MIN_COLLIDER_SIZE.z)
+	)
+	var box := BoxShape3D.new()
+	box.size = collision_size
+	collision_shape_node.shape = box
+	collision_shape_node.position = Vector3(
+		bounds.get_center().x,
+		bounds.position.y + collision_size.y * 0.5,
+		bounds.get_center().z
+	)
+	collision_shape_node.rotation = Vector3.ZERO
+	collision_shape_node.scale = Vector3.ONE
+	collision_shape_node.disabled = false
 
 
 func _calculate_local_mesh_bounds(root: Node) -> AABB:

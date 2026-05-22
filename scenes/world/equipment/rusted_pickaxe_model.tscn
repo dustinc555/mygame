@@ -1,0 +1,14 @@
+[gd_scene format=3 uid="uid://fclxmfbruj5p"]
+
+[ext_resource type="PackedScene" uid="uid://lk35q7pi0m6c" path="res://assets/items/equipment/rusted_pickaxe.glb" id="1_model"]
+[ext_resource type="Script" uid="uid://c6ncuf7x61vvu" path="res://scripts/world/equipment/grip_point_marker.gd" id="2_grip"]
+
+[node name="PickaxeModel" type="Node3D" unique_id=1231466542]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.009080321, 0, 0)
+
+[node name="GripPoint_Primary" type="Marker3D" parent="." unique_id=411457256]
+transform = Transform3D(0.0004088543, -0.9999302, 0.011808511, 0.03460055, 0.011815587, 0.9993314, -0.99940115, 0, 0.034602962, 0.056509852, 0.42, 0.045602784)
+script = ExtResource("2_grip")
+
+[node name="Model" parent="." unique_id=1507625893 instance=ExtResource("1_model")]
+transform = Transform3D(-4.399962, 0, -0.01827702, 0, 4.4, 0, 0.01827702, 0, -4.399962, 0.058760285, 0, 0.036609292)

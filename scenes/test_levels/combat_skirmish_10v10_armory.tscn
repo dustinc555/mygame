@@ -23,7 +23,6 @@
 [ext_resource type="Resource" path="res://resources/items/ranger_jerkin.tres" id="33_ranger_jerkin"]
 [ext_resource type="Resource" path="res://resources/items/ranger_leggings.tres" id="34_ranger_leggings"]
 [ext_resource type="Resource" path="res://resources/items/ranger_boots.tres" id="35_ranger_boots"]
-[ext_resource type="Resource" path="res://resources/items/ranger_bracers.tres" id="36_ranger_bracers"]
 [ext_resource type="Resource" path="res://resources/items/ranger_hood.tres" id="37_ranger_hood"]
 [ext_resource type="Resource" path="res://resources/items/knight_gambeson.tres" id="38_knight_gambeson"]
 [ext_resource type="Resource" path="res://resources/items/knight_cuirass.tres" id="39_knight_cuirass"]
@@ -89,7 +88,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13, 0.6, -13.5)
 script = ExtResource("1_party")
 base_color = Color(0.72, 0.48, 0.78, 1)
 member_name = "Mira"
-starting_equipment = Array[Resource]([ExtResource("13_steel_sword"), ExtResource("20_round_shield"), ExtResource("33_ranger_jerkin"), ExtResource("34_ranger_leggings"), ExtResource("35_ranger_boots"), ExtResource("36_ranger_bracers"), ExtResource("37_ranger_hood")])
+starting_equipment = Array[Resource]([ExtResource("13_steel_sword"), ExtResource("20_round_shield"), ExtResource("33_ranger_jerkin"), ExtResource("34_ranger_leggings"), ExtResource("35_ranger_boots"), ExtResource("37_ranger_hood")])
 max_hp = 118.0
 base_attack_damage = 20.0
 base_block_chance = 0.1
@@ -287,7 +286,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13, 0.6, 13.5)
 script = ExtResource("1_party")
 base_color = Color(0.81, 0.61, 0.48, 1)
 member_name = "Orla"
-starting_equipment = Array[Resource]([ExtResource("15_hatchet"), ExtResource("30_peasant_tunic"), ExtResource("34_ranger_leggings"), ExtResource("35_ranger_boots"), ExtResource("36_ranger_bracers")])
+starting_equipment = Array[Resource]([ExtResource("15_hatchet"), ExtResource("30_peasant_tunic"), ExtResource("34_ranger_leggings"), ExtResource("35_ranger_boots")])
 max_hp = 112.0
 base_attack_damage = 19.0
 base_dodge_chance = 0.12
@@ -415,7 +414,7 @@ faction_name = "Raiders"
 squad_name = "ArmoryRaiders"
 hostile_factions = PackedStringArray("Player")
 combat_stance = 0
-starting_equipment = Array[Resource]([ExtResource("16_steel_dagger"), ExtResource("23_round_shield_2"), ExtResource("33_ranger_jerkin"), ExtResource("36_ranger_bracers"), ExtResource("35_ranger_boots"), ExtResource("37_ranger_hood")])
+starting_equipment = Array[Resource]([ExtResource("16_steel_dagger"), ExtResource("23_round_shield_2"), ExtResource("33_ranger_jerkin"), ExtResource("35_ranger_boots"), ExtResource("37_ranger_hood")])
 max_hp = 106.0
 base_attack_damage = 17.0
 base_block_chance = 0.08
@@ -478,7 +477,7 @@ faction_name = "Raiders"
 squad_name = "ArmoryRaiders"
 hostile_factions = PackedStringArray("Player")
 combat_stance = 0
-starting_equipment = Array[Resource]([ExtResource("11_iron_axe"), ExtResource("31_peasant_trousers"), ExtResource("32_peasant_shoes"), ExtResource("36_ranger_bracers")])
+starting_equipment = Array[Resource]([ExtResource("11_iron_axe"), ExtResource("31_peasant_trousers"), ExtResource("32_peasant_shoes")])
 max_hp = 104.0
 base_attack_damage = 17.5
 base_dodge_chance = 0.08

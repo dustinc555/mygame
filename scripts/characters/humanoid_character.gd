@@ -25,6 +25,7 @@ const IDLE_ANIMATION_NAME := "Idle"
 const TIRED_IDLE_ANIMATION_NAME := "Idle_Tired"
 const FOLD_ARMS_IDLE_ANIMATION_NAME := "Idle_FoldArms"
 const WALK_ANIMATION_NAME := "Walk"
+const MINING_ANIMATION_NAME := "Mining"
 const CROUCH_ENTER_ANIMATION_NAME := "Crouch_Enter"
 const CROUCH_IDLE_ANIMATION_NAME := "Crouch_Idle"
 const CROUCH_WALK_ANIMATION_NAME := "Crouch_Fwd"
@@ -583,10 +584,15 @@ func assign_conversation_target(target_character, issued_by_player: bool = true)
 func assign_mining_resource(resource_node, issued_by_player: bool = true) -> void:
 	if resource_node == null:
 		return
+	var mining_node := resource_node as MiningResourceNode
+	if mining_node == null:
+		return
+	if not _ensure_mining_tool_equipped(mining_node, issued_by_player):
+		return
 	_set_order(OrderType.MINE, issued_by_player)
-	if _current_mining_node != null and _current_mining_node != resource_node:
+	if _current_mining_node != null and _current_mining_node != mining_node:
 		_current_mining_node.release_miner(self)
-	_current_mining_node = resource_node
+	_current_mining_node = mining_node
 	_current_mining_node.register_miner(self)
 	_mining_active = false
 	_set_actor_move_target(_current_mining_node.get_mining_position(self))
@@ -1608,7 +1614,11 @@ func get_combat_move_position(attacker: HumanoidCharacter) -> Vector3:
 func _face_character(character: HumanoidCharacter) -> void:
 	if character == null or not is_instance_valid(character):
 		return
-	var look_position := character.global_position
+	_face_world_position(character.global_position)
+
+
+func _face_world_position(world_position: Vector3) -> void:
+	var look_position := world_position
 	look_position.y = global_position.y
 	if global_position.distance_squared_to(look_position) <= 0.0001:
 		return
@@ -1920,8 +1930,11 @@ func _process_mining(delta: float) -> void:
 	var mining_node := _current_mining_node as MiningResourceNode
 	if mining_node == null:
 		return
+	if not _ensure_mining_tool_equipped(mining_node, _order_was_player_issued):
+		stop_mining_assignment()
+		return
 	var mining_position: Vector3 = mining_node.get_mining_position(self)
-	if global_position.distance_to(mining_position) > interact_distance:
+	if global_position.distance_to(mining_position) > mining_node.get_mining_interaction_radius():
 		_set_actor_move_target(mining_position)
 		_mining_active = false
 		mining_changed.emit()
@@ -1971,9 +1984,68 @@ func _award_mining_progress_xp(progress_delta: float, xp_multiplier: float = 1.0
 
 func _show_mining_requirement_notice(mining_node: MiningResourceNode) -> void:
 	var message := "Mining %d required" % mining_node.required_mining_level
-	if _order_was_player_issued:
+	_show_mining_notice(message, Color(1.0, 0.68, 0.24, 1.0), _order_was_player_issued)
+
+
+func _ensure_mining_tool_equipped(mining_node: MiningResourceNode, issued_by_player: bool) -> bool:
+	if mining_node == null:
+		return false
+	var required_tag := str(mining_node.required_tool_tag)
+	if required_tag.is_empty():
+		return true
+	var equipped_weapon := get_equipped_item(ItemDefinition.EQUIP_SLOT_WEAPON)
+	if _item_has_tool_tag(equipped_weapon, required_tag):
+		return true
+	var tool := _find_inventory_tool(required_tag)
+	if tool == null:
+		_show_mining_notice("%s required" % _get_mining_tool_label(mining_node), Color(1.0, 0.68, 0.24, 1.0), issued_by_player)
+		return false
+	if not inventory.remove_item_count(tool, 1):
+		_show_mining_notice("%s required" % _get_mining_tool_label(mining_node), Color(1.0, 0.68, 0.24, 1.0), issued_by_player)
+		return false
+	var previous_weapon := get_equipped_item(ItemDefinition.EQUIP_SLOT_WEAPON)
+	if previous_weapon != null and not inventory.can_add_item(previous_weapon):
+		inventory.add_item(tool)
+		_show_mining_notice("No room to stow weapon", Color(1.0, 0.38, 0.28, 1.0), issued_by_player)
+		return false
+	begin_equipment_update_batch()
+	var replaced := equip_item_to_slot(tool, ItemDefinition.EQUIP_SLOT_WEAPON)
+	var stowed := true
+	if replaced != null:
+		stowed = inventory.add_item(replaced)
+	if not stowed:
+		equip_item_to_slot(replaced, ItemDefinition.EQUIP_SLOT_WEAPON)
+		inventory.add_item(tool)
+	end_equipment_update_batch()
+	if not stowed:
+		_show_mining_notice("No room to stow weapon", Color(1.0, 0.38, 0.28, 1.0), issued_by_player)
+		return false
+	return true
+
+
+func _find_inventory_tool(required_tag: String) -> ItemDefinition:
+	if required_tag.is_empty() or inventory == null:
+		return null
+	for entry in inventory.entries:
+		if _item_has_tool_tag(entry.definition, required_tag):
+			return entry.definition
+	return null
+
+
+func _item_has_tool_tag(item: ItemDefinition, required_tag: String) -> bool:
+	return item != null and item.has_method("has_tool_tag") and item.has_tool_tag(required_tag)
+
+
+func _get_mining_tool_label(mining_node: MiningResourceNode) -> String:
+	if mining_node != null and not str(mining_node.required_tool_label).is_empty():
+		return str(mining_node.required_tool_label)
+	return "Tool"
+
+
+func _show_mining_notice(message: String, color: Color, center_notice: bool) -> void:
+	if center_notice:
 		center_notice_requested.emit(message)
-	_show_world_notice(message, Color(1.0, 0.68, 0.24, 1.0), 1.2, 0.45)
+	_show_world_notice(message, color, 1.2, 0.45)
 
 
 func _process_scavenging(delta: float) -> void:
@@ -3264,6 +3336,7 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 	var ual2_player := _find_animation_player(ual2_source)
 	if ual2_player != null:
 		_copy_animation(ual2_player, animation_library, FOLD_ARMS_IDLE_ANIMATION_NAME)
+		_copy_animation(ual2_player, animation_library, MINING_ANIMATION_NAME)
 		_copy_default_combat_set_animations(ual2_player, animation_library)
 		_copy_contextual_combat_reaction_animations(ual2_player, animation_library)
 		_copy_ragdoll_profile_animations(ual2_player, animation_library)
@@ -3406,6 +3479,12 @@ func _update_character_animation(delta: float) -> void:
 		_cancel_run_transition()
 		_update_idle_character_animation(delta)
 		return
+	if _mining_active and _current_mining_node != null:
+		_cancel_crouch_transition()
+		_cancel_run_transition()
+		_face_world_position(_current_mining_node.global_position)
+		if _play_character_animation(MINING_ANIMATION_NAME):
+			return
 	var horizontal_speed := _get_horizontal_speed()
 	var is_moving := horizontal_speed > ACTUAL_LOCOMOTION_SPEED_THRESHOLD and (_has_move_target or _current_order_type == OrderType.ATTACK)
 	var wants_run_animation := is_running_enabled() and is_moving and not sneaking

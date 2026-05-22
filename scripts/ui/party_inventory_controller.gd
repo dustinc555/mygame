@@ -9,6 +9,11 @@ const SILVER_ITEM = preload("res://resources/items/silver.tres")
 const WINDOW_EDGE_PADDING := 36.0
 const WINDOW_TOP_PADDING := 160.0
 const WINDOW_GAP := 24.0
+const WORLD_ITEM_DROP_DISTANCE := 0.9
+const WORLD_ITEM_STACK_RADIUS := 0.2
+const WORLD_ITEM_GROUND_RAY_UP := 3.0
+const WORLD_ITEM_GROUND_RAY_DOWN := 6.0
+const WORLD_ITEM_GROUND_RAY_MAX_SKIPS := 12
 
 @export var inventory_toggle_key := KEY_I
 
@@ -544,26 +549,132 @@ func _refresh_inventory_windows_for(owner_a, owner_b = null) -> void:
 func _spawn_world_item(source_owner, definition: ItemDefinition, count: int) -> void:
 	if root_scene == null or definition == null or count <= 0:
 		return
-	var world_item = WORLD_ITEM_SCENE.instantiate()
-	if world_item.has_method("setup"):
-		world_item.setup(definition, count)
-	if world_item is Node3D:
-		(world_item as Node3D).position = _get_world_drop_position(source_owner)
-	root_scene.add_child(world_item)
+	var drop_position_value = _get_world_drop_position(source_owner)
+	if not (drop_position_value is Vector3):
+		return
+	var requested_drop_position: Vector3 = drop_position_value
+	var stack := _get_world_item_stack(requested_drop_position)
+	var drop_position: Vector3 = stack["position"]
+	var next_bottom_y: float = stack["next_bottom_y"]
+	for _index in range(count):
+		var world_item := WORLD_ITEM_SCENE.instantiate() as WorldItem
+		if world_item == null:
+			return
+		root_scene.add_child(world_item)
+		world_item.setup(definition, 1)
+		var item_height := world_item.place_bottom_at(drop_position, next_bottom_y)
+		next_bottom_y += maxf(item_height, 0.05)
 
 
-func _get_world_drop_position(source_owner) -> Vector3:
+func _get_world_drop_position(source_owner) -> Variant:
+	var drop_owner = source_owner if source_owner != null else _get_focused_character_owner()
+	if drop_owner == null:
+		return null
 	var origin := Vector3.ZERO
-	if source_owner != null and source_owner.has_method("get_inventory_world_position"):
-		origin = source_owner.get_inventory_world_position()
-	elif source_owner is Node3D:
-		origin = (source_owner as Node3D).global_position
+	if drop_owner.has_method("get_inventory_world_position"):
+		origin = drop_owner.get_inventory_world_position()
+	elif drop_owner is Node3D:
+		origin = (drop_owner as Node3D).global_position
+	else:
+		return null
 	var forward := Vector3.FORWARD
-	if source_owner is Node3D:
-		forward = -(source_owner as Node3D).global_transform.basis.z.normalized()
+	if drop_owner is Node3D:
+		forward = -(drop_owner as Node3D).global_transform.basis.z.normalized()
 		if forward.length_squared() <= 0.001:
 			forward = Vector3.FORWARD
-	return origin + forward * 0.9 + Vector3(0.0, 0.08, 0.0)
+	var drop_position := origin + forward * WORLD_ITEM_DROP_DISTANCE
+	drop_position.y = _get_drop_ground_y(drop_owner, origin, drop_position)
+	return drop_position
+
+
+func _get_drop_ground_y(drop_owner, origin: Vector3, drop_position: Vector3) -> float:
+	var world_3d := _get_drop_world_3d(drop_owner)
+	if world_3d != null:
+		var start := Vector3(drop_position.x, maxf(origin.y, drop_position.y) + WORLD_ITEM_GROUND_RAY_UP, drop_position.z)
+		var end := Vector3(drop_position.x, minf(origin.y, drop_position.y) - WORLD_ITEM_GROUND_RAY_DOWN, drop_position.z)
+		var excludes := _get_drop_ground_ray_excludes(drop_owner)
+		for _attempt in range(WORLD_ITEM_GROUND_RAY_MAX_SKIPS):
+			var query := PhysicsRayQueryParameters3D.create(start, end)
+			query.exclude = excludes
+			var hit := world_3d.direct_space_state.intersect_ray(query)
+			if hit.is_empty() or not hit.has("position"):
+				break
+			var collider: Object = hit.get("collider")
+			if not _drop_ground_hit_should_be_skipped(collider):
+				return (hit["position"] as Vector3).y
+			if collider is CollisionObject3D:
+				var rid := (collider as CollisionObject3D).get_rid()
+				if not excludes.has(rid):
+					excludes.append(rid)
+			else:
+				break
+	if drop_owner != null and drop_owner.has_method("get_collision_bottom_local_y"):
+		return origin.y + float(drop_owner.get_collision_bottom_local_y())
+	return origin.y
+
+
+func _get_drop_world_3d(drop_owner) -> World3D:
+	if root_scene is Node3D and root_scene.is_inside_tree():
+		return (root_scene as Node3D).get_world_3d()
+	if drop_owner is Node3D and (drop_owner as Node3D).is_inside_tree():
+		return (drop_owner as Node3D).get_world_3d()
+	return null
+
+
+func _get_drop_ground_ray_excludes(drop_owner) -> Array[RID]:
+	var excludes: Array[RID] = []
+	if drop_owner is CollisionObject3D:
+		excludes.append((drop_owner as CollisionObject3D).get_rid())
+	if root_scene != null and root_scene.is_inside_tree():
+		for group_name in ["world_item", "humanoid_character", "party_member", "npc_character"]:
+			for node in root_scene.get_tree().get_nodes_in_group(group_name):
+				if node is CollisionObject3D:
+					var rid := (node as CollisionObject3D).get_rid()
+					if not excludes.has(rid):
+						excludes.append(rid)
+	return excludes
+
+
+func _drop_ground_hit_should_be_skipped(collider: Object) -> bool:
+	return _node_or_parent_is_in_group(collider, "world_item") \
+		or _node_or_parent_is_in_group(collider, "humanoid_character") \
+		or _node_or_parent_is_in_group(collider, "party_member") \
+		or _node_or_parent_is_in_group(collider, "npc_character")
+
+
+func _node_or_parent_is_in_group(value: Object, group_name: String) -> bool:
+	if not (value is Node):
+		return false
+	var current := value as Node
+	while current != null:
+		if current.is_in_group(group_name):
+			return true
+		current = current.get_parent()
+	return false
+
+
+func _get_world_item_stack(drop_position: Vector3) -> Dictionary:
+	var stack_position := drop_position
+	var next_bottom_y := drop_position.y + WorldItem.GROUND_CLEARANCE
+	if root_scene == null or not root_scene.is_inside_tree():
+		return {"position": stack_position, "next_bottom_y": next_bottom_y}
+	var drop_xz := Vector2(drop_position.x, drop_position.z)
+	var found_stack := false
+	for node in root_scene.get_tree().get_nodes_in_group("world_item"):
+		var world_item := node as WorldItem
+		if world_item == null or world_item.is_queued_for_deletion():
+			continue
+		var item_xz := Vector2(world_item.global_position.x, world_item.global_position.z)
+		if item_xz.distance_to(drop_xz) > WORLD_ITEM_STACK_RADIUS:
+			continue
+		var item_top_y := world_item.get_visual_top_y()
+		if found_stack and item_top_y <= next_bottom_y:
+			continue
+		found_stack = true
+		next_bottom_y = item_top_y
+		stack_position.x = world_item.global_position.x
+		stack_position.z = world_item.global_position.z
+	return {"position": stack_position, "next_bottom_y": next_bottom_y}
 
 
 func _start_cursor_item_drag(owner, definition: ItemDefinition, count: int) -> void:

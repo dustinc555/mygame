@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="wood" x1="20" y1="58" x2="44" y2="10" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5b321f"/>
+      <stop offset="0.55" stop-color="#8a5935"/>
+      <stop offset="1" stop-color="#b27a45"/>
+    </linearGradient>
+    <linearGradient id="iron" x1="8" y1="13" x2="56" y2="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2d3030"/>
+      <stop offset="0.45" stop-color="#74716a"/>
+      <stop offset="1" stop-color="#272a2b"/>
+    </linearGradient>
+    <linearGradient id="rust" x1="15" y1="16" x2="51" y2="31" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a94d22"/>
+      <stop offset="1" stop-color="#6f2f1a"/>
+    </linearGradient>
+  </defs>
+  <path d="M28 24 34 23 42 57 36 59Z" fill="#2b1a12" opacity="0.45"/>
+  <path d="M25 23 32 21 42 56 35 59Z" fill="url(#wood)"/>
+  <path d="M27 23 31 22 39 55" fill="none" stroke="#d19b61" stroke-width="1.5" stroke-linecap="round" opacity="0.45"/>
+  <path d="M7 22 C17 13 31 10 56 14 C43 18 34 22 28 29 C22 25 15 23 7 22Z" fill="url(#iron)"/>
+  <path d="M10 22 C19 20 24 22 29 27" fill="none" stroke="#151718" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+  <path d="M35 20 C42 18 48 16 56 14" fill="none" stroke="#c5bfb0" stroke-width="2" stroke-linecap="round" opacity="0.45"/>
+  <path d="M23 18 38 17 36 25 25 27Z" fill="#3b3d3b"/>
+  <path d="M18 18 28 17 27 21 17 22Z" fill="url(#rust)" opacity="0.7"/>
+  <path d="M38 17 48 15 43 19 37 21Z" fill="url(#rust)" opacity="0.55"/>
+  <path d="M29 28 34 27 33 32 29 33Z" fill="#161717" opacity="0.45"/>
+</svg>

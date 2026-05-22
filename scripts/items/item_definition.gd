@@ -23,15 +23,21 @@ const EQUIP_SLOT_OFFHAND := "offhand"
 @export var equip_slot := EQUIP_SLOT_NONE
 @export var alternate_equip_slots: PackedStringArray = PackedStringArray()
 @export var world_scene: PackedScene
+@export var world_visual_height_meters := 0.0
 @export var equipped_scene: PackedScene
 @export var equipped_visuals: Array[Resource] = []
 @export var grip_profile: Resource
 @export var equipped_transform := Transform3D.IDENTITY
 @export var stat_modifiers: Array[ItemStatModifier] = []
+@export var tool_tags: PackedStringArray = PackedStringArray()
 
 
 func is_equippable() -> bool:
 	return not equip_slot.is_empty()
+
+
+func has_tool_tag(tag: String) -> bool:
+	return not tag.is_empty() and tool_tags.has(tag)
 
 
 func can_equip_to_slot(slot_name: String) -> bool:

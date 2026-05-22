@@ -26,6 +26,11 @@
 - Test levels are proofs, not implementations. Levels may customize content and instructions, but not core interaction, inventory, combat, trade, HUD, AI, or simulation logic.
 - Before writing code, ask: `If I drag this asset into another bootstrapped scene, will it still work?` If not, refactor first.
 
+## Game Realism
+- Prioritize realism for gameplay behavior, world interaction, item placement, movement, inventory, economy, and simulation decisions.
+- Do not allow convenience shortcuts that break physical plausibility, such as dropping inventory items across the map, spawning objects through floors, or ignoring character reach.
+- If realism conflicts with UI convenience, preserve realism first unless the user explicitly approves an arcade-style exception.
+
 ## Human Operator Design
 - A human operator should be able to add reusable gameplay content from the editor without reading implementation code.
 - Visual shells should stay separate from gameplay function; for example, a building model is neutral and a facility function makes it a bar, field, shop, police station, mine, or other facility.
