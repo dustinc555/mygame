@@ -926,7 +926,10 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 		ACTION_INVENTORY:
 			var focused_member := _get_focused_party_member()
 			if focused_member != null and context_member != null and focused_member != context_member:
-				inventory_controller.open_inventory_pair(focused_member, context_member)
+				if focused_member.global_position.distance_to(context_member.global_position) <= focused_member.trade_interaction_distance:
+					inventory_controller.open_inventory_pair(focused_member, context_member)
+				else:
+					focused_member.assign_trade_target(context_member)
 			elif context_member != null:
 				inventory_controller.open_inventory_for_member(context_member)
 		ACTION_MINE:
@@ -1109,6 +1112,9 @@ func _on_party_member_container_reached(member: HumanoidCharacter, container) ->
 
 func _on_party_member_trade_target_reached(member: HumanoidCharacter, target) -> void:
 	if member == null or target == null:
+		return
+	if target is HumanoidCharacter and target.is_player_party_member():
+		inventory_controller.open_inventory_pair(member, target)
 		return
 	if target is CharacterBody3D and target.has_method("resolve_trade"):
 		if not target.resolve_trade(member):

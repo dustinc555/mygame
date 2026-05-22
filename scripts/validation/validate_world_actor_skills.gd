@@ -40,6 +40,7 @@ func _run() -> void:
 	await _validate_copper_ore_world_visual()
 	_validate_world_actor_api()
 	_validate_weighted_initiative()
+	await _validate_inventory_toggle_behavior()
 	await _validate_mining_pickaxe_requirement()
 	await _validate_scavenging_rules()
 	await _validate_locked_mining_attempt_trains_without_ore()
@@ -340,6 +341,139 @@ func _validate_weighted_initiative() -> void:
 		_fail("Expected 1-vs-3 dex initiative to stay near weighted range, low=%d high=%d" % [low_wins, high_wins])
 
 
+func _validate_inventory_toggle_behavior() -> void:
+	var layer := Control.new()
+	layer.name = "ValidationInventoryWindowLayer"
+	layer.size = Vector2(1280.0, 720.0)
+	root.add_child(layer)
+
+	var party_manager := PartyManager.new()
+	root.add_child(party_manager)
+	var mira := HumanoidCharacter.new()
+	mira.name = "ValidationMira"
+	mira.member_name = "Mira"
+	mira.show_nameplate = false
+	mira.fatigue_enabled = false
+	root.add_child(mira)
+	var tomas := HumanoidCharacter.new()
+	tomas.name = "ValidationTomas"
+	tomas.member_name = "Tomas"
+	tomas.show_nameplate = false
+	tomas.fatigue_enabled = false
+	root.add_child(tomas)
+	var container_owner := HumanoidCharacter.new()
+	container_owner.name = "ValidationContainerOwner"
+	container_owner.member_name = "Container"
+	container_owner.show_nameplate = false
+	container_owner.fatigue_enabled = false
+	root.add_child(container_owner)
+	await process_frame
+	mira.set_player_party_member(true)
+	tomas.set_player_party_member(true)
+	party_manager.set_party_members([mira, tomas])
+	party_manager.select_only(mira)
+
+	var controller := PARTY_INVENTORY_CONTROLLER_SCRIPT.new() as PartyInventoryController
+	controller.party_manager = party_manager
+	controller.inventory_window_layer = layer
+	controller.open_selected_inventory()
+	await process_frame
+	if not _is_live_inventory_window_for(controller.primary_character_window, mira):
+		_fail("Expected inventory toggle to open selected Mira inventory")
+	if _count_live_inventory_windows(layer) != 1:
+		_fail("Expected one inventory window after first inventory toggle")
+
+	controller.call("_open_secondary_inventory", container_owner)
+	await process_frame
+	if not _is_live_inventory_window_for(controller.secondary_inventory_window, container_owner):
+		_fail("Expected validation secondary inventory to open")
+	controller.open_selected_inventory()
+	await process_frame
+	if controller.primary_character_window != null or controller.secondary_inventory_window != null:
+		_fail("Expected pressing inventory toggle for the same selected owner to close primary and secondary windows")
+	if _count_live_inventory_windows(layer) != 0:
+		_fail("Expected all inventory windows to be gone after same-owner toggle close")
+
+	controller.open_selected_inventory()
+	await process_frame
+	party_manager.select_only(tomas)
+	controller.open_selected_inventory()
+	await process_frame
+	if not _is_live_inventory_window_for(controller.primary_character_window, tomas):
+		_fail("Expected inventory toggle to switch to newly selected Tomas inventory")
+	if _count_live_inventory_windows(layer) != 1:
+		_fail("Expected one inventory window after switching selected owner")
+
+	controller.call("_close_all_inventory_windows")
+	await process_frame
+	mira.position = Vector3.ZERO
+	tomas.position = Vector3(3.0, 0.0, 0.0)
+	controller.open_inventory_pair(mira, tomas)
+	await process_frame
+	controller.call("_enforce_open_inventory_context")
+	if _count_live_inventory_windows(layer) != 2:
+		_fail("Expected in-range paired inventories to stay open")
+	tomas.position = Vector3(8.0, 0.0, 0.0)
+	controller.call("_enforce_open_inventory_context")
+	await process_frame
+	if _count_live_inventory_windows(layer) != 0:
+		_fail("Expected paired inventories to close when owners move out of range")
+
+	party_manager.select_only(mira)
+	mira.position = Vector3.ZERO
+	controller.open_selected_inventory()
+	await process_frame
+	mira.position = Vector3(12.0, 0.0, 0.0)
+	controller.call("_enforce_open_inventory_context")
+	if _count_live_inventory_windows(layer) != 1:
+		_fail("Expected own inventory to stay open while only its owner moves")
+	mira.assign_attack_target(tomas)
+	controller.call("_enforce_open_inventory_context")
+	await process_frame
+	if _count_live_inventory_windows(layer) != 0:
+		_fail("Expected open inventories to close when an involved party member enters combat")
+	mira.stop_attack_assignment()
+	tomas.stop_attack_assignment()
+
+	controller.open_inventory_pair(mira, container_owner)
+	await process_frame
+	container_owner.assign_attack_target(mira)
+	controller.call("_enforce_open_inventory_context")
+	await process_frame
+	if _count_live_inventory_windows(layer) != 0:
+		_fail("Expected paired inventories to close when the secondary owner enters combat")
+	container_owner.stop_attack_assignment()
+	mira.stop_attack_assignment()
+
+	controller.call("_close_all_inventory_windows")
+	mira.position = Vector3.ZERO
+	tomas.position = Vector3(10.0, 0.0, 0.0)
+	party_manager.select_only(mira)
+	var interaction_controller := WorldInteractionController.new()
+	root.add_child(interaction_controller)
+	interaction_controller.party_manager = party_manager
+	interaction_controller.inventory_controller = controller
+	interaction_controller.context_member = tomas
+	interaction_controller.call("_on_context_menu_id_pressed", WorldInteractionController.ACTION_INVENTORY)
+	await process_frame
+	if _count_live_inventory_windows(layer) != 0:
+		_fail("Expected far party-member trade to wait for reach before opening inventories")
+	if mira.get("_current_trade_target") != tomas:
+		_fail("Expected far party-member trade to assign a trade target")
+	interaction_controller.call("_on_party_member_trade_target_reached", mira, tomas)
+	await process_frame
+	if not _is_live_inventory_window_for(controller.primary_character_window, mira) or not _is_live_inventory_window_for(controller.secondary_inventory_window, tomas):
+		_fail("Expected party-member trade reached callback to open paired inventories")
+	interaction_controller.queue_free()
+
+	controller.call("_close_all_inventory_windows")
+	layer.queue_free()
+	party_manager.queue_free()
+	mira.queue_free()
+	tomas.queue_free()
+	container_owner.queue_free()
+
+
 func _validate_mining_pickaxe_requirement() -> void:
 	var ore := ItemDefinition.new()
 	ore.display_name = "Validation Copper"
@@ -634,6 +768,18 @@ func _wait_frames(frames: int) -> void:
 func _wait_physics_frames(frames: int) -> void:
 	for _index in range(frames):
 		await physics_frame
+
+
+func _is_live_inventory_window_for(window, owner) -> bool:
+	return window is InventoryWindow and is_instance_valid(window) and not window.is_queued_for_deletion() and window.inventory_owner == owner
+
+
+func _count_live_inventory_windows(parent: Node) -> int:
+	var count := 0
+	for child in parent.get_children():
+		if child is InventoryWindow and is_instance_valid(child) and not child.is_queued_for_deletion():
+			count += 1
+	return count
 
 
 func _calculate_local_mesh_bounds(root_node: Node) -> AABB:

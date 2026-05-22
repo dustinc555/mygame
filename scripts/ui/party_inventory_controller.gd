@@ -72,10 +72,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		open_selected_inventory()
 
 
+func _process(_delta: float) -> void:
+	_enforce_open_inventory_context()
+
+
 func open_selected_inventory() -> void:
 	if party_manager.selected_members.is_empty():
 		return
-	_open_primary_inventory(party_manager.selected_members[0], true)
+	var selected_member = party_manager.selected_members[0]
+	if _is_live_window(primary_character_window) and primary_character_window.inventory_owner == selected_member:
+		_close_inventory_window(primary_character_window)
+		_close_inventory_window(secondary_inventory_window)
+		return
+	_open_primary_inventory(selected_member, true)
 
 
 func open_inventory_for_member(member: HumanoidCharacter) -> void:
@@ -194,6 +203,22 @@ func _close_inventory_window(window) -> void:
 	window.queue_free()
 
 
+func _close_all_inventory_windows() -> void:
+	var windows := []
+	for window in open_inventory_windows.values():
+		if _is_live_window(window) and not windows.has(window):
+			windows.append(window)
+	if _is_live_window(primary_character_window) and not windows.has(primary_character_window):
+		windows.append(primary_character_window)
+	if _is_live_window(secondary_inventory_window) and not windows.has(secondary_inventory_window):
+		windows.append(secondary_inventory_window)
+	for window in windows:
+		_close_inventory_window(window)
+	open_inventory_windows.clear()
+	primary_character_window = null
+	secondary_inventory_window = null
+
+
 func _get_window_for_owner(inventory_owner):
 	if inventory_owner == null:
 		return null
@@ -207,6 +232,80 @@ func _get_window_for_owner(inventory_owner):
 
 func _is_live_window(window) -> bool:
 	return window != null and is_instance_valid(window) and not window.is_queued_for_deletion()
+
+
+func _has_live_inventory_windows() -> bool:
+	if _is_live_window(primary_character_window) or _is_live_window(secondary_inventory_window):
+		return true
+	for window in open_inventory_windows.values():
+		if _is_live_window(window):
+			return true
+	return false
+
+
+func _enforce_open_inventory_context() -> void:
+	if not _has_live_inventory_windows():
+		return
+	if _open_inventory_context_has_combat():
+		_close_all_inventory_windows()
+		return
+	if _open_inventory_context_is_out_of_range():
+		_close_all_inventory_windows()
+
+
+func _open_inventory_context_is_out_of_range() -> bool:
+	if _is_live_window(primary_character_window) and _is_live_window(secondary_inventory_window):
+		return _owners_too_far(primary_character_window.inventory_owner, secondary_inventory_window.inventory_owner)
+	if _is_live_window(secondary_inventory_window):
+		var focused_owner = _get_focused_character_owner()
+		return focused_owner != null and focused_owner != secondary_inventory_window.inventory_owner and _owners_too_far(focused_owner, secondary_inventory_window.inventory_owner)
+	return false
+
+
+func _open_inventory_context_has_combat() -> bool:
+	for owner in _get_live_inventory_owners():
+		if _inventory_owner_is_in_combat(owner):
+			return true
+	if party_manager != null:
+		for member in party_manager.party_members:
+			if _inventory_owner_is_in_combat(member):
+				return true
+	return false
+
+
+func _get_live_inventory_owners() -> Array:
+	var owners := []
+	for window in open_inventory_windows.values():
+		if _is_live_window(window) and window.inventory_owner != null and not owners.has(window.inventory_owner):
+			owners.append(window.inventory_owner)
+	if _is_live_window(primary_character_window) and primary_character_window.inventory_owner != null and not owners.has(primary_character_window.inventory_owner):
+		owners.append(primary_character_window.inventory_owner)
+	if _is_live_window(secondary_inventory_window) and secondary_inventory_window.inventory_owner != null and not owners.has(secondary_inventory_window.inventory_owner):
+		owners.append(secondary_inventory_window.inventory_owner)
+	return owners
+
+
+func _inventory_owner_is_in_combat(owner) -> bool:
+	if owner == null:
+		return false
+	if owner.has_method("is_in_combat") and bool(owner.is_in_combat()):
+		return true
+	var actor = _get_inventory_owner_actor(owner)
+	return actor != owner and actor != null and actor.has_method("is_in_combat") and bool(actor.is_in_combat())
+
+
+func _get_inventory_owner_actor(owner):
+	if owner is HumanoidCharacter:
+		return owner
+	if owner != null and owner.has_method("get_owner_character"):
+		var owner_character = owner.get_owner_character()
+		if owner_character != null:
+			return owner_character
+	if owner != null and owner.has_method("get_explicit_owner_character"):
+		var explicit_owner = owner.get_explicit_owner_character()
+		if explicit_owner != null:
+			return explicit_owner
+	return null
 
 
 func _owner_is_primary_character(inventory_owner) -> bool:
