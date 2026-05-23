@@ -97,17 +97,115 @@ theme_override_font_sizes/font_size = 10
 text = "Inspector ready"
 text_overrun_behavior = 3
 
+[node name="InfoRows" type="VBoxContainer" parent="Margin/DetailsVBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="InfoRow1" type="HBoxContainer" parent="Margin/DetailsVBox/InfoRows"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="InfoLabel" type="Label" parent="Margin/DetailsVBox/InfoRows/InfoRow1"]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
+mouse_filter = 0
+theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
+theme_override_font_sizes/font_size = 9
+vertical_alignment = 1
+text = "Type"
+
+[node name="InfoValue" type="Label" parent="Margin/DetailsVBox/InfoRows/InfoRow1"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.75, 0.62, 1)
+theme_override_font_sizes/font_size = 10
+vertical_alignment = 1
+text = "-"
+text_overrun_behavior = 3
+
+[node name="InfoRow2" type="HBoxContainer" parent="Margin/DetailsVBox/InfoRows"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="InfoLabel" type="Label" parent="Margin/DetailsVBox/InfoRows/InfoRow2"]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
+mouse_filter = 0
+theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
+theme_override_font_sizes/font_size = 9
+vertical_alignment = 1
+text = "Ownership"
+
+[node name="InfoValue" type="Label" parent="Margin/DetailsVBox/InfoRows/InfoRow2"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.75, 0.62, 1)
+theme_override_font_sizes/font_size = 10
+vertical_alignment = 1
+text = "-"
+text_overrun_behavior = 3
+
+[node name="InfoRow3" type="HBoxContainer" parent="Margin/DetailsVBox/InfoRows"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="InfoLabel" type="Label" parent="Margin/DetailsVBox/InfoRows/InfoRow3"]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
+mouse_filter = 0
+theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
+theme_override_font_sizes/font_size = 9
+vertical_alignment = 1
+text = "Action"
+
+[node name="InfoValue" type="Label" parent="Margin/DetailsVBox/InfoRows/InfoRow3"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.75, 0.62, 1)
+theme_override_font_sizes/font_size = 10
+vertical_alignment = 1
+text = "-"
+text_overrun_behavior = 3
+
+[node name="InfoRow4" type="HBoxContainer" parent="Margin/DetailsVBox/InfoRows"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="InfoLabel" type="Label" parent="Margin/DetailsVBox/InfoRows/InfoRow4"]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
+mouse_filter = 0
+theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
+theme_override_font_sizes/font_size = 9
+vertical_alignment = 1
+text = "Status"
+
+[node name="InfoValue" type="Label" parent="Margin/DetailsVBox/InfoRows/InfoRow4"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.75, 0.62, 1)
+theme_override_font_sizes/font_size = 10
+vertical_alignment = 1
+text = "-"
+text_overrun_behavior = 3
+
 [node name="HungerRow" type="HBoxContainer" parent="Margin/DetailsVBox"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
 [node name="HungerLabel" type="Label" parent="Margin/DetailsVBox/HungerRow"]
-custom_minimum_size = Vector2(42, 0)
+custom_minimum_size = Vector2(60, 0)
 layout_mode = 2
+mouse_filter = 0
 theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
 theme_override_font_sizes/font_size = 9
 vertical_alignment = 1
-text = "HNG"
+text = "Hunger"
 
 [node name="HungerBarFrame" type="PanelContainer" parent="Margin/DetailsVBox/HungerRow"]
 custom_minimum_size = Vector2(0, 14)
@@ -139,12 +237,13 @@ layout_mode = 2
 theme_override_constants/separation = 6
 
 [node name="BloodLabel" type="Label" parent="Margin/DetailsVBox/BloodRow"]
-custom_minimum_size = Vector2(42, 0)
+custom_minimum_size = Vector2(60, 0)
 layout_mode = 2
+mouse_filter = 0
 theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
 theme_override_font_sizes/font_size = 9
 vertical_alignment = 1
-text = "BLD"
+text = "Blood"
 
 [node name="BloodBarFrame" type="PanelContainer" parent="Margin/DetailsVBox/BloodRow"]
 custom_minimum_size = Vector2(0, 14)
@@ -176,12 +275,13 @@ layout_mode = 2
 theme_override_constants/separation = 6
 
 [node name="HpLabel" type="Label" parent="Margin/DetailsVBox/HpRow"]
-custom_minimum_size = Vector2(42, 0)
+custom_minimum_size = Vector2(60, 0)
 layout_mode = 2
+mouse_filter = 0
 theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
 theme_override_font_sizes/font_size = 9
 vertical_alignment = 1
-text = "HP"
+text = "Health"
 
 [node name="HpBarFrame" type="PanelContainer" parent="Margin/DetailsVBox/HpRow"]
 custom_minimum_size = Vector2(0, 14)
@@ -223,12 +323,13 @@ layout_mode = 2
 theme_override_constants/separation = 6
 
 [node name="FatigueLabel" type="Label" parent="Margin/DetailsVBox/FatigueRow"]
-custom_minimum_size = Vector2(42, 0)
+custom_minimum_size = Vector2(60, 0)
 layout_mode = 2
+mouse_filter = 0
 theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
 theme_override_font_sizes/font_size = 9
 vertical_alignment = 1
-text = "FTG"
+text = "Fatigue"
 
 [node name="FatigueBarFrame" type="PanelContainer" parent="Margin/DetailsVBox/FatigueRow"]
 custom_minimum_size = Vector2(0, 14)

@@ -24,13 +24,22 @@ const ACTION_STAND_UP := 15
 const ACTION_PLACE_IN_BED := 16
 const ACTION_PICKUP_ITEM := 17
 const ACTION_WORLD_CONTEXT_BASE := 10000
-const STANCE_OPTION_MIXED := 3
+const SQUAD_MENU_RENAME := 1
+const ALL_SQUADS_FILTER := ""
+const DEFAULT_PLAYER_SQUAD_NAME := "Squad 1"
 const FREE_CAMERA_PITCH := -0.65
 const FOLLOW_CAMERA_HEIGHT := 1.35
 const ORBIT_MIN_PITCH := -1.2
 const ORBIT_MAX_PITCH := 0.18
 const GROUND_Y := 0.0
 const MOVE_COMMAND_NAV_PROJECTION_VERTICAL_TOLERANCE := 0.8
+const MOVEMENT_MODE_WALK := 0
+const MOVEMENT_MODE_RUN := 1
+const MOVEMENT_MODE_SNEAK := 2
+const SEGMENT_SINGLE := 0
+const SEGMENT_LEFT := 1
+const SEGMENT_MIDDLE := 2
+const SEGMENT_RIGHT := 3
 
 @export var free_camera_move_speed := 14.0
 @export var camera_zoom_step := 1.0
@@ -81,15 +90,35 @@ var selection_rect: ColorRect
 var context_menu: PopupMenu
 var progress_layer: Control
 var portrait_flow: Container
-var running_button: CheckButton
-var sneaking_button: CheckButton
-var stance_option: OptionButton
+var squad_tab_row: HBoxContainer
+var squad_all_button: Button
+var squad_add_button: Button
+var squad_name_label: Label
+var squad_formation_button: Button
+var squad_ai_button: Button
+var command_title_label: Label
+var walk_button: Button
+var running_button: Button
+var sneaking_button: Button
+var auto_heal_button: Button
+var aggressive_button: Button
+var defensive_button: Button
+var passive_button: Button
 var inventory_controller: PartyInventoryController
 var humanoid_details_controller
 var conversation_controller
 var ownership_controller
 var building_visibility_controller
 var floating_notice: FloatingNotice
+var squad_names: Array[String] = []
+var squad_tab_buttons: Dictionary = {}
+var squad_tab_menu_buttons: Dictionary = {}
+var squad_tab_containers: Dictionary = {}
+var active_squad_filter := ALL_SQUADS_FILTER
+var squad_menu: PopupMenu
+var squad_rename_dialog: AcceptDialog
+var squad_rename_line_edit: LineEdit
+var squad_menu_target_name := ""
 var _initialized := false
 
 
@@ -120,10 +149,24 @@ func _do_initialize() -> void:
 	selection_rect = hud_layer.get_node("SelectionRect")
 	context_menu = hud_layer.get_node_or_null("ContextMenu")
 	progress_layer = hud_layer.get_node_or_null("ProgressLayer")
-	running_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn/RunningButton")
-	sneaking_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn/SneakingButton")
-	stance_option = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/StanceOption")
-	portrait_flow = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/PortraitScroll/PortraitFlow")
+	var command_rows_path := "HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows"
+	command_title_label = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/Title")
+	if command_title_label != null:
+		command_title_label.text = "Behavior"
+	walk_button = hud_layer.get_node_or_null(command_rows_path + "/MoveRow/MovementSegment/WalkButton")
+	running_button = hud_layer.get_node_or_null(command_rows_path + "/MoveRow/MovementSegment/RunningButton")
+	sneaking_button = hud_layer.get_node_or_null(command_rows_path + "/MoveRow/MovementSegment/SneakingButton")
+	auto_heal_button = hud_layer.get_node_or_null(command_rows_path + "/AssistRow/AutoHealButton")
+	aggressive_button = hud_layer.get_node_or_null(command_rows_path + "/FightRow/CombatSegment/AggressiveButton")
+	defensive_button = hud_layer.get_node_or_null(command_rows_path + "/FightRow/CombatSegment/DefensiveButton")
+	passive_button = hud_layer.get_node_or_null(command_rows_path + "/FightRow/CombatSegment/PassiveButton")
+	squad_tab_row = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadTabs")
+	squad_all_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadTabs/AllButton")
+	squad_add_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadTabs/AddSquadButton")
+	squad_name_label = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadCommandStrip/SquadName")
+	squad_formation_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadCommandStrip/FormationButton")
+	squad_ai_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadCommandStrip/SquadAIButton")
+	portrait_flow = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/PortraitScroll/PortraitFlow")
 	floating_notice = hud_layer.get_node_or_null("FloatingNotice")
 	inventory_controller = get_parent().get_node("PartyInventoryController")
 	humanoid_details_controller = get_parent().get_node("HumanoidDetailsController")
@@ -160,7 +203,9 @@ func _do_initialize() -> void:
 
 	if context_menu != null:
 		context_menu.id_pressed.connect(_on_context_menu_id_pressed)
+	_setup_squad_tabs()
 	_setup_command_bar()
+	_refresh_squad_tabs()
 
 	if not party_members.is_empty():
 		party_manager.select_only(party_members[0])
@@ -176,6 +221,7 @@ func _do_initialize() -> void:
 func _register_party_member(member: HumanoidCharacter) -> void:
 	if member == null or party_members.has(member):
 		return
+	_normalize_party_member_squad(member)
 	party_members.append(member)
 	member.container_reached.connect(_on_party_member_container_reached)
 	member.trade_target_reached.connect(_on_party_member_trade_target_reached)
@@ -193,6 +239,7 @@ func _add_portrait_for_member(member: HumanoidCharacter) -> void:
 	card.setup(member)
 	card.portrait_pressed.connect(_on_portrait_pressed)
 	portrait_cards.append(card)
+	card.visible = _should_show_member_in_active_squad(member)
 
 
 func _ensure_work_progress_bar(member: HumanoidCharacter) -> void:
@@ -213,10 +260,12 @@ func _process(delta: float) -> void:
 	if not _initialized:
 		return
 	var input_delta := _get_unscaled_input_delta(delta)
-	var move_input := Vector2(
-		float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A)),
-		float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_W))
-	)
+	var move_input := Vector2.ZERO
+	if not _is_text_input_focused():
+		move_input = Vector2(
+			float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A)),
+			float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_W))
+		)
 
 	if party_manager.followed_member != null and move_input.length() > 0.0:
 		_clear_follow_target()
@@ -248,6 +297,11 @@ func _physics_process(_delta: float) -> void:
 
 func _get_unscaled_input_delta(delta: float) -> float:
 	return delta / maxf(Engine.time_scale, 0.001)
+
+
+func _is_text_input_focused() -> bool:
+	var focus_owner := get_viewport().gui_get_focus_owner()
+	return focus_owner is LineEdit or focus_owner is TextEdit
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -813,52 +867,446 @@ func _update_portraits() -> void:
 		var card: PartyPortraitCard = portrait_cards[index]
 		var is_selected: bool = member.is_selected
 		var is_followed: bool = member.is_focused
+		card.visible = _should_show_member_in_active_squad(member)
 		card.apply_state(is_selected, is_followed)
 
 
+func _setup_squad_tabs() -> void:
+	if squad_all_button != null:
+		squad_all_button.toggled.connect(_on_all_squads_tab_toggled)
+	if squad_add_button != null:
+		squad_add_button.pressed.connect(_on_add_squad_pressed)
+	_ensure_squad_menu()
+
+
+func _refresh_squad_tabs() -> void:
+	if squad_tab_row == null:
+		return
+	_sync_squad_names()
+	for container in squad_tab_containers.values():
+		if container is Control and is_instance_valid(container):
+			squad_tab_row.remove_child(container)
+			container.queue_free()
+	squad_tab_buttons.clear()
+	squad_tab_menu_buttons.clear()
+	squad_tab_containers.clear()
+	for squad_name in squad_names:
+		var tab_group := HBoxContainer.new()
+		tab_group.name = _get_squad_tab_node_name(squad_name)
+		tab_group.custom_minimum_size = Vector2(116.0, 22.0)
+		tab_group.add_theme_constant_override("separation", 0)
+		squad_tab_row.add_child(tab_group)
+		var button := Button.new()
+		button.text = _format_squad_tab_label(squad_name)
+		button.name = "TitleButton"
+		button.custom_minimum_size = Vector2(92.0, 22.0)
+		button.toggle_mode = true
+		button.focus_mode = Control.FOCUS_NONE
+		button.add_theme_font_size_override("font_size", 10)
+		button.toggled.connect(_on_squad_tab_toggled.bind(squad_name))
+		button.gui_input.connect(_on_squad_tab_gui_input.bind(squad_name))
+		_set_command_segment_position(button, SEGMENT_LEFT)
+		tab_group.add_child(button)
+		var menu_button := Button.new()
+		menu_button.text = "..."
+		menu_button.name = "MenuButton"
+		menu_button.custom_minimum_size = Vector2(24.0, 22.0)
+		menu_button.toggle_mode = true
+		menu_button.focus_mode = Control.FOCUS_NONE
+		menu_button.add_theme_font_size_override("font_size", 10)
+		menu_button.pressed.connect(_on_squad_menu_button_pressed.bind(squad_name, menu_button))
+		_set_command_segment_position(menu_button, SEGMENT_RIGHT)
+		tab_group.add_child(menu_button)
+		if squad_add_button != null:
+			squad_tab_row.move_child(tab_group, squad_add_button.get_index())
+		squad_tab_buttons[squad_name] = button
+		squad_tab_menu_buttons[squad_name] = menu_button
+		squad_tab_containers[squad_name] = tab_group
+	if squad_all_button != null:
+		squad_all_button.text = "All (%d)" % party_members.size()
+	_update_squad_tab_styles()
+	_update_squad_command_strip()
+	_update_portraits()
+
+
+func _sync_squad_names() -> void:
+	var names: Array[String] = []
+	for existing_name in squad_names:
+		var normalized_existing := str(existing_name).strip_edges()
+		if not normalized_existing.is_empty() and not names.has(normalized_existing):
+			names.append(normalized_existing)
+	for member in party_members:
+		var squad_name := _normalize_party_member_squad(member)
+		if not names.has(squad_name):
+			names.append(squad_name)
+	if names.is_empty():
+		names.append(DEFAULT_PLAYER_SQUAD_NAME)
+	squad_names = names
+	if not active_squad_filter.is_empty() and not squad_names.has(active_squad_filter):
+		active_squad_filter = ALL_SQUADS_FILTER
+
+
+func _normalize_party_member_squad(member: HumanoidCharacter) -> String:
+	if member == null:
+		return DEFAULT_PLAYER_SQUAD_NAME
+	var normalized_name := member.squad_name.strip_edges()
+	if normalized_name.is_empty() or normalized_name == "Default":
+		normalized_name = DEFAULT_PLAYER_SQUAD_NAME
+		member.squad_name = normalized_name
+	return normalized_name
+
+
+func _should_show_member_in_active_squad(member: HumanoidCharacter) -> bool:
+	if member == null or active_squad_filter.is_empty():
+		return true
+	return _normalize_party_member_squad(member) == active_squad_filter
+
+
+func _get_squad_member_count(squad_name: String) -> int:
+	var count := 0
+	for member in party_members:
+		if _normalize_party_member_squad(member) == squad_name:
+			count += 1
+	return count
+
+
+func _on_all_squads_tab_toggled(button_pressed: bool) -> void:
+	if not button_pressed and active_squad_filter == ALL_SQUADS_FILTER:
+		_update_squad_tab_styles()
+		return
+	active_squad_filter = ALL_SQUADS_FILTER
+	_update_squad_tab_styles()
+	_update_squad_command_strip()
+	_update_portraits()
+
+
+func _on_squad_tab_toggled(button_pressed: bool, squad_name: String) -> void:
+	if not button_pressed and active_squad_filter == squad_name:
+		_update_squad_tab_styles()
+		return
+	active_squad_filter = squad_name
+	_update_squad_tab_styles()
+	_update_squad_command_strip()
+	_update_portraits()
+
+
+func _on_add_squad_pressed() -> void:
+	var squad_name := _get_next_squad_name()
+	if not squad_names.has(squad_name):
+		squad_names.append(squad_name)
+	active_squad_filter = squad_name
+	_refresh_squad_tabs()
+
+
+func _get_next_squad_name() -> String:
+	var index := 1
+	while squad_names.has("Squad %d" % index):
+		index += 1
+	return "Squad %d" % index
+
+
+func _get_squad_tab_node_name(squad_name: String) -> String:
+	return "SquadTab%s" % squad_name.replace(" ", "").replace("/", "").replace(":", "")
+
+
+func _format_squad_tab_label(squad_name: String) -> String:
+	return "%s (%d)" % [squad_name, _get_squad_member_count(squad_name)]
+
+
+func _update_squad_tab_styles() -> void:
+	_set_command_toggle(squad_all_button, active_squad_filter == ALL_SQUADS_FILTER, false)
+	for squad_name in squad_tab_buttons.keys():
+		var squad_name_text := str(squad_name)
+		var is_active: bool = active_squad_filter == squad_name_text
+		_set_command_toggle(squad_tab_buttons[squad_name_text] as Button, is_active, false)
+		_set_command_toggle(squad_tab_menu_buttons[squad_name_text] as Button, is_active, false)
+	_apply_command_button_style(squad_add_button, false, false)
+	_update_squad_command_strip()
+
+
+func _update_squad_command_strip() -> void:
+	if squad_name_label != null:
+		squad_name_label.text = "All Squads" if active_squad_filter == ALL_SQUADS_FILTER else active_squad_filter
+	_set_command_toggle(squad_formation_button, false, true)
+	_set_command_toggle(squad_ai_button, false, true)
+
+
+func _ensure_squad_menu() -> void:
+	if hud_layer == null:
+		return
+	if squad_menu == null:
+		squad_menu = hud_layer.get_node_or_null("SquadContextMenu") as PopupMenu
+		if squad_menu == null:
+			squad_menu = PopupMenu.new()
+			squad_menu.name = "SquadContextMenu"
+			hud_layer.add_child(squad_menu)
+	var menu_callable := Callable(self, "_on_squad_menu_id_pressed")
+	if not squad_menu.id_pressed.is_connected(menu_callable):
+		squad_menu.id_pressed.connect(menu_callable)
+	squad_menu.clear()
+	squad_menu.add_item("Rename", SQUAD_MENU_RENAME)
+	if squad_rename_dialog == null:
+		squad_rename_dialog = hud_layer.get_node_or_null("SquadRenameDialog") as AcceptDialog
+		if squad_rename_dialog == null:
+			squad_rename_dialog = AcceptDialog.new()
+			squad_rename_dialog.name = "SquadRenameDialog"
+			squad_rename_dialog.title = "Rename Squad"
+			squad_rename_dialog.min_size = Vector2i(280, 92)
+			hud_layer.add_child(squad_rename_dialog)
+			var margin := MarginContainer.new()
+			margin.add_theme_constant_override("margin_left", 12)
+			margin.add_theme_constant_override("margin_top", 10)
+			margin.add_theme_constant_override("margin_right", 12)
+			margin.add_theme_constant_override("margin_bottom", 8)
+			squad_rename_dialog.add_child(margin)
+			squad_rename_line_edit = LineEdit.new()
+			squad_rename_line_edit.custom_minimum_size = Vector2(240.0, 28.0)
+			squad_rename_line_edit.placeholder_text = "Squad name"
+			margin.add_child(squad_rename_line_edit)
+		else:
+			squad_rename_line_edit = squad_rename_dialog.get_node_or_null("MarginContainer/LineEdit") as LineEdit
+	if squad_rename_line_edit != null:
+		var submitted_callable := Callable(self, "_on_squad_rename_text_submitted")
+		if not squad_rename_line_edit.text_submitted.is_connected(submitted_callable):
+			squad_rename_line_edit.text_submitted.connect(submitted_callable)
+	var confirmed_callable := Callable(self, "_on_squad_rename_confirmed")
+	if not squad_rename_dialog.confirmed.is_connected(confirmed_callable):
+		squad_rename_dialog.confirmed.connect(confirmed_callable)
+
+
+func _on_squad_menu_button_pressed(squad_name: String, button: Button) -> void:
+	if button != null:
+		button.set_pressed_no_signal(active_squad_filter == squad_name)
+		_show_squad_menu(squad_name, button.get_screen_position() + Vector2(0.0, button.size.y))
+
+
+func _on_squad_tab_gui_input(event: InputEvent, squad_name: String) -> void:
+	if event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		if mouse_event.button_index == MOUSE_BUTTON_RIGHT and mouse_event.pressed:
+			_show_squad_menu(squad_name, get_viewport().get_mouse_position())
+			get_viewport().set_input_as_handled()
+
+
+func _show_squad_menu(squad_name: String, screen_position: Vector2) -> void:
+	if squad_name.strip_edges().is_empty():
+		return
+	_ensure_squad_menu()
+	if squad_menu == null:
+		return
+	squad_menu_target_name = squad_name
+	squad_menu.position = Vector2i(screen_position)
+	squad_menu.popup()
+
+
+func _on_squad_menu_id_pressed(id: int) -> void:
+	match id:
+		SQUAD_MENU_RENAME:
+			_open_squad_rename_dialog(squad_menu_target_name)
+
+
+func _open_squad_rename_dialog(squad_name: String) -> void:
+	if squad_name.strip_edges().is_empty():
+		return
+	_ensure_squad_menu()
+	if squad_rename_dialog == null or squad_rename_line_edit == null:
+		return
+	squad_menu_target_name = squad_name
+	squad_rename_dialog.title = "Rename %s" % squad_name
+	squad_rename_line_edit.text = squad_name
+	squad_rename_dialog.popup_centered(Vector2i(280, 92))
+	call_deferred("_focus_squad_rename_line_edit")
+
+
+func _focus_squad_rename_line_edit() -> void:
+	if squad_rename_line_edit == null:
+		return
+	squad_rename_line_edit.grab_focus()
+	squad_rename_line_edit.select_all()
+
+
+func _on_squad_rename_text_submitted(text: String) -> void:
+	_confirm_squad_rename(text)
+	if squad_rename_dialog != null:
+		squad_rename_dialog.hide()
+
+
+func _on_squad_rename_confirmed() -> void:
+	if squad_rename_line_edit == null:
+		return
+	_confirm_squad_rename(squad_rename_line_edit.text)
+
+
+func _confirm_squad_rename(raw_name: String) -> void:
+	var old_name := squad_menu_target_name.strip_edges()
+	var new_name := raw_name.strip_edges()
+	if old_name.is_empty() or new_name.is_empty() or old_name == new_name:
+		return
+	if new_name.to_lower() == "all" or new_name.to_lower() == "default":
+		_show_center_notice("Squad name unavailable")
+		return
+	if _squad_name_exists(new_name, old_name):
+		_show_center_notice("Squad name already exists")
+		return
+	for index in range(squad_names.size()):
+		if squad_names[index] == old_name:
+			squad_names[index] = new_name
+	for member in party_members:
+		if _normalize_party_member_squad(member) == old_name:
+			member.squad_name = new_name
+	if active_squad_filter == old_name:
+		active_squad_filter = new_name
+	squad_menu_target_name = new_name
+	_refresh_squad_tabs()
+
+
+func _squad_name_exists(squad_name: String, ignored_name: String = "") -> bool:
+	var normalized_name := squad_name.strip_edges().to_lower()
+	var ignored_normalized := ignored_name.strip_edges().to_lower()
+	for existing_name in squad_names:
+		var normalized_existing := str(existing_name).strip_edges().to_lower()
+		if normalized_existing == normalized_name and normalized_existing != ignored_normalized:
+			return true
+	return false
+
+
 func _setup_command_bar() -> void:
+	_set_command_segment_position(walk_button, SEGMENT_LEFT)
+	_set_command_segment_position(running_button, SEGMENT_MIDDLE)
+	_set_command_segment_position(sneaking_button, SEGMENT_RIGHT)
+	_set_command_segment_position(aggressive_button, SEGMENT_LEFT)
+	_set_command_segment_position(defensive_button, SEGMENT_MIDDLE)
+	_set_command_segment_position(passive_button, SEGMENT_RIGHT)
+	_set_command_segment_position(auto_heal_button, SEGMENT_SINGLE)
+	if walk_button != null:
+		walk_button.pressed.connect(_on_movement_button_pressed.bind(MOVEMENT_MODE_WALK))
 	if running_button != null:
-		running_button.toggled.connect(_on_running_button_toggled)
+		running_button.pressed.connect(_on_movement_button_pressed.bind(MOVEMENT_MODE_RUN))
 	if sneaking_button != null:
-		sneaking_button.toggled.connect(_on_sneaking_button_toggled)
-	if stance_option != null:
-		stance_option.clear()
-		stance_option.add_item("Aggressive", NpcRules.CombatStance.AGGRESSIVE)
-		stance_option.add_item("Defensive", NpcRules.CombatStance.DEFENSIVE)
-		stance_option.add_item("Passive", NpcRules.CombatStance.PASSIVE)
-		stance_option.add_item("Mixed", STANCE_OPTION_MIXED)
-		stance_option.item_selected.connect(_on_stance_option_selected)
+		sneaking_button.pressed.connect(_on_movement_button_pressed.bind(MOVEMENT_MODE_SNEAK))
+	if auto_heal_button != null:
+		auto_heal_button.toggled.connect(_on_auto_heal_button_toggled)
+	if aggressive_button != null:
+		aggressive_button.pressed.connect(_on_stance_button_pressed.bind(NpcRules.CombatStance.AGGRESSIVE))
+	if defensive_button != null:
+		defensive_button.pressed.connect(_on_stance_button_pressed.bind(NpcRules.CombatStance.DEFENSIVE))
+	if passive_button != null:
+		passive_button.pressed.connect(_on_stance_button_pressed.bind(NpcRules.CombatStance.PASSIVE))
+	_update_squad_command_strip()
 
 
 func _update_command_bar() -> void:
-	if running_button == null or sneaking_button == null or stance_option == null:
+	if walk_button == null or running_button == null or sneaking_button == null or auto_heal_button == null or aggressive_button == null or defensive_button == null or passive_button == null:
 		return
 	var has_selection := not party_manager.selected_members.is_empty()
-	running_button.disabled = not has_selection
-	sneaking_button.disabled = not has_selection
-	stance_option.disabled = not has_selection
 	if not has_selection:
-		running_button.set_pressed_no_signal(false)
-		sneaking_button.set_pressed_no_signal(false)
-		stance_option.select(NpcRules.CombatStance.DEFENSIVE)
+		_set_command_toggle(walk_button, false, true)
+		_set_command_toggle(running_button, false, true)
+		_set_command_toggle(sneaking_button, false, true)
+		_set_command_toggle(auto_heal_button, false, true)
+		_set_command_toggle(aggressive_button, false, true)
+		_set_command_toggle(defensive_button, false, true)
+		_set_command_toggle(passive_button, false, true)
 		return
+	var any_walking := false
+	var all_walking := true
 	var any_running := false
+	var all_running := true
 	var any_sneaking := false
+	var all_sneaking := true
+	var any_auto_heal := false
+	var all_auto_heal := true
 	var first_stance: int = party_manager.selected_members[0].combat_stance
 	var mixed_stance := false
 	for member in party_manager.selected_members:
-		if member.is_running_enabled() or member.running:
+		var member_running: bool = member.is_running_enabled() or member.running
+		var member_sneaking: bool = member.sneaking
+		var member_walking := not member_running and not member_sneaking
+		var member_auto_heal: bool = member.has_method("is_auto_heal_enabled") and member.is_auto_heal_enabled()
+		if member_walking:
+			any_walking = true
+		else:
+			all_walking = false
+		if member_running:
 			any_running = true
-		if member.sneaking:
+		else:
+			all_running = false
+		if member_sneaking:
 			any_sneaking = true
+		else:
+			all_sneaking = false
+		if member_auto_heal:
+			any_auto_heal = true
+		else:
+			all_auto_heal = false
 		if member.combat_stance != first_stance:
 			mixed_stance = true
-	running_button.set_pressed_no_signal(any_running)
-	sneaking_button.set_pressed_no_signal(any_sneaking)
-	if mixed_stance:
-		stance_option.select(STANCE_OPTION_MIXED)
-	else:
-		stance_option.select(first_stance)
+	_set_command_toggle(walk_button, any_walking, false, any_walking and not all_walking)
+	_set_command_toggle(running_button, any_running, false, any_running and not all_running)
+	_set_command_toggle(sneaking_button, any_sneaking, false, any_sneaking and not all_sneaking)
+	_set_command_toggle(auto_heal_button, any_auto_heal, false, any_auto_heal and not all_auto_heal)
+	_set_command_toggle(aggressive_button, not mixed_stance and first_stance == NpcRules.CombatStance.AGGRESSIVE, false)
+	_set_command_toggle(defensive_button, not mixed_stance and first_stance == NpcRules.CombatStance.DEFENSIVE, false)
+	_set_command_toggle(passive_button, not mixed_stance and first_stance == NpcRules.CombatStance.PASSIVE, false)
+
+
+func _set_command_toggle(button: Button, active: bool, disabled: bool, mixed: bool = false) -> void:
+	if button == null:
+		return
+	button.disabled = disabled
+	button.set_pressed_no_signal(active)
+	_apply_command_button_style(button, active, disabled, mixed)
+
+
+func _set_command_segment_position(button: Button, segment_position: int) -> void:
+	if button == null:
+		return
+	button.set_meta("command_segment_position", segment_position)
+
+
+func _apply_command_button_style(button: Button, active: bool, disabled: bool, mixed: bool = false) -> void:
+	if button == null:
+		return
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.047, 0.043, 0.96)
+	style.border_color = Color(0.28, 0.23, 0.16, 1.0)
+	style.set_border_width_all(1)
+	style.corner_radius_top_left = 3
+	style.corner_radius_top_right = 3
+	style.corner_radius_bottom_right = 3
+	style.corner_radius_bottom_left = 3
+	match int(button.get_meta("command_segment_position", SEGMENT_SINGLE)):
+		SEGMENT_LEFT:
+			style.corner_radius_top_right = 0
+			style.corner_radius_bottom_right = 0
+		SEGMENT_MIDDLE:
+			style.corner_radius_top_left = 0
+			style.corner_radius_bottom_left = 0
+			style.corner_radius_top_right = 0
+			style.corner_radius_bottom_right = 0
+		SEGMENT_RIGHT:
+			style.corner_radius_top_left = 0
+			style.corner_radius_bottom_left = 0
+	if active:
+		style.bg_color = Color(0.22, 0.17, 0.08, 0.98)
+		style.border_color = Color(0.95, 0.7, 0.32, 1.0) if not mixed else Color(0.72, 0.56, 0.28, 1.0)
+		style.set_border_width_all(2)
+	if disabled:
+		style.bg_color = Color(0.055, 0.052, 0.049, 0.7)
+		style.border_color = Color(0.18, 0.16, 0.13, 1.0)
+		style.set_border_width_all(1)
+	var hover := style.duplicate() as StyleBoxFlat
+	hover.bg_color = style.bg_color.lightened(0.08)
+	var pressed := style.duplicate() as StyleBoxFlat
+	pressed.bg_color = Color(0.28, 0.21, 0.09, 1.0)
+	button.add_theme_stylebox_override("normal", style)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.add_theme_stylebox_override("focus", style)
+	button.add_theme_color_override("font_color", Color(0.88, 0.82, 0.68, 1.0) if not disabled else Color(0.38, 0.36, 0.32, 1.0))
+	button.add_theme_color_override("font_hover_color", Color(0.98, 0.88, 0.62, 1.0))
+	button.add_theme_color_override("font_pressed_color", Color(1.0, 0.88, 0.48, 1.0))
+	button.add_theme_font_size_override("font_size", 9 if button.text.length() > 8 else 10)
 
 
 func _update_progress_bars() -> void:
@@ -932,27 +1380,33 @@ func _on_portrait_pressed(member: HumanoidCharacter, double_click: bool, add_sel
 		_set_follow_target(member)
 
 
-func _on_running_button_toggled(button_pressed: bool) -> void:
+func _on_movement_button_pressed(mode: int) -> void:
 	var any_failed := false
 	for member in party_manager.selected_members:
-		if not member.set_running_enabled(button_pressed):
-			any_failed = true
-	if any_failed and button_pressed:
+		match mode:
+			MOVEMENT_MODE_WALK:
+				member.set_running_enabled(false)
+				member.set_sneaking_enabled(false)
+			MOVEMENT_MODE_RUN:
+				if not member.set_running_enabled(true):
+					any_failed = true
+			MOVEMENT_MODE_SNEAK:
+				member.set_sneaking_enabled(true)
+	if any_failed and mode == MOVEMENT_MODE_RUN:
 		_show_center_notice("Too Exhausted to run")
 	_update_command_bar()
 
 
-func _on_sneaking_button_toggled(button_pressed: bool) -> void:
+func _on_auto_heal_button_toggled(button_pressed: bool) -> void:
 	for member in party_manager.selected_members:
-		member.set_sneaking_enabled(button_pressed)
+		if member.has_method("set_auto_heal_enabled"):
+			member.set_auto_heal_enabled(button_pressed)
 	_update_command_bar()
 
 
-func _on_stance_option_selected(index: int) -> void:
-	if index == STANCE_OPTION_MIXED:
-		return
+func _on_stance_button_pressed(stance: int) -> void:
 	for member in party_manager.selected_members:
-		member.set_combat_stance(index)
+		member.set_combat_stance(stance)
 	_update_command_bar()
 
 
@@ -1253,6 +1707,7 @@ func _on_party_member_added(member: HumanoidCharacter) -> void:
 	_register_party_member(member)
 	_add_portrait_for_member(member)
 	_ensure_work_progress_bar(member)
+	_refresh_squad_tabs()
 	_update_portraits()
 	_update_command_bar()
 

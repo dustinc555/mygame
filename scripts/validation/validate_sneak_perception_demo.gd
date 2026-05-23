@@ -96,10 +96,10 @@ func _load_scene() -> void:
 	if party_manager != null and _player != null:
 		party_manager.select_only(_player)
 	await _wait_frames(2)
-	var skills_button := _scene.get_node_or_null("GameHUD/HudLayout/BottomHud/HumanoidDetailsPanel/Margin/DetailsVBox/VitalsAttributeRow/AttributeColumn/SkillsButton") as Button
+	var skills_button := _scene.get_node_or_null("GameHUD/HudLayout/BottomHud/InspectorSlot/HumanoidDetailsPanel/Margin/DetailsVBox/ActionRow/SecondaryActionButton") as Button
 	if skills_button == null:
 		_fail("Skills button was not added to selected party member details")
-	elif not skills_button.visible or skills_button.disabled:
+	elif skills_button.text != "Skills" or not skills_button.visible or skills_button.disabled:
 		_fail("Skills button should be visible and enabled for selected party member")
 	else:
 		skills_button.pressed.emit()

@@ -30,24 +30,31 @@ var name_label: Label
 var faction_label: Label
 var work_label: Label
 var state_label: Label
+var hunger_label: Label
 var hunger_bar_stack: Control
 var hunger_fill: ColorRect
 var hunger_value: Label
+var blood_label: Label
 var blood_bar_stack: Control
 var blood_fill: ColorRect
 var blood_value: Label
 var blood_bleed_glow: Panel
 var _blood_bleed_glow_style := StyleBoxFlat.new()
+var hp_label: Label
 var hp_bar_stack: Control
 var hp_health_fill: ColorRect
 var hp_bandaged_fill: ColorRect
 var hp_cut_outline: Control
 var hp_value: Label
+var fatigue_label: Label
 var fatigue_bar_stack: Control
 var fatigue_fill: ColorRect
 var fatigue_value: Label
 var action_buttons: Array[Button] = []
 var vital_rows: Array[Control] = []
+var info_rows: Array[Control] = []
+var info_labels: Array[Label] = []
+var info_values: Array[Label] = []
 var skills_window: Control
 var current_target
 var _initialized := false
@@ -102,25 +109,29 @@ func _do_initialize() -> void:
 		hud_layer = root_scene.get_node_or_null("GameHUD")
 	if hud_layer == null:
 		return
-	details_panel = hud_layer.get_node_or_null("HudLayout/BottomHud/HumanoidDetailsPanel")
+	details_panel = hud_layer.get_node_or_null("HudLayout/BottomHud/InspectorSlot/HumanoidDetailsPanel")
 	if details_panel == null:
 		return
 	name_label = details_panel.get_node("Margin/DetailsVBox/HeaderRow/Name")
 	faction_label = details_panel.get_node("Margin/DetailsVBox/Faction")
 	work_label = details_panel.get_node("Margin/DetailsVBox/WorkStatus")
 	state_label = details_panel.get_node("Margin/DetailsVBox/HeaderRow/State")
+	hunger_label = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerLabel")
 	hunger_bar_stack = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack")
 	hunger_fill = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack/HungerFill")
 	hunger_value = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack/HungerValue")
+	blood_label = details_panel.get_node("Margin/DetailsVBox/BloodRow/BloodLabel")
 	blood_bar_stack = details_panel.get_node("Margin/DetailsVBox/BloodRow/BloodBarFrame/BloodBarStack")
 	blood_fill = details_panel.get_node("Margin/DetailsVBox/BloodRow/BloodBarFrame/BloodBarStack/BloodFill")
 	blood_value = details_panel.get_node("Margin/DetailsVBox/BloodRow/BloodBarFrame/BloodBarStack/BloodValue")
 	_setup_blood_bleed_glow()
+	hp_label = details_panel.get_node("Margin/DetailsVBox/HpRow/HpLabel")
 	hp_bar_stack = details_panel.get_node("Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack")
 	hp_health_fill = details_panel.get_node("Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack/HealthFill")
 	hp_bandaged_fill = details_panel.get_node("Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack/BandagedFill")
 	hp_cut_outline = details_panel.get_node("Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack/CutOutline")
 	hp_value = details_panel.get_node("Margin/DetailsVBox/HpRow/HpBarFrame/HpBarStack/HpValue")
+	fatigue_label = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueLabel")
 	fatigue_bar_stack = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack")
 	fatigue_fill = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack/FatigueFill")
 	fatigue_value = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack/FatigueValue")
@@ -130,6 +141,11 @@ func _do_initialize() -> void:
 		details_panel.get_node("Margin/DetailsVBox/HpRow"),
 		details_panel.get_node("Margin/DetailsVBox/FatigueRow"),
 	]
+	for index in range(1, 5):
+		var info_row := details_panel.get_node("Margin/DetailsVBox/InfoRows/InfoRow%d" % index) as Control
+		info_rows.append(info_row)
+		info_labels.append(info_row.get_node("InfoLabel") as Label)
+		info_values.append(info_row.get_node("InfoValue") as Label)
 	_register_action_button("Margin/DetailsVBox/ActionRow/PrimaryActionButton")
 	_register_action_button("Margin/DetailsVBox/ActionRow/SecondaryActionButton")
 	_register_action_button("Margin/DetailsVBox/ActionRow/TertiaryActionButton")
@@ -163,17 +179,19 @@ func _update_panel() -> void:
 
 func _update_empty_panel() -> void:
 	_set_vitals_visible(false)
+	_set_info_rows_visible(false)
 	name_label.text = "No target"
 	faction_label.text = "Left-click a person, item, or resource"
 	work_label.text = "Inspector ready"
 	state_label.text = "IDLE"
 	state_label.modulate = Color(0.58, 0.55, 0.5, 1.0)
-	_clear_bar_values()
 	_set_actions([])
 
 
 func _update_humanoid_panel(target: HumanoidCharacter) -> void:
 	_set_vitals_visible(true)
+	_set_info_rows_visible(false)
+	_set_humanoid_row_labels()
 	name_label.text = target.member_name
 	faction_label.text = target.faction_name
 	work_label.text = target.get_job_status_text() if target.has_method("get_job_status_text") else ""
@@ -195,12 +213,14 @@ func _update_humanoid_panel(target: HumanoidCharacter) -> void:
 
 func _update_world_target_panel(target) -> void:
 	_set_vitals_visible(false)
+	_set_info_rows_visible(true)
 	_clear_bar_values()
 	name_label.text = _get_target_display_name(target)
 	faction_label.text = _get_target_subtitle(target)
 	work_label.text = _get_target_detail(target)
 	state_label.text = _get_target_state_label(target)
 	state_label.modulate = _get_target_state_color(target)
+	_set_world_target_rows(target)
 	_set_actions(_get_world_target_actions(target))
 
 
@@ -293,6 +313,98 @@ func _set_vitals_visible(is_visible: bool) -> void:
 			row.visible = is_visible
 
 
+func _set_info_rows_visible(is_visible: bool) -> void:
+	var info_rows_container := details_panel.get_node_or_null("Margin/DetailsVBox/InfoRows") as Control
+	if info_rows_container != null:
+		info_rows_container.visible = is_visible
+	for row in info_rows:
+		if row != null:
+			row.visible = is_visible
+
+
+func _set_humanoid_row_labels() -> void:
+	_set_row_label(hunger_label, "Hunger")
+	_set_row_label(blood_label, "Blood")
+	_set_row_label(hp_label, "Health")
+	_set_row_label(fatigue_label, "Fatigue")
+
+
+func _set_world_target_rows(target) -> void:
+	if _is_building_target(target):
+		_set_info_rows([
+			{"label": "Type", "value": _get_building_type_label(target)},
+			{"label": "Ownership", "value": _get_building_ownership_text(target)},
+			{"label": "Jurisdiction", "value": _get_building_jurisdiction_text(target)},
+			{"label": "Access", "value": _get_building_status_text(target)},
+		])
+		return
+	if target is Node and target.is_in_group("mining_resource"):
+		_set_info_rows([
+			{"label": "Type", "value": _get_target_type_text(target)},
+			{"label": "Tool", "value": _get_string_property(target, "required_tool_label", "Tool")},
+			{"label": "Skill", "value": "Mining %d" % _get_int_property(target, "required_mining_level", 0)},
+			{"label": "Status", "value": _get_target_state_text(target)},
+		])
+		return
+	if target is Node and target.is_in_group("scavenging_resource"):
+		var charges := _get_int_property(target, "current_charges", -1)
+		_set_info_rows([
+			{"label": "Type", "value": _get_target_type_text(target)},
+			{"label": "Difficulty", "value": "Scavenging %d" % _get_int_property(target, "scavenging_difficulty", 0)},
+			{"label": "Remaining", "value": "Unknown" if charges < 0 else str(charges)},
+			{"label": "Status", "value": _get_target_state_text(target)},
+		])
+		return
+	if target is Node and target.is_in_group("world_container"):
+		_set_info_rows([
+			{"label": "Type", "value": _get_target_type_text(target)},
+			{"label": "Ownership", "value": _get_target_owner_text(target)},
+			{"label": "Lock", "value": "Locked" if bool(target.get("is_locked")) else "Open"},
+			{"label": "Status", "value": _get_target_state_text(target)},
+		])
+		return
+	if target is Node and target.is_in_group("world_item"):
+		var quantity := _get_int_property(target, "quantity", 1)
+		_set_info_rows([
+			{"label": "Type", "value": _get_target_type_text(target)},
+			{"label": "Ownership", "value": _get_target_owner_text(target)},
+			{"label": "Quantity", "value": str(maxi(quantity, 1))},
+			{"label": "Status", "value": _get_target_state_text(target)},
+		])
+		return
+	_set_info_rows([
+		{"label": "Type", "value": _get_target_type_text(target)},
+		{"label": "Ownership", "value": _get_target_owner_text(target)},
+		{"label": "Action", "value": _get_target_requirement_text(target)},
+		{"label": "Status", "value": _get_target_state_text(target)},
+	])
+
+
+func _set_info_rows(rows: Array) -> void:
+	for index in range(info_rows.size()):
+		var row := info_rows[index]
+		if row == null:
+			continue
+		row.visible = index < rows.size()
+		if index >= rows.size():
+			continue
+		_set_info_row(info_labels[index], info_values[index], rows[index])
+
+
+func _set_info_row(label: Label, value_label: Label, data: Dictionary) -> void:
+	_set_row_label(label, str(data.get("label", "-")))
+	if value_label != null:
+		value_label.text = str(data.get("value", "-"))
+
+
+func _set_row_label(label: Label, text: String) -> void:
+	if label == null:
+		return
+	label.text = text
+	label.tooltip_text = ""
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
 func _clear_bar_values() -> void:
 	hunger_value.text = ""
 	blood_value.text = ""
@@ -325,6 +437,9 @@ func _get_target_display_name(target) -> String:
 func _get_target_subtitle(target) -> String:
 	if target == null:
 		return ""
+	if _is_building_target(target):
+		var settlement_name := _get_building_settlement_name(target)
+		return settlement_name if not settlement_name.is_empty() else "Building"
 	if target.has_method("get_owner_faction_name"):
 		var owner := str(target.call("get_owner_faction_name"))
 		if not owner.is_empty():
@@ -342,6 +457,8 @@ func _get_target_subtitle(target) -> String:
 
 func _get_target_detail(target) -> String:
 	if target == null:
+		return ""
+	if _is_building_target(target):
 		return ""
 	if target is Node and target.is_in_group("mining_resource"):
 		var tool_label := _get_string_property(target, "required_tool_label", "Tool")
@@ -364,7 +481,77 @@ func _get_target_detail(target) -> String:
 	return "Right-click for context actions"
 
 
+func _get_target_type_text(target) -> String:
+	if _is_building_target(target):
+		return _get_building_type_label(target)
+	if target is Node and target.is_in_group("mining_resource"):
+		return "Mining vein"
+	if target is Node and target.is_in_group("scavenging_resource"):
+		return "Scavenge"
+	if target is Node and target.is_in_group("world_container"):
+		return "Container"
+	if target is Node and target.is_in_group("world_item"):
+		return "Item"
+	if target is Node and target.is_in_group("sleepable_bed"):
+		return "Bed"
+	if target is Node and target.is_in_group("sittable_seat"):
+		return "Seat"
+	return "Object"
+
+
+func _get_target_owner_text(target) -> String:
+	if _is_building_target(target):
+		var building_owner := _get_building_owner_text(target)
+		return "None" if building_owner.is_empty() else building_owner
+	if target != null and target.has_method("get_owner_faction_name"):
+		var owner := str(target.call("get_owner_faction_name"))
+		if not owner.is_empty():
+			return owner
+	var owner_property := _get_string_property(target, "owner_faction_name", "")
+	return "None" if owner_property.is_empty() else owner_property
+
+
+func _get_target_requirement_text(target) -> String:
+	if target is Node and target.is_in_group("mining_resource"):
+		var tool_label := _get_string_property(target, "required_tool_label", "Tool")
+		var required_level := _get_int_property(target, "required_mining_level", 0)
+		return "%s | Mining %d" % [tool_label, required_level]
+	if target is Node and target.is_in_group("scavenging_resource"):
+		return "Scavenging %d" % _get_int_property(target, "scavenging_difficulty", 0)
+	if target is Node and target.is_in_group("world_container"):
+		return "Unlock" if bool(target.get("is_locked")) else "Open"
+	if target is Node and target.is_in_group("world_item"):
+		return "Inventory space"
+	if target is Node and target.has_method("get_world_context_actions"):
+		return "Context action"
+	return "None"
+
+
+func _get_target_state_text(target) -> String:
+	if _is_building_target(target):
+		return _get_building_status_text(target)
+	if target is Node and target.is_in_group("mining_resource"):
+		return "Mineable"
+	if target is Node and target.is_in_group("scavenging_resource"):
+		if target.has_method("is_depleted") and target.is_depleted():
+			return "Depleted"
+		var charges := _get_int_property(target, "current_charges", -1)
+		return "Unknown" if charges < 0 else "%d charges" % charges
+	if target is Node and target.is_in_group("world_container"):
+		return "Locked" if bool(target.get("is_locked")) else "Openable"
+	if target is Node and target.is_in_group("world_item"):
+		var quantity := _get_int_property(target, "quantity", 1)
+		return "Single" if quantity <= 1 else "x%d" % quantity
+	if target is Node and target.has_method("get_world_context_actions"):
+		var actions: Array = target.get_world_context_actions(null)
+		return "No actions" if actions.is_empty() else "%d actions" % actions.size()
+	return _get_target_state_label(target).capitalize()
+
+
 func _get_target_state_label(target) -> String:
+	if _is_building_target(target):
+		var owner := _get_building_owner_text(target)
+		return owner if not owner.is_empty() else "Unowned"
 	if target is Node and target.is_in_group("mining_resource"):
 		return "VEIN"
 	if target is Node and target.is_in_group("scavenging_resource"):
@@ -383,6 +570,8 @@ func _get_target_state_label(target) -> String:
 
 
 func _get_target_state_color(target) -> Color:
+	if _is_building_target(target):
+		return Color(0.78, 0.66, 0.42, 1.0) if not _get_building_owner_text(target).is_empty() else Color(0.66, 0.62, 0.52, 1.0)
 	var state := _get_target_state_label(target)
 	match state:
 		"LOCKED", "OWNED":
@@ -393,6 +582,111 @@ func _get_target_state_color(target) -> Color:
 			return Color(0.78, 0.66, 0.42, 1.0)
 		_:
 			return Color(0.66, 0.62, 0.52, 1.0)
+
+
+func _is_building_target(target) -> bool:
+	return target is WorldBuilding or (target is Node and target.is_in_group("world_building"))
+
+
+func _get_ancestor_facility(target) -> SettlementFacility:
+	if not (target is Node):
+		return null
+	var current: Node = (target as Node).get_parent()
+	while current != null:
+		if current is SettlementFacility:
+			return current as SettlementFacility
+		current = current.get_parent()
+	return null
+
+
+func _get_building_type_label(target) -> String:
+	var facility := _get_ancestor_facility(target)
+	if facility != null:
+		var facility_type := _get_string_property(facility, "facility_type", "")
+		if not facility_type.is_empty() and facility_type != "generic":
+			return _format_building_type_label(facility_type)
+	if target != null and target.has_method("get_building_type_label"):
+		var label := str(target.call("get_building_type_label"))
+		if not label.is_empty():
+			return label
+	var building_type := _get_string_property(target, "building_type", "home")
+	return _format_building_type_label(building_type)
+
+
+func _format_building_type_label(type_id: String) -> String:
+	match type_id:
+		"home", "housing":
+			return "Home"
+		"bar":
+			return "Bar"
+		"tavern":
+			return "Tavern"
+		"shop":
+			return "Shop"
+		"weapon_shop":
+			return "Weapon Shop"
+		"armor_shop":
+			return "Armor Shop"
+		"travel_shop":
+			return "Travel Shop"
+		"potion_shop":
+			return "Potion Shop"
+		"jail", "police":
+			return "Jail"
+		"storage":
+			return "Storage"
+		"guard":
+			return "Guard Post"
+		"farm":
+			return "Farm"
+		"mine":
+			return "Mine"
+		"social":
+			return "Social"
+		_:
+			return "Building"
+
+
+func _get_building_owner_text(target) -> String:
+	if target != null and target.has_method("get_owner_faction_name"):
+		var owner := str(target.call("get_owner_faction_name"))
+		if not owner.is_empty():
+			return owner
+	return _get_string_property(target, "owner_faction_name", "")
+
+
+func _get_building_ownership_text(target) -> String:
+	if target != null and target.has_method("get_occupancy_label"):
+		var occupancy := str(target.call("get_occupancy_label"))
+		if not occupancy.is_empty():
+			return occupancy
+	var owner := _get_building_owner_text(target)
+	return owner if not owner.is_empty() else "None"
+
+
+func _get_building_jurisdiction_text(target) -> String:
+	if target != null and target.has_method("get_jurisdiction_faction_name"):
+		var jurisdiction := str(target.call("get_jurisdiction_faction_name"))
+		if not jurisdiction.is_empty():
+			return jurisdiction
+	return "None"
+
+
+func _get_building_settlement_name(target) -> String:
+	if target != null and target.has_method("get_jurisdiction_display_name"):
+		return str(target.call("get_jurisdiction_display_name"))
+	return ""
+
+
+func _get_building_status_text(target) -> String:
+	if target != null and target.has_method("get_access_state_label"):
+		return str(target.call("get_access_state_label", _get_world_time_minutes()))
+	return "Active" if not _get_building_owner_text(target).is_empty() else "Unowned"
+
+
+func _get_world_time_minutes() -> int:
+	var world_time := root_scene.get_node_or_null("GameBootstrap/WorldTimeController") as WorldTimeController if root_scene != null else null
+	return world_time.get_absolute_minute() if world_time != null else -1
 
 
 func _get_string_property(target, property_name: String, fallback: String = "") -> String:

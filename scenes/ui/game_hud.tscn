@@ -47,11 +47,96 @@ offset_top = 0.0
 offset_bottom = 36.0
 grow_vertical = 1
 
+[node name="WorldClockPanel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -386.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = 42.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="WorldClockPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 4
+
+[node name="ClockRow" type="HBoxContainer" parent="WorldClockPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TimeLabel" type="Label" parent="WorldClockPanel/Margin/ClockRow"]
+custom_minimum_size = Vector2(78, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.84, 0.66, 1)
+theme_override_font_sizes/font_size = 12
+text = "Mon 08:00"
+vertical_alignment = 1
+
+[node name="PhaseLabel" type="Label" parent="WorldClockPanel/Margin/ClockRow"]
+custom_minimum_size = Vector2(92, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.56, 0.48, 1)
+theme_override_font_sizes/font_size = 10
+text = "Morning  Normal"
+vertical_alignment = 1
+
+[node name="SpeedButtonRow" type="HBoxContainer" parent="WorldClockPanel/Margin/ClockRow"]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="PauseButton" type="Button" parent="WorldClockPanel/Margin/ClockRow/SpeedButtonRow"]
+custom_minimum_size = Vector2(28, 24)
+layout_mode = 2
+toggle_mode = true
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = "||"
+
+[node name="SlowButton" type="Button" parent="WorldClockPanel/Margin/ClockRow/SpeedButtonRow"]
+custom_minimum_size = Vector2(34, 24)
+layout_mode = 2
+toggle_mode = true
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = "1/2"
+
+[node name="NormalButton" type="Button" parent="WorldClockPanel/Margin/ClockRow/SpeedButtonRow"]
+custom_minimum_size = Vector2(28, 24)
+layout_mode = 2
+toggle_mode = true
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = ">"
+
+[node name="FastButton" type="Button" parent="WorldClockPanel/Margin/ClockRow/SpeedButtonRow"]
+custom_minimum_size = Vector2(32, 24)
+layout_mode = 2
+toggle_mode = true
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = ">>"
+
+[node name="VeryFastButton" type="Button" parent="WorldClockPanel/Margin/ClockRow/SpeedButtonRow"]
+custom_minimum_size = Vector2(36, 24)
+layout_mode = 2
+toggle_mode = true
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = ">>>"
+
 [node name="HudLayout" type="VBoxContainer" parent="."]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 8.0
+offset_right = -8.0
+offset_bottom = -8.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
@@ -67,8 +152,18 @@ layout_mode = 2
 alignment = 0
 mouse_filter = 2
 
-[node name="HumanoidDetailsPanel" parent="HudLayout/BottomHud" instance=ExtResource("2_details")]
+[node name="InspectorSlot" type="Control" parent="HudLayout/BottomHud"]
+custom_minimum_size = Vector2(284, 148)
 layout_mode = 2
+mouse_filter = 2
+
+[node name="HumanoidDetailsPanel" parent="HudLayout/BottomHud/InspectorSlot" instance=ExtResource("2_details")]
+layout_mode = 1
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = -148.0
+offset_right = 284.0
+grow_vertical = 0
 
 [node name="HudDivider" type="Panel" parent="HudLayout/BottomHud"]
 custom_minimum_size = Vector2(2, 0)
@@ -83,188 +178,230 @@ size_flags_vertical = 3
 theme_override_constants/separation = 4
 mouse_filter = 2
 
-[node name="RightSpacer" type="Control" parent="HudLayout/BottomHud/RightHud"]
-custom_minimum_size = Vector2(0, 0)
-layout_mode = 2
-size_flags_vertical = 3
-mouse_filter = 2
-
-[node name="CommandBar" type="PanelContainer" parent="HudLayout/BottomHud/RightHud"]
-theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
-layout_mode = 2
-size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 58)
-mouse_filter = 2
-
-[node name="Margin" type="MarginContainer" parent="HudLayout/BottomHud/RightHud/CommandBar"]
-layout_mode = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 6
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 6
-
-[node name="CommandColumn" type="VBoxContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin"]
-layout_mode = 2
-theme_override_constants/separation = 0
-
-[node name="CommandRow" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn"]
-layout_mode = 2
-theme_override_constants/separation = 7
-
-[node name="LocomotionColumn" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow"]
-layout_mode = 2
-custom_minimum_size = Vector2(158, 0)
-theme_override_constants/separation = 5
-
-[node name="RunningButton" type="CheckButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn"]
-layout_mode = 2
-custom_minimum_size = Vector2(74, 0)
-text = "Run"
-
-[node name="SneakingButton" type="CheckButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/LocomotionColumn"]
-layout_mode = 2
-custom_minimum_size = Vector2(82, 0)
-text = "Sneak"
-
-[node name="StanceOption" type="OptionButton" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow"]
-layout_mode = 2
-custom_minimum_size = Vector2(168, 34)
-size_flags_vertical = 4
-vertical_alignment = 1
-
-[node name="UtilityFlow" type="HFlowContainer" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 5
-theme_override_constants/v_separation = 4
-
-[node name="BuildButton" type="Button" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/UtilityFlow"]
-custom_minimum_size = Vector2(70, 30)
-layout_mode = 2
-disabled = true
-focus_mode = 0
-tooltip_text = "Build controls are not implemented yet"
-text = "Build"
-
-[node name="FormationButton" type="Button" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/UtilityFlow"]
-custom_minimum_size = Vector2(92, 30)
-layout_mode = 2
-disabled = true
-focus_mode = 0
-tooltip_text = "Squad formation controls are not implemented yet"
-text = "Formation"
-
-[node name="AutoHealButton" type="Button" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/UtilityFlow"]
-custom_minimum_size = Vector2(82, 30)
-layout_mode = 2
-disabled = true
-focus_mode = 0
-tooltip_text = "Auto-heal rules are not implemented yet"
-text = "Auto Heal"
-
-[node name="FactionButton" type="Button" parent="HudLayout/BottomHud/RightHud/CommandBar/Margin/CommandColumn/CommandRow/UtilityFlow"]
-custom_minimum_size = Vector2(78, 30)
-layout_mode = 2
-disabled = true
-focus_mode = 0
-tooltip_text = "Faction controls are not implemented yet"
-text = "Faction"
-
 [node name="BottomInfoRow" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud"]
-custom_minimum_size = Vector2(0, 86)
+custom_minimum_size = Vector2(0, 148)
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
 theme_override_constants/separation = 8
 mouse_filter = 2
+
+[node name="CommandDock" type="PanelContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow"]
+theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
+layout_mode = 2
+custom_minimum_size = Vector2(260, 148)
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="CommandColumn" type="VBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Title" type="Label" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.53, 0.43, 1)
+theme_override_font_sizes/font_size = 10
+text = "Behavior"
+horizontal_alignment = 1
+
+[node name="BehaviorRows" type="VBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 6
+
+[node name="MoveRow" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="MoveLabel" type="Label" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/MoveRow"]
+custom_minimum_size = Vector2(42, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.53, 0.43, 1)
+theme_override_font_sizes/font_size = 10
+text = "Move"
+vertical_alignment = 1
+
+[node name="MovementSegment" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/MoveRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="WalkButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/MoveRow/MovementSegment"]
+custom_minimum_size = Vector2(60, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+focus_mode = 0
+text = "Walk"
+
+[node name="RunningButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/MoveRow/MovementSegment"]
+custom_minimum_size = Vector2(60, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+focus_mode = 0
+text = "Run"
+
+[node name="SneakingButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/MoveRow/MovementSegment"]
+custom_minimum_size = Vector2(60, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+focus_mode = 0
+text = "Sneak"
+
+[node name="FightRow" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="FightLabel" type="Label" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/FightRow"]
+custom_minimum_size = Vector2(42, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.53, 0.43, 1)
+theme_override_font_sizes/font_size = 10
+text = "Fight"
+vertical_alignment = 1
+
+[node name="CombatSegment" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/FightRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="AggressiveButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/FightRow/CombatSegment"]
+custom_minimum_size = Vector2(60, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+focus_mode = 0
+theme_override_font_sizes/font_size = 9
+text = "Aggressive"
+
+[node name="DefensiveButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/FightRow/CombatSegment"]
+custom_minimum_size = Vector2(60, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+focus_mode = 0
+text = "Defend"
+
+[node name="PassiveButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/FightRow/CombatSegment"]
+custom_minimum_size = Vector2(60, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+focus_mode = 0
+text = "Passive"
+
+[node name="AssistRow" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="AssistLabel" type="Label" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/AssistRow"]
+custom_minimum_size = Vector2(42, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.53, 0.43, 1)
+theme_override_font_sizes/font_size = 10
+text = "Assist"
+vertical_alignment = 1
+
+[node name="AutoHealButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/AssistRow"]
+custom_minimum_size = Vector2(94, 24)
+layout_mode = 2
+toggle_mode = true
+focus_mode = 0
+text = "Auto Heal"
 
 [node name="PortraitBar" type="PanelContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 86)
+custom_minimum_size = Vector2(0, 148)
 mouse_filter = 2
 
-[node name="PortraitScroll" type="ScrollContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar"]
+[node name="Margin" type="MarginContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar"]
 layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="PortraitColumn" type="VBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="SquadTabs" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="AllButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadTabs"]
+custom_minimum_size = Vector2(64, 22)
+layout_mode = 2
+toggle_mode = true
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = "All"
+
+[node name="AddSquadButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadTabs"]
+custom_minimum_size = Vector2(28, 22)
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
+text = "+"
+
+[node name="SquadCommandStrip" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="SquadName" type="Label" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadCommandStrip"]
+custom_minimum_size = Vector2(92, 22)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.53, 0.43, 1)
+theme_override_font_sizes/font_size = 10
+text = "All Squads"
+vertical_alignment = 1
+
+[node name="FormationButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadCommandStrip"]
+custom_minimum_size = Vector2(84, 22)
+layout_mode = 2
+disabled = true
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = "Formation"
+
+[node name="SquadAIButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadCommandStrip"]
+custom_minimum_size = Vector2(56, 22)
+layout_mode = 2
+disabled = true
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = "AI"
+
+[node name="PortraitScroll" type="ScrollContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn"]
+layout_mode = 2
+size_flags_vertical = 3
 vertical_scroll_mode = 1
 horizontal_scroll_mode = 0
 follow_focus = true
 mouse_filter = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_scroll")
 
-[node name="PortraitFlow" type="HFlowContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/PortraitScroll"]
+[node name="PortraitFlow" type="HFlowContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/PortraitScroll"]
 layout_mode = 2
 theme_override_constants/separation = 4
 theme_override_constants/v_separation = 4
 size_flags_horizontal = 3
 mouse_filter = 2
-
-[node name="WorldStatusPanel" type="PanelContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow"]
-theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
-layout_mode = 2
-custom_minimum_size = Vector2(196, 86)
-mouse_filter = 2
-
-[node name="Margin" type="MarginContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 6
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 6
-
-[node name="StatusColumn" type="VBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin"]
-layout_mode = 2
-theme_override_constants/separation = 0
-
-[node name="TimeLabel" type="Label" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 13
-text = "Mon 08:00"
-
-[node name="PhaseLabel" type="Label" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 11
-text = "Morning  Normal"
-
-[node name="StatsLabel" type="Label" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 10
-text = "World: Stable"
-
-[node name="SpeedButtonRow" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 3
-
-[node name="PauseButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow"]
-custom_minimum_size = Vector2(34, 28)
-layout_mode = 2
-toggle_mode = true
-text = "||"
-
-[node name="SlowButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow"]
-custom_minimum_size = Vector2(42, 28)
-layout_mode = 2
-toggle_mode = true
-text = "1/2"
-
-[node name="NormalButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow"]
-custom_minimum_size = Vector2(34, 28)
-layout_mode = 2
-toggle_mode = true
-text = ">"
-
-[node name="FastButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow"]
-custom_minimum_size = Vector2(38, 28)
-layout_mode = 2
-toggle_mode = true
-text = ">>"
-
-[node name="VeryFastButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow"]
-custom_minimum_size = Vector2(42, 28)
-layout_mode = 2
-toggle_mode = true
-text = ">>>"
 
 [node name="InventoryWindowLayer" type="Control" parent="."]
 layout_mode = 3

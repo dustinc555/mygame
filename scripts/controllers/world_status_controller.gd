@@ -5,10 +5,8 @@ class_name WorldStatusController
 var root: Node
 var hud_layer: CanvasLayer
 var world_time: Node
-var world_simulation: Node
 var time_label: Label
 var phase_label: Label
-var stats_label: Label
 var pause_button: Button
 var slow_button: Button
 var normal_button: Button
@@ -38,6 +36,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	var key_event := event as InputEventKey
 	if not key_event.pressed or key_event.echo or key_event.keycode != KEY_SPACE:
 		return
+	if _is_text_input_focused():
+		return
 	if _is_conversation_visible():
 		return
 	world_time.toggle_manual_pause()
@@ -51,15 +51,13 @@ func _try_initialize() -> void:
 	if world_time == null:
 		return
 	hud_layer.process_mode = Node.PROCESS_MODE_ALWAYS
-	world_simulation = get_parent().get_node_or_null("WorldSimulationController")
-	time_label = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/TimeLabel") as Label
-	phase_label = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/PhaseLabel") as Label
-	stats_label = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/StatsLabel") as Label
-	pause_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow/PauseButton") as Button
-	slow_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow/SlowButton") as Button
-	normal_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow/NormalButton") as Button
-	fast_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow/FastButton") as Button
-	very_fast_button = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/WorldStatusPanel/Margin/StatusColumn/SpeedButtonRow/VeryFastButton") as Button
+	time_label = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/TimeLabel") as Label
+	phase_label = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/PhaseLabel") as Label
+	pause_button = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/SpeedButtonRow/PauseButton") as Button
+	slow_button = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/SpeedButtonRow/SlowButton") as Button
+	normal_button = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/SpeedButtonRow/NormalButton") as Button
+	fast_button = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/SpeedButtonRow/FastButton") as Button
+	very_fast_button = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/SpeedButtonRow/VeryFastButton") as Button
 	pause_overlay = hud_layer.get_node_or_null("PauseOverlay") as Control
 	conversation_window = hud_layer.get_node_or_null("ConversationWindow") as Control
 	if time_label == null or phase_label == null or pause_button == null or slow_button == null or normal_button == null or fast_button == null or very_fast_button == null:
@@ -98,6 +96,11 @@ func _set_always_process_tree(node: Node) -> void:
 		_set_always_process_tree(child)
 
 
+func _is_text_input_focused() -> bool:
+	var focus_owner := get_viewport().gui_get_focus_owner()
+	return focus_owner is LineEdit or focus_owner is TextEdit
+
+
 func _on_pause_button_pressed() -> void:
 	if world_time == null or _is_conversation_visible():
 		_refresh_buttons()
@@ -130,11 +133,6 @@ func _refresh_labels() -> void:
 		return
 	time_label.text = world_time.format_time()
 	phase_label.text = "%s  %s" % [world_time.get_phase_name(), world_time.get_status_speed_label()]
-	if stats_label != null:
-		if world_simulation != null and world_simulation.has_method("get_summary_text"):
-			stats_label.text = world_simulation.get_summary_text()
-		else:
-			stats_label.text = "World: Stable"
 	_refresh_buttons()
 
 

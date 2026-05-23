@@ -184,6 +184,7 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var fatigue := 100.0
 @export var running := false
 @export var sneaking := false
+@export var auto_heal_enabled := false
 @export_range(0, 2, 1) var combat_stance := NpcRules.CombatStance.DEFENSIVE
 
 @export var max_hp := 100.0
@@ -640,7 +641,7 @@ func assign_attack_target(target_character: HumanoidCharacter, issued_by_player:
 
 
 func assign_heal_target(target_character: HumanoidCharacter, issued_by_player: bool = true) -> void:
-	if target_character == null or target_character == self:
+	if target_character == null:
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
@@ -1164,6 +1165,15 @@ func _apply_fatigue_delta(amount: float) -> void:
 
 func is_running_enabled() -> bool:
 	return running and can_continue_running()
+
+
+func is_auto_heal_enabled() -> bool:
+	return auto_heal_enabled and life_state == NpcRules.LifeState.ALIVE
+
+
+func set_auto_heal_enabled(value: bool) -> void:
+	auto_heal_enabled = value
+	state_changed.emit()
 
 
 func can_continue_running() -> bool:
@@ -1918,6 +1928,11 @@ func _process_ai(delta: float) -> void:
 		if replacement_target != null and replacement_target != _current_attack_target and COMBAT_COORDINATOR.should_switch_target(self, _current_attack_target, replacement_target, maxf(aggressive_scan_radius, assist_scan_radius)):
 			assign_attack_target(replacement_target, false, true, false)
 			return
+	if _should_seek_auto_heal_target():
+		var heal_target := _find_auto_heal_target()
+		if heal_target != null:
+			assign_heal_target(heal_target, false)
+			return
 	if _should_seek_combat_target():
 		var target := _find_ai_target()
 		if target != null:
@@ -2502,12 +2517,19 @@ func _process_heal_interaction() -> void:
 		stop_heal_assignment()
 		return
 	if not _current_heal_target.can_receive_bandage():
-		show_world_speech("They don't need bandaging", 5.0)
+		if _order_was_player_issued:
+			show_world_speech("They don't need bandaging", 5.0)
 		stop_heal_assignment()
 		return
 	if _get_best_bandage_definition() == null:
-		show_world_speech("I don't have anything to heal with", 5.0)
+		if _order_was_player_issued:
+			show_world_speech("I don't have anything to heal with", 5.0)
 		stop_heal_assignment()
+		return
+	if _current_heal_target == self:
+		_clear_actor_move_target()
+		if apply_bandage_from(self):
+			stop_heal_assignment()
 		return
 	var target_position := _current_heal_target.get_interaction_position(self)
 	if global_position.distance_to(_current_heal_target.global_position) > interact_distance:
@@ -4118,6 +4140,56 @@ func _should_consider_combat_retarget() -> bool:
 	if _combat_action_active or _combat_reaction_remaining > 0.0:
 		return false
 	return _current_attack_target.life_state == NpcRules.LifeState.ALIVE
+
+
+func _should_seek_auto_heal_target() -> bool:
+	if not auto_heal_enabled or life_state != NpcRules.LifeState.ALIVE:
+		return false
+	if _current_order_type == OrderType.HEAL:
+		return false
+	if _order_was_player_issued and _current_order_type != OrderType.NONE:
+		return false
+	if _carried_by != null or is_carrying_someone() or _is_sitting:
+		return false
+	return _get_best_bandage_definition() != null
+
+
+func _find_auto_heal_target() -> HumanoidCharacter:
+	var scan_radius := maxf(assist_scan_radius, interact_distance)
+	var best_target: HumanoidCharacter
+	var best_score := -INF
+	if can_bandage_target(self):
+		best_target = self
+		best_score = _get_auto_heal_priority(self, 0.0)
+	if faction_name.is_empty():
+		return best_target
+	for node in get_tree().get_nodes_in_group("npc_character"):
+		if not (node is HumanoidCharacter):
+			continue
+		var candidate: HumanoidCharacter = node
+		if candidate == self or not is_instance_valid(candidate):
+			continue
+		if candidate.faction_name != faction_name:
+			continue
+		var distance := global_position.distance_to(candidate.global_position)
+		if distance > scan_radius:
+			continue
+		if not can_bandage_target(candidate):
+			continue
+		var score := _get_auto_heal_priority(candidate, distance)
+		if score > best_score:
+			best_score = score
+			best_target = candidate
+	return best_target
+
+
+func _get_auto_heal_priority(target: HumanoidCharacter, distance: float) -> float:
+	var priority := target.get_total_wound_damage()
+	priority += target.get_open_cut_damage() * 2.0
+	priority += target.get_bleed_rate() * 75.0
+	if target.life_state == NpcRules.LifeState.UNCONSCIOUS:
+		priority += 50.0
+	return priority - distance * 0.1
 
 
 func _should_seek_combat_target() -> bool:

@@ -3,7 +3,7 @@
 ## Test Levels
 - Test/demo levels live in `scenes/test_levels/`.
 - Follow `scenes/test_levels/AGENT.md` when working in those scenes.
-- `project.godot` `run/main_scene` may point at the active demo/test scene during development. Do not flag this as a cleanup issue unless it breaks validation or the user asks.
+- Treat `project.godot` `run/main_scene` as user-owned development state. Do not revert, normalize, or restore it unless the user explicitly asks. If validation changes it, leave it alone and only mention it if it causes a validation failure.
 
 ## 3D Navigation
 - Before editing 3D navigation, actor movement, stair traversal, building collision, or squad route code, read `scripts/navigation/AGENT.md`, `scripts/actors/AGENT.md`, and `scenes/world/buildings/AGENT.md`.
@@ -12,6 +12,7 @@
 
 ## Architecture Rules
 - Before editing, search for all applicable `AGENT.md` files in the project and follow the most specific guidance for the files being touched.
+- Do not use the phrase "you're right" in user-facing replies. Acknowledge issues directly without that wording.
 - Before shared system, gameplay architecture, persistence, world simulation, settlement, faction, inventory, job, or bootstrap work, read `architecture/README.md` and the relevant docs in `architecture/`.
 - When changing system ownership, scene contracts, runtime state shape, editor workflow, or online/server compatibility assumptions, update the relevant `architecture/` docs in the same task.
 - When changing world-sim data relationships, settlement/faction/territory/job/inventory ownership, or controller serialization, update the node data graph in `architecture/game-data.md`.
