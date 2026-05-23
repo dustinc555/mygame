@@ -22,7 +22,8 @@ const DEFAULT_SKIN_COLOR := Color(0.58, 0.38, 0.27, 1.0)
 @export var skin_color := DEFAULT_SKIN_COLOR
 @export_range(-1.0, 1.0, 0.01) var height_slider := 0.0
 @export_range(-1.0, 1.0, 0.01) var shoulder_width_slider := 0.0
-@export_range(-1.0, 1.0, 0.01) var head_height_slider := 0.0
+@export_range(-1.0, 1.0, 0.01) var arm_length_slider := 0.0
+@export_range(-1.0, 1.0, 0.01) var neck_length_slider := 0.0
 
 
 func make_copy():
@@ -47,7 +48,8 @@ func copy_to(target) -> void:
 	target.skin_color = skin_color
 	target.height_slider = height_slider
 	target.shoulder_width_slider = shoulder_width_slider
-	target.head_height_slider = head_height_slider
+	target.arm_length_slider = arm_length_slider
+	target.neck_length_slider = neck_length_slider
 
 
 func set_from_character(character) -> void:
@@ -68,7 +70,8 @@ func set_from_character(character) -> void:
 		skin_color = source.skin_color
 		height_slider = source.height_slider
 		shoulder_width_slider = source.shoulder_width_slider
-		head_height_slider = source.head_height_slider
+		arm_length_slider = source.arm_length_slider
+		neck_length_slider = source.neck_length_slider
 
 
 func get_body_type_id() -> String:
@@ -88,15 +91,29 @@ func get_body_pose_offsets(base_offsets: Dictionary = {}) -> Dictionary:
 	var offsets := base_offsets.duplicate()
 	var height := clampf(height_slider, -1.0, 1.0)
 	var shoulders := clampf(shoulder_width_slider, -1.0, 1.0)
-	var head := clampf(head_height_slider, -1.0, 1.0)
-	_add_offset(offsets, "spine_01", Vector3(0.0, height * 0.018, 0.0))
-	_add_offset(offsets, "spine_02", Vector3(0.0, height * 0.026, 0.0))
-	_add_offset(offsets, "spine_03", Vector3(0.0, height * 0.032, 0.0))
-	_add_offset(offsets, "neck_01", Vector3(0.0, height * 0.02, 0.0))
-	_add_offset(offsets, "Head", Vector3(0.0, height * 0.022 + head * 0.018, 0.0))
-	_add_offset(offsets, "clavicle_l", Vector3(absf(shoulders) * -0.018 if shoulders < 0.0 else shoulders * -0.024, 0.0, 0.0))
-	_add_offset(offsets, "clavicle_r", Vector3(absf(shoulders) * 0.018 if shoulders < 0.0 else shoulders * 0.024, 0.0, 0.0))
+	var arms := clampf(arm_length_slider, -1.0, 1.0)
+	var neck := clampf(neck_length_slider, -1.0, 1.0)
+	# Height is spread mostly into the legs, with smaller torso changes to avoid long-neck proportions.
+	var thigh_length := height * 0.024
+	var calf_length := height * 0.024
+	var lower_torso_length := height * 0.010
+	var middle_torso_length := height * 0.013
+	var upper_torso_length := height * 0.016
+	_add_symmetric_y_offset(offsets, "calf", thigh_length)
+	_add_symmetric_y_offset(offsets, "foot", calf_length)
+	_add_offset(offsets, "spine_01", Vector3(0.0, lower_torso_length, 0.0))
+	_add_offset(offsets, "spine_02", Vector3(0.0, middle_torso_length, 0.0))
+	_add_offset(offsets, "spine_03", Vector3(0.0, upper_torso_length, 0.0))
+	_add_offset(offsets, "clavicle_l", Vector3(shoulders * 0.020, 0.0, 0.0))
+	_add_offset(offsets, "clavicle_r", Vector3(shoulders * -0.020, 0.0, 0.0))
+	_add_symmetric_y_offset(offsets, "lowerarm", arms * 0.018)
+	_add_symmetric_y_offset(offsets, "hand", arms * 0.018)
+	_add_offset(offsets, "Head", Vector3(0.0, neck * 0.018, 0.0))
 	return offsets
+
+
+func get_foot_anchor_correction_y() -> float:
+	return clampf(height_slider, -1.0, 1.0) * (0.024 + 0.024)
 
 
 func _add_offset(offsets: Dictionary, bone_name: String, offset: Vector3) -> void:
@@ -104,3 +121,8 @@ func _add_offset(offsets: Dictionary, bone_name: String, offset: Vector3) -> voi
 		return
 	var existing: Vector3 = offsets.get(bone_name, Vector3.ZERO)
 	offsets[bone_name] = existing + offset
+
+
+func _add_symmetric_y_offset(offsets: Dictionary, bone_prefix: String, amount: float) -> void:
+	_add_offset(offsets, "%s_l" % bone_prefix, Vector3(0.0, amount, 0.0))
+	_add_offset(offsets, "%s_r" % bone_prefix, Vector3(0.0, amount, 0.0))

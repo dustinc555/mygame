@@ -308,6 +308,7 @@ var _character_animation_player: AnimationPlayer
 var _character_animation_players: Array[AnimationPlayer] = []
 var _character_skeleton: Skeleton3D
 var _bone_pose_position_offsets: Dictionary = {}
+var _visual_foot_anchor_correction_y := 0.0
 var _current_character_animation := ""
 var _idle_animation_change_remaining := 0.0
 var _crouch_enter_animation_remaining := 0.0
@@ -2799,6 +2800,7 @@ func _setup_character_visual() -> void:
 	_character_animation_players.clear()
 	_character_skeleton = null
 	_bone_pose_position_offsets.clear()
+	_visual_foot_anchor_correction_y = 0.0
 	_current_character_animation = ""
 
 	var body_mesh := get_node_or_null("BodyMesh") as MeshInstance3D
@@ -2882,6 +2884,23 @@ func has_custom_skin_material() -> bool:
 	return visual_root != null and SKIN_TEXTURE_BUILDER.has_custom_skin_materials(visual_root)
 
 
+func get_visual_foot_anchor_y() -> float:
+	if _character_skeleton == null or not is_instance_valid(_character_skeleton):
+		return INF
+	_character_skeleton.force_update_all_bone_transforms()
+	return _get_skeleton_foot_anchor_global_y(_character_skeleton)
+
+
+func get_visual_ground_y() -> float:
+	var fallback_y := 0.0
+	var body_mesh := get_node_or_null("BodyMesh") as MeshInstance3D
+	if body_mesh != null:
+		var body_bounds := _calculate_local_mesh_bounds(body_mesh)
+		fallback_y = body_bounds.position.y
+	var local_ground_y := _get_visual_ground_y(fallback_y) + CHARACTER_VISUAL_FOOT_CLEARANCE
+	return (global_transform * Vector3(0.0, local_ground_y, 0.0)).y
+
+
 func _get_bone_pose_position_offsets(body_archetype: Resource) -> Dictionary:
 	if body_archetype == null:
 		return appearance_data.get_body_pose_offsets({}) if appearance_data != null else {}
@@ -2898,8 +2917,12 @@ func _get_bone_pose_position_offsets(body_archetype: Resource) -> Dictionary:
 func _apply_bone_pose_position_offsets() -> void:
 	if _character_skeleton == null or not is_instance_valid(_character_skeleton):
 		return
+	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
 	if _bone_pose_position_offsets.is_empty() or _is_ragdoll_active:
+		_apply_visual_foot_anchor_correction(visual_root, 0.0)
 		return
+	_reset_bone_pose_positions(_character_skeleton, _bone_pose_position_offsets)
+	_character_skeleton.force_update_all_bone_transforms()
 	for bone_name in _bone_pose_position_offsets.keys():
 		var bone_index := _character_skeleton.find_bone(str(bone_name))
 		if bone_index < 0:
@@ -2907,6 +2930,39 @@ func _apply_bone_pose_position_offsets() -> void:
 		var offset: Vector3 = _bone_pose_position_offsets[bone_name]
 		var rest_position := _character_skeleton.get_bone_rest(bone_index).origin
 		_character_skeleton.set_bone_pose_position(bone_index, rest_position + offset)
+	_character_skeleton.force_update_all_bone_transforms()
+	var desired_correction := 0.0
+	if appearance_data != null and appearance_data.has_method("get_foot_anchor_correction_y") and visual_root != null:
+		desired_correction = float(appearance_data.get_foot_anchor_correction_y()) * visual_root.scale.y
+	_apply_visual_foot_anchor_correction(visual_root, desired_correction)
+
+
+func _reset_bone_pose_positions(skeleton: Skeleton3D, offsets: Dictionary) -> void:
+	for bone_name in offsets.keys():
+		var bone_index := skeleton.find_bone(str(bone_name))
+		if bone_index < 0:
+			continue
+		skeleton.set_bone_pose_position(bone_index, skeleton.get_bone_rest(bone_index).origin)
+
+
+func _apply_visual_foot_anchor_correction(visual_root: Node3D, desired_correction: float) -> void:
+	if visual_root == null or not is_instance_valid(visual_root):
+		return
+	visual_root.position.y += desired_correction - _visual_foot_anchor_correction_y
+	_visual_foot_anchor_correction_y = desired_correction
+
+
+func _get_skeleton_foot_anchor_global_y(skeleton: Skeleton3D) -> float:
+	if skeleton == null or not is_instance_valid(skeleton):
+		return INF
+	var result := INF
+	for bone_name in ["foot_l", "foot_r", "ball_l", "ball_r"]:
+		var bone_index := skeleton.find_bone(bone_name)
+		if bone_index < 0:
+			continue
+		var global_position := skeleton.global_transform * skeleton.get_bone_global_pose(bone_index).origin
+		result = minf(result, global_position.y)
+	return result
 
 
 func refresh_grip_sockets_for_body() -> void:

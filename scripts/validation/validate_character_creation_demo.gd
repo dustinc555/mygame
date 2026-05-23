@@ -1,6 +1,7 @@
 extends SceneTree
 
 const CHARACTER_CREATION_DEMO_SCENE := preload("res://scenes/test_levels/character_creation_demo.tscn")
+const CHARACTER_APPEARANCE_DATA_SCRIPT := preload("res://scripts/character_appearance/character_appearance_data.gd")
 const SKIN_TEXTURE_BUILDER := preload("res://scripts/character_appearance/skin_texture_builder.gd")
 const HUMAN_RACE := preload("res://resources/character_races/human.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE := preload("res://resources/character_body_archetypes/human_female.tres")
@@ -31,6 +32,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_validate_skeleton_slider_offsets()
 	await _load_scene()
 	_validate_custom_skin_texture_mask()
 	await _run_creation_save_case()
@@ -75,7 +77,8 @@ func _run_creation_save_case() -> void:
 		_fail("Creation race options are not Human-only")
 	editor.set_character_name("Kaia")
 	editor.set_creation_body_type(VISUAL_BODY_TYPE_FEMALE)
-	editor.set_creation_body_sliders(0.62, -0.35, 0.28)
+	await _validate_editor_height_keeps_feet_planted(editor)
+	editor.set_creation_skeleton_sliders(0.62, -0.35, 0.18, 0.28)
 	editor.set_skin_color_value(CUSTOM_SKIN_COLOR)
 	editor.reset_skin_color_to_default()
 	if not _colors_match(editor.get_preview_skin_color(), DEFAULT_SKIN_COLOR):
@@ -149,13 +152,15 @@ func _expect_created_character(created: HumanoidCharacter) -> void:
 		_fail("Created character sex/body type is not female")
 	_expect_close(appearance.height_slider, 0.62, "height slider")
 	_expect_close(appearance.shoulder_width_slider, -0.35, "shoulder slider")
-	_expect_close(appearance.head_height_slider, 0.28, "head slider")
+	_expect_close(appearance.arm_length_slider, 0.18, "arm length slider")
+	_expect_close(appearance.neck_length_slider, 0.28, "neck length slider")
 	if not appearance.skin_color_customized:
 		_fail("Created character did not save custom skin color")
 	if not _colors_match(appearance.skin_color, CUSTOM_SKIN_COLOR):
 		_fail("Created character skin color mismatch")
 	if not created.has_custom_skin_material():
 		_fail("Created character did not apply textured custom skin material")
+	_expect_created_feet_grounded(created)
 	if appearance.hair_style != HAIR_BUNS:
 		_fail("Created character hair style mismatch")
 	if appearance.beard_style != null:
@@ -168,6 +173,66 @@ func _expect_created_character(created: HumanoidCharacter) -> void:
 	_expect_equipped(created, "feet", PEASANT_SHOES)
 	_expect_equipped(created, "weapon", IRON_SWORD)
 	_expect_equipped(created, "offhand", ROUND_SHIELD)
+
+
+func _expect_created_feet_grounded(created: HumanoidCharacter) -> void:
+	var foot_y := float(created.get_visual_foot_anchor_y())
+	var ground_y := float(created.get_visual_ground_y())
+	if not is_finite(foot_y) or not is_finite(ground_y):
+		_fail("Created character foot grounding could not be measured")
+		return
+	if foot_y < ground_y - 0.025:
+		_fail("Created character feet are below visual ground: feet %.3f ground %.3f" % [foot_y, ground_y])
+
+
+func _validate_skeleton_slider_offsets() -> void:
+	var appearance = CHARACTER_APPEARANCE_DATA_SCRIPT.new()
+	appearance.height_slider = 1.0
+	var height_offsets: Dictionary = appearance.get_body_pose_offsets({})
+	_expect_positive_y_offset(height_offsets, "calf_l", "height should lengthen left thigh")
+	_expect_positive_y_offset(height_offsets, "foot_l", "height should lengthen left lower leg")
+	_expect_positive_y_offset(height_offsets, "spine_03", "height should lengthen torso")
+	if height_offsets.has("Head"):
+		_fail("Height slider should not directly stretch the neck/head")
+
+	appearance = CHARACTER_APPEARANCE_DATA_SCRIPT.new()
+	appearance.arm_length_slider = 1.0
+	var arm_offsets: Dictionary = appearance.get_body_pose_offsets({})
+	_expect_positive_y_offset(arm_offsets, "lowerarm_l", "arm slider should lengthen left upper arm")
+	_expect_positive_y_offset(arm_offsets, "hand_l", "arm slider should lengthen left forearm")
+
+	appearance = CHARACTER_APPEARANCE_DATA_SCRIPT.new()
+	appearance.neck_length_slider = 1.0
+	var neck_offsets: Dictionary = appearance.get_body_pose_offsets({})
+	_expect_positive_y_offset(neck_offsets, "Head", "neck slider should move the head from the neck")
+	if neck_offsets.has("neck_01"):
+		_fail("Neck slider should not lengthen the upper torso")
+
+	appearance = CHARACTER_APPEARANCE_DATA_SCRIPT.new()
+	appearance.shoulder_width_slider = -1.0
+	var narrow_offsets: Dictionary = appearance.get_body_pose_offsets({})
+	appearance.shoulder_width_slider = 0.0
+	var neutral_offsets: Dictionary = appearance.get_body_pose_offsets({})
+	appearance.shoulder_width_slider = 1.0
+	var wide_offsets: Dictionary = appearance.get_body_pose_offsets({})
+	if not (_get_offset(narrow_offsets, "clavicle_l").x < _get_offset(neutral_offsets, "clavicle_l").x and _get_offset(neutral_offsets, "clavicle_l").x < _get_offset(wide_offsets, "clavicle_l").x):
+		_fail("Left shoulder slider is not monotonic")
+	if not (_get_offset(narrow_offsets, "clavicle_r").x > _get_offset(neutral_offsets, "clavicle_r").x and _get_offset(neutral_offsets, "clavicle_r").x > _get_offset(wide_offsets, "clavicle_r").x):
+		_fail("Right shoulder slider is not monotonic")
+
+
+func _validate_editor_height_keeps_feet_planted(editor) -> void:
+	editor.set_creation_skeleton_sliders(0.0, 0.0, 0.0, 0.0)
+	await _wait_frames(2)
+	var baseline_foot_y := float(editor.get_preview_foot_anchor_y())
+	editor.set_creation_skeleton_sliders(1.0, 0.0, 0.0, 0.0)
+	await _wait_frames(2)
+	var tall_foot_y := float(editor.get_preview_foot_anchor_y())
+	if not is_finite(baseline_foot_y) or not is_finite(tall_foot_y):
+		_fail("Could not read preview foot anchor for height grounding")
+		return
+	if absf(tall_foot_y - baseline_foot_y) > 0.01:
+		_fail("Height slider moved preview feet vertically: baseline %.3f tall %.3f" % [baseline_foot_y, tall_foot_y])
 
 
 func _validate_custom_skin_texture_mask() -> void:
@@ -226,6 +291,15 @@ func _get_party_member_count() -> int:
 func _expect_close(actual: float, expected: float, label: String) -> void:
 	if absf(actual - expected) > 0.001:
 		_fail("Expected %s %.3f, got %.3f" % [label, expected, actual])
+
+
+func _expect_positive_y_offset(offsets: Dictionary, bone_name: String, label: String) -> void:
+	if _get_offset(offsets, bone_name).y <= 0.001:
+		_fail(label)
+
+
+func _get_offset(offsets: Dictionary, bone_name: String) -> Vector3:
+	return offsets.get(bone_name, Vector3.ZERO) as Vector3
 
 
 func _colors_match(left: Color, right: Color) -> bool:

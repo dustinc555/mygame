@@ -62,6 +62,9 @@ var _preview_zoom_factor := 1.0
 var _preview_dragging := false
 var _preview_clothes_visible := true
 var _preview_clothing_surface_offsets: Dictionary = {}
+var _preview_visual_root: Node3D
+var _preview_skeleton: Skeleton3D
+var _preview_foot_anchor_correction_y := 0.0
 
 var _name_edit: LineEdit
 var _creation_section: VBoxContainer
@@ -71,7 +74,8 @@ var _skin_tone_buttons: Array[Button] = []
 var _skin_color_reset_button: Button
 var _height_slider: HSlider
 var _shoulder_slider: HSlider
-var _head_slider: HSlider
+var _arm_slider: HSlider
+var _neck_slider: HSlider
 var _hair_option: OptionButton
 var _beard_row: Control
 var _beard_color_row: Control
@@ -275,9 +279,12 @@ func _build_ui() -> void:
 	_shoulder_slider = _make_slider()
 	_shoulder_slider.value_changed.connect(_on_shoulders_changed)
 	_creation_section.add_child(_labeled_control("Shoulders", _shoulder_slider))
-	_head_slider = _make_slider()
-	_head_slider.value_changed.connect(_on_head_changed)
-	_creation_section.add_child(_labeled_control("Head", _head_slider))
+	_arm_slider = _make_slider()
+	_arm_slider.value_changed.connect(_on_arm_length_changed)
+	_creation_section.add_child(_labeled_control("Arm Length", _arm_slider))
+	_neck_slider = _make_slider()
+	_neck_slider.value_changed.connect(_on_neck_length_changed)
+	_creation_section.add_child(_labeled_control("Neck Length", _neck_slider))
 
 	_hair_option = OptionButton.new()
 	_hair_option.item_selected.connect(_on_hair_selected)
@@ -423,7 +430,8 @@ func _sync_controls_from_draft() -> void:
 	_sync_skin_tone_buttons(draft_appearance.skin_color)
 	_height_slider.set_value_no_signal(draft_appearance.height_slider)
 	_shoulder_slider.set_value_no_signal(draft_appearance.shoulder_width_slider)
-	_head_slider.set_value_no_signal(draft_appearance.head_height_slider)
+	_arm_slider.set_value_no_signal(draft_appearance.arm_length_slider)
+	_neck_slider.set_value_no_signal(draft_appearance.neck_length_slider)
 	_body_type_option.select(1 if body_type == VISUAL_BODY_TYPE_FEMALE else 0)
 	if target_actor != null:
 		_name_edit.text = target_actor.member_name
@@ -551,6 +559,8 @@ func _create_preview_model() -> Node3D:
 	visual_root.name = "PreviewCharacterVisual"
 	model.add_child(visual_root)
 	var body_archetype := _resolve_preview_body_archetype()
+	_preview_visual_root = visual_root
+	_preview_foot_anchor_correction_y = 0.0
 	_last_preview_body_type = _resolve_preview_body_type(body_archetype)
 	var visual_scene := _get_preview_visual_scene(body_archetype)
 	if visual_scene == null:
@@ -568,6 +578,7 @@ func _create_preview_model() -> Node3D:
 	_set_base_eyebrow_visuals_visible(body_root, draft_appearance.eyebrow_style == null)
 	var visual_fit_scale := _fit_preview_visual_to_height(visual_root)
 	var skeleton := _find_skeleton(visual_root)
+	_preview_skeleton = skeleton
 	_apply_preview_bone_offsets(skeleton, body_archetype)
 	_setup_preview_clothing_visuals(visual_root, skeleton, body_archetype, visual_fit_scale)
 	_setup_preview_head_attachment_visuals(visual_root, skeleton)
@@ -671,7 +682,11 @@ func get_preview_lowest_visual_y() -> float:
 
 func get_preview_floor_y() -> float:
 	var floor := _preview_root.get_node_or_null("PreviewStudioFloor") as Node3D if _preview_root != null else null
-	return floor.position.y if floor != null else 0.0
+	return floor.global_position.y if floor != null else 0.0
+
+
+func get_preview_foot_anchor_y() -> float:
+	return _get_skeleton_foot_anchor_global_y(_preview_skeleton)
 
 
 func _update_preview_camera() -> void:
@@ -769,19 +784,27 @@ func set_creation_body_type(body_type: int) -> void:
 	_on_body_type_selected(option_index)
 
 
-func set_creation_body_sliders(height: float, shoulders: float, head: float) -> void:
+func set_creation_body_sliders(height: float, shoulders: float, neck: float) -> void:
+	set_creation_skeleton_sliders(height, shoulders, 0.0, neck)
+
+
+func set_creation_skeleton_sliders(height: float, shoulders: float, arm_length: float, neck_length: float) -> void:
 	var clamped_height := clampf(height, -1.0, 1.0)
 	var clamped_shoulders := clampf(shoulders, -1.0, 1.0)
-	var clamped_head := clampf(head, -1.0, 1.0)
+	var clamped_arm_length := clampf(arm_length, -1.0, 1.0)
+	var clamped_neck_length := clampf(neck_length, -1.0, 1.0)
 	if _height_slider != null:
 		_height_slider.set_value_no_signal(clamped_height)
 	if _shoulder_slider != null:
 		_shoulder_slider.set_value_no_signal(clamped_shoulders)
-	if _head_slider != null:
-		_head_slider.set_value_no_signal(clamped_head)
+	if _arm_slider != null:
+		_arm_slider.set_value_no_signal(clamped_arm_length)
+	if _neck_slider != null:
+		_neck_slider.set_value_no_signal(clamped_neck_length)
 	_on_height_changed(clamped_height)
 	_on_shoulders_changed(clamped_shoulders)
-	_on_head_changed(clamped_head)
+	_on_arm_length_changed(clamped_arm_length)
+	_on_neck_length_changed(clamped_neck_length)
 
 
 func set_skin_color_value(color: Color) -> void:
@@ -965,6 +988,8 @@ func _apply_preview_bone_offsets(skeleton: Skeleton3D, body_archetype: Resource)
 	if body_archetype != null and body_archetype.get("bone_pose_position_offsets") is Dictionary:
 		base_offsets = (body_archetype.get("bone_pose_position_offsets") as Dictionary).duplicate()
 	var offsets: Dictionary = draft_appearance.get_body_pose_offsets(base_offsets) if draft_appearance.has_method("get_body_pose_offsets") else base_offsets
+	_reset_bone_pose_positions(skeleton, offsets)
+	skeleton.force_update_all_bone_transforms()
 	for bone_name_value in offsets.keys():
 		var bone_name := str(bone_name_value)
 		var bone_index := skeleton.find_bone(bone_name)
@@ -972,6 +997,39 @@ func _apply_preview_bone_offsets(skeleton: Skeleton3D, body_archetype: Resource)
 			continue
 		var offset := offsets[bone_name_value] as Vector3
 		skeleton.set_bone_pose_position(bone_index, skeleton.get_bone_rest(bone_index).origin + offset)
+	skeleton.force_update_all_bone_transforms()
+	_apply_preview_foot_anchor_correction()
+
+
+func _reset_bone_pose_positions(skeleton: Skeleton3D, offsets: Dictionary) -> void:
+	for bone_name_value in offsets.keys():
+		var bone_index := skeleton.find_bone(str(bone_name_value))
+		if bone_index < 0:
+			continue
+		skeleton.set_bone_pose_position(bone_index, skeleton.get_bone_rest(bone_index).origin)
+
+
+func _apply_preview_foot_anchor_correction() -> void:
+	if _preview_visual_root == null or not is_instance_valid(_preview_visual_root):
+		return
+	var desired_correction := 0.0
+	if draft_appearance != null and draft_appearance.has_method("get_foot_anchor_correction_y"):
+		desired_correction = float(draft_appearance.get_foot_anchor_correction_y()) * _preview_visual_root.scale.y
+	_preview_visual_root.position.y += desired_correction - _preview_foot_anchor_correction_y
+	_preview_foot_anchor_correction_y = desired_correction
+
+
+func _get_skeleton_foot_anchor_global_y(skeleton: Skeleton3D) -> float:
+	if skeleton == null or not is_instance_valid(skeleton):
+		return INF
+	var result := INF
+	for bone_name in ["foot_l", "foot_r", "ball_l", "ball_r"]:
+		var bone_index := skeleton.find_bone(bone_name)
+		if bone_index < 0:
+			continue
+		var global_position := skeleton.global_transform * skeleton.get_bone_global_pose(bone_index).origin
+		result = minf(result, global_position.y)
+	return result
 
 
 func _setup_preview_clothing_visuals(visual_root: Node3D, skeleton: Skeleton3D, body_archetype: Resource, visual_fit_scale: float) -> void:
@@ -1322,6 +1380,9 @@ func _clear_preview() -> void:
 		_preview_root.remove_child(_preview_model)
 		_preview_model.queue_free()
 	_preview_model = null
+	_preview_visual_root = null
+	_preview_skeleton = null
+	_preview_foot_anchor_correction_y = 0.0
 
 
 func _on_name_changed(_text: String) -> void:
@@ -1370,8 +1431,13 @@ func _on_shoulders_changed(value: float) -> void:
 	_rebuild_preview()
 
 
-func _on_head_changed(value: float) -> void:
-	draft_appearance.head_height_slider = value
+func _on_arm_length_changed(value: float) -> void:
+	draft_appearance.arm_length_slider = value
+	_rebuild_preview()
+
+
+func _on_neck_length_changed(value: float) -> void:
+	draft_appearance.neck_length_slider = value
 	_rebuild_preview()
 
 
