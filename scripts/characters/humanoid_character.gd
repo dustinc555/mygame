@@ -12,6 +12,7 @@ const HUMAN_RACE = preload("res://resources/character_races/human.tres")
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_female.tres")
 const CHARACTER_APPEARANCE_DATA_SCRIPT = preload("res://scripts/character_appearance/character_appearance_data.gd")
+const SKIN_TEXTURE_BUILDER = preload("res://scripts/character_appearance/skin_texture_builder.gd")
 const DEFAULT_MALE_EYEBROW_STYLE = preload("res://resources/character_appearance/eyebrows_regular.tres")
 const DEFAULT_FEMALE_EYEBROW_STYLE = preload("res://resources/character_appearance/eyebrows_female.tres")
 const APPEARANCE_VISUAL_BODY_TYPE_AUTO := 0
@@ -2818,6 +2819,7 @@ func _setup_character_visual() -> void:
 		return
 	var model_root := model as Node3D
 	model_root.rotation.y = CHARACTER_VISUAL_YAW_OFFSET
+	_apply_skin_materials(model_root, resolved_body_type)
 
 	var visual_root := Node3D.new()
 	visual_root.name = CHARACTER_VISUAL_NODE_NAME
@@ -2873,6 +2875,11 @@ func _apply_automatic_eyebrow_style() -> void:
 		_:
 			appearance_data.eyebrow_style = null
 	appearance_data.eyebrow_color = appearance_data.hair_color
+
+
+func has_custom_skin_material() -> bool:
+	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
+	return visual_root != null and SKIN_TEXTURE_BUILDER.has_custom_skin_materials(visual_root)
 
 
 func _get_bone_pose_position_offsets(body_archetype: Resource) -> Dictionary:
@@ -3059,6 +3066,14 @@ func _apply_head_attachment_material(root: Node, color: Color) -> void:
 		(root as MeshInstance3D).material_override = material
 	for child in root.get_children():
 		_apply_head_attachment_material(child, color)
+
+
+func _apply_skin_materials(root: Node, body_type: int) -> void:
+	if appearance_data == null or not bool(appearance_data.skin_color_customized):
+		return
+	var race := _get_character_race()
+	var race_id := str(race.get("race_id")) if race != null else ""
+	SKIN_TEXTURE_BUILDER.apply_custom_skin_materials(root, race_id, body_type, appearance_data.skin_color)
 
 
 func _set_base_eyebrow_visuals_visible(root: Node, is_visible: bool) -> void:

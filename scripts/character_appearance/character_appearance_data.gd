@@ -7,6 +7,7 @@ const VISUAL_BODY_TYPE_AUTO := 0
 const VISUAL_BODY_TYPE_NONE := 1
 const VISUAL_BODY_TYPE_MALE := 2
 const VISUAL_BODY_TYPE_FEMALE := 3
+const DEFAULT_SKIN_COLOR := Color(0.58, 0.38, 0.27, 1.0)
 
 @export var character_race: Resource
 @export var body_archetype: Resource
@@ -17,6 +18,8 @@ const VISUAL_BODY_TYPE_FEMALE := 3
 @export var hair_color := Color(0.16, 0.11, 0.07, 1.0)
 @export var beard_color := Color(0.16, 0.11, 0.07, 1.0)
 @export var eyebrow_color := Color(0.13, 0.09, 0.06, 1.0)
+@export var skin_color_customized := false
+@export var skin_color := DEFAULT_SKIN_COLOR
 @export_range(-1.0, 1.0, 0.01) var height_slider := 0.0
 @export_range(-1.0, 1.0, 0.01) var shoulder_width_slider := 0.0
 @export_range(-1.0, 1.0, 0.01) var head_height_slider := 0.0
@@ -40,6 +43,8 @@ func copy_to(target) -> void:
 	target.hair_color = hair_color
 	target.beard_color = beard_color
 	target.eyebrow_color = eyebrow_color
+	target.skin_color_customized = skin_color_customized
+	target.skin_color = skin_color
 	target.height_slider = height_slider
 	target.shoulder_width_slider = shoulder_width_slider
 	target.head_height_slider = head_height_slider
@@ -59,6 +64,8 @@ func set_from_character(character) -> void:
 		hair_color = source.hair_color
 		beard_color = source.beard_color
 		eyebrow_color = source.eyebrow_color
+		skin_color_customized = source.skin_color_customized
+		skin_color = source.skin_color
 		height_slider = source.height_slider
 		shoulder_width_slider = source.shoulder_width_slider
 		head_height_slider = source.head_height_slider
@@ -71,6 +78,10 @@ func get_body_type_id() -> String:
 		VISUAL_BODY_TYPE_FEMALE:
 			return "female"
 	return ""
+
+
+func has_custom_skin_color() -> bool:
+	return skin_color_customized
 
 
 func get_body_pose_offsets(base_offsets: Dictionary = {}) -> Dictionary:

@@ -2,6 +2,8 @@ extends Node
 
 class_name CharacterAppearanceController
 
+signal creation_saved(draft_appearance, character_name)
+
 const CHARACTER_EDITOR_SCENE = preload("res://scenes/ui/character_editor.tscn")
 const SILVER_ITEM = preload("res://resources/items/silver.tres")
 
@@ -57,13 +59,14 @@ func _do_initialize() -> void:
 	_initialized = true
 
 
-func open_creation_editor() -> void:
+func open_creation_editor() -> bool:
 	_ensure_editor_window()
 	if editor_window == null:
-		return
+		return false
 	_request_editor_pause()
 	editor_window.open_for_actor(null, "creation")
 	editor_window.move_to_front()
+	return true
 
 
 func open_barber_editor(actor: HumanoidCharacter, barber: Node = null) -> bool:
@@ -112,7 +115,9 @@ func _ensure_editor_window() -> void:
 
 
 func _on_editor_save_requested(actor, draft_appearance) -> void:
-	if actor != null and draft_appearance != null and actor.has_method("apply_appearance_data"):
+	if actor == null:
+		creation_saved.emit(draft_appearance, editor_window.get_character_name() if editor_window != null and editor_window.has_method("get_character_name") else "")
+	elif draft_appearance != null and actor.has_method("apply_appearance_data"):
 		actor.apply_appearance_data(draft_appearance)
 		_show_message("Appearance saved")
 	_release_editor_pause()

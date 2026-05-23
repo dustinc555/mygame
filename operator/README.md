@@ -8,6 +8,7 @@ Use these docs when adding reusable content to towns, scenes, facilities, or fut
 
 - `add-bar-to-town.md`: add a reusable `SettlementBar` to a town and place a building model under it.
 - `add-barber-npc.md`: add a reusable barber NPC that opens the character appearance editor.
+- `character-creation-demo.md`: test the dedicated character creation scene and starter-kit spawn flow.
 - `add-road-path.md`: add an invisible road path that NPC squads can use between settlements.
 - `add-population-capacity.md`: author housing or camp capacity that determines a town's max population.
 

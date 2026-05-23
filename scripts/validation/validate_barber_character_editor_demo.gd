@@ -258,6 +258,8 @@ func _expect_preview_isolated(editor, actor: HumanoidCharacter, label: String) -
 	_expect_beard_controls_match_actor(editor, actor, label)
 	_expect_hair_options_match_actor(editor, actor, label)
 	_expect_automatic_eyebrows_match_actor(editor, actor, label)
+	_expect_creation_controls_hidden(editor, label)
+	_expect_default_skin_untouched(actor, label)
 	_expect_custom_eyebrows_replace_base(editor, label)
 	_expect_preview_feet_above_floor(editor, label)
 	for node in get_nodes_in_group("humanoid_character"):
@@ -288,6 +290,20 @@ func _expect_preview_can_rotate(editor, label: String) -> void:
 	await _wait_frames(1)
 	if float(editor.get_preview_pitch_x()) >= start_pitch:
 		_fail("Preview did not pitch down for %s" % label)
+	var start_distance := float(editor.get_preview_camera_distance())
+	editor.zoom_preview_by_steps(1.0)
+	await _wait_frames(1)
+	var zoomed_in_distance := float(editor.get_preview_camera_distance())
+	if zoomed_in_distance >= start_distance:
+		_fail("Preview did not zoom in for %s" % label)
+	editor.zoom_preview_by_steps(-2.0)
+	await _wait_frames(1)
+	if float(editor.get_preview_camera_distance()) <= zoomed_in_distance:
+		_fail("Preview did not zoom out for %s" % label)
+	editor.reset_preview_zoom()
+	await _wait_frames(1)
+	if absf(float(editor.get_preview_camera_distance()) - start_distance) > 0.01:
+		_fail("Preview zoom reset did not restore distance for %s" % label)
 	editor.reset_preview_rotation()
 
 
@@ -395,6 +411,20 @@ func _expect_hair_options_match_actor(editor, actor: HumanoidCharacter, label: S
 	var actual := Array(editor.get_hair_option_style_ids())
 	if actual != expected:
 		_fail("Unexpected hair options for %s: expected %s got %s" % [label, str(expected), str(actual)])
+
+
+func _expect_creation_controls_hidden(editor, label: String) -> void:
+	if editor != null and editor.has_method("creation_controls_visible") and editor.creation_controls_visible():
+		_fail("Barber mode exposes creation-only Race/Sex/body/skin controls for %s" % label)
+
+
+func _expect_default_skin_untouched(actor: HumanoidCharacter, label: String) -> void:
+	if actor == null:
+		return
+	if actor.appearance_data != null and bool(actor.appearance_data.skin_color_customized):
+		_fail("Default barber actor unexpectedly has custom skin data for %s" % label)
+	if actor.has_method("has_custom_skin_material") and actor.has_custom_skin_material():
+		_fail("Default barber actor received a custom skin material for %s" % label)
 
 
 func _expect_automatic_eyebrows_match_actor(editor, actor: HumanoidCharacter, label: String) -> void:

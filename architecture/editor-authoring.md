@@ -64,15 +64,17 @@ Use exclusive points for guard posts or single-worker locations.
 
 ## Character Appearance And Barbers
 
-Use `CharacterAppearanceData` resources or actor defaults for reusable actor appearance. The live actor should only change after the editor saves; previews and cancel flow must stay draft-only.
+Use `CharacterAppearanceData` resources or actor defaults for reusable actor appearance. The live actor should only change after the editor saves; previews and cancel flow must stay draft-only. Creation mode also stores race, sex, body adjusters, and skin color before spawning a new party member.
 
 Use `HeadAttachmentStyleDefinition` resources for reusable hair, beard, and eyebrow entries. The visual scene should be an imported `PackedScene` and the resource should provide a stable `style_id`, display name, slot, and default color. Eyebrows are automatic by body type, not exposed as barber style controls: human male bodies use Regular eyebrows and human female bodies use Fine eyebrows. Eyebrow color follows hair color.
 
 `CharacterAppearanceController` is created by `GameBootstrap`. Scenes should not manually own the character editor; they place actors and optional barber NPCs, and the bootstrapped controller handles opening, payment, editor-specific world pause, save, and cancel routing.
 
+Character creation should use a dedicated creation scene, not a barber shortcut. `res://scenes/test_levels/character_creation_demo.tscn` opens creation mode, then spawns and selects a new party member with starter gear after save.
+
 The character editor is a full-screen opaque modal. Its preview viewport must use an isolated `World3D`, studio backdrop, visual-only mannequin nodes, actor-matching clothing, full-body and compact Face toggle camera modes, and mouse-drag yaw/pitch rotation, not duplicated live actors, collision bodies, navigation agents, or scene-world cameras.
 
-Body-specific style rules belong in reusable appearance/style data and editor filtering. Human male hair options are Buzzed, Simple Parted, and Long; human female hair options are Buns, Long, and Buzzed Female. Female bodies should not expose beard options.
+Body-specific style rules belong in reusable appearance/style data and editor filtering. Human male hair options are Buzzed, Simple Parted, and Long; human female hair options are Buns, Long, and Buzzed Female. Female bodies should not expose beard options. Barber/update mode must not expose Race, Sex, body adjusters, or skin color.
 
 Instantiate `res://scenes/characters/vendors/barber_npc.tscn` for a reusable barber. Set the barber's display fields, conversation definition, starting equipment, and `barber_service_price` in the inspector. The default conversation opens the barber editor through `barber.open_editor` and charges the speaking actor.
 

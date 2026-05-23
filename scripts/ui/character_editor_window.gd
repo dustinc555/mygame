@@ -6,6 +6,7 @@ signal save_requested(target_actor, draft_appearance)
 signal cancel_requested
 
 const CHARACTER_APPEARANCE_DATA_SCRIPT = preload("res://scripts/character_appearance/character_appearance_data.gd")
+const SKIN_TEXTURE_BUILDER = preload("res://scripts/character_appearance/skin_texture_builder.gd")
 const HUMAN_RACE = preload("res://resources/character_races/human.tres")
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_female.tres")
@@ -33,6 +34,10 @@ const PREVIEW_FACE_FOV := 28.0
 const PREVIEW_FACE_BASE_ELEVATION := 0.03
 const PREVIEW_CAMERA_MIN_PITCH := -0.45
 const PREVIEW_CAMERA_MAX_PITCH := 0.65
+const PREVIEW_ZOOM_STEP_FACTOR := 0.88
+const PREVIEW_MIN_ZOOM_FACTOR := 0.55
+const PREVIEW_MAX_ZOOM_FACTOR := 1.85
+const RIGHT_COLUMN_WIDTH := 440.0
 const PREVIEW_BODY_NODE_NAME := "PreviewBody"
 const PREVIEW_IDLE_ANIMATION_PLAYER_NAME := "PreviewIdleAnimationPlayer"
 const IDLE_ANIMATION_NAME := "Idle"
@@ -53,14 +58,17 @@ var _last_preview_body_type := VISUAL_BODY_TYPE_MALE
 var _preview_view_mode := VIEW_FULL_BODY
 var _preview_rotation_y := 0.0
 var _preview_pitch_x := 0.0
+var _preview_zoom_factor := 1.0
 var _preview_dragging := false
 var _preview_clothes_visible := true
 var _preview_clothing_surface_offsets: Dictionary = {}
 
-var _title_label: Label
 var _name_edit: LineEdit
 var _creation_section: VBoxContainer
+var _race_option: OptionButton
 var _body_type_option: OptionButton
+var _skin_tone_buttons: Array[Button] = []
+var _skin_color_reset_button: Button
 var _height_slider: HSlider
 var _shoulder_slider: HSlider
 var _head_slider: HSlider
@@ -101,8 +109,11 @@ func open_for_actor(actor: HumanoidCharacter, editor_mode := MODE_BARBER) -> voi
 	else:
 		draft_appearance = CHARACTER_APPEARANCE_DATA_SCRIPT.new()
 		_setup_default_creation_appearance()
+	if target_actor == null and mode == MODE_CREATION and _name_edit != null:
+		_name_edit.text = "Wanderer"
 	_preview_rotation_y = 0.0
 	_preview_pitch_x = 0.0
+	_preview_zoom_factor = 1.0
 	_preview_dragging = false
 	_preview_clothes_visible = true
 	_preview_view_mode = VIEW_FULL_BODY
@@ -153,12 +164,6 @@ func _build_ui() -> void:
 	var layout := VBoxContainer.new()
 	layout.add_theme_constant_override("separation", 10)
 	margin.add_child(layout)
-
-	_title_label = Label.new()
-	_title_label.text = "Character Editor"
-	_title_label.theme_type_variation = "HeaderSmall"
-	_title_label.add_theme_font_size_override("font_size", 18)
-	layout.add_child(_title_label)
 
 	var body_row := HBoxContainer.new()
 	body_row.add_theme_constant_override("separation", 12)
@@ -225,16 +230,24 @@ func _build_ui() -> void:
 	_face_view_button.toggled.connect(_on_face_view_toggled)
 	preview_controls.add_child(_face_view_button)
 	var drag_hint := Label.new()
-	drag_hint.text = "Drag preview to rotate"
+	drag_hint.text = "Drag preview to rotate; wheel to zoom"
 	drag_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	preview_column.add_child(drag_hint)
+
+	var right_column := VBoxContainer.new()
+	right_column.add_theme_constant_override("separation", 8)
+	right_column.custom_minimum_size = Vector2(RIGHT_COLUMN_WIDTH, 0.0)
+	right_column.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_row.add_child(right_column)
 
 	var controls := ScrollContainer.new()
 	controls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	controls.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body_row.add_child(controls)
+	right_column.add_child(controls)
 	var control_column := VBoxContainer.new()
 	control_column.add_theme_constant_override("separation", 8)
+	control_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	controls.add_child(control_column)
 
 	_name_edit = LineEdit.new()
@@ -245,11 +258,17 @@ func _build_ui() -> void:
 	_creation_section = VBoxContainer.new()
 	_creation_section.add_theme_constant_override("separation", 8)
 	control_column.add_child(_creation_section)
+	_race_option = OptionButton.new()
+	_race_option.add_item("Human", 0)
+	_race_option.set_item_metadata(0, HUMAN_RACE)
+	_race_option.item_selected.connect(_on_race_selected)
+	_creation_section.add_child(_labeled_control("Race", _race_option))
 	_body_type_option = OptionButton.new()
 	_body_type_option.add_item("Male", VISUAL_BODY_TYPE_MALE)
 	_body_type_option.add_item("Female", VISUAL_BODY_TYPE_FEMALE)
 	_body_type_option.item_selected.connect(_on_body_type_selected)
-	_creation_section.add_child(_labeled_control("Body", _body_type_option))
+	_creation_section.add_child(_labeled_control("Sex", _body_type_option))
+	_creation_section.add_child(_labeled_control("Skin color", _create_skin_tone_controls()))
 	_height_slider = _make_slider()
 	_height_slider.value_changed.connect(_on_height_changed)
 	_creation_section.add_child(_labeled_control("Height", _height_slider))
@@ -278,7 +297,8 @@ func _build_ui() -> void:
 	var footer := HBoxContainer.new()
 	footer.alignment = BoxContainer.ALIGNMENT_END
 	footer.add_theme_constant_override("separation", 8)
-	layout.add_child(footer)
+	footer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_column.add_child(footer)
 	_cancel_button = Button.new()
 	_cancel_button.text = "Cancel"
 	_cancel_button.pressed.connect(_on_cancel_pressed)
@@ -336,6 +356,32 @@ func _make_slider() -> HSlider:
 	return slider
 
 
+func _create_skin_tone_controls() -> Control:
+	_skin_tone_buttons.clear()
+	var controls := HBoxContainer.new()
+	controls.add_theme_constant_override("separation", 8)
+	controls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var swatches := GridContainer.new()
+	swatches.columns = 5
+	swatches.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	controls.add_child(swatches)
+	var tones: Array = SKIN_TEXTURE_BUILDER.NATURAL_SKIN_TONES
+	for index in range(tones.size()):
+		var tone: Color = tones[index]
+		var button := Button.new()
+		button.custom_minimum_size = Vector2(34.0, 24.0)
+		button.focus_mode = Control.FOCUS_NONE
+		button.pressed.connect(_on_skin_tone_pressed.bind(index))
+		_style_skin_tone_button(button, tone, false)
+		_skin_tone_buttons.append(button)
+		swatches.add_child(button)
+	_skin_color_reset_button = Button.new()
+	_skin_color_reset_button.text = "Reset"
+	_skin_color_reset_button.pressed.connect(_on_skin_color_reset_pressed)
+	controls.add_child(_skin_color_reset_button)
+	return controls
+
+
 func _labeled_control(label_text: String, control: Control) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
@@ -353,12 +399,14 @@ func _setup_default_creation_appearance() -> void:
 	draft_appearance.character_race = HUMAN_RACE
 	draft_appearance.body_archetype = HUMAN_MALE_BODY_ARCHETYPE
 	draft_appearance.visual_body_type = VISUAL_BODY_TYPE_MALE
+	draft_appearance.skin_color_customized = true
+	draft_appearance.skin_color = CHARACTER_APPEARANCE_DATA_SCRIPT.DEFAULT_SKIN_COLOR
 
 
 func _sync_controls_from_draft() -> void:
 	if draft_appearance == null:
 		return
-	_title_label.text = "Create Character" if mode == MODE_CREATION else "Barber"
+	draft_appearance.skin_color = SKIN_TEXTURE_BUILDER.get_nearest_skin_tone(draft_appearance.skin_color)
 	_creation_section.visible = mode == MODE_CREATION
 	_name_edit.visible = mode == MODE_CREATION
 	var name_row := _name_edit.get_parent() as Control
@@ -371,6 +419,8 @@ func _sync_controls_from_draft() -> void:
 	_populate_style_option(_beard_option, _get_supported_styles(beard_styles, body_type), draft_appearance.beard_style)
 	_hair_color.color = draft_appearance.hair_color
 	_beard_color.color = draft_appearance.beard_color
+	_race_option.select(0)
+	_sync_skin_tone_buttons(draft_appearance.skin_color)
 	_height_slider.set_value_no_signal(draft_appearance.height_slider)
 	_shoulder_slider.set_value_no_signal(draft_appearance.shoulder_width_slider)
 	_head_slider.set_value_no_signal(draft_appearance.head_height_slider)
@@ -512,6 +562,7 @@ func _create_preview_model() -> Node3D:
 	var body_root := body_instance as Node3D
 	body_root.name = PREVIEW_BODY_NODE_NAME
 	body_root.rotation.y = PREVIEW_VISUAL_YAW_OFFSET
+	_apply_preview_skin_materials(body_root)
 	visual_root.add_child(body_root)
 	_setup_preview_idle_animation(body_root)
 	_set_base_eyebrow_visuals_visible(body_root, draft_appearance.eyebrow_style == null)
@@ -580,6 +631,22 @@ func pitch_preview_by(delta_x: float) -> void:
 	_update_preview_camera()
 
 
+func zoom_preview_by_steps(step_count: float) -> void:
+	if absf(step_count) <= 0.001:
+		return
+	if step_count > 0.0:
+		_preview_zoom_factor *= pow(PREVIEW_ZOOM_STEP_FACTOR, step_count)
+	else:
+		_preview_zoom_factor /= pow(PREVIEW_ZOOM_STEP_FACTOR, -step_count)
+	_preview_zoom_factor = clampf(_preview_zoom_factor, PREVIEW_MIN_ZOOM_FACTOR, PREVIEW_MAX_ZOOM_FACTOR)
+	_update_preview_camera()
+
+
+func reset_preview_zoom() -> void:
+	_preview_zoom_factor = 1.0
+	_update_preview_camera()
+
+
 func reset_preview_rotation() -> void:
 	_preview_rotation_y = 0.0
 	_preview_pitch_x = 0.0
@@ -590,6 +657,10 @@ func reset_preview_rotation() -> void:
 
 func get_preview_pitch_x() -> float:
 	return _preview_pitch_x
+
+
+func get_preview_zoom_factor() -> float:
+	return _preview_zoom_factor
 
 
 func get_preview_lowest_visual_y() -> float:
@@ -607,7 +678,7 @@ func _update_preview_camera() -> void:
 	if _preview_camera == null:
 		return
 	var target_y := PREVIEW_FACE_TARGET_Y if _preview_view_mode == VIEW_FACE else PREVIEW_FULL_BODY_TARGET_Y
-	var distance := PREVIEW_FACE_DISTANCE if _preview_view_mode == VIEW_FACE else PREVIEW_FULL_BODY_DISTANCE
+	var distance := (PREVIEW_FACE_DISTANCE if _preview_view_mode == VIEW_FACE else PREVIEW_FULL_BODY_DISTANCE) * _preview_zoom_factor
 	var base_elevation := PREVIEW_FACE_BASE_ELEVATION if _preview_view_mode == VIEW_FACE else PREVIEW_FULL_BODY_BASE_ELEVATION
 	_preview_camera.fov = PREVIEW_FACE_FOV if _preview_view_mode == VIEW_FACE else PREVIEW_FULL_BODY_FOV
 	var target := Vector3(0.0, target_y, 0.0)
@@ -659,6 +730,86 @@ func get_preview_clothes_visible() -> bool:
 
 func beard_controls_visible() -> bool:
 	return _beard_row != null and _beard_row.visible
+
+
+func creation_controls_visible() -> bool:
+	return _creation_section != null and _creation_section.visible
+
+
+func get_race_option_labels() -> PackedStringArray:
+	var labels := PackedStringArray()
+	if _race_option == null:
+		return labels
+	for index in range(_race_option.item_count):
+		labels.append(_race_option.get_item_text(index))
+	return labels
+
+
+func get_character_name() -> String:
+	if _name_edit == null:
+		return ""
+	return _name_edit.text.strip_edges()
+
+
+func set_character_name(next_name: String) -> void:
+	if _name_edit == null:
+		return
+	_name_edit.text = next_name
+
+
+func set_creation_body_type(body_type: int) -> void:
+	if _body_type_option == null:
+		return
+	var option_index := 0
+	for index in range(_body_type_option.item_count):
+		if int(_body_type_option.get_item_id(index)) == body_type:
+			option_index = index
+			break
+	_body_type_option.select(option_index)
+	_on_body_type_selected(option_index)
+
+
+func set_creation_body_sliders(height: float, shoulders: float, head: float) -> void:
+	var clamped_height := clampf(height, -1.0, 1.0)
+	var clamped_shoulders := clampf(shoulders, -1.0, 1.0)
+	var clamped_head := clampf(head, -1.0, 1.0)
+	if _height_slider != null:
+		_height_slider.set_value_no_signal(clamped_height)
+	if _shoulder_slider != null:
+		_shoulder_slider.set_value_no_signal(clamped_shoulders)
+	if _head_slider != null:
+		_head_slider.set_value_no_signal(clamped_head)
+	_on_height_changed(clamped_height)
+	_on_shoulders_changed(clamped_shoulders)
+	_on_head_changed(clamped_head)
+
+
+func set_skin_color_value(color: Color) -> void:
+	if draft_appearance == null:
+		return
+	var normalized_color: Color = SKIN_TEXTURE_BUILDER.get_nearest_skin_tone(color)
+	draft_appearance.skin_color = normalized_color
+	draft_appearance.skin_color_customized = true
+	_sync_skin_tone_buttons(normalized_color)
+	_apply_current_preview_skin_materials()
+
+
+func reset_skin_color_to_default() -> void:
+	if draft_appearance == null:
+		return
+	var default_color: Color = SKIN_TEXTURE_BUILDER.get_nearest_skin_tone(CHARACTER_APPEARANCE_DATA_SCRIPT.DEFAULT_SKIN_COLOR)
+	draft_appearance.skin_color = default_color
+	draft_appearance.skin_color_customized = true
+	_sync_skin_tone_buttons(default_color)
+	_apply_current_preview_skin_materials()
+
+
+func get_preview_skin_color() -> Color:
+	return draft_appearance.skin_color if draft_appearance != null else CHARACTER_APPEARANCE_DATA_SCRIPT.DEFAULT_SKIN_COLOR
+
+
+func preview_has_custom_skin_material() -> bool:
+	return _preview_model != null and SKIN_TEXTURE_BUILDER.has_custom_skin_materials(_preview_model)
 
 
 func get_beard_option_count() -> int:
@@ -1010,6 +1161,76 @@ func _apply_preview_material(root: Node, color: Color) -> void:
 		_apply_preview_material(child, color)
 
 
+func _apply_preview_skin_materials(root: Node) -> bool:
+	if draft_appearance == null or not bool(draft_appearance.skin_color_customized):
+		return false
+	var race: Resource = draft_appearance.character_race if draft_appearance.character_race != null else HUMAN_RACE
+	var race_id := str(race.get("race_id")) if race != null else ""
+	return SKIN_TEXTURE_BUILDER.apply_custom_skin_materials(root, race_id, _resolve_preview_body_type(_resolve_preview_body_archetype()), draft_appearance.skin_color)
+
+
+func _apply_current_preview_skin_materials() -> bool:
+	if _preview_model == null:
+		return false
+	var body_root := _preview_model.find_child(PREVIEW_BODY_NODE_NAME, true, false)
+	if body_root == null:
+		return false
+	return _apply_preview_skin_materials(body_root)
+
+
+func _sync_skin_tone_buttons(color: Color) -> void:
+	var normalized_color: Color = SKIN_TEXTURE_BUILDER.get_nearest_skin_tone(color)
+	var tones: Array = SKIN_TEXTURE_BUILDER.NATURAL_SKIN_TONES
+	for index in range(_skin_tone_buttons.size()):
+		var button := _skin_tone_buttons[index]
+		if button == null:
+			continue
+		var tone: Color = tones[index]
+		_style_skin_tone_button(button, tone, _skin_colors_match(normalized_color, tone))
+
+
+func _skin_colors_match(left: Color, right: Color) -> bool:
+	return absf(left.r - right.r) < 0.002 and absf(left.g - right.g) < 0.002 and absf(left.b - right.b) < 0.002
+
+
+func _style_skin_tone_button(button: Button, tone: Color, selected: bool) -> void:
+	var border_color := Color(1.0, 1.0, 1.0, 0.95) if selected else Color(0.0, 0.0, 0.0, 0.55)
+	var border_width := 3 if selected else 1
+	button.text = ""
+	button.add_theme_stylebox_override("normal", _make_skin_tone_style(tone, border_color, border_width))
+	button.add_theme_stylebox_override("hover", _make_skin_tone_style(tone.lightened(0.08), Color(1.0, 1.0, 1.0, 0.85), 2))
+	button.add_theme_stylebox_override("pressed", _make_skin_tone_style(tone.darkened(0.08), Color(1.0, 1.0, 1.0, 0.95), 3))
+	button.add_theme_stylebox_override("focus", _make_skin_tone_style(tone, Color(1.0, 1.0, 1.0, 0.95), 2))
+
+
+func _make_skin_tone_style(tone: Color, border_color: Color, border_width: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = SKIN_TEXTURE_BUILDER.normalize_skin_color(tone)
+	style.border_color = border_color
+	style.border_width_left = border_width
+	style.border_width_top = border_width
+	style.border_width_right = border_width
+	style.border_width_bottom = border_width
+	style.corner_radius_top_left = 5
+	style.corner_radius_top_right = 5
+	style.corner_radius_bottom_left = 5
+	style.corner_radius_bottom_right = 5
+	return style
+
+
+
+func _apply_preview_style_color(style_resource: Resource, slot_label: String, color: Color) -> bool:
+	if style_resource == null or not bool(style_resource.get("colorize")):
+		return true
+	if _preview_model == null:
+		return true
+	var slot_root := _preview_model.find_child("Appearance%s" % slot_label, true, false)
+	if slot_root == null:
+		return false
+	_apply_preview_material(slot_root, color)
+	return true
+
+
 func _collect_mesh_instances(root: Node, meshes: Array[MeshInstance3D]) -> void:
 	if root is MeshInstance3D:
 		meshes.append(root as MeshInstance3D)
@@ -1108,6 +1329,15 @@ func _on_name_changed(_text: String) -> void:
 		_rebuild_preview()
 
 
+func _on_race_selected(_index: int) -> void:
+	if draft_appearance == null:
+		return
+	draft_appearance.character_race = HUMAN_RACE
+	draft_appearance.body_archetype = HUMAN_FEMALE_BODY_ARCHETYPE if _resolve_preview_body_type(_resolve_preview_body_archetype()) == VISUAL_BODY_TYPE_FEMALE else HUMAN_MALE_BODY_ARCHETYPE
+	_sync_controls_from_draft()
+	_rebuild_preview()
+
+
 func _on_body_type_selected(index: int) -> void:
 	if draft_appearance == null:
 		return
@@ -1117,6 +1347,17 @@ func _on_body_type_selected(index: int) -> void:
 	draft_appearance.body_archetype = HUMAN_FEMALE_BODY_ARCHETYPE if body_type == VISUAL_BODY_TYPE_FEMALE else HUMAN_MALE_BODY_ARCHETYPE
 	_sync_controls_from_draft()
 	_rebuild_preview()
+
+
+func _on_skin_tone_pressed(index: int) -> void:
+	var tones: Array = SKIN_TEXTURE_BUILDER.NATURAL_SKIN_TONES
+	if index < 0 or index >= tones.size():
+		return
+	set_skin_color_value(tones[index])
+
+
+func _on_skin_color_reset_pressed() -> void:
+	reset_skin_color_to_default()
 
 
 func _on_height_changed(value: float) -> void:
@@ -1150,16 +1391,24 @@ func _on_beard_selected(_index: int) -> void:
 
 
 func _on_hair_color_changed(color: Color) -> void:
+	if draft_appearance == null:
+		return
 	draft_appearance.hair_color = color
 	draft_appearance.eyebrow_color = color
-	_rebuild_preview()
+	var hair_updated := _apply_preview_style_color(draft_appearance.hair_style, "Hair", color)
+	var eyebrow_updated := _apply_preview_style_color(draft_appearance.eyebrow_style, "Eyebrows", color)
+	if not hair_updated or not eyebrow_updated:
+		_rebuild_preview()
 
 
 func _on_beard_color_changed(color: Color) -> void:
+	if draft_appearance == null:
+		return
 	if _resolve_preview_body_type(_resolve_preview_body_archetype()) == VISUAL_BODY_TYPE_FEMALE:
 		return
 	draft_appearance.beard_color = color
-	_rebuild_preview()
+	if not _apply_preview_style_color(draft_appearance.beard_style, "Beard", color):
+		_rebuild_preview()
 
 
 func _on_show_clothes_toggled(button_pressed: bool) -> void:
@@ -1171,6 +1420,14 @@ func _on_face_view_toggled(button_pressed: bool) -> void:
 
 
 func _on_preview_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
+		zoom_preview_by_steps(1.0)
+		accept_event()
+		return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		zoom_preview_by_steps(-1.0)
+		accept_event()
+		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		_preview_dragging = event.pressed
 		return

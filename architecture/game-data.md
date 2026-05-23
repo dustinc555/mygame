@@ -156,7 +156,7 @@ Examples:
 - `SettlementTown` and child nodes define authored town layout; controllers use stable IDs to serialize the town's runtime truth.
 - `RoadNetwork` and child `RoadWaypoint` nodes define authored invisible route graphs between stable settlement IDs; `RoadController` stores road records and provides shortest route waypoints for squad actions.
 - `WorldBuilding.population_capacity` and `PopulationCapacitySource` define authored housing/camp capacity; `SettlementController.max_occupancy` is derived from those sources.
-- `CharacterAppearanceData` defines the actor's current body and head-attachment choices; barber edits work on a draft and only update the actor on save.
+- `CharacterAppearanceData` defines the actor's current race, sex/body type, body adjusters, custom skin color, and head-attachment choices; barber edits work on a draft and only update the actor on save.
 - `HeadAttachmentStyleDefinition` resources define reusable hair, beard, and automatic body-specific eyebrow visual scenes; eyebrow color follows hair color.
 
 ## Stable IDs

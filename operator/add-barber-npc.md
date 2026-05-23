@@ -30,4 +30,6 @@ starting_equipment = noble doublet, noble trousers, noble shoes or another outfi
 
 The preview shows the actor's current clothes, supports full-body and compact Face-toggle views, supports mouse-drag yaw/pitch rotation, and filters body-specific options such as hair styles and beards.
 
+Barber update mode does not expose Race, Sex, body adjusters, or skin color. Use the dedicated character creation flow for those controls.
+
 Cancel check: open the barber editor, change a style, press `Cancel`, and confirm the actor's live appearance did not change.
