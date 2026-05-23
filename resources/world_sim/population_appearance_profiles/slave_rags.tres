@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="PopulationAppearanceProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/population_appearance_profile.gd" id="1_profile"]
+[ext_resource type="Resource" path="res://resources/character_appearance/hair_buzzed.tres" id="2_hair_buzzed"]
+[ext_resource type="Resource" path="res://resources/character_appearance/hair_simple_parted.tres" id="3_hair_parted"]
+[ext_resource type="Resource" path="res://resources/character_appearance/hair_long.tres" id="4_hair_long"]
+[ext_resource type="Resource" path="res://resources/character_appearance/hair_buns.tres" id="5_hair_buns"]
+[ext_resource type="Resource" path="res://resources/character_appearance/hair_buzzed_female.tres" id="6_hair_buzzed_female"]
+[ext_resource type="Resource" path="res://resources/items/peasant_tunic.tres" id="7_tunic"]
+[ext_resource type="Resource" path="res://resources/items/peasant_trousers.tres" id="8_trousers"]
+[ext_resource type="Resource" path="res://resources/items/peasant_shoes.tres" id="9_shoes"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "slave_rags"
+display_name = "Slave Rags"
+allowed_body_type_flags = 3
+hair_styles = Array[Resource]([ExtResource("2_hair_buzzed"), ExtResource("3_hair_parted"), ExtResource("4_hair_long"), ExtResource("5_hair_buns"), ExtResource("6_hair_buzzed_female")])
+male_beard_chance = 0.1
+chest_items = Array[Resource]([ExtResource("7_tunic")])
+leg_items = Array[Resource]([ExtResource("8_trousers")])
+feet_items = Array[Resource]([ExtResource("9_shoes")])
+height_range = Vector2(-0.30, 0.18)
+shoulder_range = Vector2(-0.24, 0.12)
+arm_length_range = Vector2(-0.12, 0.12)
+neck_length_range = Vector2(-0.08, 0.08)

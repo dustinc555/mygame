@@ -238,7 +238,7 @@ func _on_hour_changed(absolute_hour: int, day_index: int, hour: int) -> void:
 
 func _process_daily_upkeep(settlement_id: String, day_index: int, hour: int) -> void:
 	var definition: Resource = get_settlement_definition(settlement_id)
-	var profile: Resource = definition.get("behavior_profile") as Resource if definition != null else null
+	var profile := _definition_behavior_profile(definition)
 	if profile == null:
 		return
 	if hour != _resource_int(profile, "daily_upkeep_hour", 6):
@@ -268,7 +268,7 @@ func _process_daily_upkeep(settlement_id: String, day_index: int, hour: int) -> 
 
 func _evaluate_settlement_strategy(settlement_id: String, absolute_hour: int, day_index: int, hour: int) -> void:
 	var definition: Resource = get_settlement_definition(settlement_id)
-	var profile: Resource = definition.get("behavior_profile") as Resource if definition != null else null
+	var profile := _definition_behavior_profile(definition)
 	if profile == null:
 		return
 	if profile.has_method("is_hour_in_action_window") and not bool(profile.call("is_hour_in_action_window", hour)):
@@ -444,6 +444,14 @@ func _definition_faction_id(definition: Resource) -> String:
 	if definition != null and definition.has_method("get_faction_id"):
 		return str(definition.call("get_faction_id"))
 	return _resource_id(definition.get("faction_definition") as Resource) if definition != null else ""
+
+
+func _definition_behavior_profile(definition: Resource) -> Resource:
+	if definition == null:
+		return null
+	if definition.has_method("get_behavior_profile"):
+		return definition.call("get_behavior_profile") as Resource
+	return definition.get("behavior_profile") as Resource
 
 
 func _definition_occupancy_key(definition: Resource) -> String:

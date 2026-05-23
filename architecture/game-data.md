@@ -2,9 +2,9 @@
 
 Game data is primarily authored with Godot resources and nodes.
 
-Resources define reusable data such as items, factions, settlement definitions, facility function definitions, behavior profiles, squad templates, prices, stock, jobs, race data, body archetypes, character appearance data, and head attachment style definitions.
+Resources define reusable data such as items, factions, settlement definitions, facility function definitions, behavior profiles, personality profiles, law profiles, squad templates, prices, stock, jobs, race data, body archetypes, character appearance data, generated population appearance and name profiles, and head attachment style definitions.
 
-Scene nodes define authored world composition such as towns, facilities, NPCs, barber NPCs, containers, bars, mines, activity points, territory anchors, road networks, road waypoints, population capacity sources, buildings, and debug objects.
+Scene nodes define authored world composition such as towns, facilities, NPCs, barber NPCs, containers, bars, mines, activity points, territory anchors, road networks, road waypoints, population capacity sources, world conflict events, buildings, and debug objects.
 
 ## Node Data Graph
 
@@ -25,8 +25,12 @@ digraph GameData {
   Resources -> JobDefinitions;
   Resources -> FacilityFunctionDefinitions;
   Resources -> BehaviorProfiles;
+  Resources -> PersonalityProfiles;
+  Resources -> LawProfiles;
   Resources -> SquadTemplates;
   Resources -> CharacterAppearanceDefinitions;
+  Resources -> PopulationAppearanceProfiles;
+  Resources -> PopulationNameProfiles;
 
   Nodes -> SettlementTown;
   Nodes -> FactionTerritoryAnchor;
@@ -42,12 +46,20 @@ digraph GameData {
   Nodes -> SettlementFacilityInstance;
   Nodes -> SettlementBar;
   Nodes -> SettlementField;
+  Nodes -> WorldConflictEvents;
 
   FactionDefinitions -> Factions;
+  BehaviorProfiles -> Factions;
+  PersonalityProfiles -> Factions;
+  LawProfiles -> Factions;
+  PopulationNameProfiles -> Factions;
   Factions -> Territories;
   Factions -> Towns;
   Factions -> Squads;
   Factions -> NPCs;
+  Factions -> Diplomacy;
+  Factions -> Reputation;
+  Factions -> Favors;
 
   FactionTerritoryAnchor -> Territories;
   Territories -> BuildRules;
@@ -62,10 +74,16 @@ digraph GameData {
   SettlementTown -> Towns;
   Towns -> Facilities;
   Towns -> Residents;
+  PopulationAppearanceProfiles -> Residents;
+  PopulationNameProfiles -> Residents;
+  LawProfiles -> Facilities;
   Towns -> Storage;
   Towns -> TownBorders;
   Towns -> ActivityPoints;
   Towns -> Roads;
+  WorldConflictEvents -> Factions;
+  WorldConflictEvents -> Reputation;
+  WorldConflictEvents -> Favors;
 
   SettlementFacilityInstance -> Facilities;
   FacilityFunctionDefinitions -> FacilityFunctions;
@@ -116,6 +134,7 @@ digraph GameData {
   Controllers -> WorldSquadController;
   Controllers -> WorldTimeController;
   Controllers -> CharacterAppearanceController;
+  Controllers -> WorldEventChoiceController;
 
   FactionController -> FactionState;
   SettlementController -> SettlementState;
@@ -124,6 +143,7 @@ digraph GameData {
   WorldSquadController -> SquadState;
   WorldTimeController -> DailyUpkeep;
   CharacterAppearanceController -> CharacterAppearanceSessions;
+  WorldEventChoiceController -> WorldConflictEvents;
 
   DailyUpkeep -> FoodProduction;
   DailyUpkeep -> FoodConsumption;
@@ -148,14 +168,19 @@ Runtime state answers: what is true right now?
 Examples:
 
 - `ItemDefinition` defines an item type; inventory data stores item counts and ownership state.
-- `FactionDefinition` defines faction defaults; `FactionController` stores reputation and discovered faction state.
-- `SettlementDefinition` defines town identity, faction, behavior, food defaults, and world-sim targets; `SettlementController` stores food, population, events, and facility totals.
+- `FactionDefinition` defines faction defaults including behavior, personality, law, population names, and starting formal diplomacy; `FactionController` stores formal diplomacy, reputation, favor points, and discovered faction state.
+- `SettlementDefinition` defines town identity, faction, optional local culture overrides, food defaults, and world-sim targets; `SettlementController` stores food, population, events, and facility totals.
 - `FacilityFunctionDefinition` defines what a placed facility does, such as bar, farm, shop, police, weapon shop, armor shop, travel shop, potion shop, tavern, mine, or storage.
 - `SettlementFacilityInstance` bridges the placed building slot, staff, service points, storage links, jobs, and activity points into a serializable facility record.
 - `SettlementBar` is the operator-facing reusable bar asset; its internal `BarServiceArea` coordinates waiter service, bed rental, and barkeeper stock handoff.
 - `SettlementTown` and child nodes define authored town layout; controllers use stable IDs to serialize the town's runtime truth.
 - `RoadNetwork` and child `RoadWaypoint` nodes define authored invisible route graphs between stable settlement IDs; `RoadController` stores road records and provides shortest route waypoints for squad actions.
 - `WorldBuilding.population_capacity` and `PopulationCapacitySource` define authored housing/camp capacity; `SettlementController.max_occupancy` is derived from those sources.
+- `PopulationAppearanceProfile` defines reusable generated-resident rules for allowed races, allowed sex/body types, outfit pools, natural hair/skin palettes, hair/beard styles, and conservative skeleton variation.
+- `PopulationNameProfile` defines reusable generated-resident display name rules for body-specific names, neutral names, wasteland nicknames, uniqueness retries, and low-probability repeats after a pool is exhausted.
+- `FactionPersonalityProfile` defines operator-editable cultural tendencies for negotiation and future behavior trees, such as aggression, risk tolerance, mercy, greed, openness, honor, and patience.
+- `FactionLawProfile` defines operator-editable legal customs while keeping the common baseline of no killing, stealing, or trespassing; settlements can override it for local customs.
+- `WorldConflictEvent` defines a local player choice in a nearby faction conflict. It grants reputation and favor only after the player chooses a side and satisfies participation.
 - `CharacterAppearanceData` defines the actor's current race, sex/body type, body adjusters, custom skin color, and head-attachment choices; barber edits work on a draft and only update the actor on save.
 - `HeadAttachmentStyleDefinition` resources define reusable hair, beard, and automatic body-specific eyebrow visual scenes; eyebrow color follows hair color.
 

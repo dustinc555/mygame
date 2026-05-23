@@ -1,0 +1,112 @@
+[gd_resource type="Resource" script_class="ConversationDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/conversation/conversation_definition.gd" id="1_definition"]
+[ext_resource type="Script" path="res://scripts/conversation/conversation_node.gd" id="2_node"]
+[ext_resource type="Script" path="res://scripts/conversation/conversation_response.gd" id="3_response"]
+[ext_resource type="Script" path="res://scripts/conversation/conversation_effect.gd" id="4_effect"]
+
+[sub_resource type="Resource" id="ConversationResponse_why"]
+script = ExtResource("3_response")
+text = "Why are you here?"
+next_node_id = "demand"
+
+[sub_resource type="Resource" id="ConversationNode_intro"]
+script = ExtResource("2_node")
+node_id = "intro"
+speaker_name = "Raider Leader"
+text = "EY! GET OUT HERE. Send someone out before we walk in there ourselves."
+responses = Array[Resource]([SubResource("ConversationResponse_why")])
+
+[sub_resource type="Resource" id="ConversationResponse_persuade"]
+script = ExtResource("3_response")
+text = "This farm isn't worth your blood. Take your crew and walk away."
+skill_check = {
+"base_chance": 0.25,
+"chance_per_level": 0.03,
+"failure_node_id": "persuade_failure",
+"max_chance": 0.9,
+"min_chance": 0.05,
+"skill_id": "attribute.charisma",
+"success_node_id": "persuade_success",
+"xp": 2.0
+}
+
+[sub_resource type="Resource" id="ConversationResponse_join"]
+script = ExtResource("3_response")
+text = "We'll join you."
+next_node_id = "join_raiders"
+
+[sub_resource type="Resource" id="ConversationEffect_start_battle"]
+script = ExtResource("4_effect")
+action_id = "world_squad.start_battle"
+parameters = {
+"squad_id": "conversation_target"
+}
+
+[sub_resource type="Resource" id="ConversationResponse_threat"]
+script = ExtResource("3_response")
+text = "Then you'll have to go through us."
+next_node_id = "start_battle"
+
+[sub_resource type="Resource" id="ConversationNode_demand"]
+script = ExtResource("2_node")
+node_id = "demand"
+speaker_name = "Raider Leader"
+text = "We need slaves. Food if they have it. Bodies if they don't."
+responses = Array[Resource]([SubResource("ConversationResponse_persuade"), SubResource("ConversationResponse_join"), SubResource("ConversationResponse_threat")])
+
+[sub_resource type="Resource" id="ConversationEffect_cancel_raid"]
+script = ExtResource("4_effect")
+action_id = "world_squad.cancel_operation"
+parameters = {
+"reason": "persuaded_to_leave",
+"squad_id": "conversation_target"
+}
+
+[sub_resource type="Resource" id="ConversationEffect_reward_farmers"]
+script = ExtResource("4_effect")
+action_id = "faction.apply_helped_faction_result"
+parameters = {
+"favor_gain": 1,
+"helped_faction_id": "Farmers",
+"opposed_faction_id": "",
+"opposed_reputation_loss": 0,
+"reputation_gain": 10
+}
+
+[sub_resource type="Resource" id="ConversationNode_persuade_success"]
+script = ExtResource("2_node")
+node_id = "persuade_success"
+speaker_name = "Raider Leader"
+text = "Hnh. Fine. Not worth bleeding for farmers today. We're leaving."
+effects = Array[Resource]([SubResource("ConversationEffect_cancel_raid"), SubResource("ConversationEffect_reward_farmers")])
+ends_conversation = true
+
+[sub_resource type="Resource" id="ConversationNode_persuade_failure"]
+script = ExtResource("2_node")
+node_id = "persuade_failure"
+speaker_name = "Raider Leader"
+text = "Cute speech. We'll attack when I'm good and ready."
+ends_conversation = true
+
+[sub_resource type="Resource" id="ConversationNode_join_raiders"]
+script = ExtResource("2_node")
+node_id = "join_raiders"
+speaker_name = "Raider Leader"
+text = "Alright. Then stay out of my way."
+ends_conversation = true
+
+[sub_resource type="Resource" id="ConversationNode_start_battle"]
+script = ExtResource("2_node")
+node_id = "start_battle"
+speaker_name = "Raider Leader"
+text = "Then we'll start early."
+effects = Array[Resource]([SubResource("ConversationEffect_start_battle")])
+ends_conversation = true
+
+[resource]
+script = ExtResource("1_definition")
+conversation_id = "conv.world_squad.raider_raid_parley"
+display_name = "Raider Raid Parley"
+start_node_id = "intro"
+nodes = Array[Resource]([SubResource("ConversationNode_intro"), SubResource("ConversationNode_demand"), SubResource("ConversationNode_persuade_success"), SubResource("ConversationNode_persuade_failure"), SubResource("ConversationNode_join_raiders"), SubResource("ConversationNode_start_battle")])

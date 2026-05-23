@@ -1,11 +1,19 @@
 [gd_resource type="Resource" script_class="FactionDefinition" format=3]
 
 [ext_resource type="Script" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
+[ext_resource type="Resource" path="res://resources/world_sim/behavior_profiles/farmer_village.tres" id="2_behavior"]
+[ext_resource type="Resource" path="res://resources/world_sim/personality_profiles/farmer_communal.tres" id="3_personality"]
+[ext_resource type="Resource" path="res://resources/world_sim/law_profiles/common_settlement_law.tres" id="4_law"]
+[ext_resource type="Resource" path="res://resources/world_sim/population_name_profiles/farmer_names.tres" id="5_names"]
 
 [resource]
 script = ExtResource("1_faction")
 faction_id = "Farmers"
 display_name = "Greenfield Farmers"
 description = "A food-producing settlement faction that fights defensively unless pushed to starvation."
-default_hostile_faction_ids = PackedStringArray("Raiders")
+starting_war_faction_ids = PackedStringArray("Raiders")
 open_access = true
+behavior_profile = ExtResource("2_behavior")
+personality_profile = ExtResource("3_personality")
+law_profile = ExtResource("4_law")
+population_name_profile = ExtResource("5_names")

@@ -6,6 +6,9 @@ class_name SettlementDefinition
 @export var display_name := "Settlement"
 @export var faction_definition: Resource
 @export var behavior_profile: Resource
+@export var personality_profile: Resource
+@export var law_profile: Resource
+@export var population_name_profile: Resource
 @export var world_position := Vector3.ZERO
 @export_enum("Depopulated", "Sparse", "Populated", "Overcrowded") var occupancy_state := 2
 @export var starting_food := 60.0
@@ -22,6 +25,22 @@ func get_id() -> String:
 
 func get_faction_id() -> String:
 	return str(faction_definition.call("get_id")) if faction_definition != null and faction_definition.has_method("get_id") else ""
+
+
+func get_behavior_profile() -> Resource:
+	return behavior_profile if behavior_profile != null else _faction_profile("get_behavior_profile", "behavior_profile")
+
+
+func get_personality_profile() -> Resource:
+	return personality_profile if personality_profile != null else _faction_profile("get_personality_profile", "personality_profile")
+
+
+func get_law_profile() -> Resource:
+	return law_profile if law_profile != null else _faction_profile("get_law_profile", "law_profile")
+
+
+func get_population_name_profile() -> Resource:
+	return population_name_profile if population_name_profile != null else _faction_profile("get_population_name_profile", "population_name_profile")
 
 
 func get_occupancy_multiplier() -> float:
@@ -46,3 +65,11 @@ func get_occupancy_label() -> String:
 			return "Overcrowded"
 		_:
 			return "Populated"
+
+
+func _faction_profile(method_name: String, property_name: String) -> Resource:
+	if faction_definition == null:
+		return null
+	if faction_definition.has_method(method_name):
+		return faction_definition.call(method_name) as Resource
+	return faction_definition.get(property_name) as Resource

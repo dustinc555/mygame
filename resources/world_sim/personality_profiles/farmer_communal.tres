@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="FactionPersonalityProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/faction_personality_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "farmer_communal"
+display_name = "Communal Farmers"
+aggression = 0.12
+risk_tolerance = 0.25
+mercy = 0.72
+greed = 0.18
+openness_to_outsiders = 0.68
+honor = 0.62
+negotiation_patience = 0.7
+operator_notes = "Defensive, practical, and trade-friendly. Violence is a last resort unless food stores or families are threatened."

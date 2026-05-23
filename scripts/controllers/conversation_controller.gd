@@ -9,6 +9,8 @@ var root_scene: Node
 var hud_layer: CanvasLayer
 var inventory_controller
 var appearance_controller
+var faction_controller: Node
+var world_squad_controller: Node
 var world_time: Node
 var party_manager
 var floating_notice
@@ -48,6 +50,8 @@ func _do_initialize() -> void:
 		return
 	inventory_controller = get_parent().get_node_or_null("PartyInventoryController")
 	appearance_controller = get_parent().get_node_or_null("CharacterAppearanceController")
+	faction_controller = get_parent().get_node_or_null("FactionController")
+	world_squad_controller = get_parent().get_node_or_null("WorldSquadController")
 	world_time = get_parent().get_node_or_null("WorldTimeController")
 	conversation_window = hud_layer.get_node_or_null("ConversationWindow")
 	floating_notice = hud_layer.get_node_or_null("FloatingNotice")
@@ -93,9 +97,11 @@ func _show_node(node) -> void:
 			continue
 		var evaluation := _evaluate_response(response)
 		if evaluation.get("visible", true):
+			var display_data := _build_response_display_data(response)
 			response_data.append({
-				"text": response.text,
-				"disabled": evaluation.get("disabled", false)
+				"text": display_data.get("text", response.text),
+				"disabled": evaluation.get("disabled", false),
+				"font_color": display_data.get("font_color", Color(0.95, 0.92, 0.86, 1.0)),
 			})
 			displayed_actions.append({"type": "authored", "response": response})
 	if node.ends_conversation and response_data.is_empty():
@@ -128,6 +134,15 @@ func _on_response_selected(response_index: int) -> void:
 				return
 			transcript_lines.append("%s: %s" % [active_speaker.member_name, response.text])
 			_apply_effects(response.effects)
+			var skill_result := _resolve_response_skill_check(response)
+			if not skill_result.is_empty():
+				transcript_lines.append(skill_result.get("transcript", ""))
+				var result_node_id := str(skill_result.get("next_node_id", ""))
+				if result_node_id.is_empty():
+					_end_conversation()
+					return
+				_show_node(active_definition.get_node_by_id(result_node_id))
+				return
 			if response.next_node_id.is_empty():
 				_end_conversation()
 				return
@@ -181,6 +196,74 @@ func _evaluate_response(response) -> Dictionary:
 			reason = result.get("reason", condition.disabled_reason)
 			return {"visible": false, "disabled": false, "reason": reason}
 	return {"visible": true, "disabled": false, "reason": reason}
+
+
+func _build_response_display_data(response) -> Dictionary:
+	var text := str(response.text)
+	var color := Color(0.95, 0.92, 0.86, 1.0)
+	var skill_check := _response_skill_check(response)
+	if not skill_check.is_empty():
+		var chance := _calculate_skill_check_chance(active_speaker, skill_check)
+		text = "%s [%s]" % [text, _skill_chance_label(chance)]
+		color = _skill_chance_color(chance)
+	return {"text": text, "font_color": color}
+
+
+func _resolve_response_skill_check(response) -> Dictionary:
+	var skill_check := _response_skill_check(response)
+	if skill_check.is_empty():
+		return {}
+	var chance := _calculate_skill_check_chance(active_speaker, skill_check)
+	var passed := randf() <= chance
+	var skill_id := str(skill_check.get("skill_id", SkillRules.ATTRIBUTE_CHARISMA))
+	if active_speaker != null and active_speaker.has_method("add_skill_xp"):
+		active_speaker.call("add_skill_xp", skill_id, float(skill_check.get("xp", 1.0)), "conversation_check")
+	var next_node_id := str(skill_check.get("success_node_id", "")) if passed else str(skill_check.get("failure_node_id", ""))
+	return {
+		"passed": passed,
+		"next_node_id": next_node_id,
+		"transcript": "Check: %s (%s, %d%%)." % ["Success" if passed else "Failure", _skill_chance_label(chance), int(round(chance * 100.0))],
+	}
+
+
+func _calculate_skill_check_chance(actor, skill_check: Dictionary) -> float:
+	var skill_id := str(skill_check.get("skill_id", SkillRules.ATTRIBUTE_CHARISMA))
+	var level := 0
+	if actor != null and actor.has_method("get_skill_level"):
+		level = int(actor.call("get_skill_level", skill_id))
+	var chance := float(skill_check.get("base_chance", 0.25)) + float(level) * float(skill_check.get("chance_per_level", 0.03))
+	return clampf(chance, float(skill_check.get("min_chance", 0.05)), float(skill_check.get("max_chance", 0.9)))
+
+
+func _skill_chance_label(chance: float) -> String:
+	if chance < 0.2:
+		return "Very Low"
+	if chance < 0.4:
+		return "Low"
+	if chance < 0.65:
+		return "50/50"
+	if chance < 0.9:
+		return "High"
+	return "Very High"
+
+
+func _skill_chance_color(chance: float) -> Color:
+	if chance < 0.2:
+		return Color(0.95, 0.24, 0.2, 1.0)
+	if chance < 0.4:
+		return Color(1.0, 0.52, 0.24, 1.0)
+	if chance < 0.65:
+		return Color(0.95, 0.86, 0.34, 1.0)
+	if chance < 0.9:
+		return Color(0.55, 0.92, 0.48, 1.0)
+	return Color(0.18, 0.95, 0.42, 1.0)
+
+
+func _response_skill_check(response) -> Dictionary:
+	if response == null:
+		return {}
+	var value = response.get("skill_check")
+	return value if value is Dictionary else {}
 
 
 func _build_dynamic_option_context() -> Dictionary:
@@ -248,6 +331,24 @@ func _execute_action(effect) -> void:
 			var faction_actor = _resolve_subject(effect.parameters.get("subject", "conversation_target"))
 			if faction_actor != null:
 				faction_actor.faction_name = str(effect.parameters.get("faction_name", faction_actor.faction_name))
+		"world_squad.cancel_operation":
+			if world_squad_controller != null and world_squad_controller.has_method("cancel_operation"):
+				var cancel_squad_id := _resolve_squad_id(effect.parameters.get("squad_id", "conversation_target"))
+				world_squad_controller.call("cancel_operation", cancel_squad_id, str(effect.parameters.get("reason", "conversation")))
+		"world_squad.start_battle":
+			if world_squad_controller != null and world_squad_controller.has_method("start_battle"):
+				var battle_squad_id := _resolve_squad_id(effect.parameters.get("squad_id", "conversation_target"))
+				world_squad_controller.call("start_battle", battle_squad_id)
+		"faction.apply_helped_faction_result":
+			if faction_controller != null and faction_controller.has_method("apply_helped_faction_result"):
+				faction_controller.call(
+					"apply_helped_faction_result",
+					str(effect.parameters.get("helped_faction_id", "")),
+					str(effect.parameters.get("opposed_faction_id", "")),
+					int(effect.parameters.get("reputation_gain", 10)),
+					int(effect.parameters.get("favor_gain", 1)),
+					int(effect.parameters.get("opposed_reputation_loss", 0))
+				)
 		_:
 			return
 
@@ -259,6 +360,16 @@ func _resolve_subject(subject_key: Variant):
 		"conversation_target", "npc_self":
 			return active_target
 	return null
+
+
+func _resolve_squad_id(source: Variant) -> String:
+	var direct_value := str(source)
+	if direct_value != "conversation_target" and direct_value != "speaker_member" and not direct_value.is_empty():
+		return direct_value
+	var actor = _resolve_subject(source)
+	if actor != null:
+		return str(actor.get("world_squad_id"))
+	return ""
 
 
 func _resolve_bar_service_area(start_node: Node) -> BarServiceArea:

@@ -11,6 +11,10 @@ Use these docs when adding reusable content to towns, scenes, facilities, or fut
 - `character-creation-demo.md`: test the dedicated character creation scene and starter-kit spawn flow.
 - `add-road-path.md`: add an invisible road path that NPC squads can use between settlements.
 - `add-population-capacity.md`: author housing or camp capacity that determines a town's max population.
+- `add-population-appearance-profile.md`: configure generated settlement resident race, sex/body type, clothing, hair, skin, and body variation.
+- `add-population-name-profile.md`: configure deterministic generated settlement resident display names.
+- `add-faction-culture.md`: configure faction-level behavior, personality, law, and name defaults with local overrides.
+- `add-world-conflict-event.md`: configure nearby local faction conflict choices and participation-based reputation/favor rewards.
 
 ## Documentation Rule
 

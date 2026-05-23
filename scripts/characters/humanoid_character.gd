@@ -179,6 +179,7 @@ const FEMALE_VISUAL_NAME_KEYS := {
 
 @export var faction_name := "Player"
 @export var squad_name := "Default"
+@export var world_squad_id := ""
 @export var hostile_factions: PackedStringArray = PackedStringArray()
 @export var conversation_definition: Resource
 
@@ -296,6 +297,7 @@ var _stored_collision_layer := 1
 var _stored_collision_mask := 1
 
 var _personal_hostile_ids: Dictionary = {}
+var _combat_reputation_recorded: Dictionary = {}
 var _last_direct_attacker_id := 0
 var _assigned_talkers: Dictionary = {}
 var _pending_talker_ids: Dictionary = {}
@@ -2740,6 +2742,16 @@ func _setup_nameplate() -> void:
 	_nameplate.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
+func refresh_nameplate() -> void:
+	if not show_nameplate:
+		return
+	if _nameplate == null or not is_instance_valid(_nameplate):
+		_setup_nameplate()
+		return
+	_nameplate.text = member_name
+	_nameplate.position = Vector3(0.0, overhead_text_height, 0.0)
+
+
 func _setup_inspect_ring() -> void:
 	var ring_mesh := CylinderMesh.new()
 	ring_mesh.top_radius = 0.74
@@ -4597,6 +4609,7 @@ func _join_defense_against(threat: HumanoidCharacter) -> void:
 		return
 	mark_hostile(threat)
 	threat.mark_hostile(self)
+	_record_player_combat_reputation(threat)
 	if _current_attack_target != null and _current_attack_target != threat and not COMBAT_COORDINATOR.should_switch_target(self, _current_attack_target, threat, _get_combat_switch_radius()):
 		return
 	assign_attack_target(threat, false, false, false)
@@ -4655,18 +4668,46 @@ func _should_answer_settlement_alarm(victim: HumanoidCharacter, attacker: Humano
 	if alarm_town == null or not _is_actor_in_or_attached_to_town(self, alarm_town):
 		return false
 	var town_faction := _get_settlement_faction_id(alarm_town)
-	if not town_faction.is_empty():
-		if not _is_friendly_to_faction(town_faction):
-			return false
-		if not _is_actor_hostile_to_faction(attacker, town_faction):
-			return false
+	if town_faction.is_empty() or not _is_actor_hostile_to_faction(attacker, town_faction):
+		return false
 	if victim != null and has_hostility_with(victim):
 		return false
 	if faction_name == town_faction or _is_node_descendant_of(self, alarm_town):
 		return true
+	if player_party_member or faction_name == "Player":
+		return _should_player_help_settlement_faction(town_faction)
 	if has_hostility_with(attacker):
 		return true
 	return _is_public_order_defender()
+
+
+func _should_player_help_settlement_faction(town_faction: String) -> bool:
+	if town_faction.is_empty() or not is_inside_tree():
+		return false
+	for node in get_tree().get_nodes_in_group("faction_controller"):
+		if node.has_method("should_player_help_faction"):
+			return bool(node.call("should_player_help_faction", town_faction))
+	return false
+
+
+func _record_player_combat_reputation(threat: HumanoidCharacter) -> void:
+	if threat == null or not is_inside_tree():
+		return
+	var opposed_faction := ""
+	if player_party_member and threat.faction_name != faction_name:
+		opposed_faction = threat.faction_name
+	elif threat.player_party_member and not faction_name.is_empty() and faction_name != threat.faction_name:
+		opposed_faction = faction_name
+	if opposed_faction.is_empty():
+		return
+	var record_key := opposed_faction
+	if _combat_reputation_recorded.has(record_key):
+		return
+	_combat_reputation_recorded[record_key] = true
+	for node in get_tree().get_nodes_in_group("faction_controller"):
+		if node.has_method("record_player_combat_against"):
+			node.call("record_player_combat_against", opposed_faction, -1)
+			return
 
 
 func _get_owning_settlement_town(node: Node) -> Node:

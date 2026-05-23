@@ -6,3 +6,4 @@ class_name ConversationResponse
 @export var next_node_id := ""
 @export var visible_conditions: Array[Resource] = []
 @export var effects: Array[Resource] = []
+@export var skill_check: Dictionary = {}

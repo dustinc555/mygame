@@ -52,6 +52,50 @@ For outdoor slums, tents, sleeping rolls, or other non-building shelters, add a 
 
 `SettlementDefinition` does not define town capacity; authored town content does.
 
+## Population Appearance
+
+Use `PopulationAppearanceProfile` resources for generated settlement residents instead of hardcoding race, sex, clothing, hair, skin, or skeleton variation in scene scripts.
+
+Assign a profile to `SettlementPopulationSpawner.population_appearance_profile`. The profile controls allowed races, allowed body types, outfit pools, hair/beard styles, natural hair colors, natural skin tones, and conservative body slider ranges.
+
+Leave `allowed_races` empty when the population can use any available race. Set explicit race resources when authoring restricted groups such as human-only guards, robot-only towns, or mixed-race slave populations.
+
+Use multiple spawners or profiles under the same town when groups have different rules, such as slaves, guards, merchants, or owners.
+
+## Population Names
+
+Use `PopulationNameProfile` resources for generated settlement resident display names instead of placeholder prefixes like `Farmer 19` or scene-specific hardcoded lists.
+
+Assign a default profile to `FactionDefinition.population_name_profile`. Settlement-level and spawner-level name profiles are local overrides for special settlements or groups such as slaves, guards, nobles, or fort occupiers.
+
+The profile picks deterministic names from body-specific, neutral, and wasteland nickname pools using the spawner seed and each actor's stable ID.
+
+Generated names are unique-first within each spawner. Keep duplicate chances low and expand the profile pools when a town can spawn more residents than the available name set.
+
+Leave name arrays empty to use the shared curated defaults, or fill them for culture-specific populations. Larger external datasets can be added later behind the same profile resource contract.
+
+## Faction Culture
+
+Use `FactionDefinition` as the human-operator entry point for culture defaults. A faction can reference behavior, personality, law, and population name profiles.
+
+Settlement definitions can override behavior, personality, law, and names for special local cultures. Spawners can override population names and appearance for local groups. The override order is local group, settlement, faction, then shared defaults.
+
+Do not use faction defaults to rename existing persisted locals after conquest. Names belong to actors/populations; use replacement spawners or local profile changes only when the population itself changes.
+
+`FactionLawProfile` should keep the stable common law baseline: no killing, no stealing, and no trespassing. Use profile options for cultural differences such as personal retaliation for petty theft, different trespass warning counts, or wider/narrower alarm radius.
+
+Reputation and diplomacy are separate. Reputation controls standing labels from `Vilified` through `Beloved`; formal diplomacy controls political state such as `War`, `Trade`, `Alliance`, `Vassal`, `Tributary`, or `Protectorate`.
+
+The player faction only auto-helps formal allies and protectorates when `Help allies` is enabled in the Factions menu. Neutral reputation never causes automatic intervention.
+
+## World Conflict Events
+
+Use `WorldConflictEvent` and `WorldEventChoiceController` for nearby player choices in faction conflicts. The event should be spatial, reusable, and local to the conflict, not a global notification.
+
+Conflict prompts pause the game and appear only when the player party is inside the event radius. `Ignore` is always valid. Choosing a side creates temporary event hostility, but reputation and favor changes apply only after the player satisfies participation.
+
+Use this pattern for settlement raids, caravan ambushes, survivors attacked by hostile groups, and other reusable world events where the simulation needs to know which side the player actually helped.
+
 ## Activity Points
 
 Add `SettlementActivityPoint` nodes where NPCs should go.

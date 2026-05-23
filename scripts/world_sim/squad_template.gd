@@ -9,6 +9,9 @@ class_name SquadTemplate
 @export_range(1, 24, 1) var member_count := 3
 @export var base_strength := 20.0
 @export var food_capacity := 30.0
+@export var operation_profile: Resource
+@export var population_appearance_profile: Resource
+@export var population_name_profile: Resource
 @export var base_color := Color(0.62, 0.62, 0.62, 1.0)
 @export var max_hp := 100.0
 @export var base_attack_damage := 18.0

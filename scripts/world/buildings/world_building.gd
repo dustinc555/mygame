@@ -8,6 +8,7 @@ class_name WorldBuilding
 @export var owner_character_path: NodePath
 @export var owner_faction_name := ""
 @export_enum("default", "occupied", "abandoned", "public", "scheduled", "private") var access_mode := "default"
+@export var use_law_profile_trespass_rules := true
 @export_range(0, 23, 1) var public_open_hour := 8
 @export_range(0, 23, 1) var public_close_hour := 21
 @export_range(1.0, 30.0, 0.5) var trespass_warning_interval_seconds := 3.0
@@ -330,18 +331,18 @@ func _issue_trespass_response(actor: HumanoidCharacter) -> void:
 		return
 	var actor_id := actor.get_instance_id()
 	if bool(_trespass_escalated.get(actor_id, false)):
-		_trespass_warning_remaining[actor_id] = trespass_warning_interval_seconds
+		_trespass_warning_remaining[actor_id] = _get_trespass_warning_interval_seconds()
 		return
 	var warning_count := int(_trespass_warning_counts.get(actor_id, 0))
 	var witness := _find_trespass_witness(actor)
-	if warning_count < trespass_warnings_before_alarm:
+	if warning_count < _get_trespass_warnings_before_alarm():
 		if witness != null:
 			_turn_witness_toward_actor(witness, actor)
 			witness.show_world_speech("You aren't supposed to be here.", 3.0)
 		else:
 			actor.show_world_notice("Private property", Color(1.0, 0.78, 0.38, 1.0), 2.0)
 		_trespass_warning_counts[actor_id] = warning_count + 1
-		_trespass_warning_remaining[actor_id] = trespass_warning_interval_seconds
+		_trespass_warning_remaining[actor_id] = _get_trespass_warning_interval_seconds()
 		return
 	_escalate_trespass(actor, witness)
 
@@ -351,11 +352,20 @@ func _escalate_trespass(actor: HumanoidCharacter, witness: HumanoidCharacter = n
 		return
 	var actor_id := actor.get_instance_id()
 	_trespass_escalated[actor_id] = true
-	_trespass_warning_remaining[actor_id] = trespass_warning_interval_seconds
+	_trespass_warning_remaining[actor_id] = _get_trespass_warning_interval_seconds()
 	var lead_witness := witness if witness != null else _find_trespass_witness(actor)
 	if lead_witness != null:
 		_turn_witness_toward_actor(lead_witness, actor)
 		lead_witness.show_world_speech("Guards! Trespasser!", 4.0)
+	var escalation := _get_trespass_escalation()
+	if escalation == "warning_only":
+		return
+	if escalation == "victim_only":
+		var owner_character := get_explicit_owner_character()
+		var responder := owner_character if owner_character != null else lead_witness
+		if responder != null and responder != actor:
+			responder.assign_attack_target(actor, false)
+		return
 	for responder in _find_trespass_responders(actor):
 		if responder == null or responder == actor:
 			continue
@@ -367,10 +377,61 @@ func _find_trespass_witness(actor: HumanoidCharacter) -> HumanoidCharacter:
 	var best_distance := INF
 	for responder in _find_trespass_responders(actor):
 		var distance := responder.global_position.distance_to(actor.global_position)
-		if distance <= trespass_notice_radius and distance < best_distance:
+		if distance <= _get_trespass_notice_radius() and distance < best_distance:
 			best_distance = distance
 			best_witness = responder
 	return best_witness
+
+
+func get_effective_law_profile() -> Resource:
+	var settlement := get_ancestor_settlement()
+	if settlement == null:
+		return null
+	var definition = settlement.get("settlement_definition")
+	if definition != null and definition.has_method("get_law_profile"):
+		return definition.call("get_law_profile") as Resource
+	return definition.get("law_profile") as Resource if definition != null else null
+
+
+func _get_trespass_warning_interval_seconds() -> float:
+	var profile := get_effective_law_profile()
+	return _law_float(profile, "trespass_warning_interval_seconds", trespass_warning_interval_seconds) if use_law_profile_trespass_rules else trespass_warning_interval_seconds
+
+
+func _get_trespass_warnings_before_alarm() -> int:
+	var profile := get_effective_law_profile()
+	return _law_int(profile, "trespass_warnings_before_alarm", trespass_warnings_before_alarm) if use_law_profile_trespass_rules else trespass_warnings_before_alarm
+
+
+func _get_trespass_notice_radius() -> float:
+	var profile := get_effective_law_profile()
+	return _law_float(profile, "trespass_notice_radius", trespass_notice_radius) if use_law_profile_trespass_rules else trespass_notice_radius
+
+
+func _get_trespass_escalation() -> String:
+	var profile := get_effective_law_profile()
+	return _law_string(profile, "trespass_escalation", "settlement_alarm") if use_law_profile_trespass_rules else "settlement_alarm"
+
+
+func _law_float(profile: Resource, property_name: String, fallback: float) -> float:
+	if profile == null:
+		return fallback
+	var value = profile.get(property_name)
+	return fallback if value == null else float(value)
+
+
+func _law_int(profile: Resource, property_name: String, fallback: int) -> int:
+	if profile == null:
+		return fallback
+	var value = profile.get(property_name)
+	return fallback if value == null else int(value)
+
+
+func _law_string(profile: Resource, property_name: String, fallback: String) -> String:
+	if profile == null:
+		return fallback
+	var value = profile.get(property_name)
+	return fallback if value == null else str(value)
 
 
 func _find_trespass_responders(actor: HumanoidCharacter) -> Array[HumanoidCharacter]:
