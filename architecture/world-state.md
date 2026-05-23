@@ -19,10 +19,13 @@ Current examples:
 - `RoadController`: authored road records, road debug visibility, and settlement-to-settlement route lookup.
 - `WorldSimulationController`: facade for serialized world state and debug actions.
 - `WorldTimeController`: authoritative world time for simulation ticks.
+- `CharacterAppearanceController`: bootstrapped modal editor ownership, barber payment, and save/cancel routing.
 
 Facility records are controller-owned state once discovered. A record should use stable IDs and simple values such as `facility_id`, `function_id`, `owner_faction_id`, `world_position`, production and consumption totals, building count, staff count, service point count, storage link count, activity point count, job provider count, and bar service area count.
 
 Settlement max occupancy is derived from authored population capacity sources under the town, such as `WorldBuilding.population_capacity` and explicit `PopulationCapacitySource` nodes. `SettlementDefinition` does not define town capacity.
+
+Character appearance truth lives on the actor as `CharacterAppearanceData`. The appearance controller owns only short-lived editor session state: draft data, the target actor, barber fee collection, editor-specific world pause, and applying the saved draft back to the actor.
 
 ## Serializable State
 

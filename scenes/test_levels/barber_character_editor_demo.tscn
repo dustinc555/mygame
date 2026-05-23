@@ -1,0 +1,126 @@
+[gd_scene load_steps=20 format=3]
+
+[ext_resource type="Script" path="res://scripts/party_member.gd" id="1_party"]
+[ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_party_manager"]
+[ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
+[ext_resource type="Script" path="res://scripts/items/inventory_stock.gd" id="4_stock"]
+[ext_resource type="Resource" path="res://resources/items/silver.tres" id="5_silver"]
+[ext_resource type="Resource" path="res://resources/items/peasant_tunic.tres" id="6_tunic"]
+[ext_resource type="Resource" path="res://resources/items/peasant_trousers.tres" id="7_trousers"]
+[ext_resource type="Resource" path="res://resources/items/peasant_shoes.tres" id="8_shoes"]
+[ext_resource type="PackedScene" path="res://scenes/characters/vendors/barber_npc.tscn" id="9_barber"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(24, 1, 24)
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(24, 1, 24)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.35, 0.29, 0.22, 1)
+roughness = 0.95
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_member"]
+radius = 0.45
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
+top_radius = 0.72
+bottom_radius = 0.72
+height = 0.05
+radial_segments = 24
+rings = 2
+
+[sub_resource type="Resource" id="InventoryStock_mira_silver"]
+script = ExtResource("4_stock")
+item_definition = ExtResource("5_silver")
+quantity = 10
+
+[sub_resource type="Resource" id="InventoryStock_tomas_silver"]
+script = ExtResource("4_stock")
+item_definition = ExtResource("5_silver")
+quantity = 10
+
+[node name="BarberCharacterEditorDemo" type="Node3D"]
+
+[node name="WorldLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.353553, 0.612372, 0, 0.866025, 0.5, -0.707107, -0.353553, 0.612372, 0, 8, 0)
+light_energy = 2.0
+
+[node name="Floor" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+mesh = SubResource("BoxMesh_floor")
+surface_material_override/0 = SubResource("StandardMaterial3D_floor")
+
+[node name="PartyManager" type="Node" parent="."]
+script = ExtResource("2_party_manager")
+
+[node name="PartyMembers" type="Node3D" parent="."]
+
+[node name="Mira" type="CharacterBody3D" parent="PartyMembers"]
+transform = Transform3D(0.92388, 0, -0.382683, 0, 1, 0, 0.382683, 0, 0.92388, -1.2, 0, 0.4)
+script = ExtResource("1_party")
+member_name = "Mira"
+faction_name = "Player"
+starting_items = Array[Resource]([SubResource("InventoryStock_mira_silver")])
+starting_equipment = Array[Resource]([ExtResource("6_tunic"), ExtResource("7_trousers"), ExtResource("8_shoes")])
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Mira"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Mira"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Mira"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+visible = false
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="Tomas" type="CharacterBody3D" parent="PartyMembers"]
+transform = Transform3D(0.92388, 0, -0.382683, 0, 1, 0, 0.382683, 0, 0.92388, -1.2, 0, -0.8)
+script = ExtResource("1_party")
+member_name = "Tomas"
+faction_name = "Player"
+starting_items = Array[Resource]([SubResource("InventoryStock_tomas_silver")])
+starting_equipment = Array[Resource]([ExtResource("6_tunic"), ExtResource("7_trousers"), ExtResource("8_shoes")])
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Tomas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Tomas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Tomas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+visible = false
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="NPCs" type="Node3D" parent="."]
+
+[node name="Barber" parent="NPCs" instance=ExtResource("9_barber")]
+transform = Transform3D(-0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, -0.707107, 1.8, 0, 0)
+
+[node name="CameraRig" type="Node3D" parent="."]
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 0, 4, 6)
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+transform = Transform3D(1, 0, 0, 0, 0.819648, 0.572868, 0, -0.572868, 0.819648, 0, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 8)
+current = true
+
+[node name="GameBootstrap" type="Node" parent="."]
+script = ExtResource("3_bootstrap")

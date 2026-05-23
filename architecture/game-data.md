@@ -2,9 +2,9 @@
 
 Game data is primarily authored with Godot resources and nodes.
 
-Resources define reusable data such as items, factions, settlement definitions, facility function definitions, behavior profiles, squad templates, prices, stock, jobs, race data, and body archetypes.
+Resources define reusable data such as items, factions, settlement definitions, facility function definitions, behavior profiles, squad templates, prices, stock, jobs, race data, body archetypes, character appearance data, and head attachment style definitions.
 
-Scene nodes define authored world composition such as towns, facilities, NPCs, containers, bars, mines, activity points, territory anchors, road networks, road waypoints, population capacity sources, buildings, and debug objects.
+Scene nodes define authored world composition such as towns, facilities, NPCs, barber NPCs, containers, bars, mines, activity points, territory anchors, road networks, road waypoints, population capacity sources, buildings, and debug objects.
 
 ## Node Data Graph
 
@@ -26,6 +26,7 @@ digraph GameData {
   Resources -> FacilityFunctionDefinitions;
   Resources -> BehaviorProfiles;
   Resources -> SquadTemplates;
+  Resources -> CharacterAppearanceDefinitions;
 
   Nodes -> SettlementTown;
   Nodes -> FactionTerritoryAnchor;
@@ -33,6 +34,7 @@ digraph GameData {
   Nodes -> RoadWaypoint;
   Nodes -> PopulationCapacitySource;
   Nodes -> NPCs;
+  Nodes -> BarberNPCs;
   Nodes -> Containers;
   Nodes -> Bars;
   Nodes -> Mines;
@@ -113,6 +115,7 @@ digraph GameData {
   Controllers -> RoadController;
   Controllers -> WorldSquadController;
   Controllers -> WorldTimeController;
+  Controllers -> CharacterAppearanceController;
 
   FactionController -> FactionState;
   SettlementController -> SettlementState;
@@ -120,10 +123,13 @@ digraph GameData {
   RoadController -> RoadState;
   WorldSquadController -> SquadState;
   WorldTimeController -> DailyUpkeep;
+  CharacterAppearanceController -> CharacterAppearanceSessions;
 
   DailyUpkeep -> FoodProduction;
   DailyUpkeep -> FoodConsumption;
   DailyUpkeep -> SettlementState;
+  CharacterAppearanceSessions -> NPCs;
+  CharacterAppearanceDefinitions -> NPCs;
   SettlementState -> Events;
   SettlementState -> PopulationCapacity;
   SquadState -> Events;
@@ -150,6 +156,8 @@ Examples:
 - `SettlementTown` and child nodes define authored town layout; controllers use stable IDs to serialize the town's runtime truth.
 - `RoadNetwork` and child `RoadWaypoint` nodes define authored invisible route graphs between stable settlement IDs; `RoadController` stores road records and provides shortest route waypoints for squad actions.
 - `WorldBuilding.population_capacity` and `PopulationCapacitySource` define authored housing/camp capacity; `SettlementController.max_occupancy` is derived from those sources.
+- `CharacterAppearanceData` defines the actor's current body and head-attachment choices; barber edits work on a draft and only update the actor on save.
+- `HeadAttachmentStyleDefinition` resources define reusable hair, beard, and automatic body-specific eyebrow visual scenes; eyebrow color follows hair color.
 
 ## Stable IDs
 

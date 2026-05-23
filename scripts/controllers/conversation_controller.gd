@@ -8,6 +8,7 @@ const ACTOR_CONDITION_EVALUATOR_SCRIPT = preload("res://scripts/conditions/actor
 var root_scene: Node
 var hud_layer: CanvasLayer
 var inventory_controller
+var appearance_controller
 var world_time: Node
 var party_manager
 var floating_notice
@@ -46,6 +47,7 @@ func _do_initialize() -> void:
 	if hud_layer == null:
 		return
 	inventory_controller = get_parent().get_node_or_null("PartyInventoryController")
+	appearance_controller = get_parent().get_node_or_null("CharacterAppearanceController")
 	world_time = get_parent().get_node_or_null("WorldTimeController")
 	conversation_window = hud_layer.get_node_or_null("ConversationWindow")
 	floating_notice = hud_layer.get_node_or_null("FloatingNotice")
@@ -199,6 +201,9 @@ func _apply_effects(effects: Array) -> void:
 
 func _execute_action(effect) -> void:
 	match effect.action_id:
+		"barber.open_editor":
+			if appearance_controller != null and active_speaker != null:
+				appearance_controller.open_barber_editor(active_speaker, active_target)
 		"core.start_trade":
 			if inventory_controller != null and active_speaker != null and active_target != null:
 				inventory_controller.open_inventory_pair(active_speaker, active_target)

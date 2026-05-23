@@ -15,6 +15,7 @@ const SPEED_LABELS: Array[String] = ["Slow", "Normal", "Fast", "Very Fast"]
 const SPEED_SCALES: Array[float] = [0.5, 1.0, 3.0, 8.0]
 const PAUSE_REASON_MANUAL := "manual"
 const PAUSE_REASON_CONVERSATION := "conversation"
+const PAUSE_REASON_APPEARANCE_EDITOR := "appearance_editor"
 
 @export_range(0, 23, 1) var start_hour := 16
 @export_range(0, 59, 1) var start_minute := 30
@@ -158,6 +159,14 @@ func request_conversation_pause() -> bool:
 
 func release_conversation_pause() -> void:
 	release_pause(PAUSE_REASON_CONVERSATION)
+
+
+func request_appearance_editor_pause() -> bool:
+	return request_pause(PAUSE_REASON_APPEARANCE_EDITOR)
+
+
+func release_appearance_editor_pause() -> void:
+	release_pause(PAUSE_REASON_APPEARANCE_EDITOR)
 
 
 func request_pause(reason: String) -> bool:

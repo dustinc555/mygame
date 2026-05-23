@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ConversationDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/conversation/conversation_definition.gd" id="1_definition"]
+[ext_resource type="Script" path="res://scripts/conversation/conversation_node.gd" id="2_node"]
+[ext_resource type="Script" path="res://scripts/conversation/conversation_response.gd" id="3_response"]
+[ext_resource type="Script" path="res://scripts/conversation/conversation_effect.gd" id="4_effect"]
+
+[sub_resource type="Resource" id="ConversationEffect_barber"]
+script = ExtResource("4_effect")
+action_id = "barber.open_editor"
+
+[sub_resource type="Resource" id="ConversationResponse_barber"]
+script = ExtResource("3_response")
+text = "Change my hair, beard, or eyebrows."
+effects = Array[Resource]([SubResource("ConversationEffect_barber")])
+
+[sub_resource type="Resource" id="ConversationNode_intro"]
+script = ExtResource("2_node")
+node_id = "intro"
+text = "One silver up front. Sit down if you want a different look."
+responses = Array[Resource]([SubResource("ConversationResponse_barber")])
+
+[resource]
+script = ExtResource("1_definition")
+conversation_id = "conv.service.barber"
+display_name = "Barber Services"
+start_node_id = "intro"
+nodes = Array[Resource]([SubResource("ConversationNode_intro")])

@@ -11,6 +11,10 @@ const STABLE_PHYSICAL_BONE_SCRIPT = preload("res://scripts/characters/stable_phy
 const HUMAN_RACE = preload("res://resources/character_races/human.tres")
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_female.tres")
+const CHARACTER_APPEARANCE_DATA_SCRIPT = preload("res://scripts/character_appearance/character_appearance_data.gd")
+const DEFAULT_MALE_EYEBROW_STYLE = preload("res://resources/character_appearance/eyebrows_regular.tres")
+const DEFAULT_FEMALE_EYEBROW_STYLE = preload("res://resources/character_appearance/eyebrows_female.tres")
+const APPEARANCE_VISUAL_BODY_TYPE_AUTO := 0
 const MALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf")
 const FEMALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Female_FullBody.gltf")
 const UAL1_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_1_pro/UAL1_Pro.glb")
@@ -101,6 +105,7 @@ const EQUIPMENT_SLOT_LABELS := {
 	"offhand": "Offhand",
 }
 const CLOTHING_EQUIPMENT_SLOTS := ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head"]
+const APPEARANCE_HEAD_ATTACHMENT_PREFIX := "Appearance"
 const BONE_EQUIPMENT_SLOTS := {
 	"weapon": "hand_r",
 	"offhand": "hand_l",
@@ -164,6 +169,7 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var character_race: Resource = HUMAN_RACE
 @export var body_archetype: Resource
 @export_enum("Auto", "None", "Male", "Female") var visual_body_type: int = VisualBodyType.AUTO
+@export var appearance_data: Resource
 @export var grip_socket_profile: Resource
 @export var ragdoll_profile: Resource
 @export var show_grip_socket_markers := false
@@ -319,6 +325,7 @@ var _is_sitting := false
 var _equipment_update_batch_depth := 0
 var _equipment_change_pending := false
 var _equipment_changed_slots: Dictionary = {}
+var _preview_clothes_visible := true
 
 signal inventory_changed
 signal mining_changed
@@ -338,6 +345,7 @@ func _ready() -> void:
 	inventory.changed.connect(_on_inventory_data_changed)
 	_seed_starting_inventory()
 	_seed_starting_equipment()
+	_ensure_appearance_data()
 	_setup_nameplate()
 	_setup_inspect_ring()
 	_setup_character_visual()
@@ -1081,6 +1089,38 @@ func get_bleed_fluid() -> Resource:
 	if race != null and race.get("bleed_fluid") != null:
 		return race.get("bleed_fluid") as Resource
 	return null
+
+
+func get_appearance_copy():
+	_ensure_appearance_data()
+	return appearance_data.make_copy() if appearance_data != null and appearance_data.has_method("make_copy") else CHARACTER_APPEARANCE_DATA_SCRIPT.new()
+
+
+func get_resolved_visual_body_type() -> int:
+	return _resolve_visual_body_type()
+
+
+func get_resolved_body_archetype() -> Resource:
+	return _resolve_body_archetype()
+
+
+func apply_appearance_data(next_appearance) -> void:
+	if next_appearance == null:
+		return
+	appearance_data = next_appearance.make_copy()
+	if appearance_data.character_race != null:
+		character_race = appearance_data.character_race
+	if appearance_data.body_archetype != null:
+		body_archetype = appearance_data.body_archetype
+	visual_body_type = appearance_data.visual_body_type
+	_apply_automatic_eyebrow_style()
+	_setup_character_visual()
+	refresh_grip_sockets_for_body()
+
+
+func set_preview_clothes_visible(is_visible: bool) -> void:
+	_preview_clothes_visible = is_visible
+	_set_equipped_clothing_visuals_visible(is_visible)
 
 
 func get_stance_label() -> String:
@@ -2789,6 +2829,8 @@ func _setup_character_visual() -> void:
 	_character_skeleton = character_skeleton
 	_bone_pose_position_offsets = _get_bone_pose_position_offsets(resolved_body_archetype)
 	_setup_equipped_clothing_visuals(visual_root, character_skeleton, resolved_body_archetype, body_mesh, visual_fit_scale)
+	_set_base_eyebrow_visuals_visible(model_root, appearance_data == null or appearance_data.eyebrow_style == null)
+	_setup_head_attachment_visuals(visual_root, character_skeleton)
 	_setup_humanoid_grip_sockets(visual_root)
 	_setup_equipped_bone_visuals(visual_root)
 	if life_state == NpcRules.LifeState.ALIVE:
@@ -2796,21 +2838,54 @@ func _setup_character_visual() -> void:
 	else:
 		_stop_character_animation(true)
 	_apply_bone_pose_position_offsets()
+	_set_equipped_clothing_visuals_visible(_preview_clothes_visible)
 	body_mesh.visible = false
+
+
+func _ensure_appearance_data() -> void:
+	if appearance_data == null:
+		appearance_data = CHARACTER_APPEARANCE_DATA_SCRIPT.new()
+	else:
+		appearance_data = appearance_data.make_copy()
+	if appearance_data.character_race == null:
+		appearance_data.character_race = character_race
+	else:
+		character_race = appearance_data.character_race
+	if appearance_data.body_archetype == null:
+		appearance_data.body_archetype = body_archetype
+	else:
+		body_archetype = appearance_data.body_archetype
+	if appearance_data.visual_body_type == APPEARANCE_VISUAL_BODY_TYPE_AUTO:
+		appearance_data.visual_body_type = visual_body_type
+	else:
+		visual_body_type = appearance_data.visual_body_type
+	_apply_automatic_eyebrow_style()
+
+
+func _apply_automatic_eyebrow_style() -> void:
+	if appearance_data == null:
+		return
+	match _resolve_visual_body_type():
+		VisualBodyType.FEMALE:
+			appearance_data.eyebrow_style = DEFAULT_FEMALE_EYEBROW_STYLE
+		VisualBodyType.MALE:
+			appearance_data.eyebrow_style = DEFAULT_MALE_EYEBROW_STYLE
+		_:
+			appearance_data.eyebrow_style = null
+	appearance_data.eyebrow_color = appearance_data.hair_color
 
 
 func _get_bone_pose_position_offsets(body_archetype: Resource) -> Dictionary:
 	if body_archetype == null:
-		return {}
+		return appearance_data.get_body_pose_offsets({}) if appearance_data != null else {}
 	var raw_offsets = body_archetype.get("bone_pose_position_offsets")
-	if not (raw_offsets is Dictionary):
-		return {}
 	var result: Dictionary = {}
-	for bone_name_value in raw_offsets.keys():
-		var offset_value = raw_offsets[bone_name_value]
-		if offset_value is Vector3:
-			result[str(bone_name_value)] = offset_value
-	return result
+	if raw_offsets is Dictionary:
+		for bone_name_value in raw_offsets.keys():
+			var offset_value = raw_offsets[bone_name_value]
+			if offset_value is Vector3:
+				result[str(bone_name_value)] = offset_value
+	return appearance_data.get_body_pose_offsets(result) if appearance_data != null else result
 
 
 func _apply_bone_pose_position_offsets() -> void:
@@ -2916,6 +2991,92 @@ func _setup_equipped_clothing_visuals(visual_root: Node3D, character_skeleton: S
 			model_root.free()
 			continue
 		_setup_legacy_clothing_visual(visual_root, model_root, visual_transform, surface_offset)
+
+
+func _setup_head_attachment_visuals(visual_root: Node3D, character_skeleton: Skeleton3D) -> void:
+	if appearance_data == null:
+		return
+	_setup_head_attachment_visual(visual_root, character_skeleton, appearance_data.hair_style, appearance_data.hair_color, "Hair")
+	_setup_head_attachment_visual(visual_root, character_skeleton, appearance_data.beard_style, appearance_data.beard_color, "Beard")
+	_setup_head_attachment_visual(visual_root, character_skeleton, appearance_data.eyebrow_style, appearance_data.eyebrow_color, "Eyebrows")
+
+
+func _setup_head_attachment_visual(visual_root: Node3D, character_skeleton: Skeleton3D, style_resource: Resource, color: Color, slot_label: String) -> void:
+	if visual_root == null or style_resource == null:
+		return
+	var visual_scene := style_resource.get("visual_scene") as PackedScene
+	if visual_scene == null:
+		return
+	var instance := visual_scene.instantiate()
+	if not (instance is Node3D):
+		instance.queue_free()
+		return
+	var source_root := instance as Node3D
+	source_root.name = "%s%s" % [APPEARANCE_HEAD_ATTACHMENT_PREFIX, slot_label]
+	if character_skeleton != null and _setup_shared_skeleton_head_attachment_visual(visual_root, character_skeleton, source_root, color, bool(style_resource.get("colorize"))):
+		source_root.free()
+		return
+	_setup_legacy_head_attachment_visual(visual_root, source_root, color, bool(style_resource.get("colorize")))
+
+
+func _setup_shared_skeleton_head_attachment_visual(visual_root: Node3D, character_skeleton: Skeleton3D, source_root: Node3D, color: Color, colorize: bool) -> bool:
+	var source_meshes: Array[MeshInstance3D] = []
+	_collect_mesh_instances(source_root, source_meshes)
+	if source_meshes.is_empty():
+		return false
+	var slot_root := Node3D.new()
+	slot_root.name = source_root.name
+	slot_root.transform = Transform3D(Basis(Vector3.UP, CHARACTER_VISUAL_YAW_OFFSET), Vector3.ZERO)
+	visual_root.add_child(slot_root)
+	var copied_mesh_count := 0
+	for source_mesh in source_meshes:
+		if source_mesh == null or source_mesh.mesh == null:
+			continue
+		var attachment_mesh := _copy_clothing_mesh_instance(source_root, source_mesh)
+		if colorize:
+			_apply_head_attachment_material(attachment_mesh, color)
+		slot_root.add_child(attachment_mesh)
+		attachment_mesh.skeleton = attachment_mesh.get_path_to(character_skeleton)
+		copied_mesh_count += 1
+	if copied_mesh_count <= 0:
+		slot_root.free()
+		return false
+	return true
+
+
+func _setup_legacy_head_attachment_visual(visual_root: Node3D, source_root: Node3D, color: Color, colorize: bool) -> void:
+	source_root.transform = Transform3D(Basis(Vector3.UP, CHARACTER_VISUAL_YAW_OFFSET), Vector3.ZERO)
+	if colorize:
+		_apply_head_attachment_material(source_root, color)
+	visual_root.add_child(source_root)
+
+
+func _apply_head_attachment_material(root: Node, color: Color) -> void:
+	if root is MeshInstance3D:
+		var material := StandardMaterial3D.new()
+		material.albedo_color = color
+		material.roughness = 0.82
+		(root as MeshInstance3D).material_override = material
+	for child in root.get_children():
+		_apply_head_attachment_material(child, color)
+
+
+func _set_base_eyebrow_visuals_visible(root: Node, is_visible: bool) -> void:
+	if root == null:
+		return
+	if root is MeshInstance3D and str(root.name).to_lower().contains("eyebrow"):
+		(root as MeshInstance3D).visible = is_visible
+	for child in root.get_children():
+		_set_base_eyebrow_visuals_visible(child, is_visible)
+
+
+func _set_equipped_clothing_visuals_visible(is_visible: bool) -> void:
+	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
+	if visual_root == null:
+		return
+	for child in visual_root.get_children():
+		if str(child.name).begins_with("Equipped_"):
+			(child as Node3D).visible = is_visible
 
 
 func _setup_shared_skeleton_clothing_visual(visual_root: Node3D, character_skeleton: Skeleton3D, source_root: Node3D, visual_transform: Transform3D, surface_offset: float) -> bool:
