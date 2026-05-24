@@ -10,6 +10,10 @@ Reusable editor-authored content should also have concise workflow instructions 
 
 Use `scenes/world_sim/settlement_town.tscn` as the starting point for a town.
 
+For the open world, each authored city or town should live in its own scene file, such as `scenes/world/towns/farmer_crossing.tscn`. The persistent world scene should instance or stream that town scene instead of owning all of the town's editable children directly.
+
+Open the town scene directly when customizing bars, residents, fields, roads, activity points, interiors, or furniture. This keeps the editor scene tree focused on one settlement instead of forcing operators to filter through the whole world.
+
 Assign a `SettlementDefinition` and set key exported paths such as residents, storage, facilities, territory, raid spawn, defense spawn, and state label.
 
 Place visible buildings, optional road art, props, containers, NPCs, bars, fields, mines, and activity points under the town.
@@ -34,8 +38,8 @@ For common facilities, prefer drag-in authoring scenes over manual node assembly
 
 - Instantiate `scenes/world_sim/settlement_bar.tscn` under `SettlementTown/Bars` for a drag-and-play bar.
 - Use the default child under `SettlementBar/BuildingSlot`, or replace `BuildingSlot/CurrentBuilding` if a different building model is wanted.
-- Set `facility_id`, `display_name`, `owner_faction_id`, `staff_stable_id_prefix`, and `staff_squad_name` on the bar.
-- Keep second-floor bar beds under `SettlementBar/Furniture/Beds`; the bar registers that root with the placed building's upper-floor visibility.
+- For normal bars, let the bar infer `facility_id`, owner faction, staff IDs, and staff squad from the parent settlement and bar node name.
+- Keep tables, chairs, and beds directly under `SettlementBar/Furniture`; the bar discovers seats/beds there and registers bed props with the placed building's upper-floor visibility.
 - Do not manually configure `BarServiceArea`; it is the internal service component owned by `SettlementBar`.
 - Add `scenes/world_sim/settlement_field.tscn` under `SettlementTown/Fields`, or use `Add Child Node > SettlementField`, for a food-producing field.
 - Set `facility_id`, `display_name`, `owner_faction_id`, and `food_production_per_day` on the field.

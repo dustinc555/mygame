@@ -29,6 +29,8 @@ The root exports the settlement definition, resident root, storage paths, facili
 
 The operator should be able to drag in a town scene, assign a settlement definition, add bars, fields, facilities, and points under named roots, then press play.
 
+For large open-world production, this town root should normally be saved as its own scene and placed into the persistent world as an instance or streamed scene. Town-level customization happens in the town scene; the open world stores placement, streaming metadata, terrain, roads, and global controllers.
+
 ## Population Capacity
 
 A town's max population comes from authored structures in the town scene.
@@ -65,7 +67,9 @@ Use `SettlementBar` under a town's `Bars` root when the operator wants a drag-an
 
 `BarServiceArea` is an internal service component owned by `SettlementBar`. It handles waiter table service, bed rental checks, barkeeper stock handoff, and service/guard point lookup; operators should configure the `SettlementBar`, not the service area directly.
 
-Bar furniture can live outside the building shell under `Furniture`. The reusable bar registers its `Furniture/Beds` root as upper-floor content on the placed `WorldBuilding` so the building level-visibility system hides second-floor beds when the active actor is on the ground floor.
+Bar furniture can live outside the building shell under one `Furniture` root. The reusable bar discovers seat and bed props recursively, and registers bed props as upper-floor content on the placed `WorldBuilding` so the building level-visibility system hides second-floor beds when the active actor is on the ground floor.
+
+Bar default stock mirrors the parent settlement's supply ratio when available, with a standalone fallback for bars outside towns. This is a temporary stock-seeding rule; future economy work should restock barkeepers through settlement storage and broader supply systems instead of only modifying merchant inventory.
 
 Use `SettlementField` under a town's `Fields` root when the operator wants a food-producing farm field with visible rows and farm activity points already wired.
 
@@ -104,7 +108,7 @@ For bar authoring, instantiate `scenes/world_sim/settlement_bar.tscn` under a to
 
 The bar scene includes a default building. Replace `BuildingSlot/CurrentBuilding` when a different building model is wanted.
 
-If a bar bed is moved, keep it under `Furniture/Beds` so the bar can continue registering it with the building's upper-floor visibility.
+If a bar bed is moved or duplicated, keep it under `Furniture` and keep the `SleepableBed` script so the bar can continue registering it with the building's upper-floor visibility.
 
 ## Territory
 

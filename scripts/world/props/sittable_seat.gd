@@ -97,15 +97,27 @@ func get_seated_seconds() -> float:
 
 
 func is_waiting_for_service(required_seconds: float) -> bool:
+	return is_waiting_customer_for_service(required_seconds, true, false)
+
+
+func is_waiting_customer_for_service(required_seconds: float, include_player_party := true, include_npcs := true) -> bool:
 	if not is_occupied() or _service_requested or _service_completed:
 		return false
-	if _sitter == null or not _sitter.is_player_party_member():
+	if _sitter == null:
+		return false
+	if _sitter.is_player_party_member() and not include_player_party:
+		return false
+	if not _sitter.is_player_party_member() and not include_npcs:
 		return false
 	return get_seated_seconds() >= required_seconds
 
 
 func mark_service_requested() -> void:
 	_service_requested = true
+
+
+func clear_service_request() -> void:
+	_service_requested = false
 
 
 func mark_service_completed() -> void:

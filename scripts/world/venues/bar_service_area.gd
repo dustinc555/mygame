@@ -5,6 +5,21 @@ class_name BarServiceArea
 
 const SILVER_ITEM = preload("res://resources/items/silver.tres")
 const COMBAT_INTERVENTION_STAFF_GROUP := "combat_intervention_staff"
+const CUSTOMER_ORDER_LINES := [
+	"Bread and something to drink.",
+	"Whatever's cheap.",
+	"A loaf for the road.",
+	"Something warm, if you have it.",
+	"Just food. I'm starving.",
+	"Bread for the table.",
+]
+const CUSTOMER_THANKS_LINES := [
+	"Thanks.",
+	"About time.",
+	"That'll do.",
+	"Looks good.",
+	"Appreciate it.",
+]
 
 @export var service_area_id := ""
 @export var owner_character_path: NodePath
@@ -12,14 +27,16 @@ const COMBAT_INTERVENTION_STAFF_GROUP := "combat_intervention_staff"
 @export var currency_item: Resource = SILVER_ITEM
 @export var bed_rent_price := 1
 @export var bed_rent_duration_seconds := 3600.0
-@export var beds_root_path: NodePath = NodePath("Furniture/Beds")
-@export var seats_root_path: NodePath = NodePath("Furniture/Stools")
-@export var tables_root_path: NodePath = NodePath("Furniture/Tables")
+@export var beds_root_path: NodePath = NodePath("Furniture")
+@export var seats_root_path: NodePath = NodePath("Furniture")
+@export var tables_root_path: NodePath = NodePath("Furniture")
 @export var guard_posts_root_path: NodePath = NodePath("GuardPosts")
 @export var service_points_root_path: NodePath = NodePath("ServicePoints")
 @export var guards_root_path: NodePath = NodePath("Staff")
 @export var waiters_root_path: NodePath = NodePath("Staff")
 @export var waiter_character_path: NodePath = NodePath("Staff/Waiter")
+@export var waiter_character_paths: Array[NodePath] = []
+@export var guard_character_paths: Array[NodePath] = []
 @export var waiter_service_delay_seconds := 7.0
 @export var waiter_service_distance := 2.4
 @export var table_service_radius := 2.8
@@ -128,6 +145,8 @@ func get_merchant_role() -> MerchantRole:
 	var owner_character := get_owner_character()
 	if owner_character != null and owner_character.has_method("get_merchant_role"):
 		return owner_character.get_merchant_role()
+	if owner_character != null:
+		return owner_character.get_node_or_null("MerchantRole") as MerchantRole
 	return null
 
 
@@ -196,6 +215,49 @@ func get_barkeeper_service_point():
 	return points[0] if not points.is_empty() else null
 
 
+func get_barkeeper_order_position(worker: HumanoidCharacter = null) -> Vector3:
+	var point = get_barkeeper_service_point()
+	if point != null and point.has_method("get_work_position"):
+		return point.get_work_position()
+	var owner := get_owner_character()
+	if owner != null:
+		return owner.global_position
+	return global_position
+
+
+func claim_waiting_customer_seat(worker: HumanoidCharacter):
+	var seat = _claim_waiting_customer_seat(worker, false)
+	return seat if seat != null else _claim_waiting_customer_seat(worker, true)
+
+
+func release_waiter_customer_service(seat) -> void:
+	if seat != null and is_instance_valid(seat) and seat.has_method("clear_service_request"):
+		seat.clear_service_request()
+
+
+func complete_waiter_customer_service(seat) -> void:
+	if seat != null and is_instance_valid(seat) and seat.has_method("mark_service_completed"):
+		seat.mark_service_completed()
+
+
+func get_customer_for_seat(seat) -> HumanoidCharacter:
+	if seat != null and is_instance_valid(seat) and seat.has_method("get_sitter"):
+		return seat.get_sitter()
+	return null
+
+
+func get_waiter_customer_service_position(waiter: HumanoidCharacter, seat) -> Vector3:
+	return _get_waiter_service_position(waiter, seat)
+
+
+func generate_customer_order_text(_customer: HumanoidCharacter = null) -> String:
+	return CUSTOMER_ORDER_LINES[_rng.randi_range(0, CUSTOMER_ORDER_LINES.size() - 1)]
+
+
+func generate_customer_thanks_text(_customer: HumanoidCharacter = null) -> String:
+	return CUSTOMER_THANKS_LINES[_rng.randi_range(0, CUSTOMER_THANKS_LINES.size() - 1)]
+
+
 func get_available_waiter_point(worker: HumanoidCharacter, excluded_point = null):
 	var fallback = null
 	for point in get_waiter_service_points():
@@ -237,6 +299,10 @@ func get_guard_posts() -> Array:
 
 func get_guard_characters() -> Array[HumanoidCharacter]:
 	var guards: Array[HumanoidCharacter] = []
+	for guard_path in guard_character_paths:
+		var explicit_guard := get_node_or_null(guard_path) as HumanoidCharacter
+		if explicit_guard != null and not guards.has(explicit_guard):
+			guards.append(explicit_guard)
 	var root := get_node_or_null(guards_root_path)
 	if root != null:
 		for child in root.get_children():
@@ -270,6 +336,10 @@ func get_waiter_characters() -> Array[HumanoidCharacter]:
 	var explicit_waiter := get_node_or_null(waiter_character_path) as HumanoidCharacter
 	if explicit_waiter != null:
 		waiters.append(explicit_waiter)
+	for waiter_path in waiter_character_paths:
+		explicit_waiter = get_node_or_null(waiter_path) as HumanoidCharacter
+		if explicit_waiter != null and not waiters.has(explicit_waiter):
+			waiters.append(explicit_waiter)
 	var root := get_node_or_null(waiters_root_path)
 	if root != null:
 		for child in root.get_children():
@@ -282,6 +352,27 @@ func serves_actor(actor: Node) -> bool:
 	if actor == null:
 		return false
 	return actor == get_owner_character() or get_waiter_characters().has(actor)
+
+
+func _claim_waiting_customer_seat(worker: HumanoidCharacter, include_player_party: bool):
+	var best_seat
+	var best_distance := INF
+	for seat in _collect_seat_nodes():
+		if seat == null or not seat.has_method("is_waiting_customer_for_service"):
+			continue
+		if not seat.is_waiting_customer_for_service(waiter_service_delay_seconds, include_player_party, true):
+			continue
+		var customer := get_customer_for_seat(seat)
+		if customer == null or customer == worker:
+			continue
+		var target_position := _get_waiter_service_position(worker, seat)
+		var distance := worker.global_position.distance_squared_to(target_position) if worker != null else 0.0
+		if distance < best_distance:
+			best_distance = distance
+			best_seat = seat
+	if best_seat != null and best_seat.has_method("mark_service_requested"):
+		best_seat.mark_service_requested()
+	return best_seat
 
 
 func _is_bed_rented_to_faction(bed, faction_name: String) -> bool:
@@ -303,10 +394,10 @@ func _record_bed_rental(bed, faction_name: String) -> void:
 
 
 func _register_scoped_children() -> void:
-	for bed in _collect_nodes(beds_root_path):
+	for bed in _collect_bed_nodes():
 		if bed.has_method("set_bar_service_area"):
 			bed.set_bar_service_area(self)
-	for seat in _collect_nodes(seats_root_path):
+	for seat in _collect_seat_nodes():
 		if seat.has_method("set_bar_service_area"):
 			seat.set_bar_service_area(self)
 	_register_combat_intervention_staff()
@@ -447,7 +538,7 @@ func _continue_waiter_service(waiter: HumanoidCharacter) -> void:
 
 
 func _find_waiting_player_seat():
-	for seat in _collect_nodes(seats_root_path):
+	for seat in _collect_seat_nodes():
 		if seat != null and seat.has_method("is_waiting_for_service") and seat.is_waiting_for_service(waiter_service_delay_seconds):
 			return seat
 	return null
@@ -478,13 +569,13 @@ func _get_waiter_service_position(waiter: HumanoidCharacter, seat) -> Vector3:
 
 
 func _mark_table_service_requested(origin_seat) -> void:
-	for seat in _collect_nodes(seats_root_path):
+	for seat in _collect_seat_nodes():
 		if seat != null and seat.global_position.distance_to(origin_seat.global_position) <= table_service_radius and seat.has_method("mark_service_requested"):
 			seat.mark_service_requested()
 
 
 func _mark_table_service_completed(origin_seat) -> void:
-	for seat in _collect_nodes(seats_root_path):
+	for seat in _collect_seat_nodes():
 		if seat != null and seat.global_position.distance_to(origin_seat.global_position) <= table_service_radius and seat.has_method("mark_service_completed"):
 			seat.mark_service_completed()
 
@@ -528,6 +619,38 @@ func _is_service_point_role(point, role: String) -> bool:
 		return point_name.contains("barkeeper") or point_name.contains("counter")
 	if role == "waiter":
 		return point_name.contains("waiter")
+	return false
+
+
+func _collect_bed_nodes() -> Array:
+	var nodes: Array = []
+	_collect_matching_furniture_nodes(get_node_or_null(beds_root_path), nodes, "bed")
+	return nodes
+
+
+func _collect_seat_nodes() -> Array:
+	var nodes: Array = []
+	_collect_matching_furniture_nodes(get_node_or_null(seats_root_path), nodes, "seat")
+	return nodes
+
+
+func _collect_matching_furniture_nodes(root: Node, nodes: Array, furniture_kind: String) -> void:
+	if root == null:
+		return
+	if _matches_furniture_kind(root, furniture_kind):
+		nodes.append(root)
+		return
+	for child in root.get_children():
+		_collect_matching_furniture_nodes(child, nodes, furniture_kind)
+
+
+func _matches_furniture_kind(node: Node, furniture_kind: String) -> bool:
+	if node == null:
+		return false
+	if furniture_kind == "bed":
+		return node.has_method("request_sleep") and node.has_method("get_sleep_position")
+	if furniture_kind == "seat":
+		return node.has_method("claim_sitter") and node.has_method("get_seat_position")
 	return false
 
 

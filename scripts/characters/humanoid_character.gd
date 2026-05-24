@@ -161,6 +161,7 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var member_name := "Character"
 @export var stable_id := ""
 @export var interact_distance := 1.8
+@export var seated_player_talk_distance_multiplier := 2.0
 @export var inventory_columns := 10
 @export var inventory_rows := 4
 @export var max_carry_weight := 60.0
@@ -588,13 +589,17 @@ func assign_trade_target(target_character, issued_by_player: bool = true) -> voi
 func assign_conversation_target(target_character, issued_by_player: bool = true) -> void:
 	if target_character == null or not target_character.has_conversation_definition():
 		return
-	_set_order(OrderType.TALK, issued_by_player)
+	var preserve_seat_for_talk := issued_by_player and _is_sitting
+	_set_order(OrderType.TALK, issued_by_player, preserve_seat_for_talk)
 	if _current_conversation_target != null and _current_conversation_target != target_character and _current_conversation_target.has_method("release_talker"):
 		_current_conversation_target.release_talker(self)
 	_current_conversation_target = target_character
 	if _current_conversation_target.has_method("register_talker"):
 		_current_conversation_target.register_talker(self)
-	_set_actor_move_target(_current_conversation_target.get_interaction_position(self))
+	if preserve_seat_for_talk and global_position.distance_to(_current_conversation_target.global_position) <= _get_conversation_interaction_distance():
+		_clear_actor_move_target()
+	else:
+		_set_actor_move_target(_current_conversation_target.get_interaction_position(self))
 
 
 func assign_mining_resource(resource_node, issued_by_player: bool = true) -> void:
@@ -726,6 +731,30 @@ func assign_seat_target(seat, issued_by_player: bool = true) -> void:
 		_clear_actor_move_target()
 	else:
 		_set_actor_move_target(seat.get_interaction_position(self))
+
+
+func sit_at_seat_immediately(seat) -> bool:
+	if seat == null or not seat.has_method("claim_sitter") or not seat.has_method("get_seat_position"):
+		return false
+	if life_state != NpcRules.LifeState.ALIVE:
+		return false
+	stop_seat_assignment()
+	if not seat.claim_sitter(self):
+		return false
+	_current_seat_target = seat
+	_current_seat_stand_position = seat.get_stand_position() if seat.has_method("get_stand_position") else global_position
+	global_position = seat.get_seat_position(self)
+	if seat.has_method("get_seat_rotation"):
+		rotation = seat.get_seat_rotation(self)
+	velocity = Vector3.ZERO
+	running = false
+	_set_sneaking_state(false, false)
+	_clear_actor_move_target()
+	_is_sitting = true
+	_current_order_type = OrderType.NONE
+	_start_sitting_enter_animation()
+	state_changed.emit()
+	return true
 
 
 func assign_pickup_item(world_item, issued_by_player: bool = true) -> void:
@@ -2207,7 +2236,9 @@ func _process_conversation_interaction() -> void:
 		return
 	var interaction_position: Vector3 = _current_conversation_target.get_interaction_position(self)
 	var target_position: Vector3 = _current_conversation_target.global_position
-	if global_position.distance_to(target_position) > interact_distance:
+	if global_position.distance_to(target_position) > _get_conversation_interaction_distance():
+		if _is_sitting:
+			stop_seat_assignment()
 		_set_actor_move_target(interaction_position)
 		return
 	_clear_actor_move_target()
@@ -2215,6 +2246,12 @@ func _process_conversation_interaction() -> void:
 	_current_conversation_target = null
 	_current_order_type = OrderType.NONE
 	conversation_target_reached.emit(self, target)
+
+
+func _get_conversation_interaction_distance() -> float:
+	if _order_was_player_issued and _is_sitting:
+		return interact_distance * maxf(1.0, seated_player_talk_distance_multiplier)
+	return interact_distance
 
 
 func _process_sleep_interaction() -> void:
@@ -4112,10 +4149,10 @@ func _transform_aabb(bounds: AABB, transform: Transform3D) -> AABB:
 	return transformed_bounds
 
 
-func _set_order(order_type: int, issued_by_player: bool) -> void:
+func _set_order(order_type: int, issued_by_player: bool, preserve_seat: bool = false) -> void:
 	if issued_by_player and _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):
 		_active_job_provider.pause_worker_job(self, true)
-	_cancel_non_matching_assignments(order_type)
+	_cancel_non_matching_assignments(order_type, preserve_seat)
 	_current_order_type = int(order_type)
 	_order_was_player_issued = issued_by_player
 	if order_type != OrderType.MINE:
@@ -4126,7 +4163,7 @@ func _set_order(order_type: int, issued_by_player: bool) -> void:
 		scavenging_changed.emit()
 
 
-func _cancel_non_matching_assignments(next_order_type: int) -> void:
+func _cancel_non_matching_assignments(next_order_type: int, preserve_seat: bool = false) -> void:
 	if next_order_type != OrderType.MINE:
 		stop_mining_assignment()
 	if next_order_type != OrderType.SCAVENGE:
@@ -4149,7 +4186,7 @@ func _cancel_non_matching_assignments(next_order_type: int) -> void:
 		stop_sleep_assignment()
 	if next_order_type != OrderType.PLACE_IN_BED:
 		stop_place_in_bed_assignment()
-	if next_order_type != OrderType.SIT:
+	if next_order_type != OrderType.SIT and not preserve_seat:
 		stop_seat_assignment()
 	if next_order_type != OrderType.PICKUP_ITEM:
 		stop_pickup_assignment()

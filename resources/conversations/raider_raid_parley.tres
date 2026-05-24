@@ -1,9 +1,9 @@
-[gd_resource type="Resource" script_class="ConversationDefinition" format=3]
+[gd_resource type="Resource" script_class="ConversationDefinition" format=3 uid="uid://co4dp787mr14r"]
 
-[ext_resource type="Script" path="res://scripts/conversation/conversation_definition.gd" id="1_definition"]
-[ext_resource type="Script" path="res://scripts/conversation/conversation_node.gd" id="2_node"]
-[ext_resource type="Script" path="res://scripts/conversation/conversation_response.gd" id="3_response"]
-[ext_resource type="Script" path="res://scripts/conversation/conversation_effect.gd" id="4_effect"]
+[ext_resource type="Script" uid="uid://oln7awi2fw1o" path="res://scripts/conversation/conversation_definition.gd" id="1_definition"]
+[ext_resource type="Script" uid="uid://c21vtwxjyyyyi" path="res://scripts/conversation/conversation_node.gd" id="2_node"]
+[ext_resource type="Script" uid="uid://d2gwynnqbm0iq" path="res://scripts/conversation/conversation_response.gd" id="3_response"]
+[ext_resource type="Script" uid="uid://cpf8b6pq8heil" path="res://scripts/conversation/conversation_effect.gd" id="4_effect"]
 
 [sub_resource type="Resource" id="ConversationResponse_why"]
 script = ExtResource("3_response")
@@ -35,13 +35,6 @@ skill_check = {
 script = ExtResource("3_response")
 text = "We'll join you."
 next_node_id = "join_raiders"
-
-[sub_resource type="Resource" id="ConversationEffect_start_battle"]
-script = ExtResource("4_effect")
-action_id = "world_squad.start_battle"
-parameters = {
-"squad_id": "conversation_target"
-}
 
 [sub_resource type="Resource" id="ConversationResponse_threat"]
 script = ExtResource("3_response")
@@ -95,6 +88,13 @@ node_id = "join_raiders"
 speaker_name = "Raider Leader"
 text = "Alright. Then stay out of my way."
 ends_conversation = true
+
+[sub_resource type="Resource" id="ConversationEffect_start_battle"]
+script = ExtResource("4_effect")
+action_id = "world_squad.start_battle"
+parameters = {
+"squad_id": "conversation_target"
+}
 
 [sub_resource type="Resource" id="ConversationNode_start_battle"]
 script = ExtResource("2_node")

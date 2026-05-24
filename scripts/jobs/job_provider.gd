@@ -6,6 +6,13 @@ const DEFAULT_WORK_INVENTORY_COLUMNS := 4
 const DEFAULT_WORK_INVENTORY_ROWS := 4
 const JOB_DEFINITION_SCRIPT = preload("res://scripts/jobs/job_definition.gd")
 const ACTOR_CONDITION_EVALUATOR_SCRIPT = preload("res://scripts/conditions/actor_condition_evaluator.gd")
+const SERVER_ORDER_CHARISMA_XP := 2.0
+const SERVER_ORDER_PREP_SECONDS := 1.25
+const SERVER_STATE_IDLE := "idle"
+const SERVER_STATE_TO_CUSTOMER := "to_customer"
+const SERVER_STATE_TO_BARKEEPER := "to_barkeeper"
+const SERVER_STATE_WAITING_AT_BAR := "waiting_at_bar"
+const SERVER_STATE_DELIVERING := "delivering"
 
 @export var jobs: Array[JobDefinition] = []
 @export var wage_item_definition: Resource
@@ -147,6 +154,11 @@ func _new_slot_state(slot_index: int) -> Dictionary:
 		"target_container": null,
 		"target_guard_post": null,
 		"target_service_point": null,
+		"target_service_seat": null,
+		"target_service_customer": null,
+		"server_state": SERVER_STATE_IDLE,
+		"server_state_elapsed": 0.0,
+		"server_order_text": "",
 		"guard_shuffle_remaining": _next_guard_shuffle_seconds(),
 		"accrued_interval_time": 0.0,
 	}
@@ -226,11 +238,11 @@ func _handle_job_accept(worker: HumanoidCharacter, job_index: int) -> Dictionary
 	if not assignment.get("allowed", false):
 		return _job_unavailable_response(job, assignment)
 	return {
-		"speaker_text": "Good. Get to work on %s." % job.get_display_name().to_lower(),
+		"speaker_text": _build_job_accept_text(job),
 		"end_conversation": true,
 		"show_floating_notice": false,
 		"speech_target": get_provider_character(),
-		"speech_text": "Good. Get to work.",
+		"speech_text": _build_job_accept_speech(job),
 		"speech_lifetime": 5.0,
 	}
 
@@ -409,22 +421,34 @@ func _process_slot(job_index: int, job, slot_state: Dictionary, delta: float) ->
 	if worker.is_in_combat():
 		return
 	var is_meaningfully_working := false
+	var completed_server_order := false
 	match job.algorithm_id:
 		"mine_and_haul":
 			is_meaningfully_working = _process_mine_and_haul(job_index, job, slot_state, worker)
 		"guard_post":
 			is_meaningfully_working = _process_guard_post(job_index, job, slot_state, worker, delta)
 		"server_shift":
-			is_meaningfully_working = _process_server_shift(job_index, job, slot_state, worker)
+			var service_result := _process_server_shift(job_index, job, slot_state, worker, delta)
+			is_meaningfully_working = bool(service_result.get("active", false))
+			completed_server_order = bool(service_result.get("completed_order", false))
 	if not is_meaningfully_working:
 		return
 	var record := _get_worker_record(worker)
 	var on_duty_seconds := float(record.get("current_shift_seconds", 0.0)) + delta
 	record["current_shift_seconds"] = on_duty_seconds
+	if completed_server_order:
+		_award_server_order_completion(job, worker, record)
+		if on_duty_seconds >= max_on_duty_seconds:
+			record["break_until_time"] = _sim_time + break_duration_seconds
+			worker.show_world_notice("%s says take a break" % get_provider_name(), Color(0.95, 0.85, 0.45, 1.0))
+			_end_slot_assignment(job_index, slot_state, false)
+		return
 	if on_duty_seconds >= max_on_duty_seconds:
 		record["break_until_time"] = _sim_time + break_duration_seconds
 		worker.show_world_notice("%s says take a break" % get_provider_name(), Color(0.95, 0.85, 0.45, 1.0))
 		_end_slot_assignment(job_index, slot_state, false)
+		return
+	if str(job.algorithm_id) == "server_shift":
 		return
 	slot_state["accrued_interval_time"] = float(slot_state.get("accrued_interval_time", 0.0)) + delta
 	while float(slot_state.get("accrued_interval_time", 0.0)) >= maxf(job.pay_interval_seconds, 0.01):
@@ -486,25 +510,132 @@ func _process_guard_post(_job_index: int, _job, slot_state: Dictionary, worker: 
 	return true
 
 
-func _process_server_shift(_job_index: int, _job, slot_state: Dictionary, worker: HumanoidCharacter) -> bool:
+func _process_server_shift(_job_index: int, _job, slot_state: Dictionary, worker: HumanoidCharacter, delta: float) -> Dictionary:
+	var service_area := _resolve_bar_service_area()
+	if service_area == null:
+		return {"active": false, "completed_order": false}
+	var state := str(slot_state.get("server_state", SERVER_STATE_IDLE))
+	if state == SERVER_STATE_IDLE:
+		var seat = service_area.claim_waiting_customer_seat(worker) if service_area.has_method("claim_waiting_customer_seat") else null
+		if seat == null:
+			return {"active": _hold_waiter_service_point(service_area, slot_state, worker), "completed_order": false}
+		_release_waiter_service_point(slot_state, worker)
+		slot_state["target_service_seat"] = seat
+		slot_state["target_service_customer"] = service_area.get_customer_for_seat(seat) if service_area.has_method("get_customer_for_seat") else null
+		slot_state["server_order_text"] = service_area.generate_customer_order_text(slot_state.get("target_service_customer")) if service_area.has_method("generate_customer_order_text") else "Something to eat."
+		_set_server_state(slot_state, SERVER_STATE_TO_CUSTOMER)
+		state = SERVER_STATE_TO_CUSTOMER
+	var seat = slot_state.get("target_service_seat")
+	var customer: HumanoidCharacter = slot_state.get("target_service_customer")
+	if not _is_valid_service_customer(customer):
+		_release_server_customer_service(service_area, slot_state)
+		return {"active": true, "completed_order": false}
+	match state:
+		SERVER_STATE_TO_CUSTOMER:
+			var customer_position := service_area.get_waiter_customer_service_position(worker, seat) if service_area.has_method("get_waiter_customer_service_position") else customer.global_position
+			if not _move_worker_to_service_position(worker, customer_position, _server_customer_service_distance(service_area, worker)):
+				return {"active": true, "completed_order": false}
+			worker.show_world_speech("Can I take your order?", 2.0)
+			customer.show_world_speech(str(slot_state.get("server_order_text", "Something to eat.")), 2.4)
+			_set_server_state(slot_state, SERVER_STATE_TO_BARKEEPER)
+		SERVER_STATE_TO_BARKEEPER:
+			var barkeeper_position := service_area.get_barkeeper_order_position(worker) if service_area.has_method("get_barkeeper_order_position") else service_area.global_position
+			if not _move_worker_to_service_position(worker, barkeeper_position, worker.interact_distance):
+				return {"active": true, "completed_order": false}
+			worker.show_world_speech("Order for the table: %s" % str(slot_state.get("server_order_text", "Something to eat.")), 2.4)
+			var provider := get_provider_character()
+			if provider != null:
+				provider.show_world_speech("Coming up.", 1.6)
+			_set_server_state(slot_state, SERVER_STATE_WAITING_AT_BAR)
+		SERVER_STATE_WAITING_AT_BAR:
+			slot_state["server_state_elapsed"] = float(slot_state.get("server_state_elapsed", 0.0)) + delta
+			if float(slot_state.get("server_state_elapsed", 0.0)) < SERVER_ORDER_PREP_SECONDS:
+				return {"active": true, "completed_order": false}
+			_set_server_state(slot_state, SERVER_STATE_DELIVERING)
+		SERVER_STATE_DELIVERING:
+			var delivery_position := service_area.get_waiter_customer_service_position(worker, seat) if service_area.has_method("get_waiter_customer_service_position") else customer.global_position
+			if not _move_worker_to_service_position(worker, delivery_position, _server_customer_service_distance(service_area, worker)):
+				return {"active": true, "completed_order": false}
+			worker.show_world_speech("Here you go.", 1.8)
+			if service_area.has_method("generate_customer_thanks_text"):
+				customer.show_world_speech(service_area.generate_customer_thanks_text(customer), 1.8)
+			if service_area.has_method("complete_waiter_customer_service"):
+				service_area.complete_waiter_customer_service(seat)
+			_reset_server_service_state(slot_state)
+			return {"active": true, "completed_order": true}
+	return {"active": true, "completed_order": false}
+
+
+func _hold_waiter_service_point(service_area: BarServiceArea, slot_state: Dictionary, worker: HumanoidCharacter) -> bool:
 	var service_point = slot_state.get("target_service_point")
 	if service_point == null or not is_instance_valid(service_point):
-		var service_area := _resolve_bar_service_area()
-		if service_area == null:
-			return false
 		service_point = service_area.get_available_waiter_point(worker)
 		if service_point == null:
 			return false
 		if service_area.has_method("claim_waiter_point") and not service_area.claim_waiter_point(worker, service_point):
 			return false
 		slot_state["target_service_point"] = service_point
+	if not service_point.has_method("get_work_position"):
+		return false
 	var work_position: Vector3 = service_point.get_work_position()
 	if worker.global_position.distance_to(work_position) > worker.interact_distance:
 		worker.set_move_target(work_position, false)
-		return false
+		return true
 	if service_point.has_method("is_worker_at_point"):
 		return service_point.is_worker_at_point(worker)
 	return true
+
+
+func _release_waiter_service_point(slot_state: Dictionary, worker: HumanoidCharacter) -> void:
+	var service_point = slot_state.get("target_service_point")
+	if service_point != null and is_instance_valid(service_point) and service_point.has_method("release_worker"):
+		service_point.release_worker(worker)
+	slot_state["target_service_point"] = null
+
+
+func _is_valid_service_customer(customer: HumanoidCharacter) -> bool:
+	return customer != null and is_instance_valid(customer) and customer.life_state == NpcRules.LifeState.ALIVE and customer.has_method("is_sitting") and customer.is_sitting()
+
+
+func _move_worker_to_service_position(worker: HumanoidCharacter, target_position: Vector3, arrival_distance: float) -> bool:
+	if worker.global_position.distance_to(target_position) > arrival_distance:
+		worker.set_move_target(target_position, false)
+		return false
+	return true
+
+
+func _server_customer_service_distance(service_area: BarServiceArea, worker: HumanoidCharacter) -> float:
+	var configured = service_area.get("waiter_service_distance") if service_area != null else null
+	return maxf(worker.interact_distance, float(configured) if configured != null else 2.4)
+
+
+func _set_server_state(slot_state: Dictionary, state: String) -> void:
+	slot_state["server_state"] = state
+	slot_state["server_state_elapsed"] = 0.0
+
+
+func _reset_server_service_state(slot_state: Dictionary) -> void:
+	slot_state["target_service_seat"] = null
+	slot_state["target_service_customer"] = null
+	slot_state["server_state"] = SERVER_STATE_IDLE
+	slot_state["server_state_elapsed"] = 0.0
+	slot_state["server_order_text"] = ""
+
+
+func _release_server_customer_service(service_area: BarServiceArea, slot_state: Dictionary) -> void:
+	var seat = slot_state.get("target_service_seat")
+	if service_area != null and service_area.has_method("release_waiter_customer_service") and seat != null and is_instance_valid(seat):
+		service_area.release_waiter_customer_service(seat)
+	_reset_server_service_state(slot_state)
+
+
+func _award_server_order_completion(job, worker: HumanoidCharacter, record: Dictionary) -> void:
+	record["owed_currency"] = int(record.get("owed_currency", 0)) + max(0, int(job.pay_per_interval))
+	record["total_worked_seconds"] = float(record.get("total_worked_seconds", 0.0)) + maxf(float(job.pay_interval_seconds), 0.0)
+	if worker != null and worker.has_method("add_skill_xp"):
+		worker.add_skill_xp(SkillRules.ATTRIBUTE_CHARISMA, SERVER_ORDER_CHARISMA_XP, "bar_waiter_service")
+	if worker != null:
+		worker.show_world_notice("+%d silver, +charisma" % max(0, int(job.pay_per_interval)), Color(0.5, 1.0, 0.65, 1.0), 1.4)
 
 
 func _process_guard_post_shuffle(service_area: BarServiceArea, slot_state: Dictionary, worker: HumanoidCharacter, current_post, delta: float):
@@ -628,6 +759,10 @@ func _end_slot_assignment(job_index: int, slot_state: Dictionary, _caused_by_pla
 	var service_point = slot_state.get("target_service_point")
 	if service_point != null and is_instance_valid(service_point) and service_point.has_method("release_worker"):
 		service_point.release_worker(worker)
+	var service_area := _resolve_bar_service_area()
+	var service_seat = slot_state.get("target_service_seat")
+	if service_area != null and service_seat != null and is_instance_valid(service_seat) and service_area.has_method("release_waiter_customer_service"):
+		service_area.release_waiter_customer_service(service_seat)
 	if worker != null:
 		var record := _get_worker_record(worker)
 		record["current_shift_seconds"] = float(record.get("current_shift_seconds", 0.0))
@@ -637,6 +772,11 @@ func _end_slot_assignment(job_index: int, slot_state: Dictionary, _caused_by_pla
 	slot_state["target_container"] = null
 	slot_state["target_guard_post"] = null
 	slot_state["target_service_point"] = null
+	slot_state["target_service_seat"] = null
+	slot_state["target_service_customer"] = null
+	slot_state["server_state"] = SERVER_STATE_IDLE
+	slot_state["server_state_elapsed"] = 0.0
+	slot_state["server_order_text"] = ""
 	slot_state["guard_shuffle_remaining"] = _next_guard_shuffle_seconds()
 	slot_state["accrued_interval_time"] = 0.0
 
@@ -675,8 +815,20 @@ func _build_job_offer_text(job) -> String:
 		"guard_post":
 			return "I need someone watching this place. Stand guard and I'll pay you %d every %d seconds on duty." % [int(job.pay_per_interval), int(round(job.pay_interval_seconds))]
 		"server_shift":
-			return "I need help serving tables. Stay ready for orders and I'll pay you %d every %d seconds." % [int(job.pay_per_interval), int(round(job.pay_interval_seconds))]
+			return "I need help serving tables. Take customer orders, relay them to me, and I'll pay you %d silver per completed order." % int(job.pay_per_interval)
 	return "I've got work if you want it. I'll pay you %d every %d seconds you work." % [int(job.pay_per_interval), int(round(job.pay_interval_seconds))]
+
+
+func _build_job_accept_text(job) -> String:
+	if job != null and str(job.algorithm_id) == "server_shift":
+		return "Good. Take orders from seated customers and bring them back to me."
+	return "Good. Get to work on %s." % job.get_display_name().to_lower()
+
+
+func _build_job_accept_speech(job) -> String:
+	if job != null and str(job.algorithm_id) == "server_shift":
+		return "Take the next table."
+	return "Good. Get to work."
 
 
 func _resolve_bar_service_area() -> BarServiceArea:

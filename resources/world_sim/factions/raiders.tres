@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="FactionDefinition" format=3]
+[gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://c0lapmuy3jsy0"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
+[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
 [ext_resource type="Resource" path="res://resources/world_sim/behavior_profiles/raider_camp.tres" id="2_behavior"]
 [ext_resource type="Resource" path="res://resources/world_sim/personality_profiles/raider_predatory.tres" id="3_personality"]
 [ext_resource type="Resource" path="res://resources/world_sim/law_profiles/raider_challenge_law.tres" id="4_law"]
@@ -11,6 +11,7 @@ script = ExtResource("1_faction")
 faction_id = "Raiders"
 display_name = "Dustknife Raiders"
 description = "A predatory faction that relies on stolen food and violence when supplies run low."
+default_hostile_faction_ids = null
 starting_war_faction_ids = PackedStringArray("Farmers")
 open_access = false
 behavior_profile = ExtResource("2_behavior")

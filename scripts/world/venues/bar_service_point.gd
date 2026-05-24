@@ -3,7 +3,7 @@ extends Node3D
 
 class_name BarServicePoint
 
-@export_enum("barkeeper", "waiter") var point_role := "barkeeper":
+@export_enum("barkeeper", "waiter", "barber", "hangout") var point_role := "barkeeper":
 	set(value):
 		point_role = value
 		_refresh_debug_marker()

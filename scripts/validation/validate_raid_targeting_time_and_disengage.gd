@@ -24,6 +24,7 @@ func _run() -> void:
 		_fail("Controllers missing for raid targeting/time validation")
 	else:
 		_validate_clock_format(world_time)
+		await _validate_raids_are_manual(settlement_controller, faction_controller, world_squad_controller, world_time)
 		_validate_raid_target_selection(settlement_controller, faction_controller)
 		await _validate_planning_phase_uses_world_clock(settlement_controller, world_squad_controller, event_controller, world_time)
 		_validate_combat_disengage_helpers()
@@ -47,6 +48,18 @@ func _validate_clock_format(world_time: Node) -> void:
 	world_time.set("total_world_minutes", 16.0 * 60.0 + 30.0)
 	if str(world_time.call("format_time")) != "Mon 04:30 PM":
 		_fail("Clock should format afternoon time with PM suffix")
+
+
+func _validate_raids_are_manual(settlement_controller: Node, faction_controller: Node, world_squad_controller: Node, world_time: Node) -> void:
+	faction_controller.call("set_diplomatic_state", "Raiders", "Farmers", "war")
+	settlement_controller.call("set_food", "raider_camp", 0.0, "validation_no_auto_raid")
+	var squad_count_before := int(world_squad_controller.call("serialize_state").size())
+	var absolute_hour := int(world_time.call("get_absolute_hour")) + 24
+	settlement_controller.call("_evaluate_settlement_strategy", "raider_camp", absolute_hour, int(world_time.call("get_day_index")), int(world_time.call("get_hour")))
+	await _wait_frames(2)
+	var squad_count_after := int(world_squad_controller.call("serialize_state").size())
+	if squad_count_after != squad_count_before:
+		_fail("Raider raids should not auto-launch from food pressure; use the request/force raid action instead")
 
 
 func _validate_raid_target_selection(settlement_controller: Node, faction_controller: Node) -> void:

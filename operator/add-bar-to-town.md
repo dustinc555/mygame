@@ -1,8 +1,8 @@
 # Add Bar To Town
 
-Use this to add a reusable drag-and-play bar facility to Farmer Crossing or another `SettlementTown`.
+Use this to add a reusable drag-and-play bar facility to a `SettlementTown`.
 
-1. Select `Settlements/FarmerCrossing/Bars`.
+1. Select the town's `Bars` node, such as `Settlements/FarmerCrossing/Bars`.
 
 2. Right-click `Bars`.
 
@@ -10,53 +10,85 @@ Use this to add a reusable drag-and-play bar facility to Farmer Crossing or anot
 
 4. Choose `res://scenes/world_sim/settlement_bar.tscn`.
 
-5. Rename it `FarmerBar`.
+5. Rename the instance, such as `FarmerBar`.
 
-6. Set these inspector fields on `FarmerBar`:
+6. Move the bar to the desired town position.
+
+7. For a normal town bar, you do not need to set ids or faction ownership manually. The bar infers them from the parent settlement and its node name.
+
+For example, a bar named `FarmerBar` under Farmer Crossing infers:
 
 ```text
-facility_id = farmer_crossing.bar
-display_name = Farmer Crossing Bar
+facility_id = farmer_crossing.farmer_bar
 owner_faction_id = Farmers
-staff_stable_id_prefix = npc.farmer_crossing.bar
+staff_stable_id_prefix = npc.farmer_crossing.farmer_bar
 staff_squad_name = FarmerCrossing
-waiter_count = 1
-waiter_point_count = 1
-guard_count = 1
-guard_post_count = 1
-guard_job_slot_count = 1
 ```
 
-7. Done for the default bar: it already includes a building, barkeeper, waiter, guard, shop stock, jobs, service points, guard posts, furniture, and beds.
+Override those fields only if this bar needs a special id, owner, or staff namespace.
 
-8. To add more table staff, increase `waiter_count`. The bar creates `Staff/Waiter*` and matching server job slots.
+8. Set staff counts. The bar creates missing staff automatically:
 
-9. To add more waiter standing spots, increase `waiter_point_count`. The bar creates `ServicePoints/WaiterPoint*`.
+```text
+waiter_count = 1
+guard_count = 1
+has_barber = false or true
+visitor_capacity = 4
+```
 
-10. To add more generated guard NPCs, increase `guard_count`. The bar creates `Staff/Guard*`. Set `guard_count = 0` for no generated guards.
+9. Optional: assign prebuilt NPCs instead of generating every role:
 
-11. To add more guard standing spots, increase `guard_post_count`. The bar creates `GuardPosts/GuardPost*`.
+```text
+barkeeper_actor_path = optional existing NPC
+assigned_waiter_paths = optional existing waiter NPCs
+assigned_guard_paths = optional existing guard NPCs
+barber_actor_path = optional existing barber NPC
+```
 
-12. To let more player party members take guard duty at the same time, increase `guard_job_slot_count`.
+Assigned NPCs stay where they are in the scene tree. They count toward the role total, and only the missing staff are generated under `Staff`.
 
-13. Move `ServicePoints/WaiterPoint*` to control where waiters wait between table service. Do not use `BarkeeperCounterPoint` for waiters; it is only for barkeeper/counter service until it is replaced by a shop counter.
+10. Done for the default bar. It auto-creates:
 
-14. Move `GuardPosts/GuardPost*` to control where guards stand. Extra guard posts let guards shuffle positions over time.
+```text
+Staff/Barkeeper
+Staff/Waiter* as needed
+Staff/Guard* as needed
+Staff/Barber when has_barber is enabled
+ServicePoints/BarkeeperCounterPoint
+ServicePoints/WaiterPoint* from waiter_count
+GuardPosts/GuardPost* from guard_count
+ActivityPoints/VisitorPoint* from visitor_capacity
+Furniture, shop stock, jobs, and BarServiceArea wiring
+```
 
-15. The service point and guard post pyramids are editor-only markers. Disable a marker with `editor_show_debug_marker` if it gets in the way.
+11. Move service points, guard posts, visitor points, furniture, or the building mesh if you want a custom layout.
 
-Generated default names are `WaiterPoint`, `WaiterPoint2`, `GuardPost`, and `GuardPost2`. Lowering a point/post count removes generated default-name extras; custom-renamed points and posts are left alone.
+Barbers, mercenaries, doctors, traders, and other non-working bar occupants should use the normal bar space and existing chairs instead of getting bespoke service points. Guards need posts and waiters need service points because those are active jobs; idle occupants just exist in the bar.
 
-Guard duty can hire all currently selected party members if `guard_job_slot_count` has enough open slots. If it does not fit, the barkeeper will offer just the speaker or say they have enough guards.
+Furniture is intentionally one bucket. Copy/paste tables, chairs, and beds directly under `Furniture`; do not create or maintain `Furniture/Tables`, `Furniture/Stools`, or `Furniture/Beds` folders for normal bar authoring.
 
-16. To use a different visual building, select `Settlements/FarmerCrossing/Bars/FarmerBar/BuildingSlot/CurrentBuilding`.
+Seats work when the copied prop uses `SittableSeat`. Beds work when the copied prop uses `SleepableBed`. The bar service area scans `Furniture` recursively so older nested furniture remains usable, but new bars should stay flat.
 
-17. Replace that child with another building scene, or delete it and instantiate a different child under `BuildingSlot` named `CurrentBuilding`.
+Generated staff display their role in the crowd, such as `Name (barkeeper)`, `Name (waiter)`, `Name (guard)`, and `Name (barber)`.
 
-18. If the replacement building should contribute town population capacity, set its `population_capacity` and a stable `population_capacity_id`.
+To change global default positions for future and uncustomized bars, edit `res://scenes/world_sim/settlement_bar.tscn` and drag nodes like `GuardPosts/GuardPost` or `ServicePoints/WaiterPoint` there.
+
+12. If you need extra standing points beyond the staff count, use the advanced point fields:
+
+```text
+waiter_point_count = extra/minimum waiter points
+guard_post_count = extra/minimum guard posts
+guard_job_slot_count = extra/minimum player guard job slots
+```
+
+13. To use a different visual building, replace the child under `BuildingSlot` with another building scene.
+
+14. If the replacement building should contribute town population capacity, set its `population_capacity` and a stable `population_capacity_id`.
 
 Do not manually add or configure `BarServiceArea`; it is an internal child of `SettlementBar` and is wired by the bar asset.
 
-Leave beds under `FarmerBar/Furniture/Beds` if you want them upstairs. The bar registers that root as upper-floor building content so beds hide when the active actor is on the ground floor.
+Generated staff use the settlement/faction population appearance and name setup when available. Hand-authored assigned NPCs keep their authored identity and appearance.
 
-Done: `SettlementBar` is the reusable operator-facing asset; its internal service area handles waiter ordering, shop inventory, bed rental, and bar jobs.
+Generated service points, guard posts, and visitor points carry migration metadata. If future default bar layouts change, unchanged generated points can migrate to new defaults, while moved/customized points are preserved.
+
+Barkeeper stock defaults from the parent town's current supply ratio when the bar is under a `SettlementTown`. A standalone bar uses `standalone_stock_ratio`. This only seeds merchant inventory for now; future economy work should restock through settlement storage and supply systems.

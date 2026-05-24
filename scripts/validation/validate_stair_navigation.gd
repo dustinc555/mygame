@@ -1,6 +1,8 @@
 extends SceneTree
 
 const TWO_TOWNS_SCENE := preload("res://scenes/test_levels/two_towns_road_test.tscn")
+const SETTLEMENT_BAR_SCENE := preload("res://scenes/world_sim/settlement_bar.tscn")
+const SMALL_BAR_SCENE := preload("res://scenes/world/buildings/small_bar_scene.tscn")
 const MAX_MOVE_FRAMES := 1500
 const SETTLE_FRAMES := 12
 const START_CLEARANCE_Y := 0.7
@@ -61,11 +63,43 @@ func _load_two_towns_scene() -> void:
 	_camera = _scene.get_node("CameraRig/CameraPivot/Camera3D") as Camera3D
 	_mira = _scene.get_node("PartyMembers/Mira") as HumanoidCharacter
 	_tomas = _scene.get_node("PartyMembers/Tomas") as HumanoidCharacter
-	_building = _scene.get_node("Settlements/FarmerCrossing/Bars/FarmerBar/BuildingSlot/SmallBarScene") as Node3D
+	var bar := _ensure_stair_validation_bar()
+	_building = bar.get_node("BuildingSlot/SmallBarScene") as Node3D
 	_lower_stairs = _building.get_node("LowerStairs") as Node3D
 	_roof_stairs = _building.get_node("BalconyRoofStairs") as Node3D
-	_guard_post3 = _scene.get_node("Settlements/FarmerCrossing/Bars/FarmerBar/GuardPosts/GuardPost3") as Node3D
+	_guard_post3 = bar.get_node("GuardPosts/GuardPost3") as Node3D
 	_camera.current = true
+
+
+func _ensure_stair_validation_bar() -> Node:
+	var bars := _scene.get_node("Settlements/FarmerCrossing/Bars")
+	var existing := bars.get_node_or_null("StairValidationBar")
+	if existing != null:
+		return existing
+	var bar := SETTLEMENT_BAR_SCENE.instantiate()
+	bar.name = "StairValidationBar"
+	bar.position = Vector3(17.523285, 0.0, -13.375732)
+	bars.add_child(bar)
+	bar.set("facility_id", "stair_validation.bar")
+	bar.set("owner_faction_id", "Farmers")
+	bar.set("waiter_count", 0)
+	bar.set("guard_count", 0)
+	bar.set("guard_post_count", 3)
+	bar.set("visitor_capacity", 0)
+	var building_root := bar.get_node("BuildingSlot")
+	for child in building_root.get_children():
+		building_root.remove_child(child)
+		child.queue_free()
+	var small_bar := SMALL_BAR_SCENE.instantiate()
+	small_bar.name = "SmallBarScene"
+	small_bar.transform = Transform3D(Basis(), Vector3(0.011291504, -0.007889509, -0.012234688))
+	building_root.add_child(small_bar)
+	if bar.has_method("_repair_authoring_tree"):
+		bar.call("_repair_authoring_tree")
+	var guard_post3 := bar.get_node_or_null("GuardPosts/GuardPost3") as Node3D
+	if guard_post3 != null:
+		guard_post3.transform = Transform3D(Basis(Vector3.UP, deg_to_rad(-85.0)), Vector3(4.6104774, 5.7289076, -4.437813))
+	return bar
 
 
 func _run_guardpost3_descent_repro() -> void:

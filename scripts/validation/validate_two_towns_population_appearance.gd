@@ -146,14 +146,26 @@ func _validate_faction_menu_ui(faction_controller: Node) -> void:
 	if hud == null:
 		_fail("GameHUD missing for factions menu")
 		return
-	if hud.get_node_or_null("FactionsButton") == null:
+	var factions_button := hud.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadCommandStrip/FactionsButton") as Button
+	if factions_button == null:
 		_fail("Factions menu button missing")
+	if hud.get_node_or_null("FactionsButton") != null:
+		_fail("Factions menu button should live in the bottom HUD, not float as a root HUD child")
 	if hud.get_node_or_null("FactionsWindow") != null:
 		_fail("Factions menu should not use a raw Window node")
-	var panel := hud.get_node_or_null("FactionsPanel") as Control
+	if hud.get_node_or_null("FactionsPanel") != null:
+		_fail("Factions panel should live in the inventory/menu layer, not as a root HUD child")
+	var menu_layer := hud.get_node_or_null("InventoryWindowLayer") as Control
+	if menu_layer == null:
+		_fail("GameHUD missing inventory/menu layer for factions panel")
+		return
+	var panel := menu_layer.get_node_or_null("FactionsPanel") as Control
 	if panel == null:
 		_fail("Factions panel missing")
 		return
+	var hud_layout := hud.get_node_or_null("HudLayout")
+	if hud_layout != null and menu_layer.get_index() <= hud_layout.get_index():
+		_fail("Inventory/menu layer should render above the main HUD layout")
 	if not (panel is PanelContainer):
 		_fail("Factions menu should be a HUD-styled PanelContainer")
 	if panel.custom_minimum_size.x < 700.0 or panel.custom_minimum_size.y < 440.0:

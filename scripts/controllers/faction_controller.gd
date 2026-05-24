@@ -15,6 +15,8 @@ const DIPLOMACY_VASSAL := "vassal"
 const DIPLOMACY_TRIBUTARY := "tributary"
 const DIPLOMACY_PROTECTORATE := "protectorate"
 const DIRECTIONAL_STATES := [DIPLOMACY_VASSAL, DIPLOMACY_TRIBUTARY, DIPLOMACY_PROTECTORATE]
+const FACTIONS_BUTTON_PARENT_PATH := NodePath("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadCommandStrip")
+const FACTIONS_MENU_LAYER_PATH := NodePath("InventoryWindowLayer")
 
 var root_scene: Node
 var hud_layer: CanvasLayer
@@ -308,14 +310,10 @@ func _setup_factions_ui() -> void:
 		_factions_button = Button.new()
 		_factions_button.name = "FactionsButton"
 		_factions_button.text = "Factions"
+		_factions_button.custom_minimum_size = Vector2(72.0, 22.0)
 		_factions_button.focus_mode = Control.FOCUS_NONE
-		_factions_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		_factions_button.offset_left = -488.0
-		_factions_button.offset_top = 8.0
-		_factions_button.offset_right = -398.0
-		_factions_button.offset_bottom = 42.0
-		hud_layer.add_child(_factions_button)
 		_factions_button.pressed.connect(_on_factions_button_pressed)
+	_add_factions_button_to_hud()
 	if _factions_window == null or not is_instance_valid(_factions_window):
 		_factions_window = PanelContainer.new()
 		_factions_window.name = "FactionsPanel"
@@ -325,7 +323,7 @@ func _setup_factions_ui() -> void:
 		_factions_window.size = Vector2(720.0, 460.0)
 		_factions_window.position = Vector2(80.0, 80.0)
 		_factions_window.add_theme_stylebox_override("panel", _make_hud_panel_style())
-		hud_layer.add_child(_factions_window)
+		_get_factions_menu_parent().add_child(_factions_window)
 		var margin := MarginContainer.new()
 		margin.name = "Margin"
 		margin.add_theme_constant_override("margin_left", 12)
@@ -366,7 +364,48 @@ func _setup_factions_ui() -> void:
 		var viewport := get_viewport()
 		if viewport != null and not viewport.size_changed.is_connected(_clamp_factions_panel_to_viewport):
 			viewport.size_changed.connect(_clamp_factions_panel_to_viewport)
+	_add_factions_panel_to_menu_layer()
 	_refresh_factions_window()
+
+
+func _add_factions_button_to_hud() -> void:
+	if _factions_button == null or not is_instance_valid(_factions_button):
+		return
+	var parent := _get_factions_button_parent()
+	if _factions_button.get_parent() == parent:
+		return
+	if _factions_button.get_parent() != null:
+		_factions_button.get_parent().remove_child(_factions_button)
+	parent.add_child(_factions_button)
+	if parent == hud_layer:
+		_factions_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		_factions_button.offset_left = -488.0
+		_factions_button.offset_top = 8.0
+		_factions_button.offset_right = -398.0
+		_factions_button.offset_bottom = 42.0
+
+
+func _add_factions_panel_to_menu_layer() -> void:
+	if _factions_window == null or not is_instance_valid(_factions_window):
+		return
+	var parent := _get_factions_menu_parent()
+	if _factions_window.get_parent() == parent:
+		return
+	if _factions_window.get_parent() != null:
+		_factions_window.get_parent().remove_child(_factions_window)
+	parent.add_child(_factions_window)
+
+
+func _get_factions_button_parent() -> Node:
+	if hud_layer == null:
+		return self
+	return hud_layer.get_node_or_null(FACTIONS_BUTTON_PARENT_PATH) if hud_layer.get_node_or_null(FACTIONS_BUTTON_PARENT_PATH) != null else hud_layer
+
+
+func _get_factions_menu_parent() -> Node:
+	if hud_layer == null:
+		return self
+	return hud_layer.get_node_or_null(FACTIONS_MENU_LAYER_PATH) if hud_layer.get_node_or_null(FACTIONS_MENU_LAYER_PATH) != null else hud_layer
 
 
 func _on_factions_button_pressed() -> void:

@@ -10,6 +10,8 @@ class_name SettlementActivityPoint
 @export_range(0.1, 100.0, 0.1) var weight := 1.0
 @export_range(0, 23, 1) var active_start_hour := 0
 @export_range(0, 23, 1) var active_end_hour := 23
+@export_range(0.0, 600.0, 1.0) var assignment_min_seconds := 0.0
+@export_range(0.0, 600.0, 1.0) var assignment_max_seconds := 0.0
 @export var target_path: NodePath
 
 var _assigned_actor: Node
@@ -50,6 +52,11 @@ func is_active_for_hour(hour: int) -> bool:
 func is_available_for(actor: Node) -> bool:
 	if not enabled:
 		return false
+	if activity_type == "sit":
+		var target := get_activity_target()
+		if target != null and target.has_method("is_occupied") and bool(target.call("is_occupied")):
+			if not target.has_method("get_sitter") or target.call("get_sitter") != actor:
+				return false
 	if not exclusive:
 		return true
 	return _assigned_actor == null or not is_instance_valid(_assigned_actor) or _assigned_actor == actor

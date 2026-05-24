@@ -74,7 +74,7 @@ func _process_resident(resident: Node, points: Array) -> void:
 	if point.has_method("assign_actor") and bool(point.call("assign_actor", resident)):
 		_assignments[key] = {
 			"point": point,
-			"until": _sim_time + _rng.randf_range(min_assignment_seconds, max_assignment_seconds),
+			"until": _sim_time + _assignment_duration_for_point(point),
 		}
 
 
@@ -133,6 +133,20 @@ func _get_current_hour() -> int:
 	if world_time != null and world_time.has_method("get_hour"):
 		return int(world_time.call("get_hour"))
 	return 12
+
+
+func _assignment_duration_for_point(point: Node) -> float:
+	var minimum := min_assignment_seconds
+	var maximum := max_assignment_seconds
+	if point != null:
+		var point_min = point.get("assignment_min_seconds")
+		var point_max = point.get("assignment_max_seconds")
+		if point_min != null and float(point_min) > 0.0:
+			minimum = float(point_min)
+		if point_max != null and float(point_max) > 0.0:
+			maximum = float(point_max)
+	maximum = maxf(maximum, minimum)
+	return _rng.randf_range(minimum, maximum)
 
 
 func _actor_key(actor: Node) -> String:
