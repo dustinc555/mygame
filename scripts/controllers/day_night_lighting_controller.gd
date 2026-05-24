@@ -8,6 +8,8 @@ class_name DayNightLightingController
 @export var celestial_distance := 180.0
 @export var sun_disk_radius := 4.0
 @export var moon_disk_radius := 5.8
+@export_range(0, 500, 1) var star_count := 240
+@export var star_field_distance := 235.0
 
 var root_scene: Node
 var world_time: Node
@@ -21,6 +23,9 @@ var moon_disk: MeshInstance3D
 var moon_halo_inner: MeshInstance3D
 var moon_halo_outer: MeshInstance3D
 var moon_glimmer: MeshInstance3D
+var star_field_root: Node3D
+var _star_records: Array[Dictionary] = []
+var _star_mesh: SphereMesh
 var _glimmer_time := 0.0
 var _initialized := false
 var _stealth_ambient_visibility := 0.75
@@ -97,6 +102,7 @@ func _ensure_celestial_bodies() -> void:
 	moon_halo_inner = _ensure_celestial_sphere("MoonHaloInner", moon_disk_radius * 1.8, Color(0.30, 0.58, 1.0, 0.22))
 	moon_halo_outer = _ensure_celestial_sphere("MoonHaloOuter", moon_disk_radius * 2.85, Color(0.13, 0.28, 0.92, 0.12))
 	moon_glimmer = _ensure_celestial_sphere("MoonGlimmer", moon_disk_radius * 2.2, Color(0.68, 0.95, 1.0, 0.10))
+	_ensure_star_field()
 
 
 func _ensure_celestial_sphere(node_name: String, radius: float, color: Color) -> MeshInstance3D:
@@ -122,6 +128,102 @@ func _make_celestial_material(color: Color) -> StandardMaterial3D:
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.albedo_color = color
 	return material
+
+
+func _ensure_star_field() -> void:
+	star_field_root = celestial_root.get_node_or_null("StarField") as Node3D
+	if star_field_root == null:
+		star_field_root = Node3D.new()
+		star_field_root.name = "StarField"
+		celestial_root.add_child(star_field_root)
+	star_field_root.top_level = true
+	for child in star_field_root.get_children():
+		star_field_root.remove_child(child)
+		child.queue_free()
+	_star_records.clear()
+	if star_count <= 0:
+		return
+	_star_mesh = SphereMesh.new()
+	_star_mesh.radius = 0.5
+	_star_mesh.height = 1.0
+	_star_mesh.radial_segments = 8
+	_star_mesh.rings = 4
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 794237
+	for index in range(star_count):
+		var star_record := _create_star_record(rng, index)
+		var star := MeshInstance3D.new()
+		star.name = "Star%03d" % index
+		star.mesh = _star_mesh
+		star.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		star.position = star_record["direction"] * star_field_distance
+		star.scale = Vector3.ONE * float(star_record["size"])
+		var material := _make_celestial_material(star_record["color"])
+		star.material_override = material
+		star_field_root.add_child(star)
+		star_record["node"] = star
+		star_record["material"] = material
+		_star_records.append(star_record)
+
+
+func _create_star_record(rng: RandomNumberGenerator, index: int) -> Dictionary:
+	var in_star_river := rng.randf() < 0.42
+	var hero_glimmer := index < 12 or rng.randf() < 0.09
+	var size := rng.randf_range(0.18, 0.42)
+	var base_alpha := rng.randf_range(0.32, 0.84)
+	if in_star_river:
+		size *= rng.randf_range(0.82, 1.18)
+		base_alpha *= rng.randf_range(0.62, 0.92)
+	if hero_glimmer:
+		size = rng.randf_range(0.48, 1.02)
+		base_alpha = rng.randf_range(0.72, 1.0)
+	return {
+		"direction": _star_river_direction(rng) if in_star_river else _random_sky_direction(rng),
+		"color": _star_color(rng, hero_glimmer, in_star_river),
+		"size": size,
+		"base_alpha": base_alpha,
+		"twinkle_speed": rng.randf_range(0.22, 1.12),
+		"twinkle_phase": rng.randf_range(0.0, TAU),
+		"slow_speed": rng.randf_range(0.07, 0.34),
+		"slow_phase": rng.randf_range(0.0, TAU),
+		"pulse_speed": rng.randf_range(0.045, 0.14),
+		"pulse_phase": rng.randf_range(0.0, TAU),
+		"pulse_strength": rng.randf_range(0.18, 0.58) if hero_glimmer else rng.randf_range(0.04, 0.16),
+		"pulse_scale": rng.randf_range(0.22, 0.52) if hero_glimmer else rng.randf_range(0.04, 0.16),
+	}
+
+
+func _random_sky_direction(rng: RandomNumberGenerator) -> Vector3:
+	var y := rng.randf_range(0.10, 0.98)
+	var angle := rng.randf_range(0.0, TAU)
+	var horizontal := sqrt(maxf(0.0, 1.0 - y * y))
+	return Vector3(cos(angle) * horizontal, y, sin(angle) * horizontal).normalized()
+
+
+func _star_river_direction(rng: RandomNumberGenerator) -> Vector3:
+	var angle := rng.randf_range(0.0, TAU)
+	var band_height := 0.44 + 0.22 * sin(angle * 1.7 + 0.8)
+	var y := clampf(band_height + rng.randf_range(-0.075, 0.075), 0.12, 0.94)
+	var horizontal := sqrt(maxf(0.0, 1.0 - y * y))
+	var river_angle := angle + deg_to_rad(24.0)
+	return Vector3(cos(river_angle) * horizontal, y, sin(river_angle) * horizontal).normalized()
+
+
+func _star_color(rng: RandomNumberGenerator, hero_glimmer: bool, in_star_river: bool) -> Color:
+	var roll := rng.randf()
+	if hero_glimmer:
+		if roll < 0.42:
+			return Color(0.58, 0.78, 1.0, 1.0)
+		if roll < 0.72:
+			return Color(0.76, 1.0, 0.94, 1.0)
+		return Color(1.0, 0.78, 0.42, 1.0)
+	if in_star_river:
+		return Color(0.82, 0.90, 1.0, 1.0).lerp(Color(0.54, 0.72, 1.0, 1.0), rng.randf_range(0.0, 0.38))
+	if roll < 0.12:
+		return Color(1.0, 0.82, 0.55, 1.0)
+	if roll < 0.32:
+		return Color(0.66, 0.82, 1.0, 1.0)
+	return Color(0.94, 0.97, 1.0, 1.0)
 
 
 func _apply_lighting(day_fraction: float) -> void:
@@ -161,14 +263,14 @@ func _apply_lighting(day_fraction: float) -> void:
 	environment.ambient_light_color = night_ambient.lerp(twilight_ambient, twilight_amount).lerp(day_ambient, day_amount)
 	environment.ambient_light_energy = lerpf(0.32, 1.08, day_amount) + twilight_amount * 0.12
 	_stealth_ambient_visibility = clampf(lerpf(0.16, 0.95, day_amount) + twilight_amount * 0.12 + night_amount * 0.06, 0.08, 1.0)
-	_apply_celestial_bodies(-sun_direction, -moon_direction, day_amount, night_amount, twilight_amount)
+	_apply_celestial_bodies(-sun_direction, -moon_direction, day_fraction, day_amount, night_amount, twilight_amount)
 
 
 func get_stealth_ambient_visibility() -> float:
 	return _stealth_ambient_visibility
 
 
-func _apply_celestial_bodies(sun_body_direction: Vector3, moon_body_direction: Vector3, day_amount: float, night_amount: float, twilight_amount: float) -> void:
+func _apply_celestial_bodies(sun_body_direction: Vector3, moon_body_direction: Vector3, day_fraction: float, day_amount: float, night_amount: float, twilight_amount: float) -> void:
 	if celestial_root == null:
 		return
 	var anchor := _get_celestial_anchor()
@@ -197,6 +299,34 @@ func _apply_celestial_bodies(sun_body_direction: Vector3, moon_body_direction: V
 	moon_halo_inner.scale = Vector3.ONE * (1.0 + glimmer * 0.045)
 	moon_halo_outer.scale = Vector3.ONE * (1.0 + slow_glimmer * 0.08)
 	moon_glimmer.scale = Vector3.ONE * (1.0 + glimmer * 0.12)
+	var star_visibility := clampf(night_amount + twilight_amount * 0.46 - day_amount * 0.82, 0.0, 1.0)
+	_apply_star_field(anchor, day_fraction, star_visibility)
+
+
+func _apply_star_field(anchor: Vector3, day_fraction: float, star_visibility: float) -> void:
+	if star_field_root == null:
+		return
+	star_field_root.global_position = anchor
+	star_field_root.rotation = Vector3(0.0, day_fraction * TAU + deg_to_rad(18.0), 0.0)
+	star_field_root.visible = star_visibility > 0.015
+	if not star_field_root.visible:
+		return
+	for record in _star_records:
+		var star := record.get("node", null) as MeshInstance3D
+		var material := record.get("material", null) as StandardMaterial3D
+		if star == null or material == null:
+			continue
+		var twinkle := 0.5 + 0.5 * sin(_glimmer_time * float(record["twinkle_speed"]) + float(record["twinkle_phase"]))
+		var slow_glimmer := 0.5 + 0.5 * sin(_glimmer_time * float(record["slow_speed"]) + float(record["slow_phase"]))
+		var pulse_wave := 0.5 + 0.5 * sin(_glimmer_time * float(record["pulse_speed"]) + float(record["pulse_phase"]))
+		var pulse := pow(clampf(pulse_wave, 0.0, 1.0), 8.0)
+		var shimmer := 0.68 + twinkle * 0.22 + slow_glimmer * 0.10 + pulse * float(record["pulse_strength"])
+		var alpha := clampf(float(record["base_alpha"]) * star_visibility * shimmer, 0.0, 1.0)
+		var color: Color = record["color"]
+		material.albedo_color = Color(color.r, color.g, color.b, alpha)
+		star.visible = alpha > 0.012
+		var scale_amount := float(record["size"]) * (1.0 + pulse * float(record["pulse_scale"]) + (twinkle - 0.5) * 0.06)
+		star.scale = Vector3.ONE * scale_amount
 
 
 func _get_celestial_anchor() -> Vector3:
