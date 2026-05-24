@@ -2,11 +2,12 @@ extends Control
 
 class_name CursorItemDragSource
 
-signal item_dropped_outside(source_owner, definition, count)
+signal item_dropped_outside(source_owner, definition, count, contained_item_counts)
 
 var source_owner
 var item_definition: ItemDefinition
 var item_count := 1
+var contained_item_counts: Dictionary = {}
 var _active_drag_id := 0
 var _has_item := false
 var _keep_requested := false
@@ -18,12 +19,13 @@ func _ready() -> void:
 	visible = false
 
 
-func start_drag(owner, definition: ItemDefinition, count := 1) -> void:
+func start_drag(owner, definition: ItemDefinition, count := 1, item_contained_item_counts: Dictionary = {}) -> void:
 	if definition == null or count <= 0:
 		return
 	source_owner = owner
 	item_definition = definition
 	item_count = count
+	contained_item_counts = item_contained_item_counts.duplicate(true)
 	_has_item = true
 	_keep_requested = false
 	_pending_replacement.clear()
@@ -43,7 +45,7 @@ func keep_drag(drag_id: int) -> void:
 	_keep_requested = true
 
 
-func replace_drag_item(drag_id: int, owner, definition: ItemDefinition, count := 1) -> void:
+func replace_drag_item(drag_id: int, owner, definition: ItemDefinition, count := 1, item_contained_item_counts: Dictionary = {}) -> void:
 	if drag_id != _active_drag_id:
 		return
 	if definition == null or count <= 0:
@@ -53,6 +55,7 @@ func replace_drag_item(drag_id: int, owner, definition: ItemDefinition, count :=
 		"owner": owner,
 		"definition": definition,
 		"count": count,
+		"contained_item_counts": item_contained_item_counts.duplicate(true),
 	}
 	_has_item = false
 	_keep_requested = false
@@ -72,6 +75,7 @@ func _make_drag_data() -> Dictionary:
 		"source_owner": source_owner,
 		"item_definition": item_definition,
 		"count": item_count,
+		"contained_item_counts": contained_item_counts.duplicate(true),
 	}
 
 
@@ -79,7 +83,7 @@ func _make_drag_preview() -> Control:
 	var preview := PanelContainer.new()
 	preview.custom_minimum_size = Vector2(96.0, 36.0)
 	var label := Label.new()
-	label.text = item_definition.display_name
+	label.text = _drag_label()
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 12)
@@ -93,7 +97,7 @@ func _notification(what: int) -> void:
 	if not _pending_replacement.is_empty():
 		var replacement := _pending_replacement.duplicate()
 		_pending_replacement.clear()
-		start_drag(replacement["owner"], replacement["definition"], int(replacement["count"]))
+		start_drag(replacement["owner"], replacement["definition"], int(replacement["count"]), replacement.get("contained_item_counts", {}))
 		return
 	if not _has_item:
 		return
@@ -107,8 +111,20 @@ func _notification(what: int) -> void:
 	if _mouse_is_over_inventory_window():
 		call_deferred("_begin_drag", _active_drag_id)
 		return
-	item_dropped_outside.emit(source_owner, item_definition, item_count)
+	item_dropped_outside.emit(source_owner, item_definition, item_count, contained_item_counts.duplicate(true))
 	_clear_item()
+
+
+func _drag_label() -> String:
+	if item_definition == null:
+		return "Item"
+	if item_definition.currency_container_capacity > 0:
+		var silver_key := str(InventoryData.SILVER_ITEM.resource_path)
+		var stored := int(contained_item_counts.get(silver_key, 0))
+		return "%s %d/%d" % [item_definition.display_name, stored, int(item_definition.currency_container_capacity)]
+	if item_count > 1:
+		return "%s x%d" % [item_definition.display_name, item_count]
+	return item_definition.display_name
 
 
 func _mouse_is_over_inventory_window() -> bool:
@@ -127,5 +143,6 @@ func _clear_item() -> void:
 	source_owner = null
 	item_definition = null
 	item_count = 1
+	contained_item_counts.clear()
 	_keep_requested = false
 	_pending_replacement.clear()

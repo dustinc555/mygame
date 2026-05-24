@@ -6,6 +6,7 @@ const INVENTORY_WINDOW_SCENE = preload("res://scenes/ui/inventory_window.tscn")
 const WORLD_ITEM_SCENE = preload("res://scenes/world/items/world_item.tscn")
 const CURSOR_ITEM_DRAG_SOURCE_SCRIPT = preload("res://scripts/ui/cursor_item_drag_source.gd")
 const SILVER_ITEM = preload("res://resources/items/silver.tres")
+const SILVER_POUCH_ITEM = preload("res://resources/items/silver_pouch.tres")
 const WINDOW_EDGE_PADDING := 36.0
 const WINDOW_TOP_PADDING := 160.0
 const WINDOW_GAP := 24.0
@@ -369,12 +370,12 @@ func _on_inventory_transfer_requested(source_owner, target_owner, entry, target_
 	if source_owner != target_owner and not _can_transfer_between_owners(source_owner, target_owner):
 		_show_floating_notice("Job inventory is locked")
 		return
+	if _try_deposit_entry_into_pouch(source_owner, target_owner, entry, target_cell):
+		return
 	if source_owner == target_owner:
 		var source_inventory = _get_owner_inventory(source_owner)
 		if source_inventory != null:
 			source_inventory.move_entry(entry, target_cell)
-		return
-	if _try_handle_trade(source_owner, target_owner, entry, target_cell):
 		return
 	var source_inventory = _get_owner_inventory(source_owner)
 	var target_inventory = _get_owner_inventory(target_owner)
@@ -383,6 +384,11 @@ func _on_inventory_transfer_requested(source_owner, target_owner, entry, target_
 	var target_window = _get_window_for_owner(target_owner)
 	if _owners_too_far(source_owner, target_owner):
 		_show_floating_notice("Too far away")
+		return
+	if _try_handle_trade(source_owner, target_owner, entry, target_cell):
+		return
+	if source_owner != target_owner and _entry_is_silver_pouch(source_inventory, entry):
+		_show_floating_notice("Drop onto pouch")
 		return
 
 	if source_inventory.move_entry_to_inventory(entry, target_inventory, target_cell):
@@ -413,6 +419,9 @@ func _on_inventory_quick_transfer_requested(source_owner, entry) -> void:
 	if target_cell == Vector2i(-1, -1):
 		return
 	if _try_handle_trade(source_owner, target_owner, entry, target_cell):
+		return
+	if source_owner != target_owner and _entry_is_silver_pouch(source_inventory, entry):
+		_show_floating_notice("Drop onto pouch")
 		return
 	source_inventory.move_entry_to_inventory(entry, target_inventory, target_cell)
 
@@ -447,6 +456,9 @@ func _on_inventory_item_action_requested(inventory_owner, entry, action: String)
 		return
 	if action == "eat" and inventory_owner.has_method("eat_item"):
 		inventory_owner.eat_item(entry.definition)
+		return
+	if action.begins_with("take_silver_"):
+		_take_silver_from_pouch(inventory_owner, entry, action)
 
 
 func _on_inventory_equip_requested(source_owner, entry, target_owner, slot_name: String) -> void:
@@ -543,9 +555,10 @@ func _on_inventory_item_drop_requested(source_owner, entry) -> void:
 	var source_inventory = _get_owner_inventory(source_owner)
 	if source_inventory == null or not source_inventory.entries.has(entry):
 		return
+	var contained_item_counts: Dictionary = entry.contained_item_counts.duplicate(true)
 	if not source_inventory.remove_entry(entry):
 		return
-	_spawn_world_item(source_owner, entry.definition, entry.count)
+	_spawn_world_item(source_owner, entry.definition, entry.count, contained_item_counts)
 
 
 func _on_inventory_equipment_drop_requested(source_owner, slot_name: String) -> void:
@@ -575,6 +588,9 @@ func _on_cursor_item_place_requested(data: Dictionary, target_owner, target_cell
 			return
 	var target_role = _get_merchant_role(target_owner)
 	var source_role = _get_merchant_role(source_owner)
+	if _try_deposit_cursor_into_pouch(data, target_owner, target_cell):
+		_refresh_inventory_windows_for(source_owner, target_owner)
+		return
 	if target_role != null and source_role == null and source_owner != target_owner:
 		if _try_sell_cursor_item(source_owner, target_owner, definition, count, target_cell, target_role):
 			_consume_cursor_drag(data)
@@ -586,11 +602,15 @@ func _on_cursor_item_place_requested(data: Dictionary, target_owner, target_cell
 		_show_floating_notice("Cannot trade")
 		_keep_cursor_drag(data)
 		return
+	if source_owner != null and source_owner != target_owner and _definition_is_silver_pouch(definition):
+		_show_floating_notice("Drop onto pouch")
+		_keep_cursor_drag(data)
+		return
 	var target_inventory = _get_owner_inventory(target_owner)
 	if target_inventory == null:
 		_keep_cursor_drag(data)
 		return
-	if not _place_cursor_item_in_inventory(target_inventory, definition, count, target_cell):
+	if not _place_cursor_item_in_inventory(target_inventory, definition, count, target_cell, data.get("contained_item_counts", {})):
 		_keep_cursor_drag(data)
 		return
 	_consume_cursor_drag(data)
@@ -624,8 +644,8 @@ func _on_cursor_item_equip_requested(data: Dictionary, target_owner, slot_name: 
 	_refresh_inventory_windows_for(source_owner, target_owner)
 
 
-func _on_cursor_item_dropped_outside(source_owner, definition: ItemDefinition, count: int) -> void:
-	_spawn_world_item(source_owner, definition, count)
+func _on_cursor_item_dropped_outside(source_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}) -> void:
+	_spawn_world_item(source_owner, definition, count, contained_item_counts)
 
 
 func _get_owner_inventory(inventory_owner):
@@ -645,7 +665,7 @@ func _refresh_inventory_windows_for(owner_a, owner_b = null) -> void:
 			window.refresh()
 
 
-func _spawn_world_item(source_owner, definition: ItemDefinition, count: int) -> void:
+func _spawn_world_item(source_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}) -> void:
 	if root_scene == null or definition == null or count <= 0:
 		return
 	var drop_position_value = _get_world_drop_position(source_owner)
@@ -660,7 +680,7 @@ func _spawn_world_item(source_owner, definition: ItemDefinition, count: int) -> 
 		if world_item == null:
 			return
 		root_scene.add_child(world_item)
-		world_item.setup(definition, 1)
+		world_item.setup(definition, 1, contained_item_counts if _index == 0 else {})
 		var item_height := world_item.place_bottom_at(drop_position, next_bottom_y)
 		next_bottom_y += maxf(item_height, 0.05)
 
@@ -776,11 +796,11 @@ func _get_world_item_stack(drop_position: Vector3) -> Dictionary:
 	return {"position": stack_position, "next_bottom_y": next_bottom_y}
 
 
-func _start_cursor_item_drag(owner, definition: ItemDefinition, count: int) -> void:
+func _start_cursor_item_drag(owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}) -> void:
 	if definition == null or count <= 0:
 		return
 	_ensure_cursor_item_drag_source()
-	cursor_item_drag_source.start_drag(owner, definition, count)
+	cursor_item_drag_source.start_drag(owner, definition, count, contained_item_counts)
 
 
 func _begin_equipment_update_batch(owner_a, owner_b = null) -> Array:
@@ -811,10 +831,10 @@ func _keep_cursor_drag(data: Dictionary) -> void:
 		source.keep_drag(int(data.get("cursor_drag_id", 0)))
 
 
-func _replace_cursor_drag(data: Dictionary, owner, definition: ItemDefinition, count: int) -> void:
+func _replace_cursor_drag(data: Dictionary, owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}) -> void:
 	var source = data.get("cursor_source", null)
 	if source != null and source.has_method("replace_drag_item"):
-		source.replace_drag_item(int(data.get("cursor_drag_id", 0)), owner, definition, count)
+		source.replace_drag_item(int(data.get("cursor_drag_id", 0)), owner, definition, count, contained_item_counts)
 
 
 func _try_store_replaced_equipment(source_owner, target_owner, definition: ItemDefinition) -> bool:
@@ -829,22 +849,25 @@ func _try_store_replaced_equipment(source_owner, target_owner, definition: ItemD
 	return false
 
 
-func _place_cursor_item_in_inventory(target_inventory, definition: ItemDefinition, count: int, target_cell: Vector2i) -> bool:
+func _place_cursor_item_in_inventory(target_inventory, definition: ItemDefinition, count: int, target_cell: Vector2i, contained_item_counts: Dictionary = {}) -> bool:
 	if target_inventory == null or definition == null or count <= 0:
 		return false
-	if target_inventory.use_weight and target_inventory.get_total_weight() + definition.unit_weight * count > target_inventory.max_weight:
+	if target_inventory.use_weight and target_inventory.get_total_weight() + target_inventory.get_item_weight(definition, count, contained_item_counts) > target_inventory.max_weight:
 		_show_floating_notice("Too heavy")
 		return false
 	if not target_inventory.can_place_item(definition, target_cell):
 		_show_floating_notice("No room")
 		return false
-	target_inventory.entries.append(InventoryData.InventoryEntry.new(definition, target_cell, count))
+	target_inventory.entries.append(InventoryData.InventoryEntry.new(definition, target_cell, count, contained_item_counts))
 	target_inventory.changed.emit()
 	return true
 
 
 func _try_sell_cursor_item(source_owner, merchant_owner, definition: ItemDefinition, count: int, target_cell: Vector2i, merchant_role) -> bool:
 	if source_owner == null or merchant_owner == null or definition == null or count <= 0:
+		return false
+	if not _item_is_sellable(definition):
+		_show_floating_notice("Cannot trade")
 		return false
 	var price: int = merchant_role.get_buy_price(definition)
 	if price < 0:
@@ -874,6 +897,9 @@ func _try_pay_for_equipment_transfer(source_owner, target_owner, entry) -> bool:
 	if source_role == null and target_role == null:
 		return true
 	if source_role != null and target_role == null:
+		if not _item_is_sellable(entry.definition):
+			_show_floating_notice("Cannot trade")
+			return false
 		var price: int = source_role.get_sell_price(entry.definition) * entry.count
 		var source_inventory = _get_owner_inventory(source_owner)
 		if price < 0 or target_owner.inventory.count_item(SILVER_ITEM) < price:
@@ -912,6 +938,9 @@ func _try_handle_trade(source_owner, target_owner, entry, target_cell: Vector2i)
 
 
 func _buy_from_merchant(merchant_owner, buyer_owner, entry, target_cell: Vector2i, merchant_role) -> bool:
+	if not _item_is_sellable(entry.definition):
+		_show_floating_notice("Cannot trade")
+		return true
 	var price: int = merchant_role.get_sell_price(entry.definition)
 	if price < 0:
 		_show_floating_notice("Cannot afford")
@@ -939,6 +968,9 @@ func _buy_from_merchant(merchant_owner, buyer_owner, entry, target_cell: Vector2
 
 
 func _sell_to_merchant(seller_owner, merchant_owner, entry, target_cell: Vector2i, merchant_role) -> bool:
+	if not _item_is_sellable(entry.definition):
+		_show_floating_notice("Cannot trade")
+		return true
 	var price: int = merchant_role.get_buy_price(entry.definition)
 	if price < 0:
 		_show_floating_notice("Cannot trade")
@@ -964,7 +996,202 @@ func _sell_to_merchant(seller_owner, merchant_owner, entry, target_cell: Vector2
 	return true
 
 
+func _try_deposit_entry_into_pouch(source_owner, target_owner, entry, target_cell: Vector2i) -> bool:
+	var source_inventory = _get_owner_inventory(source_owner)
+	var target_inventory = _get_owner_inventory(target_owner)
+	if source_inventory == null or target_inventory == null or entry == null or not source_inventory.entries.has(entry):
+		return false
+	var target_entry = target_inventory.get_entry_at_cell(target_cell)
+	if not _entry_is_silver_pouch(target_inventory, target_entry):
+		return false
+	if target_entry == entry:
+		_show_floating_notice("Same pouch")
+		return true
+	if not _entry_is_silver_coin(entry) and not _entry_is_silver_pouch(source_inventory, entry):
+		return false
+	if source_owner != target_owner:
+		if _owners_too_far(source_owner, target_owner):
+			_show_floating_notice("Too far away")
+			return true
+		if _get_merchant_role(source_owner) != null or _get_merchant_role(target_owner) != null:
+			_show_floating_notice("Cannot trade")
+			return true
+	var capacity := int(target_inventory.get_entry_remaining_currency_capacity(target_entry, SILVER_ITEM))
+	if capacity <= 0:
+		_show_floating_notice("Pouch full")
+		return true
+	if _entry_is_silver_coin(entry):
+		_deposit_coin_entry_into_pouch(source_inventory, target_inventory, entry, target_entry, capacity)
+		_refresh_inventory_windows_for(source_owner, target_owner)
+		return true
+	_deposit_pouch_entry_into_pouch(source_owner, source_inventory, target_inventory, entry, target_entry, capacity)
+	_refresh_inventory_windows_for(source_owner, target_owner)
+	return true
+
+
+func _try_deposit_cursor_into_pouch(data: Dictionary, target_owner, target_cell: Vector2i) -> bool:
+	var target_inventory = _get_owner_inventory(target_owner)
+	if target_inventory == null:
+		return false
+	var target_entry = target_inventory.get_entry_at_cell(target_cell)
+	if not _entry_is_silver_pouch(target_inventory, target_entry):
+		return false
+	var source_owner = data.get("source_owner", null)
+	var definition: ItemDefinition = data.get("item_definition") as ItemDefinition
+	if definition == null or not _definition_is_silver_currency(definition):
+		return false
+	if source_owner != null and source_owner != target_owner:
+		if _owners_too_far(source_owner, target_owner):
+			_show_floating_notice("Too far away")
+			_keep_cursor_drag(data)
+			return true
+		if _get_merchant_role(source_owner) != null or _get_merchant_role(target_owner) != null:
+			_show_floating_notice("Cannot trade")
+			_keep_cursor_drag(data)
+			return true
+	var capacity := int(target_inventory.get_entry_remaining_currency_capacity(target_entry, SILVER_ITEM))
+	if capacity <= 0:
+		_show_floating_notice("Pouch full")
+		_keep_cursor_drag(data)
+		return true
+	if _definition_is_silver_pouch(definition):
+		var stored := _contained_silver_count(data.get("contained_item_counts", {}))
+		if stored <= 0:
+			_show_floating_notice("No silver")
+			_keep_cursor_drag(data)
+			return true
+		var moved: int = min(capacity, stored)
+		target_inventory.adjust_entry_contained_item_count(target_entry, SILVER_ITEM, moved)
+		var remaining_pouch_silver := stored - moved
+		if remaining_pouch_silver > 0:
+			_replace_cursor_drag(data, source_owner, SILVER_POUCH_ITEM, 1, _silver_contents(remaining_pouch_silver))
+		else:
+			_consume_cursor_drag(data)
+		return true
+	var count := int(data.get("count", 1))
+	if count <= 0:
+		_show_floating_notice("No silver")
+		_keep_cursor_drag(data)
+		return true
+	var moved_coins: int = min(capacity, count)
+	target_inventory.adjust_entry_contained_item_count(target_entry, SILVER_ITEM, moved_coins)
+	var remaining := count - moved_coins
+	if remaining > 0:
+		_replace_cursor_drag(data, source_owner, SILVER_ITEM, remaining)
+	else:
+		_consume_cursor_drag(data)
+	return true
+
+
+func _deposit_coin_entry_into_pouch(source_inventory, target_inventory, entry, target_entry, capacity: int) -> void:
+	var moved: int = min(capacity, int(entry.count))
+	if moved <= 0:
+		return
+	target_inventory.adjust_entry_contained_item_count(target_entry, SILVER_ITEM, moved, false)
+	entry.count -= moved
+	if entry.count <= 0:
+		source_inventory.entries.erase(entry)
+	_emit_inventory_changes(source_inventory, target_inventory)
+
+
+func _deposit_pouch_entry_into_pouch(source_owner, source_inventory, target_inventory, entry, target_entry, capacity: int) -> void:
+	var stored := int(source_inventory.get_entry_contained_item_count(entry, SILVER_ITEM))
+	if stored <= 0:
+		_show_floating_notice("No silver")
+		return
+	var moved: int = min(capacity, stored)
+	target_inventory.adjust_entry_contained_item_count(target_entry, SILVER_ITEM, moved, false)
+	source_inventory.entries.erase(entry)
+	_emit_inventory_changes(source_inventory, target_inventory)
+	var remaining_pouch_silver := stored - moved
+	if remaining_pouch_silver > 0:
+		_start_cursor_item_drag(source_owner, SILVER_POUCH_ITEM, 1, _silver_contents(remaining_pouch_silver))
+
+
+func _emit_inventory_changes(inventory_a, inventory_b = null) -> void:
+	if inventory_a != null:
+		inventory_a.changed.emit()
+	if inventory_b != null and inventory_b != inventory_a:
+		inventory_b.changed.emit()
+
+
+func _entry_is_silver_coin(entry) -> bool:
+	return entry != null and _definition_is_silver_coin(entry.definition)
+
+
+func _entry_is_silver_pouch(inventory, entry) -> bool:
+	return inventory != null and entry != null and inventory.has_method("is_entry_currency_container") and bool(inventory.call("is_entry_currency_container", entry, SILVER_ITEM))
+
+
+func _definition_is_silver_currency(definition: ItemDefinition) -> bool:
+	return definition != null and str(definition.currency_id) == str(SILVER_ITEM.currency_id)
+
+
+func _definition_is_silver_coin(definition: ItemDefinition) -> bool:
+	return _definition_is_silver_currency(definition) and int(definition.currency_container_capacity) <= 0
+
+
+func _definition_is_silver_pouch(definition: ItemDefinition) -> bool:
+	return _definition_is_silver_currency(definition) and int(definition.currency_container_capacity) > 0
+
+
+func _contained_silver_count(contained_item_counts: Dictionary) -> int:
+	return max(0, int(contained_item_counts.get(_silver_key(), 0)))
+
+
+func _silver_contents(amount: int) -> Dictionary:
+	return {_silver_key(): max(0, amount)}
+
+
+func _silver_key() -> String:
+	return str(SILVER_ITEM.resource_path)
+
+
+func _item_is_sellable(definition: ItemDefinition) -> bool:
+	return definition != null and bool(definition.sellable)
+
+
 func _get_merchant_role(inventory_owner):
 	if inventory_owner != null and inventory_owner.has_method("get_merchant_role"):
 		return inventory_owner.get_merchant_role()
 	return null
+
+
+func _take_silver_from_pouch(inventory_owner, entry, action: String) -> void:
+	if inventory_owner == null or entry == null:
+		return
+	if not inventory_owner.has_method("is_player_party_member") or not bool(inventory_owner.call("is_player_party_member")):
+		return
+	var inventory = _get_owner_inventory(inventory_owner)
+	if inventory == null or not inventory.has_method("is_entry_currency_container") or not bool(inventory.call("is_entry_currency_container", entry, SILVER_ITEM)):
+		return
+	var available := int(inventory.call("get_entry_contained_item_count", entry, SILVER_ITEM))
+	var amount := _silver_take_amount(action, available)
+	if amount <= 0:
+		return
+	if not inventory.can_add_loose_item_count(SILVER_ITEM, amount):
+		_show_floating_notice("No room")
+		return
+	var taken := int(inventory.call("take_contained_item_as_loose", entry, SILVER_ITEM, amount))
+	if taken <= 0:
+		_show_floating_notice("No room")
+		return
+	_refresh_inventory_windows_for(inventory_owner)
+
+
+func _silver_take_amount(action: String, available: int) -> int:
+	if available <= 0:
+		return 0
+	match action:
+		"take_silver_1":
+			return min(1, available)
+		"take_silver_5":
+			return min(5, available)
+		"take_silver_10":
+			return min(10, available)
+		"take_silver_half":
+			return min(available, max(1, int(floor(float(available) * 0.5))))
+		"take_silver_quarter":
+			return min(available, max(1, int(floor(float(available) * 0.25))))
+		_:
+			return 0

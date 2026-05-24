@@ -66,6 +66,27 @@ func get_all_settlement_states() -> Array[Dictionary]:
 	return states
 
 
+func set_settlement_owner(settlement_id: String, faction_id: String, reason := "manual") -> Dictionary:
+	if settlement_id.is_empty() or not settlement_states.has(settlement_id):
+		return {}
+	var state: Dictionary = settlement_states[settlement_id]
+	var previous_owner := str(state.get("faction_id", ""))
+	var next_owner := faction_id.strip_edges()
+	if previous_owner == next_owner:
+		return get_settlement_state(settlement_id)
+	state["faction_id"] = next_owner
+	state["last_action"] = "Owner changed: %s" % (next_owner if not next_owner.is_empty() else "None")
+	_record_event({
+		"type": "settlement_owner_changed",
+		"settlement_id": settlement_id,
+		"previous_faction_id": previous_owner,
+		"faction_id": next_owner,
+		"reason": reason,
+	})
+	_notify_state_changed(settlement_id)
+	return get_settlement_state(settlement_id)
+
+
 func adjust_food(settlement_id: String, amount: float, reason := "manual") -> float:
 	if not settlement_states.has(settlement_id):
 		return 0.0

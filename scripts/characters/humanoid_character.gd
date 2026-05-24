@@ -1061,7 +1061,7 @@ func can_bandage_target(target: HumanoidCharacter) -> bool:
 	if target == null or not target.can_receive_bandage():
 		return false
 	for entry in inventory.entries:
-		if can_use_bandage_item(entry.definition):
+		if can_use_bandage_item(entry.definition) and _bandage_entry_has_uses(entry):
 			return true
 	return false
 
@@ -1665,10 +1665,10 @@ func _apply_blood_loss(amount: float) -> void:
 func apply_bandage_from(actor: HumanoidCharacter) -> bool:
 	if actor == null or not can_receive_bandage() or not actor.can_bandage_target(self):
 		return false
-	var bandage_definition := actor._get_best_bandage_definition()
-	if bandage_definition == null:
+	var bandage_entry = actor._get_best_bandage_entry()
+	if bandage_entry == null:
 		return false
-	if not actor.inventory.remove_item_count(bandage_definition, 1):
+	if not actor.inventory.consume_bandage_entry_use(bandage_entry):
 		return false
 	_current_bandaged_cut_damage += _current_open_cut_damage
 	_current_open_cut_damage = 0.0
@@ -5491,12 +5491,27 @@ func _is_working() -> bool:
 
 
 func _get_best_bandage_definition() -> ItemDefinition:
-	var best_definition: ItemDefinition
+	var entry = _get_best_bandage_entry()
+	return entry.definition if entry != null else null
+
+
+func _get_best_bandage_entry():
+	var best_entry = null
 	var best_power := -1.0
 	for entry in inventory.entries:
 		if not can_use_bandage_item(entry.definition):
 			continue
+		if not _bandage_entry_has_uses(entry):
+			continue
 		if entry.definition.bandage_power > best_power:
-			best_definition = entry.definition
+			best_entry = entry
 			best_power = entry.definition.bandage_power
-	return best_definition
+	return best_entry
+
+
+func _bandage_entry_has_uses(entry) -> bool:
+	if entry == null or inventory == null:
+		return false
+	if inventory.has_method("get_entry_bandage_uses"):
+		return int(inventory.call("get_entry_bandage_uses", entry)) > 0
+	return entry.definition != null and int(entry.definition.bandage_max_uses) > 0

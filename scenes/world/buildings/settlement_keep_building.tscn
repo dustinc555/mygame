@@ -1,0 +1,143 @@
+[gd_scene load_steps=17 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/buildings/world_building.gd" id="1_building"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_walls"]
+albedo_color = Color(0.62, 0.56, 0.47, 1)
+roughness = 0.96
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.46, 0.36, 0.25, 1)
+roughness = 0.94
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_roof"]
+albedo_color = Color(0.31, 0.22, 0.18, 1)
+roughness = 0.92
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(12, 0.2, 14)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(12, 0.2, 14)
+
+[sub_resource type="BoxMesh" id="BoxMesh_wall_long"]
+size = Vector3(12, 3.8, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wall_long"]
+size = Vector3(12, 3.8, 0.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_wall_short"]
+size = Vector3(0.2, 3.8, 14)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wall_short"]
+size = Vector3(0.2, 3.8, 14)
+
+[sub_resource type="BoxMesh" id="BoxMesh_front_side"]
+size = Vector3(4.5, 3.8, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_front_side"]
+size = Vector3(4.5, 3.8, 0.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_front_top"]
+size = Vector3(3, 1.2, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_front_top"]
+size = Vector3(3, 1.2, 0.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_roof"]
+size = Vector3(12.6, 0.25, 14.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_roof"]
+size = Vector3(12.6, 0.25, 14.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_interior_area"]
+size = Vector3(11.2, 3.6, 13.2)
+
+[node name="SettlementKeepBuilding" type="StaticBody3D"]
+script = ExtResource("1_building")
+display_name = "Keep Hall"
+building_type = "generic"
+access_mode = "public"
+population_capacity = 4
+interior_area_path = NodePath("InteriorArea")
+roof_occluder_paths = Array[NodePath]([NodePath("RoofMesh"), NodePath("RoofCollision")])
+front_occluder_paths = Array[NodePath]([NodePath("FrontWallLeftMesh"), NodePath("FrontWallLeftCollision"), NodePath("FrontWallRightMesh"), NodePath("FrontWallRightCollision"), NodePath("FrontWallTopMesh"), NodePath("FrontWallTopCollision")])
+right_occluder_paths = Array[NodePath]([NodePath("RightWallMesh"), NodePath("RightWallCollision")])
+back_occluder_paths = Array[NodePath]([NodePath("BackWallMesh"), NodePath("BackWallCollision")])
+left_occluder_paths = Array[NodePath]([NodePath("LeftWallMesh"), NodePath("LeftWallCollision")])
+
+[node name="FloorMesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_floor")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="FloorCollision" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="BackWallMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.95, -6.9)
+mesh = SubResource("BoxMesh_wall_long")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="BackWallCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.95, -6.9)
+shape = SubResource("BoxShape3D_wall_long")
+
+[node name="LeftWallMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.9, 1.95, 0)
+mesh = SubResource("BoxMesh_wall_short")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="LeftWallCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.9, 1.95, 0)
+shape = SubResource("BoxShape3D_wall_short")
+
+[node name="RightWallMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.9, 1.95, 0)
+mesh = SubResource("BoxMesh_wall_short")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="RightWallCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.9, 1.95, 0)
+shape = SubResource("BoxShape3D_wall_short")
+
+[node name="FrontWallLeftMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.75, 1.95, 6.9)
+mesh = SubResource("BoxMesh_front_side")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="FrontWallLeftCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.75, 1.95, 6.9)
+shape = SubResource("BoxShape3D_front_side")
+
+[node name="FrontWallRightMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.75, 1.95, 6.9)
+mesh = SubResource("BoxMesh_front_side")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="FrontWallRightCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.75, 1.95, 6.9)
+shape = SubResource("BoxShape3D_front_side")
+
+[node name="FrontWallTopMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.25, 6.9)
+mesh = SubResource("BoxMesh_front_top")
+material_override = SubResource("StandardMaterial3D_walls")
+
+[node name="FrontWallTopCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.25, 6.9)
+shape = SubResource("BoxShape3D_front_top")
+
+[node name="RoofMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.95, 0)
+mesh = SubResource("BoxMesh_roof")
+material_override = SubResource("StandardMaterial3D_roof")
+
+[node name="RoofCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.95, 0)
+shape = SubResource("BoxShape3D_roof")
+
+[node name="InteriorArea" type="Area3D" parent="."]
+
+[node name="InteriorAreaShape" type="CollisionShape3D" parent="InteriorArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
+shape = SubResource("BoxShape3D_interior_area")

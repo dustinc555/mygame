@@ -62,15 +62,23 @@ func get_build_permission(world_position: Vector3, builder_faction_id := "") -> 
 	for node in get_tree().get_nodes_in_group("faction_territory"):
 		if not node.has_method("contains_world_position") or not bool(node.call("contains_world_position", world_position)):
 			continue
-		var faction_id := str(node.get("faction_id"))
+		var faction_id := _get_territory_owner_faction_id(node)
 		if not faction_id.is_empty() and faction_id != builder_faction_id:
 			return {
 				"can_build": true,
 				"reason": "foreign_faction_territory",
 				"faction_id": faction_id,
 				"territory_id": str(node.call("get_territory_id")) if node.has_method("get_territory_id") else node.name,
-			}
+		}
 	return {"can_build": true, "reason": "unclaimed"}
+
+
+func _get_territory_owner_faction_id(territory: Node) -> String:
+	if territory == null:
+		return ""
+	if territory.has_method("get_resolved_faction_id"):
+		return str(territory.call("get_resolved_faction_id"))
+	return str(territory.get("faction_id")) if _has_property(territory, "faction_id") else ""
 
 
 func serialize_state() -> Dictionary:
@@ -106,3 +114,12 @@ func _collect_territories() -> void:
 func _apply_debug_visibility() -> void:
 	set_faction_territories_visible(faction_territories_visible)
 	set_town_borders_visible(town_borders_visible)
+
+
+func _has_property(target: Object, property_name: String) -> bool:
+	if target == null:
+		return false
+	for property in target.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false

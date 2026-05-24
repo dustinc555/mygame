@@ -5,6 +5,7 @@ class_name FactionDefinition
 @export var faction_id := ""
 @export var display_name := "Faction"
 @export_multiline var description := ""
+@export var primary_color := Color.WHITE
 @export var default_hostile_faction_ids: PackedStringArray = PackedStringArray()
 @export var starting_war_faction_ids: PackedStringArray = PackedStringArray()
 @export var open_access := true

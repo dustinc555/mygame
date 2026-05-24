@@ -20,6 +20,7 @@ const EQUIP_SLOT_OFFHAND := "offhand"
 @export var max_stack := 1
 @export var nutrition_value := 0.0
 @export var bandage_power := 0.0
+@export_range(0, 100, 1) var bandage_max_uses := 0
 @export var equip_slot := EQUIP_SLOT_NONE
 @export var alternate_equip_slots: PackedStringArray = PackedStringArray()
 @export var world_scene: PackedScene
@@ -30,6 +31,9 @@ const EQUIP_SLOT_OFFHAND := "offhand"
 @export var equipped_transform := Transform3D.IDENTITY
 @export var stat_modifiers: Array[ItemStatModifier] = []
 @export var tool_tags: PackedStringArray = PackedStringArray()
+@export var currency_id := ""
+@export_range(0, 1000000, 1) var currency_container_capacity := 0
+@export var sellable := true
 
 
 func is_equippable() -> bool:
@@ -38,6 +42,18 @@ func is_equippable() -> bool:
 
 func has_tool_tag(tag: String) -> bool:
 	return not tag.is_empty() and tool_tags.has(tag)
+
+
+func is_currency_item() -> bool:
+	return not currency_id.is_empty() and currency_container_capacity <= 0
+
+
+func is_currency_container() -> bool:
+	return not currency_id.is_empty() and currency_container_capacity > 0
+
+
+func can_store_currency(definition: ItemDefinition) -> bool:
+	return is_currency_container() and definition != null and definition.currency_id == currency_id
 
 
 func can_equip_to_slot(slot_name: String) -> bool:

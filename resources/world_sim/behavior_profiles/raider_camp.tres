@@ -7,7 +7,6 @@ script = ExtResource("1_profile")
 profile_id = "raider_camp"
 display_name = "Raider Camp"
 base_aggression = 0.85
-can_initiate_food_raids = false
 food_raid_pressure_threshold = 0.45
 raid_target_selection_mode = "best_raid_target"
 raid_target_relation_policy = "not_allied"

@@ -17,6 +17,7 @@ class_name WorldBuilding
 @export var population_capacity_id := ""
 @export_range(0, 1000, 1) var population_capacity := 0
 @export var levels: Array[BuildingLevelDefinition] = []
+@export var click_local_y := 0.1
 @export var interior_area_path: NodePath
 @export var roof_occluder_paths: Array[NodePath] = []
 @export var front_occluder_paths: Array[NodePath] = []
@@ -713,12 +714,20 @@ func _is_valid_level_index(level_index: int) -> bool:
 
 
 func project_click_to_active_level(ray_origin: Vector3, ray_direction: Vector3) -> Variant:
+	if levels.is_empty():
+		if not _roof_hidden and _hidden_side.is_empty():
+			return null
+		return _project_click_to_local_y(ray_origin, ray_direction, click_local_y)
 	if _active_level_index < 0 or _active_level_index >= levels.size():
 		return null
 	var level: BuildingLevelDefinition = levels[_active_level_index]
 	if level == null:
 		return null
-	var plane_point := to_global(Vector3(0.0, level.click_local_y, 0.0))
+	return _project_click_to_local_y(ray_origin, ray_direction, level.click_local_y)
+
+
+func _project_click_to_local_y(ray_origin: Vector3, ray_direction: Vector3, local_y: float) -> Variant:
+	var plane_point := to_global(Vector3(0.0, local_y, 0.0))
 	var plane := Plane(global_transform.basis.y.normalized(), plane_point)
 	var hit: Variant = plane.intersects_ray(ray_origin, ray_direction)
 	return hit

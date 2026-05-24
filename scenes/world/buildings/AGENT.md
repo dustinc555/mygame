@@ -8,6 +8,7 @@
 - Validate stairs with an actual physics traversal check, not only scene-load checks.
 - Verify prop orientation against intended use: chairs face tables, beds put heads toward pillows, doors and stairs face paths.
 - Account for mesh origin offsets; do not assume the node origin is the visual center or contact point.
+- For world-sim facility/building composition, follow `scenes/world_sim/AGENT.md`; building shells own physical geometry while world-sim source scenes own facility layout and role points.
 
 ## House and Building Authoring Notes
 

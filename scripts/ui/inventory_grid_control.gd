@@ -56,8 +56,10 @@ func _draw() -> void:
 			draw_texture_rect(entry.definition.icon, Rect2(draw_position, draw_size), false)
 		else:
 			draw_string(get_theme_default_font(), item_rect.position + Vector2(6, 20), entry.definition.display_name, HORIZONTAL_ALIGNMENT_LEFT, item_rect.size.x - 12, 16, Color(0.94, 0.94, 0.94, 1.0))
-		if entry.count > 1:
-			draw_string(get_theme_default_font(), item_rect.position + Vector2(6, item_rect.size.y - 6), str(entry.count), HORIZONTAL_ALIGNMENT_LEFT, item_rect.size.x - 12, 14, Color(1.0, 0.94, 0.7, 1.0))
+		var count_label := _entry_count_label(entry)
+		if not count_label.is_empty():
+			_draw_count_label(item_rect, count_label)
+		_draw_bandage_uses_bar(entry, item_rect)
 
 	if _preview_visible:
 		draw_rect(_preview_rect, Color(1.0, 0.85, 0.35, 0.22), true)
@@ -79,6 +81,10 @@ func _get_tooltip(at_position: Vector2) -> String:
 	var entry = _entry_at_local_position(at_position)
 	if entry == null or entry.definition == null:
 		return ""
+	if inventory_data != null and inventory_data.has_method("is_entry_currency_container") and bool(inventory_data.call("is_entry_currency_container", entry)):
+		var stored := _entry_silver_count(entry)
+		var capacity := int(entry.definition.currency_container_capacity)
+		return "%s\n%d/%d silver coins" % [entry.definition.display_name, stored, capacity]
 	return entry.definition.display_name
 
 
@@ -208,3 +214,48 @@ func _clear_preview() -> void:
 	_preview_visible = false
 	_preview_rect = Rect2()
 	queue_redraw()
+
+
+func _entry_count_label(entry) -> String:
+	if entry == null:
+		return ""
+	if inventory_data != null and inventory_data.has_method("is_entry_currency_container") and bool(inventory_data.call("is_entry_currency_container", entry)):
+		var stored := _entry_silver_count(entry)
+		var capacity := int(entry.definition.currency_container_capacity)
+		return "%d/%d" % [stored, capacity]
+	if entry.count > 1:
+		return str(entry.count)
+	return ""
+
+
+func _entry_silver_count(entry) -> int:
+	if inventory_data == null or entry == null or not inventory_data.has_method("get_entry_contained_item_count"):
+		return 0
+	return int(inventory_data.call("get_entry_contained_item_count", entry, InventoryData.SILVER_ITEM))
+
+
+func _draw_count_label(item_rect: Rect2, count_label: String) -> void:
+	var font := get_theme_default_font()
+	var font_size := 14
+	var text_size := font.get_string_size(count_label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size)
+	var backplate := Rect2(item_rect.position + Vector2(4.0, item_rect.size.y - text_size.y - 8.0), text_size + Vector2(8.0, 5.0))
+	draw_rect(backplate, Color(0.02, 0.018, 0.012, 0.78), true)
+	draw_rect(backplate, Color(1.0, 1.0, 1.0, 0.18), false, 1.0)
+	var text_position := item_rect.position + Vector2(8.0, item_rect.size.y - 7.0)
+	draw_string(font, text_position + Vector2(1.0, 1.0), count_label, HORIZONTAL_ALIGNMENT_LEFT, item_rect.size.x - 12.0, font_size, Color(0.0, 0.0, 0.0, 0.9))
+	draw_string(font, text_position, count_label, HORIZONTAL_ALIGNMENT_LEFT, item_rect.size.x - 12.0, font_size, Color(1.0, 1.0, 1.0, 1.0))
+
+
+func _draw_bandage_uses_bar(entry, item_rect: Rect2) -> void:
+	if entry == null or entry.definition == null or int(entry.definition.bandage_max_uses) <= 0:
+		return
+	var max_uses := int(entry.definition.bandage_max_uses)
+	var uses := max_uses
+	if inventory_data != null and inventory_data.has_method("get_entry_bandage_uses"):
+		uses = int(inventory_data.call("get_entry_bandage_uses", entry))
+	var ratio := clampf(float(uses) / float(max_uses), 0.0, 1.0)
+	var bar_rect := Rect2(item_rect.position + Vector2(6.0, item_rect.size.y - 8.0), Vector2(maxf(4.0, item_rect.size.x - 12.0), 4.0))
+	draw_rect(bar_rect, Color(0.02, 0.018, 0.014, 0.62), true)
+	if ratio > 0.0:
+		draw_rect(Rect2(bar_rect.position, Vector2(bar_rect.size.x * ratio, bar_rect.size.y)), Color(0.72, 0.88, 0.78, 0.92), true)
+	draw_rect(bar_rect, Color(1.0, 1.0, 1.0, 0.16), false, 1.0)

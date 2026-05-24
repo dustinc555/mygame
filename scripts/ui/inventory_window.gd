@@ -17,6 +17,14 @@ signal cursor_item_equip_requested(data, target_owner, slot_name)
 
 @export var transfer_distance := 5.0
 
+const ACTION_EAT := 1
+const ACTION_TAKE_SILVER_1 := 101
+const ACTION_TAKE_SILVER_5 := 105
+const ACTION_TAKE_SILVER_10 := 110
+const ACTION_TAKE_SILVER_HALF := 150
+const ACTION_TAKE_SILVER_QUARTER := 125
+const NO_POUCH_DEPOSIT := "__no_pouch_deposit__"
+
 var inventory_owner
 var _dragging := false
 var _drag_offset := Vector2.ZERO
@@ -98,6 +106,9 @@ func _can_accept_drop(data, target_cell: Vector2i) -> bool:
 func _get_drop_error(data, target_cell: Vector2i) -> String:
 	if inventory_owner == null or typeof(data) != TYPE_DICTIONARY:
 		return ""
+	var pouch_deposit_error := _get_pouch_deposit_error(data, target_cell)
+	if pouch_deposit_error != NO_POUCH_DEPOSIT:
+		return pouch_deposit_error
 	if data.has("cursor_item") and data.has("item_definition"):
 		return _get_cursor_item_drop_error(data, target_cell)
 	if data.has("equipment_owner") and data.has("equip_slot") and data.has("item_definition"):
@@ -113,6 +124,8 @@ func _get_drop_error(data, target_cell: Vector2i) -> String:
 		return "No room"
 	if _owners_too_far(source_owner, inventory_owner):
 		return "Too far away"
+	if _entry_is_silver_pouch(entry):
+		return "Drop onto pouch"
 	if inventory.use_weight and inventory.get_total_weight() + entry.definition.unit_weight * entry.count > inventory.max_weight:
 		return "Too heavy"
 	if not inventory.can_place_item(entry.definition, target_cell):
@@ -154,12 +167,19 @@ func _on_inventory_item_right_clicked(entry, _local_position: Vector2, shift_pre
 		can_eat = inventory_owner.can_eat_inventory_entry(entry)
 	else:
 		can_eat = inventory_owner.has_method("can_eat_item") and inventory_owner.can_eat_item(entry.definition)
-	if not can_eat:
+	var can_take_silver := _can_take_silver_from_pouch(entry)
+	if not can_eat and not can_take_silver:
 		return
 	_context_entry = entry
 	item_menu.clear()
 	if can_eat:
-		item_menu.add_item("Eat", 1)
+		item_menu.add_item("Eat", ACTION_EAT)
+	if can_take_silver:
+		item_menu.add_item("Take 1", ACTION_TAKE_SILVER_1)
+		item_menu.add_item("Take 5", ACTION_TAKE_SILVER_5)
+		item_menu.add_item("Take 10", ACTION_TAKE_SILVER_10)
+		item_menu.add_item("Take 1/2", ACTION_TAKE_SILVER_HALF)
+		item_menu.add_item("Take 1/4", ACTION_TAKE_SILVER_QUARTER)
 	var item_rect := inventory_grid._item_rect(entry)
 	var popup_position := inventory_grid.get_global_position() + item_rect.position + Vector2(item_rect.size.x + 8.0, 0.0)
 	item_menu.position = Vector2i(popup_position)
@@ -300,10 +320,13 @@ func _get_cursor_item_drop_error(data: Dictionary, target_cell: Vector2i) -> Str
 	var source_owner = data.get("source_owner", null)
 	var definition: ItemDefinition = data["item_definition"]
 	var count := int(data.get("count", 1))
+	var contained_item_counts: Dictionary = data.get("contained_item_counts", {})
 	if source_owner != inventory_owner and _owners_too_far(source_owner, inventory_owner):
 		return "Too far away"
+	if source_owner != null and source_owner != inventory_owner and _definition_is_silver_pouch(definition):
+		return "Drop onto pouch"
 	var inventory = _get_owner_inventory()
-	if inventory.use_weight and inventory.get_total_weight() + definition.unit_weight * count > inventory.max_weight:
+	if inventory.use_weight and inventory.get_total_weight() + inventory.get_item_weight(definition, count, contained_item_counts) > inventory.max_weight:
 		return "Too heavy"
 	if not inventory.can_place_item(definition, target_cell):
 		return "No room"
@@ -331,12 +354,91 @@ func _on_item_menu_id_pressed(action_id: int) -> void:
 	if inventory_owner == null or _context_entry == null:
 		return
 	match action_id:
-		1:
+		ACTION_EAT:
 			if inventory_owner.has_method("consume_inventory_entry"):
 				inventory_owner.consume_inventory_entry(_context_entry)
 			else:
 				item_action_requested.emit(inventory_owner, _context_entry, "eat")
+		ACTION_TAKE_SILVER_1:
+			item_action_requested.emit(inventory_owner, _context_entry, "take_silver_1")
+		ACTION_TAKE_SILVER_5:
+			item_action_requested.emit(inventory_owner, _context_entry, "take_silver_5")
+		ACTION_TAKE_SILVER_10:
+			item_action_requested.emit(inventory_owner, _context_entry, "take_silver_10")
+		ACTION_TAKE_SILVER_HALF:
+			item_action_requested.emit(inventory_owner, _context_entry, "take_silver_half")
+		ACTION_TAKE_SILVER_QUARTER:
+			item_action_requested.emit(inventory_owner, _context_entry, "take_silver_quarter")
 	_context_entry = null
+
+
+func _can_take_silver_from_pouch(entry) -> bool:
+	if inventory_owner == null or entry == null:
+		return false
+	if not inventory_owner.has_method("is_player_party_member") or not bool(inventory_owner.call("is_player_party_member")):
+		return false
+	var inventory = _get_owner_inventory()
+	if inventory == null or not inventory.has_method("is_entry_currency_container") or not bool(inventory.call("is_entry_currency_container", entry, InventoryData.SILVER_ITEM)):
+		return false
+	return int(inventory.call("get_entry_contained_item_count", entry, InventoryData.SILVER_ITEM)) > 0
+
+
+func _get_pouch_deposit_error(data: Dictionary, target_cell: Vector2i) -> String:
+	var inventory = _get_owner_inventory()
+	if inventory == null or not inventory.has_method("is_entry_currency_container"):
+		return NO_POUCH_DEPOSIT
+	var target_entry = inventory.get_entry_at_cell(target_cell)
+	if target_entry == null or not bool(inventory.call("is_entry_currency_container", target_entry, InventoryData.SILVER_ITEM)):
+		return NO_POUCH_DEPOSIT
+	if data.has("entry") and data["entry"] == target_entry:
+		return "Same pouch"
+	if not _drag_data_is_silver_or_pouch(data):
+		return NO_POUCH_DEPOSIT
+	var source_owner = data.get("source_owner", null)
+	if source_owner != inventory_owner and _owners_too_far(source_owner, inventory_owner):
+		return "Too far away"
+	if _drag_data_silver_amount(data) <= 0:
+		return "No silver"
+	if int(inventory.call("get_entry_remaining_currency_capacity", target_entry, InventoryData.SILVER_ITEM)) <= 0:
+		return "Pouch full"
+	return ""
+
+
+func _drag_data_is_silver_or_pouch(data: Dictionary) -> bool:
+	var definition = null
+	if data.has("entry") and data["entry"] != null:
+		definition = data["entry"].definition
+	elif data.has("item_definition"):
+		definition = data["item_definition"]
+	if definition == null:
+		return false
+	return str(definition.currency_id) == str(InventoryData.SILVER_ITEM.currency_id)
+
+
+func _entry_is_silver_pouch(entry) -> bool:
+	return entry != null and _definition_is_silver_pouch(entry.definition)
+
+
+func _definition_is_silver_pouch(definition) -> bool:
+	return definition != null and str(definition.currency_id) == str(InventoryData.SILVER_ITEM.currency_id) and int(definition.currency_container_capacity) > 0
+
+
+func _drag_data_silver_amount(data: Dictionary) -> int:
+	if data.has("entry") and data["entry"] != null:
+		var entry = data["entry"]
+		if entry.definition != null and int(entry.definition.currency_container_capacity) > 0:
+			var source_inventory = data.get("source_inventory", null)
+			if source_inventory != null and source_inventory.has_method("get_entry_contained_item_count"):
+				return int(source_inventory.call("get_entry_contained_item_count", entry, InventoryData.SILVER_ITEM))
+			return int(entry.contained_item_counts.get(str(InventoryData.SILVER_ITEM.resource_path), 0))
+		return int(entry.count)
+	if data.has("item_definition"):
+		var definition = data["item_definition"]
+		if definition != null and int(definition.currency_container_capacity) > 0:
+			var contained: Dictionary = data.get("contained_item_counts", {})
+			return int(contained.get(str(InventoryData.SILVER_ITEM.resource_path), 0))
+		return int(data.get("count", 1))
+	return 0
 
 
 func clamp_to_viewport() -> void:

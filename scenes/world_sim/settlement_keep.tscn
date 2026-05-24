@@ -1,0 +1,65 @@
+[gd_scene format=3 uid="uid://cmh02fasnxjgq"]
+
+[ext_resource type="Script" uid="uid://dnur177a65hcv" path="res://scripts/world_sim/settlement_keep.gd" id="1_keep"]
+[ext_resource type="Resource" path="res://resources/world_sim/facility_functions/keep.tres" id="2_function"]
+[ext_resource type="PackedScene" path="res://scenes/world/buildings/settlement_keep_building.tscn" id="3_building"]
+[ext_resource type="PackedScene" path="res://scenes/world/props/keep/planning_table.tscn" id="4_table"]
+[ext_resource type="PackedScene" path="res://scenes/world/props/keep/mayor_chair.tscn" id="5_chair"]
+[ext_resource type="Script" uid="uid://c32mdje85i12b" path="res://scripts/world/venues/bar_guard_post.gd" id="6_guard_post"]
+
+[node name="SettlementKeep" type="Node3D" unique_id=17769727]
+script = ExtResource("1_keep")
+facility_function = ExtResource("2_function")
+service_points_root_path = NodePath("")
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+display_name = "Settlement Keep"
+facility_type = "keep"
+
+[node name="BuildingSlot" type="Node3D" parent="." unique_id=1630709443]
+
+[node name="CurrentBuilding" parent="BuildingSlot" unique_id=884380971 instance=ExtResource("3_building")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0055274963, -0.008694172, -0.0023579597)
+
+[node name="Staff" type="Node3D" parent="." unique_id=703851869]
+
+[node name="Furniture" type="Node3D" parent="." unique_id=1630284068]
+
+[node name="PlanningTable" parent="Furniture" unique_id=973279435 instance=ExtResource("4_table")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.2)
+metadata/keep_generated = true
+metadata/keep_role = "planning_table"
+metadata/keep_index = 0
+metadata/keep_layout_version = 1
+metadata/keep_last_default_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.2)
+
+[node name="RulerChair" parent="Furniture" unique_id=825379426 instance=ExtResource("5_chair")]
+transform = Transform3D(0.9998561, 0, -0.016963685, 0, 1, 0, 0.016963685, 0, 0.9998561, 0, 0, -4.35)
+metadata/keep_generated = true
+metadata/keep_role = "ruler_chair"
+metadata/keep_index = 0
+metadata/keep_layout_version = 1
+metadata/keep_last_default_transform = Transform3D(0.9998561, 0, -0.016963685, 0, 1, 0, 0.016963685, 0, 0.9998561, 0, 0, -4.35)
+metadata/keep_chair_style = "mayor"
+
+[node name="GuardPosts" type="Node3D" parent="." unique_id=932721662]
+
+[node name="GuardPost" type="Node3D" parent="GuardPosts" unique_id=1800328242]
+transform = Transform3D(0.90630776, 0, 0.42261827, 0, 1, 0, -0.42261827, 0, 0.90630776, -4.4, 0.05, 3.9)
+script = ExtResource("6_guard_post")
+debug_color = Color(0.35, 0.78, 1, 0.76)
+metadata/keep_generated = true
+metadata/keep_role = "guard"
+metadata/keep_index = 0
+metadata/keep_layout_version = 1
+metadata/keep_last_default_transform = Transform3D(0.90630776, 0, 0.42261827, 0, 1, 0, -0.42261827, 0, 0.90630776, -4.4, 0.05, 3.9)
+
+[node name="GuardPost2" type="Node3D" parent="GuardPosts" unique_id=348257997]
+transform = Transform3D(0.90630776, 0, -0.42261827, 0, 1, 0, 0.42261827, 0, 0.90630776, 4.4, 0.05, 3.9)
+script = ExtResource("6_guard_post")
+debug_color = Color(0.35, 0.78, 1, 0.76)
+metadata/keep_generated = true
+metadata/keep_role = "guard"
+metadata/keep_index = 1
+metadata/keep_layout_version = 1
+metadata/keep_last_default_transform = Transform3D(0.90630776, 0, -0.42261827, 0, 1, 0, 0.42261827, 0, 0.90630776, 4.4, 0.05, 3.9)

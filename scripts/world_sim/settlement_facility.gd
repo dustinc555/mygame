@@ -4,7 +4,7 @@ class_name SettlementFacility
 
 @export var facility_id := ""
 @export var display_name := "Facility"
-@export_enum("generic", "housing", "farm", "mine", "bar", "shop", "storage", "guard", "social", "police", "weapon_shop", "armor_shop", "travel_shop", "potion_shop", "tavern") var facility_type := "generic"
+@export_enum("generic", "housing", "farm", "mine", "bar", "shop", "storage", "guard", "social", "police", "weapon_shop", "armor_shop", "travel_shop", "potion_shop", "tavern", "keep") var facility_type := "generic"
 @export var owner_faction_id := ""
 @export var enabled := true
 @export var food_production_per_day := 0.0

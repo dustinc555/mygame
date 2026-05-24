@@ -13,6 +13,10 @@ const MIN_COLLIDER_SIZE := Vector3(0.08, 0.03, 0.08)
 @export var quantity := 1:
 	set(value):
 		quantity = maxi(1, value)
+@export var contained_item_counts: Dictionary = {}:
+	set(value):
+		contained_item_counts = value.duplicate(true)
+		_refresh_label()
 @export var pickup_distance := 1.4
 @export var owner_faction_name := "":
 	set(value):
@@ -33,9 +37,10 @@ func _ready() -> void:
 	_refresh_label()
 
 
-func setup(definition: ItemDefinition, amount: int = 1) -> void:
+func setup(definition: ItemDefinition, amount: int = 1, item_contained_item_counts: Dictionary = {}) -> void:
 	item_definition = definition
 	quantity = amount
+	contained_item_counts = item_contained_item_counts.duplicate(true)
 	_rebuild_visual()
 	_refresh_label()
 
@@ -67,10 +72,15 @@ func try_pickup(actor) -> bool:
 	if ownership_controller != null and ownership_controller.has_method("request_take_item") and not bool(ownership_controller.call("request_take_item", actor, self)):
 		return false
 	var actor_inventory = actor.inventory if actor.get("inventory") != null else null
-	if actor_inventory == null or not actor_inventory.can_add_item_count(item_definition, quantity):
+	if actor_inventory == null:
 		_show_pickup_failure(actor)
 		return false
-	if not actor_inventory.add_item_count(item_definition, quantity):
+	var picked_up := false
+	if _item_has_contained_counts():
+		picked_up = actor_inventory.add_entry_with_contents(item_definition, quantity, contained_item_counts)
+	else:
+		picked_up = actor_inventory.add_item_count(item_definition, quantity)
+	if not picked_up:
 		_show_pickup_failure(actor)
 		return false
 	queue_free()
@@ -133,8 +143,21 @@ func _refresh_label() -> void:
 	if item_definition == null:
 		label.text = "Owned Item" if not owner_faction_name.is_empty() else "Item"
 		return
-	var item_label := item_definition.display_name if quantity <= 1 else "%s x%d" % [item_definition.display_name, quantity]
+	var item_label := _item_display_label()
 	label.text = "%s (Owned)" % item_label if not owner_faction_name.is_empty() else item_label
+
+
+func _item_display_label() -> String:
+	if item_definition == null:
+		return "Item"
+	if int(item_definition.currency_container_capacity) > 0:
+		var silver_count := int(contained_item_counts.get(str(InventoryData.SILVER_ITEM.resource_path), 0))
+		return "%s %d/%d" % [item_definition.display_name, silver_count, int(item_definition.currency_container_capacity)]
+	return item_definition.display_name if quantity <= 1 else "%s x%d" % [item_definition.display_name, quantity]
+
+
+func _item_has_contained_counts() -> bool:
+	return item_definition != null and (int(item_definition.currency_container_capacity) > 0 or not contained_item_counts.is_empty())
 
 
 func _rebuild_visual() -> void:
