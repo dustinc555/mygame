@@ -338,6 +338,7 @@ signal inventory_changed
 signal mining_changed
 signal scavenging_changed
 signal state_changed
+signal appearance_changed
 signal combat_state_changed
 signal container_reached(member, container)
 signal trade_target_reached(member, target)
@@ -990,6 +991,7 @@ func _apply_equipment_changed() -> void:
 	else:
 		_rebuild_character_visual_for_equipment()
 	inventory_changed.emit()
+	appearance_changed.emit()
 	state_changed.emit()
 
 
@@ -1153,6 +1155,7 @@ func apply_appearance_data(next_appearance) -> void:
 	_apply_automatic_eyebrow_style()
 	_setup_character_visual()
 	refresh_grip_sockets_for_body()
+	appearance_changed.emit()
 
 
 func set_preview_clothes_visible(is_visible: bool) -> void:

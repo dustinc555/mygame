@@ -112,11 +112,13 @@ func _run_mira_edit_case() -> void:
 	if _style_id(_mira.appearance_data.hair_style) == _style_id(HAIR_LONG):
 		_fail("Mira live hair changed before Save")
 	_expect_actor_stable(_mira, start_position, "Mira before Save")
+	var portrait_child_id_before_save := _get_party_portrait_root_child_id(_mira, "Mira before Save")
 	editor.save_current()
 	await _wait_frames(6)
 	_expect_world_paused(false, "Mira editor saved")
 	_expect_actor_stable(_mira, start_position, "Mira after Save")
 	_expect_style(_mira, HAIR_LONG, null, EYEBROWS_FINE, "Mira")
+	_expect_party_portrait_rebuilt(_mira, portrait_child_id_before_save, "Mira after Save")
 	if _appearance_controller.is_editor_open():
 		_fail("Editor stayed open after saving Mira")
 
@@ -143,11 +145,13 @@ func _run_tomas_cancel_case() -> void:
 	await _expect_clothes_toggle_persists(editor, _tomas, "Tomas cancel")
 	await _expect_preview_can_rotate(editor, "Tomas cancel")
 	await _spam_preview_changes(editor, _tomas, start_position, start_hair, start_beard, start_eyebrows, "Tomas cancel before close")
+	var portrait_child_id_before_cancel := _get_party_portrait_root_child_id(_tomas, "Tomas before Cancel")
 	editor.cancel_current()
 	await _wait_frames(6)
 	_expect_world_paused(false, "Tomas editor canceled")
 	_expect_actor_stable(_tomas, start_position, "Tomas after Cancel")
 	_expect_style_ids(_tomas, start_hair, start_beard, start_eyebrows, "Tomas after Cancel")
+	_expect_party_portrait_unchanged(_tomas, portrait_child_id_before_cancel, "Tomas after Cancel")
 
 
 func _run_tomas_edit_case() -> void:
@@ -180,12 +184,14 @@ func _run_tomas_edit_case() -> void:
 	editor.draft_appearance.eyebrow_color = Color(0.7, 0.25, 0.1, 1.0)
 	editor._rebuild_preview()
 	_expect_draft_eyebrows(editor, EYEBROWS_REGULAR, "Tomas before Save")
+	var portrait_child_id_before_save := _get_party_portrait_root_child_id(_tomas, "Tomas before Save")
 	editor.save_current()
 	await _wait_frames(6)
 	_expect_world_paused(false, "Tomas editor saved")
 	_expect_actor_stable(_tomas, start_position, "Tomas after Save")
 	_expect_style(_tomas, HAIR_BUZZED, BEARD_FULL, EYEBROWS_REGULAR, "Tomas")
 	_expect_style(_mira, HAIR_LONG, null, EYEBROWS_FINE, "Mira after Tomas save")
+	_expect_party_portrait_rebuilt(_tomas, portrait_child_id_before_save, "Tomas after Save")
 
 
 func _spam_preview_changes(editor, actor: HumanoidCharacter, start_position: Vector3, start_hair: String, start_beard: String, start_eyebrows: String, label: String) -> void:
@@ -521,6 +527,48 @@ func _expect_style_ids(actor: HumanoidCharacter, hair_id: String, beard_id: Stri
 		_fail("%s live eyebrow changed before Save" % label)
 	if not _colors_match(actor.appearance_data.eyebrow_color, actor.appearance_data.hair_color):
 		_fail("%s live eyebrow color does not track hair color" % label)
+
+
+func _expect_party_portrait_rebuilt(actor: HumanoidCharacter, previous_child_id: int, label: String) -> void:
+	var current_child_id := _get_party_portrait_root_child_id(actor, label)
+	if previous_child_id == 0 or current_child_id == 0:
+		return
+	if current_child_id == previous_child_id:
+		_fail("Party portrait did not rebuild for %s" % label)
+
+
+func _expect_party_portrait_unchanged(actor: HumanoidCharacter, previous_child_id: int, label: String) -> void:
+	var current_child_id := _get_party_portrait_root_child_id(actor, label)
+	if previous_child_id == 0 or current_child_id == 0:
+		return
+	if current_child_id != previous_child_id:
+		_fail("Party portrait rebuilt unexpectedly for %s" % label)
+
+
+func _get_party_portrait_root_child_id(actor: HumanoidCharacter, label: String) -> int:
+	var card := _get_party_portrait_card(actor, label)
+	if card == null:
+		return 0
+	var portrait_root = card.get("portrait_root") as Node3D
+	if portrait_root == null:
+		_fail("Party portrait root missing for %s" % label)
+		return 0
+	if portrait_root.get_child_count() <= 0:
+		_fail("Party portrait has no visual copy for %s" % label)
+		return 0
+	return portrait_root.get_child(0).get_instance_id()
+
+
+func _get_party_portrait_card(actor: HumanoidCharacter, label: String) -> Node:
+	var portrait_flow := _scene.get_node_or_null("GameHUD/HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/PortraitScroll/PortraitFlow")
+	if portrait_flow == null:
+		_fail("Party portrait flow missing for %s" % label)
+		return null
+	for child in portrait_flow.get_children():
+		if child.get("member") == actor:
+			return child
+	_fail("Party portrait card missing for %s" % label)
+	return null
 
 
 func _style_id(style: Resource) -> String:

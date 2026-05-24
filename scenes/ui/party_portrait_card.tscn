@@ -15,7 +15,7 @@ border_width_bottom = 1
 border_color = Color(0.34, 0.34, 0.38, 1)
 
 [node name="PartyPortraitCard" type="Button"]
-custom_minimum_size = Vector2(96, 58)
+custom_minimum_size = Vector2(80, 72)
 theme_override_styles/normal = SubResource("StyleBoxFlat_card")
 theme_override_styles/hover = SubResource("StyleBoxFlat_card")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_card")
@@ -43,14 +43,14 @@ layout_mode = 2
 theme_override_constants/separation = 2
 
 [node name="PortraitImage" type="TextureRect" parent="Margin/VBox"]
-custom_minimum_size = Vector2(88, 30)
+custom_minimum_size = Vector2(72, 46)
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 6
 
 [node name="PortraitViewportContainer" type="SubViewportContainer" parent="Margin/VBox"]
 visible = false
-custom_minimum_size = Vector2(88, 30)
+custom_minimum_size = Vector2(72, 46)
 layout_mode = 2
 mouse_filter = 2
 stretch = true
@@ -59,7 +59,7 @@ stretch = true
 transparent_bg = false
 handle_input_locally = false
 own_world_3d = true
-size = Vector2i(256, 128)
+size = Vector2i(192, 128)
 render_target_update_mode = 1
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="Margin/VBox/PortraitViewportContainer/SubViewport"]

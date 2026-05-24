@@ -7,15 +7,23 @@ signal portrait_pressed(member, double_click, add_select)
 const CHARACTER_VISUAL_NODE_NAME := "CharacterVisual"
 const PORTRAIT_VISUAL_YAW_OFFSET := PI
 const PORTRAIT_IDLE_POSE_SECONDS := 0.45
-const PORTRAIT_IDLE_ANIMATION_NAMES := ["Idle_FoldArms", "Idle"]
+const PORTRAIT_IDLE_ANIMATION_NAMES := ["Idle"]
+const PORTRAIT_FOV := 26.0
+const PORTRAIT_TARGET_HEIGHT_RATIO := 0.84
+const PORTRAIT_DISTANCE_HEIGHT_RATIO := 0.70
+const PORTRAIT_MIN_DISTANCE := 1.20
+const PORTRAIT_CAMERA_SIDE_OFFSET := 0.08
+const PORTRAIT_CAMERA_ELEVATION_OFFSET := 0.03
 const PORTRAIT_SKIP_NODE_NAMES := {
 	"InspectRing": true,
 	"SelectionRing": true,
 }
 
 var member: HumanoidCharacter
+var _portrait_refresh_queued := false
 
 @onready var viewport: SubViewport = $Margin/VBox/PortraitViewportContainer/SubViewport
+@onready var portrait_camera: Camera3D = $Margin/VBox/PortraitViewportContainer/SubViewport/Camera3D
 @onready var portrait_root: Node3D = $Margin/VBox/PortraitViewportContainer/SubViewport/PortraitRoot
 @onready var portrait_image: TextureRect = $Margin/VBox/PortraitImage
 @onready var name_label: Label = $Margin/VBox/Name
@@ -32,12 +40,18 @@ func _ready() -> void:
 
 
 func setup(target_member: HumanoidCharacter) -> void:
+	_disconnect_member_appearance_changed()
 	member = target_member
+	_connect_member_appearance_changed()
 	if name_label == null:
 		call_deferred("_deferred_setup")
 		return
 	name_label.text = target_member.member_name
 	call_deferred("_rebuild_portrait")
+
+
+func _exit_tree() -> void:
+	_disconnect_member_appearance_changed()
 
 
 func apply_state(is_selected: bool, is_followed: bool) -> void:
@@ -50,11 +64,45 @@ func apply_state(is_selected: bool, is_followed: bool) -> void:
 		_set_style(Color(0.16, 0.16, 0.18, 0.96), Color(0.34, 0.34, 0.38, 1.0), 1)
 
 
+func refresh_portrait() -> void:
+	if _portrait_refresh_queued:
+		return
+	_portrait_refresh_queued = true
+	call_deferred("_deferred_refresh_portrait")
+
+
 func _deferred_setup() -> void:
 	if member == null or name_label == null:
 		return
 	name_label.text = member.member_name
 	call_deferred("_rebuild_portrait")
+
+
+func _deferred_refresh_portrait() -> void:
+	_portrait_refresh_queued = false
+	if not is_inside_tree() or member == null or portrait_root == null:
+		return
+	_rebuild_portrait()
+
+
+func _connect_member_appearance_changed() -> void:
+	if member == null or not member.has_signal("appearance_changed"):
+		return
+	var changed_callable := Callable(self, "_on_member_appearance_changed")
+	if not member.is_connected("appearance_changed", changed_callable):
+		member.connect("appearance_changed", changed_callable)
+
+
+func _disconnect_member_appearance_changed() -> void:
+	if member == null or not is_instance_valid(member) or not member.has_signal("appearance_changed"):
+		return
+	var changed_callable := Callable(self, "_on_member_appearance_changed")
+	if member.is_connected("appearance_changed", changed_callable):
+		member.disconnect("appearance_changed", changed_callable)
+
+
+func _on_member_appearance_changed() -> void:
+	refresh_portrait()
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -72,8 +120,27 @@ func _rebuild_portrait() -> void:
 		return
 	for child in member.get_children():
 		_add_portrait_copy(child)
+	_frame_portrait_camera()
 	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 	call_deferred("_capture_snapshot")
+
+
+func _frame_portrait_camera() -> void:
+	if portrait_camera == null:
+		return
+	portrait_camera.fov = PORTRAIT_FOV
+	var bounds := _calculate_local_mesh_bounds(portrait_root)
+	if bounds.size.length() <= 0.001:
+		var fallback_target := Vector3(0.0, 1.58, 0.0)
+		portrait_camera.position = fallback_target + Vector3(PORTRAIT_CAMERA_SIDE_OFFSET, PORTRAIT_CAMERA_ELEVATION_OFFSET, PORTRAIT_MIN_DISTANCE)
+		portrait_camera.look_at(fallback_target, Vector3.UP)
+		return
+	var height := maxf(bounds.size.y, 1.4)
+	var center := bounds.get_center()
+	var target := Vector3(clampf(center.x, -0.12, 0.12), bounds.position.y + height * PORTRAIT_TARGET_HEIGHT_RATIO, clampf(center.z, -0.10, 0.10))
+	var distance := maxf(PORTRAIT_MIN_DISTANCE, height * PORTRAIT_DISTANCE_HEIGHT_RATIO)
+	portrait_camera.position = target + Vector3(PORTRAIT_CAMERA_SIDE_OFFSET, height * 0.015 + PORTRAIT_CAMERA_ELEVATION_OFFSET, distance)
+	portrait_camera.look_at(target, Vector3.UP)
 
 
 func _add_portrait_copy(source: Node) -> void:
@@ -133,6 +200,44 @@ func _find_animation_player(root: Node) -> AnimationPlayer:
 		if animation_player != null:
 			return animation_player
 	return null
+
+
+func _calculate_local_mesh_bounds(root: Node) -> AABB:
+	var result := {"has_bounds": false, "bounds": AABB()}
+	_accumulate_local_mesh_bounds(root, Transform3D.IDENTITY, result)
+	return result["bounds"] if bool(result["has_bounds"]) else AABB()
+
+
+func _accumulate_local_mesh_bounds(node: Node, parent_transform: Transform3D, result: Dictionary) -> void:
+	var local_transform := parent_transform
+	if node is Node3D:
+		local_transform = parent_transform * (node as Node3D).transform
+	if node is MeshInstance3D:
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance.visible and mesh_instance.mesh != null:
+			var mesh_bounds := _transform_aabb(mesh_instance.mesh.get_aabb(), local_transform)
+			if result["has_bounds"]:
+				result["bounds"] = (result["bounds"] as AABB).merge(mesh_bounds)
+			else:
+				result["bounds"] = mesh_bounds
+				result["has_bounds"] = true
+	for child in node.get_children():
+		_accumulate_local_mesh_bounds(child, local_transform, result)
+
+
+func _transform_aabb(bounds: AABB, transform: Transform3D) -> AABB:
+	var first := true
+	var transformed_bounds := AABB()
+	for x in [bounds.position.x, bounds.position.x + bounds.size.x]:
+		for y in [bounds.position.y, bounds.position.y + bounds.size.y]:
+			for z in [bounds.position.z, bounds.position.z + bounds.size.z]:
+				var point := transform * Vector3(x, y, z)
+				if first:
+					transformed_bounds = AABB(point, Vector3.ZERO)
+					first = false
+				else:
+					transformed_bounds = transformed_bounds.expand(point)
+	return transformed_bounds
 
 
 func _capture_snapshot() -> void:
