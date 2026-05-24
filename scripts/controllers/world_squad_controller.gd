@@ -11,6 +11,7 @@ const PHASE_RESOLVED := "resolved"
 var root_scene: Node
 var settlement_controller: Node
 var road_controller: Node
+var world_time: Node
 var world_event_choice_controller: Node
 var active_squads: Dictionary = {}
 var _squad_index := 0
@@ -67,6 +68,7 @@ func start_action(action_record: Dictionary) -> Dictionary:
 		"operation_profile": operation_profile,
 		"phase_id": _operation_start_phase_id(operation_profile),
 		"phase_elapsed": 0.0,
+		"phase_start_world_minute": _get_world_minute(),
 		"phase_entered": false,
 		"cargo_capacity": _resource_float(template, "food_capacity", 0.0),
 		"alarm_raised": false,
@@ -128,6 +130,7 @@ func _try_initialize() -> void:
 		return
 	settlement_controller = get_parent().get_node_or_null("SettlementController")
 	road_controller = get_parent().get_node_or_null("RoadController")
+	world_time = get_parent().get_node_or_null("WorldTimeController")
 	world_event_choice_controller = get_parent().get_node_or_null("WorldEventChoiceController")
 	if settlement_controller == null:
 		return
@@ -315,10 +318,10 @@ func _process_travel_phase(squad_state: Dictionary, phase: Resource, target_anch
 
 
 func _process_planning_phase(squad_state: Dictionary, phase: Resource, _target_anchor: Node3D) -> void:
-	var elapsed := float(squad_state.get("phase_elapsed", 0.0)) + 0.5
+	var elapsed := _phase_elapsed_world_minutes(squad_state)
 	squad_state["phase_elapsed"] = elapsed
 	_process_planning_shouts(squad_state, phase)
-	var duration := _phase_float(phase, "duration_seconds", 60.0)
+	var duration := _phase_duration_world_minutes(phase, 60.0)
 	if duration > 0.0 and elapsed >= duration:
 		_transition_squad_phase(squad_state, _phase_next_id(phase, PHASE_BATTLE))
 		_enter_current_phase(squad_state)
@@ -351,6 +354,7 @@ func _enter_current_phase(squad_state: Dictionary) -> void:
 	var phase := _current_phase_profile(squad_state)
 	squad_state["phase_entered"] = true
 	squad_state["phase_elapsed"] = 0.0
+	squad_state["phase_start_world_minute"] = _get_world_minute()
 	match _phase_type(phase, str(squad_state.get("phase_id", PHASE_BATTLE))):
 		PHASE_TRAVEL:
 			_assign_squad_move_targets(squad_state, squad_state.get("encamp_position", target_anchor.global_position))
@@ -378,6 +382,7 @@ func _transition_squad_phase(squad_state: Dictionary, phase_id: String) -> void:
 		_clear_planning_conversation(squad_state)
 	squad_state["phase_id"] = phase_id
 	squad_state["phase_elapsed"] = 0.0
+	squad_state["phase_start_world_minute"] = _get_world_minute()
 	squad_state["phase_entered"] = false
 	squad_state["route_index"] = 0
 
@@ -396,7 +401,7 @@ func _process_planning_shouts(squad_state: Dictionary, phase: Resource) -> void:
 	var shout_index := int(squad_state.get("shout_index", 0))
 	leader.call("show_world_speech", str(lines[shout_index % lines.size()]), 5.0)
 	squad_state["shout_index"] = shout_index + 1
-	squad_state["next_shout_at"] = elapsed + maxf(_phase_float(phase, "leader_shout_interval_seconds", 20.0), 1.0)
+	squad_state["next_shout_at"] = elapsed + maxf(_phase_shout_interval_world_minutes(phase, 15.0), 1.0)
 
 
 func _assign_planning_conversation(squad_state: Dictionary, phase: Resource) -> void:
@@ -711,6 +716,30 @@ func _phase_float(phase: Resource, property_name: String, fallback: float) -> fl
 		return fallback
 	var value = phase.get(property_name)
 	return fallback if value == null else float(value)
+
+
+func _phase_duration_world_minutes(phase: Resource, fallback: float) -> float:
+	var value := _phase_float(phase, "duration_world_minutes", 0.0)
+	if value > 0.0:
+		return value
+	return _phase_float(phase, "duration_seconds", fallback)
+
+
+func _phase_shout_interval_world_minutes(phase: Resource, fallback: float) -> float:
+	var value := _phase_float(phase, "leader_shout_interval_world_minutes", 0.0)
+	if value > 0.0:
+		return value
+	return _phase_float(phase, "leader_shout_interval_seconds", fallback)
+
+
+func _phase_elapsed_world_minutes(squad_state: Dictionary) -> float:
+	if world_time != null and world_time.has_method("get_absolute_minute"):
+		return maxf(0.0, float(world_time.call("get_absolute_minute")) - float(squad_state.get("phase_start_world_minute", world_time.call("get_absolute_minute"))))
+	return float(squad_state.get("phase_elapsed", 0.0)) + 0.5
+
+
+func _get_world_minute() -> float:
+	return float(world_time.call("get_absolute_minute")) if world_time != null and world_time.has_method("get_absolute_minute") else 0.0
 
 
 func _phase_bool(phase: Resource, property_name: String, fallback: bool) -> bool:

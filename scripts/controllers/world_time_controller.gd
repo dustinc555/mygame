@@ -207,7 +207,12 @@ func advance_days(days: float) -> void:
 
 
 func format_time() -> String:
-	return "%s %02d:%02d" % [get_weekday_name(), get_hour(), get_minute()]
+	var hour := get_hour()
+	var suffix := "AM" if hour < 12 else "PM"
+	var display_hour := hour % 12
+	if display_hour == 0:
+		display_hour = 12
+	return "%s %02d:%02d %s" % [get_weekday_name(), display_hour, get_minute(), suffix]
 
 
 func _emit_time_changed(force: bool) -> void:

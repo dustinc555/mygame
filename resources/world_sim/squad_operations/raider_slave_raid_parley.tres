@@ -19,10 +19,12 @@ display_name = "Parley Before Raid"
 phase_type = "planning"
 target_role = "encamp"
 duration_seconds = 180.0
+duration_world_minutes = 60.0
 next_phase_id = "battle"
 leader_conversation = ExtResource("3_parley")
 leader_shout_lines = PackedStringArray("EY! GET OUT HERE!", "SEND SOMEONE OUT BEFORE WE COME IN!", "DON'T MAKE US WALK IN THERE!")
 leader_shout_interval_seconds = 24.0
+leader_shout_interval_world_minutes = 15.0
 
 [sub_resource type="Resource" id="WorldSquadPhase_battle"]
 script = ExtResource("2_phase")

@@ -207,6 +207,7 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var attack_range := 1.15
 @export var combat_approach_arrival_distance := 0.08
 @export var combat_direct_chase_distance := 3.0
+@export var combat_chase_leash_distance := 42.0
 @export var attack_cooldown_seconds := 1.2
 @export var base_attack_damage := 18.0
 @export var base_dexterity := 10.0
@@ -235,6 +236,7 @@ var _current_container_target
 var _current_trade_target
 var _current_conversation_target
 var _current_attack_target: HumanoidCharacter
+var _attack_origin_position := Vector3.ZERO
 var _current_heal_target: HumanoidCharacter
 var _current_finish_off_target: HumanoidCharacter
 var _current_carry_target: HumanoidCharacter
@@ -478,6 +480,7 @@ func stop_conversation_interaction() -> void:
 
 func stop_attack_assignment() -> void:
 	_current_attack_target = null
+	_attack_origin_position = global_position
 	COMBAT_COORDINATOR.release_character(self)
 	if _current_order_type == OrderType.ATTACK:
 		_current_order_type = OrderType.NONE
@@ -643,6 +646,7 @@ func assign_attack_target(target_character: HumanoidCharacter, issued_by_player:
 		return
 	_set_order(OrderType.ATTACK, issued_by_player)
 	_current_attack_target = target_character
+	_attack_origin_position = global_position
 	mark_hostile(target_character)
 	target_character.mark_hostile(self)
 	if notify_target:
@@ -2346,6 +2350,9 @@ func _process_attack_interaction() -> void:
 		stop_attack_assignment()
 		return
 	if _current_attack_target.life_state != NpcRules.LifeState.ALIVE:
+		stop_attack_assignment()
+		return
+	if _should_abandon_attack_chase():
 		stop_attack_assignment()
 		return
 	var target_position := _current_attack_target.get_combat_move_position(self)
@@ -4552,6 +4559,8 @@ func _try_start_self_defense(attacker: HumanoidCharacter) -> void:
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
+	if _is_player_order_to_avoid_combat():
+		return
 	_join_defense_against(attacker)
 
 
@@ -4607,6 +4616,8 @@ func _respond_to_ally_engagement(ally: HumanoidCharacter, target: HumanoidCharac
 func _join_defense_against(threat: HumanoidCharacter) -> void:
 	if threat == null or not is_instance_valid(threat) or threat.life_state != NpcRules.LifeState.ALIVE:
 		return
+	if _is_player_order_to_avoid_combat():
+		return
 	mark_hostile(threat)
 	threat.mark_hostile(self)
 	_record_player_combat_reputation(threat)
@@ -4614,6 +4625,21 @@ func _join_defense_against(threat: HumanoidCharacter) -> void:
 		return
 	assign_attack_target(threat, false, false, false)
 	_set_actor_move_target(threat.get_combat_move_position(self))
+
+
+func _should_abandon_attack_chase() -> bool:
+	if _order_was_player_issued:
+		return false
+	if _current_attack_target == null or not is_instance_valid(_current_attack_target):
+		return false
+	var leash := maxf(combat_chase_leash_distance, get_attack_range() + 1.0)
+	if global_position.distance_to(_attack_origin_position) > leash:
+		return true
+	return _current_attack_target.global_position.distance_to(_attack_origin_position) > leash
+
+
+func _is_player_order_to_avoid_combat() -> bool:
+	return _order_was_player_issued and _current_order_type in [OrderType.MOVE, OrderType.MINE, OrderType.SCAVENGE, OrderType.OPEN_CONTAINER, OrderType.TRADE, OrderType.TALK, OrderType.CARRY, OrderType.SLEEP, OrderType.PLACE_IN_BED, OrderType.SIT, OrderType.PICKUP_ITEM]
 
 
 func respond_to_settlement_alarm(attacker: HumanoidCharacter, alarm_town: Node, victim: HumanoidCharacter = null) -> void:
