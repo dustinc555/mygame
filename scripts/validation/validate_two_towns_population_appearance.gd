@@ -346,6 +346,8 @@ func _validate_raider_parley_conversation(conversation: Resource) -> void:
 				_fail("Raider parley persuade response needs in-world wording")
 			if float(skill_check.get("base_chance", 0.0)) != 0.25 or float(skill_check.get("chance_per_level", 0.0)) != 0.03:
 				_fail("Raider parley charisma check has wrong chance formula")
+			if skill_check.has("xp") or float(skill_check.get("xp_scale", 0.0)) != 1.0:
+				_fail("Raider parley charisma check should use chance-based XP with scale 1.0")
 	if not found_skill_check:
 		_fail("Raider parley conversation missing charisma percent check")
 

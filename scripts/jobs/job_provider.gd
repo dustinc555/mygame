@@ -627,11 +627,12 @@ func _release_server_customer_service(service_area: BarServiceArea, slot_state: 
 
 
 func _award_server_order_completion(job, worker: HumanoidCharacter, record: Dictionary) -> void:
-	var passed := _passes_server_order_charisma_check(job, worker)
+	var chance := _server_order_charisma_chance(job, worker)
+	var passed := _passes_server_order_charisma_check(chance)
 	var tip := _server_order_tip(job) if passed else 0
 	if tip > 0:
 		record["owed_currency"] = int(record.get("owed_currency", 0)) + tip
-	var charisma_xp := _server_order_charisma_xp(job, worker, passed)
+	var charisma_xp := _server_order_charisma_xp(job, chance, passed)
 	if worker != null and worker.has_method("add_skill_xp"):
 		worker.add_skill_xp(SkillRules.ATTRIBUTE_CHARISMA, charisma_xp, "bar_waiter_service")
 	if worker != null:
@@ -641,8 +642,7 @@ func _award_server_order_completion(job, worker: HumanoidCharacter, record: Dict
 			worker.show_world_notice("+charisma" if charisma_xp > 0.0 else "No tip", Color(0.8, 0.82, 0.72, 1.0), 1.4)
 
 
-func _passes_server_order_charisma_check(job, worker: HumanoidCharacter) -> bool:
-	var chance := _server_order_charisma_chance(job, worker)
+func _passes_server_order_charisma_check(chance: float) -> bool:
 	if chance <= 0.0:
 		return false
 	if chance >= 1.0:
@@ -654,19 +654,12 @@ func _server_order_charisma_chance(job, worker: HumanoidCharacter) -> float:
 	var level: int = 0
 	if worker != null and worker.has_method("get_skill_level"):
 		level = int(worker.get_skill_level(SkillRules.ATTRIBUTE_CHARISMA))
-	var chance: float = _job_float(job, "server_charisma_base_chance", 0.25) + float(level) * _job_float(job, "server_charisma_chance_per_level", 0.03)
+	var chance: float = _job_float(job, "server_charisma_base_chance", 0.25) + float(level) * _job_float(job, "server_charisma_chance_per_level", 0.022)
 	return clampf(chance, _job_float(job, "server_charisma_min_chance", 0.05), _job_float(job, "server_charisma_max_chance", 0.9))
 
 
-func _server_order_charisma_xp(job, worker: HumanoidCharacter, passed: bool) -> float:
-	var amount: float = _job_float(job, "server_charisma_success_xp", 8.0) if passed else _job_float(job, "server_charisma_failure_xp", 2.0)
-	if worker == null or not worker.has_method("get_skill_level"):
-		return amount
-	var level: int = int(worker.get_skill_level(SkillRules.ATTRIBUTE_CHARISMA))
-	var soft_cap: int = maxi(0, _job_int(job, "server_charisma_xp_soft_cap_level", 30))
-	if level <= soft_cap:
-		return amount
-	return amount * clampf(_job_float(job, "server_charisma_post_cap_xp_multiplier", 0.35), 0.0, 1.0)
+func _server_order_charisma_xp(job, chance: float, passed: bool) -> float:
+	return SkillRules.get_chance_check_xp(chance, passed, _job_float(job, "server_charisma_xp_scale", 0.5))
 
 
 func _server_order_tip(job) -> int:

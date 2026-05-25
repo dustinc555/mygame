@@ -217,7 +217,7 @@ func _resolve_response_skill_check(response) -> Dictionary:
 	var passed := randf() <= chance
 	var skill_id := str(skill_check.get("skill_id", SkillRules.ATTRIBUTE_CHARISMA))
 	if active_speaker != null and active_speaker.has_method("add_skill_xp"):
-		active_speaker.call("add_skill_xp", skill_id, float(skill_check.get("xp", 1.0)), "conversation_check")
+		active_speaker.call("add_skill_xp", skill_id, _get_skill_check_xp(skill_id, chance, passed, skill_check), "conversation_check")
 	var next_node_id := str(skill_check.get("success_node_id", "")) if passed else str(skill_check.get("failure_node_id", ""))
 	return {
 		"passed": passed,
@@ -233,6 +233,12 @@ func _calculate_skill_check_chance(actor, skill_check: Dictionary) -> float:
 		level = int(actor.call("get_skill_level", skill_id))
 	var chance := float(skill_check.get("base_chance", 0.25)) + float(level) * float(skill_check.get("chance_per_level", 0.03))
 	return clampf(chance, float(skill_check.get("min_chance", 0.05)), float(skill_check.get("max_chance", 0.9)))
+
+
+func _get_skill_check_xp(skill_id: String, chance: float, passed: bool, skill_check: Dictionary) -> float:
+	if skill_id == SkillRules.ATTRIBUTE_CHARISMA:
+		return SkillRules.get_chance_check_xp(chance, passed, float(skill_check.get("xp_scale", 1.0)))
+	return float(skill_check.get("xp", 1.0))
 
 
 func _skill_chance_label(chance: float) -> String:

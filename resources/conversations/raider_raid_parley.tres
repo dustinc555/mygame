@@ -28,7 +28,7 @@ skill_check = {
 "min_chance": 0.05,
 "skill_id": "attribute.charisma",
 "success_node_id": "persuade_success",
-"xp": 2.0
+"xp_scale": 1.0
 }
 
 [sub_resource type="Resource" id="ConversationResponse_join"]

@@ -115,6 +115,7 @@ func _validate_progression() -> void:
 		_fail("Expected level 100+ to be absurdly slow, got level80=%.1f level100=%.1f" % [level_80_xp, level_100_xp])
 	if SkillRules.get_xp_to_next_level(5) <= level_1_xp or SkillRules.get_xp_to_next_level(15) <= level_10_xp:
 		_fail("Expected smooth XP curve to trend harder without relying on buckets")
+	_validate_chance_check_xp_rules()
 	var level_10_ratio := SkillRules.get_xp_to_next_level(10) / SkillRules.get_xp_to_next_level(9)
 	var level_11_ratio := SkillRules.get_xp_to_next_level(11) / SkillRules.get_xp_to_next_level(10)
 	if absf(level_11_ratio - level_10_ratio) > 0.08:
@@ -132,6 +133,23 @@ func _validate_progression() -> void:
 	skill_set.add_skill_xp(SkillRules.ATTRIBUTE_STRENGTH, SkillRules.get_xp_to_next_level(99) + SkillRules.get_xp_to_next_level(100) + 1.0, "validation")
 	if skill_set.get_skill_level(SkillRules.ATTRIBUTE_STRENGTH) < 101:
 		_fail("Expected skills to progress beyond 100 without a cap")
+
+
+func _validate_chance_check_xp_rules() -> void:
+	if absf(SkillRules.get_chance_check_xp(0.1, true) - 20.0) > 0.01:
+		_fail("Very Low chance successes should award high check XP")
+	if absf(SkillRules.get_chance_check_xp(0.1, false) - 10.0) > 0.01:
+		_fail("Very Low chance failures should award meaningful check XP")
+	if absf(SkillRules.get_chance_check_xp(0.3, true) - 12.0) > 0.01:
+		_fail("Low chance successes should award boosted check XP")
+	if absf(SkillRules.get_chance_check_xp(0.5, true) - 5.0) > 0.01:
+		_fail("Even chance successes should keep the baseline check XP")
+	if absf(SkillRules.get_chance_check_xp(0.75, true) - 3.0) > 0.01:
+		_fail("High chance successes should still award modest check XP")
+	if absf(SkillRules.get_chance_check_xp(0.9, true) - 0.5) > 0.01:
+		_fail("Very High chance successes should be tiny check XP")
+	if absf(SkillRules.get_chance_check_xp(0.3, true, 0.5) - 6.0) > 0.01:
+		_fail("Check XP scale should reduce repeatable training sources")
 
 
 func _validate_world_actor_api() -> void:

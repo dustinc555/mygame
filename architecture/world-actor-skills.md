@@ -92,8 +92,8 @@ Examples:
 
 - Theft noise: thief `subterfuge.sleight_of_hand` plus diminishing `attribute.dexterity` versus item difficulty, observer proximity, and observer `attribute.perception`.
 - Sneak visibility: observer `attribute.perception` plus lighting/line-of-sight/distance and sustained moving exposure versus sneaker `subterfuge.sneaking` and cover/darkness.
-- Speech checks: `attribute.charisma` and relevant social context, with limited randomness.
-- Bar server tips: `attribute.charisma` rolls use the speech-style chance formula, give meaningful practice through roughly level 30, then apply a soft XP falloff so grinding toward 40 remains possible but slow.
+- Speech checks: `attribute.charisma` and relevant social context, with limited randomness. Charisma check XP is based on final success chance: unlikely checks train more, very likely checks train very little, and repeatable sources can apply a lower XP scale.
+- Bar server tips: `attribute.charisma` rolls use the speech-style chance formula at a lower repeatable-work XP scale. They give meaningful practice until service becomes very likely around level 30, then naturally fade to tiny XP.
 - Combat initiative: ready melee attackers use dexterity-weighted randomness plus fairness credit so high dex attacks more often, while low dex fighters are not starved forever.
 
 ## HUD/UI

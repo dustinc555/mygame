@@ -61,7 +61,7 @@ ActivityPoints/BarLoiterPoint when visitor_capacity is above zero
 Furniture, shop stock, jobs, and BarServiceArea wiring
 ```
 
-Waiter jobs pay the configured base wage over time. Served tables can add configurable Charisma XP and tip rewards when the server passes the job's Charisma check. After a delivery, the next customer prompt defaults to roughly `10 +/- 3` seconds later.
+Waiter jobs pay the configured base wage over time. Served tables can add tip rewards when the server passes the job's Charisma check, and Charisma XP follows the shared chance-based progression at a lower repeatable-work scale. After a delivery, the next customer prompt defaults to roughly `10 +/- 3` seconds later.
 
 11. Move service points, guard posts, the bar loiter point, furniture, or the building mesh if you want a custom layout.
 

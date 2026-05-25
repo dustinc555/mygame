@@ -15,14 +15,11 @@ class_name JobDefinition
 @export var requirements: Array[Resource] = []
 @export_group("Server Shift")
 @export var server_tip_on_success := 1
-@export var server_charisma_failure_xp := 2.0
-@export var server_charisma_success_xp := 8.0
 @export_range(0.0, 1.0, 0.01) var server_charisma_base_chance := 0.25
-@export_range(0.0, 1.0, 0.01) var server_charisma_chance_per_level := 0.03
+@export_range(0.0, 1.0, 0.001) var server_charisma_chance_per_level := 0.022
 @export_range(0.0, 1.0, 0.01) var server_charisma_min_chance := 0.05
 @export_range(0.0, 1.0, 0.01) var server_charisma_max_chance := 0.9
-@export var server_charisma_xp_soft_cap_level := 30
-@export_range(0.0, 1.0, 0.01) var server_charisma_post_cap_xp_multiplier := 0.35
+@export_range(0.0, 4.0, 0.05) var server_charisma_xp_scale := 0.5
 
 
 func get_display_name() -> String:

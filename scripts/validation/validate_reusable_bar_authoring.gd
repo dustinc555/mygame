@@ -496,12 +496,10 @@ func _validate_waiter_order_job(bar: Node, worker: HumanoidCharacter, pacing_cus
 	var jobs: Array = provider.get("jobs")
 	var job = jobs[server_job_index]
 	job.set("server_tip_on_success", 1)
-	job.set("server_charisma_failure_xp", 2.0)
-	job.set("server_charisma_success_xp", 8.0)
-	job.set("server_charisma_xp_soft_cap_level", 30)
-	job.set("server_charisma_post_cap_xp_multiplier", 0.35)
+	job.set("server_charisma_xp_scale", 0.5)
 	_validate_waiter_job_offer_text(provider, server_job_index)
 	worker.set_skill_level(SkillRules.ATTRIBUTE_CHARISMA, 1)
+	_validate_waiter_charisma_xp_curve(provider, job, worker)
 	var assignment: Dictionary = provider.call("_assign_worker_to_open_slot", worker, server_job_index)
 	if not bool(assignment.get("allowed", false)):
 		_fail("Waiter should be able to take the server_shift job for order validation: %s" % str(assignment.get("reason", "")))
@@ -539,8 +537,8 @@ func _validate_waiter_order_job(bar: Node, worker: HumanoidCharacter, pacing_cus
 		_complete_waiter_order(provider, service_area, worker, first_seat, pay_interval + 0.1)
 		record = provider.call("_get_worker_record", worker)
 		var fail_xp_delta := float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA)) - before_fail_xp
-		if absf(fail_xp_delta - 2.0) > 0.01:
-			_fail("Failed waiter Charisma checks should award 2 XP, got %.2f" % fail_xp_delta)
+		if absf(fail_xp_delta - 5.0) > 0.01:
+			_fail("Failed very-low waiter Charisma checks should award half-scale chance XP, got %.2f" % fail_xp_delta)
 		if int(record.get("owed_currency", 0)) != before_fail_owed:
 			_fail("Failed waiter Charisma checks should not add a tip")
 		var chained_claim = service_area.call("claim_waiting_customer_seat", worker)
@@ -565,19 +563,32 @@ func _validate_waiter_order_job(bar: Node, worker: HumanoidCharacter, pacing_cus
 	_complete_waiter_order(provider, service_area, worker, first_seat, pay_interval + 3.0)
 	record = provider.call("_get_worker_record", worker)
 	var success_xp_delta := float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA)) - before_success_xp
-	if absf(success_xp_delta - 8.0) > 0.01:
-		_fail("Successful waiter Charisma checks should award 8 XP before the soft cap, got %.2f" % success_xp_delta)
+	if absf(success_xp_delta - 0.25) > 0.01:
+		_fail("Very-high waiter Charisma checks should award tiny half-scale chance XP, got %.2f" % success_xp_delta)
 	if int(record.get("owed_currency", 0)) - before_success_owed != 1:
 		_fail("Successful waiter Charisma checks should add the configured tip only")
-	worker.set_skill_level(SkillRules.ATTRIBUTE_CHARISMA, 31)
-	var before_soft_cap_xp := float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA))
-	_complete_waiter_order(provider, service_area, worker, first_seat, pay_interval + 6.0)
-	var soft_cap_xp_delta := float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA)) - before_soft_cap_xp
-	if absf(soft_cap_xp_delta - 2.8) > 0.01:
-		_fail("Waiter Charisma XP should soft-cap after level 30, got %.2f" % soft_cap_xp_delta)
 	provider.call("pause_worker_job", worker, false)
 	customer.stop_seat_assignment()
 	_restore_waiter_validation_service_config(service_area, original_service_delay, original_prompt_interval, original_prompt_jitter)
+
+
+func _validate_waiter_charisma_xp_curve(provider: Node, job, worker: HumanoidCharacter) -> void:
+	worker.set_skill_level(SkillRules.ATTRIBUTE_CHARISMA, 1)
+	var novice_chance := float(provider.call("_server_order_charisma_chance", job, worker))
+	if absf(novice_chance - 0.272) > 0.001:
+		_fail("Level 1 waiter Charisma check should start as a low chance, got %.3f" % novice_chance)
+	var novice_success_xp := float(provider.call("_server_order_charisma_xp", job, novice_chance, true))
+	var novice_failure_xp := float(provider.call("_server_order_charisma_xp", job, novice_chance, false))
+	if absf(novice_success_xp - 6.0) > 0.01 or absf(novice_failure_xp - 2.25) > 0.01:
+		_fail("Level 1 waiter checks should use half-scale low-chance XP, success=%.2f fail=%.2f" % [novice_success_xp, novice_failure_xp])
+	worker.set_skill_level(SkillRules.ATTRIBUTE_CHARISMA, 30)
+	var skilled_chance := float(provider.call("_server_order_charisma_chance", job, worker))
+	if skilled_chance < SkillRules.CHECK_CHANCE_HIGH_MAX:
+		_fail("Level 30 waiter Charisma check should be Very High, got %.3f" % skilled_chance)
+	var skilled_success_xp := float(provider.call("_server_order_charisma_xp", job, skilled_chance, true))
+	if absf(skilled_success_xp - 0.25) > 0.01:
+		_fail("Very High waiter checks should become tiny XP, got %.2f" % skilled_success_xp)
+	worker.set_skill_level(SkillRules.ATTRIBUTE_CHARISMA, 1)
 
 
 func _restore_waiter_validation_service_config(service_area: Node, service_delay: float, prompt_interval: float, prompt_jitter: float) -> void:
