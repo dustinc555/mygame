@@ -14,6 +14,7 @@ const ACTION_HEAL := "heal"
 const ACTION_INVENTORY := "inventory"
 const ACTION_MINE := "mine"
 const ACTION_OPEN_CONTAINER := "open_container"
+const ACTION_ORDER := "order"
 const ACTION_PICKUP_ITEM := "pickup_item"
 const ACTION_SKILLS := "skills"
 const ACTION_STAND_UP := "stand_up"
@@ -22,6 +23,9 @@ const ACTION_TRADE := "trade"
 const ACTION_UNLOCK_CONTAINER := "unlock_container"
 const ACTION_WAKE_UP := "wake_up"
 const WORLD_ACTION_PREFIX := "world:"
+const INFO_LABEL_COLOR := Color(0.58, 0.56, 0.5, 1.0)
+const INFO_VALUE_COLOR := Color(0.8, 0.75, 0.62, 1.0)
+const INFO_RESTRICTED_COLOR := Color(0.94, 0.34, 0.28, 1.0)
 
 var root_scene: Node
 var hud_layer: CanvasLayer
@@ -233,6 +237,8 @@ func _get_humanoid_actions(target: HumanoidCharacter) -> Array:
 		if target.life_state == NpcRules.LifeState.ASLEEP:
 			actions.append({"key": ACTION_WAKE_UP, "label": "Wake"})
 		elif target.has_method("is_sitting") and target.is_sitting():
+			if _target_can_order_from_waiter(target):
+				actions.append({"key": ACTION_ORDER, "label": "Order"})
 			actions.append({"key": ACTION_STAND_UP, "label": "Stand"})
 		return actions
 	if target.life_state == NpcRules.LifeState.UNCONSCIOUS:
@@ -335,7 +341,7 @@ func _set_world_target_rows(target) -> void:
 			{"label": "Type", "value": _get_building_type_label(target)},
 			{"label": "Ownership", "value": _get_building_ownership_text(target)},
 			{"label": "Jurisdiction", "value": _get_building_jurisdiction_text(target)},
-			{"label": "Access", "value": _get_building_status_text(target)},
+			{"label": "Access", "value": _get_building_status_text(target), "value_color": _get_building_access_color(target)},
 		])
 		return
 	if target is Node and target.is_in_group("mining_resource"):
@@ -393,8 +399,11 @@ func _set_info_rows(rows: Array) -> void:
 
 func _set_info_row(label: Label, value_label: Label, data: Dictionary) -> void:
 	_set_row_label(label, str(data.get("label", "-")))
+	if label != null:
+		label.add_theme_color_override("font_color", data.get("label_color", INFO_LABEL_COLOR))
 	if value_label != null:
 		value_label.text = str(data.get("value", "-"))
+		value_label.add_theme_color_override("font_color", data.get("value_color", INFO_VALUE_COLOR))
 
 
 func _set_row_label(label: Label, text: String) -> void:
@@ -679,9 +688,29 @@ func _get_building_settlement_name(target) -> String:
 
 
 func _get_building_status_text(target) -> String:
+	var focused_actor := _get_focused_party_member()
+	if focused_actor != null and target != null and target.has_method("get_access_state_label_for_actor"):
+		return str(target.call("get_access_state_label_for_actor", focused_actor, _get_world_time_minutes()))
 	if target != null and target.has_method("get_access_state_label"):
 		return str(target.call("get_access_state_label", _get_world_time_minutes()))
 	return "Active" if not _get_building_owner_text(target).is_empty() else "Unowned"
+
+
+func _get_building_access_color(target) -> Color:
+	var focused_actor := _get_focused_party_member()
+	if focused_actor != null and target != null and target.has_method("is_actor_trespassing_now"):
+		if bool(target.call("is_actor_trespassing_now", focused_actor, _get_world_time_minutes())):
+			return INFO_RESTRICTED_COLOR
+	return INFO_VALUE_COLOR
+
+
+func _get_focused_party_member() -> HumanoidCharacter:
+	if root_scene == null:
+		return null
+	var party_manager := root_scene.get_node_or_null("PartyManager") as PartyManager
+	if party_manager == null or party_manager.selected_members.is_empty():
+		return null
+	return party_manager.selected_members[0] as HumanoidCharacter
 
 
 func _get_world_time_minutes() -> int:
@@ -723,6 +752,26 @@ func _set_target_inspected(target, inspected: bool) -> void:
 
 func _target_can_open_skills() -> bool:
 	return _has_valid_current_target() and current_target is HumanoidCharacter and current_target.is_player_party_member() and bool(current_target.get("is_selected"))
+
+
+func _target_can_order_from_waiter(target: HumanoidCharacter) -> bool:
+	if target == null or not target.is_player_party_member() or not target.has_method("is_sitting") or not target.is_sitting():
+		return false
+	var service_area := _get_bar_service_area_for_seated_actor(target)
+	if service_area == null:
+		return false
+	if service_area.has_method("can_call_waiter_for_customer"):
+		return bool(service_area.call("can_call_waiter_for_customer", target))
+	return service_area.has_method("has_waiter_service") and bool(service_area.call("has_waiter_service"))
+
+
+func _get_bar_service_area_for_seated_actor(target: HumanoidCharacter) -> BarServiceArea:
+	if target == null or not target.has_method("get_current_seat_target"):
+		return null
+	var seat = target.call("get_current_seat_target")
+	if seat != null and is_instance_valid(seat) and seat.has_method("get_bar_service_area"):
+		return seat.call("get_bar_service_area") as BarServiceArea
+	return null
 
 
 func _on_skills_button_pressed() -> void:

@@ -227,6 +227,10 @@ func get_access_state_label(world_minutes: int = -1) -> String:
 			return "Public"
 
 
+func get_access_state_label_for_actor(actor: HumanoidCharacter, world_minutes: int = -1) -> String:
+	return "Restricted" if is_actor_trespassing_now(actor, world_minutes) else get_access_state_label(world_minutes)
+
+
 func get_occupancy_label() -> String:
 	var owner := get_owner_faction_name()
 	if not owner.is_empty():
@@ -268,6 +272,14 @@ func is_public_now(world_minutes: int = -1) -> bool:
 
 func is_private_now(world_minutes: int = -1) -> bool:
 	return not is_public_now(world_minutes)
+
+
+func is_actor_trespassing_now(actor: HumanoidCharacter, world_minutes: int = -1) -> bool:
+	if actor == null or not actor.is_player_party_member() or actor.life_state != NpcRules.LifeState.ALIVE:
+		return false
+	if not is_private_now(world_minutes):
+		return false
+	return not is_actor_authorized(actor)
 
 
 func is_actor_authorized(actor: HumanoidCharacter) -> bool:
@@ -320,11 +332,7 @@ func _process_trespass(delta: float) -> void:
 
 
 func _is_actor_trespassing(actor: HumanoidCharacter) -> bool:
-	if actor == null or not actor.is_player_party_member() or actor.life_state != NpcRules.LifeState.ALIVE:
-		return false
-	if not is_private_now():
-		return false
-	return not is_actor_authorized(actor)
+	return is_actor_trespassing_now(actor)
 
 
 func _issue_trespass_response(actor: HumanoidCharacter) -> void:

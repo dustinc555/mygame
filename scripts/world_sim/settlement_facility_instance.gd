@@ -64,6 +64,8 @@ func validate_authoring() -> Array[String]:
 	if facility_function == null:
 		warnings.append("Missing facility_function")
 	for root_path in [building_root_path, staff_root_path, service_points_root_path, storage_root_path, job_providers_root_path, activity_points_root_path]:
+		if root_path.is_empty():
+			continue
 		if get_node_or_null(root_path) == null:
 			warnings.append("Missing root: %s" % root_path)
 	return warnings
@@ -78,8 +80,6 @@ func _repair_authoring_tree() -> void:
 	_ensure_root(service_points_root_path)
 	_ensure_root(storage_root_path)
 	_ensure_root(job_providers_root_path)
-	if activity_points_root_path.is_empty():
-		activity_points_root_path = NodePath("ActivityPoints")
 	_ensure_root(activity_points_root_path)
 
 

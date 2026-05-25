@@ -93,6 +93,7 @@ digraph GameData {
   Facilities -> ServicePoints;
   Facilities -> JobProviders;
   Facilities -> StorageLinks;
+  Facilities -> VisitPoints;
   Facilities -> Farms;
   Facilities -> Bars;
   Facilities -> Shops;
@@ -102,6 +103,7 @@ digraph GameData {
   Facilities -> SocialAreas;
   SettlementBar -> Bars;
   SettlementBar -> BarServiceArea;
+  SettlementBar -> VisitPoints;
   SettlementField -> Farms;
   BuildingSlots -> BuildingModels;
   BuildingModels -> PopulationCapacity;
@@ -171,8 +173,8 @@ Examples:
 - `FactionDefinition` defines faction defaults including behavior, personality, law, population names, and starting formal diplomacy; `FactionController` stores formal diplomacy, reputation, favor points, and discovered faction state.
 - `SettlementDefinition` defines town identity, faction, optional local culture overrides, food defaults, and world-sim targets; `SettlementController` stores food, population, events, and facility totals.
 - `FacilityFunctionDefinition` defines what a placed facility does, such as bar, farm, shop, police, weapon shop, armor shop, travel shop, potion shop, tavern, mine, or storage.
-- `SettlementFacilityInstance` bridges the placed building slot, staff, service points, storage links, jobs, and activity points into a serializable facility record.
-- `SettlementBar` is the operator-facing reusable bar asset; its internal `BarServiceArea` coordinates waiter service, bed rental, and barkeeper stock handoff.
+- `SettlementFacilityInstance` bridges the placed building slot, staff, service points, optional storage links, optional jobs, and optional activity points into a serializable facility record. Empty root paths mean the facility does not use that bucket.
+- `SettlementBar` is the operator-facing reusable bar asset; its internal `BarServiceArea` coordinates waiter service, bed rental, and barkeeper stock handoff, while `FacilityVisitActivityPoint` assigns normal townie visitors to real furniture seats.
 - `SettlementTown` and child nodes define authored town layout; controllers use stable IDs to serialize the town's runtime truth.
 - `RoadNetwork` and child `RoadWaypoint` nodes define authored invisible route graphs between stable settlement IDs; `RoadController` stores road records and provides shortest route waypoints for squad actions.
 - `WorldBuilding.population_capacity` and `PopulationCapacitySource` define authored housing/camp capacity; `SettlementController.max_occupancy` is derived from those sources.

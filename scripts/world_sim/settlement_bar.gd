@@ -23,7 +23,7 @@ const MERCHANT_PRICE_SCRIPT = preload("res://scripts/items/merchant_price.gd")
 const MERCHANT_STOCK_SCRIPT = preload("res://scripts/items/merchant_stock.gd")
 const BAR_GUARD_POST_SCRIPT = preload("res://scripts/world/venues/bar_guard_post.gd")
 const BAR_SERVICE_POINT_SCRIPT = preload("res://scripts/world/venues/bar_service_point.gd")
-const BAR_LOITER_POINT_SCRIPT = preload("res://scripts/world_sim/bar_loiter_activity_point.gd")
+const FACILITY_VISIT_POINT_SCRIPT = preload("res://scripts/world_sim/facility_visit_activity_point.gd")
 const BREAD_ITEM = preload("res://resources/items/bread.tres")
 const FOOD_ITEM = preload("res://resources/items/food.tres")
 const SILVER_ITEM = preload("res://resources/items/silver.tres")
@@ -177,24 +177,7 @@ func get_facility_record(settlement_id := "") -> Dictionary:
 	return record
 
 
-func assign_loitering_actor(actor: Node, fallback_position: Vector3) -> bool:
-	if actor == null:
-		return false
-	var seats: Array[Node] = []
-	_collect_visitor_seats(get_node_or_null(furniture_root_path), seats)
-	var seat := _nearest_available_seat(actor, seats, fallback_position)
-	if seat != null and _seat_bar_occupant(actor, seat):
-		return true
-	return false
-
-
-func has_available_loitering_seat(actor: Node) -> bool:
-	var seats: Array[Node] = []
-	_collect_visitor_seats(get_node_or_null(furniture_root_path), seats)
-	return _nearest_available_seat(actor, seats, global_position) != null
-
-
-func can_actor_visit_as_townie(actor: Node) -> bool:
+func can_actor_visit_facility(actor: Node) -> bool:
 	if actor == null or not is_instance_valid(actor):
 		return false
 	if actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member")):
@@ -214,8 +197,8 @@ func _apply_bar_defaults() -> void:
 	building_root_path = NodePath("BuildingSlot")
 	staff_root_path = NodePath("Staff")
 	service_points_root_path = NodePath("ServicePoints")
-	storage_root_path = NodePath("Storage")
-	job_providers_root_path = NodePath("JobProviders")
+	storage_root_path = NodePath("")
+	job_providers_root_path = NodePath("")
 	activity_points_root_path = NodePath("ActivityPoints")
 	facility_type = "bar"
 	if display_name.is_empty() or display_name == "Facility":
@@ -323,30 +306,37 @@ func _ensure_visitor_activity_points() -> void:
 	if root == null:
 		return
 	_trim_generated_children(root, "VisitorPoint", 0)
-	var kept_loiter_points := 1 if visitor_capacity > 0 else 0
-	if kept_loiter_points > 0:
-		_ensure_bar_loiter_point(root)
-	_trim_generated_children(root, "BarLoiterPoint", kept_loiter_points)
+	var kept_visit_points := 1 if visitor_capacity > 0 else 0
+	if kept_visit_points > 0:
+		_ensure_facility_visit_point(root)
+	_trim_generated_children(root, "FacilityVisitPoint", kept_visit_points)
 
 
-func _ensure_bar_loiter_point(root: Node) -> Node:
-	var point_name := "BarLoiterPoint"
+func _ensure_facility_visit_point(root: Node) -> Node:
+	var point_name := "FacilityVisitPoint"
 	var point := root.get_node_or_null(point_name)
 	if point == null:
 		point = Node3D.new()
 		point.name = point_name
 		root.add_child(point)
 		_set_editor_owner(point)
-	if not (point is BarLoiterActivityPoint):
-		point.set_script(BAR_LOITER_POINT_SCRIPT)
+	if point.get_script() != FACILITY_VISIT_POINT_SCRIPT:
+		point.set_script(FACILITY_VISIT_POINT_SCRIPT)
 	var default_transform := _layout_default_transform(activity_points_root_path, point_name, _hangout_point_transform(0))
 	if point is Node3D:
 		_sync_generated_layout_node(point, "visitor", 0, default_transform)
 	point.set("activity_type", "social")
 	point.set("target_path", NodePath(""))
-	if _has_property(point, "bar_path"):
-		point.set("bar_path", point.get_path_to(self))
-	point.set("display_name", "Bar Visitor Spot")
+	if _has_property(point, "facility_path"):
+		point.set("facility_path", point.get_path_to(self))
+	if _has_property(point, "visit_seats_root_path"):
+		var furniture := get_node_or_null(furniture_root_path)
+		point.set("visit_seats_root_path", point.get_path_to(furniture) if furniture != null else furniture_root_path)
+	if _has_property(point, "standing_points_root_path"):
+		point.set("standing_points_root_path", NodePath(""))
+	if _has_property(point, "visitor_capacity_property"):
+		point.set("visitor_capacity_property", "visitor_capacity")
+	point.set("display_name", "Bar Visit Spot")
 	point.set("exclusive", false)
 	point.set("weight", maxf(4.0, float(visitor_capacity) * 4.0))
 	if _has_property(point, "assignment_min_seconds"):
@@ -889,7 +879,7 @@ func _generated_child_index(child_name: String, base_name: String) -> int:
 
 
 func _point_base_name(point_name: String) -> String:
-	for base_name in ["BarkeeperCounterPoint", "WaiterPoint", "BarLoiterPoint", "GuardPost"]:
+	for base_name in ["BarkeeperCounterPoint", "WaiterPoint", "FacilityVisitPoint", "GuardPost"]:
 		if _generated_child_index(point_name, base_name) >= 0:
 			return base_name
 	return point_name

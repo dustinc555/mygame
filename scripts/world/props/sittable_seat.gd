@@ -61,6 +61,10 @@ func set_bar_service_area(service_area: BarServiceArea) -> void:
 	_bar_service_area = service_area
 
 
+func get_bar_service_area() -> BarServiceArea:
+	return _bar_service_area if _bar_service_area != null and is_instance_valid(_bar_service_area) else null
+
+
 func claim_sitter(member: HumanoidCharacter) -> bool:
 	if member == null:
 		return false

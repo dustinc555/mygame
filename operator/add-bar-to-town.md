@@ -57,15 +57,19 @@ Staff/Barber when has_barber is enabled
 ServicePoints/BarkeeperCounterPoint
 ServicePoints/WaiterPoint* from waiter_count
 GuardPosts/GuardPost* from guard_count
-ActivityPoints/BarLoiterPoint when visitor_capacity is above zero
+ActivityPoints/FacilityVisitPoint when visitor_capacity is above zero
 Furniture, shop stock, jobs, and BarServiceArea wiring
 ```
 
 Waiter jobs pay the configured base wage over time. Served tables can add tip rewards when the server passes the job's Charisma check, and Charisma XP follows the shared chance-based progression at a lower repeatable-work scale. After a delivery, the next customer prompt defaults to roughly `10 +/- 3` seconds later.
 
-11. Move service points, guard posts, the bar loiter point, furniture, or the building mesh if you want a custom layout.
+NPC customers ask for table service automatically. A player party member must sit in a bar chair, select that character, then use the inspector `Order` button; the player stays seated and the same-bar waiter walks to the table.
+
+11. Move service points, guard posts, the facility visit point, furniture, or the building mesh if you want a custom layout.
 
 Barbers, mercenaries, doctors, traders, and other non-working bar occupants should use the normal bar space and existing chairs instead of getting bespoke service points. Guards need posts and waiters need service points because those are active jobs; idle occupants just exist in the bar.
+
+The facility visit point is not a fallback crowd marker. It sends normal townie visitors to real open `SittableSeat` chairs under `Furniture`, respects `visitor_capacity`, and rejects visitors when the bar is full or has no open chair.
 
 Furniture is intentionally one bucket. Copy/paste tables, chairs, and beds directly under `Furniture`; do not create or maintain `Furniture/Tables`, `Furniture/Stools`, or `Furniture/Beds` folders for normal bar authoring.
 
@@ -91,6 +95,6 @@ Do not manually add or configure `BarServiceArea`; it is an internal child of `S
 
 Generated staff use the settlement/faction population appearance and name setup when available. Hand-authored assigned NPCs keep their authored identity and appearance.
 
-Generated service points, guard posts, and the bar loiter point carry migration metadata. If future default bar layouts change, unchanged generated points can migrate to new defaults, while moved/customized points are preserved.
+Generated service points, guard posts, and the facility visit point carry migration metadata. If future default bar layouts change, unchanged generated points can migrate to new defaults, while moved/customized points are preserved.
 
 Barkeeper stock defaults from the parent town's current supply ratio when the bar is under a `SettlementTown`. A standalone bar uses `standalone_stock_ratio`. This only seeds merchant inventory for now; future economy work should restock through settlement storage and supply systems.

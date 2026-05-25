@@ -806,6 +806,10 @@ func is_sitting() -> bool:
 	return _is_sitting
 
 
+func get_current_seat_target():
+	return _current_seat_target if _current_seat_target != null and is_instance_valid(_current_seat_target) else null
+
+
 func get_floor_aligned_origin_position(floor_position: Vector3) -> Vector3:
 	return Vector3(floor_position.x, floor_position.y - get_collision_bottom_local_y(), floor_position.z)
 

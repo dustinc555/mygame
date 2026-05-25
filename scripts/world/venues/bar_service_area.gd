@@ -201,6 +201,40 @@ func request_bed_sleep(actor: HumanoidCharacter, bed) -> Dictionary:
 	return {"allowed": true, "message": "Bed rented for %d silver" % bed_rent_price}
 
 
+func has_waiter_service() -> bool:
+	return _find_waiter_for_service(null) != null
+
+
+func can_call_waiter_for_customer(customer: HumanoidCharacter) -> bool:
+	if _active_service_seat != null:
+		return false
+	var seat = get_seat_for_customer(customer)
+	if seat == null:
+		return false
+	return _find_waiter_for_service(seat) != null
+
+
+func call_waiter_for_customer(customer: HumanoidCharacter) -> Dictionary:
+	if customer == null or not is_instance_valid(customer) or customer.life_state != NpcRules.LifeState.ALIVE:
+		return {"allowed": false, "message": "Cannot order right now"}
+	if not customer.is_player_party_member():
+		return {"allowed": false, "message": "Only party members can call a waiter"}
+	if _active_service_seat != null:
+		return {"allowed": false, "message": "Waiter is already on the way"}
+	var seat = get_seat_for_customer(customer)
+	if seat == null:
+		return {"allowed": false, "message": "Sit at a bar table first"}
+	var waiter := _find_waiter_for_service(seat)
+	if waiter == null:
+		return {"allowed": false, "message": "No waiter available"}
+	_mark_table_service_requested(seat)
+	_active_service_seat = seat
+	_active_service_customer = customer
+	_active_service_waiter = waiter
+	_service_conversation_started = false
+	return {"allowed": true, "message": ""}
+
+
 func get_available_guard_post(worker: HumanoidCharacter, excluded_post = null):
 	var available_posts: Array = []
 	for post in _collect_nodes(guard_posts_root_path):
@@ -236,8 +270,7 @@ func get_barkeeper_order_position(worker: HumanoidCharacter = null) -> Vector3:
 
 
 func claim_waiting_customer_seat(worker: HumanoidCharacter):
-	var seat = _claim_waiting_customer_seat(worker, false)
-	return seat if seat != null else _claim_waiting_customer_seat(worker, true)
+	return _claim_waiting_customer_seat(worker, false)
 
 
 func release_waiter_customer_service(seat) -> void:
@@ -269,6 +302,15 @@ func schedule_next_waiter_order_prompt() -> void:
 func get_customer_for_seat(seat) -> HumanoidCharacter:
 	if seat != null and is_instance_valid(seat) and seat.has_method("get_sitter"):
 		return seat.get_sitter()
+	return null
+
+
+func get_seat_for_customer(customer: HumanoidCharacter):
+	if customer == null or not is_instance_valid(customer) or not customer.has_method("is_sitting") or not customer.is_sitting():
+		return null
+	for seat in _collect_seat_nodes():
+		if seat != null and seat.has_method("get_sitter") and seat.get_sitter() == customer:
+			return seat
 	return null
 
 
@@ -457,21 +499,6 @@ func _register_combat_intervention_staff() -> void:
 func _process_waiter_service() -> void:
 	if _active_service_seat != null:
 		_continue_waiter_service(_active_service_waiter)
-		return
-	var seat = _find_waiting_player_seat()
-	if seat == null:
-		return
-	var customer: HumanoidCharacter = seat.get_sitter()
-	if customer == null:
-		return
-	var waiter := _find_waiter_for_service(seat)
-	if waiter == null:
-		return
-	_mark_table_service_requested(seat)
-	_active_service_seat = seat
-	_active_service_customer = customer
-	_active_service_waiter = waiter
-	_service_conversation_started = false
 
 
 func _process_guard_staff(delta: float) -> void:
@@ -558,6 +585,10 @@ func _continue_waiter_service(waiter: HumanoidCharacter) -> void:
 		_return_waiter_to_service_point(waiter)
 		_clear_waiter_service()
 		return
+	if _active_service_seat.has_method("get_sitter") and _active_service_seat.get_sitter() != _active_service_customer:
+		_return_waiter_to_service_point(waiter)
+		_clear_waiter_service()
+		return
 	var target_position: Vector3 = _get_waiter_service_position(waiter, _active_service_seat)
 	if waiter.global_position.distance_to(target_position) > waiter_service_distance:
 		waiter.set_move_target(target_position, false)
@@ -571,13 +602,6 @@ func _continue_waiter_service(waiter: HumanoidCharacter) -> void:
 		conversation_controller.begin_conversation(_active_service_customer, waiter)
 	_return_waiter_to_service_point(waiter)
 	_clear_waiter_service()
-
-
-func _find_waiting_player_seat():
-	for seat in _collect_seat_nodes():
-		if seat != null and seat.has_method("is_waiting_for_service") and seat.is_waiting_for_service(waiter_service_delay_seconds):
-			return seat
-	return null
 
 
 func _find_waiter_for_service(seat) -> HumanoidCharacter:

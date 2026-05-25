@@ -55,7 +55,9 @@ Facilities can contribute daily food production, food consumption, storage capac
 
 The current facility data is simple on purpose so it can grow without forcing every town to use complicated setup.
 
-`SettlementFacilityInstance` is the generic placed-facility contract. It points at a `FacilityFunctionDefinition` resource and owns standard child roots named `BuildingSlot`, `Staff`, `ServicePoints`, `Storage`, `JobProviders`, and `ActivityPoints`.
+`SettlementFacilityInstance` is the generic placed-facility contract. It points at a `FacilityFunctionDefinition` resource and can own child roots such as `BuildingSlot`, `Staff`, `ServicePoints`, `Storage`, `JobProviders`, and `ActivityPoints`.
+
+Empty root paths are valid and are not auto-created. Typed facility scenes should expose only meaningful roots for that facility instead of carrying unused generic buckets.
 
 The building or model under `BuildingSlot` is a neutral shell. The `FacilityFunctionDefinition` makes that placed instance behave like a bar, farm, shop, police station, weapon shop, armor shop, travel shop, potion shop, tavern, mine, or storage facility.
 
@@ -63,13 +65,17 @@ Facility records include the stable facility ID, function ID, owner faction, wor
 
 `SettlementBar` and `SettlementField` are higher-level authoring presets over `SettlementFacilityInstance` for common facilities.
 
-Use `SettlementBar` under a town's `Bars` root when the operator wants a drag-and-play bar with a building slot, generated or assigned barkeeper/waiter/guard roles, furniture, service point, guard post, merchant role, and job provider already wired.
+Use `SettlementBar` under a town's `Bars` root when the operator wants a drag-and-play bar with a building slot, generated or assigned barkeeper/waiter/guard roles, furniture, service points, guard posts, a generic facility visit point, merchant role, and job provider already wired.
 
 `BarServiceArea` is an internal service component owned by `SettlementBar`. It handles paced waiter table service, repeat customer readiness while seated, bed rental checks, barkeeper stock handoff, and service/guard point lookup; operators should configure the `SettlementBar`, not the service area directly.
 
 Server-shift jobs pay their configured base wage over time. Completed table service separately rolls a configurable Charisma check for tip and chance-based XP, using a lower repeatable-work XP scale than major dialogue checks. The default service check becomes very likely around level 30, so waiter training naturally fades to tiny XP. The bar schedules the next customer prompt after delivery, defaulting to roughly `10 +/- 3` seconds, so waiters pause between orders instead of chaining ready tables immediately.
 
+NPC customers ask for waiter service through the simulated table-service flow. Player party members do not get automatic waiter prompts; when a selected party member is seated in a bar seat owned by a `BarServiceArea`, the inspector shows `Order` and the same-bar waiter walks to that table.
+
 Bar furniture can live outside the building shell under one `Furniture` root. The reusable bar discovers seat and bed props recursively, and registers bed props as upper-floor content on the placed `WorldBuilding` so the building level-visibility system hides second-floor beds when the active actor is on the ground floor.
+
+The bar uses one `FacilityVisitActivityPoint` under `ActivityPoints` for normal ambient townie visitors. That point scans real open `SittableSeat` props under `Furniture`, respects `visitor_capacity`, excludes party members, staff, workers, and marked special NPCs, and rejects visitors when no chair is open instead of moving them to a fallback marker. Future facilities can reuse the same visit point with real seats or authored `FacilityStandingPoint` nodes.
 
 Bar default stock mirrors the parent settlement's supply ratio when available, with a standalone fallback for bars outside towns. This is a temporary stock-seeding rule; future economy work should restock barkeepers through settlement storage and broader supply systems instead of only modifying merchant inventory.
 
@@ -78,6 +84,8 @@ Use `SettlementField` under a town's `Fields` root when the operator wants a foo
 ## Activity Points
 
 `SettlementActivityPoint` marks where residents can idle, work, socialize, guard, farm, mine, or sit.
+
+`FacilityVisitActivityPoint` is the reusable facility visitor entry point. It is still an activity point, but it assigns the actor to real visit targets such as seats or `FacilityStandingPoint` nodes instead of being a physical crowd marker itself.
 
 `SettlementActivityController` assigns available non-player residents to activity points.
 

@@ -10,7 +10,7 @@
 [ext_resource type="PackedScene" path="res://scenes/world/props/bar_table.tscn" id="17_opnxp"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/stool_chair.tscn" id="18_hhq5f"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/simple_bed.tscn" id="20_8jp0s"]
-[ext_resource type="Script" uid="uid://bicyrrq35q63c" path="res://scripts/world_sim/bar_loiter_activity_point.gd" id="22_loiter"]
+[ext_resource type="Script" uid="uid://cxr7vjw8dylgu" path="res://scripts/world_sim/facility_visit_activity_point.gd" id="22_visit"]
 
 [sub_resource type="Resource" id="BuildingLevelDefinition_ground"]
 script = ExtResource("5_40dsm")
@@ -159,16 +159,13 @@ metadata/facility_index = 0
 metadata/facility_layout_version = 1
 metadata/facility_last_default_transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, 3, 0.35, 0.65)
 
-[node name="Storage" type="Node3D" parent="." unique_id=1657226654]
-
-[node name="JobProviders" type="Node3D" parent="." unique_id=344774845]
-
 [node name="ActivityPoints" type="Node3D" parent="." unique_id=1355834480]
 
-[node name="BarLoiterPoint" type="Node3D" parent="ActivityPoints" unique_id=433540529]
-script = ExtResource("22_loiter")
-bar_path = NodePath("../..")
-display_name = "Bar Visitor Spot"
+[node name="FacilityVisitPoint" type="Node3D" parent="ActivityPoints" unique_id=433540529]
+script = ExtResource("22_visit")
+facility_path = NodePath("../..")
+visit_seats_root_path = NodePath("../../Furniture")
+display_name = "Bar Visit Spot"
 activity_type = "social"
 weight = 16.0
 assignment_min_seconds = 25.0

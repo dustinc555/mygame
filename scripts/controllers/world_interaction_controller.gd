@@ -1419,6 +1419,8 @@ func _on_inspector_action_requested(target, action_key: String) -> void:
 	match action_key:
 		"inventory":
 			_perform_inspector_inventory_action(target)
+		"order":
+			_perform_inspector_order_action(target)
 		"mine":
 			if target is Node:
 				for member in party_manager.selected_members:
@@ -1476,6 +1478,33 @@ func _perform_inspector_inventory_action(target) -> void:
 			focused_member.assign_trade_target(target)
 	elif target.is_player_party_member():
 		inventory_controller.open_inventory_for_member(target)
+
+
+func _perform_inspector_order_action(target) -> void:
+	var member := target as HumanoidCharacter
+	if member == null:
+		return
+	var service_area := _get_bar_service_area_for_seated_member(member)
+	if service_area == null:
+		_show_center_notice("Sit at a bar table first")
+		return
+	if not service_area.has_method("call_waiter_for_customer"):
+		_show_center_notice("No waiter service here")
+		return
+	var result = service_area.call("call_waiter_for_customer", member)
+	if result is Dictionary and bool(result.get("allowed", false)):
+		return
+	var message := str(result.get("message", "No waiter available")) if result is Dictionary else "No waiter available"
+	_show_center_notice(message)
+
+
+func _get_bar_service_area_for_seated_member(member: HumanoidCharacter) -> BarServiceArea:
+	if member == null or not member.has_method("get_current_seat_target"):
+		return null
+	var seat = member.call("get_current_seat_target")
+	if seat != null and is_instance_valid(seat) and seat.has_method("get_bar_service_area"):
+		return seat.call("get_bar_service_area") as BarServiceArea
+	return null
 
 
 func _perform_direct_world_context_action(target, action_key: String) -> void:

@@ -32,7 +32,7 @@ Keep facilities broad and readable.
 
 Examples include farm fields, storehouse, village social area, bar, shop, mine, guard camp, housing block, and loot pile.
 
-For generic facilities, set `facility_id`, `display_name`, `owner_faction_id`, and `facility_function`. Put the visible building or model under `BuildingSlot`, then add or edit staff, service points, storage links, job providers, and activity points under their matching roots.
+For generic facilities, set `facility_id`, `display_name`, `owner_faction_id`, and `facility_function`. Put the visible building or model under `BuildingSlot`, then add or edit only the staff, service points, storage links, job providers, and activity points that the facility actually uses. Empty root paths are valid and should stay empty instead of creating unused buckets.
 
 For common facilities, prefer drag-in authoring scenes over manual node assembly:
 
@@ -40,6 +40,7 @@ For common facilities, prefer drag-in authoring scenes over manual node assembly
 - Use the default child under `SettlementBar/BuildingSlot`, or replace `BuildingSlot/CurrentBuilding` if a different building model is wanted.
 - For normal bars, let the bar infer `facility_id`, owner faction, staff IDs, and staff squad from the parent settlement and bar node name.
 - Keep tables, chairs, and beds directly under `SettlementBar/Furniture`; the bar discovers seats/beds there and registers bed props with the placed building's upper-floor visibility.
+- Keep the generated `ActivityPoints/FacilityVisitPoint` as the single ambient visitor entry point. It scans real open chairs under `Furniture`; do not add per-chair visitor points or fallback crowd markers.
 - Do not manually configure `BarServiceArea`; it is the internal service component owned by `SettlementBar`.
 - Add `scenes/world_sim/settlement_field.tscn` under `SettlementTown/Fields`, or use `Add Child Node > SettlementField`, for a food-producing field.
 - Set `facility_id`, `display_name`, `owner_faction_id`, and `food_production_per_day` on the field.
@@ -109,6 +110,8 @@ Use activity types such as idle, social, farm, guard, work, mine, and sit.
 Tune weight and active hours to shape daily behavior.
 
 Use exclusive points for guard posts or single-worker locations.
+
+Use `FacilityVisitActivityPoint` when a facility needs normal resident visitors. Configure it to scan real seats or authored `FacilityStandingPoint` nodes so visitors occupy physical spots instead of clumping at the activity marker.
 
 ## Character Appearance And Barbers
 
