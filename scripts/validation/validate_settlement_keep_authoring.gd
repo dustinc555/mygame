@@ -195,6 +195,11 @@ func _validate_profiled_staff_actor(actor: Node, expected_suffix: String, name_p
 		_fail("%s name '%s' should come from the population name profile" % [label, display_name])
 	if not _actor_has_equipped_slot(actor, "chest"):
 		_fail("%s should have clothing from the population appearance profile" % label)
+	var perception := int(actor.call("get_skill_level", SkillRules.ATTRIBUTE_PERCEPTION)) if actor.has_method("get_skill_level") else 0
+	var expected_min := 90 if expected_suffix == "guard" else 5
+	var expected_max := 100 if expected_suffix == "guard" else 12
+	if perception < expected_min or perception > expected_max:
+		_fail("%s perception %d outside expected %d..%d" % [label, perception, expected_min, expected_max])
 
 
 func _actor_has_equipped_slot(actor: Node, slot_name: String) -> bool:

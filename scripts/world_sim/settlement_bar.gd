@@ -23,7 +23,7 @@ const MERCHANT_PRICE_SCRIPT = preload("res://scripts/items/merchant_price.gd")
 const MERCHANT_STOCK_SCRIPT = preload("res://scripts/items/merchant_stock.gd")
 const BAR_GUARD_POST_SCRIPT = preload("res://scripts/world/venues/bar_guard_post.gd")
 const BAR_SERVICE_POINT_SCRIPT = preload("res://scripts/world/venues/bar_service_point.gd")
-const ACTIVITY_POINT_SCRIPT = preload("res://scripts/world_sim/settlement_activity_point.gd")
+const BAR_LOITER_POINT_SCRIPT = preload("res://scripts/world_sim/bar_loiter_activity_point.gd")
 const BREAD_ITEM = preload("res://resources/items/bread.tres")
 const FOOD_ITEM = preload("res://resources/items/food.tres")
 const SILVER_ITEM = preload("res://resources/items/silver.tres")
@@ -35,6 +35,8 @@ const TABLE_SCENE = preload("res://scenes/world/props/bar_table.tscn")
 const STOOL_SCENE = preload("res://scenes/world/props/stool_chair.tscn")
 const BED_SCENE = preload("res://scenes/world/props/simple_bed.tscn")
 const LEGACY_FURNITURE_ROOT_NAMES := ["Tables", "Stools", "Beds"]
+const STAFF_PERCEPTION_RANGE := Vector2i(5, 12)
+const GUARD_PERCEPTION_RANGE := Vector2i(14, 24)
 
 @export var bar_service_area_path: NodePath = NodePath("BarServiceArea")
 @export var guard_posts_root_path: NodePath = NodePath("GuardPosts")
@@ -175,6 +177,37 @@ func get_facility_record(settlement_id := "") -> Dictionary:
 	return record
 
 
+func assign_loitering_actor(actor: Node, fallback_position: Vector3) -> bool:
+	if actor == null:
+		return false
+	var seats: Array[Node] = []
+	_collect_visitor_seats(get_node_or_null(furniture_root_path), seats)
+	var seat := _nearest_available_seat(actor, seats, fallback_position)
+	if seat != null and _seat_bar_occupant(actor, seat):
+		return true
+	return false
+
+
+func has_available_loitering_seat(actor: Node) -> bool:
+	var seats: Array[Node] = []
+	_collect_visitor_seats(get_node_or_null(furniture_root_path), seats)
+	return _nearest_available_seat(actor, seats, global_position) != null
+
+
+func can_actor_visit_as_townie(actor: Node) -> bool:
+	if actor == null or not is_instance_valid(actor):
+		return false
+	if actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member")):
+		return false
+	if actor.has_method("get_active_job_provider") and actor.call("get_active_job_provider") != null:
+		return false
+	if _is_bar_role_actor(actor):
+		return false
+	if _is_marked_special_bar_visitor(actor):
+		return false
+	return _is_actor_under_settlement_resident_root(actor)
+
+
 func _apply_bar_defaults() -> void:
 	if facility_function == null:
 		facility_function = BAR_FUNCTION
@@ -289,41 +322,38 @@ func _ensure_visitor_activity_points() -> void:
 	var root := _ensure_root(activity_points_root_path)
 	if root == null:
 		return
-	for visitor_index in range(visitor_capacity):
-		_ensure_visitor_activity_point(root, visitor_index)
-	_trim_generated_children(root, "VisitorPoint", visitor_capacity)
+	_trim_generated_children(root, "VisitorPoint", 0)
+	var kept_loiter_points := 1 if visitor_capacity > 0 else 0
+	if kept_loiter_points > 0:
+		_ensure_bar_loiter_point(root)
+	_trim_generated_children(root, "BarLoiterPoint", kept_loiter_points)
 
 
-func _ensure_visitor_activity_point(root: Node, index: int) -> Node:
-	var point_name := _visitor_point_name(index)
+func _ensure_bar_loiter_point(root: Node) -> Node:
+	var point_name := "BarLoiterPoint"
 	var point := root.get_node_or_null(point_name)
 	if point == null:
 		point = Node3D.new()
 		point.name = point_name
 		root.add_child(point)
 		_set_editor_owner(point)
-	if not point.has_method("assign_actor"):
-		point.set_script(ACTIVITY_POINT_SCRIPT)
-	var default_transform := _layout_default_transform(activity_points_root_path, point_name, _hangout_point_transform(index))
+	if not (point is BarLoiterActivityPoint):
+		point.set_script(BAR_LOITER_POINT_SCRIPT)
+	var default_transform := _layout_default_transform(activity_points_root_path, point_name, _hangout_point_transform(0))
 	if point is Node3D:
-		_sync_generated_layout_node(point, "visitor", index, default_transform)
-	var seat := _visitor_point_target_seat(point)
-	if seat == null:
-		seat = _visitor_seat_for_index(index)
-	if seat != null:
-		point.set("activity_type", "sit")
-		point.set("target_path", point.get_path_to(seat))
-	else:
-		point.set("activity_type", "social")
-		point.set("target_path", NodePath(""))
+		_sync_generated_layout_node(point, "visitor", 0, default_transform)
+	point.set("activity_type", "social")
+	point.set("target_path", NodePath(""))
+	if _has_property(point, "bar_path"):
+		point.set("bar_path", point.get_path_to(self))
 	point.set("display_name", "Bar Visitor Spot")
-	point.set("exclusive", true)
-	point.set("weight", 4.0)
+	point.set("exclusive", false)
+	point.set("weight", maxf(4.0, float(visitor_capacity) * 4.0))
 	if _has_property(point, "assignment_min_seconds"):
-		point.set("assignment_min_seconds", 90.0)
+		point.set("assignment_min_seconds", 25.0)
 	if _has_property(point, "assignment_max_seconds"):
-		point.set("assignment_max_seconds", 180.0)
-	_tag_generated_layout_node(point, "visitor", index, default_transform)
+		point.set("assignment_max_seconds", 35.0)
+	_tag_generated_layout_node(point, "visitor", 0, default_transform)
 	return point
 
 
@@ -487,6 +517,7 @@ func _apply_staff_role_defaults(staff: Node, member_name: String, color: Color, 
 		staff.set("conversation_definition", conversation)
 	_sync_staff_member(staff, role)
 	_apply_population_generation_to_staff(staff, role, role_index)
+	_apply_staff_role_skills(staff, role, role_index)
 
 
 func _should_sync_generated_staff_position(staff: Node) -> bool:
@@ -754,10 +785,6 @@ func _waiter_point_name(index: int) -> String:
 	return _indexed_name("WaiterPoint", index)
 
 
-func _visitor_point_name(index: int) -> String:
-	return _indexed_name("VisitorPoint", index)
-
-
 func _guard_post_name(index: int) -> String:
 	return _indexed_name("GuardPost", index)
 
@@ -862,7 +889,7 @@ func _generated_child_index(child_name: String, base_name: String) -> int:
 
 
 func _point_base_name(point_name: String) -> String:
-	for base_name in ["BarkeeperCounterPoint", "WaiterPoint", "VisitorPoint", "GuardPost"]:
+	for base_name in ["BarkeeperCounterPoint", "WaiterPoint", "BarLoiterPoint", "GuardPost"]:
 		if _generated_child_index(point_name, base_name) >= 0:
 			return base_name
 	return point_name
@@ -1114,6 +1141,50 @@ func _get_role_actors(role: String) -> Array[Node]:
 	return actors
 
 
+func _is_bar_role_actor(actor: Node) -> bool:
+	if actor == null:
+		return false
+	if actor == _get_barkeeper_actor():
+		return true
+	for role in ["waiter", "guard", "barber"]:
+		if _get_role_actors(role).has(actor):
+			return true
+	return false
+
+
+func _is_marked_special_bar_visitor(actor: Node) -> bool:
+	if actor == null:
+		return false
+	for group_name in ["special_npc", "hireable_npc", "hireling", "mercenary", "bar_staff"]:
+		if actor.is_in_group(group_name):
+			return true
+	for meta_name in ["bar_visitor_excluded", "town_activity_excluded", "special_npc"]:
+		if bool(actor.get_meta(meta_name, false)):
+			return true
+	var actor_category := str(actor.get_meta("settlement_actor_category", ""))
+	return not actor_category.is_empty() and actor_category != "townie" and actor_category != "resident"
+
+
+func _is_actor_under_settlement_resident_root(actor: Node) -> bool:
+	var settlement := _get_ancestor_settlement()
+	if settlement == null or actor == null:
+		return false
+	var resident_root_path = settlement.get("resident_root_path")
+	if resident_root_path == null:
+		return false
+	var resident_root := settlement.get_node_or_null(resident_root_path)
+	return resident_root != null and _is_descendant_of(actor, resident_root)
+
+
+func _is_descendant_of(node: Node, ancestor: Node) -> bool:
+	var current := node
+	while current != null:
+		if current == ancestor:
+			return true
+		current = current.get_parent()
+	return false
+
+
 func _collect_generated_role_actors(actors: Array[Node], base_name: String) -> void:
 	var root := get_node_or_null(staff_root_path)
 	if root == null:
@@ -1165,6 +1236,26 @@ func _apply_population_generation_to_staff(staff: Node, role: String, role_index
 			_apply_role_suffix(staff, role)
 			if staff.is_inside_tree() and staff.has_method("refresh_nameplate"):
 				staff.call("refresh_nameplate")
+
+
+func _apply_staff_role_skills(staff: Node, role: String, role_index: int) -> void:
+	if staff == null or not _is_generated_staff(staff) or not staff.has_method("get_skill_level") or not staff.has_method("set_skill_level"):
+		return
+	var current_perception := int(staff.call("get_skill_level", SkillRules.ATTRIBUTE_PERCEPTION))
+	if current_perception > SkillRules.DEFAULT_LEVEL:
+		return
+	var range := GUARD_PERCEPTION_RANGE if str(role).strip_edges().to_lower().begins_with("guard") else STAFF_PERCEPTION_RANGE
+	var rng := _make_staff_rng("skill:%s:%d:%s" % [role, role_index, str(staff.name)])
+	staff.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(range.x, range.y, rng))
+
+
+func _roll_center_biased_level(minimum: int, maximum: int, rng: RandomNumberGenerator) -> int:
+	var low := mini(minimum, maximum)
+	var high := maxi(minimum, maximum)
+	if low == high:
+		return low
+	var t := (rng.randf() + rng.randf()) * 0.5
+	return clampi(int(round(lerpf(float(low), float(high), t))), low, high)
 
 
 func _make_staff_rng(seed_key: String) -> RandomNumberGenerator:
@@ -1233,24 +1324,6 @@ func _get_ancestor_settlement_definition() -> Resource:
 	return settlement.get("settlement_definition") as Resource if settlement != null and _has_property(settlement, "settlement_definition") else null
 
 
-func _visitor_seat_for_index(index: int) -> Node:
-	var seats: Array[Node] = []
-	_collect_visitor_seats(get_node_or_null(furniture_root_path), seats)
-	if index >= 0 and index < seats.size():
-		return seats[index]
-	return null
-
-
-func _visitor_point_target_seat(point: Node) -> Node:
-	if point == null or not _has_property(point, "target_path"):
-		return null
-	var target_path = point.get("target_path")
-	if typeof(target_path) != TYPE_NODE_PATH or target_path.is_empty():
-		return null
-	var target := point.get_node_or_null(target_path)
-	return target if _is_sittable_furniture(target) else null
-
-
 func _collect_visitor_seats(root: Node, seats: Array[Node]) -> void:
 	if root == null:
 		return
@@ -1280,10 +1353,8 @@ func _barber_seat_for_actor(actor: Node) -> Node:
 	_collect_visitor_seats(get_node_or_null(furniture_root_path), seats)
 	if seats.is_empty():
 		return null
-	var visitor_targets := _visitor_target_seat_ids()
 	var target_position := _barber_idle_position()
-	var best_unused := _nearest_available_seat(actor, seats, target_position, visitor_targets, true)
-	return best_unused if best_unused != null else _nearest_available_seat(actor, seats, target_position, visitor_targets, false)
+	return _nearest_available_seat(actor, seats, target_position)
 
 
 func _seat_bar_occupant(actor: Node, seat: Node) -> bool:
@@ -1297,26 +1368,10 @@ func _seat_bar_occupant(actor: Node, seat: Node) -> bool:
 	return false
 
 
-func _visitor_target_seat_ids() -> Dictionary:
-	var result := {}
-	var root := get_node_or_null(activity_points_root_path)
-	if root == null:
-		return result
-	for child in root.get_children():
-		if not str(child.name).begins_with("VisitorPoint"):
-			continue
-		var seat := _visitor_point_target_seat(child)
-		if seat != null:
-			result[seat.get_instance_id()] = true
-	return result
-
-
-func _nearest_available_seat(actor: Node, seats: Array[Node], target_position: Vector3, visitor_targets: Dictionary, skip_visitor_targets: bool) -> Node:
+func _nearest_available_seat(actor: Node, seats: Array[Node], target_position: Vector3) -> Node:
 	var best: Node
 	var best_distance := INF
 	for seat in seats:
-		if skip_visitor_targets and visitor_targets.has(seat.get_instance_id()):
-			continue
 		if not _seat_available_for_actor(seat, actor):
 			continue
 		var seat_node := seat as Node3D

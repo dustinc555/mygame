@@ -5,8 +5,9 @@ class_name SkillRules
 const SKILL_CATALOG: SkillCatalog = preload("res://resources/skills/phase_1_skill_catalog.tres")
 
 const DEFAULT_LEVEL := 1
-const BASE_XP_TO_NEXT := 85.0
-const XP_CURVE_EXPONENT := 1.55
+const BASE_XP_TO_NEXT := 50.0
+const LEVEL_XP_DECAY_CAP := 101.0
+const MIN_LEVEL_XP_MULTIPLIER := 0.002
 
 const ATTRIBUTE_STRENGTH := "attribute.strength"
 const ATTRIBUTE_PERCEPTION := "attribute.perception"
@@ -55,9 +56,13 @@ static func get_default_level(skill_id: String) -> int:
 
 
 static func get_xp_to_next_level(level: int) -> float:
-	var safe_level := maxi(0, level)
-	var xp := BASE_XP_TO_NEXT * pow(float(safe_level + 1), XP_CURVE_EXPONENT)
-	return ceil(xp)
+	return ceil(BASE_XP_TO_NEXT / get_level_xp_multiplier(level))
+
+
+static func get_level_xp_multiplier(level: int) -> float:
+	var safe_level := maxf(0.0, float(level))
+	var remaining_ratio := clampf(1.0 - safe_level / LEVEL_XP_DECAY_CAP, 0.0, 1.0)
+	return maxf(MIN_LEVEL_XP_MULTIPLIER, remaining_ratio * remaining_ratio)
 
 
 static func get_diminishing_bonus(level: float, cap: float, curve: float = 35.0) -> float:

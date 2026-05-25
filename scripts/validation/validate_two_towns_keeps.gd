@@ -61,10 +61,10 @@ func _validate_keep(scene: Node, town_path: String, keep_name: String, expected_
 		_fail("%s ruler should sit in the ruler chair" % keep_name)
 	else:
 		_validate_ruler_seating(keep, keep_name)
-		_validate_profiled_staff_actor(ruler, expected_title, _name_profile_for_faction(expected_faction), "%s ruler" % keep_name, false)
+		_validate_profiled_staff_actor(ruler, expected_title, _name_profile_for_faction(expected_faction), "%s ruler" % keep_name, false, expected_chair_style)
 	for guard_index in range(expected_guards):
 		var guard := keep.get_node_or_null(_indexed_staff_path("Guard", guard_index))
-		_validate_profiled_staff_actor(guard, "guard", _name_profile_for_faction(expected_faction), "%s guard %d" % [keep_name, guard_index + 1], true)
+		_validate_profiled_staff_actor(guard, "guard", _name_profile_for_faction(expected_faction), "%s guard %d" % [keep_name, guard_index + 1], true, expected_chair_style)
 	var record: Dictionary = keep.call("get_facility_record", town.call("get_settlement_id") if town.has_method("get_settlement_id") else "")
 	if int(record.get("guard_count", 0)) != expected_guards:
 		_fail("%s should report %d guards" % [keep_name, expected_guards])
@@ -98,7 +98,7 @@ func _validate_ruler_seating(keep: Node, keep_name: String) -> void:
 			_fail("%s ruler should face the chair seat direction" % keep_name)
 
 
-func _validate_profiled_staff_actor(actor: Node, expected_suffix: String, name_profile: Resource, label: String, require_weapon: bool) -> void:
+func _validate_profiled_staff_actor(actor: Node, expected_suffix: String, name_profile: Resource, label: String, require_weapon: bool, expected_chair_style: String) -> void:
 	if actor == null:
 		_fail("%s should exist" % label)
 		return
@@ -117,6 +117,12 @@ func _validate_profiled_staff_actor(actor: Node, expected_suffix: String, name_p
 		_fail("%s should have clothing from the faction appearance profile" % label)
 	if require_weapon and not _actor_has_equipped_slot(actor, "weapon"):
 		_fail("%s should inherit settlement guard equipment" % label)
+	var perception := int(actor.call("get_skill_level", SkillRules.ATTRIBUTE_PERCEPTION)) if actor.has_method("get_skill_level") else 0
+	var elite_mayor_guard := expected_suffix == "guard" and expected_chair_style == "mayor"
+	var expected_min := 90 if elite_mayor_guard else 14 if expected_suffix == "guard" else 5
+	var expected_max := 100 if elite_mayor_guard else 24 if expected_suffix == "guard" else 12
+	if perception < expected_min or perception > expected_max:
+		_fail("%s perception %d outside expected %d..%d" % [label, perception, expected_min, expected_max])
 
 
 func _actor_has_equipped_slot(actor: Node, slot_name: String) -> bool:

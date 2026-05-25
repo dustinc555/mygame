@@ -93,14 +93,28 @@ func _validate_catalog() -> void:
 
 
 func _validate_progression() -> void:
+	var level_1_xp := SkillRules.get_xp_to_next_level(1)
+	var level_10_xp := SkillRules.get_xp_to_next_level(10)
+	var level_20_xp := SkillRules.get_xp_to_next_level(20)
+	var level_50_xp := SkillRules.get_xp_to_next_level(50)
+	var level_80_xp := SkillRules.get_xp_to_next_level(80)
+	var level_100_xp := SkillRules.get_xp_to_next_level(100)
 	if SkillRules.get_xp_to_next_level(10) <= SkillRules.get_xp_to_next_level(1):
 		_fail("Expected level 10 XP requirement to exceed level 1")
 	if SkillRules.get_xp_to_next_level(80) <= SkillRules.get_xp_to_next_level(40):
 		_fail("Expected level 80 XP requirement to exceed level 40")
-	var first_delta := SkillRules.get_xp_to_next_level(2) - SkillRules.get_xp_to_next_level(1)
-	var second_delta := SkillRules.get_xp_to_next_level(3) - SkillRules.get_xp_to_next_level(2)
-	if second_delta <= first_delta:
-		_fail("Expected smooth XP curve to get gradually harder every level")
+	if level_10_xp > level_1_xp * 1.35:
+		_fail("Expected levels 1-10 to stay fast, got level1=%.1f level10=%.1f" % [level_1_xp, level_10_xp])
+	if level_20_xp < level_10_xp * 1.2:
+		_fail("Expected levels 10-20 to start taking longer, got level10=%.1f level20=%.1f" % [level_10_xp, level_20_xp])
+	if level_50_xp < level_20_xp * 2.0:
+		_fail("Expected levels 30-50 to require sustained investment, got level20=%.1f level50=%.1f" % [level_20_xp, level_50_xp])
+	if level_80_xp < level_50_xp * 5.0:
+		_fail("Expected level 80+ mastery to slow sharply, got level50=%.1f level80=%.1f" % [level_50_xp, level_80_xp])
+	if level_100_xp < level_80_xp * 10.0:
+		_fail("Expected level 100+ to be absurdly slow, got level80=%.1f level100=%.1f" % [level_80_xp, level_100_xp])
+	if SkillRules.get_xp_to_next_level(5) <= level_1_xp or SkillRules.get_xp_to_next_level(15) <= level_10_xp:
+		_fail("Expected smooth XP curve to trend harder without relying on buckets")
 	var level_10_ratio := SkillRules.get_xp_to_next_level(10) / SkillRules.get_xp_to_next_level(9)
 	var level_11_ratio := SkillRules.get_xp_to_next_level(11) / SkillRules.get_xp_to_next_level(10)
 	if absf(level_11_ratio - level_10_ratio) > 0.08:
@@ -738,6 +752,7 @@ func _validate_stalled_mining_awards_no_xp() -> void:
 
 
 func _validate_skills_window_live_update() -> void:
+	root.size = Vector2i(1280, 720)
 	var actor := WorldActor.new()
 	actor.name = "SkillWindowActor"
 	var window := CHARACTER_SKILLS_WINDOW_SCRIPT.new() as Control
@@ -745,6 +760,50 @@ func _validate_skills_window_live_update() -> void:
 	root.add_child(window)
 	window.call("show_for_actor", actor)
 	await process_frame
+	var columns_root := window.get("columns_root") as HBoxContainer
+	if columns_root == null:
+		_fail("Expected skills window to build a two-column section root")
+	elif columns_root.get_child_count() != 2:
+		_fail("Expected skills window to use two columns, got %d" % columns_root.get_child_count())
+	else:
+		for section_path in [
+			"SkillsColumn1/CoreAttributesSection",
+			"SkillsColumn1/CombatSection",
+			"SkillsColumn1/SubterfugeSection",
+			"SkillsColumn2/MovementSection",
+			"SkillsColumn2/LaborSection",
+			"SkillsColumn2/CraftSection",
+			"SkillsColumn2/KnowledgeTechSection",
+		]:
+			var section_panel := columns_root.get_node_or_null(section_path) as Control
+			if section_panel == null:
+				_fail("Expected skills window section missing: %s" % section_path)
+			elif section_panel.size_flags_horizontal != Control.SIZE_EXPAND_FILL or section_panel.size_flags_vertical != Control.SIZE_EXPAND_FILL:
+				_fail("Expected skills window section to stretch to its borders: %s" % section_path)
+	if _node_tree_contains_type(window, "ScrollContainer"):
+		_fail("Skills window should not require a scrolling skill list")
+	var title_bar := window.get("title_bar") as Control
+	var title_padding := title_bar.get_node_or_null("TitlePadding") as MarginContainer if title_bar != null else null
+	if title_padding == null:
+		_fail("Expected skills window title bar to include name padding")
+	elif title_padding.get_theme_constant("margin_left") < 10 or title_padding.get_theme_constant("margin_right") < 10:
+		_fail("Expected skills window title padding to keep actor names off the title border")
+	var start_position := window.position
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.global_position = start_position + Vector2(24.0, 18.0)
+	window.call("_on_title_bar_gui_input", press)
+	var motion := InputEventMouseMotion.new()
+	motion.global_position = press.global_position + Vector2(90.0, 54.0)
+	window.call("_on_title_bar_gui_input", motion)
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	release.global_position = motion.global_position
+	window.call("_on_title_bar_gui_input", release)
+	if window.position.distance_to(start_position) < 10.0:
+		_fail("Expected skills window title bar drag to move the window")
 	var controls_by_skill: Dictionary = window.get("_row_controls_by_skill")
 	var mining_controls: Dictionary = controls_by_skill.get(SkillRules.LABOR_MINING, {})
 	var xp_label := mining_controls.get("xp_label") as Label
@@ -758,6 +817,17 @@ func _validate_skills_window_live_update() -> void:
 			_fail("Expected visible skills window to update mining XP live")
 	window.queue_free()
 	actor.queue_free()
+
+
+func _node_tree_contains_type(node: Node, class_name_text: String) -> bool:
+	if node == null:
+		return false
+	if node.is_class(class_name_text):
+		return true
+	for child in node.get_children():
+		if _node_tree_contains_type(child, class_name_text):
+			return true
+	return false
 
 
 func _wait_frames(frames: int) -> void:

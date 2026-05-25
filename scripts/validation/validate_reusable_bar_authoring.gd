@@ -80,6 +80,7 @@ func _validate_operator_instantiated_bar() -> void:
 	_validate_staff(bar, assigned_waiter, assigned_guard, waiter_parent, guard_parent)
 	_validate_role_points(bar)
 	_validate_furniture_authoring(bar)
+	_validate_bar_loiter_capacity(bar, assigned_waiter, assigned_guard)
 	_validate_barber_seating(bar)
 	_validate_seated_talk_range(bar)
 	_validate_barkeeper_stock(bar)
@@ -143,6 +144,7 @@ func _validate_staff(bar: Node, assigned_waiter: HumanoidCharacter, assigned_gua
 			_fail("Generated bar staff stable ids should use the inferred staff prefix")
 		if str(actor.get("squad_name")) != "FarmerCrossing":
 			_fail("Generated bar staff should infer the settlement squad name")
+		_validate_staff_perception(actor, role)
 	if barber != null:
 		if barber.get("conversation_definition") != BARBER_CONVERSATION:
 			_fail("Generated barber should expose barber services")
@@ -159,22 +161,42 @@ func _validate_role_points(bar: Node) -> void:
 		_fail("Reusable bar should derive guard posts from guard_count")
 	if bar.get_node_or_null("ServicePoints/BarberPoint") != null:
 		_fail("Barber should be a normal idle bar occupant, not a generated service point")
-	for index in range(4):
-		var point := bar.get_node_or_null("ActivityPoints/%s" % _indexed_name("VisitorPoint", index))
-		if point == null:
-			_fail("visitor_capacity should create capped visitor activity points")
-		elif bool(point.get("exclusive")) != true:
-			_fail("Visitor activity points should be exclusive to prevent crowding")
-		elif float(point.get("weight")) < 4.0 or float(point.get("assignment_min_seconds")) < 90.0:
-			_fail("Visitor activity points should strongly prefer chairs and hold them long enough to look alive")
-	if bar.get_node_or_null("ActivityPoints/VisitorPoint5") != null:
-		_fail("Reusable bar should not create more visitor points than visitor_capacity")
-	for path in ["ServicePoints/BarkeeperCounterPoint", "ServicePoints/WaiterPoint", "GuardPosts/GuardPost", "ActivityPoints/VisitorPoint"]:
+	var loiter_point := bar.get_node_or_null("ActivityPoints/BarLoiterPoint")
+	if loiter_point == null:
+		_fail("Reusable bar should create one bar loiter activity point that scans Furniture seats")
+	elif not loiter_point.has_method("assign_actor"):
+		_fail("Bar loiter point should assign actors through bar seat discovery")
+	else:
+		if bool(loiter_point.get("exclusive")):
+			_fail("Bar loiter point should not be a per-chair exclusive visitor point")
+		if float(loiter_point.get("weight")) < 4.0:
+			_fail("Bar loiter point should strongly prefer the bar enough to look alive")
+		if float(loiter_point.get("assignment_min_seconds")) < 25.0 or float(loiter_point.get("assignment_max_seconds")) > 35.0:
+			_fail("Bar loiter point should rotate townie visitors on roughly a 30 second cycle")
+		var target_path = loiter_point.get("target_path")
+		if typeof(target_path) == TYPE_NODE_PATH and not target_path.is_empty():
+			_fail("Bar loiter point should scan seats instead of targeting one hardwired chair")
+	var activity_points := bar.get_node_or_null("ActivityPoints")
+	if activity_points != null:
+		for point in activity_points.get_children():
+			if str(point.name).begins_with("VisitorPoint"):
+				_fail("Reusable bar should not generate per-chair VisitorPoint nodes")
+	for path in ["ServicePoints/BarkeeperCounterPoint", "ServicePoints/WaiterPoint", "GuardPosts/GuardPost", "ActivityPoints/BarLoiterPoint"]:
 		var node := bar.get_node_or_null(path)
 		if node == null:
 			continue
 		if not bool(node.get_meta("facility_generated", false)):
 			_fail("Generated bar layout node %s should carry migration metadata" % path)
+
+
+func _validate_staff_perception(actor: HumanoidCharacter, role: String) -> void:
+	if actor == null:
+		return
+	var perception := actor.get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION)
+	var expected_min := 14 if role == "guard" else 5
+	var expected_max := 24 if role == "guard" else 12
+	if perception < expected_min or perception > expected_max:
+		_fail("Generated %s perception %d outside expected %d..%d" % [role, perception, expected_min, expected_max])
 
 
 func _validate_furniture_authoring(bar: Node) -> void:
@@ -185,22 +207,20 @@ func _validate_furniture_authoring(bar: Node) -> void:
 	for legacy_root in ["Tables", "Stools", "Beds"]:
 		if furniture.get_node_or_null(legacy_root) != null:
 			_fail("Reusable bar base scene should keep furniture directly under Furniture, not Furniture/%s" % legacy_root)
-	for path in ["Furniture/TableA", "Furniture/StoolAFront", "Furniture/BedA", "Furniture/BedC5"]:
+	for path in ["Furniture/TableA", "Furniture/TableB", "Furniture/TableC", "Furniture/TableD", "Furniture/StoolAFront", "Furniture/StoolBBack", "Furniture/StoolBFront", "Furniture/StoolCBack", "Furniture/StoolCFront", "Furniture/StoolDBack", "Furniture/StoolDFront", "Furniture/BedA", "Furniture/BedC5"]:
 		if bar.get_node_or_null(path) == null:
 			_fail("Reusable bar should preserve authored furniture at %s" % path)
-	for index in range(4):
-		var point := bar.get_node_or_null("ActivityPoints/%s" % _indexed_name("VisitorPoint", index))
-		if point == null:
-			continue
-		var target_path = point.get("target_path")
-		if typeof(target_path) != TYPE_NODE_PATH or target_path.is_empty():
-			_fail("Visitor point %s should target a direct Furniture seat" % point.name)
-			continue
-		if str(target_path).contains("/Stools/"):
-			_fail("Visitor point %s should not target the old Furniture/Stools hierarchy" % point.name)
-		var target := point.get_node_or_null(target_path)
-		if target == null or not target.has_method("claim_sitter"):
-			_fail("Visitor point %s should target a sittable seat" % point.name)
+	_validate_bar_stool_exit_offsets(bar)
+	for stale_name in ["TableA2", "StoolABack2", "StoolABack3"]:
+		if furniture.get_node_or_null(stale_name) != null:
+			_fail("Reusable bar should not keep stale migrated furniture node Furniture/%s" % stale_name)
+	for furniture_node in furniture.get_children():
+		var furniture_name := str(furniture_node.name)
+		if furniture_name.contains("FromTables") or furniture_name.contains("FromStools"):
+			_fail("Reusable bar should not keep editor-migrated furniture suffix on Furniture/%s" % furniture_name)
+		for child in furniture_node.get_children():
+			if str(child.name).begins_with("_") and (child is MeshInstance3D or child is CollisionShape3D):
+				_fail("Reusable bar furniture %s should not keep duplicate generated child %s" % [str(furniture_node.name), str(child.name)])
 	var service_area := bar.get_node_or_null("BarServiceArea")
 	if service_area == null:
 		return
@@ -209,6 +229,9 @@ func _validate_furniture_authoring(bar: Node) -> void:
 	var direct_seat := STOOL_SCENE.instantiate()
 	direct_seat.name = "CopiedValidationSeat"
 	furniture.add_child(direct_seat)
+	var bar_node := bar as Node3D
+	if bar_node != null:
+		direct_seat.global_position = bar_node.global_position + Vector3(-30.0, 0.0, -30.0)
 	var legacy_root := Node3D.new()
 	legacy_root.name = "Stools"
 	furniture.add_child(legacy_root)
@@ -220,8 +243,117 @@ func _validate_furniture_authoring(bar: Node) -> void:
 		_fail("BarServiceArea should discover copied direct Furniture seats")
 	if not seats.has(legacy_seat):
 		_fail("BarServiceArea should keep discovering seats in old nested furniture folders")
+	var loiter_actor := bar.get_node_or_null("Staff/Guard") as HumanoidCharacter
+	if loiter_actor != null:
+		loiter_actor.stop_seat_assignment()
+		if not bool(bar.call("assign_loitering_actor", loiter_actor, direct_seat.global_position)):
+			_fail("Bar loitering should assign visitors by scanning open Furniture seats")
+		elif direct_seat.has_method("get_sitter") and direct_seat.call("get_sitter") != loiter_actor:
+			_fail("Bar loitering should use the copied direct Furniture seat without a per-chair VisitorPoint")
+		loiter_actor.stop_seat_assignment()
+		var empty_furniture := Node3D.new()
+		empty_furniture.name = "EmptyValidationFurniture"
+		bar.add_child(empty_furniture)
+		var old_furniture_root = bar.get("furniture_root_path")
+		bar.set("furniture_root_path", NodePath("EmptyValidationFurniture"))
+		var old_position := loiter_actor.global_position
+		if bool(bar.call("assign_loitering_actor", loiter_actor, old_position + Vector3(5.0, 0.0, 5.0))):
+			_fail("Bar loitering should reject visitors when no Furniture chair is open")
+		if loiter_actor.global_position.distance_to(old_position) > 0.01:
+			_fail("Rejected bar loitering actor should not be moved to a fallback marker")
+		bar.set("furniture_root_path", old_furniture_root)
+		empty_furniture.queue_free()
 	direct_seat.queue_free()
 	legacy_root.queue_free()
+
+
+func _validate_bar_stool_exit_offsets(bar: Node) -> void:
+	var stool_pairs := {
+		"Furniture/StoolAFront": "Furniture/TableA",
+		"Furniture/StoolABack": "Furniture/TableA",
+		"Furniture/StoolBBack": "Furniture/TableB",
+		"Furniture/StoolBFront": "Furniture/TableB",
+		"Furniture/StoolCBack": "Furniture/TableC",
+		"Furniture/StoolCFront": "Furniture/TableC",
+		"Furniture/StoolDBack": "Furniture/TableD",
+		"Furniture/StoolDFront": "Furniture/TableD",
+	}
+	for stool_path in stool_pairs.keys():
+		var stool := bar.get_node_or_null(stool_path) as Node3D
+		var table := bar.get_node_or_null(str(stool_pairs[stool_path])) as Node3D
+		if stool == null or table == null:
+			continue
+		var seated_offset: Vector3 = stool.get("seated_floor_local_offset")
+		var interaction_offset: Vector3 = stool.get("interaction_local_offset")
+		var stand_offset: Vector3 = stool.get("stand_local_offset")
+		if seated_offset.z < 0.18 or seated_offset.z > 0.3:
+			_fail("%s should seat visitors slightly forward on the chair without pushing them into the table; offset=%s" % [stool_path, seated_offset])
+		if interaction_offset.z > -0.1:
+			_fail("%s should be approached from the aisle side, not the table side; offset=%s" % [stool_path, interaction_offset])
+		if stand_offset.z > -0.1:
+			_fail("%s should release visitors to the aisle side, not the table side; offset=%s" % [stool_path, stand_offset])
+		var table_dir := _flat_vector(table.global_position - stool.global_position)
+		var stand_dir := _flat_vector(stool.call("get_stand_position") - stool.global_position)
+		if table_dir.length() > 0.01 and stand_dir.length() > 0.01 and table_dir.normalized().dot(stand_dir.normalized()) >= -0.1:
+			_fail("%s stand position should be opposite the nearby table" % stool_path)
+
+
+func _validate_bar_loiter_capacity(bar: Node, assigned_waiter: HumanoidCharacter, assigned_guard: HumanoidCharacter) -> void:
+	var loiter_point := bar.get_node_or_null("ActivityPoints/BarLoiterPoint")
+	if loiter_point == null:
+		_fail("Reusable bar should have a bar loiter point for visitor capacity validation")
+		return
+	if assigned_waiter != null and bool(loiter_point.call("is_available_for", assigned_waiter)):
+		_fail("Assigned waiter should not count as a normal townie bar visitor")
+	if assigned_guard != null and bool(loiter_point.call("is_available_for", assigned_guard)):
+		_fail("Assigned guard should not count as a normal townie bar visitor")
+	var party_member := _scene.get_node_or_null("PartyMembers/Mira") as HumanoidCharacter
+	if party_member != null and bool(loiter_point.call("is_available_for", party_member)):
+		_fail("Party members should not count as normal townie bar visitors")
+	var visitors := _collect_townie_visitors(bar, [assigned_waiter, assigned_guard])
+	if visitors.size() < 3:
+		_fail("Reusable bar visitor capacity validation needs at least three normal townies")
+		return
+	var original_capacity := int(bar.get("visitor_capacity"))
+	bar.set("visitor_capacity", 2)
+	if bar.has_method("_repair_authoring_tree"):
+		bar.call("_repair_authoring_tree")
+	loiter_point = bar.get_node_or_null("ActivityPoints/BarLoiterPoint")
+	var first: HumanoidCharacter = visitors[0]
+	var second: HumanoidCharacter = visitors[1]
+	var third: HumanoidCharacter = visitors[2]
+	for visitor in [first, second, third]:
+		visitor.stop_seat_assignment()
+	if not bool(loiter_point.call("assign_actor", first)):
+		_fail("First normal townie should be able to visit an empty bar")
+	if not bool(loiter_point.call("assign_actor", second)):
+		_fail("Second normal townie should be able to fill the bar visitor capacity")
+	var first_seat := _seat_for_sitter(bar, first)
+	if int(loiter_point.call("get_active_visitor_count")) != 2:
+		_fail("Bar loiter point should track exactly visitor_capacity active townie visitors")
+	var third_position := third.global_position
+	if bool(loiter_point.call("is_available_for", third)):
+		_fail("Bar loiter point should be unavailable to extra townies once visitor_capacity is full")
+	if bool(loiter_point.call("assign_actor", third)):
+		_fail("Bar loiter point should reject extra townies instead of mosh-pitting at the marker")
+	if third.global_position.distance_to(third_position) > 0.01:
+		_fail("Rejected townie should not be moved toward the full bar")
+	loiter_point.call("release_actor", first)
+	if first.is_sitting():
+		_fail("Released bar visitor should stand up and free the chair")
+	if first_seat != null:
+		var first_local_stand := first_seat.to_local(first.global_position)
+		if first_local_stand.z > -0.35:
+			_fail("Released bar visitor should stand on the aisle side of the chair, local=%s" % first_local_stand)
+	if bool(loiter_point.call("is_available_for", first)):
+		_fail("Released bar visitor should have a short cooldown before returning")
+	if not bool(loiter_point.call("is_available_for", third)) or not bool(loiter_point.call("assign_actor", third)):
+		_fail("A different townie should be able to take the freed bar visitor slot")
+	loiter_point.call("release_actor", second)
+	loiter_point.call("release_actor", third)
+	bar.set("visitor_capacity", original_capacity)
+	if bar.has_method("_repair_authoring_tree"):
+		bar.call("_repair_authoring_tree")
 
 
 func _validate_barber_seating(bar: Node) -> void:
@@ -338,7 +470,11 @@ func _validate_waiter_order_job(bar: Node, worker: HumanoidCharacter) -> void:
 	var service_area := bar.get_node_or_null("BarServiceArea")
 	var provider := bar.get_node_or_null("Staff/Barkeeper/JobProvider")
 	var customer := bar.get_node_or_null("Staff/Guard") as HumanoidCharacter
-	var seat = bar.call("_visitor_seat_for_index", 0)
+	var seat = null
+	if service_area != null:
+		var seats: Array = service_area.call("_collect_seat_nodes")
+		if not seats.is_empty():
+			seat = seats[0]
 	if service_area == null or provider == null or customer == null or seat == null:
 		_fail("Waiter order validation could not find service area, provider, customer, or seat")
 		return
@@ -498,6 +634,43 @@ func _strip_role_suffix(display_name: String) -> String:
 		if result.to_lower().ends_with(suffix):
 			return result.substr(0, result.length() - suffix.length()).strip_edges()
 	return result
+
+
+func _collect_townie_visitors(bar: Node, excluded: Array) -> Array[HumanoidCharacter]:
+	var visitors: Array[HumanoidCharacter] = []
+	var settlement = bar.call("_get_ancestor_settlement") if bar != null and bar.has_method("_get_ancestor_settlement") else null
+	if settlement == null:
+		return visitors
+	var resident_root = settlement.get_node_or_null(settlement.get("resident_root_path"))
+	_collect_townie_visitors_recursive(resident_root, bar, excluded, visitors)
+	return visitors
+
+
+func _collect_townie_visitors_recursive(root: Node, bar: Node, excluded: Array, visitors: Array[HumanoidCharacter]) -> void:
+	if root == null:
+		return
+	for child in root.get_children():
+		var actor := child as HumanoidCharacter
+		if actor != null and not excluded.has(actor) and bool(bar.call("can_actor_visit_as_townie", actor)):
+			visitors.append(actor)
+		_collect_townie_visitors_recursive(child, bar, excluded, visitors)
+
+
+func _seat_for_sitter(bar: Node, actor: HumanoidCharacter) -> Node3D:
+	if bar == null or actor == null:
+		return null
+	var service_area := bar.get_node_or_null("BarServiceArea")
+	if service_area == null:
+		return null
+	var seats: Array = service_area.call("_collect_seat_nodes")
+	for seat in seats:
+		if seat is Node3D and seat.has_method("get_sitter") and seat.call("get_sitter") == actor:
+			return seat as Node3D
+	return null
+
+
+func _flat_vector(value: Vector3) -> Vector3:
+	return Vector3(value.x, 0.0, value.z)
 
 
 func _wait_frames(frame_count: int) -> void:

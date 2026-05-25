@@ -86,6 +86,10 @@ const GROUND_MARKER_RAYCAST_DOWN := 24.0
 const RUNNING_SKILL_XP_PER_SECOND := 0.35
 const RUNNING_ENDURANCE_XP_PER_SECOND := 0.05
 const CARRY_STRENGTH_XP_PER_SECOND := 0.1
+const SNEAK_MOVE_SPEED_MIN_MULTIPLIER := 0.45
+const SNEAK_MOVE_SPEED_MAX_MULTIPLIER := 1.45
+const SNEAK_MOVE_SPEED_MASTER_LEVEL := 80.0
+const SNEAK_MOVE_SPEED_CURVE := 0.75
 const MINING_ORE_WORTH_FOR_FIRST_LEVEL := 4.0
 const MINING_STRENGTH_XP_FACTOR := 0.08
 const SCAVENGING_ATTEMPTS_FOR_FIRST_LEVEL := 4.0
@@ -3811,7 +3815,7 @@ func _update_character_animation(delta: float) -> void:
 		return
 	if sneaking:
 		if is_moving:
-			_play_character_animation(CROUCH_WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed * 0.65))
+			_play_character_animation(CROUCH_WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed * _get_sneak_move_speed_multiplier()))
 		else:
 			_play_character_animation(CROUCH_IDLE_ANIMATION_NAME)
 		return
@@ -4367,7 +4371,7 @@ func _collect_stat_modifiers() -> Array:
 	if running and (_has_move_target or _should_direct_combat_chase()):
 		modifiers.append({"stat": "move_speed_multiplier", "mul": _get_base_stat_value("run_speed_multiplier")})
 	if sneaking:
-		modifiers.append({"stat": "move_speed_multiplier", "mul": 0.65})
+		modifiers.append({"stat": "move_speed_multiplier", "mul": _get_sneak_move_speed_multiplier()})
 	if is_carrying_someone():
 		modifiers.append({"stat": "move_speed_multiplier", "mul": carry_move_speed_multiplier})
 	for item in equipped_items.values():
@@ -4378,6 +4382,13 @@ func _collect_stat_modifiers() -> Array:
 				continue
 			modifiers.append(modifier.to_modifier_dictionary())
 	return modifiers
+
+
+func _get_sneak_move_speed_multiplier() -> float:
+	var sneak_level := float(get_skill_level(SkillRules.SUBTERFUGE_SNEAKING))
+	var ratio := clampf((sneak_level - float(SkillRules.DEFAULT_LEVEL)) / maxf(SNEAK_MOVE_SPEED_MASTER_LEVEL - float(SkillRules.DEFAULT_LEVEL), 0.001), 0.0, 1.0)
+	var mastery := pow(ratio, SNEAK_MOVE_SPEED_CURVE)
+	return lerpf(SNEAK_MOVE_SPEED_MIN_MULTIPLIER, SNEAK_MOVE_SPEED_MAX_MULTIPLIER, mastery)
 
 
 func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true) -> float:

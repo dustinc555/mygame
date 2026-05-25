@@ -46,28 +46,32 @@ Gameplay checks should usually combine one primary skill with zero or more attri
 - Skill XP tracks progress toward the next whole level.
 - Levels are uncapped.
 - Level `1` is the generic default for new actors.
-- `5-10` is untrained/common.
-- `15-25` is competent.
-- `30-40` is specialist territory.
+- `1-10` is untrained and improves quickly through real use.
+- `10-20` is improving and starts taking noticeably longer.
+- `30-50` is competent/specialist territory and should take sustained play.
 - `80+` is legendary.
 - `90+` is extreme.
 - `100+` is god-tier and should take absurdly long.
 
 The XP curve must stay centralized in `SkillRules`. Do not hardcode per-level XP formulas in gameplay systems.
 
-Use a smooth uncapped power curve, not threshold buckets. The curve should sit between linear and exponential growth: every new level is harder than the last, but there are no sudden difficulty cliffs at milestone levels.
+Use a smooth uncapped curve, not threshold buckets. Early levels should be fast, intermediate levels should demand repeated practice, and mastery should slow sharply without adding sudden cliffs at milestone levels.
 
 Progression intent:
 
-- `0-10`: fastish, so the player sees early progress.
-- `10+`: noticeably slower.
-- `40+`: major investment. Strength around 40 should take multiple real play days when trained normally.
+- `1-10`: fast enough that the player sees early progress from normal risky/actionful use.
+- `10-20`: still practical, but no longer throwaway levels.
+- `30-50`: major investment. Strength around 40 should take multiple real play days when trained normally.
 - `80+`: effectively long-term mastery.
 - `100+`: possible but not practical for ordinary play.
 
 ## Training Hooks
 
 Actions may train a main skill and one or more attributes. Weight the primary skill heavily.
+
+Gameplay systems should award training pressure for meaningful action. Let `SkillRules` decide how much that pressure advances the next level. Do not add skill-specific low-level XP multipliers to compensate for progression pacing.
+
+Training should be challenge- or risk-weighted without becoming all-or-nothing gated. Easy repetition can still teach beginners, but it should fade for skilled actors; harder targets, observers, materials, or opponents should matter more at higher levels. Crowd or idle-farming sources must be capped or compressed so many trivial sources cannot explode XP.
 
 Examples:
 
@@ -77,7 +81,7 @@ Examples:
 - Taking real damage trains `attribute.toughness` based on damage taken.
 - Bandaging/healing trains `knowledge.medicine`.
 - Stealing near NPCs trains `subterfuge.sleight_of_hand`; detecting it trains observer `attribute.perception`.
-- Sneaking should train `subterfuge.sneaking` when there is actual risk, not by crouching alone in a field.
+- Sneaking should train `subterfuge.sneaking` when there is actual risk, not by crouching alone in a field. Sneak training should use the strongest valid observer the actor is currently hiding from, not summed crowd XP; being clearly seen is failure, not sneak training. Moving repeatedly through an observer's cone with clear line of sight should accumulate sustained exposure over time, so high sneak can cross a watched area briefly but cannot pace in front of an elite watcher forever.
 - Guard duty can train `attribute.perception`, but must be throttled to avoid free farming.
 
 ## Checks
@@ -87,7 +91,7 @@ Most checks should be deterministic. Add small randomness only where uncertainty
 Examples:
 
 - Theft noise: thief `subterfuge.sleight_of_hand` plus diminishing `attribute.dexterity` versus item difficulty, observer proximity, and observer `attribute.perception`.
-- Sneak visibility: observer `attribute.perception` plus lighting/line-of-sight/distance versus sneaker `subterfuge.sneaking` and cover/darkness.
+- Sneak visibility: observer `attribute.perception` plus lighting/line-of-sight/distance and sustained moving exposure versus sneaker `subterfuge.sneaking` and cover/darkness.
 - Speech checks: `attribute.charisma` and relevant social context, with limited randomness.
 - Combat initiative: ready melee attackers use dexterity-weighted randomness plus fairness credit so high dex attacks more often, while low dex fighters are not starved forever.
 

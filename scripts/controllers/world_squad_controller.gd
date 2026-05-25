@@ -3,6 +3,7 @@ extends Node
 class_name WorldSquadController
 
 const FACTION_HUMANOID_SCRIPT = preload("res://scripts/characters/faction_humanoid.gd")
+const SQUAD_MEMBER_PERCEPTION_RANGE := Vector2i(2, 8)
 const PHASE_TRAVEL := "travel"
 const PHASE_PLANNING := "planning"
 const PHASE_BATTLE := "battle"
@@ -194,6 +195,7 @@ func _spawn_squad_members(squad_id: String, template: Resource, spawn_position: 
 		actor.set("base_attack_damage", _resource_float(template, "base_attack_damage", 18.0))
 		actor.set("starting_equipment", _resource_array(template, "starting_equipment"))
 		_apply_population_generation_to_squad_actor(actor, template, index + 1, squad_id, used_names)
+		_apply_default_squad_skills(actor, squad_id, index + 1)
 		var offset := _formation_offset(index, count)
 		actor.position = spawn_position + offset + Vector3(0.0, 0.6, 0.0)
 		_add_basic_humanoid_children(actor)
@@ -243,6 +245,25 @@ func _apply_population_generation_to_squad_actor(actor: Node, template: Resource
 		if not generated_name.is_empty():
 			actor.set("member_name", generated_name)
 			used_names[generated_name.to_lower()] = true
+
+
+func _apply_default_squad_skills(actor: Node, squad_id: String, member_index: int) -> void:
+	if actor == null or not actor.has_method("get_skill_level") or not actor.has_method("set_skill_level"):
+		return
+	var current_perception := int(actor.call("get_skill_level", SkillRules.ATTRIBUTE_PERCEPTION))
+	if current_perception > SkillRules.DEFAULT_LEVEL:
+		return
+	var rng := _make_squad_member_rng(squad_id, member_index, "perception")
+	actor.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(SQUAD_MEMBER_PERCEPTION_RANGE.x, SQUAD_MEMBER_PERCEPTION_RANGE.y, rng))
+
+
+func _roll_center_biased_level(minimum: int, maximum: int, rng: RandomNumberGenerator) -> int:
+	var low := mini(minimum, maximum)
+	var high := maxi(minimum, maximum)
+	if low == high:
+		return low
+	var t := (rng.randf() + rng.randf()) * 0.5
+	return clampi(int(round(lerpf(float(low), float(high), t))), low, high)
 
 
 func _template_population_name_profile(template: Resource) -> Resource:

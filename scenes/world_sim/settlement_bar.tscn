@@ -1,29 +1,16 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://fpat6npxukfj"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/settlement_bar.gd" id="1_bar"]
-[ext_resource type="Resource" path="res://resources/world_sim/facility_functions/bar.tres" id="2_function"]
+[ext_resource type="Script" uid="uid://c354oqtn4bw75" path="res://scripts/world_sim/settlement_bar.gd" id="1_bar"]
+[ext_resource type="Resource" uid="uid://c61gqpdemh37e" path="res://resources/world_sim/facility_functions/bar.tres" id="2_function"]
 [ext_resource type="PackedScene" path="res://scenes/world/buildings/bar_scene.tscn" id="3_building"]
-[ext_resource type="Script" path="res://scripts/world/buildings/world_building.gd" id="4_2agv3"]
-[ext_resource type="Script" path="res://scripts/characters/merchant_humanoid.gd" id="4_ndqmp"]
-[ext_resource type="Script" path="res://scripts/world/venues/bar_service_area.gd" id="4_service_area"]
-[ext_resource type="Script" path="res://scripts/world/buildings/building_level_definition.gd" id="5_40dsm"]
-[ext_resource type="Resource" path="res://resources/conversations/generic_shopkeeper.tres" id="5_opo26"]
-[ext_resource type="Script" path="res://scripts/world/venues/bar_service_point.gd" id="5_service_point"]
-[ext_resource type="Script" path="res://scripts/roles/merchant_role.gd" id="6_2agv3"]
-[ext_resource type="Script" path="res://scripts/world/venues/bar_guard_post.gd" id="6_guard_post"]
-[ext_resource type="Resource" path="res://resources/items/food.tres" id="7_40dsm"]
-[ext_resource type="Script" path="res://scripts/items/merchant_price.gd" id="8_3aydh"]
-[ext_resource type="Resource" path="res://resources/items/silver.tres" id="9_i0uus"]
-[ext_resource type="Script" path="res://scripts/items/merchant_stock.gd" id="10_nu3au"]
-[ext_resource type="Script" path="res://scripts/jobs/job_provider.gd" id="11_tykvi"]
-[ext_resource type="Script" path="res://scripts/jobs/job_definition.gd" id="12_snxqk"]
-[ext_resource type="Resource" path="res://resources/conversations/waiter_order.tres" id="13_q8q2x"]
-[ext_resource type="Script" path="res://scripts/world_sim/settlement_activity_point.gd" id="15_hlgdd"]
+[ext_resource type="Script" uid="uid://dw7e6d4p7nh3q" path="res://scripts/world/venues/bar_service_area.gd" id="4_service_area"]
+[ext_resource type="Script" uid="uid://7jultsn1231f" path="res://scripts/world/buildings/building_level_definition.gd" id="5_40dsm"]
+[ext_resource type="Script" uid="uid://kn8yaubx5vgk" path="res://scripts/world/venues/bar_service_point.gd" id="5_service_point"]
+[ext_resource type="Script" uid="uid://c32mdje85i12b" path="res://scripts/world/venues/bar_guard_post.gd" id="6_guard_post"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/bar_table.tscn" id="17_opnxp"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/stool_chair.tscn" id="18_hhq5f"]
-[ext_resource type="Script" path="res://scripts/world/props/sittable_seat.gd" id="19_a7k1g"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/simple_bed.tscn" id="20_8jp0s"]
-[ext_resource type="Script" path="res://scripts/world/props/sleepable_bed.gd" id="21_6ybj8"]
+[ext_resource type="Script" uid="uid://bicyrrq35q63c" path="res://scripts/world_sim/bar_loiter_activity_point.gd" id="22_loiter"]
 
 [sub_resource type="Resource" id="BuildingLevelDefinition_ground"]
 script = ExtResource("5_40dsm")
@@ -63,121 +50,6 @@ right_occluder_paths = Array[NodePath]([NodePath("RoofRightParapet"), NodePath("
 back_occluder_paths = Array[NodePath]([NodePath("RoofBackParapet"), NodePath("RoofBackParapetCollision")])
 left_occluder_paths = Array[NodePath]([NodePath("RoofLeftParapet"), NodePath("RoofLeftParapetCollision")])
 is_roof = true
-
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_e2hgm"]
-radius = 0.45
-height = 1.1
-
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_fch0o"]
-radius = 0.45
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_dhg2c"]
-top_radius = 0.72
-bottom_radius = 0.72
-height = 0.05
-radial_segments = 24
-
-[sub_resource type="Resource" id="Resource_viuu6"]
-script = ExtResource("8_3aydh")
-item_definition = ExtResource("7_40dsm")
-
-[sub_resource type="Resource" id="Resource_kqbtv"]
-script = ExtResource("8_3aydh")
-item_definition = ExtResource("9_i0uus")
-
-[sub_resource type="Resource" id="Resource_33de6"]
-script = ExtResource("10_nu3au")
-item_definition = ExtResource("7_40dsm")
-quantity = 12
-
-[sub_resource type="Resource" id="Resource_wj5p3"]
-script = ExtResource("10_nu3au")
-item_definition = ExtResource("9_i0uus")
-quantity = 100
-
-[sub_resource type="Resource" id="Resource_m6dqo"]
-script = ExtResource("12_snxqk")
-display_name = "Guard duty"
-job_id = "bar_guard"
-algorithm_id = "guard_post"
-
-[sub_resource type="Resource" id="Resource_180yh"]
-script = ExtResource("12_snxqk")
-display_name = "Serving tables"
-job_id = "bar_server"
-algorithm_id = "server_shift"
-pay_per_interval = 1
-
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ejuju"]
-radius = 0.45
-height = 1.1
-
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_dpcpb"]
-radius = 0.45
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_x0t03"]
-top_radius = 0.72
-bottom_radius = 0.72
-height = 0.05
-radial_segments = 24
-
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_onjlk"]
-radius = 0.45
-height = 1.1
-
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_e510t"]
-radius = 0.45
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_6geyw"]
-top_radius = 0.72
-bottom_radius = 0.72
-height = 0.05
-radial_segments = 24
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wood"]
-albedo_color = Color(0.4, 0.22, 0.1, 1)
-roughness = 0.92
-
-[sub_resource type="BoxMesh" id="BoxMesh_top"]
-size = Vector3(2.2, 0.18, 1.25)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_top"]
-size = Vector3(2.2, 0.18, 1.25)
-
-[sub_resource type="BoxMesh" id="BoxMesh_leg"]
-size = Vector3(0.16, 0.72, 0.16)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_table"]
-size = Vector3(2.25, 0.9, 1.3)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_p6k1m"]
-albedo_color = Color(0.46, 0.27, 0.14, 1)
-roughness = 0.9
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_seat"]
-top_radius = 0.34
-bottom_radius = 0.34
-height = 0.12
-radial_segments = 16
-
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_seat"]
-height = 0.12
-radius = 0.34
-
-[sub_resource type="BoxMesh" id="BoxMesh_0u0qe"]
-size = Vector3(0.12, 0.55, 0.12)
-
-[sub_resource type="BoxMesh" id="BoxMesh_back"]
-size = Vector3(0.58, 0.7, 0.08)
-
-[sub_resource type="BoxMesh" id="BoxMesh_back_post"]
-size = Vector3(0.08, 0.64, 0.08)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_stool"]
-size = Vector3(0.68, 0.7, 0.68)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_back"]
-size = Vector3(0.58, 0.7, 0.08)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3aydh"]
 albedo_color = Color(0.4, 0.22, 0.1, 1)
@@ -248,30 +120,6 @@ size = Vector3(0.95, 0.16, 0.38)
 [sub_resource type="BoxShape3D" id="BoxShape3D_bed"]
 size = Vector3(1.45, 0.6, 2.45)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fch0o"]
-albedo_color = Color(0.33, 0.18, 0.09, 1)
-roughness = 0.9
-
-[sub_resource type="BoxMesh" id="BoxMesh_dhg2c"]
-size = Vector3(1.35, 0.22, 2.35)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_viuu6"]
-albedo_color = Color(0.76, 0.68, 0.55, 1)
-roughness = 0.86
-
-[sub_resource type="BoxMesh" id="BoxMesh_kqbtv"]
-size = Vector3(1.2, 0.2, 2.05)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_33de6"]
-albedo_color = Color(0.9, 0.86, 0.78, 1)
-roughness = 0.8
-
-[sub_resource type="BoxMesh" id="BoxMesh_wj5p3"]
-size = Vector3(0.95, 0.16, 0.38)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_m6dqo"]
-size = Vector3(1.45, 0.6, 2.45)
-
 [node name="SettlementBar" type="Node3D" unique_id=556110935]
 script = ExtResource("1_bar")
 guard_post_count = 3
@@ -282,12 +130,9 @@ activity_points_root_path = NodePath("ActivityPoints")
 
 [node name="BuildingSlot" type="Node3D" parent="." unique_id=1227217522]
 
-[node name="CurrentBuilding" type="StaticBody3D" parent="BuildingSlot" unique_id=428466980 instance=ExtResource("3_building")]
+[node name="CurrentBuilding" parent="BuildingSlot" unique_id=428466980 instance=ExtResource("3_building")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0048208237, 0, 0.005098343)
-script = ExtResource("4_2agv3")
-display_name = "Bar"
 building_type = "bar"
-population_capacity = 6
 levels = Array[ExtResource("5_40dsm")]([SubResource("BuildingLevelDefinition_ground"), SubResource("BuildingLevelDefinition_upper"), SubResource("BuildingLevelDefinition_roof")])
 
 [node name="Staff" type="Node3D" parent="." unique_id=656447651]
@@ -305,7 +150,7 @@ metadata/facility_layout_version = 1
 metadata/facility_last_default_transform = Transform3D(0.76604444, 0, 0.6427876, 0, 1, 0, -0.6427876, 0, 0.76604444, 0, 0.35, -1.85)
 
 [node name="WaiterPoint" type="Node3D" parent="ServicePoints" unique_id=822455023]
-transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, 3, 0.35, 0.65)
+transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, 2.1900706, 0.35, -6.034371)
 script = ExtResource("5_service_point")
 point_role = "waiter"
 metadata/facility_generated = true
@@ -320,63 +165,17 @@ metadata/facility_last_default_transform = Transform3D(0.99026805, 0, 0.1391731,
 
 [node name="ActivityPoints" type="Node3D" parent="." unique_id=1355834480]
 
-[node name="VisitorPoint" type="Node3D" parent="ActivityPoints" unique_id=433540529]
-script = ExtResource("15_hlgdd")
+[node name="BarLoiterPoint" type="Node3D" parent="ActivityPoints" unique_id=433540529]
+script = ExtResource("22_loiter")
+bar_path = NodePath("../..")
 display_name = "Bar Visitor Spot"
-activity_type = "sit"
-exclusive = true
-weight = 4.0
-assignment_min_seconds = 90.0
-assignment_max_seconds = 180.0
-target_path = NodePath("../../Furniture/StoolAFront")
+activity_type = "social"
+weight = 16.0
+assignment_min_seconds = 25.0
+assignment_max_seconds = 35.0
 metadata/facility_generated = true
 metadata/facility_role = "visitor"
 metadata/facility_index = 0
-metadata/facility_layout_version = 1
-metadata/facility_last_default_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
-
-[node name="VisitorPoint2" type="Node3D" parent="ActivityPoints" unique_id=1230887905]
-script = ExtResource("15_hlgdd")
-display_name = "Bar Visitor Spot"
-activity_type = "sit"
-exclusive = true
-weight = 4.0
-assignment_min_seconds = 90.0
-assignment_max_seconds = 180.0
-target_path = NodePath("../../Furniture/StoolABack")
-metadata/facility_generated = true
-metadata/facility_role = "visitor"
-metadata/facility_index = 1
-metadata/facility_layout_version = 1
-metadata/facility_last_default_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
-
-[node name="VisitorPoint3" type="Node3D" parent="ActivityPoints" unique_id=924531333]
-script = ExtResource("15_hlgdd")
-display_name = "Bar Visitor Spot"
-activity_type = "sit"
-exclusive = true
-weight = 4.0
-assignment_min_seconds = 90.0
-assignment_max_seconds = 180.0
-target_path = NodePath("../../Furniture/StoolABack2FromStools")
-metadata/facility_generated = true
-metadata/facility_role = "visitor"
-metadata/facility_index = 2
-metadata/facility_layout_version = 1
-metadata/facility_last_default_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
-
-[node name="VisitorPoint4" type="Node3D" parent="ActivityPoints" unique_id=291519820]
-script = ExtResource("15_hlgdd")
-display_name = "Bar Visitor Spot"
-activity_type = "sit"
-exclusive = true
-weight = 4.0
-assignment_min_seconds = 90.0
-assignment_max_seconds = 180.0
-target_path = NodePath("../../Furniture/StoolABack3FromStools")
-metadata/facility_generated = true
-metadata/facility_role = "visitor"
-metadata/facility_index = 3
 metadata/facility_layout_version = 1
 metadata/facility_last_default_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 
@@ -389,7 +188,7 @@ metadata/facility_generated = true
 metadata/facility_role = "guard"
 metadata/facility_index = 0
 metadata/facility_layout_version = 1
-metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 3.1, 0.05, 4.35)
+metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -3.3624148, 0.05, 6.071506)
 
 [node name="GuardPost2" type="Node3D" parent="GuardPosts" unique_id=268992819]
 transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -2.879912, 0.05, 8.843071)
@@ -398,7 +197,7 @@ metadata/facility_generated = true
 metadata/facility_role = "guard"
 metadata/facility_index = 1
 metadata/facility_layout_version = 1
-metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -1.4, 0.05, 4.25)
+metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -2.879912, 0.05, 8.843071)
 
 [node name="GuardPost3" type="Node3D" parent="GuardPosts" unique_id=1530145352]
 transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 0, 2.9232936, -6.900717)
@@ -407,880 +206,501 @@ metadata/facility_generated = true
 metadata/facility_role = "guard"
 metadata/facility_index = 2
 metadata/facility_layout_version = 1
-metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 0, 0.05, 4.25)
+metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 0, 2.9232936, -6.900717)
 
 [node name="Furniture" type="Node3D" parent="." unique_id=686453821]
 
-[node name="TableA2" type="StaticBody3D" parent="Furniture" unique_id=399717140 instance=ExtResource("17_opnxp")]
-transform = Transform3D(0.99993974, 0, 0.010977883, 0, 1, 0, -0.010977883, 0, 0.99993974, 6.2441034, 0, 3.8103871)
-
-[node name="_MeshInstance3D_79778" type="MeshInstance3D" parent="Furniture/TableA2" unique_id=147948085]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.78, 0)
-material_override = SubResource("StandardMaterial3D_wood")
-mesh = SubResource("BoxMesh_top")
-skeleton = NodePath("../../TableA2")
-
-[node name="_CollisionShape3D_79779" type="CollisionShape3D" parent="Furniture/TableA2" unique_id=27657173]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.78, 0)
-shape = SubResource("BoxShape3D_top")
-
-[node name="_MeshInstance3D_79780" type="MeshInstance3D" parent="Furniture/TableA2" unique_id=1925563589]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.39, 0.43)
-material_override = SubResource("StandardMaterial3D_wood")
-mesh = SubResource("BoxMesh_leg")
-skeleton = NodePath("../../TableA2")
-
-[node name="_MeshInstance3D_79781" type="MeshInstance3D" parent="Furniture/TableA2" unique_id=2015466807]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.39, 0.43)
-material_override = SubResource("StandardMaterial3D_wood")
-mesh = SubResource("BoxMesh_leg")
-skeleton = NodePath("../../TableA2")
-
-[node name="_MeshInstance3D_79782" type="MeshInstance3D" parent="Furniture/TableA2" unique_id=172805541]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.39, -0.43)
-material_override = SubResource("StandardMaterial3D_wood")
-mesh = SubResource("BoxMesh_leg")
-skeleton = NodePath("../../TableA2")
-
-[node name="_MeshInstance3D_79783" type="MeshInstance3D" parent="Furniture/TableA2" unique_id=1664824387]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.39, -0.43)
-material_override = SubResource("StandardMaterial3D_wood")
-mesh = SubResource("BoxMesh_leg")
-skeleton = NodePath("../../TableA2")
-
-[node name="_CollisionShape3D_79784" type="CollisionShape3D" parent="Furniture/TableA2" unique_id=1379789452]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
-shape = SubResource("BoxShape3D_table")
-
-[node name="StoolABack2" type="StaticBody3D" parent="Furniture" unique_id=1555978189 instance=ExtResource("18_hhq5f")]
-transform = Transform3D(0.99996614, 0, -0.008220419, 0, 1, 0, 0.008220419, 0, 0.99996614, 6.003745, 0, 2.7199464)
-script = ExtResource("19_a7k1g")
-seated_floor_local_offset = Vector3(0, 0.08, 0.36)
-
-[node name="_MeshInstance3D_80985" type="MeshInstance3D" parent="Furniture/StoolABack2" unique_id=1616984030]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("CylinderMesh_seat")
-skeleton = NodePath("../../StoolABack2")
-
-[node name="_CollisionShape3D_80986" type="CollisionShape3D" parent="Furniture/StoolABack2" unique_id=938987711]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
-shape = SubResource("CylinderShape3D_seat")
-
-[node name="_MeshInstance3D_80987" type="MeshInstance3D" parent="Furniture/StoolABack2" unique_id=1742381500]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, 0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack2")
-
-[node name="_MeshInstance3D_80988" type="MeshInstance3D" parent="Furniture/StoolABack2" unique_id=1782213463]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, 0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack2")
-
-[node name="_MeshInstance3D_80989" type="MeshInstance3D" parent="Furniture/StoolABack2" unique_id=210293239]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, -0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack2")
-
-[node name="_MeshInstance3D_80990" type="MeshInstance3D" parent="Furniture/StoolABack2" unique_id=359568100]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, -0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack2")
-
-[node name="_MeshInstance3D_80991" type="MeshInstance3D" parent="Furniture/StoolABack2" unique_id=1283827151]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_back")
-skeleton = NodePath("../../StoolABack2")
-
-[node name="_MeshInstance3D_80992" type="MeshInstance3D" parent="Furniture/StoolABack2" unique_id=30782727]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.24, 0.64, -0.34)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_back_post")
-skeleton = NodePath("../../StoolABack2")
-
-[node name="_MeshInstance3D_80993" type="MeshInstance3D" parent="Furniture/StoolABack2" unique_id=1421238180]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.24, 0.64, -0.34)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_back_post")
-skeleton = NodePath("../../StoolABack2")
-
-[node name="_CollisionShape3D_80994" type="CollisionShape3D" parent="Furniture/StoolABack2" unique_id=2035350444]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
-shape = SubResource("BoxShape3D_stool")
-
-[node name="_CollisionShape3D_80995" type="CollisionShape3D" parent="Furniture/StoolABack2" unique_id=985345603]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
-shape = SubResource("BoxShape3D_back")
-
-[node name="StoolABack3" type="StaticBody3D" parent="Furniture" unique_id=207970832 instance=ExtResource("18_hhq5f")]
-transform = Transform3D(-0.9994418, 0, -0.033399142, 0, 1, 0, 0.033399142, 0, -0.9994418, 6.3018675, 0, 5.0953455)
-script = ExtResource("19_a7k1g")
-seated_floor_local_offset = Vector3(0, 0.08, 0.36)
-
-[node name="_MeshInstance3D_80985" type="MeshInstance3D" parent="Furniture/StoolABack3" unique_id=1514017448]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("CylinderMesh_seat")
-skeleton = NodePath("../../StoolABack3")
-
-[node name="_CollisionShape3D_80986" type="CollisionShape3D" parent="Furniture/StoolABack3" unique_id=166065713]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
-shape = SubResource("CylinderShape3D_seat")
-
-[node name="_MeshInstance3D_80987" type="MeshInstance3D" parent="Furniture/StoolABack3" unique_id=144863235]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, 0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack3")
-
-[node name="_MeshInstance3D_80988" type="MeshInstance3D" parent="Furniture/StoolABack3" unique_id=2132025400]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, 0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack3")
-
-[node name="_MeshInstance3D_80989" type="MeshInstance3D" parent="Furniture/StoolABack3" unique_id=416871700]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, -0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack3")
-
-[node name="_MeshInstance3D_80990" type="MeshInstance3D" parent="Furniture/StoolABack3" unique_id=1595348253]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, -0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack3")
-
-[node name="_MeshInstance3D_80991" type="MeshInstance3D" parent="Furniture/StoolABack3" unique_id=313859660]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_back")
-skeleton = NodePath("../../StoolABack3")
-
-[node name="_MeshInstance3D_80992" type="MeshInstance3D" parent="Furniture/StoolABack3" unique_id=257728123]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.24, 0.64, -0.34)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_back_post")
-skeleton = NodePath("../../StoolABack3")
-
-[node name="_MeshInstance3D_80993" type="MeshInstance3D" parent="Furniture/StoolABack3" unique_id=1917167931]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.24, 0.64, -0.34)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_back_post")
-skeleton = NodePath("../../StoolABack3")
-
-[node name="_CollisionShape3D_80994" type="CollisionShape3D" parent="Furniture/StoolABack3" unique_id=56587003]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
-shape = SubResource("BoxShape3D_stool")
-
-[node name="_CollisionShape3D_80995" type="CollisionShape3D" parent="Furniture/StoolABack3" unique_id=1289039256]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
-shape = SubResource("BoxShape3D_back")
-
-[node name="TableA" type="StaticBody3D" parent="Furniture" unique_id=34404955 instance=ExtResource("17_opnxp")]
+[node name="TableA" parent="Furniture" unique_id=34404955 instance=ExtResource("17_opnxp")]
 transform = Transform3D(0.9975641, 0, 0.06975647, 0, 1, 0, -0.06975647, 0, 0.9975641, 6.6154256, 0, -5.3079047)
 
-[node name="Top" type="MeshInstance3D" parent="Furniture/TableA" unique_id=2084824898]
+[node name="Top2" type="MeshInstance3D" parent="Furniture/TableA" unique_id=2084824898]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.78, 0)
 material_override = SubResource("StandardMaterial3D_3aydh")
 mesh = SubResource("BoxMesh_i0uus")
 
-[node name="TopCollision" type="CollisionShape3D" parent="Furniture/TableA" unique_id=1592296836]
+[node name="TopCollision2" type="CollisionShape3D" parent="Furniture/TableA" unique_id=1592296836]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.78, 0)
 shape = SubResource("BoxShape3D_nu3au")
 
-[node name="LegFrontLeft" type="MeshInstance3D" parent="Furniture/TableA" unique_id=559651607]
+[node name="LegFrontLeft2" type="MeshInstance3D" parent="Furniture/TableA" unique_id=559651607]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.39, 0.43)
 material_override = SubResource("StandardMaterial3D_3aydh")
 mesh = SubResource("BoxMesh_tykvi")
 
-[node name="LegFrontRight" type="MeshInstance3D" parent="Furniture/TableA" unique_id=151058592]
+[node name="LegFrontRight2" type="MeshInstance3D" parent="Furniture/TableA" unique_id=151058592]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.39, 0.43)
 material_override = SubResource("StandardMaterial3D_3aydh")
 mesh = SubResource("BoxMesh_tykvi")
 
-[node name="LegBackLeft" type="MeshInstance3D" parent="Furniture/TableA" unique_id=327547863]
+[node name="LegBackLeft2" type="MeshInstance3D" parent="Furniture/TableA" unique_id=327547863]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.39, -0.43)
 material_override = SubResource("StandardMaterial3D_3aydh")
 mesh = SubResource("BoxMesh_tykvi")
 
-[node name="LegBackRight" type="MeshInstance3D" parent="Furniture/TableA" unique_id=1364175169]
+[node name="LegBackRight2" type="MeshInstance3D" parent="Furniture/TableA" unique_id=1364175169]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.39, -0.43)
 material_override = SubResource("StandardMaterial3D_3aydh")
 mesh = SubResource("BoxMesh_tykvi")
 
-[node name="BodyCollision" type="CollisionShape3D" parent="Furniture/TableA" unique_id=1126976676]
+[node name="BodyCollision2" type="CollisionShape3D" parent="Furniture/TableA" unique_id=1126976676]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
 shape = SubResource("BoxShape3D_snxqk")
 
-[node name="TableA2FromTables" type="StaticBody3D" parent="Furniture" unique_id=622796523 instance=ExtResource("17_opnxp")]
+[node name="TableB" parent="Furniture" unique_id=622796523 instance=ExtResource("17_opnxp")]
 transform = Transform3D(0.99993974, 0, 0.010977883, 0, 1, 0, -0.010977883, 0, 0.99993974, 6.65845, 0, -1.2468042)
 
-[node name="Top" type="MeshInstance3D" parent="Furniture/TableA2FromTables" unique_id=1131398200]
+[node name="Top2" type="MeshInstance3D" parent="Furniture/TableB" unique_id=1131398200]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.78, 0)
 material_override = SubResource("StandardMaterial3D_3aydh")
 mesh = SubResource("BoxMesh_i0uus")
 
-[node name="TopCollision" type="CollisionShape3D" parent="Furniture/TableA2FromTables" unique_id=297103174]
+[node name="TopCollision2" type="CollisionShape3D" parent="Furniture/TableB" unique_id=297103174]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.78, 0)
 shape = SubResource("BoxShape3D_nu3au")
 
-[node name="LegFrontLeft" type="MeshInstance3D" parent="Furniture/TableA2FromTables" unique_id=1356102926]
+[node name="LegFrontLeft2" type="MeshInstance3D" parent="Furniture/TableB" unique_id=1356102926]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.39, 0.43)
 material_override = SubResource("StandardMaterial3D_3aydh")
 mesh = SubResource("BoxMesh_tykvi")
 
-[node name="LegFrontRight" type="MeshInstance3D" parent="Furniture/TableA2FromTables" unique_id=624885213]
+[node name="LegFrontRight2" type="MeshInstance3D" parent="Furniture/TableB" unique_id=624885213]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.39, 0.43)
 material_override = SubResource("StandardMaterial3D_3aydh")
 mesh = SubResource("BoxMesh_tykvi")
 
-[node name="LegBackLeft" type="MeshInstance3D" parent="Furniture/TableA2FromTables" unique_id=855998848]
+[node name="LegBackLeft2" type="MeshInstance3D" parent="Furniture/TableB" unique_id=855998848]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.39, -0.43)
 material_override = SubResource("StandardMaterial3D_3aydh")
 mesh = SubResource("BoxMesh_tykvi")
 
-[node name="LegBackRight" type="MeshInstance3D" parent="Furniture/TableA2FromTables" unique_id=778996169]
+[node name="LegBackRight2" type="MeshInstance3D" parent="Furniture/TableB" unique_id=778996169]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.39, -0.43)
 material_override = SubResource("StandardMaterial3D_3aydh")
 mesh = SubResource("BoxMesh_tykvi")
 
-[node name="BodyCollision" type="CollisionShape3D" parent="Furniture/TableA2FromTables" unique_id=425187231]
+[node name="BodyCollision2" type="CollisionShape3D" parent="Furniture/TableB" unique_id=425187231]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
 shape = SubResource("BoxShape3D_snxqk")
 
-[node name="_MeshInstance3D_79778" type="MeshInstance3D" parent="Furniture/TableA2FromTables" unique_id=2125296265]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.78, 0)
-material_override = SubResource("StandardMaterial3D_wood")
-mesh = SubResource("BoxMesh_top")
-skeleton = NodePath("../../TableA2FromTables")
+[node name="TableC" parent="Furniture" unique_id=17077794 instance=ExtResource("17_opnxp")]
+transform = Transform3D(0.99993974, 0, 0.010977883, 0, 1, 0, -0.010977883, 0, 0.99993974, 6.2441034, 0, 3.8103871)
 
-[node name="_CollisionShape3D_79779" type="CollisionShape3D" parent="Furniture/TableA2FromTables" unique_id=550770510]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.78, 0)
-shape = SubResource("BoxShape3D_top")
+[node name="TableD" parent="Furniture" unique_id=1352877084 instance=ExtResource("17_opnxp")]
+transform = Transform3D(0.99993974, 0, 0.010977883, 0, 1, 0, -0.010977883, 0, 0.99993974, 3.2441034, 0, 3.8103871)
 
-[node name="_MeshInstance3D_79780" type="MeshInstance3D" parent="Furniture/TableA2FromTables" unique_id=1353814199]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.39, 0.43)
-material_override = SubResource("StandardMaterial3D_wood")
-mesh = SubResource("BoxMesh_leg")
-skeleton = NodePath("../../TableA2FromTables")
-
-[node name="_MeshInstance3D_79781" type="MeshInstance3D" parent="Furniture/TableA2FromTables" unique_id=1875128373]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.39, 0.43)
-material_override = SubResource("StandardMaterial3D_wood")
-mesh = SubResource("BoxMesh_leg")
-skeleton = NodePath("../../TableA2FromTables")
-
-[node name="_MeshInstance3D_79782" type="MeshInstance3D" parent="Furniture/TableA2FromTables" unique_id=707982096]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.39, -0.43)
-material_override = SubResource("StandardMaterial3D_wood")
-mesh = SubResource("BoxMesh_leg")
-skeleton = NodePath("../../TableA2FromTables")
-
-[node name="_MeshInstance3D_79783" type="MeshInstance3D" parent="Furniture/TableA2FromTables" unique_id=520117520]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.39, -0.43)
-material_override = SubResource("StandardMaterial3D_wood")
-mesh = SubResource("BoxMesh_leg")
-skeleton = NodePath("../../TableA2FromTables")
-
-[node name="_CollisionShape3D_79784" type="CollisionShape3D" parent="Furniture/TableA2FromTables" unique_id=1474485889]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
-shape = SubResource("BoxShape3D_table")
-
-[node name="StoolAFront" type="StaticBody3D" parent="Furniture" unique_id=376245596 instance=ExtResource("18_hhq5f")]
+[node name="StoolAFront" parent="Furniture" unique_id=376245596 instance=ExtResource("18_hhq5f")]
 transform = Transform3D(-0.9975641, 0, -0.0697564, 0, 1, 0, 0.0697564, 0, -0.9975641, 6.6154256, 0, -4.007905)
-script = ExtResource("19_a7k1g")
-seated_floor_local_offset = Vector3(0, 0.08, 0.36)
+interaction_local_offset = Vector3(0, 0, -0.9)
+seated_floor_local_offset = Vector3(0, 0.08, 0.24)
+stand_local_offset = Vector3(0, 0, -1.15)
 
-[node name="Seat" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=1966877542]
+[node name="Seat2" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=1966877542]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("CylinderMesh_hlgdd")
 
-[node name="SeatCollision" type="CollisionShape3D" parent="Furniture/StoolAFront" unique_id=2070638124]
+[node name="SeatCollision2" type="CollisionShape3D" parent="Furniture/StoolAFront" unique_id=2070638124]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
 shape = SubResource("CylinderShape3D_opnxp")
 
-[node name="LegFrontLeft" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=427737793]
+[node name="LegFrontLeft2" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=427737793]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, 0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="LegFrontRight" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=550877955]
+[node name="LegFrontRight2" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=550877955]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, 0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="LegBackLeft" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=886649744]
+[node name="LegBackLeft2" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=886649744]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, -0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="LegBackRight" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=127146352]
+[node name="LegBackRight2" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=127146352]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, -0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="Back" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=1056050434]
+[node name="Back2" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=1056050434]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_a7k1g")
 
-[node name="BackPostLeft" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=1875617946]
+[node name="BackPostLeft2" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=1875617946]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.24, 0.64, -0.34)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_8jp0s")
 
-[node name="BackPostRight" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=1582975355]
+[node name="BackPostRight2" type="MeshInstance3D" parent="Furniture/StoolAFront" unique_id=1582975355]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.24, 0.64, -0.34)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_8jp0s")
 
-[node name="BodyCollision" type="CollisionShape3D" parent="Furniture/StoolAFront" unique_id=168174294]
+[node name="BodyCollision2" type="CollisionShape3D" parent="Furniture/StoolAFront" unique_id=168174294]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
 shape = SubResource("BoxShape3D_6ybj8")
 
-[node name="BackCollision" type="CollisionShape3D" parent="Furniture/StoolAFront" unique_id=2034037633]
+[node name="BackCollision2" type="CollisionShape3D" parent="Furniture/StoolAFront" unique_id=2034037633]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
 shape = SubResource("BoxShape3D_e2hgm")
 
-[node name="StoolABack" type="StaticBody3D" parent="Furniture" unique_id=997189519 instance=ExtResource("18_hhq5f")]
+[node name="StoolABack" parent="Furniture" unique_id=997189519 instance=ExtResource("18_hhq5f")]
 transform = Transform3D(0.9975641, 0, 0.06975647, 0, 1, 0, -0.06975647, 0, 0.9975641, 6.6154256, 0, -6.607905)
-script = ExtResource("19_a7k1g")
-seated_floor_local_offset = Vector3(0, 0.08, 0.36)
+interaction_local_offset = Vector3(0, 0, -0.9)
+seated_floor_local_offset = Vector3(0, 0.08, 0.24)
+stand_local_offset = Vector3(0, 0, -1.15)
 
-[node name="Seat" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=655650827]
+[node name="Seat2" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=655650827]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("CylinderMesh_hlgdd")
 
-[node name="SeatCollision" type="CollisionShape3D" parent="Furniture/StoolABack" unique_id=1713785893]
+[node name="SeatCollision2" type="CollisionShape3D" parent="Furniture/StoolABack" unique_id=1713785893]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
 shape = SubResource("CylinderShape3D_opnxp")
 
-[node name="LegFrontLeft" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=484625414]
+[node name="LegFrontLeft2" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=484625414]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, 0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="LegFrontRight" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=827052278]
+[node name="LegFrontRight2" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=827052278]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, 0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="LegBackLeft" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=2043440500]
+[node name="LegBackLeft2" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=2043440500]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, -0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="LegBackRight" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=974684450]
+[node name="LegBackRight2" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=974684450]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, -0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="Back" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=624768719]
+[node name="Back2" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=624768719]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_a7k1g")
 
-[node name="BackPostLeft" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=314320179]
+[node name="BackPostLeft2" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=314320179]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.24, 0.64, -0.34)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_8jp0s")
 
-[node name="BackPostRight" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=300374304]
+[node name="BackPostRight2" type="MeshInstance3D" parent="Furniture/StoolABack" unique_id=300374304]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.24, 0.64, -0.34)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_8jp0s")
 
-[node name="BodyCollision" type="CollisionShape3D" parent="Furniture/StoolABack" unique_id=1208673628]
+[node name="BodyCollision2" type="CollisionShape3D" parent="Furniture/StoolABack" unique_id=1208673628]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
 shape = SubResource("BoxShape3D_6ybj8")
 
-[node name="BackCollision" type="CollisionShape3D" parent="Furniture/StoolABack" unique_id=440325175]
+[node name="BackCollision2" type="CollisionShape3D" parent="Furniture/StoolABack" unique_id=440325175]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
 shape = SubResource("BoxShape3D_e2hgm")
 
-[node name="StoolABack2FromStools" type="StaticBody3D" parent="Furniture" unique_id=401781723 instance=ExtResource("18_hhq5f")]
+[node name="StoolBBack" parent="Furniture" unique_id=401781723 instance=ExtResource("18_hhq5f")]
 transform = Transform3D(0.99996614, 0, -0.008220419, 0, 1, 0, 0.008220419, 0, 0.99996614, 6.418092, 0, -2.337245)
-script = ExtResource("19_a7k1g")
-seated_floor_local_offset = Vector3(0, 0.08, 0.36)
+interaction_local_offset = Vector3(0, 0, -0.9)
+seated_floor_local_offset = Vector3(0, 0.08, 0.24)
+stand_local_offset = Vector3(0, 0, -1.15)
 
-[node name="Seat" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=563010250]
+[node name="Seat2" type="MeshInstance3D" parent="Furniture/StoolBBack" unique_id=563010250]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("CylinderMesh_hlgdd")
 
-[node name="SeatCollision" type="CollisionShape3D" parent="Furniture/StoolABack2FromStools" unique_id=1924841449]
+[node name="SeatCollision2" type="CollisionShape3D" parent="Furniture/StoolBBack" unique_id=1924841449]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
 shape = SubResource("CylinderShape3D_opnxp")
 
-[node name="LegFrontLeft" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=2051713342]
+[node name="LegFrontLeft2" type="MeshInstance3D" parent="Furniture/StoolBBack" unique_id=2051713342]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, 0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="LegFrontRight" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=278426502]
+[node name="LegFrontRight2" type="MeshInstance3D" parent="Furniture/StoolBBack" unique_id=278426502]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, 0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="LegBackLeft" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=1276938251]
+[node name="LegBackLeft2" type="MeshInstance3D" parent="Furniture/StoolBBack" unique_id=1276938251]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, -0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="LegBackRight" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=1809869221]
+[node name="LegBackRight2" type="MeshInstance3D" parent="Furniture/StoolBBack" unique_id=1809869221]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, -0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="Back" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=877373986]
+[node name="Back2" type="MeshInstance3D" parent="Furniture/StoolBBack" unique_id=877373986]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_a7k1g")
 
-[node name="BackPostLeft" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=1247997430]
+[node name="BackPostLeft2" type="MeshInstance3D" parent="Furniture/StoolBBack" unique_id=1247997430]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.24, 0.64, -0.34)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_8jp0s")
 
-[node name="BackPostRight" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=242483064]
+[node name="BackPostRight2" type="MeshInstance3D" parent="Furniture/StoolBBack" unique_id=242483064]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.24, 0.64, -0.34)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_8jp0s")
 
-[node name="BodyCollision" type="CollisionShape3D" parent="Furniture/StoolABack2FromStools" unique_id=1673439093]
+[node name="BodyCollision2" type="CollisionShape3D" parent="Furniture/StoolBBack" unique_id=1673439093]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
 shape = SubResource("BoxShape3D_6ybj8")
 
-[node name="BackCollision" type="CollisionShape3D" parent="Furniture/StoolABack2FromStools" unique_id=71809514]
+[node name="BackCollision2" type="CollisionShape3D" parent="Furniture/StoolBBack" unique_id=71809514]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
 shape = SubResource("BoxShape3D_e2hgm")
 
-[node name="_MeshInstance3D_80985" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=1825644066]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("CylinderMesh_seat")
-skeleton = NodePath("../../StoolABack2FromStools")
-
-[node name="_CollisionShape3D_80986" type="CollisionShape3D" parent="Furniture/StoolABack2FromStools" unique_id=485422930]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
-shape = SubResource("CylinderShape3D_seat")
-
-[node name="_MeshInstance3D_80987" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=1008971018]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, 0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack2FromStools")
-
-[node name="_MeshInstance3D_80988" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=494615140]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, 0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack2FromStools")
-
-[node name="_MeshInstance3D_80989" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=1355899858]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, -0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack2FromStools")
-
-[node name="_MeshInstance3D_80990" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=726040099]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, -0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack2FromStools")
-
-[node name="_MeshInstance3D_80991" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=2128520210]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_back")
-skeleton = NodePath("../../StoolABack2FromStools")
-
-[node name="_MeshInstance3D_80992" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=612691839]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.24, 0.64, -0.34)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_back_post")
-skeleton = NodePath("../../StoolABack2FromStools")
-
-[node name="_MeshInstance3D_80993" type="MeshInstance3D" parent="Furniture/StoolABack2FromStools" unique_id=1343407417]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.24, 0.64, -0.34)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_back_post")
-skeleton = NodePath("../../StoolABack2FromStools")
-
-[node name="_CollisionShape3D_80994" type="CollisionShape3D" parent="Furniture/StoolABack2FromStools" unique_id=59327303]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
-shape = SubResource("BoxShape3D_stool")
-
-[node name="_CollisionShape3D_80995" type="CollisionShape3D" parent="Furniture/StoolABack2FromStools" unique_id=1633689354]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
-shape = SubResource("BoxShape3D_back")
-
-[node name="StoolABack3FromStools" type="StaticBody3D" parent="Furniture" unique_id=1602852908 instance=ExtResource("18_hhq5f")]
+[node name="StoolBFront" parent="Furniture" unique_id=1602852908 instance=ExtResource("18_hhq5f")]
 transform = Transform3D(-0.9994418, 0, -0.033399142, 0, 1, 0, 0.033399142, 0, -0.9994418, 6.4085093, 0, 0.038154125)
-script = ExtResource("19_a7k1g")
-seated_floor_local_offset = Vector3(0, 0.08, 0.36)
+interaction_local_offset = Vector3(0, 0, -0.9)
+seated_floor_local_offset = Vector3(0, 0.08, 0.24)
+stand_local_offset = Vector3(0, 0, -1.15)
 
-[node name="Seat" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=873050427]
+[node name="Seat2" type="MeshInstance3D" parent="Furniture/StoolBFront" unique_id=873050427]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("CylinderMesh_hlgdd")
 
-[node name="SeatCollision" type="CollisionShape3D" parent="Furniture/StoolABack3FromStools" unique_id=1952202541]
+[node name="SeatCollision2" type="CollisionShape3D" parent="Furniture/StoolBFront" unique_id=1952202541]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
 shape = SubResource("CylinderShape3D_opnxp")
 
-[node name="LegFrontLeft" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=732174164]
+[node name="LegFrontLeft2" type="MeshInstance3D" parent="Furniture/StoolBFront" unique_id=732174164]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, 0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="LegFrontRight" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=1669811643]
+[node name="LegFrontRight2" type="MeshInstance3D" parent="Furniture/StoolBFront" unique_id=1669811643]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, 0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="LegBackLeft" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=259038203]
+[node name="LegBackLeft2" type="MeshInstance3D" parent="Furniture/StoolBFront" unique_id=259038203]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, -0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="LegBackRight" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=591088383]
+[node name="LegBackRight2" type="MeshInstance3D" parent="Furniture/StoolBFront" unique_id=591088383]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, -0.2)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_hhq5f")
 
-[node name="Back" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=1314917462]
+[node name="Back2" type="MeshInstance3D" parent="Furniture/StoolBFront" unique_id=1314917462]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_a7k1g")
 
-[node name="BackPostLeft" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=1675529516]
+[node name="BackPostLeft2" type="MeshInstance3D" parent="Furniture/StoolBFront" unique_id=1675529516]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.24, 0.64, -0.34)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_8jp0s")
 
-[node name="BackPostRight" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=1083035538]
+[node name="BackPostRight2" type="MeshInstance3D" parent="Furniture/StoolBFront" unique_id=1083035538]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.24, 0.64, -0.34)
 material_override = SubResource("StandardMaterial3D_q8q2x")
 mesh = SubResource("BoxMesh_8jp0s")
 
-[node name="BodyCollision" type="CollisionShape3D" parent="Furniture/StoolABack3FromStools" unique_id=708006970]
+[node name="BodyCollision2" type="CollisionShape3D" parent="Furniture/StoolBFront" unique_id=708006970]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
 shape = SubResource("BoxShape3D_6ybj8")
 
-[node name="BackCollision" type="CollisionShape3D" parent="Furniture/StoolABack3FromStools" unique_id=987182824]
+[node name="BackCollision2" type="CollisionShape3D" parent="Furniture/StoolBFront" unique_id=987182824]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
 shape = SubResource("BoxShape3D_e2hgm")
 
-[node name="_MeshInstance3D_80985" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=1961126429]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("CylinderMesh_seat")
-skeleton = NodePath("../../StoolABack3FromStools")
+[node name="StoolCBack" parent="Furniture" unique_id=1571546431 instance=ExtResource("18_hhq5f")]
+transform = Transform3D(0.99996614, 0, -0.008220419, 0, 1, 0, 0.008220419, 0, 0.99996614, 6.003745, 0, 2.7199464)
+interaction_local_offset = Vector3(0, 0, -0.9)
+seated_floor_local_offset = Vector3(0, 0.08, 0.24)
+stand_local_offset = Vector3(0, 0, -1.15)
 
-[node name="_CollisionShape3D_80986" type="CollisionShape3D" parent="Furniture/StoolABack3FromStools" unique_id=937695723]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
-shape = SubResource("CylinderShape3D_seat")
+[node name="StoolCFront" parent="Furniture" unique_id=199611970 instance=ExtResource("18_hhq5f")]
+transform = Transform3D(-0.9994418, 0, -0.033399142, 0, 1, 0, 0.033399142, 0, -0.9994418, 6.3018675, 0, 5.0953455)
+interaction_local_offset = Vector3(0, 0, -0.9)
+seated_floor_local_offset = Vector3(0, 0.08, 0.24)
+stand_local_offset = Vector3(0, 0, -1.15)
 
-[node name="_MeshInstance3D_80987" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=1147665087]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, 0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack3FromStools")
+[node name="StoolDBack" parent="Furniture" unique_id=1764114506 instance=ExtResource("18_hhq5f")]
+transform = Transform3D(0.99996614, 0, -0.008220419, 0, 1, 0, 0.008220419, 0, 0.99996614, 3.003745, 0, 2.7199464)
+interaction_local_offset = Vector3(0, 0, -0.9)
+seated_floor_local_offset = Vector3(0, 0.08, 0.24)
+stand_local_offset = Vector3(0, 0, -1.15)
 
-[node name="_MeshInstance3D_80988" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=208311852]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, 0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack3FromStools")
+[node name="StoolDFront" parent="Furniture" unique_id=1834631133 instance=ExtResource("18_hhq5f")]
+transform = Transform3D(-0.9994418, 0, -0.033399142, 0, 1, 0, 0.033399142, 0, -0.9994418, 3.3018675, 0, 5.0953455)
+interaction_local_offset = Vector3(0, 0, -0.9)
+seated_floor_local_offset = Vector3(0, 0.08, 0.24)
+stand_local_offset = Vector3(0, 0, -1.15)
 
-[node name="_MeshInstance3D_80989" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=2138182390]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.3, -0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack3FromStools")
-
-[node name="_MeshInstance3D_80990" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=1879886876]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.3, -0.2)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_0u0qe")
-skeleton = NodePath("../../StoolABack3FromStools")
-
-[node name="_MeshInstance3D_80991" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=122179275]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_back")
-skeleton = NodePath("../../StoolABack3FromStools")
-
-[node name="_MeshInstance3D_80992" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=265587301]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.24, 0.64, -0.34)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_back_post")
-skeleton = NodePath("../../StoolABack3FromStools")
-
-[node name="_MeshInstance3D_80993" type="MeshInstance3D" parent="Furniture/StoolABack3FromStools" unique_id=2013393740]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.24, 0.64, -0.34)
-material_override = SubResource("StandardMaterial3D_p6k1m")
-mesh = SubResource("BoxMesh_back_post")
-skeleton = NodePath("../../StoolABack3FromStools")
-
-[node name="_CollisionShape3D_80994" type="CollisionShape3D" parent="Furniture/StoolABack3FromStools" unique_id=513875716]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
-shape = SubResource("BoxShape3D_stool")
-
-[node name="_CollisionShape3D_80995" type="CollisionShape3D" parent="Furniture/StoolABack3FromStools" unique_id=1927492465]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.38)
-shape = SubResource("BoxShape3D_back")
-
-[node name="BedA" type="StaticBody3D" parent="Furniture" unique_id=2055063774 instance=ExtResource("20_8jp0s")]
+[node name="BedA" parent="Furniture" unique_id=2055063774 instance=ExtResource("20_8jp0s")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.843021, 3, -6.185916)
-script = ExtResource("21_6ybj8")
 
-[node name="Frame" type="MeshInstance3D" parent="Furniture/BedA" unique_id=598021807]
+[node name="Frame2" type="MeshInstance3D" parent="Furniture/BedA" unique_id=598021807]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 material_override = SubResource("StandardMaterial3D_frame")
 mesh = SubResource("BoxMesh_frame")
 
-[node name="Mattress" type="MeshInstance3D" parent="Furniture/BedA" unique_id=1449853311]
+[node name="Mattress2" type="MeshInstance3D" parent="Furniture/BedA" unique_id=1449853311]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.04)
 material_override = SubResource("StandardMaterial3D_mattress")
 mesh = SubResource("BoxMesh_mattress")
 
-[node name="Pillow" type="MeshInstance3D" parent="Furniture/BedA" unique_id=1941823001]
+[node name="Pillow2" type="MeshInstance3D" parent="Furniture/BedA" unique_id=1941823001]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, -0.78)
 material_override = SubResource("StandardMaterial3D_pillow")
 mesh = SubResource("BoxMesh_pillow")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Furniture/BedA" unique_id=1726704241]
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="Furniture/BedA" unique_id=1726704241]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 shape = SubResource("BoxShape3D_bed")
 
-[node name="BedB" type="StaticBody3D" parent="Furniture" unique_id=589440625 instance=ExtResource("20_8jp0s")]
+[node name="BedB" parent="Furniture" unique_id=589440625 instance=ExtResource("20_8jp0s")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.843021, 3, -3.8859162)
-script = ExtResource("21_6ybj8")
 
-[node name="Frame" type="MeshInstance3D" parent="Furniture/BedB" unique_id=421620527]
+[node name="Frame2" type="MeshInstance3D" parent="Furniture/BedB" unique_id=421620527]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 material_override = SubResource("StandardMaterial3D_frame")
 mesh = SubResource("BoxMesh_frame")
 
-[node name="Mattress" type="MeshInstance3D" parent="Furniture/BedB" unique_id=818740409]
+[node name="Mattress2" type="MeshInstance3D" parent="Furniture/BedB" unique_id=818740409]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.04)
 material_override = SubResource("StandardMaterial3D_mattress")
 mesh = SubResource("BoxMesh_mattress")
 
-[node name="Pillow" type="MeshInstance3D" parent="Furniture/BedB" unique_id=1386455028]
+[node name="Pillow2" type="MeshInstance3D" parent="Furniture/BedB" unique_id=1386455028]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, -0.78)
 material_override = SubResource("StandardMaterial3D_pillow")
 mesh = SubResource("BoxMesh_pillow")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Furniture/BedB" unique_id=359662291]
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="Furniture/BedB" unique_id=359662291]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 shape = SubResource("BoxShape3D_bed")
 
-[node name="BedC" type="StaticBody3D" parent="Furniture" unique_id=1678246265 instance=ExtResource("20_8jp0s")]
+[node name="BedC" parent="Furniture" unique_id=1678246265 instance=ExtResource("20_8jp0s")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.843021, 3, -1.5859163)
-script = ExtResource("21_6ybj8")
 
-[node name="Frame" type="MeshInstance3D" parent="Furniture/BedC" unique_id=1288515676]
+[node name="Frame2" type="MeshInstance3D" parent="Furniture/BedC" unique_id=1288515676]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 material_override = SubResource("StandardMaterial3D_frame")
 mesh = SubResource("BoxMesh_frame")
 
-[node name="Mattress" type="MeshInstance3D" parent="Furniture/BedC" unique_id=116081516]
+[node name="Mattress2" type="MeshInstance3D" parent="Furniture/BedC" unique_id=116081516]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.04)
 material_override = SubResource("StandardMaterial3D_mattress")
 mesh = SubResource("BoxMesh_mattress")
 
-[node name="Pillow" type="MeshInstance3D" parent="Furniture/BedC" unique_id=2113237730]
+[node name="Pillow2" type="MeshInstance3D" parent="Furniture/BedC" unique_id=2113237730]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, -0.78)
 material_override = SubResource("StandardMaterial3D_pillow")
 mesh = SubResource("BoxMesh_pillow")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Furniture/BedC" unique_id=303485622]
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="Furniture/BedC" unique_id=303485622]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 shape = SubResource("BoxShape3D_bed")
 
-[node name="BedC2" type="StaticBody3D" parent="Furniture" unique_id=164891862 instance=ExtResource("20_8jp0s")]
+[node name="BedC2" parent="Furniture" unique_id=164891862 instance=ExtResource("20_8jp0s")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.843021, 3, 0.26252258)
-script = ExtResource("21_6ybj8")
 
-[node name="Frame" type="MeshInstance3D" parent="Furniture/BedC2" unique_id=120451297]
+[node name="Frame2" type="MeshInstance3D" parent="Furniture/BedC2" unique_id=120451297]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 material_override = SubResource("StandardMaterial3D_frame")
 mesh = SubResource("BoxMesh_frame")
 
-[node name="Mattress" type="MeshInstance3D" parent="Furniture/BedC2" unique_id=1079962333]
+[node name="Mattress2" type="MeshInstance3D" parent="Furniture/BedC2" unique_id=1079962333]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.04)
 material_override = SubResource("StandardMaterial3D_mattress")
 mesh = SubResource("BoxMesh_mattress")
 
-[node name="Pillow" type="MeshInstance3D" parent="Furniture/BedC2" unique_id=1758172040]
+[node name="Pillow2" type="MeshInstance3D" parent="Furniture/BedC2" unique_id=1758172040]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, -0.78)
 material_override = SubResource("StandardMaterial3D_pillow")
 mesh = SubResource("BoxMesh_pillow")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Furniture/BedC2" unique_id=1934322191]
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="Furniture/BedC2" unique_id=1934322191]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 shape = SubResource("BoxShape3D_bed")
 
-[node name="_MeshInstance3D_74441" type="MeshInstance3D" parent="Furniture/BedC2" unique_id=1581305694]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
-material_override = SubResource("StandardMaterial3D_fch0o")
-mesh = SubResource("BoxMesh_dhg2c")
-
-[node name="_MeshInstance3D_74442" type="MeshInstance3D" parent="Furniture/BedC2" unique_id=1306650332]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.04)
-material_override = SubResource("StandardMaterial3D_viuu6")
-mesh = SubResource("BoxMesh_kqbtv")
-
-[node name="_MeshInstance3D_74443" type="MeshInstance3D" parent="Furniture/BedC2" unique_id=123228839]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, -0.78)
-material_override = SubResource("StandardMaterial3D_33de6")
-mesh = SubResource("BoxMesh_wj5p3")
-
-[node name="_CollisionShape3D_74444" type="CollisionShape3D" parent="Furniture/BedC2" unique_id=1638637414]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
-shape = SubResource("BoxShape3D_m6dqo")
-
-[node name="BedC3" type="StaticBody3D" parent="Furniture" unique_id=345981964 instance=ExtResource("20_8jp0s")]
+[node name="BedC3" parent="Furniture" unique_id=345981964 instance=ExtResource("20_8jp0s")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.843021, 3, 2.341918)
-script = ExtResource("21_6ybj8")
 
-[node name="Frame" type="MeshInstance3D" parent="Furniture/BedC3" unique_id=672150416]
+[node name="Frame2" type="MeshInstance3D" parent="Furniture/BedC3" unique_id=672150416]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 material_override = SubResource("StandardMaterial3D_frame")
 mesh = SubResource("BoxMesh_frame")
 
-[node name="Mattress" type="MeshInstance3D" parent="Furniture/BedC3" unique_id=1451637731]
+[node name="Mattress2" type="MeshInstance3D" parent="Furniture/BedC3" unique_id=1451637731]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.04)
 material_override = SubResource("StandardMaterial3D_mattress")
 mesh = SubResource("BoxMesh_mattress")
 
-[node name="Pillow" type="MeshInstance3D" parent="Furniture/BedC3" unique_id=691689315]
+[node name="Pillow2" type="MeshInstance3D" parent="Furniture/BedC3" unique_id=691689315]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, -0.78)
 material_override = SubResource("StandardMaterial3D_pillow")
 mesh = SubResource("BoxMesh_pillow")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Furniture/BedC3" unique_id=426329582]
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="Furniture/BedC3" unique_id=426329582]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 shape = SubResource("BoxShape3D_bed")
 
-[node name="_MeshInstance3D_74441" type="MeshInstance3D" parent="Furniture/BedC3" unique_id=1083671021]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
-material_override = SubResource("StandardMaterial3D_fch0o")
-mesh = SubResource("BoxMesh_dhg2c")
-
-[node name="_MeshInstance3D_74442" type="MeshInstance3D" parent="Furniture/BedC3" unique_id=1240256340]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.04)
-material_override = SubResource("StandardMaterial3D_viuu6")
-mesh = SubResource("BoxMesh_kqbtv")
-
-[node name="_MeshInstance3D_74443" type="MeshInstance3D" parent="Furniture/BedC3" unique_id=1660004846]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, -0.78)
-material_override = SubResource("StandardMaterial3D_33de6")
-mesh = SubResource("BoxMesh_wj5p3")
-
-[node name="_CollisionShape3D_74444" type="CollisionShape3D" parent="Furniture/BedC3" unique_id=734316047]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
-shape = SubResource("BoxShape3D_m6dqo")
-
-[node name="BedC4" type="StaticBody3D" parent="Furniture" unique_id=76707504 instance=ExtResource("20_8jp0s")]
+[node name="BedC4" parent="Furniture" unique_id=76707504 instance=ExtResource("20_8jp0s")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.843021, 3, 4.2272377)
-script = ExtResource("21_6ybj8")
 
-[node name="Frame" type="MeshInstance3D" parent="Furniture/BedC4" unique_id=1521878585]
+[node name="Frame2" type="MeshInstance3D" parent="Furniture/BedC4" unique_id=1521878585]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 material_override = SubResource("StandardMaterial3D_frame")
 mesh = SubResource("BoxMesh_frame")
 
-[node name="Mattress" type="MeshInstance3D" parent="Furniture/BedC4" unique_id=2083210520]
+[node name="Mattress2" type="MeshInstance3D" parent="Furniture/BedC4" unique_id=2083210520]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.04)
 material_override = SubResource("StandardMaterial3D_mattress")
 mesh = SubResource("BoxMesh_mattress")
 
-[node name="Pillow" type="MeshInstance3D" parent="Furniture/BedC4" unique_id=1911135964]
+[node name="Pillow2" type="MeshInstance3D" parent="Furniture/BedC4" unique_id=1911135964]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, -0.78)
 material_override = SubResource("StandardMaterial3D_pillow")
 mesh = SubResource("BoxMesh_pillow")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Furniture/BedC4" unique_id=833459049]
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="Furniture/BedC4" unique_id=833459049]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 shape = SubResource("BoxShape3D_bed")
 
-[node name="_MeshInstance3D_74441" type="MeshInstance3D" parent="Furniture/BedC4" unique_id=558321150]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
-material_override = SubResource("StandardMaterial3D_fch0o")
-mesh = SubResource("BoxMesh_dhg2c")
-
-[node name="_MeshInstance3D_74442" type="MeshInstance3D" parent="Furniture/BedC4" unique_id=1980848065]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.04)
-material_override = SubResource("StandardMaterial3D_viuu6")
-mesh = SubResource("BoxMesh_kqbtv")
-
-[node name="_MeshInstance3D_74443" type="MeshInstance3D" parent="Furniture/BedC4" unique_id=1714928926]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, -0.78)
-material_override = SubResource("StandardMaterial3D_33de6")
-mesh = SubResource("BoxMesh_wj5p3")
-
-[node name="_CollisionShape3D_74444" type="CollisionShape3D" parent="Furniture/BedC4" unique_id=1158459089]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
-shape = SubResource("BoxShape3D_m6dqo")
-
-[node name="BedC5" type="StaticBody3D" parent="Furniture" unique_id=242867214 instance=ExtResource("20_8jp0s")]
+[node name="BedC5" parent="Furniture" unique_id=242867214 instance=ExtResource("20_8jp0s")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.843021, 3, 6.5464497)
-script = ExtResource("21_6ybj8")
 
-[node name="Frame" type="MeshInstance3D" parent="Furniture/BedC5" unique_id=1154689730]
+[node name="Frame2" type="MeshInstance3D" parent="Furniture/BedC5" unique_id=1154689730]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 material_override = SubResource("StandardMaterial3D_frame")
 mesh = SubResource("BoxMesh_frame")
 
-[node name="Mattress" type="MeshInstance3D" parent="Furniture/BedC5" unique_id=1760207826]
+[node name="Mattress2" type="MeshInstance3D" parent="Furniture/BedC5" unique_id=1760207826]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.04)
 material_override = SubResource("StandardMaterial3D_mattress")
 mesh = SubResource("BoxMesh_mattress")
 
-[node name="Pillow" type="MeshInstance3D" parent="Furniture/BedC5" unique_id=33148390]
+[node name="Pillow2" type="MeshInstance3D" parent="Furniture/BedC5" unique_id=33148390]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, -0.78)
 material_override = SubResource("StandardMaterial3D_pillow")
 mesh = SubResource("BoxMesh_pillow")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Furniture/BedC5" unique_id=2127891100]
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="Furniture/BedC5" unique_id=2127891100]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 shape = SubResource("BoxShape3D_bed")
-
-[node name="_MeshInstance3D_74441" type="MeshInstance3D" parent="Furniture/BedC5" unique_id=329282329]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
-material_override = SubResource("StandardMaterial3D_fch0o")
-mesh = SubResource("BoxMesh_dhg2c")
-
-[node name="_MeshInstance3D_74442" type="MeshInstance3D" parent="Furniture/BedC5" unique_id=1004761660]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.04)
-material_override = SubResource("StandardMaterial3D_viuu6")
-mesh = SubResource("BoxMesh_kqbtv")
-
-[node name="_MeshInstance3D_74443" type="MeshInstance3D" parent="Furniture/BedC5" unique_id=398192966]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, -0.78)
-material_override = SubResource("StandardMaterial3D_33de6")
-mesh = SubResource("BoxMesh_wj5p3")
-
-[node name="_CollisionShape3D_74444" type="CollisionShape3D" parent="Furniture/BedC5" unique_id=1784080440]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
-shape = SubResource("BoxShape3D_m6dqo")
 
 [node name="BarServiceArea" type="Node3D" parent="." unique_id=896339976]
 script = ExtResource("4_service_area")
 service_area_id = "settlement_bar.service_area"
-owner_character_path = NodePath("../Staff/Barkeeper")
 beds_root_path = NodePath("../Furniture")
 seats_root_path = NodePath("../Furniture")
 tables_root_path = NodePath("../Furniture")
@@ -1288,6 +708,6 @@ guard_posts_root_path = NodePath("../GuardPosts")
 service_points_root_path = NodePath("../ServicePoints")
 guards_root_path = NodePath("../Staff")
 waiters_root_path = NodePath("../Staff")
-waiter_character_path = NodePath("../Staff/Waiter")
-waiter_character_paths = Array[NodePath]([NodePath("../Staff/Waiter")])
-guard_character_paths = Array[NodePath]([NodePath("../Staff/Guard")])
+waiter_character_path = NodePath("")
+waiter_character_paths = Array[NodePath]([NodePath("")])
+guard_character_paths = Array[NodePath]([NodePath("")])

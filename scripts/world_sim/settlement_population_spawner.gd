@@ -25,6 +25,8 @@ const POPULATION_NAME_PROFILE_SCRIPT = preload("res://scripts/world_sim/populati
 @export var spawn_inner_radius := 2.0
 @export var y_offset := 0.6
 @export var random_seed := 1
+@export_range(1, 100, 1) var resident_perception_min := 2
+@export_range(1, 100, 1) var resident_perception_max := 8
 
 var _used_population_names: Dictionary = {}
 var _default_population_name_profile: Resource
@@ -37,6 +39,7 @@ func _ready() -> void:
 		_apply_name_profile_to_existing_residents()
 	else:
 		_collect_existing_population_names()
+	_apply_default_skills_to_existing_residents()
 	_spawn_missing_residents()
 
 
@@ -63,6 +66,7 @@ func _spawn_missing_residents() -> void:
 		actor.set("starting_equipment", starting_equipment.duplicate())
 		_apply_profile_to_actor(actor, resident_index)
 		_apply_name_profile_to_actor(actor, resident_index)
+		_apply_default_skills_to_actor(actor, resident_index)
 		actor.position = _spawn_position(resident_index - 1, desired_count, rng)
 		_add_basic_humanoid_children(actor)
 		add_child(actor)
@@ -90,6 +94,14 @@ func _apply_name_profile_to_existing_residents() -> void:
 			resident_index += 1
 
 
+func _apply_default_skills_to_existing_residents() -> void:
+	var resident_index := 1
+	for child in get_children():
+		if child.has_method("assign_attack_target"):
+			_apply_default_skills_to_actor(child, resident_index)
+			resident_index += 1
+
+
 func _apply_profile_to_actor(actor: Node, resident_index: int) -> void:
 	if population_appearance_profile == null or actor == null or not population_appearance_profile.has_method("apply_to_actor"):
 		return
@@ -114,6 +126,16 @@ func _apply_name_profile_to_actor(actor: Node, resident_index: int, name_profile
 	_used_population_names[generated_name.to_lower()] = true
 	if actor.is_inside_tree() and actor.has_method("refresh_nameplate"):
 		actor.call("refresh_nameplate")
+
+
+func _apply_default_skills_to_actor(actor: Node, resident_index: int) -> void:
+	if actor == null or not actor.has_method("get_skill_level") or not actor.has_method("set_skill_level"):
+		return
+	var current_perception := int(actor.call("get_skill_level", SkillRules.ATTRIBUTE_PERCEPTION))
+	if current_perception > SkillRules.DEFAULT_LEVEL:
+		return
+	var rng := _make_resident_rng(resident_index, "%s:perception" % str(actor.get("stable_id")))
+	actor.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(resident_perception_min, resident_perception_max, rng))
 
 
 func _get_effective_population_name_profile() -> Resource:
@@ -191,6 +213,15 @@ func _make_resident_rng(resident_index: int, stable_id := "") -> RandomNumberGen
 	var seed_key := "%d:%s:%d:%s" % [random_seed, stable_id_prefix, resident_index, stable_id]
 	rng.seed = max(1, absi(seed_key.hash()))
 	return rng
+
+
+func _roll_center_biased_level(minimum: int, maximum: int, rng: RandomNumberGenerator) -> int:
+	var low := mini(minimum, maximum)
+	var high := maxi(minimum, maximum)
+	if low == high:
+		return low
+	var t := (rng.randf() + rng.randf()) * 0.5
+	return clampi(int(round(lerpf(float(low), float(high), t))), low, high)
 
 
 func _spawn_position(index: int, count: int, rng: RandomNumberGenerator) -> Vector3:

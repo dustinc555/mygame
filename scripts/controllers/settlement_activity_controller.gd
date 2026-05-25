@@ -62,11 +62,11 @@ func _process_resident(resident: Node, points: Array) -> void:
 		return
 	var key := _actor_key(resident)
 	var existing: Dictionary = _assignments.get(key, {})
-	if not existing.is_empty() and float(existing.get("until", 0.0)) > _sim_time:
+	if not existing.is_empty():
 		var existing_point = existing.get("point")
-		if existing_point != null and is_instance_valid(existing_point):
+		if float(existing.get("until", 0.0)) > _sim_time and existing_point != null and is_instance_valid(existing_point):
 			return
-		_assignments.erase(key)
+		_release_assignment(resident)
 	var point = _choose_activity_point(resident, points)
 	if point == null:
 		return

@@ -19,6 +19,9 @@ const META_LAYOUT_VERSION := "keep_layout_version"
 const META_LAST_DEFAULT_TRANSFORM := "keep_last_default_transform"
 const META_LAYOUT_CUSTOM := "keep_layout_custom"
 const META_CHAIR_STYLE := "keep_chair_style"
+const STAFF_PERCEPTION_RANGE := Vector2i(5, 12)
+const GUARD_PERCEPTION_RANGE := Vector2i(14, 24)
+const ELITE_MAYOR_GUARD_PERCEPTION_RANGE := Vector2i(90, 100)
 
 @export var furniture_root_path: NodePath = NodePath("Furniture")
 @export var guard_posts_root_path: NodePath = NodePath("GuardPosts")
@@ -387,6 +390,7 @@ func _apply_staff_role_defaults(staff: Node, member_name: String, color: Color, 
 	if _has_property(staff, "stable_id") and str(staff.get("stable_id")).strip_edges().is_empty():
 		staff.set("stable_id", "%s.%s" % [_get_staff_id_prefix(), role])
 	_apply_population_generation_to_staff(staff, role, role_index)
+	_apply_staff_role_skills(staff, role, role_index)
 	_apply_role_suffix(staff, role)
 	if not Engine.is_editor_hint() and staff.is_inside_tree() and staff.has_method("refresh_nameplate"):
 		staff.call("refresh_nameplate")
@@ -479,6 +483,32 @@ func _apply_population_generation_to_staff(staff: Node, role: String, role_index
 		var generated_name := str(name_profile.call("generate_name", body_type, _make_staff_rng("name:%s" % seed_key), _used_staff_names(staff))).strip_edges()
 		if not generated_name.is_empty():
 			staff.set("member_name", generated_name)
+
+
+func _apply_staff_role_skills(staff: Node, role: String, role_index: int) -> void:
+	if staff == null or not _is_generated_staff(staff) or not staff.has_method("get_skill_level") or not staff.has_method("set_skill_level"):
+		return
+	var current_perception := int(staff.call("get_skill_level", SkillRules.ATTRIBUTE_PERCEPTION))
+	if current_perception > SkillRules.DEFAULT_LEVEL:
+		return
+	var range := _perception_range_for_role(role)
+	var rng := _make_staff_rng("skill:%s:%d:%s" % [role, role_index, str(staff.name)])
+	staff.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(range.x, range.y, rng))
+
+
+func _perception_range_for_role(role: String) -> Vector2i:
+	if _role_label(role) != "guard":
+		return STAFF_PERCEPTION_RANGE
+	return ELITE_MAYOR_GUARD_PERCEPTION_RANGE if ruler_chair_style.strip_edges().to_lower() == "mayor" else GUARD_PERCEPTION_RANGE
+
+
+func _roll_center_biased_level(minimum: int, maximum: int, rng: RandomNumberGenerator) -> int:
+	var low := mini(minimum, maximum)
+	var high := maxi(minimum, maximum)
+	if low == high:
+		return low
+	var t := (rng.randf() + rng.randf()) * 0.5
+	return clampi(int(round(lerpf(float(low), float(high), t))), low, high)
 
 
 func _apply_guard_starting_equipment(staff: Node, role: String) -> void:

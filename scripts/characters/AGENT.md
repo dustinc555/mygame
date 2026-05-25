@@ -36,3 +36,8 @@
 ## Animation Baseline
 - Normal standing idle is the baseline pose for equipment placement tuning.
 - If adding more idle variants, make sure equipment placement can still be inspected against a stable normal idle pose.
+
+## Skill-Driven Movement
+- Movement-affecting skills should read levels through `WorldActor`/`SkillRules`, not humanoid-only exported skill variables.
+- Sneaking speed should remain tied to `subterfuge.sneaking`: novices crawl slowly, while mastery approaches but does not blindly replace running movement.
+- Keep movement multipliers deterministic and compatible with hunger, fatigue, carrying, equipment, and running modifiers.

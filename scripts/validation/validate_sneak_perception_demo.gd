@@ -1,6 +1,8 @@
 extends SceneTree
 
 const SNEAK_DEMO_SCENE := preload("res://scenes/test_levels/sneak_perception_demo.tscn")
+const FACTION_HUMANOID_SCRIPT := preload("res://scripts/characters/faction_humanoid.gd")
+const CROWD_OBSERVER_COUNT := 36
 
 var _failures: Array[String] = []
 var _scene: Node
@@ -26,9 +28,15 @@ func _run() -> void:
 	await _load_scene()
 	await _run_visibility_cases()
 	await _run_lighting_cases()
+	await _run_sustained_suspicion_case()
+	await _run_sustained_moving_exposure_case()
+	await _run_sneak_speed_case()
+	await _run_sneak_training_pressure_cases()
+	_run_sneak_training_rate_cases()
 	await _run_camera_center_case()
 	await _run_debug_toggle_case()
 	await _run_stealing_cases()
+	await _run_crowded_perception_case()
 	if _failures.is_empty():
 		print("SNEAK_PERCEPTION_DEMO_OK")
 		quit(0)
@@ -122,12 +130,29 @@ func _run_visibility_cases() -> void:
 	var partial_los := float(partial.get("line_of_sight_fraction", 0.0))
 	if partial_los <= 0.05 or partial_los >= 0.95:
 		_fail("Expected partial pillar visibility, got %s" % partial)
+	if _noisy_player != null and _world_time != null:
+		_world_time.total_world_minutes = 18.0 * 60.0
+		await _wait_frames(4)
+		_noisy_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 1)
+		var novice_dusk_close := await _evaluate_subject_case(_noisy_player, "novice_dusk_close", Vector3(0.2, 0.6, -1.0))
+		if not bool(novice_dusk_close.get("clearly_seen", false)):
+			_fail("Expected level 1 sneaking to be clearly seen up close at dusk, got %s" % novice_dusk_close)
+		_world_time.total_world_minutes = 16.0 * 60.0 + 30.0
+		await _wait_frames(4)
+		_noisy_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 20)
+		var intermediate := await _evaluate_subject_case(_noisy_player, "intermediate_sneak_normal", Vector3(1.45, 0.6, -7.5))
+		if bool(intermediate.get("clearly_seen", false)) or not bool(intermediate.get("partially_seen", false)):
+			_fail("Expected level 20 sneaking to be intermediate/partially seen at normal range, got %s" % intermediate)
+		_noisy_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 40)
+		var skilled := await _evaluate_subject_case(_noisy_player, "skilled_sneak_normal", Vector3(1.45, 0.6, -7.5))
+		if bool(skilled.get("clearly_seen", false)) or float(skilled.get("visibility_score", 1.0)) >= float(intermediate.get("visibility_score", 0.0)):
+			_fail("Expected level 40 sneaking to improve beyond level 20 without becoming magic, got level20=%s level40=%s" % [intermediate, skilled])
 	var legendary_normal := await _evaluate_subject_case(_invisible_player, "legendary_sneak_normal", Vector3(1.45, 0.6, -7.5))
 	if bool(legendary_normal.get("clearly_seen", false)):
 		_fail("Expected sneak 80 to avoid clear detection by perception 1 at normal range, got %s" % legendary_normal)
 	var legendary_close := await _evaluate_subject_case(_invisible_player, "legendary_sneak_close", Vector3(0.2, 0.6, -1.0))
-	if not bool(legendary_close.get("clearly_seen", false)):
-		_fail("Expected sneak 80 to still be clearly seen by perception 1 at close range, got %s" % legendary_close)
+	if bool(legendary_close.get("clearly_seen", false)) or float(legendary_close.get("visibility_score", 1.0)) >= 0.14:
+		_fail("Expected sneak 80 to avoid clear detection even at close range against perception 1, got %s" % legendary_close)
 
 
 func _run_lighting_cases() -> void:
@@ -139,6 +164,174 @@ func _run_lighting_cases() -> void:
 	var torch_lit := await _evaluate_case("night_torch_lit", Vector3(-5.8, 0.6, -5.45))
 	if float(torch_lit.get("light_exposure", 0.0)) <= float(dark.get("light_exposure", 0.0)) + 0.18:
 		_fail("Expected torch-lit exposure above dark exposure, dark=%s torch=%s" % [dark, torch_lit])
+
+
+func _run_sustained_suspicion_case() -> void:
+	if _scene == null or _noisy_player == null or _observer == null or _perception_controller == null or _world_time == null:
+		return
+	var party_manager := _scene.get_node_or_null("PartyManager") as PartyManager
+	if party_manager == null:
+		_fail("Cannot run sustained suspicion case without PartyManager")
+		return
+	_world_time.total_world_minutes = 23.0 * 60.0
+	_observer.set_skill_level(SkillRules.ATTRIBUTE_PERCEPTION, 4)
+	_noisy_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 2)
+	_noisy_player.global_position = Vector3(1.45, 0.6, -8.5)
+	_noisy_player.velocity = Vector3.ZERO
+	_noisy_player.set_sneaking_enabled(true)
+	party_manager.select_only(_noisy_player)
+	_face_observer_to_subject(_noisy_player)
+	await _wait_frames(8)
+	var initial := _perception_controller.call("evaluate_observer", _observer, _noisy_player) as Dictionary
+	_print_perception_case("novice_night_initial", initial)
+	if bool(initial.get("clearly_seen", false)) or not bool(initial.get("partially_seen", false)):
+		_fail("Expected level 2 night clear-LOS sneaking to start suspicious/yellow, got %s" % initial)
+	await _wait_frames(100)
+	var escalated := _perception_controller.call("get_latest_result", _observer, _noisy_player) as Dictionary
+	_print_perception_case("novice_night_sustained", escalated)
+	if not bool(escalated.get("clearly_seen", false)) or not bool(escalated.get("suspicion_escalated", false)):
+		_fail("Expected sustained level 2 yellow suspicion to escalate to red, got %s" % escalated)
+	_observer.set_skill_level(SkillRules.ATTRIBUTE_PERCEPTION, 1)
+	party_manager.select_only(_player)
+
+
+func _run_sustained_moving_exposure_case() -> void:
+	if _scene == null or _invisible_player == null or _noisy_player == null or _observer == null or _perception_controller == null or _world_time == null:
+		return
+	var party_manager := _scene.get_node_or_null("PartyManager") as PartyManager
+	if party_manager == null:
+		_fail("Cannot run sustained moving exposure case without PartyManager")
+		return
+	_world_time.total_world_minutes = 12.0 * 60.0
+	await _wait_frames(4)
+	_observer.set_skill_level(SkillRules.ATTRIBUTE_PERCEPTION, 100)
+	_invisible_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 80)
+	_invisible_player.global_position = Vector3(1.45, 0.6, -7.5)
+	_invisible_player.set_sneaking_enabled(true)
+	_face_observer_to_subject(_invisible_player)
+	party_manager.select_only(_invisible_player)
+	_perception_controller.call("_clear_perception_state")
+	var brief := _advance_sustained_exposure(_invisible_player, 0.6, true)
+	_print_perception_case("elite_sneak80_brief_moving", brief)
+	if bool(brief.get("clearly_seen", false)):
+		_fail("Expected sneak 80 to survive a brief daylight crossing before red escalation, got %s" % brief)
+	var sustained := _advance_sustained_exposure(_invisible_player, 3.6, true)
+	_print_perception_case("elite_sneak80_sustained_moving", sustained)
+	if float(sustained.get("sustained_moving_exposure", 0.0)) <= float(brief.get("sustained_moving_exposure", 0.0)) + 0.05:
+		_fail("Expected moving in an elite guard cone to build sustained exposure, brief=%s sustained=%s" % [brief, sustained])
+	if not bool(sustained.get("partially_seen", false)) and not bool(sustained.get("clearly_seen", false)):
+		_fail("Expected sustained sneak 80 movement in broad daylight elite LOS to reach at least yellow, got %s" % sustained)
+	_face_observer_away_from_subject(_invisible_player)
+	var reset := _advance_sustained_exposure(_invisible_player, 0.2, true)
+	_print_perception_case("elite_sneak80_left_cone", reset)
+	if float(reset.get("sustained_moving_exposure", 1.0)) > 0.01:
+		_fail("Expected leaving the observer cone to reset sustained exposure, got %s" % reset)
+	_noisy_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 20)
+	_noisy_player.global_position = Vector3(1.45, 0.6, -7.5)
+	_noisy_player.set_sneaking_enabled(true)
+	_face_observer_to_subject(_noisy_player)
+	party_manager.select_only(_noisy_player)
+	_perception_controller.call("_clear_perception_state")
+	var low_skill := _advance_sustained_exposure(_noisy_player, 1.2, true)
+	_print_perception_case("elite_sneak20_sustained_moving", low_skill)
+	if not bool(low_skill.get("clearly_seen", false)) and float(low_skill.get("suspicion_progress", 0.0)) <= float(brief.get("suspicion_progress", 0.0)) + 0.25:
+		_fail("Expected sneak 20 to escalate faster than sneak 80 under elite daylight exposure, low=%s high_brief=%s" % [low_skill, brief])
+	_observer.set_skill_level(SkillRules.ATTRIBUTE_PERCEPTION, 1)
+	_invisible_player.velocity = Vector3.ZERO
+	_noisy_player.velocity = Vector3.ZERO
+	party_manager.select_only(_player)
+
+
+func _run_sneak_speed_case() -> void:
+	if _noisy_player == null:
+		return
+	_noisy_player.set_sneaking_enabled(true)
+	_noisy_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 1)
+	var novice_speed_multiplier := _noisy_player.get_stat_value("move_speed_multiplier")
+	_noisy_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 80)
+	var master_speed_multiplier := _noisy_player.get_stat_value("move_speed_multiplier")
+	print("SNEAK_SPEED novice=%.2f master=%.2f run=%.2f" % [novice_speed_multiplier, master_speed_multiplier, NpcRules.RUN_SPEED_MULTIPLIER])
+	if novice_speed_multiplier > 0.55:
+		_fail("Expected novice sneaking to be a slow crawl, got %.3f" % novice_speed_multiplier)
+	if master_speed_multiplier < 1.35 or master_speed_multiplier >= NpcRules.RUN_SPEED_MULTIPLIER:
+		_fail("Expected master sneaking to approach but stay below running, got %.3f" % master_speed_multiplier)
+	if master_speed_multiplier <= novice_speed_multiplier * 2.0:
+		_fail("Expected sneak movement speed to scale strongly with skill, novice=%.3f master=%.3f" % [novice_speed_multiplier, master_speed_multiplier])
+
+
+func _run_sneak_training_pressure_cases() -> void:
+	if _noisy_player == null or _observer == null or _perception_controller == null:
+		return
+	_observer.set_skill_level(SkillRules.ATTRIBUTE_PERCEPTION, 4)
+	_noisy_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 1)
+	var red_result := await _evaluate_subject_case(_noisy_player, "novice_training_red", Vector3(0.2, 0.6, -1.0))
+	var red_pressure := float(_perception_controller.call("_get_sneaking_training_pressure", red_result))
+	if red_pressure > 0.001:
+		_fail("Expected clear red detection to award no sneak training pressure, got %.3f from %s" % [red_pressure, red_result])
+
+	var relevant_low := {
+		"clearly_seen": false,
+		"line_of_sight_fraction": 1.0,
+		"cone_fraction": 1.0,
+		"visibility_score": 0.2,
+		"subject_sneaking": 8.0,
+		"observer_perception": 4.0,
+	}
+	var overmatched_low := relevant_low.duplicate()
+	overmatched_low["subject_sneaking"] = 22.0
+	var relevant_high := relevant_low.duplicate()
+	relevant_high["subject_sneaking"] = 22.0
+	relevant_high["observer_perception"] = 18.0
+	var relevant_low_pressure := float(_perception_controller.call("_get_sneaking_training_pressure", relevant_low))
+	var overmatched_low_pressure := float(_perception_controller.call("_get_sneaking_training_pressure", overmatched_low))
+	var relevant_high_pressure := float(_perception_controller.call("_get_sneaking_training_pressure", relevant_high))
+	print("SNEAK_TRAINING_PRESSURE low=%.3f overmatched=%.3f high=%.3f" % [relevant_low_pressure, overmatched_low_pressure, relevant_high_pressure])
+	if relevant_low_pressure <= 0.01:
+		_fail("Expected low perception observers to train low sneak basics")
+	if overmatched_low_pressure > 0.001:
+		_fail("Expected low perception observers to stop training high sneak, got %.3f" % overmatched_low_pressure)
+	if relevant_high_pressure <= overmatched_low_pressure + 0.1:
+		_fail("Expected higher perception observers to remain useful for higher sneak")
+
+	_noisy_player.set_sneaking_enabled(true)
+	_noisy_player.velocity = Vector3.ZERO
+	var idle_multiplier := float(_perception_controller.call("_get_sneaking_activity_multiplier", _noisy_player))
+	_noisy_player.velocity = Vector3(1.0, 0.0, 0.0)
+	var moving_multiplier := float(_perception_controller.call("_get_sneaking_activity_multiplier", _noisy_player))
+	_noisy_player.velocity = Vector3.ZERO
+	if absf(idle_multiplier - 0.5) > 0.001 or absf(moving_multiplier - 1.0) > 0.001:
+		_fail("Expected stationary hiding to train at half moving rate, idle=%.3f moving=%.3f" % [idle_multiplier, moving_multiplier])
+	_observer.set_skill_level(SkillRules.ATTRIBUTE_PERCEPTION, 1)
+	_noisy_player.set_sneaking_enabled(false)
+	_noisy_player.global_position = Vector3(-12.0, 0.6, 12.0)
+	_noisy_player.velocity = Vector3.ZERO
+
+
+func _run_sneak_training_rate_cases() -> void:
+	if _perception_controller == null:
+		return
+	var minimum_valid_pressure_case := {
+		"clearly_seen": false,
+		"line_of_sight_fraction": 1.0,
+		"cone_fraction": 1.0,
+		"visibility_score": 0.03,
+		"subject_sneaking": 1.0,
+		"observer_perception": 4.0,
+	}
+	var minimum_pressure := float(_perception_controller.call("_get_sneaking_training_pressure", minimum_valid_pressure_case))
+	var level_1_xp_to_next := SkillRules.get_xp_to_next_level(1)
+	var ten_second_xp := float(_perception_controller.call("_get_sneaking_risk_xp", 10.0, minimum_pressure, 1.0))
+	var thirty_second_xp := float(_perception_controller.call("_get_sneaking_risk_xp", 30.0, minimum_pressure, 1.0))
+	var fast_forward_xp := float(_perception_controller.call("_get_sneaking_risk_xp", 80.0, minimum_pressure, 1.0))
+	print("SNEAK_TRAINING_RATE pressure=%.3f xp10=%.2f xp30=%.2f xp80=%.2f next=%.2f" % [minimum_pressure, ten_second_xp, thirty_second_xp, fast_forward_xp, level_1_xp_to_next])
+	if minimum_pressure < 0.44:
+		_fail("Expected level-1 valid hiding pressure floor to prevent microscopic XP, got %.3f" % minimum_pressure)
+	if ten_second_xp >= level_1_xp_to_next:
+		_fail("Expected level 1 sneak not to level in only 10 seconds of minimum-risk hiding")
+	if thirty_second_xp < level_1_xp_to_next:
+		_fail("Expected level 1 sneak to level within about 30 seconds of valid risky movement, got %.2f / %.2f" % [thirty_second_xp, level_1_xp_to_next])
+	if fast_forward_xp < thirty_second_xp * 2.4:
+		_fail("Expected fast-forward-scaled delta to materially increase sneak XP, normal=%.2f fast=%.2f" % [thirty_second_xp, fast_forward_xp])
 
 
 func _run_stealing_cases() -> void:
@@ -238,6 +431,95 @@ func _run_debug_toggle_case() -> void:
 			_fail("Expected theft-noise radius visuals for owned sword and vase, got %d" % visible_noise_visuals)
 
 
+func _run_crowded_perception_case() -> void:
+	if _scene == null or _noisy_player == null or _perception_controller == null:
+		return
+	var party_root := _scene.get_node_or_null("PartyMembers") as Node3D
+	var party_manager := _scene.get_node_or_null("PartyManager") as PartyManager
+	if party_root == null or party_manager == null:
+		_fail("Cannot run crowded perception case; party root or manager missing")
+		return
+	_perception_controller.set_process(false)
+	_world_time.total_world_minutes = 23.0 * 60.0
+	_noisy_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 1)
+	_noisy_player.global_position = Vector3(0.0, 0.6, 0.0)
+	_noisy_player.velocity = Vector3.ZERO
+	_noisy_player.set_sneaking_enabled(true)
+	_spawn_crowd_observers(party_root, _noisy_player)
+	party_manager.select_only(_noisy_player)
+	await _wait_frames(2)
+	var idle_xp_gain := _measure_crowd_training_xp(_noisy_player, 4, false)
+	var moving_xp_gain := _measure_crowd_training_xp(_noisy_player, 4, true)
+	var results := _perception_controller.call("get_latest_results_for_subject", _noisy_player) as Array
+	print("SNEAK_CROWD_RESULTS count=%d idle_xp=%.3f moving_xp=%.3f" % [results.size(), idle_xp_gain, moving_xp_gain])
+	if results.size() < CROWD_OBSERVER_COUNT:
+		_fail("Crowded perception case evaluated too few observers: expected at least %d got %d" % [CROWD_OBSERVER_COUNT, results.size()])
+	if moving_xp_gain <= 0.02:
+		_fail("Level-1 crowded moving sneak XP gain was too low: %.3f" % moving_xp_gain)
+	if moving_xp_gain < 0.6:
+		_fail("Level-1 crowded moving sneak XP should have a fast start, got %.3f" % moving_xp_gain)
+	if moving_xp_gain > 1.25:
+		_fail("Crowded moving sneak XP should be bounded by one observer, got %.3f" % moving_xp_gain)
+	if idle_xp_gain <= 0.0 or idle_xp_gain >= moving_xp_gain:
+		_fail("Stationary risky hiding should train slower than moving, idle=%.3f moving=%.3f" % [idle_xp_gain, moving_xp_gain])
+	if absf(idle_xp_gain / maxf(moving_xp_gain, 0.001) - 0.5) > 0.2:
+		_fail("Stationary risky hiding should be roughly half moving XP, idle=%.3f moving=%.3f" % [idle_xp_gain, moving_xp_gain])
+	if float(_perception_controller.get("perception_tick_seconds")) <= 0.0:
+		_fail("Perception controller should use a positive fixed tick interval")
+
+
+func _measure_crowd_training_xp(subject: HumanoidCharacter, ticks: int, moving: bool) -> float:
+	if subject == null or _perception_controller == null:
+		return 0.0
+	subject.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 1)
+	subject.set_sneaking_enabled(true)
+	subject.global_position = Vector3(0.0, 0.6, 0.0)
+	_perception_controller.call("_clear_perception_state")
+	var tick_seconds := float(_perception_controller.get("perception_tick_seconds"))
+	var active_subjects: Array[HumanoidCharacter] = [subject]
+	var xp_before := subject.get_skill_xp(SkillRules.SUBTERFUGE_SNEAKING)
+	for _index in range(ticks):
+		subject.velocity = Vector3(1.0, 0.0, 0.0) if moving else Vector3.ZERO
+		_perception_controller.call("_update_perception", tick_seconds, active_subjects)
+	subject.velocity = Vector3.ZERO
+	return subject.get_skill_xp(SkillRules.SUBTERFUGE_SNEAKING) - xp_before
+
+
+func _advance_sustained_exposure(subject: HumanoidCharacter, seconds: float, moving: bool) -> Dictionary:
+	if subject == null or _perception_controller == null:
+		return {}
+	var tick_seconds := float(_perception_controller.get("perception_tick_seconds"))
+	var ticks := maxi(1, int(ceil(seconds / maxf(tick_seconds, 0.001))))
+	var active_subjects: Array[HumanoidCharacter] = [subject]
+	for _index in range(ticks):
+		subject.velocity = Vector3(1.0, 0.0, 0.0) if moving else Vector3.ZERO
+		_perception_controller.call("_update_perception", tick_seconds, active_subjects)
+	subject.velocity = Vector3.ZERO
+	return _perception_controller.call("get_latest_result", _observer, subject) as Dictionary
+
+
+func _spawn_crowd_observers(parent: Node3D, training_subject: HumanoidCharacter) -> void:
+	for index in range(CROWD_OBSERVER_COUNT):
+		var node_name := "CrowdWatcher%d" % index
+		if parent.get_node_or_null(node_name) != null:
+			continue
+		var angle := TAU * float(index) / float(CROWD_OBSERVER_COUNT)
+		var radius := 5.0 + float(index % 4) * 2.0
+		var position := Vector3(sin(angle) * radius, 0.6, -cos(angle) * radius)
+		var color := Color(0.48 + float(index % 5) * 0.04, 0.52, 0.56, 1.0)
+		var observer := _scene.call("_make_humanoid", node_name, FACTION_HUMANOID_SCRIPT, position, color, "Townsfolk", false) as HumanoidCharacter
+		if observer == null:
+			_fail("Could not create crowded perception observer %d" % index)
+			continue
+		observer.member_name = node_name
+		observer.stable_id = "town.sneak_demo.crowd.%d" % index
+		observer.combat_stance = NpcRules.CombatStance.PASSIVE
+		observer.fatigue_enabled = false
+		observer.set_skill_level(SkillRules.ATTRIBUTE_PERCEPTION, 4)
+		parent.add_child(observer)
+		observer.look_at(Vector3(training_subject.global_position.x, observer.global_position.y, training_subject.global_position.z), Vector3.UP)
+
+
 func _evaluate_case(label: String, player_position: Vector3) -> Dictionary:
 	_player.global_position = player_position
 	_player.velocity = Vector3.ZERO
@@ -287,7 +569,13 @@ func _face_observer_to_subject(subject: HumanoidCharacter) -> void:
 	_observer.rotation.z = 0.0
 
 func _face_observer_away_from_player() -> void:
-	var target := _observer.global_position * 2.0 - _player.global_position
+	_face_observer_away_from_subject(_player)
+
+
+func _face_observer_away_from_subject(subject: HumanoidCharacter) -> void:
+	if subject == null:
+		return
+	var target := _observer.global_position * 2.0 - subject.global_position
 	target.y = _observer.global_position.y
 	if _observer.global_position.distance_squared_to(target) <= 0.001:
 		return

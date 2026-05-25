@@ -152,14 +152,14 @@ height = 1.5
 radial_segments = 16
 rings = 8
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fn7q7"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1trl3"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(1, 0.72, 0.08, 0.58)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_dciy4"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_250jy"]
 _surfaces = [{
 "aabb": AABB(-38.036, 0.08, -30.071426, 76.072, 1e-05, 60.62703),
 "format": 34359742465,
@@ -271,14 +271,14 @@ script = ExtResource("5_stock")
 item_definition = ExtResource("6_food")
 quantity = 4
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_v4bgy"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ieqkg"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_sjhwl"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_wktbk"]
 _surfaces = [{
 "aabb": AABB(-33.506104, 0, -18.919184, 57.66764, 1e-05, 54.61435),
 "format": 34359738369,
@@ -291,7 +291,6 @@ _surfaces = [{
 [sub_resource type="Resource" id="InventoryStock_party_bandage"]
 script = ExtResource("5_stock")
 item_definition = ExtResource("7_bandage")
-quantity = 4
 
 [sub_resource type="Resource" id="InventoryStock_party_silver"]
 script = ExtResource("5_stock")
@@ -424,9 +423,9 @@ script = ExtResource("36_waypoint")
 waypoint_id = "farmer_crossing_raider_camp.wp_0004"
 
 [node name="RoadDebug" type="MeshInstance3D" parent="Roads/FarmerCrossingToRaiderCamp" unique_id=1470176521]
-material_override = SubResource("StandardMaterial3D_fn7q7")
+material_override = SubResource("StandardMaterial3D_1trl3")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_dciy4")
+mesh = SubResource("ArrayMesh_250jy")
 
 [node name="Settlements" type="Node3D" parent="." unique_id=63163481]
 
@@ -982,9 +981,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.05, 0)
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Settlements/RaiderCamp" unique_id=280983370]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_v4bgy")
+material_override = SubResource("StandardMaterial3D_ieqkg")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_sjhwl")
+mesh = SubResource("ArrayMesh_wktbk")
 
 [node name="PartyMembers" type="Node3D" parent="." unique_id=753189579]
 
@@ -998,7 +997,8 @@ starting_items = Array[Resource]([SubResource("InventoryStock_party_bandage"), S
 starting_equipment = Array[Resource]([ExtResource("21_hatchet")])
 squad_name = "Drifters"
 starting_skill_levels = {
-"attribute.charisma": 40
+"attribute.charisma": 40,
+"subterfuge.sneaking": 20
 }
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Mira" unique_id=180065369]
@@ -1023,7 +1023,8 @@ starting_items = Array[Resource]([SubResource("InventoryStock_party_bandage"), S
 starting_equipment = Array[Resource]([ExtResource("22_sword")])
 squad_name = "Drifters"
 starting_skill_levels = {
-"attribute.charisma": 20
+"attribute.charisma": 20,
+"subterfuge.sneaking": 50
 }
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Tomas" unique_id=287892875]
@@ -1035,6 +1036,51 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
 mesh = SubResource("CapsuleMesh_member")
 
 [node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Tomas" unique_id=226304761]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="Newbie" type="CharacterBody3D" parent="PartyMembers" unique_id=1933369920]
+transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 0, 0.6, 18)
+script = ExtResource("1_party")
+base_color = Color(0.52, 0.64, 0.45, 1)
+member_name = "Newbie"
+stable_id = "player.newbie"
+starting_items = Array[Resource]([SubResource("InventoryStock_party_bandage"), SubResource("InventoryStock_party_silver")])
+squad_name = "Drifters"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Newbie" unique_id=735895357]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Newbie" unique_id=1500606833]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Newbie" unique_id=1056188502]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="Stealth" type="CharacterBody3D" parent="PartyMembers" unique_id=1718963028]
+transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 3, 0.6, 20)
+script = ExtResource("1_party")
+base_color = Color(0.25, 0.24, 0.32, 1)
+member_name = "Stealth"
+stable_id = "player.stealth"
+starting_items = Array[Resource]([SubResource("InventoryStock_party_bandage"), SubResource("InventoryStock_party_silver")])
+squad_name = "Drifters"
+starting_skill_levels = {
+"subterfuge.sneaking": 80
+}
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Stealth" unique_id=162010239]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Stealth" unique_id=2116512714]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Stealth" unique_id=1816023736]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
 mesh = SubResource("CylinderMesh_ring")
 

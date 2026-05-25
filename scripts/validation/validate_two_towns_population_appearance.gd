@@ -21,6 +21,8 @@ const RANGER_BOOTS := preload("res://resources/items/ranger_boots.tres")
 const RANGER_HOOD := preload("res://resources/items/ranger_hood.tres")
 const HATCHET := preload("res://resources/items/hatchet.tres")
 const IRON_SWORD := preload("res://resources/items/iron_sword.tres")
+const BANDAGE := preload("res://resources/items/bandage.tres")
+const SILVER := preload("res://resources/items/silver.tres")
 const VISUAL_BODY_TYPE_MALE := 2
 const VISUAL_BODY_TYPE_FEMALE := 3
 
@@ -123,22 +125,74 @@ func _validate_faction_diplomacy_and_events() -> void:
 		_fail("Help allies should auto-help formal allies")
 	faction_controller.call("set_diplomatic_state", "Player", "Farmers", "neutral")
 	faction_controller.call("set_help_allies", false)
-	_validate_party_charisma()
+	_validate_party_starting_state()
+	_validate_party_portrait_bar_size()
 	_validate_faction_menu_ui(faction_controller)
 	_validate_forced_raid_prompt()
 	_validate_local_conflict_event(faction_controller)
 
 
-func _validate_party_charisma() -> void:
-	var mira := _scene.get_node_or_null("PartyMembers/Mira")
-	var tomas := _scene.get_node_or_null("PartyMembers/Tomas")
-	if mira == null or tomas == null:
-		_fail("Party members missing for charisma validation")
+func _validate_party_starting_state() -> void:
+	var mira := _scene.get_node_or_null("PartyMembers/Mira") as HumanoidCharacter
+	var tomas := _scene.get_node_or_null("PartyMembers/Tomas") as HumanoidCharacter
+	var newbie := _scene.get_node_or_null("PartyMembers/Newbie") as HumanoidCharacter
+	var stealth := _scene.get_node_or_null("PartyMembers/Stealth") as HumanoidCharacter
+	if mira == null or tomas == null or newbie == null or stealth == null:
+		_fail("Expected Mira, Tomas, Newbie, and Stealth party members")
 		return
-	if not mira.has_method("get_skill_level") or int(mira.call("get_skill_level", "attribute.charisma")) != 40:
+	if mira.get_skill_level(SkillRules.ATTRIBUTE_CHARISMA) != 40:
 		_fail("Mira should start with Charisma 40")
-	if not tomas.has_method("get_skill_level") or int(tomas.call("get_skill_level", "attribute.charisma")) != 20:
+	if tomas.get_skill_level(SkillRules.ATTRIBUTE_CHARISMA) != 20:
 		_fail("Tomas should start with Charisma 20")
+	if mira.get_skill_level(SkillRules.SUBTERFUGE_SNEAKING) != 20:
+		_fail("Mira should start with Sneaking 20")
+	if tomas.get_skill_level(SkillRules.SUBTERFUGE_SNEAKING) != 50:
+		_fail("Tomas should start with Sneaking 50")
+	if newbie.get_skill_level(SkillRules.SUBTERFUGE_SNEAKING) != SkillRules.DEFAULT_LEVEL:
+		_fail("Newbie should start with default Sneaking 1")
+	if newbie.get_skill_level(SkillRules.ATTRIBUTE_CHARISMA) != SkillRules.DEFAULT_LEVEL:
+		_fail("Newbie should start with default Charisma 1")
+	if newbie.get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION) != SkillRules.DEFAULT_LEVEL:
+		_fail("Newbie should start with default Perception 1")
+	if stealth.get_skill_level(SkillRules.SUBTERFUGE_SNEAKING) != 80:
+		_fail("Stealth should start with Sneaking 80")
+	for member in [mira, tomas, newbie, stealth]:
+		if member.inventory == null:
+			_fail("%s should have an inventory" % member.member_name)
+			continue
+		if member.inventory.count_item(BANDAGE) != 1:
+			_fail("%s should start with 1 bandage, got %d" % [member.member_name, member.inventory.count_item(BANDAGE)])
+		if member.inventory.count_item(SILVER) != 10:
+			_fail("%s should start with 10 silver, got %d" % [member.member_name, member.inventory.count_item(SILVER)])
+
+
+func _validate_party_portrait_bar_size() -> void:
+	var hud := _scene.get_node_or_null("GameHUD")
+	if hud == null:
+		_fail("GameHUD missing for party portrait bar validation")
+		return
+	var portrait_scroll := hud.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/PortraitScroll") as ScrollContainer
+	if portrait_scroll == null:
+		_fail("Party portrait scroll container missing")
+		return
+	var portrait_flow := portrait_scroll.get_node_or_null("PortraitFlow") as Control
+	if portrait_flow == null:
+		_fail("Party portrait flow container missing")
+		return
+	if portrait_flow.get_child_count() < 4:
+		_fail("Expected party portrait cards for the starter party")
+	for child in portrait_flow.get_children():
+		var card := child as Control
+		if card == null:
+			continue
+		if card.custom_minimum_size.y > 68.0:
+			_fail("Party portrait card should stay compact enough to avoid default vertical scroll, got %.1f" % card.custom_minimum_size.y)
+		var portrait_image := card.get_node_or_null("Margin/VBox/PortraitImage") as Control
+		if portrait_image != null and portrait_image.custom_minimum_size.y > 42.0:
+			_fail("Party portrait image should stay compact enough to avoid default vertical scroll, got %.1f" % portrait_image.custom_minimum_size.y)
+	var vertical_bar := portrait_scroll.get_v_scroll_bar()
+	if vertical_bar != null and vertical_bar.visible:
+		_fail("Default party portrait row should not show a vertical scrollbar; scroll_size=%s flow_min=%s vbar_max=%.1f page=%.1f" % [portrait_scroll.size, portrait_flow.get_combined_minimum_size(), vertical_bar.max_value, vertical_bar.page])
 
 
 func _validate_faction_menu_ui(faction_controller: Node) -> void:
@@ -401,6 +455,7 @@ func _validate_resident(resident: HumanoidCharacter, profile: Resource, name_pro
 	_validate_hair_and_beard(appearance, profile, body_type, resident_label)
 	_validate_skin(appearance, resident_label)
 	_validate_skeleton_ranges(appearance, profile, resident_label)
+	_validate_perception_range(resident, 2, 8, resident_label)
 	if not resident.has_custom_skin_material():
 		_fail("%s did not apply generated custom skin material" % resident_label)
 
@@ -509,6 +564,14 @@ func _validate_skeleton_ranges(appearance, profile: Resource, label: String) -> 
 	_expect_in_range(float(appearance.shoulder_width_slider), profile.get("shoulder_range") as Vector2, "%s shoulders" % label)
 	_expect_in_range(float(appearance.arm_length_slider), profile.get("arm_length_range") as Vector2, "%s arms" % label)
 	_expect_in_range(float(appearance.neck_length_slider), profile.get("neck_length_range") as Vector2, "%s neck" % label)
+
+
+func _validate_perception_range(resident: HumanoidCharacter, minimum: int, maximum: int, label: String) -> void:
+	if resident == null:
+		return
+	var perception := resident.get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION)
+	if perception < minimum or perception > maximum:
+		_fail("%s perception %d outside expected %d..%d" % [label, perception, minimum, maximum])
 
 
 func _expect_equipped_in(resident: HumanoidCharacter, slot_name: String, pool: Array, label: String) -> void:
