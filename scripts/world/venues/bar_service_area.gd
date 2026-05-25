@@ -20,6 +20,13 @@ const CUSTOMER_THANKS_LINES := [
 	"Looks good.",
 	"Appreciate it.",
 ]
+const CUSTOMER_READY_LINES := [
+	"Ready over here.",
+	"Can you take my order?",
+	"When you have a moment.",
+	"Over here.",
+	"(waves)",
+]
 
 @export var service_area_id := ""
 @export var owner_character_path: NodePath
@@ -38,6 +45,8 @@ const CUSTOMER_THANKS_LINES := [
 @export var waiter_character_paths: Array[NodePath] = []
 @export var guard_character_paths: Array[NodePath] = []
 @export var waiter_service_delay_seconds := 7.0
+@export var waiter_order_prompt_interval_seconds := 10.0
+@export var waiter_order_prompt_jitter_seconds := 3.0
 @export var waiter_service_distance := 2.4
 @export var table_service_radius := 2.8
 @export var guard_shuffle_min_seconds := 120.0
@@ -54,6 +63,7 @@ var _has_trade_proxy_position := false
 var _proxied_owner: HumanoidCharacter
 var _guard_post_by_actor_id: Dictionary = {}
 var _guard_shuffle_remaining_by_actor_id: Dictionary = {}
+var _next_waiter_order_prompt_seconds := 0.0
 var _rng := RandomNumberGenerator.new()
 
 signal inventory_changed
@@ -236,8 +246,24 @@ func release_waiter_customer_service(seat) -> void:
 
 
 func complete_waiter_customer_service(seat) -> void:
+	var completed := false
 	if seat != null and is_instance_valid(seat) and seat.has_method("mark_service_completed"):
 		seat.mark_service_completed()
+		completed = true
+	if completed:
+		schedule_next_waiter_order_prompt()
+
+
+func schedule_next_waiter_order_prompt() -> void:
+	var base_delay := maxf(waiter_order_prompt_interval_seconds, 0.0)
+	var jitter := maxf(waiter_order_prompt_jitter_seconds, 0.0)
+	if base_delay <= 0.0 and jitter <= 0.0:
+		_next_waiter_order_prompt_seconds = 0.0
+		return
+	var delay := base_delay
+	if jitter > 0.0:
+		delay += _rng.randf_range(-jitter, jitter)
+	_next_waiter_order_prompt_seconds = _now_seconds() + maxf(delay, 0.0)
 
 
 func get_customer_for_seat(seat) -> HumanoidCharacter:
@@ -256,6 +282,10 @@ func generate_customer_order_text(_customer: HumanoidCharacter = null) -> String
 
 func generate_customer_thanks_text(_customer: HumanoidCharacter = null) -> String:
 	return CUSTOMER_THANKS_LINES[_rng.randi_range(0, CUSTOMER_THANKS_LINES.size() - 1)]
+
+
+func generate_customer_ready_text(_customer: HumanoidCharacter = null) -> String:
+	return CUSTOMER_READY_LINES[_rng.randi_range(0, CUSTOMER_READY_LINES.size() - 1)]
 
 
 func get_available_waiter_point(worker: HumanoidCharacter, excluded_point = null):
@@ -355,6 +385,9 @@ func serves_actor(actor: Node) -> bool:
 
 
 func _claim_waiting_customer_seat(worker: HumanoidCharacter, include_player_party: bool):
+	var now_seconds := _now_seconds()
+	if (waiter_order_prompt_interval_seconds > 0.0 or waiter_order_prompt_jitter_seconds > 0.0) and now_seconds < _next_waiter_order_prompt_seconds:
+		return null
 	var best_seat
 	var best_distance := INF
 	for seat in _collect_seat_nodes():
@@ -362,8 +395,8 @@ func _claim_waiting_customer_seat(worker: HumanoidCharacter, include_player_part
 			continue
 		if not seat.is_waiting_customer_for_service(waiter_service_delay_seconds, include_player_party, true):
 			continue
-		var customer := get_customer_for_seat(seat)
-		if customer == null or customer == worker:
+		var seated_customer := get_customer_for_seat(seat)
+		if seated_customer == null or seated_customer == worker:
 			continue
 		var target_position := _get_waiter_service_position(worker, seat)
 		var distance := worker.global_position.distance_squared_to(target_position) if worker != null else 0.0
@@ -372,6 +405,9 @@ func _claim_waiting_customer_seat(worker: HumanoidCharacter, include_player_part
 			best_seat = seat
 	if best_seat != null and best_seat.has_method("mark_service_requested"):
 		best_seat.mark_service_requested()
+		var selected_customer := get_customer_for_seat(best_seat)
+		if selected_customer != null:
+			selected_customer.show_world_speech(generate_customer_ready_text(selected_customer), 1.8)
 	return best_seat
 
 

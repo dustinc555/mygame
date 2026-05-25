@@ -57,11 +57,13 @@ Staff/Barber when has_barber is enabled
 ServicePoints/BarkeeperCounterPoint
 ServicePoints/WaiterPoint* from waiter_count
 GuardPosts/GuardPost* from guard_count
-ActivityPoints/VisitorPoint* from visitor_capacity
+ActivityPoints/BarLoiterPoint when visitor_capacity is above zero
 Furniture, shop stock, jobs, and BarServiceArea wiring
 ```
 
-11. Move service points, guard posts, visitor points, furniture, or the building mesh if you want a custom layout.
+Waiter jobs pay the configured base wage over time. Served tables can add configurable Charisma XP and tip rewards when the server passes the job's Charisma check. After a delivery, the next customer prompt defaults to roughly `10 +/- 3` seconds later.
+
+11. Move service points, guard posts, the bar loiter point, furniture, or the building mesh if you want a custom layout.
 
 Barbers, mercenaries, doctors, traders, and other non-working bar occupants should use the normal bar space and existing chairs instead of getting bespoke service points. Guards need posts and waiters need service points because those are active jobs; idle occupants just exist in the bar.
 
@@ -89,6 +91,6 @@ Do not manually add or configure `BarServiceArea`; it is an internal child of `S
 
 Generated staff use the settlement/faction population appearance and name setup when available. Hand-authored assigned NPCs keep their authored identity and appearance.
 
-Generated service points, guard posts, and visitor points carry migration metadata. If future default bar layouts change, unchanged generated points can migrate to new defaults, while moved/customized points are preserved.
+Generated service points, guard posts, and the bar loiter point carry migration metadata. If future default bar layouts change, unchanged generated points can migrate to new defaults, while moved/customized points are preserved.
 
 Barkeeper stock defaults from the parent town's current supply ratio when the bar is under a `SettlementTown`. A standalone bar uses `standalone_stock_ratio`. This only seeds merchant inventory for now; future economy work should restock through settlement storage and supply systems.

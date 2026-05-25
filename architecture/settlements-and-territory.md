@@ -63,9 +63,11 @@ Facility records include the stable facility ID, function ID, owner faction, wor
 
 `SettlementBar` and `SettlementField` are higher-level authoring presets over `SettlementFacilityInstance` for common facilities.
 
-Use `SettlementBar` under a town's `Bars` root when the operator wants a drag-and-play bar with a building slot, barkeeper, waiter, guard, furniture, service point, guard post, merchant role, and job provider already wired.
+Use `SettlementBar` under a town's `Bars` root when the operator wants a drag-and-play bar with a building slot, generated or assigned barkeeper/waiter/guard roles, furniture, service point, guard post, merchant role, and job provider already wired.
 
-`BarServiceArea` is an internal service component owned by `SettlementBar`. It handles waiter table service, bed rental checks, barkeeper stock handoff, and service/guard point lookup; operators should configure the `SettlementBar`, not the service area directly.
+`BarServiceArea` is an internal service component owned by `SettlementBar`. It handles paced waiter table service, repeat customer readiness while seated, bed rental checks, barkeeper stock handoff, and service/guard point lookup; operators should configure the `SettlementBar`, not the service area directly.
+
+Server-shift jobs pay their configured base wage over time. Completed table service separately rolls a configurable Charisma check for tip and XP outcomes, with default XP intended as useful early practice and a soft falloff after roughly level 30. The bar schedules the next customer prompt after delivery, defaulting to roughly `10 +/- 3` seconds, so waiters pause between orders instead of chaining ready tables immediately.
 
 Bar furniture can live outside the building shell under one `Furniture` root. The reusable bar discovers seat and bed props recursively, and registers bed props as upper-floor content on the placed `WorldBuilding` so the building level-visibility system hides second-floor beds when the active actor is on the ground floor.
 

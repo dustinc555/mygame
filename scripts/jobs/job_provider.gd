@@ -6,7 +6,6 @@ const DEFAULT_WORK_INVENTORY_COLUMNS := 4
 const DEFAULT_WORK_INVENTORY_ROWS := 4
 const JOB_DEFINITION_SCRIPT = preload("res://scripts/jobs/job_definition.gd")
 const ACTOR_CONDITION_EVALUATOR_SCRIPT = preload("res://scripts/conditions/actor_condition_evaluator.gd")
-const SERVER_ORDER_CHARISMA_XP := 2.0
 const SERVER_ORDER_PREP_SECONDS := 1.25
 const SERVER_STATE_IDLE := "idle"
 const SERVER_STATE_TO_CUSTOMER := "to_customer"
@@ -288,6 +287,11 @@ func _assign_worker_to_open_slot(worker: HumanoidCharacter, job_index: int) -> D
 	slot_state["target_container"] = null
 	slot_state["target_guard_post"] = null
 	slot_state["target_service_point"] = null
+	slot_state["target_service_seat"] = null
+	slot_state["target_service_customer"] = null
+	slot_state["server_state"] = SERVER_STATE_IDLE
+	slot_state["server_state_elapsed"] = 0.0
+	slot_state["server_order_text"] = ""
 	slot_state["guard_shuffle_remaining"] = _next_guard_shuffle_seconds()
 	slot_state["accrued_interval_time"] = 0.0
 	var record := _get_worker_record(worker)
@@ -436,25 +440,18 @@ func _process_slot(job_index: int, job, slot_state: Dictionary, delta: float) ->
 	var record := _get_worker_record(worker)
 	var on_duty_seconds := float(record.get("current_shift_seconds", 0.0)) + delta
 	record["current_shift_seconds"] = on_duty_seconds
-	if completed_server_order:
-		_award_server_order_completion(job, worker, record)
-		if on_duty_seconds >= max_on_duty_seconds:
-			record["break_until_time"] = _sim_time + break_duration_seconds
-			worker.show_world_notice("%s says take a break" % get_provider_name(), Color(0.95, 0.85, 0.45, 1.0))
-			_end_slot_assignment(job_index, slot_state, false)
-		return
-	if on_duty_seconds >= max_on_duty_seconds:
-		record["break_until_time"] = _sim_time + break_duration_seconds
-		worker.show_world_notice("%s says take a break" % get_provider_name(), Color(0.95, 0.85, 0.45, 1.0))
-		_end_slot_assignment(job_index, slot_state, false)
-		return
-	if str(job.algorithm_id) == "server_shift":
-		return
 	slot_state["accrued_interval_time"] = float(slot_state.get("accrued_interval_time", 0.0)) + delta
 	while float(slot_state.get("accrued_interval_time", 0.0)) >= maxf(job.pay_interval_seconds, 0.01):
 		slot_state["accrued_interval_time"] = float(slot_state.get("accrued_interval_time", 0.0)) - maxf(job.pay_interval_seconds, 0.01)
 		record["owed_currency"] = int(record.get("owed_currency", 0)) + job.pay_per_interval
 		record["total_worked_seconds"] = float(record.get("total_worked_seconds", 0.0)) + job.pay_interval_seconds
+	if completed_server_order:
+		_award_server_order_completion(job, worker, record)
+	if on_duty_seconds >= max_on_duty_seconds:
+		record["break_until_time"] = _sim_time + break_duration_seconds
+		worker.show_world_notice("%s says take a break" % get_provider_name(), Color(0.95, 0.85, 0.45, 1.0))
+		_end_slot_assignment(job_index, slot_state, false)
+		return
 
 
 func _process_mine_and_haul(job_index: int, job, slot_state: Dictionary, worker: HumanoidCharacter) -> bool:
@@ -630,12 +627,64 @@ func _release_server_customer_service(service_area: BarServiceArea, slot_state: 
 
 
 func _award_server_order_completion(job, worker: HumanoidCharacter, record: Dictionary) -> void:
-	record["owed_currency"] = int(record.get("owed_currency", 0)) + max(0, int(job.pay_per_interval))
-	record["total_worked_seconds"] = float(record.get("total_worked_seconds", 0.0)) + maxf(float(job.pay_interval_seconds), 0.0)
+	var passed := _passes_server_order_charisma_check(job, worker)
+	var tip := _server_order_tip(job) if passed else 0
+	if tip > 0:
+		record["owed_currency"] = int(record.get("owed_currency", 0)) + tip
+	var charisma_xp := _server_order_charisma_xp(job, worker, passed)
 	if worker != null and worker.has_method("add_skill_xp"):
-		worker.add_skill_xp(SkillRules.ATTRIBUTE_CHARISMA, SERVER_ORDER_CHARISMA_XP, "bar_waiter_service")
+		worker.add_skill_xp(SkillRules.ATTRIBUTE_CHARISMA, charisma_xp, "bar_waiter_service")
 	if worker != null:
-		worker.show_world_notice("+%d silver, +charisma" % max(0, int(job.pay_per_interval)), Color(0.5, 1.0, 0.65, 1.0), 1.4)
+		if passed and tip > 0:
+			worker.show_world_notice("+%d tip, +charisma" % tip, Color(0.5, 1.0, 0.65, 1.0), 1.4)
+		else:
+			worker.show_world_notice("+charisma" if charisma_xp > 0.0 else "No tip", Color(0.8, 0.82, 0.72, 1.0), 1.4)
+
+
+func _passes_server_order_charisma_check(job, worker: HumanoidCharacter) -> bool:
+	var chance := _server_order_charisma_chance(job, worker)
+	if chance <= 0.0:
+		return false
+	if chance >= 1.0:
+		return true
+	return _rng.randf() <= chance
+
+
+func _server_order_charisma_chance(job, worker: HumanoidCharacter) -> float:
+	var level: int = 0
+	if worker != null and worker.has_method("get_skill_level"):
+		level = int(worker.get_skill_level(SkillRules.ATTRIBUTE_CHARISMA))
+	var chance: float = _job_float(job, "server_charisma_base_chance", 0.25) + float(level) * _job_float(job, "server_charisma_chance_per_level", 0.03)
+	return clampf(chance, _job_float(job, "server_charisma_min_chance", 0.05), _job_float(job, "server_charisma_max_chance", 0.9))
+
+
+func _server_order_charisma_xp(job, worker: HumanoidCharacter, passed: bool) -> float:
+	var amount: float = _job_float(job, "server_charisma_success_xp", 8.0) if passed else _job_float(job, "server_charisma_failure_xp", 2.0)
+	if worker == null or not worker.has_method("get_skill_level"):
+		return amount
+	var level: int = int(worker.get_skill_level(SkillRules.ATTRIBUTE_CHARISMA))
+	var soft_cap: int = maxi(0, _job_int(job, "server_charisma_xp_soft_cap_level", 30))
+	if level <= soft_cap:
+		return amount
+	return amount * clampf(_job_float(job, "server_charisma_post_cap_xp_multiplier", 0.35), 0.0, 1.0)
+
+
+func _server_order_tip(job) -> int:
+	return maxi(0, _job_int(job, "server_tip_on_success", 1))
+
+
+func _job_float(job, property_name: String, fallback: float) -> float:
+	if job == null:
+		return fallback
+	var value: Variant = job.get(property_name)
+	return fallback if value == null else float(value)
+
+
+func _job_int(job, property_name: String, fallback: int) -> int:
+	if job == null:
+		return fallback
+	var value: Variant = job.get(property_name)
+	return fallback if value == null else int(value)
 
 
 func _process_guard_post_shuffle(service_area: BarServiceArea, slot_state: Dictionary, worker: HumanoidCharacter, current_post, delta: float):
@@ -815,13 +864,13 @@ func _build_job_offer_text(job) -> String:
 		"guard_post":
 			return "I need someone watching this place. Stand guard and I'll pay you %d every %d seconds on duty." % [int(job.pay_per_interval), int(round(job.pay_interval_seconds))]
 		"server_shift":
-			return "I need help serving tables. Take customer orders, relay them to me, and I'll pay you %d silver per completed order." % int(job.pay_per_interval)
+			return "I need help serving tables. Hold the floor and I'll pay you %d every %d seconds on duty. Good service can earn %d silver in tips." % [int(job.pay_per_interval), int(round(job.pay_interval_seconds)), _server_order_tip(job)]
 	return "I've got work if you want it. I'll pay you %d every %d seconds you work." % [int(job.pay_per_interval), int(round(job.pay_interval_seconds))]
 
 
 func _build_job_accept_text(job) -> String:
 	if job != null and str(job.algorithm_id) == "server_shift":
-		return "Good. Take orders from seated customers and bring them back to me."
+		return "Good. Watch the tables, take orders when customers call, and bring them back to me."
 	return "Good. Get to work on %s." % job.get_display_name().to_lower()
 
 

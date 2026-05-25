@@ -22,6 +22,7 @@ func _run() -> void:
 	root.add_child(_scene)
 	await _wait_frames(120)
 	_validate_bread_inventory_shape()
+	_validate_base_bar_scene_staff_authoring()
 	_validate_demo_starts_without_bar()
 	await _validate_operator_instantiated_bar()
 	if _failures.is_empty():
@@ -50,6 +51,18 @@ func _validate_bread_inventory_shape() -> void:
 		_fail("Bread should occupy a 3x2 inventory footprint")
 	if int(BREAD_ITEM.get("max_stack")) != 1:
 		_fail("Bread should not stack in inventory")
+
+
+func _validate_base_bar_scene_staff_authoring() -> void:
+	var bar := SETTLEMENT_BAR_SCENE.instantiate()
+	var staff_root := bar.get_node_or_null("Staff")
+	if staff_root == null:
+		_fail("Base reusable bar scene should keep a Staff root")
+	else:
+		for staff_name in ["Barkeeper", "Waiter", "Guard", "Barber"]:
+			if staff_root.get_node_or_null(staff_name) != null:
+				_fail("Base reusable bar scene should not ship authored default Staff/%s" % staff_name)
+	bar.free()
 
 
 func _validate_operator_instantiated_bar() -> void:
@@ -84,7 +97,7 @@ func _validate_operator_instantiated_bar() -> void:
 	_validate_barber_seating(bar)
 	_validate_seated_talk_range(bar)
 	_validate_barkeeper_stock(bar)
-	_validate_waiter_order_job(bar, assigned_waiter)
+	_validate_waiter_order_job(bar, assigned_waiter, assigned_guard)
 	await _validate_standalone_bar_stock()
 	_validate_scene_authored_layout_source(bar)
 	_validate_layout_migration(bar)
@@ -464,55 +477,148 @@ func _validate_barkeeper_stock(bar: Node) -> void:
 		_fail("Bar stock repair should preserve custom merchant stock quantities")
 
 
-func _validate_waiter_order_job(bar: Node, worker: HumanoidCharacter) -> void:
+func _validate_waiter_order_job(bar: Node, worker: HumanoidCharacter, pacing_customer: HumanoidCharacter) -> void:
 	if worker == null:
 		return
 	var service_area := bar.get_node_or_null("BarServiceArea")
 	var provider := bar.get_node_or_null("Staff/Barkeeper/JobProvider")
 	var customer := bar.get_node_or_null("Staff/Guard") as HumanoidCharacter
-	var seat = null
+	var seats: Array = []
 	if service_area != null:
-		var seats: Array = service_area.call("_collect_seat_nodes")
-		if not seats.is_empty():
-			seat = seats[0]
-	if service_area == null or provider == null or customer == null or seat == null:
-		_fail("Waiter order validation could not find service area, provider, customer, or seat")
-		return
-	service_area.set("waiter_service_delay_seconds", 0.0)
-	if seat.has_method("get_interaction_position"):
-		customer.global_position = seat.call("get_interaction_position", customer)
-	customer.assign_seat_target(seat, false)
-	if customer.has_method("_process_seat_interaction"):
-		customer.call("_process_seat_interaction")
-	if not customer.is_sitting():
-		_fail("Waiter order validation customer should be seated before service")
+		seats = service_area.call("_collect_seat_nodes")
+	if service_area == null or provider == null or customer == null or seats.size() < 2:
+		_fail("Waiter order validation could not find service area, provider, customer, or two seats")
 		return
 	var server_job_index := _server_shift_job_index(provider)
 	if server_job_index < 0:
 		_fail("Bar job provider should expose a server_shift job")
-		customer.stop_seat_assignment()
 		return
+	var jobs: Array = provider.get("jobs")
+	var job = jobs[server_job_index]
+	job.set("server_tip_on_success", 1)
+	job.set("server_charisma_failure_xp", 2.0)
+	job.set("server_charisma_success_xp", 8.0)
+	job.set("server_charisma_xp_soft_cap_level", 30)
+	job.set("server_charisma_post_cap_xp_multiplier", 0.35)
 	_validate_waiter_job_offer_text(provider, server_job_index)
-	var before_xp := float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA))
+	worker.set_skill_level(SkillRules.ATTRIBUTE_CHARISMA, 1)
 	var assignment: Dictionary = provider.call("_assign_worker_to_open_slot", worker, server_job_index)
 	if not bool(assignment.get("allowed", false)):
 		_fail("Waiter should be able to take the server_shift job for order validation: %s" % str(assignment.get("reason", "")))
-		customer.stop_seat_assignment()
 		return
-	worker.global_position = service_area.call("get_waiter_customer_service_position", worker, seat)
-	provider.call("process_jobs", 0.1, 0.1)
-	worker.global_position = service_area.call("get_barkeeper_order_position", worker)
-	provider.call("process_jobs", 0.1, 0.2)
-	provider.call("process_jobs", 2.0, 2.2)
-	worker.global_position = service_area.call("get_waiter_customer_service_position", worker, seat)
-	provider.call("process_jobs", 0.1, 2.3)
+	var original_service_delay := float(service_area.get("waiter_service_delay_seconds"))
+	var original_prompt_interval := float(service_area.get("waiter_order_prompt_interval_seconds"))
+	var original_prompt_jitter := float(service_area.get("waiter_order_prompt_jitter_seconds"))
+	if absf(original_prompt_interval - 10.0) > 0.01:
+		_fail("Waiter order prompt interval should default to about 10 seconds, got %.2f" % original_prompt_interval)
+	if absf(original_prompt_jitter - 3.0) > 0.01:
+		_fail("Waiter order prompt jitter should default to about 3 seconds, got %.2f" % original_prompt_jitter)
+	service_area.set("waiter_service_delay_seconds", 999.0)
+	service_area.set("waiter_order_prompt_interval_seconds", 0.0)
+	service_area.set("waiter_order_prompt_jitter_seconds", 0.0)
 	var record: Dictionary = provider.call("_get_worker_record", worker)
-	if int(record.get("owed_currency", 0)) <= 0:
-		_fail("Completed waiter orders should create per-order pay instead of passive wages")
-	if float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA)) <= before_xp:
-		_fail("Completed waiter orders should award small charisma XP")
+	var base_owed_before := int(record.get("owed_currency", 0))
+	var pay_interval := maxf(float(job.get("pay_interval_seconds")), 0.01)
+	provider.call("process_jobs", pay_interval, pay_interval)
+	record = provider.call("_get_worker_record", worker)
+	if int(record.get("owed_currency", 0)) - base_owed_before < int(job.get("pay_per_interval")):
+		_fail("Server shift should accrue base wages while holding the floor")
+	service_area.set("waiter_service_delay_seconds", 0.0)
+	service_area.set("waiter_order_prompt_interval_seconds", 60.0)
+	service_area.set("waiter_order_prompt_jitter_seconds", 0.0)
+	var first_seat = seats[0]
+	var second_seat = seats[1]
+	if pacing_customer == null:
+		pacing_customer = bar.get_node_or_null("Staff/Barber") as HumanoidCharacter
+	if not _seat_actor_for_waiter_validation(customer, first_seat) or not _seat_actor_for_waiter_validation(pacing_customer, second_seat):
+		_fail("Waiter order pacing validation customers should be seated before service")
+	else:
+		_configure_waiter_check(job, 0.0)
+		var before_fail_xp := float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA))
+		var before_fail_owed := int(record.get("owed_currency", 0))
+		_complete_waiter_order(provider, service_area, worker, first_seat, pay_interval + 0.1)
+		record = provider.call("_get_worker_record", worker)
+		var fail_xp_delta := float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA)) - before_fail_xp
+		if absf(fail_xp_delta - 2.0) > 0.01:
+			_fail("Failed waiter Charisma checks should award 2 XP, got %.2f" % fail_xp_delta)
+		if int(record.get("owed_currency", 0)) != before_fail_owed:
+			_fail("Failed waiter Charisma checks should not add a tip")
+		var chained_claim = service_area.call("claim_waiting_customer_seat", worker)
+		if chained_claim != null:
+			_fail("Completed waiter orders should start a prompt cooldown instead of chaining immediately to another ready customer")
+			service_area.call("release_waiter_customer_service", chained_claim)
+		if not bool(first_seat.call("is_waiting_customer_for_service", 0.0, false, true)):
+			_fail("Served seated customers should be able to become ready again without leaving the chair")
+	customer.stop_seat_assignment()
+	if pacing_customer != null:
+		pacing_customer.stop_seat_assignment()
+	service_area.set("waiter_order_prompt_interval_seconds", 0.0)
+	service_area.set("waiter_order_prompt_jitter_seconds", 0.0)
+	if not _seat_actor_for_waiter_validation(customer, first_seat):
+		_fail("Waiter order validation customer should be seated before service")
+		provider.call("pause_worker_job", worker, false)
+		_restore_waiter_validation_service_config(service_area, original_service_delay, original_prompt_interval, original_prompt_jitter)
+		return
+	_configure_waiter_check(job, 1.0)
+	var before_success_xp := float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA))
+	var before_success_owed := int(record.get("owed_currency", 0))
+	_complete_waiter_order(provider, service_area, worker, first_seat, pay_interval + 3.0)
+	record = provider.call("_get_worker_record", worker)
+	var success_xp_delta := float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA)) - before_success_xp
+	if absf(success_xp_delta - 8.0) > 0.01:
+		_fail("Successful waiter Charisma checks should award 8 XP before the soft cap, got %.2f" % success_xp_delta)
+	if int(record.get("owed_currency", 0)) - before_success_owed != 1:
+		_fail("Successful waiter Charisma checks should add the configured tip only")
+	worker.set_skill_level(SkillRules.ATTRIBUTE_CHARISMA, 31)
+	var before_soft_cap_xp := float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA))
+	_complete_waiter_order(provider, service_area, worker, first_seat, pay_interval + 6.0)
+	var soft_cap_xp_delta := float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA)) - before_soft_cap_xp
+	if absf(soft_cap_xp_delta - 2.8) > 0.01:
+		_fail("Waiter Charisma XP should soft-cap after level 30, got %.2f" % soft_cap_xp_delta)
 	provider.call("pause_worker_job", worker, false)
 	customer.stop_seat_assignment()
+	_restore_waiter_validation_service_config(service_area, original_service_delay, original_prompt_interval, original_prompt_jitter)
+
+
+func _restore_waiter_validation_service_config(service_area: Node, service_delay: float, prompt_interval: float, prompt_jitter: float) -> void:
+	if service_area == null:
+		return
+	service_area.set("waiter_service_delay_seconds", service_delay)
+	service_area.set("waiter_order_prompt_interval_seconds", prompt_interval)
+	service_area.set("waiter_order_prompt_jitter_seconds", prompt_jitter)
+
+
+func _seat_actor_for_waiter_validation(actor: HumanoidCharacter, seat) -> bool:
+	if actor == null or seat == null:
+		return false
+	if seat.has_method("get_sitter"):
+		var sitter = seat.call("get_sitter")
+		if sitter != null and sitter != actor and sitter.has_method("stop_seat_assignment"):
+			sitter.call("stop_seat_assignment")
+	actor.stop_seat_assignment()
+	if seat.has_method("get_interaction_position"):
+		actor.global_position = seat.call("get_interaction_position", actor)
+	actor.assign_seat_target(seat, false)
+	if actor.has_method("_process_seat_interaction"):
+		actor.call("_process_seat_interaction")
+	return actor.is_sitting()
+
+
+func _complete_waiter_order(provider: Node, service_area: Node, worker: HumanoidCharacter, seat, start_time: float) -> void:
+	worker.global_position = service_area.call("get_waiter_customer_service_position", worker, seat)
+	provider.call("process_jobs", 0.1, start_time)
+	worker.global_position = service_area.call("get_barkeeper_order_position", worker)
+	provider.call("process_jobs", 0.1, start_time + 0.1)
+	provider.call("process_jobs", 2.0, start_time + 2.1)
+	worker.global_position = service_area.call("get_waiter_customer_service_position", worker, seat)
+	provider.call("process_jobs", 0.1, start_time + 2.2)
+
+
+func _configure_waiter_check(job, chance: float) -> void:
+	job.set("server_charisma_base_chance", chance)
+	job.set("server_charisma_chance_per_level", 0.0)
+	job.set("server_charisma_min_chance", chance)
+	job.set("server_charisma_max_chance", chance)
 
 
 func _server_shift_job_index(provider: Node) -> int:
@@ -528,13 +634,15 @@ func _validate_waiter_job_offer_text(provider: Node, job_index: int) -> void:
 	var jobs: Array = provider.get("jobs")
 	var job = jobs[job_index] if job_index >= 0 and job_index < jobs.size() else null
 	var offer := str(provider.call("_build_job_offer_text", job)).to_lower()
-	if not offer.contains("per completed order"):
-		_fail("Waiter job offer should describe per-order pay")
-	if offer.contains("every 20 seconds") or offer.contains("every %d seconds" % int(job.get("pay_interval_seconds"))):
-		_fail("Waiter job offer should not describe passive interval pay")
+	if not offer.contains("every %d seconds" % int(job.get("pay_interval_seconds"))):
+		_fail("Waiter job offer should describe base interval pay")
+	if not offer.contains("tip"):
+		_fail("Waiter job offer should describe customer tips")
+	if offer.contains("per completed order"):
+		_fail("Waiter job offer should not describe completed orders as the base wage")
 	var accept := str(provider.call("_build_job_accept_text", job)).to_lower()
-	if accept.contains("every"):
-		_fail("Waiter job accept text should not imply interval pay")
+	if accept.contains("per completed order"):
+		_fail("Waiter job accept text should not imply per-order wages")
 
 
 func _validate_standalone_bar_stock() -> void:

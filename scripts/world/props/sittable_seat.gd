@@ -12,8 +12,8 @@ class_name SittableSeat
 var _sitter: HumanoidCharacter
 var _bar_service_area: BarServiceArea
 var _seated_since_seconds := 0.0
+var _service_wait_started_seconds := 0.0
 var _service_requested := false
-var _service_completed := false
 
 
 func _ready() -> void:
@@ -67,9 +67,9 @@ func claim_sitter(member: HumanoidCharacter) -> bool:
 	if _sitter != null and is_instance_valid(_sitter) and _sitter != member:
 		return false
 	if _sitter != member:
-		_seated_since_seconds = Time.get_ticks_msec() / 1000.0
+		_seated_since_seconds = _now_seconds()
+		_service_wait_started_seconds = _seated_since_seconds
 		_service_requested = false
-		_service_completed = false
 	_sitter = member
 	return true
 
@@ -78,8 +78,8 @@ func release_sitter(member: HumanoidCharacter) -> void:
 	if _sitter == member:
 		_sitter = null
 		_seated_since_seconds = 0.0
+		_service_wait_started_seconds = 0.0
 		_service_requested = false
-		_service_completed = false
 
 
 func is_occupied() -> bool:
@@ -93,7 +93,7 @@ func get_sitter() -> HumanoidCharacter:
 func get_seated_seconds() -> float:
 	if not is_occupied():
 		return 0.0
-	return Time.get_ticks_msec() / 1000.0 - _seated_since_seconds
+	return _now_seconds() - _seated_since_seconds
 
 
 func is_waiting_for_service(required_seconds: float) -> bool:
@@ -101,7 +101,7 @@ func is_waiting_for_service(required_seconds: float) -> bool:
 
 
 func is_waiting_customer_for_service(required_seconds: float, include_player_party := true, include_npcs := true) -> bool:
-	if not is_occupied() or _service_requested or _service_completed:
+	if not is_occupied() or _service_requested:
 		return false
 	if _sitter == null:
 		return false
@@ -109,7 +109,7 @@ func is_waiting_customer_for_service(required_seconds: float, include_player_par
 		return false
 	if not _sitter.is_player_party_member() and not include_npcs:
 		return false
-	return get_seated_seconds() >= required_seconds
+	return _now_seconds() - _service_wait_started_seconds >= required_seconds
 
 
 func mark_service_requested() -> void:
@@ -122,8 +122,12 @@ func clear_service_request() -> void:
 
 func mark_service_completed() -> void:
 	_service_requested = false
-	_service_completed = true
+	_service_wait_started_seconds = _now_seconds()
 
 
 func should_use_sitting_talking_idle(member: HumanoidCharacter) -> bool:
 	return _bar_service_area != null and member != null and not member.is_player_party_member()
+
+
+func _now_seconds() -> float:
+	return Time.get_ticks_msec() / 1000.0
