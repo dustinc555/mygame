@@ -2,12 +2,13 @@ extends Control
 
 class_name CursorItemDragSource
 
-signal item_dropped_outside(source_owner, definition, count, contained_item_counts)
+signal item_dropped_outside(source_owner, definition, count, contained_item_counts, item_metadata)
 
 var source_owner
 var item_definition: ItemDefinition
 var item_count := 1
 var contained_item_counts: Dictionary = {}
+var item_metadata: Dictionary = {}
 var _active_drag_id := 0
 var _has_item := false
 var _keep_requested := false
@@ -19,13 +20,14 @@ func _ready() -> void:
 	visible = false
 
 
-func start_drag(owner, definition: ItemDefinition, count := 1, item_contained_item_counts: Dictionary = {}) -> void:
+func start_drag(owner, definition: ItemDefinition, count := 1, item_contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
 	if definition == null or count <= 0:
 		return
 	source_owner = owner
 	item_definition = definition
 	item_count = count
 	contained_item_counts = item_contained_item_counts.duplicate(true)
+	item_metadata = metadata.duplicate(true)
 	_has_item = true
 	_keep_requested = false
 	_pending_replacement.clear()
@@ -45,7 +47,7 @@ func keep_drag(drag_id: int) -> void:
 	_keep_requested = true
 
 
-func replace_drag_item(drag_id: int, owner, definition: ItemDefinition, count := 1, item_contained_item_counts: Dictionary = {}) -> void:
+func replace_drag_item(drag_id: int, owner, definition: ItemDefinition, count := 1, item_contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
 	if drag_id != _active_drag_id:
 		return
 	if definition == null or count <= 0:
@@ -56,6 +58,7 @@ func replace_drag_item(drag_id: int, owner, definition: ItemDefinition, count :=
 		"definition": definition,
 		"count": count,
 		"contained_item_counts": item_contained_item_counts.duplicate(true),
+		"metadata": metadata.duplicate(true),
 	}
 	_has_item = false
 	_keep_requested = false
@@ -76,6 +79,7 @@ func _make_drag_data() -> Dictionary:
 		"item_definition": item_definition,
 		"count": item_count,
 		"contained_item_counts": contained_item_counts.duplicate(true),
+		"metadata": item_metadata.duplicate(true),
 	}
 
 
@@ -97,7 +101,7 @@ func _notification(what: int) -> void:
 	if not _pending_replacement.is_empty():
 		var replacement := _pending_replacement.duplicate()
 		_pending_replacement.clear()
-		start_drag(replacement["owner"], replacement["definition"], int(replacement["count"]), replacement.get("contained_item_counts", {}))
+		start_drag(replacement["owner"], replacement["definition"], int(replacement["count"]), replacement.get("contained_item_counts", {}), replacement.get("metadata", {}))
 		return
 	if not _has_item:
 		return
@@ -111,7 +115,7 @@ func _notification(what: int) -> void:
 	if _mouse_is_over_inventory_window():
 		call_deferred("_begin_drag", _active_drag_id)
 		return
-	item_dropped_outside.emit(source_owner, item_definition, item_count, contained_item_counts.duplicate(true))
+	item_dropped_outside.emit(source_owner, item_definition, item_count, contained_item_counts.duplicate(true), item_metadata.duplicate(true))
 	_clear_item()
 
 
@@ -144,5 +148,6 @@ func _clear_item() -> void:
 	item_definition = null
 	item_count = 1
 	contained_item_counts.clear()
+	item_metadata.clear()
 	_keep_requested = false
 	_pending_replacement.clear()

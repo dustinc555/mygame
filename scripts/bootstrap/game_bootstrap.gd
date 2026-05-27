@@ -21,6 +21,7 @@ const SETTLEMENT_ACTIVITY_CONTROLLER_SCRIPT = preload("res://scripts/controllers
 const WORLD_SQUAD_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_squad_controller.gd")
 const WORLD_EVENT_CHOICE_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_event_choice_controller.gd")
 const WORLD_SIMULATION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_simulation_controller.gd")
+const LAW_ORDER_CONTROLLER_SCRIPT = preload("res://scripts/controllers/law_order_controller.gd")
 const WORLD_NAVIGATION_BAKER_SCRIPT = preload("res://scripts/navigation/world_navigation_baker.gd")
 const GAME_HUD_SCENE = preload("res://scenes/ui/game_hud.tscn")
 
@@ -47,6 +48,7 @@ func _deferred_bootstrap() -> void:
 	_ensure_controller("WorldEventChoiceController", WORLD_EVENT_CHOICE_CONTROLLER_SCRIPT)
 	_ensure_controller("WorldSquadController", WORLD_SQUAD_CONTROLLER_SCRIPT)
 	_ensure_controller("WorldSimulationController", WORLD_SIMULATION_CONTROLLER_SCRIPT)
+	_ensure_controller("LawOrderController", LAW_ORDER_CONTROLLER_SCRIPT)
 	_ensure_controller("SettlementActivityController", SETTLEMENT_ACTIVITY_CONTROLLER_SCRIPT)
 	_ensure_controller("PartyInventoryController", PARTY_INVENTORY_CONTROLLER_SCRIPT)
 	_ensure_controller("HumanoidDetailsController", HUMANOID_DETAILS_CONTROLLER_SCRIPT)

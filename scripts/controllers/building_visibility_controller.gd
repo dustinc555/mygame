@@ -35,16 +35,17 @@ func _process(_delta: float) -> void:
 	if not _initialized:
 		return
 	var meaningful_actor := _get_meaningful_actor()
-	var next_building: Node = _find_building_for_actor(meaningful_actor)
+	var visibility_actor := _get_visibility_proxy_actor(meaningful_actor)
+	var next_building: Node = _find_building_for_actor(visibility_actor)
 	if _active_building == next_building:
 		if _active_building != null and is_instance_valid(_active_building):
-			_active_building.set_visibility_for_camera(true, _camera.global_position, meaningful_actor)
+			_active_building.set_visibility_for_camera(true, _camera.global_position, visibility_actor)
 		return
 	if _active_building != null and is_instance_valid(_active_building):
 		_active_building.set_visibility_for_camera(false, _camera.global_position, null)
 	_active_building = next_building
 	if _active_building != null:
-		_active_building.set_visibility_for_camera(true, _camera.global_position, meaningful_actor)
+		_active_building.set_visibility_for_camera(true, _camera.global_position, visibility_actor)
 
 
 func _get_meaningful_actor() -> HumanoidCharacter:
@@ -64,13 +65,23 @@ func _get_meaningful_actor() -> HumanoidCharacter:
 			_visibility_actor = shared_level_actor
 			return _visibility_actor
 		return null
-	if _is_valid_actor(_visibility_actor) and _find_building_for_actor(_visibility_actor) != null:
+	if _is_valid_actor(_visibility_actor) and _find_building_for_actor(_get_visibility_proxy_actor(_visibility_actor)) != null:
 		return _visibility_actor
 	return null
 
 
 func _is_valid_actor(actor: HumanoidCharacter) -> bool:
 	return actor != null and is_instance_valid(actor)
+
+
+func _get_visibility_proxy_actor(actor: HumanoidCharacter) -> HumanoidCharacter:
+	if not _is_valid_actor(actor):
+		return null
+	if actor.has_method("get_carrier"):
+		var carrier := actor.call("get_carrier") as HumanoidCharacter
+		if _is_valid_actor(carrier):
+			return carrier
+	return actor
 
 
 func _get_shared_selected_building_level_actor() -> HumanoidCharacter:
@@ -81,12 +92,12 @@ func _get_shared_selected_building_level_actor() -> HumanoidCharacter:
 	for member in selected_members:
 		if not _is_valid_actor(member):
 			return null
-		var member_building := _find_building_for_actor(member)
+		var member_building := _find_building_for_actor(_get_visibility_proxy_actor(member))
 		if member_building == null:
 			return null
 		var member_level_index := -1
 		if member_building.has_method("get_level_index_for_actor"):
-			member_level_index = int(member_building.call("get_level_index_for_actor", member))
+			member_level_index = int(member_building.call("get_level_index_for_actor", _get_visibility_proxy_actor(member)))
 		if shared_building == null:
 			shared_actor = member
 			shared_building = member_building

@@ -46,6 +46,7 @@ digraph GameData {
   Nodes -> SettlementFacilityInstance;
   Nodes -> SettlementBar;
   Nodes -> SettlementField;
+  Nodes -> SettlementJail;
   Nodes -> WorldConflictEvents;
 
   FactionDefinitions -> Factions;
@@ -105,6 +106,9 @@ digraph GameData {
   SettlementBar -> BarServiceArea;
   SettlementBar -> VisitPoints;
   SettlementField -> Farms;
+  SettlementJail -> Jails;
+  Jails -> JailCells;
+  Jails -> PrisonerLocker;
   BuildingSlots -> BuildingModels;
   BuildingModels -> PopulationCapacity;
   PopulationCapacitySource -> PopulationCapacity;
@@ -124,6 +128,7 @@ digraph GameData {
 
   NPCs -> Inventory;
   Containers -> Inventory;
+  PrisonerLocker -> Containers;
   Shops -> ShopInventory;
   ItemDefinitions -> Inventory;
   ResourceNodes -> ResourceItems;
@@ -154,6 +159,7 @@ digraph GameData {
   CharacterAppearanceDefinitions -> NPCs;
   SettlementState -> Events;
   SettlementState -> PopulationCapacity;
+  SettlementState -> StaffRoleSlots;
   SquadState -> Events;
   SquadState -> SquadRoutes;
   TerritoryState -> BuildRules;
@@ -169,12 +175,15 @@ Runtime state answers: what is true right now?
 
 Examples:
 
-- `ItemDefinition` defines an item type; inventory data stores item counts and ownership state.
+- `ItemDefinition` defines an item type; `InventoryData` stores item counts, contained item counts, and per-entry metadata such as stolen ownership, prisoner-case, and expiry data.
 - `FactionDefinition` defines faction defaults including behavior, personality, law, population names, and starting formal diplomacy; `FactionController` stores formal diplomacy, reputation, favor points, and discovered faction state.
-- `SettlementDefinition` defines town identity, faction, optional local culture overrides, food defaults, and world-sim targets; `SettlementController` stores food, population, events, and facility totals.
+- `SettlementDefinition` defines town identity, faction, optional local culture overrides, food defaults, and world-sim targets; `SettlementController` stores food, total population, available labor, assigned role counts, staff vacancies, events, and facility totals.
 - `FacilityFunctionDefinition` defines what a placed facility does, such as bar, farm, shop, police, weapon shop, armor shop, travel shop, potion shop, tavern, mine, or storage.
 - `SettlementFacilityInstance` bridges the placed building slot, staff, service points, optional storage links, optional jobs, and optional activity points into a serializable facility record. Empty root paths mean the facility does not use that bucket.
 - `SettlementBar` is the operator-facing reusable bar asset; its internal `BarServiceArea` coordinates waiter service, bed rental, and barkeeper stock handoff, while `FacilityVisitActivityPoint` assigns normal townie visitors to real furniture seats.
+- `SettlementJail` is the reusable jail facility asset. It owns a building slot, entry point, warden and jail guard role slots, guard posts, lockable cell records, and prisoner locker storage. Its cells are instances of `scenes/world_sim/jail_cell.tscn`; its prisoner locker is an instance of `scenes/world/containers/prisoner_locker_container.tscn`.
+- `LawOrderController` owns local crime and custody runtime state: witnessed crimes become faction warrants, stolen items carry metadata immediately, unconscious wanted actors are carried by guard-role authority actors into jail or ejected if no jail exists, and world time releases prisoners after sentence expiry.
+- Staff role slots are controller-visible records with stable slot IDs, role IDs, actor paths when realized, authority scope, population cost, and replacement timing. The controller keeps the ledger truth so far-away settlements can run abstractly while near settlements realize physical actors.
 - `SettlementTown` and child nodes define authored town layout; controllers use stable IDs to serialize the town's runtime truth.
 - `RoadNetwork` and child `RoadWaypoint` nodes define authored invisible route graphs between stable settlement IDs; `RoadController` stores road records and provides shortest route waypoints for squad actions.
 - `WorldBuilding.population_capacity` and `PopulationCapacitySource` define authored housing/camp capacity; `SettlementController.max_occupancy` is derived from those sources.

@@ -6,6 +6,8 @@ const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/effects/world_text_n
 const COMBAT_COORDINATOR = preload("res://scripts/characters/combat_coordinator.gd")
 const COMBAT_ANIMATION_SET_SCRIPT = preload("res://scripts/characters/combat_animation_set.gd")
 const COMBAT_ATTACK_ANIMATION_SCRIPT = preload("res://scripts/characters/combat_attack_animation.gd")
+const AI_BRAIN_SCRIPT = preload("res://scripts/ai/ai_brain.gd")
+const AI_JOB_SCRIPT = preload("res://scripts/ai/ai_job.gd")
 const HUMANOID_RAGDOLL_PROFILE_SCRIPT = preload("res://scripts/characters/humanoid_ragdoll_profile.gd")
 const STABLE_PHYSICAL_BONE_SCRIPT = preload("res://scripts/characters/stable_physical_bone.gd")
 const HUMAN_RACE = preload("res://resources/character_races/human.tres")
@@ -21,6 +23,7 @@ const FEMALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_ba
 const UAL1_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_1_pro/UAL1_Pro.glb")
 const UAL2_ANIMATION_SOURCE_SCENE = preload("res://assets/vendor/quaternius/universal_animation_library_2/UAL2.glb")
 const DEFAULT_GRIP_SOCKET_PROFILE = preload("res://resources/humanoid_grip_socket_profiles/default.tres")
+const DEFAULT_CARRY_POSE_PROFILE = preload("res://resources/humanoid_carry_pose_profiles/default.tres")
 const HUMANOID_GRIP_SOCKET_MARKER_SCRIPT = preload("res://scripts/characters/humanoid_grip_socket_marker.gd")
 const CHARACTER_VISUAL_NODE_NAME := "CharacterVisual"
 const CHARACTER_ANIMATION_PLAYER_NAME := "CharacterAnimationPlayer"
@@ -53,6 +56,12 @@ const UNARMED_UPPERCUT_ANIMATION_NAME := "Punch_Uppercut"
 const UNARMED_KICK_ANIMATION_NAME := "Kick"
 const UNARMED_HOOK_ANIMATION_NAMES: Array[String] = ["Melee_Hook", "Melee_Hook_Rec"]
 const UNARMED_KNEE_ANIMATION_NAMES: Array[String] = ["Melee_Knee", "Melee_Knee_Rec"]
+const CARRY_POSE_ANIMATION_NAMES: Array[String] = ["LiftAir_Fall"]
+const CELL_CUSTODY_LAY_ANIMATION_NAME := "IdleToLay"
+const CELL_CUSTODY_WAKE_ANIMATION_NAME := "LayToIdle"
+const CELL_CUSTODY_ANIMATION_NAMES: Array[String] = ["IdleToLay", "LayToIdle"]
+const CELL_CUSTODY_LAY_FREEZE_RATIO := 0.6
+const CELL_CUSTODY_WAKE_START_RATIO := 0.25
 const ONE_HAND_MELEE_IDLE_ANIMATION_NAME := "Sword_Idle"
 const ONE_HAND_LIGHT_A_ANIMATION_NAMES: Array[String] = ["Sword_Light_A", "Sword_Light_A_Rec"]
 const ONE_HAND_LIGHT_B_ANIMATION_NAMES: Array[String] = ["Sword_Light_B", "Sword_Light_B_Rec"]
@@ -72,6 +81,8 @@ const SITTING_IDLE_MAX_SECONDS := 11.0
 const SITTING_TALKING_CHANCE := 0.28
 const MOVE_ANIMATION_BLEND_SECONDS := 0.12
 const COMBAT_ACTION_BLEND_SECONDS := 0.05
+const COMBAT_RANGE_HYSTERESIS := 0.18
+const CELL_PLACEMENT_INTERACT_DISTANCE := 2.4
 const ACTUAL_LOCOMOTION_SPEED_THRESHOLD := 0.18
 const RAGDOLL_IMPULSE_MEMORY_SECONDS := 4.0
 const RAGDOLL_COLLIDER_LENGTH_SCALE := 0.82
@@ -81,7 +92,7 @@ const RAGDOLL_ACTIVATION_SURFACE_CLEARANCE := 0.06
 const RAGDOLL_ACTIVATION_MAX_LIFT := 2.5
 const RAGDOLL_ACTIVATION_RAY_UP := 8.0
 const RAGDOLL_ACTIVATION_RAY_DOWN := 16.0
-const GROUND_MARKER_RAYCAST_UP := 5.0
+const GROUND_MARKER_RAYCAST_UP := 0.35
 const GROUND_MARKER_RAYCAST_DOWN := 24.0
 const RUNNING_SKILL_XP_PER_SECOND := 0.35
 const RUNNING_ENDURANCE_XP_PER_SECOND := 0.05
@@ -97,6 +108,9 @@ const COMBAT_ATTACK_SKILL_XP := 0.85
 const TOUGHNESS_DAMAGE_XP_MULTIPLIER := 0.18
 const MEDICAL_BANDAGE_XP := 3.0
 const COMBAT_INTERVENTION_STAFF_GROUP := "combat_intervention_staff"
+const SETTLEMENT_AUTHORITY_GROUP := "settlement_authority"
+const PRIVATE_SECURITY_GROUP := "private_security"
+const FACTION_SOLDIER_GROUP := "faction_soldier"
 const EQUIPMENT_SLOTS: Array[String] = ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head", "weapon", "offhand"]
 const EQUIPMENT_SLOT_LABELS := {
 	"undershirt": "Undershirt",
@@ -130,6 +144,7 @@ enum OrderType {
 	CARRY,
 	SLEEP,
 	PLACE_IN_BED,
+	PLACE_IN_CELL,
 	SIT,
 	PICKUP_ITEM,
 }
@@ -177,6 +192,7 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export_enum("Auto", "None", "Male", "Female") var visual_body_type: int = VisualBodyType.AUTO
 @export var appearance_data: Resource
 @export var grip_socket_profile: Resource
+@export var carry_pose_profile: Resource = DEFAULT_CARRY_POSE_PROFILE
 @export var ragdoll_profile: Resource
 @export var show_grip_socket_markers := false
 @export var starting_items: Array[Resource] = []
@@ -210,7 +226,7 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var assist_scan_radius := NpcRules.ASSIST_RANGE
 @export var combat_witness_radius := NpcRules.COMBAT_WITNESS_RANGE
 @export var attack_range := 1.15
-@export var combat_approach_arrival_distance := 0.08
+@export var combat_approach_arrival_distance := 0.3
 @export var combat_direct_chase_distance := 3.0
 @export var combat_chase_leash_distance := 42.0
 @export var attack_cooldown_seconds := 1.2
@@ -247,11 +263,24 @@ var _current_finish_off_target: HumanoidCharacter
 var _current_carry_target: HumanoidCharacter
 var _current_sleep_target
 var _current_place_bed_target
+var _current_place_cell_target
+var _current_place_cell_waypoints: Array[Vector3] = []
 var _current_seat_target
 var _current_pickup_item
 var _current_seat_stand_position: Variant = null
 var _carried_by: HumanoidCharacter
 var _carried_character: HumanoidCharacter
+var _cell_custody_target
+var _law_custody_return_active := false
+var _law_custody_return_target := Vector3.ZERO
+var _law_sentence_move_active := false
+var _law_sentence_move_target := Vector3.ZERO
+var _carried_pose_animation := ""
+var _cell_custody_unconscious_pose_animation := ""
+var _cell_custody_lay_freeze_remaining := 0.0
+var _cell_custody_lay_pose_frozen := false
+var _cell_custody_wake_animation := ""
+var _cell_custody_wake_remaining := 0.0
 var equipped_items: Dictionary = {}
 
 var _current_blunt_damage := 0.0
@@ -309,6 +338,7 @@ var _last_direct_attacker_id := 0
 var _assigned_talkers: Dictionary = {}
 var _pending_talker_ids: Dictionary = {}
 var _combat_animation_sets: Dictionary = {}
+var _ai_brain
 
 var _nameplate: Label3D
 var _inspect_ring: MeshInstance3D
@@ -344,6 +374,8 @@ signal scavenging_changed
 signal state_changed
 signal appearance_changed
 signal combat_state_changed
+signal life_state_changed(previous_state: int, next_state: int)
+signal died(character: HumanoidCharacter)
 signal container_reached(member, container)
 signal trade_target_reached(member, target)
 signal conversation_target_reached(member, target)
@@ -353,6 +385,8 @@ signal center_notice_requested(message)
 func _ready() -> void:
 	super._ready()
 	_rng.randomize()
+	_ai_brain = AI_BRAIN_SCRIPT.new()
+	_ai_brain.setup(self)
 	inventory = InventoryData.new(inventory_columns, inventory_rows, max_carry_weight, true)
 	inventory.changed.connect(_on_inventory_data_changed)
 	_seed_starting_inventory()
@@ -371,7 +405,21 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if _carried_by != null:
+		_update_carried_pose_animation()
+		_apply_bone_pose_position_offsets()
 		_update_carried_transform()
+		_update_ground_markers()
+		return
+	if is_in_cell_custody():
+		if _combat_cooldown_remaining > 0.0:
+			_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
+		_process_needs(delta)
+		_process_bleeding(delta)
+		_process_recovery(delta)
+		_recalculate_vitals()
+		_update_cell_custody_animation(delta)
+		_apply_bone_pose_position_offsets()
+		_update_ground_markers()
 		return
 	if _combat_cooldown_remaining > 0.0:
 		_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
@@ -395,6 +443,9 @@ func _physics_process(delta: float) -> void:
 	if _carried_by != null:
 		velocity = Vector3.ZERO
 		return
+	if is_in_cell_custody():
+		velocity = Vector3.ZERO
+		return
 	if _is_ragdoll_active:
 		_stabilize_active_ragdoll()
 		_update_ground_markers()
@@ -403,6 +454,9 @@ func _physics_process(delta: float) -> void:
 		return
 	_process_movement(delta)
 	if life_state != NpcRules.LifeState.ALIVE:
+		return
+	if _has_active_combat_target():
+		_process_attack_interaction()
 		return
 	match _current_order_type:
 		OrderType.MINE:
@@ -427,6 +481,8 @@ func _physics_process(delta: float) -> void:
 			_process_sleep_interaction()
 		OrderType.PLACE_IN_BED:
 			_process_place_in_bed_interaction()
+		OrderType.PLACE_IN_CELL:
+			_process_place_in_cell_interaction()
 		OrderType.SIT:
 			_process_seat_interaction()
 		OrderType.PICKUP_ITEM:
@@ -436,7 +492,13 @@ func _physics_process(delta: float) -> void:
 
 
 func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
-	_set_order(OrderType.MOVE, issued_by_player)
+	if is_in_cell_custody():
+		if issued_by_player:
+			center_notice_requested.emit("Locked in cell")
+			_show_world_notice("Locked in cell", Color(1.0, 0.78, 0.38, 1.0))
+		return
+	if not _set_order(OrderType.MOVE, issued_by_player):
+		return
 	_set_actor_move_target(target)
 
 
@@ -487,6 +549,8 @@ func stop_conversation_interaction() -> void:
 func stop_attack_assignment() -> void:
 	_current_attack_target = null
 	_attack_origin_position = global_position
+	if _ai_brain != null:
+		_ai_brain.clear_combat_job()
 	COMBAT_COORDINATOR.release_character(self)
 	if _current_order_type == OrderType.ATTACK:
 		_current_order_type = OrderType.NONE
@@ -530,6 +594,13 @@ func stop_place_in_bed_assignment() -> void:
 		_current_order_type = OrderType.NONE
 
 
+func stop_place_in_cell_assignment() -> void:
+	_current_place_cell_target = null
+	_current_place_cell_waypoints.clear()
+	if _current_order_type == OrderType.PLACE_IN_CELL:
+		_current_order_type = OrderType.NONE
+
+
 func _release_sleep_target_without_waking() -> void:
 	if _current_sleep_target != null and _current_sleep_target.has_method("release_sleeper"):
 		_current_sleep_target.release_sleeper(self)
@@ -570,7 +641,8 @@ func stop_pickup_assignment() -> void:
 func assign_open_container(container, issued_by_player: bool = true) -> void:
 	if container == null:
 		return
-	_set_order(OrderType.OPEN_CONTAINER, issued_by_player)
+	if not _set_order(OrderType.OPEN_CONTAINER, issued_by_player):
+		return
 	if _current_container_target != null and _current_container_target != container and _current_container_target.has_method("release_interactor"):
 		_current_container_target.release_interactor(self)
 	_current_container_target = container
@@ -582,7 +654,8 @@ func assign_open_container(container, issued_by_player: bool = true) -> void:
 func assign_trade_target(target_character, issued_by_player: bool = true) -> void:
 	if target_character == null:
 		return
-	_set_order(OrderType.TRADE, issued_by_player)
+	if not _set_order(OrderType.TRADE, issued_by_player):
+		return
 	if _current_trade_target != null and _current_trade_target != target_character and _current_trade_target.has_method("release_trader"):
 		_current_trade_target.release_trader(self)
 	_current_trade_target = target_character
@@ -595,7 +668,8 @@ func assign_conversation_target(target_character, issued_by_player: bool = true)
 	if target_character == null or not target_character.has_conversation_definition():
 		return
 	var preserve_seat_for_talk := issued_by_player and _is_sitting
-	_set_order(OrderType.TALK, issued_by_player, preserve_seat_for_talk)
+	if not _set_order(OrderType.TALK, issued_by_player, preserve_seat_for_talk):
+		return
 	if _current_conversation_target != null and _current_conversation_target != target_character and _current_conversation_target.has_method("release_talker"):
 		_current_conversation_target.release_talker(self)
 	_current_conversation_target = target_character
@@ -615,7 +689,8 @@ func assign_mining_resource(resource_node, issued_by_player: bool = true) -> voi
 		return
 	if not _ensure_mining_tool_equipped(mining_node, issued_by_player):
 		return
-	_set_order(OrderType.MINE, issued_by_player)
+	if not _set_order(OrderType.MINE, issued_by_player):
+		return
 	if _current_mining_node != null and _current_mining_node != mining_node:
 		_current_mining_node.release_miner(self)
 	_current_mining_node = mining_node
@@ -633,7 +708,8 @@ func assign_scavenging_resource(resource_node, issued_by_player: bool = true) ->
 			center_notice_requested.emit("Depleted")
 		_show_world_notice("Depleted", Color(0.75, 0.72, 0.62, 1.0), 1.2, 0.45)
 		return
-	_set_order(OrderType.SCAVENGE, issued_by_player)
+	if not _set_order(OrderType.SCAVENGE, issued_by_player):
+		return
 	if _current_scavenging_node != null and _current_scavenging_node != resource_node and _current_scavenging_node.has_method("release_scavenger"):
 		_current_scavenging_node.release_scavenger(self)
 	_current_scavenging_node = resource_node
@@ -645,16 +721,47 @@ func assign_scavenging_resource(resource_node, issued_by_player: bool = true) ->
 
 
 func assign_attack_target(target_character: HumanoidCharacter, issued_by_player: bool = true, notify_target: bool = true, notify_allies: bool = true) -> void:
+	var combat_job_type := AI_JOB_SCRIPT.JobType.PLAYER_ATTACK if issued_by_player else AI_JOB_SCRIPT.JobType.SELF_DEFENSE
+	_assign_combat_target(target_character, combat_job_type, issued_by_player, notify_target, notify_allies)
+
+
+func assign_law_arrest_target(target_character: HumanoidCharacter, notify_target: bool = true, notify_allies: bool = false) -> void:
+	_assign_combat_target(target_character, AI_JOB_SCRIPT.JobType.LAW_ARREST, false, notify_target, notify_allies)
+
+
+func _assign_combat_target(target_character: HumanoidCharacter, combat_job_type: int, issued_by_player: bool, notify_target: bool, notify_allies: bool) -> void:
+	if is_in_cell_custody():
+		return
 	if target_character == null or target_character == self or not is_instance_valid(target_character):
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
-	if target_character.life_state != NpcRules.LifeState.ALIVE:
+	if not _is_valid_combat_target(target_character):
 		return
+	if issued_by_player:
+		_report_assault_crime_if_needed(target_character)
 	_break_stealth_for_combat()
-	if _current_attack_target == target_character and _current_order_type == OrderType.ATTACK:
+	if _get_active_combat_target() == target_character and _get_active_ai_job_type() == combat_job_type:
 		return
-	_set_order(OrderType.ATTACK, issued_by_player)
+	var combat_job = AI_JOB_SCRIPT.new()
+	combat_job.job_type = combat_job_type
+	combat_job.priority = AI_JOB_SCRIPT.priority_for_type(combat_job_type)
+	combat_job.target = target_character
+	combat_job.issued_by_player = issued_by_player
+	combat_job.origin_position = global_position
+	if _ai_brain != null and not _ai_brain.request_job(combat_job):
+		return
+	if issued_by_player:
+		if not _set_order(OrderType.ATTACK, issued_by_player):
+			if _ai_brain != null:
+				_ai_brain.clear_combat_job(target_character)
+			return
+	else:
+		_cancel_non_matching_assignments(OrderType.ATTACK, false)
+		if _current_order_type == OrderType.MOVE:
+			_current_order_type = OrderType.NONE
+			_clear_actor_move_target()
+		_order_was_player_issued = false
 	_current_attack_target = target_character
 	_attack_origin_position = global_position
 	mark_hostile(target_character)
@@ -671,7 +778,8 @@ func assign_heal_target(target_character: HumanoidCharacter, issued_by_player: b
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
-	_set_order(OrderType.HEAL, issued_by_player)
+	if not _set_order(OrderType.HEAL, issued_by_player):
+		return
 	_current_heal_target = target_character
 
 
@@ -682,7 +790,8 @@ func assign_finish_off_target(target_character: HumanoidCharacter, issued_by_pla
 		return
 	if target_character.life_state != NpcRules.LifeState.UNCONSCIOUS:
 		return
-	_set_order(OrderType.FINISH_OFF, issued_by_player)
+	if not _set_order(OrderType.FINISH_OFF, issued_by_player):
+		return
 	_current_finish_off_target = target_character
 
 
@@ -693,7 +802,8 @@ func assign_carry_target(target_character: HumanoidCharacter, issued_by_player: 
 		return
 	if not target_character.can_be_carried_by(self) or _carried_character != null:
 		return
-	_set_order(OrderType.CARRY, issued_by_player)
+	if not _set_order(OrderType.CARRY, issued_by_player):
+		return
 	_current_carry_target = target_character
 
 
@@ -707,7 +817,8 @@ func assign_sleep_target(bed, issued_by_player: bool = true) -> void:
 			center_notice_requested.emit("Place them in bed first")
 			_show_world_notice("Place them in bed first", Color(1.0, 0.78, 0.38, 1.0))
 		return
-	_set_order(OrderType.SLEEP, issued_by_player)
+	if not _set_order(OrderType.SLEEP, issued_by_player):
+		return
 	_current_sleep_target = bed
 	_set_actor_move_target(bed.get_interaction_position(self))
 
@@ -719,9 +830,26 @@ func assign_place_carried_in_bed_target(bed, issued_by_player: bool = true) -> v
 		return
 	if _carried_character == null or not is_instance_valid(_carried_character):
 		return
-	_set_order(OrderType.PLACE_IN_BED, issued_by_player)
+	if not _set_order(OrderType.PLACE_IN_BED, issued_by_player):
+		return
 	_current_place_bed_target = bed
 	_set_actor_move_target(bed.get_interaction_position(self))
+
+
+func assign_place_carried_in_cell_target(cell, issued_by_player: bool = true) -> void:
+	if cell == null or not cell.has_method("get_interaction_position"):
+		return
+	if life_state != NpcRules.LifeState.ALIVE:
+		return
+	if _carried_character == null or not is_instance_valid(_carried_character):
+		return
+	if _current_order_type == OrderType.PLACE_IN_CELL and _current_place_cell_target == cell:
+		return
+	if not _set_order(OrderType.PLACE_IN_CELL, issued_by_player):
+		return
+	_current_place_cell_target = cell
+	_current_place_cell_waypoints = _get_place_cell_route(cell)
+	_set_next_place_cell_move_target(cell.call("get_interaction_position", self))
 
 
 func assign_seat_target(seat, issued_by_player: bool = true) -> void:
@@ -729,7 +857,8 @@ func assign_seat_target(seat, issued_by_player: bool = true) -> void:
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
-	_set_order(OrderType.SIT, issued_by_player)
+	if not _set_order(OrderType.SIT, issued_by_player):
+		return
 	_current_seat_target = seat
 	_current_seat_stand_position = global_position
 	if seat.has_method("can_sit_from_position") and seat.can_sit_from_position(global_position):
@@ -767,7 +896,8 @@ func assign_pickup_item(world_item, issued_by_player: bool = true) -> void:
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
-	_set_order(OrderType.PICKUP_ITEM, issued_by_player)
+	if not _set_order(OrderType.PICKUP_ITEM, issued_by_player):
+		return
 	_current_pickup_item = world_item
 	if world_item.has_method("get_pickup_position"):
 		_set_actor_move_target(world_item.get_pickup_position(self))
@@ -1179,6 +1309,39 @@ func get_life_state_label() -> String:
 	return NpcRules.get_life_state_label(life_state)
 
 
+func set_settlement_authority(value: bool) -> void:
+	if value:
+		add_to_group(SETTLEMENT_AUTHORITY_GROUP)
+	else:
+		remove_from_group(SETTLEMENT_AUTHORITY_GROUP)
+
+
+func is_settlement_authority() -> bool:
+	return is_in_group(SETTLEMENT_AUTHORITY_GROUP)
+
+
+func set_private_security(value: bool) -> void:
+	if value:
+		add_to_group(PRIVATE_SECURITY_GROUP)
+	else:
+		remove_from_group(PRIVATE_SECURITY_GROUP)
+
+
+func is_private_security() -> bool:
+	return is_in_group(PRIVATE_SECURITY_GROUP)
+
+
+func set_faction_soldier(value: bool) -> void:
+	if value:
+		add_to_group(FACTION_SOLDIER_GROUP)
+	else:
+		remove_from_group(FACTION_SOLDIER_GROUP)
+
+
+func is_faction_soldier() -> bool:
+	return is_in_group(FACTION_SOLDIER_GROUP)
+
+
 func get_hunger_stage_label() -> String:
 	return NpcRules.get_hunger_stage_label(get_hunger_stage())
 
@@ -1277,19 +1440,61 @@ func can_enable_running() -> bool:
 
 
 func is_in_combat() -> bool:
-	return _current_order_type == OrderType.ATTACK and _current_attack_target != null
+	return _has_active_combat_target()
+
+
+func is_law_arresting(target: HumanoidCharacter = null) -> bool:
+	if _get_active_ai_job_type() != AI_JOB_SCRIPT.JobType.LAW_ARREST:
+		return false
+	return target == null or _get_active_combat_target() == target
+
+
+func is_law_custody_returning() -> bool:
+	return _law_custody_return_active
+
+
+func assign_law_custody_return_target(target_position: Vector3) -> void:
+	if life_state != NpcRules.LifeState.ALIVE:
+		return
+	disengage_combat_with()
+	_law_custody_return_active = true
+	_law_custody_return_target = target_position
+	if not _set_order(OrderType.MOVE, false):
+		_current_order_type = OrderType.MOVE
+		_order_was_player_issued = false
+	_set_actor_move_target(target_position)
+
+
+func clear_law_custody_return() -> void:
+	_law_custody_return_active = false
+
+
+func assign_law_sentence_move_target(target_position: Vector3) -> void:
+	if life_state != NpcRules.LifeState.ALIVE:
+		return
+	_law_sentence_move_active = true
+	_law_sentence_move_target = target_position
+	if _current_order_type != OrderType.MOVE:
+		if not _set_order(OrderType.MOVE, false):
+			_current_order_type = OrderType.MOVE
+			_order_was_player_issued = false
+	else:
+		_order_was_player_issued = false
+	_set_actor_move_target(target_position)
+
+
+func clear_law_sentence_move() -> void:
+	_law_sentence_move_active = false
 
 
 func get_current_combat_target() -> HumanoidCharacter:
-	return _current_attack_target
+	return _get_active_combat_target()
 
 
 func is_ready_for_combat_exchange(target: HumanoidCharacter) -> bool:
-	if target == null or not is_instance_valid(target):
+	if not _is_valid_combat_target(target):
 		return false
-	if life_state != NpcRules.LifeState.ALIVE or target.life_state != NpcRules.LifeState.ALIVE:
-		return false
-	if _current_order_type != OrderType.ATTACK or _current_attack_target != target:
+	if _get_active_combat_target() != target:
 		return false
 	if _combat_action_active or _combat_reaction_remaining > 0.0 or _combat_cooldown_remaining > 0.0:
 		return false
@@ -1357,7 +1562,6 @@ func _build_one_hand_melee_combat_animation_set():
 		_make_combat_attack("one_hand_light_b", ONE_HAND_LIGHT_B_ANIMATION_NAMES, 18.0, 0.42, [HIT_CHEST_ANIMATION_NAME, HIT_SHOULDER_L_ANIMATION_NAME]),
 	]
 	return animation_set
-
 
 func _make_combat_attack(attack_id: String, animation_names: Array[String], weight: float, impact_ratio: float, hit_reaction_names: Array[String]):
 	var attack = COMBAT_ATTACK_ANIMATION_SCRIPT.new()
@@ -1441,6 +1645,22 @@ func is_carrying_someone() -> bool:
 	return _carried_character != null
 
 
+func is_handling_carried_character() -> bool:
+	return _carried_character != null or _current_order_type == OrderType.CARRY or _current_order_type == OrderType.PLACE_IN_BED or _current_order_type == OrderType.PLACE_IN_CELL
+
+
+func is_in_cell_custody() -> bool:
+	return _cell_custody_target != null and is_instance_valid(_cell_custody_target)
+
+
+func get_cell_custody_target() -> Node:
+	return _cell_custody_target if _cell_custody_target != null and is_instance_valid(_cell_custody_target) else null
+
+
+func is_protected_from_combat() -> bool:
+	return is_in_cell_custody() or has_meta("law_prisoner")
+
+
 func is_ragdoll_active() -> bool:
 	return _is_ragdoll_active
 
@@ -1454,14 +1674,14 @@ func get_follow_anchor_position() -> Vector3:
 
 
 func get_ground_marker_position(marker_height: float = 0.03) -> Vector3:
-	var anchor := get_follow_anchor_position()
-	var fallback := Vector3(anchor.x, global_position.y + marker_height, anchor.z)
+	var marker_xz := Vector3(global_position.x, global_position.y, global_position.z)
+	var fallback := Vector3(marker_xz.x, global_position.y + marker_height, marker_xz.z)
 	var world := get_world_3d()
 	if world == null:
 		return fallback
-	var start_y := maxf(anchor.y, global_position.y) + GROUND_MARKER_RAYCAST_UP
-	var end_y := minf(anchor.y, global_position.y) - GROUND_MARKER_RAYCAST_DOWN
-	var query := PhysicsRayQueryParameters3D.create(Vector3(anchor.x, start_y, anchor.z), Vector3(anchor.x, end_y, anchor.z))
+	var start_y := global_position.y + GROUND_MARKER_RAYCAST_UP
+	var end_y := global_position.y - GROUND_MARKER_RAYCAST_DOWN
+	var query := PhysicsRayQueryParameters3D.create(Vector3(marker_xz.x, start_y, marker_xz.z), Vector3(marker_xz.x, end_y, marker_xz.z))
 	query.exclude = _get_ground_marker_raycast_exclusions()
 	var hit := world.direct_space_state.intersect_ray(query)
 	if hit.has("position"):
@@ -1474,12 +1694,20 @@ func get_carried_character() -> HumanoidCharacter:
 	return _carried_character
 
 
+func get_carrier() -> HumanoidCharacter:
+	return _carried_by if _carried_by != null and is_instance_valid(_carried_by) else null
+
+
 func has_hostility_with(other: HumanoidCharacter) -> bool:
+	if other == null or is_protected_from_combat() or other.is_protected_from_combat():
+		return false
 	return is_hostile_to(other) or other.is_hostile_to(self)
 
 
 func is_hostile_to(other: HumanoidCharacter) -> bool:
 	if other == null or other == self:
+		return false
+	if is_protected_from_combat() or other.is_protected_from_combat():
 		return false
 	if _personal_hostile_ids.has(other.get_instance_id()):
 		return true
@@ -1523,6 +1751,26 @@ func clear_personal_hostility(other: HumanoidCharacter) -> void:
 	_personal_hostile_ids.erase(other.get_instance_id())
 
 
+func clear_all_personal_hostility() -> void:
+	_personal_hostile_ids.clear()
+	_last_direct_attacker_id = 0
+
+
+func disengage_combat_with(other: HumanoidCharacter = null) -> void:
+	if other != null:
+		clear_personal_hostility(other)
+	if other == null or _last_direct_attacker_id == other.get_instance_id():
+		_last_direct_attacker_id = 0
+	if other == null or _current_attack_target == other or _get_active_combat_target() == other:
+		stop_attack_assignment()
+	if other == null or _combat_action_target == other:
+		_clear_combat_action()
+	if other == null or _combat_reaction_source == other:
+		_combat_reaction_remaining = 0.0
+		_combat_reaction_source = null
+	COMBAT_COORDINATOR.release_character(self)
+
+
 func set_running_enabled(value: bool) -> bool:
 	if value:
 		_set_sneaking_state(false, true)
@@ -1559,9 +1807,6 @@ func _set_sneaking_state(value: bool, play_transition: bool) -> bool:
 
 func _break_stealth_for_combat() -> void:
 	var changed := false
-	if running:
-		running = false
-		changed = true
 	if _set_sneaking_state(false, true):
 		changed = true
 	if changed:
@@ -1575,11 +1820,14 @@ func notify_incoming_attack(attacker: HumanoidCharacter) -> void:
 		wake_up_from_rest(false)
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
+	if is_protected_from_combat():
+		return
 	_break_stealth_for_combat()
 	mark_hostile(attacker)
 	attacker.mark_hostile(self)
 	_last_direct_attacker_id = attacker.get_instance_id()
-	_notify_defensive_allies_of_attack(attacker)
+	if not _is_incoming_law_arrest(attacker):
+		_notify_defensive_allies_of_attack(attacker)
 	if combat_stance == NpcRules.CombatStance.PASSIVE:
 		return
 	_try_start_self_defense(attacker)
@@ -1598,6 +1846,9 @@ func set_combat_stance(value: int) -> void:
 func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage: float, attack_id: String = "", hit_reaction_names: Array[String] = []) -> String:
 	if attacker == null or life_state == NpcRules.LifeState.DEAD:
 		return "ignored"
+	if is_protected_from_combat():
+		return "ignored"
+	var nonlethal_arrest := _is_nonlethal_authority_arrest_attack(attacker)
 	if life_state == NpcRules.LifeState.ASLEEP:
 		wake_up_from_rest(false)
 	if life_state == NpcRules.LifeState.ALIVE:
@@ -1605,7 +1856,8 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	mark_hostile(attacker)
 	attacker.mark_hostile(self)
 	_last_direct_attacker_id = attacker.get_instance_id()
-	_notify_defensive_allies_of_attack(attacker)
+	if not _is_incoming_law_arrest(attacker):
+		_notify_defensive_allies_of_attack(attacker)
 	_face_character(attacker)
 	_last_ragdoll_impulse = _get_attack_ragdoll_impulse(attacker, blunt_damage + cut_damage)
 	_last_ragdoll_impulse_remaining = RAGDOLL_IMPULSE_MEMORY_SECONDS if _last_ragdoll_impulse.length_squared() > 0.0001 else 0.0
@@ -1626,6 +1878,10 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		var block_damage_reduction := _get_toughness_damage_reduction()
 		final_blunt *= 1.0 - block_damage_reduction
 		final_cut *= 1.0 - block_damage_reduction
+		if nonlethal_arrest:
+			var arrest_damage := _clamp_nonlethal_arrest_damage(final_blunt, final_cut)
+			final_blunt = float(arrest_damage.get("blunt", 0.0))
+			final_cut = 0.0
 		_prepare_combat_reaction(attacker)
 		_play_combat_reaction(_get_current_block_animation_name())
 		COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
@@ -1644,6 +1900,10 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	var damage_reduction := _get_toughness_damage_reduction()
 	final_blunt *= 1.0 - damage_reduction
 	final_cut *= 1.0 - damage_reduction
+	if nonlethal_arrest:
+		var arrest_damage := _clamp_nonlethal_arrest_damage(final_blunt, final_cut)
+		final_blunt = float(arrest_damage.get("blunt", 0.0))
+		final_cut = 0.0
 	_current_blunt_damage += final_blunt
 	_current_open_cut_damage += final_cut
 	_add_bleeding_from_cut(final_blunt, final_cut)
@@ -1652,6 +1912,26 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	_recalculate_vitals()
 	_try_start_self_defense(attacker)
 	return "hit"
+
+
+func _is_incoming_law_arrest(attacker: HumanoidCharacter) -> bool:
+	return attacker != null and attacker.has_method("is_law_arresting") and bool(attacker.call("is_law_arresting", self))
+
+
+func _is_nonlethal_authority_arrest_attack(attacker: HumanoidCharacter) -> bool:
+	if attacker == null or not attacker.has_method("is_faction_soldier") or not bool(attacker.call("is_faction_soldier")):
+		return false
+	var law_controller := _get_law_order_controller()
+	if law_controller == null or not law_controller.has_method("actor_has_active_warrant"):
+		return false
+	return bool(law_controller.call("actor_has_active_warrant", self, attacker.faction_name))
+
+
+func _clamp_nonlethal_arrest_damage(final_blunt: float, final_cut: float) -> Dictionary:
+	var incoming := maxf(0.0, final_blunt) + maxf(0.0, final_cut)
+	var max_nonlethal_wounds := maxf(0.0, max_hp + 1.0)
+	var available := maxf(0.0, max_nonlethal_wounds - get_total_wound_damage())
+	return {"blunt": minf(incoming, available), "cut": 0.0}
 
 
 func _add_bleeding_from_cut(final_blunt: float, final_cut: float) -> void:
@@ -1730,12 +2010,13 @@ func _face_combat_focus() -> void:
 	if _combat_action_target != null and is_instance_valid(_combat_action_target):
 		_face_character(_combat_action_target)
 		return
-	if _current_attack_target != null and is_instance_valid(_current_attack_target):
-		_face_character(_current_attack_target)
+	var active_target := _get_active_combat_target()
+	if active_target != null:
+		_face_character(active_target)
 
 
 func _should_face_combat_focus_after_movement() -> bool:
-	if _current_order_type != OrderType.ATTACK:
+	if not _has_active_combat_target():
 		return false
 	if _combat_action_active or _combat_reaction_remaining > 0.0:
 		return true
@@ -1765,8 +2046,23 @@ func _process_movement(delta: float) -> void:
 		velocity.z = 0.0
 		move_and_slide()
 		return
+	if _should_direct_law_move():
+		_process_direct_custody_chase(delta)
+		return
+	if _should_hold_combat_position():
+		var hold_target := _get_active_combat_target()
+		_clear_actor_move_target()
+		_face_character(hold_target)
+		_apply_floor_motion(delta)
+		velocity.x = 0.0
+		velocity.z = 0.0
+		move_and_slide()
+		return
 	if _should_direct_combat_chase():
 		_process_direct_combat_chase(delta)
+		return
+	if _should_direct_custody_chase():
+		_process_direct_custody_chase(delta)
 		return
 	process_world_actor_movement(delta)
 
@@ -1776,23 +2072,32 @@ func _get_actor_move_speed() -> float:
 
 
 func _should_direct_combat_chase() -> bool:
-	if _current_order_type != OrderType.ATTACK:
+	var target := _get_active_combat_target()
+	if target == null:
 		return false
-	if _current_attack_target == null or not is_instance_valid(_current_attack_target):
+	if absf(target.global_position.y - global_position.y) > move_target_vertical_tolerance:
 		return false
-	if _current_attack_target.life_state != NpcRules.LifeState.ALIVE:
+	var target_distance := _horizontal_distance_to(target.global_position)
+	if target_distance <= get_attack_range() + COMBAT_RANGE_HYSTERESIS:
 		return false
-	if absf(_current_attack_target.global_position.y - global_position.y) > move_target_vertical_tolerance:
+	return target_distance <= maxf(maxf(combat_chase_leash_distance, combat_direct_chase_distance), get_attack_range() + 1.0)
+
+
+func _should_hold_combat_position() -> bool:
+	var target := _get_active_combat_target()
+	if target == null:
 		return false
-	var target_distance := global_position.distance_to(_current_attack_target.global_position)
-	if target_distance <= get_attack_range():
+	if absf(target.global_position.y - global_position.y) > move_target_vertical_tolerance:
 		return false
-	return target_distance <= maxf(combat_direct_chase_distance, get_attack_range() + 1.0)
+	return _horizontal_distance_to(target.global_position) <= get_attack_range() + COMBAT_RANGE_HYSTERESIS
 
 
 func _process_direct_combat_chase(delta: float) -> void:
+	var target := _get_active_combat_target()
+	if target == null:
+		return
 	_apply_floor_motion(delta)
-	var target_position := _current_attack_target.get_combat_move_position(self)
+	var target_position := target.get_combat_move_position(self)
 	var to_target := target_position - global_position
 	to_target.y = 0.0
 	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
@@ -1808,13 +2113,64 @@ func _process_direct_combat_chase(delta: float) -> void:
 	if desired_direction.length_squared() > 0.0001:
 		look_at(global_position + desired_direction, Vector3.UP)
 	else:
-		_face_character(_current_attack_target)
+		_face_character(target)
+
+
+func _should_direct_custody_chase() -> bool:
+	if _current_order_type != OrderType.CARRY and _current_order_type != OrderType.PLACE_IN_CELL:
+		return false
+	return _has_move_target
+
+
+func _should_direct_law_move() -> bool:
+	return (_law_sentence_move_active or _law_custody_return_active) and _has_move_target
+
+
+func _process_direct_custody_chase(delta: float) -> void:
+	_apply_floor_motion(delta)
+	var to_target := _move_target - global_position
+	to_target.y = 0.0
+	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
+	var desired_direction := Vector3.ZERO
+	if to_target.length() <= _get_move_target_arrival_distance():
+		_clear_actor_move_target()
+	else:
+		desired_direction = _get_direct_custody_move_direction(to_target.normalized())
+		horizontal_velocity = horizontal_velocity.lerp(desired_direction * _get_actor_move_speed(), minf(1.0, acceleration * delta))
+	velocity.x = horizontal_velocity.x
+	velocity.z = horizontal_velocity.z
+	move_and_slide()
+	if desired_direction.length_squared() > 0.0001:
+		look_at(global_position + desired_direction, Vector3.UP)
+
+
+func _get_direct_custody_move_direction(target_direction: Vector3) -> Vector3:
+	var desired := target_direction
+	for index in range(get_slide_collision_count()):
+		var collision := get_slide_collision(index)
+		if collision == null:
+			continue
+		var normal := collision.get_normal()
+		normal.y = 0.0
+		if normal.length_squared() <= 0.0001 or desired.dot(normal.normalized()) >= -0.35:
+			continue
+		normal = normal.normalized()
+		var tangent := Vector3(-normal.z, 0.0, normal.x)
+		if tangent.dot(target_direction) < 0.0:
+			tangent = -tangent
+		desired = (target_direction * 0.35 + tangent.normalized() * 0.9).normalized()
+		break
+	return desired
 
 
 func _get_move_target_arrival_distance() -> float:
-	if _current_order_type == OrderType.ATTACK:
+	if _has_active_combat_target():
 		return combat_approach_arrival_distance
 	return super._get_move_target_arrival_distance()
+
+
+func _horizontal_distance_to(target_position: Vector3) -> float:
+	return Vector2(global_position.x - target_position.x, global_position.z - target_position.z).length()
 
 
 func _get_navigation_stuck_arrival_distance() -> float:
@@ -1828,6 +2184,8 @@ func _on_actor_move_target_reached() -> void:
 
 
 func _on_actor_move_target_unreachable() -> void:
+	if _has_active_combat_target():
+		return
 	if _order_was_player_issued:
 		show_world_speech("I can't reach that", 4.0)
 	match _current_order_type:
@@ -1855,6 +2213,8 @@ func _on_actor_move_target_unreachable() -> void:
 			stop_sleep_assignment()
 		OrderType.PLACE_IN_BED:
 			stop_place_in_bed_assignment()
+		OrderType.PLACE_IN_CELL:
+			stop_place_in_cell_assignment()
 		OrderType.SIT:
 			stop_seat_assignment()
 		OrderType.PICKUP_ITEM:
@@ -1995,6 +2355,9 @@ func _get_bleed_splotch_controller() -> Node:
 func _process_ai(delta: float) -> void:
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
+	_clear_invalid_ai_job()
+	_process_law_custody_return()
+	_process_law_sentence_move()
 	if _current_order_type == OrderType.HEAL and (_current_heal_target == null or not is_instance_valid(_current_heal_target)):
 		stop_heal_assignment()
 	if _current_order_type == OrderType.FINISH_OFF and (_current_finish_off_target == null or not is_instance_valid(_current_finish_off_target) or _current_finish_off_target.life_state != NpcRules.LifeState.UNCONSCIOUS):
@@ -2003,9 +2366,11 @@ func _process_ai(delta: float) -> void:
 		stop_carry_assignment()
 	if _current_order_type == OrderType.PLACE_IN_BED and (_current_place_bed_target == null or not is_instance_valid(_current_place_bed_target) or _carried_character == null or not is_instance_valid(_carried_character)):
 		stop_place_in_bed_assignment()
+	if _current_order_type == OrderType.PLACE_IN_CELL and (_current_place_cell_target == null or not is_instance_valid(_current_place_cell_target) or _carried_character == null or not is_instance_valid(_carried_character)):
+		stop_place_in_cell_assignment()
 	if _current_order_type == OrderType.PICKUP_ITEM and (_current_pickup_item == null or not is_instance_valid(_current_pickup_item)):
 		stop_pickup_assignment()
-	if _current_order_type == OrderType.ATTACK and (_current_attack_target == null or not is_instance_valid(_current_attack_target) or _current_attack_target.life_state != NpcRules.LifeState.ALIVE):
+	if _current_attack_target != null and (not is_instance_valid(_current_attack_target) or _current_attack_target.life_state != NpcRules.LifeState.ALIVE):
 		stop_attack_assignment()
 	_ai_tick_remaining -= delta
 	if _ai_tick_remaining > 0.0:
@@ -2013,7 +2378,8 @@ func _process_ai(delta: float) -> void:
 	_ai_tick_remaining = 0.35 + _rng.randf_range(0.0, 0.15)
 	if _should_consider_combat_retarget():
 		var replacement_target := _find_ai_target()
-		if replacement_target != null and replacement_target != _current_attack_target and COMBAT_COORDINATOR.should_switch_target(self, _current_attack_target, replacement_target, maxf(aggressive_scan_radius, assist_scan_radius)):
+		var active_target := _get_active_combat_target()
+		if replacement_target != null and replacement_target != active_target and COMBAT_COORDINATOR.should_switch_target(self, active_target, replacement_target, maxf(aggressive_scan_radius, assist_scan_radius)):
 			assign_attack_target(replacement_target, false, true, false)
 			return
 	if _should_seek_auto_heal_target():
@@ -2025,6 +2391,30 @@ func _process_ai(delta: float) -> void:
 		var target := _find_ai_target()
 		if target != null:
 			assign_attack_target(target, false)
+
+
+func _process_law_custody_return() -> void:
+	if not _law_custody_return_active:
+		return
+	if _horizontal_distance_to(_law_custody_return_target) <= _get_move_target_arrival_distance() or not _has_move_target:
+		_law_custody_return_active = false
+		return
+	if _current_order_type != OrderType.MOVE:
+		_current_order_type = OrderType.MOVE
+		_order_was_player_issued = false
+	_set_actor_move_target(_law_custody_return_target)
+
+
+func _process_law_sentence_move() -> void:
+	if not _law_sentence_move_active:
+		return
+	if _horizontal_distance_to(_law_sentence_move_target) <= interact_distance or not _has_move_target:
+		_law_sentence_move_active = false
+		return
+	if _current_order_type != OrderType.MOVE:
+		_current_order_type = OrderType.MOVE
+		_order_was_player_issued = false
+	_set_actor_move_target(_law_sentence_move_target)
 
 
 func _process_mining(delta: float) -> void:
@@ -2353,6 +2743,74 @@ func _process_place_in_bed_interaction() -> void:
 	carried.state_changed.emit()
 
 
+func _process_place_in_cell_interaction() -> void:
+	if _current_place_cell_target == null or not is_instance_valid(_current_place_cell_target):
+		stop_place_in_cell_assignment()
+		return
+	if _carried_character == null or not is_instance_valid(_carried_character):
+		stop_place_in_cell_assignment()
+		return
+	var interaction_position: Vector3 = _current_place_cell_target.call("get_interaction_position", self)
+	var place_distance := maxf(interact_distance, CELL_PLACEMENT_INTERACT_DISTANCE)
+	if _horizontal_distance_to(interaction_position) > place_distance or absf(global_position.y - interaction_position.y) > move_target_vertical_tolerance + 0.8:
+		_set_next_place_cell_move_target(interaction_position)
+		return
+	if _has_move_target:
+		_clear_actor_move_target()
+	var carried := _carried_character
+	var cell = _current_place_cell_target
+	_detach_carried_character()
+	if not bool(cell.call("place_carried_prisoner", self, carried)):
+		_attach_carried_character(carried)
+		_show_world_notice("Cell unavailable", Color(1.0, 0.78, 0.38, 1.0))
+		stop_place_in_cell_assignment()
+		return
+	_notify_law_custody_placed(carried)
+	_clear_actor_move_target()
+	_current_place_cell_target = null
+	_current_place_cell_waypoints.clear()
+	_current_order_type = OrderType.NONE
+	_show_world_notice("Placed in cell", Color(0.55, 0.72, 1.0, 1.0))
+	state_changed.emit()
+	carried.state_changed.emit()
+
+
+func _notify_law_custody_placed(actor: HumanoidCharacter) -> void:
+	if actor == null:
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	for controller in tree.get_nodes_in_group("law_order_controller"):
+		if controller != null and controller.has_method("complete_custody_if_placed") and bool(controller.call("complete_custody_if_placed", actor)):
+			return
+
+
+func _get_place_cell_route(cell) -> Array[Vector3]:
+	var route: Array[Vector3] = []
+	if cell != null and cell.has_method("get_interaction_route"):
+		for point in cell.call("get_interaction_route", self):
+			if point is Vector3:
+				route.append(point)
+	var final_position: Vector3 = cell.call("get_interaction_position", self)
+	if route.is_empty() or route[route.size() - 1].distance_squared_to(final_position) > 0.04:
+		route.append(final_position)
+	return route
+
+
+func _set_next_place_cell_move_target(final_position: Vector3) -> void:
+	while not _current_place_cell_waypoints.is_empty() and global_position.distance_to(_current_place_cell_waypoints[0]) <= interact_distance:
+		_current_place_cell_waypoints.remove_at(0)
+	var next_position := final_position
+	if _current_place_cell_waypoints.is_empty():
+		next_position = final_position
+	else:
+		next_position = _current_place_cell_waypoints[0]
+	if _has_move_target and _move_target.distance_squared_to(next_position) <= 0.04:
+		return
+	_set_actor_move_target(next_position)
+
+
 func _process_seat_interaction() -> void:
 	if _current_seat_target == null or not is_instance_valid(_current_seat_target):
 		stop_seat_assignment()
@@ -2394,32 +2852,31 @@ func _process_attack_interaction() -> void:
 	if _combat_action_active or _combat_reaction_remaining > 0.0:
 		_face_combat_focus()
 		return
-	if _current_attack_target == null or not is_instance_valid(_current_attack_target):
-		stop_attack_assignment()
-		return
-	if _current_attack_target.life_state != NpcRules.LifeState.ALIVE:
+	var target := _get_active_combat_target()
+	if target == null:
 		stop_attack_assignment()
 		return
 	if _should_abandon_attack_chase():
 		stop_attack_assignment()
 		return
-	var target_position := _current_attack_target.get_combat_move_position(self)
-	var target_distance := global_position.distance_to(_current_attack_target.global_position)
+	var target_position := target.get_combat_move_position(self)
+	var target_distance := _horizontal_distance_to(target.global_position)
+	var chase_distance := get_attack_range() + COMBAT_RANGE_HYSTERESIS
 	if COMBAT_COORDINATOR.is_character_locked(self):
-		if target_distance > get_attack_range() * 0.95:
+		if target_distance > chase_distance:
 			_set_actor_move_target(target_position)
 		else:
 			_clear_actor_move_target()
-			_face_character(_current_attack_target)
+			_face_character(target)
 		return
-	if target_distance > get_attack_range():
+	if target_distance > chase_distance:
 		_set_actor_move_target(target_position)
 		return
 	_clear_actor_move_target()
-	_face_character(_current_attack_target)
+	_face_character(target)
 	if _combat_cooldown_remaining > 0.0:
 		return
-	_start_combat_attack(_current_attack_target)
+	_start_combat_attack(target)
 
 
 func _process_combat_animation_state(delta: float) -> void:
@@ -2611,6 +3068,15 @@ func _pick_available_animation(animation_names: Array[String]) -> String:
 	return available[_rng.randi_range(0, available.size() - 1)]
 
 
+func _pick_preferred_available_animation(animation_names: Array[String]) -> String:
+	if _character_animation_player == null:
+		return ""
+	for animation_name in animation_names:
+		if _character_animation_player.has_animation(animation_name):
+			return animation_name
+	return ""
+
+
 func _process_heal_interaction() -> void:
 	if _current_heal_target == null or not is_instance_valid(_current_heal_target):
 		stop_heal_assignment()
@@ -2770,6 +3236,7 @@ func set_focused(value: bool) -> void:
 
 func _update_selection_state() -> void:
 	_update_inspect_visual()
+	_update_ground_markers()
 
 
 func _sync_party_membership_group() -> void:
@@ -2832,26 +3299,23 @@ func _update_inspect_visual() -> void:
 
 
 func _update_ground_markers() -> void:
-	_update_ground_marker_transform(_inspect_ring, 0.025)
-	_update_ground_marker_transform(get_node_or_null("SelectionRing") as Node3D, 0.03)
+	_update_ground_marker_transform(_inspect_ring, 0.0)
+	_update_ground_marker_transform(get_node_or_null("SelectionRing") as Node3D, 0.0)
 
 
 func _update_ground_marker_transform(marker: Node3D, marker_height: float) -> void:
 	if marker == null or not is_instance_valid(marker):
 		return
-	if not _is_ragdoll_active:
-		if marker.top_level:
-			marker.top_level = false
-		marker.position = Vector3(0.0, marker_height, 0.0)
-		marker.rotation = Vector3.ZERO
-		return
 	marker.top_level = true
 	marker.global_position = get_ground_marker_position(marker_height)
-	marker.rotation = Vector3.ZERO
+	marker.global_rotation = Vector3.ZERO
 
 
 func _get_ground_marker_raycast_exclusions() -> Array[RID]:
 	var exclusions: Array[RID] = [get_rid()]
+	var carrier := get_carrier()
+	if carrier != null:
+		exclusions.append(carrier.get_rid())
 	for physical_bone_value in _ragdoll_physical_bones.values():
 		var physical_bone := physical_bone_value as PhysicalBone3D
 		if physical_bone != null and is_instance_valid(physical_bone):
@@ -3661,6 +4125,8 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 		_copy_default_combat_set_animations(ual2_player, animation_library)
 		_copy_contextual_combat_reaction_animations(ual2_player, animation_library)
 		_copy_ragdoll_profile_animations(ual2_player, animation_library)
+		_copy_named_animations(ual2_player, animation_library, CARRY_POSE_ANIMATION_NAMES)
+		_copy_named_animations(ual2_player, animation_library, CELL_CUSTODY_ANIMATION_NAMES)
 	ual2_source.queue_free()
 
 
@@ -3672,6 +4138,11 @@ func _copy_animation(source_player: AnimationPlayer, animation_library: Animatio
 		return
 	var copied_animation := source_animation.duplicate(true) as Animation
 	animation_library.add_animation(animation_name, copied_animation)
+
+
+func _copy_named_animations(source_player: AnimationPlayer, animation_library: AnimationLibrary, animation_names: Array[String]) -> void:
+	for animation_name in animation_names:
+		_copy_animation(source_player, animation_library, animation_name)
 
 
 func _copy_default_combat_set_animations(source_player: AnimationPlayer, animation_library: AnimationLibrary) -> void:
@@ -3798,7 +4269,7 @@ func _update_character_animation(delta: float) -> void:
 	if _carried_by != null:
 		_cancel_crouch_transition()
 		_cancel_run_transition()
-		_update_idle_character_animation(delta)
+		_update_carried_pose_animation()
 		return
 	if _mining_active and _current_mining_node != null:
 		_cancel_crouch_transition()
@@ -3807,7 +4278,8 @@ func _update_character_animation(delta: float) -> void:
 		if _play_character_animation(MINING_ANIMATION_NAME):
 			return
 	var horizontal_speed := _get_horizontal_speed()
-	var is_moving := horizontal_speed > ACTUAL_LOCOMOTION_SPEED_THRESHOLD and (_has_move_target or _current_order_type == OrderType.ATTACK)
+	var should_hold_combat_idle := _should_hold_combat_idle_animation()
+	var is_moving := horizontal_speed > ACTUAL_LOCOMOTION_SPEED_THRESHOLD and (_has_move_target or _has_active_combat_target()) and not should_hold_combat_idle
 	var wants_run_animation := is_running_enabled() and is_moving and not sneaking
 	if _crouch_enter_animation_remaining > 0.0:
 		_update_crouch_enter_animation(delta)
@@ -3823,6 +4295,11 @@ func _update_character_animation(delta: float) -> void:
 		else:
 			_play_character_animation(CROUCH_IDLE_ANIMATION_NAME)
 		return
+	if should_hold_combat_idle:
+		_cancel_crouch_transition()
+		_cancel_run_transition()
+		if _play_combat_idle_animation_if_available():
+			return
 	if not is_moving:
 		if _play_combat_idle_animation_if_available():
 			return
@@ -3838,10 +4315,17 @@ func _get_animation_speed_ratio(horizontal_speed: float, reference_speed: float)
 	return clampf(horizontal_speed / maxf(reference_speed, 0.001), 0.0, 1.0)
 
 
-func _play_combat_idle_animation_if_available() -> bool:
-	if not is_in_combat():
+func _should_hold_combat_idle_animation() -> bool:
+	var target := _get_active_combat_target()
+	if target == null:
 		return false
-	if _current_attack_target == null or not is_instance_valid(_current_attack_target) or _current_attack_target.life_state != NpcRules.LifeState.ALIVE:
+	if absf(target.global_position.y - global_position.y) > move_target_vertical_tolerance:
+		return false
+	return _horizontal_distance_to(target.global_position) <= get_attack_range() + COMBAT_RANGE_HYSTERESIS
+
+
+func _play_combat_idle_animation_if_available() -> bool:
+	if _get_active_combat_target() == null:
 		return false
 	var animation_set = _get_current_combat_animation_set()
 	var idle_animation_name := _get_current_combat_idle_animation_name(animation_set)
@@ -3853,6 +4337,8 @@ func _play_combat_idle_animation_if_available() -> bool:
 
 
 func _get_current_combat_idle_animation_name(animation_set) -> String:
+	if animation_set != null and str(animation_set.stance_id) == EquipmentGripProfile.GRIP_CLASS_ONE_HAND_MELEE:
+		return str(animation_set.idle_animation_name)
 	if _has_equipped_shield() and _character_animation_player != null and _character_animation_player.has_animation(SHIELD_COMBAT_IDLE_ANIMATION_NAME):
 		return SHIELD_COMBAT_IDLE_ANIMATION_NAME
 	if animation_set != null:
@@ -4160,7 +4646,15 @@ func _transform_aabb(bounds: AABB, transform: Transform3D) -> AABB:
 	return transformed_bounds
 
 
-func _set_order(order_type: int, issued_by_player: bool, preserve_seat: bool = false) -> void:
+func _set_order(order_type: int, issued_by_player: bool, preserve_seat: bool = false) -> bool:
+	if _should_keep_active_combat_order(order_type, issued_by_player):
+		return false
+	if _law_custody_return_active and (issued_by_player or order_type != OrderType.MOVE):
+		_law_custody_return_active = false
+	if _law_sentence_move_active and (issued_by_player or order_type != OrderType.MOVE):
+		_law_sentence_move_active = false
+	if issued_by_player and order_type != OrderType.ATTACK and _ai_brain != null:
+		_ai_brain.clear_for_player_override()
 	if issued_by_player and _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):
 		_active_job_provider.pause_worker_job(self, true)
 	_cancel_non_matching_assignments(order_type, preserve_seat)
@@ -4172,6 +4666,44 @@ func _set_order(order_type: int, issued_by_player: bool, preserve_seat: bool = f
 	if order_type != OrderType.SCAVENGE:
 		_scavenging_active = false
 		scavenging_changed.emit()
+	return true
+
+
+func _should_keep_active_combat_order(next_order_type: int, issued_by_player: bool) -> bool:
+	if issued_by_player or next_order_type == OrderType.ATTACK:
+		return false
+	return _has_active_combat_target()
+
+
+func _has_active_combat_target() -> bool:
+	return life_state == NpcRules.LifeState.ALIVE and _get_active_combat_target() != null
+
+
+func _get_active_combat_target() -> HumanoidCharacter:
+	if _ai_brain != null:
+		var ai_target := _ai_brain.get_active_combat_target() as HumanoidCharacter
+		if _is_valid_combat_target(ai_target):
+			return ai_target
+	if _current_order_type == OrderType.ATTACK and _is_valid_combat_target(_current_attack_target):
+		return _current_attack_target
+	return null
+
+
+func _is_valid_combat_target(target: HumanoidCharacter) -> bool:
+	return target != null and is_instance_valid(target) and target.life_state == NpcRules.LifeState.ALIVE and not target.is_protected_from_combat()
+
+
+func _get_active_ai_job_type() -> int:
+	return _ai_brain.get_active_job_type() if _ai_brain != null else AI_JOB_SCRIPT.JobType.NONE
+
+
+func _is_active_ai_combat_player_issued() -> bool:
+	return _ai_brain != null and _ai_brain.has_active_combat_job() and _ai_brain.is_active_job_player_issued()
+
+
+func _clear_invalid_ai_job() -> void:
+	if _ai_brain != null and _ai_brain.active_job != null and (not _ai_brain.active_job.is_valid_for(self) or (_ai_brain.active_job.is_combat() and not _is_valid_combat_target(_ai_brain.active_job.target))):
+		_ai_brain.clear_active_job()
 
 
 func _cancel_non_matching_assignments(next_order_type: int, preserve_seat: bool = false) -> void:
@@ -4197,6 +4729,8 @@ func _cancel_non_matching_assignments(next_order_type: int, preserve_seat: bool 
 		stop_sleep_assignment()
 	if next_order_type != OrderType.PLACE_IN_BED:
 		stop_place_in_bed_assignment()
+	if next_order_type != OrderType.PLACE_IN_CELL:
+		stop_place_in_cell_assignment()
 	if next_order_type != OrderType.SIT and not preserve_seat:
 		stop_seat_assignment()
 	if next_order_type != OrderType.PICKUP_ITEM:
@@ -4218,7 +4752,10 @@ func _seed_starting_equipment() -> void:
 			item_definition = stock
 		elif stock.get("item_definition") is ItemDefinition:
 			item_definition = stock.item_definition
-		if item_definition == null or not item_definition.is_equippable():
+		if item_definition == null:
+			continue
+		if not item_definition.is_equippable():
+			inventory.add_item_count(item_definition, 1)
 			continue
 		if get_equipped_item(item_definition.equip_slot) == null:
 			equipped_items[item_definition.equip_slot] = item_definition
@@ -4253,13 +4790,48 @@ func _recalculate_vitals() -> void:
 		if life_state == NpcRules.LifeState.ALIVE:
 			_enter_unconscious_state()
 		return
+	if is_in_cell_custody() and life_state == NpcRules.LifeState.UNCONSCIOUS and _downed_recover_delay_remaining <= 0.0:
+		_wake_in_cell()
+		return
 	if life_state != NpcRules.LifeState.ALIVE and life_state != NpcRules.LifeState.ASLEEP and _downed_recover_delay_remaining <= 0.0 and _carried_by == null:
 		_begin_get_up()
+
+
+func _wake_in_cell() -> void:
+	if not is_in_cell_custody() or life_state != NpcRules.LifeState.UNCONSCIOUS:
+		return
+	var previous_state := life_state
+	life_state = NpcRules.LifeState.ALIVE
+	_cancel_get_up()
+	_cancel_ragdoll_preroll()
+	_stop_ragdoll_simulation(true)
+	_restore_downed_collision_shape()
+	_clear_combat_action()
+	_combat_reaction_remaining = 0.0
+	_combat_reaction_source = null
+	COMBAT_COORDINATOR.release_character(self)
+	var stand_position := _get_cell_custody_stand_position(get_cell_custody_target())
+	if stand_position != Vector3.INF:
+		global_position = stand_position
+	velocity = Vector3.ZERO
+	running = false
+	_start_cell_wake_animation()
+	life_state_changed.emit(previous_state, life_state)
+	state_changed.emit()
+
+
+func _get_cell_custody_stand_position(cell) -> Vector3:
+	if cell != null and is_instance_valid(cell) and cell.has_method("get_prisoner_stand_position"):
+		var stand_position: Variant = cell.call("get_prisoner_stand_position", self)
+		if stand_position is Vector3:
+			return stand_position
+	return Vector3.INF
 
 
 func _enter_unconscious_state() -> void:
 	if life_state == NpcRules.LifeState.DEAD or life_state == NpcRules.LifeState.UNCONSCIOUS:
 		return
+	var previous_state := life_state
 	life_state = NpcRules.LifeState.UNCONSCIOUS
 	_cancel_get_up()
 	COMBAT_COORDINATOR.release_character(self)
@@ -4274,13 +4846,17 @@ func _enter_unconscious_state() -> void:
 	_downed_recover_delay_remaining = 15.0
 	_enter_downed_state(false)
 	_show_world_notice("Unconscious", Color(1.0, 0.85, 0.45, 1.0))
+	life_state_changed.emit(previous_state, life_state)
 	state_changed.emit()
 
 
 func _enter_dead_state() -> void:
 	if life_state == NpcRules.LifeState.DEAD:
 		return
+	_report_murder_crime_if_needed()
+	var previous_state := life_state
 	life_state = NpcRules.LifeState.DEAD
+	_notify_law_order_actor_death()
 	_cancel_get_up()
 	COMBAT_COORDINATOR.release_character(self)
 	running = false
@@ -4294,6 +4870,8 @@ func _enter_dead_state() -> void:
 	_enter_downed_state(true)
 	_show_world_notice("Dead", Color(1.0, 0.2, 0.2, 1.0))
 	velocity = Vector3.ZERO
+	life_state_changed.emit(previous_state, life_state)
+	died.emit(self)
 	state_changed.emit()
 
 
@@ -4372,7 +4950,7 @@ func _collect_stat_modifiers() -> Array:
 	NpcRules.append_stage_modifiers(modifiers, get_hunger_stage(), get_fatigue_stage(), _current_open_cut_damage, max_hp)
 	if life_state == NpcRules.LifeState.UNCONSCIOUS:
 		modifiers.append({"stat": "healing_rate", "mul": NpcRules.UNCONSCIOUS_HEAL_MULTIPLIER})
-	if running and (_has_move_target or _should_direct_combat_chase()):
+	if running and (_has_move_target or _has_active_combat_target()):
 		modifiers.append({"stat": "move_speed_multiplier", "mul": _get_base_stat_value("run_speed_multiplier")})
 	if sneaking:
 		modifiers.append({"stat": "move_speed_multiplier", "mul": _get_sneak_move_speed_multiplier()})
@@ -4439,13 +5017,16 @@ func _spend_fatigue(amount: float) -> void:
 func _should_consider_combat_retarget() -> bool:
 	if life_state != NpcRules.LifeState.ALIVE:
 		return false
-	if _order_was_player_issued:
+	if _is_active_ai_combat_player_issued():
 		return false
-	if _current_order_type != OrderType.ATTACK or _current_attack_target == null or not is_instance_valid(_current_attack_target):
+	if _get_active_ai_job_type() == AI_JOB_SCRIPT.JobType.LAW_ARREST:
+		return false
+	var active_target := _get_active_combat_target()
+	if active_target == null:
 		return false
 	if _combat_action_active or _combat_reaction_remaining > 0.0:
 		return false
-	return _current_attack_target.life_state == NpcRules.LifeState.ALIVE
+	return active_target.life_state == NpcRules.LifeState.ALIVE
 
 
 func _should_seek_auto_heal_target() -> bool:
@@ -4499,11 +5080,15 @@ func _get_auto_heal_priority(target: HumanoidCharacter, distance: float) -> floa
 
 
 func _should_seek_combat_target() -> bool:
+	if is_protected_from_combat():
+		return false
+	if _law_sentence_move_active:
+		return false
 	if _current_order_type == OrderType.HEAL:
 		return false
 	if _carried_by != null or is_carrying_someone():
 		return false
-	if _current_order_type == OrderType.ATTACK and _current_attack_target != null:
+	if _has_active_combat_target():
 		return false
 	if _order_was_player_issued and _current_order_type in [OrderType.MOVE, OrderType.MINE, OrderType.SCAVENGE, OrderType.OPEN_CONTAINER, OrderType.TRADE]:
 		return false
@@ -4527,7 +5112,7 @@ func _get_last_direct_attacker_target() -> HumanoidCharacter:
 	if _last_direct_attacker_id == 0:
 		return null
 	for node in get_tree().get_nodes_in_group("npc_character"):
-		if node is HumanoidCharacter and node.get_instance_id() == _last_direct_attacker_id and node.life_state == NpcRules.LifeState.ALIVE:
+		if node is HumanoidCharacter and node.get_instance_id() == _last_direct_attacker_id and _is_valid_combat_target(node):
 			return node
 	return null
 
@@ -4543,7 +5128,7 @@ func _find_defensive_assist_target() -> HumanoidCharacter:
 		if global_position.distance_to(ally.global_position) > _get_combat_witness_radius():
 			continue
 		var ally_target := ally.get_current_combat_target()
-		if ally_target != null and is_instance_valid(ally_target) and ally_target.life_state == NpcRules.LifeState.ALIVE and _should_help_against(ally, ally_target, true) and not candidates.has(ally_target):
+		if _is_valid_combat_target(ally_target) and _should_help_against(ally, ally_target, true) and not candidates.has(ally_target):
 			candidates.append(ally_target)
 	return COMBAT_COORDINATOR.choose_target(self, candidates, _get_combat_switch_radius()) as HumanoidCharacter
 
@@ -4556,7 +5141,11 @@ func _should_defend_ally(ally: HumanoidCharacter) -> bool:
 func _should_help_against(protected_actor: HumanoidCharacter, threat: HumanoidCharacter, allow_public_intervention: bool) -> bool:
 	if protected_actor == null or threat == null or threat == self:
 		return false
+	if protected_actor.is_protected_from_combat():
+		return false
 	if threat.life_state != NpcRules.LifeState.ALIVE:
+		return false
+	if _is_law_arrest_against(protected_actor, threat):
 		return false
 	if has_hostility_with(protected_actor):
 		return false
@@ -4567,16 +5156,24 @@ func _should_help_against(protected_actor: HumanoidCharacter, threat: HumanoidCh
 	return allow_public_intervention and _is_public_order_defender()
 
 
+func _is_law_arrest_against(protected_actor: HumanoidCharacter, threat: HumanoidCharacter) -> bool:
+	return protected_actor != null and threat != null and threat.has_method("is_law_arresting") and bool(threat.call("is_law_arresting", protected_actor))
+
+
 func _are_party_allies(other: HumanoidCharacter) -> bool:
 	return other != null and player_party_member and other.player_party_member
 
 
 func _is_public_order_defender() -> bool:
+	if is_faction_soldier():
+		return true
 	if is_in_group(COMBAT_INTERVENTION_STAFF_GROUP):
 		return true
-	var role_text := "%s %s %s" % [str(name), member_name, _active_job_label]
-	role_text = role_text.to_lower()
-	return role_text.contains("guard") or role_text.contains("barkeeper") or role_text.contains("waiter")
+	return false
+
+
+func _is_authority_guard_role() -> bool:
+	return is_faction_soldier()
 
 
 func _get_combat_witness_radius() -> float:
@@ -4600,7 +5197,7 @@ func _find_nearest_hostile(scan_radius: float) -> HumanoidCharacter:
 		if not (node is HumanoidCharacter):
 			continue
 		var candidate: HumanoidCharacter = node
-		if candidate == self or candidate.life_state != NpcRules.LifeState.ALIVE:
+		if candidate == self or not _is_valid_combat_target(candidate):
 			continue
 		if not has_hostility_with(candidate):
 			continue
@@ -4610,9 +5207,9 @@ func _find_nearest_hostile(scan_radius: float) -> HumanoidCharacter:
 
 
 func _try_start_self_defense(attacker: HumanoidCharacter) -> void:
-	if attacker == null or attacker.life_state != NpcRules.LifeState.ALIVE:
+	if attacker == null or not _is_valid_combat_target(attacker):
 		return
-	if life_state != NpcRules.LifeState.ALIVE:
+	if life_state != NpcRules.LifeState.ALIVE or is_protected_from_combat():
 		return
 	if _is_player_order_to_avoid_combat():
 		return
@@ -4676,14 +5273,15 @@ func _join_defense_against(threat: HumanoidCharacter) -> void:
 	mark_hostile(threat)
 	threat.mark_hostile(self)
 	_record_player_combat_reputation(threat)
-	if _current_attack_target != null and _current_attack_target != threat and not COMBAT_COORDINATOR.should_switch_target(self, _current_attack_target, threat, _get_combat_switch_radius()):
+	var active_target := _get_active_combat_target()
+	if active_target != null and active_target != threat and not COMBAT_COORDINATOR.should_switch_target(self, active_target, threat, _get_combat_switch_radius()):
 		return
 	assign_attack_target(threat, false, false, false)
 	_set_actor_move_target(threat.get_combat_move_position(self))
 
 
 func _should_abandon_attack_chase() -> bool:
-	if _order_was_player_issued:
+	if _is_active_ai_combat_player_issued() or _ai_brain != null and _ai_brain.has_active_combat_job():
 		return false
 	if _current_attack_target == null or not is_instance_valid(_current_attack_target):
 		return false
@@ -4694,7 +5292,7 @@ func _should_abandon_attack_chase() -> bool:
 
 
 func _is_player_order_to_avoid_combat() -> bool:
-	return _order_was_player_issued and _current_order_type in [OrderType.MOVE, OrderType.MINE, OrderType.SCAVENGE, OrderType.OPEN_CONTAINER, OrderType.TRADE, OrderType.TALK, OrderType.CARRY, OrderType.SLEEP, OrderType.PLACE_IN_BED, OrderType.SIT, OrderType.PICKUP_ITEM]
+	return _order_was_player_issued and _current_order_type == OrderType.MOVE
 
 
 func respond_to_settlement_alarm(attacker: HumanoidCharacter, alarm_town: Node, victim: HumanoidCharacter = null) -> void:
@@ -4753,7 +5351,7 @@ func _should_answer_settlement_alarm(victim: HumanoidCharacter, attacker: Humano
 		return false
 	if victim != null and has_hostility_with(victim):
 		return false
-	if faction_name == town_faction or _is_node_descendant_of(self, alarm_town):
+	if is_faction_soldier():
 		return true
 	if player_party_member or faction_name == "Player":
 		return _should_player_help_settlement_faction(town_faction)
@@ -4847,6 +5445,7 @@ func _clear_all_active_orders() -> void:
 	stop_carry_assignment()
 	stop_sleep_assignment()
 	stop_place_in_bed_assignment()
+	stop_place_in_cell_assignment()
 	stop_seat_assignment()
 	stop_pickup_assignment()
 	_current_order_type = OrderType.NONE
@@ -4881,6 +5480,7 @@ func _detach_carried_character() -> HumanoidCharacter:
 	var carried := _carried_character
 	_carried_character = null
 	carried._carried_by = null
+	carried._carried_pose_animation = ""
 	carried.collision_layer = carried._stored_collision_layer
 	carried.collision_mask = carried._stored_collision_mask
 	return carried
@@ -4888,6 +5488,7 @@ func _detach_carried_character() -> HumanoidCharacter:
 
 func _attach_carried_character(target_character: HumanoidCharacter) -> void:
 	_carried_character = target_character
+	target_character._clear_cell_custody_state(false)
 	target_character._carried_by = self
 	target_character._cancel_ragdoll_preroll()
 	target_character._cancel_get_up()
@@ -4903,6 +5504,8 @@ func _attach_carried_character(target_character: HumanoidCharacter) -> void:
 	target_character.stop_finish_off_assignment()
 	target_character.stop_carry_assignment()
 	target_character._release_sleep_target_without_waking()
+	target_character._play_carried_pose_animation()
+	target_character._apply_bone_pose_position_offsets()
 	target_character._update_carried_transform()
 	state_changed.emit()
 
@@ -4910,9 +5513,340 @@ func _attach_carried_character(target_character: HumanoidCharacter) -> void:
 func _update_carried_transform() -> void:
 	if _carried_by == null:
 		return
-	var offset := Vector3(0.0, 1.8, 0.4)
-	global_position = _carried_by.global_position + _carried_by.transform.basis * offset
-	rotation = Vector3(0.0, _carried_by.rotation.y, deg_to_rad(88.0))
+	var profile := _carried_by._get_carry_pose_profile()
+	var shoulder_origin := _carried_by._get_carry_shoulder_origin_transform(profile)
+	var carried_local_position := _get_carry_profile_vector(profile, "carried_local_position", _get_carry_profile_vector(profile, "carrier_anchor_local_offset", Vector3.ZERO))
+	global_transform = shoulder_origin * Transform3D(_get_carry_pose_local_basis(profile), carried_local_position)
+
+
+func _get_carry_pose_profile() -> Resource:
+	return carry_pose_profile if carry_pose_profile != null else DEFAULT_CARRY_POSE_PROFILE
+
+
+func _get_carry_pose_local_basis(profile: Resource) -> Basis:
+	var rotation_degrees := _get_carry_profile_vector(profile, "rotation_degrees", Vector3.ZERO)
+	return Basis.from_euler(Vector3(
+		deg_to_rad(rotation_degrees.x),
+		deg_to_rad(rotation_degrees.y),
+		deg_to_rad(rotation_degrees.z)
+	))
+
+
+func _get_carry_shoulder_origin_transform(profile: Resource) -> Transform3D:
+	var origin_position = _get_carry_bone_global_position(
+		_get_carry_profile_bone_names(profile, "carrier_anchor_bones", PackedStringArray(["upperarm_r", "clavicle_r", "spine_03"])),
+		Vector3.ZERO,
+		"carrier"
+	)
+	var origin: Vector3 = origin_position if origin_position is Vector3 else global_transform * _get_carry_fallback_local_anchor(true)
+	return Transform3D(global_transform.basis.orthonormalized(), origin)
+
+
+func _get_carry_carrier_anchor_global_position(profile: Resource) -> Vector3:
+	var anchor_position = _get_carry_bone_global_position(
+		_get_carry_profile_bone_names(profile, "carrier_anchor_bones", PackedStringArray(["upperarm_r", "clavicle_r", "spine_03"])),
+		_get_carry_profile_vector(profile, "carrier_anchor_local_offset", Vector3.ZERO),
+		"carrier"
+	)
+	if anchor_position is Vector3:
+		return anchor_position
+	return global_transform * _get_carry_fallback_local_anchor(true)
+
+
+func _get_carry_carried_anchor_local_position(profile: Resource) -> Vector3:
+	var anchor_position = _get_carry_bone_global_position(
+		_get_carry_profile_bone_names(profile, "carried_anchor_bones", PackedStringArray(["spine_02", "spine_03", "pelvis"])),
+		_get_carry_profile_vector(profile, "carried_anchor_local_offset", Vector3.ZERO),
+		"carried"
+	)
+	if anchor_position is Vector3:
+		return global_transform.affine_inverse() * anchor_position
+	return _get_carry_fallback_local_anchor(false)
+
+
+func _get_carry_bone_global_position(bone_names: PackedStringArray, bone_local_offset: Vector3, anchor_role: String):
+	if _character_skeleton == null or not is_instance_valid(_character_skeleton):
+		return null
+	_character_skeleton.force_update_all_bone_transforms()
+	var bone_index := _find_carry_anchor_bone_index(_character_skeleton, bone_names, anchor_role)
+	if bone_index < 0:
+		return null
+	var bone_pose := _character_skeleton.get_bone_global_pose(bone_index)
+	return _character_skeleton.global_transform * (bone_pose * bone_local_offset)
+
+
+func _find_carry_anchor_bone_index(skeleton: Skeleton3D, bone_names: PackedStringArray, anchor_role: String) -> int:
+	for bone_name in bone_names:
+		var exact_index := skeleton.find_bone(str(bone_name))
+		if exact_index >= 0:
+			return exact_index
+	var semantic_index := _find_semantic_carry_anchor_bone_index(skeleton, anchor_role)
+	if semantic_index >= 0:
+		return semantic_index
+	for bone_index in range(skeleton.get_bone_count()):
+		return bone_index
+	return -1
+
+
+func _find_semantic_carry_anchor_bone_index(skeleton: Skeleton3D, anchor_role: String) -> int:
+	if anchor_role == "carrier":
+		var shoulder_index := _find_bone_index_by_keyword_groups(skeleton, [
+			["upperarm", "r"],
+			["right", "upperarm"],
+			["clavicle", "r"],
+			["right", "clavicle"],
+			["shoulder", "r"],
+			["right", "shoulder"],
+		])
+		if shoulder_index >= 0:
+			return shoulder_index
+		return _find_highest_spine_bone_index(skeleton)
+	return _find_bone_index_by_keyword_groups(skeleton, [
+		["spine02"],
+		["spine2"],
+		["spine", "02"],
+		["spine", "2"],
+		["stomach"],
+		["abdomen"],
+		["torso"],
+		["chest"],
+		["spine03"],
+		["spine3"],
+		["pelvis"],
+		["hips"],
+	])
+
+
+func _find_bone_index_by_keyword_groups(skeleton: Skeleton3D, keyword_groups: Array) -> int:
+	for keyword_group in keyword_groups:
+		for bone_index in range(skeleton.get_bone_count()):
+			var normalized_name := _normalize_bone_name(skeleton.get_bone_name(bone_index))
+			var matches := true
+			for keyword in keyword_group:
+				if not normalized_name.contains(_normalize_bone_name(str(keyword))):
+					matches = false
+					break
+			if matches:
+				return bone_index
+	return -1
+
+
+func _find_highest_spine_bone_index(skeleton: Skeleton3D) -> int:
+	var best_index := -1
+	var best_score := -1
+	for bone_index in range(skeleton.get_bone_count()):
+		var normalized_name := _normalize_bone_name(skeleton.get_bone_name(bone_index))
+		if not normalized_name.contains("spine") and not normalized_name.contains("chest"):
+			continue
+		var score := 0
+		for character in normalized_name:
+			if character.is_valid_int():
+				score = score * 10 + int(character)
+		if score >= best_score:
+			best_score = score
+			best_index = bone_index
+	return best_index
+
+
+func _normalize_bone_name(bone_name: String) -> String:
+	return bone_name.to_lower().replace("_", "").replace("-", "").replace(" ", "").replace(".", "").replace(":", "")
+
+
+func _get_carry_profile_bone_names(profile: Resource, property_name: String, fallback: PackedStringArray) -> PackedStringArray:
+	if profile == null:
+		return fallback
+	var value = profile.get(property_name)
+	var result := PackedStringArray()
+	if value is PackedStringArray:
+		result = value
+	elif value is Array:
+		for item in value:
+			result.append(str(item))
+	elif value is String and not str(value).is_empty():
+		result.append(str(value))
+	return result if not result.is_empty() else fallback
+
+
+func _get_carry_profile_vector(profile: Resource, property_name: String, fallback: Vector3) -> Vector3:
+	if profile == null:
+		return fallback
+	var value = profile.get(property_name)
+	return value if value is Vector3 else fallback
+
+
+func _get_carry_profile_float(profile: Resource, property_name: String, fallback: float) -> float:
+	if profile == null:
+		return fallback
+	var value = profile.get(property_name)
+	return float(value) if value is float or value is int else fallback
+
+
+func _get_carry_fallback_local_anchor(is_carrier_anchor: bool) -> Vector3:
+	var body_mesh := get_node_or_null("BodyMesh") as MeshInstance3D
+	if body_mesh != null and body_mesh.mesh != null:
+		var bounds := _calculate_local_mesh_bounds(body_mesh)
+		if bounds.size.y > 0.001:
+			var height_ratio := 0.78 if is_carrier_anchor else 0.56
+			var side_offset := bounds.size.x * 0.25 if is_carrier_anchor else 0.0
+			return Vector3(bounds.position.x + bounds.size.x * 0.5 + side_offset, bounds.position.y + bounds.size.y * height_ratio, bounds.position.z + bounds.size.z * 0.5)
+	return Vector3(0.24, 1.55, 0.08) if is_carrier_anchor else Vector3.ZERO
+
+
+func enter_cell_custody(cell, cell_position: Vector3, cell_rotation: Vector3) -> void:
+	_cell_custody_target = cell
+	_cancel_ragdoll_preroll()
+	_cancel_get_up()
+	_clear_all_active_orders()
+	_clear_combat_action()
+	_combat_reaction_remaining = 0.0
+	_combat_reaction_source = null
+	COMBAT_COORDINATOR.release_character(self)
+	_stop_ragdoll_simulation(true)
+	_restore_downed_collision_shape()
+	var stand_position := _get_cell_custody_stand_position(cell)
+	global_position = stand_position if life_state == NpcRules.LifeState.ALIVE and stand_position != Vector3.INF else cell_position
+	global_rotation = cell_rotation
+	velocity = Vector3.ZERO
+	running = false
+	_set_sneaking_state(false, false)
+	if life_state == NpcRules.LifeState.UNCONSCIOUS:
+		_apply_downed_collision_shape()
+		_play_cell_unconscious_pose()
+	elif life_state == NpcRules.LifeState.ALIVE:
+		_stop_character_animation(true)
+		_play_random_idle_animation(true)
+	state_changed.emit()
+
+
+func exit_cell_custody(exit_position: Vector3, exit_rotation: Vector3) -> void:
+	_clear_cell_custody_state(true)
+	global_position = exit_position
+	global_rotation = exit_rotation
+	velocity = Vector3.ZERO
+	state_changed.emit()
+
+
+func _clear_cell_custody_state(restore_collision := true) -> void:
+	_cell_custody_target = null
+	_cell_custody_unconscious_pose_animation = ""
+	_cell_custody_lay_freeze_remaining = 0.0
+	_cell_custody_lay_pose_frozen = false
+	_cell_custody_wake_animation = ""
+	_cell_custody_wake_remaining = 0.0
+	if restore_collision:
+		_restore_downed_collision_shape()
+	_stop_character_animation(true)
+
+
+func _play_carried_pose_animation() -> void:
+	var animation_name := _pick_preferred_available_animation(CARRY_POSE_ANIMATION_NAMES)
+	if animation_name.is_empty():
+		return
+	_carried_pose_animation = animation_name
+	if not _play_character_animation(animation_name, 0.0, true, MOVE_ANIMATION_BLEND_SECONDS):
+		return
+	var profile := _carried_by._get_carry_pose_profile() if _carried_by != null else _get_carry_pose_profile()
+	var animation_length := _get_character_animation_length(animation_name)
+	var sample_time := animation_length * clampf(_get_carry_profile_float(profile, "carried_pose_time_ratio", 0.0), 0.0, 1.0)
+	for animation_player in _character_animation_players:
+		if animation_player != null and animation_player.has_animation(animation_name):
+			animation_player.seek(clampf(sample_time, 0.0, maxf(0.0, animation_length - 0.001)), true)
+			animation_player.speed_scale = 0.0
+
+
+func _update_carried_pose_animation() -> void:
+	if _character_animation_player == null:
+		return
+	if _carried_pose_animation.is_empty() or _current_character_animation != _carried_pose_animation or not _character_animation_player.is_playing():
+		_play_carried_pose_animation()
+	elif _character_animation_player.speed_scale != 0.0:
+		_play_carried_pose_animation()
+
+
+func _play_cell_unconscious_pose() -> void:
+	var animation_name := CELL_CUSTODY_LAY_ANIMATION_NAME
+	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
+		animation_name = _pick_preferred_available_animation(["LiftAir_Fall"])
+	if animation_name.is_empty() or _character_animation_player == null:
+		return
+	_cell_custody_unconscious_pose_animation = animation_name
+	_cell_custody_lay_pose_frozen = false
+	_cell_custody_wake_animation = ""
+	_cell_custody_wake_remaining = 0.0
+	_play_character_animation(animation_name, 0.0, true, 0.0)
+	var animation_length := _get_character_animation_length(animation_name)
+	_cell_custody_lay_freeze_remaining = maxf(0.0, animation_length * CELL_CUSTODY_LAY_FREEZE_RATIO)
+	_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, _cell_custody_lay_freeze_remaining + 0.5)
+	if _cell_custody_lay_freeze_remaining <= 0.0:
+		_freeze_cell_lay_pose()
+
+
+func _freeze_cell_lay_pose() -> void:
+	if _cell_custody_unconscious_pose_animation.is_empty() or _character_animation_player == null:
+		return
+	var animation_name := _cell_custody_unconscious_pose_animation
+	var animation_length := _get_character_animation_length(animation_name)
+	var freeze_time := animation_length * CELL_CUSTODY_LAY_FREEZE_RATIO
+	for animation_player in _character_animation_players:
+		if animation_player != null and animation_player.has_animation(animation_name):
+			animation_player.seek(clampf(freeze_time, 0.0, maxf(0.0, animation_length - 0.001)), true)
+			animation_player.speed_scale = 0.0
+	_cell_custody_lay_freeze_remaining = 0.0
+	_cell_custody_lay_pose_frozen = true
+
+
+func _start_cell_wake_animation() -> void:
+	_cell_custody_unconscious_pose_animation = ""
+	_cell_custody_lay_freeze_remaining = 0.0
+	_cell_custody_lay_pose_frozen = false
+	var animation_name := CELL_CUSTODY_WAKE_ANIMATION_NAME
+	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
+		_cell_custody_wake_animation = ""
+		_cell_custody_wake_remaining = 0.0
+		_stop_character_animation(true)
+		_play_random_idle_animation(true)
+		return
+	var animation_length := _get_character_animation_length(animation_name)
+	var start_time := animation_length * CELL_CUSTODY_WAKE_START_RATIO
+	_cell_custody_wake_animation = animation_name
+	_cell_custody_wake_remaining = maxf(0.0, animation_length - start_time)
+	_play_character_animation(animation_name, 0.0, true, 0.0)
+	for animation_player in _character_animation_players:
+		if animation_player != null and animation_player.has_animation(animation_name):
+			animation_player.seek(start_time, true)
+			animation_player.speed_scale = 1.0
+	if _cell_custody_wake_remaining <= 0.0:
+		_finish_cell_wake_animation()
+
+
+func _finish_cell_wake_animation() -> void:
+	_cell_custody_wake_animation = ""
+	_cell_custody_wake_remaining = 0.0
+	_stop_character_animation(true)
+	_play_random_idle_animation(true)
+
+
+func _update_cell_custody_animation(delta: float) -> void:
+	velocity = Vector3.ZERO
+	if life_state == NpcRules.LifeState.UNCONSCIOUS:
+		if _cell_custody_unconscious_pose_animation.is_empty() or _character_animation_player == null:
+			_play_cell_unconscious_pose()
+		elif not _cell_custody_lay_pose_frozen:
+			_cell_custody_lay_freeze_remaining = maxf(0.0, _cell_custody_lay_freeze_remaining - delta)
+			if _cell_custody_lay_freeze_remaining <= 0.0:
+				_freeze_cell_lay_pose()
+		return
+	if life_state == NpcRules.LifeState.ALIVE:
+		_restore_downed_collision_shape()
+		_cell_custody_unconscious_pose_animation = ""
+		_cell_custody_lay_freeze_remaining = 0.0
+		_cell_custody_lay_pose_frozen = false
+		if not _cell_custody_wake_animation.is_empty():
+			_cell_custody_wake_remaining = maxf(0.0, _cell_custody_wake_remaining - delta)
+			if _cell_custody_wake_remaining <= 0.0:
+				_finish_cell_wake_animation()
+			return
+		_update_character_animation(delta)
 
 
 func _enter_downed_state(is_dead: bool) -> void:
@@ -5035,8 +5969,10 @@ func _finish_get_up() -> void:
 	_get_up_animation_name = ""
 	_get_up_animation_remaining = 0.0
 	_get_up_animation_total = 0.0
+	var previous_state := life_state
 	life_state = NpcRules.LifeState.ALIVE
 	_restore_from_downed_state()
+	life_state_changed.emit(previous_state, life_state)
 	state_changed.emit()
 
 
@@ -5533,3 +6469,52 @@ func _bandage_entry_has_uses(entry) -> bool:
 	if inventory.has_method("get_entry_bandage_uses"):
 		return int(inventory.call("get_entry_bandage_uses", entry)) > 0
 	return entry.definition != null and int(entry.definition.bandage_max_uses) > 0
+
+
+func _report_assault_crime_if_needed(target_character: HumanoidCharacter) -> void:
+	if target_character == null or not is_player_party_member() or target_character.is_player_party_member():
+		return
+	if has_hostility_with(target_character):
+		return
+	var law_controller := _get_law_order_controller()
+	if law_controller != null and law_controller.has_method("report_player_assault"):
+		law_controller.call("report_player_assault", self, target_character)
+	elif law_controller != null and law_controller.has_method("report_assault_if_witnessed"):
+		law_controller.call("report_assault_if_witnessed", self, target_character)
+
+
+func _report_murder_crime_if_needed() -> void:
+	if _last_direct_attacker_id == 0:
+		return
+	var attacker := _find_humanoid_by_instance_id(_last_direct_attacker_id)
+	if attacker == null or not attacker.is_player_party_member() or is_player_party_member():
+		return
+	var law_controller := _get_law_order_controller()
+	if law_controller != null and law_controller.has_method("report_murder_if_witnessed"):
+		law_controller.call("report_murder_if_witnessed", attacker, self)
+
+
+func _notify_law_order_actor_death() -> void:
+	var law_controller := _get_law_order_controller()
+	if law_controller != null and law_controller.has_method("handle_actor_death"):
+		law_controller.call("handle_actor_death", self)
+
+
+func _find_humanoid_by_instance_id(instance_id: int) -> HumanoidCharacter:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	for node in tree.get_nodes_in_group("humanoid_character"):
+		var actor := node as HumanoidCharacter
+		if actor != null and actor.get_instance_id() == instance_id:
+			return actor
+	return null
+
+
+func _get_law_order_controller() -> Node:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	for node in tree.get_nodes_in_group("law_order_controller"):
+		return node
+	return null

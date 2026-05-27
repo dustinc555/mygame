@@ -15,6 +15,8 @@ housing_root_path = NodePath("Housing")
 activity_points_root_path = NodePath("ActivityPoints")
 storage_root_path = NodePath("Storage")
 territory_root_path = NodePath("Territory")
+guards_root_path = NodePath("Guards")
+guard_posts_root_path = NodePath("GuardPosts")
 
 [node name="Facilities" type="Node3D" parent="."]
 
@@ -29,6 +31,10 @@ territory_root_path = NodePath("Territory")
 [node name="Housing" type="Node3D" parent="."]
 
 [node name="Residents" type="Node3D" parent="."]
+
+[node name="Guards" type="Node3D" parent="."]
+
+[node name="GuardPosts" type="Node3D" parent="."]
 
 [node name="Storage" type="Node3D" parent="."]
 

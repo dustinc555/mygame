@@ -86,18 +86,27 @@ func request_take_item(actor: HumanoidCharacter, item) -> bool:
 		return false
 	_award_theft_attempt_xp(actor, false)
 	_award_theft_detection_xp(witnesses)
-	var key := _warning_key(actor, item)
-	var warning_count := int(_warning_counts.get(key, 0))
-	_warning_counts[key] = warning_count + 1
-	if warning_count < warnings_before_attack:
-		var warning_witness: HumanoidCharacter = witnesses[0]
-		warning_witness.show_world_speech(THEFT_WARNING_LINES[_rng.randi_range(0, THEFT_WARNING_LINES.size() - 1)], 3.5)
-		return false
-	var lead_witness: HumanoidCharacter = witnesses[0]
-	lead_witness.show_world_speech("Thief! Guards!", 4.0)
-	for witness in witnesses:
-		witness.assign_attack_target(actor, false)
+	var law_controller := _get_law_order_controller()
+	if law_controller != null and law_controller.has_method("report_theft_if_witnessed"):
+		law_controller.call("report_theft_if_witnessed", actor, item, witnesses)
+	else:
+		var lead_witness: HumanoidCharacter = witnesses[0]
+		lead_witness.show_world_speech("Thief! Guards!", 4.0)
+		for witness in witnesses:
+			witness.assign_attack_target(actor, false)
 	return true
+
+
+func get_take_item_metadata(actor: HumanoidCharacter, item, current_metadata: Dictionary = {}) -> Dictionary:
+	var metadata := current_metadata.duplicate(true)
+	if actor == null or item == null or _can_take_legally(actor, item):
+		return metadata
+	var law_controller := _get_law_order_controller()
+	if law_controller != null and law_controller.has_method("make_stolen_item_metadata"):
+		var stolen_metadata: Dictionary = law_controller.call("make_stolen_item_metadata", actor, item)
+		for key in stolen_metadata.keys():
+			metadata[key] = stolen_metadata[key]
+	return metadata
 
 
 func get_take_item_label(actor: HumanoidCharacter, item) -> String:
@@ -261,6 +270,13 @@ func _get_faction_controller() -> Node:
 		return node
 	var bootstrap := root_scene.get_node_or_null("GameBootstrap") if root_scene != null else null
 	return bootstrap.get_node_or_null("FactionController") if bootstrap != null else null
+
+
+func _get_law_order_controller() -> Node:
+	for node in get_tree().get_nodes_in_group("law_order_controller"):
+		return node
+	var bootstrap := root_scene.get_node_or_null("GameBootstrap") if root_scene != null else null
+	return bootstrap.get_node_or_null("LawOrderController") if bootstrap != null else null
 
 
 func _get_enforcing_faction_name(target) -> String:

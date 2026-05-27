@@ -37,6 +37,9 @@ var _trespass_warning_counts: Dictionary = {}
 var _trespass_escalated: Dictionary = {}
 var _world_time: WorldTimeController
 const SIDE_SWITCH_HYSTERESIS := 0.45
+const META_ACTIVE_CRIME_LABEL := "law_active_crime_label"
+const META_ACTIVE_CRIME_KIND := "law_active_crime_kind"
+const META_ACTIVE_CRIME_SOURCE_ID := "law_active_crime_source_id"
 
 
 func _ready() -> void:
@@ -78,7 +81,7 @@ func is_actor_inside(actor: HumanoidCharacter) -> bool:
 		return false
 	if not levels.is_empty():
 		return get_level_index_for_actor(actor) >= 0
-	return _interior_actor_ids.has(actor.get_instance_id())
+	return _interior_actor_ids.has(actor.get_instance_id()) or _is_actor_inside_area(actor, _get_interior_area())
 
 
 func set_visibility_for_camera(show_interior: bool, camera_world_position: Vector3, actor: HumanoidCharacter = null) -> void:
@@ -232,9 +235,9 @@ func get_access_state_label_for_actor(actor: HumanoidCharacter, world_minutes: i
 
 
 func get_occupancy_label() -> String:
-	var owner := get_owner_faction_name()
-	if not owner.is_empty():
-		return owner
+	var owner_faction := get_owner_faction_name()
+	if not owner_faction.is_empty():
+		return owner_faction
 	match get_effective_access_mode():
 		"occupied":
 			return "Occupied"
@@ -313,17 +316,30 @@ func _get_world_time_controller() -> WorldTimeController:
 	return _world_time
 
 
+func _get_law_order_controller() -> Node:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	for node in tree.get_nodes_in_group("law_order_controller"):
+		return node
+	return null
+
+
 func _process_trespass(delta: float) -> void:
 	var actor_ids := _inside_actors.keys()
 	for actor_id in actor_ids:
 		var actor := _inside_actors.get(actor_id) as HumanoidCharacter
 		if actor == null or not is_instance_valid(actor) or not is_actor_inside(actor):
+			if actor != null and is_instance_valid(actor):
+				_clear_active_trespass_meta(actor)
 			_clear_trespass_state(actor_id)
 			_inside_actors.erase(actor_id)
 			continue
 		if not _is_actor_trespassing(actor):
+			_clear_active_trespass_meta(actor)
 			_clear_trespass_state(actor_id)
 			continue
+		_set_active_trespass_meta(actor)
 		var remaining := float(_trespass_warning_remaining.get(actor_id, 0.0)) - delta
 		if remaining <= 0.0:
 			_issue_trespass_response(actor)
@@ -366,6 +382,9 @@ func _escalate_trespass(actor: HumanoidCharacter, witness: HumanoidCharacter = n
 	if lead_witness != null:
 		_turn_witness_toward_actor(lead_witness, actor)
 		lead_witness.show_world_speech("Guards! Trespasser!", 4.0)
+	var law_controller := _get_law_order_controller()
+	if law_controller != null and law_controller.has_method("report_trespass"):
+		law_controller.call("report_trespass", actor, self, lead_witness)
 	var escalation := _get_trespass_escalation()
 	if escalation == "warning_only":
 		return
@@ -462,7 +481,7 @@ func _find_trespass_responders(actor: HumanoidCharacter) -> Array[HumanoidCharac
 			if humanoid.faction_name == owner_faction:
 				responders.append(humanoid)
 		elif not jurisdiction.is_empty():
-			if humanoid.faction_name == jurisdiction or (alarm_town != null and _is_node_descendant_of(humanoid, alarm_town)):
+			if humanoid.has_method("is_settlement_authority") and bool(humanoid.call("is_settlement_authority")) and (humanoid.faction_name == jurisdiction or (alarm_town != null and _is_node_descendant_of(humanoid, alarm_town))):
 				responders.append(humanoid)
 	return responders
 
@@ -496,8 +515,27 @@ func _forget_inside_actor(actor: HumanoidCharacter) -> void:
 	if actor == null:
 		return
 	var actor_id := actor.get_instance_id()
+	_clear_active_trespass_meta(actor)
 	_inside_actors.erase(actor_id)
 	_clear_trespass_state(actor_id)
+
+
+func _set_active_trespass_meta(actor: HumanoidCharacter) -> void:
+	if actor == null:
+		return
+	actor.set_meta(META_ACTIVE_CRIME_LABEL, "Committing a crime! (Trespassing)")
+	actor.set_meta(META_ACTIVE_CRIME_KIND, "active")
+	actor.set_meta(META_ACTIVE_CRIME_SOURCE_ID, get_instance_id())
+
+
+func _clear_active_trespass_meta(actor: HumanoidCharacter) -> void:
+	if actor == null or not actor.has_meta(META_ACTIVE_CRIME_SOURCE_ID):
+		return
+	if int(actor.get_meta(META_ACTIVE_CRIME_SOURCE_ID)) != get_instance_id():
+		return
+	actor.remove_meta(META_ACTIVE_CRIME_LABEL)
+	actor.remove_meta(META_ACTIVE_CRIME_KIND)
+	actor.remove_meta(META_ACTIVE_CRIME_SOURCE_ID)
 
 
 func _clear_trespass_state(actor_id: int) -> void:
@@ -610,7 +648,94 @@ func get_level_index_for_actor(actor: HumanoidCharacter) -> int:
 	for level_index in range(_level_actor_ids.size() - 1, -1, -1):
 		if _level_actor_ids[level_index].has(actor_id):
 			return level_index
+	for level_index in range(levels.size() - 1, -1, -1):
+		if _is_actor_inside_level_area(actor, level_index):
+			return level_index
 	return -1
+
+
+func _is_actor_inside_level_area(actor: HumanoidCharacter, level_index: int) -> bool:
+	if actor == null or not _is_valid_level_index(level_index):
+		return false
+	var level: BuildingLevelDefinition = levels[level_index]
+	if level == null:
+		return false
+	var area := _get_level_area(level_index)
+	if area == null:
+		return false
+	for probe_position in _actor_visibility_probe_positions(actor):
+		var local_y := to_local(probe_position).y
+		if local_y >= level.min_local_y and local_y < level.max_local_y and _area_contains_world_position(area, probe_position):
+			return true
+	return false
+
+
+func _is_actor_inside_area(actor: HumanoidCharacter, area: Area3D) -> bool:
+	if actor == null or area == null:
+		return false
+	for probe_position in _actor_visibility_probe_positions(actor):
+		if _area_contains_world_position(area, probe_position):
+			return true
+	return false
+
+
+func _actor_visibility_probe_positions(actor: HumanoidCharacter) -> Array[Vector3]:
+	var positions: Array[Vector3] = []
+	if actor == null or not actor.is_inside_tree():
+		return positions
+	positions.append(actor.global_position)
+	var collision_shape := actor.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if collision_shape != null and collision_shape.shape != null:
+		var bounds := _shape_local_bounds(collision_shape.shape)
+		if bounds.size.length_squared() > 0.0:
+			var center := bounds.position + bounds.size * 0.5
+			positions.append(collision_shape.global_transform * center)
+			positions.append(collision_shape.global_transform * Vector3(center.x, bounds.position.y, center.z))
+			positions.append(collision_shape.global_transform * Vector3(center.x, bounds.position.y + bounds.size.y, center.z))
+			return positions
+	positions.append(actor.global_position + Vector3(0.0, 0.6, 0.0))
+	positions.append(actor.global_position + Vector3(0.0, 1.2, 0.0))
+	return positions
+
+
+func _area_contains_world_position(area: Area3D, world_position: Vector3) -> bool:
+	if area == null or not area.is_inside_tree():
+		return false
+	for child in area.get_children():
+		var collision_shape := child as CollisionShape3D
+		if collision_shape == null or not collision_shape.is_inside_tree() or collision_shape.disabled or collision_shape.shape == null:
+			continue
+		if _shape_contains_local_position(collision_shape.shape, collision_shape.global_transform.affine_inverse() * world_position):
+			return true
+	return false
+
+
+func _shape_contains_local_position(shape: Shape3D, local_position: Vector3) -> bool:
+	if shape is BoxShape3D:
+		var half_size := (shape as BoxShape3D).size * 0.5
+		return absf(local_position.x) <= half_size.x and absf(local_position.y) <= half_size.y and absf(local_position.z) <= half_size.z
+	if shape is SphereShape3D:
+		return local_position.length_squared() <= pow((shape as SphereShape3D).radius, 2.0)
+	if shape is CapsuleShape3D:
+		var capsule := shape as CapsuleShape3D
+		var half_height := maxf(0.0, capsule.height * 0.5 - capsule.radius)
+		var clamped_y := clampf(local_position.y, -half_height, half_height)
+		return Vector3(local_position.x, local_position.y - clamped_y, local_position.z).length_squared() <= capsule.radius * capsule.radius
+	return _shape_local_bounds(shape).has_point(local_position)
+
+
+func _shape_local_bounds(shape: Shape3D) -> AABB:
+	if shape is BoxShape3D:
+		var size := (shape as BoxShape3D).size
+		return AABB(-size * 0.5, size)
+	if shape is SphereShape3D:
+		var radius := (shape as SphereShape3D).radius
+		return AABB(Vector3.ONE * -radius, Vector3.ONE * radius * 2.0)
+	if shape is CapsuleShape3D:
+		var capsule := shape as CapsuleShape3D
+		var radius := capsule.radius
+		return AABB(Vector3(-radius, -capsule.height * 0.5, -radius), Vector3(radius * 2.0, capsule.height, radius * 2.0))
+	return AABB()
 
 
 func is_roof_level(level_index: int) -> bool:

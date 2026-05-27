@@ -15,7 +15,8 @@ func _ready() -> void:
 
 
 func get_settlement_id() -> String:
-	return str(settlement_definition.call("get_id")) if settlement_definition != null and settlement_definition.has_method("get_id") else name
+	var definition_id := _resource_definition_id(settlement_definition)
+	return definition_id if not definition_id.is_empty() else name
 
 
 func get_spawn_position(role := "") -> Vector3:
@@ -67,3 +68,24 @@ func _collect_residents(root: Node, residents: Array) -> void:
 		if child.has_method("assign_attack_target"):
 			residents.append(child)
 		_collect_residents(child, residents)
+
+
+func _resource_definition_id(definition: Resource) -> String:
+	if definition == null:
+		return ""
+	if not Engine.is_editor_hint() and definition.has_method("get_id"):
+		return str(definition.call("get_id"))
+	if _has_property(definition, "settlement_id") and not str(definition.get("settlement_id")).strip_edges().is_empty():
+		return str(definition.get("settlement_id"))
+	if _has_property(definition, "faction_id") and not str(definition.get("faction_id")).strip_edges().is_empty():
+		return str(definition.get("faction_id"))
+	return str(definition.get("display_name")) if _has_property(definition, "display_name") else ""
+
+
+func _has_property(target: Object, property_name: String) -> bool:
+	if target == null:
+		return false
+	for property in target.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false

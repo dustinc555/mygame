@@ -22,6 +22,7 @@ var active_node
 var transcript_lines: PackedStringArray = PackedStringArray()
 var displayed_actions: Array = []
 var _conversation_pause_requested := false
+var _system_conversation_active := false
 var _initialized := false
 
 
@@ -34,6 +35,7 @@ func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	add_to_group("conversation_controller")
 	if root_scene != null:
 		if hud_layer == null:
 			hud_layer = root_scene.get_node_or_null("GameHUD")
@@ -73,6 +75,24 @@ func begin_conversation(speaker, target) -> void:
 	transcript_lines.clear()
 	_request_conversation_pause()
 	_show_node(definition.get_node_by_id(definition.start_node_id))
+
+
+func begin_system_conversation(speaker, target, text: String, response_text := "Understood") -> bool:
+	if not _initialized or conversation_window == null or speaker == null or target == null or text.is_empty():
+		return false
+	active_speaker = speaker
+	active_target = target
+	active_definition = null
+	active_node = null
+	_system_conversation_active = true
+	transcript_lines.clear()
+	displayed_actions.clear()
+	var speaker_name := _conversation_actor_name(speaker)
+	transcript_lines.append("%s: %s" % [speaker_name, text])
+	displayed_actions.append({"type": "leave"})
+	_request_conversation_pause()
+	conversation_window.show_conversation(speaker_name, "\n\n".join(transcript_lines), [{"text": response_text, "disabled": false}], active_speaker, active_target)
+	return true
 
 
 func _show_node(node) -> void:
@@ -122,7 +142,7 @@ func _show_node(node) -> void:
 
 
 func _on_response_selected(response_index: int) -> void:
-	if active_node == null:
+	if active_node == null and not _system_conversation_active:
 		return
 	if response_index < 0 or response_index >= displayed_actions.size():
 		return
@@ -401,12 +421,22 @@ func _end_conversation() -> void:
 	_release_conversation_pause()
 	if conversation_window != null:
 		conversation_window.hide_conversation()
+	_system_conversation_active = false
 	active_speaker = null
 	active_target = null
 	active_definition = null
 	active_node = null
 	transcript_lines.clear()
 	displayed_actions.clear()
+
+
+func _conversation_actor_name(actor) -> String:
+	if actor == null:
+		return ""
+	var member_name = actor.get("member_name")
+	if member_name != null and not str(member_name).is_empty():
+		return str(member_name)
+	return str(actor.name) if actor is Node else ""
 
 
 func _request_conversation_pause() -> void:

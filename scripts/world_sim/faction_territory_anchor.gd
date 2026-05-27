@@ -137,9 +137,9 @@ func _resolve_settlement_node_owner(settlement: Node) -> String:
 	if settlement == null:
 		return ""
 	var definition = settlement.get("settlement_definition") if _has_property(settlement, "settlement_definition") else null
-	if definition != null and definition.has_method("get_faction_id"):
+	if definition != null and not Engine.is_editor_hint() and definition.has_method("get_faction_id"):
 		return str(definition.call("get_faction_id"))
-	return ""
+	return _settlement_definition_faction_id(definition as Resource)
 
 
 func set_debug_visible(value: bool) -> void:
@@ -225,11 +225,29 @@ func _get_resolved_faction_definition() -> Resource:
 			var definition := faction_definition as Resource
 			if definition == null:
 				continue
-			if definition.has_method("get_id") and str(definition.call("get_id")) == resolved_faction_id:
+			if _resource_definition_id(definition) == resolved_faction_id:
 				return definition
 			if _has_property(definition, "faction_id") and str(definition.get("faction_id")) == resolved_faction_id:
 				return definition
 	return null
+
+
+func _settlement_definition_faction_id(definition: Resource) -> String:
+	if definition == null or not _has_property(definition, "faction_definition"):
+		return ""
+	return _resource_definition_id(definition.get("faction_definition") as Resource)
+
+
+func _resource_definition_id(definition: Resource) -> String:
+	if definition == null:
+		return ""
+	if not Engine.is_editor_hint() and definition.has_method("get_id"):
+		return str(definition.call("get_id"))
+	if _has_property(definition, "settlement_id") and not str(definition.get("settlement_id")).strip_edges().is_empty():
+		return str(definition.get("settlement_id"))
+	if _has_property(definition, "faction_id") and not str(definition.get("faction_id")).strip_edges().is_empty():
+		return str(definition.get("faction_id"))
+	return str(definition.get("display_name")) if _has_property(definition, "display_name") else ""
 
 
 func _get_world_sim_registries() -> Array[Node]:

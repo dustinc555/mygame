@@ -101,9 +101,11 @@ func _apply_function_defaults() -> void:
 
 
 func _function_id() -> String:
-	if facility_function != null and facility_function.has_method("get_id"):
+	if facility_function != null and not Engine.is_editor_hint() and facility_function.has_method("get_id"):
 		return str(facility_function.call("get_id"))
-	return ""
+	if facility_function != null and not _resource_string(facility_function, "function_id", "").strip_edges().is_empty():
+		return _resource_string(facility_function, "function_id", "")
+	return _resource_string(facility_function, "display_name", "")
 
 
 func _ensure_root(root_path: NodePath) -> Node:

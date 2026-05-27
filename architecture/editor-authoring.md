@@ -16,7 +16,7 @@ Open the town scene directly when customizing bars, residents, fields, roads, ac
 
 Assign a `SettlementDefinition` and set key exported paths such as residents, storage, facilities, territory, raid spawn, defense spawn, and state label.
 
-Place visible buildings, optional road art, props, containers, NPCs, bars, fields, mines, and activity points under the town.
+Place visible buildings, optional road art, props, containers, NPCs, bars, fields, mines, guards, guard posts, jails, and activity points under the town.
 
 At least one building or explicit `PopulationCapacitySource` must contribute population capacity for the town to have residents.
 
@@ -44,6 +44,10 @@ For common facilities, prefer drag-in authoring scenes over manual node assembly
 - Do not manually configure `BarServiceArea`; it is the internal service component owned by `SettlementBar`.
 - Add `scenes/world_sim/settlement_field.tscn` under `SettlementTown/Fields`, or use `Add Child Node > SettlementField`, for a food-producing field.
 - Set `facility_id`, `display_name`, `owner_faction_id`, and `food_production_per_day` on the field.
+- Instantiate `scenes/world_sim/settlement_jail.tscn` under `SettlementTown/Facilities` for a jail with a building slot, entry point, staff, guard posts, lockable cells, and a prisoner locker.
+- Edit jail layout in `scenes/world_sim/settlement_jail.tscn`; edit reusable cell internals in `scenes/world_sim/jail_cell.tscn`; edit reusable prisoner locker internals in `scenes/world/containers/prisoner_locker_container.tscn`.
+- Use town-level `Guards` and `GuardPosts` for settlement authority guards that are not owned by a jail or keep.
+- Use `scenes/test_levels/jail_law_demo.tscn` as the standalone manual smoke scene for witnessed theft, guard response, jail cells, and locker lock difficulty.
 
 ## Population Capacity
 
@@ -56,6 +60,8 @@ Do not count beds inside a building as extra population.
 For outdoor slums, tents, sleeping rolls, or other non-building shelters, add a `PopulationCapacitySource` node under the town and set its capacity explicitly.
 
 `SettlementDefinition` does not define town capacity; authored town content does.
+
+`SettlementController.population` is total living citizens. Staff and guards draw from that total through role slots, while `population_available` is the unassigned labor pool. Killing a staffed actor reduces total population and opens a delayed vacancy; the slot only refills when the replacement delay has passed and an available citizen exists.
 
 ## Population Appearance
 
@@ -88,6 +94,8 @@ Settlement definitions can override behavior, personality, law, and names for sp
 Do not use faction defaults to rename existing persisted locals after conquest. Names belong to actors/populations; use replacement spawners or local profile changes only when the population itself changes.
 
 `FactionLawProfile` should keep the stable common law baseline: no killing, no stealing, and no trespassing. Use profile options for cultural differences such as personal retaliation for petty theft, different trespass warning counts, or wider/narrower alarm radius.
+
+Current runtime law uses `LawOrderController`: witnesses create warrants, stolen item metadata applies immediately, same-settlement merchants refuse active stolen goods, and jail release returns legal gear while forfeiting stolen goods.
 
 Reputation and diplomacy are separate. Reputation controls standing labels from `Vilified` through `Beloved`; formal diplomacy controls political state such as `War`, `Trade`, `Alliance`, `Vassal`, `Tributary`, or `Protectorate`.
 

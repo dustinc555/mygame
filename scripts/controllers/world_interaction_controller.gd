@@ -1432,10 +1432,7 @@ func _on_inspector_action_requested(target, action_key: String) -> void:
 					if ownership_controller == null or ownership_controller.request_interaction(member, target, "Opening"):
 						member.assign_open_container(target)
 		"unlock_container":
-			if target is Node3D:
-				_spawn_world_notice(target.global_position + Vector3(0.0, 1.6, 0.0), "Lockpicking not implemented")
-			else:
-				_show_center_notice("Lockpicking not implemented")
+			_perform_unlock_action(target)
 		"pickup_item":
 			_assign_pickup_to_selection(target)
 		"attack":
@@ -1519,6 +1516,26 @@ func _perform_direct_world_context_action(target, action_key: String) -> void:
 		_show_center_notice(message)
 
 
+func _perform_unlock_action(target) -> void:
+	if target == null:
+		return
+	var actor := _get_focused_party_member()
+	if target.has_method("attempt_unlock"):
+		var unlocked := bool(target.call("attempt_unlock", actor))
+		if unlocked and target is Node and _has_property(target, "is_locked"):
+			target.set("is_locked", false)
+		var message := "Unlocked" if unlocked else "Lock too hard"
+		if target is Node3D:
+			_spawn_world_notice((target as Node3D).global_position + Vector3(0.0, 1.6, 0.0), message)
+		else:
+			_show_center_notice(message)
+		return
+	if target is Node3D:
+		_spawn_world_notice((target as Node3D).global_position + Vector3(0.0, 1.6, 0.0), "Lockpicking not implemented")
+	else:
+		_show_center_notice("Lockpicking not implemented")
+
+
 func _on_context_menu_id_pressed(action_id: int) -> void:
 	if action_id >= ACTION_WORLD_CONTEXT_BASE:
 		_perform_world_context_action(action_id - ACTION_WORLD_CONTEXT_BASE)
@@ -1545,7 +1562,7 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 						member.assign_open_container(context_container)
 		ACTION_UNLOCK_CONTAINER:
 			if context_container != null:
-				_spawn_world_notice(context_container.global_position + Vector3(0.0, 1.6, 0.0), "Lockpicking not implemented")
+				_perform_unlock_action(context_container)
 		ACTION_ATTACK:
 			if context_humanoid != null:
 				for member in party_manager.selected_members:
@@ -1761,3 +1778,12 @@ func _sync_inspected_party_member() -> void:
 	var inspected_target = humanoid_details_controller.current_target
 	if inspected_target == null or (inspected_target.has_method("is_player_party_member") and inspected_target.is_player_party_member()):
 		humanoid_details_controller.inspect_target(party_manager.selected_members[0])
+
+
+func _has_property(target: Object, property_name: String) -> bool:
+	if target == null:
+		return false
+	for property in target.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false

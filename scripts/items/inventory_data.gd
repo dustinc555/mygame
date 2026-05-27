@@ -5,6 +5,14 @@ class_name InventoryData
 const SILVER_ITEM := preload("res://resources/items/silver.tres")
 const SILVER_POUCH_ITEM := preload("res://resources/items/silver_pouch.tres")
 const ENTRY_BANDAGE_USES_KEY := "__bandage_uses"
+const META_STOLEN := "stolen"
+const META_STOLEN_FROM_FACTION_ID := "stolen_from_faction_id"
+const META_STOLEN_FROM_SETTLEMENT_ID := "stolen_from_settlement_id"
+const META_STOLEN_BY_ACTOR_ID := "stolen_by_actor_id"
+const META_STOLEN_AT_MINUTE := "stolen_at_minute"
+const META_STOLEN_EXPIRES_AT_MINUTE := "stolen_expires_at_minute"
+const META_LAW_PRISONER_KEY := "law_prisoner_key"
+const META_LAW_CASE_ID := "law_case_id"
 
 signal changed
 
@@ -14,12 +22,14 @@ class InventoryEntry:
 	var grid_position: Vector2i
 	var count := 1
 	var contained_item_counts: Dictionary = {}
+	var metadata: Dictionary = {}
 
-	func _init(item_definition, item_grid_position: Vector2i, item_count: int = 1, item_contained_item_counts: Dictionary = {}) -> void:
+	func _init(item_definition, item_grid_position: Vector2i, item_count: int = 1, item_contained_item_counts: Dictionary = {}, item_metadata: Dictionary = {}) -> void:
 		definition = item_definition
 		grid_position = item_grid_position
 		count = item_count
 		contained_item_counts = item_contained_item_counts.duplicate(true)
+		metadata = item_metadata.duplicate(true)
 
 
 var columns := 10
@@ -67,7 +77,7 @@ func _can_add_standard_item_count(definition, amount: int) -> bool:
 	var remaining := amount
 	if definition.max_stack > 1:
 		for entry in entries:
-			if _is_same_definition(entry.definition, definition) and entry.count < definition.max_stack and entry.contained_item_counts.is_empty():
+			if _is_same_definition(entry.definition, definition) and entry.count < definition.max_stack and entry.contained_item_counts.is_empty() and entry.metadata.is_empty():
 				remaining -= min(remaining, definition.max_stack - entry.count)
 				if remaining <= 0:
 					return true
@@ -95,13 +105,25 @@ func add_loose_item_count(definition, amount: int) -> bool:
 	return _add_standard_item_count(definition, amount)
 
 
+func can_add_item_count_with_metadata(definition, amount: int, metadata: Dictionary) -> bool:
+	if metadata.is_empty():
+		return can_add_item_count(definition, amount)
+	return _can_add_item_count_as_distinct_entries(definition, amount, {}, metadata)
+
+
+func add_item_count_with_metadata(definition, amount: int, metadata: Dictionary) -> bool:
+	if metadata.is_empty():
+		return add_item_count(definition, amount)
+	return _add_item_count_as_distinct_entries(definition, amount, {}, metadata)
+
+
 func _add_standard_item_count(definition, amount: int, emit_changed := true) -> bool:
 	if not _can_add_standard_item_count(definition, amount):
 		return false
 	var remaining := amount
 	if definition.max_stack > 1:
 		for entry in entries:
-			if _is_same_definition(entry.definition, definition) and entry.count < definition.max_stack and entry.contained_item_counts.is_empty():
+			if _is_same_definition(entry.definition, definition) and entry.count < definition.max_stack and entry.contained_item_counts.is_empty() and entry.metadata.is_empty():
 				var added: int = min(remaining, definition.max_stack - entry.count)
 				entry.count += added
 				remaining -= added
@@ -121,7 +143,7 @@ func _add_standard_item_count(definition, amount: int, emit_changed := true) -> 
 	return true
 
 
-func can_add_entry_with_contents(definition, amount: int = 1, contained_item_counts: Dictionary = {}) -> bool:
+func can_add_entry_with_contents(definition, amount: int = 1, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> bool:
 	if definition == null or amount <= 0:
 		return false
 	if use_weight and get_total_weight() + get_item_weight(definition, amount, contained_item_counts) > max_weight:
@@ -129,13 +151,13 @@ func can_add_entry_with_contents(definition, amount: int = 1, contained_item_cou
 	return find_first_space(definition) != Vector2i(-1, -1)
 
 
-func add_entry_with_contents(definition, amount: int = 1, contained_item_counts: Dictionary = {}) -> bool:
-	if not can_add_entry_with_contents(definition, amount, contained_item_counts):
+func add_entry_with_contents(definition, amount: int = 1, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> bool:
+	if not can_add_entry_with_contents(definition, amount, contained_item_counts, metadata):
 		return false
 	var slot := find_first_space(definition)
 	if slot == Vector2i(-1, -1):
 		return false
-	entries.append(InventoryEntry.new(definition, slot, amount, contained_item_counts))
+	entries.append(InventoryEntry.new(definition, slot, amount, contained_item_counts, metadata))
 	changed.emit()
 	return true
 
@@ -160,7 +182,7 @@ func move_entry_to_inventory(entry, target_inventory, target_position: Vector2i)
 		return false
 
 	entries.erase(entry)
-	target_inventory.entries.append(InventoryEntry.new(entry.definition, target_position, entry.count, entry.contained_item_counts))
+	target_inventory.entries.append(InventoryEntry.new(entry.definition, target_position, entry.count, entry.contained_item_counts, entry.metadata))
 	changed.emit()
 	target_inventory.changed.emit()
 	return true
@@ -340,6 +362,59 @@ func remove_entry(entry) -> bool:
 	return true
 
 
+func get_entry_metadata(entry) -> Dictionary:
+	return entry.metadata.duplicate(true) if entry != null else {}
+
+
+func set_entry_metadata(entry, metadata: Dictionary, emit_changed := true) -> bool:
+	if entry == null or not entries.has(entry):
+		return false
+	entry.metadata = metadata.duplicate(true)
+	if emit_changed:
+		changed.emit()
+	return true
+
+
+func is_entry_stolen(entry) -> bool:
+	return entry != null and bool(entry.metadata.get(META_STOLEN, false))
+
+
+func mark_entry_stolen(entry, faction_id: String, settlement_id: String, actor_id: String, stolen_at_minute: int, expires_at_minute: int, emit_changed := true) -> bool:
+	if entry == null or not entries.has(entry):
+		return false
+	var metadata: Dictionary = entry.metadata.duplicate(true)
+	metadata[META_STOLEN] = true
+	metadata[META_STOLEN_FROM_FACTION_ID] = faction_id
+	metadata[META_STOLEN_FROM_SETTLEMENT_ID] = settlement_id
+	metadata[META_STOLEN_BY_ACTOR_ID] = actor_id
+	metadata[META_STOLEN_AT_MINUTE] = stolen_at_minute
+	metadata[META_STOLEN_EXPIRES_AT_MINUTE] = expires_at_minute
+	entry.metadata = metadata
+	if emit_changed:
+		changed.emit()
+	return true
+
+
+func clear_expired_stolen_metadata(absolute_minute: int) -> int:
+	var cleared := 0
+	for entry in entries:
+		if entry == null or not bool(entry.metadata.get(META_STOLEN, false)):
+			continue
+		var expires_at := int(entry.metadata.get(META_STOLEN_EXPIRES_AT_MINUTE, -1))
+		if expires_at < 0 or absolute_minute < expires_at:
+			continue
+		entry.metadata.erase(META_STOLEN)
+		entry.metadata.erase(META_STOLEN_FROM_FACTION_ID)
+		entry.metadata.erase(META_STOLEN_FROM_SETTLEMENT_ID)
+		entry.metadata.erase(META_STOLEN_BY_ACTOR_ID)
+		entry.metadata.erase(META_STOLEN_AT_MINUTE)
+		entry.metadata.erase(META_STOLEN_EXPIRES_AT_MINUTE)
+		cleared += 1
+	if cleared > 0:
+		changed.emit()
+	return cleared
+
+
 func move_entry(entry, target_position: Vector2i) -> bool:
 	if entry == null:
 		return false
@@ -367,6 +442,38 @@ func auto_sort() -> bool:
 		entry.grid_position = slot
 		entries.append(entry)
 	changed.emit()
+	return true
+
+
+func _can_add_item_count_as_distinct_entries(definition, amount: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> bool:
+	if definition == null or amount <= 0:
+		return false
+	if use_weight and get_total_weight() + get_item_weight(definition, amount, contained_item_counts) > max_weight:
+		return false
+	var remaining := amount
+	var reserved: Array = []
+	while remaining > 0:
+		var slot := _find_first_space_with_reserved_entries(definition, reserved)
+		if slot == Vector2i(-1, -1):
+			return false
+		reserved.append({"definition": definition, "position": slot})
+		remaining -= min(remaining, max(definition.max_stack, 1))
+	return true
+
+
+func _add_item_count_as_distinct_entries(definition, amount: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}, emit_changed := true) -> bool:
+	if not _can_add_item_count_as_distinct_entries(definition, amount, contained_item_counts, metadata):
+		return false
+	var remaining := amount
+	while remaining > 0:
+		var slot := find_first_space(definition)
+		if slot == Vector2i(-1, -1):
+			return false
+		var stack_count: int = min(remaining, max(definition.max_stack, 1))
+		entries.append(InventoryEntry.new(definition, slot, stack_count, contained_item_counts if remaining == amount else {}, metadata))
+		remaining -= stack_count
+	if emit_changed:
+		changed.emit()
 	return true
 
 

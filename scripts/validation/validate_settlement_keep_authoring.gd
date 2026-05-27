@@ -55,6 +55,7 @@ func _run() -> void:
 		else:
 			_validate_profiled_staff_actor(keep.get_node("Staff/Guard"), "guard", FARMER_NAME_PROFILE, "Generated guard")
 			_validate_profiled_staff_actor(keep.get_node("Staff/Guard2"), "guard", FARMER_NAME_PROFILE, "Generated guard 2")
+			_validate_guard_post_preserves_combat(keep, keep.get_node("Staff/Guard") as HumanoidCharacter, keep.get_node_or_null("Staff/Ruler") as HumanoidCharacter)
 		if keep.get_node_or_null("GuardPosts/GuardPost") == null or keep.get_node_or_null("GuardPosts/GuardPost2") == null:
 			_fail("Settlement keep should generate guard posts")
 		elif not keep.get_node("GuardPosts/GuardPost").has_method("claim_worker"):
@@ -231,6 +232,27 @@ func _validate_dynamic_guard_post_count(keep: Node) -> void:
 	var post := keep.get_node_or_null("GuardPosts/GuardPost4")
 	if post == null or not post.has_method("claim_worker"):
 		_fail("Increasing keep guard_post_count should create bar-style guard post markers")
+
+
+func _validate_guard_post_preserves_combat(keep: Node, guard: HumanoidCharacter, target: HumanoidCharacter) -> void:
+	if keep == null or guard == null or target == null:
+		_fail("Keep guard-post combat validation requires keep, guard, and target")
+		return
+	if not keep.has_method("_process_guard_post_assignment"):
+		_fail("Keep should expose guard-post assignment for validation")
+		return
+	var original_transform := guard.global_transform
+	guard.disengage_combat_with(target)
+	target.disengage_combat_with(guard)
+	guard.global_position = original_transform.origin + Vector3(8.0, 0.0, 0.0)
+	guard.assign_attack_target(target, false, false, false)
+	keep.call("_process_guard_post_assignment", guard)
+	if guard.get_current_combat_target() != target or not guard.is_in_combat():
+		_fail("Keep guard-post assignment should not cancel active combat")
+	guard.disengage_combat_with(target)
+	target.disengage_combat_with(guard)
+	guard.global_transform = original_transform
+	guard.velocity = Vector3.ZERO
 
 
 func _assert_file_does_not_contain(path: String, needle: String, message: String) -> void:

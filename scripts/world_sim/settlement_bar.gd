@@ -12,6 +12,11 @@ const META_LAST_DEFAULT_TRANSFORM := "facility_last_default_transform"
 const META_LAYOUT_CUSTOM := "facility_layout_custom"
 const META_STOCK_GENERATED := "bar_stock_generated"
 const META_STOCK_GENERATED_QUANTITY := "bar_stock_generated_quantity"
+const META_SETTLEMENT_ROLE := "settlement_staff_role"
+const META_SETTLEMENT_ROLE_INDEX := "settlement_staff_role_index"
+const META_SETTLEMENT_SLOT_ID := "settlement_staff_slot_id"
+const STAFF_ROLE_OWNER_GROUP := "settlement_staff_role_owner"
+const DEFAULT_REPLACEMENT_DELAY_DAYS := 7.0
 const BAR_FUNCTION = preload("res://resources/world_sim/facility_functions/bar.tres")
 const BAR_SERVICE_AREA_SCRIPT = preload("res://scripts/world/venues/bar_service_area.gd")
 const MERCHANT_HUMANOID_SCRIPT = preload("res://scripts/characters/merchant_humanoid.gd")
@@ -27,6 +32,8 @@ const FACILITY_VISIT_POINT_SCRIPT = preload("res://scripts/world_sim/facility_vi
 const BREAD_ITEM = preload("res://resources/items/bread.tres")
 const FOOD_ITEM = preload("res://resources/items/food.tres")
 const SILVER_ITEM = preload("res://resources/items/silver.tres")
+const BANDAGE_ITEM = preload("res://resources/items/bandage.tres")
+const HATCHET_ITEM = preload("res://resources/items/hatchet.tres")
 const SHOPKEEPER_CONVERSATION = preload("res://resources/conversations/generic_shopkeeper.tres")
 const WAITER_CONVERSATION = preload("res://resources/conversations/waiter_order.tres")
 const BARBER_CONVERSATION = preload("res://resources/conversations/barber_services.tres")
@@ -135,6 +142,7 @@ const GUARD_PERCEPTION_RANGE := Vector2i(14, 24)
 
 
 func _ready() -> void:
+	add_to_group(STAFF_ROLE_OWNER_GROUP)
 	_repair_authoring_tree()
 	super._ready()
 
@@ -189,6 +197,65 @@ func can_actor_visit_facility(actor: Node) -> bool:
 	if _is_marked_special_bar_visitor(actor):
 		return false
 	return _is_actor_under_settlement_resident_root(actor)
+
+
+func get_settlement_staff_slots() -> Array[Dictionary]:
+	var slots: Array[Dictionary] = []
+	_append_staff_slot(slots, "barkeeper", 0, _get_role_actor_for_slot("barkeeper", 0), "Barkeeper")
+	for index in range(waiter_count):
+		_append_staff_slot(slots, "waiter", index, _get_role_actor_for_slot("waiter", index), _indexed_display_name(waiter_name, index))
+	for index in range(guard_count):
+		_append_staff_slot(slots, "guard", index, _get_role_actor_for_slot("guard", index), _indexed_display_name(guard_name, index), "private_security")
+	if has_barber:
+		_append_staff_slot(slots, "barber", 0, _get_role_actor_for_slot("barber", 0), "Barber")
+	return slots
+
+
+func fill_settlement_staff_slot(slot_id: String, slot_record: Dictionary) -> Node:
+	var role := str(slot_record.get("role_id", "")).strip_edges().to_lower()
+	var role_index: int = max(0, int(slot_record.get("role_index", 0)))
+	if role.is_empty():
+		role = _role_from_slot_id(slot_id)
+	var existing := _get_role_actor_for_slot(role, role_index)
+	if _is_actor_alive(existing):
+		return existing
+	var staff_root := _ensure_root(staff_root_path)
+	if staff_root == null:
+		return null
+	var actor := _claim_available_resident_for_role(role, role_index, staff_root)
+	if actor == null:
+		actor = _create_generated_staff_for_role(role, role_index, staff_root)
+	else:
+		_prepare_claimed_resident_for_role(actor, role, role_index)
+	if actor == null:
+		return null
+	if role == "barkeeper":
+		_ensure_merchant_role(actor)
+		_ensure_job_provider(actor)
+	elif role == "barber":
+		_send_barber_to_seat(actor)
+	_send_actor_to_service_point(actor, role)
+	_sync_bar_authoring()
+	return actor
+
+
+func _append_staff_slot(slots: Array[Dictionary], role: String, role_index: int, actor: Node, display_name: String, authority_scope := "facility_staff") -> void:
+	var actor_alive := _is_actor_alive(actor)
+	var slot := {
+		"slot_id": _staff_slot_id(role, role_index),
+		"role_id": role,
+		"role_index": role_index,
+		"display_name": display_name,
+		"population_cost": 1,
+		"replacement_delay_days": DEFAULT_REPLACEMENT_DELAY_DAYS,
+		"filled": actor_alive,
+		"authority_scope": authority_scope,
+	}
+	if actor != null:
+		slot["actor_path"] = get_path_to(actor) if actor.is_inside_tree() else NodePath("")
+		if not actor_alive:
+			slot["dead_actor_key"] = _actor_key(actor)
+	slots.append(slot)
 
 
 func _apply_bar_defaults() -> void:
@@ -254,20 +321,23 @@ func _ensure_staff() -> void:
 	_ensure_job_provider(barkeeper)
 	_sync_job_provider_jobs(barkeeper.get_node_or_null("JobProvider") if barkeeper != null else null)
 	var assigned_waiters := _get_assigned_actors(assigned_waiter_paths)
-	for waiter in assigned_waiters:
-		_apply_assigned_role_defaults(waiter, "waiter", WAITER_CONVERSATION)
+	for waiter_index in range(assigned_waiters.size()):
+		_apply_assigned_role_defaults(assigned_waiters[waiter_index], _indexed_name("waiter", waiter_index), WAITER_CONVERSATION)
 	var generated_waiter_count: int = max(0, waiter_count - assigned_waiters.size())
 	for waiter_index in range(generated_waiter_count):
-		_ensure_staff_member(staff_root, _indexed_name("Waiter", waiter_index), _indexed_display_name(waiter_name, waiter_index), Color(0.28, 0.47, 0.56, 1.0), _waiter_local_position(waiter_index), WAITER_CONVERSATION, MERCHANT_HUMANOID_SCRIPT, "waiter", waiter_index)
+		var role_index := assigned_waiters.size() + waiter_index
+		_ensure_staff_member(staff_root, _indexed_name("Waiter", waiter_index), _indexed_display_name(waiter_name, role_index), Color(0.28, 0.47, 0.56, 1.0), _waiter_local_position(role_index), WAITER_CONVERSATION, MERCHANT_HUMANOID_SCRIPT, _indexed_name("waiter", role_index), role_index)
 	_trim_generated_children(staff_root, "Waiter", generated_waiter_count)
 	var assigned_guards := _get_assigned_actors(assigned_guard_paths)
-	for guard in assigned_guards:
-		_apply_assigned_role_defaults(guard, "guard", null)
+	for guard_index in range(assigned_guards.size()):
+		var guard := assigned_guards[guard_index]
+		_apply_assigned_role_defaults(guard, _indexed_name("guard", guard_index), null)
 		if _has_property(guard, "base_attack_damage"):
 			guard.set("base_attack_damage", 20.0)
 	var generated_guard_count: int = max(0, guard_count - assigned_guards.size())
 	for guard_index in range(generated_guard_count):
-		var guard := _ensure_staff_member(staff_root, _indexed_name("Guard", guard_index), _indexed_display_name(guard_name, guard_index), Color(0.42, 0.42, 0.48, 1.0), _guard_local_position(guard_index), null, MERCHANT_HUMANOID_SCRIPT, "guard", guard_index)
+		var role_index := assigned_guards.size() + guard_index
+		var guard := _ensure_staff_member(staff_root, _indexed_name("Guard", guard_index), _indexed_display_name(guard_name, role_index), Color(0.42, 0.42, 0.48, 1.0), _guard_local_position(role_index), null, MERCHANT_HUMANOID_SCRIPT, _indexed_name("guard", role_index), role_index)
 		if _has_property(guard, "base_attack_damage"):
 			guard.set("base_attack_damage", 20.0)
 	_trim_generated_children(staff_root, "Guard", generated_guard_count)
@@ -352,6 +422,8 @@ func _sync_bar_authoring() -> void:
 	if service_area == null:
 		return
 	var barkeeper := _get_barkeeper_actor()
+	if not _is_actor_alive(barkeeper):
+		barkeeper = null
 	var waiters := _get_role_actors("waiter")
 	var waiter := waiters[0] if not waiters.is_empty() else null
 	var guards := _get_role_actors("guard")
@@ -474,6 +546,9 @@ func _ensure_guard_post(root: Node, post_name: String, post_transform: Transform
 
 func _ensure_staff_member(root: Node, node_name: String, member_name: String, color: Color, local_position: Vector3, conversation: Resource, script: Script, role: String, role_index: int) -> Node:
 	var staff := root.get_node_or_null(node_name)
+	if staff != null and not _is_actor_alive(staff):
+		node_name = _next_generated_child_name(root, node_name)
+		staff = null
 	if staff != null and not _is_generated_staff(staff):
 		node_name = _next_generated_child_name(root, node_name)
 		staff = null
@@ -595,7 +670,7 @@ func _sync_job_provider_jobs(provider: Node) -> void:
 func _ensure_bar_job_definitions(provider: Node) -> void:
 	if provider == null or not _has_property(provider, "jobs"):
 		return
-	var jobs: Array = provider.get("jobs")
+	var jobs: Array = (provider.get("jobs") as Array).duplicate()
 	if not _job_algorithm_exists(jobs, "guard_post"):
 		jobs.append(_job_definition("Guard duty", "bar_guard", "guard_post", 20.0, 2))
 	if not _job_algorithm_exists(jobs, "server_shift"):
@@ -644,7 +719,7 @@ func _sync_bar_merchant_role(role: Node) -> void:
 func _ensure_merchant_prices(role: Node, items: Array) -> void:
 	if role == null or not _has_property(role, "prices"):
 		return
-	var prices: Array = role.get("prices")
+	var prices: Array = (role.get("prices") as Array).duplicate()
 	for item in items:
 		if item == null or _merchant_price_exists(prices, item):
 			continue
@@ -662,7 +737,7 @@ func _merchant_price_exists(prices: Array, item: Resource) -> bool:
 func _ensure_merchant_initial_stock(role: Node, item: Resource, quantity: int) -> void:
 	if role == null or item == null or not _has_property(role, "initial_stock"):
 		return
-	var initial_stock: Array = role.get("initial_stock")
+	var initial_stock: Array = (role.get("initial_stock") as Array).duplicate()
 	for stock in initial_stock:
 		if stock != null and stock.get("item_definition") == item:
 			_sync_generated_merchant_stock_quantity(stock, quantity)
@@ -1054,6 +1129,13 @@ func _find_named_descendant(root: Node, node_name: String) -> Node:
 func _sync_staff_member(staff: Node, role: String) -> void:
 	if staff == null:
 		return
+	var role_base := _role_base(role)
+	var role_index := _role_index_from_role(role, role_base)
+	if not role_base.is_empty():
+		staff.set_meta(META_SETTLEMENT_ROLE, role_base)
+		staff.set_meta(META_SETTLEMENT_ROLE_INDEX, role_index)
+		staff.set_meta(META_SETTLEMENT_SLOT_ID, _staff_slot_id(role_base, role_index))
+		staff.set_meta("settlement_actor_category", "staff")
 	var owner_faction := _get_effective_owner_faction_id()
 	if sync_staff_from_owner and not owner_faction.is_empty() and _has_property(staff, "faction_name"):
 		staff.set("faction_name", owner_faction)
@@ -1063,6 +1145,8 @@ func _sync_staff_member(staff: Node, role: String) -> void:
 		var current_stable_id := str(staff.get("stable_id"))
 		if current_stable_id.is_empty() or current_stable_id.begins_with("settlement_bar."):
 			staff.set("stable_id", "%s.%s" % [_get_staff_id_prefix(), role])
+	_apply_security_groups(staff, role_base)
+	_apply_bar_guard_equipment(staff, role_base)
 	_apply_role_suffix(staff, role)
 
 
@@ -1084,7 +1168,7 @@ func _apply_role_suffix(staff: Node, role: String) -> void:
 	if display_name.is_empty():
 		display_name = role_base.capitalize()
 	staff.set("member_name", "%s (%s)" % [display_name, role_base])
-	if staff.is_inside_tree() and staff.has_method("refresh_nameplate"):
+	if not Engine.is_editor_hint() and staff.is_inside_tree() and staff.has_method("refresh_nameplate"):
 		staff.call("refresh_nameplate")
 
 
@@ -1094,6 +1178,53 @@ func _role_base(role: String) -> String:
 		if normalized == role_name or normalized.begins_with(role_name):
 			return role_name
 	return ""
+
+
+func _role_index_from_role(role: String, role_base: String) -> int:
+	if role_base.is_empty():
+		return 0
+	var normalized := role.strip_edges().to_lower()
+	if normalized == role_base:
+		return 0
+	var suffix := normalized.substr(role_base.length())
+	return max(0, int(suffix) - 1) if suffix.is_valid_int() else 0
+
+
+func _staff_slot_id(role: String, role_index: int) -> String:
+	return "%s.%s" % [get_facility_id(), _indexed_name(role, role_index)]
+
+
+func _apply_security_groups(staff: Node, role_base: String) -> void:
+	if staff == null or Engine.is_editor_hint():
+		return
+	if staff.has_method("set_settlement_authority"):
+		staff.call("set_settlement_authority", false)
+	if staff.has_method("set_private_security"):
+		staff.call("set_private_security", role_base == "guard")
+	if staff.has_method("set_faction_soldier"):
+		staff.call("set_faction_soldier", false)
+
+
+func _apply_bar_guard_equipment(staff: Node, role_base: String) -> void:
+	if staff == null or role_base != "guard" or not _has_property(staff, "starting_equipment"):
+		return
+	var starting_equipment: Array = (staff.get("starting_equipment") as Array).duplicate()
+	for item in [BANDAGE_ITEM, HATCHET_ITEM]:
+		if item == null or starting_equipment.has(item):
+			continue
+		starting_equipment.append(item)
+		var slot_name := str(item.get("equip_slot")) if _has_property(item, "equip_slot") else ""
+		if not Engine.is_editor_hint() and not slot_name.is_empty() and staff.has_method("get_equipped_item") and staff.has_method("equip_item_to_slot") and staff.call("get_equipped_item", slot_name) == null:
+			staff.call("equip_item_to_slot", item, slot_name)
+	staff.set("starting_equipment", starting_equipment)
+
+
+func _is_actor_alive(actor: Node) -> bool:
+	if actor == null or not is_instance_valid(actor):
+		return false
+	if _has_property(actor, "life_state"):
+		return int(actor.get("life_state")) == NpcRules.LifeState.ALIVE
+	return true
 
 
 func _strip_role_suffix(display_name: String) -> String:
@@ -1113,6 +1244,220 @@ func _get_barkeeper_actor() -> Node:
 func _get_barber_actor() -> Node:
 	var assigned := _get_assigned_actor(barber_actor_path)
 	return assigned if assigned != null else get_node_or_null("Staff/Barber")
+
+
+func _get_role_actor_for_slot(role: String, role_index: int) -> Node:
+	var slot_id := _staff_slot_id(role, role_index)
+	var by_slot := _find_role_actor_by_slot_id(slot_id)
+	if by_slot != null:
+		return by_slot
+	match role:
+		"barkeeper":
+			return _get_barkeeper_actor()
+		"barber":
+			return _get_barber_actor()
+		"waiter":
+			return _get_role_actor_by_index("waiter", role_index, assigned_waiter_paths, "Waiter")
+		"guard":
+			return _get_role_actor_by_index("guard", role_index, assigned_guard_paths, "Guard")
+		_:
+			return null
+
+
+func _find_role_actor_by_slot_id(slot_id: String) -> Node:
+	for actor in _all_potential_role_actors():
+		if actor != null and str(actor.get_meta(META_SETTLEMENT_SLOT_ID, "")) == slot_id:
+			return actor
+	return null
+
+
+func _get_role_actor_by_index(role: String, role_index: int, assigned_paths: Array[NodePath], generated_base_name: String) -> Node:
+	if role_index < assigned_paths.size():
+		var assigned := _get_assigned_actor(assigned_paths[role_index])
+		if assigned != null:
+			return assigned
+	var generated_index := role_index - assigned_paths.size()
+	return get_node_or_null("%s/%s" % [str(staff_root_path), _indexed_name(generated_base_name, generated_index)])
+
+
+func _all_potential_role_actors() -> Array[Node]:
+	var actors: Array[Node] = []
+	for path in [barkeeper_actor_path, barber_actor_path]:
+		var actor := _get_assigned_actor(path)
+		if actor != null and not actors.has(actor):
+			actors.append(actor)
+	for actor in _get_assigned_actors_raw(assigned_waiter_paths):
+		if not actors.has(actor):
+			actors.append(actor)
+	for actor in _get_assigned_actors_raw(assigned_guard_paths):
+		if not actors.has(actor):
+			actors.append(actor)
+	var root := get_node_or_null(staff_root_path)
+	if root != null:
+		for child in root.get_children():
+			if child is HumanoidCharacter and not actors.has(child):
+				actors.append(child)
+	return actors
+
+
+func _claim_available_resident_for_role(role: String, role_index: int, staff_root: Node) -> Node:
+	var settlement := _get_ancestor_settlement()
+	if settlement == null or staff_root == null:
+		return null
+	var resident_root_path = settlement.get("resident_root_path")
+	if resident_root_path == null:
+		return null
+	var resident_root := settlement.get_node_or_null(resident_root_path)
+	if resident_root == null:
+		return null
+	for candidate in _collect_claimable_residents(resident_root):
+		if not _can_claim_resident_for_staff(candidate):
+			continue
+		var global_transform := (candidate as Node3D).global_transform if candidate is Node3D else Transform3D.IDENTITY
+		candidate.get_parent().remove_child(candidate)
+		staff_root.add_child(candidate)
+		if candidate is Node3D:
+			(candidate as Node3D).global_transform = global_transform
+		candidate.name = _available_child_name(staff_root, _role_node_base_name(role))
+		return candidate
+	return null
+
+
+func _collect_claimable_residents(root: Node) -> Array[Node]:
+	var residents: Array[Node] = []
+	_collect_claimable_residents_recursive(root, residents)
+	return residents
+
+
+func _collect_claimable_residents_recursive(node: Node, residents: Array[Node]) -> void:
+	if node == null:
+		return
+	if node is HumanoidCharacter:
+		residents.append(node)
+		return
+	for child in node.get_children():
+		_collect_claimable_residents_recursive(child, residents)
+
+
+func _can_claim_resident_for_staff(actor: Node) -> bool:
+	if not _is_actor_alive(actor):
+		return false
+	if actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member")):
+		return false
+	if str(actor.get_meta(META_SETTLEMENT_SLOT_ID, "")).strip_edges() != "":
+		return false
+	if actor.has_method("get_active_job_provider") and actor.call("get_active_job_provider") != null:
+		return false
+	return true
+
+
+func _prepare_claimed_resident_for_role(actor: Node, role: String, role_index: int) -> void:
+	if actor == null:
+		return
+	var script := _script_for_role(role)
+	if script != null:
+		actor.set_script(script)
+	_apply_staff_role_defaults(actor, _display_name_for_role(role, role_index), _color_for_role(role), _conversation_for_role(role), _indexed_name(role, role_index), role_index)
+	if actor is Node3D:
+		(actor as Node3D).position = _local_position_for_role(role, role_index)
+
+
+func _create_generated_staff_for_role(role: String, role_index: int, staff_root: Node) -> Node:
+	var node_name := _available_child_name(staff_root, _role_node_base_name(role))
+	return _ensure_staff_member(staff_root, node_name, _display_name_for_role(role, role_index), _color_for_role(role), _local_position_for_role(role, role_index), _conversation_for_role(role), _script_for_role(role), _indexed_name(role, role_index), role_index)
+
+
+func _available_child_name(root: Node, preferred_name: String) -> String:
+	if root == null or root.get_node_or_null(preferred_name) == null:
+		return preferred_name
+	return _next_generated_child_name(root, preferred_name)
+
+
+func _role_from_slot_id(slot_id: String) -> String:
+	var suffix := slot_id.get_slice(".", slot_id.get_slice_count(".") - 1)
+	return _role_base(suffix)
+
+
+func _role_node_base_name(role: String) -> String:
+	match role:
+		"barkeeper":
+			return "Barkeeper"
+		"waiter":
+			return "Waiter"
+		"guard":
+			return "Guard"
+		"barber":
+			return "Barber"
+		_:
+			return "Staff"
+
+
+func _display_name_for_role(role: String, role_index: int) -> String:
+	match role:
+		"barkeeper":
+			return barkeeper_name
+		"waiter":
+			return _indexed_display_name(waiter_name, role_index)
+		"guard":
+			return _indexed_display_name(guard_name, role_index)
+		"barber":
+			return barber_name
+		_:
+			return "Staff"
+
+
+func _color_for_role(role: String) -> Color:
+	match role:
+		"barkeeper":
+			return Color(0.58, 0.43, 0.2, 1.0)
+		"waiter":
+			return Color(0.28, 0.47, 0.56, 1.0)
+		"guard":
+			return Color(0.42, 0.42, 0.48, 1.0)
+		"barber":
+			return Color(0.54, 0.38, 0.68, 1.0)
+		_:
+			return Color(0.62, 0.62, 0.62, 1.0)
+
+
+func _conversation_for_role(role: String) -> Resource:
+	match role:
+		"barkeeper":
+			return SHOPKEEPER_CONVERSATION
+		"waiter":
+			return WAITER_CONVERSATION
+		"barber":
+			return BARBER_CONVERSATION
+		_:
+			return null
+
+
+func _script_for_role(role: String) -> Script:
+	return BARBER_HUMANOID_SCRIPT if role == "barber" else MERCHANT_HUMANOID_SCRIPT
+
+
+func _local_position_for_role(role: String, role_index: int) -> Vector3:
+	match role:
+		"barkeeper":
+			return _point_local_position(_barkeeper_point_transform())
+		"waiter":
+			return _waiter_local_position(role_index)
+		"guard":
+			return _guard_local_position(role_index)
+		"barber":
+			return _point_local_position(_barber_idle_transform())
+		_:
+			return Vector3.ZERO
+
+
+func _actor_key(actor: Node) -> String:
+	if actor == null:
+		return ""
+	if _has_property(actor, "stable_id"):
+		var stable_id := str(actor.get("stable_id")).strip_edges()
+		if not stable_id.is_empty():
+			return stable_id
+	return str(actor.get_path()) if actor.is_inside_tree() else str(actor.get_instance_id())
 
 
 func _get_role_actors(role: String) -> Array[Node]:
@@ -1180,7 +1525,7 @@ func _collect_generated_role_actors(actors: Array[Node], base_name: String) -> v
 	if root == null:
 		return
 	for child in root.get_children():
-		if _generated_child_index(str(child.name), base_name) >= 0 and child is HumanoidCharacter and not actors.has(child):
+		if _generated_child_index(str(child.name), base_name) >= 0 and child is HumanoidCharacter and _is_actor_alive(child) and not actors.has(child):
 			actors.append(child)
 
 
@@ -1191,6 +1536,15 @@ func _get_assigned_actor(actor_path: NodePath) -> Node:
 
 
 func _get_assigned_actors(actor_paths: Array[NodePath]) -> Array[Node]:
+	var actors: Array[Node] = []
+	for actor_path in actor_paths:
+		var actor := _get_assigned_actor(actor_path)
+		if actor != null and _is_actor_alive(actor) and not actors.has(actor):
+			actors.append(actor)
+	return actors
+
+
+func _get_assigned_actors_raw(actor_paths: Array[NodePath]) -> Array[Node]:
 	var actors: Array[Node] = []
 	for actor_path in actor_paths:
 		var actor := _get_assigned_actor(actor_path)
@@ -1210,7 +1564,7 @@ func _paths_from(origin: Node, actors: Array[Node]) -> Array[NodePath]:
 
 
 func _apply_population_generation_to_staff(staff: Node, role: String, role_index: int) -> void:
-	if staff == null or not _is_generated_staff(staff):
+	if staff == null or Engine.is_editor_hint() or not _is_generated_staff(staff):
 		return
 	var seed_key := "%s:%s:%d:%s" % [_get_staff_id_prefix(), role, role_index, str(staff.name)]
 	var appearance_profile := _get_effective_population_appearance_profile()
@@ -1224,12 +1578,12 @@ func _apply_population_generation_to_staff(staff: Node, role: String, role_index
 		if not generated_name.is_empty():
 			staff.set("member_name", generated_name)
 			_apply_role_suffix(staff, role)
-			if staff.is_inside_tree() and staff.has_method("refresh_nameplate"):
+			if not Engine.is_editor_hint() and staff.is_inside_tree() and staff.has_method("refresh_nameplate"):
 				staff.call("refresh_nameplate")
 
 
 func _apply_staff_role_skills(staff: Node, role: String, role_index: int) -> void:
-	if staff == null or not _is_generated_staff(staff) or not staff.has_method("get_skill_level") or not staff.has_method("set_skill_level"):
+	if staff == null or Engine.is_editor_hint() or not _is_generated_staff(staff) or not staff.has_method("get_skill_level") or not staff.has_method("set_skill_level"):
 		return
 	var current_perception := int(staff.call("get_skill_level", SkillRules.ATTRIBUTE_PERCEPTION))
 	if current_perception > SkillRules.DEFAULT_LEVEL:
@@ -1417,15 +1771,34 @@ func _get_effective_owner_faction_id() -> String:
 	if not owner_faction_id.strip_edges().is_empty():
 		return owner_faction_id
 	var definition := _get_ancestor_settlement_definition()
-	if definition != null and definition.has_method("get_faction_id"):
+	if definition != null and not Engine.is_editor_hint() and definition.has_method("get_faction_id"):
 		return str(definition.call("get_faction_id"))
-	return ""
+	return _settlement_definition_faction_id(definition)
+
+
+func _settlement_definition_faction_id(definition: Resource) -> String:
+	if definition == null or not _has_property(definition, "faction_definition"):
+		return ""
+	return _resource_definition_id(definition.get("faction_definition") as Resource)
+
+
+func _resource_definition_id(definition: Resource) -> String:
+	if definition == null:
+		return ""
+	if not Engine.is_editor_hint() and definition.has_method("get_id"):
+		return str(definition.call("get_id"))
+	if _has_property(definition, "settlement_id") and not str(definition.get("settlement_id")).strip_edges().is_empty():
+		return str(definition.get("settlement_id"))
+	if _has_property(definition, "faction_id") and not str(definition.get("faction_id")).strip_edges().is_empty():
+		return str(definition.get("faction_id"))
+	return str(definition.get("display_name")) if _has_property(definition, "display_name") else ""
 
 
 func _get_ancestor_settlement_id() -> String:
 	var definition := _get_ancestor_settlement_definition()
-	if definition != null and definition.has_method("get_id"):
-		return _to_snake_id(str(definition.call("get_id")))
+	var definition_id := _resource_definition_id(definition)
+	if not definition_id.is_empty():
+		return _to_snake_id(definition_id)
 	var settlement := _get_ancestor_settlement()
 	return _to_snake_id(settlement.name) if settlement != null else ""
 

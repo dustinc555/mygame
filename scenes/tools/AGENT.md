@@ -13,3 +13,7 @@
 - The calibrator must write `right_hand_one_hand` and `left_hand_shield` directly into the assigned `HumanoidGripSocketProfile`; do not call profile helper methods from editor tool code.
 - Expose a `last_status` message on the calibrator root so operators can confirm whether load/save affected the runtime profile.
 - Moving grip handles should update the assigned profile in memory and mark `profile_dirty`; runtime tests still require toggling `save_grips_to_profile` so the `.tres` file on disk changes.
+- `humanoid_carry_pose_calibrator.tscn` is the visual editing surface for the shared shoulder carry pose in `resources/humanoid_carry_pose_profiles/default.tres`.
+- Operators tune carry alignment by selecting `ShoulderOrigin/CarriedPose`, moving or rotating it in local space, then using the root inspector group `Save > Save Now`.
+- `ShoulderOrigin` is driven by the carrier preview shoulder; do not bake per-character carry offsets into runtime humanoid scenes.
+- The runtime carry attachment must read the saved `HumanoidCarryPoseProfile` so editor calibration changes affect gameplay without scene-specific carry hacks.

@@ -33,6 +33,7 @@ var _base_max_physics_steps_per_frame := 8
 
 
 func _ready() -> void:
+	add_to_group("world_time_controller")
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_base_physics_ticks_per_second = Engine.physics_ticks_per_second
 	_base_max_physics_steps_per_frame = Engine.max_physics_steps_per_frame

@@ -556,9 +556,10 @@ func _on_inventory_item_drop_requested(source_owner, entry) -> void:
 	if source_inventory == null or not source_inventory.entries.has(entry):
 		return
 	var contained_item_counts: Dictionary = entry.contained_item_counts.duplicate(true)
+	var metadata: Dictionary = entry.metadata.duplicate(true)
 	if not source_inventory.remove_entry(entry):
 		return
-	_spawn_world_item(source_owner, entry.definition, entry.count, contained_item_counts)
+	_spawn_world_item(source_owner, entry.definition, entry.count, contained_item_counts, metadata)
 
 
 func _on_inventory_equipment_drop_requested(source_owner, slot_name: String) -> void:
@@ -592,7 +593,7 @@ func _on_cursor_item_place_requested(data: Dictionary, target_owner, target_cell
 		_refresh_inventory_windows_for(source_owner, target_owner)
 		return
 	if target_role != null and source_role == null and source_owner != target_owner:
-		if _try_sell_cursor_item(source_owner, target_owner, definition, count, target_cell, target_role):
+		if _try_sell_cursor_item(source_owner, target_owner, definition, count, target_cell, target_role, data.get("metadata", {})):
 			_consume_cursor_drag(data)
 			_refresh_inventory_windows_for(source_owner, target_owner)
 		else:
@@ -610,7 +611,7 @@ func _on_cursor_item_place_requested(data: Dictionary, target_owner, target_cell
 	if target_inventory == null:
 		_keep_cursor_drag(data)
 		return
-	if not _place_cursor_item_in_inventory(target_inventory, definition, count, target_cell, data.get("contained_item_counts", {})):
+	if not _place_cursor_item_in_inventory(target_inventory, definition, count, target_cell, data.get("contained_item_counts", {}), data.get("metadata", {})):
 		_keep_cursor_drag(data)
 		return
 	_consume_cursor_drag(data)
@@ -644,8 +645,8 @@ func _on_cursor_item_equip_requested(data: Dictionary, target_owner, slot_name: 
 	_refresh_inventory_windows_for(source_owner, target_owner)
 
 
-func _on_cursor_item_dropped_outside(source_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}) -> void:
-	_spawn_world_item(source_owner, definition, count, contained_item_counts)
+func _on_cursor_item_dropped_outside(source_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
+	_spawn_world_item(source_owner, definition, count, contained_item_counts, metadata)
 
 
 func _get_owner_inventory(inventory_owner):
@@ -665,7 +666,7 @@ func _refresh_inventory_windows_for(owner_a, owner_b = null) -> void:
 			window.refresh()
 
 
-func _spawn_world_item(source_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}) -> void:
+func _spawn_world_item(source_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
 	if root_scene == null or definition == null or count <= 0:
 		return
 	var drop_position_value = _get_world_drop_position(source_owner)
@@ -681,6 +682,7 @@ func _spawn_world_item(source_owner, definition: ItemDefinition, count: int, con
 			return
 		root_scene.add_child(world_item)
 		world_item.setup(definition, 1, contained_item_counts if _index == 0 else {})
+		world_item.item_metadata = metadata.duplicate(true) if _index == 0 else metadata.duplicate(true)
 		var item_height := world_item.place_bottom_at(drop_position, next_bottom_y)
 		next_bottom_y += maxf(item_height, 0.05)
 
@@ -796,11 +798,11 @@ func _get_world_item_stack(drop_position: Vector3) -> Dictionary:
 	return {"position": stack_position, "next_bottom_y": next_bottom_y}
 
 
-func _start_cursor_item_drag(owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}) -> void:
+func _start_cursor_item_drag(owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
 	if definition == null or count <= 0:
 		return
 	_ensure_cursor_item_drag_source()
-	cursor_item_drag_source.start_drag(owner, definition, count, contained_item_counts)
+	cursor_item_drag_source.start_drag(owner, definition, count, contained_item_counts, metadata)
 
 
 func _begin_equipment_update_batch(owner_a, owner_b = null) -> Array:
@@ -831,10 +833,10 @@ func _keep_cursor_drag(data: Dictionary) -> void:
 		source.keep_drag(int(data.get("cursor_drag_id", 0)))
 
 
-func _replace_cursor_drag(data: Dictionary, owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}) -> void:
+func _replace_cursor_drag(data: Dictionary, owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
 	var source = data.get("cursor_source", null)
 	if source != null and source.has_method("replace_drag_item"):
-		source.replace_drag_item(int(data.get("cursor_drag_id", 0)), owner, definition, count, contained_item_counts)
+		source.replace_drag_item(int(data.get("cursor_drag_id", 0)), owner, definition, count, contained_item_counts, metadata)
 
 
 func _try_store_replaced_equipment(source_owner, target_owner, definition: ItemDefinition) -> bool:
@@ -849,7 +851,7 @@ func _try_store_replaced_equipment(source_owner, target_owner, definition: ItemD
 	return false
 
 
-func _place_cursor_item_in_inventory(target_inventory, definition: ItemDefinition, count: int, target_cell: Vector2i, contained_item_counts: Dictionary = {}) -> bool:
+func _place_cursor_item_in_inventory(target_inventory, definition: ItemDefinition, count: int, target_cell: Vector2i, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> bool:
 	if target_inventory == null or definition == null or count <= 0:
 		return false
 	if target_inventory.use_weight and target_inventory.get_total_weight() + target_inventory.get_item_weight(definition, count, contained_item_counts) > target_inventory.max_weight:
@@ -858,13 +860,16 @@ func _place_cursor_item_in_inventory(target_inventory, definition: ItemDefinitio
 	if not target_inventory.can_place_item(definition, target_cell):
 		_show_floating_notice("No room")
 		return false
-	target_inventory.entries.append(InventoryData.InventoryEntry.new(definition, target_cell, count, contained_item_counts))
+	target_inventory.entries.append(InventoryData.InventoryEntry.new(definition, target_cell, count, contained_item_counts, metadata))
 	target_inventory.changed.emit()
 	return true
 
 
-func _try_sell_cursor_item(source_owner, merchant_owner, definition: ItemDefinition, count: int, target_cell: Vector2i, merchant_role) -> bool:
+func _try_sell_cursor_item(source_owner, merchant_owner, definition: ItemDefinition, count: int, target_cell: Vector2i, merchant_role, metadata: Dictionary = {}) -> bool:
 	if source_owner == null or merchant_owner == null or definition == null or count <= 0:
+		return false
+	if not _can_sell_metadata_to_merchant(source_owner, merchant_owner, metadata):
+		_show_floating_notice("Stolen goods")
 		return false
 	if not _item_is_sellable(definition):
 		_show_floating_notice("Cannot trade")
@@ -886,7 +891,7 @@ func _try_sell_cursor_item(source_owner, merchant_owner, definition: ItemDefinit
 		return false
 	merchant_inventory.remove_item_count(SILVER_ITEM, price)
 	source_owner.inventory.add_item_count(SILVER_ITEM, price)
-	merchant_inventory.entries.append(InventoryData.InventoryEntry.new(definition, target_cell, count))
+	merchant_inventory.entries.append(InventoryData.InventoryEntry.new(definition, target_cell, count, {}, metadata))
 	merchant_inventory.changed.emit()
 	return true
 
@@ -971,6 +976,9 @@ func _sell_to_merchant(seller_owner, merchant_owner, entry, target_cell: Vector2
 	if not _item_is_sellable(entry.definition):
 		_show_floating_notice("Cannot trade")
 		return true
+	if not _can_sell_metadata_to_merchant(seller_owner, merchant_owner, entry.metadata):
+		_show_floating_notice("Stolen goods")
+		return true
 	var price: int = merchant_role.get_buy_price(entry.definition)
 	if price < 0:
 		_show_floating_notice("Cannot trade")
@@ -994,6 +1002,16 @@ func _sell_to_merchant(seller_owner, merchant_owner, entry, target_cell: Vector2
 	seller_owner.inventory.add_item_count(SILVER_ITEM, price)
 	seller_inventory.move_entry_to_inventory(entry, merchant_inventory, target_cell)
 	return true
+
+
+func _can_sell_metadata_to_merchant(seller_owner, merchant_owner, metadata: Dictionary) -> bool:
+	if metadata.is_empty() or not bool(metadata.get(InventoryData.META_STOLEN, false)):
+		return true
+	var law_controller := _get_law_order_controller()
+	if law_controller == null or not law_controller.has_method("can_sell_entry_to_merchant"):
+		return true
+	var stub := InventoryData.InventoryEntry.new(null, Vector2i.ZERO, 1, {}, metadata)
+	return bool(law_controller.call("can_sell_entry_to_merchant", seller_owner, merchant_owner, stub))
 
 
 func _try_deposit_entry_into_pouch(source_owner, target_owner, entry, target_cell: Vector2i) -> bool:
@@ -1155,6 +1173,13 @@ func _get_merchant_role(inventory_owner):
 	if inventory_owner != null and inventory_owner.has_method("get_merchant_role"):
 		return inventory_owner.get_merchant_role()
 	return null
+
+
+func _get_law_order_controller() -> Node:
+	if root_scene == null:
+		return null
+	var bootstrap := root_scene.get_node_or_null("GameBootstrap")
+	return bootstrap.get_node_or_null("LawOrderController") if bootstrap != null else null
 
 
 func _take_silver_from_pouch(inventory_owner, entry, action: String) -> void:

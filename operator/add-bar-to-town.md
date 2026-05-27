@@ -77,6 +77,12 @@ Seats work when the copied prop uses `SittableSeat`. Beds work when the copied p
 
 Generated staff display their role in the crowd, such as `Name (barkeeper)`, `Name (waiter)`, `Name (guard)`, and `Name (barber)`.
 
+Bar guards are private bouncers for the bar, not town authority guards. Town-wide guard response uses `SettlementTown/Guards`, keep guards, jail guards, or wardens with settlement-authority tags.
+
+Generated bar guards spawn with a hatchet and one bandage. They can eject bar troublemakers but should not answer town-wide warrants.
+
+If bar staff die, the settlement records the death and the role becomes vacant. The bar does not instantly resurrect that actor; after the replacement delay, the settlement can refill the slot from available population.
+
 To change global default positions for future and uncustomized bars, edit `res://scenes/world_sim/settlement_bar.tscn` and drag nodes like `GuardPosts/GuardPost` or `ServicePoints/WaiterPoint` there.
 
 12. If you need extra standing points beyond the staff count, use the advanced point fields:

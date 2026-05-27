@@ -17,6 +17,10 @@ const MIN_COLLIDER_SIZE := Vector3(0.08, 0.03, 0.08)
 	set(value):
 		contained_item_counts = value.duplicate(true)
 		_refresh_label()
+@export var item_metadata: Dictionary = {}:
+	set(value):
+		item_metadata = value.duplicate(true)
+		_refresh_label()
 @export var pickup_distance := 1.4
 @export var owner_faction_name := "":
 	set(value):
@@ -71,13 +75,18 @@ func try_pickup(actor) -> bool:
 	var ownership_controller := _find_ownership_controller()
 	if ownership_controller != null and ownership_controller.has_method("request_take_item") and not bool(ownership_controller.call("request_take_item", actor, self)):
 		return false
+	var pickup_metadata := item_metadata.duplicate(true)
+	if ownership_controller != null and ownership_controller.has_method("get_take_item_metadata"):
+		pickup_metadata = ownership_controller.call("get_take_item_metadata", actor, self, pickup_metadata) as Dictionary
 	var actor_inventory = actor.inventory if actor.get("inventory") != null else null
 	if actor_inventory == null:
 		_show_pickup_failure(actor)
 		return false
 	var picked_up := false
 	if _item_has_contained_counts():
-		picked_up = actor_inventory.add_entry_with_contents(item_definition, quantity, contained_item_counts)
+		picked_up = actor_inventory.add_entry_with_contents(item_definition, quantity, contained_item_counts, pickup_metadata)
+	elif not pickup_metadata.is_empty() and actor_inventory.has_method("add_item_count_with_metadata"):
+		picked_up = actor_inventory.add_item_count_with_metadata(item_definition, quantity, pickup_metadata)
 	else:
 		picked_up = actor_inventory.add_item_count(item_definition, quantity)
 	if not picked_up:
@@ -144,7 +153,10 @@ func _refresh_label() -> void:
 		label.text = "Owned Item" if not owner_faction_name.is_empty() else "Item"
 		return
 	var item_label := _item_display_label()
-	label.text = "%s (Owned)" % item_label if not owner_faction_name.is_empty() else item_label
+	if bool(item_metadata.get(InventoryData.META_STOLEN, false)):
+		label.text = "%s (Stolen)" % item_label
+	else:
+		label.text = "%s (Owned)" % item_label if not owner_faction_name.is_empty() else item_label
 
 
 func _item_display_label() -> String:

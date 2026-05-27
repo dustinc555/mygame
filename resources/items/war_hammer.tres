@@ -9,12 +9,11 @@
 [sub_resource type="Resource" id="ItemStatModifier_damage"]
 script = ExtResource("2_mod")
 stat_name = "attack_damage"
-add = 10.0
+add = 3.0
 
 [sub_resource type="Resource" id="ItemStatModifier_cut"]
 script = ExtResource("2_mod")
 stat_name = "cut_ratio"
-add = 0.08
 
 [sub_resource type="Resource" id="ItemStatModifier_range"]
 script = ExtResource("2_mod")

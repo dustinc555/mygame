@@ -35,6 +35,7 @@ var _default_population_name_profile: Resource
 func _ready() -> void:
 	_used_population_names.clear()
 	_apply_profile_to_existing_residents()
+	_apply_civilian_equipment_rules_to_existing_residents()
 	if apply_name_profile_to_existing_residents:
 		_apply_name_profile_to_existing_residents()
 	else:
@@ -63,7 +64,7 @@ func _spawn_missing_residents() -> void:
 		actor.set("hostile_factions", hostile_faction_ids)
 		actor.set("combat_stance", combat_stance)
 		actor.set("base_color", _varied_color(rng))
-		actor.set("starting_equipment", starting_equipment.duplicate())
+		actor.set("starting_equipment", _civilian_starting_equipment())
 		_apply_profile_to_actor(actor, resident_index)
 		_apply_name_profile_to_actor(actor, resident_index)
 		_apply_default_skills_to_actor(actor, resident_index)
@@ -100,6 +101,36 @@ func _apply_default_skills_to_existing_residents() -> void:
 		if child.has_method("assign_attack_target"):
 			_apply_default_skills_to_actor(child, resident_index)
 			resident_index += 1
+
+
+func _apply_civilian_equipment_rules_to_existing_residents() -> void:
+	for child in get_children():
+		if not child.has_method("assign_attack_target"):
+			continue
+		if _has_property(child, "starting_equipment"):
+			child.set("starting_equipment", _filter_civilian_equipment(child.get("starting_equipment") as Array))
+		if child.has_method("unequip_item_from_slot"):
+			child.call("unequip_item_from_slot", ItemDefinition.EQUIP_SLOT_WEAPON)
+			child.call("unequip_item_from_slot", ItemDefinition.EQUIP_SLOT_OFFHAND)
+
+
+func _civilian_starting_equipment() -> Array[Resource]:
+	var result: Array[Resource] = []
+	for item in _filter_civilian_equipment(starting_equipment):
+		result.append(item)
+	return result
+
+
+func _filter_civilian_equipment(items: Array) -> Array:
+	var result: Array = []
+	for item in items:
+		if item == null:
+			continue
+		var equip_slot := str(item.get("equip_slot")) if _has_property(item, "equip_slot") else ""
+		if equip_slot == ItemDefinition.EQUIP_SLOT_WEAPON or equip_slot == ItemDefinition.EQUIP_SLOT_OFFHAND:
+			continue
+		result.append(item)
+	return result
 
 
 func _apply_profile_to_actor(actor: Node, resident_index: int) -> void:
@@ -261,3 +292,12 @@ func _add_basic_humanoid_children(actor: Node) -> void:
 	capsule_mesh.radius = 0.45
 	body.mesh = capsule_mesh
 	actor.add_child(body)
+
+
+func _has_property(target: Object, property_name: String) -> bool:
+	if target == null:
+		return false
+	for property in target.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false

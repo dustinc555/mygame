@@ -1,0 +1,249 @@
+[gd_scene format=4 uid="uid://btexptp24y024"]
+
+[ext_resource type="Script" uid="uid://ppaas0s4hphb" path="res://scripts/test_scenes/jail_law_demo.gd" id="1_demo"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_manager"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
+[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://scripts/world_sim/settlement_town.gd" id="4_town"]
+[ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://scripts/world_sim/settlement_definition.gd" id="5_settlement_definition"]
+[ext_resource type="Resource" uid="uid://h4a4vsdtrlvq" path="res://resources/world_sim/factions/farmers.tres" id="6_farmers"]
+[ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://scenes/world_sim/settlement_jail.tscn" id="7_jail"]
+[ext_resource type="PackedScene" path="res://scenes/world/items/world_item.tscn" id="8_world_item"]
+[ext_resource type="Resource" path="res://resources/items/expensive_vase.tres" id="9_vase"]
+[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="10_party_member"]
+[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://scripts/characters/faction_humanoid.gd" id="11_faction_humanoid"]
+[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/bandage.tres" id="16_f35vs"]
+[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/hatchet.tres" id="17_hatchet"]
+[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/round_shield.tres" id="18_0csrm"]
+[ext_resource type="Script" path="res://scripts/world/venues/settlement_guard_post.gd" id="19_g0vs4"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(34, 1, 28)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.24, 0.23, 0.2, 1)
+roughness = 0.94
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+material = SubResource("StandardMaterial3D_floor")
+size = Vector3(34, 1, 28)
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_humanoid"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_player"]
+albedo_color = Color(0.82, 0.43, 0.31, 1)
+roughness = 0.86
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_player"]
+material = SubResource("StandardMaterial3D_player")
+radius = 0.45
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_selection_ring"]
+top_radius = 0.78
+bottom_radius = 0.78
+height = 0.018
+radial_segments = 48
+
+[sub_resource type="Resource" id="SettlementDefinition_jail_demo"]
+script = ExtResource("5_settlement_definition")
+settlement_id = "jail_demo_town"
+display_name = "Jail Demo Town"
+faction_definition = ExtResource("6_farmers")
+starting_food = 80.0
+max_food = 80.0
+known_settlement_ids = null
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_witness"]
+albedo_color = Color(0.56, 0.63, 0.76, 1)
+roughness = 0.86
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_witness"]
+material = SubResource("StandardMaterial3D_witness")
+radius = 0.45
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_x1p02"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_wtr6o"]
+radius = 0.45
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_uyr20"]
+transparency = 1
+cull_mode = 2
+no_depth_test = true
+shading_mode = 0
+albedo_color = Color(0.62, 1, 0.94, 0.34)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_x1p02"]
+_surfaces = [{
+"aabb": AABB(-2.3000002, 0, -16.635113, 24.599998, 1e-05, 33.935112),
+"format": 34359738369,
+"primitive": 1,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 84,
+"vertex_data": PackedByteArray("NDMTwAAAAAC2FIXBoJmZvgAAAAC2FIXBMDMzPwAAAAC2FIXBzMwsQAAAAAC2FIXBzMxsQAAAAAC2FIXBZma2QAAAAAC2FIXBZmbWQAAAAAC2FIXBMzMLQQAAAAC2FIXBMzMbQQAAAAC2FIXBMzM7QQAAAAC2FIXBMzNLQQAAAAC2FIXBMzNrQQAAAAC2FIXBMzN7QQAAAAC2FIXBmpmNQQAAAAC2FIXBmpmVQQAAAAC2FIXBmpmlQQAAAAC2FIXBmpmtQQAAAAC2FIXBZmayQQAAAAC2FIXBZmayQQAAAAC2FIXBZmayQQAAAABsKWrBZmayQQAAAABsKVrBZmayQQAAAABsKTrBZmayQQAAAABsKSrBZmayQQAAAABsKQrBZmayQQAAAADYUvTAZmayQQAAAADYUrTAZmayQQAAAADYUpTAZmayQQAAAACwpSjAZmayQQAAAABgS9G/ZmayQQAAAACA0ro+ZmayQQAAAACgtK4/ZmayQQAAAABQWldAZmayQQAAAAAorYtAZmayQQAAAAAorctAZmayQQAAAAAoretAZmayQQAAAACU1hVBZmayQQAAAACU1iVBZmayQQAAAACU1kVBZmayQQAAAACU1lVBZmayQQAAAACU1nVBZmayQQAAAABK64JBZmayQQAAAABmZopBZmayQQAAAABmZopBZmaiQQAAAABmZopBZmaaQQAAAABmZopBZmaKQQAAAABmZopBZmaCQQAAAABmZopBzMxkQQAAAABmZopBzMxUQQAAAABmZopBzMw0QQAAAABmZopBzMwkQQAAAABmZopBzMwEQQAAAABmZopBmJnpQAAAAABmZopBmJmpQAAAAABmZopBmJmJQAAAAABmZopBMDMTQAAAAABmZopBYGamPwAAAABmZopBQDMzvwAAAABmZopBoJnZvwAAAABmZopBMDMTwAAAAABmZopBNDMTwAAAAABmZopBNDMTwAAAAADMzHRBNDMTwAAAAADMzGRBNDMTwAAAAADMzERBNDMTwAAAAADMzDRBNDMTwAAAAADMzBRBNDMTwAAAAADMzARBNDMTwAAAAACYmclANDMTwAAAAACYmalANDMTwAAAAAAwM1NANDMTwAAAAAAwMxNANDMTwAAAAACAmZk+NDMTwAAAAABAMzO/NDMTwAAAAADQzCzANDMTwAAAAADQzGzANDMTwAAAAABoZrbANDMTwAAAAABoZtbANDMTwAAAAAA0MwvBNDMTwAAAAAA0MxvBNDMTwAAAAAA0MzvBNDMTwAAAAAA0M0vBNDMTwAAAAAA0M2vBNDMTwAAAAAA0M3vBNDMTwAAAAAC2FIXB")
+}]
+
+[node name="JailLawDemo" type="Node3D" unique_id=1259564700]
+script = ExtResource("1_demo")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=581341794]
+transform = Transform3D(0.882948, -0.249837, 0.397875, 0, 0.847122, 0.531398, -0.469472, -0.469191, 0.748004, 0, 0, 0)
+light_energy = 1.25
+shadow_enabled = true
+
+[node name="InstructionLabel" type="Label3D" parent="." unique_id=2013171341]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.5, 3, -13)
+billboard = 1
+no_depth_test = true
+text = "Jail Law Demo: steal the owned vase in front of the witness. The city guard responds; jail has 3 cells and a very hard prisoner locker."
+font_size = 36
+outline_size = 4
+
+[node name="Floor" type="StaticBody3D" parent="." unique_id=723816036]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor" unique_id=117428843]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor" unique_id=1941296536]
+mesh = SubResource("BoxMesh_floor")
+
+[node name="PartyMembers" type="Node3D" parent="." unique_id=1251625562]
+
+[node name="Mira" type="CharacterBody3D" parent="PartyMembers" unique_id=464357018]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.6, -7)
+script = ExtResource("10_party_member")
+base_color = Color(0.82, 0.43, 0.31, 1)
+member_name = "Mira"
+stable_id = "player.jail_demo.mira"
+fatigue_enabled = false
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Mira" unique_id=811809092]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_humanoid")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Mira" unique_id=1684179150]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_player")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Mira" unique_id=1123050382]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.035, 0)
+visible = false
+mesh = SubResource("CylinderMesh_selection_ring")
+
+[node name="PartyManager" type="Node" parent="." unique_id=1881198205]
+script = ExtResource("2_manager")
+
+[node name="GameBootstrap" type="Node" parent="." unique_id=291755218]
+script = ExtResource("3_bootstrap")
+
+[node name="JailDemoTown" type="Node3D" parent="." unique_id=580618190]
+script = ExtResource("4_town")
+guard_count = 1
+guard_post_count = 1
+guard_name = "City Guard"
+staff_stable_id_prefix = "npc.jail_demo_town.town"
+staff_squad_name = "JailDemoTown"
+town_border_radius = 26.0
+editor_show_debug_shape = false
+settlement_definition = SubResource("SettlementDefinition_jail_demo")
+resident_root_path = NodePath("Residents")
+
+[node name="Facilities" type="Node3D" parent="JailDemoTown" unique_id=1317521418]
+
+[node name="Jail" parent="JailDemoTown/Facilities" unique_id=193720449 instance=ExtResource("7_jail")]
+transform = Transform3D(-0.029910438, 0, -0.9995526, 0, 1, 0, 0.9995526, 0, -0.029910438, 10, 0, 4)
+warden_name = "Demo Warden"
+staff_stable_id_prefix = "npc.jail_demo_town.jail"
+staff_squad_name = "JailDemoTown"
+cell_lock_difficulties = Array[int]([5, 35, 90])
+locker_lock_difficulty = 90
+facility_id = "jail_demo_town.jail"
+display_name = "Demo Jail"
+owner_faction_id = "Farmers"
+
+[node name="Residents" type="Node3D" parent="JailDemoTown" unique_id=215764947]
+
+[node name="Witness" type="CharacterBody3D" parent="JailDemoTown/Residents" unique_id=286283803]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.6, -3)
+script = ExtResource("11_faction_humanoid")
+member_name = "Civilian Witness"
+stable_id = "npc.jail_demo_town.witness"
+faction_name = "Farmers"
+fatigue_enabled = false
+combat_stance = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="JailDemoTown/Residents/Witness" unique_id=465614405]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_humanoid")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="JailDemoTown/Residents/Witness" unique_id=1537259269]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_witness")
+
+[node name="OwnedVase" parent="JailDemoTown" unique_id=352829918 instance=ExtResource("8_world_item")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.45, -4)
+item_definition = ExtResource("9_vase")
+owner_faction_name = "Farmers"
+theft_value = 18
+theft_difficulty = 1
+
+[node name="Guards" type="Node3D" parent="JailDemoTown" unique_id=708256042]
+
+[node name="Guard" type="CharacterBody3D" parent="JailDemoTown/Guards" unique_id=2050348714]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.6, -2)
+script = ExtResource("11_faction_humanoid")
+member_name = "City Guard (guard)"
+stable_id = "npc.jail_demo_town.town.guard"
+starting_equipment = Array[Resource]([ExtResource("16_f35vs"), ExtResource("17_hatchet"), ExtResource("18_0csrm")])
+faction_name = "Farmers"
+squad_name = "JailDemoTown"
+base_attack_damage = 20.0
+base_dexterity = 40.0
+starting_skill_levels = {
+"attribute.dexterity": 40,
+"attribute.endurance": 40,
+"attribute.strength": 40,
+"attribute.toughness": 40,
+"combat.axes_one_handed": 40
+}
+metadata/settlement_staff_role = "guard"
+metadata/settlement_staff_role_index = 0
+metadata/settlement_staff_slot_id = "jail_demo_town.guard"
+metadata/settlement_actor_category = "staff"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="JailDemoTown/Guards/Guard" unique_id=1915849037]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_x1p02")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="JailDemoTown/Guards/Guard" unique_id=717617575]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_wtr6o")
+
+[node name="GuardPosts" type="Node3D" parent="JailDemoTown" unique_id=1468032483]
+
+[node name="GuardPost" type="Node3D" parent="JailDemoTown/GuardPosts" unique_id=64002862]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -7, 0.05, -2)
+script = ExtResource("19_g0vs4")
+debug_color = Color(0.35, 0.78, 1, 0.76)
+metadata/settlement_guard_post_generated = true
+metadata/settlement_guard_post_index = 0
+
+[node name="TownBorderDebug" type="MeshInstance3D" parent="JailDemoTown" unique_id=1344632627]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
+visible = false
+material_override = SubResource("StandardMaterial3D_uyr20")
+cast_shadow = 0
+mesh = SubResource("ArrayMesh_x1p02")
+
+[node name="CameraRig" type="Node3D" parent="." unique_id=552539570]
+transform = Transform3D(1, 0, 0, 0, 0.851, 0.525, 0, -0.525, 0.851, 0, 6.5, -11)
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig" unique_id=97772762]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot" unique_id=1266846053]
+current = true
+fov = 55.0

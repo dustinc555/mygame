@@ -42,8 +42,8 @@ func _run() -> void:
 	_validate_culture_profile_source("Settlements/FarmerCrossing/Residents", FARMER_NAME_PROFILE, FARMER_PERSONALITY_PROFILE, COMMON_LAW_PROFILE, "Farmer")
 	_validate_culture_profile_source("Settlements/RaiderCamp/Residents", RAIDER_NAME_PROFILE, RAIDER_PERSONALITY_PROFILE, RAIDER_LAW_PROFILE, "Raider")
 	_validate_faction_diplomacy_and_events()
-	_validate_resident_group("Settlements/FarmerCrossing/Residents", FARMER_PROFILE, FARMER_NAME_PROFILE, [PEASANT_TUNIC], [PEASANT_TROUSERS], [PEASANT_SHOES], [], HATCHET, "Farmer")
-	_validate_resident_group("Settlements/RaiderCamp/Residents", RAIDER_PROFILE, RAIDER_NAME_PROFILE, [RANGER_JERKIN, PEASANT_TUNIC], [RANGER_LEGGINGS, PEASANT_TROUSERS], [RANGER_BOOTS, PEASANT_SHOES], [RANGER_HOOD], IRON_SWORD, "Raider")
+	_validate_resident_group("Settlements/FarmerCrossing/Residents", FARMER_PROFILE, FARMER_NAME_PROFILE, [PEASANT_TUNIC], [PEASANT_TROUSERS], [PEASANT_SHOES], [], null, "Farmer")
+	_validate_resident_group("Settlements/RaiderCamp/Residents", RAIDER_PROFILE, RAIDER_NAME_PROFILE, [RANGER_JERKIN, PEASANT_TUNIC], [RANGER_LEGGINGS, PEASANT_TROUSERS], [RANGER_BOOTS, PEASANT_SHOES], [RANGER_HOOD], null, "Raider")
 	_validate_slave_group("Settlements/RaiderCamp/Residents/Slaves")
 	var farmer_names := _collect_resident_name_map("Settlements/FarmerCrossing/Residents", "Farmer")
 	var raider_names := _collect_resident_name_map("Settlements/RaiderCamp/Residents", "Raider")
@@ -527,7 +527,9 @@ func _validate_equipment(resident: HumanoidCharacter, chest_pool: Array, leg_poo
 	_expect_equipped_in(resident, "feet", feet_pool, label)
 	if not head_pool.is_empty() and resident.get_equipped_item("head") != null:
 		_expect_equipped_in(resident, "head", head_pool, label)
-	if weapon != null and resident.get_equipped_item("weapon") != weapon:
+	if weapon == null and resident.get_equipped_item("weapon") != null:
+		_fail("%s should not spawn with a weapon" % label)
+	elif weapon != null and resident.get_equipped_item("weapon") != weapon:
 		_fail("%s did not preserve expected weapon" % label)
 
 

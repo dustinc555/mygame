@@ -17,6 +17,8 @@ Shops
 Mines
 Housing
 Residents
+Guards
+GuardPosts
 Storage
 ActivityPoints
 Territory
@@ -45,6 +47,10 @@ A valid town should have at least one building or explicit population capacity s
 
 Depopulated, sparse, populated, and overcrowded states still multiply the authored max capacity.
 
+`SettlementController.population` means total living citizens. Staff, guards, rulers, and wardens are part of that total. The controller also tracks `population_assigned` and `population_available`, where available population is the unassigned labor pool a town can draw from for delayed role replacement.
+
+When a staffed role actor dies, the town records a population death, opens a vacancy, and only fills that vacancy after the replacement delay if the town has available population. If the town has no available population, the role stays vacant until population recovers. Recovery is intentionally simple: if the town is below target population and not starving, daily upkeep can add a small number of citizens back toward the target.
+
 ## Facilities
 
 `SettlementFacility` describes authored places inside a town.
@@ -63,7 +69,7 @@ The building or model under `BuildingSlot` is a neutral shell. The `FacilityFunc
 
 Facility records include the stable facility ID, function ID, owner faction, world position, production and consumption values, storage bonus, activity count, job provider count, bar service area count, building count, staff count, service point count, and storage link count.
 
-`SettlementBar` and `SettlementField` are higher-level authoring presets over `SettlementFacilityInstance` for common facilities.
+`SettlementBar`, `SettlementField`, and `SettlementJail` are higher-level authoring presets over `SettlementFacilityInstance` for common facilities.
 
 Use `SettlementBar` under a town's `Bars` root when the operator wants a drag-and-play bar with a building slot, generated or assigned barkeeper/waiter/guard roles, furniture, service points, guard posts, a generic facility visit point, merchant role, and job provider already wired.
 
@@ -80,6 +86,22 @@ The bar uses one `FacilityVisitActivityPoint` under `ActivityPoints` for normal 
 Bar default stock mirrors the parent settlement's supply ratio when available, with a standalone fallback for bars outside towns. This is a temporary stock-seeding rule; future economy work should restock barkeepers through settlement storage and broader supply systems instead of only modifying merchant inventory.
 
 Use `SettlementField` under a town's `Fields` root when the operator wants a food-producing farm field with visible rows and farm activity points already wired.
+
+Use `SettlementJail` under `Facilities` or a future `Jails` category root when the operator wants a drag-and-play authority facility with `BuildingSlot`, `EntryPoint`, `Staff`, `GuardPosts`, `Cells`, and a prisoner locker. Jail layout is authored in `scenes/world_sim/settlement_jail.tscn`, while reusable cell collision/visuals live in `scenes/world_sim/jail_cell.tscn` and reusable prisoner locker collision/visuals live in `scenes/world/containers/prisoner_locker_container.tscn`. `LawOrderController` handles witnessed local crimes, warrants, guard response, guard-carried jail admission, confiscation, sentence timing, legal release, and stolen-goods forfeiture.
+
+## Guards And Role Slots
+
+Staffed settlement roles are represented as role slots. Role slots consume citizens from the settlement labor pool and persist as ledger records even when their physical actors are unloaded in a wide open world.
+
+Bar guards are private bouncers for their facility. They are tagged as private security and should not answer general settlement alarms.
+
+Town guards, keep guards, jail guards, wardens, and rulers are settlement authority. Only guard-role authority actors answer law combat and custody responder calls; wardens and rulers remain authority staff without leaving their facility to fight thieves. Settlement alarms and jurisdiction trespass responses should use explicit authority tags, not names containing `guard`.
+
+Generated civilians strip weapon and offhand starting gear. Generated town, keep, and jail guards spawn with authority loadouts, while bar guards spawn as private bouncers with hatchets and bandages.
+
+`SettlementTown` owns town-level `Guards` and `GuardPosts` roots. These allow a town to have authority guards even if it has no jail. Guard post markers are editor-visible helpers and can remain hidden at runtime unless debug display is enabled.
+
+The runtime model should support three simulation levels: abstract ledger updates for far settlements, realized visible actors for near settlements, and full local behavior only for the town currently interacting with the player.
 
 ## Activity Points
 

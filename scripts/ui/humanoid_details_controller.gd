@@ -26,6 +26,8 @@ const WORLD_ACTION_PREFIX := "world:"
 const INFO_LABEL_COLOR := Color(0.58, 0.56, 0.5, 1.0)
 const INFO_VALUE_COLOR := Color(0.8, 0.75, 0.62, 1.0)
 const INFO_RESTRICTED_COLOR := Color(0.94, 0.34, 0.28, 1.0)
+const INFO_CRIME_COLOR := Color(1.0, 0.16, 0.12, 1.0)
+const INFO_JAILED_COLOR := Color(0.95, 0.58, 0.24, 1.0)
 
 var root_scene: Node
 var hud_layer: CanvasLayer
@@ -194,7 +196,10 @@ func _update_empty_panel() -> void:
 
 func _update_humanoid_panel(target: HumanoidCharacter) -> void:
 	_set_vitals_visible(true)
-	_set_info_rows_visible(false)
+	var humanoid_info_rows := _get_humanoid_info_rows(target)
+	_set_info_rows_visible(not humanoid_info_rows.is_empty())
+	if not humanoid_info_rows.is_empty():
+		_set_info_rows(humanoid_info_rows)
 	_set_humanoid_row_labels()
 	name_label.text = target.member_name
 	faction_label.text = target.faction_name
@@ -213,6 +218,44 @@ func _update_humanoid_panel(target: HumanoidCharacter) -> void:
 	fatigue_value.text = "%s %d / 100" % [fatigue_stage_label, int(round(target.fatigue))]
 	_update_fill_bar(fatigue_bar_stack, fatigue_fill, target.fatigue / 100.0, _get_stage_color(target.get_fatigue_stage(), NpcRules.FatigueStage.WELL_RESTED, NpcRules.FatigueStage.WINDED, NpcRules.FatigueStage.EXHAUSTED))
 	_set_actions(_get_humanoid_actions(target))
+
+
+func _get_humanoid_info_rows(target: HumanoidCharacter) -> Array:
+	var rows: Array = []
+	var law_status := _get_humanoid_law_status(target)
+	if not law_status.is_empty():
+		rows.append({"label": "Law", "value": law_status, "value_color": _get_humanoid_law_status_color(target)})
+	var warrant_summary := _get_humanoid_meta_text(target, "law_warrant_summary")
+	if not warrant_summary.is_empty():
+		rows.append({"label": "Warrant", "value": warrant_summary})
+	var sentence_summary := _get_humanoid_meta_text(target, "law_sentence_summary")
+	if not sentence_summary.is_empty():
+		rows.append({"label": "Sentence", "value": sentence_summary})
+	while rows.size() > info_rows.size():
+		rows.pop_back()
+	return rows
+
+
+func _get_humanoid_law_status(target: HumanoidCharacter) -> String:
+	var caught_status := _get_humanoid_meta_text(target, "law_status_label")
+	if not caught_status.is_empty():
+		return caught_status
+	return _get_humanoid_meta_text(target, "law_active_crime_label")
+
+
+func _get_humanoid_law_status_color(target: HumanoidCharacter) -> Color:
+	var kind := _get_humanoid_meta_text(target, "law_status_kind")
+	if kind == "jailed":
+		return INFO_JAILED_COLOR
+	if kind == "caught" or not _get_humanoid_meta_text(target, "law_active_crime_label").is_empty():
+		return INFO_CRIME_COLOR
+	return INFO_VALUE_COLOR
+
+
+func _get_humanoid_meta_text(target: HumanoidCharacter, meta_name: String) -> String:
+	if target == null or not target.has_meta(meta_name):
+		return ""
+	return str(target.get_meta(meta_name))
 
 
 func _update_world_target_panel(target) -> void:

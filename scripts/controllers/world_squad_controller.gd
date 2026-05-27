@@ -194,6 +194,8 @@ func _spawn_squad_members(squad_id: String, template: Resource, spawn_position: 
 		actor.set("max_hp", _resource_float(template, "max_hp", 100.0))
 		actor.set("base_attack_damage", _resource_float(template, "base_attack_damage", 18.0))
 		actor.set("starting_equipment", _resource_array(template, "starting_equipment"))
+		if actor.has_method("set_faction_soldier"):
+			actor.call("set_faction_soldier", true)
 		_apply_population_generation_to_squad_actor(actor, template, index + 1, squad_id, used_names)
 		_apply_default_squad_skills(actor, squad_id, index + 1)
 		var offset := _formation_offset(index, count)
