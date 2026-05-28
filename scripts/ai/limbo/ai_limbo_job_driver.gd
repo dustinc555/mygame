@@ -94,7 +94,7 @@ func dispose() -> void:
 	if is_inside_tree():
 		queue_free()
 	else:
-		free()
+		call_deferred("free")
 
 
 func get_current_step():

@@ -44,6 +44,10 @@ func should_tick_actor(actor: Node, interval_seconds := -1.0, jitter_seconds := 
 	return true
 
 
+func get_sim_time() -> float:
+	return _sim_time
+
+
 func clear_actor(actor: Node) -> void:
 	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("clear_actor_schedule"):

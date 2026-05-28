@@ -17,6 +17,7 @@ const C_SPATIAL_PATH := "res://scripts/ecs/components/c_game_actor_spatial.gd"
 const C_VITALS_PATH := "res://scripts/ecs/components/c_game_actor_vitals.gd"
 const C_AI_SCHEDULE_PATH := "res://scripts/ecs/components/c_game_ai_schedule.gd"
 const C_AI_STATE_PATH := "res://scripts/ecs/components/c_game_ai_state.gd"
+const C_GOAL_INTENT_PATH := "res://scripts/ecs/components/c_game_goal_intent.gd"
 const C_POPULATION_RECORD_PATH := "res://scripts/ecs/components/c_game_population_record.gd"
 const C_SETTLEMENT_STATE_PATH := "res://scripts/ecs/components/c_game_settlement_state.gd"
 const C_STAFF_SLOT_PATH := "res://scripts/ecs/components/c_game_staff_slot.gd"
@@ -28,6 +29,8 @@ const C_SETTLEMENT_EVENT_PATH := "res://scripts/ecs/components/c_game_settlement
 const C_JOB_PROVIDER_PATH := "res://scripts/ecs/components/c_game_job_provider.gd"
 const C_JOB_PROVIDER_SLOT_PATH := "res://scripts/ecs/components/c_game_job_provider_slot.gd"
 const C_JOB_WORKER_RECORD_PATH := "res://scripts/ecs/components/c_game_job_worker_record.gd"
+const C_JOB_CONTRACT_PATH := "res://scripts/ecs/components/c_game_job_contract.gd"
+const C_JOB_PROVIDER_MEMORY_PATH := "res://scripts/ecs/components/c_game_job_provider_memory.gd"
 const C_ACTIVITY_POINT_PATH := "res://scripts/ecs/components/c_game_activity_point.gd"
 const C_ACTIVITY_ASSIGNMENT_PATH := "res://scripts/ecs/components/c_game_activity_assignment.gd"
 const C_WORLD_TIME_PATH := "res://scripts/ecs/components/c_game_world_time_state.gd"
@@ -57,6 +60,8 @@ var _settlement_event_entity_by_id: Dictionary = {}
 var _job_provider_entity_by_id: Dictionary = {}
 var _job_provider_slot_entity_by_id: Dictionary = {}
 var _job_worker_record_entity_by_id: Dictionary = {}
+var _job_contract_entity_by_id: Dictionary = {}
+var _job_provider_memory_entity_by_id: Dictionary = {}
 var _activity_point_entity_by_id: Dictionary = {}
 var _activity_assignment_entity_by_actor_id: Dictionary = {}
 var _world_time_entity
@@ -85,6 +90,7 @@ var C_SPATIAL
 var C_VITALS
 var C_AI_SCHEDULE
 var C_AI_STATE
+var C_GOAL_INTENT
 var C_POPULATION_RECORD
 var C_SETTLEMENT_STATE
 var C_STAFF_SLOT
@@ -96,6 +102,8 @@ var C_SETTLEMENT_EVENT
 var C_JOB_PROVIDER
 var C_JOB_PROVIDER_SLOT
 var C_JOB_WORKER_RECORD
+var C_JOB_CONTRACT
+var C_JOB_PROVIDER_MEMORY
 var C_ACTIVITY_POINT
 var C_ACTIVITY_ASSIGNMENT
 var C_WORLD_TIME
@@ -145,7 +153,7 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 		entity = _entity_script.new()
 		entity.name = _entity_node_name("Actor", actor_id)
 		entity.id = _entity_id("actor", actor_id)
-		world.add_entity(entity, [C_NODE.new(), C_IDENTITY.new(), C_FACTION.new(), C_SETTLEMENT.new(), C_SPATIAL.new(), C_VITALS.new(), C_AI_SCHEDULE.new(), C_AI_STATE.new()])
+		world.add_entity(entity, [C_NODE.new(), C_IDENTITY.new(), C_FACTION.new(), C_SETTLEMENT.new(), C_SPATIAL.new(), C_VITALS.new(), C_AI_SCHEDULE.new(), C_AI_STATE.new(), C_GOAL_INTENT.new()])
 		_actor_entity_by_actor_id[actor_id] = entity
 	_write_actor_components(entity, actor, actor_id, settlement_id, context)
 	_actor_id_by_instance_id[actor.get_instance_id()] = actor_id
@@ -272,6 +280,37 @@ func clear_actor_ai_job(actor: Node) -> void:
 	if ai_state == null:
 		return
 	ai_state.clear_job()
+
+
+func set_actor_goal_intent(actor: Node, intent_data: Dictionary) -> Dictionary:
+	var entity = _actor_entity_for_actor(actor)
+	if entity == null:
+		register_actor(actor)
+		entity = _actor_entity_for_actor(actor)
+	if entity == null:
+		return {}
+	var goal_intent = _ensure_actor_goal_intent_component(entity)
+	if goal_intent == null:
+		return {}
+	goal_intent.apply_decision(intent_data)
+	return goal_intent.to_dictionary(false)
+
+
+func get_actor_goal_intent(actor: Node, include_debug := false) -> Dictionary:
+	var entity = _actor_entity_for_actor(actor)
+	if entity == null:
+		return {}
+	var goal_intent = entity.get_component(C_GOAL_INTENT)
+	return goal_intent.to_dictionary(include_debug) if goal_intent != null and goal_intent.has_method("to_dictionary") else {}
+
+
+func clear_actor_goal_intent(actor: Node) -> void:
+	var entity = _actor_entity_for_actor(actor)
+	if entity == null:
+		return
+	var goal_intent = entity.get_component(C_GOAL_INTENT)
+	if goal_intent != null and goal_intent.has_method("clear_intent"):
+		goal_intent.call("clear_intent")
 
 
 func should_tick_actor(actor: Node, sim_time: float, interval_seconds: float, jitter_seconds: float, rng: RandomNumberGenerator) -> bool:
@@ -654,6 +693,187 @@ func sync_job_provider(provider: Node, active_slots: Dictionary = {}, worker_rec
 	_sync_job_worker_records(provider_id, worker_records)
 
 
+func upsert_job_contract(data: Dictionary) -> Dictionary:
+	_try_initialize()
+	if world == null or data.is_empty():
+		return {}
+	var contract_id := str(data.get("contract_id", "")).strip_edges()
+	if contract_id.is_empty():
+		contract_id = _make_job_contract_id(data)
+	data["contract_id"] = contract_id
+	if not data.has("priority_order"):
+		data["priority_order"] = _next_job_contract_priority(str(data.get("actor_id", "")))
+	var entity = _job_contract_entity_by_id.get(contract_id)
+	if entity == null or not is_instance_valid(entity):
+		entity = _entity_script.new()
+		entity.name = _entity_node_name("JobContract", contract_id)
+		entity.id = _entity_id("job_contract", contract_id)
+		world.add_entity(entity, [C_JOB_CONTRACT.new()])
+		_job_contract_entity_by_id[contract_id] = entity
+	var component = entity.get_component(C_JOB_CONTRACT)
+	component.apply_data(data)
+	return component.to_dictionary()
+
+
+func get_actor_job_contracts(actor_or_id) -> Array[Dictionary]:
+	var actor_id := _actor_id_from_value(actor_or_id)
+	var contracts: Array[Dictionary] = []
+	if world == null or actor_id.is_empty():
+		return contracts
+	for entity in world.query.with_all([C_JOB_CONTRACT]).execute():
+		var component = entity.get_component(C_JOB_CONTRACT)
+		if component == null or str(component.actor_id) != actor_id:
+			continue
+		contracts.append(component.to_dictionary())
+	contracts.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("priority_order", 0)) < int(b.get("priority_order", 0)))
+	return contracts
+
+
+func get_job_contracts_for_provider(provider_or_id) -> Array[Dictionary]:
+	var provider_id := _provider_id_from_value(provider_or_id)
+	var contracts: Array[Dictionary] = []
+	if world == null or provider_id.is_empty():
+		return contracts
+	for entity in world.query.with_all([C_JOB_CONTRACT]).execute():
+		var component = entity.get_component(C_JOB_CONTRACT)
+		if component == null or str(component.provider_id) != provider_id:
+			continue
+		contracts.append(component.to_dictionary())
+	contracts.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("priority_order", 0)) < int(b.get("priority_order", 0)))
+	return contracts
+
+
+func has_actor_job_contract(actor_or_id, provider_or_id, job_id := "") -> bool:
+	var actor_id := _actor_id_from_value(actor_or_id)
+	var provider_id := _provider_id_from_value(provider_or_id)
+	for contract in get_actor_job_contracts(actor_id):
+		if str(contract.get("provider_id", "")) != provider_id:
+			continue
+		if job_id.is_empty() or str(contract.get("job_id", "")) == job_id:
+			return true
+	return false
+
+
+func move_actor_job_contract(actor_or_id, contract_id: String, direction: int) -> Array[Dictionary]:
+	var actor_id := _actor_id_from_value(actor_or_id)
+	var contracts := get_actor_job_contracts(actor_id)
+	var from_index := -1
+	for index in range(contracts.size()):
+		if str(contracts[index].get("contract_id", "")) == contract_id:
+			from_index = index
+			break
+	if from_index < 0:
+		return contracts
+	var to_index := clampi(from_index + direction, 0, contracts.size() - 1)
+	if to_index == from_index:
+		return contracts
+	var moved := contracts[from_index]
+	contracts.remove_at(from_index)
+	contracts.insert(to_index, moved)
+	_rewrite_job_contract_priorities(contracts)
+	return get_actor_job_contracts(actor_id)
+
+
+func abandon_job_contract(actor_or_id, contract_id: String, reason := "quit", sim_time := 0.0) -> bool:
+	var actor_id := _actor_id_from_value(actor_or_id)
+	var entity = _job_contract_entity_by_id.get(contract_id)
+	if entity == null or not is_instance_valid(entity):
+		return false
+	var component = entity.get_component(C_JOB_CONTRACT)
+	if component == null or (not actor_id.is_empty() and str(component.actor_id) != actor_id):
+		return false
+	var contract: Dictionary = component.to_dictionary()
+	record_job_provider_memory({
+		"provider_id": str(contract.get("provider_id", "")),
+		"actor_id": str(contract.get("actor_id", "")),
+		"job_id": str(contract.get("job_id", "")),
+		"reason": reason,
+		"recorded_at": sim_time,
+		"note": "Job contract abandoned",
+	})
+	_notify_live_provider_contract_abandoned(contract, reason)
+	world.remove_entity(entity)
+	_job_contract_entity_by_id.erase(contract_id)
+	_rewrite_job_contract_priorities(get_actor_job_contracts(str(contract.get("actor_id", ""))))
+	return true
+
+
+func expire_missed_job_contracts(sim_time: float) -> int:
+	var expired: Array[Dictionary] = []
+	if world == null:
+		return 0
+	for entity in world.query.with_all([C_JOB_CONTRACT]).execute():
+		var component = entity.get_component(C_JOB_CONTRACT)
+		if component == null:
+			continue
+		if str(component.status) != "active":
+			continue
+		if _is_player_party_job_contract(component.to_dictionary()):
+			continue
+		if float(component.report_deadline) > 0.0 and float(component.last_started_at) < 0.0 and float(component.report_deadline) < sim_time:
+			expired.append(component.to_dictionary())
+	for contract in expired:
+		abandon_job_contract(str(contract.get("actor_id", "")), str(contract.get("contract_id", "")), "no_show", sim_time)
+	return expired.size()
+
+
+func _is_player_party_job_contract(contract: Dictionary) -> bool:
+	var metadata: Dictionary = contract.get("metadata", {}) if contract.get("metadata", {}) is Dictionary else {}
+	if bool(metadata.get("player_party_member", false)):
+		return true
+	var actor_id := str(contract.get("actor_id", ""))
+	var actor := get_actor_by_stable_id(actor_id)
+	return actor != null and actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member"))
+
+
+func mark_job_contract_started(contract_id: String, sim_time: float) -> void:
+	var entity = _job_contract_entity_by_id.get(contract_id)
+	if entity == null or not is_instance_valid(entity):
+		return
+	var component = entity.get_component(C_JOB_CONTRACT)
+	if component == null:
+		return
+	component.last_started_at = sim_time
+
+
+func record_job_provider_memory(data: Dictionary) -> Dictionary:
+	_try_initialize()
+	if world == null or data.is_empty():
+		return {}
+	var provider_id := str(data.get("provider_id", "")).strip_edges()
+	var actor_id := str(data.get("actor_id", "")).strip_edges()
+	var job_id := str(data.get("job_id", "")).strip_edges()
+	if provider_id.is_empty() or actor_id.is_empty():
+		return {}
+	var memory_id := str(data.get("memory_id", "")).strip_edges()
+	if memory_id.is_empty():
+		memory_id = "%s:%s:%s:%d" % [provider_id, actor_id, job_id, int(float(data.get("recorded_at", 0.0)) * 1000.0)]
+	data["memory_id"] = memory_id
+	var entity = _job_provider_memory_entity_by_id.get(memory_id)
+	if entity == null or not is_instance_valid(entity):
+		entity = _entity_script.new()
+		entity.name = _entity_node_name("JobProviderMemory", memory_id)
+		entity.id = _entity_id("job_provider_memory", memory_id)
+		world.add_entity(entity, [C_JOB_PROVIDER_MEMORY.new()])
+		_job_provider_memory_entity_by_id[memory_id] = entity
+	var component = entity.get_component(C_JOB_PROVIDER_MEMORY)
+	component.apply_data(data)
+	return component.to_dictionary()
+
+
+func get_job_provider_memory(provider_or_id) -> Array[Dictionary]:
+	var provider_id := _provider_id_from_value(provider_or_id)
+	var records: Array[Dictionary] = []
+	if world == null or provider_id.is_empty():
+		return records
+	for entity in world.query.with_all([C_JOB_PROVIDER_MEMORY]).execute():
+		var component = entity.get_component(C_JOB_PROVIDER_MEMORY)
+		if component != null and str(component.provider_id) == provider_id:
+			records.append(component.to_dictionary())
+	records.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.get("recorded_at", 0.0)) > float(b.get("recorded_at", 0.0)))
+	return records
+
+
 func upsert_activity_point(settlement_id: String, point: Node) -> void:
 	if point == null or settlement_id.is_empty():
 		return
@@ -898,6 +1118,8 @@ func serialize_state() -> Dictionary:
 		"ledger_simulation_entity_count": 1 if _ledger_simulation_entity != null and is_instance_valid(_ledger_simulation_entity) else 0,
 		"ai_scheduler_state_entity_count": 1 if _ai_scheduler_state_entity != null and is_instance_valid(_ai_scheduler_state_entity) else 0,
 		"population_realization_state_entity_count": 1 if _population_realization_state_entity != null and is_instance_valid(_population_realization_state_entity) else 0,
+		"job_contract_entity_count": _job_contract_entity_by_id.size(),
+		"job_provider_memory_entity_count": _job_provider_memory_entity_by_id.size(),
 		"spatial_cell_count": get_spatial_cell_count(),
 		"world_entity_count": world.entities.size() if world != null else 0,
 	}
@@ -926,6 +1148,7 @@ func _load_component_scripts() -> void:
 	C_VITALS = load(C_VITALS_PATH) if C_VITALS == null else C_VITALS
 	C_AI_SCHEDULE = load(C_AI_SCHEDULE_PATH) if C_AI_SCHEDULE == null else C_AI_SCHEDULE
 	C_AI_STATE = load(C_AI_STATE_PATH) if C_AI_STATE == null else C_AI_STATE
+	C_GOAL_INTENT = load(C_GOAL_INTENT_PATH) if C_GOAL_INTENT == null else C_GOAL_INTENT
 	C_POPULATION_RECORD = load(C_POPULATION_RECORD_PATH) if C_POPULATION_RECORD == null else C_POPULATION_RECORD
 	C_SETTLEMENT_STATE = load(C_SETTLEMENT_STATE_PATH) if C_SETTLEMENT_STATE == null else C_SETTLEMENT_STATE
 	C_STAFF_SLOT = load(C_STAFF_SLOT_PATH) if C_STAFF_SLOT == null else C_STAFF_SLOT
@@ -937,6 +1160,8 @@ func _load_component_scripts() -> void:
 	C_JOB_PROVIDER = load(C_JOB_PROVIDER_PATH) if C_JOB_PROVIDER == null else C_JOB_PROVIDER
 	C_JOB_PROVIDER_SLOT = load(C_JOB_PROVIDER_SLOT_PATH) if C_JOB_PROVIDER_SLOT == null else C_JOB_PROVIDER_SLOT
 	C_JOB_WORKER_RECORD = load(C_JOB_WORKER_RECORD_PATH) if C_JOB_WORKER_RECORD == null else C_JOB_WORKER_RECORD
+	C_JOB_CONTRACT = load(C_JOB_CONTRACT_PATH) if C_JOB_CONTRACT == null else C_JOB_CONTRACT
+	C_JOB_PROVIDER_MEMORY = load(C_JOB_PROVIDER_MEMORY_PATH) if C_JOB_PROVIDER_MEMORY == null else C_JOB_PROVIDER_MEMORY
 	C_ACTIVITY_POINT = load(C_ACTIVITY_POINT_PATH) if C_ACTIVITY_POINT == null else C_ACTIVITY_POINT
 	C_ACTIVITY_ASSIGNMENT = load(C_ACTIVITY_ASSIGNMENT_PATH) if C_ACTIVITY_ASSIGNMENT == null else C_ACTIVITY_ASSIGNMENT
 	C_WORLD_TIME = load(C_WORLD_TIME_PATH) if C_WORLD_TIME == null else C_WORLD_TIME
@@ -960,6 +1185,7 @@ func _component_scripts_loaded() -> bool:
 		C_VITALS,
 		C_AI_SCHEDULE,
 		C_AI_STATE,
+		C_GOAL_INTENT,
 		C_POPULATION_RECORD,
 		C_SETTLEMENT_STATE,
 		C_STAFF_SLOT,
@@ -971,6 +1197,8 @@ func _component_scripts_loaded() -> bool:
 		C_JOB_PROVIDER,
 		C_JOB_PROVIDER_SLOT,
 		C_JOB_WORKER_RECORD,
+		C_JOB_CONTRACT,
+		C_JOB_PROVIDER_MEMORY,
 		C_ACTIVITY_POINT,
 		C_ACTIVITY_ASSIGNMENT,
 		C_WORLD_TIME,
@@ -1455,6 +1683,7 @@ func _actor_state_from_entity(entity) -> Dictionary:
 	var settlement = entity.get_component(C_SETTLEMENT)
 	var spatial = entity.get_component(C_SPATIAL)
 	var vitals = entity.get_component(C_VITALS)
+	var goal_intent = entity.get_component(C_GOAL_INTENT) if C_GOAL_INTENT != null else null
 	var actor_id := str(identity.actor_id)
 	var state := {
 		"actor_id": actor_id,
@@ -1485,7 +1714,19 @@ func _actor_state_from_entity(entity) -> Dictionary:
 		state["max_hp"] = float(vitals.max_hp)
 		state["blood"] = float(vitals.blood)
 		state["max_blood"] = float(vitals.max_blood)
+	if goal_intent != null and goal_intent.has_method("to_dictionary"):
+		state["goal_intent"] = goal_intent.call("to_dictionary", false)
 	return state
+
+
+func _ensure_actor_goal_intent_component(entity):
+	if entity == null or C_GOAL_INTENT == null:
+		return null
+	var goal_intent = entity.get_component(C_GOAL_INTENT)
+	if goal_intent == null:
+		goal_intent = C_GOAL_INTENT.new()
+		entity.add_component(goal_intent)
+	return goal_intent
 
 
 func _actor_id_for_actor(actor: Node, settlement_id: String) -> String:
@@ -1552,6 +1793,49 @@ func _provider_id(provider: Node) -> String:
 	if provider.is_inside_tree():
 		return str(provider.get_path())
 	return str(provider.get_instance_id())
+
+
+func _provider_id_from_value(value) -> String:
+	if value is Node:
+		return _provider_id(value)
+	return str(value).strip_edges()
+
+
+func _actor_id_from_value(value) -> String:
+	if value is Node:
+		return _actor_record_id(value)
+	return str(value).strip_edges()
+
+
+func _make_job_contract_id(data: Dictionary) -> String:
+	return "%s:%s:%s" % [str(data.get("actor_id", "")), str(data.get("provider_id", "")), str(data.get("job_id", data.get("job_index", "job")))]
+
+
+func _next_job_contract_priority(actor_id: String) -> int:
+	var next_priority := 0
+	for contract in get_actor_job_contracts(actor_id):
+		next_priority = maxi(next_priority, int(contract.get("priority_order", 0)) + 1)
+	return next_priority
+
+
+func _rewrite_job_contract_priorities(contracts: Array[Dictionary]) -> void:
+	for index in range(contracts.size()):
+		var contract_id := str(contracts[index].get("contract_id", ""))
+		var entity = _job_contract_entity_by_id.get(contract_id)
+		if entity == null or not is_instance_valid(entity):
+			continue
+		var component = entity.get_component(C_JOB_CONTRACT)
+		if component != null:
+			component.priority_order = index
+
+
+func _notify_live_provider_contract_abandoned(contract: Dictionary, reason: String) -> void:
+	var provider_path: NodePath = contract.get("provider_path", NodePath())
+	if provider_path == NodePath():
+		return
+	var provider := get_node_or_null(provider_path)
+	if provider != null and provider.has_method("on_job_contract_abandoned"):
+		provider.call("on_job_contract_abandoned", contract, reason)
 
 
 func _node_container_id(node: Node) -> String:
@@ -1621,6 +1905,8 @@ func _clear_world_entities() -> void:
 	_job_provider_entity_by_id.clear()
 	_job_provider_slot_entity_by_id.clear()
 	_job_worker_record_entity_by_id.clear()
+	_job_contract_entity_by_id.clear()
+	_job_provider_memory_entity_by_id.clear()
 	_activity_point_entity_by_id.clear()
 	_activity_assignment_entity_by_actor_id.clear()
 	_world_time_entity = null
@@ -1686,6 +1972,14 @@ func _rebuild_entity_indexes() -> void:
 		var worker_record = entity.get_component(C_JOB_WORKER_RECORD)
 		if worker_record != null:
 			_job_worker_record_entity_by_id[str(worker_record.record_id)] = entity
+	for entity in world.query.with_all([C_JOB_CONTRACT]).execute():
+		var contract = entity.get_component(C_JOB_CONTRACT)
+		if contract != null:
+			_job_contract_entity_by_id[str(contract.contract_id)] = entity
+	for entity in world.query.with_all([C_JOB_PROVIDER_MEMORY]).execute():
+		var memory = entity.get_component(C_JOB_PROVIDER_MEMORY)
+		if memory != null:
+			_job_provider_memory_entity_by_id[str(memory.memory_id)] = entity
 	for entity in world.query.with_all([C_ACTIVITY_POINT]).execute():
 		var activity_point = entity.get_component(C_ACTIVITY_POINT)
 		if activity_point != null:

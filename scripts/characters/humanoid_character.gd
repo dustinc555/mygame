@@ -8,6 +8,7 @@ const COMBAT_ANIMATION_SET_SCRIPT = preload("res://scripts/characters/combat_ani
 const COMBAT_ATTACK_ANIMATION_SCRIPT = preload("res://scripts/characters/combat_attack_animation.gd")
 const AI_BRAIN_SCRIPT = preload("res://scripts/ai/ai_brain.gd")
 const AI_JOB_SCRIPT = preload("res://scripts/ai/ai_job.gd")
+const AI_UTILITY_ADAPTER_SCRIPT = preload("res://scripts/ai/utility/ai_utility_adapter.gd")
 const HUMANOID_RAGDOLL_PROFILE_SCRIPT = preload("res://scripts/characters/humanoid_ragdoll_profile.gd")
 const STABLE_PHYSICAL_BONE_SCRIPT = preload("res://scripts/characters/stable_physical_bone.gd")
 const HUMAN_RACE = preload("res://resources/character_races/human.tres")
@@ -341,6 +342,7 @@ var _assigned_talkers: Dictionary = {}
 var _pending_talker_ids: Dictionary = {}
 var _combat_animation_sets: Dictionary = {}
 var _ai_brain
+var _ai_utility_adapter
 
 var _nameplate: Label3D
 var _inspect_ring: MeshInstance3D
@@ -395,6 +397,8 @@ func _ready() -> void:
 	_rng.randomize()
 	_ai_brain = AI_BRAIN_SCRIPT.new()
 	_ai_brain.setup(self)
+	_ai_utility_adapter = AI_UTILITY_ADAPTER_SCRIPT.new()
+	_ai_utility_adapter.setup()
 	inventory = InventoryData.new(inventory_columns, inventory_rows, max_carry_weight, true)
 	inventory.changed.connect(_on_inventory_data_changed)
 	_seed_starting_inventory()
@@ -1080,7 +1084,7 @@ func _apply_population_inventory_entries_if_present() -> void:
 	inventory.changed.emit()
 
 
-func begin_job_assignment(provider, job_label: String, work_inventory: InventoryData) -> void:
+func begin_job_assignment(provider, job_label: String, work_inventory: InventoryData, request_runtime_job := true) -> void:
 	if _work_inventory_override != null and _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
 		_work_inventory_override.changed.disconnect(_on_inventory_data_changed)
 	_active_job_provider = provider
@@ -1088,7 +1092,8 @@ func begin_job_assignment(provider, job_label: String, work_inventory: Inventory
 	_work_inventory_override = work_inventory
 	if _work_inventory_override != null and not _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
 		_work_inventory_override.changed.connect(_on_inventory_data_changed)
-	_request_assigned_work_ai_job(provider, job_label)
+	if request_runtime_job:
+		_request_assigned_work_ai_job(provider, job_label)
 	inventory_changed.emit()
 	_sync_inventory_to_gecs()
 	state_changed.emit()
@@ -1249,11 +1254,18 @@ func consume_inventory_entry(entry) -> bool:
 
 
 func get_job_status_text() -> String:
-	if _active_job_provider == null:
-		return ""
-	if _active_job_provider.has_method("get_provider_name"):
+	if _active_job_provider != null and _active_job_provider.has_method("get_provider_name"):
 		return "Working for %s" % _active_job_provider.get_provider_name()
-	return "Working"
+	if _active_job_provider != null:
+		return "Working"
+	var bridge := get_tree().get_first_node_in_group("gecs_world_controller") if is_inside_tree() else null
+	if bridge != null and bridge.has_method("get_actor_job_contracts"):
+		var contracts: Array = bridge.call("get_actor_job_contracts", self)
+		if contracts.size() == 1:
+			return "Job: %s" % str(contracts[0].get("display_name", "Job"))
+		if contracts.size() > 1:
+			return "%d jobs" % contracts.size()
+	return ""
 
 
 func is_authorized_for_owner(owner_character: HumanoidCharacter, owner_faction: String = "") -> bool:
@@ -2505,7 +2517,8 @@ func _process_ai(delta: float) -> void:
 	_clear_invalid_ai_job()
 	if _ai_brain != null:
 		_tick_active_ai_job(delta)
-	_ensure_assigned_work_ai_job()
+	if _ai_utility_adapter == null:
+		_ensure_assigned_work_ai_job()
 	_process_law_custody_return()
 	_process_law_sentence_move()
 	if _current_order_type == OrderType.HEAL and (_current_heal_target == null or not is_instance_valid(_current_heal_target)):
@@ -2523,6 +2536,8 @@ func _process_ai(delta: float) -> void:
 	if _current_attack_target != null and (not is_instance_valid(_current_attack_target) or _current_attack_target.life_state != NpcRules.LifeState.ALIVE):
 		stop_attack_assignment()
 	if not _should_run_ai_decision_tick(delta):
+		return
+	if _ai_utility_adapter != null and bool(_ai_utility_adapter.run_actor_decision(self)):
 		return
 	if _should_consider_combat_retarget():
 		var replacement_target := _find_ai_target()

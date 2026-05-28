@@ -8,12 +8,14 @@ const JOB_DEFINITION_SCRIPT = preload("res://scripts/jobs/job_definition.gd")
 const ACTOR_CONDITION_EVALUATOR_SCRIPT = preload("res://scripts/conditions/actor_condition_evaluator.gd")
 const AI_JOB_SCRIPT = preload("res://scripts/ai/ai_job.gd")
 const AI_ASSIGNED_WORK_STEP_SCRIPT = preload("res://scripts/ai/steps/ai_assigned_work_step.gd")
-const SERVER_ORDER_PREP_SECONDS := 1.25
+const SERVER_ORDER_PREP_SECONDS := 3.5
 const SERVER_STATE_IDLE := "idle"
 const SERVER_STATE_TO_CUSTOMER := "to_customer"
 const SERVER_STATE_TO_BARKEEPER := "to_barkeeper"
 const SERVER_STATE_WAITING_AT_BAR := "waiting_at_bar"
 const SERVER_STATE_DELIVERING := "delivering"
+const REPORT_GRACE_SECONDS := 45.0
+const PLAYER_PARTY_JOB_ACTION_RADIUS := 35.0
 
 @export var jobs: Array[JobDefinition] = []
 @export var wage_item_definition: Resource
@@ -126,6 +128,42 @@ func process_jobs(delta: float, sim_time: float) -> void:
 	_sync_gecs_state()
 
 
+func process_contracts(delta: float, sim_time: float) -> void:
+	_sim_time = sim_time
+	_initialize_slots()
+	_process_passive_player_party_server_contracts(delta)
+	_sync_gecs_state()
+
+
+func _process_passive_player_party_server_contracts(delta: float) -> void:
+	if delta <= 0.0:
+		return
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("get_job_contracts_for_provider") or not bridge.has_method("get_actor_by_stable_id"):
+		return
+	for contract in bridge.call("get_job_contracts_for_provider", _provider_id()):
+		if not (contract is Dictionary):
+			continue
+		var contract_data: Dictionary = contract
+		if str(contract_data.get("status", "active")) != "active":
+			continue
+		var job_index := int(contract_data.get("job_index", -1))
+		if job_index < 0 or job_index >= jobs.size():
+			continue
+		var job = jobs[job_index]
+		if job == null or str(job.algorithm_id) != "server_shift":
+			continue
+		var worker := bridge.call("get_actor_by_stable_id", str(contract_data.get("actor_id", ""))) as HumanoidCharacter
+		if not _is_player_party_worker(worker):
+			continue
+		if not _is_worker_listening_for_server_shift(worker):
+			continue
+		if not _find_worker_slot(worker).is_empty():
+			continue
+		var record := _get_worker_record(worker)
+		_accrue_worker_record_pay(record, job, delta, _job_contract_job_id(job, job_index))
+
+
 func create_assigned_work_ai_job(worker: HumanoidCharacter, job_label := ""):
 	var assignment := _find_worker_slot(worker)
 	if assignment.is_empty():
@@ -209,11 +247,13 @@ func _new_slot_state(slot_index: int) -> Dictionary:
 		"target_service_point": null,
 		"target_service_seat": null,
 		"target_service_customer": null,
+		"target_service_order_id": "",
 		"server_state": SERVER_STATE_IDLE,
 		"server_state_elapsed": 0.0,
 		"server_order_text": "",
 		"guard_shuffle_remaining": _next_guard_shuffle_seconds(),
 		"accrued_interval_time": 0.0,
+		"last_work_active": false,
 		"last_ai_blocker": "",
 	}
 
@@ -227,8 +267,11 @@ func _evaluate_job_request(worker: HumanoidCharacter, job_index: int) -> Diction
 		return {"allowed": false, "reason": "No job configured"}
 	if not _is_job_configured(job):
 		return {"allowed": false, "reason": ""}
-	if worker.get_active_job_provider() != null:
-		return {"allowed": false, "reason": "Already working"}
+	var job_id := _job_contract_job_id(job, job_index)
+	if _has_worker_contract(worker, job_id):
+		return {"allowed": false, "reason": "Already hired"}
+	if _get_contract_count_for_job(job_id) >= max(job.slot_count, 1):
+		return {"allowed": false, "reason": "No openings right now"}
 	var record := _get_worker_record(worker)
 	if float(record.get("break_until_time", 0.0)) > _sim_time:
 		return {"allowed": false, "reason": "Take a break first"}
@@ -239,8 +282,6 @@ func _evaluate_job_request(worker: HumanoidCharacter, job_index: int) -> Diction
 	})
 	if not condition_result.get("passed", false):
 		return {"allowed": false, "reason": condition_result.get("reason", "")}
-	if _find_open_slot(job_index) < 0:
-		return {"allowed": false, "reason": "No openings right now"}
 	return {"allowed": true, "reason": ""}
 
 
@@ -289,9 +330,9 @@ func _handle_job_accept(worker: HumanoidCharacter, job_index: int) -> Dictionary
 		return {"end_conversation": true}
 	_clear_pending_offer(worker)
 	var job = jobs[job_index]
-	var assignment := _assign_worker_to_open_slot(worker, job_index)
-	if not assignment.get("allowed", false):
-		return _job_unavailable_response(job, assignment)
+	var contract := _create_job_contract_for_worker(worker, job_index)
+	if not bool(contract.get("allowed", false)):
+		return _job_unavailable_response(job, contract)
 	return {
 		"speaker_text": _build_job_accept_text(job),
 		"end_conversation": true,
@@ -314,9 +355,9 @@ func _handle_selected_job_accept(worker: HumanoidCharacter, job_index: int, cont
 		return _job_unavailable_response(job, evaluation)
 	_clear_pending_offer(worker)
 	for selected_worker in selected_workers:
-		var assignment := _assign_worker_to_open_slot(selected_worker, job_index)
-		if not assignment.get("allowed", false):
-			return _job_unavailable_response(job, assignment)
+		var contract := _create_job_contract_for_worker(selected_worker, job_index)
+		if not contract.get("allowed", false):
+			return _job_unavailable_response(job, contract)
 	return {
 		"speaker_text": "Good. All of you, get to work on %s." % job.get_display_name().to_lower(),
 		"end_conversation": true,
@@ -332,6 +373,103 @@ func _assign_worker_to_open_slot(worker: HumanoidCharacter, job_index: int) -> D
 	var evaluation := _evaluate_job_request(worker, job_index)
 	if not evaluation.get("allowed", false):
 		return evaluation
+	return _claim_worker_slot(worker, job_index, true)
+
+
+func start_contract_shift(worker: HumanoidCharacter, contract: Dictionary):
+	if worker == null or contract.is_empty():
+		return null
+	var job_index := int(contract.get("job_index", -1))
+	if job_index < 0 or job_index >= jobs.size():
+		return null
+	var assignment := _find_worker_slot(worker)
+	if assignment.is_empty():
+		var claimed := _claim_worker_slot(worker, job_index, false)
+		if not bool(claimed.get("allowed", false)):
+			return null
+	_mark_contract_started(str(contract.get("contract_id", "")))
+	var ai_job = create_assigned_work_ai_job(worker, str(contract.get("display_name", "")))
+	if ai_job != null:
+		ai_job.job_id = str(contract.get("contract_id", ""))
+		ai_job.objective_id = str(contract.get("contract_id", ""))
+	return ai_job
+
+
+func get_contract_work_status(worker: HumanoidCharacter, contract: Dictionary) -> Dictionary:
+	_initialize_slots()
+	if worker == null or contract.is_empty():
+		return {"actionable": false, "reason": "No worker or contract"}
+	var job_index := int(contract.get("job_index", -1))
+	if job_index < 0 or job_index >= jobs.size():
+		return {"actionable": false, "reason": "Job index is invalid"}
+	var job = jobs[job_index]
+	if job == null or not _is_job_configured(job):
+		return {"actionable": false, "reason": "Job is not configured"}
+	var assignment := _find_worker_slot(worker)
+	if not assignment.is_empty() and int(assignment.get("job_index", -1)) == job_index:
+		return _active_slot_work_status(worker, job, assignment.get("slot_state", {}))
+	match str(job.algorithm_id):
+		"mine_and_haul":
+			return {"actionable": not _resolve_nodes(job.resource_paths).is_empty() and not _resolve_nodes(job.container_paths).is_empty(), "reason": "Mine work available"}
+		"guard_post":
+			var guard_area := _resolve_bar_service_area()
+			var guard_post = guard_area.get_available_guard_post(worker) if guard_area != null and guard_area.has_method("get_available_guard_post") else null
+			return {"actionable": guard_post != null, "reason": "Guard post available" if guard_post != null else "No guard post available"}
+		"server_shift":
+			return _server_shift_contract_work_status(worker)
+	return {"actionable": false, "reason": "Unsupported job algorithm"}
+
+
+func on_job_contract_abandoned(contract: Dictionary, _reason := "quit") -> void:
+	var actor_id := str(contract.get("actor_id", ""))
+	if actor_id.is_empty():
+		return
+	for job_index in _active_slots.keys():
+		for slot_state in _active_slots[job_index]:
+			var worker: HumanoidCharacter = slot_state.get("worker")
+			if worker != null and _get_worker_key(worker) == actor_id:
+				_end_slot_assignment(int(job_index), slot_state, true)
+				return
+
+
+func _create_job_contract_for_worker(worker: HumanoidCharacter, job_index: int) -> Dictionary:
+	var evaluation := _evaluate_job_request(worker, job_index)
+	if not bool(evaluation.get("allowed", false)):
+		return evaluation
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("upsert_job_contract"):
+		return {"allowed": false, "reason": "Job records unavailable"}
+	var job = jobs[job_index]
+	var actor_id := _get_worker_key(worker)
+	var job_id := _job_contract_job_id(job, job_index)
+	var contract: Dictionary = bridge.call("upsert_job_contract", {
+		"actor_id": actor_id,
+		"provider_id": _provider_id(),
+		"provider_name": get_provider_name(),
+		"provider_path": get_path() if is_inside_tree() else NodePath(),
+		"provider_owner_actor_id": _get_worker_key(get_provider_character()),
+		"job_id": job_id,
+		"job_index": job_index,
+		"algorithm_id": str(job.algorithm_id),
+		"display_name": job.get_display_name(),
+		"status": "active",
+		"hired_at": _sim_time,
+		"next_shift_time": _sim_time,
+		"report_deadline": _sim_time + REPORT_GRACE_SECONDS,
+		"shift_end_time": _sim_time + max_on_duty_seconds,
+		"last_started_at": -1.0,
+		"metadata": {
+			"player_party_member": _is_player_party_worker(worker),
+		},
+	})
+	_sync_gecs_state()
+	return {"allowed": not contract.is_empty(), "reason": "", "contract": contract}
+
+
+func _claim_worker_slot(worker: HumanoidCharacter, job_index: int, request_ai_job := true) -> Dictionary:
+	_initialize_slots()
+	if worker == null or job_index < 0 or job_index >= jobs.size():
+		return {"allowed": false, "reason": "No job configured"}
 	var slot_index := _find_open_slot(job_index)
 	if slot_index < 0:
 		return {"allowed": false, "reason": "No openings right now"}
@@ -346,16 +484,18 @@ func _assign_worker_to_open_slot(worker: HumanoidCharacter, job_index: int) -> D
 	slot_state["target_service_point"] = null
 	slot_state["target_service_seat"] = null
 	slot_state["target_service_customer"] = null
+	slot_state["target_service_order_id"] = ""
 	slot_state["server_state"] = SERVER_STATE_IDLE
 	slot_state["server_state_elapsed"] = 0.0
 	slot_state["server_order_text"] = ""
 	slot_state["guard_shuffle_remaining"] = _next_guard_shuffle_seconds()
 	slot_state["accrued_interval_time"] = 0.0
+	slot_state["last_work_active"] = false
 	slot_state["last_ai_blocker"] = ""
 	var record := _get_worker_record(worker)
 	record["current_shift_seconds"] = 0.0
 	record["last_job_index"] = job_index
-	worker.begin_job_assignment(self, job.get_display_name(), work_inventory)
+	worker.begin_job_assignment(self, job.get_display_name(), work_inventory, request_ai_job)
 	_sync_gecs_state()
 	return {"allowed": true, "reason": ""}
 
@@ -425,7 +565,9 @@ func _evaluate_group_job_request(workers: Array, job_index: int) -> Dictionary:
 	_initialize_slots()
 	if workers.is_empty():
 		return {"allowed": false, "reason": "No workers selected"}
-	if _get_open_slot_count(job_index) < workers.size():
+	var job = jobs[job_index] if job_index >= 0 and job_index < jobs.size() else null
+	var job_id := _job_contract_job_id(job, job_index)
+	if max(job.slot_count if job != null else 1, 1) - _get_contract_count_for_job(job_id) < workers.size():
 		return {"allowed": false, "reason": "No openings right now"}
 	for worker in workers:
 		if not (worker is HumanoidCharacter):
@@ -501,18 +643,27 @@ func _process_slot(job_index: int, job, slot_state: Dictionary, delta: float) ->
 			var service_result := _process_server_shift(job_index, job, slot_state, worker, delta)
 			is_meaningfully_working = bool(service_result.get("active", false))
 			completed_server_order = bool(service_result.get("completed_order", false))
+	slot_state["last_work_active"] = is_meaningfully_working
 	if not is_meaningfully_working:
+		if str(job.algorithm_id) == "server_shift" and _is_player_party_worker(worker):
+			_end_slot_assignment(job_index, slot_state, false)
 		return
 	var record := _get_worker_record(worker)
 	var on_duty_seconds := float(record.get("current_shift_seconds", 0.0)) + delta
 	record["current_shift_seconds"] = on_duty_seconds
-	slot_state["accrued_interval_time"] = float(slot_state.get("accrued_interval_time", 0.0)) + delta
-	while float(slot_state.get("accrued_interval_time", 0.0)) >= maxf(job.pay_interval_seconds, 0.01):
-		slot_state["accrued_interval_time"] = float(slot_state.get("accrued_interval_time", 0.0)) - maxf(job.pay_interval_seconds, 0.01)
-		record["owed_currency"] = int(record.get("owed_currency", 0)) + job.pay_per_interval
-		record["total_worked_seconds"] = float(record.get("total_worked_seconds", 0.0)) + job.pay_interval_seconds
+	if str(job.algorithm_id) == "server_shift" and _is_player_party_worker(worker):
+		_accrue_worker_record_pay(record, job, delta, _job_contract_job_id(job, job_index))
+	else:
+		slot_state["accrued_interval_time"] = float(slot_state.get("accrued_interval_time", 0.0)) + delta
+		while float(slot_state.get("accrued_interval_time", 0.0)) >= maxf(job.pay_interval_seconds, 0.01):
+			slot_state["accrued_interval_time"] = float(slot_state.get("accrued_interval_time", 0.0)) - maxf(job.pay_interval_seconds, 0.01)
+			record["owed_currency"] = int(record.get("owed_currency", 0)) + job.pay_per_interval
+			record["total_worked_seconds"] = float(record.get("total_worked_seconds", 0.0)) + job.pay_interval_seconds
 	if completed_server_order:
 		_award_server_order_completion(job, worker, record)
+		if _is_player_party_worker(worker):
+			_end_slot_assignment(job_index, slot_state, false)
+			return
 	if on_duty_seconds >= max_on_duty_seconds:
 		record["break_until_time"] = _sim_time + break_duration_seconds
 		worker.show_world_notice("%s says take a break" % get_provider_name(), Color(0.95, 0.85, 0.45, 1.0))
@@ -579,13 +730,30 @@ func _process_server_shift(_job_index: int, _job, slot_state: Dictionary, worker
 		return {"active": false, "completed_order": false}
 	var state := str(slot_state.get("server_state", SERVER_STATE_IDLE))
 	if state == SERVER_STATE_IDLE:
-		var seat = service_area.claim_waiting_customer_seat(worker) if service_area.has_method("claim_waiting_customer_seat") else null
+		var order: Dictionary = {}
+		if _is_player_party_worker(worker) and service_area.has_method("claim_waiter_order"):
+			order = service_area.claim_waiter_order(worker)
+		var seat = order.get("seat") if not order.is_empty() else null
+		if seat == null and not _is_player_party_worker(worker) and service_area.has_method("claim_waiting_customer_seat"):
+			seat = service_area.claim_waiting_customer_seat(worker)
 		if seat == null:
+			if _is_player_party_worker(worker):
+				_release_waiter_service_point(slot_state, worker)
+				return {"active": false, "completed_order": false}
 			return {"active": _hold_waiter_service_point(service_area, slot_state, worker), "completed_order": false}
 		_release_waiter_service_point(slot_state, worker)
 		slot_state["target_service_seat"] = seat
-		slot_state["target_service_customer"] = service_area.get_customer_for_seat(seat) if service_area.has_method("get_customer_for_seat") else null
-		slot_state["server_order_text"] = service_area.generate_customer_order_text(slot_state.get("target_service_customer")) if service_area.has_method("generate_customer_order_text") else "Something to eat."
+		var order_customer = order.get("customer") if not order.is_empty() else null
+		if order_customer == null and service_area.has_method("get_customer_for_seat"):
+			order_customer = service_area.get_customer_for_seat(seat)
+		slot_state["target_service_customer"] = order_customer
+		slot_state["target_service_order_id"] = str(order.get("order_id", ""))
+		var order_text := str(order.get("order_text", ""))
+		if order_text.is_empty() and service_area.has_method("generate_customer_order_text"):
+			order_text = service_area.generate_customer_order_text(slot_state.get("target_service_customer"))
+		slot_state["server_order_text"] = order_text
+		if str(slot_state.get("server_order_text", "")).is_empty():
+			slot_state["server_order_text"] = "Something to eat."
 		_set_server_state(slot_state, SERVER_STATE_TO_CUSTOMER)
 		state = SERVER_STATE_TO_CUSTOMER
 	var seat = slot_state.get("target_service_seat")
@@ -672,6 +840,101 @@ func _server_customer_service_distance(service_area: BarServiceArea, worker: Hum
 	return maxf(worker.interact_distance, float(configured) if configured != null else 2.4)
 
 
+func _is_player_party_worker(worker: HumanoidCharacter) -> bool:
+	return worker != null and worker.has_method("is_player_party_member") and bool(worker.call("is_player_party_member"))
+
+
+func _is_worker_listening_for_server_shift(worker: HumanoidCharacter) -> bool:
+	if worker == null or not is_instance_valid(worker) or worker.life_state != NpcRules.LifeState.ALIVE or worker.is_in_combat():
+		return false
+	var service_area := _resolve_bar_service_area()
+	return service_area != null and _is_worker_near_service_area(worker, service_area)
+
+
+func _accrue_worker_record_pay(record: Dictionary, job, delta: float, job_id: String) -> void:
+	if record.is_empty() or job == null or delta <= 0.0:
+		return
+	var accruals: Dictionary = record.get("contract_accrued_interval_time", {}) if record.get("contract_accrued_interval_time", {}) is Dictionary else {}
+	var key := job_id if not job_id.is_empty() else str(job.algorithm_id)
+	var accrued := float(accruals.get(key, 0.0)) + delta
+	var interval := maxf(float(job.pay_interval_seconds), 0.01)
+	while accrued >= interval:
+		accrued -= interval
+		record["owed_currency"] = int(record.get("owed_currency", 0)) + int(job.pay_per_interval)
+		record["total_worked_seconds"] = float(record.get("total_worked_seconds", 0.0)) + interval
+	accruals[key] = accrued
+	record["contract_accrued_interval_time"] = accruals
+
+
+func _active_slot_work_status(worker: HumanoidCharacter, job, slot_state: Dictionary) -> Dictionary:
+	if str(job.algorithm_id) != "server_shift":
+		return {"actionable": true, "reason": "Shift already active"}
+	var state := str(slot_state.get("server_state", SERVER_STATE_IDLE))
+	if state != SERVER_STATE_IDLE or slot_state.get("target_service_seat") != null:
+		return {"actionable": true, "reason": "Order in progress"}
+	if not _is_player_party_worker(worker):
+		return {"actionable": true, "reason": "NPC waiter idle duty"}
+	return _server_shift_contract_work_status(worker)
+
+
+func _server_shift_contract_work_status(worker: HumanoidCharacter) -> Dictionary:
+	var service_area := _resolve_bar_service_area()
+	if service_area == null:
+		return {"actionable": false, "reason": "No service area"}
+	if not _is_player_party_worker(worker):
+		return {"actionable": not service_area.get_waiter_service_points().is_empty(), "reason": "NPC waiter idle duty"}
+	if not _is_worker_near_service_area(worker, service_area):
+		return {"actionable": false, "reason": "Worker is away from the bar"}
+	var pending_order: Dictionary = service_area.call("get_pending_waiter_order_for_worker", worker) if service_area.has_method("get_pending_waiter_order_for_worker") else {}
+	var has_customer := not pending_order.is_empty() and _is_best_player_party_waiter_for_order(worker, pending_order)
+	return {"actionable": has_customer, "reason": "Customer order ready" if has_customer else "No customer orders ready"}
+
+
+func _is_best_player_party_waiter_for_order(worker: HumanoidCharacter, order: Dictionary) -> bool:
+	if worker == null or order.is_empty():
+		return false
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("get_job_contracts_for_provider") or not bridge.has_method("get_actor_by_stable_id"):
+		return true
+	var best_worker: HumanoidCharacter
+	var best_priority := INF
+	var best_distance := INF
+	var seat = order.get("seat")
+	for contract in bridge.call("get_job_contracts_for_provider", _provider_id()):
+		if not (contract is Dictionary):
+			continue
+		var contract_data: Dictionary = contract
+		if str(contract_data.get("status", "active")) != "active" or str(contract_data.get("algorithm_id", "")) != "server_shift":
+			continue
+		var metadata: Dictionary = contract_data.get("metadata", {}) if contract_data.get("metadata", {}) is Dictionary else {}
+		if not bool(metadata.get("player_party_member", false)):
+			continue
+		var candidate := bridge.call("get_actor_by_stable_id", str(contract_data.get("actor_id", ""))) as HumanoidCharacter
+		if not _is_worker_listening_for_server_shift(candidate):
+			continue
+		var candidate_priority := int(contract_data.get("priority_order", 0))
+		var candidate_distance := _waiter_order_distance_squared(candidate, seat)
+		if candidate_priority < best_priority or (candidate_priority == best_priority and candidate_distance < best_distance):
+			best_worker = candidate
+			best_priority = candidate_priority
+			best_distance = candidate_distance
+	return best_worker == worker
+
+
+func _waiter_order_distance_squared(worker: HumanoidCharacter, seat) -> float:
+	if worker == null or seat == null or not is_instance_valid(seat):
+		return INF
+	if seat is Node3D:
+		return worker.global_position.distance_squared_to((seat as Node3D).global_position)
+	return 0.0
+
+
+func _is_worker_near_service_area(worker: HumanoidCharacter, service_area: BarServiceArea) -> bool:
+	if worker == null or service_area == null:
+		return false
+	return worker.global_position.distance_to(service_area.global_position) <= PLAYER_PARTY_JOB_ACTION_RADIUS
+
+
 func _set_server_state(slot_state: Dictionary, state: String) -> void:
 	slot_state["server_state"] = state
 	slot_state["server_state_elapsed"] = 0.0
@@ -680,6 +943,7 @@ func _set_server_state(slot_state: Dictionary, state: String) -> void:
 func _reset_server_service_state(slot_state: Dictionary) -> void:
 	slot_state["target_service_seat"] = null
 	slot_state["target_service_customer"] = null
+	slot_state["target_service_order_id"] = ""
 	slot_state["server_state"] = SERVER_STATE_IDLE
 	slot_state["server_state_elapsed"] = 0.0
 	slot_state["server_order_text"] = ""
@@ -882,11 +1146,13 @@ func _end_slot_assignment(job_index: int, slot_state: Dictionary, _caused_by_pla
 	slot_state["target_service_point"] = null
 	slot_state["target_service_seat"] = null
 	slot_state["target_service_customer"] = null
+	slot_state["target_service_order_id"] = ""
 	slot_state["server_state"] = SERVER_STATE_IDLE
 	slot_state["server_state_elapsed"] = 0.0
 	slot_state["server_order_text"] = ""
 	slot_state["guard_shuffle_remaining"] = _next_guard_shuffle_seconds()
 	slot_state["accrued_interval_time"] = 0.0
+	slot_state["last_work_active"] = false
 	_sync_gecs_state()
 
 
@@ -930,14 +1196,14 @@ func _build_job_offer_text(job) -> String:
 
 func _build_job_accept_text(job) -> String:
 	if job != null and str(job.algorithm_id) == "server_shift":
-		return "Good. Watch the tables, take orders when customers call, and bring them back to me."
-	return "Good. Get to work on %s." % job.get_display_name().to_lower()
+		return "Good. You're on the floor roster. Report for shifts and watch the tables."
+	return "Good. You're on for %s." % job.get_display_name().to_lower()
 
 
 func _build_job_accept_speech(job) -> String:
 	if job != null and str(job.algorithm_id) == "server_shift":
-		return "Take the next table."
-	return "Good. Get to work."
+		return "You're on the roster."
+	return "You're hired."
 
 
 func _resolve_bar_service_area() -> BarServiceArea:
@@ -1001,10 +1267,58 @@ func _get_worker_key(worker: HumanoidCharacter) -> String:
 	return str(worker.get_instance_id())
 
 
+func _provider_id() -> String:
+	return str(get_path()) if is_inside_tree() else str(get_instance_id())
+
+
+func _job_contract_job_id(job, job_index: int) -> String:
+	if job != null and not str(job.job_id).strip_edges().is_empty():
+		return str(job.job_id).strip_edges()
+	if job != null and not str(job.algorithm_id).strip_edges().is_empty():
+		return str(job.algorithm_id).strip_edges()
+	return str(job_index)
+
+
+func _has_worker_contract(worker: HumanoidCharacter, job_id: String) -> bool:
+	var bridge := _get_gecs_world()
+	return bridge != null and bridge.has_method("has_actor_job_contract") and bool(bridge.call("has_actor_job_contract", _get_worker_key(worker), _provider_id(), job_id))
+
+
+func _get_contract_count_for_job(job_id: String) -> int:
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("get_job_contracts_for_provider"):
+		return 0
+	var count := 0
+	for contract in bridge.call("get_job_contracts_for_provider", _provider_id()):
+		if str(contract.get("job_id", "")) == job_id:
+			count += 1
+	return count
+
+
+func _mark_contract_started(contract_id: String) -> void:
+	if contract_id.is_empty():
+		return
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("mark_job_contract_started"):
+		bridge.call("mark_job_contract_started", contract_id, _sim_time)
+
+
+func _get_gecs_world() -> Node:
+	if not is_inside_tree():
+		return null
+	var current: Node = self
+	while current != null:
+		for child in current.get_children():
+			if child is Node and (child as Node).is_in_group("gecs_world_controller"):
+				return child as Node
+		current = current.get_parent()
+	return get_tree().get_first_node_in_group("gecs_world_controller")
+
+
 func _sync_gecs_state() -> void:
 	if not is_inside_tree():
 		return
-	var bridge := get_tree().get_first_node_in_group("gecs_world_controller")
+	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("sync_job_provider"):
 		bridge.call("sync_job_provider", self, _active_slots, _worker_records, _sim_time)
 

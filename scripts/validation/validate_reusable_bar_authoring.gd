@@ -8,6 +8,8 @@ const FOOD_ITEM := preload("res://resources/items/food.tres")
 const FACTION_HUMANOID_SCRIPT := preload("res://scripts/characters/faction_humanoid.gd")
 const FARMER_NAME_PROFILE := preload("res://resources/world_sim/population_name_profiles/farmer_names.tres")
 const BARBER_CONVERSATION := preload("res://resources/conversations/barber_services.tres")
+const CHARACTER_JOBS_WINDOW_SCRIPT := preload("res://scripts/ui/character_jobs_window.gd")
+const AI_UTILITY_ADAPTER_SCRIPT := preload("res://scripts/ai/utility/ai_utility_adapter.gd")
 
 var _failures: Array[String] = []
 var _scene: Node
@@ -104,6 +106,7 @@ func _validate_operator_instantiated_bar() -> void:
 	_validate_seated_talk_range(bar)
 	_validate_barkeeper_stock(bar)
 	_validate_waiter_order_job(bar, assigned_waiter, assigned_guard)
+	_validate_player_waiter_job_order_priority(bar, assigned_guard)
 	await _validate_standalone_bar_stock()
 	_validate_scene_authored_layout_source(bar)
 	_validate_layout_migration(bar)
@@ -572,7 +575,7 @@ func _validate_waiter_order_job(bar: Node, worker: HumanoidCharacter, pacing_cus
 		pacing_customer.stop_seat_assignment()
 	service_area.set("waiter_order_prompt_interval_seconds", 0.0)
 	service_area.set("waiter_order_prompt_jitter_seconds", 0.0)
-	if not _seat_actor_for_waiter_validation(customer, first_seat):
+	if not _seat_actor_for_waiter_validation(customer, second_seat):
 		_fail("Waiter order validation customer should be seated before service")
 		provider.call("pause_worker_job", worker, false)
 		_restore_waiter_validation_service_config(service_area, original_service_delay, original_prompt_interval, original_prompt_jitter)
@@ -580,7 +583,7 @@ func _validate_waiter_order_job(bar: Node, worker: HumanoidCharacter, pacing_cus
 	_configure_waiter_check(job, 1.0)
 	var before_success_xp := float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA))
 	var before_success_owed := int(record.get("owed_currency", 0))
-	_complete_waiter_order(provider, service_area, worker, first_seat, pay_interval + 3.0)
+	_complete_waiter_order(provider, service_area, worker, second_seat, pay_interval + 3.0)
 	record = provider.call("_get_worker_record", worker)
 	var success_xp_delta := float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA)) - before_success_xp
 	if absf(success_xp_delta - 0.25) > 0.01:
@@ -590,6 +593,166 @@ func _validate_waiter_order_job(bar: Node, worker: HumanoidCharacter, pacing_cus
 	provider.call("pause_worker_job", worker, false)
 	customer.stop_seat_assignment()
 	_restore_waiter_validation_service_config(service_area, original_service_delay, original_prompt_interval, original_prompt_jitter)
+
+
+func _validate_player_waiter_job_order_priority(bar: Node, customer: HumanoidCharacter) -> void:
+	var service_area := bar.get_node_or_null("BarServiceArea")
+	var provider := bar.get_node_or_null("Staff/Barkeeper/JobProvider")
+	var player := _scene.get_node_or_null("PartyMembers/Mira") as HumanoidCharacter
+	var bridge := _get_gecs_world()
+	var seats: Array = []
+	if service_area != null:
+		seats = service_area.call("_collect_seat_nodes")
+	var server_job_index := _server_shift_job_index(provider) if provider != null else -1
+	var guard_job_index := _job_index_for_algorithm(provider, "guard_post") if provider != null else -1
+	if service_area == null or provider == null or player == null or customer == null or bridge == null or seats.is_empty() or server_job_index < 0 or guard_job_index < 0:
+		_fail("Player waiter job validation could not find service area, provider, bridge, player, customer, seat, server job, or guard job")
+		return
+	var original_service_delay := float(service_area.get("waiter_service_delay_seconds"))
+	var original_prompt_interval := float(service_area.get("waiter_order_prompt_interval_seconds"))
+	var original_prompt_jitter := float(service_area.get("waiter_order_prompt_jitter_seconds"))
+	service_area.set("waiter_service_delay_seconds", 999.0)
+	service_area.set("waiter_order_prompt_interval_seconds", 0.0)
+	service_area.set("waiter_order_prompt_jitter_seconds", 0.0)
+	player.stop_seat_assignment()
+	if not _accept_job_offer(provider, player, server_job_index):
+		_fail("Player party worker should be able to accept a durable server_shift contract")
+		_restore_waiter_validation_service_config(service_area, original_service_delay, original_prompt_interval, original_prompt_jitter)
+		return
+	if not _accept_job_offer(provider, player, guard_job_index):
+		_fail("Player party worker should be able to accept a durable guard contract alongside waiter")
+		_restore_waiter_validation_service_config(service_area, original_service_delay, original_prompt_interval, original_prompt_jitter)
+		return
+	var waiter_contract := _contract_for_job(bridge.call("get_actor_job_contracts", player), "bar_server")
+	var guard_contract := _contract_for_job(bridge.call("get_actor_job_contracts", player), "bar_guard")
+	if waiter_contract.is_empty() or guard_contract.is_empty():
+		_fail("Accepted waiter and guard jobs should both appear as Mira job contracts")
+		_restore_waiter_validation_service_config(service_area, original_service_delay, original_prompt_interval, original_prompt_jitter)
+		return
+	var jobs: Array = provider.get("jobs")
+	var server_job = jobs[server_job_index]
+	var pay_interval := maxf(float(server_job.get("pay_interval_seconds")), 0.01)
+	player.global_position = service_area.global_position
+	var record: Dictionary = provider.call("_get_worker_record", player)
+	var owed_before_passive := int(record.get("owed_currency", 0))
+	provider.call("process_contracts", pay_interval, pay_interval)
+	record = provider.call("_get_worker_record", player)
+	if int(record.get("owed_currency", 0)) - owed_before_passive < int(server_job.get("pay_per_interval")):
+		_fail("Player party waiter jobs should accrue base wages while Mira is listening in the bar")
+	var owed_after_passive := int(record.get("owed_currency", 0))
+	var guard_job = provider.call("start_contract_shift", player, guard_contract)
+	if guard_job != null:
+		provider.call("process_contracts", pay_interval, pay_interval * 2.0)
+		record = provider.call("_get_worker_record", player)
+		if int(record.get("owed_currency", 0)) != owed_after_passive:
+			_fail("Player party waiter base wages should not accrue while Mira is actively working another job")
+		provider.call("pause_worker_job", player, false)
+	var jobs_window = CHARACTER_JOBS_WINDOW_SCRIPT.new()
+	root.add_child(jobs_window)
+	jobs_window.call("setup", _scene)
+	jobs_window.call("show_for_actor", player)
+	var window_contracts: Array = jobs_window.call("_get_contracts")
+	if _contract_for_job(window_contracts, "bar_server").is_empty() or _contract_for_job(window_contracts, "bar_guard").is_empty():
+		_fail("Mira's Jobs window should show accepted waiter and guard contracts")
+	jobs_window.queue_free()
+	player.set_move_target(player.global_position + Vector3(1.0, 0.0, 0.0), true)
+	if bridge.call("get_actor_job_contracts", player).size() < 2:
+		_fail("Player movement orders should not remove durable job contracts")
+	player.call("cancel_ai_job")
+	player.set("_current_order_type", 0)
+	player.set("_order_was_player_issued", false)
+	var waiter_idle_status: Dictionary = provider.call("get_contract_work_status", player, waiter_contract)
+	var guard_status: Dictionary = provider.call("get_contract_work_status", player, guard_contract)
+	if bool(waiter_idle_status.get("actionable", false)):
+		_fail("Player waiter job should be passive when no NPC order is ready")
+	if not bool(guard_status.get("actionable", false)):
+		_fail("Guard job should remain actionable while higher-priority waiter has no order")
+	for point in service_area.call("get_waiter_service_points"):
+		if point != null and point.has_method("get_assigned_worker") and point.call("get_assigned_worker") == player:
+			_fail("Player party waiter jobs should not claim or idle at NPC waiter points")
+	var seat = seats[0]
+	service_area.set("waiter_service_delay_seconds", 0.0)
+	if not _seat_actor_for_waiter_validation(customer, seat):
+		_fail("Player waiter job validation customer should be seated before service")
+	else:
+		var waiter_ready_status: Dictionary = provider.call("get_contract_work_status", player, waiter_contract)
+		if not bool(waiter_ready_status.get("actionable", false)):
+			_fail("Player waiter job should become actionable when an NPC customer order is ready")
+		var utility_adapter = AI_UTILITY_ADAPTER_SCRIPT.new()
+		utility_adapter.setup()
+		if not bool(utility_adapter.run_actor_decision(player)):
+			var debug_context = utility_adapter.build_context(player)
+			var debug_decision = utility_adapter.selector.decide(debug_context, utility_adapter.profile, utility_adapter.target_selector)
+			var adapter_bridge = utility_adapter.call("_get_gecs_world", player)
+			var adapter_contract_count := 0
+			var contract_debug: Array[String] = []
+			if adapter_bridge != null and adapter_bridge.has_method("get_actor_job_contracts"):
+				var adapter_contracts: Array = adapter_bridge.call("get_actor_job_contracts", player)
+				adapter_contract_count = adapter_contracts.size()
+				for contract_debug_data in adapter_contracts:
+					if not (contract_debug_data is Dictionary):
+						continue
+					var contract_debug_dict: Dictionary = contract_debug_data
+					var resolved_provider = utility_adapter.call("_resolve_contract_provider", player, contract_debug_dict)
+					var status_debug: Dictionary = provider.call("get_contract_work_status", player, contract_debug_dict)
+					contract_debug.append("%s next=%.2f resolved=%s actionable=%s reason=%s" % [str(contract_debug_dict.get("job_id", "")), float(contract_debug_dict.get("next_shift_time", 0.0)), str(resolved_provider != null), str(status_debug.get("actionable", false)), str(status_debug.get("reason", ""))])
+			_fail("Utility AI should start the player waiter contract when an NPC customer order is ready: goal=%s sim=%.2f work=%.2f targets=%d contracts=%d bridge=%s details=%s active=%s" % [str(debug_decision.selected_goal_id), debug_context.sim_time, debug_context.get_fact(&"assigned_work_available", 0.0), debug_context.get_targets(&"work_provider").size(), adapter_contract_count, str(adapter_bridge.get_path() if adapter_bridge != null else NodePath()), str(contract_debug), str(player.call("get_ai_debug_snapshot"))])
+		player.global_position = service_area.call("get_waiter_customer_service_position", player, seat)
+		provider.call("process_jobs", 0.1, 1.0)
+		var claimed_assignment: Dictionary = provider.call("_find_worker_slot", player)
+		var claimed_slot: Dictionary = claimed_assignment.get("slot_state", {})
+		var claimed_order_id := str(claimed_slot.get("target_service_order_id", ""))
+		var claimed_state := str(claimed_slot.get("server_state", ""))
+		utility_adapter.run_actor_decision(player)
+		claimed_assignment = provider.call("_find_worker_slot", player)
+		claimed_slot = claimed_assignment.get("slot_state", {})
+		if claimed_order_id.is_empty() or str(claimed_slot.get("target_service_order_id", "")) != claimed_order_id or str(claimed_slot.get("server_state", "")) != claimed_state:
+			_fail("Utility AI re-decisions should not pause and restart an already-claimed player waiter order")
+		record = provider.call("_get_worker_record", player)
+		var owed_before := int(record.get("owed_currency", 0))
+		var charisma_xp_before := float(player.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA))
+		_complete_player_waiter_order(provider, service_area, player, seat, 2.0, charisma_xp_before)
+		var charisma_xp_delta := float(player.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA)) - charisma_xp_before
+		if charisma_xp_delta <= 0.0:
+			var active_assignment: Dictionary = provider.call("_find_worker_slot", player)
+			var active_slot: Dictionary = active_assignment.get("slot_state", {})
+			var service_position: Vector3 = service_area.call("get_waiter_customer_service_position", player, seat)
+			_fail("Player party waiter jobs should complete NPC customer service events and award service XP, state=%s elapsed=%.2f distance=%.2f blocker=%s" % [str(active_slot.get("server_state", "")), float(active_slot.get("server_state_elapsed", 0.0)), player.global_position.distance_to(service_position), str(active_slot.get("last_ai_blocker", ""))])
+		record = provider.call("_get_worker_record", player)
+		if int(record.get("owed_currency", 0)) < owed_before:
+			_fail("Player party waiter order completion should not lose owed wages")
+		var xp_after_completion := float(player.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA))
+		var owed_after_completion := int(record.get("owed_currency", 0))
+		provider.call("process_jobs", 1.0, 20.0)
+		record = provider.call("_get_worker_record", player)
+		if float(player.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA)) != xp_after_completion or int(record.get("owed_currency", 0)) != owed_after_completion:
+			_fail("Repeated waiter ticks after completion should not award duplicate Charisma XP or pay")
+		if not bool(service_area.call("_is_seat_on_waiter_order_cooldown", seat)):
+			_fail("The same served table should enter a cooldown after player-party waiter service")
+	if bridge.call("get_actor_job_contracts", player).size() < 2:
+		_fail("Completing a player-party waiter order should not remove waiter or guard contracts")
+	provider.call("pause_worker_job", player, false)
+	customer.stop_seat_assignment()
+	_restore_waiter_validation_service_config(service_area, original_service_delay, original_prompt_interval, original_prompt_jitter)
+
+
+func _complete_player_waiter_order(provider: Node, service_area: Node, worker: HumanoidCharacter, seat, start_time: float, xp_before: float) -> void:
+	var sim_time := start_time
+	for _attempt in range(8):
+		var assignment: Dictionary = provider.call("_find_worker_slot", worker)
+		var slot_state: Dictionary = assignment.get("slot_state", {})
+		var state := str(slot_state.get("server_state", "idle"))
+		var target_seat = slot_state.get("target_service_seat")
+		if target_seat == null or not is_instance_valid(target_seat):
+			target_seat = seat
+		if state == "to_barkeeper" or state == "waiting_at_bar":
+			worker.global_position = service_area.call("get_barkeeper_order_position", worker)
+		else:
+			worker.global_position = service_area.call("get_waiter_customer_service_position", worker, target_seat)
+		provider.call("process_jobs", 1.5, sim_time)
+		sim_time += 1.5
+		if float(worker.get_skill_xp(SkillRules.ATTRIBUTE_CHARISMA)) > xp_before and str(slot_state.get("server_state", "")) == "idle":
+			return
 
 
 func _validate_waiter_charisma_xp_curve(provider: Node, job, worker: HumanoidCharacter) -> void:
@@ -640,9 +803,9 @@ func _complete_waiter_order(provider: Node, service_area: Node, worker: Humanoid
 	provider.call("process_jobs", 0.1, start_time)
 	worker.global_position = service_area.call("get_barkeeper_order_position", worker)
 	provider.call("process_jobs", 0.1, start_time + 0.1)
-	provider.call("process_jobs", 2.0, start_time + 2.1)
+	provider.call("process_jobs", 4.0, start_time + 4.1)
 	worker.global_position = service_area.call("get_waiter_customer_service_position", worker, seat)
-	provider.call("process_jobs", 0.1, start_time + 2.2)
+	provider.call("process_jobs", 0.1, start_time + 4.2)
 
 
 func _configure_waiter_check(job, chance: float) -> void:
@@ -692,12 +855,35 @@ func _validate_player_waiter_order_action(bar: Node) -> void:
 
 
 func _server_shift_job_index(provider: Node) -> int:
+	return _job_index_for_algorithm(provider, "server_shift")
+
+
+func _job_index_for_algorithm(provider: Node, algorithm_id: String) -> int:
+	if provider == null:
+		return -1
 	var jobs: Array = provider.get("jobs")
 	for index in range(jobs.size()):
 		var job = jobs[index]
-		if job != null and str(job.get("algorithm_id")) == "server_shift":
+		if job != null and str(job.get("algorithm_id")) == algorithm_id:
 			return index
 	return -1
+
+
+func _accept_job_offer(provider: Node, worker: HumanoidCharacter, job_index: int) -> bool:
+	if provider == null or worker == null or job_index < 0:
+		return false
+	var request: Dictionary = provider.call("handle_conversation_option", worker, {"job_provider_action": "request_job", "job_index": job_index})
+	if bool(request.get("end_conversation", true)):
+		return false
+	var accepted: Dictionary = provider.call("handle_conversation_option", worker, {"job_provider_action": "accept_job_offer", "job_index": job_index})
+	return bool(accepted.get("end_conversation", false))
+
+
+func _contract_for_job(contracts: Array, job_id: String) -> Dictionary:
+	for contract in contracts:
+		if contract is Dictionary and str(contract.get("job_id", "")) == job_id:
+			return contract
+	return {}
 
 
 func _validate_waiter_job_offer_text(provider: Node, job_index: int) -> void:
@@ -882,6 +1068,10 @@ func _seat_for_sitter(bar: Node, actor: HumanoidCharacter) -> Node3D:
 
 func _flat_vector(value: Vector3) -> Vector3:
 	return Vector3(value.x, 0.0, value.z)
+
+
+func _get_gecs_world() -> Node:
+	return get_first_node_in_group("gecs_world_controller")
 
 
 func _wait_frames(frame_count: int) -> void:

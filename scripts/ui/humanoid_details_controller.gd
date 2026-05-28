@@ -5,6 +5,7 @@ class_name HumanoidDetailsController
 signal inspector_action_requested(target, action_key: String)
 
 const CHARACTER_SKILLS_WINDOW_SCRIPT = preload("res://scripts/ui/character_skills_window.gd")
+const CHARACTER_JOBS_WINDOW_SCRIPT = preload("res://scripts/ui/character_jobs_window.gd")
 
 const BLOOD_GLOW_CRITICAL_LOSS_PER_SECOND := 8.0
 const ACTION_ATTACK := "attack"
@@ -12,6 +13,7 @@ const ACTION_CARRY := "carry"
 const ACTION_FINISH_OFF := "finish_off"
 const ACTION_HEAL := "heal"
 const ACTION_INVENTORY := "inventory"
+const ACTION_JOBS := "jobs"
 const ACTION_MINE := "mine"
 const ACTION_OPEN_CONTAINER := "open_container"
 const ACTION_ORDER := "order"
@@ -62,6 +64,7 @@ var info_rows: Array[Control] = []
 var info_labels: Array[Label] = []
 var info_values: Array[Label] = []
 var skills_window: Control
+var jobs_window: Control
 var current_target
 var _initialized := false
 
@@ -156,6 +159,7 @@ func _do_initialize() -> void:
 	_register_action_button("Margin/DetailsVBox/ActionRow/SecondaryActionButton")
 	_register_action_button("Margin/DetailsVBox/ActionRow/TertiaryActionButton")
 	_register_action_button("Margin/DetailsVBox/ActionRow/MoreActionButton")
+	_register_action_button("Margin/DetailsVBox/ActionRow/JobsActionButton")
 	details_panel.visible = true
 	_initialized = true
 	_update_panel()
@@ -275,6 +279,7 @@ func _get_humanoid_actions(target: HumanoidCharacter) -> Array:
 	var actions: Array = []
 	if target.is_player_party_member():
 		actions.append({"key": ACTION_INVENTORY, "label": "Inventory"})
+		actions.append({"key": ACTION_JOBS, "label": "Jobs"})
 		if _target_can_open_skills():
 			actions.append({"key": ACTION_SKILLS, "label": "Skills"})
 		if target.life_state == NpcRules.LifeState.ASLEEP:
@@ -295,6 +300,7 @@ func _get_humanoid_actions(target: HumanoidCharacter) -> Array:
 		actions.append({"key": ACTION_TALK, "label": "Talk"})
 	if target.has_method("get_merchant_role") and target.get_merchant_role() != null:
 		actions.append({"key": ACTION_TRADE, "label": "Trade"})
+	actions.append({"key": ACTION_JOBS, "label": "Jobs"})
 	actions.append({"key": ACTION_ATTACK, "label": "Attack"})
 	actions.append({"key": ACTION_HEAL, "label": "Heal"})
 	return actions
@@ -350,6 +356,9 @@ func _on_action_button_pressed(button: Button) -> void:
 		return
 	if action_key == ACTION_SKILLS:
 		_on_skills_button_pressed()
+		return
+	if action_key == ACTION_JOBS:
+		_on_jobs_button_pressed()
 		return
 	if not _has_valid_current_target():
 		return
@@ -797,6 +806,10 @@ func _target_can_open_skills() -> bool:
 	return _has_valid_current_target() and current_target is HumanoidCharacter and current_target.is_player_party_member() and bool(current_target.get("is_selected"))
 
 
+func _target_can_open_jobs() -> bool:
+	return _has_valid_current_target() and current_target is HumanoidCharacter
+
+
 func _target_can_order_from_waiter(target: HumanoidCharacter) -> bool:
 	if target == null or not target.is_player_party_member() or not target.has_method("is_sitting") or not target.is_sitting():
 		return false
@@ -831,6 +844,24 @@ func _ensure_skills_window() -> void:
 	skills_window.name = "CharacterSkillsWindow"
 	hud_layer.add_child(skills_window)
 	skills_window.visible = false
+
+
+func _on_jobs_button_pressed() -> void:
+	if not _target_can_open_jobs():
+		return
+	_ensure_jobs_window()
+	jobs_window.call("show_for_actor", current_target)
+
+
+func _ensure_jobs_window() -> void:
+	if jobs_window != null and is_instance_valid(jobs_window):
+		return
+	jobs_window = CHARACTER_JOBS_WINDOW_SCRIPT.new() as Control
+	jobs_window.name = "CharacterJobsWindow"
+	hud_layer.add_child(jobs_window)
+	if jobs_window.has_method("setup"):
+		jobs_window.call("setup", root_scene)
+	jobs_window.visible = false
 
 
 func _update_hp_bar_visuals(current_hp: float, open_cut: float, bandaged_cut: float, max_hp: float, blunt_damage: float = 0.0) -> void:

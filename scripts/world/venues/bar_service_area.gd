@@ -47,6 +47,8 @@ const CUSTOMER_READY_LINES := [
 @export var waiter_service_delay_seconds := 7.0
 @export var waiter_order_prompt_interval_seconds := 10.0
 @export var waiter_order_prompt_jitter_seconds := 3.0
+@export var waiter_customer_repeat_cooldown_seconds := 45.0
+@export var waiter_order_claim_timeout_seconds := 30.0
 @export var waiter_service_distance := 2.4
 @export var table_service_radius := 2.8
 @export var guard_shuffle_min_seconds := 120.0
@@ -64,6 +66,9 @@ var _proxied_owner: HumanoidCharacter
 var _guard_post_by_actor_id: Dictionary = {}
 var _guard_shuffle_remaining_by_actor_id: Dictionary = {}
 var _next_waiter_order_prompt_seconds := 0.0
+var _pending_waiter_order: Dictionary = {}
+var _seat_order_cooldown_until: Dictionary = {}
+var _waiter_order_sequence := 0
 var _rng := RandomNumberGenerator.new()
 
 signal inventory_changed
@@ -273,7 +278,28 @@ func claim_waiting_customer_seat(worker: HumanoidCharacter):
 	return _claim_waiting_customer_seat(worker, false)
 
 
+func has_waiting_customer_for_service(worker: HumanoidCharacter, include_player_party := false, include_npcs := true) -> bool:
+	return _find_waiting_customer_seat(worker, include_player_party, include_npcs, false) != null
+
+
+func has_pending_waiter_order_for_worker(worker: HumanoidCharacter) -> bool:
+	return not _get_or_create_waiter_order(worker, false).is_empty()
+
+
+func get_pending_waiter_order_for_worker(worker: HumanoidCharacter) -> Dictionary:
+	return _get_or_create_waiter_order(worker, false)
+
+
+func claim_waiter_order(worker: HumanoidCharacter) -> Dictionary:
+	return _get_or_create_waiter_order(worker, true)
+
+
 func release_waiter_customer_service(seat) -> void:
+	if _pending_order_matches_seat(seat):
+		_pending_waiter_order["status"] = "pending"
+		_pending_waiter_order["claimed_by"] = null
+		_pending_waiter_order["claimed_at"] = 0.0
+		return
 	if seat != null and is_instance_valid(seat) and seat.has_method("clear_service_request"):
 		seat.clear_service_request()
 
@@ -284,6 +310,7 @@ func complete_waiter_customer_service(seat) -> void:
 		seat.mark_service_completed()
 		completed = true
 	if completed:
+		_record_waiter_order_completion(seat)
 		schedule_next_waiter_order_prompt()
 
 
@@ -427,6 +454,100 @@ func serves_actor(actor: Node) -> bool:
 
 
 func _claim_waiting_customer_seat(worker: HumanoidCharacter, include_player_party: bool):
+	return _find_waiting_customer_seat(worker, include_player_party, true, true)
+
+
+func _get_or_create_waiter_order(worker: HumanoidCharacter, claim: bool) -> Dictionary:
+	_prune_waiter_order_state()
+	if not _pending_waiter_order.is_empty():
+		if not _can_worker_use_pending_order(worker):
+			return {}
+		if claim:
+			_claim_pending_waiter_order(worker)
+		return _pending_waiter_order.duplicate(false)
+	if (waiter_order_prompt_interval_seconds > 0.0 or waiter_order_prompt_jitter_seconds > 0.0) and _now_seconds() < _next_waiter_order_prompt_seconds:
+		return {}
+	var seat = _select_waiter_order_seat(worker, false, true)
+	if seat == null:
+		return {}
+	var customer := get_customer_for_seat(seat)
+	if customer == null:
+		return {}
+	_waiter_order_sequence += 1
+	_pending_waiter_order = {
+		"order_id": "%s.order.%d" % [service_area_id if not service_area_id.is_empty() else str(get_path()), _waiter_order_sequence],
+		"seat": seat,
+		"customer": customer,
+		"order_text": generate_customer_order_text(customer),
+		"status": "pending",
+		"created_at": _now_seconds(),
+		"claimed_by": null,
+		"claimed_at": 0.0,
+	}
+	if seat.has_method("mark_service_requested"):
+		seat.mark_service_requested()
+	customer.show_world_speech(generate_customer_ready_text(customer), 1.8)
+	if claim:
+		_claim_pending_waiter_order(worker)
+	return _pending_waiter_order.duplicate(false)
+
+
+func _claim_pending_waiter_order(worker: HumanoidCharacter) -> void:
+	if worker == null or _pending_waiter_order.is_empty():
+		return
+	_pending_waiter_order["status"] = "claimed"
+	_pending_waiter_order["claimed_by"] = worker
+	_pending_waiter_order["claimed_at"] = _now_seconds()
+
+
+func _can_worker_use_pending_order(worker: HumanoidCharacter) -> bool:
+	if worker == null or _pending_waiter_order.is_empty():
+		return false
+	var seat = _pending_waiter_order.get("seat")
+	var customer: HumanoidCharacter = _pending_waiter_order.get("customer")
+	if seat == null or not is_instance_valid(seat) or customer == null or not is_instance_valid(customer):
+		_pending_waiter_order.clear()
+		return false
+	if customer == worker or customer.life_state != NpcRules.LifeState.ALIVE or not customer.has_method("is_sitting") or not customer.is_sitting():
+		_pending_waiter_order.clear()
+		return false
+	var claimed_by: HumanoidCharacter = _pending_waiter_order.get("claimed_by")
+	if claimed_by == null:
+		return true
+	if not is_instance_valid(claimed_by):
+		_pending_waiter_order["claimed_by"] = null
+		_pending_waiter_order["status"] = "pending"
+		return true
+	if claimed_by == worker:
+		return true
+	var claimed_at := float(_pending_waiter_order.get("claimed_at", 0.0))
+	if waiter_order_claim_timeout_seconds > 0.0 and _now_seconds() - claimed_at >= waiter_order_claim_timeout_seconds:
+		_pending_waiter_order["claimed_by"] = null
+		_pending_waiter_order["status"] = "pending"
+		_pending_waiter_order["claimed_at"] = 0.0
+		return true
+	return false
+
+
+func _select_waiter_order_seat(worker: HumanoidCharacter, include_player_party: bool, include_npcs: bool):
+	var seats: Array = []
+	for seat in _collect_seat_nodes():
+		if seat == null or not seat.has_method("is_waiting_customer_for_service"):
+			continue
+		if _is_seat_on_waiter_order_cooldown(seat):
+			continue
+		if not seat.is_waiting_customer_for_service(waiter_service_delay_seconds, include_player_party, include_npcs):
+			continue
+		var seated_customer := get_customer_for_seat(seat)
+		if seated_customer == null or seated_customer == worker:
+			continue
+		seats.append(seat)
+	if seats.is_empty():
+		return null
+	return seats[_rng.randi_range(0, seats.size() - 1)]
+
+
+func _find_waiting_customer_seat(worker: HumanoidCharacter, include_player_party: bool, include_npcs: bool, mark_requested: bool):
 	var now_seconds := _now_seconds()
 	if (waiter_order_prompt_interval_seconds > 0.0 or waiter_order_prompt_jitter_seconds > 0.0) and now_seconds < _next_waiter_order_prompt_seconds:
 		return null
@@ -435,7 +556,9 @@ func _claim_waiting_customer_seat(worker: HumanoidCharacter, include_player_part
 	for seat in _collect_seat_nodes():
 		if seat == null or not seat.has_method("is_waiting_customer_for_service"):
 			continue
-		if not seat.is_waiting_customer_for_service(waiter_service_delay_seconds, include_player_party, true):
+		if _is_seat_on_waiter_order_cooldown(seat):
+			continue
+		if not seat.is_waiting_customer_for_service(waiter_service_delay_seconds, include_player_party, include_npcs):
 			continue
 		var seated_customer := get_customer_for_seat(seat)
 		if seated_customer == null or seated_customer == worker:
@@ -445,12 +568,55 @@ func _claim_waiting_customer_seat(worker: HumanoidCharacter, include_player_part
 		if distance < best_distance:
 			best_distance = distance
 			best_seat = seat
-	if best_seat != null and best_seat.has_method("mark_service_requested"):
+	if mark_requested and best_seat != null and best_seat.has_method("mark_service_requested"):
 		best_seat.mark_service_requested()
 		var selected_customer := get_customer_for_seat(best_seat)
 		if selected_customer != null:
 			selected_customer.show_world_speech(generate_customer_ready_text(selected_customer), 1.8)
 	return best_seat
+
+
+func _record_waiter_order_completion(seat) -> void:
+	if seat == null:
+		return
+	var key := _node_key(seat)
+	if not key.is_empty():
+		_seat_order_cooldown_until[key] = _now_seconds() + maxf(waiter_customer_repeat_cooldown_seconds, 0.0)
+	if _pending_order_matches_seat(seat):
+		_pending_waiter_order.clear()
+
+
+func _pending_order_matches_seat(seat) -> bool:
+	return seat != null and not _pending_waiter_order.is_empty() and _pending_waiter_order.get("seat") == seat
+
+
+func _is_seat_on_waiter_order_cooldown(seat) -> bool:
+	var key := _node_key(seat)
+	if key.is_empty():
+		return false
+	var until := float(_seat_order_cooldown_until.get(key, 0.0))
+	if until <= _now_seconds():
+		_seat_order_cooldown_until.erase(key)
+		return false
+	return true
+
+
+func _prune_waiter_order_state() -> void:
+	if _pending_waiter_order.is_empty():
+		return
+	var seat = _pending_waiter_order.get("seat")
+	var customer: HumanoidCharacter = _pending_waiter_order.get("customer")
+	if seat == null or not is_instance_valid(seat) or customer == null or not is_instance_valid(customer):
+		_pending_waiter_order.clear()
+		return
+	if customer.life_state != NpcRules.LifeState.ALIVE or not customer.has_method("is_sitting") or not customer.is_sitting():
+		_pending_waiter_order.clear()
+		return
+	var claimed_by: HumanoidCharacter = _pending_waiter_order.get("claimed_by")
+	if claimed_by != null and (not is_instance_valid(claimed_by) or (waiter_order_claim_timeout_seconds > 0.0 and _now_seconds() - float(_pending_waiter_order.get("claimed_at", 0.0)) >= waiter_order_claim_timeout_seconds)):
+		_pending_waiter_order["claimed_by"] = null
+		_pending_waiter_order["status"] = "pending"
+		_pending_waiter_order["claimed_at"] = 0.0
 
 
 func _is_bed_rented_to_faction(bed, faction_name: String) -> bool:

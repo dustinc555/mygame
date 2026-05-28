@@ -392,3 +392,11 @@ focus_mode = 0
 theme_override_styles/normal = SubResource("StyleBoxFlat_button_flat")
 theme_override_font_sizes/font_size = 10
 text = "More"
+
+[node name="JobsActionButton" type="Button" parent="Margin/DetailsVBox/ActionRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_flat")
+theme_override_font_sizes/font_size = 10
+text = "Jobs"
