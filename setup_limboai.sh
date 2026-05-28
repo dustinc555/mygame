@@ -16,7 +16,11 @@ cleanup() {
 trap cleanup EXIT
 
 if [[ -d "${ADDON_DIR}" ]]; then
-	if [[ -f "${ADDON_DIR}/version.txt" ]] && [[ "$(tr -d '\r\n' < "${ADDON_DIR}/version.txt")" == "${VERSION#v}" ]]; then
+	installed_version=""
+	if [[ -f "${ADDON_DIR}/version.txt" ]]; then
+		installed_version="$(tr -d '\r\n' < "${ADDON_DIR}/version.txt")"
+	fi
+	if [[ "${installed_version}" == "${VERSION}" || "${installed_version}" == "${VERSION#v}" ]]; then
 		printf 'LimboAI %s is already installed at %s\n' "${VERSION}" "${ADDON_DIR}"
 		exit 0
 	fi

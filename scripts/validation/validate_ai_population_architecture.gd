@@ -356,7 +356,8 @@ func _validate_malformed_ai_step_failure() -> void:
 	var job = AI_JOB_SCRIPT.new()
 	job.job_type = AI_JOB_SCRIPT.JobType.AMBIENT_ACTIVITY
 	job.priority = AI_JOB_SCRIPT.priority_for_type(job.job_type)
-	job.steps = [Node.new()]
+	var invalid_step := Node.new()
+	job.steps = [invalid_step]
 	if not brain.request_job(job):
 		_fail("AiBrain should accept malformed jobs so the driver can fail them safely")
 	brain.tick(0.1)
@@ -364,6 +365,7 @@ func _validate_malformed_ai_step_failure() -> void:
 	var completed: Dictionary = snapshot.get("last_completed_job", {})
 	if int(completed.get("status", -1)) != AI_JOB_SCRIPT.JobStatus.FAILED:
 		_fail("Malformed AI job steps should fail safely instead of crashing")
+	invalid_step.free()
 	actor.queue_free()
 
 
