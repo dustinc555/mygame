@@ -1,93 +1,73 @@
 # AGENT.md
 
-## Core Runtime Architecture
+This is the single project guidance file for coding agents. Human-facing architecture lives in `architecture/README.md`; human editor workflows live in `operator/`.
+
+## Core Architecture
 - GECS is the canonical game-state layer. Durable actor records, job metadata, scheduler state, world simulation state, save/load truth, and long-lived gameplay state belong in GECS-backed controllers/components.
 - LimboAI is the realized actor behavior execution layer. Live NPC jobs run through `AiBrain -> AiJob -> AiLimboJobDriver -> BTPlayer/BehaviorTree -> BTAction wrappers`.
-- LimboAI is fetched locally, not versioned. If `addons/limboai/` is missing, run `./setup_limboai.sh` from the project root before Godot validation.
-- Godot Navigation remains the 3D movement/pathfinding layer through `WorldActor`, `HumanoidCharacter`, and `NavigationAgent3D`.
-- `HumanoidCharacter` is an actuator for movement, combat, interaction, equipment, needs, and animation. Do not move durable state ownership or broad autonomous decision ownership into character nodes.
-- LimboAI blackboards are runtime scratch unless a value is explicitly mirrored to GECS. Do not treat LimboAI blackboard values as save/load truth.
-- `AiBrain.request_job()` is the compatibility facade for gameplay systems. Existing `AiJob`/`AiTaskStep` data is migration scaffolding; new realized behavior should move toward LimboAI tasks/trees that call existing actuator methods.
-- `AiSchedulerController` controls AI tick cadence, and `ActorQueryController` owns broad live actor lookup. Do not add per-frame all-humanoid scans.
+- Godot Navigation remains the 3D pathfinding layer through `WorldActor`, `HumanoidCharacter`, and `NavigationAgent3D`.
+- `HumanoidCharacter` and `WorldActor` are actuators for movement, combat, interaction, equipment, needs, and animation. Do not move durable state ownership or broad autonomous decision ownership into actor nodes.
+- AI chooses intent. GECS-backed systems/controllers validate and apply consequences.
+- LimboAI blackboards are runtime scratch unless a value is explicitly mirrored to GECS. Do not treat blackboard values as save/load truth.
 
-## Test Levels
-- Test/demo levels live in `scenes/test_levels/`.
-- Follow `scenes/test_levels/AGENT.md` when working in those scenes.
-- Treat `project.godot` `run/main_scene` as user-owned development state. Do not revert, normalize, or restore it unless the user explicitly asks. If validation changes it, leave it alone and only mention it if it causes a validation failure.
+## Setup And Docs
+- LimboAI is fetched locally, not versioned. If `addons/limboai/` is missing, run `./setup_limboai.sh` before Godot validation.
+- Keep `SETUP.md` for setup instructions and `ATTRIBUTION.md` for licenses.
+- Keep `operator/` as concise human editor instructions. Update it when reusable editor workflows change.
+- Leave vendor docs under `addons/gecs/docs/` alone unless explicitly asked to edit vendor content.
+- Do not use the phrase "you're right" in user-facing replies. Acknowledge issues directly.
 
-## 3D Navigation
-- Before editing 3D navigation, actor movement, stair traversal, building collision, or squad route code, read `scripts/navigation/AGENT.md`, `scripts/actors/AGENT.md`, and `scenes/world/buildings/AGENT.md`.
-- Validate navigation fixes with live `CharacterBody3D` movement through the actual scene, not only with static navmesh path queries.
-- Treat unexpected vertical offsets, path simplification through collision, disconnected stair landings, and dropped move targets as first-suspect causes for 3D navigation failures.
+## State And Persistence
+- Controllers/components own mutable runtime truth. Nodes and resources author data, bridge scene content, execute local behavior, and display state.
+- Use stable IDs for anything that may persist, serialize, replicate, or be referenced by other systems.
+- Serializable state should be dictionaries, arrays, strings, numbers, booleans, and basic Godot value types.
+- Do not serialize live `Node`, `Resource`, signal, callable, or scene-instance references as durable state.
+- `WorldTimeController` is the time authority for simulation changes.
+- `GameBootstrap` owns shared controller/system wiring. Test/demo scenes must not own core gameplay systems.
 
-## Architecture Rules
-- Before editing, search for all applicable `AGENT.md` files in the project and follow the most specific guidance for the files being touched.
-- Do not use the phrase "you're right" in user-facing replies. Acknowledge issues directly without that wording.
-- Before shared system, gameplay architecture, persistence, world simulation, settlement, faction, inventory, job, or bootstrap work, read `architecture/README.md` and the relevant docs in `architecture/`.
-- When changing system ownership, scene contracts, runtime state shape, editor workflow, or online/server compatibility assumptions, update the relevant `architecture/` docs in the same task.
-- When changing world-sim data relationships, settlement/faction/territory/job/inventory ownership, or controller serialization, update the node data graph in `architecture/game-data.md`.
-- Before changing NPC AI, generated population, actor realization, broad actor queries, or unloaded NPC simulation, read `architecture/ai-and-population.md`.
-- NPC autonomy must use `AiBrain`/`AiJob` as the job facade, LimboAI for realized behavior execution, GECS-backed controllers/components for persistent state, `PopulationController` for persistent actor identity, `ActorQueryController` for broad live actor lookup, and `AiSchedulerController` for staggered decision ticks.
-- Reusable editor-authored content must be designed for a human operator using the Godot editor, not just for code-driven setup.
-- Prefer drag-in scenes, `class_name` nodes, exported fields, named child roots, safe defaults, stable IDs, and clear editor workflows.
-- If reusable content only works in one test/demo scene, refactor it into a reusable contract before continuing.
-- When changing how a human operator adds, configures, or composes reusable content, update concise instructions in `operator/` in the same task.
-- Scenes are composition only. Test/demo scenes place content and shared anchor nodes; they do not own gameplay features.
-- Bootstrap owns systems. Shared gameplay, UI, and controller wiring must live in `GameBootstrap` or another reusable bootstrap layer.
-- No scene-specific feature logic. If a feature only works in one demo scene, stop and refactor it into a reusable system before continuing.
-- Shared scene contract first. When adding a new system, define the nodes/components the bootstrap expects instead of hardcoding feature behavior into a level.
-- Test levels are proofs, not implementations. Levels may customize content and instructions, but not core interaction, inventory, combat, trade, HUD, AI, or simulation logic.
-- Before writing code, ask: `If I drag this asset into another bootstrapped scene, will it still work?` If not, refactor first.
+## AI And Population
+- Persistent NPCs must have `PopulationController` actor records before relying on long-lived behavior.
+- `PopulationRealizationController` decides which actor records become live scene actors.
+- `LedgerSimulationController` advances far/unloaded actors abstractly through controller records.
+- `AiSchedulerController` controls decision cadence. Do not make every actor think every frame.
+- `ActorQueryController` owns broad live actor lookup. Do not add per-frame all-humanoid scans.
+- `AiBrain.request_job()` is the compatibility facade for gameplay systems. `AiTaskStep` is migration scaffolding; new realized behavior should move toward LimboAI tasks/trees that call existing actuator methods.
+- Far actors use cheap GECS ledger simulation, not behavior trees, nav agents, or live scene actors.
 
-## Game Realism
-- Prioritize realism for gameplay behavior, world interaction, item placement, movement, inventory, economy, and simulation decisions.
-- Do not allow convenience shortcuts that break physical plausibility, such as dropping inventory items across the map, spawning objects through floors, or ignoring character reach.
-- If realism conflicts with UI convenience, preserve realism first unless the user explicitly approves an arcade-style exception.
+## Scenes And Authoring
+- Scenes compose reusable systems; they do not own one-off gameplay features.
+- Reusable editor content must work when dragged into another bootstrapped scene.
+- Prefer `class_name` nodes, exported fields, named child roots, safe defaults, stable IDs, and clear editor workflows.
+- Visual shells stay separate from gameplay function. A building model is neutral; a facility function makes it a bar, field, shop, jail, mine, or storage site.
+- Test levels are proofs, not implementations. If a feature only works in one test scene, refactor it into a reusable system.
+- Treat `project.godot` `run/main_scene` as user-owned development state. Do not revert or normalize it unless explicitly asked.
 
-## Human Operator Design
-- A human operator should be able to add reusable gameplay content from the editor without reading implementation code.
-- Visual shells should stay separate from gameplay function; for example, a building model is neutral and a facility function makes it a bar, field, shop, police station, mine, or other facility.
-- Generated or self-built node trees must remain readable, editable, and stable in the editor.
-- Before considering reusable editor content complete, confirm the operator can add it with `Add Child Node` or `Instantiate Child Scene...`, set obvious exported fields, replace visual models safely, and reuse it in another bootstrapped scene.
+## Navigation And Buildings
+- Prefer real walkable 3D geometry over `NavigationLink3D` for stairs, ramps, bridges, roofs, and normal building traversal.
+- Use hidden ramp collision plus visible step meshes for reliable `CharacterBody3D` stairs.
+- Keep move targets on or very near the navmesh. Do not add Y offsets to movement targets unless a local interaction truly needs a non-floor target.
+- Do not turn navigation path point Y into upward actor velocity. Let `move_and_slide()`, floor snapping, and walkable collision handle vertical movement.
+- Be suspicious of path simplification in interiors, stairs, roofs, railings, and tight corners.
+- Validate navigation fixes with live `CharacterBody3D` movement through the actual scene, not only static path queries.
 
-## Character And Equipment Modeling
-- Characters use race definitions and body archetype definitions. Do not treat sex/body/race as hardcoded scene-specific state.
-- `ItemDefinition` is gameplay-facing item data. Worn clothing model selection belongs in `EquipmentVisualDefinition` entries, usually stored in `ItemDefinition.equipped_visuals`.
-- Clothing should bind to the live character skeleton when possible. Do not create scene-specific clothing animation hacks.
-- Body hiding is off by default. Do not hide or delete body meshes to fix clipping unless an explicit, operator-authored body-region system is in place for that asset.
-- Avoid a full race-by-sex-by-item matrix when adding races. Reuse compatible body fit families where possible and add exact archetype visuals only where the shared fit fails.
+## Characters, Items, And Skills
+- Characters use race definitions and body archetype definitions. Do not hardcode sex/body/race in scene-specific logic.
+- `ItemDefinition` is gameplay-facing item data. Worn clothing visuals belong in `EquipmentVisualDefinition` entries, usually under `ItemDefinition.equipped_visuals`.
+- Clothing should bind to the live character skeleton. Do not hide body meshes for clipping unless explicit operator-authored body-region data exists.
+- Hand-held equipment attaches by aligning item `GripPoint_Primary` to generated body sockets such as `RightHandGrip` and `LeftHandGrip`.
+- Do not hardcode per-item weapon placement in scripts. Fix wrapper scenes, item resources, or shared grip socket profiles.
+- Skills and attributes belong to `WorldActor`, use stable dotted IDs from `SkillRules`, and share the centralized XP curve.
 
-## Imported Assets
-- Imported third-party assets must live under `assets/vendor/<author>/<pack>/` unless explicitly approved otherwise.
+## Imports And Licensing
+- Imported third-party assets live under `assets/vendor/<author>/<pack>/` unless explicitly approved otherwise.
 - Every imported asset pack must be listed in `ATTRIBUTION.md` with author, license, source URL, and project path.
-- Do not add, keep, or reference imported assets that are missing approved source and license information.
-- Always validate current and newly introduced license terms from the live/source license text before importing or retaining third-party assets.
-- Prefer simple permissive/free-use licenses such as `CC0`, public domain, `MIT`, `BSD`, `Apache-2.0`, or equivalent commercial-use-safe terms.
-- Red alert: stop and flag any license or source terms that could require payment, royalties, revenue share, source disclosure, project relicensing, ownership transfer, loss of project ownership, restrictions on commercial use, restrictions on modification or redistribution, copyleft/share-alike obligations, or any obligation that could compromise the project.
-- Red alert: stop and flag unclear custom licenses, marketplace-only terms, personal-use-only terms, educational-use-only terms, no-derivatives terms, AI-generated/copyright-ambiguous assets, and licenses such as `GPL`, `AGPL`, `LGPL`, or `CC BY-SA` unless explicitly approved before import.
-- Project-authored meshes built from Godot primitives or custom code do not need attribution entries.
+- Prefer permissive/commercial-safe licenses such as `CC0`, public domain, `MIT`, `BSD`, or `Apache-2.0`.
+- Stop and flag unclear, personal-use, no-derivatives, copyleft/share-alike, royalty, source-disclosure, or ownership-risk licenses.
+- Use real-world scale: `1 Godot unit = 1 meter`, `1 Blender unit = 1 meter`.
 
-## Required Validation
-- Whole project: run `godot --headless --editor --path . --quit`
-  - This must exit with code `0`.
-  - Treat any parse error, load error, missing resource error, or broken reference in output as a validation failure.
-
-- Runtime boot: run `timeout 5s godot --headless --path .`
-  - This must exit without parse errors, stack traces, or runtime type errors in output.
-  - Use this to catch scene instantiation and `_ready()` failures that `--check-only` misses.
-
-- Changed GDScript file: run `godot --headless --path . --check-only --script res://path/to/file.gd`
-  - Replace `res://path/to/file.gd` with the modified script.
-  - This must exit with code `0`.
-  - Any parse error means validation failed.
-
-## Implementation Notes
-- Import and scale new models using `IMPORT_GUIDELINES.md`.
-- When instantiating a scene that depends on its initial transform in `_ready()`, set its position before `add_child()` or provide an explicit setup method and call it immediately after adding it.
-- Keep typed `@onready` variables aligned with the exact node type in the scene tree; mismatches can pass parse checks and fail only at runtime.
-
-- If the project uses C#: run `godot --headless --path . --build-solutions --quit`
-  - This must exit with code `0`.
-  - Any compiler/build error means validation failed.
-
+## Validation
+- Whole project: `godot --headless --editor --path . --quit`.
+- Runtime boot: `timeout 5s godot --headless --path .`.
+- Changed GDScript file: `godot --headless --path . --check-only --script res://path/to/file.gd`.
+- If the project uses C#: `godot --headless --path . --build-solutions --quit`.
 - Do not say validation passed unless the command was actually run and succeeded.
