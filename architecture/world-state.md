@@ -91,8 +91,8 @@ The bridge may use node paths internally, but persisted state should refer to st
 
 ## AI And Population State
 
-Realized actors execute behavior through `AiBrain` jobs and `HumanoidCharacter` actuator methods. Non-realized actors stay in `PopulationController` records and are advanced by ledger simulation.
+GECS-backed controllers/components own durable AI and population state. Realized actors execute behavior through `AiBrain` jobs backed by LimboAI `BTPlayer`/`BehaviorTree` execution, then call `HumanoidCharacter` actuator methods. Non-realized actors stay in `PopulationController` records and are advanced by ledger simulation.
 
-Live AI debug state may contain node references while the actor exists, but durable world state should serialize stable IDs, record dictionaries, and job/source identifiers instead of live references.
+Live AI debug state and LimboAI blackboards may contain node references while the actor exists, but durable world state should serialize stable IDs, record dictionaries, and job/source identifiers instead of live references.
 
 Autonomous decision systems should use `AiSchedulerController` and `ActorQueryController`. Avoid controller or actor code that scans every humanoid every frame.

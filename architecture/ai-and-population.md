@@ -9,7 +9,7 @@ NPC identity, realization, and autonomous behavior are shared runtime systems.
 - `LedgerSimulationController` advances non-realized actor records from world time without instantiating NPC scenes.
 - `ActorQueryController` is the shared lookup/index for live actors. Broad systems should query it instead of scanning every humanoid each frame.
 - `AiSchedulerController` staggers decision ticks. Autonomous decision code must not make every actor think every frame.
-- `AiBrain` is the live actor job runtime. `HumanoidCharacter` remains the actuator for movement, combat, interaction, equipment, needs, and animation.
+- `AiBrain` is the live actor job facade. LimboAI executes realized actor behavior jobs. `HumanoidCharacter` remains the actuator for movement, combat, interaction, equipment, needs, and animation.
 
 ## Actor Records
 
@@ -29,19 +29,21 @@ Authored humanoids are also registered into population records. Missing stable I
 - `important_plus_near`: realize important roles plus actors near the player party.
 - `near_player`: realize only actors near the player party.
 
-Large cities should lower realization policy only after their ledger behavior covers the unloaded activities they need. Realized actors run `AiBrain`; ledger actors advance through controller-owned records.
+Large cities should lower realization policy only after their ledger behavior covers the unloaded activities they need. Realized actors run LimboAI-backed jobs through `AiBrain`; ledger actors advance through controller-owned records.
 
 ## AI Jobs
 
 The canonical live behavior path is:
 
 ```text
-AiBrain -> AiJob -> AiJobDriver -> AiTaskStep -> HumanoidCharacter actuator methods
+AiBrain -> AiJob -> AiLimboJobDriver -> BTPlayer/BehaviorTree -> BTAction wrappers -> HumanoidCharacter actuator methods
 ```
 
 Use `AiJob` for autonomous behavior packages, combat/law jobs, assigned work, guard posts, ambient activity, and new player-command overrides as they are migrated. Current player movement still uses the existing `HumanoidCharacter` order actuator path, while player combat participates in AI priority. Jobs carry type, priority, source ID, target ID, debug label, interrupt policy, and task steps. Player-issued jobs should have higher priority than ambient or work jobs.
 
-`AiTaskStep` should call existing actuator methods such as `set_move_target`, `assign_seat_target`, `assign_mining_resource`, or facility contracts. Do not duplicate movement, seating, combat, mining, or inventory algorithms inside AI steps.
+LimboAI is a realized behavior execution layer, not state ownership. Durable job state, scheduler state, actor records, and save/load truth stay in GECS. LimboAI blackboards are runtime scratch unless a value is explicitly mirrored to GECS.
+
+`AiTaskStep` remains a compatibility data shape during migration and is executed through LimboAI `BTAction` wrappers. New behavior should move toward authored LimboAI tasks and trees that call existing actuator methods such as `set_move_target`, `assign_seat_target`, `assign_mining_resource`, or facility contracts. Do not duplicate movement, seating, combat, mining, or inventory algorithms inside AI tasks.
 
 Current bridges:
 

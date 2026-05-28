@@ -1,5 +1,15 @@
 # AGENT.md
 
+## Core Runtime Architecture
+- GECS is the canonical game-state layer. Durable actor records, job metadata, scheduler state, world simulation state, save/load truth, and long-lived gameplay state belong in GECS-backed controllers/components.
+- LimboAI is the realized actor behavior execution layer. Live NPC jobs run through `AiBrain -> AiJob -> AiLimboJobDriver -> BTPlayer/BehaviorTree -> BTAction wrappers`.
+- LimboAI is fetched locally, not versioned. If `addons/limboai/` is missing, run `./setup_limboai.sh` from the project root before Godot validation.
+- Godot Navigation remains the 3D movement/pathfinding layer through `WorldActor`, `HumanoidCharacter`, and `NavigationAgent3D`.
+- `HumanoidCharacter` is an actuator for movement, combat, interaction, equipment, needs, and animation. Do not move durable state ownership or broad autonomous decision ownership into character nodes.
+- LimboAI blackboards are runtime scratch unless a value is explicitly mirrored to GECS. Do not treat LimboAI blackboard values as save/load truth.
+- `AiBrain.request_job()` is the compatibility facade for gameplay systems. Existing `AiJob`/`AiTaskStep` data is migration scaffolding; new realized behavior should move toward LimboAI tasks/trees that call existing actuator methods.
+- `AiSchedulerController` controls AI tick cadence, and `ActorQueryController` owns broad live actor lookup. Do not add per-frame all-humanoid scans.
+
 ## Test Levels
 - Test/demo levels live in `scenes/test_levels/`.
 - Follow `scenes/test_levels/AGENT.md` when working in those scenes.
@@ -17,7 +27,7 @@
 - When changing system ownership, scene contracts, runtime state shape, editor workflow, or online/server compatibility assumptions, update the relevant `architecture/` docs in the same task.
 - When changing world-sim data relationships, settlement/faction/territory/job/inventory ownership, or controller serialization, update the node data graph in `architecture/game-data.md`.
 - Before changing NPC AI, generated population, actor realization, broad actor queries, or unloaded NPC simulation, read `architecture/ai-and-population.md`.
-- NPC autonomy must use `AiBrain`/`AiJob`/`AiTaskStep` for behavior ownership, `PopulationController` for persistent actor identity, `ActorQueryController` for broad live actor lookup, and `AiSchedulerController` for staggered decision ticks.
+- NPC autonomy must use `AiBrain`/`AiJob` as the job facade, LimboAI for realized behavior execution, GECS-backed controllers/components for persistent state, `PopulationController` for persistent actor identity, `ActorQueryController` for broad live actor lookup, and `AiSchedulerController` for staggered decision ticks.
 - Reusable editor-authored content must be designed for a human operator using the Godot editor, not just for code-driven setup.
 - Prefer drag-in scenes, `class_name` nodes, exported fields, named child roots, safe defaults, stable IDs, and clear editor workflows.
 - If reusable content only works in one test/demo scene, refactor it into a reusable contract before continuing.

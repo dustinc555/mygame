@@ -45,6 +45,6 @@
 ## Humanoid AI Role
 - `HumanoidCharacter` is the actuator for movement, combat, interaction, needs, equipment, and animation. Do not move high-level autonomous decision ownership into this script.
 - Use `request_ai_job()`, `cancel_ai_job()`, and `get_ai_debug_snapshot()` to bridge behavior systems into `AiBrain`.
-- New autonomous behavior should enter through `AiJob` and small `AiTaskStep` classes that call existing actuator methods.
+- New autonomous behavior should enter through `AiJob` and LimboAI tasks/trees that call existing actuator methods. `AiTaskStep` is compatibility scaffolding during migration, not the target shape for new behavior.
 - Use `AiSchedulerController` for decision cadence and `ActorQueryController` for broad actor lookup. Do not add per-frame all-humanoid scans here.
 - Persistent identity changes must remain compatible with `PopulationController` registration and `stable_id`/`actor_record_id` metadata.

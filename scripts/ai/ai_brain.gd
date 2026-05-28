@@ -4,7 +4,7 @@ class_name AiBrain
 
 const AI_BLACKBOARD_SCRIPT = preload("res://scripts/ai/ai_blackboard.gd")
 const AI_JOB_SCRIPT = preload("res://scripts/ai/ai_job.gd")
-const AI_JOB_DRIVER_SCRIPT = preload("res://scripts/ai/ai_job_driver.gd")
+const AI_LIMBO_JOB_DRIVER_SCRIPT = preload("res://scripts/ai/limbo/ai_limbo_job_driver.gd")
 const AI_TASK_STEP_SCRIPT = preload("res://scripts/ai/ai_task_step.gd")
 
 var owner = null
@@ -31,8 +31,10 @@ func request_job(job) -> bool:
 	if active_job.job_id.is_empty():
 		active_job.job_id = _make_job_id(active_job)
 	if active_job.steps.size() > 0:
-		active_driver = AI_JOB_DRIVER_SCRIPT.new()
+		active_driver = AI_LIMBO_JOB_DRIVER_SCRIPT.new()
 		active_driver.setup(owner, active_job)
+		if owner is Node:
+			owner.add_child(active_driver)
 	blackboard.set_fact("active_job_type", job.job_type)
 	blackboard.set_fact("active_target", job.target)
 	blackboard.set_fact("active_priority", job.priority)
@@ -142,10 +144,12 @@ func get_debug_snapshot() -> Dictionary:
 
 
 func _finish_active_job(status: int) -> void:
+	var finished_driver = active_driver
 	if active_job != null:
 		active_job.status = status
 		last_completed_job_snapshot = active_job.get_debug_snapshot() if active_job.has_method("get_debug_snapshot") else {}
 	active_driver = null
+	_dispose_driver(finished_driver)
 	_clear_active_job_without_filters()
 
 
@@ -153,6 +157,13 @@ func _cancel_active_driver() -> void:
 	if active_driver != null:
 		active_driver.cancel()
 	active_driver = null
+
+
+func _dispose_driver(driver) -> void:
+	if driver == null:
+		return
+	if driver.has_method("dispose"):
+		driver.call("dispose")
 
 
 func _clear_active_job_without_filters() -> void:
