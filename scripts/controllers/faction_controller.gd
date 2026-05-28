@@ -15,6 +15,7 @@ const DIPLOMACY_VASSAL := "vassal"
 const DIPLOMACY_TRIBUTARY := "tributary"
 const DIPLOMACY_PROTECTORATE := "protectorate"
 const DIRECTIONAL_STATES := [DIPLOMACY_VASSAL, DIPLOMACY_TRIBUTARY, DIPLOMACY_PROTECTORATE]
+const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://scripts/controllers/gecs_world_controller.gd")
 const FACTIONS_BUTTON_PARENT_PATH := NodePath("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadCommandStrip")
 const FACTIONS_MENU_LAYER_PATH := NodePath("InventoryWindowLayer")
 
@@ -37,12 +38,14 @@ func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
 	root_scene = target_root
 	hud_layer = target_hud
 	_collect_definitions()
+	refresh_from_gecs_state()
 	_setup_factions_ui()
 
 
 func _ready() -> void:
 	add_to_group("faction_controller")
 	_collect_definitions()
+	refresh_from_gecs_state()
 	_setup_factions_ui()
 
 
@@ -109,6 +112,7 @@ func set_diplomatic_state(faction_a: String, faction_b: String, state: String, p
 		"primary_faction_id": primary_faction_id,
 		"secondary_faction_id": secondary_faction_id,
 	}
+	_save_faction_state_to_gecs()
 	faction_relations_changed.emit()
 	_refresh_factions_window()
 
@@ -158,6 +162,7 @@ func should_player_help_faction(faction_id: String) -> bool:
 
 func set_help_allies(value: bool) -> void:
 	help_allies = value
+	_save_faction_state_to_gecs()
 	faction_relations_changed.emit()
 	_refresh_factions_window()
 
@@ -168,6 +173,7 @@ func get_reputation(faction_a: String, faction_b: String) -> int:
 
 func set_reputation(faction_a: String, faction_b: String, value: int) -> void:
 	reputations[_relation_key(faction_a, faction_b)] = clampi(value, -100, 100)
+	_save_faction_state_to_gecs()
 	faction_relations_changed.emit()
 	_refresh_factions_window()
 
@@ -205,6 +211,7 @@ func set_favor_points(faction_id: String, value: int) -> void:
 	if faction_id.is_empty():
 		return
 	favor_points[faction_id] = max(0, value)
+	_save_faction_state_to_gecs()
 	faction_relations_changed.emit()
 	_refresh_factions_window()
 
@@ -229,13 +236,58 @@ func record_player_combat_against(faction_id: String, reputation_loss := -1) -> 
 
 
 func serialize_state() -> Dictionary:
+	_save_faction_state_to_gecs()
+	var state := _current_faction_state()
+	state["faction_ids"] = faction_definitions.keys()
+	return state
+
+
+func apply_serialized_state(state: Dictionary) -> void:
+	if state.is_empty():
+		refresh_from_gecs_state()
+		return
+	reputations = (state.get("reputations", {}) as Dictionary).duplicate(true)
+	favor_points = (state.get("favor_points", {}) as Dictionary).duplicate(true)
+	diplomatic_states = (state.get("diplomatic_states", {}) as Dictionary).duplicate(true)
+	help_allies = bool(state.get("help_allies", help_allies))
+	_save_faction_state_to_gecs()
+	faction_relations_changed.emit()
+	_refresh_factions_window()
+
+
+func refresh_from_gecs_state() -> void:
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("get_faction_state"):
+		return
+	var state: Dictionary = bridge.call("get_faction_state")
+	if state.is_empty():
+		return
+	reputations = (state.get("reputations", {}) as Dictionary).duplicate(true)
+	favor_points = (state.get("favor_points", {}) as Dictionary).duplicate(true)
+	diplomatic_states = (state.get("diplomatic_states", {}) as Dictionary).duplicate(true)
+	help_allies = bool(state.get("help_allies", help_allies))
+	faction_relations_changed.emit()
+	_refresh_factions_window()
+
+
+func sync_faction_state() -> void:
+	_save_faction_state_to_gecs()
+
+
+func _current_faction_state() -> Dictionary:
 	return {
-		"faction_ids": faction_definitions.keys(),
+		"state_id": "factions",
 		"reputations": reputations.duplicate(true),
 		"favor_points": favor_points.duplicate(true),
 		"diplomatic_states": diplomatic_states.duplicate(true),
 		"help_allies": help_allies,
 	}
+
+
+func _save_faction_state_to_gecs() -> void:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("upsert_faction_state"):
+		bridge.call("upsert_faction_state", _current_faction_state())
 
 
 func _collect_definitions() -> void:
@@ -289,6 +341,26 @@ func _resource_id(definition: Resource) -> String:
 	if definition != null and definition.has_method("get_id"):
 		return str(definition.call("get_id"))
 	return ""
+
+
+func _get_gecs_world() -> Node:
+	if not is_inside_tree():
+		return null
+	var parent_node := get_parent()
+	if parent_node != null:
+		var local := parent_node.get_node_or_null("GecsWorldController")
+		if local != null:
+			return local
+	var existing := get_tree().get_first_node_in_group("gecs_world_controller")
+	if existing != null and (parent_node == null or existing.get_parent() == parent_node):
+		return existing
+	if parent_node == null:
+		return null
+	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
+	bridge.name = "GecsWorldController"
+	parent_node.add_child(bridge)
+	bridge.call("initialize", root_scene if root_scene != null else parent_node)
+	return bridge
 
 
 func _resource_is_hostile_to(definition: Resource, other_faction_id: String) -> bool:

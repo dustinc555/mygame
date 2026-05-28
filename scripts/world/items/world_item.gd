@@ -39,6 +39,7 @@ func _ready() -> void:
 	add_to_group("world_item")
 	_rebuild_visual()
 	_refresh_label()
+	_sync_world_item_to_gecs()
 
 
 func setup(definition: ItemDefinition, amount: int = 1, item_contained_item_counts: Dictionary = {}) -> void:
@@ -47,6 +48,7 @@ func setup(definition: ItemDefinition, amount: int = 1, item_contained_item_coun
 	contained_item_counts = item_contained_item_counts.duplicate(true)
 	_rebuild_visual()
 	_refresh_label()
+	_sync_world_item_to_gecs()
 
 
 func get_pickup_position(_actor) -> Vector3:
@@ -92,6 +94,7 @@ func try_pickup(actor) -> bool:
 	if not picked_up:
 		_show_pickup_failure(actor)
 		return false
+	_remove_world_item_from_gecs()
 	queue_free()
 	return true
 
@@ -157,6 +160,23 @@ func _refresh_label() -> void:
 		label.text = "%s (Stolen)" % item_label
 	else:
 		label.text = "%s (Owned)" % item_label if not owner_faction_name.is_empty() else item_label
+	_sync_world_item_to_gecs()
+
+
+func _sync_world_item_to_gecs() -> void:
+	if not is_inside_tree():
+		return
+	var bridge := get_tree().get_first_node_in_group("gecs_world_controller")
+	if bridge != null and bridge.has_method("sync_world_item"):
+		bridge.call("sync_world_item", self)
+
+
+func _remove_world_item_from_gecs() -> void:
+	if not is_inside_tree():
+		return
+	var bridge := get_tree().get_first_node_in_group("gecs_world_controller")
+	if bridge != null and bridge.has_method("remove_world_item"):
+		bridge.call("remove_world_item", self)
 
 
 func _item_display_label() -> String:

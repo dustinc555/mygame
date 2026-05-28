@@ -58,11 +58,14 @@ func _validate_delayed_town_guard_replacement() -> void:
 		town.call("_repair_guard_authoring_tree")
 	await _wait_frames(4)
 	controller.call("_sync_settlement_staff_slots", "farmer_crossing")
-	var before: Dictionary = controller.call("get_settlement_state", "farmer_crossing")
+	controller.call("bootstrap_staff_vacancies", "farmer_crossing")
+	await _wait_frames(8)
+	controller.call("_sync_settlement_staff_slots", "farmer_crossing")
 	var guard := town.get_node_or_null("Guards/Guard") as HumanoidCharacter
 	if guard == null:
-		_fail("Town guard role should create a guard actor")
+		_fail("Town guard role should claim a generated resident as a guard actor")
 		return
+	var before: Dictionary = controller.call("get_settlement_state", "farmer_crossing")
 	if not guard.has_method("is_settlement_authority") or not bool(guard.call("is_settlement_authority")):
 		_fail("Town guard should be settlement authority")
 	guard.set("life_state", NpcRules.LifeState.DEAD)

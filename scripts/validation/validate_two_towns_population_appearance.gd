@@ -75,9 +75,11 @@ func _validate_resident_group(path: String, profile: Resource, name_profile: Res
 	for child in root_node.get_children():
 		if child is HumanoidCharacter:
 			residents.append(child as HumanoidCharacter)
-	if residents.size() <= 3:
-		_fail("%s population did not include generated residents; count=%d" % [label, residents.size()])
+	if residents.size() != 2:
+		_fail("%s should bootstrap exactly two unassigned generated townies; count=%d" % [label, residents.size()])
 	for resident in residents:
+		if ["FarmerA", "FarmerB", "FarmerC", "RaiderA", "RaiderB", "RaiderC"].has(str(resident.name)):
+			_fail("%s should not use hand-authored townie node %s" % [label, resident.name])
 		_validate_resident(resident, profile, name_profile, chest_pool, leg_pool, feet_pool, head_pool, weapon, label, seen_names)
 
 
@@ -366,13 +368,23 @@ func _validate_generated_raid_squad_members(world_squad_controller: Node, squad_
 		_validate_resident(actor, RAIDER_PROFILE, RAIDER_NAME_PROFILE, [RANGER_JERKIN, PEASANT_TUNIC], [RANGER_LEGGINGS, PEASANT_TROUSERS], [RANGER_BOOTS, PEASANT_SHOES], [RANGER_HOOD], IRON_SWORD, "Raider squad", seen_names)
 
 
+func _first_resident_at(path: String) -> HumanoidCharacter:
+	var root_node := _scene.get_node_or_null(path)
+	if root_node == null:
+		return null
+	for child in root_node.get_children():
+		if child is HumanoidCharacter:
+			return child as HumanoidCharacter
+	return null
+
+
 func _validate_local_conflict_event(faction_controller: Node) -> void:
 	var event_controller := _get_controller("world_event_choice_controller")
 	if event_controller == null:
 		_fail("World event choice controller missing")
 		return
-	var raider := _scene.get_node_or_null("Settlements/RaiderCamp/Residents/RaiderA") as HumanoidCharacter
-	var farmer := _scene.get_node_or_null("Settlements/FarmerCrossing/Residents/FarmerA") as HumanoidCharacter
+	var raider := _first_resident_at("Settlements/RaiderCamp/Residents")
+	var farmer := _first_resident_at("Settlements/FarmerCrossing/Residents")
 	var player := _scene.get_node_or_null("PartyMembers/Mira") as HumanoidCharacter
 	if raider == null or farmer == null or player == null:
 		_fail("Could not find actors for local conflict event validation")

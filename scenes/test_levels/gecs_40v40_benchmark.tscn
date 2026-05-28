@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=4]
+
+[ext_resource type="Script" path="res://scripts/benchmark/gecs/gecs_40v40_benchmark.gd" id="1_benchmark"]
+
+[node name="Gecs40v40Benchmark" type="Node3D"]
+script = ExtResource("1_benchmark")
+farmer_count = 40
+raider_count = 40
+warmup_frames = 60
+sample_frames = 600
+auto_quit = true

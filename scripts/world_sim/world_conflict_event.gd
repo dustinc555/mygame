@@ -43,6 +43,40 @@ func configure(data: Dictionary) -> void:
 		global_position = data["world_position"]
 	side_a_actor_paths = _node_path_array(data.get("side_a_actor_paths", side_a_actor_paths))
 	side_b_actor_paths = _node_path_array(data.get("side_b_actor_paths", side_b_actor_paths))
+	prompted = bool(data.get("prompted", prompted))
+	ignored = bool(data.get("ignored", ignored))
+	committed = bool(data.get("committed", committed))
+	completed = bool(data.get("completed", completed))
+	chosen_faction_id = str(data.get("chosen_faction_id", chosen_faction_id))
+	opposed_faction_id = str(data.get("opposed_faction_id", opposed_faction_id))
+	participation_seconds = float(data.get("participation_seconds", participation_seconds))
+
+
+func to_record() -> Dictionary:
+	return {
+		"event_id": event_id,
+		"title": title,
+		"description": description,
+		"side_a_faction_id": side_a_faction_id,
+		"side_a_label": side_a_label,
+		"side_b_faction_id": side_b_faction_id,
+		"side_b_label": side_b_label,
+		"event_radius": event_radius,
+		"participation_seconds_required": participation_seconds_required,
+		"reputation_gain": reputation_gain,
+		"favor_gain": favor_gain,
+		"opposed_reputation_loss": opposed_reputation_loss,
+		"world_position": global_position,
+		"side_a_actor_paths": side_a_actor_paths.duplicate(),
+		"side_b_actor_paths": side_b_actor_paths.duplicate(),
+		"prompted": prompted,
+		"ignored": ignored,
+		"committed": committed,
+		"completed": completed,
+		"chosen_faction_id": chosen_faction_id,
+		"opposed_faction_id": opposed_faction_id,
+		"participation_seconds": participation_seconds,
+	}
 
 
 func choose_side(faction_id: String, root_scene: Node) -> void:

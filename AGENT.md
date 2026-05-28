@@ -16,6 +16,8 @@
 - Before shared system, gameplay architecture, persistence, world simulation, settlement, faction, inventory, job, or bootstrap work, read `architecture/README.md` and the relevant docs in `architecture/`.
 - When changing system ownership, scene contracts, runtime state shape, editor workflow, or online/server compatibility assumptions, update the relevant `architecture/` docs in the same task.
 - When changing world-sim data relationships, settlement/faction/territory/job/inventory ownership, or controller serialization, update the node data graph in `architecture/game-data.md`.
+- Before changing NPC AI, generated population, actor realization, broad actor queries, or unloaded NPC simulation, read `architecture/ai-and-population.md`.
+- NPC autonomy must use `AiBrain`/`AiJob`/`AiTaskStep` for behavior ownership, `PopulationController` for persistent actor identity, `ActorQueryController` for broad live actor lookup, and `AiSchedulerController` for staggered decision ticks.
 - Reusable editor-authored content must be designed for a human operator using the Godot editor, not just for code-driven setup.
 - Prefer drag-in scenes, `class_name` nodes, exported fields, named child roots, safe defaults, stable IDs, and clear editor workflows.
 - If reusable content only works in one test/demo scene, refactor it into a reusable contract before continuing.

@@ -14,9 +14,9 @@ func _initialize() -> void:
 func _run() -> void:
 	var scene := TWO_TOWNS_SCENE.instantiate()
 	root.add_child(scene)
-	await process_frame
+	await _wait_frames(120)
 	_validate_keep(scene, "Settlements/FarmerCrossing", "MayorHouse", "Mayor", "Farmers", 2, "mayor")
-	_validate_keep(scene, "Settlements/RaiderCamp", "BossHut", "Boss", "Raiders", 3, "raider")
+	_validate_raider_jail_replaced_keep(scene)
 	scene.queue_free()
 	await process_frame
 	if _failures.is_empty():
@@ -75,6 +75,24 @@ func _validate_keep(scene: Node, town_path: String, keep_name: String, expected_
 	var facility_records: Array = town.call("get_facility_records") if town.has_method("get_facility_records") else []
 	if not _records_include_facility(facility_records, str(record.get("facility_id", ""))):
 		_fail("%s should be discoverable through SettlementTown facility roots" % keep_name)
+
+
+func _validate_raider_jail_replaced_keep(scene: Node) -> void:
+	var town := scene.get_node_or_null("Settlements/RaiderCamp")
+	if town == null:
+		_fail("Missing RaiderCamp")
+		return
+	if town.get_node_or_null("Keeps/BossHut") != null:
+		_fail("Raider Camp should no longer ship with a BossHut keep")
+	var jail := town.get_node_or_null("Facilities/SettlementJail")
+	if jail == null:
+		_fail("Raider Camp should use a jail as its only civic facility")
+		return
+	var record: Dictionary = jail.call("get_facility_record", town.call("get_settlement_id") if town.has_method("get_settlement_id") else "")
+	if str(record.get("function_id", "")) != "jail":
+		_fail("Raider Camp civic facility should report jail function_id")
+	if int(record.get("warden_count", 0)) != 1 or int(record.get("jail_guard_count", 0)) != 1:
+		_fail("Raider jail jobs should be filled from generated town population at bootstrap")
 
 
 func _records_include_facility(records: Array, facility_id: String) -> bool:
@@ -143,6 +161,11 @@ func _name_profile_for_faction(faction_id: String) -> Resource:
 
 func _indexed_staff_path(base_name: String, index: int) -> NodePath:
 	return NodePath("Staff/%s" % (base_name if index == 0 else "%s%d" % [base_name, index + 1]))
+
+
+func _wait_frames(count: int) -> void:
+	for _index in range(count):
+		await process_frame
 
 
 func _fail(message: String) -> void:

@@ -16,6 +16,7 @@ const SPEED_SCALES: Array[float] = [0.5, 1.0, 3.0, 8.0]
 const PAUSE_REASON_MANUAL := "manual"
 const PAUSE_REASON_CONVERSATION := "conversation"
 const PAUSE_REASON_APPEARANCE_EDITOR := "appearance_editor"
+const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://scripts/controllers/gecs_world_controller.gd")
 
 @export_range(0, 23, 1) var start_hour := 16
 @export_range(0, 59, 1) var start_minute := 30
@@ -23,6 +24,7 @@ const PAUSE_REASON_APPEARANCE_EDITOR := "appearance_editor"
 @export_range(0, 3, 1) var default_speed_index := 1
 @export var server_authoritative_mode := false
 
+var root_scene: Node
 var total_world_minutes := 0.0
 var speed_index := 1
 var _pause_reasons: Dictionary = {}
@@ -30,6 +32,11 @@ var _last_emitted_absolute_minute := -1
 var _last_boundary_absolute_minute := -1
 var _base_physics_ticks_per_second := 60
 var _base_max_physics_steps_per_frame := 8
+
+
+func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
+	root_scene = target_root
+	sync_world_time_state()
 
 
 func _ready() -> void:
@@ -42,6 +49,7 @@ func _ready() -> void:
 	_last_boundary_absolute_minute = get_absolute_minute()
 	_apply_world_speed_state()
 	_emit_time_changed(true)
+	sync_world_time_state()
 
 
 func _exit_tree() -> void:
@@ -137,6 +145,7 @@ func set_speed_index(value: int) -> void:
 	_apply_world_speed_state()
 	speed_changed.emit(speed_index, get_speed_label(), get_speed_scale())
 	_emit_time_changed(true)
+	sync_world_time_state()
 
 
 func toggle_manual_pause() -> void:
@@ -179,6 +188,7 @@ func request_pause(reason: String) -> bool:
 	_apply_world_speed_state()
 	pause_changed.emit(is_manual_paused(), is_world_paused())
 	_emit_time_changed(true)
+	sync_world_time_state()
 	return true
 
 
@@ -189,6 +199,7 @@ func release_pause(reason: String) -> void:
 	_apply_world_speed_state()
 	pause_changed.emit(is_manual_paused(), is_world_paused())
 	_emit_time_changed(true)
+	sync_world_time_state()
 
 
 func advance_minutes(minutes: float) -> void:
@@ -197,6 +208,35 @@ func advance_minutes(minutes: float) -> void:
 	total_world_minutes += minutes
 	_emit_time_boundaries()
 	_emit_time_changed(false)
+	sync_world_time_state()
+
+
+func serialize_state() -> Dictionary:
+	sync_world_time_state()
+	return _current_world_time_state()
+
+
+func apply_serialized_state(state: Dictionary) -> void:
+	if state.is_empty():
+		refresh_from_gecs_state()
+		return
+	_apply_world_time_state(state)
+	sync_world_time_state()
+
+
+func sync_world_time_state() -> void:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("upsert_world_time_state"):
+		bridge.call("upsert_world_time_state", _current_world_time_state())
+
+
+func refresh_from_gecs_state() -> void:
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("get_world_time_state"):
+		return
+	var state: Dictionary = bridge.call("get_world_time_state")
+	if not state.is_empty():
+		_apply_world_time_state(state)
 
 
 func advance_hours(hours: float) -> void:
@@ -222,6 +262,55 @@ func _emit_time_changed(force: bool) -> void:
 		return
 	_last_emitted_absolute_minute = absolute_minute
 	time_changed.emit(get_day_index(), get_weekday_name(), get_hour(), get_minute(), get_phase_name(), get_status_speed_label())
+
+
+func _current_world_time_state() -> Dictionary:
+	return {
+		"state_id": "world_time",
+		"total_world_minutes": total_world_minutes,
+		"speed_index": speed_index,
+		"real_seconds_per_game_minute": real_seconds_per_game_minute,
+		"server_authoritative_mode": server_authoritative_mode,
+		"manual_paused": is_manual_paused(),
+		"last_emitted_absolute_minute": _last_emitted_absolute_minute,
+		"last_boundary_absolute_minute": _last_boundary_absolute_minute,
+	}
+
+
+func _apply_world_time_state(state: Dictionary) -> void:
+	total_world_minutes = float(state.get("total_world_minutes", total_world_minutes))
+	speed_index = clampi(int(state.get("speed_index", speed_index)), 0, SPEED_LABELS.size() - 1)
+	real_seconds_per_game_minute = maxf(float(state.get("real_seconds_per_game_minute", real_seconds_per_game_minute)), 0.01)
+	server_authoritative_mode = bool(state.get("server_authoritative_mode", server_authoritative_mode))
+	_last_emitted_absolute_minute = int(state.get("last_emitted_absolute_minute", get_absolute_minute()))
+	_last_boundary_absolute_minute = int(state.get("last_boundary_absolute_minute", get_absolute_minute()))
+	_pause_reasons.clear()
+	if bool(state.get("manual_paused", false)):
+		_pause_reasons[PAUSE_REASON_MANUAL] = true
+	_apply_world_speed_state()
+	speed_changed.emit(speed_index, get_speed_label(), get_speed_scale())
+	pause_changed.emit(is_manual_paused(), is_world_paused())
+	_emit_time_changed(true)
+
+
+func _get_gecs_world() -> Node:
+	if not is_inside_tree():
+		return null
+	var parent_node := get_parent()
+	if parent_node != null:
+		var local := parent_node.get_node_or_null("GecsWorldController")
+		if local != null:
+			return local
+	var existing := get_tree().get_first_node_in_group("gecs_world_controller")
+	if existing != null and (parent_node == null or existing.get_parent() == parent_node):
+		return existing
+	if parent_node == null:
+		return null
+	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
+	bridge.name = "GecsWorldController"
+	parent_node.add_child(bridge)
+	bridge.call("initialize", root_scene if root_scene != null else parent_node)
+	return bridge
 
 
 func _apply_world_speed_state() -> void:

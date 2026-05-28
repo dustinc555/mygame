@@ -307,6 +307,8 @@ var _combat_action_cut_damage := 0.0
 var _combat_reaction_remaining := 0.0
 var _combat_reaction_source: HumanoidCharacter
 var _ai_tick_remaining := 0.0
+var _ai_job_tick_remaining := 0.0
+var _ai_job_tick_accumulated := 0.0
 var _downed_recover_delay_remaining := 0.0
 var _downed_is_settled := false
 var _is_getting_up := false
@@ -367,6 +369,7 @@ var _equipment_update_batch_depth := 0
 var _equipment_change_pending := false
 var _equipment_changed_slots: Dictionary = {}
 var _preview_clothes_visible := true
+var _runtime_controller_cache: Dictionary = {}
 
 signal inventory_changed
 signal mining_changed
@@ -382,6 +385,11 @@ signal conversation_target_reached(member, target)
 signal center_notice_requested(message)
 
 
+func _enter_tree() -> void:
+	_runtime_controller_cache.clear()
+	call_deferred("_register_with_runtime_controllers")
+
+
 func _ready() -> void:
 	super._ready()
 	_rng.randomize()
@@ -390,6 +398,7 @@ func _ready() -> void:
 	inventory = InventoryData.new(inventory_columns, inventory_rows, max_carry_weight, true)
 	inventory.changed.connect(_on_inventory_data_changed)
 	_seed_starting_inventory()
+	_apply_population_inventory_entries_if_present()
 	_seed_starting_equipment()
 	_ensure_appearance_data()
 	_setup_nameplate()
@@ -401,6 +410,48 @@ func _ready() -> void:
 	hunger = clampf(hunger, 0.0, 100.0)
 	fatigue = clampf(fatigue, 0.0, 100.0)
 	_recalculate_vitals()
+
+
+func _exit_tree() -> void:
+	if _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):
+		_active_job_provider.pause_worker_job(self, false)
+	if _ai_brain != null:
+		_ai_brain.clear_active_job()
+	_unregister_from_runtime_controllers()
+	_runtime_controller_cache.clear()
+
+
+func _register_with_runtime_controllers() -> void:
+	var population_controller := _get_runtime_controller("population_controller")
+	if population_controller != null and population_controller.has_method("register_actor"):
+		population_controller.call("register_actor", self)
+	var query_controller := _get_runtime_controller("actor_query_controller")
+	if query_controller != null and query_controller.has_method("register_actor"):
+		query_controller.call("register_actor", self)
+
+
+func _unregister_from_runtime_controllers() -> void:
+	var query_controller := _get_runtime_controller("actor_query_controller")
+	if query_controller != null and query_controller.has_method("unregister_actor"):
+		query_controller.call("unregister_actor", self)
+	var population_controller := _get_runtime_controller("population_controller")
+	if population_controller != null and population_controller.has_method("unregister_actor"):
+		population_controller.call("unregister_actor", self)
+	var scheduler := _get_runtime_controller("ai_scheduler_controller")
+	if scheduler != null and scheduler.has_method("clear_actor"):
+		scheduler.call("clear_actor", self)
+
+
+func _get_runtime_controller(group_name: String) -> Node:
+	if not is_inside_tree():
+		return null
+	var cached = _runtime_controller_cache.get(group_name)
+	if cached != null and is_instance_valid(cached):
+		return cached as Node
+	var controller := get_tree().get_first_node_in_group(group_name)
+	if controller != null:
+		_runtime_controller_cache[group_name] = controller
+	return controller as Node
 
 
 func _process(delta: float) -> void:
@@ -1001,6 +1052,34 @@ func eat_item(definition: ItemDefinition) -> bool:
 	return true
 
 
+func _apply_population_inventory_entries_if_present() -> void:
+	if inventory == null or not has_meta("population_inventory_entries"):
+		return
+	var snapshots: Array = get_meta("population_inventory_entries")
+	if snapshots.is_empty():
+		return
+	inventory.entries.clear()
+	for snapshot_value in snapshots:
+		if not (snapshot_value is Dictionary):
+			continue
+		var snapshot: Dictionary = snapshot_value
+		var item_path := str(snapshot.get("item_id", ""))
+		if item_path.strip_edges().is_empty() or not ResourceLoader.exists(item_path):
+			continue
+		var definition := load(item_path) as ItemDefinition
+		if definition == null:
+			continue
+		var grid_position: Vector2i = snapshot.get("grid_position", Vector2i.ZERO)
+		inventory.entries.append(InventoryData.InventoryEntry.new(
+			definition,
+			grid_position,
+			maxi(1, int(snapshot.get("count", 1))),
+			(snapshot.get("contained_item_counts", {}) as Dictionary).duplicate(true),
+			(snapshot.get("metadata", {}) as Dictionary).duplicate(true)
+		))
+	inventory.changed.emit()
+
+
 func begin_job_assignment(provider, job_label: String, work_inventory: InventoryData) -> void:
 	if _work_inventory_override != null and _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
 		_work_inventory_override.changed.disconnect(_on_inventory_data_changed)
@@ -1009,7 +1088,9 @@ func begin_job_assignment(provider, job_label: String, work_inventory: Inventory
 	_work_inventory_override = work_inventory
 	if _work_inventory_override != null and not _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
 		_work_inventory_override.changed.connect(_on_inventory_data_changed)
+	_request_assigned_work_ai_job(provider, job_label)
 	inventory_changed.emit()
+	_sync_inventory_to_gecs()
 	state_changed.emit()
 
 
@@ -1019,7 +1100,9 @@ func end_job_assignment() -> void:
 	_active_job_provider = null
 	_active_job_label = ""
 	_work_inventory_override = null
+	cancel_ai_job("job_provider")
 	inventory_changed.emit()
+	_sync_inventory_to_gecs()
 	state_changed.emit()
 
 
@@ -1129,6 +1212,7 @@ func _apply_equipment_changed() -> void:
 	else:
 		_rebuild_character_visual_for_equipment()
 	inventory_changed.emit()
+	_sync_inventory_to_gecs()
 	appearance_changed.emit()
 	state_changed.emit()
 
@@ -1425,6 +1509,65 @@ func is_auto_heal_enabled() -> bool:
 func set_auto_heal_enabled(value: bool) -> void:
 	auto_heal_enabled = value
 	state_changed.emit()
+
+
+func request_ai_job(job) -> bool:
+	if _ai_brain == null or job == null:
+		return false
+	return _ai_brain.request_job(job)
+
+
+func cancel_ai_job(source_id := "") -> void:
+	if _ai_brain == null:
+		return
+	if source_id.is_empty():
+		_ai_brain.clear_active_job()
+	else:
+		_ai_brain.clear_jobs_from_source(source_id)
+
+
+func has_active_ai_job_from_source(source_id: String) -> bool:
+	return _ai_brain != null and _ai_brain.active_job != null and str(_ai_brain.active_job.source_id) == source_id and _ai_brain.has_active_job()
+
+
+func finish_active_ai_job_from_gecs(step_status: int) -> void:
+	if _ai_brain != null and _ai_brain.has_method("finish_active_job_from_gecs"):
+		_ai_brain.call("finish_active_job_from_gecs", step_status)
+
+
+func get_ai_debug_snapshot() -> Dictionary:
+	return _ai_brain.get_debug_snapshot() if _ai_brain != null and _ai_brain.has_method("get_debug_snapshot") else {}
+
+
+func _request_assigned_work_ai_job(provider, job_label: String) -> void:
+	if provider == null or _ai_brain == null:
+		return
+	if has_active_ai_job_from_source("job_provider"):
+		return
+	if provider.has_method("create_assigned_work_ai_job"):
+		var provider_job = provider.call("create_assigned_work_ai_job", self, job_label)
+		if provider_job != null:
+			request_ai_job(provider_job)
+			return
+	var job = AI_JOB_SCRIPT.new()
+	job.job_type = AI_JOB_SCRIPT.JobType.ASSIGNED_WORK
+	job.priority = AI_JOB_SCRIPT.priority_for_type(job.job_type)
+	job.source_id = "job_provider"
+	job.source = provider
+	job.target = provider
+	job.target_id = str(provider.get_path()) if provider is Node else str(provider.get_instance_id())
+	job.package_id = "assigned_work"
+	job.debug_label = "Working: %s" % job_label if not job_label.is_empty() else "Working"
+	job.debug_reason = "Assigned paid work from %s" % (provider.get_provider_name() if provider.has_method("get_provider_name") else str(job.target_id))
+	request_ai_job(job)
+
+
+func _ensure_assigned_work_ai_job() -> void:
+	if _active_job_provider == null:
+		return
+	if _has_active_combat_target():
+		return
+	_request_assigned_work_ai_job(_active_job_provider, _active_job_label)
 
 
 func can_continue_running() -> bool:
@@ -2354,8 +2497,15 @@ func _get_bleed_splotch_controller() -> Node:
 
 func _process_ai(delta: float) -> void:
 	if life_state != NpcRules.LifeState.ALIVE:
+		if _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):
+			_active_job_provider.pause_worker_job(self, false)
+		if _ai_brain != null and _ai_brain.has_active_job():
+			_ai_brain.clear_active_job()
 		return
 	_clear_invalid_ai_job()
+	if _ai_brain != null:
+		_tick_active_ai_job(delta)
+	_ensure_assigned_work_ai_job()
 	_process_law_custody_return()
 	_process_law_sentence_move()
 	if _current_order_type == OrderType.HEAL and (_current_heal_target == null or not is_instance_valid(_current_heal_target)):
@@ -2372,10 +2522,8 @@ func _process_ai(delta: float) -> void:
 		stop_pickup_assignment()
 	if _current_attack_target != null and (not is_instance_valid(_current_attack_target) or _current_attack_target.life_state != NpcRules.LifeState.ALIVE):
 		stop_attack_assignment()
-	_ai_tick_remaining -= delta
-	if _ai_tick_remaining > 0.0:
+	if not _should_run_ai_decision_tick(delta):
 		return
-	_ai_tick_remaining = 0.35 + _rng.randf_range(0.0, 0.15)
 	if _should_consider_combat_retarget():
 		var replacement_target := _find_ai_target()
 		var active_target := _get_active_combat_target()
@@ -2391,6 +2539,35 @@ func _process_ai(delta: float) -> void:
 		var target := _find_ai_target()
 		if target != null:
 			assign_attack_target(target, false)
+
+
+func _should_run_ai_decision_tick(delta: float) -> bool:
+	var scheduler := _get_runtime_controller("ai_scheduler_controller")
+	if scheduler != null and scheduler.has_method("should_tick_actor"):
+		return bool(scheduler.call("should_tick_actor", self, 0.35, 0.15))
+	_ai_tick_remaining -= delta
+	if _ai_tick_remaining > 0.0:
+		return false
+	_ai_tick_remaining = 0.35 + _rng.randf_range(0.0, 0.15)
+	return true
+
+
+func _tick_active_ai_job(delta: float) -> void:
+	var bridge := get_tree().get_first_node_in_group("gecs_world_controller") if is_inside_tree() else null
+	if bridge != null and bridge.has_method("can_tick_actor_ai_job") and bool(bridge.call("can_tick_actor_ai_job", self)):
+		return
+	if not _ai_brain.has_active_job():
+		_ai_job_tick_accumulated = 0.0
+		_ai_job_tick_remaining = 0.0
+		return
+	_ai_job_tick_accumulated += delta
+	_ai_job_tick_remaining -= delta
+	if _ai_job_tick_remaining > 0.0:
+		return
+	var tick_delta := _ai_job_tick_accumulated
+	_ai_job_tick_accumulated = 0.0
+	_ai_job_tick_remaining = 0.18 + _rng.randf_range(0.0, 0.08)
+	_ai_brain.tick(tick_delta)
 
 
 func _process_law_custody_return() -> void:
@@ -3173,6 +3350,15 @@ func _store_scavenging_progress(resource_node, progress: float) -> void:
 
 func _on_inventory_data_changed() -> void:
 	inventory_changed.emit()
+	_sync_inventory_to_gecs()
+
+
+func _sync_inventory_to_gecs() -> void:
+	if not is_inside_tree():
+		return
+	var bridge := get_tree().get_first_node_in_group("gecs_world_controller")
+	if bridge != null and bridge.has_method("sync_actor_inventory"):
+		bridge.call("sync_actor_inventory", self)
 
 
 func has_conversation_definition() -> bool:
@@ -5050,7 +5236,7 @@ func _find_auto_heal_target() -> HumanoidCharacter:
 		best_score = _get_auto_heal_priority(self, 0.0)
 	if faction_name.is_empty():
 		return best_target
-	for node in get_tree().get_nodes_in_group("npc_character"):
+	for node in _get_query_humanoids(global_position, scan_radius, true):
 		if not (node is HumanoidCharacter):
 			continue
 		var candidate: HumanoidCharacter = node
@@ -5077,6 +5263,18 @@ func _get_auto_heal_priority(target: HumanoidCharacter, distance: float) -> floa
 	if target.life_state == NpcRules.LifeState.UNCONSCIOUS:
 		priority += 50.0
 	return priority - distance * 0.1
+
+
+func _get_query_humanoids(position: Vector3 = Vector3.ZERO, radius := -1.0, include_party := true) -> Array:
+	var query_controller := _get_runtime_controller("actor_query_controller")
+	if query_controller != null:
+		if radius >= 0.0 and query_controller.has_method("get_nearby_humanoids"):
+			return query_controller.call("get_nearby_humanoids", position, radius, include_party)
+		if query_controller.has_method("get_alive_humanoids"):
+			return query_controller.call("get_alive_humanoids", include_party)
+	if not is_inside_tree():
+		return []
+	return get_tree().get_nodes_in_group("npc_character")
 
 
 func _should_seek_combat_target() -> bool:
@@ -5111,7 +5309,7 @@ func _find_ai_target() -> HumanoidCharacter:
 func _get_last_direct_attacker_target() -> HumanoidCharacter:
 	if _last_direct_attacker_id == 0:
 		return null
-	for node in get_tree().get_nodes_in_group("npc_character"):
+	for node in _get_query_humanoids():
 		if node is HumanoidCharacter and node.get_instance_id() == _last_direct_attacker_id and _is_valid_combat_target(node):
 			return node
 	return null
@@ -5119,7 +5317,7 @@ func _get_last_direct_attacker_target() -> HumanoidCharacter:
 
 func _find_defensive_assist_target() -> HumanoidCharacter:
 	var candidates: Array[HumanoidCharacter] = []
-	for node in get_tree().get_nodes_in_group("npc_character"):
+	for node in _get_query_humanoids(global_position, _get_combat_witness_radius(), true):
 		if not (node is HumanoidCharacter):
 			continue
 		var ally: HumanoidCharacter = node
@@ -5193,7 +5391,7 @@ func _can_witness_combat(protected_actor: HumanoidCharacter, threat: HumanoidCha
 
 func _find_nearest_hostile(scan_radius: float) -> HumanoidCharacter:
 	var candidates: Array[HumanoidCharacter] = []
-	for node in get_tree().get_nodes_in_group("npc_character"):
+	for node in _get_query_humanoids(global_position, scan_radius, true):
 		if not (node is HumanoidCharacter):
 			continue
 		var candidate: HumanoidCharacter = node
@@ -5217,7 +5415,7 @@ func _try_start_self_defense(attacker: HumanoidCharacter) -> void:
 
 
 func _notify_defensive_allies_of_attack(attacker: HumanoidCharacter) -> void:
-	for node in get_tree().get_nodes_in_group("npc_character"):
+	for node in _get_query_humanoids(global_position, _get_combat_witness_radius(), true):
 		if not (node is HumanoidCharacter):
 			continue
 		var ally: HumanoidCharacter = node
@@ -5228,7 +5426,7 @@ func _notify_defensive_allies_of_attack(attacker: HumanoidCharacter) -> void:
 
 
 func _notify_defensive_allies_of_engagement(target: HumanoidCharacter) -> void:
-	for node in get_tree().get_nodes_in_group("npc_character"):
+	for node in _get_query_humanoids(global_position, _get_combat_witness_radius(), true):
 		if not (node is HumanoidCharacter):
 			continue
 		var ally: HumanoidCharacter = node
@@ -5303,7 +5501,7 @@ func _notify_settlement_alarm_of_attack(attacker: HumanoidCharacter) -> void:
 	var alarm_town := _find_alarm_town_for_attack(attacker)
 	if alarm_town == null or not _should_attack_raise_settlement_alarm(attacker, alarm_town):
 		return
-	for node in get_tree().get_nodes_in_group("npc_character"):
+	for node in _get_query_humanoids(global_position, _get_combat_witness_radius() + NpcRules.RAID_ALARM_APPROACH_RANGE, true):
 		if not (node is HumanoidCharacter):
 			continue
 		var responder: HumanoidCharacter = node
@@ -6504,6 +6702,11 @@ func _find_humanoid_by_instance_id(instance_id: int) -> HumanoidCharacter:
 	var tree := get_tree()
 	if tree == null:
 		return null
+	var query_controller := _get_runtime_controller("actor_query_controller")
+	if query_controller != null and query_controller.has_method("get_actor_by_instance_id"):
+		var indexed_actor := query_controller.call("get_actor_by_instance_id", instance_id) as HumanoidCharacter
+		if indexed_actor != null:
+			return indexed_actor
 	for node in tree.get_nodes_in_group("humanoid_character"):
 		var actor := node as HumanoidCharacter
 		if actor != null and actor.get_instance_id() == instance_id:

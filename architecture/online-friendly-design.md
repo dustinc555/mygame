@@ -36,6 +36,11 @@ Example record fields:
 - `population`
 - `population_capacity`
 - `population_capacity_sources`
+- `actor_id`
+- `actor_record`
+- `realization_state`
+- `ai_job_id`
+- `ai_job_source_id`
 - `food`
 - `event_type`
 - `absolute_minute`
@@ -69,7 +74,7 @@ Avoid these if the state may persist, save, or replicate:
 
 Prefer these for future-proof systems:
 
-- Stable IDs for factions, settlements, facilities, items, squads, characters, territories, roads, and population capacity sources.
+- Stable IDs for factions, settlements, facilities, items, squads, characters, actor records, AI job sources, territories, roads, and population capacity sources.
 - Serializable controller dictionaries for mutable state.
 - Resource definitions for reusable data.
 - Facility function definitions for reusable building roles.

@@ -37,7 +37,7 @@ For large open-world production, this town root should normally be saved as its 
 
 A town's max population comes from authored structures in the town scene.
 
-`WorldBuilding.population_capacity` is the normal source. Current defaults are `Tiny House = 3` and `Two-Story House = 6`.
+`WorldBuilding.population_capacity` is the normal source. Current defaults are `Tiny House = 2`, `Keep = 4`, `Bar = 6`, and `Jail = 2`.
 
 Use `PopulationCapacitySource` for explicit non-building housing such as an outdoor bedroll, tent, slum camp, or similar world-authored shelter.
 
@@ -45,11 +45,15 @@ Do not count beds inside a home separately. The whole building contributes its a
 
 A valid town should have at least one building or explicit population capacity source. Without authored capacity, `SettlementController.max_occupancy` is zero and the town has no population capacity.
 
-Depopulated, sparse, populated, and overcrowded states still multiply the authored max capacity.
+Building capacity is a soft auto-generation ceiling, not a hard clamp. Events can push a town above capacity, but generated residents do not grow further until population falls back under the building-derived ceiling.
 
 `SettlementController.population` means total living citizens. Staff, guards, rulers, and wardens are part of that total. The controller also tracks `population_assigned` and `population_available`, where available population is the unassigned labor pool a town can draw from for delayed role replacement.
 
 When a staffed role actor dies, the town records a population death, opens a vacancy, and only fills that vacancy after the replacement delay if the town has available population. If the town has no available population, the role stays vacant until population recovers. Recovery is intentionally simple: if the town is below target population and not starving, daily upkeep can add a small number of citizens back toward the target.
+
+Every citizen that can persist should have a `PopulationController` actor record. Generated residents are record-first and then realized as live actors when the town policy allows it. Authored humanoids are registered into records at runtime, with missing stable IDs generated from settlement-relative paths.
+
+`SettlementTown.actor_realization_policy` controls live actor loading for a town. Use `full_town` by default. Use `important_plus_near` or `near_player` only when unloaded residents can be represented by ledger state without breaking expected local behavior.
 
 ## Facilities
 
@@ -109,7 +113,7 @@ The runtime model should support three simulation levels: abstract ledger update
 
 `FacilityVisitActivityPoint` is the reusable facility visitor entry point. It is still an activity point, but it assigns the actor to real visit targets such as seats or `FacilityStandingPoint` nodes instead of being a physical crowd marker itself.
 
-`SettlementActivityController` assigns available non-player residents to activity points.
+`SettlementActivityController` assigns available non-player residents to activity points by issuing `AMBIENT_ACTIVITY` AI jobs. Activity points expose `begin_ai_activity()` and `end_ai_activity()` so they behave like reusable smart objects instead of hidden movement scripts.
 
 This keeps residents distributed around authored town places instead of clumping at the town center.
 
@@ -117,13 +121,13 @@ Activity points are editor-authored and should be easy to move, duplicate, and t
 
 ## Jobs
 
-Jobs are their own coexisting system.
+Jobs are their own coexisting system, but active assignments should be visible to the AI job layer.
 
 A town may discover job providers, but it should not own job behavior.
 
 Example: a town has a bar, the bar has a bar owner, and the bar owner has a `JobProvider`.
 
-The job provider and job algorithms stay reusable for other contexts like caravan guard work, mining jobs, bar shifts, construction jobs, or future faction work.
+The job provider and job algorithms stay reusable for other contexts like caravan guard work, mining jobs, bar shifts, construction jobs, or future faction work. Accepted provider assignments create `ASSIGNED_WORK` AI jobs; the AI job owns live execution cadence/debug while the provider keeps slot, wage, and algorithm state.
 
 ## Bars, Shops, Mines, Storage
 

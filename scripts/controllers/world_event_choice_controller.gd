@@ -3,6 +3,7 @@ extends Node
 class_name WorldEventChoiceController
 
 const WORLD_CONFLICT_EVENT_SCRIPT = preload("res://scripts/world_sim/world_conflict_event.gd")
+const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://scripts/controllers/gecs_world_controller.gd")
 const PAUSE_REASON_WORLD_EVENT := "world_event_choice"
 
 var root_scene: Node
@@ -47,6 +48,7 @@ func _process(delta: float) -> void:
 				event.process_participation(delta, root_scene, faction_controller)
 		elif not event.prompted and _active_prompt_event_id.is_empty() and event.is_player_in_radius(root_scene):
 			_show_prompt(event)
+	_sync_world_event_state_to_gecs()
 
 
 func create_conflict_event(data: Dictionary):
@@ -65,6 +67,7 @@ func register_conflict_event(event) -> void:
 	var id: String = event.event_id if not event.event_id.is_empty() else event.name
 	event.event_id = id
 	events[id] = event
+	_sync_world_event_state_to_gecs()
 	if _initialized and _active_prompt_event_id.is_empty() and not event.prompted and event.is_player_in_radius(root_scene):
 		_show_prompt(event)
 
@@ -75,6 +78,7 @@ func debug_choose_side(event_id: String, faction_id: String) -> void:
 		return
 	event.prompted = true
 	event.choose_side(faction_id, root_scene)
+	_sync_world_event_state_to_gecs()
 	if _active_prompt_event_id == event_id:
 		_hide_prompt()
 
@@ -84,6 +88,7 @@ func debug_ignore_event(event_id: String) -> void:
 	if event == null:
 		return
 	event.ignore()
+	_sync_world_event_state_to_gecs()
 	if _active_prompt_event_id == event_id:
 		_hide_prompt()
 
@@ -97,6 +102,7 @@ func debug_advance_event_participation(event_id: String, seconds: float) -> void
 		event.completed = true
 		if faction_controller != null and faction_controller.has_method("apply_helped_faction_result"):
 			faction_controller.call("apply_helped_faction_result", event.chosen_faction_id, event.opposed_faction_id, event.reputation_gain, event.favor_gain, event.opposed_reputation_loss)
+	_sync_world_event_state_to_gecs()
 
 
 func get_event(event_id: String):
@@ -105,6 +111,32 @@ func get_event(event_id: String):
 
 func get_event_count() -> int:
 	return events.size()
+
+
+func serialize_state() -> Dictionary:
+	_sync_world_event_state_to_gecs()
+	return _current_world_event_state()
+
+
+func apply_serialized_state(state: Dictionary) -> void:
+	if state.is_empty():
+		refresh_from_gecs_state()
+		return
+	_apply_world_event_state(state)
+	_sync_world_event_state_to_gecs()
+
+
+func refresh_from_gecs_state() -> void:
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("get_world_event_state"):
+		return
+	var state: Dictionary = bridge.call("get_world_event_state")
+	if not state.is_empty():
+		_apply_world_event_state(state)
+
+
+func sync_world_event_state() -> void:
+	_sync_world_event_state_to_gecs()
 
 
 func is_prompt_visible() -> bool:
@@ -121,6 +153,7 @@ func _try_initialize() -> void:
 	if hud_layer == null or faction_controller == null:
 		return
 	_ensure_prompt_ui()
+	refresh_from_gecs_state()
 	_initialized = true
 
 
@@ -130,6 +163,7 @@ func _show_prompt(event) -> void:
 	_ensure_prompt_ui()
 	event.prompted = true
 	_active_prompt_event_id = event.event_id
+	_sync_world_event_state_to_gecs()
 	_prompt_title.text = event.title
 	_prompt_description.text = event.description if not event.description.is_empty() else "%s and %s are fighting nearby." % [event.side_a_label, event.side_b_label]
 	_side_a_button.text = "Help %s" % event.side_a_label
@@ -160,6 +194,7 @@ func _hide_prompt() -> void:
 	_active_prompt_event_id = ""
 	if world_time != null and world_time.has_method("release_pause"):
 		world_time.call("release_pause", PAUSE_REASON_WORLD_EVENT)
+	_sync_world_event_state_to_gecs()
 
 
 func _ensure_prompt_ui() -> void:
@@ -229,6 +264,68 @@ func _make_panel_style() -> StyleBoxFlat:
 	style.corner_radius_bottom_left = 3
 	style.corner_radius_bottom_right = 3
 	return style
+
+
+func _current_world_event_state() -> Dictionary:
+	var records := {}
+	for event_id in events.keys():
+		var event = events[event_id]
+		if event != null and is_instance_valid(event) and event.has_method("to_record"):
+			records[str(event_id)] = event.call("to_record")
+	return {
+		"state_id": "world_events",
+		"active_prompt_event_id": _active_prompt_event_id,
+		"events": records,
+	}
+
+
+func _apply_world_event_state(state: Dictionary) -> void:
+	for event in events.values():
+		if event != null and is_instance_valid(event):
+			event.queue_free()
+	events.clear()
+	_hide_prompt()
+	var records: Dictionary = state.get("events", {})
+	for event_id in records.keys():
+		var record = records[event_id]
+		if not (record is Dictionary):
+			continue
+		var event = WORLD_CONFLICT_EVENT_SCRIPT.new()
+		event.name = str((record as Dictionary).get("event_id", event_id)).replace(":", "_")
+		_ensure_event_root().add_child(event)
+		event.configure(record)
+		register_conflict_event(event)
+	_active_prompt_event_id = str(state.get("active_prompt_event_id", ""))
+	if not _active_prompt_event_id.is_empty() and events.has(_active_prompt_event_id):
+		var active_event = events[_active_prompt_event_id]
+		if active_event != null and is_instance_valid(active_event) and not active_event.completed and not active_event.ignored:
+			_show_prompt(active_event)
+
+
+func _sync_world_event_state_to_gecs() -> void:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("upsert_world_event_state"):
+		bridge.call("upsert_world_event_state", _current_world_event_state())
+
+
+func _get_gecs_world() -> Node:
+	if not is_inside_tree():
+		return null
+	var parent_node := get_parent()
+	if parent_node != null:
+		var local := parent_node.get_node_or_null("GecsWorldController")
+		if local != null:
+			return local
+	var existing := get_tree().get_first_node_in_group("gecs_world_controller")
+	if existing != null and (parent_node == null or existing.get_parent() == parent_node):
+		return existing
+	if parent_node == null:
+		return null
+	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
+	bridge.name = "GecsWorldController"
+	parent_node.add_child(bridge)
+	bridge.call("initialize", root_scene if root_scene != null else parent_node)
+	return bridge
 
 
 func _ensure_event_root() -> Node3D:

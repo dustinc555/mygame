@@ -633,7 +633,7 @@ func _get_interior_area() -> Area3D:
 
 
 func get_level_index_for_actor(actor: HumanoidCharacter) -> int:
-	if actor == null:
+	if actor == null or not actor.is_inside_tree():
 		return -1
 	var actor_id := actor.get_instance_id()
 	var local_y := to_local(actor.global_position).y
@@ -685,7 +685,7 @@ func _actor_visibility_probe_positions(actor: HumanoidCharacter) -> Array[Vector
 		return positions
 	positions.append(actor.global_position)
 	var collision_shape := actor.get_node_or_null("CollisionShape3D") as CollisionShape3D
-	if collision_shape != null and collision_shape.shape != null:
+	if collision_shape != null and collision_shape.is_inside_tree() and collision_shape.shape != null:
 		var bounds := _shape_local_bounds(collision_shape.shape)
 		if bounds.size.length_squared() > 0.0:
 			var center := bounds.position + bounds.size * 0.5

@@ -23,7 +23,9 @@ const BLOCKED_NOT_ALLIED_STATES := ["alliance", "protectorate", "trade", "truce"
 const STAFF_ROLE_OWNER_GROUP := "settlement_staff_role_owner"
 const DEFAULT_STAFF_REPLACEMENT_DELAY_DAYS := 7.0
 const POPULATION_RECOVERY_PER_DAY := 1
+const BOOTSTRAP_UNASSIGNED_POPULATION := 2
 const MINUTES_PER_DAY := 24 * 60
+const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://scripts/controllers/gecs_world_controller.gd")
 
 var root_scene: Node
 var world_time: Node
@@ -59,6 +61,12 @@ func get_raid_squad_template(settlement_id: String) -> Resource:
 
 
 func get_settlement_state(settlement_id: String) -> Dictionary:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("get_settlement_state"):
+		var ecs_state: Dictionary = bridge.call("get_settlement_state", settlement_id)
+		if not ecs_state.is_empty():
+			settlement_states[settlement_id] = ecs_state.duplicate(true)
+			return ecs_state.duplicate(true)
 	var state: Dictionary = settlement_states.get(settlement_id, {})
 	return state.duplicate(true)
 
@@ -75,6 +83,37 @@ func can_assign_population(settlement_id: String, count := 1) -> bool:
 	return get_available_population(settlement_id) >= max(0, count)
 
 
+func bootstrap_staff_vacancies(settlement_id: String) -> void:
+	_process_staff_vacancies(settlement_id, true)
+
+
+func set_population_total(settlement_id: String, value: int, reason := "manual") -> Dictionary:
+	if not settlement_states.has(settlement_id):
+		return {}
+	_set_population_total(settlement_id, value)
+	var state: Dictionary = settlement_states[settlement_id]
+	state["last_action"] = "Population set: %d" % int(state.get("population", 0))
+	_record_event({
+		"type": "population_set",
+		"settlement_id": settlement_id,
+		"population": int(state.get("population", 0)),
+		"reason": reason,
+	})
+	_notify_state_changed(settlement_id)
+	return get_settlement_state(settlement_id)
+
+
+func get_staff_vacancy_realization_count(settlement_id: String) -> int:
+	if not settlement_states.has(settlement_id):
+		return 0
+	_refresh_population_availability(settlement_id)
+	var state: Dictionary = settlement_states[settlement_id]
+	var vacancies: Dictionary = state.get("staff_vacancies", {})
+	if vacancies.is_empty():
+		return 0
+	return mini(vacancies.size(), int(state.get("population_available", 0)))
+
+
 func record_population_death(settlement_id: String, actor: Node, reason := "death") -> bool:
 	if settlement_id.is_empty() or not settlement_states.has(settlement_id) or actor == null:
 		return false
@@ -82,6 +121,11 @@ func record_population_death(settlement_id: String, actor: Node, reason := "deat
 
 
 func get_all_settlement_states() -> Array[Dictionary]:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("get_settlement_states"):
+		var ecs_states: Dictionary = bridge.call("get_settlement_states")
+		if not ecs_states.is_empty():
+			settlement_states = ecs_states.duplicate(true)
 	var states: Array[Dictionary] = []
 	for settlement_id in settlement_states.keys():
 		states.append(get_settlement_state(str(settlement_id)))
@@ -199,10 +243,24 @@ func get_summary_text() -> String:
 
 
 func serialize_state() -> Dictionary:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("get_settlement_states"):
+		var ecs_states: Dictionary = bridge.call("get_settlement_states")
+		if not ecs_states.is_empty():
+			settlement_states = ecs_states.duplicate(true)
 	return {
 		"settlements": settlement_states.duplicate(true),
 		"events": event_log.duplicate(true),
 	}
+
+
+func refresh_from_gecs_state() -> void:
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("get_settlement_states"):
+		return
+	var ecs_states: Dictionary = bridge.call("get_settlement_states")
+	if not ecs_states.is_empty():
+		settlement_states = ecs_states.duplicate(true)
 
 
 func _try_initialize() -> void:
@@ -244,9 +302,10 @@ func _register_settlement_definition(definition: Resource, anchor: Node3D) -> vo
 	elif anchor != null:
 		var state: Dictionary = settlement_states[settlement_id]
 		state["world_position"] = anchor.global_position
-		_register_anchor_population_capacity(settlement_id, anchor)
+		_register_anchor_population_capacity(settlement_id, anchor, false)
 		_register_anchor_facilities(settlement_id, anchor)
 		_sync_settlement_staff_slots(settlement_id)
+		_apply_population_from_occupancy(settlement_id)
 		_notify_state_changed(settlement_id)
 	if faction_controller != null and faction_controller.has_method("register_faction"):
 		faction_controller.call("register_faction", definition.get("faction_definition") as Resource)
@@ -265,6 +324,8 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 		"population_target": 0,
 		"population_assigned": 0,
 		"population_available": 0,
+		"population_required_staff": 0,
+		"population_bootstrap_unassigned": BOOTSTRAP_UNASSIGNED_POPULATION,
 		"population_shortfall": 0,
 		"population_initialized": false,
 		"max_occupancy": 0,
@@ -289,9 +350,12 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 		"population_death_records": {},
 		"last_population_recovery_day": -1,
 	}
-	_register_anchor_population_capacity(settlement_id, anchor)
+	_register_anchor_population_capacity(settlement_id, anchor, false)
 	_register_anchor_facilities(settlement_id, anchor)
 	_sync_settlement_staff_slots(settlement_id)
+	_apply_population_from_occupancy(settlement_id)
+	_process_staff_vacancies(settlement_id, true)
+	call_deferred("_bootstrap_staff_vacancies", settlement_id)
 	_update_pressure_state(settlement_id)
 	_notify_state_changed(settlement_id)
 
@@ -526,7 +590,8 @@ func _flat_distance(left: Vector3, right: Vector3) -> float:
 
 
 func _notify_state_changed(settlement_id: String) -> void:
-	var state := get_settlement_state(settlement_id)
+	var state: Dictionary = settlement_states.get(settlement_id, {}).duplicate(true)
+	_save_settlement_state_to_gecs(settlement_id, state)
 	var anchor := get_settlement_anchor(settlement_id)
 	if anchor != null and anchor.has_method("apply_settlement_state"):
 		anchor.call("apply_settlement_state", state)
@@ -543,7 +608,9 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 	var state: Dictionary = settlement_states[settlement_id]
 	var slots: Dictionary = {}
 	var assigned_count := 0
+	var required_count := 0
 	var vacancies: Dictionary = state.get("staff_vacancies", {})
+	_clear_staff_slots_for_settlement_in_gecs(settlement_id)
 	for owner in _collect_staff_role_owners(anchor):
 		if owner == null or not owner.has_method("get_settlement_staff_slots"):
 			continue
@@ -563,6 +630,7 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 				slot["owner_path"] = anchor.get_path_to(owner)
 			var population_cost: int = max(0, int(slot.get("population_cost", 1)))
 			slot["population_cost"] = population_cost
+			required_count += population_cost
 			var filled := bool(slot.get("filled", false))
 			slot["filled"] = filled
 			slots[slot_id] = slot
@@ -570,21 +638,28 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 				assigned_count += population_cost
 				if vacancies.has(slot_id):
 					vacancies.erase(slot_id)
+				_save_staff_slot_to_gecs(settlement_id, slot_id, slot)
 				continue
 			var dead_actor_key := str(slot.get("dead_actor_key", "")).strip_edges()
 			if not dead_actor_key.is_empty():
 				_record_population_death_if_needed(settlement_id, dead_actor_key, null, "staff_death")
 			_ensure_staff_vacancy(settlement_id, slot_id, slot)
+			_save_staff_slot_to_gecs(settlement_id, slot_id, slot)
+			state = settlement_states[settlement_id]
+			vacancies = state.get("staff_vacancies", {})
 	state["staff_slots"] = slots
 	for vacancy_id in vacancies.keys():
 		if not slots.has(str(vacancy_id)):
 			vacancies.erase(vacancy_id)
 	state["staff_vacancies"] = vacancies
+	state["population_required_staff"] = required_count
 	state["population_assigned"] = assigned_count
+	settlement_states[settlement_id] = state
 	_refresh_population_availability(settlement_id)
+	_save_settlement_state_to_gecs(settlement_id, state)
 
 
-func _process_staff_vacancies(settlement_id: String) -> void:
+func _process_staff_vacancies(settlement_id: String, ignore_delay := false) -> void:
 	if not settlement_states.has(settlement_id):
 		return
 	var state: Dictionary = settlement_states[settlement_id]
@@ -592,19 +667,25 @@ func _process_staff_vacancies(settlement_id: String) -> void:
 	if vacancies.is_empty():
 		return
 	var now_minute := _get_absolute_minute()
+	var available_population := get_available_population(settlement_id)
 	for slot_id_value in vacancies.keys():
 		var slot_id := str(slot_id_value)
 		var vacancy: Dictionary = vacancies.get(slot_id, {})
-		if now_minute < int(vacancy.get("replacement_due_minute", 0)):
+		if not ignore_delay and now_minute < int(vacancy.get("replacement_due_minute", 0)):
 			continue
 		var cost: int = max(0, int(vacancy.get("population_cost", 1)))
-		if cost > get_available_population(settlement_id):
+		if cost > available_population:
 			continue
 		if _fill_staff_vacancy(settlement_id, slot_id, vacancy):
+			available_population -= cost
 			vacancies.erase(slot_id)
 	state["staff_vacancies"] = vacancies
 	_sync_settlement_staff_slots(settlement_id)
 	_notify_state_changed(settlement_id)
+
+
+func _bootstrap_staff_vacancies(settlement_id: String) -> void:
+	bootstrap_staff_vacancies(settlement_id)
 
 
 func _fill_staff_vacancy(settlement_id: String, slot_id: String, vacancy: Dictionary) -> bool:
@@ -637,11 +718,13 @@ func _ensure_staff_vacancy(settlement_id: String, slot_id: String, slot: Diction
 		state["staff_vacancies"] = vacancies
 		return
 	var now_minute := _get_absolute_minute()
-	var delay_days := maxf(float(slot.get("replacement_delay_days", DEFAULT_STAFF_REPLACEMENT_DELAY_DAYS)), 0.0)
+	var is_replacement := not str(slot.get("dead_actor_key", "")).strip_edges().is_empty()
+	var delay_days := maxf(float(slot.get("replacement_delay_days", DEFAULT_STAFF_REPLACEMENT_DELAY_DAYS)), 0.0) if is_replacement else 0.0
 	var vacancy := {
 		"slot_id": slot_id,
 		"settlement_id": settlement_id,
 		"role_id": str(slot.get("role_id", "")),
+		"role_index": int(slot.get("role_index", 0)),
 		"display_name": str(slot.get("display_name", slot_id)),
 		"owner_path": slot.get("owner_path", NodePath("")),
 		"population_cost": max(0, int(slot.get("population_cost", 1))),
@@ -741,11 +824,14 @@ func _set_population_total(settlement_id: String, value: int) -> void:
 	if not settlement_states.has(settlement_id):
 		return
 	var state: Dictionary = settlement_states[settlement_id]
-	var target: int = max(0, int(state.get("population_target", 0)))
-	state["population"] = clampi(value, 0, target)
+	var previous_population: int = max(0, int(state.get("population", 0)))
+	state["population"] = max(0, value)
 	var max_occupancy := maxf(float(state.get("max_occupancy", 0)), 0.0)
 	state["occupancy_ratio"] = float(state.get("population", 0)) / max_occupancy if max_occupancy > 0.0 else 0.0
 	_refresh_population_availability(settlement_id)
+	_save_settlement_state_to_gecs(settlement_id, state)
+	if int(state.get("population", 0)) != previous_population:
+		_resync_population_spawners_for_settlement(settlement_id)
 
 
 func _refresh_population_availability(settlement_id: String) -> void:
@@ -778,7 +864,7 @@ func _register_anchor_facilities(settlement_id: String, anchor: Node3D) -> void:
 	_recalculate_facility_totals(settlement_id)
 
 
-func _register_anchor_population_capacity(settlement_id: String, anchor: Node3D) -> void:
+func _register_anchor_population_capacity(settlement_id: String, anchor: Node3D, apply_population := true) -> void:
 	if anchor == null or not settlement_states.has(settlement_id):
 		return
 	var state: Dictionary = settlement_states[settlement_id]
@@ -795,7 +881,10 @@ func _register_anchor_population_capacity(settlement_id: String, anchor: Node3D)
 			total += capacity
 	state["population_capacity_sources"] = records
 	state["max_occupancy"] = total
-	_apply_population_from_occupancy(settlement_id)
+	if apply_population:
+		_apply_population_from_occupancy(settlement_id)
+	else:
+		state["population_target"] = total
 	_refresh_population_availability(settlement_id)
 
 
@@ -824,22 +913,63 @@ func _recalculate_facility_totals(settlement_id: String) -> void:
 
 func _apply_population_from_occupancy(settlement_id: String, fill_to_target := false) -> void:
 	var state: Dictionary = settlement_states[settlement_id]
+	var previous_population: int = max(0, int(state.get("population", 0)))
+	var previous_target: int = max(0, int(state.get("population_target", 0)))
 	var max_occupancy := maxf(float(state.get("max_occupancy", 0)), 0.0)
 	if max_occupancy <= 0.0:
-		state["population"] = 0
 		state["population_target"] = 0
+		if fill_to_target:
+			state["population"] = 0
+			state["population_initialized"] = true
+		elif not bool(state.get("population_initialized", false)):
+			state["population"] = 0
+		else:
+			state["population"] = max(0, int(state.get("population", 0)))
 		state["occupancy_ratio"] = 0.0
 		_refresh_population_availability(settlement_id)
+		_save_settlement_state_to_gecs(settlement_id, state)
+		if previous_population > 0 or previous_target > 0:
+			_resync_population_spawners_for_settlement(settlement_id)
 		return
-	var target_population: int = max(0, int(round(max_occupancy * float(state.get("occupancy_multiplier", 1.0)))))
+	var required_staff: int = max(0, int(state.get("population_required_staff", 0)))
+	var target_population: int = maxi(required_staff, max(0, int(round(max_occupancy))))
 	state["population_target"] = target_population
-	if fill_to_target or not bool(state.get("population_initialized", false)):
+	var should_bootstrap_population := not bool(state.get("population_initialized", false)) or (previous_target <= 0 and previous_population <= 0 and target_population > 0)
+	if fill_to_target:
 		state["population"] = target_population
 		state["population_initialized"] = true
+	elif should_bootstrap_population:
+		state["population"] = _get_bootstrap_population(state)
+		state["population_initialized"] = true
 	else:
-		state["population"] = clampi(int(state.get("population", 0)), 0, target_population)
+		state["population"] = max(0, int(state.get("population", 0)))
 	state["occupancy_ratio"] = float(state["population"]) / max_occupancy
 	_refresh_population_availability(settlement_id)
+	_save_settlement_state_to_gecs(settlement_id, state)
+	if int(state.get("population", 0)) != previous_population or int(state.get("population_target", 0)) != previous_target:
+		_resync_population_spawners_for_settlement(settlement_id)
+
+
+func _get_bootstrap_population(state: Dictionary) -> int:
+	var target: int = max(0, int(state.get("population_target", 0)))
+	var required_staff: int = max(0, int(state.get("population_required_staff", 0)))
+	var unassigned: int = max(0, int(state.get("population_bootstrap_unassigned", BOOTSTRAP_UNASSIGNED_POPULATION)))
+	return mini(target, required_staff + unassigned)
+
+
+func _resync_population_spawners_for_settlement(settlement_id: String) -> void:
+	if settlement_id.strip_edges().is_empty() or not is_inside_tree():
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	for spawner in tree.get_nodes_in_group("population_spawner"):
+		if spawner == null or not spawner.has_method("get_settlement_id"):
+			continue
+		if str(spawner.call("get_settlement_id")) != settlement_id:
+			continue
+		if spawner.has_method("resync_population_realization"):
+			spawner.call("resync_population_realization")
 
 
 func _get_effective_food_pressure(state: Dictionary) -> float:
@@ -881,6 +1011,44 @@ func _has_property(object: Object, property_name: String) -> bool:
 	return false
 
 
+func _save_settlement_state_to_gecs(settlement_id: String, state: Dictionary) -> void:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("upsert_settlement_state"):
+		bridge.call("upsert_settlement_state", settlement_id, state)
+
+
+func _save_staff_slot_to_gecs(settlement_id: String, slot_id: String, slot: Dictionary) -> void:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("upsert_staff_slot"):
+		bridge.call("upsert_staff_slot", settlement_id, slot_id, slot)
+
+
+func _clear_staff_slots_for_settlement_in_gecs(settlement_id: String) -> void:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("clear_staff_slots_for_settlement"):
+		bridge.call("clear_staff_slots_for_settlement", settlement_id)
+
+
+func _get_gecs_world() -> Node:
+	if not is_inside_tree():
+		return null
+	var parent_node := get_parent()
+	if parent_node != null:
+		var local := parent_node.get_node_or_null("GecsWorldController")
+		if local != null:
+			return local
+	var existing := get_tree().get_first_node_in_group("gecs_world_controller")
+	if existing != null and (parent_node == null or existing.get_parent() == parent_node):
+		return existing
+	if parent_node == null:
+		return null
+	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
+	bridge.name = "GecsWorldController"
+	parent_node.add_child(bridge)
+	bridge.call("initialize", root_scene if root_scene != null else parent_node)
+	return bridge
+
+
 func _record_event(event_record: Dictionary) -> void:
 	if world_time != null:
 		if world_time.has_method("get_absolute_minute"):
@@ -892,6 +1060,9 @@ func _record_event(event_record: Dictionary) -> void:
 		if world_time.has_method("get_minute"):
 			event_record["minute"] = int(world_time.call("get_minute"))
 	event_log.append(event_record)
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("record_settlement_event"):
+		bridge.call("record_settlement_event", event_record)
 	settlement_event_recorded.emit(event_record.duplicate(true))
 
 

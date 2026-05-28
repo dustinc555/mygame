@@ -38,6 +38,9 @@ const GUARD_PERCEPTION_RANGE := Vector2i(12, 22)
 @export var guard_name := "Town Guard"
 @export var staff_stable_id_prefix := ""
 @export var staff_squad_name := ""
+@export var use_settlement_population_for_guards := true
+@export_enum("full_town", "important_plus_near", "near_player") var actor_realization_policy := "full_town"
+@export_range(0.05, 2.0, 0.05) var guard_assignment_interval_seconds := 0.25
 @export var auto_town_border_from_footprint := true:
 	set(value):
 		auto_town_border_from_footprint = value
@@ -71,6 +74,7 @@ var _town_border_debug: MeshInstance3D
 var _town_border_refresh_timer := 0.0
 var _last_town_border_signature := ""
 var _guard_post_by_actor_id: Dictionary = {}
+var _guard_assignment_remaining := 0.0
 
 
 func _enter_tree() -> void:
@@ -87,6 +91,10 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if not Engine.is_editor_hint():
+		_guard_assignment_remaining -= delta
+		if _guard_assignment_remaining > 0.0:
+			return
+		_guard_assignment_remaining = maxf(guard_assignment_interval_seconds, 0.05)
 		_process_guard_staff()
 		return
 	if not Engine.is_editor_hint() or not editor_show_debug_shape:
@@ -157,7 +165,10 @@ func get_bar_service_area_nodes() -> Array:
 func get_settlement_staff_slots() -> Array[Dictionary]:
 	var slots: Array[Dictionary] = []
 	for index in range(guard_count):
-		_append_guard_slot(slots, index, _get_guard_actor_for_slot(index))
+		var actor := _get_guard_actor_for_slot(index)
+		if _is_actor_alive(actor):
+			_prepare_guard_actor(actor, index)
+		_append_guard_slot(slots, index, actor)
 	return slots
 
 
@@ -171,6 +182,8 @@ func fill_settlement_staff_slot(slot_id: String, slot_record: Dictionary) -> Nod
 		return null
 	var actor := _claim_available_resident_for_guard(role_index, guards_root)
 	if actor == null:
+		if _should_defer_guards_to_settlement_population():
+			return null
 		actor = _create_guard_actor(role_index, guards_root)
 	else:
 		_prepare_guard_actor(actor, role_index)
@@ -249,7 +262,7 @@ func _repair_guard_authoring_tree() -> void:
 		for index in range(effective_posts):
 			_ensure_guard_post(posts_root, index)
 		_trim_generated_children(posts_root, "GuardPost", effective_posts)
-	if guards_root != null:
+	if guards_root != null and (Engine.is_editor_hint() or not use_settlement_population_for_guards):
 		for index in range(guard_count):
 			_ensure_guard_actor(guards_root, index)
 		_trim_generated_children(guards_root, "Guard", guard_count)
@@ -352,6 +365,19 @@ func _prepare_guard_actor(actor: Node, index: int) -> void:
 	_apply_guard_skills(actor, index)
 	if actor is Node3D:
 		(actor as Node3D).position = _guard_local_position(index)
+	_sync_guard_actor_population_record(actor)
+
+
+func _should_defer_guards_to_settlement_population() -> bool:
+	return use_settlement_population_for_guards and not Engine.is_editor_hint()
+
+
+func _sync_guard_actor_population_record(actor: Node) -> void:
+	if actor == null or Engine.is_editor_hint() or not actor.is_inside_tree():
+		return
+	var population_controller := get_tree().get_first_node_in_group("population_controller")
+	if population_controller != null and population_controller.has_method("register_actor"):
+		population_controller.call("register_actor", actor, get_settlement_id(), {})
 
 
 func _apply_guard_starting_equipment(actor: Node) -> void:

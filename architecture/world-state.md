@@ -20,12 +20,19 @@ Current examples:
 - `WorldSimulationController`: facade for serialized world state and debug actions.
 - `WorldTimeController`: authoritative world time for simulation ticks.
 - `CharacterAppearanceController`: bootstrapped modal editor ownership, barber payment, and save/cancel routing.
+- `ActorQueryController`: live actor index for broad queries without repeated full scene scans.
+- `AiSchedulerController`: staggered autonomous AI decision cadence.
+- `PopulationController`: persistent actor records for generated residents and authored humanoids.
+- `PopulationRealizationController`: actor-record realization policy for whole-town, important-plus-near, and near-player loading.
+- `LedgerSimulationController`: world-time advancement for non-realized actor records.
 
 Facility records are controller-owned state once discovered. A record should use stable IDs and simple values such as `facility_id`, `function_id`, `owner_faction_id`, `world_position`, production and consumption totals, building count, staff count, service point count, storage link count, activity point count, job provider count, and bar service area count.
 
 Settlement max occupancy is derived from authored population capacity sources under the town, such as `WorldBuilding.population_capacity` and explicit `PopulationCapacitySource` nodes. `SettlementDefinition` does not define town capacity.
 
 Staff role slots are controller-visible state. Physical staff actors may be unloaded in far settlements, but the slot ledger persists vacancy timing, assignment count, authority scope, and population consequences.
+
+Actor records are controller-owned state. Physical actors may be live scene nodes or unloaded ledger records, but persistent identity, role, appearance snapshot, inventory snapshot, skills, life state, and last known position belong in `PopulationController`.
 
 Character appearance truth lives on the actor as `CharacterAppearanceData`. The appearance controller owns only short-lived editor session state: draft data, the target actor, barber fee collection, editor-specific world pause, and applying the saved draft back to the actor.
 
@@ -77,6 +84,15 @@ Examples:
 - `RoadNetwork` and `RoadWaypoint` bridge authored road graph data between stable settlement IDs into road records and squad route waypoints.
 - `WorldBuilding` and `PopulationCapacitySource` bridge authored housing/camp capacity into settlement max occupancy.
 - `SettlementJail`, reusable `JailCell` scene instances, and the reusable `PrisonerLocker` container scene bridge authored jail layout into local custody state owned by `LawOrderController`.
-- Containers, bars, mines, and job providers execute local interactions but can be discovered by town and job systems.
+- `SettlementActivityPoint` bridges authored activity targets into `SettlementActivityController`, which issues ambient AI jobs for live actors.
+- Containers, bars, mines, and job providers execute local interactions but can be discovered by town, job, population, and AI systems.
 
 The bridge may use node paths internally, but persisted state should refer to stable IDs.
+
+## AI And Population State
+
+Realized actors execute behavior through `AiBrain` jobs and `HumanoidCharacter` actuator methods. Non-realized actors stay in `PopulationController` records and are advanced by ledger simulation.
+
+Live AI debug state may contain node references while the actor exists, but durable world state should serialize stable IDs, record dictionaries, and job/source identifiers instead of live references.
+
+Autonomous decision systems should use `AiSchedulerController` and `ActorQueryController`. Avoid controller or actor code that scans every humanoid every frame.

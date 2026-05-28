@@ -24,6 +24,7 @@ const CRIME_ASSAULT := "assault"
 const CRIME_MURDER := "murder"
 const CRIME_LOCKPICKING := "lockpicking"
 const CRIME_ESCAPE := "escape"
+const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://scripts/controllers/gecs_world_controller.gd")
 
 var root_scene: Node
 var hud_layer: CanvasLayer
@@ -38,12 +39,14 @@ func _ready() -> void:
 	add_to_group("law_order_controller")
 	_rng.randomize()
 	_connect_world_time()
+	refresh_from_gecs_state()
 
 
 func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
 	root_scene = target_root
 	hud_layer = target_hud
 	_connect_world_time()
+	refresh_from_gecs_state()
 
 
 func get_current_settlement_id_for(target) -> String:
@@ -215,6 +218,7 @@ func report_crime(actor: HumanoidCharacter, faction_id: String, settlement_id: S
 	by_faction[faction_key] = record
 	warrants[actor_key] = by_faction
 	_apply_actor_law_meta(actor, record)
+	_save_law_order_state_to_gecs()
 	if witness != null and witness.has_method("show_world_speech"):
 		witness.show_world_speech(_crime_alarm_line(crime_type), 4.0)
 	_alert_authority_guards(actor, record)
@@ -225,6 +229,7 @@ func handle_actor_death(actor: HumanoidCharacter) -> void:
 	if actor == null:
 		return
 	_prune_victim_only_crimes_for_dead_actor(actor)
+	_save_law_order_state_to_gecs()
 
 
 func actor_has_active_warrant(actor: HumanoidCharacter, faction_id := "") -> bool:
@@ -257,6 +262,37 @@ func get_warrant_record(actor: HumanoidCharacter, faction_id: String) -> Diction
 	return (warrants.get(_actor_key(actor), {}) as Dictionary).get(faction_id, {}).duplicate(true)
 
 
+func serialize_state() -> Dictionary:
+	_save_law_order_state_to_gecs()
+	return _current_law_order_state()
+
+
+func apply_serialized_state(state: Dictionary) -> void:
+	if state.is_empty():
+		refresh_from_gecs_state()
+		return
+	warrants = (state.get("warrants", {}) as Dictionary).duplicate(true)
+	prisoner_records = (state.get("prisoner_records", {}) as Dictionary).duplicate(true)
+	_apply_loaded_law_meta()
+	_save_law_order_state_to_gecs()
+
+
+func refresh_from_gecs_state() -> void:
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("get_law_order_state"):
+		return
+	var state: Dictionary = bridge.call("get_law_order_state")
+	if state.is_empty():
+		return
+	warrants = (state.get("warrants", {}) as Dictionary).duplicate(true)
+	prisoner_records = (state.get("prisoner_records", {}) as Dictionary).duplicate(true)
+	_apply_loaded_law_meta()
+
+
+func sync_law_order_state() -> void:
+	_save_law_order_state_to_gecs()
+
+
 func _get_mutable_warrant_record(actor: HumanoidCharacter, faction_id: String) -> Dictionary:
 	if actor == null:
 		return {}
@@ -279,6 +315,7 @@ func complete_custody_if_placed(actor: HumanoidCharacter) -> bool:
 			_complete_jailing(actor, record, jail)
 			by_faction[faction_id] = record
 			warrants[actor_key] = by_faction
+			_save_law_order_state_to_gecs()
 			return true
 	return false
 
@@ -290,12 +327,14 @@ func _process(delta: float) -> void:
 	_process_accumulator = 0.0
 	_process_warrants()
 	_process_prisoners()
+	_save_law_order_state_to_gecs()
 
 
 func _on_minute_changed(absolute_minute: int, _day_index: int, _hour: int, _minute: int) -> void:
 	_clear_expired_warrants(absolute_minute)
 	_clear_expired_stolen_items(absolute_minute)
 	_process_prisoners()
+	_save_law_order_state_to_gecs()
 
 
 func _process_warrants() -> void:
@@ -411,6 +450,7 @@ func _complete_jailing(actor: HumanoidCharacter, warrant: Dictionary, jail: Node
 	prisoner_records[prisoner_key] = prisoner_record
 	warrant["state"] = "jailed"
 	_apply_actor_law_meta(actor, prisoner_record)
+	_save_law_order_state_to_gecs()
 	var custody_guard := _find_actor_by_key(str(warrant.get("custody_guard_key", "")))
 	_disengage_authority_guards(actor, warrant)
 	_disengage_authority_guards_from_each_other(warrant)
@@ -442,6 +482,7 @@ func complete_prisoner_sentence_delivery(actor: HumanoidCharacter) -> bool:
 	record["sentence_notification_given"] = true
 	prisoner_records[prisoner_key] = record
 	_apply_actor_law_meta(actor, record)
+	_save_law_order_state_to_gecs()
 	return true
 
 
@@ -481,6 +522,7 @@ func _release_prisoner(actor: HumanoidCharacter, record: Dictionary, jail) -> vo
 	prisoner_records.erase(_actor_key(actor))
 	actor.remove_meta("law_sentence_summary")
 	actor.remove_meta("law_warrant_summary")
+	_save_law_order_state_to_gecs()
 
 
 func _alert_authority_guards(actor: HumanoidCharacter, warrant: Dictionary) -> void:
@@ -832,6 +874,7 @@ func _clear_warrant_for_actor(actor: HumanoidCharacter, faction_id: String) -> v
 		_clear_actor_law_meta(actor)
 	else:
 		warrants[actor_key] = by_faction
+	_save_law_order_state_to_gecs()
 
 
 func _clear_actor_law_meta(actor: HumanoidCharacter) -> void:
@@ -1213,6 +1256,54 @@ func _connect_world_time() -> void:
 	var callable := Callable(self, "_on_minute_changed")
 	if world_time.has_signal("minute_changed") and not world_time.is_connected("minute_changed", callable):
 		world_time.connect("minute_changed", callable)
+
+
+func _current_law_order_state() -> Dictionary:
+	return {
+		"state_id": "law_order",
+		"warrants": warrants.duplicate(true),
+		"prisoner_records": prisoner_records.duplicate(true),
+	}
+
+
+func _save_law_order_state_to_gecs() -> void:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("upsert_law_order_state"):
+		bridge.call("upsert_law_order_state", _current_law_order_state())
+
+
+func _apply_loaded_law_meta() -> void:
+	for actor_key in warrants.keys():
+		var actor := _find_actor_by_key(str(actor_key))
+		if actor == null:
+			continue
+		var by_faction: Dictionary = warrants.get(actor_key, {})
+		if not by_faction.is_empty():
+			_apply_actor_law_meta(actor, by_faction.values()[0])
+	for prisoner_key in prisoner_records.keys():
+		var prisoner := _find_actor_by_key(str(prisoner_key))
+		if prisoner != null:
+			_apply_actor_law_meta(prisoner, prisoner_records[prisoner_key])
+
+
+func _get_gecs_world() -> Node:
+	if not is_inside_tree():
+		return null
+	var parent_node := get_parent()
+	if parent_node != null:
+		var local := parent_node.get_node_or_null("GecsWorldController")
+		if local != null:
+			return local
+	var existing := get_tree().get_first_node_in_group("gecs_world_controller")
+	if existing != null and (parent_node == null or existing.get_parent() == parent_node):
+		return existing
+	if parent_node == null:
+		return null
+	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
+	bridge.name = "GecsWorldController"
+	parent_node.add_child(bridge)
+	bridge.call("initialize", root_scene if root_scene != null else parent_node)
+	return bridge
 
 
 func _now_minute() -> int:

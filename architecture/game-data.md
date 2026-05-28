@@ -75,6 +75,7 @@ digraph GameData {
   SettlementTown -> Towns;
   Towns -> Facilities;
   Towns -> Residents;
+  Towns -> ActorRealizationPolicy;
   PopulationAppearanceProfiles -> Residents;
   PopulationNameProfiles -> Residents;
   LawProfiles -> Facilities;
@@ -125,6 +126,7 @@ digraph GameData {
   Merchant -> JobProviders;
   JobProviders -> Jobs;
   Jobs -> Workers;
+  Jobs -> AiJobs;
 
   NPCs -> Inventory;
   Containers -> Inventory;
@@ -142,6 +144,12 @@ digraph GameData {
   Controllers -> WorldTimeController;
   Controllers -> CharacterAppearanceController;
   Controllers -> WorldEventChoiceController;
+  Controllers -> ActorQueryController;
+  Controllers -> AiSchedulerController;
+  Controllers -> PopulationController;
+  Controllers -> PopulationRealizationController;
+  Controllers -> LedgerSimulationController;
+  Controllers -> SettlementActivityController;
 
   FactionController -> FactionState;
   SettlementController -> SettlementState;
@@ -151,10 +159,21 @@ digraph GameData {
   WorldTimeController -> DailyUpkeep;
   CharacterAppearanceController -> CharacterAppearanceSessions;
   WorldEventChoiceController -> WorldConflictEvents;
+  ActorQueryController -> LiveActorIndex;
+  AiSchedulerController -> AiDecisionCadence;
+  PopulationController -> ActorRecords;
+  PopulationRealizationController -> ActorRealizationPolicy;
+  LedgerSimulationController -> ActorRecords;
+  SettlementActivityController -> AiJobs;
 
   DailyUpkeep -> FoodProduction;
   DailyUpkeep -> FoodConsumption;
   DailyUpkeep -> SettlementState;
+  ActorRecords -> Residents;
+  ActorRecords -> NPCs;
+  ActorRecords -> LedgerState;
+  AiJobs -> ActivityPoints;
+  AiJobs -> Workers;
   CharacterAppearanceSessions -> NPCs;
   CharacterAppearanceDefinitions -> NPCs;
   SettlementState -> Events;
@@ -180,7 +199,13 @@ Examples:
 - `SettlementDefinition` defines town identity, faction, optional local culture overrides, food defaults, and world-sim targets; `SettlementController` stores food, total population, available labor, assigned role counts, staff vacancies, events, and facility totals.
 - `FacilityFunctionDefinition` defines what a placed facility does, such as bar, farm, shop, police, weapon shop, armor shop, travel shop, potion shop, tavern, mine, or storage.
 - `SettlementFacilityInstance` bridges the placed building slot, staff, service points, optional storage links, optional jobs, and optional activity points into a serializable facility record. Empty root paths mean the facility does not use that bucket.
-- `SettlementBar` is the operator-facing reusable bar asset; its internal `BarServiceArea` coordinates waiter service, bed rental, and barkeeper stock handoff, while `FacilityVisitActivityPoint` assigns normal townie visitors to real furniture seats.
+- `SettlementBar` is the operator-facing reusable bar asset; its internal `BarServiceArea` coordinates waiter service, bed rental, and barkeeper stock handoff, while `FacilityVisitActivityPoint` assigns normal townie visitors to real furniture seats through the settlement activity AI job path.
+- `PopulationController` owns persistent `ActorRecord` state for generated residents and authored humanoids. Actor records snapshot identity, settlement, role, faction, appearance, equipment, inventory, skills, life state, realization state, ledger elapsed time, and last world position.
+- `PopulationRealizationController` applies each `SettlementTown.actor_realization_policy` to decide which actor records become live scene actors. The default policy is `full_town`; larger towns can choose `important_plus_near` or `near_player` when ledger behavior is sufficient.
+- `LedgerSimulationController` advances non-realized actor records from world time. It should update controller records, not unloaded scene nodes.
+- `ActorQueryController` is the runtime index for live actor lookup. Systems that need broad actor queries should use it instead of scanning humanoid groups repeatedly.
+- `AiSchedulerController` staggers decision ticks so autonomous NPC thinking is not done for every actor every frame.
+- `AiBrain`, `AiJob`, `AiJobDriver`, and `AiTaskStep` are the live AI job path. Activity, work, combat, and future behavior packages should go through jobs and use `HumanoidCharacter` as the actuator.
 - `SettlementJail` is the reusable jail facility asset. It owns a building slot, entry point, warden and jail guard role slots, guard posts, lockable cell records, and prisoner locker storage. Its cells are instances of `scenes/world_sim/jail_cell.tscn`; its prisoner locker is an instance of `scenes/world/containers/prisoner_locker_container.tscn`.
 - `LawOrderController` owns local crime and custody runtime state: witnessed crimes become faction warrants, stolen items carry metadata immediately, unconscious wanted actors are carried by guard-role authority actors into jail or ejected if no jail exists, and world time releases prisoners after sentence expiry.
 - Staff role slots are controller-visible records with stable slot IDs, role IDs, actor paths when realized, authority scope, population cost, and replacement timing. The controller keeps the ledger truth so far-away settlements can run abstractly while near settlements realize physical actors.
@@ -200,6 +225,8 @@ Examples:
 Anything referenced by save data, world simulation, faction logic, server records, or long-lived events needs a stable ID.
 
 Use IDs like `farmer_crossing`, `raider_camp`, `Farmers`, `Raiders`, `farmer_crossing.farm_fields`, `farmer_crossing.bar`, `farmer_crossing.house_a`, `farmer_crossing_raider_camp`, `bar`, and `npc.farmer_crossing.01`.
+
+Generated population records should use deterministic actor IDs such as `farmer_crossing.resident.001`. Authored NPCs without explicit stable IDs may receive settlement-relative IDs from `PopulationController`, but important named actors should still be assigned readable stable IDs in the editor.
 
 Do not rely on node names or `NodePath` values as permanent identity when the state may need to persist or replicate.
 

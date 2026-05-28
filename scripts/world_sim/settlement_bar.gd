@@ -116,6 +116,7 @@ const GUARD_PERCEPTION_RANGE := Vector2i(14, 24)
 @export var staff_stable_id_prefix := ""
 @export var staff_squad_name := ""
 @export var sync_staff_from_owner := true
+@export var use_settlement_population_for_staff := true
 @export_range(0, 8, 1) var beds_building_level_index := 1
 @export_group("Stock")
 @export_enum("parent_settlement_supply", "standalone_fallback") var stock_source := "parent_settlement_supply":
@@ -224,6 +225,8 @@ func fill_settlement_staff_slot(slot_id: String, slot_record: Dictionary) -> Nod
 		return null
 	var actor := _claim_available_resident_for_role(role, role_index, staff_root)
 	if actor == null:
+		if _should_defer_staff_to_settlement_population():
+			return null
 		actor = _create_generated_staff_for_role(role, role_index, staff_root)
 	else:
 		_prepare_claimed_resident_for_role(actor, role, role_index)
@@ -313,44 +316,49 @@ func _ensure_furniture() -> void:
 
 func _ensure_staff() -> void:
 	var staff_root := _ensure_root(staff_root_path)
+	var defer_staff := _should_defer_staff_to_settlement_population()
 	var barkeeper := _get_assigned_actor(barkeeper_actor_path)
-	if barkeeper == null:
+	if barkeeper == null and not defer_staff:
 		barkeeper = _ensure_staff_member(staff_root, "Barkeeper", barkeeper_name, Color(0.58, 0.43, 0.2, 1.0), _point_local_position(_barkeeper_point_transform()), SHOPKEEPER_CONVERSATION, MERCHANT_HUMANOID_SCRIPT, "barkeeper", 0)
-	_apply_assigned_role_defaults(barkeeper, "barkeeper", SHOPKEEPER_CONVERSATION)
-	_ensure_merchant_role(barkeeper)
-	_ensure_job_provider(barkeeper)
+	if barkeeper != null:
+		_apply_assigned_role_defaults(barkeeper, "barkeeper", SHOPKEEPER_CONVERSATION)
+		_ensure_merchant_role(barkeeper)
+		_ensure_job_provider(barkeeper)
 	_sync_job_provider_jobs(barkeeper.get_node_or_null("JobProvider") if barkeeper != null else null)
 	var assigned_waiters := _get_assigned_actors(assigned_waiter_paths)
 	for waiter_index in range(assigned_waiters.size()):
 		_apply_assigned_role_defaults(assigned_waiters[waiter_index], _indexed_name("waiter", waiter_index), WAITER_CONVERSATION)
-	var generated_waiter_count: int = max(0, waiter_count - assigned_waiters.size())
+	var generated_waiter_count: int = 0 if defer_staff else max(0, waiter_count - assigned_waiters.size())
 	for waiter_index in range(generated_waiter_count):
 		var role_index := assigned_waiters.size() + waiter_index
 		_ensure_staff_member(staff_root, _indexed_name("Waiter", waiter_index), _indexed_display_name(waiter_name, role_index), Color(0.28, 0.47, 0.56, 1.0), _waiter_local_position(role_index), WAITER_CONVERSATION, MERCHANT_HUMANOID_SCRIPT, _indexed_name("waiter", role_index), role_index)
-	_trim_generated_children(staff_root, "Waiter", generated_waiter_count)
+	if not defer_staff:
+		_trim_generated_children(staff_root, "Waiter", generated_waiter_count)
 	var assigned_guards := _get_assigned_actors(assigned_guard_paths)
 	for guard_index in range(assigned_guards.size()):
 		var guard := assigned_guards[guard_index]
 		_apply_assigned_role_defaults(guard, _indexed_name("guard", guard_index), null)
 		if _has_property(guard, "base_attack_damage"):
 			guard.set("base_attack_damage", 20.0)
-	var generated_guard_count: int = max(0, guard_count - assigned_guards.size())
+	var generated_guard_count: int = 0 if defer_staff else max(0, guard_count - assigned_guards.size())
 	for guard_index in range(generated_guard_count):
 		var role_index := assigned_guards.size() + guard_index
 		var guard := _ensure_staff_member(staff_root, _indexed_name("Guard", guard_index), _indexed_display_name(guard_name, role_index), Color(0.42, 0.42, 0.48, 1.0), _guard_local_position(role_index), null, MERCHANT_HUMANOID_SCRIPT, _indexed_name("guard", role_index), role_index)
 		if _has_property(guard, "base_attack_damage"):
 			guard.set("base_attack_damage", 20.0)
-	_trim_generated_children(staff_root, "Guard", generated_guard_count)
+	if not defer_staff:
+		_trim_generated_children(staff_root, "Guard", generated_guard_count)
 	var barber := _get_assigned_actor(barber_actor_path)
 	var generated_barber_count := 0
-	if has_barber and barber == null:
+	if has_barber and barber == null and not defer_staff:
 		generated_barber_count = 1
 		barber = _ensure_staff_member(staff_root, "Barber", barber_name, Color(0.54, 0.38, 0.68, 1.0), _point_local_position(_barber_idle_transform()), BARBER_CONVERSATION, BARBER_HUMANOID_SCRIPT, "barber", 0)
 	if has_barber and barber != null:
 		_sync_staff_member(barber, "barber")
 		if _has_property(barber, "conversation_definition"):
 			barber.set("conversation_definition", BARBER_CONVERSATION)
-	_trim_generated_children(staff_root, "Barber", generated_barber_count)
+	if not defer_staff:
+		_trim_generated_children(staff_root, "Barber", generated_barber_count)
 
 
 func _ensure_guard_and_service_points() -> void:
@@ -583,6 +591,7 @@ func _apply_staff_role_defaults(staff: Node, member_name: String, color: Color, 
 	_sync_staff_member(staff, role)
 	_apply_population_generation_to_staff(staff, role, role_index)
 	_apply_staff_role_skills(staff, role, role_index)
+	_sync_staff_actor_population_record(staff)
 
 
 func _should_sync_generated_staff_position(staff: Node) -> bool:
@@ -1357,9 +1366,21 @@ func _prepare_claimed_resident_for_role(actor: Node, role: String, role_index: i
 	var script := _script_for_role(role)
 	if script != null:
 		actor.set_script(script)
+	actor.set_meta(META_GENERATED, true)
 	_apply_staff_role_defaults(actor, _display_name_for_role(role, role_index), _color_for_role(role), _conversation_for_role(role), _indexed_name(role, role_index), role_index)
 	if actor is Node3D:
 		(actor as Node3D).position = _local_position_for_role(role, role_index)
+
+
+func _sync_staff_actor_population_record(actor: Node) -> void:
+	if actor == null or Engine.is_editor_hint() or not actor.is_inside_tree():
+		return
+	var settlement_id := _get_ancestor_settlement_id()
+	if settlement_id.is_empty():
+		return
+	var population_controller := get_tree().get_first_node_in_group("population_controller")
+	if population_controller != null and population_controller.has_method("register_actor"):
+		population_controller.call("register_actor", actor, settlement_id, {})
 
 
 func _create_generated_staff_for_role(role: String, role_index: int, staff_root: Node) -> Node:
@@ -1585,9 +1606,6 @@ func _apply_population_generation_to_staff(staff: Node, role: String, role_index
 func _apply_staff_role_skills(staff: Node, role: String, role_index: int) -> void:
 	if staff == null or Engine.is_editor_hint() or not _is_generated_staff(staff) or not staff.has_method("get_skill_level") or not staff.has_method("set_skill_level"):
 		return
-	var current_perception := int(staff.call("get_skill_level", SkillRules.ATTRIBUTE_PERCEPTION))
-	if current_perception > SkillRules.DEFAULT_LEVEL:
-		return
 	var range := GUARD_PERCEPTION_RANGE if str(role).strip_edges().to_lower().begins_with("guard") else STAFF_PERCEPTION_RANGE
 	var rng := _make_staff_rng("skill:%s:%d:%s" % [role, role_index, str(staff.name)])
 	staff.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(range.x, range.y, rng))
@@ -1652,6 +1670,10 @@ func _find_population_appearance_profile(root: Node) -> Resource:
 		if profile != null:
 			return profile
 	return null
+
+
+func _should_defer_staff_to_settlement_population() -> bool:
+	return use_settlement_population_for_staff and not Engine.is_editor_hint() and _get_ancestor_settlement() != null
 
 
 func _get_ancestor_settlement() -> Node:

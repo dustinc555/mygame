@@ -6,6 +6,8 @@ const DEFAULT_WORK_INVENTORY_COLUMNS := 4
 const DEFAULT_WORK_INVENTORY_ROWS := 4
 const JOB_DEFINITION_SCRIPT = preload("res://scripts/jobs/job_definition.gd")
 const ACTOR_CONDITION_EVALUATOR_SCRIPT = preload("res://scripts/conditions/actor_condition_evaluator.gd")
+const AI_JOB_SCRIPT = preload("res://scripts/ai/ai_job.gd")
+const AI_ASSIGNED_WORK_STEP_SCRIPT = preload("res://scripts/ai/steps/ai_assigned_work_step.gd")
 const SERVER_ORDER_PREP_SECONDS := 1.25
 const SERVER_STATE_IDLE := "idle"
 const SERVER_STATE_TO_CUSTOMER := "to_customer"
@@ -33,10 +35,12 @@ func _ready() -> void:
 	add_to_group("job_provider")
 	_rng.randomize()
 	_initialize_slots()
+	_sync_gecs_state()
 
 
 func set_sim_time(value: float) -> void:
 	_sim_time = value
+	_sync_gecs_state()
 
 
 func get_provider_character() -> HumanoidCharacter:
@@ -119,6 +123,56 @@ func process_jobs(delta: float, sim_time: float) -> void:
 		var slots: Array = _active_slots[job_index]
 		for slot_state in slots:
 			_process_slot(job_index, job, slot_state, delta)
+	_sync_gecs_state()
+
+
+func create_assigned_work_ai_job(worker: HumanoidCharacter, job_label := ""):
+	var assignment := _find_worker_slot(worker)
+	if assignment.is_empty():
+		return null
+	var job_index := int(assignment.get("job_index", -1))
+	if job_index < 0 or job_index >= jobs.size():
+		return null
+	var job_definition = jobs[job_index]
+	if job_definition == null:
+		return null
+	var ai_job = AI_JOB_SCRIPT.new()
+	ai_job.job_type = AI_JOB_SCRIPT.JobType.ASSIGNED_WORK
+	ai_job.priority = AI_JOB_SCRIPT.priority_for_type(ai_job.job_type)
+	ai_job.source_id = "job_provider"
+	ai_job.source = self
+	ai_job.target = self
+	ai_job.target_id = str(get_path()) if is_inside_tree() else str(get_instance_id())
+	ai_job.objective_id = str(job_definition.job_id) if not str(job_definition.job_id).is_empty() else str(job_definition.algorithm_id)
+	ai_job.package_id = "assigned_work:%s" % str(job_definition.algorithm_id)
+	ai_job.debug_label = "Working: %s" % job_label if not job_label.is_empty() else "Working: %s" % job_definition.get_display_name()
+	ai_job.debug_reason = "%s assigned %s" % [get_provider_name(), job_definition.get_display_name()]
+	ai_job.steps = [AI_ASSIGNED_WORK_STEP_SCRIPT.new()]
+	return ai_job
+
+
+func tick_worker_job_from_ai(worker: HumanoidCharacter, delta: float, _ai_job = null) -> Dictionary:
+	_sim_time = _get_job_system_sim_time(delta)
+	_initialize_slots()
+	var assignment := _find_worker_slot(worker)
+	if assignment.is_empty():
+		return {"active": false, "ended": true, "failed": true, "blocker": "Worker has no active job slot"}
+	var job_index := int(assignment.get("job_index", -1))
+	if job_index < 0 or job_index >= jobs.size():
+		return {"active": false, "ended": true, "failed": true, "blocker": "Job index is invalid"}
+	var slot_state: Dictionary = assignment.get("slot_state", {})
+	var job = jobs[job_index]
+	if job == null:
+		_end_slot_assignment(job_index, slot_state, false)
+		return {"active": false, "ended": true, "failed": true, "blocker": "Job definition is missing"}
+	_process_slot(job_index, job, slot_state, delta)
+	var still_active: bool = worker != null and is_instance_valid(worker) and worker.get_active_job_provider() == self and slot_state.get("worker") == worker
+	return {
+		"active": still_active,
+		"ended": not still_active,
+		"blocker": str(slot_state.get("last_ai_blocker", "")),
+		"algorithm_id": str(job.algorithm_id),
+	}
 
 
 func pause_worker_job(worker: HumanoidCharacter, caused_by_player: bool = false) -> void:
@@ -160,10 +214,12 @@ func _new_slot_state(slot_index: int) -> Dictionary:
 		"server_order_text": "",
 		"guard_shuffle_remaining": _next_guard_shuffle_seconds(),
 		"accrued_interval_time": 0.0,
+		"last_ai_blocker": "",
 	}
 
 
 func _evaluate_job_request(worker: HumanoidCharacter, job_index: int) -> Dictionary:
+	_initialize_slots()
 	if worker == null or job_index < 0 or job_index >= jobs.size():
 		return {"allowed": false, "reason": "No job configured"}
 	var job = jobs[job_index]
@@ -272,6 +328,7 @@ func _handle_selected_job_accept(worker: HumanoidCharacter, job_index: int, cont
 
 
 func _assign_worker_to_open_slot(worker: HumanoidCharacter, job_index: int) -> Dictionary:
+	_initialize_slots()
 	var evaluation := _evaluate_job_request(worker, job_index)
 	if not evaluation.get("allowed", false):
 		return evaluation
@@ -294,10 +351,12 @@ func _assign_worker_to_open_slot(worker: HumanoidCharacter, job_index: int) -> D
 	slot_state["server_order_text"] = ""
 	slot_state["guard_shuffle_remaining"] = _next_guard_shuffle_seconds()
 	slot_state["accrued_interval_time"] = 0.0
+	slot_state["last_ai_blocker"] = ""
 	var record := _get_worker_record(worker)
 	record["current_shift_seconds"] = 0.0
 	record["last_job_index"] = job_index
 	worker.begin_job_assignment(self, job.get_display_name(), work_inventory)
+	_sync_gecs_state()
 	return {"allowed": true, "reason": ""}
 
 
@@ -333,6 +392,7 @@ func _handle_collect_pay(worker: HumanoidCharacter) -> Dictionary:
 			"speech_lifetime": 5.0,
 		}
 	record["owed_currency"] = 0
+	_sync_gecs_state()
 	return {
 		"speaker_text": "Here you go.",
 		"end_conversation": true,
@@ -362,6 +422,7 @@ func _get_open_slot_count(job_index: int) -> int:
 
 
 func _evaluate_group_job_request(workers: Array, job_index: int) -> Dictionary:
+	_initialize_slots()
 	if workers.is_empty():
 		return {"allowed": false, "reason": "No workers selected"}
 	if _get_open_slot_count(job_index) < workers.size():
@@ -413,16 +474,21 @@ func _job_unavailable_response(job, evaluation: Dictionary) -> Dictionary:
 
 
 func _process_slot(job_index: int, job, slot_state: Dictionary, delta: float) -> void:
+	slot_state["last_ai_blocker"] = ""
 	var worker: HumanoidCharacter = slot_state.get("worker")
 	if worker == null:
+		slot_state["last_ai_blocker"] = "No worker"
 		return
 	if not is_instance_valid(worker) or worker.life_state != NpcRules.LifeState.ALIVE:
+		slot_state["last_ai_blocker"] = "Worker is not alive"
 		_end_slot_assignment(job_index, slot_state, false)
 		return
 	if worker.get_active_job_provider() != self:
+		slot_state["last_ai_blocker"] = "Worker is no longer assigned here"
 		_end_slot_assignment(job_index, slot_state, false)
 		return
 	if worker.is_in_combat():
+		slot_state["last_ai_blocker"] = "Worker is in combat"
 		return
 	var is_meaningfully_working := false
 	var completed_server_order := false
@@ -821,6 +887,7 @@ func _end_slot_assignment(job_index: int, slot_state: Dictionary, _caused_by_pla
 	slot_state["server_order_text"] = ""
 	slot_state["guard_shuffle_remaining"] = _next_guard_shuffle_seconds()
 	slot_state["accrued_interval_time"] = 0.0
+	_sync_gecs_state()
 
 
 func _is_job_offer_visible(worker: HumanoidCharacter, job_index: int) -> bool:
@@ -907,12 +974,39 @@ func _get_worker_record(worker: HumanoidCharacter) -> Dictionary:
 	return _worker_records[key]
 
 
+func _find_worker_slot(worker: HumanoidCharacter) -> Dictionary:
+	if worker == null:
+		return {}
+	for job_index in _active_slots.keys():
+		var slots: Array = _active_slots[job_index]
+		for slot_state in slots:
+			if slot_state.get("worker") == worker:
+				return {"job_index": int(job_index), "slot_state": slot_state}
+	return {}
+
+
+func _get_job_system_sim_time(delta: float) -> float:
+	if is_inside_tree():
+		var controller := get_tree().get_first_node_in_group("job_system_controller")
+		if controller != null and controller.has_method("get_sim_time"):
+			return float(controller.call("get_sim_time"))
+	return _sim_time + delta
+
+
 func _get_worker_key(worker: HumanoidCharacter) -> String:
 	if worker == null:
 		return ""
 	if not worker.stable_id.is_empty():
 		return worker.stable_id
 	return str(worker.get_instance_id())
+
+
+func _sync_gecs_state() -> void:
+	if not is_inside_tree():
+		return
+	var bridge := get_tree().get_first_node_in_group("gecs_world_controller")
+	if bridge != null and bridge.has_method("sync_job_provider"):
+		bridge.call("sync_job_provider", self, _active_slots, _worker_records, _sim_time)
 
 
 func _next_guard_shuffle_seconds() -> float:

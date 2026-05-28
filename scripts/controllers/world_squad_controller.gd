@@ -3,6 +3,7 @@ extends Node
 class_name WorldSquadController
 
 const FACTION_HUMANOID_SCRIPT = preload("res://scripts/characters/faction_humanoid.gd")
+const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://scripts/controllers/gecs_world_controller.gd")
 const SQUAD_MEMBER_PERCEPTION_RANGE := Vector2i(2, 8)
 const PHASE_TRAVEL := "travel"
 const PHASE_PLANNING := "planning"
@@ -84,11 +85,44 @@ func start_action(action_record: Dictionary) -> Dictionary:
 		"event_created": false,
 	}
 	active_squads[squad_id] = squad_state
+	_sync_world_squad_state_to_gecs()
 	return squad_state.duplicate(true)
 
 
 func serialize_state() -> Dictionary:
+	_sync_world_squad_state_to_gecs()
 	return active_squads.duplicate(true)
+
+
+func apply_serialized_state(state: Dictionary) -> void:
+	if state.is_empty():
+		refresh_from_gecs_state()
+		return
+	_squad_index = int(state.get("squad_index", _squad_index))
+	var squads_value = state.get("active_squads", state)
+	active_squads = {}
+	if squads_value is Dictionary:
+		for squad_id in (squads_value as Dictionary).keys():
+			active_squads[str(squad_id)] = _restore_squad_state((squads_value as Dictionary)[squad_id])
+	_sync_world_squad_state_to_gecs()
+
+
+func refresh_from_gecs_state() -> void:
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("get_world_squad_state"):
+		return
+	var state: Dictionary = bridge.call("get_world_squad_state")
+	if state.is_empty():
+		return
+	_squad_index = int(state.get("squad_index", _squad_index))
+	active_squads = {}
+	var squads: Dictionary = state.get("active_squads", {})
+	for squad_id in squads.keys():
+		active_squads[str(squad_id)] = _restore_squad_state(squads[squad_id])
+
+
+func sync_world_squad_state() -> void:
+	_sync_world_squad_state_to_gecs()
 
 
 func get_squad_state(squad_id: String) -> Dictionary:
@@ -106,6 +140,7 @@ func cancel_operation(squad_id: String, reason := "cancelled") -> void:
 	squad_state["phase_id"] = PHASE_RESOLVED
 	_assign_squad_move_targets(squad_state, _source_retreat_position(squad_state))
 	active_squads[squad_id] = squad_state
+	_sync_world_squad_state_to_gecs()
 
 
 func start_battle(squad_id: String) -> void:
@@ -115,6 +150,7 @@ func start_battle(squad_id: String) -> void:
 	_transition_squad_phase(squad_state, PHASE_BATTLE)
 	_enter_current_phase(squad_state)
 	active_squads[squad_id] = squad_state
+	_sync_world_squad_state_to_gecs()
 
 
 func debug_force_phase(squad_id: String, phase_id: String) -> void:
@@ -124,6 +160,7 @@ func debug_force_phase(squad_id: String, phase_id: String) -> void:
 	_transition_squad_phase(squad_state, phase_id)
 	_enter_current_phase(squad_state)
 	active_squads[squad_id] = squad_state
+	_sync_world_squad_state_to_gecs()
 
 
 func _try_initialize() -> void:
@@ -135,6 +172,7 @@ func _try_initialize() -> void:
 	world_event_choice_controller = get_parent().get_node_or_null("WorldEventChoiceController")
 	if settlement_controller == null:
 		return
+	refresh_from_gecs_state()
 	_initialized = true
 
 
@@ -328,6 +366,7 @@ func _process_active_squads() -> void:
 			_:
 				_process_battle_phase(squad_state, phase, target_anchor)
 		active_squads[squad_id] = squad_state
+	_sync_world_squad_state_to_gecs()
 
 
 func _process_travel_phase(squad_state: Dictionary, phase: Resource, target_anchor: Node3D) -> void:
@@ -651,6 +690,81 @@ func _ensure_actor_root() -> Node3D:
 	actor_root.name = "WorldSquads"
 	root_scene.add_child(actor_root)
 	return actor_root
+
+
+func _current_world_squad_state() -> Dictionary:
+	var squads := {}
+	for squad_id in active_squads.keys():
+		squads[str(squad_id)] = _sanitized_squad_state(active_squads[squad_id])
+	return {
+		"state_id": "world_squads",
+		"squad_index": _squad_index,
+		"active_squads": squads,
+	}
+
+
+func _sync_world_squad_state_to_gecs() -> void:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("upsert_world_squad_state"):
+		bridge.call("upsert_world_squad_state", _current_world_squad_state())
+
+
+func _sanitized_squad_state(value) -> Dictionary:
+	if not (value is Dictionary):
+		return {}
+	var state: Dictionary = (value as Dictionary).duplicate(true)
+	state["template_resource_path"] = _resource_path(state.get("template_resource"))
+	state["operation_profile_path"] = _resource_path(state.get("operation_profile"))
+	if state.has("leader_previous_conversation"):
+		state["leader_previous_conversation_path"] = _resource_path(state.get("leader_previous_conversation"))
+	state.erase("template_resource")
+	state.erase("operation_profile")
+	state.erase("leader_previous_conversation")
+	return state
+
+
+func _restore_squad_state(value) -> Dictionary:
+	if not (value is Dictionary):
+		return {}
+	var state: Dictionary = (value as Dictionary).duplicate(true)
+	var template := _load_resource(str(state.get("template_resource_path", "")))
+	if template != null:
+		state["template_resource"] = template
+	var operation_profile := _load_resource(str(state.get("operation_profile_path", "")))
+	if operation_profile != null:
+		state["operation_profile"] = operation_profile
+	var previous_conversation := _load_resource(str(state.get("leader_previous_conversation_path", "")))
+	if previous_conversation != null:
+		state["leader_previous_conversation"] = previous_conversation
+	return state
+
+
+func _resource_path(resource) -> String:
+	return str((resource as Resource).resource_path) if resource is Resource else ""
+
+
+func _load_resource(path: String) -> Resource:
+	return load(path) as Resource if not path.strip_edges().is_empty() and ResourceLoader.exists(path) else null
+
+
+func _get_gecs_world() -> Node:
+	if not is_inside_tree():
+		return null
+	var parent_node := get_parent()
+	if parent_node != null:
+		var local := parent_node.get_node_or_null("GecsWorldController")
+		if local != null:
+			return local
+	var existing := get_tree().get_first_node_in_group("gecs_world_controller")
+	if existing != null and (parent_node == null or existing.get_parent() == parent_node):
+		return existing
+	if parent_node == null:
+		return null
+	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
+	bridge.name = "GecsWorldController"
+	parent_node.add_child(bridge)
+	bridge.call("initialize", root_scene if root_scene != null else parent_node)
+	return bridge
 
 
 func _get_encamp_position(spawn_position: Vector3, target_anchor: Node3D, route_waypoints: Array[Vector3], operation_profile: Resource) -> Vector3:

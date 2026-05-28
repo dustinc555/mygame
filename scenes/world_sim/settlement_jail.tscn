@@ -48,57 +48,12 @@ facility_type = "jail"
 display_name = "Jail"
 building_type = "jail"
 use_law_profile_trespass_rules = false
+population_capacity = 2
 
 [node name="EntryPoint" type="Marker3D" parent="." unique_id=1623819207]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 7.8)
 
 [node name="Staff" type="Node3D" parent="." unique_id=407603258]
-
-[node name="Warden" type="CharacterBody3D" parent="Staff" unique_id=369734709]
-transform = Transform3D(-0.12043145, 0, -0.9927216, 0, 1, 0, 0.9927216, 0, -0.12043145, 1.3208423, 0.6, 4.1061177)
-script = ExtResource("3_humanoid")
-base_color = Color(0.48, 0.42, 0.34, 1)
-member_name = "Warden (warden)"
-stable_id = "npc.settlement_jail.warden"
-starting_equipment = Array[Resource]([ExtResource("9_bandage")])
-squad_name = "settlement_jail"
-base_attack_damage = 12.0
-metadata/jail_generated = true
-metadata/settlement_staff_role = "warden"
-metadata/settlement_staff_role_index = 0
-metadata/settlement_actor_category = "staff"
-metadata/settlement_staff_slot_id = "settlement_jail.warden"
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Staff/Warden" unique_id=1517753841]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-shape = SubResource("CapsuleShape3D_staff")
-
-[node name="BodyMesh" type="MeshInstance3D" parent="Staff/Warden" unique_id=1821115125]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-mesh = SubResource("CapsuleMesh_warden")
-
-[node name="Guard" type="CharacterBody3D" parent="Staff" unique_id=424990330]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.7, 0.6, 0.2060163)
-script = ExtResource("3_humanoid")
-base_color = Color(0.34, 0.38, 0.46, 1)
-member_name = "Jail Guard (guard)"
-stable_id = "npc.settlement_jail.guard"
-starting_equipment = Array[Resource]([ExtResource("9_bandage"), ExtResource("10_hatchet"), ExtResource("11_shield")])
-squad_name = "settlement_jail"
-base_attack_damage = 12.0
-metadata/jail_generated = true
-metadata/settlement_staff_role = "guard"
-metadata/settlement_staff_role_index = 0
-metadata/settlement_actor_category = "staff"
-metadata/settlement_staff_slot_id = "settlement_jail.guard"
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Staff/Guard" unique_id=194717064]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-shape = SubResource("CapsuleShape3D_staff")
-
-[node name="BodyMesh" type="MeshInstance3D" parent="Staff/Guard" unique_id=1926505489]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-mesh = SubResource("CapsuleMesh_guard")
 
 [node name="GuardPosts" type="Node3D" parent="." unique_id=2073445006]
 

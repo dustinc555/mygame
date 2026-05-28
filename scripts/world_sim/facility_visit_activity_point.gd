@@ -207,7 +207,12 @@ func _prune_visitors() -> void:
 		if life_state != null and int(life_state) != NpcRules.LifeState.ALIVE:
 			removed_keys.append(key)
 			continue
+		if not _facility_allows_actor(actor):
+			_release_visit_target(actor, target)
+			removed_keys.append(key)
+			continue
 		if actor.has_method("get_active_job_provider") and actor.call("get_active_job_provider") != null:
+			_release_visit_target(actor, target)
 			removed_keys.append(key)
 			continue
 		if _is_sittable_target(target):

@@ -162,7 +162,7 @@ func _validate_base_layout_is_serialized() -> void:
 	_assert_file_does_not_contain("res://scenes/world_sim/settlement_keep.tscn", "parent=\"Staff/Ruler\"", "Base keep scene should not serialize generated staff actor children")
 	_assert_file_does_not_contain("res://scenes/world_sim/settlement_keep.tscn", "parent=\"Staff/Guard\"", "Base keep scene should not serialize generated guard actor children")
 	_assert_file_does_not_contain("res://scenes/test_levels/two_towns_road_test.tscn", "Keeps/MayorHouse/GuardPosts", "Farmer keep should rely on generated guard posts instead of serialized children")
-	_assert_file_does_not_contain("res://scenes/test_levels/two_towns_road_test.tscn", "Keeps/BossHut/GuardPosts", "Raider keep should rely on generated guard posts instead of serialized children")
+	_assert_file_does_not_contain("res://scenes/test_levels/two_towns_road_test.tscn", "Keeps/BossHut", "Raider Camp should no longer ship with a keep")
 
 
 func _validate_ruler_seating(keep: Node) -> void:

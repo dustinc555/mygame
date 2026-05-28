@@ -30,9 +30,12 @@ const POPULATION_NAME_PROFILE_SCRIPT = preload("res://scripts/world_sim/populati
 
 var _used_population_names: Dictionary = {}
 var _default_population_name_profile: Resource
+var _population_spawn_defer_attempts := 0
+var _resyncing_population := false
 
 
 func _ready() -> void:
+	add_to_group("population_spawner")
 	_used_population_names.clear()
 	_apply_profile_to_existing_residents()
 	_apply_civilian_equipment_rules_to_existing_residents()
@@ -41,10 +44,37 @@ func _ready() -> void:
 	else:
 		_collect_existing_population_names()
 	_apply_default_skills_to_existing_residents()
-	_spawn_missing_residents()
+	call_deferred("_spawn_missing_residents")
+
+
+func resync_population_realization() -> void:
+	if _resyncing_population:
+		return
+	var population_controller := _get_population_controller()
+	if population_controller == null:
+		return
+	_resyncing_population = true
+	_spawn_missing_residents_from_records(population_controller)
+	_resyncing_population = false
+
+
+func get_settlement_id() -> String:
+	return _get_settlement_id()
+
+
+func needs_population_realization_resync() -> bool:
+	return _get_effective_realization_policy() != "full_town"
 
 
 func _spawn_missing_residents() -> void:
+	var population_controller := _get_population_controller()
+	if population_controller == null and _population_spawn_defer_attempts < 5:
+		_population_spawn_defer_attempts += 1
+		call_deferred("_spawn_missing_residents")
+		return
+	if population_controller != null:
+		_spawn_missing_residents_from_records(population_controller)
+		return
 	var desired_count: int = _get_desired_population()
 	var existing_count: int = _count_existing_residents()
 	var missing_count: int = max(0, desired_count - existing_count)
@@ -71,6 +101,120 @@ func _spawn_missing_residents() -> void:
 		actor.position = _spawn_position(resident_index - 1, desired_count, rng)
 		_add_basic_humanoid_children(actor)
 		add_child(actor)
+
+
+func _spawn_missing_residents_from_records(population_controller: Node) -> void:
+	_register_existing_residents_with_population_controller(population_controller)
+	var desired_count: int = _get_desired_population()
+	var context := _build_population_generation_context(_count_existing_residents())
+	var records: Array = population_controller.call("ensure_generated_population", _get_settlement_id(), _get_spawner_id(), desired_count, context)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = max(1, random_seed)
+	_ensure_record_spawn_positions(population_controller, records, desired_count, rng)
+	var forced_realization_ids := _staff_bootstrap_realization_ids(records)
+	var spawned_count := 0
+	for record_value in records:
+		if not (record_value is Dictionary):
+			continue
+		var record: Dictionary = record_value
+		var existing_actor := _find_child_actor_for_record(record)
+		if existing_actor is Node3D and population_controller.has_method("update_actor_record"):
+			var updated_record: Dictionary = population_controller.call("update_actor_record", str(record.get("actor_id", "")), {
+				"last_world_position": (existing_actor as Node3D).global_position,
+				"last_world_position_initialized": true,
+			})
+			if not updated_record.is_empty():
+				record = updated_record
+		var actor_id := str(record.get("actor_id", ""))
+		var should_realize := forced_realization_ids.has(actor_id) or _should_realize_record(record)
+		if existing_actor != null:
+			if not should_realize:
+				_unrealize_actor(existing_actor, population_controller)
+			continue
+		if not should_realize:
+			continue
+		var resident_index: int = max(1, int(record.get("generation_index", spawned_count + 1)))
+		var actor := CharacterBody3D.new()
+		actor.name = "%s%02d" % [member_name_prefix.replace(" ", ""), resident_index]
+		actor.set_script(FACTION_HUMANOID_SCRIPT)
+		population_controller.call("apply_record_to_actor", actor, record)
+		actor.position = _record_local_spawn_position(record, resident_index - 1, max(desired_count, 1), rng)
+		_add_basic_humanoid_children(actor)
+		add_child(actor)
+		population_controller.call("register_actor", actor, _get_settlement_id(), {"generation_source": _get_spawner_id(), "generation_index": resident_index})
+		spawned_count += 1
+	_notify_settlement_population_ready()
+
+
+func _register_existing_residents_with_population_controller(population_controller: Node) -> void:
+	for child in get_children():
+		if not child.has_method("assign_attack_target"):
+			continue
+		population_controller.call("register_actor", child, _get_settlement_id(), {"generation_source": _get_spawner_id(), "role_id": "resident"})
+
+
+func _build_population_generation_context(existing_count: int) -> Dictionary:
+	return {
+		"start_index": 0,
+		"member_name_prefix": member_name_prefix,
+		"faction_id": _get_faction_id(),
+		"squad_name": squad_name if not squad_name.is_empty() else get_parent().name,
+		"role_id": "resident",
+		"base_color": base_color,
+		"hostile_faction_ids": Array(hostile_faction_ids),
+		"combat_stance": combat_stance,
+		"starting_equipment": _civilian_starting_equipment(),
+		"population_appearance_profile": population_appearance_profile,
+		"population_name_profile": _get_effective_population_name_profile(),
+		"resident_perception_min": resident_perception_min,
+		"resident_perception_max": resident_perception_max,
+	}
+
+
+func _should_realize_record(record: Dictionary) -> bool:
+	var realization_controller := _get_population_realization_controller()
+	if realization_controller == null or not realization_controller.has_method("should_realize_actor"):
+		return true
+	return bool(realization_controller.call("should_realize_actor", _get_settlement_node(), record))
+
+
+func _get_effective_realization_policy() -> String:
+	var settlement := _get_settlement_node()
+	if settlement != null:
+		var value = settlement.get("actor_realization_policy")
+		if value != null and not str(value).strip_edges().is_empty():
+			return str(value).strip_edges()
+	var realization_controller := _get_population_realization_controller()
+	if realization_controller != null:
+		var default_policy = realization_controller.get("default_realization_policy")
+		if default_policy != null and not str(default_policy).strip_edges().is_empty():
+			return str(default_policy).strip_edges()
+	return "full_town"
+
+
+func _find_child_actor_for_record(record: Dictionary) -> Node:
+	var actor_id := str(record.get("actor_id", ""))
+	if actor_id.is_empty():
+		return null
+	var population_controller := _get_population_controller()
+	if population_controller != null and population_controller.has_method("get_live_actor"):
+		var live_actor := population_controller.call("get_live_actor", actor_id) as Node
+		if live_actor != null:
+			return live_actor
+	for child in get_children():
+		if not child.has_method("assign_attack_target"):
+			continue
+		if str(child.get("stable_id")) == actor_id:
+			return child
+		if child.has_meta("actor_record_id") and str(child.get_meta("actor_record_id")) == actor_id:
+			return child
+	if is_inside_tree():
+		for actor in get_tree().get_nodes_in_group("humanoid_character"):
+			if str(actor.get("stable_id")) == actor_id:
+				return actor as Node
+			if actor.has_meta("actor_record_id") and str(actor.get_meta("actor_record_id")) == actor_id:
+				return actor as Node
+	return null
 
 
 func _apply_profile_to_existing_residents() -> void:
@@ -202,10 +346,20 @@ func _collect_existing_population_names() -> void:
 func _get_desired_population() -> int:
 	if desired_population_override >= 0:
 		return desired_population_override
-	var max_occupancy := _get_authored_population_capacity()
-	if max_occupancy <= 0:
+	var settlement_controller := _get_settlement_controller()
+	if settlement_controller == null or not settlement_controller.has_method("get_settlement_state"):
 		return 0
-	return max(0, int(round(float(max_occupancy) * _get_occupancy_multiplier())))
+	var state: Dictionary = settlement_controller.call("get_settlement_state", _get_settlement_id())
+	if state.is_empty():
+		return 0
+	var population: int = max(0, int(state.get("population", 0)))
+	var assigned: int = max(0, int(state.get("population_assigned", 0)))
+	var target: int = max(0, int(state.get("population_target", 0)))
+	if target <= 0:
+		return 0
+	if population > target:
+		return mini(_count_existing_or_record_residents(), max(0, target - assigned))
+	return max(0, population - assigned)
 
 
 func _count_existing_residents() -> int:
@@ -216,12 +370,106 @@ func _count_existing_residents() -> int:
 	return count
 
 
+func _count_existing_or_record_residents() -> int:
+	var count := _count_existing_residents()
+	var population_controller := _get_population_controller()
+	if population_controller == null or not population_controller.has_method("get_records_for_settlement"):
+		return count
+	var record_count := 0
+	for record in population_controller.call("get_records_for_settlement", _get_settlement_id()):
+		if not (record is Dictionary):
+			continue
+		if str(record.get("generation_source", "")) != _get_spawner_id():
+			continue
+		if str(record.get("role_id", "resident")) != "resident":
+			continue
+		record_count += 1
+	return maxi(count, record_count)
+
+
 func _get_faction_id() -> String:
 	if not faction_id.is_empty():
 		return faction_id
 	if settlement_definition != null and settlement_definition.has_method("get_faction_id"):
 		return str(settlement_definition.call("get_faction_id"))
 	return ""
+
+
+func _get_settlement_id() -> String:
+	if settlement_definition != null and settlement_definition.has_method("get_id"):
+		return str(settlement_definition.call("get_id"))
+	var settlement := _get_settlement_node()
+	if settlement != null and settlement.has_method("get_settlement_id"):
+		return str(settlement.call("get_settlement_id"))
+	return str(get_parent().name) if get_parent() != null else name
+
+
+func _get_spawner_id() -> String:
+	if not stable_id_prefix.strip_edges().is_empty():
+		return stable_id_prefix.strip_edges()
+	return name
+
+
+func _get_settlement_node() -> Node:
+	var current := get_parent()
+	while current != null:
+		if current is SettlementAnchor or current.is_in_group("settlement_anchor"):
+			return current
+		current = current.get_parent()
+	return null
+
+
+func _get_population_controller() -> Node:
+	if not is_inside_tree():
+		return null
+	var nodes := get_tree().get_nodes_in_group("population_controller")
+	return nodes[0] as Node if not nodes.is_empty() else null
+
+
+func _get_settlement_controller() -> Node:
+	if not is_inside_tree():
+		return null
+	var nodes := get_tree().get_nodes_in_group("settlement_controller")
+	return nodes[0] as Node if not nodes.is_empty() else null
+
+
+func _notify_settlement_population_ready() -> void:
+	var settlement_controller := _get_settlement_controller()
+	if settlement_controller != null and settlement_controller.has_method("bootstrap_staff_vacancies"):
+		settlement_controller.call("bootstrap_staff_vacancies", _get_settlement_id())
+
+
+func _get_population_realization_controller() -> Node:
+	if not is_inside_tree():
+		return null
+	var nodes := get_tree().get_nodes_in_group("population_realization_controller")
+	return nodes[0] as Node if not nodes.is_empty() else null
+
+
+func _staff_bootstrap_realization_ids(records: Array) -> Dictionary:
+	var forced := {}
+	if _get_effective_realization_policy() == "full_town":
+		return forced
+	var settlement_controller := _get_settlement_controller()
+	if settlement_controller == null or not settlement_controller.has_method("get_staff_vacancy_realization_count"):
+		return forced
+	var needed: int = max(0, int(settlement_controller.call("get_staff_vacancy_realization_count", _get_settlement_id())))
+	if needed <= 0:
+		return forced
+	for record_value in records:
+		if needed <= 0:
+			break
+		if not (record_value is Dictionary):
+			continue
+		var record: Dictionary = record_value
+		if str(record.get("role_id", "resident")) != "resident":
+			continue
+		var actor_id := str(record.get("actor_id", ""))
+		if actor_id.is_empty():
+			continue
+		forced[actor_id] = true
+		needed -= 1
+	return forced
 
 
 func _get_authored_population_capacity() -> int:
@@ -253,6 +501,53 @@ func _roll_center_biased_level(minimum: int, maximum: int, rng: RandomNumberGene
 		return low
 	var t := (rng.randf() + rng.randf()) * 0.5
 	return clampi(int(round(lerpf(float(low), float(high), t))), low, high)
+
+
+func _ensure_record_spawn_positions(population_controller: Node, records: Array, desired_count: int, rng: RandomNumberGenerator) -> void:
+	if population_controller == null or not population_controller.has_method("update_actor_record"):
+		return
+	for index in range(records.size()):
+		var record_value = records[index]
+		if not (record_value is Dictionary):
+			continue
+		var record: Dictionary = record_value
+		if _record_has_initialized_world_position(record):
+			continue
+		var generation_index: int = max(1, int(record.get("generation_index", index + 1)))
+		var local_position: Vector3 = _spawn_position(generation_index - 1, max(desired_count, 1), rng)
+		var world_position: Vector3 = global_transform * local_position
+		var actor_id := str(record.get("actor_id", ""))
+		if actor_id.is_empty():
+			continue
+		var updated: Dictionary = population_controller.call("update_actor_record", actor_id, {
+			"last_world_position": world_position,
+			"last_world_position_initialized": true,
+		})
+		if not updated.is_empty():
+			records[index] = updated
+
+
+func _record_local_spawn_position(record: Dictionary, index: int, count: int, rng: RandomNumberGenerator) -> Vector3:
+	var position = record.get("last_world_position", null)
+	if position is Vector3 and _record_has_initialized_world_position(record):
+		return global_transform.affine_inverse() * (position as Vector3)
+	return _spawn_position(index, count, rng)
+
+
+func _record_has_initialized_world_position(record: Dictionary) -> bool:
+	if not bool(record.get("last_world_position_initialized", false)):
+		return false
+	return record.get("last_world_position", null) is Vector3
+
+
+func _unrealize_actor(actor: Node, population_controller: Node) -> void:
+	if actor == null or not is_instance_valid(actor):
+		return
+	if actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member")):
+		return
+	if population_controller != null and population_controller.has_method("unregister_actor"):
+		population_controller.call("unregister_actor", actor)
+	actor.queue_free()
 
 
 func _spawn_position(index: int, count: int, rng: RandomNumberGenerator) -> Vector3:

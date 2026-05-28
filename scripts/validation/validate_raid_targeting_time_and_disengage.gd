@@ -153,30 +153,50 @@ func _validate_planning_phase_uses_world_clock(settlement_controller: Node, worl
 
 
 func _validate_combat_disengage_helpers() -> void:
-	var raider := _scene.get_node_or_null("Settlements/RaiderCamp/Residents/RaiderA") as HumanoidCharacter
-	var farmer := _scene.get_node_or_null("Settlements/FarmerCrossing/Residents/FarmerA") as HumanoidCharacter
+	var raider := _first_resident_at("Settlements/RaiderCamp/Residents")
+	var farmer := _first_resident_at("Settlements/FarmerCrossing/Residents")
 	if raider == null or farmer == null:
 		_fail("Could not find actors for combat disengage validation")
 		return
 	var raider_position := raider.global_position
 	var farmer_position := farmer.global_position
+	raider.call("cancel_ai_job")
+	farmer.call("cancel_ai_job")
+	raider.call("stop_attack_assignment")
+	farmer.call("stop_attack_assignment")
 	farmer.call("set_move_target", farmer.global_position + Vector3(5.0, 0.0, 0.0), true)
 	if not bool(farmer.call("_is_player_order_to_avoid_combat")):
 		_fail("Player-issued movement should suppress automatic combat re-engagement")
 	raider.global_position = Vector3.ZERO
 	farmer.global_position = Vector3(4.0, 0.0, 0.0)
 	raider.set("combat_chase_leash_distance", 10.0)
+	raider.set("attack_range", 1.15)
 	raider.call("assign_attack_target", farmer, false, false, false)
+	raider.call("cancel_ai_job")
 	farmer.global_position = Vector3(35.0, 0.0, 0.0)
 	if not bool(raider.call("_should_abandon_attack_chase")):
 		_fail("NPC attack orders should abandon targets beyond the chase leash")
-	raider.set("_order_was_player_issued", true)
+	raider.call("stop_attack_assignment")
+	raider.global_position = Vector3.ZERO
+	farmer.global_position = Vector3(4.0, 0.0, 0.0)
+	raider.call("assign_attack_target", farmer, true, false, false)
+	farmer.global_position = Vector3(35.0, 0.0, 0.0)
 	if bool(raider.call("_should_abandon_attack_chase")):
 		_fail("Player-issued attack orders should not be cancelled by the NPC chase leash")
 	raider.call("stop_attack_assignment")
 	farmer.call("stop_attack_assignment")
 	raider.global_position = raider_position
 	farmer.global_position = farmer_position
+
+
+func _first_resident_at(path: String) -> HumanoidCharacter:
+	var root_node := _scene.get_node_or_null(path)
+	if root_node == null:
+		return null
+	for child in root_node.get_children():
+		if child is HumanoidCharacter:
+			return child as HumanoidCharacter
+	return null
 
 
 func _wait_frames(frame_count: int) -> void:

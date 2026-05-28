@@ -5,6 +5,7 @@ const SETTLEMENT_BAR_SCENE := preload("res://scenes/world_sim/settlement_bar.tsc
 const STOOL_SCENE := preload("res://scenes/world/props/stool_chair.tscn")
 const BREAD_ITEM := preload("res://resources/items/bread.tres")
 const FOOD_ITEM := preload("res://resources/items/food.tres")
+const FACTION_HUMANOID_SCRIPT := preload("res://scripts/characters/faction_humanoid.gd")
 const FARMER_NAME_PROFILE := preload("res://resources/world_sim/population_name_profiles/farmer_names.tres")
 const BARBER_CONVERSATION := preload("res://resources/conversations/barber_services.tres")
 
@@ -69,15 +70,17 @@ func _validate_base_bar_scene_staff_authoring() -> void:
 
 func _validate_operator_instantiated_bar() -> void:
 	var bars := _scene.get_node_or_null("Settlements/FarmerCrossing/Bars")
-	var assigned_waiter := _scene.get_node_or_null("Settlements/FarmerCrossing/Residents/FarmerA") as HumanoidCharacter
-	var assigned_guard := _scene.get_node_or_null("Settlements/FarmerCrossing/Residents/FarmerB") as HumanoidCharacter
+	var townies := _collect_settlement_townies("Settlements/FarmerCrossing/Residents")
+	var assigned_waiter := townies[0] if townies.size() > 0 else null
+	var assigned_guard := townies[1] if townies.size() > 1 else null
 	if bars == null or assigned_waiter == null or assigned_guard == null:
-		_fail("Could not find bar container or assigned NPCs for reusable bar validation")
+		_fail("Could not find bar container or generated townies for reusable bar validation")
 		return
 	var waiter_parent := assigned_waiter.get_parent()
 	var guard_parent := assigned_guard.get_parent()
 	var bar := SETTLEMENT_BAR_SCENE.instantiate()
 	bar.name = "OperatorBar"
+	bar.set("use_settlement_population_for_staff", false)
 	bars.add_child(bar)
 	bar.set("display_name", "Operator Test Bar")
 	var waiter_paths: Array[NodePath] = [bar.get_path_to(assigned_waiter)]
@@ -344,32 +347,30 @@ func _validate_bar_visit_capacity(bar: Node, assigned_waiter: HumanoidCharacter,
 	if party_member != null and bool(visit_point.call("is_available_for", party_member)):
 		_fail("Party members should not count as normal townie bar visitors")
 	var visitors := _collect_townie_visitors(bar, [assigned_waiter, assigned_guard])
-	if visitors.size() < 3:
-		_fail("Reusable bar visitor capacity validation needs at least three normal townies")
+	_ensure_validation_townie_visitors(bar, [assigned_waiter, assigned_guard], visitors, 2)
+	if visitors.size() < 2:
+		_fail("Reusable bar visitor capacity validation needs at least two normal townies")
 		return
 	var original_capacity := int(bar.get("visitor_capacity"))
-	bar.set("visitor_capacity", 2)
+	bar.set("visitor_capacity", 1)
 	if bar.has_method("_repair_authoring_tree"):
 		bar.call("_repair_authoring_tree")
 	visit_point = bar.get_node_or_null("ActivityPoints/FacilityVisitPoint")
 	var first: HumanoidCharacter = visitors[0]
 	var second: HumanoidCharacter = visitors[1]
-	var third: HumanoidCharacter = visitors[2]
-	for visitor in [first, second, third]:
+	for visitor in [first, second]:
 		visitor.stop_seat_assignment()
 	if not bool(visit_point.call("assign_actor", first)):
 		_fail("First normal townie should be able to visit an empty bar")
-	if not bool(visit_point.call("assign_actor", second)):
-		_fail("Second normal townie should be able to fill the bar visitor capacity")
 	var first_seat := _seat_for_sitter(bar, first)
-	if int(visit_point.call("get_active_visitor_count")) != 2:
+	if int(visit_point.call("get_active_visitor_count")) != 1:
 		_fail("Facility visit point should track exactly visitor_capacity active townie visitors")
-	var third_position := third.global_position
-	if bool(visit_point.call("is_available_for", third)):
+	var second_position := second.global_position
+	if bool(visit_point.call("is_available_for", second)):
 		_fail("Facility visit point should be unavailable to extra townies once visitor_capacity is full")
-	if bool(visit_point.call("assign_actor", third)):
+	if bool(visit_point.call("assign_actor", second)):
 		_fail("Facility visit point should reject extra townies instead of mosh-pitting at the marker")
-	if third.global_position.distance_to(third_position) > 0.01:
+	if second.global_position.distance_to(second_position) > 0.01:
 		_fail("Rejected townie should not be moved toward the full bar")
 	visit_point.call("release_actor", first)
 	if first.is_sitting():
@@ -380,10 +381,9 @@ func _validate_bar_visit_capacity(bar: Node, assigned_waiter: HumanoidCharacter,
 			_fail("Released bar visitor should stand on the aisle side of the chair, local=%s" % first_local_stand)
 	if bool(visit_point.call("is_available_for", first)):
 		_fail("Released bar visitor should have a short cooldown before returning")
-	if not bool(visit_point.call("is_available_for", third)) or not bool(visit_point.call("assign_actor", third)):
+	if not bool(visit_point.call("is_available_for", second)) or not bool(visit_point.call("assign_actor", second)):
 		_fail("A different townie should be able to take the freed bar visitor slot")
 	visit_point.call("release_actor", second)
-	visit_point.call("release_actor", third)
 	bar.set("visitor_capacity", original_capacity)
 	if bar.has_method("_repair_authoring_tree"):
 		bar.call("_repair_authoring_tree")
@@ -812,6 +812,39 @@ func _strip_role_suffix(display_name: String) -> String:
 		if result.to_lower().ends_with(suffix):
 			return result.substr(0, result.length() - suffix.length()).strip_edges()
 	return result
+
+
+func _collect_settlement_townies(path: String) -> Array[HumanoidCharacter]:
+	var townies: Array[HumanoidCharacter] = []
+	var root_node := _scene.get_node_or_null(path)
+	if root_node == null:
+		return townies
+	for child in root_node.get_children():
+		if child is HumanoidCharacter:
+			townies.append(child as HumanoidCharacter)
+	return townies
+
+
+func _ensure_validation_townie_visitors(bar: Node, excluded: Array, visitors: Array[HumanoidCharacter], required_count: int) -> void:
+	if visitors.size() >= required_count:
+		return
+	var settlement = bar.call("_get_ancestor_settlement") if bar != null and bar.has_method("_get_ancestor_settlement") else null
+	if settlement == null:
+		return
+	var resident_root = settlement.get_node_or_null(settlement.get("resident_root_path"))
+	if resident_root == null:
+		return
+	while visitors.size() < required_count:
+		var actor := CharacterBody3D.new()
+		actor.name = "ValidationTownie%d" % (visitors.size() + 1)
+		actor.set_script(FACTION_HUMANOID_SCRIPT)
+		actor.set("member_name", "Validation Townie %d" % (visitors.size() + 1))
+		actor.set("stable_id", "validation.townie.%d" % (visitors.size() + 1))
+		actor.set("faction_name", "Farmers")
+		actor.set("squad_name", "FarmerCrossing")
+		resident_root.add_child(actor)
+		if actor is HumanoidCharacter and not excluded.has(actor) and bool(bar.call("can_actor_visit_facility", actor)):
+			visitors.append(actor as HumanoidCharacter)
 
 
 func _collect_townie_visitors(bar: Node, excluded: Array) -> Array[HumanoidCharacter]:

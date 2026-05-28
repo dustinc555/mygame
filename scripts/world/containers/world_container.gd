@@ -51,6 +51,7 @@ func _ready() -> void:
 	add_to_group("world_container")
 	_apply_collision_settings()
 	_rebuild_visual()
+	_sync_inventory_to_gecs()
 
 
 func _enter_tree() -> void:
@@ -153,6 +154,15 @@ func _slot_position_from_index(slot_index: int) -> Vector3:
 
 func _on_inventory_changed() -> void:
 	inventory_changed.emit()
+	_sync_inventory_to_gecs()
+
+
+func _sync_inventory_to_gecs() -> void:
+	if not is_inside_tree():
+		return
+	var bridge := get_tree().get_first_node_in_group("gecs_world_controller")
+	if bridge != null and bridge.has_method("sync_world_container"):
+		bridge.call("sync_world_container", self)
 
 
 func _seed_starting_inventory() -> void:

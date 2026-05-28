@@ -149,6 +149,8 @@ func fill_settlement_staff_slot(slot_id: String, slot_record: Dictionary) -> Nod
 		return null
 	var actor := _claim_available_resident_for_role(role, role_index, staff_root)
 	if actor == null:
+		if _should_defer_staff_to_settlement_population():
+			return null
 		actor = _create_staff_actor(role, role_index, staff_root)
 	else:
 		_prepare_staff_actor(actor, role, role_index, true)
@@ -733,6 +735,8 @@ func _ensure_staff() -> void:
 	var root := _ensure_root(staff_root_path)
 	if root == null:
 		return
+	if _should_defer_staff_to_settlement_population():
+		return
 	_ensure_staff_actor(root, "warden", 0)
 	for index in range(guard_count):
 		_ensure_staff_actor(root, "guard", index)
@@ -802,6 +806,18 @@ func _prepare_staff_actor(actor: Node, role: String, index: int, apply_default_p
 	_apply_staff_skills(actor, role, index)
 	if apply_default_position and actor is Node3D:
 		(actor as Node3D).position = _local_position_for_role(role, index)
+	_sync_staff_actor_population_record(actor)
+
+
+func _sync_staff_actor_population_record(actor: Node) -> void:
+	if actor == null or Engine.is_editor_hint() or not actor.is_inside_tree():
+		return
+	var settlement_id := _get_ancestor_settlement_id()
+	if settlement_id.is_empty():
+		return
+	var population_controller := get_tree().get_first_node_in_group("population_controller")
+	if population_controller != null and population_controller.has_method("register_actor"):
+		population_controller.call("register_actor", actor, settlement_id, {})
 
 
 func _apply_staff_starting_equipment(actor: Node, role: String) -> void:
@@ -1205,8 +1221,6 @@ func _apply_population_generation_to_actor(actor: Node, role: String, index: int
 func _apply_staff_skills(actor: Node, role: String, index: int) -> void:
 	if actor == null or Engine.is_editor_hint() or not actor.has_method("get_skill_level") or not actor.has_method("set_skill_level"):
 		return
-	if int(actor.call("get_skill_level", SkillRules.ATTRIBUTE_PERCEPTION)) > SkillRules.DEFAULT_LEVEL:
-		return
 	var range := WARDEN_PERCEPTION_RANGE if role == "warden" else GUARD_PERCEPTION_RANGE
 	var rng := _make_staff_rng("skill:%s:%d:%s" % [role, index, str(actor.name)])
 	actor.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(range.x, range.y, rng))
@@ -1309,6 +1323,24 @@ func _resource_definition_id(definition: Resource) -> String:
 	if _has_property(definition, "faction_id") and not str(definition.get("faction_id")).strip_edges().is_empty():
 		return str(definition.get("faction_id"))
 	return str(definition.get("display_name")) if _has_property(definition, "display_name") else ""
+
+
+func _should_defer_staff_to_settlement_population() -> bool:
+	if Engine.is_editor_hint():
+		return false
+	var settlement := _get_ancestor_settlement()
+	return settlement != null and _has_population_spawner(settlement)
+
+
+func _has_population_spawner(root: Node) -> bool:
+	if root == null:
+		return false
+	if root.is_in_group("population_spawner") or root.has_method("resync_population_realization"):
+		return true
+	for child in root.get_children():
+		if _has_population_spawner(child):
+			return true
+	return false
 
 
 func _get_ancestor_settlement() -> Node:

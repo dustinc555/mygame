@@ -10,7 +10,7 @@
 [ext_resource type="PackedScene" path="res://scenes/world/props/bar_table.tscn" id="17_opnxp"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/stool_chair.tscn" id="18_hhq5f"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/simple_bed.tscn" id="20_8jp0s"]
-[ext_resource type="Script" uid="uid://cxr7vjw8dylgu" path="res://scripts/world_sim/facility_visit_activity_point.gd" id="22_visit"]
+[ext_resource type="Script" path="res://scripts/world_sim/facility_visit_activity_point.gd" id="22_visit"]
 
 [sub_resource type="Resource" id="BuildingLevelDefinition_ground"]
 script = ExtResource("5_40dsm")

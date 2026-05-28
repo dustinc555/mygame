@@ -41,3 +41,10 @@
 - Movement-affecting skills should read levels through `WorldActor`/`SkillRules`, not humanoid-only exported skill variables.
 - Sneaking speed should remain tied to `subterfuge.sneaking`: novices crawl slowly, while mastery approaches but does not blindly replace running movement.
 - Keep movement multipliers deterministic and compatible with hunger, fatigue, carrying, equipment, and running modifiers.
+
+## Humanoid AI Role
+- `HumanoidCharacter` is the actuator for movement, combat, interaction, needs, equipment, and animation. Do not move high-level autonomous decision ownership into this script.
+- Use `request_ai_job()`, `cancel_ai_job()`, and `get_ai_debug_snapshot()` to bridge behavior systems into `AiBrain`.
+- New autonomous behavior should enter through `AiJob` and small `AiTaskStep` classes that call existing actuator methods.
+- Use `AiSchedulerController` for decision cadence and `ActorQueryController` for broad actor lookup. Do not add per-frame all-humanoid scans here.
+- Persistent identity changes must remain compatible with `PopulationController` registration and `stable_id`/`actor_record_id` metadata.

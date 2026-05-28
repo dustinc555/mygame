@@ -331,7 +331,7 @@ func is_entry_currency_container(entry, definition = null) -> bool:
 		return false
 	if definition != null:
 		return _entry_can_store_currency(entry, definition)
-	return entry.definition.has_method("is_currency_container") and bool(entry.definition.call("is_currency_container"))
+	return not str(entry.definition.currency_id).is_empty() and int(entry.definition.currency_container_capacity) > 0
 
 
 func can_take_contained_item_as_loose(entry, definition, amount: int) -> bool:
@@ -665,8 +665,6 @@ func _is_silver_pouch_entry(entry) -> bool:
 func _entry_can_store_currency(entry, definition) -> bool:
 	if entry == null or entry.definition == null or definition == null:
 		return false
-	if entry.definition.has_method("can_store_currency"):
-		return bool(entry.definition.call("can_store_currency", definition))
 	return str(entry.definition.currency_id) == str(definition.currency_id) and int(entry.definition.currency_container_capacity) > 0
 
 

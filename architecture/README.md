@@ -13,6 +13,7 @@ Human-operator workflows live in `operator/`. Update those instructions whenever
 ## Docs
 
 - `game-data.md`: how nodes and resources define factions, towns, items, facilities, and other game data.
+- `ai-and-population.md`: how persistent actor records, realization policy, ledger simulation, actor queries, AI scheduling, and live AI jobs fit together.
 - `world-actor-skills.md`: how actor attributes, skills, progression, checks, and HUD exposure are owned.
 - `world-state.md`: how controllers own runtime state, events, serialization, and time-driven simulation.
 - `settlements-and-territory.md`: how `SettlementTown`, facilities, jobs, activity points, faction territory, and town borders fit together.

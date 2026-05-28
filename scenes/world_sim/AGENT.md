@@ -21,4 +21,5 @@ Scenes in `scenes/world_sim/` are reusable human-operator building blocks.
 - Props are wrapper scenes. Do not place raw GLBs in town instances.
 - Generated staff are data-driven and should not be manually duplicated in each town scene.
 - Generated NPCs must look and read like real settlement members: derive names from population name profiles, appearance/clothing from population appearance profiles, faction/squad from the owning settlement, and append role/title suffixes for readability.
+- Town scenes should leave `actor_realization_policy` at `full_town` unless the town has been verified with unloaded actor ledger behavior. Large city policies must still keep important roles and nearby actors available as expected.
 - Every building type needs a focused validation for source layout, count behavior, and town instance configuration.

@@ -64,6 +64,7 @@ var hud_layer: CanvasLayer
 var party_manager: PartyManager
 var world_time: WorldTimeController
 var day_night_lighting: DayNightLightingController
+var actor_query_controller: Node
 var camera: Camera3D
 var debug_show_los_rays := false
 
@@ -156,6 +157,8 @@ func _try_initialize() -> void:
 		world_time = get_parent().get_node_or_null("WorldTimeController") as WorldTimeController
 	if day_night_lighting == null:
 		day_night_lighting = get_parent().get_node_or_null("DayNightLightingController") as DayNightLightingController
+	if actor_query_controller == null:
+		actor_query_controller = get_parent().get_node_or_null("ActorQueryController")
 	if camera == null:
 		camera = root_scene.get_node_or_null("CameraRig/CameraPivot/Camera3D") as Camera3D
 	if party_manager == null:
@@ -223,7 +226,8 @@ func _get_active_sneaking_subjects() -> Array[HumanoidCharacter]:
 
 func _get_alive_non_party_observers() -> Array[HumanoidCharacter]:
 	var observers: Array[HumanoidCharacter] = []
-	for node in get_tree().get_nodes_in_group("npc_character"):
+	var candidates: Array = actor_query_controller.call("get_alive_humanoids", false) if actor_query_controller != null and actor_query_controller.has_method("get_alive_humanoids") else get_tree().get_nodes_in_group("npc_character")
+	for node in candidates:
 		if not (node is HumanoidCharacter):
 			continue
 		var observer := node as HumanoidCharacter
