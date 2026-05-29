@@ -120,13 +120,41 @@ func _is_important_actor(actor_record: Dictionary) -> bool:
 
 
 func _is_record_near_player(actor_record: Dictionary) -> bool:
-	var position = actor_record.get("last_world_position", Vector3.INF)
+	var position: Variant = actor_record.get("last_world_position", Vector3.INF)
 	if not (position is Vector3):
 		return false
-	for member in _party_members():
-		if member is Node3D and (member as Node3D).global_position.distance_to(position) <= near_player_radius:
-			return true
+	var reference_position: Vector3 = _realization_reference_position()
+	if reference_position is Vector3 and reference_position.distance_to(position) <= near_player_radius:
+		return true
 	return false
+
+
+func _realization_reference_position() -> Vector3:
+	var camera := _get_player_camera()
+	if camera is Camera3D:
+		return camera.global_position
+	for member in _party_members():
+		if member is Node3D:
+			return member.global_position
+	return Vector3.INF
+
+
+func _get_player_camera() -> Camera3D:
+	if root_scene != null:
+		var explicit_camera: Camera3D = root_scene.get_node_or_null("CameraRig/CameraPivot/Camera3D") as Camera3D
+		if explicit_camera != null:
+			return explicit_camera
+	var viewport := get_viewport()
+	if viewport != null:
+		var active_camera: Camera3D = viewport.get_camera_3d()
+		if active_camera != null:
+			return active_camera
+	if get_tree() != null:
+		var cameras: Array = get_tree().get_nodes_in_group("camera")
+		for child in cameras:
+			if child is Camera3D:
+				return child
+	return null
 
 
 func _party_members() -> Array:

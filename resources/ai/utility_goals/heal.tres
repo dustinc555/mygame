@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="AiUtilityGoal" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="AiUtilityGoal" format=3 uid="uid://b43yra0p6qjfh"]
 
-[ext_resource type="Script" path="res://scripts/ai/utility/ai_utility_goal.gd" id="1_goal"]
-[ext_resource type="Script" path="res://scripts/ai/utility/ai_utility_consideration.gd" id="2_consideration"]
+[ext_resource type="Script" uid="uid://dneaaib163jp4" path="res://scripts/ai/utility/ai_utility_goal.gd" id="1_goal"]
+[ext_resource type="Script" uid="uid://d0knxil8gj4h7" path="res://scripts/ai/utility/ai_utility_consideration.gd" id="2_consideration"]
 
 [sub_resource type="Resource" id="Consideration_heal_need"]
 script = ExtResource("2_consideration")
@@ -24,7 +24,6 @@ explanation = "Do not start healing while a combat threat is active."
 script = ExtResource("2_consideration")
 id = &"no_player_order"
 input_key = &"no_player_order"
-weight = 1.0
 required = true
 explanation = "Autonomous healing should not override a player order."
 
@@ -38,10 +37,9 @@ lock_seconds = 1.0
 inertia_bonus = 0.05
 switch_threshold = 0.05
 executor_key = &"heal"
+allowed_lod_tiers = null
 target_selector_id = &"heal_target"
 requires_target = true
 considerations = Array[Resource]([SubResource("Consideration_heal_need"), SubResource("Consideration_safe_to_heal"), SubResource("Consideration_no_player_order")])
-job_type = 0
-source_id = "utility_ai"
 package_id = "utility:heal"
 debug_label = "Heal"

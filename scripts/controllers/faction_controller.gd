@@ -25,6 +25,7 @@ var faction_definitions: Dictionary = {}
 var reputations: Dictionary = {}
 var favor_points: Dictionary = {}
 var diplomatic_states: Dictionary = {}
+var faction_outlooks: Dictionary = {}
 var help_allies := false
 var _factions_button: Button
 var _factions_window: PanelContainer
@@ -115,6 +116,48 @@ func set_diplomatic_state(faction_a: String, faction_b: String, state: String, p
 	_save_faction_state_to_gecs()
 	faction_relations_changed.emit()
 	_refresh_factions_window()
+
+
+func set_faction_outlook(viewer_faction_id: String, subject_faction_id: String, score: int) -> void:
+	if viewer_faction_id.is_empty() or subject_faction_id.is_empty() or viewer_faction_id == subject_faction_id:
+		return
+	faction_outlooks[_outlook_key(viewer_faction_id, subject_faction_id)] = clampi(score, -100, 100)
+	_save_faction_state_to_gecs()
+	faction_relations_changed.emit()
+	_refresh_factions_window()
+
+
+func get_faction_outlook(viewer_faction_id: String, subject_faction_id: String) -> int:
+	if viewer_faction_id.is_empty() or subject_faction_id.is_empty() or viewer_faction_id == subject_faction_id:
+		return 0
+	return int(faction_outlooks.get(_outlook_key(viewer_faction_id, subject_faction_id), 0))
+
+
+func get_faction_outlook_label(viewer_faction_id: String, subject_faction_id: String) -> String:
+	var score := get_faction_outlook(viewer_faction_id, subject_faction_id)
+	if score >= 80:
+		return "Honored"
+	if score >= 45:
+		return "Loved"
+	if score >= 15:
+		return "Liked"
+	if score <= -65:
+		return "Hated"
+	if score <= -15:
+		return "Disliked"
+	return "Neutral"
+
+
+func apply_faction_relation_definition(definition: Resource) -> void:
+	if definition == null:
+		return
+	var faction_a := str(definition.get("faction_a_id")).strip_edges()
+	var faction_b := str(definition.get("faction_b_id")).strip_edges()
+	if faction_a.is_empty() or faction_b.is_empty() or faction_a == faction_b:
+		return
+	set_diplomatic_state(faction_a, faction_b, str(definition.get("diplomatic_state")))
+	set_faction_outlook(faction_a, faction_b, int(definition.get("faction_a_outlook_to_b")))
+	set_faction_outlook(faction_b, faction_a, int(definition.get("faction_b_outlook_to_a")))
 
 
 func get_diplomatic_label_for_viewer(viewer_faction_id: String, other_faction_id: String) -> String:
@@ -249,6 +292,7 @@ func apply_serialized_state(state: Dictionary) -> void:
 	reputations = (state.get("reputations", {}) as Dictionary).duplicate(true)
 	favor_points = (state.get("favor_points", {}) as Dictionary).duplicate(true)
 	diplomatic_states = (state.get("diplomatic_states", {}) as Dictionary).duplicate(true)
+	faction_outlooks = (state.get("faction_outlooks", {}) as Dictionary).duplicate(true)
 	help_allies = bool(state.get("help_allies", help_allies))
 	_save_faction_state_to_gecs()
 	faction_relations_changed.emit()
@@ -265,6 +309,7 @@ func refresh_from_gecs_state() -> void:
 	reputations = (state.get("reputations", {}) as Dictionary).duplicate(true)
 	favor_points = (state.get("favor_points", {}) as Dictionary).duplicate(true)
 	diplomatic_states = (state.get("diplomatic_states", {}) as Dictionary).duplicate(true)
+	faction_outlooks = (state.get("faction_outlooks", {}) as Dictionary).duplicate(true)
 	help_allies = bool(state.get("help_allies", help_allies))
 	faction_relations_changed.emit()
 	_refresh_factions_window()
@@ -280,6 +325,7 @@ func _current_faction_state() -> Dictionary:
 		"reputations": reputations.duplicate(true),
 		"favor_points": favor_points.duplicate(true),
 		"diplomatic_states": diplomatic_states.duplicate(true),
+		"faction_outlooks": faction_outlooks.duplicate(true),
 		"help_allies": help_allies,
 	}
 
@@ -303,6 +349,12 @@ func _collect_definitions() -> void:
 		var settlement_definition: Resource = node.get("settlement_definition") as Resource
 		if settlement_definition != null:
 			register_faction(settlement_definition.get("faction_definition") as Resource)
+	for node in get_tree().get_nodes_in_group("world_sim_registry"):
+		var relations = node.get("relation_definitions")
+		if relations is Array:
+			for relation in relations:
+				if relation is Resource:
+					apply_faction_relation_definition(relation)
 	_refresh_factions_window()
 
 
@@ -326,6 +378,10 @@ func _relation_key(faction_a: String, faction_b: String) -> String:
 	var ids := [faction_a, faction_b]
 	ids.sort()
 	return "%s:%s" % [ids[0], ids[1]]
+
+
+func _outlook_key(viewer_faction_id: String, subject_faction_id: String) -> String:
+	return "%s>%s" % [viewer_faction_id, subject_faction_id]
 
 
 func _faction_display_name(faction_id: String) -> String:

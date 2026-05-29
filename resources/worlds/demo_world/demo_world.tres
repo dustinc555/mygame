@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="WorldDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/world_definition.gd" id="1_world"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/surf_city.tres" id="2_surf_faction"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/east_raiders.tres" id="3_raider_faction"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/paradise_hills.tres" id="4_paradise_faction"]
+[ext_resource type="Resource" path="res://resources/worlds/demo_world/settlement_placements/surf_city.tres" id="5_surf_placement"]
+[ext_resource type="Resource" path="res://resources/worlds/demo_world/settlement_placements/east_raiders_camp.tres" id="6_raider_placement"]
+[ext_resource type="Resource" path="res://resources/worlds/demo_world/settlement_placements/paradise_hills.tres" id="7_paradise_placement"]
+[ext_resource type="Resource" path="res://resources/worlds/demo_world/surf_city_east_raiders_relation.tres" id="8_surf_raiders"]
+[ext_resource type="Resource" path="res://resources/worlds/demo_world/surf_city_paradise_hills_relation.tres" id="9_surf_paradise"]
+[ext_resource type="Resource" path="res://resources/worlds/demo_world/east_raiders_paradise_hills_relation.tres" id="10_raiders_paradise"]
+[ext_resource type="Resource" path="res://resources/world_sim/squad_templates/surf_city_watch.tres" id="11_surf_watch"]
+[ext_resource type="Resource" path="res://resources/world_sim/squad_templates/east_raider_war_party.tres" id="12_raider_war_party"]
+[ext_resource type="Resource" path="res://resources/world_sim/squad_templates/paradise_hills_enforcers.tres" id="13_paradise_enforcers"]
+
+[resource]
+script = ExtResource("1_world")
+world_id = "demo_world"
+display_name = "Demo World"
+random_seed = 1001
+generated = false
+faction_definitions = Array[Resource]([ExtResource("2_surf_faction"), ExtResource("3_raider_faction"), ExtResource("4_paradise_faction")])
+settlement_placements = Array[Resource]([ExtResource("5_surf_placement"), ExtResource("6_raider_placement"), ExtResource("7_paradise_placement")])
+starting_relations = Array[Resource]([ExtResource("8_surf_raiders"), ExtResource("9_surf_paradise"), ExtResource("10_raiders_paradise")])
+squad_templates = Array[Resource]([ExtResource("11_surf_watch"), ExtResource("12_raider_war_party"), ExtResource("13_paradise_enforcers")])

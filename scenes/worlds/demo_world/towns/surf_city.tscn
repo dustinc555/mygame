@@ -1,0 +1,181 @@
+[gd_scene format=4 uid="uid://ba8pagbvv7phc"]
+
+[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://scripts/world_sim/settlement_town.gd" id="1_town"]
+[ext_resource type="PackedScene" path="res://scenes/world/buildings/tiny_house.tscn" id="2_house"]
+[ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://scenes/world_sim/settlement_jail.tscn" id="3_jail"]
+[ext_resource type="PackedScene" uid="uid://fpat6npxukfj" path="res://scenes/world_sim/settlement_bar.tscn" id="4_bar"]
+[ext_resource type="PackedScene" uid="uid://cmh02fasnxjgq" path="res://scenes/world_sim/settlement_keep.tscn" id="5_keep"]
+[ext_resource type="Resource" path="res://resources/world_sim/settlements/surf_city.tres" id="6_settlement"]
+[ext_resource type="Script" uid="uid://c808ce2djlw3n" path="res://scripts/world_sim/settlement_population_spawner.gd" id="7_spawner"]
+[ext_resource type="Script" uid="uid://dul2enrcs1uoi" path="res://scripts/world_sim/settlement_activity_point.gd" id="8_activity"]
+[ext_resource type="Resource" path="res://resources/world_sim/population_appearance_profiles/farmer_peasant.tres" id="9_appearance"]
+[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://scripts/characters/faction_humanoid.gd" id="10_kkn8h"]
+[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/bandage.tres" id="11_il0s6"]
+[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/hatchet.tres" id="12_lc1nf"]
+[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/round_shield.tres" id="13_kvu6f"]
+[ext_resource type="Script" path="res://scripts/world/venues/settlement_guard_post.gd" id="14_lhh6v"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_bqflg"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_etnif"]
+radius = 0.45
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kkn8h"]
+transparency = 1
+cull_mode = 2
+no_depth_test = true
+shading_mode = 0
+albedo_color = Color(0.12, 0.72, 0.88, 0.34)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_il0s6"]
+_surfaces = [{
+"aabb": AABB(-19.919184, 0, -26.960165, 48.02369, 1e-05, 52.528015),
+"format": 34359738369,
+"primitive": 1,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 140,
+"vertex_data": PackedByteArray("fVqfwQAAAABrrtfBfVqPwQAAAABrrtfBfVqHwQAAAABrrtfB+rRuwQAAAABrrtfB+rRewQAAAABrrtfB+rQ+wQAAAABrrtfB+rQuwQAAAABrrtfB+rQOwQAAAABrrtfB9Gn9wAAAAABrrtfB9Gm9wAAAAABrrtfB9GmdwAAAAABrrtfB6NM6wAAAAABrrtfB0Kf1vwAAAABrrtfBAIOlPQAAAABrrtfBMFiKPwAAAABrrtfBGCxFQAAAAABrrtfBDJaCQAAAAABrrtfBDJbCQAAAAABrrtfBDJbiQAAAAABrrtfBBksRQQAAAABrrtfBBkshQQAAAABrrtfBBktBQQAAAABrrtfBBktRQQAAAABrrtfBBktxQQAAAABrrtfBg6WAQQAAAABrrtfBg6WQQQAAAABrrtfBg6WYQQAAAABrrtfBg6WoQQAAAABrrtfBg6WwQQAAAABrrtfBg6XAQQAAAABrrtfBg6XIQQAAAABrrtfBg6XYQQAAAABrrtfBg6XgQQAAAABrrtfBB9bgQQAAAABrrtfBB9bgQQAAAABrrtfBB9bgQQAAAABrrsfBB9bgQQAAAABrrr/BB9bgQQAAAABrrq/BB9bgQQAAAABrrqfBB9bgQQAAAABrrpfBB9bgQQAAAABrro/BB9bgQQAAAADWXH/BB9bgQQAAAADWXG/BB9bgQQAAAADWXE/BB9bgQQAAAADWXD/BB9bgQQAAAADWXB/BB9bgQQAAAADWXA/BB9bgQQAAAACsud7AB9bgQQAAAACsub7AB9bgQQAAAABYc33AB9bgQQAAAABYcz3AB9bgQQAAAABgzXW/B9bgQQAAAAAAKiM9B9bgQQAAAACojAJAB9bgQQAAAACojEJAB9bgQQAAAABURqFAB9bgQQAAAABURsFAB9bgQQAAAAAqowBBB9bgQQAAAAAqoxBBB9bgQQAAAAAqozBBB9bgQQAAAAAqo0BBB9bgQQAAAAAqo2BBB9bgQQAAAAAqo3BBB9bgQQAAAACVUYhBB9bgQQAAAACVUZBBB9bgQQAAAACVUaBBB9bgQQAAAACVUahBB9bgQQAAAACVUbhBB9bgQQAAAACVUcBBB9bgQQAAAAD1isxBB9bgQQAAAAD1isxBB9bQQQAAAAD1isxBB9bIQQAAAAD1isxBB9a4QQAAAAD1isxBB9awQQAAAAD1isxBB9agQQAAAAD1isxBB9aYQQAAAAD1isxBB9aIQQAAAAD1isxBB9aAQQAAAAD1isxBDqxhQQAAAAD1isxBDqxRQQAAAAD1isxBDqwxQQAAAAD1isxBDqwhQQAAAAD1isxBDqwBQQAAAAD1isxBHFjjQAAAAAD1isxBHFijQAAAAAD1isxBHFiDQAAAAAD1isxBOLAGQAAAAAD1isxBcGCNPwAAAAD1isxBID9lvwAAAAD1isxBkJ/yvwAAAAD1isxByE95wAAAAAD1isxB5KecwAAAAAD1isxB5KfcwAAAAAD1isxB5Kf8wAAAAAD1isxB8lMewQAAAAD1isxB8lMuwQAAAAD1isxB8lNOwQAAAAD1isxB8lNewQAAAAD1isxB8lN+wQAAAAD1isxB+SmHwQAAAAD1isxB+SmXwQAAAAD1isxB+SmfwQAAAAD1isxBfVqfwQAAAAD1isxBfVqfwQAAAAD1isxBfVqfwQAAAAD1irxBfVqfwQAAAAD1irRBfVqfwQAAAAD1iqRBfVqfwQAAAAD1ipxBfVqfwQAAAAD1ioxBfVqfwQAAAAD1ioRBfVqfwQAAAADqFWlBfVqfwQAAAADqFVlBfVqfwQAAAADqFTlBfVqfwQAAAADqFSlBfVqfwQAAAADqFQlBfVqfwQAAAADUK/JAfVqfwQAAAADUK7JAfVqfwQAAAADUK5JAfVqfwQAAAACoVyRAfVqfwQAAAABQr8g/fVqfwQAAAADAQt2+fVqfwQAAAACwULe/fVqfwQAAAABYqFvAfVqfwQAAAAAs1I3AfVqfwQAAAAAs1M3AfVqfwQAAAAAs1O3AfVqfwQAAAAAW6hbBfVqfwQAAAAAW6ibBfVqfwQAAAAAW6kbBfVqfwQAAAAAW6lbBfVqfwQAAAAAW6nbBfVqfwQAAAAALdYPBfVqfwQAAAAALdZPBfVqfwQAAAAALdZvBfVqfwQAAAAALdavBfVqfwQAAAAALdbPBfVqfwQAAAAALdcPBfVqfwQAAAAALdcvBfVqfwQAAAABrrtfB")
+}]
+
+[node name="SurfCity" type="Node3D" unique_id=365395331]
+script = ExtResource("1_town")
+guard_count = 1
+guard_post_count = 1
+guard_name = "Surf City Watch"
+staff_stable_id_prefix = "npc.surf_city.staff"
+staff_squad_name = "SurfCity"
+town_border_radius = 30.0
+town_border_debug_color = Color(0.12, 0.72, 0.88, 0.34)
+settlement_definition = ExtResource("6_settlement")
+resident_root_path = NodePath("Residents")
+raid_spawn_path = NodePath("RoadSpawn")
+defense_spawn_path = NodePath("DefenseSpawn")
+storage_paths = Array[NodePath]([NodePath("Storage")])
+state_label_path = NodePath("StateLabel")
+
+[node name="StateLabel" type="Label3D" parent="." unique_id=1938016378]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 18, -24)
+pixel_size = 0.045
+billboard = 1
+no_depth_test = true
+modulate = Color(0.12, 0.9, 1, 1)
+text = "Surf City
+Loading..."
+font_size = 88
+outline_size = 18
+
+[node name="Housing" type="Node3D" parent="." unique_id=146470094]
+
+[node name="TinyHome" parent="Housing" unique_id=1582845490 instance=ExtResource("2_house")]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -10, 0, -4)
+owner_faction_name = "SurfCity"
+population_capacity_id = "surf_city.tiny_home"
+
+[node name="Facilities" type="Node3D" parent="." unique_id=1406975956]
+
+[node name="Jail" parent="Facilities" unique_id=1897860278 instance=ExtResource("3_jail")]
+transform = Transform3D(-0.999048, 0, 0.0436194, 0, 1, 0, -0.0436194, 0, -0.999048, -5.1508636, 0, 12)
+facility_id = "surf_city.jail"
+display_name = "Surf City Jail"
+owner_faction_id = "SurfCity"
+
+[node name="Bar" parent="Facilities" unique_id=1301354631 instance=ExtResource("4_bar")]
+transform = Transform3D(0.996195, 0, -0.0871557, 0, 1, 0, 0.0871557, 0, 0.996195, 13, 0, -12)
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+facility_id = "surf_city.bar"
+display_name = "Surf City Bar"
+owner_faction_id = "SurfCity"
+
+[node name="Keep" parent="Facilities" unique_id=595903750 instance=ExtResource("5_keep")]
+transform = Transform3D(-0.999848, 0, -0.0174524, 0, 1, 0, 0.0174524, 0, -0.999848, 12, 0, 12)
+ruler_title = "Speaker"
+ruler_name = "Speaker"
+guard_name = "Watch Guard"
+staff_stable_id_prefix = "npc.surf_city.keep"
+staff_squad_name = "SurfCity"
+facility_id = "surf_city.keep"
+display_name = "Surf City Keep"
+owner_faction_id = "SurfCity"
+
+[node name="Storage" type="Node3D" parent="." unique_id=1629661105]
+
+[node name="Residents" type="Node3D" parent="." unique_id=1395369019]
+script = ExtResource("7_spawner")
+settlement_definition = ExtResource("6_settlement")
+member_name_prefix = "Surf Citizen"
+stable_id_prefix = "npc.surf_city.resident"
+faction_id = "SurfCity"
+squad_name = "SurfCity"
+base_color = Color(0.18, 0.58, 0.72, 1)
+hostile_faction_ids = PackedStringArray("EastRaiders")
+population_appearance_profile = ExtResource("9_appearance")
+desired_population_override = 6
+spawn_radius = 8.0
+spawn_inner_radius = 2.5
+random_seed = 101
+
+[node name="ActivityPoints" type="Node3D" parent="." unique_id=1660088178]
+
+[node name="MarketIdle" type="Marker3D" parent="ActivityPoints" unique_id=1535768905]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.05, 3)
+script = ExtResource("8_activity")
+activity_type = "social"
+weight = 2.0
+
+[node name="GateWatch" type="Marker3D" parent="ActivityPoints" unique_id=758122008]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 0.05, 0)
+script = ExtResource("8_activity")
+activity_type = "guard"
+exclusive = true
+
+[node name="Guards" type="Node3D" parent="." unique_id=1665432324]
+
+[node name="Guard" type="CharacterBody3D" parent="Guards" unique_id=346789828]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.6, -2)
+script = ExtResource("10_kkn8h")
+member_name = "Surf City Watch (guard)"
+stable_id = "npc.surf_city.staff.guard"
+starting_equipment = Array[Resource]([ExtResource("11_il0s6"), ExtResource("12_lc1nf"), ExtResource("13_kvu6f")])
+faction_name = "SurfCity"
+squad_name = "SurfCity"
+base_attack_damage = 12.0
+metadata/settlement_staff_role = "guard"
+metadata/settlement_staff_role_index = 0
+metadata/settlement_staff_slot_id = "surf_city.guard"
+metadata/settlement_actor_category = "staff"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Guards/Guard" unique_id=323975447]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_bqflg")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="Guards/Guard" unique_id=816342386]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_etnif")
+
+[node name="GuardPosts" type="Node3D" parent="." unique_id=1037250140]
+
+[node name="GuardPost" type="Node3D" parent="GuardPosts" unique_id=182323661]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -7, 0.05, -2)
+script = ExtResource("14_lhh6v")
+debug_color = Color(0.35, 0.78, 1, 0.76)
+metadata/settlement_guard_post_generated = true
+metadata/settlement_guard_post_index = 0
+
+[node name="DynamicBuildings" type="Node3D" parent="." unique_id=1548733159]
+
+[node name="DynamicFacilities" type="Node3D" parent="." unique_id=220838024]
+
+[node name="RoadSpawn" type="Marker3D" parent="." unique_id=1739558065]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0.05, 0)
+
+[node name="DefenseSpawn" type="Marker3D" parent="." unique_id=1313513692]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0.05, 0)
+
+[node name="TownBorderDebug" type="MeshInstance3D" parent="." unique_id=178305974]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
+material_override = SubResource("StandardMaterial3D_kkn8h")
+cast_shadow = 0
+mesh = SubResource("ArrayMesh_il0s6")

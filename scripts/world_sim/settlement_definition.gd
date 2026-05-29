@@ -9,6 +9,7 @@ class_name SettlementDefinition
 @export var personality_profile: Resource
 @export var law_profile: Resource
 @export var population_name_profile: Resource
+# Compatibility default for older authored scenes. SettlementPlacement.world_transform is the canonical world placement for new worlds.
 @export var world_position := Vector3.ZERO
 @export_enum("Depopulated", "Sparse", "Populated", "Overcrowded") var occupancy_state := 2
 @export var starting_food := 60.0

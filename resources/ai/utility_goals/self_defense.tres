@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="AiUtilityGoal" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="AiUtilityGoal" format=3 uid="uid://m0uvgfg5jlsm"]
 
-[ext_resource type="Script" path="res://scripts/ai/utility/ai_utility_goal.gd" id="1_goal"]
-[ext_resource type="Script" path="res://scripts/ai/utility/ai_utility_consideration.gd" id="2_consideration"]
+[ext_resource type="Script" uid="uid://dneaaib163jp4" path="res://scripts/ai/utility/ai_utility_goal.gd" id="1_goal"]
+[ext_resource type="Script" uid="uid://d0knxil8gj4h7" path="res://scripts/ai/utility/ai_utility_consideration.gd" id="2_consideration"]
 
 [sub_resource type="Resource" id="Consideration_threat"]
 script = ExtResource("2_consideration")
@@ -23,7 +23,6 @@ explanation = "The actor can enter autonomous self-defense."
 script = ExtResource("2_consideration")
 id = &"no_player_order"
 input_key = &"no_player_order"
-weight = 1.0
 required = true
 explanation = "Autonomous combat should not override a player order."
 
@@ -38,10 +37,10 @@ inertia_bonus = 0.08
 switch_threshold = 0.08
 emergency = true
 executor_key = &"combat"
+allowed_lod_tiers = null
 target_selector_id = &"combat_target"
 requires_target = true
 considerations = Array[Resource]([SubResource("Consideration_threat"), SubResource("Consideration_can_self_defend"), SubResource("Consideration_no_player_order")])
 job_type = 3
-source_id = "utility_ai"
 package_id = "utility:self_defense"
 debug_label = "Self Defense"

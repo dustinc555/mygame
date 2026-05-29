@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="FactionRelationDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/faction_relation_definition.gd" id="1_relation"]
+
+[resource]
+script = ExtResource("1_relation")
+relation_id = "surf_city_east_raiders"
+faction_a_id = "SurfCity"
+faction_b_id = "EastRaiders"
+diplomatic_state = "war"
+faction_a_outlook_to_b = -80
+faction_b_outlook_to_a = -80

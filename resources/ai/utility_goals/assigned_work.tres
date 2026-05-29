@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="AiUtilityGoal" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="AiUtilityGoal" format=3 uid="uid://bs8jui8cvhlk1"]
 
-[ext_resource type="Script" path="res://scripts/ai/utility/ai_utility_goal.gd" id="1_goal"]
-[ext_resource type="Script" path="res://scripts/ai/utility/ai_utility_consideration.gd" id="2_consideration"]
+[ext_resource type="Script" uid="uid://dneaaib163jp4" path="res://scripts/ai/utility/ai_utility_goal.gd" id="1_goal"]
+[ext_resource type="Script" uid="uid://d0knxil8gj4h7" path="res://scripts/ai/utility/ai_utility_consideration.gd" id="2_consideration"]
 
 [sub_resource type="Resource" id="Consideration_work_available"]
 script = ExtResource("2_consideration")
@@ -24,7 +24,6 @@ explanation = "Work should yield to combat threats."
 script = ExtResource("2_consideration")
 id = &"no_heal_need"
 input_key = &"heal_need"
-weight = 1.0
 invert = true
 explanation = "Work is less urgent than nearby medical needs."
 
@@ -32,7 +31,6 @@ explanation = "Work is less urgent than nearby medical needs."
 script = ExtResource("2_consideration")
 id = &"no_player_order"
 input_key = &"no_player_order"
-weight = 1.0
 required = true
 explanation = "Autonomous work should not override a player order."
 
@@ -46,6 +44,7 @@ lock_seconds = 2.0
 inertia_bonus = 0.03
 switch_threshold = 0.06
 executor_key = &"job_provider"
+allowed_lod_tiers = null
 target_selector_id = &"work_provider"
 requires_target = true
 considerations = Array[Resource]([SubResource("Consideration_work_available"), SubResource("Consideration_no_threat"), SubResource("Consideration_no_heal_need"), SubResource("Consideration_no_player_order")])

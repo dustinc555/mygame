@@ -1,0 +1,183 @@
+[gd_scene format=4 uid="uid://7vcpkwtkyf4j"]
+
+[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://scripts/world_sim/settlement_town.gd" id="1_town"]
+[ext_resource type="PackedScene" path="res://scenes/world/buildings/tiny_house.tscn" id="2_house"]
+[ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://scenes/world_sim/settlement_jail.tscn" id="3_jail"]
+[ext_resource type="PackedScene" uid="uid://fpat6npxukfj" path="res://scenes/world_sim/settlement_bar.tscn" id="4_bar"]
+[ext_resource type="PackedScene" uid="uid://cmh02fasnxjgq" path="res://scenes/world_sim/settlement_keep.tscn" id="5_keep"]
+[ext_resource type="Resource" path="res://resources/world_sim/settlements/east_raiders_camp.tres" id="6_settlement"]
+[ext_resource type="Script" uid="uid://c808ce2djlw3n" path="res://scripts/world_sim/settlement_population_spawner.gd" id="7_spawner"]
+[ext_resource type="Script" uid="uid://dul2enrcs1uoi" path="res://scripts/world_sim/settlement_activity_point.gd" id="8_activity"]
+[ext_resource type="Resource" path="res://resources/world_sim/population_appearance_profiles/raider_scrapper.tres" id="9_appearance"]
+[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://scripts/characters/faction_humanoid.gd" id="10_pmxsn"]
+[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/bandage.tres" id="11_5vgsm"]
+[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/hatchet.tres" id="12_mbv06"]
+[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/round_shield.tres" id="13_bpiv4"]
+[ext_resource type="Script" path="res://scripts/world/venues/settlement_guard_post.gd" id="14_5qai5"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_2py2f"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_ajyqu"]
+radius = 0.45
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pmxsn"]
+transparency = 1
+cull_mode = 2
+no_depth_test = true
+shading_mode = 0
+albedo_color = Color(0.86, 0.16, 0.08, 0.32)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_5vgsm"]
+_surfaces = [{
+"aabb": AABB(-33.18696, 0, -34.1387, 56.592968, 1e-05, 64.4085),
+"format": 34359738369,
+"primitive": 1,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 164,
+"vertex_data": PackedByteArray("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")
+}]
+
+[node name="EastRaidersCamp" type="Node3D" unique_id=1803383065]
+script = ExtResource("1_town")
+guard_count = 1
+guard_post_count = 1
+guard_name = "East Raider Guard"
+staff_stable_id_prefix = "npc.east_raiders_camp.staff"
+staff_squad_name = "EastRaiders"
+town_border_radius = 28.0
+town_border_debug_color = Color(0.86, 0.16, 0.08, 0.32)
+settlement_definition = ExtResource("6_settlement")
+resident_root_path = NodePath("Residents")
+raid_spawn_path = NodePath("RoadSpawn")
+defense_spawn_path = NodePath("DefenseSpawn")
+storage_paths = Array[NodePath]([NodePath("Storage")])
+state_label_path = NodePath("StateLabel")
+
+[node name="StateLabel" type="Label3D" parent="." unique_id=2075370591]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 18, -24)
+pixel_size = 0.045
+billboard = 1
+no_depth_test = true
+modulate = Color(1, 0.22, 0.08, 1)
+text = "East Raiders Camp
+Loading..."
+font_size = 88
+outline_size = 18
+
+[node name="Housing" type="Node3D" parent="." unique_id=456189224]
+
+[node name="TinyHome" parent="Housing" unique_id=1162182109 instance=ExtResource("2_house")]
+transform = Transform3D(0.999391, 0, -0.0348995, 0, 1, 0, 0.0348995, 0, 0.999391, -12.236639, 0, -21.96903)
+owner_faction_name = "EastRaiders"
+population_capacity_id = "east_raiders_camp.tiny_home"
+
+[node name="Facilities" type="Node3D" parent="." unique_id=1845084245]
+
+[node name="Jail" parent="Facilities" unique_id=226395233 instance=ExtResource("3_jail")]
+transform = Transform3D(-0.996195, 0, -0.0871557, 0, 1, 0, 0.0871557, 0, -0.996195, 9, 0, 10)
+facility_id = "east_raiders_camp.jail"
+display_name = "East Raider Jail"
+owner_faction_id = "EastRaiders"
+
+[node name="Bar" parent="Facilities" unique_id=2065816315 instance=ExtResource("4_bar")]
+transform = Transform3D(-0.9981983, 0, 0.060003355, 0, 1, 0, -0.060003355, 0, -0.9981983, -18.293556, 0, 15.510107)
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+facility_id = "east_raiders_camp.bar"
+display_name = "East Raider Bar"
+owner_faction_id = "EastRaiders"
+
+[node name="Keep" parent="Facilities" unique_id=1492419479 instance=ExtResource("5_keep")]
+transform = Transform3D(0.999882, 0, -0.015375629, 0, 1, 0, 0.015375629, 0, 0.999882, 11, 0, -20.74025)
+ruler_title = "Boss"
+ruler_name = "Boss"
+guard_name = "Raider Guard"
+staff_stable_id_prefix = "npc.east_raiders_camp.keep"
+staff_squad_name = "EastRaiders"
+facility_id = "east_raiders_camp.keep"
+display_name = "East Raider Keep"
+owner_faction_id = "EastRaiders"
+
+[node name="Storage" type="Node3D" parent="." unique_id=851968459]
+
+[node name="Residents" type="Node3D" parent="." unique_id=1507885338]
+script = ExtResource("7_spawner")
+settlement_definition = ExtResource("6_settlement")
+member_name_prefix = "East Raider"
+stable_id_prefix = "npc.east_raiders_camp.raider"
+faction_id = "EastRaiders"
+squad_name = "EastRaiders"
+base_color = Color(0.68, 0.18, 0.12, 1)
+color_variation = 0.1
+hostile_faction_ids = PackedStringArray("SurfCity")
+combat_stance = 0
+population_appearance_profile = ExtResource("9_appearance")
+desired_population_override = 5
+spawn_layout = 1
+spawn_radius = 8.0
+random_seed = 202
+
+[node name="ActivityPoints" type="Node3D" parent="." unique_id=1136847571]
+
+[node name="CampfireIdle" type="Marker3D" parent="ActivityPoints" unique_id=581453616]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.05, 3)
+script = ExtResource("8_activity")
+activity_type = "social"
+weight = 2.0
+
+[node name="CampGuard" type="Marker3D" parent="ActivityPoints" unique_id=2008712682]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0.05, 0)
+script = ExtResource("8_activity")
+activity_type = "guard"
+exclusive = true
+
+[node name="Guards" type="Node3D" parent="." unique_id=564558979]
+
+[node name="Guard" type="CharacterBody3D" parent="Guards" unique_id=1574583160]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.6, -2)
+script = ExtResource("10_pmxsn")
+member_name = "East Raider Guard (guard)"
+stable_id = "npc.east_raiders_camp.staff.guard"
+starting_equipment = Array[Resource]([ExtResource("11_5vgsm"), ExtResource("12_mbv06"), ExtResource("13_bpiv4")])
+faction_name = "EastRaiders"
+squad_name = "EastRaiders"
+base_attack_damage = 12.0
+metadata/settlement_staff_role = "guard"
+metadata/settlement_staff_role_index = 0
+metadata/settlement_staff_slot_id = "east_raiders_camp.guard"
+metadata/settlement_actor_category = "staff"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Guards/Guard" unique_id=688630528]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_2py2f")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="Guards/Guard" unique_id=907766883]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_ajyqu")
+
+[node name="GuardPosts" type="Node3D" parent="." unique_id=1239655576]
+
+[node name="GuardPost" type="Node3D" parent="GuardPosts" unique_id=2119143455]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -7, 0.05, -2)
+script = ExtResource("14_5qai5")
+debug_color = Color(0.35, 0.78, 1, 0.76)
+metadata/settlement_guard_post_generated = true
+metadata/settlement_guard_post_index = 0
+
+[node name="DynamicBuildings" type="Node3D" parent="." unique_id=881004355]
+
+[node name="DynamicFacilities" type="Node3D" parent="." unique_id=1824220349]
+
+[node name="RoadSpawn" type="Marker3D" parent="." unique_id=1768173054]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 0.05, 0)
+
+[node name="DefenseSpawn" type="Marker3D" parent="." unique_id=693031857]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.05, 0)
+
+[node name="TownBorderDebug" type="MeshInstance3D" parent="." unique_id=677651456]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
+material_override = SubResource("StandardMaterial3D_pmxsn")
+cast_shadow = 0
+mesh = SubResource("ArrayMesh_5vgsm")

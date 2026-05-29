@@ -1,13 +1,12 @@
-[gd_resource type="Resource" script_class="AiUtilityGoal" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="AiUtilityGoal" format=3 uid="uid://cgxmmh0ixgt4p"]
 
-[ext_resource type="Script" path="res://scripts/ai/utility/ai_utility_goal.gd" id="1_goal"]
-[ext_resource type="Script" path="res://scripts/ai/utility/ai_utility_consideration.gd" id="2_consideration"]
+[ext_resource type="Script" uid="uid://dneaaib163jp4" path="res://scripts/ai/utility/ai_utility_goal.gd" id="1_goal"]
+[ext_resource type="Script" uid="uid://d0knxil8gj4h7" path="res://scripts/ai/utility/ai_utility_consideration.gd" id="2_consideration"]
 
 [sub_resource type="Resource" id="Consideration_idle_bias"]
 script = ExtResource("2_consideration")
 id = &"idle_bias"
 input_key = &"idle_bias"
-weight = 1.0
 required = true
 explanation = "Baseline desire to keep a low-priority ambient intent."
 
@@ -24,7 +23,6 @@ explanation = "Idle intent should yield to combat threats."
 script = ExtResource("2_consideration")
 id = &"no_heal_need"
 input_key = &"heal_need"
-weight = 1.0
 invert = true
 required = true
 explanation = "Idle intent should yield to healing."
@@ -33,7 +31,6 @@ explanation = "Idle intent should yield to healing."
 script = ExtResource("2_consideration")
 id = &"no_assigned_work"
 input_key = &"assigned_work_available"
-weight = 1.0
 invert = true
 required = true
 explanation = "Idle intent should yield to assigned work."
@@ -47,9 +44,9 @@ lock_seconds = 1.0
 inertia_bonus = 0.02
 switch_threshold = 0.02
 executor_key = &"idle"
+allowed_lod_tiers = null
 considerations = Array[Resource]([SubResource("Consideration_idle_bias"), SubResource("Consideration_no_threat"), SubResource("Consideration_no_heal_need"), SubResource("Consideration_no_work")])
 job_type = 15
 job_priority = 1
-source_id = "utility_ai"
 package_id = "utility:wander"
 debug_label = "Wander"

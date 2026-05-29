@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="SettlementPlacement" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_placement.gd" id="1_placement"]
+[ext_resource type="Resource" path="res://resources/world_sim/settlements/surf_city.tres" id="2_settlement"]
+[ext_resource type="PackedScene" path="res://scenes/worlds/demo_world/towns/surf_city.tscn" id="3_town"]
+
+[resource]
+script = ExtResource("1_placement")
+placement_id = "surf_city"
+settlement_definition = ExtResource("2_settlement")
+town_scene = ExtResource("3_town")
+world_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -360, 0, 0)
+realization_policy = "full_town"
+road_connection_ids = PackedStringArray("surf_city_gate")

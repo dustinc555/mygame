@@ -1,0 +1,180 @@
+[gd_scene format=4 uid="uid://m6lrbtq1ji6u"]
+
+[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://scripts/world_sim/settlement_town.gd" id="1_town"]
+[ext_resource type="PackedScene" path="res://scenes/world/buildings/tiny_house.tscn" id="2_house"]
+[ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://scenes/world_sim/settlement_jail.tscn" id="3_jail"]
+[ext_resource type="PackedScene" uid="uid://fpat6npxukfj" path="res://scenes/world_sim/settlement_bar.tscn" id="4_bar"]
+[ext_resource type="PackedScene" uid="uid://cmh02fasnxjgq" path="res://scenes/world_sim/settlement_keep.tscn" id="5_keep"]
+[ext_resource type="Resource" path="res://resources/world_sim/settlements/paradise_hills.tres" id="6_settlement"]
+[ext_resource type="Script" uid="uid://c808ce2djlw3n" path="res://scripts/world_sim/settlement_population_spawner.gd" id="7_spawner"]
+[ext_resource type="Script" uid="uid://dul2enrcs1uoi" path="res://scripts/world_sim/settlement_activity_point.gd" id="8_activity"]
+[ext_resource type="Resource" path="res://resources/world_sim/population_appearance_profiles/raider_scrapper.tres" id="9_appearance"]
+[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://scripts/characters/faction_humanoid.gd" id="10_4uqmj"]
+[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/bandage.tres" id="11_8d5jw"]
+[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/hatchet.tres" id="12_e1aqh"]
+[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/round_shield.tres" id="13_o0ttn"]
+[ext_resource type="Script" path="res://scripts/world/venues/settlement_guard_post.gd" id="14_1tkka"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_65hpk"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_ojio2"]
+radius = 0.45
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_4uqmj"]
+transparency = 1
+cull_mode = 2
+no_depth_test = true
+shading_mode = 0
+albedo_color = Color(0.72, 0.48, 0.16, 0.34)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_8d5jw"]
+_surfaces = [{
+"aabb": AABB(-34.973083, 0, -29.304068, 58.364113, 1e-05, 60.487877),
+"format": 34359738369,
+"primitive": 1,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 164,
+"vertex_data": PackedByteArray("cOQLwgAAAAC7burBcOQDwgAAAAC7burB4Mj/wQAAAAC7burB4MjvwQAAAAC7burB4MjnwQAAAAC7burB4MjXwQAAAAC7burB4MjPwQAAAAC7burB4Mi/wQAAAAC7burB4Mi3wQAAAAC7burB4MinwQAAAAC7burB4MifwQAAAAC7burB4MiPwQAAAAC7burB4MiHwQAAAAC7burBwJFvwQAAAAC7burBwJFfwQAAAAC7burBwJE/wQAAAAC7burBwJEvwQAAAAC7burBwJEPwQAAAAC7burBgCP/wAAAAAC7burBgCO/wAAAAAC7burBgCOfwAAAAAC7burBAEc+wAAAAAC7burBAI78vwAAAAC7burBAIDcPAAAAAC7burBAHKDPwAAAAC7burBALlBQAAAAAC7burBgNyAQAAAAAC7burBgNzAQAAAAAC7burBgNzgQAAAAAC7burBQG4QQQAAAAC7burBQG4gQQAAAAC7burBQG5AQQAAAAC7burBQG5QQQAAAAC7burBQG5wQQAAAAC7burBIDeAQQAAAAC7burBIDeQQQAAAAC7burBIDeYQQAAAAC7burBIDeoQQAAAAC7burBIDewQQAAAAC7burB1CC7QQAAAAC7burB1CC7QQAAAAC7burB1CC7QQAAAAC7btrB1CC7QQAAAAC7btLB1CC7QQAAAAC7bsLB1CC7QQAAAAC7brrB1CC7QQAAAAC7bqrB1CC7QQAAAAC7bqLB1CC7QQAAAAC7bpLB1CC7QQAAAAC7borB1CC7QQAAAAB23XTB1CC7QQAAAAB23WTB1CC7QQAAAAB23UTB1CC7QQAAAAB23TTB1CC7QQAAAAB23RTB1CC7QQAAAAB23QTB1CC7QQAAAADsusnA1CC7QQAAAADsuqnA1CC7QQAAAADYdVPA1CC7QQAAAADYdRPA1CC7QQAAAADArpu+1CC7QQAAAACgKDI/1CC7QQAAAAAoiixA1CC7QQAAAAAoimxA1CC7QQAAAAAURbZA1CC7QQAAAAAURdZA1CC7QQAAAACKIgtB1CC7QQAAAACKIhtB1CC7QQAAAACKIjtB1CC7QQAAAACKIktB1CC7QQAAAACKImtB1CC7QQAAAACKIntB1CC7QQAAAABFkY1B1CC7QQAAAABFkZVB1CC7QQAAAABFkaVB1CC7QQAAAABFka1B1CC7QQAAAABFkb1B1CC7QQAAAABFkcVB1CC7QQAAAABFkdVB1CC7QQAAAABFkd1B1CC7QQAAAABFke1B1CC7QQAAAABFkfVB1CC7QQAAAABxePlB1CC7QQAAAABxePlB1CCrQQAAAABxePlB1CCjQQAAAABxePlB1CCTQQAAAABxePlB1CCLQQAAAABxePlBqEF2QQAAAABxePlBqEFmQQAAAABxePlBqEFGQQAAAABxePlBqEE2QQAAAABxePlBqEEWQQAAAABxePlBqEEGQQAAAABxePlBUIPMQAAAAABxePlBUIOsQAAAAABxePlBoAZZQAAAAABxePlBoAYZQAAAAABxePlBADXIPgAAAABxePlBgOUbvwAAAABxePlBYPkmwAAAAABxePlBYPlmwAAAAABxePlBsHyzwAAAAABxePlBsHzTwAAAAABxePlBWL4JwQAAAABxePlBWL4ZwQAAAABxePlBWL45wQAAAABxePlBWL5JwQAAAABxePlBWL5pwQAAAABxePlBWL55wQAAAABxePlBLN+MwQAAAABxePlBLN+UwQAAAABxePlBLN+kwQAAAABxePlBLN+swQAAAABxePlBLN+8wQAAAABxePlBLN/EwQAAAABxePlBLN/UwQAAAABxePlBLN/cwQAAAABxePlBLN/swQAAAABxePlBLN/0wQAAAABxePlBlm8CwgAAAABxePlBlm8GwgAAAABxePlBcOQLwgAAAABxePlBcOQLwgAAAABxePlBcOQLwgAAAABxeOlBcOQLwgAAAABxeOFBcOQLwgAAAABxeNFBcOQLwgAAAABxeMlBcOQLwgAAAABxeLlBcOQLwgAAAABxeLFBcOQLwgAAAABxeKFBcOQLwgAAAABxeJlBcOQLwgAAAABxeIlBcOQLwgAAAABxeIFBcOQLwgAAAADi8GJBcOQLwgAAAADi8FJBcOQLwgAAAADi8DJBcOQLwgAAAADi8CJBcOQLwgAAAADi8AJBcOQLwgAAAADE4eVAcOQLwgAAAADE4aVAcOQLwgAAAADE4YVAcOQLwgAAAACIwwtAcOQLwgAAAAAQh5c/cOQLwgAAAADg8VC/cOQLwgAAAADweOi/cOQLwgAAAAB4PHTAcOQLwgAAAAA8HprAcOQLwgAAAAA8HtrAcOQLwgAAAAA8HvrAcOQLwgAAAAAeDx3BcOQLwgAAAAAeDy3BcOQLwgAAAAAeD03BcOQLwgAAAAAeD13BcOQLwgAAAAAeD33BcOQLwgAAAACPh4bBcOQLwgAAAACPh5bBcOQLwgAAAACPh57BcOQLwgAAAACPh67BcOQLwgAAAACPh7bBcOQLwgAAAACPh8bBcOQLwgAAAACPh87BcOQLwgAAAACPh97BcOQLwgAAAACPh+bBcOQLwgAAAAC7burB")
+}]
+
+[node name="ParadiseHills" type="Node3D" unique_id=1011136473]
+script = ExtResource("1_town")
+guard_count = 1
+guard_post_count = 1
+guard_name = "Paradise Enforcer"
+staff_stable_id_prefix = "npc.paradise_hills.staff"
+staff_squad_name = "ParadiseHills"
+town_border_radius = 28.0
+town_border_debug_color = Color(0.72, 0.48, 0.16, 0.34)
+settlement_definition = ExtResource("6_settlement")
+resident_root_path = NodePath("Residents")
+raid_spawn_path = NodePath("RoadSpawn")
+defense_spawn_path = NodePath("DefenseSpawn")
+storage_paths = Array[NodePath]([NodePath("Storage")])
+state_label_path = NodePath("StateLabel")
+
+[node name="StateLabel" type="Label3D" parent="." unique_id=406166409]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 18, -24)
+pixel_size = 0.045
+billboard = 1
+no_depth_test = true
+modulate = Color(1, 0.68, 0.24, 1)
+text = "Paradise Hills
+Loading..."
+font_size = 88
+outline_size = 18
+
+[node name="Housing" type="Node3D" parent="." unique_id=965034435]
+
+[node name="TinyHome" parent="Housing" unique_id=969746257 instance=ExtResource("2_house")]
+transform = Transform3D(0.984808, 0, 0.173648, 0, 1, 0, -0.173648, 0, 0.984808, -10, 0, -8)
+owner_faction_name = "ParadiseHills"
+population_capacity_id = "paradise_hills.tiny_home"
+
+[node name="Facilities" type="Node3D" parent="." unique_id=416783841]
+
+[node name="Jail" parent="Facilities" unique_id=1224048816 instance=ExtResource("3_jail")]
+transform = Transform3D(-0.999391, 0, -0.0348995, 0, 1, 0, 0.0348995, 0, -0.999391, 6.5083866, 1.9648724, 16.545197)
+facility_id = "paradise_hills.jail"
+display_name = "Paradise Hills Holding Jail"
+owner_faction_id = "ParadiseHills"
+
+[node name="Bar" parent="Facilities" unique_id=309552674 instance=ExtResource("4_bar")]
+transform = Transform3D(-0.99932486, 0, 0.036748454, 0, 1, 0, -0.036748454, 0, -0.99932486, -20.265438, 0, 16.600695)
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+facility_id = "paradise_hills.bar"
+display_name = "Paradise Hills Bar"
+owner_faction_id = "ParadiseHills"
+
+[node name="Keep" parent="Facilities" unique_id=1861961228 instance=ExtResource("5_keep")]
+transform = Transform3D(0.9999119, 0, -0.013298877, 0, 1, 0, 0.013298877, 0, 0.9999119, 11, 0, -15.918497)
+ruler_title = "Master"
+ruler_name = "Master"
+guard_name = "Paradise Guard"
+staff_stable_id_prefix = "npc.paradise_hills.keep"
+staff_squad_name = "ParadiseHills"
+facility_id = "paradise_hills.keep"
+display_name = "Paradise Hills Keep"
+owner_faction_id = "ParadiseHills"
+
+[node name="Storage" type="Node3D" parent="." unique_id=1198684847]
+
+[node name="Residents" type="Node3D" parent="." unique_id=723420087]
+script = ExtResource("7_spawner")
+settlement_definition = ExtResource("6_settlement")
+member_name_prefix = "Paradise Resident"
+stable_id_prefix = "npc.paradise_hills.resident"
+faction_id = "ParadiseHills"
+squad_name = "ParadiseHills"
+base_color = Color(0.72, 0.48, 0.16, 1)
+population_appearance_profile = ExtResource("9_appearance")
+desired_population_override = 5
+spawn_layout = 1
+spawn_radius = 8.0
+random_seed = 303
+
+[node name="ActivityPoints" type="Node3D" parent="." unique_id=1456348517]
+
+[node name="YardIdle" type="Marker3D" parent="ActivityPoints" unique_id=1658036820]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.05, 3)
+script = ExtResource("8_activity")
+activity_type = "social"
+weight = 2.0
+
+[node name="YardGuard" type="Marker3D" parent="ActivityPoints" unique_id=767929044]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0.05, 0)
+script = ExtResource("8_activity")
+activity_type = "guard"
+exclusive = true
+
+[node name="Guards" type="Node3D" parent="." unique_id=976042045]
+
+[node name="Guard" type="CharacterBody3D" parent="Guards" unique_id=1836764486]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.6, -2)
+script = ExtResource("10_4uqmj")
+member_name = "Paradise Enforcer (guard)"
+stable_id = "npc.paradise_hills.staff.guard"
+starting_equipment = Array[Resource]([ExtResource("11_8d5jw"), ExtResource("12_e1aqh"), ExtResource("13_o0ttn")])
+faction_name = "ParadiseHills"
+squad_name = "ParadiseHills"
+base_attack_damage = 12.0
+metadata/settlement_staff_role = "guard"
+metadata/settlement_staff_role_index = 0
+metadata/settlement_staff_slot_id = "paradise_hills.guard"
+metadata/settlement_actor_category = "staff"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Guards/Guard" unique_id=1734737251]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_65hpk")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="Guards/Guard" unique_id=802284813]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_ojio2")
+
+[node name="GuardPosts" type="Node3D" parent="." unique_id=1194768072]
+
+[node name="GuardPost" type="Node3D" parent="GuardPosts" unique_id=840834244]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -7, 0.05, -2)
+script = ExtResource("14_1tkka")
+debug_color = Color(0.35, 0.78, 1, 0.76)
+metadata/settlement_guard_post_generated = true
+metadata/settlement_guard_post_index = 0
+
+[node name="DynamicBuildings" type="Node3D" parent="." unique_id=31046024]
+
+[node name="DynamicFacilities" type="Node3D" parent="." unique_id=1654467832]
+
+[node name="RoadSpawn" type="Marker3D" parent="." unique_id=859354464]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0.05, -10)
+
+[node name="DefenseSpawn" type="Marker3D" parent="." unique_id=1826022563]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.05, -2)
+
+[node name="TownBorderDebug" type="MeshInstance3D" parent="." unique_id=945470483]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
+material_override = SubResource("StandardMaterial3D_4uqmj")
+cast_shadow = 0
+mesh = SubResource("ArrayMesh_8d5jw")

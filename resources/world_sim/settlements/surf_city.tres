@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="SettlementDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_definition.gd" id="1_settlement"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/surf_city.tres" id="2_faction"]
+[ext_resource type="Resource" path="res://resources/world_sim/behavior_profiles/surf_city_town.tres" id="3_behavior"]
+[ext_resource type="Resource" path="res://resources/world_sim/squad_templates/surf_city_watch.tres" id="4_watch"]
+
+[resource]
+script = ExtResource("1_settlement")
+settlement_id = "surf_city"
+display_name = "Surf City"
+faction_definition = ExtResource("2_faction")
+behavior_profile = ExtResource("3_behavior")
+world_position = Vector3(-360, 0, 0)
+occupancy_state = 2
+starting_food = 95.0
+max_food = 180.0
+known_settlement_ids = PackedStringArray("east_raiders_camp", "paradise_hills")
+default_target_settlement_id = "east_raiders_camp"
+raid_squad_template = ExtResource("4_watch")
+defense_squad_template = ExtResource("4_watch")

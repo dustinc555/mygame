@@ -5,6 +5,7 @@ class_name WorldSimRegistry
 @export var faction_definitions: Array[Resource] = []
 @export var settlement_definitions: Array[Resource] = []
 @export var squad_templates: Array[Resource] = []
+@export var relation_definitions: Array[Resource] = []
 
 
 func _ready() -> void:

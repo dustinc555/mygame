@@ -12,6 +12,7 @@ class_name FactionLawProfile
 @export_enum("settlement_alarm", "victim_only", "ignored") var theft_response := "settlement_alarm"
 @export_enum("settlement_alarm", "victim_only") var assault_response := "settlement_alarm"
 @export_enum("settlement_alarm", "blood_feud") var murder_response := "settlement_alarm"
+@export_enum("outlawed", "tolerated", "legal") var slavery_policy := "outlawed"
 @export_multiline var operator_notes := ""
 
 
