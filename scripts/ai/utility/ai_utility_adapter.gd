@@ -13,6 +13,11 @@ var profile: AiUtilityProfile = DEFAULT_PROFILE
 var selector := AI_UTILITY_GOAL_SELECTOR_SCRIPT.new()
 var target_selector := AI_UTILITY_TARGET_SELECTOR_SCRIPT.new()
 var job_factory := AI_UTILITY_JOB_FACTORY_SCRIPT.new()
+# Opt-in section timing for utility AI decisions. Use with the demo benchmark as
+# `--utility-profile` when chasing humanoid `_process` regressions.
+static var _debug_profile_enabled := OS.get_cmdline_args().has("--utility-profile")
+static var _debug_profile_calls := 0
+static var _debug_profile_totals: Dictionary = {}
 
 
 func setup(target_profile: AiUtilityProfile = null) -> void:
@@ -20,20 +25,34 @@ func setup(target_profile: AiUtilityProfile = null) -> void:
 
 
 func run_actor_decision(actor: Node) -> bool:
+	var profile_last_usec := Time.get_ticks_usec() if _debug_profile_enabled else 0
 	if actor == null or not is_instance_valid(actor) or profile == null:
 		return false
 	if _actor_life_state(actor) != NpcRules.LifeState.ALIVE:
 		_clear_goal_intent(actor)
 		return false
 	var context := build_context(actor)
+	if _debug_profile_enabled:
+		profile_last_usec = _debug_profile_checkpoint("build_context", profile_last_usec)
 	var decision := selector.decide(context, profile, target_selector)
+	if _debug_profile_enabled:
+		profile_last_usec = _debug_profile_checkpoint("selector", profile_last_usec)
 	if not decision.is_valid():
+		if _debug_profile_enabled:
+			_debug_profile_finish()
 		return false
 	_sync_goal_intent(actor, context, decision)
-	return realize_decision(actor, context, decision)
+	if _debug_profile_enabled:
+		profile_last_usec = _debug_profile_checkpoint("sync_goal", profile_last_usec)
+	var realized := realize_decision(actor, context, decision)
+	if _debug_profile_enabled:
+		_debug_profile_checkpoint("realize", profile_last_usec)
+		_debug_profile_finish()
+	return realized
 
 
 func build_context(actor: Node) -> AiUtilityContext:
+	var profile_last_usec := Time.get_ticks_usec() if _debug_profile_enabled else 0
 	var context = AI_UTILITY_CONTEXT_SCRIPT.new()
 	context.actor = actor
 	context.entity_id = _actor_key(actor)
@@ -41,14 +60,47 @@ func build_context(actor: Node) -> AiUtilityContext:
 	context.position = (actor as Node3D).global_position if actor is Node3D else Vector3.ZERO
 	context.sim_time = _get_sim_time(actor)
 	context.lod_tier = int(actor.get_meta("ai_lod_tier", 1)) if actor.has_meta("ai_lod_tier") else 1
+	if _debug_profile_enabled:
+		profile_last_usec = _debug_profile_checkpoint("context.init", profile_last_usec)
 	_apply_goal_state(context, actor)
+	if _debug_profile_enabled:
+		profile_last_usec = _debug_profile_checkpoint("context.goal_state", profile_last_usec)
 	_apply_vital_facts(context, actor)
+	if _debug_profile_enabled:
+		profile_last_usec = _debug_profile_checkpoint("context.vitals", profile_last_usec)
 	_apply_order_facts(context, actor)
+	if _debug_profile_enabled:
+		profile_last_usec = _debug_profile_checkpoint("context.orders", profile_last_usec)
 	_apply_combat_target_context(context, actor)
+	if _debug_profile_enabled:
+		profile_last_usec = _debug_profile_checkpoint("context.combat", profile_last_usec)
 	_apply_heal_target_context(context, actor)
+	if _debug_profile_enabled:
+		profile_last_usec = _debug_profile_checkpoint("context.heal", profile_last_usec)
 	_apply_work_context(context, actor)
+	if _debug_profile_enabled:
+		profile_last_usec = _debug_profile_checkpoint("context.work", profile_last_usec)
 	context.set_fact(&"idle_bias", 0.2)
 	return context
+
+
+static func _debug_profile_checkpoint(section_name: String, previous_usec: int) -> int:
+	var now_usec := Time.get_ticks_usec()
+	_debug_profile_totals[section_name] = int(_debug_profile_totals.get(section_name, 0)) + now_usec - previous_usec
+	return now_usec
+
+
+static func _debug_profile_finish() -> void:
+	_debug_profile_calls += 1
+	if _debug_profile_calls < 40:
+		return
+	var rows: Array = []
+	for section_name in _debug_profile_totals.keys():
+		rows.append([section_name, int(_debug_profile_totals[section_name])])
+	rows.sort_custom(func(a, b): return int(a[1]) > int(b[1]))
+	for row in rows:
+		print("UTILITY_PROFILE %s usec=%d avg_per_decision=%.3f" % [str(row[0]), int(row[1]), float(row[1]) / float(_debug_profile_calls)])
+	_debug_profile_enabled = false
 
 
 func realize_decision(actor: Node, context: AiUtilityContext, decision: AiUtilityDecisionResult) -> bool:
@@ -77,6 +129,19 @@ func _apply_goal_state(context: AiUtilityContext, actor: Node) -> void:
 
 
 func _apply_vital_facts(context: AiUtilityContext, actor: Node) -> void:
+	if actor is HumanoidCharacter:
+		var humanoid := actor as HumanoidCharacter
+		var max_hp := maxf(humanoid.max_hp, 0.01)
+		var max_blood := maxf(humanoid.max_blood, 0.01)
+		var health_ratio := clampf(humanoid.hp / max_hp, 0.0, 1.0)
+		var blood_ratio := clampf(humanoid.blood / max_blood, 0.0, 1.0)
+		var damage := 1.0 - minf(health_ratio, blood_ratio)
+		context.set_fact(&"alive", 1.0 if humanoid.life_state == NpcRules.LifeState.ALIVE else 0.0)
+		context.set_fact(&"health", health_ratio)
+		context.set_fact(&"blood", blood_ratio)
+		context.set_fact(&"damage", damage)
+		context.set_fact(&"critical_damage", inverse_lerp(0.35, 0.9, damage))
+		return
 	var state := _actor_state(actor)
 	var hp := float(state.get("hp", _actor_float(actor, "hp", 100.0)))
 	var max_hp := maxf(float(state.get("max_hp", _actor_float(actor, "max_hp", 100.0))), 0.01)
@@ -93,6 +158,12 @@ func _apply_vital_facts(context: AiUtilityContext, actor: Node) -> void:
 
 
 func _apply_order_facts(context: AiUtilityContext, actor: Node) -> void:
+	if actor is HumanoidCharacter:
+		var humanoid := actor as HumanoidCharacter
+		var has_player_order := humanoid._order_was_player_issued and humanoid._current_order_type != 0
+		context.set_fact(&"no_player_order", 0.0 if has_player_order else 1.0)
+		context.set_fact(&"player_party_member", 1.0 if humanoid.player_party_member else 0.0)
+		return
 	var order_was_player_issued := bool(actor.get("_order_was_player_issued")) if _has_property(actor, "_order_was_player_issued") else false
 	var current_order_type := int(actor.get("_current_order_type")) if _has_property(actor, "_current_order_type") else -1
 	var has_player_order := order_was_player_issued and current_order_type != 0
@@ -102,9 +173,16 @@ func _apply_order_facts(context: AiUtilityContext, actor: Node) -> void:
 
 
 func _apply_combat_target_context(context: AiUtilityContext, actor: Node) -> void:
-	var target = _call_object(actor, "_get_active_combat_target")
-	if target == null and _call_bool(actor, "_should_seek_combat_target"):
-		target = _call_object(actor, "_find_ai_target")
+	var target = null
+	if actor is HumanoidCharacter:
+		var humanoid := actor as HumanoidCharacter
+		target = humanoid._get_active_combat_target()
+		if target == null and humanoid._should_seek_combat_target():
+			target = humanoid._find_ai_target()
+	else:
+		target = _call_object(actor, "_get_active_combat_target")
+		if target == null and _call_bool(actor, "_should_seek_combat_target"):
+			target = _call_object(actor, "_find_ai_target")
 	if target == null:
 		context.set_fact(&"threat", 0.0)
 		context.set_fact(&"can_self_defend", 0.0)
@@ -117,7 +195,11 @@ func _apply_combat_target_context(context: AiUtilityContext, actor: Node) -> voi
 
 func _apply_heal_target_context(context: AiUtilityContext, actor: Node) -> void:
 	var target = null
-	if _call_bool(actor, "_should_seek_auto_heal_target"):
+	if actor is HumanoidCharacter:
+		var humanoid := actor as HumanoidCharacter
+		if humanoid._should_seek_auto_heal_target():
+			target = humanoid._find_auto_heal_target()
+	elif _call_bool(actor, "_should_seek_auto_heal_target"):
 		target = _call_object(actor, "_find_auto_heal_target")
 	if target == null:
 		context.set_fact(&"heal_need", 0.0)
@@ -288,9 +370,9 @@ func _get_sim_time(actor: Node) -> float:
 	var scheduler := _get_controller(actor, "ai_scheduler_controller")
 	if scheduler != null:
 		if scheduler.has_method("get_sim_time"):
-			sim_time = float(scheduler.call("get_sim_time"))
+			return float(scheduler.call("get_sim_time"))
 		if _has_property(scheduler, "_sim_time"):
-			sim_time = maxf(sim_time, float(scheduler.get("_sim_time")))
+			return float(scheduler.get("_sim_time"))
 	var job_system := _get_controller(actor, "job_system_controller")
 	if job_system != null:
 		if job_system.has_method("get_sim_time"):
@@ -312,6 +394,10 @@ func _get_gecs_world(actor: Node) -> Node:
 func _get_controller(actor: Node, group_name: String) -> Node:
 	if actor == null or not actor.is_inside_tree():
 		return null
+	if actor.has_method("_get_runtime_controller"):
+		var cached_controller := actor.call("_get_runtime_controller", group_name) as Node
+		if cached_controller != null:
+			return cached_controller
 	var current := actor
 	while current != null:
 		for child in current.get_children():

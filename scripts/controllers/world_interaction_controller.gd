@@ -130,6 +130,7 @@ func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
 
 
 func _ready() -> void:
+	add_to_group("world_interaction_controller")
 	if root != null:
 		if hud_layer == null and root != null:
 			hud_layer = root.get_node_or_null("GameHUD")

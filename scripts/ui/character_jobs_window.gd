@@ -18,6 +18,7 @@ func setup(target_root: Node) -> void:
 
 
 func _ready() -> void:
+	add_to_group("character_jobs_window")
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	custom_minimum_size = WINDOW_SIZE
 	size = WINDOW_SIZE

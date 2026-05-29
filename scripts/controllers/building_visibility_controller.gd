@@ -19,6 +19,7 @@ func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
 
 
 func _ready() -> void:
+	add_to_group("building_visibility_controller")
 	if root_scene != null:
 		_do_initialize()
 

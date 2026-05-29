@@ -95,6 +95,16 @@ const RAGDOLL_ACTIVATION_RAY_UP := 8.0
 const RAGDOLL_ACTIVATION_RAY_DOWN := 16.0
 const GROUND_MARKER_RAYCAST_UP := 0.35
 const GROUND_MARKER_RAYCAST_DOWN := 24.0
+const ACTIVE_AI_DECISION_INTERVAL := 0.35
+const ACTIVE_AI_DECISION_JITTER := 0.15
+const BACKGROUND_AI_DECISION_INTERVAL := 1.25
+const BACKGROUND_AI_DECISION_JITTER := 0.45
+const FAR_BACKGROUND_AI_DECISION_INTERVAL := 3.0
+const FAR_BACKGROUND_AI_DECISION_JITTER := 1.0
+const FAR_BACKGROUND_AI_DECISION_DISTANCE := 28.0
+const NEEDS_PROCESS_INTERVAL := 0.25
+const NEEDS_PROCESS_JITTER := 0.08
+const HUMANOID_PROFILE_SAMPLE_CALLS := 12000
 const RUNNING_SKILL_XP_PER_SECOND := 0.35
 const RUNNING_ENDURANCE_XP_PER_SECOND := 0.05
 const CARRY_STRENGTH_XP_PER_SECOND := 0.1
@@ -112,6 +122,7 @@ const COMBAT_INTERVENTION_STAFF_GROUP := "combat_intervention_staff"
 const SETTLEMENT_AUTHORITY_GROUP := "settlement_authority"
 const PRIVATE_SECURITY_GROUP := "private_security"
 const FACTION_SOLDIER_GROUP := "faction_soldier"
+const ACTIVE_COMBAT_ACTOR_GROUP := "active_combat_actor"
 const EQUIPMENT_SLOTS: Array[String] = ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head", "weapon", "offhand"]
 const EQUIPMENT_SLOT_LABELS := {
 	"undershirt": "Undershirt",
@@ -130,6 +141,14 @@ const BONE_EQUIPMENT_SLOTS := {
 	"weapon": "hand_r",
 	"offhand": "hand_l",
 }
+
+# Opt-in section timing for humanoid `_process`. Use with the demo benchmark as
+# `--humanoid-profile` when chasing per-frame character regressions.
+static var _debug_humanoid_profile_enabled := OS.get_cmdline_args().has("--humanoid-profile")
+static var _debug_humanoid_profile_calls := 0
+static var _debug_humanoid_profile_totals: Dictionary = {}
+static var _debug_humanoid_ai_profile_calls := 0
+static var _debug_humanoid_ai_profile_totals: Dictionary = {}
 
 enum OrderType {
 	NONE,
@@ -353,6 +372,8 @@ var _character_skeleton: Skeleton3D
 var _bone_pose_position_offsets: Dictionary = {}
 var _visual_foot_anchor_correction_y := 0.0
 var _current_character_animation := ""
+var _needs_tick_accumulated := 0.0
+var _needs_tick_remaining := 0.0
 var _idle_animation_change_remaining := 0.0
 var _crouch_enter_animation_remaining := 0.0
 var _crouch_exit_animation_remaining := 0.0
@@ -395,6 +416,7 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	super._ready()
 	_rng.randomize()
+	_needs_tick_remaining = _rng.randf_range(0.0, NEEDS_PROCESS_INTERVAL)
 	_ai_brain = AI_BRAIN_SCRIPT.new()
 	_ai_brain.setup(self)
 	_ai_utility_adapter = AI_UTILITY_ADAPTER_SCRIPT.new()
@@ -421,6 +443,7 @@ func _exit_tree() -> void:
 		_active_job_provider.pause_worker_job(self, false)
 	if _ai_brain != null:
 		_ai_brain.clear_active_job()
+	remove_from_group(ACTIVE_COMBAT_ACTOR_GROUP)
 	_unregister_from_runtime_controllers()
 	_runtime_controller_cache.clear()
 
@@ -459,6 +482,9 @@ func _get_runtime_controller(group_name: String) -> Node:
 
 
 func _process(delta: float) -> void:
+	if _debug_humanoid_profile_enabled:
+		_process_profiled(delta)
+		return
 	if _carried_by != null:
 		_update_carried_pose_animation()
 		_apply_bone_pose_position_offsets()
@@ -468,7 +494,7 @@ func _process(delta: float) -> void:
 	if is_in_cell_custody():
 		if _combat_cooldown_remaining > 0.0:
 			_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
-		_process_needs(delta)
+		_process_scheduled_needs(delta)
 		_process_bleeding(delta)
 		_process_recovery(delta)
 		_recalculate_vitals()
@@ -482,7 +508,7 @@ func _process(delta: float) -> void:
 		_last_ragdoll_impulse_remaining = maxf(0.0, _last_ragdoll_impulse_remaining - delta)
 		if _last_ragdoll_impulse_remaining <= 0.0:
 			_last_ragdoll_impulse = Vector3.ZERO
-	_process_needs(delta)
+	_process_scheduled_needs(delta)
 	_process_bleeding(delta)
 	_process_recovery(delta)
 	_process_ai(delta)
@@ -492,6 +518,106 @@ func _process(delta: float) -> void:
 	_update_character_animation(delta)
 	_apply_bone_pose_position_offsets()
 	_update_ground_markers()
+
+
+func _process_profiled(delta: float) -> void:
+	var profile_last_usec := Time.get_ticks_usec()
+	if _carried_by != null:
+		_update_carried_pose_animation()
+		profile_last_usec = _debug_humanoid_profile_checkpoint("carried_animation", profile_last_usec)
+		_apply_bone_pose_position_offsets()
+		profile_last_usec = _debug_humanoid_profile_checkpoint("bone_offsets", profile_last_usec)
+		_update_carried_transform()
+		profile_last_usec = _debug_humanoid_profile_checkpoint("carried_transform", profile_last_usec)
+		_update_ground_markers()
+		_debug_humanoid_profile_checkpoint("ground_markers", profile_last_usec)
+		_debug_humanoid_profile_finish()
+		return
+	if is_in_cell_custody():
+		if _combat_cooldown_remaining > 0.0:
+			_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
+		profile_last_usec = _debug_humanoid_profile_checkpoint("timers", profile_last_usec)
+		_process_scheduled_needs(delta)
+		profile_last_usec = _debug_humanoid_profile_checkpoint("needs", profile_last_usec)
+		_process_bleeding(delta)
+		profile_last_usec = _debug_humanoid_profile_checkpoint("bleeding", profile_last_usec)
+		_process_recovery(delta)
+		profile_last_usec = _debug_humanoid_profile_checkpoint("recovery", profile_last_usec)
+		_recalculate_vitals()
+		profile_last_usec = _debug_humanoid_profile_checkpoint("vitals", profile_last_usec)
+		_update_cell_custody_animation(delta)
+		profile_last_usec = _debug_humanoid_profile_checkpoint("cell_animation", profile_last_usec)
+		_apply_bone_pose_position_offsets()
+		profile_last_usec = _debug_humanoid_profile_checkpoint("bone_offsets", profile_last_usec)
+		_update_ground_markers()
+		_debug_humanoid_profile_checkpoint("ground_markers", profile_last_usec)
+		_debug_humanoid_profile_finish()
+		return
+	if _combat_cooldown_remaining > 0.0:
+		_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
+	if _last_ragdoll_impulse_remaining > 0.0:
+		_last_ragdoll_impulse_remaining = maxf(0.0, _last_ragdoll_impulse_remaining - delta)
+		if _last_ragdoll_impulse_remaining <= 0.0:
+			_last_ragdoll_impulse = Vector3.ZERO
+	profile_last_usec = _debug_humanoid_profile_checkpoint("timers", profile_last_usec)
+	_process_scheduled_needs(delta)
+	profile_last_usec = _debug_humanoid_profile_checkpoint("needs", profile_last_usec)
+	_process_bleeding(delta)
+	profile_last_usec = _debug_humanoid_profile_checkpoint("bleeding", profile_last_usec)
+	_process_recovery(delta)
+	profile_last_usec = _debug_humanoid_profile_checkpoint("recovery", profile_last_usec)
+	_process_ai_profiled(delta)
+	profile_last_usec = _debug_humanoid_profile_checkpoint("ai", profile_last_usec)
+	_recalculate_vitals()
+	profile_last_usec = _debug_humanoid_profile_checkpoint("vitals", profile_last_usec)
+	_process_downed_animation_state(delta)
+	profile_last_usec = _debug_humanoid_profile_checkpoint("downed_animation", profile_last_usec)
+	_process_combat_animation_state(delta)
+	profile_last_usec = _debug_humanoid_profile_checkpoint("combat_animation", profile_last_usec)
+	_update_character_animation(delta)
+	profile_last_usec = _debug_humanoid_profile_checkpoint("character_animation", profile_last_usec)
+	_apply_bone_pose_position_offsets()
+	profile_last_usec = _debug_humanoid_profile_checkpoint("bone_offsets", profile_last_usec)
+	_update_ground_markers()
+	_debug_humanoid_profile_checkpoint("ground_markers", profile_last_usec)
+	_debug_humanoid_profile_finish()
+
+
+static func _debug_humanoid_profile_checkpoint(section_name: String, previous_usec: int) -> int:
+	var now_usec := Time.get_ticks_usec()
+	_debug_humanoid_profile_totals[section_name] = int(_debug_humanoid_profile_totals.get(section_name, 0)) + now_usec - previous_usec
+	return now_usec
+
+
+static func _debug_humanoid_profile_finish() -> void:
+	_debug_humanoid_profile_calls += 1
+	if _debug_humanoid_profile_calls < HUMANOID_PROFILE_SAMPLE_CALLS:
+		return
+	var rows: Array = []
+	for section_name in _debug_humanoid_profile_totals.keys():
+		rows.append([section_name, int(_debug_humanoid_profile_totals[section_name])])
+	rows.sort_custom(func(a, b): return int(a[1]) > int(b[1]))
+	for row in rows:
+		print("HUMANOID_PROFILE %s usec=%d avg_per_process=%.3f" % [str(row[0]), int(row[1]), float(row[1]) / float(_debug_humanoid_profile_calls)])
+	_debug_humanoid_profile_enabled = false
+
+
+static func _debug_humanoid_ai_profile_checkpoint(section_name: String, previous_usec: int) -> int:
+	var now_usec := Time.get_ticks_usec()
+	_debug_humanoid_ai_profile_totals[section_name] = int(_debug_humanoid_ai_profile_totals.get(section_name, 0)) + now_usec - previous_usec
+	return now_usec
+
+
+static func _debug_humanoid_ai_profile_finish() -> void:
+	_debug_humanoid_ai_profile_calls += 1
+	if _debug_humanoid_ai_profile_calls < HUMANOID_PROFILE_SAMPLE_CALLS:
+		return
+	var rows: Array = []
+	for section_name in _debug_humanoid_ai_profile_totals.keys():
+		rows.append([section_name, int(_debug_humanoid_ai_profile_totals[section_name])])
+	rows.sort_custom(func(a, b): return int(a[1]) > int(b[1]))
+	for row in rows:
+		print("HUMANOID_AI_PROFILE %s usec=%d avg_per_ai_process=%.3f" % [str(row[0]), int(row[1]), float(row[1]) / float(_debug_humanoid_ai_profile_calls)])
 
 
 func _physics_process(delta: float) -> void:
@@ -609,6 +735,7 @@ func stop_attack_assignment() -> void:
 	COMBAT_COORDINATOR.release_character(self)
 	if _current_order_type == OrderType.ATTACK:
 		_current_order_type = OrderType.NONE
+	_sync_active_combat_actor_group()
 	combat_state_changed.emit()
 
 
@@ -819,6 +946,7 @@ func _assign_combat_target(target_character: HumanoidCharacter, combat_job_type:
 		_order_was_player_issued = false
 	_current_attack_target = target_character
 	_attack_origin_position = global_position
+	_sync_active_combat_actor_group()
 	mark_hostile(target_character)
 	target_character.mark_hostile(self)
 	if notify_target:
@@ -1536,6 +1664,7 @@ func cancel_ai_job(source_id := "") -> void:
 		_ai_brain.clear_active_job()
 	else:
 		_ai_brain.clear_jobs_from_source(source_id)
+	_sync_active_combat_actor_group()
 
 
 func has_active_ai_job_from_source(source_id: String) -> bool:
@@ -2219,7 +2348,18 @@ func _process_movement(delta: float) -> void:
 	if _should_direct_custody_chase():
 		_process_direct_custody_chase(delta)
 		return
+	if _can_skip_idle_movement_physics():
+		velocity = Vector3.ZERO
+		return
 	process_world_actor_movement(delta)
+
+
+func _can_skip_idle_movement_physics() -> bool:
+	if _has_move_target or not is_on_floor():
+		return false
+	if absf(velocity.y) > 0.001 or Vector2(velocity.x, velocity.z).length_squared() > 0.0001:
+		return false
+	return absf(rotation.x) <= 0.001 and absf(rotation.z) <= 0.001
 
 
 func _get_actor_move_speed() -> float:
@@ -2418,6 +2558,21 @@ func _process_needs(delta: float) -> void:
 			state_changed.emit()
 
 
+func _process_scheduled_needs(delta: float) -> void:
+	if not hunger_enabled and not fatigue_enabled and _pending_nourishment <= 0.0:
+		_needs_tick_accumulated = 0.0
+		_needs_tick_remaining = 0.0
+		return
+	_needs_tick_accumulated += delta
+	_needs_tick_remaining -= delta
+	if _needs_tick_remaining > 0.0:
+		return
+	var tick_delta := _needs_tick_accumulated
+	_needs_tick_accumulated = 0.0
+	_needs_tick_remaining = NEEDS_PROCESS_INTERVAL + _rng.randf_range(0.0, NEEDS_PROCESS_JITTER)
+	_process_needs(tick_delta)
+
+
 func _process_bleeding(delta: float) -> void:
 	if life_state == NpcRules.LifeState.DEAD:
 		return
@@ -2432,6 +2587,8 @@ func _process_bleeding(delta: float) -> void:
 
 func _process_recovery(delta: float) -> void:
 	if life_state == NpcRules.LifeState.DEAD:
+		return
+	if _current_blunt_damage <= 0.0 and _current_bandaged_cut_damage <= 0.0 and _current_open_cut_damage <= 0.0 and _bleed_burst_rate <= 0.0 and _bleed_rate <= 0.0 and blood >= max_blood and life_state != NpcRules.LifeState.UNCONSCIOUS:
 		return
 	var healing_step := get_stat_value("healing_rate") * delta
 	if life_state == NpcRules.LifeState.ASLEEP:
@@ -2513,6 +2670,7 @@ func _process_ai(delta: float) -> void:
 			_active_job_provider.pause_worker_job(self, false)
 		if _ai_brain != null and _ai_brain.has_active_job():
 			_ai_brain.clear_active_job()
+		_sync_active_combat_actor_group()
 		return
 	_clear_invalid_ai_job()
 	if _ai_brain != null:
@@ -2556,24 +2714,134 @@ func _process_ai(delta: float) -> void:
 			assign_attack_target(target, false)
 
 
+func _process_ai_profiled(delta: float) -> void:
+	var profile_last_usec := Time.get_ticks_usec()
+	if life_state != NpcRules.LifeState.ALIVE:
+		if _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):
+			_active_job_provider.pause_worker_job(self, false)
+		if _ai_brain != null and _ai_brain.has_active_job():
+			_ai_brain.clear_active_job()
+		_sync_active_combat_actor_group()
+		_debug_humanoid_ai_profile_checkpoint("life_state_cleanup", profile_last_usec)
+		_debug_humanoid_ai_profile_finish()
+		return
+	_clear_invalid_ai_job()
+	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("clear_invalid_job", profile_last_usec)
+	if _ai_brain != null:
+		_tick_active_ai_job(delta)
+	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("tick_active_job", profile_last_usec)
+	if _ai_utility_adapter == null:
+		_ensure_assigned_work_ai_job()
+	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("assigned_work_fallback", profile_last_usec)
+	_process_law_custody_return()
+	_process_law_sentence_move()
+	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("law_movement", profile_last_usec)
+	if _current_order_type == OrderType.HEAL and (_current_heal_target == null or not is_instance_valid(_current_heal_target)):
+		stop_heal_assignment()
+	if _current_order_type == OrderType.FINISH_OFF and (_current_finish_off_target == null or not is_instance_valid(_current_finish_off_target) or _current_finish_off_target.life_state != NpcRules.LifeState.UNCONSCIOUS):
+		stop_finish_off_assignment()
+	if _current_order_type == OrderType.CARRY and (_current_carry_target == null or not is_instance_valid(_current_carry_target) or not _current_carry_target.can_be_carried_by(self)):
+		stop_carry_assignment()
+	if _current_order_type == OrderType.PLACE_IN_BED and (_current_place_bed_target == null or not is_instance_valid(_current_place_bed_target) or _carried_character == null or not is_instance_valid(_carried_character)):
+		stop_place_in_bed_assignment()
+	if _current_order_type == OrderType.PLACE_IN_CELL and (_current_place_cell_target == null or not is_instance_valid(_current_place_cell_target) or _carried_character == null or not is_instance_valid(_carried_character)):
+		stop_place_in_cell_assignment()
+	if _current_order_type == OrderType.PICKUP_ITEM and (_current_pickup_item == null or not is_instance_valid(_current_pickup_item)):
+		stop_pickup_assignment()
+	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("order_validation", profile_last_usec)
+	if _current_attack_target != null and (not is_instance_valid(_current_attack_target) or _current_attack_target.life_state != NpcRules.LifeState.ALIVE):
+		stop_attack_assignment()
+	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("attack_validation", profile_last_usec)
+	if not _should_run_ai_decision_tick(delta):
+		_debug_humanoid_ai_profile_checkpoint("decision_gate", profile_last_usec)
+		_debug_humanoid_ai_profile_finish()
+		return
+	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("decision_gate", profile_last_usec)
+	if _ai_utility_adapter != null and bool(_ai_utility_adapter.run_actor_decision(self)):
+		_debug_humanoid_ai_profile_checkpoint("utility_decision", profile_last_usec)
+		_debug_humanoid_ai_profile_finish()
+		return
+	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("utility_decision", profile_last_usec)
+	if _should_consider_combat_retarget():
+		var replacement_target := _find_ai_target()
+		var active_target := _get_active_combat_target()
+		if replacement_target != null and replacement_target != active_target and COMBAT_COORDINATOR.should_switch_target(self, active_target, replacement_target, maxf(aggressive_scan_radius, assist_scan_radius)):
+			assign_attack_target(replacement_target, false, true, false)
+			_debug_humanoid_ai_profile_checkpoint("retarget", profile_last_usec)
+			_debug_humanoid_ai_profile_finish()
+			return
+	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("retarget", profile_last_usec)
+	if _should_seek_auto_heal_target():
+		var heal_target := _find_auto_heal_target()
+		if heal_target != null:
+			assign_heal_target(heal_target, false)
+			_debug_humanoid_ai_profile_checkpoint("auto_heal", profile_last_usec)
+			_debug_humanoid_ai_profile_finish()
+			return
+	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("auto_heal", profile_last_usec)
+	if _should_seek_combat_target():
+		var target := _find_ai_target()
+		if target != null:
+			assign_attack_target(target, false)
+	_debug_humanoid_ai_profile_checkpoint("seek_combat", profile_last_usec)
+	_debug_humanoid_ai_profile_finish()
+
+
 func _should_run_ai_decision_tick(delta: float) -> bool:
-	var scheduler := _get_runtime_controller("ai_scheduler_controller")
-	if scheduler != null and scheduler.has_method("should_tick_actor"):
-		return bool(scheduler.call("should_tick_actor", self, 0.35, 0.15))
 	_ai_tick_remaining -= delta
 	if _ai_tick_remaining > 0.0:
 		return false
-	_ai_tick_remaining = 0.35 + _rng.randf_range(0.0, 0.15)
+	# Utility decisions build context, touch GECS/job state, and may scan targets/contracts.
+	# Keep combat/orders/party responsive, but tick idle background NPC decisions less often.
+	var decision_interval := BACKGROUND_AI_DECISION_INTERVAL
+	var decision_jitter := BACKGROUND_AI_DECISION_JITTER
+	if _current_order_type != OrderType.NONE or _has_active_combat_target() or player_party_member:
+		decision_interval = ACTIVE_AI_DECISION_INTERVAL
+		decision_jitter = ACTIVE_AI_DECISION_JITTER
+	elif _should_use_far_background_ai_cadence():
+		decision_interval = FAR_BACKGROUND_AI_DECISION_INTERVAL
+		decision_jitter = FAR_BACKGROUND_AI_DECISION_JITTER
+	var scheduler := _get_runtime_controller("ai_scheduler_controller")
+	if scheduler != null and scheduler.has_method("should_tick_actor"):
+		if bool(scheduler.call("should_tick_actor", self, decision_interval, decision_jitter)):
+			_ai_tick_remaining = decision_interval + _rng.randf_range(0.0, decision_jitter)
+			return true
+		_ai_tick_remaining = 0.05
+		return false
+	_ai_tick_remaining = decision_interval + _rng.randf_range(0.0, decision_jitter)
+	return true
+
+
+func _should_use_far_background_ai_cadence() -> bool:
+	if _current_order_type != OrderType.NONE or player_party_member or _has_active_combat_target():
+		return false
+	if _ai_brain != null and _ai_brain.has_active_job():
+		return false
+	if not is_inside_tree():
+		return false
+	var tree := get_tree()
+	if tree == null:
+		return false
+	var party_members := tree.get_nodes_in_group("party_member")
+	if party_members.is_empty():
+		return false
+	var distance_squared := FAR_BACKGROUND_AI_DECISION_DISTANCE * FAR_BACKGROUND_AI_DECISION_DISTANCE
+	for node in party_members:
+		if not (node is Node3D):
+			continue
+		var party_member := node as Node3D
+		if global_position.distance_squared_to(party_member.global_position) <= distance_squared:
+			return false
 	return true
 
 
 func _tick_active_ai_job(delta: float) -> void:
-	var bridge := get_tree().get_first_node_in_group("gecs_world_controller") if is_inside_tree() else null
-	if bridge != null and bridge.has_method("can_tick_actor_ai_job") and bool(bridge.call("can_tick_actor_ai_job", self)):
-		return
 	if not _ai_brain.has_active_job():
 		_ai_job_tick_accumulated = 0.0
 		_ai_job_tick_remaining = 0.0
+		return
+	var bridge := get_tree().get_first_node_in_group("gecs_world_controller") if is_inside_tree() else null
+	if bridge != null and bridge.has_method("can_tick_actor_ai_job") and bool(bridge.call("can_tick_actor_ai_job", self)):
 		return
 	_ai_job_tick_accumulated += delta
 	_ai_job_tick_remaining -= delta
@@ -3649,12 +3917,12 @@ func _get_bone_pose_position_offsets(body_archetype: Resource) -> Dictionary:
 func _apply_bone_pose_position_offsets() -> void:
 	if _character_skeleton == null or not is_instance_valid(_character_skeleton):
 		return
-	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
 	if _bone_pose_position_offsets.is_empty() or _is_ragdoll_active:
-		_apply_visual_foot_anchor_correction(visual_root, 0.0)
+		if not is_zero_approx(_visual_foot_anchor_correction_y):
+			var reset_visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
+			_apply_visual_foot_anchor_correction(reset_visual_root, 0.0)
 		return
-	_reset_bone_pose_positions(_character_skeleton, _bone_pose_position_offsets)
-	_character_skeleton.force_update_all_bone_transforms()
+	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
 	for bone_name in _bone_pose_position_offsets.keys():
 		var bone_index := _character_skeleton.find_bone(str(bone_name))
 		if bone_index < 0:
@@ -4905,6 +5173,14 @@ func _is_active_ai_combat_player_issued() -> bool:
 func _clear_invalid_ai_job() -> void:
 	if _ai_brain != null and _ai_brain.active_job != null and (not _ai_brain.active_job.is_valid_for(self) or (_ai_brain.active_job.is_combat() and not _is_valid_combat_target(_ai_brain.active_job.target))):
 		_ai_brain.clear_active_job()
+		_sync_active_combat_actor_group()
+
+
+func _sync_active_combat_actor_group() -> void:
+	if _has_active_combat_target():
+		add_to_group(ACTIVE_COMBAT_ACTOR_GROUP)
+	else:
+		remove_from_group(ACTIVE_COMBAT_ACTOR_GROUP)
 
 
 func _cancel_non_matching_assignments(next_order_type: int, preserve_seat: bool = false) -> void:
@@ -5332,13 +5608,17 @@ func _get_last_direct_attacker_target() -> HumanoidCharacter:
 
 func _find_defensive_assist_target() -> HumanoidCharacter:
 	var candidates: Array[HumanoidCharacter] = []
-	for node in _get_query_humanoids(global_position, _get_combat_witness_radius(), true):
+	if not is_inside_tree():
+		return null
+	var witness_radius := _get_combat_witness_radius()
+	var witness_radius_squared := witness_radius * witness_radius
+	for node in get_tree().get_nodes_in_group(ACTIVE_COMBAT_ACTOR_GROUP):
 		if not (node is HumanoidCharacter):
 			continue
 		var ally: HumanoidCharacter = node
 		if ally == self or ally.life_state != NpcRules.LifeState.ALIVE:
 			continue
-		if global_position.distance_to(ally.global_position) > _get_combat_witness_radius():
+		if global_position.distance_squared_to(ally.global_position) > witness_radius_squared:
 			continue
 		var ally_target := ally.get_current_combat_target()
 		if _is_valid_combat_target(ally_target) and _should_help_against(ally, ally_target, true) and not candidates.has(ally_target):

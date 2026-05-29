@@ -14,6 +14,7 @@ This is the single project guidance file for coding agents. Human-facing archite
 - LimboAI is fetched locally, not versioned. If `addons/limboai/` is missing, run `./setup_limboai.sh` before Godot validation.
 - Keep `SETUP.md` for setup instructions and `ATTRIBUTION.md` for licenses.
 - Keep `operator/` as concise human editor instructions. Update it when reusable editor workflows change.
+- Do not edit `addons/gecs/`; it is a git submodule. If GECS behavior seems necessary, stop and ask before touching the submodule.
 - Leave vendor docs under `addons/gecs/docs/` alone unless explicitly asked to edit vendor content.
 - Do not use the phrase "you're right" in user-facing replies. Acknowledge issues directly.
 

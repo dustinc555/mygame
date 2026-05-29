@@ -24,6 +24,7 @@ func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
 
 
 func _ready() -> void:
+	add_to_group("world_status_controller")
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_try_initialize()
 

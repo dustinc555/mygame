@@ -77,6 +77,7 @@ func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
 
 
 func _ready() -> void:
+	add_to_group("humanoid_details_controller")
 	if root_scene != null:
 		if hud_layer == null and root_scene != null:
 			hud_layer = root_scene.get_node_or_null("GameHUD")
