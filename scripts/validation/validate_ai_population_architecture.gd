@@ -6,6 +6,7 @@ const AI_ASSIGNED_WORK_STEP_SCRIPT := preload("res://scripts/ai/steps/ai_assigne
 const AI_START_ACTIVITY_STEP_SCRIPT := preload("res://scripts/ai/steps/ai_start_activity_step.gd")
 const AI_WAIT_STEP_SCRIPT := preload("res://scripts/ai/steps/ai_wait_step.gd")
 const AI_RELEASE_ACTIVITY_STEP_SCRIPT := preload("res://scripts/ai/steps/ai_release_activity_step.gd")
+const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://scripts/controllers/gecs_world_controller.gd")
 const POPULATION_CONTROLLER_SCRIPT := preload("res://scripts/controllers/population_controller.gd")
 const ACTOR_QUERY_CONTROLLER_SCRIPT := preload("res://scripts/controllers/actor_query_controller.gd")
 const AI_SCHEDULER_CONTROLLER_SCRIPT := preload("res://scripts/controllers/ai_scheduler_controller.gd")
@@ -106,6 +107,7 @@ func _run() -> void:
 func _validate_population_records_and_ledger() -> void:
 	var root_node := Node3D.new()
 	root.add_child(root_node)
+	_add_gecs_bridge(root_node)
 	var population = POPULATION_CONTROLLER_SCRIPT.new()
 	root_node.add_child(population)
 	population.initialize(root_node)
@@ -153,15 +155,18 @@ func _validate_population_records_and_ledger() -> void:
 
 
 func _validate_actor_query_indexes() -> void:
+	var root_node := Node.new()
+	root.add_child(root_node)
+	_add_gecs_bridge(root_node)
 	var query = ACTOR_QUERY_CONTROLLER_SCRIPT.new()
 	query.add_to_group("actor_query_controller")
-	root.add_child(query)
+	root_node.add_child(query)
 	var actor := FakeHumanoid.new()
 	actor.stable_id = "actor.indexed"
 	actor.faction_name = "IndexedFaction"
 	actor.set_meta("settlement_id", "indexed_town")
 	actor.set_meta("actor_role_id", "guard")
-	root.add_child(actor)
+	root_node.add_child(actor)
 	query.register_actor(actor)
 	if query.get_actor_by_stable_id("actor.indexed") != actor:
 		_fail("ActorQueryController should find actors by stable ID")
@@ -172,11 +177,11 @@ func _validate_actor_query_indexes() -> void:
 	if query.get_alive_humanoids_for_faction("IndexedFaction", true).size() != 1:
 		_fail("ActorQueryController should index actors by faction")
 	var population = POPULATION_CONTROLLER_SCRIPT.new()
-	root.add_child(population)
+	root_node.add_child(population)
 	var unstamped_actor := FakeHumanoid.new()
 	unstamped_actor.name = "BootOrderedActor"
 	unstamped_actor.faction_name = "BootFaction"
-	root.add_child(unstamped_actor)
+	root_node.add_child(unstamped_actor)
 	query.register_actor(unstamped_actor)
 	var boot_record: Dictionary = population.register_actor(unstamped_actor, "boot_town", {"role_id": "worker"})
 	var boot_actor_id := str(boot_record.get("actor_id", ""))
@@ -191,15 +196,13 @@ func _validate_actor_query_indexes() -> void:
 		_fail("PopulationController.unregister_actor should remove actors from ActorQueryController indexes")
 	query.unregister_actor(actor)
 	query.unregister_actor(unstamped_actor)
-	actor.queue_free()
-	unstamped_actor.queue_free()
-	population.queue_free()
-	query.queue_free()
+	root_node.queue_free()
 
 
 func _validate_dense_population_indexes_and_batches() -> void:
 	var root_node := Node3D.new()
 	root.add_child(root_node)
+	_add_gecs_bridge(root_node)
 	var population = POPULATION_CONTROLLER_SCRIPT.new()
 	root_node.add_child(population)
 	population.initialize(root_node)
@@ -241,12 +244,15 @@ func _validate_dense_population_indexes_and_batches() -> void:
 
 
 func _validate_ai_scheduler() -> void:
+	var root_node := Node.new()
+	root.add_child(root_node)
+	_add_gecs_bridge(root_node)
 	var scheduler = AI_SCHEDULER_CONTROLLER_SCRIPT.new()
-	root.add_child(scheduler)
-	scheduler.initialize(root)
+	root_node.add_child(scheduler)
+	scheduler.initialize(root_node)
 	var actor := FakeHumanoid.new()
 	actor.stable_id = "actor.scheduled"
-	root.add_child(actor)
+	root_node.add_child(actor)
 	if not bool(scheduler.should_tick_actor(actor, 1.0, 0.0)):
 		_fail("AiSchedulerController should allow the first actor tick")
 	if bool(scheduler.should_tick_actor(actor, 1.0, 0.0)):
@@ -254,8 +260,7 @@ func _validate_ai_scheduler() -> void:
 	scheduler.apply_serialized_state({"sim_time": 12.0})
 	if not bool(scheduler.should_tick_actor(actor, 1.0, 0.0)):
 		_fail("AiSchedulerController apply state should reset volatile schedules")
-	actor.queue_free()
-	scheduler.queue_free()
+	root_node.queue_free()
 
 
 func _validate_protected_job_replacement() -> void:
@@ -372,6 +377,7 @@ func _validate_malformed_ai_step_failure() -> void:
 func _validate_realization_policy() -> void:
 	var root_node := Node.new()
 	root.add_child(root_node)
+	_add_gecs_bridge(root_node)
 	var party_manager := FakePartyManager.new()
 	party_manager.name = "PartyManager"
 	root_node.add_child(party_manager)
@@ -396,3 +402,11 @@ func _validate_realization_policy() -> void:
 
 func _fail(message: String) -> void:
 	_failures.append(message)
+
+
+func _add_gecs_bridge(parent: Node) -> Node:
+	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
+	bridge.name = "GecsWorldController"
+	parent.add_child(bridge)
+	bridge.call("initialize", parent)
+	return bridge

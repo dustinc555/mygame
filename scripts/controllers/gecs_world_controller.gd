@@ -1475,63 +1475,64 @@ func _populate_record_inventory_and_equipment(record: Dictionary) -> Dictionary:
 
 
 func _sync_job_provider_slots(provider_id: String, active_slots: Dictionary) -> void:
-	var remove_ids: Array[String] = []
-	for slot_id in _job_provider_slot_entity_by_id.keys():
-		if str(slot_id).begins_with("%s:" % provider_id):
-			remove_ids.append(str(slot_id))
-	for slot_id in remove_ids:
-		var old_entity = _job_provider_slot_entity_by_id.get(slot_id)
-		if old_entity != null and is_instance_valid(old_entity) and world != null:
-			world.remove_entity(old_entity)
-		_job_provider_slot_entity_by_id.erase(slot_id)
+	var expected_slot_ids: Dictionary = {}
 	for job_index_value in active_slots.keys():
 		var job_index := int(job_index_value)
 		var slots: Array = active_slots[job_index_value]
 		for slot_state in slots:
 			if not (slot_state is Dictionary):
 				continue
+			var slot_data: Dictionary = slot_state
 			var slot_index := int((slot_state as Dictionary).get("slot_index", 0))
 			var slot_id := "%s:%d:%d" % [provider_id, job_index, slot_index]
-			var entity = _entity_script.new()
-			entity.name = _entity_node_name("JobProviderSlot", slot_id)
-			entity.id = _entity_id("job_provider_slot", slot_id)
-			world.add_entity(entity, [C_JOB_PROVIDER_SLOT.new()])
-			_job_provider_slot_entity_by_id[slot_id] = entity
+			expected_slot_ids[slot_id] = true
+			var entity = _job_provider_slot_entity_by_id.get(slot_id)
+			if entity == null or not is_instance_valid(entity):
+				entity = _entity_script.new()
+				entity.name = _entity_node_name("JobProviderSlot", slot_id)
+				entity.id = _entity_id("job_provider_slot", slot_id)
+				world.add_entity(entity, [C_JOB_PROVIDER_SLOT.new()])
+				_job_provider_slot_entity_by_id[slot_id] = entity
 			var component = entity.get_component(C_JOB_PROVIDER_SLOT)
-			var worker = (slot_state as Dictionary).get("worker")
+			var worker = slot_data.get("worker")
 			component.slot_id = slot_id
 			component.provider_id = provider_id
 			component.job_index = job_index
 			component.slot_index = slot_index
 			component.worker_actor_id = _actor_record_id(worker) if worker is Node else ""
 			component.active = worker != null and is_instance_valid(worker)
-			component.accrued_interval_time = float((slot_state as Dictionary).get("accrued_interval_time", 0.0))
-			component.guard_shuffle_remaining = float((slot_state as Dictionary).get("guard_shuffle_remaining", 0.0))
-			component.server_state = str((slot_state as Dictionary).get("server_state", "idle"))
-			component.server_state_elapsed = float((slot_state as Dictionary).get("server_state_elapsed", 0.0))
-			component.server_order_text = str((slot_state as Dictionary).get("server_order_text", ""))
-			component.last_ai_blocker = str((slot_state as Dictionary).get("last_ai_blocker", ""))
+			component.accrued_interval_time = float(slot_data.get("accrued_interval_time", 0.0))
+			component.guard_shuffle_remaining = float(slot_data.get("guard_shuffle_remaining", 0.0))
+			component.server_state = str(slot_data.get("server_state", "idle"))
+			component.server_state_elapsed = float(slot_data.get("server_state_elapsed", 0.0))
+			component.server_order_text = str(slot_data.get("server_order_text", ""))
+			component.last_ai_blocker = str(slot_data.get("last_ai_blocker", ""))
+	var remove_ids: Array[String] = []
+	for slot_id in _job_provider_slot_entity_by_id.keys():
+		var slot_id_text := str(slot_id)
+		if slot_id_text.begins_with("%s:" % provider_id) and not expected_slot_ids.has(slot_id_text):
+			remove_ids.append(slot_id_text)
+	for slot_id in remove_ids:
+		var old_entity = _job_provider_slot_entity_by_id.get(slot_id)
+		if old_entity != null and is_instance_valid(old_entity) and world != null:
+			world.remove_entity(old_entity)
+		_job_provider_slot_entity_by_id.erase(slot_id)
 
 
 func _sync_job_worker_records(provider_id: String, worker_records: Dictionary) -> void:
-	var remove_ids: Array[String] = []
-	for record_id in _job_worker_record_entity_by_id.keys():
-		if str(record_id).begins_with("%s:" % provider_id):
-			remove_ids.append(str(record_id))
-	for record_id in remove_ids:
-		var old_entity = _job_worker_record_entity_by_id.get(record_id)
-		if old_entity != null and is_instance_valid(old_entity) and world != null:
-			world.remove_entity(old_entity)
-		_job_worker_record_entity_by_id.erase(record_id)
+	var expected_record_ids: Dictionary = {}
 	for worker_id_value in worker_records.keys():
 		var worker_id := str(worker_id_value)
 		var record: Dictionary = worker_records[worker_id_value]
 		var record_id := "%s:%s" % [provider_id, worker_id]
-		var entity = _entity_script.new()
-		entity.name = _entity_node_name("JobWorker", record_id)
-		entity.id = _entity_id("job_worker", record_id)
-		world.add_entity(entity, [C_JOB_WORKER_RECORD.new()])
-		_job_worker_record_entity_by_id[record_id] = entity
+		expected_record_ids[record_id] = true
+		var entity = _job_worker_record_entity_by_id.get(record_id)
+		if entity == null or not is_instance_valid(entity):
+			entity = _entity_script.new()
+			entity.name = _entity_node_name("JobWorker", record_id)
+			entity.id = _entity_id("job_worker", record_id)
+			world.add_entity(entity, [C_JOB_WORKER_RECORD.new()])
+			_job_worker_record_entity_by_id[record_id] = entity
 		var component = entity.get_component(C_JOB_WORKER_RECORD)
 		component.record_id = record_id
 		component.provider_id = provider_id
@@ -1539,6 +1540,16 @@ func _sync_job_worker_records(provider_id: String, worker_records: Dictionary) -
 		component.total_worked_seconds = float(record.get("total_worked_seconds", 0.0))
 		component.owed_currency = int(record.get("owed_currency", 0))
 		component.break_until_time = float(record.get("break_until_time", 0.0))
+	var remove_ids: Array[String] = []
+	for record_id in _job_worker_record_entity_by_id.keys():
+		var record_id_text := str(record_id)
+		if record_id_text.begins_with("%s:" % provider_id) and not expected_record_ids.has(record_id_text):
+			remove_ids.append(record_id_text)
+	for record_id in remove_ids:
+		var old_entity = _job_worker_record_entity_by_id.get(record_id)
+		if old_entity != null and is_instance_valid(old_entity) and world != null:
+			world.remove_entity(old_entity)
+		_job_worker_record_entity_by_id.erase(record_id)
 
 
 func _upsert_state_entity(current_entity, node_name: String, entity_id: String, component_script):

@@ -3,7 +3,6 @@ extends Node
 class_name PopulationController
 
 const CHARACTER_APPEARANCE_DATA_SCRIPT := preload("res://scripts/character_appearance/character_appearance_data.gd")
-const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://scripts/controllers/gecs_world_controller.gd")
 
 var root_scene: Node
 var actor_records: Dictionary = {}
@@ -360,13 +359,7 @@ func _get_gecs_world() -> Node:
 	var existing := get_tree().get_first_node_in_group("gecs_world_controller")
 	if existing != null and (parent_node == null or existing.get_parent() == parent_node):
 		return existing
-	if parent_node == null:
-		return null
-	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
-	bridge.name = "GecsWorldController"
-	parent_node.add_child(bridge)
-	bridge.call("initialize", root_scene if root_scene != null else parent_node)
-	return bridge
+	return null
 
 
 func _get_generated_records(settlement_id: String, spawner_id: String, role_id := "") -> Array[Dictionary]:

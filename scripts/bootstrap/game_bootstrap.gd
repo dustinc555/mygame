@@ -43,34 +43,11 @@ func _ready() -> void:
 func _deferred_bootstrap() -> void:
 	_ensure_world_navigation()
 	_ensure_hud()
-	_ensure_controller("GecsWorldController", GECS_WORLD_CONTROLLER_SCRIPT)
-	_ensure_controller("WorldTimeController", WORLD_TIME_CONTROLLER_SCRIPT)
-	_ensure_controller("ActorQueryController", ACTOR_QUERY_CONTROLLER_SCRIPT)
-	_ensure_controller("AiSchedulerController", AI_SCHEDULER_CONTROLLER_SCRIPT)
-	_ensure_controller("BleedSplotchController", BLEED_SPLOTCH_CONTROLLER_SCRIPT)
-	_ensure_controller("DayNightLightingController", DAY_NIGHT_LIGHTING_CONTROLLER_SCRIPT)
-	_ensure_controller("PerceptionController", PERCEPTION_CONTROLLER_SCRIPT)
-	_ensure_controller("FactionController", FACTION_CONTROLLER_SCRIPT)
-	_ensure_controller("PopulationController", POPULATION_CONTROLLER_SCRIPT)
-	_ensure_controller("PopulationRealizationController", POPULATION_REALIZATION_CONTROLLER_SCRIPT)
-	_ensure_controller("SettlementController", SETTLEMENT_CONTROLLER_SCRIPT)
-	_ensure_controller("TerritoryController", TERRITORY_CONTROLLER_SCRIPT)
-	_ensure_controller("RoadController", ROAD_CONTROLLER_SCRIPT)
-	_ensure_controller("WorldEventChoiceController", WORLD_EVENT_CHOICE_CONTROLLER_SCRIPT)
-	_ensure_controller("WorldSquadController", WORLD_SQUAD_CONTROLLER_SCRIPT)
-	_ensure_controller("WorldSimulationController", WORLD_SIMULATION_CONTROLLER_SCRIPT)
-	_ensure_controller("LedgerSimulationController", LEDGER_SIMULATION_CONTROLLER_SCRIPT)
-	_ensure_controller("LawOrderController", LAW_ORDER_CONTROLLER_SCRIPT)
-	_ensure_controller("SettlementActivityController", SETTLEMENT_ACTIVITY_CONTROLLER_SCRIPT)
-	_ensure_controller("PartyInventoryController", PARTY_INVENTORY_CONTROLLER_SCRIPT)
-	_ensure_controller("HumanoidDetailsController", HUMANOID_DETAILS_CONTROLLER_SCRIPT)
-	_ensure_controller("CharacterAppearanceController", CHARACTER_APPEARANCE_CONTROLLER_SCRIPT)
-	_ensure_controller("ConversationController", CONVERSATION_CONTROLLER_SCRIPT)
-	_ensure_controller("OwnershipController", OWNERSHIP_CONTROLLER_SCRIPT)
-	_ensure_controller("JobSystemController", JOB_SYSTEM_CONTROLLER_SCRIPT)
-	_ensure_controller("BuildingVisibilityController", BUILDING_VISIBILITY_CONTROLLER_SCRIPT)
-	_ensure_controller("WorldStatusController", WORLD_STATUS_CONTROLLER_SCRIPT)
-	_ensure_controller("WorldInteractionController", WORLD_INTERACTION_CONTROLLER_SCRIPT)
+	var controller_specs := _controller_specs()
+	for spec in controller_specs:
+		_ensure_controller_node(str(spec["name"]), spec["script"])
+	for spec in controller_specs:
+		_initialize_controller(str(spec["name"]))
 
 
 func _ensure_world_navigation() -> void:
@@ -90,12 +67,51 @@ func _ensure_hud() -> void:
 		root_scene.add_child(hud_layer)
 
 
-func _ensure_controller(node_name: String, script_resource: Script) -> void:
+func _controller_specs() -> Array[Dictionary]:
+	return [
+		{"name": "GecsWorldController", "script": GECS_WORLD_CONTROLLER_SCRIPT},
+		{"name": "WorldTimeController", "script": WORLD_TIME_CONTROLLER_SCRIPT},
+		{"name": "ActorQueryController", "script": ACTOR_QUERY_CONTROLLER_SCRIPT},
+		{"name": "AiSchedulerController", "script": AI_SCHEDULER_CONTROLLER_SCRIPT},
+		{"name": "BleedSplotchController", "script": BLEED_SPLOTCH_CONTROLLER_SCRIPT},
+		{"name": "DayNightLightingController", "script": DAY_NIGHT_LIGHTING_CONTROLLER_SCRIPT},
+		{"name": "PerceptionController", "script": PERCEPTION_CONTROLLER_SCRIPT},
+		{"name": "FactionController", "script": FACTION_CONTROLLER_SCRIPT},
+		{"name": "PopulationController", "script": POPULATION_CONTROLLER_SCRIPT},
+		{"name": "PopulationRealizationController", "script": POPULATION_REALIZATION_CONTROLLER_SCRIPT},
+		{"name": "SettlementController", "script": SETTLEMENT_CONTROLLER_SCRIPT},
+		{"name": "TerritoryController", "script": TERRITORY_CONTROLLER_SCRIPT},
+		{"name": "RoadController", "script": ROAD_CONTROLLER_SCRIPT},
+		{"name": "WorldEventChoiceController", "script": WORLD_EVENT_CHOICE_CONTROLLER_SCRIPT},
+		{"name": "WorldSquadController", "script": WORLD_SQUAD_CONTROLLER_SCRIPT},
+		{"name": "WorldSimulationController", "script": WORLD_SIMULATION_CONTROLLER_SCRIPT},
+		{"name": "LedgerSimulationController", "script": LEDGER_SIMULATION_CONTROLLER_SCRIPT},
+		{"name": "LawOrderController", "script": LAW_ORDER_CONTROLLER_SCRIPT},
+		{"name": "SettlementActivityController", "script": SETTLEMENT_ACTIVITY_CONTROLLER_SCRIPT},
+		{"name": "PartyInventoryController", "script": PARTY_INVENTORY_CONTROLLER_SCRIPT},
+		{"name": "HumanoidDetailsController", "script": HUMANOID_DETAILS_CONTROLLER_SCRIPT},
+		{"name": "CharacterAppearanceController", "script": CHARACTER_APPEARANCE_CONTROLLER_SCRIPT},
+		{"name": "ConversationController", "script": CONVERSATION_CONTROLLER_SCRIPT},
+		{"name": "OwnershipController", "script": OWNERSHIP_CONTROLLER_SCRIPT},
+		{"name": "JobSystemController", "script": JOB_SYSTEM_CONTROLLER_SCRIPT},
+		{"name": "BuildingVisibilityController", "script": BUILDING_VISIBILITY_CONTROLLER_SCRIPT},
+		{"name": "WorldStatusController", "script": WORLD_STATUS_CONTROLLER_SCRIPT},
+		{"name": "WorldInteractionController", "script": WORLD_INTERACTION_CONTROLLER_SCRIPT},
+	]
+
+
+func _ensure_controller_node(node_name: String, script_resource: Script) -> void:
 	var controller := get_node_or_null(node_name)
 	if controller == null:
 		controller = Node.new()
 		controller.name = node_name
 		controller.set_script(script_resource)
 		add_child(controller)
+
+
+func _initialize_controller(node_name: String) -> void:
+	var controller := get_node_or_null(node_name)
+	if controller == null:
+		return
 	if controller.has_method("initialize"):
 		controller.initialize(root_scene, hud_layer)

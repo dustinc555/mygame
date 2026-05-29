@@ -15,7 +15,6 @@ const DIPLOMACY_VASSAL := "vassal"
 const DIPLOMACY_TRIBUTARY := "tributary"
 const DIPLOMACY_PROTECTORATE := "protectorate"
 const DIRECTIONAL_STATES := [DIPLOMACY_VASSAL, DIPLOMACY_TRIBUTARY, DIPLOMACY_PROTECTORATE]
-const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://scripts/controllers/gecs_world_controller.gd")
 const FACTIONS_BUTTON_PARENT_PATH := NodePath("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadCommandStrip")
 const FACTIONS_MENU_LAYER_PATH := NodePath("InventoryWindowLayer")
 
@@ -410,13 +409,7 @@ func _get_gecs_world() -> Node:
 	var existing := get_tree().get_first_node_in_group("gecs_world_controller")
 	if existing != null and (parent_node == null or existing.get_parent() == parent_node):
 		return existing
-	if parent_node == null:
-		return null
-	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
-	bridge.name = "GecsWorldController"
-	parent_node.add_child(bridge)
-	bridge.call("initialize", root_scene if root_scene != null else parent_node)
-	return bridge
+	return null
 
 
 func _resource_is_hostile_to(definition: Resource, other_faction_id: String) -> bool:

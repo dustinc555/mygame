@@ -20,6 +20,23 @@ var world_event_choice_controller: Node
 var job_system_controller: Node
 var _initialized := false
 
+const CONTROLLER_STATE_SPECS := [
+	{"key": "world_time", "property": "world_time", "sync_method": "sync_world_time_state", "refresh_method": "refresh_from_gecs_state"},
+	{"key": "settlements", "property": "settlement_controller", "refresh_method": "refresh_from_gecs_state"},
+	{"key": "squads", "property": "world_squad_controller", "sync_method": "sync_world_squad_state", "refresh_method": "refresh_from_gecs_state"},
+	{"key": "population", "property": "population_controller", "sync_method": "sync_population_state", "refresh_method": "refresh_from_gecs_state"},
+	{"key": "ai_scheduler", "property": "ai_scheduler_controller", "sync_method": "sync_ai_scheduler_state", "refresh_method": "refresh_from_gecs_state"},
+	{"key": "actor_query", "property": "actor_query_controller"},
+	{"key": "population_realization", "property": "population_realization_controller", "sync_method": "sync_population_realization_state", "refresh_method": "refresh_from_gecs_state"},
+	{"key": "ledger_simulation", "property": "ledger_simulation_controller", "sync_method": "sync_ledger_simulation_state", "refresh_method": "refresh_from_gecs_state"},
+	{"key": "factions", "property": "faction_controller", "sync_method": "sync_faction_state", "refresh_method": "refresh_from_gecs_state"},
+	{"key": "law_order", "property": "law_order_controller", "sync_method": "sync_law_order_state", "refresh_method": "refresh_from_gecs_state"},
+	{"key": "world_events", "property": "world_event_choice_controller", "sync_method": "sync_world_event_state", "refresh_method": "refresh_from_gecs_state"},
+	{"key": "job_system", "property": "job_system_controller", "sync_method": "sync_job_system_state", "refresh_method": "refresh_from_gecs_state"},
+	{"key": "territories", "property": "territory_controller"},
+	{"key": "roads", "property": "road_controller"},
+]
+
 
 func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
 	root_scene = target_root
@@ -102,40 +119,16 @@ func perform_world_sim_debug_action(action_key: String) -> String:
 
 
 func serialize_state() -> Dictionary:
-	return {
-		"gecs": gecs_world_controller.call("serialize_state") if gecs_world_controller != null and gecs_world_controller.has_method("serialize_state") else {},
-		"world_time": world_time.call("serialize_state") if world_time != null and world_time.has_method("serialize_state") else {},
-		"settlements": settlement_controller.call("serialize_state") if settlement_controller != null and settlement_controller.has_method("serialize_state") else {},
-		"squads": world_squad_controller.call("serialize_state") if world_squad_controller != null and world_squad_controller.has_method("serialize_state") else {},
-		"population": population_controller.call("serialize_state") if population_controller != null and population_controller.has_method("serialize_state") else {},
-		"ai_scheduler": ai_scheduler_controller.call("serialize_state") if ai_scheduler_controller != null and ai_scheduler_controller.has_method("serialize_state") else {},
-		"actor_query": actor_query_controller.call("serialize_state") if actor_query_controller != null and actor_query_controller.has_method("serialize_state") else {},
-		"population_realization": population_realization_controller.call("serialize_state") if population_realization_controller != null and population_realization_controller.has_method("serialize_state") else {},
-		"ledger_simulation": ledger_simulation_controller.call("serialize_state") if ledger_simulation_controller != null and ledger_simulation_controller.has_method("serialize_state") else {},
-		"factions": faction_controller.call("serialize_state") if faction_controller != null and faction_controller.has_method("serialize_state") else {},
-		"law_order": law_order_controller.call("serialize_state") if law_order_controller != null and law_order_controller.has_method("serialize_state") else {},
-		"world_events": world_event_choice_controller.call("serialize_state") if world_event_choice_controller != null and world_event_choice_controller.has_method("serialize_state") else {},
-		"job_system": job_system_controller.call("serialize_state") if job_system_controller != null and job_system_controller.has_method("serialize_state") else {},
-		"territories": territory_controller.call("serialize_state") if territory_controller != null and territory_controller.has_method("serialize_state") else {},
-		"roads": road_controller.call("serialize_state") if road_controller != null and road_controller.has_method("serialize_state") else {},
-	}
+	var state := {"gecs": _gecs_state_snapshot()}
+	for spec in CONTROLLER_STATE_SPECS:
+		state[str(spec["key"])] = _serialize_controller_state(_controller_from_spec(spec))
+	return state
 
 
 func apply_serialized_state(state: Dictionary) -> void:
 	_try_initialize()
-	_apply_controller_state(world_time, state.get("world_time", {}))
-	_apply_controller_state(settlement_controller, state.get("settlements", {}))
-	_apply_controller_state(world_squad_controller, state.get("squads", {}))
-	_apply_controller_state(population_controller, state.get("population", {}))
-	_apply_controller_state(ai_scheduler_controller, state.get("ai_scheduler", {}))
-	_apply_controller_state(population_realization_controller, state.get("population_realization", {}))
-	_apply_controller_state(ledger_simulation_controller, state.get("ledger_simulation", {}))
-	_apply_controller_state(faction_controller, state.get("factions", {}))
-	_apply_controller_state(law_order_controller, state.get("law_order", {}))
-	_apply_controller_state(world_event_choice_controller, state.get("world_events", {}))
-	_apply_controller_state(job_system_controller, state.get("job_system", {}))
-	_apply_controller_state(territory_controller, state.get("territories", {}))
-	_apply_controller_state(road_controller, state.get("roads", {}))
+	for spec in CONTROLLER_STATE_SPECS:
+		_apply_controller_state(_controller_from_spec(spec), state.get(str(spec["key"]), {}))
 
 
 func save_world_to_file(path: String, binary := false) -> bool:
@@ -188,54 +181,36 @@ func _apply_controller_state(controller: Node, state_value) -> void:
 		controller.call("apply_serialized_state", state_value)
 
 
+func _serialize_controller_state(controller: Node) -> Dictionary:
+	if controller == null or not controller.has_method("serialize_state"):
+		return {}
+	var controller_state = controller.call("serialize_state")
+	return controller_state if controller_state is Dictionary else {}
+
+
+func _controller_from_spec(spec: Dictionary) -> Node:
+	return get(str(spec.get("property", ""))) as Node
+
+
+func _gecs_state_snapshot() -> Dictionary:
+	if gecs_world_controller != null and gecs_world_controller.has_method("serialize_state"):
+		return gecs_world_controller.call("serialize_state")
+	return {}
+
+
+func _call_controller_method(controller: Node, method_name: String) -> void:
+	if controller != null and not method_name.is_empty() and controller.has_method(method_name):
+		controller.call(method_name)
+
+
 func _sync_controller_states_for_save() -> void:
-	for controller in [
-		world_time,
-		settlement_controller,
-		world_squad_controller,
-		population_controller,
-		ai_scheduler_controller,
-		population_realization_controller,
-		ledger_simulation_controller,
-		faction_controller,
-		law_order_controller,
-		world_event_choice_controller,
-		job_system_controller,
-	]:
-		if controller == null:
-			continue
-		for method_name in [
-			"sync_population_state",
-			"sync_world_time_state",
-			"sync_world_squad_state",
-			"sync_ai_scheduler_state",
-			"sync_population_realization_state",
-			"sync_faction_state",
-			"sync_law_order_state",
-			"sync_world_event_state",
-			"sync_job_system_state",
-			"sync_ledger_simulation_state",
-		]:
-			if controller.has_method(method_name):
-				controller.call(method_name)
+	for spec in CONTROLLER_STATE_SPECS:
+		_call_controller_method(_controller_from_spec(spec), str(spec.get("sync_method", "")))
 
 
 func _refresh_controller_states_from_gecs() -> void:
-	for controller in [
-		world_time,
-		settlement_controller,
-		world_squad_controller,
-		population_controller,
-		ai_scheduler_controller,
-		population_realization_controller,
-		ledger_simulation_controller,
-		faction_controller,
-		law_order_controller,
-		world_event_choice_controller,
-		job_system_controller,
-	]:
-		if controller != null and controller.has_method("refresh_from_gecs_state"):
-			controller.call("refresh_from_gecs_state")
+	for spec in CONTROLLER_STATE_SPECS:
+		_call_controller_method(_controller_from_spec(spec), str(spec.get("refresh_method", "")))
 
 
 func _format_population_summary() -> String:

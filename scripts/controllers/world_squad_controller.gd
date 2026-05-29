@@ -3,7 +3,6 @@ extends Node
 class_name WorldSquadController
 
 const FACTION_HUMANOID_SCRIPT = preload("res://scripts/characters/faction_humanoid.gd")
-const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://scripts/controllers/gecs_world_controller.gd")
 const SQUAD_MEMBER_PERCEPTION_RANGE := Vector2i(2, 8)
 const PHASE_TRAVEL := "travel"
 const PHASE_PLANNING := "planning"
@@ -91,7 +90,7 @@ func start_action(action_record: Dictionary) -> Dictionary:
 
 func serialize_state() -> Dictionary:
 	_sync_world_squad_state_to_gecs()
-	return active_squads.duplicate(true)
+	return _current_world_squad_state()
 
 
 func apply_serialized_state(state: Dictionary) -> void:
@@ -758,13 +757,7 @@ func _get_gecs_world() -> Node:
 	var existing := get_tree().get_first_node_in_group("gecs_world_controller")
 	if existing != null and (parent_node == null or existing.get_parent() == parent_node):
 		return existing
-	if parent_node == null:
-		return null
-	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
-	bridge.name = "GecsWorldController"
-	parent_node.add_child(bridge)
-	bridge.call("initialize", root_scene if root_scene != null else parent_node)
-	return bridge
+	return null
 
 
 func _get_encamp_position(spawn_position: Vector3, target_anchor: Node3D, route_waypoints: Array[Vector3], operation_profile: Resource) -> Vector3:

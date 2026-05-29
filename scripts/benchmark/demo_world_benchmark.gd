@@ -70,6 +70,8 @@ var fixed_fps := 120
 var auto_quit := true
 var ecs_debug_metrics := false
 var _disable_process_groups: Array[String] = []
+var _disable_idle_process_groups: Array[String] = []
+var _disable_physics_process_groups: Array[String] = []
 var _is_finalizing := false
 
 var _monitor_stats: Dictionary = {}
@@ -86,6 +88,8 @@ var _ecs_singleton: Node = null
 
 # Useful isolation flags:
 # --demo-bench-disable-process=humanoid_character isolates non-humanoid scene cost.
+# --demo-bench-disable-idle-process=humanoid_character disables only `_process`.
+# --demo-bench-disable-physics-process=humanoid_character disables only `_physics_process`.
 # --demo-bench-ecs-debug enables ECS metrics, but changes benchmark cost.
 # --utility-profile prints utility AI section costs when utility decisions run.
 # --humanoid-profile prints humanoid `_process` section costs.
@@ -266,6 +270,10 @@ func _print_config() -> void:
 		start_message += " ecs_debug=true"
 	if not _disable_process_groups.is_empty():
 		start_message += " disable_process=" + ",".join(_disable_process_groups)
+	if not _disable_idle_process_groups.is_empty():
+		start_message += " disable_idle_process=" + ",".join(_disable_idle_process_groups)
+	if not _disable_physics_process_groups.is_empty():
+		start_message += " disable_physics_process=" + ",".join(_disable_physics_process_groups)
 	print(start_message)
 
 
@@ -406,6 +414,10 @@ func _parse_cli_args() -> void:
 			fixed_fps = max(1, int(arg.get_slice("=", 1)))
 		elif arg.begins_with("--demo-bench-disable-process="):
 			_disable_process_groups = _parse_group_list_arg(arg)
+		elif arg.begins_with("--demo-bench-disable-idle-process="):
+			_disable_idle_process_groups = _parse_group_list_arg(arg)
+		elif arg.begins_with("--demo-bench-disable-physics-process="):
+			_disable_physics_process_groups = _parse_group_list_arg(arg)
 		elif arg == "--demo-bench-ecs-debug":
 			ecs_debug_metrics = true
 		elif arg == "--demo-bench-no-quit":
@@ -428,8 +440,6 @@ func _parse_group_list_arg(arg: String) -> Array[String]:
 
 
 func _apply_process_disables() -> void:
-	if _disable_process_groups.is_empty():
-		return
 	for group_name in _disable_process_groups:
 		if group_name.is_empty():
 			continue
@@ -440,3 +450,19 @@ func _apply_process_disables() -> void:
 				target.set_process(false)
 				target.set_physics_process(false)
 		print("DEMO_WORLD_BENCHMARK_DISABLE group=%s nodes=%d" % [group_name, nodes.size()])
+	for group_name in _disable_idle_process_groups:
+		if group_name.is_empty():
+			continue
+		var nodes := get_nodes_in_group(group_name)
+		for node in nodes:
+			if node is Node:
+				(node as Node).set_process(false)
+		print("DEMO_WORLD_BENCHMARK_DISABLE_IDLE_PROCESS group=%s nodes=%d" % [group_name, nodes.size()])
+	for group_name in _disable_physics_process_groups:
+		if group_name.is_empty():
+			continue
+		var nodes := get_nodes_in_group(group_name)
+		for node in nodes:
+			if node is Node:
+				(node as Node).set_physics_process(false)
+		print("DEMO_WORLD_BENCHMARK_DISABLE_PHYSICS_PROCESS group=%s nodes=%d" % [group_name, nodes.size()])
