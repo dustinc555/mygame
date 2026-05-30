@@ -1,10 +1,10 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene format=3 uid="uid://b61506dov0k4v"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/demo_world_startup.gd" id="1_startup"]
-[ext_resource type="Script" path="res://scripts/world_sim/world_loader.gd" id="1_loader"]
+[ext_resource type="Script" uid="uid://dm58cnb3kgh5e" path="res://scripts/world_sim/world_loader.gd" id="1_loader"]
+[ext_resource type="Script" uid="uid://bwa8ktkjkxva6" path="res://scripts/world_sim/demo_world_startup.gd" id="1_startup"]
 [ext_resource type="Resource" path="res://resources/worlds/demo_world/demo_world.tres" id="2_world"]
-[ext_resource type="Script" path="res://scripts/party_manager.gd" id="4_manager"]
-[ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="4_manager"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(1100, 1, 950)
@@ -16,49 +16,48 @@ roughness = 0.96
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(1100, 1, 950)
 
-[node name="DemoWorld" type="Node3D"]
+[node name="DemoWorld" type="Node3D" unique_id=191955666]
 script = ExtResource("1_startup")
 
-[node name="WorldLoader" type="Node" parent="."]
+[node name="WorldLoader" type="Node" parent="." unique_id=948164286]
 script = ExtResource("1_loader")
 world_definition = ExtResource("2_world")
-town_root_path = NodePath("../Towns")
 
-[node name="Towns" type="Node3D" parent="."]
+[node name="Towns" type="Node3D" parent="." unique_id=1786140021]
 
-[node name="Floor" type="StaticBody3D" parent="."]
+[node name="Floor" type="StaticBody3D" parent="." unique_id=1388096755]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 18)
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor" unique_id=947055337]
 shape = SubResource("BoxShape3D_floor")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor" unique_id=296995800]
 material_override = SubResource("StandardMaterial3D_floor")
 mesh = SubResource("BoxMesh_floor")
 
-[node name="PartyMembers" type="Node3D" parent="."]
+[node name="PartyMembers" type="Node3D" parent="." unique_id=2127076585]
 
-[node name="CharacterSpawn" type="Marker3D" parent="."]
-transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, -8, 0.6, 24)
+[node name="CharacterSpawn" type="Marker3D" parent="." unique_id=345712373]
+transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 377.61835, 0.6, 114.84003)
 
-[node name="PartyManager" type="Node" parent="."]
+[node name="PartyManager" type="Node" parent="." unique_id=1913509186]
 script = ExtResource("4_manager")
 
-[node name="GameBootstrap" type="Node" parent="."]
+[node name="GameBootstrap" type="Node" parent="." unique_id=1210480596]
 script = ExtResource("5_bootstrap")
 
-[node name="CameraRig" type="Node3D" parent="."]
+[node name="CameraRig" type="Node3D" parent="." unique_id=1113634968]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, 26)
 
-[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+[node name="CameraPivot" type="Node3D" parent="CameraRig" unique_id=1482128520]
 
-[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot" unique_id=1642957853]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 24)
 current = true
 
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1569052094]
 
-[node name="Instructions" type="Label" parent="CanvasLayer"]
+[node name="Instructions" type="Label" parent="CanvasLayer" unique_id=781861623]
 offset_left = 20.0
 offset_top = 20.0
 offset_right = 880.0

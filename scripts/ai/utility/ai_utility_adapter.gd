@@ -254,8 +254,8 @@ func _realize_self_defense(actor: Node, decision: AiUtilityDecisionResult) -> bo
 	if active_target == decision.target:
 		return false
 	if actor.has_method("assign_attack_target"):
-		actor.call("assign_attack_target", decision.target, false, true, false)
-		return true
+		var result = actor.call("assign_attack_target", decision.target, false, true, false)
+		return not (result is bool and result == false)
 	return _realize_job(actor, decision, str(decision.goal.source_id))
 
 

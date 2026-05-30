@@ -236,16 +236,8 @@ static func try_begin_exchange(attacker, defender, action_seconds: float) -> boo
 	_prune_expired_state()
 	if not _is_valid_combatant(attacker) or not _is_valid_combatant(defender):
 		return false
-	if not is_active_attack_slot(attacker, defender):
+	if is_character_locked(attacker):
 		return false
-	if is_character_locked(attacker) or is_character_locked(defender):
-		return false
-	var had_reservation := _consume_matching_reservation(defender, attacker)
-	if not had_reservation:
-		if _has_ready_reservation_for_other_attacker(defender, attacker):
-			return false
-		if not _wins_pressure_contest(attacker):
-			return false
 	_lock_exchange(attacker, defender, action_seconds)
 	return true
 
@@ -479,9 +471,7 @@ static func _has_ready_reservation_for_other_attacker(defender, attacker) -> boo
 static func _lock_exchange(attacker, defender, action_seconds: float) -> void:
 	var lock_until := _now_seconds() + maxf(action_seconds + EXCHANGE_RECOVERY_SECONDS, MIN_EXCHANGE_LOCK_SECONDS)
 	_participant_locks[attacker.get_instance_id()] = lock_until
-	_participant_locks[defender.get_instance_id()] = lock_until
 	_clear_reservations_involving(attacker.get_instance_id())
-	_clear_reservations_involving(defender.get_instance_id())
 
 
 static func _ensure_combat_slots(defender) -> void:

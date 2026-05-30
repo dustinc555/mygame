@@ -111,9 +111,18 @@ func _collect_existing_actors() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
-	for actor in tree.get_nodes_in_group("humanoid_character"):
+	var registered := {}
+	for actor in tree.get_nodes_in_group("combat_actor"):
 		register_actor(actor)
+		registered[actor.get_instance_id()] = true
+	for actor in tree.get_nodes_in_group("humanoid_character"):
+		if registered.has(actor.get_instance_id()):
+			continue
+		register_actor(actor)
+		registered[actor.get_instance_id()] = true
 	for actor in tree.get_nodes_in_group("npc_character"):
+		if registered.has(actor.get_instance_id()):
+			continue
 		register_actor(actor)
 
 

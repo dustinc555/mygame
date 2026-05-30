@@ -1647,6 +1647,9 @@ func _assign_pickup_to_selection(world_item) -> void:
 func _assign_attack_to_selection(target: HumanoidCharacter) -> void:
 	if target == null or party_manager.selected_members.is_empty():
 		return
+	if party_manager.selected_members.size() == 1:
+		party_manager.selected_members[0].assign_attack_target(target)
+		return
 	var candidates := _get_group_attack_targets(target)
 	var planned_pressure := {}
 	for candidate in candidates:

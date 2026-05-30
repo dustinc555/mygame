@@ -1152,6 +1152,8 @@ func _sync_staff_member(staff: Node, role: String) -> void:
 		staff.set("faction_name", owner_faction)
 	if _has_property(staff, "squad_name") and not _get_bar_squad_name().is_empty():
 		staff.set("squad_name", _get_bar_squad_name())
+	if _has_property(staff, "combat_stance") and role_base in ["barkeeper", "waiter", "guard", "barber"] and int(staff.get("combat_stance")) == NpcRules.CombatStance.PASSIVE:
+		staff.set("combat_stance", NpcRules.CombatStance.DEFENSIVE)
 	if _has_property(staff, "stable_id"):
 		var current_stable_id := str(staff.get("stable_id"))
 		if current_stable_id.is_empty() or current_stable_id.begins_with("settlement_bar."):
@@ -1785,9 +1787,6 @@ func _get_staff_id_prefix() -> String:
 func _get_bar_squad_name() -> String:
 	if not staff_squad_name.is_empty():
 		return staff_squad_name
-	var settlement := _get_ancestor_settlement()
-	if settlement != null:
-		return settlement.name
 	return get_facility_id()
 
 

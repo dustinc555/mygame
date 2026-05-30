@@ -111,6 +111,7 @@ func _validate_operator_instantiated_bar() -> void:
 	_validate_scene_authored_layout_source(bar)
 	_validate_layout_migration(bar)
 	_validate_service_area(bar, assigned_waiter, assigned_guard)
+	await _validate_staff_combat_response(bar)
 
 
 func _validate_inferred_defaults(bar: Node) -> void:
@@ -118,8 +119,8 @@ func _validate_inferred_defaults(bar: Node) -> void:
 		_fail("Reusable bar should infer facility_id from settlement id and node name")
 	if str(bar.call("_get_staff_id_prefix")) != "npc.farmer_crossing.operator_bar":
 		_fail("Reusable bar should infer staff_stable_id_prefix from facility_id")
-	if str(bar.call("_get_bar_squad_name")) != "FarmerCrossing":
-		_fail("Reusable bar should infer staff_squad_name from the parent settlement")
+	if str(bar.call("_get_bar_squad_name")) != "farmer_crossing.operator_bar":
+		_fail("Reusable bar should infer staff_squad_name from the facility")
 	if str(bar.call("_get_effective_owner_faction_id")) != "Farmers":
 		_fail("Reusable bar should infer owner_faction_id from the parent settlement")
 
@@ -164,14 +165,44 @@ func _validate_staff(bar: Node, assigned_waiter: HumanoidCharacter, assigned_gua
 			_fail("Generated bar staff name '%s' should come from the Farmer name profile before the role suffix" % display_name)
 		if not str(actor.get("stable_id")).begins_with("npc.farmer_crossing.operator_bar."):
 			_fail("Generated bar staff stable ids should use the inferred staff prefix")
-		if str(actor.get("squad_name")) != "FarmerCrossing":
-			_fail("Generated bar staff should infer the settlement squad name")
+		if str(actor.get("squad_name")) != "farmer_crossing.operator_bar":
+			_fail("Generated bar staff should infer the facility squad name")
 		_validate_staff_perception(actor, role)
 	if barber != null:
 		if barber.get("conversation_definition") != BARBER_CONVERSATION:
 			_fail("Generated barber should expose barber services")
 		if not barber.has_method("get_barber_service_price"):
 			_fail("Generated barber should use BarberHumanoid behavior")
+
+
+func _validate_staff_combat_response(bar: Node) -> void:
+	var barkeeper := bar.get_node_or_null("Staff/Barkeeper") as HumanoidCharacter
+	if barkeeper == null:
+		return
+	var attacker := CharacterBody3D.new()
+	attacker.name = "ValidationBarAttacker"
+	attacker.set_script(FACTION_HUMANOID_SCRIPT)
+	attacker.set("member_name", "Validation Attacker")
+	attacker.set("stable_id", "validation.bar_attacker")
+	attacker.set("faction_name", "ValidationRaiders")
+	attacker.set("squad_name", "ValidationRaiders")
+	bar.add_child(attacker)
+	attacker.global_position = barkeeper.global_position + Vector3(1.0, 0.0, 0.0)
+	await _wait_frames(4)
+	barkeeper.notify_incoming_attack(attacker)
+	await _wait_frames(12)
+	var responders: Array[HumanoidCharacter] = [barkeeper]
+	for role_name in ["Waiter", "Guard", "Barber"]:
+		var actor := bar.get_node_or_null("Staff/%s" % role_name) as HumanoidCharacter
+		if actor != null:
+			responders.append(actor)
+	for responder in responders:
+		if responder == null or responder.life_state != NpcRules.LifeState.ALIVE:
+			continue
+		if not responder.is_in_combat() or responder.get_current_combat_target() != attacker:
+			_fail("Bar staff %s should enter real combat against an attacker, not only move like a responder" % responder.name)
+		responder.disengage_combat_with(attacker)
+	attacker.queue_free()
 
 
 func _validate_role_points(bar: Node) -> void:
