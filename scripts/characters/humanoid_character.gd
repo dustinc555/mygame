@@ -3898,32 +3898,15 @@ func refresh_nameplate() -> void:
 
 
 func _setup_inspect_ring() -> void:
-	var ring_mesh := CylinderMesh.new()
-	ring_mesh.top_radius = 0.74
-	ring_mesh.bottom_radius = 0.74
-	ring_mesh.height = 0.04
-	ring_mesh.radial_segments = 24
-	ring_mesh.rings = 2
-	_inspect_ring = MeshInstance3D.new()
-	_inspect_ring.name = "InspectRing"
-	_inspect_ring.mesh = ring_mesh
-	_inspect_ring.position = Vector3(0.0, 0.025, 0.0)
-	_inspect_ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_inspect_ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_inspect_ring_material.albedo_color = Color(0.72, 0.72, 0.76, 0.95)
-	_inspect_ring.material_override = _inspect_ring_material
-	_inspect_ring.visible = false
-	add_child(_inspect_ring)
+	_inspect_ring = null
 
 
 func _update_inspect_visual() -> void:
 	if _inspect_ring != null:
-		_inspect_ring.visible = is_inspected
+		_inspect_ring.visible = false
 
 
 func _update_ground_markers() -> void:
-	if _inspect_ring != null and is_instance_valid(_inspect_ring) and _inspect_ring.visible:
-		_update_ground_marker_transform(_inspect_ring, 0.0)
 	if _selection_ring == null or not is_instance_valid(_selection_ring):
 		_selection_ring = get_node_or_null("SelectionRing") as Node3D
 	if _selection_ring != null and _selection_ring.visible:

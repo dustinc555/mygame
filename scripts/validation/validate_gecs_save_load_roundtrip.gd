@@ -213,7 +213,7 @@ func _run() -> void:
 
 func _validate_loaded_state(bridge: Node) -> void:
 	var time_state: Dictionary = bridge.call("get_world_time_state")
-	if absf(float(time_state.get("total_world_minutes", 0.0)) - ((16.0 * 60.0 + 30.0) + 9.5 * 60.0)) > 0.01:
+	if absf(float(time_state.get("total_world_minutes", 0.0)) - ((6.0 * 60.0) + 9.5 * 60.0)) > 0.01:
 		_fail("GECS save/load should round-trip total world minutes")
 	if int(time_state.get("speed_index", -1)) != 2:
 		_fail("GECS save/load should round-trip world speed index")

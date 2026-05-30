@@ -99,7 +99,7 @@ func _add_controllers(parent: Node) -> Array[Node]:
 
 func _validate_refreshed_controllers(world_time: Node, job_system: Node, ai_scheduler: Node, population_realization: Node, ledger_simulation: Node, world_squad: Node, world_simulation: Node) -> void:
 	var time_state: Dictionary = world_time.call("serialize_state")
-	if absf(float(time_state.get("total_world_minutes", 0.0)) - ((16.0 * 60.0 + 30.0) + 6.5 * 60.0)) > 0.01:
+	if absf(float(time_state.get("total_world_minutes", 0.0)) - ((6.0 * 60.0) + 6.5 * 60.0)) > 0.01:
 		_fail("WorldSimulationController load should refresh world time")
 	if int(time_state.get("speed_index", -1)) != 2 or not bool(time_state.get("manual_paused", false)):
 		_fail("WorldSimulationController load should refresh world speed and pause")

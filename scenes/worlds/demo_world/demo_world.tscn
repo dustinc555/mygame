@@ -1,13 +1,10 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=8 format=3]
 
+[ext_resource type="Script" path="res://scripts/world_sim/demo_world_startup.gd" id="1_startup"]
 [ext_resource type="Script" path="res://scripts/world_sim/world_loader.gd" id="1_loader"]
 [ext_resource type="Resource" path="res://resources/worlds/demo_world/demo_world.tres" id="2_world"]
-[ext_resource type="Script" path="res://scripts/party_member.gd" id="3_party"]
 [ext_resource type="Script" path="res://scripts/party_manager.gd" id="4_manager"]
 [ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
-[ext_resource type="Resource" path="res://resources/items/bandage.tres" id="6_bandage"]
-[ext_resource type="Resource" path="res://resources/items/hatchet.tres" id="7_hatchet"]
-[ext_resource type="Script" path="res://scripts/items/inventory_stock.gd" id="8_stock"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(1100, 1, 950)
@@ -19,25 +16,8 @@ roughness = 0.96
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(1100, 1, 950)
 
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
-radius = 0.45
-height = 1.1
-
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_member"]
-radius = 0.45
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
-top_radius = 0.72
-bottom_radius = 0.72
-height = 0.035
-radial_segments = 48
-
-[sub_resource type="Resource" id="InventoryStock_bandage"]
-script = ExtResource("8_stock")
-item_definition = ExtResource("6_bandage")
-quantity = 3
-
 [node name="DemoWorld" type="Node3D"]
+script = ExtResource("1_startup")
 
 [node name="WorldLoader" type="Node" parent="."]
 script = ExtResource("1_loader")
@@ -58,27 +38,8 @@ mesh = SubResource("BoxMesh_floor")
 
 [node name="PartyMembers" type="Node3D" parent="."]
 
-[node name="Scout" type="CharacterBody3D" parent="PartyMembers"]
+[node name="CharacterSpawn" type="Marker3D" parent="."]
 transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, -8, 0.6, 24)
-script = ExtResource("3_party")
-base_color = Color(0.35, 0.62, 0.78, 1)
-member_name = "Scout"
-stable_id = "player.scout"
-starting_items = Array[Resource]([SubResource("InventoryStock_bandage")])
-starting_equipment = Array[Resource]([ExtResource("7_hatchet")])
-squad_name = "Drifters"
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Scout"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-shape = SubResource("CapsuleShape3D_member")
-
-[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Scout"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-mesh = SubResource("CapsuleMesh_member")
-
-[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Scout"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
-mesh = SubResource("CylinderMesh_ring")
 
 [node name="PartyManager" type="Node" parent="."]
 script = ExtResource("4_manager")
@@ -102,5 +63,5 @@ offset_left = 20.0
 offset_top = 20.0
 offset_right = 880.0
 offset_bottom = 96.0
-text = "Demo world: WorldDefinition loads packaged town scenes for Surf City, East Raiders Camp, and Paradise Hills. Relations separate formal faction state from directional outlook."
+text = "Demo world: create your starting character, then explore Surf City, East Raiders Camp, and Paradise Hills. Relations separate formal faction state from directional outlook."
 autowrap_mode = 3

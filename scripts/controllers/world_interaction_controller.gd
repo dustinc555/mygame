@@ -147,6 +147,7 @@ func _do_initialize() -> void:
 	camera_rig = root.get_node("CameraRig")
 	camera_pivot = root.get_node("CameraRig/CameraPivot")
 	camera = root.get_node("CameraRig/CameraPivot/Camera3D")
+	camera_anchor = camera_rig.global_position
 	if hud_layer == null:
 		hud_layer = root.get_node_or_null("GameHUD")
 	selection_rect = hud_layer.get_node("SelectionRect")
