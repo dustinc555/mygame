@@ -96,6 +96,7 @@ const RAGDOLL_ACTIVATION_RAY_DOWN := 16.0
 const GROUND_MARKER_RAYCAST_UP := 0.35
 const GROUND_MARKER_RAYCAST_DOWN := 24.0
 const SELECTION_GROUND_MARKER_HEIGHT := 0.02
+const UPRIGHT_SELECTION_GROUND_MARKER_HEIGHT := 0.34
 const ACTIVE_AI_DECISION_INTERVAL := 0.35
 const ACTIVE_AI_DECISION_JITTER := 0.15
 const BACKGROUND_AI_DECISION_INTERVAL := 1.25
@@ -3926,7 +3927,8 @@ func _update_ground_markers() -> void:
 	if _selection_ring == null or not is_instance_valid(_selection_ring):
 		_selection_ring = get_node_or_null("SelectionRing") as Node3D
 	if _selection_ring != null and _selection_ring.visible:
-		_update_selection_ground_marker_transform(_selection_ring, SELECTION_GROUND_MARKER_HEIGHT)
+		var selection_height := UPRIGHT_SELECTION_GROUND_MARKER_HEIGHT if life_state == NpcRules.LifeState.ALIVE and not _is_ragdoll_active else SELECTION_GROUND_MARKER_HEIGHT
+		_update_ground_marker_transform(_selection_ring, selection_height)
 
 
 func _update_ground_marker_transform(marker: Node3D, marker_height: float) -> void:
@@ -3935,24 +3937,6 @@ func _update_ground_marker_transform(marker: Node3D, marker_height: float) -> vo
 	marker.top_level = true
 	marker.global_position = get_ground_marker_position(marker_height)
 	marker.global_rotation = Vector3.ZERO
-
-
-func _update_selection_ground_marker_transform(marker: Node3D, marker_height: float) -> void:
-	if marker == null or not is_instance_valid(marker):
-		return
-	marker.top_level = true
-	marker.global_position = get_ground_marker_position(marker_height)
-	var camera := get_viewport().get_camera_3d() if is_inside_tree() else null
-	if camera == null:
-		marker.global_rotation = Vector3.ZERO
-		return
-	var to_camera := camera.global_position - marker.global_position
-	to_camera.y = 0.0
-	if to_camera.length_squared() <= 0.0001:
-		marker.global_rotation = Vector3.ZERO
-		return
-	to_camera = to_camera.normalized()
-	marker.global_rotation = Vector3(0.0, atan2(to_camera.x, to_camera.z), 0.0)
 
 
 func _get_ground_marker_raycast_exclusions() -> Array[RID]:

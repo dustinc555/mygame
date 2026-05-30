@@ -81,7 +81,7 @@ const GUARD_PERCEPTION_RANGE := Vector2i(14, 24)
 		assigned_guard_paths = value
 		_repair_authoring_tree()
 @export var guard_name := "Bar Guard"
-@export var has_barber := false:
+@export var has_barber := true:
 	set(value):
 		has_barber = value
 		_repair_authoring_tree()

@@ -5,7 +5,6 @@ class_name WorldInteractionController
 const MOVE_COMMAND_INDICATOR_SCENE = preload("res://scenes/world/effects/move_command_indicator.tscn")
 const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/effects/world_text_notice.tscn")
 const PARTY_PORTRAIT_CARD_SCENE = preload("res://scenes/ui/party_portrait_card.tscn")
-const SELECTION_INDICATOR_OVERLAY_SCRIPT = preload("res://scripts/ui/selection_indicator_overlay.gd")
 const COMBAT_COORDINATOR = preload("res://scripts/characters/combat_coordinator.gd")
 
 const ACTION_INVENTORY := 1
@@ -90,7 +89,6 @@ var camera_rig: Node3D
 var camera_pivot: Node3D
 var camera: Camera3D
 var selection_rect: ColorRect
-var selection_indicator_overlay: Control
 var context_menu: PopupMenu
 var progress_layer: Control
 var portrait_flow: Container
@@ -208,7 +206,6 @@ func _do_initialize() -> void:
 
 	if context_menu != null:
 		context_menu.id_pressed.connect(_on_context_menu_id_pressed)
-	_setup_selection_indicator_overlay()
 	_setup_squad_tabs()
 	_setup_command_bar()
 	_refresh_squad_tabs()
@@ -260,19 +257,6 @@ func _ensure_work_progress_bar(member: HumanoidCharacter) -> void:
 	bar.visible = false
 	progress_layer.add_child(bar)
 	work_progress_bars[member] = bar
-
-
-func _setup_selection_indicator_overlay() -> void:
-	if hud_layer == null or party_manager == null or camera == null:
-		return
-	if selection_indicator_overlay != null and is_instance_valid(selection_indicator_overlay):
-		selection_indicator_overlay.setup(party_manager, camera)
-		return
-	selection_indicator_overlay = SELECTION_INDICATOR_OVERLAY_SCRIPT.new() as Control
-	selection_indicator_overlay.name = "SelectionIndicatorOverlay"
-	hud_layer.add_child(selection_indicator_overlay)
-	hud_layer.move_child(selection_indicator_overlay, 0)
-	selection_indicator_overlay.setup(party_manager, camera)
 
 
 func _process(delta: float) -> void:
