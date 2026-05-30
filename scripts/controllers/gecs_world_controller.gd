@@ -232,28 +232,52 @@ func get_actor_states() -> Dictionary:
 	return states
 
 
-func get_all_humanoids() -> Array:
+func get_all_actors() -> Array:
 	return _query_actor_nodes({})
 
 
-func get_alive_humanoids(include_party := true) -> Array:
+func get_alive_actors(include_party := true) -> Array:
 	return _query_actor_nodes({"alive": true, "include_party": include_party})
 
 
-func get_alive_humanoids_for_settlement(settlement_id: String, include_party := true) -> Array:
+func get_alive_actors_for_settlement(settlement_id: String, include_party := true) -> Array:
 	return _query_actor_nodes({"alive": true, "settlement_id": settlement_id, "include_party": include_party})
 
 
-func get_alive_humanoids_for_role(role_id: String, include_party := true) -> Array:
+func get_alive_actors_for_role(role_id: String, include_party := true) -> Array:
 	return _query_actor_nodes({"alive": true, "role_id": role_id, "include_party": include_party})
 
 
-func get_alive_humanoids_for_faction(faction_id: String, include_party := true) -> Array:
+func get_alive_actors_for_faction(faction_id: String, include_party := true) -> Array:
 	return _query_actor_nodes({"alive": true, "faction_id": faction_id, "include_party": include_party})
 
 
-func get_nearby_humanoids(position: Vector3, radius: float, include_party := true) -> Array:
+func get_nearby_actors(position: Vector3, radius: float, include_party := true) -> Array:
 	return _query_actor_nodes({"alive": true, "position": position, "radius": radius, "include_party": include_party})
+
+
+func get_all_humanoids() -> Array:
+	return get_all_actors()
+
+
+func get_alive_humanoids(include_party := true) -> Array:
+	return get_alive_actors(include_party)
+
+
+func get_alive_humanoids_for_settlement(settlement_id: String, include_party := true) -> Array:
+	return get_alive_actors_for_settlement(settlement_id, include_party)
+
+
+func get_alive_humanoids_for_role(role_id: String, include_party := true) -> Array:
+	return get_alive_actors_for_role(role_id, include_party)
+
+
+func get_alive_humanoids_for_faction(faction_id: String, include_party := true) -> Array:
+	return get_alive_actors_for_faction(faction_id, include_party)
+
+
+func get_nearby_humanoids(position: Vector3, radius: float, include_party := true) -> Array:
+	return get_nearby_actors(position, radius, include_party)
 
 
 func clear_actor_schedule(actor: Node) -> void:
@@ -1644,7 +1668,7 @@ func _query_actor_nodes(filters: Dictionary) -> Array:
 	var radius_squared: float = radius * radius
 	for entity in world.query.with_all([C_NODE, C_IDENTITY, C_FACTION, C_SETTLEMENT, C_SPATIAL, C_VITALS]).execute():
 		var actor = _actor_from_entity(entity)
-		if actor == null or not actor.has_method("assign_attack_target"):
+		if actor == null:
 			continue
 		var identity = entity.get_component(C_IDENTITY)
 		var faction = entity.get_component(C_FACTION)

@@ -199,8 +199,6 @@ const FEMALE_VISUAL_NAME_KEYS := {
 	"yara": true,
 }
 
-@export var member_name := "Character"
-@export var stable_id := ""
 @export var interact_distance := 1.8
 @export var seated_player_talk_distance_multiplier := 2.0
 @export var inventory_columns := 10
@@ -220,61 +218,15 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var starting_items: Array[Resource] = []
 @export var starting_equipment: Array[Resource] = []
 
-@export var faction_name := "Player"
-@export var squad_name := "Default"
-@export var world_squad_id := ""
-@export var hostile_factions: PackedStringArray = PackedStringArray()
 @export var conversation_definition: Resource
 
-@export var hunger_enabled := false
-@export_range(0, 2, 1) var hunger_stage: int = NpcRules.HungerStage.WELL_NOURISHED
-@export var hunger := 100.0
-@export var hunger_drain_rate := 0.08
-@export var fatigue_enabled := true
-@export_range(0, 2, 1) var fatigue_stage: int = NpcRules.FatigueStage.WELL_RESTED
-@export var fatigue := 100.0
-@export var running := false
-@export var sneaking := false
-@export var auto_heal_enabled := false
-@export_range(0, 2, 1) var combat_stance := NpcRules.CombatStance.DEFENSIVE
-
-@export var max_hp := 100.0
-@export var hp := 100.0
-@export var max_blood := 100.0
-@export var blood := 100.0
-
 @export var trade_interaction_distance := 3.0
-@export var aggressive_scan_radius := NpcRules.AGGRO_RANGE
-@export var assist_scan_radius := NpcRules.ASSIST_RANGE
-@export var combat_witness_radius := NpcRules.COMBAT_WITNESS_RANGE
-@export var combat_squad_assist_radius := NpcRules.SQUAD_ASSIST_RANGE
-@export var combat_support_target_spread_radius := NpcRules.COMBAT_WITNESS_RANGE
-@export var attack_range := 1.15
-@export var combat_approach_arrival_distance := 0.3
-@export var combat_direct_chase_distance := 3.0
-@export var combat_chase_leash_distance := 42.0
-@export var combat_active_attack_slots := 5
-@export var combat_attack_forgiveness_buffer := 0.15
-@export var combat_settle_band_extra := 0.65
-@export var combat_settle_speed_multiplier := 0.32
-@export var combat_personal_space_padding := 0.16
-@export var combat_wait_ring_extra := 1.45
-@export var combat_direct_translation_enabled := true
-@export var attack_cooldown_seconds := 1.2
-@export var base_attack_damage := 18.0
-@export var base_dexterity := 10.0
-@export_range(0.0, 1.0, 0.01) var attack_cut_ratio := 0.05
-@export var base_dodge_chance := 0.08
-@export var base_block_chance := 0.06
-@export var block_damage_multiplier := 0.4
 @export var carry_move_speed_multiplier := 0.6
 
 var inventory: InventoryData
 var is_inspected := false
 var is_selected := false
 var is_focused := false
-var player_party_member := false
-var life_state := NpcRules.LifeState.ALIVE
 var _current_order_type: int = OrderType.NONE
 var _order_was_player_issued := false
 
@@ -923,7 +875,10 @@ func assign_scavenging_resource(resource_node, issued_by_player: bool = true) ->
 	scavenging_changed.emit()
 
 
-func assign_attack_target(target_character: HumanoidCharacter, issued_by_player: bool = true, notify_target: bool = true, notify_allies: bool = true) -> bool:
+func assign_attack_target(target_actor: Node, issued_by_player: bool = true, notify_target: bool = true, notify_allies: bool = true) -> bool:
+	var target_character := target_actor as HumanoidCharacter
+	if target_character == null:
+		return false
 	var combat_job_type := AI_JOB_SCRIPT.JobType.PLAYER_ATTACK if issued_by_player else AI_JOB_SCRIPT.JobType.SELF_DEFENSE
 	return _assign_combat_target(target_character, combat_job_type, issued_by_player, notify_target, notify_allies)
 
@@ -3863,15 +3818,6 @@ func _get_talker_slot(member: HumanoidCharacter) -> int:
 	return 0
 
 
-func is_player_party_member() -> bool:
-	return player_party_member
-
-
-func set_player_party_member(value: bool) -> void:
-	player_party_member = value
-	_sync_party_membership_group()
-
-
 func set_selected(value: bool) -> void:
 	is_selected = value
 	_update_selection_state()
@@ -3885,13 +3831,6 @@ func set_focused(value: bool) -> void:
 func _update_selection_state() -> void:
 	_update_inspect_visual()
 	_update_ground_markers()
-
-
-func _sync_party_membership_group() -> void:
-	if player_party_member:
-		add_to_group("party_member")
-	else:
-		remove_from_group("party_member")
 
 
 func _setup_nameplate() -> void:

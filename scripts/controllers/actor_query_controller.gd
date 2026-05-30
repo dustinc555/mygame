@@ -46,37 +46,61 @@ func get_actor_by_instance_id(instance_id: int) -> Node:
 	return bridge.call("get_actor_by_instance_id", instance_id) as Node
 
 
-func get_all_humanoids() -> Array:
+func get_all_actors() -> Array:
 	var bridge := _get_gecs_world()
-	return bridge.call("get_all_humanoids") if bridge != null and bridge.has_method("get_all_humanoids") else []
+	return bridge.call("get_all_actors") if bridge != null and bridge.has_method("get_all_actors") else []
+
+
+func get_alive_actors(include_party := true) -> Array:
+	var bridge := _get_gecs_world()
+	return bridge.call("get_alive_actors", include_party) if bridge != null and bridge.has_method("get_alive_actors") else []
+
+
+func get_alive_actors_for_settlement(settlement_id: String, include_party := true) -> Array:
+	var bridge := _get_gecs_world()
+	return bridge.call("get_alive_actors_for_settlement", settlement_id, include_party) if bridge != null and bridge.has_method("get_alive_actors_for_settlement") else []
+
+
+func get_alive_actors_for_role(role_id: String, include_party := true) -> Array:
+	var bridge := _get_gecs_world()
+	return bridge.call("get_alive_actors_for_role", role_id, include_party) if bridge != null and bridge.has_method("get_alive_actors_for_role") else []
+
+
+func get_alive_actors_for_faction(faction_id: String, include_party := true) -> Array:
+	var bridge := _get_gecs_world()
+	return bridge.call("get_alive_actors_for_faction", faction_id, include_party) if bridge != null and bridge.has_method("get_alive_actors_for_faction") else []
+
+
+func get_nearby_actors(position: Vector3, radius: float, include_party := true) -> Array:
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("get_nearby_actors"):
+		return []
+	bridge.set("spatial_cell_size", spatial_cell_size)
+	return bridge.call("get_nearby_actors", position, radius, include_party)
+
+
+func get_all_humanoids() -> Array:
+	return get_all_actors()
 
 
 func get_alive_humanoids(include_party := true) -> Array:
-	var bridge := _get_gecs_world()
-	return bridge.call("get_alive_humanoids", include_party) if bridge != null and bridge.has_method("get_alive_humanoids") else []
+	return get_alive_actors(include_party)
 
 
 func get_alive_humanoids_for_settlement(settlement_id: String, include_party := true) -> Array:
-	var bridge := _get_gecs_world()
-	return bridge.call("get_alive_humanoids_for_settlement", settlement_id, include_party) if bridge != null and bridge.has_method("get_alive_humanoids_for_settlement") else []
+	return get_alive_actors_for_settlement(settlement_id, include_party)
 
 
 func get_alive_humanoids_for_role(role_id: String, include_party := true) -> Array:
-	var bridge := _get_gecs_world()
-	return bridge.call("get_alive_humanoids_for_role", role_id, include_party) if bridge != null and bridge.has_method("get_alive_humanoids_for_role") else []
+	return get_alive_actors_for_role(role_id, include_party)
 
 
 func get_alive_humanoids_for_faction(faction_id: String, include_party := true) -> Array:
-	var bridge := _get_gecs_world()
-	return bridge.call("get_alive_humanoids_for_faction", faction_id, include_party) if bridge != null and bridge.has_method("get_alive_humanoids_for_faction") else []
+	return get_alive_actors_for_faction(faction_id, include_party)
 
 
 func get_nearby_humanoids(position: Vector3, radius: float, include_party := true) -> Array:
-	var bridge := _get_gecs_world()
-	if bridge == null or not bridge.has_method("get_nearby_humanoids"):
-		return []
-	bridge.set("spatial_cell_size", spatial_cell_size)
-	return bridge.call("get_nearby_humanoids", position, radius, include_party)
+	return get_nearby_actors(position, radius, include_party)
 
 
 func serialize_state() -> Dictionary:
@@ -121,6 +145,11 @@ func _collect_existing_actors() -> void:
 		register_actor(actor)
 		registered[actor.get_instance_id()] = true
 	for actor in tree.get_nodes_in_group("npc_character"):
+		if registered.has(actor.get_instance_id()):
+			continue
+		register_actor(actor)
+		registered[actor.get_instance_id()] = true
+	for actor in tree.get_nodes_in_group("world_actor"):
 		if registered.has(actor.get_instance_id()):
 			continue
 		register_actor(actor)

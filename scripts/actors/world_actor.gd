@@ -9,6 +9,54 @@ const NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
 @export var skill_set: ActorSkillSet
 @export var starting_skill_levels: Dictionary = {}
 
+@export var member_name := "Character"
+@export var stable_id := ""
+@export var faction_name := "Player"
+@export var squad_name := "Default"
+@export var world_squad_id := ""
+@export var hostile_factions: PackedStringArray = PackedStringArray()
+
+@export var hunger_enabled := false
+@export_range(0, 2, 1) var hunger_stage: int = NpcRules.HungerStage.WELL_NOURISHED
+@export var hunger := 100.0
+@export var hunger_drain_rate := 0.08
+@export var fatigue_enabled := true
+@export_range(0, 2, 1) var fatigue_stage: int = NpcRules.FatigueStage.WELL_RESTED
+@export var fatigue := 100.0
+@export var running := false
+@export var sneaking := false
+@export var auto_heal_enabled := false
+@export_range(0, 2, 1) var combat_stance := NpcRules.CombatStance.DEFENSIVE
+
+@export var max_hp := 100.0
+@export var hp := 100.0
+@export var max_blood := 100.0
+@export var blood := 100.0
+
+@export var aggressive_scan_radius := NpcRules.AGGRO_RANGE
+@export var assist_scan_radius := NpcRules.ASSIST_RANGE
+@export var combat_witness_radius := NpcRules.COMBAT_WITNESS_RANGE
+@export var combat_squad_assist_radius := NpcRules.SQUAD_ASSIST_RANGE
+@export var combat_support_target_spread_radius := NpcRules.COMBAT_WITNESS_RANGE
+@export var attack_range := 1.15
+@export var combat_approach_arrival_distance := 0.3
+@export var combat_direct_chase_distance := 3.0
+@export var combat_chase_leash_distance := 42.0
+@export var combat_active_attack_slots := 5
+@export var combat_attack_forgiveness_buffer := 0.15
+@export var combat_settle_band_extra := 0.65
+@export var combat_settle_speed_multiplier := 0.32
+@export var combat_personal_space_padding := 0.16
+@export var combat_wait_ring_extra := 1.45
+@export var combat_direct_translation_enabled := true
+@export var attack_cooldown_seconds := 1.2
+@export var base_attack_damage := 18.0
+@export var base_dexterity := 10.0
+@export_range(0.0, 1.0, 0.01) var attack_cut_ratio := 0.05
+@export var base_dodge_chance := 0.08
+@export var base_block_chance := 0.06
+@export var block_damage_multiplier := 0.4
+
 @export var move_speed := 3.2
 @export var acceleration := 10.0
 @export var floor_snap_distance := 0.9
@@ -31,6 +79,8 @@ const NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
 @export var stuck_repath_attempt_limit := 8
 
 var gravity := ProjectSettings.get_setting("physics/3d/default_gravity") as float
+var player_party_member := false
+var life_state := NpcRules.LifeState.ALIVE
 var _move_target := Vector3.ZERO
 var _has_move_target := false
 
@@ -111,6 +161,33 @@ func set_move_target(target: Vector3, _issued_by_player: bool = true) -> void:
 	_set_actor_move_target(target)
 
 
+func is_alive() -> bool:
+	return life_state == NpcRules.LifeState.ALIVE
+
+
+func is_player_party_member() -> bool:
+	return player_party_member
+
+
+func set_player_party_member(value: bool) -> void:
+	player_party_member = value
+	_sync_party_membership_group()
+
+
+func get_actor_display_name() -> String:
+	var display_name := member_name.strip_edges()
+	return display_name if not display_name.is_empty() else str(name)
+
+
+func get_actor_squad_id() -> String:
+	var actor_squad_id := world_squad_id.strip_edges()
+	return actor_squad_id if not actor_squad_id.is_empty() else squad_name.strip_edges()
+
+
+func assign_attack_target(_target_actor: Node, _issued_by_player: bool = true, _notify_target: bool = true, _notify_allies: bool = true) -> bool:
+	return false
+
+
 func process_world_actor_movement(delta: float) -> void:
 	_ensure_navigation_agent()
 	_apply_floor_motion(delta)
@@ -145,6 +222,7 @@ func _configure_world_actor_movement() -> void:
 	floor_max_angle = deg_to_rad(max_walkable_slope_degrees)
 	add_to_group("world_actor")
 	_ensure_navigation_agent()
+	_sync_party_membership_group()
 
 
 func _ensure_navigation_agent() -> void:
@@ -385,6 +463,13 @@ func _on_navigation_velocity_computed(safe_velocity: Vector3) -> void:
 
 func _get_actor_move_speed() -> float:
 	return move_speed
+
+
+func _sync_party_membership_group() -> void:
+	if player_party_member:
+		add_to_group("party_member")
+	else:
+		remove_from_group("party_member")
 
 
 func _on_actor_move_target_reached() -> void:
