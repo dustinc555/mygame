@@ -149,7 +149,6 @@ func _configure_world_actor_movement() -> void:
 
 func _ensure_navigation_agent() -> void:
 	if _navigation_agent != null and is_instance_valid(_navigation_agent):
-		_configure_navigation_agent()
 		return
 	_navigation_agent = get_node_or_null("NavigationAgent3D") as NavigationAgent3D
 	if _navigation_agent == null:
@@ -345,7 +344,7 @@ func _fail_actor_move_target() -> void:
 
 
 func _should_apply_avoidance(desired_direction: Vector3) -> bool:
-	return navigation_avoidance_enabled and _navigation_agent != null and _has_move_target and desired_direction.length_squared() > 0.0001
+	return _navigation_agent != null and _navigation_agent.avoidance_enabled and _has_move_target and desired_direction.length_squared() > 0.0001
 
 
 func _update_stuck_state(delta: float, desired_direction: Vector3) -> void:

@@ -249,6 +249,13 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var combat_approach_arrival_distance := 0.3
 @export var combat_direct_chase_distance := 3.0
 @export var combat_chase_leash_distance := 42.0
+@export var combat_active_attack_slots := 5
+@export var combat_attack_forgiveness_buffer := 0.15
+@export var combat_settle_band_extra := 0.65
+@export var combat_settle_speed_multiplier := 0.32
+@export var combat_personal_space_padding := 0.16
+@export var combat_wait_ring_extra := 1.45
+@export var combat_direct_translation_enabled := true
 @export var attack_cooldown_seconds := 1.2
 @export var base_attack_damage := 18.0
 @export var base_dexterity := 10.0
@@ -312,6 +319,9 @@ var _bleed_drip_progress := 0.0
 var _bleed_pool_progress := 0.0
 var _pending_nourishment := 0.0
 var _combat_cooldown_remaining := 0.0
+var _combat_slot_role_cache_frame := -1
+var _combat_slot_role_cache_target_id := 0
+var _combat_slot_role_cache := COMBAT_COORDINATOR.SLOT_ROLE_NONE
 var _combat_action_active := false
 var _combat_action_names: Array[String] = []
 var _combat_action_index := 0
@@ -393,6 +403,9 @@ var _equipment_change_pending := false
 var _equipment_changed_slots: Dictionary = {}
 var _preview_clothes_visible := true
 var _runtime_controller_cache: Dictionary = {}
+var _selection_ring: Node3D
+var _stat_value_cache_frame := -1
+var _stat_value_cache: Dictionary = {}
 
 signal inventory_changed
 signal mining_changed
@@ -429,9 +442,11 @@ func _ready() -> void:
 	_ensure_appearance_data()
 	_setup_nameplate()
 	_setup_inspect_ring()
+	_selection_ring = get_node_or_null("SelectionRing") as Node3D
 	_setup_character_visual()
 	add_to_group("humanoid_character")
 	add_to_group("npc_character")
+	add_to_group(COMBAT_COORDINATOR.COMBAT_ACTOR_GROUP)
 	_sync_party_membership_group()
 	hunger = clampf(hunger, 0.0, 100.0)
 	fatigue = clampf(fatigue, 0.0, 100.0)
@@ -443,6 +458,7 @@ func _exit_tree() -> void:
 		_active_job_provider.pause_worker_job(self, false)
 	if _ai_brain != null:
 		_ai_brain.clear_active_job()
+	COMBAT_COORDINATOR.release_character(self)
 	remove_from_group(ACTIVE_COMBAT_ACTOR_GROUP)
 	_unregister_from_runtime_controllers()
 	_runtime_controller_cache.clear()
@@ -730,6 +746,7 @@ func stop_conversation_interaction() -> void:
 func stop_attack_assignment() -> void:
 	_current_attack_target = null
 	_attack_origin_position = global_position
+	_clear_combat_movement_state()
 	if _ai_brain != null:
 		_ai_brain.clear_combat_job()
 	COMBAT_COORDINATOR.release_character(self)
@@ -946,6 +963,8 @@ func _assign_combat_target(target_character: HumanoidCharacter, combat_job_type:
 		_order_was_player_issued = false
 	_current_attack_target = target_character
 	_attack_origin_position = global_position
+	_clear_combat_movement_state()
+	COMBAT_COORDINATOR.register_combat_target(self, target_character)
 	_sync_active_combat_actor_group()
 	mark_hostile(target_character)
 	target_character.mark_hostile(self)
@@ -1338,6 +1357,7 @@ func _mark_equipment_changed(slot_name := "") -> void:
 
 func _apply_equipment_changed() -> void:
 	_equipment_change_pending = false
+	_invalidate_stat_value_cache()
 	var changed_slots := _equipment_changed_slots.keys()
 	_equipment_changed_slots.clear()
 	if _can_refresh_bone_equipment_only(changed_slots):
@@ -1782,9 +1802,11 @@ func is_ready_for_combat_exchange(target: HumanoidCharacter) -> bool:
 		return false
 	if _combat_action_active or _combat_reaction_remaining > 0.0 or _combat_cooldown_remaining > 0.0:
 		return false
+	if not _has_active_combat_attack_slot(target):
+		return false
 	if COMBAT_COORDINATOR.is_character_locked(self):
 		return false
-	return global_position.distance_to(target.global_position) <= get_attack_range()
+	return _horizontal_distance_to(target.global_position) <= _get_effective_combat_attack_range()
 
 
 func get_attack_range() -> float:
@@ -2264,7 +2286,8 @@ func get_interaction_position(member: HumanoidCharacter) -> Vector3:
 
 func get_combat_approach_position(attacker: HumanoidCharacter) -> Vector3:
 	var preferred_range := attacker.get_attack_range() if attacker != null and attacker.has_method("get_attack_range") else get_attack_range()
-	return COMBAT_COORDINATOR.get_combat_approach_position(self, attacker, preferred_range)
+	var wait_extra := float(attacker.get("combat_wait_ring_extra")) if attacker != null and attacker.get("combat_wait_ring_extra") != null else combat_wait_ring_extra
+	return COMBAT_COORDINATOR.get_combat_slot_position(self, attacker, preferred_range, wait_extra)
 
 
 func get_combat_move_position(attacker: HumanoidCharacter) -> Vector3:
@@ -2335,12 +2358,7 @@ func _process_movement(delta: float) -> void:
 		return
 	if _should_hold_combat_position():
 		var hold_target := _get_active_combat_target()
-		_clear_actor_move_target()
-		_face_character(hold_target)
-		_apply_floor_motion(delta)
-		velocity.x = 0.0
-		velocity.z = 0.0
-		move_and_slide()
+		_hold_combat_movement(delta, hold_target)
 		return
 	if _should_direct_combat_chase():
 		_process_direct_combat_chase(delta)
@@ -2373,7 +2391,7 @@ func _should_direct_combat_chase() -> bool:
 	if absf(target.global_position.y - global_position.y) > move_target_vertical_tolerance:
 		return false
 	var target_distance := _horizontal_distance_to(target.global_position)
-	if target_distance <= get_attack_range() + COMBAT_RANGE_HYSTERESIS:
+	if target_distance <= _get_effective_combat_attack_range() and _has_active_combat_attack_slot(target):
 		return false
 	return target_distance <= maxf(maxf(combat_chase_leash_distance, combat_direct_chase_distance), get_attack_range() + 1.0)
 
@@ -2384,12 +2402,56 @@ func _should_hold_combat_position() -> bool:
 		return false
 	if absf(target.global_position.y - global_position.y) > move_target_vertical_tolerance:
 		return false
-	return _horizontal_distance_to(target.global_position) <= get_attack_range() + COMBAT_RANGE_HYSTERESIS
+	if not _has_active_combat_attack_slot(target):
+		return false
+	return _horizontal_distance_to(target.global_position) <= _get_effective_combat_attack_range()
+
+
+func _get_effective_combat_attack_range() -> float:
+	return get_attack_range() + maxf(COMBAT_RANGE_HYSTERESIS, combat_attack_forgiveness_buffer)
+
+
+func _get_combat_settle_band_distance(target: HumanoidCharacter) -> float:
+	var personal_space := COMBAT_COORDINATOR.get_personal_space_distance(self, target, combat_personal_space_padding)
+	var wait_extra := combat_wait_ring_extra if not _has_active_combat_attack_slot(target) else 0.0
+	return maxf(_get_effective_combat_attack_range() + combat_settle_band_extra + wait_extra, personal_space + combat_settle_band_extra + wait_extra)
+
+
+func _get_combat_settle_position(target: HumanoidCharacter) -> Vector3:
+	var desired_range := maxf(COMBAT_COORDINATOR.get_personal_space_distance(self, target, combat_personal_space_padding), _get_effective_combat_attack_range() - combat_approach_arrival_distance * 0.5)
+	return COMBAT_COORDINATOR.get_combat_slot_position(target, self, desired_range, combat_wait_ring_extra)
+
+
+func _clear_combat_movement_state() -> void:
+	_combat_slot_role_cache_frame = -1
+	_combat_slot_role_cache_target_id = 0
+	_combat_slot_role_cache = COMBAT_COORDINATOR.SLOT_ROLE_NONE
+
+
+func _has_active_combat_attack_slot(target: HumanoidCharacter) -> bool:
+	return _get_combat_slot_role_for_target(target) == COMBAT_COORDINATOR.SLOT_ROLE_ACTIVE
+
+
+func _get_combat_slot_role_for_target(target: HumanoidCharacter) -> int:
+	if target == null or not is_instance_valid(target):
+		return COMBAT_COORDINATOR.SLOT_ROLE_NONE
+	var physics_frame := Engine.get_physics_frames()
+	var target_id := target.get_instance_id()
+	if _combat_slot_role_cache_frame == physics_frame and _combat_slot_role_cache_target_id == target_id:
+		return _combat_slot_role_cache
+	_combat_slot_role_cache_frame = physics_frame
+	_combat_slot_role_cache_target_id = target_id
+	_combat_slot_role_cache = COMBAT_COORDINATOR.get_combat_slot_role(self, target)
+	return _combat_slot_role_cache
 
 
 func _process_direct_combat_chase(delta: float) -> void:
 	var target := _get_active_combat_target()
 	if target == null:
+		return
+	var target_distance := _horizontal_distance_to(target.global_position)
+	if target_distance <= _get_combat_settle_band_distance(target):
+		_process_close_combat_movement(delta, target, target_distance)
 		return
 	_apply_floor_motion(delta)
 	var target_position := target.get_combat_move_position(self)
@@ -2404,11 +2466,82 @@ func _process_direct_combat_chase(delta: float) -> void:
 		horizontal_velocity = horizontal_velocity.lerp(Vector3.ZERO, minf(1.0, acceleration * delta))
 	velocity.x = horizontal_velocity.x
 	velocity.z = horizontal_velocity.z
-	move_and_slide()
+	if not _try_apply_direct_combat_translation(horizontal_velocity, delta):
+		move_and_slide()
 	if desired_direction.length_squared() > 0.0001:
 		look_at(global_position + desired_direction, Vector3.UP)
 	else:
 		_face_character(target)
+
+
+func _process_close_combat_movement(delta: float, target: HumanoidCharacter, target_distance: float) -> void:
+	_clear_combat_move_target_if_needed()
+	var active_slot := _has_active_combat_attack_slot(target)
+	if active_slot and target_distance <= _get_effective_combat_attack_range():
+		_hold_combat_movement(delta, target)
+		return
+	_apply_floor_motion(delta)
+	var settle_position := _get_combat_settle_position(target)
+	var to_target := settle_position - global_position
+	to_target.y = 0.0
+	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
+	if to_target.length() > combat_approach_arrival_distance * 0.35:
+		var desired_direction := to_target.normalized()
+		horizontal_velocity = horizontal_velocity.lerp(desired_direction * _get_actor_move_speed() * combat_settle_speed_multiplier, minf(1.0, acceleration * delta))
+	else:
+		horizontal_velocity = horizontal_velocity.lerp(Vector3.ZERO, minf(1.0, acceleration * delta))
+	if _can_skip_low_speed_combat_slide(horizontal_velocity):
+		velocity.x = 0.0
+		velocity.z = 0.0
+		_face_character(target)
+		return
+	velocity.x = horizontal_velocity.x
+	velocity.z = horizontal_velocity.z
+	if not _try_apply_direct_combat_translation(horizontal_velocity, delta):
+		move_and_slide()
+	_face_character(target)
+
+
+func _hold_combat_movement(delta: float, target: HumanoidCharacter) -> void:
+	_clear_combat_move_target_if_needed()
+	_face_character(target)
+	if _can_skip_stationary_combat_physics():
+		velocity = Vector3.ZERO
+		return
+	_apply_floor_motion(delta)
+	velocity.x = 0.0
+	velocity.z = 0.0
+	move_and_slide()
+
+
+func _can_skip_stationary_combat_physics() -> bool:
+	if not is_on_floor():
+		return false
+	if absf(velocity.y) > 0.001:
+		return false
+	return Vector2(velocity.x, velocity.z).length_squared() <= 0.0001
+
+
+func _can_skip_low_speed_combat_slide(horizontal_velocity: Vector3) -> bool:
+	if not is_on_floor() or absf(velocity.y) > 0.001:
+		return false
+	return Vector2(horizontal_velocity.x, horizontal_velocity.z).length_squared() <= ACTUAL_LOCOMOTION_SPEED_THRESHOLD * ACTUAL_LOCOMOTION_SPEED_THRESHOLD
+
+
+func _try_apply_direct_combat_translation(horizontal_velocity: Vector3, delta: float) -> bool:
+	if not combat_direct_translation_enabled:
+		return false
+	if use_navigation_pathing or navigation_avoidance_enabled:
+		return false
+	if not is_on_floor() or absf(velocity.y) > 0.001:
+		return false
+	global_position += Vector3(horizontal_velocity.x, 0.0, horizontal_velocity.z) * delta
+	return true
+
+
+func _clear_combat_move_target_if_needed() -> void:
+	if _has_move_target:
+		_clear_actor_move_target()
 
 
 func _should_direct_custody_chase() -> bool:
@@ -2693,6 +2826,8 @@ func _process_ai(delta: float) -> void:
 		stop_pickup_assignment()
 	if _current_attack_target != null and (not is_instance_valid(_current_attack_target) or _current_attack_target.life_state != NpcRules.LifeState.ALIVE):
 		stop_attack_assignment()
+	if _get_active_combat_target() != null:
+		return
 	if not _should_run_ai_decision_tick(delta):
 		return
 	if _ai_utility_adapter != null and bool(_ai_utility_adapter.run_actor_decision(self)):
@@ -2752,6 +2887,10 @@ func _process_ai_profiled(delta: float) -> void:
 	if _current_attack_target != null and (not is_instance_valid(_current_attack_target) or _current_attack_target.life_state != NpcRules.LifeState.ALIVE):
 		stop_attack_assignment()
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("attack_validation", profile_last_usec)
+	if _get_active_combat_target() != null:
+		_debug_humanoid_ai_profile_checkpoint("active_combat_hold", profile_last_usec)
+		_debug_humanoid_ai_profile_finish()
+		return
 	if not _should_run_ai_decision_tick(delta):
 		_debug_humanoid_ai_profile_checkpoint("decision_gate", profile_last_usec)
 		_debug_humanoid_ai_profile_finish()
@@ -3319,23 +3458,31 @@ func _process_attack_interaction() -> void:
 	if _should_abandon_attack_chase():
 		stop_attack_assignment()
 		return
-	var target_position := target.get_combat_move_position(self)
+	if _combat_cooldown_remaining > 0.0:
+		return
+	if not _has_active_combat_attack_slot(target):
+		_clear_combat_move_target_if_needed()
+		_face_character(target)
+		return
 	var target_distance := _horizontal_distance_to(target.global_position)
-	var chase_distance := get_attack_range() + COMBAT_RANGE_HYSTERESIS
+	var chase_distance := _get_effective_combat_attack_range()
+	if target_distance > chase_distance and target_distance <= _get_combat_settle_band_distance(target):
+		_clear_combat_move_target_if_needed()
+		_face_character(target)
+		return
+	var target_position := target.get_combat_move_position(self)
 	if COMBAT_COORDINATOR.is_character_locked(self):
 		if target_distance > chase_distance:
 			_set_actor_move_target(target_position)
 		else:
-			_clear_actor_move_target()
+			_clear_combat_move_target_if_needed()
 			_face_character(target)
 		return
 	if target_distance > chase_distance:
 		_set_actor_move_target(target_position)
 		return
-	_clear_actor_move_target()
+	_clear_combat_move_target_if_needed()
 	_face_character(target)
-	if _combat_cooldown_remaining > 0.0:
-		return
 	_start_combat_attack(target)
 
 
@@ -3371,6 +3518,9 @@ func _process_combat_animation_state(delta: float) -> void:
 
 
 func _start_combat_attack(target: HumanoidCharacter) -> void:
+	if _get_active_combat_target() != target:
+		COMBAT_COORDINATOR.register_combat_target(self, target)
+		_combat_slot_role_cache_frame = -1
 	var animation_set = _get_current_combat_animation_set()
 	var attack = animation_set.choose_attack(_character_animation_player, _rng) if animation_set != null else null
 	if attack == null:
@@ -3768,8 +3918,12 @@ func _update_inspect_visual() -> void:
 
 
 func _update_ground_markers() -> void:
-	_update_ground_marker_transform(_inspect_ring, 0.0)
-	_update_ground_marker_transform(get_node_or_null("SelectionRing") as Node3D, 0.0)
+	if _inspect_ring != null and is_instance_valid(_inspect_ring) and _inspect_ring.visible:
+		_update_ground_marker_transform(_inspect_ring, 0.0)
+	if _selection_ring == null or not is_instance_valid(_selection_ring):
+		_selection_ring = get_node_or_null("SelectionRing") as Node3D
+	if _selection_ring != null and _selection_ring.visible:
+		_update_ground_marker_transform(_selection_ring, 0.0)
 
 
 func _update_ground_marker_transform(marker: Node3D, marker_height: float) -> void:
@@ -5173,6 +5327,8 @@ func _is_active_ai_combat_player_issued() -> bool:
 func _clear_invalid_ai_job() -> void:
 	if _ai_brain != null and _ai_brain.active_job != null and (not _ai_brain.active_job.is_valid_for(self) or (_ai_brain.active_job.is_combat() and not _is_valid_combat_target(_ai_brain.active_job.target))):
 		_ai_brain.clear_active_job()
+		if not _has_active_combat_target():
+			COMBAT_COORDINATOR.clear_combat_target(self)
 		_sync_active_combat_actor_group()
 
 
@@ -5451,6 +5607,13 @@ func _get_sneak_move_speed_multiplier() -> float:
 
 
 func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true) -> float:
+	var cache_frame := Engine.get_physics_frames()
+	if _stat_value_cache_frame != cache_frame:
+		_stat_value_cache_frame = cache_frame
+		_stat_value_cache.clear()
+	var cache_key := stat_name if include_secondary_modifiers else stat_name + "|base"
+	if _stat_value_cache.has(cache_key):
+		return float(_stat_value_cache[cache_key])
 	var value := _get_base_stat_value(stat_name)
 	var additive := 0.0
 	var multiplier := 1.0
@@ -5468,7 +5631,13 @@ func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true)
 				value = maxf(0.2, value)
 			"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "attack_range", "dexterity", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate":
 				value = maxf(0.0, value)
+	_stat_value_cache[cache_key] = value
 	return value
+
+
+func _invalidate_stat_value_cache() -> void:
+	_stat_value_cache_frame = -1
+	_stat_value_cache.clear()
 
 
 func _get_current_move_speed() -> float:
@@ -6521,6 +6690,7 @@ func _get_navigation_avoidance_enabled() -> bool:
 
 
 func _set_navigation_avoidance_enabled(enabled: bool) -> void:
+	navigation_avoidance_enabled = enabled
 	_ensure_navigation_agent()
 	if _navigation_agent != null:
 		_navigation_agent.avoidance_enabled = enabled

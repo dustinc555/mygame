@@ -5,6 +5,7 @@ class_name WorldInteractionController
 const MOVE_COMMAND_INDICATOR_SCENE = preload("res://scenes/world/effects/move_command_indicator.tscn")
 const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/effects/world_text_notice.tscn")
 const PARTY_PORTRAIT_CARD_SCENE = preload("res://scenes/ui/party_portrait_card.tscn")
+const COMBAT_COORDINATOR = preload("res://scripts/characters/combat_coordinator.gd")
 
 const ACTION_INVENTORY := 1
 const ACTION_MINE := 2
@@ -53,6 +54,7 @@ const SEGMENT_RIGHT := 3
 @export var drag_select_threshold := 12.0
 @export var hold_move_repeat_seconds := 0.15
 @export var hold_move_indicator_seconds := 0.3
+@export var group_attack_target_scan_radius := 12.0
 
 var party_members: Array[HumanoidCharacter] = []
 var portrait_cards: Array[PartyPortraitCard] = []
@@ -1438,8 +1440,7 @@ func _on_inspector_action_requested(target, action_key: String) -> void:
 			_assign_pickup_to_selection(target)
 		"attack":
 			if target is HumanoidCharacter:
-				for member in party_manager.selected_members:
-					member.assign_attack_target(target)
+				_assign_attack_to_selection(target)
 		"trade":
 			if target is HumanoidCharacter:
 				for member in party_manager.selected_members:
@@ -1566,8 +1567,7 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 				_perform_unlock_action(context_container)
 		ACTION_ATTACK:
 			if context_humanoid != null:
-				for member in party_manager.selected_members:
-					member.assign_attack_target(context_humanoid)
+				_assign_attack_to_selection(context_humanoid)
 		ACTION_TRADE:
 			if context_humanoid != null:
 				for member in party_manager.selected_members:
@@ -1641,6 +1641,75 @@ func _assign_pickup_to_selection(world_item) -> void:
 			best_member = member
 	if best_member != null:
 		best_member.assign_pickup_item(world_item)
+
+
+func _assign_attack_to_selection(target: HumanoidCharacter) -> void:
+	if target == null or party_manager.selected_members.is_empty():
+		return
+	var candidates := _get_group_attack_targets(target)
+	var planned_pressure := {}
+	for candidate in candidates:
+		planned_pressure[candidate.get_instance_id()] = COMBAT_COORDINATOR.get_pressure_on(candidate)
+	for member in party_manager.selected_members:
+		var attack_target := _choose_group_attack_target(member, candidates, planned_pressure)
+		if attack_target == null:
+			attack_target = target
+		member.assign_attack_target(attack_target)
+		var target_id := attack_target.get_instance_id()
+		planned_pressure[target_id] = int(planned_pressure.get(target_id, 0)) + 1
+
+
+func _get_group_attack_targets(target: HumanoidCharacter) -> Array[HumanoidCharacter]:
+	var candidates: Array[HumanoidCharacter] = []
+	if target == null or not is_instance_valid(target):
+		return candidates
+	candidates.append(target)
+	if not is_inside_tree():
+		return candidates
+	var radius_squared := group_attack_target_scan_radius * group_attack_target_scan_radius
+	for node in get_tree().get_nodes_in_group(COMBAT_COORDINATOR.COMBAT_ACTOR_GROUP):
+		if not (node is HumanoidCharacter):
+			continue
+		var candidate: HumanoidCharacter = node
+		if candidate == target or candidate.life_state != NpcRules.LifeState.ALIVE:
+			continue
+		if target.global_position.distance_squared_to(candidate.global_position) > radius_squared:
+			continue
+		if _selection_has_hostility_with(candidate):
+			candidates.append(candidate)
+	return candidates
+
+
+func _selection_has_hostility_with(target: HumanoidCharacter) -> bool:
+	if target == null:
+		return false
+	for member in party_manager.selected_members:
+		if member != null and member != target and member.has_hostility_with(target):
+			return true
+	return false
+
+
+func _choose_group_attack_target(member: HumanoidCharacter, candidates: Array[HumanoidCharacter], planned_pressure: Dictionary) -> HumanoidCharacter:
+	if member == null or candidates.is_empty():
+		return null
+	var best_target: HumanoidCharacter
+	var best_score := INF
+	for candidate in candidates:
+		if candidate == null or not is_instance_valid(candidate) or candidate == member:
+			continue
+		if candidate.life_state != NpcRules.LifeState.ALIVE:
+			continue
+		if candidate != candidates[0] and not member.has_hostility_with(candidate):
+			continue
+		var pressure := int(planned_pressure.get(candidate.get_instance_id(), 0))
+		var active_slot_limit := COMBAT_COORDINATOR.get_active_attack_slot_limit(candidate)
+		var saturation_penalty := 10000.0 if pressure >= active_slot_limit else 0.0
+		var distance_score := member.global_position.distance_squared_to(candidate.global_position) / maxf(group_attack_target_scan_radius, 1.0)
+		var score := saturation_penalty + float(pressure) * 100.0 + distance_score
+		if score < best_score:
+			best_score = score
+			best_target = candidate
+	return best_target
 
 
 func _selection_can_heal_target(target: HumanoidCharacter) -> bool:

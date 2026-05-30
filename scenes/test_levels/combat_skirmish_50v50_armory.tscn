@@ -1,0 +1,58 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/test_levels/combat_skirmish_50v50_armory.gd" id="1_level"]
+[ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_manager"]
+[ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(140, 1, 92)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.32, 0.3, 0.27, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(140, 1, 92)
+
+[node name="CombatSkirmish50v50Armory" type="Node3D"]
+script = ExtResource("1_level")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 8, 0)
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+material_override = SubResource("StandardMaterial3D_floor")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="PartyMembers" type="Node3D" parent="."]
+
+[node name="PartyManager" type="Node" parent="."]
+script = ExtResource("2_manager")
+
+[node name="GameBootstrap" type="Node" parent="."]
+script = ExtResource("3_bootstrap")
+
+[node name="CameraRig" type="Node3D" parent="."]
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 44)
+current = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Instructions" type="Label" parent="CanvasLayer"]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 900.0
+offset_bottom = 160.0
+text = "50v50 armory skirmish: the same playable armory combat showcase as 20v20, scaled to 50 party members and 50 raiders. Both teams spawn fully clothed and armed with mixed swords, axes, daggers, hatchets, hammers, shields, and peasant/ranger/knight/noble/wizard outfits. Raiders are aggressive; party members are defensive. Use this to stress-test crowd melee, five-slot attacks, target spreading, surround spacing, and large-fight performance."
+autowrap_mode = 3

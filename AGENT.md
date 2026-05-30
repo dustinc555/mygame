@@ -67,8 +67,12 @@ This is the single project guidance file for coding agents. Human-facing archite
 - Use real-world scale: `1 Godot unit = 1 meter`, `1 Blender unit = 1 meter`.
 
 ## Validation
+- Do not run broad validation sweeps. Run only the smallest command that directly exercises the user-requested scene, file, or subsystem; ask before expanding scope.
 - Whole project: `godot --headless --editor --path . --quit`.
 - Runtime boot: `timeout 5s godot --headless --path .`.
 - Changed GDScript file: `godot --headless --path . --check-only --script res://path/to/file.gd`.
 - If the project uses C#: `godot --headless --path . --build-solutions --quit`.
+- Performance-sensitive changes must run a relevant framerate/frame-CPU validation and compare against the previous baseline; do not accept unbounded frame-time regressions.
+- New or updated performance validation scenes/scripts should include a short comment with the prior measured FPS or frame-CPU baseline and the scenario size.
+- Godot debugger, parse, runtime, and validation `push_error` output are failures to fix, not warnings to ignore.
 - Do not say validation passed unless the command was actually run and succeeded.
