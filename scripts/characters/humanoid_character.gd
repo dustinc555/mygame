@@ -95,6 +95,7 @@ const RAGDOLL_ACTIVATION_RAY_UP := 8.0
 const RAGDOLL_ACTIVATION_RAY_DOWN := 16.0
 const GROUND_MARKER_RAYCAST_UP := 0.35
 const GROUND_MARKER_RAYCAST_DOWN := 24.0
+const SELECTION_GROUND_MARKER_HEIGHT := 0.02
 const ACTIVE_AI_DECISION_INTERVAL := 0.35
 const ACTIVE_AI_DECISION_JITTER := 0.15
 const BACKGROUND_AI_DECISION_INTERVAL := 1.25
@@ -245,6 +246,7 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var aggressive_scan_radius := NpcRules.AGGRO_RANGE
 @export var assist_scan_radius := NpcRules.ASSIST_RANGE
 @export var combat_witness_radius := NpcRules.COMBAT_WITNESS_RANGE
+@export var combat_support_target_spread_radius := NpcRules.COMBAT_WITNESS_RANGE
 @export var attack_range := 1.15
 @export var combat_approach_arrival_distance := 0.3
 @export var combat_direct_chase_distance := 3.0
@@ -1980,13 +1982,14 @@ func get_follow_anchor_position() -> Vector3:
 
 
 func get_ground_marker_position(marker_height: float = 0.03) -> Vector3:
-	var marker_xz := Vector3(global_position.x, global_position.y, global_position.z)
-	var fallback := Vector3(marker_xz.x, global_position.y + marker_height, marker_xz.z)
+	var anchor_position := get_follow_anchor_position()
+	var marker_xz := Vector3(anchor_position.x, anchor_position.y, anchor_position.z)
+	var fallback := Vector3(marker_xz.x, anchor_position.y + marker_height, marker_xz.z)
 	var world := get_world_3d()
 	if world == null:
 		return fallback
-	var start_y := global_position.y + GROUND_MARKER_RAYCAST_UP
-	var end_y := global_position.y - GROUND_MARKER_RAYCAST_DOWN
+	var start_y := anchor_position.y + GROUND_MARKER_RAYCAST_UP
+	var end_y := anchor_position.y - GROUND_MARKER_RAYCAST_DOWN
 	var query := PhysicsRayQueryParameters3D.create(Vector3(marker_xz.x, start_y, marker_xz.z), Vector3(marker_xz.x, end_y, marker_xz.z))
 	query.exclude = _get_ground_marker_raycast_exclusions()
 	var hit := world.direct_space_state.intersect_ray(query)
@@ -3923,7 +3926,7 @@ func _update_ground_markers() -> void:
 	if _selection_ring == null or not is_instance_valid(_selection_ring):
 		_selection_ring = get_node_or_null("SelectionRing") as Node3D
 	if _selection_ring != null and _selection_ring.visible:
-		_update_ground_marker_transform(_selection_ring, 0.0)
+		_update_selection_ground_marker_transform(_selection_ring, SELECTION_GROUND_MARKER_HEIGHT)
 
 
 func _update_ground_marker_transform(marker: Node3D, marker_height: float) -> void:
@@ -3932,6 +3935,24 @@ func _update_ground_marker_transform(marker: Node3D, marker_height: float) -> vo
 	marker.top_level = true
 	marker.global_position = get_ground_marker_position(marker_height)
 	marker.global_rotation = Vector3.ZERO
+
+
+func _update_selection_ground_marker_transform(marker: Node3D, marker_height: float) -> void:
+	if marker == null or not is_instance_valid(marker):
+		return
+	marker.top_level = true
+	marker.global_position = get_ground_marker_position(marker_height)
+	var camera := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if camera == null:
+		marker.global_rotation = Vector3.ZERO
+		return
+	var to_camera := camera.global_position - marker.global_position
+	to_camera.y = 0.0
+	if to_camera.length_squared() <= 0.0001:
+		marker.global_rotation = Vector3.ZERO
+		return
+	to_camera = to_camera.normalized()
+	marker.global_rotation = Vector3(0.0, atan2(to_camera.x, to_camera.z), 0.0)
 
 
 func _get_ground_marker_raycast_exclusions() -> Array[RID]:
@@ -5875,31 +5896,48 @@ func _try_start_self_defense(attacker: HumanoidCharacter) -> void:
 		return
 	if _is_player_order_to_avoid_combat():
 		return
+	if _get_active_combat_target() != attacker:
+		_clear_combat_target_for_direct_self_defense()
 	_join_defense_against(attacker)
 
 
+func _clear_combat_target_for_direct_self_defense() -> void:
+	if _ai_brain != null and _ai_brain.has_active_combat_job():
+		_ai_brain.clear_combat_job()
+	_current_attack_target = null
+	_clear_combat_movement_state()
+	COMBAT_COORDINATOR.clear_combat_target(self)
+	if _current_order_type == OrderType.ATTACK:
+		_current_order_type = OrderType.NONE
+	_sync_active_combat_actor_group()
+
+
 func _notify_defensive_allies_of_attack(attacker: HumanoidCharacter) -> void:
+	var support_radius := maxf(_get_combat_witness_radius(), combat_support_target_spread_radius)
+	var support_targets := _get_support_target_candidates(attacker, support_radius)
 	for node in _get_query_humanoids(global_position, _get_combat_witness_radius(), true):
 		if not (node is HumanoidCharacter):
 			continue
 		var ally: HumanoidCharacter = node
 		if ally == self:
 			continue
-		ally._respond_to_ally_under_attack(self, attacker)
+		ally._respond_to_ally_under_attack(self, attacker, support_targets)
 	_notify_settlement_alarm_of_attack(attacker)
 
 
 func _notify_defensive_allies_of_engagement(target: HumanoidCharacter) -> void:
+	var support_radius := maxf(_get_combat_witness_radius(), combat_support_target_spread_radius)
+	var support_targets := _get_support_target_candidates(target, support_radius)
 	for node in _get_query_humanoids(global_position, _get_combat_witness_radius(), true):
 		if not (node is HumanoidCharacter):
 			continue
 		var ally: HumanoidCharacter = node
 		if ally == self:
 			continue
-		ally._respond_to_ally_engagement(self, target)
+		ally._respond_to_ally_engagement(self, target, support_targets)
 
 
-func _respond_to_ally_under_attack(ally: HumanoidCharacter, attacker: HumanoidCharacter) -> void:
+func _respond_to_ally_under_attack(ally: HumanoidCharacter, attacker: HumanoidCharacter, support_targets: Array = []) -> void:
 	if ally == null or attacker == null:
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
@@ -5910,10 +5948,11 @@ func _respond_to_ally_under_attack(ally: HumanoidCharacter, attacker: HumanoidCh
 		return
 	if not _should_help_against(ally, attacker, true):
 		return
-	_join_defense_against(attacker)
+	var target := _choose_support_target(attacker, support_targets, maxf(_get_combat_switch_radius(), combat_support_target_spread_radius))
+	_join_defense_against(target if target != null else attacker)
 
 
-func _respond_to_ally_engagement(ally: HumanoidCharacter, target: HumanoidCharacter) -> void:
+func _respond_to_ally_engagement(ally: HumanoidCharacter, target: HumanoidCharacter, support_targets: Array = []) -> void:
 	if ally == null or target == null:
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
@@ -5924,7 +5963,52 @@ func _respond_to_ally_engagement(ally: HumanoidCharacter, target: HumanoidCharac
 		return
 	if not _should_help_against(ally, target, false):
 		return
-	_join_defense_against(target)
+	var support_target := _choose_support_target(target, support_targets, maxf(_get_combat_switch_radius(), combat_support_target_spread_radius))
+	_join_defense_against(support_target if support_target != null else target)
+
+
+func _get_support_target_candidates(primary_target: HumanoidCharacter, radius: float) -> Array[HumanoidCharacter]:
+	var candidates: Array[HumanoidCharacter] = []
+	if primary_target == null or not is_instance_valid(primary_target):
+		return candidates
+	candidates.append(primary_target)
+	var radius_squared := radius * radius
+	for node in _get_query_humanoids(primary_target.global_position, radius, true):
+		if not (node is HumanoidCharacter):
+			continue
+		var candidate: HumanoidCharacter = node
+		if candidate == primary_target or candidate.life_state != NpcRules.LifeState.ALIVE:
+			continue
+		if primary_target.global_position.distance_squared_to(candidate.global_position) > radius_squared:
+			continue
+		if not candidates.has(candidate):
+			candidates.append(candidate)
+	return candidates
+
+
+func _choose_support_target(primary_target: HumanoidCharacter, candidates: Array, scan_radius: float) -> HumanoidCharacter:
+	if primary_target == null or not is_instance_valid(primary_target):
+		return null
+	var viable_targets: Array[HumanoidCharacter] = []
+	for candidate_value in candidates:
+		if not (candidate_value is HumanoidCharacter):
+			continue
+		var candidate: HumanoidCharacter = candidate_value
+		if candidate == self or candidate.life_state != NpcRules.LifeState.ALIVE:
+			continue
+		if not _is_valid_combat_target(candidate):
+			continue
+		if not has_hostility_with(candidate):
+			continue
+		if not viable_targets.has(candidate):
+			viable_targets.append(candidate)
+	if viable_targets.is_empty():
+		return primary_target if _is_valid_combat_target(primary_target) and has_hostility_with(primary_target) else null
+	var effective_scan_radius := maxf(scan_radius, global_position.distance_to(primary_target.global_position) + get_attack_range() + 2.0)
+	var chosen := COMBAT_COORDINATOR.choose_target(self, viable_targets, effective_scan_radius) as HumanoidCharacter
+	if chosen != null:
+		return chosen
+	return primary_target if _is_valid_combat_target(primary_target) and has_hostility_with(primary_target) else null
 
 
 func _join_defense_against(threat: HumanoidCharacter) -> void:
