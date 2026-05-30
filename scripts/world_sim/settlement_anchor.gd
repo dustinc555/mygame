@@ -16,7 +16,7 @@ func _ready() -> void:
 
 func get_settlement_id() -> String:
 	var definition_id := _resource_definition_id(settlement_definition)
-	return definition_id if not definition_id.is_empty() else name
+	return definition_id if not definition_id.is_empty() else str(name)
 
 
 func get_spawn_position(role := "") -> Vector3:

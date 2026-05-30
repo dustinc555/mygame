@@ -328,17 +328,17 @@ func _setup_preview_studio() -> void:
 	environment.environment = env
 	_preview_root.add_child(environment)
 
-	var floor := MeshInstance3D.new()
-	floor.name = "PreviewStudioFloor"
+	var floor_mesh_instance := MeshInstance3D.new()
+	floor_mesh_instance.name = "PreviewStudioFloor"
 	var floor_mesh := PlaneMesh.new()
 	floor_mesh.size = Vector2(5.0, 5.0)
-	floor.mesh = floor_mesh
-	floor.position = Vector3(0.0, -0.01, 0.0)
+	floor_mesh_instance.mesh = floor_mesh
+	floor_mesh_instance.position = Vector3(0.0, -0.01, 0.0)
 	var floor_material := StandardMaterial3D.new()
 	floor_material.albedo_color = Color(0.20, 0.18, 0.155, 1.0)
 	floor_material.roughness = 0.92
-	floor.set_surface_override_material(0, floor_material)
-	_preview_root.add_child(floor)
+	floor_mesh_instance.set_surface_override_material(0, floor_material)
+	_preview_root.add_child(floor_mesh_instance)
 
 	var backdrop := MeshInstance3D.new()
 	backdrop.name = "PreviewStudioBackdrop"
@@ -681,8 +681,8 @@ func get_preview_lowest_visual_y() -> float:
 
 
 func get_preview_floor_y() -> float:
-	var floor := _preview_root.get_node_or_null("PreviewStudioFloor") as Node3D if _preview_root != null else null
-	return floor.global_position.y if floor != null else 0.0
+	var preview_floor := _preview_root.get_node_or_null("PreviewStudioFloor") as Node3D if _preview_root != null else null
+	return preview_floor.global_position.y if preview_floor != null else 0.0
 
 
 func get_preview_foot_anchor_y() -> float:
@@ -732,11 +732,11 @@ func get_preview_clothing_surface_offset(slot_name: String) -> float:
 	return float(_preview_clothing_surface_offsets.get(slot_name, 0.0))
 
 
-func set_preview_clothes_visible(is_visible: bool) -> void:
-	_preview_clothes_visible = is_visible
+func set_preview_clothes_visible(visible_flag: bool) -> void:
+	_preview_clothes_visible = visible_flag
 	if _show_clothes_button != null:
-		_show_clothes_button.set_pressed_no_signal(is_visible)
-	_set_preview_clothing_visible(is_visible)
+		_show_clothes_button.set_pressed_no_signal(visible_flag)
+	_set_preview_clothing_visible(visible_flag)
 
 
 func get_preview_clothes_visible() -> bool:
@@ -1027,8 +1027,8 @@ func _get_skeleton_foot_anchor_global_y(skeleton: Skeleton3D) -> float:
 		var bone_index := skeleton.find_bone(bone_name)
 		if bone_index < 0:
 			continue
-		var global_position := skeleton.global_transform * skeleton.get_bone_global_pose(bone_index).origin
-		result = minf(result, global_position.y)
+		var bone_global_position := skeleton.global_transform * skeleton.get_bone_global_pose(bone_index).origin
+		result = minf(result, bone_global_position.y)
 	return result
 
 
@@ -1174,7 +1174,7 @@ func _inflate_mesh_instance(mesh_instance: MeshInstance3D, surface_offset: float
 		mesh_instance.mesh = inflated_mesh
 
 
-func _set_preview_clothing_visible(is_visible: bool) -> void:
+func _set_preview_clothing_visible(visible_flag: bool) -> void:
 	if _preview_model == null:
 		return
 	var visual_root := _preview_model.get_node_or_null("PreviewCharacterVisual")
@@ -1182,16 +1182,16 @@ func _set_preview_clothing_visible(is_visible: bool) -> void:
 		return
 	for child in visual_root.get_children():
 		if str(child.name).begins_with("Equipped_") and child is Node3D:
-			(child as Node3D).visible = is_visible
+			(child as Node3D).visible = visible_flag
 
 
-func _set_base_eyebrow_visuals_visible(root: Node, is_visible: bool) -> void:
+func _set_base_eyebrow_visuals_visible(root: Node, visible_flag: bool) -> void:
 	if root == null:
 		return
 	if root is MeshInstance3D and _is_base_eyebrow_visual(root):
-		(root as MeshInstance3D).visible = is_visible
+		(root as MeshInstance3D).visible = visible_flag
 	for child in root.get_children():
-		_set_base_eyebrow_visuals_visible(child, is_visible)
+		_set_base_eyebrow_visuals_visible(child, visible_flag)
 
 
 func _has_visible_base_eyebrow_visual(root: Node) -> bool:
@@ -1211,10 +1211,10 @@ func _is_base_eyebrow_visual(node: Node) -> bool:
 
 func _apply_preview_material(root: Node, color: Color) -> void:
 	if root is MeshInstance3D:
-		var material := StandardMaterial3D.new()
-		material.albedo_color = color
-		material.roughness = 0.82
-		(root as MeshInstance3D).material_override = material
+		var preview_material := StandardMaterial3D.new()
+		preview_material.albedo_color = color
+		preview_material.roughness = 0.82
+		(root as MeshInstance3D).material_override = preview_material
 	for child in root.get_children():
 		_apply_preview_material(child, color)
 

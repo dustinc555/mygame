@@ -264,13 +264,13 @@ func get_barkeeper_service_point():
 	return points[0] if not points.is_empty() else null
 
 
-func get_barkeeper_order_position(worker: HumanoidCharacter = null) -> Vector3:
+func get_barkeeper_order_position(_worker: HumanoidCharacter = null) -> Vector3:
 	var point = get_barkeeper_service_point()
 	if point != null and point.has_method("get_work_position"):
 		return point.get_work_position()
-	var owner := get_owner_character()
-	if owner != null:
-		return owner.global_position
+	var owner_character := get_owner_character()
+	if owner_character != null:
+		return owner_character.global_position
 	return global_position
 
 
@@ -649,9 +649,9 @@ func _register_scoped_children() -> void:
 
 func _register_combat_intervention_staff() -> void:
 	var staff: Array[HumanoidCharacter] = []
-	var owner := get_owner_character()
-	if owner != null:
-		staff.append(owner)
+	var owner_character := get_owner_character()
+	if owner_character != null:
+		staff.append(owner_character)
 	for guard in get_guard_characters():
 		if guard != null and not staff.has(guard):
 			staff.append(guard)

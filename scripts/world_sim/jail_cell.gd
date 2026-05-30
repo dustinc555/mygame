@@ -38,7 +38,7 @@ func _ready() -> void:
 
 
 func get_cell_id() -> String:
-	return cell_id if not cell_id.strip_edges().is_empty() else name
+	return cell_id if not cell_id.strip_edges().is_empty() else str(name)
 
 
 func get_interaction_position(_actor = null) -> Vector3:

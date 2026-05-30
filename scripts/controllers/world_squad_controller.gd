@@ -265,7 +265,7 @@ func _add_basic_humanoid_children(actor: Node) -> void:
 
 func _formation_offset(index: int, count: int) -> Vector3:
 	var columns := ceili(sqrt(float(count)))
-	var row := index / columns
+	var row := int(float(index) / float(columns))
 	var column := index % columns
 	return Vector3((float(column) - float(columns - 1) * 0.5) * 1.35, 0.0, float(row) * 1.35)
 

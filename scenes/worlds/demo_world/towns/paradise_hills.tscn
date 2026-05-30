@@ -5,7 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://scenes/world_sim/settlement_jail.tscn" id="3_jail"]
 [ext_resource type="PackedScene" uid="uid://fpat6npxukfj" path="res://scenes/world_sim/settlement_bar.tscn" id="4_bar"]
 [ext_resource type="PackedScene" uid="uid://cmh02fasnxjgq" path="res://scenes/world_sim/settlement_keep.tscn" id="5_keep"]
-[ext_resource type="Resource" path="res://resources/world_sim/settlements/paradise_hills.tres" id="6_settlement"]
+[ext_resource type="Resource" uid="uid://3sggop603h5v" path="res://resources/world_sim/settlements/paradise_hills.tres" id="6_settlement"]
 [ext_resource type="Script" uid="uid://c808ce2djlw3n" path="res://scripts/world_sim/settlement_population_spawner.gd" id="7_spawner"]
 [ext_resource type="Script" uid="uid://dul2enrcs1uoi" path="res://scripts/world_sim/settlement_activity_point.gd" id="8_activity"]
 [ext_resource type="Resource" path="res://resources/world_sim/population_appearance_profiles/raider_scrapper.tres" id="9_appearance"]
@@ -76,7 +76,7 @@ population_capacity_id = "paradise_hills.tiny_home"
 [node name="Facilities" type="Node3D" parent="." unique_id=416783841]
 
 [node name="Jail" parent="Facilities" unique_id=1224048816 instance=ExtResource("3_jail")]
-transform = Transform3D(-0.999391, 0, -0.0348995, 0, 1, 0, 0.0348995, 0, -0.999391, 6.5083866, 1.9648724, 16.545197)
+transform = Transform3D(-0.999391, 0, -0.0348995, 0, 1, 0, 0.0348995, 0, -0.999391, 2.6482153, 0.023983479, 16.545197)
 facility_id = "paradise_hills.jail"
 display_name = "Paradise Hills Holding Jail"
 owner_faction_id = "ParadiseHills"

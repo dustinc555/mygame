@@ -278,8 +278,8 @@ static func _slot_index_for_direction(defender, attacker) -> int:
 	var direction: Vector3 = attacker.global_position - defender.global_position
 	direction.y = 0.0
 	if direction.length_squared() <= 0.0001:
-		var seed := float(attacker.get_instance_id() % APPROACH_SLOT_COUNT) / float(APPROACH_SLOT_COUNT)
-		return int(seed * APPROACH_SLOT_COUNT) % APPROACH_SLOT_COUNT
+		var slot_seed := float(attacker.get_instance_id() % APPROACH_SLOT_COUNT) / float(APPROACH_SLOT_COUNT)
+		return int(slot_seed * APPROACH_SLOT_COUNT) % APPROACH_SLOT_COUNT
 	var angle := atan2(direction.z, direction.x)
 	if angle < 0.0:
 		angle += TAU

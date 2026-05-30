@@ -57,7 +57,7 @@ func get_build_permission(world_position: Vector3, builder_faction_id := "") -> 
 			return {
 				"can_build": false,
 				"reason": "too_close_to_town",
-				"settlement_id": str(node.call("get_settlement_id")) if node.has_method("get_settlement_id") else node.name,
+				"settlement_id": str(node.call("get_settlement_id")) if node.has_method("get_settlement_id") else str(node.name),
 			}
 	for node in get_tree().get_nodes_in_group("faction_territory"):
 		if not node.has_method("contains_world_position") or not bool(node.call("contains_world_position", world_position)):
@@ -68,7 +68,7 @@ func get_build_permission(world_position: Vector3, builder_faction_id := "") -> 
 				"can_build": true,
 				"reason": "foreign_faction_territory",
 				"faction_id": faction_id,
-				"territory_id": str(node.call("get_territory_id")) if node.has_method("get_territory_id") else node.name,
+				"territory_id": str(node.call("get_territory_id")) if node.has_method("get_territory_id") else str(node.name),
 		}
 	return {"can_build": true, "reason": "unclaimed"}
 

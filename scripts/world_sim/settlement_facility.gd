@@ -19,7 +19,7 @@ func _ready() -> void:
 
 
 func get_facility_id() -> String:
-	return facility_id if not facility_id.is_empty() else name
+	return facility_id if not facility_id.is_empty() else str(name)
 
 
 func get_facility_record(settlement_id := "") -> Dictionary:

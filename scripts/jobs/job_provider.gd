@@ -51,7 +51,7 @@ func get_provider_character() -> HumanoidCharacter:
 
 func get_provider_name() -> String:
 	var provider := get_provider_character()
-	return provider.member_name if provider != null else name
+	return provider.member_name if provider != null else str(name)
 
 
 func get_greeting_text_for(worker: HumanoidCharacter, fallback: String) -> String:
@@ -733,19 +733,19 @@ func _process_server_shift(_job_index: int, _job, slot_state: Dictionary, worker
 		var order: Dictionary = {}
 		if _is_player_party_worker(worker) and service_area.has_method("claim_waiter_order"):
 			order = service_area.claim_waiter_order(worker)
-		var seat = order.get("seat") if not order.is_empty() else null
-		if seat == null and not _is_player_party_worker(worker) and service_area.has_method("claim_waiting_customer_seat"):
-			seat = service_area.claim_waiting_customer_seat(worker)
-		if seat == null:
+		var claimed_seat = order.get("seat") if not order.is_empty() else null
+		if claimed_seat == null and not _is_player_party_worker(worker) and service_area.has_method("claim_waiting_customer_seat"):
+			claimed_seat = service_area.claim_waiting_customer_seat(worker)
+		if claimed_seat == null:
 			if _is_player_party_worker(worker):
 				_release_waiter_service_point(slot_state, worker)
 				return {"active": false, "completed_order": false}
 			return {"active": _hold_waiter_service_point(service_area, slot_state, worker), "completed_order": false}
 		_release_waiter_service_point(slot_state, worker)
-		slot_state["target_service_seat"] = seat
+		slot_state["target_service_seat"] = claimed_seat
 		var order_customer = order.get("customer") if not order.is_empty() else null
 		if order_customer == null and service_area.has_method("get_customer_for_seat"):
-			order_customer = service_area.get_customer_for_seat(seat)
+			order_customer = service_area.get_customer_for_seat(claimed_seat)
 		slot_state["target_service_customer"] = order_customer
 		slot_state["target_service_order_id"] = str(order.get("order_id", ""))
 		var order_text := str(order.get("order_text", ""))
@@ -1120,7 +1120,7 @@ func _get_total_item_count(work_inventory: InventoryData) -> int:
 	return total
 
 
-func _end_slot_assignment(job_index: int, slot_state: Dictionary, _caused_by_player: bool) -> void:
+func _end_slot_assignment(_job_index: int, slot_state: Dictionary, _caused_by_player: bool) -> void:
 	var worker: HumanoidCharacter = slot_state.get("worker")
 	if worker != null and is_instance_valid(worker):
 		worker.end_job_assignment()

@@ -503,9 +503,9 @@ func _get_target_subtitle(target) -> String:
 		var settlement_name := _get_building_settlement_name(target)
 		return settlement_name if not settlement_name.is_empty() else "Building"
 	if target.has_method("get_owner_faction_name"):
-		var owner := str(target.call("get_owner_faction_name"))
-		if not owner.is_empty():
-			return "Owned by %s" % owner
+		var owner_text := str(target.call("get_owner_faction_name"))
+		if not owner_text.is_empty():
+			return "Owned by %s" % owner_text
 	if target is Node and target.is_in_group("mining_resource"):
 		return "Mining resource"
 	if target is Node and target.is_in_group("scavenging_resource"):
@@ -535,8 +535,8 @@ func _get_target_detail(target) -> String:
 		var locked := bool(target.get("is_locked"))
 		return "Locked" if locked else "Can be opened"
 	if target is Node and target.is_in_group("world_item"):
-		var owner := _get_target_subtitle(target)
-		return owner if owner != "Dropped item" else "On the ground"
+		var owner_text := _get_target_subtitle(target)
+		return owner_text if owner_text != "Dropped item" else "On the ground"
 	if target is Node and target.has_method("get_world_context_actions"):
 		var actions: Array = target.get_world_context_actions(null)
 		return "No available actions" if actions.is_empty() else "Context actions available"
@@ -566,9 +566,9 @@ func _get_target_owner_text(target) -> String:
 		var building_owner := _get_building_owner_text(target)
 		return "None" if building_owner.is_empty() else building_owner
 	if target != null and target.has_method("get_owner_faction_name"):
-		var owner := str(target.call("get_owner_faction_name"))
-		if not owner.is_empty():
-			return owner
+		var owner_text := str(target.call("get_owner_faction_name"))
+		if not owner_text.is_empty():
+			return owner_text
 	var owner_property := _get_string_property(target, "owner_faction_name", "")
 	return "None" if owner_property.is_empty() else owner_property
 
@@ -612,8 +612,8 @@ func _get_target_state_text(target) -> String:
 
 func _get_target_state_label(target) -> String:
 	if _is_building_target(target):
-		var owner := _get_building_owner_text(target)
-		return owner if not owner.is_empty() else "Unowned"
+		var owner_text := _get_building_owner_text(target)
+		return owner_text if not owner_text.is_empty() else "Unowned"
 	if target is Node and target.is_in_group("mining_resource"):
 		return "VEIN"
 	if target is Node and target.is_in_group("scavenging_resource"):
@@ -711,9 +711,9 @@ func _format_building_type_label(type_id: String) -> String:
 
 func _get_building_owner_text(target) -> String:
 	if target != null and target.has_method("get_owner_faction_name"):
-		var owner := str(target.call("get_owner_faction_name"))
-		if not owner.is_empty():
-			return owner
+		var owner_text := str(target.call("get_owner_faction_name"))
+		if not owner_text.is_empty():
+			return owner_text
 	return _get_string_property(target, "owner_faction_name", "")
 
 
@@ -722,8 +722,8 @@ func _get_building_ownership_text(target) -> String:
 		var occupancy := str(target.call("get_occupancy_label"))
 		if not occupancy.is_empty():
 			return occupancy
-	var owner := _get_building_owner_text(target)
-	return owner if not owner.is_empty() else "None"
+	var owner_text := _get_building_owner_text(target)
+	return owner_text if not owner_text.is_empty() else "None"
 
 
 func _get_building_jurisdiction_text(target) -> String:

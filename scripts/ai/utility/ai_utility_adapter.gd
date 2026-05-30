@@ -131,16 +131,16 @@ func _apply_goal_state(context: AiUtilityContext, actor: Node) -> void:
 func _apply_vital_facts(context: AiUtilityContext, actor: Node) -> void:
 	if actor is HumanoidCharacter:
 		var humanoid := actor as HumanoidCharacter
-		var max_hp := maxf(humanoid.max_hp, 0.01)
-		var max_blood := maxf(humanoid.max_blood, 0.01)
-		var health_ratio := clampf(humanoid.hp / max_hp, 0.0, 1.0)
-		var blood_ratio := clampf(humanoid.blood / max_blood, 0.0, 1.0)
-		var damage := 1.0 - minf(health_ratio, blood_ratio)
+		var humanoid_max_hp := maxf(humanoid.max_hp, 0.01)
+		var humanoid_max_blood := maxf(humanoid.max_blood, 0.01)
+		var humanoid_health_ratio := clampf(humanoid.hp / humanoid_max_hp, 0.0, 1.0)
+		var humanoid_blood_ratio := clampf(humanoid.blood / humanoid_max_blood, 0.0, 1.0)
+		var humanoid_damage := 1.0 - minf(humanoid_health_ratio, humanoid_blood_ratio)
 		context.set_fact(&"alive", 1.0 if humanoid.life_state == NpcRules.LifeState.ALIVE else 0.0)
-		context.set_fact(&"health", health_ratio)
-		context.set_fact(&"blood", blood_ratio)
-		context.set_fact(&"damage", damage)
-		context.set_fact(&"critical_damage", inverse_lerp(0.35, 0.9, damage))
+		context.set_fact(&"health", humanoid_health_ratio)
+		context.set_fact(&"blood", humanoid_blood_ratio)
+		context.set_fact(&"damage", humanoid_damage)
+		context.set_fact(&"critical_damage", inverse_lerp(0.35, 0.9, humanoid_damage))
 		return
 	var state := _actor_state(actor)
 	var hp := float(state.get("hp", _actor_float(actor, "hp", 100.0)))
@@ -160,8 +160,8 @@ func _apply_vital_facts(context: AiUtilityContext, actor: Node) -> void:
 func _apply_order_facts(context: AiUtilityContext, actor: Node) -> void:
 	if actor is HumanoidCharacter:
 		var humanoid := actor as HumanoidCharacter
-		var has_player_order := humanoid._order_was_player_issued and humanoid._current_order_type != 0
-		context.set_fact(&"no_player_order", 0.0 if has_player_order else 1.0)
+		var humanoid_has_player_order := humanoid._order_was_player_issued and humanoid._current_order_type != 0
+		context.set_fact(&"no_player_order", 0.0 if humanoid_has_player_order else 1.0)
 		context.set_fact(&"player_party_member", 1.0 if humanoid.player_party_member else 0.0)
 		return
 	var order_was_player_issued := bool(actor.get("_order_was_player_issued")) if _has_property(actor, "_order_was_player_issued") else false
@@ -471,7 +471,7 @@ func _distance_score(origin: Vector3, target) -> float:
 	return clampf(1.0 - distance / 48.0, 0.1, 1.0)
 
 
-func _heal_target_score(actor: Node, target) -> float:
+func _heal_target_score(_actor: Node, target) -> float:
 	if target == null:
 		return 0.0
 	if target.has_method("get_total_wound_damage"):

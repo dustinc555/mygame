@@ -22,7 +22,7 @@ func _ready() -> void:
 
 
 func get_activity_id() -> String:
-	return activity_id if not activity_id.is_empty() else name
+	return activity_id if not activity_id.is_empty() else str(name)
 
 
 func get_activity_record(settlement_id := "", facility_id := "") -> Dictionary:

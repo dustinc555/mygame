@@ -91,8 +91,8 @@ func _assign_actor_to_standing_point(actor: Node, point: Node) -> bool:
 	if not bool(point.call("claim_visitor", actor)):
 		return false
 	if actor.has_method("set_move_target"):
-		var position: Vector3 = point.call("get_visit_position", actor)
-		actor.call("set_move_target", position, false)
+		var visit_position: Vector3 = point.call("get_visit_position", actor)
+		actor.call("set_move_target", visit_position, false)
 		return true
 	point.call("release_visitor", actor)
 	return false

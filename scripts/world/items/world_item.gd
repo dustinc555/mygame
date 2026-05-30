@@ -291,13 +291,13 @@ func _accumulate_local_mesh_bounds(node: Node, parent_transform: Transform3D, re
 		_accumulate_local_mesh_bounds(child, local_transform, result)
 
 
-func _transform_aabb(bounds: AABB, transform: Transform3D) -> AABB:
+func _transform_aabb(bounds: AABB, bounds_transform: Transform3D) -> AABB:
 	var first := true
 	var transformed_bounds := AABB()
 	for x in [bounds.position.x, bounds.position.x + bounds.size.x]:
 		for y in [bounds.position.y, bounds.position.y + bounds.size.y]:
 			for z in [bounds.position.z, bounds.position.z + bounds.size.z]:
-				var point := transform * Vector3(x, y, z)
+				var point := bounds_transform * Vector3(x, y, z)
 				if first:
 					transformed_bounds = AABB(point, Vector3.ZERO)
 					first = false

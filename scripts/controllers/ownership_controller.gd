@@ -42,7 +42,7 @@ func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
 	root_scene = target_root
 
 
-func request_interaction(actor: HumanoidCharacter, target, action_label: String) -> bool:
+func request_interaction(actor: HumanoidCharacter, target, _action_label: String) -> bool:
 	if actor == null or target == null:
 		return false
 	if not OWNERSHIP_UTILS_SCRIPT.is_owned(target):
@@ -326,8 +326,8 @@ func _find_witnesses(target) -> Array[HumanoidCharacter]:
 
 func _warning_key(actor: HumanoidCharacter, target) -> String:
 	var actor_key := actor.stable_id if not actor.stable_id.is_empty() else str(actor.get_instance_id())
-	var owner = OWNERSHIP_UTILS_SCRIPT.get_explicit_owner(target)
+	var explicit_owner = OWNERSHIP_UTILS_SCRIPT.get_explicit_owner(target)
 	var owner_key := "faction:%s" % OWNERSHIP_UTILS_SCRIPT.get_owner_faction_name(target)
-	if owner != null:
-		owner_key = owner.stable_id if not owner.stable_id.is_empty() else str(owner.get_instance_id())
+	if explicit_owner != null:
+		owner_key = explicit_owner.stable_id if not explicit_owner.stable_id.is_empty() else str(explicit_owner.get_instance_id())
 	return "%s:%s" % [actor_key, owner_key]

@@ -127,6 +127,15 @@ func _ready() -> void:
 	_try_initialize()
 
 
+func _exit_tree() -> void:
+	if world != null and is_instance_valid(world) and world.has_method("purge"):
+		world.call("purge", false)
+	var ecs_node := get_node_or_null("/root/ECS")
+	if ecs_node != null and ecs_node.get("world") == world:
+		ecs_node.set("world", null)
+	world = null
+
+
 func _process(delta: float) -> void:
 	if world != null:
 		world.process(delta)
@@ -686,8 +695,8 @@ func sync_job_provider(provider: Node, active_slots: Dictionary = {}, worker_rec
 	provider_component.provider_id = provider_id
 	provider_component.provider_name = provider.call("get_provider_name") if provider.has_method("get_provider_name") else str(provider.name)
 	provider_component.provider_path = provider.get_path() if provider.is_inside_tree() else NodePath()
-	var owner = provider.call("get_provider_character") if provider.has_method("get_provider_character") else null
-	provider_component.owner_actor_id = _actor_record_id(owner) if owner is Node else ""
+	var provider_owner = provider.call("get_provider_character") if provider.has_method("get_provider_character") else null
+	provider_component.owner_actor_id = _actor_record_id(provider_owner) if provider_owner is Node else ""
 	provider_component.sim_time = sim_time
 	_sync_job_provider_slots(provider_id, active_slots)
 	_sync_job_worker_records(provider_id, worker_records)
@@ -912,7 +921,9 @@ func set_activity_assignment(actor: Node, point: Node, duration: float, sim_time
 	var actor_id := _actor_record_id(actor)
 	if actor_id.is_empty():
 		return
-	var activity_id := str(point.call("get_activity_id")) if point != null and point.has_method("get_activity_id") else str(point.name if point != null else "")
+	var activity_id := ""
+	if point != null:
+		activity_id = str(point.call("get_activity_id")) if point.has_method("get_activity_id") else str(point.name)
 	var entity = _activity_assignment_entity_by_actor_id.get(actor_id)
 	if entity == null or not is_instance_valid(entity):
 		entity = _entity_script.new()
@@ -1312,7 +1323,7 @@ func _write_actor_components(entity, actor: Node, actor_id: String, settlement_i
 	vitals.max_blood = float(max_blood) if max_blood != null else 100.0
 
 
-func _sync_inventory_container(actor_id: String, container_id: String, owner: Node, inventory, is_work_inventory: bool, is_world_container := false) -> void:
+func _sync_inventory_container(actor_id: String, container_id: String, inventory_owner: Node, inventory, is_work_inventory: bool, is_world_container := false) -> void:
 	if inventory == null or container_id.is_empty():
 		return
 	var entity = _inventory_container_entity_by_id.get(container_id)
@@ -1325,7 +1336,7 @@ func _sync_inventory_container(actor_id: String, container_id: String, owner: No
 	var component = entity.get_component(C_INVENTORY_CONTAINER)
 	component.container_id = container_id
 	component.owner_actor_id = actor_id
-	component.owner_path = owner.get_path() if owner != null and owner.is_inside_tree() else NodePath()
+	component.owner_path = inventory_owner.get_path() if inventory_owner != null and inventory_owner.is_inside_tree() else NodePath()
 	component.columns = int(inventory.get("columns")) if _has_property(inventory, "columns") else 0
 	component.rows = int(inventory.get("rows")) if _has_property(inventory, "rows") else 0
 	component.max_weight = float(inventory.get("max_weight")) if _has_property(inventory, "max_weight") else 0.0

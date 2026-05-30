@@ -111,7 +111,7 @@ func register_extra_level_content(level_index: int, content_path: NodePath) -> v
 
 
 func get_population_capacity_id() -> String:
-	return population_capacity_id if not population_capacity_id.is_empty() else name
+	return population_capacity_id if not population_capacity_id.is_empty() else str(name)
 
 
 func get_explicit_owner_character() -> HumanoidCharacter:
@@ -779,40 +779,40 @@ func _refresh_level_visibility(show_interior: bool, camera_world_position: Vecto
 		_apply_level_visibility(level_index, level_index <= _active_level_index, level_index == _active_level_index)
 
 
-func _apply_level_visibility(level_index: int, visible: bool, active: bool = true) -> void:
+func _apply_level_visibility(level_index: int, visible_flag: bool, active: bool = true) -> void:
 	if level_index < 0 or level_index >= levels.size():
 		return
 	var level: BuildingLevelDefinition = levels[level_index]
 	if level == null:
 		return
 	for node_path in level.content_paths:
-		_apply_node_visibility(get_node_or_null(node_path), visible)
-	_apply_extra_level_visibility(level_index, visible)
-	_apply_occluder_visibility(level.front_occluder_paths, not visible or (active and _hidden_side == "front"))
-	_apply_occluder_visibility(level.right_occluder_paths, not visible or (active and _hidden_side == "right"))
-	_apply_occluder_visibility(level.back_occluder_paths, not visible or (active and _hidden_side == "back"))
-	_apply_occluder_visibility(level.left_occluder_paths, not visible or (active and _hidden_side == "left"))
+		_apply_node_visibility(get_node_or_null(node_path), visible_flag)
+	_apply_extra_level_visibility(level_index, visible_flag)
+	_apply_occluder_visibility(level.front_occluder_paths, not visible_flag or (active and _hidden_side == "front"))
+	_apply_occluder_visibility(level.right_occluder_paths, not visible_flag or (active and _hidden_side == "right"))
+	_apply_occluder_visibility(level.back_occluder_paths, not visible_flag or (active and _hidden_side == "back"))
+	_apply_occluder_visibility(level.left_occluder_paths, not visible_flag or (active and _hidden_side == "left"))
 
 
 func _apply_registered_level_visibility(level_index: int) -> void:
-	var visible := true
+	var visible_flag := true
 	if _active_level_index >= 0:
-		visible = level_index <= _active_level_index
-	_apply_extra_level_visibility(level_index, visible)
+		visible_flag = level_index <= _active_level_index
+	_apply_extra_level_visibility(level_index, visible_flag)
 
 
-func _apply_extra_level_visibility(level_index: int, visible: bool) -> void:
+func _apply_extra_level_visibility(level_index: int, visible_flag: bool) -> void:
 	for node_path in _extra_level_content_paths.get(level_index, []):
-		_apply_node_visibility(get_node_or_null(node_path), visible)
+		_apply_node_visibility(get_node_or_null(node_path), visible_flag)
 
 
-func _apply_node_visibility(node: Node, visible: bool) -> void:
+func _apply_node_visibility(node: Node, visible_flag: bool) -> void:
 	if node == null:
 		return
 	if node is Node3D:
-		node.visible = visible
+		node.visible = visible_flag
 	for child in node.get_children():
-		_apply_node_visibility(child, visible)
+		_apply_node_visibility(child, visible_flag)
 
 
 func _get_level_area(level_index: int) -> Area3D:

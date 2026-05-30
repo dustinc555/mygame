@@ -5,8 +5,6 @@ class_name AiLimboJobDriver
 const AI_TASK_STEP_SCRIPT = preload("res://scripts/ai/ai_task_step.gd")
 const AI_LIMBO_TASK_STEP_ACTION_SCRIPT = preload("res://scripts/ai/limbo/ai_limbo_task_step_action.gd")
 
-const BT_UPDATE_MANUAL := 2
-
 var owner_actor = null
 var job = null
 var steps: Array = []
@@ -132,7 +130,7 @@ func _build_behavior_player() -> void:
 	_bt_player.name = "BTPlayer"
 	_bt_player.active = false
 	_bt_player.agent_node = NodePath("../..")
-	_bt_player.update_mode = BT_UPDATE_MANUAL
+	_bt_player.update_mode = BTPlayer.UpdateMode.MANUAL
 	_bt_player.blackboard = _blackboard
 	_bt_player.behavior_tree = _behavior_tree
 	if owner_actor is Node:

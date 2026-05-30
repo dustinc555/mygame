@@ -20,10 +20,10 @@ func _ready() -> void:
 	visible = false
 
 
-func start_drag(owner, definition: ItemDefinition, count := 1, item_contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
+func start_drag(drag_owner, definition: ItemDefinition, count := 1, item_contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
 	if definition == null or count <= 0:
 		return
-	source_owner = owner
+	source_owner = drag_owner
 	item_definition = definition
 	item_count = count
 	contained_item_counts = item_contained_item_counts.duplicate(true)
@@ -47,14 +47,14 @@ func keep_drag(drag_id: int) -> void:
 	_keep_requested = true
 
 
-func replace_drag_item(drag_id: int, owner, definition: ItemDefinition, count := 1, item_contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
+func replace_drag_item(drag_id: int, drag_owner, definition: ItemDefinition, count := 1, item_contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
 	if drag_id != _active_drag_id:
 		return
 	if definition == null or count <= 0:
 		_clear_item()
 		return
 	_pending_replacement = {
-		"owner": owner,
+		"owner": drag_owner,
 		"definition": definition,
 		"count": count,
 		"contained_item_counts": item_contained_item_counts.duplicate(true),

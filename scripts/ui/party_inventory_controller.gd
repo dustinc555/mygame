@@ -265,8 +265,8 @@ func _open_inventory_context_is_out_of_range() -> bool:
 
 
 func _open_inventory_context_has_combat() -> bool:
-	for owner in _get_live_inventory_owners():
-		if _inventory_owner_is_in_combat(owner):
+	for inventory_owner in _get_live_inventory_owners():
+		if _inventory_owner_is_in_combat(inventory_owner):
 			return true
 	if party_manager != null:
 		for member in party_manager.party_members:
@@ -287,24 +287,24 @@ func _get_live_inventory_owners() -> Array:
 	return owners
 
 
-func _inventory_owner_is_in_combat(owner) -> bool:
-	if owner == null:
+func _inventory_owner_is_in_combat(inventory_owner) -> bool:
+	if inventory_owner == null:
 		return false
-	if owner.has_method("is_in_combat") and bool(owner.is_in_combat()):
+	if inventory_owner.has_method("is_in_combat") and bool(inventory_owner.is_in_combat()):
 		return true
-	var actor = _get_inventory_owner_actor(owner)
-	return actor != owner and actor != null and actor.has_method("is_in_combat") and bool(actor.is_in_combat())
+	var actor = _get_inventory_owner_actor(inventory_owner)
+	return actor != inventory_owner and actor != null and actor.has_method("is_in_combat") and bool(actor.is_in_combat())
 
 
-func _get_inventory_owner_actor(owner):
-	if owner is HumanoidCharacter:
-		return owner
-	if owner != null and owner.has_method("get_owner_character"):
-		var owner_character = owner.get_owner_character()
+func _get_inventory_owner_actor(inventory_owner):
+	if inventory_owner is HumanoidCharacter:
+		return inventory_owner
+	if inventory_owner != null and inventory_owner.has_method("get_owner_character"):
+		var owner_character = inventory_owner.get_owner_character()
 		if owner_character != null:
 			return owner_character
-	if owner != null and owner.has_method("get_explicit_owner_character"):
-		var explicit_owner = owner.get_explicit_owner_character()
+	if inventory_owner != null and inventory_owner.has_method("get_explicit_owner_character"):
+		var explicit_owner = inventory_owner.get_explicit_owner_character()
 		if explicit_owner != null:
 			return explicit_owner
 	return null
@@ -374,9 +374,9 @@ func _on_inventory_transfer_requested(source_owner, target_owner, entry, target_
 	if _try_deposit_entry_into_pouch(source_owner, target_owner, entry, target_cell):
 		return
 	if source_owner == target_owner:
-		var source_inventory = _get_owner_inventory(source_owner)
-		if source_inventory != null:
-			source_inventory.move_entry(entry, target_cell)
+		var same_owner_inventory = _get_owner_inventory(source_owner)
+		if same_owner_inventory != null:
+			same_owner_inventory.move_entry(entry, target_cell)
 		return
 	var source_inventory = _get_owner_inventory(source_owner)
 	var target_inventory = _get_owner_inventory(target_owner)
@@ -479,7 +479,6 @@ func _on_inventory_equip_requested(source_owner, entry, target_owner, slot_name:
 	var target_inventory = _get_owner_inventory(target_owner)
 	if source_inventory == null or target_inventory == null or not source_inventory.entries.has(entry):
 		return
-	var previous = target_owner.get_equipped_item(slot_name) if target_owner.has_method("get_equipped_item") else null
 	if not _try_pay_for_equipment_transfer(source_owner, target_owner, entry):
 		return
 	if not source_inventory.remove_entry(entry):
@@ -659,10 +658,10 @@ func _get_owner_inventory(inventory_owner):
 
 
 func _refresh_inventory_windows_for(owner_a, owner_b = null) -> void:
-	for owner in [owner_a, owner_b]:
-		if owner == null:
+	for inventory_owner in [owner_a, owner_b]:
+		if inventory_owner == null:
 			continue
-		var window = open_inventory_windows.get(owner.get_instance_id())
+		var window = open_inventory_windows.get(inventory_owner.get_instance_id())
 		if _is_live_window(window) and window.has_method("refresh"):
 			window.refresh()
 
@@ -799,27 +798,27 @@ func _get_world_item_stack(drop_position: Vector3) -> Dictionary:
 	return {"position": stack_position, "next_bottom_y": next_bottom_y}
 
 
-func _start_cursor_item_drag(owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
+func _start_cursor_item_drag(drag_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
 	if definition == null or count <= 0:
 		return
 	_ensure_cursor_item_drag_source()
-	cursor_item_drag_source.start_drag(owner, definition, count, contained_item_counts, metadata)
+	cursor_item_drag_source.start_drag(drag_owner, definition, count, contained_item_counts, metadata)
 
 
 func _begin_equipment_update_batch(owner_a, owner_b = null) -> Array:
 	var owners := []
-	for owner in [owner_a, owner_b]:
-		if owner == null or owners.has(owner) or not owner.has_method("begin_equipment_update_batch"):
+	for inventory_owner in [owner_a, owner_b]:
+		if inventory_owner == null or owners.has(inventory_owner) or not inventory_owner.has_method("begin_equipment_update_batch"):
 			continue
-		owner.begin_equipment_update_batch()
-		owners.append(owner)
+		inventory_owner.begin_equipment_update_batch()
+		owners.append(inventory_owner)
 	return owners
 
 
 func _end_equipment_update_batch(owners: Array) -> void:
-	for owner in owners:
-		if owner != null and owner.has_method("end_equipment_update_batch"):
-			owner.end_equipment_update_batch()
+	for inventory_owner in owners:
+		if inventory_owner != null and inventory_owner.has_method("end_equipment_update_batch"):
+			inventory_owner.end_equipment_update_batch()
 
 
 func _consume_cursor_drag(data: Dictionary) -> void:
@@ -834,10 +833,10 @@ func _keep_cursor_drag(data: Dictionary) -> void:
 		source.keep_drag(int(data.get("cursor_drag_id", 0)))
 
 
-func _replace_cursor_drag(data: Dictionary, owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
+func _replace_cursor_drag(data: Dictionary, drag_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
 	var source = data.get("cursor_source", null)
 	if source != null and source.has_method("replace_drag_item"):
-		source.replace_drag_item(int(data.get("cursor_drag_id", 0)), owner, definition, count, contained_item_counts, metadata)
+		source.replace_drag_item(int(data.get("cursor_drag_id", 0)), drag_owner, definition, count, contained_item_counts, metadata)
 
 
 func _try_store_replaced_equipment(source_owner, target_owner, definition: ItemDefinition) -> bool:

@@ -7,9 +7,9 @@ class_name StablePhysicalBone
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
-	var linear_velocity := state.linear_velocity
-	if linear_velocity.length() > max_linear_speed:
-		state.linear_velocity = linear_velocity.normalized() * max_linear_speed
-	var angular_velocity := state.angular_velocity
-	if angular_velocity.length() > max_angular_speed:
-		state.angular_velocity = angular_velocity.normalized() * max_angular_speed
+	var current_linear_velocity := state.linear_velocity
+	if current_linear_velocity.length() > max_linear_speed:
+		state.linear_velocity = current_linear_velocity.normalized() * max_linear_speed
+	var current_angular_velocity := state.angular_velocity
+	if current_angular_velocity.length() > max_angular_speed:
+		state.angular_velocity = current_angular_velocity.normalized() * max_angular_speed

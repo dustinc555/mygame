@@ -242,13 +242,13 @@ func fill_settlement_staff_slot(slot_id: String, slot_record: Dictionary) -> Nod
 	return actor
 
 
-func _append_staff_slot(slots: Array[Dictionary], role: String, role_index: int, actor: Node, display_name: String, authority_scope := "facility_staff") -> void:
+func _append_staff_slot(slots: Array[Dictionary], role: String, role_index: int, actor: Node, staff_display_name: String, authority_scope := "facility_staff") -> void:
 	var actor_alive := _is_actor_alive(actor)
 	var slot := {
 		"slot_id": _staff_slot_id(role, role_index),
 		"role_id": role,
 		"role_index": role_index,
-		"display_name": display_name,
+		"display_name": staff_display_name,
 		"population_cost": 1,
 		"replacement_delay_days": DEFAULT_REPLACEMENT_DELAY_DAYS,
 		"filled": actor_alive,
@@ -869,7 +869,7 @@ func _barkeeper_point_transform() -> Transform3D:
 
 func _waiter_point_transform(index: int) -> Transform3D:
 	var column := index % 4
-	var row := int(index / 4)
+	var row := int(float(index) / 4.0)
 	return Transform3D(Basis(Vector3.UP, deg_to_rad(8.0)), Vector3(3.0 + float(column) * 0.75, 0.35, 0.65 + float(row) * 0.9))
 
 
@@ -879,7 +879,7 @@ func _barber_idle_transform() -> Transform3D:
 
 func _hangout_point_transform(index: int) -> Transform3D:
 	var column := index % 4
-	var row := int(index / 4)
+	var row := int(float(index) / 4.0)
 	return Transform3D(Basis(Vector3.UP, deg_to_rad(180.0)), Vector3(-2.2 + float(column) * 1.15, 0.05, 2.1 + float(row) * 0.85))
 
 
@@ -888,7 +888,7 @@ func _guard_post_transform(index: int) -> Transform3D:
 		return Transform3D(Basis(Vector3.UP, deg_to_rad(-85.0)), Vector3(3.1, 0.05, 4.35))
 	var guard_index := index - 1
 	var column := guard_index % 3
-	var row := int(guard_index / 3)
+	var row := int(float(guard_index) / 3.0)
 	return Transform3D(Basis(Vector3.UP, deg_to_rad(-85.0)), Vector3(-1.4 + float(column) * 1.4, 0.05, 4.25 + float(row) * 0.85))
 
 
@@ -995,7 +995,9 @@ func _packed_scene_default_transform(root_path: NodePath, node_name: String) -> 
 		return null
 	var instance := scene.instantiate()
 	var node := instance.get_node_or_null(_layout_node_path(root_path, node_name)) as Node3D
-	var result = node.transform if node != null else null
+	var result = null
+	if node != null:
+		result = node.transform
 	instance.free()
 	return result
 
@@ -1103,7 +1105,7 @@ func _ensure_child_root(parent: Node, root_name: String) -> Node:
 	return child
 
 
-func _ensure_scene_child(parent: Node, child_name: String, scene: PackedScene, transform: Transform3D) -> Node:
+func _ensure_scene_child(parent: Node, child_name: String, scene: PackedScene, scene_transform: Transform3D) -> Node:
 	var child := parent.get_node_or_null(child_name)
 	if child != null:
 		return child
@@ -1111,16 +1113,16 @@ func _ensure_scene_child(parent: Node, child_name: String, scene: PackedScene, t
 	child.name = child_name
 	parent.add_child(child)
 	if child is Node3D:
-		(child as Node3D).transform = transform
+		(child as Node3D).transform = scene_transform
 	_set_editor_owner_recursive(child)
 	return child
 
 
-func _ensure_furniture_scene_child(parent: Node, child_name: String, scene: PackedScene, transform: Transform3D) -> Node:
+func _ensure_furniture_scene_child(parent: Node, child_name: String, scene: PackedScene, scene_transform: Transform3D) -> Node:
 	var existing := _find_named_descendant(parent, child_name)
 	if existing != null:
 		return existing
-	return _ensure_scene_child(parent, child_name, scene, transform)
+	return _ensure_scene_child(parent, child_name, scene, scene_transform)
 
 
 func _find_named_descendant(root: Node, node_name: String) -> Node:
@@ -1173,10 +1175,10 @@ func _apply_role_suffix(staff: Node, role: String) -> void:
 	var role_base := _role_base(role)
 	if role_base.is_empty():
 		return
-	var display_name := _strip_role_suffix(str(staff.get("member_name"))).strip_edges()
-	if display_name.is_empty():
-		display_name = role_base.capitalize()
-	staff.set("member_name", "%s (%s)" % [display_name, role_base])
+	var staff_display_name := _strip_role_suffix(str(staff.get("member_name"))).strip_edges()
+	if staff_display_name.is_empty():
+		staff_display_name = role_base.capitalize()
+	staff.set("member_name", "%s (%s)" % [staff_display_name, role_base])
 	if not Engine.is_editor_hint() and staff.is_inside_tree() and staff.has_method("refresh_nameplate"):
 		staff.call("refresh_nameplate")
 
@@ -1236,8 +1238,8 @@ func _is_actor_alive(actor: Node) -> bool:
 	return true
 
 
-func _strip_role_suffix(display_name: String) -> String:
-	var result := display_name.strip_edges()
+func _strip_role_suffix(staff_display_name: String) -> String:
+	var result := staff_display_name.strip_edges()
 	for role_name in ["barkeeper", "waiter", "guard", "barber"]:
 		var suffix := " (%s)" % role_name
 		if result.to_lower().ends_with(suffix):
@@ -1280,7 +1282,7 @@ func _find_role_actor_by_slot_id(slot_id: String) -> Node:
 	return null
 
 
-func _get_role_actor_by_index(role: String, role_index: int, assigned_paths: Array[NodePath], generated_base_name: String) -> Node:
+func _get_role_actor_by_index(_role: String, role_index: int, assigned_paths: Array[NodePath], generated_base_name: String) -> Node:
 	if role_index < assigned_paths.size():
 		var assigned := _get_assigned_actor(assigned_paths[role_index])
 		if assigned != null:
@@ -1309,7 +1311,7 @@ func _all_potential_role_actors() -> Array[Node]:
 	return actors
 
 
-func _claim_available_resident_for_role(role: String, role_index: int, staff_root: Node) -> Node:
+func _claim_available_resident_for_role(role: String, _role_index: int, staff_root: Node) -> Node:
 	var settlement := _get_ancestor_settlement()
 	if settlement == null or staff_root == null:
 		return null
@@ -1322,11 +1324,11 @@ func _claim_available_resident_for_role(role: String, role_index: int, staff_roo
 	for candidate in _collect_claimable_residents(resident_root):
 		if not _can_claim_resident_for_staff(candidate):
 			continue
-		var global_transform := (candidate as Node3D).global_transform if candidate is Node3D else Transform3D.IDENTITY
+		var candidate_global_transform := (candidate as Node3D).global_transform if candidate is Node3D else Transform3D.IDENTITY
 		candidate.get_parent().remove_child(candidate)
 		staff_root.add_child(candidate)
 		if candidate is Node3D:
-			(candidate as Node3D).global_transform = global_transform
+			(candidate as Node3D).global_transform = candidate_global_transform
 		candidate.name = _available_child_name(staff_root, _role_node_base_name(role))
 		return candidate
 	return null
@@ -1606,9 +1608,9 @@ func _apply_population_generation_to_staff(staff: Node, role: String, role_index
 func _apply_staff_role_skills(staff: Node, role: String, role_index: int) -> void:
 	if staff == null or Engine.is_editor_hint() or not _is_generated_staff(staff) or not staff.has_method("get_skill_level") or not staff.has_method("set_skill_level"):
 		return
-	var range := GUARD_PERCEPTION_RANGE if str(role).strip_edges().to_lower().begins_with("guard") else STAFF_PERCEPTION_RANGE
+	var perception_range := GUARD_PERCEPTION_RANGE if str(role).strip_edges().to_lower().begins_with("guard") else STAFF_PERCEPTION_RANGE
 	var rng := _make_staff_rng("skill:%s:%d:%s" % [role, role_index, str(staff.name)])
-	staff.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(range.x, range.y, rng))
+	staff.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(perception_range.x, perception_range.y, rng))
 
 
 func _roll_center_biased_level(minimum: int, maximum: int, rng: RandomNumberGenerator) -> int:
@@ -1634,9 +1636,9 @@ func _used_staff_names(excluded_staff: Node = null) -> Dictionary:
 	for child in root.get_children():
 		if child == excluded_staff or not _has_property(child, "member_name"):
 			continue
-		var display_name := _strip_role_suffix(str(child.get("member_name"))).strip_edges()
-		if not display_name.is_empty():
-			names[display_name.to_lower()] = true
+		var staff_display_name := _strip_role_suffix(str(child.get("member_name"))).strip_edges()
+		if not staff_display_name.is_empty():
+			names[staff_display_name.to_lower()] = true
 	return names
 
 

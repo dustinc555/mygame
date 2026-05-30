@@ -71,7 +71,7 @@ func show_conversation(speaker_name: String, transcript: String, responses: Arra
 		var button := Button.new()
 		button.text = response_data.get("text", "")
 		button.disabled = response_data.get("disabled", false)
-		button.focus_mode = Control.FOCUS_NONE
+		button.focus_mode = Control.FOCUS_ALL
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -89,8 +89,10 @@ func show_conversation(speaker_name: String, transcript: String, responses: Arra
 		response_container.add_child(button)
 		_buttons.append(button)
 	visible = true
-	if not _buttons.is_empty() and not _buttons[0].disabled:
-		_buttons[0].grab_focus()
+	for button in _buttons:
+		if not button.disabled:
+			button.call_deferred("grab_focus")
+			break
 
 
 func hide_conversation() -> void:

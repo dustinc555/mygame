@@ -143,7 +143,7 @@ func _add_standard_item_count(definition, amount: int, emit_changed := true) -> 
 	return true
 
 
-func can_add_entry_with_contents(definition, amount: int = 1, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> bool:
+func can_add_entry_with_contents(definition, amount: int = 1, contained_item_counts: Dictionary = {}, _metadata: Dictionary = {}) -> bool:
 	if definition == null or amount <= 0:
 		return false
 	if use_weight and get_total_weight() + get_item_weight(definition, amount, contained_item_counts) > max_weight:
@@ -445,7 +445,7 @@ func auto_sort() -> bool:
 	return true
 
 
-func _can_add_item_count_as_distinct_entries(definition, amount: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> bool:
+func _can_add_item_count_as_distinct_entries(definition, amount: int, contained_item_counts: Dictionary = {}, _metadata: Dictionary = {}) -> bool:
 	if definition == null or amount <= 0:
 		return false
 	if use_weight and get_total_weight() + get_item_weight(definition, amount, contained_item_counts) > max_weight:

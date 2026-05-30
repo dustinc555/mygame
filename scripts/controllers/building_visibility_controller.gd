@@ -88,7 +88,7 @@ func _get_visibility_proxy_actor(actor: HumanoidCharacter) -> HumanoidCharacter:
 func _get_shared_selected_building_level_actor() -> HumanoidCharacter:
 	var selected_members := _party_manager.selected_members
 	var shared_actor: HumanoidCharacter
-	var shared_building: Node
+	var shared_building: Node = null
 	var shared_level_index := -1
 	for member in selected_members:
 		if not _is_valid_actor(member):

@@ -62,6 +62,7 @@ func _run() -> void:
 		_validate_refreshed_controllers(world_time, job_system, ai_scheduler, population_realization, ledger_simulation, world_squad, world_simulation)
 
 	root_node.queue_free()
+	await process_frame
 	_remove_file(SAVE_PATH)
 
 	if _failures.is_empty():

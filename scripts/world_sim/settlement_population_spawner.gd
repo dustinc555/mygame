@@ -90,7 +90,7 @@ func _spawn_missing_residents() -> void:
 		actor.set("member_name", "%s %02d" % [member_name_prefix, resident_index])
 		actor.set("stable_id", "%s.%02d" % [stable_id_prefix, resident_index])
 		actor.set("faction_name", _get_faction_id())
-		actor.set("squad_name", squad_name if not squad_name.is_empty() else get_parent().name)
+		actor.set("squad_name", squad_name if not squad_name.is_empty() else str(get_parent().name))
 		actor.set("hostile_factions", hostile_faction_ids)
 		actor.set("combat_stance", combat_stance)
 		actor.set("base_color", _varied_color(rng))
@@ -153,12 +153,12 @@ func _register_existing_residents_with_population_controller(population_controll
 		population_controller.call("register_actor", child, _get_settlement_id(), {"generation_source": _get_spawner_id(), "role_id": "resident"})
 
 
-func _build_population_generation_context(existing_count: int) -> Dictionary:
+func _build_population_generation_context(_existing_count: int) -> Dictionary:
 	return {
 		"start_index": 0,
 		"member_name_prefix": member_name_prefix,
 		"faction_id": _get_faction_id(),
-		"squad_name": squad_name if not squad_name.is_empty() else get_parent().name,
+		"squad_name": squad_name if not squad_name.is_empty() else str(get_parent().name),
 		"role_id": "resident",
 		"base_color": base_color,
 		"hostile_faction_ids": Array(hostile_faction_ids),
@@ -401,7 +401,7 @@ func _get_settlement_id() -> String:
 	var settlement := _get_settlement_node()
 	if settlement != null and settlement.has_method("get_settlement_id"):
 		return str(settlement.call("get_settlement_id"))
-	return str(get_parent().name) if get_parent() != null else name
+	return str(get_parent().name) if get_parent() != null else str(name)
 
 
 func _get_spawner_id() -> String:
@@ -528,9 +528,9 @@ func _ensure_record_spawn_positions(population_controller: Node, records: Array,
 
 
 func _record_local_spawn_position(record: Dictionary, index: int, count: int, rng: RandomNumberGenerator) -> Vector3:
-	var position = record.get("last_world_position", null)
-	if position is Vector3 and _record_has_initialized_world_position(record):
-		return global_transform.affine_inverse() * (position as Vector3)
+	var stored_position = record.get("last_world_position", null)
+	if stored_position is Vector3 and _record_has_initialized_world_position(record):
+		return global_transform.affine_inverse() * (stored_position as Vector3)
 	return _spawn_position(index, count, rng)
 
 
@@ -552,12 +552,12 @@ func _unrealize_actor(actor: Node, population_controller: Node) -> void:
 
 func _spawn_position(index: int, count: int, rng: RandomNumberGenerator) -> Vector3:
 	if spawn_layout == 1:
-		var angle := rng.randf_range(0.0, TAU)
-		var radius := rng.randf_range(spawn_inner_radius, spawn_radius)
-		return Vector3(cos(angle) * radius, y_offset, sin(angle) * radius)
-	var angle := TAU * float(index) / maxf(float(count), 1.0)
-	var radius := spawn_radius + rng.randf_range(-0.8, 0.8)
-	return Vector3(cos(angle) * radius, y_offset, sin(angle) * radius)
+		var random_angle := rng.randf_range(0.0, TAU)
+		var random_radius := rng.randf_range(spawn_inner_radius, spawn_radius)
+		return Vector3(cos(random_angle) * random_radius, y_offset, sin(random_angle) * random_radius)
+	var ring_angle := TAU * float(index) / maxf(float(count), 1.0)
+	var ring_radius := spawn_radius + rng.randf_range(-0.8, 0.8)
+	return Vector3(cos(ring_angle) * ring_radius, y_offset, sin(ring_angle) * ring_radius)
 
 
 func _varied_color(rng: RandomNumberGenerator) -> Color:

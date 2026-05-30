@@ -225,11 +225,11 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var conversation_definition: Resource
 
 @export var hunger_enabled := false
-@export_range(0, 2, 1) var hunger_stage := NpcRules.HungerStage.WELL_NOURISHED
+@export_range(0, 2, 1) var hunger_stage: int = NpcRules.HungerStage.WELL_NOURISHED
 @export var hunger := 100.0
 @export var hunger_drain_rate := 0.08
 @export var fatigue_enabled := true
-@export_range(0, 2, 1) var fatigue_stage := NpcRules.FatigueStage.WELL_RESTED
+@export_range(0, 2, 1) var fatigue_stage: int = NpcRules.FatigueStage.WELL_RESTED
 @export var fatigue := 100.0
 @export var running := false
 @export var sneaking := false
@@ -1520,9 +1520,9 @@ func apply_appearance_data(next_appearance) -> void:
 	appearance_changed.emit()
 
 
-func set_preview_clothes_visible(is_visible: bool) -> void:
-	_preview_clothes_visible = is_visible
-	_set_equipped_clothing_visuals_visible(is_visible)
+func set_preview_clothes_visible(visible_flag: bool) -> void:
+	_preview_clothes_visible = visible_flag
+	_set_equipped_clothing_visuals_visible(visible_flag)
 
 
 func get_stance_label() -> String:
@@ -2516,7 +2516,7 @@ func _on_actor_move_target_unreachable() -> void:
 			stop_pickup_assignment()
 
 
-func _process_downed_movement(delta: float) -> void:
+func _process_downed_movement(_delta: float) -> void:
 	velocity = Vector3.ZERO
 	_downed_is_settled = true
 
@@ -3378,9 +3378,9 @@ func _start_combat_attack(target: HumanoidCharacter) -> void:
 			return
 		_spend_fatigue(NpcRules.FATIGUE_ATTACK_COST)
 		_award_combat_attack_xp()
-		var total_damage := get_stat_value("attack_damage")
-		var cut_damage := total_damage * get_stat_value("cut_ratio")
-		target.receive_attack(self, total_damage - cut_damage, cut_damage)
+		var instant_total_damage := get_stat_value("attack_damage")
+		var cut_damage := instant_total_damage * get_stat_value("cut_ratio")
+		target.receive_attack(self, instant_total_damage - cut_damage, cut_damage)
 		_combat_cooldown_remaining = maxf(0.2, get_stat_value("attack_cooldown"))
 		return
 
@@ -3901,10 +3901,10 @@ func get_visual_ground_y() -> float:
 	return (global_transform * Vector3(0.0, local_ground_y, 0.0)).y
 
 
-func _get_bone_pose_position_offsets(body_archetype: Resource) -> Dictionary:
-	if body_archetype == null:
+func _get_bone_pose_position_offsets(target_body_archetype: Resource) -> Dictionary:
+	if target_body_archetype == null:
 		return appearance_data.get_body_pose_offsets({}) if appearance_data != null else {}
-	var raw_offsets = body_archetype.get("bone_pose_position_offsets")
+	var raw_offsets = target_body_archetype.get("bone_pose_position_offsets")
 	var result: Dictionary = {}
 	if raw_offsets is Dictionary:
 		for bone_name_value in raw_offsets.keys():
@@ -3960,8 +3960,8 @@ func _get_skeleton_foot_anchor_global_y(skeleton: Skeleton3D) -> float:
 		var bone_index := skeleton.find_bone(bone_name)
 		if bone_index < 0:
 			continue
-		var global_position := skeleton.global_transform * skeleton.get_bone_global_pose(bone_index).origin
-		result = minf(result, global_position.y)
+		var bone_global_position := skeleton.global_transform * skeleton.get_bone_global_pose(bone_index).origin
+		result = minf(result, bone_global_position.y)
 	return result
 
 
@@ -4028,14 +4028,14 @@ func _has_equipped_clothing_visuals() -> bool:
 	return false
 
 
-func _setup_equipped_clothing_visuals(visual_root: Node3D, character_skeleton: Skeleton3D, body_archetype: Resource, body_mesh: MeshInstance3D, visual_fit_scale: float) -> void:
+func _setup_equipped_clothing_visuals(visual_root: Node3D, character_skeleton: Skeleton3D, visual_body_archetype: Resource, body_mesh: MeshInstance3D, visual_fit_scale: float) -> void:
 	var surface_offset_base := _get_clothing_surface_offset_base(body_mesh, visual_fit_scale)
 	for slot_name in CLOTHING_EQUIPMENT_SLOTS:
 		var item := get_equipped_item(slot_name)
 		if item == null:
 			continue
-		var equipment_visual := item.get_equipment_visual_for_body_archetype(body_archetype)
-		var equipped_scene := item.get_equipped_scene_for_body_archetype(body_archetype)
+		var equipment_visual := item.get_equipment_visual_for_body_archetype(visual_body_archetype)
+		var equipped_scene := item.get_equipped_scene_for_body_archetype(visual_body_archetype)
 		if equipped_scene == null:
 			continue
 		var instance := equipped_scene.instantiate()
@@ -4132,22 +4132,22 @@ func _apply_skin_materials(root: Node, body_type: int) -> void:
 	SKIN_TEXTURE_BUILDER.apply_custom_skin_materials(root, race_id, body_type, appearance_data.skin_color)
 
 
-func _set_base_eyebrow_visuals_visible(root: Node, is_visible: bool) -> void:
+func _set_base_eyebrow_visuals_visible(root: Node, visible_flag: bool) -> void:
 	if root == null:
 		return
 	if root is MeshInstance3D and str(root.name).to_lower().contains("eyebrow"):
-		(root as MeshInstance3D).visible = is_visible
+		(root as MeshInstance3D).visible = visible_flag
 	for child in root.get_children():
-		_set_base_eyebrow_visuals_visible(child, is_visible)
+		_set_base_eyebrow_visuals_visible(child, visible_flag)
 
 
-func _set_equipped_clothing_visuals_visible(is_visible: bool) -> void:
+func _set_equipped_clothing_visuals_visible(visible_flag: bool) -> void:
 	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
 	if visual_root == null:
 		return
 	for child in visual_root.get_children():
 		if str(child.name).begins_with("Equipped_"):
-			(child as Node3D).visible = is_visible
+			(child as Node3D).visible = visible_flag
 
 
 func _setup_shared_skeleton_clothing_visual(visual_root: Node3D, character_skeleton: Skeleton3D, source_root: Node3D, visual_transform: Transform3D, surface_offset: float) -> bool:
@@ -5100,13 +5100,13 @@ func _accumulate_local_mesh_bounds(node: Node, parent_transform: Transform3D, re
 		_accumulate_local_mesh_bounds(child, local_transform, result)
 
 
-func _transform_aabb(bounds: AABB, transform: Transform3D) -> AABB:
+func _transform_aabb(bounds: AABB, bounds_transform: Transform3D) -> AABB:
 	var first := true
 	var transformed_bounds := AABB()
 	for x in [bounds.position.x, bounds.position.x + bounds.size.x]:
 		for y in [bounds.position.y, bounds.position.y + bounds.size.y]:
 			for z in [bounds.position.z, bounds.position.z + bounds.size.z]:
-				var point := transform * Vector3(x, y, z)
+				var point := bounds_transform * Vector3(x, y, z)
 				if first:
 					transformed_bounds = AABB(point, Vector3.ZERO)
 					first = false
@@ -5556,11 +5556,11 @@ func _get_auto_heal_priority(target: HumanoidCharacter, distance: float) -> floa
 	return priority - distance * 0.1
 
 
-func _get_query_humanoids(position: Vector3 = Vector3.ZERO, radius := -1.0, include_party := true) -> Array:
+func _get_query_humanoids(query_position: Vector3 = Vector3.ZERO, radius := -1.0, include_party := true) -> Array:
 	var query_controller := _get_runtime_controller("actor_query_controller")
 	if query_controller != null:
 		if radius >= 0.0 and query_controller.has_method("get_nearby_humanoids"):
-			return query_controller.call("get_nearby_humanoids", position, radius, include_party)
+			return query_controller.call("get_nearby_humanoids", query_position, radius, include_party)
 		if query_controller.has_method("get_alive_humanoids"):
 			return query_controller.call("get_alive_humanoids", include_party)
 	if not is_inside_tree():
@@ -6017,11 +6017,11 @@ func _get_carry_pose_profile() -> Resource:
 
 
 func _get_carry_pose_local_basis(profile: Resource) -> Basis:
-	var rotation_degrees := _get_carry_profile_vector(profile, "rotation_degrees", Vector3.ZERO)
+	var carry_rotation_degrees := _get_carry_profile_vector(profile, "rotation_degrees", Vector3.ZERO)
 	return Basis.from_euler(Vector3(
-		deg_to_rad(rotation_degrees.x),
-		deg_to_rad(rotation_degrees.y),
-		deg_to_rad(rotation_degrees.z)
+		deg_to_rad(carry_rotation_degrees.x),
+		deg_to_rad(carry_rotation_degrees.y),
+		deg_to_rad(carry_rotation_degrees.z)
 	))
 
 
@@ -6619,7 +6619,7 @@ func _build_ragdoll_physical_bone(profile, bone_name: String, bone_index: int) -
 	physical_bone.can_sleep = false
 	physical_bone.collision_layer = int(profile.get("collision_layer"))
 	physical_bone.collision_mask = int(profile.get("collision_mask"))
-	physical_bone.joint_type = int(profile.get_bone_joint_type(bone_name))
+	physical_bone.joint_type = int(profile.get_bone_joint_type(bone_name)) as PhysicalBone3D.JointType
 	physical_bone.joint_offset = Transform3D.IDENTITY
 	_apply_ragdoll_joint_constraints(profile, physical_bone, bone_name)
 	var shape := CollisionShape3D.new()
@@ -6733,13 +6733,13 @@ func _get_ragdoll_shape_global_transform(physical_bone: PhysicalBone3D) -> Trans
 	return body_transform * shape_node.transform
 
 
-func _get_ragdoll_surface_y_below(position: Vector3):
+func _get_ragdoll_surface_y_below(ray_position: Vector3):
 	var world := get_world_3d()
 	if world == null:
 		return null
 	var query := PhysicsRayQueryParameters3D.create(
-		position + Vector3(0.0, RAGDOLL_ACTIVATION_RAY_UP, 0.0),
-		position - Vector3(0.0, RAGDOLL_ACTIVATION_RAY_DOWN, 0.0)
+		ray_position + Vector3(0.0, RAGDOLL_ACTIVATION_RAY_UP, 0.0),
+		ray_position - Vector3(0.0, RAGDOLL_ACTIVATION_RAY_DOWN, 0.0)
 	)
 	query.exclude = _get_ragdoll_activation_ray_exclusions()
 	query.collide_with_bodies = true
@@ -6764,22 +6764,22 @@ func _get_ragdoll_collision_vertical_extent(physical_bone: PhysicalBone3D, shape
 	var shape_node := physical_bone.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if shape_node == null or shape_node.shape == null:
 		return 0.25
-	var basis := shape_basis.orthonormalized()
+	var orthonormal_shape_basis := shape_basis.orthonormalized()
 	var box := shape_node.shape as BoxShape3D
 	if box != null:
-		return _get_basis_vertical_extent(basis, box.size * 0.5)
+		return _get_basis_vertical_extent(orthonormal_shape_basis, box.size * 0.5)
 	var capsule := shape_node.shape as CapsuleShape3D
 	if capsule != null:
 		var half_height := maxf(capsule.height * 0.5, capsule.radius)
-		return absf(basis.y.y) * half_height + (absf(basis.x.y) + absf(basis.z.y)) * capsule.radius
+		return absf(orthonormal_shape_basis.y.y) * half_height + (absf(orthonormal_shape_basis.x.y) + absf(orthonormal_shape_basis.z.y)) * capsule.radius
 	var sphere := shape_node.shape as SphereShape3D
 	if sphere != null:
 		return sphere.radius
 	return 0.25
 
 
-func _get_basis_vertical_extent(basis: Basis, half_extents: Vector3) -> float:
-	return absf(basis.x.y) * half_extents.x + absf(basis.y.y) * half_extents.y + absf(basis.z.y) * half_extents.z
+func _get_basis_vertical_extent(target_basis: Basis, half_extents: Vector3) -> float:
+	return absf(target_basis.x.y) * half_extents.x + absf(target_basis.y.y) * half_extents.y + absf(target_basis.z.y) * half_extents.z
 
 
 func _stabilize_active_ragdoll() -> void:

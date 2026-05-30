@@ -702,7 +702,7 @@ func _get_group_grid_move_offset(member_index: int, selected_count: int, spacing
 	var columns := ceili(sqrt(float(selected_count)))
 	var rows := ceili(float(selected_count) / float(columns))
 	var column := member_index % columns
-	var row := int(member_index / columns)
+	var row := int(float(member_index) / float(columns))
 	var x := (float(column) - float(columns - 1) * 0.5) * spacing
 	var z := (float(row) - float(rows - 1) * 0.5) * spacing
 	return Vector3(x, 0.0, z)
@@ -746,9 +746,9 @@ func _pick_ground_hit(screen_position: Vector2) -> Dictionary:
 				return {"position": child_hit["position"], "normal": child_hit.get("normal", Vector3.UP)}
 			var shape_index := int(result.get("shape", -1))
 			if collider.should_project_click_shape(shape_index):
-				var ray_origin := camera.project_ray_origin(screen_position)
-				var ray_direction := camera.project_ray_normal(screen_position)
-				var building_target: Variant = collider.project_click_to_active_level(ray_origin, ray_direction)
+				var projected_ray_origin := camera.project_ray_origin(screen_position)
+				var projected_ray_direction := camera.project_ray_normal(screen_position)
+				var building_target: Variant = collider.project_click_to_active_level(projected_ray_origin, projected_ray_direction)
 				if building_target != null:
 					return {"position": building_target, "normal": Vector3.UP}
 		if not (humanoid_collider != null and humanoid_collider.is_player_party_member()):

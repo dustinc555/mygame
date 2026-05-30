@@ -656,7 +656,9 @@ func _relative_actor_path(actor: Node) -> String:
 	var settlement := _find_actor_settlement(actor)
 	if settlement != null:
 		return str(settlement.get_path_to(actor))
-	return str(actor.get_path()) if actor != null and actor.is_inside_tree() else str(actor.name if actor != null else "")
+	if actor != null and actor.is_inside_tree():
+		return str(actor.get_path())
+	return str(actor.name) if actor != null else ""
 
 
 func _find_actor_settlement_id(actor: Node) -> String:

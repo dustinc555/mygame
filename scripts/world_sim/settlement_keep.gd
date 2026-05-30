@@ -170,13 +170,13 @@ func fill_settlement_staff_slot(slot_id: String, slot_record: Dictionary) -> Nod
 	return actor
 
 
-func _append_staff_slot(slots: Array[Dictionary], role: String, role_index: int, actor: Node, display_name: String, authority_scope: String) -> void:
+func _append_staff_slot(slots: Array[Dictionary], role: String, role_index: int, actor: Node, staff_display_name: String, authority_scope: String) -> void:
 	var actor_alive := _is_actor_alive(actor)
 	var slot := {
 		"slot_id": _staff_slot_id(role, role_index),
 		"role_id": role,
 		"role_index": role_index,
-		"display_name": display_name,
+		"display_name": staff_display_name,
 		"population_cost": 1,
 		"replacement_delay_days": DEFAULT_REPLACEMENT_DELAY_DAYS,
 		"filled": actor_alive,
@@ -249,7 +249,7 @@ func _all_potential_role_actors() -> Array[Node]:
 	return actors
 
 
-func _claim_available_resident_for_role(role: String, role_index: int, staff_root: Node) -> Node:
+func _claim_available_resident_for_role(role: String, _role_index: int, staff_root: Node) -> Node:
 	var settlement := _get_ancestor_settlement()
 	if settlement == null or staff_root == null:
 		return null
@@ -262,11 +262,11 @@ func _claim_available_resident_for_role(role: String, role_index: int, staff_roo
 	for candidate in _collect_claimable_residents(resident_root):
 		if not _can_claim_resident_for_staff(candidate):
 			continue
-		var global_transform := (candidate as Node3D).global_transform if candidate is Node3D else Transform3D.IDENTITY
+		var candidate_global_transform := (candidate as Node3D).global_transform if candidate is Node3D else Transform3D.IDENTITY
 		candidate.get_parent().remove_child(candidate)
 		staff_root.add_child(candidate)
 		if candidate is Node3D:
-			(candidate as Node3D).global_transform = global_transform
+			(candidate as Node3D).global_transform = candidate_global_transform
 		candidate.name = _available_child_name(staff_root, "Ruler" if role == "ruler" else "Guard")
 		return candidate
 	return null
@@ -653,11 +653,11 @@ func _ruler_display_name() -> String:
 
 
 func _ruler_chair_transform() -> Transform3D:
-	var basis := Basis()
-	basis.x = Vector3(0.9998561, 0.0, -0.016963685)
-	basis.y = Vector3(0.0, 1.0, 0.0)
-	basis.z = Vector3(0.016963685, 0.0, 0.9998561)
-	return Transform3D(basis, Vector3(0.0, 0.0, -4.35))
+	var chair_basis := Basis()
+	chair_basis.x = Vector3(0.9998561, 0.0, -0.016963685)
+	chair_basis.y = Vector3(0.0, 1.0, 0.0)
+	chair_basis.z = Vector3(0.016963685, 0.0, 0.9998561)
+	return Transform3D(chair_basis, Vector3(0.0, 0.0, -4.35))
 
 
 func _ruler_local_position() -> Vector3:
@@ -671,7 +671,7 @@ func _guard_post_transform(index: int) -> Transform3D:
 		return Transform3D(Basis(Vector3.UP, deg_to_rad(-25.0)), Vector3(4.4, 0.05, 3.9))
 	var side_index := index - 2
 	var side := -1.0 if side_index % 2 == 0 else 1.0
-	var row := int(side_index / 2)
+	var row := int(float(side_index) / 2.0)
 	return Transform3D(Basis(Vector3.UP, deg_to_rad(90.0 * -side)), Vector3(4.7 * side, 0.05, 1.4 - float(row) * 1.6))
 
 
@@ -703,9 +703,9 @@ func _apply_population_generation_to_staff(staff: Node, role: String, role_index
 func _apply_staff_role_skills(staff: Node, role: String, role_index: int) -> void:
 	if staff == null or Engine.is_editor_hint() or not _is_generated_staff(staff) or not staff.has_method("get_skill_level") or not staff.has_method("set_skill_level"):
 		return
-	var range := _perception_range_for_role(role)
+	var perception_range := _perception_range_for_role(role)
 	var rng := _make_staff_rng("skill:%s:%d:%s" % [role, role_index, str(staff.name)])
-	staff.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(range.x, range.y, rng))
+	staff.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(perception_range.x, perception_range.y, rng))
 
 
 func _perception_range_for_role(role: String) -> Vector2i:
@@ -790,9 +790,9 @@ func _used_staff_names(excluded_staff: Node = null) -> Dictionary:
 	for child in root.get_children():
 		if child == excluded_staff or not _has_property(child, "member_name"):
 			continue
-		var display_name := _strip_role_suffix(str(child.get("member_name"))).strip_edges()
-		if not display_name.is_empty():
-			names[display_name.to_lower()] = true
+		var staff_display_name := _strip_role_suffix(str(child.get("member_name"))).strip_edges()
+		if not staff_display_name.is_empty():
+			names[staff_display_name.to_lower()] = true
 	return names
 
 
@@ -802,10 +802,10 @@ func _apply_role_suffix(staff: Node, role: String) -> void:
 	var label := _role_label(role)
 	if label.is_empty():
 		return
-	var display_name := _strip_role_suffix(str(staff.get("member_name"))).strip_edges()
-	if display_name.is_empty():
-		display_name = label.capitalize()
-	staff.set("member_name", "%s (%s)" % [display_name, label])
+	var staff_display_name := _strip_role_suffix(str(staff.get("member_name"))).strip_edges()
+	if staff_display_name.is_empty():
+		staff_display_name = label.capitalize()
+	staff.set("member_name", "%s (%s)" % [staff_display_name, label])
 
 
 func _role_key(role: String) -> String:
@@ -865,8 +865,8 @@ func _role_label(role: String) -> String:
 	return ""
 
 
-func _strip_role_suffix(display_name: String) -> String:
-	var result := display_name.strip_edges()
+func _strip_role_suffix(staff_display_name: String) -> String:
+	var result := staff_display_name.strip_edges()
 	var suffix_start := result.rfind(" (")
 	if suffix_start >= 0 and result.ends_with(")"):
 		return result.substr(0, suffix_start).strip_edges()
@@ -1039,7 +1039,9 @@ func _packed_scene_default_transform(root_path: NodePath, node_name: String) -> 
 		return null
 	var instance := scene.instantiate()
 	var node := instance.get_node_or_null(_layout_node_path(root_path, node_name)) as Node3D
-	var result = node.transform if node != null else null
+	var result = null
+	if node != null:
+		result = node.transform
 	instance.free()
 	return result
 

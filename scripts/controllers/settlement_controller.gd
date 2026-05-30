@@ -610,10 +610,10 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 	var required_count := 0
 	var vacancies: Dictionary = state.get("staff_vacancies", {})
 	_clear_staff_slots_for_settlement_in_gecs(settlement_id)
-	for owner in _collect_staff_role_owners(anchor):
-		if owner == null or not owner.has_method("get_settlement_staff_slots"):
+	for role_owner in _collect_staff_role_owners(anchor):
+		if role_owner == null or not role_owner.has_method("get_settlement_staff_slots"):
 			continue
-		var owner_slots = owner.call("get_settlement_staff_slots")
+		var owner_slots = role_owner.call("get_settlement_staff_slots")
 		if not (owner_slots is Array):
 			continue
 		for slot_value in owner_slots:
@@ -626,7 +626,7 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 			slot["slot_id"] = slot_id
 			slot["settlement_id"] = settlement_id
 			if not slot.has("owner_path"):
-				slot["owner_path"] = anchor.get_path_to(owner)
+				slot["owner_path"] = anchor.get_path_to(role_owner)
 			var population_cost: int = max(0, int(slot.get("population_cost", 1)))
 			slot["population_cost"] = population_cost
 			required_count += population_cost
@@ -692,10 +692,10 @@ func _fill_staff_vacancy(settlement_id: String, slot_id: String, vacancy: Dictio
 	if anchor == null:
 		return false
 	var owner_path = vacancy.get("owner_path", NodePath(""))
-	var owner := anchor.get_node_or_null(owner_path as NodePath) if owner_path is NodePath else anchor.get_node_or_null(NodePath(str(owner_path)))
-	if owner == null or not owner.has_method("fill_settlement_staff_slot"):
+	var role_owner := anchor.get_node_or_null(owner_path as NodePath) if owner_path is NodePath else anchor.get_node_or_null(NodePath(str(owner_path)))
+	if role_owner == null or not role_owner.has_method("fill_settlement_staff_slot"):
 		return false
-	var actor = owner.call("fill_settlement_staff_slot", slot_id, vacancy.duplicate(true))
+	var actor = role_owner.call("fill_settlement_staff_slot", slot_id, vacancy.duplicate(true))
 	if actor == null:
 		return false
 	_record_event({

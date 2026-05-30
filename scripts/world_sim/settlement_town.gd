@@ -224,7 +224,7 @@ func get_available_guard_post(worker: HumanoidCharacter, excluded_post = null):
 func get_town_border_record() -> Dictionary:
 	var shape := _get_town_border_shape()
 	shape["settlement_id"] = get_settlement_id()
-	shape["display_name"] = str(settlement_definition.get("display_name")) if settlement_definition != null else name
+	shape["display_name"] = str(settlement_definition.get("display_name")) if settlement_definition != null else str(name)
 	return shape
 
 
@@ -412,11 +412,11 @@ func _claim_available_resident_for_guard(index: int, guards_root: Node) -> Node:
 	for candidate in _collect_claimable_residents(resident_root):
 		if not _can_claim_resident_for_guard(candidate):
 			continue
-		var global_transform := (candidate as Node3D).global_transform if candidate is Node3D else Transform3D.IDENTITY
+		var candidate_global_transform := (candidate as Node3D).global_transform if candidate is Node3D else Transform3D.IDENTITY
 		candidate.get_parent().remove_child(candidate)
 		guards_root.add_child(candidate)
 		if candidate is Node3D:
-			(candidate as Node3D).global_transform = global_transform
+			(candidate as Node3D).global_transform = candidate_global_transform
 		candidate.name = _available_child_name(guards_root, _indexed_name("Guard", index))
 		return candidate
 	return null
@@ -490,7 +490,7 @@ func _claim_guard_post_for(guard: HumanoidCharacter):
 
 func _guard_post_transform(index: int) -> Transform3D:
 	var side := -1.0 if index % 2 == 0 else 1.0
-	var row := int(index / 2)
+	var row := int(float(index) / 2.0)
 	return Transform3D(Basis(Vector3.UP, deg_to_rad(90.0 * -side)), Vector3(7.0 * side, 0.05, -2.0 + float(row) * 2.0))
 
 
@@ -698,7 +698,7 @@ func _get_staff_id_prefix() -> String:
 
 
 func _get_staff_squad_name() -> String:
-	return staff_squad_name if not staff_squad_name.strip_edges().is_empty() else name
+	return staff_squad_name if not staff_squad_name.strip_edges().is_empty() else str(name)
 
 
 func _is_actor_alive(actor: Node) -> bool:

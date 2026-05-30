@@ -320,9 +320,9 @@ func _cell_selection_reference_position(reference: Node) -> Vector3:
 
 func _cell_selection_position(cell: Node, actor: Node = null) -> Vector3:
 	if cell != null and cell.has_method("get_interaction_position"):
-		var position: Variant = cell.call("get_interaction_position", actor)
-		if position is Vector3:
-			return position
+		var interaction_position: Variant = cell.call("get_interaction_position", actor)
+		if interaction_position is Vector3:
+			return interaction_position
 	return (cell as Node3D).global_position if cell is Node3D else Vector3.ZERO
 
 
@@ -695,7 +695,7 @@ func _ensure_cells() -> void:
 			cell = JAIL_CELL_SCENE.instantiate()
 			cell.name = cell_name
 			if cell is Node3D:
-				(cell as Node3D).position = Vector3(-4.2 + float(index % 4) * 2.6, 0.05, -6.035112 - float(int(index / 4)) * 1.9)
+				(cell as Node3D).position = Vector3(-4.2 + float(index % 4) * 2.6, 0.05, -6.035112 - float(int(float(index) / 4.0)) * 1.9)
 			root.add_child(cell)
 			_set_editor_owner_recursive(cell)
 		elif not cell.has_method("get_cell_record"):
@@ -834,13 +834,13 @@ func _apply_staff_starting_equipment(actor: Node, role: String) -> void:
 	actor.set("starting_equipment", starting_equipment)
 
 
-func _append_staff_slot(slots: Array[Dictionary], role: String, index: int, actor: Node, display_name: String, authority_scope: String) -> void:
+func _append_staff_slot(slots: Array[Dictionary], role: String, index: int, actor: Node, staff_display_name: String, authority_scope: String) -> void:
 	var actor_alive := _is_actor_alive(actor)
 	var slot := {
 		"slot_id": _staff_slot_id(role, index),
 		"role_id": role,
 		"role_index": index,
-		"display_name": display_name,
+		"display_name": staff_display_name,
 		"population_cost": 1,
 		"replacement_delay_days": DEFAULT_REPLACEMENT_DELAY_DAYS,
 		"filled": actor_alive,
@@ -880,11 +880,11 @@ func _claim_available_resident_for_role(role: String, index: int, staff_root: No
 	for candidate in _collect_claimable_residents(resident_root):
 		if not _can_claim_resident_for_staff(candidate):
 			continue
-		var global_transform := (candidate as Node3D).global_transform if candidate is Node3D else Transform3D.IDENTITY
+		var candidate_global_transform := (candidate as Node3D).global_transform if candidate is Node3D else Transform3D.IDENTITY
 		candidate.get_parent().remove_child(candidate)
 		staff_root.add_child(candidate)
 		if candidate is Node3D:
-			(candidate as Node3D).global_transform = global_transform
+			(candidate as Node3D).global_transform = candidate_global_transform
 		candidate.name = _available_child_name(staff_root, "Warden" if role == "warden" else _indexed_name("Guard", index))
 		return candidate
 	return null
@@ -992,7 +992,7 @@ func _confiscate_prisoner_items(actor: HumanoidCharacter, locker: Node, warrant:
 		law_controller.call("register_prisoner_locker_transfer", actor, locker, warrant)
 
 
-func _restore_prisoner_items(actor: HumanoidCharacter, locker: Node, record: Dictionary, escaped: bool) -> void:
+func _restore_prisoner_items(actor: HumanoidCharacter, locker: Node, _record: Dictionary, escaped: bool) -> void:
 	if actor == null or locker == null or actor.get("inventory") == null:
 		return
 	var locker_inventory = _ensure_locker_inventory(locker)
@@ -1097,18 +1097,18 @@ func _children_at(root_path: NodePath) -> Array[Node]:
 
 func _guard_post_transform(index: int) -> Transform3D:
 	var side := -1.0 if index % 2 == 0 else 1.0
-	var row := int(index / 2)
+	var row := int(float(index) / 2.0)
 	return Transform3D(Basis(Vector3.UP, deg_to_rad(90.0 * -side)), Vector3(4.7 * side, 0.05, 0.2060163 - float(row) * 1.6))
 
 
 func _local_position_for_role(role: String, index: int) -> Vector3:
 	if role == "warden":
-		var post := _ensure_warden_post()
-		if post != null:
-			return global_transform.affine_inverse() * post.global_position if is_inside_tree() else post.position
+		var warden_post := _ensure_warden_post()
+		if warden_post != null:
+			return global_transform.affine_inverse() * warden_post.global_position if is_inside_tree() else warden_post.position
 		return _default_warden_post_transform().origin
-	var post := _guard_post_transform(index)
-	return Vector3(post.origin.x, 0.6, post.origin.z)
+	var guard_post_transform := _guard_post_transform(index)
+	return Vector3(guard_post_transform.origin.x, 0.6, guard_post_transform.origin.z)
 
 
 func _display_name_for_role(role: String, index: int) -> String:
@@ -1185,16 +1185,16 @@ func _apply_role_suffix(actor: Node, role: String) -> void:
 	if actor == null or not _has_property(actor, "member_name"):
 		return
 	var label := "warden" if role == "warden" else "guard"
-	var display_name := _strip_role_suffix(str(actor.get("member_name"))).strip_edges()
-	if display_name.is_empty():
-		display_name = _display_name_for_role(role, 0)
-	actor.set("member_name", "%s (%s)" % [display_name, label])
+	var actor_display_name := _strip_role_suffix(str(actor.get("member_name"))).strip_edges()
+	if actor_display_name.is_empty():
+		actor_display_name = _display_name_for_role(role, 0)
+	actor.set("member_name", "%s (%s)" % [actor_display_name, label])
 	if not Engine.is_editor_hint() and actor.is_inside_tree() and actor.has_method("refresh_nameplate"):
 		actor.call("refresh_nameplate")
 
 
-func _strip_role_suffix(display_name: String) -> String:
-	var result := display_name.strip_edges()
+func _strip_role_suffix(staff_display_name: String) -> String:
+	var result := staff_display_name.strip_edges()
 	var suffix_start := result.rfind(" (")
 	if suffix_start >= 0 and result.ends_with(")"):
 		return result.substr(0, suffix_start).strip_edges()
@@ -1221,9 +1221,9 @@ func _apply_population_generation_to_actor(actor: Node, role: String, index: int
 func _apply_staff_skills(actor: Node, role: String, index: int) -> void:
 	if actor == null or Engine.is_editor_hint() or not actor.has_method("get_skill_level") or not actor.has_method("set_skill_level"):
 		return
-	var range := WARDEN_PERCEPTION_RANGE if role == "warden" else GUARD_PERCEPTION_RANGE
+	var perception_range := WARDEN_PERCEPTION_RANGE if role == "warden" else GUARD_PERCEPTION_RANGE
 	var rng := _make_staff_rng("skill:%s:%d:%s" % [role, index, str(actor.name)])
-	actor.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(range.x, range.y, rng))
+	actor.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(perception_range.x, perception_range.y, rng))
 
 
 func _get_effective_population_appearance_profile() -> Resource:
@@ -1264,9 +1264,9 @@ func _used_staff_names(excluded_staff: Node = null) -> Dictionary:
 	for child in root.get_children():
 		if child == excluded_staff or not _has_property(child, "member_name"):
 			continue
-		var display_name := _strip_role_suffix(str(child.get("member_name"))).strip_edges()
-		if not display_name.is_empty():
-			names[display_name.to_lower()] = true
+		var staff_display_name := _strip_role_suffix(str(child.get("member_name"))).strip_edges()
+		if not staff_display_name.is_empty():
+			names[staff_display_name.to_lower()] = true
 	return names
 
 
@@ -1295,7 +1295,7 @@ func _get_staff_squad_name() -> String:
 	if not staff_squad_name.strip_edges().is_empty():
 		return staff_squad_name
 	var settlement := _get_ancestor_settlement()
-	return settlement.name if settlement != null else get_facility_id()
+	return str(settlement.name) if settlement != null else get_facility_id()
 
 
 func _get_effective_owner_faction_id() -> String:
