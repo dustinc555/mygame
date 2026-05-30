@@ -2,11 +2,14 @@ extends Node
 
 class_name WorldStatusController
 
+const FPS_REFRESH_INTERVAL := 0.25
+
 var root: Node
 var hud_layer: CanvasLayer
 var world_time: Node
 var time_label: Label
 var phase_label: Label
+var fps_label: Label
 var pause_button: Button
 var slow_button: Button
 var normal_button: Button
@@ -15,6 +18,7 @@ var very_fast_button: Button
 var pause_overlay: Control
 var conversation_window: Control
 var _initialized := false
+var _fps_refresh_elapsed := 0.0
 
 
 func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
@@ -45,6 +49,16 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 
+func _process(delta: float) -> void:
+	if not _initialized or fps_label == null:
+		return
+	_fps_refresh_elapsed += delta
+	if _fps_refresh_elapsed < FPS_REFRESH_INTERVAL:
+		return
+	_fps_refresh_elapsed = 0.0
+	_refresh_fps_label()
+
+
 func _try_initialize() -> void:
 	if _initialized or root == null or hud_layer == null or not is_inside_tree():
 		return
@@ -54,6 +68,7 @@ func _try_initialize() -> void:
 	hud_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	time_label = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/TimeLabel") as Label
 	phase_label = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/PhaseLabel") as Label
+	fps_label = hud_layer.get_node_or_null("FPSLabel") as Label
 	pause_button = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/SpeedButtonRow/PauseButton") as Button
 	slow_button = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/SpeedButtonRow/SlowButton") as Button
 	normal_button = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/SpeedButtonRow/NormalButton") as Button
@@ -70,6 +85,7 @@ func _try_initialize() -> void:
 		world_time.pause_changed.connect(_on_pause_changed)
 	_initialized = true
 	_refresh_labels()
+	_refresh_fps_label()
 
 
 func _setup_speed_buttons() -> void:
@@ -135,6 +151,12 @@ func _refresh_labels() -> void:
 	time_label.text = world_time.format_time()
 	phase_label.text = "%s  %s" % [world_time.get_phase_name(), world_time.get_status_speed_label()]
 	_refresh_buttons()
+
+
+func _refresh_fps_label() -> void:
+	if fps_label == null:
+		return
+	fps_label.text = "FPS: %d" % int(round(Engine.get_frames_per_second()))
 
 
 func _refresh_buttons() -> void:

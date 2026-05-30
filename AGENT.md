@@ -73,6 +73,10 @@ This is the single project guidance file for coding agents. Human-facing archite
 - Changed GDScript file: `godot --headless --path . --check-only --script res://path/to/file.gd`.
 - If the project uses C#: `godot --headless --path . --build-solutions --quit`.
 - Performance-sensitive changes must run a relevant framerate/frame-CPU validation and compare against the previous baseline; do not accept unbounded frame-time regressions.
+- A successful runtime boot is not acceptable validation for performance-sensitive changes.
+- For `res://scenes/test_levels/combat_skirmish_20v20_armory.tscn`, validation must prove FPS never drops below 30 during the measured run.
+- Average FPS is not an acceptable pass criterion; any frame-rate drop below 30 FPS is a failure.
+- If FPS drops below 30, rearchitect the change or find a cheaper solution before calling validation complete.
 - New or updated performance validation scenes/scripts should include a short comment with the prior measured FPS or frame-CPU baseline and the scenario size.
 - Godot debugger, parse, runtime, and validation `push_error` output are failures to fix, not warnings to ignore.
 - Do not say validation passed unless the command was actually run and succeeded.
