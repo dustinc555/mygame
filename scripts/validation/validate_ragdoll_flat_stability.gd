@@ -2,17 +2,18 @@ extends SceneTree
 
 const RAGDOLL_PYRAMID_SCENE := preload("res://scenes/test_levels/ragdoll_pyramid_test.tscn")
 const SCENARIOS: Array[Dictionary] = [
-	{"label": "Death01 Normal 55", "animation": "Death01", "ratio": 0.55, "speed_index": 1, "scale": 1.0, "frames": 180},
-	{"label": "Death01 Normal 100", "animation": "Death01", "ratio": 1.0, "speed_index": 1, "scale": 1.0, "frames": 180},
-	{"label": "Death02 Normal 55", "animation": "Death02", "ratio": 0.55, "speed_index": 1, "scale": 1.0, "frames": 180},
-	{"label": "Death02 Normal 100", "animation": "Death02", "ratio": 1.0, "speed_index": 1, "scale": 1.0, "frames": 180},
-	{"label": "Death01 Fast 75", "animation": "Death01", "ratio": 0.75, "speed_index": 2, "scale": 3.0, "frames": 150},
-	{"label": "Death02 Fast 75", "animation": "Death02", "ratio": 0.75, "speed_index": 2, "scale": 3.0, "frames": 150},
-	{"label": "Death01 Very Fast 75", "animation": "Death01", "ratio": 0.75, "speed_index": 3, "scale": 8.0, "frames": 120},
-	{"label": "Death02 Very Fast 75", "animation": "Death02", "ratio": 0.75, "speed_index": 3, "scale": 8.0, "frames": 120},
+	{"label": "Death01 Normal Full", "animation": "Death01", "speed_index": 1, "scale": 1.0, "frames": 180},
+	{"label": "Death02 Normal Full", "animation": "Death02", "speed_index": 1, "scale": 1.0, "frames": 180},
+	{"label": "Death01 Fast Full", "animation": "Death01", "speed_index": 2, "scale": 3.0, "frames": 150},
+	{"label": "Death02 Fast Full", "animation": "Death02", "speed_index": 2, "scale": 3.0, "frames": 150},
+	{"label": "Death01 Very Fast Full", "animation": "Death01", "speed_index": 3, "scale": 8.0, "frames": 120},
+	{"label": "Death02 Very Fast Full", "animation": "Death02", "speed_index": 3, "scale": 8.0, "frames": 120},
 ]
 const FLAT_START := Vector3(26.0, 0.6, 24.0)
 const MAX_POSITION_ABS := 160.0
+const MAX_ROOT_ACTIVATION_LIFT := 0.02
+const MAX_INITIAL_UPWARD_BONE_SPEED := 0.05
+const INITIAL_NO_UPWARD_FRAMES := 30
 const MIN_BONE_Y := -1.25
 const MAX_BONE_Y := 4.5
 const MAX_HORIZONTAL_TRAVEL := 7.0
@@ -25,6 +26,7 @@ var _failures: Array[String] = []
 var _scene: Node
 var _mira: HumanoidCharacter
 var _world_time: WorldTimeController
+var _activation_root_y := 0.0
 
 
 func _initialize() -> void:
@@ -57,11 +59,12 @@ func _run_scenario(scenario: Dictionary) -> void:
 	var label := str(scenario.get("label", "Scenario"))
 	await _load_scene(label)
 	_configure_speed(label, int(scenario.get("speed_index", 1)), float(scenario.get("scale", 1.0)))
-	_start_flat_ragdoll(label, str(scenario.get("animation", "Death01")), float(scenario.get("ratio", 0.75)))
+	_start_flat_ragdoll(label, str(scenario.get("animation", "Death01")))
 	await _wait_until_ragdoll_active(label, 420)
 	if _mira == null or not _mira._is_ragdoll_active:
 		await _unload_scene()
 		return
+	_check_flat_activation(label)
 	await _monitor_flat_ragdoll(label, int(scenario.get("frames", 160)))
 	await _unload_scene()
 
@@ -99,17 +102,16 @@ func _configure_speed(label: String, speed_index: int, expected_scale: float) ->
 		_fail(label, "Expected Engine.time_scale %.2f, got %.2f" % [expected_scale, Engine.time_scale])
 
 
-func _start_flat_ragdoll(label: String, animation_name: String, ratio: float) -> void:
+func _start_flat_ragdoll(label: String, animation_name: String) -> void:
 	if _mira == null:
 		return
 	var profile := HumanoidRagdollProfile.new()
 	profile.downed_preroll_animation_names = PackedStringArray([animation_name])
-	profile.downed_preroll_min_ratio = ratio
-	profile.downed_preroll_max_ratio = ratio
 	_mira.ragdoll_profile = profile
 	_mira.global_position = FLAT_START
 	_mira.rotation = Vector3(0.0, PI, 0.0)
 	_mira.velocity = Vector3.ZERO
+	_activation_root_y = _mira.global_position.y
 	_mira.force_unconscious()
 	_mira._downed_recover_delay_remaining = 999.0
 	if _mira.life_state != NpcRules.LifeState.UNCONSCIOUS:
@@ -124,6 +126,14 @@ func _wait_until_ragdoll_active(label: String, max_frames: int) -> void:
 			return
 		await physics_frame
 	_fail(label, "Ragdoll did not become active within %d physics frames" % max_frames)
+
+
+func _check_flat_activation(label: String) -> void:
+	if _mira == null:
+		return
+	if _mira.global_position.y > _activation_root_y + MAX_ROOT_ACTIVATION_LIFT:
+		_fail(label, "Ragdoll activation lifted root upward: start=%.3f active=%.3f" % [_activation_root_y, _mira.global_position.y])
+	_check_no_upward_bone_velocity(label, -1)
 
 
 func _monitor_flat_ragdoll(label: String, frames: int) -> void:
@@ -150,6 +160,8 @@ func _monitor_flat_ragdoll(label: String, frames: int) -> void:
 			_fail(label, "Flat ragdoll launched upward at frame %d: %s" % [frame_index, anchor])
 			return
 		_check_all_bones(label, frame_index)
+		if frame_index < INITIAL_NO_UPWARD_FRAMES:
+			_check_no_upward_bone_velocity(label, frame_index)
 		_check_ragdoll_bounds(label, frame_index)
 		if not _failures.is_empty():
 			return
@@ -177,6 +189,17 @@ func _check_all_bones(label: String, frame_index: int) -> void:
 		var angular_speed := physical_bone.angular_velocity.length()
 		if angular_speed > MAX_BONE_ANGULAR_SPEED:
 			_fail(label, "Physical bone %s angular speed unstable at frame %d: %.2f" % [bone_name, frame_index, angular_speed])
+			return
+
+
+func _check_no_upward_bone_velocity(label: String, frame_index: int) -> void:
+	for bone_name_value in _mira._ragdoll_physical_bones.keys():
+		var bone_name := str(bone_name_value)
+		var physical_bone := _mira._ragdoll_physical_bones.get(bone_name, null) as PhysicalBone3D
+		if physical_bone == null or not is_instance_valid(physical_bone):
+			continue
+		if physical_bone.linear_velocity.y > MAX_INITIAL_UPWARD_BONE_SPEED:
+			_fail(label, "Physical bone %s had upward activation speed at frame %d: %.3f" % [bone_name, frame_index, physical_bone.linear_velocity.y])
 			return
 
 

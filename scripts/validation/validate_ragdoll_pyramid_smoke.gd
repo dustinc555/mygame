@@ -20,6 +20,9 @@ const SPEED_SCENARIOS: Array[Dictionary] = [
 	{"label": "Run 16 Very Fast", "speed_index": 3, "scale": 8.0, "settle_frames": 240, "seed": 4721},
 ]
 const MAX_POSITION_ABS := 160.0
+const MAX_ROOT_ACTIVATION_LIFT := 0.02
+const MAX_INITIAL_UPWARD_BONE_SPEED := 0.05
+const INITIAL_NO_UPWARD_FRAMES := 30
 const MAX_PELVIS_HEIGHT := 24.0
 const MIN_PELVIS_HEIGHT := -3.0
 const MAX_HORIZONTAL_DISTANCE := 48.0
@@ -38,6 +41,7 @@ var _mira: HumanoidCharacter
 var _party_manager: PartyManager
 var _world_time: WorldTimeController
 var _interaction_controller: WorldInteractionController
+var _activation_root_y := 0.0
 
 
 func _initialize() -> void:
@@ -135,6 +139,7 @@ func _start_ragdoll_demo(label: String, seed: int) -> void:
 	_mira.global_position = Vector3(0.0, face_y, face_z)
 	_mira.rotation = Vector3(0.0, PI, 0.0)
 	_mira.velocity = Vector3.ZERO
+	_activation_root_y = _mira.global_position.y
 	_mira.force_unconscious()
 	_mira._downed_recover_delay_remaining = 999.0
 	if _mira.life_state != NpcRules.LifeState.UNCONSCIOUS:
@@ -164,6 +169,9 @@ func _check_ragdoll_started(label: String) -> void:
 		_fail(label, "PhysicalBoneSimulator3D should be simulating")
 	if _mira._ragdoll_physical_bones.size() < 10:
 		_fail(label, "Expected runtime physical bones, got %d" % _mira._ragdoll_physical_bones.size())
+	if _mira.global_position.y > _activation_root_y + MAX_ROOT_ACTIVATION_LIFT:
+		_fail(label, "Ragdoll activation lifted root upward: start=%.3f active=%.3f" % [_activation_root_y, _mira.global_position.y])
+	_check_no_upward_bone_velocity(label, -1)
 
 
 func _check_ragdoll_stable(label: String, active_anchor: Vector3) -> void:
@@ -208,6 +216,17 @@ func _check_all_bones_stable(label: String) -> void:
 			_fail(label, "Physical bone %s angular speed is unstable: %.2f" % [bone_name, angular_speed])
 
 
+func _check_no_upward_bone_velocity(label: String, frame_index: int) -> void:
+	for bone_name_value in _mira._ragdoll_physical_bones.keys():
+		var bone_name := str(bone_name_value)
+		var physical_bone := _mira._ragdoll_physical_bones.get(bone_name, null) as PhysicalBone3D
+		if physical_bone == null or not is_instance_valid(physical_bone):
+			continue
+		if physical_bone.linear_velocity.y > MAX_INITIAL_UPWARD_BONE_SPEED:
+			_fail(label, "Physical bone %s had upward activation speed at frame %d: %.3f" % [bone_name, frame_index, physical_bone.linear_velocity.y])
+			return
+
+
 func _monitor_ragdoll_stability(label: String, active_anchor: Vector3, frames: int) -> void:
 	var previous_anchor := active_anchor
 	for frame_index in range(frames):
@@ -232,6 +251,8 @@ func _monitor_ragdoll_stability(label: String, active_anchor: Vector3, frames: i
 			_fail(label, "Ragdoll anchor left stability height at frame %d: %s" % [frame_index, anchor])
 			return
 		_check_all_bones_stable(label)
+		if frame_index < INITIAL_NO_UPWARD_FRAMES:
+			_check_no_upward_bone_velocity(label, frame_index)
 		_check_ragdoll_bounds(label)
 		if not _failures.is_empty():
 			return

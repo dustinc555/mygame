@@ -29,8 +29,6 @@ const JOINT_TYPE_HINGE := 3
 ])
 @export var get_up_animation_names: PackedStringArray = PackedStringArray(["LayToIdle", "Crawl_Exit"])
 @export var downed_preroll_animation_names: PackedStringArray = PackedStringArray(["Death01", "Death02"])
-@export var downed_preroll_min_ratio := 0.5
-@export var downed_preroll_max_ratio := 1.0
 @export var collision_layer := 1
 @export var collision_mask := 1
 @export var default_mass := 1.0
@@ -116,12 +114,10 @@ func choose_downed_preroll_animation(animation_player: AnimationPlayer, rng: Ran
 	return available[rng.randi_range(0, available.size() - 1)]
 
 
-func choose_downed_preroll_duration(animation_length: float, rng: RandomNumberGenerator) -> float:
+func choose_downed_preroll_duration(animation_length: float, _rng: RandomNumberGenerator) -> float:
 	if animation_length <= 0.0:
 		return 0.0
-	var minimum_ratio := clampf(downed_preroll_min_ratio, 0.0, 1.0)
-	var maximum_ratio := clampf(downed_preroll_max_ratio, minimum_ratio, 1.0)
-	return animation_length * rng.randf_range(minimum_ratio, maximum_ratio)
+	return animation_length
 
 
 func has_physical_bone(bone_name: String) -> bool:
