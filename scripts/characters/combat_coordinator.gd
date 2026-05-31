@@ -95,9 +95,9 @@ static func get_target_score(attacker, candidate, scan_radius: float) -> float:
 	var attack_range := _get_attack_range(attacker)
 	var pressure := get_pressure_on(candidate, attacker)
 	var score: float = distance + float(pressure) * attack_range * PRESSURE_SCORE_MULTIPLIER
-	if attacker.has_method("get_current_combat_target") and attacker.get_current_combat_target() == candidate:
+	if _get_current_combat_target(attacker) == candidate:
 		score -= attack_range * CURRENT_TARGET_STICKINESS
-	if candidate.has_method("get_current_combat_target") and candidate.get_current_combat_target() == attacker:
+	if _get_current_combat_target(candidate) == attacker:
 		score -= attack_range * 0.45
 	if metrics_enabled:
 		total_target_score_usec += Time.get_ticks_usec() - started_usec
@@ -373,13 +373,21 @@ static func _get_ready_attackers_against(defender) -> Array:
 		if not _is_valid_combatant(node):
 			_decrement_pressure(defender_id, attacker_id)
 			continue
-		if not node.has_method("get_current_combat_target") or node.get_current_combat_target() != defender:
+		var attacker_actor := node as WorldActor
+		if attacker_actor == null:
+			if _get_current_combat_target(node) != defender:
+				continue
+		elif attacker_actor.get_shared_combat_target() != defender:
 			continue
 		if is_character_locked(node):
 			continue
-		if node.has_method("is_ranged_combatant") and node.is_ranged_combatant():
+		if attacker_actor != null and attacker_actor.is_ranged_combatant():
 			continue
-		if node.has_method("is_ready_for_combat_exchange") and node.is_ready_for_combat_exchange(defender):
+		if attacker_actor == null and _is_ranged_combatant(node):
+			continue
+		if attacker_actor != null and attacker_actor.is_ready_for_combat_exchange(defender):
+			result.append(node)
+		elif attacker_actor == null and _is_ready_for_combat_exchange(node, defender):
 			result.append(node)
 	return result
 
@@ -428,7 +436,9 @@ static func _update_initiative_credit(weights: Array[Dictionary], winner) -> voi
 
 static func _get_initiative_dexterity(character) -> float:
 	var dexterity := 1.0
-	if character != null and character.has_method("get_stat_value"):
+	if character is WorldActor:
+		dexterity = float((character as WorldActor).get_stat_value("dexterity"))
+	elif character != null and character.has_method("get_stat_value"):
 		dexterity = float(character.get_stat_value("dexterity"))
 	return maxf(dexterity, 0.01)
 
@@ -462,13 +472,15 @@ static func _has_ready_reservation_for_other_attacker(defender, attacker) -> boo
 	if reserved_attacker_id == attacker.get_instance_id():
 		return false
 	var reserved_attacker = instance_from_id(reserved_attacker_id)
-	if _is_valid_combatant(reserved_attacker) and reserved_attacker.has_method("is_ready_for_combat_exchange") and reserved_attacker.is_ready_for_combat_exchange(defender):
+	if reserved_attacker is WorldActor and (reserved_attacker as WorldActor).is_ready_for_combat_exchange(defender):
+		return true
+	if _is_valid_combatant(reserved_attacker) and _is_ready_for_combat_exchange(reserved_attacker, defender):
 		return true
 	_turn_reservations.erase(defender_id)
 	return false
 
 
-static func _lock_exchange(attacker, defender, action_seconds: float) -> void:
+static func _lock_exchange(attacker, _defender, action_seconds: float) -> void:
 	var lock_until := _now_seconds() + maxf(action_seconds + EXCHANGE_RECOVERY_SECONDS, MIN_EXCHANGE_LOCK_SECONDS)
 	_participant_locks[attacker.get_instance_id()] = lock_until
 	_clear_reservations_involving(attacker.get_instance_id())
@@ -569,7 +581,23 @@ static func _attacker_targets_defender(attacker, attacker_id: int, defender) -> 
 		return false
 	if int(_combat_targets_by_actor.get(attacker_id, 0)) == defender.get_instance_id():
 		return true
-	return attacker.has_method("get_current_combat_target") and attacker.get_current_combat_target() == defender
+	return _get_current_combat_target(attacker) == defender
+
+
+static func _get_current_combat_target(actor):
+	if actor is WorldActor:
+		return (actor as WorldActor).get_shared_combat_target()
+	if actor != null and actor.has_method("get_current_combat_target"):
+		return actor.get_current_combat_target()
+	return null
+
+
+static func _is_ready_for_combat_exchange(actor, defender) -> bool:
+	return actor != null and actor.has_method("is_ready_for_combat_exchange") and actor.is_ready_for_combat_exchange(defender)
+
+
+static func _is_ranged_combatant(actor) -> bool:
+	return actor != null and actor.has_method("is_ranged_combatant") and actor.is_ranged_combatant()
 
 
 static func _get_attacker_slot(defender, attacker) -> int:
@@ -653,6 +681,8 @@ static func _is_valid_combatant(character) -> bool:
 static func _get_attack_range(character) -> float:
 	if character == null:
 		return 1.0
+	if character is WorldActor:
+		return maxf(float((character as WorldActor).get_attack_range()), 1.0)
 	if character.has_method("get_attack_range"):
 		return maxf(float(character.get_attack_range()), 1.0)
 	var attack_range_value = character.get("attack_range")
@@ -667,6 +697,10 @@ static func _get_active_attack_slots(defender) -> int:
 	var defender_id: int = defender.get_instance_id()
 	if _active_attack_slots_by_id.has(defender_id):
 		return int(_active_attack_slots_by_id[defender_id])
+	if defender is WorldActor:
+		var actor_active_slots := maxi(1, int((defender as WorldActor).combat_active_attack_slots))
+		_active_attack_slots_by_id[defender_id] = actor_active_slots
+		return actor_active_slots
 	var slot_value = defender.get("combat_active_attack_slots")
 	if slot_value != null:
 		var active_slots := maxi(1, int(slot_value))
@@ -682,6 +716,10 @@ static func _get_actor_radius(actor) -> float:
 	var actor_id: int = actor.get_instance_id()
 	if _actor_radius_by_id.has(actor_id):
 		return float(_actor_radius_by_id[actor_id])
+	if actor is WorldActor:
+		var actor_radius := maxf(float((actor as WorldActor).navigation_agent_radius), 0.05)
+		_actor_radius_by_id[actor_id] = actor_radius
+		return actor_radius
 	var radius = actor.get("navigation_agent_radius")
 	if radius != null:
 		var clamped_radius := maxf(float(radius), 0.05)

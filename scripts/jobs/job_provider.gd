@@ -45,8 +45,8 @@ func set_sim_time(value: float) -> void:
 	_sync_gecs_state()
 
 
-func get_provider_character() -> HumanoidCharacter:
-	return get_parent() as HumanoidCharacter
+func get_provider_character() -> WorldActor:
+	return get_parent() as WorldActor
 
 
 func get_provider_name() -> String:
@@ -54,14 +54,14 @@ func get_provider_name() -> String:
 	return provider.member_name if provider != null else str(name)
 
 
-func get_greeting_text_for(worker: HumanoidCharacter, fallback: String) -> String:
+func get_greeting_text_for(worker: WorldActor, fallback: String) -> String:
 	var record := _get_worker_record(worker)
 	if float(record.get("total_worked_seconds", 0.0)) >= greeting_return_threshold_seconds:
 		return "Back again?"
 	return fallback
 
 
-func build_conversation_options(worker: HumanoidCharacter, _context: Dictionary = {}) -> Array:
+func build_conversation_options(worker: WorldActor, _context: Dictionary = {}) -> Array:
 	var options: Array = []
 	if worker == null:
 		return options
@@ -87,7 +87,7 @@ func build_conversation_options(worker: HumanoidCharacter, _context: Dictionary 
 	return options
 
 
-func handle_conversation_option(worker: HumanoidCharacter, option: Dictionary, context: Dictionary = {}) -> Dictionary:
+func handle_conversation_option(worker: WorldActor, option: Dictionary, context: Dictionary = {}) -> Dictionary:
 	var action := str(option.get("job_provider_action", ""))
 	match action:
 		"request_job":
@@ -153,7 +153,7 @@ func _process_passive_player_party_server_contracts(delta: float) -> void:
 		var job = jobs[job_index]
 		if job == null or str(job.algorithm_id) != "server_shift":
 			continue
-		var worker := bridge.call("get_actor_by_stable_id", str(contract_data.get("actor_id", ""))) as HumanoidCharacter
+		var worker := bridge.call("get_actor_by_stable_id", str(contract_data.get("actor_id", ""))) as WorldActor
 		if not _is_player_party_worker(worker):
 			continue
 		if not _is_worker_listening_for_server_shift(worker):
@@ -164,7 +164,7 @@ func _process_passive_player_party_server_contracts(delta: float) -> void:
 		_accrue_worker_record_pay(record, job, delta, _job_contract_job_id(job, job_index))
 
 
-func create_assigned_work_ai_job(worker: HumanoidCharacter, job_label := ""):
+func create_assigned_work_ai_job(worker: WorldActor, job_label := ""):
 	var assignment := _find_worker_slot(worker)
 	if assignment.is_empty():
 		return null
@@ -189,7 +189,7 @@ func create_assigned_work_ai_job(worker: HumanoidCharacter, job_label := ""):
 	return ai_job
 
 
-func tick_worker_job_from_ai(worker: HumanoidCharacter, delta: float, _ai_job = null) -> Dictionary:
+func tick_worker_job_from_ai(worker: WorldActor, delta: float, _ai_job = null) -> Dictionary:
 	_sim_time = _get_job_system_sim_time(delta)
 	_initialize_slots()
 	var assignment := _find_worker_slot(worker)
@@ -213,7 +213,7 @@ func tick_worker_job_from_ai(worker: HumanoidCharacter, delta: float, _ai_job = 
 	}
 
 
-func pause_worker_job(worker: HumanoidCharacter, caused_by_player: bool = false) -> void:
+func pause_worker_job(worker: WorldActor, caused_by_player: bool = false) -> void:
 	if worker == null:
 		return
 	for job_index in _active_slots.keys():
@@ -258,7 +258,7 @@ func _new_slot_state(slot_index: int) -> Dictionary:
 	}
 
 
-func _evaluate_job_request(worker: HumanoidCharacter, job_index: int) -> Dictionary:
+func _evaluate_job_request(worker: WorldActor, job_index: int) -> Dictionary:
 	_initialize_slots()
 	if worker == null or job_index < 0 or job_index >= jobs.size():
 		return {"allowed": false, "reason": "No job configured"}
@@ -285,7 +285,7 @@ func _evaluate_job_request(worker: HumanoidCharacter, job_index: int) -> Diction
 	return {"allowed": true, "reason": ""}
 
 
-func _handle_job_request_prompt(worker: HumanoidCharacter, job_index: int, context: Dictionary = {}) -> Dictionary:
+func _handle_job_request_prompt(worker: WorldActor, job_index: int, context: Dictionary = {}) -> Dictionary:
 	var evaluation := _evaluate_job_request(worker, job_index)
 	if not evaluation.get("allowed", false):
 		return _job_unavailable_response(jobs[job_index] if job_index >= 0 and job_index < jobs.size() else null, evaluation)
@@ -325,7 +325,7 @@ func _handle_job_request_prompt(worker: HumanoidCharacter, job_index: int, conte
 	}
 
 
-func _handle_job_accept(worker: HumanoidCharacter, job_index: int) -> Dictionary:
+func _handle_job_accept(worker: WorldActor, job_index: int) -> Dictionary:
 	if _pending_job_offers.get(_get_worker_key(worker), -1) != job_index:
 		return {"end_conversation": true}
 	_clear_pending_offer(worker)
@@ -343,7 +343,7 @@ func _handle_job_accept(worker: HumanoidCharacter, job_index: int) -> Dictionary
 	}
 
 
-func _handle_selected_job_accept(worker: HumanoidCharacter, job_index: int, context: Dictionary = {}) -> Dictionary:
+func _handle_selected_job_accept(worker: WorldActor, job_index: int, context: Dictionary = {}) -> Dictionary:
 	if _pending_job_offers.get(_get_worker_key(worker), -1) != job_index:
 		return {"end_conversation": true}
 	var job = jobs[job_index]
@@ -368,7 +368,7 @@ func _handle_selected_job_accept(worker: HumanoidCharacter, job_index: int, cont
 	}
 
 
-func _assign_worker_to_open_slot(worker: HumanoidCharacter, job_index: int) -> Dictionary:
+func _assign_worker_to_open_slot(worker: WorldActor, job_index: int) -> Dictionary:
 	_initialize_slots()
 	var evaluation := _evaluate_job_request(worker, job_index)
 	if not evaluation.get("allowed", false):
@@ -376,7 +376,7 @@ func _assign_worker_to_open_slot(worker: HumanoidCharacter, job_index: int) -> D
 	return _claim_worker_slot(worker, job_index, true)
 
 
-func start_contract_shift(worker: HumanoidCharacter, contract: Dictionary):
+func start_contract_shift(worker: WorldActor, contract: Dictionary):
 	if worker == null or contract.is_empty():
 		return null
 	var job_index := int(contract.get("job_index", -1))
@@ -395,7 +395,7 @@ func start_contract_shift(worker: HumanoidCharacter, contract: Dictionary):
 	return ai_job
 
 
-func get_contract_work_status(worker: HumanoidCharacter, contract: Dictionary) -> Dictionary:
+func get_contract_work_status(worker: WorldActor, contract: Dictionary) -> Dictionary:
 	_initialize_slots()
 	if worker == null or contract.is_empty():
 		return {"actionable": false, "reason": "No worker or contract"}
@@ -426,13 +426,13 @@ func on_job_contract_abandoned(contract: Dictionary, _reason := "quit") -> void:
 		return
 	for job_index in _active_slots.keys():
 		for slot_state in _active_slots[job_index]:
-			var worker: HumanoidCharacter = slot_state.get("worker")
+			var worker: WorldActor = slot_state.get("worker")
 			if worker != null and _get_worker_key(worker) == actor_id:
 				_end_slot_assignment(int(job_index), slot_state, true)
 				return
 
 
-func _create_job_contract_for_worker(worker: HumanoidCharacter, job_index: int) -> Dictionary:
+func _create_job_contract_for_worker(worker: WorldActor, job_index: int) -> Dictionary:
 	var evaluation := _evaluate_job_request(worker, job_index)
 	if not bool(evaluation.get("allowed", false)):
 		return evaluation
@@ -466,7 +466,7 @@ func _create_job_contract_for_worker(worker: HumanoidCharacter, job_index: int) 
 	return {"allowed": not contract.is_empty(), "reason": "", "contract": contract}
 
 
-func _claim_worker_slot(worker: HumanoidCharacter, job_index: int, request_ai_job := true) -> Dictionary:
+func _claim_worker_slot(worker: WorldActor, job_index: int, request_ai_job := true) -> Dictionary:
 	_initialize_slots()
 	if worker == null or job_index < 0 or job_index >= jobs.size():
 		return {"allowed": false, "reason": "No job configured"}
@@ -500,7 +500,7 @@ func _claim_worker_slot(worker: HumanoidCharacter, job_index: int, request_ai_jo
 	return {"allowed": true, "reason": ""}
 
 
-func _handle_collect_pay(worker: HumanoidCharacter) -> Dictionary:
+func _handle_collect_pay(worker: WorldActor) -> Dictionary:
 	var provider := get_provider_character()
 	var record := _get_worker_record(worker)
 	var owed_currency := int(record.get("owed_currency", 0))
@@ -522,7 +522,8 @@ func _handle_collect_pay(worker: HumanoidCharacter) -> Dictionary:
 			"speech_text": "I can't pay you right now.",
 			"speech_lifetime": 5.0,
 		}
-	if worker.inventory == null or not worker.inventory.add_item_count(wage_item_definition, owed_currency):
+	var worker_inventory = worker.get("inventory") if worker != null else null
+	if worker_inventory == null or not worker_inventory.has_method("add_item_count") or not worker_inventory.add_item_count(wage_item_definition, owed_currency):
 		return {
 			"speaker_text": "Make some room first.",
 			"end_conversation": true,
@@ -570,7 +571,7 @@ func _evaluate_group_job_request(workers: Array, job_index: int) -> Dictionary:
 	if max(job.slot_count if job != null else 1, 1) - _get_contract_count_for_job(job_id) < workers.size():
 		return {"allowed": false, "reason": "No openings right now"}
 	for worker in workers:
-		if not (worker is HumanoidCharacter):
+		if not (worker is WorldActor):
 			return {"allowed": false, "reason": "No workers selected"}
 		var evaluation := _evaluate_job_request(worker, job_index)
 		if not evaluation.get("allowed", false):
@@ -578,13 +579,13 @@ func _evaluate_group_job_request(workers: Array, job_index: int) -> Dictionary:
 	return {"allowed": true, "reason": ""}
 
 
-func _get_selected_job_group(worker: HumanoidCharacter, context: Dictionary) -> Array:
+func _get_selected_job_group(worker: WorldActor, context: Dictionary) -> Array:
 	var selected_workers: Array = []
 	var context_selected: Array = context.get("selected_party_members", [])
 	for selected_worker in context_selected:
 		if selected_worker == null or not is_instance_valid(selected_worker):
 			continue
-		if not (selected_worker is HumanoidCharacter):
+		if not (selected_worker is WorldActor):
 			continue
 		if selected_workers.has(selected_worker):
 			continue
@@ -617,7 +618,7 @@ func _job_unavailable_response(job, evaluation: Dictionary) -> Dictionary:
 
 func _process_slot(job_index: int, job, slot_state: Dictionary, delta: float) -> void:
 	slot_state["last_ai_blocker"] = ""
-	var worker: HumanoidCharacter = slot_state.get("worker")
+	var worker: WorldActor = slot_state.get("worker")
 	if worker == null:
 		slot_state["last_ai_blocker"] = "No worker"
 		return
@@ -671,7 +672,10 @@ func _process_slot(job_index: int, job, slot_state: Dictionary, delta: float) ->
 		return
 
 
-func _process_mine_and_haul(job_index: int, job, slot_state: Dictionary, worker: HumanoidCharacter) -> bool:
+func _process_mine_and_haul(job_index: int, job, slot_state: Dictionary, worker: WorldActor) -> bool:
+	if not worker.has_method("get_assigned_mining_node") or not worker.has_method("assign_mining_resource"):
+		slot_state["last_ai_blocker"] = "Worker cannot mine"
+		return false
 	var work_inventory: InventoryData = slot_state.get("work_inventory")
 	if work_inventory == null:
 		work_inventory = InventoryData.new(DEFAULT_WORK_INVENTORY_COLUMNS, DEFAULT_WORK_INVENTORY_ROWS, 0.0, false)
@@ -699,7 +703,7 @@ func _process_mine_and_haul(job_index: int, job, slot_state: Dictionary, worker:
 	return true
 
 
-func _process_guard_post(_job_index: int, _job, slot_state: Dictionary, worker: HumanoidCharacter, delta: float) -> bool:
+func _process_guard_post(_job_index: int, _job, slot_state: Dictionary, worker: WorldActor, delta: float) -> bool:
 	if worker.is_in_combat():
 		return true
 	var service_area := _resolve_bar_service_area()
@@ -724,7 +728,9 @@ func _process_guard_post(_job_index: int, _job, slot_state: Dictionary, worker: 
 	return true
 
 
-func _process_server_shift(_job_index: int, _job, slot_state: Dictionary, worker: HumanoidCharacter, delta: float) -> Dictionary:
+func _process_server_shift(_job_index: int, _job, slot_state: Dictionary, worker: WorldActor, delta: float) -> Dictionary:
+	if not worker.has_method("show_world_speech"):
+		return {"active": false, "completed_order": false}
 	var service_area := _resolve_bar_service_area()
 	if service_area == null:
 		return {"active": false, "completed_order": false}
@@ -797,7 +803,7 @@ func _process_server_shift(_job_index: int, _job, slot_state: Dictionary, worker
 	return {"active": true, "completed_order": false}
 
 
-func _hold_waiter_service_point(service_area: BarServiceArea, slot_state: Dictionary, worker: HumanoidCharacter) -> bool:
+func _hold_waiter_service_point(service_area: BarServiceArea, slot_state: Dictionary, worker: WorldActor) -> bool:
 	var service_point = slot_state.get("target_service_point")
 	if service_point == null or not is_instance_valid(service_point):
 		service_point = service_area.get_available_waiter_point(worker)
@@ -817,7 +823,7 @@ func _hold_waiter_service_point(service_area: BarServiceArea, slot_state: Dictio
 	return true
 
 
-func _release_waiter_service_point(slot_state: Dictionary, worker: HumanoidCharacter) -> void:
+func _release_waiter_service_point(slot_state: Dictionary, worker: WorldActor) -> void:
 	var service_point = slot_state.get("target_service_point")
 	if service_point != null and is_instance_valid(service_point) and service_point.has_method("release_worker"):
 		service_point.release_worker(worker)
@@ -828,23 +834,23 @@ func _is_valid_service_customer(customer: HumanoidCharacter) -> bool:
 	return customer != null and is_instance_valid(customer) and customer.life_state == NpcRules.LifeState.ALIVE and customer.has_method("is_sitting") and customer.is_sitting()
 
 
-func _move_worker_to_service_position(worker: HumanoidCharacter, target_position: Vector3, arrival_distance: float) -> bool:
+func _move_worker_to_service_position(worker: WorldActor, target_position: Vector3, arrival_distance: float) -> bool:
 	if worker.global_position.distance_to(target_position) > arrival_distance:
 		worker.set_move_target(target_position, false)
 		return false
 	return true
 
 
-func _server_customer_service_distance(service_area: BarServiceArea, worker: HumanoidCharacter) -> float:
+func _server_customer_service_distance(service_area: BarServiceArea, worker: WorldActor) -> float:
 	var configured = service_area.get("waiter_service_distance") if service_area != null else null
 	return maxf(worker.interact_distance, float(configured) if configured != null else 2.4)
 
 
-func _is_player_party_worker(worker: HumanoidCharacter) -> bool:
+func _is_player_party_worker(worker: WorldActor) -> bool:
 	return worker != null and worker.has_method("is_player_party_member") and bool(worker.call("is_player_party_member"))
 
 
-func _is_worker_listening_for_server_shift(worker: HumanoidCharacter) -> bool:
+func _is_worker_listening_for_server_shift(worker: WorldActor) -> bool:
 	if worker == null or not is_instance_valid(worker) or worker.life_state != NpcRules.LifeState.ALIVE or worker.is_in_combat():
 		return false
 	var service_area := _resolve_bar_service_area()
@@ -866,7 +872,7 @@ func _accrue_worker_record_pay(record: Dictionary, job, delta: float, job_id: St
 	record["contract_accrued_interval_time"] = accruals
 
 
-func _active_slot_work_status(worker: HumanoidCharacter, job, slot_state: Dictionary) -> Dictionary:
+func _active_slot_work_status(worker: WorldActor, job, slot_state: Dictionary) -> Dictionary:
 	if str(job.algorithm_id) != "server_shift":
 		return {"actionable": true, "reason": "Shift already active"}
 	var state := str(slot_state.get("server_state", SERVER_STATE_IDLE))
@@ -877,7 +883,7 @@ func _active_slot_work_status(worker: HumanoidCharacter, job, slot_state: Dictio
 	return _server_shift_contract_work_status(worker)
 
 
-func _server_shift_contract_work_status(worker: HumanoidCharacter) -> Dictionary:
+func _server_shift_contract_work_status(worker: WorldActor) -> Dictionary:
 	var service_area := _resolve_bar_service_area()
 	if service_area == null:
 		return {"actionable": false, "reason": "No service area"}
@@ -890,13 +896,13 @@ func _server_shift_contract_work_status(worker: HumanoidCharacter) -> Dictionary
 	return {"actionable": has_customer, "reason": "Customer order ready" if has_customer else "No customer orders ready"}
 
 
-func _is_best_player_party_waiter_for_order(worker: HumanoidCharacter, order: Dictionary) -> bool:
+func _is_best_player_party_waiter_for_order(worker: WorldActor, order: Dictionary) -> bool:
 	if worker == null or order.is_empty():
 		return false
 	var bridge := _get_gecs_world()
 	if bridge == null or not bridge.has_method("get_job_contracts_for_provider") or not bridge.has_method("get_actor_by_stable_id"):
 		return true
-	var best_worker: HumanoidCharacter
+	var best_worker: WorldActor
 	var best_priority := INF
 	var best_distance := INF
 	var seat = order.get("seat")
@@ -909,7 +915,7 @@ func _is_best_player_party_waiter_for_order(worker: HumanoidCharacter, order: Di
 		var metadata: Dictionary = contract_data.get("metadata", {}) if contract_data.get("metadata", {}) is Dictionary else {}
 		if not bool(metadata.get("player_party_member", false)):
 			continue
-		var candidate := bridge.call("get_actor_by_stable_id", str(contract_data.get("actor_id", ""))) as HumanoidCharacter
+		var candidate := bridge.call("get_actor_by_stable_id", str(contract_data.get("actor_id", ""))) as WorldActor
 		if not _is_worker_listening_for_server_shift(candidate):
 			continue
 		var candidate_priority := int(contract_data.get("priority_order", 0))
@@ -921,7 +927,7 @@ func _is_best_player_party_waiter_for_order(worker: HumanoidCharacter, order: Di
 	return best_worker == worker
 
 
-func _waiter_order_distance_squared(worker: HumanoidCharacter, seat) -> float:
+func _waiter_order_distance_squared(worker: WorldActor, seat) -> float:
 	if worker == null or seat == null or not is_instance_valid(seat):
 		return INF
 	if seat is Node3D:
@@ -929,7 +935,7 @@ func _waiter_order_distance_squared(worker: HumanoidCharacter, seat) -> float:
 	return 0.0
 
 
-func _is_worker_near_service_area(worker: HumanoidCharacter, service_area: BarServiceArea) -> bool:
+func _is_worker_near_service_area(worker: WorldActor, service_area: BarServiceArea) -> bool:
 	if worker == null or service_area == null:
 		return false
 	return worker.global_position.distance_to(service_area.global_position) <= PLAYER_PARTY_JOB_ACTION_RADIUS
@@ -956,7 +962,7 @@ func _release_server_customer_service(service_area: BarServiceArea, slot_state: 
 	_reset_server_service_state(slot_state)
 
 
-func _award_server_order_completion(job, worker: HumanoidCharacter, record: Dictionary) -> void:
+func _award_server_order_completion(job, worker: WorldActor, record: Dictionary) -> void:
 	var chance := _server_order_charisma_chance(job, worker)
 	var passed := _passes_server_order_charisma_check(chance)
 	var tip := _server_order_tip(job) if passed else 0
@@ -980,7 +986,7 @@ func _passes_server_order_charisma_check(chance: float) -> bool:
 	return _rng.randf() <= chance
 
 
-func _server_order_charisma_chance(job, worker: HumanoidCharacter) -> float:
+func _server_order_charisma_chance(job, worker: WorldActor) -> float:
 	var level: int = 0
 	if worker != null and worker.has_method("get_skill_level"):
 		level = int(worker.get_skill_level(SkillRules.ATTRIBUTE_CHARISMA))
@@ -1010,7 +1016,7 @@ func _job_int(job, property_name: String, fallback: int) -> int:
 	return fallback if value == null else int(value)
 
 
-func _process_guard_post_shuffle(service_area: BarServiceArea, slot_state: Dictionary, worker: HumanoidCharacter, current_post, delta: float):
+func _process_guard_post_shuffle(service_area: BarServiceArea, slot_state: Dictionary, worker: WorldActor, current_post, delta: float):
 	var remaining := float(slot_state.get("guard_shuffle_remaining", _next_guard_shuffle_seconds()))
 	remaining -= delta
 	if remaining > 0.0:
@@ -1030,7 +1036,7 @@ func _process_guard_post_shuffle(service_area: BarServiceArea, slot_state: Dicti
 	return next_post
 
 
-func _resolve_best_resource(job_index: int, job, slot_state: Dictionary, worker: HumanoidCharacter):
+func _resolve_best_resource(job_index: int, job, slot_state: Dictionary, worker: WorldActor):
 	var resources := _resolve_nodes(job.resource_paths)
 	if resources.is_empty():
 		return null
@@ -1057,7 +1063,7 @@ func _resolve_best_resource(job_index: int, job, slot_state: Dictionary, worker:
 	return resources[fallback_slot_index]
 
 
-func _resolve_best_container(job, slot_state: Dictionary, worker: HumanoidCharacter):
+func _resolve_best_container(job, slot_state: Dictionary, worker: WorldActor):
 	var containers := _resolve_nodes(job.container_paths)
 	var best_container = slot_state.get("target_container")
 	if best_container != null and is_instance_valid(best_container):
@@ -1121,10 +1127,11 @@ func _get_total_item_count(work_inventory: InventoryData) -> int:
 
 
 func _end_slot_assignment(_job_index: int, slot_state: Dictionary, _caused_by_player: bool) -> void:
-	var worker: HumanoidCharacter = slot_state.get("worker")
+	var worker: WorldActor = slot_state.get("worker")
 	if worker != null and is_instance_valid(worker):
 		worker.end_job_assignment()
-		worker.stop_mining_assignment()
+		if worker.has_method("stop_mining_assignment"):
+			worker.stop_mining_assignment()
 	var guard_post = slot_state.get("target_guard_post")
 	if guard_post != null and is_instance_valid(guard_post) and guard_post.has_method("release_worker"):
 		guard_post.release_worker(worker)
@@ -1156,7 +1163,7 @@ func _end_slot_assignment(_job_index: int, slot_state: Dictionary, _caused_by_pl
 	_sync_gecs_state()
 
 
-func _is_job_offer_visible(worker: HumanoidCharacter, job_index: int) -> bool:
+func _is_job_offer_visible(worker: WorldActor, job_index: int) -> bool:
 	if worker == null or job_index < 0 or job_index >= jobs.size():
 		return false
 	return _is_job_configured(jobs[job_index])
@@ -1219,13 +1226,13 @@ func _resolve_bar_service_area() -> BarServiceArea:
 	return null
 
 
-func _clear_pending_offer(worker: HumanoidCharacter) -> void:
+func _clear_pending_offer(worker: WorldActor) -> void:
 	if worker == null:
 		return
 	_pending_job_offers.erase(_get_worker_key(worker))
 
 
-func _get_worker_record(worker: HumanoidCharacter) -> Dictionary:
+func _get_worker_record(worker: WorldActor) -> Dictionary:
 	if worker == null:
 		return {}
 	var key := _get_worker_key(worker)
@@ -1240,7 +1247,7 @@ func _get_worker_record(worker: HumanoidCharacter) -> Dictionary:
 	return _worker_records[key]
 
 
-func _find_worker_slot(worker: HumanoidCharacter) -> Dictionary:
+func _find_worker_slot(worker: WorldActor) -> Dictionary:
 	if worker == null:
 		return {}
 	for job_index in _active_slots.keys():
@@ -1259,7 +1266,7 @@ func _get_job_system_sim_time(delta: float) -> float:
 	return _sim_time + delta
 
 
-func _get_worker_key(worker: HumanoidCharacter) -> String:
+func _get_worker_key(worker: WorldActor) -> String:
 	if worker == null:
 		return ""
 	if not worker.stable_id.is_empty():
@@ -1279,7 +1286,7 @@ func _job_contract_job_id(job, job_index: int) -> String:
 	return str(job_index)
 
 
-func _has_worker_contract(worker: HumanoidCharacter, job_id: String) -> bool:
+func _has_worker_contract(worker: WorldActor, job_id: String) -> bool:
 	var bridge := _get_gecs_world()
 	return bridge != null and bridge.has_method("has_actor_job_contract") and bool(bridge.call("has_actor_job_contract", _get_worker_key(worker), _provider_id(), job_id))
 

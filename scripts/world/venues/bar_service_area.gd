@@ -240,7 +240,7 @@ func call_waiter_for_customer(customer: HumanoidCharacter) -> Dictionary:
 	return {"allowed": true, "message": ""}
 
 
-func get_available_guard_post(worker: HumanoidCharacter, excluded_post = null):
+func get_available_guard_post(worker: WorldActor, excluded_post = null):
 	var available_posts: Array = []
 	for post in _collect_nodes(guard_posts_root_path):
 		if post == null or post == excluded_post:
@@ -677,7 +677,7 @@ func _process_guard_staff(delta: float) -> void:
 		_process_guard_post_assignment(guard, delta)
 
 
-func _process_guard_post_assignment(guard: HumanoidCharacter, delta: float) -> void:
+func _process_guard_post_assignment(guard: WorldActor, delta: float) -> void:
 	var actor_id := guard.get_instance_id()
 	var post = _guard_post_by_actor_id.get(actor_id)
 	if post == null or not is_instance_valid(post) or (post.has_method("is_available_for") and not post.is_available_for(guard)):
@@ -696,7 +696,7 @@ func _process_guard_post_assignment(guard: HumanoidCharacter, delta: float) -> v
 		guard.set_move_target(work_position, false)
 
 
-func _claim_guard_post_for(guard: HumanoidCharacter):
+func _claim_guard_post_for(guard: WorldActor):
 	var post = get_available_guard_post(guard)
 	if post == null:
 		return null
@@ -707,7 +707,7 @@ func _claim_guard_post_for(guard: HumanoidCharacter):
 	return post
 
 
-func _try_shuffle_guard_post(guard: HumanoidCharacter, current_post):
+func _try_shuffle_guard_post(guard: WorldActor, current_post):
 	if get_guard_posts().size() <= 1:
 		return current_post
 	var next_post = get_available_guard_post(guard, current_post)
@@ -721,7 +721,7 @@ func _try_shuffle_guard_post(guard: HumanoidCharacter, current_post):
 	return next_post
 
 
-func _release_guard_post_for(guard: HumanoidCharacter) -> void:
+func _release_guard_post_for(guard: WorldActor) -> void:
 	if guard == null:
 		return
 	var actor_id := guard.get_instance_id()

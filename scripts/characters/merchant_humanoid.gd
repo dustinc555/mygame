@@ -87,8 +87,11 @@ func resolve_trade(member: HumanoidCharacter) -> bool:
 	return true
 
 
-func get_interaction_position(member: HumanoidCharacter) -> Vector3:
-	var slot_index := _get_trader_slot(member)
+func get_interaction_position(member: Node) -> Vector3:
+	var trader := member as HumanoidCharacter
+	if trader == null:
+		return global_position + Vector3(0.0, 0.0, 1.5)
+	var slot_index := _get_trader_slot(trader)
 	var angle := TAU * float(slot_index) / 6.0
 	return global_position + Vector3(cos(angle), 0.0, sin(angle)) * 1.5
 

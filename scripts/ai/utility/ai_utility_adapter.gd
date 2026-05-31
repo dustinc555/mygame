@@ -129,18 +129,18 @@ func _apply_goal_state(context: AiUtilityContext, actor: Node) -> void:
 
 
 func _apply_vital_facts(context: AiUtilityContext, actor: Node) -> void:
-	if actor is HumanoidCharacter:
-		var humanoid := actor as HumanoidCharacter
-		var humanoid_max_hp := maxf(humanoid.max_hp, 0.01)
-		var humanoid_max_blood := maxf(humanoid.max_blood, 0.01)
-		var humanoid_health_ratio := clampf(humanoid.hp / humanoid_max_hp, 0.0, 1.0)
-		var humanoid_blood_ratio := clampf(humanoid.blood / humanoid_max_blood, 0.0, 1.0)
-		var humanoid_damage := 1.0 - minf(humanoid_health_ratio, humanoid_blood_ratio)
-		context.set_fact(&"alive", 1.0 if humanoid.life_state == NpcRules.LifeState.ALIVE else 0.0)
-		context.set_fact(&"health", humanoid_health_ratio)
-		context.set_fact(&"blood", humanoid_blood_ratio)
-		context.set_fact(&"damage", humanoid_damage)
-		context.set_fact(&"critical_damage", inverse_lerp(0.35, 0.9, humanoid_damage))
+	if actor is WorldActor:
+		var world_actor := actor as WorldActor
+		var actor_max_hp := maxf(world_actor.max_hp, 0.01)
+		var actor_max_blood := maxf(world_actor.max_blood, 0.01)
+		var actor_health_ratio := clampf(world_actor.hp / actor_max_hp, 0.0, 1.0)
+		var actor_blood_ratio := clampf(world_actor.blood / actor_max_blood, 0.0, 1.0)
+		var actor_damage := 1.0 - minf(actor_health_ratio, actor_blood_ratio)
+		context.set_fact(&"alive", 1.0 if world_actor.life_state == NpcRules.LifeState.ALIVE else 0.0)
+		context.set_fact(&"health", actor_health_ratio)
+		context.set_fact(&"blood", actor_blood_ratio)
+		context.set_fact(&"damage", actor_damage)
+		context.set_fact(&"critical_damage", inverse_lerp(0.35, 0.9, actor_damage))
 		return
 	var state := _actor_state(actor)
 	var hp := float(state.get("hp", _actor_float(actor, "hp", 100.0)))
@@ -158,11 +158,10 @@ func _apply_vital_facts(context: AiUtilityContext, actor: Node) -> void:
 
 
 func _apply_order_facts(context: AiUtilityContext, actor: Node) -> void:
-	if actor is HumanoidCharacter:
-		var humanoid := actor as HumanoidCharacter
-		var humanoid_has_player_order := humanoid._order_was_player_issued and humanoid._current_order_type != 0
-		context.set_fact(&"no_player_order", 0.0 if humanoid_has_player_order else 1.0)
-		context.set_fact(&"player_party_member", 1.0 if humanoid.player_party_member else 0.0)
+	if actor is WorldActor:
+		var actor_has_player_order := (actor as WorldActor).has_active_player_order()
+		context.set_fact(&"no_player_order", 0.0 if actor_has_player_order else 1.0)
+		context.set_fact(&"player_party_member", 1.0 if (actor as WorldActor).player_party_member else 0.0)
 		return
 	var order_was_player_issued := bool(actor.get("_order_was_player_issued")) if _has_property(actor, "_order_was_player_issued") else false
 	var current_order_type := int(actor.get("_current_order_type")) if _has_property(actor, "_current_order_type") else -1
@@ -174,15 +173,10 @@ func _apply_order_facts(context: AiUtilityContext, actor: Node) -> void:
 
 func _apply_combat_target_context(context: AiUtilityContext, actor: Node) -> void:
 	var target = null
-	if actor is HumanoidCharacter:
-		var humanoid := actor as HumanoidCharacter
-		target = humanoid._get_active_combat_target()
-		if target == null and humanoid._should_seek_combat_target():
-			target = humanoid._find_ai_target()
-	else:
-		target = _call_object(actor, "_get_active_combat_target")
-		if target == null and _call_bool(actor, "_should_seek_combat_target"):
-			target = _call_object(actor, "_find_ai_target")
+	if actor.has_method("get_current_combat_target"):
+		target = actor.call("get_current_combat_target")
+	if target == null and _call_bool(actor, "_should_seek_combat_target"):
+		target = _call_object(actor, "_find_ai_target")
 	if target == null:
 		context.set_fact(&"threat", 0.0)
 		context.set_fact(&"can_self_defend", 0.0)
@@ -195,11 +189,7 @@ func _apply_combat_target_context(context: AiUtilityContext, actor: Node) -> voi
 
 func _apply_heal_target_context(context: AiUtilityContext, actor: Node) -> void:
 	var target = null
-	if actor is HumanoidCharacter:
-		var humanoid := actor as HumanoidCharacter
-		if humanoid._should_seek_auto_heal_target():
-			target = humanoid._find_auto_heal_target()
-	elif _call_bool(actor, "_should_seek_auto_heal_target"):
+	if _call_bool(actor, "_should_seek_auto_heal_target"):
 		target = _call_object(actor, "_find_auto_heal_target")
 	if target == null:
 		context.set_fact(&"heal_need", 0.0)
@@ -250,7 +240,7 @@ func _apply_work_context(context: AiUtilityContext, actor: Node) -> void:
 func _realize_self_defense(actor: Node, decision: AiUtilityDecisionResult) -> bool:
 	if decision.target == null or not is_instance_valid(decision.target):
 		return false
-	var active_target = _call_object(actor, "_get_active_combat_target")
+	var active_target = actor.call("get_current_combat_target") if actor != null and actor.has_method("get_current_combat_target") else null
 	if active_target == decision.target:
 		return false
 	if actor.has_method("assign_attack_target"):

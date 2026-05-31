@@ -3,12 +3,8 @@ extends "res://scripts/actors/world_actor.gd"
 class_name HumanoidCharacter
 
 const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/effects/world_text_notice.tscn")
-const COMBAT_COORDINATOR = preload("res://scripts/characters/combat_coordinator.gd")
 const COMBAT_ANIMATION_SET_SCRIPT = preload("res://scripts/characters/combat_animation_set.gd")
 const COMBAT_ATTACK_ANIMATION_SCRIPT = preload("res://scripts/characters/combat_attack_animation.gd")
-const AI_BRAIN_SCRIPT = preload("res://scripts/ai/ai_brain.gd")
-const AI_JOB_SCRIPT = preload("res://scripts/ai/ai_job.gd")
-const AI_UTILITY_ADAPTER_SCRIPT = preload("res://scripts/ai/utility/ai_utility_adapter.gd")
 const HUMANOID_RAGDOLL_PROFILE_SCRIPT = preload("res://scripts/characters/humanoid_ragdoll_profile.gd")
 const STABLE_PHYSICAL_BONE_SCRIPT = preload("res://scripts/characters/stable_physical_bone.gd")
 const HUMAN_RACE = preload("res://resources/character_races/human.tres")
@@ -124,7 +120,6 @@ const COMBAT_INTERVENTION_STAFF_GROUP := "combat_intervention_staff"
 const SETTLEMENT_AUTHORITY_GROUP := "settlement_authority"
 const PRIVATE_SECURITY_GROUP := "private_security"
 const FACTION_SOLDIER_GROUP := "faction_soldier"
-const ACTIVE_COMBAT_ACTOR_GROUP := "active_combat_actor"
 const EQUIPMENT_SLOTS: Array[String] = ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head", "weapon", "offhand"]
 const EQUIPMENT_SLOT_LABELS := {
 	"undershirt": "Undershirt",
@@ -199,7 +194,6 @@ const FEMALE_VISUAL_NAME_KEYS := {
 	"yara": true,
 }
 
-@export var interact_distance := 1.8
 @export var seated_player_talk_distance_multiplier := 2.0
 @export var inventory_columns := 10
 @export var inventory_rows := 4
@@ -218,8 +212,6 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var starting_items: Array[Resource] = []
 @export var starting_equipment: Array[Resource] = []
 
-@export var conversation_definition: Resource
-
 @export var trade_interaction_distance := 3.0
 @export var carry_move_speed_multiplier := 0.6
 
@@ -227,9 +219,6 @@ var inventory: InventoryData
 var is_inspected := false
 var is_selected := false
 var is_focused := false
-var _current_order_type: int = OrderType.NONE
-var _order_was_player_issued := false
-
 var _current_mining_node
 var _mining_progress_by_node: Dictionary = {}
 var _mining_active := false
@@ -266,11 +255,6 @@ var _cell_custody_wake_animation := ""
 var _cell_custody_wake_remaining := 0.0
 var equipped_items: Dictionary = {}
 
-var _current_blunt_damage := 0.0
-var _current_open_cut_damage := 0.0
-var _current_bandaged_cut_damage := 0.0
-var _bleed_rate := 0.0
-var _bleed_burst_rate := 0.0
 var _bleed_drip_progress := 0.0
 var _bleed_pool_progress := 0.0
 var _pending_nourishment := 0.0
@@ -293,8 +277,6 @@ var _combat_action_cut_damage := 0.0
 var _combat_reaction_remaining := 0.0
 var _combat_reaction_source: HumanoidCharacter
 var _ai_tick_remaining := 0.0
-var _ai_job_tick_remaining := 0.0
-var _ai_job_tick_accumulated := 0.0
 var _downed_recover_delay_remaining := 0.0
 var _downed_is_settled := false
 var _is_getting_up := false
@@ -320,18 +302,11 @@ var _stored_navigation_avoidance_enabled := true
 var _stored_collision_layer := 1
 var _stored_collision_mask := 1
 
-var _personal_hostile_ids: Dictionary = {}
 var _combat_reputation_recorded: Dictionary = {}
-var _last_direct_attacker_id := 0
-var _assigned_talkers: Dictionary = {}
-var _pending_talker_ids: Dictionary = {}
 var _combat_animation_sets: Dictionary = {}
-var _ai_brain
-var _ai_utility_adapter
 
 var _nameplate: Label3D
 var _inspect_ring: MeshInstance3D
-var _inspect_ring_material := StandardMaterial3D.new()
 var _character_animation_player: AnimationPlayer
 var _character_animation_players: Array[AnimationPlayer] = []
 var _character_skeleton: Skeleton3D
@@ -351,14 +326,11 @@ var _sitting_exit_animation_remaining := 0.0
 var _sitting_idle_change_remaining := 0.0
 var _rng := RandomNumberGenerator.new()
 var _work_inventory_override: InventoryData
-var _active_job_provider
-var _active_job_label := ""
 var _is_sitting := false
 var _equipment_update_batch_depth := 0
 var _equipment_change_pending := false
 var _equipment_changed_slots: Dictionary = {}
 var _preview_clothes_visible := true
-var _runtime_controller_cache: Dictionary = {}
 var _selection_ring: Node3D
 var _stat_value_cache_frame := -1
 var _stat_value_cache: Dictionary = {}
@@ -366,30 +338,20 @@ var _stat_value_cache: Dictionary = {}
 signal inventory_changed
 signal mining_changed
 signal scavenging_changed
-signal state_changed
 signal appearance_changed
-signal combat_state_changed
-signal life_state_changed(previous_state: int, next_state: int)
-signal died(character: HumanoidCharacter)
 signal container_reached(member, container)
 signal trade_target_reached(member, target)
 signal conversation_target_reached(member, target)
-signal center_notice_requested(message)
 
 
 func _enter_tree() -> void:
-	_runtime_controller_cache.clear()
-	call_deferred("_register_with_runtime_controllers")
+	super._enter_tree()
 
 
 func _ready() -> void:
 	super._ready()
 	_rng.randomize()
 	_needs_tick_remaining = _rng.randf_range(0.0, NEEDS_PROCESS_INTERVAL)
-	_ai_brain = AI_BRAIN_SCRIPT.new()
-	_ai_brain.setup(self)
-	_ai_utility_adapter = AI_UTILITY_ADAPTER_SCRIPT.new()
-	_ai_utility_adapter.setup()
 	inventory = InventoryData.new(inventory_columns, inventory_rows, max_carry_weight, true)
 	inventory.changed.connect(_on_inventory_data_changed)
 	_seed_starting_inventory()
@@ -410,47 +372,9 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	if _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):
-		_active_job_provider.pause_worker_job(self, false)
-	if _ai_brain != null:
-		_ai_brain.clear_active_job()
 	COMBAT_COORDINATOR.release_character(self)
 	remove_from_group(ACTIVE_COMBAT_ACTOR_GROUP)
-	_unregister_from_runtime_controllers()
-	_runtime_controller_cache.clear()
-
-
-func _register_with_runtime_controllers() -> void:
-	var population_controller := _get_runtime_controller("population_controller")
-	if population_controller != null and population_controller.has_method("register_actor"):
-		population_controller.call("register_actor", self)
-	var query_controller := _get_runtime_controller("actor_query_controller")
-	if query_controller != null and query_controller.has_method("register_actor"):
-		query_controller.call("register_actor", self)
-
-
-func _unregister_from_runtime_controllers() -> void:
-	var query_controller := _get_runtime_controller("actor_query_controller")
-	if query_controller != null and query_controller.has_method("unregister_actor"):
-		query_controller.call("unregister_actor", self)
-	var population_controller := _get_runtime_controller("population_controller")
-	if population_controller != null and population_controller.has_method("unregister_actor"):
-		population_controller.call("unregister_actor", self)
-	var scheduler := _get_runtime_controller("ai_scheduler_controller")
-	if scheduler != null and scheduler.has_method("clear_actor"):
-		scheduler.call("clear_actor", self)
-
-
-func _get_runtime_controller(group_name: String) -> Node:
-	if not is_inside_tree():
-		return null
-	var cached = _runtime_controller_cache.get(group_name)
-	if cached != null and is_instance_valid(cached):
-		return cached as Node
-	var controller := get_tree().get_first_node_in_group(group_name)
-	if controller != null:
-		_runtime_controller_cache[group_name] = controller
-	return controller as Node
+	super._exit_tree()
 
 
 func _process(delta: float) -> void:
@@ -1201,35 +1125,24 @@ func _apply_population_inventory_entries_if_present() -> void:
 	inventory.changed.emit()
 
 
-func begin_job_assignment(provider, job_label: String, work_inventory: InventoryData, request_runtime_job := true) -> void:
+func begin_job_assignment(provider, job_label: String, work_inventory = null, request_runtime_job := true) -> void:
 	if _work_inventory_override != null and _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
 		_work_inventory_override.changed.disconnect(_on_inventory_data_changed)
-	_active_job_provider = provider
-	_active_job_label = job_label
-	_work_inventory_override = work_inventory
+	_work_inventory_override = work_inventory as InventoryData
 	if _work_inventory_override != null and not _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
 		_work_inventory_override.changed.connect(_on_inventory_data_changed)
-	if request_runtime_job:
-		_request_assigned_work_ai_job(provider, job_label)
+	super.begin_job_assignment(provider, job_label, work_inventory, request_runtime_job)
 	inventory_changed.emit()
 	_sync_inventory_to_gecs()
-	state_changed.emit()
 
 
 func end_job_assignment() -> void:
 	if _work_inventory_override != null and _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
 		_work_inventory_override.changed.disconnect(_on_inventory_data_changed)
-	_active_job_provider = null
-	_active_job_label = ""
 	_work_inventory_override = null
-	cancel_ai_job("job_provider")
+	super.end_job_assignment()
 	inventory_changed.emit()
 	_sync_inventory_to_gecs()
-	state_changed.emit()
-
-
-func get_active_job_provider():
-	return _active_job_provider
 
 
 func get_inventory_for_display() -> InventoryData:
@@ -1369,21 +1282,6 @@ func consume_inventory_entry(entry) -> bool:
 	if display_inventory != inventory:
 		inventory_changed.emit()
 	return true
-
-
-func get_job_status_text() -> String:
-	if _active_job_provider != null and _active_job_provider.has_method("get_provider_name"):
-		return "Working for %s" % _active_job_provider.get_provider_name()
-	if _active_job_provider != null:
-		return "Working"
-	var bridge := get_tree().get_first_node_in_group("gecs_world_controller") if is_inside_tree() else null
-	if bridge != null and bridge.has_method("get_actor_job_contracts"):
-		var contracts: Array = bridge.call("get_actor_job_contracts", self)
-		if contracts.size() == 1:
-			return "Job: %s" % str(contracts[0].get("display_name", "Job"))
-		if contracts.size() > 1:
-			return "%d jobs" % contracts.size()
-	return ""
 
 
 func is_authorized_for_owner(owner_character: HumanoidCharacter, owner_faction: String = "") -> bool:
@@ -1641,66 +1539,6 @@ func set_auto_heal_enabled(value: bool) -> void:
 	state_changed.emit()
 
 
-func request_ai_job(job) -> bool:
-	if _ai_brain == null or job == null:
-		return false
-	return _ai_brain.request_job(job)
-
-
-func cancel_ai_job(source_id := "") -> void:
-	if _ai_brain == null:
-		return
-	if source_id.is_empty():
-		_ai_brain.clear_active_job()
-	else:
-		_ai_brain.clear_jobs_from_source(source_id)
-	_sync_active_combat_actor_group()
-
-
-func has_active_ai_job_from_source(source_id: String) -> bool:
-	return _ai_brain != null and _ai_brain.active_job != null and str(_ai_brain.active_job.source_id) == source_id and _ai_brain.has_active_job()
-
-
-func finish_active_ai_job_from_gecs(step_status: int) -> void:
-	if _ai_brain != null and _ai_brain.has_method("finish_active_job_from_gecs"):
-		_ai_brain.call("finish_active_job_from_gecs", step_status)
-
-
-func get_ai_debug_snapshot() -> Dictionary:
-	return _ai_brain.get_debug_snapshot() if _ai_brain != null and _ai_brain.has_method("get_debug_snapshot") else {}
-
-
-func _request_assigned_work_ai_job(provider, job_label: String) -> void:
-	if provider == null or _ai_brain == null:
-		return
-	if has_active_ai_job_from_source("job_provider"):
-		return
-	if provider.has_method("create_assigned_work_ai_job"):
-		var provider_job = provider.call("create_assigned_work_ai_job", self, job_label)
-		if provider_job != null:
-			request_ai_job(provider_job)
-			return
-	var job = AI_JOB_SCRIPT.new()
-	job.job_type = AI_JOB_SCRIPT.JobType.ASSIGNED_WORK
-	job.priority = AI_JOB_SCRIPT.priority_for_type(job.job_type)
-	job.source_id = "job_provider"
-	job.source = provider
-	job.target = provider
-	job.target_id = str(provider.get_path()) if provider is Node else str(provider.get_instance_id())
-	job.package_id = "assigned_work"
-	job.debug_label = "Working: %s" % job_label if not job_label.is_empty() else "Working"
-	job.debug_reason = "Assigned paid work from %s" % (provider.get_provider_name() if provider.has_method("get_provider_name") else str(job.target_id))
-	request_ai_job(job)
-
-
-func _ensure_assigned_work_ai_job() -> void:
-	if _active_job_provider == null:
-		return
-	if _has_active_combat_target():
-		return
-	_request_assigned_work_ai_job(_active_job_provider, _active_job_label)
-
-
 func can_continue_running() -> bool:
 	if life_state != NpcRules.LifeState.ALIVE:
 		return false
@@ -1761,20 +1599,21 @@ func clear_law_sentence_move() -> void:
 	_law_sentence_move_active = false
 
 
-func get_current_combat_target() -> HumanoidCharacter:
+func get_current_combat_target() -> Node:
 	return _get_active_combat_target()
 
 
-func is_ready_for_combat_exchange(target: HumanoidCharacter) -> bool:
-	if not _is_valid_combat_target(target):
+func is_ready_for_combat_exchange(target: Node) -> bool:
+	var target_character := target as HumanoidCharacter
+	if not _is_valid_combat_target(target_character):
 		return false
-	if _get_active_combat_target() != target:
+	if _get_active_combat_target() != target_character:
 		return false
 	if _combat_action_active or _combat_reaction_remaining > 0.0 or _combat_cooldown_remaining > 0.0:
 		return false
 	if COMBAT_COORDINATOR.is_character_locked(self):
 		return false
-	return _horizontal_distance_to(target.global_position) <= _get_effective_combat_attack_range()
+	return _horizontal_distance_to(target_character.global_position) <= _get_effective_combat_attack_range()
 
 
 func get_attack_range() -> float:
@@ -1971,64 +1810,6 @@ func get_carried_character() -> HumanoidCharacter:
 
 func get_carrier() -> HumanoidCharacter:
 	return _carried_by if _carried_by != null and is_instance_valid(_carried_by) else null
-
-
-func has_hostility_with(other: HumanoidCharacter) -> bool:
-	if other == null or is_protected_from_combat() or other.is_protected_from_combat():
-		return false
-	return is_hostile_to(other) or other.is_hostile_to(self)
-
-
-func is_hostile_to(other: HumanoidCharacter) -> bool:
-	if other == null or other == self:
-		return false
-	if is_protected_from_combat() or other.is_protected_from_combat():
-		return false
-	if _personal_hostile_ids.has(other.get_instance_id()):
-		return true
-	if hostile_factions.has(other.faction_name):
-		return true
-	return _factions_are_hostile(faction_name, other.faction_name)
-
-
-func _factions_are_hostile(faction_a: String, faction_b: String) -> bool:
-	if faction_a.is_empty() or faction_b.is_empty() or faction_a == faction_b:
-		return false
-	if not is_inside_tree():
-		return false
-	for node in get_tree().get_nodes_in_group("faction_controller"):
-		if node.has_method("are_hostile"):
-			return bool(node.call("are_hostile", faction_a, faction_b))
-	return false
-
-
-func _is_actor_hostile_to_faction(actor: HumanoidCharacter, target_faction: String) -> bool:
-	if actor == null or target_faction.is_empty() or actor.faction_name == target_faction:
-		return false
-	if actor.hostile_factions.has(target_faction):
-		return true
-	return _factions_are_hostile(actor.faction_name, target_faction)
-
-
-func _is_friendly_to_faction(target_faction: String) -> bool:
-	return not _is_actor_hostile_to_faction(self, target_faction)
-
-
-func mark_hostile(other: HumanoidCharacter) -> void:
-	if other == null or other == self:
-		return
-	_personal_hostile_ids[other.get_instance_id()] = true
-
-
-func clear_personal_hostility(other: HumanoidCharacter) -> void:
-	if other == null:
-		return
-	_personal_hostile_ids.erase(other.get_instance_id())
-
-
-func clear_all_personal_hostility() -> void:
-	_personal_hostile_ids.clear()
-	_last_direct_attacker_id = 0
 
 
 func disengage_combat_with(other: HumanoidCharacter = null) -> void:
@@ -2245,24 +2026,6 @@ func apply_bandage_from(actor: HumanoidCharacter) -> bool:
 	_recalculate_vitals()
 	actor.add_skill_xp(SkillRules.KNOWLEDGE_MEDICINE, MEDICAL_BANDAGE_XP, "bandage")
 	return true
-
-
-func get_interaction_position(member: HumanoidCharacter) -> Vector3:
-	var slot_index := _get_talker_slot(member)
-	var angle := TAU * float(slot_index) / 6.0
-	return global_position + Vector3(cos(angle), 0.0, sin(angle)) * interact_distance
-
-
-func get_combat_approach_position(attacker: HumanoidCharacter) -> Vector3:
-	var preferred_range := attacker.get_attack_range() if attacker != null and attacker.has_method("get_attack_range") else get_attack_range()
-	var wait_extra := float(attacker.get("combat_wait_ring_extra")) if attacker != null and attacker.get("combat_wait_ring_extra") != null else combat_wait_ring_extra
-	return COMBAT_COORDINATOR.get_combat_slot_position(self, attacker, preferred_range, wait_extra)
-
-
-func get_combat_move_position(attacker: HumanoidCharacter) -> Vector3:
-	if attacker != null and absf(global_position.y - attacker.global_position.y) > attacker.move_target_vertical_tolerance:
-		return global_position
-	return get_combat_approach_position(attacker)
 
 
 func _face_character(character: HumanoidCharacter) -> void:
@@ -2811,7 +2574,7 @@ func _process_ai(delta: float) -> void:
 		stop_pickup_assignment()
 	if _current_attack_target != null and not _is_valid_active_combat_target(_current_attack_target):
 		stop_attack_assignment()
-	if _try_reconfigure_close_combat_target():
+	if should_run_close_combat_retarget(delta) and _try_reconfigure_close_combat_target():
 		return
 	if _get_active_combat_target() != null:
 		return
@@ -2874,7 +2637,7 @@ func _process_ai_profiled(delta: float) -> void:
 	if _current_attack_target != null and not _is_valid_active_combat_target(_current_attack_target):
 		stop_attack_assignment()
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("attack_validation", profile_last_usec)
-	if _try_reconfigure_close_combat_target():
+	if should_run_close_combat_retarget(delta) and _try_reconfigure_close_combat_target():
 		_debug_humanoid_ai_profile_checkpoint("close_combat_retarget", profile_last_usec)
 		_debug_humanoid_ai_profile_finish()
 		return
@@ -2964,24 +2727,6 @@ func _should_use_far_background_ai_cadence() -> bool:
 		if global_position.distance_squared_to(party_member.global_position) <= distance_squared:
 			return false
 	return true
-
-
-func _tick_active_ai_job(delta: float) -> void:
-	if not _ai_brain.has_active_job():
-		_ai_job_tick_accumulated = 0.0
-		_ai_job_tick_remaining = 0.0
-		return
-	var bridge := get_tree().get_first_node_in_group("gecs_world_controller") if is_inside_tree() else null
-	if bridge != null and bridge.has_method("can_tick_actor_ai_job") and bool(bridge.call("can_tick_actor_ai_job", self)):
-		return
-	_ai_job_tick_accumulated += delta
-	_ai_job_tick_remaining -= delta
-	if _ai_job_tick_remaining > 0.0:
-		return
-	var tick_delta := _ai_job_tick_accumulated
-	_ai_job_tick_accumulated = 0.0
-	_ai_job_tick_remaining = 0.18 + _rng.randf_range(0.0, 0.08)
-	_ai_brain.tick(tick_delta)
 
 
 func _process_law_custody_return() -> void:
@@ -3472,7 +3217,6 @@ func _process_attack_interaction() -> void:
 
 func _process_combat_animation_state(delta: float) -> void:
 	if _combat_reaction_remaining > 0.0:
-		_face_combat_focus()
 		_combat_reaction_remaining = maxf(0.0, _combat_reaction_remaining - delta)
 		if _combat_reaction_remaining <= 0.0:
 			_combat_reaction_source = null
@@ -3481,7 +3225,6 @@ func _process_combat_animation_state(delta: float) -> void:
 	if life_state != NpcRules.LifeState.ALIVE:
 		_clear_combat_action()
 		return
-	_face_combat_focus()
 
 	_combat_action_remaining = maxf(0.0, _combat_action_remaining - delta)
 	_combat_action_clip_remaining = maxf(0.0, _combat_action_clip_remaining - delta)
@@ -3776,46 +3519,6 @@ func _sync_inventory_to_gecs() -> void:
 	var bridge := get_tree().get_first_node_in_group("gecs_world_controller")
 	if bridge != null and bridge.has_method("sync_actor_inventory"):
 		bridge.call("sync_actor_inventory", self)
-
-
-func has_conversation_definition() -> bool:
-	return conversation_definition != null
-
-
-func get_conversation_definition():
-	return conversation_definition
-
-
-func register_talker(member: HumanoidCharacter) -> void:
-	_get_talker_slot(member)
-	_pending_talker_ids[member.get_instance_id()] = true
-
-
-func release_talker(member: HumanoidCharacter) -> void:
-	_pending_talker_ids.erase(member.get_instance_id())
-	_assigned_talkers.erase(member.get_instance_id())
-
-
-func resolve_talk(member: HumanoidCharacter) -> bool:
-	if member == null:
-		return false
-	var actor_id := member.get_instance_id()
-	if not _pending_talker_ids.has(actor_id):
-		return false
-	_pending_talker_ids.clear()
-	return true
-
-
-func _get_talker_slot(member: HumanoidCharacter) -> int:
-	var key := member.get_instance_id()
-	if _assigned_talkers.has(key):
-		return _assigned_talkers[key]
-	for slot_index in range(6):
-		if not _assigned_talkers.values().has(slot_index):
-			_assigned_talkers[key] = slot_index
-			return slot_index
-	_assigned_talkers[key] = 0
-	return 0
 
 
 func set_selected(value: bool) -> void:
@@ -5289,7 +4992,9 @@ func _clear_invalid_ai_job() -> void:
 
 
 func _sync_active_combat_actor_group() -> void:
-	if _has_active_combat_target():
+	var active_target := _get_active_combat_target()
+	set_shared_combat_target(active_target)
+	if active_target != null:
 		add_to_group(ACTIVE_COMBAT_ACTOR_GROUP)
 	else:
 		remove_from_group(ACTIVE_COMBAT_ACTOR_GROUP)
@@ -5638,10 +5343,14 @@ func _try_reconfigure_close_combat_target() -> bool:
 		return false
 	if _combat_action_active or _combat_reaction_remaining > 0.0:
 		return false
+	var active_target := _get_active_combat_target()
+	if active_target != null and absf(active_target.global_position.y - global_position.y) <= move_target_vertical_tolerance and _horizontal_distance_to(active_target.global_position) <= get_attack_range():
+		return false
+	if active_target == null and not _should_seek_combat_target():
+		return false
 	var close_target := _find_closest_hostile(_get_close_hostile_retarget_radius())
 	if close_target == null:
 		return false
-	var active_target := _get_active_combat_target()
 	if active_target == close_target:
 		return false
 	if active_target != null and _should_keep_current_target_over_close_hostile(active_target, close_target):
@@ -5782,14 +5491,14 @@ func _find_defensive_assist_target() -> HumanoidCharacter:
 			continue
 		if global_position.distance_squared_to(ally.global_position) > witness_radius_squared:
 			continue
-		var ally_target := ally.get_current_combat_target()
+		var ally_target := ally.get_current_combat_target() as HumanoidCharacter
 		if _is_valid_combat_target(ally_target) and _should_help_against(ally, ally_target, true) and not candidates.has(ally_target):
 			candidates.append(ally_target)
 	return COMBAT_COORDINATOR.choose_target(self, candidates, _get_combat_switch_radius()) as HumanoidCharacter
 
 
 func _should_defend_ally(ally: HumanoidCharacter) -> bool:
-	var ally_target := ally.get_current_combat_target() if ally != null else null
+	var ally_target: HumanoidCharacter = ally.get_current_combat_target() as HumanoidCharacter if ally != null else null
 	return _should_help_against(ally, ally_target, true)
 
 
@@ -5853,13 +5562,6 @@ func _is_meaningful_squad_key(value: String) -> bool:
 		return false
 	var lower := normalized.to_lower()
 	return lower != "default" and lower != "none"
-
-
-func _get_actor_string_property(actor, property_name: String) -> String:
-	if actor == null:
-		return ""
-	var value = actor.get(property_name)
-	return str(value).strip_edges() if value != null else ""
 
 
 func _get_actor_bool_property(actor, property_name: String) -> bool:
@@ -5928,7 +5630,9 @@ func _can_witness_combat(protected_actor, threat) -> bool:
 
 
 func _get_combat_actor_position(actor):
-	return (actor as Node3D).global_position if actor is Node3D else null
+	if actor is Node3D:
+		return (actor as Node3D).global_position
+	return null
 
 
 func _find_nearest_hostile(scan_radius: float) -> HumanoidCharacter:

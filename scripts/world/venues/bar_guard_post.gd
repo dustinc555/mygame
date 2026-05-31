@@ -13,7 +13,7 @@ class_name BarGuardPost
 		debug_color = value
 		_refresh_debug_marker()
 
-var _assigned_worker: HumanoidCharacter
+var _assigned_worker: WorldActor
 var _debug_marker: MeshInstance3D
 
 
@@ -30,7 +30,7 @@ func get_work_position() -> Vector3:
 	return global_position
 
 
-func claim_worker(worker: HumanoidCharacter) -> bool:
+func claim_worker(worker: WorldActor) -> bool:
 	if worker == null:
 		return false
 	if _assigned_worker != null and is_instance_valid(_assigned_worker) and _assigned_worker != worker:
@@ -39,20 +39,20 @@ func claim_worker(worker: HumanoidCharacter) -> bool:
 	return true
 
 
-func release_worker(worker: HumanoidCharacter) -> void:
+func release_worker(worker: WorldActor) -> void:
 	if _assigned_worker == worker:
 		_assigned_worker = null
 
 
-func is_available_for(worker: HumanoidCharacter) -> bool:
+func is_available_for(worker: WorldActor) -> bool:
 	return _assigned_worker == null or not is_instance_valid(_assigned_worker) or _assigned_worker == worker
 
 
-func get_assigned_worker() -> HumanoidCharacter:
+func get_assigned_worker() -> WorldActor:
 	return _assigned_worker if _assigned_worker != null and is_instance_valid(_assigned_worker) else null
 
 
-func is_worker_at_post(worker: HumanoidCharacter) -> bool:
+func is_worker_at_post(worker: WorldActor) -> bool:
 	return worker != null and worker.global_position.distance_to(global_position) <= stand_radius
 
 
