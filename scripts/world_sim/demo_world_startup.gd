@@ -2,11 +2,15 @@ extends Node3D
 
 const PARTY_MEMBER_SCENE := preload("res://scenes/characters/party_member.tscn")
 const INVENTORY_STOCK_SCRIPT := preload("res://scripts/items/inventory_stock.gd")
+const CHARACTER_APPEARANCE_DATA_SCRIPT := preload("res://scripts/character_appearance/character_appearance_data.gd")
+const HUMAN_RACE := preload("res://resources/character_races/human.tres")
+const HUMAN_MALE_BODY_ARCHETYPE := preload("res://resources/character_body_archetypes/human_male.tres")
 const BANDAGE_ITEM := preload("res://resources/items/bandage.tres")
 const HATCHET_ITEM := preload("res://resources/items/hatchet.tres")
 const SILVER_ITEM := preload("res://resources/items/silver.tres")
 
 @export var auto_open_character_creator := true
+@export var auto_spawn_default_character := false
 
 var created_member: HumanoidCharacter
 var _creation_opened := false
@@ -23,8 +27,20 @@ func _deferred_setup() -> void:
 	var creation_saved_callable := Callable(self, "_on_creation_saved")
 	if appearance_controller.has_signal("creation_saved") and not appearance_controller.is_connected("creation_saved", creation_saved_callable):
 		appearance_controller.connect("creation_saved", creation_saved_callable)
+	if auto_spawn_default_character and created_member == null:
+		spawn_default_character()
 	if auto_open_character_creator and not _creation_opened:
 		_creation_opened = bool(appearance_controller.open_creation_editor())
+
+
+func spawn_default_character() -> HumanoidCharacter:
+	var appearance = CHARACTER_APPEARANCE_DATA_SCRIPT.new()
+	appearance.character_race = HUMAN_RACE
+	appearance.body_archetype = HUMAN_MALE_BODY_ARCHETYPE
+	appearance.visual_body_type = CHARACTER_APPEARANCE_DATA_SCRIPT.VISUAL_BODY_TYPE_MALE
+	appearance.skin_color_customized = true
+	appearance.skin_color = CHARACTER_APPEARANCE_DATA_SCRIPT.DEFAULT_SKIN_COLOR
+	return spawn_created_character(appearance, "Wanderer")
 
 
 func spawn_created_character(appearance: Resource, character_name := "") -> HumanoidCharacter:

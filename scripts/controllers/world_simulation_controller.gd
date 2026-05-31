@@ -18,6 +18,7 @@ var faction_controller: Node
 var law_order_controller: Node
 var world_event_choice_controller: Node
 var job_system_controller: Node
+var nest_controller: Node
 var _initialized := false
 
 const CONTROLLER_STATE_SPECS := [
@@ -33,6 +34,7 @@ const CONTROLLER_STATE_SPECS := [
 	{"key": "law_order", "property": "law_order_controller", "sync_method": "sync_law_order_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "world_events", "property": "world_event_choice_controller", "sync_method": "sync_world_event_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "job_system", "property": "job_system_controller", "sync_method": "sync_job_system_state", "refresh_method": "refresh_from_gecs_state"},
+	{"key": "nests", "property": "nest_controller", "sync_method": "sync_nest_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "territories", "property": "territory_controller"},
 	{"key": "roads", "property": "road_controller"},
 ]
@@ -163,6 +165,7 @@ func _try_initialize() -> void:
 	law_order_controller = get_parent().get_node_or_null("LawOrderController")
 	world_event_choice_controller = get_parent().get_node_or_null("WorldEventChoiceController")
 	job_system_controller = get_parent().get_node_or_null("JobSystemController")
+	nest_controller = get_parent().get_node_or_null("NestController")
 	if world_time == null or settlement_controller == null or world_squad_controller == null:
 		return
 	var action_requested_callable := Callable(self, "_on_settlement_action_requested")

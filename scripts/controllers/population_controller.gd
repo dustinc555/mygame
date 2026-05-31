@@ -3,6 +3,10 @@ extends Node
 class_name PopulationController
 
 const CHARACTER_APPEARANCE_DATA_SCRIPT := preload("res://scripts/character_appearance/character_appearance_data.gd")
+const HUMAN_RACE := preload("res://resources/character_races/human.tres")
+const RUSTDEAD_FACTION_ID := "Rustdead"
+const RUSTDEAD_RACE_ID := "rustdead"
+const VISUAL_BODY_TYPE_FEMALE := 3
 
 var root_scene: Node
 var actor_records: Dictionary = {}
@@ -151,10 +155,13 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 		actor.set("stable_id", actor_id)
 		actor.set_meta("actor_record_id", actor_id)
 	actor.set("member_name", str(record.get("member_name", actor.get("member_name"))))
-	actor.set("faction_name", str(record.get("faction_id", actor.get("faction_name"))))
+	var faction_id := str(record.get("faction_id", actor.get("faction_name")))
+	actor.set("faction_name", faction_id)
 	actor.set("squad_name", str(record.get("squad_name", actor.get("squad_name"))))
 	actor.set("hostile_factions", PackedStringArray(record.get("hostile_faction_ids", [])))
 	actor.set("combat_stance", int(record.get("combat_stance", actor.get("combat_stance"))))
+	actor.set("auto_heal_enabled", bool(record.get("auto_heal_enabled", actor.get("auto_heal_enabled"))))
+	actor.set("auto_burn_rustdead_enabled", bool(record.get("auto_burn_rustdead_enabled", actor.get("auto_burn_rustdead_enabled"))))
 	actor.set("starting_skill_levels", record.get("skill_levels", {}))
 	actor.set_meta("settlement_id", str(record.get("settlement_id", "")))
 	actor.set_meta("actor_role_id", str(record.get("role_id", "resident")))
@@ -163,6 +170,7 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 		actor.set("base_color", record.get("base_color"))
 	var appearance = _appearance_from_record(record.get("appearance", {}) as Dictionary)
 	if appearance != null:
+		_repair_non_rustdead_appearance(appearance, faction_id)
 		actor.set("character_race", appearance.character_race)
 		actor.set("body_archetype", appearance.body_archetype)
 		actor.set("visual_body_type", appearance.visual_body_type)
@@ -389,6 +397,7 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 	var appearance_profile: Resource = context.get("population_appearance_profile") as Resource
 	var appearance_rng := _make_rng(actor_id, "appearance")
 	var appearance = appearance_profile.call("create_appearance", appearance_rng) if appearance_profile != null and appearance_profile.has_method("create_appearance") else CHARACTER_APPEARANCE_DATA_SCRIPT.new()
+	_repair_non_rustdead_appearance(appearance, str(context.get("faction_id", "")))
 	var body_type := int(appearance.visual_body_type) if appearance != null else 0
 	var name_profile: Resource = context.get("population_name_profile") as Resource
 	var name_rng := _make_rng(actor_id, "name")
@@ -409,6 +418,8 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"role_id": str(context.get("role_id", "resident")),
 		"hostile_faction_ids": Array(context.get("hostile_faction_ids", [])),
 		"combat_stance": int(context.get("combat_stance", NpcRules.CombatStance.DEFENSIVE)),
+		"auto_heal_enabled": bool(context.get("auto_heal_enabled", false)),
+		"auto_burn_rustdead_enabled": bool(context.get("auto_burn_rustdead_enabled", false)),
 		"base_color": context.get("base_color", Color(0.62, 0.62, 0.62, 1.0)),
 		"appearance": _appearance_to_record(appearance),
 		"equipment_slots": equipment_slots,
@@ -446,12 +457,17 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 	record["settlement_id"] = settlement_id
 	record["role_id"] = str(context.get("role_id", _actor_role(actor)))
 	record["member_name"] = str(actor.get("member_name"))
-	record["faction_id"] = str(actor.get("faction_name"))
+	var faction_id := str(actor.get("faction_name"))
+	record["faction_id"] = faction_id
 	record["squad_name"] = str(actor.get("squad_name"))
 	record["hostile_faction_ids"] = Array(actor.get("hostile_factions"))
 	record["combat_stance"] = int(actor.get("combat_stance"))
+	record["auto_heal_enabled"] = bool(actor.get("auto_heal_enabled"))
+	record["auto_burn_rustdead_enabled"] = bool(actor.get("auto_burn_rustdead_enabled"))
 	record["life_state"] = int(actor.get("life_state")) if actor.get("life_state") != null else NpcRules.LifeState.ALIVE
-	record["appearance"] = _appearance_to_record(actor.get("appearance_data"))
+	var appearance = actor.get("appearance_data")
+	_repair_non_rustdead_appearance(appearance, faction_id)
+	record["appearance"] = _appearance_to_record(appearance)
 	record["equipment_slots"] = _equipment_slots_from_actor(actor)
 	record["inventory_entries"] = _inventory_entries_from_actor(actor)
 	record["skill_levels"] = _skill_levels_from_actor(actor)
@@ -562,6 +578,30 @@ func _appearance_to_record(appearance) -> Dictionary:
 		"arm_length_slider": float(appearance.arm_length_slider),
 		"neck_length_slider": float(appearance.neck_length_slider),
 	}
+
+
+func _repair_non_rustdead_appearance(appearance, faction_id: String) -> void:
+	if appearance == null or faction_id == RUSTDEAD_FACTION_ID:
+		return
+	if _appearance_race_id(appearance) != RUSTDEAD_RACE_ID:
+		return
+	appearance.character_race = HUMAN_RACE
+	appearance.body_archetype = _human_body_archetype(int(appearance.visual_body_type))
+
+
+func _appearance_race_id(appearance) -> String:
+	if appearance == null:
+		return ""
+	return _resource_race_id(appearance.character_race as Resource)
+
+
+func _resource_race_id(race: Resource) -> String:
+	return str(race.get("race_id")).strip_edges().to_lower() if race != null else ""
+
+
+func _human_body_archetype(body_type: int) -> Resource:
+	var property_name := "default_female_archetype" if body_type == VISUAL_BODY_TYPE_FEMALE else "default_male_archetype"
+	return HUMAN_RACE.get(property_name) as Resource
 
 
 func _appearance_from_record(record: Dictionary):

@@ -6,6 +6,7 @@ class_name SettlementTown
 const FACTION_HUMANOID_SCRIPT = preload("res://scripts/characters/faction_humanoid.gd")
 const SETTLEMENT_GUARD_POST_SCRIPT = preload("res://scripts/world/venues/settlement_guard_post.gd")
 const BANDAGE_ITEM = preload("res://resources/items/bandage.tres")
+const CINDER_FLASK_ITEM = preload("res://resources/items/cinder_flask.tres")
 const HATCHET_ITEM = preload("res://resources/items/hatchet.tres")
 const ROUND_SHIELD_ITEM = preload("res://resources/items/round_shield.tres")
 const STAFF_ROLE_OWNER_GROUP := "settlement_staff_role_owner"
@@ -353,6 +354,10 @@ func _prepare_guard_actor(actor: Node, index: int) -> void:
 		actor.set("stable_id", "%s.%s" % [_get_staff_id_prefix(), _indexed_name("guard", index)])
 	if _has_property(actor, "base_attack_damage"):
 		actor.set("base_attack_damage", 12.0)
+	if _has_property(actor, "auto_heal_enabled"):
+		actor.set("auto_heal_enabled", true)
+	if _has_property(actor, "auto_burn_rustdead_enabled"):
+		actor.set("auto_burn_rustdead_enabled", true)
 	_apply_guard_starting_equipment(actor)
 	if not Engine.is_editor_hint():
 		if actor.has_method("set_settlement_authority"):
@@ -391,7 +396,17 @@ func _apply_guard_starting_equipment(actor: Node) -> void:
 		var slot_name := str(item.get("equip_slot")) if _has_property(item, "equip_slot") else ""
 		if not Engine.is_editor_hint() and not slot_name.is_empty() and actor.has_method("get_equipped_item") and actor.has_method("equip_item_to_slot") and actor.call("get_equipped_item", slot_name) == null:
 			actor.call("equip_item_to_slot", item, slot_name)
+	while _count_starting_equipment_item(starting_equipment, CINDER_FLASK_ITEM) < 2:
+		starting_equipment.append(CINDER_FLASK_ITEM)
 	actor.set("starting_equipment", starting_equipment)
+
+
+func _count_starting_equipment_item(starting_equipment: Array, item: Resource) -> int:
+	var count := 0
+	for candidate in starting_equipment:
+		if candidate == item:
+			count += 1
+	return count
 
 
 func _get_guard_actor_for_slot(index: int) -> Node:

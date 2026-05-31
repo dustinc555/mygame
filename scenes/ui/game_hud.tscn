@@ -330,11 +330,21 @@ text = "Assist"
 vertical_alignment = 1
 
 [node name="AutoHealButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/AssistRow"]
-custom_minimum_size = Vector2(94, 24)
+custom_minimum_size = Vector2(84, 24)
 layout_mode = 2
+size_flags_horizontal = 3
 toggle_mode = true
 focus_mode = 0
 text = "Auto Heal"
+
+[node name="BurnRustdeadButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/AssistRow"]
+custom_minimum_size = Vector2(104, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+focus_mode = 0
+theme_override_font_sizes/font_size = 9
+text = "Burn Rustdead"
 
 [node name="PortraitBar" type="PanelContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")

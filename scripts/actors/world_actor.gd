@@ -41,6 +41,7 @@ signal center_notice_requested(message)
 @export var running := false
 @export var sneaking := false
 @export var auto_heal_enabled := false
+@export var auto_burn_rustdead_enabled := false
 @export_range(0, 2, 1) var combat_stance := NpcRules.CombatStance.DEFENSIVE
 
 @export var max_hp := 100.0

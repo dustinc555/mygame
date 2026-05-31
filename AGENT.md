@@ -17,6 +17,7 @@ This is the single project guidance file for coding agents. Human-facing archite
 - Do not edit `addons/gecs/`; it is a git submodule. If GECS behavior seems necessary, stop and ask before touching the submodule.
 - Leave vendor docs under `addons/gecs/docs/` alone unless explicitly asked to edit vendor content.
 - Do not use the phrase "you're right" in user-facing replies. Acknowledge issues directly.
+- Do not frame production work as "good enough for now", "V1", "temporary", or "prototype" unless the user explicitly asks for a throwaway experiment. This project is the product. Implement features as durable, extensible game systems with professional-quality architecture, validation, and authoring workflows.
 
 ## State And Persistence
 - Controllers/components own mutable runtime truth. Nodes and resources author data, bridge scene content, execute local behavior, and display state.

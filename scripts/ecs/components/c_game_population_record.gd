@@ -13,6 +13,8 @@ class_name CGamePopulationRecord
 @export var role_id := "resident"
 @export var hostile_faction_ids: PackedStringArray = PackedStringArray()
 @export var combat_stance := 0
+@export var auto_heal_enabled := false
+@export var auto_burn_rustdead_enabled := false
 @export var base_color := Color(0.62, 0.62, 0.62, 1.0)
 @export var skill_levels: Dictionary = {}
 @export var traits: Dictionary = {}
@@ -59,6 +61,8 @@ func apply_record(source: Dictionary) -> void:
 	role_id = str(source.get("role_id", role_id))
 	hostile_faction_ids = PackedStringArray(source.get("hostile_faction_ids", hostile_faction_ids))
 	combat_stance = int(source.get("combat_stance", combat_stance))
+	auto_heal_enabled = bool(source.get("auto_heal_enabled", auto_heal_enabled))
+	auto_burn_rustdead_enabled = bool(source.get("auto_burn_rustdead_enabled", auto_burn_rustdead_enabled))
 	base_color = source.get("base_color", base_color)
 	skill_levels = (source.get("skill_levels", skill_levels) as Dictionary).duplicate(true)
 	traits = (source.get("traits", traits) as Dictionary).duplicate(true)
@@ -106,6 +110,8 @@ func to_record() -> Dictionary:
 		"role_id": role_id,
 		"hostile_faction_ids": Array(hostile_faction_ids),
 		"combat_stance": combat_stance,
+		"auto_heal_enabled": auto_heal_enabled,
+		"auto_burn_rustdead_enabled": auto_burn_rustdead_enabled,
 		"base_color": base_color,
 		"skill_levels": skill_levels.duplicate(true),
 		"traits": traits.duplicate(true),

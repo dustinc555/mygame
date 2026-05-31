@@ -38,6 +38,7 @@ const C_LAW_ORDER_PATH := "res://scripts/ecs/components/c_game_law_order_state.g
 const C_FACTION_STATE_PATH := "res://scripts/ecs/components/c_game_faction_state.gd"
 const C_WORLD_SQUAD_PATH := "res://scripts/ecs/components/c_game_world_squad_state.gd"
 const C_WORLD_EVENT_PATH := "res://scripts/ecs/components/c_game_world_event_state.gd"
+const C_NEST_STATE_PATH := "res://scripts/ecs/components/c_game_nest_state.gd"
 const C_JOB_SYSTEM_PATH := "res://scripts/ecs/components/c_game_job_system_state.gd"
 const C_LEDGER_SIMULATION_PATH := "res://scripts/ecs/components/c_game_ledger_simulation_state.gd"
 const C_AI_SCHEDULER_STATE_PATH := "res://scripts/ecs/components/c_game_ai_scheduler_state.gd"
@@ -69,6 +70,7 @@ var _law_order_entity
 var _faction_state_entity
 var _world_squad_entity
 var _world_event_entity
+var _nest_state_entity
 var _job_system_entity
 var _ledger_simulation_entity
 var _ai_scheduler_state_entity
@@ -111,6 +113,7 @@ var C_LAW_ORDER
 var C_FACTION_STATE
 var C_WORLD_SQUAD
 var C_WORLD_EVENT
+var C_NEST_STATE
 var C_JOB_SYSTEM
 var C_LEDGER_SIMULATION
 var C_AI_SCHEDULER_STATE
@@ -1048,6 +1051,16 @@ func get_world_event_state() -> Dictionary:
 	return _state_component_to_dictionary(_world_event_entity, C_WORLD_EVENT)
 
 
+func upsert_nest_state(state: Dictionary) -> Dictionary:
+	_nest_state_entity = _upsert_state_entity(_nest_state_entity, "NestState", _entity_id("nest", "state"), C_NEST_STATE)
+	return _apply_state_component(_nest_state_entity, C_NEST_STATE, state)
+
+
+func get_nest_state() -> Dictionary:
+	_nest_state_entity = _find_state_entity(_nest_state_entity, C_NEST_STATE)
+	return _state_component_to_dictionary(_nest_state_entity, C_NEST_STATE)
+
+
 func upsert_job_system_state(state: Dictionary) -> Dictionary:
 	_job_system_entity = _upsert_state_entity(_job_system_entity, "JobSystemState", _entity_id("job_system", "state"), C_JOB_SYSTEM)
 	return _apply_state_component(_job_system_entity, C_JOB_SYSTEM, state)
@@ -1149,6 +1162,7 @@ func serialize_state() -> Dictionary:
 		"faction_state_entity_count": 1 if _faction_state_entity != null and is_instance_valid(_faction_state_entity) else 0,
 		"world_squad_entity_count": 1 if _world_squad_entity != null and is_instance_valid(_world_squad_entity) else 0,
 		"world_event_entity_count": 1 if _world_event_entity != null and is_instance_valid(_world_event_entity) else 0,
+		"nest_state_entity_count": 1 if _nest_state_entity != null and is_instance_valid(_nest_state_entity) else 0,
 		"job_system_entity_count": 1 if _job_system_entity != null and is_instance_valid(_job_system_entity) else 0,
 		"ledger_simulation_entity_count": 1 if _ledger_simulation_entity != null and is_instance_valid(_ledger_simulation_entity) else 0,
 		"ai_scheduler_state_entity_count": 1 if _ai_scheduler_state_entity != null and is_instance_valid(_ai_scheduler_state_entity) else 0,
@@ -1204,6 +1218,7 @@ func _load_component_scripts() -> void:
 	C_FACTION_STATE = load(C_FACTION_STATE_PATH) if C_FACTION_STATE == null else C_FACTION_STATE
 	C_WORLD_SQUAD = load(C_WORLD_SQUAD_PATH) if C_WORLD_SQUAD == null else C_WORLD_SQUAD
 	C_WORLD_EVENT = load(C_WORLD_EVENT_PATH) if C_WORLD_EVENT == null else C_WORLD_EVENT
+	C_NEST_STATE = load(C_NEST_STATE_PATH) if C_NEST_STATE == null else C_NEST_STATE
 	C_JOB_SYSTEM = load(C_JOB_SYSTEM_PATH) if C_JOB_SYSTEM == null else C_JOB_SYSTEM
 	C_LEDGER_SIMULATION = load(C_LEDGER_SIMULATION_PATH) if C_LEDGER_SIMULATION == null else C_LEDGER_SIMULATION
 	C_AI_SCHEDULER_STATE = load(C_AI_SCHEDULER_STATE_PATH) if C_AI_SCHEDULER_STATE == null else C_AI_SCHEDULER_STATE
@@ -1241,6 +1256,7 @@ func _component_scripts_loaded() -> bool:
 		C_FACTION_STATE,
 		C_WORLD_SQUAD,
 		C_WORLD_EVENT,
+		C_NEST_STATE,
 		C_JOB_SYSTEM,
 		C_LEDGER_SIMULATION,
 		C_AI_SCHEDULER_STATE,
@@ -1960,6 +1976,7 @@ func _clear_world_entities() -> void:
 	_faction_state_entity = null
 	_world_squad_entity = null
 	_world_event_entity = null
+	_nest_state_entity = null
 	_job_system_entity = null
 	_ledger_simulation_entity = null
 	_ai_scheduler_state_entity = null
@@ -2048,6 +2065,9 @@ func _rebuild_entity_indexes() -> void:
 		break
 	for entity in world.query.with_all([C_WORLD_EVENT]).execute():
 		_world_event_entity = entity
+		break
+	for entity in world.query.with_all([C_NEST_STATE]).execute():
+		_nest_state_entity = entity
 		break
 	for entity in world.query.with_all([C_JOB_SYSTEM]).execute():
 		_job_system_entity = entity

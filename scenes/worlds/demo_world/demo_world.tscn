@@ -5,6 +5,7 @@
 [ext_resource type="Resource" path="res://resources/worlds/demo_world/demo_world.tres" id="2_world"]
 [ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="4_manager"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
+[ext_resource type="Script" uid="uid://duw4pkjyrcwpm" path="res://scripts/world_sim/nests/nest_placement_marker.gd" id="6_nest_marker"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(1100, 1, 950)
@@ -39,6 +40,27 @@ mesh = SubResource("BoxMesh_floor")
 
 [node name="CharacterSpawn" type="Marker3D" parent="." unique_id=345712373]
 transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 377.61835, 0.6, 114.84003)
+
+[node name="NestMarkers" type="Node3D" parent="." unique_id=1699415744]
+
+[node name="RustdeadWestVent" type="Node3D" parent="NestMarkers" unique_id=1791790150]
+transform = Transform3D(0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, 0.965926, -500, 0, 250)
+script = ExtResource("6_nest_marker")
+marker_id = "demo_rustdead_west_vent"
+activation_chance_override = 1.0
+editor_debug_radius = 12.0
+
+[node name="RustdeadNorthVent" type="Node3D" parent="NestMarkers" unique_id=2041866359]
+transform = Transform3D(0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866025, -40, 0, -370)
+script = ExtResource("6_nest_marker")
+marker_id = "demo_rustdead_north_vent"
+editor_debug_radius = 12.0
+
+[node name="RustdeadSouthVent" type="Node3D" parent="NestMarkers" unique_id=217604442]
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 240, 0, 310)
+script = ExtResource("6_nest_marker")
+marker_id = "demo_rustdead_south_vent"
+editor_debug_radius = 12.0
 
 [node name="PartyManager" type="Node" parent="." unique_id=1913509186]
 script = ExtResource("4_manager")

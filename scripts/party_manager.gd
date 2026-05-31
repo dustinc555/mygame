@@ -11,6 +11,10 @@ var selected_members: Array[HumanoidCharacter] = []
 var followed_member: HumanoidCharacter
 
 
+func _ready() -> void:
+	add_to_group("party_manager")
+
+
 func set_party_members(members: Array[HumanoidCharacter]) -> void:
 	party_members = members.duplicate()
 	_sync_member_states()
@@ -67,6 +71,19 @@ func register_party_member(member: HumanoidCharacter) -> void:
 	member.set_player_party_member(true)
 	_sync_member_states()
 	party_member_added.emit(member)
+
+
+func unregister_party_member(member: HumanoidCharacter) -> void:
+	if member == null or not party_members.has(member):
+		return
+	party_members.erase(member)
+	selected_members.erase(member)
+	if followed_member == member:
+		followed_member = null
+		follow_changed.emit()
+	member.set_player_party_member(false)
+	_sync_member_states()
+	selection_changed.emit()
 
 
 func _sync_member_states() -> void:

@@ -2,6 +2,11 @@ extends SceneTree
 
 const DEMO_WORLD_SCENE := preload("res://scenes/worlds/demo_world/demo_world.tscn")
 const DEMO_WORLD_DEFINITION := preload("res://resources/worlds/demo_world/demo_world.tres")
+const POPULATION_APPEARANCE_PROFILE_DIR := "res://resources/world_sim/population_appearance_profiles"
+const BANDAGE_ITEM := preload("res://resources/items/bandage.tres")
+const CINDER_FLASK_ITEM := preload("res://resources/items/cinder_flask.tres")
+const HUMAN_RACE_ID := "human"
+const RUSTDEAD_RACE_ID := "rustdead"
 
 var _failures: Array[String] = []
 var _scene: Node
@@ -17,7 +22,10 @@ func _run() -> void:
 	root.add_child(_scene)
 	await _wait_frames(140)
 	_validate_world_definition()
+	_validate_population_appearance_profiles()
 	_validate_loaded_towns()
+	_validate_town_guard_burn_support()
+	_validate_non_rustdead_humanoids()
 	_validate_faction_relations()
 	_validate_slavery_law_flag()
 	if _failures.is_empty():
@@ -65,6 +73,74 @@ func _validate_loaded_towns() -> void:
 			_fail("Town %s should be loaded by WorldLoader" % town_name)
 			continue
 		_validate_town_contract(town, town_name)
+
+
+func _validate_town_guard_burn_support() -> void:
+	var towns := _scene.get_node_or_null("Towns")
+	if towns == null:
+		return
+	for town_name in ["SurfCity", "EastRaidersCamp", "ParadiseHills"]:
+		var town := towns.get_node_or_null(town_name)
+		if town == null:
+			continue
+		var furnace := town.get_node_or_null("DynamicFacilities/BodyFurnace")
+		if furnace == null or not furnace.is_in_group("body_furnace"):
+			_fail("%s should include a body furnace in DynamicFacilities" % town_name)
+		var guards := town.get_node_or_null("Guards")
+		if guards == null:
+			continue
+		for child in guards.get_children():
+			var guard := child as HumanoidCharacter
+			if guard == null:
+				continue
+			if not guard.is_auto_heal_enabled():
+				_fail("%s guard %s should default Auto Heal on" % [town_name, guard.name])
+			if not guard.is_auto_burn_rustdead_enabled():
+				_fail("%s guard %s should default Burn Rustdead on" % [town_name, guard.name])
+			if guard.inventory == null or guard.inventory.count_item(BANDAGE_ITEM) < 1:
+				_fail("%s guard %s should start with bandages" % [town_name, guard.name])
+			if guard.inventory == null or guard.inventory.count_item(CINDER_FLASK_ITEM) != 2:
+				_fail("%s guard %s should start with exactly 2 Cinder Flasks" % [town_name, guard.name])
+
+
+func _validate_population_appearance_profiles() -> void:
+	var files := Array(DirAccess.get_files_at(POPULATION_APPEARANCE_PROFILE_DIR))
+	files.sort()
+	for file_name_value in files:
+		var file_name := str(file_name_value)
+		if not file_name.ends_with(".tres"):
+			continue
+		var path := "%s/%s" % [POPULATION_APPEARANCE_PROFILE_DIR, file_name]
+		var profile := load(path) as Resource
+		if profile == null or not profile.has_method("create_appearance"):
+			continue
+		var allowed_races: Array = profile.get("allowed_races") if profile.get("allowed_races") is Array else []
+		if not allowed_races.is_empty():
+			continue
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 1001
+		for sample_index in range(8):
+			var appearance := profile.call("create_appearance", rng) as Resource
+			var race := appearance.get("character_race") as Resource if appearance != null else null
+			var race_id := _race_id(race)
+			if race_id != HUMAN_RACE_ID:
+				_fail("Population appearance profile %s should default to human race, got %s on sample %d" % [path, race_id, sample_index + 1])
+				break
+
+
+func _validate_non_rustdead_humanoids() -> void:
+	for node in get_nodes_in_group("humanoid_character"):
+		var actor := node as HumanoidCharacter
+		if actor == null:
+			continue
+		var faction_name := str(actor.get("faction_name"))
+		var race_id := _race_id(actor.get("character_race"))
+		if faction_name == "Rustdead":
+			if race_id != RUSTDEAD_RACE_ID:
+				_fail("Rustdead actor %s should use Rustdead race, got %s" % [actor.name, race_id])
+			continue
+		if race_id == RUSTDEAD_RACE_ID:
+			_fail("Non-Rustdead actor %s in faction %s spawned with Rustdead race" % [actor.name, faction_name])
 
 
 func _validate_town_contract(town: Node, town_name: String) -> void:
@@ -154,6 +230,10 @@ func _validate_slavery_law_flag() -> void:
 func _get_controller(group_name: String) -> Node:
 	var nodes := get_nodes_in_group(group_name)
 	return nodes[0] if not nodes.is_empty() else null
+
+
+func _race_id(race: Resource) -> String:
+	return str(race.get("race_id")).strip_edges().to_lower() if race != null else ""
 
 
 func _wait_frames(count: int) -> void:

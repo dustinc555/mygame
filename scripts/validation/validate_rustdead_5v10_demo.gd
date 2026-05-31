@@ -55,8 +55,18 @@ func _load_scene() -> void:
 
 func _validate_default_scene() -> void:
 	var main_scene := str(ProjectSettings.get_setting("application/run/main_scene", ""))
-	if main_scene != DEMO_SCENE_PATH:
+	var resolved_main_scene := _resolve_project_resource_path(main_scene)
+	if resolved_main_scene != DEMO_SCENE_PATH:
 		_fail("Project default scene should be %s, got %s" % [DEMO_SCENE_PATH, main_scene])
+
+
+func _resolve_project_resource_path(path_or_uid: String) -> String:
+	if not path_or_uid.begins_with("uid://"):
+		return path_or_uid
+	var uid := ResourceUID.text_to_id(path_or_uid)
+	if ResourceUID.has_id(uid):
+		return ResourceUID.get_id_path(uid)
+	return path_or_uid
 
 
 func _validate_generated_textures() -> void:

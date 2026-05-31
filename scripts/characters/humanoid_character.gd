@@ -97,6 +97,9 @@ const BACKGROUND_AI_DECISION_JITTER := 0.45
 const FAR_BACKGROUND_AI_DECISION_INTERVAL := 3.0
 const FAR_BACKGROUND_AI_DECISION_JITTER := 1.0
 const FAR_BACKGROUND_AI_DECISION_DISTANCE := 28.0
+const FAR_RUNTIME_CADENCE_DISTANCE := 90.0
+const FAR_RUNTIME_PROCESS_INTERVAL := 3.0
+const FAR_RUNTIME_PHYSICS_INTERVAL := 3.0
 const NEEDS_PROCESS_INTERVAL := 0.25
 const NEEDS_PROCESS_JITTER := 0.08
 const HUMANOID_PROFILE_SAMPLE_CALLS := 12000
@@ -114,6 +117,8 @@ const COMBAT_ATTACK_SKILL_XP := 0.85
 const TOUGHNESS_DAMAGE_XP_MULTIPLIER := 0.18
 const MEDICAL_BANDAGE_XP := 3.0
 const CINDER_FLASK_TOOL_TAG := "tool.cinder_flask"
+const AUTO_BURN_TARGET_RESERVED_BY_META := "auto_burn_reserved_by_instance_id"
+const AUTO_BURN_TARGET_RESERVED_UNTIL_META := "auto_burn_reserved_until_msec"
 const DOWNED_INTERACTION_DISTANCE := 3.0
 const DOWNED_INTERACTION_MOVE_OFFSET := 1.25
 const DOWNED_INTERACTION_VERTICAL_TOLERANCE := 1.6
@@ -148,6 +153,9 @@ static var _debug_humanoid_profile_calls := 0
 static var _debug_humanoid_profile_totals: Dictionary = {}
 static var _debug_humanoid_ai_profile_calls := 0
 static var _debug_humanoid_ai_profile_totals: Dictionary = {}
+static var _runtime_focus_cache_frame_key := -1
+static var _runtime_focus_cache_tree_id := 0
+static var _runtime_focus_cache_positions: Array[Vector3] = []
 
 enum OrderType {
 	NONE,
@@ -164,6 +172,7 @@ enum OrderType {
 	SLEEP,
 	PLACE_IN_BED,
 	PLACE_IN_CELL,
+	PLACE_IN_FURNACE,
 	SIT,
 	PICKUP_ITEM,
 }
@@ -216,6 +225,11 @@ const FEMALE_VISUAL_NAME_KEYS := {
 
 @export var trade_interaction_distance := 3.0
 @export var carry_move_speed_multiplier := 0.6
+@export var auto_burn_target_scan_radius := 18.0
+@export var auto_burn_furnace_access_radius := 42.0
+@export var auto_burn_no_resource_backoff_seconds := 14.0
+@export var auto_burn_no_target_backoff_seconds := 2.5
+@export var auto_burn_failed_backoff_seconds := 5.0
 
 var inventory: InventoryData
 var is_inspected := false
@@ -239,6 +253,7 @@ var _current_sleep_target
 var _current_place_bed_target
 var _current_place_cell_target
 var _current_place_cell_waypoints: Array[Vector3] = []
+var _current_place_furnace_target
 var _current_seat_target
 var _current_pickup_item
 var _current_seat_stand_position: Variant = null
@@ -319,6 +334,8 @@ var _current_character_animation := ""
 var _needs_tick_accumulated := 0.0
 var _needs_tick_remaining := 0.0
 var _idle_animation_change_remaining := 0.0
+var _far_runtime_process_accumulated := 0.0
+var _far_runtime_physics_accumulated := 0.0
 var _crouch_enter_animation_remaining := 0.0
 var _crouch_exit_animation_remaining := 0.0
 var _run_enter_animation_remaining := 0.0
@@ -337,6 +354,11 @@ var _preview_clothes_visible := true
 var _selection_ring: Node3D
 var _stat_value_cache_frame := -1
 var _stat_value_cache: Dictionary = {}
+var _auto_burn_next_scan_msec := 0
+var _auto_burn_cached_furnace
+var _auto_burn_cached_furnace_until_msec := 0
+var _auto_burn_reserved_target: HumanoidCharacter
+var _auto_burn_reserved_furnace
 
 signal inventory_changed
 signal mining_changed
@@ -354,6 +376,8 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	super._ready()
 	_rng.randomize()
+	_far_runtime_process_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PROCESS_INTERVAL)
+	_far_runtime_physics_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PHYSICS_INTERVAL)
 	_needs_tick_remaining = _rng.randf_range(0.0, NEEDS_PROCESS_INTERVAL)
 	inventory = InventoryData.new(inventory_columns, inventory_rows, max_carry_weight, true)
 	inventory.changed.connect(_on_inventory_data_changed)
@@ -381,6 +405,14 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
+	if _should_use_far_runtime_cadence():
+		_far_runtime_process_accumulated += delta
+		if _far_runtime_process_accumulated < FAR_RUNTIME_PROCESS_INTERVAL:
+			return
+		delta = _far_runtime_process_accumulated
+		_far_runtime_process_accumulated = 0.0
+	else:
+		_far_runtime_process_accumulated = 0.0
 	if _debug_humanoid_profile_enabled:
 		_process_profiled(delta)
 		return
@@ -520,6 +552,14 @@ static func _debug_humanoid_ai_profile_finish() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _should_use_far_runtime_cadence():
+		_far_runtime_physics_accumulated += delta
+		if _far_runtime_physics_accumulated < FAR_RUNTIME_PHYSICS_INTERVAL:
+			return
+		delta = _far_runtime_physics_accumulated
+		_far_runtime_physics_accumulated = 0.0
+	else:
+		_far_runtime_physics_accumulated = 0.0
 	if _carried_by != null:
 		velocity = Vector3.ZERO
 		return
@@ -563,6 +603,8 @@ func _physics_process(delta: float) -> void:
 			_process_place_in_bed_interaction()
 		OrderType.PLACE_IN_CELL:
 			_process_place_in_cell_interaction()
+		OrderType.PLACE_IN_FURNACE:
+			_process_place_in_furnace_interaction()
 		OrderType.SIT:
 			_process_seat_interaction()
 		OrderType.PICKUP_ITEM:
@@ -646,12 +688,19 @@ func stop_heal_assignment() -> void:
 
 
 func stop_finish_off_assignment() -> void:
+	if _auto_burn_reserved_target == _current_finish_off_target:
+		_release_auto_burn_target_reservation()
 	_current_finish_off_target = null
 	if _current_order_type == OrderType.FINISH_OFF:
 		_current_order_type = OrderType.NONE
 
 
 func stop_carry_assignment() -> void:
+	if _auto_burn_reserved_target == _current_carry_target:
+		if _carried_character == _auto_burn_reserved_target:
+			_release_auto_burn_target_reservation()
+		else:
+			_release_auto_burn_reservations()
 	_current_carry_target = null
 	if _current_order_type == OrderType.CARRY:
 		_current_order_type = OrderType.NONE
@@ -680,6 +729,13 @@ func stop_place_in_cell_assignment() -> void:
 	_current_place_cell_target = null
 	_current_place_cell_waypoints.clear()
 	if _current_order_type == OrderType.PLACE_IN_CELL:
+		_current_order_type = OrderType.NONE
+
+
+func stop_place_in_furnace_assignment() -> void:
+	_release_place_furnace_reservation()
+	_current_place_furnace_target = null
+	if _current_order_type == OrderType.PLACE_IN_FURNACE:
 		_current_order_type = OrderType.NONE
 
 
@@ -949,6 +1005,31 @@ func assign_place_carried_in_cell_target(cell, issued_by_player: bool = true) ->
 	_current_place_cell_target = cell
 	_current_place_cell_waypoints = _get_place_cell_route(cell)
 	_set_next_place_cell_move_target(cell.call("get_interaction_position", self))
+
+
+func assign_place_carried_in_furnace_target(furnace, issued_by_player: bool = true) -> void:
+	if furnace == null or not furnace.has_method("get_interaction_position"):
+		return
+	if life_state != NpcRules.LifeState.ALIVE:
+		return
+	if _carried_character == null or not is_instance_valid(_carried_character):
+		return
+	if furnace.has_method("can_accept_body") and not bool(furnace.call("can_accept_body", _carried_character)):
+		if issued_by_player:
+			_show_world_notice("Cannot burn", Color(1.0, 0.66, 0.28, 1.0))
+		return
+	if furnace.has_method("reserve_for") and not bool(furnace.call("reserve_for", self, _carried_character)):
+		if issued_by_player:
+			_show_world_notice("Furnace busy", Color(1.0, 0.78, 0.38, 1.0))
+		return
+	if not _set_order(OrderType.PLACE_IN_FURNACE, issued_by_player):
+		if furnace.has_method("release_reservation"):
+			furnace.call("release_reservation", self, _carried_character)
+		return
+	_current_place_furnace_target = furnace
+	if _auto_burn_reserved_furnace != null and _auto_burn_reserved_furnace != furnace:
+		_release_auto_burn_furnace_reservation()
+	_set_actor_move_target(furnace.call("get_interaction_position", self))
 
 
 func assign_seat_target(seat, issued_by_player: bool = true) -> void:
@@ -1592,6 +1673,16 @@ func set_auto_heal_enabled(value: bool) -> void:
 	state_changed.emit()
 
 
+func is_auto_burn_rustdead_enabled() -> bool:
+	return auto_burn_rustdead_enabled and life_state == NpcRules.LifeState.ALIVE
+
+
+func set_auto_burn_rustdead_enabled(value: bool) -> void:
+	auto_burn_rustdead_enabled = value
+	_auto_burn_next_scan_msec = 0
+	state_changed.emit()
+
+
 func can_continue_running() -> bool:
 	if life_state != NpcRules.LifeState.ALIVE:
 		return false
@@ -1814,7 +1905,7 @@ func is_carrying_someone() -> bool:
 
 
 func is_handling_carried_character() -> bool:
-	return _carried_character != null or _current_order_type == OrderType.CARRY or _current_order_type == OrderType.PLACE_IN_BED or _current_order_type == OrderType.PLACE_IN_CELL
+	return _carried_character != null or _current_order_type == OrderType.CARRY or _current_order_type == OrderType.PLACE_IN_BED or _current_order_type == OrderType.PLACE_IN_CELL or _current_order_type == OrderType.PLACE_IN_FURNACE
 
 
 func is_in_cell_custody() -> bool:
@@ -2473,6 +2564,9 @@ func _on_actor_move_target_unreachable() -> void:
 			stop_place_in_bed_assignment()
 		OrderType.PLACE_IN_CELL:
 			stop_place_in_cell_assignment()
+		OrderType.PLACE_IN_FURNACE:
+			stop_place_in_furnace_assignment()
+			_set_auto_burn_backoff(auto_burn_failed_backoff_seconds)
 		OrderType.SIT:
 			stop_seat_assignment()
 		OrderType.PICKUP_ITEM:
@@ -2661,6 +2755,8 @@ func _process_ai(delta: float) -> void:
 		stop_place_in_bed_assignment()
 	if _current_order_type == OrderType.PLACE_IN_CELL and (_current_place_cell_target == null or not is_instance_valid(_current_place_cell_target) or _carried_character == null or not is_instance_valid(_carried_character)):
 		stop_place_in_cell_assignment()
+	if _current_order_type == OrderType.PLACE_IN_FURNACE and (_current_place_furnace_target == null or not is_instance_valid(_current_place_furnace_target) or _carried_character == null or not is_instance_valid(_carried_character)):
+		stop_place_in_furnace_assignment()
 	if _current_order_type == OrderType.PICKUP_ITEM and (_current_pickup_item == null or not is_instance_valid(_current_pickup_item)):
 		stop_pickup_assignment()
 	if _current_attack_target != null and not _is_valid_active_combat_target(_current_attack_target):
@@ -2684,6 +2780,8 @@ func _process_ai(delta: float) -> void:
 		if heal_target != null:
 			assign_heal_target(heal_target, false)
 			return
+	if _try_assign_auto_burn_action():
+		return
 	if _should_seek_combat_target():
 		var target := _find_ai_target()
 		if target != null:
@@ -2722,6 +2820,8 @@ func _process_ai_profiled(delta: float) -> void:
 		stop_place_in_bed_assignment()
 	if _current_order_type == OrderType.PLACE_IN_CELL and (_current_place_cell_target == null or not is_instance_valid(_current_place_cell_target) or _carried_character == null or not is_instance_valid(_carried_character)):
 		stop_place_in_cell_assignment()
+	if _current_order_type == OrderType.PLACE_IN_FURNACE and (_current_place_furnace_target == null or not is_instance_valid(_current_place_furnace_target) or _carried_character == null or not is_instance_valid(_carried_character)):
+		stop_place_in_furnace_assignment()
 	if _current_order_type == OrderType.PICKUP_ITEM and (_current_pickup_item == null or not is_instance_valid(_current_pickup_item)):
 		stop_pickup_assignment()
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("order_validation", profile_last_usec)
@@ -2764,6 +2864,11 @@ func _process_ai_profiled(delta: float) -> void:
 			_debug_humanoid_ai_profile_finish()
 			return
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("auto_heal", profile_last_usec)
+	if _try_assign_auto_burn_action():
+		_debug_humanoid_ai_profile_checkpoint("auto_burn", profile_last_usec)
+		_debug_humanoid_ai_profile_finish()
+		return
+	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("auto_burn", profile_last_usec)
 	if _should_seek_combat_target():
 		var target := _find_ai_target()
 		if target != null:
@@ -2818,6 +2923,56 @@ func _should_use_far_background_ai_cadence() -> bool:
 		if global_position.distance_squared_to(party_member.global_position) <= distance_squared:
 			return false
 	return true
+
+
+func _should_use_far_runtime_cadence() -> bool:
+	if player_party_member or life_state != NpcRules.LifeState.ALIVE:
+		return false
+	if _carried_by != null or _carried_character != null or _is_ragdoll_active:
+		return false
+	if _has_active_combat_target() or _combat_action_active or _combat_reaction_remaining > 0.0:
+		return false
+	if _has_active_player_order() or _is_active_ai_combat_player_issued():
+		return false
+	if not is_inside_tree():
+		return false
+	return _is_far_from_runtime_focus(FAR_RUNTIME_CADENCE_DISTANCE)
+
+
+func _is_far_from_runtime_focus(distance: float) -> bool:
+	var distance_squared := distance * distance
+	var focus_positions := _get_runtime_focus_positions()
+	if focus_positions.is_empty() and get_tree() == null:
+		return false
+	for focus_position in focus_positions:
+		if global_position.distance_squared_to(focus_position) <= distance_squared:
+			return false
+	return true
+
+
+func _get_runtime_focus_positions() -> Array[Vector3]:
+	var tree := get_tree()
+	if tree == null:
+		_runtime_focus_cache_frame_key = -1
+		_runtime_focus_cache_tree_id = 0
+		_runtime_focus_cache_positions = []
+		return _runtime_focus_cache_positions
+	var tree_id := tree.get_instance_id()
+	var frame_key := Engine.get_process_frames() * 1000000 + Engine.get_physics_frames()
+	if _runtime_focus_cache_frame_key == frame_key and _runtime_focus_cache_tree_id == tree_id:
+		return _runtime_focus_cache_positions
+	var positions: Array[Vector3] = []
+	for node in tree.get_nodes_in_group("party_member"):
+		if node is Node3D:
+			positions.append((node as Node3D).global_position)
+	var viewport := get_viewport()
+	var camera := viewport.get_camera_3d() if viewport != null else null
+	if camera is Camera3D:
+		positions.append((camera as Camera3D).global_position)
+	_runtime_focus_cache_frame_key = frame_key
+	_runtime_focus_cache_tree_id = tree_id
+	_runtime_focus_cache_positions = positions
+	return _runtime_focus_cache_positions
 
 
 func _process_law_custody_return() -> void:
@@ -3198,6 +3353,40 @@ func _process_place_in_cell_interaction() -> void:
 	_current_place_cell_waypoints.clear()
 	_current_order_type = OrderType.NONE
 	_show_world_notice("Placed in cell", Color(0.55, 0.72, 1.0, 1.0))
+	state_changed.emit()
+	carried.state_changed.emit()
+
+
+func _process_place_in_furnace_interaction() -> void:
+	if _current_place_furnace_target == null or not is_instance_valid(_current_place_furnace_target):
+		stop_place_in_furnace_assignment()
+		return
+	if _carried_character == null or not is_instance_valid(_carried_character):
+		stop_place_in_furnace_assignment()
+		return
+	if _current_place_furnace_target.has_method("can_accept_body") and not bool(_current_place_furnace_target.call("can_accept_body", _carried_character)):
+		stop_place_in_furnace_assignment()
+		return
+	var interaction_position: Vector3 = _current_place_furnace_target.call("get_interaction_position", self)
+	if global_position.distance_to(interaction_position) > interact_distance:
+		_set_actor_move_target(interaction_position)
+		return
+	if _has_move_target:
+		_clear_actor_move_target()
+	var carried := _carried_character
+	var furnace = _current_place_furnace_target
+	_detach_carried_character()
+	if not furnace.has_method("place_carried_body") or not bool(furnace.call("place_carried_body", self, carried)):
+		_attach_carried_character(carried)
+		_show_world_notice("Furnace unavailable", Color(1.0, 0.78, 0.38, 1.0))
+		stop_place_in_furnace_assignment()
+		_set_auto_burn_backoff(auto_burn_failed_backoff_seconds)
+		return
+	_clear_actor_move_target()
+	_current_place_furnace_target = null
+	_current_order_type = OrderType.NONE
+	_release_auto_burn_reservations()
+	_show_world_notice("Burning", Color(1.0, 0.45, 0.12, 1.0))
 	state_changed.emit()
 	carried.state_changed.emit()
 
@@ -3622,6 +3811,7 @@ func _store_scavenging_progress(resource_node, progress: float) -> void:
 
 
 func _on_inventory_data_changed() -> void:
+	_auto_burn_next_scan_msec = 0
 	inventory_changed.emit()
 	_sync_inventory_to_gecs()
 
@@ -5138,6 +5328,8 @@ func _cancel_non_matching_assignments(next_order_type: int, preserve_seat: bool 
 		stop_place_in_bed_assignment()
 	if next_order_type != OrderType.PLACE_IN_CELL:
 		stop_place_in_cell_assignment()
+	if next_order_type != OrderType.PLACE_IN_FURNACE:
+		stop_place_in_furnace_assignment()
 	if next_order_type != OrderType.SIT and not preserve_seat:
 		stop_seat_assignment()
 	if next_order_type != OrderType.PICKUP_ITEM:
@@ -5564,6 +5756,200 @@ func _get_auto_heal_priority(target: HumanoidCharacter, distance: float) -> floa
 	if target.life_state == NpcRules.LifeState.UNCONSCIOUS:
 		priority += 50.0
 	return priority - distance * 0.1
+
+
+func _try_assign_auto_burn_action() -> bool:
+	if not _can_consider_auto_burn():
+		return false
+	var carried := get_carried_character()
+	if carried != null and is_instance_valid(carried):
+		return _try_assign_carried_body_to_furnace(carried)
+	var furnace = _get_accessible_auto_burn_furnace()
+	var has_flask := can_use_cinder_flask()
+	if furnace == null and not has_flask:
+		_set_auto_burn_backoff(auto_burn_no_resource_backoff_seconds)
+		return false
+	var target := _find_auto_burn_rustdead_target(furnace != null)
+	if target == null:
+		_set_auto_burn_backoff(auto_burn_no_target_backoff_seconds)
+		return false
+	if furnace != null:
+		if not _reserve_auto_burn_target(target):
+			return false
+		if furnace.has_method("reserve_for") and not bool(furnace.call("reserve_for", self, target)):
+			_release_auto_burn_target_reservation()
+			_set_auto_burn_backoff(auto_burn_failed_backoff_seconds)
+			return false
+		_auto_burn_reserved_furnace = furnace
+		assign_carry_target(target, false)
+		if _current_carry_target == target:
+			return true
+		_release_auto_burn_reservations()
+		_set_auto_burn_backoff(auto_burn_failed_backoff_seconds)
+		return false
+	if not _reserve_auto_burn_target(target):
+		return false
+	assign_finish_off_target(target, false)
+	if _current_finish_off_target == target:
+		return true
+	_release_auto_burn_target_reservation()
+	_set_auto_burn_backoff(auto_burn_failed_backoff_seconds)
+	return false
+
+
+func _can_consider_auto_burn() -> bool:
+	if not auto_burn_rustdead_enabled or life_state != NpcRules.LifeState.ALIVE:
+		return false
+	if _carried_by != null or _is_sitting:
+		return false
+	if _get_active_combat_target() != null:
+		return false
+	if _current_order_type != OrderType.NONE:
+		return false
+	return Time.get_ticks_msec() >= _auto_burn_next_scan_msec
+
+
+func _try_assign_carried_body_to_furnace(carried: HumanoidCharacter) -> bool:
+	if not (carried.has_method("requires_fire_to_die") and bool(carried.call("requires_fire_to_die"))):
+		_set_auto_burn_backoff(auto_burn_failed_backoff_seconds)
+		return false
+	var furnace = _get_accessible_auto_burn_furnace(carried)
+	if furnace == null:
+		_set_auto_burn_backoff(auto_burn_no_resource_backoff_seconds)
+		return false
+	assign_place_carried_in_furnace_target(furnace, false)
+	if _current_place_furnace_target == furnace:
+		return true
+	_set_auto_burn_backoff(auto_burn_failed_backoff_seconds)
+	return false
+
+
+func _find_auto_burn_rustdead_target(has_furnace: bool) -> HumanoidCharacter:
+	if not is_inside_tree():
+		return null
+	var scan_radius := maxf(maxf(auto_burn_target_scan_radius, assist_scan_radius), interact_distance)
+	var scan_radius_squared := scan_radius * scan_radius
+	var best_target: HumanoidCharacter
+	var best_score := INF
+	for node in get_tree().get_nodes_in_group("npc_character"):
+		var candidate := node as HumanoidCharacter
+		if candidate == null or candidate == self or not is_instance_valid(candidate):
+			continue
+		if not candidate.has_method("requires_fire_to_die") or not bool(candidate.call("requires_fire_to_die")):
+			continue
+		if candidate.has_method("is_fire_destruction_in_progress") and bool(candidate.call("is_fire_destruction_in_progress")):
+			continue
+		if candidate.is_carried() or _is_auto_burn_target_reserved_by_other(candidate):
+			continue
+		if has_furnace:
+			if candidate.life_state != NpcRules.LifeState.UNCONSCIOUS and candidate.life_state != NpcRules.LifeState.DEAD:
+				continue
+		else:
+			if not candidate.can_be_destroyed_by_cinder():
+				continue
+		var distance_squared := global_position.distance_squared_to(candidate.global_position)
+		if distance_squared > scan_radius_squared:
+			continue
+		if distance_squared < best_score:
+			best_score = distance_squared
+			best_target = candidate
+	return best_target
+
+
+func _get_accessible_auto_burn_furnace(body: HumanoidCharacter = null):
+	var now := Time.get_ticks_msec()
+	if _is_furnace_accessible(_auto_burn_reserved_furnace, body):
+		return _auto_burn_reserved_furnace
+	if now < _auto_burn_cached_furnace_until_msec:
+		if _auto_burn_cached_furnace == null:
+			return null
+		if _is_furnace_accessible(_auto_burn_cached_furnace, body):
+			return _auto_burn_cached_furnace
+	_auto_burn_cached_furnace = null
+	if not is_inside_tree():
+		return null
+	var best_furnace
+	var best_distance := INF
+	for node in get_tree().get_nodes_in_group("body_furnace"):
+		if not _is_furnace_accessible(node, body):
+			continue
+		var furnace_position := (node as Node3D).global_position if node is Node3D else global_position
+		var distance_squared := global_position.distance_squared_to(furnace_position)
+		if distance_squared < best_distance:
+			best_distance = distance_squared
+			best_furnace = node
+	_auto_burn_cached_furnace = best_furnace
+	_auto_burn_cached_furnace_until_msec = now + (3000 if best_furnace != null else 1500)
+	return best_furnace
+
+
+func _is_furnace_accessible(furnace, body: HumanoidCharacter = null) -> bool:
+	if furnace == null or not is_instance_valid(furnace):
+		return false
+	if not (furnace is Node3D):
+		return false
+	var access_radius := maxf(auto_burn_furnace_access_radius, interact_distance)
+	if global_position.distance_squared_to((furnace as Node3D).global_position) > access_radius * access_radius:
+		return false
+	if furnace.has_method("is_available_for") and not bool(furnace.call("is_available_for", self, body)):
+		return false
+	if body != null and furnace.has_method("can_accept_body") and not bool(furnace.call("can_accept_body", body)):
+		return false
+	return true
+
+
+func _reserve_auto_burn_target(target: HumanoidCharacter) -> bool:
+	if target == null or not is_instance_valid(target) or _is_auto_burn_target_reserved_by_other(target):
+		return false
+	target.set_meta(AUTO_BURN_TARGET_RESERVED_BY_META, get_instance_id())
+	target.set_meta(AUTO_BURN_TARGET_RESERVED_UNTIL_META, Time.get_ticks_msec() + 15000)
+	_auto_burn_reserved_target = target
+	return true
+
+
+func _is_auto_burn_target_reserved_by_other(target: HumanoidCharacter) -> bool:
+	if target == null or not is_instance_valid(target):
+		return false
+	var reserved_until := int(target.get_meta(AUTO_BURN_TARGET_RESERVED_UNTIL_META, 0))
+	if reserved_until <= Time.get_ticks_msec():
+		if target.has_meta(AUTO_BURN_TARGET_RESERVED_BY_META):
+			target.remove_meta(AUTO_BURN_TARGET_RESERVED_BY_META)
+		if target.has_meta(AUTO_BURN_TARGET_RESERVED_UNTIL_META):
+			target.remove_meta(AUTO_BURN_TARGET_RESERVED_UNTIL_META)
+		return false
+	return int(target.get_meta(AUTO_BURN_TARGET_RESERVED_BY_META, 0)) != get_instance_id()
+
+
+func _release_auto_burn_target_reservation() -> void:
+	if _auto_burn_reserved_target != null and is_instance_valid(_auto_burn_reserved_target):
+		if int(_auto_burn_reserved_target.get_meta(AUTO_BURN_TARGET_RESERVED_BY_META, 0)) == get_instance_id():
+			if _auto_burn_reserved_target.has_meta(AUTO_BURN_TARGET_RESERVED_BY_META):
+				_auto_burn_reserved_target.remove_meta(AUTO_BURN_TARGET_RESERVED_BY_META)
+			if _auto_burn_reserved_target.has_meta(AUTO_BURN_TARGET_RESERVED_UNTIL_META):
+				_auto_burn_reserved_target.remove_meta(AUTO_BURN_TARGET_RESERVED_UNTIL_META)
+	_auto_burn_reserved_target = null
+
+
+func _release_auto_burn_furnace_reservation() -> void:
+	if _auto_burn_reserved_furnace != null and is_instance_valid(_auto_burn_reserved_furnace) and _auto_burn_reserved_furnace.has_method("release_reservation"):
+		_auto_burn_reserved_furnace.call("release_reservation", self, null)
+	_auto_burn_reserved_furnace = null
+
+
+func _release_auto_burn_reservations() -> void:
+	_release_auto_burn_target_reservation()
+	_release_auto_burn_furnace_reservation()
+
+
+func _release_place_furnace_reservation() -> void:
+	if _current_place_furnace_target != null and is_instance_valid(_current_place_furnace_target) and _current_place_furnace_target.has_method("release_reservation"):
+		_current_place_furnace_target.call("release_reservation", self, _carried_character)
+	if _auto_burn_reserved_furnace == _current_place_furnace_target:
+		_auto_burn_reserved_furnace = null
+
+
+func _set_auto_burn_backoff(seconds: float) -> void:
+	_auto_burn_next_scan_msec = Time.get_ticks_msec() + int(maxf(seconds, 0.0) * 1000.0)
 
 
 func _get_query_humanoids(query_position: Vector3 = Vector3.ZERO, radius := -1.0, include_party := true) -> Array:
@@ -6140,6 +6526,7 @@ func _clear_all_active_orders() -> void:
 	stop_sleep_assignment()
 	stop_place_in_bed_assignment()
 	stop_place_in_cell_assignment()
+	stop_place_in_furnace_assignment()
 	stop_seat_assignment()
 	stop_pickup_assignment()
 	_current_order_type = OrderType.NONE

@@ -22,6 +22,7 @@ const WORLD_SQUAD_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_s
 const WORLD_EVENT_CHOICE_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_event_choice_controller.gd")
 const WORLD_SIMULATION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_simulation_controller.gd")
 const LAW_ORDER_CONTROLLER_SCRIPT = preload("res://scripts/controllers/law_order_controller.gd")
+const NEST_CONTROLLER_SCRIPT = preload("res://scripts/controllers/nest_controller.gd")
 const GECS_WORLD_CONTROLLER_SCRIPT = preload("res://scripts/controllers/gecs_world_controller.gd")
 const ACTOR_QUERY_CONTROLLER_SCRIPT = preload("res://scripts/controllers/actor_query_controller.gd")
 const AI_SCHEDULER_CONTROLLER_SCRIPT = preload("res://scripts/controllers/ai_scheduler_controller.gd")
@@ -88,6 +89,7 @@ func _controller_specs() -> Array[Dictionary]:
 		{"name": "LedgerSimulationController", "script": LEDGER_SIMULATION_CONTROLLER_SCRIPT},
 		{"name": "LawOrderController", "script": LAW_ORDER_CONTROLLER_SCRIPT},
 		{"name": "SettlementActivityController", "script": SETTLEMENT_ACTIVITY_CONTROLLER_SCRIPT},
+		{"name": "NestController", "script": NEST_CONTROLLER_SCRIPT},
 		{"name": "PartyInventoryController", "script": PARTY_INVENTORY_CONTROLLER_SCRIPT},
 		{"name": "HumanoidDetailsController", "script": HUMANOID_DETAILS_CONTROLLER_SCRIPT},
 		{"name": "CharacterAppearanceController", "script": CHARACTER_APPEARANCE_CONTROLLER_SCRIPT},

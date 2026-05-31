@@ -103,6 +103,7 @@ var walk_button: Button
 var running_button: Button
 var sneaking_button: Button
 var auto_heal_button: Button
+var auto_burn_rustdead_button: Button
 var aggressive_button: Button
 var defensive_button: Button
 var passive_button: Button
@@ -161,6 +162,7 @@ func _do_initialize() -> void:
 	running_button = hud_layer.get_node_or_null(command_rows_path + "/MoveRow/MovementSegment/RunningButton")
 	sneaking_button = hud_layer.get_node_or_null(command_rows_path + "/MoveRow/MovementSegment/SneakingButton")
 	auto_heal_button = hud_layer.get_node_or_null(command_rows_path + "/AssistRow/AutoHealButton")
+	auto_burn_rustdead_button = hud_layer.get_node_or_null(command_rows_path + "/AssistRow/BurnRustdeadButton")
 	aggressive_button = hud_layer.get_node_or_null(command_rows_path + "/FightRow/CombatSegment/AggressiveButton")
 	defensive_button = hud_layer.get_node_or_null(command_rows_path + "/FightRow/CombatSegment/DefensiveButton")
 	passive_button = hud_layer.get_node_or_null(command_rows_path + "/FightRow/CombatSegment/PassiveButton")
@@ -1181,7 +1183,8 @@ func _setup_command_bar() -> void:
 	_set_command_segment_position(aggressive_button, SEGMENT_LEFT)
 	_set_command_segment_position(defensive_button, SEGMENT_MIDDLE)
 	_set_command_segment_position(passive_button, SEGMENT_RIGHT)
-	_set_command_segment_position(auto_heal_button, SEGMENT_SINGLE)
+	_set_command_segment_position(auto_heal_button, SEGMENT_LEFT)
+	_set_command_segment_position(auto_burn_rustdead_button, SEGMENT_RIGHT)
 	if walk_button != null:
 		walk_button.pressed.connect(_on_movement_button_pressed.bind(MOVEMENT_MODE_WALK))
 	if running_button != null:
@@ -1190,6 +1193,8 @@ func _setup_command_bar() -> void:
 		sneaking_button.pressed.connect(_on_movement_button_pressed.bind(MOVEMENT_MODE_SNEAK))
 	if auto_heal_button != null:
 		auto_heal_button.toggled.connect(_on_auto_heal_button_toggled)
+	if auto_burn_rustdead_button != null:
+		auto_burn_rustdead_button.toggled.connect(_on_auto_burn_rustdead_button_toggled)
 	if aggressive_button != null:
 		aggressive_button.pressed.connect(_on_stance_button_pressed.bind(NpcRules.CombatStance.AGGRESSIVE))
 	if defensive_button != null:
@@ -1200,7 +1205,7 @@ func _setup_command_bar() -> void:
 
 
 func _update_command_bar() -> void:
-	if walk_button == null or running_button == null or sneaking_button == null or auto_heal_button == null or aggressive_button == null or defensive_button == null or passive_button == null:
+	if walk_button == null or running_button == null or sneaking_button == null or auto_heal_button == null or auto_burn_rustdead_button == null or aggressive_button == null or defensive_button == null or passive_button == null:
 		return
 	var has_selection := not party_manager.selected_members.is_empty()
 	if not has_selection:
@@ -1208,6 +1213,7 @@ func _update_command_bar() -> void:
 		_set_command_toggle(running_button, false, true)
 		_set_command_toggle(sneaking_button, false, true)
 		_set_command_toggle(auto_heal_button, false, true)
+		_set_command_toggle(auto_burn_rustdead_button, false, true)
 		_set_command_toggle(aggressive_button, false, true)
 		_set_command_toggle(defensive_button, false, true)
 		_set_command_toggle(passive_button, false, true)
@@ -1220,6 +1226,8 @@ func _update_command_bar() -> void:
 	var all_sneaking := true
 	var any_auto_heal := false
 	var all_auto_heal := true
+	var any_auto_burn := false
+	var all_auto_burn := true
 	var first_stance: int = party_manager.selected_members[0].combat_stance
 	var mixed_stance := false
 	for member in party_manager.selected_members:
@@ -1227,6 +1235,7 @@ func _update_command_bar() -> void:
 		var member_sneaking: bool = member.sneaking
 		var member_walking := not member_running and not member_sneaking
 		var member_auto_heal: bool = member.has_method("is_auto_heal_enabled") and member.is_auto_heal_enabled()
+		var member_auto_burn: bool = member.has_method("is_auto_burn_rustdead_enabled") and member.is_auto_burn_rustdead_enabled()
 		if member_walking:
 			any_walking = true
 		else:
@@ -1243,12 +1252,17 @@ func _update_command_bar() -> void:
 			any_auto_heal = true
 		else:
 			all_auto_heal = false
+		if member_auto_burn:
+			any_auto_burn = true
+		else:
+			all_auto_burn = false
 		if member.combat_stance != first_stance:
 			mixed_stance = true
 	_set_command_toggle(walk_button, any_walking, false, any_walking and not all_walking)
 	_set_command_toggle(running_button, any_running, false, any_running and not all_running)
 	_set_command_toggle(sneaking_button, any_sneaking, false, any_sneaking and not all_sneaking)
 	_set_command_toggle(auto_heal_button, any_auto_heal, false, any_auto_heal and not all_auto_heal)
+	_set_command_toggle(auto_burn_rustdead_button, any_auto_burn, false, any_auto_burn and not all_auto_burn)
 	_set_command_toggle(aggressive_button, not mixed_stance and first_stance == NpcRules.CombatStance.AGGRESSIVE, false)
 	_set_command_toggle(defensive_button, not mixed_stance and first_stance == NpcRules.CombatStance.DEFENSIVE, false)
 	_set_command_toggle(passive_button, not mixed_stance and first_stance == NpcRules.CombatStance.PASSIVE, false)
@@ -1405,6 +1419,13 @@ func _on_auto_heal_button_toggled(button_pressed: bool) -> void:
 	for member in party_manager.selected_members:
 		if member.has_method("set_auto_heal_enabled"):
 			member.set_auto_heal_enabled(button_pressed)
+	_update_command_bar()
+
+
+func _on_auto_burn_rustdead_button_toggled(button_pressed: bool) -> void:
+	for member in party_manager.selected_members:
+		if member.has_method("set_auto_burn_rustdead_enabled"):
+			member.set_auto_burn_rustdead_enabled(button_pressed)
 	_update_command_bar()
 
 

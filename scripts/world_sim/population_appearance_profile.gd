@@ -92,7 +92,7 @@ func get_natural_hair_colors() -> Array:
 
 
 func _pick_race(rng: RandomNumberGenerator) -> Resource:
-	var races := allowed_races.duplicate() if not allowed_races.is_empty() else _get_available_races()
+	var races := allowed_races.duplicate()
 	if races.is_empty():
 		races.append(HUMAN_RACE)
 	return races[rng.randi_range(0, races.size() - 1)] if not races.is_empty() else HUMAN_RACE

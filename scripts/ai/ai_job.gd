@@ -13,6 +13,8 @@ enum JobType {
 	ASSIGNED_WORK,
 	GUARD_POST,
 	AMBIENT_ACTIVITY,
+	PATROL,
+	NEST_ASSAULT,
 }
 
 enum JobStatus {
@@ -31,7 +33,9 @@ enum InterruptPolicy {
 const PRIORITY_NONE := 0
 const PRIORITY_GUARD_POST := 20
 const PRIORITY_AMBIENT_ACTIVITY := 18
+const PRIORITY_PATROL := 22
 const PRIORITY_ASSIGNED_WORK := 35
+const PRIORITY_NEST_ASSAULT := 72
 const PRIORITY_CARRY_PRISONER := 82
 const PRIORITY_PLACE_IN_CELL := 86
 const PRIORITY_SELF_DEFENSE := 90
@@ -54,6 +58,7 @@ var source = null
 var issued_by_player := false
 var origin_position := Vector3.ZERO
 var objective_id := ""
+var data: Dictionary = {}
 var steps: Array = []
 
 
@@ -77,6 +82,10 @@ static func priority_for_type(candidate_type: int) -> int:
 			return PRIORITY_GUARD_POST
 		JobType.AMBIENT_ACTIVITY:
 			return PRIORITY_AMBIENT_ACTIVITY
+		JobType.PATROL:
+			return PRIORITY_PATROL
+		JobType.NEST_ASSAULT:
+			return PRIORITY_NEST_ASSAULT
 		_:
 			return PRIORITY_NONE
 
@@ -133,6 +142,7 @@ func get_debug_snapshot() -> Dictionary:
 		"status": status,
 		"issued_by_player": issued_by_player,
 		"interruptible": is_interruptible(),
+		"data": data.duplicate(true),
 		"step_count": steps.size(),
 	}
 
@@ -157,6 +167,10 @@ func _job_type_label(value: int) -> String:
 			return "guard_post"
 		JobType.AMBIENT_ACTIVITY:
 			return "ambient_activity"
+		JobType.PATROL:
+			return "patrol"
+		JobType.NEST_ASSAULT:
+			return "nest_assault"
 		_:
 			return "none"
 

@@ -24,6 +24,8 @@ class FakeHumanoid:
 	var squad_name := "TestSquad"
 	var hostile_factions: PackedStringArray = PackedStringArray()
 	var combat_stance := NpcRules.CombatStance.DEFENSIVE
+	var auto_heal_enabled := false
+	var auto_burn_rustdead_enabled := false
 	var life_state := NpcRules.LifeState.ALIVE
 	var appearance_data: Resource
 	var equipped_items: Dictionary = {}
@@ -130,6 +132,15 @@ func _validate_population_records_and_ledger() -> void:
 	var generated: Array = population.ensure_generated_population("test_town", "resident", 3, {"role_id": "resident", "faction_id": "TestFaction"})
 	if generated.size() != 3:
 		_fail("Generated population should create deterministic actor records")
+	var generated_guard: Array = population.ensure_generated_population("test_town", "guard", 1, {"role_id": "guard", "faction_id": "TestFaction", "auto_heal_enabled": true, "auto_burn_rustdead_enabled": true})
+	if generated_guard.is_empty() or not bool((generated_guard[0] as Dictionary).get("auto_heal_enabled", false)) or not bool((generated_guard[0] as Dictionary).get("auto_burn_rustdead_enabled", false)):
+		_fail("Generated population should persist guard auto-heal and auto-burn flags")
+	else:
+		var realized_guard := FakeHumanoid.new()
+		root_node.add_child(realized_guard)
+		population.apply_record_to_actor(realized_guard, generated_guard[0] as Dictionary)
+		if not realized_guard.auto_heal_enabled or not realized_guard.auto_burn_rustdead_enabled:
+			_fail("Population records should apply guard auto-heal and auto-burn flags to realized actors")
 	var trimmed: Array = population.ensure_generated_population("test_town", "resident", 1, {"role_id": "resident", "faction_id": "TestFaction"})
 	if trimmed.size() != 1:
 		_fail("Generated population should trim surplus records when desired count shrinks")

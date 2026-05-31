@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://c4obl2pit67k6"]
+
+[ext_resource type="PackedScene" uid="uid://dcgl427n310ws" path="res://assets/world/nests/rustdead/meshy_rustdead_nest_1.glb" id="1_mesh"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_interaction"]
+size = Vector3(3.06427, 2.0743408, 2.9197083)
+
+[node name="AncientVent01" type="Node3D" unique_id=1293530692]
+
+[node name="Mesh" parent="." unique_id=1771233448 instance=ExtResource("1_mesh")]
+transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0.02, 0)
+
+[node name="NestInteractionBody" type="StaticBody3D" parent="." unique_id=980410811]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="NestInteractionBody" unique_id=134863654]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0071105957, 1.0371704, 0.12272644)
+shape = SubResource("BoxShape3D_interaction")
