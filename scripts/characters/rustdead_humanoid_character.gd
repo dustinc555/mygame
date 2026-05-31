@@ -379,7 +379,6 @@ func _enter_cinder_dead_state_in_place() -> void:
 	life_state = NpcRules.LifeState.DEAD
 	_notify_law_order_actor_death()
 	_cancel_get_up()
-	_cancel_ragdoll_preroll()
 	COMBAT_COORDINATOR.release_character(self)
 	running = false
 	_clear_actor_move_target()

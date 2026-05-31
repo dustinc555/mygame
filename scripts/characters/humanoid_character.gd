@@ -5454,7 +5454,17 @@ func _enter_unconscious_from_lethal_vitals() -> void:
 		_enter_unconscious_state()
 	elif life_state == NpcRules.LifeState.UNCONSCIOUS:
 		_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, 5.0)
-		_enter_downed_state(false)
+		if not _has_started_downed_state():
+			_enter_downed_state(false)
+
+
+func _has_started_downed_state() -> bool:
+	return _downed_is_settled \
+		or _ragdoll_preroll_active \
+		or _is_ragdoll_active \
+		or _downed_collision_applied \
+		or _carried_by != null \
+		or is_in_cell_custody()
 
 
 func _wake_in_cell() -> void:
@@ -6974,11 +6984,11 @@ func _enter_downed_state(is_dead: bool) -> void:
 	_combat_reaction_source = null
 	_downed_is_settled = true
 	rotation = Vector3(0.0, rotation.y, 0.0)
-	_apply_downed_collision_shape()
 	velocity = Vector3.ZERO
 	_stop_character_animation(true)
 	if _begin_downed_ragdoll_preroll(is_dead):
 		return
+	_apply_downed_collision_shape()
 	if not _start_ragdoll_simulation(is_dead):
 		_restore_downed_collision_shape()
 
@@ -7057,6 +7067,7 @@ func _finish_downed_ragdoll_preroll() -> void:
 	var was_dead := _ragdoll_preroll_is_dead
 	_cancel_ragdoll_preroll()
 	_stop_character_animation(true)
+	_apply_downed_collision_shape()
 	if not _start_ragdoll_simulation(was_dead):
 		_restore_downed_collision_shape()
 
