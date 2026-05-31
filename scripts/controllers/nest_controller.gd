@@ -11,9 +11,9 @@ const HUMAN_FEMALE_BODY_ARCHETYPE := preload("res://resources/character_body_arc
 const AI_JOB_SCRIPT := preload("res://scripts/ai/ai_job.gd")
 const AI_PATROL_STEP_SCRIPT := preload("res://scripts/ai/steps/ai_patrol_step.gd")
 const AI_NEST_ASSAULT_STEP_SCRIPT := preload("res://scripts/ai/steps/ai_nest_assault_step.gd")
-const SCRAP_PILE_SMALL_SCENE := preload("res://scenes/world/resource_nodes/scrap_pile_variant_2_node.tscn")
-const SCRAP_PILE_MEDIUM_SCENE := preload("res://scenes/world/resource_nodes/scrap_pile_node.tscn")
-const SCRAP_PILE_LARGE_SCENE := preload("res://scenes/world/resource_nodes/robot_scrap_pile_node.tscn")
+const TWISTED_SCRAP_HEAP_SCENE := preload("res://scenes/world/resource_nodes/scrap_pile_variant_2_node.tscn")
+const SCRAP_PILE_SCENE := preload("res://scenes/world/resource_nodes/scrap_pile_node.tscn")
+const HALF_BURIED_ROBOT_WRECK_SCENE := preload("res://scenes/world/resource_nodes/half_buried_robot_wreck_node.tscn")
 
 const PEASANT_TUNIC := preload("res://resources/items/peasant_tunic.tres")
 const PEASANT_TROUSERS := preload("res://resources/items/peasant_trousers.tres")
@@ -491,11 +491,11 @@ func _pick_medium_or_larger_scrap_size(rng: RandomNumberGenerator) -> String:
 func _scrap_scene_for_size(size_id: String) -> PackedScene:
 	match size_id:
 		SCRAP_SIZE_MEDIUM:
-			return SCRAP_PILE_MEDIUM_SCENE
+			return SCRAP_PILE_SCENE
 		SCRAP_SIZE_LARGE:
-			return SCRAP_PILE_LARGE_SCENE
+			return HALF_BURIED_ROBOT_WRECK_SCENE
 		_:
-			return SCRAP_PILE_SMALL_SCENE
+			return TWISTED_SCRAP_HEAP_SCENE
 
 
 func _configure_nest_scrap_pile(pile: ScavengingResourceNode, size_id: String) -> void:
@@ -503,21 +503,18 @@ func _configure_nest_scrap_pile(pile: ScavengingResourceNode, size_id: String) -
 	pile.show_charge_count = false
 	match size_id:
 		SCRAP_SIZE_MEDIUM:
-			pile.display_name = "Robot Scrap Pile"
 			pile.pile_size = ScavengingResourceNode.PileSize.MEDIUM
 			pile.scavenging_difficulty = 12
 			pile.scavenge_noise_radius = 12.0
 			pile.slot_distance = 3.1
 			pile.scale = Vector3.ONE * 0.9
 		SCRAP_SIZE_LARGE:
-			pile.display_name = "Large Robot Wreck"
 			pile.pile_size = ScavengingResourceNode.PileSize.LARGE
 			pile.scavenging_difficulty = 24
 			pile.scavenge_noise_radius = 16.0
 			pile.slot_distance = 3.4
 			pile.scale = Vector3.ONE
 		_:
-			pile.display_name = "Small Robot Scrap"
 			pile.pile_size = ScavengingResourceNode.PileSize.SMALL
 			pile.scavenging_difficulty = 8
 			pile.scavenge_noise_radius = 9.0

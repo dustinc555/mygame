@@ -9,10 +9,10 @@
 [ext_resource type="Resource" path="res://resources/items/rusted_junk.tres" id="7_rusted"]
 [ext_resource type="Resource" path="res://resources/items/moldy_boot.tres" id="8_boot"]
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_robot_scrap"]
+[sub_resource type="BoxShape3D" id="BoxShape3D_half_buried_robot_wreck"]
 size = Vector3(4.4, 1.9, 4.4)
 
-[node name="RobotScrapPileNode" type="StaticBody3D"]
+[node name="HalfBuriedRobotWreckNode" type="StaticBody3D"]
 script = ExtResource("1_node")
 display_name = "Half-Buried Robot Wreck"
 pile_size = 2
@@ -31,7 +31,7 @@ junk_loot = Array[Resource]([ExtResource("7_rusted"), ExtResource("8_boot")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-shape = SubResource("BoxShape3D_robot_scrap")
+shape = SubResource("BoxShape3D_half_buried_robot_wreck")
 
 [node name="Visual" parent="." instance=ExtResource("2_model")]
 

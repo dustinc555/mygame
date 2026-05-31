@@ -1,6 +1,13 @@
 extends SceneTree
 
 const JUNKYARD_SCENE := preload("res://scenes/test_levels/junkyard_scavenging_demo.tscn")
+const SCRAP_PILE_SCENE := preload("res://scenes/world/resource_nodes/scrap_pile_node.tscn")
+const TWISTED_SCRAP_HEAP_SCENE := preload("res://scenes/world/resource_nodes/scrap_pile_variant_2_node.tscn")
+const HALF_BURIED_ROBOT_WRECK_SCENE := preload("res://scenes/world/resource_nodes/half_buried_robot_wreck_node.tscn")
+
+const SCRAP_PILE_VISUAL_PATH := "res://assets/items/scrap/mesh_scrap_1.glb"
+const TWISTED_SCRAP_HEAP_VISUAL_PATH := "res://assets/items/scrap/meshy_scrap_3.glb"
+const HALF_BURIED_ROBOT_WRECK_VISUAL_PATH := "res://assets/items/scrap/meshy_scrap_2.glb"
 
 var _failures: Array[String] = []
 var _scene: Node
@@ -14,6 +21,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_validate_resource_node_conventions()
 	await _load_scene()
 	await _run_scavenging_case()
 	_run_demo_button_cases()
@@ -41,10 +49,14 @@ func _load_scene() -> void:
 		_fail("Expected novice scavenging to start at 1")
 	if _expert != null and _expert.get_skill_level(SkillRules.LABOR_SCAVENGING) < 35:
 		_fail("Expected expert scavenging to start high")
-	if _scene.get_node_or_null("ScrapPiles/RobotScrapPile") == null:
-		_fail("Robot scrap pile was not found")
-	if _scene.get_node_or_null("ScrapPiles/OldWorldPile") == null:
-		_fail("Old-world scrap pile was not found")
+	_validate_demo_pile("ScrapPiles/SmallScrapPile", "Scrap Pile")
+	_validate_demo_pile("ScrapPiles/TwistedScrapHeap", "Twisted Scrap Heap")
+	_validate_demo_pile("ScrapPiles/HalfBuriedRobotWreck", "Half-Buried Robot Wreck")
+	_validate_demo_pile("ScrapPiles/LargeScrapPile", "Scrap Pile")
+	if _scene.get_node_or_null("ScrapPiles/RobotScrapPile") != null:
+		_fail("Junkyard demo should use HalfBuriedRobotWreck, not RobotScrapPile")
+	if _scene.get_node_or_null("ScrapPiles/OldWorldPile") != null:
+		_fail("Junkyard demo should not relabel the scrap pile mesh as OldWorldPile")
 	if _scene.get_node_or_null("DemoButtons/NoiseButton") == null:
 		_fail("Expected scavenging demo noise toggle button")
 
@@ -52,7 +64,7 @@ func _load_scene() -> void:
 func _run_scavenging_case() -> void:
 	if _novice == null or _scene == null:
 		return
-	var pile := _scene.get_node_or_null("ScrapPiles/RobotScrapPile") as ScavengingResourceNode
+	var pile := _scene.get_node_or_null("ScrapPiles/HalfBuriedRobotWreck") as ScavengingResourceNode
 	if pile == null:
 		return
 	pile.current_charges = 1
@@ -88,6 +100,38 @@ func _run_demo_button_cases() -> void:
 	message = str(_scene.perform_sneak_demo_action("reset_piles"))
 	if not message.contains("reset"):
 		_fail("Expected reset piles button action to report reset")
+
+
+func _validate_resource_node_conventions() -> void:
+	_validate_resource_node_scene(SCRAP_PILE_SCENE, "ScrapPileNode", "Scrap Pile", SCRAP_PILE_VISUAL_PATH)
+	_validate_resource_node_scene(TWISTED_SCRAP_HEAP_SCENE, "ScrapPileVariant2Node", "Twisted Scrap Heap", TWISTED_SCRAP_HEAP_VISUAL_PATH)
+	_validate_resource_node_scene(HALF_BURIED_ROBOT_WRECK_SCENE, "HalfBuriedRobotWreckNode", "Half-Buried Robot Wreck", HALF_BURIED_ROBOT_WRECK_VISUAL_PATH)
+
+
+func _validate_resource_node_scene(scene: PackedScene, root_name: String, display_name: String, visual_path: String) -> void:
+	var pile := scene.instantiate() as ScavengingResourceNode
+	if pile == null:
+		_fail("Expected %s to instantiate as a scavenging resource node" % root_name)
+		return
+	if pile.name != root_name:
+		_fail("Expected %s root node name, got %s" % [root_name, pile.name])
+	if pile.display_name != display_name:
+		_fail("Expected %s display name, got %s" % [display_name, pile.display_name])
+	var visual := pile.get_node_or_null("Visual")
+	if visual == null:
+		_fail("Expected %s to have a Visual child" % root_name)
+	elif visual.scene_file_path != visual_path:
+		_fail("Expected %s visual %s, got %s" % [root_name, visual_path, visual.scene_file_path])
+	pile.free()
+
+
+func _validate_demo_pile(path: String, display_name: String) -> void:
+	var pile := _scene.get_node_or_null(path) as ScavengingResourceNode
+	if pile == null:
+		_fail("Expected junkyard demo pile %s" % path)
+		return
+	if pile.display_name != display_name:
+		_fail("Expected %s display name %s, got %s" % [path, display_name, pile.display_name])
 
 
 func _wait_frames(count: int) -> void:

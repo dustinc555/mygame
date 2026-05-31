@@ -223,12 +223,33 @@ func _validate_spawned_scrap_piles(state: Dictionary) -> void:
 			small_count += 1
 		if pile.pile_size >= ScavengingResourceNode.PileSize.MEDIUM:
 			medium_or_larger_count += 1
+		var expected_display_name := _expected_scrap_display_name(pile.pile_size)
+		if expected_display_name != "" and pile.display_name != expected_display_name:
+			_fail("Nest scrap pile %s should keep canonical display name %s, got %s" % [pile.name, expected_display_name, pile.display_name])
+		if _is_deprecated_nest_scrap_display_name(pile.display_name):
+			_fail("Nest scrap pile %s should not use deprecated robot scrap label %s" % [pile.name, pile.display_name])
 		if pile.current_charges <= 0:
 			_fail("Nest scrap pile %s should start with salvage charges" % pile.name)
 	if small_count < 1:
 		_fail("Rustdead nest scrap should trend small and include at least one small pile")
 	if medium_or_larger_count < 1:
 		_fail("Rustdead nest scrap should guarantee at least one medium-or-larger pile")
+
+
+func _expected_scrap_display_name(pile_size: int) -> String:
+	match pile_size:
+		ScavengingResourceNode.PileSize.SMALL:
+			return "Twisted Scrap Heap"
+		ScavengingResourceNode.PileSize.MEDIUM:
+			return "Scrap Pile"
+		ScavengingResourceNode.PileSize.LARGE:
+			return "Half-Buried Robot Wreck"
+		_:
+			return ""
+
+
+func _is_deprecated_nest_scrap_display_name(display_name: String) -> bool:
+	return display_name in ["Small Robot Scrap", "Robot Scrap Pile", "Large Robot Wreck"]
 
 
 func _validate_attack_target_selection(nest_controller: Node) -> void:

@@ -2,8 +2,8 @@ extends Node3D
 
 const PARTY_MEMBER_SCRIPT = preload("res://scripts/party_member.gd")
 const SCRAP_PILE_SCENE = preload("res://scenes/world/resource_nodes/scrap_pile_node.tscn")
-const SCRAP_PILE_VARIANT_2_SCENE = preload("res://scenes/world/resource_nodes/scrap_pile_variant_2_node.tscn")
-const ROBOT_SCRAP_PILE_SCENE = preload("res://scenes/world/resource_nodes/robot_scrap_pile_node.tscn")
+const TWISTED_SCRAP_HEAP_SCENE = preload("res://scenes/world/resource_nodes/scrap_pile_variant_2_node.tscn")
+const HALF_BURIED_ROBOT_WRECK_SCENE = preload("res://scenes/world/resource_nodes/half_buried_robot_wreck_node.tscn")
 const SNEAK_DEMO_BUTTON_SCRIPT = preload("res://scripts/test_scenes/sneak_demo_button.gd")
 const ROBOT_PARTS = preload("res://resources/items/robot_parts.tres")
 
@@ -201,16 +201,15 @@ func _ensure_scrap_piles() -> void:
 	var root_node := Node3D.new()
 	root_node.name = "ScrapPiles"
 	add_child(root_node)
-	_make_scrap_pile(root_node, "BasicJunkPile", "Basic Junk Pile", Vector3(-5.8, 0.0, -1.0), 0, ScavengingResourceNode.PileSize.SMALL, Vector3.ONE * 0.82)
-	_make_scrap_pile_variant_2(root_node, Vector3(-8.0, 0.0, 3.0))
-	_make_robot_scrap_pile(root_node, Vector3(0.5, 0.0, 0.2))
-	_make_scrap_pile(root_node, "OldWorldPile", "Old-World Wreckage", Vector3(6.8, 0.0, -2.0), 28, ScavengingResourceNode.PileSize.LARGE, Vector3.ONE * 1.25)
+	_make_scrap_pile(root_node, "SmallScrapPile", Vector3(-5.8, 0.0, -1.0), 0, ScavengingResourceNode.PileSize.SMALL, Vector3.ONE * 0.82)
+	_make_twisted_scrap_heap(root_node, Vector3(-8.0, 0.0, 3.0))
+	_make_half_buried_robot_wreck(root_node, Vector3(0.5, 0.0, 0.2))
+	_make_scrap_pile(root_node, "LargeScrapPile", Vector3(6.8, 0.0, -2.0), 28, ScavengingResourceNode.PileSize.LARGE, Vector3.ONE * 1.25)
 
 
-func _make_scrap_pile(parent: Node, node_name: String, label: String, position: Vector3, difficulty: int, size_id: int, pile_scale: Vector3) -> void:
+func _make_scrap_pile(parent: Node, node_name: String, position: Vector3, difficulty: int, size_id: int, pile_scale: Vector3) -> void:
 	var pile := SCRAP_PILE_SCENE.instantiate() as ScavengingResourceNode
 	pile.name = node_name
-	pile.display_name = label
 	pile.position = position
 	pile.scale = pile_scale
 	pile.pile_size = size_id
@@ -225,17 +224,17 @@ func _make_scrap_pile(parent: Node, node_name: String, label: String, position: 
 	parent.add_child(pile)
 
 
-func _make_scrap_pile_variant_2(parent: Node, position: Vector3) -> void:
-	var pile := SCRAP_PILE_VARIANT_2_SCENE.instantiate() as ScavengingResourceNode
+func _make_twisted_scrap_heap(parent: Node, position: Vector3) -> void:
+	var pile := TWISTED_SCRAP_HEAP_SCENE.instantiate() as ScavengingResourceNode
 	pile.name = "TwistedScrapHeap"
 	pile.position = position
 	pile.show_charge_count = show_charge_labels
 	parent.add_child(pile)
 
 
-func _make_robot_scrap_pile(parent: Node, position: Vector3) -> void:
-	var pile := ROBOT_SCRAP_PILE_SCENE.instantiate() as ScavengingResourceNode
-	pile.name = "RobotScrapPile"
+func _make_half_buried_robot_wreck(parent: Node, position: Vector3) -> void:
+	var pile := HALF_BURIED_ROBOT_WRECK_SCENE.instantiate() as ScavengingResourceNode
+	pile.name = "HalfBuriedRobotWreck"
 	pile.position = position
 	pile.show_charge_count = show_charge_labels
 	parent.add_child(pile)
