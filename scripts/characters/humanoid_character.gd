@@ -26,6 +26,8 @@ const CHARACTER_VISUAL_NODE_NAME := "CharacterVisual"
 const CHARACTER_ANIMATION_PLAYER_NAME := "CharacterAnimationPlayer"
 const CHARACTER_VISUAL_YAW_OFFSET := PI
 const CHARACTER_VISUAL_FOOT_CLEARANCE := 0.02
+const CHARACTER_VISUAL_FOOT_GROUND_CORRECTION_MAX_UP := 0.18
+const CHARACTER_VISUAL_FOOT_GROUND_CORRECTION_MAX_DOWN := 0.05
 const IDLE_ANIMATION_NAME := "Idle"
 const TIRED_IDLE_ANIMATION_NAME := "Idle_Tired"
 const FOLD_ARMS_IDLE_ANIMATION_NAME := "Idle_FoldArms"
@@ -330,6 +332,7 @@ var _character_animation_players: Array[AnimationPlayer] = []
 var _character_skeleton: Skeleton3D
 var _bone_pose_position_offsets: Dictionary = {}
 var _visual_foot_anchor_correction_y := 0.0
+var _visual_foot_ground_correction_y := 0.0
 var _current_character_animation := ""
 var _needs_tick_accumulated := 0.0
 var _needs_tick_remaining := 0.0
@@ -2671,7 +2674,7 @@ func _process_recovery(delta: float) -> void:
 		var clot_step := NpcRules.BLEED_CLOT_RATE * delta + healing_step * NpcRules.BLEED_HEALING_CLOT_MULTIPLIER
 		_bleed_rate = maxf(0.0, _bleed_rate - clot_step)
 	if get_bleed_rate() <= 0.0 and blood < max_blood:
-		var blood_recovery_step := NpcRules.BLOOD_RECOVERY_RATE * delta
+		var blood_recovery_step := get_stat_value("blood_recovery_rate") * delta
 		if life_state == NpcRules.LifeState.ASLEEP:
 			blood_recovery_step *= NpcRules.BLOOD_RECOVERY_SLEEP_MULTIPLIER
 		blood = minf(max_blood, blood + blood_recovery_step)
@@ -3913,6 +3916,7 @@ func _setup_character_visual() -> void:
 	_character_skeleton = null
 	_bone_pose_position_offsets.clear()
 	_visual_foot_anchor_correction_y = 0.0
+	_visual_foot_ground_correction_y = 0.0
 	_current_character_animation = ""
 
 	var body_mesh := get_node_or_null("BodyMesh") as MeshInstance3D
@@ -3954,6 +3958,7 @@ func _setup_character_visual() -> void:
 	else:
 		_stop_character_animation(true)
 	_apply_bone_pose_position_offsets()
+	_apply_runtime_visual_foot_ground_alignment()
 	_set_equipped_clothing_visuals_visible(_preview_clothes_visible)
 	body_mesh.visible = false
 
@@ -4062,6 +4067,26 @@ func _apply_visual_foot_anchor_correction(visual_root: Node3D, desired_correctio
 		return
 	visual_root.position.y += desired_correction - _visual_foot_anchor_correction_y
 	_visual_foot_anchor_correction_y = desired_correction
+
+
+func _apply_runtime_visual_foot_ground_alignment() -> void:
+	if _is_ragdoll_active or _character_skeleton == null or not is_instance_valid(_character_skeleton):
+		return
+	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
+	if visual_root == null:
+		return
+	_character_skeleton.force_update_all_bone_transforms()
+	var foot_y := _get_skeleton_foot_anchor_global_y(_character_skeleton)
+	if foot_y == INF:
+		return
+	var ground_y := get_visual_ground_y()
+	var desired_correction := clampf(ground_y - foot_y, -CHARACTER_VISUAL_FOOT_GROUND_CORRECTION_MAX_DOWN, CHARACTER_VISUAL_FOOT_GROUND_CORRECTION_MAX_UP)
+	var correction_delta := desired_correction - _visual_foot_ground_correction_y
+	if absf(correction_delta) <= 0.001:
+		return
+	visual_root.position.y += correction_delta
+	_visual_foot_ground_correction_y = desired_correction
+	_character_skeleton.force_update_all_bone_transforms()
 
 
 func _get_skeleton_foot_anchor_global_y(skeleton: Skeleton3D) -> float:
@@ -5156,6 +5181,7 @@ func _play_character_animation(animation_name: String, speed_ratio: float = 0.0,
 	var custom_speed := _get_character_animation_speed(animation_name, speed_ratio)
 	var already_current := _current_character_animation == animation_name
 	_current_character_animation = animation_name
+	var started_animation := false
 	for animation_player in _character_animation_players:
 		if animation_player == null or not animation_player.has_animation(animation_name):
 			continue
@@ -5163,6 +5189,11 @@ func _play_character_animation(animation_name: String, speed_ratio: float = 0.0,
 		if not force_restart and already_current and animation_player.is_playing():
 			continue
 		animation_player.play(animation_name, blend_seconds)
+		animation_player.advance(0.0)
+		started_animation = true
+	if started_animation:
+		_apply_bone_pose_position_offsets()
+		_apply_runtime_visual_foot_ground_alignment()
 	return true
 
 
@@ -5571,6 +5602,8 @@ func _get_base_stat_value(stat_name: String) -> float:
 			return NpcRules.FATIGUE_IDLE_RECOVERY + SkillRules.get_diminishing_bonus(float(get_skill_level(SkillRules.ATTRIBUTE_ENDURANCE)), 0.9, 60.0)
 		"healing_rate":
 			return NpcRules.BASE_HEAL_RATE
+		"blood_recovery_rate":
+			return NpcRules.BLOOD_RECOVERY_RATE
 	return 0.0
 
 
@@ -5625,7 +5658,7 @@ func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true)
 				value = clampf(value, 0.0, 0.95)
 			"attack_cooldown":
 				value = maxf(0.2, value)
-			"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "attack_range", "dexterity", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate":
+			"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "attack_range", "dexterity", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate", "blood_recovery_rate":
 				value = maxf(0.0, value)
 	_stat_value_cache[cache_key] = value
 	return value

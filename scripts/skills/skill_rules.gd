@@ -12,6 +12,8 @@ const CHECK_CHANCE_VERY_LOW_MAX := 0.2
 const CHECK_CHANCE_LOW_MAX := 0.4
 const CHECK_CHANCE_EVEN_MAX := 0.65
 const CHECK_CHANCE_HIGH_MAX := 0.9
+const TOUGHNESS_MAX_BLOOD_BONUS_CAP := 0.5
+const TOUGHNESS_MAX_BLOOD_BONUS_CURVE := 45.0
 
 const ATTRIBUTE_STRENGTH := "attribute.strength"
 const ATTRIBUTE_PERCEPTION := "attribute.perception"
@@ -73,6 +75,14 @@ static func get_diminishing_bonus(level: float, cap: float, curve: float = 35.0)
 	if cap <= 0.0:
 		return 0.0
 	return cap * (1.0 - exp(-maxf(level, 0.0) / maxf(curve, 0.001)))
+
+
+static func get_toughness_max_blood_bonus(level: float) -> float:
+	return get_diminishing_bonus(level, TOUGHNESS_MAX_BLOOD_BONUS_CAP, TOUGHNESS_MAX_BLOOD_BONUS_CURVE)
+
+
+static func get_max_blood_for_toughness(base_max_blood: float, toughness_level: float) -> float:
+	return maxf(base_max_blood, 1.0) * (1.0 + get_toughness_max_blood_bonus(toughness_level))
 
 
 static func get_assisted_skill_score(primary_level: float, attribute_level: float, attribute_cap: float = 18.0, attribute_curve: float = 35.0) -> float:

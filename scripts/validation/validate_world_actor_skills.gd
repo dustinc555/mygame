@@ -2,10 +2,12 @@ extends SceneTree
 
 const COMBAT_COORDINATOR = preload("res://scripts/characters/combat_coordinator.gd")
 const CHARACTER_SKILLS_WINDOW_SCRIPT = preload("res://scripts/ui/character_skills_window.gd")
+const HUMANOID_DETAILS_CONTROLLER_SCRIPT = preload("res://scripts/ui/humanoid_details_controller.gd")
 const COPPER_ORE = preload("res://resources/items/copper_ore.tres")
 const PICKAXE = preload("res://resources/items/rusted_pickaxe.tres")
 const WORLD_ITEM_SCENE = preload("res://scenes/world/items/world_item.tscn")
 const PARTY_INVENTORY_CONTROLLER_SCRIPT = preload("res://scripts/ui/party_inventory_controller.gd")
+const GAME_HUD_SCENE = preload("res://scenes/ui/game_hud.tscn")
 
 class InitiativeDummy:
 	extends Node3D
@@ -36,6 +38,7 @@ func _run() -> void:
 	_validate_catalog()
 	_validate_progression()
 	_validate_mining_speed_rules()
+	_validate_toughness_max_blood_rules()
 	await _validate_mining_interaction_radius()
 	await _validate_copper_ore_world_visual()
 	_validate_world_actor_api()
@@ -46,6 +49,7 @@ func _run() -> void:
 	await _validate_locked_mining_attempt_trains_without_ore()
 	await _validate_stalled_mining_awards_no_xp()
 	await _validate_skills_window_live_update()
+	await _validate_inspected_npc_skills_button()
 	if _failures.is_empty():
 		print("WORLD_ACTOR_SKILLS_OK")
 		quit(0)
@@ -163,6 +167,29 @@ func _validate_world_actor_api() -> void:
 	if actor.get_skill_level(SkillRules.MOVEMENT_RUNNING) <= 1:
 		_fail("Expected WorldActor.add_skill_xp to level a skill")
 	actor.queue_free()
+
+
+func _validate_toughness_max_blood_rules() -> void:
+	var actor := WorldActor.new()
+	actor.max_blood = 80.0
+	actor.blood = 80.0
+	actor.starting_skill_levels = {SkillRules.ATTRIBUTE_TOUGHNESS: 40}
+	if actor.get_skill_level(SkillRules.ATTRIBUTE_TOUGHNESS) != 40:
+		_fail("Expected starting Toughness override to apply before max blood validation")
+	var expected_max_blood := SkillRules.get_max_blood_for_toughness(80.0, 40.0)
+	if absf(actor.max_blood - expected_max_blood) > 0.01:
+		_fail("Expected generic WorldActor max blood to scale from Toughness, got %.3f expected %.3f" % [actor.max_blood, expected_max_blood])
+	if absf(actor.blood - actor.max_blood) > 0.01:
+		_fail("Expected full generic WorldActor blood to refill to Toughness-scaled max at spawn")
+	var wounded_blood := actor.max_blood * 0.5
+	actor.blood = wounded_blood
+	actor.set_skill_level(SkillRules.ATTRIBUTE_TOUGHNESS, 80)
+	var expected_higher_max_blood := SkillRules.get_max_blood_for_toughness(80.0, 80.0)
+	if absf(actor.max_blood - expected_higher_max_blood) > 0.01:
+		_fail("Expected generic WorldActor max blood to refresh after Toughness changes")
+	if absf(actor.blood - wounded_blood) > 0.01:
+		_fail("Expected wounded blood value to stay wounded when Toughness changes, got %.3f expected %.3f" % [actor.blood, wounded_blood])
+	actor.free()
 
 
 func _validate_mining_speed_rules() -> void:
@@ -835,6 +862,49 @@ func _validate_skills_window_live_update() -> void:
 			_fail("Expected visible skills window to update mining XP live")
 	window.queue_free()
 	actor.queue_free()
+
+
+func _validate_inspected_npc_skills_button() -> void:
+	root.size = Vector2i(1280, 720)
+	var hud := GAME_HUD_SCENE.instantiate() as CanvasLayer
+	if hud == null:
+		_fail("Expected game HUD scene to instantiate for NPC skills validation")
+		return
+	hud.name = "ValidationNpcSkillsHUD"
+	root.add_child(hud)
+	var npc := HumanoidCharacter.new()
+	npc.name = "ValidationRustdeadStats"
+	npc.member_name = "Ancient Rustdead"
+	npc.faction_name = "Rustdead"
+	npc.show_nameplate = false
+	npc.fatigue_enabled = false
+	npc.starting_skill_levels = {SkillRules.ATTRIBUTE_TOUGHNESS: 80, SkillRules.COMBAT_UNARMED: 80}
+	root.add_child(npc)
+	var controller := HUMANOID_DETAILS_CONTROLLER_SCRIPT.new() as HumanoidDetailsController
+	controller.name = "ValidationHumanoidDetailsController"
+	root.add_child(controller)
+	controller.initialize(root, hud)
+	await _wait_frames(3)
+	controller.inspect_target(npc)
+	await _wait_frames(2)
+	var skills_button := hud.get_node_or_null("HudLayout/BottomHud/InspectorSlot/HumanoidDetailsPanel/Margin/DetailsVBox/ActionRow/PrimaryActionButton") as Button
+	if skills_button == null:
+		_fail("Expected inspected NPC details panel to expose a primary action button")
+	elif skills_button.text != "Skills" or not skills_button.visible or skills_button.disabled:
+		_fail("Expected inspected NPC Skills button to be visible and enabled, got text=%s visible=%s disabled=%s" % [skills_button.text, str(skills_button.visible), str(skills_button.disabled)])
+	else:
+		skills_button.pressed.emit()
+		await _wait_frames(2)
+		var skills_window := hud.get_node_or_null("CharacterSkillsWindow") as Control
+		if skills_window == null or not skills_window.visible:
+			_fail("Expected inspected NPC Skills button to open the skills window")
+		else:
+			var title_label := skills_window.get("title_label") as Label
+			if title_label == null or not title_label.text.contains("Ancient Rustdead"):
+				_fail("Expected inspected NPC skills window title to use NPC display name")
+	controller.queue_free()
+	npc.queue_free()
+	hud.queue_free()
 
 
 func _node_tree_contains_type(node: Node, class_name_text: String) -> bool:

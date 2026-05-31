@@ -50,10 +50,12 @@ static var _texture_cache: Dictionary = {}
 static func apply_custom_skin_materials(root: Node, race_id: String, body_type: int, skin_color: Color) -> bool:
 	if root == null:
 		return false
-	var skin_texture := get_skin_texture(race_id, body_type, skin_color)
+	var normalized_race_id := normalize_race_id(race_id)
+	var tone_index := get_nearest_skin_tone_index(skin_color, normalized_race_id)
+	var skin_texture := get_skin_texture(normalized_race_id, body_type, skin_color)
 	if skin_texture == null:
 		return false
-	return _apply_skin_texture(root, skin_texture)
+	return _apply_skin_texture(root, skin_texture, normalized_race_id, tone_index)
 
 
 static func has_custom_skin_materials(root: Node) -> bool:
@@ -274,18 +276,18 @@ static func _normalize_body_type(body_type: int) -> int:
 	return VISUAL_BODY_TYPE_FEMALE if body_type == VISUAL_BODY_TYPE_FEMALE else VISUAL_BODY_TYPE_MALE
 
 
-static func _apply_skin_texture(root: Node, skin_texture: Texture2D) -> bool:
+static func _apply_skin_texture(root: Node, skin_texture: Texture2D, race_id: String, tone_index: int) -> bool:
 	var did_apply := false
 	if root is MeshInstance3D:
 		var mesh_instance := root as MeshInstance3D
 		if _is_skin_visual(mesh_instance):
-			did_apply = _apply_skin_texture_to_mesh(mesh_instance, skin_texture) or did_apply
+			did_apply = _apply_skin_texture_to_mesh(mesh_instance, skin_texture, race_id, tone_index) or did_apply
 	for child in root.get_children():
-		did_apply = _apply_skin_texture(child, skin_texture) or did_apply
+		did_apply = _apply_skin_texture(child, skin_texture, race_id, tone_index) or did_apply
 	return did_apply
 
 
-static func _apply_skin_texture_to_mesh(mesh_instance: MeshInstance3D, skin_texture: Texture2D) -> bool:
+static func _apply_skin_texture_to_mesh(mesh_instance: MeshInstance3D, skin_texture: Texture2D, race_id: String, tone_index: int) -> bool:
 	if mesh_instance.mesh == null:
 		return false
 	var did_apply := false
@@ -303,9 +305,28 @@ static func _apply_skin_texture_to_mesh(mesh_instance: MeshInstance3D, skin_text
 			fallback_material.albedo_texture = skin_texture
 			fallback_material.roughness = 0.86
 			custom_material = fallback_material
+		_apply_rustdead_skin_material_profile(custom_material, race_id, tone_index)
 		mesh_instance.set_surface_override_material(surface_index, custom_material)
 		did_apply = true
 	return did_apply
+
+
+static func _apply_rustdead_skin_material_profile(material: Material, race_id: String, tone_index: int) -> void:
+	if normalize_race_id(race_id) != RUSTDEAD_RACE_ID or not (material is BaseMaterial3D):
+		return
+	var base_material := material as BaseMaterial3D
+	if tone_index >= 7:
+		base_material.metallic = 0.64
+		base_material.roughness = 0.38
+	elif tone_index >= 4:
+		base_material.metallic = 0.36
+		base_material.roughness = 0.52
+	elif tone_index >= 2:
+		base_material.metallic = 0.08
+		base_material.roughness = 0.74
+	else:
+		base_material.metallic = 0.0
+		base_material.roughness = 0.86
 
 
 static func _is_skin_visual(mesh_instance: MeshInstance3D) -> bool:

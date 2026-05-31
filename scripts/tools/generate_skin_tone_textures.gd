@@ -100,7 +100,7 @@ func _build_skin_image(race_id: String, body_type: int, tone_index: int, base_by
 		if is_rustdead:
 			var x := pixel_index % width
 			var y := int(pixel_index / width)
-			recolored = _get_rustdead_skin_pixel(recolored, x, y, seed)
+			recolored = _get_rustdead_skin_pixel(recolored, x, y, seed, tone_index)
 		var recolored_red := clampf(recolored.x, 0.0, 1.0)
 		var recolored_green := clampf(recolored.y, 0.0, 1.0)
 		var recolored_blue := clampf(recolored.z, 0.0, 1.0)
@@ -121,36 +121,101 @@ func _get_recolored_skin_pixel(base_color: Vector3, average: Vector3, target: Ve
 	)
 
 
-func _get_rustdead_skin_pixel(color: Vector3, x: int, y: int, seed: int) -> Vector3:
-	var large_cell_x := int(floor(float(x) / 31.0))
-	var large_cell_y := int(floor(float(y) / 31.0))
-	var medium_cell_x := int(floor(float(x) / 13.0))
-	var medium_cell_y := int(floor(float(y) / 13.0))
-	var bruise := _smoothstep(0.48, 0.93, _noise01(large_cell_x, large_cell_y, seed + 17))
-	var raw_patch := _smoothstep(0.70, 0.98, _noise01(medium_cell_x, medium_cell_y, seed + 43))
-	var ash := _smoothstep(0.55, 0.96, _noise01(medium_cell_x + 19, medium_cell_y - 7, seed + 89))
+func _get_rustdead_skin_pixel(color: Vector3, x: int, y: int, seed: int, tone_index: int) -> Vector3:
+	var fx := float(x)
+	var fy := float(y)
+	var machine_ratio := _get_rustdead_machine_ratio(tone_index)
+	var broad := _smooth_noise01(fx * 0.018, fy * 0.016, seed + 17)
+	var pooled := _smooth_noise01(fx * 0.044 + 11.7, fy * 0.039 - 6.3, seed + 43)
+	var ash_noise := _smooth_noise01(fx * 0.062 - 18.0, fy * 0.053 + 23.0, seed + 89)
 	var fine := _noise01(x, y, seed + 191)
+	var pore := _smooth_noise01(fx * 0.42 + 3.0, fy * 0.38 - 5.0, seed + 307)
+	var bruise := _smoothstep(0.50, 0.86, broad)
+	var raw_patch := _smoothstep(0.66, 0.93, pooled + (broad - 0.5) * 0.18)
+	var ash := _smoothstep(0.58, 0.91, ash_noise)
+	var machine_noise := 0.0
+	var rust_noise := 0.0
+	if machine_ratio > 0.001:
+		machine_noise = _smooth_noise01(fx * 0.030 + 41.0, fy * 0.028 - 17.0, seed + 503)
+		rust_noise = _smooth_noise01(fx * 0.075 - 3.0, fy * 0.068 + 19.0, seed + 541)
+	var metal_patch := _smoothstep(0.50, 0.86, machine_noise + (ash_noise - 0.5) * 0.18) * machine_ratio
+	var rust_patch := _smoothstep(0.56, 0.88, rust_noise) * machine_ratio
+	var metal_color := Vector3(0.34, 0.33, 0.31).lerp(Vector3(0.72, 0.70, 0.66), clampf((machine_ratio - 0.45) / 0.43, 0.0, 1.0))
 	var corpse := color
-	corpse = corpse.lerp(Vector3(0.12, 0.028, 0.06), bruise * 0.42)
-	corpse = corpse.lerp(Vector3(0.95, 0.035, 0.025), raw_patch * 0.36)
-	corpse = corpse.lerp(Vector3(0.18, 0.13, 0.12), ash * 0.18)
-	var scratch := _get_rustdead_scratch_mask(x, y, seed)
-	corpse = corpse.lerp(Vector3(1.0, 0.025, 0.012), scratch * 0.72)
-	var speckle := lerpf(0.88, 1.12, fine)
-	return Vector3(corpse.x * speckle, corpse.y * lerpf(0.72, 1.02, fine), corpse.z * lerpf(0.78, 1.05, fine))
+	corpse = corpse.lerp(Vector3(0.10, 0.025, 0.055), bruise * lerpf(0.36, 0.22, machine_ratio))
+	corpse = corpse.lerp(Vector3(0.90, 0.036, 0.024), raw_patch * lerpf(0.30, 0.14, machine_ratio))
+	corpse = corpse.lerp(Vector3(0.20, 0.15, 0.13), ash * lerpf(0.16, 0.30, machine_ratio))
+	var vein := _get_rustdead_vein_mask(fx, fy, seed, machine_ratio, pooled, ash_noise)
+	corpse = corpse.lerp(Vector3(0.06, 0.012, 0.035), vein * lerpf(0.34, 0.22, machine_ratio))
+	corpse = corpse.lerp(metal_color, metal_patch * lerpf(0.58, 0.78, machine_ratio))
+	corpse = corpse.lerp(Vector3(0.58, 0.21, 0.08), rust_patch * lerpf(0.30, 0.42, machine_ratio))
+	var seam := _get_rustdead_machine_seam_mask(fx, fy, seed, machine_noise, rust_noise) * machine_ratio
+	corpse = corpse.lerp(Vector3(0.025, 0.020, 0.018), seam * 0.78)
+	var scratch := _get_rustdead_scratch_mask(x, y, seed, fine, broad)
+	corpse = corpse.lerp(Vector3(1.0, 0.025, 0.012), scratch * lerpf(0.68, 0.34, machine_ratio))
+	var speckle := lerpf(0.88, 1.13, fine)
+	var pore_shadow := lerpf(0.94, 1.04, pore) * lerpf(1.0, 0.92 + machine_noise * 0.16, machine_ratio)
+	return Vector3(corpse.x * speckle * pore_shadow, corpse.y * lerpf(0.74, 1.03, fine), corpse.z * lerpf(0.80, 1.06, fine))
 
 
-func _get_rustdead_scratch_mask(x: int, y: int, seed: int) -> float:
-	var scratch_gate := _noise01(int(floor(float(x) / 23.0)), int(floor(float(y) / 9.0)), seed + 251)
-	if scratch_gate < 0.78:
+func _get_rustdead_machine_ratio(tone_index: int) -> float:
+	if tone_index >= 7:
+		return 0.88
+	if tone_index >= 4:
+		return 0.52
+	if tone_index >= 2:
+		return 0.22
+	return 0.0
+
+
+func _get_rustdead_vein_mask(x: float, y: float, seed: int, machine_ratio: float, gate: float, warp_source: float) -> float:
+	if gate < lerpf(0.58, 0.48, machine_ratio):
 		return 0.0
-	var band := absf(fmod(float(x * 3 + y * 5 + seed * 11), 47.0) - 23.5)
-	return 1.0 - _smoothstep(0.45, 1.9, band)
+	var warp := (warp_source - 0.5) * lerpf(9.0, 4.0, machine_ratio)
+	var band := absf(fmod(x * 0.70 + y * 1.45 + float(seed) * 0.37 + warp, 34.0) - 17.0)
+	return (1.0 - _smoothstep(0.45, lerpf(2.8, 2.0, machine_ratio), band)) * _smoothstep(0.58, 0.86, gate)
+
+
+func _get_rustdead_machine_seam_mask(x: float, y: float, seed: int, gate: float, warp_source: float) -> float:
+	if gate < 0.54:
+		return 0.0
+	var warp := (warp_source - 0.5) * 7.0
+	var diagonal := absf(fmod(x * 1.12 - y * 0.74 + float(seed) * 0.19 + warp, 44.0) - 22.0)
+	var vertical := absf(fmod(x * 0.42 + y * 1.85 + float(seed) * 0.11 - warp, 57.0) - 28.5)
+	return maxf(1.0 - _smoothstep(0.55, 2.4, diagonal), 1.0 - _smoothstep(0.45, 2.1, vertical)) * _smoothstep(0.54, 0.86, gate)
+
+
+func _get_rustdead_scratch_mask(x: int, y: int, seed: int, scratch_gate: float, warp_source: float) -> float:
+	var fx := float(x)
+	var fy := float(y)
+	if scratch_gate < 0.76:
+		return 0.0
+	var warp := (warp_source - 0.5) * 6.0
+	var band := absf(fmod(fx * 2.8 + fy * 4.7 + float(seed) * 3.3 + warp, 51.0) - 25.5)
+	return (1.0 - _smoothstep(0.55, 2.2, band)) * _smoothstep(0.76, 0.94, scratch_gate)
+
+
+func _smooth_noise01(x: float, y: float, seed: int) -> float:
+	var floor_x: float = floor(x)
+	var floor_y: float = floor(y)
+	var x0 := int(floor_x)
+	var y0 := int(floor_y)
+	var tx: float = x - floor_x
+	var ty: float = y - floor_y
+	var sx: float = tx * tx * (3.0 - 2.0 * tx)
+	var sy: float = ty * ty * (3.0 - 2.0 * ty)
+	var a: float = _noise01(x0, y0, seed)
+	var b: float = _noise01(x0 + 1, y0, seed)
+	var c: float = _noise01(x0, y0 + 1, seed)
+	var d: float = _noise01(x0 + 1, y0 + 1, seed)
+	return lerpf(lerpf(a, b, sx), lerpf(c, d, sx), sy)
 
 
 func _noise01(x: int, y: int, seed: int) -> float:
-	var value := sin(float(x) * 12.9898 + float(y) * 78.233 + float(seed) * 37.719) * 43758.5453
-	return value - floor(value)
+	var value := x * 374761393 + y * 668265263 + seed * 1442695041
+	value = (value ^ (value >> 13)) * 1274126177
+	value = value ^ (value >> 16)
+	return float(value & 0x7fffffff) / 2147483647.0
 
 
 func _get_readable_image(texture: Texture2D) -> Image:

@@ -8,6 +8,7 @@ const RUSTDEAD_RACE := preload("res://resources/character_races/rustdead.tres")
 const APPEARANCE_DATA_SCRIPT := preload("res://scripts/character_appearance/character_appearance_data.gd")
 const HUMAN_MALE_BODY_ARCHETYPE := preload("res://resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE := preload("res://resources/character_body_archetypes/human_female.tres")
+const RUSTDEAD_TIER_LIBRARY := preload("res://scripts/characters/rustdead_tier_library.gd")
 const AI_JOB_SCRIPT := preload("res://scripts/ai/ai_job.gd")
 const AI_PATROL_STEP_SCRIPT := preload("res://scripts/ai/steps/ai_patrol_step.gd")
 const AI_NEST_ASSAULT_STEP_SCRIPT := preload("res://scripts/ai/steps/ai_nest_assault_step.gd")
@@ -35,14 +36,14 @@ const KNIGHT_SABATONS := preload("res://resources/items/knight_sabatons.tres")
 
 const VISUAL_BODY_TYPE_MALE := 2
 const VISUAL_BODY_TYPE_FEMALE := 3
-const RUSTDEAD_SKILL_LEVEL := 20
 const NEST_ACTOR_ROOT_NAME := "NestActors"
 const NEST_VISUAL_NAME := "ActiveNestVisual"
 const NEST_SCRAP_ROOT_NAME := "NestScrapPiles"
 const NEST_PATROL_SOURCE_ID := "nest_patrol"
 const NEST_ASSAULT_SOURCE_ID := "nest_assault"
-const RUSTDEAD_SCRAP_MIN_COUNT := 3
-const RUSTDEAD_SCRAP_MAX_COUNT := 5
+const RUSTDEAD_SMALL_SCRAP_COUNT_RANGE := Vector2i(3, 5)
+const RUSTDEAD_MEDIUM_SCRAP_COUNT_RANGE := Vector2i(5, 8)
+const RUSTDEAD_LARGE_SCRAP_COUNT_RANGE := Vector2i(7, 11)
 const RUSTDEAD_SCRAP_MIN_RADIUS := 8.0
 const RUSTDEAD_SCRAP_MAX_RADIUS := 18.0
 const RUSTDEAD_SCRAP_MIN_SEPARATION := 4.5
@@ -54,14 +55,6 @@ const SCRAP_SIZE_SMALL := "small"
 const SCRAP_SIZE_MEDIUM := "medium"
 const SCRAP_SIZE_LARGE := "large"
 
-const RUSTDEAD_SKIN_COLORS := [
-	Color(0.82, 0.30, 0.24, 1.0),
-	Color(0.74, 0.22, 0.18, 1.0),
-	Color(0.64, 0.19, 0.16, 1.0),
-	Color(0.56, 0.15, 0.14, 1.0),
-	Color(0.49, 0.13, 0.13, 1.0),
-	Color(0.43, 0.11, 0.12, 1.0),
-]
 const RUSTDEAD_CHEST_ITEMS := [PEASANT_TUNIC, RANGER_JERKIN, NOBLE_DOUBLET, WIZARD_ROBES]
 const RUSTDEAD_HAND_ITEMS := [NOBLE_SLEEVES, WIZARD_SLEEVES]
 const RUSTDEAD_LEG_ITEMS := [PEASANT_TROUSERS, RANGER_LEGGINGS, NOBLE_TROUSERS, WIZARD_TROUSERS, KNIGHT_GREAVES]
@@ -411,6 +404,7 @@ func _spawn_nest_scrap_piles(marker: NestPlacementMarker, state: Dictionary) -> 
 	for index in range(specs.size()):
 		var spec: Dictionary = specs[index] if specs[index] is Dictionary else {}
 		var size_id := str(spec.get("size_id", SCRAP_SIZE_SMALL))
+		var nest_size_id := str(state.get("size_id", SCRAP_SIZE_SMALL))
 		var scene := _scrap_scene_for_size(size_id)
 		if scene == null:
 			continue
@@ -420,7 +414,7 @@ func _spawn_nest_scrap_piles(marker: NestPlacementMarker, state: Dictionary) -> 
 		pile.name = str(spec.get("scrap_id", "%s_scrap_%02d" % [marker.get_marker_id(), index + 1])).replace(".", "_")
 		pile.position = spec.get("offset", Vector3.ZERO) if spec.get("offset", Vector3.ZERO) is Vector3 else Vector3.ZERO
 		pile.rotation.y = float(spec.get("yaw", 0.0))
-		_configure_nest_scrap_pile(pile, size_id)
+		_configure_nest_scrap_pile(pile, size_id, nest_size_id)
 		scrap_root.add_child(pile)
 
 
@@ -431,22 +425,29 @@ func _clear_nest_scrap_runtime(marker: NestPlacementMarker) -> void:
 
 
 func _create_scrap_pile_specs(marker: NestPlacementMarker, rng: RandomNumberGenerator) -> Array[Dictionary]:
-	var count := rng.randi_range(RUSTDEAD_SCRAP_MIN_COUNT, RUSTDEAD_SCRAP_MAX_COUNT)
-	var guaranteed_medium_index := rng.randi_range(0, count - 1)
+	var nest_size_id := marker.get_size_id()
+	var count_range := _scrap_count_range_for_nest_size(nest_size_id)
+	var count := rng.randi_range(count_range.x, count_range.y)
 	var guaranteed_small_index := rng.randi_range(0, count - 1)
-	if count > 1:
-		while guaranteed_small_index == guaranteed_medium_index:
-			guaranteed_small_index = rng.randi_range(0, count - 1)
+	var guaranteed_medium_index := _pick_unique_index(rng, count, [guaranteed_small_index])
+	var guaranteed_large_indices: Array[int] = []
+	if nest_size_id == SCRAP_SIZE_MEDIUM:
+		guaranteed_large_indices.append(_pick_unique_index(rng, count, [guaranteed_small_index, guaranteed_medium_index]))
+	elif nest_size_id == SCRAP_SIZE_LARGE:
+		guaranteed_large_indices.append(_pick_unique_index(rng, count, [guaranteed_small_index, guaranteed_medium_index]))
+		guaranteed_large_indices.append(_pick_unique_index(rng, count, [guaranteed_small_index, guaranteed_medium_index, guaranteed_large_indices[0]]))
 	var offsets: Array[Vector3] = []
 	var specs: Array[Dictionary] = []
 	for index in range(count):
 		var size_id := SCRAP_SIZE_SMALL
-		if index == guaranteed_medium_index:
-			size_id = _pick_medium_or_larger_scrap_size(rng)
+		if guaranteed_large_indices.has(index):
+			size_id = SCRAP_SIZE_LARGE
+		elif index == guaranteed_medium_index:
+			size_id = SCRAP_SIZE_MEDIUM if nest_size_id != SCRAP_SIZE_SMALL else _pick_medium_or_larger_scrap_size(rng)
 		elif index == guaranteed_small_index:
 			size_id = SCRAP_SIZE_SMALL
 		else:
-			size_id = _pick_weighted_scrap_size(rng)
+			size_id = _pick_weighted_scrap_size(rng, nest_size_id)
 		var offset := _pick_scrap_offset(rng, offsets)
 		offsets.append(offset)
 		specs.append({
@@ -456,6 +457,29 @@ func _create_scrap_pile_specs(marker: NestPlacementMarker, rng: RandomNumberGene
 			"yaw": rng.randf_range(0.0, TAU),
 		})
 	return specs
+
+
+func _scrap_count_range_for_nest_size(nest_size_id: String) -> Vector2i:
+	match nest_size_id:
+		SCRAP_SIZE_MEDIUM:
+			return RUSTDEAD_MEDIUM_SCRAP_COUNT_RANGE
+		SCRAP_SIZE_LARGE:
+			return RUSTDEAD_LARGE_SCRAP_COUNT_RANGE
+		_:
+			return RUSTDEAD_SMALL_SCRAP_COUNT_RANGE
+
+
+func _pick_unique_index(rng: RandomNumberGenerator, count: int, used_indices: Array) -> int:
+	if count <= 1:
+		return 0
+	for attempt in range(16):
+		var candidate := rng.randi_range(0, count - 1)
+		if not used_indices.has(candidate):
+			return candidate
+	for index in range(count):
+		if not used_indices.has(index):
+			return index
+	return 0
 
 
 func _pick_scrap_offset(rng: RandomNumberGenerator, existing_offsets: Array[Vector3]) -> Vector3:
@@ -475,13 +499,27 @@ func _pick_scrap_offset(rng: RandomNumberGenerator, existing_offsets: Array[Vect
 	return fallback
 
 
-func _pick_weighted_scrap_size(rng: RandomNumberGenerator) -> String:
+func _pick_weighted_scrap_size(rng: RandomNumberGenerator, nest_size_id: String) -> String:
 	var roll := rng.randf()
-	if roll < 0.75:
-		return SCRAP_SIZE_SMALL
-	if roll < 0.95:
-		return SCRAP_SIZE_MEDIUM
-	return SCRAP_SIZE_LARGE
+	match nest_size_id:
+		SCRAP_SIZE_MEDIUM:
+			if roll < 0.45:
+				return SCRAP_SIZE_SMALL
+			if roll < 0.82:
+				return SCRAP_SIZE_MEDIUM
+			return SCRAP_SIZE_LARGE
+		SCRAP_SIZE_LARGE:
+			if roll < 0.22:
+				return SCRAP_SIZE_SMALL
+			if roll < 0.58:
+				return SCRAP_SIZE_MEDIUM
+			return SCRAP_SIZE_LARGE
+		_:
+			if roll < 0.75:
+				return SCRAP_SIZE_SMALL
+			if roll < 0.95:
+				return SCRAP_SIZE_MEDIUM
+			return SCRAP_SIZE_LARGE
 
 
 func _pick_medium_or_larger_scrap_size(rng: RandomNumberGenerator) -> String:
@@ -498,7 +536,7 @@ func _scrap_scene_for_size(size_id: String) -> PackedScene:
 			return TWISTED_SCRAP_HEAP_SCENE
 
 
-func _configure_nest_scrap_pile(pile: ScavengingResourceNode, size_id: String) -> void:
+func _configure_nest_scrap_pile(pile: ScavengingResourceNode, size_id: String, nest_size_id: String) -> void:
 	pile.randomize_charges_on_ready = true
 	pile.show_charge_count = false
 	match size_id:
@@ -520,6 +558,30 @@ func _configure_nest_scrap_pile(pile: ScavengingResourceNode, size_id: String) -
 			pile.scavenge_noise_radius = 9.0
 			pile.slot_distance = 2.7
 			pile.scale = Vector3.ONE * 0.72
+	_apply_nest_size_scrap_rewards(pile, nest_size_id)
+
+
+func _apply_nest_size_scrap_rewards(pile: ScavengingResourceNode, nest_size_id: String) -> void:
+	var bonus := _nest_size_bonus(nest_size_id)
+	if bonus <= 0:
+		return
+	pile.scavenging_difficulty += bonus * 4
+	pile.robotics_difficulty += bonus * 4
+	pile.scavenge_noise_radius += float(bonus) * 2.0
+	pile.min_useful_chance = clampf(pile.min_useful_chance + float(bonus) * 0.02, 0.0, 0.35)
+	pile.max_useful_chance = clampf(pile.max_useful_chance + float(bonus) * 0.04, 0.0, 0.95)
+	pile.base_rare_chance = clampf(pile.base_rare_chance + float(bonus) * 0.025, 0.0, 0.45)
+	pile.max_rare_chance = clampf(pile.max_rare_chance + float(bonus) * 0.08, 0.0, 0.55)
+
+
+func _nest_size_bonus(nest_size_id: String) -> int:
+	match nest_size_id:
+		SCRAP_SIZE_MEDIUM:
+			return 1
+		SCRAP_SIZE_LARGE:
+			return 2
+		_:
+			return 0
 
 
 func _spawn_patrol_population(marker: NestPlacementMarker, state: Dictionary) -> void:
@@ -574,14 +636,13 @@ func _spawn_nest_actor(marker: NestPlacementMarker, state: Dictionary, nest_type
 	var marker_id := str(state.get("marker_id", marker.get_marker_id()))
 	var actor_id := "nest.%s.%03d" % [marker_id, member_index]
 	actor.name = actor_id.replace(".", "_")
-	actor.member_name = "Rustdead %03d" % member_index if str(state.get("nest_type_id", "")) == "rustdead" else "Nest Spawn %03d" % member_index
+	actor.member_name = "Rustdead" if str(state.get("nest_type_id", "")) == "rustdead" else "Nest Spawn %03d" % member_index
 	actor.stable_id = actor_id
 	actor.faction_name = str(nest_type.call("get_faction_id")) if nest_type.has_method("get_faction_id") else ""
 	actor.squad_name = squad_id
 	actor.world_squad_id = squad_id
 	actor.hostile_factions = _non_nest_hostile_factions(actor.faction_name)
 	actor.combat_stance = NpcRules.CombatStance.AGGRESSIVE
-	actor.starting_skill_levels = _skill_levels(RUSTDEAD_SKILL_LEVEL)
 	actor.position = _spawn_position_near_marker(marker, marker_id, member_index)
 	actor.rotation.y = _make_rng("actor_yaw:%s:%d" % [marker_id, member_index]).randf_range(0.0, TAU)
 	if str(state.get("nest_type_id", "")) == "rustdead":
@@ -594,13 +655,21 @@ func _spawn_nest_actor(marker: NestPlacementMarker, state: Dictionary, nest_type
 func _configure_rustdead_actor(actor: HumanoidCharacter, marker_id: String, member_index: int) -> void:
 	var rng := _make_rng("rustdead_actor:%s:%d" % [marker_id, member_index])
 	var body_type := VISUAL_BODY_TYPE_FEMALE if member_index % 3 == 1 else VISUAL_BODY_TYPE_MALE
+	var marker_state: Dictionary = _nest_states.get(marker_id, {})
+	var nest_size_id := str(marker_state.get("size_id", SCRAP_SIZE_SMALL))
+	var tier := RUSTDEAD_TIER_LIBRARY.pick_tier_for_nest_size(nest_size_id, rng)
 	actor.visual_body_type = body_type
-	actor.appearance_data = _make_appearance(RUSTDEAD_RACE, body_type, RUSTDEAD_SKIN_COLORS[(member_index - 1) % RUSTDEAD_SKIN_COLORS.size()])
+	actor.member_name = str(tier.get("display_name")) if tier != null else "Rustdead"
+	if actor.has_method("set_rustdead_tier_definition"):
+		actor.call("set_rustdead_tier_definition", tier)
+	actor.appearance_data = _make_appearance(RUSTDEAD_RACE, body_type, RUSTDEAD_TIER_LIBRARY.pick_skin_color(tier, rng))
+	RUSTDEAD_TIER_LIBRARY.apply_hair_for_tier(actor.appearance_data, tier, rng, body_type)
+	actor.starting_skill_levels = RUSTDEAD_TIER_LIBRARY.roll_skill_levels(tier, rng)
 	actor.starting_equipment = _rustdead_clothes(rng, member_index)
-	actor.max_hp = 90.0 + float(member_index % 4) * 4.0
+	actor.max_hp = RUSTDEAD_TIER_LIBRARY.roll_max_hp(tier, rng)
 	actor.hp = actor.max_hp
 	actor.base_attack_damage = 12.0 + float(member_index % 3) * 0.5
-	actor.attack_cut_ratio = 0.22
+	actor.attack_cut_ratio = 0.05
 	actor.base_dodge_chance = 0.025
 	actor.base_block_chance = 0.0
 	actor.attack_cooldown_seconds = 1.45
@@ -968,13 +1037,6 @@ func _rustdead_clothes(rng: RandomNumberGenerator, member_index: int) -> Array[R
 
 func _pick_item(pool: Array, rng: RandomNumberGenerator) -> Resource:
 	return pool[rng.randi_range(0, pool.size() - 1)] as Resource
-
-
-func _skill_levels(level: int) -> Dictionary:
-	var result := {}
-	for definition in SkillRules.get_all_definitions():
-		result[definition.skill_id] = level
-	return result
 
 
 func _add_basic_actor_children(actor: HumanoidCharacter, color: Color) -> void:

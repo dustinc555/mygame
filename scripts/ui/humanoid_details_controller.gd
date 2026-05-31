@@ -280,9 +280,9 @@ func _get_humanoid_actions(target: HumanoidCharacter) -> Array:
 	var actions: Array = []
 	if target.is_player_party_member():
 		actions.append({"key": ACTION_INVENTORY, "label": "Inventory"})
-		actions.append({"key": ACTION_JOBS, "label": "Jobs"})
 		if _target_can_open_skills():
 			actions.append({"key": ACTION_SKILLS, "label": "Skills"})
+		actions.append({"key": ACTION_JOBS, "label": "Jobs"})
 		if target.life_state == NpcRules.LifeState.ASLEEP:
 			actions.append({"key": ACTION_WAKE_UP, "label": "Wake"})
 		elif target.has_method("is_sitting") and target.is_sitting():
@@ -290,6 +290,8 @@ func _get_humanoid_actions(target: HumanoidCharacter) -> Array:
 				actions.append({"key": ACTION_ORDER, "label": "Order"})
 			actions.append({"key": ACTION_STAND_UP, "label": "Stand"})
 		return actions
+	if _target_can_open_skills():
+		actions.append({"key": ACTION_SKILLS, "label": "Skills"})
 	if target.life_state == NpcRules.LifeState.UNCONSCIOUS:
 		actions.append({"key": ACTION_HEAL, "label": "Heal"})
 		actions.append({"key": ACTION_CARRY, "label": "Carry"})
@@ -807,7 +809,7 @@ func _set_target_inspected(target, inspected: bool) -> void:
 
 
 func _target_can_open_skills() -> bool:
-	return _has_valid_current_target() and current_target is HumanoidCharacter and current_target.is_player_party_member() and bool(current_target.get("is_selected"))
+	return _has_valid_current_target() and current_target is HumanoidCharacter
 
 
 func _target_can_open_jobs() -> bool:

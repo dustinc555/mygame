@@ -4,6 +4,7 @@ class_name RustdeadHumanoidCharacter
 
 const RUSTDEAD_RACE = preload("res://resources/character_races/rustdead.tres")
 const RUSTDEAD_APPEARANCE_DATA_SCRIPT = preload("res://scripts/character_appearance/character_appearance_data.gd")
+const RUSTDEAD_TIER_LIBRARY = preload("res://scripts/characters/rustdead_tier_library.gd")
 
 const RUSTDEAD_IDLE_ANIMATION_NAME := "Zombie_Idle"
 const RUSTDEAD_WALK_ANIMATION_NAME := "Zombie_Walk_Fwd"
@@ -27,6 +28,9 @@ static var _cinder_burn_overlay_texture: Texture2D
 
 @export var fresh_skin_color := Color(0.64, 0.19, 0.16, 1.0)
 @export var cinder_burn_duration_seconds := 2.0
+@export var rustdead_tier_definition: Resource
+@export var rustdead_tier_id := "fresh"
+@export_range(0.0, 2.0, 0.01) var rustdead_passive_bonus := 0.2
 
 var _cinder_burn_remaining := 0.0
 var _cinder_burn_attacker: HumanoidCharacter
@@ -54,6 +58,23 @@ func _setup_character_visual() -> void:
 
 func requires_fire_to_die() -> bool:
 	return true
+
+
+func set_rustdead_tier_definition(tier_definition: Resource) -> void:
+	rustdead_tier_definition = tier_definition
+	_apply_rustdead_tier_definition()
+
+
+func get_rustdead_tier_definition() -> Resource:
+	return rustdead_tier_definition
+
+
+func get_rustdead_tier_id() -> String:
+	return rustdead_tier_id
+
+
+func get_rustdead_passive_bonus() -> float:
+	return maxf(0.0, rustdead_passive_bonus)
 
 
 func can_be_destroyed_by_cinder() -> bool:
@@ -120,6 +141,7 @@ func _is_downed_recovery_locked() -> bool:
 
 func _ensure_rustdead_humanoid_defaults() -> void:
 	character_race = RUSTDEAD_RACE
+	_apply_rustdead_tier_definition()
 	if appearance_data == null:
 		appearance_data = RUSTDEAD_APPEARANCE_DATA_SCRIPT.new()
 	elif appearance_data.has_method("make_copy"):
@@ -130,9 +152,17 @@ func _ensure_rustdead_humanoid_defaults() -> void:
 	if not bool(appearance_data.skin_color_customized):
 		appearance_data.skin_color_customized = true
 		appearance_data.skin_color = fresh_skin_color
-	appearance_data.hair_style = null
-	appearance_data.beard_style = null
 	appearance_data.eyebrow_style = null
+
+
+func _apply_rustdead_tier_definition() -> void:
+	if rustdead_tier_definition == null:
+		rustdead_tier_definition = RUSTDEAD_TIER_LIBRARY.get_tier_by_id(rustdead_tier_id)
+	if rustdead_tier_definition == null:
+		rustdead_tier_definition = RUSTDEAD_TIER_LIBRARY.get_default_tier()
+	if rustdead_tier_definition != null:
+		rustdead_tier_id = str(rustdead_tier_definition.call("get_id")) if rustdead_tier_definition.has_method("get_id") else rustdead_tier_id
+		rustdead_passive_bonus = maxf(0.0, float(rustdead_tier_definition.get("passive_bonus")))
 
 
 func _apply_automatic_eyebrow_style() -> void:
@@ -162,6 +192,20 @@ func _build_unarmed_combat_animation_set():
 		_make_combat_attack("rustdead_scratch", [RUSTDEAD_SCRATCH_ANIMATION_NAME], 1.0, 0.48, [HIT_CHEST_ANIMATION_NAME, HIT_STOMACH_ANIMATION_NAME]),
 	]
 	return animation_set
+
+
+func _collect_stat_modifiers() -> Array:
+	var modifiers := super._collect_stat_modifiers()
+	var bonus := get_rustdead_passive_bonus()
+	if bonus <= 0.0:
+		return modifiers
+	var multiplier := 1.0 + bonus
+	modifiers.append({"stat": "healing_rate", "mul": multiplier})
+	modifiers.append({"stat": "blood_recovery_rate", "mul": multiplier})
+	if _is_unarmed_combat_stance():
+		modifiers.append({"stat": "attack_damage", "mul": multiplier})
+		modifiers.append({"stat": "cut_ratio", "mul": multiplier})
+	return modifiers
 
 
 func _get_current_combat_idle_animation_name(animation_set) -> String:

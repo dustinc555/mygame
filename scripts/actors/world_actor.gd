@@ -46,6 +46,7 @@ signal center_notice_requested(message)
 
 @export var max_hp := 100.0
 @export var hp := 100.0
+@export var base_max_blood := 0.0
 @export var max_blood := 100.0
 @export var blood := 100.0
 
@@ -135,6 +136,8 @@ var _stuck_seconds := 0.0
 var _stuck_repath_attempts := 0
 var _navigation_zero_waypoint_blocked := false
 var _starting_skill_levels_applied := false
+var _base_max_blood_for_toughness := 0.0
+var _last_max_blood_toughness_level := -INF
 
 
 func _enter_tree() -> void:
@@ -143,6 +146,7 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
+	_capture_base_max_blood_for_toughness()
 	_ensure_skill_set()
 	_configure_world_actor_movement()
 	_setup_world_actor_ai()
@@ -165,11 +169,16 @@ func get_skill_level(skill_id: String) -> int:
 func set_skill_level(skill_id: String, level: int, clear_xp := true) -> void:
 	_ensure_skill_set()
 	skill_set.set_skill_level(skill_id, level, clear_xp)
+	if skill_id == SkillRules.ATTRIBUTE_TOUGHNESS:
+		_refresh_max_blood_from_toughness(true)
 
 
 func add_skill_xp(skill_id: String, amount: float, reason := "") -> int:
 	_ensure_skill_set()
-	return skill_set.add_skill_xp(skill_id, amount, reason)
+	var level := skill_set.add_skill_xp(skill_id, amount, reason)
+	if skill_id == SkillRules.ATTRIBUTE_TOUGHNESS:
+		_refresh_max_blood_from_toughness(true)
+	return level
 
 
 func get_skill_xp(skill_id: String) -> float:
@@ -209,6 +218,39 @@ func _apply_starting_skill_levels_if_needed() -> void:
 		if skill_id.is_empty():
 			continue
 		skill_set.set_skill_level(skill_id, int(starting_skill_levels[skill_id_value]))
+	_refresh_max_blood_from_toughness(true)
+
+
+func get_base_max_blood() -> float:
+	_capture_base_max_blood_for_toughness()
+	return _base_max_blood_for_toughness
+
+
+func refresh_max_blood_from_toughness() -> void:
+	_refresh_max_blood_from_toughness(true)
+
+
+func _capture_base_max_blood_for_toughness() -> void:
+	if _base_max_blood_for_toughness > 0.0:
+		return
+	_base_max_blood_for_toughness = maxf(base_max_blood if base_max_blood > 0.0 else max_blood, 1.0)
+
+
+func _refresh_max_blood_from_toughness(force := false) -> void:
+	if skill_set == null:
+		return
+	_capture_base_max_blood_for_toughness()
+	var toughness_level := float(skill_set.get_skill_level(SkillRules.ATTRIBUTE_TOUGHNESS))
+	if not force and is_equal_approx(toughness_level, _last_max_blood_toughness_level):
+		return
+	var previous_max_blood := maxf(max_blood, 1.0)
+	var was_full := blood >= previous_max_blood - 0.05
+	max_blood = SkillRules.get_max_blood_for_toughness(_base_max_blood_for_toughness, toughness_level)
+	if was_full:
+		blood = max_blood
+	else:
+		blood = clampf(blood, -maxf(max_blood, 1.0) * NpcRules.BLOOD_LOSS_DEATH_FACTOR, max_blood)
+	_last_max_blood_toughness_level = toughness_level
 
 
 func set_move_target(target: Vector3, _issued_by_player: bool = true) -> void:

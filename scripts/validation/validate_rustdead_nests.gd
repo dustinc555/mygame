@@ -13,6 +13,11 @@ const ASSAULT_SOURCE_ID := "nest_assault"
 const NEST_VISUAL_NAME := "ActiveNestVisual"
 const NEST_INTERACTION_BODY_NAME := "NestInteractionBody"
 const NEST_SCRAP_ROOT_NAME := "NestScrapPiles"
+const VISUAL_BODY_TYPE_MALE := 2
+const RUSTDEAD_TIER_LIBRARY := preload("res://scripts/characters/rustdead_tier_library.gd")
+const MAX_VISUAL_FOOT_SINK := 0.035
+const WROUGHT_MIN_SKIN_METALLIC := 0.30
+const ANCIENT_MIN_SKIN_METALLIC := 0.58
 
 var _failures: Array[String] = []
 var _scene: Node
@@ -136,6 +141,7 @@ func _validate_controller_runtime() -> void:
 	_validate_nest_visual_and_click_target()
 	_validate_spawned_actors(state, patrol_squad_ids, population_target)
 	_validate_spawned_scrap_piles(state)
+	_validate_scrap_specs_for_all_nest_sizes(nest_controller)
 	_validate_attack_target_selection(nest_controller)
 
 
@@ -174,6 +180,8 @@ func _validate_spawned_actors(state: Dictionary, patrol_squad_ids: Array, popula
 	var patrol_counts := {}
 	var active_patrol_jobs := 0
 	var patrol_debug_sample := ""
+	var fresh_hair_count := 0
+	var fresh_male_beard_count := 0
 	for actor_id_value in actor_ids:
 		var actor := _find_actor(str(actor_id_value))
 		if actor == null:
@@ -181,6 +189,15 @@ func _validate_spawned_actors(state: Dictionary, patrol_squad_ids: Array, popula
 			continue
 		if not actor.has_method("requires_fire_to_die") or not bool(actor.call("requires_fire_to_die")):
 			_fail("Spawned nest actor %s should be Rustdead and require fire to die" % str(actor_id_value))
+		_validate_rustdead_actor_tier(actor, str(actor_id_value))
+		var appearance = actor.get("appearance_data")
+		if appearance != null:
+			if appearance.eyebrow_style != null:
+				_fail("Spawned Rustdead actor %s should not keep normal eyebrows" % str(actor_id_value))
+			if appearance.hair_style != null:
+				fresh_hair_count += 1
+			if int(appearance.visual_body_type) == VISUAL_BODY_TYPE_MALE and appearance.beard_style != null:
+				fresh_male_beard_count += 1
 		var squad_id := str(actor.get("world_squad_id"))
 		if patrol_squad_ids.has(squad_id):
 			patrol_counts[squad_id] = int(patrol_counts.get(squad_id, 0)) + 1
@@ -194,6 +211,112 @@ func _validate_spawned_actors(state: Dictionary, patrol_squad_ids: Array, popula
 			_fail("Patrol squad %s should have 3-5 actors, got %d" % [str(squad_id_value), count])
 	if active_patrol_jobs < 1:
 		_fail("At least one Rustdead patrol actor should receive a patrol AI job; sample_ai=%s" % patrol_debug_sample)
+	if fresh_hair_count < 1:
+		_fail("Fresh generated Rustdead should be allowed to keep hair")
+	if fresh_male_beard_count < 1:
+		_fail("Fresh male generated Rustdead should be allowed to keep beards")
+
+
+func _validate_rustdead_actor_tier(actor: Node, actor_id: String) -> void:
+	if not actor.has_method("get_rustdead_tier_definition"):
+		_fail("Spawned Rustdead actor %s should expose a tier definition" % actor_id)
+		return
+	var tier := actor.call("get_rustdead_tier_definition") as Resource
+	if tier == null:
+		_fail("Spawned Rustdead actor %s should have a tier definition" % actor_id)
+		return
+	if actor.has_method("get_rustdead_passive_bonus") and absf(float(actor.call("get_rustdead_passive_bonus")) - float(tier.get("passive_bonus"))) > 0.001:
+		_fail("Spawned Rustdead actor %s passive should match tier" % actor_id)
+	if str(actor.get("member_name")) != str(tier.get("display_name")):
+		_fail("Spawned Rustdead actor %s member_name should display as %s, got %s" % [actor_id, str(tier.get("display_name")), str(actor.get("member_name"))])
+	var hp_range: Vector2 = tier.call("get_max_hp_range")
+	var max_hp := float(actor.get("max_hp"))
+	if max_hp < hp_range.x - 0.001 or max_hp > hp_range.y + 0.001:
+		_fail("Spawned Rustdead actor %s max HP %.2f should be in tier range %s" % [actor_id, max_hp, str(hp_range)])
+	_validate_rustdead_actor_skill_ranges(actor, tier, actor_id)
+	_validate_rustdead_actor_blood(actor, actor_id)
+	_validate_rustdead_actor_feet(actor, actor_id)
+	_validate_rustdead_actor_metallic_material(actor, str(tier.call("get_id")) if tier.has_method("get_id") else "", actor_id)
+
+
+func _validate_rustdead_actor_skill_ranges(actor: Node, tier: Resource, actor_id: String) -> void:
+	var tier_range: Vector2i = tier.call("get_stat_range")
+	var non_tier_range := RUSTDEAD_TIER_LIBRARY.get_non_tier_skill_range()
+	for definition in SkillRules.get_all_definitions():
+		var actual := int(actor.call("get_skill_level", definition.skill_id))
+		var expected_range := tier_range if RUSTDEAD_TIER_LIBRARY.is_tier_scaled_skill_id(definition.skill_id) else non_tier_range
+		var range_label := "tier" if RUSTDEAD_TIER_LIBRARY.is_tier_scaled_skill_id(definition.skill_id) else "non-tier Rustdead"
+		if actual < expected_range.x or actual > expected_range.y:
+			_fail("Spawned Rustdead actor %s skill %s should be in %s range %d-%d, got %d" % [actor_id, definition.skill_id, range_label, expected_range.x, expected_range.y, actual])
+			return
+	if str(tier.call("get_id")) == "ancient":
+		_validate_ancient_non_tier_actor_skill_is_low(actor, actor_id, SkillRules.ATTRIBUTE_CHARISMA)
+		_validate_ancient_non_tier_actor_skill_is_low(actor, actor_id, SkillRules.COMBAT_SWORDS_ONE_HANDED)
+		_validate_ancient_non_tier_actor_skill_is_low(actor, actor_id, SkillRules.SUBTERFUGE_SNEAKING)
+		_validate_ancient_non_tier_actor_skill_is_low(actor, actor_id, SkillRules.CRAFT_BLACKSMITHING)
+		_validate_ancient_non_tier_actor_skill_is_low(actor, actor_id, SkillRules.TECH_ROBOTICS)
+
+
+func _validate_ancient_non_tier_actor_skill_is_low(actor: Node, actor_id: String, skill_id: String) -> void:
+	var non_tier_range := RUSTDEAD_TIER_LIBRARY.get_non_tier_skill_range()
+	var actual := int(actor.call("get_skill_level", skill_id))
+	if actual > non_tier_range.y:
+		_fail("Spawned Ancient Rustdead actor %s should not scale non-physical skill %s above %d, got %d" % [actor_id, skill_id, non_tier_range.y, actual])
+
+
+func _validate_rustdead_actor_blood(actor: Node, actor_id: String) -> void:
+	var toughness := int(actor.call("get_skill_level", SkillRules.ATTRIBUTE_TOUGHNESS)) if actor.has_method("get_skill_level") else 0
+	var base_max_blood := float(actor.call("get_base_max_blood")) if actor.has_method("get_base_max_blood") else 100.0
+	var expected_max_blood := SkillRules.get_max_blood_for_toughness(base_max_blood, toughness)
+	var max_blood := float(actor.get("max_blood"))
+	if absf(max_blood - expected_max_blood) > 0.05:
+		_fail("Spawned Rustdead actor %s max blood %.2f should scale from Toughness %d to %.2f" % [actor_id, max_blood, toughness, expected_max_blood])
+	if toughness > 0 and max_blood <= 100.0:
+		_fail("Spawned Rustdead actor %s max blood should exceed 100 when Toughness is above zero" % actor_id)
+	if absf(float(actor.get("blood")) - max_blood) > 0.05:
+		_fail("Spawned Rustdead actor %s should start with blood filled to max blood" % actor_id)
+
+
+func _validate_rustdead_actor_feet(actor: Node, actor_id: String) -> void:
+	if not actor.has_method("get_visual_foot_anchor_y") or not actor.has_method("get_visual_ground_y"):
+		_fail("Spawned Rustdead actor %s should expose visual foot anchors" % actor_id)
+		return
+	var foot_y := float(actor.call("get_visual_foot_anchor_y"))
+	if foot_y == INF:
+		_fail("Spawned Rustdead actor %s should expose a valid visual foot anchor" % actor_id)
+		return
+	var ground_y := float(actor.call("get_visual_ground_y"))
+	if foot_y < ground_y - MAX_VISUAL_FOOT_SINK:
+		_fail("Spawned Rustdead actor %s visual feet should not sink below ground: foot=%.3f ground=%.3f" % [actor_id, foot_y, ground_y])
+
+
+func _validate_rustdead_actor_metallic_material(actor: Node, tier_id: String, actor_id: String) -> void:
+	if tier_id != "wrought" and tier_id != "ancient":
+		return
+	var material := _find_rustdead_skin_material(actor)
+	if material == null:
+		_fail("Spawned Rustdead actor %s should expose generated Rustdead skin material for metallic validation" % actor_id)
+		return
+	var min_metallic := ANCIENT_MIN_SKIN_METALLIC if tier_id == "ancient" else WROUGHT_MIN_SKIN_METALLIC
+	if material.metallic < min_metallic:
+		_fail("Spawned Rustdead actor %s %s skin should be metallic, got metallic=%.2f" % [actor_id, tier_id, material.metallic])
+	if tier_id == "ancient" and material.roughness > 0.45:
+		_fail("Spawned Rustdead actor %s Ancient Rustdead skin should be lower roughness chrome/iron, got %.2f" % [actor_id, material.roughness])
+
+
+func _find_rustdead_skin_material(root: Node) -> BaseMaterial3D:
+	if root is MeshInstance3D:
+		var mesh_instance := root as MeshInstance3D
+		if mesh_instance.mesh != null:
+			for surface_index in range(mesh_instance.mesh.get_surface_count()):
+				var material := mesh_instance.get_surface_override_material(surface_index) as BaseMaterial3D
+				if material != null and material.albedo_texture != null and str(material.albedo_texture.resource_path).contains("/character_skin/rustdead/"):
+					return material
+	for child in root.get_children():
+		var child_material := _find_rustdead_skin_material(child)
+		if child_material != null:
+			return child_material
+	return null
 
 
 func _validate_spawned_scrap_piles(state: Dictionary) -> void:
@@ -201,8 +324,9 @@ func _validate_spawned_scrap_piles(state: Dictionary) -> void:
 	if marker == null:
 		return
 	var specs: Array = state.get("scrap_pile_specs", []) if state.get("scrap_pile_specs", []) is Array else []
-	if specs.size() < 3 or specs.size() > 5:
-		_fail("Rustdead nest should persist 3-5 scrap pile specs, got %d" % specs.size())
+	var count_range := _expected_scrap_count_range(str(state.get("size_id", "small")))
+	if specs.size() < count_range.x or specs.size() > count_range.y:
+		_fail("Rustdead nest should persist %d-%d scrap pile specs, got %d" % [count_range.x, count_range.y, specs.size()])
 	var root_node := marker.get_node_or_null(NEST_SCRAP_ROOT_NAME)
 	if root_node == null:
 		_fail("Rustdead nest should spawn temporary scrap piles around the marker")
@@ -212,8 +336,8 @@ func _validate_spawned_scrap_piles(state: Dictionary) -> void:
 		var pile := child as ScavengingResourceNode
 		if pile != null:
 			piles.append(pile)
-	if piles.size() < 3 or piles.size() > 5:
-		_fail("Rustdead nest should spawn 3-5 scrap piles, got %d" % piles.size())
+	if piles.size() < count_range.x or piles.size() > count_range.y:
+		_fail("Rustdead nest should spawn %d-%d scrap piles, got %d" % [count_range.x, count_range.y, piles.size()])
 	var small_count := 0
 	var medium_or_larger_count := 0
 	for pile in piles:
@@ -234,6 +358,44 @@ func _validate_spawned_scrap_piles(state: Dictionary) -> void:
 		_fail("Rustdead nest scrap should trend small and include at least one small pile")
 	if medium_or_larger_count < 1:
 		_fail("Rustdead nest scrap should guarantee at least one medium-or-larger pile")
+
+
+func _validate_scrap_specs_for_all_nest_sizes(nest_controller: Node) -> void:
+	for size_id in ["small", "medium", "large"]:
+		var marker := NestPlacementMarker.new()
+		marker.marker_id = "validation_%s_rustdead_vent" % size_id
+		match size_id:
+			"medium":
+				marker.size = NestPlacementMarker.SIZE_MEDIUM
+			"large":
+				marker.size = NestPlacementMarker.SIZE_LARGE
+			_:
+				marker.size = NestPlacementMarker.SIZE_SMALL
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 9000 + size_id.hash()
+		var specs: Array = nest_controller.call("_create_scrap_pile_specs", marker, rng)
+		var count_range := _expected_scrap_count_range(size_id)
+		if specs.size() < count_range.x or specs.size() > count_range.y:
+			_fail("%s Rustdead nest should create %d-%d scrap piles, got %d" % [size_id.capitalize(), count_range.x, count_range.y, specs.size()])
+		var large_count := 0
+		for spec_value in specs:
+			var spec: Dictionary = spec_value if spec_value is Dictionary else {}
+			if str(spec.get("size_id", "")) == "large":
+				large_count += 1
+		if size_id == "medium" and large_count < 1:
+			_fail("Medium Rustdead nest should guarantee at least one large scavenge pile")
+		if size_id == "large" and large_count < 2:
+			_fail("Large Rustdead nest should guarantee at least two large scavenge piles")
+
+
+func _expected_scrap_count_range(size_id: String) -> Vector2i:
+	match size_id:
+		"medium":
+			return Vector2i(5, 8)
+		"large":
+			return Vector2i(7, 11)
+		_:
+			return Vector2i(3, 5)
 
 
 func _expected_scrap_display_name(pile_size: int) -> String:

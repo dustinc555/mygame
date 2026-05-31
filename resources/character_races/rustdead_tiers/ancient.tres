@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="RustdeadTierDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/rustdead_tier_definition.gd" id="1_tier"]
+
+[resource]
+script = ExtResource("1_tier")
+tier_id = "ancient"
+display_name = "Ancient Rustdead"
+stat_range = Vector2i(60, 100)
+max_hp_range = Vector2(180, 260)
+passive_bonus = 1.0
+skin_tone_indices = PackedInt32Array(7, 8, 9)
+small_nest_weight = 1.0
+medium_nest_weight = 5.0
+large_nest_weight = 15.0

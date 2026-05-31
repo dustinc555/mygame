@@ -9,6 +9,7 @@ const HUMAN_RACE = preload("res://resources/character_races/human.tres")
 const RUSTDEAD_RACE = preload("res://resources/character_races/rustdead.tres")
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_female.tres")
+const RUSTDEAD_TIER_LIBRARY = preload("res://scripts/characters/rustdead_tier_library.gd")
 
 const IRON_SWORD = preload("res://resources/items/iron_sword.tres")
 const IRON_AXE = preload("res://resources/items/iron_axe.tres")
@@ -42,7 +43,6 @@ const BANDAGE = preload("res://resources/items/bandage.tres")
 const CINDER_FLASK = preload("res://resources/items/cinder_flask.tres")
 
 const PARTY_SKILL_LEVEL := 40
-const RUSTDEAD_SKILL_LEVEL := 20
 const RUSTDEAD_RANDOM_SEED := 770031
 const PARTY_SQUAD_NAME := "RustdeadDemoParty"
 const RUSTDEAD_SQUAD_NAME := "RustdeadDemoHorde"
@@ -58,14 +58,6 @@ const PARTY_CONFIGS := [
 	{"name": "Nika", "body_type": VISUAL_BODY_TYPE_FEMALE, "skin": Color(0.74, 0.45, 0.31, 1.0), "color": Color(0.67, 0.45, 0.75, 1.0), "equipment": [IRON_SWORD, ROUND_SHIELD, WIZARD_ROBES, WIZARD_SLEEVES, WIZARD_TROUSERS, WIZARD_SHOES]},
 ]
 
-const RUSTDEAD_SKIN_COLORS := [
-	Color(0.82, 0.30, 0.24, 1.0),
-	Color(0.74, 0.22, 0.18, 1.0),
-	Color(0.64, 0.19, 0.16, 1.0),
-	Color(0.56, 0.15, 0.14, 1.0),
-	Color(0.49, 0.13, 0.13, 1.0),
-	Color(0.43, 0.11, 0.12, 1.0),
-]
 const RUSTDEAD_CHEST_ITEMS := [PEASANT_TUNIC, RANGER_JERKIN, NOBLE_DOUBLET, WIZARD_ROBES]
 const RUSTDEAD_HAND_ITEMS := [NOBLE_SLEEVES, WIZARD_SLEEVES]
 const RUSTDEAD_LEG_ITEMS := [PEASANT_TROUSERS, RANGER_LEGGINGS, NOBLE_TROUSERS, WIZARD_TROUSERS, KNIGHT_GREVES]
@@ -118,8 +110,9 @@ func _spawn_party_members() -> void:
 func _spawn_rustdead_humanoids() -> void:
 	for index in range(10):
 		var actor := RUSTDEAD_HUMANOID_SCRIPT.new() as HumanoidCharacter
-		actor.name = "FreshRustdead%02d" % (index + 1)
-		actor.member_name = "Fresh Rustdead %02d" % (index + 1)
+		var tier := RUSTDEAD_TIER_LIBRARY.get_tier_for_demo_index(index)
+		actor.name = "%sRustdead%02d" % [str(tier.call("get_id")).capitalize().replace(" ", ""), index + 1]
+		actor.member_name = str(tier.get("display_name"))
 		actor.faction_name = "Rustdead"
 		actor.squad_name = RUSTDEAD_SQUAD_NAME
 		actor.hostile_factions = PackedStringArray(["Player"])
@@ -127,14 +120,17 @@ func _spawn_rustdead_humanoids() -> void:
 		actor.position = _rustdead_position(index)
 		actor.rotation.y = PI
 		actor.starting_equipment = _equipment_array(_rustdead_clothes(index))
-		actor.starting_skill_levels = _skill_levels(RUSTDEAD_SKILL_LEVEL)
+		actor.starting_skill_levels = RUSTDEAD_TIER_LIBRARY.roll_skill_levels(tier, _rng)
 		var body_type := VISUAL_BODY_TYPE_FEMALE if index % 3 == 1 else VISUAL_BODY_TYPE_MALE
 		actor.visual_body_type = body_type
-		actor.appearance_data = _make_appearance(RUSTDEAD_RACE, body_type, RUSTDEAD_SKIN_COLORS[index % RUSTDEAD_SKIN_COLORS.size()])
-		actor.max_hp = 90.0 + float(index % 4) * 4.0
+		if actor.has_method("set_rustdead_tier_definition"):
+			actor.call("set_rustdead_tier_definition", tier)
+		actor.appearance_data = _make_appearance(RUSTDEAD_RACE, body_type, RUSTDEAD_TIER_LIBRARY.pick_skin_color(tier, _rng))
+		RUSTDEAD_TIER_LIBRARY.apply_hair_for_tier(actor.appearance_data, tier, _rng, body_type)
+		actor.max_hp = RUSTDEAD_TIER_LIBRARY.roll_max_hp(tier, _rng)
 		actor.hp = actor.max_hp
 		actor.base_attack_damage = 12.0 + float(index % 3) * 0.5
-		actor.attack_cut_ratio = 0.22
+		actor.attack_cut_ratio = 0.05
 		actor.base_dodge_chance = 0.025
 		actor.base_block_chance = 0.0
 		actor.attack_cooldown_seconds = 1.45
