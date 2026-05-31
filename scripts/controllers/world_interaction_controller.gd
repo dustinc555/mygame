@@ -1729,7 +1729,8 @@ func _append_downed_target_actions(actions: Array, target: HumanoidCharacter) ->
 	if target == null:
 		return
 	if _selection_can_finish_off_target(target):
-		actions.append({"id": ACTION_FINISH_OFF, "label": "Finish Off"})
+		var finish_label := "Burn" if target.requires_fire_to_die() else "Finish Off"
+		actions.append({"id": ACTION_FINISH_OFF, "label": finish_label})
 	actions.append({"id": ACTION_HEAL, "label": "Heal"})
 	if _selection_can_carry_target(target):
 		actions.append({"id": ACTION_CARRY, "label": "Carry"})
@@ -1764,6 +1765,8 @@ func _selection_can_place_carried_in_bed() -> bool:
 
 func _selection_can_finish_off_target(target: HumanoidCharacter) -> bool:
 	if target == null or target.life_state != NpcRules.LifeState.UNCONSCIOUS or party_manager.selected_members.is_empty():
+		return false
+	if target.requires_fire_to_die() and not target.can_be_destroyed_by_cinder():
 		return false
 	for member in party_manager.selected_members:
 		if member != null and member.faction_name != target.faction_name:

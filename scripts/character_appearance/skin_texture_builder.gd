@@ -6,6 +6,7 @@ const VISUAL_BODY_TYPE_MALE := 2
 const VISUAL_BODY_TYPE_FEMALE := 3
 const GENERATED_TEXTURE_MAX_SIZE := 768
 const HUMAN_RACE_ID := "human"
+const RUSTDEAD_RACE_ID := "rustdead"
 const GENERATED_SKIN_TEXTURE_ROOT := "res://assets/generated/character_skin"
 const SKIN_HUE_TARGET := 0.073
 const SKIN_HUE_SOFT_START := 0.045
@@ -28,6 +29,18 @@ const NATURAL_SKIN_TONES := [
 	Color(0.40, 0.25, 0.18, 1.0),
 	Color(0.32, 0.20, 0.15, 1.0),
 	Color(0.25, 0.15, 0.11, 1.0),
+]
+const RUSTDEAD_SKIN_TONES := [
+	Color(0.82, 0.30, 0.24, 1.0),
+	Color(0.74, 0.22, 0.18, 1.0),
+	Color(0.64, 0.19, 0.16, 1.0),
+	Color(0.56, 0.15, 0.14, 1.0),
+	Color(0.49, 0.13, 0.13, 1.0),
+	Color(0.43, 0.11, 0.12, 1.0),
+	Color(0.37, 0.10, 0.11, 1.0),
+	Color(0.31, 0.08, 0.10, 1.0),
+	Color(0.25, 0.07, 0.09, 1.0),
+	Color(0.19, 0.055, 0.075, 1.0),
 ]
 
 static var _skin_profiles: Dictionary = {}
@@ -61,7 +74,7 @@ static func build_skin_texture(race_id: String, body_type: int, skin_color: Colo
 
 
 static func get_skin_texture(race_id: String, body_type: int, skin_color: Color) -> Texture2D:
-	var tone_index := get_nearest_skin_tone_index(skin_color)
+	var tone_index := get_nearest_skin_tone_index(skin_color, race_id)
 	var path := get_generated_skin_texture_path(race_id, body_type, tone_index)
 	if path.is_empty():
 		push_warning("Missing race id for generated skin texture lookup.")
@@ -88,7 +101,7 @@ static func get_generated_skin_texture_path(race_id: String, body_type: int, ton
 	if texture_dir.is_empty():
 		return ""
 	var body_id := "female" if _normalize_body_type(body_type) == VISUAL_BODY_TYPE_FEMALE else "male"
-	return "%s/%s_skin_tone_%02d.png" % [texture_dir, body_id, clampi(tone_index, 0, NATURAL_SKIN_TONES.size() - 1)]
+	return "%s/%s_skin_tone_%02d.png" % [texture_dir, body_id, clampi(tone_index, 0, get_skin_tone_count(race_id) - 1)]
 
 
 static func normalize_race_id(race_id: String) -> String:
@@ -102,17 +115,28 @@ static func get_nearest_skin_tone(color: Color) -> Color:
 	return NATURAL_SKIN_TONES[get_nearest_skin_tone_index(color)]
 
 
-static func get_nearest_skin_tone_index(color: Color) -> int:
+static func get_nearest_skin_tone_index(color: Color, race_id := HUMAN_RACE_ID) -> int:
 	var normalized_color := normalize_skin_color(color)
+	var tones: Array = get_skin_tones_for_race(race_id)
 	var best_index := 0
 	var best_distance := INF
-	for index in range(NATURAL_SKIN_TONES.size()):
-		var tone: Color = NATURAL_SKIN_TONES[index]
+	for index in range(tones.size()):
+		var tone: Color = tones[index]
 		var distance := _get_color_distance_squared(normalized_color, tone)
 		if distance < best_distance:
 			best_distance = distance
 			best_index = index
 	return best_index
+
+
+static func get_skin_tones_for_race(race_id: String) -> Array:
+	if normalize_race_id(race_id) == RUSTDEAD_RACE_ID:
+		return RUSTDEAD_SKIN_TONES
+	return NATURAL_SKIN_TONES
+
+
+static func get_skin_tone_count(race_id: String) -> int:
+	return max(1, get_skin_tones_for_race(race_id).size())
 
 
 static func normalize_skin_color(color: Color) -> Color:

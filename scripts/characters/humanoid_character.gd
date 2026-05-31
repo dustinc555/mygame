@@ -116,6 +116,11 @@ const SCAVENGING_ATTEMPTS_FOR_FIRST_LEVEL := 4.0
 const COMBAT_ATTACK_SKILL_XP := 0.85
 const TOUGHNESS_DAMAGE_XP_MULTIPLIER := 0.18
 const MEDICAL_BANDAGE_XP := 3.0
+const CINDER_FLASK_TOOL_TAG := "tool.cinder_flask"
+const DOWNED_INTERACTION_DISTANCE := 3.0
+const DOWNED_INTERACTION_MOVE_OFFSET := 1.25
+const DOWNED_INTERACTION_VERTICAL_TOLERANCE := 1.6
+const DOWNED_INTERACTION_UNREACHABLE_EXTRA := 0.65
 const COMBAT_INTERVENTION_STAFF_GROUP := "combat_intervention_staff"
 const SETTLEMENT_AUTHORITY_GROUP := "settlement_authority"
 const PRIVATE_SECURITY_GROUP := "private_security"
@@ -1309,6 +1314,56 @@ func can_use_bandage_item(definition: ItemDefinition) -> bool:
 	return definition != null and definition.bandage_power > 0.0
 
 
+func requires_fire_to_die() -> bool:
+	return false
+
+
+func can_be_destroyed_by_cinder() -> bool:
+	return false
+
+
+func is_fire_destruction_in_progress() -> bool:
+	return false
+
+
+func begin_cinder_burn(_attacker: HumanoidCharacter = null) -> bool:
+	return false
+
+
+func is_cinder_burned() -> bool:
+	return false
+
+
+func has_cinder_burned_visuals() -> bool:
+	return false
+
+
+func can_use_cinder_flask() -> bool:
+	return _find_inventory_tool(CINDER_FLASK_TOOL_TAG) != null
+
+
+func burn_target_with_cinder_flask(target_character: HumanoidCharacter, show_notices: bool = true) -> bool:
+	if target_character == null or not is_instance_valid(target_character):
+		return false
+	if not target_character.can_be_destroyed_by_cinder():
+		if show_notices:
+			_show_world_notice("Cannot burn", Color(1.0, 0.66, 0.28, 1.0))
+		return false
+	var flask_definition := _consume_cinder_flask_definition()
+	if flask_definition == null:
+		if show_notices:
+			show_world_speech("Need a Cinder Flask", 4.0)
+		return false
+	if not target_character.begin_cinder_burn(self):
+		inventory.add_item_count(flask_definition, 1)
+		if show_notices:
+			_show_world_notice("Cannot burn", Color(1.0, 0.66, 0.28, 1.0))
+		return false
+	if show_notices:
+		_show_world_notice("Burning", Color(1.0, 0.45, 0.12, 1.0))
+	return true
+
+
 func can_bandage_target(target: HumanoidCharacter) -> bool:
 	if target == null or not target.can_receive_bandage():
 		return false
@@ -1744,6 +1799,8 @@ func can_be_carried() -> bool:
 
 func can_be_carried_by(carrier: HumanoidCharacter) -> bool:
 	if _carried_by != null:
+		return false
+	if _is_downed_recovery_locked():
 		return false
 	if carrier != null and carrier.faction_name == faction_name:
 		return true
@@ -2339,6 +2396,40 @@ func _horizontal_distance_to(target_position: Vector3) -> float:
 	return Vector2(global_position.x - target_position.x, global_position.z - target_position.z).length()
 
 
+func _get_downed_target_anchor_position(target_character: HumanoidCharacter) -> Vector3:
+	if target_character == null or not is_instance_valid(target_character):
+		return Vector3.INF
+	return target_character.get_follow_anchor_position()
+
+
+func _get_downed_interaction_distance(_target_character: HumanoidCharacter, extra_distance: float = 0.0) -> float:
+	return maxf(interact_distance, DOWNED_INTERACTION_DISTANCE) + maxf(extra_distance, 0.0)
+
+
+func _get_downed_target_interaction_position(target_character: HumanoidCharacter) -> Vector3:
+	var anchor_position := _get_downed_target_anchor_position(target_character)
+	if anchor_position == Vector3.INF:
+		return Vector3.INF
+	var approach_direction := global_position - anchor_position
+	approach_direction.y = 0.0
+	if approach_direction.length_squared() <= 0.0001 and target_character != null:
+		approach_direction = -target_character.global_transform.basis.z
+		approach_direction.y = 0.0
+	if approach_direction.length_squared() <= 0.0001:
+		approach_direction = Vector3.FORWARD
+	var max_offset := maxf(0.25, _get_downed_interaction_distance(target_character) - 0.65)
+	return anchor_position + approach_direction.normalized() * minf(DOWNED_INTERACTION_MOVE_OFFSET, max_offset)
+
+
+func _is_close_enough_to_downed_interaction_target(target_character: HumanoidCharacter, extra_distance: float = 0.0) -> bool:
+	var anchor_position := _get_downed_target_anchor_position(target_character)
+	if anchor_position == Vector3.INF:
+		return false
+	var horizontal_distance := _horizontal_distance_to(anchor_position)
+	var vertical_tolerance := maxf(move_target_vertical_tolerance + 0.9, DOWNED_INTERACTION_VERTICAL_TOLERANCE)
+	return horizontal_distance <= _get_downed_interaction_distance(target_character, extra_distance) and absf(global_position.y - anchor_position.y) <= vertical_tolerance
+
+
 func _get_navigation_stuck_arrival_distance() -> float:
 	if _current_order_type == OrderType.MOVE:
 		return maxf(super._get_navigation_stuck_arrival_distance(), minf(navigation_unreachable_tolerance, 1.2))
@@ -2352,6 +2443,8 @@ func _on_actor_move_target_reached() -> void:
 func _on_actor_move_target_unreachable() -> void:
 	if _has_active_combat_target():
 		_handle_unreachable_combat_target()
+		return
+	if _current_order_type == OrderType.FINISH_OFF and _try_complete_finish_off_interaction(DOWNED_INTERACTION_UNREACHABLE_EXTRA):
 		return
 	if _order_was_player_issued:
 		show_world_speech("I can't reach that", 4.0)
@@ -2490,7 +2583,7 @@ func _process_recovery(delta: float) -> void:
 		if life_state == NpcRules.LifeState.ASLEEP:
 			blood_recovery_step *= NpcRules.BLOOD_RECOVERY_SLEEP_MULTIPLIER
 		blood = minf(max_blood, blood + blood_recovery_step)
-	if life_state == NpcRules.LifeState.UNCONSCIOUS:
+	if life_state == NpcRules.LifeState.UNCONSCIOUS and not _is_downed_recovery_locked():
 		_downed_recover_delay_remaining = maxf(0.0, _downed_recover_delay_remaining - delta)
 	_recalculate_vitals()
 
@@ -3449,14 +3542,36 @@ func _process_finish_off_interaction() -> void:
 	if _current_finish_off_target.life_state != NpcRules.LifeState.UNCONSCIOUS:
 		stop_finish_off_assignment()
 		return
-	var target_position := _current_finish_off_target.get_interaction_position(self)
-	if global_position.distance_to(_current_finish_off_target.global_position) > interact_distance:
-		_set_actor_move_target(target_position)
+	if _current_finish_off_target.requires_fire_to_die() and not _current_finish_off_target.can_be_destroyed_by_cinder():
+		stop_finish_off_assignment()
 		return
+	if _try_complete_finish_off_interaction():
+		return
+	var target_position := _get_downed_target_interaction_position(_current_finish_off_target)
+	if target_position == Vector3.INF:
+		stop_finish_off_assignment()
+		return
+	_set_actor_move_target(target_position)
+
+
+func _try_complete_finish_off_interaction(extra_distance: float = 0.0) -> bool:
+	if _current_finish_off_target == null or not is_instance_valid(_current_finish_off_target):
+		return false
+	if _current_finish_off_target.life_state != NpcRules.LifeState.UNCONSCIOUS:
+		return false
+	if _current_finish_off_target.requires_fire_to_die() and not _current_finish_off_target.can_be_destroyed_by_cinder():
+		return false
+	if not _is_close_enough_to_downed_interaction_target(_current_finish_off_target, extra_distance):
+		return false
 	_clear_actor_move_target()
+	if _current_finish_off_target.requires_fire_to_die():
+		burn_target_with_cinder_flask(_current_finish_off_target, _order_was_player_issued)
+		stop_finish_off_assignment()
+		return true
 	_current_finish_off_target.force_kill(self)
 	_show_world_notice("Finished", Color(0.95, 0.2, 0.2, 1.0))
 	stop_finish_off_assignment()
+	return true
 
 
 func _process_carry_interaction() -> void:
@@ -5061,8 +5176,10 @@ func _recalculate_vitals() -> void:
 		return
 	var blood_death_threshold := -maxf(max_blood, 1.0) * NpcRules.BLOOD_LOSS_DEATH_FACTOR
 	if blood <= blood_death_threshold:
-		if life_state != NpcRules.LifeState.DEAD:
+		if _should_enter_dead_state_from_vitals() and life_state != NpcRules.LifeState.DEAD:
 			_enter_dead_state()
+		elif not _should_enter_dead_state_from_vitals():
+			_enter_unconscious_from_lethal_vitals()
 		return
 	if blood <= 0.0:
 		if _is_getting_up:
@@ -5073,8 +5190,10 @@ func _recalculate_vitals() -> void:
 			_enter_unconscious_state()
 		return
 	if hp <= -max_hp * NpcRules.DEATH_HP_FACTOR:
-		if life_state != NpcRules.LifeState.DEAD:
+		if _should_enter_dead_state_from_vitals() and life_state != NpcRules.LifeState.DEAD:
 			_enter_dead_state()
+		elif not _should_enter_dead_state_from_vitals():
+			_enter_unconscious_from_lethal_vitals()
 		return
 	if hp <= 0.0:
 		if _is_getting_up:
@@ -5084,11 +5203,37 @@ func _recalculate_vitals() -> void:
 		if life_state == NpcRules.LifeState.ALIVE:
 			_enter_unconscious_state()
 		return
+	if _is_downed_recovery_locked():
+		if life_state == NpcRules.LifeState.UNCONSCIOUS:
+			_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, 0.5)
+		return
 	if is_in_cell_custody() and life_state == NpcRules.LifeState.UNCONSCIOUS and _downed_recover_delay_remaining <= 0.0:
 		_wake_in_cell()
 		return
 	if life_state != NpcRules.LifeState.ALIVE and life_state != NpcRules.LifeState.ASLEEP and _downed_recover_delay_remaining <= 0.0 and _carried_by == null:
 		_begin_get_up()
+
+
+func _should_enter_dead_state_from_vitals() -> bool:
+	return true
+
+
+func _is_downed_recovery_locked() -> bool:
+	return false
+
+
+func _enter_unconscious_from_lethal_vitals() -> void:
+	if life_state == NpcRules.LifeState.DEAD:
+		return
+	if _is_getting_up:
+		_cancel_get_up()
+		_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, 5.0)
+		_enter_downed_state(false)
+	if life_state == NpcRules.LifeState.ALIVE or life_state == NpcRules.LifeState.ASLEEP:
+		_enter_unconscious_state()
+	elif life_state == NpcRules.LifeState.UNCONSCIOUS:
+		_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, 5.0)
+		_enter_downed_state(false)
 
 
 func _wake_in_cell() -> void:
@@ -7013,6 +7158,15 @@ func _get_best_bandage_entry():
 			best_entry = entry
 			best_power = entry.definition.bandage_power
 	return best_entry
+
+
+func _consume_cinder_flask_definition() -> ItemDefinition:
+	var flask_definition := _find_inventory_tool(CINDER_FLASK_TOOL_TAG)
+	if flask_definition == null:
+		return null
+	if inventory == null or not inventory.remove_item_count(flask_definition, 1):
+		return null
+	return flask_definition
 
 
 func _bandage_entry_has_uses(entry) -> bool:

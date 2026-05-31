@@ -293,7 +293,10 @@ func _get_humanoid_actions(target: HumanoidCharacter) -> Array:
 	if target.life_state == NpcRules.LifeState.UNCONSCIOUS:
 		actions.append({"key": ACTION_HEAL, "label": "Heal"})
 		actions.append({"key": ACTION_CARRY, "label": "Carry"})
-		actions.append({"key": ACTION_FINISH_OFF, "label": "Finish"})
+		if target.requires_fire_to_die():
+			actions.append({"key": ACTION_FINISH_OFF, "label": "Burn", "disabled": not target.can_be_destroyed_by_cinder()})
+		else:
+			actions.append({"key": ACTION_FINISH_OFF, "label": "Finish"})
 		return actions
 	if target.life_state == NpcRules.LifeState.DEAD:
 		return actions
