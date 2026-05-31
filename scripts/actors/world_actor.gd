@@ -171,6 +171,7 @@ func set_skill_level(skill_id: String, level: int, clear_xp := true) -> void:
 	skill_set.set_skill_level(skill_id, level, clear_xp)
 	if skill_id == SkillRules.ATTRIBUTE_TOUGHNESS:
 		_refresh_max_blood_from_toughness(true)
+	_on_actor_skill_level_changed(skill_id)
 
 
 func add_skill_xp(skill_id: String, amount: float, reason := "") -> int:
@@ -178,7 +179,12 @@ func add_skill_xp(skill_id: String, amount: float, reason := "") -> int:
 	var level := skill_set.add_skill_xp(skill_id, amount, reason)
 	if skill_id == SkillRules.ATTRIBUTE_TOUGHNESS:
 		_refresh_max_blood_from_toughness(true)
+	_on_actor_skill_level_changed(skill_id)
 	return level
+
+
+func _on_actor_skill_level_changed(_skill_id: String) -> void:
+	pass
 
 
 func get_skill_xp(skill_id: String) -> float:
@@ -278,6 +284,59 @@ func set_player_party_member(value: bool) -> void:
 	_sync_party_membership_group()
 
 
+func set_sneaking_enabled(value: bool) -> void:
+	sneaking = value and life_state == NpcRules.LifeState.ALIVE
+	state_changed.emit()
+
+
+func is_sneaking() -> bool:
+	return sneaking
+
+
+func can_participate_in_perception() -> bool:
+	return life_state == NpcRules.LifeState.ALIVE and is_inside_tree()
+
+
+func get_perception_eye_position() -> Vector3:
+	return global_position + Vector3(0.0, _get_perception_body_height() * 0.82, 0.0)
+
+
+func get_perception_forward_vector() -> Vector3:
+	var forward := -global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() <= 0.0001:
+		return Vector3.FORWARD
+	return forward.normalized()
+
+
+func get_stealth_sample_positions() -> Array[Vector3]:
+	var height := _get_perception_body_height()
+	var side_offset := maxf(0.18, navigation_agent_radius * 0.62)
+	return [
+		global_position + Vector3(0.0, height * 0.32, 0.0),
+		global_position + Vector3(0.0, height * 0.58, 0.0),
+		global_position + Vector3(-side_offset, height * 0.58, 0.0),
+		global_position + Vector3(side_offset, height * 0.58, 0.0),
+		global_position + Vector3(0.0, height * 0.82, 0.0),
+	]
+
+
+func get_stealth_light_sample_position() -> Vector3:
+	return global_position + Vector3(0.0, _get_perception_body_height() * 0.55, 0.0)
+
+
+func get_stealth_indicator_position() -> Vector3:
+	return global_position + Vector3(0.0, _get_perception_body_height() + 0.65, 0.0)
+
+
+func get_stealth_skill_level() -> float:
+	return get_stat_value("stealth")
+
+
+func get_perception_skill_level() -> float:
+	return get_stat_value("perception")
+
+
 func get_actor_display_name() -> String:
 	var display_name := member_name.strip_edges()
 	return display_name if not display_name.is_empty() else str(name)
@@ -325,7 +384,7 @@ func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true)
 			return clampf(value, 0.0, 0.95)
 		"attack_cooldown":
 			return maxf(0.2, value)
-		"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "attack_range", "dexterity", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate":
+		"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "attack_range", "dexterity", "perception", "stealth", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate":
 			return maxf(0.0, value)
 	return value
 
@@ -555,6 +614,21 @@ func clear_all_personal_hostility() -> void:
 	_last_direct_attacker_id = 0
 
 
+func can_see_actor_for_combat(target: Node) -> bool:
+	if target == null or target == self or not is_instance_valid(target):
+		return false
+	if not _actor_is_sneaking(target):
+		return true
+	var perception_controller := _get_perception_controller()
+	if perception_controller == null:
+		return false
+	var latest_result := _get_perception_result(perception_controller, target, true)
+	if not latest_result.is_empty() and latest_result.has("clearly_seen"):
+		return bool(latest_result.get("clearly_seen", false))
+	var result := _get_perception_result(perception_controller, target, false)
+	return bool(result.get("clearly_seen", false))
+
+
 func is_protected_from_combat() -> bool:
 	return false
 
@@ -703,6 +777,10 @@ func _get_base_stat_value(stat_name: String) -> float:
 			return attack_range
 		"dexterity":
 			return float(get_skill_level(SkillRules.ATTRIBUTE_DEXTERITY))
+		"perception":
+			return float(get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION))
+		"stealth":
+			return float(get_skill_level(SkillRules.SUBTERFUGE_SNEAKING))
 		"attack_cooldown":
 			return attack_cooldown_seconds
 		"cut_ratio":
@@ -723,6 +801,41 @@ func _get_base_stat_value(stat_name: String) -> float:
 		"healing_rate":
 			return NpcRules.BASE_HEAL_RATE
 	return 0.0
+
+
+func _actor_is_sneaking(actor: Node) -> bool:
+	if actor == null:
+		return false
+	var value = actor.get("sneaking")
+	return bool(value) if value != null else false
+
+
+func _get_perception_controller() -> Node:
+	if not is_inside_tree():
+		return null
+	var cached = _runtime_controller_cache.get("perception_controller")
+	if cached != null and is_instance_valid(cached):
+		return cached as Node
+	var controller := get_tree().get_first_node_in_group("perception_controller")
+	if controller != null:
+		_runtime_controller_cache["perception_controller"] = controller
+	return controller as Node
+
+
+func _get_perception_result(perception_controller: Node, target: Node, prefer_latest: bool) -> Dictionary:
+	if perception_controller == null or target == null:
+		return {}
+	if not (target is WorldActor):
+		return {}
+	if prefer_latest and perception_controller.has_method("get_latest_result"):
+		return perception_controller.call("get_latest_result", self, target) as Dictionary
+	if not prefer_latest and perception_controller.has_method("evaluate_observer"):
+		return perception_controller.call("evaluate_observer", self, target) as Dictionary
+	return {}
+
+
+func _get_perception_body_height() -> float:
+	return maxf(navigation_agent_height, 0.6)
 
 
 func _get_talker_slot(member: Node) -> int:

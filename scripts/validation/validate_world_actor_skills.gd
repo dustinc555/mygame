@@ -163,10 +163,24 @@ func _validate_world_actor_api() -> void:
 		_fail("Expected generic actor default skill level to be 1")
 	if actor.get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION) != 30:
 		_fail("Expected starting skill level override to apply")
+	if absf(actor.get_stat_value("perception") - 30.0) > 0.01 or absf(actor.get_perception_skill_level() - 30.0) > 0.01:
+		_fail("Expected generic actor Perception stat hook to use actor stat values")
+	actor.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 44)
+	if absf(actor.get_stat_value("stealth") - 44.0) > 0.01 or absf(actor.get_stealth_skill_level() - 44.0) > 0.01:
+		_fail("Expected generic actor stealth stat hook to use actor stat values")
 	actor.add_skill_xp(SkillRules.MOVEMENT_RUNNING, SkillRules.get_xp_to_next_level(1), "validation")
 	if actor.get_skill_level(SkillRules.MOVEMENT_RUNNING) <= 1:
 		_fail("Expected WorldActor.add_skill_xp to level a skill")
 	actor.queue_free()
+
+	var humanoid := HumanoidCharacter.new()
+	humanoid.set_skill_level(SkillRules.ATTRIBUTE_PERCEPTION, 33)
+	humanoid.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 55)
+	if absf(humanoid.get_stat_value("perception") - 33.0) > 0.01 or absf(humanoid.get_perception_skill_level() - 33.0) > 0.01:
+		_fail("Expected humanoid Perception stat hook to use actor stat values")
+	if absf(humanoid.get_stat_value("stealth") - 55.0) > 0.01 or absf(humanoid.get_stealth_skill_level() - 55.0) > 0.01:
+		_fail("Expected humanoid stealth stat hook to use actor stat values")
+	humanoid.queue_free()
 
 
 func _validate_toughness_max_blood_rules() -> void:

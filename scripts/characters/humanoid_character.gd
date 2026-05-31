@@ -882,6 +882,8 @@ func _assign_combat_target(target_character: HumanoidCharacter, combat_job_type:
 		return false
 	if not _is_valid_combat_target(target_character):
 		return false
+	if not can_see_actor_for_combat(target_character):
+		return false
 	if issued_by_player:
 		_report_assault_crime_if_needed(target_character)
 	_break_stealth_for_combat()
@@ -1982,6 +1984,7 @@ func set_running_enabled(value: bool) -> bool:
 		running = can_enable_running()
 	else:
 		running = false
+	_invalidate_stat_value_cache()
 	state_changed.emit()
 	return running == value
 
@@ -1998,6 +2001,7 @@ func _set_sneaking_state(value: bool, play_transition: bool) -> bool:
 	if sneaking == next_sneaking:
 		return false
 	sneaking = next_sneaking
+	_invalidate_stat_value_cache()
 	if play_transition:
 		if sneaking:
 			_cancel_run_transition()
@@ -2008,6 +2012,32 @@ func _set_sneaking_state(value: bool, play_transition: bool) -> bool:
 		_cancel_crouch_transition()
 		_cancel_run_transition()
 	return true
+
+
+func _on_actor_skill_level_changed(_skill_id: String) -> void:
+	_invalidate_stat_value_cache()
+
+
+func get_perception_eye_position() -> Vector3:
+	return global_position + Vector3(0.0, 1.65, 0.0)
+
+
+func get_stealth_sample_positions() -> Array[Vector3]:
+	return [
+		global_position + Vector3(0.0, 0.65, 0.0),
+		global_position + Vector3(0.0, 1.15, 0.0),
+		global_position + Vector3(-0.28, 1.15, 0.0),
+		global_position + Vector3(0.28, 1.15, 0.0),
+		global_position + Vector3(0.0, 1.65, 0.0),
+	]
+
+
+func get_stealth_light_sample_position() -> Vector3:
+	return global_position + Vector3(0.0, 1.1, 0.0)
+
+
+func get_stealth_indicator_position() -> Vector3:
+	return global_position + Vector3(0.0, 2.65, 0.0)
 
 
 func _break_stealth_for_combat() -> void:
@@ -5306,7 +5336,7 @@ func _is_valid_combat_target(target: HumanoidCharacter) -> bool:
 
 
 func _is_valid_active_combat_target(target: HumanoidCharacter) -> bool:
-	return _is_valid_combat_target(target) and has_hostility_with(target)
+	return _is_valid_combat_target(target) and has_hostility_with(target) and can_see_actor_for_combat(target)
 
 
 func _get_active_ai_job_type() -> int:
@@ -5593,6 +5623,10 @@ func _get_base_stat_value(stat_name: String) -> float:
 			return attack_range
 		"dexterity":
 			return float(get_skill_level(SkillRules.ATTRIBUTE_DEXTERITY))
+		"perception":
+			return float(get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION))
+		"stealth":
+			return float(get_skill_level(SkillRules.SUBTERFUGE_SNEAKING))
 		"attack_cooldown":
 			return attack_cooldown_seconds
 		"cut_ratio":
@@ -5668,7 +5702,7 @@ func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true)
 				value = clampf(value, 0.0, 0.95)
 			"attack_cooldown":
 				value = maxf(0.2, value)
-			"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "attack_range", "dexterity", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate", "blood_recovery_rate":
+			"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "attack_range", "dexterity", "perception", "stealth", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate", "blood_recovery_rate":
 				value = maxf(0.0, value)
 	_stat_value_cache[cache_key] = value
 	return value
@@ -6217,6 +6251,8 @@ func _find_nearest_hostile(scan_radius: float) -> HumanoidCharacter:
 			continue
 		if not has_hostility_with(candidate):
 			continue
+		if not can_see_actor_for_combat(candidate):
+			continue
 		if global_position.distance_to(candidate.global_position) <= scan_radius:
 			candidates.append(candidate)
 	return COMBAT_COORDINATOR.choose_target(self, candidates, scan_radius) as HumanoidCharacter
@@ -6235,6 +6271,8 @@ func _find_closest_hostile(scan_radius: float, same_level_only: bool = true) -> 
 		if same_level_only and absf(candidate.global_position.y - global_position.y) > move_target_vertical_tolerance:
 			continue
 		if not has_hostility_with(candidate):
+			continue
+		if not can_see_actor_for_combat(candidate):
 			continue
 		var offset := candidate.global_position - global_position
 		offset.y = 0.0

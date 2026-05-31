@@ -2,13 +2,6 @@ extends Node
 
 class_name PerceptionController
 
-const SAMPLE_OFFSETS: Array[Vector3] = [
-	Vector3(0.0, 0.65, 0.0),
-	Vector3(0.0, 1.15, 0.0),
-	Vector3(-0.28, 1.15, 0.0),
-	Vector3(0.28, 1.15, 0.0),
-	Vector3(0.0, 1.65, 0.0),
-]
 const BARK_LINES: Array[String] = [
 	"... what are you doing?",
 	"Hey. Why are you sneaking around?",
@@ -118,7 +111,7 @@ func _process(delta: float) -> void:
 	_update_perception(update_delta, active_subjects)
 
 
-func get_latest_results_for_subject(subject: HumanoidCharacter) -> Array[Dictionary]:
+func get_latest_results_for_subject(subject: WorldActor) -> Array[Dictionary]:
 	if subject == null:
 		return []
 	var raw_results: Array = _latest_results_by_subject.get(subject.get_instance_id(), []) as Array
@@ -129,17 +122,17 @@ func get_latest_results_for_subject(subject: HumanoidCharacter) -> Array[Diction
 	return results
 
 
-func get_latest_result(observer: HumanoidCharacter, subject: HumanoidCharacter) -> Dictionary:
+func get_latest_result(observer: WorldActor, subject: WorldActor) -> Dictionary:
 	if observer == null or subject == null:
 		return {}
 	return (_latest_results_by_pair.get(_pair_key(observer, subject), {}) as Dictionary).duplicate()
 
 
-func evaluate_observer(observer: HumanoidCharacter, subject: HumanoidCharacter) -> Dictionary:
+func evaluate_observer(observer: WorldActor, subject: WorldActor) -> Dictionary:
 	return _evaluate_observer(observer, subject, -1.0, debug_show_los_rays)
 
 
-func is_clearly_seen_by_anyone(subject: HumanoidCharacter) -> bool:
+func is_clearly_seen_by_anyone(subject: WorldActor) -> bool:
 	for result in get_latest_results_for_subject(subject):
 		if bool(result.get("clearly_seen", false)):
 			return true
@@ -168,14 +161,17 @@ func _try_initialize() -> void:
 	_initialized = true
 
 
-func _update_perception(delta: float, active_subjects: Array[HumanoidCharacter]) -> void:
+func _update_perception(delta: float, active_subjects: Array) -> void:
 	var observer_candidates := _get_alive_non_party_observers()
 	var local_lights := _get_local_lights()
 	var active_keys: Dictionary = {}
 	var next_by_subject: Dictionary = {}
 	var next_by_pair: Dictionary = {}
 	var debug_segments: Array[Dictionary] = []
-	for subject in active_subjects:
+	for subject_value in active_subjects:
+		var subject := subject_value as WorldActor
+		if subject == null or not subject.can_participate_in_perception():
+			continue
 		var subject_results: Array[Dictionary] = []
 		var subject_light_exposure := _calculate_light_exposure(subject, local_lights)
 		var best_training_pressure := 0.0
@@ -215,35 +211,36 @@ func _clear_perception_state() -> void:
 	_update_debug_rays([])
 
 
-func _get_active_sneaking_subjects() -> Array[HumanoidCharacter]:
-	var subjects: Array[HumanoidCharacter] = []
+func _get_active_sneaking_subjects() -> Array[WorldActor]:
+	var subjects: Array[WorldActor] = []
 	if party_manager == null:
 		return subjects
 	for member in party_manager.selected_members:
-		if member is HumanoidCharacter and member.sneaking and member.life_state == NpcRules.LifeState.ALIVE:
-			subjects.append(member)
+		var subject := member as WorldActor
+		if subject != null and subject.sneaking and subject.can_participate_in_perception():
+			subjects.append(subject)
 	return subjects
 
-func _get_alive_non_party_observers() -> Array[HumanoidCharacter]:
-	var observers: Array[HumanoidCharacter] = []
-	var candidates: Array = actor_query_controller.call("get_alive_humanoids", false) if actor_query_controller != null and actor_query_controller.has_method("get_alive_humanoids") else get_tree().get_nodes_in_group("npc_character")
+func _get_alive_non_party_observers() -> Array[WorldActor]:
+	var observers: Array[WorldActor] = []
+	var candidates: Array = actor_query_controller.call("get_alive_actors", false) if actor_query_controller != null and actor_query_controller.has_method("get_alive_actors") else get_tree().get_nodes_in_group("world_actor")
 	for node in candidates:
-		if not (node is HumanoidCharacter):
+		if not (node is WorldActor):
 			continue
-		var observer := node as HumanoidCharacter
-		if observer.player_party_member or observer.life_state != NpcRules.LifeState.ALIVE:
+		var observer := node as WorldActor
+		if observer.player_party_member or not observer.can_participate_in_perception():
 			continue
 		observers.append(observer)
 	return observers
 
 
-func _get_observers_for_subject(subject: HumanoidCharacter, observer_candidates: Array[HumanoidCharacter]) -> Array[HumanoidCharacter]:
-	var observers: Array[HumanoidCharacter] = []
+func _get_observers_for_subject(subject: WorldActor, observer_candidates: Array[WorldActor]) -> Array[WorldActor]:
+	var observers: Array[WorldActor] = []
 	var observer_radius_squared := observer_radius * observer_radius
 	for observer in observer_candidates:
 		if observer == null or not is_instance_valid(observer):
 			continue
-		if observer == subject or observer.life_state != NpcRules.LifeState.ALIVE:
+		if observer == subject or not observer.can_participate_in_perception():
 			continue
 		if observer.global_position.distance_squared_to(subject.global_position) > observer_radius_squared:
 			continue
@@ -251,18 +248,20 @@ func _get_observers_for_subject(subject: HumanoidCharacter, observer_candidates:
 	return observers
 
 
-func _evaluate_observer(observer: HumanoidCharacter, subject: HumanoidCharacter, cached_light_exposure := -1.0, collect_debug_segments := false) -> Dictionary:
+func _evaluate_observer(observer: WorldActor, subject: WorldActor, cached_light_exposure := -1.0, collect_debug_segments := false) -> Dictionary:
 	if observer == null or subject == null:
 		return {}
-	var eye_position := observer.global_position + Vector3(0.0, 1.65, 0.0)
+	var sample_positions := subject.get_stealth_sample_positions()
+	if sample_positions.is_empty():
+		return {}
+	var eye_position := observer.get_perception_eye_position()
 	var visible_samples := 0
 	var cone_samples := 0
 	var segments: Array[Dictionary] = []
 	var max_distance_factor := 0.0
 	var nearest_visible_distance := INF
 	var ray_exclusions: Array[RID] = [observer.get_rid(), subject.get_rid()]
-	for offset in SAMPLE_OFFSETS:
-		var sample_position := subject.global_position + offset
+	for sample_position in sample_positions:
 		var to_sample := sample_position - eye_position
 		var distance := to_sample.length()
 		var in_cone := distance <= view_distance and _is_in_front_cone(observer, to_sample)
@@ -276,12 +275,12 @@ func _evaluate_observer(observer: HumanoidCharacter, subject: HumanoidCharacter,
 				nearest_visible_distance = minf(nearest_visible_distance, distance)
 		if collect_debug_segments:
 			segments.append({"from": eye_position, "to": sample_position, "visible": in_cone and clear_los})
-	var los_fraction := float(visible_samples) / float(SAMPLE_OFFSETS.size())
+	var los_fraction := float(visible_samples) / float(sample_positions.size())
 	var light_exposure := cached_light_exposure
 	if light_exposure < 0.0:
 		light_exposure = _calculate_light_exposure(subject, _get_local_lights())
-	var subject_sneaking := float(subject.get_skill_level(SkillRules.SUBTERFUGE_SNEAKING))
-	var observer_perception := float(observer.get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION))
+	var subject_sneaking := subject.get_stealth_skill_level()
+	var observer_perception := observer.get_perception_skill_level()
 	var posture := _get_posture_visibility(subject, subject_sneaking)
 	var base_visibility_score := los_fraction * light_exposure * max_distance_factor * posture
 	var skill_gap := subject_sneaking - observer_perception
@@ -300,7 +299,7 @@ func _evaluate_observer(observer: HumanoidCharacter, subject: HumanoidCharacter,
 		"observer_id": observer.get_instance_id(),
 		"subject_id": subject.get_instance_id(),
 		"line_of_sight_fraction": los_fraction,
-		"cone_fraction": float(cone_samples) / float(SAMPLE_OFFSETS.size()),
+		"cone_fraction": float(cone_samples) / float(sample_positions.size()),
 		"light_exposure": light_exposure,
 		"distance_factor": max_distance_factor,
 		"posture_visibility": posture,
@@ -317,7 +316,7 @@ func _evaluate_observer(observer: HumanoidCharacter, subject: HumanoidCharacter,
 	}
 
 
-func _award_observer_perception_xp(delta: float, observer: HumanoidCharacter, result: Dictionary) -> void:
+func _award_observer_perception_xp(delta: float, observer: WorldActor, result: Dictionary) -> void:
 	if observer == null:
 		return
 	if bool(result.get("clearly_seen", false)):
@@ -365,7 +364,7 @@ func _get_sneaking_risk_xp(delta: float, raw_pressure: float, activity_multiplie
 	return SNEAKING_RISK_XP_PER_SECOND * capped_pressure * activity_multiplier * delta
 
 
-func _get_sneaking_activity_multiplier(subject: HumanoidCharacter) -> float:
+func _get_sneaking_activity_multiplier(subject: WorldActor) -> float:
 	if subject == null or not subject.sneaking:
 		return 0.0
 	var horizontal_speed_squared := subject.velocity.x * subject.velocity.x + subject.velocity.z * subject.velocity.z
@@ -374,7 +373,7 @@ func _get_sneaking_activity_multiplier(subject: HumanoidCharacter) -> float:
 	return SNEAKING_IDLE_XP_MULTIPLIER
 
 
-func _get_posture_visibility(subject: HumanoidCharacter, subject_sneaking: float) -> float:
+func _get_posture_visibility(subject: WorldActor, subject_sneaking: float) -> float:
 	if subject == null or not subject.sneaking:
 		return standing_posture_visibility
 	var skill_ratio := _get_sneak_mastery_ratio(subject_sneaking)
@@ -460,7 +459,7 @@ func _is_sustained_moving_exposure_active(result: Dictionary) -> bool:
 		return false
 	if float(result.get("light_exposure", 0.0)) <= SUSTAINED_MOVING_EXPOSURE_MIN_LIGHT:
 		return false
-	var subject := result.get("subject") as HumanoidCharacter
+	var subject := result.get("subject") as WorldActor
 	return subject != null and _get_sneaking_activity_multiplier(subject) >= 1.0
 
 
@@ -492,11 +491,11 @@ func _get_suspicion_charge_multiplier(result: Dictionary) -> float:
 	return lerpf(0.85, 1.45, score_pressure) * lerpf(1.25, 1.0, _get_sneak_mastery_ratio(subject_sneaking)) * lerpf(1.0, 1.2, novice_pressure)
 
 
-func _is_in_front_cone(observer: HumanoidCharacter, to_sample: Vector3) -> bool:
+func _is_in_front_cone(observer: WorldActor, to_sample: Vector3) -> bool:
 	var flat_to_sample := Vector3(to_sample.x, 0.0, to_sample.z)
 	if flat_to_sample.length_squared() <= 0.0001:
 		return true
-	var forward := -observer.global_transform.basis.z
+	var forward := observer.get_perception_forward_vector()
 	forward.y = 0.0
 	if forward.length_squared() <= 0.0001:
 		return false
@@ -528,9 +527,9 @@ func _distance_factor(distance: float, max_distance: float) -> float:
 	return clampf(1.0 - ratio * 0.55, 0.0, 1.0)
 
 
-func _calculate_light_exposure(subject: HumanoidCharacter, local_lights: Array[Light3D]) -> float:
+func _calculate_light_exposure(subject: WorldActor, local_lights: Array[Light3D]) -> float:
 	var exposure := _get_day_night_exposure()
-	var sample_position := subject.global_position + Vector3(0.0, 1.1, 0.0)
+	var sample_position := subject.get_stealth_light_sample_position()
 	for light in local_lights:
 		exposure += _get_light_contribution(light, sample_position, subject)
 	return clampf(exposure, 0.08, 1.35)
@@ -570,7 +569,7 @@ func _collect_local_lights(node: Node, lights: Array[Light3D], seen: Dictionary)
 		_collect_local_lights(child, lights, seen)
 
 
-func _get_light_contribution(light: Light3D, sample_position: Vector3, subject: HumanoidCharacter) -> float:
+func _get_light_contribution(light: Light3D, sample_position: Vector3, subject: WorldActor) -> float:
 	if light == null or not is_instance_valid(light) or not light.visible or light.light_energy <= 0.0:
 		return 0.0
 	if light is OmniLight3D:
@@ -602,14 +601,14 @@ func _get_light_contribution(light: Light3D, sample_position: Vector3, subject: 
 	return 0.0
 
 
-func _update_indicator(key: String, observer: HumanoidCharacter, subject: HumanoidCharacter, result: Dictionary) -> void:
+func _update_indicator(key: String, observer: WorldActor, subject: WorldActor, result: Dictionary) -> void:
 	var indicator := _indicators.get(key, null) as Node3D
 	if indicator == null or not is_instance_valid(indicator):
 		indicator = _create_indicator()
 		_indicators[key] = indicator
 	var score := float(result.get("visibility_score", 0.0))
 	indicator.visible = true
-	indicator.global_position = observer.global_position + Vector3(0.0, 2.65, 0.0)
+	indicator.global_position = observer.get_stealth_indicator_position()
 	var arrow_root := indicator.get_node_or_null("ArrowRoot") as Node3D
 	if arrow_root != null:
 		var look_target := Vector3(subject.global_position.x, indicator.global_position.y, subject.global_position.z)
@@ -740,7 +739,7 @@ func _remove_inactive_indicators(active_keys: Dictionary) -> void:
 			_suspicion_states.erase(key)
 
 
-func _update_bark_state(delta: float, key: String, observer: HumanoidCharacter, result: Dictionary) -> void:
+func _update_bark_state(delta: float, key: String, observer: WorldActor, result: Dictionary) -> void:
 	var state: Dictionary = _bark_states.get(key, {})
 	if state.is_empty():
 		state = {"seen_time": 0.0, "threshold": _rng.randf_range(bark_min_grace, bark_max_grace), "cooldown": 0.0}
@@ -792,7 +791,7 @@ func _update_debug_rays(segments: Array[Dictionary]) -> void:
 	_debug_ray_mesh.surface_end()
 
 
-func _pair_key(observer: HumanoidCharacter, subject: HumanoidCharacter) -> String:
+func _pair_key(observer: WorldActor, subject: WorldActor) -> String:
 	return "%d:%d" % [observer.get_instance_id(), subject.get_instance_id()]
 
 

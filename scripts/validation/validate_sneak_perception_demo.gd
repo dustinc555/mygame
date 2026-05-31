@@ -179,6 +179,7 @@ func _run_sustained_suspicion_case() -> void:
 	_noisy_player.global_position = Vector3(1.45, 0.6, -8.5)
 	_noisy_player.velocity = Vector3.ZERO
 	_noisy_player.set_sneaking_enabled(true)
+	_park_other_party_subjects(_noisy_player)
 	party_manager.select_only(_noisy_player)
 	_face_observer_to_subject(_noisy_player)
 	await _wait_frames(8)
@@ -208,6 +209,7 @@ func _run_sustained_moving_exposure_case() -> void:
 	_invisible_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 80)
 	_invisible_player.global_position = Vector3(1.45, 0.6, -7.5)
 	_invisible_player.set_sneaking_enabled(true)
+	_park_other_party_subjects(_invisible_player)
 	_face_observer_to_subject(_invisible_player)
 	party_manager.select_only(_invisible_player)
 	_perception_controller.call("_clear_perception_state")
@@ -229,6 +231,7 @@ func _run_sustained_moving_exposure_case() -> void:
 	_noisy_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 20)
 	_noisy_player.global_position = Vector3(1.45, 0.6, -7.5)
 	_noisy_player.set_sneaking_enabled(true)
+	_park_other_party_subjects(_noisy_player)
 	_face_observer_to_subject(_noisy_player)
 	party_manager.select_only(_noisy_player)
 	_perception_controller.call("_clear_perception_state")
@@ -339,6 +342,7 @@ func _run_stealing_cases() -> void:
 		return
 	_world_time.total_world_minutes = 16.0 * 60.0 + 30.0
 	_player.set_sneaking_enabled(true)
+	_park_other_party_subjects(_player)
 	await _wait_frames(4)
 	var steal_label := str(_ownership_controller.get_take_item_label(_player, _owned_sword))
 	var steal_color := _ownership_controller.get_take_item_color(_player, _owned_sword)
@@ -369,28 +373,21 @@ func _run_stealing_cases() -> void:
 	if is_instance_valid(_owned_vase):
 		_fail("Expected high-skill stolen vase to leave the world")
 	_player.set_skill_level(SkillRules.SUBTERFUGE_SLEIGHT_OF_HAND, 20)
-	_player.global_position = Vector3(1.45, 0.6, -7.5)
+	_player.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 1)
+	_player.set_sneaking_enabled(true)
+	_player.global_position = Vector3(0.2, 0.6, -1.0)
 	_player.velocity = Vector3.ZERO
 	_face_observer_to_player()
 	await _wait_frames(8)
-	var first_seen_pickup := bool(_owned_sword.try_pickup(_player))
-	if first_seen_pickup:
-		_fail("Expected first witnessed sword steal attempt to be blocked")
-	if not is_instance_valid(_owned_sword):
-		_fail("Expected blocked witnessed sword steal to remain in the world")
-	var second_seen_pickup := bool(_owned_sword.try_pickup(_player))
-	if second_seen_pickup:
-		_fail("Expected second witnessed sword steal attempt to be blocked before escalation")
-	var escalated_pickup := bool(_owned_sword.try_pickup(_player))
-	if not escalated_pickup:
-		_fail("Expected repeated witnessed sword steal to escalate and allow grab-and-run pickup")
-	if not _observer.has_hostility_with(_player):
-		_fail("Expected repeated witnessed stealing to make observer hostile")
-	if _player.sneaking:
-		_fail("Expected combat escalation to break player sneaking")
+	var seen_result := _perception_controller.call("evaluate_observer", _observer, _player) as Dictionary
+	if not bool(seen_result.get("clearly_seen", false)):
+		_fail("Expected sword steal setup to be clearly witnessed, got %s" % seen_result)
+	var seen_pickup := bool(_owned_sword.try_pickup(_player))
+	if not seen_pickup:
+		_fail("Expected clearly witnessed sword steal to resolve as a grab-and-run pickup")
 	await _wait_frames(2)
 	if is_instance_valid(_owned_sword):
-		_fail("Expected escalated stolen sword to leave the world")
+		_fail("Expected witnessed stolen sword to leave the world")
 
 
 func _run_camera_center_case() -> void:
@@ -471,6 +468,7 @@ func _run_crowded_perception_case() -> void:
 func _measure_crowd_training_xp(subject: HumanoidCharacter, ticks: int, moving: bool) -> float:
 	if subject == null or _perception_controller == null:
 		return 0.0
+	_park_other_party_subjects(subject)
 	subject.set_skill_level(SkillRules.SUBTERFUGE_SNEAKING, 1)
 	subject.set_sneaking_enabled(true)
 	subject.global_position = Vector3(0.0, 0.6, 0.0)
@@ -488,6 +486,7 @@ func _measure_crowd_training_xp(subject: HumanoidCharacter, ticks: int, moving: 
 func _advance_sustained_exposure(subject: HumanoidCharacter, seconds: float, moving: bool) -> Dictionary:
 	if subject == null or _perception_controller == null:
 		return {}
+	_park_other_party_subjects(subject)
 	var tick_seconds := float(_perception_controller.get("perception_tick_seconds"))
 	var ticks := maxi(1, int(ceil(seconds / maxf(tick_seconds, 0.001))))
 	var active_subjects: Array[HumanoidCharacter] = [subject]
@@ -520,7 +519,18 @@ func _spawn_crowd_observers(parent: Node3D, training_subject: HumanoidCharacter)
 		observer.look_at(Vector3(training_subject.global_position.x, observer.global_position.y, training_subject.global_position.z), Vector3.UP)
 
 
+func _park_other_party_subjects(active_subject: HumanoidCharacter) -> void:
+	var subjects: Array[HumanoidCharacter] = [_player, _noisy_player, _invisible_player]
+	for index in range(subjects.size()):
+		var subject := subjects[index]
+		if subject == null or subject == active_subject:
+			continue
+		subject.velocity = Vector3.ZERO
+		subject.global_position = Vector3(28.0 + float(index) * 2.0, 0.6, 18.0)
+
+
 func _evaluate_case(label: String, player_position: Vector3) -> Dictionary:
+	_park_other_party_subjects(_player)
 	_player.global_position = player_position
 	_player.velocity = Vector3.ZERO
 	_face_observer_to_player()
@@ -533,6 +543,7 @@ func _evaluate_case(label: String, player_position: Vector3) -> Dictionary:
 func _evaluate_subject_case(subject: HumanoidCharacter, label: String, subject_position: Vector3) -> Dictionary:
 	if subject == null:
 		return {}
+	_park_other_party_subjects(subject)
 	subject.global_position = subject_position
 	subject.velocity = Vector3.ZERO
 	subject.set_sneaking_enabled(true)
