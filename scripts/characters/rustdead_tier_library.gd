@@ -65,7 +65,7 @@ static func roll_skill_levels(tier: Resource, rng: RandomNumberGenerator) -> Dic
 
 static func is_tier_scaled_skill_id(skill_id: String) -> bool:
 	match skill_id:
-		SkillRules.ATTRIBUTE_STRENGTH, SkillRules.ATTRIBUTE_PERCEPTION, SkillRules.ATTRIBUTE_DEXTERITY, SkillRules.ATTRIBUTE_TOUGHNESS, SkillRules.ATTRIBUTE_ENDURANCE, SkillRules.MOVEMENT_RUNNING:
+		SkillRules.ATTRIBUTE_STRENGTH, SkillRules.ATTRIBUTE_PERCEPTION, SkillRules.ATTRIBUTE_DEXTERITY, SkillRules.ATTRIBUTE_TOUGHNESS, SkillRules.ATTRIBUTE_ENDURANCE, SkillRules.COMBAT_UNARMED, SkillRules.MOVEMENT_RUNNING:
 			return true
 	return false
 

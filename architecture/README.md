@@ -93,6 +93,14 @@ flowchart TD
 ## Where Docs Live
 - `AGENT.md` is the short coding-agent rule file.
 - `architecture/README.md` is this human design overview.
+- `architecture/core_attributes/` defines shared stat layers and progression rules.
+- `architecture/combat/initiative.md` defines shared melee initiative.
+- `architecture/combat/hit.md` defines shared hit scoring.
+- `architecture/combat/dodge.md` defines shared dodge scoring.
+- `architecture/combat/block.md` defines parry and shield block.
+- `architecture/combat/crit.md` defines shared crit chance.
+- `architecture/combat/damage.md` defines shared cut and blunt damage.
+- `architecture/combat/body_weapons.md` defines body weapon profiles.
 - `operator/` contains step-by-step editor workflows for humans.
 - `SETUP.md` explains required local setup.
 - `ATTRIBUTION.md` tracks licenses and third-party assets.
