@@ -362,6 +362,7 @@ var _auto_burn_cached_furnace
 var _auto_burn_cached_furnace_until_msec := 0
 var _auto_burn_reserved_target: HumanoidCharacter
 var _auto_burn_reserved_furnace
+var _spawn_grounding_refresh_frames := 0
 
 signal inventory_changed
 signal mining_changed
@@ -555,6 +556,9 @@ static func _debug_humanoid_ai_profile_finish() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _spawn_grounding_refresh_frames > 0:
+		_process_spawn_grounding_refresh(delta)
+		return
 	if _should_use_far_runtime_cadence():
 		_far_runtime_physics_accumulated += delta
 		if _far_runtime_physics_accumulated < FAR_RUNTIME_PHYSICS_INTERVAL:
@@ -625,6 +629,31 @@ func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
 	if not _set_order(OrderType.MOVE, issued_by_player):
 		return
 	_set_actor_move_target(target)
+
+
+func request_spawn_grounding_refresh(frame_count: int = 8) -> void:
+	_spawn_grounding_refresh_frames = maxi(_spawn_grounding_refresh_frames, frame_count)
+	call_deferred("_apply_deferred_spawn_visual_grounding")
+
+
+func _process_spawn_grounding_refresh(delta: float) -> void:
+	_spawn_grounding_refresh_frames -= 1
+	if life_state == NpcRules.LifeState.ALIVE and _carried_by == null and not _is_sitting and not is_in_cell_custody() and not _is_ragdoll_active:
+		_apply_floor_motion(delta)
+		velocity.x = 0.0
+		velocity.z = 0.0
+		move_and_slide()
+		apply_floor_snap()
+	velocity = Vector3.ZERO
+	_apply_deferred_spawn_visual_grounding()
+
+
+func _apply_deferred_spawn_visual_grounding() -> void:
+	if not is_inside_tree():
+		return
+	_apply_bone_pose_position_offsets()
+	_apply_runtime_visual_foot_ground_alignment()
+	_update_ground_markers()
 
 
 func stop_mining_assignment() -> void:

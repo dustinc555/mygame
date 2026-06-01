@@ -63,6 +63,7 @@ const RUSTDEAD_HEAD_ITEMS := [RANGER_HOOD]
 
 @export var nest_type_definitions: Array[Resource] = [RUSTDEAD_NEST_TYPE]
 @export var default_initial_activation_chance := 0.5
+@export var minimum_initial_active_nests := 0
 @export var repopulation_weekday_interval := 7
 @export var maintenance_interval_seconds := DEFAULT_MAINTENANCE_INTERVAL_SECONDS
 
@@ -77,11 +78,13 @@ var _nest_states: Dictionary = {}
 var _nest_index := 0
 var _runtime_spawned_marker_ids: Dictionary = {}
 var _maintenance_remaining := 0.0
+var _runtime_seed := 0
 var _initialized := false
 
 
 func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
 	root_scene = target_root
+	_ensure_runtime_seed()
 	set_process(true)
 	call_deferred("_try_initialize")
 
@@ -91,6 +94,7 @@ func _ready() -> void:
 	set_process(true)
 	if root_scene == null:
 		root_scene = get_tree().current_scene
+	_ensure_runtime_seed()
 	call_deferred("_try_initialize")
 
 
@@ -259,6 +263,8 @@ func _ensure_marker_states() -> void:
 		_nest_states[marker_id] = _create_initial_marker_state(_markers_by_id[marker_id])
 		changed = true
 	if changed:
+		changed = _ensure_minimum_initial_active_nests() or changed
+	if changed:
 		_sync_nest_state_to_gecs()
 
 
@@ -274,6 +280,44 @@ func _create_initial_marker_state(marker: NestPlacementMarker) -> Dictionary:
 		return state
 	_activate_marker_state(state, marker, nest_type, _make_rng("initial_state:%s" % marker_id), _get_day_index())
 	return state
+
+
+func _ensure_minimum_initial_active_nests() -> bool:
+	var minimum_count := _get_minimum_initial_active_nests()
+	if minimum_count <= 0 or _count_active_nests() >= minimum_count:
+		return false
+	var candidates: Array[String] = []
+	for marker_id_value in _markers_by_id.keys():
+		var marker_id := str(marker_id_value)
+		var state: Dictionary = _nest_states.get(marker_id, {}) if _nest_states.get(marker_id, {}) is Dictionary else {}
+		if bool(state.get("active", false)) or int(state.get("destroyed_day", -1)) >= 0:
+			continue
+		if _pick_nest_type(_markers_by_id[marker_id], _make_rng("minimum_candidate_type:%s" % marker_id)) != null:
+			candidates.append(marker_id)
+	_shuffle_marker_ids(candidates, _make_rng("minimum_initial_active_nests"))
+	var changed := false
+	for marker_id in candidates:
+		if _count_active_nests() >= minimum_count:
+			break
+		var marker := _markers_by_id.get(marker_id, null) as NestPlacementMarker
+		if marker == null:
+			continue
+		var nest_type := _pick_nest_type(marker, _make_rng("minimum_type:%s" % marker_id))
+		if nest_type == null:
+			continue
+		var state: Dictionary = _nest_states.get(marker_id, _base_marker_state(marker))
+		_activate_marker_state(state, marker, nest_type, _make_rng("minimum_state:%s" % marker_id), _get_day_index())
+		_nest_states[marker_id] = state
+		changed = true
+	return changed
+
+
+func _shuffle_marker_ids(marker_ids: Array[String], rng: RandomNumberGenerator) -> void:
+	for index in range(marker_ids.size() - 1, 0, -1):
+		var swap_index := rng.randi_range(0, index)
+		var value := marker_ids[index]
+		marker_ids[index] = marker_ids[swap_index]
+		marker_ids[swap_index] = value
 
 
 func _base_marker_state(marker: NestPlacementMarker) -> Dictionary:
@@ -649,6 +693,8 @@ func _spawn_nest_actor(marker: NestPlacementMarker, state: Dictionary, nest_type
 		_configure_rustdead_actor(actor, marker_id, member_index)
 	_add_basic_actor_children(actor, Color(0.42, 0.08, 0.07, 1.0))
 	_ensure_actor_root().add_child(actor)
+	if actor.has_method("request_spawn_grounding_refresh"):
+		actor.call("request_spawn_grounding_refresh", 8)
 	return actor
 
 
@@ -736,7 +782,7 @@ func _patrol_leader_ids_by_squad(state: Dictionary, patrol_squad_ids: Array) -> 
 	return leaders
 
 
-func _make_patrol_job(actor: HumanoidCharacter, marker: NestPlacementMarker, state: Dictionary):
+func _make_patrol_job(actor: HumanoidCharacter, marker: NestPlacementMarker, _state: Dictionary):
 	var job = AI_JOB_SCRIPT.new()
 	job.job_type = AI_JOB_SCRIPT.JobType.PATROL
 	job.priority = AI_JOB_SCRIPT.priority_for_type(job.job_type)
@@ -759,7 +805,7 @@ func _make_patrol_job(actor: HumanoidCharacter, marker: NestPlacementMarker, sta
 	return job
 
 
-func _make_assault_job(actor: HumanoidCharacter, marker: NestPlacementMarker, state: Dictionary, target_settlement_id: String, target_position: Vector3):
+func _make_assault_job(_actor: HumanoidCharacter, marker: NestPlacementMarker, _state: Dictionary, target_settlement_id: String, target_position: Vector3):
 	var job = AI_JOB_SCRIPT.new()
 	job.job_type = AI_JOB_SCRIPT.JobType.NEST_ASSAULT
 	job.priority = AI_JOB_SCRIPT.priority_for_type(job.job_type)
@@ -1063,9 +1109,28 @@ func _add_basic_actor_children(actor: HumanoidCharacter, color: Color) -> void:
 
 
 func _make_rng(purpose: String) -> RandomNumberGenerator:
+	_ensure_runtime_seed()
 	var rng := RandomNumberGenerator.new()
-	rng.seed = maxi(1, absi(("%d:%s" % [_get_world_seed(), purpose]).hash()))
+	rng.seed = maxi(1, absi(("%d:%d:%s" % [_get_world_seed(), _runtime_seed, purpose]).hash()))
 	return rng
+
+
+func _ensure_runtime_seed() -> void:
+	if _runtime_seed > 0:
+		return
+	_runtime_seed = maxi(1, absi(("%d:%d:%d" % [Time.get_unix_time_from_system(), Time.get_ticks_usec(), get_instance_id()]).hash()))
+
+
+func _get_minimum_initial_active_nests() -> int:
+	var result := minimum_initial_active_nests
+	var world_loader := root_scene.get_node_or_null("WorldLoader") if root_scene != null else null
+	if world_loader != null:
+		var definition = world_loader.get("world_definition")
+		if definition != null:
+			var value = definition.get("minimum_initial_active_nests")
+			if value != null:
+				result = int(value)
+	return maxi(0, result)
 
 
 func _get_world_seed() -> int:

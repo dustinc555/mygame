@@ -7,7 +7,7 @@ const AI_JOB_SCRIPT := preload("res://scripts/ai/ai_job.gd")
 const AI_PATROL_STEP_SCRIPT := preload("res://scripts/ai/steps/ai_patrol_step.gd")
 const AI_NEST_ASSAULT_STEP_SCRIPT := preload("res://scripts/ai/steps/ai_nest_assault_step.gd")
 
-const GUARANTEED_MARKER_ID := "demo_rustdead_west_vent"
+const WEST_MARKER_ID := "demo_rustdead_west_vent"
 const PATROL_SOURCE_ID := "nest_patrol"
 const ASSAULT_SOURCE_ID := "nest_assault"
 const NEST_VISUAL_NAME := "ActiveNestVisual"
@@ -99,18 +99,22 @@ func _validate_demo_markers() -> void:
 	var markers := get_nodes_in_group("nest_placement_marker")
 	if markers.size() < 3:
 		_fail("Demo world should author at least three nest placement markers")
-	var guaranteed_marker := _scene.get_node_or_null("NestMarkers/RustdeadWestVent")
-	if guaranteed_marker == null:
-		_fail("Demo world should include the guaranteed Rustdead west vent marker")
+	var west_marker := _scene.get_node_or_null("NestMarkers/RustdeadWestVent")
+	if west_marker == null:
+		_fail("Demo world should include the Rustdead west vent marker")
 		return
-	if str(guaranteed_marker.get("marker_id")) != GUARANTEED_MARKER_ID:
-		_fail("Guaranteed Rustdead marker should use stable marker id %s" % GUARANTEED_MARKER_ID)
-	if not guaranteed_marker.call("get_allowed_nest_type_ids").has("rustdead"):
-		_fail("Guaranteed Rustdead marker should allow Rustdead nests")
-	if float(guaranteed_marker.call("get_activation_chance", 0.5)) != 1.0:
-		_fail("Guaranteed Rustdead marker should override activation to 100% for demo coverage")
-	if str(guaranteed_marker.get("display_name")) != "Ancient Vent":
+	if str(west_marker.get("marker_id")) != WEST_MARKER_ID:
+		_fail("Rustdead west marker should use stable marker id %s" % WEST_MARKER_ID)
+	if not west_marker.call("get_allowed_nest_type_ids").has("rustdead"):
+		_fail("Rustdead west marker should allow Rustdead nests")
+	if float(west_marker.call("get_activation_chance", 0.5)) != 0.5:
+		_fail("Rustdead west marker should use randomized default activation chance")
+	if str(west_marker.get("display_name")) != "Ancient Vent":
 		_fail("Rustdead nest marker should inspect as Ancient Vent")
+	var loader := _scene.get_node_or_null("WorldLoader")
+	var definition = loader.get("world_definition") if loader != null else null
+	if definition == null or int(definition.get("minimum_initial_active_nests")) != 1:
+		_fail("Demo world should guarantee at least 1 initial active nest through WorldDefinition")
 
 
 func _validate_controller_runtime() -> void:
@@ -122,32 +126,30 @@ func _validate_controller_runtime() -> void:
 	if int(summary.get("marker_count", 0)) < 3:
 		_fail("NestController should collect authored demo nest markers")
 	if int(summary.get("active_count", 0)) < 1:
-		_fail("NestController should activate the guaranteed Rustdead marker")
+		_fail("NestController should activate at least one Rustdead marker")
 	var states: Dictionary = summary.get("nest_states", {})
-	var state: Dictionary = states.get(GUARANTEED_MARKER_ID, {})
+	var state := _first_active_rustdead_state(states)
 	if state.is_empty():
-		_fail("Guaranteed Rustdead marker should have persistent nest state")
+		_fail("Demo world should have an active Rustdead nest state")
 		return
-	if not bool(state.get("active", false)):
-		_fail("Guaranteed Rustdead marker should be active")
-	if str(state.get("nest_type_id", "")) != "rustdead":
-		_fail("Guaranteed active nest should be Rustdead")
 	var population_target := int(state.get("population_target", 0))
 	if population_target < 8 or population_target > 12:
 		_fail("Active small Rustdead nest population target should be 8-12, got %d" % population_target)
 	var patrol_squad_ids: Array = state.get("patrol_squad_ids", []) if state.get("patrol_squad_ids", []) is Array else []
 	if patrol_squad_ids.size() != 2:
 		_fail("Active small Rustdead nest should have exactly 2 patrol squads")
-	_validate_nest_visual_and_click_target()
+	var marker_id := str(state.get("marker_id", ""))
+	_validate_nest_visual_and_click_target(marker_id)
 	_validate_spawned_actors(state, patrol_squad_ids, population_target)
-	_validate_spawned_scrap_piles(state)
+	_validate_spawned_scrap_piles(state, marker_id)
 	_validate_scrap_specs_for_all_nest_sizes(nest_controller)
 	_validate_attack_target_selection(nest_controller)
 
 
-func _validate_nest_visual_and_click_target() -> void:
-	var marker := _scene.get_node_or_null("NestMarkers/RustdeadWestVent")
+func _validate_nest_visual_and_click_target(marker_id: String) -> void:
+	var marker := _find_nest_marker(marker_id)
 	if marker == null:
+		_fail("Active Rustdead nest %s should have a placement marker" % marker_id)
 		return
 	var visual := marker.get_node_or_null(NEST_VISUAL_NAME) as Node3D
 	if visual == null:
@@ -180,6 +182,8 @@ func _validate_spawned_actors(state: Dictionary, patrol_squad_ids: Array, popula
 	var patrol_counts := {}
 	var active_patrol_jobs := 0
 	var patrol_debug_sample := ""
+	var fresh_actor_count := 0
+	var fresh_male_count := 0
 	var fresh_hair_count := 0
 	var fresh_male_beard_count := 0
 	for actor_id_value in actor_ids:
@@ -192,6 +196,10 @@ func _validate_spawned_actors(state: Dictionary, patrol_squad_ids: Array, popula
 		_validate_rustdead_actor_tier(actor, str(actor_id_value))
 		var appearance = actor.get("appearance_data")
 		if appearance != null:
+			if str(actor.get("member_name")) == "Fresh Rustdead":
+				fresh_actor_count += 1
+				if int(appearance.visual_body_type) == VISUAL_BODY_TYPE_MALE:
+					fresh_male_count += 1
 			if appearance.eyebrow_style != null:
 				_fail("Spawned Rustdead actor %s should not keep normal eyebrows" % str(actor_id_value))
 			if appearance.hair_style != null:
@@ -211,9 +219,9 @@ func _validate_spawned_actors(state: Dictionary, patrol_squad_ids: Array, popula
 			_fail("Patrol squad %s should have 3-5 actors, got %d" % [str(squad_id_value), count])
 	if active_patrol_jobs < 1:
 		_fail("At least one Rustdead patrol actor should receive a patrol AI job; sample_ai=%s" % patrol_debug_sample)
-	if fresh_hair_count < 1:
+	if fresh_actor_count > 0 and fresh_hair_count < 1:
 		_fail("Fresh generated Rustdead should be allowed to keep hair")
-	if fresh_male_beard_count < 1:
+	if fresh_male_count > 0 and fresh_male_beard_count < 1:
 		_fail("Fresh male generated Rustdead should be allowed to keep beards")
 
 
@@ -307,11 +315,10 @@ func _validate_rustdead_actor_metallic_material(actor: Node, tier_id: String, ac
 func _find_rustdead_skin_material(root: Node) -> BaseMaterial3D:
 	if root is MeshInstance3D:
 		var mesh_instance := root as MeshInstance3D
-		if mesh_instance.mesh != null:
-			for surface_index in range(mesh_instance.mesh.get_surface_count()):
-				var material := mesh_instance.get_surface_override_material(surface_index) as BaseMaterial3D
-				if material != null and material.albedo_texture != null and str(material.albedo_texture.resource_path).contains("/character_skin/rustdead/"):
-					return material
+		for surface_index in range(mesh_instance.get_surface_override_material_count()):
+			var material := mesh_instance.get_surface_override_material(surface_index) as BaseMaterial3D
+			if material != null and material.albedo_texture != null and str(material.albedo_texture.resource_path).contains("/character_skin/rustdead/"):
+				return material
 	for child in root.get_children():
 		var child_material := _find_rustdead_skin_material(child)
 		if child_material != null:
@@ -319,8 +326,8 @@ func _find_rustdead_skin_material(root: Node) -> BaseMaterial3D:
 	return null
 
 
-func _validate_spawned_scrap_piles(state: Dictionary) -> void:
-	var marker := _scene.get_node_or_null("NestMarkers/RustdeadWestVent")
+func _validate_spawned_scrap_piles(state: Dictionary, marker_id: String) -> void:
+	var marker := _find_nest_marker(marker_id)
 	if marker == null:
 		return
 	var specs: Array = state.get("scrap_pile_specs", []) if state.get("scrap_pile_specs", []) is Array else []
@@ -425,13 +432,15 @@ func _validate_attack_target_selection(nest_controller: Node) -> void:
 
 func _validate_assault_job_start() -> void:
 	var nest_controller := _get_controller("nest_controller")
-	var marker := _scene.get_node_or_null("NestMarkers/RustdeadWestVent") as Node3D
-	if nest_controller == null or marker == null:
+	if nest_controller == null:
 		return
 	var summary: Dictionary = nest_controller.call("get_debug_summary")
 	var states: Dictionary = summary.get("nest_states", {})
-	var state: Dictionary = states.get(GUARANTEED_MARKER_ID, {})
+	var state := _first_active_rustdead_state(states)
 	if state.is_empty():
+		return
+	var marker := _find_nest_marker(str(state.get("marker_id", "")))
+	if marker == null:
 		return
 	var before_actor_ids: Array = state.get("actor_ids", []) if state.get("actor_ids", []) is Array else []
 	var before_actor_count := before_actor_ids.size()
@@ -455,6 +464,23 @@ func _validate_assault_job_start() -> void:
 			active_assault_jobs += 1
 	if active_assault_jobs < 1:
 		_fail("At least one spawned Rustdead attacker should receive a nest assault AI job")
+
+
+func _first_active_rustdead_state(states: Dictionary) -> Dictionary:
+	for state_value in states.values():
+		var state: Dictionary = state_value if state_value is Dictionary else {}
+		if bool(state.get("active", false)) and str(state.get("nest_type_id", "")) == "rustdead":
+			return state
+	return {}
+
+
+func _find_nest_marker(marker_id: String) -> Node3D:
+	if marker_id.is_empty():
+		return null
+	for node in get_nodes_in_group("nest_placement_marker"):
+		if node.has_method("get_marker_id") and str(node.call("get_marker_id")) == marker_id:
+			return node as Node3D
+	return null
 
 
 func _find_actor(actor_id: String) -> Node:

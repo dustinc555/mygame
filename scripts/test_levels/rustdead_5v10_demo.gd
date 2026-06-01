@@ -147,7 +147,7 @@ func _party_position(index: int) -> Vector3:
 
 
 func _rustdead_position(index: int) -> Vector3:
-	var column := index / 5
+	var column := int(float(index) / 5.0)
 	var row := index % 5
 	return Vector3(4.0 + float(column) * 1.8, 0.6, -6.0 + float(row) * 3.0)
 

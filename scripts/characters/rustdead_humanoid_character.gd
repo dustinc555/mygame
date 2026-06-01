@@ -45,6 +45,11 @@ func _ready() -> void:
 	super._ready()
 
 
+func _exit_tree() -> void:
+	_clear_cinder_burned_visuals()
+	super._exit_tree()
+
+
 func _process(delta: float) -> void:
 	_process_cinder_burn(delta)
 	super._process(delta)
@@ -412,6 +417,15 @@ func _apply_cinder_burned_visuals() -> void:
 		_apply_cinder_burn_overlay(body_mesh)
 
 
+func _clear_cinder_burned_visuals() -> void:
+	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
+	if visual_root != null:
+		_clear_cinder_burn_overlay(visual_root)
+	var body_mesh := get_node_or_null("BodyMesh")
+	if body_mesh != null:
+		_clear_cinder_burn_overlay(body_mesh)
+
+
 func _apply_cinder_burn_overlay(root: Node) -> void:
 	if root == null:
 		return
@@ -419,6 +433,17 @@ func _apply_cinder_burn_overlay(root: Node) -> void:
 		_apply_cinder_burn_overlay_to_mesh(root as MeshInstance3D)
 	for child in root.get_children():
 		_apply_cinder_burn_overlay(child)
+
+
+func _clear_cinder_burn_overlay(root: Node) -> void:
+	if root == null:
+		return
+	if root is MeshInstance3D:
+		var mesh_instance := root as MeshInstance3D
+		if mesh_instance.material_overlay != null and bool(mesh_instance.material_overlay.get_meta(CINDER_SCORCH_OVERLAY_META, false)):
+			mesh_instance.material_overlay = null
+	for child in root.get_children():
+		_clear_cinder_burn_overlay(child)
 
 
 func _apply_cinder_burn_overlay_to_mesh(mesh_instance: MeshInstance3D) -> void:

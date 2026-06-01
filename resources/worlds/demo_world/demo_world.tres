@@ -20,6 +20,7 @@ script = ExtResource("1_world")
 world_id = "demo_world"
 display_name = "Demo World"
 random_seed = 1001
+minimum_initial_active_nests = 1
 faction_definitions = Array[Resource]([ExtResource("2_surf_faction"), ExtResource("3_raider_faction"), ExtResource("4_paradise_faction"), ExtResource("14_rustdead_faction")])
 settlement_placements = Array[Resource]([ExtResource("5_surf_placement"), ExtResource("6_raider_placement"), ExtResource("7_paradise_placement")])
 starting_relations = Array[Resource]([ExtResource("8_surf_raiders"), ExtResource("9_surf_paradise"), ExtResource("10_raiders_paradise")])

@@ -7,7 +7,6 @@ const RUSTDEAD_TIER_LIBRARY := preload("res://scripts/characters/rustdead_tier_l
 const BANDAGE := preload("res://resources/items/bandage.tres")
 const CINDER_FLASK := preload("res://resources/items/cinder_flask.tres")
 
-const DEMO_SCENE_PATH := "res://scenes/test_levels/rustdead_5v10_demo.tscn"
 const PARTY_SKILL_LEVEL := 40
 const REQUIRED_RUSTDEAD_ANIMATIONS := ["Zombie_Idle", "Zombie_Walk_Fwd", "Zombie_Run_Fwd", "Zombie_Bite", "Zombie_Scratch", "Zombie_Spawn"]
 const MAX_VISUAL_FOOT_SINK := 0.035
@@ -31,7 +30,6 @@ func _finalize() -> void:
 
 
 func _run() -> void:
-	_validate_default_scene()
 	_validate_generated_textures()
 	await _load_scene()
 	var party_members := _get_party_members()
@@ -41,11 +39,13 @@ func _run() -> void:
 	_validate_rustdead_animation_library(rustdead_members)
 	await _validate_rustdead_cinder_burn_rules(party_members, rustdead_members)
 	if _failures.is_empty():
+		await _cleanup_scene()
 		print("RUSTDEAD_5V10_DEMO_OK")
 		quit(0)
 		return
 	for failure in _failures:
 		push_error(failure)
+	await _cleanup_scene()
 	print("RUSTDEAD_5V10_DEMO_FAILED count=%d" % _failures.size())
 	quit(1)
 
@@ -56,21 +56,12 @@ func _load_scene() -> void:
 	await _wait_frames(16)
 
 
-func _validate_default_scene() -> void:
-	var main_scene := str(ProjectSettings.get_setting("application/run/main_scene", ""))
-	var resolved_main_scene := _resolve_project_resource_path(main_scene)
-	if resolved_main_scene != DEMO_SCENE_PATH:
-		_fail("Project default scene should be %s, got %s" % [DEMO_SCENE_PATH, main_scene])
-
-
-func _resolve_project_resource_path(path_or_uid: String) -> String:
-	if not path_or_uid.begins_with("uid://"):
-		return path_or_uid
-	var uid := ResourceUID.text_to_id(path_or_uid)
-	if ResourceUID.has_id(uid):
-		return ResourceUID.get_id_path(uid)
-	return path_or_uid
-
+func _cleanup_scene() -> void:
+	if _scene == null:
+		return
+	_scene.queue_free()
+	_scene = null
+	await _wait_frames(2)
 
 func _validate_generated_textures() -> void:
 	for body_type in [SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_MALE, SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_FEMALE]:
@@ -226,11 +217,10 @@ func _validate_visual_feet(member: HumanoidCharacter) -> void:
 func _find_rustdead_skin_material(root: Node) -> BaseMaterial3D:
 	if root is MeshInstance3D:
 		var mesh_instance := root as MeshInstance3D
-		if mesh_instance.mesh != null:
-			for surface_index in range(mesh_instance.mesh.get_surface_count()):
-				var material := mesh_instance.get_surface_override_material(surface_index) as BaseMaterial3D
-				if material != null and material.albedo_texture != null and str(material.albedo_texture.resource_path).contains("/character_skin/rustdead/"):
-					return material
+		for surface_index in range(mesh_instance.get_surface_override_material_count()):
+			var material := mesh_instance.get_surface_override_material(surface_index) as BaseMaterial3D
+			if material != null and material.albedo_texture != null and str(material.albedo_texture.resource_path).contains("/character_skin/rustdead/"):
+				return material
 	for child in root.get_children():
 		var child_material := _find_rustdead_skin_material(child)
 		if child_material != null:

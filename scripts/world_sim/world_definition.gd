@@ -5,6 +5,7 @@ class_name WorldDefinition
 @export var world_id := ""
 @export var display_name := "World"
 @export var random_seed := 1
+@export var minimum_initial_active_nests := 0
 @export var generated := false
 @export var faction_definitions: Array[Resource] = []
 @export var settlement_placements: Array[Resource] = []
