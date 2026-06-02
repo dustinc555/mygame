@@ -28,3 +28,39 @@ cut_damage =
 If `total_base` is `0`, both damage values are `0`.
 
 Crit multiplies final `blunt_damage` and `cut_damage` after this formula.
+
+## Resolution Order
+
+```mermaid
+flowchart TD
+    A[Base blunt / cut damage] --> B[Crit]
+    B --> C[Block or parry]
+    C --> D[Armor or natural armor]
+    D --> E[Toughness grit]
+    E --> F[Wounds, blood, vitals]
+```
+
+## Toughness Grit
+
+Toughness reduces damage after armor.
+
+```text
+post_armor_total = blunt_damage + cut_damage
+
+damage_resistance = clamp(toughness * 0.0045, 0.0, 0.45)
+grit_soak = toughness * 0.20
+
+prevented_total = min(
+    post_armor_total * damage_resistance,
+    grit_soak
+)
+```
+
+Apply prevented damage by damage share:
+
+```text
+blunt_damage -= prevented_total * blunt_share
+cut_damage -= prevented_total * cut_share
+```
+
+If `post_armor_total` is `0`, Toughness prevents `0`.

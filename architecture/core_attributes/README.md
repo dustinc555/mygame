@@ -32,3 +32,16 @@ Learning modifiers affect XP only. They do not change effective stats.
 ```text
 xp_gained = base_xp * learning_modifiers
 ```
+
+## Toughness Training
+
+Toughness XP comes from:
+
+```text
+taking damage
+being knocked out
+entering recovery coma
+forcing yourself up while threatened
+```
+
+Forcing yourself up while wounded gives the largest reward.

@@ -100,6 +100,7 @@ flowchart TD
 - `architecture/combat/block.md` defines parry and shield block.
 - `architecture/combat/crit.md` defines shared crit chance.
 - `architecture/combat/damage.md` defines shared cut and blunt damage.
+- `architecture/combat/vitals.md` defines KO, recovery coma, dying, and death.
 - `architecture/combat/body_weapons.md` defines body weapon profiles.
 - `operator/` contains step-by-step editor workflows for humans.
 - `SETUP.md` explains required local setup.
