@@ -238,10 +238,10 @@ func _validate_witnessed_theft_jail_release() -> void:
 	if player.life_state == NpcRules.LifeState.DEAD:
 		_fail("Authority arrest damage should not kill a wanted actor")
 		return
-	if player.life_state != NpcRules.LifeState.UNCONSCIOUS:
+	if not player.is_downed_state():
 		_fail("Authority arrest damage should knock out a wanted actor")
 		return
-	if player.hp <= -player.max_hp * NpcRules.DEATH_HP_FACTOR:
+	if player.hp <= player.get_death_point(player.max_hp):
 		_fail("Authority arrest damage should clamp HP above the death threshold")
 	if player.blood < 80.0:
 		_fail("Authority arrest damage should not cause severe blood loss")
@@ -390,15 +390,15 @@ func _validate_live_law_combat(city_guard: HumanoidCharacter, player: HumanoidCh
 	if not closed_distance:
 		_fail("Authority guard should close distance during live law combat")
 		return false
-	var landed_hit := await _wait_until(func() -> bool: return player.get_total_wound_damage() > 0.0 or player.life_state == NpcRules.LifeState.UNCONSCIOUS or player.life_state == NpcRules.LifeState.DEAD, 900)
+	var landed_hit := await _wait_until(func() -> bool: return player.get_total_wound_damage() > 0.0 or player.is_downed_state() or player.life_state == NpcRules.LifeState.DEAD, 900)
 	if not landed_hit:
 		_fail("Authority guard should land a real combat hit during law arrest")
 		return false
-	var subdued := await _wait_until(func() -> bool: return player.life_state == NpcRules.LifeState.UNCONSCIOUS or player.life_state == NpcRules.LifeState.DEAD, 1500)
+	var subdued := await _wait_until(func() -> bool: return player.is_downed_state() or player.life_state == NpcRules.LifeState.DEAD, 1500)
 	if not subdued:
 		_fail("Authority guard should subdue the wanted player through live combat")
 		return false
-	return player.life_state == NpcRules.LifeState.UNCONSCIOUS
+	return player.is_downed_state()
 
 
 func _validate_stolen_metadata_expiry_and_transfer() -> void:

@@ -4,3 +4,7 @@
 
 # Downloaded by setup_limboai.sh. Do not commit GDExtension binaries.
 /addons/limboai/
+
+# Local opencode behavior overrides.
+/opencode.json
+/.opencode/local-instructions.md

@@ -468,7 +468,7 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 			party_actions.append({"id": ACTION_WAKE_UP, "label": "Wake Up"})
 		elif collider.has_method("is_sitting") and collider.is_sitting():
 			party_actions.append({"id": ACTION_STAND_UP, "label": "Stand Up"})
-		elif collider.life_state == NpcRules.LifeState.UNCONSCIOUS:
+		elif collider.is_downed_state():
 			_append_downed_target_actions(party_actions, collider)
 		elif _selection_can_carry_target(collider):
 			party_actions.append({"id": ACTION_CARRY, "label": "Carry"})
@@ -482,7 +482,7 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 	if collider is HumanoidCharacter and not party_manager.selected_members.is_empty():
 		context_humanoid = collider
 		var humanoid_actions: Array = []
-		if collider.life_state == NpcRules.LifeState.UNCONSCIOUS:
+		if collider.is_downed_state():
 			_append_downed_target_actions(humanoid_actions, collider)
 		elif collider.life_state == NpcRules.LifeState.DEAD or collider.life_state == NpcRules.LifeState.ASLEEP:
 			if _selection_can_carry_target(collider):
@@ -1772,7 +1772,7 @@ func _get_bed_sleeper(bed) -> HumanoidCharacter:
 	if bed == null or not bed.has_method("get_sleeper"):
 		return null
 	var sleeper = bed.get_sleeper()
-	return sleeper if sleeper is HumanoidCharacter and sleeper.life_state == NpcRules.LifeState.ASLEEP else null
+	return sleeper if sleeper is HumanoidCharacter and (sleeper.life_state == NpcRules.LifeState.ASLEEP or sleeper.is_downed_state()) else null
 
 
 func _selection_can_place_carried_in_bed() -> bool:
@@ -1785,7 +1785,7 @@ func _selection_can_place_carried_in_bed() -> bool:
 
 
 func _selection_can_finish_off_target(target: HumanoidCharacter) -> bool:
-	if target == null or target.life_state != NpcRules.LifeState.UNCONSCIOUS or party_manager.selected_members.is_empty():
+	if target == null or not target.is_downed_state() or party_manager.selected_members.is_empty():
 		return false
 	if target.requires_fire_to_die() and not target.can_be_destroyed_by_cinder():
 		return false

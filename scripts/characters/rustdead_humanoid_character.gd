@@ -47,6 +47,8 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	_clear_cinder_burned_visuals()
+	_free_rustdead_visual_root_for_exit()
+	_clear_cinder_burn_effect()
 	super._exit_tree()
 
 
@@ -83,7 +85,7 @@ func get_rustdead_passive_bonus() -> float:
 
 
 func can_be_destroyed_by_cinder() -> bool:
-	return life_state == NpcRules.LifeState.UNCONSCIOUS and not is_fire_destruction_in_progress()
+	return is_downed_state() and not is_fire_destruction_in_progress()
 
 
 func is_fire_destruction_in_progress() -> bool:
@@ -126,17 +128,21 @@ func force_kill(attacker: HumanoidCharacter = null) -> void:
 		return
 	if life_state == NpcRules.LifeState.DEAD:
 		return
-	var lethal_wounds := max_hp * (1.0 + NpcRules.DEATH_HP_FACTOR)
+	var lethal_wounds := max_hp - get_death_point(max_hp)
 	var current_wounds := get_total_wound_damage()
 	if current_wounds < lethal_wounds:
 		_current_blunt_damage += lethal_wounds - current_wounds
 	blood = minf(blood, 0.0)
 	_recalculate_vitals()
-	if life_state != NpcRules.LifeState.UNCONSCIOUS:
+	if not is_downed_state():
 		_enter_unconscious_state()
 
 
 func _should_enter_dead_state_from_vitals() -> bool:
+	return false
+
+
+func _should_enter_dying_state_from_vitals() -> bool:
 	return false
 
 
@@ -403,9 +409,13 @@ func _enter_cinder_dead_state_in_place() -> void:
 func _clear_cinder_burn_effect() -> void:
 	if _cinder_burn_effect == null:
 		return
-	if is_instance_valid(_cinder_burn_effect):
-		_cinder_burn_effect.queue_free()
+	var effect := _cinder_burn_effect
 	_cinder_burn_effect = null
+	if is_instance_valid(effect):
+		var parent := effect.get_parent()
+		if parent != null:
+			parent.remove_child(effect)
+		effect.free()
 
 
 func _apply_cinder_burned_visuals() -> void:
@@ -426,6 +436,24 @@ func _clear_cinder_burned_visuals() -> void:
 		_clear_cinder_burn_overlay(body_mesh)
 
 
+func _free_rustdead_visual_root_for_exit() -> void:
+	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
+	if visual_root == null:
+		return
+	_strip_meshes_for_exit(visual_root)
+	remove_child(visual_root)
+	visual_root.free()
+
+
+func _strip_meshes_for_exit(root: Node) -> void:
+	if root == null:
+		return
+	if root is MeshInstance3D:
+		(root as MeshInstance3D).mesh = null
+	for child in root.get_children():
+		_strip_meshes_for_exit(child)
+
+
 func _apply_cinder_burn_overlay(root: Node) -> void:
 	if root == null:
 		return
@@ -441,13 +469,15 @@ func _clear_cinder_burn_overlay(root: Node) -> void:
 	if root is MeshInstance3D:
 		var mesh_instance := root as MeshInstance3D
 		if mesh_instance.material_overlay != null and bool(mesh_instance.material_overlay.get_meta(CINDER_SCORCH_OVERLAY_META, false)):
-			mesh_instance.material_overlay = null
+			mesh_instance.material_overlay = _get_cinder_burn_clear_material()
+		if mesh_instance.material_override != null and bool(mesh_instance.material_override.get_meta(CINDER_SCORCH_OVERLAY_META, false)):
+			mesh_instance.material_override = _get_cinder_burn_clear_material()
 	for child in root.get_children():
 		_clear_cinder_burn_overlay(child)
 
 
 func _apply_cinder_burn_overlay_to_mesh(mesh_instance: MeshInstance3D) -> void:
-	mesh_instance.material_overlay = _get_cinder_burn_overlay_material()
+	mesh_instance.material_override = _get_cinder_burn_overlay_material()
 
 
 func _node_has_cinder_burned_material(root: Node) -> bool:
@@ -488,6 +518,14 @@ func _get_cinder_burn_overlay_material() -> Material:
 	material.set_meta(CINDER_SCORCH_OVERLAY_META, true)
 	_cinder_burn_overlay_material = material
 	return _cinder_burn_overlay_material
+
+
+func _get_cinder_burn_clear_material() -> Material:
+	var material := StandardMaterial3D.new()
+	material.resource_name = "Cleared Cinder Surface"
+	material.albedo_color = Color(0.02, 0.018, 0.015, 1.0)
+	material.roughness = 1.0
+	return material
 
 
 func _get_cinder_burn_overlay_texture() -> Texture2D:

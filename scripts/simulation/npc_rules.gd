@@ -3,10 +3,12 @@ extends RefCounted
 class_name NpcRules
 
 enum LifeState {
-	ALIVE,
-	ASLEEP,
-	UNCONSCIOUS,
-	DEAD,
+	ALIVE = 0,
+	ASLEEP = 1,
+	UNCONSCIOUS = 2,
+	DEAD = 3,
+	RECOVERY_COMA = 4,
+	DYING = 5,
 }
 
 enum CombatStance {
@@ -38,6 +40,8 @@ const LIFE_LABELS := {
 	LifeState.ASLEEP: "Asleep",
 	LifeState.UNCONSCIOUS: "Unconscious",
 	LifeState.DEAD: "Dead",
+	LifeState.RECOVERY_COMA: "Recovery Coma",
+	LifeState.DYING: "Dying",
 }
 
 const HUNGER_LABELS := {

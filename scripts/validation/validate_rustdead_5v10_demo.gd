@@ -255,8 +255,8 @@ func _validate_rustdead_cinder_burn_rules(party_members: Array[HumanoidCharacter
 	if rustdead.life_state == NpcRules.LifeState.DEAD:
 		_fail("Rustdead should not enter DEAD from force_kill without cinder burn")
 		return
-	if rustdead.life_state != NpcRules.LifeState.UNCONSCIOUS:
-		_fail("Rustdead should be unconscious after lethal non-fire damage")
+	if not rustdead.is_downed_state():
+		_fail("Rustdead should be downed after lethal non-fire damage")
 		return
 	if not rustdead.requires_fire_to_die() or not rustdead.can_be_destroyed_by_cinder():
 		_fail("Downed Rustdead should require and allow cinder destruction")
@@ -297,8 +297,8 @@ func _validate_relaxed_rustdead_burn_reach(party_members: Array[HumanoidCharacte
 	var rustdead := rustdead_members[1]
 	rustdead.force_kill(actor)
 	await _wait_frames(2)
-	if rustdead.life_state != NpcRules.LifeState.UNCONSCIOUS:
-		_fail("Reach test Rustdead should be unconscious before burning")
+	if not rustdead.is_downed_state():
+		_fail("Reach test Rustdead should be downed before burning")
 		return
 	var anchor := rustdead.get_follow_anchor_position()
 	actor.global_position = Vector3(anchor.x + 2.65, actor.global_position.y, anchor.z)

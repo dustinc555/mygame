@@ -292,7 +292,7 @@ func _get_humanoid_actions(target: HumanoidCharacter) -> Array:
 		return actions
 	if _target_can_open_skills():
 		actions.append({"key": ACTION_SKILLS, "label": "Skills"})
-	if target.life_state == NpcRules.LifeState.UNCONSCIOUS:
+	if target.is_downed_state():
 		actions.append({"key": ACTION_HEAL, "label": "Heal"})
 		actions.append({"key": ACTION_CARRY, "label": "Carry"})
 		if target.requires_fire_to_die():
@@ -975,6 +975,10 @@ func _get_life_state_color(life_state: int) -> Color:
 	match life_state:
 		NpcRules.LifeState.DEAD:
 			return Color(0.9, 0.2, 0.2, 1.0)
+		NpcRules.LifeState.DYING:
+			return Color(1.0, 0.22, 0.16, 1.0)
+		NpcRules.LifeState.RECOVERY_COMA:
+			return Color(1.0, 0.46, 0.18, 1.0)
 		NpcRules.LifeState.UNCONSCIOUS:
 			return Color(0.95, 0.6, 0.2, 1.0)
 		_:

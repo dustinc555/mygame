@@ -350,7 +350,7 @@ func _process_warrants() -> void:
 				_process_custody(actor, record)
 				by_faction[faction_id] = record
 				continue
-			if actor.life_state == NpcRules.LifeState.UNCONSCIOUS:
+			if actor.is_downed_state():
 				_arrest_or_eject(actor, record)
 				by_faction[faction_id] = record
 				continue
@@ -416,7 +416,7 @@ func _process_custody(actor: HumanoidCharacter, warrant: Dictionary) -> void:
 		warrant["state"] = "wanted"
 		_alert_authority_guards(actor, warrant)
 		return
-	if actor.life_state != NpcRules.LifeState.UNCONSCIOUS:
+	if not actor.is_downed_state():
 		return
 	var guard := _find_custody_guard(actor, warrant, settlement)
 	if guard == null:

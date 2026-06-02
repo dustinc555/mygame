@@ -6,6 +6,7 @@ class_name SleepableBed
 @export var sleep_local_offset := Vector3(0.0, 0.55, 0.7)
 @export var sleep_roll_degrees := 90.0
 @export var sleep_yaw_offset_degrees := -90.0
+@export var recovery_multiplier := 8.0
 
 var _sleeper: HumanoidCharacter
 var _bar_service_area: BarServiceArea
@@ -25,6 +26,10 @@ func get_sleep_position() -> Vector3:
 
 func get_sleep_rotation() -> Vector3:
 	return Vector3(0.0, global_rotation.y + deg_to_rad(sleep_yaw_offset_degrees), deg_to_rad(sleep_roll_degrees))
+
+
+func get_recovery_multiplier() -> float:
+	return maxf(1.0, recovery_multiplier)
 
 
 func set_bar_service_area(service_area: BarServiceArea) -> void:

@@ -75,7 +75,7 @@ func can_accept_body(body: HumanoidCharacter) -> bool:
 	if body.has_method("is_fire_destruction_in_progress") and bool(body.call("is_fire_destruction_in_progress")):
 		return false
 	if body.has_method("requires_fire_to_die") and bool(body.call("requires_fire_to_die")):
-		return body.life_state == NpcRules.LifeState.UNCONSCIOUS or body.life_state == NpcRules.LifeState.DEAD
+		return body.is_downed_state() or body.life_state == NpcRules.LifeState.DEAD
 	return body.life_state == NpcRules.LifeState.DEAD
 
 

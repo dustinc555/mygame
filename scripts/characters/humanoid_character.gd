@@ -158,6 +158,7 @@ static var _debug_humanoid_ai_profile_totals: Dictionary = {}
 static var _runtime_focus_cache_frame_key := -1
 static var _runtime_focus_cache_tree_id := 0
 static var _runtime_focus_cache_positions: Array[Vector3] = []
+static var _fallback_visual_material: Material
 
 enum OrderType {
 	NONE,
@@ -281,6 +282,7 @@ var _combat_cooldown_remaining := 0.0
 var _combat_slot_role_cache_frame := -1
 var _combat_slot_role_cache_target_id := 0
 var _combat_slot_role_cache := COMBAT_COORDINATOR.SLOT_ROLE_NONE
+var _dying_timer_remaining := 0.0
 var _combat_action_active := false
 var _combat_action_names: Array[String] = []
 var _combat_action_index := 0
@@ -432,6 +434,7 @@ func _process(delta: float) -> void:
 			_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
 		_process_scheduled_needs(delta)
 		_process_bleeding(delta)
+		_process_dying(delta)
 		_process_recovery(delta)
 		_recalculate_vitals()
 		_update_cell_custody_animation(delta)
@@ -446,6 +449,7 @@ func _process(delta: float) -> void:
 			_last_ragdoll_impulse = Vector3.ZERO
 	_process_scheduled_needs(delta)
 	_process_bleeding(delta)
+	_process_dying(delta)
 	_process_recovery(delta)
 	_process_ai(delta)
 	_recalculate_vitals()
@@ -477,6 +481,8 @@ func _process_profiled(delta: float) -> void:
 		profile_last_usec = _debug_humanoid_profile_checkpoint("needs", profile_last_usec)
 		_process_bleeding(delta)
 		profile_last_usec = _debug_humanoid_profile_checkpoint("bleeding", profile_last_usec)
+		_process_dying(delta)
+		profile_last_usec = _debug_humanoid_profile_checkpoint("dying", profile_last_usec)
 		_process_recovery(delta)
 		profile_last_usec = _debug_humanoid_profile_checkpoint("recovery", profile_last_usec)
 		_recalculate_vitals()
@@ -500,6 +506,8 @@ func _process_profiled(delta: float) -> void:
 	profile_last_usec = _debug_humanoid_profile_checkpoint("needs", profile_last_usec)
 	_process_bleeding(delta)
 	profile_last_usec = _debug_humanoid_profile_checkpoint("bleeding", profile_last_usec)
+	_process_dying(delta)
+	profile_last_usec = _debug_humanoid_profile_checkpoint("dying", profile_last_usec)
 	_process_recovery(delta)
 	profile_last_usec = _debug_humanoid_profile_checkpoint("recovery", profile_last_usec)
 	_process_ai_profiled(delta)
@@ -978,7 +986,7 @@ func assign_finish_off_target(target_character: HumanoidCharacter, issued_by_pla
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
-	if target_character.life_state != NpcRules.LifeState.UNCONSCIOUS:
+	if not target_character.is_downed_state():
 		return
 	if not _set_order(OrderType.FINISH_OFF, issued_by_player):
 		return
@@ -1928,7 +1936,7 @@ func can_be_carried_by(carrier: HumanoidCharacter) -> bool:
 		return false
 	if carrier != null and carrier.faction_name == faction_name:
 		return true
-	return life_state == NpcRules.LifeState.ASLEEP or life_state == NpcRules.LifeState.UNCONSCIOUS or life_state == NpcRules.LifeState.DEAD
+	return life_state == NpcRules.LifeState.ASLEEP or is_downed_state() or life_state == NpcRules.LifeState.DEAD
 
 
 func is_carried() -> bool:
@@ -2146,9 +2154,9 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		var combat_block_damage_multiplier := get_combat_block_damage_multiplier()
 		final_blunt *= combat_block_damage_multiplier
 		final_cut *= combat_block_damage_multiplier
-		var block_damage_reduction := _get_toughness_damage_reduction()
-		final_blunt *= 1.0 - block_damage_reduction
-		final_cut *= 1.0 - block_damage_reduction
+		var blocked_grit_damage := apply_toughness_grit(final_blunt, final_cut)
+		final_blunt = float(blocked_grit_damage.get("blunt_damage", 0.0))
+		final_cut = float(blocked_grit_damage.get("cut_damage", 0.0))
 		if nonlethal_arrest:
 			var arrest_damage := _clamp_nonlethal_arrest_damage(final_blunt, final_cut)
 			final_blunt = float(arrest_damage.get("blunt", 0.0))
@@ -2168,9 +2176,9 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		_prepare_combat_reaction(attacker)
 		_play_combat_reaction(_pick_hit_reaction_animation(attack_id, hit_reaction_names))
 		COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
-	var damage_reduction := _get_toughness_damage_reduction()
-	final_blunt *= 1.0 - damage_reduction
-	final_cut *= 1.0 - damage_reduction
+	var grit_damage := apply_toughness_grit(final_blunt, final_cut)
+	final_blunt = float(grit_damage.get("blunt_damage", 0.0))
+	final_cut = float(grit_damage.get("cut_damage", 0.0))
 	if nonlethal_arrest:
 		var arrest_damage := _clamp_nonlethal_arrest_damage(final_blunt, final_cut)
 		final_blunt = float(arrest_damage.get("blunt", 0.0))
@@ -2720,14 +2728,29 @@ func _process_bleeding(delta: float) -> void:
 	_process_bleed_splotches(total_bleed_rate, blood_loss_amount, delta)
 
 
+func _process_dying(delta: float) -> void:
+	if life_state != NpcRules.LifeState.DYING:
+		return
+	if not _has_lethal_dying_vitals() or not _should_enter_dead_state_from_vitals():
+		_enter_recovery_coma_state()
+		return
+	_dying_timer_remaining = maxf(0.0, _dying_timer_remaining - delta)
+	if _dying_timer_remaining <= 0.0:
+		_enter_dead_state()
+
+
+func _has_lethal_dying_vitals() -> bool:
+	return blood <= get_blood_death_point() or hp <= get_death_point(max_hp)
+
+
 func _process_recovery(delta: float) -> void:
 	if life_state == NpcRules.LifeState.DEAD:
 		return
-	if _current_blunt_damage <= 0.0 and _current_bandaged_cut_damage <= 0.0 and _current_open_cut_damage <= 0.0 and _bleed_burst_rate <= 0.0 and _bleed_rate <= 0.0 and blood >= max_blood and life_state != NpcRules.LifeState.UNCONSCIOUS:
+	if _current_blunt_damage <= 0.0 and _current_bandaged_cut_damage <= 0.0 and _current_open_cut_damage <= 0.0 and _bleed_burst_rate <= 0.0 and _bleed_rate <= 0.0 and blood >= max_blood and not is_recoverable_downed_state():
 		return
 	var healing_step := get_stat_value("healing_rate") * delta
-	if life_state == NpcRules.LifeState.ASLEEP:
-		healing_step *= 6.0
+	var recovery_multiplier := _get_recovery_multiplier()
+	healing_step *= recovery_multiplier
 	if healing_step <= 0.0:
 		return
 	_current_blunt_damage = maxf(0.0, _current_blunt_damage - healing_step)
@@ -2741,12 +2764,19 @@ func _process_recovery(delta: float) -> void:
 		_bleed_rate = maxf(0.0, _bleed_rate - clot_step)
 	if get_bleed_rate() <= 0.0 and blood < max_blood:
 		var blood_recovery_step := get_stat_value("blood_recovery_rate") * delta
-		if life_state == NpcRules.LifeState.ASLEEP:
-			blood_recovery_step *= NpcRules.BLOOD_RECOVERY_SLEEP_MULTIPLIER
+		blood_recovery_step *= recovery_multiplier
 		blood = minf(max_blood, blood + blood_recovery_step)
-	if life_state == NpcRules.LifeState.UNCONSCIOUS and not _is_downed_recovery_locked():
+	if is_recoverable_downed_state() and not _is_downed_recovery_locked():
 		_downed_recover_delay_remaining = maxf(0.0, _downed_recover_delay_remaining - delta)
 	_recalculate_vitals()
+
+
+func _get_recovery_multiplier() -> float:
+	if _current_sleep_target != null and is_instance_valid(_current_sleep_target):
+		if _current_sleep_target.has_method("get_recovery_multiplier"):
+			return maxf(1.0, float(_current_sleep_target.call("get_recovery_multiplier")))
+		return 8.0
+	return 8.0 if life_state == NpcRules.LifeState.ASLEEP else 1.0
 
 
 func _process_bleed_splotches(total_bleed_rate: float, blood_loss_amount: float, delta: float) -> void:
@@ -2816,7 +2846,7 @@ func _process_ai(delta: float) -> void:
 	_process_law_sentence_move()
 	if _current_order_type == OrderType.HEAL and (_current_heal_target == null or not is_instance_valid(_current_heal_target)):
 		stop_heal_assignment()
-	if _current_order_type == OrderType.FINISH_OFF and (_current_finish_off_target == null or not is_instance_valid(_current_finish_off_target) or _current_finish_off_target.life_state != NpcRules.LifeState.UNCONSCIOUS):
+	if _current_order_type == OrderType.FINISH_OFF and (_current_finish_off_target == null or not is_instance_valid(_current_finish_off_target) or not _current_finish_off_target.is_downed_state()):
 		stop_finish_off_assignment()
 	if _current_order_type == OrderType.CARRY and (_current_carry_target == null or not is_instance_valid(_current_carry_target) or not _current_carry_target.can_be_carried_by(self)):
 		stop_carry_assignment()
@@ -2881,7 +2911,7 @@ func _process_ai_profiled(delta: float) -> void:
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("law_movement", profile_last_usec)
 	if _current_order_type == OrderType.HEAL and (_current_heal_target == null or not is_instance_valid(_current_heal_target)):
 		stop_heal_assignment()
-	if _current_order_type == OrderType.FINISH_OFF and (_current_finish_off_target == null or not is_instance_valid(_current_finish_off_target) or _current_finish_off_target.life_state != NpcRules.LifeState.UNCONSCIOUS):
+	if _current_order_type == OrderType.FINISH_OFF and (_current_finish_off_target == null or not is_instance_valid(_current_finish_off_target) or not _current_finish_off_target.is_downed_state()):
 		stop_finish_off_assignment()
 	if _current_order_type == OrderType.CARRY and (_current_carry_target == null or not is_instance_valid(_current_carry_target) or not _current_carry_target.can_be_carried_by(self)):
 		stop_carry_assignment()
@@ -3381,7 +3411,7 @@ func _process_place_in_bed_interaction() -> void:
 	carried._clear_actor_move_target()
 	carried._current_order_type = OrderType.SLEEP
 	carried._current_sleep_target = bed
-	if carried.life_state != NpcRules.LifeState.DEAD:
+	if carried.life_state == NpcRules.LifeState.ALIVE:
 		carried.life_state = NpcRules.LifeState.ASLEEP
 	var success_message := str(sleep_result.get("message", ""))
 	if not success_message.is_empty():
@@ -3796,7 +3826,7 @@ func _process_finish_off_interaction() -> void:
 	if _current_finish_off_target == null or not is_instance_valid(_current_finish_off_target):
 		stop_finish_off_assignment()
 		return
-	if _current_finish_off_target.life_state != NpcRules.LifeState.UNCONSCIOUS:
+	if not _current_finish_off_target.is_downed_state():
 		stop_finish_off_assignment()
 		return
 	if _current_finish_off_target.requires_fire_to_die() and not _current_finish_off_target.can_be_destroyed_by_cinder():
@@ -3814,7 +3844,7 @@ func _process_finish_off_interaction() -> void:
 func _try_complete_finish_off_interaction(extra_distance: float = 0.0) -> bool:
 	if _current_finish_off_target == null or not is_instance_valid(_current_finish_off_target):
 		return false
-	if _current_finish_off_target.life_state != NpcRules.LifeState.UNCONSCIOUS:
+	if not _current_finish_off_target.is_downed_state():
 		return false
 	if _current_finish_off_target.requires_fire_to_die() and not _current_finish_off_target.can_be_destroyed_by_cinder():
 		return false
@@ -4027,7 +4057,35 @@ func _setup_character_visual() -> void:
 	_apply_bone_pose_position_offsets()
 	_apply_runtime_visual_foot_ground_alignment()
 	_set_equipped_clothing_visuals_visible(_preview_clothes_visible)
+	_ensure_non_null_visual_materials(visual_root)
 	body_mesh.visible = false
+
+
+func _ensure_non_null_visual_materials(root: Node) -> void:
+	if root == null:
+		return
+	if root is MeshInstance3D:
+		var mesh_instance := root as MeshInstance3D
+		if mesh_instance.mesh != null:
+			for surface_index in range(mesh_instance.mesh.get_surface_count()):
+				if mesh_instance.mesh.surface_get_material(surface_index) != null:
+					continue
+				if surface_index < mesh_instance.get_surface_override_material_count() and mesh_instance.get_surface_override_material(surface_index) != null:
+					continue
+				mesh_instance.set_surface_override_material(surface_index, _get_fallback_visual_material())
+	for child in root.get_children():
+		_ensure_non_null_visual_materials(child)
+
+
+static func _get_fallback_visual_material() -> Material:
+	if _fallback_visual_material != null:
+		return _fallback_visual_material
+	var material := StandardMaterial3D.new()
+	material.resource_name = "Fallback Character Surface"
+	material.albedo_color = Color(0.62, 0.58, 0.52, 1.0)
+	material.roughness = 0.86
+	_fallback_visual_material = material
+	return _fallback_visual_material
 
 
 func _ensure_appearance_data() -> void:
@@ -4403,9 +4461,12 @@ func _copy_clothing_mesh_instance(source_root: Node3D, source_mesh: MeshInstance
 	clothing_mesh.visible = source_mesh.visible
 	clothing_mesh.layers = source_mesh.layers
 	clothing_mesh.cast_shadow = source_mesh.cast_shadow
-	clothing_mesh.material_override = source_mesh.material_override
+	if source_mesh.material_override != null:
+		clothing_mesh.material_override = source_mesh.material_override
 	for surface_index in range(source_mesh.get_surface_override_material_count()):
-		clothing_mesh.set_surface_override_material(surface_index, source_mesh.get_surface_override_material(surface_index))
+		var surface_material := source_mesh.get_surface_override_material(surface_index)
+		if surface_material != null:
+			clothing_mesh.set_surface_override_material(surface_index, surface_material)
 	for blend_shape_index in range(source_mesh.get_blend_shape_count()):
 		clothing_mesh.set_blend_shape_value(blend_shape_index, source_mesh.get_blend_shape_value(blend_shape_index))
 	return clothing_mesh
@@ -4712,7 +4773,9 @@ func _inflate_mesh_instance(mesh_instance: MeshInstance3D, surface_offset: float
 			{},
 			source_mesh.surface_get_format(surface_index)
 		)
-		inflated_mesh.surface_set_material(surface_index, source_mesh.surface_get_material(surface_index))
+		var source_material := source_mesh.surface_get_material(surface_index)
+		if source_material != null:
+			inflated_mesh.surface_set_material(surface_index, source_material)
 	if inflated_mesh.get_surface_count() == source_mesh.get_surface_count():
 		mesh_instance.mesh = inflated_mesh
 
@@ -5462,43 +5525,51 @@ func _recalculate_vitals() -> void:
 	hp = max_hp - get_total_wound_damage()
 	if life_state == NpcRules.LifeState.DEAD:
 		return
-	var blood_death_threshold := -maxf(max_blood, 1.0) * NpcRules.BLOOD_LOSS_DEATH_FACTOR
+	var blood_death_threshold := get_blood_death_point()
 	if blood <= blood_death_threshold:
-		if _should_enter_dead_state_from_vitals() and life_state != NpcRules.LifeState.DEAD:
-			_enter_dead_state()
-		elif not _should_enter_dead_state_from_vitals():
-			_enter_unconscious_from_lethal_vitals()
+		if _should_enter_dying_state_from_vitals():
+			_enter_dying_state()
+		else:
+			_enter_recovery_coma_from_lethal_vitals()
+		return
+	if hp <= get_death_point(max_hp):
+		if _should_enter_dying_state_from_vitals():
+			_enter_dying_state()
+		else:
+			_enter_recovery_coma_from_lethal_vitals()
+		return
+	if hp <= get_coma_point(max_hp):
+		_enter_recovery_coma_state()
 		return
 	if blood <= 0.0:
 		if _is_getting_up:
 			_cancel_get_up()
 			_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, 5.0)
 			_enter_downed_state(false)
-		if life_state == NpcRules.LifeState.ALIVE or life_state == NpcRules.LifeState.ASLEEP:
+		if life_state == NpcRules.LifeState.RECOVERY_COMA:
+			return
+		if life_state != NpcRules.LifeState.UNCONSCIOUS:
 			_enter_unconscious_state()
-		return
-	if hp <= -max_hp * NpcRules.DEATH_HP_FACTOR:
-		if _should_enter_dead_state_from_vitals() and life_state != NpcRules.LifeState.DEAD:
-			_enter_dead_state()
-		elif not _should_enter_dead_state_from_vitals():
-			_enter_unconscious_from_lethal_vitals()
 		return
 	if hp <= 0.0:
 		if _is_getting_up:
 			_cancel_get_up()
 			_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, 5.0)
 			_enter_downed_state(false)
-		if life_state == NpcRules.LifeState.ALIVE:
+		if life_state == NpcRules.LifeState.RECOVERY_COMA:
+			return
+		if life_state != NpcRules.LifeState.UNCONSCIOUS:
 			_enter_unconscious_state()
 		return
+	_dying_timer_remaining = 0.0
 	if _is_downed_recovery_locked():
-		if life_state == NpcRules.LifeState.UNCONSCIOUS:
+		if is_recoverable_downed_state():
 			_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, 0.5)
 		return
-	if is_in_cell_custody() and life_state == NpcRules.LifeState.UNCONSCIOUS and _downed_recover_delay_remaining <= 0.0:
+	if is_in_cell_custody() and is_recoverable_downed_state() and _downed_recover_delay_remaining <= 0.0:
 		_wake_in_cell()
 		return
-	if life_state != NpcRules.LifeState.ALIVE and life_state != NpcRules.LifeState.ASLEEP and _downed_recover_delay_remaining <= 0.0 and _carried_by == null:
+	if is_recoverable_downed_state() and _downed_recover_delay_remaining <= 0.0 and _carried_by == null:
 		_begin_get_up()
 
 
@@ -5506,23 +5577,24 @@ func _should_enter_dead_state_from_vitals() -> bool:
 	return true
 
 
+func _should_enter_dying_state_from_vitals() -> bool:
+	return _should_enter_dead_state_from_vitals()
+
+
 func _is_downed_recovery_locked() -> bool:
 	return false
 
 
 func _enter_unconscious_from_lethal_vitals() -> void:
-	if life_state == NpcRules.LifeState.DEAD:
-		return
+	_enter_recovery_coma_from_lethal_vitals()
+
+
+func _enter_recovery_coma_from_lethal_vitals() -> void:
 	if _is_getting_up:
 		_cancel_get_up()
 		_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, 5.0)
 		_enter_downed_state(false)
-	if life_state == NpcRules.LifeState.ALIVE or life_state == NpcRules.LifeState.ASLEEP:
-		_enter_unconscious_state()
-	elif life_state == NpcRules.LifeState.UNCONSCIOUS:
-		_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, 5.0)
-		if not _has_started_downed_state():
-			_enter_downed_state(false)
+	_enter_recovery_coma_state()
 
 
 func _has_started_downed_state() -> bool:
@@ -5535,10 +5607,11 @@ func _has_started_downed_state() -> bool:
 
 
 func _wake_in_cell() -> void:
-	if not is_in_cell_custody() or life_state != NpcRules.LifeState.UNCONSCIOUS:
+	if not is_in_cell_custody() or not is_recoverable_downed_state():
 		return
 	var previous_state := life_state
 	life_state = NpcRules.LifeState.ALIVE
+	_dying_timer_remaining = 0.0
 	_cancel_get_up()
 	_cancel_ragdoll_preroll()
 	_stop_ragdoll_simulation(true)
@@ -5566,23 +5639,46 @@ func _get_cell_custody_stand_position(cell) -> Vector3:
 
 
 func _enter_unconscious_state() -> void:
-	if life_state == NpcRules.LifeState.DEAD or life_state == NpcRules.LifeState.UNCONSCIOUS:
+	_enter_downed_life_state(NpcRules.LifeState.UNCONSCIOUS, 15.0, "Unconscious", Color(1.0, 0.85, 0.45, 1.0))
+
+
+func _enter_recovery_coma_state() -> void:
+	_enter_downed_life_state(NpcRules.LifeState.RECOVERY_COMA, 15.0, "Recovery Coma", Color(1.0, 0.58, 0.28, 1.0))
+
+
+func _enter_dying_state() -> void:
+	if life_state != NpcRules.LifeState.DYING:
+		_dying_timer_remaining = maxf(_dying_timer_remaining, get_dying_seconds())
+	_enter_downed_life_state(NpcRules.LifeState.DYING, 15.0, "Dying", Color(1.0, 0.24, 0.18, 1.0))
+
+
+func _enter_downed_life_state(next_life_state: int, recover_delay: float, notice: String, notice_color: Color) -> void:
+	if life_state == NpcRules.LifeState.DEAD:
 		return
 	var previous_state := life_state
-	life_state = NpcRules.LifeState.UNCONSCIOUS
+	var was_downed := is_downed_state()
+	if previous_state == next_life_state:
+		_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, recover_delay)
+		if not _has_started_downed_state():
+			_enter_downed_state(false)
+		return
+	life_state = next_life_state
 	_cancel_get_up()
 	COMBAT_COORDINATOR.release_character(self)
 	running = false
 	_clear_actor_move_target()
-	_downed_is_settled = false
-	_clear_all_active_orders()
-	if _carried_character != null:
-		drop_carried_character()
-	if _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):
-		_active_job_provider.pause_worker_job(self, false)
-	_downed_recover_delay_remaining = 15.0
-	_enter_downed_state(false)
-	_show_world_notice("Unconscious", Color(1.0, 0.85, 0.45, 1.0))
+	if not was_downed:
+		_downed_is_settled = false
+		if previous_state != NpcRules.LifeState.ASLEEP:
+			_clear_all_active_orders()
+		if _carried_character != null:
+			drop_carried_character()
+		if _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):
+			_active_job_provider.pause_worker_job(self, false)
+	_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, recover_delay)
+	if not _has_started_downed_state():
+		_enter_downed_state(false)
+	_show_world_notice(notice, notice_color)
 	life_state_changed.emit(previous_state, life_state)
 	state_changed.emit()
 
@@ -5593,6 +5689,7 @@ func _enter_dead_state() -> void:
 	_report_murder_crime_if_needed()
 	var previous_state := life_state
 	life_state = NpcRules.LifeState.DEAD
+	_dying_timer_remaining = 0.0
 	_notify_law_order_actor_death()
 	_cancel_get_up()
 	COMBAT_COORDINATOR.release_character(self)
@@ -5666,10 +5763,6 @@ func _get_current_weapon_skill_id() -> String:
 	return SkillRules.COMBAT_SWORDS_ONE_HANDED
 
 
-func _get_toughness_damage_reduction() -> float:
-	return SkillRules.get_diminishing_bonus(float(get_skill_level(SkillRules.ATTRIBUTE_TOUGHNESS)), 0.24, 70.0)
-
-
 func _award_toughness_xp(real_damage: float) -> void:
 	if real_damage <= 0.0:
 		return
@@ -5723,8 +5816,6 @@ func _get_base_stat_value(stat_name: String) -> float:
 func _collect_stat_modifiers() -> Array:
 	var modifiers: Array = []
 	NpcRules.append_stage_modifiers(modifiers, get_hunger_stage(), get_fatigue_stage(), _current_open_cut_damage, max_hp)
-	if life_state == NpcRules.LifeState.UNCONSCIOUS:
-		modifiers.append({"stat": "healing_rate", "mul": NpcRules.UNCONSCIOUS_HEAL_MULTIPLIER})
 	if running and (_has_move_target or _has_active_combat_target()):
 		modifiers.append({"stat": "move_speed_multiplier", "mul": _get_base_stat_value("run_speed_multiplier")})
 	if sneaking:
@@ -5901,7 +5992,7 @@ func _get_auto_heal_priority(target: HumanoidCharacter, distance: float) -> floa
 	var priority := target.get_total_wound_damage()
 	priority += target.get_open_cut_damage() * 2.0
 	priority += target.get_bleed_rate() * 75.0
-	if target.life_state == NpcRules.LifeState.UNCONSCIOUS:
+	if target.is_downed_state():
 		priority += 50.0
 	return priority - distance * 0.1
 
@@ -5990,7 +6081,7 @@ func _find_auto_burn_rustdead_target(has_furnace: bool) -> HumanoidCharacter:
 		if candidate.is_carried() or _is_auto_burn_target_reserved_by_other(candidate):
 			continue
 		if has_furnace:
-			if candidate.life_state != NpcRules.LifeState.UNCONSCIOUS and candidate.life_state != NpcRules.LifeState.DEAD:
+			if not candidate.is_downed_state() and candidate.life_state != NpcRules.LifeState.DEAD:
 				continue
 		else:
 			if not candidate.can_be_destroyed_by_cinder():
@@ -6686,8 +6777,8 @@ func _clear_all_active_orders() -> void:
 
 
 func force_kill(_attacker: HumanoidCharacter = null) -> void:
-	blood = 0.0
-	hp = -max_hp * NpcRules.DEATH_HP_FACTOR
+	blood = get_blood_death_point()
+	hp = get_death_point(max_hp)
 	_enter_dead_state()
 
 
@@ -6942,7 +7033,7 @@ func enter_cell_custody(cell, cell_position: Vector3, cell_rotation: Vector3) ->
 	velocity = Vector3.ZERO
 	running = false
 	_set_sneaking_state(false, false)
-	if life_state == NpcRules.LifeState.UNCONSCIOUS:
+	if is_recoverable_downed_state():
 		_apply_downed_collision_shape()
 		_play_cell_unconscious_pose()
 	elif life_state == NpcRules.LifeState.ALIVE:
@@ -7061,7 +7152,7 @@ func _finish_cell_wake_animation() -> void:
 
 func _update_cell_custody_animation(delta: float) -> void:
 	velocity = Vector3.ZERO
-	if life_state == NpcRules.LifeState.UNCONSCIOUS:
+	if is_recoverable_downed_state():
 		if _cell_custody_unconscious_pose_animation.is_empty() or _character_animation_player == null:
 			_play_cell_unconscious_pose()
 		elif not _cell_custody_lay_pose_frozen:

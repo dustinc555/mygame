@@ -34,8 +34,8 @@ func _validate_repeated_lethal_vitals_do_not_restart_downed_preroll() -> void:
 	await _wait_process_frames(8)
 	rustdead.force_kill(attacker)
 	await process_frame
-	if rustdead.life_state != NpcRules.LifeState.UNCONSCIOUS:
-		_fail("Rustdead force_kill should leave actor unconscious, got %s" % rustdead.get_life_state_label())
+	if not rustdead.is_downed_state():
+		_fail("Rustdead force_kill should leave actor downed, got %s" % rustdead.get_life_state_label())
 		await _free_scene(scene)
 		return
 	if not rustdead._ragdoll_preroll_active and not rustdead._is_ragdoll_active:
@@ -56,8 +56,8 @@ func _validate_repeated_lethal_vitals_do_not_restart_downed_preroll() -> void:
 		await process_frame
 	if not rustdead._is_ragdoll_active:
 		_fail("Repeated lethal Rustdead vitals should not cancel active ragdoll")
-	if rustdead.life_state != NpcRules.LifeState.UNCONSCIOUS:
-		_fail("Unburned Rustdead should remain unconscious after lethal vitals, got %s" % rustdead.get_life_state_label())
+	if not rustdead.is_downed_state():
+		_fail("Unburned Rustdead should remain downed after lethal vitals, got %s" % rustdead.get_life_state_label())
 	if not rustdead.can_be_destroyed_by_cinder():
 		_fail("Downed unburned Rustdead should remain available for Cinder Flask destruction")
 	await _free_scene(scene)

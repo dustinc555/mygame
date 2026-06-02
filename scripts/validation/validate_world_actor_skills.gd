@@ -382,6 +382,7 @@ func _validate_copper_ore_world_visual() -> void:
 		_fail("Expected dropped copper ore physics to fall to the floor, got bottom y=%.3f" % falling_bounds.position.y)
 	if falling_bounds.position.y < -0.08:
 		_fail("Expected dropped copper ore physics to stop on the floor, got bottom y=%.3f" % falling_bounds.position.y)
+	controller.free()
 	drop_root.queue_free()
 
 
@@ -540,6 +541,7 @@ func _validate_inventory_toggle_behavior() -> void:
 	interaction_controller.queue_free()
 
 	controller.call("_close_all_inventory_windows")
+	controller.free()
 	layer.queue_free()
 	party_manager.queue_free()
 	mira.queue_free()
@@ -719,11 +721,15 @@ func _validate_scavenging_rules() -> void:
 	if not label.text.contains("Depleted"):
 		_fail("Expected depleted scrap pile label to say Depleted")
 	var dropped_item_count := 0
+	var dropped_items: Array[WorldItem] = []
 	for child in root.get_children():
 		if child is WorldItem and (child as WorldItem).item_definition == useful_item:
+			dropped_items.append(child as WorldItem)
 			dropped_item_count += 1
 	if dropped_item_count <= 0:
 		_fail("Expected full scavenger inventory to drop loot beside the pile")
+	for dropped_item in dropped_items:
+		dropped_item.queue_free()
 	scavenger.queue_free()
 	node.queue_free()
 

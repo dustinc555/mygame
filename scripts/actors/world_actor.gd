@@ -18,6 +18,14 @@ const COMBAT_BODY_TOUGHNESS_BASE_WEIGHT := 0.025
 const COMBAT_LEGACY_CHANCE_TO_SCORE := 220.0
 const COMBAT_CRIT_SKILL_WEIGHT := 0.00303
 const COMBAT_CRIT_DEXTERITY_WEIGHT := 0.00190
+const TOUGHNESS_GRIT_RESISTANCE_WEIGHT := 0.0045
+const TOUGHNESS_GRIT_RESISTANCE_CAP := 0.45
+const TOUGHNESS_GRIT_SOAK_WEIGHT := 0.20
+const COMA_BASE_FACTOR := 0.10
+const COMA_TOUGHNESS_WEIGHT := 0.0075
+const COMA_FACTOR_CAP := 0.85
+const DYING_BASE_SECONDS := 20.0
+const DYING_TOUGHNESS_SECONDS := 0.8
 
 signal state_changed
 @warning_ignore("unused_signal")
@@ -279,6 +287,52 @@ func get_life_state_label() -> String:
 	return NpcRules.get_life_state_label(life_state)
 
 
+func is_downed_state() -> bool:
+	return is_life_state_downed(life_state)
+
+
+func is_recoverable_downed_state() -> bool:
+	return is_life_state_recoverable_downed(life_state)
+
+
+func is_dead_or_dying_state() -> bool:
+	return is_life_state_dead_or_dying(life_state)
+
+
+static func is_life_state_downed(state: int) -> bool:
+	return state == NpcRules.LifeState.UNCONSCIOUS \
+		or state == NpcRules.LifeState.RECOVERY_COMA \
+		or state == NpcRules.LifeState.DYING
+
+
+static func is_life_state_recoverable_downed(state: int) -> bool:
+	return state == NpcRules.LifeState.UNCONSCIOUS \
+		or state == NpcRules.LifeState.RECOVERY_COMA \
+		or state == NpcRules.LifeState.DYING
+
+
+static func is_life_state_dead_or_dying(state: int) -> bool:
+	return state == NpcRules.LifeState.DEAD or state == NpcRules.LifeState.DYING
+
+
+func get_coma_point(part_max_health: float = -1.0) -> float:
+	var safe_max_health := maxf(part_max_health if part_max_health > 0.0 else max_hp, 1.0)
+	var coma_factor := clampf(COMA_BASE_FACTOR + get_stat_value("toughness") * COMA_TOUGHNESS_WEIGHT, COMA_BASE_FACTOR, COMA_FACTOR_CAP)
+	return -safe_max_health * coma_factor
+
+
+func get_death_point(part_max_health: float = -1.0) -> float:
+	return -maxf(part_max_health if part_max_health > 0.0 else max_hp, 1.0)
+
+
+func get_blood_death_point() -> float:
+	return -maxf(max_blood, 1.0)
+
+
+func get_dying_seconds() -> float:
+	return DYING_BASE_SECONDS + get_stat_value("toughness") * DYING_TOUGHNESS_SECONDS
+
+
 func is_player_party_member() -> bool:
 	return player_party_member
 
@@ -523,6 +577,27 @@ static func calculate_combat_damage(blunt_base: float, cut_base: float, weapon_s
 	return {
 		"blunt_damage": safe_blunt_base + blunt_share * skill_bonus + blunt_share * maxf(0.0, strength) * COMBAT_DAMAGE_ATTRIBUTE_WEIGHT,
 		"cut_damage": safe_cut_base + cut_share * skill_bonus + cut_share * maxf(0.0, dexterity) * COMBAT_DAMAGE_ATTRIBUTE_WEIGHT,
+	}
+
+
+func apply_toughness_grit(blunt_damage: float, cut_damage: float) -> Dictionary:
+	var safe_blunt := maxf(0.0, blunt_damage)
+	var safe_cut := maxf(0.0, cut_damage)
+	var post_armor_total := safe_blunt + safe_cut
+	if post_armor_total <= 0.0:
+		return {"blunt_damage": 0.0, "cut_damage": 0.0, "prevented_total": 0.0}
+	var toughness := get_stat_value("toughness")
+	var damage_resistance := clampf(toughness * TOUGHNESS_GRIT_RESISTANCE_WEIGHT, 0.0, TOUGHNESS_GRIT_RESISTANCE_CAP)
+	var grit_soak := toughness * TOUGHNESS_GRIT_SOAK_WEIGHT
+	var prevented_total := minf(post_armor_total * damage_resistance, grit_soak)
+	if prevented_total <= 0.0:
+		return {"blunt_damage": safe_blunt, "cut_damage": safe_cut, "prevented_total": 0.0}
+	var blunt_share := safe_blunt / post_armor_total
+	var cut_share := safe_cut / post_armor_total
+	return {
+		"blunt_damage": maxf(0.0, safe_blunt - prevented_total * blunt_share),
+		"cut_damage": maxf(0.0, safe_cut - prevented_total * cut_share),
+		"prevented_total": prevented_total,
 	}
 
 
