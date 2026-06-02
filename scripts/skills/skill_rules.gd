@@ -26,6 +26,7 @@ const COMBAT_SWORDS_ONE_HANDED := "combat.swords_one_handed"
 const COMBAT_AXES_ONE_HANDED := "combat.axes_one_handed"
 const COMBAT_DAGGERS := "combat.daggers"
 const COMBAT_UNARMED := "combat.unarmed"
+const COMBAT_SHIELDS := "combat.shields"
 
 const MOVEMENT_RUNNING := "movement.running"
 

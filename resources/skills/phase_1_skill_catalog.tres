@@ -109,6 +109,16 @@ sort_order = 40
 description = "Punching, kicking, grappling foundations, and fighting without weapons."
 training_hint = "Train by fighting unarmed."
 
+[sub_resource type="Resource" id="SkillDefinition_shields"]
+script = ExtResource("2_definition")
+skill_id = "combat.shields"
+display_name = "Shields"
+category_id = "combat"
+category_name = "Combat"
+sort_order = 50
+description = "Shield positioning, bracing, and close-quarters shield defense."
+training_hint = "Train by blocking attacks with shields."
+
 [sub_resource type="Resource" id="SkillDefinition_running"]
 script = ExtResource("2_definition")
 skill_id = "movement.running"
@@ -261,4 +271,4 @@ training_hint = "Train by reading ancient books and exploring ancient ruins."
 
 [resource]
 script = ExtResource("1_catalog")
-definitions = Array[Resource]([SubResource("SkillDefinition_strength"), SubResource("SkillDefinition_perception"), SubResource("SkillDefinition_dexterity"), SubResource("SkillDefinition_toughness"), SubResource("SkillDefinition_endurance"), SubResource("SkillDefinition_charisma"), SubResource("SkillDefinition_swords_one_handed"), SubResource("SkillDefinition_axes_one_handed"), SubResource("SkillDefinition_daggers"), SubResource("SkillDefinition_unarmed"), SubResource("SkillDefinition_running"), SubResource("SkillDefinition_mining"), SubResource("SkillDefinition_scavenging"), SubResource("SkillDefinition_farming"), SubResource("SkillDefinition_fishing"), SubResource("SkillDefinition_construction"), SubResource("SkillDefinition_blacksmithing"), SubResource("SkillDefinition_weaving"), SubResource("SkillDefinition_leatherworking"), SubResource("SkillDefinition_sneaking"), SubResource("SkillDefinition_sleight_of_hand"), SubResource("SkillDefinition_lockpicking"), SubResource("SkillDefinition_medicine"), SubResource("SkillDefinition_robotics"), SubResource("SkillDefinition_archeology")])
+definitions = Array[Resource]([SubResource("SkillDefinition_strength"), SubResource("SkillDefinition_perception"), SubResource("SkillDefinition_dexterity"), SubResource("SkillDefinition_toughness"), SubResource("SkillDefinition_endurance"), SubResource("SkillDefinition_charisma"), SubResource("SkillDefinition_swords_one_handed"), SubResource("SkillDefinition_axes_one_handed"), SubResource("SkillDefinition_daggers"), SubResource("SkillDefinition_unarmed"), SubResource("SkillDefinition_shields"), SubResource("SkillDefinition_running"), SubResource("SkillDefinition_mining"), SubResource("SkillDefinition_scavenging"), SubResource("SkillDefinition_farming"), SubResource("SkillDefinition_fishing"), SubResource("SkillDefinition_construction"), SubResource("SkillDefinition_blacksmithing"), SubResource("SkillDefinition_weaving"), SubResource("SkillDefinition_leatherworking"), SubResource("SkillDefinition_sneaking"), SubResource("SkillDefinition_sleight_of_hand"), SubResource("SkillDefinition_lockpicking"), SubResource("SkillDefinition_medicine"), SubResource("SkillDefinition_robotics"), SubResource("SkillDefinition_archeology")])

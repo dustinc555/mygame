@@ -293,6 +293,7 @@ var _combat_action_attack_id := ""
 var _combat_action_hit_reaction_names: Array[String] = []
 var _combat_action_blunt_damage := 0.0
 var _combat_action_cut_damage := 0.0
+var _combat_action_is_critical := false
 var _combat_reaction_remaining := 0.0
 var _combat_reaction_source: HumanoidCharacter
 var _ai_tick_remaining := 0.0
@@ -2107,7 +2108,7 @@ func set_combat_stance(value: int) -> void:
 	state_changed.emit()
 
 
-func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage: float, attack_id: String = "", hit_reaction_names: Array[String] = []) -> String:
+func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage: float, attack_id: String = "", hit_reaction_names: Array[String] = [], is_critical := false) -> String:
 	if attacker == null or life_state == NpcRules.LifeState.DEAD:
 		return "ignored"
 	if is_protected_from_combat():
@@ -2126,7 +2127,8 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	_last_ragdoll_impulse = _get_attack_ragdoll_impulse(attacker, blunt_damage + cut_damage)
 	_last_ragdoll_impulse_remaining = RAGDOLL_IMPULSE_MEMORY_SECONDS if _last_ragdoll_impulse.length_squared() > 0.0001 else 0.0
 	var can_actively_defend := life_state == NpcRules.LifeState.ALIVE and not _is_getting_up
-	if can_actively_defend and _rng.randf() <= get_stat_value("dodge_chance"):
+	var incoming_hit_score := attacker.get_combat_hit_score()
+	if can_actively_defend and _rng.randf() > attacker.get_combat_hit_chance(self):
 		_spend_fatigue(NpcRules.FATIGUE_DODGE_COST)
 		add_skill_xp(SkillRules.ATTRIBUTE_DEXTERITY, 0.35, "combat_dodge")
 		_show_world_notice("Dodge", Color(0.74, 0.94, 1.0, 1.0))
@@ -2134,11 +2136,16 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		return "dodged"
 	var final_blunt := maxf(blunt_damage, 0.0)
 	var final_cut := maxf(cut_damage, 0.0)
-	if can_actively_defend and _rng.randf() <= get_stat_value("block_chance"):
+	if can_actively_defend and _rng.randf() <= get_combat_block_chance(incoming_hit_score):
 		_spend_fatigue(NpcRules.FATIGUE_BLOCK_COST)
+		if has_combat_shield():
+			add_skill_xp(SkillRules.COMBAT_SHIELDS, 0.25, "combat_block")
+		else:
+			add_skill_xp(get_combat_weapon_skill_id(), 0.15, "combat_parry")
 		add_skill_xp(SkillRules.ATTRIBUTE_TOUGHNESS, 0.12, "combat_block")
-		final_blunt *= block_damage_multiplier
-		final_cut *= block_damage_multiplier
+		var combat_block_damage_multiplier := get_combat_block_damage_multiplier()
+		final_blunt *= combat_block_damage_multiplier
+		final_cut *= combat_block_damage_multiplier
 		var block_damage_reduction := _get_toughness_damage_reduction()
 		final_blunt *= 1.0 - block_damage_reduction
 		final_cut *= 1.0 - block_damage_reduction
@@ -2172,7 +2179,7 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 	_current_open_cut_damage += final_cut
 	_add_bleeding_from_cut(final_blunt, final_cut)
 	_award_toughness_xp(final_blunt + final_cut)
-	_show_world_notice("Hit", Color(1.0, 0.42, 0.42, 1.0))
+	_show_world_notice("Critical Hit" if is_critical else "Hit", Color(1.0, 0.42, 0.42, 1.0))
 	_recalculate_vitals()
 	_try_start_self_defense(attacker)
 	return "hit"
@@ -3597,9 +3604,8 @@ func _start_combat_attack(target: HumanoidCharacter) -> void:
 			return
 		_spend_fatigue(NpcRules.FATIGUE_ATTACK_COST)
 		_award_combat_attack_xp()
-		var instant_total_damage := get_stat_value("attack_damage")
-		var cut_damage := instant_total_damage * get_stat_value("cut_ratio")
-		target.receive_attack(self, instant_total_damage - cut_damage, cut_damage)
+		var instant_damage := roll_combat_attack_damage(_rng)
+		target.receive_attack(self, float(instant_damage.get("blunt_damage", 0.0)), float(instant_damage.get("cut_damage", 0.0)), "", [], bool(instant_damage.get("critical", false)))
 		_combat_cooldown_remaining = maxf(0.2, get_stat_value("attack_cooldown"))
 		return
 
@@ -3618,9 +3624,10 @@ func _start_combat_attack(target: HumanoidCharacter) -> void:
 	_combat_action_target = target
 	_combat_action_attack_id = attack.attack_id
 	_combat_action_hit_reaction_names = attack.get_hit_reaction_names()
-	var total_damage := get_stat_value("attack_damage")
-	_combat_action_cut_damage = total_damage * get_stat_value("cut_ratio")
-	_combat_action_blunt_damage = total_damage - _combat_action_cut_damage
+	var action_damage := roll_combat_attack_damage(_rng)
+	_combat_action_blunt_damage = float(action_damage.get("blunt_damage", 0.0))
+	_combat_action_cut_damage = float(action_damage.get("cut_damage", 0.0))
+	_combat_action_is_critical = bool(action_damage.get("critical", false))
 	_combat_action_active = true
 	_combat_cooldown_remaining = maxf(0.2, get_stat_value("attack_cooldown"))
 	_play_current_combat_action_clip()
@@ -3654,7 +3661,7 @@ func _resolve_combat_action_impact() -> void:
 	if _combat_action_target.life_state != NpcRules.LifeState.ALIVE:
 		return
 	_face_character(_combat_action_target)
-	_combat_action_target.receive_attack(self, _combat_action_blunt_damage, _combat_action_cut_damage, _combat_action_attack_id, _combat_action_hit_reaction_names)
+	_combat_action_target.receive_attack(self, _combat_action_blunt_damage, _combat_action_cut_damage, _combat_action_attack_id, _combat_action_hit_reaction_names, _combat_action_is_critical)
 
 
 func _finish_combat_action() -> void:
@@ -3674,6 +3681,7 @@ func _clear_combat_action() -> void:
 	_combat_action_hit_reaction_names.clear()
 	_combat_action_blunt_damage = 0.0
 	_combat_action_cut_damage = 0.0
+	_combat_action_is_critical = false
 
 
 func _prepare_combat_reaction(attacker: HumanoidCharacter) -> void:
@@ -5619,6 +5627,30 @@ func _award_combat_attack_xp() -> void:
 			add_skill_xp(SkillRules.ATTRIBUTE_DEXTERITY, COMBAT_ATTACK_SKILL_XP * 0.025, "weapon_attack")
 
 
+func get_combat_weapon_item() -> ItemDefinition:
+	return get_equipped_item(ItemDefinition.EQUIP_SLOT_WEAPON)
+
+
+func get_combat_offhand_item() -> ItemDefinition:
+	return get_equipped_item(ItemDefinition.EQUIP_SLOT_OFFHAND)
+
+
+func has_combat_shield() -> bool:
+	return _has_equipped_shield()
+
+
+func get_combat_weapon_skill_id() -> String:
+	return _get_current_weapon_skill_id()
+
+
+func get_body_weapon_damage_profile() -> Dictionary:
+	var race := _get_character_race()
+	var race_id := str(race.get("race_id")).strip_edges().to_lower() if race != null else ""
+	if race_id == "rustdead":
+		return {"blunt_base": 2.5, "cut_base": 2.5}
+	return super.get_body_weapon_damage_profile()
+
+
 func _get_current_weapon_skill_id() -> String:
 	var weapon_item = equipped_items.get(ItemDefinition.EQUIP_SLOT_WEAPON, null)
 	if not (weapon_item is ItemDefinition):
@@ -5647,11 +5679,15 @@ func _award_toughness_xp(real_damage: float) -> void:
 func _get_base_stat_value(stat_name: String) -> float:
 	match stat_name:
 		"attack_damage":
-			return base_attack_damage + SkillRules.get_diminishing_bonus(float(get_skill_level(SkillRules.ATTRIBUTE_STRENGTH)), 8.0, 50.0)
+			return base_attack_damage
 		"attack_range":
 			return attack_range
+		"strength":
+			return float(get_skill_level(SkillRules.ATTRIBUTE_STRENGTH))
 		"dexterity":
 			return float(get_skill_level(SkillRules.ATTRIBUTE_DEXTERITY))
+		"toughness":
+			return float(get_skill_level(SkillRules.ATTRIBUTE_TOUGHNESS))
 		"perception":
 			return float(get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION))
 		"stealth":
@@ -5664,6 +5700,10 @@ func _get_base_stat_value(stat_name: String) -> float:
 			return base_dodge_chance + SkillRules.get_diminishing_bonus(float(get_skill_level(SkillRules.ATTRIBUTE_DEXTERITY)), 0.18, 45.0)
 		"block_chance":
 			return base_block_chance
+		"block_damage_multiplier":
+			return block_damage_multiplier
+		"weapon_parry_bonus", "shield_block_bonus":
+			return 0.0
 		"move_speed_multiplier":
 			return 1.0
 		"run_speed_multiplier":
@@ -5729,9 +5769,11 @@ func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true)
 		match stat_name:
 			"dodge_chance", "block_chance", "cut_ratio":
 				value = clampf(value, 0.0, 0.95)
+			"block_damage_multiplier":
+				value = clampf(value, 0.0, 1.0)
 			"attack_cooldown":
 				value = maxf(0.2, value)
-			"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "attack_range", "dexterity", "perception", "stealth", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate", "blood_recovery_rate":
+			"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "attack_range", "strength", "dexterity", "toughness", "perception", "stealth", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate", "blood_recovery_rate", "weapon_parry_bonus", "shield_block_bonus":
 				value = maxf(0.0, value)
 	_stat_value_cache[cache_key] = value
 	return value

@@ -7,7 +7,11 @@ const RUSTDEAD_TIER_LIBRARY := preload("res://scripts/characters/rustdead_tier_l
 const BANDAGE := preload("res://resources/items/bandage.tres")
 const CINDER_FLASK := preload("res://resources/items/cinder_flask.tres")
 
-const PARTY_SKILL_LEVEL := 40
+const PARTY_DEFAULT_SKILL_LEVEL := 40
+const PARTY_SKILL_LEVELS := {
+	"Mira": 60,
+	"Tomas": 60,
+}
 const REQUIRED_RUSTDEAD_ANIMATIONS := ["Zombie_Idle", "Zombie_Walk_Fwd", "Zombie_Run_Fwd", "Zombie_Bite", "Zombie_Scratch", "Zombie_Spawn"]
 const MAX_VISUAL_FOOT_SINK := 0.035
 const WROUGHT_MIN_SKIN_METALLIC := 0.30
@@ -101,7 +105,7 @@ func _validate_party_members(party_members: Array[HumanoidCharacter]) -> void:
 	if party_members.size() != 5:
 		_fail("Expected 5 party members, got %d" % party_members.size())
 	for member in party_members:
-		_validate_skill_levels(member, PARTY_SKILL_LEVEL)
+		_validate_skill_levels(member, int(PARTY_SKILL_LEVELS.get(str(member.member_name), PARTY_DEFAULT_SKILL_LEVEL)))
 		_expect_equipped(member, "weapon")
 		_expect_equipped(member, "chest")
 		_expect_equipped(member, "legs")

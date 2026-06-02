@@ -42,7 +42,8 @@ const WIZARD_SHOES = preload("res://resources/items/wizard_shoes.tres")
 const BANDAGE = preload("res://resources/items/bandage.tres")
 const CINDER_FLASK = preload("res://resources/items/cinder_flask.tres")
 
-const PARTY_SKILL_LEVEL := 40
+const PARTY_DEFAULT_SKILL_LEVEL := 40
+const PARTY_VETERAN_SKILL_LEVEL := 60
 const RUSTDEAD_RANDOM_SEED := 770031
 const PARTY_SQUAD_NAME := "RustdeadDemoParty"
 const RUSTDEAD_SQUAD_NAME := "RustdeadDemoHorde"
@@ -51,8 +52,8 @@ const VISUAL_BODY_TYPE_MALE := 2
 const VISUAL_BODY_TYPE_FEMALE := 3
 
 const PARTY_CONFIGS := [
-	{"name": "Mira", "body_type": VISUAL_BODY_TYPE_FEMALE, "skin": Color(0.88, 0.68, 0.54, 1.0), "color": Color(0.72, 0.48, 0.78, 1.0), "equipment": [STEEL_SWORD, ROUND_SHIELD, RANGER_JERKIN, RANGER_LEGGINGS, RANGER_BOOTS, RANGER_HOOD]},
-	{"name": "Tomas", "body_type": VISUAL_BODY_TYPE_MALE, "skin": Color(0.66, 0.43, 0.30, 1.0), "color": Color(0.35, 0.56, 0.42, 1.0), "equipment": [IRON_AXE, PEASANT_TUNIC, PEASANT_TROUSERS, PEASANT_SHOES]},
+	{"name": "Mira", "skill_level": PARTY_VETERAN_SKILL_LEVEL, "body_type": VISUAL_BODY_TYPE_FEMALE, "skin": Color(0.88, 0.68, 0.54, 1.0), "color": Color(0.72, 0.48, 0.78, 1.0), "equipment": [STEEL_SWORD, ROUND_SHIELD, RANGER_JERKIN, RANGER_LEGGINGS, RANGER_BOOTS, RANGER_HOOD]},
+	{"name": "Tomas", "skill_level": PARTY_VETERAN_SKILL_LEVEL, "body_type": VISUAL_BODY_TYPE_MALE, "skin": Color(0.66, 0.43, 0.30, 1.0), "color": Color(0.35, 0.56, 0.42, 1.0), "equipment": [IRON_AXE, PEASANT_TUNIC, PEASANT_TROUSERS, PEASANT_SHOES]},
 	{"name": "Sable", "body_type": VISUAL_BODY_TYPE_FEMALE, "skin": Color(0.80, 0.58, 0.43, 1.0), "color": Color(0.58, 0.72, 0.38, 1.0), "equipment": [IRON_DAGGER, HEATER_SHIELD, KNIGHT_GAMBESON, KNIGHT_CUIRASS, KNIGHT_GAUNTLETS, KNIGHT_GREVES, KNIGHT_SABATONS, KNIGHT_ARMET]},
 	{"name": "Bram", "body_type": VISUAL_BODY_TYPE_MALE, "skin": Color(0.49, 0.31, 0.22, 1.0), "color": Color(0.33, 0.55, 0.78, 1.0), "equipment": [HATCHET, NOBLE_DOUBLET, NOBLE_SLEEVES, NOBLE_TROUSERS, NOBLE_SHOES]},
 	{"name": "Nika", "body_type": VISUAL_BODY_TYPE_FEMALE, "skin": Color(0.74, 0.45, 0.31, 1.0), "color": Color(0.67, 0.45, 0.75, 1.0), "equipment": [IRON_SWORD, ROUND_SHIELD, WIZARD_ROBES, WIZARD_SLEEVES, WIZARD_TROUSERS, WIZARD_SHOES]},
@@ -94,7 +95,7 @@ func _spawn_party_members() -> void:
 		actor.position = _party_position(index)
 		actor.starting_items = [_make_stock(BANDAGE, 1), _make_stock(CINDER_FLASK, 1)]
 		actor.starting_equipment = _equipment_array(config["equipment"])
-		actor.starting_skill_levels = _skill_levels(PARTY_SKILL_LEVEL)
+		actor.starting_skill_levels = _skill_levels(int(config.get("skill_level", PARTY_DEFAULT_SKILL_LEVEL)))
 		actor.appearance_data = _make_appearance(HUMAN_RACE, int(config["body_type"]), config["skin"])
 		actor.max_hp = 132.0
 		actor.hp = actor.max_hp

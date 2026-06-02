@@ -10,6 +10,14 @@ const AI_UTILITY_ADAPTER_SCRIPT = preload("res://scripts/ai/utility/ai_utility_a
 
 const NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
 const ACTIVE_COMBAT_ACTOR_GROUP := "active_combat_actor"
+const COMBAT_SCORE_CHANCE_DIVISOR := 220.0
+const COMBAT_ATTRIBUTE_ASSIST_WEIGHT := 0.25
+const COMBAT_DAMAGE_SKILL_WEIGHT := 0.20
+const COMBAT_DAMAGE_ATTRIBUTE_WEIGHT := 0.25
+const COMBAT_BODY_TOUGHNESS_BASE_WEIGHT := 0.025
+const COMBAT_LEGACY_CHANCE_TO_SCORE := 220.0
+const COMBAT_CRIT_SKILL_WEIGHT := 0.00303
+const COMBAT_CRIT_DEXTERITY_WEIGHT := 0.00190
 
 signal state_changed
 @warning_ignore("unused_signal")
@@ -375,6 +383,149 @@ func get_attack_range() -> float:
 	return get_stat_value("attack_range")
 
 
+func get_combat_weapon_item() -> ItemDefinition:
+	return null
+
+
+func get_combat_offhand_item() -> ItemDefinition:
+	return null
+
+
+func has_combat_shield() -> bool:
+	return false
+
+
+func get_combat_weapon_skill_id() -> String:
+	return SkillRules.COMBAT_UNARMED
+
+
+func get_combat_weapon_skill_level() -> float:
+	return float(get_skill_level(get_combat_weapon_skill_id()))
+
+
+func get_combat_hit_score() -> float:
+	return get_combat_weapon_skill_level() + get_stat_value("dexterity") * COMBAT_ATTRIBUTE_ASSIST_WEIGHT
+
+
+func get_combat_dodge_score() -> float:
+	return get_stat_value("dexterity")
+
+
+func get_combat_hit_chance(defender: WorldActor) -> float:
+	var dodge_score := defender.get_combat_dodge_score() if defender != null else 0.0
+	return clampf(0.50 + (get_combat_hit_score() - dodge_score) / COMBAT_SCORE_CHANCE_DIVISOR, 0.05, 0.95)
+
+
+func get_combat_crit_chance() -> float:
+	var weapon_skill := get_combat_weapon_skill_level()
+	var dexterity := get_stat_value("dexterity")
+	return clampf(0.05 + maxf(0.0, weapon_skill - 1.0) * COMBAT_CRIT_SKILL_WEIGHT + maxf(0.0, dexterity - 1.0) * COMBAT_CRIT_DEXTERITY_WEIGHT, 0.0, 1.0)
+
+
+func get_combat_parry_score() -> float:
+	return get_combat_weapon_skill_level() + get_stat_value("dexterity") * COMBAT_ATTRIBUTE_ASSIST_WEIGHT + get_combat_weapon_parry_bonus()
+
+
+func get_combat_shield_block_score() -> float:
+	return float(get_skill_level(SkillRules.COMBAT_SHIELDS)) + get_stat_value("strength") * COMBAT_ATTRIBUTE_ASSIST_WEIGHT + get_combat_shield_block_bonus()
+
+
+func get_combat_block_score() -> float:
+	return get_combat_shield_block_score() if has_combat_shield() else get_combat_parry_score()
+
+
+func get_combat_block_chance(incoming_hit_score: float) -> float:
+	return clampf(0.15 + (get_combat_block_score() - incoming_hit_score) / COMBAT_SCORE_CHANCE_DIVISOR, 0.02, 0.75)
+
+
+func get_combat_weapon_parry_bonus() -> float:
+	var explicit_bonus := get_stat_value("weapon_parry_bonus")
+	if explicit_bonus > 0.0:
+		return explicit_bonus
+	return maxf(0.0, _get_item_stat_value(get_combat_weapon_item(), "block_chance", 0.0) * COMBAT_LEGACY_CHANCE_TO_SCORE)
+
+
+func get_combat_shield_block_bonus() -> float:
+	var explicit_bonus := get_stat_value("shield_block_bonus")
+	if explicit_bonus > 0.0:
+		return explicit_bonus
+	return maxf(0.0, _get_item_stat_value(get_combat_offhand_item(), "block_chance", 0.0) * COMBAT_LEGACY_CHANCE_TO_SCORE)
+
+
+func get_combat_block_damage_multiplier() -> float:
+	return clampf(get_stat_value("block_damage_multiplier"), 0.0, 1.0)
+
+
+func get_body_weapon_damage_profile() -> Dictionary:
+	return {"blunt_base": 2.5, "cut_base": 0.0}
+
+
+func get_combat_damage_bases() -> Dictionary:
+	var weapon_item := get_combat_weapon_item()
+	if weapon_item != null:
+		if _item_has_stat_modifier(weapon_item, "blunt_base") or _item_has_stat_modifier(weapon_item, "cut_base"):
+			var explicit_blunt := maxf(0.0, _get_item_stat_value(weapon_item, "blunt_base", 0.0))
+			var explicit_cut := maxf(0.0, _get_item_stat_value(weapon_item, "cut_base", 0.0))
+			var damage_multiplier := _get_combat_damage_stat_multiplier()
+			return {"blunt_base": explicit_blunt * damage_multiplier, "cut_base": explicit_cut * damage_multiplier}
+		var weapon_total_base := maxf(0.0, get_stat_value("attack_damage"))
+		var weapon_cut_ratio := clampf(get_stat_value("cut_ratio"), 0.0, 1.0)
+		return {"blunt_base": weapon_total_base * (1.0 - weapon_cut_ratio), "cut_base": weapon_total_base * weapon_cut_ratio}
+	var body_profile := get_body_weapon_damage_profile()
+	var body_multiplier := 1.0 + get_stat_value("toughness") * COMBAT_BODY_TOUGHNESS_BASE_WEIGHT
+	body_multiplier *= _get_combat_damage_stat_multiplier()
+	return {
+		"blunt_base": maxf(0.0, float(body_profile.get("blunt_base", 0.0))) * body_multiplier,
+		"cut_base": maxf(0.0, float(body_profile.get("cut_base", 0.0))) * body_multiplier,
+	}
+
+
+func get_combat_damage() -> Dictionary:
+	var bases := get_combat_damage_bases()
+	return calculate_combat_damage(
+		float(bases.get("blunt_base", 0.0)),
+		float(bases.get("cut_base", 0.0)),
+		get_combat_weapon_skill_level(),
+		get_stat_value("strength"),
+		get_stat_value("dexterity")
+	)
+
+
+func roll_combat_attack_damage(rng: RandomNumberGenerator = null) -> Dictionary:
+	var damage := get_combat_damage()
+	var blunt_damage := float(damage.get("blunt_damage", 0.0))
+	var cut_damage := float(damage.get("cut_damage", 0.0))
+	var critical := false
+	var crit_multiplier := 1.0
+	var roll := rng.randf() if rng != null else randf()
+	if roll <= get_combat_crit_chance():
+		critical = true
+		crit_multiplier = rng.randf_range(2.0, 3.0) if rng != null else randf_range(2.0, 3.0)
+		blunt_damage *= crit_multiplier
+		cut_damage *= crit_multiplier
+	return {
+		"blunt_damage": blunt_damage,
+		"cut_damage": cut_damage,
+		"critical": critical,
+		"crit_multiplier": crit_multiplier,
+	}
+
+
+static func calculate_combat_damage(blunt_base: float, cut_base: float, weapon_skill: float, strength: float, dexterity: float) -> Dictionary:
+	var safe_blunt_base := maxf(0.0, blunt_base)
+	var safe_cut_base := maxf(0.0, cut_base)
+	var total_base := safe_blunt_base + safe_cut_base
+	if total_base <= 0.0:
+		return {"blunt_damage": 0.0, "cut_damage": 0.0}
+	var blunt_share := safe_blunt_base / total_base
+	var cut_share := safe_cut_base / total_base
+	var skill_bonus := maxf(0.0, weapon_skill) * COMBAT_DAMAGE_SKILL_WEIGHT
+	return {
+		"blunt_damage": safe_blunt_base + blunt_share * skill_bonus + blunt_share * maxf(0.0, strength) * COMBAT_DAMAGE_ATTRIBUTE_WEIGHT,
+		"cut_damage": safe_cut_base + cut_share * skill_bonus + cut_share * maxf(0.0, dexterity) * COMBAT_DAMAGE_ATTRIBUTE_WEIGHT,
+	}
+
+
 func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true) -> float:
 	var value := _get_base_stat_value(stat_name)
 	if not include_secondary_modifiers:
@@ -382,9 +533,11 @@ func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true)
 	match stat_name:
 		"dodge_chance", "block_chance", "cut_ratio":
 			return clampf(value, 0.0, 0.95)
+		"block_damage_multiplier":
+			return clampf(value, 0.0, 1.0)
 		"attack_cooldown":
 			return maxf(0.2, value)
-		"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "attack_range", "dexterity", "perception", "stealth", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate":
+		"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "attack_range", "strength", "dexterity", "toughness", "perception", "stealth", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate", "weapon_parry_bonus", "shield_block_bonus":
 			return maxf(0.0, value)
 	return value
 
@@ -772,11 +925,15 @@ func _sync_active_combat_actor_group() -> void:
 func _get_base_stat_value(stat_name: String) -> float:
 	match stat_name:
 		"attack_damage":
-			return base_attack_damage + SkillRules.get_diminishing_bonus(float(get_skill_level(SkillRules.ATTRIBUTE_STRENGTH)), 8.0, 50.0)
+			return base_attack_damage
 		"attack_range":
 			return attack_range
+		"strength":
+			return float(get_skill_level(SkillRules.ATTRIBUTE_STRENGTH))
 		"dexterity":
 			return float(get_skill_level(SkillRules.ATTRIBUTE_DEXTERITY))
+		"toughness":
+			return float(get_skill_level(SkillRules.ATTRIBUTE_TOUGHNESS))
 		"perception":
 			return float(get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION))
 		"stealth":
@@ -789,6 +946,10 @@ func _get_base_stat_value(stat_name: String) -> float:
 			return base_dodge_chance + SkillRules.get_diminishing_bonus(float(get_skill_level(SkillRules.ATTRIBUTE_DEXTERITY)), 0.18, 45.0)
 		"block_chance":
 			return base_block_chance
+		"block_damage_multiplier":
+			return block_damage_multiplier
+		"weapon_parry_bonus", "shield_block_bonus":
+			return 0.0
 		"move_speed_multiplier":
 			return 1.0
 		"run_speed_multiplier":
@@ -801,6 +962,31 @@ func _get_base_stat_value(stat_name: String) -> float:
 		"healing_rate":
 			return NpcRules.BASE_HEAL_RATE
 	return 0.0
+
+
+func _get_combat_damage_stat_multiplier() -> float:
+	var base_value := maxf(_get_base_stat_value("attack_damage"), 0.001)
+	return maxf(0.0, get_stat_value("attack_damage") / base_value)
+
+
+func _item_has_stat_modifier(item: ItemDefinition, stat_name: String) -> bool:
+	if item == null:
+		return false
+	for modifier in item.stat_modifiers:
+		if modifier != null and modifier.stat_name == stat_name:
+			return true
+	return false
+
+
+func _get_item_stat_value(item: ItemDefinition, stat_name: String, base_value: float) -> float:
+	if item == null:
+		return base_value
+	var value := base_value
+	for modifier in item.stat_modifiers:
+		if modifier == null or modifier.stat_name != stat_name:
+			continue
+		value = (value + modifier.add) * modifier.mul
+	return value
 
 
 func _actor_is_sneaking(actor: Node) -> bool:

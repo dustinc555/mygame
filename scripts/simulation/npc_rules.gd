@@ -116,17 +116,23 @@ static func append_stage_modifiers(modifiers: Array, hunger_stage: int, fatigue_
 	match hunger_stage:
 		HungerStage.WELL_NOURISHED:
 			modifiers.append({"stat": "attack_damage", "mul": 1.05})
+			modifiers.append({"stat": "strength", "mul": 1.05})
+			modifiers.append({"stat": "dexterity", "mul": 1.05})
 			modifiers.append({"stat": "dodge_chance", "mul": 1.05})
 			modifiers.append({"stat": "block_chance", "mul": 1.05})
 			modifiers.append({"stat": "healing_rate", "mul": 1.2})
 		HungerStage.HUNGRY:
 			modifiers.append({"stat": "move_speed_multiplier", "mul": 0.9})
 			modifiers.append({"stat": "attack_damage", "mul": 0.9})
+			modifiers.append({"stat": "strength", "mul": 0.9})
+			modifiers.append({"stat": "dexterity", "mul": 0.9})
 			modifiers.append({"stat": "dodge_chance", "mul": 0.9})
 			modifiers.append({"stat": "block_chance", "mul": 0.9})
 		HungerStage.STARVING:
 			modifiers.append({"stat": "move_speed_multiplier", "mul": 0.7})
 			modifiers.append({"stat": "attack_damage", "mul": 0.7})
+			modifiers.append({"stat": "strength", "mul": 0.7})
+			modifiers.append({"stat": "dexterity", "mul": 0.7})
 			modifiers.append({"stat": "dodge_chance", "mul": 0.7})
 			modifiers.append({"stat": "block_chance", "mul": 0.7})
 			modifiers.append({"stat": "healing_rate", "mul": 0.65})
@@ -135,21 +141,31 @@ static func append_stage_modifiers(modifiers: Array, hunger_stage: int, fatigue_
 	match fatigue_stage:
 		FatigueStage.WELL_RESTED:
 			modifiers.append({"stat": "attack_damage", "mul": 1.03})
+			modifiers.append({"stat": "strength", "mul": 1.03})
+			modifiers.append({"stat": "dexterity", "mul": 1.03})
 			modifiers.append({"stat": "dodge_chance", "mul": 1.03})
 			modifiers.append({"stat": "block_chance", "mul": 1.03})
 		FatigueStage.WINDED:
 			modifiers.append({"stat": "attack_damage", "mul": 0.9})
+			modifiers.append({"stat": "strength", "mul": 0.9})
+			modifiers.append({"stat": "dexterity", "mul": 0.9})
 			modifiers.append({"stat": "dodge_chance", "mul": 0.9})
 			modifiers.append({"stat": "block_chance", "mul": 0.9})
 			modifiers.append({"stat": "hunger_drain_rate", "mul": 1.2})
 		FatigueStage.EXHAUSTED:
 			modifiers.append({"stat": "move_speed_multiplier", "mul": MIN_EXHAUSTED_MOVE_MULTIPLIER})
 			modifiers.append({"stat": "attack_damage", "mul": 0.65})
+			modifiers.append({"stat": "strength", "mul": 0.65})
+			modifiers.append({"stat": "dexterity", "mul": 0.65})
 			modifiers.append({"stat": "dodge_chance", "mul": 0.65})
 			modifiers.append({"stat": "block_chance", "mul": 0.65})
 			modifiers.append({"stat": "hunger_drain_rate", "mul": 1.35})
 
 	if max_hp > 0.0 and open_cut_damage > 0.0:
 		var wound_ratio := clampf(open_cut_damage / max_hp, 0.0, 0.9)
-		modifiers.append({"stat": "dodge_chance", "mul": maxf(0.35, 1.0 - wound_ratio)})
-		modifiers.append({"stat": "block_chance", "mul": maxf(0.35, 1.0 - wound_ratio * 0.8)})
+		var dexterity_wound_multiplier := maxf(0.35, 1.0 - wound_ratio)
+		var strength_wound_multiplier := maxf(0.35, 1.0 - wound_ratio * 0.8)
+		modifiers.append({"stat": "dexterity", "mul": dexterity_wound_multiplier})
+		modifiers.append({"stat": "strength", "mul": strength_wound_multiplier})
+		modifiers.append({"stat": "dodge_chance", "mul": dexterity_wound_multiplier})
+		modifiers.append({"stat": "block_chance", "mul": strength_wound_multiplier})
