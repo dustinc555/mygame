@@ -1,0 +1,55 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/showcase/model_pack_showcase.gd" id="1_showcase"]
+[ext_resource type="Script" path="res://scripts/showcase/free_fly_camera.gd" id="2_camera"]
+
+[sub_resource type="Environment" id="Environment_showcase"]
+background_mode = 1
+background_color = Color(0.035, 0.047, 0.065, 1)
+ambient_light_source = 3
+ambient_light_color = Color(0.34, 0.58, 0.82, 1)
+ambient_light_energy = 0.42
+
+[node name="SciFiEssentialsKitShowcase" type="Node3D"]
+script = ExtResource("1_showcase")
+asset_directory = "res://assets/vendor/quaternius/sci_fi_essentials_kit/gltf"
+showcase_title = "Sci-Fi Essentials Kit Showcase"
+pack_note = "Quaternius CC0 sci-fi props, guns, planets, screens, crates, and animated enemies."
+columns = 8
+item_spacing = 5.0
+row_spacing = 4.8
+target_model_extent = 2.05
+min_model_scale = 0.005
+model_yaw_degrees = -18.0
+auto_play_animations = true
+platform_color = Color(0.055, 0.085, 0.12, 1)
+title_label_color = Color(0.58, 0.9, 1, 1)
+item_label_color = Color(0.72, 0.92, 1, 1)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_showcase")
+
+[node name="KeyLight" type="DirectionalLight3D" parent="."]
+rotation = Vector3(-0.68, 0.76, -0.1)
+light_color = Color(0.62, 0.86, 1, 1)
+light_energy = 0.82
+shadow_enabled = true
+
+[node name="BlueStripLight" type="OmniLight3D" parent="."]
+position = Vector3(-14, 8, 14)
+light_color = Color(0.12, 0.56, 1, 1)
+light_energy = 190.0
+omni_range = 42.0
+
+[node name="MagentaFill" type="OmniLight3D" parent="."]
+position = Vector3(18, 7, -16)
+light_color = Color(0.78, 0.24, 1, 1)
+light_energy = 90.0
+omni_range = 38.0
+
+[node name="ShowcaseCamera" type="Camera3D" parent="."]
+position = Vector3(18, 15, 27)
+rotation = Vector3(-0.44, 0.55, 0)
+current = true
+fov = 60.0
+script = ExtResource("2_camera")

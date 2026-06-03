@@ -12,6 +12,8 @@ This file is the canonical list of imported third-party assets and software used
 | Universal Animation Library 2 | Quaternius | CC0 1.0 Universal | https://quaternius.com/packs/universalanimationlibrary2.html | `assets/vendor/quaternius/universal_animation_library_2/` |
 | Modular Character Outfits - Fantasy | Quaternius | CC0 1.0 Universal | https://quaternius.com/packs/modularcharacteroutfitsfantasy.html | `assets/vendor/quaternius/modular_character_outfits_fantasy/` |
 | Modular Weapons Pack | Quaternius | CC0 1.0 Universal | https://quaternius.com/packs/medievalweapons.html | `assets/vendor/quaternius/medieval_weapons/` |
+| Fantasy Props MegaKit | Quaternius | CC0 1.0 Universal | https://quaternius.com/packs/fantasypropsmegakit.html | `assets/vendor/quaternius/fantasy_props_megakit/` |
+| Sci-Fi Essentials Kit | Quaternius | CC0 1.0 Universal | https://quaternius.com/packs/scifiessentialskit.html | `assets/vendor/quaternius/sci_fi_essentials_kit/` |
 
 ## Software / Libraries
 
