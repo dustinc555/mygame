@@ -160,6 +160,7 @@ func _try_initialize() -> void:
 	moon.light_color = Color(0.38, 0.56, 1.0, 1.0)
 	_ensure_celestial_bodies()
 	_initialized = true
+	# TODO(save/load): Apply restored world time before showing/crossfading sky, so loading a midnight save cannot briefly display the default daytime sky.
 	_apply_lighting(world_time.get_day_fraction())
 
 
