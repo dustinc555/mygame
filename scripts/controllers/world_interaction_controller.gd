@@ -31,8 +31,9 @@ const DEFAULT_PLAYER_SQUAD_NAME := "Squad 1"
 const FREE_CAMERA_PITCH := -0.65
 const FOLLOW_CAMERA_HEIGHT := 1.35
 const ORBIT_MIN_PITCH := -1.2
-const ORBIT_MAX_PITCH := 0.18
+const ORBIT_MAX_PITCH := 1.15
 const GROUND_Y := 0.0
+const CAMERA_FLOOR_CLEARANCE := 0.35
 const MOVE_COMMAND_NAV_PROJECTION_VERTICAL_TOLERANCE := 0.8
 const MOVEMENT_MODE_WALK := 0
 const MOVEMENT_MODE_RUN := 1
@@ -1385,6 +1386,18 @@ func _apply_camera_transform() -> void:
 	camera_pivot.rotation = Vector3(camera_pitch, 0.0, 0.0)
 	camera.rotation = Vector3.ZERO
 	camera.position = Vector3(0.0, 0.0, camera_distance)
+	_clamp_camera_above_floor()
+
+
+func _clamp_camera_above_floor() -> void:
+	if camera == null:
+		return
+	var minimum_camera_y := GROUND_Y + CAMERA_FLOOR_CLEARANCE
+	if camera.global_position.y >= minimum_camera_y:
+		return
+	var adjusted_position := camera.global_position
+	adjusted_position.y = minimum_camera_y
+	camera.global_position = adjusted_position
 
 
 func _on_portrait_pressed(member: HumanoidCharacter, double_click: bool, add_select: bool) -> void:

@@ -8,7 +8,6 @@ const DISTANT_PLANET_TEXTURE := preload("res://assets/vendor/quaternius/sci_fi_e
 const EQUATOR_TEXTURE := preload("res://assets/vendor/quaternius/sci_fi_essentials_kit/gltf/planet_textures/T_GradientEquator.png")
 const HOLOGRAM_TEXTURE := preload("res://assets/vendor/quaternius/sci_fi_essentials_kit/gltf/planet_textures/T_HologramPlanet.png")
 const NOISE_GRAINY_TEXTURE := preload("res://assets/vendor/quaternius/sci_fi_essentials_kit/gltf/planet_textures/T_Noise_Grainy.png")
-const PERLIN_STRIPES_TEXTURE := preload("res://assets/vendor/quaternius/sci_fi_essentials_kit/gltf/planet_textures/T_Perlin_Stripes.png")
 const PLANET_LINES_TEXTURE := preload("res://assets/vendor/quaternius/sci_fi_essentials_kit/gltf/planet_textures/T_PlanetLines.png")
 const RINGS_TEXTURE := preload("res://assets/vendor/quaternius/sci_fi_essentials_kit/gltf/planet_textures/T_Rings.png")
 const SMALL_PLANET_TEXTURE_A := preload("res://assets/vendor/quaternius/sci_fi_essentials_kit/gltf/planet_textures/T_Ground_1.png")
@@ -22,12 +21,16 @@ const SKY_PANORAMA_BUCKETS_PER_DAY := 24
 const SKY_PANORAMA_FALLBACK_WIDTH := 64
 const SKY_PANORAMA_FALLBACK_HEIGHT := 32
 const SKY_CROSSFADE_SECONDS := 7.0
+const SKY_CLOUD_ROTATION_SPEED := 0.00055
+const SKY_NEBULA_ROTATION_SPEED := 0.00016
+const SKY_CLEAR_ROTATION_SPEED := 0.00005
 const SKY_CROSSFADE_SHADER_CODE := """
 shader_type sky;
 
 uniform sampler2D current_panorama : source_color, filter_linear, repeat_enable;
 uniform sampler2D next_panorama : source_color, filter_linear, repeat_enable;
 uniform float fade_amount : hint_range(0.0, 1.0) = 0.0;
+uniform float panorama_rotation = 0.0;
 
 vec2 panorama_uv(vec3 direction) {
 	float longitude = atan(direction.x, direction.z);
@@ -37,6 +40,7 @@ vec2 panorama_uv(vec3 direction) {
 
 void sky() {
 	vec2 uv = panorama_uv(normalize(EYEDIR));
+	uv.x = fract(uv.x + panorama_rotation);
 	vec3 current_color = texture(current_panorama, uv).rgb;
 	vec3 next_color = texture(next_panorama, uv).rgb;
 	COLOR = mix(current_color, next_color, clamp(fade_amount, 0.0, 1.0));
@@ -56,7 +60,7 @@ void sky() {
 @export var horizon_fade_altitude := 0.18
 @export_range(0, 500, 1) var star_count := 380
 @export var star_field_distance := 235.0
-@export_range(0.05, 0.95, 0.01) var nebula_coverage := 0.26
+@export_range(0.05, 0.95, 0.01) var nebula_coverage := 0.34
 
 var root_scene: Node
 var world_time: Node
@@ -104,6 +108,7 @@ var _sky_panorama_queued_cloud_visibility := 0.0
 var _sky_crossfade_active := false
 var _sky_crossfade_elapsed := 0.0
 var _sky_crossfade_target_texture: ImageTexture
+var _sky_panorama_rotation := 0.0
 var _glimmer_time := 0.0
 var _initialized := false
 var _stealth_ambient_visibility := 0.75
@@ -124,6 +129,7 @@ func _process(delta: float) -> void:
 	_glimmer_time += delta
 	_apply_lighting(world_time.get_day_fraction())
 	_poll_sky_panorama_build()
+	_update_sky_panorama_rotation(delta)
 	_update_sky_crossfade(delta)
 
 
@@ -194,6 +200,7 @@ func _ensure_panorama_sky() -> void:
 		sky_material.shader = shader
 		sky.sky_material = sky_material
 	sky_material.set_shader_parameter("fade_amount", 0.0)
+	sky_material.set_shader_parameter("panorama_rotation", _sky_panorama_rotation)
 
 
 func _ensure_celestial_bodies() -> void:
@@ -208,8 +215,8 @@ func _ensure_celestial_bodies() -> void:
 	moon_halo_inner = _ensure_celestial_sphere("MoonHaloInner", moon_disk_radius * 1.8, Color(0.30, 0.58, 1.0, 0.22), null, -2)
 	moon_halo_outer = _ensure_celestial_sphere("MoonHaloOuter", moon_disk_radius * 2.85, Color(0.13, 0.28, 0.92, 0.12), null, -3)
 	moon_glimmer = _ensure_celestial_sphere("MoonGlimmer", moon_disk_radius * 2.2, Color(0.68, 0.95, 1.0, 0.10), null, -1)
-	distant_planet_disk = _ensure_celestial_sphere("DistantAlienPlanet", distant_planet_radius, Color(0.70, 0.42, 1.0, 1.0), PERLIN_STRIPES_TEXTURE, 2)
-	distant_planet_ring = _ensure_celestial_ring("DistantAlienPlanetRings", distant_planet_radius * 1.08, distant_planet_radius * 1.78, Color(0.62, 0.94, 1.0, 0.46), RINGS_TEXTURE, 1)
+	distant_planet_disk = _ensure_celestial_sphere("DistantAlienPlanet", distant_planet_radius, Color(0.92, 0.62, 0.36, 1.0), DISTANT_PLANET_TEXTURE, 2)
+	distant_planet_ring = _ensure_celestial_ring("DistantAlienPlanetRings", distant_planet_radius * 1.08, distant_planet_radius * 1.78, Color(0.78, 0.58, 0.36, 0.42), RINGS_TEXTURE, 1)
 	small_planet_a_disk = _ensure_celestial_sphere("SmallAlienPlanetA", minor_planet_radius * 1.18, Color(0.90, 0.58, 1.0, 1.0), SMALL_PLANET_TEXTURE_B, 1)
 	small_planet_b_disk = _ensure_celestial_sphere("SmallAlienPlanetB", minor_planet_radius * 0.86, Color(1.0, 0.46, 0.34, 1.0), DISTANT_PLANET_TEXTURE, 1)
 	small_planet_c_disk = _ensure_celestial_sphere("SmallAlienPlanetC", minor_planet_radius * 0.62, Color(0.74, 0.86, 1.0, 1.0), CLOUDS_2_TEXTURE, 1)
@@ -575,6 +582,19 @@ func _update_sky_crossfade(delta: float) -> void:
 		_apply_sky_texture_immediate(_sky_crossfade_target_texture)
 
 
+func _update_sky_panorama_rotation(delta: float) -> void:
+	if sky_material == null:
+		return
+	var rotation_speed := SKY_CLEAR_ROTATION_SPEED
+	match _sky_panorama_mode:
+		"clouds":
+			rotation_speed = SKY_CLOUD_ROTATION_SPEED
+		"nebula":
+			rotation_speed = SKY_NEBULA_ROTATION_SPEED
+	_sky_panorama_rotation = fposmod(_sky_panorama_rotation + delta * rotation_speed, 1.0)
+	sky_material.set_shader_parameter("panorama_rotation", _sky_panorama_rotation)
+
+
 func _build_sky_panorama_thread(day_fraction: float, sky_top: Color, sky_horizon: Color, nebula_visibility: float, cloud_visibility: float, coverage: float) -> Image:
 	var noise_set := _make_nebula_noise_set()
 	var image := Image.create(SKY_PANORAMA_WIDTH, SKY_PANORAMA_HEIGHT, false, Image.FORMAT_RGBA8)
@@ -627,15 +647,25 @@ func _sample_sky_panorama_pixel_with_noises(direction: Vector3, day_fraction: fl
 	base.r = maxf(base.r, 0.025)
 	base.g = maxf(base.g, 0.030)
 	base.b = maxf(base.b, 0.085)
-	var density := _sample_nebula_density_with_noises(direction, day_fraction, noise_set, coverage) * nebula_visibility
-	var nebula := _sample_nebula_color_with_noises(direction, day_fraction, density, noise_set)
 	var color := Color(
-		clampf(base.r + nebula.r * density * 3.10, 0.0, 1.0),
-		clampf(base.g + nebula.g * density * 3.10, 0.0, 1.0),
-		clampf(base.b + nebula.b * density * 3.10, 0.0, 1.0),
+		base.r,
+		base.g,
+		base.b,
 		1.0
 	)
-	return _blend_day_clouds(color, direction, day_fraction, cloud_visibility, _sample_cloud_density_with_noises(direction, day_fraction, noise_set))
+	if nebula_visibility > 0.001:
+		var density := _sample_nebula_density_with_noises(direction, day_fraction, noise_set, coverage) * nebula_visibility
+		if density > 0.0001:
+			var nebula := _sample_nebula_color_with_noises(direction, day_fraction, density, noise_set)
+			color = Color(
+				clampf(color.r + nebula.r * density * 3.10, 0.0, 1.0),
+				clampf(color.g + nebula.g * density * 3.10, 0.0, 1.0),
+				clampf(color.b + nebula.b * density * 3.10, 0.0, 1.0),
+				1.0
+			)
+	if cloud_visibility > 0.001:
+		return _blend_day_clouds(color, direction, day_fraction, cloud_visibility, _sample_cloud_density_with_noises(direction, day_fraction, noise_set))
+	return color
 
 
 func _sample_nebula_density_with_noises(direction: Vector3, day_fraction: float, noise_set: Dictionary, coverage: float) -> float:
@@ -659,17 +689,26 @@ func _sample_nebula_density_with_noises(direction: Vector3, day_fraction: float,
 	var holes := _noise_3d(noise_holes, domain * 1.90 + Vector3(24.3, 5.9, 13.8))
 	var field := broad * 0.95 + medium * 0.34 + ridge * 0.20 + detail * 0.025
 	field *= lerpf(0.82, 1.18, _smoothstep(0.10, 0.90, holes))
-	var presence_domain := _rotate_y(direction, day_fraction * TAU * 0.012)
+	var coverage_amount := clampf(coverage, 0.05, 0.95)
+	var presence_domain := _rotate_y(Vector3(direction.x * 0.70, direction.y * 1.12, direction.z * 0.94).normalized(), deg_to_rad(38.0) + day_fraction * TAU * 0.012)
 	var presence_a := _noise_3d(noise_presence, presence_domain * 0.74 + Vector3(31.4, 11.2, 5.7))
 	var presence_b := _noise_3d(noise_large, presence_domain * 0.38 + Vector3(4.6, 27.8, 16.5))
-	var forward_region := _smoothstep(0.45, 0.92, -direction.z) * (1.0 - _smoothstep(0.38, 0.78, absf(direction.x))) * _smoothstep(0.00, 0.50, direction.y)
-	var forward_breakup := _noise_3d(noise_presence, presence_domain * 1.10 + Vector3(18.6, 4.2, 33.1))
-	var presence := maxf(presence_a * 0.68 + presence_b * 0.32, forward_region * forward_breakup * 0.82)
-	var coverage_threshold := lerpf(0.58, 0.18, clampf(coverage, 0.05, 0.95))
-	var presence_mask := _smoothstep(coverage_threshold, coverage_threshold + 0.18, presence)
-	var altitude := _smoothstep(-0.36, 0.24, direction.y)
+	var presence_c := _noise_3d(noise_presence, presence_domain * 1.16 + Vector3(18.6, 4.2, 33.1))
+	var main_presence := presence_a * 0.58 + presence_b * 0.30 + presence_c * 0.12
+	var main_threshold := lerpf(0.60, 0.28, coverage_amount)
+	var main_mask := _smoothstep(main_threshold, main_threshold + 0.18, main_presence)
+	var satellite_field := _smoothstep(0.50, 0.84, presence_c * 0.46 + medium * 0.32 + ridge * 0.22)
+	var satellite_anchor := _smoothstep(main_threshold - 0.16, main_threshold + 0.22, main_presence)
+	var satellite_mask := satellite_field * satellite_anchor * (1.0 - main_mask * 0.30) * lerpf(0.32, 0.56, coverage_amount)
+	var lower_breakup := _smoothstep(0.20, 0.82, holes * 0.42 + detail * 0.34 + presence_c * 0.24)
+	var lower_edge := lerpf(0.14, 0.34, lower_breakup)
+	var main_altitude := _smoothstep(lower_edge + 0.06, lower_edge + 0.40, direction.y)
+	var satellite_altitude := _smoothstep(lower_edge - 0.05, lower_edge + 0.28, direction.y)
+	var high_body := 0.82 + _smoothstep(0.36, 0.76, direction.y) * 0.18
+	var internal_breakup := 1.0 - _smoothstep(0.64, 0.90, holes * 0.52 + detail * 0.30 + (1.0 - ridge) * 0.18) * 0.22
+	var presence_mask := clampf(main_mask * main_altitude + satellite_mask * satellite_altitude, 0.0, 1.0) * high_body * internal_breakup
 	var zenith_falloff := 1.0 - _smoothstep(0.96, 1.0, absf(direction.y))
-	return pow(_smoothstep(0.58, 0.96, field), 1.08) * presence_mask * altitude * zenith_falloff
+	return clampf(pow(_smoothstep(0.58, 0.96, field), 1.08) * presence_mask * zenith_falloff * 2.20, 0.0, 1.0)
 
 
 func _sample_nebula_color_with_noises(direction: Vector3, day_fraction: float, density: float, noise_set: Dictionary) -> Color:
@@ -678,11 +717,30 @@ func _sample_nebula_color_with_noises(direction: Vector3, day_fraction: float, d
 	var p := _rotate_y(direction, day_fraction * TAU * 0.018)
 	var chroma := _noise_3d(noise_medium, p * 3.40 + Vector3(8.0, 19.0, 4.0))
 	var aurora := _smoothstep(0.58, 0.96, _noise_3d(noise_detail, p * 6.80 + Vector3(1.0, 6.0, 13.0)))
-	var blue := Color(0.08, 0.60, 0.95, 1.0)
-	var cyan := Color(0.12, 1.0, 0.88, 1.0)
-	var green := Color(0.04, 1.0, 0.34, 1.0)
-	var green_amount := clampf(0.18 + aurora * 0.44 + density * 0.26, 0.0, 0.82)
-	return blue.lerp(cyan, _smoothstep(0.20, 0.86, chroma)).lerp(green, green_amount)
+	var deep_teal := Color(0.03, 0.42, 0.42, 1.0)
+	var cyan := Color(0.10, 0.92, 0.72, 1.0)
+	var emerald := Color(0.05, 1.0, 0.24, 1.0)
+	var aurora_green := Color(0.58, 1.0, 0.30, 1.0)
+	var blue_shadow := Color(0.05, 0.26, 0.70, 1.0)
+	var emerald_amount := clampf(0.38 + aurora * 0.30 + density * 0.24, 0.0, 0.92)
+	var aurora_amount := clampf(aurora * (0.10 + density * 0.18), 0.0, 0.30)
+	var blue_shadow_amount := clampf((1.0 - _smoothstep(0.28, 0.72, chroma)) * (0.04 + (1.0 - density) * 0.08), 0.0, 0.16)
+	var blue_domain_a := Vector3(p.x * 1.20 + p.y * 0.20, p.y * 0.52, p.z * 0.76 - p.x * 0.16)
+	var blue_domain_b := Vector3(p.x * 0.62 - p.z * 0.20, p.y * 0.58 + p.x * 0.10, p.z * 1.28)
+	var purple_domain := Vector3(p.x * 0.92 + p.z * 0.18, p.y * 0.48 - p.x * 0.08, p.z * 0.88)
+	var blue_break_a := _smoothstep(0.26, 0.72, _noise_3d(noise_detail, blue_domain_a * 3.20 + Vector3(6.4, 37.2, 12.5)))
+	var blue_break_b := _smoothstep(0.30, 0.74, _noise_3d(noise_detail, blue_domain_b * 2.95 + Vector3(34.7, 2.4, 27.1)))
+	var purple_break := _smoothstep(0.30, 0.72, _noise_3d(noise_detail, purple_domain * 3.60 + Vector3(22.8, 11.4, 38.5)))
+	var blue_field_a := _smoothstep(0.40, 0.72, _noise_3d(noise_medium, blue_domain_a * 0.96 + Vector3(41.8, 7.3, 18.6))) * lerpf(0.52, 1.0, blue_break_a)
+	var blue_field_b := _smoothstep(0.42, 0.74, _noise_3d(noise_medium, blue_domain_b * 0.88 + Vector3(17.6, 29.5, 5.8))) * lerpf(0.48, 1.0, blue_break_b)
+	var purple_field := _smoothstep(0.38, 0.70, _noise_3d(noise_medium, purple_domain * 0.94 + Vector3(8.9, 45.3, 21.6))) * lerpf(0.52, 1.0, purple_break)
+	purple_field = pow(purple_field, 0.92)
+	var gas_tint_mask := _smoothstep(0.003, 0.045, density) * (1.0 - _smoothstep(0.165, 0.300, density) * 0.38)
+	var blue_wisp_amount := clampf(maxf(blue_field_a * 0.68, blue_field_b * 0.58) * gas_tint_mask * (0.66 + density * 0.52), 0.0, 0.54)
+	var pink_wisp_amount := clampf(purple_field * gas_tint_mask * (0.88 + aurora * 0.34 + density * 0.42), 0.0, 0.68)
+	var dark_blue := Color(0.025, 0.08, 1.0, 1.0)
+	var rose := Color(0.92, 0.015, 1.0, 1.0)
+	return deep_teal.lerp(cyan, _smoothstep(0.18, 0.82, chroma)).lerp(emerald, emerald_amount).lerp(aurora_green, aurora_amount).lerp(blue_shadow, blue_shadow_amount).lerp(dark_blue, blue_wisp_amount).lerp(rose, pink_wisp_amount)
 
 
 func _sample_cloud_density_with_noises(direction: Vector3, day_fraction: float, noise_set: Dictionary) -> float:
@@ -797,7 +855,7 @@ func _apply_night_planets(anchor: Vector3, day_fraction: float, day_amount: floa
 		large_direction,
 		celestial_distance * 0.92,
 		Vector3(deg_to_rad(-8.0), -day_fraction * TAU * 0.16, deg_to_rad(18.0)),
-		Color(0.70, 0.42, 1.0, 1.0),
+		Color(0.92, 0.62, 0.36, 1.0),
 		large_visibility
 	)
 	_apply_sky_planet(
@@ -806,7 +864,7 @@ func _apply_night_planets(anchor: Vector3, day_fraction: float, day_amount: floa
 		large_direction,
 		celestial_distance * 0.92,
 		Vector3(deg_to_rad(64.0), -day_fraction * TAU * 0.16, deg_to_rad(18.0)),
-		Color(0.62, 0.94, 1.0, 1.0),
+		Color(0.78, 0.58, 0.36, 1.0),
 		large_visibility * (0.42 + hologram_pulse * 0.12)
 	)
 	_apply_sky_planet(
