@@ -1,0 +1,207 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/party_member.gd" id="1_party"]
+[ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_manager"]
+[ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
+[ext_resource type="Script" path="res://scripts/world_sim/world_sim_debug_action.gd" id="4_debug_action"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(48, 1, 48)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.18, 0.18, 0.22, 1)
+roughness = 0.92
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(48, 1, 48)
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_player"]
+radius = 0.45
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_selection_ring"]
+top_radius = 0.72
+bottom_radius = 0.72
+height = 0.05
+radial_segments = 32
+rings = 2
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_player"]
+albedo_color = Color(0.24, 0.58, 0.86, 1)
+roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_selection_ring"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.2, 0.9, 1, 0.62)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_time_button"]
+size = Vector3(2.8, 0.9, 1.6)
+
+[sub_resource type="BoxMesh" id="BoxMesh_time_button"]
+size = Vector3(2.8, 0.9, 1.6)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_morning_button"]
+albedo_color = Color(0.86, 0.54, 0.18, 1)
+roughness = 0.76
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lunch_button"]
+albedo_color = Color(0.92, 0.82, 0.28, 1)
+roughness = 0.76
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_evening_button"]
+albedo_color = Color(0.84, 0.28, 0.18, 1)
+roughness = 0.76
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_midnight_button"]
+albedo_color = Color(0.12, 0.14, 0.42, 1)
+roughness = 0.76
+
+[node name="SkylineDemo" type="Node3D"]
+
+[node name="Floor" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+material_override = SubResource("StandardMaterial3D_floor")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="CharacterSpawn" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+
+[node name="PartyMembers" type="Node3D" parent="."]
+
+[node name="SkyTester" type="CharacterBody3D" parent="PartyMembers"]
+transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 0, 0.6, 0)
+script = ExtResource("1_party")
+base_color = Color(0.24, 0.58, 0.86, 1)
+member_name = "Sky Tester"
+stable_id = "player.sky_tester"
+squad_name = "Skyline Demo"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/SkyTester"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_player")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/SkyTester"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+material_override = SubResource("StandardMaterial3D_player")
+mesh = SubResource("CapsuleMesh_player")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/SkyTester"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+material_override = SubResource("StandardMaterial3D_selection_ring")
+mesh = SubResource("CylinderMesh_selection_ring")
+
+[node name="SkylineTimeButtons" type="Node3D" parent="."]
+
+[node name="Set8AM" type="StaticBody3D" parent="SkylineTimeButtons"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.4, 0.55, -5)
+script = ExtResource("4_debug_action")
+display_name = "Set 8 AM"
+action_key = "set_hour:8"
+action_label = "Set 8 AM"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SkylineTimeButtons/Set8AM"]
+shape = SubResource("BoxShape3D_time_button")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="SkylineTimeButtons/Set8AM"]
+material_override = SubResource("StandardMaterial3D_morning_button")
+mesh = SubResource("BoxMesh_time_button")
+
+[node name="Label3D" type="Label3D" parent="SkylineTimeButtons/Set8AM"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0)
+billboard = 1
+text = "Set\n8 AM"
+font_size = 34
+
+[node name="SetLunch" type="StaticBody3D" parent="SkylineTimeButtons"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.8, 0.55, -5)
+script = ExtResource("4_debug_action")
+display_name = "Set Lunch"
+action_key = "set_hour:12"
+action_label = "Set Lunch"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SkylineTimeButtons/SetLunch"]
+shape = SubResource("BoxShape3D_time_button")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="SkylineTimeButtons/SetLunch"]
+material_override = SubResource("StandardMaterial3D_lunch_button")
+mesh = SubResource("BoxMesh_time_button")
+
+[node name="Label3D" type="Label3D" parent="SkylineTimeButtons/SetLunch"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0)
+billboard = 1
+text = "Set\nLunch"
+font_size = 34
+
+[node name="Set6PM" type="StaticBody3D" parent="SkylineTimeButtons"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.8, 0.55, -5)
+script = ExtResource("4_debug_action")
+display_name = "Set 6 PM"
+action_key = "set_hour:18"
+action_label = "Set 6 PM"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SkylineTimeButtons/Set6PM"]
+shape = SubResource("BoxShape3D_time_button")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="SkylineTimeButtons/Set6PM"]
+material_override = SubResource("StandardMaterial3D_evening_button")
+mesh = SubResource("BoxMesh_time_button")
+
+[node name="Label3D" type="Label3D" parent="SkylineTimeButtons/Set6PM"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0)
+billboard = 1
+text = "Set\n6 PM"
+font_size = 34
+
+[node name="SetMidnight" type="StaticBody3D" parent="SkylineTimeButtons"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.4, 0.55, -5)
+script = ExtResource("4_debug_action")
+display_name = "Set Midnight"
+action_key = "set_hour:0"
+action_label = "Set Midnight"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SkylineTimeButtons/SetMidnight"]
+shape = SubResource("BoxShape3D_time_button")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="SkylineTimeButtons/SetMidnight"]
+material_override = SubResource("StandardMaterial3D_midnight_button")
+mesh = SubResource("BoxMesh_time_button")
+
+[node name="Label3D" type="Label3D" parent="SkylineTimeButtons/SetMidnight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0)
+billboard = 1
+text = "Set\nMidnight"
+font_size = 34
+
+[node name="PartyManager" type="Node" parent="."]
+script = ExtResource("2_manager")
+
+[node name="GameBootstrap" type="Node" parent="."]
+script = ExtResource("3_bootstrap")
+
+[node name="CameraRig" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 24)
+current = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Instructions" type="Label" parent="CanvasLayer"]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 860.0
+offset_bottom = 92.0
+text = "Skyline demo: use the four blocks to set 8 AM, lunch, 6 PM, or midnight and compare the alien sky, planets, moon glow, and nebula."
+autowrap_mode = 3

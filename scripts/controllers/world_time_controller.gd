@@ -246,6 +246,16 @@ func advance_days(days: float) -> void:
 	advance_minutes(days * MINUTES_PER_DAY)
 
 
+func set_time_of_day(hour: int, minute: int = 0) -> void:
+	var clamped_hour := clampi(hour, 0, 23)
+	var clamped_minute := clampi(minute, 0, 59)
+	var day_start := float(get_day_index()) * MINUTES_PER_DAY
+	total_world_minutes = day_start + float(clamped_hour * 60 + clamped_minute)
+	_last_boundary_absolute_minute = get_absolute_minute()
+	_emit_time_changed(true)
+	sync_world_time_state()
+
+
 func format_time() -> String:
 	var hour := get_hour()
 	var suffix := "AM" if hour < 12 else "PM"

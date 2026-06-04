@@ -71,6 +71,13 @@ func perform_world_sim_debug_action(action_key: String) -> String:
 			if world_time != null and world_time.has_method("advance_days"):
 				world_time.call("advance_days", days)
 			return "Advanced %.0f day(s)" % days
+		"set_hour":
+			var hour := int(parts[1]) if parts.size() > 1 else 0
+			var minute := int(parts[2]) if parts.size() > 2 else 0
+			if world_time != null and world_time.has_method("set_time_of_day"):
+				world_time.call("set_time_of_day", hour, minute)
+				return "Time set to %s" % str(world_time.call("format_time"))
+			return "World time is not available"
 		"adjust_food":
 			if parts.size() < 3 or settlement_controller == null:
 				return "Food action is misconfigured"
