@@ -1,12 +1,8 @@
 [gd_scene format=3 uid="uid://fpat6npxukfj"]
 
-[ext_resource type="Script" uid="uid://c354oqtn4bw75" path="res://scripts/world_sim/settlement_bar.gd" id="1_bar"]
 [ext_resource type="Resource" uid="uid://c61gqpdemh37e" path="res://resources/world_sim/facility_functions/bar.tres" id="2_function"]
 [ext_resource type="PackedScene" path="res://scenes/world/buildings/bar_scene.tscn" id="3_building"]
-[ext_resource type="Script" uid="uid://dw7e6d4p7nh3q" path="res://scripts/world/venues/bar_service_area.gd" id="4_service_area"]
 [ext_resource type="Script" uid="uid://7jultsn1231f" path="res://scripts/world/buildings/building_level_definition.gd" id="5_40dsm"]
-[ext_resource type="Script" uid="uid://kn8yaubx5vgk" path="res://scripts/world/venues/bar_service_point.gd" id="5_service_point"]
-[ext_resource type="Script" uid="uid://c32mdje85i12b" path="res://scripts/world/venues/bar_guard_post.gd" id="6_guard_post"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/bar_table.tscn" id="17_opnxp"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/stool_chair.tscn" id="18_hhq5f"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/simple_bed.tscn" id="20_8jp0s"]
@@ -105,7 +101,6 @@ size = Vector3(0.95, 0.16, 0.38)
 size = Vector3(1.45, 0.6, 2.45)
 
 [node name="SettlementBar" type="Node3D" unique_id=556110935]
-script = ExtResource("1_bar")
 guard_post_count = 3
 facility_function = ExtResource("2_function")
 display_name = "Settlement Bar"
@@ -125,7 +120,6 @@ levels = Array[ExtResource("5_40dsm")]([SubResource("BuildingLevelDefinition_gro
 
 [node name="BarkeeperCounterPoint" type="Node3D" parent="ServicePoints" unique_id=1246845458]
 transform = Transform3D(0.76604444, 0, 0.6427876, 0, 1, 0, -0.6427876, 0, 0.76604444, 0, 0.35, -1.85)
-script = ExtResource("5_service_point")
 debug_color = Color(0.36, 1, 0.48, 0.76)
 metadata/facility_generated = true
 metadata/facility_role = "barkeeper"
@@ -135,7 +129,6 @@ metadata/facility_last_default_transform = Transform3D(0.76604444, 0, 0.6427876,
 
 [node name="WaiterPoint" type="Node3D" parent="ServicePoints" unique_id=822455023]
 transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, 2.1900706, 0.35, -6.034371)
-script = ExtResource("5_service_point")
 point_role = "waiter"
 metadata/facility_generated = true
 metadata/facility_role = "waiter"
@@ -164,7 +157,6 @@ metadata/facility_last_default_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1
 
 [node name="GuardPost" type="Node3D" parent="GuardPosts" unique_id=1673331212]
 transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -3.3624148, 0.05, 6.071506)
-script = ExtResource("6_guard_post")
 metadata/facility_generated = true
 metadata/facility_role = "guard"
 metadata/facility_index = 0
@@ -173,7 +165,6 @@ metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.996194
 
 [node name="GuardPost2" type="Node3D" parent="GuardPosts" unique_id=268992819]
 transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -2.879912, 0.05, 8.843071)
-script = ExtResource("6_guard_post")
 metadata/facility_generated = true
 metadata/facility_role = "guard"
 metadata/facility_index = 1
@@ -182,7 +173,6 @@ metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.996194
 
 [node name="GuardPost3" type="Node3D" parent="GuardPosts" unique_id=1530145352]
 transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 0, 2.9232936, -6.900717)
-script = ExtResource("6_guard_post")
 metadata/facility_generated = true
 metadata/facility_role = "guard"
 metadata/facility_index = 2
@@ -614,7 +604,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 shape = SubResource("BoxShape3D_bed")
 
 [node name="BarServiceArea" type="Node3D" parent="." unique_id=896339976]
-script = ExtResource("4_service_area")
 service_area_id = "settlement_bar.service_area"
 beds_root_path = NodePath("../Furniture")
 seats_root_path = NodePath("../Furniture")

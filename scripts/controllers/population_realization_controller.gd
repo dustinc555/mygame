@@ -131,9 +131,6 @@ func _realization_reference_position() -> Vector3:
 	var camera := _get_player_camera()
 	if camera is Camera3D:
 		return camera.global_position
-	for member in _party_members():
-		if member is Node3D:
-			return member.global_position
 	return Vector3.INF
 
 
@@ -153,15 +150,6 @@ func _get_player_camera() -> Camera3D:
 			if child is Camera3D:
 				return child
 	return null
-
-
-func _party_members() -> Array:
-	if root_scene == null:
-		return []
-	var manager := root_scene.get_node_or_null("PartyManager")
-	if manager != null and manager.get("party_members") is Array:
-		return manager.get("party_members") as Array
-	return []
 
 
 func _get_gecs_world() -> Node:

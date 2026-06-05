@@ -1,19 +1,15 @@
 [gd_scene format=4 uid="uid://m6lrbtq1ji6u"]
 
-[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://scripts/world_sim/settlement_town.gd" id="1_town"]
 [ext_resource type="PackedScene" path="res://scenes/world/buildings/tiny_house.tscn" id="2_house"]
 [ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://scenes/world_sim/settlement_jail.tscn" id="3_jail"]
 [ext_resource type="PackedScene" uid="uid://fpat6npxukfj" path="res://scenes/world_sim/settlement_bar.tscn" id="4_bar"]
 [ext_resource type="PackedScene" uid="uid://cmh02fasnxjgq" path="res://scenes/world_sim/settlement_keep.tscn" id="5_keep"]
 [ext_resource type="Resource" uid="uid://3sggop603h5v" path="res://resources/world_sim/settlements/paradise_hills.tres" id="6_settlement"]
-[ext_resource type="Script" uid="uid://c808ce2djlw3n" path="res://scripts/world_sim/settlement_population_spawner.gd" id="7_spawner"]
 [ext_resource type="Script" uid="uid://dul2enrcs1uoi" path="res://scripts/world_sim/settlement_activity_point.gd" id="8_activity"]
 [ext_resource type="Resource" path="res://resources/world_sim/population_appearance_profiles/raider_scrapper.tres" id="9_appearance"]
-[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://scripts/characters/faction_humanoid.gd" id="10_4uqmj"]
 [ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/bandage.tres" id="11_8d5jw"]
 [ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/hatchet.tres" id="12_e1aqh"]
 [ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/round_shield.tres" id="13_o0ttn"]
-[ext_resource type="Script" uid="uid://cfsopniuad3ao" path="res://scripts/world/venues/settlement_guard_post.gd" id="14_1tkka"]
 [ext_resource type="Resource" path="res://resources/items/cinder_flask.tres" id="15_cinder"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/body_furnace.tscn" id="16_furnace"]
 
@@ -42,7 +38,6 @@ _surfaces = [{
 }]
 
 [node name="ParadiseHills" type="Node3D" unique_id=1011136473]
-script = ExtResource("1_town")
 guard_count = 1
 guard_post_count = 1
 guard_name = "Paradise Enforcer"
@@ -105,7 +100,6 @@ owner_faction_id = "ParadiseHills"
 [node name="Storage" type="Node3D" parent="." unique_id=1198684847]
 
 [node name="Residents" type="Node3D" parent="." unique_id=723420087]
-script = ExtResource("7_spawner")
 settlement_definition = ExtResource("6_settlement")
 member_name_prefix = "Paradise Resident"
 stable_id_prefix = "npc.paradise_hills.resident"
@@ -136,14 +130,11 @@ exclusive = true
 
 [node name="Guard" type="CharacterBody3D" parent="Guards" unique_id=1836764486]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.6, -2)
-script = ExtResource("10_4uqmj")
 starting_equipment = Array[Resource]([ExtResource("11_8d5jw"), ExtResource("12_e1aqh"), ExtResource("13_o0ttn"), ExtResource("15_cinder"), ExtResource("15_cinder")])
 member_name = "Paradise Enforcer (guard)"
 stable_id = "npc.paradise_hills.staff.guard"
 faction_name = "ParadiseHills"
 squad_name = "ParadiseHills"
-auto_heal_enabled = true
-auto_burn_rustdead_enabled = true
 base_attack_damage = 12.0
 metadata/settlement_staff_role = "guard"
 metadata/settlement_staff_role_index = 0
@@ -162,7 +153,6 @@ mesh = SubResource("CapsuleMesh_ojio2")
 
 [node name="GuardPost" type="Node3D" parent="GuardPosts" unique_id=840834244]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -7, 0.05, -2)
-script = ExtResource("14_1tkka")
 debug_color = Color(0.35, 0.78, 1, 0.76)
 metadata/settlement_guard_post_generated = true
 metadata/settlement_guard_post_index = 0

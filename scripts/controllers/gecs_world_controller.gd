@@ -7,7 +7,6 @@ const ENTITY_SCRIPT_PATH := "res://addons/gecs/ecs/entity.gd"
 const ECS_SCRIPT_PATH := "res://addons/gecs/ecs/ecs.gd"
 const GECS_IO_SCRIPT_PATH := "res://addons/gecs/io/io.gd"
 const ACTOR_SYNC_SYSTEM_SCRIPT_PATH := "res://scripts/ecs/systems/game_actor_sync_system.gd"
-const AI_JOB_SYSTEM_SCRIPT_PATH := "res://scripts/ecs/systems/game_ai_job_system.gd"
 
 const C_NODE_PATH := "res://scripts/ecs/components/c_game_actor_node.gd"
 const C_IDENTITY_PATH := "res://scripts/ecs/components/c_game_actor_identity.gd"
@@ -15,9 +14,6 @@ const C_FACTION_PATH := "res://scripts/ecs/components/c_game_actor_faction.gd"
 const C_SETTLEMENT_PATH := "res://scripts/ecs/components/c_game_actor_settlement.gd"
 const C_SPATIAL_PATH := "res://scripts/ecs/components/c_game_actor_spatial.gd"
 const C_VITALS_PATH := "res://scripts/ecs/components/c_game_actor_vitals.gd"
-const C_AI_SCHEDULE_PATH := "res://scripts/ecs/components/c_game_ai_schedule.gd"
-const C_AI_STATE_PATH := "res://scripts/ecs/components/c_game_ai_state.gd"
-const C_GOAL_INTENT_PATH := "res://scripts/ecs/components/c_game_goal_intent.gd"
 const C_POPULATION_RECORD_PATH := "res://scripts/ecs/components/c_game_population_record.gd"
 const C_SETTLEMENT_STATE_PATH := "res://scripts/ecs/components/c_game_settlement_state.gd"
 const C_STAFF_SLOT_PATH := "res://scripts/ecs/components/c_game_staff_slot.gd"
@@ -41,7 +37,6 @@ const C_WORLD_EVENT_PATH := "res://scripts/ecs/components/c_game_world_event_sta
 const C_NEST_STATE_PATH := "res://scripts/ecs/components/c_game_nest_state.gd"
 const C_JOB_SYSTEM_PATH := "res://scripts/ecs/components/c_game_job_system_state.gd"
 const C_LEDGER_SIMULATION_PATH := "res://scripts/ecs/components/c_game_ledger_simulation_state.gd"
-const C_AI_SCHEDULER_STATE_PATH := "res://scripts/ecs/components/c_game_ai_scheduler_state.gd"
 const C_POPULATION_REALIZATION_STATE_PATH := "res://scripts/ecs/components/c_game_population_realization_state.gd"
 
 @export var spatial_cell_size := 12.0
@@ -73,7 +68,6 @@ var _world_event_entity
 var _nest_state_entity
 var _job_system_entity
 var _ledger_simulation_entity
-var _ai_scheduler_state_entity
 var _population_realization_state_entity
 var _initialized := false
 var _world_script
@@ -81,7 +75,6 @@ var _entity_script
 var _ecs_script
 var _gecs_io_script
 var _actor_sync_system_script
-var _ai_job_system_script
 var _registered_direct_script_ecs_singleton := false
 var _direct_script_ecs_placeholder: Node
 var C_NODE
@@ -90,9 +83,6 @@ var C_FACTION
 var C_SETTLEMENT
 var C_SPATIAL
 var C_VITALS
-var C_AI_SCHEDULE
-var C_AI_STATE
-var C_GOAL_INTENT
 var C_POPULATION_RECORD
 var C_SETTLEMENT_STATE
 var C_STAFF_SLOT
@@ -116,7 +106,6 @@ var C_WORLD_EVENT
 var C_NEST_STATE
 var C_JOB_SYSTEM
 var C_LEDGER_SIMULATION
-var C_AI_SCHEDULER_STATE
 var C_POPULATION_REALIZATION_STATE
 
 
@@ -165,7 +154,7 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 		entity = _entity_script.new()
 		entity.name = _entity_node_name("Actor", actor_id)
 		entity.id = _entity_id("actor", actor_id)
-		world.add_entity(entity, [C_NODE.new(), C_IDENTITY.new(), C_FACTION.new(), C_SETTLEMENT.new(), C_SPATIAL.new(), C_VITALS.new(), C_AI_SCHEDULE.new(), C_AI_STATE.new(), C_GOAL_INTENT.new()])
+		world.add_entity(entity, [C_NODE.new(), C_IDENTITY.new(), C_FACTION.new(), C_SETTLEMENT.new(), C_SPATIAL.new(), C_VITALS.new()])
 		_actor_entity_by_actor_id[actor_id] = entity
 	_write_actor_components(entity, actor, actor_id, settlement_id, context)
 	_actor_id_by_instance_id[actor.get_instance_id()] = actor_id
@@ -257,116 +246,6 @@ func get_alive_actors_for_faction(faction_id: String, include_party := true) -> 
 
 func get_nearby_actors(position: Vector3, radius: float, include_party := true) -> Array:
 	return _query_actor_nodes({"alive": true, "position": position, "radius": radius, "include_party": include_party})
-
-
-func get_all_humanoids() -> Array:
-	return get_all_actors()
-
-
-func get_alive_humanoids(include_party := true) -> Array:
-	return get_alive_actors(include_party)
-
-
-func get_alive_humanoids_for_settlement(settlement_id: String, include_party := true) -> Array:
-	return get_alive_actors_for_settlement(settlement_id, include_party)
-
-
-func get_alive_humanoids_for_role(role_id: String, include_party := true) -> Array:
-	return get_alive_actors_for_role(role_id, include_party)
-
-
-func get_alive_humanoids_for_faction(faction_id: String, include_party := true) -> Array:
-	return get_alive_actors_for_faction(faction_id, include_party)
-
-
-func get_nearby_humanoids(position: Vector3, radius: float, include_party := true) -> Array:
-	return get_nearby_actors(position, radius, include_party)
-
-
-func clear_actor_schedule(actor: Node) -> void:
-	var entity = _actor_entity_for_actor(actor)
-	if entity == null:
-		return
-	var schedule = entity.get_component(C_AI_SCHEDULE)
-	if schedule != null:
-		schedule.next_decision_tick = -1.0
-		schedule.next_job_tick = -1.0
-
-
-func set_actor_ai_job(actor: Node, job, driver = null) -> void:
-	var entity = _actor_entity_for_actor(actor)
-	if entity == null:
-		register_actor(actor)
-		entity = _actor_entity_for_actor(actor)
-	if entity == null:
-		return
-	var ai_state = entity.get_component(C_AI_STATE)
-	if ai_state == null:
-		return
-	ai_state.apply_job(job)
-	ai_state.active_driver = driver
-	ai_state.active_target_id = _target_id_for_ai_job(job)
-
-
-func clear_actor_ai_job(actor: Node) -> void:
-	var entity = _actor_entity_for_actor(actor)
-	if entity == null:
-		return
-	var ai_state = entity.get_component(C_AI_STATE)
-	if ai_state == null:
-		return
-	ai_state.clear_job()
-
-
-func set_actor_goal_intent(actor: Node, intent_data: Dictionary) -> Dictionary:
-	var entity = _actor_entity_for_actor(actor)
-	if entity == null:
-		register_actor(actor)
-		entity = _actor_entity_for_actor(actor)
-	if entity == null:
-		return {}
-	var goal_intent = _ensure_actor_goal_intent_component(entity)
-	if goal_intent == null:
-		return {}
-	goal_intent.apply_decision(intent_data)
-	return goal_intent.to_dictionary(false)
-
-
-func get_actor_goal_intent(actor: Node, include_debug := false) -> Dictionary:
-	var entity = _actor_entity_for_actor(actor)
-	if entity == null:
-		return {}
-	var goal_intent = entity.get_component(C_GOAL_INTENT)
-	return goal_intent.to_dictionary(include_debug) if goal_intent != null and goal_intent.has_method("to_dictionary") else {}
-
-
-func clear_actor_goal_intent(actor: Node) -> void:
-	var entity = _actor_entity_for_actor(actor)
-	if entity == null:
-		return
-	var goal_intent = entity.get_component(C_GOAL_INTENT)
-	if goal_intent != null and goal_intent.has_method("clear_intent"):
-		goal_intent.call("clear_intent")
-
-
-func should_tick_actor(actor: Node, sim_time: float, interval_seconds: float, jitter_seconds: float, rng: RandomNumberGenerator) -> bool:
-	var entity = _actor_entity_for_actor(actor)
-	if entity == null:
-		register_actor(actor)
-		entity = _actor_entity_for_actor(actor)
-	if entity == null:
-		return false
-	var schedule = entity.get_component(C_AI_SCHEDULE)
-	if schedule == null:
-		return true
-	if float(schedule.next_decision_tick) > sim_time:
-		return false
-	var interval: float = maxf(interval_seconds, 0.01)
-	var jitter: float = maxf(jitter_seconds, 0.0)
-	schedule.decision_interval_seconds = interval
-	schedule.decision_jitter_seconds = jitter
-	schedule.next_decision_tick = sim_time + interval + rng.randf_range(0.0, jitter)
-	return true
 
 
 func upsert_population_record(record: Dictionary) -> Dictionary:
@@ -858,8 +737,7 @@ func _is_player_party_job_contract(contract: Dictionary) -> bool:
 	if bool(metadata.get("player_party_member", false)):
 		return true
 	var actor_id := str(contract.get("actor_id", ""))
-	var actor := get_actor_by_stable_id(actor_id)
-	return actor != null and actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member"))
+	return bool(get_actor_state(actor_id).get("player_party_member", false))
 
 
 func mark_job_contract_started(contract_id: String, sim_time: float) -> void:
@@ -1081,16 +959,6 @@ func get_ledger_simulation_state() -> Dictionary:
 	return _state_component_to_dictionary(_ledger_simulation_entity, C_LEDGER_SIMULATION)
 
 
-func upsert_ai_scheduler_state(state: Dictionary) -> Dictionary:
-	_ai_scheduler_state_entity = _upsert_state_entity(_ai_scheduler_state_entity, "AiSchedulerState", _entity_id("ai_scheduler", "state"), C_AI_SCHEDULER_STATE)
-	return _apply_state_component(_ai_scheduler_state_entity, C_AI_SCHEDULER_STATE, state)
-
-
-func get_ai_scheduler_state() -> Dictionary:
-	_ai_scheduler_state_entity = _find_state_entity(_ai_scheduler_state_entity, C_AI_SCHEDULER_STATE)
-	return _state_component_to_dictionary(_ai_scheduler_state_entity, C_AI_SCHEDULER_STATE)
-
-
 func upsert_population_realization_state(state: Dictionary) -> Dictionary:
 	_population_realization_state_entity = _upsert_state_entity(_population_realization_state_entity, "PopulationRealizationState", _entity_id("population_realization", "state"), C_POPULATION_REALIZATION_STATE)
 	return _apply_state_component(_population_realization_state_entity, C_POPULATION_REALIZATION_STATE, state)
@@ -1129,14 +997,6 @@ func load_gecs_world(filepath: String) -> bool:
 	return true
 
 
-func can_tick_actor_ai_job(actor: Node) -> bool:
-	var entity = _actor_entity_for_actor(actor)
-	if entity == null or not is_instance_valid(entity):
-		return false
-	var ai_state = entity.get_component(C_AI_STATE)
-	return ai_state != null and ai_state.active_job != null and ai_state.active_driver != null
-
-
 func get_spatial_cell_count() -> int:
 	var cells := {}
 	if world == null:
@@ -1165,7 +1025,6 @@ func serialize_state() -> Dictionary:
 		"nest_state_entity_count": 1 if _nest_state_entity != null and is_instance_valid(_nest_state_entity) else 0,
 		"job_system_entity_count": 1 if _job_system_entity != null and is_instance_valid(_job_system_entity) else 0,
 		"ledger_simulation_entity_count": 1 if _ledger_simulation_entity != null and is_instance_valid(_ledger_simulation_entity) else 0,
-		"ai_scheduler_state_entity_count": 1 if _ai_scheduler_state_entity != null and is_instance_valid(_ai_scheduler_state_entity) else 0,
 		"population_realization_state_entity_count": 1 if _population_realization_state_entity != null and is_instance_valid(_population_realization_state_entity) else 0,
 		"job_contract_entity_count": _job_contract_entity_by_id.size(),
 		"job_provider_memory_entity_count": _job_provider_memory_entity_by_id.size(),
@@ -1175,7 +1034,7 @@ func serialize_state() -> Dictionary:
 
 
 func _load_gecs_scripts() -> bool:
-	if _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _component_scripts_loaded():
+	if _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _component_scripts_loaded():
 		return true
 	_ensure_direct_script_ecs_singleton()
 	_load_component_scripts()
@@ -1184,8 +1043,7 @@ func _load_gecs_scripts() -> bool:
 	_ecs_script = load(ECS_SCRIPT_PATH) if _ecs_script == null else _ecs_script
 	_gecs_io_script = load(GECS_IO_SCRIPT_PATH) if _gecs_io_script == null else _gecs_io_script
 	_actor_sync_system_script = load(ACTOR_SYNC_SYSTEM_SCRIPT_PATH) if _actor_sync_system_script == null else _actor_sync_system_script
-	_ai_job_system_script = load(AI_JOB_SYSTEM_SCRIPT_PATH) if _ai_job_system_script == null else _ai_job_system_script
-	return _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _component_scripts_loaded()
+	return _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _component_scripts_loaded()
 
 
 func _load_component_scripts() -> void:
@@ -1195,9 +1053,6 @@ func _load_component_scripts() -> void:
 	C_SETTLEMENT = load(C_SETTLEMENT_PATH) if C_SETTLEMENT == null else C_SETTLEMENT
 	C_SPATIAL = load(C_SPATIAL_PATH) if C_SPATIAL == null else C_SPATIAL
 	C_VITALS = load(C_VITALS_PATH) if C_VITALS == null else C_VITALS
-	C_AI_SCHEDULE = load(C_AI_SCHEDULE_PATH) if C_AI_SCHEDULE == null else C_AI_SCHEDULE
-	C_AI_STATE = load(C_AI_STATE_PATH) if C_AI_STATE == null else C_AI_STATE
-	C_GOAL_INTENT = load(C_GOAL_INTENT_PATH) if C_GOAL_INTENT == null else C_GOAL_INTENT
 	C_POPULATION_RECORD = load(C_POPULATION_RECORD_PATH) if C_POPULATION_RECORD == null else C_POPULATION_RECORD
 	C_SETTLEMENT_STATE = load(C_SETTLEMENT_STATE_PATH) if C_SETTLEMENT_STATE == null else C_SETTLEMENT_STATE
 	C_STAFF_SLOT = load(C_STAFF_SLOT_PATH) if C_STAFF_SLOT == null else C_STAFF_SLOT
@@ -1221,7 +1076,6 @@ func _load_component_scripts() -> void:
 	C_NEST_STATE = load(C_NEST_STATE_PATH) if C_NEST_STATE == null else C_NEST_STATE
 	C_JOB_SYSTEM = load(C_JOB_SYSTEM_PATH) if C_JOB_SYSTEM == null else C_JOB_SYSTEM
 	C_LEDGER_SIMULATION = load(C_LEDGER_SIMULATION_PATH) if C_LEDGER_SIMULATION == null else C_LEDGER_SIMULATION
-	C_AI_SCHEDULER_STATE = load(C_AI_SCHEDULER_STATE_PATH) if C_AI_SCHEDULER_STATE == null else C_AI_SCHEDULER_STATE
 	C_POPULATION_REALIZATION_STATE = load(C_POPULATION_REALIZATION_STATE_PATH) if C_POPULATION_REALIZATION_STATE == null else C_POPULATION_REALIZATION_STATE
 
 
@@ -1233,9 +1087,6 @@ func _component_scripts_loaded() -> bool:
 		C_SETTLEMENT,
 		C_SPATIAL,
 		C_VITALS,
-		C_AI_SCHEDULE,
-		C_AI_STATE,
-		C_GOAL_INTENT,
 		C_POPULATION_RECORD,
 		C_SETTLEMENT_STATE,
 		C_STAFF_SLOT,
@@ -1259,7 +1110,6 @@ func _component_scripts_loaded() -> bool:
 		C_NEST_STATE,
 		C_JOB_SYSTEM,
 		C_LEDGER_SIMULATION,
-		C_AI_SCHEDULER_STATE,
 		C_POPULATION_REALIZATION_STATE,
 	]:
 		if component_script == null:
@@ -1290,9 +1140,6 @@ func _try_initialize() -> void:
 		var actor_sync = _actor_sync_system_script.new()
 		actor_sync.name = "GameActorSyncSystem"
 		world.add_system(actor_sync)
-		var ai_job_system = _ai_job_system_script.new()
-		ai_job_system.name = "GameAiJobSystem"
-		world.add_system(ai_job_system)
 	var ecs_node = get_node_or_null("/root/ECS")
 	if ecs_node == null:
 		ecs_node = _ecs_script.new()
@@ -1557,7 +1404,7 @@ func _sync_job_provider_slots(provider_id: String, active_slots: Dictionary) -> 
 			component.server_state = str(slot_data.get("server_state", "idle"))
 			component.server_state_elapsed = float(slot_data.get("server_state_elapsed", 0.0))
 			component.server_order_text = str(slot_data.get("server_order_text", ""))
-			component.last_ai_blocker = str(slot_data.get("last_ai_blocker", ""))
+			component.last_work_blocker = str(slot_data.get("last_work_blocker", ""))
 	var remove_ids: Array[String] = []
 	for slot_id in _job_provider_slot_entity_by_id.keys():
 		var slot_id_text := str(slot_id)
@@ -1745,7 +1592,6 @@ func _actor_state_from_entity(entity) -> Dictionary:
 	var settlement = entity.get_component(C_SETTLEMENT)
 	var spatial = entity.get_component(C_SPATIAL)
 	var vitals = entity.get_component(C_VITALS)
-	var goal_intent = entity.get_component(C_GOAL_INTENT) if C_GOAL_INTENT != null else null
 	var actor_id := str(identity.actor_id)
 	var state := {
 		"actor_id": actor_id,
@@ -1776,19 +1622,7 @@ func _actor_state_from_entity(entity) -> Dictionary:
 		state["max_hp"] = float(vitals.max_hp)
 		state["blood"] = float(vitals.blood)
 		state["max_blood"] = float(vitals.max_blood)
-	if goal_intent != null and goal_intent.has_method("to_dictionary"):
-		state["goal_intent"] = goal_intent.call("to_dictionary", false)
 	return state
-
-
-func _ensure_actor_goal_intent_component(entity):
-	if entity == null or C_GOAL_INTENT == null:
-		return null
-	var goal_intent = entity.get_component(C_GOAL_INTENT)
-	if goal_intent == null:
-		goal_intent = C_GOAL_INTENT.new()
-		entity.add_component(goal_intent)
-	return goal_intent
 
 
 func _actor_id_for_actor(actor: Node, settlement_id: String) -> String:
@@ -1912,24 +1746,6 @@ func _world_item_stack_id(item: Node) -> String:
 	return "world_item:%s" % _node_container_id(item)
 
 
-func _target_id_for_ai_job(job) -> String:
-	if job == null:
-		return ""
-	if not str(job.target_id).strip_edges().is_empty():
-		return str(job.target_id).strip_edges()
-	var target = job.target
-	if target == null:
-		return ""
-	if target is Node:
-		var stable_id = target.get("stable_id")
-		if stable_id != null and not str(stable_id).strip_edges().is_empty():
-			return str(stable_id).strip_edges()
-		if target.has_meta("actor_record_id"):
-			return str(target.get_meta("actor_record_id"))
-		return str(target.get_instance_id())
-	return str(target)
-
-
 func _sync_live_scene_state_for_save() -> void:
 	if not is_inside_tree():
 		return
@@ -1979,7 +1795,6 @@ func _clear_world_entities() -> void:
 	_nest_state_entity = null
 	_job_system_entity = null
 	_ledger_simulation_entity = null
-	_ai_scheduler_state_entity = null
 	_population_realization_state_entity = null
 
 
@@ -2074,9 +1889,6 @@ func _rebuild_entity_indexes() -> void:
 		break
 	for entity in world.query.with_all([C_LEDGER_SIMULATION]).execute():
 		_ledger_simulation_entity = entity
-		break
-	for entity in world.query.with_all([C_AI_SCHEDULER_STATE]).execute():
-		_ai_scheduler_state_entity = entity
 		break
 	for entity in world.query.with_all([C_POPULATION_REALIZATION_STATE]).execute():
 		_population_realization_state_entity = entity

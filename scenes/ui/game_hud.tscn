@@ -316,36 +316,6 @@ toggle_mode = true
 focus_mode = 0
 text = "Passive"
 
-[node name="AssistRow" type="HBoxContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows"]
-custom_minimum_size = Vector2(0, 24)
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="AssistLabel" type="Label" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/AssistRow"]
-custom_minimum_size = Vector2(42, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.58, 0.53, 0.43, 1)
-theme_override_font_sizes/font_size = 10
-text = "Assist"
-vertical_alignment = 1
-
-[node name="AutoHealButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/AssistRow"]
-custom_minimum_size = Vector2(84, 24)
-layout_mode = 2
-size_flags_horizontal = 3
-toggle_mode = true
-focus_mode = 0
-text = "Auto Heal"
-
-[node name="BurnRustdeadButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/AssistRow"]
-custom_minimum_size = Vector2(104, 24)
-layout_mode = 2
-size_flags_horizontal = 3
-toggle_mode = true
-focus_mode = 0
-theme_override_font_sizes/font_size = 9
-text = "Burn Rustdead"
-
 [node name="PortraitBar" type="PanelContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")
 layout_mode = 2
@@ -404,14 +374,6 @@ disabled = true
 focus_mode = 0
 theme_override_font_sizes/font_size = 10
 text = "Formation"
-
-[node name="SquadAIButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadCommandStrip"]
-custom_minimum_size = Vector2(56, 22)
-layout_mode = 2
-disabled = true
-focus_mode = 0
-theme_override_font_sizes/font_size = 10
-text = "AI"
 
 [node name="PortraitScroll" type="ScrollContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn"]
 layout_mode = 2

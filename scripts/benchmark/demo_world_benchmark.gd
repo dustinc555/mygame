@@ -21,39 +21,22 @@ const MONITOR_IDS := {
 }
 
 const TRACKED_GROUPS := [
-	"npc_character",
-	"humanoid_character",
 	"settlement_town",
 	"world_item",
 	"world_container",
-	"population_spawner",
-	"law_order_controller",
 	"settlement_controller",
 	"population_controller",
-	"perception_controller",
-	"ownership_controller",
 	"job_system_controller",
-	"job_provider",
 	"faction_controller",
 	"road_network",
 	"faction_territory",
-	"party_member",
 	"world_sim_registry",
-	"world_interaction_controller",
 	"world_time_controller",
-	"ai_scheduler_controller",
-	"world_squad_controller",
-	"world_event_choice_controller",
 	"population_realization_controller",
 	"ledger_simulation_controller",
 	"world_simulation_controller",
 	"territory_controller",
 	"road_controller",
-	"conversation_controller",
-	"party_inventory_controller",
-	"humanoid_details_controller",
-	"character_jobs_window",
-	"building_visibility_controller",
 	"world_status_controller"
 ]
 
@@ -87,12 +70,10 @@ var _ecs_singleton: Node = null
 
 
 # Useful isolation flags:
-# --demo-bench-disable-process=humanoid_character isolates non-humanoid scene cost.
-# --demo-bench-disable-idle-process=humanoid_character disables only `_process`.
-# --demo-bench-disable-physics-process=humanoid_character disables only `_physics_process`.
+# --demo-bench-disable-process=<group> isolates process cost for a node group.
+# --demo-bench-disable-idle-process=<group> disables only `_process`.
+# --demo-bench-disable-physics-process=<group> disables only `_physics_process`.
 # --demo-bench-ecs-debug enables ECS metrics, but changes benchmark cost.
-# --utility-profile prints utility AI section costs when utility decisions run.
-# --humanoid-profile prints humanoid `_process` section costs.
 
 
 func _initialize() -> void:
@@ -285,7 +266,7 @@ func _print_progress() -> void:
 	var resource_count := _monitor_value("OBJECT_RESOURCE_COUNT")
 	var memory_static := _monitor_value("MEMORY_STATIC")
 	var node_summary := ""
-	for group_name in ["npc_character", "humanoid_character", "settlement_town", "settlement_controller", "law_order_controller"]:
+	for group_name in ["settlement_town", "settlement_controller", "population_controller", "world_simulation_controller"]:
 		var stat = _group_stats.get(group_name)
 		if stat != null and stat.size() > 0:
 			node_summary += "%s=%d " % [group_name, int(stat.get("last", 0))]

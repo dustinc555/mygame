@@ -1,19 +1,17 @@
 # AGENT.md
 
-This is the single project guidance file for coding agents. Human-facing architecture lives in `architecture/README.md`; human editor workflows live in `operator/`.
+This is the single project guidance file for coding agents. Human-facing architecture lives in `architecture/README.md`.
 
 ## Core Architecture
 - GECS is the canonical game-state layer. Durable actor records, job metadata, scheduler state, world simulation state, save/load truth, and long-lived gameplay state belong in GECS-backed controllers/components.
-- LimboAI is the realized actor behavior execution layer. Live NPC jobs run through `AiBrain -> AiJob -> AiLimboJobDriver -> BTPlayer/BehaviorTree -> BTAction wrappers`.
-- Godot Navigation remains the 3D pathfinding layer through `WorldActor`, `HumanoidCharacter`, and `NavigationAgent3D`.
-- `HumanoidCharacter` and `WorldActor` are actuators for movement, combat, interaction, equipment, needs, and animation. Do not move durable state ownership or broad autonomous decision ownership into actor nodes.
-- AI chooses intent. GECS-backed systems/controllers validate and apply consequences.
-- LimboAI blackboards are runtime scratch unless a value is explicitly mirrored to GECS. Do not treat blackboard values as save/load truth.
+- GECS fixed-tick systems own gameplay execution. Do not add actor-node-owned executors, schedulers, or autonomous decision loops.
+- Rendering and scene nodes are projection only. They may display GECS state, author static content, or expose local interaction anchors, but they do not own durable simulation truth.
+- Godot Navigation remains the 3D pathfinding layer for projected movement, but movement outcomes must be driven from GECS commands/objectives.
+- AI chooses intent through GECS objective systems. GECS-backed systems/controllers validate and apply consequences.
 
 ## Setup And Docs
-- LimboAI is fetched locally, not versioned. If `addons/limboai/` is missing, run `./setup_limboai.sh` before Godot validation.
+- LimboAI is included as a local decision-tree/GDExtension tool when needed. If `addons/limboai/` is missing, run `./setup_limboai.sh`; do not commit the downloaded binaries.
 - Keep `SETUP.md` for setup instructions and `ATTRIBUTION.md` for licenses.
-- Keep `operator/` as concise human editor instructions. Update it when reusable editor workflows change.
 - Do not edit `addons/gecs/`; it is a git submodule. If GECS behavior seems necessary, stop and ask before touching the submodule.
 - Leave vendor docs under `addons/gecs/docs/` alone unless explicitly asked to edit vendor content.
 - Do not use the phrase "you're right" in user-facing replies. Acknowledge issues directly.
@@ -29,12 +27,10 @@ This is the single project guidance file for coding agents. Human-facing archite
 
 ## AI And Population
 - Persistent NPCs must have `PopulationController` actor records before relying on long-lived behavior.
-- `PopulationRealizationController` decides which actor records become live scene actors.
-- `LedgerSimulationController` advances far/unloaded actors abstractly through controller records.
-- `AiSchedulerController` controls decision cadence. Do not make every actor think every frame.
-- `ActorQueryController` owns broad live actor lookup. Do not add per-frame all-humanoid scans.
-- `AiBrain.request_job()` is the compatibility facade for gameplay systems. `AiTaskStep` is migration scaffolding; new realized behavior should move toward LimboAI tasks/trees that call existing actuator methods.
-- Far actors use cheap GECS ledger simulation, not behavior trees, nav agents, or live scene actors.
+- `PopulationRealizationController` decides which actor records become projected scene actors.
+- `LedgerSimulationController` advances far/unloaded actors abstractly through GECS records.
+- `ActorQueryController` owns broad live actor lookup. Do not add per-frame node scans.
+- Far actors use cheap GECS ledger simulation, not behavior trees, nav agents, or live actor nodes.
 
 ## Scenes And Authoring
 - Scenes compose reusable systems; they do not own one-off gameplay features.
@@ -58,7 +54,7 @@ This is the single project guidance file for coding agents. Human-facing archite
 - Clothing should bind to the live character skeleton. Do not hide body meshes for clipping unless explicit operator-authored body-region data exists.
 - Hand-held equipment attaches by aligning item `GripPoint_Primary` to generated body sockets such as `RightHandGrip` and `LeftHandGrip`.
 - Do not hardcode per-item weapon placement in scripts. Fix wrapper scenes, item resources, or shared grip socket profiles.
-- Skills and attributes belong to `WorldActor`, use stable dotted IDs from `SkillRules`, and share the centralized XP curve.
+- Skills and attributes belong to GECS actor records/components, use stable dotted IDs from `SkillRules`, and share the centralized XP curve.
 
 ## Imports And Licensing
 - Imported third-party assets live under `assets/vendor/<author>/<pack>/` unless explicitly approved otherwise.

@@ -3,7 +3,7 @@
 ## Major Feature Pillars
 
 - Combat
-  - AI combat behavior, healing, sleeping, and injury consequences.
+  - GECS combat objectives, healing, sleeping, and injury consequences.
 
 - Conversation
   - Reusable conversation system with branching responses and outcomes.

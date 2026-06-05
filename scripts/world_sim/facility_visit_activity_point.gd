@@ -211,10 +211,6 @@ func _prune_visitors() -> void:
 			_release_visit_target(actor, target)
 			removed_keys.append(key)
 			continue
-		if actor.has_method("get_active_job_provider") and actor.call("get_active_job_provider") != null:
-			_release_visit_target(actor, target)
-			removed_keys.append(key)
-			continue
 		if _is_sittable_target(target):
 			if target.has_method("get_sitter") and target.call("get_sitter") != actor:
 				removed_keys.append(key)

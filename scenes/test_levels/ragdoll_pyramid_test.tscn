@@ -1,7 +1,5 @@
 [gd_scene load_steps=11 format=3]
 
-[ext_resource type="Script" path="res://scripts/party_member.gd" id="1_party"]
-[ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_manager"]
 [ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
 [ext_resource type="Script" path="res://scripts/test_scenes/ragdoll_pyramid_test.gd" id="4_demo"]
 
@@ -50,7 +48,6 @@ mesh = SubResource("BoxMesh_floor")
 
 [node name="Mira" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 6.2, -6.3)
-script = ExtResource("1_party")
 base_color = Color(0.82, 0.43, 0.31, 1)
 member_name = "Mira"
 fatigue_enabled = false
@@ -67,9 +64,6 @@ mesh = SubResource("CapsuleMesh_member")
 [node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Mira"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
 mesh = SubResource("CylinderMesh_ring")
-
-[node name="PartyManager" type="Node" parent="."]
-script = ExtResource("2_manager")
 
 [node name="GameBootstrap" type="Node" parent="."]
 script = ExtResource("3_bootstrap")

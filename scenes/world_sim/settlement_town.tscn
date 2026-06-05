@@ -1,9 +1,7 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/world_sim/settlement_town.gd" id="1_town"]
 
 [node name="SettlementTown" type="Node3D"]
-script = ExtResource("1_town")
 resident_root_path = NodePath("Residents")
 storage_paths = Array[NodePath]([])
 facilities_root_path = NodePath("Facilities")

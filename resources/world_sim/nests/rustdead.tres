@@ -2,7 +2,6 @@
 
 [ext_resource type="Script" uid="uid://dxe8rlqp04g6e" path="res://scripts/world_sim/nests/nest_type_definition.gd" id="1_type"]
 [ext_resource type="Resource" path="res://resources/world_sim/factions/rustdead.tres" id="2_faction"]
-[ext_resource type="Script" uid="uid://cr6kchb6wampj" path="res://scripts/characters/rustdead_humanoid_character.gd" id="3_actor"]
 [ext_resource type="PackedScene" uid="uid://c4obl2pit67k6" path="res://scenes/world/nests/rustdead/ancient_vent_01.tscn" id="4_visual"]
 
 [resource]
@@ -10,5 +9,4 @@ script = ExtResource("1_type")
 nest_type_id = "rustdead"
 display_name = "Rustdead Nest"
 faction_definition = ExtResource("2_faction")
-actor_script = ExtResource("3_actor")
 visual_scenes = Array[PackedScene]([ExtResource("4_visual")])

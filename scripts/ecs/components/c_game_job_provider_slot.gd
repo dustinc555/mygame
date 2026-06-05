@@ -13,4 +13,4 @@ class_name CGameJobProviderSlot
 @export var server_state := "idle"
 @export var server_state_elapsed := 0.0
 @export var server_order_text := ""
-@export var last_ai_blocker := ""
+@export var last_work_blocker := ""

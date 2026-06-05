@@ -1,6 +1,5 @@
 [gd_scene format=3 uid="uid://cm38h6w63ec36"]
 
-[ext_resource type="Script" uid="uid://dw7cy74yqtfvo" path="res://scripts/world/props/body_furnace.gd" id="1_furnace"]
 [ext_resource type="PackedScene" uid="uid://bmf5oybbk0lb2" path="res://assets/world/props/body_furnace/meshy_corpse_furnace_1.glb" id="2_mesh"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_collision"]
@@ -15,7 +14,6 @@ albedo_color = Color(1, 0.35, 0.06, 0.78)
 height = 1.1
 
 [node name="BodyFurnace" type="StaticBody3D" unique_id=1365397046]
-script = ExtResource("1_furnace")
 
 [node name="Mesh" parent="." unique_id=221671947 instance=ExtResource("2_mesh")]
 transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0)

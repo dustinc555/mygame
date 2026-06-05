@@ -1,6 +1,5 @@
 [gd_scene load_steps=5 format=3]
 
-[ext_resource type="Script" path="res://scripts/party_member.gd" id="1_party"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
 radius = 0.45
@@ -17,7 +16,6 @@ radial_segments = 24
 rings = 2
 
 [node name="PartyMember" type="CharacterBody3D"]
-script = ExtResource("1_party")
 member_name = "Wanderer"
 faction_name = "Player"
 

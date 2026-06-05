@@ -1,6 +1,5 @@
 [gd_scene load_steps=10 format=3]
 
-[ext_resource type="Script" path="res://scripts/resources/scavenging_resource_node.gd" id="1_node"]
 [ext_resource type="PackedScene" path="res://assets/items/scrap/mesh_scrap_1.glb" id="2_model"]
 [ext_resource type="Resource" path="res://resources/items/scrap_metal.tres" id="3_scrap"]
 [ext_resource type="Resource" path="res://resources/items/copper_wire.tres" id="4_wire"]
@@ -13,7 +12,6 @@
 size = Vector3(4.8, 1.6, 4.8)
 
 [node name="ScrapPileNode" type="StaticBody3D"]
-script = ExtResource("1_node")
 display_name = "Scrap Pile"
 pile_size = 1
 scavenging_difficulty = 10

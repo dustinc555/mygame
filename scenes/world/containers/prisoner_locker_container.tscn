@@ -1,14 +1,12 @@
 [gd_scene format=3 uid="uid://c63jdgt2b68gb"]
 
 [ext_resource type="PackedScene" path="res://scenes/world/containers/container.tscn" id="1_container"]
-[ext_resource type="Script" path="res://scripts/world/containers/prisoner_locker.gd" id="2_locker"]
 [ext_resource type="PackedScene" uid="uid://cletlq02mk2y" path="res://assets/world/props/jail/meshy_locker_1.glb" id="3_visual"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_locker"]
 size = Vector3(0.6636963, 0.90704346, 0.4975586)
 
 [node name="PrisonerLocker" unique_id=396941634 instance=ExtResource("1_container")]
-script = ExtResource("2_locker")
 lock_difficulty = 70
 display_name = "Prisoner Locker"
 inventory_columns = 12

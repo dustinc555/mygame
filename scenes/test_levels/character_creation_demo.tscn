@@ -1,7 +1,6 @@
 [gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/test_scenes/character_creation_demo.gd" id="1_demo"]
-[ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_party_manager"]
 [ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
@@ -30,9 +29,6 @@ shape = SubResource("BoxShape3D_floor")
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
 mesh = SubResource("BoxMesh_floor")
 surface_material_override/0 = SubResource("StandardMaterial3D_floor")
-
-[node name="PartyManager" type="Node" parent="."]
-script = ExtResource("2_party_manager")
 
 [node name="PartyMembers" type="Node3D" parent="."]
 

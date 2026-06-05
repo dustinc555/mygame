@@ -117,12 +117,7 @@ func get_theft_difficulty() -> int:
 func try_pickup(actor) -> bool:
 	if actor == null or item_definition == null:
 		return false
-	var ownership_controller := _find_ownership_controller()
-	if ownership_controller != null and ownership_controller.has_method("request_take_item") and not bool(ownership_controller.call("request_take_item", actor, self)):
-		return false
 	var pickup_metadata := item_metadata.duplicate(true)
-	if ownership_controller != null and ownership_controller.has_method("get_take_item_metadata"):
-		pickup_metadata = ownership_controller.call("get_take_item_metadata", actor, self, pickup_metadata) as Dictionary
 	var actor_inventory = actor.inventory if actor.get("inventory") != null else null
 	if actor_inventory == null:
 		_show_pickup_failure(actor)
@@ -140,14 +135,6 @@ func try_pickup(actor) -> bool:
 	_remove_world_item_from_gecs()
 	queue_free()
 	return true
-
-
-func _find_ownership_controller() -> Node:
-	for node in get_tree().get_nodes_in_group("ownership_controller"):
-		return node
-	var bootstrap := get_tree().current_scene.get_node_or_null("GameBootstrap") if get_tree().current_scene != null else null
-	return bootstrap.get_node_or_null("OwnershipController") if bootstrap != null else null
-
 
 func get_inventory_world_position() -> Vector3:
 	return global_position

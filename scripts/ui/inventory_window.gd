@@ -375,7 +375,8 @@ func _on_item_menu_id_pressed(action_id: int) -> void:
 func _can_take_silver_from_pouch(entry) -> bool:
 	if inventory_owner == null or entry == null:
 		return false
-	if not inventory_owner.has_method("is_player_party_member") or not bool(inventory_owner.call("is_player_party_member")):
+	var party_value = inventory_owner.get("player_party_member")
+	if party_value == null or not bool(party_value):
 		return false
 	var inventory = _get_owner_inventory()
 	if inventory == null or not inventory.has_method("is_entry_currency_container") or not bool(inventory.call("is_entry_currency_container", entry, InventoryData.SILVER_ITEM)):

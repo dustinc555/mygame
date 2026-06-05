@@ -1,7 +1,5 @@
 [gd_scene format=4 uid="uid://da1og6bfgrmil"]
 
-[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
-[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_manager"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
 [ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://scripts/items/inventory_stock.gd" id="5_stock"]
 [ext_resource type="Resource" uid="uid://cighg4y750kcr" path="res://resources/items/food.tres" id="6_food"]
@@ -25,8 +23,6 @@
 [ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/hatchet.tres" id="21_hatchet"]
 [ext_resource type="Resource" uid="uid://bhx1scgadb5d7" path="res://resources/items/silver.tres" id="22_1trl3"]
 [ext_resource type="Resource" uid="uid://bkw28d3jsab1n" path="res://resources/items/iron_sword.tres" id="22_sword"]
-[ext_resource type="Script" uid="uid://c808ce2djlw3n" path="res://scripts/world_sim/settlement_population_spawner.gd" id="23_population_spawner"]
-[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://scripts/world_sim/settlement_town.gd" id="24_town"]
 [ext_resource type="Script" uid="uid://c32ilpwwdcox6" path="res://scripts/world_sim/settlement_facility.gd" id="25_facility"]
 [ext_resource type="Script" uid="uid://dul2enrcs1uoi" path="res://scripts/world_sim/settlement_activity_point.gd" id="26_activity_point"]
 [ext_resource type="Script" uid="uid://b0243b3mdreof" path="res://scripts/world_sim/faction_territory_anchor.gd" id="27_territory"]
@@ -431,7 +427,6 @@ mesh = SubResource("ArrayMesh_dciy4")
 
 [node name="FarmerCrossing" type="Node3D" parent="Settlements" unique_id=1061383372]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -58, 0, 0)
-script = ExtResource("24_town")
 settlement_definition = ExtResource("14_farmer_settlement")
 resident_root_path = NodePath("Residents")
 raid_spawn_path = NodePath("RoadSpawn")
@@ -632,7 +627,6 @@ owner_faction_name = "Farmers"
 starting_items = Array[ExtResource("5_stock")]([SubResource("InventoryStock_farmer_food")])
 
 [node name="Residents" type="Node3D" parent="Settlements/FarmerCrossing" unique_id=1903780194]
-script = ExtResource("23_population_spawner")
 settlement_definition = ExtResource("14_farmer_settlement")
 member_name_prefix = "Farmer"
 stable_id_prefix = "npc.farmer_crossing"
@@ -665,7 +659,6 @@ mesh = SubResource("ArrayMesh_0xrdr")
 
 [node name="RaiderCamp" type="Node3D" parent="Settlements" unique_id=1384639635]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58, 0, 0)
-script = ExtResource("24_town")
 town_border_radius = 22.0
 settlement_definition = ExtResource("15_raider_settlement")
 resident_root_path = NodePath("Residents")
@@ -788,7 +781,6 @@ transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, 
 owner_faction_name = "Raiders"
 
 [node name="Residents" type="Node3D" parent="Settlements/RaiderCamp" unique_id=1600855031]
-script = ExtResource("23_population_spawner")
 settlement_definition = ExtResource("15_raider_settlement")
 member_name_prefix = "Raider"
 stable_id_prefix = "npc.raider_camp"
@@ -805,7 +797,6 @@ spawn_radius = 9.5
 random_seed = 37
 
 [node name="Slaves" type="Node3D" parent="Settlements/RaiderCamp/Residents" unique_id=125831042]
-script = ExtResource("23_population_spawner")
 settlement_definition = ExtResource("15_raider_settlement")
 member_name_prefix = "Captive"
 stable_id_prefix = "npc.raider_camp.captive"
@@ -842,7 +833,6 @@ mesh = SubResource("ArrayMesh_sjhwl")
 
 [node name="Mira" type="CharacterBody3D" parent="PartyMembers" unique_id=1341169635]
 transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, -6, 0.6, 14)
-script = ExtResource("1_party")
 base_color = Color(0.82, 0.43, 0.31, 1)
 member_name = "Mira"
 stable_id = "player.mira"
@@ -868,7 +858,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Tomas" type="CharacterBody3D" parent="PartyMembers" unique_id=1968142942]
 transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, -3, 0.6, 16)
-script = ExtResource("1_party")
 base_color = Color(0.33, 0.55, 0.78, 1)
 member_name = "Tomas"
 stable_id = "player.tomas"
@@ -894,7 +883,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Newbie" type="CharacterBody3D" parent="PartyMembers" unique_id=1933369920]
 transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 0, 0.6, 18)
-script = ExtResource("1_party")
 base_color = Color(0.52, 0.64, 0.45, 1)
 member_name = "Newbie"
 stable_id = "player.newbie"
@@ -915,7 +903,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Stealth" type="CharacterBody3D" parent="PartyMembers" unique_id=1718963028]
 transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 3, 0.6, 20)
-script = ExtResource("1_party")
 base_color = Color(0.25, 0.24, 0.32, 1)
 member_name = "Stealth"
 stable_id = "player.stealth"
@@ -1317,9 +1304,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 billboard = 1
 text = "Farmers
 Over"
-
-[node name="PartyManager" type="Node" parent="." unique_id=708464445]
-script = ExtResource("2_manager")
 
 [node name="GameBootstrap" type="Node" parent="." unique_id=464750617]
 script = ExtResource("3_bootstrap")

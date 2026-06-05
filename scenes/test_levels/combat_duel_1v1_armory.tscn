@@ -1,8 +1,5 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://scripts/party_member.gd" id="1_party"]
-[ext_resource type="Script" path="res://scripts/characters/humanoid_character.gd" id="2_humanoid"]
-[ext_resource type="Script" path="res://scripts/party_manager.gd" id="3_manager"]
 [ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="4_bootstrap"]
 [ext_resource type="Script" path="res://scripts/items/inventory_stock.gd" id="5_stock"]
 [ext_resource type="PackedScene" path="res://scenes/world/containers/locker_container.tscn" id="6_locker"]
@@ -325,7 +322,6 @@ starting_items = Array[ExtResource("5_stock")]([SubResource("Stock_item_iron_swo
 
 [node name="Mira" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.6, 1)
-script = ExtResource("1_party")
 base_color = Color(0.72, 0.48, 0.78, 1)
 member_name = "Mira"
 max_hp = 500.0
@@ -347,7 +343,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Duelist" type="CharacterBody3D" parent="."]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 5, 0.6, 1)
-script = ExtResource("2_humanoid")
 member_name = "Duelist"
 faction_name = "Sparring"
 squad_name = "Duelists"
@@ -364,9 +359,6 @@ shape = SubResource("CapsuleShape3D_member")
 [node name="BodyMesh" type="MeshInstance3D" parent="Duelist"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
 mesh = SubResource("CapsuleMesh_member")
-
-[node name="PartyManager" type="Node" parent="."]
-script = ExtResource("3_manager")
 
 [node name="GameBootstrap" type="Node" parent="."]
 script = ExtResource("4_bootstrap")

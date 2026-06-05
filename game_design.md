@@ -2,8 +2,8 @@
 
 ## Core
 - This is an open-world game.
-- Humanoids share one common simulation base.
-- The player controls a party, not a single character.
+- Characters share GECS actor records and projected presentation.
+- The player controls a party through GECS objectives, not a single character.
 - A faction contains squads.
 - The HUD shows the active squad of the player faction.
 - Non-party characters cannot be selected.
@@ -90,12 +90,10 @@
 - Food restores hunger when eaten.
 
 ## NPCs And Trade
-- Player-controlled party members are humanoids in the player faction's active squad.
-- Other humanoids use the same base simulation, but can act through AI or role logic.
-- Merchants are humanoid NPCs with trade rules and finite inventory space.
-- Right-clicking a merchant shows `Attack` and `Trade`.
-- `Attack` is stubbed for now.
-- `Trade` is resolved by the first selected party member to reach the merchant.
+- Player-controlled party members are actors in the player faction's active squad.
+- Non-party actors use the same GECS simulation truth with role/objective logic.
+- Merchants are NPCs with trade rules and finite inventory space.
+- `Trade` is resolved by GECS-backed interaction/objective execution.
 - Party-to-party transfer is normal item transfer.
 - Merchant trade uses configured buy and sell prices per merchant.
 

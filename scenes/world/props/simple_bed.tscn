@@ -1,6 +1,5 @@
 [gd_scene load_steps=9 format=3]
 
-[ext_resource type="Script" path="res://scripts/world/props/sleepable_bed.gd" id="1_bed"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_frame"]
 albedo_color = Color(0.33, 0.18, 0.09, 1)
@@ -27,7 +26,6 @@ size = Vector3(0.95, 0.16, 0.38)
 size = Vector3(1.45, 0.6, 2.45)
 
 [node name="SimpleBed" type="StaticBody3D"]
-script = ExtResource("1_bed")
 
 [node name="Frame" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)

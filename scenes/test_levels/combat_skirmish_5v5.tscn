@@ -1,8 +1,5 @@
 [gd_scene format=3 uid="uid://bi5cfiajj18yp"]
 
-[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
-[ext_resource type="Script" uid="uid://bjnsg3gd8jbp1" path="res://scripts/characters/humanoid_character.gd" id="2_humanoid"]
-[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="3_manager"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="4_bootstrap"]
 [ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://scripts/items/inventory_stock.gd" id="5_inventory_stock"]
 [ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/bandage.tres" id="6_bandage"]
@@ -57,7 +54,6 @@ mesh = SubResource("BoxMesh_floor")
 
 [node name="Mira" type="CharacterBody3D" parent="PartyMembers" unique_id=1967262751]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.6, -6)
-script = ExtResource("1_party")
 base_color = Color(0.82, 0.43, 0.31, 1)
 member_name = "Mira"
 starting_items = Array[Resource]([SubResource("InventoryStock_skirmish_bandage")])
@@ -82,7 +78,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Tomas" type="CharacterBody3D" parent="PartyMembers" unique_id=393098127]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.6, -3)
-script = ExtResource("1_party")
 base_color = Color(0.33, 0.55, 0.78, 1)
 member_name = "Tomas"
 starting_items = Array[Resource]([SubResource("InventoryStock_skirmish_bandage")])
@@ -107,7 +102,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Sable" type="CharacterBody3D" parent="PartyMembers" unique_id=1513276940]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.6, 0)
-script = ExtResource("1_party")
 base_color = Color(0.58, 0.72, 0.38, 1)
 member_name = "Sable"
 starting_items = Array[Resource]([SubResource("InventoryStock_skirmish_bandage")])
@@ -132,7 +126,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Vale" type="CharacterBody3D" parent="PartyMembers" unique_id=1171070218]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.6, 3)
-script = ExtResource("1_party")
 base_color = Color(0.77, 0.67, 0.38, 1)
 member_name = "Vale"
 starting_items = Array[Resource]([SubResource("InventoryStock_skirmish_bandage")])
@@ -157,7 +150,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Nika" type="CharacterBody3D" parent="PartyMembers" unique_id=1798736036]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.6, 6)
-script = ExtResource("1_party")
 base_color = Color(0.67, 0.45, 0.75, 1)
 member_name = "Nika"
 starting_items = Array[Resource]([SubResource("InventoryStock_skirmish_bandage")])
@@ -182,7 +174,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="RaiderA" type="CharacterBody3D" parent="." unique_id=1188777809]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 10, 0.6, -6)
-script = ExtResource("2_humanoid")
 member_name = "Raider A"
 faction_name = "Raiders"
 squad_name = "Raiders"
@@ -205,7 +196,6 @@ mesh = SubResource("CapsuleMesh_member")
 
 [node name="RaiderB" type="CharacterBody3D" parent="." unique_id=857655585]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 10, 0.6, -3)
-script = ExtResource("2_humanoid")
 member_name = "Raider B"
 faction_name = "Raiders"
 squad_name = "Raiders"
@@ -228,7 +218,6 @@ mesh = SubResource("CapsuleMesh_member")
 
 [node name="RaiderC" type="CharacterBody3D" parent="." unique_id=553036571]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 10, 0.6, 0)
-script = ExtResource("2_humanoid")
 member_name = "Raider C"
 faction_name = "Raiders"
 squad_name = "Raiders"
@@ -251,7 +240,6 @@ mesh = SubResource("CapsuleMesh_member")
 
 [node name="RaiderD" type="CharacterBody3D" parent="." unique_id=117643996]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 10, 0.6, 3)
-script = ExtResource("2_humanoid")
 member_name = "Raider D"
 faction_name = "Raiders"
 squad_name = "Raiders"
@@ -274,7 +262,6 @@ mesh = SubResource("CapsuleMesh_member")
 
 [node name="RaiderE" type="CharacterBody3D" parent="." unique_id=1040530797]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 10, 0.6, 6)
-script = ExtResource("2_humanoid")
 member_name = "Raider E"
 faction_name = "Raiders"
 squad_name = "Raiders"
@@ -294,9 +281,6 @@ shape = SubResource("CapsuleShape3D_member")
 [node name="BodyMesh" type="MeshInstance3D" parent="RaiderE" unique_id=260835573]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
 mesh = SubResource("CapsuleMesh_member")
-
-[node name="PartyManager" type="Node" parent="." unique_id=430003990]
-script = ExtResource("3_manager")
 
 [node name="GameBootstrap" type="Node" parent="." unique_id=955295573]
 script = ExtResource("4_bootstrap")

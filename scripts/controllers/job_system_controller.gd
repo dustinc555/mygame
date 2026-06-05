@@ -26,7 +26,6 @@ func _process(delta: float) -> void:
 		return
 	_sim_time += delta
 	_expire_missed_job_contracts()
-	_process_job_provider_contracts(delta)
 	_sync_job_system_state_to_gecs()
 
 
@@ -70,14 +69,6 @@ func _expire_missed_job_contracts() -> void:
 	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("expire_missed_job_contracts"):
 		bridge.call("expire_missed_job_contracts", _sim_time)
-
-
-func _process_job_provider_contracts(delta: float) -> void:
-	if not is_inside_tree():
-		return
-	for provider in get_tree().get_nodes_in_group("job_provider"):
-		if provider != null and provider.has_method("process_contracts"):
-			provider.call("process_contracts", delta, _sim_time)
 
 
 func _get_gecs_world() -> Node:

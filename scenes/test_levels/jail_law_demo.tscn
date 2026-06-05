@@ -1,20 +1,15 @@
 [gd_scene format=4 uid="uid://btexptp24y024"]
 
 [ext_resource type="Script" uid="uid://ppaas0s4hphb" path="res://scripts/test_scenes/jail_law_demo.gd" id="1_demo"]
-[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_manager"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
-[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://scripts/world_sim/settlement_town.gd" id="4_town"]
 [ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://scripts/world_sim/settlement_definition.gd" id="5_settlement_definition"]
 [ext_resource type="Resource" uid="uid://h4a4vsdtrlvq" path="res://resources/world_sim/factions/farmers.tres" id="6_farmers"]
 [ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://scenes/world_sim/settlement_jail.tscn" id="7_jail"]
 [ext_resource type="PackedScene" path="res://scenes/world/items/world_item.tscn" id="8_world_item"]
 [ext_resource type="Resource" path="res://resources/items/expensive_vase.tres" id="9_vase"]
-[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="10_party_member"]
-[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://scripts/characters/faction_humanoid.gd" id="11_faction_humanoid"]
 [ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/bandage.tres" id="16_f35vs"]
 [ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/hatchet.tres" id="17_hatchet"]
 [ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/round_shield.tres" id="18_0csrm"]
-[ext_resource type="Script" path="res://scripts/world/venues/settlement_guard_post.gd" id="19_g0vs4"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(34, 1, 28)
@@ -115,7 +110,6 @@ mesh = SubResource("BoxMesh_floor")
 
 [node name="Mira" type="CharacterBody3D" parent="PartyMembers" unique_id=464357018]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.6, -7)
-script = ExtResource("10_party_member")
 base_color = Color(0.82, 0.43, 0.31, 1)
 member_name = "Mira"
 stable_id = "player.jail_demo.mira"
@@ -134,14 +128,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.035, 0)
 visible = false
 mesh = SubResource("CylinderMesh_selection_ring")
 
-[node name="PartyManager" type="Node" parent="." unique_id=1881198205]
-script = ExtResource("2_manager")
-
 [node name="GameBootstrap" type="Node" parent="." unique_id=291755218]
 script = ExtResource("3_bootstrap")
 
 [node name="JailDemoTown" type="Node3D" parent="." unique_id=580618190]
-script = ExtResource("4_town")
 guard_count = 1
 guard_post_count = 1
 guard_name = "City Guard"
@@ -169,7 +159,6 @@ owner_faction_id = "Farmers"
 
 [node name="Witness" type="CharacterBody3D" parent="JailDemoTown/Residents" unique_id=286283803]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.6, -3)
-script = ExtResource("11_faction_humanoid")
 member_name = "Civilian Witness"
 stable_id = "npc.jail_demo_town.witness"
 faction_name = "Farmers"
@@ -195,7 +184,6 @@ theft_difficulty = 1
 
 [node name="Guard" type="CharacterBody3D" parent="JailDemoTown/Guards" unique_id=2050348714]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.6, -2)
-script = ExtResource("11_faction_humanoid")
 member_name = "City Guard (guard)"
 stable_id = "npc.jail_demo_town.town.guard"
 starting_equipment = Array[Resource]([ExtResource("16_f35vs"), ExtResource("17_hatchet"), ExtResource("18_0csrm")])
@@ -227,7 +215,6 @@ mesh = SubResource("CapsuleMesh_wtr6o")
 
 [node name="GuardPost" type="Node3D" parent="JailDemoTown/GuardPosts" unique_id=64002862]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -7, 0.05, -2)
-script = ExtResource("19_g0vs4")
 debug_color = Color(0.35, 0.78, 1, 0.76)
 metadata/settlement_guard_post_generated = true
 metadata/settlement_guard_post_index = 0

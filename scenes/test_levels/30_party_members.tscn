@@ -1,7 +1,5 @@
 [gd_scene load_steps=10 format=3 uid="uid://eu1as112bdqf"]
 
-[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
-[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_mgr"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
@@ -48,7 +46,6 @@ mesh = SubResource("BoxMesh_floor")
 
 [node name="Avery" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.5, 0.6, -10)
-script = ExtResource("1_party")
 base_color = Color(0.84, 0.43, 0.31, 1)
 member_name = "Avery"
 hunger_enabled = true
@@ -68,7 +65,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Bram" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0.6, -10)
-script = ExtResource("1_party")
 base_color = Color(0.29, 0.53, 0.75, 1)
 member_name = "Bram"
 hunger_enabled = true
@@ -88,7 +84,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Cora" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0.6, -10)
-script = ExtResource("1_party")
 base_color = Color(0.42, 0.72, 0.4, 1)
 member_name = "Cora"
 hunger_enabled = true
@@ -108,7 +103,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Dane" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0.6, -10)
-script = ExtResource("1_party")
 base_color = Color(0.76, 0.68, 0.33, 1)
 member_name = "Dane"
 hunger_enabled = true
@@ -128,7 +122,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Esme" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0.6, -10)
-script = ExtResource("1_party")
 base_color = Color(0.71, 0.47, 0.76, 1)
 member_name = "Esme"
 hunger_enabled = true
@@ -148,7 +141,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Finn" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 0.6, -10)
-script = ExtResource("1_party")
 base_color = Color(0.37, 0.7, 0.69, 1)
 member_name = "Finn"
 hunger_enabled = true
@@ -168,7 +160,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Gwen" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.5, 0.6, -5)
-script = ExtResource("1_party")
 base_color = Color(0.88, 0.58, 0.36, 1)
 member_name = "Gwen"
 hunger_enabled = true
@@ -188,7 +179,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Hale" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0.6, -5)
-script = ExtResource("1_party")
 base_color = Color(0.58, 0.62, 0.8, 1)
 member_name = "Hale"
 hunger_enabled = true
@@ -208,7 +198,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Iris" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0.6, -5)
-script = ExtResource("1_party")
 base_color = Color(0.62, 0.78, 0.54, 1)
 member_name = "Iris"
 hunger_enabled = true
@@ -228,7 +217,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Jude" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0.6, -5)
-script = ExtResource("1_party")
 base_color = Color(0.83, 0.5, 0.55, 1)
 member_name = "Jude"
 hunger_enabled = true
@@ -248,7 +236,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Kaia" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0.6, -5)
-script = ExtResource("1_party")
 base_color = Color(0.84, 0.43, 0.31, 1)
 member_name = "Kaia"
 hunger_enabled = true
@@ -268,7 +255,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Luca" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 0.6, -5)
-script = ExtResource("1_party")
 base_color = Color(0.29, 0.53, 0.75, 1)
 member_name = "Luca"
 hunger_enabled = true
@@ -288,7 +274,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Mira" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.5, 0.6, 0)
-script = ExtResource("1_party")
 base_color = Color(0.42, 0.72, 0.4, 1)
 member_name = "Mira"
 hunger_enabled = true
@@ -308,7 +293,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Nash" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0.6, 0)
-script = ExtResource("1_party")
 base_color = Color(0.76, 0.68, 0.33, 1)
 member_name = "Nash"
 hunger_enabled = true
@@ -328,7 +312,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Orla" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0.6, 0)
-script = ExtResource("1_party")
 base_color = Color(0.71, 0.47, 0.76, 1)
 member_name = "Orla"
 hunger_enabled = true
@@ -348,7 +331,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Piers" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0.6, 0)
-script = ExtResource("1_party")
 base_color = Color(0.37, 0.7, 0.69, 1)
 member_name = "Piers"
 hunger_enabled = true
@@ -368,7 +350,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Quinn" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0.6, 0)
-script = ExtResource("1_party")
 base_color = Color(0.88, 0.58, 0.36, 1)
 member_name = "Quinn"
 hunger_enabled = true
@@ -388,7 +369,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Rhea" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 0.6, 0)
-script = ExtResource("1_party")
 base_color = Color(0.58, 0.62, 0.8, 1)
 member_name = "Rhea"
 hunger_enabled = true
@@ -408,7 +388,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Soren" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.5, 0.6, 5)
-script = ExtResource("1_party")
 base_color = Color(0.62, 0.78, 0.54, 1)
 member_name = "Soren"
 hunger_enabled = true
@@ -428,7 +407,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Talia" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0.6, 5)
-script = ExtResource("1_party")
 base_color = Color(0.83, 0.5, 0.55, 1)
 member_name = "Talia"
 hunger_enabled = true
@@ -448,7 +426,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Ulric" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0.6, 5)
-script = ExtResource("1_party")
 base_color = Color(0.84, 0.43, 0.31, 1)
 member_name = "Ulric"
 hunger_enabled = true
@@ -468,7 +445,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Vera" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0.6, 5)
-script = ExtResource("1_party")
 base_color = Color(0.29, 0.53, 0.75, 1)
 member_name = "Vera"
 hunger_enabled = true
@@ -488,7 +464,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Wren" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0.6, 5)
-script = ExtResource("1_party")
 base_color = Color(0.42, 0.72, 0.4, 1)
 member_name = "Wren"
 hunger_enabled = true
@@ -508,7 +483,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Xander" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 0.6, 5)
-script = ExtResource("1_party")
 base_color = Color(0.76, 0.68, 0.33, 1)
 member_name = "Xander"
 hunger_enabled = true
@@ -528,7 +502,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Yara" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.5, 0.6, 10)
-script = ExtResource("1_party")
 base_color = Color(0.71, 0.47, 0.76, 1)
 member_name = "Yara"
 hunger_enabled = true
@@ -548,7 +521,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Zane" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0.6, 10)
-script = ExtResource("1_party")
 base_color = Color(0.37, 0.7, 0.69, 1)
 member_name = "Zane"
 hunger_enabled = true
@@ -568,7 +540,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Anya" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0.6, 10)
-script = ExtResource("1_party")
 base_color = Color(0.88, 0.58, 0.36, 1)
 member_name = "Anya"
 hunger_enabled = true
@@ -588,7 +559,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Beck" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0.6, 10)
-script = ExtResource("1_party")
 base_color = Color(0.58, 0.62, 0.8, 1)
 member_name = "Beck"
 hunger_enabled = true
@@ -608,7 +578,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Cleo" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0.6, 10)
-script = ExtResource("1_party")
 base_color = Color(0.62, 0.78, 0.54, 1)
 member_name = "Cleo"
 hunger_enabled = true
@@ -628,7 +597,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Drake" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 0.6, 10)
-script = ExtResource("1_party")
 base_color = Color(0.83, 0.5, 0.55, 1)
 member_name = "Drake"
 hunger_enabled = true
@@ -645,9 +613,6 @@ mesh = SubResource("CapsuleMesh_member")
 [node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Drake"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
 mesh = SubResource("CylinderMesh_ring")
-
-[node name="PartyManager" type="Node" parent="."]
-script = ExtResource("2_mgr")
 
 [node name="GameBootstrap" type="Node" parent="."]
 script = ExtResource("3_bootstrap")

@@ -22,9 +22,10 @@ static func evaluate(condition, context: Dictionary = {}) -> Dictionary:
 			var faction_actor = _resolve_subject(condition.parameters.get("subject", "speaker_member"), context)
 			var factions: PackedStringArray = PackedStringArray(condition.parameters.get("factions", PackedStringArray()))
 			passed = faction_actor != null and factions.has(str(faction_actor.faction_name))
-		"actor.is_player_party_member":
+		"actor.player_party_member":
 			var party_actor = _resolve_subject(condition.parameters.get("subject", "speaker_member"), context)
-			passed = party_actor != null and party_actor.has_method("is_player_party_member") and party_actor.is_player_party_member()
+			var party_value = party_actor.get("player_party_member") if party_actor != null else null
+			passed = party_value != null and bool(party_value)
 		_:
 			passed = false
 

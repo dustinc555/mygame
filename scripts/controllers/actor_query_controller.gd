@@ -79,30 +79,6 @@ func get_nearby_actors(position: Vector3, radius: float, include_party := true) 
 	return bridge.call("get_nearby_actors", position, radius, include_party)
 
 
-func get_all_humanoids() -> Array:
-	return get_all_actors()
-
-
-func get_alive_humanoids(include_party := true) -> Array:
-	return get_alive_actors(include_party)
-
-
-func get_alive_humanoids_for_settlement(settlement_id: String, include_party := true) -> Array:
-	return get_alive_actors_for_settlement(settlement_id, include_party)
-
-
-func get_alive_humanoids_for_role(role_id: String, include_party := true) -> Array:
-	return get_alive_actors_for_role(role_id, include_party)
-
-
-func get_alive_humanoids_for_faction(faction_id: String, include_party := true) -> Array:
-	return get_alive_actors_for_faction(faction_id, include_party)
-
-
-func get_nearby_humanoids(position: Vector3, radius: float, include_party := true) -> Array:
-	return get_nearby_actors(position, radius, include_party)
-
-
 func serialize_state() -> Dictionary:
 	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("serialize_state"):
@@ -132,27 +108,7 @@ func _try_initialize() -> void:
 
 
 func _collect_existing_actors() -> void:
-	var tree := get_tree()
-	if tree == null:
-		return
-	var registered := {}
-	for actor in tree.get_nodes_in_group("combat_actor"):
-		register_actor(actor)
-		registered[actor.get_instance_id()] = true
-	for actor in tree.get_nodes_in_group("humanoid_character"):
-		if registered.has(actor.get_instance_id()):
-			continue
-		register_actor(actor)
-		registered[actor.get_instance_id()] = true
-	for actor in tree.get_nodes_in_group("npc_character"):
-		if registered.has(actor.get_instance_id()):
-			continue
-		register_actor(actor)
-		registered[actor.get_instance_id()] = true
-	for actor in tree.get_nodes_in_group("world_actor"):
-		if registered.has(actor.get_instance_id()):
-			continue
-		register_actor(actor)
+	return
 
 
 func _get_gecs_world() -> Node:

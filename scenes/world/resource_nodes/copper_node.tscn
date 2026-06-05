@@ -1,6 +1,5 @@
 [gd_scene load_steps=5 format=3]
 
-[ext_resource type="Script" path="res://scripts/resources/mining_resource_node.gd" id="1_node"]
 [ext_resource type="Resource" path="res://resources/items/copper_ore.tres" id="2_item"]
 [ext_resource type="PackedScene" path="res://assets/items/ore/node_copper_1.glb" id="3_model"]
 
@@ -8,7 +7,6 @@
 size = Vector3(4.2, 1.8, 4.2)
 
 [node name="CopperNode" type="StaticBody3D"]
-script = ExtResource("1_node")
 display_name = "Medium Copper Vein"
 item_definition = ExtResource("2_item")
 required_mining_level = 0

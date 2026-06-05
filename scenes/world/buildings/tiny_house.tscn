@@ -1,6 +1,5 @@
 [gd_scene load_steps=20 format=3]
 
-[ext_resource type="Script" path="res://scripts/world/buildings/world_building.gd" id="1_building"]
 [ext_resource type="Script" path="res://scripts/world/buildings/building_level_definition.gd" id="2_level"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_walls"]
@@ -76,7 +75,6 @@ content_paths = Array[NodePath]([NodePath("Roof"), NodePath("RoofCollision")])
 is_roof = true
 
 [node name="TinyHouse" type="StaticBody3D"]
-script = ExtResource("1_building")
 display_name = "Tiny House"
 building_type = "home"
 population_capacity = 2

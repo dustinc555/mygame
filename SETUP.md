@@ -1,8 +1,13 @@
 # Setup
 
+## Requirements
+
+- Godot 4.6.x.
+- Repository submodules initialized, including `addons/gecs/`.
+
 ## LimboAI
 
-LimboAI is required for realized actor behavior execution, but its GDExtension binaries are not versioned in this repository.
+LimboAI is available as a local decision-tree/GDExtension tool. Its binaries are not versioned in this repository.
 
 Run this from the project root before opening or validating the project if `addons/limboai/` is missing:
 

@@ -2,7 +2,7 @@
 
 Vitals decide KO, recovery coma, dying, and death.
 
-These are default rules for a typical `WorldActor`.
+These are default rules for a typical GECS combat entity.
 
 Specific races, body plans, machines, animals, bosses, or undead actors may override parts, thresholds, blood, recovery, or death behavior.
 

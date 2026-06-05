@@ -4,7 +4,7 @@
 
 - `CollisionShape3D` does nothing unless it lives under a physics body like `StaticBody3D` or `CharacterBody3D`.
 - If a ramp or stair test seems to have "no collision", check the scene tree first and confirm the shape is under a real physics body.
-- `HumanoidCharacter` movement was flattening target reach checks too aggressively; ramp traversal became more reliable after adding floor snap and a vertical tolerance instead of pure XZ arrival.
+- Legacy character movement flattened target reach checks too aggressively; ramp traversal became more reliable after adding floor snap and a vertical tolerance instead of pure XZ arrival.
 
 ## Reliable stairs pattern
 

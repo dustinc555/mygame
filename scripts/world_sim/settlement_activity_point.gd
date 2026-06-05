@@ -95,24 +95,6 @@ func assign_actor(actor: Node) -> bool:
 	return false
 
 
-func begin_ai_activity(actor: Node, _job = null) -> bool:
-	return assign_actor(actor)
-
-
-func end_ai_activity(actor: Node, _job = null) -> void:
-	release_actor(actor)
-
-
-func get_ai_activity_debug_record() -> Dictionary:
-	return {
-		"activity_id": get_activity_id(),
-		"display_name": display_name,
-		"activity_type": activity_type,
-		"exclusive": exclusive,
-		"assigned_actor": str(_assigned_actor.get("stable_id")) if _assigned_actor != null and is_instance_valid(_assigned_actor) else "",
-	}
-
-
 func get_activity_target() -> Node:
 	return get_node_or_null(target_path)
 

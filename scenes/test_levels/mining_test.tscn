@@ -1,13 +1,9 @@
 [gd_scene format=3 uid="uid://dx3m6v8xbo456"]
 
-[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://scripts/party_member.gd" id="1_party"]
-[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="2_mgr"]
 [ext_resource type="PackedScene" path="res://scenes/world/resource_nodes/copper_node.tscn" id="3_copper"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
 [ext_resource type="PackedScene" uid="uid://cxk5vgdnfkroq" path="res://scenes/world/containers/barrel_container.tscn" id="6_barrel"]
-[ext_resource type="Script" uid="uid://c8shyhe4pxqhe" path="res://scripts/characters/merchant_humanoid.gd" id="7_merchant"]
 [ext_resource type="Script" uid="uid://h8defgmhh62v" path="res://scripts/jobs/job_definition.gd" id="8_job_definition"]
-[ext_resource type="Script" uid="uid://7d3komlhfr8o" path="res://scripts/jobs/job_provider.gd" id="8_job_provider"]
 [ext_resource type="Script" uid="uid://bid84rrfurtuw" path="res://scripts/roles/merchant_role.gd" id="8_role"]
 [ext_resource type="Script" uid="uid://cwebktnxurrer" path="res://scripts/items/merchant_price.gd" id="9_price_script"]
 [ext_resource type="Script" uid="uid://dsk8y40jpriw8" path="res://scripts/items/merchant_stock.gd" id="10_stock_script"]
@@ -261,7 +257,6 @@ mesh = SubResource("BoxMesh_floor")
 
 [node name="Mira" type="CharacterBody3D" parent="PartyMembers" unique_id=1315300612]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.6, 4)
-script = ExtResource("1_party")
 base_color = Color(0.82, 0.43, 0.31, 1)
 member_name = "Mira"
 starting_items = Array[Resource]([SubResource("InventoryStock_mira_bandage"), SubResource("InventoryStock_mira_silver")])
@@ -283,7 +278,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Tomas" type="CharacterBody3D" parent="PartyMembers" unique_id=675103178]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.6, 5)
-script = ExtResource("1_party")
 base_color = Color(0.33, 0.55, 0.78, 1)
 member_name = "Tomas"
 starting_items = Array[Resource]([SubResource("InventoryStock_tomas_bandage"), SubResource("InventoryStock_tomas_silver")])
@@ -305,7 +299,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Jim" type="CharacterBody3D" parent="." unique_id=804901492]
 transform = Transform3D(0.805897, 0, -0.592055, 0, 1, 0, 0.592055, 0, 0.805897, 20.309809, 0.6, 6)
-script = ExtResource("7_merchant")
 member_name = "Jim"
 stable_id = "npc.mining_test.jim"
 inventory_columns = 15
@@ -335,7 +328,6 @@ prices = Array[Resource]([SubResource("MerchantPrice_copper"), SubResource("Merc
 initial_stock = Array[Resource]([SubResource("MerchantStock_silver"), SubResource("MerchantStock_food"), SubResource("MerchantStock_sword"), SubResource("MerchantStock_axe"), SubResource("MerchantStock_dagger"), SubResource("MerchantStock_rusted_pickaxe"), SubResource("MerchantStock_hood"), SubResource("MerchantStock_shield"), SubResource("MerchantStock_ranger_jerkin"), SubResource("MerchantStock_ranger_leggings"), SubResource("MerchantStock_ranger_boots"), SubResource("MerchantStock_peasant_tunic"), SubResource("MerchantStock_peasant_trousers"), SubResource("MerchantStock_peasant_shoes")])
 
 [node name="JobProvider" type="Node" parent="Jim" unique_id=280627450]
-script = ExtResource("8_job_provider")
 jobs = Array[ExtResource("8_job_definition")]([SubResource("JobDefinition_jim_mine")])
 wage_item_definition = ExtResource("12_silver")
 
@@ -348,9 +340,6 @@ transform = Transform3D(0.990268, 0, -0.139173, 0, 1, 0, 0.139173, 0, 0.990268, 
 
 [node name="TinyHouse" parent="." unique_id=1517733317 instance=ExtResource("18_house")]
 transform = Transform3D(-0.115475, 0, -0.993311, 0, 1, 0, 0.993311, 0, -0.115475, 21.5291, 0, 6.23198)
-
-[node name="PartyManager" type="Node" parent="." unique_id=1363365783]
-script = ExtResource("2_mgr")
 
 [node name="GameBootstrap" type="Node" parent="." unique_id=1818486241]
 script = ExtResource("5_bootstrap")

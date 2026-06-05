@@ -1,9 +1,7 @@
 [gd_scene format=3 uid="uid://b61506dov0k4v"]
 
 [ext_resource type="Script" uid="uid://dm58cnb3kgh5e" path="res://scripts/world_sim/world_loader.gd" id="1_loader"]
-[ext_resource type="Script" uid="uid://bwa8ktkjkxva6" path="res://scripts/world_sim/demo_world_startup.gd" id="1_startup"]
 [ext_resource type="Resource" path="res://resources/worlds/demo_world/demo_world.tres" id="2_world"]
-[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="4_manager"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
 [ext_resource type="Script" uid="uid://duw4pkjyrcwpm" path="res://scripts/world_sim/nests/nest_placement_marker.gd" id="6_nest_marker"]
 [ext_resource type="Script" uid="uid://dou4gsojqabfy" path="res://scripts/world_sim/world_sim_debug_action.gd" id="7_debug_action"]
@@ -33,7 +31,6 @@ roughness = 0.78
 size = Vector3(2.8, 0.9, 1.6)
 
 [node name="DemoWorld" type="Node3D" unique_id=191955666]
-script = ExtResource("1_startup")
 
 [node name="WorldLoader" type="Node" parent="." unique_id=948164286]
 script = ExtResource("1_loader")
@@ -117,9 +114,6 @@ transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 
 script = ExtResource("6_nest_marker")
 marker_id = "demo_rustdead_south_vent"
 editor_debug_radius = 12.0
-
-[node name="PartyManager" type="Node" parent="." unique_id=1913509186]
-script = ExtResource("4_manager")
 
 [node name="GameBootstrap" type="Node" parent="." unique_id=1210480596]
 script = ExtResource("5_bootstrap")

@@ -1,7 +1,6 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/test_levels/combat_skirmish_20v20_armory.gd" id="1_level"]
-[ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_manager"]
 [ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
@@ -32,9 +31,6 @@ material_override = SubResource("StandardMaterial3D_floor")
 mesh = SubResource("BoxMesh_floor")
 
 [node name="PartyMembers" type="Node3D" parent="."]
-
-[node name="PartyManager" type="Node" parent="."]
-script = ExtResource("2_manager")
 
 [node name="GameBootstrap" type="Node" parent="."]
 script = ExtResource("3_bootstrap")

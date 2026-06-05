@@ -7,34 +7,24 @@ var world_time: Node
 var settlement_controller: Node
 var territory_controller: Node
 var road_controller: Node
-var world_squad_controller: Node
 var population_controller: Node
-var ai_scheduler_controller: Node
 var actor_query_controller: Node
 var gecs_world_controller: Node
 var population_realization_controller: Node
 var ledger_simulation_controller: Node
 var faction_controller: Node
-var law_order_controller: Node
-var world_event_choice_controller: Node
 var job_system_controller: Node
-var nest_controller: Node
 var _initialized := false
 
 const CONTROLLER_STATE_SPECS := [
 	{"key": "world_time", "property": "world_time", "sync_method": "sync_world_time_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "settlements", "property": "settlement_controller", "refresh_method": "refresh_from_gecs_state"},
-	{"key": "squads", "property": "world_squad_controller", "sync_method": "sync_world_squad_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "population", "property": "population_controller", "sync_method": "sync_population_state", "refresh_method": "refresh_from_gecs_state"},
-	{"key": "ai_scheduler", "property": "ai_scheduler_controller", "sync_method": "sync_ai_scheduler_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "actor_query", "property": "actor_query_controller"},
 	{"key": "population_realization", "property": "population_realization_controller", "sync_method": "sync_population_realization_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "ledger_simulation", "property": "ledger_simulation_controller", "sync_method": "sync_ledger_simulation_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "factions", "property": "faction_controller", "sync_method": "sync_faction_state", "refresh_method": "refresh_from_gecs_state"},
-	{"key": "law_order", "property": "law_order_controller", "sync_method": "sync_law_order_state", "refresh_method": "refresh_from_gecs_state"},
-	{"key": "world_events", "property": "world_event_choice_controller", "sync_method": "sync_world_event_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "job_system", "property": "job_system_controller", "sync_method": "sync_job_system_state", "refresh_method": "refresh_from_gecs_state"},
-	{"key": "nests", "property": "nest_controller", "sync_method": "sync_nest_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "territories", "property": "territory_controller"},
 	{"key": "roads", "property": "road_controller"},
 ]
@@ -100,11 +90,6 @@ func perform_world_sim_debug_action(action_key: String) -> String:
 			if state.is_empty():
 				return "Occupancy could not be changed"
 			return "%s is %s (%d/%d)" % [settlement_id, state.get("occupancy_label", "Populated"), int(state.get("population", 0)), int(state.get("max_occupancy", 0))]
-		"force_raid":
-			if parts.size() < 3 or settlement_controller == null:
-				return "Raid action is misconfigured"
-			var started: bool = bool(settlement_controller.call("force_food_raid", parts[1], parts[2]))
-			return "Raid started" if started else "Raid could not start"
 		"toggle_faction_territories":
 			if territory_controller != null and territory_controller.has_method("toggle_faction_territories_visible"):
 				return str(territory_controller.call("toggle_faction_territories_visible"))
@@ -121,8 +106,6 @@ func perform_world_sim_debug_action(action_key: String) -> String:
 			return _format_population_summary()
 		"ledger_summary":
 			return _format_ledger_summary()
-		"actor_ai":
-			return _format_actor_ai(parts[1] if parts.size() > 1 else "")
 		_:
 			return "Unknown world sim action"
 
@@ -161,29 +144,16 @@ func _try_initialize() -> void:
 	settlement_controller = get_parent().get_node_or_null("SettlementController")
 	territory_controller = get_parent().get_node_or_null("TerritoryController")
 	road_controller = get_parent().get_node_or_null("RoadController")
-	world_squad_controller = get_parent().get_node_or_null("WorldSquadController")
 	population_controller = get_parent().get_node_or_null("PopulationController")
-	ai_scheduler_controller = get_parent().get_node_or_null("AiSchedulerController")
 	actor_query_controller = get_parent().get_node_or_null("ActorQueryController")
 	gecs_world_controller = get_parent().get_node_or_null("GecsWorldController")
 	population_realization_controller = get_parent().get_node_or_null("PopulationRealizationController")
 	ledger_simulation_controller = get_parent().get_node_or_null("LedgerSimulationController")
 	faction_controller = get_parent().get_node_or_null("FactionController")
-	law_order_controller = get_parent().get_node_or_null("LawOrderController")
-	world_event_choice_controller = get_parent().get_node_or_null("WorldEventChoiceController")
 	job_system_controller = get_parent().get_node_or_null("JobSystemController")
-	nest_controller = get_parent().get_node_or_null("NestController")
-	if world_time == null or settlement_controller == null or world_squad_controller == null:
+	if world_time == null or settlement_controller == null:
 		return
-	var action_requested_callable := Callable(self, "_on_settlement_action_requested")
-	if settlement_controller.has_signal("settlement_action_requested") and not settlement_controller.is_connected("settlement_action_requested", action_requested_callable):
-		settlement_controller.connect("settlement_action_requested", action_requested_callable)
 	_initialized = true
-
-
-func _on_settlement_action_requested(action_record: Dictionary) -> void:
-	if world_squad_controller != null and world_squad_controller.has_method("start_action"):
-		world_squad_controller.call("start_action", action_record)
 
 
 func _apply_controller_state(controller: Node, state_value) -> void:
@@ -245,16 +215,3 @@ func _format_ledger_summary() -> String:
 		int(summary.get("updated_actor_count", 0)),
 		str(summary.get("batches", {})),
 	]
-
-
-func _format_actor_ai(actor_id: String) -> String:
-	if actor_id.strip_edges().is_empty():
-		return "Actor id is required"
-	if actor_query_controller == null or not actor_query_controller.has_method("get_actor_by_stable_id"):
-		return "Actor query controller is not available"
-	var actor := actor_query_controller.call("get_actor_by_stable_id", actor_id) as Node
-	if actor == null:
-		return "Actor %s is not realized" % actor_id
-	if actor.has_method("get_ai_debug_snapshot"):
-		return str(actor.call("get_ai_debug_snapshot"))
-	return "Actor %s has no AI debug snapshot" % actor_id

@@ -1,7 +1,5 @@
 [gd_scene load_steps=20 format=3]
 
-[ext_resource type="Script" path="res://scripts/party_member.gd" id="1_party"]
-[ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_party_manager"]
 [ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
 [ext_resource type="Script" path="res://scripts/items/inventory_stock.gd" id="4_stock"]
 [ext_resource type="Resource" path="res://resources/items/silver.tres" id="5_silver"]
@@ -60,14 +58,10 @@ shape = SubResource("BoxShape3D_floor")
 mesh = SubResource("BoxMesh_floor")
 surface_material_override/0 = SubResource("StandardMaterial3D_floor")
 
-[node name="PartyManager" type="Node" parent="."]
-script = ExtResource("2_party_manager")
-
 [node name="PartyMembers" type="Node3D" parent="."]
 
 [node name="Mira" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(0.92388, 0, -0.382683, 0, 1, 0, 0.382683, 0, 0.92388, -1.2, 0, 0.4)
-script = ExtResource("1_party")
 member_name = "Mira"
 faction_name = "Player"
 starting_items = Array[Resource]([SubResource("InventoryStock_mira_silver")])
@@ -88,7 +82,6 @@ mesh = SubResource("CylinderMesh_ring")
 
 [node name="Tomas" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(0.92388, 0, -0.382683, 0, 1, 0, 0.382683, 0, 0.92388, -1.2, 0, -0.8)
-script = ExtResource("1_party")
 member_name = "Tomas"
 faction_name = "Player"
 starting_items = Array[Resource]([SubResource("InventoryStock_tomas_silver")])

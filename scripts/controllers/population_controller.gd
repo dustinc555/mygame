@@ -160,8 +160,6 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 	actor.set("squad_name", str(record.get("squad_name", actor.get("squad_name"))))
 	actor.set("hostile_factions", PackedStringArray(record.get("hostile_faction_ids", [])))
 	actor.set("combat_stance", int(record.get("combat_stance", actor.get("combat_stance"))))
-	actor.set("auto_heal_enabled", bool(record.get("auto_heal_enabled", actor.get("auto_heal_enabled"))))
-	actor.set("auto_burn_rustdead_enabled", bool(record.get("auto_burn_rustdead_enabled", actor.get("auto_burn_rustdead_enabled"))))
 	actor.set("starting_skill_levels", record.get("skill_levels", {}))
 	actor.set_meta("settlement_id", str(record.get("settlement_id", "")))
 	actor.set_meta("actor_role_id", str(record.get("role_id", "resident")))
@@ -289,11 +287,7 @@ func _try_initialize() -> void:
 
 
 func _collect_existing_actors() -> void:
-	var tree := get_tree()
-	if tree == null:
-		return
-	for actor in tree.get_nodes_in_group("humanoid_character"):
-		register_actor(actor)
+	return
 
 
 func _refresh_actor_records_cache() -> void:
@@ -418,8 +412,6 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"role_id": str(context.get("role_id", "resident")),
 		"hostile_faction_ids": Array(context.get("hostile_faction_ids", [])),
 		"combat_stance": int(context.get("combat_stance", NpcRules.CombatStance.DEFENSIVE)),
-		"auto_heal_enabled": bool(context.get("auto_heal_enabled", false)),
-		"auto_burn_rustdead_enabled": bool(context.get("auto_burn_rustdead_enabled", false)),
 		"base_color": context.get("base_color", Color(0.62, 0.62, 0.62, 1.0)),
 		"appearance": _appearance_to_record(appearance),
 		"equipment_slots": equipment_slots,
@@ -462,8 +454,6 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 	record["squad_name"] = str(actor.get("squad_name"))
 	record["hostile_faction_ids"] = Array(actor.get("hostile_factions"))
 	record["combat_stance"] = int(actor.get("combat_stance"))
-	record["auto_heal_enabled"] = bool(actor.get("auto_heal_enabled"))
-	record["auto_burn_rustdead_enabled"] = bool(actor.get("auto_burn_rustdead_enabled"))
 	record["life_state"] = int(actor.get("life_state")) if actor.get("life_state") != null else NpcRules.LifeState.ALIVE
 	var appearance = actor.get("appearance_data")
 	_repair_non_rustdead_appearance(appearance, faction_id)
@@ -504,11 +494,8 @@ func _remove_actor_record(actor_id: String, remove_live_actor := true) -> void:
 		return
 	var live_actor = _live_actor_by_id.get(actor_id)
 	if remove_live_actor and live_actor != null and is_instance_valid(live_actor):
-		if live_actor.has_method("is_player_party_member") and bool(live_actor.call("is_player_party_member")):
-			remove_live_actor = false
-		else:
-			unregister_actor(live_actor)
-			live_actor.queue_free()
+		unregister_actor(live_actor)
+		live_actor.queue_free()
 	_live_actor_by_id.erase(actor_id)
 	actor_records.erase(actor_id)
 	_remove_actor_record_from_gecs(actor_id)

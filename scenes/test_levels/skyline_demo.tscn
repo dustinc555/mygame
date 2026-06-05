@@ -1,7 +1,5 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://scripts/party_member.gd" id="1_party"]
-[ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_manager"]
 [ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
 [ext_resource type="Script" path="res://scripts/world_sim/world_sim_debug_action.gd" id="4_debug_action"]
 
@@ -79,7 +77,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
 
 [node name="SkyTester" type="CharacterBody3D" parent="PartyMembers"]
 transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 0, 0.6, 0)
-script = ExtResource("1_party")
 base_color = Color(0.24, 0.58, 0.86, 1)
 member_name = "Sky Tester"
 stable_id = "player.sky_tester"
@@ -180,9 +177,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0)
 billboard = 1
 text = "Set\nMidnight"
 font_size = 34
-
-[node name="PartyManager" type="Node" parent="."]
-script = ExtResource("2_manager")
 
 [node name="GameBootstrap" type="Node" parent="."]
 script = ExtResource("3_bootstrap")
