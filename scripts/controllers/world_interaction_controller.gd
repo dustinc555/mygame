@@ -623,10 +623,7 @@ func _pick_world_item(screen_position: Vector2):
 	var result := _raycast_target_from_screen(screen_position)
 	if result.is_empty():
 		return null
-	var collider: Object = result["collider"]
-	if collider is Node and collider.is_in_group("world_item"):
-		return collider
-	return null
+	return _resolve_world_item_collider(result["collider"])
 
 
 func _pick_inspectable_target(screen_position: Vector2):
@@ -802,6 +799,9 @@ func _raycast_target_from_screen(screen_position: Vector2) -> Dictionary:
 		if humanoid_collider != null:
 			result["collider"] = humanoid_collider
 			return result
+		var obscured_item_hit := _raycast_obscured_world_item_hit(screen_position, collider)
+		if not obscured_item_hit.is_empty():
+			return obscured_item_hit
 		if not _should_skip_building_target_hit(collider, int(result.get("shape", -1))):
 			return result
 		if not (collider is CollisionObject3D):
@@ -812,6 +812,59 @@ func _raycast_target_from_screen(screen_position: Vector2) -> Dictionary:
 			return result
 		excluded_rids.append(collider_rid)
 	return {}
+
+
+func _raycast_obscured_world_item_hit(screen_position: Vector2, collider: Object) -> Dictionary:
+	if not _is_world_item_occluder(collider):
+		return {}
+	var excluded_rids: Array[RID] = []
+	if collider is CollisionObject3D:
+		excluded_rids.append((collider as CollisionObject3D).get_rid())
+	for _attempt in range(4):
+		var hit := _raycast_from_screen(screen_position, excluded_rids)
+		if hit.is_empty():
+			return {}
+		var world_item: Node = _resolve_world_item_collider(hit.get("collider"))
+		if world_item != null:
+			hit["collider"] = world_item
+			return hit
+		var hit_collider: Object = hit.get("collider")
+		if not _is_world_item_occluder(hit_collider) or not (hit_collider is CollisionObject3D):
+			return {}
+		var hit_rid := (hit_collider as CollisionObject3D).get_rid()
+		if excluded_rids.has(hit_rid):
+			return {}
+		excluded_rids.append(hit_rid)
+	return {}
+
+
+func _is_world_item_occluder(collider: Object) -> bool:
+	if not (collider is Node):
+		return false
+	var node := collider as Node
+	return _is_tabletop_collider(node) or node.is_in_group("world_building")
+
+
+func _is_tabletop_collider(collider: Object) -> bool:
+	if not (collider is Node):
+		return false
+	var current := collider as Node
+	while current != null:
+		if current.is_in_group("tabletop_item_spawner"):
+			return true
+		current = current.get_parent()
+	return false
+
+
+func _resolve_world_item_collider(collider: Object):
+	if not (collider is Node):
+		return null
+	var current := collider as Node
+	while current != null:
+		if current.is_in_group("world_item"):
+			return current
+		current = current.get_parent()
+	return null
 
 
 func _should_skip_building_target_hit(collider: Object, shape_index: int) -> bool:

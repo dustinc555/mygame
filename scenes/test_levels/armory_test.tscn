@@ -54,6 +54,11 @@
 [ext_resource type="Resource" uid="uid://myylgax1bhcd" path="res://resources/items/heater_shield_2.tres" id="54_heater_shield_2"]
 [ext_resource type="Resource" uid="uid://djox5s7s4u3dy" path="res://resources/items/round_shield_2.tres" id="55_round_shield_2"]
 [ext_resource type="Resource" uid="uid://c6irc4ocv5mly" path="res://resources/items/golden_celtic_shield.tres" id="56_celtic_shield"]
+[ext_resource type="Resource" uid="uid://287k6uxa8owm" path="res://resources/items/table_fork.tres" id="57_table_fork"]
+[ext_resource type="Resource" uid="uid://ce65m5ilpv2cd" path="res://resources/items/table_knife.tres" id="58_table_knife"]
+[ext_resource type="Resource" uid="uid://dtduhj87miaxu" path="res://resources/items/table_spoon.tres" id="59_table_spoon"]
+[ext_resource type="Resource" path="res://resources/items/bronze_sword.tres" id="60_bronze_sword"]
+[ext_resource type="Resource" path="res://resources/items/fantasy_steel_sword.tres" id="61_fantasy_steel_sword"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(30, 1, 30)
@@ -177,6 +182,14 @@ item_definition = ExtResource("12_shield")
 script = ExtResource("8_stock")
 item_definition = ExtResource("38_steel_sword")
 
+[sub_resource type="Resource" id="InventoryStock_bronze_sword"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("60_bronze_sword")
+
+[sub_resource type="Resource" id="InventoryStock_fantasy_steel_sword"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("61_fantasy_steel_sword")
+
 [sub_resource type="Resource" id="InventoryStock_golden_sword"]
 script = ExtResource("8_stock")
 item_definition = ExtResource("39_golden_sword")
@@ -216,6 +229,18 @@ item_definition = ExtResource("47_scythe")
 [sub_resource type="Resource" id="InventoryStock_steel_dagger"]
 script = ExtResource("8_stock")
 item_definition = ExtResource("48_steel_dagger")
+
+[sub_resource type="Resource" id="InventoryStock_table_fork"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("57_table_fork")
+
+[sub_resource type="Resource" id="InventoryStock_table_knife"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("58_table_knife")
+
+[sub_resource type="Resource" id="InventoryStock_table_spoon"]
+script = ExtResource("8_stock")
+item_definition = ExtResource("59_table_spoon")
 
 [sub_resource type="Resource" id="InventoryStock_wooden_bow"]
 script = ExtResource("8_stock")
@@ -294,7 +319,7 @@ starting_items = Array[ExtResource("8_stock")]([SubResource("InventoryStock_knig
 
 [node name="WeaponChest" parent="ArmoryContainers" unique_id=822534733 instance=ExtResource("6_chest")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.45, 0, -3.35)
-starting_items = Array[ExtResource("8_stock")]([SubResource("InventoryStock_sword"), SubResource("InventoryStock_axe"), SubResource("InventoryStock_dagger"), SubResource("InventoryStock_shield"), SubResource("InventoryStock_steel_sword"), SubResource("InventoryStock_golden_sword"), SubResource("InventoryStock_greatsword"), SubResource("InventoryStock_claymore"), SubResource("InventoryStock_hatchet"), SubResource("InventoryStock_axe_double"), SubResource("InventoryStock_war_hammer"), SubResource("InventoryStock_maul"), SubResource("InventoryStock_spear"), SubResource("InventoryStock_scythe"), SubResource("InventoryStock_steel_dagger"), SubResource("InventoryStock_wooden_bow"), SubResource("InventoryStock_recurve_bow"), SubResource("InventoryStock_golden_bow"), SubResource("InventoryStock_evil_bow"), SubResource("InventoryStock_heater_shield"), SubResource("InventoryStock_heater_shield_2"), SubResource("InventoryStock_round_shield_2"), SubResource("InventoryStock_celtic_shield")])
+starting_items = Array[ExtResource("8_stock")]([SubResource("InventoryStock_sword"), SubResource("InventoryStock_axe"), SubResource("InventoryStock_dagger"), SubResource("InventoryStock_shield"), SubResource("InventoryStock_steel_sword"), SubResource("InventoryStock_bronze_sword"), SubResource("InventoryStock_fantasy_steel_sword"), SubResource("InventoryStock_golden_sword"), SubResource("InventoryStock_greatsword"), SubResource("InventoryStock_claymore"), SubResource("InventoryStock_hatchet"), SubResource("InventoryStock_axe_double"), SubResource("InventoryStock_war_hammer"), SubResource("InventoryStock_maul"), SubResource("InventoryStock_spear"), SubResource("InventoryStock_scythe"), SubResource("InventoryStock_steel_dagger"), SubResource("InventoryStock_table_fork"), SubResource("InventoryStock_table_knife"), SubResource("InventoryStock_table_spoon"), SubResource("InventoryStock_wooden_bow"), SubResource("InventoryStock_recurve_bow"), SubResource("InventoryStock_golden_bow"), SubResource("InventoryStock_evil_bow"), SubResource("InventoryStock_heater_shield"), SubResource("InventoryStock_heater_shield_2"), SubResource("InventoryStock_round_shield_2"), SubResource("InventoryStock_celtic_shield")])
 
 [node name="LooseDagger" parent="." unique_id=545951349 instance=ExtResource("7_world_item")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 5.8)

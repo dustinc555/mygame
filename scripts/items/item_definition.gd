@@ -25,6 +25,7 @@ const EQUIP_SLOT_OFFHAND := "offhand"
 @export var alternate_equip_slots: PackedStringArray = PackedStringArray()
 @export var world_scene: PackedScene
 @export var world_visual_height_meters := 0.0
+@export var world_visual_long_axis_meters := 0.0
 @export var equipped_scene: PackedScene
 @export var equipped_visuals: Array[Resource] = []
 @export var grip_profile: Resource

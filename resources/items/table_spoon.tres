@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://dtduhj87miaxu"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
+[ext_resource type="Texture2D" uid="uid://blp57sj40owhf" path="res://assets/items/tableware/table_spoon_icon.svg" id="3_icon"]
+[ext_resource type="PackedScene" uid="uid://jdeju1200cfj" path="res://scenes/world/equipment/table_spoon_model.tscn" id="4_model"]
+[ext_resource type="Resource" uid="uid://ddoq1y4fkfw0i" path="res://resources/equipment_grip_profiles/one_hand_melee.tres" id="5_grip"]
+
+[sub_resource type="Resource" id="ItemStatModifier_damage"]
+script = ExtResource("2_mod")
+stat_name = "attack_damage"
+add = 1.0
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Spoon"
+icon = ExtResource("3_icon")
+grid_size = Vector2i(1, 2)
+unit_weight = 0.12
+equip_slot = "weapon"
+alternate_equip_slots = null
+world_scene = ExtResource("4_model")
+world_visual_height_meters = 0.055
+equipped_scene = ExtResource("4_model")
+grip_profile = ExtResource("5_grip")
+equipped_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.012, 0, -0.01)
+stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_damage")])
+tool_tags = null

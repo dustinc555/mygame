@@ -6,6 +6,8 @@ const PICKUP_NOTICE := "I don't have enough room"
 const GROUND_CLEARANCE := 0.015
 const MIN_COLLIDER_SIZE := Vector3(0.08, 0.03, 0.08)
 
+static var _left_alt_item_labels_visible := false
+
 @export var item_definition: ItemDefinition:
 	set(value):
 		item_definition = value
@@ -51,8 +53,49 @@ func setup(definition: ItemDefinition, amount: int = 1, item_contained_item_coun
 	_sync_world_item_to_gecs()
 
 
-func get_pickup_position(_actor) -> Vector3:
+func _process(_delta: float) -> void:
+	if _left_alt_item_labels_visible and not Input.is_key_pressed(KEY_ALT):
+		_left_alt_item_labels_visible = false
+	_refresh_label_visibility()
+
+
+func _input(event: InputEvent) -> void:
+	var key_event := event as InputEventKey
+	if key_event == null or key_event.keycode != KEY_ALT or key_event.echo:
+		return
+	if key_event.pressed:
+		if key_event.location == KEY_LOCATION_LEFT:
+			_left_alt_item_labels_visible = true
+	elif key_event.location == KEY_LOCATION_LEFT or not Input.is_key_pressed(KEY_ALT):
+		_left_alt_item_labels_visible = false
+	_refresh_label_visibility()
+
+
+func get_pickup_position(actor) -> Vector3:
+	var tabletop_provider := _find_tabletop_pickup_provider()
+	if tabletop_provider != null and tabletop_provider.has_method("get_tabletop_pickup_position"):
+		var pickup_position = tabletop_provider.call("get_tabletop_pickup_position", self, actor)
+		if pickup_position is Vector3:
+			return pickup_position
 	return global_position
+
+
+func is_pickup_reachable_from(actor, actor_position: Vector3, reach_distance: float) -> bool:
+	var tabletop_provider := _find_tabletop_pickup_provider()
+	if tabletop_provider != null and tabletop_provider.has_method("is_tabletop_item_reachable_from"):
+		return bool(tabletop_provider.call("is_tabletop_item_reachable_from", self, actor, actor_position, reach_distance))
+	return actor_position.distance_to(global_position) <= maxf(reach_distance, pickup_distance)
+
+
+func _find_tabletop_pickup_provider() -> Node:
+	if not has_meta("tabletop_slot"):
+		return null
+	var current := get_parent()
+	while current != null:
+		if current.has_method("get_tabletop_pickup_position"):
+			return current
+		current = current.get_parent()
+	return null
 
 
 func get_owner_faction_name() -> String:
@@ -154,13 +197,20 @@ func _refresh_label() -> void:
 		return
 	if item_definition == null:
 		label.text = "Owned Item" if not owner_faction_name.is_empty() else "Item"
+		_refresh_label_visibility()
 		return
 	var item_label := _item_display_label()
 	if bool(item_metadata.get(InventoryData.META_STOLEN, false)):
 		label.text = "%s (Stolen)" % item_label
 	else:
 		label.text = "%s (Owned)" % item_label if not owner_faction_name.is_empty() else item_label
+	_refresh_label_visibility()
 	_sync_world_item_to_gecs()
+
+
+func _refresh_label_visibility() -> void:
+	if label != null:
+		label.visible = _left_alt_item_labels_visible
 
 
 func _sync_world_item_to_gecs() -> void:
@@ -210,10 +260,20 @@ func _rebuild_visual() -> void:
 		_refresh_collision_from_visual()
 		return
 	var visual_instance := visual_scene.instantiate()
+	_remove_imported_collision_nodes(visual_instance)
 	model_root.add_child(visual_instance)
 	if visual_instance is Node3D:
-		_normalize_visual(visual_instance as Node3D, item_definition.world_visual_height_meters)
+		_normalize_visual(visual_instance as Node3D, item_definition.world_visual_height_meters, item_definition.world_visual_long_axis_meters)
 	_refresh_collision_from_visual()
+
+
+func _remove_imported_collision_nodes(root: Node) -> void:
+	for child in root.get_children():
+		if child is CollisionObject3D or child is CollisionShape3D:
+			root.remove_child(child)
+			child.queue_free()
+		else:
+			_remove_imported_collision_nodes(child)
 
 
 func _add_fallback_visual() -> void:
@@ -229,14 +289,21 @@ func _add_fallback_visual() -> void:
 	model_root.add_child(mesh_instance)
 
 
-func _normalize_visual(visual_root: Node3D, target_height_meters: float = 0.0) -> void:
+func _normalize_visual(visual_root: Node3D, target_height_meters: float = 0.0, target_long_axis_meters: float = 0.0) -> void:
 	var bounds := _calculate_local_mesh_bounds(visual_root)
 	if bounds.size.length() <= 0.001:
 		return
-	var scale_dimension := bounds.size.y if target_height_meters > 0.0 else maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
+	var longest_axis := maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
+	var scale_dimension := longest_axis
+	if target_height_meters > 0.0 and target_long_axis_meters <= 0.0:
+		scale_dimension = bounds.size.y
 	if scale_dimension <= 0.001:
 		return
-	var target_dimension := target_height_meters if target_height_meters > 0.0 else 0.72
+	var target_dimension := 0.72
+	if target_long_axis_meters > 0.0:
+		target_dimension = target_long_axis_meters
+	elif target_height_meters > 0.0:
+		target_dimension = target_height_meters
 	var scale_factor := target_dimension / scale_dimension
 	visual_root.scale = Vector3.ONE * scale_factor
 	visual_root.position = Vector3(-bounds.get_center().x * scale_factor, -bounds.position.y * scale_factor + 0.05, -bounds.get_center().z * scale_factor)

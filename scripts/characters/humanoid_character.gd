@@ -125,6 +125,9 @@ const DOWNED_INTERACTION_DISTANCE := 3.0
 const DOWNED_INTERACTION_MOVE_OFFSET := 1.25
 const DOWNED_INTERACTION_VERTICAL_TOLERANCE := 1.6
 const DOWNED_INTERACTION_UNREACHABLE_EXTRA := 0.65
+const PICKUP_GRAB_EXTRA_DISTANCE := 0.1
+const PICKUP_UNREACHABLE_EXTRA_DISTANCE := 0.25
+const PICKUP_ROUTE_ARRIVAL_DISTANCE := 0.25
 const COMBAT_INTERVENTION_STAFF_GROUP := "combat_intervention_staff"
 const SETTLEMENT_AUTHORITY_GROUP := "settlement_authority"
 const PRIVATE_SECURITY_GROUP := "private_security"
@@ -2555,6 +2558,8 @@ func _get_direct_custody_move_direction(target_direction: Vector3) -> Vector3:
 func _get_move_target_arrival_distance() -> float:
 	if _has_active_combat_target():
 		return combat_approach_arrival_distance
+	if _current_order_type == OrderType.PICKUP_ITEM:
+		return minf(super._get_move_target_arrival_distance(), PICKUP_ROUTE_ARRIVAL_DISTANCE)
 	return super._get_move_target_arrival_distance()
 
 
@@ -2601,6 +2606,16 @@ func _get_navigation_stuck_arrival_distance() -> float:
 		return maxf(super._get_navigation_stuck_arrival_distance(), minf(navigation_unreachable_tolerance, 1.2))
 	return super._get_navigation_stuck_arrival_distance()
 
+
+func _is_navigation_final_position_close_enough() -> bool:
+	if super._is_navigation_final_position_close_enough():
+		return true
+	if _current_order_type != OrderType.PICKUP_ITEM or _navigation_agent == null:
+		return false
+	if _current_pickup_item == null or not is_instance_valid(_current_pickup_item):
+		return false
+	return _can_pickup_item_from_position(_current_pickup_item, _navigation_agent.get_final_position(), PICKUP_UNREACHABLE_EXTRA_DISTANCE)
+
 func _on_actor_move_target_reached() -> void:
 	if _current_order_type == OrderType.MOVE:
 		_current_order_type = OrderType.NONE
@@ -2611,6 +2626,8 @@ func _on_actor_move_target_unreachable() -> void:
 		_handle_unreachable_combat_target()
 		return
 	if _current_order_type == OrderType.FINISH_OFF and _try_complete_finish_off_interaction(DOWNED_INTERACTION_UNREACHABLE_EXTRA):
+		return
+	if _current_order_type == OrderType.PICKUP_ITEM and _try_complete_pickup_interaction(PICKUP_UNREACHABLE_EXTRA_DISTANCE):
 		return
 	if _order_was_player_issued:
 		show_world_speech("I can't reach that", 4.0)
@@ -3882,16 +3899,49 @@ func _process_pickup_interaction() -> void:
 	if _current_pickup_item == null or not is_instance_valid(_current_pickup_item):
 		stop_pickup_assignment()
 		return
-	var pickup_position: Vector3 = _current_pickup_item.global_position
-	if _current_pickup_item.has_method("get_pickup_position"):
-		pickup_position = _current_pickup_item.get_pickup_position(self)
-	if global_position.distance_to(pickup_position) > interact_distance:
+	if _try_complete_pickup_interaction(PICKUP_GRAB_EXTRA_DISTANCE):
+		return
+	var pickup_position := _get_pickup_route_position(_current_pickup_item)
+	if _horizontal_distance_to(pickup_position) > _get_move_target_arrival_distance():
 		_set_actor_move_target(pickup_position)
 		return
+	if _try_complete_pickup_interaction(PICKUP_UNREACHABLE_EXTRA_DISTANCE):
+		return
+	if _order_was_player_issued:
+		show_world_speech("I can't reach that", 4.0)
+	stop_pickup_assignment()
+
+
+func _try_complete_pickup_interaction(extra_distance: float = 0.0) -> bool:
+	if _current_pickup_item == null or not is_instance_valid(_current_pickup_item):
+		stop_pickup_assignment()
+		return true
+	if not _can_pickup_item_from_position(_current_pickup_item, global_position, extra_distance):
+		return false
 	_clear_actor_move_target()
 	if _current_pickup_item.has_method("try_pickup"):
 		_current_pickup_item.try_pickup(self)
 	stop_pickup_assignment()
+	return true
+
+
+func _can_pickup_item_from_position(item, actor_position: Vector3, extra_distance: float = 0.0) -> bool:
+	if item == null or not is_instance_valid(item):
+		return false
+	var reach_distance := interact_distance + maxf(extra_distance, 0.0)
+	if item.has_method("is_pickup_reachable_from"):
+		return bool(item.call("is_pickup_reachable_from", self, actor_position, reach_distance))
+	return actor_position.distance_to(_get_pickup_route_position(item)) <= reach_distance
+
+
+func _get_pickup_route_position(item) -> Vector3:
+	if item == null or not is_instance_valid(item):
+		return global_position
+	if item.has_method("get_pickup_position"):
+		return item.get_pickup_position(self)
+	if item is Node3D:
+		return (item as Node3D).global_position
+	return global_position
 
 
 func _get_stored_mining_progress(resource_node) -> float:

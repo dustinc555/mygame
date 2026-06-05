@@ -8,6 +8,9 @@ const HUMAN_MALE_BODY_ARCHETYPE := preload("res://resources/character_body_arche
 const BANDAGE_ITEM := preload("res://resources/items/bandage.tres")
 const HATCHET_ITEM := preload("res://resources/items/hatchet.tres")
 const SILVER_ITEM := preload("res://resources/items/silver.tres")
+const TABLE_FORK_ITEM := preload("res://resources/items/table_fork.tres")
+const TABLE_KNIFE_ITEM := preload("res://resources/items/table_knife.tres")
+const TABLE_SPOON_ITEM := preload("res://resources/items/table_spoon.tres")
 
 @export var auto_open_character_creator := true
 @export var auto_spawn_default_character := false
@@ -61,7 +64,13 @@ func spawn_created_character(appearance: Resource, character_name := "") -> Huma
 	member.character_race = member.appearance_data.character_race
 	member.body_archetype = member.appearance_data.body_archetype
 	member.visual_body_type = member.appearance_data.visual_body_type
-	member.starting_items = [_make_stock(BANDAGE_ITEM, 3), _make_stock(SILVER_ITEM, 10)]
+	member.starting_items = [
+		_make_stock(BANDAGE_ITEM, 3),
+		_make_stock(SILVER_ITEM, 10),
+		_make_stock(TABLE_FORK_ITEM, 1),
+		_make_stock(TABLE_KNIFE_ITEM, 1),
+		_make_stock(TABLE_SPOON_ITEM, 1),
+	]
 	member.starting_equipment = [HATCHET_ITEM]
 	party_root.add_child(member)
 	var spawn_marker := get_node_or_null("CharacterSpawn") as Node3D

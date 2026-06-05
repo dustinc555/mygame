@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://b62peti1fl0ft"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Texture2D" uid="uid://cu6yy2tfbmt8u" path="res://assets/items/drinkware/bottle_2_icon.svg" id="2_icon"]
+[ext_resource type="PackedScene" uid="uid://c2k0i2qwnuvyj" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Bottle_2.gltf" id="3_model"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="3_rbsjy"]
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Brown Bottle"
+icon = ExtResource("2_icon")
+grid_size = Vector2i(1, 2)
+unit_weight = 0.6
+alternate_equip_slots = null
+world_scene = ExtResource("3_model")
+world_visual_height_meters = 0.34
+tool_tags = null

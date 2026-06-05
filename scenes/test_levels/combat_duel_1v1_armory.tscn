@@ -21,6 +21,9 @@
 [ext_resource type="Resource" path="res://resources/items/maul.tres" id="21_maul"]
 [ext_resource type="Resource" path="res://resources/items/spear.tres" id="22_spear"]
 [ext_resource type="Resource" path="res://resources/items/scythe.tres" id="23_scythe"]
+[ext_resource type="Resource" path="res://resources/items/table_fork.tres" id="24_table_fork"]
+[ext_resource type="Resource" path="res://resources/items/table_knife.tres" id="25_table_knife"]
+[ext_resource type="Resource" path="res://resources/items/table_spoon.tres" id="26_table_spoon"]
 [ext_resource type="Resource" path="res://resources/items/round_shield.tres" id="28_round_shield"]
 [ext_resource type="Resource" path="res://resources/items/heater_shield.tres" id="29_heater_shield"]
 [ext_resource type="Resource" path="res://resources/items/heater_shield_2.tres" id="30_heater_shield_2"]
@@ -53,6 +56,8 @@
 [ext_resource type="Resource" path="res://resources/items/food.tres" id="71_food"]
 [ext_resource type="Resource" path="res://resources/items/silver.tres" id="72_silver"]
 [ext_resource type="Resource" path="res://resources/items/copper_ore.tres" id="73_copper_ore"]
+[ext_resource type="Resource" path="res://resources/items/bronze_sword.tres" id="74_bronze_sword"]
+[ext_resource type="Resource" path="res://resources/items/fantasy_steel_sword.tres" id="75_fantasy_steel_sword"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(44, 1, 32)
@@ -186,6 +191,14 @@ item_definition = ExtResource("12_iron_dagger")
 script = ExtResource("5_stock")
 item_definition = ExtResource("13_steel_sword")
 
+[sub_resource type="Resource" id="Stock_item_bronze_sword"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("74_bronze_sword")
+
+[sub_resource type="Resource" id="Stock_item_fantasy_steel_sword"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("75_fantasy_steel_sword")
+
 [sub_resource type="Resource" id="Stock_item_golden_sword"]
 script = ExtResource("5_stock")
 item_definition = ExtResource("14_golden_sword")
@@ -225,6 +238,18 @@ item_definition = ExtResource("22_spear")
 [sub_resource type="Resource" id="Stock_item_scythe"]
 script = ExtResource("5_stock")
 item_definition = ExtResource("23_scythe")
+
+[sub_resource type="Resource" id="Stock_item_table_fork"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("24_table_fork")
+
+[sub_resource type="Resource" id="Stock_item_table_knife"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("25_table_knife")
+
+[sub_resource type="Resource" id="Stock_item_table_spoon"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("26_table_spoon")
 
 [sub_resource type="Resource" id="Stock_item_round_shield"]
 script = ExtResource("5_stock")
@@ -294,7 +319,7 @@ transform = Transform3D(0.996195, 0, -0.0871557, 0, 1, 0, 0.0871557, 0, 0.996195
 display_name = "Item Chest"
 inventory_columns = 12
 inventory_rows = 14
-starting_items = Array[ExtResource("5_stock")]([SubResource("Stock_item_iron_sword"), SubResource("Stock_item_iron_axe"), SubResource("Stock_item_iron_dagger"), SubResource("Stock_item_steel_sword"), SubResource("Stock_item_golden_sword"), SubResource("Stock_item_hatchet"), SubResource("Stock_item_steel_dagger"), SubResource("Stock_item_war_hammer"), SubResource("Stock_item_greatsword"), SubResource("Stock_item_claymore"), SubResource("Stock_item_axe_double"), SubResource("Stock_item_maul"), SubResource("Stock_item_spear"), SubResource("Stock_item_scythe"), SubResource("Stock_item_round_shield"), SubResource("Stock_item_heater_shield"), SubResource("Stock_item_heater_shield_2"), SubResource("Stock_item_round_shield_2"), SubResource("Stock_item_celtic_shield"), SubResource("Stock_item_bandage"), SubResource("Stock_item_food"), SubResource("Stock_item_silver"), SubResource("Stock_item_copper_ore")])
+starting_items = Array[ExtResource("5_stock")]([SubResource("Stock_item_iron_sword"), SubResource("Stock_item_iron_axe"), SubResource("Stock_item_iron_dagger"), SubResource("Stock_item_steel_sword"), SubResource("Stock_item_bronze_sword"), SubResource("Stock_item_fantasy_steel_sword"), SubResource("Stock_item_golden_sword"), SubResource("Stock_item_hatchet"), SubResource("Stock_item_steel_dagger"), SubResource("Stock_item_table_fork"), SubResource("Stock_item_table_knife"), SubResource("Stock_item_table_spoon"), SubResource("Stock_item_war_hammer"), SubResource("Stock_item_greatsword"), SubResource("Stock_item_claymore"), SubResource("Stock_item_axe_double"), SubResource("Stock_item_maul"), SubResource("Stock_item_spear"), SubResource("Stock_item_scythe"), SubResource("Stock_item_round_shield"), SubResource("Stock_item_heater_shield"), SubResource("Stock_item_heater_shield_2"), SubResource("Stock_item_round_shield_2"), SubResource("Stock_item_celtic_shield"), SubResource("Stock_item_bandage"), SubResource("Stock_item_food"), SubResource("Stock_item_silver"), SubResource("Stock_item_copper_ore")])
 
 [node name="PartyMembers" type="Node3D" parent="."]
 

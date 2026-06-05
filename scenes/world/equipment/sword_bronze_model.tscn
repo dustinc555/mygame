@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://b38rcyscygtol"]
+
+[ext_resource type="PackedScene" uid="uid://cj14jdmjeeewr" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Sword_Bronze.gltf" id="1_model"]
+[ext_resource type="Script" uid="uid://c6ncuf7x61vvu" path="res://scripts/world/equipment/grip_point_marker.gd" id="2_grip"]
+
+[node name="SwordBronzeModel" type="Node3D" unique_id=890965261]
+
+[node name="GripPoint_Primary" type="Marker3D" parent="." unique_id=981494885]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.20656408, 0.5201372, 0.06988231)
+script = ExtResource("2_grip")
+
+[node name="Model" parent="." unique_id=1588955706 instance=ExtResource("1_model")]
+transform = Transform3D(-0.10248, -0.0075520696, 0.99470645, 0.99436957, -0.02787865, 0.10223364, 0.026958996, 0.9995827, 0.0103665525, -0.21617484, 0.51358044, 0.090019524)
