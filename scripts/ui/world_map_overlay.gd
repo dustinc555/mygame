@@ -14,7 +14,7 @@ const WORLD_MAP_PROJECTION_SCRIPT := preload("res://scripts/ui/world_map_project
 @onready var nests_layer: Control = $MapRoot/MapPanel/Margin/MainColumn/MapArea/NestsLayer
 @onready var squads_layer: Control = $MapRoot/MapPanel/Margin/MainColumn/MapArea/SquadsLayer
 @onready var buttons_layer: Control = $MapRoot/MapPanel/Margin/MainColumn/ButtonsLayer
-@onready var logs_layer: Control = $MapRoot/MapPanel/Margin/MainColumn/LogsLayer/LogMargin
+@onready var logs_layer: Control = $MapRoot/MapPanel/Margin/MainColumn/LogsLayer/LogMargin/LogsColumn
 
 
 func _ready() -> void:
