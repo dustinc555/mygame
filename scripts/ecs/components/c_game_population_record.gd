@@ -18,6 +18,13 @@ class_name CGamePopulationRecord
 @export var traits: Dictionary = {}
 @export var personality: Dictionary = {}
 @export var life_state := 0
+@export var hp := 0.0
+@export var max_hp := 0.0
+@export var blood := 0.0
+@export var max_blood := 0.0
+@export var base_attack_damage := 0.0
+@export var base_dodge_chance := 0.0
+@export var base_block_chance := 0.0
 @export var realization_state := "ledger"
 @export var ledger_activity_state := "routine"
 @export var ledger_minutes_elapsed := 0
@@ -64,6 +71,13 @@ func apply_record(source: Dictionary) -> void:
 	traits = (source.get("traits", traits) as Dictionary).duplicate(true)
 	personality = (source.get("personality", personality) as Dictionary).duplicate(true)
 	life_state = int(source.get("life_state", life_state))
+	hp = float(source.get("hp", hp))
+	max_hp = float(source.get("max_hp", max_hp))
+	blood = float(source.get("blood", blood))
+	max_blood = float(source.get("max_blood", max_blood))
+	base_attack_damage = float(source.get("base_attack_damage", base_attack_damage))
+	base_dodge_chance = float(source.get("base_dodge_chance", base_dodge_chance))
+	base_block_chance = float(source.get("base_block_chance", base_block_chance))
 	realization_state = str(source.get("realization_state", realization_state))
 	ledger_activity_state = str(source.get("ledger_activity_state", ledger_activity_state))
 	ledger_minutes_elapsed = int(source.get("ledger_minutes_elapsed", ledger_minutes_elapsed))
@@ -111,6 +125,13 @@ func to_record() -> Dictionary:
 		"traits": traits.duplicate(true),
 		"personality": personality.duplicate(true),
 		"life_state": life_state,
+		"hp": hp,
+		"max_hp": max_hp,
+		"blood": blood,
+		"max_blood": max_blood,
+		"base_attack_damage": base_attack_damage,
+		"base_dodge_chance": base_dodge_chance,
+		"base_block_chance": base_block_chance,
 		"realization_state": realization_state,
 		"ledger_activity_state": ledger_activity_state,
 		"ledger_minutes_elapsed": ledger_minutes_elapsed,
