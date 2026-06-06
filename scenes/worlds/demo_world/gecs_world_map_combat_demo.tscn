@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scripts/bootstrap/demo_sim_bootstrap.gd" id="3_bootstrap"]
 [ext_resource type="Script" path="res://scripts/world_sim/nests/nest_placement_marker.gd" id="4_nest_marker"]
 [ext_resource type="Script" path="res://scripts/simulation/fixed_tick_sim_runner.gd" id="5_runner"]
+[ext_resource type="PackedScene" path="res://scenes/ui/world_map_overlay.tscn" id="6_map_overlay"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(1100, 1, 950)
@@ -61,6 +62,8 @@ world_definition = ExtResource("2_world")
 [node name="FixedTickSimRunner" type="Node" parent="DemoSimBootstrap"]
 script = ExtResource("5_runner")
 target_path = NodePath("..")
+
+[node name="WorldMapOverlay" parent="." instance=ExtResource("6_map_overlay")]
 
 [node name="CameraRig" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 377.61835, 0.6, 114.84003)
