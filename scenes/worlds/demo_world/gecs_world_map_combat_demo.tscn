@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/world_map_overlay.tscn" id="6_map_overlay"]
 [ext_resource type="Script" path="res://scripts/ui/world_map_placement_projector.gd" id="7_map_projector"]
 [ext_resource type="Script" path="res://scripts/ui/world_map_squad_projector.gd" id="8_squad_projector"]
+[ext_resource type="Script" path="res://scripts/ui/world_map_squad_command_panel.gd" id="9_command_panel"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(1100, 1, 950)
@@ -80,6 +81,12 @@ world_definition = ExtResource("2_world")
 overlay_path = NodePath("../WorldMapOverlay")
 squad_state_source_path = NodePath("../DemoSimBootstrap")
 
+[node name="WorldMapSquadCommandPanel" type="Node" parent="."]
+script = ExtResource("9_command_panel")
+world_definition = ExtResource("2_world")
+overlay_path = NodePath("../WorldMapOverlay")
+squad_state_source_path = NodePath("../DemoSimBootstrap")
+
 [node name="CameraRig" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 377.61835, 0.6, 114.84003)
 
@@ -88,3 +95,5 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 377.61835, 0.6, 114.84003)
 [node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 24)
 current = true
+
+[connection signal="command_requested" from="WorldMapSquadCommandPanel" to="DemoSimBootstrap/FixedTickSimRunner" method="queue_command"]
