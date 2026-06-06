@@ -173,7 +173,7 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="LogsLayer" type="PanelContainer" parent="MapRoot/MapPanel/Margin/MainColumn"]
-custom_minimum_size = Vector2(0, 208)
+custom_minimum_size = Vector2(0, 220)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StyleBoxFlat_logs")
@@ -185,11 +185,16 @@ theme_override_constants/margin_top = 6
 theme_override_constants/margin_right = 8
 theme_override_constants/margin_bottom = 6
 
-[node name="LogsColumn" type="VBoxContainer" parent="MapRoot/MapPanel/Margin/MainColumn/LogsLayer/LogMargin"]
+[node name="LogsScroll" type="ScrollContainer" parent="MapRoot/MapPanel/Margin/MainColumn/LogsLayer/LogMargin"]
 layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="LogsColumn" type="VBoxContainer" parent="MapRoot/MapPanel/Margin/MainColumn/LogsLayer/LogMargin/LogsScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
-[node name="LogPlaceholder" type="Label" parent="MapRoot/MapPanel/Margin/MainColumn/LogsLayer/LogMargin/LogsColumn"]
+[node name="LogPlaceholder" type="Label" parent="MapRoot/MapPanel/Margin/MainColumn/LogsLayer/LogMargin/LogsScroll/LogsColumn"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.5, 0.46, 0.38, 1)
 theme_override_font_sizes/font_size = 12
