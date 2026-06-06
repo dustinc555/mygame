@@ -12,6 +12,7 @@ const WORLD_MAP_PROJECTION_SCRIPT := preload("res://scripts/ui/world_map_project
 @onready var map_area: Control = $MapRoot/MapPanel/Margin/MainColumn/MapArea
 @onready var towns_layer: Control = $MapRoot/MapPanel/Margin/MainColumn/MapArea/TownsLayer
 @onready var nests_layer: Control = $MapRoot/MapPanel/Margin/MainColumn/MapArea/NestsLayer
+@onready var squads_layer: Control = $MapRoot/MapPanel/Margin/MainColumn/MapArea/SquadsLayer
 
 
 func _ready() -> void:
@@ -56,6 +57,10 @@ func get_towns_layer() -> Control:
 
 func get_nests_layer() -> Control:
 	return nests_layer
+
+
+func get_squads_layer() -> Control:
+	return squads_layer
 
 
 func get_map_rect() -> Rect2:
