@@ -1,0 +1,67 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/world_loader.gd" id="1_loader"]
+[ext_resource type="Resource" path="res://resources/worlds/demo_world/demo_world.tres" id="2_world"]
+[ext_resource type="Script" path="res://scripts/bootstrap/demo_sim_bootstrap.gd" id="3_bootstrap"]
+[ext_resource type="Script" path="res://scripts/world_sim/nests/nest_placement_marker.gd" id="4_nest_marker"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(1100, 1, 950)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.31, 0.29, 0.22, 1)
+roughness = 0.96
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(1100, 1, 950)
+
+[node name="GecsWorldMapCombatDemo" type="Node3D"]
+
+[node name="WorldLoader" type="Node" parent="."]
+script = ExtResource("1_loader")
+world_definition = ExtResource("2_world")
+
+[node name="Towns" type="Node3D" parent="."]
+
+[node name="Floor" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 18)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+material_override = SubResource("StandardMaterial3D_floor")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="NestMarkers" type="Node3D" parent="."]
+
+[node name="RustdeadWestVent" type="Node3D" parent="NestMarkers"]
+transform = Transform3D(0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, 0.965926, -500, 0, 250)
+script = ExtResource("4_nest_marker")
+marker_id = "demo_rustdead_west_vent"
+editor_debug_radius = 12.0
+
+[node name="RustdeadNorthVent" type="Node3D" parent="NestMarkers"]
+transform = Transform3D(0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866025, -40, 0, -370)
+script = ExtResource("4_nest_marker")
+marker_id = "demo_rustdead_north_vent"
+editor_debug_radius = 12.0
+
+[node name="RustdeadSouthVent" type="Node3D" parent="NestMarkers"]
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 240, 0, 310)
+script = ExtResource("4_nest_marker")
+marker_id = "demo_rustdead_south_vent"
+editor_debug_radius = 12.0
+
+[node name="DemoSimBootstrap" type="Node" parent="."]
+script = ExtResource("3_bootstrap")
+world_definition = ExtResource("2_world")
+
+[node name="CameraRig" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 377.61835, 0.6, 114.84003)
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 24)
+current = true
