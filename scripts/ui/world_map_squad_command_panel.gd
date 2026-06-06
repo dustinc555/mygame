@@ -126,7 +126,7 @@ func _request_send_squad_to_town(squad_id: String, town: Dictionary) -> void:
 	_request_command({
 		"action": "set_squad_objective",
 		"squad_id": squad_id,
-		"objective_id": "move_to_location",
+		"objective_id": "move_to",
 		"target_id": town_id,
 		"target_location": town.get("location", Vector3.ZERO),
 		"squad_state": "commanded",
@@ -141,7 +141,7 @@ func _request_send_both_to_fight_location(squad_ids: Array[String], target_locat
 	_request_command({
 		"action": "set_squads_objective",
 		"squad_ids": squad_ids.slice(0, 2),
-		"objective_id": "debug_fight_location",
+		"objective_id": "move_to",
 		"target_id": "debug_fight_location",
 		"target_location": target_location,
 		"squad_state": "commanded",

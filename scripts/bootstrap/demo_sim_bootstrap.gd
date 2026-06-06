@@ -5,6 +5,8 @@ class_name DemoSimBootstrap
 const DEMO_SIM_ENTITY_ID := "demo_sim:state"
 const WORLD_SQUAD_ENTITY_ID := "world_squad:state"
 const MAX_COMMAND_LOG_ENTRIES := 40
+const DEFAULT_SQUAD_SPEED := 85.0
+const DEFAULT_ARRIVAL_THRESHOLD := 2.0
 const GECS_WORLD_SCRIPT := preload("res://addons/gecs/ecs/world.gd")
 const GECS_ENTITY_SCRIPT := preload("res://addons/gecs/ecs/entity.gd")
 const DEMO_SIM_STATE_SCRIPT := preload("res://scripts/ecs/components/c_game_demo_sim_state.gd")
@@ -67,8 +69,10 @@ func apply_sim_commands(commands: Array[Dictionary]) -> void:
 
 func update_sim(fixed_delta: float) -> void:
 	_ensure_state_entity()
+	_ensure_world_squad_state_entity()
 	if _ecs_world != null and _ecs_world.has_method("process"):
 		_ecs_world.call("process", fixed_delta)
+	_advance_squad_objectives(fixed_delta)
 
 
 func get_sim_metrics() -> Dictionary:
@@ -188,6 +192,12 @@ func _squad_record_from_template(squad_id: String, faction_id: String, template:
 		"location": location,
 		"objective_id": "hold_position",
 		"objective_state": "idle",
+		"target_location": location,
+		"route": [location, location],
+		"speed": DEFAULT_SQUAD_SPEED,
+		"arrival_threshold": DEFAULT_ARRIVAL_THRESHOLD,
+		"arrival_state": "idle",
+		"home_location": location,
 		"member_count": member_count,
 		"strength": base_strength + float(member_count) * base_attack_damage,
 		"morale": 1.0,
@@ -273,14 +283,90 @@ func _apply_reset_demo_squads_command(command: Dictionary, active_squads: Dictio
 
 
 func _write_objective_to_squad_record(record: Dictionary, command: Dictionary) -> void:
+	var current_location := _record_location(record)
+	var objective_id := str(command.get("objective_id", "move_to")).strip_edges()
+	if objective_id.is_empty():
+		objective_id = "move_to"
+	var target_location := _objective_target_location(record, command, current_location, objective_id)
 	record["command_id"] = str(command.get("command_id", "")).strip_edges()
 	record["command_action"] = str(command.get("action", "")).strip_edges()
-	record["objective_id"] = str(command.get("objective_id", "move_to_location")).strip_edges()
-	record["objective_state"] = "queued"
+	record["objective_id"] = objective_id
+	record["objective_state"] = "active"
 	record["target_id"] = str(command.get("target_id", "")).strip_edges()
-	record["target_location"] = _command_location(command.get("target_location", Vector3.ZERO))
+	record["target_location"] = target_location
+	record["route"] = [current_location, target_location]
+	record["speed"] = maxf(float(command.get("speed", record.get("speed", DEFAULT_SQUAD_SPEED))), 0.0)
+	record["arrival_threshold"] = maxf(float(command.get("arrival_threshold", record.get("arrival_threshold", DEFAULT_ARRIVAL_THRESHOLD))), 0.0)
+	record["arrival_state"] = "en_route"
 	record["debug_only"] = bool(command.get("debug_only", false))
-	record["state"] = str(command.get("squad_state", "commanded")).strip_edges()
+	var squad_state := str(command.get("squad_state", "commanded")).strip_edges()
+	record["state"] = squad_state if not squad_state.is_empty() else "commanded"
+
+
+func _advance_squad_objectives(fixed_delta: float) -> void:
+	if fixed_delta <= 0.0:
+		return
+	if _world_squad_state_component == null or not _world_squad_state_component.has_method("apply_state"):
+		return
+	var state := get_world_squad_state()
+	var active_squads = state.get("active_squads", {})
+	if not (active_squads is Dictionary):
+		return
+	var command_log := _command_log_from_state(state)
+	var changed := false
+	for squad_id in active_squads.keys():
+		var record = active_squads[squad_id]
+		if not (record is Dictionary):
+			continue
+		var squad_record: Dictionary = record
+		if _advance_squad_record(squad_record, fixed_delta, command_log):
+			active_squads[squad_id] = squad_record
+			changed = true
+	if not changed:
+		return
+	state["active_squads"] = active_squads
+	state["command_log"] = command_log
+	_world_squad_state_component.call("apply_state", state)
+
+
+func _advance_squad_record(record: Dictionary, fixed_delta: float, command_log: Array[Dictionary]) -> bool:
+	if str(record.get("objective_state", "")).strip_edges() != "active":
+		return false
+	if str(record.get("arrival_state", "")).strip_edges() != "en_route":
+		return false
+	var current_location := _record_location(record)
+	var target_location := _record_target_location(record, current_location)
+	var arrival_threshold := maxf(float(record.get("arrival_threshold", DEFAULT_ARRIVAL_THRESHOLD)), 0.0)
+	var remaining_distance := _xz_distance(current_location, target_location)
+	if remaining_distance <= arrival_threshold:
+		_complete_squad_arrival(record, target_location, command_log)
+		return true
+	var speed := maxf(float(record.get("speed", DEFAULT_SQUAD_SPEED)), 0.0)
+	if speed <= 0.0:
+		return false
+	var travel_distance := minf(speed * fixed_delta, remaining_distance)
+	if travel_distance <= 0.0:
+		return false
+	var travel_ratio := travel_distance / remaining_distance
+	var next_location := Vector3(
+		lerpf(current_location.x, target_location.x, travel_ratio),
+		current_location.y,
+		lerpf(current_location.z, target_location.z, travel_ratio)
+	)
+	if _xz_distance(next_location, target_location) <= arrival_threshold:
+		_complete_squad_arrival(record, target_location, command_log)
+		return true
+	record["location"] = next_location
+	record["state"] = "travel"
+	return true
+
+
+func _complete_squad_arrival(record: Dictionary, target_location: Vector3, command_log: Array[Dictionary]) -> void:
+	record["location"] = target_location
+	record["objective_state"] = "complete"
+	record["arrival_state"] = "arrived"
+	record["state"] = "idle"
+	_append_command_log(command_log, _command_from_squad_record(record), "arrived", "Squad arrived at %s" % str(record.get("target_id", record.get("squad_id", "target"))))
 
 
 func _command_log_from_state(state: Dictionary) -> Array[Dictionary]:
@@ -321,12 +407,46 @@ func _string_array(value) -> Array[String]:
 	return result
 
 
-func _command_location(value) -> Vector3:
+func _record_location(record: Dictionary) -> Vector3:
+	return _location_value(record.get("location", Vector3.ZERO), Vector3.ZERO)
+
+
+func _record_target_location(record: Dictionary, current_location: Vector3) -> Vector3:
+	if record.has("target_location"):
+		return _location_value(record.get("target_location"), current_location)
+	var route = record.get("route", [])
+	if route is Array and route.size() >= 2:
+		return _location_value(route[1], current_location)
+	return current_location
+
+
+func _objective_target_location(record: Dictionary, command: Dictionary, current_location: Vector3, objective_id: String) -> Vector3:
+	if command.has("target_location"):
+		return _location_value(command.get("target_location"), current_location)
+	if objective_id == "return_home":
+		return _location_value(record.get("home_location", current_location), current_location)
+	return current_location
+
+
+func _location_value(value, fallback: Vector3) -> Vector3:
 	if value is Vector3:
 		return value
 	if value is Vector2:
-		return Vector3(value.x, 0.0, value.y)
-	return Vector3.ZERO
+		return Vector3(value.x, fallback.y, value.y)
+	return fallback
+
+
+func _xz_distance(first: Vector3, second: Vector3) -> float:
+	return Vector2(first.x, first.z).distance_to(Vector2(second.x, second.z))
+
+
+func _command_from_squad_record(record: Dictionary) -> Dictionary:
+	return {
+		"command_id": str(record.get("command_id", "")),
+		"action": str(record.get("command_action", "")),
+		"squad_id": str(record.get("squad_id", "")),
+		"objective_id": str(record.get("objective_id", "")),
+	}
 
 
 func _world_squad_templates() -> Array[Resource]:
