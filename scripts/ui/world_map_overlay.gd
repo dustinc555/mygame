@@ -2,10 +2,15 @@ extends CanvasLayer
 
 class_name WorldMapOverlay
 
+const WORLD_MAP_PROJECTION_SCRIPT := preload("res://scripts/ui/world_map_projection.gd")
+
 @export var start_open := false
 @export var toggle_keycode := KEY_M
+@export var world_bounds := Rect2(Vector2(-500.0, -500.0), Vector2(1000.0, 1000.0))
 
 @onready var map_root: Control = $MapRoot
+@onready var map_area: Control = $MapRoot/MapPanel/Margin/MainColumn/MapArea
+@onready var towns_layer: Control = $MapRoot/MapPanel/Margin/MainColumn/MapArea/TownsLayer
 
 
 func _ready() -> void:
@@ -38,6 +43,30 @@ func toggle_map() -> void:
 
 func is_map_open() -> bool:
 	return map_root.visible
+
+
+func get_map_area() -> Control:
+	return map_area
+
+
+func get_towns_layer() -> Control:
+	return towns_layer
+
+
+func get_map_rect() -> Rect2:
+	return Rect2(Vector2.ZERO, map_area.size)
+
+
+func get_projection_world_bounds() -> Rect2:
+	return world_bounds
+
+
+func world_to_map_position(world_position: Vector3) -> Vector2:
+	return WORLD_MAP_PROJECTION_SCRIPT.world_to_map(world_position, world_bounds, get_map_rect())
+
+
+func map_to_world_position(map_position: Vector2, y := 0.0) -> Vector3:
+	return WORLD_MAP_PROJECTION_SCRIPT.map_to_world(map_position, world_bounds, get_map_rect(), y)
 
 
 func _is_text_input_focused() -> bool:
