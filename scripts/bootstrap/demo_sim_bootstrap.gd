@@ -4,6 +4,7 @@ class_name DemoSimBootstrap
 
 const DEMO_SIM_ENTITY_ID := "demo_sim:state"
 const WORLD_SQUAD_ENTITY_ID := "world_squad:state"
+const MAX_COMMAND_LOG_ENTRIES := 40
 const GECS_WORLD_SCRIPT := preload("res://addons/gecs/ecs/world.gd")
 const GECS_ENTITY_SCRIPT := preload("res://addons/gecs/ecs/entity.gd")
 const DEMO_SIM_STATE_SCRIPT := preload("res://scripts/ecs/components/c_game_demo_sim_state.gd")
@@ -48,6 +49,20 @@ func get_world_squad_state() -> Dictionary:
 	if _world_squad_state_component != null and _world_squad_state_component.has_method("to_state"):
 		return _world_squad_state_component.call("to_state")
 	return {}
+
+
+func apply_sim_commands(commands: Array[Dictionary]) -> void:
+	_ensure_world_squad_state_entity()
+	if _world_squad_state_component == null or not _world_squad_state_component.has_method("apply_state"):
+		return
+	var state := get_world_squad_state()
+	var active_squads: Dictionary = state.get("active_squads", {})
+	var command_log := _command_log_from_state(state)
+	for command in commands:
+		_apply_sim_command(command, active_squads, command_log)
+	state["active_squads"] = active_squads
+	state["command_log"] = command_log
+	_world_squad_state_component.call("apply_state", state)
 
 
 func update_sim(fixed_delta: float) -> void:
@@ -159,6 +174,7 @@ func _initial_world_squad_state() -> Dictionary:
 		"state_id": "world_squads",
 		"squad_index": active_squads.size(),
 		"active_squads": active_squads,
+		"command_log": [],
 	}
 
 
@@ -171,12 +187,142 @@ func _squad_record_from_template(squad_id: String, faction_id: String, template:
 		"faction_id": faction_id,
 		"location": location,
 		"objective_id": "hold_position",
+		"objective_state": "idle",
 		"member_count": member_count,
 		"strength": base_strength + float(member_count) * base_attack_damage,
 		"morale": 1.0,
 		"supplies": _resource_float(template, "food_capacity", 0.0),
 		"state": "idle",
 	}
+
+
+func _apply_sim_command(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
+	var action := str(command.get("action", "")).strip_edges()
+	match action:
+		"set_squad_objective":
+			_apply_set_squad_objective(command, active_squads, command_log)
+		"set_squads_objective":
+			_apply_set_squads_objective(command, active_squads, command_log)
+		"force_encounter":
+			_apply_force_encounter_command(command, active_squads, command_log)
+		"reset_demo_squads":
+			_apply_reset_demo_squads_command(command, active_squads, command_log)
+		_:
+			_append_command_log(command_log, command, "error", "Unknown command action: %s" % action)
+
+
+func _apply_set_squad_objective(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
+	var squad_id := str(command.get("squad_id", "")).strip_edges()
+	if not active_squads.has(squad_id):
+		_append_command_log(command_log, command, "error", "Unknown squad: %s" % squad_id)
+		return
+	var record: Dictionary = active_squads[squad_id]
+	_write_objective_to_squad_record(record, command)
+	active_squads[squad_id] = record
+	_append_command_log(command_log, command, "applied", "Queued objective for %s" % squad_id)
+
+
+func _apply_set_squads_objective(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
+	var squad_ids := _string_array(command.get("squad_ids", []))
+	if squad_ids.is_empty():
+		_append_command_log(command_log, command, "error", "No squads supplied")
+		return
+	var applied_count := 0
+	for squad_id in squad_ids:
+		if not active_squads.has(squad_id):
+			continue
+		var record: Dictionary = active_squads[squad_id]
+		_write_objective_to_squad_record(record, command)
+		active_squads[squad_id] = record
+		applied_count += 1
+	if applied_count <= 0:
+		_append_command_log(command_log, command, "error", "No supplied squads exist")
+		return
+	_append_command_log(command_log, command, "applied", "Queued objective for %d squads" % applied_count)
+
+
+func _apply_force_encounter_command(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
+	var debug_command := command.duplicate(true)
+	debug_command["objective_id"] = "debug_force_encounter"
+	debug_command["debug_only"] = true
+	var squad_ids := _string_array(debug_command.get("squad_ids", []))
+	if squad_ids.is_empty():
+		_append_command_log(command_log, command, "error", "No squads supplied for debug encounter")
+		return
+	var applied_count := 0
+	for squad_id in squad_ids:
+		if not active_squads.has(squad_id):
+			continue
+		var record: Dictionary = active_squads[squad_id]
+		_write_objective_to_squad_record(record, debug_command)
+		active_squads[squad_id] = record
+		applied_count += 1
+	if applied_count <= 0:
+		_append_command_log(command_log, command, "error", "No supplied squads exist for debug encounter")
+		return
+	_append_command_log(command_log, command, "applied", "Recorded debug-only forced encounter placeholder for %d squads" % applied_count)
+
+
+func _apply_reset_demo_squads_command(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
+	var reset_state := _initial_world_squad_state()
+	var reset_squads: Dictionary = reset_state.get("active_squads", {})
+	active_squads.clear()
+	for squad_id in reset_squads.keys():
+		active_squads[squad_id] = reset_squads[squad_id]
+	_append_command_log(command_log, command, "applied", "Reset demo squad records")
+
+
+func _write_objective_to_squad_record(record: Dictionary, command: Dictionary) -> void:
+	record["command_id"] = str(command.get("command_id", "")).strip_edges()
+	record["command_action"] = str(command.get("action", "")).strip_edges()
+	record["objective_id"] = str(command.get("objective_id", "move_to_location")).strip_edges()
+	record["objective_state"] = "queued"
+	record["target_id"] = str(command.get("target_id", "")).strip_edges()
+	record["target_location"] = _command_location(command.get("target_location", Vector3.ZERO))
+	record["debug_only"] = bool(command.get("debug_only", false))
+	record["state"] = str(command.get("squad_state", "commanded")).strip_edges()
+
+
+func _command_log_from_state(state: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var source = state.get("command_log", [])
+	if not (source is Array):
+		return result
+	for entry in source:
+		if entry is Dictionary:
+			result.append(entry.duplicate(true))
+	return result
+
+
+func _append_command_log(command_log: Array[Dictionary], command: Dictionary, status: String, message: String) -> void:
+	command_log.append({
+		"log_id": command_log.size() + 1,
+		"status": status,
+		"command_id": str(command.get("command_id", "")),
+		"action": str(command.get("action", "")),
+		"message": message,
+	})
+	while command_log.size() > MAX_COMMAND_LOG_ENTRIES:
+		command_log.pop_front()
+
+
+func _string_array(value) -> Array[String]:
+	var result: Array[String] = []
+	if not (value is Array):
+		return result
+	for item in value:
+		var text := str(item).strip_edges()
+		if not text.is_empty():
+			result.append(text)
+	return result
+
+
+func _command_location(value) -> Vector3:
+	if value is Vector3:
+		return value
+	if value is Vector2:
+		return Vector3(value.x, 0.0, value.y)
+	return Vector3.ZERO
 
 
 func _world_squad_templates() -> Array[Resource]:
