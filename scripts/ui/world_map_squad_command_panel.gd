@@ -184,23 +184,29 @@ func _sync_sim_command_log() -> void:
 	var source := _get_squad_state_source()
 	if source == null or not source.has_method("get_world_squad_state"):
 		return
-	var squad_state = source.call("get_world_squad_state")
-	if not (squad_state is Dictionary):
-		return
-	var command_log = squad_state.get("command_log", [])
-	if not (command_log is Array):
-		return
 	var retained_log_keys := {}
-	for entry in command_log:
+	var squad_state = source.call("get_world_squad_state")
+	if squad_state is Dictionary:
+		_sync_log_entries("squad", squad_state.get("command_log", []), retained_log_keys)
+	if source.has_method("get_world_encounter_state"):
+		var encounter_state = source.call("get_world_encounter_state")
+		if encounter_state is Dictionary:
+			_sync_log_entries("encounter", encounter_state.get("encounter_log", []), retained_log_keys)
+	_rendered_sim_log_keys = retained_log_keys
+
+
+func _sync_log_entries(source_id: String, entries, retained_log_keys: Dictionary) -> void:
+	if not (entries is Array):
+		return
+	for entry in entries:
 		if not (entry is Dictionary):
 			continue
-		var key := "%s:%s:%s" % [str(entry.get("log_id", "")), str(entry.get("command_id", "")), str(entry.get("status", ""))]
+		var key := "%s:%s:%s:%s:%s" % [source_id, str(entry.get("log_id", "")), str(entry.get("command_id", "")), str(entry.get("encounter_id", "")), str(entry.get("status", ""))]
 		retained_log_keys[key] = true
 		if _rendered_sim_log_keys.has(key):
 			continue
 		_rendered_sim_log_keys[key] = true
 		append_log_entry(entry)
-	_rendered_sim_log_keys = retained_log_keys
 
 
 func _render_logs() -> void:

@@ -4,13 +4,19 @@ class_name DemoSimBootstrap
 
 const DEMO_SIM_ENTITY_ID := "demo_sim:state"
 const WORLD_SQUAD_ENTITY_ID := "world_squad:state"
+const WORLD_ENCOUNTER_ENTITY_ID := "world_encounter:state"
 const MAX_COMMAND_LOG_ENTRIES := 40
+const MAX_ENCOUNTER_LOG_ENTRIES := 40
 const DEFAULT_SQUAD_SPEED := 85.0
 const DEFAULT_ARRIVAL_THRESHOLD := 2.0
+const DEFAULT_ENCOUNTER_RANGE := 30.0
+const DEFAULT_SPATIAL_BIN_SIZE := 60.0
+const DEFAULT_HOSTILE_THRESHOLD := -50
 const GECS_WORLD_SCRIPT := preload("res://addons/gecs/ecs/world.gd")
 const GECS_ENTITY_SCRIPT := preload("res://addons/gecs/ecs/entity.gd")
 const DEMO_SIM_STATE_SCRIPT := preload("res://scripts/ecs/components/c_game_demo_sim_state.gd")
 const WORLD_SQUAD_STATE_SCRIPT := preload("res://scripts/ecs/components/c_game_world_squad_state.gd")
+const WORLD_ENCOUNTER_STATE_SCRIPT := preload("res://scripts/ecs/components/c_game_world_encounter_state.gd")
 
 @export var world_definition: Resource
 
@@ -19,6 +25,8 @@ var _sim_state_entity
 var _sim_state_component
 var _world_squad_state_entity
 var _world_squad_state_component
+var _world_encounter_state_entity
+var _world_encounter_state_component
 var _sim_runner: Node
 
 
@@ -27,6 +35,7 @@ func _ready() -> void:
 	_ensure_world()
 	_ensure_state_entity()
 	_ensure_world_squad_state_entity()
+	_ensure_world_encounter_state_entity()
 	_sim_runner = _find_sim_runner()
 
 
@@ -39,10 +48,12 @@ func _exit_tree() -> void:
 func get_sim_state() -> Dictionary:
 	_ensure_state_entity()
 	_ensure_world_squad_state_entity()
+	_ensure_world_encounter_state_entity()
 	var state := {}
 	if _sim_state_component != null and _sim_state_component.has_method("to_state"):
 		state = _sim_state_component.call("to_state")
 	state["world_squad_state"] = get_world_squad_state()
+	state["world_encounter_state"] = get_world_encounter_state()
 	return state
 
 
@@ -53,26 +64,41 @@ func get_world_squad_state() -> Dictionary:
 	return {}
 
 
+func get_world_encounter_state() -> Dictionary:
+	_ensure_world_encounter_state_entity()
+	if _world_encounter_state_component != null and _world_encounter_state_component.has_method("to_state"):
+		return _world_encounter_state_component.call("to_state")
+	return {}
+
+
 func apply_sim_commands(commands: Array[Dictionary]) -> void:
 	_ensure_world_squad_state_entity()
+	_ensure_world_encounter_state_entity()
 	if _world_squad_state_component == null or not _world_squad_state_component.has_method("apply_state"):
 		return
 	var state := get_world_squad_state()
 	var active_squads: Dictionary = state.get("active_squads", {})
 	var command_log := _command_log_from_state(state)
+	var should_reset_encounters := false
 	for command in commands:
 		_apply_sim_command(command, active_squads, command_log)
+		if str(command.get("action", "")).strip_edges() == "reset_demo_squads":
+			should_reset_encounters = true
 	state["active_squads"] = active_squads
 	state["command_log"] = command_log
 	_world_squad_state_component.call("apply_state", state)
+	if should_reset_encounters:
+		_reset_world_encounter_state()
 
 
 func update_sim(fixed_delta: float) -> void:
 	_ensure_state_entity()
 	_ensure_world_squad_state_entity()
+	_ensure_world_encounter_state_entity()
 	if _ecs_world != null and _ecs_world.has_method("process"):
 		_ecs_world.call("process", fixed_delta)
 	_advance_squad_objectives(fixed_delta)
+	_detect_squad_encounters()
 
 
 func get_sim_metrics() -> Dictionary:
@@ -136,11 +162,31 @@ func _ensure_world_squad_state_entity() -> void:
 		_world_squad_state_component.call("apply_state", _initial_world_squad_state())
 
 
+func _ensure_world_encounter_state_entity() -> void:
+	_ensure_world()
+	if _ecs_world == null:
+		return
+	if _world_encounter_state_entity == null or not is_instance_valid(_world_encounter_state_entity):
+		_world_encounter_state_entity = _find_entity_by_id(WORLD_ENCOUNTER_ENTITY_ID)
+	if _world_encounter_state_entity == null:
+		_world_encounter_state_entity = GECS_ENTITY_SCRIPT.new()
+		_world_encounter_state_entity.name = "WorldEncounterState"
+		_world_encounter_state_entity.id = WORLD_ENCOUNTER_ENTITY_ID
+		_ecs_world.call("add_entity", _world_encounter_state_entity, [WORLD_ENCOUNTER_STATE_SCRIPT.new()])
+	_world_encounter_state_component = _world_encounter_state_entity.call("get_component", WORLD_ENCOUNTER_STATE_SCRIPT)
+
+
 func _world_squad_state_is_empty() -> bool:
 	if _world_squad_state_component == null:
 		return true
 	var active_squads = _world_squad_state_component.get("active_squads")
 	return not (active_squads is Dictionary) or active_squads.is_empty()
+
+
+func _reset_world_encounter_state() -> void:
+	_ensure_world_encounter_state_entity()
+	if _world_encounter_state_component != null and _world_encounter_state_component.has_method("apply_state"):
+		_world_encounter_state_component.call("apply_state", _initial_world_encounter_state())
 
 
 func _find_entity_by_id(entity_id: String):
@@ -182,6 +228,19 @@ func _initial_world_squad_state() -> Dictionary:
 	}
 
 
+func _initial_world_encounter_state() -> Dictionary:
+	return {
+		"state_id": "world_encounters",
+		"encounters_by_id": {},
+		"active_pair_keys": {},
+		"next_encounter_id": 1,
+		"encounter_range": DEFAULT_ENCOUNTER_RANGE,
+		"spatial_bin_size": DEFAULT_SPATIAL_BIN_SIZE,
+		"hostile_threshold": DEFAULT_HOSTILE_THRESHOLD,
+		"encounter_log": [],
+	}
+
+
 func _squad_record_from_template(squad_id: String, faction_id: String, template: Resource, location: Vector3) -> Dictionary:
 	var member_count := _resource_int(template, "member_count", 1)
 	var base_strength := _resource_float(template, "base_strength", 0.0)
@@ -198,6 +257,8 @@ func _squad_record_from_template(squad_id: String, faction_id: String, template:
 		"arrival_threshold": DEFAULT_ARRIVAL_THRESHOLD,
 		"arrival_state": "idle",
 		"home_location": location,
+		"active_encounter_id": "",
+		"last_encounter_id": "",
 		"member_count": member_count,
 		"strength": base_strength + float(member_count) * base_attack_damage,
 		"morale": 1.0,
@@ -253,7 +314,7 @@ func _apply_set_squads_objective(command: Dictionary, active_squads: Dictionary,
 
 func _apply_force_encounter_command(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
 	var debug_command := command.duplicate(true)
-	debug_command["objective_id"] = "debug_force_encounter"
+	debug_command["objective_id"] = "force_encounter_debug"
 	debug_command["debug_only"] = true
 	var squad_ids := _string_array(debug_command.get("squad_ids", []))
 	if squad_ids.is_empty():
@@ -330,6 +391,10 @@ func _advance_squad_objectives(fixed_delta: float) -> void:
 
 
 func _advance_squad_record(record: Dictionary, fixed_delta: float, command_log: Array[Dictionary]) -> bool:
+	if not str(record.get("active_encounter_id", "")).strip_edges().is_empty():
+		return false
+	if str(record.get("state", "")).strip_edges() == "engaged":
+		return false
 	if str(record.get("objective_state", "")).strip_edges() != "active":
 		return false
 	if str(record.get("arrival_state", "")).strip_edges() != "en_route":
@@ -367,6 +432,331 @@ func _complete_squad_arrival(record: Dictionary, target_location: Vector3, comma
 	record["arrival_state"] = "arrived"
 	record["state"] = "idle"
 	_append_command_log(command_log, _command_from_squad_record(record), "arrived", "Squad arrived at %s" % str(record.get("target_id", record.get("squad_id", "target"))))
+
+
+func _detect_squad_encounters() -> void:
+	if _world_squad_state_component == null or not _world_squad_state_component.has_method("apply_state"):
+		return
+	if _world_encounter_state_component == null or not _world_encounter_state_component.has_method("apply_state"):
+		return
+	var squad_state := get_world_squad_state()
+	var active_squads = squad_state.get("active_squads", {})
+	if not (active_squads is Dictionary):
+		return
+	var encounter_state := get_world_encounter_state()
+	var encounters_by_id = _dictionary_from_state(encounter_state, "encounters_by_id")
+	var active_pair_keys = _dictionary_from_state(encounter_state, "active_pair_keys")
+	var encounter_log := _encounter_log_from_state(encounter_state)
+	var encounter_range := maxf(float(encounter_state.get("encounter_range", DEFAULT_ENCOUNTER_RANGE)), 0.0)
+	if encounter_range <= 0.0:
+		return
+	var spatial_bin_size := maxf(float(encounter_state.get("spatial_bin_size", DEFAULT_SPATIAL_BIN_SIZE)), encounter_range)
+	var hostile_threshold := int(encounter_state.get("hostile_threshold", DEFAULT_HOSTILE_THRESHOLD))
+	var bins := _build_squad_spatial_bins(active_squads, spatial_bin_size)
+	if bins.is_empty():
+		return
+	var faction_outlooks := _faction_outlooks_by_direction()
+	var checked_pair_keys := {}
+	var next_encounter_id: int = maxi(1, int(encounter_state.get("next_encounter_id", 1)))
+	var range_squared := encounter_range * encounter_range
+	var squads_changed := false
+	var encounters_changed := false
+	for squad_id_value in active_squads.keys():
+		var squad_id := str(squad_id_value)
+		var record = active_squads[squad_id_value]
+		if not (record is Dictionary):
+			continue
+		var squad_record: Dictionary = record
+		if not _squad_can_be_spatial_bin_member(squad_record):
+			continue
+		var squad_location := _record_location(squad_record)
+		var bin_coords := _spatial_bin_coords(squad_location, spatial_bin_size)
+		var squad_engaged := false
+		for x_offset in range(-1, 2):
+			if squad_engaged:
+				break
+			for z_offset in range(-1, 2):
+				if squad_engaged:
+					break
+				var neighbor_key := _spatial_bin_key(Vector2i(bin_coords.x + x_offset, bin_coords.y + z_offset))
+				var nearby_squad_ids = bins.get(neighbor_key, [])
+				if not (nearby_squad_ids is Array):
+					continue
+				for other_id_value in nearby_squad_ids:
+					if squad_engaged:
+						break
+					var other_id := str(other_id_value)
+					if other_id == squad_id:
+						continue
+					var pair_key := _squad_pair_key(squad_id, other_id)
+					if checked_pair_keys.has(pair_key):
+						continue
+					checked_pair_keys[pair_key] = true
+					if active_pair_keys.has(pair_key):
+						if _mark_duplicate_encounter_suppressed(pair_key, encounters_by_id, active_pair_keys, encounter_log):
+							encounters_changed = true
+						continue
+					if not active_squads.has(other_id):
+						continue
+					var other_record_value = active_squads[other_id]
+					if not (other_record_value is Dictionary):
+						continue
+					var other_record: Dictionary = other_record_value
+					if not _squad_can_be_encounter_candidate(squad_record):
+						continue
+					if not _squad_can_be_encounter_candidate(other_record):
+						continue
+					var distance_squared := _xz_distance_squared(squad_location, _record_location(other_record))
+					if distance_squared > range_squared:
+						continue
+					var decision := _encounter_decision(squad_id, squad_record, other_id, other_record, faction_outlooks, hostile_threshold)
+					if not bool(decision.get("should_create", false)):
+						continue
+					var encounter_id := "encounter:%04d" % next_encounter_id
+					next_encounter_id += 1
+					encounters_by_id[encounter_id] = _encounter_record(encounter_id, pair_key, squad_id, squad_record, other_id, other_record, decision, distance_squared, encounter_range)
+					active_pair_keys[pair_key] = encounter_id
+					_mark_squad_engaged(squad_record, encounter_id)
+					_mark_squad_engaged(other_record, encounter_id)
+					active_squads[squad_id] = squad_record
+					active_squads[other_id] = other_record
+					_append_encounter_log(encounter_log, "engaged", encounter_id, pair_key, "Created encounter %s" % encounter_id)
+					squads_changed = true
+					encounters_changed = true
+					squad_engaged = true
+	if squads_changed:
+		squad_state["active_squads"] = active_squads
+		_world_squad_state_component.call("apply_state", squad_state)
+	if encounters_changed:
+		encounter_state["encounters_by_id"] = encounters_by_id
+		encounter_state["active_pair_keys"] = active_pair_keys
+		encounter_state["next_encounter_id"] = next_encounter_id
+		encounter_state["encounter_range"] = encounter_range
+		encounter_state["spatial_bin_size"] = spatial_bin_size
+		encounter_state["hostile_threshold"] = hostile_threshold
+		encounter_state["encounter_log"] = encounter_log
+		_world_encounter_state_component.call("apply_state", encounter_state)
+
+
+func _build_squad_spatial_bins(active_squads: Dictionary, bin_size: float) -> Dictionary:
+	var bins := {}
+	for squad_id_value in active_squads.keys():
+		var record = active_squads[squad_id_value]
+		if not (record is Dictionary):
+			continue
+		var squad_record: Dictionary = record
+		if not _squad_can_be_spatial_bin_member(squad_record):
+			continue
+		var bin_key := _spatial_bin_key(_spatial_bin_coords(_record_location(squad_record), bin_size))
+		if not bins.has(bin_key):
+			bins[bin_key] = []
+		bins[bin_key].append(str(squad_id_value))
+	return bins
+
+
+func _spatial_bin_coords(location: Vector3, bin_size: float) -> Vector2i:
+	var safe_bin_size := maxf(bin_size, 1.0)
+	return Vector2i(floori(location.x / safe_bin_size), floori(location.z / safe_bin_size))
+
+
+func _spatial_bin_key(coords: Vector2i) -> String:
+	return "%d,%d" % [coords.x, coords.y]
+
+
+func _squad_can_be_spatial_bin_member(record: Dictionary) -> bool:
+	if float(record.get("strength", 0.0)) <= 0.0:
+		return false
+	match str(record.get("state", "")).strip_edges():
+		"defeated", "retreating":
+			return false
+	return true
+
+
+func _squad_can_be_encounter_candidate(record: Dictionary) -> bool:
+	if not _squad_can_be_spatial_bin_member(record):
+		return false
+	if not str(record.get("active_encounter_id", "")).strip_edges().is_empty():
+		return false
+	match str(record.get("state", "")).strip_edges():
+		"engaged":
+			return false
+	return true
+
+
+func _squad_can_initiate_encounter(record: Dictionary) -> bool:
+	if not _squad_can_be_encounter_candidate(record):
+		return false
+	if float(record.get("morale", 1.0)) <= 0.1:
+		return false
+	if float(record.get("supplies", 1.0)) <= 0.0:
+		return false
+	return true
+
+
+func _encounter_decision(squad_a_id: String, squad_a: Dictionary, squad_b_id: String, squad_b: Dictionary, faction_outlooks: Dictionary, hostile_threshold: int) -> Dictionary:
+	if _debug_forced_objective(squad_a):
+		return _encounter_decision_result(true, true, "force_encounter_debug", squad_a_id, squad_b_id, 0)
+	if _debug_forced_objective(squad_b):
+		return _encounter_decision_result(true, true, "force_encounter_debug", squad_b_id, squad_a_id, 0)
+	var faction_a := str(squad_a.get("faction_id", "")).strip_edges()
+	var faction_b := str(squad_b.get("faction_id", "")).strip_edges()
+	var a_outlook := _faction_outlook(faction_a, faction_b, faction_outlooks)
+	var b_outlook := _faction_outlook(faction_b, faction_a, faction_outlooks)
+	if a_outlook <= hostile_threshold and _aggressive_objective_allows_attack(squad_a, squad_b) and _squad_can_initiate_encounter(squad_a):
+		return _encounter_decision_result(true, false, str(squad_a.get("objective_id", "")), squad_a_id, squad_b_id, a_outlook)
+	if b_outlook <= hostile_threshold and _aggressive_objective_allows_attack(squad_b, squad_a) and _squad_can_initiate_encounter(squad_b):
+		return _encounter_decision_result(true, false, str(squad_b.get("objective_id", "")), squad_b_id, squad_a_id, b_outlook)
+	return _encounter_decision_result(false, false, "", "", "", 0)
+
+
+func _encounter_decision_result(should_create: bool, debug_only: bool, reason: String, initiator_squad_id: String, defender_squad_id: String, hostility_value: int) -> Dictionary:
+	return {
+		"should_create": should_create,
+		"debug_only": debug_only,
+		"reason": reason,
+		"initiator_squad_id": initiator_squad_id,
+		"defender_squad_id": defender_squad_id,
+		"hostility_value": hostility_value,
+	}
+
+
+func _debug_forced_objective(record: Dictionary) -> bool:
+	if bool(record.get("debug_only", false)):
+		return true
+	var objective_id := str(record.get("objective_id", "")).strip_edges()
+	return objective_id == "force_encounter_debug" or objective_id == "debug_force_encounter"
+
+
+func _aggressive_objective_allows_attack(attacker: Dictionary, defender: Dictionary) -> bool:
+	match str(attacker.get("objective_id", "")).strip_edges():
+		"raid":
+			return true
+		"patrol_for_raid_targets":
+			return float(attacker.get("strength", 0.0)) > float(defender.get("strength", 0.0))
+		_:
+			return false
+
+
+func _faction_outlooks_by_direction() -> Dictionary:
+	var result := {}
+	if world_definition == null:
+		return result
+	var relations = world_definition.get("starting_relations")
+	if not (relations is Array):
+		return result
+	for relation in relations:
+		if not (relation is Resource):
+			continue
+		var faction_a_id := str(relation.get("faction_a_id")).strip_edges()
+		var faction_b_id := str(relation.get("faction_b_id")).strip_edges()
+		if faction_a_id.is_empty() or faction_b_id.is_empty():
+			continue
+		result[_directed_faction_key(faction_a_id, faction_b_id)] = int(relation.get("faction_a_outlook_to_b"))
+		result[_directed_faction_key(faction_b_id, faction_a_id)] = int(relation.get("faction_b_outlook_to_a"))
+	return result
+
+
+func _faction_outlook(source_faction_id: String, target_faction_id: String, faction_outlooks: Dictionary) -> int:
+	if source_faction_id.is_empty() or target_faction_id.is_empty() or source_faction_id == target_faction_id:
+		return 0
+	return int(faction_outlooks.get(_directed_faction_key(source_faction_id, target_faction_id), 0))
+
+
+func _directed_faction_key(source_faction_id: String, target_faction_id: String) -> String:
+	return "%s>%s" % [source_faction_id, target_faction_id]
+
+
+func _squad_pair_key(squad_a_id: String, squad_b_id: String) -> String:
+	var ids := [squad_a_id, squad_b_id]
+	ids.sort()
+	return "%s|%s" % [ids[0], ids[1]]
+
+
+func _xz_distance_squared(first: Vector3, second: Vector3) -> float:
+	var x_delta := first.x - second.x
+	var z_delta := first.z - second.z
+	return x_delta * x_delta + z_delta * z_delta
+
+
+func _mark_duplicate_encounter_suppressed(pair_key: String, encounters_by_id: Dictionary, active_pair_keys: Dictionary, encounter_log: Array[Dictionary]) -> bool:
+	var encounter_id := str(active_pair_keys.get(pair_key, "")).strip_edges()
+	if encounter_id.is_empty() or not encounters_by_id.has(encounter_id):
+		return false
+	var encounter = encounters_by_id[encounter_id]
+	if not (encounter is Dictionary):
+		return false
+	var encounter_record: Dictionary = encounter
+	if bool(encounter_record.get("duplicate_suppression_logged", false)):
+		return false
+	encounter_record["duplicate_suppression_logged"] = true
+	encounters_by_id[encounter_id] = encounter_record
+	_append_encounter_log(encounter_log, "suppressed", encounter_id, pair_key, "Suppressed duplicate encounter for %s" % pair_key)
+	return true
+
+
+func _encounter_record(encounter_id: String, pair_key: String, squad_a_id: String, squad_a: Dictionary, squad_b_id: String, squad_b: Dictionary, decision: Dictionary, distance_squared: float, encounter_range: float) -> Dictionary:
+	var squad_a_location := _record_location(squad_a)
+	var squad_b_location := _record_location(squad_b)
+	return {
+		"encounter_id": encounter_id,
+		"pair_key": pair_key,
+		"status": "engaged",
+		"squad_ids": [squad_a_id, squad_b_id],
+		"initiator_squad_id": str(decision.get("initiator_squad_id", "")),
+		"defender_squad_id": str(decision.get("defender_squad_id", "")),
+		"reason": str(decision.get("reason", "")),
+		"debug_only": bool(decision.get("debug_only", false)),
+		"created_tick": _current_tick_count(),
+		"location": squad_a_location.lerp(squad_b_location, 0.5),
+		"distance_squared": distance_squared,
+		"encounter_range": encounter_range,
+		"faction_ids": [str(squad_a.get("faction_id", "")), str(squad_b.get("faction_id", ""))],
+		"objective_ids": [str(squad_a.get("objective_id", "")), str(squad_b.get("objective_id", ""))],
+		"hostility_value": int(decision.get("hostility_value", 0)),
+		"duplicate_suppression_logged": false,
+	}
+
+
+func _mark_squad_engaged(record: Dictionary, encounter_id: String) -> void:
+	record["state"] = "engaged"
+	record["active_encounter_id"] = encounter_id
+	record["last_encounter_id"] = encounter_id
+
+
+func _current_tick_count() -> int:
+	var runner := _get_sim_runner()
+	if runner != null and runner.has_method("get_tick_count"):
+		return int(runner.call("get_tick_count"))
+	return 0
+
+
+func _dictionary_from_state(state: Dictionary, key: String) -> Dictionary:
+	var value = state.get(key, {})
+	return value.duplicate(true) if value is Dictionary else {}
+
+
+func _encounter_log_from_state(state: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var source = state.get("encounter_log", [])
+	if not (source is Array):
+		return result
+	for entry in source:
+		if entry is Dictionary:
+			result.append(entry.duplicate(true))
+	return result
+
+
+func _append_encounter_log(encounter_log: Array[Dictionary], status: String, encounter_id: String, pair_key: String, message: String) -> void:
+	encounter_log.append({
+		"log_id": encounter_log.size() + 1,
+		"status": status,
+		"action": "encounter_detection",
+		"encounter_id": encounter_id,
+		"pair_key": pair_key,
+		"message": message,
+	})
+	while encounter_log.size() > MAX_ENCOUNTER_LOG_ENTRIES:
+		encounter_log.pop_front()
 
 
 func _command_log_from_state(state: Dictionary) -> Array[Dictionary]:
