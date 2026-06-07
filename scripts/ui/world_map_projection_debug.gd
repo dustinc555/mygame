@@ -106,7 +106,11 @@ func _get_settlement_placements() -> Array[Resource]:
 func _placement_id(placement: Resource) -> String:
 	if placement != null and placement.has_method("get_id"):
 		return str(placement.call("get_id")).strip_edges()
-	var placement_id := str(placement.get("placement_id")).strip_edges() if placement != null else ""
+	var placement_id := ""
+	if placement != null:
+		var raw_id = placement.get("placement_id")
+		if raw_id != null:
+			placement_id = str(raw_id).strip_edges()
 	return placement_id if not placement_id.is_empty() else "projection_marker"
 
 
