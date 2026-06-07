@@ -12,12 +12,14 @@ const DEMO_SIM_STATE_SCRIPT := preload("res://scripts/ecs/components/c_game_demo
 var _ecs_world
 var _sim_state_entity
 var _sim_state_component
+var _sim_runner: Node
 
 
 func _ready() -> void:
 	add_to_group("demo_sim_bootstrap")
 	_ensure_world()
 	_ensure_state_entity()
+	_sim_runner = _find_sim_runner()
 
 
 func _exit_tree() -> void:
@@ -33,8 +35,19 @@ func get_sim_state() -> Dictionary:
 	return {}
 
 
-func update_sim(_fixed_delta: float) -> void:
+func update_sim(fixed_delta: float) -> void:
 	_ensure_state_entity()
+	if _ecs_world != null and _ecs_world.has_method("process"):
+		_ecs_world.call("process", fixed_delta)
+
+
+func get_sim_metrics() -> Dictionary:
+	var metrics := {}
+	var runner := _get_sim_runner()
+	if runner != null and runner.has_method("get_metrics"):
+		metrics = runner.call("get_metrics")
+	metrics["state"] = get_sim_state()
+	return metrics
 
 
 func _ensure_world() -> void:
@@ -100,3 +113,20 @@ func _set_active_ecs_world() -> void:
 	var ecs_singleton := get_node_or_null("/root/ECS")
 	if ecs_singleton != null:
 		ecs_singleton.set("world", _ecs_world)
+
+
+func _get_sim_runner() -> Node:
+	if _sim_runner != null and is_instance_valid(_sim_runner):
+		return _sim_runner
+	_sim_runner = _find_sim_runner()
+	return _sim_runner
+
+
+func _find_sim_runner() -> Node:
+	var direct := get_node_or_null("FixedTickSimRunner")
+	if direct != null:
+		return direct
+	for child in get_children():
+		if child.is_in_group("fixed_tick_sim_runner"):
+			return child
+	return null
