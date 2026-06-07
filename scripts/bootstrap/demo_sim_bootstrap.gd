@@ -295,8 +295,12 @@ func _command_log_from_state(state: Dictionary) -> Array[Dictionary]:
 
 
 func _append_command_log(command_log: Array[Dictionary], command: Dictionary, status: String, message: String) -> void:
+	var log_id := 1
+	if not command_log.is_empty():
+		var previous_entry: Dictionary = command_log[command_log.size() - 1]
+		log_id = int(previous_entry.get("log_id", command_log.size())) + 1
 	command_log.append({
-		"log_id": command_log.size() + 1,
+		"log_id": log_id,
 		"status": status,
 		"command_id": str(command.get("command_id", "")),
 		"action": str(command.get("action", "")),

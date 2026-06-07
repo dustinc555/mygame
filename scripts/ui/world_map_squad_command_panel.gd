@@ -74,10 +74,20 @@ func _mount_buttons(overlay: Node) -> void:
 	title.add_theme_font_size_override("font_size", 12)
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(title)
-	row.add_child(_create_button("Send Squad A to Town 1", _request_send_squad_to_town.bind(0, 0)))
-	row.add_child(_create_button("Send Squad B to Town 2", _request_send_squad_to_town.bind(1, 1)))
-	row.add_child(_create_button("Send Both to Fight", _request_send_both_to_fight_location))
-	row.add_child(_create_button("Force Encounter", _request_force_encounter))
+	var squad_ids := _squad_ids()
+	var towns := _town_targets()
+	var first_squad_id := squad_ids[0] if squad_ids.size() > 0 else ""
+	var second_squad_id := squad_ids[1] if squad_ids.size() > 1 else ""
+	var first_town: Dictionary = towns[0].duplicate(true) if towns.size() > 0 else {}
+	var second_town: Dictionary = towns[1].duplicate(true) if towns.size() > 1 else {}
+	var fight_squad_ids: Array[String] = []
+	for index in range(min(2, squad_ids.size())):
+		fight_squad_ids.append(squad_ids[index])
+	var fight_location := _fight_location()
+	row.add_child(_create_button(_send_squad_to_town_label(first_squad_id, first_town, "Send Squad A to Town 1"), _request_send_squad_to_town.bind(first_squad_id, first_town)))
+	row.add_child(_create_button(_send_squad_to_town_label(second_squad_id, second_town, "Send Squad B to Town 2"), _request_send_squad_to_town.bind(second_squad_id, second_town)))
+	row.add_child(_create_button("Send Both to Fight", _request_send_both_to_fight_location.bind(fight_squad_ids, fight_location)))
+	row.add_child(_create_button("Force Encounter", _request_force_encounter.bind(fight_squad_ids, fight_location)))
 	row.add_child(_create_button("Clear/Reset Demo Squads", _request_reset_demo_squads))
 	buttons_layer.add_child(_button_panel)
 
@@ -107,30 +117,27 @@ func _create_button(label: String, handler: Callable) -> Button:
 	return button
 
 
-func _request_send_squad_to_town(squad_index: int, town_index: int) -> void:
-	var squad_ids := _squad_ids()
-	var towns := _town_targets()
-	if squad_index >= squad_ids.size() or town_index >= towns.size():
+func _request_send_squad_to_town(squad_id: String, town: Dictionary) -> void:
+	if squad_id.is_empty() or town.is_empty():
 		append_log_entry(_ui_log("error", "Missing squad or town for command"))
 		return
-	var town: Dictionary = towns[town_index]
+	var town_id := str(town.get("id", "")).strip_edges()
+	var town_name := str(town.get("display_name", "town")).strip_edges()
 	_request_command({
 		"action": "set_squad_objective",
-		"squad_id": squad_ids[squad_index],
+		"squad_id": squad_id,
 		"objective_id": "move_to_location",
-		"target_id": str(town.get("id", "")),
+		"target_id": town_id,
 		"target_location": town.get("location", Vector3.ZERO),
 		"squad_state": "commanded",
-		"label": "Send %s to %s" % [squad_ids[squad_index], str(town.get("display_name", "town"))],
+		"label": "Send %s to %s" % [squad_id, town_name if not town_name.is_empty() else "town"],
 	})
 
 
-func _request_send_both_to_fight_location() -> void:
-	var squad_ids := _squad_ids()
+func _request_send_both_to_fight_location(squad_ids: Array[String], target_location: Vector3) -> void:
 	if squad_ids.size() < 2:
 		append_log_entry(_ui_log("error", "Need two squads for fight command"))
 		return
-	var target_location := _fight_location()
 	_request_command({
 		"action": "set_squads_objective",
 		"squad_ids": squad_ids.slice(0, 2),
@@ -142,8 +149,7 @@ func _request_send_both_to_fight_location() -> void:
 	})
 
 
-func _request_force_encounter() -> void:
-	var squad_ids := _squad_ids()
+func _request_force_encounter(squad_ids: Array[String], target_location: Vector3) -> void:
 	if squad_ids.size() < 2:
 		append_log_entry(_ui_log("error", "Need two squads for force encounter"))
 		return
@@ -152,7 +158,7 @@ func _request_force_encounter() -> void:
 		"squad_ids": squad_ids.slice(0, 2),
 		"objective_id": "debug_force_encounter",
 		"target_id": "debug_force_encounter",
-		"target_location": _fight_location(),
+		"target_location": target_location,
 		"squad_state": "commanded",
 		"debug_only": true,
 		"label": "Debug-only force encounter placeholder",
@@ -184,14 +190,17 @@ func _sync_sim_command_log() -> void:
 	var command_log = squad_state.get("command_log", [])
 	if not (command_log is Array):
 		return
+	var retained_log_keys := {}
 	for entry in command_log:
 		if not (entry is Dictionary):
 			continue
 		var key := "%s:%s:%s" % [str(entry.get("log_id", "")), str(entry.get("command_id", "")), str(entry.get("status", ""))]
+		retained_log_keys[key] = true
 		if _rendered_sim_log_keys.has(key):
 			continue
 		_rendered_sim_log_keys[key] = true
 		append_log_entry(entry)
+	_rendered_sim_log_keys = retained_log_keys
 
 
 func _render_logs() -> void:
@@ -216,6 +225,13 @@ func _squad_ids() -> Array[String]:
 		result.append(str(squad_id))
 	result.sort()
 	return result
+
+
+func _send_squad_to_town_label(squad_id: String, town: Dictionary, fallback: String) -> String:
+	if squad_id.is_empty() or town.is_empty():
+		return fallback
+	var town_name := str(town.get("display_name", "town")).strip_edges()
+	return "Send %s to %s" % [squad_id, town_name if not town_name.is_empty() else "town"]
 
 
 func _active_squads() -> Dictionary:
