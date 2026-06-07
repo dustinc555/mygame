@@ -16,7 +16,9 @@ const ACTOR_QUERY_CONTROLLER_SCRIPT = preload("res://scripts/controllers/actor_q
 const POPULATION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/population_controller.gd")
 const POPULATION_REALIZATION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/population_realization_controller.gd")
 const LEDGER_SIMULATION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/ledger_simulation_controller.gd")
+const WORLD_MAP_COMBAT_SIM_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_map_combat_sim_controller.gd")
 const WORLD_NAVIGATION_BAKER_SCRIPT = preload("res://scripts/navigation/world_navigation_baker.gd")
+const FIXED_TICK_SIM_RUNNER_SCRIPT = preload("res://scripts/simulation/fixed_tick_sim_runner.gd")
 const GAME_HUD_SCENE = preload("res://scenes/ui/game_hud.tscn")
 
 var root_scene: Node
@@ -36,6 +38,8 @@ func _deferred_bootstrap() -> void:
 		_ensure_controller_node(str(spec["name"]), spec["script"])
 	for spec in controller_specs:
 		_initialize_controller(str(spec["name"]))
+	_ensure_world_map_combat_runner()
+	call_deferred("_wire_world_map_combat_ui")
 
 
 func _ensure_world_navigation() -> void:
@@ -58,6 +62,7 @@ func _ensure_hud() -> void:
 func _controller_specs() -> Array[Dictionary]:
 	return [
 		{"name": "GecsWorldController", "script": GECS_WORLD_CONTROLLER_SCRIPT},
+		{"name": "WorldMapCombatSimController", "script": WORLD_MAP_COMBAT_SIM_CONTROLLER_SCRIPT},
 		{"name": "WorldTimeController", "script": WORLD_TIME_CONTROLLER_SCRIPT},
 		{"name": "ActorQueryController", "script": ACTOR_QUERY_CONTROLLER_SCRIPT},
 		{"name": "BleedSplotchController", "script": BLEED_SPLOTCH_CONTROLLER_SCRIPT},
@@ -91,3 +96,27 @@ func _initialize_controller(node_name: String) -> void:
 		return
 	if controller.has_method("initialize"):
 		controller.initialize(root_scene, hud_layer)
+
+
+func _ensure_world_map_combat_runner() -> void:
+	var runner := get_node_or_null("WorldMapCombatFixedTickRunner")
+	if runner == null:
+		runner = Node.new()
+		runner.name = "WorldMapCombatFixedTickRunner"
+		runner.set_script(FIXED_TICK_SIM_RUNNER_SCRIPT)
+		runner.set("target_path", NodePath("../WorldMapCombatSimController"))
+		add_child(runner)
+	else:
+		runner.set("target_path", NodePath("../WorldMapCombatSimController"))
+
+
+func _wire_world_map_combat_ui() -> void:
+	var runner := get_node_or_null("WorldMapCombatFixedTickRunner")
+	if runner == null or not runner.has_method("queue_command") or get_tree() == null:
+		return
+	var queue_callable := Callable(runner, "queue_command")
+	for panel in get_tree().get_nodes_in_group("world_map_squad_command_panel"):
+		if panel == null or not panel.has_signal("command_requested"):
+			continue
+		if not panel.is_connected("command_requested", queue_callable):
+			panel.connect("command_requested", queue_callable)

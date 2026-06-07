@@ -5,6 +5,12 @@
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
 [ext_resource type="Script" uid="uid://duw4pkjyrcwpm" path="res://scripts/world_sim/nests/nest_placement_marker.gd" id="6_nest_marker"]
 [ext_resource type="Script" uid="uid://dou4gsojqabfy" path="res://scripts/world_sim/world_sim_debug_action.gd" id="7_debug_action"]
+[ext_resource type="PackedScene" path="res://scenes/ui/world_map_overlay.tscn" id="8_map_overlay"]
+[ext_resource type="Script" uid="uid://bho5qyy3rtp2x" path="res://scripts/ui/world_map_placement_projector.gd" id="9_map_projector"]
+[ext_resource type="Script" uid="uid://db8v26v8hxaji" path="res://scripts/ui/world_map_squad_projector.gd" id="10_squad_projector"]
+[ext_resource type="Script" uid="uid://cnr2f5jw30dqk" path="res://scripts/ui/world_map_squad_command_panel.gd" id="11_command_panel"]
+[ext_resource type="Script" path="res://scripts/ui/world_map_combat_beat_log_viewer.gd" id="12_combat_beats"]
+[ext_resource type="Script" path="res://scripts/ui/world_map_demo_debug_metrics_viewer.gd" id="13_demo_metrics"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(1100, 1, 950)
@@ -117,6 +123,31 @@ editor_debug_radius = 12.0
 
 [node name="GameBootstrap" type="Node" parent="." unique_id=1210480596]
 script = ExtResource("5_bootstrap")
+
+[node name="WorldMapOverlay" parent="." instance=ExtResource("8_map_overlay")]
+world_bounds = Rect2(-550, -457, 1100, 950)
+
+[node name="WorldMapPlacementProjector" type="Node" parent="."]
+script = ExtResource("9_map_projector")
+world_definition = ExtResource("2_world")
+
+[node name="WorldMapSquadProjector" type="Node" parent="."]
+script = ExtResource("10_squad_projector")
+world_definition = ExtResource("2_world")
+squad_state_source_path = NodePath("../GameBootstrap/WorldMapCombatSimController")
+
+[node name="WorldMapSquadCommandPanel" type="Node" parent="."]
+script = ExtResource("11_command_panel")
+world_definition = ExtResource("2_world")
+squad_state_source_path = NodePath("../GameBootstrap/WorldMapCombatSimController")
+
+[node name="WorldMapCombatBeatLogViewer" type="Node" parent="."]
+script = ExtResource("12_combat_beats")
+encounter_state_source_path = NodePath("../GameBootstrap/WorldMapCombatSimController")
+
+[node name="WorldMapDemoDebugMetricsViewer" type="Node" parent="."]
+script = ExtResource("13_demo_metrics")
+metrics_source_path = NodePath("../GameBootstrap/WorldMapCombatSimController")
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=1113634968]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 377.61835, 0.6, 114.84003)
