@@ -32,6 +32,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _panel == null or not is_instance_valid(_panel):
+		_mount_viewer()
+		return
 	_poll_elapsed += delta
 	if _poll_elapsed < POLL_INTERVAL_SECONDS:
 		return
@@ -47,15 +50,15 @@ func clear_local_log() -> void:
 	_sync_combat_beats(true)
 
 
-func _mount_viewer() -> void:
+func _mount_viewer() -> bool:
 	var overlay := _get_overlay()
 	if overlay == null or not overlay.has_method("get_logs_layer"):
-		return
+		return false
 	var logs_layer := overlay.call("get_logs_layer") as Control
 	if logs_layer == null:
-		return
+		return false
 	if _panel != null and is_instance_valid(_panel):
-		return
+		return true
 	_panel = PanelContainer.new()
 	_panel.name = "CombatBeatLogViewer"
 	_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -85,6 +88,7 @@ func _mount_viewer() -> void:
 	scroll.add_child(_beat_list)
 	logs_layer.add_child(_panel)
 	_sync_combat_beats(true)
+	return true
 
 
 func _header_row() -> HBoxContainer:
@@ -229,9 +233,9 @@ func _beat_text(beat: Dictionary) -> String:
 func _display_signature(summaries: Array[Dictionary], beats: Array[Dictionary]) -> String:
 	var parts: Array[String] = [str(_important_only), str(summaries.size()), str(beats.size())]
 	for summary in summaries:
-		parts.append("%s:%s:%s" % [str(summary.get("encounter_id", "")), str(summary.get("resolved_tick", "")), str(summary.get("outcome", ""))])
+		parts.append(_summary_text(summary))
 	for beat in beats:
-		parts.append("%s:%s:%s:%s:%s" % [str(beat.get("encounter_id", "")), str(beat.get("round", "")), str(beat.get("attacker_id", "")), str(beat.get("defender_id", "")), str(beat.get("importance", ""))])
+		parts.append(_beat_text(beat))
 	return _join_strings(parts, "|")
 
 

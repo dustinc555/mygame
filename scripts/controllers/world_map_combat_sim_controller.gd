@@ -14,6 +14,7 @@ const DEFAULT_SPATIAL_BIN_SIZE := 60.0
 const DEFAULT_HOSTILE_THRESHOLD := -50
 const DEFAULT_RESOLUTION_TICKS := 1
 const DEFAULT_ENCOUNTER_REPEAT_COOLDOWN_TICKS := 30
+const MORALE_PERCENT_SENTINEL := 1.5
 const GECS_WORLD_SCRIPT := preload("res://addons/gecs/ecs/world.gd")
 const GECS_ENTITY_SCRIPT := preload("res://addons/gecs/ecs/entity.gd")
 const DEMO_SIM_STATE_SCRIPT := preload("res://scripts/ecs/components/c_game_demo_sim_state.gd")
@@ -198,6 +199,7 @@ func _ensure_world_squad_state_entity() -> void:
 	_ensure_world()
 	if _ecs_world == null:
 		return
+	var created := false
 	if _world_squad_state_entity == null or not is_instance_valid(_world_squad_state_entity):
 		_world_squad_state_entity = _find_entity_by_id(WORLD_SQUAD_ENTITY_ID)
 	if _world_squad_state_entity == null:
@@ -205,10 +207,11 @@ func _ensure_world_squad_state_entity() -> void:
 		_world_squad_state_entity.name = "WorldSquadState"
 		_world_squad_state_entity.id = WORLD_SQUAD_ENTITY_ID
 		_ecs_world.call("add_entity", _world_squad_state_entity, [WORLD_SQUAD_STATE_SCRIPT.new()])
+		created = true
 	_world_squad_state_component = _world_squad_state_entity.call("get_component", WORLD_SQUAD_STATE_SCRIPT)
 	if _world_squad_state_component == null or not _world_squad_state_component.has_method("apply_state"):
 		return
-	if _world_squad_state_is_empty():
+	if created:
 		_world_squad_state_component.call("apply_state", _initial_world_squad_state())
 
 
@@ -711,8 +714,9 @@ func _battle_sim_config(encounter_record: Dictionary, current_tick: int) -> Dict
 
 func _battle_participant_payload(squad_record: Dictionary) -> Dictionary:
 	var payload := squad_record.duplicate(true)
+	var member_ids := _string_array(squad_record.get("member_ids", []))
 	var member_records := _resolve_squad_member_records(squad_record)
-	if not member_records.is_empty():
+	if not member_records.is_empty() and member_records.size() == member_ids.size():
 		payload["member_records"] = member_records
 		payload["member_records_are_canonical"] = true
 	return payload
@@ -790,8 +794,7 @@ func _apply_battle_result_to_squad_record(record: Dictionary, battle_result: Dic
 		record["strength"] = maxf(float(record.get("strength", 0.0)) * survivor_ratio, 0.0)
 	var morale_delta := float(_value_for_squad(battle_result.get("morale_delta", {}), squad_id, 0.0))
 	var current_morale := float(record.get("morale", 1.0))
-	if current_morale > 1.5:
-		morale_delta *= 100.0
+	morale_delta = _morale_delta_for_record_units(current_morale, morale_delta)
 	record["morale"] = maxf(current_morale + morale_delta, 0.0)
 	var supplies_delta := float(_value_for_squad(battle_result.get("supplies_delta", {}), squad_id, 0.0))
 	record["supplies"] = maxf(float(record.get("supplies", 0.0)) + supplies_delta, 0.0)
@@ -810,6 +813,11 @@ func _apply_battle_result_to_squad_record(record: Dictionary, battle_result: Dic
 	record["objective_id"] = "post_battle"
 	record["objective_state"] = "interrupted"
 	record["arrival_state"] = "idle"
+
+
+func _morale_delta_for_record_units(current_morale: float, morale_delta: float) -> float:
+	# BattleSim emits ratio deltas; old percent-like morale records need matching units.
+	return morale_delta * 100.0 if current_morale > MORALE_PERCENT_SENTINEL else morale_delta
 
 
 func _battle_profile_for_squad(battle_result: Dictionary, squad_id: String) -> Dictionary:
@@ -933,9 +941,14 @@ func _detect_squad_encounters() -> void:
 						continue
 					checked_pair_keys[pair_key] = true
 					if active_pair_keys.has(pair_key):
-						if _mark_duplicate_encounter_suppressed(pair_key, encounters_by_id, active_pair_keys, encounter_log):
+						var existing_encounter_id := str(active_pair_keys.get(pair_key, "")).strip_edges()
+						if existing_encounter_id.is_empty() or not encounters_by_id.has(existing_encounter_id):
+							active_pair_keys.erase(pair_key)
 							encounters_changed = true
-						continue
+						else:
+							if _mark_duplicate_encounter_suppressed(pair_key, encounters_by_id, active_pair_keys, encounter_log):
+								encounters_changed = true
+							continue
 					if int(recent_pair_cooldowns.get(pair_key, 0)) > 0:
 						continue
 					if not active_squads.has(other_id):
@@ -1192,8 +1205,12 @@ func _encounter_log_from_state(state: Dictionary) -> Array[Dictionary]:
 
 func _append_encounter_log(encounter_log: Array[Dictionary], status: String, encounter_id: String, pair_key: String, message: String) -> void:
 	var action := "encounter_resolution" if status == "resolving" or status == "resolved" else "encounter_detection"
+	var log_id := 1
+	if not encounter_log.is_empty():
+		var previous_entry: Dictionary = encounter_log[encounter_log.size() - 1]
+		log_id = int(previous_entry.get("log_id", encounter_log.size())) + 1
 	encounter_log.append({
-		"log_id": encounter_log.size() + 1,
+		"log_id": log_id,
 		"status": status,
 		"action": action,
 		"encounter_id": encounter_id,
@@ -1216,8 +1233,12 @@ func _command_log_from_state(state: Dictionary) -> Array[Dictionary]:
 
 
 func _append_command_log(command_log: Array[Dictionary], command: Dictionary, status: String, message: String) -> void:
+	var log_id := 1
+	if not command_log.is_empty():
+		var previous_entry: Dictionary = command_log[command_log.size() - 1]
+		log_id = int(previous_entry.get("log_id", command_log.size())) + 1
 	command_log.append({
-		"log_id": command_log.size() + 1,
+		"log_id": log_id,
 		"status": status,
 		"command_id": str(command.get("command_id", "")),
 		"action": str(command.get("action", "")),
@@ -1364,11 +1385,17 @@ func _resource_id(resource: Resource) -> String:
 
 
 func _resource_int(resource: Resource, property_name: String, default_value: int) -> int:
-	return int(resource.get(property_name)) if resource != null else default_value
+	if resource == null:
+		return default_value
+	var value = resource.get(property_name)
+	return default_value if value == null else int(value)
 
 
 func _resource_float(resource: Resource, property_name: String, default_value: float) -> float:
-	return float(resource.get(property_name)) if resource != null else default_value
+	if resource == null:
+		return default_value
+	var value = resource.get(property_name)
+	return default_value if value == null else float(value)
 
 
 func _resource_string(resource: Resource, property_name: String, default_value: String) -> String:
@@ -1451,9 +1478,26 @@ func _get_sim_runner() -> Node:
 
 func _find_sim_runner() -> Node:
 	var direct := get_node_or_null("FixedTickSimRunner")
-	if direct != null:
+	if _is_sim_runner_candidate(direct):
 		return direct
+	var sibling := get_node_or_null("../WorldMapCombatFixedTickRunner")
+	if _is_sim_runner_candidate(sibling):
+		return sibling
 	for child in get_children():
-		if child.is_in_group("fixed_tick_sim_runner"):
+		if _is_sim_runner_candidate(child):
 			return child
+	var parent := get_parent()
+	if parent != null:
+		for child in parent.get_children():
+			if child == self:
+				continue
+			if _is_sim_runner_candidate(child):
+				return child
 	return null
+
+
+func _is_sim_runner_candidate(node) -> bool:
+	if node == null or not is_instance_valid(node):
+		return false
+	var node_name := str(node.name)
+	return node_name == "FixedTickSimRunner" or node_name == "WorldMapCombatFixedTickRunner" or node.is_in_group("fixed_tick_sim_runner")

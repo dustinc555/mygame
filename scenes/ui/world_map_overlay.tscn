@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=4 format=3 uid="uid://clpd0oeqwa2v"]
 
 [ext_resource type="Script" path="res://scripts/ui/world_map_overlay.gd" id="1_overlay"]
 

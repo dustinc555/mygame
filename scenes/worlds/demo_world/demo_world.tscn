@@ -5,11 +5,11 @@
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
 [ext_resource type="Script" uid="uid://duw4pkjyrcwpm" path="res://scripts/world_sim/nests/nest_placement_marker.gd" id="6_nest_marker"]
 [ext_resource type="Script" uid="uid://dou4gsojqabfy" path="res://scripts/world_sim/world_sim_debug_action.gd" id="7_debug_action"]
-[ext_resource type="PackedScene" path="res://scenes/ui/world_map_overlay.tscn" id="8_map_overlay"]
+[ext_resource type="PackedScene" uid="uid://clpd0oeqwa2v" path="res://scenes/ui/world_map_overlay.tscn" id="8_map_overlay"]
 [ext_resource type="Script" uid="uid://bho5qyy3rtp2x" path="res://scripts/ui/world_map_placement_projector.gd" id="9_map_projector"]
 [ext_resource type="Script" uid="uid://db8v26v8hxaji" path="res://scripts/ui/world_map_squad_projector.gd" id="10_squad_projector"]
 [ext_resource type="Script" uid="uid://cnr2f5jw30dqk" path="res://scripts/ui/world_map_squad_command_panel.gd" id="11_command_panel"]
-[ext_resource type="Script" path="res://scripts/ui/world_map_combat_beat_log_viewer.gd" id="12_combat_beats"]
+[ext_resource type="Script" uid="uid://bx6q6fbt0oja5" path="res://scripts/ui/world_map_combat_beat_log_viewer.gd" id="12_combat_beats"]
 [ext_resource type="Script" path="res://scripts/ui/world_map_demo_debug_metrics_viewer.gd" id="13_demo_metrics"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
