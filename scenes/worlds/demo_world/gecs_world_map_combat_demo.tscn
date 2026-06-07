@@ -9,8 +9,8 @@
 [ext_resource type="Script" uid="uid://bho5qyy3rtp2x" path="res://scripts/ui/world_map_placement_projector.gd" id="7_map_projector"]
 [ext_resource type="Script" uid="uid://db8v26v8hxaji" path="res://scripts/ui/world_map_squad_projector.gd" id="8_squad_projector"]
 [ext_resource type="Script" uid="uid://cnr2f5jw30dqk" path="res://scripts/ui/world_map_squad_command_panel.gd" id="9_command_panel"]
-[ext_resource type="Script" path="res://scripts/ui/world_map_combat_beat_log_viewer.gd" id="10_combat_beats"]
-[ext_resource type="Script" path="res://scripts/ui/world_map_demo_debug_metrics_viewer.gd" id="11_demo_metrics"]
+[ext_resource type="Script" uid="uid://bx6q6fbt0oja5" path="res://scripts/ui/world_map_combat_beat_log_viewer.gd" id="10_combat_beats"]
+[ext_resource type="Script" uid="uid://0o45stubj00v" path="res://scripts/ui/world_map_demo_debug_metrics_viewer.gd" id="11_demo_metrics"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(1100, 1, 950)

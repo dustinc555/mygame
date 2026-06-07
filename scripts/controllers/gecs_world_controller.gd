@@ -1472,11 +1472,25 @@ func _upsert_state_entity(current_entity, node_name: String, entity_id: String, 
 		return null
 	var entity = current_entity
 	if entity == null or not is_instance_valid(entity):
-		entity = _entity_script.new()
-		entity.name = node_name
-		entity.id = entity_id
-		world.add_entity(entity, [component_script.new()])
+		entity = _find_state_entity_by_id(entity_id, component_script)
+		if entity == null:
+			entity = _entity_script.new()
+			entity.name = node_name
+			entity.id = entity_id
+			world.add_entity(entity, [component_script.new()])
 	return entity
+
+
+func _find_state_entity_by_id(entity_id: String, component_script):
+	var registry = world.get("entity_id_registry")
+	if registry is Dictionary:
+		var entity = registry.get(entity_id)
+		if entity != null and is_instance_valid(entity):
+			return entity
+	for entity in world.query.with_all([component_script]).execute():
+		if str(entity.get("id")) == entity_id:
+			return entity
+	return null
 
 
 func _find_state_entity(current_entity, component_script):

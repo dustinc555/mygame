@@ -6,6 +6,7 @@ const DEFAULT_TICK_RATE_HZ := 30.0
 const ACCUMULATOR_EPSILON := 0.000001
 
 @export_range(1.0, 240.0, 1.0) var tick_rate_hz := DEFAULT_TICK_RATE_HZ
+@export_range(1, 256, 1) var max_ticks_per_frame := 8
 @export var auto_start := true
 @export var target_path: NodePath = NodePath("..")
 @export var update_method := "update_sim"
@@ -52,10 +53,11 @@ func reset() -> void:
 func advance_time(elapsed_seconds: float) -> int:
 	if elapsed_seconds <= 0.0:
 		return 0
-	_accumulator += elapsed_seconds
 	var fixed_delta := get_fixed_delta()
+	var tick_cap := maxi(max_ticks_per_frame, 1)
+	_accumulator = minf(_accumulator + elapsed_seconds, fixed_delta * float(tick_cap))
 	var ticks_run := 0
-	while _accumulator + ACCUMULATOR_EPSILON >= fixed_delta:
+	while ticks_run < tick_cap and _accumulator + ACCUMULATOR_EPSILON >= fixed_delta:
 		_run_fixed_tick(fixed_delta)
 		_accumulator -= fixed_delta
 		if absf(_accumulator) <= ACCUMULATOR_EPSILON:
@@ -113,10 +115,11 @@ func get_metrics() -> Dictionary:
 func _run_fixed_tick(fixed_delta: float) -> void:
 	var started_at_usec := Time.get_ticks_usec()
 	var target := _get_tick_target()
-	var commands := _drain_command_buffer()
 	if target != null:
-		if not commands.is_empty() and target.has_method(command_method):
-			target.call(command_method, commands)
+		if target.has_method(command_method):
+			var commands := _drain_command_buffer()
+			if not commands.is_empty():
+				target.call(command_method, commands)
 		if target.has_method(update_method):
 			target.call(update_method, fixed_delta)
 		_capture_snapshot(target)
