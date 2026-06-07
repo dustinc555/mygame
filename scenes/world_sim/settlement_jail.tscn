@@ -1,5 +1,6 @@
 [gd_scene format=3 uid="uid://g8aq5jo30vws"]
 
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_facility_instance.gd" id="1_facility"]
 [ext_resource type="PackedScene" path="res://scenes/world/buildings/settlement_keep_building.tscn" id="2_building"]
 [ext_resource type="Resource" path="res://resources/world_sim/facility_functions/jail.tres" id="2_eoaic"]
 [ext_resource type="PackedScene" path="res://scenes/world_sim/jail_cell.tscn" id="5_cell"]
@@ -7,6 +8,7 @@
 [ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/bandage.tres" id="9_bandage"]
 [ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/hatchet.tres" id="10_hatchet"]
 [ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/round_shield.tres" id="11_shield"]
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_guard_post.gd" id="12_guard_post"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_staff"]
 radius = 0.45
@@ -29,6 +31,7 @@ material = SubResource("StandardMaterial3D_guard")
 radius = 0.45
 
 [node name="SettlementJail" type="Node3D" unique_id=1524920645]
+script = ExtResource("1_facility")
 guard_count = 1
 guard_post_count = 1
 facility_function = ExtResource("2_eoaic")
@@ -55,6 +58,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 7.8)
 
 [node name="GuardPost" type="Node3D" parent="GuardPosts" unique_id=1129732830]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.7, 0.05, 0.2060163)
+script = ExtResource("12_guard_post")
 debug_color = Color(0.35, 0.78, 1, 0.76)
 metadata/jail_generated = true
 metadata/jail_role = "guard_post"
@@ -64,6 +68,7 @@ metadata/jail_index = 0
 
 [node name="WardenPost" type="Node3D" parent="WardenPosts"]
 transform = Transform3D(-0.12043145, 0, -0.9927216, 0, 1, 0, 0.9927216, 0, -0.12043145, 1.3208423, 0.6, 4.1061177)
+script = ExtResource("12_guard_post")
 debug_color = Color(0.25, 1, 0.35, 0.82)
 metadata/jail_generated = true
 metadata/jail_role = "warden_post"

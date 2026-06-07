@@ -1,11 +1,13 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
+[ext_resource type="Script" path="res://scripts/world_sim/jail_cell.gd" id="1_cell_script"]
 [ext_resource type="PackedScene" uid="uid://ctej8tdccpbub" path="res://assets/world/props/jail/meshy_cage_1.glb" id="2_cage"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_cell"]
 size = Vector3(1.8305054, 3.1252077, 1.4450684)
 
 [node name="JailCell" type="StaticBody3D"]
+script = ExtResource("1_cell_script")
 visual_scene = ExtResource("2_cage")
 visual_transform = Transform3D(1.275, 0, 0, 0, 1.275, 0, 0, 0, 1.275, 0, 0, 0)
 collision_shape = SubResource("BoxShape3D_cell")

@@ -1,11 +1,14 @@
 [gd_scene format=3 uid="uid://cmh02fasnxjgq"]
 
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_facility_instance.gd" id="1_facility"]
 [ext_resource type="Resource" path="res://resources/world_sim/facility_functions/keep.tres" id="2_function"]
 [ext_resource type="PackedScene" path="res://scenes/world/buildings/settlement_keep_building.tscn" id="3_building"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/keep/planning_table.tscn" id="4_table"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/keep/mayor_chair.tscn" id="5_chair"]
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_guard_post.gd" id="6_guard_post"]
 
 [node name="SettlementKeep" type="Node3D" unique_id=17769727]
+script = ExtResource("1_facility")
 facility_function = ExtResource("2_function")
 service_points_root_path = NodePath("")
 storage_root_path = NodePath("")
@@ -43,6 +46,7 @@ metadata/keep_chair_style = "mayor"
 
 [node name="GuardPost" type="Node3D" parent="GuardPosts" unique_id=1800328242]
 transform = Transform3D(0.90630776, 0, 0.42261827, 0, 1, 0, -0.42261827, 0, 0.90630776, -4.4, 0.05, 3.9)
+script = ExtResource("6_guard_post")
 debug_color = Color(0.35, 0.78, 1, 0.76)
 metadata/keep_generated = true
 metadata/keep_role = "guard"
@@ -52,6 +56,7 @@ metadata/keep_last_default_transform = Transform3D(0.90630776, 0, 0.42261827, 0,
 
 [node name="GuardPost2" type="Node3D" parent="GuardPosts" unique_id=348257997]
 transform = Transform3D(0.90630776, 0, -0.42261827, 0, 1, 0, 0.42261827, 0, 0.90630776, 4.4, 0.05, 3.9)
+script = ExtResource("6_guard_post")
 debug_color = Color(0.35, 0.78, 1, 0.76)
 metadata/keep_generated = true
 metadata/keep_role = "guard"

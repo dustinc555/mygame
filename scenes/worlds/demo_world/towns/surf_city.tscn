@@ -1,5 +1,6 @@
 [gd_scene format=4 uid="uid://ba8pagbvv7phc"]
 
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_town.gd" id="1_town"]
 [ext_resource type="PackedScene" path="res://scenes/world/buildings/tiny_house.tscn" id="2_house"]
 [ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://scenes/world_sim/settlement_jail.tscn" id="3_jail"]
 [ext_resource type="PackedScene" uid="uid://fpat6npxukfj" path="res://scenes/world_sim/settlement_bar.tscn" id="4_bar"]
@@ -12,6 +13,9 @@
 [ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/round_shield.tres" id="13_kvu6f"]
 [ext_resource type="Resource" path="res://resources/items/cinder_flask.tres" id="15_cinder"]
 [ext_resource type="PackedScene" path="res://scenes/world/props/body_furnace.tscn" id="16_furnace"]
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_population_spawner.gd" id="17_population"]
+[ext_resource type="Script" path="res://scripts/characters/character_authoring_actor.gd" id="18_actor"]
+[ext_resource type="Script" path="res://scripts/world_sim/settlement_guard_post.gd" id="19_guard_post"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_bqflg"]
 radius = 0.45
@@ -38,6 +42,7 @@ _surfaces = [{
 }]
 
 [node name="SurfCity" type="Node3D" unique_id=365395331]
+script = ExtResource("1_town")
 guard_count = 1
 guard_post_count = 1
 guard_name = "Surf City Watch"
@@ -100,6 +105,7 @@ owner_faction_id = "SurfCity"
 [node name="Storage" type="Node3D" parent="." unique_id=1629661105]
 
 [node name="Residents" type="Node3D" parent="." unique_id=1395369019]
+script = ExtResource("17_population")
 settlement_definition = ExtResource("6_settlement")
 member_name_prefix = "Surf Citizen"
 stable_id_prefix = "npc.surf_city.resident"
@@ -131,6 +137,7 @@ exclusive = true
 
 [node name="Guard" type="CharacterBody3D" parent="Guards" unique_id=346789828]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.6, -2)
+script = ExtResource("18_actor")
 starting_equipment = Array[Resource]([ExtResource("11_il0s6"), ExtResource("12_lc1nf"), ExtResource("13_kvu6f"), ExtResource("15_cinder"), ExtResource("15_cinder")])
 member_name = "Surf City Watch (guard)"
 stable_id = "npc.surf_city.staff.guard"
@@ -154,6 +161,7 @@ mesh = SubResource("CapsuleMesh_etnif")
 
 [node name="GuardPost" type="Node3D" parent="GuardPosts" unique_id=182323661]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -7, 0.05, -2)
+script = ExtResource("19_guard_post")
 debug_color = Color(0.35, 0.78, 1, 0.76)
 metadata/settlement_guard_post_generated = true
 metadata/settlement_guard_post_index = 0

@@ -3,6 +3,9 @@ extends Node3D
 class_name FacilityStandingPoint
 
 @export var enabled := true
+@export var point_role := "standing"
+@export var display_name := "Standing Point"
+@export var debug_color := Color(0.36, 1.0, 0.48, 0.76)
 
 var _visitor: Node
 
@@ -33,3 +36,14 @@ func get_visitor() -> Node:
 
 func get_visit_position(_actor: Node = null) -> Vector3:
 	return global_position
+
+
+func get_standing_point_record(settlement_id := "", facility_id := "") -> Dictionary:
+	return {
+		"standing_point_id": str(get_path()) if is_inside_tree() else str(name),
+		"settlement_id": settlement_id,
+		"facility_id": facility_id,
+		"display_name": display_name,
+		"point_role": point_role,
+		"world_position": global_position,
+	}

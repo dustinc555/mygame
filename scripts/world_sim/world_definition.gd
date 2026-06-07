@@ -11,6 +11,7 @@ class_name WorldDefinition
 @export var settlement_placements: Array[Resource] = []
 @export var starting_relations: Array[Resource] = []
 @export var squad_templates: Array[Resource] = []
+@export var starting_population_records: Array[Resource] = []
 
 
 func get_id() -> String:
@@ -45,6 +46,14 @@ func get_all_faction_definitions() -> Array[Resource]:
 		if template != null:
 			_add_faction_definition(definitions, seen_ids, template.get("faction_definition") as Resource)
 	return definitions
+
+
+func get_starting_population_records() -> Array[Resource]:
+	var records: Array[Resource] = []
+	for record in starting_population_records:
+		if record is Resource:
+			records.append(record)
+	return records
 
 
 func _add_faction_definition(definitions: Array[Resource], seen_ids: Dictionary, definition: Resource) -> void:
