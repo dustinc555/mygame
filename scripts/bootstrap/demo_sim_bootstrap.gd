@@ -101,6 +101,7 @@ func _ensure_world_squad_state_entity() -> void:
 	_ensure_world()
 	if _ecs_world == null:
 		return
+	var created := false
 	if _world_squad_state_entity == null or not is_instance_valid(_world_squad_state_entity):
 		_world_squad_state_entity = _find_entity_by_id(WORLD_SQUAD_ENTITY_ID)
 	if _world_squad_state_entity == null:
@@ -108,10 +109,11 @@ func _ensure_world_squad_state_entity() -> void:
 		_world_squad_state_entity.name = "WorldSquadState"
 		_world_squad_state_entity.id = WORLD_SQUAD_ENTITY_ID
 		_ecs_world.call("add_entity", _world_squad_state_entity, [WORLD_SQUAD_STATE_SCRIPT.new()])
+		created = true
 	_world_squad_state_component = _world_squad_state_entity.call("get_component", WORLD_SQUAD_STATE_SCRIPT)
 	if _world_squad_state_component == null or not _world_squad_state_component.has_method("apply_state"):
 		return
-	if _world_squad_state_is_empty():
+	if created:
 		_world_squad_state_component.call("apply_state", _initial_world_squad_state())
 
 
@@ -251,11 +253,17 @@ func _resource_id(resource: Resource) -> String:
 
 
 func _resource_int(resource: Resource, property_name: String, default_value: int) -> int:
-	return int(resource.get(property_name)) if resource != null else default_value
+	if resource == null:
+		return default_value
+	var value = resource.get(property_name)
+	return default_value if value == null else int(value)
 
 
 func _resource_float(resource: Resource, property_name: String, default_value: float) -> float:
-	return float(resource.get(property_name)) if resource != null else default_value
+	if resource == null:
+		return default_value
+	var value = resource.get(property_name)
+	return default_value if value == null else float(value)
 
 
 func _world_definition_id() -> String:
