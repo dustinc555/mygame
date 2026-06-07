@@ -1,0 +1,185 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/world_map_overlay.gd" id="1_overlay"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.075, 0.07, 0.065, 0.97)
+border_width_top = 1
+border_width_left = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.29, 0.2, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_logs"]
+bg_color = Color(0.035, 0.032, 0.03, 0.92)
+border_width_top = 1
+border_width_left = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.17, 0.13, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[node name="WorldMapOverlay" type="CanvasLayer"]
+layer = 20
+script = ExtResource("1_overlay")
+
+[node name="MapRoot" type="Control" parent="."]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="DimBackground" type="ColorRect" parent="MapRoot"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.58)
+
+[node name="MapPanel" type="PanelContainer" parent="MapRoot"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 36.0
+offset_top = 32.0
+offset_right = -36.0
+offset_bottom = -32.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="MapRoot/MapPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="MainColumn" type="VBoxContainer" parent="MapRoot/MapPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="HeaderRow" type="HBoxContainer" parent="MapRoot/MapPanel/Margin/MainColumn"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="MapRoot/MapPanel/Margin/MainColumn/HeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.92, 0.84, 0.66, 1)
+theme_override_font_sizes/font_size = 18
+text = "World Map"
+
+[node name="ToggleHint" type="Label" parent="MapRoot/MapPanel/Margin/MainColumn/HeaderRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.53, 0.43, 1)
+theme_override_font_sizes/font_size = 12
+text = "M closes"
+vertical_alignment = 1
+
+[node name="MapArea" type="Control" parent="MapRoot/MapPanel/Margin/MainColumn"]
+custom_minimum_size = Vector2(0, 360)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+clip_contents = true
+mouse_filter = 2
+
+[node name="PlaceholderMapBackground" type="ColorRect" parent="MapRoot/MapPanel/Margin/MainColumn/MapArea"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.14, 0.125, 0.095, 1)
+
+[node name="PlaceholderLabel" type="Label" parent="MapRoot/MapPanel/Margin/MainColumn/MapArea"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -170.0
+offset_top = -12.0
+offset_right = 170.0
+offset_bottom = 12.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.48, 0.44, 0.36, 1)
+theme_override_font_sizes/font_size = 14
+text = "Projected GECS map data will render here"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="RoutesLayer" type="Control" parent="MapRoot/MapPanel/Margin/MainColumn/MapArea"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="TownsLayer" type="Control" parent="MapRoot/MapPanel/Margin/MainColumn/MapArea"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="SquadsLayer" type="Control" parent="MapRoot/MapPanel/Margin/MainColumn/MapArea"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="ButtonsLayer" type="Control" parent="MapRoot/MapPanel/Margin/MainColumn/MapArea"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="LogsLayer" type="PanelContainer" parent="MapRoot/MapPanel/Margin/MainColumn"]
+custom_minimum_size = Vector2(0, 86)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_logs")
+
+[node name="LogMargin" type="MarginContainer" parent="MapRoot/MapPanel/Margin/MainColumn/LogsLayer"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 6
+
+[node name="LogPlaceholder" type="Label" parent="MapRoot/MapPanel/Margin/MainColumn/LogsLayer/LogMargin"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.46, 0.38, 1)
+theme_override_font_sizes/font_size = 12
+text = "LogsLayer"
+vertical_alignment = 1
