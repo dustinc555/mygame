@@ -5,7 +5,7 @@ class_name WorldMapDemoDebugMetricsViewer
 const POLL_INTERVAL_SECONDS := 0.25
 
 @export var overlay_path: NodePath = NodePath("../WorldMapOverlay")
-@export var metrics_source_path: NodePath = NodePath("../DemoSimBootstrap")
+@export var metrics_source_path: NodePath = NodePath()
 
 var _overlay: Node
 var _metrics_source: Node
@@ -320,9 +320,12 @@ func _get_overlay() -> Node:
 func _get_metrics_source() -> Node:
 	if _metrics_source != null and is_instance_valid(_metrics_source):
 		return _metrics_source
-	if metrics_source_path == NodePath():
-		return null
-	_metrics_source = get_node_or_null(metrics_source_path)
+	if metrics_source_path != NodePath():
+		_metrics_source = get_node_or_null(metrics_source_path)
+		if _metrics_source != null:
+			return _metrics_source
+	if get_tree() != null:
+		_metrics_source = get_tree().get_first_node_in_group("world_map_combat_sim_source")
 	return _metrics_source
 
 

@@ -7,7 +7,7 @@ const DEFAULT_MAX_VISIBLE_BEATS := 24
 const POLL_INTERVAL_SECONDS := 0.25
 
 @export var overlay_path: NodePath = NodePath("../WorldMapOverlay")
-@export var encounter_state_source_path: NodePath = NodePath("../DemoSimBootstrap")
+@export var encounter_state_source_path: NodePath = NodePath()
 @export var max_resolved_encounters := DEFAULT_MAX_RESOLVED_ENCOUNTERS
 @export var max_visible_beats := DEFAULT_MAX_VISIBLE_BEATS
 
@@ -282,9 +282,12 @@ func _get_overlay() -> Node:
 func _get_encounter_state_source() -> Node:
 	if _encounter_state_source != null and is_instance_valid(_encounter_state_source):
 		return _encounter_state_source
-	if encounter_state_source_path == NodePath():
-		return null
-	_encounter_state_source = get_node_or_null(encounter_state_source_path)
+	if encounter_state_source_path != NodePath():
+		_encounter_state_source = get_node_or_null(encounter_state_source_path)
+		if _encounter_state_source != null:
+			return _encounter_state_source
+	if get_tree() != null:
+		_encounter_state_source = get_tree().get_first_node_in_group("world_map_combat_sim_source")
 	return _encounter_state_source
 
 

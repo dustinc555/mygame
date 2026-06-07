@@ -8,7 +8,7 @@ const MAX_LOG_LABELS := 10
 
 @export var world_definition: Resource
 @export var overlay_path: NodePath = NodePath("../WorldMapOverlay")
-@export var squad_state_source_path: NodePath = NodePath("../DemoSimBootstrap")
+@export var squad_state_source_path: NodePath = NodePath()
 
 var _overlay: Node
 var _squad_state_source: Node
@@ -292,9 +292,12 @@ func _get_overlay() -> Node:
 func _get_squad_state_source() -> Node:
 	if _squad_state_source != null and is_instance_valid(_squad_state_source):
 		return _squad_state_source
-	if squad_state_source_path == NodePath():
-		return null
-	_squad_state_source = get_node_or_null(squad_state_source_path)
+	if squad_state_source_path != NodePath():
+		_squad_state_source = get_node_or_null(squad_state_source_path)
+		if _squad_state_source != null:
+			return _squad_state_source
+	if get_tree() != null:
+		_squad_state_source = get_tree().get_first_node_in_group("world_map_combat_sim_source")
 	return _squad_state_source
 
 

@@ -6,7 +6,7 @@ const PROJECTED_SQUAD_MARKER_META := "world_map_projected_squad_marker"
 
 @export var world_definition: Resource
 @export var overlay_path: NodePath = NodePath("../WorldMapOverlay")
-@export var squad_state_source_path: NodePath = NodePath("../DemoSimBootstrap")
+@export var squad_state_source_path: NodePath = NodePath()
 @export_range(0.0, 1.0, 0.01) var refresh_interval_seconds := 0.1
 @export_range(4.0, 32.0, 1.0) var squad_marker_size := 10.0
 @export var fallback_squad_color := Color(0.7, 0.7, 0.72, 1.0)
@@ -108,9 +108,12 @@ func _get_overlay() -> Node:
 func _get_squad_state_source() -> Node:
 	if _squad_state_source != null and is_instance_valid(_squad_state_source):
 		return _squad_state_source
-	if squad_state_source_path == NodePath():
-		return null
-	_squad_state_source = get_node_or_null(squad_state_source_path)
+	if squad_state_source_path != NodePath():
+		_squad_state_source = get_node_or_null(squad_state_source_path)
+		if _squad_state_source != null:
+			return _squad_state_source
+	if get_tree() != null:
+		_squad_state_source = get_tree().get_first_node_in_group("world_map_combat_sim_source")
 	return _squad_state_source
 
 
