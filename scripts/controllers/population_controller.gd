@@ -12,6 +12,7 @@ var root_scene: Node
 var actor_records: Dictionary = {}
 var _live_actor_by_id: Dictionary = {}
 var _initialized := false
+var _starting_population_seeded := false
 
 
 func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
@@ -283,11 +284,66 @@ func _try_initialize() -> void:
 	if _initialized or root_scene == null or not is_inside_tree():
 		return
 	_collect_existing_actors()
+	_seed_starting_population_records()
 	_initialized = true
 
 
 func _collect_existing_actors() -> void:
 	return
+
+
+func _seed_starting_population_records() -> void:
+	if _starting_population_seeded:
+		return
+	var definitions := _starting_population_record_definitions()
+	if definitions.is_empty():
+		_starting_population_seeded = true
+		return
+	_refresh_actor_records_cache()
+	for definition in definitions:
+		if definition == null or not definition.has_method("to_record"):
+			continue
+		var record: Dictionary = definition.call("to_record")
+		var actor_id := str(record.get("actor_id", record.get("stable_id", ""))).strip_edges()
+		if actor_id.is_empty() or _has_actor_record(actor_id):
+			continue
+		record.erase("live_node_path")
+		_save_actor_record(actor_id, record)
+	_starting_population_seeded = true
+
+
+func _starting_population_record_definitions() -> Array[Resource]:
+	var world_definition := _find_world_definition()
+	if world_definition == null:
+		return []
+	if world_definition.has_method("get_starting_population_records"):
+		return world_definition.call("get_starting_population_records")
+	var records = world_definition.get("starting_population_records")
+	if not (records is Array):
+		return []
+	var result: Array[Resource] = []
+	for record in records:
+		if record is Resource:
+			result.append(record)
+	return result
+
+
+func _find_world_definition() -> Resource:
+	if root_scene != null:
+		var loader := root_scene.get_node_or_null("WorldLoader")
+		if loader != null:
+			var definition = loader.get("world_definition")
+			if definition is Resource:
+				return definition
+	if get_tree() == null:
+		return null
+	for loader in get_tree().get_nodes_in_group("world_loader"):
+		if loader == null:
+			continue
+		var definition = loader.get("world_definition")
+		if definition is Resource:
+			return definition
+	return null
 
 
 func _refresh_actor_records_cache() -> void:

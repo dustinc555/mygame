@@ -11,6 +11,10 @@ class_name CGamePopulationRecord
 @export var faction_id := ""
 @export var squad_name := ""
 @export var role_id := "resident"
+@export var party_id := ""
+@export var player_party_member := false
+@export var player_controllable := false
+@export var projection_kind := ""
 @export var hostile_faction_ids: PackedStringArray = PackedStringArray()
 @export var combat_stance := 0
 @export var base_color := Color(0.62, 0.62, 0.62, 1.0)
@@ -64,6 +68,10 @@ func apply_record(source: Dictionary) -> void:
 	faction_id = str(source.get("faction_id", faction_id))
 	squad_name = str(source.get("squad_name", squad_name))
 	role_id = str(source.get("role_id", role_id))
+	party_id = str(source.get("party_id", party_id))
+	player_party_member = bool(source.get("player_party_member", player_party_member))
+	player_controllable = bool(source.get("player_controllable", player_controllable))
+	projection_kind = str(source.get("projection_kind", projection_kind))
 	hostile_faction_ids = PackedStringArray(source.get("hostile_faction_ids", hostile_faction_ids))
 	combat_stance = int(source.get("combat_stance", combat_stance))
 	base_color = source.get("base_color", base_color)
@@ -118,6 +126,10 @@ func to_record() -> Dictionary:
 		"faction_id": faction_id,
 		"squad_name": squad_name,
 		"role_id": role_id,
+		"party_id": party_id,
+		"player_party_member": player_party_member,
+		"player_controllable": player_controllable,
+		"projection_kind": projection_kind,
 		"hostile_faction_ids": Array(hostile_faction_ids),
 		"combat_stance": combat_stance,
 		"base_color": base_color,

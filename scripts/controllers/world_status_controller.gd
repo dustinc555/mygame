@@ -3,10 +3,18 @@ extends Node
 class_name WorldStatusController
 
 const FPS_REFRESH_INTERVAL := 0.25
+# #76 Humanoid Projection can register visible projected actors into these groups.
+const PROJECTED_ACTOR_GROUPS := [
+	"projected_humanoid_actor",
+	"humanoid_projection_actor",
+	"realized_humanoid_actor",
+	"character_authoring_actor",
+]
 
 var root: Node
 var hud_layer: CanvasLayer
 var world_time: Node
+var fixed_tick_runner: Node
 var time_label: Label
 var phase_label: Label
 var fps_label: Label
@@ -65,6 +73,7 @@ func _try_initialize() -> void:
 	world_time = get_parent().get_node_or_null("WorldTimeController")
 	if world_time == null:
 		return
+	fixed_tick_runner = get_parent().get_node_or_null("WorldMapCombatFixedTickRunner")
 	hud_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	time_label = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/TimeLabel") as Label
 	phase_label = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/PhaseLabel") as Label
@@ -156,7 +165,69 @@ func _refresh_labels() -> void:
 func _refresh_fps_label() -> void:
 	if fps_label == null:
 		return
-	fps_label.text = "FPS: %d" % int(round(Engine.get_frames_per_second()))
+	var gecs_label := "--"
+	var average_tick_time_ms := _get_average_tick_time_ms()
+	if average_tick_time_ms >= 0.0:
+		gecs_label = "%.1f ms" % average_tick_time_ms
+	var actor_label := "--"
+	var actor_count := _get_visible_projected_actor_count()
+	if actor_count >= 0:
+		actor_label = str(actor_count)
+	fps_label.text = "FPS: %d\nGECS: %s\nActors: %s" % [
+		int(round(Engine.get_frames_per_second())),
+		gecs_label,
+		actor_label,
+	]
+
+
+func _get_average_tick_time_ms() -> float:
+	var runner := _get_fixed_tick_runner()
+	if runner != null and runner.has_method("get_metrics"):
+		var runner_metrics = runner.call("get_metrics")
+		if runner_metrics is Dictionary and runner_metrics.has("average_tick_time_ms"):
+			return float(runner_metrics.get("average_tick_time_ms", 0.0))
+	return -1.0
+
+
+func _get_fixed_tick_runner() -> Node:
+	if fixed_tick_runner != null and is_instance_valid(fixed_tick_runner):
+		return fixed_tick_runner
+	var parent_node := get_parent()
+	if parent_node == null:
+		return null
+	fixed_tick_runner = parent_node.get_node_or_null("WorldMapCombatFixedTickRunner")
+	return fixed_tick_runner
+
+
+func _get_visible_projected_actor_count() -> int:
+	var tree := get_tree()
+	if tree == null:
+		return -1
+	var seen := {}
+	var found_group_node := false
+	var count := 0
+	for group_name in PROJECTED_ACTOR_GROUPS:
+		for node in tree.get_nodes_in_group(group_name):
+			if node == null or not is_instance_valid(node):
+				continue
+			found_group_node = true
+			var instance_id := node.get_instance_id()
+			if seen.has(instance_id):
+				continue
+			seen[instance_id] = true
+			if _is_visible_projected_actor(node):
+				count += 1
+	return count if found_group_node else -1
+
+
+func _is_visible_projected_actor(node: Node) -> bool:
+	if node == null or not node.is_inside_tree():
+		return false
+	if node is Node3D:
+		return (node as Node3D).is_visible_in_tree()
+	if node is CanvasItem:
+		return (node as CanvasItem).is_visible_in_tree()
+	return true
 
 
 func _refresh_buttons() -> void:

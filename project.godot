@@ -15,13 +15,18 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="MyGame"
-run/main_scene="res://scenes/worlds/demo_world/gecs_world_map_combat_demo.tscn"
+run/main_scene="uid://b61506dov0k4v"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
 [autoload]
 
 ECS="*uid://dfqwl5njvdnmq"
+
+[display]
+
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
 
 [editor_plugins]
 

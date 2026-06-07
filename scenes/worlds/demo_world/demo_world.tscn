@@ -11,6 +11,7 @@
 [ext_resource type="Script" uid="uid://cnr2f5jw30dqk" path="res://scripts/ui/world_map_squad_command_panel.gd" id="11_command_panel"]
 [ext_resource type="Script" uid="uid://bx6q6fbt0oja5" path="res://scripts/ui/world_map_combat_beat_log_viewer.gd" id="12_combat_beats"]
 [ext_resource type="Script" path="res://scripts/ui/world_map_demo_debug_metrics_viewer.gd" id="13_demo_metrics"]
+[ext_resource type="Script" path="res://scripts/camera/world_camera_controller.gd" id="14_camera"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(1100, 1, 950)
@@ -151,6 +152,7 @@ metrics_source_path = NodePath("../GameBootstrap/WorldMapCombatSimController")
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=1113634968]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 377.61835, 0.6, 114.84003)
+script = ExtResource("14_camera")
 
 [node name="CameraPivot" type="Node3D" parent="CameraRig" unique_id=1482128520]
 
@@ -165,5 +167,5 @@ offset_left = 20.0
 offset_top = 20.0
 offset_right = 880.0
 offset_bottom = 96.0
-text = "Demo world: create your starting character, then explore Surf City, East Raiders Camp, and Paradise Hills. Relations separate formal faction state from directional outlook."
+text = "Demo world: create your starting character, then explore Surf City, East Raiders Camp, and Paradise Hills. WASD pans, Shift speeds up, Q/E rotates, mouse wheel zooms, middle mouse orbits, double-click follows a world target."
 autowrap_mode = 3

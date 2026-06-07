@@ -14,6 +14,9 @@
 [ext_resource type="Resource" path="res://resources/world_sim/squad_templates/east_raider_war_party.tres" id="12_raider_war_party"]
 [ext_resource type="Resource" path="res://resources/world_sim/squad_templates/paradise_hills_enforcers.tres" id="13_paradise_enforcers"]
 [ext_resource type="Resource" path="res://resources/world_sim/factions/rustdead.tres" id="14_rustdead_faction"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/player_drifters.tres" id="15_player_faction"]
+[ext_resource type="Resource" path="res://resources/worlds/demo_world/population/mira.tres" id="16_mira"]
+[ext_resource type="Resource" path="res://resources/worlds/demo_world/population/tomas.tres" id="17_tomas"]
 
 [resource]
 script = ExtResource("1_world")
@@ -21,7 +24,8 @@ world_id = "demo_world"
 display_name = "Demo World"
 random_seed = 1001
 minimum_initial_active_nests = 1
-faction_definitions = Array[Resource]([ExtResource("2_surf_faction"), ExtResource("3_raider_faction"), ExtResource("4_paradise_faction"), ExtResource("14_rustdead_faction")])
+faction_definitions = Array[Resource]([ExtResource("15_player_faction"), ExtResource("2_surf_faction"), ExtResource("3_raider_faction"), ExtResource("4_paradise_faction"), ExtResource("14_rustdead_faction")])
 settlement_placements = Array[Resource]([ExtResource("5_surf_placement"), ExtResource("6_raider_placement"), ExtResource("7_paradise_placement")])
 starting_relations = Array[Resource]([ExtResource("8_surf_raiders"), ExtResource("9_surf_paradise"), ExtResource("10_raiders_paradise")])
 squad_templates = Array[Resource]([ExtResource("11_surf_watch"), ExtResource("12_raider_war_party"), ExtResource("13_paradise_enforcers")])
+starting_population_records = Array[Resource]([ExtResource("16_mira"), ExtResource("17_tomas")])
