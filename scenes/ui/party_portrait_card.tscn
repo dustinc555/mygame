@@ -1,5 +1,6 @@
 [gd_scene load_steps=4 format=3]
 
+[ext_resource type="Script" path="res://scripts/ui/party_portrait_card.gd" id="1_card"]
 
 [sub_resource type="Environment" id="Environment_portrait"]
 background_mode = 1
@@ -19,6 +20,7 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_card")
 theme_override_styles/hover = SubResource("StyleBoxFlat_card")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_card")
 theme_override_styles/focus = SubResource("StyleBoxFlat_card")
+script = ExtResource("1_card")
 text = ""
 
 [node name="Margin" type="MarginContainer" parent="."]

@@ -5,3 +5,178 @@ reviews:
     drafts: true
     base_branches:
       - ".*"
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        # MyGame PR Review Instructions
+
+        Review PRs for architecture regressions, coupling, and performance risks.
+
+        ## Core rules
+
+        GECS owns durable game truth.
+
+        Fixed-tick systems own simulation outcomes.
+
+        UI reads snapshots and emits commands.
+
+        Projection nodes render state only.
+
+        Actors, humanoids, world items, equipment visuals, HUD, map, and debug panels must not own durable gameplay truth.
+
+        ## Request changes if durable truth is stored in
+
+        - `HumanoidCharacter`
+        - `WorldActor`
+        - world item nodes
+        - container nodes
+        - UI windows
+        - scene controllers
+        - visual combat coordinators
+        - actor AI/brain/blackboard systems
+
+        Durable truth includes:
+
+        - stats
+        - skills
+        - XP
+        - vitals
+        - wounds/life state
+        - inventory
+        - equipment
+        - faction state
+        - squad membership
+        - jobs/objectives
+        - movement outcomes
+        - combat outcomes
+        - raids/encounters
+        - settlement/world state
+
+        ## Stable ID rule
+
+        Durable state should use stable IDs, not live node references.
+
+        Good:
+
+        - `actor_id`
+        - `member_id`
+        - `squad_id`
+        - `faction_id`
+        - `settlement_id`
+        - `container_id`
+        - `item_stack_id`
+        - `equipment_slot_id`
+        - `encounter_id`
+        - `objective_id`
+
+        Request changes for durable use of:
+
+        - `Node`
+        - `NodePath`
+        - direct actor references
+        - direct UI references
+        - scene paths
+
+        ## Performance gates
+
+        Request changes for unbounded hot-path work:
+
+        - every actor scanning every other actor per frame
+        - every actor scanning every enemy per frame
+        - every UI slot scanning every item per frame
+        - repeated scene-tree scans in hot paths
+        - repeated `get_tree().get_nodes_in_group()` in hot paths
+        - repeated recursive `find_child()` / `get_children()` in hot paths
+        - nested loops over all actors x all items
+        - nested loops over all actors x all enemies
+        - full world snapshot rebuilds every frame
+        - unbounded logs or queues
+        - unbounded signal fanout
+        - per-actor pathfinding for large crowds without gates
+        - runtime resource loading in gameplay loops
+        - instantiate/free loops during active gameplay
+
+        Acceptable:
+
+        - O(N) over relevant active records
+        - O(items in open container)
+        - O(active visible actors)
+        - O(active beats)
+        - O(active engagement groups)
+        - O(N log N) setup work
+        - O(N²) only with an explicit small bound, such as `visible_count <= 10`
+
+        Prefer indexed lookups by ID.
+
+        ## `_process` rule
+
+        `_process` may handle visuals, animation, interpolation, camera smoothing, and UI refresh.
+
+        Request changes if `_process` owns durable:
+
+        - movement
+        - combat
+        - inventory
+        - equipment
+        - objectives
+        - raids
+        - settlement/world simulation
+        - economy/law/job outcomes
+
+        ## UI rule
+
+        UI may display state, hold temporary interaction state, and emit commands.
+
+        Request changes if UI directly mutates final gameplay state.
+
+        Correct flow:
+
+        ```text
+        UI input -> command -> fixed-tick validation -> GECS mutation -> UI refresh
+        ```
+
+        ## Combat rule
+
+        GECS/BattleSim owns combat results.
+
+        CombatBeat records describe results.
+
+        Projected actors visualize results.
+
+        Request changes if actors decide targets, hits, damage, wounds, deaths, or combat outcomes as durable truth.
+
+        ## Movement rule
+
+        Correct flow:
+
+        ```text
+        input -> command/intent -> GECS movement state -> projection renders/interpolates
+        ```
+
+        Request changes if actor _process owns durable movement targets or positions.
+
+        ## Projection/god-class rule
+
+        Do not rebuild shared gameplay behavior inside a humanoid-specific god class.
+
+        Humanoids, animals, robots, and creatures should share the same projection ownership model where possible.
+
+        Prefer generic roots like:
+
+        - WorldActorProjection
+        - ActorProjection
+        - BodyProjection
+
+        ## Review summary
+
+        Every substantial review should answer:
+
+        - Does GECS remain the source of durable truth?
+        - Does fixed tick own simulation outcomes?
+        - Does UI only read state and emit commands?
+        - Are actors/projections visual-only?
+        - Are there any live-node durable references?
+        - Are there any unbounded O(N²) or frame-rate risks?
+        - Are there any god-class regressions?
+
+        Request changes for violations.

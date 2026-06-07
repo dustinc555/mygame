@@ -162,6 +162,7 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 	actor.set("hostile_factions", PackedStringArray(record.get("hostile_faction_ids", [])))
 	actor.set("combat_stance", int(record.get("combat_stance", actor.get("combat_stance"))))
 	actor.set("starting_skill_levels", record.get("skill_levels", {}))
+	actor.set("starting_skill_xp", record.get("skill_xp", {}))
 	actor.set_meta("settlement_id", str(record.get("settlement_id", "")))
 	actor.set_meta("actor_role_id", str(record.get("role_id", "resident")))
 	actor.set_meta("population_inventory_entries", Array(record.get("inventory_entries", [])).duplicate(true))
@@ -370,14 +371,14 @@ func _has_actor_record(actor_id: String) -> bool:
 func _get_actor_record_mutable(actor_id: String) -> Dictionary:
 	if actor_id.is_empty():
 		return {}
-	if actor_records.has(actor_id):
-		return (actor_records[actor_id] as Dictionary).duplicate(true)
 	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("get_population_record"):
 		var record: Dictionary = bridge.call("get_population_record", actor_id)
 		if not record.is_empty():
 			actor_records[actor_id] = record
 			return record.duplicate(true)
+	if actor_records.has(actor_id):
+		return (actor_records[actor_id] as Dictionary).duplicate(true)
 	return {}
 
 
@@ -456,6 +457,7 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		display_name = str(name_profile.call("generate_name", body_type, name_rng, used_names)).strip_edges()
 	var equipment_slots := _generate_equipment_slots(appearance_profile, context, actor_id)
 	var skill_levels := _generate_skill_levels(context, actor_id)
+	var skill_xp: Dictionary = context.get("skill_xp", {}) if context.get("skill_xp", {}) is Dictionary else {}
 	return {
 		"actor_id": actor_id,
 		"stable_id": actor_id,
@@ -463,6 +465,7 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"generation_source": spawner_id,
 		"generation_index": generation_index,
 		"member_name": display_name,
+		"projection_kind": str(context.get("projection_kind", "humanoid")),
 		"faction_id": str(context.get("faction_id", "")),
 		"squad_name": str(context.get("squad_name", "")),
 		"role_id": str(context.get("role_id", "resident")),
@@ -473,9 +476,18 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"equipment_slots": equipment_slots,
 		"inventory_entries": [],
 		"skill_levels": skill_levels,
+		"skill_xp": skill_xp.duplicate(true),
 		"traits": {},
 		"personality": {},
 		"life_state": NpcRules.LifeState.ALIVE,
+		"hunger": 100.0,
+		"hunger_stage": NpcRules.HungerStage.WELL_NOURISHED,
+		"fatigue": 100.0,
+		"fatigue_stage": NpcRules.FatigueStage.WELL_RESTED,
+		"open_cut_damage": 0.0,
+		"bandaged_cut_damage": 0.0,
+		"blunt_damage": 0.0,
+		"bleed_rate": 0.0,
 		"realization_state": "ledger",
 		"ledger_minutes_elapsed": 0,
 		"last_world_position": context.get("spawn_position", Vector3.ZERO),
@@ -494,7 +506,9 @@ func _new_record_from_actor(actor: Node, actor_id: String, settlement_id: String
 		"personality": {},
 		"ledger_minutes_elapsed": 0,
 	}
-	return _merge_actor_state_into_record(record, actor, settlement_id, context)
+	var import_context := context.duplicate(true)
+	import_context["import_actor_skills"] = true
+	return _merge_actor_state_into_record(record, actor, settlement_id, import_context)
 
 
 func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_id: String, context: Dictionary) -> Dictionary:
@@ -504,6 +518,8 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 		settlement_id = _find_actor_settlement_id(actor)
 	record["settlement_id"] = settlement_id
 	record["role_id"] = str(context.get("role_id", _actor_role(actor)))
+	var projection_value = actor.get("projection_kind")
+	record["projection_kind"] = str(projection_value) if projection_value != null and not str(projection_value).strip_edges().is_empty() else str(context.get("projection_kind", "humanoid"))
 	record["member_name"] = str(actor.get("member_name"))
 	var faction_id := str(actor.get("faction_name"))
 	record["faction_id"] = faction_id
@@ -511,16 +527,49 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 	record["hostile_faction_ids"] = Array(actor.get("hostile_factions"))
 	record["combat_stance"] = int(actor.get("combat_stance"))
 	record["life_state"] = int(actor.get("life_state")) if actor.get("life_state") != null else NpcRules.LifeState.ALIVE
+	record["hunger"] = _actor_float(actor, "hunger", 100.0)
+	record["hunger_stage"] = _actor_int(actor, "hunger_stage", NpcRules.HungerStage.WELL_NOURISHED)
+	record["fatigue"] = _actor_float(actor, "fatigue", 100.0)
+	record["fatigue_stage"] = _actor_int(actor, "fatigue_stage", NpcRules.FatigueStage.WELL_RESTED)
+	record["open_cut_damage"] = _actor_float(actor, "open_cut_damage", 0.0, "get_open_cut_damage")
+	record["bandaged_cut_damage"] = _actor_float(actor, "bandaged_cut_damage", 0.0, "get_bandaged_cut_damage")
+	record["blunt_damage"] = _actor_float(actor, "blunt_damage", 0.0, "get_blunt_damage")
+	record["bleed_rate"] = _actor_float(actor, "bleed_rate", 0.0, "get_bleed_rate")
 	var appearance = actor.get("appearance_data")
 	_repair_non_rustdead_appearance(appearance, faction_id)
 	record["appearance"] = _appearance_to_record(appearance)
 	record["equipment_slots"] = _equipment_slots_from_actor(actor)
 	record["inventory_entries"] = _inventory_entries_from_actor(actor)
-	record["skill_levels"] = _skill_levels_from_actor(actor)
+	if bool(context.get("import_actor_skills", false)):
+		record["skill_levels"] = _skill_levels_from_actor(actor)
+		record["skill_xp"] = _skill_xp_from_actor(actor)
+	else:
+		if not record.has("skill_levels"):
+			record["skill_levels"] = {}
+		if not record.has("skill_xp"):
+			record["skill_xp"] = {}
 	if actor is Node3D:
 		record["last_world_position"] = (actor as Node3D).global_position
 		record["last_world_position_initialized"] = true
 	return record
+
+
+func _actor_float(actor: Node, property_name: String, fallback: float, method_name := "") -> float:
+	if actor == null:
+		return fallback
+	if not method_name.is_empty() and actor.has_method(method_name):
+		return float(actor.call(method_name))
+	var value = actor.get(property_name)
+	return float(value) if value != null else fallback
+
+
+func _actor_int(actor: Node, property_name: String, fallback: int, method_name := "") -> int:
+	if actor == null:
+		return fallback
+	if not method_name.is_empty() and actor.has_method(method_name):
+		return int(actor.call(method_name))
+	var value = actor.get(property_name)
+	return int(value) if value != null else fallback
 
 
 func _register_actor_with_query_controller(actor: Node) -> void:
@@ -709,6 +758,24 @@ func _skill_levels_from_actor(actor: Node) -> Dictionary:
 		for snapshot in skill_set.call("get_all_entry_snapshots"):
 			if snapshot is Dictionary:
 				result[str(snapshot.get("skill_id", ""))] = int(snapshot.get("level", SkillRules.DEFAULT_LEVEL))
+	if result.is_empty():
+		var starting_skill_levels = actor.get("starting_skill_levels")
+		if starting_skill_levels is Dictionary:
+			result = (starting_skill_levels as Dictionary).duplicate(true)
+	return result
+
+
+func _skill_xp_from_actor(actor: Node) -> Dictionary:
+	var result := {}
+	var skill_set = actor.get("skill_set")
+	if skill_set != null and skill_set.has_method("get_all_entry_snapshots"):
+		for snapshot in skill_set.call("get_all_entry_snapshots"):
+			if snapshot is Dictionary:
+				result[str(snapshot.get("skill_id", ""))] = float(snapshot.get("xp", 0.0))
+	if result.is_empty():
+		var starting_skill_xp = actor.get("starting_skill_xp")
+		if starting_skill_xp is Dictionary:
+			result = (starting_skill_xp as Dictionary).duplicate(true)
 	return result
 
 

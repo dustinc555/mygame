@@ -15,6 +15,11 @@ const GECS_WORLD_CONTROLLER_SCRIPT = preload("res://scripts/controllers/gecs_wor
 const ACTOR_QUERY_CONTROLLER_SCRIPT = preload("res://scripts/controllers/actor_query_controller.gd")
 const POPULATION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/population_controller.gd")
 const POPULATION_REALIZATION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/population_realization_controller.gd")
+const WORLD_ACTOR_PROJECTION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_actor_projection_controller.gd")
+const WORLD_SELECTION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_selection_controller.gd")
+const WORLD_PLAYER_CONTROL_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_player_control_controller.gd")
+const WORLD_MOVEMENT_ORDER_SIM_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_movement_order_sim_controller.gd")
+const WORLD_PARTY_PANEL_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_party_panel_controller.gd")
 const LEDGER_SIMULATION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/ledger_simulation_controller.gd")
 const WORLD_MAP_COMBAT_SIM_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_map_combat_sim_controller.gd")
 const WORLD_NAVIGATION_BAKER_SCRIPT = preload("res://scripts/navigation/world_navigation_baker.gd")
@@ -41,6 +46,7 @@ func _deferred_bootstrap() -> void:
 		_ensure_controller_node(str(spec["name"]), spec["script"])
 	for spec in controller_specs:
 		_initialize_controller(str(spec["name"]))
+	_ensure_world_movement_order_runner()
 	_ensure_world_map_combat_runner()
 	call_deferred("_wire_world_map_combat_ui")
 
@@ -73,6 +79,11 @@ func _controller_specs() -> Array[Dictionary]:
 		{"name": "FactionController", "script": FACTION_CONTROLLER_SCRIPT},
 		{"name": "PopulationController", "script": POPULATION_CONTROLLER_SCRIPT},
 		{"name": "PopulationRealizationController", "script": POPULATION_REALIZATION_CONTROLLER_SCRIPT},
+		{"name": "WorldActorProjectionController", "script": WORLD_ACTOR_PROJECTION_CONTROLLER_SCRIPT},
+		{"name": "WorldSelectionController", "script": WORLD_SELECTION_CONTROLLER_SCRIPT},
+		{"name": "WorldPlayerControlController", "script": WORLD_PLAYER_CONTROL_CONTROLLER_SCRIPT},
+		{"name": "WorldMovementOrderSimController", "script": WORLD_MOVEMENT_ORDER_SIM_CONTROLLER_SCRIPT},
+		{"name": "WorldPartyPanelController", "script": WORLD_PARTY_PANEL_CONTROLLER_SCRIPT},
 		{"name": "SettlementController", "script": SETTLEMENT_CONTROLLER_SCRIPT},
 		{"name": "TerritoryController", "script": TERRITORY_CONTROLLER_SCRIPT},
 		{"name": "RoadController", "script": ROAD_CONTROLLER_SCRIPT},
@@ -93,6 +104,8 @@ func _ensure_controller_node(node_name: String, script_resource: Script) -> void
 		add_child(controller)
 	if node_name == "WorldMapCombatSimController":
 		_configure_world_map_combat_controller(controller)
+	if node_name == "WorldActorProjectionController":
+		controller.set("projection_update_interval_seconds", 0.05)
 
 
 func _configure_world_map_combat_controller(controller: Node) -> void:
@@ -121,6 +134,18 @@ func _ensure_world_map_combat_runner() -> void:
 		add_child(runner)
 	else:
 		runner.set("target_path", NodePath("../WorldMapCombatSimController"))
+
+
+func _ensure_world_movement_order_runner() -> void:
+	var runner := get_node_or_null("WorldMovementOrderFixedTickRunner")
+	if runner == null:
+		runner = Node.new()
+		runner.name = "WorldMovementOrderFixedTickRunner"
+		runner.set_script(FIXED_TICK_SIM_RUNNER_SCRIPT)
+		runner.set("target_path", NodePath("../WorldMovementOrderSimController"))
+		add_child(runner)
+	else:
+		runner.set("target_path", NodePath("../WorldMovementOrderSimController"))
 
 
 func _wire_world_map_combat_ui() -> void:
