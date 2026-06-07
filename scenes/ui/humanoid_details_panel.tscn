@@ -1,4 +1,6 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/humanoid_details_panel.gd" id="1_panel_script"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_details"]
 bg_color = Color(0.075, 0.07, 0.065, 0.97)
@@ -47,6 +49,7 @@ corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
 
 [node name="HumanoidDetailsPanel" type="PanelContainer"]
+script = ExtResource("1_panel_script")
 theme_override_styles/panel = SubResource("StyleBoxFlat_details")
 custom_minimum_size = Vector2(284, 148)
 mouse_filter = 2

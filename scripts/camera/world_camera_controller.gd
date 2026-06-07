@@ -16,6 +16,7 @@ class_name WorldCameraController
 @export var follow_offset := Vector3.ZERO
 @export_range(0.0, 10000.0, 10.0) var max_raycast_distance := 2000.0
 @export_flags_3d_physics var selection_collision_mask := 0xFFFFFFFF
+@export var respect_player_control := true
 @export var initial_pitch_degrees := -55.0
 @export var min_pitch_degrees := -82.0
 @export var max_pitch_degrees := -18.0
@@ -62,13 +63,15 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if _camera == null:
 		return
+	var control_blocks_free_camera := _player_control_blocks_free_camera()
 	var keyboard_rotation := _keyboard_rotation_input()
 	if not is_zero_approx(keyboard_rotation):
-		_clear_follow_target()
+		if not control_blocks_free_camera:
+			_clear_follow_target()
 		_yaw += keyboard_rotation * keyboard_rotate_speed * delta
 		_apply_camera_transform()
 	var movement := _free_move_input()
-	if movement.length_squared() > 0.0:
+	if movement.length_squared() > 0.0 and not control_blocks_free_camera:
 		_clear_follow_target()
 		_move_free_camera(movement.normalized(), delta)
 		return
@@ -196,7 +199,7 @@ func _focus_node_from_collider(collider) -> Node3D:
 func _is_focus_candidate(node: Node) -> bool:
 	if node == self or node == _pivot or node == _camera:
 		return false
-	return node is CharacterBody3D or node.is_in_group("character_authoring_actor") or node.is_in_group("world_container") or node.is_in_group("settlement_town")
+	return node is CharacterBody3D or node.is_in_group("projected_world_actor") or node.is_in_group("character_authoring_actor") or node.is_in_group("world_container") or node.is_in_group("settlement_town")
 
 
 func _default_follow_target() -> Node3D:
@@ -220,6 +223,15 @@ func _first_node3d_in_group(group_name: String) -> Node3D:
 		if node is Node3D:
 			return node as Node3D
 	return null
+
+
+func _player_control_blocks_free_camera() -> bool:
+	if not respect_player_control or not is_inside_tree():
+		return false
+	for controller in get_tree().get_nodes_in_group("world_player_control_controller"):
+		if controller != null and controller.has_method("blocks_camera_free_movement") and bool(controller.call("blocks_camera_free_movement")):
+			return true
+	return false
 
 
 func _zoom(amount: float) -> void:

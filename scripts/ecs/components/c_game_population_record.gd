@@ -17,15 +17,31 @@ class_name CGamePopulationRecord
 @export var projection_kind := ""
 @export var hostile_faction_ids: PackedStringArray = PackedStringArray()
 @export var combat_stance := 0
+@export var movement_mode := 0
+@export var move_order: Dictionary = {}
+@export var locomotion_state: Dictionary = {}
+@export var world_facing_yaw := 0.0
+@export var world_facing_yaw_initialized := false
+@export var auto_heal_enabled := false
+@export var auto_burn_rustdead_enabled := false
 @export var base_color := Color(0.62, 0.62, 0.62, 1.0)
 @export var skill_levels: Dictionary = {}
+@export var skill_xp: Dictionary = {}
 @export var traits: Dictionary = {}
 @export var personality: Dictionary = {}
 @export var life_state := 0
+@export var hunger := 100.0
+@export var hunger_stage := 0
+@export var fatigue := 100.0
+@export var fatigue_stage := 0
 @export var hp := 0.0
 @export var max_hp := 0.0
 @export var blood := 0.0
 @export var max_blood := 0.0
+@export var open_cut_damage := 0.0
+@export var bandaged_cut_damage := 0.0
+@export var blunt_damage := 0.0
+@export var bleed_rate := 0.0
 @export var base_attack_damage := 0.0
 @export var base_dodge_chance := 0.0
 @export var base_block_chance := 0.0
@@ -38,6 +54,7 @@ class_name CGamePopulationRecord
 @export var last_ledger_absolute_minute := -1
 @export var last_world_position := Vector3.ZERO
 @export var last_world_position_initialized := false
+@export var control_intent: Dictionary = {}
 @export var important := false
 @export var appearance_character_race := ""
 @export var appearance_body_archetype := ""
@@ -74,15 +91,31 @@ func apply_record(source: Dictionary) -> void:
 	projection_kind = str(source.get("projection_kind", projection_kind))
 	hostile_faction_ids = PackedStringArray(source.get("hostile_faction_ids", hostile_faction_ids))
 	combat_stance = int(source.get("combat_stance", combat_stance))
+	movement_mode = int(source.get("movement_mode", movement_mode))
+	move_order = (source.get("move_order", move_order) as Dictionary).duplicate(true)
+	locomotion_state = (source.get("locomotion_state", locomotion_state) as Dictionary).duplicate(true)
+	world_facing_yaw = float(source.get("world_facing_yaw", world_facing_yaw))
+	world_facing_yaw_initialized = bool(source.get("world_facing_yaw_initialized", world_facing_yaw_initialized))
+	auto_heal_enabled = bool(source.get("auto_heal_enabled", auto_heal_enabled))
+	auto_burn_rustdead_enabled = bool(source.get("auto_burn_rustdead_enabled", auto_burn_rustdead_enabled))
 	base_color = source.get("base_color", base_color)
 	skill_levels = (source.get("skill_levels", skill_levels) as Dictionary).duplicate(true)
+	skill_xp = (source.get("skill_xp", skill_xp) as Dictionary).duplicate(true)
 	traits = (source.get("traits", traits) as Dictionary).duplicate(true)
 	personality = (source.get("personality", personality) as Dictionary).duplicate(true)
 	life_state = int(source.get("life_state", life_state))
+	hunger = float(source.get("hunger", hunger))
+	hunger_stage = int(source.get("hunger_stage", hunger_stage))
+	fatigue = float(source.get("fatigue", fatigue))
+	fatigue_stage = int(source.get("fatigue_stage", fatigue_stage))
 	hp = float(source.get("hp", hp))
 	max_hp = float(source.get("max_hp", max_hp))
 	blood = float(source.get("blood", blood))
 	max_blood = float(source.get("max_blood", max_blood))
+	open_cut_damage = float(source.get("open_cut_damage", open_cut_damage))
+	bandaged_cut_damage = float(source.get("bandaged_cut_damage", bandaged_cut_damage))
+	blunt_damage = float(source.get("blunt_damage", blunt_damage))
+	bleed_rate = float(source.get("bleed_rate", bleed_rate))
 	base_attack_damage = float(source.get("base_attack_damage", base_attack_damage))
 	base_dodge_chance = float(source.get("base_dodge_chance", base_dodge_chance))
 	base_block_chance = float(source.get("base_block_chance", base_block_chance))
@@ -95,6 +128,7 @@ func apply_record(source: Dictionary) -> void:
 	last_ledger_absolute_minute = int(source.get("last_ledger_absolute_minute", last_ledger_absolute_minute))
 	last_world_position = source.get("last_world_position", last_world_position)
 	last_world_position_initialized = bool(source.get("last_world_position_initialized", last_world_position_initialized))
+	control_intent = (source.get("control_intent", control_intent) as Dictionary).duplicate(true)
 	important = bool(source.get("important", important))
 	var appearance: Dictionary = source.get("appearance", {})
 	appearance_character_race = str(appearance.get("character_race", appearance_character_race))
@@ -132,15 +166,31 @@ func to_record() -> Dictionary:
 		"projection_kind": projection_kind,
 		"hostile_faction_ids": Array(hostile_faction_ids),
 		"combat_stance": combat_stance,
+		"movement_mode": movement_mode,
+		"move_order": move_order.duplicate(true),
+		"locomotion_state": locomotion_state.duplicate(true),
+		"world_facing_yaw": world_facing_yaw,
+		"world_facing_yaw_initialized": world_facing_yaw_initialized,
+		"auto_heal_enabled": auto_heal_enabled,
+		"auto_burn_rustdead_enabled": auto_burn_rustdead_enabled,
 		"base_color": base_color,
 		"skill_levels": skill_levels.duplicate(true),
+		"skill_xp": skill_xp.duplicate(true),
 		"traits": traits.duplicate(true),
 		"personality": personality.duplicate(true),
 		"life_state": life_state,
+		"hunger": hunger,
+		"hunger_stage": hunger_stage,
+		"fatigue": fatigue,
+		"fatigue_stage": fatigue_stage,
 		"hp": hp,
 		"max_hp": max_hp,
 		"blood": blood,
 		"max_blood": max_blood,
+		"open_cut_damage": open_cut_damage,
+		"bandaged_cut_damage": bandaged_cut_damage,
+		"blunt_damage": blunt_damage,
+		"bleed_rate": bleed_rate,
 		"base_attack_damage": base_attack_damage,
 		"base_dodge_chance": base_dodge_chance,
 		"base_block_chance": base_block_chance,
@@ -153,6 +203,7 @@ func to_record() -> Dictionary:
 		"last_ledger_absolute_minute": last_ledger_absolute_minute,
 		"last_world_position": last_world_position,
 		"last_world_position_initialized": last_world_position_initialized,
+		"control_intent": control_intent.duplicate(true),
 		"important": important,
 		"appearance": {
 			"character_race": appearance_character_race,

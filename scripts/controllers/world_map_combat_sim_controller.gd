@@ -295,6 +295,7 @@ func _demo_population_record_from_squad(squad_record: Dictionary, member_id: Str
 		"generation_source": population_generation_source,
 		"generation_index": member_index,
 		"member_name": "%s %02d" % [str(squad_record.get("member_name_prefix", "Squad Member")), member_index + 1],
+		"projection_kind": "humanoid",
 		"faction_id": str(squad_record.get("faction_id", "")),
 		"squad_name": str(squad_record.get("squad_id", "")),
 		"role_id": "squad_member",

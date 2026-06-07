@@ -113,6 +113,18 @@ func _sync_vitals(component, actor: Node) -> void:
 	var life_state = actor.get("life_state")
 	if life_state != null:
 		component.life_state = int(life_state)
+	var hunger = actor.get("hunger")
+	if hunger != null:
+		component.hunger = float(hunger)
+	var hunger_stage = actor.get("hunger_stage")
+	if hunger_stage != null:
+		component.hunger_stage = int(hunger_stage)
+	var fatigue = actor.get("fatigue")
+	if fatigue != null:
+		component.fatigue = float(fatigue)
+	var fatigue_stage = actor.get("fatigue_stage")
+	if fatigue_stage != null:
+		component.fatigue_stage = int(fatigue_stage)
 	var hp = actor.get("hp")
 	if hp != null:
 		component.hp = float(hp)
@@ -125,3 +137,17 @@ func _sync_vitals(component, actor: Node) -> void:
 	var max_blood = actor.get("max_blood")
 	if max_blood != null:
 		component.max_blood = float(max_blood)
+	for spec in [
+		{"field": "open_cut_damage", "method": "get_open_cut_damage"},
+		{"field": "bandaged_cut_damage", "method": "get_bandaged_cut_damage"},
+		{"field": "blunt_damage", "method": "get_blunt_damage"},
+		{"field": "bleed_rate", "method": "get_bleed_rate"},
+	]:
+		var field_name := str(spec["field"])
+		var method_name := str(spec["method"])
+		if actor.has_method(method_name):
+			component.set(field_name, float(actor.call(method_name)))
+		else:
+			var value = actor.get(field_name)
+			if value != null:
+				component.set(field_name, float(value))
