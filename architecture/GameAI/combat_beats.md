@@ -311,6 +311,79 @@ Resolved fights mostly show aftermath. They replay only recent high/critical/imp
 
 Continuity is presentation-only. It does not mutate GECS, rerun BattleSim, choose targets, move actors, or spawn projections.
 
+## #105 Encounter Start Contract
+
+Combat starts enter the shared pipeline through `CombatEncounterStartRequest`, not through live actors or projection nodes.
+
+```text
+CombatEncounterStartRequest
+  encounter_id
+  initial_intent
+  source_type
+  encounter_center
+  projection_importance
+  visibility_flags
+  projection_flags
+  leash_context
+  raid_context
+  guard_context
+  battle_sim_config
+  sides
+
+CombatEncounterSide
+  side_id
+  faction_id
+  party_id
+  squad_id
+  player_owned
+  role_markers
+  member_refs
+  starting_position
+  projection_importance
+
+CombatEncounterMemberRef
+  member_id
+  actor_id
+  squad_id
+  party_id
+  role_markers
+```
+
+`initial_intent` is a strict string constant:
+
+- `attack`
+- `defend`
+- `flee`
+- `guard`
+- `raid`
+- `debug`
+
+Do not add one-off intent values for context. Use optional context fields such as `source_type`, `leash_context`, `raid_context`, or `guard_context`.
+
+`battle_sim_config` is optional adapter configuration for current BattleSim/debug callers. It is not an intent channel.
+
+Current implemented adapter path:
+
+- `start_combat_encounter` command accepts a `CombatEncounterStartRequest` dictionary.
+- `WorldMapCombatSimController` validates and normalizes the request.
+- The normalized request is stored on the durable encounter record as `start_request`.
+- The controller maps the request into the existing `encounter_id`, `squad_ids`, `faction_ids`, `location`, `battle_sim_config`, and pair-key fields consumed by BattleSim.
+- BattleSim, CombatBeat generation, scheduling, continuity, and projection consume the same stored encounter/result records as before.
+
+Thin proof adapter:
+
+- `combat_beat_1v1_test.tscn` starts through `start_combat_encounter` with `initial_intent = debug` and stable side/member IDs.
+
+Documented follow-up adapter paths:
+
+- Player party bump: adapt player party GECS records into one `player_owned` side with `party_id = player_party`, member refs, and an opposing hostile squad side.
+- Raiders: adapt raid objective state into `initial_intent = raid`, `source_type = raid`, `raid_context`, raider role markers, and target party/squad side data.
+- Guards: adapt law/settlement response into `initial_intent = guard`, `source_type = guard_response`, `guard_context`, guard role markers, and offender side data.
+- Offscreen squad conflict: adapt squad objective and faction hostility into `initial_intent = attack` or `defend` with only stable squad/member IDs and no projection requirement.
+- Existing debug force paths: either keep the legacy objective-trigger adapter or emit `start_combat_encounter` when they can provide the same request shape.
+
+This contract is the shared doorway. It does not require every combat starter to be fully migrated before using BattleSim, CombatBeat, scheduling, continuity, or projection.
+
 ## Known #87 Gaps
 
 BattleSim does not yet populate these optional projection fields with meaningful data:

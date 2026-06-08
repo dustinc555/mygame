@@ -2,6 +2,7 @@ extends Node3D
 
 class_name CombatBeat1v1TestLevel
 
+const COMBAT_ENCOUNTER_START_REQUEST_SCRIPT := preload("res://scripts/sim/battle/combat_encounter_start_request.gd")
 const BOOTSTRAP_PATH := NodePath("GameBootstrap")
 const COMBAT_CENTER := Vector3.ZERO
 const SLOT_MARKER_RADIUS := 0.55
@@ -102,18 +103,8 @@ func restart_duel() -> void:
 			_projection.call("sync_projections")
 	_runner.call("queue_command", {"action": "reset_world_squads", "label": "Reset 1v1 CombatBeat test world"})
 	_runner.call("queue_command", {
-		"action": "force_encounter",
-		"squad_ids": squad_ids.slice(0, 2),
-		"objective_id": "debug_force_encounter",
-		"target_id": "combat_beat_1v1_center",
-		"target_location": COMBAT_CENTER,
-		"squad_state": "commanded",
-		"debug_only": true,
-		"battle_sim_config": {
-			"resolve_to_completion": true,
-			"max_completion_beats": 96,
-			"detailed_beat_limit": 96,
-		},
+		"action": "start_combat_encounter",
+		"start_request": _debug_1v1_start_request(squad_ids.slice(0, 2)),
 		"label": "Start standalone 1v1 CombatBeat fight",
 	})
 	_set_status("Queued 1v1 GECS/BattleSim encounter.")
@@ -389,18 +380,70 @@ func _projection_for_actor(actor_id: String) -> Node3D:
 
 func _active_squad_ids() -> Array[String]:
 	var result: Array[String] = []
-	if _combat == null or not _combat.has_method("get_world_squad_state"):
-		return result
-	var state = _combat.call("get_world_squad_state")
-	if not (state is Dictionary):
-		return result
-	var active_squads = (state as Dictionary).get("active_squads", {})
-	if not (active_squads is Dictionary):
-		return result
-	for squad_id in (active_squads as Dictionary).keys():
+	for squad_id in _active_squad_records().keys():
 		result.append(str(squad_id))
 	result.sort()
 	return result
+
+
+func _debug_1v1_start_request(squad_ids: Array[String]) -> Dictionary:
+	var active_squads := _active_squad_records()
+	return {
+		"encounter_id": "encounter:debug:combat_beat_1v1:%d" % _duel_request_tick,
+		"initial_intent": COMBAT_ENCOUNTER_START_REQUEST_SCRIPT.INTENT_DEBUG,
+		"source_type": "debug_1v1",
+		"encounter_center": COMBAT_CENTER,
+		"projection_importance": "important",
+		"visibility_flags": {"force_visible": true},
+		"projection_flags": {"important": true},
+		"battle_sim_config": {
+			"resolve_to_completion": true,
+			"max_completion_beats": 96,
+			"detailed_beat_limit": 96,
+		},
+		"sides": [
+			_encounter_start_side("side_a", squad_ids[0], active_squads) if squad_ids.size() > 0 else {},
+			_encounter_start_side("side_b", squad_ids[1], active_squads) if squad_ids.size() > 1 else {},
+		],
+	}
+
+
+func _encounter_start_side(side_id: String, squad_id: String, active_squads: Dictionary) -> Dictionary:
+	var squad: Dictionary = active_squads.get(squad_id, {}) if active_squads.get(squad_id, {}) is Dictionary else {}
+	return {
+		"side_id": side_id,
+		"squad_id": squad_id,
+		"faction_id": str(squad.get("faction_id", "")),
+		"party_id": str(squad.get("party_id", "")),
+		"role_markers": ["debug"],
+		"member_refs": _encounter_member_refs(squad_id, squad),
+		"starting_position": squad.get("location", COMBAT_CENTER) if squad.get("location", null) is Vector3 else COMBAT_CENTER,
+		"projection_importance": "important",
+	}
+
+
+func _encounter_member_refs(squad_id: String, squad: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var party_id := str(squad.get("party_id", ""))
+	for member_id in _string_array(squad.get("member_ids", [])):
+		result.append({
+			"member_id": member_id,
+			"actor_id": member_id,
+			"squad_id": squad_id,
+			"party_id": party_id,
+			"role_markers": ["debug"],
+		})
+	return result
+
+
+func _active_squad_records() -> Dictionary:
+	if _combat == null or not _combat.has_method("get_world_squad_state"):
+		return {}
+	var state = _combat.call("get_world_squad_state")
+	if not (state is Dictionary):
+		return {}
+	var active_squads = (state as Dictionary).get("active_squads", {})
+	return active_squads.duplicate(true) if active_squads is Dictionary else {}
 
 
 func _casualty_actor_ids() -> Array[String]:
@@ -617,6 +660,17 @@ func _dictionary_array(value) -> Array[Dictionary]:
 	for entry in value:
 		if entry is Dictionary:
 			result.append((entry as Dictionary).duplicate(true))
+	return result
+
+
+func _string_array(value) -> Array[String]:
+	var result: Array[String] = []
+	if not (value is Array) and not (value is PackedStringArray):
+		return result
+	for entry in value:
+		var text := str(entry).strip_edges()
+		if not text.is_empty():
+			result.append(text)
 	return result
 
 

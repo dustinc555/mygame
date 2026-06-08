@@ -78,7 +78,40 @@ func _validate_review_state(scene: Node) -> void:
 	_expect(str(continuity.get("projection_state", "")) == "aftermath", "CombatBeat 1v1 result has aftermath continuity")
 	var projection_metrics: Dictionary = review_state.get("projection_metrics", {}) if review_state.get("projection_metrics", {}) is Dictionary else {}
 	_expect(int(projection_metrics.get("projected_actor_count", 0)) == 2, "CombatBeat 1v1 scene projects two fighters")
+	var encounter_record := _resolved_encounter_record(scene, str(review_state.get("encounter_id", "")))
+	_validate_start_request(encounter_record)
 	_validate_no_live_truth_refs(battle_result, "battle_result")
+	_validate_no_live_truth_refs(encounter_record, "encounter_record")
+
+
+func _resolved_encounter_record(scene: Node, encounter_id: String) -> Dictionary:
+	var combat := scene.get_node_or_null("GameBootstrap/WorldMapCombatSimController")
+	if combat == null or not combat.has_method("get_world_encounter_state"):
+		return {}
+	var state = combat.call("get_world_encounter_state")
+	if not (state is Dictionary):
+		return {}
+	var encounters = (state as Dictionary).get("encounters_by_id", {})
+	if not (encounters is Dictionary):
+		return {}
+	var encounter = (encounters as Dictionary).get(encounter_id, {})
+	return encounter.duplicate(true) if encounter is Dictionary else {}
+
+
+func _validate_start_request(encounter_record: Dictionary) -> void:
+	_expect(not encounter_record.is_empty(), "CombatBeat 1v1 resolved encounter record is inspectable")
+	var start_request: Dictionary = encounter_record.get("start_request", {}) if encounter_record.get("start_request", {}) is Dictionary else {}
+	_expect(not start_request.is_empty(), "CombatBeat 1v1 encounter stores the shared start request")
+	_expect(str(encounter_record.get("initial_intent", "")) == "debug", "CombatBeat 1v1 encounter maps initial_intent")
+	_expect(str(start_request.get("initial_intent", "")) == "debug", "CombatBeat 1v1 start request uses debug intent")
+	_expect(str(start_request.get("source_type", "")) == "debug_1v1", "CombatBeat 1v1 start request records source_type")
+	var sides: Array = start_request.get("sides", []) if start_request.get("sides", []) is Array else []
+	_expect(sides.size() == 2, "CombatBeat 1v1 start request has two sides")
+	for side in sides:
+		if side is Dictionary:
+			_expect(not str((side as Dictionary).get("squad_id", "")).strip_edges().is_empty(), "CombatBeat 1v1 side has squad_id")
+			var members: Array = (side as Dictionary).get("member_refs", []) if (side as Dictionary).get("member_refs", []) is Array else []
+			_expect(not members.is_empty(), "CombatBeat 1v1 side has stable member refs")
 
 
 func _member_casualty_count(battle_result: Dictionary) -> int:

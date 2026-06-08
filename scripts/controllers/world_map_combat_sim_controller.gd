@@ -23,6 +23,7 @@ const WORLD_ENCOUNTER_STATE_SCRIPT := preload("res://scripts/ecs/components/c_ga
 const POPULATION_RECORD_SCRIPT := preload("res://scripts/ecs/components/c_game_population_record.gd")
 const BATTLE_SIM_SCRIPT := preload("res://scripts/sim/battle/battle_sim.gd")
 const COMBAT_PROJECTION_CONTINUITY_BUILDER_SCRIPT := preload("res://scripts/sim/battle/combat_projection_continuity_builder.gd")
+const COMBAT_ENCOUNTER_START_REQUEST_SCRIPT := preload("res://scripts/sim/battle/combat_encounter_start_request.gd")
 const LIFE_STATE_ALIVE := 0
 const LIFE_STATE_DYING := 5
 const ATTRIBUTE_STRENGTH := "attribute.strength"
@@ -125,16 +126,13 @@ func apply_sim_commands(commands: Array[Dictionary]) -> void:
 	var state := get_world_squad_state()
 	var active_squads: Dictionary = state.get("active_squads", {})
 	var command_log := _command_log_from_state(state)
-	var should_reset_encounters := false
 	for command in commands:
 		_apply_sim_command(command, active_squads, command_log)
 		if _command_resets_world_squads(command):
-			should_reset_encounters = true
+			_reset_world_encounter_state()
 	state["active_squads"] = active_squads
 	state["command_log"] = command_log
 	_world_squad_state_component.call("apply_state", state)
-	if should_reset_encounters:
-		_reset_world_encounter_state()
 
 
 func update_sim(fixed_delta: float) -> void:
@@ -444,6 +442,8 @@ func _squad_record_from_template(squad_id: String, faction_id: String, template:
 func _apply_sim_command(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
 	var action := str(command.get("action", "")).strip_edges()
 	match action:
+		"start_combat_encounter":
+			_apply_start_combat_encounter_command(command, active_squads, command_log)
 		"set_squad_objective":
 			_apply_set_squad_objective(command, active_squads, command_log)
 		"set_squads_objective":
@@ -454,6 +454,194 @@ func _apply_sim_command(command: Dictionary, active_squads: Dictionary, command_
 			_apply_reset_world_squads_command(command, active_squads, command_log)
 		_:
 			_append_command_log(command_log, command, "error", "Unknown command action: %s" % action)
+
+
+func _apply_start_combat_encounter_command(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
+	if _world_encounter_state_component == null or not _world_encounter_state_component.has_method("apply_state"):
+		_append_command_log(command_log, command, "error", "World encounter state is not available")
+		return
+	var encounter_state := get_world_encounter_state()
+	var encounters_by_id := _dictionary_from_state(encounter_state, "encounters_by_id")
+	var active_pair_keys := _dictionary_from_state(encounter_state, "active_pair_keys")
+	var encounter_log := _encounter_log_from_state(encounter_state)
+	var next_encounter_id := maxi(1, int(encounter_state.get("next_encounter_id", 1)))
+	var request_source := _start_request_source_from_command(command)
+	var encounter_id := str(request_source.get("encounter_id", "")).strip_edges()
+	if encounter_id.is_empty():
+		encounter_id = "encounter:%04d" % next_encounter_id
+		next_encounter_id += 1
+		request_source["encounter_id"] = encounter_id
+	elif encounters_by_id.has(encounter_id):
+		_append_command_log(command_log, command, "error", "Encounter already exists: %s" % encounter_id)
+		return
+	var request = COMBAT_ENCOUNTER_START_REQUEST_SCRIPT.new()
+	request.call("apply_dictionary", request_source)
+	var request_errors: Array[String] = request.validation_errors("start_request")
+	if not request_errors.is_empty():
+		_append_command_log(command_log, command, "error", "Invalid encounter start request: %s" % request_errors[0])
+		return
+	var request_record: Dictionary = request.to_dictionary()
+	var squad_ids := _squad_ids_from_start_request(request_record)
+	if squad_ids.size() < 2:
+		_append_command_log(command_log, command, "error", "Encounter start adapter needs two squad_id sides")
+		return
+	var squad_a_id := squad_ids[0]
+	var squad_b_id := squad_ids[1]
+	if not active_squads.has(squad_a_id) or not active_squads.has(squad_b_id):
+		_append_command_log(command_log, command, "error", "Encounter start references unknown squads")
+		return
+	var squad_a = active_squads[squad_a_id]
+	var squad_b = active_squads[squad_b_id]
+	if not (squad_a is Dictionary) or not (squad_b is Dictionary):
+		_append_command_log(command_log, command, "error", "Encounter start references invalid squad records")
+		return
+	var pair_key := _squad_pair_key(squad_a_id, squad_b_id)
+	if active_pair_keys.has(pair_key):
+		_append_command_log(command_log, command, "error", "Encounter already active for %s" % pair_key)
+		return
+	var squad_a_record: Dictionary = squad_a
+	var squad_b_record: Dictionary = squad_b
+	var encounter_record := _encounter_record_from_start_request(encounter_id, pair_key, request_record, squad_a_id, squad_a_record, squad_b_id, squad_b_record, encounter_state)
+	encounters_by_id[encounter_id] = encounter_record
+	active_pair_keys[pair_key] = encounter_id
+	_mark_squad_engaged(squad_a_record, encounter_id)
+	_mark_squad_engaged(squad_b_record, encounter_id)
+	active_squads[squad_a_id] = squad_a_record
+	active_squads[squad_b_id] = squad_b_record
+	_append_encounter_log(encounter_log, "engaged", encounter_id, pair_key, "Started encounter %s from start request" % encounter_id)
+	encounter_state["encounters_by_id"] = encounters_by_id
+	encounter_state["active_pair_keys"] = active_pair_keys
+	encounter_state["next_encounter_id"] = next_encounter_id
+	encounter_state["encounter_log"] = encounter_log
+	_world_encounter_state_component.call("apply_state", encounter_state)
+	_append_command_log(command_log, command, "applied", "Started combat encounter %s" % encounter_id)
+
+
+func _start_request_source_from_command(command: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	var nested = command.get("start_request", command.get("encounter_start_request", {}))
+	if nested is Dictionary:
+		result = (nested as Dictionary).duplicate(true)
+	var pass_through_keys := [
+		"encounter_id",
+		"initial_intent",
+		"source_type",
+		"encounter_center",
+		"location",
+		"projection_importance",
+		"visibility_flags",
+		"projection_flags",
+		"leash_context",
+		"raid_context",
+		"guard_context",
+		"battle_sim_config",
+		"sides",
+	]
+	for key in pass_through_keys:
+		if command.has(key) and not result.has(key):
+			result[key] = command.get(key)
+	return result
+
+
+func _squad_ids_from_start_request(request_record: Dictionary) -> Array[String]:
+	var result: Array[String] = []
+	var sides: Array = request_record.get("sides", []) if request_record.get("sides", []) is Array else []
+	for side in sides:
+		if not (side is Dictionary):
+			continue
+		var squad_id := str((side as Dictionary).get("squad_id", "")).strip_edges()
+		if not squad_id.is_empty() and not result.has(squad_id):
+			result.append(squad_id)
+	return result
+
+
+func _encounter_record_from_start_request(encounter_id: String, pair_key: String, request_record: Dictionary, squad_a_id: String, squad_a: Dictionary, squad_b_id: String, squad_b: Dictionary, encounter_state: Dictionary) -> Dictionary:
+	var side_records := _start_request_side_records(request_record)
+	var squad_a_location := _record_location(squad_a)
+	var squad_b_location := _record_location(squad_b)
+	var center := squad_a_location.lerp(squad_b_location, 0.5)
+	if request_record.get("encounter_center", null) is Vector3:
+		center = request_record.get("encounter_center")
+	var initial_intent := str(request_record.get("initial_intent", COMBAT_ENCOUNTER_START_REQUEST_SCRIPT.INTENT_ATTACK)).strip_edges()
+	var source_type := str(request_record.get("source_type", "")).strip_edges()
+	var debug_only := initial_intent == COMBAT_ENCOUNTER_START_REQUEST_SCRIPT.INTENT_DEBUG or source_type.find("debug") >= 0
+	var battle_sim_config := _battle_sim_config_from_start_request(request_record, squad_a, squad_b)
+	var record := {
+		"encounter_id": encounter_id,
+		"pair_key": pair_key,
+		"status": "engaged",
+		"squad_ids": [squad_a_id, squad_b_id],
+		"initiator_squad_id": squad_a_id,
+		"defender_squad_id": squad_b_id,
+		"reason": initial_intent,
+		"initial_intent": initial_intent,
+		"source_type": source_type,
+		"debug_only": debug_only,
+		"is_debug_forced": debug_only,
+		"created_tick": _current_tick_count(),
+		"location": center,
+		"distance_squared": _xz_distance_squared(squad_a_location, squad_b_location),
+		"encounter_range": maxf(float(encounter_state.get("encounter_range", DEFAULT_ENCOUNTER_RANGE)), 0.0),
+		"faction_ids": _side_field_array(side_records, "faction_id", [str(squad_a.get("faction_id", "")), str(squad_b.get("faction_id", ""))]),
+		"party_ids": _side_field_array(side_records, "party_id", []),
+		"side_ids": _side_field_array(side_records, "side_id", []),
+		"objective_ids": [str(squad_a.get("objective_id", "")), str(squad_b.get("objective_id", ""))],
+		"hostility_value": 0,
+		"projection_importance": str(request_record.get("projection_importance", "")),
+		"visibility_flags": (request_record.get("visibility_flags", {}) as Dictionary).duplicate(true),
+		"projection_flags": (request_record.get("projection_flags", {}) as Dictionary).duplicate(true),
+		"duplicate_suppression_logged": false,
+		"start_request": request_record.duplicate(true),
+	}
+	var player_owned_side_id := _player_owned_side_id(side_records)
+	if not player_owned_side_id.is_empty():
+		record["player_owned_side_id"] = player_owned_side_id
+	for context_key in ["leash_context", "raid_context", "guard_context"]:
+		var context = request_record.get(context_key, {})
+		if context is Dictionary and not (context as Dictionary).is_empty():
+			record[context_key] = (context as Dictionary).duplicate(true)
+	if not battle_sim_config.is_empty():
+		record["battle_sim_config"] = battle_sim_config
+	return record
+
+
+func _start_request_side_records(request_record: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var sides: Array = request_record.get("sides", []) if request_record.get("sides", []) is Array else []
+	for side in sides:
+		if side is Dictionary:
+			result.append((side as Dictionary).duplicate(true))
+	return result
+
+
+func _side_field_array(side_records: Array[Dictionary], key: String, fallback: Array) -> Array[String]:
+	var result: Array[String] = []
+	for side in side_records:
+		var value := str(side.get(key, "")).strip_edges()
+		if not value.is_empty():
+			result.append(value)
+	if result.is_empty():
+		for fallback_value in fallback:
+			var text := str(fallback_value).strip_edges()
+			if not text.is_empty():
+				result.append(text)
+	return result
+
+
+func _player_owned_side_id(side_records: Array[Dictionary]) -> String:
+	for side in side_records:
+		if bool(side.get("player_owned", false)):
+			return str(side.get("side_id", "")).strip_edges()
+	return ""
+
+
+func _battle_sim_config_from_start_request(request_record: Dictionary, squad_a: Dictionary, squad_b: Dictionary) -> Dictionary:
+	var result := _battle_sim_config_from_squads(squad_a, squad_b)
+	var request_config = request_record.get("battle_sim_config", {})
+	if request_config is Dictionary:
+		for key in (request_config as Dictionary).keys():
+			result[key] = (request_config as Dictionary).get(key)
+	return result
 
 
 func _apply_set_squad_objective(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
