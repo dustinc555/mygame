@@ -7,6 +7,9 @@ const MIN_POWER := 0.001
 const MEMBER_POWER_EXPONENT := 1.35
 const MAX_ENGAGEMENT_GROUP_SIZE := 4
 const ENGAGEMENT_GROUP_STRATEGY := "deterministic_sorted_bounded"
+const COMBAT_SLOT_GROUP_SPACING := 5.0
+const COMBAT_SLOT_SIDE_DISTANCE := 1.2
+const COMBAT_SLOT_SUPPORT_DISTANCE := 1.05
 
 const LIFE_STATE_ALIVE := 0
 const LIFE_STATE_ASLEEP := 1
@@ -65,7 +68,10 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 	var supplies_delta_b := _supplies_delta(casualties_b, rounds, squad_b_record, profile_b)
 	var encounter_id := _combat_beat_encounter_id(encounter_record, config)
 	var engagement_groups := _engagement_groups(profile_a, profile_b, encounter_id, squad_a_id, squad_b_id)
-	var beats := _combat_beats(profile_a, profile_b, power_a, power_b, rounds, int(config.get("current_tick", 0)), encounter_id, engagement_groups, rng)
+	var slot_plan := _combat_slot_plan(encounter_record, encounter_id, engagement_groups)
+	var combat_slots: Dictionary = slot_plan.get("combat_slots", {}) if slot_plan.get("combat_slots", {}) is Dictionary else {}
+	var slot_id_by_occupant: Dictionary = slot_plan.get("slot_id_by_occupant", {}) if slot_plan.get("slot_id_by_occupant", {}) is Dictionary else {}
+	var beats := _combat_beats(profile_a, profile_b, power_a, power_b, rounds, int(config.get("current_tick", 0)), encounter_id, engagement_groups, slot_id_by_occupant, rng)
 	return {
 		"outcome": outcome,
 		"winner_squad_id": winner_id,
@@ -100,6 +106,8 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 		},
 		"engagement_groups": engagement_groups,
 		"engagement_grouping": _engagement_grouping_summary(profile_a, profile_b, engagement_groups),
+		"combat_slots": combat_slots,
+		"combat_slotting": _combat_slotting_summary(combat_slots, engagement_groups),
 	}
 
 
@@ -356,7 +364,7 @@ static func _engagement_groups(profile_a: Dictionary, profile_b: Dictionary, enc
 	return groups
 
 
-static func _combat_beats(profile_a: Dictionary, profile_b: Dictionary, power_a: float, power_b: float, rounds: int, current_tick: int, encounter_id: String, engagement_groups: Array[Dictionary], rng: RandomNumberGenerator) -> Array[Dictionary]:
+static func _combat_beats(profile_a: Dictionary, profile_b: Dictionary, power_a: float, power_b: float, rounds: int, current_tick: int, encounter_id: String, engagement_groups: Array[Dictionary], slot_id_by_occupant: Dictionary, rng: RandomNumberGenerator) -> Array[Dictionary]:
 	var beats: Array[Dictionary] = []
 	var beat_encounter_id := encounter_id.strip_edges()
 	if beat_encounter_id.is_empty():
@@ -380,6 +388,8 @@ static func _combat_beats(profile_a: Dictionary, profile_b: Dictionary, power_a:
 		var defender_member_id := str(defender_member.get("member_id", "")).strip_edges()
 		var attacker_id := attacker_member_id if not attacker_member_id.is_empty() else attacker_squad_id
 		var defender_id := defender_member_id if not defender_member_id.is_empty() else defender_squad_id
+		var attacker_slot_id := str(slot_id_by_occupant.get(attacker_id, "")).strip_edges()
+		var defender_slot_id := str(slot_id_by_occupant.get(defender_id, "")).strip_edges()
 		var attacker_name := str(attacker_member.get("member_name", attacker_squad_id))
 		var defender_name := str(defender_member.get("member_name", defender_squad_id))
 		var damage := maxf(absf(a_advantage) / float(rounds), 0.1)
@@ -401,6 +411,8 @@ static func _combat_beats(profile_a: Dictionary, profile_b: Dictionary, power_a:
 			"defender_stable_id": str(defender_member.get("stable_id", "")).strip_edges(),
 			"attacker_id": attacker_id,
 			"defender_id": defender_id,
+			"attacker_slot_id": attacker_slot_id,
+			"defender_slot_id": defender_slot_id,
 			"attacker_name": attacker_name,
 			"defender_name": defender_name,
 			"action": "attack",
@@ -410,6 +422,182 @@ static func _combat_beats(profile_a: Dictionary, profile_b: Dictionary, power_a:
 			"summary": _beat_summary(attacker_name, attacker_squad_id, defender_name, defender_squad_id, damage),
 		})
 	return beats
+
+
+static func _combat_slot_plan(encounter_record: Dictionary, encounter_id: String, engagement_groups: Array[Dictionary]) -> Dictionary:
+	var combat_slots := {}
+	var slot_id_by_occupant := {}
+	var slot_index := 1
+	var encounter_center := _encounter_center(encounter_record)
+	var group_count := engagement_groups.size()
+	for group_array_index in range(engagement_groups.size()):
+		var group: Dictionary = engagement_groups[group_array_index]
+		var group_center := encounter_center + _combat_group_center_offset(group_array_index, group_count)
+		var group_slot_ids: Array[String] = []
+		group["group_center"] = group_center
+		var side_a_ids := _combat_slot_occupants_for_group(group, "a")
+		var side_b_ids := _combat_slot_occupants_for_group(group, "b")
+		for side_index in range(side_a_ids.size()):
+			slot_index = _append_combat_slot(combat_slots, slot_id_by_occupant, group_slot_ids, slot_index, encounter_id, group, group_center, "a", side_a_ids[side_index], side_index, side_a_ids.size(), side_b_ids.size())
+		for side_index in range(side_b_ids.size()):
+			slot_index = _append_combat_slot(combat_slots, slot_id_by_occupant, group_slot_ids, slot_index, encounter_id, group, group_center, "b", side_b_ids[side_index], side_index, side_b_ids.size(), side_a_ids.size())
+		group["combat_slot_ids"] = group_slot_ids
+		engagement_groups[group_array_index] = group
+		_assign_group_slot_facings(combat_slots, slot_id_by_occupant, group, group_slot_ids)
+	return {
+		"combat_slots": combat_slots,
+		"slot_id_by_occupant": slot_id_by_occupant,
+	}
+
+
+static func _append_combat_slot(combat_slots: Dictionary, slot_id_by_occupant: Dictionary, group_slot_ids: Array[String], slot_index: int, encounter_id: String, group: Dictionary, group_center: Vector3, side: String, occupant_id: String, side_index: int, side_count: int, opposing_count: int) -> int:
+	var slot_id := _combat_slot_id(encounter_id, slot_index)
+	var local_offset := _combat_slot_local_offset(side, side_index, side_count, opposing_count)
+	var slot_record := _combat_slot_record(slot_id, slot_index, group, group_center, local_offset, side, occupant_id)
+	combat_slots[slot_id] = slot_record
+	slot_id_by_occupant[occupant_id] = slot_id
+	group_slot_ids.append(slot_id)
+	return slot_index + 1
+
+
+static func _combat_slot_record(slot_id: String, slot_index: int, group: Dictionary, group_center: Vector3, local_offset: Vector3, side: String, occupant_id: String) -> Dictionary:
+	var uses_squad_fallback := bool(group.get("uses_squad_fallback", false))
+	var squad_id := str(group.get("side_a_squad_id", "")).strip_edges() if side == "a" else str(group.get("side_b_squad_id", "")).strip_edges()
+	var occupant_kind := "squad_proxy" if uses_squad_fallback else "member"
+	var member_id := "" if uses_squad_fallback else occupant_id
+	return {
+		"slot_id": slot_id,
+		"slot_index": slot_index,
+		"encounter_id": str(group.get("encounter_id", "")),
+		"engagement_group_id": str(group.get("engagement_group_id", "")),
+		"occupant_kind": occupant_kind,
+		"occupant_id": occupant_id,
+		"member_id": member_id,
+		"squad_id": squad_id,
+		"side": side,
+		"formation_role": _combat_slot_formation_role(group, side, occupant_id),
+		"group_center": group_center,
+		"local_offset": local_offset,
+		"world_position_hint": group_center + local_offset,
+		"facing_yaw": 0.0,
+		"facing_target_slot_id": "",
+		"presentation_only": true,
+	}
+
+
+static func _combat_slot_occupants_for_group(group: Dictionary, side: String) -> Array[String]:
+	if bool(group.get("uses_squad_fallback", false)):
+		var primary_id := str(group.get("side_a_primary_id", "")).strip_edges() if side == "a" else str(group.get("side_b_primary_id", "")).strip_edges()
+		var fallback_ids: Array[String] = []
+		if not primary_id.is_empty():
+			fallback_ids.append(primary_id)
+		return fallback_ids
+	return _string_array(group.get("side_a_member_ids", [])) if side == "a" else _string_array(group.get("side_b_member_ids", []))
+
+
+static func _combat_slot_formation_role(group: Dictionary, side: String, occupant_id: String) -> String:
+	if bool(group.get("uses_squad_fallback", false)):
+		return "squad_proxy"
+	if _string_array(group.get("reserve_member_ids", [])).has(occupant_id):
+		return "reserve"
+	if _string_array(group.get("support_member_ids", [])).has(occupant_id):
+		return "support"
+	var primary_id := str(group.get("side_a_primary_id", "")).strip_edges() if side == "a" else str(group.get("side_b_primary_id", "")).strip_edges()
+	return "primary" if primary_id == occupant_id else "member"
+
+
+static func _combat_slot_local_offset(side: String, side_index: int, side_count: int, opposing_count: int) -> Vector3:
+	var sign := -1.0 if side == "a" else 1.0
+	if opposing_count <= 0:
+		return _reserve_combat_slot_local_offset(sign, side_index, side_count)
+	if side_index == 0:
+		return Vector3(sign * COMBAT_SLOT_SIDE_DISTANCE, 0.0, 0.0)
+	if side_index == 1:
+		return Vector3(sign * COMBAT_SLOT_SIDE_DISTANCE * 0.45, 0.0, -COMBAT_SLOT_SUPPORT_DISTANCE)
+	if side_index == 2:
+		return Vector3(sign * COMBAT_SLOT_SIDE_DISTANCE * 0.45, 0.0, COMBAT_SLOT_SUPPORT_DISTANCE)
+	return Vector3(sign * COMBAT_SLOT_SIDE_DISTANCE * 1.25, 0.0, 0.0)
+
+
+static func _reserve_combat_slot_local_offset(sign: float, side_index: int, side_count: int) -> Vector3:
+	if side_count <= 1:
+		return Vector3(sign * COMBAT_SLOT_SIDE_DISTANCE, 0.0, 0.0)
+	var angle := (float(side_index) / maxf(float(side_count), 1.0)) * TAU
+	return Vector3(cos(angle) * COMBAT_SLOT_SIDE_DISTANCE, 0.0, sin(angle) * COMBAT_SLOT_SIDE_DISTANCE)
+
+
+static func _assign_group_slot_facings(combat_slots: Dictionary, slot_id_by_occupant: Dictionary, group: Dictionary, group_slot_ids: Array[String]) -> void:
+	for slot_id in group_slot_ids:
+		var slot: Dictionary = combat_slots.get(slot_id, {})
+		if slot.is_empty():
+			continue
+		var target_slot_id := _combat_slot_target_id(slot, group, slot_id_by_occupant)
+		var target_position: Vector3 = slot.get("group_center", Vector3.ZERO)
+		if not target_slot_id.is_empty() and combat_slots.has(target_slot_id):
+			var target_slot: Dictionary = combat_slots.get(target_slot_id, {})
+			target_position = target_slot.get("world_position_hint", target_position) if target_slot.get("world_position_hint", target_position) is Vector3 else target_position
+		var slot_position: Vector3 = slot.get("world_position_hint", Vector3.ZERO) if slot.get("world_position_hint", Vector3.ZERO) is Vector3 else Vector3.ZERO
+		slot["facing_target_slot_id"] = target_slot_id
+		slot["facing_yaw"] = _facing_yaw(slot_position, target_position)
+		combat_slots[slot_id] = slot
+
+
+static func _combat_slot_target_id(slot: Dictionary, group: Dictionary, slot_id_by_occupant: Dictionary) -> String:
+	var side := str(slot.get("side", "")).strip_edges()
+	var target_id := str(group.get("side_b_primary_id", "")).strip_edges() if side == "a" else str(group.get("side_a_primary_id", "")).strip_edges()
+	if not target_id.is_empty() and slot_id_by_occupant.has(target_id):
+		return str(slot_id_by_occupant.get(target_id, "")).strip_edges()
+	var fallback_ids := _string_array(group.get("side_b_member_ids", [])) if side == "a" else _string_array(group.get("side_a_member_ids", []))
+	if not fallback_ids.is_empty():
+		return str(slot_id_by_occupant.get(fallback_ids[0], "")).strip_edges()
+	return ""
+
+
+static func _combat_slot_id(encounter_id: String, slot_index: int) -> String:
+	return "%s:slot:%03d" % [encounter_id, slot_index]
+
+
+static func _encounter_center(encounter_record: Dictionary) -> Vector3:
+	var location = encounter_record.get("location", Vector3.ZERO)
+	if location is Vector3:
+		return location
+	if location is Vector2:
+		return Vector3(location.x, 0.0, location.y)
+	return Vector3.ZERO
+
+
+static func _combat_group_center_offset(group_index: int, group_count: int) -> Vector3:
+	if group_count <= 1:
+		return Vector3.ZERO
+	var columns := maxi(1, ceili(sqrt(float(group_count))))
+	var rows := maxi(1, ceili(float(group_count) / float(columns)))
+	var column := group_index % columns
+	var row := floori(float(group_index) / float(columns))
+	var x_offset := (float(column) - (float(columns) - 1.0) * 0.5) * COMBAT_SLOT_GROUP_SPACING
+	var z_offset := (float(row) - (float(rows) - 1.0) * 0.5) * COMBAT_SLOT_GROUP_SPACING
+	return Vector3(x_offset, 0.0, z_offset)
+
+
+static func _facing_yaw(from_position: Vector3, target_position: Vector3) -> float:
+	var delta := target_position - from_position
+	if absf(delta.x) < 0.001 and absf(delta.z) < 0.001:
+		return 0.0
+	return atan2(delta.x, delta.z)
+
+
+static func _combat_slotting_summary(combat_slots: Dictionary, engagement_groups: Array[Dictionary]) -> Dictionary:
+	var groups_with_slots := 0
+	for group in engagement_groups:
+		if group is Dictionary and not _string_array((group as Dictionary).get("combat_slot_ids", [])).is_empty():
+			groups_with_slots += 1
+	return {
+		"strategy": "deterministic_group_local_offsets",
+		"complexity": "O(G + S) assignment",
+		"slot_count": combat_slots.size(),
+		"group_count": engagement_groups.size(),
+		"groups_with_slots": groups_with_slots,
+		"presentation_only": true,
+	}
 
 
 static func _engagement_grouping_summary(profile_a: Dictionary, profile_b: Dictionary, engagement_groups: Array[Dictionary]) -> Dictionary:

@@ -23,6 +23,8 @@ CombatBeat
   round
   attacker_id
   defender_id
+  attacker_slot_id
+  defender_slot_id
   attacker_member_id
   defender_member_id
   attacker_actor_id
@@ -60,6 +62,8 @@ New BattleSim-generated beats must include:
 - `defender_squad_id`
 - `attacker_id`
 - `defender_id`
+- `attacker_slot_id`
+- `defender_slot_id`
 - `action`
 - `result`
 - `damage`
@@ -120,6 +124,60 @@ Current grouping strategy:
 - Assign remaining extras into reserve groups.
 - Use O(N log N) sorting plus O(N) assignment, not all-vs-all matching.
 
+## #89 Combat Slots
+
+BattleSim emits `battle_result["combat_slots"]` as top-level projection-only slot records keyed by `slot_id`.
+
+Engagement groups reference slots without duplicating slot data:
+
+```text
+EngagementGroup
+  combat_slot_ids
+```
+
+Combat beats reference slots for presentation lookup:
+
+```text
+CombatBeat
+  attacker_slot_id
+  defender_slot_id
+```
+
+Slot records use this shape:
+
+```text
+CombatSlot
+  slot_id
+  encounter_id
+  engagement_group_id
+  occupant_kind
+  occupant_id
+  member_id
+  squad_id
+  side
+  formation_role
+  group_center
+  local_offset
+  world_position_hint
+  facing_yaw
+  facing_target_slot_id
+  presentation_only
+```
+
+`group_center` and `local_offset` are the canonical formation data. `world_position_hint` is derived as `group_center + local_offset` for convenience.
+
+`occupant_kind` is `member` for member-level groups and `squad_proxy` for squad fallback groups. Squad fallback groups emit two proxy slots so projection/debug systems still have a place to show abstract combat.
+
+Combat slots are presentation hints only. They do not decide combat outcomes, target selection, movement truth, or actor behavior.
+
+Current slotting strategy:
+
+- Place each engagement group on a deterministic encounter-local grid.
+- Use face-off offsets for 1v1 groups.
+- Use bounded surround offsets for 1v2 / 1v3 groups.
+- Use separate group centers for 5v5 and 50v50 clusters.
+- Use O(G + S) slot assignment over groups and slots, not all-pairs spacing.
+
 ## Known #87 Gaps
 
 BattleSim does not yet populate these optional projection fields with meaningful data:
@@ -127,7 +185,7 @@ BattleSim does not yet populate these optional projection fields with meaningful
 - weapon/equipment hints
 - wound target
 - life-state result per beat
-- slot, position, or facing hints
+- projection movement or interpolation toward slots
 - tactical target selection beyond deterministic engagement groups
 
 Those fields remain optional until the relevant systems produce durable result data. Projection must not invent them as truth.
