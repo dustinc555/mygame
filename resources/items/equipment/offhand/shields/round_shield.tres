@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://bxqy0b4qsh6xe"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
+[ext_resource type="Texture2D" uid="uid://b5mc6m7liio31" path="res://assets/items/equipment/round_shield_icon.svg" id="3_icon"]
+[ext_resource type="PackedScene" uid="uid://deob4lyi7y8mi" path="res://scenes/world/equipment/round_shield_model.tscn" id="4_model"]
+[ext_resource type="Resource" uid="uid://btj2x7kgya5se" path="res://resources/equipment_grip_profiles/offhand_shield.tres" id="5_grip"]
+
+[sub_resource type="Resource" id="ItemStatModifier_block"]
+script = ExtResource("2_mod")
+item_id = "round_shield"
+stat_name = "block_chance"
+add = 0.22
+
+[sub_resource type="Resource" id="ItemStatModifier_dodge"]
+script = ExtResource("2_mod")
+stat_name = "dodge_chance"
+add = -0.02
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Round Shield"
+icon = ExtResource("3_icon")
+grid_size = Vector2i(2, 2)
+unit_weight = 4.0
+equip_slot = "offhand"
+alternate_equip_slots = null
+world_scene = ExtResource("4_model")
+equipped_scene = ExtResource("4_model")
+grip_profile = ExtResource("5_grip")
+equipped_transform = Transform3D(0.225, 0, 0, 0, 0.225, 0, 0, 0, 0.225, 0, 0, 0)
+stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_block"), SubResource("ItemStatModifier_dodge")])
+tool_tags = null

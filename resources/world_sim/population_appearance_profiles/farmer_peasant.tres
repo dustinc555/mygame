@@ -7,9 +7,9 @@
 [ext_resource type="Resource" path="res://resources/character_appearance/hair_buns.tres" id="5_hair_buns"]
 [ext_resource type="Resource" path="res://resources/character_appearance/hair_buzzed_female.tres" id="6_hair_buzzed_female"]
 [ext_resource type="Resource" path="res://resources/character_appearance/beard_full.tres" id="7_beard_full"]
-[ext_resource type="Resource" path="res://resources/items/peasant_tunic.tres" id="8_tunic"]
-[ext_resource type="Resource" path="res://resources/items/peasant_trousers.tres" id="9_trousers"]
-[ext_resource type="Resource" path="res://resources/items/peasant_shoes.tres" id="10_shoes"]
+[ext_resource type="Resource" path="res://resources/items/equipment/clothing/peasant_tunic.tres" id="8_tunic"]
+[ext_resource type="Resource" path="res://resources/items/equipment/clothing/peasant_trousers.tres" id="9_trousers"]
+[ext_resource type="Resource" path="res://resources/items/equipment/clothing/peasant_shoes.tres" id="10_shoes"]
 
 [resource]
 script = ExtResource("1_profile")

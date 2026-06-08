@@ -13,6 +13,7 @@ const EQUIP_SLOT_FEET := "feet"
 const EQUIP_SLOT_WEAPON := "weapon"
 const EQUIP_SLOT_OFFHAND := "offhand"
 
+@export var item_id := ""
 @export var display_name := "Item"
 @export var icon: Texture2D
 @export var grid_size := Vector2i(1, 1)
@@ -39,6 +40,13 @@ const EQUIP_SLOT_OFFHAND := "offhand"
 
 func is_equippable() -> bool:
 	return not equip_slot.is_empty()
+
+
+func get_stable_item_id() -> String:
+	if not item_id.strip_edges().is_empty():
+		return item_id.strip_edges()
+	var path_id := str(resource_path).get_file().get_basename()
+	return path_id.strip_edges()
 
 
 func has_tool_tag(tag: String) -> bool:

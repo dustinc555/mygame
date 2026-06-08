@@ -172,9 +172,9 @@ static func _member_profile(record: Dictionary, squad_id: String) -> Dictionary:
 	var endurance := _skill_level(skill_levels, ATTRIBUTE_ENDURANCE)
 	var offense := 1.0 + best_weapon_skill * 1.2 + strength * 0.7 + dexterity * 0.55 + perception * 0.35
 	var defense := 1.0 + toughness * 0.75 + endurance * 0.55 + dexterity * 0.35 + shields * 0.45
-	offense += maxf(float(record.get("base_attack_damage", 0.0)), 0.0) * 0.08
-	defense *= _chance_factor(record.get("base_dodge_chance", 0.0), 0.35)
-	defense *= _chance_factor(record.get("base_block_chance", 0.0), 0.45)
+	offense += maxf(_record_combat_stat(record, "attack_damage", "base_attack_damage"), 0.0) * 0.08
+	defense *= _chance_factor(_record_combat_stat(record, "dodge_chance", "base_dodge_chance"), 0.35)
+	defense *= _chance_factor(_record_combat_stat(record, "block_chance", "base_block_chance"), 0.45)
 	var life_state := _life_state(record.get("life_state", LIFE_STATE_ALIVE))
 	var stance := _combat_stance(record.get("combat_stance", COMBAT_STANCE_DEFENSIVE))
 	var initiative_factor := 1.0
@@ -224,6 +224,13 @@ static func _effective_power(profile: Dictionary, record: Dictionary, encounter_
 	var objective_modifier := _objective_modifier(record, encounter_record)
 	var variation := rng.randf_range(0.92, 1.08)
 	return base_power * morale_factor * supplies_factor * objective_modifier * variation
+
+
+static func _record_combat_stat(record: Dictionary, stat_name: String, base_field: String) -> float:
+	var effective_field := "effective_%s" % stat_name
+	if record.has(effective_field):
+		return float(record.get(effective_field, 0.0))
+	return float(record.get(base_field, 0.0))
 
 
 static func _fallback_base_power(record: Dictionary) -> float:

@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/roles/merchant_role.gd" id="2_role"]
 [ext_resource type="Resource" path="res://resources/conversations/generic_shopkeeper.tres" id="4_conversation"]
-[ext_resource type="Resource" path="res://resources/items/silver.tres" id="5_silver"]
+[ext_resource type="Resource" path="res://resources/items/currency/silver_coin.tres" id="5_silver"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
 radius = 0.45

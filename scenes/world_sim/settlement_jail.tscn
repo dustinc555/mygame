@@ -5,9 +5,9 @@
 [ext_resource type="Resource" path="res://resources/world_sim/facility_functions/jail.tres" id="2_eoaic"]
 [ext_resource type="PackedScene" path="res://scenes/world_sim/jail_cell.tscn" id="5_cell"]
 [ext_resource type="PackedScene" uid="uid://c63jdgt2b68gb" path="res://scenes/world/containers/prisoner_locker_container.tscn" id="7_locker"]
-[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/bandage.tres" id="9_bandage"]
-[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/hatchet.tres" id="10_hatchet"]
-[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/round_shield.tres" id="11_shield"]
+[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/consumables/bandage.tres" id="9_bandage"]
+[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/equipment/weapons/axes/hatchet.tres" id="10_hatchet"]
+[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/equipment/offhand/shields/round_shield.tres" id="11_shield"]
 [ext_resource type="Script" path="res://scripts/world_sim/settlement_guard_post.gd" id="12_guard_post"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_staff"]

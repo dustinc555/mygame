@@ -225,6 +225,9 @@ func _current_camera() -> Camera3D:
 func _details_snapshot(record: Dictionary) -> Dictionary:
 	var actor_id := str(record.get("actor_id", record.get("stable_id", _selected_actor_id))).strip_edges()
 	var equipment_slots := _equipment_slots_for_actor(actor_id, record)
+	var stat_profile := _stat_profile_for_actor(actor_id, record)
+	var effective_stats: Dictionary = stat_profile.get("effective_stats", {}) if stat_profile.get("effective_stats", {}) is Dictionary else {}
+	var modifiers: Array = stat_profile.get("modifiers", []) if stat_profile.get("modifiers", []) is Array else []
 	var skill_levels: Dictionary = record.get("skill_levels", {}) if record.get("skill_levels", {}) is Dictionary else {}
 	var skill_xp: Dictionary = record.get("skill_xp", {}) if record.get("skill_xp", {}) is Dictionary else {}
 	var squad_record := _squad_record_for_record(record)
@@ -233,7 +236,7 @@ func _details_snapshot(record: Dictionary) -> Dictionary:
 	var move_order: Dictionary = record.get("move_order", {}) if record.get("move_order", {}) is Dictionary else {}
 	var locomotion_state: Dictionary = record.get("locomotion_state", {}) if record.get("locomotion_state", {}) is Dictionary else {}
 	var objective_summary := _objective_summary(record, squad_record)
-	var combat_summary := _combat_summary(record, squad_record, encounter_record)
+	var combat_summary := _combat_summary(record, squad_record, encounter_record, effective_stats)
 	return {
 		"actor_id": actor_id,
 		"projection_kind": str(record.get("projection_kind", "")),
@@ -263,6 +266,11 @@ func _details_snapshot(record: Dictionary) -> Dictionary:
 		"base_attack_damage": float(record.get("base_attack_damage", 0.0)),
 		"base_dodge_chance": float(record.get("base_dodge_chance", 0.0)),
 		"base_block_chance": float(record.get("base_block_chance", 0.0)),
+		"effective_attack_damage": float(effective_stats.get("attack_damage", record.get("base_attack_damage", 0.0))),
+		"effective_dodge_chance": float(effective_stats.get("dodge_chance", record.get("base_dodge_chance", 0.0))),
+		"effective_block_chance": float(effective_stats.get("block_chance", record.get("base_block_chance", 0.0))),
+		"equipment_stat_profile": stat_profile.duplicate(true),
+		"equipment_stat_modifiers": modifiers.duplicate(true),
 		"combat_stance": int(record.get("combat_stance", 0)),
 		"movement_mode": int(record.get("movement_mode", 0)),
 		"move_order": move_order.duplicate(true),
@@ -286,9 +294,9 @@ func _details_snapshot(record: Dictionary) -> Dictionary:
 
 func _population_record(actor_id: String) -> Dictionary:
 	var bridge := _get_gecs_world()
-	if bridge == null or not bridge.has_method("get_population_record"):
+	if bridge == null:
 		return {}
-	var record = bridge.call("get_population_record", actor_id)
+	var record = bridge.call("get_population_record_core", actor_id) if bridge.has_method("get_population_record_core") else (bridge.call("get_population_record", actor_id) if bridge.has_method("get_population_record") else {})
 	return record if record is Dictionary else {}
 
 
@@ -303,10 +311,19 @@ func _equipment_slots_for_actor(actor_id: String, record: Dictionary) -> Diction
 			if not (slot is Dictionary):
 				continue
 			var slot_name := str((slot as Dictionary).get("slot_name", "")).strip_edges()
-			var item_path := str((slot as Dictionary).get("item_definition_path", "")).strip_edges()
-			if not slot_name.is_empty() and not item_path.is_empty():
-				result[slot_name] = item_path
+			var item_id := str((slot as Dictionary).get("item_id", "")).strip_edges()
+			if not slot_name.is_empty() and not item_id.is_empty():
+				result[slot_name] = item_id
 	return result
+
+
+func _stat_profile_for_actor(actor_id: String, record: Dictionary) -> Dictionary:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("get_actor_stat_profile"):
+		var profile = bridge.call("get_actor_stat_profile", actor_id, record)
+		if profile is Dictionary:
+			return (profile as Dictionary).duplicate(true)
+	return {}
 
 
 func _squad_record_for_record(record: Dictionary) -> Dictionary:
@@ -355,9 +372,11 @@ func _objective_summary(record: Dictionary, squad_record: Dictionary) -> String:
 	return _display_token(activity if not activity.is_empty() else "routine")
 
 
-func _combat_summary(record: Dictionary, squad_record: Dictionary, encounter_record: Dictionary) -> String:
+func _combat_summary(record: Dictionary, squad_record: Dictionary, encounter_record: Dictionary, effective_stats: Dictionary = {}) -> String:
 	var parts: Array[String] = []
 	parts.append("Stance: %s" % _stance_text(int(record.get("combat_stance", 0))))
+	if not effective_stats.is_empty():
+		parts.append("Damage: %s" % _format_decimal(float(effective_stats.get("attack_damage", record.get("base_attack_damage", 0.0))), 1))
 	if not squad_record.is_empty():
 		var encounter_id := str(squad_record.get("active_encounter_id", "")).strip_edges()
 		parts.append("Encounter: %s" % (encounter_id if not encounter_id.is_empty() else "none"))
@@ -424,13 +443,26 @@ func _equipment_summary(equipment_slots: Dictionary) -> String:
 
 
 func _item_name(item_path: String) -> String:
-	var item := load(item_path) as Resource if not item_path.strip_edges().is_empty() else null
+	var item := ItemDefinitionIndex.load_definition(item_path) as Resource if not item_path.strip_edges().is_empty() else null
+	if item == null and ResourceLoader.exists(item_path):
+		item = load(item_path) as Resource
 	if item != null:
 		var display_name = item.get("display_name")
 		if display_name != null and not str(display_name).strip_edges().is_empty():
 			return str(display_name)
 	var file_name := item_path.get_file().get_basename()
 	return _display_token(file_name)
+
+
+func _format_decimal(value: float, digits: int) -> String:
+	var rounded := snappedf(value, pow(10.0, -digits))
+	var text := str(rounded)
+	if text.contains("."):
+		while text.ends_with("0"):
+			text = text.substr(0, text.length() - 1)
+		if text.ends_with("."):
+			text = text.substr(0, text.length() - 1)
+	return text
 
 
 func _projection_for_actor(actor_id: String) -> Node:
@@ -487,8 +519,19 @@ func _bind_details_panel() -> void:
 
 func _on_inspector_action_requested(actor_id: String, action_key: String) -> void:
 	match action_key:
+		"inventory":
+			_open_inventory_window(actor_id)
 		"skills":
 			_open_skills_window(actor_id)
+
+
+func _open_inventory_window(actor_id: String) -> void:
+	var normalized_id := actor_id.strip_edges()
+	if normalized_id.is_empty():
+		return
+	var controller := _get_party_inventory_controller()
+	if controller != null and controller.has_method("open_inventory_for_actor_id"):
+		controller.call("open_inventory_for_actor_id", normalized_id)
 
 
 func _open_skills_window(actor_id: String) -> void:
@@ -550,6 +593,15 @@ func _get_combat_controller() -> Node:
 		if local != null:
 			return local
 	return get_tree().get_first_node_in_group("world_map_combat_sim_controller") if is_inside_tree() else null
+
+
+func _get_party_inventory_controller() -> Node:
+	var parent_node := get_parent()
+	if parent_node != null:
+		var local := parent_node.get_node_or_null("PartyInventoryController")
+		if local != null:
+			return local
+	return get_tree().get_first_node_in_group("party_inventory_controller") if is_inside_tree() else null
 
 
 func _life_state_text(life_state: int) -> String:

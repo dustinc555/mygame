@@ -311,6 +311,12 @@ func _job_status_text(snapshot: Dictionary) -> String:
 
 func _humanoid_info_rows(snapshot: Dictionary) -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
+	var attack := float(snapshot.get("effective_attack_damage", snapshot.get("base_attack_damage", 0.0)))
+	var base_attack := float(snapshot.get("base_attack_damage", 0.0))
+	var dodge := float(snapshot.get("effective_dodge_chance", snapshot.get("base_dodge_chance", 0.0)))
+	var block := float(snapshot.get("effective_block_chance", snapshot.get("base_block_chance", 0.0)))
+	rows.append({"label": "Combat", "value": "Damage %s%s" % [_format_decimal(attack, 1), _delta_text(attack - base_attack, 1)]})
+	rows.append({"label": "Defense", "value": "Dodge %s%%, Block %s%%" % [_format_decimal(dodge * 100.0, 0), _format_decimal(block * 100.0, 0)]})
 	for spec in [
 		{"label": "Law", "field": "law_status_label"},
 		{"label": "Warrant", "field": "law_warrant_summary"},
@@ -322,7 +328,26 @@ func _humanoid_info_rows(snapshot: Dictionary) -> Array[Dictionary]:
 		rows.append({"label": str(spec["label"]), "value": value})
 		if rows.size() >= _info_labels.size():
 			break
+	while rows.size() > _info_labels.size():
+		rows.pop_back()
 	return rows
+
+
+func _delta_text(delta: float, digits: int) -> String:
+	if is_equal_approx(delta, 0.0):
+		return ""
+	return " (+%s)" % _format_decimal(delta, digits) if delta > 0.0 else " (-%s)" % _format_decimal(absf(delta), digits)
+
+
+func _format_decimal(value: float, digits: int) -> String:
+	var rounded := snappedf(value, pow(10.0, -digits))
+	var text := str(rounded)
+	if text.contains("."):
+		while text.ends_with("0"):
+			text = text.substr(0, text.length() - 1)
+		if text.ends_with("."):
+			text = text.substr(0, text.length() - 1)
+	return text
 
 
 func _set_info_rows(rows: Array[Dictionary]) -> void:
@@ -338,21 +363,21 @@ func _set_info_rows(rows: Array[Dictionary]) -> void:
 		_set_info_row(index, str(data.get("label", "-")), str(data.get("value", "-")))
 
 
-func _set_vitals_visible(is_visible: bool) -> void:
+func _set_vitals_visible(should_show: bool) -> void:
 	for row in [_hunger_row, _blood_row, _hp_row, _fatigue_row]:
 		if row != null:
-			row.visible = is_visible
+			row.visible = should_show
 
 
-func _set_info_rows_visible(is_visible: bool) -> void:
+func _set_info_rows_visible(should_show: bool) -> void:
 	if _info_rows != null:
-		_info_rows.visible = is_visible
+		_info_rows.visible = should_show
 	for label in _info_labels:
 		var row: Control = null
 		if label != null:
 			row = label.get_parent() as Control
 		if row != null:
-			row.visible = is_visible
+			row.visible = should_show
 
 
 func _setup_blood_bleed_glow() -> void:

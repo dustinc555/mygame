@@ -253,25 +253,30 @@ func _apply_drag_selection() -> void:
 func _write_move_order(record: Dictionary, target_position: Vector3, issued_position: Vector3) -> Dictionary:
 	if not _record_is_controllable(record):
 		return {}
-	record = record.duplicate(true)
+	var actor_id := str(record.get("actor_id", record.get("stable_id", ""))).strip_edges()
+	if actor_id.is_empty():
+		return {}
 	var movement_mode := int(record.get("movement_mode", MOVEMENT_MODE_WALK))
-	record["move_order"] = {
-		"active": true,
-		"source": "player",
-		"target_position": target_position,
-		"issued_position": issued_position,
-		"movement_mode": movement_mode,
-		"issued_msec": Time.get_ticks_msec(),
+	var patch := {
+		"actor_id": actor_id,
+		"move_order": {
+			"active": true,
+			"source": "player",
+			"target_position": target_position,
+			"issued_position": issued_position,
+			"movement_mode": movement_mode,
+			"issued_msec": Time.get_ticks_msec(),
+		},
+		"control_intent": {
+			"source": "player",
+			"mode": "move_order",
+			"target_position": target_position,
+			"movement_mode": movement_mode,
+		},
+		"ledger_activity_state": "player_move_order",
 	}
-	record["control_intent"] = {
-		"source": "player",
-		"mode": "move_order",
-		"target_position": target_position,
-		"movement_mode": movement_mode,
-	}
-	record["ledger_activity_state"] = "player_move_order"
-	var updated := _upsert_population_record(record)
-	return updated if not updated.is_empty() else record
+	var updated := _upsert_population_record(patch)
+	return updated if not updated.is_empty() else patch
 
 
 func _on_movement_button_pressed(mode: int) -> void:
@@ -279,14 +284,13 @@ func _on_movement_button_pressed(mode: int) -> void:
 		var record := _population_record(actor_id)
 		if record.is_empty():
 			continue
-		record = record.duplicate(true)
-		record["movement_mode"] = mode
+		var patch := {"actor_id": actor_id, "movement_mode": mode}
 		var move_order: Dictionary = record.get("move_order", {}) if record.get("move_order", {}) is Dictionary else {}
 		if bool(move_order.get("active", false)):
 			move_order = move_order.duplicate(true)
 			move_order["movement_mode"] = mode
-			record["move_order"] = move_order
-		_upsert_population_record(record)
+			patch["move_order"] = move_order
+		_upsert_population_record(patch)
 	_update_command_bar()
 	_refresh_selection()
 
@@ -304,9 +308,7 @@ func _on_stance_button_pressed(stance: int) -> void:
 		var record := _population_record(actor_id)
 		if record.is_empty():
 			continue
-		record = record.duplicate(true)
-		record["combat_stance"] = stance
-		_upsert_population_record(record)
+		_upsert_population_record({"actor_id": actor_id, "combat_stance": stance})
 	_update_command_bar()
 	_refresh_selection()
 
@@ -316,9 +318,9 @@ func _set_selected_flag(field_name: String, value: bool) -> void:
 		var record := _population_record(actor_id)
 		if record.is_empty():
 			continue
-		record = record.duplicate(true)
-		record[field_name] = value
-		_upsert_population_record(record)
+		var patch := {"actor_id": actor_id}
+		patch[field_name] = value
+		_upsert_population_record(patch)
 	_update_command_bar()
 	_refresh_selection()
 
@@ -653,9 +655,9 @@ func _selected_controllable_actor_ids() -> Array[String]:
 func _controllable_actor_ids() -> Array[String]:
 	var bridge := _get_gecs_world()
 	var result: Array[String] = []
-	if bridge == null or not bridge.has_method("get_population_records"):
+	if bridge == null:
 		return result
-	var records: Dictionary = bridge.call("get_population_records")
+	var records := _get_population_records_core(bridge)
 	for actor_id_value in records.keys():
 		var record = records[actor_id_value]
 		if record is Dictionary and _record_is_controllable(record):
@@ -665,18 +667,28 @@ func _controllable_actor_ids() -> Array[String]:
 
 func _population_record(actor_id: String) -> Dictionary:
 	var bridge := _get_gecs_world()
-	if bridge == null or not bridge.has_method("get_population_record"):
+	if bridge == null:
 		return {}
-	var record = bridge.call("get_population_record", actor_id)
+	var record = bridge.call("get_population_record_core", actor_id) if bridge.has_method("get_population_record_core") else (bridge.call("get_population_record", actor_id) if bridge.has_method("get_population_record") else {})
 	return record if record is Dictionary else {}
 
 
 func _upsert_population_record(record: Dictionary) -> Dictionary:
 	var bridge := _get_gecs_world()
-	if bridge == null or not bridge.has_method("upsert_population_record"):
+	if bridge == null:
 		return {}
-	var updated = bridge.call("upsert_population_record", record)
+	var updated = bridge.call("upsert_population_record_core", record) if bridge.has_method("upsert_population_record_core") else (bridge.call("upsert_population_record", record) if bridge.has_method("upsert_population_record") else {})
 	return updated if updated is Dictionary else {}
+
+
+func _get_population_records_core(bridge: Node) -> Dictionary:
+	if bridge.has_method("get_population_records_core"):
+		var core_records = bridge.call("get_population_records_core")
+		return core_records if core_records is Dictionary else {}
+	if bridge.has_method("get_population_records"):
+		var records = bridge.call("get_population_records")
+		return records if records is Dictionary else {}
+	return {}
 
 
 func _projection_for_actor(actor_id: String) -> Node:
@@ -725,13 +737,6 @@ func _ui_blocks_control() -> bool:
 		var node := hud.get_node_or_null(path) as CanvasItem
 		if node != null and node.visible:
 			return true
-	var inventory_root := hud.get_node_or_null("InventoryWindowLayer")
-	if inventory_root != null:
-		for child in inventory_root.get_children():
-			if child is CharacterSkillsWindow:
-				continue
-			if child is CanvasItem and (child as CanvasItem).visible:
-				return true
 	return false
 
 

@@ -10,16 +10,20 @@ const EXPECTED_PLAYER_RECORDS := {
 	"player.mira": {
 		"member_name": "Mira",
 		"max_hp": 118.0,
-		"weapon": "res://resources/items/steel_sword.tres",
-		"chest": "res://resources/items/ranger_jerkin.tres",
+		"weapon": "steel_sword",
+		"weapon_path": "res://resources/items/equipment/weapons/swords/steel_sword.tres",
+		"chest": "ranger_jerkin",
+		"chest_path": "res://resources/items/equipment/armor/chest/ranger_jerkin.tres",
 		"combat_skill": "combat.swords_one_handed",
 		"visual_body_type": 3,
 	},
 	"player.tomas": {
 		"member_name": "Tomas",
 		"max_hp": 116.0,
-		"weapon": "res://resources/items/iron_axe.tres",
-		"chest": "res://resources/items/peasant_tunic.tres",
+		"weapon": "iron_axe",
+		"weapon_path": "res://resources/items/equipment/weapons/axes/iron_axe.tres",
+		"chest": "peasant_tunic",
+		"chest_path": "res://resources/items/equipment/clothing/peasant_tunic.tres",
 		"combat_skill": "combat.axes_one_handed",
 		"visual_body_type": 2,
 	},
@@ -153,15 +157,19 @@ func _validate_player_population_records(gecs: Node) -> void:
 		_expect(not str(appearance.get("body_archetype", "")).is_empty(), "Player record body archetype appearance: %s" % actor_id)
 		_expect(int(appearance.get("visual_body_type", 0)) == int(expected.get("visual_body_type", 0)), "Player record visual body type: %s" % actor_id)
 		var equipment_slots: Dictionary = record.get("equipment_slots", {}) if record.get("equipment_slots", {}) is Dictionary else {}
+		var equipment_slot_paths: Dictionary = record.get("equipment_slot_paths", {}) if record.get("equipment_slot_paths", {}) is Dictionary else {}
 		_expect(str(equipment_slots.get("weapon", "")) == str(expected.get("weapon", "")), "Player record weapon equipment: %s" % actor_id)
 		_expect(str(equipment_slots.get("chest", "")) == str(expected.get("chest", "")), "Player record chest equipment: %s" % actor_id)
+		_expect(str(equipment_slot_paths.get("weapon", "")) == str(expected.get("weapon_path", "")), "Player record weapon equipment path: %s" % actor_id)
+		_expect(str(equipment_slot_paths.get("chest", "")) == str(expected.get("chest_path", "")), "Player record chest equipment path: %s" % actor_id)
 		var inventory_entries: Array = record.get("inventory_entries", []) if record.get("inventory_entries", []) is Array else []
-		_expect(_inventory_has_item(inventory_entries, "res://resources/items/bandage.tres"), "Player record has inventory entries: %s" % actor_id)
+		_expect(_inventory_has_item(inventory_entries, "res://resources/items/consumables/bandage.tres"), "Player record has inventory entries: %s" % actor_id)
 
 
 func _inventory_has_item(entries: Array, item_path: String) -> bool:
+	var item_id := ItemDefinitionIndex.item_id_for(item_path)
 	for entry in entries:
-		if entry is Dictionary and str((entry as Dictionary).get("item_id", "")) == item_path:
+		if entry is Dictionary and (str((entry as Dictionary).get("item_id", "")) == item_id or str((entry as Dictionary).get("item_definition_path", "")) == item_path):
 			return true
 	return false
 

@@ -69,27 +69,39 @@ appearance = {
 "visual_body_type": 2
 }
 equipment_slots = {
-"chest": "res://resources/items/peasant_tunic.tres",
-"feet": "res://resources/items/peasant_shoes.tres",
-"legs": "res://resources/items/peasant_trousers.tres",
-"weapon": "res://resources/items/iron_axe.tres"
+"chest": "res://resources/items/equipment/clothing/peasant_tunic.tres",
+"feet": "res://resources/items/equipment/clothing/peasant_shoes.tres",
+"legs": "res://resources/items/equipment/clothing/peasant_trousers.tres",
+"weapon": "res://resources/items/equipment/weapons/axes/iron_axe.tres"
 }
 inventory_entries = [{
 "contained_item_counts": {},
-"count": 2,
+"count": 1,
 "grid_position": Vector2i(0, 0),
-"item_id": "res://resources/items/bandage.tres",
+"item_id": "res://resources/items/consumables/bandage.tres",
 "metadata": {}
 }, {
 "contained_item_counts": {},
 "count": 1,
-"grid_position": Vector2i(1, 0),
-"item_id": "res://resources/items/cinder_flask.tres",
+"grid_position": Vector2i(2, 0),
+"item_id": "res://resources/items/consumables/bandage.tres",
 "metadata": {}
 }, {
 "contained_item_counts": {},
-"count": 2,
-"grid_position": Vector2i(2, 0),
-"item_id": "res://resources/items/bread.tres",
+"count": 1,
+"grid_position": Vector2i(4, 0),
+"item_id": "res://resources/items/tools/cinder_flask.tres",
+"metadata": {}
+}, {
+"contained_item_counts": {},
+"count": 1,
+"grid_position": Vector2i(5, 0),
+"item_id": "res://resources/items/consumables/bread.tres",
+"metadata": {}
+}, {
+"contained_item_counts": {},
+"count": 1,
+"grid_position": Vector2i(0, 2),
+"item_id": "res://resources/items/consumables/bread.tres",
 "metadata": {}
 }]

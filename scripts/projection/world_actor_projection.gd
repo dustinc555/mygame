@@ -159,8 +159,8 @@ func _make_selection_ring_mesh() -> ArrayMesh:
 
 
 func _record_world_position(record: Dictionary) -> Vector3:
-	var position = record.get("last_world_position", record.get("world_position", Vector3.ZERO))
-	return position if position is Vector3 else Vector3.ZERO
+	var record_position = record.get("last_world_position", record.get("world_position", Vector3.ZERO))
+	return record_position if record_position is Vector3 else Vector3.ZERO
 
 
 func _safe_node_name(value: String) -> String:

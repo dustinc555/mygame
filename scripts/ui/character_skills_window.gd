@@ -28,13 +28,13 @@ const CATEGORY_TO_SECTION := {
 	"knowledge": "knowledge_tech",
 	"tech": "knowledge_tech",
 }
-
 var root_scene: Node
 var hud_layer: CanvasLayer
 var actor_id := ""
 
 var title_label: Label
 var title_bar: PanelContainer
+var skills_scroll: ScrollContainer
 var columns_root: HBoxContainer
 
 var _section_roots: Dictionary = {}
@@ -125,6 +125,7 @@ func get_debug_state() -> Dictionary:
 		"section_layout": SECTION_LAYOUT.duplicate(true),
 		"sections": sections,
 		"rows": rows,
+		"has_scroll_container": skills_scroll != null,
 		"depends_on_live_actor": false,
 	}
 
@@ -201,12 +202,18 @@ func _build_layout() -> void:
 	close_button.pressed.connect(hide)
 	header.add_child(close_button)
 
+	skills_scroll = ScrollContainer.new()
+	skills_scroll.name = "SkillsScroll"
+	skills_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skills_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(skills_scroll)
+
 	columns_root = HBoxContainer.new()
 	columns_root.name = "SkillsColumns"
 	columns_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	columns_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	columns_root.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	columns_root.add_theme_constant_override("separation", 12)
-	root.add_child(columns_root)
+	skills_scroll.add_child(columns_root)
 	_build_section_columns()
 	_rebuild_rows()
 
@@ -395,9 +402,9 @@ func _apply_progress_style(progress: ProgressBar) -> void:
 
 func _population_record(target_actor_id: String) -> Dictionary:
 	var bridge := _get_gecs_world()
-	if bridge == null or not bridge.has_method("get_population_record"):
+	if bridge == null:
 		return {}
-	var record = bridge.call("get_population_record", target_actor_id)
+	var record = bridge.call("get_population_record_core", target_actor_id) if bridge.has_method("get_population_record_core") else (bridge.call("get_population_record", target_actor_id) if bridge.has_method("get_population_record") else {})
 	return record if record is Dictionary else {}
 
 

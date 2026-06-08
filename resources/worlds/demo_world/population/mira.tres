@@ -69,29 +69,41 @@ appearance = {
 "visual_body_type": 3
 }
 equipment_slots = {
-"chest": "res://resources/items/ranger_jerkin.tres",
-"feet": "res://resources/items/ranger_boots.tres",
-"head": "res://resources/items/ranger_hood.tres",
-"legs": "res://resources/items/ranger_leggings.tres",
-"offhand": "res://resources/items/round_shield.tres",
-"weapon": "res://resources/items/steel_sword.tres"
+"chest": "res://resources/items/equipment/armor/chest/ranger_jerkin.tres",
+"feet": "res://resources/items/equipment/armor/feet/ranger_boots.tres",
+"head": "res://resources/items/equipment/armor/head/ranger_hood.tres",
+"legs": "res://resources/items/equipment/armor/legs/ranger_leggings.tres",
+"offhand": "res://resources/items/equipment/offhand/shields/round_shield.tres",
+"weapon": "res://resources/items/equipment/weapons/swords/steel_sword.tres"
 }
 inventory_entries = [{
 "contained_item_counts": {},
-"count": 2,
+"count": 1,
 "grid_position": Vector2i(0, 0),
-"item_id": "res://resources/items/bandage.tres",
+"item_id": "res://resources/items/consumables/bandage.tres",
 "metadata": {}
 }, {
 "contained_item_counts": {},
 "count": 1,
-"grid_position": Vector2i(1, 0),
-"item_id": "res://resources/items/cinder_flask.tres",
+"grid_position": Vector2i(2, 0),
+"item_id": "res://resources/items/consumables/bandage.tres",
 "metadata": {}
 }, {
 "contained_item_counts": {},
-"count": 2,
-"grid_position": Vector2i(2, 0),
-"item_id": "res://resources/items/bread.tres",
+"count": 1,
+"grid_position": Vector2i(4, 0),
+"item_id": "res://resources/items/tools/cinder_flask.tres",
+"metadata": {}
+}, {
+"contained_item_counts": {},
+"count": 1,
+"grid_position": Vector2i(5, 0),
+"item_id": "res://resources/items/consumables/bread.tres",
+"metadata": {}
+}, {
+"contained_item_counts": {},
+"count": 1,
+"grid_position": Vector2i(0, 2),
+"item_id": "res://resources/items/consumables/bread.tres",
 "metadata": {}
 }]

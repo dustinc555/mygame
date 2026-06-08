@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/world_sim/squad_template.gd" id="1_template"]
 [ext_resource type="Resource" path="res://resources/world_sim/factions/paradise_hills.tres" id="2_faction"]
-[ext_resource type="Resource" path="res://resources/items/iron_sword.tres" id="3_sword"]
+[ext_resource type="Resource" path="res://resources/items/equipment/weapons/swords/iron_sword.tres" id="3_sword"]
 [ext_resource type="Resource" path="res://resources/world_sim/population_appearance_profiles/raider_scrapper.tres" id="4_appearance"]
 [ext_resource type="Resource" path="res://resources/world_sim/population_name_profiles/raider_names.tres" id="5_names"]
 

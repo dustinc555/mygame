@@ -23,6 +23,8 @@ static var _left_alt_item_labels_visible := false
 	set(value):
 		item_metadata = value.duplicate(true)
 		_refresh_label()
+@export var item_stack_id := ""
+@export var gecs_import_enabled := true
 @export var pickup_distance := 1.4
 @export var owner_faction_name := "":
 	set(value):
@@ -51,6 +53,24 @@ func setup(definition: ItemDefinition, amount: int = 1, item_contained_item_coun
 	_rebuild_visual()
 	_refresh_label()
 	_sync_world_item_to_gecs()
+
+
+func apply_stack_snapshot(snapshot: Dictionary) -> void:
+	gecs_import_enabled = false
+	item_stack_id = str(snapshot.get("stack_id", item_stack_id)).strip_edges()
+	var item_path := str(snapshot.get("item_definition_path", snapshot.get("item_id", ""))).strip_edges()
+	var item_resource = snapshot.get("item_definition_resource", null)
+	if item_resource is ItemDefinition:
+		item_definition = item_resource
+	elif item_definition == null or str(item_definition.resource_path) != item_path:
+		item_definition = load(item_path) as ItemDefinition if not item_path.is_empty() else null
+	quantity = int(snapshot.get("count", 1))
+	contained_item_counts = (snapshot.get("contained_item_counts", {}) as Dictionary).duplicate(true)
+	item_metadata = (snapshot.get("metadata", {}) as Dictionary).duplicate(true)
+	if bool(snapshot.get("world_position_initialized", false)) and snapshot.get("world_position") is Vector3:
+		global_position = snapshot.get("world_position")
+	_rebuild_visual()
+	_refresh_label()
 
 
 func _process(_delta: float) -> void:
@@ -117,6 +137,8 @@ func get_theft_difficulty() -> int:
 func try_pickup(actor) -> bool:
 	if actor == null or item_definition == null:
 		return false
+	if not item_stack_id.strip_edges().is_empty():
+		return _queue_gecs_pickup(actor)
 	var pickup_metadata := item_metadata.duplicate(true)
 	var actor_inventory = actor.inventory if actor.get("inventory") != null else null
 	if actor_inventory == null:
@@ -201,7 +223,7 @@ func _refresh_label_visibility() -> void:
 
 
 func _sync_world_item_to_gecs() -> void:
-	if not is_inside_tree():
+	if not gecs_import_enabled or not is_inside_tree():
 		return
 	var bridge := get_tree().get_first_node_in_group("gecs_world_controller")
 	if bridge != null and bridge.has_method("sync_world_item"):
@@ -209,11 +231,56 @@ func _sync_world_item_to_gecs() -> void:
 
 
 func _remove_world_item_from_gecs() -> void:
-	if not is_inside_tree():
+	if not gecs_import_enabled or not is_inside_tree():
 		return
 	var bridge := get_tree().get_first_node_in_group("gecs_world_controller")
 	if bridge != null and bridge.has_method("remove_world_item"):
 		bridge.call("remove_world_item", self)
+
+
+func _queue_gecs_pickup(actor) -> bool:
+	var actor_id := _actor_id_for_pickup(actor)
+	if actor_id.is_empty() or not is_inside_tree():
+		return false
+	var command := {"action": "pickup_stack", "actor_id": actor_id, "stack_id": item_stack_id}
+	var runner := _inventory_runner()
+	if runner != null and runner.has_method("queue_command"):
+		runner.call("queue_command", command)
+		return true
+	var sim := _inventory_sim_controller()
+	if sim != null and sim.has_method("apply_sim_commands"):
+		sim.call("apply_sim_commands", [command])
+		return true
+	return false
+
+
+func _actor_id_for_pickup(actor) -> String:
+	if actor == null:
+		return ""
+	if actor.has_meta("actor_record_id"):
+		return str(actor.get_meta("actor_record_id")).strip_edges()
+	var stable_id = actor.get("stable_id")
+	return str(stable_id).strip_edges() if stable_id != null else ""
+
+
+func _inventory_runner() -> Node:
+	var bootstrap := _bootstrap_node()
+	return bootstrap.get_node_or_null("WorldInventoryFixedTickRunner") if bootstrap != null else null
+
+
+func _inventory_sim_controller() -> Node:
+	var bootstrap := _bootstrap_node()
+	return bootstrap.get_node_or_null("WorldInventorySimController") if bootstrap != null else null
+
+
+func _bootstrap_node() -> Node:
+	var current := get_parent()
+	while current != null:
+		var bootstrap := current.get_node_or_null("GameBootstrap")
+		if bootstrap != null:
+			return bootstrap
+		current = current.get_parent()
+	return null
 
 
 func _item_display_label() -> String:

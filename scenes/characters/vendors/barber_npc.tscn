@@ -1,9 +1,9 @@
 [gd_scene load_steps=10 format=3]
 
 [ext_resource type="Resource" path="res://resources/conversations/barber_services.tres" id="2_conversation"]
-[ext_resource type="Resource" path="res://resources/items/noble_doublet.tres" id="3_doublet"]
-[ext_resource type="Resource" path="res://resources/items/noble_trousers.tres" id="4_trousers"]
-[ext_resource type="Resource" path="res://resources/items/noble_shoes.tres" id="5_shoes"]
+[ext_resource type="Resource" path="res://resources/items/equipment/clothing/noble_doublet.tres" id="3_doublet"]
+[ext_resource type="Resource" path="res://resources/items/equipment/clothing/noble_trousers.tres" id="4_trousers"]
+[ext_resource type="Resource" path="res://resources/items/equipment/clothing/noble_shoes.tres" id="5_shoes"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
 radius = 0.45
