@@ -61,7 +61,8 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 	var morale_delta_b := _morale_delta(outcome, "squad_b_won", casualties_b, squad_b_record, profile_b)
 	var supplies_delta_a := _supplies_delta(casualties_a, rounds, squad_a_record, profile_a)
 	var supplies_delta_b := _supplies_delta(casualties_b, rounds, squad_b_record, profile_b)
-	var beats := _combat_beats(profile_a, profile_b, power_a, power_b, rounds, int(config.get("current_tick", 0)), rng)
+	var encounter_id := _combat_beat_encounter_id(encounter_record, config)
+	var beats := _combat_beats(profile_a, profile_b, power_a, power_b, rounds, int(config.get("current_tick", 0)), encounter_id, rng)
 	return {
 		"outcome": outcome,
 		"winner_squad_id": winner_id,
@@ -325,11 +326,16 @@ static func _supplies_delta(casualties: int, rounds: int, record: Dictionary, pr
 	return -minf(float(rounds) * 0.35 + members * 0.08 + float(casualties) * 0.15, float(record.get("supplies", 0.0)))
 
 
-static func _combat_beats(profile_a: Dictionary, profile_b: Dictionary, power_a: float, power_b: float, rounds: int, current_tick: int, rng: RandomNumberGenerator) -> Array[Dictionary]:
+static func _combat_beats(profile_a: Dictionary, profile_b: Dictionary, power_a: float, power_b: float, rounds: int, current_tick: int, encounter_id: String, rng: RandomNumberGenerator) -> Array[Dictionary]:
 	var beats: Array[Dictionary] = []
+	var beat_encounter_id := encounter_id.strip_edges()
+	if beat_encounter_id.is_empty():
+		beat_encounter_id = "encounter:untracked"
+	var engagement_group_id := _fallback_engagement_group_id(beat_encounter_id)
 	var squad_a_id := str(profile_a.get("squad_id", ""))
 	var squad_b_id := str(profile_b.get("squad_id", ""))
 	for round_index in range(1, rounds + 1):
+		var beat_index := beats.size() + 1
 		var a_advantage := power_a - power_b + rng.randf_range(-4.0, 4.0)
 		var attacker_profile := profile_a if a_advantage >= 0.0 else profile_b
 		var defender_profile := profile_b if attacker_profile == profile_a else profile_a
@@ -339,16 +345,29 @@ static func _combat_beats(profile_a: Dictionary, profile_b: Dictionary, power_a:
 			defender_squad_id = str(defender_profile.get("squad_id", ""))
 		var attacker_member := _pick_beat_member(attacker_profile, rng)
 		var defender_member := _pick_beat_member(defender_profile, rng)
-		var attacker_id := str(attacker_member.get("member_id", attacker_squad_id))
-		var defender_id := str(defender_member.get("member_id", defender_squad_id))
+		var attacker_member_id := str(attacker_member.get("member_id", "")).strip_edges()
+		var defender_member_id := str(defender_member.get("member_id", "")).strip_edges()
+		var attacker_id := attacker_member_id if not attacker_member_id.is_empty() else attacker_squad_id
+		var defender_id := defender_member_id if not defender_member_id.is_empty() else defender_squad_id
 		var attacker_name := str(attacker_member.get("member_name", attacker_squad_id))
 		var defender_name := str(defender_member.get("member_name", defender_squad_id))
 		var damage := maxf(absf(a_advantage) / float(rounds), 0.1)
 		beats.append({
+			"beat_id": _combat_beat_id(beat_encounter_id, beat_index),
+			"beat_index": beat_index,
+			"encounter_id": beat_encounter_id,
+			"engagement_group_id": engagement_group_id,
 			"tick": current_tick,
+			"presentation_tick": current_tick + beat_index - 1,
 			"round": round_index,
 			"attacker_squad_id": attacker_squad_id,
 			"defender_squad_id": defender_squad_id,
+			"attacker_member_id": attacker_member_id,
+			"defender_member_id": defender_member_id,
+			"attacker_actor_id": str(attacker_member.get("actor_id", "")).strip_edges(),
+			"defender_actor_id": str(defender_member.get("actor_id", "")).strip_edges(),
+			"attacker_stable_id": str(attacker_member.get("stable_id", "")).strip_edges(),
+			"defender_stable_id": str(defender_member.get("stable_id", "")).strip_edges(),
 			"attacker_id": attacker_id,
 			"defender_id": defender_id,
 			"attacker_name": attacker_name,
@@ -360,6 +379,21 @@ static func _combat_beats(profile_a: Dictionary, profile_b: Dictionary, power_a:
 			"summary": _beat_summary(attacker_name, attacker_squad_id, defender_name, defender_squad_id, damage),
 		})
 	return beats
+
+
+static func _combat_beat_encounter_id(encounter_record: Dictionary, config: Dictionary) -> String:
+	var config_id := str(config.get("encounter_id", "")).strip_edges()
+	if not config_id.is_empty():
+		return config_id
+	return str(encounter_record.get("encounter_id", "")).strip_edges()
+
+
+static func _combat_beat_id(encounter_id: String, beat_index: int) -> String:
+	return "%s:beat:%03d" % [encounter_id, beat_index]
+
+
+static func _fallback_engagement_group_id(encounter_id: String) -> String:
+	return "%s:group:main" % encounter_id
 
 
 static func _pick_beat_member(profile: Dictionary, rng: RandomNumberGenerator) -> Dictionary:

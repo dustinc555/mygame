@@ -709,6 +709,7 @@ func _battle_sim_config(encounter_record: Dictionary, current_tick: int) -> Dict
 	var seed_text := "%s|%s|%s" % [_world_definition_id(), str(encounter_record.get("encounter_id", "")), str(encounter_record.get("created_tick", 0))]
 	return {
 		"seed": seed_text,
+		"encounter_id": str(encounter_record.get("encounter_id", "")),
 		"current_tick": current_tick,
 	}
 
