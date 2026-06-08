@@ -137,7 +137,7 @@ exclusive = true
 [node name="Guard" type="CharacterBody3D" parent="Guards" unique_id=1836764486]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.6, -2)
 script = ExtResource("18_actor")
-starting_equipment = Array[Resource]([ExtResource("11_8d5jw"), ExtResource("12_e1aqh"), ExtResource("13_o0ttn"), ExtResource("15_cinder"), ExtResource("15_cinder")])
+starting_equipment_ids = PackedStringArray("bandage", "hatchet", "round_shield", "cinder_flask", "cinder_flask")
 member_name = "Paradise Enforcer (guard)"
 stable_id = "npc.paradise_hills.staff.guard"
 faction_name = "ParadiseHills"

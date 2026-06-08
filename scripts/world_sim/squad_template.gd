@@ -17,7 +17,7 @@ class_name SquadTemplate
 @export var base_attack_damage := 18.0
 @export_range(0, 2, 1) var combat_stance := NpcRules.CombatStance.DEFENSIVE
 @export var hostile_faction_ids: PackedStringArray = PackedStringArray()
-@export var starting_equipment: Array[Resource] = []
+@export var starting_equipment_ids: PackedStringArray = PackedStringArray()
 
 
 func get_id() -> String:

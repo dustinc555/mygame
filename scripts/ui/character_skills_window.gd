@@ -234,9 +234,10 @@ func _rebuild_rows() -> void:
 
 func _update_rows(snapshot: Dictionary = {}) -> void:
 	var record := snapshot.duplicate(true) if not snapshot.is_empty() else _population_record(actor_id)
-	if record.is_empty() and not _last_snapshot.is_empty():
-		record = _last_snapshot.duplicate(true)
 	if record.is_empty():
+		_last_snapshot = {}
+		_clear_skill_rows()
+		visible = false
 		return
 	_last_snapshot = record.duplicate(true)
 	var member_name := str(record.get("member_name", actor_id))
@@ -246,6 +247,25 @@ func _update_rows(snapshot: Dictionary = {}) -> void:
 	var skill_xp: Dictionary = record.get("skill_xp", {}) if record.get("skill_xp", {}) is Dictionary else {}
 	for definition in SkillRules.get_all_definitions():
 		_update_skill_row(definition, skill_levels, skill_xp)
+
+
+func _clear_skill_rows() -> void:
+	if title_label != null:
+		title_label.text = "Skills"
+	for controls_value in _row_controls_by_skill.values():
+		if not (controls_value is Dictionary):
+			continue
+		var controls: Dictionary = controls_value
+		var level_label := controls.get("level_label") as Label
+		var progress := controls.get("progress") as ProgressBar
+		var xp_label := controls.get("xp_label") as Label
+		if level_label != null:
+			level_label.text = "Lv -"
+		if progress != null:
+			progress.max_value = 1.0
+			progress.value = 0.0
+		if xp_label != null:
+			xp_label.text = "0 / 0"
 
 
 func _add_skill_row(definition: SkillDefinition) -> void:

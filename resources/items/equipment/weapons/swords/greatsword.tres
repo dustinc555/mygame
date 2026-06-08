@@ -8,7 +8,6 @@
 
 [sub_resource type="Resource" id="ItemStatModifier_damage"]
 script = ExtResource("2_mod")
-item_id = "greatsword"
 stat_name = "attack_damage"
 add = 15.0
 
@@ -24,6 +23,7 @@ add = 0.75
 
 [resource]
 script = ExtResource("1_item")
+item_id = "greatsword"
 display_name = "Greatsword"
 icon = ExtResource("3_icon")
 grid_size = Vector2i(1, 5)

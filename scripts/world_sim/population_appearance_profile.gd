@@ -177,25 +177,43 @@ func _apply_equipment(actor: Node, rng: RandomNumberGenerator) -> void:
 func _apply_item_from_pool(actor: Node, pool: Array[Resource], rng: RandomNumberGenerator) -> void:
 	if actor == null or pool.is_empty():
 		return
-	var item := pool[rng.randi_range(0, pool.size() - 1)]
-	if item == null or not item.has_method("is_equippable") or not bool(item.call("is_equippable")):
+	var item := pool[rng.randi_range(0, pool.size() - 1)] as ItemDefinition
+	if item == null or not item.is_equippable():
 		return
-	var slot_name := str(item.get("equip_slot"))
+	var slot_name := str(item.equip_slot)
 	if slot_name.is_empty():
 		return
 	if actor.is_inside_tree() and actor.has_method("get_equipped_item") and actor.has_method("equip_item_to_slot"):
 		if actor.call("get_equipped_item", slot_name) == null:
 			actor.call("equip_item_to_slot", item, slot_name)
 		return
-	var starting_equipment: Array = actor.get("starting_equipment")
-	if _equipment_list_has_slot(starting_equipment, slot_name):
+	var starting_equipment_ids := _actor_starting_equipment_ids(actor)
+	if _equipment_list_has_slot(starting_equipment_ids, slot_name):
 		return
-	starting_equipment.append(item)
-	actor.set("starting_equipment", starting_equipment)
+	starting_equipment_ids.append(ItemDefinitionIndex.item_id_for_definition(item))
+	actor.set("starting_equipment_ids", starting_equipment_ids)
 
 
-func _equipment_list_has_slot(items: Array, slot_name: String) -> bool:
-	for item in items:
-		if item != null and str(item.get("equip_slot")) == slot_name:
+func _actor_starting_equipment_ids(actor: Node) -> PackedStringArray:
+	if _has_property(actor, "starting_equipment_ids"):
+		var value = actor.get("starting_equipment_ids")
+		if value is PackedStringArray:
+			return value
+	return PackedStringArray()
+
+
+func _equipment_list_has_slot(item_ids: PackedStringArray, slot_name: String) -> bool:
+	for item_id in item_ids:
+		var definition := ItemDefinitionIndex.load_definition(str(item_id))
+		if definition != null and str(definition.equip_slot) == slot_name:
+			return true
+	return false
+
+
+func _has_property(target: Object, property_name: String) -> bool:
+	if target == null:
+		return false
+	for property in target.get_property_list():
+		if str(property.get("name", "")) == property_name:
 			return true
 	return false

@@ -11,6 +11,8 @@ const PROJECTED_ACTOR_GROUPS := [
 	"character_authoring_actor",
 ]
 
+@export var fixed_tick_runner_path := NodePath("../WorldMapCombatFixedTickRunner")
+
 var root: Node
 var hud_layer: CanvasLayer
 var world_time: Node
@@ -73,7 +75,7 @@ func _try_initialize() -> void:
 	world_time = get_parent().get_node_or_null("WorldTimeController")
 	if world_time == null:
 		return
-	fixed_tick_runner = get_parent().get_node_or_null("WorldMapCombatFixedTickRunner")
+	fixed_tick_runner = _resolve_fixed_tick_runner()
 	hud_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	time_label = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/TimeLabel") as Label
 	phase_label = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/PhaseLabel") as Label
@@ -192,11 +194,14 @@ func _get_average_tick_time_ms() -> float:
 func _get_fixed_tick_runner() -> Node:
 	if fixed_tick_runner != null and is_instance_valid(fixed_tick_runner):
 		return fixed_tick_runner
-	var parent_node := get_parent()
-	if parent_node == null:
-		return null
-	fixed_tick_runner = parent_node.get_node_or_null("WorldMapCombatFixedTickRunner")
+	fixed_tick_runner = _resolve_fixed_tick_runner()
 	return fixed_tick_runner
+
+
+func _resolve_fixed_tick_runner() -> Node:
+	if fixed_tick_runner_path == NodePath(""):
+		return null
+	return get_node_or_null(fixed_tick_runner_path)
 
 
 func _get_visible_projected_actor_count() -> int:

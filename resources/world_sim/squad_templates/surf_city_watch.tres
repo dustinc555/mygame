@@ -21,4 +21,4 @@ base_color = Color(0.12, 0.58, 0.76, 1)
 base_attack_damage = 15.0
 combat_stance = 1
 hostile_faction_ids = PackedStringArray("EastRaiders")
-starting_equipment = Array[Resource]([ExtResource("3_sword")])
+starting_equipment_ids = PackedStringArray("iron_sword")

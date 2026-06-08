@@ -1145,7 +1145,7 @@ func _command_deposit_silver_into_pouch(command: Dictionary) -> Dictionary:
 		if remaining > 0:
 			source.contained_item_counts[silver_key] = remaining
 		else:
-			_remove_item_stack(source_stack_id)
+			source.contained_item_counts.erase(silver_key)
 	else:
 		source.count = int(source.count) - moved
 		if int(source.count) <= 0:

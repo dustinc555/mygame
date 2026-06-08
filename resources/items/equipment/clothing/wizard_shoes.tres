@@ -11,7 +11,6 @@
 
 [sub_resource type="Resource" id="EquipmentVisual_human_male"]
 script = ExtResource("5_visual")
-item_id = "wizard_shoes"
 body_archetype = ExtResource("6_human_male")
 visual_scene = ExtResource("3_male")
 surface_offset_ratio = 0.012
@@ -30,6 +29,7 @@ replaces_body_slots = PackedStringArray()
 
 [resource]
 script = ExtResource("1_item")
+item_id = "wizard_shoes"
 display_name = "Wizard Shoes"
 icon = ExtResource("2_icon")
 grid_size = Vector2i(2, 1)

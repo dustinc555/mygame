@@ -18,4 +18,4 @@ max_hp = 92.0
 base_attack_damage = 14.0
 combat_stance = 1
 hostile_faction_ids = PackedStringArray("Raiders")
-starting_equipment = Array[Resource]([ExtResource("3_hatchet")])
+starting_equipment_ids = PackedStringArray("hatchet")

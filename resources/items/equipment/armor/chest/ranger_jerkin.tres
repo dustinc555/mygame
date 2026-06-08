@@ -11,7 +11,6 @@
 
 [sub_resource type="Resource" id="EquipmentVisual_human_male"]
 script = ExtResource("6_visual")
-item_id = "ranger_jerkin"
 body_archetype = ExtResource("7_human_male")
 visual_scene = ExtResource("4_male")
 surface_offset_ratio = 0.018
@@ -35,6 +34,7 @@ add = 0.05
 
 [resource]
 script = ExtResource("1_item")
+item_id = "ranger_jerkin"
 display_name = "Ranger Jerkin"
 icon = ExtResource("3_icon")
 grid_size = Vector2i(2, 3)

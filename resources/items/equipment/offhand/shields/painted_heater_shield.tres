@@ -8,12 +8,12 @@
 
 [sub_resource type="Resource" id="ItemStatModifier_block"]
 script = ExtResource("2_mod")
-item_id = "painted_heater_shield"
 stat_name = "block_chance"
 add = 0.24
 
 [resource]
 script = ExtResource("1_item")
+item_id = "painted_heater_shield"
 display_name = "Painted Heater Shield"
 icon = ExtResource("3_icon")
 grid_size = Vector2i(2, 3)

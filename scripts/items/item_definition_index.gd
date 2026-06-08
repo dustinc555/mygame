@@ -13,6 +13,7 @@ static var _loaded := false
 static var _path_by_id: Dictionary = {}
 static var _id_by_path: Dictionary = {}
 static var _definition_by_id: Dictionary = {}
+static var _duplicate_paths_by_id: Dictionary = {}
 
 
 static func reset() -> void:
@@ -20,6 +21,7 @@ static func reset() -> void:
 	_path_by_id.clear()
 	_id_by_path.clear()
 	_definition_by_id.clear()
+	_duplicate_paths_by_id.clear()
 
 
 static func ensure_loaded() -> void:
@@ -85,6 +87,11 @@ static func resource_path_for(identifier: String) -> String:
 	return str(definition.resource_path) if definition != null else ""
 
 
+static func duplicate_item_ids() -> Dictionary:
+	ensure_loaded()
+	return _duplicate_paths_by_id.duplicate(true)
+
+
 static func _scan_item_directory(directory_path: String) -> void:
 	var dir := DirAccess.open(directory_path)
 	if dir == null:
@@ -109,6 +116,14 @@ static func _scan_item_directory(directory_path: String) -> void:
 static func _register_definition(definition: ItemDefinition, item_path: String) -> void:
 	var item_id := item_id_for_definition(definition)
 	if item_id.is_empty():
+		return
+	var existing_path := str(_path_by_id.get(item_id, ""))
+	if not existing_path.is_empty() and existing_path != item_path:
+		var duplicates: Array = _duplicate_paths_by_id.get(item_id, [existing_path])
+		if not duplicates.has(item_path):
+			duplicates.append(item_path)
+		_duplicate_paths_by_id[item_id] = duplicates
+		push_error("Duplicate item_id '%s' in %s and %s" % [item_id, existing_path, item_path])
 		return
 	_path_by_id[item_id] = item_path
 	_id_by_path[item_path] = item_id

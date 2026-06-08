@@ -117,7 +117,7 @@ func _validate_party_cards(party_panel: Node) -> void:
 		_expect(str(state.get("pose_animation", "")) == "Idle", "%s portrait samples main Idle pose" % actor_id)
 		var visible_text := _visible_text_under(card)
 		_expect(visible_text == str(expected_names[actor_id]), "%s visible card text is portrait name only" % actor_id)
-		_expect(str(state.get("text", "")).is_empty(), "%s button text remains empty" % actor_id)
+		_expect(str(state.get("button_text", "")).is_empty(), "%s button text remains empty" % actor_id)
 		_expect(not _contains_rejected_card_text(visible_text), "%s visible card omits status/equipment/objective lines" % actor_id)
 	_expect(str(debug.get("squad_name", "")).begins_with("Party:"), "Party panel header shows projected party count")
 
@@ -138,7 +138,7 @@ func _validate_card_selection_handoff(party_panel: Node, selection_controller: N
 	var tomas: Dictionary = cards.get("player.tomas", {}) if cards.get("player.tomas", {}) is Dictionary else {}
 	_expect(bool(tomas.get("pressed", false)), "Selected party card is marked pressed")
 	_expect(bool(tomas.get("selected", false)), "Selected party card stores selected state")
-	_expect(str(tomas.get("text", "")).is_empty(), "Selected party card does not add visible text marker")
+	_expect(str(tomas.get("button_text", "")).is_empty(), "Selected party card does not add visible text marker")
 
 
 func _validate_card_double_click_follow(scene: Node, party_panel: Node, projection_controller: Node, selection_controller: Node) -> void:
@@ -168,7 +168,7 @@ func _validate_controlled_marker(party_panel: Node, gecs: Node, selection_contro
 	var cards: Dictionary = debug.get("cards", {}) if debug.get("cards", {}) is Dictionary else {}
 	var mira: Dictionary = cards.get("player.mira", {}) if cards.get("player.mira", {}) is Dictionary else {}
 	_expect(bool(mira.get("controlled", false)), "Controlled party card stores control state")
-	_expect(str(mira.get("text", "")).is_empty(), "Controlled party card does not add visible text marker")
+	_expect(str(mira.get("button_text", "")).is_empty(), "Controlled party card does not add visible text marker")
 
 
 func _validate_gecs_update_refresh(gecs: Node, party_panel: Node) -> void:

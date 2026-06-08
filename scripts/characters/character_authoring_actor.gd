@@ -2,7 +2,7 @@ extends CharacterBody3D
 
 class_name CharacterAuthoringActor
 
-@export var starting_equipment: Array[Resource] = []
+@export var starting_equipment_ids: PackedStringArray = PackedStringArray()
 @export var member_name := ""
 @export var stable_id := ""
 @export var projection_kind := "humanoid"
@@ -45,6 +45,7 @@ func get_authoring_record() -> Dictionary:
 		"combat_stance": combat_stance,
 		"base_attack_damage": base_attack_damage,
 		"base_color": base_color,
+		"starting_equipment_ids": Array(starting_equipment_ids),
 		"skill_levels": starting_skill_levels.duplicate(true),
 		"skill_xp": starting_skill_xp.duplicate(true),
 		"life_state": life_state,

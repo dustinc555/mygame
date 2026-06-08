@@ -138,7 +138,7 @@ exclusive = true
 [node name="Guard" type="CharacterBody3D" parent="Guards" unique_id=346789828]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.6, -2)
 script = ExtResource("18_actor")
-starting_equipment = Array[Resource]([ExtResource("11_il0s6"), ExtResource("12_lc1nf"), ExtResource("13_kvu6f"), ExtResource("15_cinder"), ExtResource("15_cinder")])
+starting_equipment_ids = PackedStringArray("bandage", "hatchet", "round_shield", "cinder_flask", "cinder_flask")
 member_name = "Surf City Watch (guard)"
 stable_id = "npc.surf_city.staff.guard"
 faction_name = "SurfCity"

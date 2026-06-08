@@ -17,7 +17,7 @@ class_name SettlementPopulationSpawner
 @export_range(0.0, 1000.0, 0.1) var spawn_radius := 8.0
 @export_range(0.0, 1000.0, 0.1) var spawn_inner_radius := 0.0
 @export var random_seed := 1
-@export var starting_equipment: Array[Resource] = []
+@export var starting_equipment_ids: PackedStringArray = PackedStringArray()
 @export_range(1, 100, 1) var resident_perception_min := SkillRules.DEFAULT_LEVEL
 @export_range(1, 100, 1) var resident_perception_max := SkillRules.DEFAULT_LEVEL
 
@@ -86,7 +86,7 @@ func _population_context() -> Dictionary:
 		"base_color": base_color,
 		"color_variation": color_variation,
 		"population_appearance_profile": population_appearance_profile,
-		"starting_equipment": starting_equipment,
+		"starting_equipment_ids": Array(starting_equipment_ids),
 		"spawn_position": global_position,
 		"resident_perception_min": resident_perception_min,
 		"resident_perception_max": resident_perception_max,

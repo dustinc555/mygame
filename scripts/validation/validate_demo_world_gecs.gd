@@ -8,8 +8,8 @@ const DEMO_WORLD_SCENE_PATH := "res://scenes/worlds/demo_world/demo_world.tscn"
 const EXPECTED_SETTLEMENT_IDS := ["surf_city", "east_raiders_camp", "paradise_hills"]
 const EXPECTED_PLAYER_RECORDS := {
 	"player.mira": {
+		"record_path": "res://resources/worlds/demo_world/population/mira.tres",
 		"member_name": "Mira",
-		"max_hp": 118.0,
 		"weapon": "steel_sword",
 		"weapon_path": "res://resources/items/equipment/weapons/swords/steel_sword.tres",
 		"chest": "ranger_jerkin",
@@ -18,8 +18,8 @@ const EXPECTED_PLAYER_RECORDS := {
 		"visual_body_type": 3,
 	},
 	"player.tomas": {
+		"record_path": "res://resources/worlds/demo_world/population/tomas.tres",
 		"member_name": "Tomas",
-		"max_hp": 116.0,
 		"weapon": "iron_axe",
 		"weapon_path": "res://resources/items/equipment/weapons/axes/iron_axe.tres",
 		"chest": "peasant_tunic",
@@ -42,6 +42,10 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var scene := scene_resource.instantiate()
+	if scene == null:
+		push_error("Failed to instantiate %s" % DEMO_WORLD_SCENE_PATH)
+		quit(1)
+		return
 	root.add_child(scene)
 	call_deferred("_run_validation", scene)
 
@@ -145,7 +149,7 @@ func _validate_player_population_records(gecs: Node) -> void:
 		_expect(str(record.get("realization_state", "")) == "ledger", "Player record starts without live visual dependency: %s" % actor_id)
 		_expect(bool(record.get("important", false)), "Player record important flag: %s" % actor_id)
 		_expect(int(record.get("life_state", -1)) == 0, "Player record alive life state: %s" % actor_id)
-		_expect(absf(float(record.get("max_hp", 0.0)) - float(expected.get("max_hp", 0.0))) < 0.01, "Player record max HP: %s" % actor_id)
+		_expect(absf(float(record.get("max_hp", 0.0)) - _expected_max_hp(expected)) < 0.01, "Player record max HP: %s" % actor_id)
 		_expect(float(record.get("hp", 0.0)) > 0.0, "Player record HP: %s" % actor_id)
 		_expect(float(record.get("blood", 0.0)) > 0.0 and float(record.get("max_blood", 0.0)) > 0.0, "Player record blood vitals: %s" % actor_id)
 		_expect(float(record.get("base_attack_damage", 0.0)) > 0.0, "Player record combat damage: %s" % actor_id)
@@ -172,6 +176,14 @@ func _inventory_has_item(entries: Array, item_path: String) -> bool:
 		if entry is Dictionary and (str((entry as Dictionary).get("item_id", "")) == item_id or str((entry as Dictionary).get("item_definition_path", "")) == item_path):
 			return true
 	return false
+
+
+func _expected_max_hp(expected: Dictionary) -> float:
+	var record_path := str(expected.get("record_path", "")).strip_edges()
+	var definition: Resource = null
+	if not record_path.is_empty():
+		definition = load(record_path) as Resource
+	return float(definition.get("max_hp")) if definition != null else 0.0
 
 
 func _validate_world_squad_state(gecs: Node, combat: Node) -> void:
