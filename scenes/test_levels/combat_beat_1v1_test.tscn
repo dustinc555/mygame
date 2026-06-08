@@ -1,0 +1,95 @@
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://scripts/test_levels/combat_beat_1v1_test_level.gd" id="1_level"]
+[ext_resource type="Script" path="res://scripts/world_sim/world_loader.gd" id="2_loader"]
+[ext_resource type="Resource" path="res://resources/test_levels/combat_beat_1v1/combat_beat_1v1_world.tres" id="3_world"]
+[ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="4_bootstrap"]
+[ext_resource type="Script" path="res://scripts/camera/world_camera_controller.gd" id="5_camera"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(34, 1, 28)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.24, 0.22, 0.18, 1)
+roughness = 0.94
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(34, 1, 28)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_blue_line"]
+albedo_color = Color(0.08, 0.22, 0.9, 1)
+emission_enabled = true
+emission = Color(0.04, 0.16, 0.7, 1)
+roughness = 0.78
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_red_line"]
+albedo_color = Color(0.88, 0.12, 0.08, 1)
+emission_enabled = true
+emission = Color(0.58, 0.05, 0.03, 1)
+roughness = 0.78
+
+[sub_resource type="BoxMesh" id="BoxMesh_line"]
+size = Vector3(1.4, 0.04, 0.08)
+
+[sub_resource type="BoxMesh" id="BoxMesh_center_line"]
+size = Vector3(0.08, 0.045, 5.5)
+
+[node name="CombatBeat1v1Test" type="Node3D"]
+script = ExtResource("1_level")
+auto_start = true
+
+[node name="WorldLoader" type="Node" parent="."]
+script = ExtResource("2_loader")
+world_definition = ExtResource("3_world")
+
+[node name="Towns" type="Node3D" parent="."]
+
+[node name="Arena" type="Node3D" parent="."]
+
+[node name="Floor" type="StaticBody3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Arena/Floor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Arena/Floor"]
+material_override = SubResource("StandardMaterial3D_floor")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="BlueStartLine" type="MeshInstance3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.25, 0.05, 0)
+material_override = SubResource("StandardMaterial3D_blue_line")
+mesh = SubResource("BoxMesh_line")
+
+[node name="RedStartLine" type="MeshInstance3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.25, 0.05, 0)
+material_override = SubResource("StandardMaterial3D_red_line")
+mesh = SubResource("BoxMesh_line")
+
+[node name="CenterLine" type="MeshInstance3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.052, 0)
+material_override = SubResource("StandardMaterial3D_floor")
+mesh = SubResource("BoxMesh_center_line")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 8, 0)
+light_energy = 2.2
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="GameBootstrap" type="Node" parent="."]
+script = ExtResource("4_bootstrap")
+
+[node name="CameraRig" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+script = ExtResource("5_camera")
+move_speed = 18.0
+min_zoom_distance = 6.0
+max_zoom_distance = 36.0
+initial_pitch_degrees = -48.0
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 14)
+current = true

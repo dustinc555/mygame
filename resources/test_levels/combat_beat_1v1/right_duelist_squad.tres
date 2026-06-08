@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SquadTemplate" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/squad_template.gd" id="1_template"]
+[ext_resource type="Resource" path="res://resources/test_levels/combat_beat_1v1/right_faction.tres" id="2_faction"]
+
+[resource]
+script = ExtResource("1_template")
+template_id = "right_duelist"
+display_name = "Red Duelist"
+faction_definition = ExtResource("2_faction")
+member_name_prefix = "Red Duelist"
+member_count = 1
+base_strength = 21.0
+food_capacity = 20.0
+base_color = Color(0.86, 0.18, 0.12, 1)
+max_hp = 100.0
+base_attack_damage = 19.0
+combat_stance = 0
+hostile_faction_ids = PackedStringArray("CombatBeatLeft")

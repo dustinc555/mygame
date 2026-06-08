@@ -28,9 +28,9 @@ const WORLD_MAP_COMBAT_SIM_CONTROLLER_SCRIPT = preload("res://scripts/controller
 const WORLD_NAVIGATION_BAKER_SCRIPT = preload("res://scripts/navigation/world_navigation_baker.gd")
 const FIXED_TICK_SIM_RUNNER_SCRIPT = preload("res://scripts/simulation/fixed_tick_sim_runner.gd")
 const GAME_HUD_SCENE = preload("res://scenes/ui/game_hud.tscn")
-const WORLD_MAP_COMBAT_DEMO_SQUAD_ID_PREFIX := "demo_squad"
-const WORLD_MAP_COMBAT_DEMO_MEMBER_ID_PREFIX := "demo_member"
-const WORLD_MAP_COMBAT_DEMO_POPULATION_SOURCE := "demo_world_squad"
+const WORLD_MAP_COMBAT_SQUAD_ID_PREFIX := "world_squad"
+const WORLD_MAP_COMBAT_MEMBER_ID_PREFIX := "world_squad_member"
+const WORLD_MAP_COMBAT_POPULATION_SOURCE := "world_squad"
 
 var root_scene: Node
 var hud_layer: CanvasLayer
@@ -120,9 +120,9 @@ func _ensure_controller_node(node_name: String, script_resource: Script) -> void
 func _configure_world_map_combat_controller(controller: Node) -> void:
 	controller.set("use_isolated_ecs_world", false)
 	controller.set("process_ecs_world_on_fixed_tick", false)
-	controller.set("squad_id_prefix", WORLD_MAP_COMBAT_DEMO_SQUAD_ID_PREFIX)
-	controller.set("member_id_prefix", WORLD_MAP_COMBAT_DEMO_MEMBER_ID_PREFIX)
-	controller.set("population_generation_source", WORLD_MAP_COMBAT_DEMO_POPULATION_SOURCE)
+	controller.set("squad_id_prefix", WORLD_MAP_COMBAT_SQUAD_ID_PREFIX)
+	controller.set("member_id_prefix", WORLD_MAP_COMBAT_MEMBER_ID_PREFIX)
+	controller.set("population_generation_source", WORLD_MAP_COMBAT_POPULATION_SOURCE)
 
 
 func _initialize_controller(node_name: String) -> void:

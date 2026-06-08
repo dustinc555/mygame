@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="FactionRelationDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/faction_relation_definition.gd" id="1_relation"]
+
+[resource]
+script = ExtResource("1_relation")
+relation_id = "combat_beat_1v1_duelists"
+faction_a_id = "CombatBeatLeft"
+faction_b_id = "CombatBeatRight"
+diplomatic_state = "war"
+faction_a_outlook_to_b = -100
+faction_b_outlook_to_a = -100

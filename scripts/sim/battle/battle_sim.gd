@@ -3,6 +3,7 @@ extends RefCounted
 class_name BattleSim
 
 const DEFAULT_ROUND_COUNT := 3
+const DEFAULT_MAX_COMPLETION_BEATS := 96
 const MIN_POWER := 0.001
 const MEMBER_POWER_EXPONENT := 1.35
 const MAX_ENGAGEMENT_GROUP_SIZE := 4
@@ -72,7 +73,23 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 	var slot_plan := _combat_slot_plan(encounter_record, encounter_id, engagement_groups)
 	var combat_slots: Dictionary = slot_plan.get("combat_slots", {}) if slot_plan.get("combat_slots", {}) is Dictionary else {}
 	var slot_id_by_occupant: Dictionary = slot_plan.get("slot_id_by_occupant", {}) if slot_plan.get("slot_id_by_occupant", {}) is Dictionary else {}
-	var beats := _combat_beats(profile_a, profile_b, power_a, power_b, rounds, int(config.get("current_tick", 0)), encounter_id, engagement_groups, slot_id_by_occupant, rng)
+	var completion_result: Dictionary = _resolve_completion_1v1(profile_a, profile_b, power_a, power_b, int(config.get("current_tick", 0)), encounter_id, engagement_groups, slot_id_by_occupant, rng, config) if bool(config.get("resolve_to_completion", false)) else {}
+	if not completion_result.is_empty():
+		outcome = str(completion_result.get("outcome", outcome))
+		winner_id = str(completion_result.get("winner_squad_id", winner_id))
+		loser_id = str(completion_result.get("loser_squad_id", loser_id))
+		member_casualties_a = _dictionary_array(completion_result.get("member_casualties_a", []))
+		member_casualties_b = _dictionary_array(completion_result.get("member_casualties_b", []))
+		casualties_a = member_casualties_a.size()
+		casualties_b = member_casualties_b.size()
+		rounds = maxi(1, int(completion_result.get("rounds", rounds)))
+		morale_delta_a = _morale_delta(outcome, "squad_a_won", casualties_a, squad_a_record, profile_a)
+		morale_delta_b = _morale_delta(outcome, "squad_b_won", casualties_b, squad_b_record, profile_b)
+		supplies_delta_a = _supplies_delta(casualties_a, rounds, squad_a_record, profile_a)
+		supplies_delta_b = _supplies_delta(casualties_b, rounds, squad_b_record, profile_b)
+	var beats: Array[Dictionary] = _dictionary_array(completion_result.get("beats", []))
+	if beats.is_empty():
+		beats = _combat_beats(profile_a, profile_b, power_a, power_b, rounds, int(config.get("current_tick", 0)), encounter_id, engagement_groups, slot_id_by_occupant, rng)
 	var combat_schedule: Dictionary = COMBAT_BEAT_PLAYBACK_SCHEDULER_SCRIPT.build_schedule(beats, engagement_groups, combat_slots, config)
 	return {
 		"outcome": outcome,
@@ -98,6 +115,7 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 		"beats": beats,
 		"summary": _summary(outcome, squad_a_id, squad_b_id, winner_id, loser_id, rounds),
 		"final_outcome_reason": _outcome_reason(power_a, power_b, profile_a, profile_b),
+		"resolution_mode": "to_completion_1v1" if not completion_result.is_empty() else "bounded_rounds",
 		"power": {
 			squad_a_id: power_a,
 			squad_b_id: power_b,
@@ -193,6 +211,10 @@ static func _member_profile(record: Dictionary, squad_id: String) -> Dictionary:
 	defense *= _chance_factor(_record_combat_stat(record, "dodge_chance", "base_dodge_chance"), 0.35)
 	defense *= _chance_factor(_record_combat_stat(record, "block_chance", "base_block_chance"), 0.45)
 	var life_state := _life_state(record.get("life_state", LIFE_STATE_ALIVE))
+	var max_hp := maxf(float(record.get("max_hp", 100.0)), 1.0)
+	var hp := clampf(float(record.get("hp", max_hp)), 0.0, max_hp)
+	var max_blood := maxf(float(record.get("max_blood", 5.0)), 0.001)
+	var blood := clampf(float(record.get("blood", max_blood)), 0.0, max_blood)
 	var stance := _combat_stance(record.get("combat_stance", COMBAT_STANCE_DEFENSIVE))
 	var initiative_factor := 1.0
 	var survival_factor := 1.0
@@ -220,6 +242,11 @@ static func _member_profile(record: Dictionary, squad_id: String) -> Dictionary:
 		"squad_id": squad_id,
 		"faction_id": str(record.get("faction_id", "")).strip_edges(),
 		"life_state": life_state,
+		"hp": hp,
+		"max_hp": max_hp,
+		"blood": blood,
+		"max_blood": max_blood,
+		"base_attack_damage": maxf(_record_combat_stat(record, "attack_damage", "base_attack_damage"), 0.0),
 		"combat_stance": stance,
 		"can_participate": can_participate,
 		"condition": condition,
@@ -229,6 +256,133 @@ static func _member_profile(record: Dictionary, squad_id: String) -> Dictionary:
 		"defense": defense,
 		"survival_score": maxf(defense * condition * survival_factor, 0.1),
 		"power": power,
+	}
+
+
+static func _resolve_completion_1v1(profile_a: Dictionary, profile_b: Dictionary, power_a: float, power_b: float, current_tick: int, encounter_id: String, engagement_groups: Array[Dictionary], slot_id_by_occupant: Dictionary, rng: RandomNumberGenerator, config: Dictionary) -> Dictionary:
+	var side_a := _dictionary_array(profile_a.get("participants", []))
+	var side_b := _dictionary_array(profile_b.get("participants", []))
+	if side_a.size() != 1 or side_b.size() != 1:
+		return {}
+	var member_a: Dictionary = side_a[0]
+	var member_b: Dictionary = side_b[0]
+	var hp_a := maxf(float(member_a.get("hp", member_a.get("max_hp", 100.0))), 0.0)
+	var hp_b := maxf(float(member_b.get("hp", member_b.get("max_hp", 100.0))), 0.0)
+	if hp_a <= 0.0 or hp_b <= 0.0:
+		return {}
+	var squad_a_id := str(profile_a.get("squad_id", ""))
+	var squad_b_id := str(profile_b.get("squad_id", ""))
+	var max_beats := maxi(1, int(config.get("max_completion_beats", DEFAULT_MAX_COMPLETION_BEATS)))
+	var beats: Array[Dictionary] = []
+	var attacker_is_a := power_a + rng.randf_range(-2.0, 2.0) >= power_b
+	while beats.size() < max_beats and hp_a > 0.0 and hp_b > 0.0:
+		var attacker_profile := member_a if attacker_is_a else member_b
+		var defender_profile := member_b if attacker_is_a else member_a
+		var attacker_squad_id := squad_a_id if attacker_is_a else squad_b_id
+		var defender_squad_id := squad_b_id if attacker_is_a else squad_a_id
+		var damage := _completion_hit_damage(attacker_profile, defender_profile, rng)
+		if attacker_is_a:
+			hp_b = maxf(hp_b - damage, 0.0)
+		else:
+			hp_a = maxf(hp_a - damage, 0.0)
+		var defender_hp_after := hp_b if attacker_is_a else hp_a
+		_append_completion_beat(beats, encounter_id, current_tick, attacker_profile, defender_profile, attacker_squad_id, defender_squad_id, engagement_groups, slot_id_by_occupant, damage, defender_hp_after)
+		attacker_is_a = _next_completion_attacker_is_a(attacker_is_a, power_a, power_b, rng)
+	var outcome := "draw"
+	var winner_id := ""
+	var loser_id := ""
+	if hp_a > 0.0 and hp_b <= 0.0:
+		outcome = "squad_a_won"
+		winner_id = squad_a_id
+		loser_id = squad_b_id
+	elif hp_b > 0.0 and hp_a <= 0.0:
+		outcome = "squad_b_won"
+		winner_id = squad_b_id
+		loser_id = squad_a_id
+	var casualties_a: Array[Dictionary] = []
+	var casualties_b: Array[Dictionary] = []
+	if hp_a <= 0.0:
+		casualties_a.append(_completion_casualty_record(member_a, squad_a_id))
+	if hp_b <= 0.0:
+		casualties_b.append(_completion_casualty_record(member_b, squad_b_id))
+	return {
+		"outcome": outcome,
+		"winner_squad_id": winner_id,
+		"loser_squad_id": loser_id,
+		"rounds": beats.size(),
+		"beats": beats,
+		"member_casualties_a": casualties_a,
+		"member_casualties_b": casualties_b,
+	}
+
+
+static func _completion_hit_damage(attacker: Dictionary, defender: Dictionary, rng: RandomNumberGenerator) -> float:
+	var offense := maxf(float(attacker.get("offense", 1.0)), 1.0)
+	var defense := maxf(float(defender.get("defense", 1.0)), 1.0)
+	var base_damage := maxf(float(attacker.get("base_attack_damage", 10.0)), 1.0)
+	var pressure := clampf(offense / defense, 0.65, 1.45)
+	return maxf(base_damage * pressure * rng.randf_range(0.88, 1.12) * 0.65, 1.0)
+
+
+static func _next_completion_attacker_is_a(previous_attacker_is_a: bool, power_a: float, power_b: float, rng: RandomNumberGenerator) -> bool:
+	if rng.randf() < 0.62:
+		return not previous_attacker_is_a
+	var total_power := maxf(power_a + power_b, MIN_POWER)
+	return rng.randf() <= power_a / total_power
+
+
+static func _append_completion_beat(beats: Array[Dictionary], encounter_id: String, current_tick: int, attacker_member: Dictionary, defender_member: Dictionary, attacker_squad_id: String, defender_squad_id: String, engagement_groups: Array[Dictionary], slot_id_by_occupant: Dictionary, damage: float, defender_hp_after: float) -> void:
+	var beat_index := beats.size() + 1
+	var engagement_group := _pick_beat_group(engagement_groups, attacker_squad_id, defender_squad_id, beat_index)
+	var engagement_group_id := str(engagement_group.get("engagement_group_id", _engagement_group_id(encounter_id, 1))).strip_edges()
+	var attacker_member_id := str(attacker_member.get("member_id", "")).strip_edges()
+	var defender_member_id := str(defender_member.get("member_id", "")).strip_edges()
+	var attacker_id := attacker_member_id if not attacker_member_id.is_empty() else attacker_squad_id
+	var defender_id := defender_member_id if not defender_member_id.is_empty() else defender_squad_id
+	var attacker_name := str(attacker_member.get("member_name", attacker_squad_id))
+	var defender_name := str(defender_member.get("member_name", defender_squad_id))
+	beats.append({
+		"beat_id": _combat_beat_id(encounter_id, beat_index),
+		"beat_index": beat_index,
+		"encounter_id": encounter_id,
+		"engagement_group_id": engagement_group_id,
+		"tick": current_tick,
+		"presentation_tick": current_tick + beat_index - 1,
+		"round": beat_index,
+		"attacker_squad_id": attacker_squad_id,
+		"defender_squad_id": defender_squad_id,
+		"attacker_member_id": attacker_member_id,
+		"defender_member_id": defender_member_id,
+		"attacker_actor_id": str(attacker_member.get("actor_id", "")).strip_edges(),
+		"defender_actor_id": str(defender_member.get("actor_id", "")).strip_edges(),
+		"attacker_stable_id": str(attacker_member.get("stable_id", "")).strip_edges(),
+		"defender_stable_id": str(defender_member.get("stable_id", "")).strip_edges(),
+		"attacker_id": attacker_id,
+		"defender_id": defender_id,
+		"attacker_slot_id": str(slot_id_by_occupant.get(attacker_id, "")).strip_edges(),
+		"defender_slot_id": str(slot_id_by_occupant.get(defender_id, "")).strip_edges(),
+		"attacker_name": attacker_name,
+		"defender_name": defender_name,
+		"action": "attack",
+		"result": "downed" if defender_hp_after <= 0.0 else "hit",
+		"damage": damage,
+		"defender_hp_after": defender_hp_after,
+		"importance": "critical" if defender_hp_after <= 0.0 else "normal",
+		"summary": _completion_beat_summary(attacker_name, attacker_squad_id, defender_name, defender_squad_id, damage, defender_hp_after),
+	})
+
+
+static func _completion_casualty_record(member: Dictionary, squad_id: String) -> Dictionary:
+	return {
+		"member_id": str(member.get("member_id", "")),
+		"actor_id": str(member.get("actor_id", "")),
+		"stable_id": str(member.get("stable_id", "")),
+		"member_name": str(member.get("member_name", "")),
+		"squad_id": squad_id,
+		"casualty_state": "dying",
+		"life_state": LIFE_STATE_DYING,
+		"fatal": false,
+		"power_before": float(member.get("power", 0.0)),
 	}
 
 
@@ -828,6 +982,14 @@ static func _beat_summary(attacker_name: String, attacker_squad_id: String, defe
 	var attacker_label := attacker_name if not attacker_name.is_empty() else attacker_squad_id
 	var defender_label := defender_name if not defender_name.is_empty() else defender_squad_id
 	return "%s pressured %s for %.1f combat damage." % [attacker_label, defender_label, damage]
+
+
+static func _completion_beat_summary(attacker_name: String, attacker_squad_id: String, defender_name: String, defender_squad_id: String, damage: float, defender_hp_after: float) -> String:
+	var attacker_label := attacker_name if not attacker_name.is_empty() else attacker_squad_id
+	var defender_label := defender_name if not defender_name.is_empty() else defender_squad_id
+	if defender_hp_after <= 0.0:
+		return "%s dropped %s after %.1f combat damage." % [attacker_label, defender_label, damage]
+	return "%s hit %s for %.1f combat damage; %.1f HP remains." % [attacker_label, defender_label, damage, defender_hp_after]
 
 
 static func _outcome_reason(power_a: float, power_b: float, profile_a: Dictionary, profile_b: Dictionary) -> String:

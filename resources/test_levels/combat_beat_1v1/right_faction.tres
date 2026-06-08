@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="FactionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
+
+[resource]
+script = ExtResource("1_faction")
+faction_id = "CombatBeatRight"
+display_name = "Red Duelist"
+primary_color = Color(0.86, 0.18, 0.12, 1)
+default_hostile_faction_ids = PackedStringArray("CombatBeatLeft")
+permanently_hostile = true

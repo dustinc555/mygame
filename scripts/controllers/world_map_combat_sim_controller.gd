@@ -77,7 +77,7 @@ func _ensure_initialized() -> void:
 		return
 	_ensure_state_entity()
 	_ensure_world_squad_state_entity()
-	_ensure_demo_population_records()
+	_ensure_world_squad_population_records()
 	_ensure_world_encounter_state_entity()
 	_sim_runner = _find_sim_runner()
 	_initialized = true
@@ -128,7 +128,7 @@ func apply_sim_commands(commands: Array[Dictionary]) -> void:
 	var should_reset_encounters := false
 	for command in commands:
 		_apply_sim_command(command, active_squads, command_log)
-		if str(command.get("action", "")).strip_edges() == "reset_demo_squads":
+		if _command_resets_world_squads(command):
 			should_reset_encounters = true
 	state["active_squads"] = active_squads
 	state["command_log"] = command_log
@@ -243,17 +243,17 @@ func _reset_world_encounter_state() -> void:
 		_world_encounter_state_component.call("apply_state", _initial_world_encounter_state())
 
 
-func _ensure_demo_population_records() -> void:
+func _ensure_world_squad_population_records() -> void:
 	_ensure_world_squad_state_entity()
 	if _world_squad_state_component == null:
 		return
 	var state := get_world_squad_state()
 	var active_squads = state.get("active_squads", {})
 	if active_squads is Dictionary:
-		_ensure_demo_population_records_for_squads(active_squads, false)
+		_ensure_world_squad_population_records_for_squads(active_squads, false)
 
 
-func _ensure_demo_population_records_for_squads(active_squads: Dictionary, overwrite_existing: bool) -> void:
+func _ensure_world_squad_population_records_for_squads(active_squads: Dictionary, overwrite_existing: bool) -> void:
 	_ensure_world()
 	if _ecs_world == null:
 		return
@@ -264,10 +264,10 @@ func _ensure_demo_population_records_for_squads(active_squads: Dictionary, overw
 		var squad_record: Dictionary = record
 		var member_ids := _string_array(squad_record.get("member_ids", []))
 		for member_index in range(member_ids.size()):
-			_upsert_demo_population_record(squad_record, member_ids[member_index], member_index, overwrite_existing)
+			_upsert_world_squad_population_record(squad_record, member_ids[member_index], member_index, overwrite_existing)
 
 
-func _upsert_demo_population_record(squad_record: Dictionary, member_id: String, member_index: int, overwrite_existing: bool) -> void:
+func _upsert_world_squad_population_record(squad_record: Dictionary, member_id: String, member_index: int, overwrite_existing: bool) -> void:
 	var actor_id := member_id.strip_edges()
 	if actor_id.is_empty():
 		return
@@ -283,10 +283,10 @@ func _upsert_demo_population_record(squad_record: Dictionary, member_id: String,
 			return
 	var component = entity.call("get_component", POPULATION_RECORD_SCRIPT)
 	if component != null and component.has_method("apply_record"):
-		component.call("apply_record", _demo_population_record_from_squad(squad_record, actor_id, member_index))
+		component.call("apply_record", _world_squad_population_record(squad_record, actor_id, member_index))
 
 
-func _demo_population_record_from_squad(squad_record: Dictionary, member_id: String, member_index: int) -> Dictionary:
+func _world_squad_population_record(squad_record: Dictionary, member_id: String, member_index: int) -> Dictionary:
 	var max_hp := maxf(float(squad_record.get("max_hp", 100.0)), 1.0)
 	var max_blood := 5.0
 	return {
@@ -303,8 +303,8 @@ func _demo_population_record_from_squad(squad_record: Dictionary, member_id: Str
 		"hostile_faction_ids": _string_array(squad_record.get("hostile_faction_ids", [])),
 		"combat_stance": int(squad_record.get("combat_stance", 1)),
 		"base_color": squad_record.get("base_color", Color(0.62, 0.62, 0.62, 1.0)),
-		"skill_levels": _demo_member_skill_levels(squad_record, member_index),
-		"traits": {"demo_squad_member": true},
+		"skill_levels": _world_squad_member_skill_levels(squad_record, member_index),
+		"traits": {"world_squad_member": true},
 		"personality": {},
 		"life_state": LIFE_STATE_ALIVE,
 		"hp": max_hp,
@@ -322,7 +322,7 @@ func _demo_population_record_from_squad(squad_record: Dictionary, member_id: Str
 	}
 
 
-func _demo_member_skill_levels(squad_record: Dictionary, member_index: int) -> Dictionary:
+func _world_squad_member_skill_levels(squad_record: Dictionary, member_index: int) -> Dictionary:
 	var base_attack := maxf(float(squad_record.get("base_attack_damage", 10.0)), 1.0)
 	var base_level := maxi(1, int(round(base_attack * 0.55)))
 	var variance := member_index % 3
@@ -450,8 +450,8 @@ func _apply_sim_command(command: Dictionary, active_squads: Dictionary, command_
 			_apply_set_squads_objective(command, active_squads, command_log)
 		"force_encounter":
 			_apply_force_encounter_command(command, active_squads, command_log)
-		"reset_demo_squads":
-			_apply_reset_demo_squads_command(command, active_squads, command_log)
+		"reset_demo_squads", "reset_world_squads":
+			_apply_reset_world_squads_command(command, active_squads, command_log)
 		_:
 			_append_command_log(command_log, command, "error", "Unknown command action: %s" % action)
 
@@ -508,14 +508,22 @@ func _apply_force_encounter_command(command: Dictionary, active_squads: Dictiona
 	_append_command_log(command_log, command, "applied", "Recorded debug-only forced encounter placeholder for %d squads" % applied_count)
 
 
-func _apply_reset_demo_squads_command(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
+func _apply_reset_world_squads_command(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
 	var reset_state := _initial_world_squad_state()
 	var reset_squads: Dictionary = reset_state.get("active_squads", {})
 	active_squads.clear()
 	for squad_id in reset_squads.keys():
 		active_squads[squad_id] = reset_squads[squad_id]
-	_ensure_demo_population_records_for_squads(active_squads, true)
-	_append_command_log(command_log, command, "applied", "Reset demo squad records")
+	_ensure_world_squad_population_records_for_squads(active_squads, true)
+	_append_command_log(command_log, command, "applied", "Reset world squad records")
+
+
+func _command_resets_world_squads(command: Dictionary) -> bool:
+	match str(command.get("action", "")).strip_edges():
+		"reset_demo_squads", "reset_world_squads":
+			return true
+		_:
+			return false
 
 
 func _write_objective_to_squad_record(record: Dictionary, command: Dictionary) -> void:
@@ -535,6 +543,11 @@ func _write_objective_to_squad_record(record: Dictionary, command: Dictionary) -
 	record["arrival_threshold"] = maxf(float(command.get("arrival_threshold", record.get("arrival_threshold", DEFAULT_ARRIVAL_THRESHOLD))), 0.0)
 	record["arrival_state"] = "en_route"
 	record["debug_only"] = bool(command.get("debug_only", false))
+	var battle_sim_config = command.get("battle_sim_config", {})
+	if battle_sim_config is Dictionary and not (battle_sim_config as Dictionary).is_empty():
+		record["battle_sim_config"] = (battle_sim_config as Dictionary).duplicate(true)
+	else:
+		record.erase("battle_sim_config")
 	var squad_state := str(command.get("squad_state", "commanded")).strip_edges()
 	record["state"] = squad_state if not squad_state.is_empty() else "commanded"
 
@@ -709,11 +722,13 @@ func _resolve_encounter_record(encounter_record: Dictionary, active_squads: Dict
 
 func _battle_sim_config(encounter_record: Dictionary, current_tick: int) -> Dictionary:
 	var seed_text := "%s|%s|%s" % [_world_definition_id(), str(encounter_record.get("encounter_id", "")), str(encounter_record.get("created_tick", 0))]
-	return {
+	var config: Dictionary = encounter_record.get("battle_sim_config", {}).duplicate(true) if encounter_record.get("battle_sim_config", {}) is Dictionary else {}
+	config.merge({
 		"seed": seed_text,
 		"encounter_id": str(encounter_record.get("encounter_id", "")),
 		"current_tick": current_tick,
-	}
+	}, true)
+	return config
 
 
 func _battle_participant_payload(squad_record: Dictionary) -> Dictionary:
@@ -818,6 +833,7 @@ func _apply_battle_result_to_squad_record(record: Dictionary, battle_result: Dic
 	record["active_encounter_id"] = ""
 	record["last_encounter_id"] = encounter_id
 	record["debug_only"] = false
+	record.erase("battle_sim_config")
 	record["target_location"] = _record_location(record)
 	record["route"] = [_record_location(record), _record_location(record)]
 	if next_member_count <= 0:
@@ -1188,7 +1204,19 @@ func _encounter_record(encounter_id: String, pair_key: String, squad_a_id: Strin
 		"objective_ids": [str(squad_a.get("objective_id", "")), str(squad_b.get("objective_id", ""))],
 		"hostility_value": int(decision.get("hostility_value", 0)),
 		"duplicate_suppression_logged": false,
+		"battle_sim_config": _battle_sim_config_from_squads(squad_a, squad_b),
 	}
+
+
+func _battle_sim_config_from_squads(squad_a: Dictionary, squad_b: Dictionary) -> Dictionary:
+	var result := {}
+	for squad in [squad_a, squad_b]:
+		var config = (squad as Dictionary).get("battle_sim_config", {})
+		if not (config is Dictionary):
+			continue
+		for key in (config as Dictionary).keys():
+			result[key] = (config as Dictionary).get(key)
+	return result
 
 
 func _mark_squad_engaged(record: Dictionary, encounter_id: String) -> void:

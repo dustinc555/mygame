@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="WorldDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/world_definition.gd" id="1_world"]
+[ext_resource type="Resource" path="res://resources/test_levels/combat_beat_1v1/left_faction.tres" id="2_left_faction"]
+[ext_resource type="Resource" path="res://resources/test_levels/combat_beat_1v1/right_faction.tres" id="3_right_faction"]
+[ext_resource type="Resource" path="res://resources/test_levels/combat_beat_1v1/duelist_relation.tres" id="4_relation"]
+[ext_resource type="Resource" path="res://resources/test_levels/combat_beat_1v1/left_duelist_squad.tres" id="5_left_squad"]
+[ext_resource type="Resource" path="res://resources/test_levels/combat_beat_1v1/right_duelist_squad.tres" id="6_right_squad"]
+
+[resource]
+script = ExtResource("1_world")
+world_id = "combat_beat_1v1"
+display_name = "CombatBeat 1v1 Test World"
+random_seed = 7701
+faction_definitions = Array[Resource]([ExtResource("2_left_faction"), ExtResource("3_right_faction")])
+settlement_placements = Array[Resource]([])
+starting_relations = Array[Resource]([ExtResource("4_relation")])
+squad_templates = Array[Resource]([ExtResource("5_left_squad"), ExtResource("6_right_squad")])
+starting_population_records = Array[Resource]([])
