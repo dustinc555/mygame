@@ -729,6 +729,10 @@ func _resolve_squad_member_records(squad_record: Dictionary) -> Array[Dictionary
 		var record := _population_record_for_member_id(member_id)
 		if record.is_empty():
 			continue
+		if _gecs_world_controller != null and _gecs_world_controller.has_method("get_actor_battle_member_record"):
+			var derived_record = _gecs_world_controller.call("get_actor_battle_member_record", member_id, record)
+			if derived_record is Dictionary:
+				record = (derived_record as Dictionary).duplicate(true)
 		result.append(record)
 	return result
 

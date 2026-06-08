@@ -2,8 +2,8 @@ extends RefCounted
 
 class_name InventoryData
 
-const SILVER_ITEM := preload("res://resources/items/silver.tres")
-const SILVER_POUCH_ITEM := preload("res://resources/items/silver_pouch.tres")
+const SILVER_ITEM := preload("res://resources/items/currency/silver_coin.tres")
+const SILVER_POUCH_ITEM := preload("res://resources/items/currency/silver_pouch.tres")
 const ENTRY_BANDAGE_USES_KEY := "__bandage_uses"
 const META_STOLEN := "stolen"
 const META_STOLEN_FROM_FACTION_ID := "stolen_from_faction_id"
@@ -18,13 +18,15 @@ signal changed
 
 
 class InventoryEntry:
+	var stack_id := ""
 	var definition
 	var grid_position: Vector2i
 	var count := 1
 	var contained_item_counts: Dictionary = {}
 	var metadata: Dictionary = {}
 
-	func _init(item_definition, item_grid_position: Vector2i, item_count: int = 1, item_contained_item_counts: Dictionary = {}, item_metadata: Dictionary = {}) -> void:
+	func _init(item_definition, item_grid_position: Vector2i, item_count: int = 1, item_contained_item_counts: Dictionary = {}, item_metadata: Dictionary = {}, item_stack_id := "") -> void:
+		stack_id = str(item_stack_id)
 		definition = item_definition
 		grid_position = item_grid_position
 		count = item_count
@@ -75,19 +77,13 @@ func _can_add_standard_item_count(definition, amount: int) -> bool:
 	if use_weight and get_total_weight() + get_item_weight(definition, amount) > max_weight:
 		return false
 	var remaining := amount
-	if definition.max_stack > 1:
-		for entry in entries:
-			if _is_same_definition(entry.definition, definition) and entry.count < definition.max_stack and entry.contained_item_counts.is_empty() and entry.metadata.is_empty():
-				remaining -= min(remaining, definition.max_stack - entry.count)
-				if remaining <= 0:
-					return true
 	var reserved: Array = []
 	while remaining > 0:
 		var slot := _find_first_space_with_reserved_entries(definition, reserved)
 		if slot == Vector2i(-1, -1):
 			return false
 		reserved.append({"definition": definition, "position": slot})
-		remaining -= min(remaining, max(definition.max_stack, 1))
+		remaining -= 1
 	return true
 
 
@@ -121,23 +117,12 @@ func _add_standard_item_count(definition, amount: int, emit_changed := true) -> 
 	if not _can_add_standard_item_count(definition, amount):
 		return false
 	var remaining := amount
-	if definition.max_stack > 1:
-		for entry in entries:
-			if _is_same_definition(entry.definition, definition) and entry.count < definition.max_stack and entry.contained_item_counts.is_empty() and entry.metadata.is_empty():
-				var added: int = min(remaining, definition.max_stack - entry.count)
-				entry.count += added
-				remaining -= added
-				if remaining <= 0:
-					if emit_changed:
-						changed.emit()
-					return true
 	while remaining > 0:
 		var slot: Vector2i = find_first_space(definition)
 		if slot == Vector2i(-1, -1):
 			return false
-		var stack_count: int = min(remaining, max(definition.max_stack, 1))
-		entries.append(InventoryEntry.new(definition, slot, stack_count))
-		remaining -= stack_count
+		entries.append(InventoryEntry.new(definition, slot, 1))
+		remaining -= 1
 	if emit_changed:
 		changed.emit()
 	return true
@@ -148,16 +133,27 @@ func can_add_entry_with_contents(definition, amount: int = 1, contained_item_cou
 		return false
 	if use_weight and get_total_weight() + get_item_weight(definition, amount, contained_item_counts) > max_weight:
 		return false
-	return find_first_space(definition) != Vector2i(-1, -1)
+	var remaining := amount
+	var reserved: Array = []
+	while remaining > 0:
+		var slot := _find_first_space_with_reserved_entries(definition, reserved)
+		if slot == Vector2i(-1, -1):
+			return false
+		reserved.append({"definition": definition, "position": slot})
+		remaining -= 1
+	return true
 
 
 func add_entry_with_contents(definition, amount: int = 1, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> bool:
 	if not can_add_entry_with_contents(definition, amount, contained_item_counts, metadata):
 		return false
-	var slot := find_first_space(definition)
-	if slot == Vector2i(-1, -1):
-		return false
-	entries.append(InventoryEntry.new(definition, slot, amount, contained_item_counts, metadata))
+	var remaining := amount
+	while remaining > 0:
+		var slot := find_first_space(definition)
+		if slot == Vector2i(-1, -1):
+			return false
+		entries.append(InventoryEntry.new(definition, slot, 1, contained_item_counts if remaining == amount else {}, metadata))
+		remaining -= 1
 	changed.emit()
 	return true
 
@@ -457,7 +453,7 @@ func _can_add_item_count_as_distinct_entries(definition, amount: int, contained_
 		if slot == Vector2i(-1, -1):
 			return false
 		reserved.append({"definition": definition, "position": slot})
-		remaining -= min(remaining, max(definition.max_stack, 1))
+		remaining -= 1
 	return true
 
 
@@ -469,9 +465,8 @@ func _add_item_count_as_distinct_entries(definition, amount: int, contained_item
 		var slot := find_first_space(definition)
 		if slot == Vector2i(-1, -1):
 			return false
-		var stack_count: int = min(remaining, max(definition.max_stack, 1))
-		entries.append(InventoryEntry.new(definition, slot, stack_count, contained_item_counts if remaining == amount else {}, metadata))
-		remaining -= stack_count
+		entries.append(InventoryEntry.new(definition, slot, 1, contained_item_counts if remaining == amount else {}, metadata))
+		remaining -= 1
 	if emit_changed:
 		changed.emit()
 	return true
@@ -546,24 +541,13 @@ func _can_add_silver_count(amount: int) -> bool:
 		remaining -= stored_in_new_pouch
 		added_weight += get_item_weight(SILVER_POUCH_ITEM, 1, {_item_key(SILVER_ITEM): stored_in_new_pouch})
 
-	if remaining > 0 and SILVER_ITEM.max_stack > 1:
-		for entry in entries:
-			if not _is_same_definition(entry.definition, SILVER_ITEM) or not entry.contained_item_counts.is_empty() or entry.count >= SILVER_ITEM.max_stack:
-				continue
-			var added_to_stack: int = min(remaining, SILVER_ITEM.max_stack - entry.count)
-			remaining -= added_to_stack
-			added_weight += SILVER_ITEM.unit_weight * added_to_stack
-			if remaining <= 0:
-				return not use_weight or get_total_weight() + added_weight <= max_weight
-
 	while remaining > 0:
 		var coin_slot := _find_first_space_with_reserved_entries(SILVER_ITEM, reserved)
 		if coin_slot == Vector2i(-1, -1):
 			return false
-		var loose_count: int = min(remaining, max(SILVER_ITEM.max_stack, 1))
 		reserved.append({"definition": SILVER_ITEM, "position": coin_slot})
-		remaining -= loose_count
-		added_weight += SILVER_ITEM.unit_weight * loose_count
+		remaining -= 1
+		added_weight += SILVER_ITEM.unit_weight
 	return not use_weight or get_total_weight() + added_weight <= max_weight
 
 

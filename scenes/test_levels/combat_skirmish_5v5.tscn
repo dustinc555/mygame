@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="4_bootstrap"]
 [ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://scripts/items/inventory_stock.gd" id="5_inventory_stock"]
-[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/bandage.tres" id="6_bandage"]
+[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/consumables/bandage.tres" id="6_bandage"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(80, 1, 60)

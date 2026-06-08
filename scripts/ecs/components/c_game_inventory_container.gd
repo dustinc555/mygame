@@ -4,7 +4,6 @@ class_name CGameInventoryContainer
 
 @export var container_id := ""
 @export var owner_actor_id := ""
-@export var owner_path: NodePath
 @export var columns := 0
 @export var rows := 0
 @export var max_weight := 0.0

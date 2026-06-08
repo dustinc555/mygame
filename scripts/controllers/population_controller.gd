@@ -508,6 +508,7 @@ func _new_record_from_actor(actor: Node, actor_id: String, settlement_id: String
 	}
 	var import_context := context.duplicate(true)
 	import_context["import_actor_skills"] = true
+	import_context["import_actor_inventory"] = true
 	return _merge_actor_state_into_record(record, actor, settlement_id, import_context)
 
 
@@ -538,8 +539,14 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 	var appearance = actor.get("appearance_data")
 	_repair_non_rustdead_appearance(appearance, faction_id)
 	record["appearance"] = _appearance_to_record(appearance)
-	record["equipment_slots"] = _equipment_slots_from_actor(actor)
-	record["inventory_entries"] = _inventory_entries_from_actor(actor)
+	if bool(context.get("import_actor_inventory", false)):
+		record["equipment_slots"] = _equipment_slots_from_actor(actor)
+		record["inventory_entries"] = _inventory_entries_from_actor(actor)
+	else:
+		if not record.has("equipment_slots"):
+			record["equipment_slots"] = {}
+		if not record.has("inventory_entries"):
+			record["inventory_entries"] = []
 	if bool(context.get("import_actor_skills", false)):
 		record["skill_levels"] = _skill_levels_from_actor(actor)
 		record["skill_xp"] = _skill_xp_from_actor(actor)
@@ -741,13 +748,17 @@ func _inventory_entries_from_actor(actor: Node) -> Array:
 	for entry in inventory.get("entries"):
 		if entry == null:
 			continue
-		result.append({
+		var snapshot := {
 			"item_id": _resource_path(entry.definition),
 			"count": int(entry.count),
 			"grid_position": entry.grid_position,
 			"contained_item_counts": entry.contained_item_counts.duplicate(true),
 			"metadata": entry.metadata.duplicate(true),
-		})
+		}
+		var entry_stack_id = entry.get("stack_id")
+		if entry_stack_id != null and not str(entry_stack_id).strip_edges().is_empty():
+			snapshot["stack_id"] = str(entry_stack_id).strip_edges()
+		result.append(snapshot)
 	return result
 
 
@@ -886,9 +897,9 @@ func _resource_path(resource) -> String:
 func _load_resource(path: String) -> Resource:
 	if path.strip_edges().is_empty():
 		return null
-	if not ResourceLoader.exists(path):
-		return null
-	return load(path) as Resource
+	if ResourceLoader.exists(path):
+		return load(path) as Resource
+	return ItemDefinitionIndex.load_definition(path)
 
 
 func _sanitize_id(value: String) -> String:

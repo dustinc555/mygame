@@ -4,20 +4,20 @@ class_name TabletopItemSpawner
 
 const WORLD_ITEM_SCENE := preload("res://scenes/world/items/world_item.tscn")
 
-const TABLE_PLATE := preload("res://resources/items/table_plate.tres")
-const MUG := preload("res://resources/items/mug.tres")
-const TABLE_FORK := preload("res://resources/items/table_fork.tres")
-const TABLE_SPOON := preload("res://resources/items/table_spoon.tres")
-const TABLE_KNIFE := preload("res://resources/items/table_knife.tres")
-const BOTTLE_1 := preload("res://resources/items/bottle_1.tres")
-const BOTTLE_2 := preload("res://resources/items/bottle_2.tres")
-const SMALL_BOTTLE := preload("res://resources/items/small_bottle.tres")
-const CHALICE := preload("res://resources/items/chalice.tres")
-const CANDLE_1 := preload("res://resources/items/candle_1.tres")
-const CANDLE_2 := preload("res://resources/items/candle_2.tres")
-const CANDLE_3 := preload("res://resources/items/candle_3.tres")
-const CANDLESTICK := preload("res://resources/items/candlestick.tres")
-const BREAD := preload("res://resources/items/bread.tres")
+const TABLE_PLATE := preload("res://resources/items/junk/table_plate.tres")
+const MUG := preload("res://resources/items/junk/mug.tres")
+const TABLE_FORK := preload("res://resources/items/tools/table_fork.tres")
+const TABLE_SPOON := preload("res://resources/items/tools/table_spoon.tres")
+const TABLE_KNIFE := preload("res://resources/items/tools/table_knife.tres")
+const BOTTLE_1 := preload("res://resources/items/junk/bottle_1.tres")
+const BOTTLE_2 := preload("res://resources/items/junk/bottle_2.tres")
+const SMALL_BOTTLE := preload("res://resources/items/junk/small_bottle.tres")
+const CHALICE := preload("res://resources/items/junk/chalice.tres")
+const CANDLE_1 := preload("res://resources/items/junk/candle_1.tres")
+const CANDLE_2 := preload("res://resources/items/junk/candle_2.tres")
+const CANDLE_3 := preload("res://resources/items/junk/candle_3.tres")
+const CANDLESTICK := preload("res://resources/items/junk/candlestick.tres")
+const BREAD := preload("res://resources/items/consumables/bread.tres")
 
 const SPAWNED_ITEMS_ROOT_NAME := "SpawnedTabletopItems"
 const CATEGORY_ITEMS := {
@@ -296,10 +296,10 @@ func _make_slot_rng(slot: Node3D, phase: String) -> RandomNumberGenerator:
 
 
 func _get_slot_basis(slot: Node3D, rng: RandomNumberGenerator) -> Basis:
-	var basis := slot.global_transform.basis.orthonormalized()
+	var slot_basis := slot.global_transform.basis.orthonormalized()
 	if yaw_jitter_radians > 0.0:
-		basis = Basis(Vector3.UP, rng.randf_range(-yaw_jitter_radians, yaw_jitter_radians)) * basis
-	return basis
+		slot_basis = Basis(Vector3.UP, rng.randf_range(-yaw_jitter_radians, yaw_jitter_radians)) * slot_basis
+	return slot_basis
 
 
 func _get_theft_value(definition: ItemDefinition) -> int:

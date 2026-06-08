@@ -19,6 +19,9 @@ var _latest_records: Array[Dictionary] = []
 var _refresh_elapsed := 0.0
 var _selected_actor_id_cache := ""
 var _controlled_actor_ids_cache: Array[String] = []
+var _equipment_slots_cache_by_actor_id: Dictionary = {}
+var _equipment_slots_cache_dirty := true
+var _equipment_signal_bridge: Node
 
 
 func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
@@ -97,9 +100,10 @@ func get_debug_state() -> Dictionary:
 
 func _party_records() -> Array[Dictionary]:
 	var bridge := _get_gecs_world()
-	if bridge == null or not bridge.has_method("get_population_records"):
+	if bridge == null:
 		return []
-	var records_by_id: Dictionary = bridge.call("get_population_records")
+	var records_by_id := _get_population_records_core(bridge)
+	var equipment_by_actor := _equipment_slots_by_actor(bridge)
 	var result: Array[Dictionary] = []
 	for actor_id_value in records_by_id.keys():
 		var value = records_by_id[actor_id_value]
@@ -108,7 +112,8 @@ func _party_records() -> Array[Dictionary]:
 		var record: Dictionary = (value as Dictionary).duplicate(true)
 		if not _is_party_panel_record(record):
 			continue
-		result.append(_panel_record_from_population_record(record))
+		var actor_id := str(record.get("actor_id", actor_id_value))
+		result.append(_panel_record_from_population_record(record, equipment_by_actor.get(actor_id, {})))
 	result.sort_custom(_sort_party_records)
 	return result
 
@@ -117,9 +122,8 @@ func _is_party_panel_record(record: Dictionary) -> bool:
 	return bool(record.get("player_party_member", false)) or bool(record.get("player_controllable", false)) or not str(record.get("party_id", "")).strip_edges().is_empty()
 
 
-func _panel_record_from_population_record(record: Dictionary) -> Dictionary:
+func _panel_record_from_population_record(record: Dictionary, equipment_slots: Dictionary = {}) -> Dictionary:
 	var actor_id := str(record.get("actor_id", record.get("stable_id", ""))).strip_edges()
-	var equipment_slots: Dictionary = record.get("equipment_slots", {}) if record.get("equipment_slots", {}) is Dictionary else {}
 	var skill_levels: Dictionary = record.get("skill_levels", {}) if record.get("skill_levels", {}) is Dictionary else {}
 	var squad_record := _squad_record_for_record(record)
 	var life_state := int(record.get("life_state", 0))
@@ -320,7 +324,9 @@ func _equipment_summary(equipment_slots: Dictionary) -> String:
 
 
 func _item_name(item_path: String) -> String:
-	var item := load(item_path) as Resource if not item_path.strip_edges().is_empty() else null
+	var item := ItemDefinitionIndex.load_definition(item_path) as Resource if not item_path.strip_edges().is_empty() else null
+	if item == null and ResourceLoader.exists(item_path):
+		item = load(item_path) as Resource
 	if item != null:
 		var display_name = item.get("display_name")
 		if display_name != null and not str(display_name).strip_edges().is_empty():
@@ -395,6 +401,57 @@ func _safe_node_name(value: String) -> String:
 	for character in [".", ":", "/", "\\", " "]:
 		result = result.replace(character, "_")
 	return result if not result.is_empty() else "unknown"
+
+
+func _get_population_records_core(bridge: Node) -> Dictionary:
+	if bridge.has_method("get_population_records_core"):
+		var core_records = bridge.call("get_population_records_core")
+		return core_records if core_records is Dictionary else {}
+	if bridge.has_method("get_population_records"):
+		var records = bridge.call("get_population_records")
+		return records if records is Dictionary else {}
+	return {}
+
+
+func _equipment_slots_by_actor(bridge: Node) -> Dictionary:
+	_bind_equipment_cache_signal(bridge)
+	if _equipment_slots_cache_dirty:
+		_equipment_slots_cache_by_actor_id = _load_equipment_slots_by_actor(bridge)
+		_equipment_slots_cache_dirty = false
+	return _equipment_slots_cache_by_actor_id
+
+
+func _load_equipment_slots_by_actor(bridge: Node) -> Dictionary:
+	var result := {}
+	if bridge == null or not bridge.has_method("get_equipment_slots"):
+		return result
+	for slot in bridge.call("get_equipment_slots"):
+		if not (slot is Dictionary):
+			continue
+		var actor_id := str((slot as Dictionary).get("actor_id", "")).strip_edges()
+		var slot_name := str((slot as Dictionary).get("slot_name", "")).strip_edges()
+		var item_path := str((slot as Dictionary).get("item_definition_path", "")).strip_edges()
+		if actor_id.is_empty() or slot_name.is_empty() or item_path.is_empty():
+			continue
+		var actor_slots: Dictionary = result.get(actor_id, {})
+		actor_slots[slot_name] = item_path
+		result[actor_id] = actor_slots
+	return result
+
+
+func _bind_equipment_cache_signal(bridge: Node) -> void:
+	if bridge == null or bridge == _equipment_signal_bridge or not bridge.has_signal("inventory_state_changed"):
+		return
+	var callable := Callable(self, "_on_equipment_cache_changed")
+	if bridge.is_connected("inventory_state_changed", callable):
+		_equipment_signal_bridge = bridge
+		return
+	bridge.connect("inventory_state_changed", callable)
+	_equipment_signal_bridge = bridge
+
+
+func _on_equipment_cache_changed(_result: Dictionary = {}) -> void:
+	_equipment_slots_cache_dirty = true
 
 
 func _get_gecs_world() -> Node:

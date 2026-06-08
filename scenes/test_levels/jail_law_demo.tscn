@@ -6,10 +6,10 @@
 [ext_resource type="Resource" uid="uid://h4a4vsdtrlvq" path="res://resources/world_sim/factions/farmers.tres" id="6_farmers"]
 [ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://scenes/world_sim/settlement_jail.tscn" id="7_jail"]
 [ext_resource type="PackedScene" path="res://scenes/world/items/world_item.tscn" id="8_world_item"]
-[ext_resource type="Resource" path="res://resources/items/expensive_vase.tres" id="9_vase"]
-[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/bandage.tres" id="16_f35vs"]
-[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/hatchet.tres" id="17_hatchet"]
-[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/round_shield.tres" id="18_0csrm"]
+[ext_resource type="Resource" path="res://resources/items/junk/expensive_vase.tres" id="9_vase"]
+[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/consumables/bandage.tres" id="16_f35vs"]
+[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/equipment/weapons/axes/hatchet.tres" id="17_hatchet"]
+[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/equipment/offhand/shields/round_shield.tres" id="18_0csrm"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(34, 1, 28)

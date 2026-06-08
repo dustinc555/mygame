@@ -9,6 +9,9 @@ const PLACEHOLDER_BODY_PROJECTION_SCRIPT := preload("res://scripts/projection/pl
 @export var auto_project := true
 @export_range(0.05, 5.0, 0.05) var projection_update_interval_seconds := 0.25
 @export var projection_root_name := "WorldActorProjections"
+@export var performance_logging_enabled := false
+@export_range(0.1, 10.0, 0.1) var performance_log_interval_seconds := 1.0
+@export_range(0.0, 50000.0, 100.0) var performance_log_threshold_usec := 1000.0
 
 var root_scene: Node
 var _projection_root: Node3D
@@ -16,6 +19,10 @@ var _projection_by_actor_id: Dictionary = {}
 var _initialized := false
 var _update_elapsed := 0.0
 var _unsupported_projection_kinds: Dictionary = {}
+var _equipment_slots_cache_by_actor_id: Dictionary = {}
+var _equipment_slots_cache_dirty := true
+var _equipment_signal_bridge: Node
+var _perf_log_next_msec_by_label: Dictionary = {}
 
 
 func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
@@ -39,13 +46,14 @@ func _process(delta: float) -> void:
 
 
 func sync_projections() -> void:
+	var started_at_usec := Time.get_ticks_usec() if performance_logging_enabled else 0
 	if not _try_initialize():
 		return
 	var bridge := _get_gecs_world()
-	if bridge == null or not bridge.has_method("get_population_records"):
+	if bridge == null:
 		return
-	var records: Dictionary = bridge.call("get_population_records")
-	var equipment_by_actor := _equipment_slots_by_actor(bridge, records)
+	var records := _get_population_records_core(bridge)
+	var equipment_by_actor := _equipment_slots_by_actor(bridge)
 	var expected_actor_ids := {}
 	for actor_id_value in records.keys():
 		var record_value = records[actor_id_value]
@@ -63,6 +71,7 @@ func sync_projections() -> void:
 		expected_actor_ids[actor_id] = true
 		project_record_snapshot(record, equipment_by_actor.get(actor_id, {}))
 	_remove_stale_projections(expected_actor_ids)
+	_log_perf_duration("projection.sync_projections", started_at_usec, {"records": records.size(), "projections": _projection_by_actor_id.size()})
 
 
 func project_record_snapshot(record: Dictionary, equipment_slots: Dictionary = {}, combat_state: Dictionary = {}) -> Node:
@@ -155,34 +164,45 @@ func _remove_projection(actor_id: String) -> void:
 	_projection_by_actor_id.erase(actor_id)
 
 
-func _equipment_slots_by_actor(bridge: Node, records: Dictionary) -> Dictionary:
+func _equipment_slots_by_actor(bridge: Node) -> Dictionary:
+	_bind_equipment_cache_signal(bridge)
+	if _equipment_slots_cache_dirty:
+		_equipment_slots_cache_by_actor_id = _load_equipment_slots_by_actor(bridge)
+		_equipment_slots_cache_dirty = false
+	return _equipment_slots_cache_by_actor_id
+
+
+func _load_equipment_slots_by_actor(bridge: Node) -> Dictionary:
 	var result := {}
-	if bridge != null and bridge.has_method("get_equipment_slots"):
-		for slot in bridge.call("get_equipment_slots"):
-			if not (slot is Dictionary):
-				continue
-			var actor_id := str((slot as Dictionary).get("actor_id", "")).strip_edges()
-			var slot_name := str((slot as Dictionary).get("slot_name", "")).strip_edges()
-			var item_path := str((slot as Dictionary).get("item_definition_path", "")).strip_edges()
-			if actor_id.is_empty() or slot_name.is_empty() or item_path.is_empty():
-				continue
-			var actor_slots: Dictionary = result.get(actor_id, {})
-			actor_slots[slot_name] = item_path
-			result[actor_id] = actor_slots
-	for actor_id_value in records.keys():
-		var record = records[actor_id_value]
-		if not (record is Dictionary):
+	if bridge == null or not bridge.has_method("get_equipment_slots"):
+		return result
+	for slot in bridge.call("get_equipment_slots"):
+		if not (slot is Dictionary):
 			continue
-		var actor_id := str((record as Dictionary).get("actor_id", actor_id_value)).strip_edges()
-		var record_slots = (record as Dictionary).get("equipment_slots", {})
-		if actor_id.is_empty() or not (record_slots is Dictionary):
+		var actor_id := str((slot as Dictionary).get("actor_id", "")).strip_edges()
+		var slot_name := str((slot as Dictionary).get("slot_name", "")).strip_edges()
+		var item_path := str((slot as Dictionary).get("item_definition_path", "")).strip_edges()
+		if actor_id.is_empty() or slot_name.is_empty() or item_path.is_empty():
 			continue
 		var actor_slots: Dictionary = result.get(actor_id, {})
-		for slot_name in (record_slots as Dictionary).keys():
-			if not actor_slots.has(str(slot_name)):
-				actor_slots[str(slot_name)] = str((record_slots as Dictionary)[slot_name])
+		actor_slots[slot_name] = item_path
 		result[actor_id] = actor_slots
 	return result
+
+
+func _bind_equipment_cache_signal(bridge: Node) -> void:
+	if bridge == null or bridge == _equipment_signal_bridge or not bridge.has_signal("inventory_state_changed"):
+		return
+	var callable := Callable(self, "_on_equipment_cache_changed")
+	if bridge.is_connected("inventory_state_changed", callable):
+		_equipment_signal_bridge = bridge
+		return
+	bridge.connect("inventory_state_changed", callable)
+	_equipment_signal_bridge = bridge
+
+
+func _on_equipment_cache_changed(_result: Dictionary = {}) -> void:
+	_equipment_slots_cache_dirty = true
 
 
 func _projection_kind_for_record(record: Dictionary) -> String:
@@ -221,3 +241,30 @@ func _get_gecs_world() -> Node:
 	if existing != null and (parent_node == null or existing.get_parent() == parent_node):
 		return existing
 	return null
+
+
+func _get_population_records_core(bridge: Node) -> Dictionary:
+	if bridge.has_method("get_population_records_core"):
+		var core_records = bridge.call("get_population_records_core")
+		return core_records if core_records is Dictionary else {}
+	if bridge.has_method("get_population_records"):
+		var records = bridge.call("get_population_records")
+		return records if records is Dictionary else {}
+	return {}
+
+
+func _log_perf_duration(label: String, started_at_usec: int, metadata: Dictionary = {}) -> void:
+	if not performance_logging_enabled or started_at_usec <= 0:
+		return
+	var elapsed_usec := int(Time.get_ticks_usec() - started_at_usec)
+	if float(elapsed_usec) < performance_log_threshold_usec:
+		return
+	var now_msec := Time.get_ticks_msec()
+	var next_msec := int(_perf_log_next_msec_by_label.get(label, 0))
+	if now_msec < next_msec:
+		return
+	_perf_log_next_msec_by_label[label] = now_msec + int(performance_log_interval_seconds * 1000.0)
+	var suffix := ""
+	for key in metadata.keys():
+		suffix += " %s=%s" % [str(key), str(metadata[key])]
+	print("PERF %s %.3fms%s" % [label, float(elapsed_usec) / 1000.0, suffix])

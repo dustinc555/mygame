@@ -26,12 +26,12 @@ const CONTROLLER_SCRIPT := preload("res://scripts/controllers/world_actor_projec
 const MIRA_RECORD_PATH := "res://resources/worlds/demo_world/population/mira.tres"
 const TOMAS_RECORD_PATH := "res://resources/worlds/demo_world/population/tomas.tres"
 const MIRA_EXPECTED_ITEMS := [
-	"res://resources/items/ranger_jerkin.tres",
-	"res://resources/items/steel_sword.tres",
+	"res://resources/items/equipment/armor/chest/ranger_jerkin.tres",
+	"res://resources/items/equipment/weapons/swords/steel_sword.tres",
 ]
 const TOMAS_EXPECTED_ITEMS := [
-	"res://resources/items/iron_axe.tres",
-	"res://resources/items/peasant_tunic.tres",
+	"res://resources/items/equipment/weapons/axes/iron_axe.tres",
+	"res://resources/items/equipment/clothing/peasant_tunic.tres",
 ]
 
 var _failures: Array[String] = []
@@ -103,8 +103,8 @@ func _run_direct_projection_validation() -> void:
 		"validation.unsupported": unsupported_record,
 	}
 	bridge.slots = [
-		{"actor_id": "validation.humanoid", "slot_name": "weapon", "item_definition_path": "res://resources/items/steel_sword.tres", "stack_id": ""},
-		{"actor_id": "validation.humanoid", "slot_name": "chest", "item_definition_path": "res://resources/items/ranger_jerkin.tres", "stack_id": ""},
+		{"actor_id": "validation.humanoid", "slot_name": "weapon", "item_definition_path": "res://resources/items/equipment/weapons/swords/steel_sword.tres", "stack_id": ""},
+		{"actor_id": "validation.humanoid", "slot_name": "chest", "item_definition_path": "res://resources/items/equipment/armor/chest/ranger_jerkin.tres", "stack_id": ""},
 	]
 
 	controller.sync_projections()
@@ -116,7 +116,7 @@ func _run_direct_projection_validation() -> void:
 	_expect(int(unsupported.get("minotaur_placeholder", 0)) == 1, "Controller records unsupported projection kind")
 
 	var humanoid: Node = controller.get_projection_for_actor("validation.humanoid")
-	_validate_humanoid_projection(humanoid, mira_record, ["res://resources/items/ranger_jerkin.tres", "res://resources/items/steel_sword.tres"], "Direct humanoid")
+	_validate_humanoid_projection(humanoid, mira_record, ["res://resources/items/equipment/armor/chest/ranger_jerkin.tres", "res://resources/items/equipment/weapons/swords/steel_sword.tres"], "Direct humanoid")
 	var animal: Node = controller.get_projection_for_actor("validation.animal")
 	_validate_placeholder_projection(animal, "Direct animal placeholder")
 	_expect(controller.get_projection_for_actor("validation.unsupported") == null, "Unsupported record has no projection node")

@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/world_sim/squad_template.gd" id="1_template"]
 [ext_resource type="Resource" path="res://resources/world_sim/factions/farmers.tres" id="2_faction"]
-[ext_resource type="Resource" path="res://resources/items/hatchet.tres" id="3_hatchet"]
+[ext_resource type="Resource" path="res://resources/items/equipment/weapons/axes/hatchet.tres" id="3_hatchet"]
 
 [resource]
 script = ExtResource("1_template")
