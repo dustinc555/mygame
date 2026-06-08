@@ -178,6 +178,67 @@ Current slotting strategy:
 - Use separate group centers for 5v5 and 50v50 clusters.
 - Use O(G + S) slot assignment over groups and slots, not all-pairs spacing.
 
+## #90 Playback Schedule
+
+`CombatBeatPlaybackScheduler` is a data-only presentation helper. It consumes BattleSim beats, engagement groups, and combat slots, then returns `battle_result["combat_schedule"]`.
+
+BattleSim owns combat truth. The scheduler owns presentation timing only.
+
+Schedule records use seconds for playback timing:
+
+```text
+CombatSchedule
+  events
+  summarized_beats
+  detailed_beat_ids
+  summarized_beat_ids
+  detailed_beat_limit
+  source_beat_count
+  detailed_beat_count
+  summarized_beat_count
+  event_count
+  presentation_only
+```
+
+Detailed event records use this shape:
+
+```text
+CombatScheduleEvent
+  event_id
+  beat_id
+  encounter_id
+  engagement_group_id
+  event_type
+  attacker_member_id
+  defender_member_id
+  attacker_squad_id
+  defender_squad_id
+  attacker_slot_id
+  defender_slot_id
+  start_time
+  duration
+  importance
+  presentation_only
+```
+
+Default detailed sequence per beat:
+
+- `move_to_slot`
+- `face_target`
+- `attack`
+- `reaction`
+
+Default scheduling policy:
+
+- Use `detailed_beat_limit = 32` unless config overrides it.
+- Select high/critical/important beats first.
+- Fill remaining detail budget with earliest normal beats.
+- Schedule selected beats on per-engagement-group presentation tracks so different groups can interleave.
+- Summarize non-selected beats in `summarized_beats`; original beats remain in `battle_result["beats"]`.
+- Use O(B log B + E) scheduling over beats and events, not per-frame queues or scene scans.
+
+The schedule never changes combat outcomes. It is presentation-only timing data for later projection systems.
+
 ## Known #87 Gaps
 
 BattleSim does not yet populate these optional projection fields with meaningful data:
@@ -186,6 +247,7 @@ BattleSim does not yet populate these optional projection fields with meaningful
 - wound target
 - life-state result per beat
 - projection movement or interpolation toward slots
+- animation player or visual actor event consumption
 - tactical target selection beyond deterministic engagement groups
 
 Those fields remain optional until the relevant systems produce durable result data. Projection must not invent them as truth.

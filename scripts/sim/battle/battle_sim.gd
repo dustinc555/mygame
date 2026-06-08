@@ -10,6 +10,7 @@ const ENGAGEMENT_GROUP_STRATEGY := "deterministic_sorted_bounded"
 const COMBAT_SLOT_GROUP_SPACING := 5.0
 const COMBAT_SLOT_SIDE_DISTANCE := 1.2
 const COMBAT_SLOT_SUPPORT_DISTANCE := 1.05
+const COMBAT_BEAT_PLAYBACK_SCHEDULER_SCRIPT := preload("res://scripts/sim/battle/combat_beat_playback_scheduler.gd")
 
 const LIFE_STATE_ALIVE := 0
 const LIFE_STATE_ASLEEP := 1
@@ -72,6 +73,7 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 	var combat_slots: Dictionary = slot_plan.get("combat_slots", {}) if slot_plan.get("combat_slots", {}) is Dictionary else {}
 	var slot_id_by_occupant: Dictionary = slot_plan.get("slot_id_by_occupant", {}) if slot_plan.get("slot_id_by_occupant", {}) is Dictionary else {}
 	var beats := _combat_beats(profile_a, profile_b, power_a, power_b, rounds, int(config.get("current_tick", 0)), encounter_id, engagement_groups, slot_id_by_occupant, rng)
+	var combat_schedule: Dictionary = COMBAT_BEAT_PLAYBACK_SCHEDULER_SCRIPT.build_schedule(beats, engagement_groups, combat_slots, config)
 	return {
 		"outcome": outcome,
 		"winner_squad_id": winner_id,
@@ -104,6 +106,7 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 			squad_a_id: profile_a,
 			squad_b_id: profile_b,
 		},
+		"combat_schedule": combat_schedule,
 		"engagement_groups": engagement_groups,
 		"engagement_grouping": _engagement_grouping_summary(profile_a, profile_b, engagement_groups),
 		"combat_slots": combat_slots,
