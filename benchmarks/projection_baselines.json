@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "issue": 106,
+  "updated_at": "2026-06-08",
+  "engine": "Godot Engine v4.6.3.stable.nixpkgs.35e80b3a8",
+  "command": "godot --headless --path . --script scripts/validation/benchmark_minimal_projection_baselines.gd",
+  "notes": "Baseline costs for visible minimal projection scenes. Headless helper results are recorded here for comparison; scenes can also be opened directly for visible/render inspection. No FPS thresholds are enforced for #106.",
+  "scenarios": [
+    {
+      "scenario_id": "projection_baseline_1v1",
+      "scene_path": "res://scenes/test_levels/projection_baseline_1v1.tscn",
+      "actor_count": 2,
+      "sample_frames": 360,
+      "average_fps": 144.903,
+      "min_fps": 79.561,
+      "projected_actor_count": 2,
+      "visible_actor_count": 2,
+      "active_animation_count": 2,
+      "projection_sync_average_ms": 0.334,
+      "projection_sync_last_ms": 0.200,
+      "gecs_tick_ms": 0.167,
+      "battle_sim_included": false
+    },
+    {
+      "scenario_id": "projection_baseline_5v5",
+      "scene_path": "res://scenes/test_levels/projection_baseline_5v5.tscn",
+      "actor_count": 10,
+      "sample_frames": 360,
+      "average_fps": 144.916,
+      "min_fps": 92.106,
+      "projected_actor_count": 10,
+      "visible_actor_count": 10,
+      "active_animation_count": 10,
+      "projection_sync_average_ms": 1.120,
+      "projection_sync_last_ms": 0.985,
+      "gecs_tick_ms": 0.159,
+      "battle_sim_included": false
+    },
+    {
+      "scenario_id": "projection_baseline_50v50",
+      "scene_path": "res://scenes/test_levels/projection_baseline_50v50.tscn",
+      "actor_count": 100,
+      "sample_frames": 360,
+      "average_fps": 56.788,
+      "min_fps": 14.774,
+      "projected_actor_count": 100,
+      "visible_actor_count": 100,
+      "active_animation_count": 100,
+      "projection_sync_average_ms": 8.490,
+      "projection_sync_last_ms": 7.901,
+      "gecs_tick_ms": 0.168,
+      "battle_sim_included": false
+    }
+  ]
+}
