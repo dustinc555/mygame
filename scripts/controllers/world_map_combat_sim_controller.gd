@@ -22,6 +22,7 @@ const WORLD_SQUAD_STATE_SCRIPT := preload("res://scripts/ecs/components/c_game_w
 const WORLD_ENCOUNTER_STATE_SCRIPT := preload("res://scripts/ecs/components/c_game_world_encounter_state.gd")
 const POPULATION_RECORD_SCRIPT := preload("res://scripts/ecs/components/c_game_population_record.gd")
 const BATTLE_SIM_SCRIPT := preload("res://scripts/sim/battle/battle_sim.gd")
+const COMBAT_PROJECTION_CONTINUITY_BUILDER_SCRIPT := preload("res://scripts/sim/battle/combat_projection_continuity_builder.gd")
 const LIFE_STATE_ALIVE := 0
 const LIFE_STATE_DYING := 5
 const ATTRIBUTE_STRENGTH := "attribute.strength"
@@ -695,6 +696,7 @@ func _resolve_encounter_record(encounter_record: Dictionary, active_squads: Dict
 	encounter_record["status"] = "resolved"
 	encounter_record["resolved_tick"] = current_tick
 	encounter_record["resolution_ticks_remaining"] = 0
+	battle_result["combat_continuity"] = COMBAT_PROJECTION_CONTINUITY_BUILDER_SCRIPT.build_continuity(encounter_record, battle_result, _combat_continuity_current_records(squad_a_record, squad_b_record))
 	encounter_record["battle_result"] = battle_result
 	encounter_record["is_debug_forced"] = bool(encounter_record.get("is_debug_forced", encounter_record.get("debug_only", false)))
 	if not pair_key.is_empty():
@@ -722,6 +724,15 @@ func _battle_participant_payload(squad_record: Dictionary) -> Dictionary:
 		payload["member_records"] = member_records
 		payload["member_records_are_canonical"] = true
 	return payload
+
+
+func _combat_continuity_current_records(squad_a_record: Dictionary, squad_b_record: Dictionary) -> Dictionary:
+	return {
+		"squad_records": [
+			_battle_participant_payload(squad_a_record),
+			_battle_participant_payload(squad_b_record),
+		],
+	}
 
 
 func _resolve_squad_member_records(squad_record: Dictionary) -> Array[Dictionary]:

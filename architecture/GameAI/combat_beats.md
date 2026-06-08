@@ -239,6 +239,42 @@ Default scheduling policy:
 
 The schedule never changes combat outcomes. It is presentation-only timing data for later projection systems.
 
+## #91 Continuity Snapshot
+
+`CombatProjectionContinuityBuilder` is a data-only helper for offscreen-to-onscreen continuity. It consumes stored encounter, BattleSim, CombatBeat, schedule, engagement group, combat slot, and current member/squad records, then returns `battle_result["combat_continuity"]`.
+
+Continuity snapshots let projection join or inspect a fight without restarting, rerolling, or contradicting the stored combat result.
+
+Continuity records use this shape:
+
+```text
+CombatContinuity
+  encounter_id
+  status
+  projection_state
+  member_states
+  active_group_ids
+  active_slot_ids
+  replay_event_ids
+  summarized_event_ids
+  aftermath_member_ids
+  recent_replay_event_limit
+  source_event_count
+  presentation_only
+```
+
+`projection_state` is:
+
+- `active` for engaged/resolving fights.
+- `aftermath` for resolved fights.
+- `inactive` otherwise.
+
+Resolved fights mostly show aftermath. They replay only recent high/critical/important schedule events, capped by `recent_replay_event_limit = 16`, and summarize the rest. Active/resolving fights expose active engagement groups, active slots, current member states, and replayable recent events so projection can join midstream later.
+
+`member_states` are keyed by stable member IDs and contain member/actor/squad IDs plus current life/vital state. They must not contain `Node`, `NodePath`, scene actor references, or UI references.
+
+Continuity is presentation-only. It does not mutate GECS, rerun BattleSim, choose targets, move actors, or spawn projections.
+
 ## Known #87 Gaps
 
 BattleSim does not yet populate these optional projection fields with meaningful data:
@@ -248,6 +284,7 @@ BattleSim does not yet populate these optional projection fields with meaningful
 - life-state result per beat
 - projection movement or interpolation toward slots
 - animation player or visual actor event consumption
+- visual realization/unrealization driven from continuity snapshots
 - tactical target selection beyond deterministic engagement groups
 
 Those fields remain optional until the relevant systems produce durable result data. Projection must not invent them as truth.
