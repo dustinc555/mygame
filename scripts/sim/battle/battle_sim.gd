@@ -37,6 +37,10 @@ const COMBAT_SHIELDS := "combat.shields"
 
 
 static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dictionary, squad_b_record: Dictionary, config: Dictionary) -> Dictionary:
+	var collect_benchmark_metrics := bool(config.get("collect_benchmark_metrics", false))
+	var benchmark_metrics := {}
+	var resolve_started_usec := Time.get_ticks_usec() if collect_benchmark_metrics else 0
+	var phase_started_usec := resolve_started_usec
 	var squad_a_id := str(squad_a_record.get("squad_id", _squad_id_from_encounter(encounter_record, 0))).strip_edges()
 	var squad_b_id := str(squad_b_record.get("squad_id", _squad_id_from_encounter(encounter_record, 1))).strip_edges()
 	var rounds := maxi(1, int(config.get("rounds", DEFAULT_ROUND_COUNT)))
@@ -44,6 +48,7 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 	rng.seed = _seed_from_config(encounter_record, config)
 	var profile_a := _combat_profile(squad_a_record)
 	var profile_b := _combat_profile(squad_b_record)
+	phase_started_usec = _record_benchmark_phase(benchmark_metrics, collect_benchmark_metrics, "profile_generation_usec", phase_started_usec)
 	var power_a := _effective_power(profile_a, squad_a_record, encounter_record, rng)
 	var power_b := _effective_power(profile_b, squad_b_record, encounter_record, rng)
 	profile_a["effective_power"] = power_a
@@ -58,6 +63,7 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 	elif outcome == "squad_b_won":
 		winner_id = squad_b_id
 		loser_id = squad_a_id
+	phase_started_usec = _record_benchmark_phase(benchmark_metrics, collect_benchmark_metrics, "outcome_generation_usec", phase_started_usec)
 	var casualty_count_a := _casualty_count_for(profile_a, squad_a_record, power_b / total_power, outcome == "squad_b_won", outcome == "draw", rng)
 	var casualty_count_b := _casualty_count_for(profile_b, squad_b_record, power_a / total_power, outcome == "squad_a_won", outcome == "draw", rng)
 	var member_casualties_a := _member_casualties_for(profile_a, casualty_count_a, outcome == "squad_b_won", rng)
@@ -68,12 +74,16 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 	var morale_delta_b := _morale_delta(outcome, "squad_b_won", casualties_b, squad_b_record, profile_b)
 	var supplies_delta_a := _supplies_delta(casualties_a, rounds, squad_a_record, profile_a)
 	var supplies_delta_b := _supplies_delta(casualties_b, rounds, squad_b_record, profile_b)
+	phase_started_usec = _record_benchmark_phase(benchmark_metrics, collect_benchmark_metrics, "casualty_generation_usec", phase_started_usec)
 	var encounter_id := _combat_beat_encounter_id(encounter_record, config)
 	var engagement_groups := _engagement_groups(profile_a, profile_b, encounter_id, squad_a_id, squad_b_id)
+	phase_started_usec = _record_benchmark_phase(benchmark_metrics, collect_benchmark_metrics, "engagement_group_generation_usec", phase_started_usec)
 	var slot_plan := _combat_slot_plan(encounter_record, encounter_id, engagement_groups)
 	var combat_slots: Dictionary = slot_plan.get("combat_slots", {}) if slot_plan.get("combat_slots", {}) is Dictionary else {}
 	var slot_id_by_occupant: Dictionary = slot_plan.get("slot_id_by_occupant", {}) if slot_plan.get("slot_id_by_occupant", {}) is Dictionary else {}
+	phase_started_usec = _record_benchmark_phase(benchmark_metrics, collect_benchmark_metrics, "combat_slot_generation_usec", phase_started_usec)
 	var completion_result: Dictionary = _resolve_completion_1v1(profile_a, profile_b, power_a, power_b, int(config.get("current_tick", 0)), encounter_id, engagement_groups, slot_id_by_occupant, rng, config) if bool(config.get("resolve_to_completion", false)) else {}
+	phase_started_usec = _record_benchmark_phase(benchmark_metrics, collect_benchmark_metrics, "completion_resolution_usec", phase_started_usec)
 	if not completion_result.is_empty():
 		outcome = str(completion_result.get("outcome", outcome))
 		winner_id = str(completion_result.get("winner_squad_id", winner_id))
@@ -90,8 +100,10 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 	var beats: Array[Dictionary] = _dictionary_array(completion_result.get("beats", []))
 	if beats.is_empty():
 		beats = _combat_beats(profile_a, profile_b, power_a, power_b, rounds, int(config.get("current_tick", 0)), encounter_id, engagement_groups, slot_id_by_occupant, rng)
+	phase_started_usec = _record_benchmark_phase(benchmark_metrics, collect_benchmark_metrics, "combat_beat_generation_usec", phase_started_usec)
 	var combat_schedule: Dictionary = COMBAT_BEAT_PLAYBACK_SCHEDULER_SCRIPT.build_schedule(beats, engagement_groups, combat_slots, config)
-	return {
+	phase_started_usec = _record_benchmark_phase(benchmark_metrics, collect_benchmark_metrics, "schedule_generation_usec", phase_started_usec)
+	var result := {
 		"outcome": outcome,
 		"winner_squad_id": winner_id,
 		"loser_squad_id": loser_id,
@@ -130,6 +142,19 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 		"combat_slots": combat_slots,
 		"combat_slotting": _combat_slotting_summary(combat_slots, engagement_groups),
 	}
+	phase_started_usec = _record_benchmark_phase(benchmark_metrics, collect_benchmark_metrics, "result_assembly_usec", phase_started_usec)
+	if collect_benchmark_metrics:
+		benchmark_metrics["total_internal_usec"] = Time.get_ticks_usec() - resolve_started_usec
+		result["benchmark_metrics"] = benchmark_metrics
+	return result
+
+
+static func _record_benchmark_phase(metrics: Dictionary, enabled: bool, phase_name: String, phase_started_usec: int) -> int:
+	if not enabled:
+		return phase_started_usec
+	var now_usec := Time.get_ticks_usec()
+	metrics[phase_name] = now_usec - phase_started_usec
+	return now_usec
 
 
 static func _combat_profile(record: Dictionary) -> Dictionary:
