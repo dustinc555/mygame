@@ -63,20 +63,22 @@ func _validate_squad_fallback_beats() -> void:
 
 func _validate_beats(result: Dictionary, expected_count: int, expects_member_ids: bool, label: String) -> void:
 	var beats: Array = result.get("beats", []) if result.get("beats", []) is Array else []
+	var engagement_group_ids := _engagement_group_ids(result)
+	_expect(not engagement_group_ids.is_empty(), "%s BattleSim emits engagement groups" % label)
 	_expect(beats.size() == expected_count, "%s BattleSim emits expected beat count" % label)
 	for index in range(beats.size()):
 		var beat: Dictionary = beats[index] if beats[index] is Dictionary else {}
 		var beat_index := index + 1
-		_validate_required_beat_fields(beat, beat_index, label)
+		_validate_required_beat_fields(beat, beat_index, engagement_group_ids, label)
 		_validate_beat_member_fields(beat, expects_member_ids, label)
 
 
-func _validate_required_beat_fields(beat: Dictionary, beat_index: int, label: String) -> void:
+func _validate_required_beat_fields(beat: Dictionary, beat_index: int, engagement_group_ids: Dictionary, label: String) -> void:
 	var encounter_id := str(beat.get("encounter_id", "")).strip_edges()
 	_expect(not encounter_id.is_empty(), "%s beat has encounter_id" % label)
 	_expect(int(beat.get("beat_index", 0)) == beat_index, "%s beat_index is stable and ordered" % label)
 	_expect(str(beat.get("beat_id", "")) == "%s:beat:%03d" % [encounter_id, beat_index], "%s beat_id is stable" % label)
-	_expect(str(beat.get("engagement_group_id", "")) == "%s:group:main" % encounter_id, "%s beat has #87 fallback engagement group" % label)
+	_expect(engagement_group_ids.has(str(beat.get("engagement_group_id", ""))), "%s beat references an existing engagement group" % label)
 	_expect(int(beat.get("tick", -1)) == CURRENT_TICK, "%s beat keeps source tick" % label)
 	_expect(int(beat.get("presentation_tick", -1)) == CURRENT_TICK + beat_index - 1, "%s beat has stable presentation_tick" % label)
 	_expect(int(beat.get("round", 0)) > 0, "%s beat has round" % label)
@@ -89,6 +91,17 @@ func _validate_required_beat_fields(beat: Dictionary, beat_index: int, label: St
 	_expect(float(beat.get("damage", -1.0)) >= 0.0, "%s beat has damage" % label)
 	_expect(not str(beat.get("importance", "")).strip_edges().is_empty(), "%s beat has importance" % label)
 	_expect(not str(beat.get("summary", "")).strip_edges().is_empty(), "%s beat has summary" % label)
+
+
+func _engagement_group_ids(result: Dictionary) -> Dictionary:
+	var ids := {}
+	var groups: Array = result.get("engagement_groups", []) if result.get("engagement_groups", []) is Array else []
+	for group in groups:
+		if group is Dictionary:
+			var group_id := str((group as Dictionary).get("engagement_group_id", "")).strip_edges()
+			if not group_id.is_empty():
+				ids[group_id] = true
+	return ids
 
 
 func _validate_beat_member_fields(beat: Dictionary, expects_member_ids: bool, label: String) -> void:

@@ -77,17 +77,48 @@ Optional member-level fields:
 
 Missing optional member fields mean BattleSim used squad-level fallback data for that side. Projection must handle that without inventing member truth.
 
-## Engagement Group Fallback
+## #88 Engagement Groups
 
-#87 does not solve fighter pairing or engagement grouping.
+BattleSim emits `battle_result["engagement_groups"]` as data-first presentation grouping. Actors do not choose targets and projected actors do not scan for enemies.
 
-Until #88 creates real engagement groups, BattleSim emits one deterministic fallback group per encounter:
+Engagement group records use this shape:
 
-```gdscript
-engagement_group_id = "%s:group:main" % encounter_id
+```text
+EngagementGroup
+  engagement_group_id
+  encounter_id
+  group_index
+  group_role
+  strategy
+  max_group_size
+  side_a_squad_id
+  side_b_squad_id
+  side_a_primary_id
+  side_b_primary_id
+  side_a_member_ids
+  side_b_member_ids
+  support_member_ids
+  reserve_member_ids
 ```
 
-#88 replaces this fallback with real data-first pairings and engagement groups. Projection and scheduler code can still rely on every new beat having a stable group key now.
+`side_a_member_ids` and `side_b_member_ids` are the side-owned assigned members for the group. `support_member_ids` and `reserve_member_ids` classify non-primary members inside those side assignments.
+
+Group IDs are stable per encounter:
+
+```gdscript
+engagement_group_id = "%s:group:%03d" % [encounter_id, group_index]
+```
+
+New beats reference an existing `engagement_group_id`. Member-level fights use deterministic groups. Squad-fallback fights still emit one fallback group and keep member IDs empty.
+
+Current grouping strategy:
+
+- Sort living participants deterministically by combat score, then stable member ID.
+- Create paired groups with one primary from each side when possible.
+- Keep group size bounded by `max_group_size = 4`.
+- Assign extras as support into existing groups while room remains.
+- Assign remaining extras into reserve groups.
+- Use O(N log N) sorting plus O(N) assignment, not all-vs-all matching.
 
 ## Known #87 Gaps
 
@@ -97,7 +128,7 @@ BattleSim does not yet populate these optional projection fields with meaningful
 - wound target
 - life-state result per beat
 - slot, position, or facing hints
-- real engagement group or fighter pairing assignments
+- tactical target selection beyond deterministic engagement groups
 
 Those fields remain optional until the relevant systems produce durable result data. Projection must not invent them as truth.
 

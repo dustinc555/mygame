@@ -5,6 +5,8 @@ class_name BattleSim
 const DEFAULT_ROUND_COUNT := 3
 const MIN_POWER := 0.001
 const MEMBER_POWER_EXPONENT := 1.35
+const MAX_ENGAGEMENT_GROUP_SIZE := 4
+const ENGAGEMENT_GROUP_STRATEGY := "deterministic_sorted_bounded"
 
 const LIFE_STATE_ALIVE := 0
 const LIFE_STATE_ASLEEP := 1
@@ -62,7 +64,8 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 	var supplies_delta_a := _supplies_delta(casualties_a, rounds, squad_a_record, profile_a)
 	var supplies_delta_b := _supplies_delta(casualties_b, rounds, squad_b_record, profile_b)
 	var encounter_id := _combat_beat_encounter_id(encounter_record, config)
-	var beats := _combat_beats(profile_a, profile_b, power_a, power_b, rounds, int(config.get("current_tick", 0)), encounter_id, rng)
+	var engagement_groups := _engagement_groups(profile_a, profile_b, encounter_id, squad_a_id, squad_b_id)
+	var beats := _combat_beats(profile_a, profile_b, power_a, power_b, rounds, int(config.get("current_tick", 0)), encounter_id, engagement_groups, rng)
 	return {
 		"outcome": outcome,
 		"winner_squad_id": winner_id,
@@ -95,6 +98,8 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 			squad_a_id: profile_a,
 			squad_b_id: profile_b,
 		},
+		"engagement_groups": engagement_groups,
+		"engagement_grouping": _engagement_grouping_summary(profile_a, profile_b, engagement_groups),
 	}
 
 
@@ -326,12 +331,36 @@ static func _supplies_delta(casualties: int, rounds: int, record: Dictionary, pr
 	return -minf(float(rounds) * 0.35 + members * 0.08 + float(casualties) * 0.15, float(record.get("supplies", 0.0)))
 
 
-static func _combat_beats(profile_a: Dictionary, profile_b: Dictionary, power_a: float, power_b: float, rounds: int, current_tick: int, encounter_id: String, rng: RandomNumberGenerator) -> Array[Dictionary]:
+static func _engagement_groups(profile_a: Dictionary, profile_b: Dictionary, encounter_id: String, squad_a_id: String, squad_b_id: String) -> Array[Dictionary]:
+	var groups: Array[Dictionary] = []
+	var group_encounter_id := encounter_id.strip_edges()
+	if group_encounter_id.is_empty():
+		group_encounter_id = "encounter:untracked"
+	var side_a_participants := _sorted_engagement_participants(profile_a)
+	var side_b_participants := _sorted_engagement_participants(profile_b)
+	if side_a_participants.is_empty() and side_b_participants.is_empty():
+		groups.append(_squad_fallback_engagement_group(group_encounter_id, squad_a_id, squad_b_id))
+		return groups
+	var paired_count := mini(side_a_participants.size(), side_b_participants.size())
+	for index in range(paired_count):
+		var group := _engagement_group_record(group_encounter_id, groups.size() + 1, squad_a_id, squad_b_id, "paired")
+		_add_group_member(group, "a", side_a_participants[index], false, false)
+		_add_group_member(group, "b", side_b_participants[index], false, false)
+		groups.append(group)
+	var next_a_index := _assign_support_members(groups, side_a_participants, paired_count, "a")
+	var next_b_index := _assign_support_members(groups, side_b_participants, paired_count, "b")
+	_append_reserve_groups(groups, side_a_participants, next_a_index, "a", group_encounter_id, squad_a_id, squad_b_id)
+	_append_reserve_groups(groups, side_b_participants, next_b_index, "b", group_encounter_id, squad_a_id, squad_b_id)
+	if groups.is_empty():
+		groups.append(_squad_fallback_engagement_group(group_encounter_id, squad_a_id, squad_b_id))
+	return groups
+
+
+static func _combat_beats(profile_a: Dictionary, profile_b: Dictionary, power_a: float, power_b: float, rounds: int, current_tick: int, encounter_id: String, engagement_groups: Array[Dictionary], rng: RandomNumberGenerator) -> Array[Dictionary]:
 	var beats: Array[Dictionary] = []
 	var beat_encounter_id := encounter_id.strip_edges()
 	if beat_encounter_id.is_empty():
 		beat_encounter_id = "encounter:untracked"
-	var engagement_group_id := _fallback_engagement_group_id(beat_encounter_id)
 	var squad_a_id := str(profile_a.get("squad_id", ""))
 	var squad_b_id := str(profile_b.get("squad_id", ""))
 	for round_index in range(1, rounds + 1):
@@ -343,8 +372,10 @@ static func _combat_beats(profile_a: Dictionary, profile_b: Dictionary, power_a:
 		var defender_squad_id := squad_b_id if attacker_squad_id == squad_a_id else squad_a_id
 		if not str(defender_profile.get("squad_id", "")).is_empty():
 			defender_squad_id = str(defender_profile.get("squad_id", ""))
-		var attacker_member := _pick_beat_member(attacker_profile, rng)
-		var defender_member := _pick_beat_member(defender_profile, rng)
+		var engagement_group := _pick_beat_group(engagement_groups, attacker_squad_id, defender_squad_id, round_index)
+		var engagement_group_id := str(engagement_group.get("engagement_group_id", _engagement_group_id(beat_encounter_id, 1))).strip_edges()
+		var attacker_member := _pick_beat_member_for_group(attacker_profile, engagement_group, attacker_squad_id, rng)
+		var defender_member := _pick_beat_member_for_group(defender_profile, engagement_group, defender_squad_id, rng)
 		var attacker_member_id := str(attacker_member.get("member_id", "")).strip_edges()
 		var defender_member_id := str(defender_member.get("member_id", "")).strip_edges()
 		var attacker_id := attacker_member_id if not attacker_member_id.is_empty() else attacker_squad_id
@@ -381,6 +412,192 @@ static func _combat_beats(profile_a: Dictionary, profile_b: Dictionary, power_a:
 	return beats
 
 
+static func _engagement_grouping_summary(profile_a: Dictionary, profile_b: Dictionary, engagement_groups: Array[Dictionary]) -> Dictionary:
+	var side_a_participants := _sorted_engagement_participants(profile_a)
+	var side_b_participants := _sorted_engagement_participants(profile_b)
+	return {
+		"strategy": ENGAGEMENT_GROUP_STRATEGY,
+		"complexity": "O(N log N) sort + O(N) assignment",
+		"max_group_size": MAX_ENGAGEMENT_GROUP_SIZE,
+		"group_count": engagement_groups.size(),
+		"side_a_participant_count": side_a_participants.size(),
+		"side_b_participant_count": side_b_participants.size(),
+		"excluded_member_count": int(profile_a.get("excluded_member_count", 0)) + int(profile_b.get("excluded_member_count", 0)),
+	}
+
+
+static func _sorted_engagement_participants(profile: Dictionary) -> Array[Dictionary]:
+	var participants := _dictionary_array(profile.get("participants", []))
+	participants.sort_custom(func(first: Dictionary, second: Dictionary) -> bool:
+		var first_score := _engagement_sort_score(first)
+		var second_score := _engagement_sort_score(second)
+		if not is_equal_approx(first_score, second_score):
+			return first_score > second_score
+		return _member_group_id(first) < _member_group_id(second)
+	)
+	return participants
+
+
+static func _engagement_sort_score(member_profile: Dictionary) -> float:
+	return float(member_profile.get("power", 0.0))
+
+
+static func _member_group_id(member_profile: Dictionary) -> String:
+	for key in ["member_id", "actor_id", "stable_id"]:
+		var value := str(member_profile.get(key, "")).strip_edges()
+		if not value.is_empty():
+			return value
+	return ""
+
+
+static func _squad_fallback_engagement_group(encounter_id: String, squad_a_id: String, squad_b_id: String) -> Dictionary:
+	var group := _engagement_group_record(encounter_id, 1, squad_a_id, squad_b_id, "squad_fallback")
+	group["side_a_primary_id"] = squad_a_id
+	group["side_b_primary_id"] = squad_b_id
+	group["uses_squad_fallback"] = true
+	return group
+
+
+static func _engagement_group_record(encounter_id: String, group_index: int, squad_a_id: String, squad_b_id: String, group_role: String) -> Dictionary:
+	return {
+		"engagement_group_id": _engagement_group_id(encounter_id, group_index),
+		"encounter_id": encounter_id,
+		"group_index": group_index,
+		"group_role": group_role,
+		"strategy": ENGAGEMENT_GROUP_STRATEGY,
+		"max_group_size": MAX_ENGAGEMENT_GROUP_SIZE,
+		"side_a_squad_id": squad_a_id,
+		"side_b_squad_id": squad_b_id,
+		"side_a_primary_id": "",
+		"side_b_primary_id": "",
+		"side_a_member_ids": [],
+		"side_b_member_ids": [],
+		"support_member_ids": [],
+		"reserve_member_ids": [],
+		"uses_squad_fallback": false,
+	}
+
+
+static func _engagement_group_id(encounter_id: String, group_index: int) -> String:
+	return "%s:group:%03d" % [encounter_id, group_index]
+
+
+static func _add_group_member(group: Dictionary, side: String, member_profile: Dictionary, support: bool, reserve: bool) -> void:
+	var member_id := _member_group_id(member_profile)
+	if member_id.is_empty():
+		return
+	var side_key := "side_a_member_ids" if side == "a" else "side_b_member_ids"
+	var primary_key := "side_a_primary_id" if side == "a" else "side_b_primary_id"
+	var side_member_ids := _string_array(group.get(side_key, []))
+	if not side_member_ids.has(member_id):
+		side_member_ids.append(member_id)
+	group[side_key] = side_member_ids
+	if str(group.get(primary_key, "")).strip_edges().is_empty():
+		group[primary_key] = member_id
+	if support:
+		_append_unique_string_field(group, "support_member_ids", member_id)
+	if reserve:
+		_append_unique_string_field(group, "reserve_member_ids", member_id)
+
+
+static func _assign_support_members(groups: Array[Dictionary], members: Array[Dictionary], start_index: int, side: String) -> int:
+	var member_index := start_index
+	var group_index := 0
+	while member_index < members.size() and group_index < groups.size():
+		var group := groups[group_index]
+		if _engagement_group_size(group) >= MAX_ENGAGEMENT_GROUP_SIZE:
+			group_index += 1
+			continue
+		_add_group_member(group, side, members[member_index], true, false)
+		groups[group_index] = group
+		member_index += 1
+	return member_index
+
+
+static func _append_reserve_groups(groups: Array[Dictionary], members: Array[Dictionary], start_index: int, side: String, encounter_id: String, squad_a_id: String, squad_b_id: String) -> void:
+	var member_index := start_index
+	while member_index < members.size():
+		var group := _engagement_group_record(encounter_id, groups.size() + 1, squad_a_id, squad_b_id, "reserve")
+		while member_index < members.size() and _engagement_group_size(group) < MAX_ENGAGEMENT_GROUP_SIZE:
+			_add_group_member(group, side, members[member_index], false, true)
+			member_index += 1
+		groups.append(group)
+
+
+static func _append_unique_string_field(group: Dictionary, field_name: String, value: String) -> void:
+	var values := _string_array(group.get(field_name, []))
+	if not values.has(value):
+		values.append(value)
+	group[field_name] = values
+
+
+static func _engagement_group_size(group: Dictionary) -> int:
+	return _string_array(group.get("side_a_member_ids", [])).size() + _string_array(group.get("side_b_member_ids", [])).size()
+
+
+static func _pick_beat_group(engagement_groups: Array[Dictionary], attacker_squad_id: String, defender_squad_id: String, round_index: int) -> Dictionary:
+	if engagement_groups.is_empty():
+		return {}
+	var matching_groups: Array[Dictionary] = []
+	for group in engagement_groups:
+		if _group_has_squad_members(group, attacker_squad_id) and _group_has_squad_members(group, defender_squad_id):
+			matching_groups.append(group)
+	if matching_groups.is_empty():
+		return engagement_groups[0]
+	return matching_groups[maxi(0, round_index - 1) % matching_groups.size()]
+
+
+static func _group_has_squad_members(group: Dictionary, squad_id: String) -> bool:
+	var trimmed_squad_id := squad_id.strip_edges()
+	if trimmed_squad_id.is_empty():
+		return false
+	if str(group.get("side_a_squad_id", "")).strip_edges() == trimmed_squad_id:
+		return not _string_array(group.get("side_a_member_ids", [])).is_empty() or str(group.get("side_a_primary_id", "")).strip_edges() == trimmed_squad_id
+	if str(group.get("side_b_squad_id", "")).strip_edges() == trimmed_squad_id:
+		return not _string_array(group.get("side_b_member_ids", [])).is_empty() or str(group.get("side_b_primary_id", "")).strip_edges() == trimmed_squad_id
+	return false
+
+
+static func _pick_beat_member_for_group(profile: Dictionary, engagement_group: Dictionary, squad_id: String, rng: RandomNumberGenerator) -> Dictionary:
+	var member_ids := _group_member_ids_for_squad(engagement_group, squad_id)
+	if member_ids.is_empty():
+		return _pick_beat_member(profile, rng)
+	return _pick_beat_member_by_ids(profile, member_ids, rng)
+
+
+static func _group_member_ids_for_squad(group: Dictionary, squad_id: String) -> Array[String]:
+	var trimmed_squad_id := squad_id.strip_edges()
+	if str(group.get("side_a_squad_id", "")).strip_edges() == trimmed_squad_id:
+		return _string_array(group.get("side_a_member_ids", []))
+	if str(group.get("side_b_squad_id", "")).strip_edges() == trimmed_squad_id:
+		return _string_array(group.get("side_b_member_ids", []))
+	return []
+
+
+static func _pick_beat_member_by_ids(profile: Dictionary, member_ids: Array[String], rng: RandomNumberGenerator) -> Dictionary:
+	var allowed_ids := {}
+	for member_id in member_ids:
+		allowed_ids[member_id] = true
+	var candidates: Array[Dictionary] = []
+	for member_profile in _dictionary_array(profile.get("participants", [])):
+		if allowed_ids.has(_member_group_id(member_profile)):
+			candidates.append(member_profile)
+	if candidates.is_empty():
+		return _pick_beat_member(profile, rng)
+	var total_power := 0.0
+	for member_profile in candidates:
+		total_power += maxf(float(member_profile.get("power", 0.0)), 0.0)
+	if total_power <= 0.0:
+		return candidates[rng.randi_range(0, candidates.size() - 1)]
+	var roll := rng.randf_range(0.0, total_power)
+	var cursor := 0.0
+	for member_profile in candidates:
+		cursor += maxf(float(member_profile.get("power", 0.0)), 0.0)
+		if roll <= cursor:
+			return member_profile
+	return candidates[candidates.size() - 1]
+
+
 static func _combat_beat_encounter_id(encounter_record: Dictionary, config: Dictionary) -> String:
 	var config_id := str(config.get("encounter_id", "")).strip_edges()
 	if not config_id.is_empty():
@@ -390,10 +607,6 @@ static func _combat_beat_encounter_id(encounter_record: Dictionary, config: Dict
 
 static func _combat_beat_id(encounter_id: String, beat_index: int) -> String:
 	return "%s:beat:%03d" % [encounter_id, beat_index]
-
-
-static func _fallback_engagement_group_id(encounter_id: String) -> String:
-	return "%s:group:main" % encounter_id
 
 
 static func _pick_beat_member(profile: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
@@ -447,6 +660,17 @@ static func _dictionary_array(value) -> Array[Dictionary]:
 	for entry in value:
 		if entry is Dictionary:
 			result.append(entry.duplicate(true))
+	return result
+
+
+static func _string_array(value) -> Array[String]:
+	var result: Array[String] = []
+	if not (value is Array) and not (value is PackedStringArray):
+		return result
+	for entry in value:
+		var text := str(entry).strip_edges()
+		if not text.is_empty():
+			result.append(text)
 	return result
 
 
