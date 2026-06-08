@@ -239,6 +239,42 @@ Default scheduling policy:
 
 The schedule never changes combat outcomes. It is presentation-only timing data for later projection systems.
 
+## #92 Performance Gates
+
+Combat projection has explicit metrics and caps before full 50v50 projection work.
+
+`CombatBeatPlaybackScheduler` reports scheduler gate data in `battle_result["combat_schedule"]`:
+
+```text
+CombatSchedule
+  detailed_event_count
+  skipped_event_count
+  summarized_event_count
+  detailed_beat_limit
+  scheduled_event_count
+  total_beat_count
+```
+
+`detailed_beat_limit` defaults to `32`. High/critical/important beats are prioritized first, then earliest normal beats fill remaining detail budget. Skipped/summarized beats remain in `battle_result["beats"]`; only detailed presentation events are capped.
+
+`WorldActorProjectionController` exposes projection gate metrics through `get_projection_performance_metrics()`:
+
+```text
+ProjectionPerformanceMetrics
+  projected_actor_count
+  realized_actor_count
+  visible_actor_count
+  max_projected_actor_count
+  projection_cap_active
+  skipped_projection_count
+  eligible_projection_count
+  unsupported_projection_count
+```
+
+`max_projected_actor_count = 0` means unlimited and preserves current behavior. Values above `0` cap projected actors deterministically by stable actor ID. Hitting the cap skips/defer projection only; it does not mutate GECS truth.
+
+These gates are inspectable guardrails, not a complete pooling/LOD implementation. Projection may simplify presentation, but GECS/BattleSim outcomes do not change.
+
 ## #91 Continuity Snapshot
 
 `CombatProjectionContinuityBuilder` is a data-only helper for offscreen-to-onscreen continuity. It consumes stored encounter, BattleSim, CombatBeat, schedule, engagement group, combat slot, and current member/squad records, then returns `battle_result["combat_continuity"]`.

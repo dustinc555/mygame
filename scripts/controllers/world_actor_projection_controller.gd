@@ -9,6 +9,7 @@ const PLACEHOLDER_BODY_PROJECTION_SCRIPT := preload("res://scripts/projection/pl
 @export var auto_project := true
 @export_range(0.05, 5.0, 0.05) var projection_update_interval_seconds := 0.25
 @export var projection_root_name := "WorldActorProjections"
+@export var max_projected_actor_count := 0
 @export var performance_logging_enabled := false
 @export_range(0.1, 10.0, 0.1) var performance_log_interval_seconds := 1.0
 @export_range(0.0, 50000.0, 100.0) var performance_log_threshold_usec := 1000.0
@@ -23,6 +24,7 @@ var _equipment_slots_cache_by_actor_id: Dictionary = {}
 var _equipment_slots_cache_dirty := true
 var _equipment_signal_bridge: Node
 var _perf_log_next_msec_by_label: Dictionary = {}
+var _last_projection_metrics: Dictionary = {}
 
 
 func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
@@ -59,7 +61,8 @@ func sync_projections() -> void:
 	var records := _get_population_records_core(bridge)
 	var equipment_by_actor := _equipment_slots_by_actor(bridge)
 	var expected_actor_ids := {}
-	for actor_id_value in records.keys():
+	var metrics := _projection_metrics_base(records.size())
+	for actor_id_value in _projection_record_keys(records):
 		var record_value = records[actor_id_value]
 		if not (record_value is Dictionary):
 			continue
@@ -70,12 +73,22 @@ func sync_projections() -> void:
 		var projection_kind := _projection_kind_for_record(record)
 		if not can_project_kind(projection_kind):
 			_note_unsupported_kind(projection_kind)
+			metrics["unsupported_projection_count"] = int(metrics.get("unsupported_projection_count", 0)) + 1
 			_remove_projection(actor_id)
+			continue
+		metrics["eligible_projection_count"] = int(metrics.get("eligible_projection_count", 0)) + 1
+		if _projection_cap_reached(expected_actor_ids.size()):
+			metrics["skipped_projection_count"] = int(metrics.get("skipped_projection_count", 0)) + 1
 			continue
 		expected_actor_ids[actor_id] = true
 		project_record_snapshot(record, equipment_by_actor.get(actor_id, {}))
 	_remove_stale_projections(expected_actor_ids)
-	_log_perf_duration("projection.sync_projections", started_at_usec, {"records": records.size(), "projections": _projection_by_actor_id.size()})
+	metrics["projected_actor_count"] = _projection_by_actor_id.size()
+	metrics["realized_actor_count"] = _projection_by_actor_id.size()
+	metrics["visible_actor_count"] = _visible_projection_count()
+	metrics["projection_counts_by_kind"] = get_projection_counts_by_kind()
+	_last_projection_metrics = metrics
+	_log_perf_duration("projection.sync_projections", started_at_usec, {"records": records.size(), "projections": _projection_by_actor_id.size(), "skipped": int(metrics.get("skipped_projection_count", 0))})
 
 
 func project_record_snapshot(record: Dictionary, equipment_slots: Dictionary = {}, combat_state: Dictionary = {}) -> Node:
@@ -120,6 +133,17 @@ func get_projection_counts_by_kind() -> Dictionary:
 
 func get_unsupported_projection_kinds() -> Dictionary:
 	return _unsupported_projection_kinds.duplicate()
+
+
+func get_projection_performance_metrics() -> Dictionary:
+	var metrics := _last_projection_metrics.duplicate(true)
+	metrics["projected_actor_count"] = _projection_by_actor_id.size()
+	metrics["realized_actor_count"] = _projection_by_actor_id.size()
+	metrics["visible_actor_count"] = _visible_projection_count()
+	metrics["max_projected_actor_count"] = maxi(0, max_projected_actor_count)
+	metrics["projection_cap_active"] = max_projected_actor_count > 0
+	metrics["projection_counts_by_kind"] = get_projection_counts_by_kind()
+	return metrics
 
 
 func _try_initialize() -> bool:
@@ -239,6 +263,54 @@ func _body_script_for_kind(projection_kind: String) -> Script:
 		"animal_placeholder", "robot_placeholder":
 			return PLACEHOLDER_BODY_PROJECTION_SCRIPT
 	return null
+
+
+func _projection_metrics_base(source_record_count: int) -> Dictionary:
+	return {
+		"source_record_count": source_record_count,
+		"eligible_projection_count": 0,
+		"projected_actor_count": _projection_by_actor_id.size(),
+		"realized_actor_count": _projection_by_actor_id.size(),
+		"visible_actor_count": _visible_projection_count(),
+		"max_projected_actor_count": maxi(0, max_projected_actor_count),
+		"projection_cap_active": max_projected_actor_count > 0,
+		"skipped_projection_count": 0,
+		"unsupported_projection_count": 0,
+		"projection_counts_by_kind": get_projection_counts_by_kind(),
+	}
+
+
+func _projection_cap_reached(current_expected_count: int) -> bool:
+	return max_projected_actor_count > 0 and current_expected_count >= max_projected_actor_count
+
+
+func _projection_record_keys(records: Dictionary) -> Array:
+	if max_projected_actor_count <= 0:
+		return records.keys()
+	return _sorted_record_keys(records)
+
+
+func _sorted_record_keys(records: Dictionary) -> Array:
+	var keys := records.keys()
+	keys.sort_custom(func(first, second) -> bool:
+		return _record_sort_actor_id(records, first) < _record_sort_actor_id(records, second)
+	)
+	return keys
+
+
+func _record_sort_actor_id(records: Dictionary, key) -> String:
+	var record_value = records.get(key)
+	if record_value is Dictionary:
+		return str((record_value as Dictionary).get("actor_id", key)).strip_edges()
+	return str(key).strip_edges()
+
+
+func _visible_projection_count() -> int:
+	var count := 0
+	for projection in _projection_by_actor_id.values():
+		if projection != null and is_instance_valid(projection) and bool((projection as Node).get("visible")):
+			count += 1
+	return count
 
 
 func _note_unsupported_kind(projection_kind: String) -> void:

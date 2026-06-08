@@ -114,12 +114,37 @@ func _run_direct_projection_validation() -> void:
 	_expect(not controller.can_project_kind("minotaur_placeholder"), "Controller rejects unsupported projection kind")
 	var unsupported: Dictionary = controller.get_unsupported_projection_kinds()
 	_expect(int(unsupported.get("minotaur_placeholder", 0)) == 1, "Controller records unsupported projection kind")
+	var uncapped_metrics: Dictionary = controller.get_projection_performance_metrics()
+	_expect(int(uncapped_metrics.get("projected_actor_count", -1)) == 2, "Uncapped projection metrics report projected actor count")
+	_expect(int(uncapped_metrics.get("max_projected_actor_count", -1)) == 0, "Uncapped projection metrics report unlimited cap")
+	_expect(not bool(uncapped_metrics.get("projection_cap_active", true)), "Uncapped projection metrics report inactive cap")
+	_expect(int(uncapped_metrics.get("skipped_projection_count", -1)) == 0, "Uncapped projection metrics report no skipped projections")
+	_expect(int(uncapped_metrics.get("eligible_projection_count", -1)) == 2, "Projection metrics count supported eligible records")
+	_expect(int(uncapped_metrics.get("unsupported_projection_count", -1)) == 1, "Projection metrics count unsupported records")
 
 	var humanoid: Node = controller.get_projection_for_actor("validation.humanoid")
 	_validate_humanoid_projection(humanoid, mira_record, ["res://resources/items/equipment/armor/chest/ranger_jerkin.tres", "res://resources/items/equipment/weapons/swords/steel_sword.tres"], "Direct humanoid")
 	var animal: Node = controller.get_projection_for_actor("validation.animal")
 	_validate_placeholder_projection(animal, "Direct animal placeholder")
 	_expect(controller.get_projection_for_actor("validation.unsupported") == null, "Unsupported record has no projection node")
+
+	controller.max_projected_actor_count = 1
+	controller.sync_projections()
+	var capped_metrics: Dictionary = controller.get_projection_performance_metrics()
+	_expect(controller.get_projection_count() == 1, "Projection cap limits realized projection count")
+	_expect(bool(capped_metrics.get("projection_cap_active", false)), "Projection cap metrics report active cap")
+	_expect(int(capped_metrics.get("max_projected_actor_count", -1)) == 1, "Projection cap metrics report configured cap")
+	_expect(int(capped_metrics.get("skipped_projection_count", -1)) == 1, "Projection cap metrics report skipped supported projections")
+	_expect(int(capped_metrics.get("projected_actor_count", -1)) == 1, "Projection cap metrics report capped projected count")
+	_expect(controller.get_projection_for_actor("validation.animal") != null, "Projection cap keeps deterministic first stable actor id")
+	_expect(controller.get_projection_for_actor("validation.humanoid") == null, "Projection cap defers projection without mutating source record")
+	_expect(bridge.records.has("validation.humanoid"), "Projection cap does not mutate GECS population records")
+
+	controller.max_projected_actor_count = 0
+	controller.sync_projections()
+	var restored_metrics: Dictionary = controller.get_projection_performance_metrics()
+	_expect(controller.get_projection_count() == 2, "Projection cap of zero restores unlimited behavior")
+	_expect(int(restored_metrics.get("skipped_projection_count", -1)) == 0, "Restored unlimited projection reports no skipped projections")
 
 	scene_root.queue_free()
 

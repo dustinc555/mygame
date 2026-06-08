@@ -75,7 +75,13 @@ func _validate_schedule_contract(result: Dictionary, label: String) -> void:
 	_expect(str(schedule.get("strategy", "")) == "prioritize_important_then_earliest", "%s schedule uses approved priority strategy" % label)
 	_expect(str(schedule.get("complexity", "")) == "O(B log B + E)", "%s schedule declares bounded non-frame complexity" % label)
 	_expect(int(schedule.get("event_count", -1)) == _events(schedule).size(), "%s schedule event_count matches events" % label)
+	_expect(int(schedule.get("scheduled_event_count", -1)) == _events(schedule).size(), "%s schedule scheduled_event_count matches events" % label)
+	_expect(int(schedule.get("detailed_event_count", -1)) == _events(schedule).size(), "%s schedule detailed_event_count matches events" % label)
 	_expect(int(schedule.get("source_beat_count", -1)) == _beats(result).size(), "%s schedule records source beat count" % label)
+	_expect(int(schedule.get("total_beat_count", -1)) == _beats(result).size(), "%s schedule records total beat count" % label)
+	_expect(int(schedule.get("summarized_event_count", -1)) == _string_array(schedule.get("summarized_beat_ids", [])).size(), "%s schedule reports summarized count" % label)
+	_expect(int(schedule.get("skipped_beat_count", -1)) == _string_array(schedule.get("summarized_beat_ids", [])).size(), "%s schedule reports skipped beat count" % label)
+	_expect(int(schedule.get("skipped_event_count", -1)) == int(schedule.get("skipped_beat_count", 0)) * DETAILED_EVENTS_PER_BEAT, "%s schedule reports skipped event count" % label)
 	_expect(int(schedule.get("event_count", 0)) <= int(schedule.get("max_detailed_event_count", 0)), "%s schedule is bounded by detailed event limit" % label)
 	_validate_event_refs(result, label)
 
