@@ -175,13 +175,14 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 		actor.set("body_archetype", appearance.body_archetype)
 		actor.set("visual_body_type", appearance.visual_body_type)
 		actor.set("appearance_data", appearance)
-	var starting_equipment: Array[Resource] = []
+	var starting_equipment_ids := PackedStringArray()
 	var equipment_slots: Dictionary = record.get("equipment_slots", {})
 	for slot in equipment_slots.keys():
-		var item := _load_resource(str(equipment_slots[slot]))
-		if item != null:
-			starting_equipment.append(item)
-	actor.set("starting_equipment", starting_equipment)
+		var item_id := str(equipment_slots[slot]).strip_edges()
+		if not item_id.is_empty():
+			starting_equipment_ids.append(item_id)
+	if _has_property(actor, "starting_equipment_ids"):
+		actor.set("starting_equipment_ids", starting_equipment_ids)
 
 
 func mark_actor_realized(actor: Node, actor_id := "") -> void:
@@ -615,9 +616,8 @@ func _remove_actor_record(actor_id: String, remove_live_actor := true) -> void:
 
 func _generate_equipment_slots(appearance_profile: Resource, context: Dictionary, actor_id: String) -> Dictionary:
 	var slots := {}
-	var starting_equipment: Array = context.get("starting_equipment", [])
-	for item in starting_equipment:
-		_add_equipment_path(slots, item)
+	for identifier in _starting_equipment_identifiers_from_value(context.get("starting_equipment_ids", [])):
+		_add_equipment_identifier(slots, identifier)
 	if appearance_profile == null:
 		return slots
 	var rng := _make_rng(actor_id, "equipment")
@@ -634,17 +634,18 @@ func _pick_equipment_from_pool(slots: Dictionary, pool_value, rng: RandomNumberG
 		return
 	var pool: Array = pool_value
 	var item: Resource = pool[rng.randi_range(0, pool.size() - 1)] as Resource
-	_add_equipment_path(slots, item)
+	_add_equipment_identifier(slots, item)
 
 
-func _add_equipment_path(slots: Dictionary, item) -> void:
-	if item == null:
+func _add_equipment_identifier(slots: Dictionary, item) -> void:
+	var definition := _item_definition_from_value(item)
+	if definition == null:
 		return
-	var slot := str(item.get("equip_slot")) if item is Resource else ""
-	var path := _resource_path(item)
-	if slot.is_empty() or path.is_empty() or slots.has(slot):
+	var slot := str(definition.equip_slot).strip_edges()
+	var item_id := ItemDefinitionIndex.item_id_for_definition(definition)
+	if slot.is_empty() or item_id.is_empty() or slots.has(slot):
 		return
-	slots[slot] = path
+	slots[slot] = item_id
 
 
 func _generate_skill_levels(context: Dictionary, actor_id: String) -> Dictionary:
@@ -733,10 +734,8 @@ func _equipment_slots_from_actor(actor: Node) -> Dictionary:
 			var path := _resource_path(equipped[slot])
 			if not path.is_empty():
 				slots[str(slot)] = path
-	var starting_equipment = actor.get("starting_equipment")
-	if starting_equipment is Array:
-		for item in starting_equipment:
-			_add_equipment_path(slots, item)
+	for identifier in _starting_equipment_identifiers_from_value(actor.get("starting_equipment_ids") if _has_property(actor, "starting_equipment_ids") else []):
+		_add_equipment_identifier(slots, identifier)
 	return slots
 
 
@@ -892,6 +891,41 @@ func _resource_path(resource) -> String:
 	if resource is Resource:
 		return str((resource as Resource).resource_path)
 	return ""
+
+
+func _starting_equipment_identifiers_from_value(value) -> Array[String]:
+	var result: Array[String] = []
+	if value is PackedStringArray:
+		for identifier in value:
+			var text := str(identifier).strip_edges()
+			if not text.is_empty():
+				result.append(text)
+	elif value is Array:
+		for identifier in value:
+			var text := str(identifier).strip_edges()
+			if not text.is_empty():
+				result.append(text)
+	return result
+
+
+func _item_definition_from_value(value) -> ItemDefinition:
+	if value == null:
+		return null
+	if value is ItemDefinition:
+		return value as ItemDefinition
+	if value is Resource:
+		var path := _resource_path(value)
+		return ItemDefinitionIndex.load_definition(path) if not path.is_empty() else null
+	return ItemDefinitionIndex.load_definition(str(value))
+
+
+func _has_property(target: Object, property_name: String) -> bool:
+	if target == null:
+		return false
+	for property in target.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false
 
 
 func _load_resource(path: String) -> Resource:

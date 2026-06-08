@@ -65,7 +65,7 @@ transform = Transform3D(0.92388, 0, -0.382683, 0, 1, 0, 0.382683, 0, 0.92388, -1
 member_name = "Mira"
 faction_name = "Player"
 starting_items = Array[Resource]([SubResource("InventoryStock_mira_silver")])
-starting_equipment = Array[Resource]([ExtResource("6_tunic"), ExtResource("7_trousers"), ExtResource("8_shoes")])
+starting_equipment_ids = PackedStringArray("peasant_tunic", "peasant_trousers", "peasant_shoes")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Mira"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -85,7 +85,7 @@ transform = Transform3D(0.92388, 0, -0.382683, 0, 1, 0, 0.382683, 0, 0.92388, -1
 member_name = "Tomas"
 faction_name = "Player"
 starting_items = Array[Resource]([SubResource("InventoryStock_tomas_silver")])
-starting_equipment = Array[Resource]([ExtResource("6_tunic"), ExtResource("7_trousers"), ExtResource("8_shoes")])
+starting_equipment_ids = PackedStringArray("peasant_tunic", "peasant_trousers", "peasant_shoes")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Tomas"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)

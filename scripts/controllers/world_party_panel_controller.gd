@@ -36,6 +36,10 @@ func _ready() -> void:
 	add_to_group("world_party_panel_controller")
 
 
+func _exit_tree() -> void:
+	_disconnect_equipment_cache_signal()
+
+
 func _process(delta: float) -> void:
 	_refresh_elapsed += delta
 	if _refresh_elapsed < refresh_interval_seconds:
@@ -324,14 +328,8 @@ func _equipment_summary(equipment_slots: Dictionary) -> String:
 
 
 func _item_name(item_path: String) -> String:
-	var item := ItemDefinitionIndex.load_definition(item_path) as Resource if not item_path.strip_edges().is_empty() else null
-	if item == null and ResourceLoader.exists(item_path):
-		item = load(item_path) as Resource
-	if item != null:
-		var display_name = item.get("display_name")
-		if display_name != null and not str(display_name).strip_edges().is_empty():
-			return str(display_name)
-	return _display_token(item_path.get_file().get_basename())
+	var identifier := item_path.strip_edges()
+	return _display_token(identifier.get_file().get_basename() if identifier.begins_with("res://") else identifier)
 
 
 func _stats_summary(skill_levels: Dictionary) -> String:
@@ -353,14 +351,8 @@ func _sort_party_records(a: Dictionary, b: Dictionary) -> bool:
 
 
 func _life_state_text(life_state: int) -> String:
-	match life_state:
-		0:
-			return "Alive"
-		1:
-			return "Dying"
-		2:
-			return "Dead"
-	return "State %d" % life_state
+	var label := NpcRules.get_life_state_label(life_state)
+	return label if label != "Unknown" else "State %d" % life_state
 
 
 func _stance_text(stance: int) -> String:
@@ -430,17 +422,20 @@ func _load_equipment_slots_by_actor(bridge: Node) -> Dictionary:
 			continue
 		var actor_id := str((slot as Dictionary).get("actor_id", "")).strip_edges()
 		var slot_name := str((slot as Dictionary).get("slot_name", "")).strip_edges()
-		var item_path := str((slot as Dictionary).get("item_definition_path", "")).strip_edges()
-		if actor_id.is_empty() or slot_name.is_empty() or item_path.is_empty():
+		var item_id := str((slot as Dictionary).get("item_id", "")).strip_edges()
+		if actor_id.is_empty() or slot_name.is_empty() or item_id.is_empty():
 			continue
 		var actor_slots: Dictionary = result.get(actor_id, {})
-		actor_slots[slot_name] = item_path
+		actor_slots[slot_name] = item_id
 		result[actor_id] = actor_slots
 	return result
 
 
 func _bind_equipment_cache_signal(bridge: Node) -> void:
-	if bridge == null or bridge == _equipment_signal_bridge or not bridge.has_signal("inventory_state_changed"):
+	if bridge == _equipment_signal_bridge:
+		return
+	_disconnect_equipment_cache_signal()
+	if bridge == null or not bridge.has_signal("inventory_state_changed"):
 		return
 	var callable := Callable(self, "_on_equipment_cache_changed")
 	if bridge.is_connected("inventory_state_changed", callable):
@@ -448,6 +443,16 @@ func _bind_equipment_cache_signal(bridge: Node) -> void:
 		return
 	bridge.connect("inventory_state_changed", callable)
 	_equipment_signal_bridge = bridge
+
+
+func _disconnect_equipment_cache_signal() -> void:
+	if _equipment_signal_bridge == null or not is_instance_valid(_equipment_signal_bridge):
+		_equipment_signal_bridge = null
+		return
+	var callable := Callable(self, "_on_equipment_cache_changed")
+	if _equipment_signal_bridge.has_signal("inventory_state_changed") and _equipment_signal_bridge.is_connected("inventory_state_changed", callable):
+		_equipment_signal_bridge.disconnect("inventory_state_changed", callable)
+	_equipment_signal_bridge = null
 
 
 func _on_equipment_cache_changed(_result: Dictionary = {}) -> void:

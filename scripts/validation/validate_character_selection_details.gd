@@ -24,8 +24,7 @@ func _initialize() -> void:
 
 
 func _run_validation(scene: Node) -> void:
-	for _index in range(18):
-		await process_frame
+	await _wait_for_demo_ready(scene)
 	_promote_root_ecs_singleton()
 	var bootstrap := scene.get_node_or_null("GameBootstrap")
 	_expect(bootstrap != null, "GameBootstrap exists for selection validation")
@@ -102,6 +101,24 @@ func _validate_player_selection(selection_controller: Node, details_panel: Node,
 	_expect(action_texts.has("Jobs"), "%s details actions include Jobs" % expected_name)
 	_expect(not action_texts.has("Order"), "%s details actions do not show invalid Order" % expected_name)
 	_expect(not action_texts.has("Action"), "%s details actions do not show stale placeholders" % expected_name)
+
+
+func _wait_for_demo_ready(scene: Node) -> void:
+	for _index in range(120):
+		var bootstrap := scene.get_node_or_null("GameBootstrap")
+		var gecs := bootstrap.get_node_or_null("GecsWorldController") if bootstrap != null else null
+		var projection_controller := bootstrap.get_node_or_null("WorldActorProjectionController") if bootstrap != null else null
+		var selection_controller := bootstrap.get_node_or_null("WorldSelectionController") if bootstrap != null else null
+		var control_controller := bootstrap.get_node_or_null("WorldPlayerControlController") if bootstrap != null else null
+		var details_panel := scene.get_node_or_null("GameHUD/HudLayout/BottomHud/InspectorSlot/HumanoidDetailsPanel")
+		var mira_record = gecs.call("get_population_record", "player.mira") if gecs != null and gecs.has_method("get_population_record") else {}
+		var tomas_record = gecs.call("get_population_record", "player.tomas") if gecs != null and gecs.has_method("get_population_record") else {}
+		var mira_ready := mira_record is Dictionary and not (mira_record as Dictionary).is_empty()
+		var tomas_ready := tomas_record is Dictionary and not (tomas_record as Dictionary).is_empty()
+		if projection_controller != null and selection_controller != null and control_controller != null and details_panel != null and mira_ready and tomas_ready:
+			return
+		await process_frame
+	_failures.append("Demo world became ready for selection validation")
 
 
 func _validate_other_projected_character(selection_controller: Node, details_panel: Node) -> void:

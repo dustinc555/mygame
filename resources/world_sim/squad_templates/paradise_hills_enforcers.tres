@@ -20,4 +20,4 @@ population_name_profile = ExtResource("5_names")
 base_color = Color(0.72, 0.48, 0.16, 1)
 base_attack_damage = 16.0
 combat_stance = 1
-starting_equipment = Array[Resource]([ExtResource("3_sword")])
+starting_equipment_ids = PackedStringArray("iron_sword")

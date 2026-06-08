@@ -3,6 +3,8 @@ extends "res://scripts/world_sim/settlement_facility.gd"
 
 class_name SettlementFacilityInstance
 
+const SETTLEMENT_STAFF_SLOT_UTILS := preload("res://scripts/world_sim/settlement_staff_slot_utils.gd")
+
 @export var facility_function: Resource:
 	set(value):
 		facility_function = value
@@ -49,10 +51,10 @@ func get_facility_record(settlement_id := "") -> Dictionary:
 
 func get_settlement_staff_slots() -> Array[Dictionary]:
 	var slots: Array[Dictionary] = []
-	_collect_authored_staff_slots(self, slots)
+	SETTLEMENT_STAFF_SLOT_UTILS.collect_authored_staff_slots(self, self, slots)
 	if slots.is_empty() and guard_count > 0:
 		for index in range(guard_count):
-			slots.append(_staff_slot_record("%s.guard.%d" % [get_facility_id(), index], "guard", index, guard_name, false, null))
+			slots.append(SETTLEMENT_STAFF_SLOT_UTILS.staff_slot_record(self, "%s.guard.%d" % [get_facility_id(), index], "guard", index, guard_name, false, null))
 	return slots
 
 
@@ -146,57 +148,6 @@ func _ensure_root(root_path: NodePath) -> Node:
 func _get_child_count_at(root_path: NodePath) -> int:
 	var root := get_node_or_null(root_path)
 	return root.get_child_count() if root != null else 0
-
-
-func _collect_authored_staff_slots(root: Node, slots: Array[Dictionary]) -> void:
-	for child in root.get_children():
-		if child.has_meta("settlement_staff_slot_id"):
-			var slot_id := str(child.get_meta("settlement_staff_slot_id", "")).strip_edges()
-			if not slot_id.is_empty():
-				var role_id := str(child.get_meta("settlement_staff_role", "guard")).strip_edges()
-				var role_index := int(child.get_meta("settlement_staff_role_index", 0))
-				slots.append(_staff_slot_record(slot_id, role_id, role_index, _actor_display_name(child), true, child))
-		_collect_authored_staff_slots(child, slots)
-
-
-func _staff_slot_record(slot_id: String, role_id: String, role_index: int, display: String, filled: bool, actor: Node) -> Dictionary:
-	var record := {
-		"slot_id": slot_id,
-		"role_id": role_id if not role_id.is_empty() else "guard",
-		"role_index": role_index,
-		"display_name": display if not display.is_empty() else slot_id.capitalize(),
-		"population_cost": 1,
-		"filled": filled,
-	}
-	if actor != null:
-		record["actor_id"] = _actor_id(actor)
-		record["actor_path"] = get_path_to(actor) if actor.is_inside_tree() else NodePath()
-	return record
-
-
-func _actor_display_name(actor: Node) -> String:
-	if _has_property(actor, "member_name"):
-		var value := str(actor.get("member_name")).strip_edges()
-		if not value.is_empty():
-			return value
-	return str(actor.name)
-
-
-func _actor_id(actor: Node) -> String:
-	if _has_property(actor, "stable_id"):
-		var value := str(actor.get("stable_id")).strip_edges()
-		if not value.is_empty():
-			return value
-	return str(actor.get_path()) if actor.is_inside_tree() else str(actor.get_instance_id())
-
-
-func _has_property(target: Object, property_name: String) -> bool:
-	if target == null:
-		return false
-	for property in target.get_property_list():
-		if str(property.get("name", "")) == property_name:
-			return true
-	return false
 
 
 func _resource_string(resource: Resource, property_name: String, fallback: String) -> String:

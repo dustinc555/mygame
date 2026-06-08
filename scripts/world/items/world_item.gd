@@ -58,12 +58,14 @@ func setup(definition: ItemDefinition, amount: int = 1, item_contained_item_coun
 func apply_stack_snapshot(snapshot: Dictionary) -> void:
 	gecs_import_enabled = false
 	item_stack_id = str(snapshot.get("stack_id", item_stack_id)).strip_edges()
-	var item_path := str(snapshot.get("item_definition_path", snapshot.get("item_id", ""))).strip_edges()
+	var item_identifier := str(snapshot.get("item_definition_path", "")).strip_edges()
+	if item_identifier.is_empty():
+		item_identifier = str(snapshot.get("item_id", "")).strip_edges()
 	var item_resource = snapshot.get("item_definition_resource", null)
 	if item_resource is ItemDefinition:
 		item_definition = item_resource
-	elif item_definition == null or str(item_definition.resource_path) != item_path:
-		item_definition = load(item_path) as ItemDefinition if not item_path.is_empty() else null
+	elif not item_identifier.is_empty():
+		item_definition = ItemDefinitionIndex.load_definition(item_identifier)
 	quantity = int(snapshot.get("count", 1))
 	contained_item_counts = (snapshot.get("contained_item_counts", {}) as Dictionary).duplicate(true)
 	item_metadata = (snapshot.get("metadata", {}) as Dictionary).duplicate(true)
@@ -247,10 +249,6 @@ func _queue_gecs_pickup(actor) -> bool:
 	if runner != null and runner.has_method("queue_command"):
 		runner.call("queue_command", command)
 		return true
-	var sim := _inventory_sim_controller()
-	if sim != null and sim.has_method("apply_sim_commands"):
-		sim.call("apply_sim_commands", [command])
-		return true
 	return false
 
 
@@ -265,12 +263,14 @@ func _actor_id_for_pickup(actor) -> String:
 
 func _inventory_runner() -> Node:
 	var bootstrap := _bootstrap_node()
-	return bootstrap.get_node_or_null("WorldInventoryFixedTickRunner") if bootstrap != null else null
-
-
-func _inventory_sim_controller() -> Node:
-	var bootstrap := _bootstrap_node()
-	return bootstrap.get_node_or_null("WorldInventorySimController") if bootstrap != null else null
+	var local := bootstrap.get_node_or_null("WorldInventoryFixedTickRunner") if bootstrap != null else null
+	if local != null:
+		return local
+	if is_inside_tree():
+		for runner in get_tree().get_nodes_in_group("fixed_tick_sim_runner"):
+			if runner != null and str((runner as Node).name) == "WorldInventoryFixedTickRunner":
+				return runner as Node
+	return null
 
 
 func _bootstrap_node() -> Node:

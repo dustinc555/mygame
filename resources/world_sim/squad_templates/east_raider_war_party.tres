@@ -23,4 +23,4 @@ base_color = Color(0.68, 0.18, 0.12, 1)
 base_attack_damage = 17.0
 combat_stance = 0
 hostile_faction_ids = PackedStringArray("SurfCity")
-starting_equipment = Array[Resource]([ExtResource("3_sword")])
+starting_equipment_ids = PackedStringArray("iron_sword")

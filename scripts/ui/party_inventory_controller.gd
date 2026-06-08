@@ -147,7 +147,6 @@ func _ensure_inventory_window(model) -> InventoryWindow:
 	var existing = _windows_by_container_id.get(model.container_id)
 	if _is_live_window(existing):
 		var existing_window := existing as InventoryWindow
-		model.refresh()
 		existing_window.visible = true
 		existing_window.refresh()
 		existing_window.grab_click_focus()
@@ -395,9 +394,7 @@ func _queue_inventory_command(command: Dictionary) -> void:
 	if runner != null and runner.has_method("queue_command"):
 		runner.call("queue_command", command)
 	else:
-		var sim := _inventory_sim_controller()
-		if sim != null and sim.has_method("apply_sim_commands"):
-			sim.call("apply_sim_commands", [command])
+		_show_floating_notice("Inventory sim unavailable")
 	_refresh_pending = true
 
 
@@ -547,15 +544,10 @@ func _inventory_runner() -> Node:
 		var local := parent_node.get_node_or_null("WorldInventoryFixedTickRunner")
 		if local != null:
 			return local
-	return null
-
-
-func _inventory_sim_controller() -> Node:
-	var parent_node := get_parent()
-	if parent_node != null:
-		var local := parent_node.get_node_or_null("WorldInventorySimController")
-		if local != null:
-			return local
+	if is_inside_tree():
+		for runner in get_tree().get_nodes_in_group("fixed_tick_sim_runner"):
+			if runner != null and str((runner as Node).name) == "WorldInventoryFixedTickRunner":
+				return runner as Node
 	return null
 
 

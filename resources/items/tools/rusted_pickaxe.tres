@@ -8,7 +8,6 @@
 
 [sub_resource type="Resource" id="ItemStatModifier_damage"]
 script = ExtResource("2_mod")
-item_id = "rusted_pickaxe"
 stat_name = "attack_damage"
 add = 7.0
 
@@ -19,6 +18,7 @@ add = 0.45
 
 [resource]
 script = ExtResource("1_item")
+item_id = "rusted_pickaxe"
 display_name = "Rusted Pickaxe"
 icon = ExtResource("3_icon")
 grid_size = Vector2i(2, 3)

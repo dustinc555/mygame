@@ -23,7 +23,7 @@ rings = 2
 member_name = "Barber"
 faction_name = "Town"
 conversation_definition = ExtResource("2_conversation")
-starting_equipment = Array[Resource]([ExtResource("3_doublet"), ExtResource("4_trousers"), ExtResource("5_shoes")])
+starting_equipment_ids = PackedStringArray("noble_doublet", "noble_trousers", "noble_shoes")
 barber_service_price = 1
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]

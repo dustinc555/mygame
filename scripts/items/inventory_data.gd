@@ -26,12 +26,21 @@ class InventoryEntry:
 	var metadata: Dictionary = {}
 
 	func _init(item_definition, item_grid_position: Vector2i, item_count: int = 1, item_contained_item_counts: Dictionary = {}, item_metadata: Dictionary = {}, item_stack_id := "") -> void:
-		stack_id = str(item_stack_id)
+		stack_id = str(item_stack_id).strip_edges()
+		if stack_id.is_empty():
+			stack_id = _local_stack_id(item_definition, item_grid_position)
 		definition = item_definition
 		grid_position = item_grid_position
 		count = item_count
 		contained_item_counts = item_contained_item_counts.duplicate(true)
 		metadata = item_metadata.duplicate(true)
+
+	func _local_stack_id(item_definition, item_grid_position: Vector2i) -> String:
+		var item_key := "item"
+		if item_definition != null:
+			var path := str(item_definition.resource_path).strip_edges()
+			item_key = path if not path.is_empty() else str(item_definition.display_name)
+		return "local:%s:%d:%d" % [item_key.uri_encode(), item_grid_position.x, item_grid_position.y]
 
 
 var columns := 10
@@ -178,7 +187,7 @@ func move_entry_to_inventory(entry, target_inventory, target_position: Vector2i)
 		return false
 
 	entries.erase(entry)
-	target_inventory.entries.append(InventoryEntry.new(entry.definition, target_position, entry.count, entry.contained_item_counts, entry.metadata))
+	target_inventory.entries.append(InventoryEntry.new(entry.definition, target_position, entry.count, entry.contained_item_counts, entry.metadata, entry.stack_id))
 	changed.emit()
 	target_inventory.changed.emit()
 	return true

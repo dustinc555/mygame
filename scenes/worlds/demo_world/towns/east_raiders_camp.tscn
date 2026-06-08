@@ -140,7 +140,7 @@ exclusive = true
 [node name="Guard" type="CharacterBody3D" parent="Guards" unique_id=1574583160]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.6, -2)
 script = ExtResource("18_actor")
-starting_equipment = Array[Resource]([ExtResource("11_5vgsm"), ExtResource("12_mbv06"), ExtResource("13_bpiv4"), ExtResource("15_cinder"), ExtResource("15_cinder")])
+starting_equipment_ids = PackedStringArray("bandage", "hatchet", "round_shield", "cinder_flask", "cinder_flask")
 member_name = "East Raider Guard (guard)"
 stable_id = "npc.east_raiders_camp.staff.guard"
 faction_name = "EastRaiders"

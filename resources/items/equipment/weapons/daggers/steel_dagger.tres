@@ -8,7 +8,6 @@
 
 [sub_resource type="Resource" id="ItemStatModifier_damage"]
 script = ExtResource("2_mod")
-item_id = "steel_dagger"
 stat_name = "attack_damage"
 add = 5.0
 
@@ -24,6 +23,7 @@ add = 0.15
 
 [resource]
 script = ExtResource("1_item")
+item_id = "steel_dagger"
 display_name = "Steel Dagger"
 icon = ExtResource("3_icon")
 grid_size = Vector2i(1, 2)

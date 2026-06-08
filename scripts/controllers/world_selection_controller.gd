@@ -443,15 +443,8 @@ func _equipment_summary(equipment_slots: Dictionary) -> String:
 
 
 func _item_name(item_path: String) -> String:
-	var item := ItemDefinitionIndex.load_definition(item_path) as Resource if not item_path.strip_edges().is_empty() else null
-	if item == null and ResourceLoader.exists(item_path):
-		item = load(item_path) as Resource
-	if item != null:
-		var display_name = item.get("display_name")
-		if display_name != null and not str(display_name).strip_edges().is_empty():
-			return str(display_name)
-	var file_name := item_path.get_file().get_basename()
-	return _display_token(file_name)
+	var identifier := item_path.strip_edges()
+	return _display_token(identifier.get_file().get_basename() if identifier.begins_with("res://") else identifier)
 
 
 func _format_decimal(value: float, digits: int) -> String:
@@ -605,20 +598,8 @@ func _get_party_inventory_controller() -> Node:
 
 
 func _life_state_text(life_state: int) -> String:
-	match life_state:
-		0:
-			return "Alive"
-		1:
-			return "Asleep"
-		2:
-			return "Unconscious"
-		3:
-			return "Dead"
-		4:
-			return "Recovery Coma"
-		5:
-			return "Dying"
-	return "State %d" % life_state
+	var label := NpcRules.get_life_state_label(life_state)
+	return label if label != "Unknown" else "State %d" % life_state
 
 
 func _stance_text(stance: int) -> String:

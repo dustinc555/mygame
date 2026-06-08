@@ -35,6 +35,10 @@ func _ready() -> void:
 	add_to_group("world_actor_projection_controller")
 
 
+func _exit_tree() -> void:
+	_disconnect_equipment_cache_signal()
+
+
 func _process(delta: float) -> void:
 	if not auto_project or not _initialized:
 		return
@@ -191,7 +195,10 @@ func _load_equipment_slots_by_actor(bridge: Node) -> Dictionary:
 
 
 func _bind_equipment_cache_signal(bridge: Node) -> void:
-	if bridge == null or bridge == _equipment_signal_bridge or not bridge.has_signal("inventory_state_changed"):
+	if bridge == _equipment_signal_bridge:
+		return
+	_disconnect_equipment_cache_signal()
+	if bridge == null or not bridge.has_signal("inventory_state_changed"):
 		return
 	var callable := Callable(self, "_on_equipment_cache_changed")
 	if bridge.is_connected("inventory_state_changed", callable):
@@ -199,6 +206,16 @@ func _bind_equipment_cache_signal(bridge: Node) -> void:
 		return
 	bridge.connect("inventory_state_changed", callable)
 	_equipment_signal_bridge = bridge
+
+
+func _disconnect_equipment_cache_signal() -> void:
+	if _equipment_signal_bridge == null or not is_instance_valid(_equipment_signal_bridge):
+		_equipment_signal_bridge = null
+		return
+	var callable := Callable(self, "_on_equipment_cache_changed")
+	if _equipment_signal_bridge.has_signal("inventory_state_changed") and _equipment_signal_bridge.is_connected("inventory_state_changed", callable):
+		_equipment_signal_bridge.disconnect("inventory_state_changed", callable)
+	_equipment_signal_bridge = null
 
 
 func _on_equipment_cache_changed(_result: Dictionary = {}) -> void:

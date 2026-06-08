@@ -18,6 +18,7 @@ var inventory: InventoryData = InventoryData.new()
 var _record: Dictionary = {}
 var _equipment_by_slot: Dictionary = {}
 var _stacks_by_id: Dictionary = {}
+var _definition_cache_by_identifier: Dictionary = {}
 
 
 func setup(target_bridge: Node, target_actor_id: String, target_container_id := "") -> void:
@@ -87,7 +88,7 @@ func get_equipment_slot_label(slot_name: String) -> String:
 
 func get_equipped_item(slot_name: String):
 	var item_path := str(_equipment_by_slot.get(slot_name, ""))
-	return load(item_path) as ItemDefinition if not item_path.is_empty() else null
+	return _definition_for_identifier(item_path)
 
 
 func can_equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> bool:
@@ -161,7 +162,7 @@ func _rebuild_inventory_data() -> void:
 			continue
 		var stack_id := str((stack as Dictionary).get("stack_id", ""))
 		var item_path := str((stack as Dictionary).get("item_definition_path", ""))
-		var definition := load(item_path) as ItemDefinition if not item_path.is_empty() else null
+		var definition := _definition_for_identifier(item_path)
 		if stack_id.is_empty() or definition == null:
 			continue
 		_stacks_by_id[stack_id] = (stack as Dictionary).duplicate(true)
@@ -186,3 +187,14 @@ func _rebuild_equipment_data() -> void:
 		var item_path := str((slot as Dictionary).get("item_definition_path", "")).strip_edges()
 		if not slot_name.is_empty() and not item_path.is_empty():
 			_equipment_by_slot[slot_name] = item_path
+
+
+func _definition_for_identifier(identifier: String) -> ItemDefinition:
+	var key := identifier.strip_edges()
+	if key.is_empty():
+		return null
+	if _definition_cache_by_identifier.has(key):
+		return _definition_cache_by_identifier[key] as ItemDefinition
+	var definition := ItemDefinitionIndex.load_definition(key)
+	_definition_cache_by_identifier[key] = definition
+	return definition
