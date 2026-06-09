@@ -35,6 +35,7 @@ func _benchmark_scenario(scenario: Dictionary) -> Dictionary:
 	if scene_resource == null:
 		return _empty_report(scenario)
 	var scene := scene_resource.instantiate()
+	scene.set("combat_locomotion_projection_enabled", false)
 	root.add_child(scene)
 	await process_frame
 	await _wait_for_ready(scene, scenario_id)
@@ -45,6 +46,7 @@ func _benchmark_scenario(scenario: Dictionary) -> Dictionary:
 	var state: Dictionary = scene.call("get_benchmark_state") if scene.has_method("get_benchmark_state") else {}
 	_expect(int(state.get("projected_actor_count", 0)) == expected_actors, "%s benchmark projects expected actor count" % scenario_id)
 	_expect(not bool(state.get("battle_sim_included", true)), "%s benchmark excludes BattleSim cost" % scenario_id)
+	_expect(int(state.get("active_held_encounter_count", 0)) == 1, "%s benchmark uses held active GECS encounter" % scenario_id)
 	var report := {
 		"scenario_id": scenario_id,
 		"scene_path": scene_path,
@@ -59,6 +61,7 @@ func _benchmark_scenario(scenario: Dictionary) -> Dictionary:
 		"projection_sync_last_ms": float(sync_metrics.get("last_ms", state.get("last_projection_sync_ms", 0.0))),
 		"gecs_tick_ms": float(state.get("gecs_tick_ms", 0.0)),
 		"battle_sim_included": false,
+		"active_held_encounter_count": int(state.get("active_held_encounter_count", 0)),
 	}
 	scene.queue_free()
 	await process_frame
@@ -107,6 +110,7 @@ func _empty_report(scenario: Dictionary) -> Dictionary:
 		"projection_sync_last_ms": 0.0,
 		"gecs_tick_ms": 0.0,
 		"battle_sim_included": false,
+		"active_held_encounter_count": 0,
 	}
 
 

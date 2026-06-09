@@ -1,6 +1,11 @@
 extends SceneTree
 
 const MAX_WAIT_FRAMES := 360
+const PLAYER_SIDE_ID := "player_party"
+const RAIDER_SIDE_ID := "attacking_raiders"
+const PLAYER_FACTION_ID := "Player"
+const RAIDER_FACTION_ID := "Raiders"
+const HELD_RESOLUTION_POLICY := "hold_engaged"
 const SCENARIOS := [
 	{"id": "projection_baseline_1v1", "path": "res://scenes/test_levels/projection_baseline_1v1.tscn", "actors": 2},
 	{"id": "projection_baseline_5v5", "path": "res://scenes/test_levels/projection_baseline_5v5.tscn", "actors": 10},
@@ -76,7 +81,47 @@ func _validate_benchmark_state(scene: Node, expected_id: String, expected_actors
 	_expect(float(benchmark_state.get("average_projection_sync_ms", -1.0)) >= 0.0, "%s records projection sync time" % expected_id)
 	_expect(float(benchmark_state.get("gecs_tick_ms", -1.0)) >= 0.0, "%s records GECS/fixed tick time" % expected_id)
 	_expect(not bool(benchmark_state.get("battle_sim_included", true)), "%s excludes BattleSim/data combat cost" % expected_id)
+	_validate_held_combat_state(benchmark_state, expected_id, expected_actors)
 	_validate_no_live_refs(benchmark_state, expected_id, "benchmark_state")
+
+
+func _validate_held_combat_state(benchmark_state: Dictionary, expected_id: String, expected_actors: int) -> void:
+	_expect(int(benchmark_state.get("active_held_encounter_count", 0)) == 1, "%s has one held active encounter" % expected_id)
+	var encounter: Dictionary = benchmark_state.get("combat_encounter", {}) if benchmark_state.get("combat_encounter", {}) is Dictionary else {}
+	_expect(str(encounter.get("encounter_id", "")) == "encounter:%s:held_raid" % expected_id, "%s records held encounter id" % expected_id)
+	_expect(str(encounter.get("status", "")) == "engaged", "%s keeps encounter engaged" % expected_id)
+	_expect(str(encounter.get("initial_intent", "")) == "raid", "%s starts raid intent" % expected_id)
+	_expect(str(encounter.get("resolution_policy", "")) == HELD_RESOLUTION_POLICY, "%s holds encounter resolution" % expected_id)
+	_expect(str(encounter.get("player_owned_side_id", "")) == PLAYER_SIDE_ID, "%s marks player-owned side" % expected_id)
+	_expect(not bool(encounter.get("has_battle_result", true)), "%s does not resolve BattleSim result" % expected_id)
+	_expect(int(encounter.get("start_request_side_count", 0)) == 2, "%s records two encounter sides" % expected_id)
+	var side_ids := _string_array(encounter.get("side_ids", []))
+	_expect(side_ids.has(PLAYER_SIDE_ID) and side_ids.has(RAIDER_SIDE_ID), "%s records player and raider side ids" % expected_id)
+	var faction_ids := _string_array(encounter.get("faction_ids", []))
+	_expect(faction_ids.has(PLAYER_FACTION_ID) and faction_ids.has(RAIDER_FACTION_ID), "%s records player and raider factions" % expected_id)
+	var squads: Dictionary = benchmark_state.get("world_squad_summary", {}) if benchmark_state.get("world_squad_summary", {}) is Dictionary else {}
+	var player_squad_found := false
+	var raider_squad_found := false
+	for squad_value in squads.values():
+		if not (squad_value is Dictionary):
+			continue
+		var squad: Dictionary = squad_value
+		if str(squad.get("faction_id", "")) == PLAYER_FACTION_ID:
+			player_squad_found = true
+			_expect(str(squad.get("party_id", "")) == "player_party", "%s player squad uses player_party" % expected_id)
+			_expect(str(squad.get("squad_name", "")) == "PlayerParty", "%s player squad name is PlayerParty" % expected_id)
+			_expect(int(squad.get("member_count", 0)) == int(expected_actors / 2), "%s player squad member count matches" % expected_id)
+			_expect(str(squad.get("state", "")) == "engaged", "%s player squad remains engaged" % expected_id)
+		if str(squad.get("faction_id", "")) == RAIDER_FACTION_ID:
+			raider_squad_found = true
+			_expect(str(squad.get("squad_name", "")) == "AttackingRaiders", "%s raider squad name is AttackingRaiders" % expected_id)
+			_expect(_string_array(squad.get("hostile_faction_ids", [])).has(PLAYER_FACTION_ID), "%s raider squad is hostile to Player" % expected_id)
+			_expect(int(squad.get("member_count", 0)) == int(expected_actors / 2), "%s raider squad member count matches" % expected_id)
+			_expect(str(squad.get("state", "")) == "engaged", "%s raider squad remains engaged" % expected_id)
+	_expect(player_squad_found, "%s has player squad summary" % expected_id)
+	_expect(raider_squad_found, "%s has raider squad summary" % expected_id)
+	var locomotion_metrics: Dictionary = benchmark_state.get("combat_locomotion_metrics", {}) if benchmark_state.get("combat_locomotion_metrics", {}) is Dictionary else {}
+	_expect(int(locomotion_metrics.get("pair_check_count", 0)) <= int(locomotion_metrics.get("max_allowed_pair_checks", 0)), "%s keeps local checks bounded" % expected_id)
 
 
 func _validate_no_live_refs(value, label: String, path: String) -> void:
@@ -92,6 +137,17 @@ func _validate_no_live_refs(value, label: String, path: String) -> void:
 	elif value is Array:
 		for index in range((value as Array).size()):
 			_validate_no_live_refs((value as Array)[index], label, "%s[%d]" % [path, index])
+
+
+func _string_array(value) -> Array[String]:
+	var result: Array[String] = []
+	if not (value is Array) and not (value is PackedStringArray):
+		return result
+	for entry in value:
+		var text := str(entry).strip_edges()
+		if not text.is_empty():
+			result.append(text)
+	return result
 
 
 func _finish() -> void:

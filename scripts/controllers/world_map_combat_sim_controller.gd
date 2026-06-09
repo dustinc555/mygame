@@ -24,6 +24,8 @@ const POPULATION_RECORD_SCRIPT := preload("res://scripts/ecs/components/c_game_p
 const BATTLE_SIM_SCRIPT := preload("res://scripts/sim/battle/battle_sim.gd")
 const COMBAT_PROJECTION_CONTINUITY_BUILDER_SCRIPT := preload("res://scripts/sim/battle/combat_projection_continuity_builder.gd")
 const COMBAT_ENCOUNTER_START_REQUEST_SCRIPT := preload("res://scripts/sim/battle/combat_encounter_start_request.gd")
+const ENCOUNTER_RESOLUTION_POLICY_AUTO := "auto"
+const ENCOUNTER_RESOLUTION_POLICY_HOLD_ENGAGED := "hold_engaged"
 const LIFE_STATE_ALIVE := 0
 const LIFE_STATE_DYING := 5
 const ATTRIBUTE_STRENGTH := "attribute.strength"
@@ -131,6 +133,7 @@ func apply_sim_commands(commands: Array[Dictionary]) -> void:
 		if _command_resets_world_squads(command):
 			_reset_world_encounter_state()
 	state["active_squads"] = active_squads
+	state["squad_index"] = active_squads.size()
 	state["command_log"] = command_log
 	_world_squad_state_component.call("apply_state", state)
 
@@ -444,6 +447,8 @@ func _apply_sim_command(command: Dictionary, active_squads: Dictionary, command_
 	match action:
 		"start_combat_encounter":
 			_apply_start_combat_encounter_command(command, active_squads, command_log)
+		"replace_world_squads":
+			_apply_replace_world_squads_command(command, active_squads, command_log)
 		"set_squad_objective":
 			_apply_set_squad_objective(command, active_squads, command_log)
 		"set_squads_objective":
@@ -531,6 +536,7 @@ func _start_request_source_from_command(command: Dictionary) -> Dictionary:
 		"projection_importance",
 		"visibility_flags",
 		"projection_flags",
+		"resolution_policy",
 		"leash_context",
 		"raid_context",
 		"guard_context",
@@ -575,6 +581,7 @@ func _encounter_record_from_start_request(encounter_id: String, pair_key: String
 		"defender_squad_id": squad_b_id,
 		"reason": initial_intent,
 		"initial_intent": initial_intent,
+		"resolution_policy": str(request_record.get("resolution_policy", ENCOUNTER_RESOLUTION_POLICY_AUTO)).strip_edges(),
 		"source_type": source_type,
 		"debug_only": debug_only,
 		"is_debug_forced": debug_only,
@@ -644,6 +651,31 @@ func _battle_sim_config_from_start_request(request_record: Dictionary, squad_a: 
 	return result
 
 
+func _apply_replace_world_squads_command(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
+	var replacement = command.get("active_squads", command.get("squads", {}))
+	if not (replacement is Dictionary):
+		_append_command_log(command_log, command, "error", "Replacement world squads must be a dictionary")
+		return
+	var next_squads := {}
+	for squad_id_value in (replacement as Dictionary).keys():
+		var record = (replacement as Dictionary).get(squad_id_value)
+		if not (record is Dictionary):
+			continue
+		var squad_record: Dictionary = (record as Dictionary).duplicate(true)
+		var squad_id := str(squad_record.get("squad_id", squad_id_value)).strip_edges()
+		if squad_id.is_empty():
+			continue
+		squad_record["squad_id"] = squad_id
+		next_squads[squad_id] = squad_record
+	if next_squads.is_empty():
+		_append_command_log(command_log, command, "error", "No valid replacement world squads supplied")
+		return
+	active_squads.clear()
+	for squad_id in next_squads.keys():
+		active_squads[squad_id] = next_squads[squad_id]
+	_append_command_log(command_log, command, "applied", "Replaced world squads with %d records" % active_squads.size())
+
+
 func _apply_set_squad_objective(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
 	var squad_id := str(command.get("squad_id", "")).strip_edges()
 	if not active_squads.has(squad_id):
@@ -708,7 +740,7 @@ func _apply_reset_world_squads_command(command: Dictionary, active_squads: Dicti
 
 func _command_resets_world_squads(command: Dictionary) -> bool:
 	match str(command.get("action", "")).strip_edges():
-		"reset_demo_squads", "reset_world_squads":
+		"reset_demo_squads", "reset_world_squads", "replace_world_squads":
 			return true
 		_:
 			return false
@@ -835,6 +867,9 @@ func _resolve_squad_encounters() -> void:
 		if not (encounter is Dictionary):
 			continue
 		var encounter_record: Dictionary = encounter
+		if _encounter_resolution_is_held(encounter_record):
+			encounters_by_id[encounter_id] = encounter_record
+			continue
 		var status := str(encounter_record.get("status", "")).strip_edges()
 		if status == "engaged":
 			encounter_record["status"] = "resolving"
@@ -868,6 +903,10 @@ func _resolve_squad_encounters() -> void:
 		encounter_state["encounter_repeat_cooldown_ticks"] = repeat_cooldown_ticks
 		encounter_state["encounter_log"] = encounter_log
 		_world_encounter_state_component.call("apply_state", encounter_state)
+
+
+func _encounter_resolution_is_held(encounter_record: Dictionary) -> bool:
+	return str(encounter_record.get("resolution_policy", ENCOUNTER_RESOLUTION_POLICY_AUTO)).strip_edges() == ENCOUNTER_RESOLUTION_POLICY_HOLD_ENGAGED
 
 
 func _resolve_encounter_record(encounter_record: Dictionary, active_squads: Dictionary, active_pair_keys: Dictionary, recent_pair_cooldowns: Dictionary, encounter_log: Array[Dictionary], current_tick: int, repeat_cooldown_ticks: int) -> bool:
@@ -1393,6 +1432,7 @@ func _encounter_record(encounter_id: String, pair_key: String, squad_a_id: Strin
 		"hostility_value": int(decision.get("hostility_value", 0)),
 		"duplicate_suppression_logged": false,
 		"battle_sim_config": _battle_sim_config_from_squads(squad_a, squad_b),
+		"resolution_policy": ENCOUNTER_RESOLUTION_POLICY_AUTO,
 	}
 
 

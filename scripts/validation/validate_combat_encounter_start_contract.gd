@@ -34,6 +34,7 @@ func _validate_round_trip_contract() -> void:
 	var record: Dictionary = request.to_dictionary()
 	_expect(str(record.get("encounter_id", "")) == "encounter:validation:start_contract", "Request preserves encounter_id")
 	_expect(str(record.get("initial_intent", "")) == "debug", "Request preserves initial_intent")
+	_expect(str(record.get("resolution_policy", "")) == "hold_engaged", "Request preserves resolution_policy")
 	_expect(str(record.get("source_type", "")) == "debug_1v1", "Request preserves source_type")
 	_expect(record.get("encounter_center", null) is Vector3, "Request preserves encounter_center")
 	_expect(record.get("visibility_flags", {}) is Dictionary, "Request exposes visibility_flags")
@@ -102,6 +103,7 @@ func _valid_request_source() -> Dictionary:
 	return {
 		"encounter_id": "encounter:validation:start_contract",
 		"initial_intent": "debug",
+		"resolution_policy": "hold_engaged",
 		"source_type": "debug_1v1",
 		"encounter_center": Vector3(2.0, 0.0, -3.0),
 		"projection_importance": "important",

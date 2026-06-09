@@ -5,6 +5,8 @@ class_name PartyPortraitCard
 signal portrait_pressed(actor_id: String, double_click: bool, add_select: bool)
 
 const CHARACTER_VISUAL_NODE_NAME := "CharacterVisual"
+const BODY_VISUAL_NODE_NAME := "BodyVisual"
+const EQUIPMENT_VISUAL_NODE_NAME := "EquipmentProjection"
 const PORTRAIT_VISUAL_YAW_OFFSET := PI
 const PORTRAIT_IDLE_POSE_SECONDS := 0.45
 const PORTRAIT_IDLE_ANIMATION_NAMES := ["Idle"]
@@ -186,7 +188,9 @@ func _add_portrait_copy(source: Node) -> void:
 	var source_name := String(source.name)
 	if PORTRAIT_SKIP_NODE_NAMES.has(source_name):
 		return
-	if source_name != CHARACTER_VISUAL_NODE_NAME and not (source is MeshInstance3D):
+	var is_body_visual := source_name == BODY_VISUAL_NODE_NAME
+	var is_equipment_visual := source_name == EQUIPMENT_VISUAL_NODE_NAME
+	if source_name != CHARACTER_VISUAL_NODE_NAME and not is_body_visual and not is_equipment_visual and not (source is MeshInstance3D):
 		return
 	var mesh_source := source as MeshInstance3D
 	if mesh_source != null and not mesh_source.visible:
@@ -196,11 +200,13 @@ func _add_portrait_copy(source: Node) -> void:
 		copy.queue_free()
 		return
 	copy.transform = (source as Node3D).transform
-	if source_name == CHARACTER_VISUAL_NODE_NAME:
+	if is_body_visual:
+		copy.name = CHARACTER_VISUAL_NODE_NAME
+	if source_name == CHARACTER_VISUAL_NODE_NAME or is_body_visual or is_equipment_visual:
 		copy.rotation.y += PORTRAIT_VISUAL_YAW_OFFSET
 	_duplicate_portrait_materials(copy)
 	portrait_root.add_child(copy)
-	if source_name == CHARACTER_VISUAL_NODE_NAME:
+	if source_name == CHARACTER_VISUAL_NODE_NAME or is_body_visual:
 		_apply_portrait_idle_pose(copy)
 
 
@@ -221,6 +227,7 @@ func _apply_portrait_idle_pose(root: Node) -> void:
 	animation_player.play(animation_name)
 	animation_player.seek(PORTRAIT_IDLE_POSE_SECONDS, true)
 	animation_player.advance(0.0)
+	animation_player.stop(false)
 	_last_pose_animation = animation_name
 
 
@@ -292,6 +299,8 @@ func _capture_snapshot() -> void:
 	await get_tree().process_frame
 	if DisplayServer.get_name() == "headless":
 		portrait_image.texture = viewport.get_texture()
+		viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		_release_projection_portrait_source()
 		return
 	await RenderingServer.frame_post_draw
 	var image := viewport.get_texture().get_image()
@@ -299,6 +308,9 @@ func _capture_snapshot() -> void:
 		return
 	var texture := ImageTexture.create_from_image(image)
 	portrait_image.texture = texture
+	viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_clear_portrait_root()
+	_release_projection_portrait_source()
 
 
 func _set_style(background: Color, border: Color, border_width: int) -> void:
@@ -317,10 +329,30 @@ func _set_style(background: Color, border: Color, border_width: int) -> void:
 
 
 func _make_portrait_signature() -> String:
+	var body_state := _body_debug_state()
+	var attached: Array = body_state.get("attached_item_paths", []) if body_state.get("attached_item_paths", []) is Array else []
+	return "%s:%s:%s:%s:%s" % [
+		actor_id,
+		str(record.get("member_name", "")),
+		str(record.get("equipment_summary", "")),
+		str(body_state.get("body_archetype", "")),
+		str(attached),
+	]
+
+
+func _body_debug_state() -> Dictionary:
 	var debug_state := {}
 	if projection != null and is_instance_valid(projection) and projection.has_method("get_projection_debug_state"):
 		debug_state = projection.call("get_projection_debug_state")
-	return "%s:%s" % [actor_id, str(debug_state)]
+	return debug_state.get("body_state", {}) if debug_state.get("body_state", {}) is Dictionary else {}
+
+
+func _release_projection_portrait_source() -> void:
+	if projection == null or not is_instance_valid(projection) or not projection.has_method("get_body_projection"):
+		return
+	var body = projection.call("get_body_projection")
+	if body is Node and (body as Node).has_method("release_portrait_source"):
+		(body as Node).call("release_portrait_source")
 
 
 func _child_names(node: Node) -> Array[String]:

@@ -39,16 +39,18 @@ var _portrait_character_visual: Node3D
 var _portrait_skeleton: Skeleton3D
 var _portrait_animation_player: AnimationPlayer
 var _portrait_equipment_signature := ""
+var _last_equipment_slots: Dictionary = {}
 
 
 func apply_projection_snapshot(record: Dictionary, equipment_slots: Dictionary, combat_state: Dictionary = {}) -> void:
 	var body_archetype := _body_archetype_from_record(record)
 	_ensure_body_visual(body_archetype)
-	_ensure_portrait_source(body_archetype)
+	_last_equipment_slots = equipment_slots.duplicate(true)
 	_apply_label(record)
 	_apply_life_state(record, combat_state)
 	_sync_equipment(equipment_slots)
-	_sync_portrait_equipment(equipment_slots)
+	if _portrait_source != null and is_instance_valid(_portrait_source):
+		_sync_portrait_equipment(equipment_slots)
 	_apply_locomotion_state(record)
 
 
@@ -57,7 +59,19 @@ func get_body_adapter_id() -> String:
 
 
 func get_portrait_source() -> Node:
+	_ensure_portrait_source(_body_archetype if _body_archetype != null else HUMAN_MALE_BODY)
+	_sync_portrait_equipment(_last_equipment_slots)
 	return _portrait_source if _portrait_source != null and is_instance_valid(_portrait_source) else self
+
+
+func release_portrait_source() -> void:
+	if _portrait_source != null and is_instance_valid(_portrait_source):
+		_portrait_source.queue_free()
+	_portrait_source = null
+	_portrait_character_visual = null
+	_portrait_skeleton = null
+	_portrait_animation_player = null
+	_portrait_equipment_signature = ""
 
 
 func get_projection_debug_state() -> Dictionary:
@@ -67,7 +81,7 @@ func get_projection_debug_state() -> Dictionary:
 		"world_visual_ready": _body_visual != null and _body_visual.name == WORLD_VISUAL_NODE_NAME,
 		"world_skeleton_ready": _skeleton != null,
 		"world_idle_animation_ready": _character_animation_player != null and _character_animation_player.has_animation(IDLE_ANIMATION_NAME),
-		"world_animation": _current_world_animation,
+		"world_animation": _current_world_animation if _character_animation_player != null and _character_animation_player.is_playing() else "",
 		"portrait_source_ready": _portrait_source != null,
 		"portrait_character_visual_ready": _portrait_character_visual != null and _portrait_character_visual.name == CHARACTER_VISUAL_NODE_NAME,
 		"portrait_skeleton_ready": _portrait_skeleton != null,
@@ -186,7 +200,7 @@ func _apply_locomotion_state(record: Dictionary) -> void:
 	if _character_animation_player == null:
 		return
 	if int(record.get("life_state", 0)) != 0:
-		_play_world_animation(IDLE_ANIMATION_NAME)
+		_pose_world_idle()
 		return
 	var locomotion_state: Dictionary = record.get("locomotion_state", {}) if record.get("locomotion_state", {}) is Dictionary else {}
 	var animation_state := str(locomotion_state.get("animation_state", ""))
@@ -203,7 +217,19 @@ func _apply_locomotion_state(record: Dictionary) -> void:
 		"walk":
 			_play_world_animation(WALK_ANIMATION_NAME, _animation_speed_scale(float(locomotion_state.get("horizontal_speed", 0.0)), float(locomotion_state.get("speed", 0.0)), 0.85, 1.25))
 		_:
-			_play_world_animation(IDLE_ANIMATION_NAME)
+			_pose_world_idle()
+
+
+func _pose_world_idle() -> void:
+	if _character_animation_player == null or not _character_animation_player.has_animation(IDLE_ANIMATION_NAME):
+		return
+	if _current_world_animation == IDLE_ANIMATION_NAME and not _character_animation_player.is_playing():
+		return
+	_current_world_animation = IDLE_ANIMATION_NAME
+	_character_animation_player.play(IDLE_ANIMATION_NAME)
+	_character_animation_player.seek(IDLE_SAMPLE_SECONDS, true)
+	_character_animation_player.advance(0.0)
+	_character_animation_player.stop(false)
 
 
 func _play_world_animation(animation_name: String, speed_scale := 1.0) -> void:
@@ -302,6 +328,7 @@ func _play_idle_pose(animation_player: AnimationPlayer) -> void:
 	animation_player.play(IDLE_ANIMATION_NAME)
 	animation_player.seek(IDLE_SAMPLE_SECONDS, true)
 	animation_player.advance(0.0)
+	animation_player.stop(false)
 
 
 func _attach_wearable(target_root: Node3D, target_skeleton: Skeleton3D, slot_name: String, item: Resource, visual_yaw_offset: float) -> void:

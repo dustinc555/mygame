@@ -11,9 +11,13 @@ const INTENT_GUARD := "guard"
 const INTENT_RAID := "raid"
 const INTENT_DEBUG := "debug"
 const VALID_INITIAL_INTENTS := [INTENT_ATTACK, INTENT_DEFEND, INTENT_FLEE, INTENT_GUARD, INTENT_RAID, INTENT_DEBUG]
+const RESOLUTION_POLICY_AUTO := "auto"
+const RESOLUTION_POLICY_HOLD_ENGAGED := "hold_engaged"
+const VALID_RESOLUTION_POLICIES := [RESOLUTION_POLICY_AUTO, RESOLUTION_POLICY_HOLD_ENGAGED]
 
 var encounter_id := ""
 var initial_intent := INTENT_ATTACK
+var resolution_policy := RESOLUTION_POLICY_AUTO
 var sides: Array = []
 var encounter_center := Vector3.ZERO
 var source_type := ""
@@ -31,6 +35,9 @@ func apply_dictionary(source: Dictionary) -> void:
 	source_live_ref_errors = _live_ref_error_list(source, "start_request_source")
 	encounter_id = str(source.get("encounter_id", "")).strip_edges()
 	initial_intent = str(source.get("initial_intent", INTENT_ATTACK)).strip_edges()
+	resolution_policy = str(source.get("resolution_policy", RESOLUTION_POLICY_AUTO)).strip_edges()
+	if resolution_policy.is_empty():
+		resolution_policy = RESOLUTION_POLICY_AUTO
 	sides = _sides(source.get("sides", []))
 	if source.get("encounter_center", null) is Vector3:
 		encounter_center = source.get("encounter_center")
@@ -57,6 +64,10 @@ static func is_valid_intent(intent: String) -> bool:
 	return VALID_INITIAL_INTENTS.has(intent.strip_edges())
 
 
+static func is_valid_resolution_policy(policy: String) -> bool:
+	return VALID_RESOLUTION_POLICIES.has(policy.strip_edges())
+
+
 func to_dictionary() -> Dictionary:
 	var side_records: Array[Dictionary] = []
 	for side in sides:
@@ -67,6 +78,7 @@ func to_dictionary() -> Dictionary:
 	var result := {
 		"encounter_id": encounter_id,
 		"initial_intent": initial_intent,
+		"resolution_policy": resolution_policy,
 		"encounter_center": encounter_center,
 		"source_type": source_type,
 		"projection_importance": projection_importance,
@@ -91,6 +103,8 @@ func validation_errors(path := "start_request") -> Array[String]:
 		errors.append("%s.encounter_id is required" % path)
 	if not is_valid_intent(initial_intent):
 		errors.append("%s.initial_intent must be one of %s" % [path, ", ".join(intent_values())])
+	if not is_valid_resolution_policy(resolution_policy):
+		errors.append("%s.resolution_policy must be one of %s" % [path, ", ".join(VALID_RESOLUTION_POLICIES)])
 	if sides.size() < 2:
 		errors.append("%s needs at least two sides" % path)
 	var side_ids := {}
