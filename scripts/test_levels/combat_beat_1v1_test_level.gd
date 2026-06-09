@@ -9,6 +9,7 @@ const SLOT_MARKER_RADIUS := 0.55
 const SLOT_MARKER_HEIGHT := 0.035
 const UI_POLL_INTERVAL_SECONDS := 0.1
 const BOOTSTRAP_WAIT_FRAMES := 180
+const PLAYER_PARTY_ID := "player_party"
 
 @export var auto_start := true
 
@@ -102,12 +103,11 @@ func restart_duel() -> void:
 		if _projection.has_method("sync_projections"):
 			_projection.call("sync_projections")
 	_runner.call("queue_command", {"action": "reset_world_squads", "label": "Reset 1v1 CombatBeat test world"})
-	_runner.call("queue_command", {
-		"action": "start_combat_encounter",
-		"start_request": _debug_1v1_start_request(squad_ids.slice(0, 2)),
-		"label": "Start standalone 1v1 CombatBeat fight",
-	})
-	_set_status("Queued 1v1 GECS/BattleSim encounter.")
+	_flush_fixed_tick_commands(1)
+	_mark_player_squad_controllable(squad_ids[0])
+	if _projection != null and _projection.has_method("sync_projections"):
+		_projection.call("sync_projections")
+	_set_status("Running live 1v1 visible combat.")
 
 
 func get_review_state() -> Dictionary:
@@ -123,6 +123,7 @@ func get_review_state() -> Dictionary:
 		"combat_slots": _combat_slots.duplicate(true),
 		"schedule_events": _schedule_events.duplicate(true),
 		"projection_metrics": _projection.call("get_projection_performance_metrics") if _projection != null and _projection.has_method("get_projection_performance_metrics") else {},
+		"combat_schedule_loop_enabled": _projection.get("combat_schedule_loop_enabled") == true if _projection != null else false,
 	}
 
 
@@ -156,8 +157,39 @@ func _configure_review_systems() -> void:
 	if _projection != null:
 		_projection.set("max_projected_actor_count", 2)
 		_projection.set("projection_update_interval_seconds", 0.05)
+		_projection.set("visible_combat_runtime_enabled", true)
+		_projection.set("combat_schedule_projection_enabled", false)
+		_projection.set("combat_schedule_loop_enabled", false)
 	if _camera_rig != null and _camera_rig.has_method("focus_world_position"):
 		_camera_rig.call("focus_world_position", COMBAT_CENTER)
+
+
+func _flush_fixed_tick_commands(ticks: int) -> void:
+	if _runner == null or not _runner.has_method("advance_time") or not _runner.has_method("get_fixed_delta"):
+		return
+	var fixed_delta := float(_runner.call("get_fixed_delta"))
+	for _tick in range(maxi(1, ticks)):
+		_runner.call("advance_time", fixed_delta)
+
+
+func _mark_player_squad_controllable(squad_id: String) -> void:
+	if _gecs == null or not _gecs.has_method("upsert_population_record_core"):
+		return
+	var active_squads := _active_squad_records()
+	var squad: Dictionary = active_squads.get(squad_id, {}) if active_squads.get(squad_id, {}) is Dictionary else {}
+	for member_id in _string_array(squad.get("member_ids", [])):
+		_gecs.call("upsert_population_record_core", {
+			"actor_id": member_id,
+			"party_id": PLAYER_PARTY_ID,
+			"player_party_member": true,
+			"player_controllable": true,
+			"combat_stance": 1,
+			"control_intent": {
+				"source": "defensive_hold",
+				"mode": "hold_until_attacked",
+			},
+			"ledger_activity_state": "combat_projection_player_party",
+		})
 
 
 func _poll_for_resolved_duel() -> void:
@@ -208,7 +240,6 @@ func _begin_playback(encounter: Dictionary) -> void:
 		_projection.set("auto_project", true)
 		if _projection.has_method("sync_projections"):
 			_projection.call("sync_projections")
-		_projection.set("auto_project", false)
 	_create_slot_markers()
 	_create_actor_notices()
 	_playback_duration = _schedule_duration() + 1.4
@@ -230,6 +261,9 @@ func _build_slot_lookup() -> void:
 
 
 func _apply_playback_frame() -> void:
+	if _projection_owns_combat_playback():
+		_hide_notices()
+		return
 	_reset_projection_transforms_to_slots()
 	_hide_notices()
 	var active_events := _active_events(_playback_time)
@@ -378,6 +412,15 @@ func _projection_for_actor(actor_id: String) -> Node3D:
 	return _projection.call("get_projection_for_actor", actor_id) as Node3D
 
 
+func _projection_owns_combat_playback() -> bool:
+	if _projection == null or not _projection.has_method("get_projection_performance_metrics"):
+		return false
+	var metrics = _projection.call("get_projection_performance_metrics")
+	if not (metrics is Dictionary):
+		return false
+	return (metrics as Dictionary).get("combat_projection_active", false) == true and str((metrics as Dictionary).get("combat_projection_encounter_id", "")) == _active_encounter_id
+
+
 func _active_squad_ids() -> Array[String]:
 	var result: Array[String] = []
 	for squad_id in _active_squad_records().keys():
@@ -414,8 +457,9 @@ func _encounter_start_side(side_id: String, squad_id: String, active_squads: Dic
 		"side_id": side_id,
 		"squad_id": squad_id,
 		"faction_id": str(squad.get("faction_id", "")),
-		"party_id": str(squad.get("party_id", "")),
-		"role_markers": ["debug"],
+		"party_id": PLAYER_PARTY_ID if side_id == "side_a" else str(squad.get("party_id", "")),
+		"player_owned": side_id == "side_a",
+		"role_markers": ["debug", "player_party"] if side_id == "side_a" else ["debug"],
 		"member_refs": _encounter_member_refs(squad_id, squad),
 		"starting_position": squad.get("location", COMBAT_CENTER) if squad.get("location", null) is Vector3 else COMBAT_CENTER,
 		"projection_importance": "important",
@@ -424,14 +468,14 @@ func _encounter_start_side(side_id: String, squad_id: String, active_squads: Dic
 
 func _encounter_member_refs(squad_id: String, squad: Dictionary) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
-	var party_id := str(squad.get("party_id", ""))
+	var party_id := PLAYER_PARTY_ID if str(squad_id).contains("left") else str(squad.get("party_id", ""))
 	for member_id in _string_array(squad.get("member_ids", [])):
 		result.append({
 			"member_id": member_id,
 			"actor_id": member_id,
 			"squad_id": squad_id,
 			"party_id": party_id,
-			"role_markers": ["debug"],
+			"role_markers": ["debug", "player_party"] if party_id == PLAYER_PARTY_ID else ["debug"],
 		})
 	return result
 

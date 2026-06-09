@@ -7,7 +7,7 @@ const DEFAULT_MAX_COMPLETION_BEATS := 96
 const MIN_POWER := 0.001
 const MEMBER_POWER_EXPONENT := 1.35
 const MAX_ENGAGEMENT_GROUP_SIZE := 4
-const ENGAGEMENT_GROUP_STRATEGY := "deterministic_sorted_bounded"
+const ENGAGEMENT_GROUP_STRATEGY := "spatial_nearest_frontline"
 const COMBAT_SLOT_GROUP_SPACING := 5.0
 const COMBAT_SLOT_SIDE_DISTANCE := 1.2
 const COMBAT_SLOT_SUPPORT_DISTANCE := 1.05
@@ -82,7 +82,7 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 	var combat_slots: Dictionary = slot_plan.get("combat_slots", {}) if slot_plan.get("combat_slots", {}) is Dictionary else {}
 	var slot_id_by_occupant: Dictionary = slot_plan.get("slot_id_by_occupant", {}) if slot_plan.get("slot_id_by_occupant", {}) is Dictionary else {}
 	phase_started_usec = _record_benchmark_phase(benchmark_metrics, collect_benchmark_metrics, "combat_slot_generation_usec", phase_started_usec)
-	var completion_result: Dictionary = _resolve_completion_1v1(profile_a, profile_b, power_a, power_b, int(config.get("current_tick", 0)), encounter_id, engagement_groups, slot_id_by_occupant, rng, config) if bool(config.get("resolve_to_completion", false)) else {}
+	var completion_result: Dictionary = _resolve_completion(profile_a, profile_b, power_a, power_b, int(config.get("current_tick", 0)), encounter_id, engagement_groups, slot_id_by_occupant, rng, config) if bool(config.get("resolve_to_completion", false)) else {}
 	phase_started_usec = _record_benchmark_phase(benchmark_metrics, collect_benchmark_metrics, "completion_resolution_usec", phase_started_usec)
 	if not completion_result.is_empty():
 		outcome = str(completion_result.get("outcome", outcome))
@@ -127,7 +127,8 @@ static func resolve_encounter(encounter_record: Dictionary, squad_a_record: Dict
 		"beats": beats,
 		"summary": _summary(outcome, squad_a_id, squad_b_id, winner_id, loser_id, rounds),
 		"final_outcome_reason": _outcome_reason(power_a, power_b, profile_a, profile_b),
-		"resolution_mode": "to_completion_1v1" if not completion_result.is_empty() else "bounded_rounds",
+		"resolution_mode": str(completion_result.get("resolution_mode", "to_completion")) if not completion_result.is_empty() else "bounded_rounds",
+		"terminal_reason": str(completion_result.get("terminal_reason", "bounded_rounds")) if not completion_result.is_empty() else "bounded_rounds",
 		"power": {
 			squad_a_id: power_a,
 			squad_b_id: power_b,
@@ -240,6 +241,10 @@ static func _member_profile(record: Dictionary, squad_id: String) -> Dictionary:
 	var hp := clampf(float(record.get("hp", max_hp)), 0.0, max_hp)
 	var max_blood := maxf(float(record.get("max_blood", 5.0)), 0.001)
 	var blood := clampf(float(record.get("blood", max_blood)), 0.0, max_blood)
+	var world_position_value = record.get("last_world_position", record.get("world_position", Vector3.ZERO))
+	var world_position := Vector3.ZERO
+	if world_position_value is Vector3:
+		world_position = world_position_value
 	var stance := _combat_stance(record.get("combat_stance", COMBAT_STANCE_DEFENSIVE))
 	var initiative_factor := 1.0
 	var survival_factor := 1.0
@@ -271,6 +276,8 @@ static func _member_profile(record: Dictionary, squad_id: String) -> Dictionary:
 		"max_hp": max_hp,
 		"blood": blood,
 		"max_blood": max_blood,
+		"world_position": world_position,
+		"has_world_position": world_position_value is Vector3,
 		"base_attack_damage": maxf(_record_combat_stat(record, "attack_damage", "base_attack_damage"), 0.0),
 		"combat_stance": stance,
 		"can_participate": can_participate,
@@ -284,61 +291,186 @@ static func _member_profile(record: Dictionary, squad_id: String) -> Dictionary:
 	}
 
 
-static func _resolve_completion_1v1(profile_a: Dictionary, profile_b: Dictionary, power_a: float, power_b: float, current_tick: int, encounter_id: String, engagement_groups: Array[Dictionary], slot_id_by_occupant: Dictionary, rng: RandomNumberGenerator, config: Dictionary) -> Dictionary:
+static func _resolve_completion(profile_a: Dictionary, profile_b: Dictionary, power_a: float, power_b: float, current_tick: int, encounter_id: String, engagement_groups: Array[Dictionary], slot_id_by_occupant: Dictionary, rng: RandomNumberGenerator, config: Dictionary) -> Dictionary:
 	var side_a := _dictionary_array(profile_a.get("participants", []))
 	var side_b := _dictionary_array(profile_b.get("participants", []))
-	if side_a.size() != 1 or side_b.size() != 1:
-		return {}
-	var member_a: Dictionary = side_a[0]
-	var member_b: Dictionary = side_b[0]
-	var hp_a := maxf(float(member_a.get("hp", member_a.get("max_hp", 100.0))), 0.0)
-	var hp_b := maxf(float(member_b.get("hp", member_b.get("max_hp", 100.0))), 0.0)
-	if hp_a <= 0.0 or hp_b <= 0.0:
+	if side_a.is_empty() or side_b.is_empty():
 		return {}
 	var squad_a_id := str(profile_a.get("squad_id", ""))
 	var squad_b_id := str(profile_b.get("squad_id", ""))
+	var state_by_id := _completion_member_state_by_id(side_a, side_b)
 	var max_beats := maxi(1, int(config.get("max_completion_beats", DEFAULT_MAX_COMPLETION_BEATS)))
 	var beats: Array[Dictionary] = []
 	var attacker_is_a := power_a + rng.randf_range(-2.0, 2.0) >= power_b
-	while beats.size() < max_beats and hp_a > 0.0 and hp_b > 0.0:
-		var attacker_profile := member_a if attacker_is_a else member_b
-		var defender_profile := member_b if attacker_is_a else member_a
+	var terminal_reason := "all_down"
+	while beats.size() < max_beats:
+		var active_a := _active_completion_members(side_a, state_by_id)
+		var active_b := _active_completion_members(side_b, state_by_id)
+		if active_a.is_empty() or active_b.is_empty():
+			break
 		var attacker_squad_id := squad_a_id if attacker_is_a else squad_b_id
 		var defender_squad_id := squad_b_id if attacker_is_a else squad_a_id
+		var attacker_group_members := active_a if attacker_is_a else active_b
+		var defender_group_members := active_b if attacker_is_a else active_a
+		var engagement_group := _pick_completion_group(engagement_groups, attacker_squad_id, defender_squad_id, beats.size() + 1, state_by_id)
+		var attacker_profile := _pick_completion_member_for_group(attacker_group_members, engagement_group, attacker_squad_id, state_by_id, rng, false)
+		var defender_profile := _pick_completion_member_for_group(defender_group_members, engagement_group, defender_squad_id, state_by_id, rng, true)
+		if attacker_profile.is_empty() or defender_profile.is_empty():
+			break
 		var damage := _completion_hit_damage(attacker_profile, defender_profile, rng)
-		if attacker_is_a:
-			hp_b = maxf(hp_b - damage, 0.0)
-		else:
-			hp_a = maxf(hp_a - damage, 0.0)
-		var defender_hp_after := hp_b if attacker_is_a else hp_a
-		_append_completion_beat(beats, encounter_id, current_tick, attacker_profile, defender_profile, attacker_squad_id, defender_squad_id, engagement_groups, slot_id_by_occupant, damage, defender_hp_after)
-		attacker_is_a = _next_completion_attacker_is_a(attacker_is_a, power_a, power_b, rng)
+		var defender_id := _member_group_id(defender_profile)
+		var defender_state: Dictionary = state_by_id.get(defender_id, {}) if state_by_id.get(defender_id, {}) is Dictionary else {}
+		var defender_hp_after := maxf(float(defender_state.get("hp", defender_profile.get("hp", 0.0))) - damage, 0.0)
+		defender_state["hp"] = defender_hp_after
+		state_by_id[defender_id] = defender_state
+		_append_completion_beat(beats, encounter_id, current_tick, attacker_profile, defender_profile, attacker_squad_id, defender_squad_id, engagement_group, slot_id_by_occupant, damage, defender_hp_after)
+		attacker_is_a = _next_completion_attacker_is_a(attacker_is_a, _remaining_completion_power(side_a, state_by_id, power_a), _remaining_completion_power(side_b, state_by_id, power_b), rng)
+	var active_a_after := _active_completion_members(side_a, state_by_id)
+	var active_b_after := _active_completion_members(side_b, state_by_id)
+	var fleeing_squad_id := ""
+	if not active_a_after.is_empty() and not active_b_after.is_empty():
+		terminal_reason = "flee"
+		fleeing_squad_id = squad_a_id if _remaining_completion_power(side_a, state_by_id, power_a) <= _remaining_completion_power(side_b, state_by_id, power_b) else squad_b_id
+		var pursuing_squad_id := squad_b_id if fleeing_squad_id == squad_a_id else squad_a_id
+		var fleeing_members := active_a_after if fleeing_squad_id == squad_a_id else active_b_after
+		var pursuing_members := active_b_after if fleeing_squad_id == squad_a_id else active_a_after
+		_append_completion_flee_beat(beats, encounter_id, current_tick, fleeing_members[0], pursuing_members[0], fleeing_squad_id, pursuing_squad_id, slot_id_by_occupant)
 	var outcome := "draw"
 	var winner_id := ""
 	var loser_id := ""
-	if hp_a > 0.0 and hp_b <= 0.0:
-		outcome = "squad_a_won"
-		winner_id = squad_a_id
-		loser_id = squad_b_id
-	elif hp_b > 0.0 and hp_a <= 0.0:
+	if active_a_after.is_empty() and not active_b_after.is_empty():
 		outcome = "squad_b_won"
 		winner_id = squad_b_id
 		loser_id = squad_a_id
-	var casualties_a: Array[Dictionary] = []
-	var casualties_b: Array[Dictionary] = []
-	if hp_a <= 0.0:
-		casualties_a.append(_completion_casualty_record(member_a, squad_a_id))
-	if hp_b <= 0.0:
-		casualties_b.append(_completion_casualty_record(member_b, squad_b_id))
+	elif active_b_after.is_empty() and not active_a_after.is_empty():
+		outcome = "squad_a_won"
+		winner_id = squad_a_id
+		loser_id = squad_b_id
+	elif fleeing_squad_id == squad_a_id:
+		outcome = "squad_b_won"
+		winner_id = squad_b_id
+		loser_id = squad_a_id
+	elif fleeing_squad_id == squad_b_id:
+		outcome = "squad_a_won"
+		winner_id = squad_a_id
+		loser_id = squad_b_id
+	var casualties_a := _completion_casualties_for_side(side_a, squad_a_id, state_by_id)
+	var casualties_b := _completion_casualties_for_side(side_b, squad_b_id, state_by_id)
+	var resolution_mode := "to_completion_1v1" if side_a.size() == 1 and side_b.size() == 1 else "to_completion"
 	return {
 		"outcome": outcome,
 		"winner_squad_id": winner_id,
 		"loser_squad_id": loser_id,
+		"fleeing_squad_id": fleeing_squad_id,
+		"terminal_reason": terminal_reason,
+		"resolution_mode": resolution_mode,
 		"rounds": beats.size(),
 		"beats": beats,
 		"member_casualties_a": casualties_a,
 		"member_casualties_b": casualties_b,
 	}
+
+
+static func _completion_member_state_by_id(side_a: Array[Dictionary], side_b: Array[Dictionary]) -> Dictionary:
+	var result := {}
+	for member in side_a + side_b:
+		var member_id := _member_group_id(member)
+		if member_id.is_empty():
+			continue
+		result[member_id] = {
+			"hp": maxf(float(member.get("hp", member.get("max_hp", 100.0))), 0.0),
+			"max_hp": maxf(float(member.get("max_hp", 100.0)), 1.0),
+		}
+	return result
+
+
+static func _active_completion_members(members: Array[Dictionary], state_by_id: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for member in members:
+		var member_id := _member_group_id(member)
+		var state: Dictionary = state_by_id.get(member_id, {}) if state_by_id.get(member_id, {}) is Dictionary else {}
+		if float(state.get("hp", member.get("hp", 0.0))) > 0.0:
+			result.append(member)
+	return result
+
+
+static func _remaining_completion_power(members: Array[Dictionary], state_by_id: Dictionary, fallback_power: float) -> float:
+	var total := 0.0
+	for member in members:
+		var member_id := _member_group_id(member)
+		var state: Dictionary = state_by_id.get(member_id, {}) if state_by_id.get(member_id, {}) is Dictionary else {}
+		var hp := float(state.get("hp", member.get("hp", 0.0)))
+		if hp <= 0.0:
+			continue
+		var max_hp := maxf(float(state.get("max_hp", member.get("max_hp", 100.0))), 1.0)
+		total += maxf(float(member.get("power", 0.0)), 0.0) * clampf(hp / max_hp, 0.0, 1.0)
+	return total if total > 0.0 else maxf(fallback_power, 0.0)
+
+
+static func _pick_completion_group(engagement_groups: Array[Dictionary], attacker_squad_id: String, defender_squad_id: String, beat_index: int, state_by_id: Dictionary) -> Dictionary:
+	var matching_groups: Array[Dictionary] = []
+	for group in engagement_groups:
+		if _group_has_active_squad_members(group, attacker_squad_id, state_by_id) and _group_has_active_squad_members(group, defender_squad_id, state_by_id):
+			matching_groups.append(group)
+	if matching_groups.is_empty():
+		return _pick_beat_group(engagement_groups, attacker_squad_id, defender_squad_id, beat_index)
+	return matching_groups[maxi(0, beat_index - 1) % matching_groups.size()]
+
+
+static func _group_has_active_squad_members(group: Dictionary, squad_id: String, state_by_id: Dictionary) -> bool:
+	for member_id in _group_member_ids_for_squad(group, squad_id):
+		var state: Dictionary = state_by_id.get(member_id, {}) if state_by_id.get(member_id, {}) is Dictionary else {}
+		if float(state.get("hp", 0.0)) > 0.0:
+			return true
+	return false
+
+
+static func _pick_completion_member_for_group(active_members: Array[Dictionary], engagement_group: Dictionary, squad_id: String, state_by_id: Dictionary, rng: RandomNumberGenerator, prefer_lowest_hp: bool) -> Dictionary:
+	var member_ids := _group_member_ids_for_squad(engagement_group, squad_id)
+	var allowed_ids := {}
+	for member_id in member_ids:
+		allowed_ids[member_id] = true
+	var candidates: Array[Dictionary] = []
+	for member in active_members:
+		if member_ids.is_empty() or allowed_ids.has(_member_group_id(member)):
+			candidates.append(member)
+	if candidates.is_empty():
+		candidates = active_members.duplicate()
+	if candidates.is_empty():
+		return {}
+	if prefer_lowest_hp:
+		candidates.sort_custom(func(first: Dictionary, second: Dictionary) -> bool:
+			var first_state: Dictionary = state_by_id.get(_member_group_id(first), {}) if state_by_id.get(_member_group_id(first), {}) is Dictionary else {}
+			var second_state: Dictionary = state_by_id.get(_member_group_id(second), {}) if state_by_id.get(_member_group_id(second), {}) is Dictionary else {}
+			var first_hp := float(first_state.get("hp", first.get("hp", 0.0)))
+			var second_hp := float(second_state.get("hp", second.get("hp", 0.0)))
+			if not is_equal_approx(first_hp, second_hp):
+				return first_hp < second_hp
+			return _member_group_id(first) < _member_group_id(second)
+		)
+		return candidates[0]
+	var total_power := 0.0
+	for member in candidates:
+		total_power += maxf(float(member.get("power", 0.0)), 0.0)
+	if total_power <= 0.0:
+		return candidates[rng.randi_range(0, candidates.size() - 1)]
+	var roll := rng.randf_range(0.0, total_power)
+	var cursor := 0.0
+	for member in candidates:
+		cursor += maxf(float(member.get("power", 0.0)), 0.0)
+		if roll <= cursor:
+			return member
+	return candidates[candidates.size() - 1]
+
+
+static func _completion_casualties_for_side(members: Array[Dictionary], squad_id: String, state_by_id: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for member in members:
+		var member_id := _member_group_id(member)
+		var state: Dictionary = state_by_id.get(member_id, {}) if state_by_id.get(member_id, {}) is Dictionary else {}
+		if float(state.get("hp", member.get("hp", 0.0))) <= 0.0:
+			result.append(_completion_casualty_record(member, squad_id))
+	return result
 
 
 static func _completion_hit_damage(attacker: Dictionary, defender: Dictionary, rng: RandomNumberGenerator) -> float:
@@ -356,9 +488,8 @@ static func _next_completion_attacker_is_a(previous_attacker_is_a: bool, power_a
 	return rng.randf() <= power_a / total_power
 
 
-static func _append_completion_beat(beats: Array[Dictionary], encounter_id: String, current_tick: int, attacker_member: Dictionary, defender_member: Dictionary, attacker_squad_id: String, defender_squad_id: String, engagement_groups: Array[Dictionary], slot_id_by_occupant: Dictionary, damage: float, defender_hp_after: float) -> void:
+static func _append_completion_beat(beats: Array[Dictionary], encounter_id: String, current_tick: int, attacker_member: Dictionary, defender_member: Dictionary, attacker_squad_id: String, defender_squad_id: String, engagement_group: Dictionary, slot_id_by_occupant: Dictionary, damage: float, defender_hp_after: float) -> void:
 	var beat_index := beats.size() + 1
-	var engagement_group := _pick_beat_group(engagement_groups, attacker_squad_id, defender_squad_id, beat_index)
 	var engagement_group_id := str(engagement_group.get("engagement_group_id", _engagement_group_id(encounter_id, 1))).strip_edges()
 	var attacker_member_id := str(attacker_member.get("member_id", "")).strip_edges()
 	var defender_member_id := str(defender_member.get("member_id", "")).strip_edges()
@@ -394,6 +525,44 @@ static func _append_completion_beat(beats: Array[Dictionary], encounter_id: Stri
 		"defender_hp_after": defender_hp_after,
 		"importance": "critical" if defender_hp_after <= 0.0 else "normal",
 		"summary": _completion_beat_summary(attacker_name, attacker_squad_id, defender_name, defender_squad_id, damage, defender_hp_after),
+	})
+
+
+static func _append_completion_flee_beat(beats: Array[Dictionary], encounter_id: String, current_tick: int, fleeing_member: Dictionary, pursuing_member: Dictionary, fleeing_squad_id: String, pursuing_squad_id: String, slot_id_by_occupant: Dictionary) -> void:
+	var beat_index := beats.size() + 1
+	var fleeing_member_id := str(fleeing_member.get("member_id", "")).strip_edges()
+	var pursuing_member_id := str(pursuing_member.get("member_id", "")).strip_edges()
+	var fleeing_id := fleeing_member_id if not fleeing_member_id.is_empty() else fleeing_squad_id
+	var pursuing_id := pursuing_member_id if not pursuing_member_id.is_empty() else pursuing_squad_id
+	beats.append({
+		"beat_id": _combat_beat_id(encounter_id, beat_index),
+		"beat_index": beat_index,
+		"encounter_id": encounter_id,
+		"engagement_group_id": "",
+		"tick": current_tick,
+		"presentation_tick": current_tick + beat_index - 1,
+		"round": beat_index,
+		"attacker_squad_id": fleeing_squad_id,
+		"defender_squad_id": pursuing_squad_id,
+		"attacker_member_id": fleeing_member_id,
+		"defender_member_id": pursuing_member_id,
+		"attacker_actor_id": str(fleeing_member.get("actor_id", "")).strip_edges(),
+		"defender_actor_id": str(pursuing_member.get("actor_id", "")).strip_edges(),
+		"attacker_stable_id": str(fleeing_member.get("stable_id", "")).strip_edges(),
+		"defender_stable_id": str(pursuing_member.get("stable_id", "")).strip_edges(),
+		"attacker_id": fleeing_id,
+		"defender_id": pursuing_id,
+		"attacker_slot_id": str(slot_id_by_occupant.get(fleeing_id, "")).strip_edges(),
+		"defender_slot_id": str(slot_id_by_occupant.get(pursuing_id, "")).strip_edges(),
+		"attacker_name": str(fleeing_member.get("member_name", fleeing_squad_id)),
+		"defender_name": str(pursuing_member.get("member_name", pursuing_squad_id)),
+		"action": "flee",
+		"result": "fled",
+		"damage": 0.0,
+		"fleeing_squad_id": fleeing_squad_id,
+		"pursuing_squad_id": pursuing_squad_id,
+		"importance": "critical",
+		"summary": "%s fled from %s." % [fleeing_squad_id, pursuing_squad_id],
 	})
 
 
@@ -533,12 +702,12 @@ static func _engagement_groups(profile_a: Dictionary, profile_b: Dictionary, enc
 		return groups
 	var paired_count := mini(side_a_participants.size(), side_b_participants.size())
 	for index in range(paired_count):
-		var group := _engagement_group_record(group_encounter_id, groups.size() + 1, squad_a_id, squad_b_id, "paired")
+		var group := _engagement_group_record(group_encounter_id, groups.size() + 1, squad_a_id, squad_b_id, "spatial_pair")
 		_add_group_member(group, "a", side_a_participants[index], false, false)
 		_add_group_member(group, "b", side_b_participants[index], false, false)
 		groups.append(group)
-	var next_a_index := _assign_support_members(groups, side_a_participants, paired_count, "a")
-	var next_b_index := _assign_support_members(groups, side_b_participants, paired_count, "b")
+	var next_a_index := _assign_spatial_support_members(groups, side_a_participants, paired_count, "a")
+	var next_b_index := _assign_spatial_support_members(groups, side_b_participants, paired_count, "b")
 	_append_reserve_groups(groups, side_a_participants, next_a_index, "a", group_encounter_id, squad_a_id, squad_b_id)
 	_append_reserve_groups(groups, side_b_participants, next_b_index, "b", group_encounter_id, squad_a_id, squad_b_id)
 	if groups.is_empty():
@@ -614,7 +783,10 @@ static func _combat_slot_plan(encounter_record: Dictionary, encounter_id: String
 	var group_count := engagement_groups.size()
 	for group_array_index in range(engagement_groups.size()):
 		var group: Dictionary = engagement_groups[group_array_index]
+		var preferred_center = group.get("preferred_group_center", null)
 		var group_center := encounter_center + _combat_group_center_offset(group_array_index, group_count)
+		if preferred_center is Vector3:
+			group_center = preferred_center
 		var group_slot_ids: Array[String] = []
 		group["group_center"] = group_center
 		var side_a_ids := _combat_slot_occupants_for_group(group, "a")
@@ -787,7 +959,7 @@ static func _engagement_grouping_summary(profile_a: Dictionary, profile_b: Dicti
 	var side_b_participants := _sorted_engagement_participants(profile_b)
 	return {
 		"strategy": ENGAGEMENT_GROUP_STRATEGY,
-		"complexity": "O(N log N) sort + O(N) assignment",
+		"complexity": "O(N log N) spatial lane sort + O(N) assignment",
 		"max_group_size": MAX_ENGAGEMENT_GROUP_SIZE,
 		"group_count": engagement_groups.size(),
 		"side_a_participant_count": side_a_participants.size(),
@@ -799,17 +971,20 @@ static func _engagement_grouping_summary(profile_a: Dictionary, profile_b: Dicti
 static func _sorted_engagement_participants(profile: Dictionary) -> Array[Dictionary]:
 	var participants := _dictionary_array(profile.get("participants", []))
 	participants.sort_custom(func(first: Dictionary, second: Dictionary) -> bool:
-		var first_score := _engagement_sort_score(first)
-		var second_score := _engagement_sort_score(second)
-		if not is_equal_approx(first_score, second_score):
-			return first_score > second_score
+		var first_position := _member_world_position(first)
+		var second_position := _member_world_position(second)
+		if not is_equal_approx(first_position.z, second_position.z):
+			return first_position.z < second_position.z
+		if not is_equal_approx(first_position.x, second_position.x):
+			return first_position.x < second_position.x
 		return _member_group_id(first) < _member_group_id(second)
 	)
 	return participants
 
 
-static func _engagement_sort_score(member_profile: Dictionary) -> float:
-	return float(member_profile.get("power", 0.0))
+static func _member_world_position(member_profile: Dictionary) -> Vector3:
+	var position = member_profile.get("world_position", Vector3.ZERO)
+	return position if position is Vector3 else Vector3.ZERO
 
 
 static func _member_group_id(member_profile: Dictionary) -> String:
@@ -844,6 +1019,8 @@ static func _engagement_group_record(encounter_id: String, group_index: int, squ
 		"side_b_member_ids": [],
 		"support_member_ids": [],
 		"reserve_member_ids": [],
+		"spatial_member_positions": [],
+		"preferred_group_center": Vector3.ZERO,
 		"uses_squad_fallback": false,
 	}
 
@@ -868,18 +1045,48 @@ static func _add_group_member(group: Dictionary, side: String, member_profile: D
 		_append_unique_string_field(group, "support_member_ids", member_id)
 	if reserve:
 		_append_unique_string_field(group, "reserve_member_ids", member_id)
+	_add_group_spatial_position(group, member_profile)
 
 
-static func _assign_support_members(groups: Array[Dictionary], members: Array[Dictionary], start_index: int, side: String) -> int:
+static func _add_group_spatial_position(group: Dictionary, member_profile: Dictionary) -> void:
+	if not bool(member_profile.get("has_world_position", false)):
+		return
+	var position := _member_world_position(member_profile)
+	var positions: Array = group.get("spatial_member_positions", []) if group.get("spatial_member_positions", []) is Array else []
+	positions.append(position)
+	group["spatial_member_positions"] = positions
+	group["preferred_group_center"] = _average_vector3_array(positions)
+
+
+static func _average_vector3_array(values: Array) -> Vector3:
+	var total := Vector3.ZERO
+	var count := 0
+	for value in values:
+		if value is Vector3:
+			total += value
+			count += 1
+	return total / float(count) if count > 0 else Vector3.ZERO
+
+
+static func _assign_spatial_support_members(groups: Array[Dictionary], members: Array[Dictionary], start_index: int, side: String) -> int:
 	var member_index := start_index
-	var group_index := 0
-	while member_index < members.size() and group_index < groups.size():
-		var group := groups[group_index]
-		if _engagement_group_size(group) >= MAX_ENGAGEMENT_GROUP_SIZE:
-			group_index += 1
-			continue
-		_add_group_member(group, side, members[member_index], true, false)
-		groups[group_index] = group
+	if groups.is_empty():
+		return member_index
+	var group_index := clampi(start_index, 0, groups.size() - 1)
+	while member_index < members.size():
+		var assigned := false
+		for _attempt in range(groups.size()):
+			var resolved_group_index := group_index % groups.size()
+			var group := groups[resolved_group_index]
+			group_index = resolved_group_index + 1
+			if _engagement_group_size(group) >= MAX_ENGAGEMENT_GROUP_SIZE:
+				continue
+			_add_group_member(group, side, members[member_index], true, false)
+			groups[resolved_group_index] = group
+			assigned = true
+			break
+		if not assigned:
+			break
 		member_index += 1
 	return member_index
 

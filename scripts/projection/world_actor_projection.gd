@@ -8,6 +8,9 @@ const SELECTION_RING_TUBE_RADIUS := 0.075
 const SELECTION_RING_TUBE_CENTER_Y := 0.06
 const SELECTION_RING_MAJOR_SEGMENTS := 96
 const SELECTION_RING_TUBE_SEGMENTS := 10
+const ACTOR_COLLISION_RADIUS := 0.48
+const ACTOR_COLLISION_HEIGHT := 1.75
+const ACTOR_COLLISION_CENTER_Y := 0.9
 
 var actor_id := ""
 var projection_kind := ""
@@ -15,6 +18,8 @@ var body_projection: Node
 var _selection_area: Area3D
 var _selection_ring: MeshInstance3D
 var _selection_ring_material := StandardMaterial3D.new()
+var _actor_collision_body: AnimatableBody3D
+var _actor_collision_shape: CollisionShape3D
 
 
 func setup(target_actor_id: String, target_projection_kind: String, body_script: Script) -> void:
@@ -28,6 +33,7 @@ func setup(target_actor_id: String, target_projection_kind: String, body_script:
 		add_to_group("projected_humanoid_actor")
 		add_to_group("humanoid_projection_actor")
 	_ensure_selection_nodes()
+	_ensure_actor_collision_nodes()
 	_set_body_script(body_script)
 
 
@@ -41,8 +47,38 @@ func apply_projection_snapshot(record: Dictionary, equipment_slots: Dictionary, 
 	if bool(record.get("world_facing_yaw_initialized", false)):
 		rotation.y = float(record.get("world_facing_yaw", rotation.y))
 	visible = int(record.get("life_state", 0)) >= 0
+	_set_actor_collision_enabled(int(record.get("life_state", 0)) == 0)
 	if body_projection != null:
 		body_projection.apply_projection_snapshot(record, equipment_slots, combat_state)
+
+
+func apply_combat_projection_visual(visual_state: Dictionary) -> void:
+	if visual_state.get("global_position", null) is Vector3:
+		global_position = visual_state.get("global_position")
+	if visual_state.has("facing_yaw"):
+		rotation.y = float(visual_state.get("facing_yaw", rotation.y))
+	if visual_state.has("rotation_x"):
+		rotation.x = float(visual_state.get("rotation_x", rotation.x))
+	else:
+		rotation.x = 0.0
+	scale = Vector3.ONE
+	var presentation: Dictionary = visual_state.get("presentation", {}) if visual_state.get("presentation", {}) is Dictionary else {}
+	var presentation_state := str(presentation.get("state", "")).strip_edges()
+	_set_actor_collision_enabled(not presentation_state.begins_with("downed"))
+	if body_projection != null and body_projection.has_method("apply_combat_presentation"):
+		body_projection.call("apply_combat_presentation", presentation)
+
+
+func get_combat_presentation_duration(presentation_state: String, event_id: String, fallback: float) -> float:
+	if body_projection != null and body_projection.has_method("get_combat_presentation_duration"):
+		return float(body_projection.call("get_combat_presentation_duration", presentation_state, event_id, fallback))
+	return fallback
+
+
+func get_combat_impact_ratio(presentation_state: String, event_id: String, fallback: float) -> float:
+	if body_projection != null and body_projection.has_method("get_combat_impact_ratio"):
+		return float(body_projection.call("get_combat_impact_ratio", presentation_state, event_id, fallback))
+	return fallback
 
 
 func set_selected(selected: bool) -> void:
@@ -108,6 +144,37 @@ func _ensure_selection_nodes() -> void:
 		add_child(_selection_ring)
 	if _selection_area != null:
 		_selection_area.set_meta("actor_id", actor_id)
+	if _actor_collision_body != null:
+		_actor_collision_body.set_meta("actor_id", actor_id)
+
+
+func _ensure_actor_collision_nodes() -> void:
+	if _actor_collision_body == null:
+		_actor_collision_body = AnimatableBody3D.new()
+		_actor_collision_body.name = "ActorCollisionBody"
+		_actor_collision_body.collision_layer = 1
+		_actor_collision_body.collision_mask = 1
+		_actor_collision_body.set_meta("actor_id", actor_id)
+		_actor_collision_body.add_to_group("projected_world_actor_collision")
+		_actor_collision_shape = CollisionShape3D.new()
+		_actor_collision_shape.name = "CollisionShape3D"
+		var shape := CapsuleShape3D.new()
+		shape.radius = ACTOR_COLLISION_RADIUS
+		shape.height = ACTOR_COLLISION_HEIGHT
+		_actor_collision_shape.shape = shape
+		_actor_collision_shape.position = Vector3(0.0, ACTOR_COLLISION_CENTER_Y, 0.0)
+		_actor_collision_body.add_child(_actor_collision_shape)
+		add_child(_actor_collision_body)
+	elif _actor_collision_shape == null:
+		_actor_collision_shape = _actor_collision_body.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if _actor_collision_body != null:
+		_actor_collision_body.set_meta("actor_id", actor_id)
+
+
+func _set_actor_collision_enabled(enabled: bool) -> void:
+	_ensure_actor_collision_nodes()
+	if _actor_collision_shape != null:
+		_actor_collision_shape.disabled = not enabled
 
 
 func _setup_selection_ring_material() -> void:

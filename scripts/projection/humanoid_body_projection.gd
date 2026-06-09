@@ -4,7 +4,10 @@ class_name HumanoidBodyProjection
 
 const HUMAN_RACE := preload("res://resources/character_races/human.tres")
 const HUMAN_MALE_BODY := preload("res://resources/character_body_archetypes/human_male.tres")
+const HUMANOID_RAGDOLL_PROFILE_SCRIPT := preload("res://scripts/characters/humanoid_ragdoll_profile.gd")
+const STABLE_PHYSICAL_BONE_SCRIPT := preload("res://scripts/characters/stable_physical_bone.gd")
 const UAL1_ANIMATION_SOURCE_SCENE := preload("res://assets/vendor/quaternius/universal_animation_library_1_pro/UAL1_Pro.glb")
+const UAL2_ANIMATION_SOURCE_SCENE := preload("res://assets/vendor/quaternius/universal_animation_library_2/UAL2.glb")
 const DEFAULT_GRIP_SOCKET_PROFILE := preload("res://resources/humanoid_grip_socket_profiles/default.tres")
 
 const WORLD_VISUAL_NODE_NAME := "BodyVisual"
@@ -19,6 +22,16 @@ const CROUCH_WALK_ANIMATION_NAME := "Crouch_Fwd"
 const JOG_ANIMATION_NAME := "Jog_Fwd"
 const IDLE_SAMPLE_SECONDS := 0.45
 const EQUIPMENT_VISUAL_META := "projection_equipment_visual"
+const COMBAT_IDLE_ANIMATION_CANDIDATES := ["Unarmed_Combat_Idle", "Combat_Idle", "Idle"]
+const ATTACK_ANIMATION_CANDIDATES := ["Melee_Hook", "Melee_Knee", "Punch", "Punching", "Kick", "Kick_Fwd"]
+const REACTION_ANIMATION_CANDIDATES := ["Hit", "Hit_Chest", "Hit_Head", "Hit_Stomach", "Damage", "Dodge"]
+const BLOCK_ANIMATION_CANDIDATES := ["Block", "Shield_Block", "Parry"]
+const DOWNED_ANIMATION_CANDIDATES := ["Death", "Death_A", "Death_Back", "Death_Fwd"]
+const RAGDOLL_COLLIDER_LENGTH_SCALE := 0.82
+const RAGDOLL_MAX_LINEAR_SPEED := 10.0
+const RAGDOLL_MAX_ANGULAR_SPEED := 18.0
+const RAGDOLL_UPWARD_VELOCITY_SUPPRESSION_FRAMES := 90
+const RAGDOLL_ACTIVATIONS_PER_PHYSICS_FRAME := 2
 const BONE_EQUIPMENT_SLOTS := {
 	"weapon": "hand_r",
 	"offhand": "hand_l",
@@ -33,22 +46,39 @@ var _label: Label3D
 var _equipment_signature := ""
 var _character_animation_player: AnimationPlayer
 var _current_world_animation := ""
+var _current_combat_event_id := ""
+var _default_ragdoll_profile: Resource
+var _ragdoll_simulator: PhysicalBoneSimulator3D
+var _ragdoll_skeleton: Skeleton3D
+var _ragdoll_physical_bones: Dictionary = {}
+var _is_ragdoll_active := false
+var _ragdoll_requested := false
+var _ragdoll_request_event_id := ""
+var _ragdoll_preroll_active := false
+var _ragdoll_preroll_animation_name := ""
+var _ragdoll_preroll_remaining := 0.0
+var _ragdoll_upward_velocity_suppression_frames := 0
+
+static var _ragdoll_activation_frame := -1
+static var _ragdoll_activation_count := 0
 
 var _portrait_source: Node3D
 var _portrait_character_visual: Node3D
 var _portrait_skeleton: Skeleton3D
 var _portrait_animation_player: AnimationPlayer
 var _portrait_equipment_signature := ""
+var _last_equipment_slots: Dictionary = {}
 
 
 func apply_projection_snapshot(record: Dictionary, equipment_slots: Dictionary, combat_state: Dictionary = {}) -> void:
 	var body_archetype := _body_archetype_from_record(record)
 	_ensure_body_visual(body_archetype)
-	_ensure_portrait_source(body_archetype)
+	_last_equipment_slots = equipment_slots.duplicate(true)
 	_apply_label(record)
 	_apply_life_state(record, combat_state)
 	_sync_equipment(equipment_slots)
-	_sync_portrait_equipment(equipment_slots)
+	if _portrait_source != null and is_instance_valid(_portrait_source):
+		_sync_portrait_equipment(equipment_slots)
 	_apply_locomotion_state(record)
 
 
@@ -57,7 +87,22 @@ func get_body_adapter_id() -> String:
 
 
 func get_portrait_source() -> Node:
+	_ensure_portrait_source(_body_archetype if _body_archetype != null else HUMAN_MALE_BODY)
+	_sync_portrait_equipment(_last_equipment_slots)
 	return _portrait_source if _portrait_source != null and is_instance_valid(_portrait_source) else self
+
+
+func _process(delta: float) -> void:
+	if _ragdoll_preroll_active:
+		_process_downed_ragdoll_preroll(delta)
+		return
+	if _ragdoll_requested and not _is_ragdoll_active and _can_activate_ragdoll_this_frame():
+		_finish_downed_ragdoll_preroll()
+
+
+func _physics_process(delta: float) -> void:
+	if _is_ragdoll_active:
+		_stabilize_active_ragdoll(delta)
 
 
 func get_projection_debug_state() -> Dictionary:
@@ -68,12 +113,83 @@ func get_projection_debug_state() -> Dictionary:
 		"world_skeleton_ready": _skeleton != null,
 		"world_idle_animation_ready": _character_animation_player != null and _character_animation_player.has_animation(IDLE_ANIMATION_NAME),
 		"world_animation": _current_world_animation,
+		"combat_event_id": _current_combat_event_id,
+		"ragdoll_requested": _ragdoll_requested,
+		"ragdoll_preroll_active": _ragdoll_preroll_active,
+		"ragdoll_active": _is_ragdoll_active,
+		"ragdoll_physical_bone_count": _ragdoll_physical_bones.size(),
 		"portrait_source_ready": _portrait_source != null,
 		"portrait_character_visual_ready": _portrait_character_visual != null and _portrait_character_visual.name == CHARACTER_VISUAL_NODE_NAME,
 		"portrait_skeleton_ready": _portrait_skeleton != null,
 		"portrait_idle_animation_ready": _portrait_animation_player != null and _portrait_animation_player.has_animation(IDLE_ANIMATION_NAME),
 		"attached_item_paths": _attached_item_paths(),
 	}
+
+
+func apply_combat_presentation(presentation: Dictionary) -> void:
+	if _character_animation_player == null:
+		return
+	var state := str(presentation.get("state", "combat_idle")).strip_edges()
+	var event_id := str(presentation.get("event_id", state)).strip_edges()
+	var progress := clampf(float(presentation.get("progress", 0.0)), 0.0, 1.0)
+	var is_downed_state := state == "downed" or state == "downed_start" or state == "downed_hold"
+	if not is_downed_state and _is_ragdoll_active:
+		_stop_ragdoll_simulation(true)
+	if not is_downed_state:
+		_cancel_ragdoll_preroll()
+		_ragdoll_requested = false
+	match state:
+		"move":
+			_current_combat_event_id = event_id
+			_play_world_animation(WALK_ANIMATION_NAME, 0.95)
+		"attack_start":
+			_play_combat_once_animation(event_id, ATTACK_ANIMATION_CANDIDATES, 1.0)
+		"attack_hold":
+			_hold_combat_once_animation(event_id, ATTACK_ANIMATION_CANDIDATES)
+		"attack":
+			_play_combat_progress_animation(event_id, ATTACK_ANIMATION_CANDIDATES, progress, 1.0)
+		"reaction_start":
+			_play_combat_once_animation(event_id, REACTION_ANIMATION_CANDIDATES, 1.0)
+		"reaction_hold":
+			_hold_combat_once_animation(event_id, REACTION_ANIMATION_CANDIDATES)
+		"reaction":
+			_play_combat_progress_animation(event_id, REACTION_ANIMATION_CANDIDATES, progress, 1.0)
+		"block":
+			_play_combat_progress_animation(event_id, BLOCK_ANIMATION_CANDIDATES, progress, 1.0)
+		"downed_start", "downed_hold":
+			_request_downed_ragdoll(event_id)
+		"downed":
+			_request_downed_ragdoll(event_id)
+			if not _is_ragdoll_active and not _ragdoll_preroll_active:
+				_play_combat_progress_animation(event_id, DOWNED_ANIMATION_CANDIDATES, progress, 1.0)
+		_:
+			_current_combat_event_id = ""
+			_play_first_available_loop(COMBAT_IDLE_ANIMATION_CANDIDATES)
+
+
+func get_combat_presentation_duration(presentation_state: String, event_id: String, fallback: float) -> float:
+	var state := str(presentation_state).strip_edges()
+	var animation_name := ""
+	match state:
+		"attack", "attack_start", "attack_hold":
+			animation_name = _deterministic_available_animation(ATTACK_ANIMATION_CANDIDATES, event_id)
+		"reaction", "reaction_start", "reaction_hold":
+			animation_name = _deterministic_available_animation(REACTION_ANIMATION_CANDIDATES, event_id)
+		"block":
+			animation_name = _deterministic_available_animation(BLOCK_ANIMATION_CANDIDATES, event_id)
+		"downed", "downed_start", "downed_hold":
+			animation_name = _choose_downed_preroll_animation()
+	if animation_name.is_empty():
+		return fallback
+	var length := _get_character_animation_length(animation_name)
+	return length if length > 0.0 else fallback
+
+
+func get_combat_impact_ratio(presentation_state: String, _event_id: String, fallback: float) -> float:
+	var state := str(presentation_state).strip_edges()
+	if state == "attack" or state == "attack_start" or state == "attack_hold":
+		return 0.45
+	return fallback
 
 
 func _body_archetype_from_record(record: Dictionary) -> Resource:
@@ -106,7 +222,7 @@ func _ensure_body_visual(body_archetype: Resource) -> void:
 	var model_root := _instantiate_body_model(body_archetype)
 	if model_root != null:
 		_body_visual.add_child(model_root)
-		_character_animation_player = _setup_character_animation(model_root)
+		_character_animation_player = _setup_character_animation(model_root, true)
 		_play_idle_pose(_character_animation_player)
 		_skeleton = _find_skeleton(model_root)
 	_equipment_root = Node3D.new()
@@ -121,6 +237,7 @@ func _ensure_body_visual(body_archetype: Resource) -> void:
 	_equipment_signature = ""
 	_portrait_equipment_signature = ""
 	_current_world_animation = ""
+	_current_combat_event_id = ""
 
 
 func _ensure_portrait_source(body_archetype: Resource) -> void:
@@ -138,7 +255,7 @@ func _ensure_portrait_source(body_archetype: Resource) -> void:
 		return
 	model_root.rotation.y = PORTRAIT_CHARACTER_VISUAL_YAW_OFFSET
 	_portrait_character_visual.add_child(model_root)
-	_portrait_animation_player = _setup_character_animation(model_root)
+	_portrait_animation_player = _setup_character_animation(model_root, false)
 	_play_idle_pose(_portrait_animation_player)
 	_portrait_skeleton = _find_skeleton(model_root)
 
@@ -158,6 +275,7 @@ func _instantiate_body_model(body_archetype: Resource) -> Node3D:
 
 
 func _clear_children() -> void:
+	_stop_ragdoll_simulation(true)
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
@@ -170,6 +288,11 @@ func _clear_children() -> void:
 	_portrait_character_visual = null
 	_portrait_skeleton = null
 	_portrait_animation_player = null
+	_ragdoll_simulator = null
+	_ragdoll_skeleton = null
+	_ragdoll_physical_bones.clear()
+	_ragdoll_requested = false
+	_cancel_ragdoll_preroll()
 
 
 func _apply_label(record: Dictionary) -> void:
@@ -222,6 +345,419 @@ func _animation_speed_scale(horizontal_speed: float, reference_speed: float, min
 	return lerpf(min_scale, max_scale, ratio)
 
 
+func _get_ragdoll_profile():
+	if _default_ragdoll_profile == null:
+		_default_ragdoll_profile = HUMANOID_RAGDOLL_PROFILE_SCRIPT.new()
+	return _default_ragdoll_profile
+
+
+func _request_downed_ragdoll(event_id: String) -> void:
+	if _is_ragdoll_active:
+		return
+	if _ragdoll_requested and _ragdoll_request_event_id == event_id:
+		return
+	_ragdoll_requested = true
+	_ragdoll_request_event_id = event_id
+	if not _begin_downed_ragdoll_preroll():
+		if _can_activate_ragdoll_this_frame():
+			_finish_downed_ragdoll_preroll()
+
+
+func _begin_downed_ragdoll_preroll() -> bool:
+	if _character_animation_player == null:
+		return false
+	var animation_name := _choose_downed_preroll_animation()
+	if animation_name.is_empty():
+		return false
+	var animation_length := _get_character_animation_length(animation_name)
+	var preroll_duration := _choose_downed_preroll_duration(animation_length)
+	if preroll_duration <= 0.0:
+		return false
+	_ragdoll_preroll_active = true
+	_ragdoll_preroll_animation_name = animation_name
+	_ragdoll_preroll_remaining = preroll_duration
+	_play_world_animation(animation_name, 1.0)
+	return true
+
+
+func _process_downed_ragdoll_preroll(delta: float) -> void:
+	_ragdoll_preroll_remaining = maxf(0.0, _ragdoll_preroll_remaining - delta)
+	if _ragdoll_preroll_remaining > 0.0 and _character_animation_player != null and _character_animation_player.is_playing():
+		return
+	if _can_activate_ragdoll_this_frame():
+		_finish_downed_ragdoll_preroll()
+
+
+func _finish_downed_ragdoll_preroll() -> void:
+	if _is_ragdoll_active:
+		_cancel_ragdoll_preroll()
+		return
+	_cancel_ragdoll_preroll()
+	_stop_character_animation(true)
+	_start_ragdoll_simulation()
+
+
+func _cancel_ragdoll_preroll() -> void:
+	_ragdoll_preroll_active = false
+	_ragdoll_preroll_animation_name = ""
+	_ragdoll_preroll_remaining = 0.0
+
+
+func _choose_downed_preroll_animation() -> String:
+	var profile = _get_ragdoll_profile()
+	if profile != null and profile.has_method("choose_downed_preroll_animation"):
+		return profile.choose_downed_preroll_animation(_character_animation_player, _rng_for_ragdoll())
+	return ""
+
+
+func _choose_downed_preroll_duration(animation_length: float) -> float:
+	var profile = _get_ragdoll_profile()
+	if profile != null and profile.has_method("choose_downed_preroll_duration"):
+		return profile.choose_downed_preroll_duration(animation_length, _rng_for_ragdoll())
+	return animation_length
+
+
+func _get_character_animation_length(animation_name: String) -> float:
+	if _character_animation_player == null or animation_name.is_empty() or not _character_animation_player.has_animation(animation_name):
+		return 0.0
+	var animation := _character_animation_player.get_animation(animation_name)
+	return animation.length if animation != null else 0.0
+
+
+func _stop_character_animation(reset_pose: bool) -> void:
+	if _character_animation_player != null:
+		_character_animation_player.stop(reset_pose)
+	_current_world_animation = ""
+	_current_combat_event_id = ""
+
+
+func _rng_for_ragdoll() -> RandomNumberGenerator:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = abs(hash(str(get_instance_id())))
+	return rng
+
+
+func _can_activate_ragdoll_this_frame() -> bool:
+	var frame := Engine.get_physics_frames()
+	if _ragdoll_activation_frame != frame:
+		_ragdoll_activation_frame = frame
+		_ragdoll_activation_count = 0
+	if _ragdoll_activation_count >= RAGDOLL_ACTIVATIONS_PER_PHYSICS_FRAME:
+		return false
+	_ragdoll_activation_count += 1
+	return true
+
+
+func _start_ragdoll_simulation() -> bool:
+	if not _ensure_runtime_ragdoll():
+		return false
+	_is_ragdoll_active = true
+	_ragdoll_requested = false
+	if _ragdoll_skeleton != null and is_instance_valid(_ragdoll_skeleton):
+		_ragdoll_skeleton.force_update_all_bone_transforms()
+	_ragdoll_simulator.active = true
+	_ragdoll_simulator.influence = 1.0
+	_configure_ragdoll_internal_collision_exceptions()
+	_sync_ragdoll_physical_bones_to_current_pose()
+	_prepare_ragdoll_activation()
+	_reset_ragdoll_body_velocities()
+	_ragdoll_simulator.physical_bones_start_simulation()
+	_reset_ragdoll_body_velocities()
+	_clamp_ragdoll_upward_velocities()
+	return true
+
+
+func _stop_ragdoll_simulation(reset_pose: bool) -> void:
+	if _ragdoll_simulator != null and is_instance_valid(_ragdoll_simulator):
+		if _ragdoll_simulator.is_simulating_physics():
+			_ragdoll_simulator.physical_bones_stop_simulation()
+		_ragdoll_simulator.active = false
+	if _ragdoll_skeleton != null and is_instance_valid(_ragdoll_skeleton) and reset_pose:
+		_ragdoll_skeleton.reset_bone_poses()
+	_is_ragdoll_active = false
+	_ragdoll_upward_velocity_suppression_frames = 0
+	_set_ragdoll_bone_upward_velocity_suppression(0)
+
+
+func _ensure_runtime_ragdoll() -> bool:
+	if _ragdoll_skeleton == null or not is_instance_valid(_ragdoll_skeleton):
+		_ragdoll_skeleton = _skeleton
+		_ragdoll_physical_bones.clear()
+		_ragdoll_simulator = null
+	if _ragdoll_skeleton == null:
+		return false
+	if _ragdoll_simulator == null or not is_instance_valid(_ragdoll_simulator):
+		_ragdoll_simulator = _ragdoll_skeleton.get_node_or_null("HumanoidRagdollSimulator") as PhysicalBoneSimulator3D
+		if _ragdoll_simulator == null:
+			_ragdoll_simulator = PhysicalBoneSimulator3D.new()
+			_ragdoll_simulator.name = "HumanoidRagdollSimulator"
+			_ragdoll_skeleton.add_child(_ragdoll_simulator)
+		_ragdoll_simulator.active = false
+		_ragdoll_simulator.influence = 1.0
+	_create_missing_ragdoll_physical_bones()
+	return not _ragdoll_physical_bones.is_empty()
+
+
+func _create_missing_ragdoll_physical_bones() -> void:
+	var profile = _get_ragdoll_profile()
+	if profile == null:
+		return
+	for bone_name_value in profile.physical_bone_names:
+		var bone_name := String(bone_name_value)
+		if bone_name.is_empty() or _ragdoll_physical_bones.has(bone_name):
+			continue
+		var bone_index := _ragdoll_skeleton.find_bone(bone_name)
+		if bone_index < 0:
+			continue
+		var physical_bone := _build_ragdoll_physical_bone(profile, bone_name, bone_index)
+		_ragdoll_simulator.add_child(physical_bone)
+		_ragdoll_physical_bones[bone_name] = physical_bone
+
+
+func _build_ragdoll_physical_bone(profile, bone_name: String, bone_index: int) -> PhysicalBone3D:
+	var physical_bone := STABLE_PHYSICAL_BONE_SCRIPT.new() as PhysicalBone3D
+	physical_bone.name = "PhysicalBone_%s" % bone_name
+	physical_bone.bone_name = bone_name
+	physical_bone.transform = _ragdoll_skeleton.get_bone_global_rest(bone_index)
+	physical_bone.set("max_linear_speed", RAGDOLL_MAX_LINEAR_SPEED)
+	physical_bone.set("max_angular_speed", RAGDOLL_MAX_ANGULAR_SPEED)
+	physical_bone.mass = maxf(0.05, float(profile.get_bone_mass(bone_name)))
+	physical_bone.gravity_scale = float(profile.get("gravity_scale"))
+	physical_bone.linear_damp = float(profile.get("linear_damp"))
+	physical_bone.angular_damp = float(profile.get("angular_damp"))
+	physical_bone.friction = float(profile.get("friction"))
+	physical_bone.bounce = float(profile.get("bounce"))
+	physical_bone.linear_damp_mode = PhysicalBone3D.DAMP_MODE_REPLACE
+	physical_bone.angular_damp_mode = PhysicalBone3D.DAMP_MODE_REPLACE
+	physical_bone.can_sleep = false
+	physical_bone.collision_layer = int(profile.get("collision_layer"))
+	physical_bone.collision_mask = int(profile.get("collision_mask"))
+	physical_bone.joint_type = int(profile.get_bone_joint_type(bone_name)) as PhysicalBone3D.JointType
+	physical_bone.joint_offset = Transform3D.IDENTITY
+	_apply_ragdoll_joint_constraints(profile, physical_bone, bone_name)
+	var shape := CollisionShape3D.new()
+	shape.name = "CollisionShape3D"
+	var bone_length := _get_ragdoll_bone_length(profile, bone_name, bone_index)
+	var radius := float(profile.get_bone_radius(bone_name))
+	var body_basis := _get_ragdoll_body_basis(profile, bone_name, bone_index)
+	var center_distance := 0.0 if bone_name == str(profile.get("root_bone_name")) else bone_length * 0.5
+	if bool(profile.should_use_box_shape(bone_name)):
+		var box := BoxShape3D.new()
+		box.size = _get_ragdoll_box_size(bone_name, bone_length, radius)
+		shape.shape = box
+		physical_bone.body_offset = Transform3D(body_basis, body_basis.y * center_distance)
+	else:
+		var capsule := CapsuleShape3D.new()
+		capsule.radius = radius
+		capsule.height = maxf(bone_length * RAGDOLL_COLLIDER_LENGTH_SCALE, radius * 2.2)
+		shape.shape = capsule
+		physical_bone.body_offset = Transform3D(body_basis, body_basis.y * center_distance)
+	physical_bone.add_child(shape)
+	return physical_bone
+
+
+func _apply_ragdoll_joint_constraints(profile, physical_bone: PhysicalBone3D, bone_name: String) -> void:
+	match int(profile.get_bone_joint_type(bone_name)):
+		PhysicalBone3D.JOINT_TYPE_CONE:
+			var swing_span := float(profile.get_bone_cone_swing_span_degrees(bone_name)) if profile.has_method("get_bone_cone_swing_span_degrees") else 45.0
+			var twist_span := float(profile.get_bone_cone_twist_span_degrees(bone_name)) if profile.has_method("get_bone_cone_twist_span_degrees") else 25.0
+			physical_bone.set("joint_constraints/swing_span", swing_span)
+			physical_bone.set("joint_constraints/twist_span", twist_span)
+			physical_bone.set("joint_constraints/bias", _get_ragdoll_profile_float("cone_bias", 0.25))
+			physical_bone.set("joint_constraints/softness", _get_ragdoll_profile_float("cone_softness", 0.65))
+			physical_bone.set("joint_constraints/relaxation", _get_ragdoll_profile_float("cone_relaxation", 0.8))
+		PhysicalBone3D.JOINT_TYPE_HINGE:
+			physical_bone.set("joint_constraints/angular_limit_enabled", true)
+			physical_bone.set("joint_constraints/angular_limit_lower", _get_ragdoll_profile_float("hinge_limit_lower_degrees", -12.0))
+			physical_bone.set("joint_constraints/angular_limit_upper", _get_ragdoll_profile_float("hinge_limit_upper_degrees", 95.0))
+			physical_bone.set("joint_constraints/angular_limit_bias", _get_ragdoll_profile_float("hinge_bias", 0.25))
+			physical_bone.set("joint_constraints/angular_limit_softness", _get_ragdoll_profile_float("hinge_softness", 0.75))
+			physical_bone.set("joint_constraints/angular_limit_relaxation", _get_ragdoll_profile_float("hinge_relaxation", 0.8))
+
+
+func _get_ragdoll_profile_float(property_name: String, fallback: float) -> float:
+	var profile = _get_ragdoll_profile()
+	if profile == null:
+		return fallback
+	var value = profile.get(property_name)
+	return float(value) if value != null else fallback
+
+
+func _configure_ragdoll_internal_collision_exceptions() -> void:
+	var profile = _get_ragdoll_profile()
+	if profile == null or not bool(profile.get("disable_internal_collisions")):
+		return
+	var bones: Array[PhysicalBone3D] = []
+	for physical_bone_value in _ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone != null and is_instance_valid(physical_bone):
+			bones.append(physical_bone)
+	for first_index in range(bones.size()):
+		for second_index in range(first_index + 1, bones.size()):
+			PhysicsServer3D.body_add_collision_exception(bones[first_index].get_rid(), bones[second_index].get_rid())
+			PhysicsServer3D.body_add_collision_exception(bones[second_index].get_rid(), bones[first_index].get_rid())
+
+
+func _reset_ragdoll_body_velocities() -> void:
+	for physical_bone_value in _ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone == null or not is_instance_valid(physical_bone):
+			continue
+		physical_bone.linear_velocity = Vector3.ZERO
+		physical_bone.angular_velocity = Vector3.ZERO
+
+
+func _sync_ragdoll_physical_bones_to_current_pose() -> void:
+	if _ragdoll_skeleton == null or not is_instance_valid(_ragdoll_skeleton):
+		return
+	_ragdoll_skeleton.force_update_all_bone_transforms()
+	for bone_name_value in _ragdoll_physical_bones.keys():
+		var bone_name := str(bone_name_value)
+		var physical_bone := _ragdoll_physical_bones.get(bone_name, null) as PhysicalBone3D
+		if physical_bone == null or not is_instance_valid(physical_bone):
+			continue
+		var bone_index := _ragdoll_skeleton.find_bone(bone_name)
+		if bone_index < 0:
+			continue
+		physical_bone.transform = _ragdoll_skeleton.get_bone_global_pose(bone_index)
+
+
+func _prepare_ragdoll_activation() -> void:
+	_ragdoll_upward_velocity_suppression_frames = RAGDOLL_UPWARD_VELOCITY_SUPPRESSION_FRAMES
+	_set_ragdoll_bone_upward_velocity_suppression(RAGDOLL_UPWARD_VELOCITY_SUPPRESSION_FRAMES)
+	if _ragdoll_skeleton != null and is_instance_valid(_ragdoll_skeleton):
+		_ragdoll_skeleton.force_update_all_bone_transforms()
+
+
+func _set_ragdoll_bone_upward_velocity_suppression(frame_count: int) -> void:
+	for physical_bone_value in _ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone != null and is_instance_valid(physical_bone) and physical_bone.has_method("set_upward_velocity_suppression_frames"):
+			physical_bone.call("set_upward_velocity_suppression_frames", frame_count)
+
+
+func _stabilize_active_ragdoll(_delta: float) -> void:
+	var suppress_upward_velocity := _ragdoll_upward_velocity_suppression_frames > 0
+	if suppress_upward_velocity:
+		_ragdoll_upward_velocity_suppression_frames = maxi(0, _ragdoll_upward_velocity_suppression_frames - 1)
+	for physical_bone_value in _ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone == null or not is_instance_valid(physical_bone):
+			continue
+		var linear_velocity := physical_bone.linear_velocity
+		if suppress_upward_velocity and linear_velocity.y > 0.0:
+			linear_velocity.y = 0.0
+		if linear_velocity.length() > RAGDOLL_MAX_LINEAR_SPEED:
+			linear_velocity = linear_velocity.normalized() * RAGDOLL_MAX_LINEAR_SPEED
+		physical_bone.linear_velocity = linear_velocity
+		var angular_velocity := physical_bone.angular_velocity
+		if angular_velocity.length() > RAGDOLL_MAX_ANGULAR_SPEED:
+			physical_bone.angular_velocity = angular_velocity.normalized() * RAGDOLL_MAX_ANGULAR_SPEED
+
+
+func _get_ragdoll_body_basis(profile, bone_name: String, bone_index: int) -> Basis:
+	if profile != null and bone_name == str(profile.get("root_bone_name")):
+		return Basis.IDENTITY
+	return _make_y_axis_basis(_get_ragdoll_bone_axis(profile, bone_name, bone_index))
+
+
+func _get_ragdoll_bone_axis(profile, bone_name: String, bone_index: int) -> Vector3:
+	var child_vector := _get_ragdoll_child_vector(profile, bone_index)
+	if child_vector.length_squared() > 0.0001:
+		return child_vector.normalized()
+	var parent_axis := _get_ragdoll_parent_continuation_axis(bone_index)
+	if parent_axis.length_squared() > 0.0001:
+		return parent_axis.normalized()
+	return _get_fallback_ragdoll_bone_axis(bone_name)
+
+
+func _get_ragdoll_child_vector(profile, bone_index: int) -> Vector3:
+	if profile == null:
+		return Vector3.ZERO
+	var best_vector := Vector3.ZERO
+	var best_length_squared := 0.0
+	for child_index in _ragdoll_skeleton.get_bone_children(bone_index):
+		var child_name := _ragdoll_skeleton.get_bone_name(child_index)
+		if not profile.has_physical_bone(child_name):
+			continue
+		var child_vector := _ragdoll_skeleton.get_bone_rest(child_index).origin
+		var child_length_squared := child_vector.length_squared()
+		if child_length_squared > best_length_squared:
+			best_vector = child_vector
+			best_length_squared = child_length_squared
+	return best_vector
+
+
+func _get_ragdoll_parent_continuation_axis(bone_index: int) -> Vector3:
+	var bone_rest := _ragdoll_skeleton.get_bone_rest(bone_index)
+	if bone_rest.origin.length_squared() <= 0.0001:
+		return Vector3.ZERO
+	return bone_rest.basis.inverse() * bone_rest.origin
+
+
+func _get_fallback_ragdoll_bone_axis(bone_name: String) -> Vector3:
+	if bone_name.ends_with("_l"):
+		return Vector3.LEFT
+	if bone_name.ends_with("_r"):
+		return Vector3.RIGHT
+	if bone_name.begins_with("foot"):
+		return Vector3.FORWARD
+	return Vector3.UP
+
+
+func _make_y_axis_basis(axis: Vector3) -> Basis:
+	var y_axis := axis.normalized()
+	if y_axis.length_squared() <= 0.0001:
+		return Basis.IDENTITY
+	var reference_axis := Vector3.UP
+	if absf(y_axis.dot(reference_axis)) > 0.92:
+		reference_axis = Vector3.FORWARD
+	var x_axis := reference_axis.cross(y_axis).normalized()
+	var z_axis := x_axis.cross(y_axis).normalized()
+	return Basis(x_axis, y_axis, z_axis).orthonormalized()
+
+
+func _get_ragdoll_bone_length(profile, bone_name: String, bone_index: int) -> float:
+	var best_length := _get_ragdoll_child_vector(profile, bone_index).length()
+	if best_length <= 0.0:
+		best_length = _get_fallback_ragdoll_bone_length(bone_name)
+	return best_length
+
+
+func _get_fallback_ragdoll_bone_length(bone_name: String) -> float:
+	if bone_name == "Head":
+		return 0.22
+	if bone_name.begins_with("hand") or bone_name.begins_with("foot"):
+		return 0.16
+	if bone_name.begins_with("spine"):
+		return 0.16
+	if bone_name == "pelvis":
+		return 0.22
+	return 0.25
+
+
+func _get_ragdoll_box_size(bone_name: String, bone_length: float, radius: float) -> Vector3:
+	if bone_name == "pelvis":
+		return Vector3(radius * 2.5, maxf(0.14, bone_length * 0.55), radius * 1.8)
+	if bone_name == "Head":
+		return Vector3(radius * 1.6, radius * 1.8, radius * 1.5)
+	return Vector3(radius * 2.0, maxf(0.12, bone_length * RAGDOLL_COLLIDER_LENGTH_SCALE), radius * 1.6)
+
+
+func _clamp_ragdoll_upward_velocities() -> void:
+	for physical_bone_value in _ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone == null or not is_instance_valid(physical_bone):
+			continue
+		physical_bone.linear_velocity = _get_non_upward_ragdoll_vector(physical_bone.linear_velocity)
+
+
+func _get_non_upward_ragdoll_vector(vector: Vector3) -> Vector3:
+	if vector.y <= 0.0:
+		return vector
+	return Vector3(vector.x, 0.0, vector.z)
+
+
 func _sync_equipment(equipment_slots: Dictionary) -> void:
 	if _equipment_root == null:
 		return
@@ -265,26 +801,54 @@ func _sync_portrait_equipment(equipment_slots: Dictionary) -> void:
 			_attach_wearable(_portrait_character_visual, _portrait_skeleton, slot_name, item, PORTRAIT_CHARACTER_VISUAL_YAW_OFFSET)
 
 
-func _setup_character_animation(model_root: Node3D) -> AnimationPlayer:
+func _setup_character_animation(model_root: Node3D, include_combat := false) -> AnimationPlayer:
 	var animation_player := AnimationPlayer.new()
 	animation_player.name = CHARACTER_ANIMATION_PLAYER_NAME
 	animation_player.root_node = NodePath("..")
 	model_root.add_child(animation_player)
 	var animation_library := AnimationLibrary.new()
-	var source := UAL1_ANIMATION_SOURCE_SCENE.instantiate()
-	var source_player := _find_animation_player(source)
-	if source_player != null:
-		_copy_animation(source_player, animation_library, IDLE_ANIMATION_NAME)
-		_copy_animation(source_player, animation_library, WALK_ANIMATION_NAME)
-		_copy_animation(source_player, animation_library, CROUCH_IDLE_ANIMATION_NAME)
-		_copy_animation(source_player, animation_library, CROUCH_WALK_ANIMATION_NAME)
-		_copy_animation(source_player, animation_library, JOG_ANIMATION_NAME)
-	source.queue_free()
+	_copy_animation_names_from_scene(UAL1_ANIMATION_SOURCE_SCENE, animation_library, _base_animation_names() + (_combat_animation_names() if include_combat else []))
+	if include_combat:
+		_copy_animation_names_from_scene(UAL2_ANIMATION_SOURCE_SCENE, animation_library, _combat_animation_names())
 	if animation_library.get_animation_list().is_empty():
 		animation_player.queue_free()
 		return null
 	animation_player.add_animation_library("", animation_library)
 	return animation_player
+
+
+func _copy_animation_names_from_scene(source_scene: PackedScene, animation_library: AnimationLibrary, animation_names: Array) -> void:
+	if source_scene == null:
+		return
+	var source := source_scene.instantiate()
+	var source_player := _find_animation_player(source)
+	if source_player != null:
+		for animation_name in animation_names:
+			_copy_animation(source_player, animation_library, str(animation_name))
+	source.queue_free()
+
+
+func _base_animation_names() -> Array:
+	return [IDLE_ANIMATION_NAME, WALK_ANIMATION_NAME, CROUCH_IDLE_ANIMATION_NAME, CROUCH_WALK_ANIMATION_NAME, JOG_ANIMATION_NAME]
+
+
+func _combat_animation_names() -> Array:
+	var result: Array = []
+	for group in [COMBAT_IDLE_ANIMATION_CANDIDATES, ATTACK_ANIMATION_CANDIDATES, REACTION_ANIMATION_CANDIDATES, BLOCK_ANIMATION_CANDIDATES, DOWNED_ANIMATION_CANDIDATES]:
+		for animation_name in group:
+			if not result.has(animation_name):
+				result.append(animation_name)
+	for animation_name in _get_ragdoll_profile_animation_names():
+		if not result.has(animation_name):
+			result.append(animation_name)
+	return result
+
+
+func _get_ragdoll_profile_animation_names() -> Array[String]:
+	var profile = _get_ragdoll_profile()
+	if profile != null and profile.has_method("get_all_animation_names"):
+		return profile.get_all_animation_names()
+	return []
 
 
 func _copy_animation(source_player: AnimationPlayer, animation_library: AnimationLibrary, animation_name: String) -> void:
@@ -294,6 +858,84 @@ func _copy_animation(source_player: AnimationPlayer, animation_library: Animatio
 	if source_animation == null:
 		return
 	animation_library.add_animation(animation_name, source_animation.duplicate(true) as Animation)
+
+
+func _play_first_available_loop(candidates: Array) -> void:
+	var animation_name := _first_available_animation(candidates)
+	if animation_name.is_empty():
+		_play_world_animation(IDLE_ANIMATION_NAME)
+		return
+	_play_world_animation(animation_name)
+
+
+func _play_combat_progress_animation(event_id: String, candidates: Array, progress: float, speed_scale := 1.0) -> void:
+	var animation_name := _deterministic_available_animation(candidates, event_id)
+	if animation_name.is_empty():
+		_play_first_available_loop(COMBAT_IDLE_ANIMATION_CANDIDATES)
+		return
+	_current_combat_event_id = event_id
+	_current_world_animation = animation_name
+	_character_animation_player.speed_scale = maxf(speed_scale, 0.01)
+	_character_animation_player.play(animation_name, 0.05)
+	var animation := _character_animation_player.get_animation(animation_name)
+	if animation != null:
+		_character_animation_player.seek(clampf(progress, 0.0, 1.0) * maxf(animation.length, 0.001), true)
+	_character_animation_player.advance(0.0)
+
+
+func _play_combat_once_animation(event_id: String, candidates: Array, speed_scale := 1.0) -> void:
+	var animation_name := _deterministic_available_animation(candidates, event_id)
+	if animation_name.is_empty():
+		_play_first_available_loop(COMBAT_IDLE_ANIMATION_CANDIDATES)
+		return
+	if _current_combat_event_id == event_id and _current_world_animation == animation_name and _character_animation_player.is_playing():
+		return
+	_current_combat_event_id = event_id
+	_current_world_animation = animation_name
+	_character_animation_player.speed_scale = maxf(speed_scale, 0.01)
+	_character_animation_player.play(animation_name, 0.08)
+	_character_animation_player.advance(0.0)
+
+
+func _hold_combat_once_animation(event_id: String, candidates: Array) -> void:
+	var animation_name := _deterministic_available_animation(candidates, event_id)
+	if animation_name.is_empty():
+		_play_first_available_loop(COMBAT_IDLE_ANIMATION_CANDIDATES)
+		return
+	if _current_combat_event_id != event_id or _current_world_animation != animation_name:
+		_play_combat_once_animation(event_id, candidates, 1.0)
+
+
+func _first_available_animation(candidates: Array) -> String:
+	if _character_animation_player == null:
+		return ""
+	for candidate in candidates:
+		var animation_name := str(candidate)
+		if _character_animation_player.has_animation(animation_name):
+			return animation_name
+	return ""
+
+
+func _deterministic_available_animation(candidates: Array, event_id: String) -> String:
+	if _character_animation_player == null:
+		return ""
+	var available: Array[String] = []
+	for candidate in candidates:
+		var animation_name := str(candidate)
+		if _character_animation_player.has_animation(animation_name):
+			available.append(animation_name)
+	if available.is_empty():
+		return ""
+	return available[_stable_string_index(event_id, available.size())]
+
+
+func _stable_string_index(value: String, count: int) -> int:
+	if count <= 0:
+		return 0
+	var hash := 0
+	for index in range(value.length()):
+		hash = (hash * 31 + value.unicode_at(index)) % 2147483647
+	return hash % count
 
 
 func _play_idle_pose(animation_player: AnimationPlayer) -> void:
@@ -356,7 +998,7 @@ func _setup_legacy_clothing_visual(target_root: Node3D, model_root: Node3D, visu
 	model_root.set_meta(EQUIPMENT_VISUAL_META, true)
 	model_root.transform = Transform3D(Basis(Vector3.UP, visual_yaw_offset), Vector3.ZERO) * visual_transform
 	target_root.add_child(model_root)
-	var animation_player := _setup_character_animation(model_root)
+	var animation_player := _setup_character_animation(model_root, false)
 	_play_idle_pose(animation_player)
 
 

@@ -444,6 +444,8 @@ func _apply_sim_command(command: Dictionary, active_squads: Dictionary, command_
 	match action:
 		"start_combat_encounter":
 			_apply_start_combat_encounter_command(command, active_squads, command_log)
+		"replace_world_squads":
+			_apply_replace_world_squads_command(command, active_squads, command_log)
 		"set_squad_objective":
 			_apply_set_squad_objective(command, active_squads, command_log)
 		"set_squads_objective":
@@ -515,6 +517,31 @@ func _apply_start_combat_encounter_command(command: Dictionary, active_squads: D
 	encounter_state["encounter_log"] = encounter_log
 	_world_encounter_state_component.call("apply_state", encounter_state)
 	_append_command_log(command_log, command, "applied", "Started combat encounter %s" % encounter_id)
+
+
+func _apply_replace_world_squads_command(command: Dictionary, active_squads: Dictionary, command_log: Array[Dictionary]) -> void:
+	var replacement = command.get("active_squads", command.get("squads", {}))
+	if not (replacement is Dictionary):
+		_append_command_log(command_log, command, "error", "Replacement world squads must be a dictionary")
+		return
+	var next_squads := {}
+	for squad_id_value in (replacement as Dictionary).keys():
+		var record = (replacement as Dictionary).get(squad_id_value)
+		if not (record is Dictionary):
+			continue
+		var squad_record: Dictionary = (record as Dictionary).duplicate(true)
+		var squad_id := str(squad_record.get("squad_id", squad_id_value)).strip_edges()
+		if squad_id.is_empty():
+			continue
+		squad_record["squad_id"] = squad_id
+		next_squads[squad_id] = squad_record
+	if next_squads.is_empty():
+		_append_command_log(command_log, command, "error", "No valid replacement world squads supplied")
+		return
+	active_squads.clear()
+	for squad_id in next_squads.keys():
+		active_squads[squad_id] = next_squads[squad_id]
+	_append_command_log(command_log, command, "applied", "Replaced world squads with %d records" % active_squads.size())
 
 
 func _start_request_source_from_command(command: Dictionary) -> Dictionary:
@@ -708,7 +735,7 @@ func _apply_reset_world_squads_command(command: Dictionary, active_squads: Dicti
 
 func _command_resets_world_squads(command: Dictionary) -> bool:
 	match str(command.get("action", "")).strip_edges():
-		"reset_demo_squads", "reset_world_squads":
+		"reset_demo_squads", "reset_world_squads", "replace_world_squads":
 			return true
 		_:
 			return false
@@ -1251,6 +1278,8 @@ func _squad_can_be_spatial_bin_member(record: Dictionary) -> bool:
 
 func _squad_can_be_encounter_candidate(record: Dictionary) -> bool:
 	if not _squad_can_be_spatial_bin_member(record):
+		return false
+	if bool(record.get("visible_runtime_combat", false)):
 		return false
 	if not str(record.get("active_encounter_id", "")).strip_edges().is_empty():
 		return false

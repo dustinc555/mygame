@@ -7,6 +7,18 @@ func apply_projection_snapshot(_record: Dictionary, _equipment_slots: Dictionary
 	pass
 
 
+func apply_combat_presentation(_presentation: Dictionary) -> void:
+	pass
+
+
+func get_combat_presentation_duration(_presentation_state: String, _event_id: String, fallback: float) -> float:
+	return fallback
+
+
+func get_combat_impact_ratio(_presentation_state: String, _event_id: String, fallback: float) -> float:
+	return fallback
+
+
 func get_body_adapter_id() -> String:
 	return "body"
 

@@ -60,6 +60,7 @@ func _validate_review_state(scene: Node) -> void:
 		return
 	var review_state: Dictionary = state
 	_expect(bool(review_state.get("ready", false)), "CombatBeat 1v1 review scene is ready")
+	_expect(not bool(review_state.get("combat_schedule_loop_enabled", true)), "CombatBeat 1v1 disables projection replay loop")
 	var battle_result: Dictionary = review_state.get("battle_result", {}) if review_state.get("battle_result", {}) is Dictionary else {}
 	_expect(not battle_result.is_empty(), "CombatBeat 1v1 review has a BattleSim result")
 	var beats: Array = battle_result.get("beats", []) if battle_result.get("beats", []) is Array else []
@@ -69,6 +70,7 @@ func _validate_review_state(scene: Node) -> void:
 	var continuity: Dictionary = battle_result.get("combat_continuity", {}) if battle_result.get("combat_continuity", {}) is Dictionary else {}
 	_expect(beats.size() > 0, "CombatBeat 1v1 result emits CombatBeat records")
 	_expect(str(battle_result.get("resolution_mode", "")) == "to_completion_1v1", "CombatBeat 1v1 uses completion resolution mode")
+	_expect(str(battle_result.get("terminal_reason", "")) == "all_down", "CombatBeat 1v1 terminates by K.O.")
 	_expect(beats.size() > 3, "CombatBeat 1v1 fight is not limited to the old three-beat default")
 	_expect(_member_casualty_count(battle_result) >= 1, "CombatBeat 1v1 fight runs until a member is downed")
 	_expect(_has_downed_beat(beats), "CombatBeat 1v1 emits a downed final beat")
@@ -78,6 +80,8 @@ func _validate_review_state(scene: Node) -> void:
 	_expect(str(continuity.get("projection_state", "")) == "aftermath", "CombatBeat 1v1 result has aftermath continuity")
 	var projection_metrics: Dictionary = review_state.get("projection_metrics", {}) if review_state.get("projection_metrics", {}) is Dictionary else {}
 	_expect(int(projection_metrics.get("projected_actor_count", 0)) == 2, "CombatBeat 1v1 scene projects two fighters")
+	_expect(not bool(projection_metrics.get("combat_projection_loop_enabled", true)), "CombatBeat 1v1 projection metrics report loop disabled")
+	_validate_player_side_controllable(scene)
 	var encounter_record := _resolved_encounter_record(scene, str(review_state.get("encounter_id", "")))
 	_validate_start_request(encounter_record)
 	_validate_no_live_truth_refs(battle_result, "battle_result")
@@ -112,6 +116,26 @@ func _validate_start_request(encounter_record: Dictionary) -> void:
 			_expect(not str((side as Dictionary).get("squad_id", "")).strip_edges().is_empty(), "CombatBeat 1v1 side has squad_id")
 			var members: Array = (side as Dictionary).get("member_refs", []) if (side as Dictionary).get("member_refs", []) is Array else []
 			_expect(not members.is_empty(), "CombatBeat 1v1 side has stable member refs")
+
+
+func _validate_player_side_controllable(scene: Node) -> void:
+	var gecs := scene.get_node_or_null("GameBootstrap/GecsWorldController")
+	if gecs == null or not gecs.has_method("get_population_records_core"):
+		_failures.append("CombatBeat 1v1 GECS population records are inspectable")
+		return
+	var records = gecs.call("get_population_records_core")
+	if not (records is Dictionary):
+		_failures.append("CombatBeat 1v1 GECS population records are a dictionary")
+		return
+	var controllable_count := 0
+	for actor_id_value in (records as Dictionary).keys():
+		var actor_id := str(actor_id_value)
+		if not actor_id.contains("left_duelist"):
+			continue
+		var record: Dictionary = (records as Dictionary).get(actor_id, {}) if (records as Dictionary).get(actor_id, {}) is Dictionary else {}
+		if bool(record.get("player_controllable", false)) and bool(record.get("player_party_member", false)) and str(record.get("party_id", "")) == "player_party":
+			controllable_count += 1
+	_expect(controllable_count == 1, "CombatBeat 1v1 marks side A as controllable player party")
 
 
 func _member_casualty_count(battle_result: Dictionary) -> int:

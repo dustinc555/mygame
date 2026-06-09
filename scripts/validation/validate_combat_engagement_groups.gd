@@ -121,8 +121,8 @@ func _validate_group_contract(result: Dictionary, expected_side_a_ids: Array[Str
 
 func _validate_grouping_summary(result: Dictionary, label: String) -> void:
 	var summary: Dictionary = result.get("engagement_grouping", {}) if result.get("engagement_grouping", {}) is Dictionary else {}
-	_expect(str(summary.get("strategy", "")) == "deterministic_sorted_bounded", "%s grouping strategy is deterministic bounded sort" % label)
-	_expect(str(summary.get("complexity", "")) == "O(N log N) sort + O(N) assignment", "%s grouping declares non-quadratic complexity" % label)
+	_expect(str(summary.get("strategy", "")) == "spatial_nearest_frontline", "%s grouping strategy is spatial nearest frontline" % label)
+	_expect(str(summary.get("complexity", "")) == "O(N log N) spatial lane sort + O(N) assignment", "%s grouping declares non-quadratic complexity" % label)
 	_expect(int(summary.get("max_group_size", 0)) == MAX_GROUP_SIZE, "%s grouping summary records max group size" % label)
 
 

@@ -7,6 +7,7 @@ const MOVE_TO_SLOT_DURATION := 0.35
 const FACE_TARGET_DURATION := 0.15
 const ATTACK_DURATION := 0.40
 const REACTION_DURATION := 0.30
+const FLEE_DURATION := 0.85
 const EVENTS_PER_DETAILED_BEAT := 4
 
 
@@ -86,6 +87,8 @@ static func _append_selected_beat_ids(selected_ids: Array[String], beats: Array[
 
 
 static func _append_detailed_beat_events(events: Array[Dictionary], beat: Dictionary, start_time: float) -> float:
+	if str(beat.get("action", "")) == "flee":
+		return _append_event(events, beat, "flee", start_time, FLEE_DURATION)
 	var cursor := start_time
 	cursor = _append_event(events, beat, "move_to_slot", cursor, MOVE_TO_SLOT_DURATION)
 	cursor = _append_event(events, beat, "face_target", cursor, FACE_TARGET_DURATION)
@@ -117,6 +120,8 @@ static func _append_event(events: Array[Dictionary], beat: Dictionary, event_typ
 		"action": str(beat.get("action", "")),
 		"result": str(beat.get("result", "")),
 		"damage": float(beat.get("damage", 0.0)),
+		"fleeing_squad_id": str(beat.get("fleeing_squad_id", "")),
+		"pursuing_squad_id": str(beat.get("pursuing_squad_id", "")),
 		"presentation_only": true,
 	})
 	return start_time + duration
