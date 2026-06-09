@@ -112,6 +112,7 @@ func issue_move_command_at_world_position(target: Vector3, show_indicator := tru
 	if selected_ids.is_empty():
 		_last_control_state = _control_state(false, "no_controllable_selection")
 		return false
+	_flush_projection_state_to_gecs(selected_ids)
 	var center := _selection_center(selected_ids)
 	if show_indicator:
 		_spawn_move_command_indicator(target + surface_normal.normalized() * 0.08)
@@ -127,7 +128,7 @@ func issue_move_command_at_world_position(target: Vector3, show_indicator := tru
 		if use_close_formation:
 			offset = _get_group_grid_move_offset(index, selected_ids.size(), close_move_command_spacing)
 		elif preserve_formation:
-			offset = _record_position(record) - center
+			offset = _current_actor_position(actor_id, record) - center
 			offset.y = 0.0
 			if offset.length() > move_command_spacing:
 				offset = offset.normalized() * move_command_spacing
@@ -257,8 +258,11 @@ func _write_move_order(record: Dictionary, target_position: Vector3, issued_posi
 	if actor_id.is_empty():
 		return {}
 	var movement_mode := int(record.get("movement_mode", MOVEMENT_MODE_WALK))
+	var current_position := _current_actor_position(actor_id, record)
 	var patch := {
 		"actor_id": actor_id,
+		"last_world_position": current_position,
+		"last_world_position_initialized": true,
 		"move_order": {
 			"active": true,
 			"source": "player",
@@ -616,7 +620,7 @@ func _selection_center(actor_ids: Array[String]) -> Vector3:
 		var record := _population_record(actor_id)
 		if record.is_empty():
 			continue
-		center += _record_position(record)
+		center += _current_actor_position(actor_id, record)
 		count += 1
 	return center / float(count) if count > 0 else Vector3.ZERO
 
@@ -624,6 +628,13 @@ func _selection_center(actor_ids: Array[String]) -> Vector3:
 func _record_position(record: Dictionary) -> Vector3:
 	var position = record.get("last_world_position", record.get("world_position", Vector3.ZERO))
 	return position if position is Vector3 else Vector3.ZERO
+
+
+func _current_actor_position(actor_id: String, record: Dictionary) -> Vector3:
+	var projection := _projection_for_actor(actor_id)
+	if projection is Node3D:
+		return (projection as Node3D).global_position
+	return _record_position(record)
 
 
 func _record_is_controllable(record: Dictionary) -> bool:
@@ -698,6 +709,12 @@ func _projection_for_actor(actor_id: String) -> Node:
 		if projection is Node:
 			return projection
 	return null
+
+
+func _flush_projection_state_to_gecs(actor_ids: Array[String]) -> void:
+	var projection_controller := _get_projection_controller()
+	if projection_controller != null and projection_controller.has_method("flush_current_projection_state_to_gecs"):
+		projection_controller.call("flush_current_projection_state_to_gecs", actor_ids, true)
 
 
 func _request_projection_sync() -> void:

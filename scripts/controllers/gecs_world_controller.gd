@@ -108,6 +108,8 @@ const CORE_POPULATION_RECORD_FIELDS := {
 	"last_ledger_absolute_minute": true,
 	"last_world_position": true,
 	"last_world_position_initialized": true,
+	"downed_event_id": true,
+	"downed_presentation_seed": true,
 	"control_intent": true,
 	"important": true,
 	"appearance": true,

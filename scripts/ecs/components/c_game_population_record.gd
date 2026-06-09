@@ -54,6 +54,8 @@ class_name CGamePopulationRecord
 @export var last_ledger_absolute_minute := -1
 @export var last_world_position := Vector3.ZERO
 @export var last_world_position_initialized := false
+@export var downed_event_id := ""
+@export var downed_presentation_seed := 0
 @export var control_intent: Dictionary = {}
 @export var important := false
 @export var appearance_character_race := ""
@@ -128,6 +130,8 @@ func apply_record(source: Dictionary) -> void:
 	last_ledger_absolute_minute = int(source.get("last_ledger_absolute_minute", last_ledger_absolute_minute))
 	last_world_position = source.get("last_world_position", last_world_position)
 	last_world_position_initialized = bool(source.get("last_world_position_initialized", last_world_position_initialized))
+	downed_event_id = str(source.get("downed_event_id", downed_event_id))
+	downed_presentation_seed = int(source.get("downed_presentation_seed", downed_presentation_seed))
 	control_intent = (source.get("control_intent", control_intent) as Dictionary).duplicate(true)
 	important = bool(source.get("important", important))
 	var appearance: Dictionary = source.get("appearance", {})
@@ -203,6 +207,8 @@ func to_record() -> Dictionary:
 		"last_ledger_absolute_minute": last_ledger_absolute_minute,
 		"last_world_position": last_world_position,
 		"last_world_position_initialized": last_world_position_initialized,
+		"downed_event_id": downed_event_id,
+		"downed_presentation_seed": downed_presentation_seed,
 		"control_intent": control_intent.duplicate(true),
 		"important": important,
 		"appearance": {

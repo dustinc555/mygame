@@ -175,6 +175,22 @@ func get_projection_for_actor(actor_id: String) -> Node:
 	return projection as Node if projection != null and is_instance_valid(projection) else null
 
 
+func flush_current_projection_state_to_gecs(actor_ids: Array = [], release_visible_control := false) -> void:
+	var ids := actor_ids.duplicate()
+	if ids.is_empty():
+		ids = _projection_by_actor_id.keys()
+	for actor_id_value in ids:
+		var actor_id := str(actor_id_value).strip_edges()
+		if actor_id.is_empty():
+			continue
+		var projection := get_projection_for_actor(actor_id)
+		if projection == null:
+			continue
+		_commit_projection_transform_to_gecs(actor_id, projection)
+		if release_visible_control:
+			_visible_combat_controlled_actor_ids.erase(actor_id)
+
+
 func get_projection_count() -> int:
 	return _projection_by_actor_id.size()
 
@@ -455,7 +471,7 @@ func _visible_combat_update_locked_animation(actor_id: String, projection: Node,
 			_apply_projection_visual(projection, actor_position, _combat_facing_yaw(actor_position, target_position), {"state": reaction_state, "event_id": event_id, "attacker_id": str(state.get("attacker_id", ""))}, 0.0)
 		"downed":
 			var downed_state := "downed_start" if just_started else "downed_hold"
-			_apply_projection_visual(projection, actor_position, _projection_facing_yaw(projection, 0.0), {"state": downed_state, "event_id": event_id}, 0.0)
+			_apply_projection_visual(projection, actor_position, _projection_facing_yaw(projection, 0.0), {"state": downed_state, "event_id": event_id, "downed_seed": int(state.get("downed_seed", _stable_id_hash(event_id)))}, 0.0)
 			_visible_combat_controlled_actor_ids[actor_id] = true
 			_visible_combat_state_by_actor_id[actor_id] = state
 			return true
@@ -533,14 +549,19 @@ func _visible_combat_apply_hit(attacker_id: String, target_id: String, records: 
 	var target_projection := get_projection_for_actor(target_id)
 	if hp <= 0.0:
 		var downed_event_id := "%s:visible_downed:%d" % [target_id, int(target_state.get("downed_serial", 0)) + 1]
+		var downed_seed := _stable_id_hash(downed_event_id)
 		target_state["downed"] = true
 		target_state["action"] = "downed"
 		target_state["action_event_id"] = downed_event_id
+		target_state["downed_seed"] = downed_seed
 		target_state["downed_serial"] = int(target_state.get("downed_serial", 0)) + 1
 		target_state["action_elapsed"] = 0.0
 		target_state["action_duration"] = _combat_presentation_duration(target_projection, "downed_start", downed_event_id, VISIBLE_COMBAT_DOWNED_ANIMATION_SECONDS)
 		target_state["action_started"] = false
-		_visible_combat_commit_actor_patch(target_id, {"hp": 0.0, "life_state": VISIBLE_COMBAT_LIFE_STATE_DYING, "ledger_activity_state": "visible_combat_downed"})
+		var downed_patch := {"hp": 0.0, "life_state": VISIBLE_COMBAT_LIFE_STATE_DYING, "ledger_activity_state": "visible_combat_downed", "downed_event_id": downed_event_id, "downed_presentation_seed": downed_seed}
+		if target_projection != null:
+			downed_patch.merge(_projection_transform_patch(target_projection), true)
+		_visible_combat_commit_actor_patch(target_id, downed_patch)
 	else:
 		var reaction_event_id := "%s:visible_reaction:%d" % [target_id, int(target_state.get("reaction_serial", 0)) + 1]
 		target_state["action"] = "reaction"
@@ -574,13 +595,16 @@ func _visible_combat_apply_downed(actor_id: String, record: Dictionary) -> void:
 	var state := _visible_combat_state(actor_id, record)
 	if str(state.get("action", "")) != "downed":
 		var downed_event_id := "%s:visible_downed:%d" % [actor_id, int(state.get("downed_serial", 0)) + 1]
+		var downed_seed := int(record.get("downed_presentation_seed", _stable_id_hash(downed_event_id)))
 		state["action"] = "downed"
 		state["action_event_id"] = downed_event_id
+		state["downed_seed"] = downed_seed
 		state["downed_serial"] = int(state.get("downed_serial", 0)) + 1
 		state["action_elapsed"] = 0.0
 		state["action_duration"] = _combat_presentation_duration(projection, "downed_start", downed_event_id, VISIBLE_COMBAT_DOWNED_ANIMATION_SECONDS)
 		state["action_started"] = false
 		_visible_combat_state_by_actor_id[actor_id] = state
+		_commit_projection_transform_to_gecs(actor_id, projection, {"life_state": int(record.get("life_state", VISIBLE_COMBAT_LIFE_STATE_DYING)), "downed_event_id": downed_event_id, "downed_presentation_seed": downed_seed})
 	_visible_combat_update_locked_animation(actor_id, projection, state, position, position + Vector3.FORWARD, 0.0)
 	_visible_combat_controlled_actor_ids[actor_id] = true
 
@@ -723,7 +747,35 @@ func _visible_combat_commit_actor_patch(actor_id: String, fields: Dictionary) ->
 	var patch := {"actor_id": actor_id}
 	for key in fields.keys():
 		patch[key] = fields[key]
-	bridge.call("upsert_population_record_core", patch)
+	var updated = bridge.call("upsert_population_record_core", patch)
+	if updated is Dictionary and not (updated as Dictionary).is_empty():
+		_latest_population_records_by_actor_id[actor_id] = (updated as Dictionary).duplicate(true)
+	else:
+		var cached: Dictionary = _latest_population_records_by_actor_id.get(actor_id, {}) if _latest_population_records_by_actor_id.get(actor_id, {}) is Dictionary else {}
+		for key in patch.keys():
+			cached[key] = patch[key]
+		_latest_population_records_by_actor_id[actor_id] = cached
+
+
+func _commit_projection_transform_to_gecs(actor_id: String, projection: Node, extra_fields: Dictionary = {}) -> void:
+	if actor_id.strip_edges().is_empty() or projection == null:
+		return
+	var patch := _projection_transform_patch(projection)
+	for key in extra_fields.keys():
+		patch[key] = extra_fields[key]
+	_visible_combat_commit_actor_patch(actor_id, patch)
+
+
+func _projection_transform_patch(projection: Node) -> Dictionary:
+	if projection == null or not (projection is Node3D):
+		return {}
+	var node := projection as Node3D
+	return {
+		"last_world_position": node.global_position,
+		"last_world_position_initialized": true,
+		"world_facing_yaw": node.rotation.y,
+		"world_facing_yaw_initialized": true,
+	}
 
 
 func _visible_combat_runtime_active() -> bool:
@@ -1359,6 +1411,7 @@ func _remove_stale_projections(expected_actor_ids: Dictionary) -> void:
 func _remove_projection(actor_id: String) -> void:
 	var projection = _projection_by_actor_id.get(actor_id)
 	if projection != null and is_instance_valid(projection):
+		_commit_projection_transform_to_gecs(actor_id, projection as Node)
 		(projection as Node).queue_free()
 	_projection_by_actor_id.erase(actor_id)
 

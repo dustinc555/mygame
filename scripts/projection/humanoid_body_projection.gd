@@ -54,6 +54,7 @@ var _ragdoll_physical_bones: Dictionary = {}
 var _is_ragdoll_active := false
 var _ragdoll_requested := false
 var _ragdoll_request_event_id := ""
+var _ragdoll_seed := 0
 var _ragdoll_preroll_active := false
 var _ragdoll_preroll_animation_name := ""
 var _ragdoll_preroll_remaining := 0.0
@@ -133,6 +134,8 @@ func apply_combat_presentation(presentation: Dictionary) -> void:
 	var event_id := str(presentation.get("event_id", state)).strip_edges()
 	var progress := clampf(float(presentation.get("progress", 0.0)), 0.0, 1.0)
 	var is_downed_state := state == "downed" or state == "downed_start" or state == "downed_hold"
+	if is_downed_state:
+		_ragdoll_seed = int(presentation.get("downed_seed", _stable_text_hash(event_id)))
 	if not is_downed_state and _is_ragdoll_active:
 		_stop_ragdoll_simulation(true)
 	if not is_downed_state:
@@ -178,7 +181,7 @@ func get_combat_presentation_duration(presentation_state: String, event_id: Stri
 		"block":
 			animation_name = _deterministic_available_animation(BLOCK_ANIMATION_CANDIDATES, event_id)
 		"downed", "downed_start", "downed_hold":
-			animation_name = _choose_downed_preroll_animation()
+			animation_name = _choose_downed_preroll_animation(event_id)
 	if animation_name.is_empty():
 		return fallback
 	var length := _get_character_animation_length(animation_name)
@@ -309,7 +312,8 @@ func _apply_locomotion_state(record: Dictionary) -> void:
 	if _character_animation_player == null:
 		return
 	if int(record.get("life_state", 0)) != 0:
-		_play_world_animation(IDLE_ANIMATION_NAME)
+		var downed_event_id := _record_downed_event_id(record)
+		apply_combat_presentation({"state": "downed_hold", "event_id": downed_event_id, "downed_seed": int(record.get("downed_presentation_seed", _stable_text_hash(downed_event_id)))})
 		return
 	var locomotion_state: Dictionary = record.get("locomotion_state", {}) if record.get("locomotion_state", {}) is Dictionary else {}
 	var animation_state := str(locomotion_state.get("animation_state", ""))
@@ -366,11 +370,11 @@ func _request_downed_ragdoll(event_id: String) -> void:
 func _begin_downed_ragdoll_preroll() -> bool:
 	if _character_animation_player == null:
 		return false
-	var animation_name := _choose_downed_preroll_animation()
+	var animation_name := _choose_downed_preroll_animation(_ragdoll_request_event_id)
 	if animation_name.is_empty():
 		return false
 	var animation_length := _get_character_animation_length(animation_name)
-	var preroll_duration := _choose_downed_preroll_duration(animation_length)
+	var preroll_duration := _choose_downed_preroll_duration(animation_length, _ragdoll_request_event_id)
 	if preroll_duration <= 0.0:
 		return false
 	_ragdoll_preroll_active = true
@@ -403,17 +407,17 @@ func _cancel_ragdoll_preroll() -> void:
 	_ragdoll_preroll_remaining = 0.0
 
 
-func _choose_downed_preroll_animation() -> String:
+func _choose_downed_preroll_animation(event_id := "") -> String:
 	var profile = _get_ragdoll_profile()
 	if profile != null and profile.has_method("choose_downed_preroll_animation"):
-		return profile.choose_downed_preroll_animation(_character_animation_player, _rng_for_ragdoll())
+		return profile.choose_downed_preroll_animation(_character_animation_player, _rng_for_downed_event(event_id))
 	return ""
 
 
-func _choose_downed_preroll_duration(animation_length: float) -> float:
+func _choose_downed_preroll_duration(animation_length: float, event_id := "") -> float:
 	var profile = _get_ragdoll_profile()
 	if profile != null and profile.has_method("choose_downed_preroll_duration"):
-		return profile.choose_downed_preroll_duration(animation_length, _rng_for_ragdoll())
+		return profile.choose_downed_preroll_duration(animation_length, _rng_for_downed_event(event_id))
 	return animation_length
 
 
@@ -432,9 +436,28 @@ func _stop_character_animation(reset_pose: bool) -> void:
 
 
 func _rng_for_ragdoll() -> RandomNumberGenerator:
+	return _rng_for_downed_event(_ragdoll_request_event_id)
+
+
+func _rng_for_downed_event(event_id: String) -> RandomNumberGenerator:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = abs(hash(str(get_instance_id())))
+	var seed := _ragdoll_seed if _ragdoll_seed != 0 else _stable_text_hash(event_id)
+	rng.seed = maxi(abs(seed), 1)
 	return rng
+
+
+func _record_downed_event_id(record: Dictionary) -> String:
+	var event_id := str(record.get("downed_event_id", "")).strip_edges()
+	if not event_id.is_empty():
+		return event_id
+	return "%s:downed" % str(record.get("actor_id", record.get("stable_id", "unknown"))).strip_edges()
+
+
+func _stable_text_hash(value: String) -> int:
+	var result := 0
+	for index in range(value.length()):
+		result = (result * 31 + value.unicode_at(index)) % 2147483647
+	return result
 
 
 func _can_activate_ragdoll_this_frame() -> bool:

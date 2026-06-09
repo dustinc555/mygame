@@ -71,6 +71,8 @@ This is the single project guidance file for coding agents. Human-facing archite
 - If the project uses C#: `godot --headless --path . --build-solutions --quit`.
 - Performance-sensitive changes must run a relevant framerate/frame-CPU validation and compare against the previous baseline; do not accept unbounded frame-time regressions.
 - A successful runtime boot is not acceptable validation for performance-sensitive changes.
+- Golden benchmark: run `godot --headless --path . --script scripts/validation/benchmark_combat_beat_30v30_frame_rate.gd` before reporting success for any code change in this repo.
+- CombatBeat 30v30 golden floor raised 2026-06-09: `average_fps=39.75` over 420 sample frames. This benchmark must never drop below `39.75`; there is no 10 FPS allowance for 30v30.
 - For `res://scenes/test_levels/combat_skirmish_20v20_armory.tscn`, agent validation must prove FPS never drops below 40 during the measured run.
 - Average FPS is not an acceptable pass criterion; any frame-rate drop below 40 FPS is a failure.
 - If FPS drops below 40, rearchitect the change or find a cheaper solution before calling validation complete.
