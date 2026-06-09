@@ -1,0 +1,59 @@
+[gd_resource type="Resource" script_class="PopulationRecordDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/population_record_definition.gd" id="1_record"]
+
+[resource]
+script = ExtResource("1_record")
+actor_id = "player.tomas"
+stable_id = "player.tomas"
+generation_source = "mining_test"
+generation_index = 2
+member_name = "Tomas"
+faction_id = "Player"
+squad_name = "PlayerParty"
+role_id = "party_member"
+party_id = "player_party"
+player_party_member = true
+player_controllable = true
+projection_kind = "humanoid"
+combat_stance = 1
+base_color = Color(0.33, 0.55, 0.78, 1)
+skill_levels = {
+"attribute.endurance": 55,
+"attribute.strength": 60,
+"attribute.toughness": 55,
+"labor.mining": 30,
+"movement.running": 40
+}
+life_state = 0
+hp = 108.0
+max_hp = 108.0
+blood = 5.0
+max_blood = 5.0
+realization_state = "ledger"
+last_world_position = Vector3(-1, 0.6, 5)
+last_world_position_initialized = true
+important = true
+appearance = {
+"body_archetype": "res://resources/character_body_archetypes/human_male.tres",
+"character_race": "res://resources/character_races/human.tres",
+"eyebrow_style": "res://resources/character_appearance/eyebrows_regular.tres",
+"hair_style": "res://resources/character_appearance/hair_simple_parted.tres",
+"skin_color_customized": true,
+"skin_color": Color(0.66, 0.43, 0.3, 1),
+"visual_body_type": 2
+}
+equipment_slots = {
+"chest": "res://resources/items/equipment/clothing/peasant_tunic.tres",
+"feet": "res://resources/items/equipment/clothing/peasant_shoes.tres",
+"legs": "res://resources/items/equipment/clothing/peasant_trousers.tres",
+"offhand": "res://resources/items/equipment/offhand/shields/round_shield.tres",
+"weapon": "res://resources/items/tools/rusted_pickaxe.tres"
+}
+inventory_entries = [{
+"count": 4,
+"grid_position": Vector2i(0, 0),
+"item_id": "res://resources/items/consumables/bandage.tres",
+"metadata": {},
+"contained_item_counts": {}
+}]

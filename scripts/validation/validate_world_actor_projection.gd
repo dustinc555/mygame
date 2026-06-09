@@ -190,6 +190,9 @@ func _validate_humanoid_projection(projection: Node, record: Dictionary, expecte
 	var expected_position = record.get("last_world_position", Vector3.ZERO)
 	if expected_position is Vector3:
 		_expect((projection as Node3D).global_position.is_equal_approx(expected_position), "%s projection uses GECS world position" % label)
+	var body_projection = projection.call("get_body_projection") if projection.has_method("get_body_projection") else null
+	if body_projection != null and body_projection.has_method("get_portrait_source"):
+		body_projection.call("get_portrait_source")
 	var debug_state: Dictionary = projection.get_projection_debug_state() if projection.has_method("get_projection_debug_state") else {}
 	var body_state: Dictionary = debug_state.get("body_state", {}) if debug_state.get("body_state", {}) is Dictionary else {}
 	_expect(str(body_state.get("body_adapter_id", "")) == "humanoid", "%s uses humanoid body adapter" % label)

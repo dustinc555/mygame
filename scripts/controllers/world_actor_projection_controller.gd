@@ -1308,7 +1308,13 @@ func _active_ragdoll_downed_count() -> int:
 	var count := 0
 	for actor_id in _combat_casualty_actor_ids:
 		var projection := get_projection_for_actor(actor_id)
-		if projection == null or not projection.has_method("get_projection_debug_state"):
+		if projection == null:
+			continue
+		if projection.has_method("is_body_ragdoll_active"):
+			if bool(projection.call("is_body_ragdoll_active")):
+				count += 1
+			continue
+		if not projection.has_method("get_projection_debug_state"):
 			continue
 		var debug_value = projection.call("get_projection_debug_state")
 		var debug_state: Dictionary = debug_value if debug_value is Dictionary else {}

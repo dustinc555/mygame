@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="PopulationNameProfile" format=3]
+[gd_resource type="Resource" script_class="PopulationNameProfile" format=3 uid="uid://ir1lxc5kcdwv"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/population_name_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://cwuvb5pgglwkq" path="res://scripts/world_sim/population_name_profile.gd" id="1_profile"]
 
 [resource]
 script = ExtResource("1_profile")
@@ -11,3 +11,7 @@ neutral_weight = 20.0
 nickname_weight = 45.0
 duplicate_name_chance = 0.04
 unique_retry_count = 48
+masculine_names = null
+feminine_names = null
+neutral_names = null
+nickname_names = null

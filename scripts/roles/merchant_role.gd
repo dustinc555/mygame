@@ -63,8 +63,8 @@ func get_sell_price(definition: ItemDefinition) -> int:
 	return -1
 
 
-func get_job_provider() -> JobProvider:
+func get_job_provider() -> Node:
 	var owner_character = get_parent()
 	if owner_character == null:
 		return null
-	return owner_character.get_node_or_null("JobProvider") as JobProvider
+	return owner_character.get_node_or_null("JobProvider")

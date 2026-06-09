@@ -1,24 +1,20 @@
-[gd_resource type="Resource" script_class="PopulationRecordDefinition" format=3]
+[gd_resource type="Resource" script_class="PopulationRecordDefinition" format=3 uid="uid://mfj1e4r7juva"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/population_record_definition.gd" id="1_record"]
+[ext_resource type="Script" uid="uid://cnod2munjp5qd" path="res://scripts/world_sim/population_record_definition.gd" id="1_record"]
 
 [resource]
 script = ExtResource("1_record")
 actor_id = "player.tomas"
 stable_id = "player.tomas"
-settlement_id = ""
 generation_source = "demo_party"
 generation_index = 2
 member_name = "Tomas"
 faction_id = "Player"
 squad_name = "PlayerParty"
-role_id = "party_member"
 party_id = "player_party"
 player_party_member = true
 player_controllable = true
-projection_kind = "humanoid"
 hostile_faction_ids = PackedStringArray("Rustdead", "EastRaiders")
-combat_stance = 1
 base_color = Color(0.35, 0.56, 0.42, 1)
 skill_levels = {
 "attribute.charisma": 35,
@@ -41,16 +37,10 @@ personality = {
 "discipline": 0.58,
 "nerve": 0.78
 }
-life_state = 0
 hp = 116.0
 max_hp = 116.0
-blood = 5.0
-max_blood = 5.0
 base_attack_damage = 20.0
 base_dodge_chance = 0.1
-base_block_chance = 0.0
-realization_state = "ledger"
-ledger_activity_state = "routine"
 last_world_position = Vector3(378.3, 0.6, 115.5)
 last_world_position_initialized = true
 important = true

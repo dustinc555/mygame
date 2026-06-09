@@ -1,0 +1,68 @@
+[gd_resource type="Resource" script_class="PopulationRecordDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/population_record_definition.gd" id="1_record"]
+
+[resource]
+script = ExtResource("1_record")
+actor_id = "player.mira"
+stable_id = "player.mira"
+generation_source = "mining_test"
+generation_index = 1
+member_name = "Mira"
+faction_id = "Player"
+squad_name = "PlayerParty"
+role_id = "party_member"
+party_id = "player_party"
+player_party_member = true
+player_controllable = true
+projection_kind = "humanoid"
+combat_stance = 1
+base_color = Color(0.82, 0.43, 0.31, 1)
+skill_levels = {
+"attribute.charisma": 45,
+"attribute.dexterity": 45,
+"attribute.endurance": 55,
+"attribute.perception": 45,
+"attribute.strength": 55,
+"attribute.toughness": 55,
+"labor.mining": 25,
+"movement.running": 40
+}
+life_state = 0
+hp = 105.0
+max_hp = 105.0
+blood = 5.0
+max_blood = 5.0
+realization_state = "ledger"
+last_world_position = Vector3(-5, 0.6, 4)
+last_world_position_initialized = true
+important = true
+appearance = {
+"body_archetype": "res://resources/character_body_archetypes/human_female.tres",
+"character_race": "res://resources/character_races/human.tres",
+"eyebrow_style": "res://resources/character_appearance/eyebrows_female.tres",
+"hair_style": "res://resources/character_appearance/hair_long.tres",
+"skin_color_customized": true,
+"skin_color": Color(0.88, 0.68, 0.54, 1),
+"visual_body_type": 3
+}
+equipment_slots = {
+"chest": "res://resources/items/equipment/armor/chest/ranger_jerkin.tres",
+"feet": "res://resources/items/equipment/armor/feet/ranger_boots.tres",
+"head": "res://resources/items/equipment/armor/head/ranger_hood.tres",
+"legs": "res://resources/items/equipment/armor/legs/ranger_leggings.tres",
+"weapon": "res://resources/items/tools/rusted_pickaxe.tres"
+}
+inventory_entries = [{
+"count": 10,
+"grid_position": Vector2i(0, 0),
+"item_id": "res://resources/items/currency/silver_coin.tres",
+"metadata": {},
+"contained_item_counts": {}
+}, {
+"count": 4,
+"grid_position": Vector2i(0, 2),
+"item_id": "res://resources/items/consumables/bandage.tres",
+"metadata": {},
+"contained_item_counts": {}
+}]

@@ -5,6 +5,7 @@ class_name WorldContainer
 const INVENTORY_DATA_SCRIPT = preload("res://scripts/items/inventory_data.gd")
 
 @export var display_name := "Container"
+@export var container_id := ""
 @export_range(1, 64, 1) var inventory_columns := 10
 @export_range(1, 64, 1) var inventory_rows := 6
 @export_range(0.0, 10000.0, 1.0) var inventory_max_weight := 60.0
@@ -35,7 +36,28 @@ func get_inventory_world_position() -> Vector3:
 
 
 func get_container_id() -> String:
+	if not container_id.strip_edges().is_empty():
+		return container_id.strip_edges()
 	return str(get_path()) if is_inside_tree() else str(get_instance_id())
+
+
+func get_interaction_position(actor = null) -> Vector3:
+	var actor_position := global_position + Vector3.FORWARD
+	if actor is Node3D:
+		actor_position = (actor as Node3D).global_position
+	return get_interaction_position_for_actor("", actor_position)
+
+
+func get_interaction_position_for_actor(_actor_id: String, actor_position: Vector3) -> Vector3:
+	var direction := actor_position - global_position
+	direction.y = 0.0
+	if direction.length_squared() <= 0.0001:
+		direction = Vector3.FORWARD
+	return global_position + direction.normalized() * maxf(slot_distance, interaction_distance)
+
+
+func get_interaction_distance() -> float:
+	return maxf(interaction_distance, 0.05)
 
 
 func _ensure_inventory() -> void:

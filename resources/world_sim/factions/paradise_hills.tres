@@ -1,10 +1,10 @@
-[gd_resource type="Resource" script_class="FactionDefinition" format=3]
+[gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://btrntrrambj4n"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
-[ext_resource type="Resource" path="res://resources/world_sim/behavior_profiles/paradise_hills_camp.tres" id="2_behavior"]
-[ext_resource type="Resource" path="res://resources/world_sim/personality_profiles/paradise_hills_slavers.tres" id="3_personality"]
-[ext_resource type="Resource" path="res://resources/world_sim/law_profiles/paradise_hills_law.tres" id="4_law"]
-[ext_resource type="Resource" path="res://resources/world_sim/population_name_profiles/raider_names.tres" id="5_names"]
+[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
+[ext_resource type="Resource" uid="uid://cikfyppk37wjg" path="res://resources/world_sim/behavior_profiles/paradise_hills_camp.tres" id="2_behavior"]
+[ext_resource type="Resource" uid="uid://dn7fxixxy1pt" path="res://resources/world_sim/personality_profiles/paradise_hills_slavers.tres" id="3_personality"]
+[ext_resource type="Resource" uid="uid://c8glrg54fys41" path="res://resources/world_sim/law_profiles/paradise_hills_law.tres" id="4_law"]
+[ext_resource type="Resource" uid="uid://ir1lxc5kcdwv" path="res://resources/world_sim/population_name_profiles/raider_names.tres" id="5_names"]
 
 [resource]
 script = ExtResource("1_faction")
@@ -12,6 +12,8 @@ faction_id = "ParadiseHills"
 display_name = "Paradise Hills"
 description = "A slaver camp faction whose laws treat slavery as legal property order."
 primary_color = Color(0.72, 0.48, 0.16, 1)
+default_hostile_faction_ids = null
+starting_war_faction_ids = null
 open_access = false
 behavior_profile = ExtResource("2_behavior")
 personality_profile = ExtResource("3_personality")

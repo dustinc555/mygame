@@ -1,18 +1,10 @@
-[gd_resource type="Resource" script_class="FactionLawProfile" format=3]
+[gd_resource type="Resource" script_class="FactionLawProfile" format=3 uid="uid://cbd4458uv7gvp"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/faction_law_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://s07soucxpyci" path="res://scripts/world_sim/faction_law_profile.gd" id="1_profile"]
 
 [resource]
 script = ExtResource("1_profile")
 profile_id = "surf_city_law"
 display_name = "Surf City Law"
-trespass_warning_interval_seconds = 3.0
-trespass_warnings_before_alarm = 2
 trespass_notice_radius = 20.0
-trespass_escalation = "settlement_alarm"
-petty_theft_value_threshold = 0
-theft_response = "settlement_alarm"
-assault_response = "settlement_alarm"
-murder_response = "settlement_alarm"
-slavery_policy = "outlawed"
 operator_notes = "Civic settlement law. Theft, assault, murder, and slavery are treated as public crimes."

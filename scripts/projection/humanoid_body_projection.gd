@@ -17,6 +17,7 @@ const CHARACTER_ANIMATION_PLAYER_NAME := "CharacterAnimationPlayer"
 const PORTRAIT_CHARACTER_VISUAL_YAW_OFFSET := PI
 const IDLE_ANIMATION_NAME := "Idle"
 const WALK_ANIMATION_NAME := "Walk"
+const MINING_ANIMATION_NAME := "Mining"
 const CROUCH_IDLE_ANIMATION_NAME := "Crouch_Idle"
 const CROUCH_WALK_ANIMATION_NAME := "Crouch_Fwd"
 const JOG_ANIMATION_NAME := "Jog_Fwd"
@@ -125,6 +126,17 @@ func get_projection_debug_state() -> Dictionary:
 		"portrait_idle_animation_ready": _portrait_animation_player != null and _portrait_animation_player.has_animation(IDLE_ANIMATION_NAME),
 		"attached_item_paths": _attached_item_paths(),
 	}
+
+
+func get_mining_presentation_debug_state() -> Dictionary:
+	return {
+		"world_mining_animation_ready": _character_animation_player != null and _character_animation_player.has_animation(MINING_ANIMATION_NAME),
+		"world_animation": _current_world_animation,
+	}
+
+
+func is_ragdoll_active() -> bool:
+	return _is_ragdoll_active
 
 
 func apply_combat_presentation(presentation: Dictionary) -> void:
@@ -321,6 +333,9 @@ func _apply_locomotion_state(record: Dictionary) -> void:
 		var movement_mode := int(record.get("movement_mode", 0))
 		animation_state = "sneak_idle" if movement_mode == 2 else "idle"
 	match animation_state:
+		"mining":
+			_ensure_mining_animation()
+			_play_world_animation(MINING_ANIMATION_NAME)
 		"run":
 			_play_world_animation(JOG_ANIMATION_NAME, _animation_speed_scale(float(locomotion_state.get("horizontal_speed", 0.0)), float(locomotion_state.get("speed", 0.0)), 0.9, 1.35))
 		"sneak":
@@ -881,6 +896,21 @@ func _copy_animation(source_player: AnimationPlayer, animation_library: Animatio
 	if source_animation == null:
 		return
 	animation_library.add_animation(animation_name, source_animation.duplicate(true) as Animation)
+
+
+func _ensure_mining_animation() -> bool:
+	if _character_animation_player == null:
+		return false
+	if _character_animation_player.has_animation(MINING_ANIMATION_NAME):
+		return true
+	var animation_library: AnimationLibrary = null
+	if _character_animation_player.has_animation_library(""):
+		animation_library = _character_animation_player.get_animation_library("")
+	if animation_library == null:
+		animation_library = AnimationLibrary.new()
+		_character_animation_player.add_animation_library("", animation_library)
+	_copy_animation_names_from_scene(UAL2_ANIMATION_SOURCE_SCENE, animation_library, [MINING_ANIMATION_NAME])
+	return _character_animation_player.has_animation(MINING_ANIMATION_NAME)
 
 
 func _play_first_available_loop(candidates: Array) -> void:

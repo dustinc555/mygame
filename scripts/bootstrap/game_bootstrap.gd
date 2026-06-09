@@ -19,6 +19,7 @@ const WORLD_ACTOR_PROJECTION_CONTROLLER_SCRIPT = preload("res://scripts/controll
 const WORLD_ITEM_PROJECTION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_item_projection_controller.gd")
 const WORLD_SELECTION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_selection_controller.gd")
 const WORLD_PLAYER_CONTROL_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_player_control_controller.gd")
+const CONVERSATION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/conversation_controller.gd")
 const WORLD_MOVEMENT_ORDER_SIM_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_movement_order_sim_controller.gd")
 const WORLD_INVENTORY_SIM_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_inventory_sim_controller.gd")
 const WORLD_PARTY_PANEL_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_party_panel_controller.gd")
@@ -87,6 +88,7 @@ func _controller_specs() -> Array[Dictionary]:
 		{"name": "WorldItemProjectionController", "script": WORLD_ITEM_PROJECTION_CONTROLLER_SCRIPT},
 		{"name": "WorldSelectionController", "script": WORLD_SELECTION_CONTROLLER_SCRIPT},
 		{"name": "WorldPlayerControlController", "script": WORLD_PLAYER_CONTROL_CONTROLLER_SCRIPT},
+		{"name": "ConversationController", "script": CONVERSATION_CONTROLLER_SCRIPT},
 		{"name": "WorldMovementOrderSimController", "script": WORLD_MOVEMENT_ORDER_SIM_CONTROLLER_SCRIPT},
 		{"name": "WorldInventorySimController", "script": WORLD_INVENTORY_SIM_CONTROLLER_SCRIPT},
 		{"name": "WorldPartyPanelController", "script": WORLD_PARTY_PANEL_CONTROLLER_SCRIPT},

@@ -1,10 +1,10 @@
-[gd_resource type="Resource" script_class="FactionDefinition" format=3]
+[gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://cqtm08uvdy7q6"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
-[ext_resource type="Resource" path="res://resources/world_sim/behavior_profiles/surf_city_town.tres" id="2_behavior"]
-[ext_resource type="Resource" path="res://resources/world_sim/personality_profiles/surf_city_civic.tres" id="3_personality"]
-[ext_resource type="Resource" path="res://resources/world_sim/law_profiles/surf_city_law.tres" id="4_law"]
-[ext_resource type="Resource" path="res://resources/world_sim/population_name_profiles/farmer_names.tres" id="5_names"]
+[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
+[ext_resource type="Resource" uid="uid://ba2t4lxe24w6b" path="res://resources/world_sim/behavior_profiles/surf_city_town.tres" id="2_behavior"]
+[ext_resource type="Resource" uid="uid://dltunxfiqmx0e" path="res://resources/world_sim/personality_profiles/surf_city_civic.tres" id="3_personality"]
+[ext_resource type="Resource" uid="uid://cbd4458uv7gvp" path="res://resources/world_sim/law_profiles/surf_city_law.tres" id="4_law"]
+[ext_resource type="Resource" uid="uid://dxbvu7j7dmuyd" path="res://resources/world_sim/population_name_profiles/farmer_names.tres" id="5_names"]
 
 [resource]
 script = ExtResource("1_faction")
@@ -12,7 +12,8 @@ faction_id = "SurfCity"
 display_name = "Surf City"
 description = "A civic coastal settlement faction with its own laws, watch, and cautious politics."
 primary_color = Color(0.12, 0.72, 0.88, 1)
-open_access = true
+default_hostile_faction_ids = null
+starting_war_faction_ids = null
 behavior_profile = ExtResource("2_behavior")
 personality_profile = ExtResource("3_personality")
 law_profile = ExtResource("4_law")

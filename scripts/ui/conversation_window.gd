@@ -115,15 +115,20 @@ func _on_response_pressed(response_index: int) -> void:
 
 
 func _get_actor_name(actor, fallback: String) -> String:
+	if actor is Dictionary:
+		var record_name := str((actor as Dictionary).get("member_name", "")).strip_edges()
+		return record_name if not record_name.is_empty() else fallback
 	if actor != null:
-		return actor.member_name
+		var value = actor.get("member_name")
+		if value != null and not str(value).strip_edges().is_empty():
+			return str(value).strip_edges()
 	return fallback
 
 
 func _rebuild_portrait(actor, portrait_root: Node3D, viewport: SubViewport, portrait_image: TextureRect, portrait_camera: Camera3D, visual_yaw_offset: float) -> void:
 	_clear_portrait_root(portrait_root)
 	portrait_image.texture = null
-	if actor == null:
+	if actor == null or not (actor is Node):
 		return
 	for child in actor.get_children():
 		_add_portrait_copy(child, portrait_root, visual_yaw_offset)

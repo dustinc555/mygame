@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="RustdeadTierDefinition" format=3]
+[gd_resource type="Resource" script_class="RustdeadTierDefinition" format=3 uid="uid://byb8fo1gjn5y4"]
 
-[ext_resource type="Script" path="res://scripts/characters/rustdead_tier_definition.gd" id="1_tier"]
+[ext_resource type="Script" uid="uid://cv37v5r5r7u7w" path="res://scripts/characters/rustdead_tier_definition.gd" id="1_tier"]
 
 [resource]
 script = ExtResource("1_tier")

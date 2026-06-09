@@ -1,10 +1,9 @@
-[gd_resource type="Resource" script_class="SquadTemplate" format=3]
+[gd_resource type="Resource" script_class="SquadTemplate" format=3 uid="uid://cdkl87s6xlmsq"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/squad_template.gd" id="1_template"]
-[ext_resource type="Resource" path="res://resources/world_sim/factions/surf_city.tres" id="2_faction"]
-[ext_resource type="Resource" path="res://resources/items/equipment/weapons/swords/iron_sword.tres" id="3_sword"]
-[ext_resource type="Resource" path="res://resources/world_sim/population_appearance_profiles/farmer_peasant.tres" id="4_appearance"]
-[ext_resource type="Resource" path="res://resources/world_sim/population_name_profiles/farmer_names.tres" id="5_names"]
+[ext_resource type="Script" uid="uid://c3hflj5he5juw" path="res://scripts/world_sim/squad_template.gd" id="1_template"]
+[ext_resource type="Resource" uid="uid://cqtm08uvdy7q6" path="res://resources/world_sim/factions/surf_city.tres" id="2_faction"]
+[ext_resource type="Resource" uid="uid://b6bu0gocxyhsg" path="res://resources/world_sim/population_appearance_profiles/farmer_peasant.tres" id="4_appearance"]
+[ext_resource type="Resource" uid="uid://dxbvu7j7dmuyd" path="res://resources/world_sim/population_name_profiles/farmer_names.tres" id="5_names"]
 
 [resource]
 script = ExtResource("1_template")
@@ -12,13 +11,11 @@ template_id = "surf_city_watch"
 display_name = "Surf City Watch"
 faction_definition = ExtResource("2_faction")
 member_name_prefix = "Watch"
-member_count = 3
 base_strength = 24.0
 food_capacity = 18.0
 population_appearance_profile = ExtResource("4_appearance")
 population_name_profile = ExtResource("5_names")
 base_color = Color(0.12, 0.58, 0.76, 1)
 base_attack_damage = 15.0
-combat_stance = 1
 hostile_faction_ids = PackedStringArray("EastRaiders")
 starting_equipment_ids = PackedStringArray("iron_sword")

@@ -1,24 +1,20 @@
-[gd_resource type="Resource" script_class="PopulationRecordDefinition" format=3]
+[gd_resource type="Resource" script_class="PopulationRecordDefinition" format=3 uid="uid://deqedvxycbw6o"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/population_record_definition.gd" id="1_record"]
+[ext_resource type="Script" uid="uid://cnod2munjp5qd" path="res://scripts/world_sim/population_record_definition.gd" id="1_record"]
 
 [resource]
 script = ExtResource("1_record")
 actor_id = "player.mira"
 stable_id = "player.mira"
-settlement_id = ""
 generation_source = "demo_party"
 generation_index = 1
 member_name = "Mira"
 faction_id = "Player"
 squad_name = "PlayerParty"
-role_id = "party_member"
 party_id = "player_party"
 player_party_member = true
 player_controllable = true
-projection_kind = "humanoid"
 hostile_faction_ids = PackedStringArray("Rustdead", "EastRaiders")
-combat_stance = 1
 base_color = Color(0.72, 0.48, 0.78, 1)
 skill_levels = {
 "attribute.charisma": 45,
@@ -41,16 +37,10 @@ personality = {
 "discipline": 0.68,
 "nerve": 0.72
 }
-life_state = 0
 hp = 118.0
 max_hp = 118.0
-blood = 5.0
-max_blood = 5.0
 base_attack_damage = 20.0
-base_dodge_chance = 0.0
 base_block_chance = 0.1
-realization_state = "ledger"
-ledger_activity_state = "routine"
 last_world_position = Vector3(376.9, 0.6, 114.3)
 last_world_position_initialized = true
 important = true

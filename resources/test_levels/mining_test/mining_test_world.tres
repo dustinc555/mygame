@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="WorldDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/world_definition.gd" id="1_world"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/player_drifters.tres" id="2_player_faction"]
+[ext_resource type="Resource" path="res://resources/world_sim/factions/surf_city.tres" id="3_surf_faction"]
+[ext_resource type="Resource" path="res://resources/test_levels/mining_test/mira.tres" id="4_mira"]
+[ext_resource type="Resource" path="res://resources/test_levels/mining_test/tomas.tres" id="5_tomas"]
+[ext_resource type="Resource" path="res://resources/test_levels/mining_test/jim.tres" id="6_jim"]
+
+[resource]
+script = ExtResource("1_world")
+world_id = "mining_test"
+display_name = "Mining Test"
+random_seed = 2001
+faction_definitions = Array[Resource]([ExtResource("2_player_faction"), ExtResource("3_surf_faction")])
+settlement_placements = Array[Resource]([])
+starting_relations = Array[Resource]([])
+squad_templates = Array[Resource]([])
+starting_population_records = Array[Resource]([ExtResource("4_mira"), ExtResource("5_tomas"), ExtResource("6_jim")])

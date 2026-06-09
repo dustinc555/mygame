@@ -10,7 +10,6 @@ item_id = "silver_coin"
 display_name = "Silver Coin"
 icon = ExtResource("2_icon")
 unit_weight = 0.01
-max_stack = 1
 alternate_equip_slots = null
 tool_tags = null
 currency_id = "silver"

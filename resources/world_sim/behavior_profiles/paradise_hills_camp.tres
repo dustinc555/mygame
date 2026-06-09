@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="SettlementBehaviorProfile" format=3]
+[gd_resource type="Resource" script_class="SettlementBehaviorProfile" format=3 uid="uid://cikfyppk37wjg"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/settlement_behavior_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://cgjwenavn4kmp" path="res://scripts/world_sim/settlement_behavior_profile.gd" id="1_profile"]
 
 [resource]
 script = ExtResource("1_profile")
@@ -9,8 +9,6 @@ display_name = "Paradise Hills Camp"
 food_production_per_day = 4.0
 food_consumption_per_person_per_day = 1.1
 base_aggression = 0.34
-can_initiate_food_raids = false
 can_attack_when_starving = true
 desperate_attack_pressure_threshold = 0.05
-daily_upkeep_hour = 6
 action_cooldown_hours = 16.0

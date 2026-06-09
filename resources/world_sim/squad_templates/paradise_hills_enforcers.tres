@@ -1,10 +1,9 @@
-[gd_resource type="Resource" script_class="SquadTemplate" format=3]
+[gd_resource type="Resource" script_class="SquadTemplate" format=3 uid="uid://b1ua0mkttoebl"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/squad_template.gd" id="1_template"]
-[ext_resource type="Resource" path="res://resources/world_sim/factions/paradise_hills.tres" id="2_faction"]
-[ext_resource type="Resource" path="res://resources/items/equipment/weapons/swords/iron_sword.tres" id="3_sword"]
-[ext_resource type="Resource" path="res://resources/world_sim/population_appearance_profiles/raider_scrapper.tres" id="4_appearance"]
-[ext_resource type="Resource" path="res://resources/world_sim/population_name_profiles/raider_names.tres" id="5_names"]
+[ext_resource type="Script" uid="uid://c3hflj5he5juw" path="res://scripts/world_sim/squad_template.gd" id="1_template"]
+[ext_resource type="Resource" uid="uid://btrntrrambj4n" path="res://resources/world_sim/factions/paradise_hills.tres" id="2_faction"]
+[ext_resource type="Resource" uid="uid://cl4gcq68dpynl" path="res://resources/world_sim/population_appearance_profiles/raider_scrapper.tres" id="4_appearance"]
+[ext_resource type="Resource" uid="uid://ir1lxc5kcdwv" path="res://resources/world_sim/population_name_profiles/raider_names.tres" id="5_names"]
 
 [resource]
 script = ExtResource("1_template")
@@ -12,12 +11,11 @@ template_id = "paradise_hills_enforcers"
 display_name = "Paradise Hills Enforcers"
 faction_definition = ExtResource("2_faction")
 member_name_prefix = "Paradise Enforcer"
-member_count = 3
 base_strength = 26.0
 food_capacity = 24.0
 population_appearance_profile = ExtResource("4_appearance")
 population_name_profile = ExtResource("5_names")
 base_color = Color(0.72, 0.48, 0.16, 1)
 base_attack_damage = 16.0
-combat_stance = 1
+hostile_faction_ids = null
 starting_equipment_ids = PackedStringArray("iron_sword")

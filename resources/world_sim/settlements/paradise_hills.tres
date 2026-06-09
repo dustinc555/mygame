@@ -1,9 +1,9 @@
 [gd_resource type="Resource" script_class="SettlementDefinition" format=3 uid="uid://3sggop603h5v"]
 
 [ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://scripts/world_sim/settlement_definition.gd" id="1_settlement"]
-[ext_resource type="Resource" path="res://resources/world_sim/factions/paradise_hills.tres" id="2_faction"]
-[ext_resource type="Resource" path="res://resources/world_sim/behavior_profiles/paradise_hills_camp.tres" id="3_behavior"]
-[ext_resource type="Resource" path="res://resources/world_sim/squad_templates/paradise_hills_enforcers.tres" id="4_enforcers"]
+[ext_resource type="Resource" uid="uid://btrntrrambj4n" path="res://resources/world_sim/factions/paradise_hills.tres" id="2_faction"]
+[ext_resource type="Resource" uid="uid://cikfyppk37wjg" path="res://resources/world_sim/behavior_profiles/paradise_hills_camp.tres" id="3_behavior"]
+[ext_resource type="Resource" uid="uid://b1ua0mkttoebl" path="res://resources/world_sim/squad_templates/paradise_hills_enforcers.tres" id="4_enforcers"]
 
 [resource]
 script = ExtResource("1_settlement")

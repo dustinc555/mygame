@@ -56,6 +56,8 @@ class_name PopulationRecordDefinition
 @export var last_world_position_initialized := false
 @export var downed_event_id := ""
 @export var downed_presentation_seed := 0
+@export var work_action: Dictionary = {}
+@export var last_interaction_result: Dictionary = {}
 @export var important := false
 @export var appearance: Dictionary = {}
 @export var equipment_slots: Dictionary = {}
@@ -123,6 +125,8 @@ func to_record() -> Dictionary:
 		"last_world_position_initialized": last_world_position_initialized,
 		"downed_event_id": downed_event_id,
 		"downed_presentation_seed": downed_presentation_seed,
+		"work_action": work_action.duplicate(true),
+		"last_interaction_result": last_interaction_result.duplicate(true),
 		"important": important,
 		"appearance": appearance.duplicate(true),
 		"equipment_slots": equipment_slots.duplicate(true),

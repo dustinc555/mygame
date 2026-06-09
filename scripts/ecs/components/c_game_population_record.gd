@@ -57,6 +57,8 @@ class_name CGamePopulationRecord
 @export var downed_event_id := ""
 @export var downed_presentation_seed := 0
 @export var control_intent: Dictionary = {}
+@export var work_action: Dictionary = {}
+@export var last_interaction_result: Dictionary = {}
 @export var important := false
 @export var appearance_character_race := ""
 @export var appearance_body_archetype := ""
@@ -133,6 +135,8 @@ func apply_record(source: Dictionary) -> void:
 	downed_event_id = str(source.get("downed_event_id", downed_event_id))
 	downed_presentation_seed = int(source.get("downed_presentation_seed", downed_presentation_seed))
 	control_intent = (source.get("control_intent", control_intent) as Dictionary).duplicate(true)
+	work_action = (source.get("work_action", work_action) as Dictionary).duplicate(true)
+	last_interaction_result = (source.get("last_interaction_result", last_interaction_result) as Dictionary).duplicate(true)
 	important = bool(source.get("important", important))
 	var appearance: Dictionary = source.get("appearance", {})
 	appearance_character_race = str(appearance.get("character_race", appearance_character_race))
@@ -210,6 +214,8 @@ func to_record() -> Dictionary:
 		"downed_event_id": downed_event_id,
 		"downed_presentation_seed": downed_presentation_seed,
 		"control_intent": control_intent.duplicate(true),
+		"work_action": work_action.duplicate(true),
+		"last_interaction_result": last_interaction_result.duplicate(true),
 		"important": important,
 		"appearance": {
 			"character_race": appearance_character_race,

@@ -12,6 +12,13 @@ const SEGMENT_LEFT := 1
 const SEGMENT_MIDDLE := 2
 const SEGMENT_RIGHT := 3
 const MOVE_COMMAND_NAV_PROJECTION_VERTICAL_TOLERANCE := 0.8
+const CONTEXT_ACTION_INSPECT := 101
+const CONTEXT_ACTION_PICKUP_STACK := 102
+const CONTEXT_ACTION_TALK := 103
+const CONTEXT_ACTION_TRADE := 104
+const CONTEXT_ACTION_MINE := 105
+const INTERACTION_PICKUP_STACK := "pickup_stack"
+const INTERACTION_MINE_RESOURCE := "mine_resource"
 
 @export_range(10.0, 10000.0, 10.0) var max_raycast_distance := 2000.0
 @export_flags_3d_physics var command_collision_mask := 0xFFFFFFFF
@@ -38,6 +45,7 @@ var _defensive_button: Button
 var _passive_button: Button
 var _command_bar_initialized := false
 var _last_control_state: Dictionary = {}
+var _context_payload: Dictionary = {}
 var _is_left_mouse_down := false
 var _is_right_mouse_down := false
 var _is_hold_move_active := false
@@ -165,10 +173,8 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
-		if _context_menu != null:
-			_context_menu.hide()
 		_is_right_mouse_down = true
-		_is_hold_move_active = issue_move_command(event.position)
+		_is_hold_move_active = _handle_right_mouse_press(event.position)
 		_hold_move_repeat_remaining = hold_move_repeat_seconds
 		_hold_move_indicator_remaining = hold_move_indicator_seconds
 		get_viewport().set_input_as_handled()
@@ -202,6 +208,155 @@ func _handle_left_mouse_release(screen_position: Vector2) -> void:
 	if _selection_rect != null:
 		_selection_rect.visible = false
 	_update_command_bar()
+
+
+func _handle_right_mouse_press(screen_position: Vector2) -> bool:
+	_hide_context_menu()
+	_context_payload.clear()
+	var hit := _raycast_from_screen(screen_position)
+	if hit.is_empty():
+		return issue_move_command(screen_position)
+	var collider = hit.get("collider")
+	var selected_ids := _selected_controllable_actor_ids()
+	if selected_ids.is_empty():
+		return issue_move_command(screen_position)
+	var world_item := _world_item_from_collider(collider)
+	if world_item != null:
+		_context_payload = {"type": "world_item", "stack_id": str(world_item.get("item_stack_id")).strip_edges(), "item_node": world_item}
+		_show_context_menu_actions(screen_position, [{"id": CONTEXT_ACTION_PICKUP_STACK, "label": "Pick Up %s" % _world_item_label(world_item)}])
+		return false
+	var mining_resource := _mining_resource_from_collider(collider)
+	if mining_resource != null:
+		_context_payload = {"type": "mining_resource", "resource_node": mining_resource}
+		_show_context_menu_actions(screen_position, [{"id": CONTEXT_ACTION_MINE, "label": "Mine"}])
+		return false
+	var projection := _projection_from_collider(collider)
+	if projection != null:
+		var target_actor_id := str(projection.get("actor_id")).strip_edges()
+		var record := _population_record(target_actor_id)
+		if not target_actor_id.is_empty() and not record.is_empty():
+			var actions := [{"id": CONTEXT_ACTION_INSPECT, "label": "Inspect"}]
+			if _record_has_conversation(record):
+				actions.append({"id": CONTEXT_ACTION_TALK, "label": "Talk To"})
+			if _record_has_merchant(record) or bool(record.get("player_party_member", false)):
+				actions.append({"id": CONTEXT_ACTION_TRADE, "label": "Trade" if _record_has_merchant(record) else "Inventory"})
+			_context_payload = {"type": "actor", "actor_id": target_actor_id}
+			_show_context_menu_actions(screen_position, actions)
+			return false
+	return issue_move_command(screen_position)
+
+
+func _show_context_menu_actions(screen_position: Vector2, actions: Array) -> void:
+	if _context_menu == null or actions.is_empty():
+		return
+	_context_menu.clear()
+	for action in actions:
+		if not (action is Dictionary):
+			continue
+		_context_menu.add_item(str((action as Dictionary).get("label", "Action")), int((action as Dictionary).get("id", 0)))
+	_context_menu.position = Vector2i(screen_position)
+	_context_menu.popup()
+
+
+func _on_context_menu_id_pressed(action_id: int) -> void:
+	match action_id:
+		CONTEXT_ACTION_INSPECT:
+			_inspect_context_actor()
+		CONTEXT_ACTION_PICKUP_STACK:
+			_issue_context_pickup()
+		CONTEXT_ACTION_TALK:
+			_begin_context_conversation()
+		CONTEXT_ACTION_TRADE:
+			_open_context_trade()
+		CONTEXT_ACTION_MINE:
+			_issue_context_mining()
+	_hide_context_menu()
+
+
+func _inspect_context_actor() -> void:
+	var actor_id := str(_context_payload.get("actor_id", "")).strip_edges()
+	if actor_id.is_empty():
+		return
+	var selection := _get_selection_controller()
+	if selection != null and selection.has_method("select_actor_id"):
+		selection.call("select_actor_id", actor_id, false)
+
+
+func _issue_context_pickup() -> void:
+	var world_item = _context_payload.get("item_node", null)
+	if world_item == null or not is_instance_valid(world_item):
+		return
+	var stack_id := str(_context_payload.get("stack_id", "")).strip_edges()
+	if stack_id.is_empty():
+		stack_id = str(world_item.get("item_stack_id")).strip_edges()
+	if stack_id.is_empty():
+		return
+	var actor_id := _nearest_selected_actor_id_to((world_item as Node3D).global_position if world_item is Node3D else Vector3.ZERO)
+	if actor_id.is_empty():
+		return
+	var pickup_position := (world_item as Node3D).global_position if world_item is Node3D else _current_actor_position(actor_id, _population_record(actor_id))
+	if world_item.has_method("get_pickup_position"):
+		var value = world_item.call("get_pickup_position", null)
+		if value is Vector3:
+			pickup_position = value
+	_issue_actor_interaction_move(actor_id, pickup_position, {"type": INTERACTION_PICKUP_STACK, "stack_id": stack_id}, true)
+
+
+func _begin_context_conversation() -> void:
+	var speaker_id := _primary_selected_controllable_actor_id()
+	var target_id := str(_context_payload.get("actor_id", "")).strip_edges()
+	if speaker_id.is_empty() or target_id.is_empty() or speaker_id == target_id:
+		return
+	var conversation := _get_conversation_controller()
+	if conversation != null and conversation.has_method("begin_conversation"):
+		conversation.call("begin_conversation", speaker_id, target_id)
+
+
+func _open_context_trade() -> void:
+	var primary_id := _primary_selected_controllable_actor_id()
+	var target_id := str(_context_payload.get("actor_id", "")).strip_edges()
+	if primary_id.is_empty() or target_id.is_empty():
+		return
+	var inventory := _get_inventory_controller()
+	if inventory != null and inventory.has_method("open_inventory_pair"):
+		inventory.call("open_inventory_pair", primary_id, target_id)
+
+
+func _issue_context_mining() -> void:
+	var resource_node = _context_payload.get("resource_node", null)
+	if resource_node == null or not is_instance_valid(resource_node):
+		return
+	for actor_id in _selected_controllable_actor_ids():
+		var record := _population_record(actor_id)
+		if record.is_empty():
+			continue
+		var target_position := (resource_node as Node3D).global_position if resource_node is Node3D else _current_actor_position(actor_id, record)
+		if resource_node.has_method("get_mining_position_for_actor"):
+			var value = resource_node.call("get_mining_position_for_actor", actor_id, _current_actor_position(actor_id, record))
+			if value is Vector3:
+				target_position = value
+		var action := _mining_action_for_actor(resource_node, actor_id, record)
+		if action.is_empty():
+			continue
+		_issue_actor_interaction_move(actor_id, target_position, action, true)
+
+
+func _issue_actor_interaction_move(actor_id: String, target_position: Vector3, interaction_action: Dictionary, show_indicator := true) -> bool:
+	var record := _population_record(actor_id)
+	if record.is_empty() or interaction_action.is_empty():
+		return false
+	_flush_projection_state_to_gecs([actor_id])
+	if show_indicator:
+		_spawn_move_command_indicator(target_position + Vector3.UP * 0.08)
+	var projected_target := _project_move_command_target(target_position, target_position, target_position.y)
+	var updated := _write_move_order(record, projected_target, target_position, interaction_action)
+	if updated.is_empty():
+		return false
+	_refresh_selection()
+	_request_projection_sync()
+	_update_command_bar()
+	_last_control_state = _control_state(true, str(interaction_action.get("type", "interaction")), updated, [actor_id])
+	return true
 
 
 func _handle_world_selection(screen_position: Vector2, should_follow: bool) -> void:
@@ -251,7 +406,7 @@ func _apply_drag_selection() -> void:
 	selection.call("select_actor_ids", selected_ids, Input.is_key_pressed(KEY_ALT))
 
 
-func _write_move_order(record: Dictionary, target_position: Vector3, issued_position: Vector3) -> Dictionary:
+func _write_move_order(record: Dictionary, target_position: Vector3, issued_position: Vector3, interaction_action: Dictionary = {}) -> Dictionary:
 	if not _record_is_controllable(record):
 		return {}
 	var actor_id := str(record.get("actor_id", record.get("stable_id", ""))).strip_edges()
@@ -259,24 +414,32 @@ func _write_move_order(record: Dictionary, target_position: Vector3, issued_posi
 		return {}
 	var movement_mode := int(record.get("movement_mode", MOVEMENT_MODE_WALK))
 	var current_position := _current_actor_position(actor_id, record)
+	var move_order := {
+		"active": true,
+		"source": "player",
+		"target_position": target_position,
+		"issued_position": issued_position,
+		"movement_mode": movement_mode,
+		"issued_msec": Time.get_ticks_msec(),
+	}
+	if not interaction_action.is_empty():
+		move_order["interaction_action"] = interaction_action.duplicate(true)
+	var control_intent := {
+		"source": "player",
+		"mode": "move_order",
+		"target_position": target_position,
+		"movement_mode": movement_mode,
+	}
+	if not interaction_action.is_empty():
+		control_intent["mode"] = "interaction_move_order"
+		control_intent["interaction_action"] = interaction_action.duplicate(true)
 	var patch := {
 		"actor_id": actor_id,
 		"last_world_position": current_position,
 		"last_world_position_initialized": true,
-		"move_order": {
-			"active": true,
-			"source": "player",
-			"target_position": target_position,
-			"issued_position": issued_position,
-			"movement_mode": movement_mode,
-			"issued_msec": Time.get_ticks_msec(),
-		},
-		"control_intent": {
-			"source": "player",
-			"mode": "move_order",
-			"target_position": target_position,
-			"movement_mode": movement_mode,
-		},
+		"move_order": move_order,
+		"control_intent": control_intent,
+		"work_action": {"active": false},
 		"ledger_activity_state": "player_move_order",
 	}
 	var updated := _upsert_population_record(patch)
@@ -480,6 +643,10 @@ func _bind_hud_nodes() -> void:
 		return
 	_selection_rect = hud.get_node_or_null("SelectionRect") as ColorRect
 	_context_menu = hud.get_node_or_null("ContextMenu") as PopupMenu
+	if _context_menu != null:
+		var menu_callable := Callable(self, "_on_context_menu_id_pressed")
+		if not _context_menu.id_pressed.is_connected(menu_callable):
+			_context_menu.id_pressed.connect(menu_callable)
 	var command_rows_path := "HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows"
 	_walk_button = hud.get_node_or_null(command_rows_path + "/MoveRow/MovementSegment/WalkButton") as Button
 	_running_button = hud.get_node_or_null(command_rows_path + "/MoveRow/MovementSegment/RunningButton") as Button
@@ -540,6 +707,82 @@ func _projection_from_collider(collider) -> Node:
 			return current
 		current = current.get_parent()
 	return null
+
+
+func _world_item_from_collider(collider) -> Node:
+	var current := collider as Node
+	while current != null:
+		if current.is_in_group("world_item"):
+			return current
+		current = current.get_parent()
+	return null
+
+
+func _mining_resource_from_collider(collider) -> Node:
+	var current := collider as Node
+	while current != null:
+		if current.is_in_group("mining_resource"):
+			return current
+		current = current.get_parent()
+	return null
+
+
+func _world_item_label(world_item: Node) -> String:
+	if world_item == null:
+		return "Item"
+	var definition = world_item.get("item_definition")
+	if definition != null:
+		var display_name = definition.get("display_name")
+		if display_name != null and not str(display_name).strip_edges().is_empty():
+			return str(display_name).strip_edges()
+	return "Item"
+
+
+func _record_has_conversation(record: Dictionary) -> bool:
+	var traits: Dictionary = record.get("traits", {}) if record.get("traits", {}) is Dictionary else {}
+	return not str(traits.get("conversation_definition_path", "")).strip_edges().is_empty()
+
+
+func _record_has_merchant(record: Dictionary) -> bool:
+	var traits: Dictionary = record.get("traits", {}) if record.get("traits", {}) is Dictionary else {}
+	return bool(traits.get("merchant", false))
+
+
+func _primary_selected_controllable_actor_id() -> String:
+	var selected_ids := _selected_controllable_actor_ids()
+	return selected_ids[0] if not selected_ids.is_empty() else ""
+
+
+func _nearest_selected_actor_id_to(world_position: Vector3) -> String:
+	var best_actor_id := ""
+	var best_distance := INF
+	for actor_id in _selected_controllable_actor_ids():
+		var record := _population_record(actor_id)
+		if record.is_empty():
+			continue
+		var distance := _current_actor_position(actor_id, record).distance_squared_to(world_position)
+		if distance < best_distance:
+			best_distance = distance
+			best_actor_id = actor_id
+	return best_actor_id
+
+
+func _mining_action_for_actor(resource_node: Node, actor_id: String, record: Dictionary) -> Dictionary:
+	if resource_node == null:
+		return {}
+	if resource_node.has_method("get_mining_action_for_actor"):
+		var action = resource_node.call("get_mining_action_for_actor", actor_id, record)
+		return action if action is Dictionary else {}
+	var definition = resource_node.get("item_definition")
+	var item_path := str(definition.resource_path) if definition is Resource else ""
+	if item_path.is_empty():
+		return {}
+	return {"type": INTERACTION_MINE_RESOURCE, "item_definition_path": item_path, "duration_seconds": 6.0}
+
+
+func _hide_context_menu() -> void:
+	if _context_menu != null:
+		_context_menu.hide()
 
 
 func _project_move_command_target(candidate: Vector3, fallback: Vector3, target_y: float) -> Vector3:
@@ -806,3 +1049,21 @@ func _get_selection_controller() -> Node:
 		if local != null:
 			return local
 	return get_tree().get_first_node_in_group("world_selection_controller") if is_inside_tree() else null
+
+
+func _get_inventory_controller() -> Node:
+	var parent_node := get_parent()
+	if parent_node != null:
+		var local := parent_node.get_node_or_null("PartyInventoryController")
+		if local != null:
+			return local
+	return get_tree().get_first_node_in_group("party_inventory_controller") if is_inside_tree() else null
+
+
+func _get_conversation_controller() -> Node:
+	var parent_node := get_parent()
+	if parent_node != null:
+		var local := parent_node.get_node_or_null("ConversationController")
+		if local != null:
+			return local
+	return get_tree().get_first_node_in_group("conversation_controller") if is_inside_tree() else null

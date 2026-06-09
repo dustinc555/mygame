@@ -111,6 +111,8 @@ const CORE_POPULATION_RECORD_FIELDS := {
 	"downed_event_id": true,
 	"downed_presentation_seed": true,
 	"control_intent": true,
+	"work_action": true,
+	"last_interaction_result": true,
 	"important": true,
 	"appearance": true,
 }
@@ -868,6 +870,14 @@ func _apply_inventory_command(command: Dictionary) -> Dictionary:
 			return _command_drop_equipment(command)
 		"pickup_stack":
 			return _command_pickup_stack(command)
+		"grant_item":
+			return _command_grant_item(command)
+		"transfer_item_count":
+			return _command_transfer_item_count(command)
+		"transfer_item_count_to_container":
+			return _command_transfer_item_count_to_container(command)
+		"ensure_equipped_tool":
+			return _command_ensure_equipped_tool(command)
 		"consume_stack_item":
 			return _command_consume_stack_item(command)
 		"take_silver_from_pouch":
@@ -1062,6 +1072,138 @@ func _command_pickup_stack(command: Dictionary) -> Dictionary:
 	stack.grid_position = target_cell
 	stack.world_position_initialized = false
 	return _inventory_success("Picked up item", {"stack_id": stack_id, "container_id": target_container_id})
+
+
+func _command_grant_item(command: Dictionary) -> Dictionary:
+	var actor_id := str(command.get("actor_id", command.get("target_actor_id", ""))).strip_edges()
+	var item_identifier := str(command.get("item_definition_path", command.get("item_id", ""))).strip_edges()
+	var count := maxi(1, int(command.get("count", 1)))
+	if actor_id.is_empty() or item_identifier.is_empty():
+		return _inventory_failure("Invalid item grant")
+	var definition := _item_definition(item_identifier)
+	if definition == null:
+		return _inventory_failure("Missing item definition")
+	var target_container_id := _actor_inventory_container_id(actor_id)
+	_ensure_inventory_container(target_container_id, actor_id, false)
+	var spaces := _find_spaces_for_item_count(target_container_id, str(definition.resource_path), count)
+	if spaces.size() < count:
+		return _inventory_failure("No room")
+	var stack_ids: Array[String] = []
+	for index in range(count):
+		var stack_id := _add_item_stack(target_container_id, actor_id, str(definition.resource_path), 1, spaces[index])
+		if not stack_id.is_empty():
+			stack_ids.append(stack_id)
+	return _inventory_success("Granted item", {"actor_id": actor_id, "item_definition_path": str(definition.resource_path), "stack_ids": stack_ids})
+
+
+func _command_transfer_item_count(command: Dictionary) -> Dictionary:
+	var source_actor_id := str(command.get("source_actor_id", command.get("from_actor_id", ""))).strip_edges()
+	var target_actor_id := str(command.get("target_actor_id", command.get("to_actor_id", ""))).strip_edges()
+	var item_identifier := str(command.get("item_definition_path", command.get("item_id", ""))).strip_edges()
+	var count := maxi(1, int(command.get("count", 1)))
+	if source_actor_id.is_empty() or target_actor_id.is_empty() or item_identifier.is_empty():
+		return _inventory_failure("Invalid transfer")
+	if source_actor_id == target_actor_id:
+		return _inventory_success("Transfer unchanged", {"actor_id": source_actor_id})
+	var definition := _item_definition(item_identifier)
+	if definition == null:
+		return _inventory_failure("Missing item definition")
+	var item_path := str(definition.resource_path)
+	var source_container_id := _actor_inventory_container_id(source_actor_id)
+	var target_container_id := _actor_inventory_container_id(target_actor_id)
+	var matching_stacks: Array[Dictionary] = []
+	for stack in get_inventory_stacks(source_container_id):
+		if not (stack is Dictionary):
+			continue
+		var stack_item_path := str((stack as Dictionary).get("item_definition_path", ""))
+		if stack_item_path == item_path:
+			matching_stacks.append((stack as Dictionary).duplicate(true))
+			if matching_stacks.size() >= count:
+				break
+	if matching_stacks.size() < count:
+		return _inventory_failure("Missing item")
+	_ensure_inventory_container(target_container_id, target_actor_id, false)
+	var spaces := _find_spaces_for_item_count(target_container_id, item_path, count)
+	if spaces.size() < count:
+		return _inventory_failure("No room")
+	var moved_stack_ids: Array[String] = []
+	for index in range(count):
+		var stack := matching_stacks[index]
+		var source_stack_id := str(stack.get("stack_id", ""))
+		_remove_item_stack(source_stack_id)
+		var moved_stack_id := _add_item_stack(
+			target_container_id,
+			target_actor_id,
+			item_path,
+			1,
+			spaces[index],
+			(stack.get("contained_item_counts", {}) as Dictionary).duplicate(true),
+			(stack.get("metadata", {}) as Dictionary).duplicate(true),
+			source_stack_id
+		)
+		if not moved_stack_id.is_empty():
+			moved_stack_ids.append(moved_stack_id)
+	return _inventory_success("Transferred item", {"source_actor_id": source_actor_id, "target_actor_id": target_actor_id, "item_definition_path": item_path, "stack_ids": moved_stack_ids})
+
+
+func _command_transfer_item_count_to_container(command: Dictionary) -> Dictionary:
+	var source_actor_id := str(command.get("source_actor_id", command.get("from_actor_id", ""))).strip_edges()
+	var target_container_id := str(command.get("target_container_id", command.get("container_id", ""))).strip_edges()
+	var item_identifier := str(command.get("item_definition_path", command.get("item_id", ""))).strip_edges()
+	var count := maxi(1, int(command.get("count", 1)))
+	if source_actor_id.is_empty() or target_container_id.is_empty() or item_identifier.is_empty():
+		return _inventory_failure("Invalid container transfer")
+	var definition := _item_definition(item_identifier)
+	if definition == null:
+		return _inventory_failure("Missing item definition")
+	var item_path := str(definition.resource_path)
+	var source_container_id := _actor_inventory_container_id(source_actor_id)
+	var matching_stacks: Array[Dictionary] = []
+	for stack in get_inventory_stacks(source_container_id):
+		if not (stack is Dictionary):
+			continue
+		var stack_data: Dictionary = stack
+		if str(stack_data.get("item_definition_path", "")) != item_path:
+			continue
+		matching_stacks.append(stack_data.duplicate(true))
+		if matching_stacks.size() >= count:
+			break
+	if matching_stacks.size() < count:
+		return _inventory_failure("Missing item")
+	var existing_target_container = _inventory_container_component(target_container_id)
+	var target_is_world_container := bool(existing_target_container.is_world_container) if existing_target_container != null else false
+	_ensure_inventory_container(target_container_id, _container_owner_actor_id(target_container_id), target_is_world_container)
+	var spaces := _find_spaces_for_item_count(target_container_id, item_path, count)
+	if spaces.size() < count:
+		return _inventory_failure("No room")
+	var moved_stack_ids: Array[String] = []
+	for index in range(count):
+		var source_stack_id := str(matching_stacks[index].get("stack_id", "")).strip_edges()
+		if source_stack_id.is_empty():
+			continue
+		_remove_item_stack(source_stack_id)
+		var moved_stack_id := _add_item_stack(target_container_id, _container_owner_actor_id(target_container_id), item_path, 1, spaces[index], {}, {}, source_stack_id)
+		if not moved_stack_id.is_empty():
+			moved_stack_ids.append(moved_stack_id)
+	return _inventory_success("Transferred item", {"source_actor_id": source_actor_id, "target_container_id": target_container_id, "item_definition_path": item_path, "stack_ids": moved_stack_ids})
+
+
+func _command_ensure_equipped_tool(command: Dictionary) -> Dictionary:
+	var actor_id := str(command.get("actor_id", command.get("target_actor_id", ""))).strip_edges()
+	var required_tool_tag := str(command.get("required_tool_tag", command.get("tool_tag", ""))).strip_edges()
+	var required_tool_label := str(command.get("required_tool_label", "Tool")).strip_edges()
+	var slot_name := str(command.get("slot_name", ItemDefinition.EQUIP_SLOT_WEAPON)).strip_edges()
+	if actor_id.is_empty() or required_tool_tag.is_empty() or slot_name.is_empty():
+		return _inventory_failure("Invalid tool requirement")
+	var equipped_slot = _equipment_slot_component(actor_id, slot_name)
+	if equipped_slot != null:
+		var equipped_definition := _item_definition(str(equipped_slot.item_definition_path))
+		if _item_has_tool_tag(equipped_definition, required_tool_tag):
+			return _inventory_success("Required tool equipped", {"actor_id": actor_id, "slot_name": slot_name, "item_definition_path": str(equipped_definition.resource_path)})
+	var tool_stack_id := _find_actor_inventory_tool_stack_id(actor_id, required_tool_tag)
+	if tool_stack_id.is_empty():
+		return _inventory_failure("%s required" % required_tool_label)
+	return _command_equip_stack({"actor_id": actor_id, "source_stack_id": tool_stack_id, "slot_name": slot_name})
 
 
 func _command_consume_stack_item(command: Dictionary) -> Dictionary:
@@ -1537,6 +1679,24 @@ func _item_can_equip_to_slot(definition: ItemDefinition, slot_name: String) -> b
 	return false
 
 
+func _find_actor_inventory_tool_stack_id(actor_id: String, required_tool_tag: String) -> String:
+	if actor_id.strip_edges().is_empty() or required_tool_tag.strip_edges().is_empty():
+		return ""
+	var container_id := _actor_inventory_container_id(actor_id)
+	for stack in get_inventory_stacks(container_id):
+		if not (stack is Dictionary):
+			continue
+		var stack_data: Dictionary = stack
+		var definition := _item_definition(str(stack_data.get("item_definition_path", stack_data.get("item_id", ""))))
+		if _item_has_tool_tag(definition, required_tool_tag):
+			return str(stack_data.get("stack_id", "")).strip_edges()
+	return ""
+
+
+func _item_has_tool_tag(definition: ItemDefinition, required_tool_tag: String) -> bool:
+	return definition != null and not required_tool_tag.strip_edges().is_empty() and definition.has_method("has_tool_tag") and bool(definition.call("has_tool_tag", required_tool_tag))
+
+
 func _container_owner_actor_id(container_id: String) -> String:
 	var container = _inventory_container_component(container_id)
 	if container != null and not str(container.owner_actor_id).is_empty():
@@ -1583,10 +1743,11 @@ func upsert_job_contract(data: Dictionary) -> Dictionary:
 	if contract_id.is_empty():
 		contract_id = _make_job_contract_id(data)
 	data["contract_id"] = contract_id
-	if not data.has("priority_order"):
-		data["priority_order"] = _next_job_contract_priority(str(data.get("actor_id", "")))
 	var entity = _job_contract_entity_by_id.get(contract_id)
-	if entity == null or not is_instance_valid(entity):
+	var creating_contract := entity == null or not is_instance_valid(entity)
+	if not data.has("priority_order") and creating_contract:
+		data["priority_order"] = _next_job_contract_priority(str(data.get("actor_id", "")))
+	if creating_contract:
 		entity = _entity_script.new()
 		entity.name = _entity_node_name("JobContract", contract_id)
 		entity.id = _entity_id("job_contract", contract_id)
@@ -1609,6 +1770,33 @@ func get_actor_job_contracts(actor_or_id) -> Array[Dictionary]:
 		contracts.append(component.to_dictionary())
 	contracts.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("priority_order", 0)) < int(b.get("priority_order", 0)))
 	return contracts
+
+
+func get_job_contracts() -> Array[Dictionary]:
+	var contracts: Array[Dictionary] = []
+	if world == null:
+		return contracts
+	for entity in world.query.with_all([C_JOB_CONTRACT]).execute():
+		var component = entity.get_component(C_JOB_CONTRACT)
+		if component == null:
+			continue
+		contracts.append(component.to_dictionary())
+	contracts.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var actor_compare := str(a.get("actor_id", "")).naturalnocasecmp_to(str(b.get("actor_id", "")))
+		if actor_compare != 0:
+			return actor_compare < 0
+		return int(a.get("priority_order", 0)) < int(b.get("priority_order", 0))
+	)
+	return contracts
+
+
+func has_job_contracts() -> bool:
+	if _job_contract_entity_by_id.is_empty():
+		return false
+	for entity in _job_contract_entity_by_id.values():
+		if entity != null and is_instance_valid(entity):
+			return true
+	return false
 
 
 func get_job_contracts_for_provider(provider_or_id) -> Array[Dictionary]:
@@ -2799,6 +2987,10 @@ func _notify_live_provider_contract_abandoned(contract: Dictionary, reason: Stri
 func _node_container_id(node: Node) -> String:
 	if node == null:
 		return ""
+	if node.has_method("get_container_id"):
+		var method_container_id := str(node.call("get_container_id")).strip_edges()
+		if not method_container_id.is_empty():
+			return method_container_id
 	if node.is_inside_tree():
 		return str(node.get_path())
 	return str(node.get_instance_id())
