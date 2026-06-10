@@ -101,7 +101,7 @@ func is_cinder_burned() -> bool:
 
 
 func has_cinder_burned_visuals() -> bool:
-	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
+	var visual_root := get_character_visual_root()
 	if visual_root != null and _node_has_cinder_burned_material(visual_root):
 		return true
 	var body_mesh := get_node_or_null("BodyMesh")
@@ -381,7 +381,7 @@ func _clear_cinder_burn_effect() -> void:
 
 
 func _apply_cinder_burned_visuals() -> void:
-	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
+	var visual_root := get_character_visual_root()
 	if visual_root != null:
 		_apply_cinder_burn_overlay(visual_root)
 	var body_mesh := get_node_or_null("BodyMesh")
@@ -390,7 +390,7 @@ func _apply_cinder_burned_visuals() -> void:
 
 
 func _clear_cinder_burned_visuals() -> void:
-	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
+	var visual_root := get_character_visual_root()
 	if visual_root != null:
 		_clear_cinder_burn_overlay(visual_root)
 	var body_mesh := get_node_or_null("BodyMesh")
@@ -399,11 +399,13 @@ func _clear_cinder_burned_visuals() -> void:
 
 
 func _free_rustdead_visual_root_for_exit() -> void:
-	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
+	var visual_root := get_character_visual_root()
 	if visual_root == null:
 		return
 	_strip_meshes_for_exit(visual_root)
-	remove_child(visual_root)
+	var parent := visual_root.get_parent()
+	if parent != null:
+		parent.remove_child(visual_root)
 	visual_root.free()
 
 

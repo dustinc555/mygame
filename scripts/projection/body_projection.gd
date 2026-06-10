@@ -25,6 +25,22 @@ func setup_visual() -> void:
 	pass
 
 
+func get_visual_root() -> Node3D:
+	return null
+
+
+func has_custom_skin_material() -> bool:
+	return false
+
+
+func get_resolved_visual_body_type() -> int:
+	return 0
+
+
+func get_resolved_body_archetype() -> Resource:
+	return null
+
+
 func setup_animation(_model_root: Node3D) -> void:
 	pass
 
@@ -75,3 +91,25 @@ func get_visual_foot_anchor_y() -> float:
 
 func get_visual_ground_y() -> float:
 	return 0.0
+
+
+# --- Equipment / attachment visuals ---
+
+func set_equipped_clothing_visuals_visible(_visible_flag: bool) -> void:
+	pass
+
+
+func refresh_grip_sockets_for_body() -> void:
+	pass
+
+
+func rebuild_visual_for_equipment() -> void:
+	setup_visual()
+
+
+func can_refresh_bone_equipment_only(_changed_slots: Array) -> bool:
+	return false
+
+
+func refresh_bone_equipment_slots(_changed_slots: Array) -> void:
+	rebuild_visual_for_equipment()
