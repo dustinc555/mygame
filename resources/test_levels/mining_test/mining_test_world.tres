@@ -3,8 +3,8 @@
 [ext_resource type="Script" path="res://scripts/world_sim/world_definition.gd" id="1_world"]
 [ext_resource type="Resource" path="res://resources/world_sim/factions/player_drifters.tres" id="2_player_faction"]
 [ext_resource type="Resource" path="res://resources/world_sim/factions/surf_city.tres" id="3_surf_faction"]
-[ext_resource type="Resource" path="res://resources/test_levels/mining_test/mira.tres" id="4_mira"]
-[ext_resource type="Resource" path="res://resources/test_levels/mining_test/tomas.tres" id="5_tomas"]
+[ext_resource type="Resource" path="res://resources/actors/player/mira.tres" id="4_mira"]
+[ext_resource type="Resource" path="res://resources/actors/player/tomas.tres" id="5_tomas"]
 [ext_resource type="Resource" path="res://resources/test_levels/mining_test/jim.tres" id="6_jim"]
 
 [resource]
@@ -17,3 +17,82 @@ settlement_placements = Array[Resource]([])
 starting_relations = Array[Resource]([])
 squad_templates = Array[Resource]([])
 starting_population_records = Array[Resource]([ExtResource("4_mira"), ExtResource("5_tomas"), ExtResource("6_jim")])
+starting_population_record_overrides = {
+"player.mira": {
+"base_attack_damage": 0.0,
+"base_block_chance": 0.0,
+"base_color": Color(0.82, 0.43, 0.31, 1),
+"blood": 5.0,
+"equipment_slots": {
+"chest": "res://resources/items/equipment/armor/chest/ranger_jerkin.tres",
+"feet": "res://resources/items/equipment/armor/feet/ranger_boots.tres",
+"head": "res://resources/items/equipment/armor/head/ranger_hood.tres",
+"legs": "res://resources/items/equipment/armor/legs/ranger_leggings.tres",
+"weapon": "res://resources/items/tools/rusted_pickaxe.tres"
+},
+"generation_index": 1,
+"generation_source": "mining_test",
+"hp": 105.0,
+"inventory_entries": [{
+"contained_item_counts": {},
+"count": 10,
+"grid_position": Vector2i(0, 0),
+"item_id": "res://resources/items/currency/silver_coin.tres",
+"metadata": {}
+}, {
+"contained_item_counts": {},
+"count": 4,
+"grid_position": Vector2i(0, 2),
+"item_id": "res://resources/items/consumables/bandage.tres",
+"metadata": {}
+}],
+"last_world_position": Vector3(-5, 0.6, 4),
+"last_world_position_initialized": true,
+"max_blood": 5.0,
+"max_hp": 105.0,
+"skill_levels": {
+"attribute.charisma": 45,
+"attribute.dexterity": 45,
+"attribute.endurance": 55,
+"attribute.perception": 45,
+"attribute.strength": 55,
+"attribute.toughness": 55,
+"labor.mining": 25,
+"movement.running": 40
+}
+},
+"player.tomas": {
+"base_attack_damage": 0.0,
+"base_color": Color(0.33, 0.55, 0.78, 1),
+"base_dodge_chance": 0.0,
+"blood": 5.0,
+"equipment_slots": {
+"chest": "res://resources/items/equipment/clothing/peasant_tunic.tres",
+"feet": "res://resources/items/equipment/clothing/peasant_shoes.tres",
+"legs": "res://resources/items/equipment/clothing/peasant_trousers.tres",
+"offhand": "res://resources/items/equipment/offhand/shields/round_shield.tres",
+"weapon": "res://resources/items/tools/rusted_pickaxe.tres"
+},
+"generation_index": 2,
+"generation_source": "mining_test",
+"hp": 108.0,
+"inventory_entries": [{
+"contained_item_counts": {},
+"count": 4,
+"grid_position": Vector2i(0, 0),
+"item_id": "res://resources/items/consumables/bandage.tres",
+"metadata": {}
+}],
+"last_world_position": Vector3(-1, 0.6, 5),
+"last_world_position_initialized": true,
+"max_blood": 5.0,
+"max_hp": 108.0,
+"skill_levels": {
+"attribute.endurance": 55,
+"attribute.strength": 60,
+"attribute.toughness": 55,
+"labor.mining": 30,
+"movement.running": 40
+}
+}
+}

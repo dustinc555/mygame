@@ -3,6 +3,7 @@ extends Node
 class_name WorldActorProjectionController
 
 const WORLD_ACTOR_PROJECTION_SCRIPT := preload("res://scripts/projection/world_actor_projection.gd")
+const WORLD_ACTOR_RULES := preload("res://scripts/world_sim/world_actor_rules.gd")
 const HUMANOID_BODY_PROJECTION_SCRIPT := preload("res://scripts/projection/humanoid_body_projection.gd")
 const PLACEHOLDER_BODY_PROJECTION_SCRIPT := preload("res://scripts/projection/placeholder_body_projection.gd")
 const COMBAT_MOVE_IN_DISTANCE := 0.55
@@ -14,7 +15,6 @@ const COMBAT_VISIBLE_APPROACH_STEP_DISTANCE := 0.18
 const COMBAT_VISIBLE_APPROACH_STOP_RATIO := 0.82
 const VISIBLE_COMBAT_PLAYER_PARTY_ID := "player_party"
 const VISIBLE_COMBAT_LIFE_STATE_ALIVE := 0
-const VISIBLE_COMBAT_LIFE_STATE_DYING := 5
 const VISIBLE_COMBAT_STANCE_PASSIVE := 2
 const VISIBLE_COMBAT_ATTACK_ANIMATION_SECONDS := 0.95
 const VISIBLE_COMBAT_ATTACK_IMPACT_RATIO := 0.45
@@ -24,7 +24,7 @@ const VISIBLE_COMBAT_BODY_RADIUS := 0.55
 const VISIBLE_COMBAT_RESERVATION_CELL_SIZE := 1.1
 
 @export var auto_project := true
-@export_range(0.05, 5.0, 0.05) var projection_update_interval_seconds := 0.25
+@export_range(0.01, 5.0, 0.01) var projection_update_interval_seconds := 0.25
 @export var projection_root_name := "WorldActorProjections"
 @export var max_projected_actor_count := 0
 @export var performance_logging_enabled := false
@@ -173,6 +173,26 @@ func can_project_kind(projection_kind: String) -> bool:
 func get_projection_for_actor(actor_id: String) -> Node:
 	var projection = _projection_by_actor_id.get(actor_id)
 	return projection as Node if projection != null and is_instance_valid(projection) else null
+
+
+func sync_projection_transform_for_actor(actor_id: String, render_delta := 0.0) -> bool:
+	var normalized_actor_id := actor_id.strip_edges()
+	if normalized_actor_id.is_empty() or not _try_initialize():
+		return false
+	if _visible_combat_runtime_controls_actor(normalized_actor_id):
+		return true
+	var projection := get_projection_for_actor(normalized_actor_id)
+	if projection == null or not projection.has_method("apply_projection_transform_snapshot"):
+		return false
+	var bridge := _get_gecs_world()
+	if bridge == null:
+		return false
+	var record := _get_population_record_core(bridge, normalized_actor_id)
+	if record.is_empty():
+		return false
+	projection.call("apply_projection_transform_snapshot", record, render_delta)
+	_latest_population_records_by_actor_id[normalized_actor_id] = record.duplicate(true)
+	return true
 
 
 func flush_current_projection_state_to_gecs(actor_ids: Array = [], release_visible_control := false) -> void:
@@ -536,18 +556,14 @@ func _visible_combat_begin_attack(actor_id: String, target_id: String, projectio
 
 
 func _visible_combat_apply_hit(attacker_id: String, target_id: String, records: Dictionary) -> void:
-	var attacker_record: Dictionary = records.get(attacker_id, {}) if records.get(attacker_id, {}) is Dictionary else {}
 	var target_record: Dictionary = records.get(target_id, {}) if records.get(target_id, {}) is Dictionary else {}
 	var target_state := _visible_combat_state(target_id, target_record)
 	if bool(target_state.get("downed", false)):
 		return
-	var damage := maxf(float(attacker_record.get("base_attack_damage", 10.0)) * 0.45, 4.0)
-	var hp := maxf(float(target_state.get("hp", target_record.get("hp", 100.0))) - damage, 0.0)
-	target_state["hp"] = hp
 	target_state["under_attack"] = true
 	target_state["under_attack_until"] = _visible_combat_elapsed + 3.0
 	var target_projection := get_projection_for_actor(target_id)
-	if hp <= 0.0:
+	if not _visible_combat_record_is_alive(target_record):
 		var downed_event_id := "%s:visible_downed:%d" % [target_id, int(target_state.get("downed_serial", 0)) + 1]
 		var downed_seed := _stable_id_hash(downed_event_id)
 		target_state["downed"] = true
@@ -558,10 +574,6 @@ func _visible_combat_apply_hit(attacker_id: String, target_id: String, records: 
 		target_state["action_elapsed"] = 0.0
 		target_state["action_duration"] = _combat_presentation_duration(target_projection, "downed_start", downed_event_id, VISIBLE_COMBAT_DOWNED_ANIMATION_SECONDS)
 		target_state["action_started"] = false
-		var downed_patch := {"hp": 0.0, "life_state": VISIBLE_COMBAT_LIFE_STATE_DYING, "ledger_activity_state": "visible_combat_downed", "downed_event_id": downed_event_id, "downed_presentation_seed": downed_seed}
-		if target_projection != null:
-			downed_patch.merge(_projection_transform_patch(target_projection), true)
-		_visible_combat_commit_actor_patch(target_id, downed_patch)
 	else:
 		var reaction_event_id := "%s:visible_reaction:%d" % [target_id, int(target_state.get("reaction_serial", 0)) + 1]
 		target_state["action"] = "reaction"
@@ -571,7 +583,6 @@ func _visible_combat_apply_hit(attacker_id: String, target_id: String, records: 
 		target_state["action_duration"] = _combat_presentation_duration(target_projection, "reaction_start", reaction_event_id, VISIBLE_COMBAT_REACTION_ANIMATION_SECONDS)
 		target_state["action_started"] = false
 		target_state["attacker_id"] = attacker_id
-		_visible_combat_commit_actor_patch(target_id, {"hp": hp, "ledger_activity_state": "visible_combat_hit"})
 	_visible_combat_state_by_actor_id[target_id] = target_state
 	_visible_combat_controlled_actor_ids[target_id] = true
 
@@ -604,7 +615,6 @@ func _visible_combat_apply_downed(actor_id: String, record: Dictionary) -> void:
 		state["action_duration"] = _combat_presentation_duration(projection, "downed_start", downed_event_id, VISIBLE_COMBAT_DOWNED_ANIMATION_SECONDS)
 		state["action_started"] = false
 		_visible_combat_state_by_actor_id[actor_id] = state
-		_commit_projection_transform_to_gecs(actor_id, projection, {"life_state": int(record.get("life_state", VISIBLE_COMBAT_LIFE_STATE_DYING)), "downed_event_id": downed_event_id, "downed_presentation_seed": downed_seed})
 	_visible_combat_update_locked_animation(actor_id, projection, state, position, position + Vector3.FORWARD, 0.0)
 	_visible_combat_controlled_actor_ids[actor_id] = true
 
@@ -613,7 +623,16 @@ func _visible_combat_state(actor_id: String, record: Dictionary) -> Dictionary:
 	var state: Dictionary = _visible_combat_state_by_actor_id.get(actor_id, {}) if _visible_combat_state_by_actor_id.get(actor_id, {}) is Dictionary else {}
 	if state.is_empty():
 		state = {
+			"life_state": int(record.get("life_state", VISIBLE_COMBAT_LIFE_STATE_ALIVE)),
 			"hp": float(record.get("hp", record.get("max_hp", 100.0))),
+			"max_hp": float(record.get("max_hp", 100.0)),
+			"blood": float(record.get("blood", record.get("max_blood", 100.0))),
+			"max_blood": float(record.get("max_blood", 100.0)),
+			"base_max_blood": float(record.get("base_max_blood", record.get("max_blood", 100.0))),
+			"open_cut_damage": float(record.get("open_cut_damage", 0.0)),
+			"bandaged_cut_damage": float(record.get("bandaged_cut_damage", 0.0)),
+			"blunt_damage": float(record.get("blunt_damage", 0.0)),
+			"bleed_rate": float(record.get("bleed_rate", 0.0)),
 			"attack_cooldown": _visible_combat_cooldown_stagger(actor_id),
 			"under_attack": false,
 			"under_attack_until": 0.0,
@@ -681,10 +700,7 @@ func _visible_combat_record_is_raider(record: Dictionary, player_factions: Dicti
 
 
 func _visible_combat_record_is_alive(record: Dictionary) -> bool:
-	if int(record.get("life_state", VISIBLE_COMBAT_LIFE_STATE_ALIVE)) != VISIBLE_COMBAT_LIFE_STATE_ALIVE:
-		return false
-	var max_hp := float(record.get("max_hp", 0.0))
-	return max_hp <= 0.0 or float(record.get("hp", max_hp)) > 0.0
+	return WORLD_ACTOR_RULES.can_participate(record)
 
 
 func _visible_combat_actor_downed(actor_id: String, record: Dictionary) -> bool:
@@ -769,6 +785,10 @@ func _commit_projection_transform_to_gecs(actor_id: String, projection: Node, ex
 func _projection_transform_patch(projection: Node) -> Dictionary:
 	if projection == null or not (projection is Node3D):
 		return {}
+	if projection.has_method("get_gecs_commit_transform"):
+		var commit_transform = projection.call("get_gecs_commit_transform")
+		if commit_transform is Dictionary:
+			return commit_transform
 	var node := projection as Node3D
 	return {
 		"last_world_position": node.global_position,
@@ -1572,6 +1592,16 @@ func _get_population_records_core(bridge: Node) -> Dictionary:
 	if bridge.has_method("get_population_records"):
 		var records = bridge.call("get_population_records")
 		return records if records is Dictionary else {}
+	return {}
+
+
+func _get_population_record_core(bridge: Node, actor_id: String) -> Dictionary:
+	if bridge.has_method("get_population_record_core"):
+		var core_record = bridge.call("get_population_record_core", actor_id)
+		return core_record if core_record is Dictionary else {}
+	if bridge.has_method("get_population_record"):
+		var record = bridge.call("get_population_record", actor_id)
+		return record if record is Dictionary else {}
 	return {}
 
 

@@ -7,6 +7,7 @@ const ENTITY_SCRIPT_PATH := "res://addons/gecs/ecs/entity.gd"
 const ECS_SCRIPT_PATH := "res://addons/gecs/ecs/ecs.gd"
 const GECS_IO_SCRIPT_PATH := "res://addons/gecs/io/io.gd"
 const ACTOR_SYNC_SYSTEM_SCRIPT_PATH := "res://scripts/ecs/systems/game_actor_sync_system.gd"
+const WORLD_ACTOR_RULES := preload("res://scripts/world_sim/world_actor_rules.gd")
 
 const C_NODE_PATH := "res://scripts/ecs/components/c_game_actor_node.gd"
 const C_IDENTITY_PATH := "res://scripts/ecs/components/c_game_actor_identity.gd"
@@ -72,6 +73,7 @@ const CORE_POPULATION_RECORD_FIELDS := {
 	"hostile_faction_ids": true,
 	"combat_stance": true,
 	"movement_mode": true,
+	"move_speed": true,
 	"move_order": true,
 	"locomotion_state": true,
 	"world_facing_yaw": true,
@@ -90,6 +92,7 @@ const CORE_POPULATION_RECORD_FIELDS := {
 	"fatigue_stage": true,
 	"hp": true,
 	"max_hp": true,
+	"base_max_blood": true,
 	"blood": true,
 	"max_blood": true,
 	"open_cut_damage": true,
@@ -352,7 +355,8 @@ func upsert_population_record(record: Dictionary) -> Dictionary:
 		world.add_entity(entity, [C_POPULATION_RECORD.new()])
 		_population_entity_by_actor_id[actor_id] = entity
 	var component = entity.get_component(C_POPULATION_RECORD)
-	component.apply_record(record)
+	var normalized_record := _normalize_population_record_for_component(record, component, true)
+	component.apply_record(normalized_record)
 	var synced_inventory_or_equipment := false
 	if record.has("equipment_slots"):
 		_sync_record_equipment_slots(actor_id, record.get("equipment_slots", {}))
@@ -385,6 +389,7 @@ func upsert_population_record_core(record: Dictionary) -> Dictionary:
 		world.add_entity(entity, [C_POPULATION_RECORD.new()])
 		_population_entity_by_actor_id[actor_id] = entity
 	var component = entity.get_component(C_POPULATION_RECORD)
+	core_record = _normalize_population_record_for_component(core_record, component, false)
 	component.apply_record(core_record)
 	var result: Dictionary = {}
 	if component != null and component.has_method("to_record"):
@@ -688,7 +693,18 @@ func sync_world_item(item: Node) -> void:
 	component.count = 1
 	component.grid_position = Vector2i.ZERO
 	component.contained_item_counts = (item.get("contained_item_counts") as Dictionary).duplicate(true) if _has_property(item, "contained_item_counts") else {}
-	component.metadata = (item.get("item_metadata") as Dictionary).duplicate(true) if _has_property(item, "item_metadata") else {}
+	var metadata: Dictionary = (item.get("item_metadata") as Dictionary).duplicate(true) if _has_property(item, "item_metadata") else {}
+	if _has_property(item, "owner_faction_name"):
+		var owner_faction_name := str(item.get("owner_faction_name")).strip_edges()
+		if not owner_faction_name.is_empty():
+			metadata["owner_faction_name"] = owner_faction_name
+	if _has_property(item, "theft_value"):
+		metadata["theft_value"] = int(item.get("theft_value"))
+	if _has_property(item, "theft_noise_radius"):
+		metadata["theft_noise_radius"] = float(item.get("theft_noise_radius"))
+	if _has_property(item, "theft_difficulty"):
+		metadata["theft_difficulty"] = int(item.get("theft_difficulty"))
+	component.metadata = metadata
 	if item is Node3D:
 		component.world_position = (item as Node3D).global_position
 		component.world_position_initialized = true
@@ -728,6 +744,33 @@ func get_inventory_stacks(container_id := "") -> Array[Dictionary]:
 			"world_position_initialized": bool(component.world_position_initialized),
 		})
 	return stacks
+
+
+func get_inventory_stack(stack_id: String) -> Dictionary:
+	var stack = _item_stack_component(stack_id)
+	if stack == null:
+		return {}
+	return {
+		"stack_id": str(stack.stack_id),
+		"container_id": str(stack.container_id),
+		"owner_actor_id": str(stack.owner_actor_id),
+		"item_id": str(stack.item_id),
+		"item_definition_path": str(stack.item_definition_path),
+		"count": int(stack.count),
+		"grid_position": stack.grid_position,
+		"contained_item_counts": stack.contained_item_counts.duplicate(true),
+		"metadata": stack.metadata.duplicate(true),
+		"world_position": stack.world_position,
+		"world_position_initialized": bool(stack.world_position_initialized),
+	}
+
+
+func update_item_stack_metadata(stack_id: String, metadata: Dictionary) -> bool:
+	var stack = _item_stack_component(stack_id)
+	if stack == null:
+		return false
+	stack.metadata = metadata.duplicate(true)
+	return true
 
 
 func get_equipment_slots(actor_id := "") -> Array[Dictionary]:
@@ -2336,6 +2379,15 @@ func _sanitize_core_population_record(record: Dictionary) -> Dictionary:
 	return core_record
 
 
+func _normalize_population_record_for_component(record: Dictionary, component, force: bool) -> Dictionary:
+	if record.is_empty() or (not force and not WORLD_ACTOR_RULES.record_has_vital_inputs(record)):
+		return record
+	var existing := {}
+	if component != null and component.has_method("to_record"):
+		existing = component.to_record()
+	return WORLD_ACTOR_RULES.normalize_population_record(record, existing)
+
+
 func _log_perf_duration(label: String, started_at_usec: int, metadata: Dictionary = {}) -> void:
 	if not performance_logging_enabled or started_at_usec <= 0:
 		return
@@ -2399,6 +2451,8 @@ func _write_actor_components(entity, actor: Node, actor_id: String, settlement_i
 	vitals.hp = float(hp) if hp != null else 100.0
 	var max_hp = actor.get("max_hp")
 	vitals.max_hp = float(max_hp) if max_hp != null else 100.0
+	var base_max_blood = actor.get("base_max_blood")
+	vitals.base_max_blood = float(base_max_blood) if base_max_blood != null else 100.0
 	var blood = actor.get("blood")
 	vitals.blood = float(blood) if blood != null else 100.0
 	var max_blood = actor.get("max_blood")
@@ -2870,6 +2924,7 @@ func _actor_state_from_entity(entity) -> Dictionary:
 		state["life_state"] = int(vitals.life_state)
 		state["hp"] = float(vitals.hp)
 		state["max_hp"] = float(vitals.max_hp)
+		state["base_max_blood"] = float(vitals.base_max_blood)
 		state["blood"] = float(vitals.blood)
 		state["max_blood"] = float(vitals.max_blood)
 	return state

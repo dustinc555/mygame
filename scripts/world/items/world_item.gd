@@ -5,6 +5,10 @@ class_name WorldItem
 const PICKUP_NOTICE := "I don't have enough room"
 const GROUND_CLEARANCE := 0.015
 const MIN_COLLIDER_SIZE := Vector3(0.08, 0.03, 0.08)
+const META_OWNER_FACTION_NAME := "owner_faction_name"
+const META_THEFT_VALUE := "theft_value"
+const META_THEFT_NOISE_RADIUS := "theft_noise_radius"
+const META_THEFT_DIFFICULTY := "theft_difficulty"
 
 static var _left_alt_item_labels_visible := false
 
@@ -69,6 +73,10 @@ func apply_stack_snapshot(snapshot: Dictionary) -> void:
 	quantity = int(snapshot.get("count", 1))
 	contained_item_counts = (snapshot.get("contained_item_counts", {}) as Dictionary).duplicate(true)
 	item_metadata = (snapshot.get("metadata", {}) as Dictionary).duplicate(true)
+	owner_faction_name = str(item_metadata.get(META_OWNER_FACTION_NAME, owner_faction_name)).strip_edges()
+	theft_value = int(item_metadata.get(META_THEFT_VALUE, theft_value))
+	theft_noise_radius = float(item_metadata.get(META_THEFT_NOISE_RADIUS, theft_noise_radius))
+	theft_difficulty = int(item_metadata.get(META_THEFT_DIFFICULTY, theft_difficulty))
 	if bool(snapshot.get("world_position_initialized", false)) and snapshot.get("world_position") is Vector3:
 		global_position = snapshot.get("world_position")
 	_rebuild_visual()

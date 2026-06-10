@@ -16,6 +16,7 @@ const CAMERA_FLOOR_CLEARANCE := 0.35
 @export var camera_min_distance := 2.0
 @export var camera_max_distance := 36.0
 @export var orbit_sensitivity := 0.01
+@export_range(0.0, 0.5, 0.005) var follow_smoothing_seconds := 0.08
 
 var camera_anchor := Vector3.ZERO
 var camera_yaw := deg_to_rad(45.0)
@@ -26,6 +27,7 @@ var is_orbiting := false
 var _pivot: Node3D
 var _camera: Camera3D
 var _follow_target: Node3D
+var _projection_controller: Node
 var _focused_actor_id := ""
 
 
@@ -59,7 +61,7 @@ func _process(delta: float) -> void:
 		if move_direction.length() > 0.0:
 			camera_anchor += move_direction.normalized() * free_camera_move_speed * input_delta
 	if get_follow_target() != null:
-		camera_anchor = _get_anchor_position()
+		camera_anchor = _smoothed_follow_anchor(input_delta)
 	if move_input.length() > 0.0 or get_follow_target() != null:
 		_apply_camera_transform()
 
@@ -96,7 +98,7 @@ func follow_target(target: Node3D) -> void:
 	_sync_focused_actor()
 	if _follow_target == null:
 		return
-	camera_anchor = _get_anchor_position()
+	camera_anchor = _follow_target_anchor_position()
 	_apply_camera_transform()
 
 
@@ -121,12 +123,29 @@ func get_focused_actor_id() -> String:
 func _get_anchor_position() -> Vector3:
 	var target := get_follow_target()
 	if target != null:
+		return _follow_target_anchor_position()
+	return camera_anchor
+
+
+func _follow_target_anchor_position() -> Vector3:
+	var target := get_follow_target()
+	if target != null:
 		return target.global_position + Vector3(0.0, FOLLOW_CAMERA_HEIGHT, 0.0)
 	return camera_anchor
 
 
+func _smoothed_follow_anchor(delta: float) -> Vector3:
+	_sync_follow_target_projection(delta)
+	var target_anchor := _follow_target_anchor_position()
+	if follow_smoothing_seconds <= 0.0:
+		return target_anchor
+	var ratio := 1.0 - exp(-maxf(delta, 0.0) / follow_smoothing_seconds)
+	var next_anchor := camera_anchor.lerp(target_anchor, clampf(ratio, 0.0, 1.0))
+	return target_anchor if next_anchor.distance_squared_to(target_anchor) <= 0.0001 else next_anchor
+
+
 func _apply_camera_transform() -> void:
-	global_position = _get_anchor_position()
+	global_position = camera_anchor
 	rotation = Vector3(0.0, camera_yaw, 0.0)
 	if _pivot != null:
 		_pivot.rotation = Vector3(camera_pitch, 0.0, 0.0)
@@ -148,8 +167,6 @@ func _clamp_camera_above_floor() -> void:
 
 
 func _clear_follow_target() -> void:
-	if get_follow_target() != null:
-		camera_anchor = _get_anchor_position()
 	_follow_target = null
 	_sync_focused_actor()
 	_apply_camera_transform()
@@ -168,12 +185,33 @@ func _sync_focused_actor() -> void:
 func _update_projection_focus(actor_id: String, focused: bool) -> void:
 	if actor_id.strip_edges().is_empty() or not is_inside_tree():
 		return
-	var projection_controller := get_tree().get_first_node_in_group("world_actor_projection_controller")
+	var projection_controller := _get_projection_controller()
 	if projection_controller == null or not projection_controller.has_method("get_projection_for_actor"):
 		return
 	var projection = projection_controller.call("get_projection_for_actor", actor_id)
 	if projection != null and projection.has_method("set_focused"):
 		projection.call("set_focused", focused)
+
+
+func _sync_follow_target_projection(delta: float) -> void:
+	var target := get_follow_target()
+	if target == null:
+		return
+	var actor_id := _actor_id_for_node(target)
+	if actor_id.is_empty():
+		return
+	var projection_controller := _get_projection_controller()
+	if projection_controller != null and projection_controller.has_method("sync_projection_transform_for_actor"):
+		projection_controller.call("sync_projection_transform_for_actor", actor_id, delta)
+
+
+func _get_projection_controller() -> Node:
+	if _projection_controller != null and is_instance_valid(_projection_controller):
+		return _projection_controller
+	if not is_inside_tree():
+		return null
+	_projection_controller = get_tree().get_first_node_in_group("world_actor_projection_controller")
+	return _projection_controller
 
 
 func _actor_id_for_node(node: Node) -> String:

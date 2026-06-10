@@ -10,6 +10,7 @@ class_name CharacterAuthoringActor
 @export var squad_name := ""
 @export var hostile_factions: PackedStringArray = PackedStringArray()
 @export_range(0, 8, 1) var combat_stance := 0
+@export var move_speed := WorldActorRules.DEFAULT_MOVE_SPEED
 @export var base_attack_damage := 0.0
 @export var base_color := Color(0.62, 0.62, 0.62, 1.0)
 @export var starting_skill_levels: Dictionary = {}
@@ -21,8 +22,9 @@ class_name CharacterAuthoringActor
 @export var fatigue_stage := NpcRules.FatigueStage.WELL_RESTED
 @export var hp := 100.0
 @export var max_hp := 100.0
-@export var blood := 5.0
-@export var max_blood := 5.0
+@export var base_max_blood := 100.0
+@export var blood := 100.0
+@export var max_blood := 100.0
 @export var open_cut_damage := 0.0
 @export var bandaged_cut_damage := 0.0
 @export var blunt_damage := 0.0
@@ -43,6 +45,7 @@ func get_authoring_record() -> Dictionary:
 		"squad_name": squad_name,
 		"hostile_faction_ids": Array(hostile_factions),
 		"combat_stance": combat_stance,
+		"move_speed": move_speed,
 		"base_attack_damage": base_attack_damage,
 		"base_color": base_color,
 		"starting_equipment_ids": Array(starting_equipment_ids),
@@ -55,6 +58,7 @@ func get_authoring_record() -> Dictionary:
 		"fatigue_stage": fatigue_stage,
 		"hp": hp,
 		"max_hp": max_hp,
+		"base_max_blood": base_max_blood,
 		"blood": blood,
 		"max_blood": max_blood,
 		"open_cut_damage": open_cut_damage,

@@ -2,6 +2,10 @@ extends "res://scripts/projection/body_projection_adapter.gd"
 
 class_name HumanoidBodyProjection
 
+# UNAVOIDABLE SCOPE RULE: this is a humanoid visual adapter, not the owner of actor logic.
+# Shared actor systems must stay in GECS/controllers/rules/generic projection layers so dogs,
+# humanoids, and future actors can all move, sneak, fight, perceive, join squads, and receive commands.
+
 const HUMAN_RACE := preload("res://resources/character_races/human.tres")
 const HUMAN_MALE_BODY := preload("res://resources/character_body_archetypes/human_male.tres")
 const HUMANOID_RAGDOLL_PROFILE_SCRIPT := preload("res://scripts/characters/humanoid_ragdoll_profile.gd")
@@ -18,10 +22,16 @@ const PORTRAIT_CHARACTER_VISUAL_YAW_OFFSET := PI
 const IDLE_ANIMATION_NAME := "Idle"
 const WALK_ANIMATION_NAME := "Walk"
 const MINING_ANIMATION_NAME := "Mining"
+const CROUCH_ENTER_ANIMATION_NAME := "Crouch_Enter"
 const CROUCH_IDLE_ANIMATION_NAME := "Crouch_Idle"
 const CROUCH_WALK_ANIMATION_NAME := "Crouch_Fwd"
+const CROUCH_EXIT_ANIMATION_NAME := "Crouch_Exit"
+const RUN_ENTER_ANIMATION_NAME := "Sprint_Enter"
 const JOG_ANIMATION_NAME := "Jog_Fwd"
+const RUN_EXIT_ANIMATION_NAME := "Sprint_Exit"
 const IDLE_SAMPLE_SECONDS := 0.45
+const MOVE_ANIMATION_BLEND_SECONDS := 0.12
+const ACTUAL_LOCOMOTION_SPEED_THRESHOLD := 0.18
 const EQUIPMENT_VISUAL_META := "projection_equipment_visual"
 const COMBAT_IDLE_ANIMATION_CANDIDATES := ["Unarmed_Combat_Idle", "Combat_Idle", "Idle"]
 const ATTACK_ANIMATION_CANDIDATES := ["Melee_Hook", "Melee_Knee", "Punch", "Punching", "Kick", "Kick_Fwd"]
@@ -40,14 +50,25 @@ const BONE_EQUIPMENT_SLOTS := {
 
 var _body_archetype: Resource
 var _body_archetype_path := ""
+var _body_visual_scene_path := ""
 var _body_visual: Node3D
 var _skeleton: Skeleton3D
 var _equipment_root: Node3D
 var _label: Label3D
 var _equipment_signature := ""
+var _appearance_signature := ""
 var _character_animation_player: AnimationPlayer
 var _current_world_animation := ""
 var _current_combat_event_id := ""
+var _locomotion_visual_state: Dictionary = {}
+var _locomotion_initialized := false
+var _visual_sneaking := false
+var _combat_visual_active := false
+var _crouch_enter_animation_remaining := 0.0
+var _crouch_exit_animation_remaining := 0.0
+var _run_enter_animation_remaining := 0.0
+var _run_exit_animation_remaining := 0.0
+var _running_locomotion_active := false
 var _default_ragdoll_profile: Resource
 var _ragdoll_simulator: PhysicalBoneSimulator3D
 var _ragdoll_skeleton: Skeleton3D
@@ -63,16 +84,21 @@ var _ragdoll_upward_velocity_suppression_frames := 0
 
 static var _ragdoll_activation_frame := -1
 static var _ragdoll_activation_count := 0
+static var _ual1_animation_cache: Dictionary = {}
 
 var _portrait_source: Node3D
 var _portrait_character_visual: Node3D
 var _portrait_skeleton: Skeleton3D
 var _portrait_animation_player: AnimationPlayer
+var _portrait_body_archetype_path := ""
+var _portrait_visual_scene_path := ""
 var _portrait_equipment_signature := ""
 var _last_equipment_slots: Dictionary = {}
 
 
 func apply_projection_snapshot(record: Dictionary, equipment_slots: Dictionary, combat_state: Dictionary = {}) -> void:
+	_combat_visual_active = not combat_state.is_empty()
+	_appearance_signature = _stable_signature_for_value(record.get("appearance", {}))
 	var body_archetype := _body_archetype_from_record(record)
 	_ensure_body_visual(body_archetype)
 	_last_equipment_slots = equipment_slots.duplicate(true)
@@ -89,17 +115,29 @@ func get_body_adapter_id() -> String:
 
 
 func get_portrait_source() -> Node:
-	_ensure_portrait_source(_body_archetype if _body_archetype != null else HUMAN_MALE_BODY)
+	if _body_archetype == null:
+		return null
+	_ensure_portrait_source(_body_archetype)
 	_sync_portrait_equipment(_last_equipment_slots)
-	return _portrait_source if _portrait_source != null and is_instance_valid(_portrait_source) else self
+	return _portrait_source if _portrait_source != null and is_instance_valid(_portrait_source) else null
+
+
+func get_portrait_signature() -> String:
+	return "%s:%s:%s:%s" % [_body_archetype_path, _body_visual_scene_path, _appearance_signature, _equipment_signature_for(_last_equipment_slots)]
 
 
 func _process(delta: float) -> void:
 	if _ragdoll_preroll_active:
 		_process_downed_ragdoll_preroll(delta)
+		_update_process_enabled()
 		return
 	if _ragdoll_requested and not _is_ragdoll_active and _can_activate_ragdoll_this_frame():
 		_finish_downed_ragdoll_preroll()
+	if not _combat_visual_active and _has_active_locomotion_transition():
+		_update_locomotion_animation(delta)
+		if not _has_active_locomotion_transition():
+			_update_locomotion_animation(0.0)
+	_update_process_enabled()
 
 
 func _physics_process(delta: float) -> void:
@@ -111,6 +149,7 @@ func get_projection_debug_state() -> Dictionary:
 	return {
 		"body_adapter_id": get_body_adapter_id(),
 		"body_archetype": _body_archetype_path,
+		"body_visual_scene": _body_visual_scene_path,
 		"world_visual_ready": _body_visual != null and _body_visual.name == WORLD_VISUAL_NODE_NAME,
 		"world_skeleton_ready": _skeleton != null,
 		"world_idle_animation_ready": _character_animation_player != null and _character_animation_player.has_animation(IDLE_ANIMATION_NAME),
@@ -121,6 +160,8 @@ func get_projection_debug_state() -> Dictionary:
 		"ragdoll_active": _is_ragdoll_active,
 		"ragdoll_physical_bone_count": _ragdoll_physical_bones.size(),
 		"portrait_source_ready": _portrait_source != null,
+		"portrait_body_archetype": _portrait_body_archetype_path,
+		"portrait_visual_scene": _portrait_visual_scene_path,
 		"portrait_character_visual_ready": _portrait_character_visual != null and _portrait_character_visual.name == CHARACTER_VISUAL_NODE_NAME,
 		"portrait_skeleton_ready": _portrait_skeleton != null,
 		"portrait_idle_animation_ready": _portrait_animation_player != null and _portrait_animation_player.has_animation(IDLE_ANIMATION_NAME),
@@ -142,6 +183,10 @@ func is_ragdoll_active() -> bool:
 func apply_combat_presentation(presentation: Dictionary) -> void:
 	if _character_animation_player == null:
 		return
+	_combat_visual_active = true
+	if _has_active_locomotion_transition() or _running_locomotion_active:
+		_cancel_crouch_transition()
+		_cancel_run_transition()
 	var state := str(presentation.get("state", "combat_idle")).strip_edges()
 	var event_id := str(presentation.get("event_id", state)).strip_edges()
 	var progress := clampf(float(presentation.get("progress", 0.0)), 0.0, 1.0)
@@ -231,6 +276,7 @@ func _ensure_body_visual(body_archetype: Resource) -> void:
 	_clear_children()
 	_body_archetype = body_archetype
 	_body_archetype_path = target_path
+	_body_visual_scene_path = _body_visual_scene_path_for(body_archetype)
 	_body_visual = Node3D.new()
 	_body_visual.name = WORLD_VISUAL_NODE_NAME
 	add_child(_body_visual)
@@ -253,11 +299,24 @@ func _ensure_body_visual(body_archetype: Resource) -> void:
 	_portrait_equipment_signature = ""
 	_current_world_animation = ""
 	_current_combat_event_id = ""
+	_locomotion_visual_state.clear()
+	_locomotion_initialized = false
+	_visual_sneaking = false
+	_combat_visual_active = false
+	_cancel_crouch_transition()
+	_cancel_run_transition()
+	_update_process_enabled()
 
 
 func _ensure_portrait_source(body_archetype: Resource) -> void:
-	if _portrait_source != null and is_instance_valid(_portrait_source):
+	var target_path := _resource_path(body_archetype)
+	if target_path.is_empty():
 		return
+	if _portrait_source != null and is_instance_valid(_portrait_source) and _portrait_body_archetype_path == target_path:
+		return
+	_clear_portrait_source()
+	_portrait_body_archetype_path = target_path
+	_portrait_visual_scene_path = _body_visual_scene_path_for(body_archetype)
 	_portrait_source = Node3D.new()
 	_portrait_source.name = PORTRAIT_SOURCE_NODE_NAME
 	_portrait_source.visible = false
@@ -289,16 +348,26 @@ func _instantiate_body_model(body_archetype: Resource) -> Node3D:
 	return null
 
 
+func _body_visual_scene_path_for(body_archetype: Resource) -> String:
+	if body_archetype == null:
+		return ""
+	var visual_scene := body_archetype.get("visual_scene") as PackedScene
+	return visual_scene.resource_path if visual_scene != null else ""
+
+
 func _clear_children() -> void:
 	_stop_ragdoll_simulation(true)
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
 	_body_visual = null
+	_body_visual_scene_path = ""
 	_equipment_root = null
 	_skeleton = null
 	_label = null
 	_character_animation_player = null
+	_portrait_body_archetype_path = ""
+	_portrait_visual_scene_path = ""
 	_portrait_source = null
 	_portrait_character_visual = null
 	_portrait_skeleton = null
@@ -308,6 +377,26 @@ func _clear_children() -> void:
 	_ragdoll_physical_bones.clear()
 	_ragdoll_requested = false
 	_cancel_ragdoll_preroll()
+	_locomotion_visual_state.clear()
+	_locomotion_initialized = false
+	_visual_sneaking = false
+	_combat_visual_active = false
+	_cancel_crouch_transition()
+	_cancel_run_transition()
+	_update_process_enabled()
+
+
+func _clear_portrait_source() -> void:
+	if _portrait_source != null and is_instance_valid(_portrait_source):
+		remove_child(_portrait_source)
+		_portrait_source.queue_free()
+	_portrait_source = null
+	_portrait_character_visual = null
+	_portrait_skeleton = null
+	_portrait_animation_player = null
+	_portrait_equipment_signature = ""
+	_portrait_body_archetype_path = ""
+	_portrait_visual_scene_path = ""
 
 
 func _apply_label(record: Dictionary) -> void:
@@ -324,39 +413,215 @@ func _apply_locomotion_state(record: Dictionary) -> void:
 	if _character_animation_player == null:
 		return
 	if int(record.get("life_state", 0)) != 0:
+		_locomotion_visual_state.clear()
+		_locomotion_initialized = false
+		_cancel_crouch_transition()
+		_cancel_run_transition()
 		var downed_event_id := _record_downed_event_id(record)
 		apply_combat_presentation({"state": "downed_hold", "event_id": downed_event_id, "downed_seed": int(record.get("downed_presentation_seed", _stable_text_hash(downed_event_id)))})
 		return
+	var next_state := _locomotion_visual_state_from_record(record)
+	var next_sneaking := _visual_state_is_sneaking(next_state)
+	if not _locomotion_initialized:
+		_locomotion_initialized = true
+		_visual_sneaking = next_sneaking
+	elif _visual_sneaking != next_sneaking:
+		_visual_sneaking = next_sneaking
+		if next_sneaking:
+			_cancel_run_transition()
+			_start_crouch_enter_animation()
+		else:
+			_start_crouch_exit_animation()
+	_locomotion_visual_state = next_state
+	if not _combat_visual_active:
+		_update_locomotion_animation(0.0)
+
+
+func _locomotion_visual_state_from_record(record: Dictionary) -> Dictionary:
 	var locomotion_state: Dictionary = record.get("locomotion_state", {}) if record.get("locomotion_state", {}) is Dictionary else {}
+	var movement_mode := int(record.get("movement_mode", locomotion_state.get("movement_mode", 0)))
 	var animation_state := str(locomotion_state.get("animation_state", ""))
-	if animation_state.is_empty():
-		var movement_mode := int(record.get("movement_mode", 0))
-		animation_state = "sneak_idle" if movement_mode == 2 else "idle"
-	match animation_state:
-		"mining":
-			_ensure_mining_animation()
-			_play_world_animation(MINING_ANIMATION_NAME)
-		"run":
-			_play_world_animation(JOG_ANIMATION_NAME, _animation_speed_scale(float(locomotion_state.get("horizontal_speed", 0.0)), float(locomotion_state.get("speed", 0.0)), 0.9, 1.35))
-		"sneak":
-			_play_world_animation(CROUCH_WALK_ANIMATION_NAME, _animation_speed_scale(float(locomotion_state.get("horizontal_speed", 0.0)), float(locomotion_state.get("speed", 0.0)), 0.85, 1.15))
-		"sneak_idle":
-			_play_world_animation(CROUCH_IDLE_ANIMATION_NAME)
-		"walk":
-			_play_world_animation(WALK_ANIMATION_NAME, _animation_speed_scale(float(locomotion_state.get("horizontal_speed", 0.0)), float(locomotion_state.get("speed", 0.0)), 0.85, 1.25))
-		_:
-			_play_world_animation(IDLE_ANIMATION_NAME)
+	var moving := bool(locomotion_state.get("moving", false))
+	if movement_mode == 2:
+		if animation_state != "sneak" and animation_state != "sneak_idle" and animation_state != "mining":
+			animation_state = "sneak" if moving else "sneak_idle"
+	elif animation_state == "sneak" or animation_state == "sneak_idle" or animation_state.is_empty():
+		animation_state = "run" if movement_mode == 1 and moving else ("walk" if moving else "idle")
+	return {
+		"life_state": int(record.get("life_state", 0)),
+		"movement_mode": movement_mode,
+		"animation_state": animation_state,
+		"moving": moving,
+		"speed": float(locomotion_state.get("speed", 0.0)),
+		"horizontal_speed": float(locomotion_state.get("horizontal_speed", 0.0)),
+	}
 
 
-func _play_world_animation(animation_name: String, speed_scale := 1.0) -> void:
-	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
+func _update_locomotion_animation(delta: float) -> void:
+	if _character_animation_player == null or _locomotion_visual_state.is_empty():
 		return
+	if int(_locomotion_visual_state.get("life_state", 0)) != 0:
+		return
+	var animation_state := str(_locomotion_visual_state.get("animation_state", ""))
+	if animation_state == "mining":
+		_cancel_crouch_transition()
+		_cancel_run_transition()
+		_ensure_mining_animation()
+		_play_world_animation(MINING_ANIMATION_NAME)
+		return
+	var sneaking := _visual_state_is_sneaking(_locomotion_visual_state)
+	var is_moving := _visual_state_is_moving(_locomotion_visual_state)
+	var wants_run_animation := int(_locomotion_visual_state.get("movement_mode", 0)) == 1 and is_moving and not sneaking
+	if _crouch_enter_animation_remaining > 0.0:
+		_update_crouch_enter_animation(delta)
+		return
+	if _crouch_exit_animation_remaining > 0.0:
+		_update_crouch_exit_animation(delta)
+		return
+	if _update_run_transition(delta, wants_run_animation):
+		return
+	var horizontal_speed := float(_locomotion_visual_state.get("horizontal_speed", 0.0))
+	var reference_speed := float(_locomotion_visual_state.get("speed", 0.0))
+	if sneaking:
+		if is_moving:
+			_play_world_animation(CROUCH_WALK_ANIMATION_NAME, _animation_speed_scale(horizontal_speed, reference_speed, 0.85, 1.15))
+		else:
+			_play_world_animation(CROUCH_IDLE_ANIMATION_NAME)
+		return
+	if not is_moving:
+		_play_world_animation(IDLE_ANIMATION_NAME)
+		return
+	match animation_state:
+		"run":
+			_play_world_animation(JOG_ANIMATION_NAME, _animation_speed_scale(horizontal_speed, reference_speed, 0.9, 1.35))
+		"walk":
+			_play_world_animation(WALK_ANIMATION_NAME, _animation_speed_scale(horizontal_speed, reference_speed, 0.85, 1.25))
+		_:
+			_play_world_animation(WALK_ANIMATION_NAME, _animation_speed_scale(horizontal_speed, reference_speed, 0.85, 1.25))
+
+
+func _visual_state_is_sneaking(state: Dictionary) -> bool:
+	var animation_state := str(state.get("animation_state", ""))
+	return int(state.get("movement_mode", 0)) == 2 or animation_state == "sneak" or animation_state == "sneak_idle"
+
+
+func _visual_state_is_moving(state: Dictionary) -> bool:
+	return bool(state.get("moving", false)) and float(state.get("horizontal_speed", 0.0)) > ACTUAL_LOCOMOTION_SPEED_THRESHOLD
+
+
+func _has_active_locomotion_transition() -> bool:
+	return _crouch_enter_animation_remaining > 0.0 or _crouch_exit_animation_remaining > 0.0 or _run_enter_animation_remaining > 0.0 or _run_exit_animation_remaining > 0.0
+
+
+func _update_process_enabled() -> void:
+	set_process(_ragdoll_preroll_active or _ragdoll_requested or _has_active_locomotion_transition())
+
+
+func _start_crouch_enter_animation() -> void:
+	_crouch_exit_animation_remaining = 0.0
+	if _play_world_animation(CROUCH_ENTER_ANIMATION_NAME):
+		_crouch_enter_animation_remaining = _get_character_animation_length(CROUCH_ENTER_ANIMATION_NAME)
+	else:
+		_crouch_enter_animation_remaining = 0.0
+	_update_process_enabled()
+
+
+func _start_crouch_exit_animation() -> void:
+	_crouch_enter_animation_remaining = 0.0
+	if _play_world_animation(CROUCH_EXIT_ANIMATION_NAME):
+		_crouch_exit_animation_remaining = _get_character_animation_length(CROUCH_EXIT_ANIMATION_NAME)
+	else:
+		_crouch_exit_animation_remaining = 0.0
+	_update_process_enabled()
+
+
+func _cancel_crouch_transition() -> void:
+	_crouch_enter_animation_remaining = 0.0
+	_crouch_exit_animation_remaining = 0.0
+	_update_process_enabled()
+
+
+func _update_crouch_enter_animation(delta: float) -> void:
+	_crouch_enter_animation_remaining = maxf(0.0, _crouch_enter_animation_remaining - delta)
+	if _crouch_enter_animation_remaining > 0.0:
+		_play_world_animation(CROUCH_ENTER_ANIMATION_NAME)
+
+
+func _update_crouch_exit_animation(delta: float) -> void:
+	_crouch_exit_animation_remaining = maxf(0.0, _crouch_exit_animation_remaining - delta)
+	if _crouch_exit_animation_remaining > 0.0:
+		_play_world_animation(CROUCH_EXIT_ANIMATION_NAME)
+
+
+func _update_run_transition(delta: float, wants_run_animation: bool) -> bool:
+	if wants_run_animation:
+		_run_exit_animation_remaining = 0.0
+		if not _running_locomotion_active and _run_enter_animation_remaining <= 0.0:
+			_start_run_enter_animation()
+		_running_locomotion_active = true
+		if _run_enter_animation_remaining > 0.0:
+			_update_run_enter_animation(delta)
+			return true
+		return false
+	_run_enter_animation_remaining = 0.0
+	if _running_locomotion_active and _run_exit_animation_remaining <= 0.0:
+		_start_run_exit_animation()
+	_running_locomotion_active = false
+	if _run_exit_animation_remaining > 0.0:
+		_update_run_exit_animation(delta)
+		return true
+	return false
+
+
+func _start_run_enter_animation() -> void:
+	_run_exit_animation_remaining = 0.0
+	if _play_world_animation(RUN_ENTER_ANIMATION_NAME):
+		_run_enter_animation_remaining = _get_character_animation_length(RUN_ENTER_ANIMATION_NAME)
+	else:
+		_run_enter_animation_remaining = 0.0
+	_update_process_enabled()
+
+
+func _start_run_exit_animation() -> void:
+	_run_enter_animation_remaining = 0.0
+	if _play_world_animation(RUN_EXIT_ANIMATION_NAME):
+		_run_exit_animation_remaining = _get_character_animation_length(RUN_EXIT_ANIMATION_NAME)
+	else:
+		_run_exit_animation_remaining = 0.0
+	_update_process_enabled()
+
+
+func _cancel_run_transition() -> void:
+	_run_enter_animation_remaining = 0.0
+	_run_exit_animation_remaining = 0.0
+	_running_locomotion_active = false
+	_update_process_enabled()
+
+
+func _update_run_enter_animation(delta: float) -> void:
+	_run_enter_animation_remaining = maxf(0.0, _run_enter_animation_remaining - delta)
+	if _run_enter_animation_remaining > 0.0:
+		_play_world_animation(RUN_ENTER_ANIMATION_NAME)
+
+
+func _update_run_exit_animation(delta: float) -> void:
+	_run_exit_animation_remaining = maxf(0.0, _run_exit_animation_remaining - delta)
+	if _run_exit_animation_remaining > 0.0:
+		_play_world_animation(RUN_EXIT_ANIMATION_NAME)
+
+
+func _play_world_animation(animation_name: String, speed_scale := 1.0) -> bool:
+	if _character_animation_player == null:
+		return false
+	if not _character_animation_player.has_animation(animation_name) and not _ensure_cached_ual1_animation(animation_name):
+		return false
 	_character_animation_player.speed_scale = maxf(speed_scale, 0.01)
 	if _current_world_animation == animation_name and _character_animation_player.is_playing():
-		return
+		return true
 	_current_world_animation = animation_name
-	_character_animation_player.play(animation_name, 0.12)
+	_character_animation_player.play(animation_name, MOVE_ANIMATION_BLEND_SECONDS)
 	_character_animation_player.advance(0.0)
+	return true
 
 
 func _animation_speed_scale(horizontal_speed: float, reference_speed: float, min_scale: float, max_scale: float) -> float:
@@ -380,6 +645,7 @@ func _request_downed_ragdoll(event_id: String) -> void:
 	if not _begin_downed_ragdoll_preroll():
 		if _can_activate_ragdoll_this_frame():
 			_finish_downed_ragdoll_preroll()
+	_update_process_enabled()
 
 
 func _begin_downed_ragdoll_preroll() -> bool:
@@ -396,6 +662,7 @@ func _begin_downed_ragdoll_preroll() -> bool:
 	_ragdoll_preroll_animation_name = animation_name
 	_ragdoll_preroll_remaining = preroll_duration
 	_play_world_animation(animation_name, 1.0)
+	_update_process_enabled()
 	return true
 
 
@@ -420,6 +687,7 @@ func _cancel_ragdoll_preroll() -> void:
 	_ragdoll_preroll_active = false
 	_ragdoll_preroll_animation_name = ""
 	_ragdoll_preroll_remaining = 0.0
+	_update_process_enabled()
 
 
 func _choose_downed_preroll_animation(event_id := "") -> String:
@@ -898,6 +1166,41 @@ func _copy_animation(source_player: AnimationPlayer, animation_library: Animatio
 	animation_library.add_animation(animation_name, source_animation.duplicate(true) as Animation)
 
 
+func _ensure_cached_ual1_animation(animation_name: String) -> bool:
+	if _character_animation_player == null or animation_name.is_empty():
+		return false
+	if _character_animation_player.has_animation(animation_name):
+		return true
+	var source_animation := _cached_ual1_animation(animation_name)
+	if source_animation == null:
+		return false
+	var animation_library: AnimationLibrary = null
+	if _character_animation_player.has_animation_library(""):
+		animation_library = _character_animation_player.get_animation_library("")
+	if animation_library == null:
+		animation_library = AnimationLibrary.new()
+		_character_animation_player.add_animation_library("", animation_library)
+	if animation_library.has_animation(animation_name):
+		return true
+	animation_library.add_animation(animation_name, source_animation.duplicate(true) as Animation)
+	return true
+
+
+func _cached_ual1_animation(animation_name: String) -> Animation:
+	if _ual1_animation_cache.has(animation_name):
+		return _ual1_animation_cache[animation_name] as Animation
+	var source := UAL1_ANIMATION_SOURCE_SCENE.instantiate()
+	var source_player := _find_animation_player(source)
+	var animation: Animation = null
+	if source_player != null and source_player.has_animation(animation_name):
+		var source_animation := source_player.get_animation(animation_name)
+		if source_animation != null:
+			animation = source_animation.duplicate(true) as Animation
+	_ual1_animation_cache[animation_name] = animation
+	source.queue_free()
+	return animation
+
+
 func _ensure_mining_animation() -> bool:
 	if _character_animation_player == null:
 		return false
@@ -1289,6 +1592,27 @@ func _equipment_signature_for(equipment_slots: Dictionary) -> String:
 	for slot_name in slot_names:
 		parts.append("%s=%s" % [str(slot_name), str(equipment_slots[slot_name])])
 	return "|".join(parts)
+
+
+func _stable_signature_for_value(value) -> String:
+	if value is Dictionary:
+		var parts: Array[String] = []
+		var keys := (value as Dictionary).keys()
+		keys.sort_custom(func(a, b) -> bool: return str(a) < str(b))
+		for key in keys:
+			parts.append("%s=%s" % [str(key), _stable_signature_for_value((value as Dictionary)[key])])
+		return "{%s}" % "|".join(parts)
+	if value is Array:
+		var parts: Array[String] = []
+		for entry in value:
+			parts.append(_stable_signature_for_value(entry))
+		return "[%s]" % "|".join(parts)
+	if value is PackedStringArray:
+		var parts: Array[String] = []
+		for entry in value:
+			parts.append(str(entry))
+		return "[%s]" % "|".join(parts)
+	return var_to_str(value)
 
 
 func _attached_item_paths() -> Array[String]:

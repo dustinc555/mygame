@@ -18,6 +18,7 @@ class_name PopulationRecordDefinition
 @export var hostile_faction_ids: PackedStringArray = PackedStringArray()
 @export var combat_stance := 1
 @export var movement_mode := 0
+@export var move_speed := WorldActorRules.DEFAULT_MOVE_SPEED
 @export var move_order: Dictionary = {}
 @export var locomotion_state: Dictionary = {}
 @export var world_facing_yaw := 0.0
@@ -36,8 +37,9 @@ class_name PopulationRecordDefinition
 @export var fatigue_stage := 0
 @export var hp := 100.0
 @export var max_hp := 100.0
-@export var blood := 5.0
-@export var max_blood := 5.0
+@export var base_max_blood := 100.0
+@export var blood := 100.0
+@export var max_blood := 100.0
 @export var open_cut_damage := 0.0
 @export var bandaged_cut_damage := 0.0
 @export var blunt_damage := 0.0
@@ -87,6 +89,7 @@ func to_record() -> Dictionary:
 		"hostile_faction_ids": Array(hostile_faction_ids),
 		"combat_stance": combat_stance,
 		"movement_mode": movement_mode,
+		"move_speed": move_speed,
 		"move_order": move_order.duplicate(true),
 		"locomotion_state": locomotion_state.duplicate(true),
 		"world_facing_yaw": world_facing_yaw,
@@ -105,6 +108,7 @@ func to_record() -> Dictionary:
 		"fatigue_stage": fatigue_stage,
 		"hp": hp,
 		"max_hp": max_hp,
+		"base_max_blood": base_max_blood,
 		"blood": blood,
 		"max_blood": max_blood,
 		"open_cut_damage": open_cut_damage,

@@ -12,6 +12,7 @@ class_name WorldDefinition
 @export var starting_relations: Array[Resource] = []
 @export var squad_templates: Array[Resource] = []
 @export var starting_population_records: Array[Resource] = []
+@export var starting_population_record_overrides: Dictionary = {}
 
 
 func get_id() -> String:
@@ -54,6 +55,10 @@ func get_starting_population_records() -> Array[Resource]:
 		if record is Resource:
 			records.append(record)
 	return records
+
+
+func get_starting_population_record_overrides() -> Dictionary:
+	return starting_population_record_overrides.duplicate(true)
 
 
 func _add_faction_definition(definitions: Array[Resource], seen_ids: Dictionary, definition: Resource) -> void:

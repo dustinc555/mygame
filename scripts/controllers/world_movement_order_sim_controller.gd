@@ -2,15 +2,11 @@ extends Node
 
 class_name WorldMovementOrderSimController
 
+const WORLD_ACTOR_RULES := preload("res://scripts/world_sim/world_actor_rules.gd")
+
 const MOVEMENT_MODE_WALK := 0
 const MOVEMENT_MODE_RUN := 1
 const MOVEMENT_MODE_SNEAK := 2
-const SNEAK_MOVE_SPEED_MIN_MULTIPLIER := 0.45
-const SNEAK_MOVE_SPEED_MAX_MULTIPLIER := 1.45
-const SNEAK_MOVE_SPEED_MASTER_LEVEL := 80.0
-const SNEAK_MOVE_SPEED_CURVE := 0.75
-const SKILL_MOVEMENT_RUNNING := "movement.running"
-const SKILL_SUBTERFUGE_SNEAKING := "subterfuge.sneaking"
 const INTERACTION_PICKUP_STACK := "pickup_stack"
 const INTERACTION_MINE_RESOURCE := "mine_resource"
 const MINING_ORE_WORTH_FOR_FIRST_LEVEL := 4.0
@@ -18,7 +14,7 @@ const MINING_STRENGTH_XP_FACTOR := 0.08
 const MINING_STRENGTH_SPEED_BONUS_CAP := 0.12
 const MINING_STRENGTH_SPEED_BONUS_CURVE := 45.0
 
-@export_range(0.1, 20.0, 0.1) var base_walk_speed := 4.4
+@export_range(0.1, 20.0, 0.1) var base_walk_speed := WorldActorRules.DEFAULT_MOVE_SPEED
 @export_range(0.01, 3.0, 0.01) var arrival_threshold := 0.12
 @export_range(0.01, 20.0, 0.01) var vertical_snap_speed := 6.0
 @export var performance_logging_enabled := false
@@ -88,7 +84,6 @@ func _advance_record(source_record: Dictionary, fixed_delta: float) -> Dictionar
 	if actor_id.is_empty():
 		return {}
 	if not order_active:
-		_stop_projection_runtime_move(actor_id)
 		var work_action: Dictionary = source_record.get("work_action", {}) if source_record.get("work_action", {}) is Dictionary else {}
 		var work_result := _advance_work_action(source_record, work_action, fixed_delta)
 		if not work_result.is_empty():
@@ -105,9 +100,6 @@ func _advance_record(source_record: Dictionary, fixed_delta: float) -> Dictionar
 		move_order = move_order.duplicate(true)
 		move_order["active"] = false
 		return {"record": _movement_patch(actor_id, {"move_order": move_order, "locomotion_state": _idle_locomotion_state(source_record, "invalid_target")}), "was_active": true, "moved": false, "arrived": false}
-	var projection_result := _advance_projected_move_order(actor_id, source_record, fixed_delta)
-	if not projection_result.is_empty():
-		return projection_result
 	var target_position: Vector3 = target
 	var current_position := _record_position(source_record)
 	var horizontal_delta := Vector2(target_position.x - current_position.x, target_position.z - current_position.z)
@@ -144,67 +136,17 @@ func _advance_record(source_record: Dictionary, fixed_delta: float) -> Dictionar
 		"world_facing_yaw": atan2(direction.x, direction.z),
 		"world_facing_yaw_initialized": true,
 		"locomotion_state": {
-		"active": true,
-		"moving": true,
-		"source": "move_order",
-		"movement_mode": movement_mode,
-		"animation_state": _animation_state_for_mode(movement_mode),
-		"speed": speed,
-		"horizontal_speed": speed,
-		"world_direction": direction,
-		"target_position": target_position,
+			"active": true,
+			"moving": true,
+			"source": "move_order",
+			"movement_mode": movement_mode,
+			"animation_state": _animation_state_for_mode(movement_mode),
+			"speed": speed,
+			"horizontal_speed": speed,
+			"world_direction": direction,
+			"target_position": target_position,
 		},
 	}), "was_active": true, "moved": true, "arrived": false}
-
-
-func _advance_projected_move_order(actor_id: String, source_record: Dictionary, fixed_delta: float) -> Dictionary:
-	var projection := _projection_for_actor(actor_id)
-	if projection == null or not projection.has_method("advance_move_order"):
-		return {}
-	var result = projection.call("advance_move_order", source_record, fixed_delta)
-	if not (result is Dictionary):
-		return {}
-	var move_result: Dictionary = result
-	var move_order: Dictionary = source_record.get("move_order", {}) if source_record.get("move_order", {}) is Dictionary else {}
-	if bool(move_result.get("arrived", false)):
-		move_order = move_order.duplicate(true)
-		move_order["active"] = false
-		var arrival_position: Vector3 = move_result.get("position", _record_position(source_record))
-		var arrival_patch := {
-			"move_order": move_order,
-			"last_world_position": arrival_position,
-			"last_world_position_initialized": true,
-			"world_facing_yaw": float(move_result.get("facing_yaw", source_record.get("world_facing_yaw", 0.0))),
-			"world_facing_yaw_initialized": true,
-			"ledger_activity_state": "player_move_order_complete",
-			"locomotion_state": _idle_locomotion_state(source_record, "arrived"),
-		}
-		_apply_arrival_interaction(actor_id, move_order, arrival_patch)
-		return {"record": _movement_patch(actor_id, arrival_patch), "was_active": true, "moved": true, "arrived": true}
-	if bool(move_result.get("blocked", false)):
-		move_order = move_order.duplicate(true)
-		move_order["active"] = false
-		return {"record": _movement_patch(actor_id, {"move_order": move_order, "locomotion_state": _idle_locomotion_state(source_record, str(move_result.get("reason", "blocked")))}), "was_active": true, "moved": false, "arrived": false}
-	var movement_mode := int(move_result.get("movement_mode", move_order.get("movement_mode", source_record.get("movement_mode", MOVEMENT_MODE_WALK))))
-	var moving := bool(move_result.get("moving", false))
-	var locomotion_patch := {
-		"active": moving,
-		"moving": moving,
-		"source": "move_order",
-		"movement_mode": movement_mode,
-		"animation_state": _animation_state_for_mode(movement_mode) if moving else ("sneak_idle" if movement_mode == MOVEMENT_MODE_SNEAK else "idle"),
-		"speed": float(move_result.get("speed", 0.0)),
-		"horizontal_speed": float(move_result.get("horizontal_speed", 0.0)),
-		"world_direction": move_result.get("direction", Vector3.ZERO),
-		"target_position": move_order.get("target_position", Vector3.ZERO),
-	}
-	return {"record": _movement_patch(actor_id, {
-		"realization_state": "projected_commanded",
-		"ledger_activity_state": "player_move_order",
-		"world_facing_yaw": float(move_result.get("facing_yaw", source_record.get("world_facing_yaw", 0.0))),
-		"world_facing_yaw_initialized": true,
-		"locomotion_state": locomotion_patch,
-	}), "was_active": true, "moved": moving, "arrived": false}
 
 
 func _apply_arrival_interaction(actor_id: String, move_order: Dictionary, arrival_patch: Dictionary) -> void:
@@ -214,7 +156,15 @@ func _apply_arrival_interaction(actor_id: String, move_order: Dictionary, arriva
 		return
 	match str(interaction_action.get("type", "")).strip_edges():
 		INTERACTION_PICKUP_STACK:
-			var result := _apply_inventory_command({"action": "pickup_stack", "actor_id": actor_id, "stack_id": str(interaction_action.get("stack_id", ""))})
+			var stack_id := str(interaction_action.get("stack_id", ""))
+			var ownership_result := _can_ownership_take(actor_id, stack_id)
+			var result := ownership_result
+			if bool(ownership_result.get("ok", true)):
+				result = _apply_inventory_command({"action": "pickup_stack", "actor_id": actor_id, "stack_id": stack_id})
+				if bool(result.get("ok", false)):
+					_commit_ownership_take(actor_id, stack_id, ownership_result)
+			else:
+				_commit_denied_ownership_take(actor_id, stack_id, ownership_result)
 			arrival_patch["ledger_activity_state"] = "pickup_complete" if bool(result.get("ok", false)) else "pickup_failed"
 			arrival_patch["last_interaction_result"] = result
 			arrival_patch["work_action"] = {"active": false}
@@ -402,21 +352,7 @@ func _award_mining_progress_xp(record: Dictionary, patch: Dictionary, progress_d
 
 
 func _add_skill_xp_to_patch(record: Dictionary, patch: Dictionary, skill_id: String, amount: float) -> void:
-	if skill_id.strip_edges().is_empty() or amount <= 0.0:
-		return
-	var skill_levels: Dictionary = (patch.get("skill_levels", record.get("skill_levels", {})) as Dictionary).duplicate(true)
-	var skill_xp: Dictionary = (patch.get("skill_xp", record.get("skill_xp", {})) as Dictionary).duplicate(true)
-	var level := int(skill_levels.get(skill_id, SkillRules.get_default_level(skill_id)))
-	var xp := float(skill_xp.get(skill_id, 0.0)) + amount
-	var xp_to_next := SkillRules.get_xp_to_next_level(level)
-	while xp >= xp_to_next and xp_to_next > 0.0:
-		xp -= xp_to_next
-		level += 1
-		xp_to_next = SkillRules.get_xp_to_next_level(level)
-	skill_levels[skill_id] = level
-	skill_xp[skill_id] = xp
-	patch["skill_levels"] = skill_levels
-	patch["skill_xp"] = skill_xp
+	WORLD_ACTOR_RULES.add_skill_xp_to_patch(record, patch, skill_id, amount)
 
 
 func _skill_level(record: Dictionary, skill_id: String) -> int:
@@ -434,26 +370,11 @@ func _animation_state_for_mode(movement_mode: int) -> String:
 
 
 func _move_speed(record: Dictionary, movement_mode: int) -> float:
-	match movement_mode:
-		MOVEMENT_MODE_RUN:
-			return base_walk_speed * _run_speed_multiplier(record)
-		MOVEMENT_MODE_SNEAK:
-			return base_walk_speed * _sneak_move_speed_multiplier(record)
-	return base_walk_speed
-
-
-func _run_speed_multiplier(record: Dictionary) -> float:
-	var skill_levels: Dictionary = record.get("skill_levels", {}) if record.get("skill_levels", {}) is Dictionary else {}
-	var level := float(skill_levels.get(SKILL_MOVEMENT_RUNNING, SkillRules.DEFAULT_LEVEL))
-	return NpcRules.RUN_SPEED_MULTIPLIER + SkillRules.get_diminishing_bonus(level, 0.42, 55.0)
-
-
-func _sneak_move_speed_multiplier(record: Dictionary) -> float:
-	var skill_levels: Dictionary = record.get("skill_levels", {}) if record.get("skill_levels", {}) is Dictionary else {}
-	var sneak_level := float(skill_levels.get(SKILL_SUBTERFUGE_SNEAKING, SkillRules.DEFAULT_LEVEL))
-	var ratio := clampf((sneak_level - float(SkillRules.DEFAULT_LEVEL)) / maxf(SNEAK_MOVE_SPEED_MASTER_LEVEL - float(SkillRules.DEFAULT_LEVEL), 0.001), 0.0, 1.0)
-	var mastery := pow(ratio, SNEAK_MOVE_SPEED_CURVE)
-	return lerpf(SNEAK_MOVE_SPEED_MIN_MULTIPLIER, SNEAK_MOVE_SPEED_MAX_MULTIPLIER, mastery)
+	var speed_record := record
+	if not speed_record.has("move_speed"):
+		speed_record = record.duplicate(false)
+		speed_record["move_speed"] = base_walk_speed
+	return WORLD_ACTOR_RULES.move_speed_for_mode(speed_record, movement_mode)
 
 
 func _record_position(record: Dictionary) -> Vector3:
@@ -470,27 +391,13 @@ func _get_gecs_world() -> Node:
 	return get_tree().get_first_node_in_group("gecs_world_controller") if is_inside_tree() else null
 
 
-func _projection_for_actor(actor_id: String) -> Node:
-	var projection_controller := _get_projection_controller()
-	if projection_controller != null and projection_controller.has_method("get_projection_for_actor"):
-		var projection = projection_controller.call("get_projection_for_actor", actor_id)
-		return projection as Node if projection is Node else null
-	return null
-
-
-func _stop_projection_runtime_move(actor_id: String) -> void:
-	var projection := _projection_for_actor(actor_id)
-	if projection != null and projection.has_method("stop_runtime_move_order"):
-		projection.call("stop_runtime_move_order")
-
-
-func _get_projection_controller() -> Node:
+func _get_ownership_controller() -> Node:
 	var parent_node := get_parent()
 	if parent_node != null:
-		var local := parent_node.get_node_or_null("WorldActorProjectionController")
+		var local := parent_node.get_node_or_null("OwnershipController")
 		if local != null:
 			return local
-	return get_tree().get_first_node_in_group("world_actor_projection_controller") if is_inside_tree() else null
+	return get_tree().get_first_node_in_group("ownership_controller") if is_inside_tree() else null
 
 
 func _get_population_records_core(bridge: Node) -> Dictionary:
@@ -529,6 +436,26 @@ func _apply_inventory_command(command: Dictionary) -> Dictionary:
 		return {"ok": false, "message": "Missing GECS inventory"}
 	var result = bridge.call("apply_inventory_command", command)
 	return result if result is Dictionary else {"ok": false, "message": "Invalid inventory result"}
+
+
+func _can_ownership_take(actor_id: String, stack_id: String) -> Dictionary:
+	var ownership := _get_ownership_controller()
+	if ownership == null or not ownership.has_method("can_take_stack"):
+		return {"ok": true, "message": "Ownership unavailable"}
+	var result = ownership.call("can_take_stack", actor_id, stack_id)
+	return result if result is Dictionary else {"ok": false, "message": "Invalid ownership result"}
+
+
+func _commit_ownership_take(actor_id: String, stack_id: String, preflight_result: Dictionary) -> void:
+	var ownership := _get_ownership_controller()
+	if ownership != null and ownership.has_method("commit_take_stack"):
+		ownership.call("commit_take_stack", actor_id, stack_id, preflight_result)
+
+
+func _commit_denied_ownership_take(actor_id: String, stack_id: String, preflight_result: Dictionary) -> void:
+	var ownership := _get_ownership_controller()
+	if ownership != null and ownership.has_method("commit_denied_take_stack"):
+		ownership.call("commit_denied_take_stack", actor_id, stack_id, preflight_result)
 
 
 func _log_perf_duration(label: String, started_at_usec: int, metadata: Dictionary = {}) -> void:

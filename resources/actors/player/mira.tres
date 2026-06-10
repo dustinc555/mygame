@@ -6,15 +6,18 @@
 script = ExtResource("1_record")
 actor_id = "player.mira"
 stable_id = "player.mira"
-generation_source = "demo_party"
-generation_index = 1
+generation_source = "player_actor"
 member_name = "Mira"
 faction_id = "Player"
 squad_name = "PlayerParty"
 party_id = "player_party"
+role_id = "party_member"
 player_party_member = true
 player_controllable = true
-hostile_faction_ids = PackedStringArray("Rustdead", "EastRaiders")
+projection_kind = "humanoid"
+combat_stance = 1
+movement_mode = 0
+move_speed = 3.2
 base_color = Color(0.72, 0.48, 0.78, 1)
 skill_levels = {
 "attribute.charisma": 45,
@@ -29,20 +32,18 @@ skill_levels = {
 "movement.running": 50,
 "subterfuge.sneaking": 45
 }
-traits = {
-"demo_party": true,
-"projection_ready": true
-}
 personality = {
 "discipline": 0.68,
 "nerve": 0.72
 }
 hp = 118.0
 max_hp = 118.0
+base_max_blood = 100.0
+blood = 100.0
+max_blood = 100.0
+life_state = 0
 base_attack_damage = 20.0
 base_block_chance = 0.1
-last_world_position = Vector3(376.9, 0.6, 114.3)
-last_world_position_initialized = true
 important = true
 appearance = {
 "beard_color": Color(0.16, 0.11, 0.07, 1),
@@ -58,42 +59,3 @@ appearance = {
 "skin_color_customized": true,
 "visual_body_type": 3
 }
-equipment_slots = {
-"chest": "res://resources/items/equipment/armor/chest/ranger_jerkin.tres",
-"feet": "res://resources/items/equipment/armor/feet/ranger_boots.tres",
-"head": "res://resources/items/equipment/armor/head/ranger_hood.tres",
-"legs": "res://resources/items/equipment/armor/legs/ranger_leggings.tres",
-"offhand": "res://resources/items/equipment/offhand/shields/round_shield.tres",
-"weapon": "res://resources/items/equipment/weapons/swords/steel_sword.tres"
-}
-inventory_entries = [{
-"contained_item_counts": {},
-"count": 1,
-"grid_position": Vector2i(0, 0),
-"item_id": "res://resources/items/consumables/bandage.tres",
-"metadata": {}
-}, {
-"contained_item_counts": {},
-"count": 1,
-"grid_position": Vector2i(2, 0),
-"item_id": "res://resources/items/consumables/bandage.tres",
-"metadata": {}
-}, {
-"contained_item_counts": {},
-"count": 1,
-"grid_position": Vector2i(4, 0),
-"item_id": "res://resources/items/tools/cinder_flask.tres",
-"metadata": {}
-}, {
-"contained_item_counts": {},
-"count": 1,
-"grid_position": Vector2i(5, 0),
-"item_id": "res://resources/items/consumables/bread.tres",
-"metadata": {}
-}, {
-"contained_item_counts": {},
-"count": 1,
-"grid_position": Vector2i(0, 2),
-"item_id": "res://resources/items/consumables/bread.tres",
-"metadata": {}
-}]

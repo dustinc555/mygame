@@ -2,6 +2,8 @@ extends RefCounted
 
 class_name BattleSim
 
+const WORLD_ACTOR_RULES := preload("res://scripts/world_sim/world_actor_rules.gd")
+
 const DEFAULT_ROUND_COUNT := 3
 const DEFAULT_MAX_COMPLETION_BEATS := 96
 const MIN_POWER := 0.001
@@ -220,7 +222,8 @@ static func _fallback_combat_profile(record: Dictionary) -> Dictionary:
 
 
 static func _member_profile(record: Dictionary, squad_id: String) -> Dictionary:
-	var skill_levels: Dictionary = record.get("skill_levels", {}) if record.get("skill_levels", {}) is Dictionary else {}
+	var actor_record := WORLD_ACTOR_RULES.normalize_population_record(record)
+	var skill_levels: Dictionary = actor_record.get("skill_levels", {}) if actor_record.get("skill_levels", {}) is Dictionary else {}
 	var best_weapon_skill := maxf(
 		maxf(_skill_level(skill_levels, COMBAT_SWORDS_ONE_HANDED), _skill_level(skill_levels, COMBAT_AXES_ONE_HANDED)),
 		maxf(_skill_level(skill_levels, COMBAT_DAGGERS), _skill_level(skill_levels, COMBAT_UNARMED))
@@ -233,19 +236,19 @@ static func _member_profile(record: Dictionary, squad_id: String) -> Dictionary:
 	var endurance := _skill_level(skill_levels, ATTRIBUTE_ENDURANCE)
 	var offense := 1.0 + best_weapon_skill * 1.2 + strength * 0.7 + dexterity * 0.55 + perception * 0.35
 	var defense := 1.0 + toughness * 0.75 + endurance * 0.55 + dexterity * 0.35 + shields * 0.45
-	offense += maxf(_record_combat_stat(record, "attack_damage", "base_attack_damage"), 0.0) * 0.08
-	defense *= _chance_factor(_record_combat_stat(record, "dodge_chance", "base_dodge_chance"), 0.35)
-	defense *= _chance_factor(_record_combat_stat(record, "block_chance", "base_block_chance"), 0.45)
-	var life_state := _life_state(record.get("life_state", LIFE_STATE_ALIVE))
-	var max_hp := maxf(float(record.get("max_hp", 100.0)), 1.0)
-	var hp := clampf(float(record.get("hp", max_hp)), 0.0, max_hp)
-	var max_blood := maxf(float(record.get("max_blood", 5.0)), 0.001)
-	var blood := clampf(float(record.get("blood", max_blood)), 0.0, max_blood)
-	var world_position_value = record.get("last_world_position", record.get("world_position", Vector3.ZERO))
+	offense += maxf(_record_combat_stat(actor_record, "attack_damage", "base_attack_damage"), 0.0) * 0.08
+	defense *= _chance_factor(_record_combat_stat(actor_record, "dodge_chance", "base_dodge_chance"), 0.35)
+	defense *= _chance_factor(_record_combat_stat(actor_record, "block_chance", "base_block_chance"), 0.45)
+	var life_state := _life_state(actor_record.get("life_state", LIFE_STATE_ALIVE))
+	var max_hp := maxf(float(actor_record.get("max_hp", 100.0)), 1.0)
+	var hp := clampf(float(actor_record.get("hp", max_hp)), WORLD_ACTOR_RULES.get_death_point(actor_record), max_hp)
+	var max_blood := maxf(float(actor_record.get("max_blood", 100.0)), 0.001)
+	var blood := clampf(float(actor_record.get("blood", max_blood)), WORLD_ACTOR_RULES.get_blood_death_point(actor_record), max_blood)
+	var world_position_value = actor_record.get("last_world_position", actor_record.get("world_position", Vector3.ZERO))
 	var world_position := Vector3.ZERO
 	if world_position_value is Vector3:
 		world_position = world_position_value
-	var stance := _combat_stance(record.get("combat_stance", COMBAT_STANCE_DEFENSIVE))
+	var stance := _combat_stance(actor_record.get("combat_stance", COMBAT_STANCE_DEFENSIVE))
 	var initiative_factor := 1.0
 	var survival_factor := 1.0
 	match stance:
@@ -260,25 +263,32 @@ static func _member_profile(record: Dictionary, squad_id: String) -> Dictionary:
 		COMBAT_STANCE_PASSIVE:
 			offense *= 0.65
 			initiative_factor = 0.65
-	var condition := _condition_factor(record)
-	var can_participate := _life_state_can_participate(life_state) and _vitals_allow_participation(record)
+	var condition := WORLD_ACTOR_RULES.condition_factor(actor_record)
+	var can_participate := _life_state_can_participate(life_state) and WORLD_ACTOR_RULES.can_participate(actor_record)
 	var raw_power := (offense * 0.58 + defense * 0.42) * condition * initiative_factor
 	var power := pow(maxf(raw_power, 1.0), MEMBER_POWER_EXPONENT) if can_participate else 0.0
 	return {
 		"member_id": _member_id(record),
-		"actor_id": str(record.get("actor_id", "")).strip_edges(),
-		"stable_id": str(record.get("stable_id", "")).strip_edges(),
-		"member_name": str(record.get("member_name", record.get("actor_id", ""))).strip_edges(),
+		"actor_id": str(actor_record.get("actor_id", "")).strip_edges(),
+		"stable_id": str(actor_record.get("stable_id", "")).strip_edges(),
+		"member_name": str(actor_record.get("member_name", actor_record.get("actor_id", ""))).strip_edges(),
 		"squad_id": squad_id,
-		"faction_id": str(record.get("faction_id", "")).strip_edges(),
+		"faction_id": str(actor_record.get("faction_id", "")).strip_edges(),
 		"life_state": life_state,
 		"hp": hp,
 		"max_hp": max_hp,
+		"base_max_blood": float(actor_record.get("base_max_blood", max_blood)),
 		"blood": blood,
 		"max_blood": max_blood,
+		"open_cut_damage": float(actor_record.get("open_cut_damage", 0.0)),
+		"bandaged_cut_damage": float(actor_record.get("bandaged_cut_damage", 0.0)),
+		"blunt_damage": float(actor_record.get("blunt_damage", 0.0)),
+		"bleed_rate": float(actor_record.get("bleed_rate", 0.0)),
+		"skill_levels": skill_levels.duplicate(true),
+		"skill_xp": (actor_record.get("skill_xp", {}) as Dictionary).duplicate(true) if actor_record.get("skill_xp", {}) is Dictionary else {},
 		"world_position": world_position,
 		"has_world_position": world_position_value is Vector3,
-		"base_attack_damage": maxf(_record_combat_stat(record, "attack_damage", "base_attack_damage"), 0.0),
+		"base_attack_damage": maxf(_record_combat_stat(actor_record, "attack_damage", "base_attack_damage"), 0.0),
 		"combat_stance": stance,
 		"can_participate": can_participate,
 		"condition": condition,
@@ -320,8 +330,9 @@ static func _resolve_completion(profile_a: Dictionary, profile_b: Dictionary, po
 		var damage := _completion_hit_damage(attacker_profile, defender_profile, rng)
 		var defender_id := _member_group_id(defender_profile)
 		var defender_state: Dictionary = state_by_id.get(defender_id, {}) if state_by_id.get(defender_id, {}) is Dictionary else {}
-		var defender_hp_after := maxf(float(defender_state.get("hp", defender_profile.get("hp", 0.0))) - damage, 0.0)
-		defender_state["hp"] = defender_hp_after
+		var damage_patch := WORLD_ACTOR_RULES.apply_damage_to_record(defender_state, damage, 0.0, true)
+		defender_state.merge(damage_patch, true)
+		var defender_hp_after := float(defender_state.get("hp", defender_profile.get("hp", 0.0)))
 		state_by_id[defender_id] = defender_state
 		_append_completion_beat(beats, encounter_id, current_tick, attacker_profile, defender_profile, attacker_squad_id, defender_squad_id, engagement_group, slot_id_by_occupant, damage, defender_hp_after)
 		attacker_is_a = _next_completion_attacker_is_a(attacker_is_a, _remaining_completion_power(side_a, state_by_id, power_a), _remaining_completion_power(side_b, state_by_id, power_b), rng)
@@ -377,10 +388,7 @@ static func _completion_member_state_by_id(side_a: Array[Dictionary], side_b: Ar
 		var member_id := _member_group_id(member)
 		if member_id.is_empty():
 			continue
-		result[member_id] = {
-			"hp": maxf(float(member.get("hp", member.get("max_hp", 100.0))), 0.0),
-			"max_hp": maxf(float(member.get("max_hp", 100.0)), 1.0),
-		}
+		result[member_id] = WORLD_ACTOR_RULES.normalize_population_record(member)
 	return result
 
 
@@ -389,7 +397,7 @@ static func _active_completion_members(members: Array[Dictionary], state_by_id: 
 	for member in members:
 		var member_id := _member_group_id(member)
 		var state: Dictionary = state_by_id.get(member_id, {}) if state_by_id.get(member_id, {}) is Dictionary else {}
-		if float(state.get("hp", member.get("hp", 0.0))) > 0.0:
+		if WORLD_ACTOR_RULES.can_participate(state):
 			result.append(member)
 	return result
 
@@ -399,11 +407,9 @@ static func _remaining_completion_power(members: Array[Dictionary], state_by_id:
 	for member in members:
 		var member_id := _member_group_id(member)
 		var state: Dictionary = state_by_id.get(member_id, {}) if state_by_id.get(member_id, {}) is Dictionary else {}
-		var hp := float(state.get("hp", member.get("hp", 0.0)))
-		if hp <= 0.0:
+		if not WORLD_ACTOR_RULES.can_participate(state):
 			continue
-		var max_hp := maxf(float(state.get("max_hp", member.get("max_hp", 100.0))), 1.0)
-		total += maxf(float(member.get("power", 0.0)), 0.0) * clampf(hp / max_hp, 0.0, 1.0)
+		total += maxf(float(member.get("power", 0.0)), 0.0) * WORLD_ACTOR_RULES.condition_factor(state)
 	return total if total > 0.0 else maxf(fallback_power, 0.0)
 
 
@@ -420,7 +426,7 @@ static func _pick_completion_group(engagement_groups: Array[Dictionary], attacke
 static func _group_has_active_squad_members(group: Dictionary, squad_id: String, state_by_id: Dictionary) -> bool:
 	for member_id in _group_member_ids_for_squad(group, squad_id):
 		var state: Dictionary = state_by_id.get(member_id, {}) if state_by_id.get(member_id, {}) is Dictionary else {}
-		if float(state.get("hp", 0.0)) > 0.0:
+		if WORLD_ACTOR_RULES.can_participate(state):
 			return true
 	return false
 
@@ -468,8 +474,8 @@ static func _completion_casualties_for_side(members: Array[Dictionary], squad_id
 	for member in members:
 		var member_id := _member_group_id(member)
 		var state: Dictionary = state_by_id.get(member_id, {}) if state_by_id.get(member_id, {}) is Dictionary else {}
-		if float(state.get("hp", member.get("hp", 0.0))) <= 0.0:
-			result.append(_completion_casualty_record(member, squad_id))
+		if not WORLD_ACTOR_RULES.can_participate(state):
+			result.append(_completion_casualty_record(member, squad_id, state))
 	return result
 
 
@@ -566,18 +572,35 @@ static func _append_completion_flee_beat(beats: Array[Dictionary], encounter_id:
 	})
 
 
-static func _completion_casualty_record(member: Dictionary, squad_id: String) -> Dictionary:
+static func _completion_casualty_record(member: Dictionary, squad_id: String, state: Dictionary = {}) -> Dictionary:
+	var life_state := int(state.get("life_state", member.get("life_state", LIFE_STATE_UNCONSCIOUS)))
+	var casualty_state := _casualty_state_for_life_state(life_state)
 	return {
 		"member_id": str(member.get("member_id", "")),
 		"actor_id": str(member.get("actor_id", "")),
 		"stable_id": str(member.get("stable_id", "")),
 		"member_name": str(member.get("member_name", "")),
 		"squad_id": squad_id,
-		"casualty_state": "dying",
-		"life_state": LIFE_STATE_DYING,
+		"casualty_state": casualty_state,
+		"life_state": life_state,
 		"fatal": false,
 		"power_before": float(member.get("power", 0.0)),
+		"hp": float(state.get("hp", member.get("hp", 0.0))),
+		"blood": float(state.get("blood", member.get("blood", 0.0))),
 	}
+
+
+static func _casualty_state_for_life_state(life_state: int) -> String:
+	match life_state:
+		LIFE_STATE_DEAD:
+			return "dead"
+		LIFE_STATE_DYING:
+			return "dying"
+		LIFE_STATE_RECOVERY_COMA:
+			return "recovery_coma"
+		LIFE_STATE_UNCONSCIOUS:
+			return "unconscious"
+	return "unconscious"
 
 
 static func _effective_power(profile: Dictionary, record: Dictionary, encounter_record: Dictionary, rng: RandomNumberGenerator) -> float:
@@ -667,8 +690,8 @@ static func _member_casualties_for(profile: Dictionary, casualty_count: int, los
 			"stable_id": str(member.get("stable_id", "")),
 			"member_name": str(member.get("member_name", "")),
 			"squad_id": str(profile.get("squad_id", "")),
-			"casualty_state": "dying",
-			"life_state": LIFE_STATE_DYING,
+			"casualty_state": "unconscious",
+			"life_state": LIFE_STATE_UNCONSCIOUS,
 			"fatal": false,
 			"power_before": float(member.get("power", 0.0)),
 		})
@@ -781,11 +804,12 @@ static func _combat_slot_plan(encounter_record: Dictionary, encounter_id: String
 	var slot_index := 1
 	var encounter_center := _encounter_center(encounter_record)
 	var group_count := engagement_groups.size()
+	var preferred_center_counts := _preferred_group_center_counts(engagement_groups)
 	for group_array_index in range(engagement_groups.size()):
 		var group: Dictionary = engagement_groups[group_array_index]
 		var preferred_center = group.get("preferred_group_center", null)
 		var group_center := encounter_center + _combat_group_center_offset(group_array_index, group_count)
-		if preferred_center is Vector3:
+		if preferred_center is Vector3 and int(preferred_center_counts.get(_vector3_signature(preferred_center), 0)) <= 1:
 			group_center = preferred_center
 		var group_slot_ids: Array[String] = []
 		group["group_center"] = group_center
@@ -802,6 +826,21 @@ static func _combat_slot_plan(encounter_record: Dictionary, encounter_id: String
 		"combat_slots": combat_slots,
 		"slot_id_by_occupant": slot_id_by_occupant,
 	}
+
+
+static func _preferred_group_center_counts(engagement_groups: Array[Dictionary]) -> Dictionary:
+	var counts := {}
+	for group in engagement_groups:
+		var preferred_center = group.get("preferred_group_center", null)
+		if not (preferred_center is Vector3):
+			continue
+		var key := _vector3_signature(preferred_center)
+		counts[key] = int(counts.get(key, 0)) + 1
+	return counts
+
+
+static func _vector3_signature(value: Vector3) -> String:
+	return "%.3f:%.3f:%.3f" % [value.x, value.y, value.z]
 
 
 static func _append_combat_slot(combat_slots: Dictionary, slot_id_by_occupant: Dictionary, group_slot_ids: Array[String], slot_index: int, encounter_id: String, group: Dictionary, group_center: Vector3, side: String, occupant_id: String, side_index: int, side_count: int, opposing_count: int) -> int:
@@ -1272,24 +1311,11 @@ static func _skill_level(skill_levels: Dictionary, skill_id: String) -> float:
 
 
 static func _condition_factor(record: Dictionary) -> float:
-	var condition := 1.0
-	var max_hp := float(record.get("max_hp", 0.0))
-	if max_hp > 0.0:
-		condition = minf(condition, clampf(float(record.get("hp", max_hp)) / max_hp, 0.0, 1.0))
-	var max_blood := float(record.get("max_blood", 0.0))
-	if max_blood > 0.0:
-		condition = minf(condition, clampf(float(record.get("blood", max_blood)) / max_blood, 0.0, 1.0))
-	return condition
+	return WORLD_ACTOR_RULES.condition_factor(record)
 
 
 static func _vitals_allow_participation(record: Dictionary) -> bool:
-	var max_hp := float(record.get("max_hp", 0.0))
-	if max_hp > 0.0 and float(record.get("hp", max_hp)) <= 0.0:
-		return false
-	var max_blood := float(record.get("max_blood", 0.0))
-	if max_blood > 0.0 and float(record.get("blood", max_blood)) <= 0.0:
-		return false
-	return true
+	return WORLD_ACTOR_RULES.can_participate(record)
 
 
 static func _life_state_can_participate(life_state: int) -> bool:

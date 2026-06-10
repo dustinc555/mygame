@@ -26,8 +26,15 @@ func apply_sim_commands(commands: Array[Dictionary]) -> void:
 	for command in commands:
 		if command.is_empty():
 			continue
-		var result = bridge.call("apply_inventory_command", command)
-		var result_dict: Dictionary = result if result is Dictionary else {"ok": false, "message": "Invalid result"}
+		var preflight_result := _preflight_inventory_command(command)
+		var result_dict := preflight_result
+		if bool(preflight_result.get("ok", true)):
+			var result = bridge.call("apply_inventory_command", command)
+			result_dict = result if result is Dictionary else {"ok": false, "message": "Invalid result"}
+			if bool(result_dict.get("ok", false)):
+				_commit_inventory_command(command, preflight_result)
+		else:
+			_commit_denied_inventory_command(command, preflight_result)
 		if bool(result_dict.get("ok", false)):
 			applied_count += 1
 		else:
@@ -50,6 +57,45 @@ func get_sim_state() -> Dictionary:
 	return _last_state.duplicate(true)
 
 
+func _preflight_inventory_command(command: Dictionary) -> Dictionary:
+	match str(command.get("action", "")).strip_edges():
+		"pickup_stack":
+			return _can_ownership_take(str(command.get("actor_id", "")).strip_edges(), str(command.get("stack_id", "")).strip_edges())
+	return {"ok": true, "message": ""}
+
+
+func _commit_inventory_command(command: Dictionary, preflight_result: Dictionary) -> void:
+	match str(command.get("action", "")).strip_edges():
+		"pickup_stack":
+			_commit_ownership_take(str(command.get("actor_id", "")).strip_edges(), str(command.get("stack_id", "")).strip_edges(), preflight_result)
+
+
+func _commit_denied_inventory_command(command: Dictionary, preflight_result: Dictionary) -> void:
+	match str(command.get("action", "")).strip_edges():
+		"pickup_stack":
+			_commit_denied_ownership_take(str(command.get("actor_id", "")).strip_edges(), str(command.get("stack_id", "")).strip_edges(), preflight_result)
+
+
+func _can_ownership_take(actor_id: String, stack_id: String) -> Dictionary:
+	var ownership := _get_ownership_controller()
+	if ownership == null or not ownership.has_method("can_take_stack"):
+		return {"ok": true, "message": "Ownership unavailable"}
+	var result = ownership.call("can_take_stack", actor_id, stack_id)
+	return result if result is Dictionary else {"ok": false, "message": "Invalid ownership result"}
+
+
+func _commit_ownership_take(actor_id: String, stack_id: String, preflight_result: Dictionary) -> void:
+	var ownership := _get_ownership_controller()
+	if ownership != null and ownership.has_method("commit_take_stack"):
+		ownership.call("commit_take_stack", actor_id, stack_id, preflight_result)
+
+
+func _commit_denied_ownership_take(actor_id: String, stack_id: String, preflight_result: Dictionary) -> void:
+	var ownership := _get_ownership_controller()
+	if ownership != null and ownership.has_method("commit_denied_take_stack"):
+		ownership.call("commit_denied_take_stack", actor_id, stack_id, preflight_result)
+
+
 func _get_gecs_world() -> Node:
 	var parent_node := get_parent()
 	if parent_node != null:
@@ -57,3 +103,12 @@ func _get_gecs_world() -> Node:
 		if local != null:
 			return local
 	return get_tree().get_first_node_in_group("gecs_world_controller") if is_inside_tree() else null
+
+
+func _get_ownership_controller() -> Node:
+	var parent_node := get_parent()
+	if parent_node != null:
+		var local := parent_node.get_node_or_null("OwnershipController")
+		if local != null:
+			return local
+	return get_tree().get_first_node_in_group("ownership_controller") if is_inside_tree() else null

@@ -161,6 +161,8 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 	actor.set("squad_name", str(record.get("squad_name", actor.get("squad_name"))))
 	actor.set("hostile_factions", PackedStringArray(record.get("hostile_faction_ids", [])))
 	actor.set("combat_stance", int(record.get("combat_stance", actor.get("combat_stance"))))
+	if _has_property(actor, "move_speed"):
+		actor.set("move_speed", float(record.get("move_speed", actor.get("move_speed"))))
 	actor.set("starting_skill_levels", record.get("skill_levels", {}))
 	actor.set("starting_skill_xp", record.get("skill_xp", {}))
 	actor.set_meta("settlement_id", str(record.get("settlement_id", "")))
@@ -302,11 +304,14 @@ func _seed_starting_population_records() -> void:
 		_starting_population_seeded = true
 		return
 	_refresh_actor_records_cache()
+	var overrides := _starting_population_record_overrides()
 	for definition in definitions:
 		if definition == null or not definition.has_method("to_record"):
 			continue
 		var record: Dictionary = definition.call("to_record")
-		var actor_id := str(record.get("actor_id", record.get("stable_id", ""))).strip_edges()
+		var source_actor_id := str(record.get("actor_id", record.get("stable_id", ""))).strip_edges()
+		record = _apply_starting_population_override(record, overrides.get(source_actor_id, {}))
+		var actor_id := str(record.get("actor_id", record.get("stable_id", source_actor_id))).strip_edges()
 		if actor_id.is_empty() or _has_actor_record(actor_id):
 			continue
 		record.erase("live_node_path")
@@ -328,6 +333,35 @@ func _starting_population_record_definitions() -> Array[Resource]:
 		if record is Resource:
 			result.append(record)
 	return result
+
+
+func _starting_population_record_overrides() -> Dictionary:
+	var world_definition := _find_world_definition()
+	if world_definition == null:
+		return {}
+	if world_definition.has_method("get_starting_population_record_overrides"):
+		var method_overrides = world_definition.call("get_starting_population_record_overrides")
+		return method_overrides.duplicate(true) if method_overrides is Dictionary else {}
+	var overrides = world_definition.get("starting_population_record_overrides")
+	return overrides.duplicate(true) if overrides is Dictionary else {}
+
+
+func _apply_starting_population_override(record: Dictionary, override_value) -> Dictionary:
+	if record.is_empty() or not (override_value is Dictionary):
+		return record
+	var result := record.duplicate(true)
+	var overrides: Dictionary = override_value
+	for key in overrides.keys():
+		result[key] = _duplicate_record_override_value(overrides[key])
+	return result
+
+
+func _duplicate_record_override_value(value):
+	if value is Dictionary:
+		return (value as Dictionary).duplicate(true)
+	if value is Array:
+		return (value as Array).duplicate(true)
+	return value
 
 
 func _find_world_definition() -> Resource:
@@ -472,6 +506,7 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"role_id": str(context.get("role_id", "resident")),
 		"hostile_faction_ids": Array(context.get("hostile_faction_ids", [])),
 		"combat_stance": int(context.get("combat_stance", NpcRules.CombatStance.DEFENSIVE)),
+		"move_speed": float(context.get("move_speed", WorldActorRules.DEFAULT_MOVE_SPEED)),
 		"base_color": context.get("base_color", Color(0.62, 0.62, 0.62, 1.0)),
 		"appearance": _appearance_to_record(appearance),
 		"equipment_slots": equipment_slots,
@@ -485,6 +520,11 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"hunger_stage": NpcRules.HungerStage.WELL_NOURISHED,
 		"fatigue": 100.0,
 		"fatigue_stage": NpcRules.FatigueStage.WELL_RESTED,
+		"hp": 100.0,
+		"max_hp": 100.0,
+		"base_max_blood": 100.0,
+		"blood": 100.0,
+		"max_blood": 100.0,
 		"open_cut_damage": 0.0,
 		"bandaged_cut_damage": 0.0,
 		"blunt_damage": 0.0,
@@ -528,11 +568,17 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 	record["squad_name"] = str(actor.get("squad_name"))
 	record["hostile_faction_ids"] = Array(actor.get("hostile_factions"))
 	record["combat_stance"] = int(actor.get("combat_stance"))
+	record["move_speed"] = _actor_float(actor, "move_speed", WorldActorRules.DEFAULT_MOVE_SPEED)
 	record["life_state"] = int(actor.get("life_state")) if actor.get("life_state") != null else NpcRules.LifeState.ALIVE
 	record["hunger"] = _actor_float(actor, "hunger", 100.0)
 	record["hunger_stage"] = _actor_int(actor, "hunger_stage", NpcRules.HungerStage.WELL_NOURISHED)
 	record["fatigue"] = _actor_float(actor, "fatigue", 100.0)
 	record["fatigue_stage"] = _actor_int(actor, "fatigue_stage", NpcRules.FatigueStage.WELL_RESTED)
+	record["hp"] = _actor_float(actor, "hp", 100.0)
+	record["max_hp"] = _actor_float(actor, "max_hp", 100.0)
+	record["base_max_blood"] = _actor_float(actor, "base_max_blood", _actor_float(actor, "max_blood", 100.0))
+	record["blood"] = _actor_float(actor, "blood", 100.0)
+	record["max_blood"] = _actor_float(actor, "max_blood", 100.0)
 	record["open_cut_damage"] = _actor_float(actor, "open_cut_damage", 0.0, "get_open_cut_damage")
 	record["bandaged_cut_damage"] = _actor_float(actor, "bandaged_cut_damage", 0.0, "get_bandaged_cut_damage")
 	record["blunt_damage"] = _actor_float(actor, "blunt_damage", 0.0, "get_blunt_damage")

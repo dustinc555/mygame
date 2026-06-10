@@ -12,20 +12,14 @@ const SELECTION_RING_TUBE_SEGMENTS := 10
 const ACTOR_COLLISION_RADIUS := 0.48
 const ACTOR_COLLISION_HEIGHT := 1.75
 const ACTOR_COLLISION_CENTER_Y := 0.9
-const NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
 const WORK_INDICATOR_TEXTURE_WIDTH := 96
 const WORK_INDICATOR_TEXTURE_HEIGHT := 12
 const WORK_INDICATOR_INSET := 3
 const WORK_INDICATOR_PIXEL_SIZE := 0.012
 const WORK_INDICATOR_Y := 2.45
 const WORK_INDICATOR_LABEL_Y := 0.18
-const MOVEMENT_MODE_WALK := 0
-const MOVEMENT_MODE_RUN := 1
-const MOVEMENT_MODE_SNEAK := 2
-const SNEAK_MOVE_SPEED_MIN_MULTIPLIER := 0.45
-const SNEAK_MOVE_SPEED_MAX_MULTIPLIER := 1.45
-const SNEAK_MOVE_SPEED_MASTER_LEVEL := 80.0
-const SNEAK_MOVE_SPEED_CURVE := 0.75
+const RENDER_POSITION_EPSILON_SQUARED := 0.0004
+const RENDER_YAW_EPSILON := 0.001
 
 var actor_id := ""
 var projection_kind := ""
@@ -34,40 +28,36 @@ var _selection_area: Area3D
 var _selection_ring: MeshInstance3D
 var _selection_ring_material := StandardMaterial3D.new()
 var _actor_collision_shape: CollisionShape3D
+var _actor_collision_enabled := true
+var _actor_collision_enabled_initialized := false
 var _work_indicator_root: Node3D
 var _work_indicator_sprite: Sprite3D
 var _work_indicator_label: Label3D
 var _work_indicator_progress_ratio := 0.0
 var _selected := false
 var _focused := false
-var _gravity := ProjectSettings.get_setting("physics/3d/default_gravity") as float
-var _runtime_move_active := false
-var _runtime_move_target := Vector3.ZERO
-var _runtime_move_order_key := ""
-var _runtime_navigation_target_synced := false
-var _runtime_navigation_synced_target := Vector3.ZERO
-var _runtime_stuck_origin := Vector3.ZERO
-var _runtime_stuck_target_distance := INF
-var _runtime_stuck_seconds := 0.0
-var _runtime_stuck_repath_attempts := 0
-var _navigation_agent: NavigationAgent3D
+var _render_target_position := Vector3.ZERO
+var _render_target_position_initialized := false
+var _render_target_yaw := 0.0
+var _render_target_yaw_initialized := false
+var _render_start_position := Vector3.ZERO
+var _render_start_yaw := 0.0
+var _render_elapsed := 0.0
+var _render_duration := 0.0
+var _render_interpolation_active := false
+var _render_process_enabled := false
+var _render_commit_uses_visual_transform := false
+var _last_render_interpolation_frame := -1
+var _last_combat_presentation_signature := ""
 
 static var _work_indicator_textures_by_percent: Dictionary = {}
 
-@export var move_speed := 4.4
-@export var acceleration := 10.0
 @export var floor_snap_distance := 0.9
 @export var max_walkable_slope_degrees := 55.0
-@export var move_target_vertical_tolerance := 0.75
 @export var navigation_agent_radius := 0.45
 @export var navigation_agent_height := 2.0
-@export var navigation_path_desired_distance := 0.75
-@export var navigation_target_desired_distance := 0.6
-@export var navigation_path_height_offset := 0.9
-@export var navigation_unreachable_tolerance := 1.4
-@export var stuck_check_seconds := 2.0
-@export var stuck_min_progress := 0.12
-@export var stuck_repath_attempt_limit := 8
+@export_range(0.0, 0.25, 0.005) var render_interpolation_seconds := 0.06
+@export_range(0.0, 200.0, 0.1) var render_interpolation_snap_distance := 12.0
 
 
 func setup(target_actor_id: String, target_projection_kind: String, body_script: Script) -> void:
@@ -87,18 +77,26 @@ func setup(target_actor_id: String, target_projection_kind: String, body_script:
 	_ensure_selection_nodes()
 	_ensure_actor_collision_nodes()
 	_set_body_script(body_script)
+	_update_render_process_enabled()
+
+
+func _process(delta: float) -> void:
+	if _render_interpolation_active:
+		advance_render_interpolation_for_frame(delta)
 
 
 func apply_projection_snapshot(record: Dictionary, equipment_slots: Dictionary, combat_state: Dictionary = {}) -> void:
+	_render_commit_uses_visual_transform = false
+	_last_combat_presentation_signature = ""
 	var record_actor_id := str(record.get("actor_id", record.get("stable_id", actor_id))).strip_edges()
 	if not record_actor_id.is_empty():
 		actor_id = record_actor_id
 		set_meta("actor_id", actor_id)
-	if not _runtime_move_active:
-		var world_position := _record_world_position(record)
-		global_position = world_position
-	if not _runtime_move_active and bool(record.get("world_facing_yaw_initialized", false)):
-		rotation.y = float(record.get("world_facing_yaw", rotation.y))
+	_apply_render_target_transform(
+		_record_world_position(record),
+		float(record.get("world_facing_yaw", _render_target_yaw if _render_target_yaw_initialized else rotation.y)),
+		bool(record.get("world_facing_yaw_initialized", false))
+	)
 	visible = int(record.get("life_state", 0)) >= 0
 	_set_actor_collision_enabled(int(record.get("life_state", 0)) == 0)
 	if _work_indicator_root != null or record.has("work_action"):
@@ -107,12 +105,30 @@ func apply_projection_snapshot(record: Dictionary, equipment_slots: Dictionary, 
 		body_projection.apply_projection_snapshot(record, equipment_slots, combat_state)
 
 
+func apply_projection_transform_snapshot(record: Dictionary, render_delta := 0.0) -> void:
+	_render_commit_uses_visual_transform = false
+	var record_actor_id := str(record.get("actor_id", record.get("stable_id", actor_id))).strip_edges()
+	if not record_actor_id.is_empty():
+		actor_id = record_actor_id
+		set_meta("actor_id", actor_id)
+	_apply_render_target_transform(
+		_record_world_position(record),
+		float(record.get("world_facing_yaw", _render_target_yaw if _render_target_yaw_initialized else rotation.y)),
+		bool(record.get("world_facing_yaw_initialized", false))
+	)
+	if render_delta > 0.0 and _render_interpolation_active:
+		advance_render_interpolation_for_frame(render_delta)
+
+
 func apply_combat_projection_visual(visual_state: Dictionary) -> void:
-	_runtime_move_active = false
 	if visual_state.get("global_position", null) is Vector3:
 		global_position = visual_state.get("global_position")
 	if visual_state.has("facing_yaw"):
 		rotation.y = float(visual_state.get("facing_yaw", rotation.y))
+	_render_commit_uses_visual_transform = true
+	if _render_interpolation_active:
+		_render_interpolation_active = false
+		_update_render_process_enabled()
 	if visual_state.has("rotation_x"):
 		rotation.x = float(visual_state.get("rotation_x", rotation.x))
 	else:
@@ -121,7 +137,9 @@ func apply_combat_projection_visual(visual_state: Dictionary) -> void:
 	var presentation: Dictionary = visual_state.get("presentation", {}) if visual_state.get("presentation", {}) is Dictionary else {}
 	var presentation_state := str(presentation.get("state", "")).strip_edges()
 	_set_actor_collision_enabled(not presentation_state.begins_with("downed"))
-	if body_projection != null and body_projection.has_method("apply_combat_presentation"):
+	var presentation_signature := _combat_presentation_signature(presentation)
+	if body_projection != null and body_projection.has_method("apply_combat_presentation") and presentation_signature != _last_combat_presentation_signature:
+		_last_combat_presentation_signature = presentation_signature
 		body_projection.call("apply_combat_presentation", presentation)
 
 
@@ -137,62 +155,44 @@ func get_combat_impact_ratio(presentation_state: String, event_id: String, fallb
 	return fallback
 
 
-func advance_move_order(record: Dictionary, fixed_delta: float) -> Dictionary:
-	var move_order: Dictionary = record.get("move_order", {}) if record.get("move_order", {}) is Dictionary else {}
-	if not bool(move_order.get("active", false)):
-		stop_runtime_move_order()
-		return {}
-	if int(record.get("life_state", 0)) != 0:
-		stop_runtime_move_order()
-		return {"blocked": true, "reason": "blocked"}
-	var target = move_order.get("target_position", null)
-	if not (target is Vector3):
-		stop_runtime_move_order()
-		return {"blocked": true, "reason": "invalid_target"}
-	var target_position: Vector3 = target
-	var order_key := _move_order_key(move_order)
-	if not _runtime_move_active or _runtime_move_order_key != order_key or _runtime_move_target.distance_squared_to(target_position) > 0.0025:
-		_start_runtime_move_order(target_position, order_key)
-	if _is_close_to_runtime_target():
-		stop_runtime_move_order()
-		return {"arrived": true, "position": global_position, "facing_yaw": rotation.y}
-	var movement_mode := int(move_order.get("movement_mode", record.get("movement_mode", MOVEMENT_MODE_WALK)))
-	var desired_direction := _runtime_move_direction(fixed_delta)
-	if desired_direction.length_squared() <= 0.0001:
-		_apply_floor_motion(fixed_delta)
-		velocity.x = move_toward(velocity.x, 0.0, acceleration * fixed_delta)
-		velocity.z = move_toward(velocity.z, 0.0, acceleration * fixed_delta)
-		move_and_slide()
-		_update_runtime_stuck_state(fixed_delta, desired_direction)
-		return {"moving": false, "position": global_position, "facing_yaw": rotation.y, "movement_mode": movement_mode, "speed": 0.0, "horizontal_speed": 0.0, "direction": Vector3.ZERO}
-	var target_speed := _move_speed_for_mode(record, movement_mode)
-	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
-	horizontal_velocity = horizontal_velocity.lerp(desired_direction * target_speed, minf(1.0, acceleration * fixed_delta))
-	velocity.x = horizontal_velocity.x
-	velocity.z = horizontal_velocity.z
-	_apply_floor_motion(fixed_delta)
-	move_and_slide()
-	rotation.y = atan2(desired_direction.x, desired_direction.z)
-	rotation.x = lerp_angle(rotation.x, 0.0, minf(1.0, 10.0 * fixed_delta))
-	rotation.z = lerp_angle(rotation.z, 0.0, minf(1.0, 10.0 * fixed_delta))
-	_update_runtime_stuck_state(fixed_delta, desired_direction)
-	if _is_close_to_runtime_target():
-		stop_runtime_move_order()
-		return {"arrived": true, "position": global_position, "facing_yaw": rotation.y}
-	return {"moving": true, "position": global_position, "facing_yaw": rotation.y, "movement_mode": movement_mode, "speed": target_speed, "horizontal_speed": Vector2(velocity.x, velocity.z).length(), "direction": desired_direction}
+func advance_move_order(_record: Dictionary, _fixed_delta: float) -> Dictionary:
+	stop_runtime_move_order()
+	return {}
 
 
 func stop_runtime_move_order() -> void:
-	_runtime_move_active = false
-	_runtime_move_order_key = ""
-	_runtime_navigation_target_synced = false
 	velocity = Vector3.ZERO
-	if _navigation_agent != null and is_instance_valid(_navigation_agent):
-		_navigation_agent.velocity = Vector3.ZERO
 
 
 func has_runtime_move_order() -> bool:
-	return _runtime_move_active
+	return false
+
+
+func get_gecs_commit_transform() -> Dictionary:
+	if _render_commit_uses_visual_transform:
+		return {
+			"last_world_position": global_position,
+			"last_world_position_initialized": true,
+			"world_facing_yaw": rotation.y,
+			"world_facing_yaw_initialized": true,
+		}
+	return {
+		"last_world_position": _render_target_position if _render_target_position_initialized else global_position,
+		"last_world_position_initialized": true,
+		"world_facing_yaw": _render_target_yaw if _render_target_yaw_initialized else rotation.y,
+		"world_facing_yaw_initialized": true,
+	}
+
+
+func advance_render_interpolation_for_frame(delta: float) -> void:
+	if not _render_interpolation_active:
+		_update_render_process_enabled()
+		return
+	var frame := Engine.get_process_frames()
+	if _last_render_interpolation_frame == frame:
+		return
+	_last_render_interpolation_frame = frame
+	_advance_render_interpolation(delta)
 
 
 func set_selected(selected: bool) -> void:
@@ -211,11 +211,48 @@ func get_body_projection() -> Node:
 	return body_projection
 
 
+func get_perception_eye_position() -> Vector3:
+	return global_position + Vector3(0.0, navigation_agent_height * 0.82, 0.0)
+
+
+func get_perception_forward_vector() -> Vector3:
+	var forward := global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() <= 0.0001:
+		return Vector3.BACK
+	return forward.normalized()
+
+
+func get_stealth_sample_positions() -> Array[Vector3]:
+	var height := maxf(navigation_agent_height, 0.6)
+	var side_offset := maxf(0.18, navigation_agent_radius * 0.62)
+	return [
+		global_position + Vector3(0.0, height * 0.32, 0.0),
+		global_position + Vector3(0.0, height * 0.58, 0.0),
+		global_position + Vector3(0.0, height * 0.84, 0.0),
+		global_position + Vector3(side_offset, height * 0.58, 0.0),
+		global_position + Vector3(-side_offset, height * 0.58, 0.0),
+	]
+
+
+func get_stealth_light_sample_position() -> Vector3:
+	return global_position + Vector3(0.0, maxf(navigation_agent_height, 0.6) * 0.55, 0.0)
+
+
+func get_stealth_indicator_position() -> Vector3:
+	return global_position + Vector3(0.0, maxf(navigation_agent_height, 0.6) + 0.65, 0.0)
+
+
 func get_projection_debug_state() -> Dictionary:
 	var body_state: Dictionary = body_projection.get_projection_debug_state() if body_projection != null and body_projection.has_method("get_projection_debug_state") else {}
 	return {
 		"actor_id": actor_id,
 		"projection_kind": projection_kind,
+		"render_interpolation_active": _render_interpolation_active,
+		"render_target_position": _render_target_position,
+		"render_target_position_initialized": _render_target_position_initialized,
+		"render_target_yaw": _render_target_yaw,
+		"render_target_yaw_initialized": _render_target_yaw_initialized,
 		"body_state": body_state,
 	}
 
@@ -230,6 +267,91 @@ func get_work_indicator_debug_state() -> Dictionary:
 
 func is_body_ragdoll_active() -> bool:
 	return body_projection != null and body_projection.has_method("is_ragdoll_active") and bool(body_projection.call("is_ragdoll_active"))
+
+
+func _apply_render_target_transform(target_position: Vector3, target_yaw: float, target_yaw_initialized: bool) -> void:
+	if not _render_target_position_initialized:
+		_render_target_position = target_position
+		_render_target_position_initialized = true
+		global_position = target_position
+		_render_start_position = target_position
+		if target_yaw_initialized:
+			_render_target_yaw = target_yaw
+			_render_target_yaw_initialized = true
+			rotation.y = target_yaw
+			_render_start_yaw = target_yaw
+		_render_interpolation_active = false
+		_last_render_interpolation_frame = -1
+		_update_render_process_enabled()
+		return
+	var target_changed := _render_target_position.distance_squared_to(target_position) > RENDER_POSITION_EPSILON_SQUARED
+	if target_yaw_initialized:
+		target_changed = target_changed or not _render_target_yaw_initialized or absf(angle_difference(_render_target_yaw, target_yaw)) > RENDER_YAW_EPSILON
+	_render_target_position = target_position
+	if target_yaw_initialized:
+		_render_target_yaw = target_yaw
+		_render_target_yaw_initialized = true
+	var position_delta_squared := global_position.distance_squared_to(_render_target_position)
+	var yaw_delta := absf(angle_difference(rotation.y, _render_target_yaw)) if _render_target_yaw_initialized else 0.0
+	if not target_changed and _render_interpolation_active:
+		_update_render_process_enabled()
+		return
+	var snap_distance_squared := render_interpolation_snap_distance * render_interpolation_snap_distance
+	if render_interpolation_seconds <= 0.0 or (render_interpolation_snap_distance > 0.0 and position_delta_squared > snap_distance_squared):
+		_snap_to_render_target()
+		return
+	if position_delta_squared <= RENDER_POSITION_EPSILON_SQUARED and yaw_delta <= RENDER_YAW_EPSILON:
+		_snap_to_render_target()
+		return
+	_render_start_position = global_position
+	_render_start_yaw = rotation.y
+	_render_elapsed = 0.0
+	_render_duration = maxf(render_interpolation_seconds, 0.001)
+	_render_interpolation_active = true
+	_last_render_interpolation_frame = -1
+	_update_render_process_enabled()
+
+
+func _advance_render_interpolation(delta: float) -> void:
+	if not _render_interpolation_active:
+		_update_render_process_enabled()
+		return
+	_render_elapsed += maxf(delta, 0.0)
+	var ratio := clampf(_render_elapsed / maxf(_render_duration, 0.001), 0.0, 1.0)
+	global_position = _render_start_position.lerp(_render_target_position, ratio)
+	if _render_target_yaw_initialized:
+		rotation.y = lerp_angle(_render_start_yaw, _render_target_yaw, ratio)
+	if ratio >= 1.0:
+		_snap_to_render_target()
+
+
+func _snap_to_render_target() -> void:
+	if _render_target_position_initialized:
+		global_position = _render_target_position
+		_render_start_position = _render_target_position
+	if _render_target_yaw_initialized:
+		rotation.y = _render_target_yaw
+		_render_start_yaw = _render_target_yaw
+	_render_elapsed = 0.0
+	_render_duration = 0.0
+	_render_interpolation_active = false
+	_update_render_process_enabled()
+
+
+func _update_render_process_enabled() -> void:
+	if _render_process_enabled == _render_interpolation_active and is_processing() == _render_interpolation_active:
+		return
+	_render_process_enabled = _render_interpolation_active
+	set_process(_render_process_enabled)
+
+
+func _combat_presentation_signature(presentation: Dictionary) -> String:
+	var state := str(presentation.get("state", "")).strip_edges()
+	var event_id := str(presentation.get("event_id", state)).strip_edges()
+	match state:
+		"attack", "reaction", "block", "downed", "move":
+			return "%s:%s:%.3f" % [state, event_id, float(presentation.get("progress", 0.0))]
+	return "%s:%s" % [state, event_id]
 
 
 func _set_body_script(body_script: Script) -> void:
@@ -297,7 +419,11 @@ func _ensure_actor_collision_nodes() -> void:
 
 
 func _set_actor_collision_enabled(enabled: bool) -> void:
+	if _actor_collision_enabled_initialized and _actor_collision_enabled == enabled:
+		return
 	_ensure_actor_collision_nodes()
+	_actor_collision_enabled = enabled
+	_actor_collision_enabled_initialized = true
 	if _actor_collision_shape != null:
 		_actor_collision_shape.disabled = not enabled
 	collision_layer = 1 if enabled else 0
@@ -401,187 +527,6 @@ func _update_selection_ring_state() -> void:
 	var color := FOCUSED_COLOR if _focused else SELECTED_COLOR
 	_selection_ring_material.albedo_color = color
 	_selection_ring_material.emission = color
-
-
-func _start_runtime_move_order(target_position: Vector3, order_key: String) -> void:
-	_runtime_move_active = true
-	_runtime_move_target = target_position
-	_runtime_move_order_key = order_key
-	_runtime_navigation_target_synced = false
-	_runtime_stuck_repath_attempts = 0
-	_reset_runtime_stuck_tracking()
-	_ensure_navigation_agent()
-
-
-func _move_order_key(move_order: Dictionary) -> String:
-	return "%s:%s" % [str(move_order.get("issued_msec", 0)), str(move_order.get("target_position", Vector3.ZERO))]
-
-
-func _runtime_move_direction(_delta: float) -> Vector3:
-	if _is_close_to_runtime_target():
-		return Vector3.ZERO
-	_ensure_navigation_agent()
-	if _navigation_agent != null and _has_navigation_data():
-		return _navigation_move_direction()
-	return _direct_runtime_move_direction()
-
-
-func _navigation_move_direction() -> Vector3:
-	_sync_navigation_target_if_needed()
-	if _navigation_agent.is_navigation_finished():
-		if _is_close_to_runtime_target() or _is_navigation_final_position_close_enough():
-			return _navigation_point_direction(_runtime_move_target)
-		return Vector3.ZERO
-	var next_path_position := _navigation_agent.get_next_path_position()
-	var direct_direction := _navigation_point_direction(next_path_position)
-	if direct_direction.length_squared() > 0.0001:
-		return direct_direction
-	var path := _navigation_agent.get_current_navigation_path()
-	var path_index := maxi(0, _navigation_agent.get_current_navigation_path_index())
-	for index in range(path_index, path.size()):
-		var to_point := path[index] - global_position
-		to_point.y = 0.0
-		if to_point.length_squared() > NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED:
-			return to_point.normalized()
-	return Vector3.ZERO
-
-
-func _direct_runtime_move_direction() -> Vector3:
-	var to_target := _runtime_move_target - global_position
-	to_target.y = 0.0
-	if to_target.length_squared() <= 0.0001:
-		return Vector3.ZERO
-	return to_target.normalized()
-
-
-func _navigation_point_direction(point: Vector3) -> Vector3:
-	var to_point := point - global_position
-	to_point.y = 0.0
-	if to_point.length_squared() <= 0.0001:
-		return Vector3.ZERO
-	return to_point.normalized()
-
-
-func _sync_navigation_target_if_needed() -> void:
-	if _navigation_agent == null:
-		return
-	_navigation_agent.target_desired_distance = navigation_target_desired_distance
-	if _runtime_navigation_target_synced and _runtime_navigation_synced_target.distance_squared_to(_runtime_move_target) <= 0.0025:
-		return
-	_navigation_agent.target_position = _runtime_move_target
-	_runtime_navigation_synced_target = _runtime_move_target
-	_runtime_navigation_target_synced = true
-	_reset_runtime_stuck_tracking()
-
-
-func _ensure_navigation_agent() -> void:
-	if _navigation_agent != null and is_instance_valid(_navigation_agent):
-		return
-	_navigation_agent = get_node_or_null("NavigationAgent3D") as NavigationAgent3D
-	if _navigation_agent == null:
-		_navigation_agent = NavigationAgent3D.new()
-		_navigation_agent.name = "NavigationAgent3D"
-		add_child(_navigation_agent)
-	_navigation_agent.radius = navigation_agent_radius
-	_navigation_agent.height = navigation_agent_height
-	_navigation_agent.path_desired_distance = navigation_path_desired_distance
-	_navigation_agent.target_desired_distance = navigation_target_desired_distance
-	_navigation_agent.path_height_offset = navigation_path_height_offset
-	_navigation_agent.avoidance_enabled = false
-	_navigation_agent.keep_y_velocity = false
-	_navigation_agent.simplify_path = false
-	_navigation_agent.simplify_epsilon = 0.0
-
-
-func _has_navigation_data() -> bool:
-	return _navigation_agent != null and NavigationServer3D.map_get_iteration_id(_navigation_agent.get_navigation_map()) > 0
-
-
-func _is_navigation_final_position_close_enough() -> bool:
-	if _navigation_agent == null:
-		return false
-	var final_position := _navigation_agent.get_final_position()
-	return _horizontal_distance(final_position, _runtime_move_target) <= navigation_unreachable_tolerance and absf(final_position.y - _runtime_move_target.y) <= move_target_vertical_tolerance
-
-
-func _is_close_to_runtime_target() -> bool:
-	return _horizontal_distance(global_position, _runtime_move_target) <= navigation_target_desired_distance and absf(global_position.y - _runtime_move_target.y) <= move_target_vertical_tolerance
-
-
-func _apply_floor_motion(delta: float) -> void:
-	if not is_on_floor():
-		velocity.y -= _gravity * delta
-	else:
-		velocity.y = 0.0
-		apply_floor_snap()
-
-
-func _move_speed_for_mode(record: Dictionary, movement_mode: int) -> float:
-	match movement_mode:
-		MOVEMENT_MODE_RUN:
-			return move_speed * _run_speed_multiplier(record)
-		MOVEMENT_MODE_SNEAK:
-			return move_speed * _sneak_move_speed_multiplier(record)
-	return move_speed
-
-
-func _run_speed_multiplier(record: Dictionary) -> float:
-	var skill_levels: Dictionary = record.get("skill_levels", {}) if record.get("skill_levels", {}) is Dictionary else {}
-	var level := float(skill_levels.get(SkillRules.MOVEMENT_RUNNING, SkillRules.DEFAULT_LEVEL))
-	return NpcRules.RUN_SPEED_MULTIPLIER + SkillRules.get_diminishing_bonus(level, 0.42, 55.0)
-
-
-func _sneak_move_speed_multiplier(record: Dictionary) -> float:
-	var skill_levels: Dictionary = record.get("skill_levels", {}) if record.get("skill_levels", {}) is Dictionary else {}
-	var sneak_level := float(skill_levels.get(SkillRules.SUBTERFUGE_SNEAKING, SkillRules.DEFAULT_LEVEL))
-	var ratio := clampf((sneak_level - float(SkillRules.DEFAULT_LEVEL)) / maxf(SNEAK_MOVE_SPEED_MASTER_LEVEL - float(SkillRules.DEFAULT_LEVEL), 0.001), 0.0, 1.0)
-	var mastery := pow(ratio, SNEAK_MOVE_SPEED_CURVE)
-	return lerpf(SNEAK_MOVE_SPEED_MIN_MULTIPLIER, SNEAK_MOVE_SPEED_MAX_MULTIPLIER, mastery)
-
-
-func _update_runtime_stuck_state(delta: float, desired_direction: Vector3) -> void:
-	if not _runtime_move_active:
-		return
-	if desired_direction.length_squared() <= 0.0001:
-		_runtime_stuck_seconds += delta
-		if _runtime_stuck_seconds >= stuck_check_seconds:
-			_handle_runtime_stuck()
-		return
-	if _has_made_runtime_stuck_progress():
-		_reset_runtime_stuck_tracking()
-		_runtime_stuck_repath_attempts = 0
-		return
-	_runtime_stuck_seconds += delta
-	if _runtime_stuck_seconds >= stuck_check_seconds:
-		_handle_runtime_stuck()
-
-
-func _handle_runtime_stuck() -> void:
-	if _is_close_to_runtime_target():
-		return
-	if _navigation_agent != null and _is_navigation_final_position_close_enough() and _runtime_stuck_repath_attempts < stuck_repath_attempt_limit:
-		_runtime_navigation_target_synced = false
-		_runtime_stuck_repath_attempts += 1
-		_reset_runtime_stuck_tracking()
-		return
-	_reset_runtime_stuck_tracking()
-
-
-func _reset_runtime_stuck_tracking() -> void:
-	_runtime_stuck_origin = global_position
-	_runtime_stuck_target_distance = _horizontal_distance(global_position, _runtime_move_target) if _runtime_move_active else INF
-	_runtime_stuck_seconds = 0.0
-
-
-func _has_made_runtime_stuck_progress() -> bool:
-	if _horizontal_distance(global_position, _runtime_stuck_origin) >= stuck_min_progress:
-		return true
-	var target_distance := _horizontal_distance(global_position, _runtime_move_target)
-	return _runtime_stuck_target_distance < INF and target_distance <= _runtime_stuck_target_distance - stuck_min_progress
-
-
-func _horizontal_distance(from: Vector3, to: Vector3) -> float:
-	return Vector2(from.x - to.x, from.z - to.z).length()
 
 
 func _make_selection_ring_mesh() -> ArrayMesh:

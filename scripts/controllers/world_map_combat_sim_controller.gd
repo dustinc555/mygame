@@ -2,6 +2,8 @@ extends Node
 
 class_name WorldMapCombatSimController
 
+const WORLD_ACTOR_RULES := preload("res://scripts/world_sim/world_actor_rules.gd")
+
 const WORLD_MAP_COMBAT_SIM_ENTITY_ID := "world_map_combat_sim:state"
 const WORLD_SQUAD_ENTITY_ID := "world_squad:state"
 const WORLD_ENCOUNTER_ENTITY_ID := "world_encounter:state"
@@ -25,6 +27,7 @@ const BATTLE_SIM_SCRIPT := preload("res://scripts/sim/battle/battle_sim.gd")
 const COMBAT_PROJECTION_CONTINUITY_BUILDER_SCRIPT := preload("res://scripts/sim/battle/combat_projection_continuity_builder.gd")
 const COMBAT_ENCOUNTER_START_REQUEST_SCRIPT := preload("res://scripts/sim/battle/combat_encounter_start_request.gd")
 const LIFE_STATE_ALIVE := 0
+const LIFE_STATE_UNCONSCIOUS := 2
 const LIFE_STATE_DYING := 5
 const ATTRIBUTE_STRENGTH := "attribute.strength"
 const ATTRIBUTE_PERCEPTION := "attribute.perception"
@@ -286,7 +289,9 @@ func _upsert_world_squad_population_record(squad_record: Dictionary, member_id: 
 
 func _world_squad_population_record(squad_record: Dictionary, member_id: String, member_index: int) -> Dictionary:
 	var max_hp := maxf(float(squad_record.get("max_hp", 100.0)), 1.0)
-	var max_blood := 5.0
+	var skill_levels := _world_squad_member_skill_levels(squad_record, member_index)
+	var base_max_blood := maxf(float(squad_record.get("base_max_blood", squad_record.get("max_blood", 100.0))), 1.0)
+	var max_blood := WORLD_ACTOR_RULES.max_blood_for_skill_levels(base_max_blood, skill_levels)
 	return {
 		"actor_id": member_id,
 		"stable_id": member_id,
@@ -301,12 +306,13 @@ func _world_squad_population_record(squad_record: Dictionary, member_id: String,
 		"hostile_faction_ids": _string_array(squad_record.get("hostile_faction_ids", [])),
 		"combat_stance": int(squad_record.get("combat_stance", 1)),
 		"base_color": squad_record.get("base_color", Color(0.62, 0.62, 0.62, 1.0)),
-		"skill_levels": _world_squad_member_skill_levels(squad_record, member_index),
+		"skill_levels": skill_levels,
 		"traits": {"world_squad_member": true},
 		"personality": {},
 		"life_state": LIFE_STATE_ALIVE,
 		"hp": max_hp,
 		"max_hp": max_hp,
+		"base_max_blood": base_max_blood,
 		"blood": max_blood,
 		"max_blood": max_blood,
 		"base_attack_damage": maxf(float(squad_record.get("base_attack_damage", 0.0)), 0.0),
@@ -1015,15 +1021,15 @@ func _apply_member_casualty_to_population_record(casualty: Dictionary) -> void:
 	if component == null or not component.has_method("to_record") or not component.has_method("apply_record"):
 		return
 	var record: Dictionary = component.call("to_record")
-	var life_state := int(casualty.get("life_state", LIFE_STATE_DYING))
+	var life_state := int(casualty.get("life_state", LIFE_STATE_UNCONSCIOUS))
 	record["life_state"] = life_state
-	var max_hp := float(record.get("max_hp", 0.0))
-	if max_hp > 0.0:
-		record["hp"] = 0.0 if life_state != LIFE_STATE_ALIVE else clampf(float(record.get("hp", max_hp)), 0.0, max_hp)
-	var max_blood := float(record.get("max_blood", 0.0))
-	if max_blood > 0.0:
-		record["blood"] = minf(float(record.get("blood", max_blood)), max_blood * 0.35)
-	component.call("apply_record", record)
+	if casualty.has("hp"):
+		record["hp"] = float(casualty.get("hp", record.get("hp", 0.0)))
+	elif life_state != LIFE_STATE_ALIVE:
+		record["hp"] = minf(float(record.get("hp", record.get("max_hp", 100.0))), 0.0)
+	if casualty.has("blood"):
+		record["blood"] = float(casualty.get("blood", record.get("blood", record.get("max_blood", 100.0))))
+	component.call("apply_record", WORLD_ACTOR_RULES.normalize_population_record(record))
 
 
 func _apply_battle_result_to_squad_record(record: Dictionary, battle_result: Dictionary, encounter_id: String) -> void:
@@ -1100,15 +1106,7 @@ func _combat_capable_member_count(squad_record: Dictionary) -> int:
 
 
 func _member_record_can_fight(member_record: Dictionary) -> bool:
-	if int(member_record.get("life_state", LIFE_STATE_ALIVE)) != LIFE_STATE_ALIVE:
-		return false
-	var max_hp := float(member_record.get("max_hp", 0.0))
-	if max_hp > 0.0 and float(member_record.get("hp", max_hp)) <= 0.0:
-		return false
-	var max_blood := float(member_record.get("max_blood", 0.0))
-	if max_blood > 0.0 and float(member_record.get("blood", max_blood)) <= 0.0:
-		return false
-	return true
+	return WORLD_ACTOR_RULES.can_participate(member_record)
 
 
 func _value_for_squad(source, squad_id: String, default_value):

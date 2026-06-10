@@ -8,7 +8,10 @@ const PARTY_PORTRAIT_CARD_SCENE := preload("res://scenes/ui/party_portrait_card.
 @export var squad_name_path := NodePath("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadCommandStrip/SquadName")
 @export var all_button_path := NodePath("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadTabs/AllButton")
 @export var add_squad_button_path := NodePath("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadTabs/AddSquadButton")
-@export_range(0.05, 2.0, 0.05) var refresh_interval_seconds := 0.25
+@export_range(0.05, 2.0, 0.05) var refresh_interval_seconds := 0.5
+@export_range(0, 128, 1) var max_visible_party_cards := 12
+@export var panel_enabled := true
+@export var portrait_rendering_enabled := true
 
 var root_scene: Node
 var hud_layer: CanvasLayer
@@ -27,6 +30,9 @@ var _equipment_signal_bridge: Node
 func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
 	root_scene = target_root
 	hud_layer = target_hud
+	if not panel_enabled:
+		set_process(false)
+		return
 	_bind_hud_nodes()
 	_configure_static_controls()
 	refresh_party_panel()
@@ -34,6 +40,8 @@ func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
 
 func _ready() -> void:
 	add_to_group("world_party_panel_controller")
+	if not panel_enabled:
+		set_process(false)
 
 
 func _exit_tree() -> void:
@@ -41,6 +49,8 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
+	if not panel_enabled:
+		return
 	_refresh_elapsed += delta
 	if _refresh_elapsed < refresh_interval_seconds:
 		return
@@ -49,6 +59,8 @@ func _process(delta: float) -> void:
 
 
 func refresh_party_panel() -> Array[Dictionary]:
+	if not panel_enabled:
+		return []
 	_bind_hud_nodes()
 	if _portrait_flow == null:
 		return []
@@ -56,8 +68,9 @@ func refresh_party_panel() -> Array[Dictionary]:
 	_controlled_actor_ids_cache = _controlled_actor_ids()
 	var records := _party_records()
 	_latest_records = records.duplicate(true)
+	var display_records := _display_party_records(records)
 	var expected_ids := {}
-	for record in records:
+	for record in display_records:
 		var actor_id := str(record.get("actor_id", record.get("stable_id", ""))).strip_edges()
 		if actor_id.is_empty():
 			continue
@@ -147,6 +160,7 @@ func _panel_record_from_population_record(record: Dictionary, equipment_slots: D
 		"blood": float(record.get("blood", 0.0)),
 		"max_blood": float(record.get("max_blood", 0.0)),
 		"equipment_summary": _equipment_summary(equipment_slots),
+		"portrait_signature": _portrait_signature_for_record(record, equipment_slots),
 		"objective_summary": _objective_summary(record, squad_record),
 		"combat_summary": _combat_summary(record, squad_record),
 		"stats_summary": _stats_summary(skill_levels),
@@ -154,6 +168,29 @@ func _panel_record_from_population_record(record: Dictionary, equipment_slots: D
 		"controlled": _controlled_actor_ids_cache.has(actor_id),
 		"sort_key": _sort_key(record),
 	}
+
+
+func _display_party_records(records: Array[Dictionary]) -> Array[Dictionary]:
+	if max_visible_party_cards <= 0 or records.size() <= max_visible_party_cards:
+		return records
+	var result: Array[Dictionary] = []
+	var seen_ids := {}
+	for record in records:
+		var actor_id := str(record.get("actor_id", "")).strip_edges()
+		if actor_id.is_empty() or seen_ids.has(actor_id):
+			continue
+		if actor_id == _selected_actor_id_cache:
+			result.append(record)
+			seen_ids[actor_id] = true
+	for record in records:
+		if result.size() >= max_visible_party_cards:
+			break
+		var actor_id := str(record.get("actor_id", "")).strip_edges()
+		if actor_id.is_empty() or seen_ids.has(actor_id):
+			continue
+		result.append(record)
+		seen_ids[actor_id] = true
+	return result
 
 
 func _get_or_create_card(actor_id: String) -> Button:
@@ -195,7 +232,7 @@ func _apply_record_to_card(card: Button, record: Dictionary) -> void:
 		"Faction: %s" % str(record.get("faction_id", "")),
 		"Actor: %s" % actor_id,
 	]
-	var projection := _projection_for_actor(actor_id)
+	var projection := _projection_for_actor(actor_id) if portrait_rendering_enabled else null
 	if card.has_method("setup_projection"):
 		card.call("setup_projection", record, projection)
 	elif card.has_method("update_record"):
@@ -325,6 +362,36 @@ func _equipment_summary(equipment_slots: Dictionary) -> String:
 			if parts.size() >= 3:
 				break
 	return "; ".join(parts)
+
+
+func _portrait_signature_for_record(record: Dictionary, equipment_slots: Dictionary) -> String:
+	var party_signature := "%s:%s:%s" % [str(record.get("party_id", "")), bool(record.get("player_party_member", false)), bool(record.get("player_controllable", false))]
+	return "appearance=%s|equipment=%s|party=%s" % [
+		_stable_signature_for_value(record.get("appearance", {})),
+		_stable_signature_for_value(equipment_slots),
+		party_signature,
+	]
+
+
+func _stable_signature_for_value(value) -> String:
+	if value is Dictionary:
+		var parts: Array[String] = []
+		var keys := (value as Dictionary).keys()
+		keys.sort_custom(func(a, b) -> bool: return str(a) < str(b))
+		for key in keys:
+			parts.append("%s=%s" % [str(key), _stable_signature_for_value((value as Dictionary)[key])])
+		return "{%s}" % "|".join(parts)
+	if value is Array:
+		var parts: Array[String] = []
+		for entry in value:
+			parts.append(_stable_signature_for_value(entry))
+		return "[%s]" % "|".join(parts)
+	if value is PackedStringArray:
+		var parts: Array[String] = []
+		for entry in value:
+			parts.append(str(entry))
+		return "[%s]" % "|".join(parts)
+	return var_to_str(value)
 
 
 func _item_name(item_path: String) -> String:

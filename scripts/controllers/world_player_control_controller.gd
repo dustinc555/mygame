@@ -17,6 +17,7 @@ const CONTEXT_ACTION_PICKUP_STACK := 102
 const CONTEXT_ACTION_TALK := 103
 const CONTEXT_ACTION_TRADE := 104
 const CONTEXT_ACTION_MINE := 105
+const CONTEXT_ACTION_WORLD_CONTEXT_BASE := 1000
 const INTERACTION_PICKUP_STACK := "pickup_stack"
 const INTERACTION_MINE_RESOURCE := "mine_resource"
 
@@ -46,6 +47,7 @@ var _passive_button: Button
 var _command_bar_initialized := false
 var _last_control_state: Dictionary = {}
 var _context_payload: Dictionary = {}
+var _context_action_keys_by_id: Dictionary = {}
 var _is_left_mouse_down := false
 var _is_right_mouse_down := false
 var _is_hold_move_active := false
@@ -120,7 +122,6 @@ func issue_move_command_at_world_position(target: Vector3, show_indicator := tru
 	if selected_ids.is_empty():
 		_last_control_state = _control_state(false, "no_controllable_selection")
 		return false
-	_flush_projection_state_to_gecs(selected_ids)
 	var center := _selection_center(selected_ids)
 	if show_indicator:
 		_spawn_move_command_indicator(target + surface_normal.normalized() * 0.08)
@@ -223,13 +224,27 @@ func _handle_right_mouse_press(screen_position: Vector2) -> bool:
 	var world_item := _world_item_from_collider(collider)
 	if world_item != null:
 		_context_payload = {"type": "world_item", "stack_id": str(world_item.get("item_stack_id")).strip_edges(), "item_node": world_item}
-		_show_context_menu_actions(screen_position, [{"id": CONTEXT_ACTION_PICKUP_STACK, "label": "Pick Up %s" % _world_item_label(world_item)}])
+		_show_context_menu_actions(screen_position, [{"id": CONTEXT_ACTION_PICKUP_STACK, "label": "%s %s" % [_world_item_take_label(selected_ids[0] if not selected_ids.is_empty() else "", world_item), _world_item_label(world_item)]}])
 		return false
 	var mining_resource := _mining_resource_from_collider(collider)
 	if mining_resource != null:
 		_context_payload = {"type": "mining_resource", "resource_node": mining_resource}
 		_show_context_menu_actions(screen_position, [{"id": CONTEXT_ACTION_MINE, "label": "Mine"}])
 		return false
+	var context_target := _world_context_target_from_collider(collider)
+	if context_target != null:
+		var actions := _world_context_actions(context_target)
+		if not actions.is_empty():
+			_context_payload = {"type": "world_context_action", "target_node": context_target}
+			_context_action_keys_by_id.clear()
+			var menu_actions: Array[Dictionary] = []
+			for index in range(actions.size()):
+				var action: Dictionary = actions[index]
+				var action_id := CONTEXT_ACTION_WORLD_CONTEXT_BASE + index
+				_context_action_keys_by_id[action_id] = str(action.get("key", "")).strip_edges()
+				menu_actions.append({"id": action_id, "label": str(action.get("label", "Action"))})
+			_show_context_menu_actions(screen_position, menu_actions)
+			return false
 	var projection := _projection_from_collider(collider)
 	if projection != null:
 		var target_actor_id := str(projection.get("actor_id")).strip_edges()
@@ -259,6 +274,10 @@ func _show_context_menu_actions(screen_position: Vector2, actions: Array) -> voi
 
 
 func _on_context_menu_id_pressed(action_id: int) -> void:
+	if action_id >= CONTEXT_ACTION_WORLD_CONTEXT_BASE:
+		_perform_world_context_action(action_id)
+		_hide_context_menu()
+		return
 	match action_id:
 		CONTEXT_ACTION_INSPECT:
 			_inspect_context_actor()
@@ -271,6 +290,19 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 		CONTEXT_ACTION_MINE:
 			_issue_context_mining()
 	_hide_context_menu()
+	_context_action_keys_by_id.clear()
+
+
+func _perform_world_context_action(action_id: int) -> void:
+	var target = _context_payload.get("target_node", null)
+	if target == null or not is_instance_valid(target):
+		return
+	var key := str(_context_action_keys_by_id.get(action_id, "")).strip_edges()
+	if key.is_empty() or not target.has_method("perform_world_context_action"):
+		return
+	var selected_ids := _selected_controllable_actor_ids()
+	target.call("perform_world_context_action", key, selected_ids)
+	_last_control_state = _control_state(true, "world_context_action", {"action_key": key}, selected_ids)
 
 
 func _inspect_context_actor() -> void:
@@ -345,7 +377,6 @@ func _issue_actor_interaction_move(actor_id: String, target_position: Vector3, i
 	var record := _population_record(actor_id)
 	if record.is_empty() or interaction_action.is_empty():
 		return false
-	_flush_projection_state_to_gecs([actor_id])
 	if show_indicator:
 		_spawn_move_command_indicator(target_position + Vector3.UP * 0.08)
 	var projected_target := _project_move_command_target(target_position, target_position, target_position.y)
@@ -727,6 +758,33 @@ func _mining_resource_from_collider(collider) -> Node:
 	return null
 
 
+func _world_context_target_from_collider(collider) -> Node:
+	var current := collider as Node
+	while current != null:
+		if current.has_method("get_world_context_actions") and current.has_method("perform_world_context_action"):
+			return current
+		current = current.get_parent()
+	return null
+
+
+func _world_context_actions(target: Node) -> Array[Dictionary]:
+	var actions: Array[Dictionary] = []
+	if target == null or not target.has_method("get_world_context_actions"):
+		return actions
+	var raw = target.call("get_world_context_actions", _selected_controllable_actor_ids())
+	if not (raw is Array):
+		return actions
+	for value in raw:
+		if not (value is Dictionary):
+			continue
+		var action: Dictionary = value
+		var key := str(action.get("key", "")).strip_edges()
+		if key.is_empty():
+			continue
+		actions.append({"key": key, "label": str(action.get("label", "Action"))})
+	return actions
+
+
 func _world_item_label(world_item: Node) -> String:
 	if world_item == null:
 		return "Item"
@@ -736,6 +794,13 @@ func _world_item_label(world_item: Node) -> String:
 		if display_name != null and not str(display_name).strip_edges().is_empty():
 			return str(display_name).strip_edges()
 	return "Item"
+
+
+func _world_item_take_label(actor_id: String, world_item: Node) -> String:
+	var ownership := _get_ownership_controller()
+	if ownership != null and ownership.has_method("get_take_item_label"):
+		return str(ownership.call("get_take_item_label", actor_id, world_item))
+	return "Pick Up"
 
 
 func _record_has_conversation(record: Dictionary) -> bool:
@@ -873,10 +938,7 @@ func _record_position(record: Dictionary) -> Vector3:
 	return position if position is Vector3 else Vector3.ZERO
 
 
-func _current_actor_position(actor_id: String, record: Dictionary) -> Vector3:
-	var projection := _projection_for_actor(actor_id)
-	if projection is Node3D:
-		return (projection as Node3D).global_position
+func _current_actor_position(_actor_id: String, record: Dictionary) -> Vector3:
 	return _record_position(record)
 
 
@@ -1049,6 +1111,15 @@ func _get_selection_controller() -> Node:
 		if local != null:
 			return local
 	return get_tree().get_first_node_in_group("world_selection_controller") if is_inside_tree() else null
+
+
+func _get_ownership_controller() -> Node:
+	var parent_node := get_parent()
+	if parent_node != null:
+		var local := parent_node.get_node_or_null("OwnershipController")
+		if local != null:
+			return local
+	return get_tree().get_first_node_in_group("ownership_controller") if is_inside_tree() else null
 
 
 func _get_inventory_controller() -> Node:

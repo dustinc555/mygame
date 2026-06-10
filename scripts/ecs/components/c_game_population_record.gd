@@ -18,6 +18,7 @@ class_name CGamePopulationRecord
 @export var hostile_faction_ids: PackedStringArray = PackedStringArray()
 @export var combat_stance := 0
 @export var movement_mode := 0
+@export var move_speed := WorldActorRules.DEFAULT_MOVE_SPEED
 @export var move_order: Dictionary = {}
 @export var locomotion_state: Dictionary = {}
 @export var world_facing_yaw := 0.0
@@ -36,6 +37,7 @@ class_name CGamePopulationRecord
 @export var fatigue_stage := 0
 @export var hp := 0.0
 @export var max_hp := 0.0
+@export var base_max_blood := 0.0
 @export var blood := 0.0
 @export var max_blood := 0.0
 @export var open_cut_damage := 0.0
@@ -96,6 +98,7 @@ func apply_record(source: Dictionary) -> void:
 	hostile_faction_ids = PackedStringArray(source.get("hostile_faction_ids", hostile_faction_ids))
 	combat_stance = int(source.get("combat_stance", combat_stance))
 	movement_mode = int(source.get("movement_mode", movement_mode))
+	move_speed = float(source.get("move_speed", move_speed))
 	move_order = (source.get("move_order", move_order) as Dictionary).duplicate(true)
 	locomotion_state = (source.get("locomotion_state", locomotion_state) as Dictionary).duplicate(true)
 	world_facing_yaw = float(source.get("world_facing_yaw", world_facing_yaw))
@@ -114,6 +117,7 @@ func apply_record(source: Dictionary) -> void:
 	fatigue_stage = int(source.get("fatigue_stage", fatigue_stage))
 	hp = float(source.get("hp", hp))
 	max_hp = float(source.get("max_hp", max_hp))
+	base_max_blood = float(source.get("base_max_blood", base_max_blood))
 	blood = float(source.get("blood", blood))
 	max_blood = float(source.get("max_blood", max_blood))
 	open_cut_damage = float(source.get("open_cut_damage", open_cut_damage))
@@ -175,6 +179,7 @@ func to_record() -> Dictionary:
 		"hostile_faction_ids": Array(hostile_faction_ids),
 		"combat_stance": combat_stance,
 		"movement_mode": movement_mode,
+		"move_speed": move_speed,
 		"move_order": move_order.duplicate(true),
 		"locomotion_state": locomotion_state.duplicate(true),
 		"world_facing_yaw": world_facing_yaw,
@@ -193,6 +198,7 @@ func to_record() -> Dictionary:
 		"fatigue_stage": fatigue_stage,
 		"hp": hp,
 		"max_hp": max_hp,
+		"base_max_blood": base_max_blood,
 		"blood": blood,
 		"max_blood": max_blood,
 		"open_cut_damage": open_cut_damage,

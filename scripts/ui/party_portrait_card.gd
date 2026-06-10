@@ -30,6 +30,7 @@ var _portrait_signature := ""
 var _is_selected := false
 var _is_controlled := false
 var _last_pose_animation := ""
+var _style_key := ""
 
 @onready var viewport: SubViewport = $Margin/VBox/PortraitViewportContainer/SubViewport
 @onready var portrait_camera: Camera3D = $Margin/VBox/PortraitViewportContainer/SubViewport/Camera3D
@@ -103,6 +104,7 @@ func get_debug_state() -> Dictionary:
 		"has_texture": portrait_image != null and portrait_image.texture != null,
 		"portrait_child_count": portrait_root.get_child_count() if portrait_root != null else 0,
 		"portrait_source_child_names": _child_names(source),
+		"portrait_signature": _portrait_signature,
 		"portrait_yaw_offset": PORTRAIT_VISUAL_YAW_OFFSET,
 		"pose_animation": _last_pose_animation,
 		"tooltip": tooltip_text,
@@ -133,12 +135,11 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _rebuild_portrait() -> void:
-	_clear_portrait_root()
-	_last_pose_animation = ""
-	portrait_image.texture = null
 	var source := _portrait_source()
 	if source == null:
 		return
+	_clear_portrait_root()
+	_last_pose_animation = ""
 	for child in source.get_children():
 		_add_portrait_copy(child)
 	_frame_portrait_camera()
@@ -292,6 +293,7 @@ func _capture_snapshot() -> void:
 	await get_tree().process_frame
 	if DisplayServer.get_name() == "headless":
 		portrait_image.texture = viewport.get_texture()
+		_release_portrait_render_resources()
 		return
 	await RenderingServer.frame_post_draw
 	var image := viewport.get_texture().get_image()
@@ -299,9 +301,19 @@ func _capture_snapshot() -> void:
 		return
 	var texture := ImageTexture.create_from_image(image)
 	portrait_image.texture = texture
+	_release_portrait_render_resources()
+
+
+func _release_portrait_render_resources() -> void:
+	if viewport != null:
+		viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 
 
 func _set_style(background: Color, border: Color, border_width: int) -> void:
+	var next_style_key := "%.3f:%.3f:%.3f:%.3f:%.3f:%.3f:%.3f:%.3f:%d" % [background.r, background.g, background.b, background.a, border.r, border.g, border.b, border.a, border_width]
+	if next_style_key == _style_key:
+		return
+	_style_key = next_style_key
 	var style := StyleBoxFlat.new()
 	style.bg_color = background
 	style.border_color = border
@@ -317,10 +329,22 @@ func _set_style(background: Color, border: Color, border_width: int) -> void:
 
 
 func _make_portrait_signature() -> String:
-	var debug_state := {}
-	if projection != null and is_instance_valid(projection) and projection.has_method("get_projection_debug_state"):
-		debug_state = projection.call("get_projection_debug_state")
-	return "%s:%s" % [actor_id, str(debug_state)]
+	var party_signature := _party_membership_signature()
+	var body = null
+	if projection != null and is_instance_valid(projection) and projection.has_method("get_body_projection"):
+		body = projection.call("get_body_projection")
+	if body is Node and (body as Node).has_method("get_portrait_signature"):
+		var signature := str((body as Node).call("get_portrait_signature")).strip_edges()
+		if not signature.is_empty():
+			return "%s:%s:%s" % [actor_id, signature, party_signature]
+	var record_signature := str(record.get("portrait_signature", "")).strip_edges()
+	if not record_signature.is_empty():
+		return "%s:%s" % [actor_id, record_signature]
+	return "%s:%s:%s" % [actor_id, str(record.get("member_name", "")), str(record.get("equipment_summary", ""))]
+
+
+func _party_membership_signature() -> String:
+	return "%s:%s:%s" % [str(record.get("party_id", "")), bool(record.get("player_party_member", false)), bool(record.get("player_controllable", false))]
 
 
 func _child_names(node: Node) -> Array[String]:

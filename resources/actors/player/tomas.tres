@@ -6,15 +6,18 @@
 script = ExtResource("1_record")
 actor_id = "player.tomas"
 stable_id = "player.tomas"
-generation_source = "demo_party"
-generation_index = 2
+generation_source = "player_actor"
 member_name = "Tomas"
 faction_id = "Player"
 squad_name = "PlayerParty"
 party_id = "player_party"
+role_id = "party_member"
 player_party_member = true
 player_controllable = true
-hostile_faction_ids = PackedStringArray("Rustdead", "EastRaiders")
+projection_kind = "humanoid"
+combat_stance = 1
+movement_mode = 0
+move_speed = 3.2
 base_color = Color(0.35, 0.56, 0.42, 1)
 skill_levels = {
 "attribute.charisma": 35,
@@ -29,20 +32,18 @@ skill_levels = {
 "labor.scavenging": 40,
 "movement.running": 55
 }
-traits = {
-"demo_party": true,
-"projection_ready": true
-}
 personality = {
 "discipline": 0.58,
 "nerve": 0.78
 }
 hp = 116.0
 max_hp = 116.0
+base_max_blood = 100.0
+blood = 100.0
+max_blood = 100.0
+life_state = 0
 base_attack_damage = 20.0
 base_dodge_chance = 0.1
-last_world_position = Vector3(378.3, 0.6, 115.5)
-last_world_position_initialized = true
 important = true
 appearance = {
 "beard_color": Color(0.12, 0.075, 0.045, 1),
@@ -58,40 +59,3 @@ appearance = {
 "skin_color_customized": true,
 "visual_body_type": 2
 }
-equipment_slots = {
-"chest": "res://resources/items/equipment/clothing/peasant_tunic.tres",
-"feet": "res://resources/items/equipment/clothing/peasant_shoes.tres",
-"legs": "res://resources/items/equipment/clothing/peasant_trousers.tres",
-"weapon": "res://resources/items/equipment/weapons/axes/iron_axe.tres"
-}
-inventory_entries = [{
-"contained_item_counts": {},
-"count": 1,
-"grid_position": Vector2i(0, 0),
-"item_id": "res://resources/items/consumables/bandage.tres",
-"metadata": {}
-}, {
-"contained_item_counts": {},
-"count": 1,
-"grid_position": Vector2i(2, 0),
-"item_id": "res://resources/items/consumables/bandage.tres",
-"metadata": {}
-}, {
-"contained_item_counts": {},
-"count": 1,
-"grid_position": Vector2i(4, 0),
-"item_id": "res://resources/items/tools/cinder_flask.tres",
-"metadata": {}
-}, {
-"contained_item_counts": {},
-"count": 1,
-"grid_position": Vector2i(5, 0),
-"item_id": "res://resources/items/consumables/bread.tres",
-"metadata": {}
-}, {
-"contained_item_counts": {},
-"count": 1,
-"grid_position": Vector2i(0, 2),
-"item_id": "res://resources/items/consumables/bread.tres",
-"metadata": {}
-}]

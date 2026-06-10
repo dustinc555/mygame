@@ -4,6 +4,7 @@ const JOB_SYSTEM_CONTROLLER_SCRIPT = preload("res://scripts/controllers/job_syst
 const WORLD_TIME_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_time_controller.gd")
 const BLEED_SPLOTCH_CONTROLLER_SCRIPT = preload("res://scripts/controllers/bleed_splotch_controller.gd")
 const DAY_NIGHT_LIGHTING_CONTROLLER_SCRIPT = preload("res://scripts/controllers/day_night_lighting_controller.gd")
+const PERCEPTION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/perception_controller.gd")
 const WORLD_STATUS_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_status_controller.gd")
 const FACTION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/faction_controller.gd")
 const SETTLEMENT_CONTROLLER_SCRIPT = preload("res://scripts/controllers/settlement_controller.gd")
@@ -20,6 +21,7 @@ const WORLD_ITEM_PROJECTION_CONTROLLER_SCRIPT = preload("res://scripts/controlle
 const WORLD_SELECTION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_selection_controller.gd")
 const WORLD_PLAYER_CONTROL_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_player_control_controller.gd")
 const CONVERSATION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/conversation_controller.gd")
+const OWNERSHIP_CONTROLLER_SCRIPT = preload("res://scripts/controllers/ownership_controller.gd")
 const WORLD_MOVEMENT_ORDER_SIM_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_movement_order_sim_controller.gd")
 const WORLD_INVENTORY_SIM_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_inventory_sim_controller.gd")
 const WORLD_PARTY_PANEL_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_party_panel_controller.gd")
@@ -52,6 +54,7 @@ func _deferred_bootstrap() -> void:
 		_initialize_controller(str(spec["name"]))
 	_ensure_world_movement_order_runner()
 	_ensure_world_inventory_runner()
+	_ensure_world_perception_runner()
 	_ensure_world_map_combat_runner()
 	call_deferred("_wire_world_map_combat_ui")
 
@@ -81,6 +84,7 @@ func _controller_specs() -> Array[Dictionary]:
 		{"name": "ActorQueryController", "script": ACTOR_QUERY_CONTROLLER_SCRIPT},
 		{"name": "BleedSplotchController", "script": BLEED_SPLOTCH_CONTROLLER_SCRIPT},
 		{"name": "DayNightLightingController", "script": DAY_NIGHT_LIGHTING_CONTROLLER_SCRIPT},
+		{"name": "PerceptionController", "script": PERCEPTION_CONTROLLER_SCRIPT},
 		{"name": "FactionController", "script": FACTION_CONTROLLER_SCRIPT},
 		{"name": "PopulationController", "script": POPULATION_CONTROLLER_SCRIPT},
 		{"name": "PopulationRealizationController", "script": POPULATION_REALIZATION_CONTROLLER_SCRIPT},
@@ -89,6 +93,7 @@ func _controller_specs() -> Array[Dictionary]:
 		{"name": "WorldSelectionController", "script": WORLD_SELECTION_CONTROLLER_SCRIPT},
 		{"name": "WorldPlayerControlController", "script": WORLD_PLAYER_CONTROL_CONTROLLER_SCRIPT},
 		{"name": "ConversationController", "script": CONVERSATION_CONTROLLER_SCRIPT},
+		{"name": "OwnershipController", "script": OWNERSHIP_CONTROLLER_SCRIPT},
 		{"name": "WorldMovementOrderSimController", "script": WORLD_MOVEMENT_ORDER_SIM_CONTROLLER_SCRIPT},
 		{"name": "WorldInventorySimController", "script": WORLD_INVENTORY_SIM_CONTROLLER_SCRIPT},
 		{"name": "WorldPartyPanelController", "script": WORLD_PARTY_PANEL_CONTROLLER_SCRIPT},
@@ -169,6 +174,18 @@ func _ensure_world_inventory_runner() -> void:
 		add_child(runner)
 	else:
 		runner.set("target_path", NodePath("../WorldInventorySimController"))
+
+
+func _ensure_world_perception_runner() -> void:
+	var runner := get_node_or_null("WorldPerceptionFixedTickRunner")
+	if runner == null:
+		runner = Node.new()
+		runner.name = "WorldPerceptionFixedTickRunner"
+		runner.set_script(FIXED_TICK_SIM_RUNNER_SCRIPT)
+		runner.set("target_path", NodePath("../PerceptionController"))
+		add_child(runner)
+	else:
+		runner.set("target_path", NodePath("../PerceptionController"))
 
 
 func _wire_world_map_combat_ui() -> void:
