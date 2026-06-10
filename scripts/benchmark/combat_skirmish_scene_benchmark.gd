@@ -1,6 +1,8 @@
 extends SceneTree
 
 const DEFAULT_SCENE_PATH := "res://scenes/test_levels/combat_skirmish_20v20_armory.tscn"
+const RUSTDEAD_5V10_SCENE_PATH := "res://scenes/test_levels/rustdead_5v10_demo.tscn"
+const RUSTDEAD_5V10_AVG_FPS_FLOOR := 53.0
 
 # Baseline before WorldActor job/combat refactor on this machine, 600 sampled
 # frames after 240 warmup at max 120 FPS: 10v10 avg 85.13/min 46.50 FPS;
@@ -90,6 +92,15 @@ func _finish_benchmark() -> void:
 		"groups": _collect_group_counts(),
 	}
 	print("COMBAT_SKIRMISH_BENCHMARK_RESULT " + JSON.stringify(report))
+	if scene_path == RUSTDEAD_5V10_SCENE_PATH:
+		var failed := false
+		if avg_fps < RUSTDEAD_5V10_AVG_FPS_FLOOR:
+			push_error("Rustdead 5v10 benchmark average FPS %.2f below floor %.2f" % [avg_fps, RUSTDEAD_5V10_AVG_FPS_FLOOR])
+			failed = true
+		if failed:
+			if auto_quit:
+				quit(1)
+			return
 	if auto_quit:
 		quit(0)
 

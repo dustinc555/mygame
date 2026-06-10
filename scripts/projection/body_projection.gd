@@ -50,6 +50,64 @@ func set_base_eyebrow_visuals_visible(_root: Node, _visible_flag: bool) -> void:
 	pass
 
 
+# --- Ragdoll / downed visuals ---
+
+func process_ragdoll_impulse_memory(_delta: float) -> void:
+	pass
+
+
+func remember_ragdoll_impulse(_impulse: Vector3, _seconds: float) -> void:
+	pass
+
+
+func enter_downed_visuals(_is_dead: bool) -> bool:
+	return false
+
+
+func restore_from_downed_visuals() -> void:
+	pass
+
+
+func begin_get_up_visuals() -> void:
+	pass
+
+
+func process_downed_visuals(_delta: float) -> bool:
+	return false
+
+
+func cancel_get_up_visuals() -> void:
+	pass
+
+
+func start_ragdoll_simulation(_is_dead: bool) -> bool:
+	return false
+
+
+func stop_ragdoll_simulation(_reset_pose: bool) -> void:
+	pass
+
+
+func prepare_ragdoll_get_up() -> void:
+	pass
+
+
+func stabilize_ragdoll(_delta: float) -> void:
+	pass
+
+
+func is_ragdoll_active() -> bool:
+	return false
+
+
+func get_ragdoll_anchor_position() -> Variant:
+	return null
+
+
+func get_attack_ragdoll_impulse(_attacker: Node, _damage: float) -> Vector3:
+	return Vector3.ZERO
+
+
 func get_resolved_visual_body_type() -> int:
 	return 0
 

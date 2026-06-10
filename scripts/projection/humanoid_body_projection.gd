@@ -17,6 +17,7 @@ const DEFAULT_MOVE_BLEND_SECONDS := 0.12
 static var _fallback_visual_material: Material
 
 var _visual_root: Node3D = null
+var _default_ragdoll_profile: Resource
 
 
 # --- Visual build ---
@@ -130,6 +131,520 @@ func set_base_eyebrow_visuals_visible(root: Node, visible_flag: bool) -> void:
 		(root as MeshInstance3D).visible = visible_flag
 	for child in root.get_children():
 		set_base_eyebrow_visuals_visible(child, visible_flag)
+
+
+# --- Ragdoll / downed visuals ---
+
+func get_ragdoll_profile():
+	if actor.ragdoll_profile != null:
+		return actor.ragdoll_profile
+	if _default_ragdoll_profile == null:
+		_default_ragdoll_profile = actor.HUMANOID_RAGDOLL_PROFILE_SCRIPT.new()
+	return _default_ragdoll_profile
+
+
+func get_ragdoll_profile_animation_names() -> Array[String]:
+	var profile = get_ragdoll_profile()
+	if profile != null and profile.has_method("get_all_animation_names"):
+		return profile.get_all_animation_names()
+	return []
+
+
+func process_ragdoll_impulse_memory(delta: float) -> void:
+	if actor._last_ragdoll_impulse_remaining <= 0.0:
+		return
+	actor._last_ragdoll_impulse_remaining = maxf(0.0, actor._last_ragdoll_impulse_remaining - delta)
+	if actor._last_ragdoll_impulse_remaining <= 0.0:
+		actor._last_ragdoll_impulse = Vector3.ZERO
+
+
+func remember_ragdoll_impulse(impulse: Vector3, seconds: float) -> void:
+	actor._last_ragdoll_impulse = impulse
+	actor._last_ragdoll_impulse_remaining = seconds if impulse.length_squared() > 0.0001 else 0.0
+
+
+func enter_downed_visuals(is_dead: bool) -> bool:
+	actor._stop_character_animation(true)
+	if _begin_downed_ragdoll_preroll(is_dead):
+		return true
+	actor._apply_downed_collision_shape()
+	if not start_ragdoll_simulation(is_dead):
+		actor._restore_downed_collision_shape()
+		return false
+	return true
+
+
+func restore_from_downed_visuals() -> void:
+	stop_ragdoll_simulation(true)
+	actor._restore_downed_collision_shape()
+
+
+func begin_get_up_visuals() -> void:
+	prepare_ragdoll_get_up()
+	actor._is_getting_up = true
+	actor._get_up_animation_name = _choose_get_up_animation()
+	actor._get_up_animation_total = actor._get_character_animation_length(actor._get_up_animation_name) if not actor._get_up_animation_name.is_empty() else 0.0
+	if actor._get_up_animation_total <= 0.0:
+		actor._get_up_animation_total = _get_ragdoll_profile_float("get_up_fallback_seconds", 1.15)
+	actor._get_up_animation_remaining = actor._get_up_animation_total
+	if not actor._get_up_animation_name.is_empty():
+		actor._play_character_animation(actor._get_up_animation_name, 0.0, true, actor.MOVE_ANIMATION_BLEND_SECONDS)
+
+
+func process_downed_visuals(delta: float) -> bool:
+	if actor._ragdoll_preroll_active:
+		_process_downed_ragdoll_preroll(delta)
+		return false
+	if not actor._is_getting_up:
+		return false
+	return _process_get_up_animation(delta)
+
+
+func cancel_get_up_visuals() -> void:
+	if not actor._is_getting_up:
+		return
+	actor._is_getting_up = false
+	actor._get_up_animation_name = ""
+	actor._get_up_animation_remaining = 0.0
+	actor._get_up_animation_total = 0.0
+	actor._stop_character_animation(true)
+	actor._apply_downed_collision_shape()
+	stop_ragdoll_simulation(false)
+
+
+func start_ragdoll_simulation(_is_dead: bool) -> bool:
+	if not _ensure_runtime_ragdoll():
+		return false
+	actor._is_ragdoll_active = true
+	if actor._ragdoll_skeleton != null and is_instance_valid(actor._ragdoll_skeleton):
+		actor._ragdoll_skeleton.force_update_all_bone_transforms()
+	actor._ragdoll_simulator.active = true
+	actor._ragdoll_simulator.influence = 1.0
+	actor._ragdoll_simulator.physical_bones_add_collision_exception(actor.get_rid())
+	_configure_ragdoll_internal_collision_exceptions()
+	_sync_ragdoll_physical_bones_to_current_pose()
+	_prepare_ragdoll_activation()
+	_reset_ragdoll_body_velocities()
+	actor._ragdoll_simulator.physical_bones_start_simulation()
+	_reset_ragdoll_body_velocities()
+	_apply_pending_ragdoll_impulse()
+	_clamp_ragdoll_upward_velocities()
+	return true
+
+
+func stop_ragdoll_simulation(reset_pose: bool) -> void:
+	if actor._ragdoll_simulator != null and is_instance_valid(actor._ragdoll_simulator):
+		if actor._ragdoll_simulator.is_simulating_physics():
+			actor._ragdoll_simulator.physical_bones_stop_simulation()
+		actor._ragdoll_simulator.physical_bones_remove_collision_exception(actor.get_rid())
+		actor._ragdoll_simulator.active = false
+	if actor._ragdoll_skeleton != null and is_instance_valid(actor._ragdoll_skeleton):
+		if reset_pose:
+			actor._ragdoll_skeleton.reset_bone_poses()
+	actor._is_ragdoll_active = false
+	actor._ragdoll_upward_velocity_suppression_frames = 0
+	_set_ragdoll_bone_upward_velocity_suppression(0)
+
+
+func prepare_ragdoll_get_up() -> void:
+	var anchor_position: Variant = get_ragdoll_anchor_position()
+	stop_ragdoll_simulation(true)
+	if anchor_position is Vector3:
+		actor.global_position = Vector3(anchor_position.x, actor.global_position.y, anchor_position.z)
+	actor.rotation = Vector3(0.0, actor.rotation.y, 0.0)
+
+
+func stabilize_ragdoll(_delta: float) -> void:
+	var upward_velocity_suppression_frames: int = actor._ragdoll_upward_velocity_suppression_frames
+	if upward_velocity_suppression_frames > 0:
+		actor._ragdoll_upward_velocity_suppression_frames = maxi(0, upward_velocity_suppression_frames - 1)
+
+
+func is_ragdoll_active() -> bool:
+	return actor._is_ragdoll_active
+
+
+func get_ragdoll_anchor_position() -> Variant:
+	var profile = get_ragdoll_profile()
+	var root_bone_name := str(profile.get("root_bone_name")) if profile != null else "pelvis"
+	var physical_bone := actor._ragdoll_physical_bones.get(root_bone_name, null) as PhysicalBone3D
+	if physical_bone == null or not is_instance_valid(physical_bone):
+		return null
+	return physical_bone.global_position
+
+
+func get_attack_ragdoll_impulse(attacker: Node, damage: float) -> Vector3:
+	if attacker == null or not is_instance_valid(attacker):
+		return Vector3.ZERO
+	var attacker_node := attacker as Node3D
+	if attacker_node == null:
+		return Vector3.ZERO
+	var direction: Vector3 = actor.global_position - attacker_node.global_position
+	direction.y = 0.0
+	if direction.length_squared() <= 0.0001:
+		direction = -actor.transform.basis.z
+		direction.y = 0.0
+	if direction.length_squared() <= 0.0001:
+		direction = Vector3.DOWN
+	else:
+		direction = (direction.normalized() + Vector3.DOWN * 0.12).normalized()
+	var profile = get_ragdoll_profile()
+	var impulse_scale := float(profile.get("impulse_scale")) if profile != null else 2.4
+	return _get_non_upward_ragdoll_vector(direction.normalized() * clampf(damage * 0.045 * impulse_scale, 0.45, 4.5))
+
+
+func _choose_get_up_animation() -> String:
+	var profile = get_ragdoll_profile()
+	if profile != null and profile.has_method("choose_get_up_animation"):
+		return profile.choose_get_up_animation(actor._character_animation_player, actor._rng)
+	return ""
+
+
+func _choose_downed_preroll_animation() -> String:
+	var profile = get_ragdoll_profile()
+	if profile != null and profile.has_method("choose_downed_preroll_animation"):
+		return profile.choose_downed_preroll_animation(actor._character_animation_player, actor._rng)
+	return ""
+
+
+func _choose_downed_preroll_duration(animation_length: float) -> float:
+	var profile = get_ragdoll_profile()
+	if profile != null and profile.has_method("choose_downed_preroll_duration"):
+		return profile.choose_downed_preroll_duration(animation_length, actor._rng)
+	return animation_length
+
+
+func _get_ragdoll_profile_float(property_name: String, fallback: float) -> float:
+	var profile = get_ragdoll_profile()
+	if profile == null:
+		return fallback
+	var value = profile.get(property_name)
+	return float(value) if value != null else fallback
+
+
+func _begin_downed_ragdoll_preroll(is_dead: bool) -> bool:
+	if actor._character_animation_player == null:
+		return false
+	var animation_name := _choose_downed_preroll_animation()
+	if animation_name.is_empty():
+		return false
+	var animation_length: float = actor._get_character_animation_length(animation_name)
+	var preroll_duration := _choose_downed_preroll_duration(animation_length)
+	if preroll_duration <= 0.0:
+		return false
+	actor._ragdoll_preroll_active = true
+	actor._ragdoll_preroll_is_dead = is_dead
+	actor._ragdoll_preroll_animation_name = animation_name
+	actor._ragdoll_preroll_remaining = preroll_duration
+	if not actor._play_character_animation(animation_name, 0.0, true, 0.0):
+		_cancel_ragdoll_preroll()
+		return false
+	return true
+
+
+func _process_downed_ragdoll_preroll(delta: float) -> void:
+	actor._ragdoll_preroll_remaining = maxf(0.0, actor._ragdoll_preroll_remaining - delta)
+	if actor._ragdoll_preroll_remaining > 0.0 and actor._character_animation_player != null and actor._character_animation_player.is_playing():
+		return
+	_finish_downed_ragdoll_preroll()
+
+
+func _finish_downed_ragdoll_preroll() -> void:
+	if not actor._ragdoll_preroll_active:
+		return
+	var was_dead: bool = actor._ragdoll_preroll_is_dead
+	_cancel_ragdoll_preroll()
+	actor._stop_character_animation(true)
+	actor._apply_downed_collision_shape()
+	if not start_ragdoll_simulation(was_dead):
+		actor._restore_downed_collision_shape()
+
+
+func _cancel_ragdoll_preroll() -> void:
+	actor._ragdoll_preroll_active = false
+	actor._ragdoll_preroll_is_dead = false
+	actor._ragdoll_preroll_animation_name = ""
+	actor._ragdoll_preroll_remaining = 0.0
+
+
+func _process_get_up_animation(delta: float) -> bool:
+	actor._get_up_animation_remaining = maxf(0.0, actor._get_up_animation_remaining - delta)
+	if not actor._get_up_animation_name.is_empty() and actor._character_animation_player != null and not actor._character_animation_player.is_playing() and actor._get_up_animation_remaining > 0.0:
+		actor._play_character_animation(actor._get_up_animation_name)
+	return actor._get_up_animation_remaining <= 0.0
+
+
+func _ensure_runtime_ragdoll() -> bool:
+	if actor._ragdoll_skeleton == null or not is_instance_valid(actor._ragdoll_skeleton):
+		var visual_root := get_visual_root()
+		actor._ragdoll_skeleton = _find_skeleton(visual_root) if visual_root != null else null
+		actor._ragdoll_physical_bones.clear()
+		actor._ragdoll_simulator = null
+	if actor._ragdoll_skeleton == null:
+		return false
+	if actor._ragdoll_simulator == null or not is_instance_valid(actor._ragdoll_simulator):
+		actor._ragdoll_simulator = actor._ragdoll_skeleton.get_node_or_null("HumanoidRagdollSimulator") as PhysicalBoneSimulator3D
+		if actor._ragdoll_simulator == null:
+			actor._ragdoll_simulator = PhysicalBoneSimulator3D.new()
+			actor._ragdoll_simulator.name = "HumanoidRagdollSimulator"
+			actor._ragdoll_skeleton.add_child(actor._ragdoll_simulator)
+		actor._ragdoll_simulator.active = false
+		actor._ragdoll_simulator.influence = 1.0
+	_create_missing_ragdoll_physical_bones()
+	return not actor._ragdoll_physical_bones.is_empty()
+
+
+func _create_missing_ragdoll_physical_bones() -> void:
+	var profile = get_ragdoll_profile()
+	if profile == null:
+		return
+	for bone_name_value in profile.physical_bone_names:
+		var bone_name := String(bone_name_value)
+		if bone_name.is_empty() or actor._ragdoll_physical_bones.has(bone_name):
+			continue
+		var bone_index: int = actor._ragdoll_skeleton.find_bone(bone_name)
+		if bone_index < 0:
+			continue
+		var physical_bone := _build_ragdoll_physical_bone(profile, bone_name, bone_index)
+		actor._ragdoll_simulator.add_child(physical_bone)
+		actor._ragdoll_physical_bones[bone_name] = physical_bone
+
+
+func _build_ragdoll_physical_bone(profile, bone_name: String, bone_index: int) -> PhysicalBone3D:
+	var physical_bone := actor.STABLE_PHYSICAL_BONE_SCRIPT.new() as PhysicalBone3D
+	physical_bone.name = "PhysicalBone_%s" % bone_name
+	physical_bone.bone_name = bone_name
+	physical_bone.transform = actor._ragdoll_skeleton.get_bone_global_rest(bone_index)
+	physical_bone.set("max_linear_speed", actor.RAGDOLL_MAX_LINEAR_SPEED)
+	physical_bone.set("max_angular_speed", actor.RAGDOLL_MAX_ANGULAR_SPEED)
+	physical_bone.mass = maxf(0.05, float(profile.get_bone_mass(bone_name)))
+	physical_bone.gravity_scale = float(profile.get("gravity_scale"))
+	physical_bone.linear_damp = float(profile.get("linear_damp"))
+	physical_bone.angular_damp = float(profile.get("angular_damp"))
+	physical_bone.friction = float(profile.get("friction"))
+	physical_bone.bounce = float(profile.get("bounce"))
+	physical_bone.linear_damp_mode = PhysicalBone3D.DAMP_MODE_REPLACE
+	physical_bone.angular_damp_mode = PhysicalBone3D.DAMP_MODE_REPLACE
+	physical_bone.can_sleep = false
+	physical_bone.collision_layer = int(profile.get("collision_layer"))
+	physical_bone.collision_mask = int(profile.get("collision_mask"))
+	physical_bone.joint_type = int(profile.get_bone_joint_type(bone_name)) as PhysicalBone3D.JointType
+	physical_bone.joint_offset = Transform3D.IDENTITY
+	_apply_ragdoll_joint_constraints(profile, physical_bone, bone_name)
+	var shape := CollisionShape3D.new()
+	shape.name = "CollisionShape3D"
+	var bone_length := _get_ragdoll_bone_length(profile, bone_name, bone_index)
+	var radius := float(profile.get_bone_radius(bone_name))
+	var body_basis := _get_ragdoll_body_basis(profile, bone_name, bone_index)
+	var center_distance := 0.0 if bone_name == str(profile.get("root_bone_name")) else bone_length * 0.5
+	if bool(profile.should_use_box_shape(bone_name)):
+		var box := BoxShape3D.new()
+		box.size = _get_ragdoll_box_size(bone_name, bone_length, radius)
+		shape.shape = box
+		physical_bone.body_offset = Transform3D(body_basis, body_basis.y * center_distance)
+	else:
+		var capsule := CapsuleShape3D.new()
+		capsule.radius = radius
+		capsule.height = maxf(bone_length * actor.RAGDOLL_COLLIDER_LENGTH_SCALE, radius * 2.2)
+		shape.shape = capsule
+		physical_bone.body_offset = Transform3D(body_basis, body_basis.y * center_distance)
+	physical_bone.add_child(shape)
+	return physical_bone
+
+
+func _apply_ragdoll_joint_constraints(profile, physical_bone: PhysicalBone3D, bone_name: String) -> void:
+	match int(profile.get_bone_joint_type(bone_name)):
+		PhysicalBone3D.JOINT_TYPE_CONE:
+			var swing_span := float(profile.get_bone_cone_swing_span_degrees(bone_name)) if profile.has_method("get_bone_cone_swing_span_degrees") else 45.0
+			var twist_span := float(profile.get_bone_cone_twist_span_degrees(bone_name)) if profile.has_method("get_bone_cone_twist_span_degrees") else 25.0
+			physical_bone.set("joint_constraints/swing_span", swing_span)
+			physical_bone.set("joint_constraints/twist_span", twist_span)
+			physical_bone.set("joint_constraints/bias", _get_ragdoll_profile_float("cone_bias", 0.25))
+			physical_bone.set("joint_constraints/softness", _get_ragdoll_profile_float("cone_softness", 0.65))
+			physical_bone.set("joint_constraints/relaxation", _get_ragdoll_profile_float("cone_relaxation", 0.8))
+		PhysicalBone3D.JOINT_TYPE_HINGE:
+			physical_bone.set("joint_constraints/angular_limit_enabled", true)
+			physical_bone.set("joint_constraints/angular_limit_lower", _get_ragdoll_profile_float("hinge_limit_lower_degrees", -12.0))
+			physical_bone.set("joint_constraints/angular_limit_upper", _get_ragdoll_profile_float("hinge_limit_upper_degrees", 95.0))
+			physical_bone.set("joint_constraints/angular_limit_bias", _get_ragdoll_profile_float("hinge_bias", 0.25))
+			physical_bone.set("joint_constraints/angular_limit_softness", _get_ragdoll_profile_float("hinge_softness", 0.75))
+			physical_bone.set("joint_constraints/angular_limit_relaxation", _get_ragdoll_profile_float("hinge_relaxation", 0.8))
+
+
+func _configure_ragdoll_internal_collision_exceptions() -> void:
+	var profile = get_ragdoll_profile()
+	if profile == null or not bool(profile.get("disable_internal_collisions")):
+		return
+	var bones: Array[PhysicalBone3D] = []
+	for physical_bone_value in actor._ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone != null and is_instance_valid(physical_bone):
+			bones.append(physical_bone)
+	for first_index in range(bones.size()):
+		for second_index in range(first_index + 1, bones.size()):
+			PhysicsServer3D.body_add_collision_exception(bones[first_index].get_rid(), bones[second_index].get_rid())
+			PhysicsServer3D.body_add_collision_exception(bones[second_index].get_rid(), bones[first_index].get_rid())
+
+
+func _reset_ragdoll_body_velocities() -> void:
+	for physical_bone_value in actor._ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone == null or not is_instance_valid(physical_bone):
+			continue
+		physical_bone.linear_velocity = Vector3.ZERO
+		physical_bone.angular_velocity = Vector3.ZERO
+
+
+func _sync_ragdoll_physical_bones_to_current_pose() -> void:
+	if actor._ragdoll_skeleton == null or not is_instance_valid(actor._ragdoll_skeleton):
+		return
+	actor._ragdoll_skeleton.force_update_all_bone_transforms()
+	for bone_name_value in actor._ragdoll_physical_bones.keys():
+		var bone_name := str(bone_name_value)
+		var physical_bone := actor._ragdoll_physical_bones.get(bone_name, null) as PhysicalBone3D
+		if physical_bone == null or not is_instance_valid(physical_bone):
+			continue
+		var bone_index: int = actor._ragdoll_skeleton.find_bone(bone_name)
+		if bone_index < 0:
+			continue
+		physical_bone.transform = actor._ragdoll_skeleton.get_bone_global_pose(bone_index)
+
+
+func _prepare_ragdoll_activation() -> void:
+	actor.velocity.y = minf(actor.velocity.y, 0.0)
+	actor._ragdoll_upward_velocity_suppression_frames = actor.RAGDOLL_UPWARD_VELOCITY_SUPPRESSION_FRAMES
+	_set_ragdoll_bone_upward_velocity_suppression(actor.RAGDOLL_UPWARD_VELOCITY_SUPPRESSION_FRAMES)
+	if actor._ragdoll_skeleton != null and is_instance_valid(actor._ragdoll_skeleton):
+		actor._ragdoll_skeleton.force_update_all_bone_transforms()
+
+
+func _set_ragdoll_bone_upward_velocity_suppression(frame_count: int) -> void:
+	for physical_bone_value in actor._ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone != null and is_instance_valid(physical_bone) and physical_bone.has_method("set_upward_velocity_suppression_frames"):
+			physical_bone.call("set_upward_velocity_suppression_frames", frame_count)
+
+
+func _get_ragdoll_body_basis(profile, bone_name: String, bone_index: int) -> Basis:
+	if profile != null and bone_name == str(profile.get("root_bone_name")):
+		return Basis.IDENTITY
+	return _make_y_axis_basis(_get_ragdoll_bone_axis(profile, bone_name, bone_index))
+
+
+func _get_ragdoll_bone_axis(profile, bone_name: String, bone_index: int) -> Vector3:
+	var child_vector := _get_ragdoll_child_vector(profile, bone_index)
+	if child_vector.length_squared() > 0.0001:
+		return child_vector.normalized()
+	var parent_axis := _get_ragdoll_parent_continuation_axis(bone_index)
+	if parent_axis.length_squared() > 0.0001:
+		return parent_axis.normalized()
+	return _get_fallback_ragdoll_bone_axis(bone_name)
+
+
+func _get_ragdoll_child_vector(profile, bone_index: int) -> Vector3:
+	if profile == null:
+		return Vector3.ZERO
+	var best_vector := Vector3.ZERO
+	var best_length_squared := 0.0
+	for child_index in actor._ragdoll_skeleton.get_bone_children(bone_index):
+		var child_name: String = actor._ragdoll_skeleton.get_bone_name(child_index)
+		if not profile.has_physical_bone(child_name):
+			continue
+		var child_vector: Vector3 = actor._ragdoll_skeleton.get_bone_rest(child_index).origin
+		var child_length_squared: float = child_vector.length_squared()
+		if child_length_squared > best_length_squared:
+			best_vector = child_vector
+			best_length_squared = child_length_squared
+	return best_vector
+
+
+func _get_ragdoll_parent_continuation_axis(bone_index: int) -> Vector3:
+	var bone_rest: Transform3D = actor._ragdoll_skeleton.get_bone_rest(bone_index)
+	if bone_rest.origin.length_squared() <= 0.0001:
+		return Vector3.ZERO
+	return bone_rest.basis.inverse() * bone_rest.origin
+
+
+func _get_fallback_ragdoll_bone_axis(bone_name: String) -> Vector3:
+	if bone_name.ends_with("_l"):
+		return Vector3.LEFT
+	if bone_name.ends_with("_r"):
+		return Vector3.RIGHT
+	if bone_name.begins_with("foot"):
+		return Vector3.FORWARD
+	return Vector3.UP
+
+
+func _make_y_axis_basis(axis: Vector3) -> Basis:
+	var y_axis := axis.normalized()
+	if y_axis.length_squared() <= 0.0001:
+		return Basis.IDENTITY
+	var reference_axis := Vector3.UP
+	if absf(y_axis.dot(reference_axis)) > 0.92:
+		reference_axis = Vector3.FORWARD
+	var x_axis := reference_axis.cross(y_axis).normalized()
+	var z_axis := x_axis.cross(y_axis).normalized()
+	return Basis(x_axis, y_axis, z_axis).orthonormalized()
+
+
+func _get_ragdoll_bone_length(profile, bone_name: String, bone_index: int) -> float:
+	var best_length := _get_ragdoll_child_vector(profile, bone_index).length()
+	if best_length <= 0.0:
+		best_length = _get_fallback_ragdoll_bone_length(bone_name)
+	return best_length
+
+
+func _get_fallback_ragdoll_bone_length(bone_name: String) -> float:
+	if bone_name == "Head":
+		return 0.22
+	if bone_name.begins_with("hand") or bone_name.begins_with("foot"):
+		return 0.16
+	if bone_name.begins_with("spine"):
+		return 0.16
+	if bone_name == "pelvis":
+		return 0.22
+	return 0.25
+
+
+func _get_ragdoll_box_size(bone_name: String, bone_length: float, radius: float) -> Vector3:
+	if bone_name == "pelvis":
+		return Vector3(radius * 2.5, maxf(0.14, bone_length * 0.55), radius * 1.8)
+	if bone_name == "Head":
+		return Vector3(radius * 1.6, radius * 1.8, radius * 1.5)
+	return Vector3(radius * 2.0, maxf(0.12, bone_length * actor.RAGDOLL_COLLIDER_LENGTH_SCALE), radius * 1.6)
+
+
+func _apply_pending_ragdoll_impulse() -> void:
+	if actor._last_ragdoll_impulse.length_squared() <= 0.0001 or actor._last_ragdoll_impulse_remaining <= 0.0:
+		actor._last_ragdoll_impulse = Vector3.ZERO
+		actor._last_ragdoll_impulse_remaining = 0.0
+		return
+	var ragdoll_impulse := _get_non_upward_ragdoll_vector(actor._last_ragdoll_impulse)
+	var profile = get_ragdoll_profile()
+	var root_bone_name := str(profile.get("root_bone_name")) if profile != null else "pelvis"
+	var root_bone := actor._ragdoll_physical_bones.get(root_bone_name, null) as PhysicalBone3D
+	if root_bone != null and is_instance_valid(root_bone):
+		root_bone.apply_central_impulse(ragdoll_impulse)
+	for bone_name in ["spine_02", "spine_03"]:
+		var physical_bone := actor._ragdoll_physical_bones.get(bone_name, null) as PhysicalBone3D
+		if physical_bone != null and is_instance_valid(physical_bone):
+			physical_bone.apply_central_impulse(ragdoll_impulse * 0.35)
+	actor._last_ragdoll_impulse = Vector3.ZERO
+	actor._last_ragdoll_impulse_remaining = 0.0
+
+
+func _clamp_ragdoll_upward_velocities() -> void:
+	for physical_bone_value in actor._ragdoll_physical_bones.values():
+		var physical_bone := physical_bone_value as PhysicalBone3D
+		if physical_bone == null or not is_instance_valid(physical_bone):
+			continue
+		physical_bone.linear_velocity = _get_non_upward_ragdoll_vector(physical_bone.linear_velocity)
+
+
+func _get_non_upward_ragdoll_vector(vector: Vector3) -> Vector3:
+	if vector.y <= 0.0:
+		return vector
+	return Vector3(vector.x, 0.0, vector.z)
 
 
 func get_resolved_visual_body_type() -> int:
