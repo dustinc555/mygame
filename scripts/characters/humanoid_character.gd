@@ -161,7 +161,6 @@ static var _debug_humanoid_ai_profile_totals: Dictionary = {}
 static var _runtime_focus_cache_frame_key := -1
 static var _runtime_focus_cache_tree_id := 0
 static var _runtime_focus_cache_positions: Array[Vector3] = []
-static var _fallback_visual_material: Material
 
 enum OrderType {
 	NONE,
@@ -1586,10 +1585,16 @@ func get_appearance_copy():
 
 
 func get_resolved_visual_body_type() -> int:
+	# A2 transitional shim -> BodyProjection.get_resolved_visual_body_type.
+	if _body != null:
+		return _body.get_resolved_visual_body_type()
 	return _resolve_visual_body_type()
 
 
 func get_resolved_body_archetype() -> Resource:
+	# A2 transitional shim -> BodyProjection.get_resolved_body_archetype.
+	if _body != null:
+		return _body.get_resolved_body_archetype()
 	return _resolve_body_archetype()
 
 
@@ -4075,87 +4080,10 @@ func _get_ground_marker_raycast_exclusions() -> Array[RID]:
 
 
 func _setup_character_visual() -> void:
-	var old_visual := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
-	if old_visual != null:
-		old_visual.free()
-	_character_animation_player = null
-	_character_animation_players.clear()
-	_character_skeleton = null
-	_bone_pose_position_offsets.clear()
-	_visual_foot_anchor_correction_y = 0.0
-	_visual_foot_ground_correction_y = 0.0
-	_current_character_animation = ""
-
-	var body_mesh := get_node_or_null("BodyMesh") as MeshInstance3D
-	if body_mesh == null:
-		return
-	body_mesh.visible = true
-	var resolved_body_archetype := _resolve_body_archetype()
-	var resolved_body_type := _resolve_visual_body_type()
-	if resolved_body_type == VisualBodyType.NONE:
-		return
-	var visual_scene := _get_character_visual_scene(resolved_body_type, resolved_body_archetype)
-	if visual_scene == null:
-		return
-
-	var model := visual_scene.instantiate()
-	if not (model is Node3D):
-		model.queue_free()
-		return
-	var model_root := model as Node3D
-	model_root.rotation.y = CHARACTER_VISUAL_YAW_OFFSET
-	_apply_skin_materials(model_root, resolved_body_type)
-
-	var visual_root := Node3D.new()
-	visual_root.name = CHARACTER_VISUAL_NODE_NAME
-	add_child(visual_root)
-	visual_root.add_child(model_root)
-	var visual_fit_scale := _fit_visual_to_body_mesh(visual_root, body_mesh)
-	_setup_character_animation(model_root)
-	var character_skeleton := _find_skeleton(model_root)
-	_character_skeleton = character_skeleton
-	_bone_pose_position_offsets = _get_bone_pose_position_offsets(resolved_body_archetype)
-	_setup_equipped_clothing_visuals(visual_root, character_skeleton, resolved_body_archetype, body_mesh, visual_fit_scale)
-	_set_base_eyebrow_visuals_visible(model_root, appearance_data == null or appearance_data.eyebrow_style == null)
-	_setup_head_attachment_visuals(visual_root, character_skeleton)
-	_setup_humanoid_grip_sockets(visual_root)
-	_setup_equipped_bone_visuals(visual_root)
-	if life_state == NpcRules.LifeState.ALIVE:
-		_play_random_idle_animation(true)
-	else:
-		_stop_character_animation(true)
-	_apply_bone_pose_position_offsets()
-	_apply_runtime_visual_foot_ground_alignment()
-	_set_equipped_clothing_visuals_visible(_preview_clothes_visible)
-	_ensure_non_null_visual_materials(visual_root)
-	body_mesh.visible = false
-
-
-func _ensure_non_null_visual_materials(root: Node) -> void:
-	if root == null:
-		return
-	if root is MeshInstance3D:
-		var mesh_instance := root as MeshInstance3D
-		if mesh_instance.mesh != null:
-			for surface_index in range(mesh_instance.mesh.get_surface_count()):
-				if mesh_instance.mesh.surface_get_material(surface_index) != null:
-					continue
-				if surface_index < mesh_instance.get_surface_override_material_count() and mesh_instance.get_surface_override_material(surface_index) != null:
-					continue
-				mesh_instance.set_surface_override_material(surface_index, _get_fallback_visual_material())
-	for child in root.get_children():
-		_ensure_non_null_visual_materials(child)
-
-
-static func _get_fallback_visual_material() -> Material:
-	if _fallback_visual_material != null:
-		return _fallback_visual_material
-	var material := StandardMaterial3D.new()
-	material.resource_name = "Fallback Character Surface"
-	material.albedo_color = Color(0.62, 0.58, 0.52, 1.0)
-	material.roughness = 0.86
-	_fallback_visual_material = material
-	return _fallback_visual_material
+	# A2 transitional shim -> BodyProjection.setup_visual. CharacterVisual now lives
+	# under BodyProjection; actor remains the truth owner during this split.
+	if _body != null:
+		_body.setup_visual()
 
 
 func _ensure_appearance_data() -> void:
@@ -4192,8 +4120,15 @@ func _apply_automatic_eyebrow_style() -> void:
 
 
 func has_custom_skin_material() -> bool:
-	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
-	return visual_root != null and SKIN_TEXTURE_BUILDER.has_custom_skin_materials(visual_root)
+	return _body.has_custom_skin_material() if _body != null else false
+
+
+func get_character_visual_root() -> Node3D:
+	if _body != null:
+		var body_visual_root := _body.get_visual_root()
+		if body_visual_root != null:
+			return body_visual_root
+	return get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
 
 
 func get_visual_foot_anchor_y() -> float:
@@ -4240,165 +4175,31 @@ func _apply_runtime_visual_foot_ground_alignment() -> void:
 
 
 func refresh_grip_sockets_for_body() -> void:
-	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
-	if visual_root == null:
-		return
-	_setup_humanoid_grip_sockets(visual_root)
-	_refresh_bone_equipment_slots(BONE_EQUIPMENT_SLOTS.keys())
+	# A2 transitional shim -> BodyProjection.refresh_grip_sockets_for_body.
+	# Kept for existing callers until A5 removes actor-side visual shims.
+	if _body != null:
+		_body.refresh_grip_sockets_for_body()
 
 
 func _rebuild_character_visual_for_equipment() -> void:
-	if not is_inside_tree():
-		return
-	_setup_character_visual()
+	# A2 transitional shim -> BodyProjection.rebuild_visual_for_equipment.
+	if _body != null:
+		_body.rebuild_visual_for_equipment()
 
 
 func _can_refresh_bone_equipment_only(changed_slots: Array) -> bool:
-	if not is_inside_tree() or changed_slots.is_empty():
-		return false
-	for slot_name in changed_slots:
-		if not BONE_EQUIPMENT_SLOTS.has(str(slot_name)):
-			return false
-	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
-	if visual_root == null:
-		return false
-	return _find_skeleton(visual_root) != null
+	# A2 transitional shim -> BodyProjection.can_refresh_bone_equipment_only.
+	return _body.can_refresh_bone_equipment_only(changed_slots) if _body != null else false
 
 
 func _refresh_bone_equipment_slots(changed_slots: Array) -> void:
-	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
-	if visual_root == null:
-		_rebuild_character_visual_for_equipment()
-		return
-	var skeleton := _find_skeleton(visual_root)
-	if skeleton == null:
-		_rebuild_character_visual_for_equipment()
-		return
-	for slot_name in changed_slots:
-		_refresh_bone_equipment_slot(skeleton, str(slot_name))
-
-
-func _refresh_bone_equipment_slot(skeleton: Skeleton3D, slot_name: String) -> void:
-	_remove_bone_equipment_slot(skeleton, slot_name)
-	var item := get_equipped_item(slot_name)
-	_add_bone_equipment_slot(skeleton, slot_name, item)
-
-
-func _remove_bone_equipment_slot(skeleton: Skeleton3D, slot_name: String) -> void:
-	var existing_visual := _find_node3d_by_name(skeleton, _get_bone_equipment_visual_name(slot_name))
-	if existing_visual != null:
-		existing_visual.free()
-	var legacy_attachment := skeleton.get_node_or_null(_get_bone_attachment_name(slot_name))
-	if legacy_attachment != null:
-		legacy_attachment.free()
-
-
-func _has_equipped_clothing_visuals() -> bool:
-	var resolved_body_archetype := _resolve_body_archetype()
-	for slot_name in CLOTHING_EQUIPMENT_SLOTS:
-		var item := get_equipped_item(slot_name)
-		if item != null and item.get_equipped_scene_for_body_archetype(resolved_body_archetype) != null:
-			return true
-	return false
-
-
-func _setup_equipped_clothing_visuals(visual_root: Node3D, character_skeleton: Skeleton3D, visual_body_archetype: Resource, body_mesh: MeshInstance3D, visual_fit_scale: float) -> void:
-	var surface_offset_base := _get_clothing_surface_offset_base(body_mesh, visual_fit_scale)
-	for slot_name in CLOTHING_EQUIPMENT_SLOTS:
-		var item := get_equipped_item(slot_name)
-		if item == null:
-			continue
-		var equipment_visual := item.get_equipment_visual_for_body_archetype(visual_body_archetype)
-		var equipped_scene := item.get_equipped_scene_for_body_archetype(visual_body_archetype)
-		if equipped_scene == null:
-			continue
-		var instance := equipped_scene.instantiate()
-		if not (instance is Node3D):
-			instance.queue_free()
-			continue
-		var model_root := instance as Node3D
-		model_root.name = "Equipped_%s" % slot_name.capitalize()
-		var visual_transform := item.equipped_transform
-		var surface_offset_ratio := 0.0
-		if equipment_visual != null:
-			visual_transform = equipment_visual.get("equipped_transform")
-			surface_offset_ratio = float(equipment_visual.get("surface_offset_ratio"))
-		var surface_offset := surface_offset_base * surface_offset_ratio
-		if character_skeleton != null and _setup_shared_skeleton_clothing_visual(visual_root, character_skeleton, model_root, visual_transform, surface_offset):
-			model_root.free()
-			continue
-		_setup_legacy_clothing_visual(visual_root, model_root, visual_transform, surface_offset)
-
-
-func _setup_head_attachment_visuals(visual_root: Node3D, character_skeleton: Skeleton3D) -> void:
-	if appearance_data == null:
-		return
-	_setup_head_attachment_visual(visual_root, character_skeleton, appearance_data.hair_style, appearance_data.hair_color, "Hair")
-	_setup_head_attachment_visual(visual_root, character_skeleton, appearance_data.beard_style, appearance_data.beard_color, "Beard")
-	_setup_head_attachment_visual(visual_root, character_skeleton, appearance_data.eyebrow_style, appearance_data.eyebrow_color, "Eyebrows")
-
-
-func _setup_head_attachment_visual(visual_root: Node3D, character_skeleton: Skeleton3D, style_resource: Resource, color: Color, slot_label: String) -> void:
-	if visual_root == null or style_resource == null:
-		return
-	var visual_scene := style_resource.get("visual_scene") as PackedScene
-	if visual_scene == null:
-		return
-	var instance := visual_scene.instantiate()
-	if not (instance is Node3D):
-		instance.queue_free()
-		return
-	var source_root := instance as Node3D
-	source_root.name = "%s%s" % [APPEARANCE_HEAD_ATTACHMENT_PREFIX, slot_label]
-	if character_skeleton != null and _setup_shared_skeleton_head_attachment_visual(visual_root, character_skeleton, source_root, color, bool(style_resource.get("colorize"))):
-		source_root.free()
-		return
-	_setup_legacy_head_attachment_visual(visual_root, source_root, color, bool(style_resource.get("colorize")))
-
-
-func _setup_shared_skeleton_head_attachment_visual(visual_root: Node3D, character_skeleton: Skeleton3D, source_root: Node3D, color: Color, colorize: bool) -> bool:
-	var source_meshes: Array[MeshInstance3D] = []
-	_collect_mesh_instances(source_root, source_meshes)
-	if source_meshes.is_empty():
-		return false
-	var slot_root := Node3D.new()
-	slot_root.name = source_root.name
-	slot_root.transform = Transform3D(Basis(Vector3.UP, CHARACTER_VISUAL_YAW_OFFSET), Vector3.ZERO)
-	visual_root.add_child(slot_root)
-	var copied_mesh_count := 0
-	for source_mesh in source_meshes:
-		if source_mesh == null or source_mesh.mesh == null:
-			continue
-		var attachment_mesh := _copy_clothing_mesh_instance(source_root, source_mesh)
-		if colorize:
-			_apply_head_attachment_material(attachment_mesh, color)
-		slot_root.add_child(attachment_mesh)
-		attachment_mesh.skeleton = attachment_mesh.get_path_to(character_skeleton)
-		copied_mesh_count += 1
-	if copied_mesh_count <= 0:
-		slot_root.free()
-		return false
-	return true
-
-
-func _setup_legacy_head_attachment_visual(visual_root: Node3D, source_root: Node3D, color: Color, colorize: bool) -> void:
-	source_root.transform = Transform3D(Basis(Vector3.UP, CHARACTER_VISUAL_YAW_OFFSET), Vector3.ZERO)
-	if colorize:
-		_apply_head_attachment_material(source_root, color)
-	visual_root.add_child(source_root)
-
-
-func _apply_head_attachment_material(root: Node, color: Color) -> void:
-	if root is MeshInstance3D:
-		var material := StandardMaterial3D.new()
-		material.albedo_color = color
-		material.roughness = 0.82
-		(root as MeshInstance3D).material_override = material
-	for child in root.get_children():
-		_apply_head_attachment_material(child, color)
+	# A2 transitional shim -> BodyProjection.refresh_bone_equipment_slots.
+	if _body != null:
+		_body.refresh_bone_equipment_slots(changed_slots)
 
 
 func _apply_skin_materials(root: Node, body_type: int) -> void:
+	# A3 moves appearance material policy to HumanoidBodyProjection; actor keeps it for A2.
 	if appearance_data == null or not bool(appearance_data.skin_color_customized):
 		return
 	var race := _get_character_race()
@@ -4407,6 +4208,7 @@ func _apply_skin_materials(root: Node, body_type: int) -> void:
 
 
 func _set_base_eyebrow_visuals_visible(root: Node, visible_flag: bool) -> void:
+	# A3 moves eyebrow/appearance visibility policy to HumanoidBodyProjection.
 	if root == null:
 		return
 	if root is MeshInstance3D and str(root.name).to_lower().contains("eyebrow"):
@@ -4416,250 +4218,9 @@ func _set_base_eyebrow_visuals_visible(root: Node, visible_flag: bool) -> void:
 
 
 func _set_equipped_clothing_visuals_visible(visible_flag: bool) -> void:
-	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
-	if visual_root == null:
-		return
-	for child in visual_root.get_children():
-		if str(child.name).begins_with("Equipped_"):
-			(child as Node3D).visible = visible_flag
-
-
-func _setup_shared_skeleton_clothing_visual(visual_root: Node3D, character_skeleton: Skeleton3D, source_root: Node3D, visual_transform: Transform3D, surface_offset: float) -> bool:
-	var source_meshes: Array[MeshInstance3D] = []
-	_collect_mesh_instances(source_root, source_meshes)
-	if source_meshes.is_empty():
-		return false
-
-	var slot_root := Node3D.new()
-	slot_root.name = source_root.name
-	slot_root.transform = Transform3D(Basis(Vector3.UP, CHARACTER_VISUAL_YAW_OFFSET), Vector3.ZERO) * visual_transform
-	visual_root.add_child(slot_root)
-	var copied_mesh_count := 0
-	for source_mesh in source_meshes:
-		if source_mesh == null or source_mesh.mesh == null:
-			continue
-		var clothing_mesh := _copy_clothing_mesh_instance(source_root, source_mesh)
-		slot_root.add_child(clothing_mesh)
-		clothing_mesh.skeleton = clothing_mesh.get_path_to(character_skeleton)
-		_inflate_clothing_visual(clothing_mesh, surface_offset)
-		copied_mesh_count += 1
-
-	if copied_mesh_count <= 0:
-		slot_root.free()
-		return false
-	return true
-
-
-func _setup_legacy_clothing_visual(visual_root: Node3D, model_root: Node3D, visual_transform: Transform3D, surface_offset: float) -> void:
-	model_root.transform = Transform3D(Basis(Vector3.UP, CHARACTER_VISUAL_YAW_OFFSET), Vector3.ZERO) * visual_transform
-	_inflate_clothing_visual(model_root, surface_offset)
-	visual_root.add_child(model_root)
-	_setup_character_animation(model_root)
-
-
-func _collect_mesh_instances(root: Node, meshes: Array[MeshInstance3D]) -> void:
-	if root is MeshInstance3D:
-		meshes.append(root as MeshInstance3D)
-	for child in root.get_children():
-		_collect_mesh_instances(child, meshes)
-
-
-func _copy_clothing_mesh_instance(source_root: Node3D, source_mesh: MeshInstance3D) -> MeshInstance3D:
-	var clothing_mesh := MeshInstance3D.new()
-	clothing_mesh.name = source_mesh.name
-	clothing_mesh.transform = _get_node3d_transform_relative_to_root(source_root, source_mesh)
-	clothing_mesh.mesh = source_mesh.mesh
-	clothing_mesh.skin = source_mesh.skin
-	clothing_mesh.visible = source_mesh.visible
-	clothing_mesh.layers = source_mesh.layers
-	clothing_mesh.cast_shadow = source_mesh.cast_shadow
-	if source_mesh.material_override != null:
-		clothing_mesh.material_override = source_mesh.material_override
-	for surface_index in range(source_mesh.get_surface_override_material_count()):
-		var surface_material := source_mesh.get_surface_override_material(surface_index)
-		if surface_material != null:
-			clothing_mesh.set_surface_override_material(surface_index, surface_material)
-	for blend_shape_index in range(source_mesh.get_blend_shape_count()):
-		clothing_mesh.set_blend_shape_value(blend_shape_index, source_mesh.get_blend_shape_value(blend_shape_index))
-	return clothing_mesh
-
-
-func _setup_equipped_bone_visuals(visual_root: Node3D) -> void:
-	var skeleton := _find_skeleton(visual_root)
-	if skeleton == null:
-		return
-	for slot_name in BONE_EQUIPMENT_SLOTS.keys():
-		var item := get_equipped_item(slot_name)
-		_add_bone_equipment_slot(skeleton, slot_name, item)
-
-
-func _add_bone_equipment_slot(skeleton: Skeleton3D, slot_name: String, item: ItemDefinition) -> void:
-	if item == null:
-		return
-	var equipped_scene := item.get_equipped_scene_for_body_archetype(_resolve_body_archetype())
-	if equipped_scene == null:
-		return
-	var instance := equipped_scene.instantiate()
-	if not (instance is Node3D):
-		instance.queue_free()
-		return
-	var socket_id := _get_equipment_socket_id(item, slot_name)
-	var fallback_bone_name := _get_equipment_attachment_bone(item, slot_name)
-	var socket := _get_or_create_humanoid_grip_socket(skeleton, socket_id, fallback_bone_name)
-	if socket == null:
-		instance.queue_free()
-		return
-	var slot_visual := Node3D.new()
-	slot_visual.name = _get_bone_equipment_visual_name(slot_name)
-	socket.add_child(slot_visual)
-	var model_root := instance as Node3D
-	model_root.transform = item.equipped_transform * _get_item_grip_transform(model_root, item, slot_name).affine_inverse()
-	slot_visual.add_child(model_root)
-
-
-func _get_bone_attachment_name(slot_name: String) -> String:
-	return "Equipped%sAttachment" % slot_name.capitalize()
-
-
-func _get_bone_equipment_visual_name(slot_name: String) -> String:
-	return "Equipped%sVisual" % slot_name.capitalize()
-
-
-func _setup_humanoid_grip_sockets(visual_root: Node3D) -> void:
-	var skeleton := _find_skeleton(visual_root)
-	if skeleton == null:
-		return
-	var socket_profile := _get_grip_socket_profile()
-	if socket_profile == null or not socket_profile.has_method("get_socket_ids"):
-		return
-	for socket_id in socket_profile.get_socket_ids():
-		_get_or_create_humanoid_grip_socket(skeleton, str(socket_id))
-
-
-func _get_or_create_humanoid_grip_socket(skeleton: Skeleton3D, socket_id: String, fallback_bone_name := "") -> Node3D:
-	if socket_id.is_empty():
-		return null
-	var socket_name := _get_equipment_socket_node_name(socket_id)
-	var attachment_name := _get_humanoid_grip_socket_attachment_name(socket_id)
-	var attachment := skeleton.get_node_or_null(attachment_name) as BoneAttachment3D
-	if attachment == null:
-		var bone_name := _get_equipment_socket_bone_name(socket_id)
-		if bone_name.is_empty():
-			bone_name = fallback_bone_name
-		if bone_name.is_empty() or skeleton.find_bone(bone_name) < 0:
-			return null
-		attachment = BoneAttachment3D.new()
-		attachment.name = attachment_name
-		attachment.bone_name = bone_name
-		skeleton.add_child(attachment)
-	var socket := attachment.get_node_or_null(socket_name) as Node3D
-	if socket == null:
-		socket = HUMANOID_GRIP_SOCKET_MARKER_SCRIPT.new() as Node3D
-		socket.name = socket_name
-		attachment.add_child(socket)
-	if socket.get_script() == HUMANOID_GRIP_SOCKET_MARKER_SCRIPT:
-		socket.set("socket_id", socket_id)
-		socket.set("show_runtime_visual", show_grip_socket_markers)
-	socket.transform = _get_equipment_socket_transform(socket_id)
-	return socket
-
-
-func _get_humanoid_grip_socket_attachment_name(socket_id: String) -> String:
-	return "%sAttachment" % _get_equipment_socket_node_name(socket_id)
-
-
-func _get_equipment_socket_transform(socket_id: String) -> Transform3D:
-	var socket_profile := _get_grip_socket_profile()
-	if socket_profile != null and socket_profile.has_method("get_socket_transform"):
-		return socket_profile.get_socket_transform(socket_id)
-	return Transform3D.IDENTITY
-
-
-func _get_equipment_socket_node_name(socket_id: String) -> String:
-	var socket_profile := _get_grip_socket_profile()
-	if socket_profile != null and socket_profile.has_method("get_socket_node_name"):
-		return socket_profile.get_socket_node_name(socket_id)
-	return "GripSocket"
-
-
-func _get_equipment_socket_bone_name(socket_id: String) -> String:
-	var socket_profile := _get_grip_socket_profile()
-	if socket_profile != null and socket_profile.has_method("get_socket_bone_name"):
-		return socket_profile.get_socket_bone_name(socket_id)
-	return ""
-
-
-func _get_grip_socket_profile() -> Resource:
-	if grip_socket_profile != null:
-		return grip_socket_profile
-	var resolved_body_archetype := _resolve_body_archetype()
-	if resolved_body_archetype != null:
-		var body_profile := resolved_body_archetype.get("grip_socket_profile") as Resource
-		if body_profile != null:
-			return body_profile
-	return DEFAULT_GRIP_SOCKET_PROFILE
-
-
-func _get_equipment_socket_id(item: ItemDefinition, slot_name: String) -> String:
-	if item != null and item.grip_profile != null:
-		var socket_id := str(item.grip_profile.get("primary_socket_id"))
-		if not socket_id.is_empty():
-			return socket_id
-	match slot_name:
-		"weapon":
-			return "right_hand_one_hand"
-		"offhand":
-			return "left_hand_shield"
-	return ""
-
-
-func _get_item_grip_transform(model_root: Node3D, item: ItemDefinition, slot_name: String) -> Transform3D:
-	var marker_name := _get_item_grip_marker_name(item, slot_name)
-	if marker_name.is_empty():
-		return Transform3D.IDENTITY
-	var marker := _find_node3d_by_name(model_root, marker_name)
-	if marker == null:
-		push_warning("Missing %s marker in %s; using wrapper root as grip point." % [marker_name, item.display_name])
-		return Transform3D.IDENTITY
-	return _get_node3d_transform_relative_to_root(model_root, marker)
-
-
-func _get_item_grip_marker_name(item: ItemDefinition, _slot_name: String) -> String:
-	if item != null and item.grip_profile != null:
-		var marker_name := str(item.grip_profile.get("primary_grip_marker"))
-		if not marker_name.is_empty():
-			return marker_name
-	return "GripPoint_Primary"
-
-
-func _find_node3d_by_name(root: Node, node_name: String) -> Node3D:
-	if root is Node3D and root.name == node_name:
-		return root as Node3D
-	for child in root.get_children():
-		var found := _find_node3d_by_name(child, node_name)
-		if found != null:
-			return found
-	return null
-
-
-func _get_node3d_transform_relative_to_root(root: Node3D, target: Node3D) -> Transform3D:
-	if target == root:
-		return Transform3D.IDENTITY
-	var current: Node = target
-	var result := Transform3D.IDENTITY
-	while current != null and current != root:
-		if current is Node3D:
-			result = (current as Node3D).transform * result
-		current = current.get_parent()
-	return result
-
-
-func _get_equipment_attachment_bone(item: ItemDefinition, slot_name: String) -> String:
-	if item != null and item.grip_profile != null:
-		var primary_bone := str(item.grip_profile.get("primary_bone"))
-		if not primary_bone.is_empty():
-			return primary_bone
-	return str(BONE_EQUIPMENT_SLOTS.get(slot_name, ""))
+	# A2 transitional shim -> BodyProjection.set_equipped_clothing_visuals_visible.
+	if _body != null:
+		_body.set_equipped_clothing_visuals_visible(visible_flag)
 
 
 func _find_skeleton(root: Node) -> Skeleton3D:
@@ -4713,93 +4274,6 @@ func _infer_visual_body_type() -> int:
 	if FEMALE_VISUAL_NAME_KEYS.has(name_key):
 		return VisualBodyType.FEMALE
 	return VisualBodyType.MALE
-
-
-func _get_character_visual_scene(body_type: int, resolved_body_archetype: Resource) -> PackedScene:
-	if resolved_body_archetype != null:
-		var archetype_visual_scene := resolved_body_archetype.get("visual_scene") as PackedScene
-		if archetype_visual_scene != null:
-			return archetype_visual_scene
-	match body_type:
-		VisualBodyType.MALE:
-			return MALE_VISUAL_SCENE
-		VisualBodyType.FEMALE:
-			return FEMALE_VISUAL_SCENE
-	return null
-
-
-func _fit_visual_to_body_mesh(visual_root: Node3D, body_mesh: MeshInstance3D) -> float:
-	var body_bounds := _calculate_local_mesh_bounds(body_mesh)
-	var visual_bounds := _calculate_local_mesh_bounds(visual_root)
-	if body_bounds.size.y <= 0.001 or visual_bounds.size.y <= 0.001:
-		return 1.0
-
-	var fit_scale := body_bounds.size.y / visual_bounds.size.y
-	var body_center := body_bounds.position + body_bounds.size * 0.5
-	var visual_center := visual_bounds.position + visual_bounds.size * 0.5
-	var visual_ground_y := _get_visual_ground_y(body_bounds.position.y) + CHARACTER_VISUAL_FOOT_CLEARANCE
-	visual_root.scale = Vector3.ONE * fit_scale
-	visual_root.position = Vector3(
-		body_center.x - visual_center.x * fit_scale,
-		visual_ground_y - visual_bounds.position.y * fit_scale,
-		body_center.z - visual_center.z * fit_scale
-	)
-	return fit_scale
-
-
-func _get_clothing_surface_offset_base(body_mesh: MeshInstance3D, visual_fit_scale: float) -> float:
-	var body_bounds := _calculate_local_mesh_bounds(body_mesh)
-	if body_bounds.size.y <= 0.001:
-		return 0.0
-	return body_bounds.size.y / maxf(visual_fit_scale, 0.001)
-
-
-func _inflate_clothing_visual(root: Node, surface_offset: float) -> void:
-	if surface_offset <= 0.0:
-		return
-	if root is MeshInstance3D:
-		_inflate_mesh_instance(root as MeshInstance3D, surface_offset)
-	for child in root.get_children():
-		_inflate_clothing_visual(child, surface_offset)
-
-
-func _inflate_mesh_instance(mesh_instance: MeshInstance3D, surface_offset: float) -> void:
-	if mesh_instance.mesh == null or not (mesh_instance.mesh is ArrayMesh):
-		return
-	var source_mesh := mesh_instance.mesh as ArrayMesh
-	var inflated_mesh := ArrayMesh.new()
-	for surface_index in range(source_mesh.get_surface_count()):
-		var arrays := source_mesh.surface_get_arrays(surface_index)
-		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
-		if not vertices.is_empty() and normals.size() == vertices.size():
-			for vertex_index in range(vertices.size()):
-				var normal := normals[vertex_index]
-				if normal.length_squared() > 0.0001:
-					vertices[vertex_index] += normal.normalized() * surface_offset
-			arrays[Mesh.ARRAY_VERTEX] = vertices
-		inflated_mesh.add_surface_from_arrays(
-			source_mesh.surface_get_primitive_type(surface_index),
-			arrays,
-			source_mesh.surface_get_blend_shape_arrays(surface_index),
-			{},
-			source_mesh.surface_get_format(surface_index)
-		)
-		var source_material := source_mesh.surface_get_material(surface_index)
-		if source_material != null:
-			inflated_mesh.surface_set_material(surface_index, source_material)
-	if inflated_mesh.get_surface_count() == source_mesh.get_surface_count():
-		mesh_instance.mesh = inflated_mesh
-
-
-func _get_visual_ground_y(fallback_y: float) -> float:
-	var collision_shape := get_node_or_null("CollisionShape3D") as CollisionShape3D
-	if collision_shape == null or collision_shape.shape == null:
-		return fallback_y
-	var shape_bounds := _get_collision_shape_local_bounds(collision_shape)
-	if shape_bounds.size.y <= 0.001:
-		return fallback_y
-	return shape_bounds.position.y
 
 
 func _get_collision_shape_local_bounds(collision_shape: CollisionShape3D) -> AABB:
@@ -7207,7 +6681,7 @@ func _prepare_ragdoll_get_up() -> void:
 
 func _ensure_runtime_ragdoll() -> bool:
 	if _ragdoll_skeleton == null or not is_instance_valid(_ragdoll_skeleton):
-		var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME)
+		var visual_root := get_character_visual_root()
 		_ragdoll_skeleton = _find_skeleton(visual_root) if visual_root != null else null
 		_ragdoll_physical_bones.clear()
 		_ragdoll_simulator = null

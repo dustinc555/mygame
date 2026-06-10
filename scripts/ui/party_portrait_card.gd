@@ -118,7 +118,12 @@ func _rebuild_portrait() -> void:
 		child.queue_free()
 	if member == null:
 		return
+	var visual_root := member.get_character_visual_root()
+	if visual_root != null:
+		_add_portrait_copy(visual_root)
 	for child in member.get_children():
+		if child == visual_root:
+			continue
 		_add_portrait_copy(child)
 	_frame_portrait_camera()
 	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE

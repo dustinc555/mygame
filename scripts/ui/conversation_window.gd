@@ -125,7 +125,12 @@ func _rebuild_portrait(actor, portrait_root: Node3D, viewport: SubViewport, port
 	portrait_image.texture = null
 	if actor == null:
 		return
+	var visual_root: Node = actor.get_character_visual_root() if actor.has_method("get_character_visual_root") else null
+	if visual_root != null:
+		_add_portrait_copy(visual_root, portrait_root, visual_yaw_offset)
 	for child in actor.get_children():
+		if child == visual_root:
+			continue
 		_add_portrait_copy(child, portrait_root, visual_yaw_offset)
 	_frame_portrait_camera(portrait_root, portrait_camera)
 	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
