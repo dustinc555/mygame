@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
 [ext_resource type="Texture2D" uid="uid://4rfcsmdu1uah" path="res://assets/items/ore/copper_ore.svg" id="2_icon"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="3_mb0y4"]
 [ext_resource type="PackedScene" path="res://scenes/world/items/copper_ore_model.tscn" id="3_world"]
 
 [resource]

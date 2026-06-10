@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3]
+[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3 uid="uid://dvvjlqfwlyaux"]
 
 [ext_resource type="Script" uid="uid://cugx5hdqn8thn" path="res://scripts/world_sim/facility_function_definition.gd" id="1_function"]
 

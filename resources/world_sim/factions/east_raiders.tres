@@ -1,10 +1,10 @@
-[gd_resource type="Resource" script_class="FactionDefinition" format=3]
+[gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://dkykt4d8s1158"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
-[ext_resource type="Resource" path="res://resources/world_sim/behavior_profiles/east_raiders_camp.tres" id="2_behavior"]
-[ext_resource type="Resource" path="res://resources/world_sim/personality_profiles/raider_predatory.tres" id="3_personality"]
-[ext_resource type="Resource" path="res://resources/world_sim/law_profiles/raider_challenge_law.tres" id="4_law"]
-[ext_resource type="Resource" path="res://resources/world_sim/population_name_profiles/raider_names.tres" id="5_names"]
+[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
+[ext_resource type="Resource" uid="uid://c3x82unvqthas" path="res://resources/world_sim/behavior_profiles/east_raiders_camp.tres" id="2_behavior"]
+[ext_resource type="Resource" uid="uid://bhqtvuvarhw1r" path="res://resources/world_sim/personality_profiles/raider_predatory.tres" id="3_personality"]
+[ext_resource type="Resource" uid="uid://biwpjin2saup5" path="res://resources/world_sim/law_profiles/raider_challenge_law.tres" id="4_law"]
+[ext_resource type="Resource" uid="uid://pjw2qb2u0hbw" path="res://resources/world_sim/population_name_profiles/raider_names.tres" id="5_names"]
 
 [resource]
 script = ExtResource("1_faction")
@@ -12,6 +12,8 @@ faction_id = "EastRaiders"
 display_name = "East Raiders"
 description = "A violent single-settlement raider faction already at war with Surf City."
 primary_color = Color(0.86, 0.16, 0.08, 1)
+default_hostile_faction_ids = null
+starting_war_faction_ids = null
 open_access = false
 behavior_profile = ExtResource("2_behavior")
 personality_profile = ExtResource("3_personality")

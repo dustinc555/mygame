@@ -1,12 +1,11 @@
-[gd_resource type="Resource" script_class="SettlementBehaviorProfile" format=3]
+[gd_resource type="Resource" script_class="SettlementBehaviorProfile" format=3 uid="uid://c3x82unvqthas"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/settlement_behavior_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://cgjwenavn4kmp" path="res://scripts/world_sim/settlement_behavior_profile.gd" id="1_profile"]
 
 [resource]
 script = ExtResource("1_profile")
 profile_id = "east_raiders_camp"
 display_name = "East Raiders Camp"
-food_production_per_day = 0.0
 food_consumption_per_person_per_day = 1.2
 base_aggression = 0.82
 can_initiate_food_raids = true
