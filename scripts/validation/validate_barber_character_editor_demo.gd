@@ -1,6 +1,6 @@
 extends SceneTree
 
-const BARBER_DEMO_SCENE := preload("res://scenes/test_levels/barber_character_editor_demo.tscn")
+const BARBER_DEMO_SCENE_PATH := "res://scenes/test_levels/barber_character_editor_demo.tscn"
 const SILVER_ITEM := preload("res://resources/items/silver.tres")
 const HAIR_LONG := preload("res://resources/character_appearance/hair_long.tres")
 const HAIR_BUZZED := preload("res://resources/character_appearance/hair_buzzed.tres")
@@ -37,16 +37,21 @@ func _run() -> void:
 	await _run_tomas_edit_case()
 	if _failures.is_empty():
 		print("BARBER_CHARACTER_EDITOR_DEMO_OK")
-		quit(0)
+		await _cleanup_and_quit(0)
 		return
 	for failure in _failures:
 		push_error(failure)
 	print("BARBER_CHARACTER_EDITOR_DEMO_FAILED count=%d" % _failures.size())
-	quit(1)
+	await _cleanup_and_quit(1)
 
 
 func _load_scene() -> void:
-	_scene = BARBER_DEMO_SCENE.instantiate()
+	var barber_demo_scene := load(BARBER_DEMO_SCENE_PATH) as PackedScene
+	if barber_demo_scene == null:
+		_fail("Barber character editor demo scene could not be loaded")
+		return
+	_scene = barber_demo_scene.instantiate()
+	_disable_actor_ai_brain(_scene)
 	root.add_child(_scene)
 	await _wait_frames(60)
 	_mira = _scene.get_node_or_null("PartyMembers/Mira") as HumanoidCharacter
@@ -64,6 +69,13 @@ func _load_scene() -> void:
 		_fail("CharacterAppearanceController was not found")
 	if _world_time == null:
 		_fail("WorldTimeController was not found")
+
+
+func _disable_actor_ai_brain(root_node: Node) -> void:
+	if root_node is WorldActor:
+		(root_node as WorldActor).ai_brain_enabled = false
+	for child in root_node.get_children():
+		_disable_actor_ai_brain(child)
 
 
 func _run_initial_state_checks() -> void:
@@ -600,3 +612,33 @@ func _wait_frames(frame_count: int) -> void:
 
 func _fail(message: String) -> void:
 	_failures.append(message)
+
+
+func _cleanup_and_quit(exit_code: int) -> void:
+	SkinTextureBuilder.clear_runtime_caches()
+	_clear_gecs_worlds()
+	_mira = null
+	_tomas = null
+	_barber = null
+	_appearance_controller = null
+	_world_time = null
+	current_scene = null
+	if _scene != null and is_instance_valid(_scene):
+		_scene.queue_free()
+	_scene = null
+	for _index in range(8):
+		await process_frame
+	quit(exit_code)
+
+
+func _clear_gecs_worlds() -> void:
+	var ecs_node := root.get_node_or_null("ECS")
+	for controller in get_nodes_in_group("gecs_world_controller"):
+		if not (controller is Node) or not is_instance_valid(controller):
+			continue
+		var world = controller.get("world")
+		if world != null and is_instance_valid(world) and world.has_method("purge"):
+			world.call("purge", false)
+			if ecs_node != null and ecs_node.get("world") == world:
+				ecs_node.set("world", null)
+		controller.set("world", null)

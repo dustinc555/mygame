@@ -33,6 +33,23 @@ func has_custom_skin_material() -> bool:
 	return false
 
 
+func apply_automatic_eyebrow_style() -> void:
+	pass
+
+
+func rebuild_visual_for_appearance() -> void:
+	setup_visual()
+	refresh_grip_sockets_for_body()
+
+
+func apply_appearance_materials(_root: Node, _body_type: int) -> void:
+	pass
+
+
+func set_base_eyebrow_visuals_visible(_root: Node, _visible_flag: bool) -> void:
+	pass
+
+
 func get_resolved_visual_body_type() -> int:
 	return 0
 

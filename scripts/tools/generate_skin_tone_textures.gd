@@ -57,7 +57,8 @@ func _is_supported_race_id(race_id: String) -> bool:
 
 
 func _generate_for_body_type(race_id: String, body_type: int) -> void:
-	var source_texture: Texture2D = SKIN_TEXTURE_BUILDER.FEMALE_DARK_TEXTURE if body_type == SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_FEMALE else SKIN_TEXTURE_BUILDER.MALE_DARK_TEXTURE
+	var source_texture_path: String = SKIN_TEXTURE_BUILDER.FEMALE_DARK_TEXTURE_PATH if body_type == SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_FEMALE else SKIN_TEXTURE_BUILDER.MALE_DARK_TEXTURE_PATH
+	var source_texture := load(source_texture_path) as Texture2D
 	var base_image := _get_readable_image(source_texture)
 	if base_image == null:
 		push_error("Could not read base skin texture for race '%s' body type %d" % [race_id, body_type])

@@ -49,3 +49,10 @@ func get_available_idle_clip_names() -> Array[String]:
 		names.append(String(actor.RUSTDEAD_IDLE_ANIMATION_NAME))
 		return names
 	return super.get_available_idle_clip_names()
+
+
+func apply_automatic_eyebrow_style() -> void:
+	if actor.appearance_data == null:
+		return
+	actor.appearance_data.eyebrow_style = null
+	actor.appearance_data.eyebrow_color = Color(0.08, 0.015, 0.018, 1.0)

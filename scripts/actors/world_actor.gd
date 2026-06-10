@@ -56,6 +56,7 @@ signal center_notice_requested(message)
 @export var fatigue := 100.0
 @export var running := false
 @export var sneaking := false
+@export var ai_brain_enabled := true
 @export var auto_heal_enabled := false
 @export var auto_burn_rustdead_enabled := false
 @export_range(0, 2, 1) var combat_stance := NpcRules.CombatStance.DEFENSIVE
@@ -165,7 +166,8 @@ func _ready() -> void:
 	_capture_base_max_blood_for_toughness()
 	_ensure_skill_set()
 	_configure_world_actor_movement()
-	_setup_world_actor_ai()
+	if ai_brain_enabled:
+		_setup_world_actor_ai()
 
 
 func _exit_tree() -> void:

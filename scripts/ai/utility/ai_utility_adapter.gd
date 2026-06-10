@@ -2,14 +2,14 @@ extends RefCounted
 
 class_name AiUtilityAdapter
 
-const DEFAULT_PROFILE := preload("res://resources/ai/utility_profiles/default_humanoid.tres")
+const DEFAULT_PROFILE_PATH := "res://resources/ai/utility_profiles/default_humanoid.tres"
 const AI_JOB_SCRIPT := preload("res://scripts/ai/ai_job.gd")
 const AI_UTILITY_GOAL_SELECTOR_SCRIPT := preload("res://scripts/ai/utility/ai_utility_goal_selector.gd")
 const AI_UTILITY_TARGET_SELECTOR_SCRIPT := preload("res://scripts/ai/utility/ai_utility_target_selector.gd")
 const AI_UTILITY_CONTEXT_SCRIPT := preload("res://scripts/ai/utility/ai_utility_context.gd")
 const AI_UTILITY_JOB_FACTORY_SCRIPT := preload("res://scripts/ai/utility/ai_utility_job_factory.gd")
 
-var profile: AiUtilityProfile = DEFAULT_PROFILE
+var profile: AiUtilityProfile
 var selector := AI_UTILITY_GOAL_SELECTOR_SCRIPT.new()
 var target_selector := AI_UTILITY_TARGET_SELECTOR_SCRIPT.new()
 var job_factory := AI_UTILITY_JOB_FACTORY_SCRIPT.new()
@@ -18,10 +18,17 @@ var job_factory := AI_UTILITY_JOB_FACTORY_SCRIPT.new()
 static var _debug_profile_enabled := OS.get_cmdline_args().has("--utility-profile")
 static var _debug_profile_calls := 0
 static var _debug_profile_totals: Dictionary = {}
+static var _default_profile: AiUtilityProfile
 
 
 func setup(target_profile: AiUtilityProfile = null) -> void:
-	profile = target_profile if target_profile != null else DEFAULT_PROFILE
+	profile = target_profile if target_profile != null else _get_default_profile()
+
+
+static func _get_default_profile() -> AiUtilityProfile:
+	if _default_profile == null:
+		_default_profile = load(DEFAULT_PROFILE_PATH) as AiUtilityProfile
+	return _default_profile
 
 
 func run_actor_decision(actor: Node) -> bool:

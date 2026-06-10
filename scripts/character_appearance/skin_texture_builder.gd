@@ -16,8 +16,8 @@ const SKIN_SATURATION_FULL := 0.22
 const SKIN_VALUE_MIN := 0.075
 const SKIN_VALUE_FULL := 0.18
 
-const MALE_DARK_TEXTURE: Texture2D = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Superhero_Male_Dark.png")
-const FEMALE_DARK_TEXTURE: Texture2D = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Superhero_Female_Dark_BaseColor.png")
+const MALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Superhero_Male_Dark.png"
+const FEMALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Superhero_Female_Dark_BaseColor.png"
 const NATURAL_SKIN_TONES := [
 	Color(0.94, 0.78, 0.66, 1.0),
 	Color(0.88, 0.68, 0.54, 1.0),
@@ -45,6 +45,15 @@ const RUSTDEAD_SKIN_TONES := [
 
 static var _skin_profiles: Dictionary = {}
 static var _texture_cache: Dictionary = {}
+static var _male_dark_texture: Texture2D
+static var _female_dark_texture: Texture2D
+
+
+static func clear_runtime_caches() -> void:
+	_skin_profiles.clear()
+	_texture_cache.clear()
+	_male_dark_texture = null
+	_female_dark_texture = null
 
 
 static func apply_custom_skin_materials(root: Node, race_id: String, body_type: int, skin_color: Color) -> bool:
@@ -177,7 +186,7 @@ static func _get_skin_profile(body_type: int) -> Dictionary:
 	var normalized_body_type := _normalize_body_type(body_type)
 	if _skin_profiles.has(normalized_body_type):
 		return _skin_profiles[normalized_body_type]
-	var source_texture := FEMALE_DARK_TEXTURE if normalized_body_type == VISUAL_BODY_TYPE_FEMALE else MALE_DARK_TEXTURE
+	var source_texture := _get_source_texture(normalized_body_type)
 	var base_image := _get_readable_image(source_texture)
 	if base_image == null:
 		return {}
@@ -196,6 +205,16 @@ static func _get_skin_profile(body_type: int) -> Dictionary:
 	}
 	_skin_profiles[normalized_body_type] = profile
 	return profile
+
+
+static func _get_source_texture(normalized_body_type: int) -> Texture2D:
+	if normalized_body_type == VISUAL_BODY_TYPE_FEMALE:
+		if _female_dark_texture == null:
+			_female_dark_texture = load(FEMALE_DARK_TEXTURE_PATH) as Texture2D
+		return _female_dark_texture
+	if _male_dark_texture == null:
+		_male_dark_texture = load(MALE_DARK_TEXTURE_PATH) as Texture2D
+	return _male_dark_texture
 
 
 static func _resize_to_working_size(image: Image) -> void:

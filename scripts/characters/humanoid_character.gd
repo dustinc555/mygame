@@ -394,11 +394,11 @@ func _ready() -> void:
 	_seed_starting_inventory()
 	_apply_population_inventory_entries_if_present()
 	_seed_starting_equipment()
+	_setup_body_projection()
 	_ensure_appearance_data()
 	_setup_nameplate()
 	_setup_inspect_ring()
 	_selection_ring = get_node_or_null("SelectionRing") as Node3D
-	_setup_body_projection()
 	_setup_character_visual()
 	add_to_group("humanoid_character")
 	add_to_group("npc_character")
@@ -1608,8 +1608,7 @@ func apply_appearance_data(next_appearance) -> void:
 		body_archetype = appearance_data.body_archetype
 	visual_body_type = appearance_data.visual_body_type
 	_apply_automatic_eyebrow_style()
-	_setup_character_visual()
-	refresh_grip_sockets_for_body()
+	_rebuild_character_visual_for_appearance()
 	appearance_changed.emit()
 
 
@@ -4107,16 +4106,11 @@ func _ensure_appearance_data() -> void:
 
 
 func _apply_automatic_eyebrow_style() -> void:
-	if appearance_data == null:
-		return
-	match _resolve_visual_body_type():
-		VisualBodyType.FEMALE:
-			appearance_data.eyebrow_style = DEFAULT_FEMALE_EYEBROW_STYLE
-		VisualBodyType.MALE:
-			appearance_data.eyebrow_style = DEFAULT_MALE_EYEBROW_STYLE
-		_:
-			appearance_data.eyebrow_style = null
-	appearance_data.eyebrow_color = appearance_data.hair_color
+	# A3 transitional shim -> BodyProjection.apply_automatic_eyebrow_style.
+	if _body == null:
+		_setup_body_projection()
+	if _body != null:
+		_body.apply_automatic_eyebrow_style()
 
 
 func has_custom_skin_material() -> bool:
@@ -4187,6 +4181,12 @@ func _rebuild_character_visual_for_equipment() -> void:
 		_body.rebuild_visual_for_equipment()
 
 
+func _rebuild_character_visual_for_appearance() -> void:
+	# A3 transitional shim -> BodyProjection.rebuild_visual_for_appearance.
+	if _body != null:
+		_body.rebuild_visual_for_appearance()
+
+
 func _can_refresh_bone_equipment_only(changed_slots: Array) -> bool:
 	# A2 transitional shim -> BodyProjection.can_refresh_bone_equipment_only.
 	return _body.can_refresh_bone_equipment_only(changed_slots) if _body != null else false
@@ -4199,22 +4199,15 @@ func _refresh_bone_equipment_slots(changed_slots: Array) -> void:
 
 
 func _apply_skin_materials(root: Node, body_type: int) -> void:
-	# A3 moves appearance material policy to HumanoidBodyProjection; actor keeps it for A2.
-	if appearance_data == null or not bool(appearance_data.skin_color_customized):
-		return
-	var race := _get_character_race()
-	var race_id := str(race.get("race_id")) if race != null else ""
-	SKIN_TEXTURE_BUILDER.apply_custom_skin_materials(root, race_id, body_type, appearance_data.skin_color)
+	# A3 transitional shim -> BodyProjection.apply_appearance_materials.
+	if _body != null:
+		_body.apply_appearance_materials(root, body_type)
 
 
 func _set_base_eyebrow_visuals_visible(root: Node, visible_flag: bool) -> void:
-	# A3 moves eyebrow/appearance visibility policy to HumanoidBodyProjection.
-	if root == null:
-		return
-	if root is MeshInstance3D and str(root.name).to_lower().contains("eyebrow"):
-		(root as MeshInstance3D).visible = visible_flag
-	for child in root.get_children():
-		_set_base_eyebrow_visuals_visible(child, visible_flag)
+	# A3 transitional shim -> BodyProjection.set_base_eyebrow_visuals_visible.
+	if _body != null:
+		_body.set_base_eyebrow_visuals_visible(root, visible_flag)
 
 
 func _set_equipped_clothing_visuals_visible(visible_flag: bool) -> void:
