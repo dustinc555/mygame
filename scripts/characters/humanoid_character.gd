@@ -361,6 +361,7 @@ var _equipment_change_pending := false
 var _equipment_changed_slots: Dictionary = {}
 var _preview_clothes_visible := true
 var _selection_ring: Node3D
+var _body: BodyProjection = null
 var _stat_value_cache_frame := -1
 var _stat_value_cache: Dictionary = {}
 var _auto_burn_next_scan_msec := 0
@@ -398,6 +399,7 @@ func _ready() -> void:
 	_setup_nameplate()
 	_setup_inspect_ring()
 	_selection_ring = get_node_or_null("SelectionRing") as Node3D
+	_setup_body_projection()
 	_setup_character_visual()
 	add_to_group("humanoid_character")
 	add_to_group("npc_character")
@@ -412,6 +414,24 @@ func _exit_tree() -> void:
 	COMBAT_COORDINATOR.release_character(self)
 	remove_from_group(ACTIVE_COMBAT_ACTOR_GROUP)
 	super._exit_tree()
+
+
+# Creates the actor's visual body adapter (BodyProjection). Visual code is migrated
+# behind this seam in increments; see scripts/projection/. Subclasses override
+# _create_body_projection() to pick their species body.
+func _setup_body_projection() -> void:
+	if _body != null and is_instance_valid(_body):
+		return
+	_body = _create_body_projection()
+	if _body == null:
+		return
+	_body.name = "BodyProjection"
+	add_child(_body)
+	_body.bind_actor(self)
+
+
+func _create_body_projection() -> BodyProjection:
+	return HumanoidBodyProjection.new()
 
 
 func _process(delta: float) -> void:
@@ -4177,20 +4197,13 @@ func has_custom_skin_material() -> bool:
 
 
 func get_visual_foot_anchor_y() -> float:
-	if _character_skeleton == null or not is_instance_valid(_character_skeleton):
-		return INF
-	_character_skeleton.force_update_all_bone_transforms()
-	return _get_skeleton_foot_anchor_global_y(_character_skeleton)
+	# A1 transitional shim -> BodyProjection.get_visual_foot_anchor_y
+	return _body.get_visual_foot_anchor_y() if _body != null else INF
 
 
 func get_visual_ground_y() -> float:
-	var fallback_y := 0.0
-	var body_mesh := get_node_or_null("BodyMesh") as MeshInstance3D
-	if body_mesh != null:
-		var body_bounds := _calculate_local_mesh_bounds(body_mesh)
-		fallback_y = body_bounds.position.y
-	var local_ground_y := _get_visual_ground_y(fallback_y) + CHARACTER_VISUAL_FOOT_CLEARANCE
-	return (global_transform * Vector3(0.0, local_ground_y, 0.0)).y
+	# A1 transitional shim -> BodyProjection.get_visual_ground_y
+	return _body.get_visual_ground_y() if _body != null else 0.0
 
 
 func _get_bone_pose_position_offsets(target_body_archetype: Resource) -> Dictionary:
@@ -4207,26 +4220,9 @@ func _get_bone_pose_position_offsets(target_body_archetype: Resource) -> Diction
 
 
 func _apply_bone_pose_position_offsets() -> void:
-	if _character_skeleton == null or not is_instance_valid(_character_skeleton):
-		return
-	if _bone_pose_position_offsets.is_empty() or _is_ragdoll_active:
-		if not is_zero_approx(_visual_foot_anchor_correction_y):
-			var reset_visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
-			_apply_visual_foot_anchor_correction(reset_visual_root, 0.0)
-		return
-	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
-	for bone_name in _bone_pose_position_offsets.keys():
-		var bone_index := _character_skeleton.find_bone(str(bone_name))
-		if bone_index < 0:
-			continue
-		var offset: Vector3 = _bone_pose_position_offsets[bone_name]
-		var rest_position := _character_skeleton.get_bone_rest(bone_index).origin
-		_character_skeleton.set_bone_pose_position(bone_index, rest_position + offset)
-	_character_skeleton.force_update_all_bone_transforms()
-	var desired_correction := 0.0
-	if appearance_data != null and appearance_data.has_method("get_foot_anchor_correction_y") and visual_root != null:
-		desired_correction = float(appearance_data.get_foot_anchor_correction_y()) * visual_root.scale.y
-	_apply_visual_foot_anchor_correction(visual_root, desired_correction)
+	# A1 transitional shim -> BodyProjection.apply_bone_pose_offsets
+	if _body != null:
+		_body.apply_bone_pose_offsets()
 
 
 func _reset_bone_pose_positions(skeleton: Skeleton3D, offsets: Dictionary) -> void:
@@ -4237,44 +4233,10 @@ func _reset_bone_pose_positions(skeleton: Skeleton3D, offsets: Dictionary) -> vo
 		skeleton.set_bone_pose_position(bone_index, skeleton.get_bone_rest(bone_index).origin)
 
 
-func _apply_visual_foot_anchor_correction(visual_root: Node3D, desired_correction: float) -> void:
-	if visual_root == null or not is_instance_valid(visual_root):
-		return
-	visual_root.position.y += desired_correction - _visual_foot_anchor_correction_y
-	_visual_foot_anchor_correction_y = desired_correction
-
-
 func _apply_runtime_visual_foot_ground_alignment() -> void:
-	if _is_ragdoll_active or _character_skeleton == null or not is_instance_valid(_character_skeleton):
-		return
-	var visual_root := get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
-	if visual_root == null:
-		return
-	_character_skeleton.force_update_all_bone_transforms()
-	var foot_y := _get_skeleton_foot_anchor_global_y(_character_skeleton)
-	if foot_y == INF:
-		return
-	var ground_y := get_visual_ground_y()
-	var desired_correction := clampf(ground_y - foot_y, -CHARACTER_VISUAL_FOOT_GROUND_CORRECTION_MAX_DOWN, CHARACTER_VISUAL_FOOT_GROUND_CORRECTION_MAX_UP)
-	var correction_delta := desired_correction - _visual_foot_ground_correction_y
-	if absf(correction_delta) <= 0.001:
-		return
-	visual_root.position.y += correction_delta
-	_visual_foot_ground_correction_y = desired_correction
-	_character_skeleton.force_update_all_bone_transforms()
-
-
-func _get_skeleton_foot_anchor_global_y(skeleton: Skeleton3D) -> float:
-	if skeleton == null or not is_instance_valid(skeleton):
-		return INF
-	var result := INF
-	for bone_name in ["foot_l", "foot_r", "ball_l", "ball_r"]:
-		var bone_index := skeleton.find_bone(bone_name)
-		if bone_index < 0:
-			continue
-		var bone_global_position := skeleton.global_transform * skeleton.get_bone_global_pose(bone_index).origin
-		result = minf(result, bone_global_position.y)
-	return result
+	# A1 transitional shim -> BodyProjection.refresh_foot_ground_alignment
+	if _body != null:
+		_body.refresh_foot_ground_alignment()
 
 
 func refresh_grip_sockets_for_body() -> void:
@@ -4864,174 +4826,12 @@ func _get_collision_shape_local_bounds(collision_shape: CollisionShape3D) -> AAB
 
 
 func _setup_character_animation(model_root: Node3D) -> void:
-	var animation_player := AnimationPlayer.new()
-	animation_player.name = CHARACTER_ANIMATION_PLAYER_NAME
-	animation_player.root_node = NodePath("..")
-	model_root.add_child(animation_player)
-	var animation_library := AnimationLibrary.new()
-	_copy_character_animations(animation_library)
-	if animation_library.get_animation_list().is_empty():
-		animation_player.queue_free()
-		return
-	animation_player.add_animation_library("", animation_library)
-	_character_animation_players.append(animation_player)
-	if _character_animation_player == null:
-		_character_animation_player = animation_player
+	# A1 transitional shim -> HumanoidBodyProjection.setup_animation
+	if _body != null:
+		_body.setup_animation(model_root)
 
 
-func _copy_character_animations(animation_library: AnimationLibrary) -> void:
-	var ual1_source := UAL1_ANIMATION_SOURCE_SCENE.instantiate()
-	var ual1_player := _find_animation_player(ual1_source)
-	if ual1_player != null:
-		_copy_animation(ual1_player, animation_library, IDLE_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, TIRED_IDLE_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, WALK_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, CROUCH_ENTER_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, CROUCH_IDLE_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, CROUCH_WALK_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, CROUCH_EXIT_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, RUN_ENTER_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, JOG_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, RUN_EXIT_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, SITTING_ENTER_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, SITTING_IDLE_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, SITTING_TALKING_ANIMATION_NAME)
-		_copy_animation(ual1_player, animation_library, SITTING_EXIT_ANIMATION_NAME)
-		_copy_default_combat_set_animations(ual1_player, animation_library)
-		_copy_contextual_combat_reaction_animations(ual1_player, animation_library)
-		_copy_ragdoll_profile_animations(ual1_player, animation_library)
-		_copy_unarmed_combat_idle_animation(ual1_player, animation_library)
-	ual1_source.queue_free()
-
-	var ual2_source := UAL2_ANIMATION_SOURCE_SCENE.instantiate()
-	var ual2_player := _find_animation_player(ual2_source)
-	if ual2_player != null:
-		_copy_animation(ual2_player, animation_library, FOLD_ARMS_IDLE_ANIMATION_NAME)
-		_copy_animation(ual2_player, animation_library, MINING_ANIMATION_NAME)
-		_copy_default_combat_set_animations(ual2_player, animation_library)
-		_copy_contextual_combat_reaction_animations(ual2_player, animation_library)
-		_copy_ragdoll_profile_animations(ual2_player, animation_library)
-		_copy_named_animations(ual2_player, animation_library, CARRY_POSE_ANIMATION_NAMES)
-		_copy_named_animations(ual2_player, animation_library, CELL_CUSTODY_ANIMATION_NAMES)
-	ual2_source.queue_free()
-
-
-func _copy_animation(source_player: AnimationPlayer, animation_library: AnimationLibrary, animation_name: String) -> void:
-	if not source_player.has_animation(animation_name) or animation_library.has_animation(animation_name):
-		return
-	var source_animation := source_player.get_animation(animation_name)
-	if source_animation == null:
-		return
-	var copied_animation := source_animation.duplicate(true) as Animation
-	animation_library.add_animation(animation_name, copied_animation)
-
-
-func _copy_named_animations(source_player: AnimationPlayer, animation_library: AnimationLibrary, animation_names: Array[String]) -> void:
-	for animation_name in animation_names:
-		_copy_animation(source_player, animation_library, animation_name)
-
-
-func _copy_default_combat_set_animations(source_player: AnimationPlayer, animation_library: AnimationLibrary) -> void:
-	_ensure_default_combat_animation_sets()
-	for animation_set_value in _combat_animation_sets.values():
-		var animation_set = animation_set_value
-		if animation_set == null:
-			continue
-		for animation_name in animation_set.get_all_animation_names():
-			_copy_animation(source_player, animation_library, animation_name)
-
-
-func _copy_contextual_combat_reaction_animations(source_player: AnimationPlayer, animation_library: AnimationLibrary) -> void:
-	_copy_animation(source_player, animation_library, SHIELD_COMBAT_IDLE_ANIMATION_NAME)
-	for animation_name in SHIELD_BLOCK_ANIMATION_NAMES:
-		_copy_animation(source_player, animation_library, animation_name)
-
-
-func _copy_ragdoll_profile_animations(source_player: AnimationPlayer, animation_library: AnimationLibrary) -> void:
-	for animation_name in _get_ragdoll_profile_animation_names():
-		_copy_animation(source_player, animation_library, animation_name)
-
-
-func _copy_unarmed_combat_idle_animation(source_player: AnimationPlayer, animation_library: AnimationLibrary) -> void:
-	if animation_library.has_animation(UNARMED_COMBAT_IDLE_ANIMATION_NAME):
-		return
-	if not source_player.has_animation(UNARMED_STANCE_ENTER_ANIMATION_NAME) or not source_player.has_animation(UNARMED_STANCE_EXIT_ANIMATION_NAME):
-		return
-	var enter_animation := source_player.get_animation(UNARMED_STANCE_ENTER_ANIMATION_NAME)
-	var exit_animation := source_player.get_animation(UNARMED_STANCE_EXIT_ANIMATION_NAME)
-	if enter_animation == null or exit_animation == null:
-		return
-	var enter_duration := minf(UNARMED_COMBAT_IDLE_SEGMENT_SECONDS, enter_animation.length)
-	var exit_duration := minf(UNARMED_COMBAT_IDLE_SEGMENT_SECONDS, exit_animation.length)
-	if enter_duration <= 0.0 or exit_duration <= 0.0:
-		return
-	var generated_animation := Animation.new()
-	generated_animation.length = enter_duration + exit_duration
-	generated_animation.loop_mode = Animation.LOOP_LINEAR
-	var track_map: Dictionary = {}
-	_copy_animation_time_window(enter_animation, generated_animation, maxf(0.0, enter_animation.length - enter_duration), enter_animation.length, 0.0, track_map)
-	_copy_animation_time_window(exit_animation, generated_animation, 0.0, exit_duration, enter_duration, track_map)
-	if generated_animation.get_track_count() == 0:
-		return
-	animation_library.add_animation(UNARMED_COMBAT_IDLE_ANIMATION_NAME, generated_animation)
-
-
-func _copy_animation_time_window(source_animation: Animation, target_animation: Animation, source_start: float, source_end: float, target_offset: float, track_map: Dictionary) -> void:
-	for source_track_index in range(source_animation.get_track_count()):
-		var target_track_index := _get_or_create_copied_animation_track(source_animation, target_animation, source_track_index, track_map)
-		var did_insert_key := false
-		for key_index in range(source_animation.track_get_key_count(source_track_index)):
-			var key_time := source_animation.track_get_key_time(source_track_index, key_index)
-			if key_time < source_start or key_time > source_end:
-				continue
-			_target_insert_animation_key(source_animation, target_animation, source_track_index, target_track_index, key_index, target_offset + key_time - source_start)
-			did_insert_key = true
-		if not did_insert_key:
-			var sample_key_index := _get_animation_sample_key_index(source_animation, source_track_index, source_start)
-			if sample_key_index >= 0:
-				_target_insert_animation_key(source_animation, target_animation, source_track_index, target_track_index, sample_key_index, target_offset)
-
-
-func _get_or_create_copied_animation_track(source_animation: Animation, target_animation: Animation, source_track_index: int, track_map: Dictionary) -> int:
-	var track_key := "%s|%s" % [str(source_animation.track_get_path(source_track_index)), str(source_animation.track_get_type(source_track_index))]
-	if track_map.has(track_key):
-		return int(track_map[track_key])
-	var target_track_index := target_animation.add_track(source_animation.track_get_type(source_track_index))
-	target_animation.track_set_path(target_track_index, source_animation.track_get_path(source_track_index))
-	target_animation.track_set_interpolation_type(target_track_index, source_animation.track_get_interpolation_type(source_track_index))
-	track_map[track_key] = target_track_index
-	return target_track_index
-
-
-func _get_animation_sample_key_index(source_animation: Animation, source_track_index: int, sample_time: float) -> int:
-	var key_count := source_animation.track_get_key_count(source_track_index)
-	if key_count <= 0:
-		return -1
-	var sample_key_index := 0
-	for key_index in range(key_count):
-		if source_animation.track_get_key_time(source_track_index, key_index) <= sample_time:
-			sample_key_index = key_index
-		else:
-			break
-	return sample_key_index
-
-
-func _target_insert_animation_key(source_animation: Animation, target_animation: Animation, source_track_index: int, target_track_index: int, source_key_index: int, target_time: float) -> void:
-	target_animation.track_insert_key(
-		target_track_index,
-		clampf(target_time, 0.0, target_animation.length),
-		source_animation.track_get_key_value(source_track_index, source_key_index),
-		source_animation.track_get_key_transition(source_track_index, source_key_index)
-	)
-
-func _find_animation_player(root: Node) -> AnimationPlayer:
-	if root is AnimationPlayer:
-		return root
-	for child in root.get_children():
-		var player := _find_animation_player(child)
-		if player != null:
-			return player
-	return null
+# Animation library setup/copy migrated to HumanoidBodyProjection in increment A1.
 
 
 func _update_character_animation(delta: float) -> void:
@@ -5137,7 +4937,7 @@ func _update_idle_character_animation(delta: float) -> void:
 		if _current_character_animation != TIRED_IDLE_ANIMATION_NAME or not _character_animation_player.is_playing():
 			_play_character_animation(TIRED_IDLE_ANIMATION_NAME)
 		return
-	if not _is_idle_animation(_current_character_animation) or not _character_animation_player.is_playing():
+	if not _body.is_idle_clip(_current_character_animation) or not _character_animation_player.is_playing():
 		_play_random_idle_animation(true)
 		return
 	_idle_animation_change_remaining -= delta
@@ -5146,7 +4946,7 @@ func _update_idle_character_animation(delta: float) -> void:
 
 
 func _play_random_idle_animation(force: bool) -> void:
-	var idle_names := _get_available_idle_animation_names()
+	var idle_names := _body.get_available_idle_clip_names()
 	if idle_names.is_empty():
 		return
 	var animation_index := _rng.randi_range(0, idle_names.size() - 1)
@@ -5155,21 +4955,6 @@ func _play_random_idle_animation(force: bool) -> void:
 		animation_name = idle_names[(animation_index + 1) % idle_names.size()]
 	_play_character_animation(animation_name)
 	_reset_idle_animation_timer()
-
-
-func _get_available_idle_animation_names() -> Array[String]:
-	var idle_names: Array[String] = []
-	if _character_animation_player == null:
-		return idle_names
-	for animation_name_value in IDLE_ANIMATION_NAMES:
-		var animation_name := String(animation_name_value)
-		if _character_animation_player.has_animation(animation_name):
-			idle_names.append(animation_name)
-	return idle_names
-
-
-func _is_idle_animation(animation_name: String) -> bool:
-	return IDLE_ANIMATION_NAMES.has(animation_name)
 
 
 func _reset_idle_animation_timer() -> void:
@@ -5349,52 +5134,21 @@ func _reset_sitting_idle_animation_timer() -> void:
 
 
 func _get_character_animation_length(animation_name: String) -> float:
-	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
-		return 0.0
-	var animation := _character_animation_player.get_animation(animation_name)
-	return animation.length if animation != null else 0.0
+	# A1 transitional shim -> BodyProjection.clip_length
+	return _body.clip_length(animation_name) if _body != null else 0.0
 
 
 func _play_character_animation(animation_name: String, speed_ratio: float = 0.0, force_restart: bool = false, blend_seconds: float = MOVE_ANIMATION_BLEND_SECONDS) -> bool:
-	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
+	# A1 transitional shim -> BodyProjection.play_clip
+	if _body == null:
 		return false
-	var custom_speed := _get_character_animation_speed(animation_name, speed_ratio)
-	var already_current := _current_character_animation == animation_name
-	_current_character_animation = animation_name
-	var started_animation := false
-	for animation_player in _character_animation_players:
-		if animation_player == null or not animation_player.has_animation(animation_name):
-			continue
-		animation_player.speed_scale = custom_speed
-		if not force_restart and already_current and animation_player.is_playing():
-			continue
-		animation_player.play(animation_name, blend_seconds)
-		animation_player.advance(0.0)
-		started_animation = true
-	if started_animation:
-		_apply_bone_pose_position_offsets()
-		_apply_runtime_visual_foot_ground_alignment()
-	return true
+	return _body.play_clip(animation_name, speed_ratio, force_restart, blend_seconds)
 
 
 func _stop_character_animation(keep_state: bool = true) -> void:
-	_current_character_animation = ""
-	for animation_player in _character_animation_players:
-		if animation_player == null:
-			continue
-		animation_player.stop(keep_state)
-		animation_player.speed_scale = 1.0
-
-
-func _get_character_animation_speed(animation_name: String, speed_ratio: float) -> float:
-	match animation_name:
-		WALK_ANIMATION_NAME:
-			return lerpf(0.85, 1.25, speed_ratio)
-		CROUCH_WALK_ANIMATION_NAME:
-			return lerpf(0.85, 1.15, speed_ratio)
-		JOG_ANIMATION_NAME:
-			return lerpf(0.9, 1.35, speed_ratio)
-	return 1.0
+	# A1 transitional shim -> BodyProjection.stop_clip
+	if _body != null:
+		_body.stop_clip(keep_state)
 
 
 func _calculate_local_mesh_bounds(root: Node) -> AABB:

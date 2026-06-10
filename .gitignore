@@ -8,3 +8,6 @@
 # Local opencode behavior overrides.
 /opencode.json
 /.opencode/local-instructions.md
+
+# Local planning docs. Not committed.
+/plans/

@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="FactionPersonalityProfile" format=3]
+[gd_resource type="Resource" script_class="FactionPersonalityProfile" format=3 uid="uid://mw8njq6ugn5d"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/faction_personality_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://dj1k34w6mmrj" path="res://scripts/world_sim/faction_personality_profile.gd" id="1_profile"]
 
 [resource]
 script = ExtResource("1_profile")

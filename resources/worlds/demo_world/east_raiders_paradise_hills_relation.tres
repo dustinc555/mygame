@@ -1,12 +1,11 @@
-[gd_resource type="Resource" script_class="FactionRelationDefinition" format=3]
+[gd_resource type="Resource" script_class="FactionRelationDefinition" format=3 uid="uid://2idduny7aexr"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/faction_relation_definition.gd" id="1_relation"]
+[ext_resource type="Script" uid="uid://vdldujrpx8fh" path="res://scripts/world_sim/faction_relation_definition.gd" id="1_relation"]
 
 [resource]
 script = ExtResource("1_relation")
 relation_id = "east_raiders_paradise_hills"
 faction_a_id = "EastRaiders"
 faction_b_id = "ParadiseHills"
-diplomatic_state = "neutral"
 faction_a_outlook_to_b = -10
 faction_b_outlook_to_a = -10

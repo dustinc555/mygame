@@ -63,6 +63,10 @@ func _setup_character_visual() -> void:
 		_apply_cinder_burned_visuals()
 
 
+func _create_body_projection() -> BodyProjection:
+	return RustdeadBodyProjection.new()
+
+
 func requires_fire_to_die() -> bool:
 	return true
 
@@ -183,15 +187,6 @@ func _apply_automatic_eyebrow_style() -> void:
 	appearance_data.eyebrow_color = Color(0.08, 0.015, 0.018, 1.0)
 
 
-func _copy_character_animations(animation_library: AnimationLibrary) -> void:
-	super._copy_character_animations(animation_library)
-	var ual2_source := UAL2_ANIMATION_SOURCE_SCENE.instantiate()
-	var ual2_player := _find_animation_player(ual2_source)
-	if ual2_player != null:
-		_copy_named_animations(ual2_player, animation_library, RUSTDEAD_ANIMATION_NAMES)
-	ual2_source.queue_free()
-
-
 func _build_unarmed_combat_animation_set():
 	var animation_set = COMBAT_ANIMATION_SET_SCRIPT.new()
 	animation_set.stance_id = UNARMED_STANCE_ID
@@ -223,39 +218,6 @@ func _get_current_combat_idle_animation_name(animation_set) -> String:
 	if _get_current_combat_animation_stance_id() == UNARMED_STANCE_ID and _character_animation_player != null and _character_animation_player.has_animation(RUSTDEAD_IDLE_ANIMATION_NAME):
 		return RUSTDEAD_IDLE_ANIMATION_NAME
 	return super._get_current_combat_idle_animation_name(animation_set)
-
-
-func _get_available_idle_animation_names() -> Array[String]:
-	if _character_animation_player != null and _character_animation_player.has_animation(RUSTDEAD_IDLE_ANIMATION_NAME):
-		return [RUSTDEAD_IDLE_ANIMATION_NAME]
-	return super._get_available_idle_animation_names()
-
-
-func _play_character_animation(animation_name: String, speed_ratio: float = 0.0, force_restart: bool = false, blend_seconds: float = MOVE_ANIMATION_BLEND_SECONDS) -> bool:
-	var resolved_animation := _resolve_rustdead_animation_name(animation_name)
-	if _character_animation_player != null and resolved_animation != animation_name and not _character_animation_player.has_animation(resolved_animation):
-		resolved_animation = animation_name
-	return super._play_character_animation(resolved_animation, speed_ratio, force_restart, blend_seconds)
-
-
-func _resolve_rustdead_animation_name(animation_name: String) -> String:
-	match animation_name:
-		IDLE_ANIMATION_NAME, TIRED_IDLE_ANIMATION_NAME, UNARMED_COMBAT_IDLE_ANIMATION_NAME:
-			return RUSTDEAD_IDLE_ANIMATION_NAME
-		WALK_ANIMATION_NAME:
-			return RUSTDEAD_WALK_ANIMATION_NAME
-		JOG_ANIMATION_NAME:
-			return RUSTDEAD_RUN_ANIMATION_NAME
-	return animation_name
-
-
-func _get_character_animation_speed(animation_name: String, speed_ratio: float) -> float:
-	match animation_name:
-		RUSTDEAD_WALK_ANIMATION_NAME:
-			return lerpf(0.72, 1.08, speed_ratio)
-		RUSTDEAD_RUN_ANIMATION_NAME:
-			return lerpf(0.82, 1.22, speed_ratio)
-	return super._get_character_animation_speed(animation_name, speed_ratio)
 
 
 func _process_cinder_burn(delta: float) -> void:
