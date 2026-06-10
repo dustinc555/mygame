@@ -180,13 +180,6 @@ func _apply_rustdead_tier_definition() -> void:
 		rustdead_passive_bonus = maxf(0.0, float(rustdead_tier_definition.get("passive_bonus")))
 
 
-func _apply_automatic_eyebrow_style() -> void:
-	if appearance_data == null:
-		return
-	appearance_data.eyebrow_style = null
-	appearance_data.eyebrow_color = Color(0.08, 0.015, 0.018, 1.0)
-
-
 func _build_unarmed_combat_animation_set():
 	var animation_set = COMBAT_ANIMATION_SET_SCRIPT.new()
 	animation_set.stance_id = UNARMED_STANCE_ID

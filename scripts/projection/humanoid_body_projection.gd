@@ -58,8 +58,7 @@ func setup_visual() -> void:
 		return
 	var model_root := model as Node3D
 	model_root.rotation.y = actor.CHARACTER_VISUAL_YAW_OFFSET
-	# A3 keeps appearance material policy on the actor; A2 only relocates the visual builder.
-	actor._apply_skin_materials(model_root, resolved_body_type)
+	apply_appearance_materials(model_root, resolved_body_type)
 
 	_visual_root = Node3D.new()
 	_visual_root.name = actor.CHARACTER_VISUAL_NODE_NAME
@@ -71,8 +70,7 @@ func setup_visual() -> void:
 	actor._character_skeleton = character_skeleton
 	actor._bone_pose_position_offsets = actor._get_bone_pose_position_offsets(resolved_body_archetype)
 	_setup_equipped_clothing_visuals(_visual_root, character_skeleton, resolved_body_archetype, body_mesh, visual_fit_scale)
-	# A3 keeps eyebrow/appearance policy on the actor; projection only attaches visuals here.
-	actor._set_base_eyebrow_visuals_visible(model_root, actor.appearance_data == null or actor.appearance_data.eyebrow_style == null)
+	set_base_eyebrow_visuals_visible(model_root, actor.appearance_data == null or actor.appearance_data.eyebrow_style == null)
 	_setup_head_attachment_visuals(_visual_root, character_skeleton)
 	_setup_humanoid_grip_sockets(_visual_root)
 	_setup_equipped_bone_visuals(_visual_root)
@@ -97,6 +95,41 @@ func get_visual_root() -> Node3D:
 func has_custom_skin_material() -> bool:
 	var visual_root := get_visual_root()
 	return visual_root != null and actor.SKIN_TEXTURE_BUILDER.has_custom_skin_materials(visual_root)
+
+
+func apply_automatic_eyebrow_style() -> void:
+	if actor.appearance_data == null:
+		return
+	match get_resolved_visual_body_type():
+		actor.VisualBodyType.FEMALE:
+			actor.appearance_data.eyebrow_style = actor.DEFAULT_FEMALE_EYEBROW_STYLE
+		actor.VisualBodyType.MALE:
+			actor.appearance_data.eyebrow_style = actor.DEFAULT_MALE_EYEBROW_STYLE
+		_:
+			actor.appearance_data.eyebrow_style = null
+	actor.appearance_data.eyebrow_color = actor.appearance_data.hair_color
+
+
+func rebuild_visual_for_appearance() -> void:
+	setup_visual()
+	refresh_grip_sockets_for_body()
+
+
+func apply_appearance_materials(root: Node, body_type: int) -> void:
+	if actor.appearance_data == null or not bool(actor.appearance_data.skin_color_customized):
+		return
+	var race := _get_character_race()
+	var race_id := str(race.get("race_id")) if race != null else ""
+	actor.SKIN_TEXTURE_BUILDER.apply_custom_skin_materials(root, race_id, body_type, actor.appearance_data.skin_color)
+
+
+func set_base_eyebrow_visuals_visible(root: Node, visible_flag: bool) -> void:
+	if root == null:
+		return
+	if root is MeshInstance3D and str(root.name).to_lower().contains("eyebrow"):
+		(root as MeshInstance3D).visible = visible_flag
+	for child in root.get_children():
+		set_base_eyebrow_visuals_visible(child, visible_flag)
 
 
 func get_resolved_visual_body_type() -> int:
