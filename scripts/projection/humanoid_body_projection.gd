@@ -18,6 +18,22 @@ static var _fallback_visual_material: Material
 
 var _visual_root: Node3D = null
 var _default_ragdoll_profile: Resource
+var _character_animation_player: AnimationPlayer
+var _character_animation_players: Array[AnimationPlayer] = []
+var _character_skeleton: Skeleton3D
+var _bone_pose_position_offsets: Dictionary = {}
+var _visual_foot_anchor_correction_y := 0.0
+var _visual_foot_ground_correction_y := 0.0
+var _current_character_animation := ""
+var _idle_animation_change_remaining := 0.0
+var _crouch_enter_animation_remaining := 0.0
+var _crouch_exit_animation_remaining := 0.0
+var _run_enter_animation_remaining := 0.0
+var _run_exit_animation_remaining := 0.0
+var _running_locomotion_active := false
+var _sitting_enter_animation_remaining := 0.0
+var _sitting_exit_animation_remaining := 0.0
+var _sitting_idle_change_remaining := 0.0
 
 
 # --- Visual build ---
@@ -33,13 +49,13 @@ func setup_visual() -> void:
 	if legacy_visual != null:
 		legacy_visual.free()
 
-	actor._character_animation_player = null
-	actor._character_animation_players.clear()
-	actor._character_skeleton = null
-	actor._bone_pose_position_offsets.clear()
-	actor._visual_foot_anchor_correction_y = 0.0
-	actor._visual_foot_ground_correction_y = 0.0
-	actor._current_character_animation = ""
+	_character_animation_player = null
+	_character_animation_players.clear()
+	_character_skeleton = null
+	_bone_pose_position_offsets.clear()
+	_visual_foot_anchor_correction_y = 0.0
+	_visual_foot_ground_correction_y = 0.0
+	_current_character_animation = ""
 
 	var body_mesh := actor.get_node_or_null("BodyMesh") as MeshInstance3D
 	if body_mesh == null:
@@ -68,19 +84,19 @@ func setup_visual() -> void:
 	var visual_fit_scale := _fit_visual_to_body_mesh(_visual_root, body_mesh)
 	setup_animation(model_root)
 	var character_skeleton := _find_skeleton(model_root)
-	actor._character_skeleton = character_skeleton
-	actor._bone_pose_position_offsets = actor._get_bone_pose_position_offsets(resolved_body_archetype)
+	_character_skeleton = character_skeleton
+	_bone_pose_position_offsets = actor._get_bone_pose_position_offsets(resolved_body_archetype)
 	_setup_equipped_clothing_visuals(_visual_root, character_skeleton, resolved_body_archetype, body_mesh, visual_fit_scale)
 	set_base_eyebrow_visuals_visible(model_root, actor.appearance_data == null or actor.appearance_data.eyebrow_style == null)
 	_setup_head_attachment_visuals(_visual_root, character_skeleton)
 	_setup_humanoid_grip_sockets(_visual_root)
 	_setup_equipped_bone_visuals(_visual_root)
 	if actor.life_state == NpcRules.LifeState.ALIVE:
-		actor._play_random_idle_animation(true)
+		play_random_idle_animation(true)
 	else:
-		actor._stop_character_animation(true)
-	actor._apply_bone_pose_position_offsets()
-	actor._apply_runtime_visual_foot_ground_alignment()
+		stop_clip(true)
+	apply_bone_pose_offsets()
+	refresh_foot_ground_alignment()
 	set_equipped_clothing_visuals_visible(actor._preview_clothes_visible)
 	_ensure_non_null_visual_materials(_visual_root)
 	body_mesh.visible = false
@@ -164,7 +180,7 @@ func remember_ragdoll_impulse(impulse: Vector3, seconds: float) -> void:
 
 
 func enter_downed_visuals(is_dead: bool) -> bool:
-	actor._stop_character_animation(true)
+	stop_clip(true)
 	if _begin_downed_ragdoll_preroll(is_dead):
 		return true
 	actor._apply_downed_collision_shape()
@@ -183,12 +199,12 @@ func begin_get_up_visuals() -> void:
 	prepare_ragdoll_get_up()
 	actor._is_getting_up = true
 	actor._get_up_animation_name = _choose_get_up_animation()
-	actor._get_up_animation_total = actor._get_character_animation_length(actor._get_up_animation_name) if not actor._get_up_animation_name.is_empty() else 0.0
+	actor._get_up_animation_total = clip_length(actor._get_up_animation_name) if not actor._get_up_animation_name.is_empty() else 0.0
 	if actor._get_up_animation_total <= 0.0:
 		actor._get_up_animation_total = _get_ragdoll_profile_float("get_up_fallback_seconds", 1.15)
 	actor._get_up_animation_remaining = actor._get_up_animation_total
 	if not actor._get_up_animation_name.is_empty():
-		actor._play_character_animation(actor._get_up_animation_name, 0.0, true, actor.MOVE_ANIMATION_BLEND_SECONDS)
+		play_clip(actor._get_up_animation_name, 0.0, true, actor.MOVE_ANIMATION_BLEND_SECONDS)
 
 
 func process_downed_visuals(delta: float) -> bool:
@@ -207,7 +223,7 @@ func cancel_get_up_visuals() -> void:
 	actor._get_up_animation_name = ""
 	actor._get_up_animation_remaining = 0.0
 	actor._get_up_animation_total = 0.0
-	actor._stop_character_animation(true)
+	stop_clip(true)
 	actor._apply_downed_collision_shape()
 	stop_ragdoll_simulation(false)
 
@@ -296,14 +312,14 @@ func get_attack_ragdoll_impulse(attacker: Node, damage: float) -> Vector3:
 func _choose_get_up_animation() -> String:
 	var profile = get_ragdoll_profile()
 	if profile != null and profile.has_method("choose_get_up_animation"):
-		return profile.choose_get_up_animation(actor._character_animation_player, actor._rng)
+		return profile.choose_get_up_animation(_character_animation_player, actor._rng)
 	return ""
 
 
 func _choose_downed_preroll_animation() -> String:
 	var profile = get_ragdoll_profile()
 	if profile != null and profile.has_method("choose_downed_preroll_animation"):
-		return profile.choose_downed_preroll_animation(actor._character_animation_player, actor._rng)
+		return profile.choose_downed_preroll_animation(_character_animation_player, actor._rng)
 	return ""
 
 
@@ -323,12 +339,12 @@ func _get_ragdoll_profile_float(property_name: String, fallback: float) -> float
 
 
 func _begin_downed_ragdoll_preroll(is_dead: bool) -> bool:
-	if actor._character_animation_player == null:
+	if _character_animation_player == null:
 		return false
 	var animation_name := _choose_downed_preroll_animation()
 	if animation_name.is_empty():
 		return false
-	var animation_length: float = actor._get_character_animation_length(animation_name)
+	var animation_length: float = clip_length(animation_name)
 	var preroll_duration := _choose_downed_preroll_duration(animation_length)
 	if preroll_duration <= 0.0:
 		return false
@@ -336,7 +352,7 @@ func _begin_downed_ragdoll_preroll(is_dead: bool) -> bool:
 	actor._ragdoll_preroll_is_dead = is_dead
 	actor._ragdoll_preroll_animation_name = animation_name
 	actor._ragdoll_preroll_remaining = preroll_duration
-	if not actor._play_character_animation(animation_name, 0.0, true, 0.0):
+	if not play_clip(animation_name, 0.0, true, 0.0):
 		_cancel_ragdoll_preroll()
 		return false
 	return true
@@ -344,7 +360,7 @@ func _begin_downed_ragdoll_preroll(is_dead: bool) -> bool:
 
 func _process_downed_ragdoll_preroll(delta: float) -> void:
 	actor._ragdoll_preroll_remaining = maxf(0.0, actor._ragdoll_preroll_remaining - delta)
-	if actor._ragdoll_preroll_remaining > 0.0 and actor._character_animation_player != null and actor._character_animation_player.is_playing():
+	if actor._ragdoll_preroll_remaining > 0.0 and _character_animation_player != null and _character_animation_player.is_playing():
 		return
 	_finish_downed_ragdoll_preroll()
 
@@ -354,7 +370,7 @@ func _finish_downed_ragdoll_preroll() -> void:
 		return
 	var was_dead: bool = actor._ragdoll_preroll_is_dead
 	_cancel_ragdoll_preroll()
-	actor._stop_character_animation(true)
+	stop_clip(true)
 	actor._apply_downed_collision_shape()
 	if not start_ragdoll_simulation(was_dead):
 		actor._restore_downed_collision_shape()
@@ -369,8 +385,8 @@ func _cancel_ragdoll_preroll() -> void:
 
 func _process_get_up_animation(delta: float) -> bool:
 	actor._get_up_animation_remaining = maxf(0.0, actor._get_up_animation_remaining - delta)
-	if not actor._get_up_animation_name.is_empty() and actor._character_animation_player != null and not actor._character_animation_player.is_playing() and actor._get_up_animation_remaining > 0.0:
-		actor._play_character_animation(actor._get_up_animation_name)
+	if not actor._get_up_animation_name.is_empty() and _character_animation_player != null and not _character_animation_player.is_playing() and actor._get_up_animation_remaining > 0.0:
+		play_clip(actor._get_up_animation_name)
 	return actor._get_up_animation_remaining <= 0.0
 
 
@@ -843,9 +859,9 @@ func setup_animation(model_root: Node3D) -> void:
 		animation_player.queue_free()
 		return
 	animation_player.add_animation_library("", animation_library)
-	actor._character_animation_players.append(animation_player)
-	if actor._character_animation_player == null:
-		actor._character_animation_player = animation_player
+	_character_animation_players.append(animation_player)
+	if _character_animation_player == null:
+		_character_animation_player = animation_player
 
 
 func _copy_character_animations(animation_library: AnimationLibrary) -> void:
@@ -1007,13 +1023,13 @@ func _find_animation_player(root: Node) -> AnimationPlayer:
 # --- Clip playback ---
 
 func play_clip(animation_name: String, speed_ratio: float = 0.0, force_restart: bool = false, blend_seconds: float = DEFAULT_MOVE_BLEND_SECONDS) -> bool:
-	if actor._character_animation_player == null or not actor._character_animation_player.has_animation(animation_name):
+	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
 		return false
 	var custom_speed := _get_clip_speed(animation_name, speed_ratio)
-	var already_current: bool = actor._current_character_animation == animation_name
-	actor._current_character_animation = animation_name
+	var already_current: bool = _current_character_animation == animation_name
+	_current_character_animation = animation_name
 	var started_animation := false
-	for animation_player in actor._character_animation_players:
+	for animation_player in _character_animation_players:
 		if animation_player == null or not animation_player.has_animation(animation_name):
 			continue
 		animation_player.speed_scale = custom_speed
@@ -1029,8 +1045,8 @@ func play_clip(animation_name: String, speed_ratio: float = 0.0, force_restart: 
 
 
 func stop_clip(keep_state: bool = true) -> void:
-	actor._current_character_animation = ""
-	for animation_player in actor._character_animation_players:
+	_current_character_animation = ""
+	for animation_player in _character_animation_players:
 		if animation_player == null:
 			continue
 		animation_player.stop(keep_state)
@@ -1038,7 +1054,7 @@ func stop_clip(keep_state: bool = true) -> void:
 
 
 func clip_length(animation_name: String) -> float:
-	var player: AnimationPlayer = actor._character_animation_player
+	var player: AnimationPlayer = _character_animation_player
 	if player == null or not player.has_animation(animation_name):
 		return 0.0
 	var animation := player.get_animation(animation_name)
@@ -1046,12 +1062,37 @@ func clip_length(animation_name: String) -> float:
 
 
 func has_clip(animation_name: String) -> bool:
-	var player: AnimationPlayer = actor._character_animation_player
+	var player: AnimationPlayer = _character_animation_player
 	return player != null and player.has_animation(animation_name)
 
 
 func get_current_clip() -> String:
-	return str(actor._current_character_animation)
+	return _current_character_animation
+
+
+func is_current_clip_playing() -> bool:
+	return _character_animation_player != null and _character_animation_player.is_playing()
+
+
+func get_primary_animation_player() -> AnimationPlayer:
+	return _character_animation_player
+
+
+func get_animation_players() -> Array[AnimationPlayer]:
+	return _character_animation_players.duplicate()
+
+
+func get_skeleton() -> Skeleton3D:
+	return _character_skeleton
+
+
+func seek_clip(animation_name: String, time: float, update: bool = true, speed_scale: float = 1.0) -> void:
+	var animation_length := clip_length(animation_name)
+	var seek_time := clampf(time, 0.0, maxf(0.0, animation_length - 0.001))
+	for animation_player in _character_animation_players:
+		if animation_player != null and animation_player.has_animation(animation_name):
+			animation_player.seek(seek_time, update)
+			animation_player.speed_scale = speed_scale
 
 
 func _get_clip_speed(animation_name: String, speed_ratio: float) -> float:
@@ -1068,17 +1109,215 @@ func _get_clip_speed(animation_name: String, speed_ratio: float) -> float:
 
 func get_available_idle_clip_names() -> Array[String]:
 	var idle_names: Array[String] = []
-	if actor._character_animation_player == null:
+	if _character_animation_player == null:
 		return idle_names
 	for animation_name_value in actor.IDLE_ANIMATION_NAMES:
 		var animation_name := String(animation_name_value)
-		if actor._character_animation_player.has_animation(animation_name):
+		if _character_animation_player.has_animation(animation_name):
 			idle_names.append(animation_name)
 	return idle_names
 
 
 func is_idle_clip(animation_name: String) -> bool:
 	return actor.IDLE_ANIMATION_NAMES.has(animation_name)
+
+
+# --- Locomotion / idle visuals ---
+
+func update_idle_animation(delta: float, use_tired_idle: bool) -> void:
+	if use_tired_idle:
+		if _current_character_animation != actor.TIRED_IDLE_ANIMATION_NAME or not is_current_clip_playing():
+			play_clip(actor.TIRED_IDLE_ANIMATION_NAME)
+		return
+	if not is_idle_clip(_current_character_animation) or not is_current_clip_playing():
+		play_random_idle_animation(true)
+		return
+	_idle_animation_change_remaining -= delta
+	if _idle_animation_change_remaining <= 0.0:
+		play_random_idle_animation(false)
+
+
+func play_random_idle_animation(force: bool) -> void:
+	var idle_names := get_available_idle_clip_names()
+	if idle_names.is_empty():
+		return
+	var animation_index: int = actor._rng.randi_range(0, idle_names.size() - 1)
+	var animation_name := idle_names[animation_index]
+	if not force and idle_names.size() > 1 and animation_name == _current_character_animation:
+		animation_name = idle_names[(animation_index + 1) % idle_names.size()]
+	play_clip(animation_name)
+	_reset_idle_animation_timer()
+
+
+func _reset_idle_animation_timer() -> void:
+	_idle_animation_change_remaining = actor._rng.randf_range(actor.IDLE_ANIMATION_MIN_SECONDS, actor.IDLE_ANIMATION_MAX_SECONDS)
+
+
+func start_crouch_enter_animation() -> void:
+	_crouch_exit_animation_remaining = 0.0
+	if play_clip(actor.CROUCH_ENTER_ANIMATION_NAME):
+		_crouch_enter_animation_remaining = clip_length(actor.CROUCH_ENTER_ANIMATION_NAME)
+	else:
+		_crouch_enter_animation_remaining = 0.0
+
+
+func start_crouch_exit_animation() -> void:
+	_crouch_enter_animation_remaining = 0.0
+	if play_clip(actor.CROUCH_EXIT_ANIMATION_NAME):
+		_crouch_exit_animation_remaining = clip_length(actor.CROUCH_EXIT_ANIMATION_NAME)
+	else:
+		_crouch_exit_animation_remaining = 0.0
+
+
+func cancel_crouch_transition() -> void:
+	_crouch_enter_animation_remaining = 0.0
+	_crouch_exit_animation_remaining = 0.0
+
+
+func update_crouch_enter_animation(delta: float) -> bool:
+	if _crouch_enter_animation_remaining <= 0.0:
+		return false
+	_crouch_enter_animation_remaining = maxf(0.0, _crouch_enter_animation_remaining - delta)
+	if _crouch_enter_animation_remaining > 0.0:
+		play_clip(actor.CROUCH_ENTER_ANIMATION_NAME)
+	return true
+
+
+func update_crouch_exit_animation(delta: float) -> bool:
+	if _crouch_exit_animation_remaining <= 0.0:
+		return false
+	_crouch_exit_animation_remaining = maxf(0.0, _crouch_exit_animation_remaining - delta)
+	if _crouch_exit_animation_remaining > 0.0:
+		play_clip(actor.CROUCH_EXIT_ANIMATION_NAME)
+	return true
+
+
+func update_run_transition(delta: float, wants_run_animation: bool) -> bool:
+	if wants_run_animation:
+		_run_exit_animation_remaining = 0.0
+		if not _running_locomotion_active and _run_enter_animation_remaining <= 0.0:
+			_start_run_enter_animation()
+		_running_locomotion_active = true
+		if _run_enter_animation_remaining > 0.0:
+			_update_run_enter_animation(delta)
+			return true
+		return false
+
+	_run_enter_animation_remaining = 0.0
+	if _running_locomotion_active and _run_exit_animation_remaining <= 0.0:
+		_start_run_exit_animation()
+	_running_locomotion_active = false
+	if _run_exit_animation_remaining > 0.0:
+		_update_run_exit_animation(delta)
+		return true
+	return false
+
+
+func _start_run_enter_animation() -> void:
+	_run_exit_animation_remaining = 0.0
+	if play_clip(actor.RUN_ENTER_ANIMATION_NAME):
+		_run_enter_animation_remaining = clip_length(actor.RUN_ENTER_ANIMATION_NAME)
+	else:
+		_run_enter_animation_remaining = 0.0
+
+
+func _start_run_exit_animation() -> void:
+	_run_enter_animation_remaining = 0.0
+	if play_clip(actor.RUN_EXIT_ANIMATION_NAME):
+		_run_exit_animation_remaining = clip_length(actor.RUN_EXIT_ANIMATION_NAME)
+	else:
+		_run_exit_animation_remaining = 0.0
+
+
+func cancel_run_transition() -> void:
+	_run_enter_animation_remaining = 0.0
+	_run_exit_animation_remaining = 0.0
+	_running_locomotion_active = false
+
+
+func _update_run_enter_animation(delta: float) -> void:
+	_run_enter_animation_remaining = maxf(0.0, _run_enter_animation_remaining - delta)
+	if _run_enter_animation_remaining > 0.0:
+		play_clip(actor.RUN_ENTER_ANIMATION_NAME)
+
+
+func _update_run_exit_animation(delta: float) -> void:
+	_run_exit_animation_remaining = maxf(0.0, _run_exit_animation_remaining - delta)
+	if _run_exit_animation_remaining > 0.0:
+		play_clip(actor.RUN_EXIT_ANIMATION_NAME)
+
+
+func start_sitting_enter_animation(allow_talking_idle: bool = false) -> void:
+	_sitting_exit_animation_remaining = 0.0
+	_sitting_idle_change_remaining = 0.0
+	if play_clip(actor.SITTING_ENTER_ANIMATION_NAME):
+		_sitting_enter_animation_remaining = clip_length(actor.SITTING_ENTER_ANIMATION_NAME)
+	else:
+		_sitting_enter_animation_remaining = 0.0
+		_play_sitting_idle_animation(true, allow_talking_idle)
+
+
+func start_sitting_exit_animation() -> void:
+	_sitting_enter_animation_remaining = 0.0
+	_sitting_idle_change_remaining = 0.0
+	if play_clip(actor.SITTING_EXIT_ANIMATION_NAME):
+		_sitting_exit_animation_remaining = clip_length(actor.SITTING_EXIT_ANIMATION_NAME)
+	else:
+		_sitting_exit_animation_remaining = 0.0
+
+
+func update_sitting_animation(delta: float, allow_talking_idle: bool) -> void:
+	if _sitting_enter_animation_remaining > 0.0:
+		_sitting_enter_animation_remaining -= delta
+		if _sitting_enter_animation_remaining > 0.0:
+			play_clip(actor.SITTING_ENTER_ANIMATION_NAME)
+			return
+		_sitting_enter_animation_remaining = 0.0
+		_play_sitting_idle_animation(true, allow_talking_idle)
+		return
+	if not _is_sitting_idle_animation(_current_character_animation) or not is_current_clip_playing():
+		_play_sitting_idle_animation(true, allow_talking_idle)
+		return
+	_sitting_idle_change_remaining -= delta
+	if _sitting_idle_change_remaining <= 0.0:
+		_play_sitting_idle_animation(false, allow_talking_idle)
+
+
+func update_sitting_exit_animation(delta: float) -> bool:
+	if _sitting_exit_animation_remaining <= 0.0:
+		return false
+	_sitting_exit_animation_remaining = maxf(0.0, _sitting_exit_animation_remaining - delta)
+	if _sitting_exit_animation_remaining > 0.0:
+		play_clip(actor.SITTING_EXIT_ANIMATION_NAME)
+	return true
+
+
+func cancel_sitting_exit_animation() -> void:
+	_sitting_exit_animation_remaining = 0.0
+
+
+func _play_sitting_idle_animation(force: bool, allow_talking_idle: bool) -> void:
+	if _character_animation_player == null:
+		return
+	var animation_name: String = actor.SITTING_IDLE_ANIMATION_NAME
+	if allow_talking_idle and actor._rng.randf() <= actor.SITTING_TALKING_CHANCE:
+		animation_name = actor.SITTING_TALKING_ANIMATION_NAME
+	if not has_clip(animation_name):
+		animation_name = actor.SITTING_IDLE_ANIMATION_NAME
+	if not has_clip(animation_name):
+		return
+	if not force and animation_name == _current_character_animation and animation_name == actor.SITTING_TALKING_ANIMATION_NAME:
+		animation_name = actor.SITTING_IDLE_ANIMATION_NAME
+	play_clip(animation_name)
+	_reset_sitting_idle_animation_timer()
+
+
+func _is_sitting_idle_animation(animation_name: String) -> bool:
+	return animation_name == actor.SITTING_IDLE_ANIMATION_NAME or animation_name == actor.SITTING_TALKING_ANIMATION_NAME
+
+
+func _reset_sitting_idle_animation_timer() -> void:
+	_sitting_idle_change_remaining = actor._rng.randf_range(actor.SITTING_IDLE_MIN_SECONDS, actor.SITTING_IDLE_MAX_SECONDS)
 
 
 # --- Equipment / attachment visuals ---
@@ -1531,20 +1770,20 @@ func _inflate_mesh_instance(mesh_instance: MeshInstance3D, surface_offset: float
 # --- Foot IK / grounding ---
 
 func apply_bone_pose_offsets() -> void:
-	var skeleton: Skeleton3D = actor._character_skeleton
+	var skeleton: Skeleton3D = _character_skeleton
 	if skeleton == null or not is_instance_valid(skeleton):
 		return
-	if actor._bone_pose_position_offsets.is_empty() or actor._is_ragdoll_active:
-		if not is_zero_approx(actor._visual_foot_anchor_correction_y):
+	if _bone_pose_position_offsets.is_empty() or actor._is_ragdoll_active:
+		if not is_zero_approx(_visual_foot_anchor_correction_y):
 			var reset_visual_root := get_visual_root()
 			_apply_visual_foot_anchor_correction(reset_visual_root, 0.0)
 		return
 	var visual_root := get_visual_root()
-	for bone_name in actor._bone_pose_position_offsets.keys():
+	for bone_name in _bone_pose_position_offsets.keys():
 		var bone_index := skeleton.find_bone(str(bone_name))
 		if bone_index < 0:
 			continue
-		var offset: Vector3 = actor._bone_pose_position_offsets[bone_name]
+		var offset: Vector3 = _bone_pose_position_offsets[bone_name]
 		var rest_position := skeleton.get_bone_rest(bone_index).origin
 		skeleton.set_bone_pose_position(bone_index, rest_position + offset)
 	skeleton.force_update_all_bone_transforms()
@@ -1557,14 +1796,14 @@ func apply_bone_pose_offsets() -> void:
 func _apply_visual_foot_anchor_correction(visual_root: Node3D, desired_correction: float) -> void:
 	if visual_root == null or not is_instance_valid(visual_root):
 		return
-	visual_root.position.y += desired_correction - actor._visual_foot_anchor_correction_y
-	actor._visual_foot_anchor_correction_y = desired_correction
+	visual_root.position.y += desired_correction - _visual_foot_anchor_correction_y
+	_visual_foot_anchor_correction_y = desired_correction
 
 
 func refresh_foot_ground_alignment() -> void:
-	if actor._is_ragdoll_active or actor._character_skeleton == null or not is_instance_valid(actor._character_skeleton):
+	if actor._is_ragdoll_active or _character_skeleton == null or not is_instance_valid(_character_skeleton):
 		return
-	var skeleton: Skeleton3D = actor._character_skeleton
+	var skeleton: Skeleton3D = _character_skeleton
 	var visual_root := get_visual_root()
 	if visual_root == null:
 		return
@@ -1574,11 +1813,11 @@ func refresh_foot_ground_alignment() -> void:
 		return
 	var ground_y := get_visual_ground_y()
 	var desired_correction := clampf(ground_y - foot_y, -actor.CHARACTER_VISUAL_FOOT_GROUND_CORRECTION_MAX_DOWN, actor.CHARACTER_VISUAL_FOOT_GROUND_CORRECTION_MAX_UP)
-	var correction_delta: float = desired_correction - actor._visual_foot_ground_correction_y
+	var correction_delta: float = desired_correction - _visual_foot_ground_correction_y
 	if absf(correction_delta) <= 0.001:
 		return
 	visual_root.position.y += correction_delta
-	actor._visual_foot_ground_correction_y = desired_correction
+	_visual_foot_ground_correction_y = desired_correction
 	skeleton.force_update_all_bone_transforms()
 
 
@@ -1596,7 +1835,7 @@ func _get_skeleton_foot_anchor_global_y(skeleton: Skeleton3D) -> float:
 
 
 func get_visual_foot_anchor_y() -> float:
-	var skeleton: Skeleton3D = actor._character_skeleton
+	var skeleton: Skeleton3D = _character_skeleton
 	if skeleton == null or not is_instance_valid(skeleton):
 		return INF
 	skeleton.force_update_all_bone_transforms()

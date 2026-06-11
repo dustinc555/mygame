@@ -256,7 +256,7 @@ func _validate_witnessed_theft_jail_release() -> void:
 	if not carried:
 		_fail("Authority guard should carry the unconscious wanted actor before jail intake")
 		return
-	var carry_animation := str(player.get("_current_character_animation"))
+	var carry_animation := _get_current_animation(player)
 	if carry_animation != "LiftAir_Fall":
 		_fail("Carried prisoner should hold the LiftAir_Fall carry pose, got '%s'" % carry_animation)
 	if player.has_meta("law_prisoner"):
@@ -288,7 +288,7 @@ func _validate_witnessed_theft_jail_release() -> void:
 		_fail("Prisoner should not keep ragdoll simulation active in the cell")
 	var lay_frozen := await _wait_until(func() -> bool: return bool(player.get("_cell_custody_lay_pose_frozen")), 420)
 	if not lay_frozen:
-		_fail("Unconscious prisoner should freeze partway through IdleToLay in the cell anim=%s remaining=%.3f current=%s life=%s" % [str(player.get("_cell_custody_unconscious_pose_animation")), float(player.get("_cell_custody_lay_freeze_remaining")), str(player.get("_current_character_animation")), str(player.life_state)])
+		_fail("Unconscious prisoner should freeze partway through IdleToLay in the cell anim=%s remaining=%.3f current=%s life=%s" % [str(player.get("_cell_custody_unconscious_pose_animation")), float(player.get("_cell_custody_lay_freeze_remaining")), _get_current_animation(player), str(player.life_state)])
 	elif str(player.get("_cell_custody_unconscious_pose_animation")) != "IdleToLay":
 		_fail("Unconscious prisoner cell pose should use IdleToLay")
 	if custody_guard != null and custody_guard.has_hostility_with(player):
@@ -307,10 +307,10 @@ func _validate_witnessed_theft_jail_release() -> void:
 	var woke := await _wait_until(func() -> bool: return player.life_state == NpcRules.LifeState.ALIVE, 1200)
 	if not woke:
 		_fail("Prisoner should wake in cell after recovery delay")
-	elif str(player.get("_cell_custody_wake_animation")) != "LayToIdle" and str(player.get("_current_character_animation")) != "LayToIdle":
+	elif str(player.get("_cell_custody_wake_animation")) != "LayToIdle" and _get_current_animation(player) != "LayToIdle":
 		_fail("Conscious prisoner should play LayToIdle from the cell lay pose")
 	await _wait_until(func() -> bool: return str(player.get("_cell_custody_wake_animation")).is_empty(), 240)
-	if str(player.get("_current_character_animation")) == "LayToIdle":
+	if _get_current_animation(player) == "LayToIdle":
 		_fail("Conscious prisoner should return to normal idle after LayToIdle finishes")
 	var warden_ground_y := warden.global_position.y
 	var warden_post := _get_warden_home_post(jail)
@@ -762,6 +762,11 @@ func _get_law_controller() -> Node:
 
 func _get_world_time_controller() -> Node:
 	return root.find_child("WorldTimeController", true, false)
+
+
+func _get_current_animation(actor: HumanoidCharacter) -> String:
+	var body := actor.get_body_projection()
+	return body.get_current_clip() if body != null else ""
 
 
 func _wait_frames(count: int) -> void:

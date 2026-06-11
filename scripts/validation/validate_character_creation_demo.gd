@@ -176,8 +176,9 @@ func _expect_created_character(created: HumanoidCharacter) -> void:
 
 
 func _expect_created_feet_grounded(created: HumanoidCharacter) -> void:
-	var foot_y := float(created.get_visual_foot_anchor_y())
-	var ground_y := float(created.get_visual_ground_y())
+	var body := created.get_body_projection()
+	var foot_y := float(body.get_visual_foot_anchor_y() if body != null else INF)
+	var ground_y := float(body.get_visual_ground_y() if body != null else 0.0)
 	if not is_finite(foot_y) or not is_finite(ground_y):
 		_fail("Created character foot grounding could not be measured")
 		return

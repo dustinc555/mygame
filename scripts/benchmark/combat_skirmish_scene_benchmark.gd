@@ -25,6 +25,9 @@ var _is_finalizing := false
 
 func _initialize() -> void:
 	_parse_cli_args()
+	OS.low_processor_usage_mode = false
+	OS.low_processor_usage_mode_sleep_usec = 0
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	if fixed_fps > 0:
 		Engine.max_fps = fixed_fps
 	var packed_scene := load(scene_path) as PackedScene

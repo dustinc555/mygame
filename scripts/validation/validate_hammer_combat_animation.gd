@@ -50,7 +50,7 @@ func _validate_weapon_action(label: String, weapon: ItemDefinition, offhand: Ite
 	attacker.call("_start_combat_attack", defender)
 	await process_frame
 	var started := bool(attacker.get("_combat_action_active"))
-	var action_name := str(attacker.get("_current_character_animation"))
+	var action_name := _get_current_animation(attacker)
 	var action_names: Array = attacker.get("_combat_action_names")
 	var started_remaining := float(attacker.get("_combat_action_remaining"))
 	if not started:
@@ -70,7 +70,7 @@ func _validate_weapon_action(label: String, weapon: ItemDefinition, offhand: Ite
 		await process_frame
 		var active := bool(attacker.get("_combat_action_active"))
 		var remaining := float(attacker.get("_combat_action_remaining"))
-		var current_animation := str(attacker.get("_current_character_animation"))
+		var current_animation := _get_current_animation(attacker)
 		if active and not action_names.has(current_animation):
 			interrupted = true
 			_fail("%s combat action animation changed early from attack sequence %s to '%s'" % [label, action_names, current_animation])
@@ -98,7 +98,7 @@ func _validate_one_hand_shield_combat_idle(label: String, weapon: ItemDefinition
 	attacker.call("assign_attack_target", defender, false, false, false)
 	attacker.set("_combat_cooldown_remaining", 1.0)
 	attacker.call("_update_character_animation", 0.016)
-	var current_animation := str(attacker.get("_current_character_animation"))
+	var current_animation := _get_current_animation(attacker)
 	if current_animation != "Sword_Idle":
 		_fail("%s one-hand weapon with shield should hold Sword_Idle combat idle, got '%s'" % [label, current_animation])
 	attacker.queue_free()
@@ -142,12 +142,13 @@ func _validate_lift_air_carry_pose_available() -> void:
 	var actor := _make_actor("carry_pose_actor", null, Vector3.ZERO)
 	root.add_child(actor)
 	await _wait_frames(6)
-	var player: AnimationPlayer = actor.get("_character_animation_player")
+	var body := actor.get_body_projection()
+	var player: AnimationPlayer = body.get_primary_animation_player() if body != null else null
 	if player == null or not player.has_animation("LiftAir_Fall"):
 		_fail("Humanoid animation library should include LiftAir_Fall; lift_air_available=%s source=%s" % [_available_animation_names_containing(player, "LiftAir"), _get_ual2_lift_air_names()])
 	else:
 		actor.call("_play_carried_pose_animation")
-		if str(actor.get("_current_character_animation")) != "LiftAir_Fall":
+		if _get_current_animation(actor) != "LiftAir_Fall":
 			_fail("Carried pose should use LiftAir_Fall")
 	actor.queue_free()
 	await _wait_frames(2)
@@ -161,6 +162,11 @@ func _available_animation_names_containing(player: AnimationPlayer, text: String
 		if str(animation_name).contains(text):
 			result.append(str(animation_name))
 	return result
+
+
+func _get_current_animation(actor: HumanoidCharacter) -> String:
+	var body := actor.get_body_projection()
+	return body.get_current_clip() if body != null else ""
 
 
 func _get_ual2_lift_air_names() -> Array[String]:

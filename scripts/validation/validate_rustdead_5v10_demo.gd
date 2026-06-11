@@ -209,11 +209,12 @@ func _validate_metallic_skin_material(member: HumanoidCharacter, tier_id: String
 
 
 func _validate_visual_feet(member: HumanoidCharacter) -> void:
-	var foot_y := member.get_visual_foot_anchor_y()
+	var body := member.get_body_projection()
+	var foot_y := body.get_visual_foot_anchor_y() if body != null else INF
 	if foot_y == INF:
 		_fail("%s should expose a visual foot anchor" % member.name)
 		return
-	var ground_y := member.get_visual_ground_y()
+	var ground_y := body.get_visual_ground_y() if body != null else 0.0
 	if foot_y < ground_y - MAX_VISUAL_FOOT_SINK:
 		_fail("%s visual feet should not sink below ground: foot=%.3f ground=%.3f" % [member.name, foot_y, ground_y])
 
@@ -236,7 +237,8 @@ func _validate_rustdead_animation_library(rustdead_members: Array[HumanoidCharac
 	if rustdead_members.is_empty():
 		return
 	var member := rustdead_members[0]
-	var animation_player: AnimationPlayer = member.get("_character_animation_player")
+	var body := member.get_body_projection()
+	var animation_player: AnimationPlayer = body.get_primary_animation_player() if body != null else null
 	if animation_player == null:
 		_fail("Rustdead animation player was not created")
 		return

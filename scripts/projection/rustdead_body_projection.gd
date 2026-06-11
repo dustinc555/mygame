@@ -11,9 +11,14 @@ class_name RustdeadBodyProjection
 
 func play_clip(animation_name: String, speed_ratio: float = 0.0, force_restart: bool = false, blend_seconds: float = DEFAULT_MOVE_BLEND_SECONDS) -> bool:
 	var resolved_animation := _resolve_rustdead_clip_name(animation_name)
-	if actor._character_animation_player != null and resolved_animation != animation_name and not actor._character_animation_player.has_animation(resolved_animation):
+	if resolved_animation != animation_name and not has_clip(resolved_animation):
 		resolved_animation = animation_name
 	return super.play_clip(resolved_animation, speed_ratio, force_restart, blend_seconds)
+
+
+func has_clip(animation_name: String) -> bool:
+	var resolved_animation := _resolve_rustdead_clip_name(animation_name)
+	return super.has_clip(resolved_animation) or (resolved_animation != animation_name and super.has_clip(animation_name))
 
 
 func _resolve_rustdead_clip_name(animation_name: String) -> String:
@@ -44,7 +49,7 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 
 
 func get_available_idle_clip_names() -> Array[String]:
-	if actor._character_animation_player != null and actor._character_animation_player.has_animation(actor.RUSTDEAD_IDLE_ANIMATION_NAME):
+	if has_clip(actor.RUSTDEAD_IDLE_ANIMATION_NAME):
 		var names: Array[String] = []
 		names.append(String(actor.RUSTDEAD_IDLE_ANIMATION_NAME))
 		return names

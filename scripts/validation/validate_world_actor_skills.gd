@@ -641,13 +641,14 @@ func _validate_mining_pickaxe_requirement() -> void:
 	visual_miner.add_child(body_mesh)
 	root.add_child(visual_miner)
 	await process_frame
-	var animation_player = visual_miner.get("_character_animation_player") as AnimationPlayer
+	var body := visual_miner.get_body_projection()
+	var animation_player: AnimationPlayer = body.get_primary_animation_player() if body != null else null
 	if animation_player == null or not animation_player.has_animation("Mining"):
 		_fail("Expected humanoid character animation library to include Mining")
 	visual_miner._current_mining_node = node
 	visual_miner._mining_active = true
 	visual_miner._update_character_animation(0.1)
-	if str(visual_miner.get("_current_character_animation")) != "Mining":
+	if body == null or body.get_current_clip() != "Mining":
 		_fail("Expected active mining to play Mining")
 
 	no_pick_miner.queue_free()
