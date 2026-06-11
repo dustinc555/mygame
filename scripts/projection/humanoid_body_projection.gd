@@ -34,6 +34,8 @@ var _running_locomotion_active := false
 var _sitting_enter_animation_remaining := 0.0
 var _sitting_exit_animation_remaining := 0.0
 var _sitting_idle_change_remaining := 0.0
+var _presentation_rng := RandomNumberGenerator.new()
+var _presentation_rng_ready := false
 
 
 # --- Visual build ---
@@ -1119,6 +1121,67 @@ func get_combat_action_timing(animation_names: Array[String], impact_ratio: floa
 		"first_clip_seconds": first_clip_seconds,
 		"impact_seconds": _get_combat_impact_seconds(first_clip_seconds if first_clip_seconds > 0.0 else total_seconds, impact_ratio),
 	}
+
+
+func pick_block_reaction_clip(has_shield: bool, animation_set, shield_block_animation_names: Array[String], fallback_block_animation_name: String) -> String:
+	if has_shield:
+		var shield_block_animation := pick_available_clip(shield_block_animation_names)
+		if not shield_block_animation.is_empty():
+			return shield_block_animation
+	if animation_set != null and not str(animation_set.block_animation_name).is_empty():
+		return str(animation_set.block_animation_name)
+	return fallback_block_animation_name
+
+
+func pick_hit_reaction_clip(attack_id: String, hit_reaction_names: Array[String] = []) -> String:
+	if not hit_reaction_names.is_empty():
+		return pick_available_clip(hit_reaction_names)
+	match attack_id:
+		"knee":
+			return pick_available_clip([actor.HIT_STOMACH_ANIMATION_NAME])
+		"kick":
+			return pick_available_clip([actor.HIT_HEAD_ANIMATION_NAME])
+		"uppercut":
+			return pick_available_clip([actor.HIT_HEAD_ANIMATION_NAME])
+		"hook":
+			return pick_available_clip([actor.HIT_HEAD_ANIMATION_NAME, actor.HIT_SHOULDER_L_ANIMATION_NAME, actor.HIT_SHOULDER_R_ANIMATION_NAME])
+		"cross":
+			return pick_available_clip([actor.HIT_HEAD_ANIMATION_NAME, actor.HIT_CHEST_ANIMATION_NAME, actor.HIT_SHOULDER_L_ANIMATION_NAME])
+		"jab":
+			return pick_available_clip([actor.HIT_HEAD_ANIMATION_NAME, actor.HIT_CHEST_ANIMATION_NAME])
+	return pick_available_clip([actor.HIT_CHEST_ANIMATION_NAME, actor.HIT_HEAD_ANIMATION_NAME, actor.HIT_STOMACH_ANIMATION_NAME])
+
+
+func pick_available_clip(animation_names: Array[String]) -> String:
+	var available: Array[String] = []
+	for animation_name in animation_names:
+		if has_clip(animation_name):
+			available.append(animation_name)
+	if available.is_empty():
+		return ""
+	return available[_get_presentation_rng().randi_range(0, available.size() - 1)]
+
+
+func pick_preferred_available_clip(animation_names: Array[String]) -> String:
+	for animation_name in animation_names:
+		if has_clip(animation_name):
+			return animation_name
+	return ""
+
+
+func play_combat_reaction_clip(animation_name: String, blend_seconds: float) -> float:
+	if animation_name.is_empty() or not has_clip(animation_name):
+		return 0.0
+	if not play_clip(animation_name, 0.0, true, blend_seconds):
+		return 0.0
+	return maxf(0.1, clip_length(animation_name))
+
+
+func _get_presentation_rng() -> RandomNumberGenerator:
+	if not _presentation_rng_ready:
+		_presentation_rng.randomize()
+		_presentation_rng_ready = true
+	return _presentation_rng
 
 
 func _get_clip_speed(animation_name: String, speed_ratio: float) -> float:
