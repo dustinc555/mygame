@@ -1095,6 +1095,32 @@ func seek_clip(animation_name: String, time: float, update: bool = true, speed_s
 			animation_player.speed_scale = speed_scale
 
 
+func can_play_combat_action(animation_names: Array[String]) -> bool:
+	if animation_names.is_empty():
+		return false
+	for animation_name in animation_names:
+		if not has_clip(animation_name):
+			return false
+	return true
+
+
+func get_combat_action_timing(animation_names: Array[String], impact_ratio: float, default_seconds: float = 0.45) -> Dictionary:
+	var total_seconds := 0.0
+	var first_clip_seconds := 0.0
+	for index in range(animation_names.size()):
+		var clip_seconds := clip_length(animation_names[index])
+		if index == 0:
+			first_clip_seconds = clip_seconds
+		total_seconds += clip_seconds
+	if total_seconds <= 0.0:
+		return super.get_combat_action_timing(animation_names, impact_ratio, default_seconds)
+	return {
+		"total_seconds": total_seconds,
+		"first_clip_seconds": first_clip_seconds,
+		"impact_seconds": _get_combat_impact_seconds(first_clip_seconds if first_clip_seconds > 0.0 else total_seconds, impact_ratio),
+	}
+
+
 func _get_clip_speed(animation_name: String, speed_ratio: float) -> float:
 	if animation_name == actor.WALK_ANIMATION_NAME:
 		return lerpf(0.85, 1.25, speed_ratio)

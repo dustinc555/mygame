@@ -80,6 +80,8 @@ const SITTING_IDLE_MAX_SECONDS := 11.0
 const SITTING_TALKING_CHANCE := 0.28
 const MOVE_ANIMATION_BLEND_SECONDS := 0.12
 const COMBAT_ACTION_BLEND_SECONDS := 0.05
+const DEFAULT_COMBAT_ACTION_SECONDS := 0.45
+const DEFAULT_COMBAT_IMPACT_RATIO := 0.45
 const COMBAT_RANGE_HYSTERESIS := 0.18
 const CELL_PLACEMENT_INTERACT_DISTANCE := 2.4
 const ACTUAL_LOCOMOTION_SPEED_THRESHOLD := 0.18
@@ -3676,29 +3678,23 @@ func _start_combat_attack(target: HumanoidCharacter) -> void:
 		COMBAT_COORDINATOR.register_combat_target(self, target)
 		_combat_slot_role_cache_frame = -1
 	var animation_set = _get_current_combat_animation_set()
-	var animation_player := _body.get_primary_animation_player() if _body != null else null
-	var attack = animation_set.choose_attack(animation_player, _rng) if animation_set != null else null
+	var attack = _choose_combat_attack(animation_set)
 	if attack == null:
-		if not COMBAT_COORDINATOR.try_begin_exchange(self, target, 0.45):
-			return
-		_spend_fatigue(NpcRules.FATIGUE_ATTACK_COST)
-		_award_combat_attack_xp()
-		var instant_damage := roll_combat_attack_damage(_rng)
-		target.receive_attack(self, float(instant_damage.get("blunt_damage", 0.0)), float(instant_damage.get("cut_damage", 0.0)), "", [], bool(instant_damage.get("critical", false)))
-		_combat_cooldown_remaining = maxf(0.2, get_stat_value("attack_cooldown"))
+		_start_default_timed_combat_attack(target)
 		return
 
 	var action_names: Array[String] = attack.get_animation_names()
-	var action_seconds := _get_animation_sequence_length(action_names)
+	var timing := _get_combat_action_timing(action_names, attack.impact_ratio)
+	var action_seconds := float(timing.get("total_seconds", DEFAULT_COMBAT_ACTION_SECONDS))
 	if not COMBAT_COORDINATOR.try_begin_exchange(self, target, action_seconds):
 		return
 	_spend_fatigue(NpcRules.FATIGUE_ATTACK_COST)
 	_award_combat_attack_xp()
 	_combat_action_names = action_names
 	_combat_action_index = 0
-	_combat_action_clip_remaining = _body.clip_length(_combat_action_names[0]) if _body != null else 0.0
-	_combat_action_remaining = _get_animation_sequence_length(_combat_action_names)
-	_combat_action_impact_remaining = _get_combat_attack_impact_seconds(_combat_action_names[0], attack.impact_ratio)
+	_combat_action_clip_remaining = float(timing.get("first_clip_seconds", 0.0))
+	_combat_action_remaining = action_seconds
+	_combat_action_impact_remaining = float(timing.get("impact_seconds", action_seconds))
 	_combat_action_has_impacted = false
 	_combat_action_target = target
 	_combat_action_attack_id = attack.attack_id
@@ -3711,18 +3707,62 @@ func _start_combat_attack(target: HumanoidCharacter) -> void:
 	_combat_cooldown_remaining = maxf(0.2, get_stat_value("attack_cooldown"))
 	_play_current_combat_action_clip()
 
-func _get_animation_sequence_length(animation_names: Array[String]) -> float:
-	var total := 0.0
-	for animation_name in animation_names:
-		total += _body.clip_length(animation_name) if _body != null else 0.0
-	return total
+func _start_default_timed_combat_attack(target: HumanoidCharacter) -> void:
+	var timing := _get_combat_action_timing([], DEFAULT_COMBAT_IMPACT_RATIO)
+	var action_seconds := float(timing.get("total_seconds", DEFAULT_COMBAT_ACTION_SECONDS))
+	if not COMBAT_COORDINATOR.try_begin_exchange(self, target, action_seconds):
+		return
+	_spend_fatigue(NpcRules.FATIGUE_ATTACK_COST)
+	_award_combat_attack_xp()
+	_combat_action_names.clear()
+	_combat_action_index = 0
+	_combat_action_clip_remaining = 0.0
+	_combat_action_remaining = action_seconds
+	_combat_action_impact_remaining = float(timing.get("impact_seconds", action_seconds))
+	_combat_action_has_impacted = false
+	_combat_action_target = target
+	_combat_action_attack_id = ""
+	_combat_action_hit_reaction_names.clear()
+	var action_damage := roll_combat_attack_damage(_rng)
+	_combat_action_blunt_damage = float(action_damage.get("blunt_damage", 0.0))
+	_combat_action_cut_damage = float(action_damage.get("cut_damage", 0.0))
+	_combat_action_is_critical = bool(action_damage.get("critical", false))
+	_combat_action_active = true
+	_combat_cooldown_remaining = maxf(0.2, get_stat_value("attack_cooldown"))
 
 
-func _get_combat_attack_impact_seconds(animation_name: String, impact_ratio: float) -> float:
-	var animation_length := _body.clip_length(animation_name) if _body != null else 0.0
-	if animation_length <= 0.0:
-		return 0.0
-	return clampf(animation_length * impact_ratio, 0.05, maxf(0.05, animation_length - 0.03))
+func _choose_combat_attack(animation_set):
+	if animation_set == null:
+		return null
+	var available_attacks: Array = []
+	var total_weight := 0.0
+	for attack in animation_set.attacks:
+		if attack == null:
+			continue
+		var action_names: Array[String] = attack.get_animation_names()
+		if _body == null or not _body.can_play_combat_action(action_names):
+			continue
+		available_attacks.append(attack)
+		total_weight += maxf(float(attack.weight), 0.0)
+	if available_attacks.is_empty() or total_weight <= 0.0:
+		return null
+	var roll := _rng.randf_range(0.0, total_weight)
+	for attack in available_attacks:
+		roll -= maxf(float(attack.weight), 0.0)
+		if roll <= 0.0:
+			return attack
+	return available_attacks[available_attacks.size() - 1]
+
+
+func _get_combat_action_timing(animation_names: Array[String], impact_ratio: float) -> Dictionary:
+	if _body != null:
+		return _body.get_combat_action_timing(animation_names, impact_ratio, DEFAULT_COMBAT_ACTION_SECONDS)
+	var action_seconds := DEFAULT_COMBAT_ACTION_SECONDS
+	return {
+		"total_seconds": action_seconds,
+		"first_clip_seconds": 0.0,
+		"impact_seconds": clampf(action_seconds * impact_ratio, 0.05, maxf(0.05, action_seconds - 0.03)),
+	}
 
 
 func _play_current_combat_action_clip() -> void:

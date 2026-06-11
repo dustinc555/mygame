@@ -219,6 +219,25 @@ func seek_clip(_animation_name: String, _time: float, _update: bool = true, _spe
 	pass
 
 
+func can_play_combat_action(_animation_names: Array[String]) -> bool:
+	return false
+
+
+func get_combat_action_timing(_animation_names: Array[String], impact_ratio: float, default_seconds: float = 0.45) -> Dictionary:
+	var total_seconds := maxf(0.05, default_seconds)
+	return {
+		"total_seconds": total_seconds,
+		"first_clip_seconds": 0.0,
+		"impact_seconds": _get_combat_impact_seconds(total_seconds, impact_ratio),
+	}
+
+
+func _get_combat_impact_seconds(action_seconds: float, impact_ratio: float) -> float:
+	if action_seconds <= 0.0:
+		return 0.0
+	return clampf(action_seconds * impact_ratio, 0.05, maxf(0.05, action_seconds - 0.03))
+
+
 func is_idle_clip(_animation_name: String) -> bool:
 	return false
 

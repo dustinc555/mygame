@@ -21,6 +21,7 @@ func _run() -> void:
 	await _validate_one_hand_shield_combat_idle("hammer_shield", WAR_HAMMER)
 	await _validate_one_hand_shield_combat_idle("axe_shield", IRON_AXE)
 	await _validate_lift_air_carry_pose_available()
+	await _validate_clipless_default_combat_timing()
 	if _failures.is_empty():
 		print("HAMMER_COMBAT_ANIMATION_OK")
 		quit(0)
@@ -151,6 +152,34 @@ func _validate_lift_air_carry_pose_available() -> void:
 		if _get_current_animation(actor) != "LiftAir_Fall":
 			_fail("Carried pose should use LiftAir_Fall")
 	actor.queue_free()
+	await _wait_frames(2)
+
+
+func _validate_clipless_default_combat_timing() -> void:
+	var attacker := _make_actor("clipless_attacker", null, Vector3.ZERO)
+	var defender := _make_actor("clipless_defender", null, Vector3(1.0, 0.6, 0.0))
+	attacker.visual_body_type = HumanoidCharacter.VisualBodyType.NONE
+	defender.visual_body_type = HumanoidCharacter.VisualBodyType.NONE
+	root.add_child(attacker)
+	root.add_child(defender)
+	await _wait_frames(6)
+	attacker.base_dodge_chance = 0.0
+	attacker.base_block_chance = 0.0
+	defender.base_dodge_chance = 0.0
+	defender.base_block_chance = 0.0
+	attacker.call("assign_attack_target", defender, false, false, false)
+	attacker.call("_start_combat_attack", defender)
+	await process_frame
+	if not bool(attacker.get("_combat_action_active")):
+		_fail("clipless combat should use actor-owned timed default action")
+	elif float(attacker.get("_combat_action_impact_remaining")) <= 0.0:
+		_fail("clipless combat should keep a positive actor-owned impact countdown")
+	if _get_current_animation(attacker) != "":
+		_fail("clipless combat should not require a presentation clip, got '%s'" % _get_current_animation(attacker))
+	attacker.COMBAT_COORDINATOR.release_character(attacker)
+	attacker.COMBAT_COORDINATOR.release_character(defender)
+	attacker.queue_free()
+	defender.queue_free()
 	await _wait_frames(2)
 
 
