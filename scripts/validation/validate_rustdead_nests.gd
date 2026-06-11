@@ -1,11 +1,14 @@
 extends SceneTree
 
-const DEMO_WORLD_SCENE := preload("res://scenes/worlds/demo_world/demo_world.tscn")
-const RUSTDEAD_NEST_TYPE := preload("res://resources/world_sim/nests/rustdead.tres")
+const DEMO_WORLD_SCENE_PATH := "res://scenes/worlds/demo_world/demo_world.tscn"
+const RUSTDEAD_NEST_TYPE_PATH := "res://resources/world_sim/nests/rustdead.tres"
 const ANCIENT_VENT_SCENE_PATH := "res://scenes/world/nests/rustdead/ancient_vent_01.tscn"
-const AI_JOB_SCRIPT := preload("res://scripts/ai/ai_job.gd")
-const AI_PATROL_STEP_SCRIPT := preload("res://scripts/ai/steps/ai_patrol_step.gd")
-const AI_NEST_ASSAULT_STEP_SCRIPT := preload("res://scripts/ai/steps/ai_nest_assault_step.gd")
+const AI_JOB_SCRIPT_PATH := "res://scripts/ai/ai_job.gd"
+const AI_PATROL_STEP_SCRIPT_PATH := "res://scripts/ai/steps/ai_patrol_step.gd"
+const AI_NEST_ASSAULT_STEP_SCRIPT_PATH := "res://scripts/ai/steps/ai_nest_assault_step.gd"
+const AI_UTILITY_ADAPTER_PATH := "res://scripts/ai/utility/ai_utility_adapter.gd"
+const COMBAT_COORDINATOR_PATH := "res://scripts/characters/combat_coordinator.gd"
+const SKIN_TEXTURE_BUILDER_PATH := "res://scripts/character_appearance/skin_texture_builder.gd"
 
 const WEST_MARKER_ID := "demo_rustdead_west_vent"
 const PATROL_SOURCE_ID := "nest_patrol"
@@ -14,7 +17,7 @@ const NEST_VISUAL_NAME := "ActiveNestVisual"
 const NEST_INTERACTION_BODY_NAME := "NestInteractionBody"
 const NEST_SCRAP_ROOT_NAME := "NestScrapPiles"
 const VISUAL_BODY_TYPE_MALE := 2
-const RUSTDEAD_TIER_LIBRARY := preload("res://scripts/characters/rustdead_tier_library.gd")
+const RUSTDEAD_TIER_LIBRARY_PATH := "res://scripts/characters/rustdead_tier_library.gd"
 const MAX_VISUAL_FOOT_SINK := 0.035
 const WROUGHT_MIN_SKIN_METALLIC := 0.30
 const ANCIENT_MIN_SKIN_METALLIC := 0.58
@@ -31,16 +34,27 @@ func _initialize() -> void:
 func _run() -> void:
 	_validate_nest_type_definition()
 	_validate_ai_job_contract()
-	_scene = DEMO_WORLD_SCENE.instantiate()
+	var demo_world_scene := load(DEMO_WORLD_SCENE_PATH) as PackedScene
+	if demo_world_scene == null:
+		_fail("Demo world scene should load from %s" % DEMO_WORLD_SCENE_PATH)
+		_print_failures_and_quit()
+		return
+	_scene = demo_world_scene.instantiate()
+	demo_world_scene = null
 	root.add_child(_scene)
 	await _wait_frames(180)
 	_validate_demo_markers()
 	_validate_controller_runtime()
 	await _validate_assault_job_start()
+	await _cleanup_scene()
 	if _failures.is_empty():
 		print("RUSTDEAD_NESTS_OK")
 		quit(0)
 		return
+	_print_failures_and_quit()
+
+
+func _print_failures_and_quit() -> void:
 	for failure in _failures:
 		push_error(failure)
 	print("RUSTDEAD_NESTS_FAILED count=%d" % _failures.size())
@@ -48,27 +62,31 @@ func _run() -> void:
 
 
 func _validate_nest_type_definition() -> void:
-	if str(RUSTDEAD_NEST_TYPE.call("get_id")) != "rustdead":
+	var rustdead_nest_type := _load_rustdead_nest_type()
+	if rustdead_nest_type == null:
+		_fail("Rustdead nest type should load from %s" % RUSTDEAD_NEST_TYPE_PATH)
+		return
+	if str(rustdead_nest_type.call("get_id")) != "rustdead":
 		_fail("Rustdead nest type should use stable id rustdead")
-	if float(RUSTDEAD_NEST_TYPE.get("default_initial_activation_chance")) != 0.5:
+	if float(rustdead_nest_type.get("default_initial_activation_chance")) != 0.5:
 		_fail("Rustdead nest default activation chance should be 50%")
-	if int(RUSTDEAD_NEST_TYPE.get("small_population_min")) != 8 or int(RUSTDEAD_NEST_TYPE.get("small_population_max")) != 12:
+	if int(rustdead_nest_type.get("small_population_min")) != 8 or int(rustdead_nest_type.get("small_population_max")) != 12:
 		_fail("Small Rustdead nest population should be 8-12")
-	if int(RUSTDEAD_NEST_TYPE.get("small_patrol_squad_count")) != 2:
+	if int(rustdead_nest_type.get("small_patrol_squad_count")) != 2:
 		_fail("Small Rustdead nest should define 2 patrol squads")
-	if int(RUSTDEAD_NEST_TYPE.get("small_patrol_squad_min")) != 3 or int(RUSTDEAD_NEST_TYPE.get("small_patrol_squad_max")) != 5:
+	if int(rustdead_nest_type.get("small_patrol_squad_min")) != 3 or int(rustdead_nest_type.get("small_patrol_squad_max")) != 5:
 		_fail("Small Rustdead patrol squad size should be 3-5")
-	if int(RUSTDEAD_NEST_TYPE.get("small_attack_squad_min")) != 3 or int(RUSTDEAD_NEST_TYPE.get("small_attack_squad_max")) != 7:
+	if int(rustdead_nest_type.get("small_attack_squad_min")) != 3 or int(rustdead_nest_type.get("small_attack_squad_max")) != 7:
 		_fail("Small Rustdead attack squad size should be 3-7")
-	if float(RUSTDEAD_NEST_TYPE.get("wander_radius")) != 500.0:
+	if float(rustdead_nest_type.get("wander_radius")) != 500.0:
 		_fail("Rustdead wander radius should be 500m")
-	if float(RUSTDEAD_NEST_TYPE.get("attack_radius")) != 1000.0:
+	if float(rustdead_nest_type.get("attack_radius")) != 1000.0:
 		_fail("Rustdead attack radius should be 1000m")
-	if float(RUSTDEAD_NEST_TYPE.get("daily_attack_chance")) != 0.05:
+	if float(rustdead_nest_type.get("daily_attack_chance")) != 0.05:
 		_fail("Rustdead daily attack chance should be 5%")
-	if int(RUSTDEAD_NEST_TYPE.get("respawn_cooldown_days")) != 7:
+	if int(rustdead_nest_type.get("respawn_cooldown_days")) != 7:
 		_fail("Destroyed Rustdead nests should become eligible after about 7 days")
-	var visual_scenes: Array = RUSTDEAD_NEST_TYPE.get("visual_scenes") if RUSTDEAD_NEST_TYPE.get("visual_scenes") is Array else []
+	var visual_scenes: Array = rustdead_nest_type.get("visual_scenes") if rustdead_nest_type.get("visual_scenes") is Array else []
 	if visual_scenes.is_empty():
 		_fail("Rustdead nest type should define authored visual scene variants")
 	elif visual_scenes[0] == null or str((visual_scenes[0] as PackedScene).resource_path) != ANCIENT_VENT_SCENE_PATH:
@@ -76,21 +94,27 @@ func _validate_nest_type_definition() -> void:
 
 
 func _validate_ai_job_contract() -> void:
-	if AI_JOB_SCRIPT.priority_for_type(AI_JOB_SCRIPT.JobType.PATROL) <= AI_JOB_SCRIPT.priority_for_type(AI_JOB_SCRIPT.JobType.AMBIENT_ACTIVITY):
+	var ai_job_script = load(AI_JOB_SCRIPT_PATH)
+	var ai_patrol_step_script = load(AI_PATROL_STEP_SCRIPT_PATH)
+	var ai_nest_assault_step_script = load(AI_NEST_ASSAULT_STEP_SCRIPT_PATH)
+	if ai_job_script == null or ai_patrol_step_script == null or ai_nest_assault_step_script == null:
+		_fail("AI job scripts should load for Rustdead nest validation")
+		return
+	if ai_job_script.priority_for_type(ai_job_script.JobType.PATROL) <= ai_job_script.priority_for_type(ai_job_script.JobType.AMBIENT_ACTIVITY):
 		_fail("Patrol jobs should outrank ambient activity")
-	if AI_JOB_SCRIPT.priority_for_type(AI_JOB_SCRIPT.JobType.NEST_ASSAULT) <= AI_JOB_SCRIPT.priority_for_type(AI_JOB_SCRIPT.JobType.PATROL):
+	if ai_job_script.priority_for_type(ai_job_script.JobType.NEST_ASSAULT) <= ai_job_script.priority_for_type(ai_job_script.JobType.PATROL):
 		_fail("Nest assault jobs should outrank patrol jobs")
-	if AI_JOB_SCRIPT.priority_for_type(AI_JOB_SCRIPT.JobType.NEST_ASSAULT) >= AI_JOB_SCRIPT.priority_for_type(AI_JOB_SCRIPT.JobType.SELF_DEFENSE):
+	if ai_job_script.priority_for_type(ai_job_script.JobType.NEST_ASSAULT) >= ai_job_script.priority_for_type(ai_job_script.JobType.SELF_DEFENSE):
 		_fail("Self-defense should be able to interrupt nest assault jobs")
-	var job = AI_JOB_SCRIPT.new()
-	job.job_type = AI_JOB_SCRIPT.JobType.PATROL
+	var job = ai_job_script.new()
+	job.job_type = ai_job_script.JobType.PATROL
 	job.data = {"marker_id": "test_marker"}
 	if str(job.get_debug_snapshot().get("data", {}).get("marker_id", "")) != "test_marker":
 		_fail("AiJob debug snapshots should expose job data payloads")
-	var patrol_step = AI_PATROL_STEP_SCRIPT.new()
+	var patrol_step = ai_patrol_step_script.new()
 	if str(patrol_step.get("step_id")) != "patrol":
 		_fail("Patrol AI step should identify as patrol")
-	var assault_step = AI_NEST_ASSAULT_STEP_SCRIPT.new()
+	var assault_step = ai_nest_assault_step_script.new()
 	if str(assault_step.get("step_id")) != "nest_assault":
 		_fail("Nest assault AI step should identify as nest_assault")
 
@@ -248,12 +272,16 @@ func _validate_rustdead_actor_tier(actor: Node, actor_id: String) -> void:
 
 
 func _validate_rustdead_actor_skill_ranges(actor: Node, tier: Resource, actor_id: String) -> void:
+	var rustdead_tier_library = _load_rustdead_tier_library()
+	if rustdead_tier_library == null:
+		_fail("Rustdead tier library should load from %s" % RUSTDEAD_TIER_LIBRARY_PATH)
+		return
 	var tier_range: Vector2i = tier.call("get_stat_range")
-	var non_tier_range := RUSTDEAD_TIER_LIBRARY.get_non_tier_skill_range()
+	var non_tier_range: Vector2i = rustdead_tier_library.get_non_tier_skill_range()
 	for definition in SkillRules.get_all_definitions():
 		var actual := int(actor.call("get_skill_level", definition.skill_id))
-		var expected_range := tier_range if RUSTDEAD_TIER_LIBRARY.is_tier_scaled_skill_id(definition.skill_id) else non_tier_range
-		var range_label := "tier" if RUSTDEAD_TIER_LIBRARY.is_tier_scaled_skill_id(definition.skill_id) else "non-tier Rustdead"
+		var expected_range := tier_range if rustdead_tier_library.is_tier_scaled_skill_id(definition.skill_id) else non_tier_range
+		var range_label := "tier" if rustdead_tier_library.is_tier_scaled_skill_id(definition.skill_id) else "non-tier Rustdead"
 		if actual < expected_range.x or actual > expected_range.y:
 			_fail("Spawned Rustdead actor %s skill %s should be in %s range %d-%d, got %d" % [actor_id, definition.skill_id, range_label, expected_range.x, expected_range.y, actual])
 			return
@@ -266,7 +294,11 @@ func _validate_rustdead_actor_skill_ranges(actor: Node, tier: Resource, actor_id
 
 
 func _validate_ancient_non_tier_actor_skill_is_low(actor: Node, actor_id: String, skill_id: String) -> void:
-	var non_tier_range := RUSTDEAD_TIER_LIBRARY.get_non_tier_skill_range()
+	var rustdead_tier_library = _load_rustdead_tier_library()
+	if rustdead_tier_library == null:
+		_fail("Rustdead tier library should load from %s" % RUSTDEAD_TIER_LIBRARY_PATH)
+		return
+	var non_tier_range: Vector2i = rustdead_tier_library.get_non_tier_skill_range()
 	var actual := int(actor.call("get_skill_level", skill_id))
 	if actual > non_tier_range.y:
 		_fail("Spawned Ancient Rustdead actor %s should not scale non-physical skill %s above %d, got %d" % [actor_id, skill_id, non_tier_range.y, actual])
@@ -286,14 +318,18 @@ func _validate_rustdead_actor_blood(actor: Node, actor_id: String) -> void:
 
 
 func _validate_rustdead_actor_feet(actor: Node, actor_id: String) -> void:
-	if not actor.has_method("get_visual_foot_anchor_y") or not actor.has_method("get_visual_ground_y"):
+	if not actor.has_method("get_body_projection"):
 		_fail("Spawned Rustdead actor %s should expose visual foot anchors" % actor_id)
 		return
-	var foot_y := float(actor.call("get_visual_foot_anchor_y"))
+	var body = actor.call("get_body_projection")
+	if body == null or not body.has_method("get_visual_foot_anchor_y") or not body.has_method("get_visual_ground_y"):
+		_fail("Spawned Rustdead actor %s should expose visual foot anchors" % actor_id)
+		return
+	var foot_y := float(body.call("get_visual_foot_anchor_y"))
 	if foot_y == INF:
 		_fail("Spawned Rustdead actor %s should expose a valid visual foot anchor" % actor_id)
 		return
-	var ground_y := float(actor.call("get_visual_ground_y"))
+	var ground_y := float(body.call("get_visual_ground_y"))
 	if foot_y < ground_y - MAX_VISUAL_FOOT_SINK:
 		_fail("Spawned Rustdead actor %s visual feet should not sink below ground: foot=%.3f ground=%.3f" % [actor_id, foot_y, ground_y])
 
@@ -393,6 +429,7 @@ func _validate_scrap_specs_for_all_nest_sizes(nest_controller: Node) -> void:
 			_fail("Medium Rustdead nest should guarantee at least one large scavenge pile")
 		if size_id == "large" and large_count < 2:
 			_fail("Large Rustdead nest should guarantee at least two large scavenge piles")
+		marker.free()
 
 
 func _expected_scrap_count_range(size_id: String) -> Vector2i:
@@ -425,7 +462,11 @@ func _validate_attack_target_selection(nest_controller: Node) -> void:
 	var marker := _scene.get_node_or_null("NestMarkers/RustdeadWestVent") as Node3D
 	if marker == null:
 		return
-	var target_id := str(nest_controller.call("_find_attack_target_settlement", marker.global_position, 1000.0, str(RUSTDEAD_NEST_TYPE.call("get_faction_id"))))
+	var rustdead_nest_type := _load_rustdead_nest_type()
+	if rustdead_nest_type == null:
+		_fail("Rustdead nest type should load from %s" % RUSTDEAD_NEST_TYPE_PATH)
+		return
+	var target_id := str(nest_controller.call("_find_attack_target_settlement", marker.global_position, 1000.0, str(rustdead_nest_type.call("get_faction_id"))))
 	if target_id != "surf_city":
 		_fail("West Rustdead nest should target closest non-Rustdead settlement surf_city, got %s" % target_id)
 
@@ -446,7 +487,13 @@ func _validate_assault_job_start() -> void:
 	var before_actor_count := before_actor_ids.size()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 424242
-	if not bool(nest_controller.call("_start_settlement_attack", marker, state, RUSTDEAD_NEST_TYPE, 42, rng)):
+	var rustdead_nest_type := _load_rustdead_nest_type()
+	if rustdead_nest_type == null:
+		_fail("Rustdead nest type should load from %s" % RUSTDEAD_NEST_TYPE_PATH)
+		return
+	var started := bool(nest_controller.call("_start_settlement_attack", marker, state, rustdead_nest_type, 42, rng))
+	rustdead_nest_type = null
+	if not started:
 		_fail("Rustdead nest should be able to start an assault against the closest settlement")
 		return
 	await _wait_frames(10)
@@ -498,6 +545,37 @@ func _get_controller(group_name: String) -> Node:
 func _wait_frames(count: int) -> void:
 	for _i in range(count):
 		await process_frame
+
+
+func _cleanup_scene() -> void:
+	if _scene != null and is_instance_valid(_scene):
+		root.remove_child(_scene)
+		_scene.free()
+	_scene = null
+	await process_frame
+	await physics_frame
+	_cleanup_runtime_state()
+	await process_frame
+
+
+func _cleanup_runtime_state() -> void:
+	var combat_coordinator = load(COMBAT_COORDINATOR_PATH)
+	if combat_coordinator != null and combat_coordinator.has_method("reset_all_state"):
+		combat_coordinator.reset_all_state()
+	var ai_utility_adapter = load(AI_UTILITY_ADAPTER_PATH)
+	if ai_utility_adapter != null and ai_utility_adapter.has_method("clear_runtime_caches"):
+		ai_utility_adapter.clear_runtime_caches()
+	var skin_texture_builder = load(SKIN_TEXTURE_BUILDER_PATH)
+	if skin_texture_builder != null and skin_texture_builder.has_method("clear_runtime_caches"):
+		skin_texture_builder.clear_runtime_caches()
+
+
+func _load_rustdead_nest_type() -> Resource:
+	return load(RUSTDEAD_NEST_TYPE_PATH) as Resource
+
+
+func _load_rustdead_tier_library():
+	return load(RUSTDEAD_TIER_LIBRARY_PATH)
 
 
 func _fail(message: String) -> void:

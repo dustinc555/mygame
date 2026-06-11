@@ -20,12 +20,6 @@ const RUSTDEAD_ANIMATION_NAMES: Array[String] = [
 	RUSTDEAD_SCRATCH_ANIMATION_NAME,
 	RUSTDEAD_SPAWN_ANIMATION_NAME,
 ]
-const CINDER_BURNED_MATERIAL_META := "cinder_burned"
-const CINDER_SCORCH_OVERLAY_META := "cinder_scorch_overlay"
-
-static var _cinder_burn_overlay_material: Material
-static var _cinder_burn_overlay_texture: Texture2D
-
 @export var fresh_skin_color := Color(0.64, 0.19, 0.16, 1.0)
 @export var cinder_burn_duration_seconds := 2.0
 @export var rustdead_tier_definition: Resource
@@ -34,8 +28,6 @@ static var _cinder_burn_overlay_texture: Texture2D
 
 var _cinder_burn_remaining := 0.0
 var _cinder_burn_attacker: HumanoidCharacter
-var _cinder_burn_effect: Node3D
-var _cinder_burn_fire_seed := 0.0
 var _allow_cinder_true_death := false
 var _is_cinder_burned := false
 
@@ -46,9 +38,6 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	_clear_cinder_burned_visuals()
-	_free_rustdead_visual_root_for_exit()
-	_clear_cinder_burn_effect()
 	super._exit_tree()
 
 
@@ -57,14 +46,12 @@ func _process(delta: float) -> void:
 	super._process(delta)
 
 
-func _setup_character_visual() -> void:
-	super._setup_character_visual()
-	if _is_cinder_burned:
-		_apply_cinder_burned_visuals()
-
-
 func _create_body_projection() -> BodyProjection:
 	return RustdeadBodyProjection.new()
+
+
+func _get_rustdead_body_projection() -> RustdeadBodyProjection:
+	return (_body as RustdeadBodyProjection) if _body != null and is_instance_valid(_body) else null
 
 
 func requires_fire_to_die() -> bool:
@@ -101,11 +88,8 @@ func is_cinder_burned() -> bool:
 
 
 func has_cinder_burned_visuals() -> bool:
-	var visual_root := get_character_visual_root()
-	if visual_root != null and _node_has_cinder_burned_material(visual_root):
-		return true
-	var body_mesh := get_node_or_null("BodyMesh")
-	return body_mesh != null and _node_has_cinder_burned_material(body_mesh)
+	var body := _get_rustdead_body_projection()
+	return body != null and body.has_cinder_burned_visuals()
 
 
 func begin_cinder_burn(attacker: HumanoidCharacter = null) -> bool:
@@ -113,14 +97,16 @@ func begin_cinder_burn(attacker: HumanoidCharacter = null) -> bool:
 		return false
 	_cinder_burn_attacker = attacker
 	_cinder_burn_remaining = maxf(0.05, cinder_burn_duration_seconds)
-	_cinder_burn_fire_seed = _rng.randf() * TAU
 	_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, _cinder_burn_remaining + 1.0)
 	if _is_getting_up:
 		_cancel_get_up()
 	_is_cinder_burned = true
-	_apply_cinder_burned_visuals()
+	var body := _get_rustdead_body_projection()
+	if body != null:
+		body.begin_cinder_burn_visuals()
 	_enter_cinder_dead_state_in_place()
-	_spawn_cinder_burn_effect()
+	if body != null:
+		body.spawn_cinder_burn_effect(_cinder_burn_remaining, cinder_burn_duration_seconds)
 	_show_world_notice("Burning", Color(1.0, 0.45, 0.12, 1.0), 1.6)
 	state_changed.emit()
 	return true
@@ -212,121 +198,17 @@ func _process_cinder_burn(delta: float) -> void:
 		return
 	_cinder_burn_remaining = maxf(0.0, _cinder_burn_remaining - delta)
 	_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, _cinder_burn_remaining + 0.5)
-	_update_cinder_burn_effect_position()
-	_update_cinder_burn_effect()
+	var body := _get_rustdead_body_projection()
+	if body != null:
+		body.update_cinder_burn_visuals(_cinder_burn_remaining, cinder_burn_duration_seconds)
 	if _cinder_burn_remaining <= 0.0:
 		_finish_cinder_burn()
 
 
-func _spawn_cinder_burn_effect() -> void:
-	_clear_cinder_burn_effect()
-	_cinder_burn_effect = Node3D.new()
-	_cinder_burn_effect.name = "CinderBurnEffect"
-	add_child(_cinder_burn_effect)
-	_cinder_burn_effect.top_level = true
-	_update_cinder_burn_effect_position()
-	for index in range(7):
-		var flame := MeshInstance3D.new()
-		flame.name = "Flame%02d" % index
-		var flame_mesh := SphereMesh.new()
-		flame_mesh.radius = 0.32
-		flame_mesh.height = 0.75
-		flame_mesh.radial_segments = 12
-		flame_mesh.rings = 6
-		flame.mesh = flame_mesh
-		var flame_material := StandardMaterial3D.new()
-		flame_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		flame_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		flame_material.albedo_color = Color(1.0, 0.32 + float(index % 3) * 0.14, 0.04, 0.72)
-		flame_material.emission_enabled = true
-		flame_material.emission = Color(1.0, 0.33, 0.06, 1.0)
-		flame_material.emission_energy_multiplier = 2.8
-		flame.material_override = flame_material
-		var angle := TAU * float(index) / 7.0
-		var radius := 0.18 + 0.18 * float(index % 2)
-		flame.position = Vector3(cos(angle) * radius, 0.16 + 0.04 * float(index % 3), sin(angle) * radius)
-		var base_scale := Vector3(0.34 + 0.04 * float(index % 3), 0.95 + 0.12 * float(index % 2), 0.34 + 0.03 * float(index % 4))
-		flame.scale = base_scale
-		flame.set_meta("cinder_flame", true)
-		flame.set_meta("base_scale", base_scale)
-		flame.set_meta("base_position", flame.position)
-		flame.set_meta("phase", _cinder_burn_fire_seed + float(index) * 0.91)
-		_cinder_burn_effect.add_child(flame)
-	for index in range(4):
-		var smoke := MeshInstance3D.new()
-		smoke.name = "Smoke%02d" % index
-		var smoke_mesh := SphereMesh.new()
-		smoke_mesh.radius = 0.38
-		smoke_mesh.height = 0.42
-		smoke_mesh.radial_segments = 10
-		smoke_mesh.rings = 5
-		smoke.mesh = smoke_mesh
-		var smoke_material := StandardMaterial3D.new()
-		smoke_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		smoke_material.albedo_color = Color(0.08, 0.07, 0.06, 0.26)
-		smoke.material_override = smoke_material
-		var angle := _cinder_burn_fire_seed + TAU * float(index) / 4.0
-		smoke.position = Vector3(cos(angle) * 0.24, 0.85 + 0.12 * float(index), sin(angle) * 0.24)
-		var base_scale := Vector3.ONE * (0.65 + float(index) * 0.08)
-		smoke.scale = base_scale
-		smoke.set_meta("cinder_smoke", true)
-		smoke.set_meta("base_scale", base_scale)
-		smoke.set_meta("base_position", smoke.position)
-		smoke.set_meta("phase", _cinder_burn_fire_seed + float(index) * 1.37)
-		_cinder_burn_effect.add_child(smoke)
-	var light := OmniLight3D.new()
-	light.name = "CinderLight"
-	light.light_color = Color(1.0, 0.42, 0.12, 1.0)
-	light.light_energy = 2.2
-	light.omni_range = 4.0
-	light.position = Vector3(0.0, 0.9, 0.0)
-	light.set_meta("cinder_light", true)
-	_cinder_burn_effect.add_child(light)
-	_update_cinder_burn_effect()
-
-
-func _update_cinder_burn_effect_position() -> void:
-	if _cinder_burn_effect == null or not is_instance_valid(_cinder_burn_effect):
-		return
-	_cinder_burn_effect.global_position = get_follow_anchor_position() + Vector3(0.0, 0.35, 0.0)
-
-
-func _update_cinder_burn_effect() -> void:
-	if _cinder_burn_effect == null or not is_instance_valid(_cinder_burn_effect):
-		return
-	var duration := maxf(cinder_burn_duration_seconds, 0.05)
-	var elapsed := duration - _cinder_burn_remaining
-	var intensity := minf(1.0, elapsed / 0.75) * minf(1.0, _cinder_burn_remaining / 3.0)
-	for child in _cinder_burn_effect.get_children():
-		if child is MeshInstance3D and bool(child.get_meta("cinder_flame", false)):
-			var base_scale: Vector3 = child.get_meta("base_scale")
-			var base_position: Vector3 = child.get_meta("base_position")
-			var phase := float(child.get_meta("phase", 0.0))
-			var pulse := 0.72 + 0.28 * sin(elapsed * 9.0 + phase)
-			child.scale = base_scale * maxf(0.01, pulse * intensity)
-			child.position = base_position + Vector3(0.0, sin(elapsed * 7.0 + phase) * 0.08 * intensity, 0.0)
-			var material := child.material_override as StandardMaterial3D
-			if material != null:
-				var alpha := clampf(0.18 + 0.62 * intensity, 0.0, 0.82)
-				material.albedo_color.a = alpha
-				material.emission_energy_multiplier = 1.0 + 2.4 * intensity
-		elif child is MeshInstance3D and bool(child.get_meta("cinder_smoke", false)):
-			var base_scale: Vector3 = child.get_meta("base_scale")
-			var base_position: Vector3 = child.get_meta("base_position")
-			var phase := float(child.get_meta("phase", 0.0))
-			var drift := Vector3(cos(elapsed * 1.1 + phase), 0.0, sin(elapsed * 0.9 + phase)) * 0.08 * intensity
-			child.position = base_position + drift + Vector3(0.0, sin(elapsed * 1.7 + phase) * 0.08, 0.0)
-			child.scale = base_scale * (0.75 + 0.35 * intensity + 0.08 * sin(elapsed * 2.0 + phase))
-			var material := child.material_override as StandardMaterial3D
-			if material != null:
-				material.albedo_color.a = clampf(0.05 + 0.22 * intensity, 0.0, 0.28)
-		elif child is OmniLight3D and bool(child.get_meta("cinder_light", false)):
-			var light := child as OmniLight3D
-			light.light_energy = intensity * (1.4 + 0.8 * sin(elapsed * 12.0 + _cinder_burn_fire_seed))
-
-
 func _finish_cinder_burn() -> void:
-	_clear_cinder_burn_effect()
+	var body := _get_rustdead_body_projection()
+	if body != null:
+		body.finish_cinder_burn_visuals()
 	_cinder_burn_attacker = null
 	_show_world_notice("Burned", Color(0.9, 0.28, 0.08, 1.0), 1.6)
 
@@ -353,165 +235,3 @@ func _enter_cinder_dead_state_in_place() -> void:
 	life_state_changed.emit(previous_state, life_state)
 	died.emit(self)
 	state_changed.emit()
-
-
-func _clear_cinder_burn_effect() -> void:
-	if _cinder_burn_effect == null:
-		return
-	var effect := _cinder_burn_effect
-	_cinder_burn_effect = null
-	if is_instance_valid(effect):
-		var parent := effect.get_parent()
-		if parent != null:
-			parent.remove_child(effect)
-		effect.free()
-
-
-func _apply_cinder_burned_visuals() -> void:
-	var visual_root := get_character_visual_root()
-	if visual_root != null:
-		_apply_cinder_burn_overlay(visual_root)
-	var body_mesh := get_node_or_null("BodyMesh")
-	if body_mesh != null:
-		_apply_cinder_burn_overlay(body_mesh)
-
-
-func _clear_cinder_burned_visuals() -> void:
-	var visual_root := get_character_visual_root()
-	if visual_root != null:
-		_clear_cinder_burn_overlay(visual_root)
-	var body_mesh := get_node_or_null("BodyMesh")
-	if body_mesh != null:
-		_clear_cinder_burn_overlay(body_mesh)
-
-
-func _free_rustdead_visual_root_for_exit() -> void:
-	var visual_root := get_character_visual_root()
-	if visual_root == null:
-		return
-	_strip_meshes_for_exit(visual_root)
-	var parent := visual_root.get_parent()
-	if parent != null:
-		parent.remove_child(visual_root)
-	visual_root.free()
-
-
-func _strip_meshes_for_exit(root: Node) -> void:
-	if root == null:
-		return
-	if root is MeshInstance3D:
-		(root as MeshInstance3D).mesh = null
-	for child in root.get_children():
-		_strip_meshes_for_exit(child)
-
-
-func _apply_cinder_burn_overlay(root: Node) -> void:
-	if root == null:
-		return
-	if root is MeshInstance3D:
-		_apply_cinder_burn_overlay_to_mesh(root as MeshInstance3D)
-	for child in root.get_children():
-		_apply_cinder_burn_overlay(child)
-
-
-func _clear_cinder_burn_overlay(root: Node) -> void:
-	if root == null:
-		return
-	if root is MeshInstance3D:
-		var mesh_instance := root as MeshInstance3D
-		if mesh_instance.material_overlay != null and bool(mesh_instance.material_overlay.get_meta(CINDER_SCORCH_OVERLAY_META, false)):
-			mesh_instance.material_overlay = _get_cinder_burn_clear_material()
-		if mesh_instance.material_override != null and bool(mesh_instance.material_override.get_meta(CINDER_SCORCH_OVERLAY_META, false)):
-			mesh_instance.material_override = _get_cinder_burn_clear_material()
-	for child in root.get_children():
-		_clear_cinder_burn_overlay(child)
-
-
-func _apply_cinder_burn_overlay_to_mesh(mesh_instance: MeshInstance3D) -> void:
-	mesh_instance.material_override = _get_cinder_burn_overlay_material()
-
-
-func _node_has_cinder_burned_material(root: Node) -> bool:
-	if root == null:
-		return false
-	if root is MeshInstance3D and _mesh_has_cinder_burned_material(root as MeshInstance3D):
-		return true
-	for child in root.get_children():
-		if _node_has_cinder_burned_material(child):
-			return true
-	return false
-
-
-func _mesh_has_cinder_burned_material(mesh_instance: MeshInstance3D) -> bool:
-	if mesh_instance.material_overlay != null and bool(mesh_instance.material_overlay.get_meta(CINDER_BURNED_MATERIAL_META, false)):
-		return true
-	if mesh_instance.material_override != null and bool(mesh_instance.material_override.get_meta(CINDER_BURNED_MATERIAL_META, false)):
-		return true
-	for surface_index in range(mesh_instance.get_surface_override_material_count()):
-		var material := mesh_instance.get_surface_override_material(surface_index)
-		if material != null and bool(material.get_meta(CINDER_BURNED_MATERIAL_META, false)):
-			return true
-	return false
-
-
-func _get_cinder_burn_overlay_material() -> Material:
-	if _cinder_burn_overlay_material != null:
-		return _cinder_burn_overlay_material
-	var material := StandardMaterial3D.new()
-	material.resource_name = "Cinder Burn Overlay"
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	material.albedo_texture = _get_cinder_burn_overlay_texture()
-	material.albedo_color = Color(0.004, 0.0035, 0.003, 1.0)
-	material.roughness = 1.0
-	material.set_meta(CINDER_BURNED_MATERIAL_META, true)
-	material.set_meta(CINDER_SCORCH_OVERLAY_META, true)
-	_cinder_burn_overlay_material = material
-	return _cinder_burn_overlay_material
-
-
-func _get_cinder_burn_clear_material() -> Material:
-	var material := StandardMaterial3D.new()
-	material.resource_name = "Cleared Cinder Surface"
-	material.albedo_color = Color(0.02, 0.018, 0.015, 1.0)
-	material.roughness = 1.0
-	return material
-
-
-func _get_cinder_burn_overlay_texture() -> Texture2D:
-	if _cinder_burn_overlay_texture != null:
-		return _cinder_burn_overlay_texture
-	var size := 128
-	var image := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	for y in range(size):
-		for x in range(size):
-			var uv := Vector2(float(x) / float(size - 1), float(y) / float(size - 1))
-			var mask := _get_cinder_burn_overlay_mask(uv, x, y)
-			var ash := _cinder_overlay_noise01(x, y, 29)
-			var shade := 0.006 + ash * 0.028
-			var color := Color(shade, shade * 0.9, shade * 0.78, mask)
-			if mask > 0.58 and _cinder_overlay_noise01(x, y, 53) > 0.88:
-				color = Color(0.18, 0.16, 0.13, mask * 0.86)
-			image.set_pixel(x, y, color)
-	_cinder_burn_overlay_texture = ImageTexture.create_from_image(image)
-	return _cinder_burn_overlay_texture
-
-
-func _get_cinder_burn_overlay_mask(uv: Vector2, x: int, y: int) -> float:
-	var center := uv - Vector2(0.5, 0.5)
-	var radial := maxf(0.0, 1.0 - center.length() / 0.92)
-	var lobe_a := maxf(0.0, 1.0 - uv.distance_to(Vector2(0.32, 0.62)) / 0.52)
-	var lobe_b := maxf(0.0, 1.0 - uv.distance_to(Vector2(0.68, 0.38)) / 0.48)
-	var lobe_c := maxf(0.0, 1.0 - uv.distance_to(Vector2(0.55, 0.77)) / 0.44)
-	var lobe_d := maxf(0.0, 1.0 - uv.distance_to(Vector2(0.46, 0.28)) / 0.36)
-	var crack := 0.5 + 0.5 * sin((uv.x * 15.0 + uv.y * 8.0 + _cinder_overlay_noise01(x, y, 7) * 2.0) * PI)
-	var grain := _cinder_overlay_noise01(x, y, 13)
-	var mask := radial * 0.7 + lobe_a * 0.46 + lobe_b * 0.44 + lobe_c * 0.34 + lobe_d * 0.26 + crack * 0.2 + grain * 0.24 - 0.13
-	mask = clampf(mask, 0.0, 1.0)
-	return mask * mask * (3.0 - 2.0 * mask)
-
-
-func _cinder_overlay_noise01(x: int, y: int, salt: int) -> float:
-	var value := sin(float(x * 23 + salt * 41) * 12.9898 + float(y * 31 + salt * 17) * 78.233) * 43758.5453
-	return value - floor(value)
