@@ -2198,9 +2198,11 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 			final_blunt = float(arrest_damage.get("blunt", 0.0))
 			final_cut = 0.0
 		_prepare_combat_reaction(attacker)
-		_play_combat_reaction(_get_current_block_animation_name())
+		var has_shield_block := has_combat_shield()
+		if _body != null:
+			_play_combat_reaction(_body.pick_block_reaction_clip(has_shield_block, _get_current_combat_animation_set(), SHIELD_BLOCK_ANIMATION_NAMES, BLOCK_ANIMATION_NAME))
 		COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
-		_show_world_notice(_get_current_block_notice_label(), Color(0.86, 0.9, 1.0, 1.0))
+		_show_world_notice("Shield Block" if has_shield_block else "Parry", Color(0.86, 0.9, 1.0, 1.0))
 		_current_blunt_damage += final_blunt
 		_current_open_cut_damage += final_cut
 		_add_bleeding_from_cut(final_blunt, final_cut)
@@ -2210,7 +2212,8 @@ func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage
 		return "blocked"
 	if can_actively_defend:
 		_prepare_combat_reaction(attacker)
-		_play_combat_reaction(_pick_hit_reaction_animation(attack_id, hit_reaction_names))
+		if _body != null:
+			_play_combat_reaction(_body.pick_hit_reaction_clip(attack_id, hit_reaction_names))
 		COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
 	var grit_damage := apply_toughness_grit(final_blunt, final_cut)
 	final_blunt = float(grit_damage.get("blunt_damage", 0.0))
@@ -3812,29 +3815,15 @@ func _prepare_combat_reaction(attacker: HumanoidCharacter) -> void:
 
 
 func _play_combat_reaction(animation_name: String) -> bool:
-	if animation_name.is_empty():
+	if animation_name.is_empty() or _body == null:
 		return false
 	if _combat_action_active:
 		_clear_combat_action()
-	if _body == null or not _body.has_clip(animation_name):
+	var reaction_seconds := _body.play_combat_reaction_clip(animation_name, COMBAT_ACTION_BLEND_SECONDS)
+	if reaction_seconds <= 0.0:
 		return false
-	_combat_reaction_remaining = maxf(0.1, _body.clip_length(animation_name))
-	return _body.play_clip(animation_name, 0.0, true, COMBAT_ACTION_BLEND_SECONDS)
-
-
-func _get_current_block_animation_name() -> String:
-	if _has_equipped_shield():
-		var shield_block_animation := _pick_available_animation(SHIELD_BLOCK_ANIMATION_NAMES)
-		if not shield_block_animation.is_empty():
-			return shield_block_animation
-	var animation_set = _get_current_combat_animation_set()
-	if animation_set != null and not animation_set.block_animation_name.is_empty():
-		return animation_set.block_animation_name
-	return BLOCK_ANIMATION_NAME
-
-
-func _get_current_block_notice_label() -> String:
-	return "Shield Block" if _has_equipped_shield() else "Parry"
+	_combat_reaction_remaining = reaction_seconds
+	return true
 
 
 func _has_equipped_shield() -> bool:
@@ -3842,46 +3831,6 @@ func _has_equipped_shield() -> bool:
 	if offhand_item == null or offhand_item.grip_profile == null:
 		return false
 	return str(offhand_item.grip_profile.get("grip_class_id")) == EquipmentGripProfile.GRIP_CLASS_OFFHAND_SHIELD
-
-
-func _pick_hit_reaction_animation(attack_id: String, hit_reaction_names: Array[String] = []) -> String:
-	if not hit_reaction_names.is_empty():
-		return _pick_available_animation(hit_reaction_names)
-	match attack_id:
-		"knee":
-			return _pick_available_animation([HIT_STOMACH_ANIMATION_NAME])
-		"kick":
-			return _pick_available_animation([HIT_HEAD_ANIMATION_NAME])
-		"uppercut":
-			return _pick_available_animation([HIT_HEAD_ANIMATION_NAME])
-		"hook":
-			return _pick_available_animation([HIT_HEAD_ANIMATION_NAME, HIT_SHOULDER_L_ANIMATION_NAME, HIT_SHOULDER_R_ANIMATION_NAME])
-		"cross":
-			return _pick_available_animation([HIT_HEAD_ANIMATION_NAME, HIT_CHEST_ANIMATION_NAME, HIT_SHOULDER_L_ANIMATION_NAME])
-		"jab":
-			return _pick_available_animation([HIT_HEAD_ANIMATION_NAME, HIT_CHEST_ANIMATION_NAME])
-	return _pick_available_animation([HIT_CHEST_ANIMATION_NAME, HIT_HEAD_ANIMATION_NAME, HIT_STOMACH_ANIMATION_NAME])
-
-
-func _pick_available_animation(animation_names: Array[String]) -> String:
-	if _body == null or _body.get_primary_animation_player() == null:
-		return ""
-	var available: Array[String] = []
-	for animation_name in animation_names:
-		if _body.has_clip(animation_name):
-			available.append(animation_name)
-	if available.is_empty():
-		return ""
-	return available[_rng.randi_range(0, available.size() - 1)]
-
-
-func _pick_preferred_available_animation(animation_names: Array[String]) -> String:
-	if _body == null or _body.get_primary_animation_player() == null:
-		return ""
-	for animation_name in animation_names:
-		if _body.has_clip(animation_name):
-			return animation_name
-	return ""
 
 
 func _process_heal_interaction() -> void:
@@ -6189,7 +6138,7 @@ func _clear_cell_custody_state(restore_collision := true) -> void:
 
 
 func _play_carried_pose_animation() -> void:
-	var animation_name := _pick_preferred_available_animation(CARRY_POSE_ANIMATION_NAMES)
+	var animation_name := _body.pick_preferred_available_clip(CARRY_POSE_ANIMATION_NAMES) if _body != null else ""
 	if animation_name.is_empty():
 		return
 	_carried_pose_animation = animation_name
@@ -6214,7 +6163,7 @@ func _update_carried_pose_animation() -> void:
 func _play_cell_unconscious_pose() -> void:
 	var animation_name := CELL_CUSTODY_LAY_ANIMATION_NAME
 	if _body == null or not _body.has_clip(animation_name):
-		animation_name = _pick_preferred_available_animation(["LiftAir_Fall"])
+		animation_name = _body.pick_preferred_available_clip(["LiftAir_Fall"]) if _body != null else ""
 	if animation_name.is_empty() or _body == null or _body.get_primary_animation_player() == null:
 		return
 	_cell_custody_unconscious_pose_animation = animation_name

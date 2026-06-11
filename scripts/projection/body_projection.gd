@@ -232,6 +232,26 @@ func get_combat_action_timing(_animation_names: Array[String], impact_ratio: flo
 	}
 
 
+func pick_block_reaction_clip(_has_shield: bool, _animation_set, _shield_block_animation_names: Array[String], fallback_block_animation_name: String) -> String:
+	return fallback_block_animation_name
+
+
+func pick_hit_reaction_clip(_attack_id: String, _hit_reaction_names: Array[String] = []) -> String:
+	return ""
+
+
+func pick_available_clip(_animation_names: Array[String]) -> String:
+	return ""
+
+
+func pick_preferred_available_clip(_animation_names: Array[String]) -> String:
+	return ""
+
+
+func play_combat_reaction_clip(_animation_name: String, _blend_seconds: float) -> float:
+	return 0.0
+
+
 func _get_combat_impact_seconds(action_seconds: float, impact_ratio: float) -> float:
 	if action_seconds <= 0.0:
 		return 0.0
