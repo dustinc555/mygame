@@ -122,6 +122,62 @@ func setup_animation(_model_root: Node3D) -> void:
 
 # --- Clip playback ---
 
+func update_idle_animation(_delta: float, _use_tired_idle: bool) -> void:
+	pass
+
+
+func play_random_idle_animation(_force: bool) -> void:
+	pass
+
+
+func start_crouch_enter_animation() -> void:
+	pass
+
+
+func start_crouch_exit_animation() -> void:
+	pass
+
+
+func cancel_crouch_transition() -> void:
+	pass
+
+
+func cancel_run_transition() -> void:
+	pass
+
+
+func update_crouch_enter_animation(_delta: float) -> bool:
+	return false
+
+
+func update_crouch_exit_animation(_delta: float) -> bool:
+	return false
+
+
+func update_run_transition(_delta: float, _wants_run_animation: bool) -> bool:
+	return false
+
+
+func start_sitting_enter_animation(_allow_talking_idle: bool = false) -> void:
+	pass
+
+
+func start_sitting_exit_animation() -> void:
+	pass
+
+
+func update_sitting_animation(_delta: float, _allow_talking_idle: bool) -> void:
+	pass
+
+
+func update_sitting_exit_animation(_delta: float) -> bool:
+	return false
+
+
+func cancel_sitting_exit_animation() -> void:
+	pass
+
+
 func play_clip(_animation_name: String, _speed_ratio: float = 0.0, _force_restart: bool = false, _blend_seconds: float = 0.0) -> bool:
 	return false
 
@@ -140,6 +196,27 @@ func has_clip(_animation_name: String) -> bool:
 
 func get_current_clip() -> String:
 	return ""
+
+
+func is_current_clip_playing() -> bool:
+	return false
+
+
+func get_primary_animation_player() -> AnimationPlayer:
+	return null
+
+
+func get_animation_players() -> Array[AnimationPlayer]:
+	var result: Array[AnimationPlayer] = []
+	return result
+
+
+func get_skeleton() -> Skeleton3D:
+	return null
+
+
+func seek_clip(_animation_name: String, _time: float, _update: bool = true, _speed_scale: float = 1.0) -> void:
+	pass
 
 
 func is_idle_clip(_animation_name: String) -> bool:

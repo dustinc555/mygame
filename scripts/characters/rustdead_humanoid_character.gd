@@ -207,12 +207,6 @@ func _collect_stat_modifiers() -> Array:
 	return modifiers
 
 
-func _get_current_combat_idle_animation_name(animation_set) -> String:
-	if _get_current_combat_animation_stance_id() == UNARMED_STANCE_ID and _character_animation_player != null and _character_animation_player.has_animation(RUSTDEAD_IDLE_ANIMATION_NAME):
-		return RUSTDEAD_IDLE_ANIMATION_NAME
-	return super._get_current_combat_idle_animation_name(animation_set)
-
-
 func _process_cinder_burn(delta: float) -> void:
 	if _cinder_burn_remaining <= 0.0:
 		return

@@ -1,6 +1,9 @@
 extends SceneTree
 
-const RAGDOLL_PYRAMID_SCENE := preload("res://scenes/test_levels/ragdoll_pyramid_test.tscn")
+const AI_UTILITY_ADAPTER_PATH := "res://scripts/ai/utility/ai_utility_adapter.gd"
+const COMBAT_COORDINATOR_PATH := "res://scripts/characters/combat_coordinator.gd"
+const RAGDOLL_PYRAMID_SCENE_PATH := "res://scenes/test_levels/ragdoll_pyramid_test.tscn"
+const SKIN_TEXTURE_BUILDER_PATH := "res://scripts/character_appearance/skin_texture_builder.gd"
 const SCENARIOS: Array[Dictionary] = [
 	{"label": "Death01 Normal Full", "animation": "Death01", "speed_index": 1, "scale": 1.0, "frames": 180},
 	{"label": "Death02 Normal Full", "animation": "Death02", "speed_index": 1, "scale": 1.0, "frames": 180},
@@ -39,6 +42,7 @@ func _finalize() -> void:
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree != null:
 		tree.paused = false
+	_cleanup_runtime_state()
 
 
 func _run() -> void:
@@ -71,7 +75,11 @@ func _run_scenario(scenario: Dictionary) -> void:
 
 func _load_scene(label: String) -> void:
 	Engine.time_scale = 1.0
-	_scene = RAGDOLL_PYRAMID_SCENE.instantiate()
+	var packed_scene := load(RAGDOLL_PYRAMID_SCENE_PATH) as PackedScene
+	if packed_scene == null:
+		_fail(label, "Could not load ragdoll pyramid scene")
+		return
+	_scene = packed_scene.instantiate()
 	_scene.set("auto_start_unconscious", false)
 	root.add_child(_scene)
 	await _wait_physics(8)
@@ -87,10 +95,13 @@ func _unload_scene() -> void:
 	Engine.time_scale = 1.0
 	if _scene != null and is_instance_valid(_scene):
 		root.remove_child(_scene)
-		_scene.queue_free()
+		_scene.free()
 	_scene = null
 	_mira = null
 	_world_time = null
+	await process_frame
+	await physics_frame
+	_cleanup_runtime_state()
 	await process_frame
 
 
@@ -116,7 +127,9 @@ func _start_flat_ragdoll(label: String, animation_name: String) -> void:
 	_mira._downed_recover_delay_remaining = 999.0
 	if _mira.life_state != NpcRules.LifeState.UNCONSCIOUS:
 		_fail(label, "Mira did not enter unconscious state")
-	if _mira._character_animation_player == null or not _mira._character_animation_player.has_animation(animation_name):
+	var body := _mira.get_body_projection()
+	var animation_player: AnimationPlayer = body.get_primary_animation_player() if body != null else null
+	if animation_player == null or not animation_player.has_animation(animation_name):
 		_fail(label, "Missing forced downed pre-roll animation %s" % animation_name)
 
 
@@ -236,6 +249,18 @@ func _is_finite_position(position: Vector3) -> bool:
 func _wait_physics(frames: int) -> void:
 	for _index in range(frames):
 		await physics_frame
+
+
+func _cleanup_runtime_state() -> void:
+	var combat_coordinator = load(COMBAT_COORDINATOR_PATH)
+	if combat_coordinator != null and combat_coordinator.has_method("reset_all_state"):
+		combat_coordinator.reset_all_state()
+	var ai_utility_adapter = load(AI_UTILITY_ADAPTER_PATH)
+	if ai_utility_adapter != null and ai_utility_adapter.has_method("clear_runtime_caches"):
+		ai_utility_adapter.clear_runtime_caches()
+	var skin_texture_builder = load(SKIN_TEXTURE_BUILDER_PATH)
+	if skin_texture_builder != null and skin_texture_builder.has_method("clear_runtime_caches"):
+		skin_texture_builder.clear_runtime_caches()
 
 
 func _fail(label: String, message: String) -> void:

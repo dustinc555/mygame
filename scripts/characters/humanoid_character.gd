@@ -332,26 +332,10 @@ var _combat_animation_sets: Dictionary = {}
 
 var _nameplate: Label3D
 var _inspect_ring: MeshInstance3D
-var _character_animation_player: AnimationPlayer
-var _character_animation_players: Array[AnimationPlayer] = []
-var _character_skeleton: Skeleton3D
-var _bone_pose_position_offsets: Dictionary = {}
-var _visual_foot_anchor_correction_y := 0.0
-var _visual_foot_ground_correction_y := 0.0
-var _current_character_animation := ""
 var _needs_tick_accumulated := 0.0
 var _needs_tick_remaining := 0.0
-var _idle_animation_change_remaining := 0.0
 var _far_runtime_process_accumulated := 0.0
 var _far_runtime_physics_accumulated := 0.0
-var _crouch_enter_animation_remaining := 0.0
-var _crouch_exit_animation_remaining := 0.0
-var _run_enter_animation_remaining := 0.0
-var _run_exit_animation_remaining := 0.0
-var _running_locomotion_active := false
-var _sitting_enter_animation_remaining := 0.0
-var _sitting_exit_animation_remaining := 0.0
-var _sitting_idle_change_remaining := 0.0
 var _rng := RandomNumberGenerator.new()
 var _work_inventory_override: InventoryData
 var _is_sitting := false
@@ -433,6 +417,10 @@ func _create_body_projection() -> BodyProjection:
 	return HumanoidBodyProjection.new()
 
 
+func get_body_projection() -> BodyProjection:
+	return _body if _body != null and is_instance_valid(_body) else null
+
+
 func _process(delta: float) -> void:
 	if _should_use_far_runtime_cadence():
 		_far_runtime_process_accumulated += delta
@@ -447,7 +435,8 @@ func _process(delta: float) -> void:
 		return
 	if _carried_by != null:
 		_update_carried_pose_animation()
-		_apply_bone_pose_position_offsets()
+		if _body != null:
+			_body.apply_bone_pose_offsets()
 		_update_carried_transform()
 		_update_ground_markers()
 		return
@@ -460,7 +449,8 @@ func _process(delta: float) -> void:
 		_process_recovery(delta)
 		_recalculate_vitals()
 		_update_cell_custody_animation(delta)
-		_apply_bone_pose_position_offsets()
+		if _body != null:
+			_body.apply_bone_pose_offsets()
 		_update_ground_markers()
 		return
 	if _combat_cooldown_remaining > 0.0:
@@ -475,7 +465,8 @@ func _process(delta: float) -> void:
 	_process_downed_animation_state(delta)
 	_process_combat_animation_state(delta)
 	_update_character_animation(delta)
-	_apply_bone_pose_position_offsets()
+	if _body != null:
+		_body.apply_bone_pose_offsets()
 	_update_ground_markers()
 
 
@@ -484,7 +475,8 @@ func _process_profiled(delta: float) -> void:
 	if _carried_by != null:
 		_update_carried_pose_animation()
 		profile_last_usec = _debug_humanoid_profile_checkpoint("carried_animation", profile_last_usec)
-		_apply_bone_pose_position_offsets()
+		if _body != null:
+			_body.apply_bone_pose_offsets()
 		profile_last_usec = _debug_humanoid_profile_checkpoint("bone_offsets", profile_last_usec)
 		_update_carried_transform()
 		profile_last_usec = _debug_humanoid_profile_checkpoint("carried_transform", profile_last_usec)
@@ -508,7 +500,8 @@ func _process_profiled(delta: float) -> void:
 		profile_last_usec = _debug_humanoid_profile_checkpoint("vitals", profile_last_usec)
 		_update_cell_custody_animation(delta)
 		profile_last_usec = _debug_humanoid_profile_checkpoint("cell_animation", profile_last_usec)
-		_apply_bone_pose_position_offsets()
+		if _body != null:
+			_body.apply_bone_pose_offsets()
 		profile_last_usec = _debug_humanoid_profile_checkpoint("bone_offsets", profile_last_usec)
 		_update_ground_markers()
 		_debug_humanoid_profile_checkpoint("ground_markers", profile_last_usec)
@@ -536,7 +529,8 @@ func _process_profiled(delta: float) -> void:
 	profile_last_usec = _debug_humanoid_profile_checkpoint("combat_animation", profile_last_usec)
 	_update_character_animation(delta)
 	profile_last_usec = _debug_humanoid_profile_checkpoint("character_animation", profile_last_usec)
-	_apply_bone_pose_position_offsets()
+	if _body != null:
+		_body.apply_bone_pose_offsets()
 	profile_last_usec = _debug_humanoid_profile_checkpoint("bone_offsets", profile_last_usec)
 	_update_ground_markers()
 	_debug_humanoid_profile_checkpoint("ground_markers", profile_last_usec)
@@ -676,8 +670,9 @@ func _process_spawn_grounding_refresh(delta: float) -> void:
 func _apply_deferred_spawn_visual_grounding() -> void:
 	if not is_inside_tree():
 		return
-	_apply_bone_pose_position_offsets()
-	_apply_runtime_visual_foot_ground_alignment()
+	if _body != null:
+		_body.apply_bone_pose_offsets()
+		_body.refresh_foot_ground_alignment()
 	_update_ground_markers()
 
 
@@ -3681,7 +3676,8 @@ func _start_combat_attack(target: HumanoidCharacter) -> void:
 		COMBAT_COORDINATOR.register_combat_target(self, target)
 		_combat_slot_role_cache_frame = -1
 	var animation_set = _get_current_combat_animation_set()
-	var attack = animation_set.choose_attack(_character_animation_player, _rng) if animation_set != null else null
+	var animation_player := _body.get_primary_animation_player() if _body != null else null
+	var attack = animation_set.choose_attack(animation_player, _rng) if animation_set != null else null
 	if attack == null:
 		if not COMBAT_COORDINATOR.try_begin_exchange(self, target, 0.45):
 			return
@@ -3700,7 +3696,7 @@ func _start_combat_attack(target: HumanoidCharacter) -> void:
 	_award_combat_attack_xp()
 	_combat_action_names = action_names
 	_combat_action_index = 0
-	_combat_action_clip_remaining = _get_character_animation_length(_combat_action_names[0])
+	_combat_action_clip_remaining = _body.clip_length(_combat_action_names[0]) if _body != null else 0.0
 	_combat_action_remaining = _get_animation_sequence_length(_combat_action_names)
 	_combat_action_impact_remaining = _get_combat_attack_impact_seconds(_combat_action_names[0], attack.impact_ratio)
 	_combat_action_has_impacted = false
@@ -3718,12 +3714,12 @@ func _start_combat_attack(target: HumanoidCharacter) -> void:
 func _get_animation_sequence_length(animation_names: Array[String]) -> float:
 	var total := 0.0
 	for animation_name in animation_names:
-		total += _get_character_animation_length(animation_name)
+		total += _body.clip_length(animation_name) if _body != null else 0.0
 	return total
 
 
 func _get_combat_attack_impact_seconds(animation_name: String, impact_ratio: float) -> float:
-	var animation_length := _get_character_animation_length(animation_name)
+	var animation_length := _body.clip_length(animation_name) if _body != null else 0.0
 	if animation_length <= 0.0:
 		return 0.0
 	return clampf(animation_length * impact_ratio, 0.05, maxf(0.05, animation_length - 0.03))
@@ -3733,8 +3729,9 @@ func _play_current_combat_action_clip() -> void:
 	if _combat_action_index < 0 or _combat_action_index >= _combat_action_names.size():
 		return
 	var animation_name := _combat_action_names[_combat_action_index]
-	_combat_action_clip_remaining = _get_character_animation_length(animation_name)
-	_play_character_animation(animation_name, 0.0, true, COMBAT_ACTION_BLEND_SECONDS)
+	_combat_action_clip_remaining = _body.clip_length(animation_name) if _body != null else 0.0
+	if _body != null:
+		_body.play_clip(animation_name, 0.0, true, COMBAT_ACTION_BLEND_SECONDS)
 
 
 func _resolve_combat_action_impact() -> void:
@@ -3779,10 +3776,10 @@ func _play_combat_reaction(animation_name: String) -> bool:
 		return false
 	if _combat_action_active:
 		_clear_combat_action()
-	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
+	if _body == null or not _body.has_clip(animation_name):
 		return false
-	_combat_reaction_remaining = maxf(0.1, _get_character_animation_length(animation_name))
-	return _play_character_animation(animation_name, 0.0, true, COMBAT_ACTION_BLEND_SECONDS)
+	_combat_reaction_remaining = maxf(0.1, _body.clip_length(animation_name))
+	return _body.play_clip(animation_name, 0.0, true, COMBAT_ACTION_BLEND_SECONDS)
 
 
 func _get_current_block_animation_name() -> String:
@@ -3827,11 +3824,11 @@ func _pick_hit_reaction_animation(attack_id: String, hit_reaction_names: Array[S
 
 
 func _pick_available_animation(animation_names: Array[String]) -> String:
-	if _character_animation_player == null:
+	if _body == null or _body.get_primary_animation_player() == null:
 		return ""
 	var available: Array[String] = []
 	for animation_name in animation_names:
-		if _character_animation_player.has_animation(animation_name):
+		if _body.has_clip(animation_name):
 			available.append(animation_name)
 	if available.is_empty():
 		return ""
@@ -3839,10 +3836,10 @@ func _pick_available_animation(animation_names: Array[String]) -> String:
 
 
 func _pick_preferred_available_animation(animation_names: Array[String]) -> String:
-	if _character_animation_player == null:
+	if _body == null or _body.get_primary_animation_player() == null:
 		return ""
 	for animation_name in animation_names:
-		if _character_animation_player.has_animation(animation_name):
+		if _body.has_clip(animation_name):
 			return animation_name
 	return ""
 
@@ -4137,16 +4134,6 @@ func get_character_visual_root() -> Node3D:
 	return get_node_or_null(CHARACTER_VISUAL_NODE_NAME) as Node3D
 
 
-func get_visual_foot_anchor_y() -> float:
-	# A1 transitional shim -> BodyProjection.get_visual_foot_anchor_y
-	return _body.get_visual_foot_anchor_y() if _body != null else INF
-
-
-func get_visual_ground_y() -> float:
-	# A1 transitional shim -> BodyProjection.get_visual_ground_y
-	return _body.get_visual_ground_y() if _body != null else 0.0
-
-
 func _get_bone_pose_position_offsets(target_body_archetype: Resource) -> Dictionary:
 	if target_body_archetype == null:
 		return appearance_data.get_body_pose_offsets({}) if appearance_data != null else {}
@@ -4160,24 +4147,12 @@ func _get_bone_pose_position_offsets(target_body_archetype: Resource) -> Diction
 	return appearance_data.get_body_pose_offsets(result) if appearance_data != null else result
 
 
-func _apply_bone_pose_position_offsets() -> void:
-	# A1 transitional shim -> BodyProjection.apply_bone_pose_offsets
-	if _body != null:
-		_body.apply_bone_pose_offsets()
-
-
 func _reset_bone_pose_positions(skeleton: Skeleton3D, offsets: Dictionary) -> void:
 	for bone_name in offsets.keys():
 		var bone_index := skeleton.find_bone(str(bone_name))
 		if bone_index < 0:
 			continue
 		skeleton.set_bone_pose_position(bone_index, skeleton.get_bone_rest(bone_index).origin)
-
-
-func _apply_runtime_visual_foot_ground_alignment() -> void:
-	# A1 transitional shim -> BodyProjection.refresh_foot_ground_alignment
-	if _body != null:
-		_body.refresh_foot_ground_alignment()
 
 
 func refresh_grip_sockets_for_body() -> void:
@@ -4304,29 +4279,23 @@ func _get_collision_shape_local_bounds(collision_shape: CollisionShape3D) -> AAB
 	return _transform_aabb(shape_bounds, collision_shape.transform)
 
 
-func _setup_character_animation(model_root: Node3D) -> void:
-	# A1 transitional shim -> HumanoidBodyProjection.setup_animation
-	if _body != null:
-		_body.setup_animation(model_root)
-
-
 # Animation library setup/copy migrated to HumanoidBodyProjection in increment A1.
 
 
 func _update_character_animation(delta: float) -> void:
-	if _character_animation_player == null:
+	if _body == null or _body.get_primary_animation_player() == null:
 		return
 	if _combat_action_active or _combat_reaction_remaining > 0.0:
 		return
 	if _is_sitting:
+		velocity = Vector3.ZERO
 		_cancel_crouch_transition()
 		_cancel_run_transition()
-		_update_sitting_character_animation(delta)
+		_body.update_sitting_animation(delta, _should_use_sitting_talking_idle())
 		return
-	if _sitting_exit_animation_remaining > 0.0 and not _has_move_target:
-		_update_sitting_exit_animation(delta)
+	if not _has_move_target and _body.update_sitting_exit_animation(delta):
 		return
-	_sitting_exit_animation_remaining = 0.0
+	_body.cancel_sitting_exit_animation()
 	if life_state != NpcRules.LifeState.ALIVE:
 		_cancel_crouch_transition()
 		_cancel_run_transition()
@@ -4340,25 +4309,23 @@ func _update_character_animation(delta: float) -> void:
 		_cancel_crouch_transition()
 		_cancel_run_transition()
 		_face_world_position(_current_mining_node.global_position)
-		if _play_character_animation(MINING_ANIMATION_NAME):
+		if _body.play_clip(MINING_ANIMATION_NAME):
 			return
 	var horizontal_speed := _get_horizontal_speed()
 	var should_hold_combat_idle := _should_hold_combat_idle_animation()
 	var is_moving := horizontal_speed > ACTUAL_LOCOMOTION_SPEED_THRESHOLD and (_has_move_target or _has_active_combat_target()) and not should_hold_combat_idle
 	var wants_run_animation := is_running_enabled() and is_moving and not sneaking
-	if _crouch_enter_animation_remaining > 0.0:
-		_update_crouch_enter_animation(delta)
+	if _body.update_crouch_enter_animation(delta):
 		return
-	if _crouch_exit_animation_remaining > 0.0:
-		_update_crouch_exit_animation(delta)
+	if _body.update_crouch_exit_animation(delta):
 		return
-	if _update_run_transition(delta, wants_run_animation):
+	if _body.update_run_transition(delta, wants_run_animation):
 		return
 	if sneaking:
 		if is_moving:
-			_play_character_animation(CROUCH_WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed * _get_sneak_move_speed_multiplier()))
+			_body.play_clip(CROUCH_WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed * _get_sneak_move_speed_multiplier()))
 		else:
-			_play_character_animation(CROUCH_IDLE_ANIMATION_NAME)
+			_body.play_clip(CROUCH_IDLE_ANIMATION_NAME)
 		return
 	if should_hold_combat_idle:
 		_cancel_crouch_transition()
@@ -4368,12 +4335,12 @@ func _update_character_animation(delta: float) -> void:
 	if not is_moving:
 		if _play_combat_idle_animation_if_available():
 			return
-		_update_idle_character_animation(delta)
+		_body.update_idle_animation(delta, _should_use_tired_idle_animation())
 		return
 	if wants_run_animation:
-		_play_character_animation(JOG_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed * NpcRules.RUN_SPEED_MULTIPLIER))
+		_body.play_clip(JOG_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed * NpcRules.RUN_SPEED_MULTIPLIER))
 	else:
-		_play_character_animation(WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed))
+		_body.play_clip(WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed))
 
 
 func _get_animation_speed_ratio(horizontal_speed: float, reference_speed: float) -> float:
@@ -4390,208 +4357,65 @@ func _should_hold_combat_idle_animation() -> bool:
 
 
 func _play_combat_idle_animation_if_available() -> bool:
-	if _get_active_combat_target() == null:
+	if _body == null or _get_active_combat_target() == null:
 		return false
 	var animation_set = _get_current_combat_animation_set()
 	var idle_animation_name := _get_current_combat_idle_animation_name(animation_set)
-	if idle_animation_name.is_empty():
+	if idle_animation_name.is_empty() or not _body.has_clip(idle_animation_name):
 		return false
-	if _character_animation_player == null or not _character_animation_player.has_animation(idle_animation_name):
-		return false
-	return _play_character_animation(idle_animation_name)
+	return _body.play_clip(idle_animation_name)
 
 
 func _get_current_combat_idle_animation_name(animation_set) -> String:
 	if animation_set != null and str(animation_set.stance_id) == EquipmentGripProfile.GRIP_CLASS_ONE_HAND_MELEE:
 		return str(animation_set.idle_animation_name)
-	if _has_equipped_shield() and _character_animation_player != null and _character_animation_player.has_animation(SHIELD_COMBAT_IDLE_ANIMATION_NAME):
+	if _has_equipped_shield() and _body != null and _body.has_clip(SHIELD_COMBAT_IDLE_ANIMATION_NAME):
 		return SHIELD_COMBAT_IDLE_ANIMATION_NAME
 	if animation_set != null:
 		return str(animation_set.idle_animation_name)
 	return ""
 
 
-func _update_idle_character_animation(delta: float) -> void:
-	if _should_use_tired_idle_animation():
-		if _current_character_animation != TIRED_IDLE_ANIMATION_NAME or not _character_animation_player.is_playing():
-			_play_character_animation(TIRED_IDLE_ANIMATION_NAME)
-		return
-	if not _body.is_idle_clip(_current_character_animation) or not _character_animation_player.is_playing():
-		_play_random_idle_animation(true)
-		return
-	_idle_animation_change_remaining -= delta
-	if _idle_animation_change_remaining <= 0.0:
-		_play_random_idle_animation(false)
-
-
-func _play_random_idle_animation(force: bool) -> void:
-	var idle_names := _body.get_available_idle_clip_names()
-	if idle_names.is_empty():
-		return
-	var animation_index := _rng.randi_range(0, idle_names.size() - 1)
-	var animation_name := idle_names[animation_index]
-	if not force and idle_names.size() > 1 and animation_name == _current_character_animation:
-		animation_name = idle_names[(animation_index + 1) % idle_names.size()]
-	_play_character_animation(animation_name)
-	_reset_idle_animation_timer()
-
-
-func _reset_idle_animation_timer() -> void:
-	_idle_animation_change_remaining = _rng.randf_range(IDLE_ANIMATION_MIN_SECONDS, IDLE_ANIMATION_MAX_SECONDS)
-
-
 func _should_use_tired_idle_animation() -> bool:
 	return life_state == NpcRules.LifeState.ALIVE \
 		and fatigue_stage == NpcRules.FatigueStage.EXHAUSTED \
-		and _character_animation_player != null \
-		and _character_animation_player.has_animation(TIRED_IDLE_ANIMATION_NAME)
+		and _body != null \
+		and _body.has_clip(TIRED_IDLE_ANIMATION_NAME)
+
+
+func _play_random_idle_animation(force: bool) -> void:
+	if _body != null:
+		_body.play_random_idle_animation(force)
 
 
 func _start_crouch_enter_animation() -> void:
-	_crouch_exit_animation_remaining = 0.0
-	if _play_character_animation(CROUCH_ENTER_ANIMATION_NAME):
-		_crouch_enter_animation_remaining = _get_character_animation_length(CROUCH_ENTER_ANIMATION_NAME)
-	else:
-		_crouch_enter_animation_remaining = 0.0
+	if _body != null:
+		_body.start_crouch_enter_animation()
 
 
 func _start_crouch_exit_animation() -> void:
-	_crouch_enter_animation_remaining = 0.0
-	if _play_character_animation(CROUCH_EXIT_ANIMATION_NAME):
-		_crouch_exit_animation_remaining = _get_character_animation_length(CROUCH_EXIT_ANIMATION_NAME)
-	else:
-		_crouch_exit_animation_remaining = 0.0
+	if _body != null:
+		_body.start_crouch_exit_animation()
 
 
 func _cancel_crouch_transition() -> void:
-	_crouch_enter_animation_remaining = 0.0
-	_crouch_exit_animation_remaining = 0.0
-
-
-func _update_crouch_enter_animation(delta: float) -> void:
-	_crouch_enter_animation_remaining = maxf(0.0, _crouch_enter_animation_remaining - delta)
-	if _crouch_enter_animation_remaining > 0.0:
-		_play_character_animation(CROUCH_ENTER_ANIMATION_NAME)
-
-
-func _update_crouch_exit_animation(delta: float) -> void:
-	_crouch_exit_animation_remaining = maxf(0.0, _crouch_exit_animation_remaining - delta)
-	if _crouch_exit_animation_remaining > 0.0:
-		_play_character_animation(CROUCH_EXIT_ANIMATION_NAME)
-
-
-func _update_run_transition(delta: float, wants_run_animation: bool) -> bool:
-	if wants_run_animation:
-		_run_exit_animation_remaining = 0.0
-		if not _running_locomotion_active and _run_enter_animation_remaining <= 0.0:
-			_start_run_enter_animation()
-		_running_locomotion_active = true
-		if _run_enter_animation_remaining > 0.0:
-			_update_run_enter_animation(delta)
-			return true
-		return false
-
-	_run_enter_animation_remaining = 0.0
-	if _running_locomotion_active and _run_exit_animation_remaining <= 0.0:
-		_start_run_exit_animation()
-	_running_locomotion_active = false
-	if _run_exit_animation_remaining > 0.0:
-		_update_run_exit_animation(delta)
-		return true
-	return false
-
-
-func _start_run_enter_animation() -> void:
-	_run_exit_animation_remaining = 0.0
-	if _play_character_animation(RUN_ENTER_ANIMATION_NAME):
-		_run_enter_animation_remaining = _get_character_animation_length(RUN_ENTER_ANIMATION_NAME)
-	else:
-		_run_enter_animation_remaining = 0.0
-
-
-func _start_run_exit_animation() -> void:
-	_run_enter_animation_remaining = 0.0
-	if _play_character_animation(RUN_EXIT_ANIMATION_NAME):
-		_run_exit_animation_remaining = _get_character_animation_length(RUN_EXIT_ANIMATION_NAME)
-	else:
-		_run_exit_animation_remaining = 0.0
+	if _body != null:
+		_body.cancel_crouch_transition()
 
 
 func _cancel_run_transition() -> void:
-	_run_enter_animation_remaining = 0.0
-	_run_exit_animation_remaining = 0.0
-	_running_locomotion_active = false
-
-
-func _update_run_enter_animation(delta: float) -> void:
-	_run_enter_animation_remaining = maxf(0.0, _run_enter_animation_remaining - delta)
-	if _run_enter_animation_remaining > 0.0:
-		_play_character_animation(RUN_ENTER_ANIMATION_NAME)
-
-
-func _update_run_exit_animation(delta: float) -> void:
-	_run_exit_animation_remaining = maxf(0.0, _run_exit_animation_remaining - delta)
-	if _run_exit_animation_remaining > 0.0:
-		_play_character_animation(RUN_EXIT_ANIMATION_NAME)
+	if _body != null:
+		_body.cancel_run_transition()
 
 
 func _start_sitting_enter_animation() -> void:
-	_sitting_exit_animation_remaining = 0.0
-	_sitting_idle_change_remaining = 0.0
-	if _play_character_animation(SITTING_ENTER_ANIMATION_NAME):
-		_sitting_enter_animation_remaining = _get_character_animation_length(SITTING_ENTER_ANIMATION_NAME)
-	else:
-		_sitting_enter_animation_remaining = 0.0
-		_play_sitting_idle_animation(true)
+	if _body != null:
+		_body.start_sitting_enter_animation(_should_use_sitting_talking_idle())
 
 
 func _start_sitting_exit_animation() -> void:
-	_sitting_enter_animation_remaining = 0.0
-	_sitting_idle_change_remaining = 0.0
-	if _play_character_animation(SITTING_EXIT_ANIMATION_NAME):
-		_sitting_exit_animation_remaining = _get_character_animation_length(SITTING_EXIT_ANIMATION_NAME)
-	else:
-		_sitting_exit_animation_remaining = 0.0
-
-
-func _update_sitting_character_animation(delta: float) -> void:
-	velocity = Vector3.ZERO
-	if _sitting_enter_animation_remaining > 0.0:
-		_sitting_enter_animation_remaining -= delta
-		if _sitting_enter_animation_remaining > 0.0:
-			_play_character_animation(SITTING_ENTER_ANIMATION_NAME)
-			return
-		_sitting_enter_animation_remaining = 0.0
-		_play_sitting_idle_animation(true)
-		return
-	if not _is_sitting_idle_animation(_current_character_animation) or not _character_animation_player.is_playing():
-		_play_sitting_idle_animation(true)
-		return
-	_sitting_idle_change_remaining -= delta
-	if _sitting_idle_change_remaining <= 0.0:
-		_play_sitting_idle_animation(false)
-
-
-func _update_sitting_exit_animation(delta: float) -> void:
-	_sitting_exit_animation_remaining = maxf(0.0, _sitting_exit_animation_remaining - delta)
-	if _sitting_exit_animation_remaining > 0.0:
-		_play_character_animation(SITTING_EXIT_ANIMATION_NAME)
-
-
-func _play_sitting_idle_animation(force: bool) -> void:
-	if _character_animation_player == null:
-		return
-	var animation_name := SITTING_IDLE_ANIMATION_NAME
-	if _should_use_sitting_talking_idle() and _rng.randf() <= SITTING_TALKING_CHANCE:
-		animation_name = SITTING_TALKING_ANIMATION_NAME
-	if not _character_animation_player.has_animation(animation_name):
-		animation_name = SITTING_IDLE_ANIMATION_NAME
-	if not _character_animation_player.has_animation(animation_name):
-		return
-	if not force and animation_name == _current_character_animation and animation_name == SITTING_TALKING_ANIMATION_NAME:
-		animation_name = SITTING_IDLE_ANIMATION_NAME
-	_play_character_animation(animation_name)
-	_reset_sitting_idle_animation_timer()
+	if _body != null:
+		_body.start_sitting_exit_animation()
 
 
 func _should_use_sitting_talking_idle() -> bool:
@@ -4602,32 +4426,6 @@ func _should_use_sitting_talking_idle() -> bool:
 	if not _current_seat_target.has_method("should_use_sitting_talking_idle"):
 		return false
 	return bool(_current_seat_target.should_use_sitting_talking_idle(self))
-
-
-func _is_sitting_idle_animation(animation_name: String) -> bool:
-	return animation_name == SITTING_IDLE_ANIMATION_NAME or animation_name == SITTING_TALKING_ANIMATION_NAME
-
-
-func _reset_sitting_idle_animation_timer() -> void:
-	_sitting_idle_change_remaining = _rng.randf_range(SITTING_IDLE_MIN_SECONDS, SITTING_IDLE_MAX_SECONDS)
-
-
-func _get_character_animation_length(animation_name: String) -> float:
-	# A1 transitional shim -> BodyProjection.clip_length
-	return _body.clip_length(animation_name) if _body != null else 0.0
-
-
-func _play_character_animation(animation_name: String, speed_ratio: float = 0.0, force_restart: bool = false, blend_seconds: float = MOVE_ANIMATION_BLEND_SECONDS) -> bool:
-	# A1 transitional shim -> BodyProjection.play_clip
-	if _body == null:
-		return false
-	return _body.play_clip(animation_name, speed_ratio, force_restart, blend_seconds)
-
-
-func _stop_character_animation(keep_state: bool = true) -> void:
-	# A1 transitional shim -> BodyProjection.stop_clip
-	if _body != null:
-		_body.stop_clip(keep_state)
 
 
 func _calculate_local_mesh_bounds(root: Node) -> AABB:
@@ -6112,7 +5910,9 @@ func _attach_carried_character(target_character: HumanoidCharacter) -> void:
 	target_character.stop_carry_assignment()
 	target_character._release_sleep_target_without_waking()
 	target_character._play_carried_pose_animation()
-	target_character._apply_bone_pose_position_offsets()
+	var target_body := target_character.get_body_projection()
+	if target_body != null:
+		target_body.apply_bone_pose_offsets()
 	target_character._update_carried_transform()
 	state_changed.emit()
 
@@ -6172,14 +5972,15 @@ func _get_carry_carried_anchor_local_position(profile: Resource) -> Vector3:
 
 
 func _get_carry_bone_global_position(bone_names: PackedStringArray, bone_local_offset: Vector3, anchor_role: String):
-	if _character_skeleton == null or not is_instance_valid(_character_skeleton):
+	var character_skeleton := _body.get_skeleton() if _body != null else null
+	if character_skeleton == null or not is_instance_valid(character_skeleton):
 		return null
-	_character_skeleton.force_update_all_bone_transforms()
-	var bone_index := _find_carry_anchor_bone_index(_character_skeleton, bone_names, anchor_role)
+	character_skeleton.force_update_all_bone_transforms()
+	var bone_index := _find_carry_anchor_bone_index(character_skeleton, bone_names, anchor_role)
 	if bone_index < 0:
 		return null
-	var bone_pose := _character_skeleton.get_bone_global_pose(bone_index)
-	return _character_skeleton.global_transform * (bone_pose * bone_local_offset)
+	var bone_pose := character_skeleton.get_bone_global_pose(bone_index)
+	return character_skeleton.global_transform * (bone_pose * bone_local_offset)
 
 
 func _find_carry_anchor_bone_index(skeleton: Skeleton3D, bone_names: PackedStringArray, anchor_role: String) -> int:
@@ -6320,7 +6121,8 @@ func enter_cell_custody(cell, cell_position: Vector3, cell_rotation: Vector3) ->
 		_apply_downed_collision_shape()
 		_play_cell_unconscious_pose()
 	elif life_state == NpcRules.LifeState.ALIVE:
-		_stop_character_animation(true)
+		if _body != null:
+			_body.stop_clip(true)
 		_play_random_idle_animation(true)
 	state_changed.emit()
 
@@ -6342,7 +6144,8 @@ func _clear_cell_custody_state(restore_collision := true) -> void:
 	_cell_custody_wake_remaining = 0.0
 	if restore_collision:
 		_restore_downed_collision_shape()
-	_stop_character_animation(true)
+	if _body != null:
+		_body.stop_clip(true)
 
 
 func _play_carried_pose_animation() -> void:
@@ -6350,38 +6153,36 @@ func _play_carried_pose_animation() -> void:
 	if animation_name.is_empty():
 		return
 	_carried_pose_animation = animation_name
-	if not _play_character_animation(animation_name, 0.0, true, MOVE_ANIMATION_BLEND_SECONDS):
+	if _body == null or not _body.play_clip(animation_name, 0.0, true, MOVE_ANIMATION_BLEND_SECONDS):
 		return
 	var profile := _carried_by._get_carry_pose_profile() if _carried_by != null else _get_carry_pose_profile()
-	var animation_length := _get_character_animation_length(animation_name)
+	var animation_length := _body.clip_length(animation_name)
 	var sample_time := animation_length * clampf(_get_carry_profile_float(profile, "carried_pose_time_ratio", 0.0), 0.0, 1.0)
-	for animation_player in _character_animation_players:
-		if animation_player != null and animation_player.has_animation(animation_name):
-			animation_player.seek(clampf(sample_time, 0.0, maxf(0.0, animation_length - 0.001)), true)
-			animation_player.speed_scale = 0.0
+	_body.seek_clip(animation_name, sample_time, true, 0.0)
 
 
 func _update_carried_pose_animation() -> void:
-	if _character_animation_player == null:
+	var animation_player := _body.get_primary_animation_player() if _body != null else null
+	if animation_player == null:
 		return
-	if _carried_pose_animation.is_empty() or _current_character_animation != _carried_pose_animation or not _character_animation_player.is_playing():
+	if _carried_pose_animation.is_empty() or _body.get_current_clip() != _carried_pose_animation or not _body.is_current_clip_playing():
 		_play_carried_pose_animation()
-	elif _character_animation_player.speed_scale != 0.0:
+	elif animation_player.speed_scale != 0.0:
 		_play_carried_pose_animation()
 
 
 func _play_cell_unconscious_pose() -> void:
 	var animation_name := CELL_CUSTODY_LAY_ANIMATION_NAME
-	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
+	if _body == null or not _body.has_clip(animation_name):
 		animation_name = _pick_preferred_available_animation(["LiftAir_Fall"])
-	if animation_name.is_empty() or _character_animation_player == null:
+	if animation_name.is_empty() or _body == null or _body.get_primary_animation_player() == null:
 		return
 	_cell_custody_unconscious_pose_animation = animation_name
 	_cell_custody_lay_pose_frozen = false
 	_cell_custody_wake_animation = ""
 	_cell_custody_wake_remaining = 0.0
-	_play_character_animation(animation_name, 0.0, true, 0.0)
-	var animation_length := _get_character_animation_length(animation_name)
+	_body.play_clip(animation_name, 0.0, true, 0.0)
+	var animation_length := _body.clip_length(animation_name)
 	_cell_custody_lay_freeze_remaining = maxf(0.0, animation_length * CELL_CUSTODY_LAY_FREEZE_RATIO)
 	_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, _cell_custody_lay_freeze_remaining + 0.5)
 	if _cell_custody_lay_freeze_remaining <= 0.0:
@@ -6389,15 +6190,12 @@ func _play_cell_unconscious_pose() -> void:
 
 
 func _freeze_cell_lay_pose() -> void:
-	if _cell_custody_unconscious_pose_animation.is_empty() or _character_animation_player == null:
+	if _cell_custody_unconscious_pose_animation.is_empty() or _body == null or _body.get_primary_animation_player() == null:
 		return
 	var animation_name := _cell_custody_unconscious_pose_animation
-	var animation_length := _get_character_animation_length(animation_name)
+	var animation_length := _body.clip_length(animation_name)
 	var freeze_time := animation_length * CELL_CUSTODY_LAY_FREEZE_RATIO
-	for animation_player in _character_animation_players:
-		if animation_player != null and animation_player.has_animation(animation_name):
-			animation_player.seek(clampf(freeze_time, 0.0, maxf(0.0, animation_length - 0.001)), true)
-			animation_player.speed_scale = 0.0
+	_body.seek_clip(animation_name, freeze_time, true, 0.0)
 	_cell_custody_lay_freeze_remaining = 0.0
 	_cell_custody_lay_pose_frozen = true
 
@@ -6407,21 +6205,19 @@ func _start_cell_wake_animation() -> void:
 	_cell_custody_lay_freeze_remaining = 0.0
 	_cell_custody_lay_pose_frozen = false
 	var animation_name := CELL_CUSTODY_WAKE_ANIMATION_NAME
-	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
+	if _body == null or not _body.has_clip(animation_name):
 		_cell_custody_wake_animation = ""
 		_cell_custody_wake_remaining = 0.0
-		_stop_character_animation(true)
+		if _body != null:
+			_body.stop_clip(true)
 		_play_random_idle_animation(true)
 		return
-	var animation_length := _get_character_animation_length(animation_name)
+	var animation_length := _body.clip_length(animation_name)
 	var start_time := animation_length * CELL_CUSTODY_WAKE_START_RATIO
 	_cell_custody_wake_animation = animation_name
 	_cell_custody_wake_remaining = maxf(0.0, animation_length - start_time)
-	_play_character_animation(animation_name, 0.0, true, 0.0)
-	for animation_player in _character_animation_players:
-		if animation_player != null and animation_player.has_animation(animation_name):
-			animation_player.seek(start_time, true)
-			animation_player.speed_scale = 1.0
+	_body.play_clip(animation_name, 0.0, true, 0.0)
+	_body.seek_clip(animation_name, start_time, true, 1.0)
 	if _cell_custody_wake_remaining <= 0.0:
 		_finish_cell_wake_animation()
 
@@ -6429,14 +6225,16 @@ func _start_cell_wake_animation() -> void:
 func _finish_cell_wake_animation() -> void:
 	_cell_custody_wake_animation = ""
 	_cell_custody_wake_remaining = 0.0
-	_stop_character_animation(true)
+	if _body != null:
+		_body.stop_clip(true)
 	_play_random_idle_animation(true)
 
 
 func _update_cell_custody_animation(delta: float) -> void:
 	velocity = Vector3.ZERO
 	if is_recoverable_downed_state():
-		if _cell_custody_unconscious_pose_animation.is_empty() or _character_animation_player == null:
+		var animation_player := _body.get_primary_animation_player() if _body != null else null
+		if _cell_custody_unconscious_pose_animation.is_empty() or animation_player == null:
 			_play_cell_unconscious_pose()
 		elif not _cell_custody_lay_pose_frozen:
 			_cell_custody_lay_freeze_remaining = maxf(0.0, _cell_custody_lay_freeze_remaining - delta)

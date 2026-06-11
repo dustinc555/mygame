@@ -31,6 +31,12 @@ static func _get_default_profile() -> AiUtilityProfile:
 	return _default_profile
 
 
+static func clear_runtime_caches() -> void:
+	_default_profile = null
+	_debug_profile_calls = 0
+	_debug_profile_totals.clear()
+
+
 func run_actor_decision(actor: Node) -> bool:
 	var profile_last_usec := Time.get_ticks_usec() if _debug_profile_enabled else 0
 	if actor == null or not is_instance_valid(actor) or profile == null:
