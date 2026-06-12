@@ -218,10 +218,6 @@ const FEMALE_VISUAL_NAME_KEYS := {
 }
 
 @export var seated_player_talk_distance_multiplier := 2.0
-@export var inventory_columns := 10
-@export var inventory_rows := 4
-@export var max_carry_weight := 60.0
-@export var show_inventory_weight := true
 @export var overhead_text_height := 2.4
 @export var show_nameplate := true
 @export var character_race: Resource = HUMAN_RACE
@@ -232,7 +228,6 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var carry_pose_profile: Resource = DEFAULT_CARRY_POSE_PROFILE
 @export var ragdoll_profile: Resource
 @export var show_grip_socket_markers := false
-@export var starting_items: Array[Resource] = []
 @export var starting_equipment: Array[Resource] = []
 
 @export var trade_interaction_distance := 3.0
@@ -243,7 +238,6 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var auto_burn_no_target_backoff_seconds := 2.5
 @export var auto_burn_failed_backoff_seconds := 5.0
 
-var inventory: InventoryData
 var is_inspected := false
 var is_selected := false
 var is_focused := false
@@ -342,7 +336,6 @@ var _inspect_ring: MeshInstance3D
 var _far_runtime_process_accumulated := 0.0
 var _far_runtime_physics_accumulated := 0.0
 var _rng := RandomNumberGenerator.new()
-var _work_inventory_override: InventoryData
 var _is_sitting := false
 var _equipment_update_batch_depth := 0
 var _equipment_change_pending := false
@@ -360,7 +353,6 @@ var _auto_burn_reserved_target: HumanoidCharacter
 var _auto_burn_reserved_furnace
 var _spawn_grounding_refresh_frames := 0
 
-signal inventory_changed
 signal mining_changed
 signal scavenging_changed
 signal appearance_changed
@@ -379,10 +371,6 @@ func _ready() -> void:
 	_far_runtime_process_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PROCESS_INTERVAL)
 	_far_runtime_physics_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PHYSICS_INTERVAL)
 	_seed_needs_capability_tick()
-	inventory = InventoryData.new(inventory_columns, inventory_rows, max_carry_weight, true)
-	inventory.changed.connect(_on_inventory_data_changed)
-	_seed_starting_inventory()
-	_apply_population_inventory_entries_if_present()
 	_seed_starting_equipment()
 	_setup_body_projection()
 	_ensure_appearance_data()
@@ -1233,78 +1221,6 @@ func eat_item(definition: ItemDefinition) -> bool:
 	return true
 
 
-func _apply_population_inventory_entries_if_present() -> void:
-	if inventory == null or not has_meta("population_inventory_entries"):
-		return
-	var snapshots: Array = get_meta("population_inventory_entries")
-	if snapshots.is_empty():
-		return
-	inventory.entries.clear()
-	for snapshot_value in snapshots:
-		if not (snapshot_value is Dictionary):
-			continue
-		var snapshot: Dictionary = snapshot_value
-		var item_path := str(snapshot.get("item_id", ""))
-		if item_path.strip_edges().is_empty() or not ResourceLoader.exists(item_path):
-			continue
-		var definition := load(item_path) as ItemDefinition
-		if definition == null:
-			continue
-		var grid_position: Vector2i = snapshot.get("grid_position", Vector2i.ZERO)
-		inventory.entries.append(InventoryData.InventoryEntry.new(
-			definition,
-			grid_position,
-			maxi(1, int(snapshot.get("count", 1))),
-			(snapshot.get("contained_item_counts", {}) as Dictionary).duplicate(true),
-			(snapshot.get("metadata", {}) as Dictionary).duplicate(true)
-		))
-	inventory.changed.emit()
-
-
-func begin_job_assignment(provider, job_label: String, work_inventory = null, request_runtime_job := true) -> void:
-	if _work_inventory_override != null and _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
-		_work_inventory_override.changed.disconnect(_on_inventory_data_changed)
-	_work_inventory_override = work_inventory as InventoryData
-	if _work_inventory_override != null and not _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
-		_work_inventory_override.changed.connect(_on_inventory_data_changed)
-	super.begin_job_assignment(provider, job_label, work_inventory, request_runtime_job)
-	inventory_changed.emit()
-	_sync_inventory_to_gecs()
-
-
-func end_job_assignment() -> void:
-	if _work_inventory_override != null and _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
-		_work_inventory_override.changed.disconnect(_on_inventory_data_changed)
-	_work_inventory_override = null
-	super.end_job_assignment()
-	inventory_changed.emit()
-	_sync_inventory_to_gecs()
-
-
-func get_inventory_for_display() -> InventoryData:
-	if _work_inventory_override != null:
-		return _work_inventory_override
-	return inventory
-
-
-func is_displaying_work_inventory() -> bool:
-	return _work_inventory_override != null
-
-
-func get_inventory_display_title() -> String:
-	if is_displaying_work_inventory():
-		return "%s Work Inventory" % member_name
-	return "%s Inventory" % member_name
-
-
-func can_transfer_display_inventory_to(_target_owner) -> bool:
-	return not is_displaying_work_inventory()
-
-
-func can_receive_inventory_transfer_from(_source_owner) -> bool:
-	return not is_displaying_work_inventory()
-
-
 func get_equipment_slot_names() -> Array[String]:
 	var race := _get_character_race()
 	if race != null and race.has_method("get_equipment_slots"):
@@ -1502,24 +1418,6 @@ func can_bandage_target(target: HumanoidCharacter) -> bool:
 		if can_use_bandage_item(entry.definition) and _bandage_entry_has_uses(entry):
 			return true
 	return false
-
-
-func get_inventory_display_name() -> String:
-	return member_name
-
-
-func get_inventory_world_position() -> Vector3:
-	return global_position
-
-
-func get_inventory_cell_size() -> Vector2:
-	return Vector2(30.0, 30.0)
-
-
-func shows_inventory_weight() -> bool:
-	if is_displaying_work_inventory():
-		return false
-	return show_inventory_weight
 
 
 func shows_inventory_equipment() -> bool:
@@ -4004,20 +3902,6 @@ func _store_scavenging_progress(resource_node, progress: float) -> void:
 	_scavenging_progress_by_node[resource_node.get_instance_id()] = clampf(progress, 0.0, 1.0)
 
 
-func _on_inventory_data_changed() -> void:
-	_auto_burn_next_scan_msec = 0
-	inventory_changed.emit()
-	_sync_inventory_to_gecs()
-
-
-func _sync_inventory_to_gecs() -> void:
-	if not is_inside_tree():
-		return
-	var bridge := get_tree().get_first_node_in_group("gecs_world_controller")
-	if bridge != null and bridge.has_method("sync_actor_inventory"):
-		bridge.call("sync_actor_inventory", self)
-
-
 func set_selected(value: bool) -> void:
 	is_selected = value
 	_update_selection_state()
@@ -4587,12 +4471,6 @@ func _cancel_non_matching_assignments(next_order_type: int, preserve_seat: bool 
 		stop_seat_assignment()
 	if next_order_type != OrderType.PICKUP_ITEM:
 		stop_pickup_assignment()
-
-
-func _seed_starting_inventory() -> void:
-	for stock in starting_items:
-		if stock != null and stock.item_definition != null and stock.quantity > 0:
-			inventory.add_item_count(stock.item_definition, stock.quantity)
 
 
 func _seed_starting_equipment() -> void:

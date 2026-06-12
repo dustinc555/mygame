@@ -8,6 +8,7 @@ const AI_BRAIN_SCRIPT = preload("res://scripts/ai/ai_brain.gd")
 const AI_JOB_SCRIPT = preload("res://scripts/ai/ai_job.gd")
 const AI_UTILITY_ADAPTER_SCRIPT = preload("res://scripts/ai/utility/ai_utility_adapter.gd")
 const ACTOR_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/actor_capability.gd")
+const INVENTORY_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/inventory_capability.gd")
 
 const NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
 const ACTIVE_COMBAT_ACTOR_GROUP := "active_combat_actor"
@@ -36,6 +37,7 @@ signal life_state_changed(previous_state: int, next_state: int)
 @warning_ignore("unused_signal")
 signal died(actor: WorldActor)
 signal center_notice_requested(message)
+signal inventory_changed
 
 @export var skill_set: ActorSkillSet
 @export var starting_skill_levels: Dictionary = {}
@@ -95,6 +97,12 @@ signal center_notice_requested(message)
 @export var block_damage_multiplier := 0.4
 @export var conversation_definition: Resource
 
+@export var inventory_columns := 10
+@export var inventory_rows := 4
+@export var max_carry_weight := 60.0
+@export var show_inventory_weight := true
+@export var starting_items: Array[Resource] = []
+
 @export var move_speed := 3.2
 @export var acceleration := 10.0
 @export var floor_snap_distance := 0.9
@@ -141,6 +149,8 @@ var _ai_job_tick_accumulated := 0.0
 var _close_combat_retarget_remaining := 0.0
 var _active_job_provider
 var _active_job_label := ""
+var inventory: InventoryData
+var _work_inventory_override: InventoryData
 var _actor_capabilities: Array = []
 var _actor_capability_by_id: Dictionary = {}
 var _actor_capabilities_ready := false
@@ -213,7 +223,7 @@ func get_actor_capabilities() -> Array:
 
 
 func _create_actor_capabilities() -> Array:
-	return []
+	return [INVENTORY_CAPABILITY_SCRIPT.new()]
 
 
 func _setup_actor_capabilities() -> void:
@@ -269,6 +279,159 @@ func _is_actor_capability_enabled(value) -> bool:
 		return false
 	var enabled_value = value.get("enabled")
 	return bool(enabled_value) if enabled_value != null else true
+
+
+func _setup_inventory_capability() -> void:
+	var inventory_capability = _get_inventory_capability()
+	if inventory_capability != null and inventory_capability.has_method("initialize_from_actor"):
+		inventory_capability.call("initialize_from_actor")
+		return
+	if inventory == null:
+		inventory = InventoryData.new(inventory_columns, inventory_rows, max_carry_weight, true)
+		inventory.changed.connect(_on_inventory_data_changed)
+	_seed_starting_inventory()
+	_apply_population_inventory_entries_if_present()
+
+
+func _get_inventory_capability():
+	return get_actor_capability(&"inventory")
+
+
+func _set_work_inventory_override(work_inventory: InventoryData) -> void:
+	var inventory_capability = _get_inventory_capability()
+	if inventory_capability != null and inventory_capability.has_method("set_work_inventory"):
+		inventory_capability.call("set_work_inventory", work_inventory)
+		return
+	if _work_inventory_override != null and _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
+		_work_inventory_override.changed.disconnect(_on_inventory_data_changed)
+	_work_inventory_override = work_inventory
+	if _work_inventory_override != null and not _work_inventory_override.changed.is_connected(_on_inventory_data_changed):
+		_work_inventory_override.changed.connect(_on_inventory_data_changed)
+
+
+func _notify_inventory_changed(reset_auto_burn_scan := true) -> void:
+	var inventory_capability = _get_inventory_capability()
+	if inventory_capability != null and inventory_capability.has_method("notify_inventory_changed"):
+		inventory_capability.call("notify_inventory_changed", reset_auto_burn_scan)
+		return
+	inventory_changed.emit()
+	_sync_inventory_to_gecs()
+
+
+func _on_inventory_data_changed() -> void:
+	_notify_inventory_changed(true)
+
+
+func _sync_inventory_to_gecs() -> void:
+	var inventory_capability = _get_inventory_capability()
+	if inventory_capability != null and inventory_capability.has_method("sync_to_gecs"):
+		inventory_capability.call("sync_to_gecs")
+		return
+	if not is_inside_tree():
+		return
+	var bridge := _get_runtime_controller("gecs_world_controller")
+	if bridge != null and bridge.has_method("sync_actor_inventory"):
+		bridge.call("sync_actor_inventory", self)
+
+
+func _seed_starting_inventory() -> void:
+	var inventory_capability = _get_inventory_capability()
+	if inventory_capability != null and inventory_capability.has_method("seed_starting_inventory_from_actor"):
+		inventory_capability.call("seed_starting_inventory_from_actor")
+		return
+	for stock in starting_items:
+		if stock != null and stock.item_definition != null and stock.quantity > 0:
+			inventory.add_item_count(stock.item_definition, stock.quantity)
+
+
+func _apply_population_inventory_entries_if_present() -> void:
+	var inventory_capability = _get_inventory_capability()
+	if inventory_capability != null and inventory_capability.has_method("apply_population_inventory_entries_if_present"):
+		inventory_capability.call("apply_population_inventory_entries_if_present")
+		return
+	if inventory == null or not has_meta("population_inventory_entries"):
+		return
+	var snapshots: Array = get_meta("population_inventory_entries")
+	if snapshots.is_empty():
+		return
+	inventory.entries.clear()
+	for snapshot_value in snapshots:
+		if not (snapshot_value is Dictionary):
+			continue
+		var snapshot: Dictionary = snapshot_value
+		var item_path := str(snapshot.get("item_id", ""))
+		if item_path.strip_edges().is_empty() or not ResourceLoader.exists(item_path):
+			continue
+		var definition := load(item_path) as ItemDefinition
+		if definition == null:
+			continue
+		var grid_position: Vector2i = snapshot.get("grid_position", Vector2i.ZERO)
+		inventory.entries.append(InventoryData.InventoryEntry.new(
+			definition,
+			grid_position,
+			maxi(1, int(snapshot.get("count", 1))),
+			(snapshot.get("contained_item_counts", {}) as Dictionary).duplicate(true),
+			(snapshot.get("metadata", {}) as Dictionary).duplicate(true)
+		))
+	inventory.changed.emit()
+
+
+func get_inventory_for_display() -> InventoryData:
+	var inventory_capability = _get_inventory_capability()
+	if inventory_capability != null and inventory_capability.has_method("get_inventory_for_display"):
+		return inventory_capability.call("get_inventory_for_display") as InventoryData
+	if _work_inventory_override != null:
+		return _work_inventory_override
+	return inventory
+
+
+func is_displaying_work_inventory() -> bool:
+	var inventory_capability = _get_inventory_capability()
+	if inventory_capability != null and inventory_capability.has_method("is_displaying_work_inventory"):
+		return bool(inventory_capability.call("is_displaying_work_inventory"))
+	return _work_inventory_override != null
+
+
+func get_inventory_display_title() -> String:
+	if is_displaying_work_inventory():
+		return "%s Work Inventory" % member_name
+	return "%s Inventory" % member_name
+
+
+func can_transfer_display_inventory_to(_target_owner) -> bool:
+	var inventory_capability = _get_inventory_capability()
+	if inventory_capability != null and inventory_capability.has_method("can_transfer_display_inventory_to"):
+		return bool(inventory_capability.call("can_transfer_display_inventory_to", _target_owner))
+	return not is_displaying_work_inventory()
+
+
+func can_receive_inventory_transfer_from(_source_owner) -> bool:
+	var inventory_capability = _get_inventory_capability()
+	if inventory_capability != null and inventory_capability.has_method("can_receive_inventory_transfer_from"):
+		return bool(inventory_capability.call("can_receive_inventory_transfer_from", _source_owner))
+	return not is_displaying_work_inventory()
+
+
+func get_inventory_display_name() -> String:
+	return member_name
+
+
+func get_inventory_world_position() -> Vector3:
+	return global_position
+
+
+func get_inventory_cell_size() -> Vector2:
+	return Vector2(30.0, 30.0)
+
+
+func shows_inventory_weight() -> bool:
+	if is_displaying_work_inventory():
+		return false
+	return show_inventory_weight
+
+
+func shows_inventory_equipment() -> bool:
+	return false
 
 
 func get_skill_level(skill_id: String) -> int:
@@ -842,19 +1005,23 @@ func get_ai_debug_snapshot() -> Dictionary:
 	return _ai_brain.get_debug_snapshot() if _ai_brain != null and _ai_brain.has_method("get_debug_snapshot") else {}
 
 
-func begin_job_assignment(provider, job_label: String, _work_inventory = null, request_runtime_job := true) -> void:
+func begin_job_assignment(provider, job_label: String, work_inventory = null, request_runtime_job := true) -> void:
+	_set_work_inventory_override(work_inventory as InventoryData)
 	_active_job_provider = provider
 	_active_job_label = job_label
 	if request_runtime_job:
 		_request_assigned_work_ai_job(provider, job_label)
 	state_changed.emit()
+	_notify_inventory_changed(false)
 
 
 func end_job_assignment() -> void:
+	_set_work_inventory_override(null)
 	_active_job_provider = null
 	_active_job_label = ""
 	cancel_ai_job("job_provider")
 	state_changed.emit()
+	_notify_inventory_changed(false)
 
 
 func get_active_job_provider():
