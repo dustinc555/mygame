@@ -18,6 +18,7 @@ func _run() -> void:
 	_validate_equipment_capability_registration()
 	_validate_starting_equipment_seed()
 	_validate_equip_replace_and_unequip()
+	_validate_equipment_stat_modifiers()
 	_validate_equipment_change_batch_signal()
 	if _failures.is_empty():
 		print("EQUIPMENT_CAPABILITY_OK")
@@ -73,6 +74,22 @@ func _validate_equip_replace_and_unequip() -> void:
 		_fail("Expected unequip to return sword")
 	if actor.has_equipment():
 		_fail("Expected equipment to be empty after unequip")
+	actor.free()
+
+
+func _validate_equipment_stat_modifiers() -> void:
+	var actor := _make_actor()
+	actor.base_attack_damage = 10.0
+	actor.equip_item_to_slot(BRONZE_SWORD, ItemDefinition.EQUIP_SLOT_WEAPON)
+	var modifiers := actor.get_equipment_stat_modifiers()
+	if modifiers.size() != BRONZE_SWORD.stat_modifiers.size():
+		_fail("Expected equipment capability to expose equipped stat modifiers")
+	if not is_equal_approx(actor.get_stat_value("attack_damage"), 17.0):
+		_fail("Expected WorldActor attack_damage to include equipped sword modifier")
+	if not actor.call("_item_has_stat_modifier", BRONZE_SWORD, "attack_range"):
+		_fail("Expected item stat modifier lookup through equipment capability")
+	if not is_equal_approx(float(actor.call("_get_item_stat_value", BRONZE_SWORD, "attack_range", 1.0)), 1.42):
+		_fail("Expected item stat value lookup through equipment capability")
 	actor.free()
 
 

@@ -279,26 +279,10 @@ var _cell_custody_wake_remaining := 0.0
 var _bleed_drip_progress := 0.0
 var _bleed_pool_progress := 0.0
 var _pending_nourishment := 0.0
-var _combat_cooldown_remaining := 0.0
 var _combat_slot_role_cache_frame := -1
 var _combat_slot_role_cache_target_id := 0
 var _combat_slot_role_cache := COMBAT_COORDINATOR.SLOT_ROLE_NONE
 var _dying_timer_remaining := 0.0
-var _combat_action_active := false
-var _combat_action_names: Array[String] = []
-var _combat_action_index := 0
-var _combat_action_clip_remaining := 0.0
-var _combat_action_remaining := 0.0
-var _combat_action_impact_remaining := 0.0
-var _combat_action_has_impacted := false
-var _combat_action_target: HumanoidCharacter
-var _combat_action_attack_id := ""
-var _combat_action_hit_reaction_names: Array[String] = []
-var _combat_action_blunt_damage := 0.0
-var _combat_action_cut_damage := 0.0
-var _combat_action_is_critical := false
-var _combat_reaction_remaining := 0.0
-var _combat_reaction_source: HumanoidCharacter
 var _ai_tick_remaining := 0.0
 var _downed_recover_delay_remaining := 0.0
 var _downed_is_settled := false
@@ -338,6 +322,7 @@ var _is_sitting := false
 var _preview_clothes_visible := true
 var _selection_ring: Node3D
 var _body: BodyProjection = null
+var _combat_capability: CombatCapability
 var _stat_value_cache_frame := -1
 var _stat_value_cache: Dictionary = {}
 var _bleed_splotch_controller: Node
@@ -362,6 +347,7 @@ func _enter_tree() -> void:
 
 func _ready() -> void:
 	super._ready()
+	_combat_capability = get_actor_capability(&"combat") as CombatCapability
 	_rng.randomize()
 	_far_runtime_process_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PROCESS_INTERVAL)
 	_far_runtime_physics_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PHYSICS_INTERVAL)
@@ -438,8 +424,7 @@ func _process(delta: float) -> void:
 		_update_ground_markers()
 		return
 	if is_in_cell_custody():
-		if _combat_cooldown_remaining > 0.0:
-			_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
+		_process_combat_cooldown(delta)
 		_process_needs_capability(delta)
 		_recalculate_vitals()
 		_update_cell_custody_animation(delta)
@@ -447,8 +432,7 @@ func _process(delta: float) -> void:
 			_body.apply_bone_pose_offsets()
 		_update_ground_markers()
 		return
-	if _combat_cooldown_remaining > 0.0:
-		_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
+	_process_combat_cooldown(delta)
 	_process_ragdoll_impulse_memory(delta)
 	_process_needs_capability(delta)
 	_process_ai(delta)
@@ -476,8 +460,7 @@ func _process_profiled(delta: float) -> void:
 		_debug_humanoid_profile_finish()
 		return
 	if is_in_cell_custody():
-		if _combat_cooldown_remaining > 0.0:
-			_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
+		_process_combat_cooldown(delta)
 		profile_last_usec = _debug_humanoid_profile_checkpoint("timers", profile_last_usec)
 		_process_needs_capability(delta)
 		profile_last_usec = _debug_humanoid_profile_checkpoint("needs_capability", profile_last_usec)
@@ -492,8 +475,7 @@ func _process_profiled(delta: float) -> void:
 		_debug_humanoid_profile_checkpoint("ground_markers", profile_last_usec)
 		_debug_humanoid_profile_finish()
 		return
-	if _combat_cooldown_remaining > 0.0:
-		_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
+	_process_combat_cooldown(delta)
 	_process_ragdoll_impulse_memory(delta)
 	profile_last_usec = _debug_humanoid_profile_checkpoint("timers", profile_last_usec)
 	_process_needs_capability(delta)
@@ -1629,7 +1611,7 @@ func is_ready_for_combat_exchange(target: Node) -> bool:
 		return false
 	if _get_active_combat_target() != target_character:
 		return false
-	if _combat_action_active or _combat_reaction_remaining > 0.0 or _combat_cooldown_remaining > 0.0:
+	if not _is_combat_resolution_ready():
 		return false
 	if COMBAT_COORDINATOR.is_character_locked(self):
 		return false
@@ -1860,11 +1842,7 @@ func disengage_combat_with(other: HumanoidCharacter = null) -> void:
 		_last_direct_attacker_id = 0
 	if other == null or _current_attack_target == other or _get_active_combat_target() == other:
 		stop_attack_assignment()
-	if other == null or _combat_action_target == other:
-		_clear_combat_action()
-	if other == null or _combat_reaction_source == other:
-		_combat_reaction_remaining = 0.0
-		_combat_reaction_source = null
+	_clear_combat_resolution_state(other)
 	COMBAT_COORDINATOR.release_character(self)
 
 
@@ -1968,96 +1946,24 @@ func set_combat_stance(value: int) -> void:
 	state_changed.emit()
 
 
-func receive_attack(attacker: HumanoidCharacter, blunt_damage: float, cut_damage: float, attack_id: String = "", hit_reaction_names: Array[String] = [], is_critical := false) -> String:
-	if attacker == null or life_state == NpcRules.LifeState.DEAD:
-		return "ignored"
-	if is_protected_from_combat():
-		return "ignored"
-	var nonlethal_arrest := _is_nonlethal_authority_arrest_attack(attacker)
-	if life_state == NpcRules.LifeState.ASLEEP:
-		wake_up_from_rest(false)
-	if life_state == NpcRules.LifeState.ALIVE:
-		_break_stealth_for_combat()
-	mark_hostile(attacker)
-	attacker.mark_hostile(self)
-	_last_direct_attacker_id = attacker.get_instance_id()
-	if not _is_incoming_law_arrest(attacker):
-		_notify_defensive_allies_of_attack(attacker)
-	_face_character(attacker)
-	_remember_ragdoll_impulse(_get_attack_ragdoll_impulse(attacker, blunt_damage + cut_damage), RAGDOLL_IMPULSE_MEMORY_SECONDS)
-	var can_actively_defend := life_state == NpcRules.LifeState.ALIVE and not _is_getting_up
-	var incoming_hit_score := attacker.get_combat_hit_score()
-	if can_actively_defend and _rng.randf() > attacker.get_combat_hit_chance(self):
-		_spend_fatigue(NpcRules.FATIGUE_DODGE_COST)
-		add_skill_xp(SkillRules.ATTRIBUTE_DEXTERITY, 0.35, "combat_dodge")
-		_show_world_notice("Dodge", Color(0.74, 0.94, 1.0, 1.0))
-		_try_start_self_defense(attacker)
-		return "dodged"
-	var final_blunt := maxf(blunt_damage, 0.0)
-	var final_cut := maxf(cut_damage, 0.0)
-	if can_actively_defend and _rng.randf() <= get_combat_block_chance(incoming_hit_score):
-		_spend_fatigue(NpcRules.FATIGUE_BLOCK_COST)
-		if has_combat_shield():
-			add_skill_xp(SkillRules.COMBAT_SHIELDS, 0.25, "combat_block")
-		else:
-			add_skill_xp(get_combat_weapon_skill_id(), 0.15, "combat_parry")
-		add_skill_xp(SkillRules.ATTRIBUTE_TOUGHNESS, 0.12, "combat_block")
-		var combat_block_damage_multiplier := get_combat_block_damage_multiplier()
-		final_blunt *= combat_block_damage_multiplier
-		final_cut *= combat_block_damage_multiplier
-		var blocked_grit_damage := apply_toughness_grit(final_blunt, final_cut)
-		final_blunt = float(blocked_grit_damage.get("blunt_damage", 0.0))
-		final_cut = float(blocked_grit_damage.get("cut_damage", 0.0))
-		if nonlethal_arrest:
-			var arrest_damage := _clamp_nonlethal_arrest_damage(final_blunt, final_cut)
-			final_blunt = float(arrest_damage.get("blunt", 0.0))
-			final_cut = 0.0
-		_prepare_combat_reaction(attacker)
-		var has_shield_block := has_combat_shield()
-		if _body != null:
-			_play_combat_reaction(_body.pick_block_reaction_clip(has_shield_block, _get_current_combat_animation_set(), SHIELD_BLOCK_ANIMATION_NAMES, BLOCK_ANIMATION_NAME))
-		COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
-		_show_world_notice("Shield Block" if has_shield_block else "Parry", Color(0.86, 0.9, 1.0, 1.0))
-		_current_blunt_damage += final_blunt
-		_current_open_cut_damage += final_cut
-		_add_bleeding_from_cut(final_blunt, final_cut)
-		_award_toughness_xp(final_blunt + final_cut)
-		_recalculate_vitals()
-		_try_start_self_defense(attacker)
-		return "blocked"
-	if can_actively_defend:
-		_prepare_combat_reaction(attacker)
-		if _body != null:
-			_play_combat_reaction(_body.pick_hit_reaction_clip(attack_id, hit_reaction_names))
-		COMBAT_COORDINATOR.extend_character_lock(self, _combat_reaction_remaining + 0.05)
-	var grit_damage := apply_toughness_grit(final_blunt, final_cut)
-	final_blunt = float(grit_damage.get("blunt_damage", 0.0))
-	final_cut = float(grit_damage.get("cut_damage", 0.0))
-	if nonlethal_arrest:
-		var arrest_damage := _clamp_nonlethal_arrest_damage(final_blunt, final_cut)
-		final_blunt = float(arrest_damage.get("blunt", 0.0))
-		final_cut = 0.0
-	_current_blunt_damage += final_blunt
-	_current_open_cut_damage += final_cut
-	_add_bleeding_from_cut(final_blunt, final_cut)
-	_award_toughness_xp(final_blunt + final_cut)
-	_show_world_notice("Critical Hit" if is_critical else "Hit", Color(1.0, 0.42, 0.42, 1.0))
-	_recalculate_vitals()
-	_try_start_self_defense(attacker)
-	return "hit"
+func receive_attack(attacker: Node, blunt_damage: float, cut_damage: float, attack_id: String = "", hit_reaction_names: Array[String] = [], is_critical := false) -> String:
+	var combat_capability := _get_combat_capability()
+	if combat_capability != null:
+		return combat_capability.receive_attack(attacker, blunt_damage, cut_damage, attack_id, hit_reaction_names, is_critical)
+	return "ignored"
 
 
-func _is_incoming_law_arrest(attacker: HumanoidCharacter) -> bool:
+func _is_incoming_law_arrest(attacker: Node) -> bool:
 	return attacker != null and attacker.has_method("is_law_arresting") and bool(attacker.call("is_law_arresting", self))
 
 
-func _is_nonlethal_authority_arrest_attack(attacker: HumanoidCharacter) -> bool:
+func _is_nonlethal_authority_arrest_attack(attacker: Node) -> bool:
 	if attacker == null or not attacker.has_method("is_faction_soldier") or not bool(attacker.call("is_faction_soldier")):
 		return false
 	var law_controller := _get_law_order_controller()
 	if law_controller == null or not law_controller.has_method("actor_has_active_warrant"):
 		return false
-	return bool(law_controller.call("actor_has_active_warrant", self, attacker.faction_name))
+	return bool(law_controller.call("actor_has_active_warrant", self, str(attacker.get("faction_name"))))
 
 
 func _clamp_nonlethal_arrest_damage(final_blunt: float, final_cut: float) -> Dictionary:
@@ -2105,7 +2011,7 @@ func apply_bandage_from(actor: HumanoidCharacter) -> bool:
 	return true
 
 
-func _face_character(character: HumanoidCharacter) -> void:
+func _face_character(character: Node3D) -> void:
 	if character == null or not is_instance_valid(character):
 		return
 	_face_world_position(character.global_position)
@@ -2120,11 +2026,9 @@ func _face_world_position(world_position: Vector3) -> void:
 
 
 func _face_combat_focus() -> void:
-	if _combat_reaction_source != null and is_instance_valid(_combat_reaction_source):
-		_face_character(_combat_reaction_source)
-		return
-	if _combat_action_target != null and is_instance_valid(_combat_action_target):
-		_face_character(_combat_action_target)
+	var focus_actor := _get_combat_focus_actor()
+	if focus_actor is HumanoidCharacter:
+		_face_character(focus_actor)
 		return
 	var active_target := _get_active_combat_target()
 	if active_target != null:
@@ -2134,7 +2038,7 @@ func _face_combat_focus() -> void:
 func _should_face_combat_focus_after_movement() -> bool:
 	if not _has_active_combat_target():
 		return false
-	if _combat_action_active or _combat_reaction_remaining > 0.0:
+	if _is_combat_resolution_busy():
 		return true
 	if _has_move_target:
 		return false
@@ -2155,7 +2059,7 @@ func _process_movement(delta: float) -> void:
 			return
 		move_and_slide()
 		return
-	if _combat_action_active or _combat_reaction_remaining > 0.0:
+	if _is_combat_resolution_busy():
 		_face_combat_focus()
 		_apply_floor_motion(delta)
 		velocity.x = 0.0
@@ -2592,6 +2496,68 @@ func _get_needs_capability():
 	return get_actor_capability(&"needs")
 
 
+func _get_combat_capability() -> CombatCapability:
+	if _combat_capability == null:
+		_combat_capability = get_actor_capability(&"combat") as CombatCapability
+	return _combat_capability
+
+
+func _process_combat_cooldown(delta: float) -> void:
+	var combat_capability := _get_combat_capability()
+	if combat_capability != null:
+		combat_capability.process_cooldown(delta)
+
+
+func _is_combat_resolution_busy() -> bool:
+	var combat_capability := _get_combat_capability()
+	return combat_capability.is_busy() if combat_capability != null else false
+
+
+func _is_combat_resolution_ready() -> bool:
+	var combat_capability := _get_combat_capability()
+	return combat_capability.is_ready() if combat_capability != null else true
+
+
+func _get_combat_reaction_remaining() -> float:
+	var combat_capability := _get_combat_capability()
+	return combat_capability.reaction_remaining if combat_capability != null else 0.0
+
+
+func _get_combat_focus_actor() -> Node:
+	var combat_capability := _get_combat_capability()
+	return combat_capability.get_focus_actor() if combat_capability != null else null
+
+
+func _clear_combat_resolution_state(other: Node = null) -> void:
+	var combat_capability := _get_combat_capability()
+	if combat_capability != null:
+		combat_capability.clear_for_actor(other)
+
+
+func _invalidate_combat_slot_role_cache() -> void:
+	_combat_slot_role_cache_frame = -1
+
+
+func _roll_combat_action_damage() -> Dictionary:
+	return roll_combat_attack_damage(_rng)
+
+
+func _roll_combat_resolution_chance() -> float:
+	return _rng.randf()
+
+
+func _remember_combat_attack_impulse(attacker: Node, damage: float) -> void:
+	_remember_ragdoll_impulse(_get_attack_ragdoll_impulse(attacker, damage), RAGDOLL_IMPULSE_MEMORY_SECONDS)
+
+
+func _get_default_combat_action_seconds() -> float:
+	return DEFAULT_COMBAT_ACTION_SECONDS
+
+
+func _get_default_combat_impact_ratio() -> float:
+	return DEFAULT_COMBAT_IMPACT_RATIO
+
+
 func _seed_needs_capability_tick() -> void:
 	var needs_capability = _get_needs_capability()
 	if needs_capability != null and needs_capability.has_method("set_tick_remaining"):
@@ -2923,7 +2889,7 @@ func _should_use_far_runtime_cadence() -> bool:
 		return false
 	if _carried_by != null or _carried_character != null or _is_ragdoll_active:
 		return false
-	if _has_active_combat_target() or _combat_action_active or _combat_reaction_remaining > 0.0:
+	if _has_active_combat_target() or _is_combat_resolution_busy():
 		return false
 	if _has_active_player_order() or _is_active_ai_combat_player_issued():
 		return false
@@ -3458,7 +3424,7 @@ func _process_seat_interaction() -> void:
 
 
 func _process_attack_interaction() -> void:
-	if _combat_action_active or _combat_reaction_remaining > 0.0:
+	if _is_combat_resolution_busy():
 		_face_combat_focus()
 		return
 	var target := _get_active_combat_target()
@@ -3468,7 +3434,7 @@ func _process_attack_interaction() -> void:
 	if _should_abandon_attack_chase():
 		stop_attack_assignment()
 		return
-	if _combat_cooldown_remaining > 0.0:
+	if not _is_combat_resolution_ready():
 		return
 	var target_distance := _horizontal_distance_to(target.global_position)
 	var chase_distance := _get_effective_combat_attack_range()
@@ -3489,90 +3455,20 @@ func _process_attack_interaction() -> void:
 
 
 func _process_combat_animation_state(delta: float) -> void:
-	if _combat_reaction_remaining > 0.0:
-		_combat_reaction_remaining = maxf(0.0, _combat_reaction_remaining - delta)
-		if _combat_reaction_remaining <= 0.0:
-			_combat_reaction_source = null
-	if not _combat_action_active:
-		return
-	if life_state != NpcRules.LifeState.ALIVE:
-		_clear_combat_action()
-		return
-
-	_combat_action_remaining = maxf(0.0, _combat_action_remaining - delta)
-	_combat_action_clip_remaining = maxf(0.0, _combat_action_clip_remaining - delta)
-	if not _combat_action_has_impacted:
-		_combat_action_impact_remaining -= delta
-		if _combat_action_impact_remaining <= 0.0:
-			_resolve_combat_action_impact()
-
-	if _combat_action_clip_remaining <= 0.0 and _combat_action_index < _combat_action_names.size() - 1:
-		_combat_action_index += 1
-		_play_current_combat_action_clip()
-		return
-
-	if _combat_action_remaining <= 0.0:
-		if not _combat_action_has_impacted:
-			_resolve_combat_action_impact()
-		_finish_combat_action()
+	var combat_capability := _get_combat_capability()
+	if combat_capability != null:
+		combat_capability.process_action_state(delta)
 
 
 func _start_combat_attack(target: HumanoidCharacter) -> void:
-	if _get_active_combat_target() != target:
-		COMBAT_COORDINATOR.register_combat_target(self, target)
-		_combat_slot_role_cache_frame = -1
-	var animation_set = _get_current_combat_animation_set()
-	var attack = _choose_combat_attack(animation_set)
-	if attack == null:
-		_start_default_timed_combat_attack(target)
-		return
-
-	var action_names: Array[String] = attack.get_animation_names()
-	var timing := _get_combat_action_timing(action_names, attack.impact_ratio)
-	var action_seconds := float(timing.get("total_seconds", DEFAULT_COMBAT_ACTION_SECONDS))
-	if not COMBAT_COORDINATOR.try_begin_exchange(self, target, action_seconds):
-		return
-	_spend_fatigue(NpcRules.FATIGUE_ATTACK_COST)
-	_award_combat_attack_xp()
-	_combat_action_names = action_names
-	_combat_action_index = 0
-	_combat_action_clip_remaining = float(timing.get("first_clip_seconds", 0.0))
-	_combat_action_remaining = action_seconds
-	_combat_action_impact_remaining = float(timing.get("impact_seconds", action_seconds))
-	_combat_action_has_impacted = false
-	_combat_action_target = target
-	_combat_action_attack_id = attack.attack_id
-	_combat_action_hit_reaction_names = attack.get_hit_reaction_names()
-	var action_damage := roll_combat_attack_damage(_rng)
-	_combat_action_blunt_damage = float(action_damage.get("blunt_damage", 0.0))
-	_combat_action_cut_damage = float(action_damage.get("cut_damage", 0.0))
-	_combat_action_is_critical = bool(action_damage.get("critical", false))
-	_combat_action_active = true
-	_combat_cooldown_remaining = maxf(0.2, get_stat_value("attack_cooldown"))
-	_play_current_combat_action_clip()
+	var combat_capability := _get_combat_capability()
+	if combat_capability != null:
+		combat_capability.start_attack(target)
 
 func _start_default_timed_combat_attack(target: HumanoidCharacter) -> void:
-	var timing := _get_combat_action_timing([], DEFAULT_COMBAT_IMPACT_RATIO)
-	var action_seconds := float(timing.get("total_seconds", DEFAULT_COMBAT_ACTION_SECONDS))
-	if not COMBAT_COORDINATOR.try_begin_exchange(self, target, action_seconds):
-		return
-	_spend_fatigue(NpcRules.FATIGUE_ATTACK_COST)
-	_award_combat_attack_xp()
-	_combat_action_names.clear()
-	_combat_action_index = 0
-	_combat_action_clip_remaining = 0.0
-	_combat_action_remaining = action_seconds
-	_combat_action_impact_remaining = float(timing.get("impact_seconds", action_seconds))
-	_combat_action_has_impacted = false
-	_combat_action_target = target
-	_combat_action_attack_id = ""
-	_combat_action_hit_reaction_names.clear()
-	var action_damage := roll_combat_attack_damage(_rng)
-	_combat_action_blunt_damage = float(action_damage.get("blunt_damage", 0.0))
-	_combat_action_cut_damage = float(action_damage.get("cut_damage", 0.0))
-	_combat_action_is_critical = bool(action_damage.get("critical", false))
-	_combat_action_active = true
-	_combat_cooldown_remaining = maxf(0.2, get_stat_value("attack_cooldown"))
+	var combat_capability := _get_combat_capability()
+	if combat_capability != null:
+		combat_capability.start_default_timed_attack(target)
 
 
 func _choose_combat_attack(animation_set):
@@ -3609,62 +3505,52 @@ func _get_combat_action_timing(animation_names: Array[String], impact_ratio: flo
 	}
 
 
-func _play_current_combat_action_clip() -> void:
-	if _combat_action_index < 0 or _combat_action_index >= _combat_action_names.size():
-		return
-	var animation_name := _combat_action_names[_combat_action_index]
-	_combat_action_clip_remaining = _body.clip_length(animation_name) if _body != null else 0.0
+func _play_combat_action_clip(animation_name: String) -> float:
+	var clip_seconds := _body.clip_length(animation_name) if _body != null else 0.0
 	if _body != null:
 		_body.play_clip(animation_name, 0.0, true, COMBAT_ACTION_BLEND_SECONDS)
+	return clip_seconds
 
 
 func _resolve_combat_action_impact() -> void:
-	_combat_action_has_impacted = true
-	if _combat_action_target == null or not is_instance_valid(_combat_action_target):
-		return
-	if _combat_action_target.life_state != NpcRules.LifeState.ALIVE:
-		return
-	_face_character(_combat_action_target)
-	_combat_action_target.receive_attack(self, _combat_action_blunt_damage, _combat_action_cut_damage, _combat_action_attack_id, _combat_action_hit_reaction_names, _combat_action_is_critical)
+	var combat_capability := _get_combat_capability()
+	if combat_capability != null:
+		combat_capability.resolve_action_impact()
 
 
 func _finish_combat_action() -> void:
-	_clear_combat_action()
+	var combat_capability := _get_combat_capability()
+	if combat_capability != null:
+		combat_capability.finish_action()
 
 
 func _clear_combat_action() -> void:
-	_combat_action_active = false
-	_combat_action_names.clear()
-	_combat_action_index = 0
-	_combat_action_clip_remaining = 0.0
-	_combat_action_remaining = 0.0
-	_combat_action_impact_remaining = 0.0
-	_combat_action_has_impacted = false
-	_combat_action_target = null
-	_combat_action_attack_id = ""
-	_combat_action_hit_reaction_names.clear()
-	_combat_action_blunt_damage = 0.0
-	_combat_action_cut_damage = 0.0
-	_combat_action_is_critical = false
+	var combat_capability := _get_combat_capability()
+	if combat_capability != null:
+		combat_capability.clear_action()
 
 
-func _prepare_combat_reaction(attacker: HumanoidCharacter) -> void:
-	if _combat_action_active:
-		_clear_combat_action()
-	_combat_reaction_source = attacker
-	_face_character(attacker)
+func _prepare_combat_reaction(attacker: Node) -> void:
+	var combat_capability := _get_combat_capability()
+	if combat_capability != null:
+		combat_capability.prepare_reaction(attacker)
 
 
 func _play_combat_reaction(animation_name: String) -> bool:
-	if animation_name.is_empty() or _body == null:
-		return false
-	if _combat_action_active:
-		_clear_combat_action()
-	var reaction_seconds := _body.play_combat_reaction_clip(animation_name, COMBAT_ACTION_BLEND_SECONDS)
-	if reaction_seconds <= 0.0:
-		return false
-	_combat_reaction_remaining = reaction_seconds
-	return true
+	var combat_capability := _get_combat_capability()
+	return combat_capability.play_reaction(animation_name) if combat_capability != null else false
+
+
+func _pick_combat_block_reaction_clip(has_shield_block: bool) -> String:
+	return _body.pick_block_reaction_clip(has_shield_block, _get_current_combat_animation_set(), SHIELD_BLOCK_ANIMATION_NAMES, BLOCK_ANIMATION_NAME) if _body != null else ""
+
+
+func _pick_combat_hit_reaction_clip(attack_id: String, hit_reaction_names: Array[String]) -> String:
+	return _body.pick_hit_reaction_clip(attack_id, hit_reaction_names) if _body != null else ""
+
+
+func _play_combat_reaction_clip(animation_name: String) -> float:
+	return _body.play_combat_reaction_clip(animation_name, COMBAT_ACTION_BLEND_SECONDS) if _body != null else 0.0
 
 
 func _has_equipped_shield() -> bool:
@@ -4101,7 +3987,7 @@ func _get_collision_shape_local_bounds(collision_shape: CollisionShape3D) -> AAB
 func _update_character_animation(delta: float) -> void:
 	if _body == null or _body.get_primary_animation_player() == null:
 		return
-	if _combat_action_active or _combat_reaction_remaining > 0.0:
+	if _is_combat_resolution_busy():
 		return
 	if _is_sitting:
 		velocity = Vector3.ZERO
@@ -4489,9 +4375,7 @@ func _wake_in_cell() -> void:
 	_cancel_ragdoll_preroll()
 	_stop_ragdoll_simulation(true)
 	_restore_downed_collision_shape()
-	_clear_combat_action()
-	_combat_reaction_remaining = 0.0
-	_combat_reaction_source = null
+	_clear_combat_resolution_state()
 	COMBAT_COORDINATOR.release_character(self)
 	var stand_position := _get_cell_custody_stand_position(get_cell_custody_target())
 	if stand_position != Vector3.INF:
@@ -4695,13 +4579,7 @@ func _collect_stat_modifiers() -> Array:
 		modifiers.append({"stat": "move_speed_multiplier", "mul": _get_sneak_move_speed_multiplier()})
 	if is_carrying_someone():
 		modifiers.append({"stat": "move_speed_multiplier", "mul": carry_move_speed_multiplier})
-	for item in get_equipped_items().values():
-		if not (item is ItemDefinition):
-			continue
-		for modifier in (item as ItemDefinition).stat_modifiers:
-			if modifier == null:
-				continue
-			modifiers.append(modifier.to_modifier_dictionary())
+	modifiers.append_array(get_equipment_stat_modifiers())
 	return modifiers
 
 
@@ -4780,7 +4658,7 @@ func _should_consider_combat_retarget() -> bool:
 	var active_target := _get_active_combat_target()
 	if active_target == null:
 		return false
-	if _combat_action_active or _combat_reaction_remaining > 0.0:
+	if _is_combat_resolution_busy():
 		return false
 	return active_target.life_state == NpcRules.LifeState.ALIVE
 
@@ -4788,7 +4666,7 @@ func _should_consider_combat_retarget() -> bool:
 func _try_reconfigure_close_combat_target() -> bool:
 	if life_state != NpcRules.LifeState.ALIVE or _has_active_player_order():
 		return false
-	if _combat_action_active or _combat_reaction_remaining > 0.0:
+	if _is_combat_resolution_busy():
 		return false
 	var active_target := _get_active_combat_target()
 	if active_target != null and absf(active_target.global_position.y - global_position.y) <= move_target_vertical_tolerance and _horizontal_distance_to(active_target.global_position) <= get_attack_range():
@@ -5980,9 +5858,7 @@ func enter_cell_custody(cell, cell_position: Vector3, cell_rotation: Vector3) ->
 	_cancel_ragdoll_preroll()
 	_cancel_get_up()
 	_clear_all_active_orders()
-	_clear_combat_action()
-	_combat_reaction_remaining = 0.0
-	_combat_reaction_source = null
+	_clear_combat_resolution_state()
 	COMBAT_COORDINATOR.release_character(self)
 	_stop_ragdoll_simulation(true)
 	_restore_downed_collision_shape()
@@ -6135,9 +6011,7 @@ func _enter_downed_state(is_dead: bool) -> void:
 	_cancel_ragdoll_preroll()
 	_cancel_get_up()
 	_clear_actor_move_target()
-	_clear_combat_action()
-	_combat_reaction_remaining = 0.0
-	_combat_reaction_source = null
+	_clear_combat_resolution_state()
 	_downed_is_settled = true
 	rotation = Vector3(0.0, rotation.y, 0.0)
 	velocity = Vector3.ZERO
@@ -6313,7 +6187,7 @@ func _get_ragdoll_anchor_position() -> Variant:
 	return _body.get_ragdoll_anchor_position() if _body != null else null
 
 
-func _get_attack_ragdoll_impulse(attacker: HumanoidCharacter, damage: float) -> Vector3:
+func _get_attack_ragdoll_impulse(attacker: Node, damage: float) -> Vector3:
 	return _body.get_attack_ragdoll_impulse(attacker, damage) if _body != null else Vector3.ZERO
 
 

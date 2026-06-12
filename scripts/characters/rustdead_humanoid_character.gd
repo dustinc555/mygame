@@ -224,9 +224,7 @@ func _enter_cinder_dead_state_in_place() -> void:
 	COMBAT_COORDINATOR.release_character(self)
 	running = false
 	_clear_actor_move_target()
-	_clear_combat_action()
-	_combat_reaction_remaining = 0.0
-	_combat_reaction_source = null
+	_clear_combat_resolution_state()
 	if _carried_character != null:
 		drop_carried_character()
 	if _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):

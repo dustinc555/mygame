@@ -10,6 +10,7 @@ const AI_UTILITY_ADAPTER_SCRIPT = preload("res://scripts/ai/utility/ai_utility_a
 const ACTOR_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/actor_capability.gd")
 const INVENTORY_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/inventory_capability.gd")
 const EQUIPMENT_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/equipment_capability.gd")
+const COMBAT_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/combat_capability.gd")
 
 const NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
 const ACTIVE_COMBAT_ACTOR_GROUP := "active_combat_actor"
@@ -226,7 +227,7 @@ func get_actor_capabilities() -> Array:
 
 
 func _create_actor_capabilities() -> Array:
-	return [INVENTORY_CAPABILITY_SCRIPT.new(), EQUIPMENT_CAPABILITY_SCRIPT.new()]
+	return [INVENTORY_CAPABILITY_SCRIPT.new(), EQUIPMENT_CAPABILITY_SCRIPT.new(), COMBAT_CAPABILITY_SCRIPT.new()]
 
 
 func _setup_actor_capabilities() -> void:
@@ -534,6 +535,21 @@ func get_equipped_weight() -> float:
 	return total
 
 
+func get_equipment_stat_modifiers() -> Array:
+	var equipment_capability = _get_equipment_capability()
+	if equipment_capability != null and equipment_capability.has_method("get_stat_modifiers"):
+		return equipment_capability.call("get_stat_modifiers") as Array
+	var modifiers: Array = []
+	for item in equipped_items.values():
+		if not (item is ItemDefinition):
+			continue
+		for modifier in (item as ItemDefinition).stat_modifiers:
+			if modifier == null:
+				continue
+			modifiers.append(modifier.to_modifier_dictionary())
+	return modifiers
+
+
 func _notify_equipment_changed(changed_slots: Array) -> void:
 	if has_method("_invalidate_stat_value_cache"):
 		call("_invalidate_stat_value_cache")
@@ -810,11 +826,11 @@ func get_attack_range() -> float:
 
 
 func get_combat_weapon_item() -> ItemDefinition:
-	return null
+	return get_equipped_item(ItemDefinition.EQUIP_SLOT_WEAPON)
 
 
 func get_combat_offhand_item() -> ItemDefinition:
-	return null
+	return get_equipped_item(ItemDefinition.EQUIP_SLOT_OFFHAND)
 
 
 func has_combat_shield() -> bool:
@@ -977,6 +993,14 @@ func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true)
 	var value := _get_base_stat_value(stat_name)
 	if not include_secondary_modifiers:
 		return value
+	var additive := 0.0
+	var multiplier := 1.0
+	for modifier in _collect_stat_modifiers():
+		if modifier.get("stat", "") != stat_name:
+			continue
+		additive += modifier.get("add", 0.0)
+		multiplier *= modifier.get("mul", 1.0)
+	value = (value + additive) * multiplier
 	match stat_name:
 		"dodge_chance", "block_chance", "cut_ratio":
 			return clampf(value, 0.0, 0.95)
@@ -987,6 +1011,10 @@ func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true)
 		"move_speed_multiplier", "run_speed_multiplier", "attack_damage", "attack_range", "strength", "dexterity", "toughness", "perception", "stealth", "hunger_drain_rate", "fatigue_recovery_rate", "healing_rate", "weapon_parry_bonus", "shield_block_bonus":
 			return maxf(0.0, value)
 	return value
+
+
+func _collect_stat_modifiers() -> Array:
+	return get_equipment_stat_modifiers()
 
 
 func get_total_wound_damage() -> float:
@@ -1421,6 +1449,9 @@ func _get_combat_damage_stat_multiplier() -> float:
 
 
 func _item_has_stat_modifier(item: ItemDefinition, stat_name: String) -> bool:
+	var equipment_capability = _get_equipment_capability()
+	if equipment_capability != null and equipment_capability.has_method("has_item_stat_modifier"):
+		return bool(equipment_capability.call("has_item_stat_modifier", item, stat_name))
 	if item == null:
 		return false
 	for modifier in item.stat_modifiers:
@@ -1430,6 +1461,9 @@ func _item_has_stat_modifier(item: ItemDefinition, stat_name: String) -> bool:
 
 
 func _get_item_stat_value(item: ItemDefinition, stat_name: String, base_value: float) -> float:
+	var equipment_capability = _get_equipment_capability()
+	if equipment_capability != null and equipment_capability.has_method("get_item_stat_value"):
+		return float(equipment_capability.call("get_item_stat_value", item, stat_name, base_value))
 	if item == null:
 		return base_value
 	var value := base_value

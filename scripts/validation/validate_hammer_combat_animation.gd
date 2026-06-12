@@ -50,10 +50,10 @@ func _validate_weapon_action(label: String, weapon: ItemDefinition, offhand: Ite
 	attacker.call("assign_attack_target", defender, false, false, false)
 	attacker.call("_start_combat_attack", defender)
 	await process_frame
-	var started := bool(attacker.get("_combat_action_active"))
+	var started := _get_combat_action_active(attacker)
 	var action_name := _get_current_animation(attacker)
-	var action_names: Array = attacker.get("_combat_action_names")
-	var started_remaining := float(attacker.get("_combat_action_remaining"))
+	var action_names: Array = _get_combat_action_names(attacker)
+	var started_remaining := _get_combat_action_remaining(attacker)
 	if not started:
 		_fail("%s combat action should start" % label)
 		attacker.queue_free()
@@ -69,8 +69,8 @@ func _validate_weapon_action(label: String, weapon: ItemDefinition, offhand: Ite
 	var previous_remaining := started_remaining
 	for _frame in range(90):
 		await process_frame
-		var active := bool(attacker.get("_combat_action_active"))
-		var remaining := float(attacker.get("_combat_action_remaining"))
+		var active := _get_combat_action_active(attacker)
+		var remaining := _get_combat_action_remaining(attacker)
 		var current_animation := _get_current_animation(attacker)
 		if active and not action_names.has(current_animation):
 			interrupted = true
@@ -97,7 +97,7 @@ func _validate_one_hand_shield_combat_idle(label: String, weapon: ItemDefinition
 	attacker.global_position = Vector3.ZERO
 	defender.global_position = Vector3(1.0, 0.6, 0.0)
 	attacker.call("assign_attack_target", defender, false, false, false)
-	attacker.set("_combat_cooldown_remaining", 1.0)
+	_set_combat_cooldown(attacker, 1.0)
 	attacker.call("_update_character_animation", 0.016)
 	var current_animation := _get_current_animation(attacker)
 	if current_animation != "Sword_Idle":
@@ -170,9 +170,9 @@ func _validate_clipless_default_combat_timing() -> void:
 	attacker.call("assign_attack_target", defender, false, false, false)
 	attacker.call("_start_combat_attack", defender)
 	await process_frame
-	if not bool(attacker.get("_combat_action_active")):
+	if not _get_combat_action_active(attacker):
 		_fail("clipless combat should use actor-owned timed default action")
-	elif float(attacker.get("_combat_action_impact_remaining")) <= 0.0:
+	elif _get_combat_action_impact_remaining(attacker) <= 0.0:
 		_fail("clipless combat should keep a positive actor-owned impact countdown")
 	if _get_current_animation(attacker) != "":
 		_fail("clipless combat should not require a presentation clip, got '%s'" % _get_current_animation(attacker))
@@ -196,6 +196,38 @@ func _available_animation_names_containing(player: AnimationPlayer, text: String
 func _get_current_animation(actor: HumanoidCharacter) -> String:
 	var body := actor.get_body_projection()
 	return body.get_current_clip() if body != null else ""
+
+
+func _get_combat_capability(actor: HumanoidCharacter):
+	return actor.get_actor_capability(&"combat")
+
+
+func _get_combat_action_active(actor: HumanoidCharacter) -> bool:
+	var combat_capability = _get_combat_capability(actor)
+	return bool(combat_capability.get("action_active")) if combat_capability != null else false
+
+
+func _get_combat_action_names(actor: HumanoidCharacter) -> Array:
+	var combat_capability = _get_combat_capability(actor)
+	if combat_capability != null:
+		return combat_capability.get("action_names") as Array
+	return []
+
+
+func _get_combat_action_remaining(actor: HumanoidCharacter) -> float:
+	var combat_capability = _get_combat_capability(actor)
+	return float(combat_capability.get("action_remaining")) if combat_capability != null else 0.0
+
+
+func _get_combat_action_impact_remaining(actor: HumanoidCharacter) -> float:
+	var combat_capability = _get_combat_capability(actor)
+	return float(combat_capability.get("action_impact_remaining")) if combat_capability != null else 0.0
+
+
+func _set_combat_cooldown(actor: HumanoidCharacter, seconds: float) -> void:
+	var combat_capability = _get_combat_capability(actor)
+	if combat_capability != null:
+		combat_capability.set("cooldown_remaining", seconds)
 
 
 func _get_ual2_lift_air_names() -> Array[String]:
