@@ -228,7 +228,6 @@ const FEMALE_VISUAL_NAME_KEYS := {
 @export var carry_pose_profile: Resource = DEFAULT_CARRY_POSE_PROFILE
 @export var ragdoll_profile: Resource
 @export var show_grip_socket_markers := false
-@export var starting_equipment: Array[Resource] = []
 
 @export var trade_interaction_distance := 3.0
 @export var carry_move_speed_multiplier := 0.6
@@ -276,7 +275,6 @@ var _cell_custody_lay_freeze_remaining := 0.0
 var _cell_custody_lay_pose_frozen := false
 var _cell_custody_wake_animation := ""
 var _cell_custody_wake_remaining := 0.0
-var equipped_items: Dictionary = {}
 
 var _bleed_drip_progress := 0.0
 var _bleed_pool_progress := 0.0
@@ -337,9 +335,6 @@ var _far_runtime_process_accumulated := 0.0
 var _far_runtime_physics_accumulated := 0.0
 var _rng := RandomNumberGenerator.new()
 var _is_sitting := false
-var _equipment_update_batch_depth := 0
-var _equipment_change_pending := false
-var _equipment_changed_slots: Dictionary = {}
 var _preview_clothes_visible := true
 var _selection_ring: Node3D
 var _body: BodyProjection = null
@@ -371,7 +366,6 @@ func _ready() -> void:
 	_far_runtime_process_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PROCESS_INTERVAL)
 	_far_runtime_physics_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PHYSICS_INTERVAL)
 	_seed_needs_capability_tick()
-	_seed_starting_equipment()
 	_setup_body_projection()
 	_ensure_appearance_data()
 	_setup_nameplate()
@@ -1237,84 +1231,11 @@ func get_equipment_slot_label(slot_name: String) -> String:
 	return str(EQUIPMENT_SLOT_LABELS.get(slot_name, slot_name.capitalize()))
 
 
-func get_equipped_item(slot_name: String) -> ItemDefinition:
-	return equipped_items.get(slot_name) as ItemDefinition
-
-
-func can_equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> bool:
-	if definition == null or not definition.is_equippable():
-		return false
-	if not get_equipment_slot_names().has(slot_name):
-		return false
-	return definition.can_equip_to_slot(slot_name)
-
-
-func equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> ItemDefinition:
-	if not can_equip_item_to_slot(definition, slot_name):
-		return null
-	var previous := get_equipped_item(slot_name)
-	equipped_items[slot_name] = definition
-	_mark_equipment_changed(slot_name)
-	return previous
-
-
-func unequip_item_from_slot(slot_name: String) -> ItemDefinition:
-	var previous := get_equipped_item(slot_name)
-	if previous == null:
-		return null
-	equipped_items.erase(slot_name)
-	_mark_equipment_changed(slot_name)
-	return previous
-
-
-func begin_equipment_update_batch() -> void:
-	_equipment_update_batch_depth += 1
-
-
-func end_equipment_update_batch() -> void:
-	if _equipment_update_batch_depth <= 0:
-		return
-	_equipment_update_batch_depth -= 1
-	if _equipment_update_batch_depth > 0 or not _equipment_change_pending:
-		return
-	_equipment_change_pending = false
-	_apply_equipment_changed()
-
-
-func _mark_equipment_changed(slot_name := "") -> void:
-	if not slot_name.is_empty():
-		_equipment_changed_slots[slot_name] = true
-	if _equipment_update_batch_depth > 0:
-		_equipment_change_pending = true
-		return
-	_apply_equipment_changed()
-
-
-func _apply_equipment_changed() -> void:
-	_equipment_change_pending = false
-	_invalidate_stat_value_cache()
-	var changed_slots := _equipment_changed_slots.keys()
-	_equipment_changed_slots.clear()
+func _on_actor_equipment_changed(changed_slots: Array) -> void:
 	if _can_refresh_bone_equipment_only(changed_slots):
 		_refresh_bone_equipment_slots(changed_slots)
 	else:
 		_rebuild_character_visual_for_equipment()
-	inventory_changed.emit()
-	_sync_inventory_to_gecs()
-	appearance_changed.emit()
-	state_changed.emit()
-
-
-func has_equipment() -> bool:
-	return not equipped_items.is_empty()
-
-
-func get_equipped_weight() -> float:
-	var total := 0.0
-	for item in equipped_items.values():
-		if item is ItemDefinition:
-			total += (item as ItemDefinition).unit_weight
-	return total
 
 
 func can_eat_inventory_entry(entry) -> bool:
@@ -4473,24 +4394,6 @@ func _cancel_non_matching_assignments(next_order_type: int, preserve_seat: bool 
 		stop_pickup_assignment()
 
 
-func _seed_starting_equipment() -> void:
-	for stock in starting_equipment:
-		if stock == null:
-			continue
-		var item_definition: ItemDefinition = null
-		if stock is ItemDefinition:
-			item_definition = stock
-		elif stock.get("item_definition") is ItemDefinition:
-			item_definition = stock.item_definition
-		if item_definition == null:
-			continue
-		if not item_definition.is_equippable():
-			inventory.add_item_count(item_definition, 1)
-			continue
-		if get_equipped_item(item_definition.equip_slot) == null:
-			equipped_items[item_definition.equip_slot] = item_definition
-
-
 func _recalculate_vitals() -> void:
 	hp = max_hp - get_total_wound_damage()
 	if life_state == NpcRules.LifeState.DEAD:
@@ -4719,7 +4622,7 @@ func get_body_weapon_damage_profile() -> Dictionary:
 
 
 func _get_current_weapon_skill_id() -> String:
-	var weapon_item = equipped_items.get(ItemDefinition.EQUIP_SLOT_WEAPON, null)
+	var weapon_item = get_equipped_item(ItemDefinition.EQUIP_SLOT_WEAPON)
 	if not (weapon_item is ItemDefinition):
 		return SkillRules.COMBAT_UNARMED
 	var item := weapon_item as ItemDefinition
@@ -4792,7 +4695,7 @@ func _collect_stat_modifiers() -> Array:
 		modifiers.append({"stat": "move_speed_multiplier", "mul": _get_sneak_move_speed_multiplier()})
 	if is_carrying_someone():
 		modifiers.append({"stat": "move_speed_multiplier", "mul": carry_move_speed_multiplier})
-	for item in equipped_items.values():
+	for item in get_equipped_items().values():
 		if not (item is ItemDefinition):
 			continue
 		for modifier in (item as ItemDefinition).stat_modifiers:

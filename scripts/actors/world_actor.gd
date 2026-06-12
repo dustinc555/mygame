@@ -9,6 +9,7 @@ const AI_JOB_SCRIPT = preload("res://scripts/ai/ai_job.gd")
 const AI_UTILITY_ADAPTER_SCRIPT = preload("res://scripts/ai/utility/ai_utility_adapter.gd")
 const ACTOR_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/actor_capability.gd")
 const INVENTORY_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/inventory_capability.gd")
+const EQUIPMENT_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/equipment_capability.gd")
 
 const NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
 const ACTIVE_COMBAT_ACTOR_GROUP := "active_combat_actor"
@@ -102,6 +103,7 @@ signal inventory_changed
 @export var max_carry_weight := 60.0
 @export var show_inventory_weight := true
 @export var starting_items: Array[Resource] = []
+@export var starting_equipment: Array[Resource] = []
 
 @export var move_speed := 3.2
 @export var acceleration := 10.0
@@ -151,6 +153,7 @@ var _active_job_provider
 var _active_job_label := ""
 var inventory: InventoryData
 var _work_inventory_override: InventoryData
+var equipped_items: Dictionary = {}
 var _actor_capabilities: Array = []
 var _actor_capability_by_id: Dictionary = {}
 var _actor_capabilities_ready := false
@@ -223,7 +226,7 @@ func get_actor_capabilities() -> Array:
 
 
 func _create_actor_capabilities() -> Array:
-	return [INVENTORY_CAPABILITY_SCRIPT.new()]
+	return [INVENTORY_CAPABILITY_SCRIPT.new(), EQUIPMENT_CAPABILITY_SCRIPT.new()]
 
 
 func _setup_actor_capabilities() -> void:
@@ -295,6 +298,16 @@ func _setup_inventory_capability() -> void:
 
 func _get_inventory_capability():
 	return get_actor_capability(&"inventory")
+
+
+func _setup_equipment_capability() -> void:
+	var equipment_capability = _get_equipment_capability()
+	if equipment_capability != null and equipment_capability.has_method("initialize_from_actor"):
+		equipment_capability.call("initialize_from_actor")
+
+
+func _get_equipment_capability():
+	return get_actor_capability(&"equipment")
 
 
 func _set_work_inventory_override(work_inventory: InventoryData) -> void:
@@ -432,6 +445,108 @@ func shows_inventory_weight() -> bool:
 
 func shows_inventory_equipment() -> bool:
 	return false
+
+
+func get_equipment_slot_names() -> Array[String]:
+	return []
+
+
+func get_equipment_slot_label(slot_name: String) -> String:
+	return slot_name.capitalize()
+
+
+func get_equipped_items() -> Dictionary:
+	var equipment_capability = _get_equipment_capability()
+	if equipment_capability != null and equipment_capability.has_method("get_equipped_items"):
+		return equipment_capability.call("get_equipped_items") as Dictionary
+	return equipped_items
+
+
+func get_equipped_item(slot_name: String) -> ItemDefinition:
+	var equipment_capability = _get_equipment_capability()
+	if equipment_capability != null and equipment_capability.has_method("get_equipped_item"):
+		return equipment_capability.call("get_equipped_item", slot_name) as ItemDefinition
+	return equipped_items.get(slot_name) as ItemDefinition
+
+
+func can_equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> bool:
+	var equipment_capability = _get_equipment_capability()
+	if equipment_capability != null and equipment_capability.has_method("can_equip_item_to_slot"):
+		return bool(equipment_capability.call("can_equip_item_to_slot", definition, slot_name))
+	if definition == null or not definition.is_equippable():
+		return false
+	if not get_equipment_slot_names().has(slot_name):
+		return false
+	return definition.can_equip_to_slot(slot_name)
+
+
+func equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> ItemDefinition:
+	var equipment_capability = _get_equipment_capability()
+	if equipment_capability != null and equipment_capability.has_method("equip_item_to_slot"):
+		return equipment_capability.call("equip_item_to_slot", definition, slot_name) as ItemDefinition
+	if not can_equip_item_to_slot(definition, slot_name):
+		return null
+	var previous := get_equipped_item(slot_name)
+	equipped_items[slot_name] = definition
+	_notify_equipment_changed([slot_name])
+	return previous
+
+
+func unequip_item_from_slot(slot_name: String) -> ItemDefinition:
+	var equipment_capability = _get_equipment_capability()
+	if equipment_capability != null and equipment_capability.has_method("unequip_item_from_slot"):
+		return equipment_capability.call("unequip_item_from_slot", slot_name) as ItemDefinition
+	var previous := get_equipped_item(slot_name)
+	if previous == null:
+		return null
+	equipped_items.erase(slot_name)
+	_notify_equipment_changed([slot_name])
+	return previous
+
+
+func begin_equipment_update_batch() -> void:
+	var equipment_capability = _get_equipment_capability()
+	if equipment_capability != null and equipment_capability.has_method("begin_equipment_update_batch"):
+		equipment_capability.call("begin_equipment_update_batch")
+
+
+func end_equipment_update_batch() -> void:
+	var equipment_capability = _get_equipment_capability()
+	if equipment_capability != null and equipment_capability.has_method("end_equipment_update_batch"):
+		equipment_capability.call("end_equipment_update_batch")
+
+
+func has_equipment() -> bool:
+	var equipment_capability = _get_equipment_capability()
+	if equipment_capability != null and equipment_capability.has_method("has_equipment"):
+		return bool(equipment_capability.call("has_equipment"))
+	return not equipped_items.is_empty()
+
+
+func get_equipped_weight() -> float:
+	var equipment_capability = _get_equipment_capability()
+	if equipment_capability != null and equipment_capability.has_method("get_equipped_weight"):
+		return float(equipment_capability.call("get_equipped_weight"))
+	var total := 0.0
+	for item in equipped_items.values():
+		if item is ItemDefinition:
+			total += (item as ItemDefinition).unit_weight
+	return total
+
+
+func _notify_equipment_changed(changed_slots: Array) -> void:
+	if has_method("_invalidate_stat_value_cache"):
+		call("_invalidate_stat_value_cache")
+	_on_actor_equipment_changed(changed_slots)
+	inventory_changed.emit()
+	_sync_inventory_to_gecs()
+	if has_signal("appearance_changed"):
+		emit_signal("appearance_changed")
+	state_changed.emit()
+
+
+func _on_actor_equipment_changed(_changed_slots: Array) -> void:
+	pass
 
 
 func get_skill_level(skill_id: String) -> int:
