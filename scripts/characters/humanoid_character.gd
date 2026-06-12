@@ -323,6 +323,7 @@ var _preview_clothes_visible := true
 var _selection_ring: Node3D
 var _body: BodyProjection = null
 var _combat_capability: CombatCapability
+var _ai_targeting_capability
 var _stat_value_cache_frame := -1
 var _stat_value_cache: Dictionary = {}
 var _bleed_splotch_controller: Node
@@ -348,6 +349,7 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	super._ready()
 	_combat_capability = get_actor_capability(&"combat") as CombatCapability
+	_ai_targeting_capability = get_actor_capability(&"ai_targeting")
 	_rng.randomize()
 	_far_runtime_process_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PROCESS_INTERVAL)
 	_far_runtime_physics_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PHYSICS_INTERVAL)
@@ -2502,6 +2504,12 @@ func _get_combat_capability() -> CombatCapability:
 	return _combat_capability
 
 
+func _get_ai_targeting_capability():
+	if _ai_targeting_capability == null:
+		_ai_targeting_capability = get_actor_capability(&"ai_targeting")
+	return _ai_targeting_capability
+
+
 func _process_combat_cooldown(delta: float) -> void:
 	var combat_capability := _get_combat_capability()
 	if combat_capability != null:
@@ -4647,51 +4655,18 @@ func _spend_fatigue(amount: float) -> void:
 
 
 func _should_consider_combat_retarget() -> bool:
-	if life_state != NpcRules.LifeState.ALIVE:
-		return false
-	if _has_active_player_order():
-		return false
-	if _is_active_ai_combat_player_issued():
-		return false
-	if _get_active_ai_job_type() == AI_JOB_SCRIPT.JobType.LAW_ARREST:
-		return false
-	var active_target := _get_active_combat_target()
-	if active_target == null:
-		return false
-	if _is_combat_resolution_busy():
-		return false
-	return active_target.life_state == NpcRules.LifeState.ALIVE
+	var targeting = _get_ai_targeting_capability()
+	return targeting.should_consider_combat_retarget() if targeting != null else false
 
 
 func _try_reconfigure_close_combat_target() -> bool:
-	if life_state != NpcRules.LifeState.ALIVE or _has_active_player_order():
-		return false
-	if _is_combat_resolution_busy():
-		return false
-	var active_target := _get_active_combat_target()
-	if active_target != null and absf(active_target.global_position.y - global_position.y) <= move_target_vertical_tolerance and _horizontal_distance_to(active_target.global_position) <= get_attack_range():
-		return false
-	if active_target == null and not _should_seek_combat_target():
-		return false
-	var close_target := _find_closest_hostile(_get_close_hostile_retarget_radius())
-	if close_target == null:
-		return false
-	if active_target == close_target:
-		return false
-	if active_target != null and _should_keep_current_target_over_close_hostile(active_target, close_target):
-		return false
-	assign_attack_target(close_target, false, false, false)
-	return true
+	var targeting = _get_ai_targeting_capability()
+	return targeting.try_reconfigure_close_combat_target() if targeting != null else false
 
 
 func _should_keep_current_target_over_close_hostile(active_target: HumanoidCharacter, close_target: HumanoidCharacter) -> bool:
-	if not _is_valid_active_combat_target(active_target):
-		return false
-	if absf(active_target.global_position.y - global_position.y) > move_target_vertical_tolerance:
-		return false
-	var active_distance := _horizontal_distance_to(active_target.global_position)
-	var close_distance := _horizontal_distance_to(close_target.global_position)
-	return active_distance <= close_distance + get_attack_range()
+	var targeting = _get_ai_targeting_capability()
+	return targeting.should_keep_current_target_over_close_hostile(active_target, close_target) if targeting != null else false
 
 
 func _get_close_hostile_retarget_radius() -> float:
@@ -4943,127 +4918,56 @@ func _set_auto_burn_backoff(seconds: float) -> void:
 
 
 func _append_bounded_nearest_candidate(entries: Array, candidate: HumanoidCharacter, distance_squared: float, max_count: int) -> void:
-	if candidate == null or max_count <= 0:
-		return
-	var entry := {"target": candidate, "distance_squared": distance_squared}
-	for index in range(entries.size()):
-		var existing: Dictionary = entries[index] if entries[index] is Dictionary else {}
-		if distance_squared < float(existing.get("distance_squared", INF)):
-			entries.insert(index, entry)
-			if entries.size() > max_count:
-				entries.remove_at(entries.size() - 1)
-			return
-	entries.append(entry)
-	if entries.size() > max_count:
-		entries.remove_at(entries.size() - 1)
+	var targeting = _get_ai_targeting_capability()
+	if targeting != null:
+		targeting.append_bounded_nearest_candidate(entries, candidate, distance_squared, max_count)
 
 
 func _candidate_entries_to_humanoids(entries: Array) -> Array[HumanoidCharacter]:
 	var result: Array[HumanoidCharacter] = []
-	for entry_value in entries:
-		var entry: Dictionary = entry_value if entry_value is Dictionary else {}
-		var target := entry.get("target") as HumanoidCharacter
+	var targeting = _get_ai_targeting_capability()
+	var targets: Array = targeting.candidate_entries_to_actors(entries) if targeting != null else []
+	for target_value in targets:
+		var target := target_value as HumanoidCharacter
 		if target != null and is_instance_valid(target):
 			result.append(target)
 	return result
 
 
 func _get_query_humanoids(query_position: Vector3 = Vector3.ZERO, radius := -1.0, include_party := true) -> Array:
-	var query_controller := _get_runtime_controller("actor_query_controller")
-	if query_controller != null:
-		if radius >= 0.0 and query_controller.has_method("get_nearby_humanoids"):
-			return query_controller.call("get_nearby_humanoids", query_position, radius, include_party)
-		if query_controller.has_method("get_alive_humanoids"):
-			return query_controller.call("get_alive_humanoids", include_party)
-	if not is_inside_tree():
-		return []
-	var combat_actors := get_tree().get_nodes_in_group(COMBAT_COORDINATOR.COMBAT_ACTOR_GROUP)
-	return combat_actors if not combat_actors.is_empty() else get_tree().get_nodes_in_group("npc_character")
+	var targeting = _get_ai_targeting_capability()
+	return targeting.get_query_actors(query_position, radius, include_party) if targeting != null else []
 
 
 func _get_query_humanoids_limited(query_position: Vector3, radius: float, max_count: int, include_party := true) -> Array:
-	var query_controller := _get_runtime_controller("actor_query_controller")
-	if query_controller != null and radius >= 0.0 and query_controller.has_method("get_nearby_humanoids_limited"):
-		return query_controller.call("get_nearby_humanoids_limited", query_position, radius, max_count, include_party)
-	var result: Array = []
-	var entries: Array = []
-	var radius_squared := radius * radius
-	for node in _get_query_humanoids(query_position, radius, include_party):
-		var candidate := node as HumanoidCharacter
-		if candidate == null:
-			continue
-		var distance_squared := query_position.distance_squared_to(candidate.global_position)
-		if distance_squared > radius_squared:
-			continue
-		_append_bounded_nearest_candidate(entries, candidate, distance_squared, max_count)
-	result.append_array(_candidate_entries_to_humanoids(entries))
-	return result
+	var targeting = _get_ai_targeting_capability()
+	return targeting.get_query_actors_limited(query_position, radius, max_count, include_party) if targeting != null else []
 
 
 func _should_seek_combat_target() -> bool:
-	if is_protected_from_combat():
-		return false
-	if _has_active_player_order():
-		return false
-	if _law_sentence_move_active:
-		return false
-	if _current_order_type == OrderType.HEAL:
-		return false
-	if _carried_by != null or is_carrying_someone():
-		return false
-	if _has_active_combat_target():
-		return false
-	if combat_stance == NpcRules.CombatStance.PASSIVE and _last_direct_attacker_id == 0:
-		return false
-	return true
+	var targeting = _get_ai_targeting_capability()
+	return targeting.should_seek_combat_target() if targeting != null else false
 
 
 func _find_ai_target() -> HumanoidCharacter:
-	if combat_stance == NpcRules.CombatStance.PASSIVE:
-		return _get_last_direct_attacker_target()
-	var close_target := _find_closest_hostile(_get_close_hostile_retarget_radius())
-	if close_target != null:
-		return close_target
-	if combat_stance == NpcRules.CombatStance.DEFENSIVE:
-		var self_defense_target := _get_last_direct_attacker_target()
-		if self_defense_target != null:
-			return self_defense_target
-		return _find_defensive_assist_target()
-	return _find_nearest_hostile(aggressive_scan_radius)
+	var targeting = _get_ai_targeting_capability()
+	if targeting == null:
+		return null
+	return targeting.find_ai_target() as HumanoidCharacter
 
 
 func _get_last_direct_attacker_target() -> HumanoidCharacter:
-	if _last_direct_attacker_id == 0:
+	var targeting = _get_ai_targeting_capability()
+	if targeting == null:
 		return null
-	var attacker := _find_humanoid_by_instance_id(_last_direct_attacker_id)
-	return attacker if _is_valid_combat_target(attacker) else null
+	return targeting.get_last_direct_attacker_target() as HumanoidCharacter
 
 
 func _find_defensive_assist_target() -> HumanoidCharacter:
-	var candidate_entries: Array = []
-	var seen_target_ids := {}
-	if not is_inside_tree():
+	var targeting = _get_ai_targeting_capability()
+	if targeting == null:
 		return null
-	var witness_radius := _get_combat_witness_radius()
-	var witness_radius_squared := witness_radius * witness_radius
-	for node in _get_query_humanoids_limited(global_position, witness_radius, MAX_COMBAT_QUERY_CANDIDATES, true):
-		if not (node is HumanoidCharacter):
-			continue
-		var ally: HumanoidCharacter = node
-		if ally == self or ally.life_state != NpcRules.LifeState.ALIVE:
-			continue
-		if global_position.distance_squared_to(ally.global_position) > witness_radius_squared:
-			continue
-		var ally_target := ally.get_current_combat_target() as HumanoidCharacter
-		if not (_is_valid_combat_target(ally_target) and _should_help_against(ally, ally_target, true)):
-			continue
-		var target_id := ally_target.get_instance_id()
-		if seen_target_ids.has(target_id):
-			continue
-		seen_target_ids[target_id] = true
-		_append_bounded_nearest_candidate(candidate_entries, ally_target, global_position.distance_squared_to(ally_target.global_position), MAX_COMBAT_TARGET_CANDIDATES)
-	var candidates := _candidate_entries_to_humanoids(candidate_entries)
-	return COMBAT_COORDINATOR.choose_target(self, candidates, _get_combat_switch_radius()) as HumanoidCharacter
+	return targeting.find_defensive_assist_target() as HumanoidCharacter
 
 
 func _should_defend_ally(ally: HumanoidCharacter) -> bool:
@@ -5205,77 +5109,28 @@ func _get_combat_actor_position(actor):
 
 
 func _find_nearest_hostile(scan_radius: float) -> HumanoidCharacter:
-	var candidate_entries: Array = []
-	var radius_squared := scan_radius * scan_radius
-	for node in _get_query_humanoids_limited(global_position, scan_radius, MAX_COMBAT_QUERY_CANDIDATES, true):
-		if not (node is HumanoidCharacter):
-			continue
-		var candidate: HumanoidCharacter = node
-		if candidate == self or not _is_valid_combat_target(candidate):
-			continue
-		if not has_hostility_with(candidate):
-			continue
-		var distance_squared := global_position.distance_squared_to(candidate.global_position)
-		if distance_squared > radius_squared:
-			continue
-		if not can_see_actor_for_combat(candidate):
-			continue
-		_append_bounded_nearest_candidate(candidate_entries, candidate, distance_squared, MAX_COMBAT_TARGET_CANDIDATES)
-	var candidates := _candidate_entries_to_humanoids(candidate_entries)
-	return COMBAT_COORDINATOR.choose_target(self, candidates, scan_radius) as HumanoidCharacter
+	var targeting = _get_ai_targeting_capability()
+	if targeting == null:
+		return null
+	return targeting.find_nearest_hostile(scan_radius) as HumanoidCharacter
 
 
 func _find_closest_hostile(scan_radius: float, same_level_only: bool = true) -> HumanoidCharacter:
-	var best_target: HumanoidCharacter
-	var best_distance_squared := INF
-	var radius_squared := scan_radius * scan_radius
-	for node in _get_query_humanoids_limited(global_position, scan_radius, MAX_COMBAT_QUERY_CANDIDATES, true):
-		if not (node is HumanoidCharacter):
-			continue
-		var candidate: HumanoidCharacter = node
-		if candidate == self or not _is_valid_combat_target(candidate):
-			continue
-		if same_level_only and absf(candidate.global_position.y - global_position.y) > move_target_vertical_tolerance:
-			continue
-		if not has_hostility_with(candidate):
-			continue
-		if not can_see_actor_for_combat(candidate):
-			continue
-		var offset := candidate.global_position - global_position
-		offset.y = 0.0
-		var distance_squared := offset.length_squared()
-		if distance_squared > radius_squared or distance_squared >= best_distance_squared:
-			continue
-		best_distance_squared = distance_squared
-		best_target = candidate
-	return best_target
+	var targeting = _get_ai_targeting_capability()
+	if targeting == null:
+		return null
+	return targeting.find_closest_hostile(scan_radius, same_level_only) as HumanoidCharacter
 
 
 func _try_start_self_defense(attacker: HumanoidCharacter) -> void:
-	if attacker == null or not _is_valid_combat_target(attacker):
-		return
-	if life_state != NpcRules.LifeState.ALIVE or is_protected_from_combat():
-		return
-	if _is_player_order_to_avoid_combat():
-		return
-	if _should_keep_active_target_against_self_defense(attacker):
-		return
-	if _get_active_combat_target() != attacker:
-		_clear_combat_target_for_direct_self_defense()
-	_join_defense_against(attacker)
+	var targeting = _get_ai_targeting_capability()
+	if targeting != null:
+		targeting.try_start_self_defense(attacker)
 
 
 func _should_keep_active_target_against_self_defense(attacker: HumanoidCharacter) -> bool:
-	var active_target := _get_active_combat_target()
-	if active_target == null or active_target == attacker:
-		return false
-	if _is_player_attack_order_for(active_target):
-		return true
-	if not _is_valid_active_combat_target(active_target):
-		return false
-	if absf(active_target.global_position.y - global_position.y) > move_target_vertical_tolerance:
-		return false
-	return _horizontal_distance_to(active_target.global_position) <= _get_combat_settle_band_distance(active_target)
+	var targeting = _get_ai_targeting_capability()
+	return targeting.should_keep_active_target_against_self_defense(attacker) if targeting != null else false
 
 
 func _clear_combat_target_for_direct_self_defense() -> void:
@@ -5290,143 +5145,51 @@ func _clear_combat_target_for_direct_self_defense() -> void:
 
 
 func _notify_defensive_allies_of_attack(attacker: HumanoidCharacter) -> void:
-	var support_radius := maxf(_get_combat_witness_radius(), combat_support_target_spread_radius)
-	var support_targets := _get_support_target_candidates(attacker, support_radius)
-	var notify_entries: Array = []
-	var notify_radius := support_radius
-	var notify_radius_squared := notify_radius * notify_radius
-	for node in _get_query_humanoids_limited(global_position, notify_radius, MAX_COMBAT_ASSIST_NOTIFY_RECIPIENTS * 2, true):
-		var responder := node as HumanoidCharacter
-		if responder == null or responder == self or responder.life_state != NpcRules.LifeState.ALIVE:
-			continue
-		var distance_squared := global_position.distance_squared_to(responder.global_position)
-		if distance_squared > notify_radius_squared:
-			continue
-		if not responder._should_help_against(self, attacker, true):
-			continue
-		_append_bounded_nearest_candidate(notify_entries, responder, distance_squared, MAX_COMBAT_ASSIST_NOTIFY_RECIPIENTS)
-	for responder in _candidate_entries_to_humanoids(notify_entries):
-		responder._respond_to_ally_under_attack(self, attacker, support_targets)
-	_notify_settlement_alarm_of_attack(attacker)
+	var targeting = _get_ai_targeting_capability()
+	if targeting != null:
+		targeting.notify_defensive_allies_of_attack(attacker)
 
 
 func _notify_defensive_allies_of_engagement(target: HumanoidCharacter) -> void:
-	var support_radius := maxf(_get_combat_witness_radius(), combat_support_target_spread_radius)
-	var support_targets := _get_support_target_candidates(target, support_radius)
-	var notify_entries: Array = []
-	var notify_radius := support_radius
-	var notify_radius_squared := notify_radius * notify_radius
-	for node in _get_query_humanoids_limited(global_position, notify_radius, MAX_COMBAT_ASSIST_NOTIFY_RECIPIENTS * 2, true):
-		var responder := node as HumanoidCharacter
-		if responder == null or responder == self or responder.life_state != NpcRules.LifeState.ALIVE:
-			continue
-		var distance_squared := global_position.distance_squared_to(responder.global_position)
-		if distance_squared > notify_radius_squared:
-			continue
-		if not responder._should_help_against(self, target, false):
-			continue
-		_append_bounded_nearest_candidate(notify_entries, responder, distance_squared, MAX_COMBAT_ASSIST_NOTIFY_RECIPIENTS)
-	for responder in _candidate_entries_to_humanoids(notify_entries):
-		responder._respond_to_ally_engagement(self, target, support_targets)
+	var targeting = _get_ai_targeting_capability()
+	if targeting != null:
+		targeting.notify_defensive_allies_of_engagement(target)
 
 
 func _respond_to_ally_under_attack(ally, attacker, support_targets: Array = []) -> void:
-	if ally == null or attacker == null:
-		return
-	if life_state != NpcRules.LifeState.ALIVE:
-		return
-	if combat_stance == NpcRules.CombatStance.PASSIVE:
-		return
-	if not _should_help_against(ally, attacker, true):
-		return
-	var target := _choose_support_target(attacker, support_targets, maxf(_get_combat_switch_radius(), combat_support_target_spread_radius))
-	var defense_target = target if target != null else attacker
-	if defense_target is HumanoidCharacter:
-		_join_defense_against(defense_target)
+	var targeting = _get_ai_targeting_capability()
+	if targeting != null:
+		targeting.respond_to_ally_under_attack(ally, attacker, support_targets)
 
 
 func _respond_to_ally_engagement(ally, target, support_targets: Array = []) -> void:
-	if ally == null or target == null:
-		return
-	if life_state != NpcRules.LifeState.ALIVE:
-		return
-	if combat_stance == NpcRules.CombatStance.PASSIVE:
-		return
-	if not _should_help_against(ally, target, false):
-		return
-	var support_target := _choose_support_target(target, support_targets, maxf(_get_combat_switch_radius(), combat_support_target_spread_radius))
-	var defense_target = support_target if support_target != null else target
-	if defense_target is HumanoidCharacter:
-		_join_defense_against(defense_target)
+	var targeting = _get_ai_targeting_capability()
+	if targeting != null:
+		targeting.respond_to_ally_engagement(ally, target, support_targets)
 
 
 func _get_support_target_candidates(primary_target: HumanoidCharacter, radius: float) -> Array[HumanoidCharacter]:
 	var candidates: Array[HumanoidCharacter] = []
-	if primary_target == null or not is_instance_valid(primary_target):
-		return candidates
-	candidates.append(primary_target)
-	var candidate_entries: Array = []
-	var seen_target_ids := {}
-	seen_target_ids[primary_target.get_instance_id()] = true
-	var radius_squared := radius * radius
-	for node in _get_query_humanoids_limited(primary_target.global_position, radius, MAX_COMBAT_SUPPORT_TARGETS * 4, true):
-		if not (node is HumanoidCharacter):
-			continue
-		var candidate: HumanoidCharacter = node
-		if candidate == primary_target or candidate.life_state != NpcRules.LifeState.ALIVE:
-			continue
-		var candidate_id := candidate.get_instance_id()
-		if seen_target_ids.has(candidate_id):
-			continue
-		if primary_target.global_position.distance_squared_to(candidate.global_position) > radius_squared:
-			continue
-		seen_target_ids[candidate_id] = true
-		_append_bounded_nearest_candidate(candidate_entries, candidate, primary_target.global_position.distance_squared_to(candidate.global_position), maxi(MAX_COMBAT_SUPPORT_TARGETS - 1, 0))
-	candidates.append_array(_candidate_entries_to_humanoids(candidate_entries))
+	var targeting = _get_ai_targeting_capability()
+	var target_candidates: Array = targeting.get_support_target_candidates(primary_target, radius) if targeting != null else []
+	for target_value in target_candidates:
+		var target := target_value as HumanoidCharacter
+		if target != null:
+			candidates.append(target)
 	return candidates
 
 
 func _choose_support_target(primary_target, candidates: Array, scan_radius: float) -> HumanoidCharacter:
-	if not (primary_target is HumanoidCharacter) or not is_instance_valid(primary_target):
+	var targeting = _get_ai_targeting_capability()
+	if targeting == null:
 		return null
-	var primary_humanoid: HumanoidCharacter = primary_target
-	var viable_targets: Array[HumanoidCharacter] = []
-	for candidate_value in candidates:
-		if not (candidate_value is HumanoidCharacter):
-			continue
-		var candidate: HumanoidCharacter = candidate_value
-		if candidate == self or candidate.life_state != NpcRules.LifeState.ALIVE:
-			continue
-		if not _is_valid_combat_target(candidate):
-			continue
-		if not has_hostility_with(candidate):
-			continue
-		if not viable_targets.has(candidate):
-			viable_targets.append(candidate)
-	if viable_targets.is_empty():
-		return primary_humanoid if _is_valid_combat_target(primary_humanoid) and has_hostility_with(primary_humanoid) else null
-	var effective_scan_radius := maxf(scan_radius, global_position.distance_to(primary_humanoid.global_position) + get_attack_range() + 2.0)
-	var chosen := COMBAT_COORDINATOR.choose_target(self, viable_targets, effective_scan_radius) as HumanoidCharacter
-	if chosen != null:
-		return chosen
-	return primary_humanoid if _is_valid_combat_target(primary_humanoid) and has_hostility_with(primary_humanoid) else null
+	return targeting.choose_support_target(primary_target, candidates, scan_radius) as HumanoidCharacter
 
 
 func _join_defense_against(threat: HumanoidCharacter) -> void:
-	if threat == null or not is_instance_valid(threat) or threat.life_state != NpcRules.LifeState.ALIVE:
-		return
-	if _is_player_order_to_avoid_combat():
-		return
-	mark_hostile(threat)
-	threat.mark_hostile(self)
-	_record_player_combat_reputation(threat)
-	var active_target := _get_active_combat_target()
-	if active_target != null and active_target != threat:
-		if _should_keep_active_target_against_self_defense(threat):
-			return
-		if not COMBAT_COORDINATOR.should_switch_target(self, active_target, threat, _get_combat_switch_radius()):
-			return
-	assign_attack_target(threat, false, false, false)
+	var targeting = _get_ai_targeting_capability()
+	if targeting != null:
+		targeting.join_defense_against(threat)
 
 
 func _should_abandon_attack_chase() -> bool:

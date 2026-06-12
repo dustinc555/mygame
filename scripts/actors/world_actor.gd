@@ -11,6 +11,7 @@ const ACTOR_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/actor
 const INVENTORY_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/inventory_capability.gd")
 const EQUIPMENT_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/equipment_capability.gd")
 const COMBAT_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/combat_capability.gd")
+const AI_TARGETING_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/ai_targeting_capability.gd")
 
 const NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
 const ACTIVE_COMBAT_ACTOR_GROUP := "active_combat_actor"
@@ -227,7 +228,7 @@ func get_actor_capabilities() -> Array:
 
 
 func _create_actor_capabilities() -> Array:
-	return [INVENTORY_CAPABILITY_SCRIPT.new(), EQUIPMENT_CAPABILITY_SCRIPT.new(), COMBAT_CAPABILITY_SCRIPT.new()]
+	return [INVENTORY_CAPABILITY_SCRIPT.new(), EQUIPMENT_CAPABILITY_SCRIPT.new(), COMBAT_CAPABILITY_SCRIPT.new(), AI_TARGETING_CAPABILITY_SCRIPT.new()]
 
 
 func _setup_actor_capabilities() -> void:
