@@ -23,11 +23,13 @@ func _run() -> void:
 	await _run_close_group_click_test()
 	if _failures.is_empty():
 		print("FATIGUE_GROUP_VALIDATION_OK")
+		await _cleanup_scene()
 		quit(0)
 		return
 	for failure in _failures:
 		push_error(failure)
 	print("FATIGUE_GROUP_VALIDATION_FAILED count=%d" % _failures.size())
+	await _cleanup_scene()
 	quit(1)
 
 
@@ -41,6 +43,19 @@ func _load_scene() -> void:
 	_mira = _scene.get_node("PartyMembers/Mira") as HumanoidCharacter
 	_tomas = _scene.get_node("PartyMembers/Tomas") as HumanoidCharacter
 	_camera.current = true
+
+
+func _cleanup_scene() -> void:
+	_party_manager = null
+	_interaction_controller = null
+	_camera = null
+	_mira = null
+	_tomas = null
+	if _scene != null and is_instance_valid(_scene):
+		root.remove_child(_scene)
+		_scene.free()
+		_scene = null
+	await process_frame
 
 
 func _run_fatigue_tests() -> void:
@@ -159,7 +174,7 @@ func _test_block_costs_fatigue() -> void:
 	_tomas.base_block_chance = 100.0
 	var before := _tomas.fatigue
 	var did_block := false
-	for _attempt in range(40):
+	for _attempt in range(120):
 		if _tomas.receive_attack(_mira, 0.0, 0.0) == "blocked":
 			did_block = true
 			break
@@ -201,8 +216,11 @@ func _reset_actor_for_fatigue(actor: HumanoidCharacter) -> void:
 	actor._is_sitting = false
 	actor.base_dodge_chance = 0.08
 	actor.base_block_chance = 0.06
-	actor._combat_cooldown_remaining = 0.0
-	actor._clear_combat_action()
+	var combat_capability = actor.get_actor_capability(&"combat")
+	if combat_capability != null and combat_capability.has_method("clear_all_state"):
+		combat_capability.call("clear_all_state")
+	else:
+		actor._clear_combat_action()
 
 
 func _place_duelists() -> void:

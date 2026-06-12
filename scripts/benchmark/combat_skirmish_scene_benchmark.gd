@@ -104,10 +104,18 @@ func _finish_benchmark() -> void:
 			failed = true
 		if failed:
 			if auto_quit:
-				quit(1)
+				_quit_after_cleanup(1)
 			return
 	if auto_quit:
-		quit(0)
+		_quit_after_cleanup(0)
+
+
+func _quit_after_cleanup(exit_code: int) -> void:
+	if _scene != null and is_instance_valid(_scene):
+		root.remove_child(_scene)
+		_scene.free()
+		_scene = null
+	quit(exit_code)
 
 
 func _collect_group_counts() -> Dictionary:

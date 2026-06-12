@@ -122,6 +122,40 @@ func get_equipped_weight() -> float:
 	return total
 
 
+func get_stat_modifiers() -> Array:
+	if not _ensure_equipment_ready():
+		return []
+	var modifiers: Array = []
+	for item in equipped_items.values():
+		if not (item is ItemDefinition):
+			continue
+		for modifier in (item as ItemDefinition).stat_modifiers:
+			if modifier == null:
+				continue
+			modifiers.append(modifier.to_modifier_dictionary())
+	return modifiers
+
+
+func has_item_stat_modifier(item: ItemDefinition, stat_name: String) -> bool:
+	if item == null:
+		return false
+	for modifier in item.stat_modifiers:
+		if modifier != null and modifier.stat_name == stat_name:
+			return true
+	return false
+
+
+func get_item_stat_value(item: ItemDefinition, stat_name: String, base_value: float) -> float:
+	if item == null:
+		return base_value
+	var value := base_value
+	for modifier in item.stat_modifiers:
+		if modifier == null or modifier.stat_name != stat_name:
+			continue
+		value = (value + modifier.add) * modifier.mul
+	return value
+
+
 func seed_starting_equipment_from_actor() -> void:
 	if not _ensure_equipment_ready():
 		return
