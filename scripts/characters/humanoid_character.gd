@@ -324,6 +324,7 @@ var _selection_ring: Node3D
 var _body: BodyProjection = null
 var _combat_capability: CombatCapability
 var _ai_targeting_capability
+var _interaction_capability
 var _stat_value_cache_frame := -1
 var _stat_value_cache: Dictionary = {}
 var _bleed_splotch_controller: Node
@@ -350,6 +351,7 @@ func _ready() -> void:
 	super._ready()
 	_combat_capability = get_actor_capability(&"combat") as CombatCapability
 	_ai_targeting_capability = get_actor_capability(&"ai_targeting")
+	_interaction_capability = get_actor_capability(&"interaction")
 	_rng.randomize()
 	_far_runtime_process_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PROCESS_INTERVAL)
 	_far_runtime_physics_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PHYSICS_INTERVAL)
@@ -641,47 +643,33 @@ func _apply_deferred_spawn_visual_grounding() -> void:
 
 
 func stop_mining_assignment() -> void:
-	if _current_mining_node != null:
-		_current_mining_node.release_miner(self)
-	_current_mining_node = null
-	_mining_active = false
-	if _current_order_type == OrderType.MINE:
-		_current_order_type = OrderType.NONE
-	mining_changed.emit()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_mining_assignment()
 
 
 func stop_scavenging_assignment() -> void:
-	if _current_scavenging_node != null and _current_scavenging_node.has_method("release_scavenger"):
-		_current_scavenging_node.release_scavenger(self)
-	_current_scavenging_node = null
-	_scavenging_active = false
-	if _current_order_type == OrderType.SCAVENGE:
-		_current_order_type = OrderType.NONE
-	scavenging_changed.emit()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_scavenging_assignment()
 
 
 func stop_container_interaction() -> void:
-	if _current_container_target != null and _current_container_target.has_method("release_interactor"):
-		_current_container_target.release_interactor(self)
-	_current_container_target = null
-	if _current_order_type == OrderType.OPEN_CONTAINER:
-		_current_order_type = OrderType.NONE
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_container_interaction()
 
 
 func stop_trade_interaction() -> void:
-	if _current_trade_target != null and _current_trade_target.has_method("release_trader"):
-		_current_trade_target.release_trader(self)
-	_current_trade_target = null
-	if _current_order_type == OrderType.TRADE:
-		_current_order_type = OrderType.NONE
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_trade_interaction()
 
 
 func stop_conversation_interaction() -> void:
-	if _current_conversation_target != null and _current_conversation_target.has_method("release_talker"):
-		_current_conversation_target.release_talker(self)
-	_current_conversation_target = null
-	if _current_order_type == OrderType.TALK:
-		_current_order_type = OrderType.NONE
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_conversation_interaction()
 
 
 func stop_attack_assignment() -> void:
@@ -793,85 +781,33 @@ func stop_pickup_assignment() -> void:
 
 
 func assign_open_container(container, issued_by_player: bool = true) -> void:
-	if container == null:
-		return
-	if not _set_order(OrderType.OPEN_CONTAINER, issued_by_player):
-		return
-	if _current_container_target != null and _current_container_target != container and _current_container_target.has_method("release_interactor"):
-		_current_container_target.release_interactor(self)
-	_current_container_target = container
-	if _current_container_target.has_method("register_interactor"):
-		_current_container_target.register_interactor(self)
-	_set_actor_move_target(_current_container_target.get_interaction_position(self))
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_open_container(container, issued_by_player)
 
 
 func assign_trade_target(target_character, issued_by_player: bool = true) -> void:
-	if target_character == null:
-		return
-	if not _set_order(OrderType.TRADE, issued_by_player):
-		return
-	if _current_trade_target != null and _current_trade_target != target_character and _current_trade_target.has_method("release_trader"):
-		_current_trade_target.release_trader(self)
-	_current_trade_target = target_character
-	if _current_trade_target.has_method("register_trader"):
-		_current_trade_target.register_trader(self)
-	_set_actor_move_target(_current_trade_target.get_interaction_position(self))
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_trade_target(target_character, issued_by_player)
 
 
 func assign_conversation_target(target_character, issued_by_player: bool = true) -> void:
-	if target_character == null or not target_character.has_conversation_definition():
-		return
-	var preserve_seat_for_talk := issued_by_player and _is_sitting
-	if not _set_order(OrderType.TALK, issued_by_player, preserve_seat_for_talk):
-		return
-	if _current_conversation_target != null and _current_conversation_target != target_character and _current_conversation_target.has_method("release_talker"):
-		_current_conversation_target.release_talker(self)
-	_current_conversation_target = target_character
-	if _current_conversation_target.has_method("register_talker"):
-		_current_conversation_target.register_talker(self)
-	if preserve_seat_for_talk and global_position.distance_to(_current_conversation_target.global_position) <= _get_conversation_interaction_distance():
-		_clear_actor_move_target()
-	else:
-		_set_actor_move_target(_current_conversation_target.get_interaction_position(self))
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_conversation_target(target_character, issued_by_player)
 
 
 func assign_mining_resource(resource_node, issued_by_player: bool = true) -> void:
-	if resource_node == null:
-		return
-	var mining_node := resource_node as MiningResourceNode
-	if mining_node == null:
-		return
-	if not _ensure_mining_tool_equipped(mining_node, issued_by_player):
-		return
-	if not _set_order(OrderType.MINE, issued_by_player):
-		return
-	if _current_mining_node != null and _current_mining_node != mining_node:
-		_current_mining_node.release_miner(self)
-	_current_mining_node = mining_node
-	_current_mining_node.register_miner(self)
-	_mining_active = false
-	_set_actor_move_target(_current_mining_node.get_mining_position(self))
-	mining_changed.emit()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_mining_resource(resource_node, issued_by_player)
 
 
 func assign_scavenging_resource(resource_node, issued_by_player: bool = true) -> void:
-	if resource_node == null:
-		return
-	if resource_node.has_method("is_depleted") and resource_node.is_depleted():
-		if issued_by_player:
-			center_notice_requested.emit("Depleted")
-		_show_world_notice("Depleted", Color(0.75, 0.72, 0.62, 1.0), 1.2, 0.45)
-		return
-	if not _set_order(OrderType.SCAVENGE, issued_by_player):
-		return
-	if _current_scavenging_node != null and _current_scavenging_node != resource_node and _current_scavenging_node.has_method("release_scavenger"):
-		_current_scavenging_node.release_scavenger(self)
-	_current_scavenging_node = resource_node
-	if _current_scavenging_node.has_method("register_scavenger"):
-		_current_scavenging_node.register_scavenger(self)
-	_scavenging_active = false
-	_set_actor_move_target(_current_scavenging_node.get_scavenging_position(self))
-	scavenging_changed.emit()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_scavenging_resource(resource_node, issued_by_player)
 
 
 func assign_attack_target(target_actor: Node, issued_by_player: bool = true, notify_target: bool = true, notify_allies: bool = true) -> bool:
@@ -1151,39 +1087,43 @@ func get_collision_bottom_local_y() -> float:
 
 
 func has_mining_assignment() -> bool:
-	return _current_mining_node != null
+	var interaction = _get_interaction_capability()
+	return interaction.has_mining_assignment() if interaction != null else _current_mining_node != null
 
 
 func get_assigned_mining_node():
-	return _current_mining_node
+	var interaction = _get_interaction_capability()
+	return interaction.get_assigned_mining_node() if interaction != null else _current_mining_node
 
 
 func is_actively_mining() -> bool:
-	return _mining_active
+	var interaction = _get_interaction_capability()
+	return interaction.is_actively_mining() if interaction != null else _mining_active
 
 
 func get_mining_progress_ratio() -> float:
-	if _current_mining_node == null:
-		return 0.0
-	return clampf(_get_stored_mining_progress(_current_mining_node), 0.0, 1.0)
+	var interaction = _get_interaction_capability()
+	return interaction.get_mining_progress_ratio() if interaction != null else 0.0
 
 
 func has_scavenging_assignment() -> bool:
-	return _current_scavenging_node != null
+	var interaction = _get_interaction_capability()
+	return interaction.has_scavenging_assignment() if interaction != null else _current_scavenging_node != null
 
 
 func get_assigned_scavenging_node():
-	return _current_scavenging_node
+	var interaction = _get_interaction_capability()
+	return interaction.get_assigned_scavenging_node() if interaction != null else _current_scavenging_node
 
 
 func is_actively_scavenging() -> bool:
-	return _scavenging_active
+	var interaction = _get_interaction_capability()
+	return interaction.is_actively_scavenging() if interaction != null else _scavenging_active
 
 
 func get_scavenging_progress_ratio() -> float:
-	if _current_scavenging_node == null:
-		return 0.0
-	return clampf(_get_stored_scavenging_progress(_current_scavenging_node), 0.0, 1.0)
+	var interaction = _get_interaction_capability()
+	return interaction.get_scavenging_progress_ratio() if interaction != null else 0.0
 
 
 func can_eat_item(definition: ItemDefinition) -> bool:
@@ -2510,6 +2450,12 @@ func _get_ai_targeting_capability():
 	return _ai_targeting_capability
 
 
+func _get_interaction_capability():
+	if _interaction_capability == null:
+		_interaction_capability = get_actor_capability(&"interaction")
+	return _interaction_capability
+
+
 func _process_combat_cooldown(delta: float) -> void:
 	var combat_capability := _get_combat_capability()
 	if combat_capability != null:
@@ -2969,100 +2915,26 @@ func _process_law_sentence_move() -> void:
 func _process_mining(delta: float) -> void:
 	if _current_mining_node == null:
 		return
-	var mining_node := _current_mining_node as MiningResourceNode
-	if mining_node == null:
-		return
-	if not _ensure_mining_tool_equipped(mining_node, _order_was_player_issued):
-		stop_mining_assignment()
-		return
-	var mining_position: Vector3 = mining_node.get_mining_position(self)
-	if global_position.distance_to(mining_position) > mining_node.get_mining_interaction_radius():
-		_set_actor_move_target(mining_position)
-		_mining_active = false
-		mining_changed.emit()
-		return
-	if _has_move_target:
-		return
-	var duration := maxf(mining_node.get_effective_mine_duration(self), 0.01)
-	var mining_inventory := _work_inventory_override if _work_inventory_override != null else inventory
-	var progress_before := clampf(_get_stored_mining_progress(mining_node), 0.0, 1.0)
-	if progress_before >= 1.0:
-		if mining_node.can_produce_ore_for(self):
-			if mining_inventory.add_item(mining_node.item_definition):
-				progress_before = 0.0
-			else:
-				_store_mining_progress(mining_node, 1.0)
-				_mining_active = false
-				mining_changed.emit()
-				return
-		else:
-			_show_mining_requirement_notice(mining_node)
-			progress_before = 0.0
-	_mining_active = true
-	var progress_delta := minf(delta / duration, maxf(1.0 - progress_before, 0.0))
-	_award_mining_progress_xp(progress_delta, mining_node.get_locked_attempt_xp_multiplier_for(self))
-	var progress := progress_before + progress_delta
-	if progress >= 1.0:
-		if mining_node.can_produce_ore_for(self):
-			if mining_inventory.add_item(mining_node.item_definition):
-				progress = 0.0
-			else:
-				progress = 1.0
-				_mining_active = false
-		else:
-			progress = 0.0
-			_show_mining_requirement_notice(mining_node)
-	_store_mining_progress(mining_node, progress)
-	mining_changed.emit()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_mining(delta)
 
 
 func _award_mining_progress_xp(progress_delta: float, xp_multiplier: float = 1.0) -> void:
-	if progress_delta <= 0.0 or xp_multiplier <= 0.0:
-		return
-	var mining_xp := SkillRules.get_xp_to_next_level(SkillRules.DEFAULT_LEVEL) / MINING_ORE_WORTH_FOR_FIRST_LEVEL * progress_delta * xp_multiplier
-	add_skill_xp(SkillRules.LABOR_MINING, mining_xp, "mining")
-	add_skill_xp(SkillRules.ATTRIBUTE_STRENGTH, mining_xp * MINING_STRENGTH_XP_FACTOR, "mining")
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.award_mining_progress_xp(progress_delta, xp_multiplier)
 
 
 func _show_mining_requirement_notice(mining_node: MiningResourceNode) -> void:
-	var message := "Mining %d required" % mining_node.required_mining_level
-	_show_mining_notice(message, Color(1.0, 0.68, 0.24, 1.0), _order_was_player_issued)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.show_mining_requirement_notice(mining_node)
 
 
 func _ensure_mining_tool_equipped(mining_node: MiningResourceNode, issued_by_player: bool) -> bool:
-	if mining_node == null:
-		return false
-	var required_tag := str(mining_node.required_tool_tag)
-	if required_tag.is_empty():
-		return true
-	var equipped_weapon := get_equipped_item(ItemDefinition.EQUIP_SLOT_WEAPON)
-	if _item_has_tool_tag(equipped_weapon, required_tag):
-		return true
-	var tool := _find_inventory_tool(required_tag)
-	if tool == null:
-		_show_mining_notice("%s required" % _get_mining_tool_label(mining_node), Color(1.0, 0.68, 0.24, 1.0), issued_by_player)
-		return false
-	if not inventory.remove_item_count(tool, 1):
-		_show_mining_notice("%s required" % _get_mining_tool_label(mining_node), Color(1.0, 0.68, 0.24, 1.0), issued_by_player)
-		return false
-	var previous_weapon := get_equipped_item(ItemDefinition.EQUIP_SLOT_WEAPON)
-	if previous_weapon != null and not inventory.can_add_item(previous_weapon):
-		inventory.add_item(tool)
-		_show_mining_notice("No room to stow weapon", Color(1.0, 0.38, 0.28, 1.0), issued_by_player)
-		return false
-	begin_equipment_update_batch()
-	var replaced := equip_item_to_slot(tool, ItemDefinition.EQUIP_SLOT_WEAPON)
-	var stowed := true
-	if replaced != null:
-		stowed = inventory.add_item(replaced)
-	if not stowed:
-		equip_item_to_slot(replaced, ItemDefinition.EQUIP_SLOT_WEAPON)
-		inventory.add_item(tool)
-	end_equipment_update_batch()
-	if not stowed:
-		_show_mining_notice("No room to stow weapon", Color(1.0, 0.38, 0.28, 1.0), issued_by_player)
-		return false
-	return true
+	var interaction = _get_interaction_capability()
+	return interaction.ensure_mining_tool_equipped(mining_node, issued_by_player) if interaction != null else false
 
 
 func _find_inventory_tool(required_tag: String) -> ItemDefinition:
@@ -3079,129 +2951,68 @@ func _item_has_tool_tag(item: ItemDefinition, required_tag: String) -> bool:
 
 
 func _get_mining_tool_label(mining_node: MiningResourceNode) -> String:
-	if mining_node != null and not str(mining_node.required_tool_label).is_empty():
-		return str(mining_node.required_tool_label)
-	return "Tool"
+	var interaction = _get_interaction_capability()
+	return interaction.get_mining_tool_label(mining_node) if interaction != null else "Tool"
 
 
 func _show_mining_notice(message: String, color: Color, center_notice: bool) -> void:
-	if center_notice:
-		center_notice_requested.emit(message)
-	_show_world_notice(message, color, 1.2, 0.45)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.show_mining_notice(message, color, center_notice)
 
 
 func _process_scavenging(delta: float) -> void:
 	if _current_scavenging_node == null:
 		return
-	var scavenging_node := _current_scavenging_node as ScavengingResourceNode
-	if scavenging_node == null:
-		return
-	if scavenging_node.is_depleted():
-		_show_scavenging_notice("Depleted", Color(0.75, 0.72, 0.62, 1.0), true)
-		stop_scavenging_assignment()
-		return
-	var scavenging_position: Vector3 = scavenging_node.get_scavenging_position(self)
-	if global_position.distance_to(scavenging_position) > interact_distance:
-		_set_actor_move_target(scavenging_position)
-		_scavenging_active = false
-		scavenging_changed.emit()
-		return
-	if _has_move_target:
-		return
-	var duration := maxf(scavenging_node.get_effective_scavenge_duration(self), 0.01)
-	var progress_before := clampf(_get_stored_scavenging_progress(scavenging_node), 0.0, 1.0)
-	_scavenging_active = true
-	var progress_delta := minf(delta / duration, maxf(1.0 - progress_before, 0.0))
-	_award_scavenging_progress_xp(progress_delta)
-	var progress := progress_before + progress_delta
-	if progress >= 1.0:
-		var result := scavenging_node.complete_scavenge_attempt(self)
-		progress = 0.0
-		var message := str(result.get("message", ""))
-		if not message.is_empty():
-			_show_scavenging_notice(message, _get_scavenging_notice_color(result), false)
-		if bool(result.get("depleted", false)):
-			_store_scavenging_progress(scavenging_node, progress)
-			stop_scavenging_assignment()
-			return
-	_store_scavenging_progress(scavenging_node, progress)
-	scavenging_changed.emit()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_scavenging(delta)
 
 
 func _award_scavenging_progress_xp(progress_delta: float) -> void:
-	if progress_delta <= 0.0:
-		return
-	var scavenging_xp := SkillRules.get_xp_to_next_level(SkillRules.DEFAULT_LEVEL) / SCAVENGING_ATTEMPTS_FOR_FIRST_LEVEL * progress_delta
-	add_skill_xp(SkillRules.LABOR_SCAVENGING, scavenging_xp, "scavenging")
-	add_skill_xp(SkillRules.ATTRIBUTE_PERCEPTION, scavenging_xp * 0.03, "scavenging")
-	add_skill_xp(SkillRules.ATTRIBUTE_DEXTERITY, scavenging_xp * 0.02, "scavenging")
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.award_scavenging_progress_xp(progress_delta)
 
 
 func _show_scavenging_notice(message: String, color: Color, center_notice: bool) -> void:
-	if center_notice and _order_was_player_issued:
-		center_notice_requested.emit(message)
-	_show_world_notice(message, color, 1.2, 0.45)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.show_scavenging_notice(message, color, center_notice)
 
 
 func _get_scavenging_notice_color(result: Dictionary) -> Color:
-	if bool(result.get("useful", false)):
-		return Color(0.5, 1.0, 0.65, 1.0)
-	if bool(result.get("dropped", false)):
-		return Color(1.0, 0.82, 0.36, 1.0)
-	return Color(0.74, 0.68, 0.55, 1.0)
+	var interaction = _get_interaction_capability()
+	return interaction.get_scavenging_notice_color(result) if interaction != null else Color(0.74, 0.68, 0.55, 1.0)
 
 
 func _process_container_interaction() -> void:
 	if _current_container_target == null:
 		return
-	var interaction_position: Vector3 = _current_container_target.get_interaction_position(self)
-	if global_position.distance_to(interaction_position) > interact_distance:
-		_set_actor_move_target(interaction_position)
-		return
-	if _has_move_target:
-		return
-	var container = _current_container_target
-	_current_container_target = null
-	_current_order_type = OrderType.NONE
-	container_reached.emit(self, container)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_container_interaction()
 
 
 func _process_trade_interaction() -> void:
 	if _current_trade_target == null:
 		return
-	var interaction_position: Vector3 = _current_trade_target.get_interaction_position(self)
-	var target_position: Vector3 = _current_trade_target.global_position
-	if global_position.distance_to(target_position) > trade_interaction_distance:
-		_set_actor_move_target(interaction_position)
-		return
-	_clear_actor_move_target()
-	var target = _current_trade_target
-	_current_trade_target = null
-	_current_order_type = OrderType.NONE
-	trade_target_reached.emit(self, target)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_trade_interaction()
 
 
 func _process_conversation_interaction() -> void:
 	if _current_conversation_target == null:
 		return
-	var interaction_position: Vector3 = _current_conversation_target.get_interaction_position(self)
-	var target_position: Vector3 = _current_conversation_target.global_position
-	if global_position.distance_to(target_position) > _get_conversation_interaction_distance():
-		if _is_sitting:
-			stop_seat_assignment()
-		_set_actor_move_target(interaction_position)
-		return
-	_clear_actor_move_target()
-	var target = _current_conversation_target
-	_current_conversation_target = null
-	_current_order_type = OrderType.NONE
-	conversation_target_reached.emit(self, target)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_conversation_interaction()
 
 
 func _get_conversation_interaction_distance() -> float:
-	if _order_was_player_issued and _is_sitting:
-		return interact_distance * maxf(1.0, seated_player_talk_distance_multiplier)
-	return interact_distance
+	var interaction = _get_interaction_capability()
+	return interaction.get_conversation_interaction_distance() if interaction != null else interact_distance
 
 
 func _process_sleep_interaction() -> void:
@@ -3702,19 +3513,25 @@ func _get_pickup_route_position(item) -> Vector3:
 
 
 func _get_stored_mining_progress(resource_node) -> float:
-	return clampf(_mining_progress_by_node.get(resource_node.get_instance_id(), 0.0), 0.0, 1.0)
+	var interaction = _get_interaction_capability()
+	return interaction.get_stored_mining_progress(resource_node) if interaction != null else 0.0
 
 
 func _store_mining_progress(resource_node, progress: float) -> void:
-	_mining_progress_by_node[resource_node.get_instance_id()] = clampf(progress, 0.0, 1.0)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.store_mining_progress(resource_node, progress)
 
 
 func _get_stored_scavenging_progress(resource_node) -> float:
-	return clampf(_scavenging_progress_by_node.get(resource_node.get_instance_id(), 0.0), 0.0, 1.0)
+	var interaction = _get_interaction_capability()
+	return interaction.get_stored_scavenging_progress(resource_node) if interaction != null else 0.0
 
 
 func _store_scavenging_progress(resource_node, progress: float) -> void:
-	_scavenging_progress_by_node[resource_node.get_instance_id()] = clampf(progress, 0.0, 1.0)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.store_scavenging_progress(resource_node, progress)
 
 
 func set_selected(value: bool) -> void:

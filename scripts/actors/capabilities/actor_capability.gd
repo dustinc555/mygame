@@ -4,6 +4,8 @@ class_name ActorCapability
 
 var capability_id: StringName
 var enabled := true
+var process_enabled := false
+var physics_process_enabled := false
 var actor: Node
 
 
