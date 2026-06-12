@@ -5,12 +5,14 @@ class_name JobSystemController
 var root_scene: Node
 var _sim_time := 0.0
 var _initialized := false
+var _job_providers: Array = []
 
 
 func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
 	root_scene = target_root
 	if is_inside_tree():
 		_initialized = true
+		_refresh_job_provider_cache()
 	refresh_from_gecs_state()
 
 
@@ -18,7 +20,22 @@ func _ready() -> void:
 	add_to_group("job_system_controller")
 	if root_scene != null:
 		_initialized = true
+	_refresh_job_provider_cache()
 	refresh_from_gecs_state()
+
+
+func register_job_provider(provider: Node) -> void:
+	if provider == null or not is_instance_valid(provider):
+		return
+	if _job_providers.has(provider):
+		return
+	_job_providers.append(provider)
+
+
+func unregister_job_provider(provider: Node) -> void:
+	var index := _job_providers.find(provider)
+	if index >= 0:
+		_job_providers.remove_at(index)
 
 
 func _process(delta: float) -> void:
@@ -73,11 +90,20 @@ func _expire_missed_job_contracts() -> void:
 
 
 func _process_job_provider_contracts(delta: float) -> void:
+	for index in range(_job_providers.size() - 1, -1, -1):
+		var provider = _job_providers[index]
+		if provider == null or not is_instance_valid(provider) or not provider.is_inside_tree():
+			_job_providers.remove_at(index)
+			continue
+		if provider.has_method("process_contracts"):
+			provider.call("process_contracts", delta, _sim_time)
+
+
+func _refresh_job_provider_cache() -> void:
 	if not is_inside_tree():
 		return
 	for provider in get_tree().get_nodes_in_group("job_provider"):
-		if provider != null and provider.has_method("process_contracts"):
-			provider.call("process_contracts", delta, _sim_time)
+		register_job_provider(provider)
 
 
 func _get_gecs_world() -> Node:
