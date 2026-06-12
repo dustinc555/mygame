@@ -2,7 +2,7 @@ extends SceneTree
 
 const DEFAULT_SCENE_PATH := "res://scenes/test_levels/combat_skirmish_20v20_armory.tscn"
 const RUSTDEAD_5V10_SCENE_PATH := "res://scenes/test_levels/rustdead_5v10_demo.tscn"
-const RUSTDEAD_5V10_AVG_FPS_FLOOR := 53.0
+const RUSTDEAD_5V10_AVG_FPS_FLOOR := 55.0
 
 # Baseline before WorldActor job/combat refactor on this machine, 600 sampled
 # frames after 240 warmup at max 120 FPS: 10v10 avg 85.13/min 46.50 FPS;
@@ -45,6 +45,7 @@ func _begin_sampling() -> void:
 	_print_config()
 	for _warmup_index in range(warmup_frames):
 		await process_frame
+	_reset_benchmark_metrics()
 	_sample_last_usec = int(Time.get_ticks_usec())
 	while _sample_count < sample_frames:
 		await process_frame
@@ -93,6 +94,7 @@ func _finish_benchmark() -> void:
 		"resource_count": int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT)),
 		"memory_static_bytes": int(Performance.get_monitor(Performance.MEMORY_STATIC)),
 		"groups": _collect_group_counts(),
+		"actor_query_metrics": _collect_actor_query_metrics(),
 	}
 	print("COMBAT_SKIRMISH_BENCHMARK_RESULT " + JSON.stringify(report))
 	if scene_path == RUSTDEAD_5V10_SCENE_PATH:
@@ -122,6 +124,19 @@ func _collect_group_counts() -> Dictionary:
 	groups["alive_world_actor"] = alive
 	groups["in_combat_world_actor"] = in_combat
 	return groups
+
+
+func _reset_benchmark_metrics() -> void:
+	var query_controller := root.get_tree().get_first_node_in_group("actor_query_controller")
+	if query_controller != null and query_controller.has_method("reset_actor_query_metrics"):
+		query_controller.call("reset_actor_query_metrics")
+
+
+func _collect_actor_query_metrics() -> Dictionary:
+	var query_controller := root.get_tree().get_first_node_in_group("actor_query_controller")
+	if query_controller != null and query_controller.has_method("get_actor_query_metrics"):
+		return query_controller.call("get_actor_query_metrics") as Dictionary
+	return {}
 
 
 func _parse_cli_args() -> void:

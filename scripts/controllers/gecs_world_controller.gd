@@ -44,7 +44,8 @@ const C_LEDGER_SIMULATION_PATH := "res://scripts/ecs/components/c_game_ledger_si
 const C_AI_SCHEDULER_STATE_PATH := "res://scripts/ecs/components/c_game_ai_scheduler_state.gd"
 const C_POPULATION_REALIZATION_STATE_PATH := "res://scripts/ecs/components/c_game_population_realization_state.gd"
 
-@export var spatial_cell_size := 12.0
+@export var spatial_cell_size := 6.0
+@export var spatial_rebuild_interval_seconds := 0.25
 
 var root_scene: Node
 var world
@@ -76,6 +77,16 @@ var _ledger_simulation_entity
 var _ai_scheduler_state_entity
 var _population_realization_state_entity
 var _initialized := false
+var _actor_spatial_nodes_by_cell: Dictionary = {}
+var _actor_spatial_index_valid := false
+var _actor_spatial_index_elapsed := 999.0
+var _spatial_query_calls := 0
+var _spatial_query_cells_checked := 0
+var _spatial_query_candidates_checked := 0
+var _spatial_query_results_returned := 0
+var _spatial_index_rebuilds := 0
+var _spatial_index_rebuild_usec := 0
+var _actor_query_metrics_enabled := false
 var _world_script
 var _entity_script
 var _ecs_script
@@ -142,6 +153,9 @@ func _exit_tree() -> void:
 func _process(delta: float) -> void:
 	if world != null:
 		world.process(delta)
+	_actor_spatial_index_elapsed += delta
+	if _actor_spatial_index_elapsed >= maxf(spatial_rebuild_interval_seconds, 0.01):
+		_actor_spatial_index_valid = false
 
 
 func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) -> String:
@@ -169,6 +183,7 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 		_actor_entity_by_actor_id[actor_id] = entity
 	_write_actor_components(entity, actor, actor_id, settlement_id, context)
 	_actor_id_by_instance_id[actor.get_instance_id()] = actor_id
+	_actor_spatial_index_valid = false
 	sync_actor_inventory(actor)
 	return actor_id
 
@@ -187,6 +202,7 @@ func unregister_actor(actor: Node) -> void:
 		world.remove_entity(entity)
 	_actor_entity_by_actor_id.erase(actor_id)
 	_actor_id_by_instance_id.erase(actor.get_instance_id())
+	_actor_spatial_index_valid = false
 	var pop_entity = _population_entity_by_actor_id.get(actor_id)
 	if pop_entity != null and is_instance_valid(pop_entity):
 		var record_component = pop_entity.get_component(C_POPULATION_RECORD)
@@ -257,6 +273,35 @@ func get_alive_actors_for_faction(faction_id: String, include_party := true) -> 
 
 func get_nearby_actors(position: Vector3, radius: float, include_party := true) -> Array:
 	return _query_actor_nodes({"alive": true, "position": position, "radius": radius, "include_party": include_party})
+
+
+func get_nearby_actors_limited(position: Vector3, radius: float, max_count: int, include_party := true) -> Array:
+	return _query_spatial_actor_nodes_limited(position, radius, radius * radius, include_party, true, max_count)
+
+
+func get_actor_query_metrics() -> Dictionary:
+	return {
+		"spatial_query_calls": _spatial_query_calls,
+		"spatial_query_cells_checked": _spatial_query_cells_checked,
+		"spatial_query_candidates_checked": _spatial_query_candidates_checked,
+		"spatial_query_results_returned": _spatial_query_results_returned,
+		"spatial_index_rebuilds": _spatial_index_rebuilds,
+		"spatial_index_rebuild_usec": _spatial_index_rebuild_usec,
+		"spatial_index_cell_count": _actor_spatial_nodes_by_cell.size(),
+	}
+
+
+func reset_actor_query_metrics() -> void:
+	_spatial_query_calls = 0
+	_spatial_query_cells_checked = 0
+	_spatial_query_candidates_checked = 0
+	_spatial_query_results_returned = 0
+	_spatial_index_rebuilds = 0
+	_spatial_index_rebuild_usec = 0
+
+
+func set_actor_query_metrics_enabled(enabled: bool) -> void:
+	_actor_query_metrics_enabled = enabled
 
 
 func get_all_humanoids() -> Array:
@@ -1682,6 +1727,8 @@ func _query_actor_nodes(filters: Dictionary) -> Array:
 	var position: Vector3 = filters.get("position", Vector3.ZERO)
 	var radius: float = maxf(float(filters.get("radius", -1.0)), 0.0)
 	var radius_squared: float = radius * radius
+	if has_position_filter and settlement_filter.is_empty() and role_filter.is_empty() and faction_filter.is_empty():
+		return _query_spatial_actor_nodes(position, radius, radius_squared, include_party, require_alive)
 	for entity in world.query.with_all([C_NODE, C_IDENTITY, C_FACTION, C_SETTLEMENT, C_SPATIAL, C_VITALS]).execute():
 		var actor = _actor_from_entity(entity)
 		if actor == null:
@@ -1706,6 +1753,159 @@ func _query_actor_nodes(filters: Dictionary) -> Array:
 				continue
 		result.append(actor)
 	return result
+
+
+func _query_spatial_actor_nodes(position: Vector3, radius: float, radius_squared: float, include_party: bool, require_alive: bool) -> Array:
+	_ensure_actor_spatial_index()
+	if _actor_query_metrics_enabled:
+		_spatial_query_calls += 1
+	var result: Array = []
+	var checked_actor_ids := {}
+	var center_cell := _spatial_cell_coords(position)
+	var cell_radius := int(ceil(radius / maxf(spatial_cell_size, 1.0)))
+	for cell_x in range(center_cell.x - cell_radius, center_cell.x + cell_radius + 1):
+		for cell_y in range(center_cell.y - cell_radius, center_cell.y + cell_radius + 1):
+			if _actor_query_metrics_enabled:
+				_spatial_query_cells_checked += 1
+			var actors = _actor_spatial_nodes_by_cell.get(Vector2i(cell_x, cell_y), [])
+			if not (actors is Array):
+				continue
+			for actor_value in actors:
+				var actor := actor_value as Node
+				if actor == null or not is_instance_valid(actor) or not (actor is Node3D):
+					continue
+				var actor_key := actor.get_instance_id()
+				if checked_actor_ids.has(actor_key):
+					continue
+				checked_actor_ids[actor_key] = true
+				if _actor_query_metrics_enabled:
+					_spatial_query_candidates_checked += 1
+				if (actor as Node3D).global_position.distance_squared_to(position) > radius_squared:
+					continue
+				var party_value = actor.get("player_party_member")
+				if not include_party and party_value != null and bool(party_value):
+					continue
+				var life_state_value = actor.get("life_state")
+				if require_alive and (life_state_value == null or int(life_state_value) != NpcRules.LifeState.ALIVE):
+					continue
+				result.append(actor)
+	if _actor_query_metrics_enabled:
+		_spatial_query_results_returned += result.size()
+	return result
+
+
+func _query_spatial_actor_nodes_limited(position: Vector3, radius: float, radius_squared: float, include_party: bool, require_alive: bool, max_count: int) -> Array:
+	if max_count <= 0:
+		return []
+	_ensure_actor_spatial_index()
+	if _actor_query_metrics_enabled:
+		_spatial_query_calls += 1
+	var entries: Array = []
+	var checked_actor_ids := {}
+	var center_cell := _spatial_cell_coords(position)
+	var cell_size := maxf(spatial_cell_size, 1.0)
+	var cell_radius := int(ceil(radius / cell_size))
+	for ring in range(cell_radius + 1):
+		_query_spatial_ring(position, radius_squared, include_party, require_alive, max_count, center_cell, ring, checked_actor_ids, entries)
+		if entries.size() >= max_count:
+			var farthest_entry: Dictionary = entries[entries.size() - 1] if entries[entries.size() - 1] is Dictionary else {}
+			var farthest_distance_squared := float(farthest_entry.get("distance_squared", INF))
+			var next_ring_min_distance := maxf(0.0, float(ring + 1) * cell_size - cell_size)
+			if next_ring_min_distance * next_ring_min_distance > farthest_distance_squared:
+				break
+	var result: Array = []
+	for entry_value in entries:
+		var entry: Dictionary = entry_value if entry_value is Dictionary else {}
+		var actor = entry.get("actor", null)
+		if actor != null and is_instance_valid(actor):
+			result.append(actor)
+	if _actor_query_metrics_enabled:
+		_spatial_query_results_returned += result.size()
+	return result
+
+
+func _query_spatial_ring(position: Vector3, radius_squared: float, include_party: bool, require_alive: bool, max_count: int, center_cell: Vector2i, ring: int, checked_actor_ids: Dictionary, entries: Array) -> void:
+	if ring == 0:
+		_query_spatial_cell(position, radius_squared, include_party, require_alive, max_count, center_cell, checked_actor_ids, entries)
+		return
+	for cell_x in range(center_cell.x - ring, center_cell.x + ring + 1):
+		_query_spatial_cell(position, radius_squared, include_party, require_alive, max_count, Vector2i(cell_x, center_cell.y - ring), checked_actor_ids, entries)
+		_query_spatial_cell(position, radius_squared, include_party, require_alive, max_count, Vector2i(cell_x, center_cell.y + ring), checked_actor_ids, entries)
+	for cell_y in range(center_cell.y - ring + 1, center_cell.y + ring):
+		_query_spatial_cell(position, radius_squared, include_party, require_alive, max_count, Vector2i(center_cell.x - ring, cell_y), checked_actor_ids, entries)
+		_query_spatial_cell(position, radius_squared, include_party, require_alive, max_count, Vector2i(center_cell.x + ring, cell_y), checked_actor_ids, entries)
+
+
+func _query_spatial_cell(position: Vector3, radius_squared: float, include_party: bool, require_alive: bool, max_count: int, cell: Vector2i, checked_actor_ids: Dictionary, entries: Array) -> void:
+	if _actor_query_metrics_enabled:
+		_spatial_query_cells_checked += 1
+	var actors = _actor_spatial_nodes_by_cell.get(cell, [])
+	if not (actors is Array):
+		return
+	for actor_value in actors:
+		var actor := actor_value as Node
+		if actor == null or not is_instance_valid(actor) or not (actor is Node3D):
+			continue
+		var actor_key := actor.get_instance_id()
+		if checked_actor_ids.has(actor_key):
+			continue
+		checked_actor_ids[actor_key] = true
+		if _actor_query_metrics_enabled:
+			_spatial_query_candidates_checked += 1
+		var distance_squared: float = (actor as Node3D).global_position.distance_squared_to(position)
+		if distance_squared > radius_squared:
+			continue
+		var party_value = actor.get("player_party_member")
+		if not include_party and party_value != null and bool(party_value):
+			continue
+		var life_state_value = actor.get("life_state")
+		if require_alive and (life_state_value == null or int(life_state_value) != NpcRules.LifeState.ALIVE):
+			continue
+		_append_limited_spatial_entry(entries, actor, distance_squared, max_count)
+
+
+func _append_limited_spatial_entry(entries: Array, actor: Node, distance_squared: float, max_count: int) -> void:
+	var entry := {"actor": actor, "distance_squared": distance_squared}
+	for index in range(entries.size()):
+		var existing: Dictionary = entries[index] if entries[index] is Dictionary else {}
+		if distance_squared < float(existing.get("distance_squared", INF)):
+			entries.insert(index, entry)
+			if entries.size() > max_count:
+				entries.remove_at(entries.size() - 1)
+			return
+	entries.append(entry)
+	if entries.size() > max_count:
+		entries.remove_at(entries.size() - 1)
+
+
+func _ensure_actor_spatial_index() -> void:
+	if _actor_spatial_index_valid:
+		return
+	_rebuild_actor_spatial_index()
+
+
+func _rebuild_actor_spatial_index() -> void:
+	var started_usec := Time.get_ticks_usec() if _actor_query_metrics_enabled else 0
+	_actor_spatial_nodes_by_cell.clear()
+	if world != null:
+		for entity in world.query.with_all([C_IDENTITY, C_NODE, C_SPATIAL]).execute():
+			var identity = entity.get_component(C_IDENTITY)
+			var spatial = entity.get_component(C_SPATIAL)
+			var actor = _actor_from_entity(entity)
+			if identity == null or spatial == null or actor == null or not (actor is Node3D):
+				continue
+			spatial.world_position = (actor as Node3D).global_position
+			spatial.spatial_cell = _spatial_cell_coords(spatial.world_position)
+			spatial.position_initialized = true
+			var cell = spatial.spatial_cell
+			var bucket: Array = _actor_spatial_nodes_by_cell.get(cell, [])
+			bucket.append(actor)
+			_actor_spatial_nodes_by_cell[cell] = bucket
+	_actor_spatial_index_valid = true
+	_actor_spatial_index_elapsed = 0.0
+	if _actor_query_metrics_enabled:
+		_spatial_index_rebuilds += 1
+		_spatial_index_rebuild_usec += Time.get_ticks_usec() - started_usec
 
 
 func _actor_entity_for_actor(actor: Node):
@@ -1971,6 +2171,8 @@ func _clear_world_entities() -> void:
 	_job_provider_memory_entity_by_id.clear()
 	_activity_point_entity_by_id.clear()
 	_activity_assignment_entity_by_actor_id.clear()
+	_actor_spatial_nodes_by_cell.clear()
+	_actor_spatial_index_valid = false
 	_world_time_entity = null
 	_law_order_entity = null
 	_faction_state_entity = null
@@ -2081,6 +2283,7 @@ func _rebuild_entity_indexes() -> void:
 	for entity in world.query.with_all([C_POPULATION_REALIZATION_STATE]).execute():
 		_population_realization_state_entity = entity
 		break
+	_actor_spatial_index_valid = false
 
 
 func _has_property(object: Object, property_name: String) -> bool:
