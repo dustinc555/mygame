@@ -12,6 +12,7 @@ const INVENTORY_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/i
 const EQUIPMENT_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/equipment_capability.gd")
 const COMBAT_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/combat_capability.gd")
 const AI_TARGETING_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/ai_targeting_capability.gd")
+const INTERACTION_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/interaction_capability.gd")
 
 const NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
 const ACTIVE_COMBAT_ACTOR_GROUP := "active_combat_actor"
@@ -158,6 +159,8 @@ var _work_inventory_override: InventoryData
 var equipped_items: Dictionary = {}
 var _actor_capabilities: Array = []
 var _actor_capability_by_id: Dictionary = {}
+var _actor_process_capabilities: Array = []
+var _actor_physics_process_capabilities: Array = []
 var _actor_capabilities_ready := false
 
 var _navigation_agent: NavigationAgent3D
@@ -209,6 +212,10 @@ func add_actor_capability(capability) -> bool:
 		return false
 	_actor_capabilities.append(capability)
 	_actor_capability_by_id[capability_id] = capability
+	if bool(capability.get("process_enabled")):
+		_actor_process_capabilities.append(capability)
+	if bool(capability.get("physics_process_enabled")):
+		_actor_physics_process_capabilities.append(capability)
 	capability.call("setup", self)
 	if _actor_capabilities_ready:
 		capability.call("ready")
@@ -228,7 +235,7 @@ func get_actor_capabilities() -> Array:
 
 
 func _create_actor_capabilities() -> Array:
-	return [INVENTORY_CAPABILITY_SCRIPT.new(), EQUIPMENT_CAPABILITY_SCRIPT.new(), COMBAT_CAPABILITY_SCRIPT.new(), AI_TARGETING_CAPABILITY_SCRIPT.new()]
+	return [INVENTORY_CAPABILITY_SCRIPT.new(), EQUIPMENT_CAPABILITY_SCRIPT.new(), COMBAT_CAPABILITY_SCRIPT.new(), AI_TARGETING_CAPABILITY_SCRIPT.new(), INTERACTION_CAPABILITY_SCRIPT.new()]
 
 
 func _setup_actor_capabilities() -> void:
@@ -248,13 +255,13 @@ func _ready_actor_capabilities() -> void:
 
 
 func _process_actor_capabilities(delta: float) -> void:
-	for capability in _actor_capabilities:
+	for capability in _actor_process_capabilities:
 		if _is_actor_capability_enabled(capability):
 			capability.call("process", delta)
 
 
 func _physics_process_actor_capabilities(delta: float) -> void:
-	for capability in _actor_capabilities:
+	for capability in _actor_physics_process_capabilities:
 		if _is_actor_capability_enabled(capability):
 			capability.call("physics_process", delta)
 
@@ -266,6 +273,8 @@ func _teardown_actor_capabilities() -> void:
 			capability.call("teardown")
 	_actor_capabilities.clear()
 	_actor_capability_by_id.clear()
+	_actor_process_capabilities.clear()
+	_actor_physics_process_capabilities.clear()
 	_actor_capabilities_ready = false
 
 

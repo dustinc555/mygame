@@ -12,6 +12,8 @@ var physics_delta := 0.0
 
 func _init() -> void:
 	super._init(&"test")
+	process_enabled = true
+	physics_process_enabled = true
 
 
 func setup(target_actor: Node) -> void:
