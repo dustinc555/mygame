@@ -7,6 +7,7 @@ const COMBAT_COORDINATOR = preload("res://scripts/characters/combat_coordinator.
 const AI_BRAIN_SCRIPT = preload("res://scripts/ai/ai_brain.gd")
 const AI_JOB_SCRIPT = preload("res://scripts/ai/ai_job.gd")
 const AI_UTILITY_ADAPTER_SCRIPT = preload("res://scripts/ai/utility/ai_utility_adapter.gd")
+const ACTOR_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/actor_capability.gd")
 
 const NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
 const ACTIVE_COMBAT_ACTOR_GROUP := "active_combat_actor"
@@ -140,6 +141,9 @@ var _ai_job_tick_accumulated := 0.0
 var _close_combat_retarget_remaining := 0.0
 var _active_job_provider
 var _active_job_label := ""
+var _actor_capabilities: Array = []
+var _actor_capability_by_id: Dictionary = {}
+var _actor_capabilities_ready := false
 
 var _navigation_agent: NavigationAgent3D
 var _navigation_target_synced := false
@@ -168,6 +172,8 @@ func _ready() -> void:
 	_configure_world_actor_movement()
 	if ai_brain_enabled:
 		_setup_world_actor_ai()
+	_setup_actor_capabilities()
+	_ready_actor_capabilities()
 
 
 func _exit_tree() -> void:
@@ -175,8 +181,94 @@ func _exit_tree() -> void:
 		_active_job_provider.pause_worker_job(self, false)
 	if _ai_brain != null:
 		_ai_brain.clear_active_job()
+	_teardown_actor_capabilities()
 	_unregister_from_runtime_controllers()
 	_runtime_controller_cache.clear()
+
+
+func add_actor_capability(capability) -> bool:
+	if not _is_actor_capability(capability):
+		return false
+	var capability_id: StringName = capability.call("get_capability_id")
+	if capability_id == &"" or _actor_capability_by_id.has(capability_id):
+		return false
+	_actor_capabilities.append(capability)
+	_actor_capability_by_id[capability_id] = capability
+	capability.call("setup", self)
+	if _actor_capabilities_ready:
+		capability.call("ready")
+	return true
+
+
+func get_actor_capability(capability_id: StringName):
+	return _actor_capability_by_id.get(capability_id, null)
+
+
+func has_actor_capability(capability_id: StringName) -> bool:
+	return _actor_capability_by_id.has(capability_id)
+
+
+func get_actor_capabilities() -> Array:
+	return _actor_capabilities.duplicate()
+
+
+func _create_actor_capabilities() -> Array:
+	return []
+
+
+func _setup_actor_capabilities() -> void:
+	if not _actor_capabilities.is_empty():
+		return
+	for capability_value in _create_actor_capabilities():
+		add_actor_capability(capability_value)
+
+
+func _ready_actor_capabilities() -> void:
+	if _actor_capabilities_ready:
+		return
+	_actor_capabilities_ready = true
+	for capability in _actor_capabilities:
+		if _is_actor_capability(capability):
+			capability.call("ready")
+
+
+func _process_actor_capabilities(delta: float) -> void:
+	for capability in _actor_capabilities:
+		if _is_actor_capability_enabled(capability):
+			capability.call("process", delta)
+
+
+func _physics_process_actor_capabilities(delta: float) -> void:
+	for capability in _actor_capabilities:
+		if _is_actor_capability_enabled(capability):
+			capability.call("physics_process", delta)
+
+
+func _teardown_actor_capabilities() -> void:
+	for index in range(_actor_capabilities.size() - 1, -1, -1):
+		var capability = _actor_capabilities[index]
+		if _is_actor_capability(capability):
+			capability.call("teardown")
+	_actor_capabilities.clear()
+	_actor_capability_by_id.clear()
+	_actor_capabilities_ready = false
+
+
+func _is_actor_capability(value) -> bool:
+	return value != null \
+		and value.has_method("get_capability_id") \
+		and value.has_method("setup") \
+		and value.has_method("ready") \
+		and value.has_method("process") \
+		and value.has_method("physics_process") \
+		and value.has_method("teardown")
+
+
+func _is_actor_capability_enabled(value) -> bool:
+	if not _is_actor_capability(value):
+		return false
+	var enabled_value = value.get("enabled")
+	return bool(enabled_value) if enabled_value != null else true
 
 
 func get_skill_level(skill_id: String) -> int:
