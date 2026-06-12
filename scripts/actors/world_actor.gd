@@ -83,8 +83,8 @@ signal center_notice_requested(message)
 @export var combat_personal_space_padding := 0.16
 @export var combat_wait_ring_extra := 1.45
 @export var combat_direct_translation_enabled := true
-@export var combat_close_retarget_interval_seconds := 0.08
-@export var combat_close_retarget_jitter_seconds := 0.08
+@export var combat_close_retarget_interval_seconds := 0.5
+@export var combat_close_retarget_jitter_seconds := 0.25
 @export var attack_cooldown_seconds := 1.2
 @export var base_attack_damage := 18.0
 @export var base_dexterity := 10.0

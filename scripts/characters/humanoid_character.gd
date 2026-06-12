@@ -130,6 +130,10 @@ const DOWNED_INTERACTION_UNREACHABLE_EXTRA := 0.65
 const PICKUP_GRAB_EXTRA_DISTANCE := 0.1
 const PICKUP_UNREACHABLE_EXTRA_DISTANCE := 0.25
 const PICKUP_ROUTE_ARRIVAL_DISTANCE := 0.25
+const MAX_COMBAT_TARGET_CANDIDATES := 16
+const MAX_COMBAT_QUERY_CANDIDATES := 32
+const MAX_COMBAT_SUPPORT_TARGETS := 6
+const MAX_COMBAT_ASSIST_NOTIFY_RECIPIENTS := 12
 const COMBAT_INTERVENTION_STAFF_GROUP := "combat_intervention_staff"
 const SETTLEMENT_AUTHORITY_GROUP := "settlement_authority"
 const PRIVATE_SECURITY_GROUP := "private_security"
@@ -5261,6 +5265,32 @@ func _set_auto_burn_backoff(seconds: float) -> void:
 	_auto_burn_next_scan_msec = Time.get_ticks_msec() + int(maxf(seconds, 0.0) * 1000.0)
 
 
+func _append_bounded_nearest_candidate(entries: Array, candidate: HumanoidCharacter, distance_squared: float, max_count: int) -> void:
+	if candidate == null or max_count <= 0:
+		return
+	var entry := {"target": candidate, "distance_squared": distance_squared}
+	for index in range(entries.size()):
+		var existing: Dictionary = entries[index] if entries[index] is Dictionary else {}
+		if distance_squared < float(existing.get("distance_squared", INF)):
+			entries.insert(index, entry)
+			if entries.size() > max_count:
+				entries.remove_at(entries.size() - 1)
+			return
+	entries.append(entry)
+	if entries.size() > max_count:
+		entries.remove_at(entries.size() - 1)
+
+
+func _candidate_entries_to_humanoids(entries: Array) -> Array[HumanoidCharacter]:
+	var result: Array[HumanoidCharacter] = []
+	for entry_value in entries:
+		var entry: Dictionary = entry_value if entry_value is Dictionary else {}
+		var target := entry.get("target") as HumanoidCharacter
+		if target != null and is_instance_valid(target):
+			result.append(target)
+	return result
+
+
 func _get_query_humanoids(query_position: Vector3 = Vector3.ZERO, radius := -1.0, include_party := true) -> Array:
 	var query_controller := _get_runtime_controller("actor_query_controller")
 	if query_controller != null:
@@ -5272,6 +5302,25 @@ func _get_query_humanoids(query_position: Vector3 = Vector3.ZERO, radius := -1.0
 		return []
 	var combat_actors := get_tree().get_nodes_in_group(COMBAT_COORDINATOR.COMBAT_ACTOR_GROUP)
 	return combat_actors if not combat_actors.is_empty() else get_tree().get_nodes_in_group("npc_character")
+
+
+func _get_query_humanoids_limited(query_position: Vector3, radius: float, max_count: int, include_party := true) -> Array:
+	var query_controller := _get_runtime_controller("actor_query_controller")
+	if query_controller != null and radius >= 0.0 and query_controller.has_method("get_nearby_humanoids_limited"):
+		return query_controller.call("get_nearby_humanoids_limited", query_position, radius, max_count, include_party)
+	var result: Array = []
+	var entries: Array = []
+	var radius_squared := radius * radius
+	for node in _get_query_humanoids(query_position, radius, include_party):
+		var candidate := node as HumanoidCharacter
+		if candidate == null:
+			continue
+		var distance_squared := query_position.distance_squared_to(candidate.global_position)
+		if distance_squared > radius_squared:
+			continue
+		_append_bounded_nearest_candidate(entries, candidate, distance_squared, max_count)
+	result.append_array(_candidate_entries_to_humanoids(entries))
+	return result
 
 
 func _should_seek_combat_target() -> bool:
@@ -5309,19 +5358,18 @@ func _find_ai_target() -> HumanoidCharacter:
 func _get_last_direct_attacker_target() -> HumanoidCharacter:
 	if _last_direct_attacker_id == 0:
 		return null
-	for node in _get_query_humanoids():
-		if node is HumanoidCharacter and node.get_instance_id() == _last_direct_attacker_id and _is_valid_combat_target(node):
-			return node
-	return null
+	var attacker := _find_humanoid_by_instance_id(_last_direct_attacker_id)
+	return attacker if _is_valid_combat_target(attacker) else null
 
 
 func _find_defensive_assist_target() -> HumanoidCharacter:
-	var candidates: Array[HumanoidCharacter] = []
+	var candidate_entries: Array = []
+	var seen_target_ids := {}
 	if not is_inside_tree():
 		return null
 	var witness_radius := _get_combat_witness_radius()
 	var witness_radius_squared := witness_radius * witness_radius
-	for node in get_tree().get_nodes_in_group(ACTIVE_COMBAT_ACTOR_GROUP):
+	for node in _get_query_humanoids_limited(global_position, witness_radius, MAX_COMBAT_QUERY_CANDIDATES, true):
 		if not (node is HumanoidCharacter):
 			continue
 		var ally: HumanoidCharacter = node
@@ -5330,8 +5378,14 @@ func _find_defensive_assist_target() -> HumanoidCharacter:
 		if global_position.distance_squared_to(ally.global_position) > witness_radius_squared:
 			continue
 		var ally_target := ally.get_current_combat_target() as HumanoidCharacter
-		if _is_valid_combat_target(ally_target) and _should_help_against(ally, ally_target, true) and not candidates.has(ally_target):
-			candidates.append(ally_target)
+		if not (_is_valid_combat_target(ally_target) and _should_help_against(ally, ally_target, true)):
+			continue
+		var target_id := ally_target.get_instance_id()
+		if seen_target_ids.has(target_id):
+			continue
+		seen_target_ids[target_id] = true
+		_append_bounded_nearest_candidate(candidate_entries, ally_target, global_position.distance_squared_to(ally_target.global_position), MAX_COMBAT_TARGET_CANDIDATES)
+	var candidates := _candidate_entries_to_humanoids(candidate_entries)
 	return COMBAT_COORDINATOR.choose_target(self, candidates, _get_combat_switch_radius()) as HumanoidCharacter
 
 
@@ -5474,8 +5528,9 @@ func _get_combat_actor_position(actor):
 
 
 func _find_nearest_hostile(scan_radius: float) -> HumanoidCharacter:
-	var candidates: Array[HumanoidCharacter] = []
-	for node in _get_query_humanoids(global_position, scan_radius, true):
+	var candidate_entries: Array = []
+	var radius_squared := scan_radius * scan_radius
+	for node in _get_query_humanoids_limited(global_position, scan_radius, MAX_COMBAT_QUERY_CANDIDATES, true):
 		if not (node is HumanoidCharacter):
 			continue
 		var candidate: HumanoidCharacter = node
@@ -5483,10 +5538,13 @@ func _find_nearest_hostile(scan_radius: float) -> HumanoidCharacter:
 			continue
 		if not has_hostility_with(candidate):
 			continue
+		var distance_squared := global_position.distance_squared_to(candidate.global_position)
+		if distance_squared > radius_squared:
+			continue
 		if not can_see_actor_for_combat(candidate):
 			continue
-		if global_position.distance_to(candidate.global_position) <= scan_radius:
-			candidates.append(candidate)
+		_append_bounded_nearest_candidate(candidate_entries, candidate, distance_squared, MAX_COMBAT_TARGET_CANDIDATES)
+	var candidates := _candidate_entries_to_humanoids(candidate_entries)
 	return COMBAT_COORDINATOR.choose_target(self, candidates, scan_radius) as HumanoidCharacter
 
 
@@ -5494,7 +5552,7 @@ func _find_closest_hostile(scan_radius: float, same_level_only: bool = true) -> 
 	var best_target: HumanoidCharacter
 	var best_distance_squared := INF
 	var radius_squared := scan_radius * scan_radius
-	for node in _get_query_humanoids(global_position, scan_radius, true):
+	for node in _get_query_humanoids_limited(global_position, scan_radius, MAX_COMBAT_QUERY_CANDIDATES, true):
 		if not (node is HumanoidCharacter):
 			continue
 		var candidate: HumanoidCharacter = node
@@ -5557,20 +5615,42 @@ func _clear_combat_target_for_direct_self_defense() -> void:
 func _notify_defensive_allies_of_attack(attacker: HumanoidCharacter) -> void:
 	var support_radius := maxf(_get_combat_witness_radius(), combat_support_target_spread_radius)
 	var support_targets := _get_support_target_candidates(attacker, support_radius)
-	for node in _get_query_humanoids(global_position, _get_defensive_assist_notify_radius(), true):
-		if node == self or not node.has_method("_respond_to_ally_under_attack"):
+	var notify_entries: Array = []
+	var notify_radius := support_radius
+	var notify_radius_squared := notify_radius * notify_radius
+	for node in _get_query_humanoids_limited(global_position, notify_radius, MAX_COMBAT_ASSIST_NOTIFY_RECIPIENTS * 2, true):
+		var responder := node as HumanoidCharacter
+		if responder == null or responder == self or responder.life_state != NpcRules.LifeState.ALIVE:
 			continue
-		node.call("_respond_to_ally_under_attack", self, attacker, support_targets)
+		var distance_squared := global_position.distance_squared_to(responder.global_position)
+		if distance_squared > notify_radius_squared:
+			continue
+		if not responder._should_help_against(self, attacker, true):
+			continue
+		_append_bounded_nearest_candidate(notify_entries, responder, distance_squared, MAX_COMBAT_ASSIST_NOTIFY_RECIPIENTS)
+	for responder in _candidate_entries_to_humanoids(notify_entries):
+		responder._respond_to_ally_under_attack(self, attacker, support_targets)
 	_notify_settlement_alarm_of_attack(attacker)
 
 
 func _notify_defensive_allies_of_engagement(target: HumanoidCharacter) -> void:
 	var support_radius := maxf(_get_combat_witness_radius(), combat_support_target_spread_radius)
 	var support_targets := _get_support_target_candidates(target, support_radius)
-	for node in _get_query_humanoids(global_position, _get_defensive_assist_notify_radius(), true):
-		if node == self or not node.has_method("_respond_to_ally_engagement"):
+	var notify_entries: Array = []
+	var notify_radius := support_radius
+	var notify_radius_squared := notify_radius * notify_radius
+	for node in _get_query_humanoids_limited(global_position, notify_radius, MAX_COMBAT_ASSIST_NOTIFY_RECIPIENTS * 2, true):
+		var responder := node as HumanoidCharacter
+		if responder == null or responder == self or responder.life_state != NpcRules.LifeState.ALIVE:
 			continue
-		node.call("_respond_to_ally_engagement", self, target, support_targets)
+		var distance_squared := global_position.distance_squared_to(responder.global_position)
+		if distance_squared > notify_radius_squared:
+			continue
+		if not responder._should_help_against(self, target, false):
+			continue
+		_append_bounded_nearest_candidate(notify_entries, responder, distance_squared, MAX_COMBAT_ASSIST_NOTIFY_RECIPIENTS)
+	for responder in _candidate_entries_to_humanoids(notify_entries):
+		responder._respond_to_ally_engagement(self, target, support_targets)
 
 
 func _respond_to_ally_under_attack(ally, attacker, support_targets: Array = []) -> void:
@@ -5608,17 +5688,24 @@ func _get_support_target_candidates(primary_target: HumanoidCharacter, radius: f
 	if primary_target == null or not is_instance_valid(primary_target):
 		return candidates
 	candidates.append(primary_target)
+	var candidate_entries: Array = []
+	var seen_target_ids := {}
+	seen_target_ids[primary_target.get_instance_id()] = true
 	var radius_squared := radius * radius
-	for node in _get_query_humanoids(primary_target.global_position, radius, true):
+	for node in _get_query_humanoids_limited(primary_target.global_position, radius, MAX_COMBAT_SUPPORT_TARGETS * 4, true):
 		if not (node is HumanoidCharacter):
 			continue
 		var candidate: HumanoidCharacter = node
 		if candidate == primary_target or candidate.life_state != NpcRules.LifeState.ALIVE:
 			continue
+		var candidate_id := candidate.get_instance_id()
+		if seen_target_ids.has(candidate_id):
+			continue
 		if primary_target.global_position.distance_squared_to(candidate.global_position) > radius_squared:
 			continue
-		if not candidates.has(candidate):
-			candidates.append(candidate)
+		seen_target_ids[candidate_id] = true
+		_append_bounded_nearest_candidate(candidate_entries, candidate, primary_target.global_position.distance_squared_to(candidate.global_position), maxi(MAX_COMBAT_SUPPORT_TARGETS - 1, 0))
+	candidates.append_array(_candidate_entries_to_humanoids(candidate_entries))
 	return candidates
 
 

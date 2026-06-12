@@ -2,7 +2,7 @@ extends Node
 
 class_name ActorQueryController
 
-@export var spatial_cell_size := 12.0
+@export var spatial_cell_size := 6.0
 @export var spatial_rebuild_interval_seconds := 0.25
 
 var root_scene: Node
@@ -23,6 +23,8 @@ func register_actor(actor: Node) -> void:
 	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("register_actor"):
 		bridge.set("spatial_cell_size", spatial_cell_size)
+		if _has_property(bridge, "spatial_rebuild_interval_seconds"):
+			bridge.set("spatial_rebuild_interval_seconds", spatial_rebuild_interval_seconds)
 		bridge.call("register_actor", actor)
 
 
@@ -76,7 +78,40 @@ func get_nearby_actors(position: Vector3, radius: float, include_party := true) 
 	if bridge == null or not bridge.has_method("get_nearby_actors"):
 		return []
 	bridge.set("spatial_cell_size", spatial_cell_size)
+	if _has_property(bridge, "spatial_rebuild_interval_seconds"):
+		bridge.set("spatial_rebuild_interval_seconds", spatial_rebuild_interval_seconds)
 	return bridge.call("get_nearby_actors", position, radius, include_party)
+
+
+func get_nearby_actors_limited(position: Vector3, radius: float, max_count: int, include_party := true) -> Array:
+	var bridge := _get_gecs_world()
+	if bridge == null:
+		return []
+	bridge.set("spatial_cell_size", spatial_cell_size)
+	if _has_property(bridge, "spatial_rebuild_interval_seconds"):
+		bridge.set("spatial_rebuild_interval_seconds", spatial_rebuild_interval_seconds)
+	if bridge.has_method("get_nearby_actors_limited"):
+		return bridge.call("get_nearby_actors_limited", position, radius, max_count, include_party)
+	return bridge.call("get_nearby_actors", position, radius, include_party) if bridge.has_method("get_nearby_actors") else []
+
+
+func get_actor_query_metrics() -> Dictionary:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("get_actor_query_metrics"):
+		return bridge.call("get_actor_query_metrics") as Dictionary
+	return {}
+
+
+func reset_actor_query_metrics() -> void:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("reset_actor_query_metrics"):
+		bridge.call("reset_actor_query_metrics")
+
+
+func set_actor_query_metrics_enabled(enabled: bool) -> void:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("set_actor_query_metrics_enabled"):
+		bridge.call("set_actor_query_metrics_enabled", enabled)
 
 
 func get_all_humanoids() -> Array:
@@ -101,6 +136,10 @@ func get_alive_humanoids_for_faction(faction_id: String, include_party := true) 
 
 func get_nearby_humanoids(position: Vector3, radius: float, include_party := true) -> Array:
 	return get_nearby_actors(position, radius, include_party)
+
+
+func get_nearby_humanoids_limited(position: Vector3, radius: float, max_count: int, include_party := true) -> Array:
+	return get_nearby_actors_limited(position, radius, max_count, include_party)
 
 
 func serialize_state() -> Dictionary:
@@ -167,3 +206,12 @@ func _get_gecs_world() -> Node:
 	if existing != null and (parent_node == null or existing.get_parent() == parent_node):
 		return existing
 	return null
+
+
+func _has_property(object: Object, property_name: String) -> bool:
+	if object == null:
+		return false
+	for property in object.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false

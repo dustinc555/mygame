@@ -40,6 +40,8 @@ static var total_target_decision_usec := 0
 static var total_crowd_retarget_attempts := 0
 static var total_crowd_retarget_switches := 0
 static var metrics_enabled := false
+static var _last_prune_process_frame := -1
+static var _last_prune_physics_frame := -1
 
 
 static func choose_target(attacker, candidates: Array, scan_radius: float):
@@ -249,9 +251,12 @@ static func choose_initiative_winner_for_validation(contestants: Array):
 static func is_character_locked(character) -> bool:
 	if not _is_valid_combatant(character):
 		return false
-	_prune_expired_state()
 	var character_id: int = character.get_instance_id()
-	return float(_participant_locks.get(character_id, 0.0)) > _now_seconds()
+	var lock_until := float(_participant_locks.get(character_id, 0.0))
+	if lock_until <= _now_seconds():
+		_participant_locks.erase(character_id)
+		return false
+	return true
 
 
 static func extend_character_lock(character, seconds: float) -> void:
@@ -341,6 +346,8 @@ static func reset_all_state() -> void:
 	_attackers_by_target.clear()
 	_actor_radius_by_id.clear()
 	_active_attack_slots_by_id.clear()
+	_last_prune_process_frame = -1
+	_last_prune_physics_frame = -1
 	reset_metrics()
 
 
@@ -664,6 +671,12 @@ static func _clear_reservations_involving(character_id: int) -> void:
 
 
 static func _prune_expired_state() -> void:
+	var process_frame := Engine.get_process_frames()
+	var physics_frame := Engine.get_physics_frames()
+	if _last_prune_process_frame == process_frame and _last_prune_physics_frame == physics_frame:
+		return
+	_last_prune_process_frame = process_frame
+	_last_prune_physics_frame = physics_frame
 	var now := _now_seconds()
 	for character_id in _participant_locks.keys():
 		if float(_participant_locks.get(character_id, 0.0)) <= now:
