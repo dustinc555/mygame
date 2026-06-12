@@ -436,6 +436,7 @@ func _process(delta: float) -> void:
 		_far_runtime_process_accumulated = 0.0
 	else:
 		_far_runtime_process_accumulated = 0.0
+	_process_actor_capabilities(delta)
 	if _debug_humanoid_profile_enabled:
 		_process_profiled(delta)
 		return
@@ -592,6 +593,7 @@ func _physics_process(delta: float) -> void:
 		_far_runtime_physics_accumulated = 0.0
 	else:
 		_far_runtime_physics_accumulated = 0.0
+	_physics_process_actor_capabilities(delta)
 	if _carried_by != null:
 		velocity = Vector3.ZERO
 		return
