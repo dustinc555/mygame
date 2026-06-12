@@ -31,6 +31,7 @@ var _active_slots: Dictionary = {}
 var _sim_time := 0.0
 var _pending_job_offers: Dictionary = {}
 var _rng := RandomNumberGenerator.new()
+var _job_system_controller: Node
 
 
 func _ready() -> void:
@@ -38,6 +39,15 @@ func _ready() -> void:
 	_rng.randomize()
 	_initialize_slots()
 	_sync_gecs_state()
+	_job_system_controller = _get_job_system_controller()
+	if _job_system_controller != null and _job_system_controller.has_method("register_job_provider"):
+		_job_system_controller.call("register_job_provider", self)
+
+
+func _exit_tree() -> void:
+	if _job_system_controller != null and is_instance_valid(_job_system_controller) and _job_system_controller.has_method("unregister_job_provider"):
+		_job_system_controller.call("unregister_job_provider", self)
+	_job_system_controller = null
 
 
 func set_sim_time(value: float) -> void:
@@ -1320,6 +1330,12 @@ func _get_gecs_world() -> Node:
 				return child as Node
 		current = current.get_parent()
 	return get_tree().get_first_node_in_group("gecs_world_controller")
+
+
+func _get_job_system_controller() -> Node:
+	if not is_inside_tree():
+		return null
+	return get_tree().get_first_node_in_group("job_system_controller")
 
 
 func _sync_gecs_state() -> void:
