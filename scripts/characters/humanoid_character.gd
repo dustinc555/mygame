@@ -7,6 +7,7 @@ const COMBAT_ANIMATION_SET_SCRIPT = preload("res://scripts/characters/combat_ani
 const COMBAT_ATTACK_ANIMATION_SCRIPT = preload("res://scripts/characters/combat_attack_animation.gd")
 const HUMANOID_RAGDOLL_PROFILE_SCRIPT = preload("res://scripts/characters/humanoid_ragdoll_profile.gd")
 const STABLE_PHYSICAL_BONE_SCRIPT = preload("res://scripts/characters/stable_physical_bone.gd")
+const NEEDS_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/needs_capability.gd")
 const HUMAN_RACE = preload("res://resources/character_races/human.tres")
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_female.tres")
@@ -338,8 +339,6 @@ var _combat_animation_sets: Dictionary = {}
 
 var _nameplate: Label3D
 var _inspect_ring: MeshInstance3D
-var _needs_tick_accumulated := 0.0
-var _needs_tick_remaining := 0.0
 var _far_runtime_process_accumulated := 0.0
 var _far_runtime_physics_accumulated := 0.0
 var _rng := RandomNumberGenerator.new()
@@ -353,6 +352,7 @@ var _selection_ring: Node3D
 var _body: BodyProjection = null
 var _stat_value_cache_frame := -1
 var _stat_value_cache: Dictionary = {}
+var _bleed_splotch_controller: Node
 var _auto_burn_next_scan_msec := 0
 var _auto_burn_cached_furnace
 var _auto_burn_cached_furnace_until_msec := 0
@@ -378,7 +378,7 @@ func _ready() -> void:
 	_rng.randomize()
 	_far_runtime_process_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PROCESS_INTERVAL)
 	_far_runtime_physics_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PHYSICS_INTERVAL)
-	_needs_tick_remaining = _rng.randf_range(0.0, NEEDS_PROCESS_INTERVAL)
+	_seed_needs_capability_tick()
 	inventory = InventoryData.new(inventory_columns, inventory_rows, max_carry_weight, true)
 	inventory.changed.connect(_on_inventory_data_changed)
 	_seed_starting_inventory()
@@ -427,6 +427,14 @@ func get_body_projection() -> BodyProjection:
 	return _body if _body != null and is_instance_valid(_body) else null
 
 
+func _create_actor_capabilities() -> Array:
+	var capabilities := super._create_actor_capabilities()
+	var needs_capability = NEEDS_CAPABILITY_SCRIPT.new()
+	needs_capability.configure(NEEDS_PROCESS_INTERVAL, NEEDS_PROCESS_JITTER)
+	capabilities.append(needs_capability)
+	return capabilities
+
+
 func _process(delta: float) -> void:
 	if _should_use_far_runtime_cadence():
 		_far_runtime_process_accumulated += delta
@@ -450,10 +458,7 @@ func _process(delta: float) -> void:
 	if is_in_cell_custody():
 		if _combat_cooldown_remaining > 0.0:
 			_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
-		_process_scheduled_needs(delta)
-		_process_bleeding(delta)
-		_process_dying(delta)
-		_process_recovery(delta)
+		_process_needs_capability(delta)
 		_recalculate_vitals()
 		_update_cell_custody_animation(delta)
 		if _body != null:
@@ -463,10 +468,7 @@ func _process(delta: float) -> void:
 	if _combat_cooldown_remaining > 0.0:
 		_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
 	_process_ragdoll_impulse_memory(delta)
-	_process_scheduled_needs(delta)
-	_process_bleeding(delta)
-	_process_dying(delta)
-	_process_recovery(delta)
+	_process_needs_capability(delta)
 	_process_ai(delta)
 	_recalculate_vitals()
 	_process_downed_animation_state(delta)
@@ -495,14 +497,8 @@ func _process_profiled(delta: float) -> void:
 		if _combat_cooldown_remaining > 0.0:
 			_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
 		profile_last_usec = _debug_humanoid_profile_checkpoint("timers", profile_last_usec)
-		_process_scheduled_needs(delta)
-		profile_last_usec = _debug_humanoid_profile_checkpoint("needs", profile_last_usec)
-		_process_bleeding(delta)
-		profile_last_usec = _debug_humanoid_profile_checkpoint("bleeding", profile_last_usec)
-		_process_dying(delta)
-		profile_last_usec = _debug_humanoid_profile_checkpoint("dying", profile_last_usec)
-		_process_recovery(delta)
-		profile_last_usec = _debug_humanoid_profile_checkpoint("recovery", profile_last_usec)
+		_process_needs_capability(delta)
+		profile_last_usec = _debug_humanoid_profile_checkpoint("needs_capability", profile_last_usec)
 		_recalculate_vitals()
 		profile_last_usec = _debug_humanoid_profile_checkpoint("vitals", profile_last_usec)
 		_update_cell_custody_animation(delta)
@@ -518,14 +514,8 @@ func _process_profiled(delta: float) -> void:
 		_combat_cooldown_remaining = maxf(0.0, _combat_cooldown_remaining - delta)
 	_process_ragdoll_impulse_memory(delta)
 	profile_last_usec = _debug_humanoid_profile_checkpoint("timers", profile_last_usec)
-	_process_scheduled_needs(delta)
-	profile_last_usec = _debug_humanoid_profile_checkpoint("needs", profile_last_usec)
-	_process_bleeding(delta)
-	profile_last_usec = _debug_humanoid_profile_checkpoint("bleeding", profile_last_usec)
-	_process_dying(delta)
-	profile_last_usec = _debug_humanoid_profile_checkpoint("dying", profile_last_usec)
-	_process_recovery(delta)
-	profile_last_usec = _debug_humanoid_profile_checkpoint("recovery", profile_last_usec)
+	_process_needs_capability(delta)
+	profile_last_usec = _debug_humanoid_profile_checkpoint("needs_capability", profile_last_usec)
 	_process_ai_profiled(delta)
 	profile_last_usec = _debug_humanoid_profile_checkpoint("ai", profile_last_usec)
 	_recalculate_vitals()
@@ -2760,19 +2750,41 @@ func _process_needs(delta: float) -> void:
 			state_changed.emit()
 
 
+func _process_needs_capability(delta: float) -> void:
+	var needs_capability = _get_needs_capability()
+	if needs_capability != null and needs_capability.has_method("process_actor_needs"):
+		var enabled_value = needs_capability.get("enabled")
+		if enabled_value == null or bool(enabled_value):
+			needs_capability.call("process_actor_needs", delta)
+		return
+	_process_needs(delta)
+	_process_bleeding(delta)
+	_process_dying(delta)
+	_process_recovery(delta)
+
+
 func _process_scheduled_needs(delta: float) -> void:
-	if not hunger_enabled and not fatigue_enabled and _pending_nourishment <= 0.0:
-		_needs_tick_accumulated = 0.0
-		_needs_tick_remaining = 0.0
-		return
-	_needs_tick_accumulated += delta
-	_needs_tick_remaining -= delta
-	if _needs_tick_remaining > 0.0:
-		return
-	var tick_delta := _needs_tick_accumulated
-	_needs_tick_accumulated = 0.0
-	_needs_tick_remaining = NEEDS_PROCESS_INTERVAL + _rng.randf_range(0.0, NEEDS_PROCESS_JITTER)
-	_process_needs(tick_delta)
+	var needs_capability = _get_needs_capability()
+	if needs_capability != null and needs_capability.has_method("process_scheduled_needs"):
+		needs_capability.call("process_scheduled_needs", delta)
+
+
+func _get_needs_capability():
+	return get_actor_capability(&"needs")
+
+
+func _seed_needs_capability_tick() -> void:
+	var needs_capability = _get_needs_capability()
+	if needs_capability != null and needs_capability.has_method("set_tick_remaining"):
+		needs_capability.call("set_tick_remaining", _rng.randf_range(0.0, NEEDS_PROCESS_INTERVAL))
+
+
+func _has_scheduled_needs_work() -> bool:
+	return hunger_enabled or fatigue_enabled or _pending_nourishment > 0.0
+
+
+func _get_needs_process_jitter() -> float:
+	return _rng.randf_range(0.0, NEEDS_PROCESS_JITTER)
 
 
 func _process_bleeding(delta: float) -> void:
@@ -2877,15 +2889,19 @@ func _spawn_bleed_pool_splotch(severity: float) -> void:
 
 
 func _get_bleed_splotch_controller() -> Node:
+	if _bleed_splotch_controller != null and is_instance_valid(_bleed_splotch_controller):
+		return _bleed_splotch_controller
 	var tree := get_tree()
 	if tree == null:
 		return null
 	var controllers := tree.get_nodes_in_group("bleed_splotch_controller")
 	if not controllers.is_empty():
-		return controllers[0] as Node
+		_bleed_splotch_controller = controllers[0] as Node
+		return _bleed_splotch_controller
 	if tree.current_scene == null:
 		return null
-	return tree.current_scene.get_node_or_null("GameBootstrap/BleedSplotchController")
+	_bleed_splotch_controller = tree.current_scene.get_node_or_null("GameBootstrap/BleedSplotchController")
+	return _bleed_splotch_controller
 
 
 func _process_ai(delta: float) -> void:
