@@ -330,7 +330,7 @@ func _validate_witnessed_theft_jail_release() -> void:
 	var warden_returned := await _wait_until(func() -> bool: return _is_warden_at_home_post(jail, warden), 900)
 	if not warden_returned:
 		var post := _get_warden_home_post(jail)
-		_fail("Warden should return to the warden post after sentencing warden_pos=%s post_pos=%s law_returning=%s sentence_move=%s has_move=%s move_target=%s" % [str(warden.global_position), str(post.global_position if post != null else Vector3.ZERO), str(warden.call("is_law_custody_returning") if warden.has_method("is_law_custody_returning") else false), str(warden.get("_law_sentence_move_active")), str(warden.get("_has_move_target")), str(warden.get("_move_target"))])
+		_fail("Warden should return to the warden post after sentencing warden_pos=%s post_pos=%s law_returning=%s sentence_move=%s has_move=%s move_target=%s" % [str(warden.global_position), str(post.global_position if post != null else Vector3.ZERO), str(warden.call("is_law_custody_returning") if warden.has_method("is_law_custody_returning") else false), str(warden.call("is_law_sentence_moving") if warden.has_method("is_law_sentence_moving") else false), str(warden.get("_has_move_target")), str(warden.get("_move_target"))])
 		return
 	if absf(warden.global_position.y - warden_ground_y) > 0.08:
 		_fail("Warden should not snap to the elevated warden-post marker height warden_y=%.3f expected_y=%.3f post_y=%.3f" % [warden.global_position.y, warden_ground_y, warden_post.global_position.y])

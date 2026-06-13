@@ -71,7 +71,7 @@ func should_seek_combat_target() -> bool:
 		return false
 	if _call_bool("_has_active_player_order"):
 		return false
-	if _actor_bool("_law_sentence_move_active", false):
+	if _call_bool("is_law_sentence_moving"):
 		return false
 	if _actor_int("_current_order_type", 0) == ORDER_TYPE_HEAL:
 		return false

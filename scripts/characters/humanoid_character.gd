@@ -265,10 +265,6 @@ var _current_seat_stand_position: Variant = null
 var _carried_by: HumanoidCharacter
 var _carried_character: HumanoidCharacter
 var _cell_custody_target
-var _law_custody_return_active := false
-var _law_custody_return_target := Vector3.ZERO
-var _law_sentence_move_active := false
-var _law_sentence_move_target := Vector3.ZERO
 var _carried_pose_animation := ""
 var _cell_custody_unconscious_pose_animation := ""
 var _cell_custody_lay_freeze_remaining := 0.0
@@ -689,17 +685,15 @@ func stop_attack_assignment() -> void:
 
 
 func stop_heal_assignment() -> void:
-	_current_heal_target = null
-	if _current_order_type == OrderType.HEAL:
-		_current_order_type = OrderType.NONE
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_heal_assignment()
 
 
 func stop_finish_off_assignment() -> void:
-	if _auto_burn_reserved_target == _current_finish_off_target:
-		_release_auto_burn_target_reservation()
-	_current_finish_off_target = null
-	if _current_order_type == OrderType.FINISH_OFF:
-		_current_order_type = OrderType.NONE
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_finish_off_assignment()
 
 
 func stop_carry_assignment() -> void:
@@ -853,25 +847,15 @@ func _clear_non_combat_ai_job_for_combat() -> void:
 
 
 func assign_heal_target(target_character: HumanoidCharacter, issued_by_player: bool = true) -> void:
-	if target_character == null:
-		return
-	if life_state != NpcRules.LifeState.ALIVE:
-		return
-	if not _set_order(OrderType.HEAL, issued_by_player):
-		return
-	_current_heal_target = target_character
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_heal_target(target_character, issued_by_player)
 
 
 func assign_finish_off_target(target_character: HumanoidCharacter, issued_by_player: bool = true) -> void:
-	if target_character == null or target_character == self:
-		return
-	if life_state != NpcRules.LifeState.ALIVE:
-		return
-	if not target_character.is_downed_state():
-		return
-	if not _set_order(OrderType.FINISH_OFF, issued_by_player):
-		return
-	_current_finish_off_target = target_character
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_finish_off_target(target_character, issued_by_player)
 
 
 func assign_carry_target(target_character: HumanoidCharacter, issued_by_player: bool = true) -> void:
@@ -1367,41 +1351,37 @@ func is_law_arresting(target: HumanoidCharacter = null) -> bool:
 
 
 func is_law_custody_returning() -> bool:
-	return _law_custody_return_active
+	var interaction = _get_interaction_capability()
+	return interaction.is_law_custody_returning() if interaction != null else false
+
+
+func is_law_sentence_moving() -> bool:
+	var interaction = _get_interaction_capability()
+	return interaction.is_law_sentence_moving() if interaction != null else false
 
 
 func assign_law_custody_return_target(target_position: Vector3) -> void:
-	if life_state != NpcRules.LifeState.ALIVE:
-		return
-	disengage_combat_with()
-	_law_custody_return_active = true
-	_law_custody_return_target = target_position
-	if not _set_order(OrderType.MOVE, false):
-		_current_order_type = OrderType.MOVE
-		_order_was_player_issued = false
-	_set_actor_move_target(target_position)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_law_custody_return_target(target_position)
 
 
 func clear_law_custody_return() -> void:
-	_law_custody_return_active = false
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.clear_law_custody_return()
 
 
 func assign_law_sentence_move_target(target_position: Vector3) -> void:
-	if life_state != NpcRules.LifeState.ALIVE:
-		return
-	_law_sentence_move_active = true
-	_law_sentence_move_target = target_position
-	if _current_order_type != OrderType.MOVE:
-		if not _set_order(OrderType.MOVE, false):
-			_current_order_type = OrderType.MOVE
-			_order_was_player_issued = false
-	else:
-		_order_was_player_issued = false
-	_set_actor_move_target(target_position)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_law_sentence_move_target(target_position)
 
 
 func clear_law_sentence_move() -> void:
-	_law_sentence_move_active = false
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.clear_law_sentence_move()
 
 
 func get_current_combat_target() -> Node:
@@ -2073,7 +2053,8 @@ func _should_direct_custody_chase() -> bool:
 
 
 func _should_direct_law_move() -> bool:
-	return (_law_sentence_move_active or _law_custody_return_active) and _has_move_target
+	var interaction = _get_interaction_capability()
+	return interaction.has_direct_law_move() if interaction != null else false
 
 
 func _process_direct_custody_chase(delta: float) -> void:
@@ -2318,6 +2299,14 @@ func _get_interaction_capability():
 	return _interaction_capability
 
 
+func _validate_heal_finish_interaction_orders() -> void:
+	if _current_order_type != OrderType.HEAL and _current_order_type != OrderType.FINISH_OFF:
+		return
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.validate_heal_finish_order_targets()
+
+
 func _validate_carried_interaction_orders() -> void:
 	if _current_order_type != OrderType.CARRY and _current_order_type != OrderType.PLACE_IN_BED and _current_order_type != OrderType.PLACE_IN_CELL and _current_order_type != OrderType.PLACE_IN_FURNACE:
 		return
@@ -2526,12 +2515,8 @@ func _process_ai(delta: float) -> void:
 		_tick_active_ai_job(delta)
 	if _ai_utility_adapter == null:
 		_ensure_assigned_work_ai_job()
-	_process_law_custody_return()
-	_process_law_sentence_move()
-	if _current_order_type == OrderType.HEAL and (_current_heal_target == null or not is_instance_valid(_current_heal_target)):
-		stop_heal_assignment()
-	if _current_order_type == OrderType.FINISH_OFF and (_current_finish_off_target == null or not is_instance_valid(_current_finish_off_target) or not _current_finish_off_target.is_downed_state()):
-		stop_finish_off_assignment()
+	_process_law_movement()
+	_validate_heal_finish_interaction_orders()
 	_validate_carried_interaction_orders()
 	if _current_order_type == OrderType.PICKUP_ITEM and (_current_pickup_item == null or not is_instance_valid(_current_pickup_item)):
 		stop_pickup_assignment()
@@ -2583,13 +2568,9 @@ func _process_ai_profiled(delta: float) -> void:
 	if _ai_utility_adapter == null:
 		_ensure_assigned_work_ai_job()
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("assigned_work_fallback", profile_last_usec)
-	_process_law_custody_return()
-	_process_law_sentence_move()
+	_process_law_movement()
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("law_movement", profile_last_usec)
-	if _current_order_type == OrderType.HEAL and (_current_heal_target == null or not is_instance_valid(_current_heal_target)):
-		stop_heal_assignment()
-	if _current_order_type == OrderType.FINISH_OFF and (_current_finish_off_target == null or not is_instance_valid(_current_finish_off_target) or not _current_finish_off_target.is_downed_state()):
-		stop_finish_off_assignment()
+	_validate_heal_finish_interaction_orders()
 	_validate_carried_interaction_orders()
 	if _current_order_type == OrderType.PICKUP_ITEM and (_current_pickup_item == null or not is_instance_valid(_current_pickup_item)):
 		stop_pickup_assignment()
@@ -2744,28 +2725,22 @@ func _get_runtime_focus_positions() -> Array[Vector3]:
 	return _runtime_focus_cache_positions
 
 
+func _process_law_movement() -> void:
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_law_movement()
+
+
 func _process_law_custody_return() -> void:
-	if not _law_custody_return_active:
-		return
-	if _horizontal_distance_to(_law_custody_return_target) <= _get_move_target_arrival_distance() or not _has_move_target:
-		_law_custody_return_active = false
-		return
-	if _current_order_type != OrderType.MOVE:
-		_current_order_type = OrderType.MOVE
-		_order_was_player_issued = false
-	_set_actor_move_target(_law_custody_return_target)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_law_custody_return()
 
 
 func _process_law_sentence_move() -> void:
-	if not _law_sentence_move_active:
-		return
-	if _horizontal_distance_to(_law_sentence_move_target) <= interact_distance or not _has_move_target:
-		_law_sentence_move_active = false
-		return
-	if _current_order_type != OrderType.MOVE:
-		_current_order_type = OrderType.MOVE
-		_order_was_player_issued = false
-	_set_actor_move_target(_law_sentence_move_target)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_law_sentence_move()
 
 
 func _process_mining(delta: float) -> void:
@@ -3050,70 +3025,20 @@ func _has_equipped_shield() -> bool:
 
 
 func _process_heal_interaction() -> void:
-	if _current_heal_target == null or not is_instance_valid(_current_heal_target):
-		stop_heal_assignment()
-		return
-	if not _current_heal_target.can_receive_bandage():
-		if _order_was_player_issued:
-			show_world_speech("They don't need bandaging", 5.0)
-		stop_heal_assignment()
-		return
-	if _get_best_bandage_definition() == null:
-		if _order_was_player_issued:
-			show_world_speech("I don't have anything to heal with", 5.0)
-		stop_heal_assignment()
-		return
-	if _current_heal_target == self:
-		_clear_actor_move_target()
-		if apply_bandage_from(self):
-			stop_heal_assignment()
-		return
-	var target_position := _current_heal_target.get_interaction_position(self)
-	if global_position.distance_to(_current_heal_target.global_position) > interact_distance:
-		_set_actor_move_target(target_position)
-		return
-	_clear_actor_move_target()
-	if _current_heal_target.apply_bandage_from(self):
-		stop_heal_assignment()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_heal_interaction()
 
 
 func _process_finish_off_interaction() -> void:
-	if _current_finish_off_target == null or not is_instance_valid(_current_finish_off_target):
-		stop_finish_off_assignment()
-		return
-	if not _current_finish_off_target.is_downed_state():
-		stop_finish_off_assignment()
-		return
-	if _current_finish_off_target.requires_fire_to_die() and not _current_finish_off_target.can_be_destroyed_by_cinder():
-		stop_finish_off_assignment()
-		return
-	if _try_complete_finish_off_interaction():
-		return
-	var target_position := _get_downed_target_interaction_position(_current_finish_off_target)
-	if target_position == Vector3.INF:
-		stop_finish_off_assignment()
-		return
-	_set_actor_move_target(target_position)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_finish_off_interaction()
 
 
 func _try_complete_finish_off_interaction(extra_distance: float = 0.0) -> bool:
-	if _current_finish_off_target == null or not is_instance_valid(_current_finish_off_target):
-		return false
-	if not _current_finish_off_target.is_downed_state():
-		return false
-	if _current_finish_off_target.requires_fire_to_die() and not _current_finish_off_target.can_be_destroyed_by_cinder():
-		return false
-	if not _is_close_enough_to_downed_interaction_target(_current_finish_off_target, extra_distance):
-		return false
-	_clear_actor_move_target()
-	if _current_finish_off_target.requires_fire_to_die():
-		burn_target_with_cinder_flask(_current_finish_off_target, _order_was_player_issued)
-		stop_finish_off_assignment()
-		return true
-	_current_finish_off_target.force_kill(self)
-	_show_world_notice("Finished", Color(0.95, 0.2, 0.2, 1.0))
-	stop_finish_off_assignment()
-	return true
+	var interaction = _get_interaction_capability()
+	return interaction.try_complete_finish_off_interaction(extra_distance) if interaction != null else false
 
 
 func _process_carry_interaction() -> void:
@@ -3630,10 +3555,11 @@ func _transform_aabb(bounds: AABB, bounds_transform: Transform3D) -> AABB:
 func _set_order(order_type: int, issued_by_player: bool, preserve_seat: bool = false) -> bool:
 	if _should_keep_active_combat_order(order_type, issued_by_player):
 		return false
-	if _law_custody_return_active and (issued_by_player or order_type != OrderType.MOVE):
-		_law_custody_return_active = false
-	if _law_sentence_move_active and (issued_by_player or order_type != OrderType.MOVE):
-		_law_sentence_move_active = false
+	var interaction = _interaction_capability
+	if interaction == null:
+		interaction = get_actor_capability(&"interaction")
+	if interaction != null:
+		interaction.clear_law_moves_for_order(order_type, issued_by_player)
 	if issued_by_player and order_type != OrderType.ATTACK and _ai_brain != null:
 		_ai_brain.clear_for_player_override()
 	if issued_by_player and _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):

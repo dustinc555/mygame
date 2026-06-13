@@ -3,11 +3,14 @@ extends "res://scripts/actors/capabilities/actor_capability.gd"
 class_name InteractionCapability
 
 const ORDER_TYPE_NONE := 0
+const ORDER_TYPE_MOVE := 1
 const ORDER_TYPE_MINE := 2
 const ORDER_TYPE_SCAVENGE := 3
 const ORDER_TYPE_OPEN_CONTAINER := 4
 const ORDER_TYPE_TRADE := 5
 const ORDER_TYPE_TALK := 6
+const ORDER_TYPE_HEAL := 8
+const ORDER_TYPE_FINISH_OFF := 9
 const ORDER_TYPE_CARRY := 10
 const ORDER_TYPE_SLEEP := 11
 const ORDER_TYPE_PLACE_IN_BED := 12
@@ -18,6 +21,11 @@ const ORDER_TYPE_PICKUP_ITEM := 16
 const MINING_ORE_WORTH_FOR_FIRST_LEVEL := 4.0
 const MINING_STRENGTH_XP_FACTOR := 0.08
 const SCAVENGING_ATTEMPTS_FOR_FIRST_LEVEL := 4.0
+
+var _law_custody_return_active := false
+var _law_custody_return_target := Vector3.ZERO
+var _law_sentence_move_active := false
+var _law_sentence_move_target := Vector3.ZERO
 
 
 func _init() -> void:
@@ -70,6 +78,21 @@ func stop_conversation_interaction() -> void:
 		conversation_target.call("release_talker", actor)
 	_set_node_property("_current_conversation_target", null)
 	if _current_order_type() == ORDER_TYPE_TALK:
+		_set_current_order_type(ORDER_TYPE_NONE)
+
+
+func stop_heal_assignment() -> void:
+	_set_node_property("_current_heal_target", null)
+	if _current_order_type() == ORDER_TYPE_HEAL:
+		_set_current_order_type(ORDER_TYPE_NONE)
+
+
+func stop_finish_off_assignment() -> void:
+	var finish_target = _node_property("_current_finish_off_target")
+	if _node_property("_auto_burn_reserved_target") == finish_target:
+		_call_void("_release_auto_burn_target_reservation")
+	_set_node_property("_current_finish_off_target", null)
+	if _current_order_type() == ORDER_TYPE_FINISH_OFF:
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
@@ -382,6 +405,81 @@ func assign_pickup_item(world_item, issued_by_player := true) -> void:
 	_set_actor_move_target(get_pickup_route_position(world_item))
 
 
+func assign_heal_target(target_character, issued_by_player := true) -> void:
+	if target_character == null:
+		return
+	if not _is_actor_alive():
+		return
+	if not _set_order(ORDER_TYPE_HEAL, issued_by_player):
+		return
+	_set_node_property("_current_heal_target", target_character)
+
+
+func assign_finish_off_target(target_character, issued_by_player := true) -> void:
+	if target_character == null or target_character == actor:
+		return
+	if not _is_actor_alive():
+		return
+	if not _node_call_bool(target_character, "is_downed_state"):
+		return
+	if not _set_order(ORDER_TYPE_FINISH_OFF, issued_by_player):
+		return
+	_set_node_property("_current_finish_off_target", target_character)
+
+
+func is_law_custody_returning() -> bool:
+	return _law_custody_return_active
+
+
+func is_law_sentence_moving() -> bool:
+	return _law_sentence_move_active
+
+
+func has_direct_law_move() -> bool:
+	return (_law_sentence_move_active or _law_custody_return_active) and _actor_bool("_has_move_target", false)
+
+
+func assign_law_custody_return_target(target_position: Vector3) -> void:
+	if not _is_actor_alive():
+		return
+	_call_void("disengage_combat_with")
+	_law_custody_return_active = true
+	_law_custody_return_target = target_position
+	if not _set_order(ORDER_TYPE_MOVE, false):
+		_set_current_order_type(ORDER_TYPE_MOVE)
+		_set_node_property("_order_was_player_issued", false)
+	_set_actor_move_target(target_position)
+
+
+func clear_law_custody_return() -> void:
+	_law_custody_return_active = false
+
+
+func assign_law_sentence_move_target(target_position: Vector3) -> void:
+	if not _is_actor_alive():
+		return
+	_law_sentence_move_active = true
+	_law_sentence_move_target = target_position
+	if _current_order_type() != ORDER_TYPE_MOVE:
+		if not _set_order(ORDER_TYPE_MOVE, false):
+			_set_current_order_type(ORDER_TYPE_MOVE)
+			_set_node_property("_order_was_player_issued", false)
+	else:
+		_set_node_property("_order_was_player_issued", false)
+	_set_actor_move_target(target_position)
+
+
+func clear_law_sentence_move() -> void:
+	_law_sentence_move_active = false
+
+
+func clear_law_moves_for_order(order_type: int, issued_by_player: bool) -> void:
+	if _law_custody_return_active and (issued_by_player or order_type != ORDER_TYPE_MOVE):
+		_law_custody_return_active = false
+	if _law_sentence_move_active and (issued_by_player or order_type != ORDER_TYPE_MOVE):
+		_law_sentence_move_active = false
+
+
 func wake_up_from_rest(show_notice := true) -> void:
 	var did_wake := _actor_life_state() == NpcRules.LifeState.ASLEEP
 	var did_stand := _actor_bool("_is_sitting", false)
@@ -581,6 +679,107 @@ func process_conversation_interaction() -> void:
 	_set_node_property("_current_conversation_target", null)
 	_set_current_order_type(ORDER_TYPE_NONE)
 	_emit_actor_signal("conversation_target_reached", [actor, target])
+
+
+func process_law_movement() -> void:
+	process_law_custody_return()
+	process_law_sentence_move()
+
+
+func process_law_custody_return() -> void:
+	if not _law_custody_return_active:
+		return
+	if _horizontal_distance_to(_law_custody_return_target) <= _move_target_arrival_distance() or not _actor_bool("_has_move_target", false):
+		_law_custody_return_active = false
+		return
+	if _current_order_type() != ORDER_TYPE_MOVE:
+		_set_current_order_type(ORDER_TYPE_MOVE)
+		_set_node_property("_order_was_player_issued", false)
+	_set_actor_move_target(_law_custody_return_target)
+
+
+func process_law_sentence_move() -> void:
+	if not _law_sentence_move_active:
+		return
+	if _horizontal_distance_to(_law_sentence_move_target) <= _actor_float("interact_distance", 1.8) or not _actor_bool("_has_move_target", false):
+		_law_sentence_move_active = false
+		return
+	if _current_order_type() != ORDER_TYPE_MOVE:
+		_set_current_order_type(ORDER_TYPE_MOVE)
+		_set_node_property("_order_was_player_issued", false)
+	_set_actor_move_target(_law_sentence_move_target)
+
+
+func process_heal_interaction() -> void:
+	var heal_target = _node_property("_current_heal_target")
+	if not _is_valid_node(heal_target):
+		stop_heal_assignment()
+		return
+	if not _node_call_bool(heal_target, "can_receive_bandage"):
+		if _actor_bool("_order_was_player_issued", false):
+			_call_void("show_world_speech", ["They don't need bandaging", 5.0])
+		stop_heal_assignment()
+		return
+	if _call("_get_best_bandage_definition") == null:
+		if _actor_bool("_order_was_player_issued", false):
+			_call_void("show_world_speech", ["I don't have anything to heal with", 5.0])
+		stop_heal_assignment()
+		return
+	if heal_target == actor:
+		_clear_actor_move_target()
+		if _call_bool("apply_bandage_from", [actor]):
+			stop_heal_assignment()
+		return
+	var target_position := _interaction_position_of(heal_target)
+	if _position().distance_to(_position_of(heal_target)) > _actor_float("interact_distance", 1.8):
+		_set_actor_move_target(target_position)
+		return
+	_clear_actor_move_target()
+	if _node_call_bool(heal_target, "apply_bandage_from", [actor]):
+		stop_heal_assignment()
+
+
+func process_finish_off_interaction() -> void:
+	var finish_target = _node_property("_current_finish_off_target")
+	if not _is_finish_off_target_valid(finish_target):
+		stop_finish_off_assignment()
+		return
+	if try_complete_finish_off_interaction():
+		return
+	var target_position_value = _call("_get_downed_target_interaction_position", [finish_target])
+	var target_position: Vector3 = target_position_value if target_position_value is Vector3 else Vector3.INF
+	if target_position == Vector3.INF:
+		stop_finish_off_assignment()
+		return
+	_set_actor_move_target(target_position)
+
+
+func try_complete_finish_off_interaction(extra_distance := 0.0) -> bool:
+	var finish_target = _node_property("_current_finish_off_target")
+	if not _is_finish_off_target_valid(finish_target):
+		return false
+	if not _call_bool("_is_close_enough_to_downed_interaction_target", [finish_target, extra_distance]):
+		return false
+	_clear_actor_move_target()
+	if _node_call_bool(finish_target, "requires_fire_to_die"):
+		_call_void("burn_target_with_cinder_flask", [finish_target, _actor_bool("_order_was_player_issued", false)])
+		stop_finish_off_assignment()
+		return true
+	_call_node_void(finish_target, "force_kill", [actor])
+	_call_void("_show_world_notice", ["Finished", Color(0.95, 0.2, 0.2, 1.0)])
+	stop_finish_off_assignment()
+	return true
+
+
+func validate_heal_finish_order_targets() -> void:
+	if _current_order_type() == ORDER_TYPE_HEAL:
+		var heal_target = _node_property("_current_heal_target")
+		if not _is_valid_node(heal_target):
+			stop_heal_assignment()
+	if _current_order_type() == ORDER_TYPE_FINISH_OFF:
+		var finish_target = _node_property("_current_finish_off_target")
+		if not _is_finish_off_target_valid(finish_target):
+			stop_finish_off_assignment()
 
 
 func process_carry_interaction() -> void:
@@ -1070,6 +1269,14 @@ func _position_of(target) -> Vector3:
 	return (target as Node3D).global_position if target is Node3D else Vector3.ZERO
 
 
+func _interaction_position_of(target) -> Vector3:
+	if _is_valid_node(target) and target.has_method("get_interaction_position"):
+		var result = target.call("get_interaction_position", actor)
+		if result is Vector3:
+			return result
+	return _position_of(target)
+
+
 func _set_actor_global_position(position: Vector3) -> void:
 	if actor is Node3D:
 		(actor as Node3D).global_position = position
@@ -1104,6 +1311,14 @@ func _is_actor_alive() -> bool:
 
 func _is_valid_node(value) -> bool:
 	return value != null and is_instance_valid(value)
+
+
+func _is_finish_off_target_valid(target) -> bool:
+	if not _is_valid_node(target):
+		return false
+	if not _node_call_bool(target, "is_downed_state"):
+		return false
+	return not _node_call_bool(target, "requires_fire_to_die") or _node_call_bool(target, "can_be_destroyed_by_cinder")
 
 
 func _node_display_name(value) -> String:
