@@ -700,14 +700,9 @@ func stop_finish_off_assignment() -> void:
 
 
 func stop_carry_assignment() -> void:
-	if _auto_burn_reserved_target == _current_carry_target:
-		if _carried_character == _auto_burn_reserved_target:
-			_release_auto_burn_target_reservation()
-		else:
-			_release_auto_burn_reservations()
-	_current_carry_target = null
-	if _current_order_type == OrderType.CARRY:
-		_current_order_type = OrderType.NONE
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_carry_assignment()
 
 
 func stop_sleep_assignment() -> void:
@@ -724,23 +719,21 @@ func stop_sleep_assignment() -> void:
 
 
 func stop_place_in_bed_assignment() -> void:
-	_current_place_bed_target = null
-	if _current_order_type == OrderType.PLACE_IN_BED:
-		_current_order_type = OrderType.NONE
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_place_in_bed_assignment()
 
 
 func stop_place_in_cell_assignment() -> void:
-	_current_place_cell_target = null
-	_current_place_cell_waypoints.clear()
-	if _current_order_type == OrderType.PLACE_IN_CELL:
-		_current_order_type = OrderType.NONE
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_place_in_cell_assignment()
 
 
 func stop_place_in_furnace_assignment() -> void:
-	_release_place_furnace_reservation()
-	_current_place_furnace_target = null
-	if _current_order_type == OrderType.PLACE_IN_FURNACE:
-		_current_order_type = OrderType.NONE
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_place_in_furnace_assignment()
 
 
 func _release_sleep_target_without_waking() -> void:
@@ -905,15 +898,9 @@ func assign_finish_off_target(target_character: HumanoidCharacter, issued_by_pla
 
 
 func assign_carry_target(target_character: HumanoidCharacter, issued_by_player: bool = true) -> void:
-	if target_character == null or target_character == self:
-		return
-	if life_state != NpcRules.LifeState.ALIVE:
-		return
-	if not target_character.can_be_carried_by(self) or _carried_character != null:
-		return
-	if not _set_order(OrderType.CARRY, issued_by_player):
-		return
-	_current_carry_target = target_character
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_carry_target(target_character, issued_by_player)
 
 
 func assign_sleep_target(bed, issued_by_player: bool = true) -> void:
@@ -933,57 +920,21 @@ func assign_sleep_target(bed, issued_by_player: bool = true) -> void:
 
 
 func assign_place_carried_in_bed_target(bed, issued_by_player: bool = true) -> void:
-	if bed == null or not bed.has_method("get_interaction_position"):
-		return
-	if life_state != NpcRules.LifeState.ALIVE:
-		return
-	if _carried_character == null or not is_instance_valid(_carried_character):
-		return
-	if not _set_order(OrderType.PLACE_IN_BED, issued_by_player):
-		return
-	_current_place_bed_target = bed
-	_set_actor_move_target(bed.get_interaction_position(self))
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_place_carried_in_bed_target(bed, issued_by_player)
 
 
 func assign_place_carried_in_cell_target(cell, issued_by_player: bool = true) -> void:
-	if cell == null or not cell.has_method("get_interaction_position"):
-		return
-	if life_state != NpcRules.LifeState.ALIVE:
-		return
-	if _carried_character == null or not is_instance_valid(_carried_character):
-		return
-	if _current_order_type == OrderType.PLACE_IN_CELL and _current_place_cell_target == cell:
-		return
-	if not _set_order(OrderType.PLACE_IN_CELL, issued_by_player):
-		return
-	_current_place_cell_target = cell
-	_current_place_cell_waypoints = _get_place_cell_route(cell)
-	_set_next_place_cell_move_target(cell.call("get_interaction_position", self))
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_place_carried_in_cell_target(cell, issued_by_player)
 
 
 func assign_place_carried_in_furnace_target(furnace, issued_by_player: bool = true) -> void:
-	if furnace == null or not furnace.has_method("get_interaction_position"):
-		return
-	if life_state != NpcRules.LifeState.ALIVE:
-		return
-	if _carried_character == null or not is_instance_valid(_carried_character):
-		return
-	if furnace.has_method("can_accept_body") and not bool(furnace.call("can_accept_body", _carried_character)):
-		if issued_by_player:
-			_show_world_notice("Cannot burn", Color(1.0, 0.66, 0.28, 1.0))
-		return
-	if furnace.has_method("reserve_for") and not bool(furnace.call("reserve_for", self, _carried_character)):
-		if issued_by_player:
-			_show_world_notice("Furnace busy", Color(1.0, 0.78, 0.38, 1.0))
-		return
-	if not _set_order(OrderType.PLACE_IN_FURNACE, issued_by_player):
-		if furnace.has_method("release_reservation"):
-			furnace.call("release_reservation", self, _carried_character)
-		return
-	_current_place_furnace_target = furnace
-	if _auto_burn_reserved_furnace != null and _auto_burn_reserved_furnace != furnace:
-		_release_auto_burn_furnace_reservation()
-	_set_actor_move_target(furnace.call("get_interaction_position", self))
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_place_carried_in_furnace_target(furnace, issued_by_player)
 
 
 func assign_seat_target(seat, issued_by_player: bool = true) -> void:
@@ -2456,6 +2407,12 @@ func _get_interaction_capability():
 	return _interaction_capability
 
 
+func _validate_carried_interaction_orders() -> void:
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.validate_carried_order_targets()
+
+
 func _process_combat_cooldown(delta: float) -> void:
 	var combat_capability := _get_combat_capability()
 	if combat_capability != null:
@@ -2662,14 +2619,7 @@ func _process_ai(delta: float) -> void:
 		stop_heal_assignment()
 	if _current_order_type == OrderType.FINISH_OFF and (_current_finish_off_target == null or not is_instance_valid(_current_finish_off_target) or not _current_finish_off_target.is_downed_state()):
 		stop_finish_off_assignment()
-	if _current_order_type == OrderType.CARRY and (_current_carry_target == null or not is_instance_valid(_current_carry_target) or not _current_carry_target.can_be_carried_by(self)):
-		stop_carry_assignment()
-	if _current_order_type == OrderType.PLACE_IN_BED and (_current_place_bed_target == null or not is_instance_valid(_current_place_bed_target) or _carried_character == null or not is_instance_valid(_carried_character)):
-		stop_place_in_bed_assignment()
-	if _current_order_type == OrderType.PLACE_IN_CELL and (_current_place_cell_target == null or not is_instance_valid(_current_place_cell_target) or _carried_character == null or not is_instance_valid(_carried_character)):
-		stop_place_in_cell_assignment()
-	if _current_order_type == OrderType.PLACE_IN_FURNACE and (_current_place_furnace_target == null or not is_instance_valid(_current_place_furnace_target) or _carried_character == null or not is_instance_valid(_carried_character)):
-		stop_place_in_furnace_assignment()
+	_validate_carried_interaction_orders()
 	if _current_order_type == OrderType.PICKUP_ITEM and (_current_pickup_item == null or not is_instance_valid(_current_pickup_item)):
 		stop_pickup_assignment()
 	if _current_attack_target != null and not _is_valid_active_combat_target(_current_attack_target):
@@ -2727,14 +2677,7 @@ func _process_ai_profiled(delta: float) -> void:
 		stop_heal_assignment()
 	if _current_order_type == OrderType.FINISH_OFF and (_current_finish_off_target == null or not is_instance_valid(_current_finish_off_target) or not _current_finish_off_target.is_downed_state()):
 		stop_finish_off_assignment()
-	if _current_order_type == OrderType.CARRY and (_current_carry_target == null or not is_instance_valid(_current_carry_target) or not _current_carry_target.can_be_carried_by(self)):
-		stop_carry_assignment()
-	if _current_order_type == OrderType.PLACE_IN_BED and (_current_place_bed_target == null or not is_instance_valid(_current_place_bed_target) or _carried_character == null or not is_instance_valid(_carried_character)):
-		stop_place_in_bed_assignment()
-	if _current_order_type == OrderType.PLACE_IN_CELL and (_current_place_cell_target == null or not is_instance_valid(_current_place_cell_target) or _carried_character == null or not is_instance_valid(_carried_character)):
-		stop_place_in_cell_assignment()
-	if _current_order_type == OrderType.PLACE_IN_FURNACE and (_current_place_furnace_target == null or not is_instance_valid(_current_place_furnace_target) or _carried_character == null or not is_instance_valid(_carried_character)):
-		stop_place_in_furnace_assignment()
+	_validate_carried_interaction_orders()
 	if _current_order_type == OrderType.PICKUP_ITEM and (_current_pickup_item == null or not is_instance_valid(_current_pickup_item)):
 		stop_pickup_assignment()
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("order_validation", profile_last_usec)
@@ -3053,156 +2996,32 @@ func _process_sleep_interaction() -> void:
 
 
 func _process_place_in_bed_interaction() -> void:
-	if _current_place_bed_target == null or not is_instance_valid(_current_place_bed_target):
-		stop_place_in_bed_assignment()
-		return
-	if _carried_character == null or not is_instance_valid(_carried_character):
-		stop_place_in_bed_assignment()
-		return
-	var interaction_position: Vector3 = _current_place_bed_target.get_interaction_position(self)
-	if global_position.distance_to(interaction_position) > interact_distance:
-		_set_actor_move_target(interaction_position)
-		return
-	if _has_move_target:
-		return
-	var carried := _carried_character
-	var sleep_result: Dictionary = _current_place_bed_target.request_sleep(self) if _current_place_bed_target.has_method("request_sleep") else {"allowed": true, "message": ""}
-	if not sleep_result.get("allowed", false):
-		var failure_message := str(sleep_result.get("message", "Cannot use this bed"))
-		if not failure_message.is_empty():
-			center_notice_requested.emit(failure_message)
-			_show_world_notice(failure_message, Color(1.0, 0.78, 0.38, 1.0))
-		stop_place_in_bed_assignment()
-		return
-	carried.stop_sleep_assignment()
-	if not _current_place_bed_target.claim_sleeper(carried):
-		center_notice_requested.emit("Bed occupied")
-		_show_world_notice("Bed occupied", Color(1.0, 0.78, 0.38, 1.0))
-		stop_place_in_bed_assignment()
-		return
-	var bed = _current_place_bed_target
-	_detach_carried_character()
-	carried.global_position = bed.get_sleep_position()
-	carried.rotation = bed.get_sleep_rotation()
-	carried.velocity = Vector3.ZERO
-	carried.running = false
-	carried._set_sneaking_state(false, false)
-	carried._clear_actor_move_target()
-	carried._current_order_type = OrderType.SLEEP
-	carried._current_sleep_target = bed
-	if carried.life_state == NpcRules.LifeState.ALIVE:
-		carried.life_state = NpcRules.LifeState.ASLEEP
-	var success_message := str(sleep_result.get("message", ""))
-	if not success_message.is_empty():
-		center_notice_requested.emit(success_message)
-	_clear_actor_move_target()
-	_current_place_bed_target = null
-	_current_order_type = OrderType.NONE
-	_show_world_notice("Placed in bed", Color(0.55, 0.72, 1.0, 1.0))
-	state_changed.emit()
-	carried.state_changed.emit()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_place_in_bed_interaction()
 
 
 func _process_place_in_cell_interaction() -> void:
-	if _current_place_cell_target == null or not is_instance_valid(_current_place_cell_target):
-		stop_place_in_cell_assignment()
-		return
-	if _carried_character == null or not is_instance_valid(_carried_character):
-		stop_place_in_cell_assignment()
-		return
-	var interaction_position: Vector3 = _current_place_cell_target.call("get_interaction_position", self)
-	var place_distance := maxf(interact_distance, CELL_PLACEMENT_INTERACT_DISTANCE)
-	if _horizontal_distance_to(interaction_position) > place_distance or absf(global_position.y - interaction_position.y) > move_target_vertical_tolerance + 0.8:
-		_set_next_place_cell_move_target(interaction_position)
-		return
-	if _has_move_target:
-		_clear_actor_move_target()
-	var carried := _carried_character
-	var cell = _current_place_cell_target
-	_detach_carried_character()
-	if not bool(cell.call("place_carried_prisoner", self, carried)):
-		_attach_carried_character(carried)
-		_show_world_notice("Cell unavailable", Color(1.0, 0.78, 0.38, 1.0))
-		stop_place_in_cell_assignment()
-		return
-	_notify_law_custody_placed(carried)
-	_clear_actor_move_target()
-	_current_place_cell_target = null
-	_current_place_cell_waypoints.clear()
-	_current_order_type = OrderType.NONE
-	_show_world_notice("Placed in cell", Color(0.55, 0.72, 1.0, 1.0))
-	state_changed.emit()
-	carried.state_changed.emit()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_place_in_cell_interaction()
 
 
 func _process_place_in_furnace_interaction() -> void:
-	if _current_place_furnace_target == null or not is_instance_valid(_current_place_furnace_target):
-		stop_place_in_furnace_assignment()
-		return
-	if _carried_character == null or not is_instance_valid(_carried_character):
-		stop_place_in_furnace_assignment()
-		return
-	if _current_place_furnace_target.has_method("can_accept_body") and not bool(_current_place_furnace_target.call("can_accept_body", _carried_character)):
-		stop_place_in_furnace_assignment()
-		return
-	var interaction_position: Vector3 = _current_place_furnace_target.call("get_interaction_position", self)
-	if global_position.distance_to(interaction_position) > interact_distance:
-		_set_actor_move_target(interaction_position)
-		return
-	if _has_move_target:
-		_clear_actor_move_target()
-	var carried := _carried_character
-	var furnace = _current_place_furnace_target
-	_detach_carried_character()
-	if not furnace.has_method("place_carried_body") or not bool(furnace.call("place_carried_body", self, carried)):
-		_attach_carried_character(carried)
-		_show_world_notice("Furnace unavailable", Color(1.0, 0.78, 0.38, 1.0))
-		stop_place_in_furnace_assignment()
-		_set_auto_burn_backoff(auto_burn_failed_backoff_seconds)
-		return
-	_clear_actor_move_target()
-	_current_place_furnace_target = null
-	_current_order_type = OrderType.NONE
-	_release_auto_burn_reservations()
-	_show_world_notice("Burning", Color(1.0, 0.45, 0.12, 1.0))
-	state_changed.emit()
-	carried.state_changed.emit()
-
-
-func _notify_law_custody_placed(actor: HumanoidCharacter) -> void:
-	if actor == null:
-		return
-	var tree := get_tree()
-	if tree == null:
-		return
-	for controller in tree.get_nodes_in_group("law_order_controller"):
-		if controller != null and controller.has_method("complete_custody_if_placed") and bool(controller.call("complete_custody_if_placed", actor)):
-			return
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_place_in_furnace_interaction()
 
 
 func _get_place_cell_route(cell) -> Array[Vector3]:
-	var route: Array[Vector3] = []
-	if cell != null and cell.has_method("get_interaction_route"):
-		for point in cell.call("get_interaction_route", self):
-			if point is Vector3:
-				route.append(point)
-	var final_position: Vector3 = cell.call("get_interaction_position", self)
-	if route.is_empty() or route[route.size() - 1].distance_squared_to(final_position) > 0.04:
-		route.append(final_position)
-	return route
+	var interaction = _get_interaction_capability()
+	return interaction.get_place_cell_route(cell) if interaction != null else []
 
 
 func _set_next_place_cell_move_target(final_position: Vector3) -> void:
-	while not _current_place_cell_waypoints.is_empty() and global_position.distance_to(_current_place_cell_waypoints[0]) <= interact_distance:
-		_current_place_cell_waypoints.remove_at(0)
-	var next_position := final_position
-	if _current_place_cell_waypoints.is_empty():
-		next_position = final_position
-	else:
-		next_position = _current_place_cell_waypoints[0]
-	if _has_move_target and _move_target.distance_squared_to(next_position) <= 0.04:
-		return
-	_set_actor_move_target(next_position)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.set_next_place_cell_move_target(final_position)
 
 
 func _process_seat_interaction() -> void:
@@ -3447,20 +3266,9 @@ func _try_complete_finish_off_interaction(extra_distance: float = 0.0) -> bool:
 
 
 func _process_carry_interaction() -> void:
-	if _current_carry_target == null or not is_instance_valid(_current_carry_target):
-		stop_carry_assignment()
-		return
-	if not _current_carry_target.can_be_carried_by(self) or _carried_character != null:
-		stop_carry_assignment()
-		return
-	var target_position := _current_carry_target.global_position
-	if global_position.distance_to(target_position) > interact_distance:
-		_set_actor_move_target(target_position)
-		return
-	_clear_actor_move_target()
-	_attach_carried_character(_current_carry_target)
-	_show_world_notice("Carrying %s" % _current_carry_target.member_name, Color(0.86, 0.92, 1.0, 1.0))
-	stop_carry_assignment()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_carry_interaction()
 
 
 func _process_pickup_interaction() -> void:
@@ -4724,10 +4532,9 @@ func _release_auto_burn_reservations() -> void:
 
 
 func _release_place_furnace_reservation() -> void:
-	if _current_place_furnace_target != null and is_instance_valid(_current_place_furnace_target) and _current_place_furnace_target.has_method("release_reservation"):
-		_current_place_furnace_target.call("release_reservation", self, _carried_character)
-	if _auto_burn_reserved_furnace == _current_place_furnace_target:
-		_auto_burn_reserved_furnace = null
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.release_place_furnace_reservation()
 
 
 func _set_auto_burn_backoff(seconds: float) -> void:
