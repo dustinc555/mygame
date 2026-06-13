@@ -96,7 +96,7 @@ func _validate_tabletop_raycast_prefers_item(bar: Node) -> void:
 	var interaction := WORLD_INTERACTION_CONTROLLER_SCRIPT.new() as WorldInteractionController
 	interaction.camera = camera
 	root.add_child(interaction)
-	var hit: Dictionary = interaction.call("_raycast_target_from_screen", root.size * 0.5)
+	var hit: Dictionary = interaction.call("_raycast_target_from_screen", camera.unproject_position(item.global_position))
 	var collider: Object = hit.get("collider") if not hit.is_empty() else null
 	if collider != item:
 		_fail("Right-click raycast through tabletop should resolve the spawned item, got %s" % [str(collider)])
