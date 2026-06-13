@@ -28,6 +28,7 @@ enum PileSize {
 @export var interaction_radius := 1.8
 @export var slot_distance := 2.4
 @export var slot_count := 6
+@export var resource_node_id := ""
 @export var show_charge_count := false:
 	set(value):
 		show_charge_count = value
@@ -76,6 +77,10 @@ func get_scavenging_position(member: HumanoidCharacter) -> Vector3:
 	var slot_index := _get_slot_index(member)
 	var angle := TAU * float(slot_index) / float(max(slot_count, 1))
 	return global_position + Vector3(cos(angle), 0.0, sin(angle)) * slot_distance
+
+
+func get_resource_progress_key() -> String:
+	return resource_node_id.strip_edges()
 
 
 func register_scavenger(member: HumanoidCharacter) -> void:

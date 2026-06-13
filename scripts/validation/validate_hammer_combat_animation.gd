@@ -169,10 +169,12 @@ func _validate_clipless_default_combat_timing() -> void:
 	defender.base_block_chance = 0.0
 	attacker.call("assign_attack_target", defender, false, false, false)
 	attacker.call("_start_combat_attack", defender)
+	var started := _get_combat_action_active(attacker)
+	var started_impact_remaining := _get_combat_action_impact_remaining(attacker)
 	await process_frame
-	if not _get_combat_action_active(attacker):
+	if not started:
 		_fail("clipless combat should use actor-owned timed default action")
-	elif _get_combat_action_impact_remaining(attacker) <= 0.0:
+	elif started_impact_remaining <= 0.0:
 		_fail("clipless combat should keep a positive actor-owned impact countdown")
 	if _get_current_animation(attacker) != "":
 		_fail("clipless combat should not require a presentation clip, got '%s'" % _get_current_animation(attacker))

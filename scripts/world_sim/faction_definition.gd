@@ -22,7 +22,7 @@ func get_id() -> String:
 
 
 func is_hostile_to(other_faction_id: String) -> bool:
-	return not other_faction_id.is_empty() and default_hostile_faction_ids.has(other_faction_id)
+	return not other_faction_id.is_empty() and default_hostile_faction_ids != null and default_hostile_faction_ids.has(other_faction_id)
 
 
 func get_behavior_profile() -> Resource:

@@ -217,7 +217,7 @@ func _do_initialize() -> void:
 	if not party_members.is_empty():
 		party_manager.select_only(party_members[0])
 		if humanoid_details_controller != null:
-			humanoid_details_controller.inspect_humanoid(party_members[0])
+			humanoid_details_controller.inspect_target(party_members[0])
 
 	camera_anchor = _get_anchor_position()
 	_apply_camera_transform()
@@ -595,11 +595,11 @@ func _apply_drag_selection() -> void:
 				merged_selection.append(member)
 		party_manager.set_selection(merged_selection)
 		if humanoid_details_controller != null and not merged_selection.is_empty():
-			humanoid_details_controller.inspect_humanoid(merged_selection[0])
+			humanoid_details_controller.inspect_target(merged_selection[0])
 		return
 	party_manager.set_selection(drag_selected)
 	if humanoid_details_controller != null and not drag_selected.is_empty():
-		humanoid_details_controller.inspect_humanoid(drag_selected[0])
+		humanoid_details_controller.inspect_target(drag_selected[0])
 
 
 func _pick_party_member(screen_position: Vector2) -> WorldActor:
@@ -617,7 +617,7 @@ func _pick_humanoid(screen_position: Vector2):
 	if result.is_empty():
 		return null
 	var collider: Object = result["collider"]
-	if collider is CharacterBody3D and collider.has_method("set_inspected"):
+	if collider is HumanoidCharacter and collider.has_method("set_inspected"):
 		return collider
 	return null
 
@@ -1466,7 +1466,7 @@ func _on_portrait_pressed(member: WorldActor, double_click: bool, add_select: bo
 	else:
 		party_manager.select_only(member)
 	if humanoid_details_controller != null:
-		humanoid_details_controller.inspect_humanoid(member)
+		humanoid_details_controller.inspect_target(member)
 	if double_click:
 		_set_follow_target(member)
 

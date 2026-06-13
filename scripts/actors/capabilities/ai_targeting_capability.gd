@@ -52,8 +52,7 @@ func try_reconfigure_close_combat_target() -> bool:
 		return false
 	if active_target != null and should_keep_current_target_over_close_hostile(active_target, close_target):
 		return false
-	_call_bool("assign_attack_target", [close_target, false, false, false])
-	return true
+	return _call_bool("assign_attack_target", [close_target, false, false, false])
 
 
 func should_keep_current_target_over_close_hostile(active_target: Node, close_target: Node) -> bool:
@@ -113,7 +112,7 @@ func find_defensive_assist_target() -> Node:
 		return null
 	var witness_radius := _combat_witness_radius()
 	var witness_radius_squared := witness_radius * witness_radius
-	for node in get_query_actors_limited(_position(), witness_radius, MAX_COMBAT_QUERY_CANDIDATES, true):
+	for node in get_query_actors(_position(), witness_radius, true):
 		if node == actor or not _is_alive_combat_actor(node):
 			continue
 		if _position().distance_squared_to(_position_of(node)) > witness_radius_squared:
@@ -133,7 +132,7 @@ func find_defensive_assist_target() -> Node:
 func find_nearest_hostile(scan_radius: float) -> Node:
 	var candidate_entries: Array = []
 	var radius_squared := scan_radius * scan_radius
-	for node in get_query_actors_limited(_position(), scan_radius, MAX_COMBAT_QUERY_CANDIDATES, true):
+	for node in get_query_actors(_position(), scan_radius, true):
 		if node == actor or not _is_valid_combat_target(node):
 			continue
 		if not _has_hostility_with(node):
@@ -152,7 +151,7 @@ func find_closest_hostile(scan_radius: float, same_level_only := true) -> Node:
 	var best_target: Node
 	var best_distance_squared := INF
 	var radius_squared := scan_radius * scan_radius
-	for node in get_query_actors_limited(_position(), scan_radius, MAX_COMBAT_QUERY_CANDIDATES, true):
+	for node in get_query_actors(_position(), scan_radius, true):
 		if node == actor or not _is_valid_combat_target(node):
 			continue
 		if same_level_only and absf(_position_of(node).y - _position().y) > _actor_float("move_target_vertical_tolerance", 0.75):
@@ -204,7 +203,7 @@ func notify_defensive_allies_of_attack(attacker: Node) -> void:
 	var notify_entries: Array = []
 	var notify_radius := support_radius
 	var notify_radius_squared := notify_radius * notify_radius
-	for node in get_query_actors_limited(_position(), notify_radius, MAX_COMBAT_ASSIST_NOTIFY_RECIPIENTS * 2, true):
+	for node in get_query_actors(_position(), notify_radius, true):
 		if node == actor or not _is_alive_combat_actor(node):
 			continue
 		var distance_squared := _position().distance_squared_to(_position_of(node))
@@ -224,7 +223,7 @@ func notify_defensive_allies_of_engagement(target: Node) -> void:
 	var notify_entries: Array = []
 	var notify_radius := support_radius
 	var notify_radius_squared := notify_radius * notify_radius
-	for node in get_query_actors_limited(_position(), notify_radius, MAX_COMBAT_ASSIST_NOTIFY_RECIPIENTS * 2, true):
+	for node in get_query_actors(_position(), notify_radius, true):
 		if node == actor or not _is_alive_combat_actor(node):
 			continue
 		var distance_squared := _position().distance_squared_to(_position_of(node))
@@ -276,7 +275,7 @@ func get_support_target_candidates(primary_target: Node, radius: float) -> Array
 	var seen_target_ids := {}
 	seen_target_ids[primary_target.get_instance_id()] = true
 	var radius_squared := radius * radius
-	for node in get_query_actors_limited(_position_of(primary_target), radius, MAX_COMBAT_SUPPORT_TARGETS * 4, true):
+	for node in get_query_actors(_position_of(primary_target), radius, true):
 		if not _is_alive_combat_actor(node) or node == primary_target:
 			continue
 		var candidate_id: int = node.get_instance_id()

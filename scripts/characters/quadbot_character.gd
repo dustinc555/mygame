@@ -215,7 +215,8 @@ func _assign_combat_target(target_actor: Node, combat_job_type: int, issued_by_p
 	mark_hostile(target_actor)
 	if target_actor.has_method("mark_hostile"):
 		target_actor.call("mark_hostile", self)
-	if notify_target and target_actor.has_method("notify_incoming_attack"):		target_actor.call("notify_incoming_attack", self)
+	if notify_target and target_actor.has_method("notify_incoming_attack"):
+		target_actor.call("notify_incoming_attack", self)
 	if notify_allies:
 		_notify_defensive_allies_of_engagement(target_actor)
 	combat_state_changed.emit()
@@ -337,8 +338,8 @@ func _setup_body_projection() -> void:
 	if _body == null:
 		return
 	_body.name = "BodyProjection"
-	add_child(_body)
 	_body.bind_actor(self)
+	add_child(_body)
 	_body.setup_visual()
 
 
@@ -646,7 +647,7 @@ func _should_help_against(protected_actor, threat, _allow_public_intervention: b
 func _find_humanoid_by_instance_id(instance_id: int) -> Node:
 	var query_controller := _get_runtime_controller("actor_query_controller")
 	if query_controller != null and query_controller.has_method("get_actor_by_instance_id"):
-		var indexed_actor := query_controller.call("get_actor_by_instance_id", instance_id) as Node
+		var indexed_actor := query_controller.call("get_actor_by_instance_id", instance_id) as HumanoidCharacter
 		if indexed_actor != null:
 			return indexed_actor
 	return null

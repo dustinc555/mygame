@@ -162,6 +162,7 @@ var _actor_capability_by_id: Dictionary = {}
 var _actor_process_capabilities: Array = []
 var _actor_physics_process_capabilities: Array = []
 var _actor_capabilities_ready := false
+var _actor_capability_defaults_initialized := false
 
 var _navigation_agent: NavigationAgent3D
 var _navigation_target_synced := false
@@ -239,8 +240,9 @@ func _create_actor_capabilities() -> Array:
 
 
 func _setup_actor_capabilities() -> void:
-	if not _actor_capabilities.is_empty():
+	if _actor_capability_defaults_initialized:
 		return
+	_actor_capability_defaults_initialized = true
 	for capability_value in _create_actor_capabilities():
 		add_actor_capability(capability_value)
 
@@ -276,6 +278,7 @@ func _teardown_actor_capabilities() -> void:
 	_actor_process_capabilities.clear()
 	_actor_physics_process_capabilities.clear()
 	_actor_capabilities_ready = false
+	_actor_capability_defaults_initialized = false
 
 
 func _is_actor_capability(value) -> bool:
@@ -486,7 +489,8 @@ func can_equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> bo
 		return bool(equipment_capability.call("can_equip_item_to_slot", definition, slot_name))
 	if definition == null or not definition.is_equippable():
 		return false
-	if not get_equipment_slot_names().has(slot_name):
+	var actor_slot_names := get_equipment_slot_names()
+	if not actor_slot_names.is_empty() and not actor_slot_names.has(slot_name):
 		return false
 	return definition.can_equip_to_slot(slot_name)
 

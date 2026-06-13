@@ -206,6 +206,7 @@ func _ensure_scrap_piles() -> void:
 func _make_scrap_pile(parent: Node, node_name: String, position: Vector3, difficulty: int, size_id: int, pile_scale: Vector3) -> void:
 	var pile := SCRAP_PILE_SCENE.instantiate() as ScavengingResourceNode
 	pile.name = node_name
+	pile.resource_node_id = "junkyard.%s" % node_name.to_snake_case()
 	pile.position = position
 	pile.scale = pile_scale
 	pile.pile_size = size_id
@@ -223,6 +224,7 @@ func _make_scrap_pile(parent: Node, node_name: String, position: Vector3, diffic
 func _make_twisted_scrap_heap(parent: Node, position: Vector3) -> void:
 	var pile := TWISTED_SCRAP_HEAP_SCENE.instantiate() as ScavengingResourceNode
 	pile.name = "TwistedScrapHeap"
+	pile.resource_node_id = "junkyard.twisted_scrap_heap"
 	pile.position = position
 	pile.show_charge_count = show_charge_labels
 	parent.add_child(pile)
@@ -231,6 +233,7 @@ func _make_twisted_scrap_heap(parent: Node, position: Vector3) -> void:
 func _make_half_buried_robot_wreck(parent: Node, position: Vector3) -> void:
 	var pile := HALF_BURIED_ROBOT_WRECK_SCENE.instantiate() as ScavengingResourceNode
 	pile.name = "HalfBuriedRobotWreck"
+	pile.resource_node_id = "junkyard.half_buried_robot_wreck"
 	pile.position = position
 	pile.show_charge_count = show_charge_labels
 	parent.add_child(pile)

@@ -29,6 +29,10 @@ func get_visual_root() -> Node3D:
 	return null
 
 
+func get_visual_local_bounds() -> AABB:
+	return AABB()
+
+
 func has_custom_skin_material() -> bool:
 	return false
 
@@ -39,7 +43,6 @@ func apply_automatic_eyebrow_style() -> void:
 
 func rebuild_visual_for_appearance() -> void:
 	setup_visual()
-	refresh_grip_sockets_for_body()
 
 
 func apply_appearance_materials(_root: Node, _body_type: int) -> void:
@@ -51,6 +54,13 @@ func set_base_eyebrow_visuals_visible(_root: Node, _visible_flag: bool) -> void:
 
 
 # --- Ragdoll / downed visuals ---
+
+func supports_downed_visuals() -> bool:
+	return false
+
+
+func supports_ragdoll_visuals() -> bool:
+	return false
 
 func process_ragdoll_impulse_memory(_delta: float) -> void:
 	pass

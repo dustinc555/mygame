@@ -1270,7 +1270,7 @@ func _find_worker_slot(worker: WorldActor) -> Dictionary:
 
 func _get_job_system_sim_time(delta: float) -> float:
 	if is_inside_tree():
-		var controller := get_tree().get_first_node_in_group("job_system_controller")
+		var controller := _job_system_controller if _job_system_controller != null and is_instance_valid(_job_system_controller) else _get_job_system_controller()
 		if controller != null and controller.has_method("get_sim_time"):
 			return float(controller.call("get_sim_time"))
 	return _sim_time + delta
@@ -1335,7 +1335,15 @@ func _get_gecs_world() -> Node:
 func _get_job_system_controller() -> Node:
 	if not is_inside_tree():
 		return null
-	return get_tree().get_first_node_in_group("job_system_controller")
+	var current: Node = self
+	while current != null:
+		if current.is_in_group("job_system_controller"):
+			return current
+		for child in current.get_children():
+			if child != self and child.is_in_group("job_system_controller"):
+				return child
+		current = current.get_parent()
+	return null
 
 
 func _sync_gecs_state() -> void:

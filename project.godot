@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="MyGame"
-run/main_scene="res://scenes/test_levels/rustdead_3_bots_10_demo.tscn"
+run/main_scene="uid://cyd6tthtv87y2"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 

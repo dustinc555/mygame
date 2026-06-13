@@ -1,15 +1,26 @@
 extends SceneTree
 
-const TWO_TOWNS_SCENE := preload("res://scenes/test_levels/two_towns_road_test.tscn")
-const SETTLEMENT_BAR_SCENE := preload("res://scenes/world_sim/settlement_bar.tscn")
-const STOOL_SCENE := preload("res://scenes/world/props/stool_chair.tscn")
-const BREAD_ITEM := preload("res://resources/items/bread.tres")
-const FOOD_ITEM := preload("res://resources/items/food.tres")
-const FACTION_HUMANOID_SCRIPT := preload("res://scripts/characters/faction_humanoid.gd")
-const FARMER_NAME_PROFILE := preload("res://resources/world_sim/population_name_profiles/farmer_names.tres")
-const BARBER_CONVERSATION := preload("res://resources/conversations/barber_services.tres")
-const CHARACTER_JOBS_WINDOW_SCRIPT := preload("res://scripts/ui/character_jobs_window.gd")
-const AI_UTILITY_ADAPTER_SCRIPT := preload("res://scripts/ai/utility/ai_utility_adapter.gd")
+const TWO_TOWNS_SCENE_PATH := "res://scenes/test_levels/two_towns_road_test.tscn"
+const SETTLEMENT_BAR_SCENE_PATH := "res://scenes/world_sim/settlement_bar.tscn"
+const STOOL_SCENE_PATH := "res://scenes/world/props/stool_chair.tscn"
+const BREAD_ITEM_PATH := "res://resources/items/bread.tres"
+const FOOD_ITEM_PATH := "res://resources/items/food.tres"
+const FACTION_HUMANOID_SCRIPT_PATH := "res://scripts/characters/faction_humanoid.gd"
+const FARMER_NAME_PROFILE_PATH := "res://resources/world_sim/population_name_profiles/farmer_names.tres"
+const BARBER_CONVERSATION_PATH := "res://resources/conversations/barber_services.tres"
+const CHARACTER_JOBS_WINDOW_SCRIPT_PATH := "res://scripts/ui/character_jobs_window.gd"
+const AI_UTILITY_ADAPTER_SCRIPT_PATH := "res://scripts/ai/utility/ai_utility_adapter.gd"
+
+var TWO_TOWNS_SCENE: PackedScene
+var SETTLEMENT_BAR_SCENE: PackedScene
+var STOOL_SCENE: PackedScene
+var BREAD_ITEM: Resource
+var FOOD_ITEM: Resource
+var FACTION_HUMANOID_SCRIPT: Script
+var FARMER_NAME_PROFILE: Resource
+var BARBER_CONVERSATION: Resource
+var CHARACTER_JOBS_WINDOW_SCRIPT: Script
+var AI_UTILITY_ADAPTER_SCRIPT: Script
 
 var _failures: Array[String] = []
 var _scene: Node
@@ -21,6 +32,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_load_validation_resources()
 	_scene = TWO_TOWNS_SCENE.instantiate()
 	root.add_child(_scene)
 	await _wait_frames(120)
@@ -28,6 +40,8 @@ func _run() -> void:
 	_validate_base_bar_scene_staff_authoring()
 	_validate_demo_starts_without_bar()
 	await _validate_operator_instantiated_bar()
+	await _cleanup_scene()
+	_cleanup_validation_resources()
 	if _failures.is_empty():
 		print("REUSABLE_BAR_AUTHORING_OK")
 		quit(0)
@@ -36,6 +50,40 @@ func _run() -> void:
 		push_error(failure)
 	print("REUSABLE_BAR_AUTHORING_FAILED count=%d" % _failures.size())
 	quit(1)
+
+
+func _load_validation_resources() -> void:
+	TWO_TOWNS_SCENE = load(TWO_TOWNS_SCENE_PATH) as PackedScene
+	SETTLEMENT_BAR_SCENE = load(SETTLEMENT_BAR_SCENE_PATH) as PackedScene
+	STOOL_SCENE = load(STOOL_SCENE_PATH) as PackedScene
+	BREAD_ITEM = load(BREAD_ITEM_PATH) as Resource
+	FOOD_ITEM = load(FOOD_ITEM_PATH) as Resource
+	FACTION_HUMANOID_SCRIPT = load(FACTION_HUMANOID_SCRIPT_PATH) as Script
+	FARMER_NAME_PROFILE = load(FARMER_NAME_PROFILE_PATH) as Resource
+	BARBER_CONVERSATION = load(BARBER_CONVERSATION_PATH) as Resource
+	CHARACTER_JOBS_WINDOW_SCRIPT = load(CHARACTER_JOBS_WINDOW_SCRIPT_PATH) as Script
+	AI_UTILITY_ADAPTER_SCRIPT = load(AI_UTILITY_ADAPTER_SCRIPT_PATH) as Script
+
+
+func _cleanup_scene() -> void:
+	if _scene != null and is_instance_valid(_scene):
+		root.remove_child(_scene)
+		_scene.free()
+		_scene = null
+		await _wait_frames(8)
+
+
+func _cleanup_validation_resources() -> void:
+	TWO_TOWNS_SCENE = null
+	SETTLEMENT_BAR_SCENE = null
+	STOOL_SCENE = null
+	BREAD_ITEM = null
+	FOOD_ITEM = null
+	FACTION_HUMANOID_SCRIPT = null
+	FARMER_NAME_PROFILE = null
+	BARBER_CONVERSATION = null
+	CHARACTER_JOBS_WINDOW_SCRIPT = null
+	AI_UTILITY_ADAPTER_SCRIPT = null
 
 
 func _validate_demo_starts_without_bar() -> void:

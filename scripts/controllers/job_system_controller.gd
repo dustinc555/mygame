@@ -27,6 +27,8 @@ func _ready() -> void:
 func register_job_provider(provider: Node) -> void:
 	if provider == null or not is_instance_valid(provider):
 		return
+	if not _is_job_provider_in_scope(provider):
+		return
 	if _job_providers.has(provider):
 		return
 	_job_providers.append(provider)
@@ -102,8 +104,32 @@ func _process_job_provider_contracts(delta: float) -> void:
 func _refresh_job_provider_cache() -> void:
 	if not is_inside_tree():
 		return
+	var refreshed_providers: Array = []
 	for provider in get_tree().get_nodes_in_group("job_provider"):
-		register_job_provider(provider)
+		if provider == null or not is_instance_valid(provider) or not provider.is_inside_tree():
+			continue
+		if not _is_job_provider_in_scope(provider):
+			continue
+		if not refreshed_providers.has(provider):
+			refreshed_providers.append(provider)
+	_job_providers = refreshed_providers
+
+
+func _is_job_provider_in_scope(provider: Node) -> bool:
+	if provider == null:
+		return false
+	if root_scene == null or not is_instance_valid(root_scene):
+		return true
+	return provider == root_scene or _is_node_descendant_of(provider, root_scene)
+
+
+func _is_node_descendant_of(node: Node, ancestor: Node) -> bool:
+	var current := node
+	while current != null:
+		if current == ancestor:
+			return true
+		current = current.get_parent()
+	return false
 
 
 func _get_gecs_world() -> Node:

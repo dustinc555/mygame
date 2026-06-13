@@ -2,7 +2,6 @@ extends Node3D
 
 const PARTY_MEMBER_SCRIPT = preload("res://scripts/party_member.gd")
 const RUSTDEAD_HUMANOID_SCRIPT = preload("res://scripts/characters/rustdead_humanoid_character.gd")
-const QUADBOT_CHARACTER_SCRIPT = preload("res://scripts/characters/quadbot_character.gd")
 const SELECTION_RING_VISUAL = preload("res://scripts/projection/selection_ring_visual.gd")
 const APPEARANCE_DATA_SCRIPT = preload("res://scripts/character_appearance/character_appearance_data.gd")
 const INVENTORY_STOCK_SCRIPT = preload("res://scripts/items/inventory_stock.gd")
@@ -108,25 +107,6 @@ func _spawn_party_members() -> void:
 		actor.assist_scan_radius = 18.0
 		_add_basic_actor_children(actor, actor.base_color, true)
 		party_root.add_child(actor)
-	_spawn_quadbot_party_member(party_root, PARTY_CONFIGS.size())
-
-
-func _spawn_quadbot_party_member(party_root: Node3D, index: int) -> void:
-	var actor = QUADBOT_CHARACTER_SCRIPT.new()
-	actor.name = "QO17"
-	actor.member_name = "QO-17"
-	actor.faction_name = "Player"
-	actor.squad_name = PARTY_SQUAD_NAME
-	actor.player_party_member = true
-	actor.hostile_factions = PackedStringArray(["Rustdead"])
-	actor.combat_stance = NpcRules.CombatStance.DEFENSIVE
-	actor.position = _party_position(index)
-	actor.starting_skill_levels = QUADBOT_CHARACTER_SCRIPT.make_varied_skill_levels(RUSTDEAD_RANDOM_SEED + index, PARTY_DEFAULT_SKILL_LEVEL)
-	actor.aggressive_scan_radius = 18.0
-	actor.assist_scan_radius = 18.0
-	_add_basic_actor_children(actor, Color(0.35, 0.50, 0.58, 1.0), true)
-	party_root.add_child(actor)
-
 
 func _spawn_rustdead_humanoids() -> void:
 	for index in range(10):

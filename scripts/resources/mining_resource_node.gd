@@ -20,6 +20,7 @@ class_name MiningResourceNode
 @export var slot_count := 6
 @export var owner_character_path: NodePath
 @export var owner_faction_name := ""
+@export var resource_node_id := ""
 
 const STRENGTH_SPEED_BONUS_CAP := 0.12
 const STRENGTH_SPEED_BONUS_CURVE := 45.0
@@ -39,6 +40,10 @@ func get_mining_position(member: HumanoidCharacter) -> Vector3:
 
 func get_mining_interaction_radius() -> float:
 	return maxf(interaction_radius, 0.05)
+
+
+func get_resource_progress_key() -> String:
+	return resource_node_id.strip_edges()
 
 
 func register_miner(member: HumanoidCharacter) -> void:

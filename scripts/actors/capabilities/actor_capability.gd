@@ -2,7 +2,7 @@ extends RefCounted
 
 class_name ActorCapability
 
-var capability_id: StringName
+var _capability_id: StringName
 var enabled := true
 var process_enabled := false
 var physics_process_enabled := false
@@ -10,7 +10,7 @@ var actor: Node
 
 
 func _init(id: StringName = &"") -> void:
-	capability_id = id
+	_capability_id = id
 
 
 func setup(target_actor: Node) -> void:
@@ -34,4 +34,4 @@ func teardown() -> void:
 
 
 func get_capability_id() -> StringName:
-	return capability_id
+	return _capability_id

@@ -232,6 +232,7 @@ owner_character_path = NodePath("../ShopkeeperNpc")
 
 [node name="CopperNode" parent="." unique_id=1246303490 instance=ExtResource("5_366s7")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.7359, 0, 8.75851)
+resource_node_id = "movement_controls_test.copper_node"
 owner_character_path = NodePath("../ShopkeeperNpc")
 
 [editable path="ShopkeeperNpc"]

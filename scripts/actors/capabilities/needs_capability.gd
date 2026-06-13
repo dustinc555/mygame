@@ -11,6 +11,7 @@ var _tick_remaining := 0.0
 
 func _init() -> void:
 	super._init(&"needs")
+	process_enabled = true
 
 
 func configure(interval_seconds: float, jitter_seconds: float) -> void:
@@ -21,6 +22,10 @@ func configure(interval_seconds: float, jitter_seconds: float) -> void:
 func set_tick_remaining(seconds: float) -> void:
 	_tick_accumulated = 0.0
 	_tick_remaining = maxf(0.0, seconds)
+
+
+func process(delta: float) -> void:
+	process_actor_needs(delta)
 
 
 func process_actor_needs(delta: float) -> void:

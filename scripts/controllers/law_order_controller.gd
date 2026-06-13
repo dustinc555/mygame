@@ -53,7 +53,7 @@ func get_current_settlement_id_for(target) -> String:
 	return _settlement_id(settlement)
 
 
-func make_stolen_item_metadata(actor: HumanoidCharacter, source, owner_faction_id := "", settlement_id := "") -> Dictionary:
+func make_stolen_item_metadata(actor: WorldActor, source, owner_faction_id := "", settlement_id := "") -> Dictionary:
 	if owner_faction_id.is_empty():
 		owner_faction_id = _owner_faction_id(source)
 	if settlement_id.is_empty():
@@ -69,7 +69,7 @@ func make_stolen_item_metadata(actor: HumanoidCharacter, source, owner_faction_i
 	}
 
 
-func report_theft_if_witnessed(actor: HumanoidCharacter, item, witnesses: Array = []) -> Dictionary:
+func report_theft_if_witnessed(actor: WorldActor, item, witnesses: Array = []) -> Dictionary:
 	if actor == null or item == null:
 		return {}
 	var owner_faction := _owner_faction_id(item)
@@ -84,7 +84,7 @@ func report_theft_if_witnessed(actor: HumanoidCharacter, item, witnesses: Array 
 	return report_crime(actor, owner_faction, settlement_id, CRIME_THEFT, severity, witnesses[0], item)
 
 
-func report_trespass(actor: WorldActor, building, witness: HumanoidCharacter = null) -> Dictionary:
+func report_trespass(actor: WorldActor, building, witness: WorldActor = null) -> Dictionary:
 	if actor == null or building == null:
 		return {}
 	var faction_id := ""
@@ -154,7 +154,7 @@ func report_murder_if_witnessed(attacker: HumanoidCharacter, victim: HumanoidCha
 	var has_public_case := _has_public_warrant_for_target(attacker, faction_id, victim)
 	if witnesses.is_empty() and not has_public_case:
 		return {}
-	var lead_witness: HumanoidCharacter = public_witnesses[0] if not public_witnesses.is_empty() else victim
+	var lead_witness: WorldActor = public_witnesses[0] if not public_witnesses.is_empty() else victim
 	var crime_context := {
 		"public": not public_witnesses.is_empty() or has_public_case,
 		"witnesses": witnesses,
@@ -182,7 +182,7 @@ func report_lockpicking_if_witnessed(actor: HumanoidCharacter, target) -> Dictio
 	return report_crime(actor, faction_id, get_current_settlement_id_for(target), CRIME_LOCKPICKING, 20, witnesses[0], target)
 
 
-func report_crime(actor: WorldActor, faction_id: String, settlement_id: String, crime_type: String, severity: int, witness: HumanoidCharacter = null, target = null, crime_context: Dictionary = {}) -> Dictionary:
+func report_crime(actor: WorldActor, faction_id: String, settlement_id: String, crime_type: String, severity: int, witness: WorldActor = null, target = null, crime_context: Dictionary = {}) -> Dictionary:
 	if actor == null or faction_id.strip_edges().is_empty():
 		return {}
 	var actor_key := _actor_key(actor)
@@ -224,14 +224,14 @@ func report_crime(actor: WorldActor, faction_id: String, settlement_id: String, 
 	return record
 
 
-func handle_actor_death(actor: HumanoidCharacter) -> void:
+func handle_actor_death(actor: WorldActor) -> void:
 	if actor == null:
 		return
 	_prune_victim_only_crimes_for_dead_actor(actor)
 	_save_law_order_state_to_gecs()
 
 
-func actor_has_active_warrant(actor: HumanoidCharacter, faction_id := "") -> bool:
+func actor_has_active_warrant(actor: WorldActor, faction_id := "") -> bool:
 	if actor == null:
 		return false
 	var by_faction: Dictionary = warrants.get(_actor_key(actor), {})
@@ -255,7 +255,7 @@ func can_sell_entry_to_merchant(seller: HumanoidCharacter, merchant_owner, entry
 	return false
 
 
-func get_warrant_record(actor: HumanoidCharacter, faction_id: String) -> Dictionary:
+func get_warrant_record(actor: WorldActor, faction_id: String) -> Dictionary:
 	if actor == null:
 		return {}
 	return (warrants.get(_actor_key(actor), {}) as Dictionary).get(faction_id, {}).duplicate(true)
@@ -292,7 +292,7 @@ func sync_law_order_state() -> void:
 	_save_law_order_state_to_gecs()
 
 
-func _get_mutable_warrant_record(actor: HumanoidCharacter, faction_id: String) -> Dictionary:
+func _get_mutable_warrant_record(actor: WorldActor, faction_id: String) -> Dictionary:
 	if actor == null:
 		return {}
 	return (warrants.get(_actor_key(actor), {}) as Dictionary).get(faction_id, {})
@@ -347,11 +347,20 @@ func _process_warrants() -> void:
 			if str(record.get("state", "wanted")) == "jailed":
 				continue
 			if str(record.get("state", "wanted")) == "custody":
-				_process_custody(actor, record)
+				var custody_actor := actor as HumanoidCharacter
+				if custody_actor == null:
+					record["state"] = "wanted"
+					_alert_authority_guards(actor, record)
+				else:
+					_process_custody(custody_actor, record)
 				by_faction[faction_id] = record
 				continue
-			if actor.is_downed_state():
-				_arrest_or_eject(actor, record)
+			if _actor_is_downed(actor):
+				var downed_humanoid := actor as HumanoidCharacter
+				if downed_humanoid != null:
+					_arrest_or_eject(downed_humanoid, record)
+				else:
+					_disengage_authority_guards(actor, record)
 				by_faction[faction_id] = record
 				continue
 			if actor.life_state != NpcRules.LifeState.ALIVE:
@@ -369,7 +378,7 @@ func _process_prisoners() -> void:
 	var now := _now_minute()
 	for prisoner_key in prisoner_records.keys():
 		var record: Dictionary = prisoner_records[prisoner_key]
-		var actor := _find_actor_by_key(str(prisoner_key))
+		var actor := _find_actor_by_key(str(prisoner_key)) as HumanoidCharacter
 		if actor == null:
 			continue
 		var jail := _find_jail_by_id(str(record.get("jail_id", "")))
@@ -450,7 +459,7 @@ func _complete_jailing(actor: HumanoidCharacter, warrant: Dictionary, jail: Node
 	warrant["state"] = "jailed"
 	_apply_actor_law_meta(actor, prisoner_record)
 	_save_law_order_state_to_gecs()
-	var custody_guard := _find_actor_by_key(str(warrant.get("custody_guard_key", "")))
+	var custody_guard := _find_actor_by_key(str(warrant.get("custody_guard_key", ""))) as HumanoidCharacter
 	_disengage_authority_guards(actor, warrant)
 	_disengage_authority_guards_from_each_other(warrant)
 	_clear_custody_actor_hostility(actor, warrant)
@@ -531,13 +540,13 @@ func _alert_authority_guards(actor: WorldActor, warrant: Dictionary) -> void:
 		if guard != null and guard != actor and guard.life_state == NpcRules.LifeState.ALIVE:
 			if not _is_guard_in_authority_alert_scope(guard, warrant, actor):
 				continue
-			if guard.has_method("assign_law_arrest_target"):
+			if actor is HumanoidCharacter and guard.has_method("assign_law_arrest_target"):
 				guard.call("assign_law_arrest_target", actor, true, false)
-			else:
-				guard.assign_attack_target(actor, false, true, false)
+			elif guard.has_method("assign_attack_target"):
+				guard.call("assign_attack_target", actor, false, true, false)
 
 
-func _disengage_authority_guards(actor: HumanoidCharacter, warrant: Dictionary) -> void:
+func _disengage_authority_guards(actor: WorldActor, warrant: Dictionary) -> void:
 	if actor == null:
 		return
 	for guard in _find_authority_guards(str(warrant.get("faction_id", "")), _find_settlement_for_warrant(actor, warrant)):
@@ -545,11 +554,11 @@ func _disengage_authority_guards(actor: HumanoidCharacter, warrant: Dictionary) 
 			continue
 		if guard.has_method("disengage_combat_with"):
 			guard.call("disengage_combat_with", actor)
-		else:
+		elif guard.has_method("clear_personal_hostility"):
 			guard.clear_personal_hostility(actor)
 		if actor.has_method("disengage_combat_with"):
 			actor.call("disengage_combat_with", guard)
-		else:
+		elif actor.has_method("clear_personal_hostility"):
 			actor.clear_personal_hostility(guard)
 
 
@@ -561,13 +570,19 @@ func _should_alert_authority_guards(actor: WorldActor, _warrant: Dictionary, set
 	return true
 
 
-func _has_active_authority_arrest_response(actor: HumanoidCharacter, warrant: Dictionary, settlement: Node) -> bool:
+func _has_active_authority_arrest_response(actor: WorldActor, warrant: Dictionary, settlement: Node) -> bool:
 	if actor == null or settlement == null:
 		return false
 	for guard in _find_authority_guards(str(warrant.get("faction_id", "")), settlement):
 		if guard != null and guard.has_method("is_law_arresting") and bool(guard.call("is_law_arresting", actor)):
 			return true
+		if guard != null and guard.has_method("get_current_combat_target") and guard.call("get_current_combat_target") == actor:
+			return true
 	return false
+
+
+func _actor_is_downed(actor: WorldActor) -> bool:
+	return actor != null and actor.has_method("is_downed_state") and bool(actor.call("is_downed_state"))
 
 
 func _disengage_authority_guards_from_each_other(warrant: Dictionary) -> void:
@@ -580,18 +595,22 @@ func _disengage_authority_guards_from_each_other(warrant: Dictionary) -> void:
 			var right := guards[right_index]
 			if right == null:
 				continue
-			left.disengage_combat_with(right)
-			right.disengage_combat_with(left)
+			if left.has_method("disengage_combat_with"):
+				left.call("disengage_combat_with", right)
+			if right.has_method("disengage_combat_with"):
+				right.call("disengage_combat_with", left)
 
 
-func _clear_custody_actor_hostility(actor: HumanoidCharacter, warrant: Dictionary) -> void:
+func _clear_custody_actor_hostility(actor: WorldActor, warrant: Dictionary) -> void:
 	if actor == null:
 		return
 	for guard in _find_authority_guards(str(warrant.get("faction_id", "")), _find_settlement_for_warrant(actor, warrant), true):
 		if guard == null:
 			continue
-		guard.clear_personal_hostility(actor)
-		actor.clear_personal_hostility(guard)
+		if guard.has_method("clear_personal_hostility"):
+			guard.call("clear_personal_hostility", actor)
+		if actor.has_method("clear_personal_hostility"):
+			actor.call("clear_personal_hostility", guard)
 	if actor.has_method("clear_all_personal_hostility"):
 		actor.call("clear_all_personal_hostility")
 
@@ -620,12 +639,12 @@ func _get_jail_exit_position(jail: Node, actor: Node = null) -> Vector3:
 	return (jail as Node3D).global_position if jail is Node3D else Vector3.ZERO
 
 
-func _find_authority_guards(faction_id: String, settlement: Node, include_jail_staff := true) -> Array[HumanoidCharacter]:
-	var guards: Array[HumanoidCharacter] = []
+func _find_authority_guards(faction_id: String, settlement: Node, include_jail_staff := true) -> Array[WorldActor]:
+	var guards: Array[WorldActor] = []
 	if root_scene == null or not root_scene.is_inside_tree():
 		return guards
-	for node in root_scene.get_tree().get_nodes_in_group("npc_character"):
-		var guard := node as HumanoidCharacter
+	for node in root_scene.get_tree().get_nodes_in_group("world_actor"):
+		var guard := node as WorldActor
 		if guard == null or guard.life_state != NpcRules.LifeState.ALIVE or guard.player_party_member:
 			continue
 		if not _is_law_soldier_responder(guard):
@@ -640,13 +659,13 @@ func _find_authority_guards(faction_id: String, settlement: Node, include_jail_s
 	return guards
 
 
-func _is_law_soldier_responder(actor: HumanoidCharacter) -> bool:
+func _is_law_soldier_responder(actor: WorldActor) -> bool:
 	if actor == null:
 		return false
 	return actor.has_method("is_faction_soldier") and bool(actor.call("is_faction_soldier"))
 
 
-func _is_law_actor_attached_to_settlement(actor: HumanoidCharacter, settlement: Node) -> bool:
+func _is_law_actor_attached_to_settlement(actor: WorldActor, settlement: Node) -> bool:
 	if actor == null or settlement == null:
 		return false
 	if _is_node_descendant_of(actor, settlement):
@@ -669,12 +688,12 @@ func _configure_authority_alert_context(record: Dictionary, crime_context: Dicti
 	record.erase("local_alarm_radius")
 
 
-func _is_guard_in_authority_alert_scope(guard: HumanoidCharacter, warrant: Dictionary, actor: WorldActor) -> bool:
+func _is_guard_in_authority_alert_scope(guard: WorldActor, warrant: Dictionary, actor: WorldActor) -> bool:
 	if guard == null:
 		return false
 	if str(warrant.get("authority_alert_mode", "settlement")) != "local":
 		return true
-	if actor != null and guard.get_current_combat_target() == actor:
+	if actor != null and guard.has_method("get_current_combat_target") and guard.call("get_current_combat_target") == actor:
 		return true
 	var alarm_position = warrant.get("local_alarm_position", Vector3.INF)
 	if not (alarm_position is Vector3):
@@ -683,7 +702,7 @@ func _is_guard_in_authority_alert_scope(guard: HumanoidCharacter, warrant: Dicti
 	return guard.global_position.distance_to(alarm_position) <= radius
 
 
-func _existing_local_alert_context(actor: HumanoidCharacter, faction_id: String) -> Dictionary:
+func _existing_local_alert_context(actor: WorldActor, faction_id: String) -> Dictionary:
 	var record := _get_mutable_warrant_record(actor, faction_id)
 	if record.is_empty() or str(record.get("authority_alert_mode", "settlement")) != "local":
 		return {}
@@ -699,23 +718,25 @@ func _existing_local_alert_context(actor: HumanoidCharacter, faction_id: String)
 
 func _find_custody_guard(actor: HumanoidCharacter, warrant: Dictionary, settlement: Node) -> HumanoidCharacter:
 	var faction_id := str(warrant.get("faction_id", ""))
-	var assigned_guard := _find_actor_by_key(str(warrant.get("custody_guard_key", "")))
+	var assigned_guard := _find_actor_by_key(str(warrant.get("custody_guard_key", ""))) as HumanoidCharacter
 	if _is_valid_custody_guard(assigned_guard, actor, faction_id, settlement):
 		return assigned_guard
 	for guard in _find_authority_guards(faction_id, settlement):
-		if _is_valid_custody_guard(guard, actor, faction_id, settlement) and guard.has_method("is_law_arresting") and bool(guard.call("is_law_arresting", actor)):
-			return guard
+		var humanoid_guard := guard as HumanoidCharacter
+		if _is_valid_custody_guard(humanoid_guard, actor, faction_id, settlement) and humanoid_guard.has_method("is_law_arresting") and bool(humanoid_guard.call("is_law_arresting", actor)):
+			return humanoid_guard
 	var best: HumanoidCharacter = null
 	var best_distance := INF
 	for guard in _find_authority_guards(faction_id, settlement):
-		if not _is_valid_custody_guard(guard, actor, faction_id, settlement):
+		var humanoid_guard := guard as HumanoidCharacter
+		if not _is_valid_custody_guard(humanoid_guard, actor, faction_id, settlement):
 			continue
-		if guard.get_carried_character() == actor:
-			return guard
-		var distance := guard.global_position.distance_squared_to(actor.global_position)
+		if humanoid_guard.get_carried_character() == actor:
+			return humanoid_guard
+		var distance := humanoid_guard.global_position.distance_squared_to(actor.global_position)
 		if distance < best_distance:
 			best_distance = distance
-			best = guard
+			best = humanoid_guard
 	return best
 
 
@@ -759,28 +780,28 @@ func _find_witnesses(actor: WorldActor, target, faction_id: String) -> Array:
 	if target is Node3D:
 		target_position = (target as Node3D).global_position
 	var perception := _get_perception_controller()
-	for node in root_scene.get_tree().get_nodes_in_group("npc_character"):
-		var humanoid := node as HumanoidCharacter
-		if humanoid == null or humanoid == actor or humanoid.life_state != NpcRules.LifeState.ALIVE or humanoid.player_party_member:
+	for node in root_scene.get_tree().get_nodes_in_group("world_actor"):
+		var witness := node as WorldActor
+		if witness == null or witness == actor or witness.life_state != NpcRules.LifeState.ALIVE or witness.player_party_member:
 			continue
-		if not faction_id.is_empty() and humanoid.faction_name != faction_id:
+		if not faction_id.is_empty() and witness.faction_name != faction_id:
 			continue
-		if humanoid.global_position.distance_to(target_position) > DEFAULT_WITNESS_RADIUS:
+		if witness.global_position.distance_to(target_position) > DEFAULT_WITNESS_RADIUS:
 			continue
 		if perception != null and perception.has_method("evaluate_observer"):
-			var result := perception.call("evaluate_observer", humanoid, actor) as Dictionary
+			var result := perception.call("evaluate_observer", witness, actor) as Dictionary
 			if not bool(result.get("clearly_seen", false)):
 				continue
-		witnesses.append(humanoid)
+		witnesses.append(witness)
 	return witnesses
 
 
-func _witnesses_excluding_actor(witnesses: Array, excluded: HumanoidCharacter) -> Array[HumanoidCharacter]:
-	var filtered: Array[HumanoidCharacter] = []
+func _witnesses_excluding_actor(witnesses: Array, excluded: WorldActor) -> Array[WorldActor]:
+	var filtered: Array[WorldActor] = []
 	for witness in witnesses:
-		var humanoid := witness as HumanoidCharacter
-		if humanoid != null and humanoid != excluded:
-			filtered.append(humanoid)
+		var world_actor := witness as WorldActor
+		if world_actor != null and world_actor != excluded:
+			filtered.append(world_actor)
 	return filtered
 
 
@@ -789,10 +810,10 @@ func _actor_keys_from_witnesses(witnesses: Variant) -> Array[String]:
 	if not (witnesses is Array):
 		return keys
 	for witness in witnesses:
-		var humanoid := witness as HumanoidCharacter
-		if humanoid == null:
+		var world_actor := witness as WorldActor
+		if world_actor == null:
 			continue
-		var key := _actor_key(humanoid)
+		var key := _actor_key(world_actor)
 		if not key.is_empty() and not keys.has(key):
 			keys.append(key)
 	return keys
@@ -812,16 +833,17 @@ func _has_public_warrant_for_target(actor: HumanoidCharacter, faction_id: String
 	return false
 
 
-func _find_nearest_authority_witness(actor: HumanoidCharacter, faction_id: String) -> HumanoidCharacter:
-	var best: HumanoidCharacter = null
+func _find_nearest_authority_witness(actor: WorldActor, faction_id: String) -> WorldActor:
+	var best: WorldActor = null
 	var best_distance := INF
 	for witness in _find_witnesses(actor, actor, faction_id):
-		if not (witness is HumanoidCharacter):
+		if not (witness is WorldActor):
 			continue
-		var distance := (witness as HumanoidCharacter).global_position.distance_squared_to(actor.global_position)
+		var world_witness := witness as WorldActor
+		var distance := world_witness.global_position.distance_squared_to(actor.global_position)
 		if distance < best_distance:
 			best_distance = distance
-			best = witness
+			best = world_witness
 	return best
 
 
@@ -859,7 +881,7 @@ func _clear_expired_stolen_items(absolute_minute: int) -> void:
 			node.get("inventory").clear_expired_stolen_metadata(absolute_minute)
 
 
-func _clear_warrant_for_actor(actor: HumanoidCharacter, faction_id: String) -> void:
+func _clear_warrant_for_actor(actor: WorldActor, faction_id: String) -> void:
 	if actor == null:
 		return
 	var actor_key := _actor_key(actor)
@@ -876,7 +898,7 @@ func _clear_warrant_for_actor(actor: HumanoidCharacter, faction_id: String) -> v
 	_save_law_order_state_to_gecs()
 
 
-func _clear_actor_law_meta(actor: HumanoidCharacter) -> void:
+func _clear_actor_law_meta(actor: WorldActor) -> void:
 	if actor == null:
 		return
 	actor.remove_meta("law_status_label")
@@ -885,7 +907,7 @@ func _clear_actor_law_meta(actor: HumanoidCharacter) -> void:
 	actor.remove_meta("law_sentence_summary")
 
 
-func _prune_victim_only_crimes_for_dead_actor(victim: HumanoidCharacter) -> void:
+func _prune_victim_only_crimes_for_dead_actor(victim: WorldActor) -> void:
 	var victim_key := _actor_key(victim)
 	if victim_key.is_empty():
 		return
@@ -1230,13 +1252,32 @@ func _actor_key(actor: WorldActor) -> String:
 	return actor.stable_id if not actor.stable_id.strip_edges().is_empty() else str(actor.get_instance_id())
 
 
-func _find_actor_by_key(actor_key: String) -> HumanoidCharacter:
+func _find_actor_by_key(actor_key: String) -> WorldActor:
 	if actor_key.is_empty() or root_scene == null or not root_scene.is_inside_tree():
 		return null
-	for node in root_scene.get_tree().get_nodes_in_group("humanoid_character"):
-		var actor := node as HumanoidCharacter
+	var query_controller := _get_actor_query_controller()
+	if query_controller != null and query_controller.has_method("get_actor_by_stable_id"):
+		var indexed_actor := query_controller.call("get_actor_by_stable_id", actor_key) as WorldActor
+		if indexed_actor != null:
+			return indexed_actor
+	for node in root_scene.get_tree().get_nodes_in_group("world_actor"):
+		var actor := node as WorldActor
 		if actor != null and _actor_key(actor) == actor_key:
 			return actor
+	return null
+
+
+func _get_actor_query_controller() -> Node:
+	if root_scene == null or not root_scene.is_inside_tree():
+		return null
+	var bootstrap := root_scene.get_node_or_null("GameBootstrap")
+	if bootstrap != null:
+		var local := bootstrap.get_node_or_null("ActorQueryController")
+		if local != null:
+			return local
+	for node in root_scene.get_tree().get_nodes_in_group("actor_query_controller"):
+		if node != null and _is_node_descendant_of(node, root_scene):
+			return node
 	return null
 
 

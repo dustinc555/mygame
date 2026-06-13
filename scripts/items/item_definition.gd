@@ -42,7 +42,7 @@ func is_equippable() -> bool:
 
 
 func has_tool_tag(tag: String) -> bool:
-	return not tag.is_empty() and tool_tags.has(tag)
+	return not tag.is_empty() and tool_tags != null and tool_tags.has(tag)
 
 
 func is_currency_item() -> bool:
@@ -62,7 +62,7 @@ func can_equip_to_slot(slot_name: String) -> bool:
 		return false
 	if equip_slot == slot_name:
 		return true
-	return alternate_equip_slots.has(slot_name)
+	return alternate_equip_slots != null and alternate_equip_slots.has(slot_name)
 
 
 func get_equipment_visual_for_body_archetype(body_archetype: Resource) -> Resource:

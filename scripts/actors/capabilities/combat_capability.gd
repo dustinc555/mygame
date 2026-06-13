@@ -66,6 +66,8 @@ func process_action_state(delta: float) -> void:
 
 
 func start_attack(target: Node) -> void:
+	if not is_ready():
+		return
 	if actor == null or not is_instance_valid(actor) or target == null or not is_instance_valid(target):
 		return
 	if actor.has_method("_get_active_combat_target") and actor.call("_get_active_combat_target") != target:
@@ -83,6 +85,10 @@ func start_attack(target: Node) -> void:
 	var action_seconds := float(timing.get("total_seconds", _get_default_action_seconds()))
 	if not COMBAT_COORDINATOR.try_begin_exchange(actor, target, action_seconds):
 		return
+	if actor.has_method("get_body_projection"):
+		var body = actor.call("get_body_projection")
+		if body != null and body.has_method("stop_clip"):
+			body.call("stop_clip", true)
 	_spend_attack_cost()
 	_award_attack_xp()
 	action_names = next_action_names
@@ -104,6 +110,10 @@ func start_attack(target: Node) -> void:
 
 
 func start_default_timed_attack(target: Node) -> void:
+	if not is_ready():
+		return
+	if actor == null or not is_instance_valid(actor) or target == null or not is_instance_valid(target):
+		return
 	var timing := _get_combat_action_timing([], _get_default_impact_ratio())
 	var action_seconds := float(timing.get("total_seconds", _get_default_action_seconds()))
 	if not COMBAT_COORDINATOR.try_begin_exchange(actor, target, action_seconds):
@@ -128,7 +138,7 @@ func start_default_timed_attack(target: Node) -> void:
 
 
 func receive_attack(attacker: Node, blunt_damage: float, cut_damage: float, attack_id: String = "", hit_reaction_names: Array[String] = [], is_critical := false) -> String:
-	if actor == null or not is_instance_valid(actor) or attacker == null or _get_actor_life_state() == NpcRules.LifeState.DEAD:
+	if actor == null or not is_instance_valid(actor) or attacker == null or not is_instance_valid(attacker) or _get_actor_life_state() == NpcRules.LifeState.DEAD:
 		return "ignored"
 	if _actor_call_bool("is_protected_from_combat"):
 		return "ignored"
@@ -255,14 +265,18 @@ func prepare_reaction(attacker: Node) -> void:
 
 
 func play_reaction(animation_name: String) -> bool:
+	reaction_remaining = 0.0
 	if animation_name.is_empty():
+		reaction_source = null
 		return false
 	if action_active:
 		clear_action()
 	if actor == null or not is_instance_valid(actor) or not actor.has_method("_play_combat_reaction_clip"):
+		reaction_source = null
 		return false
 	var next_reaction_seconds := float(actor.call("_play_combat_reaction_clip", animation_name))
 	if next_reaction_seconds <= 0.0:
+		reaction_source = null
 		return false
 	reaction_remaining = next_reaction_seconds
 	return true
@@ -274,6 +288,9 @@ func clear_reaction() -> void:
 
 
 func clear_for_actor(other: Node = null) -> void:
+	if other == null:
+		clear_all_state()
+		return
 	if other == null or action_target == other:
 		clear_action()
 	if other == null or reaction_source == other:
