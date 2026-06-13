@@ -13,6 +13,8 @@ const ORDER_TYPE_SLEEP := 11
 const ORDER_TYPE_PLACE_IN_BED := 12
 const ORDER_TYPE_PLACE_IN_CELL := 13
 const ORDER_TYPE_PLACE_IN_FURNACE := 14
+const ORDER_TYPE_SIT := 15
+const ORDER_TYPE_PICKUP_ITEM := 16
 const MINING_ORE_WORTH_FOR_FIRST_LEVEL := 4.0
 const MINING_STRENGTH_XP_FACTOR := 0.08
 const SCAVENGING_ATTEMPTS_FOR_FIRST_LEVEL := 4.0
@@ -101,6 +103,62 @@ func stop_place_in_furnace_assignment() -> void:
 	release_place_furnace_reservation()
 	_set_node_property("_current_place_furnace_target", null)
 	if _current_order_type() == ORDER_TYPE_PLACE_IN_FURNACE:
+		_set_current_order_type(ORDER_TYPE_NONE)
+
+
+func stop_sleep_assignment() -> void:
+	var sleep_target = _node_property("_current_sleep_target")
+	if _actor_life_state() == NpcRules.LifeState.ASLEEP and sleep_target != null and sleep_target.has_method("get_interaction_position"):
+		_set_actor_global_position(sleep_target.call("get_interaction_position", actor))
+	release_sleep_target_without_waking()
+	if _actor_life_state() == NpcRules.LifeState.ASLEEP:
+		_set_node_property("life_state", NpcRules.LifeState.ALIVE)
+		var rotation := _actor_rotation()
+		_set_actor_rotation(Vector3(0.0, rotation.y, 0.0))
+		_set_node_property("velocity", Vector3.ZERO)
+		_emit_actor_signal("state_changed")
+	if _current_order_type() == ORDER_TYPE_SLEEP:
+		_set_current_order_type(ORDER_TYPE_NONE)
+
+
+func release_sleep_target_without_waking() -> void:
+	var sleep_target = _node_property("_current_sleep_target")
+	if sleep_target != null and sleep_target.has_method("release_sleeper"):
+		sleep_target.call("release_sleeper", actor)
+	_set_node_property("_current_sleep_target", null)
+	if _current_order_type() == ORDER_TYPE_SLEEP:
+		_set_current_order_type(ORDER_TYPE_NONE)
+
+
+func stop_seat_assignment() -> void:
+	var seat_target = _node_property("_current_seat_target")
+	var did_stop_sitting := _actor_bool("_is_sitting", false)
+	if did_stop_sitting and seat_target != null:
+		var stand_position = _node_property("_current_seat_stand_position")
+		if stand_position is Vector3:
+			_set_actor_global_position(stand_position)
+		elif seat_target.has_method("get_stand_position"):
+			_set_actor_global_position(seat_target.call("get_stand_position"))
+		elif seat_target.has_method("get_interaction_position"):
+			_set_actor_global_position(seat_target.call("get_interaction_position", actor))
+	if seat_target != null and seat_target.has_method("release_sitter"):
+		seat_target.call("release_sitter", actor)
+	_set_node_property("_current_seat_target", null)
+	_set_node_property("_current_seat_stand_position", null)
+	if did_stop_sitting:
+		_set_node_property("_is_sitting", false)
+		_call_void("_start_sitting_exit_animation")
+		var rotation := _actor_rotation()
+		_set_actor_rotation(Vector3(0.0, rotation.y, 0.0))
+		_set_node_property("velocity", Vector3.ZERO)
+		_emit_actor_signal("state_changed")
+	if _current_order_type() == ORDER_TYPE_SIT:
+		_set_current_order_type(ORDER_TYPE_NONE)
+
+
+func stop_pickup_assignment() -> void:
+	_set_node_property("_current_pickup_item", null)
+	if _current_order_type() == ORDER_TYPE_PICKUP_ITEM:
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
@@ -256,6 +314,102 @@ func assign_place_carried_in_furnace_target(furnace, issued_by_player := true) -
 	if reserved_furnace != null and reserved_furnace != furnace:
 		_call_void("_release_auto_burn_furnace_reservation")
 	_set_actor_move_target(furnace.call("get_interaction_position", actor))
+
+
+func assign_sleep_target(bed, issued_by_player := true) -> void:
+	if bed == null or not bed.has_method("get_interaction_position"):
+		return
+	if not _is_actor_alive():
+		return
+	if _node_property("_carried_character") != null:
+		if issued_by_player:
+			_emit_actor_signal("center_notice_requested", ["Place them in bed first"])
+			_call_void("_show_world_notice", ["Place them in bed first", Color(1.0, 0.78, 0.38, 1.0)])
+		return
+	if not _set_order(ORDER_TYPE_SLEEP, issued_by_player):
+		return
+	_set_node_property("_current_sleep_target", bed)
+	_set_actor_move_target(bed.call("get_interaction_position", actor))
+
+
+func assign_seat_target(seat, issued_by_player := true) -> void:
+	if seat == null or not seat.has_method("get_interaction_position"):
+		return
+	if not _is_actor_alive():
+		return
+	if not _set_order(ORDER_TYPE_SIT, issued_by_player):
+		return
+	_set_node_property("_current_seat_target", seat)
+	_set_node_property("_current_seat_stand_position", _position())
+	if seat.has_method("can_sit_from_position") and bool(seat.call("can_sit_from_position", _position())):
+		_clear_actor_move_target()
+	else:
+		_set_actor_move_target(seat.call("get_interaction_position", actor))
+
+
+func sit_at_seat_immediately(seat) -> bool:
+	if seat == null or not seat.has_method("claim_sitter") or not seat.has_method("get_seat_position"):
+		return false
+	if not _is_actor_alive():
+		return false
+	stop_seat_assignment()
+	if not bool(seat.call("claim_sitter", actor)):
+		return false
+	_set_node_property("_current_seat_target", seat)
+	_set_node_property("_current_seat_stand_position", seat.call("get_stand_position") if seat.has_method("get_stand_position") else _position())
+	_set_actor_global_position(seat.call("get_seat_position", actor))
+	if seat.has_method("get_seat_rotation"):
+		_set_actor_rotation(seat.call("get_seat_rotation", actor))
+	_set_node_property("velocity", Vector3.ZERO)
+	_set_node_property("running", false)
+	_call_void("_set_sneaking_state", [false, false])
+	_clear_actor_move_target()
+	_set_node_property("_is_sitting", true)
+	_set_current_order_type(ORDER_TYPE_NONE)
+	_call_void("_start_sitting_enter_animation")
+	_emit_actor_signal("state_changed")
+	return true
+
+
+func assign_pickup_item(world_item, issued_by_player := true) -> void:
+	if not _is_valid_node(world_item):
+		return
+	if not _is_actor_alive():
+		return
+	if not _set_order(ORDER_TYPE_PICKUP_ITEM, issued_by_player):
+		return
+	_set_node_property("_current_pickup_item", world_item)
+	_set_actor_move_target(get_pickup_route_position(world_item))
+
+
+func wake_up_from_rest(show_notice := true) -> void:
+	var did_wake := _actor_life_state() == NpcRules.LifeState.ASLEEP
+	var did_stand := _actor_bool("_is_sitting", false)
+	var stand_position = null
+	var sleep_target = _node_property("_current_sleep_target")
+	var seat_target = _node_property("_current_seat_target")
+	if did_wake and sleep_target != null and sleep_target.has_method("get_interaction_position"):
+		stand_position = sleep_target.call("get_interaction_position", actor)
+	elif did_stand and seat_target != null:
+		var seat_stand_position = _node_property("_current_seat_stand_position")
+		if seat_stand_position is Vector3:
+			stand_position = seat_stand_position
+		elif seat_target.has_method("get_stand_position"):
+			stand_position = seat_target.call("get_stand_position")
+		elif seat_target.has_method("get_interaction_position"):
+			stand_position = seat_target.call("get_interaction_position", actor)
+	stop_sleep_assignment()
+	stop_seat_assignment()
+	if stand_position is Vector3:
+		_set_actor_global_position(stand_position)
+	if did_wake or did_stand:
+		_set_node_property("life_state", NpcRules.LifeState.ALIVE)
+		_clear_actor_move_target()
+		_set_current_order_type(ORDER_TYPE_NONE)
+		_set_node_property("velocity", Vector3.ZERO)
+		if show_notice:
+			_call_void("_show_world_notice", ["Awake" if did_wake else "Standing", Color(0.5, 1.0, 0.65, 1.0)])
+		_emit_actor_signal("state_changed")
 
 
 func has_mining_assignment() -> bool:
@@ -565,6 +719,133 @@ func process_place_in_furnace_interaction() -> void:
 	_emit_node_signal(carried, "state_changed")
 
 
+func process_sleep_interaction() -> void:
+	var sleep_target = _node_property("_current_sleep_target")
+	if not _is_valid_node(sleep_target):
+		stop_sleep_assignment()
+		return
+	var interaction_position: Vector3 = sleep_target.call("get_interaction_position", actor)
+	if _position().distance_to(interaction_position) > _actor_float("interact_distance", 1.8):
+		_set_actor_move_target(interaction_position)
+		return
+	if _actor_bool("_has_move_target", false):
+		return
+	var sleep_result: Dictionary = sleep_target.call("request_sleep", actor) if sleep_target.has_method("request_sleep") else {"allowed": true, "message": ""}
+	if not bool(sleep_result.get("allowed", false)):
+		var failure_message := str(sleep_result.get("message", "Cannot sleep here"))
+		if not failure_message.is_empty():
+			_emit_actor_signal("center_notice_requested", [failure_message])
+			_call_void("_show_world_notice", [failure_message, Color(1.0, 0.78, 0.38, 1.0)])
+		stop_sleep_assignment()
+		return
+	if not sleep_target.call("claim_sleeper", actor):
+		_emit_actor_signal("center_notice_requested", ["Bed occupied"])
+		_call_void("_show_world_notice", ["Bed occupied", Color(1.0, 0.78, 0.38, 1.0)])
+		stop_sleep_assignment()
+		return
+	var success_message := str(sleep_result.get("message", ""))
+	if not success_message.is_empty():
+		_emit_actor_signal("center_notice_requested", [success_message])
+	_set_actor_global_position(sleep_target.call("get_sleep_position"))
+	_set_actor_rotation(sleep_target.call("get_sleep_rotation"))
+	_set_node_property("velocity", Vector3.ZERO)
+	_set_node_property("running", false)
+	_call_void("_set_sneaking_state", [false, false])
+	_clear_actor_move_target()
+	_set_node_property("life_state", NpcRules.LifeState.ASLEEP)
+	_call_void("_show_world_notice", ["Sleeping", Color(0.55, 0.72, 1.0, 1.0)])
+	_emit_actor_signal("state_changed")
+
+
+func process_seat_interaction() -> void:
+	var seat_target = _node_property("_current_seat_target")
+	if not _is_valid_node(seat_target):
+		stop_seat_assignment()
+		return
+	if _actor_bool("_is_sitting", false):
+		_set_node_property("velocity", Vector3.ZERO)
+		return
+	var interaction_position: Vector3 = seat_target.call("get_interaction_position", actor)
+	var arrival_distance := _actor_float("interact_distance", 1.8)
+	if seat_target.has_method("get_arrival_distance"):
+		arrival_distance = maxf(arrival_distance, float(seat_target.call("get_arrival_distance")))
+	var can_snap_to_seat := false
+	if seat_target.has_method("can_sit_from_position"):
+		can_snap_to_seat = bool(seat_target.call("can_sit_from_position", _position()))
+	else:
+		can_snap_to_seat = _position().distance_to(interaction_position) <= arrival_distance
+	if not can_snap_to_seat:
+		_set_actor_move_target(interaction_position)
+		return
+	_clear_actor_move_target()
+	if not bool(seat_target.call("claim_sitter", actor)):
+		_call_void("_show_world_notice", ["Seat occupied", Color(1.0, 0.78, 0.38, 1.0)])
+		stop_seat_assignment()
+		return
+	_set_actor_global_position(seat_target.call("get_seat_position", actor))
+	_set_actor_rotation(seat_target.call("get_seat_rotation", actor))
+	_set_node_property("velocity", Vector3.ZERO)
+	_set_node_property("running", false)
+	_call_void("_set_sneaking_state", [false, false])
+	_clear_actor_move_target()
+	_set_node_property("_is_sitting", true)
+	_call_void("_start_sitting_enter_animation")
+	_set_current_order_type(ORDER_TYPE_NONE)
+	_call_void("_show_world_notice", ["Sitting", Color(0.55, 0.72, 1.0, 1.0)])
+	_emit_actor_signal("state_changed")
+
+
+func process_pickup_interaction() -> void:
+	var pickup_item = _node_property("_current_pickup_item")
+	if not _is_valid_node(pickup_item):
+		stop_pickup_assignment()
+		return
+	if try_complete_pickup_interaction(_actor_float("PICKUP_GRAB_EXTRA_DISTANCE", 0.1)):
+		return
+	var pickup_position := get_pickup_route_position(pickup_item)
+	if _horizontal_distance_to(pickup_position) > _move_target_arrival_distance():
+		_set_actor_move_target(pickup_position)
+		return
+	if try_complete_pickup_interaction(_actor_float("PICKUP_UNREACHABLE_EXTRA_DISTANCE", 0.25)):
+		return
+	if _actor_bool("_order_was_player_issued", false):
+		_call_void("show_world_speech", ["I can't reach that", 4.0])
+	stop_pickup_assignment()
+
+
+func try_complete_pickup_interaction(extra_distance := 0.0) -> bool:
+	var pickup_item = _node_property("_current_pickup_item")
+	if not _is_valid_node(pickup_item):
+		stop_pickup_assignment()
+		return true
+	if not can_pickup_item_from_position(pickup_item, _position(), extra_distance):
+		return false
+	_clear_actor_move_target()
+	if pickup_item.has_method("try_pickup"):
+		pickup_item.call("try_pickup", actor)
+	stop_pickup_assignment()
+	return true
+
+
+func can_pickup_item_from_position(item, actor_position: Vector3, extra_distance := 0.0) -> bool:
+	if not _is_valid_node(item):
+		return false
+	var reach_distance := _actor_float("interact_distance", 1.8) + maxf(extra_distance, 0.0)
+	if item.has_method("is_pickup_reachable_from"):
+		return bool(item.call("is_pickup_reachable_from", actor, actor_position, reach_distance))
+	return actor_position.distance_to(get_pickup_route_position(item)) <= reach_distance
+
+
+func get_pickup_route_position(item) -> Vector3:
+	if not _is_valid_node(item):
+		return _position()
+	if item.has_method("get_pickup_position"):
+		return item.call("get_pickup_position", actor)
+	if item is Node3D:
+		return (item as Node3D).global_position
+	return _position()
+
+
 func validate_carried_order_targets() -> void:
 	if _current_order_type() == ORDER_TYPE_CARRY:
 		var carry_target = _node_property("_current_carry_target")
@@ -789,13 +1070,36 @@ func _position_of(target) -> Vector3:
 	return (target as Node3D).global_position if target is Node3D else Vector3.ZERO
 
 
+func _set_actor_global_position(position: Vector3) -> void:
+	if actor is Node3D:
+		(actor as Node3D).global_position = position
+
+
+func _actor_rotation() -> Vector3:
+	var value = _node_property("rotation")
+	return value if value is Vector3 else Vector3.ZERO
+
+
+func _set_actor_rotation(rotation: Vector3) -> void:
+	_set_node_property("rotation", rotation)
+
+
 func _horizontal_distance_to(target_position: Vector3) -> float:
 	var current_position := _position()
 	return Vector2(current_position.x - target_position.x, current_position.z - target_position.z).length()
 
 
+func _move_target_arrival_distance() -> float:
+	var value = _call("_get_move_target_arrival_distance")
+	return float(value) if value != null else _actor_float("interact_distance", 1.8)
+
+
+func _actor_life_state() -> int:
+	return _actor_int("life_state", NpcRules.LifeState.DEAD)
+
+
 func _is_actor_alive() -> bool:
-	return _actor_int("life_state", NpcRules.LifeState.DEAD) == NpcRules.LifeState.ALIVE
+	return _actor_life_state() == NpcRules.LifeState.ALIVE
 
 
 func _is_valid_node(value) -> bool:

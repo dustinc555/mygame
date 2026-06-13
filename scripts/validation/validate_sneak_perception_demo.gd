@@ -398,7 +398,7 @@ func _run_camera_center_case() -> void:
 	await _wait_frames(4)
 	var anchor := _player.get_follow_anchor_position() + Vector3(0.0, 1.35, 0.0)
 	var screen_position := _camera.unproject_position(anchor)
-	var center := Vector2(float(root.size.x), float(root.size.y)) * 0.5
+	var center := _camera.get_viewport().get_visible_rect().size * 0.5
 	var error := screen_position.distance_to(center)
 	print("SNEAK_CAMERA_CENTER error=%.2f screen=%s center=%s" % [error, screen_position, center])
 	if error > 10.0:

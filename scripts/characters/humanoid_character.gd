@@ -375,6 +375,9 @@ func _exit_tree() -> void:
 	COMBAT_COORDINATOR.release_character(self)
 	remove_from_group(ACTIVE_COMBAT_ACTOR_GROUP)
 	super._exit_tree()
+	_combat_capability = null
+	_ai_targeting_capability = null
+	_interaction_capability = null
 
 
 # Creates the actor's visual body adapter (BodyProjection). Visual code is migrated
@@ -706,16 +709,9 @@ func stop_carry_assignment() -> void:
 
 
 func stop_sleep_assignment() -> void:
-	if life_state == NpcRules.LifeState.ASLEEP and _current_sleep_target != null and _current_sleep_target.has_method("get_interaction_position"):
-		global_position = _current_sleep_target.get_interaction_position(self)
-	_release_sleep_target_without_waking()
-	if life_state == NpcRules.LifeState.ASLEEP:
-		life_state = NpcRules.LifeState.ALIVE
-		rotation = Vector3(0.0, rotation.y, 0.0)
-		velocity = Vector3.ZERO
-		state_changed.emit()
-	if _current_order_type == OrderType.SLEEP:
-		_current_order_type = OrderType.NONE
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_sleep_assignment()
 
 
 func stop_place_in_bed_assignment() -> void:
@@ -737,40 +733,21 @@ func stop_place_in_furnace_assignment() -> void:
 
 
 func _release_sleep_target_without_waking() -> void:
-	if _current_sleep_target != null and _current_sleep_target.has_method("release_sleeper"):
-		_current_sleep_target.release_sleeper(self)
-	_current_sleep_target = null
-	if _current_order_type == OrderType.SLEEP:
-		_current_order_type = OrderType.NONE
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.release_sleep_target_without_waking()
 
 
 func stop_seat_assignment() -> void:
-	var did_stop_sitting := _is_sitting
-	if _is_sitting and _current_seat_target != null:
-		if _current_seat_stand_position != null:
-			global_position = _current_seat_stand_position
-		elif _current_seat_target.has_method("get_stand_position"):
-			global_position = _current_seat_target.get_stand_position()
-		elif _current_seat_target.has_method("get_interaction_position"):
-			global_position = _current_seat_target.get_interaction_position(self)
-	if _current_seat_target != null and _current_seat_target.has_method("release_sitter"):
-		_current_seat_target.release_sitter(self)
-	_current_seat_target = null
-	_current_seat_stand_position = null
-	if did_stop_sitting:
-		_is_sitting = false
-		_start_sitting_exit_animation()
-		rotation = Vector3(0.0, rotation.y, 0.0)
-		velocity = Vector3.ZERO
-		state_changed.emit()
-	if _current_order_type == OrderType.SIT:
-		_current_order_type = OrderType.NONE
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_seat_assignment()
 
 
 func stop_pickup_assignment() -> void:
-	_current_pickup_item = null
-	if _current_order_type == OrderType.PICKUP_ITEM:
-		_current_order_type = OrderType.NONE
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.stop_pickup_assignment()
 
 
 func assign_open_container(container, issued_by_player: bool = true) -> void:
@@ -904,19 +881,9 @@ func assign_carry_target(target_character: HumanoidCharacter, issued_by_player: 
 
 
 func assign_sleep_target(bed, issued_by_player: bool = true) -> void:
-	if bed == null or not bed.has_method("get_interaction_position"):
-		return
-	if life_state != NpcRules.LifeState.ALIVE:
-		return
-	if is_carrying_someone():
-		if issued_by_player:
-			center_notice_requested.emit("Place them in bed first")
-			_show_world_notice("Place them in bed first", Color(1.0, 0.78, 0.38, 1.0))
-		return
-	if not _set_order(OrderType.SLEEP, issued_by_player):
-		return
-	_current_sleep_target = bed
-	_set_actor_move_target(bed.get_interaction_position(self))
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_sleep_target(bed, issued_by_player)
 
 
 func assign_place_carried_in_bed_target(bed, issued_by_player: bool = true) -> void:
@@ -938,83 +905,26 @@ func assign_place_carried_in_furnace_target(furnace, issued_by_player: bool = tr
 
 
 func assign_seat_target(seat, issued_by_player: bool = true) -> void:
-	if seat == null or not seat.has_method("get_interaction_position"):
-		return
-	if life_state != NpcRules.LifeState.ALIVE:
-		return
-	if not _set_order(OrderType.SIT, issued_by_player):
-		return
-	_current_seat_target = seat
-	_current_seat_stand_position = global_position
-	if seat.has_method("can_sit_from_position") and seat.can_sit_from_position(global_position):
-		_clear_actor_move_target()
-	else:
-		_set_actor_move_target(seat.get_interaction_position(self))
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_seat_target(seat, issued_by_player)
 
 
 func sit_at_seat_immediately(seat) -> bool:
-	if seat == null or not seat.has_method("claim_sitter") or not seat.has_method("get_seat_position"):
-		return false
-	if life_state != NpcRules.LifeState.ALIVE:
-		return false
-	stop_seat_assignment()
-	if not seat.claim_sitter(self):
-		return false
-	_current_seat_target = seat
-	_current_seat_stand_position = seat.get_stand_position() if seat.has_method("get_stand_position") else global_position
-	global_position = seat.get_seat_position(self)
-	if seat.has_method("get_seat_rotation"):
-		rotation = seat.get_seat_rotation(self)
-	velocity = Vector3.ZERO
-	running = false
-	_set_sneaking_state(false, false)
-	_clear_actor_move_target()
-	_is_sitting = true
-	_current_order_type = OrderType.NONE
-	_start_sitting_enter_animation()
-	state_changed.emit()
-	return true
+	var interaction = _get_interaction_capability()
+	return interaction.sit_at_seat_immediately(seat) if interaction != null else false
 
 
 func assign_pickup_item(world_item, issued_by_player: bool = true) -> void:
-	if world_item == null or not is_instance_valid(world_item):
-		return
-	if life_state != NpcRules.LifeState.ALIVE:
-		return
-	if not _set_order(OrderType.PICKUP_ITEM, issued_by_player):
-		return
-	_current_pickup_item = world_item
-	if world_item.has_method("get_pickup_position"):
-		_set_actor_move_target(world_item.get_pickup_position(self))
-	else:
-		_set_actor_move_target(world_item.global_position)
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.assign_pickup_item(world_item, issued_by_player)
 
 
 func wake_up_from_rest(show_notice: bool = true) -> void:
-	var did_wake := life_state == NpcRules.LifeState.ASLEEP
-	var did_stand := _is_sitting
-	var stand_position: Variant = null
-	if did_wake and _current_sleep_target != null and _current_sleep_target.has_method("get_interaction_position"):
-		stand_position = _current_sleep_target.get_interaction_position(self)
-	elif did_stand and _current_seat_target != null:
-		if _current_seat_stand_position != null:
-			stand_position = _current_seat_stand_position
-		elif _current_seat_target.has_method("get_stand_position"):
-			stand_position = _current_seat_target.get_stand_position()
-		elif _current_seat_target.has_method("get_interaction_position"):
-			stand_position = _current_seat_target.get_interaction_position(self)
-	stop_sleep_assignment()
-	stop_seat_assignment()
-	if stand_position != null:
-		global_position = stand_position
-	if did_wake or did_stand:
-		life_state = NpcRules.LifeState.ALIVE
-		_clear_actor_move_target()
-		_current_order_type = OrderType.NONE
-		velocity = Vector3.ZERO
-		if show_notice:
-			_show_world_notice("Awake" if did_wake else "Standing", Color(0.5, 1.0, 0.65, 1.0))
-		state_changed.emit()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.wake_up_from_rest(show_notice)
 
 
 func is_sitting() -> bool:
@@ -2403,11 +2313,14 @@ func _get_ai_targeting_capability():
 
 func _get_interaction_capability():
 	if _interaction_capability == null:
+		_setup_actor_capabilities()
 		_interaction_capability = get_actor_capability(&"interaction")
 	return _interaction_capability
 
 
 func _validate_carried_interaction_orders() -> void:
+	if _current_order_type != OrderType.CARRY and _current_order_type != OrderType.PLACE_IN_BED and _current_order_type != OrderType.PLACE_IN_CELL and _current_order_type != OrderType.PLACE_IN_FURNACE:
+		return
 	var interaction = _get_interaction_capability()
 	if interaction != null:
 		interaction.validate_carried_order_targets()
@@ -2959,40 +2872,9 @@ func _get_conversation_interaction_distance() -> float:
 
 
 func _process_sleep_interaction() -> void:
-	if _current_sleep_target == null or not is_instance_valid(_current_sleep_target):
-		stop_sleep_assignment()
-		return
-	var interaction_position: Vector3 = _current_sleep_target.get_interaction_position(self)
-	if global_position.distance_to(interaction_position) > interact_distance:
-		_set_actor_move_target(interaction_position)
-		return
-	if _has_move_target:
-		return
-	var sleep_result: Dictionary = _current_sleep_target.request_sleep(self) if _current_sleep_target.has_method("request_sleep") else {"allowed": true, "message": ""}
-	if not sleep_result.get("allowed", false):
-		var failure_message := str(sleep_result.get("message", "Cannot sleep here"))
-		if not failure_message.is_empty():
-			center_notice_requested.emit(failure_message)
-			_show_world_notice(failure_message, Color(1.0, 0.78, 0.38, 1.0))
-		stop_sleep_assignment()
-		return
-	if not _current_sleep_target.claim_sleeper(self):
-		center_notice_requested.emit("Bed occupied")
-		_show_world_notice("Bed occupied", Color(1.0, 0.78, 0.38, 1.0))
-		stop_sleep_assignment()
-		return
-	var success_message := str(sleep_result.get("message", ""))
-	if not success_message.is_empty():
-		center_notice_requested.emit(success_message)
-	global_position = _current_sleep_target.get_sleep_position()
-	rotation = _current_sleep_target.get_sleep_rotation()
-	velocity = Vector3.ZERO
-	running = false
-	_set_sneaking_state(false, false)
-	_clear_actor_move_target()
-	life_state = NpcRules.LifeState.ASLEEP
-	_show_world_notice("Sleeping", Color(0.55, 0.72, 1.0, 1.0))
-	state_changed.emit()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_sleep_interaction()
 
 
 func _process_place_in_bed_interaction() -> void:
@@ -3025,40 +2907,9 @@ func _set_next_place_cell_move_target(final_position: Vector3) -> void:
 
 
 func _process_seat_interaction() -> void:
-	if _current_seat_target == null or not is_instance_valid(_current_seat_target):
-		stop_seat_assignment()
-		return
-	if _is_sitting:
-		velocity = Vector3.ZERO
-		return
-	var interaction_position: Vector3 = _current_seat_target.get_interaction_position(self)
-	var arrival_distance := interact_distance
-	if _current_seat_target.has_method("get_arrival_distance"):
-		arrival_distance = maxf(arrival_distance, float(_current_seat_target.get_arrival_distance()))
-	var can_snap_to_seat := false
-	if _current_seat_target.has_method("can_sit_from_position"):
-		can_snap_to_seat = _current_seat_target.can_sit_from_position(global_position)
-	else:
-		can_snap_to_seat = global_position.distance_to(interaction_position) <= arrival_distance
-	if not can_snap_to_seat:
-		_set_actor_move_target(interaction_position)
-		return
-	_clear_actor_move_target()
-	if not _current_seat_target.claim_sitter(self):
-		_show_world_notice("Seat occupied", Color(1.0, 0.78, 0.38, 1.0))
-		stop_seat_assignment()
-		return
-	global_position = _current_seat_target.get_seat_position(self)
-	rotation = _current_seat_target.get_seat_rotation(self)
-	velocity = Vector3.ZERO
-	running = false
-	_set_sneaking_state(false, false)
-	_clear_actor_move_target()
-	_is_sitting = true
-	_start_sitting_enter_animation()
-	_current_order_type = OrderType.NONE
-	_show_world_notice("Sitting", Color(0.55, 0.72, 1.0, 1.0))
-	state_changed.emit()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_seat_interaction()
 
 
 func _process_attack_interaction() -> void:
@@ -3272,52 +3123,24 @@ func _process_carry_interaction() -> void:
 
 
 func _process_pickup_interaction() -> void:
-	if _current_pickup_item == null or not is_instance_valid(_current_pickup_item):
-		stop_pickup_assignment()
-		return
-	if _try_complete_pickup_interaction(PICKUP_GRAB_EXTRA_DISTANCE):
-		return
-	var pickup_position := _get_pickup_route_position(_current_pickup_item)
-	if _horizontal_distance_to(pickup_position) > _get_move_target_arrival_distance():
-		_set_actor_move_target(pickup_position)
-		return
-	if _try_complete_pickup_interaction(PICKUP_UNREACHABLE_EXTRA_DISTANCE):
-		return
-	if _order_was_player_issued:
-		show_world_speech("I can't reach that", 4.0)
-	stop_pickup_assignment()
+	var interaction = _get_interaction_capability()
+	if interaction != null:
+		interaction.process_pickup_interaction()
 
 
 func _try_complete_pickup_interaction(extra_distance: float = 0.0) -> bool:
-	if _current_pickup_item == null or not is_instance_valid(_current_pickup_item):
-		stop_pickup_assignment()
-		return true
-	if not _can_pickup_item_from_position(_current_pickup_item, global_position, extra_distance):
-		return false
-	_clear_actor_move_target()
-	if _current_pickup_item.has_method("try_pickup"):
-		_current_pickup_item.try_pickup(self)
-	stop_pickup_assignment()
-	return true
+	var interaction = _get_interaction_capability()
+	return interaction.try_complete_pickup_interaction(extra_distance) if interaction != null else false
 
 
 func _can_pickup_item_from_position(item, actor_position: Vector3, extra_distance: float = 0.0) -> bool:
-	if item == null or not is_instance_valid(item):
-		return false
-	var reach_distance := interact_distance + maxf(extra_distance, 0.0)
-	if item.has_method("is_pickup_reachable_from"):
-		return bool(item.call("is_pickup_reachable_from", self, actor_position, reach_distance))
-	return actor_position.distance_to(_get_pickup_route_position(item)) <= reach_distance
+	var interaction = _get_interaction_capability()
+	return interaction.can_pickup_item_from_position(item, actor_position, extra_distance) if interaction != null else false
 
 
 func _get_pickup_route_position(item) -> Vector3:
-	if item == null or not is_instance_valid(item):
-		return global_position
-	if item.has_method("get_pickup_position"):
-		return item.get_pickup_position(self)
-	if item is Node3D:
-		return (item as Node3D).global_position
-	return global_position
+	var interaction = _get_interaction_capability()
+	return interaction.get_pickup_route_position(item) if interaction != null else global_position
 
 
 func _get_stored_mining_progress(resource_node) -> float:
