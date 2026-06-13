@@ -8,6 +8,11 @@ const ORDER_TYPE_SCAVENGE := 3
 const ORDER_TYPE_OPEN_CONTAINER := 4
 const ORDER_TYPE_TRADE := 5
 const ORDER_TYPE_TALK := 6
+const ORDER_TYPE_CARRY := 10
+const ORDER_TYPE_SLEEP := 11
+const ORDER_TYPE_PLACE_IN_BED := 12
+const ORDER_TYPE_PLACE_IN_CELL := 13
+const ORDER_TYPE_PLACE_IN_FURNACE := 14
 const MINING_ORE_WORTH_FOR_FIRST_LEVEL := 4.0
 const MINING_STRENGTH_XP_FACTOR := 0.08
 const SCAVENGING_ATTEMPTS_FOR_FIRST_LEVEL := 4.0
@@ -63,6 +68,39 @@ func stop_conversation_interaction() -> void:
 		conversation_target.call("release_talker", actor)
 	_set_node_property("_current_conversation_target", null)
 	if _current_order_type() == ORDER_TYPE_TALK:
+		_set_current_order_type(ORDER_TYPE_NONE)
+
+
+func stop_carry_assignment() -> void:
+	var carry_target = _node_property("_current_carry_target")
+	var auto_burn_target = _node_property("_auto_burn_reserved_target")
+	if auto_burn_target == carry_target:
+		if _node_property("_carried_character") == auto_burn_target:
+			_call_void("_release_auto_burn_target_reservation")
+		else:
+			_call_void("_release_auto_burn_reservations")
+	_set_node_property("_current_carry_target", null)
+	if _current_order_type() == ORDER_TYPE_CARRY:
+		_set_current_order_type(ORDER_TYPE_NONE)
+
+
+func stop_place_in_bed_assignment() -> void:
+	_set_node_property("_current_place_bed_target", null)
+	if _current_order_type() == ORDER_TYPE_PLACE_IN_BED:
+		_set_current_order_type(ORDER_TYPE_NONE)
+
+
+func stop_place_in_cell_assignment() -> void:
+	_set_node_property("_current_place_cell_target", null)
+	_clear_place_cell_waypoints()
+	if _current_order_type() == ORDER_TYPE_PLACE_IN_CELL:
+		_set_current_order_type(ORDER_TYPE_NONE)
+
+
+func stop_place_in_furnace_assignment() -> void:
+	release_place_furnace_reservation()
+	_set_node_property("_current_place_furnace_target", null)
+	if _current_order_type() == ORDER_TYPE_PLACE_IN_FURNACE:
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
@@ -150,6 +188,74 @@ func assign_scavenging_resource(resource_node, issued_by_player := true) -> void
 	_set_node_property("_scavenging_active", false)
 	_set_actor_move_target(resource_node.call("get_scavenging_position", actor))
 	_emit_actor_signal("scavenging_changed")
+
+
+func assign_carry_target(target_character, issued_by_player := true) -> void:
+	if target_character == null or target_character == actor:
+		return
+	if not _is_actor_alive():
+		return
+	if not _node_call_bool(target_character, "can_be_carried_by", [actor]) or _node_property("_carried_character") != null:
+		return
+	if not _set_order(ORDER_TYPE_CARRY, issued_by_player):
+		return
+	_set_node_property("_current_carry_target", target_character)
+
+
+func assign_place_carried_in_bed_target(bed, issued_by_player := true) -> void:
+	if bed == null or not bed.has_method("get_interaction_position"):
+		return
+	if not _is_actor_alive():
+		return
+	if not _is_valid_node(_node_property("_carried_character")):
+		return
+	if not _set_order(ORDER_TYPE_PLACE_IN_BED, issued_by_player):
+		return
+	_set_node_property("_current_place_bed_target", bed)
+	_set_actor_move_target(bed.call("get_interaction_position", actor))
+
+
+func assign_place_carried_in_cell_target(cell, issued_by_player := true) -> void:
+	if cell == null or not cell.has_method("get_interaction_position"):
+		return
+	if not _is_actor_alive():
+		return
+	if not _is_valid_node(_node_property("_carried_character")):
+		return
+	if _current_order_type() == ORDER_TYPE_PLACE_IN_CELL and _node_property("_current_place_cell_target") == cell:
+		return
+	if not _set_order(ORDER_TYPE_PLACE_IN_CELL, issued_by_player):
+		return
+	_set_node_property("_current_place_cell_target", cell)
+	_set_node_property("_current_place_cell_waypoints", get_place_cell_route(cell))
+	set_next_place_cell_move_target(cell.call("get_interaction_position", actor))
+
+
+func assign_place_carried_in_furnace_target(furnace, issued_by_player := true) -> void:
+	if furnace == null or not furnace.has_method("get_interaction_position"):
+		return
+	if not _is_actor_alive():
+		return
+	var carried = _node_property("_carried_character")
+	if not _is_valid_node(carried):
+		return
+	if furnace.has_method("can_accept_body") and not bool(furnace.call("can_accept_body", carried)):
+		if issued_by_player:
+			_call_void("_show_world_notice", ["Cannot burn", Color(1.0, 0.66, 0.28, 1.0)])
+		return
+	if furnace.has_method("reserve_for") and not bool(furnace.call("reserve_for", actor, carried)):
+		if issued_by_player:
+			_call_void("_show_world_notice", ["Furnace busy", Color(1.0, 0.78, 0.38, 1.0)])
+		return
+	if not _set_order(ORDER_TYPE_PLACE_IN_FURNACE, issued_by_player):
+		if furnace.has_method("release_reservation"):
+			furnace.call("release_reservation", actor, carried)
+		return
+	_set_node_property("_current_place_furnace_target", furnace)
+	var reserved_furnace = _node_property("_auto_burn_reserved_furnace")
+	if reserved_furnace != null and reserved_furnace != furnace:
+		_call_void("_release_auto_burn_furnace_reservation")
+	_set_actor_move_target(furnace.call("get_interaction_position", actor))
 
 
 func has_mining_assignment() -> bool:
@@ -323,6 +429,204 @@ func process_conversation_interaction() -> void:
 	_emit_actor_signal("conversation_target_reached", [actor, target])
 
 
+func process_carry_interaction() -> void:
+	var carry_target = _node_property("_current_carry_target")
+	if not _is_valid_node(carry_target):
+		stop_carry_assignment()
+		return
+	if not _node_call_bool(carry_target, "can_be_carried_by", [actor]) or _node_property("_carried_character") != null:
+		stop_carry_assignment()
+		return
+	var target_position := _position_of(carry_target)
+	if _position().distance_to(target_position) > _actor_float("interact_distance", 1.8):
+		_set_actor_move_target(target_position)
+		return
+	_clear_actor_move_target()
+	_call_void("_attach_carried_character", [carry_target])
+	_call_void("_show_world_notice", ["Carrying %s" % _node_display_name(carry_target), Color(0.86, 0.92, 1.0, 1.0)])
+	stop_carry_assignment()
+
+
+func process_place_in_bed_interaction() -> void:
+	var bed = _node_property("_current_place_bed_target")
+	if not _is_valid_node(bed):
+		stop_place_in_bed_assignment()
+		return
+	var carried = _node_property("_carried_character")
+	if not _is_valid_node(carried):
+		stop_place_in_bed_assignment()
+		return
+	var interaction_position: Vector3 = bed.call("get_interaction_position", actor)
+	if _position().distance_to(interaction_position) > _actor_float("interact_distance", 1.8):
+		_set_actor_move_target(interaction_position)
+		return
+	if _actor_bool("_has_move_target", false):
+		return
+	var sleep_result: Dictionary = bed.call("request_sleep", actor) if bed.has_method("request_sleep") else {"allowed": true, "message": ""}
+	if not bool(sleep_result.get("allowed", false)):
+		var failure_message := str(sleep_result.get("message", "Cannot use this bed"))
+		if not failure_message.is_empty():
+			_emit_actor_signal("center_notice_requested", [failure_message])
+			_call_void("_show_world_notice", [failure_message, Color(1.0, 0.78, 0.38, 1.0)])
+		stop_place_in_bed_assignment()
+		return
+	if carried.has_method("stop_sleep_assignment"):
+		carried.call("stop_sleep_assignment")
+	if not bed.call("claim_sleeper", carried):
+		_emit_actor_signal("center_notice_requested", ["Bed occupied"])
+		_call_void("_show_world_notice", ["Bed occupied", Color(1.0, 0.78, 0.38, 1.0)])
+		stop_place_in_bed_assignment()
+		return
+	_call("_detach_carried_character")
+	_set_node3d_position(carried, bed.call("get_sleep_position"))
+	carried.set("rotation", bed.call("get_sleep_rotation"))
+	carried.set("velocity", Vector3.ZERO)
+	carried.set("running", false)
+	_call_node_void(carried, "_set_sneaking_state", [false, false])
+	_call_node_void(carried, "_clear_actor_move_target")
+	carried.set("_current_order_type", ORDER_TYPE_SLEEP)
+	carried.set("_current_sleep_target", bed)
+	if int(carried.get("life_state")) == NpcRules.LifeState.ALIVE:
+		carried.set("life_state", NpcRules.LifeState.ASLEEP)
+	var success_message := str(sleep_result.get("message", ""))
+	if not success_message.is_empty():
+		_emit_actor_signal("center_notice_requested", [success_message])
+	_clear_actor_move_target()
+	_set_node_property("_current_place_bed_target", null)
+	_set_current_order_type(ORDER_TYPE_NONE)
+	_call_void("_show_world_notice", ["Placed in bed", Color(0.55, 0.72, 1.0, 1.0)])
+	_emit_actor_signal("state_changed")
+	_emit_node_signal(carried, "state_changed")
+
+
+func process_place_in_cell_interaction() -> void:
+	var cell = _node_property("_current_place_cell_target")
+	if not _is_valid_node(cell):
+		stop_place_in_cell_assignment()
+		return
+	var carried = _node_property("_carried_character")
+	if not _is_valid_node(carried):
+		stop_place_in_cell_assignment()
+		return
+	var interaction_position: Vector3 = cell.call("get_interaction_position", actor)
+	var place_distance := maxf(_actor_float("interact_distance", 1.8), _actor_float("CELL_PLACEMENT_INTERACT_DISTANCE", 2.4))
+	if _horizontal_distance_to(interaction_position) > place_distance or absf(_position().y - interaction_position.y) > _actor_float("move_target_vertical_tolerance", 0.75) + 0.8:
+		set_next_place_cell_move_target(interaction_position)
+		return
+	if _actor_bool("_has_move_target", false):
+		_clear_actor_move_target()
+	_call("_detach_carried_character")
+	if not bool(cell.call("place_carried_prisoner", actor, carried)):
+		_call_void("_attach_carried_character", [carried])
+		_call_void("_show_world_notice", ["Cell unavailable", Color(1.0, 0.78, 0.38, 1.0)])
+		stop_place_in_cell_assignment()
+		return
+	notify_law_custody_placed(carried)
+	_clear_actor_move_target()
+	_set_node_property("_current_place_cell_target", null)
+	_clear_place_cell_waypoints()
+	_set_current_order_type(ORDER_TYPE_NONE)
+	_call_void("_show_world_notice", ["Placed in cell", Color(0.55, 0.72, 1.0, 1.0)])
+	_emit_actor_signal("state_changed")
+	_emit_node_signal(carried, "state_changed")
+
+
+func process_place_in_furnace_interaction() -> void:
+	var furnace = _node_property("_current_place_furnace_target")
+	if not _is_valid_node(furnace):
+		stop_place_in_furnace_assignment()
+		return
+	var carried = _node_property("_carried_character")
+	if not _is_valid_node(carried):
+		stop_place_in_furnace_assignment()
+		return
+	if furnace.has_method("can_accept_body") and not bool(furnace.call("can_accept_body", carried)):
+		stop_place_in_furnace_assignment()
+		return
+	var interaction_position: Vector3 = furnace.call("get_interaction_position", actor)
+	if _position().distance_to(interaction_position) > _actor_float("interact_distance", 1.8):
+		_set_actor_move_target(interaction_position)
+		return
+	if _actor_bool("_has_move_target", false):
+		_clear_actor_move_target()
+	_call("_detach_carried_character")
+	if not furnace.has_method("place_carried_body") or not bool(furnace.call("place_carried_body", actor, carried)):
+		_call_void("_attach_carried_character", [carried])
+		_call_void("_show_world_notice", ["Furnace unavailable", Color(1.0, 0.78, 0.38, 1.0)])
+		stop_place_in_furnace_assignment()
+		_call_void("_set_auto_burn_backoff", [_actor_float("auto_burn_failed_backoff_seconds", 5.0)])
+		return
+	_clear_actor_move_target()
+	_set_node_property("_current_place_furnace_target", null)
+	_set_current_order_type(ORDER_TYPE_NONE)
+	_call_void("_release_auto_burn_reservations")
+	_call_void("_show_world_notice", ["Burning", Color(1.0, 0.45, 0.12, 1.0)])
+	_emit_actor_signal("state_changed")
+	_emit_node_signal(carried, "state_changed")
+
+
+func validate_carried_order_targets() -> void:
+	if _current_order_type() == ORDER_TYPE_CARRY:
+		var carry_target = _node_property("_current_carry_target")
+		if not _is_valid_node(carry_target) or not _node_call_bool(carry_target, "can_be_carried_by", [actor]):
+			stop_carry_assignment()
+	if _current_order_type() == ORDER_TYPE_PLACE_IN_BED:
+		if not _is_valid_node(_node_property("_current_place_bed_target")) or not _is_valid_node(_node_property("_carried_character")):
+			stop_place_in_bed_assignment()
+	if _current_order_type() == ORDER_TYPE_PLACE_IN_CELL:
+		if not _is_valid_node(_node_property("_current_place_cell_target")) or not _is_valid_node(_node_property("_carried_character")):
+			stop_place_in_cell_assignment()
+	if _current_order_type() == ORDER_TYPE_PLACE_IN_FURNACE:
+		if not _is_valid_node(_node_property("_current_place_furnace_target")) or not _is_valid_node(_node_property("_carried_character")):
+			stop_place_in_furnace_assignment()
+
+
+func release_place_furnace_reservation() -> void:
+	var furnace = _node_property("_current_place_furnace_target")
+	if _is_valid_node(furnace) and furnace.has_method("release_reservation"):
+		furnace.call("release_reservation", actor, _node_property("_carried_character"))
+	if _node_property("_auto_burn_reserved_furnace") == furnace:
+		_set_node_property("_auto_burn_reserved_furnace", null)
+
+
+func notify_law_custody_placed(placed_actor) -> void:
+	if placed_actor == null or actor == null or not is_instance_valid(actor):
+		return
+	var tree := actor.get_tree()
+	if tree == null:
+		return
+	for controller in tree.get_nodes_in_group("law_order_controller"):
+		if controller != null and controller.has_method("complete_custody_if_placed") and bool(controller.call("complete_custody_if_placed", placed_actor)):
+			return
+
+
+func get_place_cell_route(cell) -> Array[Vector3]:
+	var route: Array[Vector3] = []
+	if cell != null and cell.has_method("get_interaction_route"):
+		for point in cell.call("get_interaction_route", actor):
+			if point is Vector3:
+				route.append(point)
+	var final_position: Vector3 = cell.call("get_interaction_position", actor)
+	if route.is_empty() or route[route.size() - 1].distance_squared_to(final_position) > 0.04:
+		route.append(final_position)
+	return route
+
+
+func set_next_place_cell_move_target(final_position: Vector3) -> void:
+	var waypoints: Array = _node_property("_current_place_cell_waypoints") if _node_property("_current_place_cell_waypoints") is Array else []
+	while not waypoints.is_empty() and _position().distance_to(waypoints[0]) <= _actor_float("interact_distance", 1.8):
+		waypoints.remove_at(0)
+	var next_position := final_position
+	if not waypoints.is_empty():
+		next_position = waypoints[0]
+	var move_target = _node_property("_move_target")
+	if _actor_bool("_has_move_target", false) and move_target is Vector3 and move_target.distance_squared_to(next_position) <= 0.04:
+		_set_node_property("_current_place_cell_waypoints", waypoints)
+		return
+	_set_node_property("_current_place_cell_waypoints", waypoints)
+	_set_actor_move_target(next_position)
+
+
 func get_conversation_interaction_distance() -> float:
 	if _actor_bool("_order_was_player_issued", false) and _actor_bool("_is_sitting", false):
 		return _actor_float("interact_distance", 1.8) * maxf(1.0, _actor_float("seated_player_talk_distance_multiplier", 2.0))
@@ -485,6 +789,36 @@ func _position_of(target) -> Vector3:
 	return (target as Node3D).global_position if target is Node3D else Vector3.ZERO
 
 
+func _horizontal_distance_to(target_position: Vector3) -> float:
+	var current_position := _position()
+	return Vector2(current_position.x - target_position.x, current_position.z - target_position.z).length()
+
+
+func _is_actor_alive() -> bool:
+	return _actor_int("life_state", NpcRules.LifeState.DEAD) == NpcRules.LifeState.ALIVE
+
+
+func _is_valid_node(value) -> bool:
+	return value != null and is_instance_valid(value)
+
+
+func _node_display_name(value) -> String:
+	if value == null:
+		return "target"
+	var display_name := str(value.get("member_name"))
+	return display_name if not display_name.is_empty() else str(value.name)
+
+
+func _set_node3d_position(value, position: Vector3) -> void:
+	if value is Node3D:
+		(value as Node3D).global_position = position
+
+
+func _clear_place_cell_waypoints() -> void:
+	var empty: Array[Vector3] = []
+	_set_node_property("_current_place_cell_waypoints", empty)
+
+
 func _inventory():
 	return actor.get("inventory") if actor != null and is_instance_valid(actor) else null
 
@@ -540,6 +874,11 @@ func _node_call_bool(target, method_name: StringName, args: Array = [], fallback
 	return fallback
 
 
+func _call_node_void(target, method_name: StringName, args: Array = []) -> void:
+	if target != null and is_instance_valid(target) and target.has_method(method_name):
+		target.callv(method_name, args)
+
+
 func _emit_actor_signal(signal_name: StringName, args: Array = []) -> void:
 	if actor != null and is_instance_valid(actor) and actor.has_signal(signal_name):
 		match args.size():
@@ -551,3 +890,16 @@ func _emit_actor_signal(signal_name: StringName, args: Array = []) -> void:
 				actor.emit_signal(signal_name, args[0], args[1])
 			_:
 				actor.emit_signal(signal_name, args[0], args[1], args[2])
+
+
+func _emit_node_signal(target, signal_name: StringName, args: Array = []) -> void:
+	if target != null and is_instance_valid(target) and target.has_signal(signal_name):
+		match args.size():
+			0:
+				target.emit_signal(signal_name)
+			1:
+				target.emit_signal(signal_name, args[0])
+			2:
+				target.emit_signal(signal_name, args[0], args[1])
+			_:
+				target.emit_signal(signal_name, args[0], args[1], args[2])
