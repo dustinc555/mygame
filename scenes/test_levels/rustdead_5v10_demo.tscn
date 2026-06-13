@@ -76,5 +76,5 @@ offset_left = 20.0
 offset_top = 20.0
 offset_right = 900.0
 offset_bottom = 150.0
-text = "Rustdead 5v10 demo: five fully armed humanoids plus one QuadBot face ten Fresh Rustdead raised near old-world ruins. Human party skills are around 40/60 by role; the QuadBot rolls varied bot stats around 40. Fresh Rustdead use red corpse-like skin, bite/scratch animations, and randomized partial clothing with no weapons in this demo. Older Rustdead can later become more metal and machine-like."
+text = "Rustdead 5v10 demo: five fully armed humanoids face ten Fresh Rustdead raised near old-world ruins. Human party skills are around 40/60 by role. Fresh Rustdead use red corpse-like skin, bite/scratch animations, and randomized partial clothing with no weapons in this demo. Older Rustdead can later become more metal and machine-like."
 autowrap_mode = 3

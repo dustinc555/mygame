@@ -40,6 +40,11 @@ var _presentation_rng_ready := false
 
 # --- Visual build ---
 
+func bind_actor(owner_actor: Node) -> void:
+	super.bind_actor(owner_actor)
+	_default_ragdoll_profile = null
+
+
 func setup_visual() -> void:
 	var old_visual := get_visual_root()
 	if old_visual != null:
@@ -111,6 +116,11 @@ func get_visual_root() -> Node3D:
 	return _visual_root
 
 
+func get_visual_local_bounds() -> AABB:
+	var visual_root := get_visual_root()
+	return _calculate_local_mesh_bounds(visual_root) if visual_root != null else AABB()
+
+
 func has_custom_skin_material() -> bool:
 	var visual_root := get_visual_root()
 	return visual_root != null and actor.SKIN_TEXTURE_BUILDER.has_custom_skin_materials(visual_root)
@@ -131,7 +141,6 @@ func apply_automatic_eyebrow_style() -> void:
 
 func rebuild_visual_for_appearance() -> void:
 	setup_visual()
-	refresh_grip_sockets_for_body()
 
 
 func apply_appearance_materials(root: Node, body_type: int) -> void:
@@ -152,6 +161,13 @@ func set_base_eyebrow_visuals_visible(root: Node, visible_flag: bool) -> void:
 
 
 # --- Ragdoll / downed visuals ---
+
+func supports_downed_visuals() -> bool:
+	return true
+
+
+func supports_ragdoll_visuals() -> bool:
+	return true
 
 func get_ragdoll_profile():
 	if actor.ragdoll_profile != null:
@@ -182,6 +198,8 @@ func remember_ragdoll_impulse(impulse: Vector3, seconds: float) -> void:
 
 
 func enter_downed_visuals(is_dead: bool) -> bool:
+	_cancel_ragdoll_preroll()
+	_clear_get_up_state()
 	stop_clip(true)
 	if _begin_downed_ragdoll_preroll(is_dead):
 		return true
@@ -193,11 +211,15 @@ func enter_downed_visuals(is_dead: bool) -> bool:
 
 
 func restore_from_downed_visuals() -> void:
+	_cancel_ragdoll_preroll()
+	_clear_get_up_state()
 	stop_ragdoll_simulation(true)
 	actor._restore_downed_collision_shape()
 
 
 func begin_get_up_visuals() -> void:
+	_cancel_ragdoll_preroll()
+	_clear_get_up_state()
 	prepare_ragdoll_get_up()
 	actor._is_getting_up = true
 	actor._get_up_animation_name = _choose_get_up_animation()
@@ -219,15 +241,23 @@ func process_downed_visuals(delta: float) -> bool:
 
 
 func cancel_get_up_visuals() -> void:
-	if not actor._is_getting_up:
+	var had_get_up_state: bool = actor._is_getting_up \
+		or not actor._get_up_animation_name.is_empty() \
+		or actor._get_up_animation_remaining > 0.0 \
+		or actor._get_up_animation_total > 0.0
+	_clear_get_up_state()
+	if not had_get_up_state:
 		return
+	stop_clip(true)
+	actor._apply_downed_collision_shape()
+	stop_ragdoll_simulation(false)
+
+
+func _clear_get_up_state() -> void:
 	actor._is_getting_up = false
 	actor._get_up_animation_name = ""
 	actor._get_up_animation_remaining = 0.0
 	actor._get_up_animation_total = 0.0
-	stop_clip(true)
-	actor._apply_downed_collision_shape()
-	stop_ragdoll_simulation(false)
 
 
 func start_ragdoll_simulation(_is_dead: bool) -> bool:
@@ -1179,6 +1209,7 @@ func play_combat_reaction_clip(animation_name: String, blend_seconds: float) -> 
 
 func _get_presentation_rng() -> RandomNumberGenerator:
 	if not _presentation_rng_ready:
+		# Presentation-only reaction variety is intentionally outside deterministic simulation/replay state.
 		_presentation_rng.randomize()
 		_presentation_rng_ready = true
 	return _presentation_rng
@@ -1687,17 +1718,19 @@ func _get_or_create_humanoid_grip_socket(skeleton: Skeleton3D, socket_id: String
 		return null
 	var socket_name := _get_equipment_socket_node_name(socket_id)
 	var attachment_name := _get_humanoid_grip_socket_attachment_name(socket_id)
+	var bone_name := _get_equipment_socket_bone_name(socket_id)
+	if bone_name.is_empty():
+		bone_name = fallback_bone_name
 	var attachment := skeleton.get_node_or_null(attachment_name) as BoneAttachment3D
 	if attachment == null:
-		var bone_name := _get_equipment_socket_bone_name(socket_id)
-		if bone_name.is_empty():
-			bone_name = fallback_bone_name
 		if bone_name.is_empty() or skeleton.find_bone(bone_name) < 0:
 			return null
 		attachment = BoneAttachment3D.new()
 		attachment.name = attachment_name
 		attachment.bone_name = bone_name
 		skeleton.add_child(attachment)
+	elif not bone_name.is_empty() and skeleton.find_bone(bone_name) >= 0 and attachment.bone_name != bone_name:
+		attachment.bone_name = bone_name
 	var socket := attachment.get_node_or_null(socket_name) as Node3D
 	if socket == null:
 		socket = actor.HUMANOID_GRIP_SOCKET_MARKER_SCRIPT.new() as Node3D
@@ -1832,6 +1865,11 @@ func _inflate_mesh_instance(mesh_instance: MeshInstance3D, surface_offset: float
 		return
 	var source_mesh := mesh_instance.mesh as ArrayMesh
 	var inflated_mesh := ArrayMesh.new()
+	inflated_mesh.set_blend_shape_mode(source_mesh.get_blend_shape_mode())
+	var blend_shape_values: Array[float] = []
+	for blend_shape_index in range(source_mesh.get_blend_shape_count()):
+		inflated_mesh.add_blend_shape(source_mesh.get_blend_shape_name(blend_shape_index))
+		blend_shape_values.append(mesh_instance.get_blend_shape_value(blend_shape_index))
 	for surface_index in range(source_mesh.get_surface_count()):
 		var arrays := source_mesh.surface_get_arrays(surface_index)
 		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
@@ -1852,8 +1890,11 @@ func _inflate_mesh_instance(mesh_instance: MeshInstance3D, surface_offset: float
 		var source_material := source_mesh.surface_get_material(surface_index)
 		if source_material != null:
 			inflated_mesh.surface_set_material(surface_index, source_material)
+		inflated_mesh.surface_set_name(surface_index, source_mesh.surface_get_name(surface_index))
 	if inflated_mesh.get_surface_count() == source_mesh.get_surface_count():
 		mesh_instance.mesh = inflated_mesh
+		for blend_shape_index in range(mini(mesh_instance.get_blend_shape_count(), blend_shape_values.size())):
+			mesh_instance.set_blend_shape_value(blend_shape_index, blend_shape_values[blend_shape_index])
 
 
 # --- Foot IK / grounding ---

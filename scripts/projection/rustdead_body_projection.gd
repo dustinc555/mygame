@@ -10,6 +10,8 @@ class_name RustdeadBodyProjection
 
 const CINDER_BURNED_MATERIAL_META := "cinder_burned"
 const CINDER_SCORCH_OVERLAY_META := "cinder_scorch_overlay"
+const CINDER_HAD_MATERIAL_OVERLAY_META := "cinder_had_material_overlay"
+const CINDER_PREVIOUS_MATERIAL_OVERLAY_META := "cinder_previous_material_overlay"
 
 static var _cinder_burn_overlay_material: Material
 static var _cinder_burn_overlay_texture: Texture2D
@@ -280,15 +282,32 @@ func _clear_cinder_burn_overlay(root: Node) -> void:
 	if root is MeshInstance3D:
 		var mesh_instance := root as MeshInstance3D
 		if mesh_instance.material_overlay != null and bool(mesh_instance.material_overlay.get_meta(CINDER_SCORCH_OVERLAY_META, false)):
-			mesh_instance.material_overlay = _get_cinder_burn_clear_material()
+			_restore_cinder_burn_overlay_material(mesh_instance)
 		if mesh_instance.material_override != null and bool(mesh_instance.material_override.get_meta(CINDER_SCORCH_OVERLAY_META, false)):
-			mesh_instance.material_override = _get_cinder_burn_clear_material()
+			mesh_instance.material_override = null
 	for child in root.get_children():
 		_clear_cinder_burn_overlay(child)
 
 
 func _apply_cinder_burn_overlay_to_mesh(mesh_instance: MeshInstance3D) -> void:
-	mesh_instance.material_override = _get_cinder_burn_overlay_material()
+	if mesh_instance.material_overlay == null or not bool(mesh_instance.material_overlay.get_meta(CINDER_SCORCH_OVERLAY_META, false)):
+		mesh_instance.set_meta(CINDER_HAD_MATERIAL_OVERLAY_META, mesh_instance.material_overlay != null)
+		if mesh_instance.material_overlay != null:
+			mesh_instance.set_meta(CINDER_PREVIOUS_MATERIAL_OVERLAY_META, mesh_instance.material_overlay)
+		elif mesh_instance.has_meta(CINDER_PREVIOUS_MATERIAL_OVERLAY_META):
+			mesh_instance.remove_meta(CINDER_PREVIOUS_MATERIAL_OVERLAY_META)
+	mesh_instance.material_overlay = _get_cinder_burn_overlay_material()
+
+
+func _restore_cinder_burn_overlay_material(mesh_instance: MeshInstance3D) -> void:
+	if bool(mesh_instance.get_meta(CINDER_HAD_MATERIAL_OVERLAY_META, false)) and mesh_instance.has_meta(CINDER_PREVIOUS_MATERIAL_OVERLAY_META):
+		mesh_instance.material_overlay = mesh_instance.get_meta(CINDER_PREVIOUS_MATERIAL_OVERLAY_META) as Material
+	else:
+		mesh_instance.material_overlay = null
+	if mesh_instance.has_meta(CINDER_HAD_MATERIAL_OVERLAY_META):
+		mesh_instance.remove_meta(CINDER_HAD_MATERIAL_OVERLAY_META)
+	if mesh_instance.has_meta(CINDER_PREVIOUS_MATERIAL_OVERLAY_META):
+		mesh_instance.remove_meta(CINDER_PREVIOUS_MATERIAL_OVERLAY_META)
 
 
 func _node_has_cinder_burned_material(root: Node) -> bool:
@@ -329,14 +348,6 @@ func _get_cinder_burn_overlay_material() -> Material:
 	material.set_meta(CINDER_SCORCH_OVERLAY_META, true)
 	_cinder_burn_overlay_material = material
 	return _cinder_burn_overlay_material
-
-
-func _get_cinder_burn_clear_material() -> Material:
-	var material := StandardMaterial3D.new()
-	material.resource_name = "Cleared Cinder Surface"
-	material.albedo_color = Color(0.02, 0.018, 0.015, 1.0)
-	material.roughness = 1.0
-	return material
 
 
 func _get_cinder_burn_overlay_texture() -> Texture2D:

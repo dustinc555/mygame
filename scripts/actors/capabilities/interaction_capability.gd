@@ -39,6 +39,7 @@ func stop_mining_assignment() -> void:
 	_set_node_property("_current_mining_node", null)
 	_set_node_property("_mining_active", false)
 	if _current_order_type() == ORDER_TYPE_MINE:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 	_emit_actor_signal("mining_changed")
 
@@ -50,6 +51,7 @@ func stop_scavenging_assignment() -> void:
 	_set_node_property("_current_scavenging_node", null)
 	_set_node_property("_scavenging_active", false)
 	if _current_order_type() == ORDER_TYPE_SCAVENGE:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 	_emit_actor_signal("scavenging_changed")
 
@@ -60,6 +62,7 @@ func stop_container_interaction() -> void:
 		container.call("release_interactor", actor)
 	_set_node_property("_current_container_target", null)
 	if _current_order_type() == ORDER_TYPE_OPEN_CONTAINER:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
@@ -69,6 +72,7 @@ func stop_trade_interaction() -> void:
 		trade_target.call("release_trader", actor)
 	_set_node_property("_current_trade_target", null)
 	if _current_order_type() == ORDER_TYPE_TRADE:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
@@ -78,12 +82,14 @@ func stop_conversation_interaction() -> void:
 		conversation_target.call("release_talker", actor)
 	_set_node_property("_current_conversation_target", null)
 	if _current_order_type() == ORDER_TYPE_TALK:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
 func stop_heal_assignment() -> void:
 	_set_node_property("_current_heal_target", null)
 	if _current_order_type() == ORDER_TYPE_HEAL:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
@@ -93,6 +99,7 @@ func stop_finish_off_assignment() -> void:
 		_call_void("_release_auto_burn_target_reservation")
 	_set_node_property("_current_finish_off_target", null)
 	if _current_order_type() == ORDER_TYPE_FINISH_OFF:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
@@ -106,12 +113,14 @@ func stop_carry_assignment() -> void:
 			_call_void("_release_auto_burn_reservations")
 	_set_node_property("_current_carry_target", null)
 	if _current_order_type() == ORDER_TYPE_CARRY:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
 func stop_place_in_bed_assignment() -> void:
 	_set_node_property("_current_place_bed_target", null)
 	if _current_order_type() == ORDER_TYPE_PLACE_IN_BED:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
@@ -119,6 +128,7 @@ func stop_place_in_cell_assignment() -> void:
 	_set_node_property("_current_place_cell_target", null)
 	_clear_place_cell_waypoints()
 	if _current_order_type() == ORDER_TYPE_PLACE_IN_CELL:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
@@ -126,12 +136,13 @@ func stop_place_in_furnace_assignment() -> void:
 	release_place_furnace_reservation()
 	_set_node_property("_current_place_furnace_target", null)
 	if _current_order_type() == ORDER_TYPE_PLACE_IN_FURNACE:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
 func stop_sleep_assignment() -> void:
 	var sleep_target = _node_property("_current_sleep_target")
-	if _actor_life_state() == NpcRules.LifeState.ASLEEP and sleep_target != null and sleep_target.has_method("get_interaction_position"):
+	if _actor_life_state() == NpcRules.LifeState.ASLEEP and _is_valid_node(sleep_target) and sleep_target.has_method("get_interaction_position"):
 		_set_actor_global_position(sleep_target.call("get_interaction_position", actor))
 	release_sleep_target_without_waking()
 	if _actor_life_state() == NpcRules.LifeState.ASLEEP:
@@ -141,22 +152,24 @@ func stop_sleep_assignment() -> void:
 		_set_node_property("velocity", Vector3.ZERO)
 		_emit_actor_signal("state_changed")
 	if _current_order_type() == ORDER_TYPE_SLEEP:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
 func release_sleep_target_without_waking() -> void:
 	var sleep_target = _node_property("_current_sleep_target")
-	if sleep_target != null and sleep_target.has_method("release_sleeper"):
+	if _is_valid_node(sleep_target) and sleep_target.has_method("release_sleeper"):
 		sleep_target.call("release_sleeper", actor)
 	_set_node_property("_current_sleep_target", null)
 	if _current_order_type() == ORDER_TYPE_SLEEP:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
 func stop_seat_assignment() -> void:
 	var seat_target = _node_property("_current_seat_target")
 	var did_stop_sitting := _actor_bool("_is_sitting", false)
-	if did_stop_sitting and seat_target != null:
+	if did_stop_sitting and _is_valid_node(seat_target):
 		var stand_position = _node_property("_current_seat_stand_position")
 		if stand_position is Vector3:
 			_set_actor_global_position(stand_position)
@@ -164,7 +177,7 @@ func stop_seat_assignment() -> void:
 			_set_actor_global_position(seat_target.call("get_stand_position"))
 		elif seat_target.has_method("get_interaction_position"):
 			_set_actor_global_position(seat_target.call("get_interaction_position", actor))
-	if seat_target != null and seat_target.has_method("release_sitter"):
+	if _is_valid_node(seat_target) and seat_target.has_method("release_sitter"):
 		seat_target.call("release_sitter", actor)
 	_set_node_property("_current_seat_target", null)
 	_set_node_property("_current_seat_stand_position", null)
@@ -176,22 +189,24 @@ func stop_seat_assignment() -> void:
 		_set_node_property("velocity", Vector3.ZERO)
 		_emit_actor_signal("state_changed")
 	if _current_order_type() == ORDER_TYPE_SIT:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
 func stop_pickup_assignment() -> void:
 	_set_node_property("_current_pickup_item", null)
 	if _current_order_type() == ORDER_TYPE_PICKUP_ITEM:
+		_clear_actor_move_target()
 		_set_current_order_type(ORDER_TYPE_NONE)
 
 
 func assign_open_container(container, issued_by_player := true) -> void:
-	if container == null:
+	if not _has_node_methods(container, ["get_interaction_position"]):
 		return
 	if not _set_order(ORDER_TYPE_OPEN_CONTAINER, issued_by_player):
 		return
 	var current_container = _node_property("_current_container_target")
-	if current_container != null and current_container != container and current_container.has_method("release_interactor"):
+	if _is_valid_node(current_container) and current_container != container and current_container.has_method("release_interactor"):
 		current_container.call("release_interactor", actor)
 	_set_node_property("_current_container_target", container)
 	if container.has_method("register_interactor"):
@@ -200,12 +215,12 @@ func assign_open_container(container, issued_by_player := true) -> void:
 
 
 func assign_trade_target(target_character, issued_by_player := true) -> void:
-	if target_character == null:
+	if not _has_node_methods(target_character, ["get_interaction_position"]):
 		return
 	if not _set_order(ORDER_TYPE_TRADE, issued_by_player):
 		return
 	var current_target = _node_property("_current_trade_target")
-	if current_target != null and current_target != target_character and current_target.has_method("release_trader"):
+	if _is_valid_node(current_target) and current_target != target_character and current_target.has_method("release_trader"):
 		current_target.call("release_trader", actor)
 	_set_node_property("_current_trade_target", target_character)
 	if target_character.has_method("register_trader"):
@@ -214,13 +229,13 @@ func assign_trade_target(target_character, issued_by_player := true) -> void:
 
 
 func assign_conversation_target(target_character, issued_by_player := true) -> void:
-	if target_character == null or not _node_call_bool(target_character, "has_conversation_definition"):
+	if not _has_node_methods(target_character, ["get_interaction_position"]) or not _node_call_bool(target_character, "has_conversation_definition"):
 		return
 	var preserve_seat := issued_by_player and _actor_bool("_is_sitting", false)
 	if not _set_order(ORDER_TYPE_TALK, issued_by_player, preserve_seat):
 		return
 	var current_target = _node_property("_current_conversation_target")
-	if current_target != null and current_target != target_character and current_target.has_method("release_talker"):
+	if _is_valid_node(current_target) and current_target != target_character and current_target.has_method("release_talker"):
 		current_target.call("release_talker", actor)
 	_set_node_property("_current_conversation_target", target_character)
 	if target_character.has_method("register_talker"):
@@ -235,12 +250,14 @@ func assign_mining_resource(resource_node, issued_by_player := true) -> void:
 	var mining_node := resource_node as MiningResourceNode
 	if mining_node == null:
 		return
-	if not ensure_mining_tool_equipped(mining_node, issued_by_player):
-		return
 	if not _set_order(ORDER_TYPE_MINE, issued_by_player):
 		return
+	if not ensure_mining_tool_equipped(mining_node, issued_by_player):
+		if _current_order_type() == ORDER_TYPE_MINE:
+			_set_current_order_type(ORDER_TYPE_NONE)
+		return
 	var current_node = _node_property("_current_mining_node")
-	if current_node != null and current_node != mining_node and current_node.has_method("release_miner"):
+	if _is_valid_node(current_node) and current_node != mining_node and current_node.has_method("release_miner"):
 		current_node.call("release_miner", actor)
 	_set_node_property("_current_mining_node", mining_node)
 	if mining_node.has_method("register_miner"):
@@ -261,7 +278,7 @@ func assign_scavenging_resource(resource_node, issued_by_player := true) -> void
 	if not _set_order(ORDER_TYPE_SCAVENGE, issued_by_player):
 		return
 	var current_node = _node_property("_current_scavenging_node")
-	if current_node != null and current_node != resource_node and current_node.has_method("release_scavenger"):
+	if _is_valid_node(current_node) and current_node != resource_node and current_node.has_method("release_scavenger"):
 		current_node.call("release_scavenger", actor)
 	_set_node_property("_current_scavenging_node", resource_node)
 	if resource_node.has_method("register_scavenger"):
@@ -297,7 +314,7 @@ func assign_place_carried_in_bed_target(bed, issued_by_player := true) -> void:
 
 
 func assign_place_carried_in_cell_target(cell, issued_by_player := true) -> void:
-	if cell == null or not cell.has_method("get_interaction_position"):
+	if not _has_node_methods(cell, ["get_interaction_position", "place_carried_prisoner"]):
 		return
 	if not _is_actor_alive():
 		return
@@ -340,7 +357,7 @@ func assign_place_carried_in_furnace_target(furnace, issued_by_player := true) -
 
 
 func assign_sleep_target(bed, issued_by_player := true) -> void:
-	if bed == null or not bed.has_method("get_interaction_position"):
+	if not _has_node_methods(bed, ["get_interaction_position", "claim_sleeper", "get_sleep_position", "get_sleep_rotation"]):
 		return
 	if not _is_actor_alive():
 		return
@@ -356,10 +373,15 @@ func assign_sleep_target(bed, issued_by_player := true) -> void:
 
 
 func assign_seat_target(seat, issued_by_player := true) -> void:
-	if seat == null or not seat.has_method("get_interaction_position"):
+	if not _has_node_methods(seat, ["get_interaction_position", "claim_sitter", "get_seat_position", "get_seat_rotation"]):
 		return
 	if not _is_actor_alive():
 		return
+	var current_seat = _node_property("_current_seat_target")
+	if _actor_bool("_is_sitting", false):
+		if current_seat == seat:
+			return
+		stop_seat_assignment()
 	if not _set_order(ORDER_TYPE_SIT, issued_by_player):
 		return
 	_set_node_property("_current_seat_target", seat)
@@ -442,7 +464,8 @@ func has_direct_law_move() -> bool:
 func assign_law_custody_return_target(target_position: Vector3) -> void:
 	if not _is_actor_alive():
 		return
-	_call_void("disengage_combat_with")
+	_clear_law_combat_state()
+	_law_sentence_move_active = false
 	_law_custody_return_active = true
 	_law_custody_return_target = target_position
 	if not _set_order(ORDER_TYPE_MOVE, false):
@@ -452,12 +475,17 @@ func assign_law_custody_return_target(target_position: Vector3) -> void:
 
 
 func clear_law_custody_return() -> void:
+	var was_active := _law_custody_return_active
 	_law_custody_return_active = false
+	if was_active:
+		_clear_law_move_target_if_idle()
 
 
 func assign_law_sentence_move_target(target_position: Vector3) -> void:
 	if not _is_actor_alive():
 		return
+	_clear_law_combat_state()
+	_law_custody_return_active = false
 	_law_sentence_move_active = true
 	_law_sentence_move_target = target_position
 	if _current_order_type() != ORDER_TYPE_MOVE:
@@ -470,7 +498,10 @@ func assign_law_sentence_move_target(target_position: Vector3) -> void:
 
 
 func clear_law_sentence_move() -> void:
+	var was_active := _law_sentence_move_active
 	_law_sentence_move_active = false
+	if was_active:
+		_clear_law_move_target_if_idle()
 
 
 func clear_law_moves_for_order(order_type: int, issued_by_player: bool) -> void:
@@ -480,15 +511,27 @@ func clear_law_moves_for_order(order_type: int, issued_by_player: bool) -> void:
 		_law_sentence_move_active = false
 
 
+func _clear_law_combat_state() -> void:
+	_call_void("disengage_combat_with")
+
+
+func _clear_law_move_target_if_idle() -> void:
+	if _law_custody_return_active or _law_sentence_move_active:
+		return
+	if _current_order_type() == ORDER_TYPE_MOVE and not _actor_bool("_order_was_player_issued", false):
+		_clear_actor_move_target()
+		_set_current_order_type(ORDER_TYPE_NONE)
+
+
 func wake_up_from_rest(show_notice := true) -> void:
 	var did_wake := _actor_life_state() == NpcRules.LifeState.ASLEEP
 	var did_stand := _actor_bool("_is_sitting", false)
 	var stand_position = null
 	var sleep_target = _node_property("_current_sleep_target")
 	var seat_target = _node_property("_current_seat_target")
-	if did_wake and sleep_target != null and sleep_target.has_method("get_interaction_position"):
+	if did_wake and _is_valid_node(sleep_target) and sleep_target.has_method("get_interaction_position"):
 		stand_position = sleep_target.call("get_interaction_position", actor)
-	elif did_stand and seat_target != null:
+	elif did_stand and _is_valid_node(seat_target):
 		var seat_stand_position = _node_property("_current_seat_stand_position")
 		if seat_stand_position is Vector3:
 			stand_position = seat_stand_position
@@ -636,7 +679,8 @@ func process_scavenging(delta: float) -> void:
 
 func process_container_interaction() -> void:
 	var container = _node_property("_current_container_target")
-	if container == null:
+	if not _is_valid_node(container) or not container.has_method("get_interaction_position"):
+		stop_container_interaction()
 		return
 	var interaction_position: Vector3 = container.call("get_interaction_position", actor)
 	if _position().distance_to(interaction_position) > _actor_float("interact_distance", 1.8):
@@ -651,7 +695,8 @@ func process_container_interaction() -> void:
 
 func process_trade_interaction() -> void:
 	var target = _node_property("_current_trade_target")
-	if target == null:
+	if not _is_valid_node(target) or not target.has_method("get_interaction_position"):
+		stop_trade_interaction()
 		return
 	var interaction_position: Vector3 = target.call("get_interaction_position", actor)
 	var target_position := _position_of(target)
@@ -666,7 +711,8 @@ func process_trade_interaction() -> void:
 
 func process_conversation_interaction() -> void:
 	var target = _node_property("_current_conversation_target")
-	if target == null:
+	if not _is_valid_node(target) or not target.has_method("get_interaction_position"):
+		stop_conversation_interaction()
 		return
 	var interaction_position: Vector3 = target.call("get_interaction_position", actor)
 	var target_position := _position_of(target)
@@ -691,6 +737,7 @@ func process_law_custody_return() -> void:
 		return
 	if _horizontal_distance_to(_law_custody_return_target) <= _move_target_arrival_distance() or not _actor_bool("_has_move_target", false):
 		_law_custody_return_active = false
+		_clear_law_move_target_if_idle()
 		return
 	if _current_order_type() != ORDER_TYPE_MOVE:
 		_set_current_order_type(ORDER_TYPE_MOVE)
@@ -703,6 +750,7 @@ func process_law_sentence_move() -> void:
 		return
 	if _horizontal_distance_to(_law_sentence_move_target) <= _actor_float("interact_distance", 1.8) or not _actor_bool("_has_move_target", false):
 		_law_sentence_move_active = false
+		_clear_law_move_target_if_idle()
 		return
 	if _current_order_type() != ORDER_TYPE_MOVE:
 		_set_current_order_type(ORDER_TYPE_MOVE)
@@ -854,7 +902,7 @@ func process_place_in_bed_interaction() -> void:
 
 func process_place_in_cell_interaction() -> void:
 	var cell = _node_property("_current_place_cell_target")
-	if not _is_valid_node(cell):
+	if not _has_node_methods(cell, ["get_interaction_position", "place_carried_prisoner"]):
 		stop_place_in_cell_assignment()
 		return
 	var carried = _node_property("_carried_character")
@@ -920,7 +968,7 @@ func process_place_in_furnace_interaction() -> void:
 
 func process_sleep_interaction() -> void:
 	var sleep_target = _node_property("_current_sleep_target")
-	if not _is_valid_node(sleep_target):
+	if not _has_node_methods(sleep_target, ["get_interaction_position", "claim_sleeper", "get_sleep_position", "get_sleep_rotation"]):
 		stop_sleep_assignment()
 		return
 	var interaction_position: Vector3 = sleep_target.call("get_interaction_position", actor)
@@ -958,7 +1006,7 @@ func process_sleep_interaction() -> void:
 
 func process_seat_interaction() -> void:
 	var seat_target = _node_property("_current_seat_target")
-	if not _is_valid_node(seat_target):
+	if not _has_node_methods(seat_target, ["get_interaction_position", "claim_sitter", "get_seat_position", "get_seat_rotation"]):
 		stop_seat_assignment()
 		return
 	if _actor_bool("_is_sitting", false):
@@ -1082,7 +1130,9 @@ func notify_law_custody_placed(placed_actor) -> void:
 
 func get_place_cell_route(cell) -> Array[Vector3]:
 	var route: Array[Vector3] = []
-	if cell != null and cell.has_method("get_interaction_route"):
+	if not _is_valid_node(cell) or not cell.has_method("get_interaction_position"):
+		return route
+	if cell.has_method("get_interaction_route"):
 		for point in cell.call("get_interaction_route", actor):
 			if point is Vector3:
 				route.append(point)
@@ -1214,31 +1264,49 @@ func award_scavenging_progress_xp(progress_delta: float) -> void:
 func get_stored_mining_progress(resource_node) -> float:
 	if resource_node == null:
 		return 0.0
+	var progress_key := _get_resource_progress_key(resource_node)
+	if progress_key.is_empty():
+		return 0.0
 	var progress_map: Dictionary = _node_property("_mining_progress_by_node") if _node_property("_mining_progress_by_node") is Dictionary else {}
-	return clampf(progress_map.get(resource_node.get_instance_id(), 0.0), 0.0, 1.0)
+	return clampf(float(progress_map.get(progress_key, 0.0)), 0.0, 1.0)
 
 
 func store_mining_progress(resource_node, progress: float) -> void:
 	if resource_node == null:
 		return
+	var progress_key := _get_resource_progress_key(resource_node)
+	if progress_key.is_empty():
+		return
 	var progress_map: Dictionary = _node_property("_mining_progress_by_node") if _node_property("_mining_progress_by_node") is Dictionary else {}
-	progress_map[resource_node.get_instance_id()] = clampf(progress, 0.0, 1.0)
+	progress_map[progress_key] = clampf(progress, 0.0, 1.0)
 	_set_node_property("_mining_progress_by_node", progress_map)
 
 
 func get_stored_scavenging_progress(resource_node) -> float:
 	if resource_node == null:
 		return 0.0
+	var progress_key := _get_resource_progress_key(resource_node)
+	if progress_key.is_empty():
+		return 0.0
 	var progress_map: Dictionary = _node_property("_scavenging_progress_by_node") if _node_property("_scavenging_progress_by_node") is Dictionary else {}
-	return clampf(progress_map.get(resource_node.get_instance_id(), 0.0), 0.0, 1.0)
+	return clampf(float(progress_map.get(progress_key, 0.0)), 0.0, 1.0)
 
 
 func store_scavenging_progress(resource_node, progress: float) -> void:
 	if resource_node == null:
 		return
+	var progress_key := _get_resource_progress_key(resource_node)
+	if progress_key.is_empty():
+		return
 	var progress_map: Dictionary = _node_property("_scavenging_progress_by_node") if _node_property("_scavenging_progress_by_node") is Dictionary else {}
-	progress_map[resource_node.get_instance_id()] = clampf(progress, 0.0, 1.0)
+	progress_map[progress_key] = clampf(progress, 0.0, 1.0)
 	_set_node_property("_scavenging_progress_by_node", progress_map)
+
+
+func _get_resource_progress_key(resource_node) -> String:
+	if resource_node == null or not resource_node.has_method("get_resource_progress_key"):
+		return ""
+	return str(resource_node.call("get_resource_progress_key")).strip_edges()
 
 
 func _set_order(order_type: int, issued_by_player: bool, preserve_seat := false) -> bool:
@@ -1311,6 +1379,15 @@ func _is_actor_alive() -> bool:
 
 func _is_valid_node(value) -> bool:
 	return value != null and is_instance_valid(value)
+
+
+func _has_node_methods(value, method_names: Array) -> bool:
+	if not _is_valid_node(value):
+		return false
+	for method_name in method_names:
+		if not value.has_method(str(method_name)):
+			return false
+	return true
 
 
 func _is_finish_off_target_valid(target) -> bool:

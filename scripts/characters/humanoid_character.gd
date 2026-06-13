@@ -385,8 +385,8 @@ func _setup_body_projection() -> void:
 	if _body == null:
 		return
 	_body.name = "BodyProjection"
-	add_child(_body)
 	_body.bind_actor(self)
+	add_child(_body)
 
 
 func _create_body_projection() -> BodyProjection:
@@ -395,6 +395,14 @@ func _create_body_projection() -> BodyProjection:
 
 func get_body_projection() -> BodyProjection:
 	return _body if _body != null and is_instance_valid(_body) else null
+
+
+func _body_supports_downed_visuals() -> bool:
+	return _body != null and is_instance_valid(_body) and _body.supports_downed_visuals()
+
+
+func _body_supports_ragdoll_visuals() -> bool:
+	return _body != null and is_instance_valid(_body) and _body.supports_ragdoll_visuals()
 
 
 func _create_actor_capabilities() -> Array:
@@ -427,7 +435,6 @@ func _process(delta: float) -> void:
 		return
 	if is_in_cell_custody():
 		_process_combat_cooldown(delta)
-		_process_needs_capability(delta)
 		_recalculate_vitals()
 		_update_cell_custody_animation(delta)
 		if _body != null:
@@ -436,7 +443,6 @@ func _process(delta: float) -> void:
 		return
 	_process_combat_cooldown(delta)
 	_process_ragdoll_impulse_memory(delta)
-	_process_needs_capability(delta)
 	_process_ai(delta)
 	_recalculate_vitals()
 	_process_downed_animation_state(delta)
@@ -464,8 +470,6 @@ func _process_profiled(delta: float) -> void:
 	if is_in_cell_custody():
 		_process_combat_cooldown(delta)
 		profile_last_usec = _debug_humanoid_profile_checkpoint("timers", profile_last_usec)
-		_process_needs_capability(delta)
-		profile_last_usec = _debug_humanoid_profile_checkpoint("needs_capability", profile_last_usec)
 		_recalculate_vitals()
 		profile_last_usec = _debug_humanoid_profile_checkpoint("vitals", profile_last_usec)
 		_update_cell_custody_animation(delta)
@@ -480,8 +484,6 @@ func _process_profiled(delta: float) -> void:
 	_process_combat_cooldown(delta)
 	_process_ragdoll_impulse_memory(delta)
 	profile_last_usec = _debug_humanoid_profile_checkpoint("timers", profile_last_usec)
-	_process_needs_capability(delta)
-	profile_last_usec = _debug_humanoid_profile_checkpoint("needs_capability", profile_last_usec)
 	_process_ai_profiled(delta)
 	profile_last_usec = _debug_humanoid_profile_checkpoint("ai", profile_last_usec)
 	_recalculate_vitals()
@@ -538,10 +540,7 @@ static func _debug_humanoid_ai_profile_finish() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if _spawn_grounding_refresh_frames > 0:
-		_process_spawn_grounding_refresh(delta)
-		return
-	if _should_use_far_runtime_cadence():
+	if _spawn_grounding_refresh_frames <= 0 and _should_use_far_runtime_cadence():
 		_far_runtime_physics_accumulated += delta
 		if _far_runtime_physics_accumulated < FAR_RUNTIME_PHYSICS_INTERVAL:
 			return
@@ -550,6 +549,9 @@ func _physics_process(delta: float) -> void:
 	else:
 		_far_runtime_physics_accumulated = 0.0
 	_physics_process_actor_capabilities(delta)
+	if _spawn_grounding_refresh_frames > 0:
+		_process_spawn_grounding_refresh(delta)
+		return
 	if _carried_by != null:
 		velocity = Vector3.ZERO
 		return
@@ -1544,7 +1546,7 @@ func _get_ragdoll_profile_float(property_name: String, fallback: float) -> float
 
 
 func _process_ragdoll_impulse_memory(delta: float) -> void:
-	if _body != null:
+	if _body_supports_ragdoll_visuals():
 		_body.process_ragdoll_impulse_memory(delta)
 		return
 	if _last_ragdoll_impulse_remaining <= 0.0:
@@ -1555,7 +1557,7 @@ func _process_ragdoll_impulse_memory(delta: float) -> void:
 
 
 func _remember_ragdoll_impulse(impulse: Vector3, seconds: float) -> void:
-	if _body != null:
+	if _body_supports_ragdoll_visuals():
 		_body.remember_ragdoll_impulse(impulse, seconds)
 		return
 	_last_ragdoll_impulse = impulse
@@ -2557,18 +2559,18 @@ func _process_ai(delta: float) -> void:
 		stop_attack_assignment()
 	if should_run_close_combat_retarget(delta) and _try_reconfigure_close_combat_target():
 		return
-	if _get_active_combat_target() != null:
-		return
-	if not _should_run_ai_decision_tick(delta):
-		return
-	if _ai_utility_adapter != null and bool(_ai_utility_adapter.run_actor_decision(self)):
-		return
 	if _should_consider_combat_retarget():
 		var replacement_target := _find_ai_target()
 		var active_target := _get_active_combat_target()
 		if replacement_target != null and replacement_target != active_target and COMBAT_COORDINATOR.should_switch_target(self, active_target, replacement_target, maxf(aggressive_scan_radius, assist_scan_radius)):
 			assign_attack_target(replacement_target, false, true, false)
 			return
+	if _get_active_combat_target() != null:
+		return
+	if not _should_run_ai_decision_tick(delta):
+		return
+	if _ai_utility_adapter != null and bool(_ai_utility_adapter.run_actor_decision(self)):
+		return
 	if _should_seek_auto_heal_target():
 		var heal_target := _find_auto_heal_target()
 		if heal_target != null:
@@ -2616,6 +2618,15 @@ func _process_ai_profiled(delta: float) -> void:
 		_debug_humanoid_ai_profile_finish()
 		return
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("close_combat_retarget", profile_last_usec)
+	if _should_consider_combat_retarget():
+		var replacement_target := _find_ai_target()
+		var active_target := _get_active_combat_target()
+		if replacement_target != null and replacement_target != active_target and COMBAT_COORDINATOR.should_switch_target(self, active_target, replacement_target, maxf(aggressive_scan_radius, assist_scan_radius)):
+			assign_attack_target(replacement_target, false, true, false)
+			_debug_humanoid_ai_profile_checkpoint("retarget", profile_last_usec)
+			_debug_humanoid_ai_profile_finish()
+			return
+	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("retarget", profile_last_usec)
 	if _get_active_combat_target() != null:
 		_debug_humanoid_ai_profile_checkpoint("active_combat_hold", profile_last_usec)
 		_debug_humanoid_ai_profile_finish()
@@ -2630,15 +2641,6 @@ func _process_ai_profiled(delta: float) -> void:
 		_debug_humanoid_ai_profile_finish()
 		return
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("utility_decision", profile_last_usec)
-	if _should_consider_combat_retarget():
-		var replacement_target := _find_ai_target()
-		var active_target := _get_active_combat_target()
-		if replacement_target != null and replacement_target != active_target and COMBAT_COORDINATOR.should_switch_target(self, active_target, replacement_target, maxf(aggressive_scan_radius, assist_scan_radius)):
-			assign_attack_target(replacement_target, false, true, false)
-			_debug_humanoid_ai_profile_checkpoint("retarget", profile_last_usec)
-			_debug_humanoid_ai_profile_finish()
-			return
-	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("retarget", profile_last_usec)
 	if _should_seek_auto_heal_target():
 		var heal_target := _find_auto_heal_target()
 		if heal_target != null:
@@ -3399,7 +3401,8 @@ func _get_collision_shape_local_bounds(collision_shape: CollisionShape3D) -> AAB
 
 
 func _update_character_animation(delta: float) -> void:
-	if _body == null or _body.get_primary_animation_player() == null:
+	var body := _body if _body != null and is_instance_valid(_body) else null
+	if body == null or body.get_primary_animation_player() == null:
 		return
 	if _is_combat_resolution_busy():
 		return
@@ -3407,11 +3410,11 @@ func _update_character_animation(delta: float) -> void:
 		velocity = Vector3.ZERO
 		_cancel_crouch_transition()
 		_cancel_run_transition()
-		_body.update_sitting_animation(delta, _should_use_sitting_talking_idle())
+		body.update_sitting_animation(delta, _should_use_sitting_talking_idle())
 		return
-	if not _has_move_target and _body.update_sitting_exit_animation(delta):
+	if not _has_move_target and body.update_sitting_exit_animation(delta):
 		return
-	_body.cancel_sitting_exit_animation()
+	body.cancel_sitting_exit_animation()
 	if life_state != NpcRules.LifeState.ALIVE:
 		_cancel_crouch_transition()
 		_cancel_run_transition()
@@ -3425,23 +3428,23 @@ func _update_character_animation(delta: float) -> void:
 		_cancel_crouch_transition()
 		_cancel_run_transition()
 		_face_world_position(_current_mining_node.global_position)
-		if _body.play_clip(MINING_ANIMATION_NAME):
+		if body.play_clip(MINING_ANIMATION_NAME):
 			return
 	var horizontal_speed := _get_horizontal_speed()
 	var should_hold_combat_idle := _should_hold_combat_idle_animation()
 	var is_moving := horizontal_speed > ACTUAL_LOCOMOTION_SPEED_THRESHOLD and (_has_move_target or _has_active_combat_target()) and not should_hold_combat_idle
 	var wants_run_animation := is_running_enabled() and is_moving and not sneaking
-	if _body.update_crouch_enter_animation(delta):
+	if body.update_crouch_enter_animation(delta):
 		return
-	if _body.update_crouch_exit_animation(delta):
+	if body.update_crouch_exit_animation(delta):
 		return
-	if _body.update_run_transition(delta, wants_run_animation):
+	if body.update_run_transition(delta, wants_run_animation):
 		return
 	if sneaking:
 		if is_moving:
-			_body.play_clip(CROUCH_WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed * _get_sneak_move_speed_multiplier()))
+			body.play_clip(CROUCH_WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed * _get_sneak_move_speed_multiplier()))
 		else:
-			_body.play_clip(CROUCH_IDLE_ANIMATION_NAME)
+			body.play_clip(CROUCH_IDLE_ANIMATION_NAME)
 		return
 	if should_hold_combat_idle:
 		_cancel_crouch_transition()
@@ -3451,12 +3454,12 @@ func _update_character_animation(delta: float) -> void:
 	if not is_moving:
 		if _play_combat_idle_animation_if_available():
 			return
-		_body.update_idle_animation(delta, _should_use_tired_idle_animation())
+		body.update_idle_animation(delta, _should_use_tired_idle_animation())
 		return
 	if wants_run_animation:
-		_body.play_clip(JOG_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed * NpcRules.RUN_SPEED_MULTIPLIER))
+		body.play_clip(JOG_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed * NpcRules.RUN_SPEED_MULTIPLIER))
 	else:
-		_body.play_clip(WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed))
+		body.play_clip(WALK_ANIMATION_NAME, _get_animation_speed_ratio(horizontal_speed, move_speed))
 
 
 func _get_animation_speed_ratio(horizontal_speed: float, reference_speed: float) -> float:
@@ -3473,19 +3476,22 @@ func _should_hold_combat_idle_animation() -> bool:
 
 
 func _play_combat_idle_animation_if_available() -> bool:
-	if _body == null or _get_active_combat_target() == null:
+	var body := _body if _body != null and is_instance_valid(_body) else null
+	if body == null or _get_active_combat_target() == null:
 		return false
 	var animation_set = _get_current_combat_animation_set()
-	var idle_animation_name := _get_current_combat_idle_animation_name(animation_set)
-	if idle_animation_name.is_empty() or not _body.has_clip(idle_animation_name):
+	var idle_animation_name := _get_current_combat_idle_animation_name(animation_set, body)
+	if idle_animation_name.is_empty() or not body.has_clip(idle_animation_name):
 		return false
-	return _body.play_clip(idle_animation_name)
+	return body.play_clip(idle_animation_name)
 
 
-func _get_current_combat_idle_animation_name(animation_set) -> String:
+func _get_current_combat_idle_animation_name(animation_set, body: BodyProjection = null) -> String:
 	if animation_set != null and str(animation_set.stance_id) == EquipmentGripProfile.GRIP_CLASS_ONE_HAND_MELEE:
 		return str(animation_set.idle_animation_name)
-	if _has_equipped_shield() and _body != null and _body.has_clip(SHIELD_COMBAT_IDLE_ANIMATION_NAME):
+	if body == null:
+		body = _body if _body != null and is_instance_valid(_body) else null
+	if _has_equipped_shield() and body != null and body.has_clip(SHIELD_COMBAT_IDLE_ANIMATION_NAME):
 		return SHIELD_COMBAT_IDLE_ANIMATION_NAME
 	if animation_set != null:
 		return str(animation_set.idle_animation_name)
@@ -3493,15 +3499,17 @@ func _get_current_combat_idle_animation_name(animation_set) -> String:
 
 
 func _should_use_tired_idle_animation() -> bool:
+	var body := _body if _body != null and is_instance_valid(_body) else null
 	return life_state == NpcRules.LifeState.ALIVE \
 		and fatigue_stage == NpcRules.FatigueStage.EXHAUSTED \
-		and _body != null \
-		and _body.has_clip(TIRED_IDLE_ANIMATION_NAME)
+		and body != null \
+		and body.has_clip(TIRED_IDLE_ANIMATION_NAME)
 
 
 func _play_random_idle_animation(force: bool) -> void:
-	if _body != null:
-		_body.play_random_idle_animation(force)
+	var body := _body if _body != null and is_instance_valid(_body) else null
+	if body != null:
+		body.play_random_idle_animation(force)
 
 
 func _start_crouch_enter_animation() -> void:
@@ -5024,14 +5032,22 @@ func _get_carry_profile_float(profile: Resource, property_name: String, fallback
 
 
 func _get_carry_fallback_local_anchor(is_carrier_anchor: bool) -> Vector3:
+	if _body != null and is_instance_valid(_body):
+		var visual_bounds := _body.get_visual_local_bounds()
+		if visual_bounds.size.y > 0.001:
+			return _get_carry_anchor_from_bounds(visual_bounds, is_carrier_anchor)
 	var body_mesh := get_node_or_null("BodyMesh") as MeshInstance3D
 	if body_mesh != null and body_mesh.mesh != null:
 		var bounds := _calculate_local_mesh_bounds(body_mesh)
 		if bounds.size.y > 0.001:
-			var height_ratio := 0.78 if is_carrier_anchor else 0.56
-			var side_offset := bounds.size.x * 0.25 if is_carrier_anchor else 0.0
-			return Vector3(bounds.position.x + bounds.size.x * 0.5 + side_offset, bounds.position.y + bounds.size.y * height_ratio, bounds.position.z + bounds.size.z * 0.5)
+			return _get_carry_anchor_from_bounds(bounds, is_carrier_anchor)
 	return Vector3(0.24, 1.55, 0.08) if is_carrier_anchor else Vector3.ZERO
+
+
+func _get_carry_anchor_from_bounds(bounds: AABB, is_carrier_anchor: bool) -> Vector3:
+	var height_ratio := 0.78 if is_carrier_anchor else 0.56
+	var side_offset := bounds.size.x * 0.25 if is_carrier_anchor else 0.0
+	return Vector3(bounds.position.x + bounds.size.x * 0.5 + side_offset, bounds.position.y + bounds.size.y * height_ratio, bounds.position.z + bounds.size.z * 0.5)
 
 
 func enter_cell_custody(cell, cell_position: Vector3, cell_rotation: Vector3) -> void:
@@ -5196,7 +5212,7 @@ func _enter_downed_state(is_dead: bool) -> void:
 	_downed_is_settled = true
 	rotation = Vector3(0.0, rotation.y, 0.0)
 	velocity = Vector3.ZERO
-	if _body != null:
+	if _body_supports_downed_visuals():
 		_body.enter_downed_visuals(is_dead)
 
 
@@ -5207,7 +5223,7 @@ func _restore_from_downed_state() -> void:
 	_downed_is_settled = false
 	rotation = Vector3(0.0, rotation.y, 0.0)
 	velocity = Vector3.ZERO
-	if _body != null:
+	if _body_supports_downed_visuals():
 		_body.restore_from_downed_visuals()
 	else:
 		_restore_downed_collision_shape()
@@ -5221,7 +5237,7 @@ func _begin_get_up() -> void:
 	_clear_actor_move_target()
 	velocity = Vector3.ZERO
 	_downed_is_settled = true
-	if _body != null:
+	if _body_supports_downed_visuals():
 		_body.begin_get_up_visuals()
 	else:
 		_is_getting_up = true
@@ -5230,30 +5246,30 @@ func _begin_get_up() -> void:
 
 
 func _process_downed_animation_state(delta: float) -> void:
-	if _body != null and _body.process_downed_visuals(delta):
+	if _body_supports_downed_visuals() and _body.process_downed_visuals(delta):
 		_finish_get_up()
 
 
 func _begin_downed_ragdoll_preroll(is_dead: bool) -> bool:
 	# A4 transitional shim -> HumanoidBodyProjection._begin_downed_ragdoll_preroll.
-	return bool(_body.call("_begin_downed_ragdoll_preroll", is_dead)) if _body != null and _body.has_method("_begin_downed_ragdoll_preroll") else false
+	return bool(_body.call("_begin_downed_ragdoll_preroll", is_dead)) if _body_supports_downed_visuals() and _body.has_method("_begin_downed_ragdoll_preroll") else false
 
 
 func _process_downed_ragdoll_preroll(delta: float) -> void:
 	# A4 transitional shim -> HumanoidBodyProjection._process_downed_ragdoll_preroll.
-	if _body != null and _body.has_method("_process_downed_ragdoll_preroll"):
+	if _body_supports_downed_visuals() and _body.has_method("_process_downed_ragdoll_preroll"):
 		_body.call("_process_downed_ragdoll_preroll", delta)
 
 
 func _finish_downed_ragdoll_preroll() -> void:
 	# A4 transitional shim -> HumanoidBodyProjection._finish_downed_ragdoll_preroll.
-	if _body != null and _body.has_method("_finish_downed_ragdoll_preroll"):
+	if _body_supports_downed_visuals() and _body.has_method("_finish_downed_ragdoll_preroll"):
 		_body.call("_finish_downed_ragdoll_preroll")
 
 
 func _cancel_ragdoll_preroll() -> void:
 	# A4 transitional shim -> HumanoidBodyProjection._cancel_ragdoll_preroll.
-	if _body != null and _body.has_method("_cancel_ragdoll_preroll"):
+	if _body_supports_downed_visuals() and _body.has_method("_cancel_ragdoll_preroll"):
 		_body.call("_cancel_ragdoll_preroll")
 		return
 	_ragdoll_preroll_active = false
@@ -5264,7 +5280,7 @@ func _cancel_ragdoll_preroll() -> void:
 
 func _process_get_up_animation(delta: float) -> void:
 	# A4 transitional shim -> HumanoidBodyProjection._process_get_up_animation.
-	if _body != null and _body.has_method("_process_get_up_animation") and bool(_body.call("_process_get_up_animation", delta)):
+	if _body_supports_downed_visuals() and _body.has_method("_process_get_up_animation") and bool(_body.call("_process_get_up_animation", delta)):
 		_finish_get_up()
 
 
@@ -5283,7 +5299,7 @@ func _finish_get_up() -> void:
 
 
 func _cancel_get_up() -> void:
-	if _body != null:
+	if _body_supports_downed_visuals():
 		_body.cancel_get_up_visuals()
 		return
 	if not _is_getting_up:
@@ -5341,11 +5357,11 @@ func _set_navigation_avoidance_enabled(enabled: bool) -> void:
 
 
 func _start_ragdoll_simulation(_is_dead: bool) -> bool:
-	return _body.start_ragdoll_simulation(_is_dead) if _body != null else false
+	return _body.start_ragdoll_simulation(_is_dead) if _body_supports_ragdoll_visuals() else false
 
 
 func _stop_ragdoll_simulation(reset_pose: bool) -> void:
-	if _body != null:
+	if _body_supports_ragdoll_visuals():
 		_body.stop_ragdoll_simulation(reset_pose)
 		return
 	_is_ragdoll_active = false
@@ -5353,23 +5369,23 @@ func _stop_ragdoll_simulation(reset_pose: bool) -> void:
 
 
 func _prepare_ragdoll_get_up() -> void:
-	if _body != null:
+	if _body_supports_ragdoll_visuals():
 		_body.prepare_ragdoll_get_up()
 		return
 	rotation = Vector3(0.0, rotation.y, 0.0)
 
 
 func _stabilize_active_ragdoll(_delta: float) -> void:
-	if _body != null:
+	if _body_supports_ragdoll_visuals():
 		_body.stabilize_ragdoll(_delta)
 
 
 func _get_ragdoll_anchor_position() -> Variant:
-	return _body.get_ragdoll_anchor_position() if _body != null else null
+	return _body.get_ragdoll_anchor_position() if _body_supports_ragdoll_visuals() else null
 
 
 func _get_attack_ragdoll_impulse(attacker: Node, damage: float) -> Vector3:
-	return _body.get_attack_ragdoll_impulse(attacker, damage) if _body != null else Vector3.ZERO
+	return _body.get_attack_ragdoll_impulse(attacker, damage) if _body_supports_ragdoll_visuals() else Vector3.ZERO
 
 
 func _show_world_notice(message: String, color: Color = Color(1.0, 0.28, 0.28, 1.0), lifetime: float = 1.0, rise_height: float = 0.4) -> void:
@@ -5457,7 +5473,7 @@ func _find_humanoid_by_instance_id(instance_id: int) -> Node:
 		return null
 	var query_controller := _get_runtime_controller("actor_query_controller")
 	if query_controller != null and query_controller.has_method("get_actor_by_instance_id"):
-		var indexed_actor := query_controller.call("get_actor_by_instance_id", instance_id) as Node
+		var indexed_actor := query_controller.call("get_actor_by_instance_id", instance_id) as HumanoidCharacter
 		if indexed_actor != null:
 			return indexed_actor
 	# TODO(actor-decoupling): fallback is still humanoid-only; rely on ActorQueryController for non-humanoid actors instead of scanning world_actor here.

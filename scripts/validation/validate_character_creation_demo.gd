@@ -1,24 +1,39 @@
 extends SceneTree
 
-const CHARACTER_CREATION_DEMO_SCENE := preload("res://scenes/test_levels/character_creation_demo.tscn")
-const CHARACTER_APPEARANCE_DATA_SCRIPT := preload("res://scripts/character_appearance/character_appearance_data.gd")
-const SKIN_TEXTURE_BUILDER := preload("res://scripts/character_appearance/skin_texture_builder.gd")
-const HUMAN_RACE := preload("res://resources/character_races/human.tres")
-const HUMAN_FEMALE_BODY_ARCHETYPE := preload("res://resources/character_body_archetypes/human_female.tres")
-const FEMALE_DARK_TEXTURE: Texture2D = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Superhero_Female_Dark_BaseColor.png")
-const HAIR_BUNS := preload("res://resources/character_appearance/hair_buns.tres")
-const BEARD_FULL := preload("res://resources/character_appearance/beard_full.tres")
-const SILVER_ITEM := preload("res://resources/items/silver.tres")
-const PEASANT_TUNIC := preload("res://resources/items/peasant_tunic.tres")
-const PEASANT_TROUSERS := preload("res://resources/items/peasant_trousers.tres")
-const PEASANT_SHOES := preload("res://resources/items/peasant_shoes.tres")
-const IRON_SWORD := preload("res://resources/items/iron_sword.tres")
-const ROUND_SHIELD := preload("res://resources/items/round_shield.tres")
+const CHARACTER_CREATION_DEMO_SCENE_PATH := "res://scenes/test_levels/character_creation_demo.tscn"
+const CHARACTER_APPEARANCE_DATA_SCRIPT_PATH := "res://scripts/character_appearance/character_appearance_data.gd"
+const SKIN_TEXTURE_BUILDER_PATH := "res://scripts/character_appearance/skin_texture_builder.gd"
+const HUMAN_RACE_PATH := "res://resources/character_races/human.tres"
+const HUMAN_FEMALE_BODY_ARCHETYPE_PATH := "res://resources/character_body_archetypes/human_female.tres"
+const FEMALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Superhero_Female_Dark_BaseColor.png"
+const HAIR_BUNS_PATH := "res://resources/character_appearance/hair_buns.tres"
+const BEARD_FULL_PATH := "res://resources/character_appearance/beard_full.tres"
+const SILVER_ITEM_PATH := "res://resources/items/silver.tres"
+const PEASANT_TUNIC_PATH := "res://resources/items/peasant_tunic.tres"
+const PEASANT_TROUSERS_PATH := "res://resources/items/peasant_trousers.tres"
+const PEASANT_SHOES_PATH := "res://resources/items/peasant_shoes.tres"
+const IRON_SWORD_PATH := "res://resources/items/iron_sword.tres"
+const ROUND_SHIELD_PATH := "res://resources/items/round_shield.tres"
 const VISUAL_BODY_TYPE_FEMALE := 3
 const DEFAULT_SKIN_COLOR := Color(0.58, 0.38, 0.27, 1.0)
 const CUSTOM_SKIN_COLOR := Color(0.74, 0.45, 0.31, 1.0)
 const FEMALE_SKIN_SAMPLE_UV := Vector2(0.5, 0.5)
 const FEMALE_UNDERWEAR_SAMPLE_UV := Vector2(0.023, 0.344)
+
+var CHARACTER_CREATION_DEMO_SCENE: PackedScene
+var CHARACTER_APPEARANCE_DATA_SCRIPT: Script
+var SKIN_TEXTURE_BUILDER: Script
+var HUMAN_RACE: Resource
+var HUMAN_FEMALE_BODY_ARCHETYPE: Resource
+var FEMALE_DARK_TEXTURE: Texture2D
+var HAIR_BUNS: Resource
+var BEARD_FULL: Resource
+var SILVER_ITEM: Resource
+var PEASANT_TUNIC: Resource
+var PEASANT_TROUSERS: Resource
+var PEASANT_SHOES: Resource
+var IRON_SWORD: Resource
+var ROUND_SHIELD: Resource
 
 var _failures: Array[String] = []
 var _scene: Node
@@ -32,11 +47,14 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_load_validation_resources()
 	_validate_skeleton_slider_offsets()
 	await _load_scene()
 	_validate_custom_skin_texture_mask()
 	await _run_creation_save_case()
 	await _run_creation_cancel_case()
+	await _cleanup_scene()
+	_cleanup_validation_resources()
 	if _failures.is_empty():
 		print("CHARACTER_CREATION_DEMO_OK")
 		quit(0)
@@ -57,6 +75,44 @@ func _load_scene() -> void:
 		_fail("CharacterAppearanceController was not found")
 	if _party_manager == null:
 		_fail("PartyManager was not found")
+
+
+func _load_validation_resources() -> void:
+	CHARACTER_CREATION_DEMO_SCENE = load(CHARACTER_CREATION_DEMO_SCENE_PATH) as PackedScene
+	CHARACTER_APPEARANCE_DATA_SCRIPT = load(CHARACTER_APPEARANCE_DATA_SCRIPT_PATH) as Script
+	SKIN_TEXTURE_BUILDER = load(SKIN_TEXTURE_BUILDER_PATH) as Script
+	HUMAN_RACE = load(HUMAN_RACE_PATH) as Resource
+	HUMAN_FEMALE_BODY_ARCHETYPE = load(HUMAN_FEMALE_BODY_ARCHETYPE_PATH) as Resource
+	FEMALE_DARK_TEXTURE = load(FEMALE_DARK_TEXTURE_PATH) as Texture2D
+	HAIR_BUNS = load(HAIR_BUNS_PATH) as Resource
+	BEARD_FULL = load(BEARD_FULL_PATH) as Resource
+	SILVER_ITEM = load(SILVER_ITEM_PATH) as Resource
+	PEASANT_TUNIC = load(PEASANT_TUNIC_PATH) as Resource
+	PEASANT_TROUSERS = load(PEASANT_TROUSERS_PATH) as Resource
+	PEASANT_SHOES = load(PEASANT_SHOES_PATH) as Resource
+	IRON_SWORD = load(IRON_SWORD_PATH) as Resource
+	ROUND_SHIELD = load(ROUND_SHIELD_PATH) as Resource
+
+
+func _cleanup_validation_resources() -> void:
+	if SKIN_TEXTURE_BUILDER != null and SKIN_TEXTURE_BUILDER.has_method("clear_runtime_caches"):
+		SKIN_TEXTURE_BUILDER.clear_runtime_caches()
+	_appearance_controller = null
+	_party_manager = null
+	CHARACTER_CREATION_DEMO_SCENE = null
+	CHARACTER_APPEARANCE_DATA_SCRIPT = null
+	SKIN_TEXTURE_BUILDER = null
+	HUMAN_RACE = null
+	HUMAN_FEMALE_BODY_ARCHETYPE = null
+	FEMALE_DARK_TEXTURE = null
+	HAIR_BUNS = null
+	BEARD_FULL = null
+	SILVER_ITEM = null
+	PEASANT_TUNIC = null
+	PEASANT_TROUSERS = null
+	PEASANT_SHOES = null
+	IRON_SWORD = null
+	ROUND_SHIELD = null
 
 
 func _run_creation_save_case() -> void:
@@ -241,11 +297,11 @@ func _validate_custom_skin_texture_mask() -> void:
 		_fail("Female skin sample is not included in the custom skin mask")
 	if SKIN_TEXTURE_BUILDER.get_skin_mask_at_uv(VISUAL_BODY_TYPE_FEMALE, FEMALE_UNDERWEAR_SAMPLE_UV) > 0.01:
 		_fail("Female underwear sample is incorrectly included in the custom skin mask")
-	var texture := SKIN_TEXTURE_BUILDER.build_skin_texture(SKIN_TEXTURE_BUILDER.HUMAN_RACE_ID, VISUAL_BODY_TYPE_FEMALE, CUSTOM_SKIN_COLOR)
+	var texture: Texture2D = SKIN_TEXTURE_BUILDER.build_skin_texture(SKIN_TEXTURE_BUILDER.HUMAN_RACE_ID, VISUAL_BODY_TYPE_FEMALE, CUSTOM_SKIN_COLOR) as Texture2D
 	if texture == null:
 		_fail("Custom skin texture could not be generated")
 		return
-	var custom_image := texture.get_image()
+	var custom_image: Image = texture.get_image()
 	if custom_image == null:
 		_fail("Custom skin texture image could not be read")
 		return
@@ -332,6 +388,15 @@ func _get_readable_image(texture: Texture2D) -> Image:
 			return null
 	image.convert(Image.FORMAT_RGBA8)
 	return image
+
+
+func _cleanup_scene() -> void:
+	paused = false
+	if _scene != null and is_instance_valid(_scene):
+		root.remove_child(_scene)
+		_scene.free()
+		_scene = null
+		await _wait_frames(8)
 
 
 func _wait_frames(frame_count: int) -> void:

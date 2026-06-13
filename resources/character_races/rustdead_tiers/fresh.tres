@@ -10,6 +10,11 @@
 
 [resource]
 script = ExtResource("1_tier")
+tier_id = "fresh"
+display_name = "Fresh Rustdead"
+stat_range = Vector2i(10, 25)
+max_hp_range = Vector2(85, 105)
+passive_bonus = 0.2
 skin_tone_indices = PackedInt32Array(0, 1)
 male_hair_styles = Array[Resource]([ExtResource("2_hair_buzzed"), ExtResource("4_hair_parted"), ExtResource("5_hair_long")])
 female_hair_styles = Array[Resource]([ExtResource("3_hair_buzzed_female"), ExtResource("4_hair_parted"), ExtResource("5_hair_long"), ExtResource("6_hair_buns")])

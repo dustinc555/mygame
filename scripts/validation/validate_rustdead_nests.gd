@@ -272,9 +272,8 @@ func _validate_rustdead_actor_tier(actor: Node, actor_id: String) -> void:
 
 
 func _validate_rustdead_actor_skill_ranges(actor: Node, tier: Resource, actor_id: String) -> void:
-	var rustdead_tier_library = _load_rustdead_tier_library()
+	var rustdead_tier_library = _load_valid_rustdead_tier_library()
 	if rustdead_tier_library == null:
-		_fail("Rustdead tier library should load from %s" % RUSTDEAD_TIER_LIBRARY_PATH)
 		return
 	var tier_range: Vector2i = tier.call("get_stat_range")
 	var non_tier_range: Vector2i = rustdead_tier_library.get_non_tier_skill_range()
@@ -294,9 +293,8 @@ func _validate_rustdead_actor_skill_ranges(actor: Node, tier: Resource, actor_id
 
 
 func _validate_ancient_non_tier_actor_skill_is_low(actor: Node, actor_id: String, skill_id: String) -> void:
-	var rustdead_tier_library = _load_rustdead_tier_library()
+	var rustdead_tier_library = _load_valid_rustdead_tier_library()
 	if rustdead_tier_library == null:
-		_fail("Rustdead tier library should load from %s" % RUSTDEAD_TIER_LIBRARY_PATH)
 		return
 	var non_tier_range: Vector2i = rustdead_tier_library.get_non_tier_skill_range()
 	var actual := int(actor.call("get_skill_level", skill_id))
@@ -574,8 +572,16 @@ func _load_rustdead_nest_type() -> Resource:
 	return load(RUSTDEAD_NEST_TYPE_PATH) as Resource
 
 
-func _load_rustdead_tier_library():
-	return load(RUSTDEAD_TIER_LIBRARY_PATH)
+func _load_valid_rustdead_tier_library():
+	var rustdead_tier_library = load(RUSTDEAD_TIER_LIBRARY_PATH)
+	if rustdead_tier_library == null:
+		_fail("Rustdead tier library should load from %s" % RUSTDEAD_TIER_LIBRARY_PATH)
+		return null
+	for method_name in ["get_non_tier_skill_range", "is_tier_scaled_skill_id"]:
+		if not rustdead_tier_library.has_method(method_name):
+			_fail("Rustdead tier library should expose %s()" % method_name)
+			return null
+	return rustdead_tier_library
 
 
 func _fail(message: String) -> void:

@@ -341,6 +341,7 @@ wage_item_definition = ExtResource("12_silver")
 
 [node name="CopperNode" parent="." unique_id=734667647 instance=ExtResource("3_copper")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, -2)
+resource_node_id = "mining_test.copper_node"
 owner_character_path = NodePath("../Jim")
 
 [node name="TwoStoryHouse" parent="." unique_id=307274349 instance=ExtResource("19_two_story_house")]

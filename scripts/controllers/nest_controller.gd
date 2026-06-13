@@ -455,7 +455,9 @@ func _spawn_nest_scrap_piles(marker: NestPlacementMarker, state: Dictionary) -> 
 		var pile := scene.instantiate() as ScavengingResourceNode
 		if pile == null:
 			continue
-		pile.name = str(spec.get("scrap_id", "%s_scrap_%02d" % [marker.get_marker_id(), index + 1])).replace(".", "_")
+		var scrap_id := str(spec.get("scrap_id", "%s.scrap.%02d" % [marker.get_marker_id(), index + 1]))
+		pile.name = scrap_id.replace(".", "_")
+		pile.resource_node_id = scrap_id
 		pile.position = spec.get("offset", Vector3.ZERO) if spec.get("offset", Vector3.ZERO) is Vector3 else Vector3.ZERO
 		pile.rotation.y = float(spec.get("yaw", 0.0))
 		_configure_nest_scrap_pile(pile, size_id, nest_size_id)

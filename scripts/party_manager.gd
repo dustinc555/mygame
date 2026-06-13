@@ -16,11 +16,30 @@ func _ready() -> void:
 
 
 func set_party_members(members: Array) -> void:
-	party_members.clear()
+	var previous_members := party_members.duplicate()
+	var previous_selected := selected_members.duplicate()
+	var previous_followed := followed_member
+	var next_members: Array[WorldActor] = []
 	for member in members:
-		if member is WorldActor:
-			party_members.append(member)
+		var actor := member as WorldActor
+		if actor != null and is_instance_valid(actor) and not next_members.has(actor):
+			next_members.append(actor)
+	party_members = next_members
+	for previous_member in previous_members:
+		if previous_member != null and is_instance_valid(previous_member) and not party_members.has(previous_member):
+			previous_member.set_player_party_member(false)
+			previous_member.set_selected(false)
+			previous_member.set_focused(false)
+	for member in party_members:
+		member.set_player_party_member(true)
+	_prune_selection_to_party()
+	if followed_member != null and not party_members.has(followed_member):
+		followed_member = null
 	_sync_member_states()
+	if not _same_member_list(previous_selected, selected_members):
+		selection_changed.emit()
+	if previous_followed != followed_member:
+		follow_changed.emit()
 
 
 func clear_selection() -> void:
@@ -93,3 +112,20 @@ func _sync_member_states() -> void:
 	for member in party_members:
 		member.set_selected(selected_members.has(member))
 		member.set_focused(member == followed_member)
+
+
+func _prune_selection_to_party() -> void:
+	var pruned_selection: Array[WorldActor] = []
+	for member in selected_members:
+		if member != null and is_instance_valid(member) and party_members.has(member) and not pruned_selection.has(member):
+			pruned_selection.append(member)
+	selected_members = pruned_selection
+
+
+func _same_member_list(left: Array, right: Array) -> bool:
+	if left.size() != right.size():
+		return false
+	for index in range(left.size()):
+		if left[index] != right[index]:
+			return false
+	return true

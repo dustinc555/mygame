@@ -48,6 +48,14 @@ var _last_ragdoll_impulse_remaining := 0.0
 var _ragdoll_upward_velocity_suppression_frames := 0
 
 
+func supports_downed_visuals() -> bool:
+	return true
+
+
+func supports_ragdoll_visuals() -> bool:
+	return true
+
+
 func setup_visual() -> void:
 	_free_visual_root()
 	_animation_player = null

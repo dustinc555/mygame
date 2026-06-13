@@ -2,10 +2,6 @@ extends SceneTree
 
 const RUSTDEAD_DEMO_SCENE := preload("res://scenes/test_levels/rustdead_5v10_demo.tscn")
 const RUSTDEAD_RACE := preload("res://resources/character_races/rustdead.tres")
-const QUADBOT_RACE := preload("res://resources/character_races/quadbot.tres")
-const QUADBOT_CHARACTER_SCRIPT := preload("res://scripts/characters/quadbot_character.gd")
-const QUADBOT_BODY_PROJECTION_SCRIPT := preload("res://scripts/projection/quadbot_body_projection.gd")
-const ROBOT_OIL := preload("res://resources/bleed_fluids/robot_oil.tres")
 const SKIN_TEXTURE_BUILDER := preload("res://scripts/character_appearance/skin_texture_builder.gd")
 const RUSTDEAD_TIER_LIBRARY := preload("res://scripts/characters/rustdead_tier_library.gd")
 const BANDAGE := preload("res://resources/items/bandage.tres")
@@ -106,17 +102,12 @@ func _get_rustdead_members() -> Array[HumanoidCharacter]:
 
 
 func _validate_party_members(party_members: Array[WorldActor]) -> void:
-	if party_members.size() != 6:
-		_fail("Expected 6 party members including one robot, got %d" % party_members.size())
-	var robot_count := 0
+	if party_members.size() != 5:
+		_fail("Expected 5 humanoid party members, got %d" % party_members.size())
 	for member in party_members:
-		if _is_robot_party_member(member):
-			robot_count += 1
-			_validate_robot_party_member(member)
-			continue
 		var humanoid := member as HumanoidCharacter
 		if humanoid == null:
-			_fail("%s should be humanoid or robot party member" % member.name)
+			_fail("%s should be a humanoid party member" % member.name)
 			continue
 		_validate_skill_levels(humanoid, int(PARTY_SKILL_LEVELS.get(str(humanoid.member_name), PARTY_DEFAULT_SKILL_LEVEL)))
 		_expect_equipped(humanoid, "weapon")
@@ -125,62 +116,6 @@ func _validate_party_members(party_members: Array[WorldActor]) -> void:
 		_expect_equipped(humanoid, "feet")
 		_expect_inventory_count(humanoid, BANDAGE, 1)
 		_expect_inventory_count(humanoid, CINDER_FLASK, 1)
-	if robot_count != 1:
-		_fail("Expected exactly one robot party member, got %d" % robot_count)
-
-
-func _is_robot_party_member(member: WorldActor) -> bool:
-	var race = member.get("character_race") if member != null else null
-	return race != null and str(race.get("race_id")) == "quadbot"
-
-
-func _validate_robot_party_member(member: WorldActor) -> void:
-	if member.get_script() != QUADBOT_CHARACTER_SCRIPT:
-		_fail("%s should use QuadBotCharacter" % member.name)
-		return
-	if member.get("character_race") != QUADBOT_RACE:
-		_fail("%s should use quadbot race" % member.name)
-	if not member.is_player_party_member():
-		_fail("%s should be a player party member" % member.name)
-	if member.combat_stance != NpcRules.CombatStance.DEFENSIVE:
-		_fail("%s should use normal defensive party combat stance" % member.name)
-	if not member.ai_brain_enabled:
-		_fail("%s should keep AI brain enabled" % member.name)
-	var party_line_position := Vector2(-4.0, 9.0)
-	var robot_position := Vector2(member.global_position.x, member.global_position.z)
-	if robot_position.distance_to(party_line_position) > 3.0:
-		_fail("%s should spawn with the party group, got %s" % [member.name, str(member.global_position)])
-	var selection_ring := member.get_node_or_null("SelectionRing") as MeshInstance3D
-	if selection_ring == null:
-		_fail("%s should have a selection ring" % member.name)
-	elif selection_ring.mesh == null:
-		_fail("%s selection ring should have a mesh" % member.name)
-	elif selection_ring.mesh is CylinderMesh:
-		_fail("%s selection ring should not be a flat CylinderMesh disk" % member.name)
-	if not is_equal_approx(member.max_hp, 200.0):
-		_fail("%s should start with 200 Hull, got %.1f" % [member.name, member.max_hp])
-	if member.get_health_vital_label() != "Hull":
-		_fail("%s health vital should be Hull" % member.name)
-	if member.call("get_bleed_fluid") != ROBOT_OIL or member.get_vital_fluid_label() != "Oil":
-		_fail("%s should use Oil vital fluid" % member.name)
-	if member.call("can_receive_bandage"):
-		_fail("%s should not accept bandages" % member.name)
-	if member.shows_hunger_vital() or member.shows_fatigue_vital():
-		_fail("%s should hide hunger and fatigue vitals" % member.name)
-	_validate_robot_skill_variance(member)
-	var body = member.call("get_body_projection") if member.has_method("get_body_projection") else null
-	if body == null or body.get_script() != QUADBOT_BODY_PROJECTION_SCRIPT:
-		_fail("%s should use QuadBotBodyProjection" % member.name)
-		return
-	for animation_name in ["Idle", "Walk", "Run", "Attack"]:
-		if not body.has_clip(animation_name):
-			_fail("%s robot body missing %s animation" % [member.name, animation_name])
-	if not body.play_clip("Idle", 0.0, true):
-		_fail("%s robot body should play Idle animation" % member.name)
-	elif body.get_current_clip() != "Idle" or not body.is_current_clip_playing():
-		_fail("%s robot Idle animation should keep playing" % member.name)
-	if body.has_clip("Death01") or body.has_clip("Death02"):
-		_fail("%s robot body should not expose humanoid death clips" % member.name)
 
 
 func _validate_rustdead_members(rustdead_members: Array[HumanoidCharacter]) -> void:
@@ -280,10 +215,10 @@ func _validate_metallic_skin_material(member: HumanoidCharacter, tier_id: String
 func _validate_visual_feet(member: HumanoidCharacter) -> void:
 	var body := member.get_body_projection()
 	var foot_y := body.get_visual_foot_anchor_y() if body != null else INF
-	if foot_y == INF:
+	var ground_y := body.get_visual_ground_y() if body != null else 0.0
+	if not is_finite(foot_y) or not is_finite(ground_y):
 		_fail("%s should expose a visual foot anchor" % member.name)
 		return
-	var ground_y := body.get_visual_ground_y() if body != null else 0.0
 	if foot_y < ground_y - MAX_VISUAL_FOOT_SINK:
 		_fail("%s visual feet should not sink below ground: foot=%.3f ground=%.3f" % [member.name, foot_y, ground_y])
 
@@ -398,25 +333,6 @@ func _validate_skill_levels(member: HumanoidCharacter, expected_level: int) -> v
 		if actual != expected_level:
 			_fail("%s skill %s should be %d, got %d" % [member.name, definition.skill_id, expected_level, actual])
 			return
-
-
-func _validate_robot_skill_variance(member: WorldActor) -> void:
-	var unique_levels := {}
-	var total := 0
-	var count := 0
-	for definition in SkillRules.get_all_definitions():
-		var actual := member.get_skill_level(definition.skill_id)
-		if actual < QUADBOT_CHARACTER_SCRIPT.QUADBOT_SKILL_MIN_LEVEL or actual > QUADBOT_CHARACTER_SCRIPT.QUADBOT_SKILL_MAX_LEVEL:
-			_fail("%s robot skill %s should be varied around %d, got %d" % [member.name, definition.skill_id, PARTY_DEFAULT_SKILL_LEVEL, actual])
-		unique_levels[actual] = true
-		total += actual
-		count += 1
-	if unique_levels.size() < 4:
-		_fail("%s robot skills should not be flat" % member.name)
-	if count > 0:
-		var average := float(total) / float(count)
-		if average < 32.0 or average > 48.0:
-			_fail("%s robot skills should average near %d, got %.2f" % [member.name, PARTY_DEFAULT_SKILL_LEVEL, average])
 
 
 func _validate_rustdead_skill_ranges(member: HumanoidCharacter, tier: Resource, tier_id: String) -> void:

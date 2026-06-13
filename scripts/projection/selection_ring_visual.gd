@@ -10,14 +10,14 @@ const TUBE_RADIUS := 0.075
 const TUBE_CENTER_Y := 0.06
 const MAJOR_SEGMENTS := 96
 const TUBE_SEGMENTS := 10
+const GENERATED_CHILD_META := "selection_ring_generated_child"
 
 static func setup_ring(ring: MeshInstance3D, material: StandardMaterial3D = null) -> StandardMaterial3D:
 	if ring == null:
 		return material
 	ring.mesh = get_ring_mesh()
 	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	for child in ring.get_children():
-		child.queue_free()
+	_cleanup_generated_children(ring)
 	var resolved_material := material
 	if resolved_material == null:
 		resolved_material = StandardMaterial3D.new()
@@ -52,6 +52,12 @@ static func apply_state(
 static func get_ring_mesh() -> ArrayMesh:
 	# TODO(actor-decoupling): replace per-ring procedural meshes with a small .tres mesh resource once selection visuals settle.
 	return _make_ring_mesh()
+
+
+static func _cleanup_generated_children(ring: MeshInstance3D) -> void:
+	for child in ring.get_children():
+		if bool(child.get_meta(GENERATED_CHILD_META, false)):
+			child.queue_free()
 
 
 static func _make_ring_mesh() -> ArrayMesh:

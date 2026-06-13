@@ -208,6 +208,7 @@ func _validate_toughness_max_blood_rules() -> void:
 
 func _validate_mining_speed_rules() -> void:
 	var node := MiningResourceNode.new()
+	node.resource_node_id = "validation.mining_speed"
 	node.required_mining_level = 0
 	node.slow_mine_seconds = 15.0
 	node.fast_mine_seconds = 7.0
@@ -254,6 +255,7 @@ func _validate_mining_interaction_radius() -> void:
 
 	var node := MiningResourceNode.new()
 	node.name = "ValidationRadiusNode"
+	node.resource_node_id = "validation.radius_node"
 	node.item_definition = ore
 	node.required_tool_tag = ""
 	node.slow_mine_seconds = 1.0
@@ -558,6 +560,7 @@ func _validate_mining_pickaxe_requirement() -> void:
 
 	var node := MiningResourceNode.new()
 	node.name = "ValidationPickaxeCopper"
+	node.resource_node_id = "validation.pickaxe_copper"
 	node.item_definition = ore
 	node.slow_mine_seconds = 1.0
 	node.fast_mine_seconds = 1.0
@@ -695,6 +698,7 @@ func _validate_scavenging_rules() -> void:
 
 	var node := ScavengingResourceNode.new()
 	node.name = "ValidationScrapPile"
+	node.resource_node_id = "validation.scrap_pile"
 	node.randomize_charges_on_ready = false
 	node.current_charges = 1
 	node.slow_scavenge_seconds = 1.0
@@ -753,6 +757,7 @@ func _validate_locked_mining_attempt_trains_without_ore() -> void:
 
 	var node := MiningResourceNode.new()
 	node.name = "ValidationLockedOre"
+	node.resource_node_id = "validation.locked_ore"
 	node.item_definition = ore
 	node.required_tool_tag = ""
 	node.required_mining_level = 10
@@ -795,6 +800,7 @@ func _validate_stalled_mining_awards_no_xp() -> void:
 
 	var node := MiningResourceNode.new()
 	node.name = "ValidationCopper"
+	node.resource_node_id = "validation.stalled_copper"
 	node.item_definition = ore
 	node.required_tool_tag = ""
 	node.slow_mine_seconds = 1.0
