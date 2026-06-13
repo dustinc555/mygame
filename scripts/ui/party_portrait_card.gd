@@ -14,12 +14,17 @@ const PORTRAIT_DISTANCE_HEIGHT_RATIO := 0.70
 const PORTRAIT_MIN_DISTANCE := 1.20
 const PORTRAIT_CAMERA_SIDE_OFFSET := 0.08
 const PORTRAIT_CAMERA_ELEVATION_OFFSET := 0.03
+# TODO: make better by moving species portrait framing into BodyProjection metadata instead of branching here.
+const ROBOT_PORTRAIT_TARGET_HEIGHT_RATIO := 0.66
+const ROBOT_PORTRAIT_DISTANCE_HEIGHT_RATIO := 1.12
+const ROBOT_PORTRAIT_MIN_DISTANCE := 1.75
+const ROBOT_PORTRAIT_CAMERA_ELEVATION_OFFSET := 0.02
 const PORTRAIT_SKIP_NODE_NAMES := {
 	"InspectRing": true,
 	"SelectionRing": true,
 }
 
-var member: HumanoidCharacter
+var member: WorldActor
 var _portrait_refresh_queued := false
 
 @onready var viewport: SubViewport = $Margin/VBox/PortraitViewportContainer/SubViewport
@@ -39,7 +44,7 @@ func _ready() -> void:
 	add_theme_color_override("font_disabled_color", Color(0.92, 0.92, 0.92, 1.0))
 
 
-func setup(target_member: HumanoidCharacter) -> void:
+func setup(target_member: WorldActor) -> void:
 	_disconnect_member_appearance_changed()
 	member = target_member
 	_connect_member_appearance_changed()
@@ -142,9 +147,13 @@ func _frame_portrait_camera() -> void:
 		return
 	var height := maxf(bounds.size.y, 1.4)
 	var center := bounds.get_center()
-	var target := Vector3(clampf(center.x, -0.12, 0.12), bounds.position.y + height * PORTRAIT_TARGET_HEIGHT_RATIO, clampf(center.z, -0.10, 0.10))
-	var distance := maxf(PORTRAIT_MIN_DISTANCE, height * PORTRAIT_DISTANCE_HEIGHT_RATIO)
-	portrait_camera.position = target + Vector3(PORTRAIT_CAMERA_SIDE_OFFSET, height * 0.015 + PORTRAIT_CAMERA_ELEVATION_OFFSET, distance)
+	var target_ratio := ROBOT_PORTRAIT_TARGET_HEIGHT_RATIO if _is_robot_member() else PORTRAIT_TARGET_HEIGHT_RATIO
+	var distance_ratio := ROBOT_PORTRAIT_DISTANCE_HEIGHT_RATIO if _is_robot_member() else PORTRAIT_DISTANCE_HEIGHT_RATIO
+	var min_distance := ROBOT_PORTRAIT_MIN_DISTANCE if _is_robot_member() else PORTRAIT_MIN_DISTANCE
+	var elevation_offset := ROBOT_PORTRAIT_CAMERA_ELEVATION_OFFSET if _is_robot_member() else PORTRAIT_CAMERA_ELEVATION_OFFSET
+	var target := Vector3(clampf(center.x, -0.12, 0.12), bounds.position.y + height * target_ratio, clampf(center.z, -0.10, 0.10))
+	var distance := maxf(min_distance, height * distance_ratio)
+	portrait_camera.position = target + Vector3(PORTRAIT_CAMERA_SIDE_OFFSET, height * 0.015 + elevation_offset, distance)
 	portrait_camera.look_at(target, Vector3.UP)
 
 
@@ -187,6 +196,7 @@ func _apply_portrait_idle_pose(root: Node) -> void:
 	animation_player.play(animation_name)
 	animation_player.seek(PORTRAIT_IDLE_POSE_SECONDS, true)
 	animation_player.advance(0.0)
+	animation_player.stop(true)
 
 
 func _get_portrait_idle_animation_name(animation_player: AnimationPlayer) -> String:
@@ -195,6 +205,13 @@ func _get_portrait_idle_animation_name(animation_player: AnimationPlayer) -> Str
 		if animation_player.has_animation(animation_name):
 			return animation_name
 	return ""
+
+
+func _is_robot_member() -> bool:
+	var race = member.get("character_race") if member != null else null
+	if race == null:
+		return false
+	return str(race.get("race_id")) == "quadbot"
 
 
 func _find_animation_player(root: Node) -> AnimationPlayer:
@@ -255,6 +272,19 @@ func _capture_snapshot() -> void:
 		return
 	var texture := ImageTexture.create_from_image(image)
 	portrait_image.texture = texture
+	viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_replace_portrait_copy_with_snapshot_marker()
+
+
+func _replace_portrait_copy_with_snapshot_marker() -> void:
+	if portrait_root == null:
+		return
+	for child in portrait_root.get_children():
+		portrait_root.remove_child(child)
+		child.queue_free()
+	var marker := Node3D.new()
+	marker.name = "PortraitSnapshotMarker"
+	portrait_root.add_child(marker)
 
 
 func _set_style(background: Color, border: Color, border_width: int) -> void:

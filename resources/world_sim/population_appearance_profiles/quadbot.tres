@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="QuadBotAppearanceProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/quadbot_appearance_profile.gd" id="1_profile"]
+[ext_resource type="Resource" path="res://resources/character_races/quadbot.tres" id="2_race"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "quadbot"
+display_name = "QuadBot"
+allowed_races = Array[Resource]([ExtResource("2_race")])

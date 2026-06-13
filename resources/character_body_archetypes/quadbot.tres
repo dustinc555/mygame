@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="CharacterBodyArchetypeDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/character_body_archetype_definition.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/sci_fi_essentials_kit/gltf/Enemy_QuadOrb.gltf" id="3_visual"]
+
+[resource]
+script = ExtResource("1_script")
+archetype_id = "quadbot"
+display_name = "QuadBot"
+race_id = "quadbot"
+visual_scene = ExtResource("3_visual")
+visual_body_type = 1

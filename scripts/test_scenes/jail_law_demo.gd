@@ -6,6 +6,7 @@ const SETTLEMENT_TOWN_SCRIPT = preload("res://scripts/world_sim/settlement_town.
 const SETTLEMENT_DEFINITION_SCRIPT = preload("res://scripts/world_sim/settlement_definition.gd")
 const SETTLEMENT_JAIL_SCENE = preload("res://scenes/world_sim/settlement_jail.tscn")
 const WORLD_ITEM_SCENE = preload("res://scenes/world/items/world_item.tscn")
+const SELECTION_RING_VISUAL = preload("res://scripts/projection/selection_ring_visual.gd")
 const FARMERS_FACTION = preload("res://resources/world_sim/factions/farmers.tres")
 const EXPENSIVE_VASE = preload("res://resources/items/expensive_vase.tres")
 
@@ -206,14 +207,9 @@ func _make_humanoid(node_name: String, script_resource: Script, local_position: 
 	if with_selection_ring:
 		var ring := MeshInstance3D.new()
 		ring.name = "SelectionRing"
-		var ring_mesh := CylinderMesh.new()
-		ring_mesh.top_radius = 0.78
-		ring_mesh.bottom_radius = 0.78
-		ring_mesh.height = 0.018
-		ring_mesh.radial_segments = 48
-		ring.mesh = ring_mesh
 		ring.position.y = 0.035
 		ring.visible = false
+		SELECTION_RING_VISUAL.setup_ring(ring)
 		character.add_child(ring)
 
 	return character as HumanoidCharacter

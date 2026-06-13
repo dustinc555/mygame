@@ -1,25 +1,14 @@
 extends Node3D
 
-const PARTY_MEMBER_SCRIPT = preload("res://scripts/party_member.gd")
 const RUSTDEAD_HUMANOID_SCRIPT = preload("res://scripts/characters/rustdead_humanoid_character.gd")
 const QUADBOT_CHARACTER_SCRIPT = preload("res://scripts/characters/quadbot_character.gd")
 const SELECTION_RING_VISUAL = preload("res://scripts/projection/selection_ring_visual.gd")
 const APPEARANCE_DATA_SCRIPT = preload("res://scripts/character_appearance/character_appearance_data.gd")
-const INVENTORY_STOCK_SCRIPT = preload("res://scripts/items/inventory_stock.gd")
-
-const HUMAN_RACE = preload("res://resources/character_races/human.tres")
 const RUSTDEAD_RACE = preload("res://resources/character_races/rustdead.tres")
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_female.tres")
 const RUSTDEAD_TIER_LIBRARY = preload("res://scripts/characters/rustdead_tier_library.gd")
 
-const IRON_SWORD = preload("res://resources/items/iron_sword.tres")
-const IRON_AXE = preload("res://resources/items/iron_axe.tres")
-const IRON_DAGGER = preload("res://resources/items/iron_dagger.tres")
-const STEEL_SWORD = preload("res://resources/items/steel_sword.tres")
-const HATCHET = preload("res://resources/items/hatchet.tres")
-const ROUND_SHIELD = preload("res://resources/items/round_shield.tres")
-const HEATER_SHIELD = preload("res://resources/items/heater_shield.tres")
 const PEASANT_TUNIC = preload("res://resources/items/peasant_tunic.tres")
 const PEASANT_TROUSERS = preload("res://resources/items/peasant_trousers.tres")
 const PEASANT_SHOES = preload("res://resources/items/peasant_shoes.tres")
@@ -27,12 +16,8 @@ const RANGER_JERKIN = preload("res://resources/items/ranger_jerkin.tres")
 const RANGER_LEGGINGS = preload("res://resources/items/ranger_leggings.tres")
 const RANGER_BOOTS = preload("res://resources/items/ranger_boots.tres")
 const RANGER_HOOD = preload("res://resources/items/ranger_hood.tres")
-const KNIGHT_GAMBESON = preload("res://resources/items/knight_gambeson.tres")
-const KNIGHT_CUIRASS = preload("res://resources/items/knight_cuirass.tres")
-const KNIGHT_GAUNTLETS = preload("res://resources/items/knight_gauntlets.tres")
 const KNIGHT_GREVES = preload("res://resources/items/knight_greaves.tres")
 const KNIGHT_SABATONS = preload("res://resources/items/knight_sabatons.tres")
-const KNIGHT_ARMET = preload("res://resources/items/knight_armet.tres")
 const NOBLE_DOUBLET = preload("res://resources/items/noble_doublet.tres")
 const NOBLE_SLEEVES = preload("res://resources/items/noble_sleeves.tres")
 const NOBLE_TROUSERS = preload("res://resources/items/noble_trousers.tres")
@@ -41,26 +26,15 @@ const WIZARD_ROBES = preload("res://resources/items/wizard_robes.tres")
 const WIZARD_SLEEVES = preload("res://resources/items/wizard_sleeves.tres")
 const WIZARD_TROUSERS = preload("res://resources/items/wizard_trousers.tres")
 const WIZARD_SHOES = preload("res://resources/items/wizard_shoes.tres")
-const BANDAGE = preload("res://resources/items/bandage.tres")
-const CINDER_FLASK = preload("res://resources/items/cinder_flask.tres")
 
-const PARTY_DEFAULT_SKILL_LEVEL := 40
-const PARTY_VETERAN_SKILL_LEVEL := 60
-const RUSTDEAD_RANDOM_SEED := 770031
-const PARTY_SQUAD_NAME := "RustdeadDemoParty"
-const RUSTDEAD_SQUAD_NAME := "RustdeadDemoHorde"
-
+const BOT_DEFAULT_SKILL_LEVEL := 40
+const RUSTDEAD_RANDOM_SEED := 930171
+const BOT_SQUAD_NAME := "RustdeadBotDemoSquad"
+const RUSTDEAD_SQUAD_NAME := "RustdeadBotDemoHorde"
 const VISUAL_BODY_TYPE_MALE := 2
 const VISUAL_BODY_TYPE_FEMALE := 3
-
-const PARTY_CONFIGS := [
-	{"name": "Mira", "skill_level": PARTY_VETERAN_SKILL_LEVEL, "body_type": VISUAL_BODY_TYPE_FEMALE, "skin": Color(0.88, 0.68, 0.54, 1.0), "color": Color(0.72, 0.48, 0.78, 1.0), "equipment": [STEEL_SWORD, ROUND_SHIELD, RANGER_JERKIN, RANGER_LEGGINGS, RANGER_BOOTS, RANGER_HOOD]},
-	{"name": "Tomas", "skill_level": PARTY_VETERAN_SKILL_LEVEL, "body_type": VISUAL_BODY_TYPE_MALE, "skin": Color(0.66, 0.43, 0.30, 1.0), "color": Color(0.35, 0.56, 0.42, 1.0), "equipment": [IRON_AXE, PEASANT_TUNIC, PEASANT_TROUSERS, PEASANT_SHOES]},
-	{"name": "Sable", "body_type": VISUAL_BODY_TYPE_FEMALE, "skin": Color(0.80, 0.58, 0.43, 1.0), "color": Color(0.58, 0.72, 0.38, 1.0), "equipment": [IRON_DAGGER, HEATER_SHIELD, KNIGHT_GAMBESON, KNIGHT_CUIRASS, KNIGHT_GAUNTLETS, KNIGHT_GREVES, KNIGHT_SABATONS, KNIGHT_ARMET]},
-	{"name": "Bram", "body_type": VISUAL_BODY_TYPE_MALE, "skin": Color(0.49, 0.31, 0.22, 1.0), "color": Color(0.33, 0.55, 0.78, 1.0), "equipment": [HATCHET, NOBLE_DOUBLET, NOBLE_SLEEVES, NOBLE_TROUSERS, NOBLE_SHOES]},
-	{"name": "Nika", "body_type": VISUAL_BODY_TYPE_FEMALE, "skin": Color(0.74, 0.45, 0.31, 1.0), "color": Color(0.67, 0.45, 0.75, 1.0), "equipment": [IRON_SWORD, ROUND_SHIELD, WIZARD_ROBES, WIZARD_SLEEVES, WIZARD_TROUSERS, WIZARD_SHOES]},
-]
-
+const BOT_NAMES := ["QO-17", "QO-23", "QO-41"]
+const BOT_COLORS := [Color(0.32, 0.48, 0.58, 1.0), Color(0.44, 0.50, 0.38, 1.0), Color(0.48, 0.42, 0.58, 1.0)]
 const RUSTDEAD_CHEST_ITEMS := [PEASANT_TUNIC, RANGER_JERKIN, NOBLE_DOUBLET, WIZARD_ROBES]
 const RUSTDEAD_HAND_ITEMS := [NOBLE_SLEEVES, WIZARD_SLEEVES]
 const RUSTDEAD_LEG_ITEMS := [PEASANT_TROUSERS, RANGER_LEGGINGS, NOBLE_TROUSERS, WIZARD_TROUSERS, KNIGHT_GREVES]
@@ -76,56 +50,29 @@ func _ready() -> void:
 		return
 	_spawned = true
 	_rng.seed = RUSTDEAD_RANDOM_SEED
-	_spawn_party_members()
+	_spawn_quadbot_party_members()
 	_spawn_rustdead_humanoids()
 
 
-func _spawn_party_members() -> void:
+func _spawn_quadbot_party_members() -> void:
 	var party_root := get_node_or_null("PartyMembers") as Node3D
 	if party_root == null:
 		return
-	for index in range(PARTY_CONFIGS.size()):
-		var config: Dictionary = PARTY_CONFIGS[index]
-		var actor := PARTY_MEMBER_SCRIPT.new() as PartyMember
-		actor.name = str(config["name"])
-		actor.member_name = str(config["name"])
+	for index in range(BOT_NAMES.size()):
+		var actor = QUADBOT_CHARACTER_SCRIPT.new()
+		actor.name = str(BOT_NAMES[index]).replace("-", "")
+		actor.member_name = str(BOT_NAMES[index])
 		actor.faction_name = "Player"
-		actor.squad_name = PARTY_SQUAD_NAME
+		actor.squad_name = BOT_SQUAD_NAME
+		actor.player_party_member = true
 		actor.hostile_factions = PackedStringArray(["Rustdead"])
 		actor.combat_stance = NpcRules.CombatStance.DEFENSIVE
-		actor.base_color = config["color"]
-		actor.position = _party_position(index)
-		actor.starting_items = [_make_stock(BANDAGE, 1), _make_stock(CINDER_FLASK, 1)]
-		actor.starting_equipment = _equipment_array(config["equipment"])
-		actor.starting_skill_levels = _skill_levels(int(config.get("skill_level", PARTY_DEFAULT_SKILL_LEVEL)))
-		actor.appearance_data = _make_appearance(HUMAN_RACE, int(config["body_type"]), config["skin"])
-		actor.max_hp = 132.0
-		actor.hp = actor.max_hp
-		actor.base_attack_damage = 20.0
-		actor.base_dodge_chance = 0.10
-		actor.base_block_chance = 0.10
+		actor.position = _bot_position(index)
+		actor.starting_skill_levels = QUADBOT_CHARACTER_SCRIPT.roll_varied_skill_levels(_rng, BOT_DEFAULT_SKILL_LEVEL)
 		actor.aggressive_scan_radius = 18.0
 		actor.assist_scan_radius = 18.0
-		_add_basic_actor_children(actor, actor.base_color, true)
+		_add_basic_actor_children(actor, BOT_COLORS[index], true)
 		party_root.add_child(actor)
-	_spawn_quadbot_party_member(party_root, PARTY_CONFIGS.size())
-
-
-func _spawn_quadbot_party_member(party_root: Node3D, index: int) -> void:
-	var actor = QUADBOT_CHARACTER_SCRIPT.new()
-	actor.name = "QO17"
-	actor.member_name = "QO-17"
-	actor.faction_name = "Player"
-	actor.squad_name = PARTY_SQUAD_NAME
-	actor.player_party_member = true
-	actor.hostile_factions = PackedStringArray(["Rustdead"])
-	actor.combat_stance = NpcRules.CombatStance.DEFENSIVE
-	actor.position = _party_position(index)
-	actor.starting_skill_levels = QUADBOT_CHARACTER_SCRIPT.make_varied_skill_levels(RUSTDEAD_RANDOM_SEED + index, PARTY_DEFAULT_SKILL_LEVEL)
-	actor.aggressive_scan_radius = 18.0
-	actor.assist_scan_radius = 18.0
-	_add_basic_actor_children(actor, Color(0.35, 0.50, 0.58, 1.0), true)
-	party_root.add_child(actor)
 
 
 func _spawn_rustdead_humanoids() -> void:
@@ -163,8 +110,8 @@ func _spawn_rustdead_humanoids() -> void:
 		add_child(actor)
 
 
-func _party_position(index: int) -> Vector3:
-	return Vector3(-4.0, 0.6, -6.0 + float(index) * 3.0)
+func _bot_position(index: int) -> Vector3:
+	return Vector3(-4.5, 0.6, -3.0 + float(index) * 3.0)
 
 
 func _rustdead_position(index: int) -> Vector3:
@@ -204,20 +151,6 @@ func _equipment_array(items: Array) -> Array[Resource]:
 	for item in items:
 		if item is Resource:
 			result.append(item)
-	return result
-
-
-func _make_stock(item_definition: ItemDefinition, quantity: int) -> Resource:
-	var stock := INVENTORY_STOCK_SCRIPT.new()
-	stock.item_definition = item_definition
-	stock.quantity = quantity
-	return stock
-
-
-func _skill_levels(level: int) -> Dictionary:
-	var result := {}
-	for definition in SkillRules.get_all_definitions():
-		result[definition.skill_id] = level
 	return result
 
 

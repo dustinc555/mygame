@@ -157,7 +157,6 @@ const BONE_EQUIPMENT_SLOTS := {
 	"weapon": "hand_r",
 	"offhand": "hand_l",
 }
-
 # Opt-in section timing for humanoid `_process`. Use with the demo benchmark as
 # `--humanoid-profile` when chasing per-frame character regressions.
 static var _debug_humanoid_profile_enabled := OS.get_cmdline_args().has("--humanoid-profile")
@@ -249,7 +248,7 @@ var _scavenging_active := false
 var _current_container_target
 var _current_trade_target
 var _current_conversation_target
-var _current_attack_target: HumanoidCharacter
+var _current_attack_target: Node3D
 var _attack_origin_position := Vector3.ZERO
 var _current_heal_target: HumanoidCharacter
 var _current_finish_off_target: HumanoidCharacter
@@ -775,7 +774,7 @@ func assign_scavenging_resource(resource_node, issued_by_player: bool = true) ->
 
 
 func assign_attack_target(target_actor: Node, issued_by_player: bool = true, notify_target: bool = true, notify_allies: bool = true) -> bool:
-	var target_character := target_actor as HumanoidCharacter
+	var target_character := target_actor as Node3D
 	if target_character == null:
 		return false
 	var combat_job_type := AI_JOB_SCRIPT.JobType.PLAYER_ATTACK if issued_by_player else AI_JOB_SCRIPT.JobType.SELF_DEFENSE
@@ -786,7 +785,8 @@ func assign_law_arrest_target(target_character: HumanoidCharacter, notify_target
 	return _assign_combat_target(target_character, AI_JOB_SCRIPT.JobType.LAW_ARREST, false, notify_target, notify_allies)
 
 
-func _assign_combat_target(target_character: HumanoidCharacter, combat_job_type: int, issued_by_player: bool, notify_target: bool, notify_allies: bool) -> bool:
+# TODO(actor-decoupling): generic combat assignment still lives in HumanoidCharacter; move this routing to CombatCapability/WorldActor.
+func _assign_combat_target(target_character: Node3D, combat_job_type: int, issued_by_player: bool, notify_target: bool, notify_allies: bool) -> bool:
 	if is_in_cell_custody():
 		return false
 	if target_character == null or target_character == self or not is_instance_valid(target_character):
@@ -797,8 +797,8 @@ func _assign_combat_target(target_character: HumanoidCharacter, combat_job_type:
 		return false
 	if not can_see_actor_for_combat(target_character):
 		return false
-	if issued_by_player:
-		_report_assault_crime_if_needed(target_character)
+	if issued_by_player and target_character is HumanoidCharacter:
+		_report_assault_crime_if_needed(target_character as HumanoidCharacter)
 	_break_stealth_for_combat()
 	if _get_active_combat_target() == target_character and _get_active_ai_job_type() == combat_job_type:
 		return true
@@ -829,9 +829,10 @@ func _assign_combat_target(target_character: HumanoidCharacter, combat_job_type:
 	COMBAT_COORDINATOR.register_combat_target(self, target_character)
 	_sync_active_combat_actor_group()
 	mark_hostile(target_character)
-	target_character.mark_hostile(self)
-	if notify_target:
-		target_character.notify_incoming_attack(self)
+	if target_character.has_method("mark_hostile"):
+		target_character.call("mark_hostile", self)
+	if notify_target and target_character.has_method("notify_incoming_attack"):
+		target_character.call("notify_incoming_attack", self)
 	if notify_allies:
 		_notify_defensive_allies_of_engagement(target_character)
 	combat_state_changed.emit()
@@ -1154,6 +1155,33 @@ func get_bleed_fluid() -> Resource:
 	return null
 
 
+func get_vital_fluid_label() -> String:
+	var fluid := get_bleed_fluid()
+	if fluid != null:
+		var display_name := str(fluid.get("display_name")).strip_edges()
+		if not display_name.is_empty():
+			return display_name
+	return super.get_vital_fluid_label()
+
+
+func get_vital_fluid_bar_color(fallback_color: Color) -> Color:
+	var fluid := get_bleed_fluid()
+	if fluid != null and bool(fluid.get("uses_custom_ui_color")):
+		var color_value = fluid.get("ui_bar_color")
+		if color_value is Color:
+			return color_value
+	return fallback_color
+
+
+func get_vital_fluid_glow_color(fallback_color: Color) -> Color:
+	var fluid := get_bleed_fluid()
+	if fluid != null and bool(fluid.get("uses_custom_ui_color")):
+		var color_value = fluid.get("ui_glow_color")
+		if color_value is Color:
+			return color_value
+	return fallback_color
+
+
 func get_appearance_copy():
 	_ensure_appearance_data()
 	return appearance_data.make_copy() if appearance_data != null and appearance_data.has_method("make_copy") else CHARACTER_APPEARANCE_DATA_SCRIPT.new()
@@ -1344,7 +1372,7 @@ func is_in_combat() -> bool:
 	return _has_active_combat_target()
 
 
-func is_law_arresting(target: HumanoidCharacter = null) -> bool:
+func is_law_arresting(target: Node = null) -> bool:
 	if _get_active_ai_job_type() != AI_JOB_SCRIPT.JobType.LAW_ARREST:
 		return false
 	return target == null or _get_active_combat_target() == target
@@ -1389,7 +1417,7 @@ func get_current_combat_target() -> Node:
 
 
 func is_ready_for_combat_exchange(target: Node) -> bool:
-	var target_character := target as HumanoidCharacter
+	var target_character := target as Node3D
 	if not _is_valid_combat_target(target_character):
 		return false
 	if _get_active_combat_target() != target_character:
@@ -1699,7 +1727,7 @@ func _break_stealth_for_combat() -> void:
 		state_changed.emit()
 
 
-func notify_incoming_attack(attacker: HumanoidCharacter) -> void:
+func notify_incoming_attack(attacker: Node) -> void:
 	if attacker == null or attacker == self:
 		return
 	if life_state == NpcRules.LifeState.ASLEEP:
@@ -1710,7 +1738,8 @@ func notify_incoming_attack(attacker: HumanoidCharacter) -> void:
 		return
 	_break_stealth_for_combat()
 	mark_hostile(attacker)
-	attacker.mark_hostile(self)
+	if attacker.has_method("mark_hostile"):
+		attacker.call("mark_hostile", self)
 	_last_direct_attacker_id = attacker.get_instance_id()
 	if not _is_incoming_law_arrest(attacker):
 		_notify_defensive_allies_of_attack(attacker)
@@ -1810,8 +1839,8 @@ func _face_world_position(world_position: Vector3) -> void:
 
 func _face_combat_focus() -> void:
 	var focus_actor := _get_combat_focus_actor()
-	if focus_actor is HumanoidCharacter:
-		_face_character(focus_actor)
+	if focus_actor is Node3D:
+		_face_character(focus_actor as Node3D)
 		return
 	var active_target := _get_active_combat_target()
 	if active_target != null:
@@ -1905,13 +1934,13 @@ func _get_effective_combat_attack_range() -> float:
 	return get_attack_range() + maxf(COMBAT_RANGE_HYSTERESIS, combat_attack_forgiveness_buffer)
 
 
-func _get_combat_settle_band_distance(target: HumanoidCharacter) -> float:
+func _get_combat_settle_band_distance(target: Node3D) -> float:
 	var personal_space := COMBAT_COORDINATOR.get_personal_space_distance(self, target, combat_personal_space_padding)
 	var wait_extra := combat_wait_ring_extra if not _has_active_combat_attack_slot(target) else 0.0
 	return maxf(_get_effective_combat_attack_range() + combat_settle_band_extra + wait_extra, personal_space + combat_settle_band_extra + wait_extra)
 
 
-func _get_combat_settle_position(target: HumanoidCharacter) -> Vector3:
+func _get_combat_settle_position(target: Node3D) -> Vector3:
 	var desired_range := maxf(COMBAT_COORDINATOR.get_personal_space_distance(self, target, combat_personal_space_padding), _get_effective_combat_attack_range() - combat_approach_arrival_distance * 0.5)
 	return COMBAT_COORDINATOR.get_combat_slot_position(target, self, desired_range, combat_wait_ring_extra)
 
@@ -1922,11 +1951,11 @@ func _clear_combat_movement_state() -> void:
 	_combat_slot_role_cache = COMBAT_COORDINATOR.SLOT_ROLE_NONE
 
 
-func _has_active_combat_attack_slot(target: HumanoidCharacter) -> bool:
+func _has_active_combat_attack_slot(target: Node3D) -> bool:
 	return _get_combat_slot_role_for_target(target) == COMBAT_COORDINATOR.SLOT_ROLE_ACTIVE
 
 
-func _get_combat_slot_role_for_target(target: HumanoidCharacter) -> int:
+func _get_combat_slot_role_for_target(target: Node3D) -> int:
 	if target == null or not is_instance_valid(target):
 		return COMBAT_COORDINATOR.SLOT_ROLE_NONE
 	var physics_frame := Engine.get_physics_frames()
@@ -1968,7 +1997,7 @@ func _process_direct_combat_chase(delta: float) -> void:
 		_face_character(target)
 
 
-func _process_close_combat_movement(delta: float, target: HumanoidCharacter, target_distance: float) -> void:
+func _process_close_combat_movement(delta: float, target: Node3D, target_distance: float) -> void:
 	_clear_combat_move_target_if_needed()
 	if target_distance <= _get_effective_combat_attack_range():
 		_hold_combat_movement(delta, target)
@@ -1996,7 +2025,7 @@ func _process_close_combat_movement(delta: float, target: HumanoidCharacter, tar
 	_face_character(target)
 
 
-func _hold_combat_movement(delta: float, target: HumanoidCharacter) -> void:
+func _hold_combat_movement(delta: float, target: Node3D) -> void:
 	_clear_combat_move_target_if_needed()
 	_face_character(target)
 	if _can_skip_stationary_combat_physics():
@@ -2008,12 +2037,16 @@ func _hold_combat_movement(delta: float, target: HumanoidCharacter) -> void:
 	move_and_slide()
 
 
-func _get_combat_approach_target_position(target: HumanoidCharacter) -> Vector3:
+func _get_combat_approach_target_position(target: Node3D) -> Vector3:
 	if target == null:
 		return global_position
 	if _is_player_attack_order_for(target):
 		return target.global_position
-	return target.get_combat_move_position(self)
+	if target.has_method("get_combat_move_position"):
+		var move_position = target.call("get_combat_move_position", self)
+		if move_position is Vector3:
+			return move_position
+	return COMBAT_COORDINATOR.get_combat_slot_position(target, self, _get_effective_combat_attack_range(), combat_wait_ring_extra)
 
 
 func _can_skip_stationary_combat_physics() -> bool:
@@ -2924,12 +2957,12 @@ func _process_combat_animation_state(delta: float) -> void:
 		combat_capability.process_action_state(delta)
 
 
-func _start_combat_attack(target: HumanoidCharacter) -> void:
+func _start_combat_attack(target: Node3D) -> void:
 	var combat_capability := _get_combat_capability()
 	if combat_capability != null:
 		combat_capability.start_attack(target)
 
-func _start_default_timed_combat_attack(target: HumanoidCharacter) -> void:
+func _start_default_timed_combat_attack(target: Node3D) -> void:
 	var combat_capability := _get_combat_capability()
 	if combat_capability != null:
 		combat_capability.start_default_timed_attack(target)
@@ -3586,21 +3619,26 @@ func _has_active_combat_target() -> bool:
 	return life_state == NpcRules.LifeState.ALIVE and _get_active_combat_target() != null
 
 
-func _get_active_combat_target() -> HumanoidCharacter:
+func _get_active_combat_target() -> Node3D:
 	if _current_order_type == OrderType.ATTACK and _is_valid_active_combat_target(_current_attack_target):
 		return _current_attack_target
 	if _ai_brain != null:
-		var ai_target := _ai_brain.get_active_combat_target() as HumanoidCharacter
+		var ai_target := _ai_brain.get_active_combat_target() as Node3D
 		if _is_valid_active_combat_target(ai_target):
 			return ai_target
 	return null
 
 
-func _is_valid_combat_target(target: HumanoidCharacter) -> bool:
-	return target != null and is_instance_valid(target) and target.life_state == NpcRules.LifeState.ALIVE and not target.is_protected_from_combat()
+func _is_valid_combat_target(target: Node3D) -> bool:
+	if target == null or not is_instance_valid(target):
+		return false
+	var target_life_state = target.get("life_state")
+	if target_life_state == null or int(target_life_state) != NpcRules.LifeState.ALIVE:
+		return false
+	return not (target.has_method("is_protected_from_combat") and bool(target.call("is_protected_from_combat")))
 
 
-func _is_valid_active_combat_target(target: HumanoidCharacter) -> bool:
+func _is_valid_active_combat_target(target: Node3D) -> bool:
 	return _is_valid_combat_target(target) and has_hostility_with(target) and can_see_actor_for_combat(target)
 
 
@@ -4038,7 +4076,7 @@ func _try_reconfigure_close_combat_target() -> bool:
 	return targeting.try_reconfigure_close_combat_target() if targeting != null else false
 
 
-func _should_keep_current_target_over_close_hostile(active_target: HumanoidCharacter, close_target: HumanoidCharacter) -> bool:
+func _should_keep_current_target_over_close_hostile(active_target: Node, close_target: Node) -> bool:
 	var targeting = _get_ai_targeting_capability()
 	return targeting.should_keep_current_target_over_close_hostile(active_target, close_target) if targeting != null else false
 
@@ -4308,6 +4346,7 @@ func _candidate_entries_to_humanoids(entries: Array) -> Array[HumanoidCharacter]
 
 
 func _get_query_humanoids(query_position: Vector3 = Vector3.ZERO, radius := -1.0, include_party := true) -> Array:
+	# TODO(actor-decoupling): this now returns actors, not just humanoids; rename callers after the robot combat path is stable.
 	var targeting = _get_ai_targeting_capability()
 	return targeting.get_query_actors(query_position, radius, include_party) if targeting != null else []
 
@@ -4322,29 +4361,31 @@ func _should_seek_combat_target() -> bool:
 	return targeting.should_seek_combat_target() if targeting != null else false
 
 
-func _find_ai_target() -> HumanoidCharacter:
+func _find_ai_target() -> Node3D:
 	var targeting = _get_ai_targeting_capability()
 	if targeting == null:
 		return null
-	return targeting.find_ai_target() as HumanoidCharacter
+	return targeting.find_ai_target() as Node3D
 
 
-func _get_last_direct_attacker_target() -> HumanoidCharacter:
+func _get_last_direct_attacker_target() -> Node3D:
 	var targeting = _get_ai_targeting_capability()
 	if targeting == null:
 		return null
-	return targeting.get_last_direct_attacker_target() as HumanoidCharacter
+	return targeting.get_last_direct_attacker_target() as Node3D
 
 
-func _find_defensive_assist_target() -> HumanoidCharacter:
+func _find_defensive_assist_target() -> Node3D:
 	var targeting = _get_ai_targeting_capability()
 	if targeting == null:
 		return null
-	return targeting.find_defensive_assist_target() as HumanoidCharacter
+	return targeting.find_defensive_assist_target() as Node3D
 
 
-func _should_defend_ally(ally: HumanoidCharacter) -> bool:
-	var ally_target: HumanoidCharacter = ally.get_current_combat_target() as HumanoidCharacter if ally != null else null
+func _should_defend_ally(ally: Node) -> bool:
+	var ally_target: Node3D = null
+	if ally != null and ally.has_method("get_current_combat_target"):
+		ally_target = ally.call("get_current_combat_target") as Node3D
 	return _should_help_against(ally, ally_target, true)
 
 
@@ -4431,8 +4472,6 @@ func _is_actor_protected_from_combat(actor) -> bool:
 func _actors_have_hostility(actor_a, actor_b) -> bool:
 	if actor_a == null or actor_b == null:
 		return false
-	if actor_a is HumanoidCharacter:
-		return actor_b is HumanoidCharacter and (actor_a as HumanoidCharacter).has_hostility_with(actor_b)
 	if actor_a.has_method("has_hostility_with"):
 		return bool(actor_a.call("has_hostility_with", actor_b))
 	return false
@@ -4481,27 +4520,27 @@ func _get_combat_actor_position(actor):
 	return null
 
 
-func _find_nearest_hostile(scan_radius: float) -> HumanoidCharacter:
+func _find_nearest_hostile(scan_radius: float) -> Node3D:
 	var targeting = _get_ai_targeting_capability()
 	if targeting == null:
 		return null
-	return targeting.find_nearest_hostile(scan_radius) as HumanoidCharacter
+	return targeting.find_nearest_hostile(scan_radius) as Node3D
 
 
-func _find_closest_hostile(scan_radius: float, same_level_only: bool = true) -> HumanoidCharacter:
+func _find_closest_hostile(scan_radius: float, same_level_only: bool = true) -> Node3D:
 	var targeting = _get_ai_targeting_capability()
 	if targeting == null:
 		return null
-	return targeting.find_closest_hostile(scan_radius, same_level_only) as HumanoidCharacter
+	return targeting.find_closest_hostile(scan_radius, same_level_only) as Node3D
 
 
-func _try_start_self_defense(attacker: HumanoidCharacter) -> void:
+func _try_start_self_defense(attacker: Node) -> void:
 	var targeting = _get_ai_targeting_capability()
 	if targeting != null:
 		targeting.try_start_self_defense(attacker)
 
 
-func _should_keep_active_target_against_self_defense(attacker: HumanoidCharacter) -> bool:
+func _should_keep_active_target_against_self_defense(attacker: Node) -> bool:
 	var targeting = _get_ai_targeting_capability()
 	return targeting.should_keep_active_target_against_self_defense(attacker) if targeting != null else false
 
@@ -4517,13 +4556,13 @@ func _clear_combat_target_for_direct_self_defense() -> void:
 	_sync_active_combat_actor_group()
 
 
-func _notify_defensive_allies_of_attack(attacker: HumanoidCharacter) -> void:
+func _notify_defensive_allies_of_attack(attacker: Node) -> void:
 	var targeting = _get_ai_targeting_capability()
 	if targeting != null:
 		targeting.notify_defensive_allies_of_attack(attacker)
 
 
-func _notify_defensive_allies_of_engagement(target: HumanoidCharacter) -> void:
+func _notify_defensive_allies_of_engagement(target: Node) -> void:
 	var targeting = _get_ai_targeting_capability()
 	if targeting != null:
 		targeting.notify_defensive_allies_of_engagement(target)
@@ -4541,25 +4580,25 @@ func _respond_to_ally_engagement(ally, target, support_targets: Array = []) -> v
 		targeting.respond_to_ally_engagement(ally, target, support_targets)
 
 
-func _get_support_target_candidates(primary_target: HumanoidCharacter, radius: float) -> Array[HumanoidCharacter]:
-	var candidates: Array[HumanoidCharacter] = []
+func _get_support_target_candidates(primary_target: Node, radius: float) -> Array:
+	var candidates: Array = []
 	var targeting = _get_ai_targeting_capability()
 	var target_candidates: Array = targeting.get_support_target_candidates(primary_target, radius) if targeting != null else []
 	for target_value in target_candidates:
-		var target := target_value as HumanoidCharacter
+		var target := target_value as Node3D
 		if target != null:
 			candidates.append(target)
 	return candidates
 
 
-func _choose_support_target(primary_target, candidates: Array, scan_radius: float) -> HumanoidCharacter:
+func _choose_support_target(primary_target, candidates: Array, scan_radius: float) -> Node3D:
 	var targeting = _get_ai_targeting_capability()
 	if targeting == null:
 		return null
-	return targeting.choose_support_target(primary_target, candidates, scan_radius) as HumanoidCharacter
+	return targeting.choose_support_target(primary_target, candidates, scan_radius) as Node3D
 
 
-func _join_defense_against(threat: HumanoidCharacter) -> void:
+func _join_defense_against(threat: Node) -> void:
 	var targeting = _get_ai_targeting_capability()
 	if targeting != null:
 		targeting.join_defense_against(threat)
@@ -4584,19 +4623,20 @@ func _has_active_player_order() -> bool:
 	return _order_was_player_issued and _current_order_type != OrderType.NONE
 
 
-func _is_player_attack_order_for(target: HumanoidCharacter) -> bool:
+func _is_player_attack_order_for(target: Node) -> bool:
 	return target != null and _order_was_player_issued and _current_order_type == OrderType.ATTACK and _current_attack_target == target
 
 
-func respond_to_settlement_alarm(attacker: HumanoidCharacter, alarm_town: Node, victim: HumanoidCharacter = null) -> void:
+func respond_to_settlement_alarm(attacker: Node, alarm_town: Node, victim: Node = null) -> void:
 	_respond_to_settlement_alarm(victim, attacker, alarm_town)
 
 
-func _notify_settlement_alarm_of_attack(attacker: HumanoidCharacter) -> void:
+func _notify_settlement_alarm_of_attack(attacker: Node) -> void:
 	var alarm_town := _find_alarm_town_for_attack(attacker)
 	if alarm_town == null or not _should_attack_raise_settlement_alarm(attacker, alarm_town):
 		return
 	for node in _get_query_humanoids(global_position, _get_combat_witness_radius() + NpcRules.RAID_ALARM_APPROACH_RANGE, true):
+		# TODO(actor-decoupling): settlement alarm responders are still humanoid-only; move this to a responder capability.
 		if not (node is HumanoidCharacter):
 			continue
 		var responder: HumanoidCharacter = node
@@ -4605,10 +4645,11 @@ func _notify_settlement_alarm_of_attack(attacker: HumanoidCharacter) -> void:
 		responder._respond_to_settlement_alarm(self, attacker, alarm_town)
 
 
-func _respond_to_settlement_alarm(victim: HumanoidCharacter, attacker: HumanoidCharacter, alarm_town: Node) -> void:
+func _respond_to_settlement_alarm(victim: Node, attacker: Node, alarm_town: Node) -> void:
 	if attacker == null or not is_instance_valid(attacker) or attacker == self:
 		return
-	if attacker.life_state != NpcRules.LifeState.ALIVE or life_state != NpcRules.LifeState.ALIVE:
+	var attacker_life_state = attacker.get("life_state")
+	if attacker_life_state == null or int(attacker_life_state) != NpcRules.LifeState.ALIVE or life_state != NpcRules.LifeState.ALIVE:
 		return
 	if combat_stance == NpcRules.CombatStance.PASSIVE:
 		return
@@ -4617,17 +4658,18 @@ func _respond_to_settlement_alarm(victim: HumanoidCharacter, attacker: HumanoidC
 	_join_defense_against(attacker)
 
 
-func _find_alarm_town_for_attack(attacker: HumanoidCharacter) -> Node:
+func _find_alarm_town_for_attack(attacker: Node) -> Node:
 	var town := _get_owning_settlement_town(self)
 	if town != null:
 		return town
 	town = _get_containing_settlement_town(global_position)
 	if town != null:
 		return town
-	return _get_containing_settlement_town(attacker.global_position) if attacker != null else null
+	var attacker_node := attacker as Node3D
+	return _get_containing_settlement_town(attacker_node.global_position) if attacker_node != null else null
 
 
-func _should_attack_raise_settlement_alarm(attacker: HumanoidCharacter, alarm_town: Node) -> bool:
+func _should_attack_raise_settlement_alarm(attacker: Node, alarm_town: Node) -> bool:
 	if attacker == null or alarm_town == null:
 		return false
 	var town_faction := _get_settlement_faction_id(alarm_town)
@@ -4636,7 +4678,7 @@ func _should_attack_raise_settlement_alarm(attacker: HumanoidCharacter, alarm_to
 	return _is_actor_in_or_attached_to_town(self, alarm_town) or _is_actor_in_or_attached_to_town(attacker, alarm_town)
 
 
-func _should_answer_settlement_alarm(victim: HumanoidCharacter, attacker: HumanoidCharacter, alarm_town: Node) -> bool:
+func _should_answer_settlement_alarm(victim: Node, attacker: Node, alarm_town: Node) -> bool:
 	if alarm_town == null or not _is_actor_in_or_attached_to_town(self, alarm_town):
 		return false
 	var town_faction := _get_settlement_faction_id(alarm_town)
@@ -4662,13 +4704,15 @@ func _should_player_help_settlement_faction(town_faction: String) -> bool:
 	return false
 
 
-func _record_player_combat_reputation(threat: HumanoidCharacter) -> void:
+func _record_player_combat_reputation(threat: Node) -> void:
 	if threat == null or not is_inside_tree():
 		return
+	var threat_faction := _get_actor_string_property(threat, "faction_name")
+	var threat_is_party := _get_actor_bool_property(threat, "player_party_member")
 	var opposed_faction := ""
-	if player_party_member and threat.faction_name != faction_name:
-		opposed_faction = threat.faction_name
-	elif threat.player_party_member and not faction_name.is_empty() and faction_name != threat.faction_name:
+	if player_party_member and threat_faction != faction_name:
+		opposed_faction = threat_faction
+	elif threat_is_party and not faction_name.is_empty() and faction_name != threat_faction:
 		opposed_faction = faction_name
 	if opposed_faction.is_empty():
 		return
@@ -4709,12 +4753,13 @@ func _get_settlement_faction_id(alarm_town: Node) -> String:
 	return ""
 
 
-func _is_actor_in_or_attached_to_town(actor: HumanoidCharacter, alarm_town: Node) -> bool:
+func _is_actor_in_or_attached_to_town(actor: Node, alarm_town: Node) -> bool:
 	if actor == null or alarm_town == null:
 		return false
 	if _is_node_descendant_of(actor, alarm_town):
 		return true
-	return alarm_town.has_method("contains_town_border_position") and bool(alarm_town.call("contains_town_border_position", actor.global_position))
+	var actor_node := actor as Node3D
+	return actor_node != null and alarm_town.has_method("contains_town_border_position") and bool(alarm_town.call("contains_town_border_position", actor_node.global_position))
 
 
 func _is_node_descendant_of(node: Node, ancestor: Node) -> bool:
@@ -5406,15 +5451,16 @@ func _notify_law_order_actor_death() -> void:
 		law_controller.call("handle_actor_death", self)
 
 
-func _find_humanoid_by_instance_id(instance_id: int) -> HumanoidCharacter:
+func _find_humanoid_by_instance_id(instance_id: int) -> Node:
 	var tree := get_tree()
 	if tree == null:
 		return null
 	var query_controller := _get_runtime_controller("actor_query_controller")
 	if query_controller != null and query_controller.has_method("get_actor_by_instance_id"):
-		var indexed_actor := query_controller.call("get_actor_by_instance_id", instance_id) as HumanoidCharacter
+		var indexed_actor := query_controller.call("get_actor_by_instance_id", instance_id) as Node
 		if indexed_actor != null:
 			return indexed_actor
+	# TODO(actor-decoupling): fallback is still humanoid-only; rely on ActorQueryController for non-humanoid actors instead of scanning world_actor here.
 	for node in tree.get_nodes_in_group("humanoid_character"):
 		var actor := node as HumanoidCharacter
 		if actor != null and actor.get_instance_id() == instance_id:

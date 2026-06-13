@@ -5,6 +5,7 @@ const SCRAP_PILE_SCENE = preload("res://scenes/world/resource_nodes/scrap_pile_n
 const TWISTED_SCRAP_HEAP_SCENE = preload("res://scenes/world/resource_nodes/scrap_pile_variant_2_node.tscn")
 const HALF_BURIED_ROBOT_WRECK_SCENE = preload("res://scenes/world/resource_nodes/half_buried_robot_wreck_node.tscn")
 const SNEAK_DEMO_BUTTON_SCRIPT = preload("res://scripts/test_scenes/sneak_demo_button.gd")
+const SELECTION_RING_VISUAL = preload("res://scripts/projection/selection_ring_visual.gd")
 const ROBOT_PARTS = preload("res://resources/items/robot_parts.tres")
 
 @export var show_charge_labels := true
@@ -184,13 +185,8 @@ func _make_humanoid(node_name: String, position: Vector3, color: Color) -> Human
 	character.add_child(body_mesh)
 	var ring := MeshInstance3D.new()
 	ring.name = "SelectionRing"
-	var ring_mesh := CylinderMesh.new()
-	ring_mesh.top_radius = 0.72
-	ring_mesh.bottom_radius = 0.72
-	ring_mesh.height = 0.05
-	ring_mesh.radial_segments = 24
-	ring.mesh = ring_mesh
 	ring.position.y = 0.03
+	SELECTION_RING_VISUAL.setup_ring(ring)
 	character.add_child(ring)
 	return character as HumanoidCharacter
 

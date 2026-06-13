@@ -89,7 +89,7 @@ func open_selected_inventory() -> void:
 	_open_primary_inventory(selected_member, true)
 
 
-func open_inventory_for_member(member: HumanoidCharacter) -> void:
+func open_inventory_for_member(member: WorldActor) -> void:
 	_open_primary_inventory(member, true)
 
 
@@ -297,7 +297,7 @@ func _inventory_owner_is_in_combat(inventory_owner) -> bool:
 
 
 func _get_inventory_owner_actor(inventory_owner):
-	if inventory_owner is HumanoidCharacter:
+	if inventory_owner is WorldActor:
 		return inventory_owner
 	if inventory_owner != null and inventory_owner.has_method("get_owner_character"):
 		var owner_character = inventory_owner.get_owner_character()
@@ -311,7 +311,7 @@ func _get_inventory_owner_actor(inventory_owner):
 
 
 func _owner_is_primary_character(inventory_owner) -> bool:
-	return inventory_owner is HumanoidCharacter and inventory_owner.is_player_party_member()
+	return inventory_owner is WorldActor and inventory_owner.is_player_party_member()
 
 
 func _get_focused_character_owner():

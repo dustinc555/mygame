@@ -685,6 +685,42 @@ func get_life_state_label() -> String:
 	return NpcRules.get_life_state_label(life_state)
 
 
+func get_health_vital_label() -> String:
+	return "Health"
+
+
+func get_vital_fluid_label() -> String:
+	return "Blood"
+
+
+func get_vital_fluid_bar_color(fallback_color: Color) -> Color:
+	return fallback_color
+
+
+func get_vital_fluid_glow_color(fallback_color: Color) -> Color:
+	return fallback_color
+
+
+func get_vital_fluid_blink_strength() -> float:
+	return 0.0
+
+
+func get_vital_fluid_blink_speed() -> float:
+	return 0.0
+
+
+func get_vital_fluid_blink_color(fallback_color: Color) -> Color:
+	return fallback_color
+
+
+func shows_hunger_vital() -> bool:
+	return hunger_enabled
+
+
+func shows_fatigue_vital() -> bool:
+	return fatigue_enabled
+
+
 func is_downed_state() -> bool:
 	return is_life_state_downed(life_state)
 
@@ -744,6 +780,24 @@ func set_player_party_member(value: bool) -> void:
 	_sync_party_membership_group()
 
 
+func set_selected(_value: bool) -> void:
+	pass
+
+
+func set_focused(_value: bool) -> void:
+	pass
+
+
+func set_running_enabled(value: bool) -> bool:
+	running = value and life_state == NpcRules.LifeState.ALIVE
+	state_changed.emit()
+	return true
+
+
+func is_running_enabled() -> bool:
+	return running
+
+
 func set_sneaking_enabled(value: bool) -> void:
 	sneaking = value and life_state == NpcRules.LifeState.ALIVE
 	state_changed.emit()
@@ -800,6 +854,27 @@ func get_perception_skill_level() -> float:
 func get_actor_display_name() -> String:
 	var display_name := member_name.strip_edges()
 	return display_name if not display_name.is_empty() else str(name)
+
+
+func get_character_visual_root() -> Node3D:
+	return get_node_or_null("CharacterVisual") as Node3D
+
+
+func get_follow_anchor_position() -> Vector3:
+	return global_position
+
+
+func is_ragdoll_active() -> bool:
+	return false
+
+
+func can_receive_bandage() -> bool:
+	return false
+
+
+func set_combat_stance(value: int) -> void:
+	combat_stance = clampi(value, NpcRules.CombatStance.AGGRESSIVE, NpcRules.CombatStance.PASSIVE)
+	state_changed.emit()
 
 
 func get_actor_squad_id() -> String:
