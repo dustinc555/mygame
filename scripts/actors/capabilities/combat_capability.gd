@@ -360,6 +360,7 @@ func _apply_resolved_damage(final_blunt: float, final_cut: float) -> void:
 	_add_actor_float("_current_blunt_damage", final_blunt)
 	_add_actor_float("_current_open_cut_damage", final_cut)
 	_actor_call_void("_add_bleeding_from_cut", [final_blunt, final_cut])
+	_actor_call_void("_on_resolved_damage", [final_blunt, final_cut])
 	_actor_call_void("_award_toughness_xp", [final_blunt + final_cut])
 	_actor_call_void("_recalculate_vitals")
 

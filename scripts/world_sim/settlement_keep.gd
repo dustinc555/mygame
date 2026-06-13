@@ -4,6 +4,7 @@ extends "res://scripts/world_sim/settlement_facility_instance.gd"
 class_name SettlementKeep
 
 const KEEP_LAYOUT_VERSION := 1
+const SELECTION_RING_VISUAL = preload("res://scripts/projection/selection_ring_visual.gd")
 const KEEP_FUNCTION = preload("res://resources/world_sim/facility_functions/keep.tres")
 const DEFAULT_BUILDING_SCENE = preload("res://scenes/world/buildings/settlement_keep_building.tscn")
 const PLANNING_TABLE_SCENE = preload("res://scenes/world/props/keep/planning_table.tscn")
@@ -635,12 +636,7 @@ func _add_basic_humanoid_children(actor: Node) -> void:
 		ring.name = "SelectionRing"
 		ring.transform = Transform3D(Basis(), Vector3(0.0, 0.03, 0.0))
 		ring.visible = false
-		var ring_mesh := CylinderMesh.new()
-		ring_mesh.top_radius = 0.72
-		ring_mesh.bottom_radius = 0.72
-		ring_mesh.height = 0.05
-		ring_mesh.radial_segments = 24
-		ring.mesh = ring_mesh
+		SELECTION_RING_VISUAL.setup_ring(ring)
 		actor.add_child(ring)
 
 

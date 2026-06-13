@@ -2,6 +2,7 @@ extends Node3D
 
 const PARTY_MEMBER_SCRIPT = preload("res://scripts/party_member.gd")
 const HUMANOID_SCRIPT = preload("res://scripts/characters/humanoid_character.gd")
+const SELECTION_RING_VISUAL = preload("res://scripts/projection/selection_ring_visual.gd")
 
 const IRON_SWORD = preload("res://resources/items/iron_sword.tres")
 const IRON_AXE = preload("res://resources/items/iron_axe.tres")
@@ -189,11 +190,5 @@ func _add_basic_actor_children(actor: HumanoidCharacter, color: Color, include_s
 		var ring := MeshInstance3D.new()
 		ring.name = "SelectionRing"
 		ring.transform = Transform3D(Basis(), Vector3(0.0, 0.03, 0.0))
-		var ring_mesh := CylinderMesh.new()
-		ring_mesh.top_radius = 0.72
-		ring_mesh.bottom_radius = 0.72
-		ring_mesh.height = 0.05
-		ring_mesh.radial_segments = 24
-		ring_mesh.rings = 2
-		ring.mesh = ring_mesh
+		SELECTION_RING_VISUAL.setup_ring(ring)
 		actor.add_child(ring)

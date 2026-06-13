@@ -9,7 +9,7 @@ var _party_manager: PartyManager
 var _camera: Camera3D
 var _initialized := false
 var _active_building: Node
-var _visibility_actor: HumanoidCharacter
+var _visibility_actor: WorldActor
 
 
 func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
@@ -49,7 +49,7 @@ func _process(_delta: float) -> void:
 		_active_building.set_visibility_for_camera(true, _camera.global_position, visibility_actor)
 
 
-func _get_meaningful_actor() -> HumanoidCharacter:
+func _get_meaningful_actor() -> WorldActor:
 	if _party_manager == null:
 		return null
 	if _is_valid_actor(_party_manager.followed_member):
@@ -71,23 +71,23 @@ func _get_meaningful_actor() -> HumanoidCharacter:
 	return null
 
 
-func _is_valid_actor(actor: HumanoidCharacter) -> bool:
+func _is_valid_actor(actor: WorldActor) -> bool:
 	return actor != null and is_instance_valid(actor)
 
 
-func _get_visibility_proxy_actor(actor: HumanoidCharacter) -> HumanoidCharacter:
+func _get_visibility_proxy_actor(actor: WorldActor) -> WorldActor:
 	if not _is_valid_actor(actor):
 		return null
 	if actor.has_method("get_carrier"):
-		var carrier := actor.call("get_carrier") as HumanoidCharacter
+		var carrier := actor.call("get_carrier") as WorldActor
 		if _is_valid_actor(carrier):
 			return carrier
 	return actor
 
 
-func _get_shared_selected_building_level_actor() -> HumanoidCharacter:
+func _get_shared_selected_building_level_actor() -> WorldActor:
 	var selected_members := _party_manager.selected_members
-	var shared_actor: HumanoidCharacter
+	var shared_actor: WorldActor
 	var shared_building: Node = null
 	var shared_level_index := -1
 	for member in selected_members:
@@ -109,7 +109,7 @@ func _get_shared_selected_building_level_actor() -> HumanoidCharacter:
 	return shared_actor
 
 
-func _find_building_for_actor(actor: HumanoidCharacter) -> Node:
+func _find_building_for_actor(actor: WorldActor) -> Node:
 	if actor == null:
 		return null
 	for node in get_tree().get_nodes_in_group("world_building"):

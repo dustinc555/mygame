@@ -4,6 +4,7 @@ const PARTY_MEMBER_SCRIPT = preload("res://scripts/party_member.gd")
 const FACTION_HUMANOID_SCRIPT = preload("res://scripts/characters/faction_humanoid.gd")
 const SNEAK_DEMO_BUTTON_SCRIPT = preload("res://scripts/test_scenes/sneak_demo_button.gd")
 const WORLD_ITEM_SCENE = preload("res://scenes/world/items/world_item.tscn")
+const SELECTION_RING_VISUAL = preload("res://scripts/projection/selection_ring_visual.gd")
 const IRON_SWORD = preload("res://resources/items/iron_sword.tres")
 const EXPENSIVE_VASE = preload("res://resources/items/expensive_vase.tres")
 
@@ -257,13 +258,8 @@ func _make_humanoid(node_name: String, script_resource: Script, position: Vector
 	if with_selection_ring:
 		var ring := MeshInstance3D.new()
 		ring.name = "SelectionRing"
-		var ring_mesh := CylinderMesh.new()
-		ring_mesh.top_radius = 0.72
-		ring_mesh.bottom_radius = 0.72
-		ring_mesh.height = 0.05
-		ring_mesh.radial_segments = 24
-		ring.mesh = ring_mesh
 		ring.position.y = 0.03
+		SELECTION_RING_VISUAL.setup_ring(ring)
 		character.add_child(ring)
 	return character as HumanoidCharacter
 

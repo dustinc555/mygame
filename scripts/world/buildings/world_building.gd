@@ -76,7 +76,7 @@ func _process(delta: float) -> void:
 	_process_trespass(delta / maxf(Engine.time_scale, 0.001))
 
 
-func is_actor_inside(actor: HumanoidCharacter) -> bool:
+func is_actor_inside(actor: WorldActor) -> bool:
 	if actor == null:
 		return false
 	if not levels.is_empty():
@@ -84,7 +84,7 @@ func is_actor_inside(actor: HumanoidCharacter) -> bool:
 	return _interior_actor_ids.has(actor.get_instance_id()) or _is_actor_inside_area(actor, _get_interior_area())
 
 
-func set_visibility_for_camera(show_interior: bool, camera_world_position: Vector3, actor: HumanoidCharacter = null) -> void:
+func set_visibility_for_camera(show_interior: bool, camera_world_position: Vector3, actor: WorldActor = null) -> void:
 	if not levels.is_empty():
 		_refresh_level_visibility(show_interior, camera_world_position, actor)
 		return
@@ -230,7 +230,7 @@ func get_access_state_label(world_minutes: int = -1) -> String:
 			return "Public"
 
 
-func get_access_state_label_for_actor(actor: HumanoidCharacter, world_minutes: int = -1) -> String:
+func get_access_state_label_for_actor(actor: WorldActor, world_minutes: int = -1) -> String:
 	return "Restricted" if is_actor_trespassing_now(actor, world_minutes) else get_access_state_label(world_minutes)
 
 
@@ -277,7 +277,7 @@ func is_private_now(world_minutes: int = -1) -> bool:
 	return not is_public_now(world_minutes)
 
 
-func is_actor_trespassing_now(actor: HumanoidCharacter, world_minutes: int = -1) -> bool:
+func is_actor_trespassing_now(actor: WorldActor, world_minutes: int = -1) -> bool:
 	if actor == null or not actor.is_player_party_member() or actor.life_state != NpcRules.LifeState.ALIVE:
 		return false
 	if not is_private_now(world_minutes):
@@ -285,7 +285,7 @@ func is_actor_trespassing_now(actor: HumanoidCharacter, world_minutes: int = -1)
 	return not is_actor_authorized(actor)
 
 
-func is_actor_authorized(actor: HumanoidCharacter) -> bool:
+func is_actor_authorized(actor: WorldActor) -> bool:
 	if actor == null:
 		return false
 	var owner_character := get_explicit_owner_character()
@@ -328,7 +328,7 @@ func _get_law_order_controller() -> Node:
 func _process_trespass(delta: float) -> void:
 	var actor_ids := _inside_actors.keys()
 	for actor_id in actor_ids:
-		var actor := _inside_actors.get(actor_id) as HumanoidCharacter
+		var actor := _inside_actors.get(actor_id) as WorldActor
 		if actor == null or not is_instance_valid(actor) or not is_actor_inside(actor):
 			if actor != null and is_instance_valid(actor):
 				_clear_active_trespass_meta(actor)
@@ -347,11 +347,11 @@ func _process_trespass(delta: float) -> void:
 			_trespass_warning_remaining[actor_id] = remaining
 
 
-func _is_actor_trespassing(actor: HumanoidCharacter) -> bool:
+func _is_actor_trespassing(actor: WorldActor) -> bool:
 	return is_actor_trespassing_now(actor)
 
 
-func _issue_trespass_response(actor: HumanoidCharacter) -> void:
+func _issue_trespass_response(actor: WorldActor) -> void:
 	if actor == null:
 		return
 	var actor_id := actor.get_instance_id()
@@ -372,7 +372,7 @@ func _issue_trespass_response(actor: HumanoidCharacter) -> void:
 	_escalate_trespass(actor, witness)
 
 
-func _escalate_trespass(actor: HumanoidCharacter, witness: HumanoidCharacter = null) -> void:
+func _escalate_trespass(actor: WorldActor, witness: HumanoidCharacter = null) -> void:
 	if actor == null:
 		return
 	var actor_id := actor.get_instance_id()
@@ -400,7 +400,7 @@ func _escalate_trespass(actor: HumanoidCharacter, witness: HumanoidCharacter = n
 		responder.assign_attack_target(actor, false)
 
 
-func _find_trespass_witness(actor: HumanoidCharacter) -> HumanoidCharacter:
+func _find_trespass_witness(actor: WorldActor) -> HumanoidCharacter:
 	var best_witness: HumanoidCharacter = null
 	var best_distance := INF
 	for responder in _find_trespass_responders(actor):
@@ -462,7 +462,7 @@ func _law_string(profile: Resource, property_name: String, fallback: String) -> 
 	return fallback if value == null else str(value)
 
 
-func _find_trespass_responders(actor: HumanoidCharacter) -> Array[HumanoidCharacter]:
+func _find_trespass_responders(actor: WorldActor) -> Array[HumanoidCharacter]:
 	var responders: Array[HumanoidCharacter] = []
 	var owner_character := get_explicit_owner_character()
 	var owner_faction := get_owner_faction_name()
@@ -486,7 +486,7 @@ func _find_trespass_responders(actor: HumanoidCharacter) -> Array[HumanoidCharac
 	return responders
 
 
-func _turn_witness_toward_actor(witness: HumanoidCharacter, actor: HumanoidCharacter) -> void:
+func _turn_witness_toward_actor(witness: HumanoidCharacter, actor: WorldActor) -> void:
 	if witness == null or actor == null:
 		return
 	var target_position := Vector3(actor.global_position.x, witness.global_position.y, actor.global_position.z)
@@ -506,12 +506,12 @@ func _is_node_descendant_of(node: Node, ancestor: Node) -> bool:
 	return false
 
 
-func _remember_inside_actor(actor: HumanoidCharacter) -> void:
+func _remember_inside_actor(actor: WorldActor) -> void:
 	if actor != null:
 		_inside_actors[actor.get_instance_id()] = actor
 
 
-func _forget_inside_actor(actor: HumanoidCharacter) -> void:
+func _forget_inside_actor(actor: WorldActor) -> void:
 	if actor == null:
 		return
 	var actor_id := actor.get_instance_id()
@@ -520,7 +520,7 @@ func _forget_inside_actor(actor: HumanoidCharacter) -> void:
 	_clear_trespass_state(actor_id)
 
 
-func _set_active_trespass_meta(actor: HumanoidCharacter) -> void:
+func _set_active_trespass_meta(actor: WorldActor) -> void:
 	if actor == null:
 		return
 	actor.set_meta(META_ACTIVE_CRIME_LABEL, "Committing a crime! (Trespassing)")
@@ -528,7 +528,7 @@ func _set_active_trespass_meta(actor: HumanoidCharacter) -> void:
 	actor.set_meta(META_ACTIVE_CRIME_SOURCE_ID, get_instance_id())
 
 
-func _clear_active_trespass_meta(actor: HumanoidCharacter) -> void:
+func _clear_active_trespass_meta(actor: WorldActor) -> void:
 	if actor == null or not actor.has_meta(META_ACTIVE_CRIME_SOURCE_ID):
 		return
 	if int(actor.get_meta(META_ACTIVE_CRIME_SOURCE_ID)) != get_instance_id():
@@ -632,7 +632,7 @@ func _get_interior_area() -> Area3D:
 	return get_node_or_null(interior_area_path) as Area3D
 
 
-func get_level_index_for_actor(actor: HumanoidCharacter) -> int:
+func get_level_index_for_actor(actor: WorldActor) -> int:
 	if actor == null or not actor.is_inside_tree():
 		return -1
 	var actor_id := actor.get_instance_id()
@@ -654,7 +654,7 @@ func get_level_index_for_actor(actor: HumanoidCharacter) -> int:
 	return -1
 
 
-func _is_actor_inside_level_area(actor: HumanoidCharacter, level_index: int) -> bool:
+func _is_actor_inside_level_area(actor: WorldActor, level_index: int) -> bool:
 	if actor == null or not _is_valid_level_index(level_index):
 		return false
 	var level: BuildingLevelDefinition = levels[level_index]
@@ -670,7 +670,7 @@ func _is_actor_inside_level_area(actor: HumanoidCharacter, level_index: int) -> 
 	return false
 
 
-func _is_actor_inside_area(actor: HumanoidCharacter, area: Area3D) -> bool:
+func _is_actor_inside_area(actor: WorldActor, area: Area3D) -> bool:
 	if actor == null or area == null:
 		return false
 	for probe_position in _actor_visibility_probe_positions(actor):
@@ -679,7 +679,7 @@ func _is_actor_inside_area(actor: HumanoidCharacter, area: Area3D) -> bool:
 	return false
 
 
-func _actor_visibility_probe_positions(actor: HumanoidCharacter) -> Array[Vector3]:
+func _actor_visibility_probe_positions(actor: WorldActor) -> Array[Vector3]:
 	var positions: Array[Vector3] = []
 	if actor == null or not actor.is_inside_tree():
 		return positions
@@ -760,7 +760,7 @@ func _get_camera_facing_side(camera_world_position: Vector3) -> String:
 	return "front" if local_camera_position.z > 0.0 else "back"
 
 
-func _refresh_level_visibility(show_interior: bool, camera_world_position: Vector3, actor: HumanoidCharacter) -> void:
+func _refresh_level_visibility(show_interior: bool, camera_world_position: Vector3, actor: WorldActor) -> void:
 	var next_level_index := -1
 	var next_hidden_side := ""
 	if show_interior:
@@ -867,25 +867,25 @@ func _project_click_to_local_y(ray_origin: Vector3, ray_direction: Vector3, loca
 
 
 func _on_interior_body_entered(body: Node) -> void:
-	if body is HumanoidCharacter:
-		_remember_inside_actor(body as HumanoidCharacter)
+	if body is WorldActor:
+		_remember_inside_actor(body as WorldActor)
 		_interior_actor_ids[body.get_instance_id()] = true
 
 
 func _on_interior_body_exited(body: Node) -> void:
-	if body is HumanoidCharacter:
-		_forget_inside_actor(body as HumanoidCharacter)
+	if body is WorldActor:
+		_forget_inside_actor(body as WorldActor)
 		_interior_actor_ids.erase(body.get_instance_id())
 
 
 func _on_level_body_entered(body: Node, level_index: int) -> void:
-	if body is HumanoidCharacter and level_index >= 0 and level_index < _level_actor_ids.size():
-		_remember_inside_actor(body as HumanoidCharacter)
+	if body is WorldActor and level_index >= 0 and level_index < _level_actor_ids.size():
+		_remember_inside_actor(body as WorldActor)
 		_level_actor_ids[level_index][body.get_instance_id()] = true
 
 
 func _on_level_body_exited(body: Node, level_index: int) -> void:
-	if body is HumanoidCharacter and level_index >= 0 and level_index < _level_actor_ids.size():
+	if body is WorldActor and level_index >= 0 and level_index < _level_actor_ids.size():
 		_level_actor_ids[level_index].erase(body.get_instance_id())
-		if not is_actor_inside(body as HumanoidCharacter):
-			_forget_inside_actor(body as HumanoidCharacter)
+		if not is_actor_inside(body as WorldActor):
+			_forget_inside_actor(body as WorldActor)

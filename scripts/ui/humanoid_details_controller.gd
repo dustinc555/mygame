@@ -60,6 +60,10 @@ var fatigue_fill: ColorRect
 var fatigue_value: Label
 var action_buttons: Array[Button] = []
 var vital_rows: Array[Control] = []
+var hunger_row: Control
+var blood_row: Control
+var hp_row: Control
+var fatigue_row: Control
 var info_rows: Array[Control] = []
 var info_labels: Array[Label] = []
 var info_values: Array[Label] = []
@@ -145,12 +149,11 @@ func _do_initialize() -> void:
 	fatigue_bar_stack = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack")
 	fatigue_fill = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack/FatigueFill")
 	fatigue_value = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack/FatigueValue")
-	vital_rows = [
-		details_panel.get_node("Margin/DetailsVBox/HungerRow"),
-		details_panel.get_node("Margin/DetailsVBox/BloodRow"),
-		details_panel.get_node("Margin/DetailsVBox/HpRow"),
-		details_panel.get_node("Margin/DetailsVBox/FatigueRow"),
-	]
+	hunger_row = details_panel.get_node("Margin/DetailsVBox/HungerRow")
+	blood_row = details_panel.get_node("Margin/DetailsVBox/BloodRow")
+	hp_row = details_panel.get_node("Margin/DetailsVBox/HpRow")
+	fatigue_row = details_panel.get_node("Margin/DetailsVBox/FatigueRow")
+	vital_rows = [hunger_row, blood_row, hp_row, fatigue_row]
 	for index in range(1, 5):
 		var info_row := details_panel.get_node("Margin/DetailsVBox/InfoRows/InfoRow%d" % index) as Control
 		info_rows.append(info_row)
@@ -182,8 +185,8 @@ func _update_panel() -> void:
 	if current_target == null:
 		_update_empty_panel()
 		return
-	if current_target is HumanoidCharacter:
-		_update_humanoid_panel(current_target as HumanoidCharacter)
+	if current_target is WorldActor:
+		_update_humanoid_panel(current_target as WorldActor)
 		return
 	_update_world_target_panel(current_target)
 
@@ -199,33 +202,39 @@ func _update_empty_panel() -> void:
 	_set_actions([])
 
 
-func _update_humanoid_panel(target: HumanoidCharacter) -> void:
+func _update_humanoid_panel(target: WorldActor) -> void:
 	_set_vitals_visible(true)
 	var humanoid_info_rows := _get_humanoid_info_rows(target)
 	_set_info_rows_visible(not humanoid_info_rows.is_empty())
 	if not humanoid_info_rows.is_empty():
 		_set_info_rows(humanoid_info_rows)
-	_set_humanoid_row_labels()
+	_set_humanoid_row_labels(target)
+	_set_humanoid_vital_rows(target)
 	name_label.text = target.member_name
 	faction_label.text = target.faction_name
 	work_label.text = target.get_job_status_text() if target.has_method("get_job_status_text") else ""
 	state_label.text = target.get_life_state_label().to_upper()
 	state_label.modulate = _get_life_state_color(target.life_state)
-	var hunger_stage_label: String = target.get_hunger_stage_label()
-	hunger_value.text = "%s %d / 100" % [hunger_stage_label, int(round(target.hunger))]
-	_update_fill_bar(hunger_bar_stack, hunger_fill, target.hunger / 100.0, _get_stage_color(target.get_hunger_stage(), NpcRules.HungerStage.WELL_NOURISHED, NpcRules.HungerStage.HUNGRY, NpcRules.HungerStage.STARVING))
+	if target.shows_hunger_vital():
+		var hunger_stage_label: String = target.get_hunger_stage_label()
+		hunger_value.text = "%s %d / 100" % [hunger_stage_label, int(round(target.hunger))]
+		_update_fill_bar(hunger_bar_stack, hunger_fill, target.hunger / 100.0, _get_stage_color(target.get_hunger_stage(), NpcRules.HungerStage.WELL_NOURISHED, NpcRules.HungerStage.HUNGRY, NpcRules.HungerStage.STARVING))
 	blood_value.text = "%d / %d" % [int(round(target.blood)), int(round(target.max_blood))]
-	_update_fill_bar(blood_bar_stack, blood_fill, target.blood / maxf(target.max_blood, 1.0), _get_ratio_color(target.blood / maxf(target.max_blood, 1.0)))
-	_update_blood_bleed_glow(target.get_bleed_rate() if target.has_method("get_bleed_rate") else 0.0)
+	var vital_fluid_ratio := target.blood / maxf(target.max_blood, 1.0)
+	var vital_fluid_color := target.get_vital_fluid_bar_color(_get_ratio_color(vital_fluid_ratio))
+	_update_fill_bar(blood_bar_stack, blood_fill, vital_fluid_ratio, vital_fluid_color)
+	_update_vital_fluid_blink(target, vital_fluid_color)
+	_update_blood_bleed_glow(target.get_bleed_rate() if target.has_method("get_bleed_rate") else 0.0, target.get_vital_fluid_glow_color(Color(1.0, 0.04, 0.02, 1.0)))
 	_update_hp_bar_visuals(target.hp, target.get_open_cut_damage(), target.get_bandaged_cut_damage(), target.max_hp, target.get_blunt_damage())
 	hp_value.text = "%d / %d" % [int(round(target.hp)), int(round(target.max_hp))]
-	var fatigue_stage_label: String = target.get_fatigue_stage_label()
-	fatigue_value.text = "%s %d / 100" % [fatigue_stage_label, int(round(target.fatigue))]
-	_update_fill_bar(fatigue_bar_stack, fatigue_fill, target.fatigue / 100.0, _get_stage_color(target.get_fatigue_stage(), NpcRules.FatigueStage.WELL_RESTED, NpcRules.FatigueStage.WINDED, NpcRules.FatigueStage.EXHAUSTED))
+	if target.shows_fatigue_vital():
+		var fatigue_stage_label: String = target.get_fatigue_stage_label()
+		fatigue_value.text = "%s %d / 100" % [fatigue_stage_label, int(round(target.fatigue))]
+		_update_fill_bar(fatigue_bar_stack, fatigue_fill, target.fatigue / 100.0, _get_stage_color(target.get_fatigue_stage(), NpcRules.FatigueStage.WELL_RESTED, NpcRules.FatigueStage.WINDED, NpcRules.FatigueStage.EXHAUSTED))
 	_set_actions(_get_humanoid_actions(target))
 
 
-func _get_humanoid_info_rows(target: HumanoidCharacter) -> Array:
+func _get_humanoid_info_rows(target: WorldActor) -> Array:
 	var rows: Array = []
 	var law_status := _get_humanoid_law_status(target)
 	if not law_status.is_empty():
@@ -241,14 +250,14 @@ func _get_humanoid_info_rows(target: HumanoidCharacter) -> Array:
 	return rows
 
 
-func _get_humanoid_law_status(target: HumanoidCharacter) -> String:
+func _get_humanoid_law_status(target: WorldActor) -> String:
 	var caught_status := _get_humanoid_meta_text(target, "law_status_label")
 	if not caught_status.is_empty():
 		return caught_status
 	return _get_humanoid_meta_text(target, "law_active_crime_label")
 
 
-func _get_humanoid_law_status_color(target: HumanoidCharacter) -> Color:
+func _get_humanoid_law_status_color(target: WorldActor) -> Color:
 	var kind := _get_humanoid_meta_text(target, "law_status_kind")
 	if kind == "jailed":
 		return INFO_JAILED_COLOR
@@ -257,7 +266,7 @@ func _get_humanoid_law_status_color(target: HumanoidCharacter) -> Color:
 	return INFO_VALUE_COLOR
 
 
-func _get_humanoid_meta_text(target: HumanoidCharacter, meta_name: String) -> String:
+func _get_humanoid_meta_text(target: WorldActor, meta_name: String) -> String:
 	if target == null or not target.has_meta(meta_name):
 		return ""
 	return str(target.get_meta(meta_name))
@@ -276,7 +285,7 @@ func _update_world_target_panel(target) -> void:
 	_set_actions(_get_world_target_actions(target))
 
 
-func _get_humanoid_actions(target: HumanoidCharacter) -> Array:
+func _get_humanoid_actions(target: WorldActor) -> Array:
 	var actions: Array = []
 	if target.is_player_party_member():
 		actions.append({"key": ACTION_INVENTORY, "label": "Inventory"})
@@ -285,14 +294,14 @@ func _get_humanoid_actions(target: HumanoidCharacter) -> Array:
 		actions.append({"key": ACTION_JOBS, "label": "Jobs"})
 		if target.life_state == NpcRules.LifeState.ASLEEP:
 			actions.append({"key": ACTION_WAKE_UP, "label": "Wake"})
-		elif target.has_method("is_sitting") and target.is_sitting():
+		elif target is HumanoidCharacter and target.has_method("is_sitting") and target.is_sitting():
 			if _target_can_order_from_waiter(target):
 				actions.append({"key": ACTION_ORDER, "label": "Order"})
 			actions.append({"key": ACTION_STAND_UP, "label": "Stand"})
 		return actions
 	if _target_can_open_skills():
 		actions.append({"key": ACTION_SKILLS, "label": "Skills"})
-	if target.is_downed_state():
+	if target is HumanoidCharacter and target.is_downed_state():
 		actions.append({"key": ACTION_HEAL, "label": "Heal"})
 		actions.append({"key": ACTION_CARRY, "label": "Carry"})
 		if target.requires_fire_to_die():
@@ -302,7 +311,7 @@ func _get_humanoid_actions(target: HumanoidCharacter) -> Array:
 		return actions
 	if target.life_state == NpcRules.LifeState.DEAD:
 		return actions
-	if target.has_conversation_definition():
+	if target.has_method("has_conversation_definition") and target.has_conversation_definition():
 		actions.append({"key": ACTION_TALK, "label": "Talk"})
 	if target.has_method("get_merchant_role") and target.get_merchant_role() != null:
 		actions.append({"key": ACTION_TRADE, "label": "Trade"})
@@ -386,11 +395,22 @@ func _set_info_rows_visible(is_visible: bool) -> void:
 			row.visible = is_visible
 
 
-func _set_humanoid_row_labels() -> void:
+func _set_humanoid_row_labels(target: WorldActor) -> void:
 	_set_row_label(hunger_label, "Hunger")
-	_set_row_label(blood_label, "Blood")
-	_set_row_label(hp_label, "Health")
+	_set_row_label(blood_label, target.get_vital_fluid_label() if target != null else "Blood")
+	_set_row_label(hp_label, target.get_health_vital_label() if target != null else "Health")
 	_set_row_label(fatigue_label, "Fatigue")
+
+
+func _set_humanoid_vital_rows(target: WorldActor) -> void:
+	if hunger_row != null:
+		hunger_row.visible = target != null and target.shows_hunger_vital()
+	if blood_row != null:
+		blood_row.visible = target != null
+	if hp_row != null:
+		hp_row.visible = target != null
+	if fatigue_row != null:
+		fatigue_row.visible = target != null and target.shows_fatigue_vital()
 
 
 func _set_world_target_rows(target) -> void:
@@ -487,6 +507,8 @@ func _clear_bar_values() -> void:
 func _get_target_display_name(target) -> String:
 	if target is HumanoidCharacter:
 		return target.member_name
+	if target is WorldActor:
+		return (target as WorldActor).member_name
 	if target is Node and target.is_in_group("world_item"):
 		var definition = target.get("item_definition")
 		if definition != null:
@@ -762,13 +784,13 @@ func _get_building_access_color(target) -> Color:
 	return INFO_VALUE_COLOR
 
 
-func _get_focused_party_member() -> HumanoidCharacter:
+func _get_focused_party_member() -> WorldActor:
 	if root_scene == null:
 		return null
 	var party_manager := root_scene.get_node_or_null("PartyManager") as PartyManager
 	if party_manager == null or party_manager.selected_members.is_empty():
 		return null
-	return party_manager.selected_members[0] as HumanoidCharacter
+	return party_manager.selected_members[0] as WorldActor
 
 
 func _get_world_time_minutes() -> int:
@@ -809,14 +831,14 @@ func _set_target_inspected(target, inspected: bool) -> void:
 
 
 func _target_can_open_skills() -> bool:
-	return _has_valid_current_target() and current_target is HumanoidCharacter
+	return _has_valid_current_target() and current_target is WorldActor
 
 
 func _target_can_open_jobs() -> bool:
-	return _has_valid_current_target() and current_target is HumanoidCharacter
+	return _has_valid_current_target() and current_target is WorldActor
 
 
-func _target_can_order_from_waiter(target: HumanoidCharacter) -> bool:
+func _target_can_order_from_waiter(target: WorldActor) -> bool:
 	if target == null or not target.is_player_party_member() or not target.has_method("is_sitting") or not target.is_sitting():
 		return false
 	var service_area := _get_bar_service_area_for_seated_actor(target)
@@ -827,7 +849,7 @@ func _target_can_order_from_waiter(target: HumanoidCharacter) -> bool:
 	return service_area.has_method("has_waiter_service") and bool(service_area.call("has_waiter_service"))
 
 
-func _get_bar_service_area_for_seated_actor(target: HumanoidCharacter) -> BarServiceArea:
+func _get_bar_service_area_for_seated_actor(target: WorldActor) -> BarServiceArea:
 	if target == null or not target.has_method("get_current_seat_target"):
 		return null
 	var seat = target.call("get_current_seat_target")
@@ -911,6 +933,20 @@ func _update_fill_bar(bar_stack: Control, fill_rect: ColorRect, ratio: float, co
 	fill_rect.size = Vector2(total_width * clampf(ratio, 0.0, 1.0), total_height)
 
 
+func _update_vital_fluid_blink(target: WorldActor, base_color: Color) -> void:
+	if blood_fill == null:
+		return
+	if target == null or not bool(target.get("is_focused")):
+		return
+	var strength := clampf(target.get_vital_fluid_blink_strength(), 0.0, 1.0)
+	if strength <= 0.0:
+		return
+	var pulse_rate := maxf(0.05, target.get_vital_fluid_blink_speed())
+	var pulse := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.001 * TAU * pulse_rate)
+	var blink_color := target.get_vital_fluid_blink_color(Color(0.72, 0.64, 0.24, 1.0))
+	blood_fill.color = base_color.lerp(blink_color, lerpf(0.35, 0.9, pulse) * strength)
+
+
 func _setup_blood_bleed_glow() -> void:
 	if blood_bar_stack == null:
 		return
@@ -933,7 +969,7 @@ func _setup_blood_bleed_glow() -> void:
 	blood_bar_stack.move_child(blood_value, blood_bar_stack.get_child_count() - 1)
 
 
-func _update_blood_bleed_glow(bleed_rate: float) -> void:
+func _update_blood_bleed_glow(bleed_rate: float, glow_color: Color = Color(1.0, 0.04, 0.02, 1.0)) -> void:
 	if blood_bleed_glow == null or blood_bar_stack == null:
 		return
 	if bleed_rate <= 0.01:
@@ -946,8 +982,8 @@ func _update_blood_bleed_glow(bleed_rate: float) -> void:
 	var minimum_alpha := lerpf(0.04, 0.82, severity)
 	var maximum_alpha := lerpf(0.48, 1.0, severity)
 	var alpha := lerpf(minimum_alpha, maximum_alpha, pulse)
-	_blood_bleed_glow_style.border_color = Color(1.0, 0.04, 0.02, alpha)
-	_blood_bleed_glow_style.shadow_color = Color(1.0, 0.0, 0.0, alpha * 0.7)
+	_blood_bleed_glow_style.border_color = Color(glow_color.r, glow_color.g, glow_color.b, alpha)
+	_blood_bleed_glow_style.shadow_color = Color(glow_color.r, glow_color.g, glow_color.b, alpha * 0.7)
 	blood_bleed_glow.position = Vector2(-3.0, -3.0)
 	blood_bleed_glow.size = blood_bar_stack.size + Vector2(6.0, 6.0)
 	blood_bleed_glow.visible = true

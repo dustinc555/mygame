@@ -57,7 +57,7 @@ const SEGMENT_RIGHT := 3
 @export var hold_move_indicator_seconds := 0.3
 @export var group_attack_target_scan_radius := 18.0
 
-var party_members: Array[HumanoidCharacter] = []
+var party_members: Array[WorldActor] = []
 var portrait_cards: Array[PartyPortraitCard] = []
 var work_progress_bars: Dictionary = {}
 var camera_anchor := Vector3.ZERO
@@ -73,7 +73,7 @@ var hold_move_indicator_remaining := 0.0
 var is_drag_selecting := false
 var left_mouse_press_position := Vector2.ZERO
 var left_mouse_press_double_click := false
-var context_member: HumanoidCharacter
+var context_member: WorldActor
 var context_humanoid: HumanoidCharacter
 var context_resource
 var context_container
@@ -187,7 +187,7 @@ func _do_initialize() -> void:
 	_initialized = true
 
 	for child in party_root.get_children():
-		if child is HumanoidCharacter and child.is_player_party_member():
+		if child is WorldActor and child.is_player_party_member():
 			_register_party_member(child)
 
 	party_manager.set_party_members(party_members)
@@ -225,20 +225,23 @@ func _do_initialize() -> void:
 	_update_command_bar()
 
 
-func _register_party_member(member: HumanoidCharacter) -> void:
+func _register_party_member(member: WorldActor) -> void:
 	if member == null or party_members.has(member):
 		return
 	_normalize_party_member_squad(member)
 	party_members.append(member)
-	member.container_reached.connect(_on_party_member_container_reached)
-	member.trade_target_reached.connect(_on_party_member_trade_target_reached)
-	member.conversation_target_reached.connect(_on_party_member_conversation_target_reached)
+	if member.has_signal("container_reached"):
+		member.connect("container_reached", Callable(self, "_on_party_member_container_reached"))
+	if member.has_signal("trade_target_reached"):
+		member.connect("trade_target_reached", Callable(self, "_on_party_member_trade_target_reached"))
+	if member.has_signal("conversation_target_reached"):
+		member.connect("conversation_target_reached", Callable(self, "_on_party_member_conversation_target_reached"))
 	if member.has_signal("center_notice_requested"):
 		member.center_notice_requested.connect(_show_center_notice)
 	member.state_changed.connect(_update_command_bar)
 
 
-func _add_portrait_for_member(member: HumanoidCharacter) -> void:
+func _add_portrait_for_member(member: WorldActor) -> void:
 	if portrait_flow == null or member == null:
 		return
 	var card := PARTY_PORTRAIT_CARD_SCENE.instantiate() as PartyPortraitCard
@@ -249,7 +252,7 @@ func _add_portrait_for_member(member: HumanoidCharacter) -> void:
 	card.visible = _should_show_member_in_active_squad(member)
 
 
-func _ensure_work_progress_bar(member: HumanoidCharacter) -> void:
+func _ensure_work_progress_bar(member: WorldActor) -> void:
 	if progress_layer == null or member == null or work_progress_bars.has(member):
 		return
 	var bar := ProgressBar.new()
@@ -388,12 +391,11 @@ func _handle_world_selection(screen_position: Vector2, should_follow: bool) -> v
 		return
 	if humanoid_details_controller != null:
 		humanoid_details_controller.inspect_target(inspected_target)
-	if not (inspected_target is HumanoidCharacter):
+	if not (inspected_target is WorldActor):
 		return
-	var humanoid: HumanoidCharacter = inspected_target
-	if not humanoid.is_player_party_member():
+	var member := inspected_target as WorldActor
+	if not member.is_player_party_member():
 		return
-	var member: HumanoidCharacter = humanoid
 	if Input.is_key_pressed(KEY_ALT):
 		party_manager.add_selection(member)
 	else:
@@ -418,10 +420,10 @@ func _process_hold_move(delta: float) -> void:
 		hold_move_indicator_remaining = hold_move_indicator_seconds
 
 
-func _get_focused_party_member() -> HumanoidCharacter:
+func _get_focused_party_member() -> WorldActor:
 	if party_manager == null or party_manager.selected_members.is_empty():
 		return null
-	return party_manager.selected_members[0] as HumanoidCharacter
+	return party_manager.selected_members[0] as WorldActor
 
 
 func _handle_right_click(screen_position: Vector2) -> bool:
@@ -459,26 +461,27 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 		_show_context_menu(screen_position, ACTION_MINE, "Mine")
 		context_resource = collider
 		return false
-	if collider is HumanoidCharacter and collider.is_player_party_member():
+	if collider is WorldActor and collider.is_player_party_member():
 		var focused_member := _get_focused_party_member()
 		var inventory_action_label := "Trade" if focused_member != null and focused_member != collider else "Inventory"
 		var party_actions := [{"id": ACTION_INVENTORY, "label": inventory_action_label}]
 		if collider.life_state == NpcRules.LifeState.ASLEEP:
-			if _selection_can_carry_target(collider):
+			if collider is HumanoidCharacter and _selection_can_carry_target(collider):
 				party_actions.append({"id": ACTION_CARRY, "label": "Carry"})
 			party_actions.append({"id": ACTION_WAKE_UP, "label": "Wake Up"})
-		elif collider.has_method("is_sitting") and collider.is_sitting():
+		elif collider is HumanoidCharacter and collider.has_method("is_sitting") and collider.is_sitting():
 			party_actions.append({"id": ACTION_STAND_UP, "label": "Stand Up"})
-		elif collider.is_downed_state():
+		elif collider is HumanoidCharacter and collider.is_downed_state():
 			_append_downed_target_actions(party_actions, collider)
-		elif _selection_can_carry_target(collider):
+		elif collider is HumanoidCharacter and _selection_can_carry_target(collider):
 			party_actions.append({"id": ACTION_CARRY, "label": "Carry"})
-		party_actions.append({"id": ACTION_HEAL, "label": "Heal"})
-		if _selection_can_put_down_from_carrier(collider):
+		if collider is HumanoidCharacter:
+			party_actions.append({"id": ACTION_HEAL, "label": "Heal"})
+		if collider is HumanoidCharacter and _selection_can_put_down_from_carrier(collider):
 			party_actions.append({"id": ACTION_DROP_CARRY, "label": "Put Down"})
 		_show_context_menu_actions(screen_position, party_actions)
 		context_member = collider
-		context_humanoid = collider
+		context_humanoid = collider if collider is HumanoidCharacter else null
 		return false
 	if collider is HumanoidCharacter and not party_manager.selected_members.is_empty():
 		context_humanoid = collider
@@ -534,7 +537,7 @@ func _is_hold_move_blocked(screen_position: Vector2) -> bool:
 	if result.is_empty():
 		return false
 	var collider: Object = result["collider"]
-	if collider is HumanoidCharacter:
+	if collider is WorldActor:
 		return true
 	if collider is Node:
 		return collider.is_in_group("sleepable_bed") or collider.is_in_group("sittable_seat") or collider.is_in_group("mining_resource") or collider.is_in_group("world_container") or collider.is_in_group("world_item") or collider.has_method("get_world_context_actions")
@@ -577,7 +580,7 @@ func _get_pickup_item_action(world_item) -> Dictionary:
 
 func _apply_drag_selection() -> void:
 	var rect := _get_selection_rect(left_mouse_press_position, get_viewport().get_mouse_position())
-	var drag_selected: Array[HumanoidCharacter] = []
+	var drag_selected: Array[WorldActor] = []
 	for member in party_members:
 		var sample_position: Vector3 = member.global_position + Vector3(0.0, 1.0, 0.0)
 		if camera.is_position_behind(sample_position):
@@ -599,12 +602,12 @@ func _apply_drag_selection() -> void:
 		humanoid_details_controller.inspect_humanoid(drag_selected[0])
 
 
-func _pick_party_member(screen_position: Vector2) -> HumanoidCharacter:
+func _pick_party_member(screen_position: Vector2) -> WorldActor:
 	var result := _raycast_target_from_screen(screen_position)
 	if result.is_empty():
 		return null
 	var collider: Object = result["collider"]
-	if collider is HumanoidCharacter and collider.is_player_party_member():
+	if collider is WorldActor and collider.is_player_party_member():
 		return collider
 	return null
 
@@ -634,12 +637,14 @@ func _pick_inspectable_target(screen_position: Vector2):
 
 
 func _resolve_inspectable_target(collider: Object):
-	if collider is HumanoidCharacter:
+	if collider is WorldActor:
 		return collider
 	if not (collider is Node):
 		return null
 	var current: Node = collider as Node
 	while current != null:
+		if current is WorldActor:
+			return current
 		if _is_inspectable_node(current):
 			return current
 		current = current.get_parent()
@@ -688,8 +693,10 @@ func issue_move_command(screen_position: Vector2, show_indicator: bool = true) -
 		else:
 			offset = _get_group_grid_move_offset(member_index, selected_count, move_command_spacing)
 		var member_target := _project_move_command_target(target + offset, target, target.y)
-		member.stop_mining_assignment()
-		member.stop_container_interaction()
+		if member.has_method("stop_mining_assignment"):
+			member.call("stop_mining_assignment")
+		if member.has_method("stop_container_interaction"):
+			member.call("stop_container_interaction")
 		member.set_move_target(member_target)
 		member_index += 1
 	return true
@@ -742,7 +749,7 @@ func _pick_ground_hit(screen_position: Vector2) -> Dictionary:
 	var result := _raycast_from_screen(screen_position)
 	if not result.is_empty():
 		var collider: Object = result["collider"]
-		var humanoid_collider := _resolve_humanoid_collider(collider)
+		var actor_collider := _resolve_actor_collider(collider)
 		if collider != null and collider.has_method("project_click_to_active_level") and collider.has_method("should_project_click_shape") and building_visibility_controller != null and building_visibility_controller.get_active_building() == collider:
 			var child_hit := _raycast_building_child_hit(screen_position, collider)
 			if not child_hit.is_empty():
@@ -754,7 +761,7 @@ func _pick_ground_hit(screen_position: Vector2) -> Dictionary:
 				var building_target: Variant = collider.project_click_to_active_level(projected_ray_origin, projected_ray_direction)
 				if building_target != null:
 					return {"position": building_target, "normal": Vector3.UP}
-		if not (humanoid_collider != null and humanoid_collider.is_player_party_member()):
+		if not (actor_collider != null and actor_collider.is_player_party_member()):
 			return {"position": result["position"], "normal": result.get("normal", Vector3.UP)}
 	var ray_origin := camera.project_ray_origin(screen_position)
 	var ray_direction := camera.project_ray_normal(screen_position)
@@ -781,7 +788,7 @@ func _raycast_building_child_hit(screen_position: Vector2, building: Object) -> 
 	if hit.is_empty():
 		return {}
 	var hit_collider: Object = hit.get("collider")
-	if hit_collider is HumanoidCharacter and hit_collider.is_player_party_member():
+	if hit_collider is WorldActor and hit_collider.is_player_party_member():
 		return {}
 	if hit_collider is Node and building_node.is_ancestor_of(hit_collider):
 		return hit
@@ -795,9 +802,9 @@ func _raycast_target_from_screen(screen_position: Vector2) -> Dictionary:
 		if result.is_empty():
 			return result
 		var collider: Object = result["collider"]
-		var humanoid_collider := _resolve_humanoid_collider(collider)
-		if humanoid_collider != null:
-			result["collider"] = humanoid_collider
+		var actor_collider := _resolve_actor_collider(collider)
+		if actor_collider != null:
+			result["collider"] = actor_collider
 			return result
 		var obscured_item_hit := _raycast_obscured_world_item_hit(screen_position, collider)
 		if not obscured_item_hit.is_empty():
@@ -877,15 +884,15 @@ func _should_skip_building_target_hit(collider: Object, shape_index: int) -> boo
 	return collider.should_project_click_shape(shape_index)
 
 
-func _resolve_humanoid_collider(collider: Object) -> HumanoidCharacter:
-	if collider is HumanoidCharacter:
-		return collider as HumanoidCharacter
+func _resolve_actor_collider(collider: Object) -> WorldActor:
+	if collider is WorldActor:
+		return collider as WorldActor
 	if not (collider is Node):
 		return null
 	var current: Node = collider as Node
 	while current != null:
-		if current is HumanoidCharacter:
-			return current as HumanoidCharacter
+		if current is WorldActor:
+			return current as WorldActor
 		current = current.get_parent()
 	return null
 
@@ -907,7 +914,7 @@ func _spawn_move_command_indicator(target: Vector3) -> void:
 			indicator.setup_at(target)
 
 
-func _set_follow_target(member: HumanoidCharacter) -> void:
+func _set_follow_target(member: WorldActor) -> void:
 	party_manager.set_followed_member(member)
 	camera_anchor = _get_anchor_position()
 	_apply_camera_transform()
@@ -923,10 +930,10 @@ func _clear_follow_target() -> void:
 
 func _update_portraits() -> void:
 	for index in range(min(party_members.size(), portrait_cards.size())):
-		var member: HumanoidCharacter = party_members[index]
+		var member: WorldActor = party_members[index]
 		var card: PartyPortraitCard = portrait_cards[index]
-		var is_selected: bool = member.is_selected
-		var is_followed: bool = member.is_focused
+		var is_selected: bool = bool(member.get("is_selected"))
+		var is_followed: bool = bool(member.get("is_focused"))
 		card.visible = _should_show_member_in_active_squad(member)
 		card.apply_state(is_selected, is_followed)
 
@@ -1006,7 +1013,7 @@ func _sync_squad_names() -> void:
 		active_squad_filter = ALL_SQUADS_FILTER
 
 
-func _normalize_party_member_squad(member: HumanoidCharacter) -> String:
+func _normalize_party_member_squad(member: WorldActor) -> String:
 	if member == null:
 		return DEFAULT_PLAYER_SQUAD_NAME
 	var normalized_name := member.squad_name.strip_edges()
@@ -1016,7 +1023,7 @@ func _normalize_party_member_squad(member: HumanoidCharacter) -> String:
 	return normalized_name
 
 
-func _should_show_member_in_active_squad(member: HumanoidCharacter) -> bool:
+func _should_show_member_in_active_squad(member: WorldActor) -> bool:
 	if member == null or active_squad_filter.is_empty():
 		return true
 	return _normalize_party_member_squad(member) == active_squad_filter
@@ -1402,13 +1409,13 @@ func _update_progress_bars() -> void:
 		bar.value = progress_ratio * 100.0
 
 
-func _get_member_work_progress_ratio(member: HumanoidCharacter) -> float:
+func _get_member_work_progress_ratio(member: WorldActor) -> float:
 	if member == null:
 		return 0.0
-	if member.is_actively_mining():
-		return member.get_mining_progress_ratio()
-	if member.has_method("is_actively_scavenging") and member.is_actively_scavenging():
-		return member.get_scavenging_progress_ratio()
+	if member.has_method("is_actively_mining") and member.call("is_actively_mining"):
+		return float(member.call("get_mining_progress_ratio"))
+	if member.has_method("is_actively_scavenging") and bool(member.call("is_actively_scavenging")):
+		return float(member.call("get_scavenging_progress_ratio"))
 	return 0.0
 
 
@@ -1453,7 +1460,7 @@ func _clamp_camera_above_floor() -> void:
 	camera.global_position = adjusted_position
 
 
-func _on_portrait_pressed(member: HumanoidCharacter, double_click: bool, add_select: bool) -> void:
+func _on_portrait_pressed(member: WorldActor, double_click: bool, add_select: bool) -> void:
 	if add_select:
 		party_manager.add_selection(member)
 	else:
@@ -1515,13 +1522,13 @@ func _on_inspector_action_requested(target, action_key: String) -> void:
 		"mine":
 			if target is Node:
 				for member in party_manager.selected_members:
-					if ownership_controller == null or ownership_controller.request_interaction(member, target, "Mining"):
-						member.assign_mining_resource(target)
+					if member.has_method("assign_mining_resource") and (ownership_controller == null or ownership_controller.request_interaction(member, target, "Mining")):
+						member.call("assign_mining_resource", target)
 		"open_container":
 			if target is Node:
 				for member in party_manager.selected_members:
-					if ownership_controller == null or ownership_controller.request_interaction(member, target, "Opening"):
-						member.assign_open_container(target)
+					if member.has_method("assign_open_container") and (ownership_controller == null or ownership_controller.request_interaction(member, target, "Opening")):
+						member.call("assign_open_container", target)
 		"unlock_container":
 			_perform_unlock_action(target)
 		"pickup_item":
@@ -1532,37 +1539,43 @@ func _on_inspector_action_requested(target, action_key: String) -> void:
 		"trade":
 			if target is HumanoidCharacter:
 				for member in party_manager.selected_members:
-					member.assign_trade_target(target)
+					if member.has_method("assign_trade_target"):
+						member.call("assign_trade_target", target)
 		"talk":
 			if target is HumanoidCharacter:
 				for member in party_manager.selected_members:
-					member.assign_conversation_target(target)
+					if member.has_method("assign_conversation_target"):
+						member.call("assign_conversation_target", target)
 		"heal":
 			if target is HumanoidCharacter:
 				for member in party_manager.selected_members:
-					member.assign_heal_target(target)
+					if member.has_method("assign_heal_target"):
+						member.call("assign_heal_target", target)
 		"finish_off":
 			if target is HumanoidCharacter:
 				for member in party_manager.selected_members:
-					member.assign_finish_off_target(target)
+					if member.has_method("assign_finish_off_target"):
+						member.call("assign_finish_off_target", target)
 		"carry":
 			if target is HumanoidCharacter:
 				for member in party_manager.selected_members:
-					member.assign_carry_target(target)
+					if member.has_method("assign_carry_target"):
+						member.call("assign_carry_target", target)
 		"wake_up", "stand_up":
 			if target is HumanoidCharacter and target.has_method("wake_up_from_rest"):
 				target.wake_up_from_rest()
 
 
 func _perform_inspector_inventory_action(target) -> void:
-	if not (target is HumanoidCharacter):
+	if not (target is WorldActor):
 		return
 	var focused_member := _get_focused_party_member()
 	if focused_member != null and focused_member != target:
-		if focused_member.global_position.distance_to(target.global_position) <= focused_member.trade_interaction_distance:
+		var trade_distance := float(focused_member.get("trade_interaction_distance")) if focused_member.get("trade_interaction_distance") != null else 3.0
+		if focused_member.global_position.distance_to(target.global_position) <= trade_distance:
 			inventory_controller.open_inventory_pair(focused_member, target)
-		else:
-			focused_member.assign_trade_target(target)
+		elif focused_member.has_method("assign_trade_target"):
+			focused_member.call("assign_trade_target", target)
 	elif target.is_player_party_member():
 		inventory_controller.open_inventory_for_member(target)
 
@@ -1634,22 +1647,23 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 		ACTION_INVENTORY:
 			var focused_member := _get_focused_party_member()
 			if focused_member != null and context_member != null and focused_member != context_member:
-				if focused_member.global_position.distance_to(context_member.global_position) <= focused_member.trade_interaction_distance:
+				var trade_distance := float(focused_member.get("trade_interaction_distance")) if focused_member.get("trade_interaction_distance") != null else 3.0
+				if focused_member.global_position.distance_to(context_member.global_position) <= trade_distance:
 					inventory_controller.open_inventory_pair(focused_member, context_member)
-				else:
-					focused_member.assign_trade_target(context_member)
+				elif focused_member.has_method("assign_trade_target"):
+					focused_member.call("assign_trade_target", context_member)
 			elif context_member != null:
 				inventory_controller.open_inventory_for_member(context_member)
 		ACTION_MINE:
 			if context_resource != null:
 				for member in party_manager.selected_members:
-					if ownership_controller == null or ownership_controller.request_interaction(member, context_resource, "Mining"):
-						member.assign_mining_resource(context_resource)
+					if member.has_method("assign_mining_resource") and (ownership_controller == null or ownership_controller.request_interaction(member, context_resource, "Mining")):
+						member.call("assign_mining_resource", context_resource)
 		ACTION_OPEN_CONTAINER:
 			if context_container != null:
 				for member in party_manager.selected_members:
-					if ownership_controller == null or ownership_controller.request_interaction(member, context_container, "Opening"):
-						member.assign_open_container(context_container)
+					if member.has_method("assign_open_container") and (ownership_controller == null or ownership_controller.request_interaction(member, context_container, "Opening")):
+						member.call("assign_open_container", context_container)
 		ACTION_UNLOCK_CONTAINER:
 			if context_container != null:
 				_perform_unlock_action(context_container)
@@ -1659,39 +1673,47 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 		ACTION_TRADE:
 			if context_humanoid != null:
 				for member in party_manager.selected_members:
-					member.assign_trade_target(context_humanoid)
+					if member.has_method("assign_trade_target"):
+						member.call("assign_trade_target", context_humanoid)
 		ACTION_TALK:
 			if context_humanoid != null:
 				for member in party_manager.selected_members:
-					member.assign_conversation_target(context_humanoid)
+					if member.has_method("assign_conversation_target"):
+						member.call("assign_conversation_target", context_humanoid)
 		ACTION_HEAL:
 			if context_humanoid != null:
 				for member in party_manager.selected_members:
-					member.assign_heal_target(context_humanoid)
+					if member.has_method("assign_heal_target"):
+						member.call("assign_heal_target", context_humanoid)
 		ACTION_FINISH_OFF:
 			if context_humanoid != null:
 				for member in party_manager.selected_members:
-					member.assign_finish_off_target(context_humanoid)
+					if member.has_method("assign_finish_off_target"):
+						member.call("assign_finish_off_target", context_humanoid)
 		ACTION_CARRY:
 			if context_humanoid != null:
 				for member in party_manager.selected_members:
-					member.assign_carry_target(context_humanoid)
+					if member.has_method("assign_carry_target"):
+						member.call("assign_carry_target", context_humanoid)
 		ACTION_DROP_CARRY:
 			for member in party_manager.selected_members:
-				member.drop_carried_character()
+				if member.has_method("drop_carried_character"):
+					member.call("drop_carried_character")
 		ACTION_SLEEP:
 			if context_sleep_target != null:
 				for member in party_manager.selected_members:
-					member.assign_sleep_target(context_sleep_target)
+					if member.has_method("assign_sleep_target"):
+						member.call("assign_sleep_target", context_sleep_target)
 		ACTION_PLACE_IN_BED:
 			if context_sleep_target != null:
 				for member in party_manager.selected_members:
-					if member.is_carrying_someone() and member.has_method("assign_place_carried_in_bed_target"):
-						member.assign_place_carried_in_bed_target(context_sleep_target)
+					if member.has_method("is_carrying_someone") and bool(member.call("is_carrying_someone")) and member.has_method("assign_place_carried_in_bed_target"):
+						member.call("assign_place_carried_in_bed_target", context_sleep_target)
 		ACTION_SIT:
 			if context_seat_target != null:
 				for member in party_manager.selected_members:
-					member.assign_seat_target(context_seat_target)
+					if member.has_method("assign_seat_target"):
+						member.call("assign_seat_target", context_seat_target)
 		ACTION_WAKE_UP:
 			if context_humanoid != null and context_humanoid.has_method("wake_up_from_rest"):
 				context_humanoid.wake_up_from_rest()
@@ -1720,18 +1742,18 @@ func _perform_world_context_action(action_index: int) -> void:
 func _assign_pickup_to_selection(world_item) -> void:
 	if world_item == null or party_manager.selected_members.is_empty():
 		return
-	var best_member: HumanoidCharacter
+	var best_member: WorldActor
 	var best_distance := INF
 	for member in party_manager.selected_members:
 		var distance := member.global_position.distance_squared_to(world_item.global_position)
 		if distance < best_distance:
 			best_distance = distance
 			best_member = member
-	if best_member != null:
-		best_member.assign_pickup_item(world_item)
+	if best_member != null and best_member.has_method("assign_pickup_item"):
+		best_member.call("assign_pickup_item", world_item)
 
 
-func _assign_attack_to_selection(target: HumanoidCharacter) -> void:
+func _assign_attack_to_selection(target: WorldActor) -> void:
 	if target == null or party_manager.selected_members.is_empty():
 		return
 	if party_manager.selected_members.size() == 1:
@@ -1750,8 +1772,8 @@ func _assign_attack_to_selection(target: HumanoidCharacter) -> void:
 		planned_pressure[target_id] = int(planned_pressure.get(target_id, 0)) + 1
 
 
-func _get_group_attack_targets(target: HumanoidCharacter) -> Array[HumanoidCharacter]:
-	var candidates: Array[HumanoidCharacter] = []
+func _get_group_attack_targets(target: WorldActor) -> Array[WorldActor]:
+	var candidates: Array[WorldActor] = []
 	if target == null or not is_instance_valid(target):
 		return candidates
 	candidates.append(target)
@@ -1759,9 +1781,9 @@ func _get_group_attack_targets(target: HumanoidCharacter) -> Array[HumanoidChara
 		return candidates
 	var radius_squared := group_attack_target_scan_radius * group_attack_target_scan_radius
 	for node in get_tree().get_nodes_in_group(COMBAT_COORDINATOR.COMBAT_ACTOR_GROUP):
-		if not (node is HumanoidCharacter):
+		if not (node is WorldActor):
 			continue
-		var candidate: HumanoidCharacter = node
+		var candidate: WorldActor = node
 		if candidate == target or candidate.life_state != NpcRules.LifeState.ALIVE:
 			continue
 		if target.global_position.distance_squared_to(candidate.global_position) > radius_squared:
@@ -1771,7 +1793,7 @@ func _get_group_attack_targets(target: HumanoidCharacter) -> Array[HumanoidChara
 	return candidates
 
 
-func _selection_has_hostility_with(target: HumanoidCharacter) -> bool:
+func _selection_has_hostility_with(target: WorldActor) -> bool:
 	if target == null:
 		return false
 	for member in party_manager.selected_members:
@@ -1780,10 +1802,10 @@ func _selection_has_hostility_with(target: HumanoidCharacter) -> bool:
 	return false
 
 
-func _choose_group_attack_target(member: HumanoidCharacter, candidates: Array[HumanoidCharacter], planned_pressure: Dictionary) -> HumanoidCharacter:
+func _choose_group_attack_target(member: WorldActor, candidates: Array[WorldActor], planned_pressure: Dictionary) -> WorldActor:
 	if member == null or candidates.is_empty():
 		return null
-	var best_target: HumanoidCharacter
+	var best_target: WorldActor
 	var best_score := INF
 	for candidate in candidates:
 		if candidate == null or not is_instance_valid(candidate) or candidate == member:
@@ -1807,7 +1829,7 @@ func _selection_can_heal_target(target: HumanoidCharacter) -> bool:
 	if target == null or party_manager.selected_members.is_empty() or not target.can_receive_bandage():
 		return false
 	for member in party_manager.selected_members:
-		if member.can_bandage_target(target):
+		if member.has_method("can_bandage_target") and bool(member.call("can_bandage_target", target)):
 			return true
 	return false
 
@@ -1829,7 +1851,7 @@ func _selection_can_carry_target(target: HumanoidCharacter) -> bool:
 	if target == null or party_manager.selected_members.is_empty():
 		return false
 	for member in party_manager.selected_members:
-		if member != target and not member.is_carrying_someone() and target.can_be_carried_by(member):
+		if member is HumanoidCharacter and member != target and not member.is_carrying_someone() and target.can_be_carried_by(member):
 			return true
 	return false
 
@@ -1845,7 +1867,7 @@ func _selection_can_place_carried_in_bed() -> bool:
 	if party_manager.selected_members.is_empty():
 		return false
 	for member in party_manager.selected_members:
-		if member.is_carrying_someone():
+		if member.has_method("is_carrying_someone") and bool(member.call("is_carrying_someone")):
 			return true
 	return false
 
@@ -1865,7 +1887,7 @@ func _selection_can_drop_carry(target: HumanoidCharacter) -> bool:
 	if target == null or party_manager.selected_members.is_empty():
 		return false
 	for member in party_manager.selected_members:
-		if member.get_carried_character() == target:
+		if member.has_method("get_carried_character") and member.call("get_carried_character") == target:
 			return true
 	return false
 
@@ -1874,7 +1896,7 @@ func _selection_can_put_down_from_carrier(target: HumanoidCharacter) -> bool:
 	if target == null or party_manager.selected_members.is_empty():
 		return false
 	for member in party_manager.selected_members:
-		if member == target and member.is_carrying_someone():
+		if member == target and member.has_method("is_carrying_someone") and bool(member.call("is_carrying_someone")):
 			return true
 	return false
 
@@ -1913,7 +1935,7 @@ func _on_party_member_conversation_target_reached(member: HumanoidCharacter, tar
 		conversation_controller.begin_conversation(member, target)
 
 
-func _on_party_member_added(member: HumanoidCharacter) -> void:
+func _on_party_member_added(member: WorldActor) -> void:
 	_register_party_member(member)
 	_add_portrait_for_member(member)
 	_ensure_work_progress_bar(member)

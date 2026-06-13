@@ -5,7 +5,7 @@ class_name CharacterJobsWindow
 const WINDOW_SIZE := Vector2(560.0, 380.0)
 const REFRESH_SECONDS := 0.2
 
-var actor: HumanoidCharacter
+var actor: WorldActor
 var root_scene: Node
 var title_label: Label
 var rows_root: VBoxContainer
@@ -35,7 +35,7 @@ func _process(delta: float) -> void:
 		_rebuild_rows()
 
 
-func show_for_actor(target_actor: HumanoidCharacter) -> void:
+func show_for_actor(target_actor: WorldActor) -> void:
 	actor = target_actor
 	visible = actor != null
 	if title_label == null:

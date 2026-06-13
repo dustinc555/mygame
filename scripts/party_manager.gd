@@ -6,17 +6,20 @@ signal selection_changed
 signal follow_changed
 signal party_member_added(member)
 
-var party_members: Array[HumanoidCharacter] = []
-var selected_members: Array[HumanoidCharacter] = []
-var followed_member: HumanoidCharacter
+var party_members: Array[WorldActor] = []
+var selected_members: Array[WorldActor] = []
+var followed_member: WorldActor
 
 
 func _ready() -> void:
 	add_to_group("party_manager")
 
 
-func set_party_members(members: Array[HumanoidCharacter]) -> void:
-	party_members = members.duplicate()
+func set_party_members(members: Array) -> void:
+	party_members.clear()
+	for member in members:
+		if member is WorldActor:
+			party_members.append(member)
 	_sync_member_states()
 
 
@@ -26,14 +29,14 @@ func clear_selection() -> void:
 	selection_changed.emit()
 
 
-func select_only(member: HumanoidCharacter) -> void:
+func select_only(member: WorldActor) -> void:
 	selected_members.clear()
 	selected_members.append(member)
 	_sync_member_states()
 	selection_changed.emit()
 
 
-func add_selection(member: HumanoidCharacter) -> void:
+func add_selection(member: WorldActor) -> void:
 	if selected_members.has(member):
 		return
 	selected_members.append(member)
@@ -41,16 +44,16 @@ func add_selection(member: HumanoidCharacter) -> void:
 	selection_changed.emit()
 
 
-func set_selection(members: Array[HumanoidCharacter]) -> void:
+func set_selection(members: Array) -> void:
 	selected_members.clear()
 	for member in members:
-		if not selected_members.has(member):
+		if member is WorldActor and not selected_members.has(member):
 			selected_members.append(member)
 	_sync_member_states()
 	selection_changed.emit()
 
 
-func set_followed_member(member: HumanoidCharacter) -> void:
+func set_followed_member(member: WorldActor) -> void:
 	followed_member = member
 	_sync_member_states()
 	follow_changed.emit()
@@ -64,7 +67,7 @@ func clear_followed_member() -> void:
 	follow_changed.emit()
 
 
-func register_party_member(member: HumanoidCharacter) -> void:
+func register_party_member(member: WorldActor) -> void:
 	if member == null or party_members.has(member):
 		return
 	party_members.append(member)
@@ -73,7 +76,7 @@ func register_party_member(member: HumanoidCharacter) -> void:
 	party_member_added.emit(member)
 
 
-func unregister_party_member(member: HumanoidCharacter) -> void:
+func unregister_party_member(member: WorldActor) -> void:
 	if member == null or not party_members.has(member):
 		return
 	party_members.erase(member)

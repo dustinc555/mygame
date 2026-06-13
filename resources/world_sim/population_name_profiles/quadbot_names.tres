@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="PopulationNameProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/population_name_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "quadbot_names"
+display_name = "QuadBot Names"
+body_specific_weight = 0.0
+neutral_weight = 100.0
+nickname_weight = 0.0
+duplicate_name_chance = 0.0
+unique_retry_count = 64
+neutral_names = PackedStringArray("QO-17", "QO-22", "QO-38", "QO-41", "QO-63", "QO-77", "QO-84", "QO-91", "Orbiter", "Clamp", "Socket", "Relay", "Torque", "Gyro", "Latch", "Servo")

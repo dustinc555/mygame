@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="CharacterRaceDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/character_race_definition.gd" id="1_script"]
+[ext_resource type="Resource" path="res://resources/character_body_archetypes/quadbot.tres" id="2_body"]
+[ext_resource type="Resource" path="res://resources/bleed_fluids/robot_oil.tres" id="3_oil"]
+
+[resource]
+script = ExtResource("1_script")
+race_id = "quadbot"
+display_name = "QuadBot"
+equipment_slots = PackedStringArray("backpack", "weapon", "offhand")
+equipment_slot_labels = {
+"backpack": "Cargo",
+"offhand": "Aux Mount",
+"weapon": "Tool Mount"
+}
+bleed_fluid = ExtResource("3_oil")
+default_male_archetype = ExtResource("2_body")
+default_female_archetype = ExtResource("2_body")

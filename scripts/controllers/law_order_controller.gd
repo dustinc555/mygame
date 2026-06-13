@@ -84,7 +84,7 @@ func report_theft_if_witnessed(actor: HumanoidCharacter, item, witnesses: Array 
 	return report_crime(actor, owner_faction, settlement_id, CRIME_THEFT, severity, witnesses[0], item)
 
 
-func report_trespass(actor: HumanoidCharacter, building, witness: HumanoidCharacter = null) -> Dictionary:
+func report_trespass(actor: WorldActor, building, witness: HumanoidCharacter = null) -> Dictionary:
 	if actor == null or building == null:
 		return {}
 	var faction_id := ""
@@ -182,7 +182,7 @@ func report_lockpicking_if_witnessed(actor: HumanoidCharacter, target) -> Dictio
 	return report_crime(actor, faction_id, get_current_settlement_id_for(target), CRIME_LOCKPICKING, 20, witnesses[0], target)
 
 
-func report_crime(actor: HumanoidCharacter, faction_id: String, settlement_id: String, crime_type: String, severity: int, witness: HumanoidCharacter = null, target = null, crime_context: Dictionary = {}) -> Dictionary:
+func report_crime(actor: WorldActor, faction_id: String, settlement_id: String, crime_type: String, severity: int, witness: HumanoidCharacter = null, target = null, crime_context: Dictionary = {}) -> Dictionary:
 	if actor == null or faction_id.strip_edges().is_empty():
 		return {}
 	var actor_key := _actor_key(actor)
@@ -524,7 +524,7 @@ func _release_prisoner(actor: HumanoidCharacter, record: Dictionary, jail) -> vo
 	_save_law_order_state_to_gecs()
 
 
-func _alert_authority_guards(actor: HumanoidCharacter, warrant: Dictionary) -> void:
+func _alert_authority_guards(actor: WorldActor, warrant: Dictionary) -> void:
 	if actor == null or actor.life_state != NpcRules.LifeState.ALIVE:
 		return
 	for guard in _find_authority_guards(str(warrant.get("faction_id", "")), _find_settlement_for_warrant(actor, warrant)):
@@ -553,7 +553,7 @@ func _disengage_authority_guards(actor: HumanoidCharacter, warrant: Dictionary) 
 			actor.clear_personal_hostility(guard)
 
 
-func _should_alert_authority_guards(actor: HumanoidCharacter, _warrant: Dictionary, settlement: Node) -> bool:
+func _should_alert_authority_guards(actor: WorldActor, _warrant: Dictionary, settlement: Node) -> bool:
 	if actor == null or settlement == null:
 		return false
 	if settlement.has_method("contains_town_border_position"):
@@ -669,7 +669,7 @@ func _configure_authority_alert_context(record: Dictionary, crime_context: Dicti
 	record.erase("local_alarm_radius")
 
 
-func _is_guard_in_authority_alert_scope(guard: HumanoidCharacter, warrant: Dictionary, actor: HumanoidCharacter) -> bool:
+func _is_guard_in_authority_alert_scope(guard: HumanoidCharacter, warrant: Dictionary, actor: WorldActor) -> bool:
 	if guard == null:
 		return false
 	if str(warrant.get("authority_alert_mode", "settlement")) != "local":
@@ -751,7 +751,7 @@ func _find_local_assault_witnesses(attacker: HumanoidCharacter, victim: Humanoid
 	return witnesses
 
 
-func _find_witnesses(actor: HumanoidCharacter, target, faction_id: String) -> Array:
+func _find_witnesses(actor: WorldActor, target, faction_id: String) -> Array:
 	var witnesses: Array = []
 	if actor == null or root_scene == null or not root_scene.is_inside_tree():
 		return witnesses
@@ -974,7 +974,7 @@ func _warrant_duration_for(crime_type: String) -> int:
 			return THEFT_WARRANT_DURATION_MINUTES
 
 
-func _new_warrant(actor: HumanoidCharacter, faction_id: String, settlement_id: String) -> Dictionary:
+func _new_warrant(actor: WorldActor, faction_id: String, settlement_id: String) -> Dictionary:
 	var actor_key := _actor_key(actor)
 	return {
 		"case_id": "%s:%s:%d" % [actor_key, faction_id, _now_minute()],
@@ -1040,7 +1040,7 @@ func _crime_alarm_line(crime_type: String) -> String:
 			return "Thief! Guards!"
 
 
-func _apply_actor_law_meta(actor: HumanoidCharacter, record: Dictionary) -> void:
+func _apply_actor_law_meta(actor: WorldActor, record: Dictionary) -> void:
 	if actor == null:
 		return
 	var summary := "%s warrant: %d pts" % [str(record.get("faction_id", "Faction")), int(record.get("bad_person_points", 0))]
@@ -1130,7 +1130,7 @@ func _find_jail_by_id(jail_id: String) -> Node:
 	return null
 
 
-func _find_settlement_for_warrant(actor: HumanoidCharacter, warrant: Dictionary) -> Node:
+func _find_settlement_for_warrant(actor: WorldActor, warrant: Dictionary) -> Node:
 	var settlement_id := str(warrant.get("settlement_id", ""))
 	if not settlement_id.is_empty():
 		var settlement := _find_settlement_by_id(settlement_id)
@@ -1217,14 +1217,14 @@ func _target_int(target, method_name: String, property_name: String, fallback: i
 
 
 func _target_key(target) -> String:
-	if target is HumanoidCharacter:
-		return _actor_key(target as HumanoidCharacter)
+	if target is WorldActor:
+		return _actor_key(target as WorldActor)
 	if target is Node:
 		return str((target as Node).get_path()) if (target as Node).is_inside_tree() else str((target as Node).name)
 	return ""
 
 
-func _actor_key(actor: HumanoidCharacter) -> String:
+func _actor_key(actor: WorldActor) -> String:
 	if actor == null:
 		return ""
 	return actor.stable_id if not actor.stable_id.strip_edges().is_empty() else str(actor.get_instance_id())
