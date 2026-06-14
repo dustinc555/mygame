@@ -7,8 +7,8 @@ const C_IDENTITY = preload("res://scripts/ecs/components/c_game_actor_identity.g
 const C_SPATIAL = preload("res://scripts/ecs/components/c_game_actor_spatial.gd")
 const C_VITALS = preload("res://scripts/ecs/components/c_game_actor_vitals.gd")
 const C_CONFIG = preload("res://scripts/ecs/components/c_game_combat_config.gd")
-const C_STATE = preload("res://scripts/ecs/components/c_game_combat_state.gd")
 const C_ACTION = preload("res://scripts/ecs/components/c_game_combat_action.gd")
+const C_SLOT = preload("res://scripts/ecs/components/c_game_combat_slot_state.gd")
 
 const COMBAT_SCORE_CHANCE_DIVISOR := 220.0
 const TOUGHNESS_GRIT_RESISTANCE_WEIGHT := 0.0045
@@ -17,8 +17,9 @@ const TOUGHNESS_GRIT_SOAK_WEIGHT := 0.20
 const COMBAT_RANGE_HYSTERESIS := 0.18
 const FIXED_COMBAT_TICK_SECONDS := 1.0 / 20.0
 const MAX_FIXED_STEPS_PER_FRAME := 5
+const FIGHT_STATE_FIGHTING := 3
+const TURN_HANDOFF_WAIT_SECONDS := 0.28
 
-static var enabled := not OS.get_cmdline_args().has("--combat-resolution-system-off")
 static var profile_enabled := OS.get_cmdline_args().has("--gecs-combat-profile")
 static var _profile_calls := 0
 static var _profile_usec := 0
@@ -26,21 +27,19 @@ static var _fixed_accumulator := 0.0
 
 
 func query() -> QueryBuilder:
-	return q.with_all([C_NODE, C_IDENTITY, C_SPATIAL, C_VITALS, C_CONFIG, C_STATE, C_ACTION]).iterate(
-		[C_NODE, C_IDENTITY, C_SPATIAL, C_VITALS, C_CONFIG, C_STATE, C_ACTION])
+	return q.with_all([C_NODE, C_IDENTITY, C_SPATIAL, C_VITALS, C_CONFIG, C_ACTION, C_SLOT]).iterate(
+		[C_NODE, C_IDENTITY, C_SPATIAL, C_VITALS, C_CONFIG, C_ACTION, C_SLOT])
 
 
 func process(_entities: Array, components: Array, delta: float) -> void:
-	if not enabled:
-		return
 	var profile_start := Time.get_ticks_usec() if profile_enabled else 0
 	var nodes: Array = components[0]
 	var identities: Array = components[1]
 	var spatials: Array = components[2]
 	var vitals: Array = components[3]
 	var configs: Array = components[4]
-	var states: Array = components[5]
-	var actions: Array = components[6]
+	var actions: Array = components[5]
+	var slots: Array = components[6]
 	var count := nodes.size()
 	if count == 0:
 		return
@@ -50,16 +49,16 @@ func process(_entities: Array, components: Array, delta: float) -> void:
 		var identity = identities[i]
 		if identity != null and not str(identity.actor_id).is_empty():
 			actor_index_by_id[str(identity.actor_id)] = i
+	var incoming_fighting_by_actor_id := _build_incoming_fighting_pairs(identities, slots, count)
 
 	_fixed_accumulator = minf(_fixed_accumulator + maxf(delta, 0.0), FIXED_COMBAT_TICK_SECONDS * float(MAX_FIXED_STEPS_PER_FRAME))
 	var fixed_steps := 0
 	while _fixed_accumulator >= FIXED_COMBAT_TICK_SECONDS and fixed_steps < MAX_FIXED_STEPS_PER_FRAME:
 		for i in range(count):
-			_update_action(i, FIXED_COMBAT_TICK_SECONDS, nodes, identities, spatials, vitals, configs, actions, actor_index_by_id)
+			_update_action(i, FIXED_COMBAT_TICK_SECONDS, nodes, identities, spatials, vitals, configs, actions, slots, actor_index_by_id)
 
-		var active_attack_counts := _build_active_attack_counts(actions)
 		for i in range(count):
-			_try_start_requested_action(i, process_frame, nodes, identities, spatials, vitals, configs, states, actions, actor_index_by_id, active_attack_counts)
+			_try_start_slot_action(i, nodes, identities, spatials, vitals, configs, actions, slots, actor_index_by_id, incoming_fighting_by_actor_id)
 		_fixed_accumulator -= FIXED_COMBAT_TICK_SECONDS
 		fixed_steps += 1
 
@@ -68,7 +67,13 @@ func process(_entities: Array, components: Array, delta: float) -> void:
 	_record_profile(profile_start)
 
 
-func _update_action(index: int, delta: float, nodes: Array, identities: Array, spatials: Array, vitals: Array, configs: Array, actions: Array, actor_index_by_id: Dictionary) -> void:
+func _update_action(index: int, delta: float, nodes: Array, identities: Array, spatials: Array, vitals: Array, configs: Array, actions: Array, slots: Array, actor_index_by_id: Dictionary) -> void:
+	# Tick the shared turn-token wait off our own slot every resolution step. The canonical owner
+	# of a pair (see _canonical_tempo_owner_index) is always one of the two fighters, so its own
+	# update guarantees the wait elapses regardless of slot state — no reliance on the slot system.
+	var slot = slots[index]
+	if slot != null:
+		slot.tempo_wait_remaining = maxf(0.0, float(slot.tempo_wait_remaining) - delta)
 	var action = actions[index]
 	if action == null:
 		return
@@ -87,17 +92,18 @@ func _update_action(index: int, delta: float, nodes: Array, identities: Array, s
 	if not action.action_has_impacted:
 		action.action_impact_remaining -= delta
 		if action.action_impact_remaining <= 0.0:
-			_resolve_action_impact(index, nodes, identities, spatials, vitals, configs, actions, actor_index_by_id)
+			_resolve_action_impact(index, nodes, identities, spatials, vitals, configs, actions, slots, actor_index_by_id)
 	if action.action_clip_remaining <= 0.0 and action.action_index < action.action_names.size() - 1:
 		action.action_index += 1
 		var actor := _actor_from_node_component(nodes[index])
 		if actor != null and actor.has_method("play_system_combat_action_clip"):
 			action.action_clip_remaining = maxf(0.0, float(actor.call("play_system_combat_action_clip", str(action.action_names[action.action_index]))))
 	if action.action_remaining <= 0.0:
+		_handoff_pair_turn(_actor_id_at(index, identities), str(action.action_target_actor_id), slots, identities, actor_index_by_id)
 		_clear_action(action)
 
 
-func _try_start_requested_action(index: int, process_frame: int, nodes: Array, identities: Array, spatials: Array, vitals: Array, configs: Array, _states: Array, actions: Array, actor_index_by_id: Dictionary, active_attack_counts: Dictionary) -> void:
+func _try_start_slot_action(index: int, nodes: Array, identities: Array, spatials: Array, vitals: Array, configs: Array, actions: Array, slots: Array, actor_index_by_id: Dictionary, incoming_fighting_by_actor_id: Dictionary) -> void:
 	var actor := _actor_from_node_component(nodes[index])
 	var action = actions[index]
 	var cfg = configs[index]
@@ -105,12 +111,11 @@ func _try_start_requested_action(index: int, process_frame: int, nodes: Array, i
 	if actor == null or action == null or cfg == null or vit == null:
 		return
 	if vit.life_state != NpcRules.LifeState.ALIVE or action.action_active or action.reaction_remaining > 0.0 or action.cooldown_remaining > 0.0:
-		_clear_node_attack_request(actor)
 		return
-	var target_actor_id := _consume_attack_request(actor, process_frame)
-	if target_actor_id.is_empty():
-		var state = _states[index]
-		target_actor_id = str(state.current_target_actor_id) if state != null else ""
+	var pair := _fighting_pair_for_actor(index, identities, slots, incoming_fighting_by_actor_id)
+	if pair.is_empty():
+		return
+	var target_actor_id := str(pair.get("target_id", ""))
 	if target_actor_id.is_empty():
 		return
 	if not actor_index_by_id.has(target_actor_id):
@@ -118,17 +123,21 @@ func _try_start_requested_action(index: int, process_frame: int, nodes: Array, i
 	var target_index: int = actor_index_by_id[target_actor_id]
 	var target_vit = vitals[target_index]
 	var target_cfg = configs[target_index]
+	var target_action = actions[target_index]
 	if target_vit == null or target_cfg == null or target_vit.life_state != NpcRules.LifeState.ALIVE or target_cfg.protected_from_combat:
 		return
-	var target_count := int(active_attack_counts.get(target_actor_id, 0))
-	if target_count >= maxi(int(target_cfg.active_attack_slots), 1):
+	if target_action != null and (bool(target_action.action_active) or float(target_action.reaction_remaining) > 0.0):
 		return
-	if _horizontal_distance(spatials[index].world_position, spatials[target_index].world_position) > cfg.attack_range + COMBAT_RANGE_HYSTERESIS:
+	var actor_id := _actor_id_at(index, identities)
+	var tempo_owner_index := _canonical_tempo_owner_index(index, actor_id, target_index, target_actor_id)
+	if not _pair_turn_is_ready(tempo_owner_index, actor_id, target_actor_id, slots):
+		return
+	if not _slot_pair_is_fighting(actor_id, target_actor_id, spatials, slots, actor_index_by_id):
 		return
 	var target_actor := _actor_from_node_component(nodes[target_index])
 	var spec := actor.call("get_system_combat_attack_spec") as Dictionary if actor.has_method("get_system_combat_attack_spec") else {}
 	_start_action(action, actor, target_actor, target_actor_id, cfg, spec)
-	active_attack_counts[target_actor_id] = target_count + 1
+	_mark_pair_attacking(tempo_owner_index, slots)
 
 
 func _start_action(action, actor: Node, target_actor: Node, target_actor_id: String, cfg, spec: Dictionary) -> void:
@@ -158,13 +167,15 @@ func _start_action(action, actor: Node, target_actor: Node, target_actor_id: Str
 	action.action_clip_remaining = maxf(clip_seconds, float(spec.get("first_clip_seconds", 0.0)))
 
 
-func _resolve_action_impact(attacker_index: int, nodes: Array, identities: Array, _spatials: Array, vitals: Array, configs: Array, actions: Array, actor_index_by_id: Dictionary) -> void:
+func _resolve_action_impact(attacker_index: int, nodes: Array, identities: Array, spatials: Array, vitals: Array, configs: Array, actions: Array, slots: Array, actor_index_by_id: Dictionary) -> void:
 	var action = actions[attacker_index]
 	if action == null or action.action_has_impacted:
 		return
 	action.action_has_impacted = true
 	var target_actor_id := str(action.action_target_actor_id)
 	if target_actor_id.is_empty() or not actor_index_by_id.has(target_actor_id):
+		return
+	if not _slot_pair_is_usable(_actor_id_at(attacker_index, identities), target_actor_id, spatials, slots, actor_index_by_id):
 		return
 	var target_index: int = actor_index_by_id[target_actor_id]
 	var target_vit = vitals[target_index]
@@ -214,14 +225,110 @@ func _resolve_action_impact(attacker_index: int, nodes: Array, identities: Array
 			target_action.reaction_source_actor_id = str(identities[attacker_index].actor_id) if identities[attacker_index] != null else ""
 
 
-func _build_active_attack_counts(actions: Array) -> Dictionary:
-	var counts := {}
-	for action in actions:
-		if action == null or not action.action_active or str(action.action_target_actor_id).is_empty():
+func _build_incoming_fighting_pairs(identities: Array, slots: Array, count: int) -> Dictionary:
+	var incoming := {}
+	for i in range(count):
+		var slot = slots[i]
+		if slot == null or int(slot.slot_state) != FIGHT_STATE_FIGHTING:
 			continue
-		var target_id := str(action.action_target_actor_id)
-		counts[target_id] = int(counts.get(target_id, 0)) + 1
-	return counts
+		var target_id := str(slot.slot_target_actor_id)
+		var actor_id := _actor_id_at(i, identities)
+		if target_id.is_empty() or actor_id.is_empty():
+			continue
+		var attackers: Array = incoming.get(target_id, [])
+		attackers.append({"target_id": actor_id, "owner_index": i})
+		incoming[target_id] = attackers
+	return incoming
+
+
+func _fighting_pair_for_actor(index: int, identities: Array, slots: Array, incoming_fighting_by_actor_id: Dictionary) -> Dictionary:
+	var slot = slots[index]
+	if slot != null and int(slot.slot_state) == FIGHT_STATE_FIGHTING and not str(slot.slot_target_actor_id).is_empty():
+		return {"target_id": str(slot.slot_target_actor_id), "owner_index": index}
+	var actor_id := _actor_id_at(index, identities)
+	var incoming: Array = incoming_fighting_by_actor_id.get(actor_id, [])
+	return incoming[0] as Dictionary if not incoming.is_empty() and incoming[0] is Dictionary else {}
+
+
+func _slot_pair_is_fighting(actor_id: String, target_actor_id: String, spatials: Array, slots: Array, actor_index_by_id: Dictionary) -> bool:
+	if actor_id.is_empty() or target_actor_id.is_empty() or not actor_index_by_id.has(actor_id) or not actor_index_by_id.has(target_actor_id):
+		return false
+	var actor_index: int = actor_index_by_id[actor_id]
+	var target_index: int = actor_index_by_id[target_actor_id]
+	return _slot_points_to(actor_index, target_actor_id, spatials, slots, target_index) or _slot_points_to(target_index, actor_id, spatials, slots, actor_index)
+
+
+func _slot_pair_is_usable(actor_id: String, target_actor_id: String, spatials: Array, slots: Array, actor_index_by_id: Dictionary) -> bool:
+	if actor_id.is_empty() or target_actor_id.is_empty() or not actor_index_by_id.has(actor_id) or not actor_index_by_id.has(target_actor_id):
+		return false
+	var actor_index: int = actor_index_by_id[actor_id]
+	var target_index: int = actor_index_by_id[target_actor_id]
+	return _slot_points_to(actor_index, target_actor_id, spatials, slots, target_index) or _slot_points_to(target_index, actor_id, spatials, slots, actor_index)
+
+
+func _slot_points_to(slot_owner_index: int, target_actor_id: String, spatials: Array, slots: Array, target_index: int) -> bool:
+	var slot = slots[slot_owner_index]
+	if slot == null or str(slot.slot_target_actor_id) != target_actor_id:
+		return false
+	if int(slot.slot_state) != FIGHT_STATE_FIGHTING:
+		return false
+	return _horizontal_distance(spatials[slot_owner_index].world_position, spatials[target_index].world_position) <= float(slot.leash_distance)
+
+
+func _pair_turn_is_ready(pair_owner_index: int, actor_id: String, partner_id: String, slots: Array) -> bool:
+	if pair_owner_index < 0 or pair_owner_index >= slots.size():
+		return false
+	var slot = slots[pair_owner_index]
+	if slot == null:
+		return false
+	var tempo := str(slot.tempo_actor_id)
+	# Claim the shared turn token if it is unowned or points at someone outside this pair (a stale
+	# id left over from a previous fight). Without this, a stale token blocks BOTH fighters forever
+	# — the "stuck staring at each other, never attacking" deadlock.
+	if tempo.is_empty() or (tempo != actor_id and tempo != partner_id):
+		slot.tempo_actor_id = actor_id
+		slot.tempo_wait_remaining = 0.0
+		tempo = actor_id
+	return tempo == actor_id and float(slot.tempo_wait_remaining) <= 0.0
+
+
+func _mark_pair_attacking(pair_owner_index: int, slots: Array) -> void:
+	if pair_owner_index < 0 or pair_owner_index >= slots.size():
+		return
+	var slot = slots[pair_owner_index]
+	if slot != null:
+		slot.state_seconds = 0.0
+
+
+func _handoff_pair_turn(attacker_id: String, target_id: String, slots: Array, _identities: Array, actor_index_by_id: Dictionary) -> void:
+	if attacker_id.is_empty() or target_id.is_empty() or not actor_index_by_id.has(attacker_id) or not actor_index_by_id.has(target_id):
+		return
+	var attacker_index: int = actor_index_by_id[attacker_id]
+	var target_index: int = actor_index_by_id[target_id]
+	var owner_index := _canonical_tempo_owner_index(attacker_index, attacker_id, target_index, target_id)
+	if owner_index < 0 or owner_index >= slots.size():
+		return
+	var slot = slots[owner_index]
+	if slot == null:
+		return
+	# Pass the turn to the partner on the SAME canonical slot both fighters read.
+	slot.tempo_actor_id = target_id
+	slot.tempo_wait_remaining = maxf(float(slot.tempo_wait_remaining), TURN_HANDOFF_WAIT_SECONDS)
+	slot.state_seconds = 0.0
+
+
+func _canonical_tempo_owner_index(a_index: int, a_actor_id: String, b_index: int, b_actor_id: String) -> int:
+	# Deterministic shared owner for a fighting pair: the lower actor_id (index tie-break). Both
+	# fighters resolve the SAME slot for the turn token, so a handoff written by one is read by the
+	# other. The old per-actor-slot scheme crossed the token and deadlocked clean 1v1 duels.
+	if a_actor_id == b_actor_id:
+		return mini(a_index, b_index)
+	return a_index if a_actor_id < b_actor_id else b_index
+
+
+func _actor_id_at(index: int, identities: Array) -> String:
+	var identity = identities[index]
+	return str(identity.actor_id) if identity != null else ""
 
 
 func _write_node_state(index: int, process_frame: int, nodes: Array, actions: Array, actor_index_by_id: Dictionary) -> void:
@@ -237,12 +344,11 @@ func _write_node_state(index: int, process_frame: int, nodes: Array, actions: Ar
 	var world_actor := actor as WorldActor
 	if world_actor != null:
 		world_actor.set_system_combat_bridge(process_frame, bool(action.action_active), float(action.reaction_remaining), float(action.cooldown_remaining), focus_id)
-		return
-	actor.set("_system_combat_frame", process_frame)
-	actor.set("_system_combat_action_active", bool(action.action_active))
-	actor.set("_system_combat_reaction_remaining", float(action.reaction_remaining))
-	actor.set("_system_combat_cooldown_remaining", float(action.cooldown_remaining))
-	actor.set("_system_combat_focus_id", focus_id)
+	elif actor.has_method("set"):
+		actor.set("_system_combat_action_active", bool(action.action_active))
+		actor.set("_system_combat_reaction_remaining", float(action.reaction_remaining))
+		actor.set("_system_combat_cooldown_remaining", float(action.cooldown_remaining))
+		actor.set("_system_combat_focus_id", focus_id)
 
 
 func _actor_from_node_component(node_component) -> Node:
@@ -250,27 +356,6 @@ func _actor_from_node_component(node_component) -> Node:
 		return null
 	var actor = node_component.get_actor() if node_component.has_method("get_actor") else node_component.actor
 	return actor as Node if actor != null and is_instance_valid(actor) else null
-
-
-func _consume_attack_request(actor: Node, process_frame: int) -> String:
-	var world_actor := actor as WorldActor
-	if world_actor != null:
-		return world_actor.consume_system_combat_attack_request(process_frame)
-	var request_frame_value = actor.get("_system_attack_request_frame")
-	var request_frame := int(request_frame_value) if request_frame_value != null else -1
-	var target_actor_id := str(actor.get("_system_attack_request_actor_id"))
-	actor.set("_system_attack_request_actor_id", "")
-	actor.set("_system_attack_request_frame", -1)
-	return target_actor_id if not target_actor_id.is_empty() and request_frame >= 0 and process_frame - request_frame <= 8 else ""
-
-
-func _clear_node_attack_request(actor: Node) -> void:
-	var world_actor := actor as WorldActor
-	if world_actor != null:
-		world_actor.clear_system_combat_attack_request()
-		return
-	actor.set("_system_attack_request_actor_id", "")
-	actor.set("_system_attack_request_frame", -1)
 
 
 func _clear_action(action) -> void:

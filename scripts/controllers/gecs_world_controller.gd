@@ -10,6 +10,7 @@ const ACTOR_SYNC_SYSTEM_SCRIPT_PATH := "res://scripts/ecs/systems/game_actor_syn
 const AI_JOB_SYSTEM_SCRIPT_PATH := "res://scripts/ecs/systems/game_ai_job_system.gd"
 const COMBAT_STATE_SYNC_SYSTEM_SCRIPT_PATH := "res://scripts/ecs/systems/game_combat_state_sync_system.gd"
 const COMBAT_TARGETING_SYSTEM_SCRIPT_PATH := "res://scripts/ecs/systems/game_combat_targeting_system.gd"
+const COMBAT_SLOT_SYSTEM_SCRIPT_PATH := "res://scripts/ecs/systems/game_combat_slot_system.gd"
 const COMBAT_RESOLUTION_SYSTEM_SCRIPT_PATH := "res://scripts/ecs/systems/game_combat_resolution_system.gd"
 const COMBAT_MOVEMENT_SYSTEM_SCRIPT_PATH := "res://scripts/ecs/systems/game_combat_movement_system.gd"
 
@@ -49,6 +50,7 @@ const C_AI_SCHEDULER_STATE_PATH := "res://scripts/ecs/components/c_game_ai_sched
 const C_POPULATION_REALIZATION_STATE_PATH := "res://scripts/ecs/components/c_game_population_realization_state.gd"
 const C_COMBAT_CONFIG_PATH := "res://scripts/ecs/components/c_game_combat_config.gd"
 const C_COMBAT_STATE_PATH := "res://scripts/ecs/components/c_game_combat_state.gd"
+const C_COMBAT_SLOT_STATE_PATH := "res://scripts/ecs/components/c_game_combat_slot_state.gd"
 const C_COMBAT_ACTION_PATH := "res://scripts/ecs/components/c_game_combat_action.gd"
 const C_MOVEMENT_STATE_PATH := "res://scripts/ecs/components/c_game_movement_state.gd"
 
@@ -103,6 +105,7 @@ var _actor_sync_system_script
 var _ai_job_system_script
 var _combat_state_sync_system_script
 var _combat_targeting_system_script
+var _combat_slot_system_script
 var _combat_resolution_system_script
 var _combat_movement_system_script
 var _registered_direct_script_ecs_singleton := false
@@ -143,6 +146,7 @@ var C_AI_SCHEDULER_STATE
 var C_POPULATION_REALIZATION_STATE
 var C_COMBAT_CONFIG
 var C_COMBAT_STATE
+var C_COMBAT_SLOT_STATE
 var C_COMBAT_ACTION
 var C_MOVEMENT_STATE
 
@@ -195,7 +199,7 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 		entity = _entity_script.new()
 		entity.name = _entity_node_name("Actor", actor_id)
 		entity.id = _entity_id("actor", actor_id)
-		world.add_entity(entity, [C_NODE.new(), C_IDENTITY.new(), C_FACTION.new(), C_SETTLEMENT.new(), C_SPATIAL.new(), C_VITALS.new(), C_AI_SCHEDULE.new(), C_AI_STATE.new(), C_GOAL_INTENT.new(), C_COMBAT_CONFIG.new(), C_COMBAT_STATE.new(), C_COMBAT_ACTION.new(), C_MOVEMENT_STATE.new()])
+		world.add_entity(entity, [C_NODE.new(), C_IDENTITY.new(), C_FACTION.new(), C_SETTLEMENT.new(), C_SPATIAL.new(), C_VITALS.new(), C_AI_SCHEDULE.new(), C_AI_STATE.new(), C_GOAL_INTENT.new(), C_COMBAT_CONFIG.new(), C_COMBAT_STATE.new(), C_COMBAT_SLOT_STATE.new(), C_COMBAT_ACTION.new(), C_MOVEMENT_STATE.new()])
 		_actor_entity_by_actor_id[actor_id] = entity
 	else:
 		_ensure_actor_combat_components(entity)
@@ -209,7 +213,7 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 func _ensure_actor_combat_components(entity) -> void:
 	if entity == null or not is_instance_valid(entity):
 		return
-	for component_script in [C_COMBAT_CONFIG, C_COMBAT_STATE, C_COMBAT_ACTION, C_MOVEMENT_STATE]:
+	for component_script in [C_COMBAT_CONFIG, C_COMBAT_STATE, C_COMBAT_SLOT_STATE, C_COMBAT_ACTION, C_MOVEMENT_STATE]:
 		if component_script != null and entity.get_component(component_script) == null:
 			entity.add_component(component_script.new())
 
@@ -1246,7 +1250,7 @@ func serialize_state() -> Dictionary:
 
 
 func _load_gecs_scripts() -> bool:
-	if _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _combat_state_sync_system_script != null and _combat_targeting_system_script != null and _combat_resolution_system_script != null and _combat_movement_system_script != null and _component_scripts_loaded():
+	if _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _combat_state_sync_system_script != null and _combat_targeting_system_script != null and _combat_slot_system_script != null and _combat_resolution_system_script != null and _combat_movement_system_script != null and _component_scripts_loaded():
 		return true
 	_ensure_direct_script_ecs_singleton()
 	_load_component_scripts()
@@ -1258,9 +1262,10 @@ func _load_gecs_scripts() -> bool:
 	_ai_job_system_script = load(AI_JOB_SYSTEM_SCRIPT_PATH) if _ai_job_system_script == null else _ai_job_system_script
 	_combat_state_sync_system_script = load(COMBAT_STATE_SYNC_SYSTEM_SCRIPT_PATH) if _combat_state_sync_system_script == null else _combat_state_sync_system_script
 	_combat_targeting_system_script = load(COMBAT_TARGETING_SYSTEM_SCRIPT_PATH) if _combat_targeting_system_script == null else _combat_targeting_system_script
+	_combat_slot_system_script = load(COMBAT_SLOT_SYSTEM_SCRIPT_PATH) if _combat_slot_system_script == null else _combat_slot_system_script
 	_combat_resolution_system_script = load(COMBAT_RESOLUTION_SYSTEM_SCRIPT_PATH) if _combat_resolution_system_script == null else _combat_resolution_system_script
 	_combat_movement_system_script = load(COMBAT_MOVEMENT_SYSTEM_SCRIPT_PATH) if _combat_movement_system_script == null else _combat_movement_system_script
-	return _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _combat_state_sync_system_script != null and _combat_targeting_system_script != null and _combat_resolution_system_script != null and _combat_movement_system_script != null and _component_scripts_loaded()
+	return _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _combat_state_sync_system_script != null and _combat_targeting_system_script != null and _combat_slot_system_script != null and _combat_resolution_system_script != null and _combat_movement_system_script != null and _component_scripts_loaded()
 
 
 func _load_component_scripts() -> void:
@@ -1300,6 +1305,7 @@ func _load_component_scripts() -> void:
 	C_POPULATION_REALIZATION_STATE = load(C_POPULATION_REALIZATION_STATE_PATH) if C_POPULATION_REALIZATION_STATE == null else C_POPULATION_REALIZATION_STATE
 	C_COMBAT_CONFIG = load(C_COMBAT_CONFIG_PATH) if C_COMBAT_CONFIG == null else C_COMBAT_CONFIG
 	C_COMBAT_STATE = load(C_COMBAT_STATE_PATH) if C_COMBAT_STATE == null else C_COMBAT_STATE
+	C_COMBAT_SLOT_STATE = load(C_COMBAT_SLOT_STATE_PATH) if C_COMBAT_SLOT_STATE == null else C_COMBAT_SLOT_STATE
 	C_COMBAT_ACTION = load(C_COMBAT_ACTION_PATH) if C_COMBAT_ACTION == null else C_COMBAT_ACTION
 	C_MOVEMENT_STATE = load(C_MOVEMENT_STATE_PATH) if C_MOVEMENT_STATE == null else C_MOVEMENT_STATE
 
@@ -1342,6 +1348,7 @@ func _component_scripts_loaded() -> bool:
 		C_POPULATION_REALIZATION_STATE,
 		C_COMBAT_CONFIG,
 		C_COMBAT_STATE,
+		C_COMBAT_SLOT_STATE,
 		C_COMBAT_ACTION,
 		C_MOVEMENT_STATE,
 	]:
@@ -1379,6 +1386,9 @@ func _try_initialize() -> void:
 		var combat_targeting = _combat_targeting_system_script.new()
 		combat_targeting.name = "GameCombatTargetingSystem"
 		world.add_system(combat_targeting)
+		var combat_slot = _combat_slot_system_script.new()
+		combat_slot.name = "GameCombatSlotSystem"
+		world.add_system(combat_slot)
 		var combat_resolution = _combat_resolution_system_script.new()
 		combat_resolution.name = "GameCombatResolutionSystem"
 		world.add_system(combat_resolution)

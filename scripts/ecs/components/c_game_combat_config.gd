@@ -9,9 +9,10 @@ class_name CGameCombatConfig
 @export var aggro_scan_radius := 0.0
 @export var assist_scan_radius := 0.0
 @export var witness_radius := 0.0
+@export var squad_assist_radius := 0.0
 @export var move_target_vertical_tolerance := 0.75
 @export var navigation_agent_radius := 0.45
-@export var active_attack_slots := 5
+@export var active_attack_slots := 3
 @export var combat_stance := 0
 @export var protected_from_combat := false
 @export var attack_cooldown_seconds := 1.2
