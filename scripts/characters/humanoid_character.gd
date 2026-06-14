@@ -568,6 +568,8 @@ func _physics_process(delta: float) -> void:
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
 	if _has_active_combat_target():
+		if _has_fresh_system_combat_data():
+			return
 		_process_attack_interaction()
 		return
 	match _current_order_type:
@@ -582,6 +584,8 @@ func _physics_process(delta: float) -> void:
 		OrderType.TALK:
 			_process_conversation_interaction()
 		OrderType.ATTACK:
+			if _has_fresh_system_combat_data():
+				return
 			_process_attack_interaction()
 		OrderType.HEAL:
 			_process_heal_interaction()
@@ -1873,6 +1877,8 @@ func _process_movement(delta: float) -> void:
 			return
 		move_and_slide()
 		return
+	if _has_active_combat_target() and _has_fresh_system_movement_data():
+		return
 	if _is_combat_resolution_busy():
 		_face_combat_focus()
 		_apply_floor_motion(delta)
@@ -2243,7 +2249,7 @@ func _on_actor_move_target_unreachable() -> void:
 
 func _handle_unreachable_combat_target() -> void:
 	var active_target := _get_active_combat_target()
-	var close_target := _find_closest_hostile(_get_close_hostile_retarget_radius())
+	var close_target := _get_system_combat_target() if _has_fresh_system_combat_target_data() else _find_closest_hostile(_get_close_hostile_retarget_radius())
 	if close_target != null and close_target != active_target and not _has_active_player_order():
 		assign_attack_target(close_target, false, false, false)
 		return
@@ -2351,27 +2357,37 @@ func _validate_carried_interaction_orders() -> void:
 
 
 func _process_combat_cooldown(delta: float) -> void:
+	if _has_fresh_system_combat_data():
+		return
 	var combat_capability := _get_combat_capability()
 	if combat_capability != null:
 		combat_capability.process_cooldown(delta)
 
 
 func _is_combat_resolution_busy() -> bool:
+	if _has_fresh_system_combat_data():
+		return _system_combat_action_active or _system_combat_reaction_remaining > 0.0
 	var combat_capability := _get_combat_capability()
 	return combat_capability.is_busy() if combat_capability != null else false
 
 
 func _is_combat_resolution_ready() -> bool:
+	if _has_fresh_system_combat_data():
+		return not _is_combat_resolution_busy() and _system_combat_cooldown_remaining <= 0.0
 	var combat_capability := _get_combat_capability()
 	return combat_capability.is_ready() if combat_capability != null else true
 
 
 func _get_combat_reaction_remaining() -> float:
+	if _has_fresh_system_combat_data():
+		return _system_combat_reaction_remaining
 	var combat_capability := _get_combat_capability()
 	return combat_capability.reaction_remaining if combat_capability != null else 0.0
 
 
 func _get_combat_focus_actor() -> Node:
+	if _has_fresh_system_combat_data() and _system_combat_focus_id != 0:
+		return instance_from_id(_system_combat_focus_id) as Node
 	var combat_capability := _get_combat_capability()
 	return combat_capability.get_focus_actor() if combat_capability != null else null
 
@@ -2557,18 +2573,36 @@ func _process_ai(delta: float) -> void:
 		stop_pickup_assignment()
 	if _current_attack_target != null and not _is_valid_active_combat_target(_current_attack_target):
 		stop_attack_assignment()
-	if should_run_close_combat_retarget(delta) and _try_reconfigure_close_combat_target():
-		return
-	if _should_consider_combat_retarget():
-		var replacement_target := _find_ai_target()
+	# Fast path: the targeting system owns target choice (0.5s cadence + stickiness). If we are already
+	# engaging exactly its current pick there is nothing for the node to re-decide this frame — the
+	# movement/resolution systems drive the actual combat. Skip the redundant per-frame retarget machinery.
+	# (Behaviour-equivalent: when the system's pick changes or the target dies, the conditions below fail
+	# and we fall through to the same adoption path as before.)
+	if _has_fresh_system_combat_target_data() and _system_target_id != 0:
+		var engaged_target := _get_active_combat_target()
+		if engaged_target != null and engaged_target.get_instance_id() == _system_target_id:
+			return
+	if should_run_close_combat_retarget(delta):
+		if _has_fresh_system_combat_target_data():
+			if _try_reconfigure_system_combat_target():
+				return
+		elif _try_reconfigure_close_combat_target():
+			return
+	if should_run_consider_retarget(delta) and _should_consider_combat_retarget():
+		var replacement_target := _get_system_combat_target() if _has_fresh_system_combat_target_data() else _find_ai_target()
 		var active_target := _get_active_combat_target()
-		if replacement_target != null and replacement_target != active_target and COMBAT_COORDINATOR.should_switch_target(self, active_target, replacement_target, maxf(aggressive_scan_radius, assist_scan_radius)):
+		if replacement_target != null and replacement_target != active_target and (_has_fresh_system_combat_target_data() or COMBAT_COORDINATOR.should_switch_target(self, active_target, replacement_target, maxf(aggressive_scan_radius, assist_scan_radius))):
 			assign_attack_target(replacement_target, false, true, false)
 			return
 	if _get_active_combat_target() != null:
 		return
 	if not _should_run_ai_decision_tick(delta):
 		return
+	if _has_fresh_system_combat_target_data() and _should_seek_combat_target():
+		var system_seek_target := _get_system_combat_target()
+		if system_seek_target != null:
+			assign_attack_target(system_seek_target, false)
+			return
 	if _ai_utility_adapter != null and bool(_ai_utility_adapter.run_actor_decision(self)):
 		return
 	if _should_seek_auto_heal_target():
@@ -2579,7 +2613,7 @@ func _process_ai(delta: float) -> void:
 	if _try_assign_auto_burn_action():
 		return
 	if _should_seek_combat_target():
-		var target := _find_ai_target()
+		var target := _get_system_combat_target() if _has_fresh_system_combat_target_data() else _find_ai_target()
 		if target != null:
 			assign_attack_target(target, false)
 
@@ -2613,15 +2647,29 @@ func _process_ai_profiled(delta: float) -> void:
 	if _current_attack_target != null and not _is_valid_active_combat_target(_current_attack_target):
 		stop_attack_assignment()
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("attack_validation", profile_last_usec)
-	if should_run_close_combat_retarget(delta) and _try_reconfigure_close_combat_target():
-		_debug_humanoid_ai_profile_checkpoint("close_combat_retarget", profile_last_usec)
-		_debug_humanoid_ai_profile_finish()
-		return
+	# Fast path: already engaging the targeting system's current pick — skip the retarget machinery.
+	if _has_fresh_system_combat_target_data() and _system_target_id != 0:
+		var engaged_target := _get_active_combat_target()
+		if engaged_target != null and engaged_target.get_instance_id() == _system_target_id:
+			_debug_humanoid_ai_profile_checkpoint("system_combat_fast", profile_last_usec)
+			_debug_humanoid_ai_profile_finish()
+			return
+	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("system_combat_fast", profile_last_usec)
+	if should_run_close_combat_retarget(delta):
+		if _has_fresh_system_combat_target_data():
+			if _try_reconfigure_system_combat_target():
+				_debug_humanoid_ai_profile_checkpoint("close_combat_retarget", profile_last_usec)
+				_debug_humanoid_ai_profile_finish()
+				return
+		elif _try_reconfigure_close_combat_target():
+			_debug_humanoid_ai_profile_checkpoint("close_combat_retarget", profile_last_usec)
+			_debug_humanoid_ai_profile_finish()
+			return
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("close_combat_retarget", profile_last_usec)
-	if _should_consider_combat_retarget():
-		var replacement_target := _find_ai_target()
+	if should_run_consider_retarget(delta) and _should_consider_combat_retarget():
+		var replacement_target := _get_system_combat_target() if _has_fresh_system_combat_target_data() else _find_ai_target()
 		var active_target := _get_active_combat_target()
-		if replacement_target != null and replacement_target != active_target and COMBAT_COORDINATOR.should_switch_target(self, active_target, replacement_target, maxf(aggressive_scan_radius, assist_scan_radius)):
+		if replacement_target != null and replacement_target != active_target and (_has_fresh_system_combat_target_data() or COMBAT_COORDINATOR.should_switch_target(self, active_target, replacement_target, maxf(aggressive_scan_radius, assist_scan_radius))):
 			assign_attack_target(replacement_target, false, true, false)
 			_debug_humanoid_ai_profile_checkpoint("retarget", profile_last_usec)
 			_debug_humanoid_ai_profile_finish()
@@ -2636,6 +2684,13 @@ func _process_ai_profiled(delta: float) -> void:
 		_debug_humanoid_ai_profile_finish()
 		return
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("decision_gate", profile_last_usec)
+	if _has_fresh_system_combat_target_data() and _should_seek_combat_target():
+		var system_seek_target := _get_system_combat_target()
+		if system_seek_target != null:
+			assign_attack_target(system_seek_target, false)
+			_debug_humanoid_ai_profile_checkpoint("seek_combat", profile_last_usec)
+			_debug_humanoid_ai_profile_finish()
+			return
 	if _ai_utility_adapter != null and bool(_ai_utility_adapter.run_actor_decision(self)):
 		_debug_humanoid_ai_profile_checkpoint("utility_decision", profile_last_usec)
 		_debug_humanoid_ai_profile_finish()
@@ -2655,7 +2710,7 @@ func _process_ai_profiled(delta: float) -> void:
 		return
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("auto_burn", profile_last_usec)
 	if _should_seek_combat_target():
-		var target := _find_ai_target()
+		var target := _get_system_combat_target() if _has_fresh_system_combat_target_data() else _find_ai_target()
 		if target != null:
 			assign_attack_target(target, false)
 	_debug_humanoid_ai_profile_checkpoint("seek_combat", profile_last_usec)
@@ -2954,15 +3009,20 @@ func _process_attack_interaction() -> void:
 
 
 func _process_combat_animation_state(delta: float) -> void:
+	if _has_fresh_system_combat_data():
+		return
 	var combat_capability := _get_combat_capability()
 	if combat_capability != null:
 		combat_capability.process_action_state(delta)
 
 
 func _start_combat_attack(target: Node3D) -> void:
+	if _has_fresh_system_combat_data() and request_system_combat_attack(target):
+		return
 	var combat_capability := _get_combat_capability()
 	if combat_capability != null:
 		combat_capability.start_attack(target)
+
 
 func _start_default_timed_combat_attack(target: Node3D) -> void:
 	var combat_capability := _get_combat_capability()
@@ -4082,11 +4142,6 @@ func _should_consider_combat_retarget() -> bool:
 func _try_reconfigure_close_combat_target() -> bool:
 	var targeting = _get_ai_targeting_capability()
 	return targeting.try_reconfigure_close_combat_target() if targeting != null else false
-
-
-func _should_keep_current_target_over_close_hostile(active_target: Node, close_target: Node) -> bool:
-	var targeting = _get_ai_targeting_capability()
-	return targeting.should_keep_current_target_over_close_hostile(active_target, close_target) if targeting != null else false
 
 
 func _get_close_hostile_retarget_radius() -> float:

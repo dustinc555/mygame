@@ -92,6 +92,8 @@ signal inventory_changed
 @export var combat_direct_translation_enabled := true
 @export var combat_close_retarget_interval_seconds := 0.5
 @export var combat_close_retarget_jitter_seconds := 0.25
+@export var combat_consider_retarget_interval_seconds := 0.5
+@export var combat_consider_retarget_jitter_seconds := 0.25
 @export var attack_cooldown_seconds := 1.2
 @export var base_attack_damage := 18.0
 @export var base_dexterity := 10.0
@@ -144,6 +146,17 @@ var _bleed_rate := 0.0
 var _bleed_burst_rate := 0.0
 var _personal_hostile_ids: Dictionary = {}
 var _last_direct_attacker_id := 0
+var _system_target_id := 0
+var _system_target_frame := -1
+var _system_attack_request_actor_id := ""
+var _system_attack_request_frame := -1
+var _system_combat_frame := -1
+var _system_combat_action_active := false
+var _system_combat_reaction_remaining := 0.0
+var _system_combat_cooldown_remaining := 0.0
+var _system_combat_focus_id := 0
+var _system_movement_frame := -1
+var _system_movement_active := false
 var _assigned_talkers: Dictionary = {}
 var _pending_talker_ids: Dictionary = {}
 var _runtime_controller_cache: Dictionary = {}
@@ -152,6 +165,7 @@ var _ai_utility_adapter
 var _ai_job_tick_remaining := 0.0
 var _ai_job_tick_accumulated := 0.0
 var _close_combat_retarget_remaining := 0.0
+var _consider_retarget_remaining := 0.0
 var _active_job_provider
 var _active_job_label := ""
 var inventory: InventoryData
@@ -910,6 +924,328 @@ func is_ready_for_combat_exchange(_target: Node) -> bool:
 	return false
 
 
+func request_system_combat_attack(target_actor: Node) -> bool:
+	if target_actor == null or not is_instance_valid(target_actor):
+		return false
+	var target_id := _actor_id_for_system_bridge(target_actor)
+	if target_id.is_empty():
+		return false
+	_system_attack_request_actor_id = target_id
+	_system_attack_request_frame = Engine.get_process_frames()
+	return true
+
+
+func consume_system_combat_attack_request(process_frame: int, max_age_frames := 8) -> String:
+	if _system_attack_request_actor_id.is_empty() or _system_attack_request_frame < 0 or process_frame - _system_attack_request_frame > max_age_frames:
+		return ""
+	var target_id := _system_attack_request_actor_id
+	_system_attack_request_actor_id = ""
+	_system_attack_request_frame = -1
+	return target_id
+
+
+func clear_system_combat_attack_request() -> void:
+	_system_attack_request_actor_id = ""
+	_system_attack_request_frame = -1
+
+
+func set_system_target_bridge(target_id: int, process_frame: int) -> void:
+	_system_target_id = target_id
+	_system_target_frame = process_frame
+
+
+func set_system_combat_bridge(process_frame: int, action_active: bool, reaction_remaining: float, cooldown_remaining: float, focus_id: int) -> void:
+	_system_combat_frame = process_frame
+	_system_combat_action_active = action_active
+	_system_combat_reaction_remaining = reaction_remaining
+	_system_combat_cooldown_remaining = cooldown_remaining
+	_system_combat_focus_id = focus_id
+
+
+func set_system_movement_bridge(process_frame: int, active: bool) -> void:
+	_system_movement_frame = process_frame
+	_system_movement_active = active
+
+
+func _has_fresh_system_combat_data() -> bool:
+	if _system_combat_frame < 0:
+		return false
+	return Engine.get_process_frames() - _system_combat_frame <= 2
+
+
+func _has_fresh_system_movement_data() -> bool:
+	if _system_movement_frame < 0 or not _system_movement_active:
+		return false
+	return Engine.get_process_frames() - _system_movement_frame <= 2
+
+
+func _has_fresh_system_combat_target_data() -> bool:
+	if _system_target_frame < 0:
+		return false
+	return Engine.get_process_frames() - _system_target_frame <= 2
+
+
+func _get_system_combat_target() -> Node3D:
+	if not _has_fresh_system_combat_target_data() or _system_target_id == 0:
+		return null
+	var target := instance_from_id(_system_target_id) as Node3D
+	if target == null or target == self or not is_instance_valid(target):
+		return null
+	if has_method("_is_valid_active_combat_target"):
+		return target if bool(call("_is_valid_active_combat_target", target)) else null
+	return target if has_hostility_with(target) else null
+
+
+func _try_reconfigure_system_combat_target() -> bool:
+	if life_state != NpcRules.LifeState.ALIVE or _system_has_active_player_order():
+		return false
+	if has_method("_is_combat_resolution_busy") and bool(call("_is_combat_resolution_busy")):
+		return false
+	var active_target := _system_active_combat_target()
+	if active_target != null and absf(active_target.global_position.y - global_position.y) <= move_target_vertical_tolerance and _horizontal_distance_to_system(active_target.global_position) <= get_attack_range() + maxf(0.18, combat_attack_forgiveness_buffer):
+		return false
+	if active_target == null and has_method("_should_seek_combat_target") and not bool(call("_should_seek_combat_target")):
+		return false
+	var system_target := _get_system_combat_target()
+	if system_target == null or system_target == active_target:
+		return false
+	if active_target != null and _should_keep_current_target_over_close_hostile(active_target, system_target):
+		return false
+	return assign_attack_target(system_target, false, false, false)
+
+
+func _system_has_active_player_order() -> bool:
+	if has_method("_has_active_player_order"):
+		return bool(call("_has_active_player_order"))
+	if has_method("has_active_player_order"):
+		return bool(call("has_active_player_order"))
+	return _order_was_player_issued and _current_order_type != 0
+
+
+func _system_active_combat_target() -> Node3D:
+	if has_method("_get_active_combat_target"):
+		return call("_get_active_combat_target") as Node3D
+	return get_current_combat_target() as Node3D
+
+
+func _should_keep_current_target_over_close_hostile(active_target: Node, close_target: Node) -> bool:
+	if active_target == null or close_target == null or not (active_target is Node3D) or not (close_target is Node3D):
+		return false
+	if has_method("_is_valid_active_combat_target") and not bool(call("_is_valid_active_combat_target", active_target)):
+		return false
+	if absf((active_target as Node3D).global_position.y - global_position.y) > move_target_vertical_tolerance:
+		return false
+	var active_distance := _horizontal_distance_to_system((active_target as Node3D).global_position)
+	var close_distance := _horizontal_distance_to_system((close_target as Node3D).global_position)
+	return active_distance <= close_distance + get_attack_range()
+
+
+func get_system_combat_attack_spec() -> Dictionary:
+	var default_seconds := _get_system_default_combat_action_seconds()
+	var default_impact_ratio := _get_system_default_combat_impact_ratio()
+	var animation_set = call("_get_current_combat_animation_set") if has_method("_get_current_combat_animation_set") else null
+	var attack = call("_choose_combat_attack", animation_set) if has_method("_choose_combat_attack") else null
+	if attack == null:
+		var default_timing := _get_system_combat_action_timing(PackedStringArray(), default_impact_ratio)
+		return {
+			"animation_names": PackedStringArray(),
+			"attack_id": "",
+			"hit_reaction_names": PackedStringArray(),
+			"total_seconds": float(default_timing.get("total_seconds", default_seconds)),
+			"first_clip_seconds": 0.0,
+			"impact_seconds": float(default_timing.get("impact_seconds", default_seconds * default_impact_ratio)),
+		}
+	var action_names := PackedStringArray(attack.get_animation_names()) if attack.has_method("get_animation_names") else PackedStringArray()
+	var impact_ratio := float(attack.get("impact_ratio")) if attack.get("impact_ratio") != null else default_impact_ratio
+	var timing := _get_system_combat_action_timing(action_names, impact_ratio)
+	return {
+		"animation_names": action_names,
+		"attack_id": str(attack.get("attack_id")),
+		"hit_reaction_names": PackedStringArray(attack.get_hit_reaction_names()) if attack.has_method("get_hit_reaction_names") else PackedStringArray(),
+		"total_seconds": float(timing.get("total_seconds", default_seconds)),
+		"first_clip_seconds": float(timing.get("first_clip_seconds", 0.0)),
+		"impact_seconds": float(timing.get("impact_seconds", default_seconds * impact_ratio)),
+	}
+
+
+func on_system_combat_attack_started(target_actor: Node, animation_names: PackedStringArray) -> float:
+	if target_actor != null and is_instance_valid(target_actor) and has_method("_face_character"):
+		call("_face_character", target_actor)
+	if has_method("get_body_projection"):
+		var body = call("get_body_projection")
+		if body != null and body.has_method("stop_clip"):
+			body.call("stop_clip", true)
+	if has_method("_spend_fatigue"):
+		call("_spend_fatigue", NpcRules.FATIGUE_ATTACK_COST)
+	if has_method("_award_combat_attack_xp"):
+		call("_award_combat_attack_xp")
+	if animation_names.is_empty():
+		return 0.0
+	return play_system_combat_action_clip(str(animation_names[0]))
+
+
+func play_system_combat_action_clip(animation_name: String) -> float:
+	if animation_name.is_empty() or not has_method("_play_combat_action_clip"):
+		return 0.0
+	return float(call("_play_combat_action_clip", animation_name))
+
+
+func prepare_system_combat_receive_attack(attacker: Node, blunt_damage: float, cut_damage: float) -> Dictionary:
+	if attacker == null or not is_instance_valid(attacker) or life_state == NpcRules.LifeState.DEAD or is_protected_from_combat():
+		return {"accepted": false, "can_actively_defend": false}
+	if life_state == NpcRules.LifeState.ASLEEP and has_method("wake_up_from_rest"):
+		call("wake_up_from_rest", false)
+	if life_state == NpcRules.LifeState.ALIVE and has_method("_break_stealth_for_combat"):
+		call("_break_stealth_for_combat")
+	mark_hostile(attacker)
+	_last_direct_attacker_id = attacker.get_instance_id()
+	if attacker.has_method("mark_hostile"):
+		attacker.call("mark_hostile", self)
+	var incoming_law_arrest := has_method("_is_incoming_law_arrest") and bool(call("_is_incoming_law_arrest", attacker))
+	if not incoming_law_arrest and has_method("_notify_defensive_allies_of_attack"):
+		call("_notify_defensive_allies_of_attack", attacker)
+	if has_method("_face_character"):
+		call("_face_character", attacker)
+	if has_method("_remember_combat_attack_impulse"):
+		call("_remember_combat_attack_impulse", attacker, maxf(blunt_damage, 0.0) + maxf(cut_damage, 0.0))
+	var getting_up = get("_is_getting_up")
+	var is_getting_up := bool(getting_up) if getting_up != null else false
+	return {"accepted": true, "can_actively_defend": life_state == NpcRules.LifeState.ALIVE and not is_getting_up}
+
+
+func handle_system_combat_resolution(attacker: Node, outcome: String, attack_id: String, hit_reaction_names: PackedStringArray, is_critical: bool, has_shield_block: bool, final_blunt: float, final_cut: float, can_actively_defend := true) -> float:
+	if attacker != null and is_instance_valid(attacker):
+		if has_method("_face_character"):
+			call("_face_character", attacker)
+	_apply_system_combat_defense_costs(outcome, has_shield_block)
+	var reaction_seconds := play_system_combat_reaction(outcome, attack_id, hit_reaction_names, has_shield_block) if can_actively_defend else 0.0
+	if reaction_seconds > 0.0:
+		COMBAT_COORDINATOR.extend_character_lock(self, reaction_seconds + 0.05)
+	if outcome == "hit" or outcome == "blocked":
+		apply_system_combat_damage(attacker, final_blunt, final_cut, outcome, is_critical)
+	_show_system_combat_notice(outcome, is_critical, has_shield_block)
+	if has_method("_try_start_self_defense"):
+		call("_try_start_self_defense", attacker)
+	return reaction_seconds
+
+
+func transform_system_incoming_damage(_attacker: Node, blunt_damage: float, cut_damage: float) -> Dictionary:
+	return {"blunt_damage": maxf(blunt_damage, 0.0), "cut_damage": maxf(cut_damage, 0.0)}
+
+
+func clamp_system_final_combat_damage(attacker: Node, final_blunt: float, final_cut: float) -> Dictionary:
+	if has_method("_is_nonlethal_authority_arrest_attack") and bool(call("_is_nonlethal_authority_arrest_attack", attacker)) and has_method("_clamp_nonlethal_arrest_damage"):
+		var arrest_damage: Dictionary = call("_clamp_nonlethal_arrest_damage", final_blunt, final_cut) as Dictionary
+		return {"blunt_damage": float(arrest_damage.get("blunt", 0.0)), "cut_damage": 0.0}
+	return {"blunt_damage": maxf(final_blunt, 0.0), "cut_damage": maxf(final_cut, 0.0)}
+
+
+func play_system_combat_reaction(outcome: String, attack_id: String, hit_reaction_names: PackedStringArray, has_shield_block: bool) -> float:
+	var animation_name := ""
+	if outcome == "blocked" and has_method("_pick_combat_block_reaction_clip"):
+		animation_name = str(call("_pick_combat_block_reaction_clip", has_shield_block))
+	elif outcome == "hit" and has_method("_pick_combat_hit_reaction_clip"):
+		var names: Array[String] = []
+		for value in hit_reaction_names:
+			names.append(str(value))
+		animation_name = str(call("_pick_combat_hit_reaction_clip", attack_id, names))
+	if animation_name.is_empty() or not has_method("_play_combat_reaction_clip"):
+		return 0.0
+	return float(call("_play_combat_reaction_clip", animation_name))
+
+
+func _apply_system_combat_defense_costs(outcome: String, has_shield_block: bool) -> void:
+	match outcome:
+		"dodged":
+			if has_method("_spend_fatigue"):
+				call("_spend_fatigue", NpcRules.FATIGUE_DODGE_COST)
+			add_skill_xp(SkillRules.ATTRIBUTE_DEXTERITY, 0.35, "combat_dodge")
+		"blocked":
+			if has_method("_spend_fatigue"):
+				call("_spend_fatigue", NpcRules.FATIGUE_BLOCK_COST)
+			if has_shield_block:
+				add_skill_xp(SkillRules.COMBAT_SHIELDS, 0.25, "combat_block")
+			else:
+				add_skill_xp(get_combat_weapon_skill_id(), 0.15, "combat_parry")
+			add_skill_xp(SkillRules.ATTRIBUTE_TOUGHNESS, 0.12, "combat_block")
+
+
+func apply_system_combat_damage(attacker: Node, final_blunt: float, final_cut: float, _outcome := "hit", _is_critical := false) -> void:
+	var safe_blunt := maxf(final_blunt, 0.0)
+	var safe_cut := maxf(final_cut, 0.0)
+	_current_blunt_damage += safe_blunt
+	_current_open_cut_damage += safe_cut
+	if has_method("_add_bleeding_from_cut"):
+		call("_add_bleeding_from_cut", safe_blunt, safe_cut)
+	if has_method("_on_resolved_damage"):
+		call("_on_resolved_damage", safe_blunt, safe_cut)
+	if has_method("_award_toughness_xp"):
+		call("_award_toughness_xp", safe_blunt + safe_cut)
+	if has_method("_recalculate_vitals"):
+		call("_recalculate_vitals")
+	else:
+		hp = maxf(0.0, max_hp - get_total_wound_damage())
+
+
+func _get_system_default_combat_action_seconds() -> float:
+	return float(call("_get_default_combat_action_seconds")) if has_method("_get_default_combat_action_seconds") else 0.45
+
+
+func _get_system_default_combat_impact_ratio() -> float:
+	return float(call("_get_default_combat_impact_ratio")) if has_method("_get_default_combat_impact_ratio") else 0.45
+
+
+func _get_system_combat_action_timing(animation_names: PackedStringArray, impact_ratio: float) -> Dictionary:
+	if has_method("_get_combat_action_timing"):
+		var names: Array[String] = []
+		for value in animation_names:
+			names.append(str(value))
+		return call("_get_combat_action_timing", names, impact_ratio) as Dictionary
+	var action_seconds := _get_system_default_combat_action_seconds()
+	return {
+		"total_seconds": action_seconds,
+		"first_clip_seconds": 0.0,
+		"impact_seconds": clampf(action_seconds * impact_ratio, 0.05, maxf(0.05, action_seconds - 0.03)),
+	}
+
+
+func _show_system_combat_notice(outcome: String, is_critical: bool, has_shield_block: bool) -> void:
+	var message := ""
+	var color := Color(1.0, 0.42, 0.42, 1.0)
+	match outcome:
+		"dodged":
+			message = "Dodge"
+			color = Color(0.74, 0.94, 1.0, 1.0)
+		"blocked":
+			message = "Shield Block" if has_shield_block else "Parry"
+			color = Color(0.86, 0.9, 1.0, 1.0)
+		"hit":
+			message = "Critical Hit" if is_critical else "Hit"
+	if message.is_empty():
+		return
+	if has_method("_show_world_notice"):
+		call("_show_world_notice", message, color)
+	elif has_method("show_world_notice"):
+		call("show_world_notice", message, color)
+
+
+func _actor_id_for_system_bridge(actor: Node) -> String:
+	if actor == null or not is_instance_valid(actor):
+		return ""
+	var stable = actor.get("stable_id")
+	if stable != null and not str(stable).strip_edges().is_empty():
+		return str(stable).strip_edges()
+	if actor.has_meta("actor_record_id"):
+		return str(actor.get_meta("actor_record_id")).strip_edges()
+	return ""
+
+
+func _horizontal_distance_to_system(world_position: Vector3) -> float:
+	var offset := world_position - global_position
+	offset.y = 0.0
+	return offset.length()
+
+
 func get_attack_range() -> float:
 	return get_stat_value("attack_range")
 
@@ -1205,6 +1541,16 @@ func should_run_close_combat_retarget(delta: float) -> bool:
 	if _close_combat_retarget_remaining > 0.0:
 		return false
 	_close_combat_retarget_remaining = maxf(combat_close_retarget_interval_seconds, 0.01) + randf_range(0.0, maxf(combat_close_retarget_jitter_seconds, 0.0))
+	return true
+
+
+func should_run_consider_retarget(delta: float) -> bool:
+	if combat_consider_retarget_interval_seconds <= 0.0:
+		return true
+	_consider_retarget_remaining -= delta
+	if _consider_retarget_remaining > 0.0:
+		return false
+	_consider_retarget_remaining = maxf(combat_consider_retarget_interval_seconds, 0.01) + randf_range(0.0, maxf(combat_consider_retarget_jitter_seconds, 0.0))
 	return true
 
 

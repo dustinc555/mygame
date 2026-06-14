@@ -14,6 +14,7 @@ var sample_frames := 600
 var report_interval := 120
 var fixed_fps := 120
 var auto_quit := true
+var actor_query_metrics_enabled := false
 
 var _scene: Node
 var _sample_count := 0
@@ -137,6 +138,8 @@ func _collect_group_counts() -> Dictionary:
 func _reset_benchmark_metrics() -> void:
 	var query_controller := root.get_tree().get_first_node_in_group("actor_query_controller")
 	if query_controller != null and query_controller.has_method("reset_actor_query_metrics"):
+		if query_controller.has_method("set_actor_query_metrics_enabled"):
+			query_controller.call("set_actor_query_metrics_enabled", actor_query_metrics_enabled)
 		query_controller.call("reset_actor_query_metrics")
 
 
@@ -162,3 +165,5 @@ func _parse_cli_args() -> void:
 			fixed_fps = max(0, int(arg.get_slice("=", 1)))
 		elif arg == "--benchmark-no-quit":
 			auto_quit = false
+		elif arg == "--actor-query-metrics":
+			actor_query_metrics_enabled = true

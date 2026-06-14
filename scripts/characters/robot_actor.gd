@@ -26,6 +26,10 @@ func receive_attack(attacker: Node, blunt_damage: float, cut_damage: float, atta
 	return combat_capability.receive_attack(attacker, converted_blunt, 0.0, attack_id, hit_reaction_names, is_critical) if combat_capability != null else "ignored"
 
 
+func transform_system_incoming_damage(_attacker: Node, blunt_damage: float, cut_damage: float) -> Dictionary:
+	return {"blunt_damage": maxf(blunt_damage, 0.0) + maxf(cut_damage, 0.0) * CUT_TO_BLUNT_DAMAGE_MULTIPLIER, "cut_damage": 0.0}
+
+
 func get_bleed_fluid() -> Resource:
 	var race = get("character_race")
 	if race != null and race.get("bleed_fluid") != null:
