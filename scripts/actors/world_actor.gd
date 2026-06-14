@@ -83,7 +83,7 @@ signal inventory_changed
 @export var combat_approach_arrival_distance := 0.3
 @export var combat_direct_chase_distance := 3.0
 @export var combat_chase_leash_distance := 42.0
-@export var combat_active_attack_slots := 5
+@export var combat_active_attack_slots := 3
 @export var combat_attack_forgiveness_buffer := 0.15
 @export var combat_settle_band_extra := 0.65
 @export var combat_settle_speed_multiplier := 0.32
@@ -147,16 +147,18 @@ var _bleed_burst_rate := 0.0
 var _personal_hostile_ids: Dictionary = {}
 var _last_direct_attacker_id := 0
 var _system_target_id := 0
-var _system_target_frame := -1
-var _system_attack_request_actor_id := ""
-var _system_attack_request_frame := -1
-var _system_combat_frame := -1
 var _system_combat_action_active := false
 var _system_combat_reaction_remaining := 0.0
 var _system_combat_cooldown_remaining := 0.0
 var _system_combat_focus_id := 0
-var _system_movement_frame := -1
 var _system_movement_active := false
+var _system_movement_settled := false
+var _system_movement_target_position := Vector3.ZERO
+var _system_movement_desired_velocity := Vector3.ZERO
+var _system_movement_look_target := Vector3.ZERO
+var _system_movement_collision_focus_id := 0
+var _system_movement_collision_exception_focus_id := 0
+var _system_movement_collision_exception_peer: CollisionObject3D
 var _assigned_talkers: Dictionary = {}
 var _pending_talker_ids: Dictionary = {}
 var _runtime_controller_cache: Dictionary = {}
@@ -210,6 +212,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	_clear_system_movement_collision_exception()
 	if _active_job_provider != null and _active_job_provider.has_method("pause_worker_job"):
 		_active_job_provider.pause_worker_job(self, false)
 	if _ai_brain != null:
@@ -924,69 +927,30 @@ func is_ready_for_combat_exchange(_target: Node) -> bool:
 	return false
 
 
-func request_system_combat_attack(target_actor: Node) -> bool:
-	if target_actor == null or not is_instance_valid(target_actor):
-		return false
-	var target_id := _actor_id_for_system_bridge(target_actor)
-	if target_id.is_empty():
-		return false
-	_system_attack_request_actor_id = target_id
-	_system_attack_request_frame = Engine.get_process_frames()
-	return true
-
-
-func consume_system_combat_attack_request(process_frame: int, max_age_frames := 8) -> String:
-	if _system_attack_request_actor_id.is_empty() or _system_attack_request_frame < 0 or process_frame - _system_attack_request_frame > max_age_frames:
-		return ""
-	var target_id := _system_attack_request_actor_id
-	_system_attack_request_actor_id = ""
-	_system_attack_request_frame = -1
-	return target_id
-
-
-func clear_system_combat_attack_request() -> void:
-	_system_attack_request_actor_id = ""
-	_system_attack_request_frame = -1
-
-
-func set_system_target_bridge(target_id: int, process_frame: int) -> void:
+func set_system_target_bridge(target_id: int, _process_frame: int) -> void:
 	_system_target_id = target_id
-	_system_target_frame = process_frame
 
 
-func set_system_combat_bridge(process_frame: int, action_active: bool, reaction_remaining: float, cooldown_remaining: float, focus_id: int) -> void:
-	_system_combat_frame = process_frame
+func set_system_combat_bridge(_process_frame: int, action_active: bool, reaction_remaining: float, cooldown_remaining: float, focus_id: int) -> void:
 	_system_combat_action_active = action_active
 	_system_combat_reaction_remaining = reaction_remaining
 	_system_combat_cooldown_remaining = cooldown_remaining
 	_system_combat_focus_id = focus_id
 
 
-func set_system_movement_bridge(process_frame: int, active: bool) -> void:
-	_system_movement_frame = process_frame
+func set_system_movement_bridge(_process_frame: int, active: bool, target_position := Vector3.ZERO, desired_velocity := Vector3.ZERO, look_target := Vector3.ZERO, settled := false, collision_focus_id := 0) -> void:
 	_system_movement_active = active
-
-
-func _has_fresh_system_combat_data() -> bool:
-	if _system_combat_frame < 0:
-		return false
-	return Engine.get_process_frames() - _system_combat_frame <= 2
-
-
-func _has_fresh_system_movement_data() -> bool:
-	if _system_movement_frame < 0 or not _system_movement_active:
-		return false
-	return Engine.get_process_frames() - _system_movement_frame <= 2
-
-
-func _has_fresh_system_combat_target_data() -> bool:
-	if _system_target_frame < 0:
-		return false
-	return Engine.get_process_frames() - _system_target_frame <= 2
+	_system_movement_settled = settled
+	_system_movement_target_position = target_position
+	_system_movement_desired_velocity = desired_velocity
+	_system_movement_look_target = look_target
+	_system_movement_collision_focus_id = collision_focus_id
+	if not active:
+		_clear_system_movement_collision_exception()
 
 
 func _get_system_combat_target() -> Node3D:
-	if not _has_fresh_system_combat_target_data() or _system_target_id == 0:
+	if _system_target_id == 0:
 		return null
 	var target := instance_from_id(_system_target_id) as Node3D
 	if target == null or target == self or not is_instance_valid(target):
@@ -1727,6 +1691,61 @@ func process_world_actor_movement(delta: float) -> void:
 	rotation.x = lerp_angle(rotation.x, 0.0, minf(1.0, 10.0 * delta))
 	rotation.z = lerp_angle(rotation.z, 0.0, minf(1.0, 10.0 * delta))
 	_update_stuck_state(delta, desired_direction)
+
+
+func process_system_combat_movement(delta: float) -> void:
+	_apply_floor_motion(delta)
+	_update_system_movement_collision_exception(_system_movement_active, _system_movement_collision_focus_id)
+	if _system_movement_active:
+		velocity.x = 0.0 if _system_movement_settled else _system_movement_desired_velocity.x
+		velocity.z = 0.0 if _system_movement_settled else _system_movement_desired_velocity.z
+	else:
+		velocity.x = 0.0
+		velocity.z = 0.0
+	_face_system_movement_target()
+	move_and_slide()
+	rotation.x = lerp_angle(rotation.x, 0.0, minf(1.0, 10.0 * delta))
+	rotation.z = lerp_angle(rotation.z, 0.0, minf(1.0, 10.0 * delta))
+
+
+func _face_system_movement_target() -> void:
+	var look_position: Vector3 = _system_movement_look_target
+	if look_position == Vector3.ZERO:
+		var focus = call("_get_combat_focus_actor") if has_method("_get_combat_focus_actor") else null
+		if focus is Node3D:
+			look_position = (focus as Node3D).global_position
+		else:
+			var target := get_current_combat_target() as Node3D
+			if target != null:
+				look_position = target.global_position
+	look_position.y = global_position.y
+	if global_position.distance_squared_to(look_position) > 0.0001:
+		look_at(look_position, Vector3.UP)
+
+
+func _update_system_movement_collision_exception(active: bool, focus_id: int) -> void:
+	if active and focus_id != 0 and focus_id == _system_movement_collision_exception_focus_id and _system_movement_collision_exception_peer != null and is_instance_valid(_system_movement_collision_exception_peer):
+		return
+	var next_peer: CollisionObject3D = null
+	if active and focus_id != 0:
+		var focus := instance_from_id(focus_id) as CollisionObject3D
+		if focus != null and focus != self and is_instance_valid(focus):
+			next_peer = focus
+	if next_peer == _system_movement_collision_exception_peer:
+		return
+	_clear_system_movement_collision_exception()
+	if next_peer != null:
+		add_collision_exception_with(next_peer)
+		_system_movement_collision_exception_focus_id = focus_id
+		_system_movement_collision_exception_peer = next_peer
+
+
+func _clear_system_movement_collision_exception() -> void:
+	if _system_movement_collision_exception_peer != null:
+		if is_instance_valid(_system_movement_collision_exception_peer):
+			remove_collision_exception_with(_system_movement_collision_exception_peer)
+		_system_movement_collision_exception_peer = null
+	_system_movement_collision_exception_focus_id = 0
 
 
 func _configure_world_actor_movement() -> void:

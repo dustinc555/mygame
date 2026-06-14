@@ -145,7 +145,7 @@ func _test_attack_costs_fatigue() -> void:
 	_reset_actor_for_fatigue(_tomas)
 	_place_duelists()
 	var before := _mira.fatigue
-	_mira._start_combat_attack(_tomas)
+	_mira.on_system_combat_attack_started(_tomas, PackedStringArray())
 	if _mira.fatigue >= before - FLOAT_TOLERANCE:
 		_failures.append("attack_should_cost_fatigue before=%.3f after=%.3f" % [before, _mira.fatigue])
 	_mira.COMBAT_COORDINATOR.release_character(_mira)

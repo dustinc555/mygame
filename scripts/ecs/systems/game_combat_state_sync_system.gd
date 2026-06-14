@@ -58,6 +58,7 @@ func _sync_config(component, actor: Node) -> void:
 	component.aggro_scan_radius = _num(actor.get("aggressive_scan_radius"), component.aggro_scan_radius)
 	component.assist_scan_radius = _num(actor.get("assist_scan_radius"), component.assist_scan_radius)
 	component.witness_radius = _num(actor.get("combat_witness_radius"), component.witness_radius)
+	component.squad_assist_radius = _num(actor.get("combat_squad_assist_radius"), component.squad_assist_radius)
 	component.move_target_vertical_tolerance = _num(actor.get("move_target_vertical_tolerance"), component.move_target_vertical_tolerance)
 	component.navigation_agent_radius = _num(actor.get("navigation_agent_radius"), component.navigation_agent_radius)
 	component.active_attack_slots = int(_num(actor.get("combat_active_attack_slots"), component.active_attack_slots))

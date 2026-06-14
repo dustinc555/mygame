@@ -135,15 +135,11 @@ func _physics_process(delta: float) -> void:
 		return
 	if _is_combat_resolution_busy():
 		_face_combat_focus()
-		_apply_floor_motion(delta)
-		velocity.x = 0.0
-		velocity.z = 0.0
-		move_and_slide()
+		process_system_combat_movement(delta)
 		return
-	if _has_fresh_system_movement_data():
+	if _get_active_combat_target() != null or _current_order_type == OrderType.ATTACK:
+		process_system_combat_movement(delta)
 		return
-	if not _has_fresh_system_combat_data():
-		_process_attack_interaction()
 	process_world_actor_movement(delta)
 
 
@@ -362,61 +358,26 @@ func _get_ai_targeting_capability():
 	return _ai_targeting_capability
 
 
-func _process_combat_cooldown(delta: float) -> void:
-	if _has_fresh_system_combat_data():
-		return
-	var combat_capability := _get_combat_capability()
-	if combat_capability != null:
-		combat_capability.process_cooldown(delta)
+func _process_combat_cooldown(_delta: float) -> void:
+	pass
 
 
 func _is_combat_resolution_busy() -> bool:
-	if _has_fresh_system_combat_data():
-		return _system_combat_action_active or _system_combat_reaction_remaining > 0.0
-	var combat_capability := _get_combat_capability()
-	return combat_capability.is_busy() if combat_capability != null else false
+	return _system_combat_action_active or _system_combat_reaction_remaining > 0.0
 
 
 func _is_combat_resolution_ready() -> bool:
-	if _has_fresh_system_combat_data():
-		return not _is_combat_resolution_busy() and _system_combat_cooldown_remaining <= 0.0
-	var combat_capability := _get_combat_capability()
-	return combat_capability.is_ready() if combat_capability != null else true
+	return not _is_combat_resolution_busy() and _system_combat_cooldown_remaining <= 0.0
 
 
 func _get_combat_focus_actor() -> Node:
-	if _has_fresh_system_combat_data() and _system_combat_focus_id != 0:
+	if _system_combat_focus_id != 0:
 		return instance_from_id(_system_combat_focus_id) as Node
-	var combat_capability := _get_combat_capability()
-	return combat_capability.get_focus_actor() if combat_capability != null else null
+	return null
 
 
-func _process_combat_animation_state(delta: float) -> void:
-	if _has_fresh_system_combat_data():
-		return
-	var combat_capability := _get_combat_capability()
-	if combat_capability != null:
-		combat_capability.process_action_state(delta)
-
-
-func _process_attack_interaction() -> void:
-	var target := _get_active_combat_target()
-	if target == null:
-		return
-	if not _is_combat_resolution_ready():
-		return
-	var target_position := (target as Node3D).global_position
-	var target_distance := _horizontal_distance_to(target_position)
-	if target_distance > _get_effective_combat_attack_range():
-		_set_actor_move_target(target.get_combat_move_position(self) if target.has_method("get_combat_move_position") else target_position)
-		return
-	_clear_actor_move_target()
-	_face_character(target)
-	if _has_fresh_system_combat_data() and request_system_combat_attack(target):
-		return
-	var combat_capability := _get_combat_capability()
-	if combat_capability != null and not COMBAT_COORDINATOR.is_character_locked(self):
-		combat_capability.start_attack(target)
+func _process_combat_animation_state(_delta: float) -> void:
+	pass
 
 
 func _get_current_combat_animation_set():
@@ -532,22 +493,19 @@ func _process_ai(delta: float) -> void:
 	if _current_attack_target != null and not _is_valid_active_combat_target(_current_attack_target):
 		stop_attack_assignment()
 	# Fast path: already engaging the targeting system's current pick — skip the retarget machinery.
-	if _has_fresh_system_combat_target_data() and _system_target_id != 0:
+	if _system_target_id != 0:
 		var engaged_target := _get_active_combat_target()
 		if engaged_target != null and engaged_target.get_instance_id() == _system_target_id:
 			return
 	if should_run_close_combat_retarget(delta):
-		if _has_fresh_system_combat_target_data():
-			if _try_reconfigure_system_combat_target():
-				return
-		elif _try_reconfigure_close_combat_target():
+		if _try_reconfigure_system_combat_target():
 			return
 	if _get_active_combat_target() != null:
 		return
 	if not _should_run_ai_decision_tick(delta):
 		return
 	if _should_seek_combat_target():
-		var target := _get_system_combat_target() if _has_fresh_system_combat_target_data() else _find_ai_target()
+		var target := _get_system_combat_target()
 		if target != null:
 			assign_attack_target(target, false)
 
