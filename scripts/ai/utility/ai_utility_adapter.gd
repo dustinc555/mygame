@@ -189,7 +189,12 @@ func _apply_combat_target_context(context: AiUtilityContext, actor: Node) -> voi
 	if actor.has_method("get_current_combat_target"):
 		target = actor.call("get_current_combat_target")
 	if target == null and _call_bool(actor, "_should_seek_combat_target"):
-		target = _call_object(actor, "_find_ai_target")
+		# Prefer the batched targeting system's pick over a fresh per-actor scan (_find_ai_target);
+		# it is the same target the rest of the AI now consumes, without the O(candidates) cost.
+		if _call_bool(actor, "_has_fresh_system_combat_target_data"):
+			target = _call_object(actor, "_get_system_combat_target")
+		else:
+			target = _call_object(actor, "_find_ai_target")
 	if target == null:
 		context.set_fact(&"threat", 0.0)
 		context.set_fact(&"can_self_defend", 0.0)
