@@ -341,7 +341,7 @@ func stop_ragdoll_simulation(reset_pose: bool) -> void:
 		_visual_root.transform = _stored_local_transform
 
 
-func stabilize_ragdoll(delta: float) -> void:
+func stabilize_ragdoll(_delta: float) -> void:
 	if _ragdoll_active:
 		_ragdoll_upward_velocity_suppression_frames = maxi(0, _ragdoll_upward_velocity_suppression_frames - 1)
 
@@ -441,7 +441,7 @@ func _clip_speed(animation_name: String, speed_ratio: float) -> float:
 	return 1.0
 
 
-func _start_visual_ragdoll(is_dead: bool) -> bool:
+func _start_visual_ragdoll(_is_dead: bool) -> bool:
 	if _visual_root == null or not is_instance_valid(_visual_root):
 		return false
 	stop_clip(true)

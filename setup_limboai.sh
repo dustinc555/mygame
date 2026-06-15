@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="v1.7.0"
+VERSION="v1.7.1"
 ARCHIVE_NAME="limboai+${VERSION}.gdextension-4.6.zip"
 URL="https://github.com/limbonaut/limboai/releases/download/${VERSION}/limboai%2B${VERSION}.gdextension-4.6.zip"
-SHA256="d97f4d0c1f39b6a5ebc822c7798174b95f15128a4aab7b5804d2741ac3f85f98"
+SHA256="ceb1757103744454d87ef12884e9d30978ff6edda6b4f09ff8da4d88e11a814e"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ADDON_DIR="${PROJECT_ROOT}/addons/limboai"
 TMP_DIR="$(mktemp -d)"

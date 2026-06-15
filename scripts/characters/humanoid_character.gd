@@ -240,9 +240,11 @@ var is_inspected := false
 var is_selected := false
 var is_focused := false
 var _current_mining_node
+@warning_ignore("unused_private_class_variable")
 var _mining_progress_by_node: Dictionary = {}
 var _mining_active := false
 var _current_scavenging_node
+@warning_ignore("unused_private_class_variable")
 var _scavenging_progress_by_node: Dictionary = {}
 var _scavenging_active := false
 var _current_container_target
@@ -250,16 +252,21 @@ var _current_trade_target
 var _current_conversation_target
 var _current_attack_target: Node3D
 var _attack_origin_position := Vector3.ZERO
+@warning_ignore("unused_private_class_variable")
 var _current_heal_target: HumanoidCharacter
 var _current_finish_off_target: HumanoidCharacter
 var _current_carry_target: HumanoidCharacter
 var _current_sleep_target
+@warning_ignore("unused_private_class_variable")
 var _current_place_bed_target
+@warning_ignore("unused_private_class_variable")
 var _current_place_cell_target
+@warning_ignore("unused_private_class_variable")
 var _current_place_cell_waypoints: Array[Vector3] = []
 var _current_place_furnace_target
 var _current_seat_target
 var _current_pickup_item
+@warning_ignore("unused_private_class_variable")
 var _current_seat_stand_position: Variant = null
 var _carried_by: HumanoidCharacter
 var _carried_character: HumanoidCharacter
@@ -289,7 +296,9 @@ var _ragdoll_preroll_is_dead := false
 var _ragdoll_preroll_animation_name := ""
 var _ragdoll_preroll_remaining := 0.0
 var _default_ragdoll_profile: Resource
+@warning_ignore("unused_private_class_variable")
 var _ragdoll_simulator: PhysicalBoneSimulator3D
+@warning_ignore("unused_private_class_variable")
 var _ragdoll_skeleton: Skeleton3D
 var _ragdoll_physical_bones: Dictionary = {}
 var _is_ragdoll_active := false
@@ -332,8 +341,11 @@ var _spawn_grounding_refresh_frames := 0
 signal mining_changed
 signal scavenging_changed
 signal appearance_changed
+@warning_ignore("unused_signal")
 signal container_reached(member, container)
+@warning_ignore("unused_signal")
 signal trade_target_reached(member, target)
+@warning_ignore("unused_signal")
 signal conversation_target_reached(member, target)
 
 
@@ -3815,7 +3827,7 @@ func _enter_dying_state() -> void:
 	_enter_downed_life_state(NpcRules.LifeState.DYING, 15.0, "Dying", Color(1.0, 0.24, 0.18, 1.0))
 
 
-func _enter_downed_life_state(next_life_state: int, recover_delay: float, notice: String, notice_color: Color) -> void:
+func _enter_downed_life_state(next_life_state: NpcRules.LifeState, recover_delay: float, notice: String, notice_color: Color) -> void:
 	if life_state == NpcRules.LifeState.DEAD:
 		return
 	var previous_state := life_state

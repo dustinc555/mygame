@@ -908,7 +908,7 @@ func can_receive_bandage() -> bool:
 
 
 func set_combat_stance(value: int) -> void:
-	combat_stance = clampi(value, NpcRules.CombatStance.AGGRESSIVE, NpcRules.CombatStance.PASSIVE)
+	combat_stance = clampi(value, NpcRules.CombatStance.AGGRESSIVE, NpcRules.CombatStance.PASSIVE) as NpcRules.CombatStance
 	state_changed.emit()
 
 
@@ -1148,7 +1148,7 @@ func _apply_system_combat_defense_costs(outcome: String, has_shield_block: bool)
 			add_skill_xp(SkillRules.ATTRIBUTE_TOUGHNESS, 0.12, "combat_block")
 
 
-func apply_system_combat_damage(attacker: Node, final_blunt: float, final_cut: float, _outcome := "hit", _is_critical := false) -> void:
+func apply_system_combat_damage(_attacker: Node, final_blunt: float, final_cut: float, _outcome := "hit", _is_critical := false) -> void:
 	var safe_blunt := maxf(final_blunt, 0.0)
 	var safe_cut := maxf(final_cut, 0.0)
 	_current_blunt_damage += safe_blunt
