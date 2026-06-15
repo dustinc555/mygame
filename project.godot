@@ -15,13 +15,14 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="MyGame"
-run/main_scene="uid://b61506dov0k4v"
+run/main_scene="res://scenes/test_levels/combat_free_for_all_5v5v5.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
 [autoload]
 
 ECS="*uid://dfqwl5njvdnmq"
+LimboDebuggerShutdownGuard="*res://scripts/debug/limbo_debugger_shutdown_guard.gd"
 
 [display]
 

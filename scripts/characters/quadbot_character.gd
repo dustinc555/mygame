@@ -2,6 +2,7 @@ extends "res://scripts/characters/robot_actor.gd"
 
 class_name QuadBotCharacter
 
+@warning_ignore("unused_signal")
 signal appearance_changed
 
 const WORLD_TEXT_NOTICE_SCENE = preload("res://scenes/world/effects/world_text_notice.tscn")
@@ -171,7 +172,7 @@ func is_running_enabled() -> bool:
 
 
 func set_combat_stance(value: int) -> void:
-	combat_stance = clampi(value, NpcRules.CombatStance.AGGRESSIVE, NpcRules.CombatStance.PASSIVE)
+	combat_stance = clampi(value, NpcRules.CombatStance.AGGRESSIVE, NpcRules.CombatStance.PASSIVE) as NpcRules.CombatStance
 	state_changed.emit()
 
 
@@ -311,9 +312,9 @@ func get_body_weapon_damage_profile() -> Dictionary:
 	return {"blunt_base": 8.0, "cut_base": 4.0}
 
 
-static func make_varied_skill_levels(seed: int, base_level := QUADBOT_SKILL_BASE_LEVEL) -> Dictionary:
+static func make_varied_skill_levels(skill_seed: int, base_level := QUADBOT_SKILL_BASE_LEVEL) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = seed
+	rng.seed = skill_seed
 	return roll_varied_skill_levels(rng, base_level)
 
 
@@ -725,7 +726,7 @@ func _enter_recovery_coma_state() -> void:
 	_enter_downed_life_state(NpcRules.LifeState.RECOVERY_COMA, 15.0, "Offline", Color(0.48, 0.62, 0.72, 1.0))
 
 
-func _enter_downed_life_state(next_life_state: int, recover_delay: float, notice: String, notice_color: Color) -> void:
+func _enter_downed_life_state(next_life_state: NpcRules.LifeState, recover_delay: float, notice: String, notice_color: Color) -> void:
 	if life_state == NpcRules.LifeState.DEAD:
 		return
 	var previous_state := life_state

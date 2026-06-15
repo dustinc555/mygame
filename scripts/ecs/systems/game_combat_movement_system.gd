@@ -138,12 +138,12 @@ func _follow_stop_distance(cfg, target_cfg) -> float:
 	return maxf(minf(float(cfg.attack_range), float(target_cfg.attack_range)) - DIRECT_FOLLOW_RANGE_BUFFER, 0.55)
 
 
-func _write_node_movement(actor: Node, process_frame: int, active: bool, move_target := Vector3.ZERO, desired_velocity := Vector3.ZERO, look_target := Vector3.ZERO, settled := false, collision_focus_id := 0) -> void:
+func _write_node_movement(actor: Node, process_frame: int, is_active: bool, move_target := Vector3.ZERO, desired_velocity := Vector3.ZERO, look_target := Vector3.ZERO, settled := false, collision_focus_id := 0) -> void:
 	var world_actor := actor as WorldActor
 	if world_actor != null:
-		world_actor.set_system_movement_bridge(process_frame, active, move_target, desired_velocity, look_target, settled, collision_focus_id)
+		world_actor.set_system_movement_bridge(process_frame, is_active, move_target, desired_velocity, look_target, settled, collision_focus_id)
 	elif actor.has_method("set"):
-		actor.set("_system_movement_active", active)
+		actor.set("_system_movement_active", is_active)
 		actor.set("_system_movement_target_position", move_target)
 		actor.set("_system_movement_desired_velocity", desired_velocity)
 		actor.set("_system_movement_look_target", look_target)

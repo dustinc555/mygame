@@ -270,6 +270,8 @@ func _capture_snapshot() -> void:
 	var image := viewport.get_texture().get_image()
 	if image == null:
 		return
+	if image.get_format() == Image.FORMAT_RGB8:
+		image.convert(Image.FORMAT_RGBA8)
 	var texture := ImageTexture.create_from_image(image)
 	portrait_image.texture = texture
 	viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED

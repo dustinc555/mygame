@@ -633,9 +633,9 @@ func _make_nebula_noise_set() -> Dictionary:
 	}
 
 
-func _make_nebula_noise(seed: int, frequency: float, octaves: int) -> FastNoiseLite:
+func _make_nebula_noise(noise_seed: int, frequency: float, octaves: int) -> FastNoiseLite:
 	var noise := FastNoiseLite.new()
-	noise.seed = seed
+	noise.seed = noise_seed
 	noise.noise_type = FastNoiseLite.NoiseType.TYPE_SIMPLEX_SMOOTH
 	noise.fractal_octaves = octaves
 	noise.frequency = frequency
