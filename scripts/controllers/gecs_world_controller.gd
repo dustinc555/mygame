@@ -2106,7 +2106,7 @@ func _actor_role_id(actor: Node) -> String:
 func _actor_is_important(actor: Node) -> bool:
 	if actor == null:
 		return false
-	return actor.is_in_group("settlement_authority") or actor.has_meta("settlement_staff_role") or actor.has_meta("law_prisoner")
+	return actor.is_in_group("settlement_authority") or actor.has_meta("settlement_staff_role") or (actor is WorldActor and (actor as WorldActor).is_law_prisoner())
 
 
 func _provider_id(provider: Node) -> String:

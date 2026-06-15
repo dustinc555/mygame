@@ -255,7 +255,7 @@ func _is_warden_sentence_delivery_active(_warden: HumanoidCharacter) -> bool:
 		return false
 	var entry := _pending_sentence_announcements[0]
 	var actor := entry.get("actor") as HumanoidCharacter
-	return actor != null and is_instance_valid(actor) and actor.life_state == NpcRules.LifeState.ALIVE and actor.has_meta("law_prisoner") and _has_pending_sentence_notification(actor)
+	return actor != null and is_instance_valid(actor) and actor.life_state == NpcRules.LifeState.ALIVE and actor.is_law_prisoner() and _has_pending_sentence_notification(actor)
 
 
 func _has_pending_sentence_notification(actor: HumanoidCharacter) -> bool:
@@ -287,6 +287,37 @@ func get_guard_posts() -> Array[Node]:
 
 func get_cells() -> Array[Node]:
 	return _children_at(cells_root_path)
+
+
+func _find_cell_by_id(cell_id: String) -> Node:
+	if cell_id.strip_edges().is_empty():
+		return null
+	for cell in get_cells():
+		if cell != null and cell.has_method("get_cell_id") and str(cell.call("get_cell_id")) == cell_id:
+			return cell
+	return null
+
+
+# Re-seat an already-jailed prisoner into their cell after their actor node
+# LOD-realizes (no re-confiscation -- their items are already in the locker).
+# Truth lives in the law controller's prisoner_records (jail_id/cell_id), which
+# survive the actor being unloaded; this restores the physical placement.
+func restore_prisoner_to_cell(actor: WorldActor, record: Dictionary) -> bool:
+	if actor == null or actor.life_state == NpcRules.LifeState.DEAD:
+		return false
+	var cell := _find_cell_by_id(str(record.get("cell_id", "")))
+	if cell == null:
+		cell = _find_cell_for_prisoner(actor)
+	if cell == null:
+		cell = get_available_cell(actor, actor)
+	if cell == null:
+		return false
+	if cell.has_method("assign_prisoner"):
+		cell.call("assign_prisoner", actor)
+	var prisoner_position: Vector3 = cell.call("get_prisoner_position", actor) if cell.has_method("get_prisoner_position") else actor.global_position
+	var prisoner_rotation: Vector3 = cell.call("get_prisoner_rotation", actor) if cell.has_method("get_prisoner_rotation") else actor.global_rotation
+	actor.enter_cell_custody(cell, prisoner_position, prisoner_rotation)
+	return true
 
 
 func get_prisoner_capacity() -> int:
@@ -378,7 +409,7 @@ func get_prisoner_locker() -> Node:
 	return root.get_node_or_null("PrisonerLocker") if root != null else null
 
 
-func admit_prisoner(actor: HumanoidCharacter, warrant: Dictionary, law_controller: Node = null) -> bool:
+func admit_prisoner(actor: WorldActor, warrant: Dictionary, law_controller: Node = null) -> bool:
 	if actor == null or actor.life_state == NpcRules.LifeState.DEAD:
 		return false
 	var cell := _find_cell_for_prisoner(actor)
@@ -388,9 +419,10 @@ func admit_prisoner(actor: HumanoidCharacter, warrant: Dictionary, law_controlle
 	actor.velocity = Vector3.ZERO
 	_stabilize_prisoner(actor)
 	_confiscate_prisoner_items(actor, locker, warrant, law_controller)
-	actor.set_meta("law_prisoner", true)
-	actor.set_meta("law_jail_id", get_facility_id())
-	actor.set_meta("law_cell_id", str(cell.call("get_cell_id")))
+	var status := actor.get_legal_status()
+	status.is_prisoner = true
+	status.jail_id = get_facility_id()
+	status.cell_id = str(cell.call("get_cell_id"))
 	return true
 
 
@@ -423,7 +455,7 @@ func _process_sentence_announcements(delta: float) -> void:
 	if actor == null or not is_instance_valid(actor):
 		_pending_sentence_announcements.pop_front()
 		return
-	if not actor.has_meta("law_prisoner"):
+	if not actor.is_law_prisoner():
 		_pending_sentence_announcements.pop_front()
 		return
 	if actor.life_state == NpcRules.LifeState.DEAD:
@@ -602,7 +634,7 @@ func _get_conversation_controller() -> Node:
 	return null
 
 
-func release_prisoner(actor: HumanoidCharacter, record: Dictionary, escaped := false) -> void:
+func release_prisoner(actor: WorldActor, record: Dictionary, escaped := false) -> void:
 	if actor == null:
 		return
 	var locker := get_prisoner_locker()
@@ -615,9 +647,7 @@ func release_prisoner(actor: HumanoidCharacter, record: Dictionary, escaped := f
 			actor.call("exit_cell_custody", cell.call("get_release_position"), cell.call("get_release_rotation") if cell.has_method("get_release_rotation") else actor.global_rotation)
 		else:
 			actor.global_position = cell.call("get_release_position")
-	actor.remove_meta("law_prisoner")
-	actor.remove_meta("law_jail_id")
-	actor.remove_meta("law_cell_id")
+	actor.get_legal_status().clear_prisoner()
 	actor.velocity = Vector3.ZERO
 
 
@@ -951,7 +981,7 @@ func _claim_guard_post_for(guard: HumanoidCharacter):
 	return null
 
 
-func _stabilize_prisoner(actor: HumanoidCharacter) -> void:
+func _stabilize_prisoner(actor: WorldActor) -> void:
 	if actor == null or actor.life_state == NpcRules.LifeState.DEAD:
 		return
 	_set_property_if_present(actor, "blood", maxf(float(actor.get("blood")), float(actor.get("max_blood")) * 0.55))
@@ -963,7 +993,7 @@ func _stabilize_prisoner(actor: HumanoidCharacter) -> void:
 		actor.call("_recalculate_vitals")
 
 
-func _confiscate_prisoner_items(actor: HumanoidCharacter, locker: Node, warrant: Dictionary, law_controller: Node = null) -> void:
+func _confiscate_prisoner_items(actor: WorldActor, locker: Node, warrant: Dictionary, law_controller: Node = null) -> void:
 	if actor == null or locker == null or actor.get("inventory") == null:
 		return
 	var locker_inventory = _ensure_locker_inventory(locker)
@@ -992,7 +1022,7 @@ func _confiscate_prisoner_items(actor: HumanoidCharacter, locker: Node, warrant:
 		law_controller.call("register_prisoner_locker_transfer", actor, locker, warrant)
 
 
-func _restore_prisoner_items(actor: HumanoidCharacter, locker: Node, _record: Dictionary, escaped: bool) -> void:
+func _restore_prisoner_items(actor: WorldActor, locker: Node, _record: Dictionary, escaped: bool) -> void:
 	if actor == null or locker == null or actor.get("inventory") == null:
 		return
 	var locker_inventory = _ensure_locker_inventory(locker)
@@ -1042,10 +1072,9 @@ func _find_cell_for_prisoner(actor: Node) -> Node:
 		if custody_cell != null:
 			return custody_cell
 	for cell in get_cells():
-		if cell == null or not _has_property(cell, "occupant_paths"):
+		if cell == null or not cell.has_method("has_occupant"):
 			continue
-		var paths: Array = cell.get("occupant_paths")
-		if paths.has(cell.get_path_to(actor)):
+		if bool(cell.call("has_occupant", actor)):
 			return cell
 	return null
 

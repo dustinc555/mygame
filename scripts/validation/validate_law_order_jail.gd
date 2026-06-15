@@ -156,13 +156,13 @@ func _validate_expired_warrant_cleanup() -> void:
 	player.global_position = city_guard.global_position + Vector3(0.9, 0.0, 0.0)
 	law.call("report_crime", player, DEMO_FACTION_ID, DEMO_SETTLEMENT_ID, LawOrderController.CRIME_THEFT, 1, city_guard, city_guard)
 	await _wait_frames(12)
-	if not player.has_meta("law_status_label") or not bool(law.call("actor_has_active_warrant", player, DEMO_FACTION_ID)):
+	if str(player.call("get_legal_status").status_label).is_empty() or not bool(law.call("actor_has_active_warrant", player, DEMO_FACTION_ID)):
 		_fail("Witnessed theft should create visible law status before warrant expiry")
 	world_time.call("advance_days", 2.0)
 	await _wait_frames(8)
 	if bool(law.call("actor_has_active_warrant", player, DEMO_FACTION_ID)):
 		_fail("Expired warrant should clear the active warrant record")
-	if player.has_meta("law_status_label") or player.has_meta("law_warrant_summary"):
+	if not str(player.call("get_legal_status").status_label).is_empty() or not str(player.call("get_legal_status").warrant_summary).is_empty():
 		_fail("Expired warrant should clear actor law status metadata")
 	if _is_law_responder_arresting_actor(city_guard, player):
 		_fail("Expired warrant should disengage active law responders")
@@ -247,7 +247,7 @@ func _validate_witnessed_theft_jail_release() -> void:
 		_fail("Authority arrest damage should not cause severe blood loss")
 	law.call("_process_warrants")
 	await _wait_frames(2)
-	if player.has_meta("law_prisoner"):
+	if bool(player.call("is_law_prisoner")):
 		_fail("Unconscious wanted actor should not teleport directly into jail")
 	if player.inventory.count_item(BANDAGE) != 1 or player.inventory.count_item(EXPENSIVE_VASE) != 1:
 		_fail("Jail intake should not confiscate inventory before cell placement")
@@ -259,9 +259,9 @@ func _validate_witnessed_theft_jail_release() -> void:
 	var carry_animation := _get_current_animation(player)
 	if carry_animation != "LiftAir_Fall":
 		_fail("Carried prisoner should hold the LiftAir_Fall carry pose, got '%s'" % carry_animation)
-	if player.has_meta("law_prisoner"):
+	if bool(player.call("is_law_prisoner")):
 		_fail("Carried actor should not be finalized as a prisoner before cell placement")
-	var jailed := await _wait_until(func() -> bool: return player.has_meta("law_prisoner"), 2400)
+	var jailed := await _wait_until(func() -> bool: return bool(player.call("is_law_prisoner")), 2400)
 	if not jailed:
 		_fail("Carried wanted actor should be placed in a jail cell and admitted guard_order=%s guard_carried=%s guard_has_move=%s guard_move=%s guard_pos=%s player_life=%s player_pos=%s player_carried=%s" % [str(custody_guard.get("_current_order_type") if custody_guard != null else -1), str(custody_guard.get_carried_character() if custody_guard != null else null), str(custody_guard.get("_has_move_target") if custody_guard != null else false), str(custody_guard.get("_move_target") if custody_guard != null else Vector3.ZERO), str(custody_guard.global_position if custody_guard != null else Vector3.ZERO), str(player.life_state), str(player.global_position), str(player.is_carried())])
 		return
@@ -293,7 +293,7 @@ func _validate_witnessed_theft_jail_release() -> void:
 		_fail("Unconscious prisoner cell pose should use IdleToLay")
 	if custody_guard != null and custody_guard.has_hostility_with(player):
 		_fail("Authority guard should disengage combat after custody placement")
-	if not player.has_meta("law_prisoner"):
+	if not bool(player.call("is_law_prisoner")):
 		_fail("Unconscious wanted actor should be admitted to jail")
 	if player.inventory.count_item(BANDAGE) != 0 or player.inventory.count_item(EXPENSIVE_VASE) != 0:
 		_fail("Jail intake should confiscate legal and stolen inventory")
@@ -312,6 +312,20 @@ func _validate_witnessed_theft_jail_release() -> void:
 	await _wait_until(func() -> bool: return str(player.get("_cell_custody_wake_animation")).is_empty(), 240)
 	if _get_current_animation(player) == "LayToIdle":
 		_fail("Conscious prisoner should return to normal idle after LayToIdle finishes")
+	# --- LOD round-trip: prisoner must return to the SAME cell when re-realized ---
+	# Simulate the actor LOD-unloading and respawning outside the cell by dropping
+	# cell custody and displacing it; the law reconcile should re-seat it.
+	var pre_lod_cell := _find_cell_holding(jail, player)
+	player.call("exit_cell_custody", player.global_position + Vector3(25.0, 0.0, 25.0), player.global_rotation)
+	if bool(player.call("is_in_cell_custody")):
+		_fail("LOD setup: prisoner should leave cell custody when their actor unloads")
+	law.call("_process_prisoners")
+	await _wait_frames(2)
+	if not bool(player.call("is_in_cell_custody")):
+		_fail("LOD round-trip: realized prisoner should be re-seated in cell custody")
+	var post_lod_cell := _find_cell_holding(jail, player)
+	if post_lod_cell == null or post_lod_cell != pre_lod_cell:
+		_fail("LOD round-trip: realized prisoner should return to the same cell")
 	var warden_ground_y := warden.global_position.y
 	var warden_post := _get_warden_home_post(jail)
 	if warden_post == null:
@@ -338,7 +352,7 @@ func _validate_witnessed_theft_jail_release() -> void:
 	world_time.call("advance_hours", 11.0)
 	law.call("_process_prisoners")
 	await _wait_frames(8)
-	if player.has_meta("law_prisoner"):
+	if bool(player.call("is_law_prisoner")):
 		_fail("Sentence expiry should release the prisoner")
 	if player.inventory.count_item(BANDAGE) != 1:
 		_fail("Legal confiscated item should be returned on release")
@@ -537,8 +551,7 @@ func _find_cell_holding(jail: Node, actor: Node) -> Node:
 	for cell in jail.call("get_cells"):
 		if cell == null or not cell.has_method("get_cell_id"):
 			continue
-		var paths: Array = cell.get("occupant_paths") if cell.get("occupant_paths") != null else []
-		if paths.has(cell.get_path_to(actor)):
+		if cell.has_method("has_occupant") and bool(cell.call("has_occupant", actor)):
 			return cell
 	return null
 

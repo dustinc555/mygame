@@ -13,6 +13,14 @@ const EQUIPMENT_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/e
 const COMBAT_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/combat_capability.gd")
 const AI_TARGETING_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/ai_targeting_capability.gd")
 const INTERACTION_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/interaction_capability.gd")
+const CUSTODY_CAPABILITY_SCRIPT = preload("res://scripts/actors/capabilities/custody_capability.gd")
+
+# Containment size classes -- how big a cage an actor needs. A standard jail cell
+# holds up to CONTAINMENT_SIZE_MEDIUM; larger creatures need special cages.
+const CONTAINMENT_SIZE_SMALL := 0
+const CONTAINMENT_SIZE_MEDIUM := 1
+const CONTAINMENT_SIZE_LARGE := 2
+const CONTAINMENT_SIZE_HUGE := 3
 
 const NAVIGATION_MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
 const ACTIVE_COMBAT_ACTOR_GROUP := "active_combat_actor"
@@ -179,6 +187,8 @@ var _actor_process_capabilities: Array = []
 var _actor_physics_process_capabilities: Array = []
 var _actor_capabilities_ready := false
 var _actor_capability_defaults_initialized := false
+var _custody_capability
+var _legal_status: ActorLegalStatus
 
 var _navigation_agent: NavigationAgent3D
 var _navigation_target_synced := false
@@ -253,7 +263,7 @@ func get_actor_capabilities() -> Array:
 
 
 func _create_actor_capabilities() -> Array:
-	return [INVENTORY_CAPABILITY_SCRIPT.new(), EQUIPMENT_CAPABILITY_SCRIPT.new(), COMBAT_CAPABILITY_SCRIPT.new(), AI_TARGETING_CAPABILITY_SCRIPT.new(), INTERACTION_CAPABILITY_SCRIPT.new()]
+	return [INVENTORY_CAPABILITY_SCRIPT.new(), EQUIPMENT_CAPABILITY_SCRIPT.new(), COMBAT_CAPABILITY_SCRIPT.new(), AI_TARGETING_CAPABILITY_SCRIPT.new(), INTERACTION_CAPABILITY_SCRIPT.new(), CUSTODY_CAPABILITY_SCRIPT.new()]
 
 
 func _setup_actor_capabilities() -> void:
@@ -271,6 +281,7 @@ func _ready_actor_capabilities() -> void:
 	for capability in _actor_capabilities:
 		if _is_actor_capability(capability):
 			capability.call("ready")
+	_custody_capability = get_actor_capability(&"custody")
 
 
 func _process_actor_capabilities(delta: float) -> void:
@@ -296,6 +307,7 @@ func _teardown_actor_capabilities() -> void:
 	_actor_physics_process_capabilities.clear()
 	_actor_capabilities_ready = false
 	_actor_capability_defaults_initialized = false
+	_custody_capability = null
 
 
 func _is_actor_capability(value) -> bool:
@@ -695,6 +707,8 @@ func _refresh_max_blood_from_toughness(force := false) -> void:
 
 
 func set_move_target(target: Vector3, _issued_by_player: bool = true) -> void:
+	if is_in_cell_custody():
+		return
 	_set_actor_move_target(target)
 
 
@@ -1661,10 +1675,80 @@ func can_see_actor_for_combat(target: Node) -> bool:
 
 
 func is_protected_from_combat() -> bool:
-	return false
+	return is_in_cell_custody() or is_law_prisoner()
+
+
+# --- Physical containment (cells / cages) -------------------------------------
+# Generic state lives on CustodyCapability; subclasses add their own visuals via
+# the _on_enter_custody() / _on_exit_custody() hooks.
+
+func is_in_cell_custody() -> bool:
+	return _custody_capability != null and _custody_capability.is_contained()
+
+
+func get_cell_custody_target() -> Node:
+	return _custody_capability.get_container() if _custody_capability != null else null
+
+
+func _set_cell_custody_container(container) -> void:
+	if _custody_capability != null:
+		_custody_capability.set_container(container)
+
+
+func enter_cell_custody(cell, cell_position: Vector3, cell_rotation: Vector3) -> void:
+	_set_cell_custody_container(cell)
+	global_position = cell_position
+	global_rotation = cell_rotation
+	velocity = Vector3.ZERO
+	_on_enter_custody()
+
+
+func exit_cell_custody(exit_position: Vector3, exit_rotation: Vector3) -> void:
+	_on_exit_custody()
+	_set_cell_custody_container(null)
+	global_position = exit_position
+	global_rotation = exit_rotation
+	velocity = Vector3.ZERO
+
+
+func _on_enter_custody() -> void:
+	pass
+
+
+func _on_exit_custody() -> void:
+	pass
+
+
+# Whether this actor can be held in a cage at all, and how big a cage it needs.
+# Giant creatures override is_imprisonable()/get_containment_size_class().
+func is_imprisonable() -> bool:
+	return true
+
+
+func get_containment_size_class() -> int:
+	return CONTAINMENT_SIZE_MEDIUM
+
+
+# --- Legal status -------------------------------------------------------------
+
+func get_legal_status() -> ActorLegalStatus:
+	if _legal_status == null:
+		_legal_status = ActorLegalStatus.new()
+	return _legal_status
+
+
+func has_legal_status() -> bool:
+	return _legal_status != null and not _legal_status.is_empty()
+
+
+func is_law_prisoner() -> bool:
+	return _legal_status != null and _legal_status.is_prisoner
 
 
 func process_world_actor_movement(delta: float) -> void:
+	if is_in_cell_custody():
+		velocity = Vector3.ZERO
+		return
 	_ensure_navigation_agent()
 	_apply_floor_motion(delta)
 	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)

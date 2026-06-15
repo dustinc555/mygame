@@ -129,6 +129,9 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if is_in_cell_custody():
+		velocity = Vector3.ZERO
+		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		velocity = Vector3.ZERO
 		_stabilize_active_ragdoll(delta)

@@ -37,9 +37,6 @@ var _trespass_warning_counts: Dictionary = {}
 var _trespass_escalated: Dictionary = {}
 var _world_time: WorldTimeController
 const SIDE_SWITCH_HYSTERESIS := 0.45
-const META_ACTIVE_CRIME_LABEL := "law_active_crime_label"
-const META_ACTIVE_CRIME_KIND := "law_active_crime_kind"
-const META_ACTIVE_CRIME_SOURCE_ID := "law_active_crime_source_id"
 
 
 func _ready() -> void:
@@ -523,19 +520,19 @@ func _forget_inside_actor(actor: WorldActor) -> void:
 func _set_active_trespass_meta(actor: WorldActor) -> void:
 	if actor == null:
 		return
-	actor.set_meta(META_ACTIVE_CRIME_LABEL, "Committing a crime! (Trespassing)")
-	actor.set_meta(META_ACTIVE_CRIME_KIND, "active")
-	actor.set_meta(META_ACTIVE_CRIME_SOURCE_ID, get_instance_id())
+	var status := actor.get_legal_status()
+	status.active_crime_label = "Committing a crime! (Trespassing)"
+	status.active_crime_kind = "active"
+	status.active_crime_source_id = get_instance_id()
 
 
 func _clear_active_trespass_meta(actor: WorldActor) -> void:
-	if actor == null or not actor.has_meta(META_ACTIVE_CRIME_SOURCE_ID):
+	if actor == null:
 		return
-	if int(actor.get_meta(META_ACTIVE_CRIME_SOURCE_ID)) != get_instance_id():
+	var status := actor.get_legal_status()
+	if status.active_crime_source_id != get_instance_id():
 		return
-	actor.remove_meta(META_ACTIVE_CRIME_LABEL)
-	actor.remove_meta(META_ACTIVE_CRIME_KIND)
-	actor.remove_meta(META_ACTIVE_CRIME_SOURCE_ID)
+	status.clear_active_crime()
 
 
 func _clear_trespass_state(actor_id: int) -> void:

@@ -5,8 +5,13 @@ class_name JailCell
 
 @export var cell_id := ""
 @export_range(1, 12, 1) var prisoner_capacity := 1
+## Largest WorldActor.CONTAINMENT_SIZE_* this cell can hold. A standard cell is
+## MEDIUM (1); special cages for large/giant creatures raise this.
+@export_range(0, 3, 1) var max_containment_size_class := 1
 @export_range(0, 100, 1) var lock_difficulty := 10
-@export var occupant_paths: Array[NodePath] = []
+# Occupants are tracked by stable id (AGENT.md: stable IDs for anything referenced
+# by other systems / persisted), not NodePath.
+@export var occupant_ids: Array[String] = []
 @export var interaction_point_path: NodePath = NodePath("InteractionPoint")
 @export var prisoner_point_path: NodePath = NodePath("PrisonerPoint")
 @export var release_point_path: NodePath = NodePath("ReleasePoint")
@@ -60,32 +65,57 @@ func get_available_capacity() -> int:
 
 
 func get_occupant_count() -> int:
+	# Count by assignment, not live-node presence: a prisoner whose actor has
+	# LOD-unloaded is still this cell's occupant and must keep their slot.
 	var count := 0
-	for path in occupant_paths:
-		if get_node_or_null(path) != null:
+	for occupant_id in occupant_ids:
+		if not occupant_id.strip_edges().is_empty():
 			count += 1
 	return count
 
 
 func can_assign_prisoner(actor: Node) -> bool:
-	return actor != null and get_available_capacity() > 0
+	if actor == null or get_available_capacity() <= 0:
+		return false
+	if actor is WorldActor:
+		var world_actor := actor as WorldActor
+		if not world_actor.is_imprisonable():
+			return false
+		if world_actor.get_containment_size_class() > max_containment_size_class:
+			return false
+	return true
 
 
 func assign_prisoner(actor: Node) -> bool:
 	if not can_assign_prisoner(actor):
 		return false
-	var path := get_path_to(actor)
-	if occupant_paths.has(path):
-		return true
-	occupant_paths.append(path)
+	var occupant_id := _occupant_key(actor)
+	if occupant_id.is_empty():
+		return false
+	if not occupant_ids.has(occupant_id):
+		occupant_ids.append(occupant_id)
 	return true
 
 
 func release_prisoner(actor: Node) -> void:
 	if actor == null:
 		return
-	var path := get_path_to(actor)
-	occupant_paths.erase(path)
+	occupant_ids.erase(_occupant_key(actor))
+
+
+func has_occupant(actor: Node) -> bool:
+	if actor == null:
+		return false
+	var occupant_id := _occupant_key(actor)
+	return not occupant_id.is_empty() and occupant_ids.has(occupant_id)
+
+
+func _occupant_key(actor: Node) -> String:
+	if actor == null:
+		return ""
+	var sid_value = actor.get("stable_id")
+	var sid := str(sid_value) if sid_value != null else ""
+	return sid if not sid.strip_edges().is_empty() else str(actor.get_instance_id())
 
 
 func get_prisoner_position(_actor = null) -> Vector3:
@@ -112,7 +142,7 @@ func get_release_rotation() -> Vector3:
 	return point.global_rotation if point != null else global_rotation
 
 
-func place_carried_prisoner(carrier: HumanoidCharacter, prisoner: HumanoidCharacter) -> bool:
+func place_carried_prisoner(carrier: HumanoidCharacter, prisoner: WorldActor) -> bool:
 	if carrier == null or prisoner == null:
 		return false
 	if not can_assign_prisoner(prisoner):

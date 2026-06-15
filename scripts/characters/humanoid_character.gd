@@ -263,7 +263,6 @@ var _current_pickup_item
 var _current_seat_stand_position: Variant = null
 var _carried_by: HumanoidCharacter
 var _carried_character: HumanoidCharacter
-var _cell_custody_target
 var _carried_pose_animation := ""
 var _cell_custody_unconscious_pose_animation := ""
 var _cell_custody_lay_freeze_remaining := 0.0
@@ -1595,18 +1594,6 @@ func is_carrying_someone() -> bool:
 
 func is_handling_carried_character() -> bool:
 	return _carried_character != null or _current_order_type == OrderType.CARRY or _current_order_type == OrderType.PLACE_IN_BED or _current_order_type == OrderType.PLACE_IN_CELL or _current_order_type == OrderType.PLACE_IN_FURNACE
-
-
-func is_in_cell_custody() -> bool:
-	return _cell_custody_target != null and is_instance_valid(_cell_custody_target)
-
-
-func get_cell_custody_target() -> Node:
-	return _cell_custody_target if _cell_custody_target != null and is_instance_valid(_cell_custody_target) else null
-
-
-func is_protected_from_combat() -> bool:
-	return is_in_cell_custody() or has_meta("law_prisoner")
 
 
 func is_ragdoll_active() -> bool:
@@ -5037,7 +5024,6 @@ func _get_carry_anchor_from_bounds(bounds: AABB, is_carrier_anchor: bool) -> Vec
 
 
 func enter_cell_custody(cell, cell_position: Vector3, cell_rotation: Vector3) -> void:
-	_cell_custody_target = cell
 	_cancel_ragdoll_preroll()
 	_cancel_get_up()
 	_clear_all_active_orders()
@@ -5046,11 +5032,20 @@ func enter_cell_custody(cell, cell_position: Vector3, cell_rotation: Vector3) ->
 	_stop_ragdoll_simulation(true)
 	_restore_downed_collision_shape()
 	var stand_position := _get_cell_custody_stand_position(cell)
-	global_position = stand_position if life_state == NpcRules.LifeState.ALIVE and stand_position != Vector3.INF else cell_position
-	global_rotation = cell_rotation
-	velocity = Vector3.ZERO
+	var enter_position := stand_position if life_state == NpcRules.LifeState.ALIVE and stand_position != Vector3.INF else cell_position
 	running = false
 	_set_sneaking_state(false, false)
+	super.enter_cell_custody(cell, enter_position, cell_rotation)
+	state_changed.emit()
+
+
+func exit_cell_custody(exit_position: Vector3, exit_rotation: Vector3) -> void:
+	super.exit_cell_custody(exit_position, exit_rotation)
+	state_changed.emit()
+
+
+# Humanoid-specific custody pose handling, invoked by WorldActor.enter/exit_cell_custody.
+func _on_enter_custody() -> void:
 	if is_recoverable_downed_state():
 		_apply_downed_collision_shape()
 		_play_cell_unconscious_pose()
@@ -5058,19 +5053,18 @@ func enter_cell_custody(cell, cell_position: Vector3, cell_rotation: Vector3) ->
 		if _body != null:
 			_body.stop_clip(true)
 		_play_random_idle_animation(true)
-	state_changed.emit()
 
 
-func exit_cell_custody(exit_position: Vector3, exit_rotation: Vector3) -> void:
-	_clear_cell_custody_state(true)
-	global_position = exit_position
-	global_rotation = exit_rotation
-	velocity = Vector3.ZERO
-	state_changed.emit()
+func _on_exit_custody() -> void:
+	_clear_cell_custody_visual_state(true)
 
 
 func _clear_cell_custody_state(restore_collision := true) -> void:
-	_cell_custody_target = null
+	_set_cell_custody_container(null)
+	_clear_cell_custody_visual_state(restore_collision)
+
+
+func _clear_cell_custody_visual_state(restore_collision := true) -> void:
 	_cell_custody_unconscious_pose_animation = ""
 	_cell_custody_lay_freeze_remaining = 0.0
 	_cell_custody_lay_pose_frozen = false
