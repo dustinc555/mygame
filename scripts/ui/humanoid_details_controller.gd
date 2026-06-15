@@ -239,10 +239,10 @@ func _get_humanoid_info_rows(target: WorldActor) -> Array:
 	var law_status := _get_humanoid_law_status(target)
 	if not law_status.is_empty():
 		rows.append({"label": "Law", "value": law_status, "value_color": _get_humanoid_law_status_color(target)})
-	var warrant_summary := _get_humanoid_meta_text(target, "law_warrant_summary")
+	var warrant_summary := _get_humanoid_law_field(target, "warrant_summary")
 	if not warrant_summary.is_empty():
 		rows.append({"label": "Warrant", "value": warrant_summary})
-	var sentence_summary := _get_humanoid_meta_text(target, "law_sentence_summary")
+	var sentence_summary := _get_humanoid_law_field(target, "sentence_summary")
 	if not sentence_summary.is_empty():
 		rows.append({"label": "Sentence", "value": sentence_summary})
 	while rows.size() > info_rows.size():
@@ -251,17 +251,17 @@ func _get_humanoid_info_rows(target: WorldActor) -> Array:
 
 
 func _get_humanoid_law_status(target: WorldActor) -> String:
-	var caught_status := _get_humanoid_meta_text(target, "law_status_label")
+	var caught_status := _get_humanoid_law_field(target, "status_label")
 	if not caught_status.is_empty():
 		return caught_status
-	return _get_humanoid_meta_text(target, "law_active_crime_label")
+	return _get_humanoid_law_field(target, "active_crime_label")
 
 
 func _get_humanoid_law_status_color(target: WorldActor) -> Color:
-	var kind := _get_humanoid_meta_text(target, "law_status_kind")
+	var kind := _get_humanoid_law_field(target, "status_kind")
 	if kind == "jailed":
 		return INFO_JAILED_COLOR
-	if kind == "caught" or not _get_humanoid_meta_text(target, "law_active_crime_label").is_empty():
+	if kind == "caught" or not _get_humanoid_law_field(target, "active_crime_label").is_empty():
 		return INFO_CRIME_COLOR
 	return INFO_VALUE_COLOR
 
@@ -270,6 +270,13 @@ func _get_humanoid_meta_text(target: WorldActor, meta_name: String) -> String:
 	if target == null or not target.has_meta(meta_name):
 		return ""
 	return str(target.get_meta(meta_name))
+
+
+func _get_humanoid_law_field(target: WorldActor, field: StringName) -> String:
+	if target == null or not target.has_method("get_legal_status"):
+		return ""
+	var status = target.call("get_legal_status")
+	return str(status.get(field)) if status != null else ""
 
 
 func _update_world_target_panel(target) -> void:

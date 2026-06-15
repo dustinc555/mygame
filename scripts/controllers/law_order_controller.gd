@@ -298,7 +298,7 @@ func _get_mutable_warrant_record(actor: WorldActor, faction_id: String) -> Dicti
 	return (warrants.get(_actor_key(actor), {}) as Dictionary).get(faction_id, {})
 
 
-func complete_custody_if_placed(actor: HumanoidCharacter) -> bool:
+func complete_custody_if_placed(actor: WorldActor) -> bool:
 	if actor == null:
 		return false
 	var actor_key := _actor_key(actor)
@@ -392,6 +392,10 @@ func _process_prisoners() -> void:
 			prisoner_records[prisoner_key] = record
 		if str(record.get("state", "")) == "jailed":
 			_apply_actor_law_meta(actor, record)
+			# After an actor LOD-realizes, its fresh node is not in cell custody;
+			# re-seat it into the cell recorded in GECS truth (prisoner_records).
+			if jail != null and jail.has_method("restore_prisoner_to_cell") and not actor.is_in_cell_custody():
+				jail.call("restore_prisoner_to_cell", actor, record)
 		var release_at := int(record.get("release_at_minute", -1))
 		if release_at >= 0 and now >= release_at:
 			_release_prisoner(actor, record, jail)
@@ -449,6 +453,7 @@ func _complete_jailing(actor: HumanoidCharacter, warrant: Dictionary, jail: Node
 	prisoner_record["state"] = "jailed"
 	prisoner_record["actor_key"] = prisoner_key
 	prisoner_record["jail_id"] = str(jail.call("get_facility_id")) if jail.has_method("get_facility_id") else str(jail.name)
+	prisoner_record["cell_id"] = str(actor.get_legal_status().cell_id)
 	prisoner_record["release_at_minute"] = -1
 	prisoner_record["sentence_decision_at_minute"] = _now_minute() + _sentence_decision_delay_minutes()
 	prisoner_record["sentence_decision_given"] = false
@@ -523,13 +528,12 @@ func _request_prisoner_sentence_notification(actor: HumanoidCharacter, record: D
 	return record
 
 
-func _release_prisoner(actor: HumanoidCharacter, record: Dictionary, jail) -> void:
+func _release_prisoner(actor: WorldActor, record: Dictionary, jail) -> void:
 	if jail != null and jail.has_method("release_prisoner"):
 		jail.call("release_prisoner", actor, record, false)
 	_clear_warrant_for_actor(actor, str(record.get("faction_id", "")))
 	prisoner_records.erase(_actor_key(actor))
-	actor.remove_meta("law_sentence_summary")
-	actor.remove_meta("law_warrant_summary")
+	actor.get_legal_status().clear_warrant_display()
 	_save_law_order_state_to_gecs()
 
 
@@ -901,10 +905,7 @@ func _clear_warrant_for_actor(actor: WorldActor, faction_id: String) -> void:
 func _clear_actor_law_meta(actor: WorldActor) -> void:
 	if actor == null:
 		return
-	actor.remove_meta("law_status_label")
-	actor.remove_meta("law_status_kind")
-	actor.remove_meta("law_warrant_summary")
-	actor.remove_meta("law_sentence_summary")
+	actor.get_legal_status().clear_warrant_display()
 
 
 func _prune_victim_only_crimes_for_dead_actor(victim: WorldActor) -> void:
@@ -1065,21 +1066,24 @@ func _crime_alarm_line(crime_type: String) -> String:
 func _apply_actor_law_meta(actor: WorldActor, record: Dictionary) -> void:
 	if actor == null:
 		return
-	var summary := "%s warrant: %d pts" % [str(record.get("faction_id", "Faction")), int(record.get("bad_person_points", 0))]
-	actor.set_meta("law_warrant_summary", summary)
+	var status := actor.get_legal_status()
+	status.warrant_summary = "%s warrant: %d pts" % [str(record.get("faction_id", "Faction")), int(record.get("bad_person_points", 0))]
 	var state := str(record.get("state", ""))
 	if state == "jailed":
-		actor.set_meta("law_status_label", "Jailed")
-		actor.set_meta("law_status_kind", "jailed")
+		status.is_prisoner = true
+		status.jail_id = str(record.get("jail_id", status.jail_id))
+		status.cell_id = str(record.get("cell_id", status.cell_id))
+		status.status_label = "Jailed"
+		status.status_kind = "jailed"
 		var release_at := int(record.get("release_at_minute", -1))
 		if release_at < 0:
-			actor.set_meta("law_sentence_summary", "Awaiting sentence")
+			status.sentence_summary = "Awaiting sentence"
 		else:
-			actor.set_meta("law_sentence_summary", "Sentence: %s remaining" % _minutes_label(max(0, release_at - _now_minute())))
+			status.sentence_summary = "Sentence: %s remaining" % _minutes_label(max(0, release_at - _now_minute()))
 		return
-	actor.set_meta("law_status_label", _caught_crime_status_label(_latest_crime_type(record)))
-	actor.set_meta("law_status_kind", "caught")
-	actor.remove_meta("law_sentence_summary")
+	status.status_label = _caught_crime_status_label(_latest_crime_type(record))
+	status.status_kind = "caught"
+	status.sentence_summary = ""
 
 
 func _latest_crime_type(record: Dictionary) -> String:
