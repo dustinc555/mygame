@@ -2,35 +2,10 @@
 
 [ext_resource type="Script" uid="uid://dm58cnb3kgh5e" path="res://scripts/world_sim/world_loader.gd" id="1_loader"]
 [ext_resource type="Script" uid="uid://bwa8ktkjkxva6" path="res://scripts/world_sim/demo_world_startup.gd" id="1_startup"]
-[ext_resource type="Resource" path="res://resources/worlds/demo_world/demo_world.tres" id="2_world"]
+[ext_resource type="Resource" uid="uid://dcrbc2knu5fjn" path="res://resources/worlds/demo_world/demo_world.tres" id="2_world"]
+[ext_resource type="PackedScene" path="res://scenes/zones/demo_zone/demo_zone.tscn" id="3_demo_zone"]
 [ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="4_manager"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
-[ext_resource type="Script" uid="uid://duw4pkjyrcwpm" path="res://scripts/world_sim/nests/nest_placement_marker.gd" id="6_nest_marker"]
-[ext_resource type="Script" uid="uid://dou4gsojqabfy" path="res://scripts/world_sim/world_sim_debug_action.gd" id="7_debug_action"]
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
-size = Vector3(1100, 1, 950)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
-albedo_color = Color(0.31, 0.29, 0.22, 1)
-roughness = 0.96
-
-[sub_resource type="BoxMesh" id="BoxMesh_floor"]
-size = Vector3(1100, 1, 950)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_time_action"]
-size = Vector3(2.8, 0.9, 1.6)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_time_action"]
-albedo_color = Color(0.16, 0.42, 0.78, 1)
-roughness = 0.78
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_midnight_action"]
-albedo_color = Color(0.14, 0.12, 0.36, 1)
-roughness = 0.78
-
-[sub_resource type="BoxMesh" id="BoxMesh_time_action"]
-size = Vector3(2.8, 0.9, 1.6)
 
 [node name="DemoWorld" type="Node3D" unique_id=191955666]
 script = ExtResource("1_startup")
@@ -39,84 +14,11 @@ script = ExtResource("1_startup")
 script = ExtResource("1_loader")
 world_definition = ExtResource("2_world")
 
-[node name="Towns" type="Node3D" parent="." unique_id=1786140021]
+[node name="Zones" type="Node3D" parent="." unique_id=624479922]
 
-[node name="Floor" type="StaticBody3D" parent="." unique_id=1388096755]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 18)
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor" unique_id=947055337]
-shape = SubResource("BoxShape3D_floor")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor" unique_id=296995800]
-material_override = SubResource("StandardMaterial3D_floor")
-mesh = SubResource("BoxMesh_floor")
+[node name="DemoZone" parent="Zones" unique_id=747434776 instance=ExtResource("3_demo_zone")]
 
 [node name="PartyMembers" type="Node3D" parent="." unique_id=2127076585]
-
-[node name="CharacterSpawn" type="Marker3D" parent="." unique_id=345712373]
-transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 377.61835, 0.6, 114.84003)
-
-[node name="SpawnActions" type="Node3D" parent="." unique_id=2061571273]
-
-[node name="AdvanceFourHours" type="StaticBody3D" parent="SpawnActions" unique_id=1597948854]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 383, 0.55, 115)
-script = ExtResource("7_debug_action")
-display_name = "Advance 4 Hours"
-action_key = "advance_hours:4"
-action_label = "Advance 4 Hours"
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="SpawnActions/AdvanceFourHours" unique_id=1008520669]
-shape = SubResource("BoxShape3D_time_action")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="SpawnActions/AdvanceFourHours" unique_id=766529612]
-material_override = SubResource("StandardMaterial3D_time_action")
-mesh = SubResource("BoxMesh_time_action")
-
-[node name="Label3D" type="Label3D" parent="SpawnActions/AdvanceFourHours" unique_id=2073915375]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0)
-billboard = 1
-text = "Advance\n4 Hours"
-font_size = 34
-
-[node name="SetMidnight" type="StaticBody3D" parent="SpawnActions"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 383, 0.55, 112.6)
-script = ExtResource("7_debug_action")
-display_name = "Set Midnight"
-action_key = "set_hour:0"
-action_label = "Set Midnight"
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="SpawnActions/SetMidnight"]
-shape = SubResource("BoxShape3D_time_action")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="SpawnActions/SetMidnight"]
-material_override = SubResource("StandardMaterial3D_midnight_action")
-mesh = SubResource("BoxMesh_time_action")
-
-[node name="Label3D" type="Label3D" parent="SpawnActions/SetMidnight"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0)
-billboard = 1
-text = "Set\nMidnight"
-font_size = 34
-
-[node name="NestMarkers" type="Node3D" parent="." unique_id=1699415744]
-
-[node name="RustdeadWestVent" type="Node3D" parent="NestMarkers" unique_id=1791790150]
-transform = Transform3D(0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, 0.965926, -500, 0, 250)
-script = ExtResource("6_nest_marker")
-marker_id = "demo_rustdead_west_vent"
-editor_debug_radius = 12.0
-
-[node name="RustdeadNorthVent" type="Node3D" parent="NestMarkers" unique_id=2041866359]
-transform = Transform3D(0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866025, -40, 0, -370)
-script = ExtResource("6_nest_marker")
-marker_id = "demo_rustdead_north_vent"
-editor_debug_radius = 12.0
-
-[node name="RustdeadSouthVent" type="Node3D" parent="NestMarkers" unique_id=217604442]
-transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 240, 0, 310)
-script = ExtResource("6_nest_marker")
-marker_id = "demo_rustdead_south_vent"
-editor_debug_radius = 12.0
 
 [node name="PartyManager" type="Node" parent="." unique_id=1913509186]
 script = ExtResource("4_manager")
@@ -140,5 +42,5 @@ offset_left = 20.0
 offset_top = 20.0
 offset_right = 880.0
 offset_bottom = 96.0
-text = "Demo world: create your starting character, then explore Surf City, East Raiders Camp, and Paradise Hills. Relations separate formal faction state from directional outlook."
+text = "Demo world: move and connect authored zones under Zones. Demo Zone contains Surf City, East Raiders Camp, and Paradise Hills."
 autowrap_mode = 3

@@ -52,12 +52,25 @@ func _deferred_bootstrap() -> void:
 
 
 func _ensure_world_navigation() -> void:
-	if root_scene.find_child("WorldNavigation", true, false) != null:
+	# A scene that already ships its own NavigationRegion3D (e.g. an editor-baked
+	# zone navmesh) must NOT also get the runtime baker: two regions on the same
+	# navigation map overlap and produce erratic closest-point/pathing results.
+	if _find_navigation_region(root_scene) != null:
 		return
 	var navigation := NavigationRegion3D.new()
 	navigation.name = "WorldNavigation"
 	navigation.set_script(WORLD_NAVIGATION_BAKER_SCRIPT)
 	root_scene.add_child(navigation)
+
+
+func _find_navigation_region(node: Node) -> NavigationRegion3D:
+	if node is NavigationRegion3D:
+		return node
+	for child in node.get_children():
+		var found := _find_navigation_region(child)
+		if found != null:
+			return found
+	return null
 
 
 func _ensure_hud() -> void:

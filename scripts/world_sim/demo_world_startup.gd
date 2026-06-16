@@ -73,7 +73,7 @@ func spawn_created_character(appearance: Resource, character_name := "") -> Huma
 	]
 	member.starting_equipment = [HATCHET_ITEM]
 	party_root.add_child(member)
-	var spawn_marker := get_node_or_null("CharacterSpawn") as Node3D
+	var spawn_marker := get_node_or_null("Zones/DemoZone/CharacterSpawn") as Node3D
 	if spawn_marker != null:
 		member.global_transform = spawn_marker.global_transform
 	created_member = member
@@ -82,7 +82,6 @@ func spawn_created_character(appearance: Resource, character_name := "") -> Huma
 		party_manager.register_party_member(member)
 		party_manager.select_only(member)
 	return member
-
 
 func get_created_member() -> HumanoidCharacter:
 	return created_member

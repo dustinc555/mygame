@@ -1,9 +1,9 @@
 extends SceneTree
 
 const SETTLEMENT_BAR_SCENE := preload("res://scenes/world_sim/settlement_bar.tscn")
-const PARADISE_HILLS_SCENE := preload("res://scenes/worlds/demo_world/towns/paradise_hills.tscn")
-const SURF_CITY_SCENE := preload("res://scenes/worlds/demo_world/towns/surf_city.tscn")
-const EAST_RAIDERS_CAMP_SCENE := preload("res://scenes/worlds/demo_world/towns/east_raiders_camp.tscn")
+const PARADISE_HILLS_SCENE := preload("res://scenes/zones/demo_zone/towns/paradise_hills.tscn")
+const SURF_CITY_SCENE := preload("res://scenes/zones/demo_zone/towns/surf_city.tscn")
+const EAST_RAIDERS_CAMP_SCENE := preload("res://scenes/zones/demo_zone/towns/east_raiders_camp.tscn")
 const WORLD_ITEM_SCENE := preload("res://scenes/world/items/world_item.tscn")
 const WORLD_INTERACTION_CONTROLLER_SCRIPT := preload("res://scripts/controllers/world_interaction_controller.gd")
 const TABLE_PLATE_ITEM := preload("res://resources/items/table_plate.tres")
