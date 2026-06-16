@@ -85,6 +85,9 @@ func _settlement_definitions_from_placements() -> Array[Resource]:
 
 
 func _load_world_towns() -> void:
+	var placements := get_settlement_placements()
+	if placements.is_empty():
+		return
 	var town_root := _get_or_create_town_root()
 	if town_root == null:
 		return
@@ -92,7 +95,7 @@ func _load_world_towns() -> void:
 		for child in town_root.get_children():
 			child.queue_free()
 		loaded_towns.clear()
-	for placement in get_settlement_placements():
+	for placement in placements:
 		_load_town_placement(town_root, placement)
 
 

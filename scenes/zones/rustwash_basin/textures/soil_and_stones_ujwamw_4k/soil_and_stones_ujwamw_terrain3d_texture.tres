@@ -1,0 +1,14 @@
+[gd_resource type="Terrain3DTextureAsset" format=3]
+
+[ext_resource type="Texture2D" path="res://scenes/zones/rustwash_basin/textures/soil_and_stones_ujwamw_4k/soil_and_stones_ujwamw_albedo_height.res" id="1_2ypcq"]
+[ext_resource type="Texture2D" path="res://scenes/zones/rustwash_basin/textures/soil_and_stones_ujwamw_4k/soil_and_stones_ujwamw_normal_roughness.res" id="2_dc5pc"]
+
+[resource]
+name = "Soil & Stones (UJWAmw)"
+albedo_texture = ExtResource("1_2ypcq")
+normal_texture = ExtResource("2_dc5pc")
+normal_depth = 0.75
+ao_strength = 0.45
+uv_scale = 1.0
+detiling_rotation = 0.5
+detiling_shift = 0.35

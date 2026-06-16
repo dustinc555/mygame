@@ -1,0 +1,63 @@
+{
+  "actor_id": "nika",
+  "member_name": "Nika",
+  "appearance": {
+    "character_race": "res://resources/character_races/human.tres",
+    "body_archetype": "res://resources/character_body_archetypes/human_female.tres",
+    "visual_body_type": 3,
+    "hair_style": "res://resources/character_appearance/hair_buzzed_female.tres",
+    "beard_style": "",
+    "eyebrow_style": "res://resources/character_appearance/eyebrows_female.tres",
+    "hair_color": [0.45, 0.16, 0.08, 1.0],
+    "beard_color": [0.45, 0.16, 0.08, 1.0],
+    "eyebrow_color": [0.36, 0.12, 0.06, 1.0],
+    "skin_color_customized": true,
+    "skin_color": [0.74, 0.45, 0.31, 1.0],
+    "height_slider": 0.0,
+    "shoulder_width_slider": -0.02,
+    "arm_length_slider": 0.03,
+    "neck_length_slider": 0.04
+  },
+  "skill_levels": {
+    "attribute.strength": 48,
+    "attribute.perception": 56,
+    "attribute.dexterity": 54,
+    "attribute.toughness": 47,
+    "attribute.endurance": 52,
+    "attribute.charisma": 58,
+    "combat.swords_one_handed": 56,
+    "combat.axes_one_handed": 34,
+    "combat.daggers": 50,
+    "combat.unarmed": 33,
+    "combat.shields": 51,
+    "movement.running": 53,
+    "labor.mining": 28,
+    "labor.scavenging": 49,
+    "labor.farming": 36,
+    "labor.fishing": 42,
+    "labor.construction": 31,
+    "craft.blacksmithing": 32,
+    "craft.weaving": 55,
+    "craft.leatherworking": 44,
+    "subterfuge.sneaking": 57,
+    "subterfuge.sleight_of_hand": 54,
+    "subterfuge.lockpicking": 52,
+    "knowledge.medicine": 51,
+    "tech.robotics": 39,
+    "knowledge.archeology": 45
+  },
+  "equipment_slots": {
+    "weapon": "res://resources/items/iron_sword.tres",
+    "offhand": "res://resources/items/golden_celtic_shield.tres",
+    "chest": "res://resources/items/wizard_robes.tres",
+    "hands": "res://resources/items/wizard_sleeves.tres",
+    "legs": "res://resources/items/wizard_trousers.tres",
+    "feet": "res://resources/items/wizard_shoes.tres"
+  },
+  "inventory_entries": [],
+  "traits": {},
+  "personality": {
+    "temperament": "curious",
+    "risk_tolerance": 0.62
+  }
+}

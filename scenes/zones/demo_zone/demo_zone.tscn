@@ -1,0 +1,113 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/zone_loader.gd" id="1_loader"]
+[ext_resource type="Resource" path="res://resources/zones/demo_zone/demo_zone.tres" id="2_zone"]
+[ext_resource type="Script" uid="uid://duw4pkjyrcwpm" path="res://scripts/world_sim/nests/nest_placement_marker.gd" id="3_nest_marker"]
+[ext_resource type="Script" uid="uid://dou4gsojqabfy" path="res://scripts/world_sim/world_sim_debug_action.gd" id="4_debug_action"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(1100, 1, 950)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.31, 0.29, 0.22, 1)
+roughness = 0.96
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(1100, 1, 950)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_time_action"]
+size = Vector3(2.8, 0.9, 1.6)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_time_action"]
+albedo_color = Color(0.16, 0.42, 0.78, 1)
+roughness = 0.78
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_midnight_action"]
+albedo_color = Color(0.14, 0.12, 0.36, 1)
+roughness = 0.78
+
+[sub_resource type="BoxMesh" id="BoxMesh_time_action"]
+size = Vector3(2.8, 0.9, 1.6)
+
+[node name="DemoZone" type="Node3D"]
+
+[node name="ZoneLoader" type="Node" parent="."]
+script = ExtResource("1_loader")
+zone_definition = ExtResource("2_zone")
+
+[node name="Towns" type="Node3D" parent="."]
+
+[node name="Floor" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 18)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+material_override = SubResource("StandardMaterial3D_floor")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="CharacterSpawn" type="Marker3D" parent="."]
+transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 377.61835, 0.6, 114.84003)
+
+[node name="SpawnActions" type="Node3D" parent="."]
+
+[node name="AdvanceFourHours" type="StaticBody3D" parent="SpawnActions"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 383, 0.55, 115)
+script = ExtResource("4_debug_action")
+display_name = "Advance 4 Hours"
+action_key = "advance_hours:4"
+action_label = "Advance 4 Hours"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SpawnActions/AdvanceFourHours"]
+shape = SubResource("BoxShape3D_time_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="SpawnActions/AdvanceFourHours"]
+material_override = SubResource("StandardMaterial3D_time_action")
+mesh = SubResource("BoxMesh_time_action")
+
+[node name="Label3D" type="Label3D" parent="SpawnActions/AdvanceFourHours"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0)
+billboard = 1
+text = "Advance\n4 Hours"
+font_size = 34
+
+[node name="SetMidnight" type="StaticBody3D" parent="SpawnActions"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 383, 0.55, 112.6)
+script = ExtResource("4_debug_action")
+display_name = "Set Midnight"
+action_key = "set_hour:0"
+action_label = "Set Midnight"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SpawnActions/SetMidnight"]
+shape = SubResource("BoxShape3D_time_action")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="SpawnActions/SetMidnight"]
+material_override = SubResource("StandardMaterial3D_midnight_action")
+mesh = SubResource("BoxMesh_time_action")
+
+[node name="Label3D" type="Label3D" parent="SpawnActions/SetMidnight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0)
+billboard = 1
+text = "Set\nMidnight"
+font_size = 34
+
+[node name="NestMarkers" type="Node3D" parent="."]
+
+[node name="RustdeadWestVent" type="Node3D" parent="NestMarkers"]
+transform = Transform3D(0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, 0.965926, -500, 0, 250)
+script = ExtResource("3_nest_marker")
+marker_id = "demo_rustdead_west_vent"
+editor_debug_radius = 12.0
+
+[node name="RustdeadNorthVent" type="Node3D" parent="NestMarkers"]
+transform = Transform3D(0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866025, -40, 0, -370)
+script = ExtResource("3_nest_marker")
+marker_id = "demo_rustdead_north_vent"
+editor_debug_radius = 12.0
+
+[node name="RustdeadSouthVent" type="Node3D" parent="NestMarkers"]
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 240, 0, 310)
+script = ExtResource("3_nest_marker")
+marker_id = "demo_rustdead_south_vent"
+editor_debug_radius = 12.0

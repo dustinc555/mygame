@@ -1,15 +1,23 @@
 extends SceneTree
 
-const DEMO_WORLD_SCENE := preload("res://scenes/worlds/demo_world/demo_world.tscn")
-const DEMO_WORLD_DEFINITION := preload("res://resources/worlds/demo_world/demo_world.tres")
+const DEMO_WORLD_SCENE_PATH := "res://scenes/worlds/demo_world/demo_world.tscn"
+const DEMO_WORLD_DEFINITION_PATH := "res://resources/worlds/demo_world/demo_world.tres"
+const DEMO_ZONE_DEFINITION_PATH := "res://resources/zones/demo_zone/demo_zone.tres"
 const POPULATION_APPEARANCE_PROFILE_DIR := "res://resources/world_sim/population_appearance_profiles"
-const BANDAGE_ITEM := preload("res://resources/items/bandage.tres")
-const CINDER_FLASK_ITEM := preload("res://resources/items/cinder_flask.tres")
+const BANDAGE_ITEM_PATH := "res://resources/items/bandage.tres"
+const CINDER_FLASK_ITEM_PATH := "res://resources/items/cinder_flask.tres"
+const AI_UTILITY_ADAPTER_PATH := "res://scripts/ai/utility/ai_utility_adapter.gd"
+const COMBAT_COORDINATOR_PATH := "res://scripts/characters/combat_coordinator.gd"
+const SKIN_TEXTURE_BUILDER_PATH := "res://scripts/character_appearance/skin_texture_builder.gd"
 const HUMAN_RACE_ID := "human"
 const RUSTDEAD_RACE_ID := "rustdead"
 
 var _failures: Array[String] = []
 var _scene: Node
+var _world_definition: Resource
+var _zone_definition: Resource
+var _bandage_item: Resource
+var _cinder_flask_item: Resource
 
 
 func _initialize() -> void:
@@ -18,7 +26,16 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_scene = DEMO_WORLD_SCENE.instantiate()
+	_load_validation_resources()
+	var demo_world_scene := load(DEMO_WORLD_SCENE_PATH) as PackedScene
+	if demo_world_scene == null:
+		_fail("Demo world scene should load from %s" % DEMO_WORLD_SCENE_PATH)
+	_scene = demo_world_scene.instantiate() if demo_world_scene != null else null
+	demo_world_scene = null
+	if _scene == null:
+		await _cleanup_scene()
+		_print_failures_and_quit()
+		return
 	root.add_child(_scene)
 	await _wait_frames(140)
 	_validate_world_definition()
@@ -28,25 +45,51 @@ func _run() -> void:
 	_validate_non_rustdead_humanoids()
 	_validate_faction_relations()
 	_validate_slavery_law_flag()
+	await _cleanup_scene()
 	if _failures.is_empty():
 		print("DEMO_WORLD_TOPOLOGY_OK")
 		quit(0)
 		return
+	_print_failures_and_quit()
+
+
+func _print_failures_and_quit() -> void:
 	for failure in _failures:
 		push_error(failure)
 	print("DEMO_WORLD_TOPOLOGY_FAILED count=%d" % _failures.size())
 	quit(1)
 
 
+func _load_validation_resources() -> void:
+	_world_definition = load(DEMO_WORLD_DEFINITION_PATH) as Resource
+	if _world_definition == null:
+		_fail("Demo world definition should load from %s" % DEMO_WORLD_DEFINITION_PATH)
+	_zone_definition = load(DEMO_ZONE_DEFINITION_PATH) as Resource
+	if _zone_definition == null:
+		_fail("Demo zone definition should load from %s" % DEMO_ZONE_DEFINITION_PATH)
+	_bandage_item = load(BANDAGE_ITEM_PATH) as Resource
+	if _bandage_item == null:
+		_fail("Bandage item should load from %s" % BANDAGE_ITEM_PATH)
+	_cinder_flask_item = load(CINDER_FLASK_ITEM_PATH) as Resource
+	if _cinder_flask_item == null:
+		_fail("Cinder Flask item should load from %s" % CINDER_FLASK_ITEM_PATH)
+
+
 func _validate_world_definition() -> void:
-	if str(DEMO_WORLD_DEFINITION.call("get_id")) != "demo_world":
+	if _world_definition == null or _zone_definition == null:
+		return
+	if str(_world_definition.call("get_id")) != "demo_world":
 		_fail("Demo world definition should use stable id demo_world")
-	if (DEMO_WORLD_DEFINITION.get("settlement_placements") as Array).size() != 3:
-		_fail("Demo world should define exactly three settlement placements")
-	if (DEMO_WORLD_DEFINITION.get("starting_relations") as Array).size() != 3:
-		_fail("Demo world should define exactly three starting relations")
+	if (_world_definition.get("zone_definitions") as Array).size() != 1:
+		_fail("Demo world should define exactly one zone")
+	if str(_zone_definition.call("get_id")) != "demo_zone":
+		_fail("Demo zone definition should use stable id demo_zone")
+	if (_zone_definition.get("settlement_placements") as Array).size() != 3:
+		_fail("Demo zone should define exactly three settlement placements")
+	if (_zone_definition.get("starting_relations") as Array).size() != 3:
+		_fail("Demo zone should define exactly three starting relations")
 	var settlement_ids := {}
-	for placement in DEMO_WORLD_DEFINITION.get("settlement_placements"):
+	for placement in _zone_definition.get("settlement_placements"):
 		var placement_id := str(placement.call("get_id")) if placement != null and placement.has_method("get_id") else ""
 		if placement_id.is_empty():
 			_fail("Settlement placement should have a stable id")
@@ -63,20 +106,20 @@ func _validate_world_definition() -> void:
 
 
 func _validate_loaded_towns() -> void:
-	var towns := _scene.get_node_or_null("Towns")
+	var towns := _scene.get_node_or_null("Zones/DemoZone/Towns")
 	if towns == null:
-		_fail("Demo world should have a runtime Towns root")
+		_fail("Demo zone should have a runtime Towns root")
 		return
 	for town_name in ["SurfCity", "EastRaidersCamp", "ParadiseHills"]:
 		var town := towns.get_node_or_null(town_name)
 		if town == null:
-			_fail("Town %s should be loaded by WorldLoader" % town_name)
+			_fail("Town %s should be loaded by ZoneLoader" % town_name)
 			continue
 		_validate_town_contract(town, town_name)
 
 
 func _validate_town_guard_burn_support() -> void:
-	var towns := _scene.get_node_or_null("Towns")
+	var towns := _scene.get_node_or_null("Zones/DemoZone/Towns")
 	if towns == null:
 		return
 	for town_name in ["SurfCity", "EastRaidersCamp", "ParadiseHills"]:
@@ -97,9 +140,9 @@ func _validate_town_guard_burn_support() -> void:
 				_fail("%s guard %s should default Auto Heal on" % [town_name, guard.name])
 			if not guard.is_auto_burn_rustdead_enabled():
 				_fail("%s guard %s should default Burn Rustdead on" % [town_name, guard.name])
-			if guard.inventory == null or guard.inventory.count_item(BANDAGE_ITEM) < 1:
+			if guard.inventory == null or guard.inventory.count_item(_bandage_item) < 1:
 				_fail("%s guard %s should start with bandages" % [town_name, guard.name])
-			if guard.inventory == null or guard.inventory.count_item(CINDER_FLASK_ITEM) != 2:
+			if guard.inventory == null or guard.inventory.count_item(_cinder_flask_item) != 2:
 				_fail("%s guard %s should start with exactly 2 Cinder Flasks" % [town_name, guard.name])
 
 
@@ -239,6 +282,33 @@ func _race_id(race: Resource) -> String:
 func _wait_frames(count: int) -> void:
 	for _i in range(count):
 		await process_frame
+
+
+func _cleanup_scene() -> void:
+	if _scene != null and is_instance_valid(_scene):
+		root.remove_child(_scene)
+		_scene.free()
+	_scene = null
+	_world_definition = null
+	_zone_definition = null
+	_bandage_item = null
+	_cinder_flask_item = null
+	await process_frame
+	await physics_frame
+	_cleanup_runtime_state()
+	await process_frame
+
+
+func _cleanup_runtime_state() -> void:
+	var combat_coordinator = load(COMBAT_COORDINATOR_PATH)
+	if combat_coordinator != null and combat_coordinator.has_method("reset_all_state"):
+		combat_coordinator.reset_all_state()
+	var ai_utility_adapter = load(AI_UTILITY_ADAPTER_PATH)
+	if ai_utility_adapter != null and ai_utility_adapter.has_method("clear_runtime_caches"):
+		ai_utility_adapter.clear_runtime_caches()
+	var skin_texture_builder = load(SKIN_TEXTURE_BUILDER_PATH)
+	if skin_texture_builder != null and skin_texture_builder.has_method("clear_runtime_caches"):
+		skin_texture_builder.clear_runtime_caches()
 
 
 func _fail(message: String) -> void:

@@ -1,0 +1,50 @@
+[gd_scene format=3 uid="uid://bswlf53ythhn2"]
+
+[ext_resource type="Script" path="res://scripts/world_sim/zone_loader.gd" id="1_zone_loader"]
+[ext_resource type="Script" path="res://scripts/world_sim/character_record_party_spawner.gd" id="3_record_party_spawner"]
+[ext_resource type="Script" path="res://scripts/party_manager.gd" id="4_party_manager"]
+[ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
+[ext_resource type="PackedScene" path="res://scenes/zones/rustwash_basin/terrain/rustwash_basin_terrain.tscn" id="5_wjgve"]
+
+[node name="RustwashBasin" type="Node3D" unique_id=1310818615]
+
+[node name="ZoneLoader" type="Node" parent="." unique_id=358756727]
+script = ExtResource("1_zone_loader")
+
+[node name="Towns" type="Node3D" parent="." unique_id=1512349854]
+
+[node name="NestMarkers" type="Node3D" parent="." unique_id=833802370]
+
+[node name="POIs" type="Node3D" parent="." unique_id=1667664784]
+
+[node name="Roads" type="Node3D" parent="." unique_id=401439396]
+
+[node name="CharacterSpawn" type="Marker3D" parent="." unique_id=103925666]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 9.645544, -157.3202)
+
+[node name="PartyMembers" type="Node3D" parent="." unique_id=1973708000]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.4446583, -151.05225)
+
+[node name="CharacterRecordPartySpawner" type="Node3D" parent="PartyMembers" unique_id=438871241]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.7933922, 0)
+script = ExtResource("3_record_party_spawner")
+character_record_paths = PackedStringArray("res://resources/characters/mira.json", "res://resources/characters/tomas.json", "res://resources/characters/sable.json", "res://resources/characters/bram.json", "res://resources/characters/nika.json")
+hostile_faction_ids = PackedStringArray()
+member_colors = PackedColorArray(0.72, 0.48, 0.78, 1, 0.35, 0.56, 0.42, 1, 0.58, 0.72, 0.38, 1, 0.33, 0.55, 0.78, 1, 0.67, 0.45, 0.75, 1)
+
+[node name="PartyManager" type="Node" parent="." unique_id=1115625437]
+script = ExtResource("4_party_manager")
+
+[node name="GameBootstrap" type="Node" parent="." unique_id=233339837]
+script = ExtResource("5_bootstrap")
+
+[node name="CameraRig" type="Node3D" parent="." unique_id=1054260023]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.439958, -156.32843)
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig" unique_id=733302108]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot" unique_id=133953235]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 18)
+current = true
+
+[node name="Terrain" type="NavigationRegion3D" parent="." unique_id=664859720 instance=ExtResource("5_wjgve")]

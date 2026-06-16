@@ -131,7 +131,12 @@ signal inventory_changed
 @export var navigation_path_desired_distance := 0.75
 @export var navigation_target_desired_distance := 0.6
 @export var navigation_path_height_offset := 0.9
-@export var navigation_unreachable_tolerance := 1.4
+@export var navigation_unreachable_tolerance := 2.0
+## Vertical slack for deciding a move target is reachable. Kept separate from
+## move_target_vertical_tolerance (which combat reuses for attack reach) so nav
+## can be forgiving of bumpy-terrain navmesh height wobble WITHOUT letting actors
+## "reach" a cliff/wall top or another floor — anything past this stays unreachable.
+@export var navigation_reachable_vertical_tolerance := 2.0
 @export var navigation_neighbor_distance := 2.4
 @export var navigation_max_neighbors := 8
 @export var navigation_time_horizon_agents := 0.7
@@ -219,7 +224,6 @@ func _ready() -> void:
 		_setup_world_actor_ai()
 	_setup_actor_capabilities()
 	_ready_actor_capabilities()
-
 
 func _exit_tree() -> void:
 	_clear_system_movement_collision_exception()
@@ -2297,7 +2301,7 @@ func _is_navigation_final_position_close_enough() -> bool:
 	if _navigation_agent == null:
 		return false
 	var final_position := _navigation_agent.get_final_position()
-	return _is_close_to_navigation_point_from(final_position, _move_target, move_target_vertical_tolerance, navigation_unreachable_tolerance)
+	return _is_close_to_navigation_point_from(final_position, _move_target, navigation_reachable_vertical_tolerance, navigation_unreachable_tolerance)
 
 
 func _finish_actor_move_target() -> void:

@@ -1,0 +1,100 @@
+{
+"pack": null,
+"comp_version": 1,
+"copyright": "ScansLibrary Technologies Ltd.",
+"semanticTags":   {
+      "asset_name": "Soil & Stones",
+      "asset_id": "UJWAmw",
+      "asset_type": "Surface",
+      "credits": "4",
+      "tags": [
+        "soil",
+        "stone",
+        "UJWAmw"
+      ],
+      "categories": [
+        "Soil",
+        "Ground",
+        "Stone",
+        "Rough"
+      ],
+      "texture_name": "M_Soil_and_Stones_UJWAmw",
+      "flags": "",
+      "dimensions": [
+        {
+          "width": "2m",
+          "lenght": "2m"
+        }
+      ],
+      "tile": "x,y",
+      "max_resolution": "8192x8192",
+      "environment": "semi arid",
+      "location": "Akcakese",
+      "colorSpace": "sRGB",
+      "calibration": "ColorChecker Passport",
+      "scanner": "SL-SCN-ELB 500 TTL V2",
+      "textures": {
+        "albedo": [
+          "M_Soil_and_Stones_UJWAmw_8K_Albedo.jpg",
+          "M_Soil_and_Stones_UJWAmw_8K_Albedo.tiff",
+          "M_Soil_and_Stones_UJWAmw_4K_Albedo.jpg",
+          "M_Soil_and_Stones_UJWAmw_2K_Albedo.jpg",
+          "M_Soil_and_Stones_UJWAmw_1K_Albedo.jpg"
+        ],
+        "alpha": [
+          ""
+        ],
+        "ao": [
+          "M_Soil_and_Stones_UJWAmw_8K_AO.jpg",
+          "M_Soil_and_Stones_UJWAmw_8K_AO.tiff",
+          "M_Soil_and_Stones_UJWAmw_4K_AO.jpg",
+          "M_Soil_and_Stones_UJWAmw_2K_AO.jpg",
+          "M_Soil_and_Stones_UJWAmw_1K_AO.jpg"
+        ],
+        "cavity": [
+          "M_Soil_and_Stones_UJWAmw_8K_Cavity.jpg",
+          "M_Soil_and_Stones_UJWAmw_8K_Cavity.tiff",
+          "M_Soil_and_Stones_UJWAmw_4K_Cavity.jpg",
+          "M_Soil_and_Stones_UJWAmw_2K_Cavity.jpg",
+          "M_Soil_and_Stones_UJWAmw_1K_Cavity.jpg"
+        ],
+        "fuzzy": "",
+        "heightmap": [
+          "M_Soil_and_Stones_UJWAmw_8K_HeightMap.jpg",
+          "M_Soil_and_Stones_UJWAmw_8K_HeightMap.tiff",
+          "M_Soil_and_Stones_UJWAmw_4K_HeightMap.jpg",
+          "M_Soil_and_Stones_UJWAmw_2K_HeightMap.jpg",
+          "M_Soil_and_Stones_UJWAmw_1K_HeightMap.jpg"
+        ],
+        "heightmap_32bit": [
+          "M_Soil_and_Stones_UJWAmw_8K_HeightMap_EXR.exr",
+          "M_Soil_and_Stones_UJWAmw_4K_HeightMap_EXR.exr"
+        ],
+        "metalness": [
+          ""
+        ],
+        "normal": [
+          "M_Soil_and_Stones_UJWAmw_8K_Normal.jpg",
+          "M_Soil_and_Stones_UJWAmw_8K_Normal.tiff",
+          "M_Soil_and_Stones_UJWAmw_4K_Normal.jpg",
+          "M_Soil_and_Stones_UJWAmw_2K_Normal.jpg",
+          "M_Soil_and_Stones_UJWAmw_1K_Normal.jpg"
+        ],
+        "roughness": [
+          "M_Soil_and_Stones_UJWAmw_8K_Roughness.jpg",
+          "M_Soil_and_Stones_UJWAmw_8K_Roughness.tiff",
+          "M_Soil_and_Stones_UJWAmw_4K_Roughness.jpg",
+          "M_Soil_and_Stones_UJWAmw_2K_Roughness.jpg",
+          "M_Soil_and_Stones_UJWAmw_1K_Roughness.jpg"
+        ],
+        "ss": "",
+        "specular": [
+          "M_Soil_and_Stones_UJWAmw_8K_Specular.jpg",
+          "M_Soil_and_Stones_UJWAmw_8K_Specular.tiff",
+          "M_Soil_and_Stones_UJWAmw_4K_Specular.jpg",
+          "M_Soil_and_Stones_UJWAmw_2K_Specular.jpg",
+          "M_Soil_and_Stones_UJWAmw_1K_Specular.jpg"
+        ]
+      }
+    }
+}

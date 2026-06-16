@@ -296,10 +296,10 @@ func _make_slot_rng(slot: Node3D, phase: String) -> RandomNumberGenerator:
 
 
 func _get_slot_basis(slot: Node3D, rng: RandomNumberGenerator) -> Basis:
-	var basis := slot.global_transform.basis.orthonormalized()
+	var slot_basis := slot.global_transform.basis.orthonormalized()
 	if yaw_jitter_radians > 0.0:
-		basis = Basis(Vector3.UP, rng.randf_range(-yaw_jitter_radians, yaw_jitter_radians)) * basis
-	return basis
+		slot_basis = Basis(Vector3.UP, rng.randf_range(-yaw_jitter_radians, yaw_jitter_radians)) * slot_basis
+	return slot_basis
 
 
 func _get_theft_value(definition: ItemDefinition) -> int:

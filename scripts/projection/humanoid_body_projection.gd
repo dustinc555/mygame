@@ -1931,11 +1931,13 @@ func _apply_visual_foot_anchor_correction(visual_root: Node3D, desired_correctio
 
 
 func refresh_foot_ground_alignment() -> void:
+	if actor == null or not is_instance_valid(actor) or not actor.is_inside_tree():
+		return
 	if actor._is_ragdoll_active or _character_skeleton == null or not is_instance_valid(_character_skeleton):
 		return
 	var skeleton: Skeleton3D = _character_skeleton
 	var visual_root := get_visual_root()
-	if visual_root == null:
+	if visual_root == null or not visual_root.is_inside_tree() or not skeleton.is_inside_tree():
 		return
 	skeleton.force_update_all_bone_transforms()
 	var foot_y := _get_skeleton_foot_anchor_global_y(skeleton)
@@ -1952,7 +1954,7 @@ func refresh_foot_ground_alignment() -> void:
 
 
 func _get_skeleton_foot_anchor_global_y(skeleton: Skeleton3D) -> float:
-	if skeleton == null or not is_instance_valid(skeleton):
+	if skeleton == null or not is_instance_valid(skeleton) or not skeleton.is_inside_tree():
 		return INF
 	var result := INF
 	for bone_name in ["foot_l", "foot_r", "ball_l", "ball_r"]:
@@ -1966,13 +1968,15 @@ func _get_skeleton_foot_anchor_global_y(skeleton: Skeleton3D) -> float:
 
 func get_visual_foot_anchor_y() -> float:
 	var skeleton: Skeleton3D = _character_skeleton
-	if skeleton == null or not is_instance_valid(skeleton):
+	if skeleton == null or not is_instance_valid(skeleton) or not skeleton.is_inside_tree():
 		return INF
 	skeleton.force_update_all_bone_transforms()
 	return _get_skeleton_foot_anchor_global_y(skeleton)
 
 
 func get_visual_ground_y() -> float:
+	if actor == null or not is_instance_valid(actor) or not actor.is_inside_tree():
+		return 0.0
 	var fallback_y := 0.0
 	var body_mesh := actor.get_node_or_null("BodyMesh") as MeshInstance3D
 	if body_mesh != null:

@@ -123,9 +123,9 @@ func _validate_demo_markers() -> void:
 	var markers := get_nodes_in_group("nest_placement_marker")
 	if markers.size() < 3:
 		_fail("Demo world should author at least three nest placement markers")
-	var west_marker := _scene.get_node_or_null("NestMarkers/RustdeadWestVent")
+	var west_marker := _scene.get_node_or_null("Zones/DemoZone/NestMarkers/RustdeadWestVent")
 	if west_marker == null:
-		_fail("Demo world should include the Rustdead west vent marker")
+		_fail("Demo zone should include the Rustdead west vent marker")
 		return
 	if str(west_marker.get("marker_id")) != WEST_MARKER_ID:
 		_fail("Rustdead west marker should use stable marker id %s" % WEST_MARKER_ID)
@@ -457,7 +457,7 @@ func _is_deprecated_nest_scrap_display_name(display_name: String) -> bool:
 
 
 func _validate_attack_target_selection(nest_controller: Node) -> void:
-	var marker := _scene.get_node_or_null("NestMarkers/RustdeadWestVent") as Node3D
+	var marker := _scene.get_node_or_null("Zones/DemoZone/NestMarkers/RustdeadWestVent") as Node3D
 	if marker == null:
 		return
 	var rustdead_nest_type := _load_rustdead_nest_type()

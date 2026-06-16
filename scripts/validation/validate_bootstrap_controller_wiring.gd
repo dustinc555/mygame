@@ -1,6 +1,9 @@
 extends SceneTree
 
-const DEMO_WORLD_SCENE := preload("res://scenes/worlds/demo_world/demo_world.tscn")
+const DEMO_WORLD_SCENE_PATH := "res://scenes/worlds/demo_world/demo_world.tscn"
+const AI_UTILITY_ADAPTER_PATH := "res://scripts/ai/utility/ai_utility_adapter.gd"
+const COMBAT_COORDINATOR_PATH := "res://scripts/characters/combat_coordinator.gd"
+const SKIN_TEXTURE_BUILDER_PATH := "res://scripts/character_appearance/skin_texture_builder.gd"
 
 const REQUIRED_CONTROLLERS := [
 	"GecsWorldController",
@@ -61,16 +64,27 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_scene = DEMO_WORLD_SCENE.instantiate()
+	var demo_world_scene := load(DEMO_WORLD_SCENE_PATH) as PackedScene
+	if demo_world_scene == null:
+		_fail("Demo world scene should load from %s" % DEMO_WORLD_SCENE_PATH)
+		_print_failures_and_quit()
+		return
+	_scene = demo_world_scene.instantiate()
+	demo_world_scene = null
 	root.add_child(_scene)
 	await _wait_frames(180)
 	_validate_bootstrap_controllers()
 	_validate_single_gecs_controller()
 	_validate_world_simulation_dependencies()
+	await _cleanup_scene()
 	if _failures.is_empty():
 		print("BOOTSTRAP_CONTROLLER_WIRING_OK")
 		quit(0)
 		return
+	_print_failures_and_quit()
+
+
+func _print_failures_and_quit() -> void:
 	for failure in _failures:
 		push_error(failure)
 	print("BOOTSTRAP_CONTROLLER_WIRING_FAILED count=%d" % _failures.size())
@@ -116,6 +130,34 @@ func _validate_world_simulation_dependencies() -> void:
 func _wait_frames(count: int) -> void:
 	for _i in range(count):
 		await process_frame
+
+
+func _cleanup_scene() -> void:
+	if _scene != null and is_instance_valid(_scene):
+		root.remove_child(_scene)
+		_scene.free()
+	_scene = null
+	await process_frame
+	await physics_frame
+	_cleanup_runtime_state()
+	await _wait_frames(6)
+
+
+func _cleanup_runtime_state() -> void:
+	var ecs_node := root.get_node_or_null("ECS")
+	if ecs_node != null:
+		if Engine.has_singleton("ECS"):
+			Engine.unregister_singleton("ECS")
+		ecs_node.free()
+	var combat_coordinator = load(COMBAT_COORDINATOR_PATH)
+	if combat_coordinator != null and combat_coordinator.has_method("reset_all_state"):
+		combat_coordinator.reset_all_state()
+	var ai_utility_adapter = load(AI_UTILITY_ADAPTER_PATH)
+	if ai_utility_adapter != null and ai_utility_adapter.has_method("clear_runtime_caches"):
+		ai_utility_adapter.clear_runtime_caches()
+	var skin_texture_builder = load(SKIN_TEXTURE_BUILDER_PATH)
+	if skin_texture_builder != null and skin_texture_builder.has_method("clear_runtime_caches"):
+		skin_texture_builder.clear_runtime_caches()
 
 
 func _fail(message: String) -> void:
