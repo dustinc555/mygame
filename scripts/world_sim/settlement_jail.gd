@@ -254,8 +254,11 @@ func _is_warden_sentence_delivery_active(_warden: HumanoidCharacter) -> bool:
 	if _pending_sentence_announcements.is_empty():
 		return false
 	var entry := _pending_sentence_announcements[0]
-	var actor := entry.get("actor") as HumanoidCharacter
-	return actor != null and is_instance_valid(actor) and actor.life_state == NpcRules.LifeState.ALIVE and actor.is_law_prisoner() and _has_pending_sentence_notification(actor)
+	var raw = entry.get("actor")
+	if raw == null or not is_instance_valid(raw):
+		return false
+	var actor := raw as HumanoidCharacter
+	return actor != null and actor.life_state == NpcRules.LifeState.ALIVE and actor.is_law_prisoner() and _has_pending_sentence_notification(actor)
 
 
 func _has_pending_sentence_notification(actor: HumanoidCharacter) -> bool:
@@ -451,10 +454,11 @@ func _process_sentence_announcements(delta: float) -> void:
 	if _pending_sentence_announcements.is_empty():
 		return
 	var entry := _pending_sentence_announcements[0]
-	var actor := entry.get("actor") as HumanoidCharacter
-	if actor == null or not is_instance_valid(actor):
+	var raw = entry.get("actor")
+	if raw == null or not is_instance_valid(raw):
 		_pending_sentence_announcements.pop_front()
 		return
+	var actor := raw as HumanoidCharacter
 	if not actor.is_law_prisoner():
 		_pending_sentence_announcements.pop_front()
 		return

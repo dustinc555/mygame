@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MyGame — Dependency & Coupling</title>
+<style>
+  :root { --bar: 52px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #0f1115; color: #e7e9ee; overflow: hidden; }
+  #bar { height: var(--bar); display: flex; align-items: center; gap: 12px; padding: 0 14px; background: #171a21; border-bottom: 1px solid #2a2f3a; z-index: 5; }
+  #bar h1 { font-size: 15px; margin: 0; font-weight: 700; white-space: nowrap; }
+  #bar h1 small { color: #8b93a3; font-weight: 500; margin-left: 6px; }
+  .seg { display: inline-flex; background: #0f1115; border: 1px solid #2a2f3a; border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; color: #c4cad6; padding: 7px 13px; font-size: 13px; cursor: pointer; font-weight: 600; }
+  .seg button.active { background: #3b6fb3; color: #fff; }
+  .seg button:not(.active):hover { background: #1d2230; }
+  label.chk { font-size: 12px; color: #c4cad6; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
+  label.chk input { accent-color: #3b6fb3; }
+  #search { background: #0f1115; border: 1px solid #2a2f3a; border-radius: 8px; color: #e7e9ee; padding: 7px 11px; font-size: 13px; width: 180px; outline: none; }
+  #search:focus { border-color: #3b6fb3; }
+  .ghost { background: #1d2230; border: 1px solid #2a2f3a; color: #c4cad6; padding: 7px 11px; border-radius: 8px; cursor: pointer; font-size: 12px; }
+  .ghost:hover { background: #262c3a; }
+  #wrap { display: flex; height: calc(100% - var(--bar)); }
+  #chart { flex: 1; height: 100%; }
+  #side { width: 340px; background: #12151b; border-left: 1px solid #2a2f3a; overflow-y: auto; padding: 12px 14px; font-size: 12.5px; }
+  #side.hidden { display: none; }
+  #side h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #8b93a3; margin: 16px 0 7px; }
+  #side h2:first-child { margin-top: 0; }
+  .row { display: flex; align-items: baseline; gap: 7px; padding: 2px 0; cursor: pointer; border-radius: 4px; }
+  .row:hover { background: #1b2030; }
+  .deg { color: #7d8595; font-variant-numeric: tabular-nums; min-width: 26px; text-align: right; }
+  .nm { color: #dfe3ea; } .ly { color: #6b7280; font-size: 11px; }
+  .viol { color: #ff6b6b; } .cyc { color: #ffac5e; } .tick { color: #ffd24a; }
+  .new { color: #3fcf6a; } .mod { color: #f0b429; }
+  .note { color: #8b93a3; line-height: 1.5; margin: 4px 0 0; }
+  code { background: #0f1115; padding: 1px 5px; border-radius: 4px; color: #9fc2f0; }
+  .hint { color: #6b7280; font-size: 11px; }
+</style>
+</head>
+<body>
+  <div id="bar">
+    <h1>MyGame <small>dependency &amp; coupling</small></h1>
+    <div class="seg" id="mode">
+      <button data-m="graph" class="active">Dependencies</button>
+      <button data-m="layer">Layer coupling</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="cViol"> <span class="viol">truth-rule</span></label>
+    <label class="chk"><input type="checkbox" id="cTick"> <span class="tick">self-tick</span></label>
+    <label class="chk"><input type="checkbox" id="cCyc"> <span class="cyc">cycles</span></label>
+    <label class="chk"><input type="checkbox" id="cChanged"> <span class="new">new</span>/<span class="mod">mod</span></label>
+    <input id="search" placeholder="filter node…" />
+    <span class="hint">hover = neighbors</span>
+    <button class="ghost" id="toggleSide" style="margin-left:auto">Insights</button>
+  </div>
+  <div id="wrap"><div id="chart"></div><div id="side"></div></div>
+
+  <script src="./vendor/echarts.min.js"></script>
+  <script src="./graphdata.js"></script>
+  <script>
+  const G = window.GRAPH;
+  const chart = echarts.init(document.getElementById('chart'), null, { renderer: 'canvas' });
+  const layerIdx = {}; G.layers.forEach((l,i)=>layerIdx[l.name]=i);
+  const colorOf = {}; G.layers.forEach(l=>colorOf[l.name]=l.color);
+  const nodeById = {}; G.nodes.forEach(n=>nodeById[n.id]=n);
+  let mode='graph'; const opt={viol:false,tick:false,cyc:false,changed:false,q:''};
+
+  const edgeColor = e => e.violation ? '#ff5c5c' : e.cycle ? '#ff9a3b' : 'rgba(120,130,150,.28)';
+  const edgeWidth = e => e.violation ? 2.6 : e.cycle ? 1.8 : Math.min(0.6 + e.w*0.25, 2);
+  function nodeBorder(n){ if(n.status==='new') return {borderColor:'#3fcf6a',borderWidth:2.6}; if(n.status==='modified') return {borderColor:'#f0b429',borderWidth:2.6}; if(n.tick) return {borderColor:'#ffd24a',borderWidth:2}; if(n.cycle) return {borderColor:'#ff9a3b',borderWidth:1.6}; return {}; }
+
+  function keepSet(predNodes){
+    const keep = new Set(predNodes);
+    G.links.forEach(e=>{ if(keep.has(e.source)) keep.add(e.target); if(keep.has(e.target)) keep.add(e.source); });
+    return keep;
+  }
+
+  function graphOption(){
+    let nodes=G.nodes, links=G.links;
+    if(opt.q){ const q=opt.q.toLowerCase(); const keep=keepSet(G.nodes.filter(n=>n.id.toLowerCase().includes(q)).map(n=>n.id));
+      nodes=G.nodes.filter(n=>keep.has(n.id)); links=G.links.filter(e=>keep.has(e.source)&&keep.has(e.target)); }
+    if(opt.tick){ const keep=keepSet(G.nodes.filter(n=>n.tick).map(n=>n.id));
+      nodes=nodes.filter(n=>keep.has(n.id)); links=links.filter(e=>keep.has(e.source)&&keep.has(e.target)); }
+    if(opt.changed){ const keep=keepSet(G.nodes.filter(n=>n.status).map(n=>n.id));
+      nodes=nodes.filter(n=>keep.has(n.id)); links=links.filter(e=>keep.has(e.source)&&keep.has(e.target)); }
+    if(opt.viol) links=links.filter(e=>e.violation);
+    else if(opt.cyc) links=links.filter(e=>e.cycle);
+    return {
+      backgroundColor:'transparent',
+      tooltip:{ backgroundColor:'#171a21', borderColor:'#2a2f3a', textStyle:{color:'#e7e9ee'},
+        formatter:p=> p.dataType==='edge'
+          ? `${p.data.source} <span style="color:#7d8595">→</span> ${p.data.target}`+(p.data.violation?'<br><span style="color:#ff6b6b">truth-rule violation</span>':p.data.cycle?'<br><span style="color:#ffac5e">in a cycle</span>':'')
+          : `<b>${p.data.name}</b><br><span style="color:#9aa3b2">${p.data.layer}</span><br><span style="color:#7d8595">${p.data.in} depend on it · it uses ${p.data.out}</span>`+(p.data.tick?'<br><span style="color:#ffd24a">self-tick violator</span>':'')+(p.data.status?'<br><span style="color:'+(p.data.status==='new'?'#3fcf6a':'#f0b429')+'">'+p.data.status+' (working tree)</span>':'') },
+      series:[{
+        type:'graph', layout:'force', roam:true, draggable:true,
+        categories: G.layers.map(l=>({name:l.name, itemStyle:{color:l.color}})),
+        data: nodes.map(n=>({ name:n.id, category:layerIdx[n.layer], layer:n.layer, in:n.in, out:n.out, tick:n.tick, status:n.status,
+          symbolSize: 7+Math.min(n.in*1.5,38), itemStyle: Object.assign({color:colorOf[n.layer]}, nodeBorder(n)),
+          label:{show:n.in>=8} })),
+        links: links.map(e=>({ source:e.source, target:e.target, violation:e.violation, cycle:e.cycle,
+          lineStyle:{color:edgeColor(e), width:edgeWidth(e), curveness:0.12, opacity:e.violation||e.cycle?0.95:0.5} })),
+        edgeSymbol:['none','arrow'], edgeSymbolSize:5,
+        force:{repulsion:130, edgeLength:90, gravity:0.06, friction:0.2},
+        label:{position:'right', color:'#cdd3df', fontSize:10, formatter:'{b}'},
+        emphasis:{focus:'adjacency', label:{show:true}, lineStyle:{opacity:1}},
+        scaleLimit:{min:0.3, max:6}
+      }]
+    };
+  }
+  function layerOption(){
+    const deg={}; G.layers.forEach(l=>deg[l.name]=0);
+    G.layerLinks.forEach(e=>{deg[e.source]=(deg[e.source]||0)+e.w; deg[e.target]=(deg[e.target]||0)+e.w;});
+    return { backgroundColor:'transparent',
+      tooltip:{backgroundColor:'#171a21',borderColor:'#2a2f3a',textStyle:{color:'#e7e9ee'},
+        formatter:p=> p.dataType==='edge'?`${p.data.source} → ${p.data.target}<br><b>${p.data.value}</b> dependencies`+(p.data.violation?'<br><span style="color:#ff6b6b">violates GECS=truth</span>':''):`<b>${p.data.name}</b>`},
+      series:[{ type:'graph', layout:'circular', circular:{rotateLabel:true}, roam:true, draggable:true,
+        data:G.layers.map(l=>({name:l.name, symbolSize:14+Math.sqrt(deg[l.name]||1)*3.2, itemStyle:{color:l.color}})),
+        links:G.layerLinks.map(e=>({source:e.source,target:e.target,value:e.w,violation:e.violation,
+          lineStyle:{color:e.violation?'#ff5c5c':'rgba(140,150,170,.45)', width:Math.sqrt(e.w)*1.4, curveness:0.22, opacity:0.8},
+          label:{show:e.w>=6, formatter:''+e.w, color:'#8b93a3', fontSize:10}})),
+        edgeSymbol:['none','arrow'], edgeSymbolSize:7, label:{show:true,color:'#e7e9ee',fontSize:12,fontWeight:600},
+        lineStyle:{opacity:0.7}, emphasis:{focus:'adjacency'} }] };
+  }
+  function render(){ chart.setOption(mode==='graph'?graphOption():layerOption(), true); }
+
+  function buildSide(){
+    const i=G.insights, s=document.getElementById('side');
+    const sw=n=>`<span style="color:${colorOf[n.layer]}">${n.id}</span>`;
+    const chg = i.changed || {new:[],modified:[]};
+    s.innerHTML =
+      `<h2><span class="new">new</span> / <span class="mod">modified</span> — working tree (${chg.new.length}+${chg.modified.length})</h2><p class="note">Uncommitted raw diffs. Re-run <code>extract_deps.js</code> to refresh.</p>`+
+      chg.new.map(id=>`<div class="row" data-focus="${id}"><span class="new">＋</span><span class="nm">${id}</span></div>`).join('')+
+      chg.modified.map(id=>`<div class="row" data-focus="${id}"><span class="mod">~</span><span class="nm">${id}</span></div>`).join('')+
+      `<h2>Overview</h2><p class="note">${i.totals.nodes} scripts · ${i.totals.edges} dependencies. Color = layer. Node size = how many depend on it.</p>`+
+      `<h2 class="viol">Truth-rule violations (${i.violations.length})</h2><p class="note">GECS reads components, not live nodes. These reach into <code>WorldActor</code>.</p>`+
+      i.violations.map(v=>`<div class="row"><span class="nm viol">${v.s}</span><span class="ly">→ ${v.t}</span></div>`).join('')+
+      `<h2 class="tick">Self-tick violators (${i.tick.length})</h2><p class="note">Durable work on <code>_process</code> every frame — not LOD-gated, not on world-sim cadence.</p>`+
+      i.tick.map(v=>`<div class="row" data-focus="${v.id}"><span class="nm tick">${v.id}</span><span class="ly">${v.layer}</span></div>`).join('')+
+      `<h2 class="cyc">Dependency cycles (${i.cycles.length})</h2>`+
+      i.cycles.map(c=>`<div class="row" data-focus="${c[0]}"><span class="cyc">(${c.length})</span><span class="nm">${c.join(' → ')}</span></div>`).join('')+
+      `<h2>Top hubs — most depended-upon</h2><p class="note">Load-bearing; changes ripple widest.</p>`+
+      i.hubs.map(h=>`<div class="row" data-focus="${h.id}"><span class="deg">${h.deg}</span>${sw(h)} <span class="ly">${h.layer}</span></div>`).join('')+
+      `<h2>Most coupled — most dependencies</h2><p class="note">Fragile / god-objects.</p>`+
+      i.coupled.map(h=>`<div class="row" data-focus="${h.id}"><span class="deg">${h.deg}</span>${sw(h)} <span class="ly">${h.layer}</span></div>`).join('');
+    s.querySelectorAll('[data-focus]').forEach(el=>el.addEventListener('click',()=>{
+      if(mode!=='graph'){mode='graph';setMode('graph');}
+      opt.q=el.dataset.focus; document.getElementById('search').value=opt.q; render(); }));
+  }
+  function setMode(m){ document.querySelectorAll('#mode button').forEach(b=>b.classList.toggle('active',b.dataset.m===m)); }
+  document.querySelectorAll('#mode button').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.m;setMode(mode);render();}));
+  function excl(which){ ['viol','tick','cyc'].forEach(k=>{ if(k!==which){opt[k]=false; const el=document.getElementById('c'+k.charAt(0).toUpperCase()+k.slice(1)); if(el) el.checked=false; } }); }
+  document.getElementById('cViol').addEventListener('change',e=>{opt.viol=e.target.checked; if(opt.viol)excl('viol'); render();});
+  document.getElementById('cTick').addEventListener('change',e=>{opt.tick=e.target.checked; if(opt.tick)excl('tick'); render();});
+  document.getElementById('cCyc').addEventListener('change',e=>{opt.cyc=e.target.checked; if(opt.cyc)excl('cyc'); render();});
+  document.getElementById('cChanged').addEventListener('change',e=>{opt.changed=e.target.checked; render();});
+  let t; document.getElementById('search').addEventListener('input',e=>{clearTimeout(t);t=setTimeout(()=>{opt.q=e.target.value.trim();render();},200);});
+  document.getElementById('toggleSide').addEventListener('click',()=>document.getElementById('side').classList.toggle('hidden'));
+  window.addEventListener('resize',()=>chart.resize());
+  buildSide(); render();
+  </script>
+</body>
+</html>

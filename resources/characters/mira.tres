@@ -1,0 +1,65 @@
+[gd_resource type="Resource" script_class="CharacterRecordDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/character_record_definition.gd" id="1_wqxry"]
+
+[resource]
+script = ExtResource("1_wqxry")
+actor_id = "mira"
+member_name = "Mira"
+appearance = {
+"arm_length_slider": 0.02,
+"beard_color": Color(0.2, 0.12, 0.08, 1),
+"beard_style": "",
+"body_archetype": "res://resources/character_body_archetypes/human_female.tres",
+"character_race": "res://resources/character_races/human.tres",
+"eyebrow_color": Color(0.16, 0.1, 0.07, 1),
+"eyebrow_style": "res://resources/character_appearance/eyebrows_female.tres",
+"hair_color": Color(0.2, 0.12, 0.08, 1),
+"hair_style": "res://resources/character_appearance/hair_long.tres",
+"height_slider": 0.06,
+"neck_length_slider": 0.0,
+"shoulder_width_slider": -0.04,
+"skin_color": Color(0.88, 0.68, 0.54, 1),
+"skin_color_customized": true,
+"visual_body_type": 3.0
+}
+skill_levels = {
+"attribute.charisma": 44.0,
+"attribute.dexterity": 58.0,
+"attribute.endurance": 56.0,
+"attribute.perception": 59.0,
+"attribute.strength": 52.0,
+"attribute.toughness": 50.0,
+"combat.axes_one_handed": 37.0,
+"combat.daggers": 45.0,
+"combat.shields": 57.0,
+"combat.swords_one_handed": 60.0,
+"combat.unarmed": 32.0,
+"craft.blacksmithing": 36.0,
+"craft.leatherworking": 40.0,
+"craft.weaving": 33.0,
+"knowledge.archeology": 35.0,
+"knowledge.medicine": 38.0,
+"labor.construction": 34.0,
+"labor.farming": 31.0,
+"labor.fishing": 29.0,
+"labor.mining": 27.0,
+"labor.scavenging": 48.0,
+"movement.running": 58.0,
+"subterfuge.lockpicking": 43.0,
+"subterfuge.sleight_of_hand": 41.0,
+"subterfuge.sneaking": 52.0,
+"tech.robotics": 30.0
+}
+equipment_slots = {
+"chest": "res://resources/items/ranger_jerkin.tres",
+"feet": "res://resources/items/ranger_boots.tres",
+"head": "res://resources/items/ranger_hood.tres",
+"legs": "res://resources/items/ranger_leggings.tres",
+"offhand": "res://resources/items/round_shield.tres",
+"weapon": "res://resources/items/steel_sword.tres"
+}
+personality = {
+"risk_tolerance": 0.58,
+"temperament": "steady"
+}

@@ -670,6 +670,12 @@ func issue_move_command(screen_position: Vector2, show_indicator: bool = true) -
 		return false
 	var target: Vector3 = ground_hit["position"]
 	var surface_normal: Vector3 = ground_hit.get("normal", Vector3.UP)
+	return issue_move_command_at_world(target, show_indicator, surface_normal)
+
+
+func issue_move_command_at_world(target: Vector3, show_indicator: bool = true, surface_normal: Vector3 = Vector3.UP) -> bool:
+	if party_manager.selected_members.is_empty():
+		return false
 	var indicator_position := target + surface_normal.normalized() * 0.08
 	if show_indicator:
 		_spawn_move_command_indicator(indicator_position)

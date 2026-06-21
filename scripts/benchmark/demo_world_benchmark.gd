@@ -42,7 +42,7 @@ const TRACKED_GROUPS := [
 	"world_interaction_controller",
 	"world_time_controller",
 	"ai_scheduler_controller",
-	"world_squad_controller",
+	"world_sim_squad_controller",
 	"world_event_choice_controller",
 	"population_realization_controller",
 	"ledger_simulation_controller",

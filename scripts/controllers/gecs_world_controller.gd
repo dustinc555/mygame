@@ -53,6 +53,7 @@ const C_COMBAT_STATE_PATH := "res://scripts/ecs/components/c_game_combat_state.g
 const C_COMBAT_SLOT_STATE_PATH := "res://scripts/ecs/components/c_game_combat_slot_state.gd"
 const C_COMBAT_ACTION_PATH := "res://scripts/ecs/components/c_game_combat_action.gd"
 const C_MOVEMENT_STATE_PATH := "res://scripts/ecs/components/c_game_movement_state.gd"
+const C_WORLD_SIM_SQUAD_PATH := "res://scripts/ecs/components/c_game_world_sim_squad.gd"
 
 @export var spatial_cell_size := 6.0
 @export var spatial_rebuild_interval_seconds := 0.25
@@ -76,6 +77,7 @@ var _job_contract_entity_by_id: Dictionary = {}
 var _job_provider_memory_entity_by_id: Dictionary = {}
 var _activity_point_entity_by_id: Dictionary = {}
 var _activity_assignment_entity_by_actor_id: Dictionary = {}
+var _world_sim_squad_entity_by_id: Dictionary = {}
 var _world_time_entity
 var _law_order_entity
 var _faction_state_entity
@@ -87,6 +89,10 @@ var _ledger_simulation_entity
 var _ai_scheduler_state_entity
 var _population_realization_state_entity
 var _initialized := false
+
+const WORLD_BRAIN_LOG_CAP := 200
+signal world_event_logged(entry)
+var _world_brain_log: Array[Dictionary] = []
 var _actor_spatial_nodes_by_cell: Dictionary = {}
 var _actor_spatial_index_valid := false
 var _actor_spatial_index_elapsed := 999.0
@@ -149,6 +155,7 @@ var C_COMBAT_STATE
 var C_COMBAT_SLOT_STATE
 var C_COMBAT_ACTION
 var C_MOVEMENT_STATE
+var C_WORLD_SIM_SQUAD
 
 
 func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
@@ -170,9 +177,13 @@ func _exit_tree() -> void:
 	world = null
 
 
+var _last_world_process_usec := 0
+
 func _process(delta: float) -> void:
 	if world != null:
+		var t0 := Time.get_ticks_usec()
 		world.process(delta)
+		_last_world_process_usec = Time.get_ticks_usec() - t0
 	_actor_spatial_index_elapsed += delta
 	if _actor_spatial_index_elapsed >= maxf(spatial_rebuild_interval_seconds, 0.01):
 		_actor_spatial_index_valid = false
@@ -506,6 +517,100 @@ func get_population_records() -> Dictionary:
 	return records
 
 
+## Lightweight counts for the on-screen brain/observability HUD. Reads component
+## fields directly and avoids the full record/inventory build of
+## get_population_records(), so it is cheap enough to poll a few times a second.
+func get_brain_metrics() -> Dictionary:
+	var metrics := {
+		"population": 0,
+		"realized": 0,
+		"ledger": 0,
+		"live_nodes": get_all_actors().size(),
+		"world_process_ms": _last_world_process_usec / 1000.0,
+		"squads": _world_sim_squad_entity_by_id.size(),
+	}
+	if world == null:
+		return metrics
+	for entity in world.query.with_all([C_POPULATION_RECORD]).execute():
+		var component = entity.get_component(C_POPULATION_RECORD)
+		if component == null:
+			continue
+		metrics["population"] += 1
+		if str(component.realization_state) == "realized":
+			metrics["realized"] += 1
+		else:
+			metrics["ledger"] += 1
+	return metrics
+
+
+## World-brain debug log. Any world-sim system pushes a one-line "what the
+## off-screen brain decided" entry; the HUD panel mirrors it. Bounded ring buffer.
+func log_world_event(category: String, message: String, data: Dictionary = {}) -> void:
+	var entry := {
+		"time": _world_brain_time_stamp(),
+		"category": str(category),
+		"message": str(message),
+		"data": data,
+	}
+	_world_brain_log.append(entry)
+	if _world_brain_log.size() > WORLD_BRAIN_LOG_CAP:
+		_world_brain_log = _world_brain_log.slice(_world_brain_log.size() - WORLD_BRAIN_LOG_CAP)
+	world_event_logged.emit(entry)
+
+
+func get_world_event_log() -> Array:
+	return _world_brain_log.duplicate()
+
+
+func _world_brain_time_stamp() -> String:
+	var parent_node := get_parent()
+	if parent_node != null:
+		var world_time := parent_node.get_node_or_null("WorldTimeController")
+		if world_time != null and world_time.has_method("format_time"):
+			return str(world_time.call("format_time"))
+	return ""
+
+
+## World-sim squads: cheap data-only squads with a real world position. One entity
+## per squad (mirrors the population-record pattern). WorldSimSquadController moves
+## them; the map/log read them. Owner (nest/town/faction) sets the objective.
+func upsert_world_sim_squad(record: Dictionary) -> Dictionary:
+	_try_initialize()
+	if world == null or record.is_empty():
+		return {}
+	var squad_id := str(record.get("squad_id", "")).strip_edges()
+	if squad_id.is_empty():
+		return {}
+	var entity = _world_sim_squad_entity_by_id.get(squad_id)
+	if entity == null or not is_instance_valid(entity):
+		entity = _entity_script.new()
+		entity.name = _entity_node_name("WorldSimSquad", squad_id)
+		entity.id = _entity_id("world_sim_squad", squad_id)
+		world.add_entity(entity, [C_WORLD_SIM_SQUAD.new()])
+		_world_sim_squad_entity_by_id[squad_id] = entity
+	var component = entity.get_component(C_WORLD_SIM_SQUAD)
+	component.apply_record(record)
+	return component.to_record()
+
+
+func get_world_sim_squads() -> Array:
+	var squads: Array = []
+	if world == null:
+		return squads
+	for entity in world.query.with_all([C_WORLD_SIM_SQUAD]).execute():
+		var component = entity.get_component(C_WORLD_SIM_SQUAD)
+		if component != null and component.has_method("to_record"):
+			squads.append(component.to_record())
+	return squads
+
+
+func remove_world_sim_squad(squad_id: String) -> void:
+	var entity = _world_sim_squad_entity_by_id.get(squad_id)
+	if entity != null and is_instance_valid(entity) and world != null:
+		world.remove_entity(entity)
+	_world_sim_squad_entity_by_id.erase(squad_id)
+
+
 func upsert_settlement_state(settlement_id: String, state: Dictionary) -> Dictionary:
 	_try_initialize()
 	if world == null or settlement_id.strip_edges().is_empty():
@@ -530,6 +635,7 @@ func record_settlement_event(event_record: Dictionary) -> void:
 		return
 	var settlement_id := str(event_record.get("settlement_id", "world"))
 	var event_type := str(event_record.get("type", "event"))
+	log_world_event("town:" + settlement_id, str(event_record.get("summary", event_type)), event_record)
 	var absolute_minute := int(event_record.get("absolute_minute", -1))
 	var event_id := str(event_record.get("event_id", ""))
 	if event_id.is_empty():
@@ -1308,6 +1414,7 @@ func _load_component_scripts() -> void:
 	C_COMBAT_SLOT_STATE = load(C_COMBAT_SLOT_STATE_PATH) if C_COMBAT_SLOT_STATE == null else C_COMBAT_SLOT_STATE
 	C_COMBAT_ACTION = load(C_COMBAT_ACTION_PATH) if C_COMBAT_ACTION == null else C_COMBAT_ACTION
 	C_MOVEMENT_STATE = load(C_MOVEMENT_STATE_PATH) if C_MOVEMENT_STATE == null else C_MOVEMENT_STATE
+	C_WORLD_SIM_SQUAD = load(C_WORLD_SIM_SQUAD_PATH) if C_WORLD_SIM_SQUAD == null else C_WORLD_SIM_SQUAD
 
 
 func _component_scripts_loaded() -> bool:
@@ -1351,6 +1458,7 @@ func _component_scripts_loaded() -> bool:
 		C_COMBAT_SLOT_STATE,
 		C_COMBAT_ACTION,
 		C_MOVEMENT_STATE,
+		C_WORLD_SIM_SQUAD,
 	]:
 		if component_script == null:
 			return false

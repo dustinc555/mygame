@@ -99,12 +99,6 @@ const ACTIVE_AI_DECISION_INTERVAL := 0.35
 const ACTIVE_AI_DECISION_JITTER := 0.15
 const BACKGROUND_AI_DECISION_INTERVAL := 1.25
 const BACKGROUND_AI_DECISION_JITTER := 0.45
-const FAR_BACKGROUND_AI_DECISION_INTERVAL := 3.0
-const FAR_BACKGROUND_AI_DECISION_JITTER := 1.0
-const FAR_BACKGROUND_AI_DECISION_DISTANCE := 28.0
-const FAR_RUNTIME_CADENCE_DISTANCE := 90.0
-const FAR_RUNTIME_PROCESS_INTERVAL := 3.0
-const FAR_RUNTIME_PHYSICS_INTERVAL := 3.0
 const NEEDS_PROCESS_INTERVAL := 0.25
 const NEEDS_PROCESS_JITTER := 0.08
 const HUMANOID_PROFILE_SAMPLE_CALLS := 12000
@@ -164,9 +158,6 @@ static var _debug_humanoid_profile_calls := 0
 static var _debug_humanoid_profile_totals: Dictionary = {}
 static var _debug_humanoid_ai_profile_calls := 0
 static var _debug_humanoid_ai_profile_totals: Dictionary = {}
-static var _runtime_focus_cache_frame_key := -1
-static var _runtime_focus_cache_tree_id := 0
-static var _runtime_focus_cache_positions: Array[Vector3] = []
 
 enum OrderType {
 	NONE,
@@ -318,8 +309,6 @@ var _combat_animation_sets: Dictionary = {}
 
 var _nameplate: Label3D
 var _inspect_ring: MeshInstance3D
-var _far_runtime_process_accumulated := 0.0
-var _far_runtime_physics_accumulated := 0.0
 var _rng := RandomNumberGenerator.new()
 var _is_sitting := false
 var _preview_clothes_visible := true
@@ -359,8 +348,6 @@ func _ready() -> void:
 	_ai_targeting_capability = get_actor_capability(&"ai_targeting")
 	_interaction_capability = get_actor_capability(&"interaction")
 	_rng.randomize()
-	_far_runtime_process_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PROCESS_INTERVAL)
-	_far_runtime_physics_accumulated = _rng.randf_range(0.0, FAR_RUNTIME_PHYSICS_INTERVAL)
 	_seed_needs_capability_tick()
 	_setup_body_projection()
 	_ensure_appearance_data()
@@ -392,6 +379,12 @@ func _exit_tree() -> void:
 func _setup_body_projection() -> void:
 	if _body != null and is_instance_valid(_body):
 		return
+	# A re-script (set_script) resets _body to null but leaves the previously-built
+	# projection node parented. Free any such orphan first so we never stack two body
+	# models (and two CharacterVisuals) on a single actor.
+	for child in get_children():
+		if child is BodyProjection:
+			child.free()
 	_body = _create_body_projection()
 	if _body == null:
 		return
@@ -425,14 +418,6 @@ func _create_actor_capabilities() -> Array:
 
 
 func _process(delta: float) -> void:
-	if _should_use_far_runtime_cadence():
-		_far_runtime_process_accumulated += delta
-		if _far_runtime_process_accumulated < FAR_RUNTIME_PROCESS_INTERVAL:
-			return
-		delta = _far_runtime_process_accumulated
-		_far_runtime_process_accumulated = 0.0
-	else:
-		_far_runtime_process_accumulated = 0.0
 	_process_actor_capabilities(delta)
 	if _debug_humanoid_profile_enabled:
 		_process_profiled(delta)
@@ -551,14 +536,6 @@ static func _debug_humanoid_ai_profile_finish() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if _spawn_grounding_refresh_frames <= 0 and _should_use_far_runtime_cadence():
-		_far_runtime_physics_accumulated += delta
-		if _far_runtime_physics_accumulated < FAR_RUNTIME_PHYSICS_INTERVAL:
-			return
-		delta = _far_runtime_physics_accumulated
-		_far_runtime_physics_accumulated = 0.0
-	else:
-		_far_runtime_physics_accumulated = 0.0
 	_physics_process_actor_capabilities(delta)
 	if _spawn_grounding_refresh_frames > 0:
 		_process_spawn_grounding_refresh(delta)
@@ -2701,9 +2678,6 @@ func _should_run_ai_decision_tick(delta: float) -> bool:
 	if _current_order_type != OrderType.NONE or _has_active_combat_target() or player_party_member:
 		decision_interval = ACTIVE_AI_DECISION_INTERVAL
 		decision_jitter = ACTIVE_AI_DECISION_JITTER
-	elif _should_use_far_background_ai_cadence():
-		decision_interval = FAR_BACKGROUND_AI_DECISION_INTERVAL
-		decision_jitter = FAR_BACKGROUND_AI_DECISION_JITTER
 	var scheduler := _get_runtime_controller("ai_scheduler_controller")
 	if scheduler != null and scheduler.has_method("should_tick_actor"):
 		if bool(scheduler.call("should_tick_actor", self, decision_interval, decision_jitter)):
@@ -2713,79 +2687,6 @@ func _should_run_ai_decision_tick(delta: float) -> bool:
 		return false
 	_ai_tick_remaining = decision_interval + _rng.randf_range(0.0, decision_jitter)
 	return true
-
-
-func _should_use_far_background_ai_cadence() -> bool:
-	if _current_order_type != OrderType.NONE or player_party_member or _has_active_combat_target():
-		return false
-	if _ai_brain != null and _ai_brain.has_active_job():
-		return false
-	if not is_inside_tree():
-		return false
-	var tree := get_tree()
-	if tree == null:
-		return false
-	var party_members := tree.get_nodes_in_group("party_member")
-	if party_members.is_empty():
-		return false
-	var distance_squared := FAR_BACKGROUND_AI_DECISION_DISTANCE * FAR_BACKGROUND_AI_DECISION_DISTANCE
-	for node in party_members:
-		if not (node is Node3D):
-			continue
-		var party_member := node as Node3D
-		if global_position.distance_squared_to(party_member.global_position) <= distance_squared:
-			return false
-	return true
-
-
-func _should_use_far_runtime_cadence() -> bool:
-	if player_party_member or life_state != NpcRules.LifeState.ALIVE:
-		return false
-	if _carried_by != null or _carried_character != null or _is_ragdoll_active:
-		return false
-	if _has_active_combat_target() or _is_combat_resolution_busy():
-		return false
-	if _has_active_player_order() or _is_active_ai_combat_player_issued():
-		return false
-	if not is_inside_tree():
-		return false
-	return _is_far_from_runtime_focus(FAR_RUNTIME_CADENCE_DISTANCE)
-
-
-func _is_far_from_runtime_focus(distance: float) -> bool:
-	var distance_squared := distance * distance
-	var focus_positions := _get_runtime_focus_positions()
-	if focus_positions.is_empty() and get_tree() == null:
-		return false
-	for focus_position in focus_positions:
-		if global_position.distance_squared_to(focus_position) <= distance_squared:
-			return false
-	return true
-
-
-func _get_runtime_focus_positions() -> Array[Vector3]:
-	var tree := get_tree()
-	if tree == null:
-		_runtime_focus_cache_frame_key = -1
-		_runtime_focus_cache_tree_id = 0
-		_runtime_focus_cache_positions = []
-		return _runtime_focus_cache_positions
-	var tree_id := tree.get_instance_id()
-	var frame_key := Engine.get_process_frames() * 1000000 + Engine.get_physics_frames()
-	if _runtime_focus_cache_frame_key == frame_key and _runtime_focus_cache_tree_id == tree_id:
-		return _runtime_focus_cache_positions
-	var positions: Array[Vector3] = []
-	for node in tree.get_nodes_in_group("party_member"):
-		if node is Node3D:
-			positions.append((node as Node3D).global_position)
-	var viewport := get_viewport()
-	var camera := viewport.get_camera_3d() if viewport != null else null
-	if camera is Camera3D:
-		positions.append((camera as Camera3D).global_position)
-	_runtime_focus_cache_frame_key = frame_key
-	_runtime_focus_cache_tree_id = tree_id
-	_runtime_focus_cache_positions = positions
-	return _runtime_focus_cache_positions
 
 
 func _process_law_movement() -> void:
@@ -3627,8 +3528,11 @@ func _get_active_combat_target() -> Node3D:
 	return null
 
 
-func _is_valid_combat_target(target: Node3D) -> bool:
-	if target == null or not is_instance_valid(target):
+func _is_valid_combat_target(target) -> bool:
+	# Untyped param on purpose: a target can be a previously-freed body (e.g. an enemy
+	# squad LOD-despawned mid-fight). A freed object passed to a typed Node3D param crashes
+	# at the call boundary, so we accept it untyped and reject it via is_instance_valid.
+	if target == null or not is_instance_valid(target) or not (target is Node3D):
 		return false
 	var target_life_state = target.get("life_state")
 	if target_life_state == null or int(target_life_state) != NpcRules.LifeState.ALIVE:
@@ -3636,7 +3540,7 @@ func _is_valid_combat_target(target: Node3D) -> bool:
 	return not (target.has_method("is_protected_from_combat") and bool(target.call("is_protected_from_combat")))
 
 
-func _is_valid_active_combat_target(target: Node3D) -> bool:
+func _is_valid_active_combat_target(target) -> bool:
 	return _is_valid_combat_target(target) and has_hostility_with(target) and can_see_actor_for_combat(target)
 
 

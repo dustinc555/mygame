@@ -44,7 +44,7 @@ func _run() -> void:
 	root.add_child(_scene)
 	await _wait_frames(180)
 	_validate_demo_markers()
-	_validate_controller_runtime()
+	await _validate_plugin_runtime()
 	await _validate_assault_job_start()
 	await _cleanup_scene()
 	if _failures.is_empty():
@@ -141,16 +141,16 @@ func _validate_demo_markers() -> void:
 		_fail("Demo world should guarantee at least 1 initial active nest through WorldDefinition")
 
 
-func _validate_controller_runtime() -> void:
-	var nest_controller := _get_controller("nest_controller")
-	if nest_controller == null:
-		_fail("NestController should be bootstrapped into the demo world")
+func _validate_plugin_runtime() -> void:
+	var nest_plugin := _get_controller("nest_world_sim_plugin")
+	if nest_plugin == null:
+		_fail("NestWorldSimPlugin should be registered into the world-sim ticker")
 		return
-	var summary: Dictionary = nest_controller.call("get_debug_summary")
+	var summary: Dictionary = nest_plugin.call("get_debug_summary")
 	if int(summary.get("marker_count", 0)) < 3:
-		_fail("NestController should collect authored demo nest markers")
+		_fail("NestWorldSimPlugin should collect authored demo nest markers")
 	if int(summary.get("active_count", 0)) < 1:
-		_fail("NestController should activate at least one Rustdead marker")
+		_fail("NestWorldSimPlugin should activate at least one Rustdead marker")
 	var states: Dictionary = summary.get("nest_states", {})
 	var state := _first_active_rustdead_state(states)
 	if state.is_empty():
@@ -163,11 +163,12 @@ func _validate_controller_runtime() -> void:
 	if patrol_squad_ids.size() != 2:
 		_fail("Active small Rustdead nest should have exactly 2 patrol squads")
 	var marker_id := str(state.get("marker_id", ""))
+	_validate_world_sim_squads(marker_id, patrol_squad_ids, population_target)
 	_validate_nest_visual_and_click_target(marker_id)
-	_validate_spawned_actors(state, patrol_squad_ids, population_target)
+	await _validate_spawned_squad(nest_plugin, marker_id, patrol_squad_ids)
 	_validate_spawned_scrap_piles(state, marker_id)
-	_validate_scrap_specs_for_all_nest_sizes(nest_controller)
-	_validate_attack_target_selection(nest_controller)
+	_validate_scrap_specs_for_all_nest_sizes(nest_plugin)
+	_validate_attack_target_selection(nest_plugin)
 
 
 func _validate_nest_visual_and_click_target(marker_id: String) -> void:
@@ -187,7 +188,7 @@ func _validate_nest_visual_and_click_target(marker_id: String) -> void:
 		elif mesh.scale.distance_to(Vector3.ONE * 4.0) > 0.01:
 			_fail("Ancient vent mesh child should be scaled 4x in the authored scene; scale=%s" % str(mesh.scale))
 	if marker.get_node_or_null(NEST_INTERACTION_BODY_NAME) != null:
-		_fail("NestController should not generate a sibling interaction body; collision belongs inside the authored nest scene")
+		_fail("NestWorldSimPlugin should not generate a sibling interaction body; collision belongs inside the authored nest scene")
 	var interaction_body: StaticBody3D = null
 	if visual != null:
 		interaction_body = visual.get_node_or_null(NEST_INTERACTION_BODY_NAME) as StaticBody3D
@@ -199,25 +200,51 @@ func _validate_nest_visual_and_click_target(marker_id: String) -> void:
 			_fail("Active Rustdead nest scene should include an editable collision shape")
 
 
-func _validate_spawned_actors(state: Dictionary, patrol_squad_ids: Array, population_target: int) -> void:
-	var actor_ids: Array = state.get("actor_ids", []) if state.get("actor_ids", []) is Array else []
-	if actor_ids.size() != population_target:
-		_fail("Runtime Rustdead actor count should match population target %d, got %d" % [population_target, actor_ids.size()])
-	var patrol_counts := {}
+func _validate_world_sim_squads(marker_id: String, patrol_squad_ids: Array, population_target: int) -> void:
+	var patrol_total := 0
+	for squad_id_value in patrol_squad_ids:
+		var record := _world_sim_squad_record(str(squad_id_value))
+		if record.is_empty():
+			_fail("Rustdead patrol squad %s should exist as a GECS world-sim squad" % str(squad_id_value))
+			continue
+		if str(record.get("owner_kind", "")) != "nest" or str(record.get("owner_id", "")) != marker_id:
+			_fail("Rustdead patrol squad %s should be owned by nest %s" % [str(squad_id_value), marker_id])
+		if str(record.get("objective", "")) != "patrol":
+			_fail("Rustdead patrol squad %s should use patrol objective" % str(squad_id_value))
+		var member_count := int(record.get("member_count", 0))
+		patrol_total += member_count
+		if member_count < 3 or member_count > 5:
+			_fail("Patrol squad %s GECS member_count should be 3-5, got %d" % [str(squad_id_value), member_count])
+	var guard_record := _world_sim_squad_record("nest:%s:guard" % marker_id)
+	var guard_count := int(guard_record.get("member_count", 0)) if not guard_record.is_empty() else 0
+	if patrol_total + guard_count != population_target:
+		_fail("Rustdead GECS squad counts should sum to population target %d, got %d" % [population_target, patrol_total + guard_count])
+
+
+func _validate_spawned_squad(nest_plugin: Node, _marker_id: String, patrol_squad_ids: Array) -> void:
+	if patrol_squad_ids.is_empty():
+		return
+	var squad_id := str(patrol_squad_ids[0])
+	var record := _world_sim_squad_record(squad_id)
+	if record.is_empty():
+		return
+	nest_plugin.call("realize_nest_squad", record)
+	await _wait_frames(10)
+	var actors := _find_actors_for_squad(squad_id)
+	var expected_count := int(record.get("member_count", 0))
+	if actors.size() != expected_count:
+		_fail("Realized Rustdead squad %s should spawn %d actors, got %d" % [squad_id, expected_count, actors.size()])
 	var active_patrol_jobs := 0
 	var patrol_debug_sample := ""
 	var fresh_actor_count := 0
 	var fresh_male_count := 0
 	var fresh_hair_count := 0
 	var fresh_male_beard_count := 0
-	for actor_id_value in actor_ids:
-		var actor := _find_actor(str(actor_id_value))
-		if actor == null:
-			_fail("Missing spawned Rustdead actor %s" % str(actor_id_value))
-			continue
+	for actor in actors:
+		var actor_id := str(actor.get("stable_id"))
 		if not actor.has_method("requires_fire_to_die") or not bool(actor.call("requires_fire_to_die")):
-			_fail("Spawned nest actor %s should be Rustdead and require fire to die" % str(actor_id_value))
-		_validate_rustdead_actor_tier(actor, str(actor_id_value))
+			_fail("Spawned nest actor %s should be Rustdead and require fire to die" % actor_id)
+		_validate_rustdead_actor_tier(actor, actor_id)
 		var appearance = actor.get("appearance_data")
 		if appearance != null:
 			if str(actor.get("member_name")) == "Fresh Rustdead":
@@ -225,28 +252,26 @@ func _validate_spawned_actors(state: Dictionary, patrol_squad_ids: Array, popula
 				if int(appearance.visual_body_type) == VISUAL_BODY_TYPE_MALE:
 					fresh_male_count += 1
 			if appearance.eyebrow_style != null:
-				_fail("Spawned Rustdead actor %s should not keep normal eyebrows" % str(actor_id_value))
+				_fail("Spawned Rustdead actor %s should not keep normal eyebrows" % actor_id)
 			if appearance.hair_style != null:
 				fresh_hair_count += 1
 			if int(appearance.visual_body_type) == VISUAL_BODY_TYPE_MALE and appearance.beard_style != null:
 				fresh_male_beard_count += 1
-		var squad_id := str(actor.get("world_squad_id"))
-		if patrol_squad_ids.has(squad_id):
-			patrol_counts[squad_id] = int(patrol_counts.get(squad_id, 0)) + 1
-			if patrol_debug_sample.is_empty() and actor.has_method("get_ai_debug_snapshot"):
-				patrol_debug_sample = str(actor.call("get_ai_debug_snapshot"))
-			if actor.has_method("has_active_ai_job_from_source") and bool(actor.call("has_active_ai_job_from_source", PATROL_SOURCE_ID)):
-				active_patrol_jobs += 1
-	for squad_id_value in patrol_squad_ids:
-		var count := int(patrol_counts.get(str(squad_id_value), 0))
-		if count < 3 or count > 5:
-			_fail("Patrol squad %s should have 3-5 actors, got %d" % [str(squad_id_value), count])
+		if str(actor.get("world_squad_id")) != squad_id:
+			_fail("Realized Rustdead actor %s should keep GECS squad id %s, got %s" % [actor_id, squad_id, str(actor.get("world_squad_id"))])
+		if patrol_debug_sample.is_empty() and actor.has_method("get_ai_debug_snapshot"):
+			patrol_debug_sample = str(actor.call("get_ai_debug_snapshot"))
+		if actor.has_method("has_active_ai_job_from_source") and bool(actor.call("has_active_ai_job_from_source", PATROL_SOURCE_ID)):
+			active_patrol_jobs += 1
 	if active_patrol_jobs < 1:
 		_fail("At least one Rustdead patrol actor should receive a patrol AI job; sample_ai=%s" % patrol_debug_sample)
 	if fresh_actor_count > 0 and fresh_hair_count < 1:
 		_fail("Fresh generated Rustdead should be allowed to keep hair")
 	if fresh_male_count > 0 and fresh_male_beard_count < 1:
 		_fail("Fresh male generated Rustdead should be allowed to keep beards")
+	var survivors := int(nest_plugin.call("derealize_nest_squad", squad_id))
+	if survivors != expected_count:
+		_fail("Derealized Rustdead squad %s should persist %d survivors, got %d" % [squad_id, expected_count, survivors])
 
 
 func _validate_rustdead_actor_tier(actor: Node, actor_id: String) -> void:
@@ -401,7 +426,7 @@ func _validate_spawned_scrap_piles(state: Dictionary, marker_id: String) -> void
 		_fail("Rustdead nest scrap should guarantee at least one medium-or-larger pile")
 
 
-func _validate_scrap_specs_for_all_nest_sizes(nest_controller: Node) -> void:
+func _validate_scrap_specs_for_all_nest_sizes(nest_plugin: Node) -> void:
 	for size_id in ["small", "medium", "large"]:
 		var marker := NestPlacementMarker.new()
 		marker.marker_id = "validation_%s_rustdead_vent" % size_id
@@ -414,7 +439,7 @@ func _validate_scrap_specs_for_all_nest_sizes(nest_controller: Node) -> void:
 				marker.size = NestPlacementMarker.SIZE_SMALL
 		var rng := RandomNumberGenerator.new()
 		rng.seed = 9000 + size_id.hash()
-		var specs: Array = nest_controller.call("_create_scrap_pile_specs", marker, rng)
+		var specs: Array = nest_plugin.call("_create_scrap_pile_specs", marker, rng)
 		var count_range := _expected_scrap_count_range(size_id)
 		if specs.size() < count_range.x or specs.size() > count_range.y:
 			_fail("%s Rustdead nest should create %d-%d scrap piles, got %d" % [size_id.capitalize(), count_range.x, count_range.y, specs.size()])
@@ -456,7 +481,7 @@ func _is_deprecated_nest_scrap_display_name(display_name: String) -> bool:
 	return display_name in ["Small Robot Scrap", "Robot Scrap Pile", "Large Robot Wreck"]
 
 
-func _validate_attack_target_selection(nest_controller: Node) -> void:
+func _validate_attack_target_selection(nest_plugin: Node) -> void:
 	var marker := _scene.get_node_or_null("Zones/DemoZone/NestMarkers/RustdeadWestVent") as Node3D
 	if marker == null:
 		return
@@ -464,16 +489,16 @@ func _validate_attack_target_selection(nest_controller: Node) -> void:
 	if rustdead_nest_type == null:
 		_fail("Rustdead nest type should load from %s" % RUSTDEAD_NEST_TYPE_PATH)
 		return
-	var target_id := str(nest_controller.call("_find_attack_target_settlement", marker.global_position, 1000.0, str(rustdead_nest_type.call("get_faction_id"))))
+	var target_id := str(nest_plugin.call("_find_attack_target_settlement", marker.global_position, 1000.0, str(rustdead_nest_type.call("get_faction_id"))))
 	if target_id != "surf_city":
 		_fail("West Rustdead nest should target closest non-Rustdead settlement surf_city, got %s" % target_id)
 
 
 func _validate_assault_job_start() -> void:
-	var nest_controller := _get_controller("nest_controller")
-	if nest_controller == null:
+	var nest_plugin := _get_controller("nest_world_sim_plugin")
+	if nest_plugin == null:
 		return
-	var summary: Dictionary = nest_controller.call("get_debug_summary")
+	var summary: Dictionary = nest_plugin.call("get_debug_summary")
 	var states: Dictionary = summary.get("nest_states", {})
 	var state := _first_active_rustdead_state(states)
 	if state.is_empty():
@@ -481,29 +506,31 @@ func _validate_assault_job_start() -> void:
 	var marker := _find_nest_marker(str(state.get("marker_id", "")))
 	if marker == null:
 		return
-	var before_actor_ids: Array = state.get("actor_ids", []) if state.get("actor_ids", []) is Array else []
-	var before_actor_count := before_actor_ids.size()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 424242
 	var rustdead_nest_type := _load_rustdead_nest_type()
 	if rustdead_nest_type == null:
 		_fail("Rustdead nest type should load from %s" % RUSTDEAD_NEST_TYPE_PATH)
 		return
-	var started := bool(nest_controller.call("_start_settlement_attack", marker, state, rustdead_nest_type, 42, rng))
+	var started := bool(nest_plugin.call("_start_settlement_attack", marker, state, rustdead_nest_type, 42, rng))
 	rustdead_nest_type = null
 	if not started:
 		_fail("Rustdead nest should be able to start an assault against the closest settlement")
 		return
 	await _wait_frames(10)
-	var actor_ids: Array = state.get("actor_ids", []) if state.get("actor_ids", []) is Array else []
-	var spawned_count := actor_ids.size() - before_actor_count
+	var attack_squad_id := "nest:%s:attack:%03d" % [marker.call("get_marker_id"), 42]
+	var attack_record := _world_sim_squad_record(attack_squad_id)
+	if attack_record.is_empty():
+		_fail("Rustdead assault should create GECS attack squad %s" % attack_squad_id)
+		return
+	var spawned_count := int(attack_record.get("member_count", 0))
 	if spawned_count < 3 or spawned_count > 7:
-		_fail("Rustdead assault should spawn 3-7 attackers, got %d" % spawned_count)
+		_fail("Rustdead assault data squad should have 3-7 attackers, got %d" % spawned_count)
+	nest_plugin.call("realize_nest_squad", attack_record)
+	await _wait_frames(10)
 	var active_assault_jobs := 0
-	for index in range(before_actor_count, actor_ids.size()):
-		var actor := _find_actor(str(actor_ids[index]))
+	for actor in _find_actors_for_squad(attack_squad_id):
 		if actor == null:
-			_fail("Missing assault Rustdead actor %s" % str(actor_ids[index]))
 			continue
 		if actor.has_method("has_active_ai_job_from_source") and bool(actor.call("has_active_ai_job_from_source", ASSAULT_SOURCE_ID)):
 			active_assault_jobs += 1
@@ -533,6 +560,24 @@ func _find_actor(actor_id: String) -> Node:
 		if str(node.get("stable_id")) == actor_id:
 			return node
 	return null
+
+
+func _find_actors_for_squad(squad_id: String) -> Array[Node]:
+	var result: Array[Node] = []
+	for node in get_nodes_in_group("humanoid_character"):
+		if str(node.get("world_squad_id")) == squad_id:
+			result.append(node)
+	return result
+
+
+func _world_sim_squad_record(squad_id: String) -> Dictionary:
+	var gecs := _get_controller("gecs_world_controller")
+	if gecs == null or not gecs.has_method("get_world_sim_squads"):
+		return {}
+	for record in gecs.call("get_world_sim_squads"):
+		if record is Dictionary and str((record as Dictionary).get("squad_id", "")) == squad_id:
+			return (record as Dictionary)
+	return {}
 
 
 func _get_controller(group_name: String) -> Node:

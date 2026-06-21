@@ -325,9 +325,16 @@ func _get_law_order_controller() -> Node:
 func _process_trespass(delta: float) -> void:
 	var actor_ids := _inside_actors.keys()
 	for actor_id in actor_ids:
-		var actor := _inside_actors.get(actor_id) as WorldActor
-		if actor == null or not is_instance_valid(actor) or not is_actor_inside(actor):
-			if actor != null and is_instance_valid(actor):
+		# Check validity on the raw value BEFORE casting — a tracked actor may have been
+		# freed by LOD derealization, and casting a freed object crashes.
+		var raw = _inside_actors.get(actor_id)
+		if raw == null or not is_instance_valid(raw):
+			_clear_trespass_state(actor_id)
+			_inside_actors.erase(actor_id)
+			continue
+		var actor := raw as WorldActor
+		if actor == null or not is_actor_inside(actor):
+			if actor != null:
 				_clear_active_trespass_meta(actor)
 			_clear_trespass_state(actor_id)
 			_inside_actors.erase(actor_id)

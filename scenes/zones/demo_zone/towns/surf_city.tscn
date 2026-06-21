@@ -135,30 +135,6 @@ exclusive = true
 
 [node name="Guards" type="Node3D" parent="." unique_id=1665432324]
 
-[node name="Guard" type="CharacterBody3D" parent="Guards" unique_id=346789828]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.6, -2)
-script = ExtResource("10_kkn8h")
-starting_equipment = Array[Resource]([ExtResource("11_il0s6"), ExtResource("12_lc1nf"), ExtResource("13_kvu6f"), ExtResource("15_cinder"), ExtResource("15_cinder")])
-member_name = "Surf City Watch (guard)"
-stable_id = "npc.surf_city.staff.guard"
-faction_name = "SurfCity"
-squad_name = "SurfCity"
-auto_heal_enabled = true
-auto_burn_rustdead_enabled = true
-base_attack_damage = 12.0
-metadata/settlement_staff_role = "guard"
-metadata/settlement_staff_role_index = 0
-metadata/settlement_staff_slot_id = "surf_city.guard"
-metadata/settlement_actor_category = "staff"
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Guards/Guard" unique_id=323975447]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-shape = SubResource("CapsuleShape3D_bqflg")
-
-[node name="BodyMesh" type="MeshInstance3D" parent="Guards/Guard" unique_id=816342386]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-mesh = SubResource("CapsuleMesh_etnif")
-
 [node name="GuardPosts" type="Node3D" parent="." unique_id=1037250140]
 
 [node name="GuardPost" type="Node3D" parent="GuardPosts" unique_id=182323661]

@@ -134,30 +134,6 @@ exclusive = true
 
 [node name="Guards" type="Node3D" parent="." unique_id=976042045]
 
-[node name="Guard" type="CharacterBody3D" parent="Guards" unique_id=1836764486]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.6, -2)
-script = ExtResource("10_4uqmj")
-starting_equipment = Array[Resource]([ExtResource("11_8d5jw"), ExtResource("12_e1aqh"), ExtResource("13_o0ttn"), ExtResource("15_cinder"), ExtResource("15_cinder")])
-member_name = "Paradise Enforcer (guard)"
-stable_id = "npc.paradise_hills.staff.guard"
-faction_name = "ParadiseHills"
-squad_name = "ParadiseHills"
-auto_heal_enabled = true
-auto_burn_rustdead_enabled = true
-base_attack_damage = 12.0
-metadata/settlement_staff_role = "guard"
-metadata/settlement_staff_role_index = 0
-metadata/settlement_staff_slot_id = "paradise_hills.guard"
-metadata/settlement_actor_category = "staff"
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Guards/Guard" unique_id=1734737251]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-shape = SubResource("CapsuleShape3D_65hpk")
-
-[node name="BodyMesh" type="MeshInstance3D" parent="Guards/Guard" unique_id=802284813]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-mesh = SubResource("CapsuleMesh_ojio2")
-
 [node name="GuardPosts" type="Node3D" parent="." unique_id=1194768072]
 
 [node name="GuardPost" type="Node3D" parent="GuardPosts" unique_id=840834244]

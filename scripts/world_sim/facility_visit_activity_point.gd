@@ -237,15 +237,21 @@ func _prune_cooldowns() -> void:
 
 
 func _actor_from_visit_record(record) -> Node:
-	if record is Dictionary:
-		return record.get("actor") as Node
-	return record as Node
+	# Validate before casting — a tracked visitor may have been freed by LOD derealization,
+	# and casting a freed object crashes.
+	var raw = record.get("actor") if record is Dictionary else record
+	if raw == null or not is_instance_valid(raw):
+		return null
+	return raw as Node
 
 
 func _target_from_visit_record(record) -> Node:
-	if record is Dictionary:
-		return record.get("target") as Node
-	return null
+	if not (record is Dictionary):
+		return null
+	var raw = record.get("target")
+	if raw == null or not is_instance_valid(raw):
+		return null
+	return raw as Node
 
 
 func _actor_key(actor: Node) -> String:

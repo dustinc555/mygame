@@ -20,11 +20,12 @@ const REQUIRED_CONTROLLERS := [
 	"TerritoryController",
 	"RoadController",
 	"WorldEventChoiceController",
-	"WorldSquadController",
+	"WorldSimSquadController",
+	"FactionWorldSimController",
+	"EncounterController",
 	"WorldSimulationController",
 	"LedgerSimulationController",
 	"LawOrderController",
-	"SettlementActivityController",
 	"PartyInventoryController",
 	"HumanoidDetailsController",
 	"CharacterAppearanceController",
@@ -41,7 +42,7 @@ const WORLD_SIM_DEPENDENCIES := {
 	"settlement_controller": "SettlementController",
 	"territory_controller": "TerritoryController",
 	"road_controller": "RoadController",
-	"world_squad_controller": "WorldSquadController",
+	"world_sim_squad_controller": "WorldSimSquadController",
 	"population_controller": "PopulationController",
 	"ai_scheduler_controller": "AiSchedulerController",
 	"actor_query_controller": "ActorQueryController",
@@ -76,6 +77,7 @@ func _run() -> void:
 	_validate_bootstrap_controllers()
 	_validate_single_gecs_controller()
 	_validate_world_simulation_dependencies()
+	_validate_world_sim_plugins()
 	await _cleanup_scene()
 	if _failures.is_empty():
 		print("BOOTSTRAP_CONTROLLER_WIRING_OK")
@@ -125,6 +127,24 @@ func _validate_world_simulation_dependencies() -> void:
 			_fail("WorldSimulationController dependency %s is null" % property_name)
 		elif expected_node != null and actual_node != expected_node:
 			_fail("WorldSimulationController dependency %s does not point at %s" % [property_name, expected_name])
+
+
+func _validate_world_sim_plugins() -> void:
+	var bootstrap := _scene.get_node_or_null("GameBootstrap")
+	if bootstrap == null:
+		return
+	var ticker := bootstrap.get_node_or_null("WorldSimSquadController")
+	if ticker == null:
+		_fail("WorldSimSquadController missing")
+		return
+	var plugin := ticker.get_node_or_null("NestWorldSimPlugin")
+	if plugin == null:
+		_fail("NestWorldSimPlugin should be registered under WorldSimSquadController")
+		return
+	if not plugin.is_in_group("nest_world_sim_plugin"):
+		_fail("NestWorldSimPlugin should publish the nest_world_sim_plugin group")
+	if ticker.has_method("get_world_sim_plugin") and ticker.call("get_world_sim_plugin", "nests") != plugin:
+		_fail("WorldSimSquadController should register the nests plugin")
 
 
 func _wait_frames(count: int) -> void:

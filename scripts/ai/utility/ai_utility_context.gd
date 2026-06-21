@@ -6,7 +6,6 @@ var entity_id := ""
 var actor: Node
 var profile_id := "default_humanoid"
 var position := Vector3.ZERO
-var lod_tier := 1
 var sim_time := 0.0
 var current_goal_id: StringName = &""
 var current_goal_started_at := 0.0
@@ -48,7 +47,6 @@ func to_debug_dictionary() -> Dictionary:
 		"entity_id": entity_id,
 		"profile_id": profile_id,
 		"position": position,
-		"lod_tier": lod_tier,
 		"sim_time": sim_time,
 		"current_goal_id": str(current_goal_id),
 		"current_goal_started_at": current_goal_started_at,

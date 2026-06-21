@@ -27,7 +27,7 @@ script = ExtResource("4_manager")
 script = ExtResource("5_bootstrap")
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=1113634968]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 377.61835, 0.6, 114.84003)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.897171, 0.6, -23.238815)
 
 [node name="CameraPivot" type="Node3D" parent="CameraRig" unique_id=1482128520]
 

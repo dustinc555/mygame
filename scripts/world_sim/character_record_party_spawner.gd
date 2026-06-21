@@ -83,6 +83,13 @@ func _load_character_record(record_path: String) -> Dictionary:
 	var clean_path := record_path.strip_edges()
 	if clean_path.is_empty():
 		return {}
+	if clean_path.get_extension().to_lower() == "tres":
+		var resource = load(clean_path)
+		if resource != null and resource.has_method("to_record"):
+			# .tres records are already typed (Color, etc.) — no JSON normalization.
+			return resource.to_record()
+		push_error("Character record .tres is invalid: %s" % clean_path)
+		return {}
 	var file_access := FileAccess.open(clean_path, FileAccess.READ)
 	if file_access == null:
 		push_error("Character record missing: %s" % clean_path)

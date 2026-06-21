@@ -10,4 +10,5 @@ placement_id = "paradise_hills"
 settlement_definition = ExtResource("2_settlement")
 town_scene = ExtResource("3_town")
 world_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 350)
+realization_policy = "near_player"
 road_connection_ids = PackedStringArray("paradise_hills_gate")

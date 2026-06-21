@@ -44,7 +44,6 @@ lock_seconds = 2.0
 inertia_bonus = 0.03
 switch_threshold = 0.06
 executor_key = &"job_provider"
-allowed_lod_tiers = null
 target_selector_id = &"work_provider"
 requires_target = true
 considerations = Array[Resource]([SubResource("Consideration_work_available"), SubResource("Consideration_no_threat"), SubResource("Consideration_no_heal_need"), SubResource("Consideration_no_player_order")])

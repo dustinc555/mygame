@@ -459,7 +459,10 @@ func _is_sustained_moving_exposure_active(result: Dictionary) -> bool:
 		return false
 	if float(result.get("light_exposure", 0.0)) <= SUSTAINED_MOVING_EXPOSURE_MIN_LIGHT:
 		return false
-	var subject := result.get("subject") as WorldActor
+	var raw = result.get("subject")
+	if raw == null or not is_instance_valid(raw):
+		return false
+	var subject := raw as WorldActor
 	return subject != null and _get_sneaking_activity_multiplier(subject) >= 1.0
 
 
