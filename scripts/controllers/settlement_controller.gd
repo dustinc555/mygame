@@ -432,26 +432,23 @@ func _flat_distance(left: Vector3, right: Vector3) -> float:
 ## its residents are realized (or about to be) as live bodies. Used to gate heavy per-hour
 ## reconciliation to towns the player can actually see; far towns reconcile on approach.
 func _settlement_is_near_player(settlement_id: String) -> bool:
-	var reference := _player_reference_position()
+	var settlement_position := _settlement_position(settlement_id)
+	var radius := _population_lod_radius()
+	var tree := get_tree()
+	if tree != null:
+		var members := tree.get_nodes_in_group("party_member")
+		for member in members:
+			if member is Node3D and _flat_distance((member as Node3D).global_position, settlement_position) <= radius:
+				return true
+		if not members.is_empty():
+			return false
+	var reference := _fallback_player_reference_position()
 	if reference == Vector3.INF:
 		return true
-	return _flat_distance(reference, _settlement_position(settlement_id)) <= _population_lod_radius()
+	return _flat_distance(reference, settlement_position) <= radius
 
 
-func _player_reference_position() -> Vector3:
-	var tree := get_tree()
-	if tree == null:
-		return Vector3.INF
-	var members := tree.get_nodes_in_group("party_member")
-	if not members.is_empty():
-		var sum := Vector3.ZERO
-		var count := 0
-		for member in members:
-			if member is Node3D:
-				sum += (member as Node3D).global_position
-				count += 1
-		if count > 0:
-			return sum / float(count)
+func _fallback_player_reference_position() -> Vector3:
 	var viewport := get_viewport()
 	var camera := viewport.get_camera_3d() if viewport != null else null
 	return camera.global_position if camera != null else Vector3.INF

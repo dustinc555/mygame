@@ -637,6 +637,9 @@ func _on_factions_title_bar_gui_input(event: InputEvent) -> void:
 
 
 func _clamp_factions_panel_to_viewport() -> void:
+	var current_panel := _get_factions_menu_parent().get_node_or_null("FactionsPanel") as PanelContainer
+	if current_panel != null:
+		_factions_window = current_panel
 	if _factions_window == null or not is_instance_valid(_factions_window):
 		return
 	_factions_window.position = _clamp_factions_panel_position(_factions_window.position)

@@ -122,26 +122,29 @@
         lineStyle:{opacity:0.7}, emphasis:{focus:'adjacency'} }] };
   }
   function render(){ chart.setOption(mode==='graph'?graphOption():layerOption(), true); }
+  function esc(value){
+    return String(value).replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
 
   function buildSide(){
     const i=G.insights, s=document.getElementById('side');
-    const sw=n=>`<span style="color:${colorOf[n.layer]}">${n.id}</span>`;
+    const sw=n=>`<span style="color:${esc(colorOf[n.layer]||'')}">${esc(n.id)}</span>`;
     const chg = i.changed || {new:[],modified:[]};
     s.innerHTML =
       `<h2><span class="new">new</span> / <span class="mod">modified</span> — working tree (${chg.new.length}+${chg.modified.length})</h2><p class="note">Uncommitted raw diffs. Re-run <code>extract_deps.js</code> to refresh.</p>`+
-      chg.new.map(id=>`<div class="row" data-focus="${id}"><span class="new">＋</span><span class="nm">${id}</span></div>`).join('')+
-      chg.modified.map(id=>`<div class="row" data-focus="${id}"><span class="mod">~</span><span class="nm">${id}</span></div>`).join('')+
+      chg.new.map(id=>`<div class="row" data-focus="${esc(id)}"><span class="new">＋</span><span class="nm">${esc(id)}</span></div>`).join('')+
+      chg.modified.map(id=>`<div class="row" data-focus="${esc(id)}"><span class="mod">~</span><span class="nm">${esc(id)}</span></div>`).join('')+
       `<h2>Overview</h2><p class="note">${i.totals.nodes} scripts · ${i.totals.edges} dependencies. Color = layer. Node size = how many depend on it.</p>`+
       `<h2 class="viol">Truth-rule violations (${i.violations.length})</h2><p class="note">GECS reads components, not live nodes. These reach into <code>WorldActor</code>.</p>`+
-      i.violations.map(v=>`<div class="row"><span class="nm viol">${v.s}</span><span class="ly">→ ${v.t}</span></div>`).join('')+
+      i.violations.map(v=>`<div class="row"><span class="nm viol">${esc(v.s)}</span><span class="ly">→ ${esc(v.t)}</span></div>`).join('')+
       `<h2 class="tick">Self-tick violators (${i.tick.length})</h2><p class="note">Durable work on <code>_process</code> every frame — not LOD-gated, not on world-sim cadence.</p>`+
-      i.tick.map(v=>`<div class="row" data-focus="${v.id}"><span class="nm tick">${v.id}</span><span class="ly">${v.layer}</span></div>`).join('')+
+      i.tick.map(v=>`<div class="row" data-focus="${esc(v.id)}"><span class="nm tick">${esc(v.id)}</span><span class="ly">${esc(v.layer)}</span></div>`).join('')+
       `<h2 class="cyc">Dependency cycles (${i.cycles.length})</h2>`+
-      i.cycles.map(c=>`<div class="row" data-focus="${c[0]}"><span class="cyc">(${c.length})</span><span class="nm">${c.join(' → ')}</span></div>`).join('')+
+      i.cycles.map(c=>`<div class="row" data-focus="${esc(c[0])}"><span class="cyc">(${c.length})</span><span class="nm">${esc(c.join(' → '))}</span></div>`).join('')+
       `<h2>Top hubs — most depended-upon</h2><p class="note">Load-bearing; changes ripple widest.</p>`+
-      i.hubs.map(h=>`<div class="row" data-focus="${h.id}"><span class="deg">${h.deg}</span>${sw(h)} <span class="ly">${h.layer}</span></div>`).join('')+
+      i.hubs.map(h=>`<div class="row" data-focus="${esc(h.id)}"><span class="deg">${esc(h.deg)}</span>${sw(h)} <span class="ly">${esc(h.layer)}</span></div>`).join('')+
       `<h2>Most coupled — most dependencies</h2><p class="note">Fragile / god-objects.</p>`+
-      i.coupled.map(h=>`<div class="row" data-focus="${h.id}"><span class="deg">${h.deg}</span>${sw(h)} <span class="ly">${h.layer}</span></div>`).join('');
+      i.coupled.map(h=>`<div class="row" data-focus="${esc(h.id)}"><span class="deg">${esc(h.deg)}</span>${sw(h)} <span class="ly">${esc(h.layer)}</span></div>`).join('');
     s.querySelectorAll('[data-focus]').forEach(el=>el.addEventListener('click',()=>{
       if(mode!=='graph'){mode='graph';setMode('graph');}
       opt.q=el.dataset.focus; document.getElementById('search').value=opt.q; render(); }));

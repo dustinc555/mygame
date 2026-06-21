@@ -749,7 +749,7 @@ func _ledger_activity_for_record(record: Dictionary, absolute_minute: int) -> St
 	if hour >= 22 or hour < 6:
 		return "resting"
 	var role_id := str(record.get("role_id", "resident")).to_lower()
-	if ["worker", "waiter", "barkeeper", "merchant", "guard", "warden", "ruler", "mayor"].has(role_id):
+	if ["worker", "waiter", "barkeeper", "merchant", "guard", "barber", "warden", "ruler", "mayor"].has(role_id):
 		return "working"
 	return "routine"
 

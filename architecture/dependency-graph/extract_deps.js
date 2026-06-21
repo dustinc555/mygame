@@ -73,7 +73,7 @@ for (const f of files) {
   if (cn) classToFile[cn] = f;
 }
 const allClassNames = new Set(Object.keys(classToFile));
-const idOf = f => fileInfo[f].className || ('~' + path.basename(fileInfo[f].rel, '.gd'));
+const idOf = f => fileInfo[f].className || ('~' + fileInfo[f].rel.split(path.sep).join('/').replace(/\.gd$/, ''));
 
 // ---- pass 2: dependency edges ----
 const edges = new Map();

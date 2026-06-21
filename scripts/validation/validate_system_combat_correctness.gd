@@ -60,6 +60,8 @@ func _validate_system_receive_side_effects() -> void:
 	var context: Dictionary = defender.prepare_system_combat_receive_attack(attacker, 2.0, 1.0)
 	if not bool(context.get("accepted", false)):
 		_fail("system receive should accept sleeping non-protected target")
+	if not bool(context.get("can_actively_defend", false)):
+		_fail("system receive should set can_actively_defend true for woken target")
 	if not defender.woke:
 		_fail("system receive should wake sleeping target")
 	if not defender.stealth_broke or defender.sneaking:
@@ -68,13 +70,18 @@ func _validate_system_receive_side_effects() -> void:
 		_fail("system receive should notify defensive allies")
 	if not defender.has_hostility_with(attacker):
 		_fail("system receive should mark attacker hostile")
-	var reaction_seconds := defender.handle_system_combat_resolution(attacker, "hit", "probe", PackedStringArray(), false, false, 1.0, 0.0, true)
+	if not attacker.has_hostility_with(defender):
+		_fail("system receive should establish mutual hostility")
+	var can_actively_defend := bool(context.get("can_actively_defend", true))
+	var reaction_seconds := defender.handle_system_combat_resolution(attacker, "hit", "probe", PackedStringArray(), false, false, 1.0, 0.0, can_actively_defend)
 	if reaction_seconds <= 0.0 or not defender.reaction_played:
 		_fail("system receive should play active hit reaction")
 	if not WorldActor.COMBAT_COORDINATOR.is_character_locked(defender):
 		_fail("system receive should extend combat coordinator reaction lock")
 	WorldActor.COMBAT_COORDINATOR.release_character(attacker)
 	WorldActor.COMBAT_COORDINATOR.release_character(defender)
+	if WorldActor.COMBAT_COORDINATOR.is_character_locked(defender):
+		_fail("system receive cleanup should release defender lock")
 	attacker.queue_free()
 	defender.queue_free()
 

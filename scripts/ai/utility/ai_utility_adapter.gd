@@ -192,7 +192,7 @@ func _apply_combat_target_context(context: AiUtilityContext, actor: Node) -> voi
 		# it is the same target the rest of the AI now consumes, without the O(candidates) cost.
 		if actor.has_method("_get_system_combat_target"):
 			target = _call_object(actor, "_get_system_combat_target")
-		else:
+		if target == null:
 			target = _call_object(actor, "_find_ai_target")
 	if target == null:
 		context.set_fact(&"threat", 0.0)

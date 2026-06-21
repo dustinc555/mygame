@@ -550,16 +550,16 @@ func log_world_event(category: String, message: String, data: Dictionary = {}) -
 		"time": _world_brain_time_stamp(),
 		"category": str(category),
 		"message": str(message),
-		"data": data,
+		"data": data.duplicate(true),
 	}
 	_world_brain_log.append(entry)
 	if _world_brain_log.size() > WORLD_BRAIN_LOG_CAP:
 		_world_brain_log = _world_brain_log.slice(_world_brain_log.size() - WORLD_BRAIN_LOG_CAP)
-	world_event_logged.emit(entry)
+	world_event_logged.emit(entry.duplicate(true))
 
 
 func get_world_event_log() -> Array:
-	return _world_brain_log.duplicate()
+	return _world_brain_log.duplicate(true)
 
 
 func _world_brain_time_stamp() -> String:
@@ -1497,12 +1497,12 @@ func _try_initialize() -> void:
 		var combat_slot = _combat_slot_system_script.new()
 		combat_slot.name = "GameCombatSlotSystem"
 		world.add_system(combat_slot)
-		var combat_resolution = _combat_resolution_system_script.new()
-		combat_resolution.name = "GameCombatResolutionSystem"
-		world.add_system(combat_resolution)
 		var combat_movement = _combat_movement_system_script.new()
 		combat_movement.name = "GameCombatMovementSystem"
 		world.add_system(combat_movement)
+		var combat_resolution = _combat_resolution_system_script.new()
+		combat_resolution.name = "GameCombatResolutionSystem"
+		world.add_system(combat_resolution)
 		var ai_job_system = _ai_job_system_script.new()
 		ai_job_system.name = "GameAiJobSystem"
 		world.add_system(ai_job_system)
@@ -2294,7 +2294,7 @@ func _target_id_for_ai_job(job) -> String:
 			return str(stable_id).strip_edges()
 		if target.has_meta("actor_record_id"):
 			return str(target.get_meta("actor_record_id"))
-		return str(target.get_instance_id())
+		return ""
 	return str(target)
 
 
@@ -2339,6 +2339,7 @@ func _clear_world_entities() -> void:
 	_job_provider_memory_entity_by_id.clear()
 	_activity_point_entity_by_id.clear()
 	_activity_assignment_entity_by_actor_id.clear()
+	_world_sim_squad_entity_by_id.clear()
 	_actor_spatial_nodes_by_cell.clear()
 	_actor_spatial_index_valid = false
 	_world_time_entity = null
@@ -2423,6 +2424,10 @@ func _rebuild_entity_indexes() -> void:
 		var activity_assignment = entity.get_component(C_ACTIVITY_ASSIGNMENT)
 		if activity_assignment != null:
 			_activity_assignment_entity_by_actor_id[str(activity_assignment.actor_id)] = entity
+	for entity in world.query.with_all([C_WORLD_SIM_SQUAD]).execute():
+		var world_sim_squad = entity.get_component(C_WORLD_SIM_SQUAD)
+		if world_sim_squad != null:
+			_world_sim_squad_entity_by_id[str(world_sim_squad.squad_id)] = entity
 	for entity in world.query.with_all([C_WORLD_TIME]).execute():
 		_world_time_entity = entity
 		break

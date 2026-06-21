@@ -41,12 +41,12 @@ func apply_record(source: Dictionary) -> void:
 	position = source.get("position", position)
 	target_position = source.get("target_position", target_position)
 	home_position = source.get("home_position", home_position)
-	patrol_radius = float(source.get("patrol_radius", patrol_radius))
-	move_speed = float(source.get("move_speed", move_speed))
-	member_count = int(source.get("member_count", member_count))
+	patrol_radius = maxf(float(source.get("patrol_radius", patrol_radius)), 0.0)
+	move_speed = maxf(float(source.get("move_speed", move_speed)), 0.0)
+	member_count = maxi(int(source.get("member_count", member_count)), 0)
 	state = str(source.get("state", state))
 	phase = str(source.get("phase", phase))
-	phase_timer = float(source.get("phase_timer", phase_timer))
+	phase_timer = maxf(float(source.get("phase_timer", phase_timer)), 0.0)
 	decision = str(source.get("decision", decision))
 
 

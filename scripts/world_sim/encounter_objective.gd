@@ -30,4 +30,7 @@ class_name EncounterObjective
 
 
 func get_id() -> String:
-	return objective_id if not objective_id.is_empty() else display_name
+	var clean_id := objective_id.strip_edges()
+	if clean_id.is_empty():
+		push_error("EncounterObjective requires a stable objective_id")
+	return clean_id

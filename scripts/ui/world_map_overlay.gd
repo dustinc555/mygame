@@ -7,13 +7,13 @@ class_name WorldMapOverlay
 
 const REFRESH_INTERVAL := 0.3
 const HOVER_RADIUS := 12.0
-const WORLD_BOUNDS := Rect2(Vector2(-560.0, -430.0), Vector2(990.0, 790.0))
+@export var world_bounds: Rect2 = Rect2(Vector2(-560.0, -430.0), Vector2(990.0, 790.0))
 const GRID_STEP_METERS := 100.0
 
 var pixels_per_meter := 1.0
 var _markers: Array[Dictionary] = []
 var _hovered: Dictionary = {}
-var _view_center := WORLD_BOUNDS.position + WORLD_BOUNDS.size * 0.5
+var _view_center := world_bounds.position + world_bounds.size * 0.5
 var _refresh_elapsed := 0.0
 var _font: Font
 var _interaction_controller: Node
@@ -118,8 +118,8 @@ func _rebuild_markers() -> void:
 
 func _compute_fixed_transform() -> void:
 	var rect := _map_rect()
-	_view_center = WORLD_BOUNDS.position + WORLD_BOUNDS.size * 0.5
-	pixels_per_meter = minf(rect.size.x / WORLD_BOUNDS.size.x, rect.size.y / WORLD_BOUNDS.size.y)
+	_view_center = world_bounds.position + world_bounds.size * 0.5
+	pixels_per_meter = minf(rect.size.x / world_bounds.size.x, rect.size.y / world_bounds.size.y)
 
 
 func _squad_color(squad: Dictionary) -> Color:
@@ -180,20 +180,20 @@ func _draw() -> void:
 
 func _draw_grid(rect: Rect2) -> void:
 	var grid_color := Color(0.16, 0.2, 0.26, 1.0)
-	var min_x := floor(WORLD_BOUNDS.position.x / GRID_STEP_METERS) * GRID_STEP_METERS
-	var max_x := WORLD_BOUNDS.end.x
-	var x := min_x
+	var min_x: float = floorf(world_bounds.position.x / GRID_STEP_METERS) * GRID_STEP_METERS
+	var max_x: float = world_bounds.end.x
+	var x: float = min_x
 	while x <= max_x:
-		var a := _world_to_screen(Vector2(x, WORLD_BOUNDS.position.y))
-		var b := _world_to_screen(Vector2(x, WORLD_BOUNDS.end.y))
+		var a := _world_to_screen(Vector2(x, world_bounds.position.y))
+		var b := _world_to_screen(Vector2(x, world_bounds.end.y))
 		draw_line(Vector2(a.x, rect.position.y), Vector2(b.x, rect.end.y), grid_color, 1.0)
 		x += GRID_STEP_METERS
-	var min_z := floor(WORLD_BOUNDS.position.y / GRID_STEP_METERS) * GRID_STEP_METERS
-	var max_z := WORLD_BOUNDS.end.y
-	var z := min_z
+	var min_z: float = floorf(world_bounds.position.y / GRID_STEP_METERS) * GRID_STEP_METERS
+	var max_z: float = world_bounds.end.y
+	var z: float = min_z
 	while z <= max_z:
-		var a := _world_to_screen(Vector2(WORLD_BOUNDS.position.x, z))
-		var b := _world_to_screen(Vector2(WORLD_BOUNDS.end.x, z))
+		var a := _world_to_screen(Vector2(world_bounds.position.x, z))
+		var b := _world_to_screen(Vector2(world_bounds.end.x, z))
 		draw_line(Vector2(rect.position.x, a.y), Vector2(rect.end.x, b.y), grid_color, 1.0)
 		z += GRID_STEP_METERS
 
@@ -312,9 +312,23 @@ func _issue_move_order(screen_position: Vector2) -> void:
 	if controller == null or not controller.has_method("issue_move_command_at_world"):
 		return
 	var world := _screen_to_world(screen_position)
-	world.x = clampf(world.x, WORLD_BOUNDS.position.x, WORLD_BOUNDS.end.x)
-	world.y = clampf(world.y, WORLD_BOUNDS.position.y, WORLD_BOUNDS.end.y)
-	controller.call("issue_move_command_at_world", Vector3(world.x, 0.0, world.y), true)
+	world.x = clampf(world.x, world_bounds.position.x, world_bounds.end.x)
+	world.y = clampf(world.y, world_bounds.position.y, world_bounds.end.y)
+	controller.call("issue_move_command_at_world", Vector3(world.x, _move_order_reference_y(controller), world.y), true)
+
+
+func _move_order_reference_y(controller: Node) -> float:
+	var party_manager = controller.get("party_manager") if controller != null else null
+	if party_manager != null:
+		var selected = party_manager.get("selected_members")
+		if selected is Array and not selected.is_empty() and selected[0] is Node3D:
+			return (selected[0] as Node3D).global_position.y
+	if get_tree() != null:
+		for member in get_tree().get_nodes_in_group("party_member"):
+			if member is Node3D:
+				return (member as Node3D).global_position.y
+	var camera := get_viewport().get_camera_3d()
+	return camera.global_position.y if camera != null else 0.0
 
 
 func _get_interaction_controller() -> Node:

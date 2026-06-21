@@ -21,7 +21,7 @@ const MAX_FIXED_STEPS_PER_FRAME := 3
 const ENTER_RANGE_BUFFER := 0.12
 const EXIT_RANGE_BUFFER := 0.48
 
-static var _fixed_accumulator := 0.0
+var _fixed_accumulator := 0.0
 
 
 func query() -> QueryBuilder:
@@ -92,7 +92,7 @@ func _validate_existing_state(index: int, identities: Array, spatials: Array, vi
 		_set_move_to_target(slot, desired)
 		return
 	var target_index: int = index_by_actor_id[target_id]
-	if not _can_use_pair(index, target_index, vitals, configs):
+	if not _can_use_pair(index, target_index, spatials, vitals, configs):
 		slot.clear()
 		return
 	var actor_pos: Vector3 = spatials[index].world_position
@@ -116,7 +116,7 @@ func _assign_or_update_state(index: int, identities: Array, spatials: Array, vit
 		slot.clear()
 		return
 	var target_index: int = index_by_actor_id[desired]
-	if not _can_use_pair(index, target_index, vitals, configs):
+	if not _can_use_pair(index, target_index, spatials, vitals, configs):
 		slot.clear()
 		return
 	var actor_pos: Vector3 = spatials[index].world_position
@@ -202,7 +202,7 @@ func _exit_range(cfg, target_cfg) -> float:
 	return _enter_range(cfg, target_cfg) + EXIT_RANGE_BUFFER
 
 
-func _can_use_pair(index: int, target_index: int, vitals: Array, configs: Array) -> bool:
+func _can_use_pair(index: int, target_index: int, spatials: Array, vitals: Array, configs: Array) -> bool:
 	var vit = vitals[index]
 	var target_vit = vitals[target_index]
 	var cfg = configs[index]
@@ -211,14 +211,16 @@ func _can_use_pair(index: int, target_index: int, vitals: Array, configs: Array)
 		return false
 	if vit.life_state != NpcRules.LifeState.ALIVE or target_vit.life_state != NpcRules.LifeState.ALIVE:
 		return false
+	if absf(spatials[index].world_position.y - spatials[target_index].world_position.y) > float(cfg.move_target_vertical_tolerance):
+		return false
 	return not bool(cfg.protected_from_combat) and not bool(target_cfg.protected_from_combat)
 
 
 func _desired_target_actor_id(state) -> String:
 	if state == null:
 		return ""
-	var current_target := str(state.current_target_actor_id)
-	return current_target if not current_target.is_empty() else str(state.system_target_actor_id)
+	var system_target := str(state.system_target_actor_id)
+	return system_target if not system_target.is_empty() else str(state.current_target_actor_id)
 
 
 func _actor_id_at(index: int, identities: Array) -> String:

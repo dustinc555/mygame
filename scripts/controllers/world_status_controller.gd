@@ -254,18 +254,15 @@ func _refresh_gecs_metrics_label() -> void:
 	# (cost GECS); "Off-screen" = cheap ledger records. If you leave a town and In-world /
 	# GECS/frame don't drop, the LOD isn't actually offloading that actor.
 	var live_bodies := 0
-	var live_npcs := 0
 	if get_tree() != null:
 		for body in get_tree().get_nodes_in_group("humanoid_character"):
 			live_bodies += 1
-			if not body.is_in_group("party_member"):
-				live_npcs += 1
 	gecs_metrics_label.text = "World Sim   GECS/frame %.1f ms\nNPC records %d  (in-world %d  off-screen %d)\nLive bodies %d   squads %d" % [
 		float(m.get("world_process_ms", 0.0)),
 		int(m.get("population", 0)),
 		int(m.get("realized", 0)),
 		int(m.get("ledger", 0)),
-		live_npcs,
+		live_bodies,
 		int(m.get("squads", 0)),
 	]
 

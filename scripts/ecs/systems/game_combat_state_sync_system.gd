@@ -63,6 +63,8 @@ func _sync_config(component, actor: Node) -> void:
 	component.navigation_agent_radius = _num(actor.get("navigation_agent_radius"), component.navigation_agent_radius)
 	component.active_attack_slots = int(_num(actor.get("combat_active_attack_slots"), component.active_attack_slots))
 	component.combat_stance = int(_num(actor.get("combat_stance"), component.combat_stance))
+	component.retarget_interval_seconds = maxf(_num(actor.get("combat_consider_retarget_interval_seconds"), component.retarget_interval_seconds), 0.0)
+	component.retarget_jitter_seconds = maxf(_num(actor.get("combat_consider_retarget_jitter_seconds"), component.retarget_jitter_seconds), 0.0)
 	if actor.has_method("is_protected_from_combat"):
 		component.protected_from_combat = bool(actor.call("is_protected_from_combat"))
 	component.attack_cooldown_seconds = _num(actor.get("attack_cooldown_seconds"), component.attack_cooldown_seconds)

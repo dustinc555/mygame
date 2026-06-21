@@ -23,7 +23,7 @@ const TURN_HANDOFF_WAIT_SECONDS := 0.28
 static var profile_enabled := OS.get_cmdline_args().has("--gecs-combat-profile")
 static var _profile_calls := 0
 static var _profile_usec := 0
-static var _fixed_accumulator := 0.0
+var _fixed_accumulator := 0.0
 
 
 func query() -> QueryBuilder:
@@ -132,7 +132,7 @@ func _try_start_slot_action(index: int, nodes: Array, identities: Array, spatial
 	var tempo_owner_index := _canonical_tempo_owner_index(index, actor_id, target_index, target_actor_id)
 	if not _pair_turn_is_ready(tempo_owner_index, actor_id, target_actor_id, slots):
 		return
-	if not _slot_pair_is_fighting(actor_id, target_actor_id, spatials, slots, actor_index_by_id):
+	if not _slot_pair_is_fighting(actor_id, target_actor_id, spatials, configs, slots, actor_index_by_id):
 		return
 	var target_actor := _actor_from_node_component(nodes[target_index])
 	var spec := actor.call("get_system_combat_attack_spec") as Dictionary if actor.has_method("get_system_combat_attack_spec") else {}
@@ -175,7 +175,7 @@ func _resolve_action_impact(attacker_index: int, nodes: Array, identities: Array
 	var target_actor_id := str(action.action_target_actor_id)
 	if target_actor_id.is_empty() or not actor_index_by_id.has(target_actor_id):
 		return
-	if not _slot_pair_is_usable(_actor_id_at(attacker_index, identities), target_actor_id, spatials, slots, actor_index_by_id):
+	if not _slot_pair_is_usable(_actor_id_at(attacker_index, identities), target_actor_id, spatials, configs, slots, actor_index_by_id):
 		return
 	var target_index: int = actor_index_by_id[target_actor_id]
 	var target_vit = vitals[target_index]
@@ -250,27 +250,30 @@ func _fighting_pair_for_actor(index: int, identities: Array, slots: Array, incom
 	return incoming[0] as Dictionary if not incoming.is_empty() and incoming[0] is Dictionary else {}
 
 
-func _slot_pair_is_fighting(actor_id: String, target_actor_id: String, spatials: Array, slots: Array, actor_index_by_id: Dictionary) -> bool:
+func _slot_pair_is_fighting(actor_id: String, target_actor_id: String, spatials: Array, configs: Array, slots: Array, actor_index_by_id: Dictionary) -> bool:
 	if actor_id.is_empty() or target_actor_id.is_empty() or not actor_index_by_id.has(actor_id) or not actor_index_by_id.has(target_actor_id):
 		return false
 	var actor_index: int = actor_index_by_id[actor_id]
 	var target_index: int = actor_index_by_id[target_actor_id]
-	return _slot_points_to(actor_index, target_actor_id, spatials, slots, target_index) or _slot_points_to(target_index, actor_id, spatials, slots, actor_index)
+	return _slot_points_to(actor_index, target_actor_id, spatials, configs, slots, target_index) or _slot_points_to(target_index, actor_id, spatials, configs, slots, actor_index)
 
 
-func _slot_pair_is_usable(actor_id: String, target_actor_id: String, spatials: Array, slots: Array, actor_index_by_id: Dictionary) -> bool:
+func _slot_pair_is_usable(actor_id: String, target_actor_id: String, spatials: Array, configs: Array, slots: Array, actor_index_by_id: Dictionary) -> bool:
 	if actor_id.is_empty() or target_actor_id.is_empty() or not actor_index_by_id.has(actor_id) or not actor_index_by_id.has(target_actor_id):
 		return false
 	var actor_index: int = actor_index_by_id[actor_id]
 	var target_index: int = actor_index_by_id[target_actor_id]
-	return _slot_points_to(actor_index, target_actor_id, spatials, slots, target_index) or _slot_points_to(target_index, actor_id, spatials, slots, actor_index)
+	return _slot_points_to(actor_index, target_actor_id, spatials, configs, slots, target_index) or _slot_points_to(target_index, actor_id, spatials, configs, slots, actor_index)
 
 
-func _slot_points_to(slot_owner_index: int, target_actor_id: String, spatials: Array, slots: Array, target_index: int) -> bool:
+func _slot_points_to(slot_owner_index: int, target_actor_id: String, spatials: Array, configs: Array, slots: Array, target_index: int) -> bool:
 	var slot = slots[slot_owner_index]
 	if slot == null or str(slot.slot_target_actor_id) != target_actor_id:
 		return false
 	if int(slot.slot_state) != FIGHT_STATE_FIGHTING:
+		return false
+	var cfg = configs[slot_owner_index]
+	if cfg != null and absf(spatials[slot_owner_index].world_position.y - spatials[target_index].world_position.y) > float(cfg.move_target_vertical_tolerance):
 		return false
 	return _horizontal_distance(spatials[slot_owner_index].world_position, spatials[target_index].world_position) <= float(slot.leash_distance)
 

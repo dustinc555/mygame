@@ -51,7 +51,12 @@ func clear_active_crime() -> void:
 
 func is_empty() -> bool:
 	return not is_prisoner \
+		and jail_id.is_empty() \
+		and cell_id.is_empty() \
 		and warrant_summary.is_empty() \
 		and status_label.is_empty() \
+		and status_kind.is_empty() \
 		and sentence_summary.is_empty() \
-		and active_crime_label.is_empty()
+		and active_crime_label.is_empty() \
+		and active_crime_kind.is_empty() \
+		and active_crime_source_id == 0

@@ -315,8 +315,10 @@ func restore_prisoner_to_cell(actor: WorldActor, record: Dictionary) -> bool:
 		cell = get_available_cell(actor, actor)
 	if cell == null:
 		return false
-	if cell.has_method("assign_prisoner"):
-		cell.call("assign_prisoner", actor)
+	var already_assigned := cell.has_method("has_occupant") and bool(cell.call("has_occupant", actor))
+	if not already_assigned:
+		if not cell.has_method("assign_prisoner") or not bool(cell.call("assign_prisoner", actor)):
+			return false
 	var prisoner_position: Vector3 = cell.call("get_prisoner_position", actor) if cell.has_method("get_prisoner_position") else actor.global_position
 	var prisoner_rotation: Vector3 = cell.call("get_prisoner_rotation", actor) if cell.has_method("get_prisoner_rotation") else actor.global_rotation
 	actor.enter_cell_custody(cell, prisoner_position, prisoner_rotation)
@@ -429,7 +431,7 @@ func admit_prisoner(actor: WorldActor, warrant: Dictionary, law_controller: Node
 	return true
 
 
-func tell_prisoner_sentence(actor: HumanoidCharacter, record: Dictionary) -> bool:
+func tell_prisoner_sentence(actor: WorldActor, record: Dictionary) -> bool:
 	if actor == null:
 		return false
 	var crimes := _crime_summary(record)
@@ -439,7 +441,7 @@ func tell_prisoner_sentence(actor: HumanoidCharacter, record: Dictionary) -> boo
 	return _queue_sentence_announcement(actor, "You are sentenced for %s. You serve %s." % [crimes, duration])
 
 
-func _queue_sentence_announcement(actor: HumanoidCharacter, message: String) -> bool:
+func _queue_sentence_announcement(actor: WorldActor, message: String) -> bool:
 	if actor == null or message.is_empty():
 		return false
 	for index in range(_pending_sentence_announcements.size()):
@@ -458,7 +460,10 @@ func _process_sentence_announcements(delta: float) -> void:
 	if raw == null or not is_instance_valid(raw):
 		_pending_sentence_announcements.pop_front()
 		return
-	var actor := raw as HumanoidCharacter
+	var actor := raw as WorldActor
+	if actor == null:
+		_pending_sentence_announcements.pop_front()
+		return
 	if not actor.is_law_prisoner():
 		_pending_sentence_announcements.pop_front()
 		return
@@ -502,7 +507,7 @@ func _process_sentence_announcements(delta: float) -> void:
 		_pending_sentence_announcements.pop_front()
 
 
-func _get_sentence_announcement_position(actor: HumanoidCharacter) -> Vector3:
+func _get_sentence_announcement_position(actor: WorldActor) -> Vector3:
 	var cell := _find_cell_for_prisoner(actor)
 	if cell != null and cell.has_method("get_interaction_position"):
 		var cell_position: Variant = cell.call("get_interaction_position", actor)
@@ -518,7 +523,7 @@ func _prepare_warden_for_sentence_delivery(warden: HumanoidCharacter) -> void:
 		warden.call("disengage_combat_with")
 
 
-func _ensure_sentence_route(entry: Dictionary, actor: HumanoidCharacter, warden: HumanoidCharacter) -> Dictionary:
+func _ensure_sentence_route(entry: Dictionary, actor: WorldActor, warden: HumanoidCharacter) -> Dictionary:
 	var route_value: Variant = entry.get("route", [])
 	if route_value is Array and not route_value.is_empty() and not _should_rebuild_sentence_route(route_value, warden):
 		return entry
@@ -537,7 +542,7 @@ func _should_rebuild_sentence_route(route: Array, warden: HumanoidCharacter) -> 
 	return (route[0] as Vector3).distance_squared_to(get_entry_position(warden)) <= 0.64
 
 
-func _build_sentence_route(actor: HumanoidCharacter, warden: HumanoidCharacter) -> Array[Vector3]:
+func _build_sentence_route(actor: WorldActor, warden: HumanoidCharacter) -> Array[Vector3]:
 	var route: Array[Vector3] = []
 	var final_position := _get_sentence_announcement_position(actor)
 	var cell := _find_cell_for_prisoner(actor)
@@ -596,7 +601,7 @@ func _assign_warden_sentence_move(warden: HumanoidCharacter, target_position: Ve
 		warden.set_move_target(target_position, false)
 
 
-func _face_warden_toward_actor(warden: HumanoidCharacter, actor: HumanoidCharacter) -> void:
+func _face_warden_toward_actor(warden: HumanoidCharacter, actor: WorldActor) -> void:
 	if warden == null or actor == null:
 		return
 	var target_position := Vector3(actor.global_position.x, warden.global_position.y, actor.global_position.z)
@@ -607,14 +612,14 @@ func _face_warden_toward_actor(warden: HumanoidCharacter, actor: HumanoidCharact
 	warden.rotation.z = 0.0
 
 
-func _open_sentence_conversation(warden: HumanoidCharacter, actor: HumanoidCharacter, message: String) -> bool:
+func _open_sentence_conversation(warden: HumanoidCharacter, actor: WorldActor, message: String) -> bool:
 	var conversation_controller := _get_conversation_controller()
 	if conversation_controller != null and conversation_controller.has_method("begin_system_conversation"):
 		return bool(conversation_controller.call("begin_system_conversation", warden, actor, message, "Understood"))
 	return false
 
 
-func _notify_sentence_delivered(actor: HumanoidCharacter) -> bool:
+func _notify_sentence_delivered(actor: WorldActor) -> bool:
 	var tree := get_tree()
 	if tree == null:
 		return false

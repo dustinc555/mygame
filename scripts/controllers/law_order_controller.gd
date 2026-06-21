@@ -350,12 +350,7 @@ func _process_warrants() -> void:
 			if str(record.get("state", "wanted")) == "jailed":
 				continue
 			if str(record.get("state", "wanted")) == "custody":
-				var custody_actor := actor as HumanoidCharacter
-				if custody_actor == null:
-					record["state"] = "wanted"
-					_alert_authority_guards(actor, record)
-				else:
-					_process_custody(custody_actor, record)
+				_process_custody(actor, record)
 				by_faction[faction_id] = record
 				continue
 			if _actor_is_downed(actor):
@@ -381,7 +376,7 @@ func _process_prisoners() -> void:
 	var now := _now_minute()
 	for prisoner_key in prisoner_records.keys():
 		var record: Dictionary = prisoner_records[prisoner_key]
-		var actor := _find_actor_by_key(str(prisoner_key)) as HumanoidCharacter
+		var actor := _find_actor_by_key(str(prisoner_key))
 		if actor == null:
 			continue
 		var jail := _find_jail_by_id(str(record.get("jail_id", "")))
@@ -416,7 +411,7 @@ func _arrest_or_eject(actor: HumanoidCharacter, warrant: Dictionary) -> void:
 	_clear_warrant_for_actor(actor, str(warrant.get("faction_id", "")))
 
 
-func _process_custody(actor: HumanoidCharacter, warrant: Dictionary) -> void:
+func _process_custody(actor: WorldActor, warrant: Dictionary) -> void:
 	if actor == null or actor.life_state == NpcRules.LifeState.DEAD:
 		return
 	var settlement := _find_settlement_for_warrant(actor, warrant)
@@ -432,25 +427,26 @@ func _process_custody(actor: HumanoidCharacter, warrant: Dictionary) -> void:
 		warrant["state"] = "wanted"
 		_alert_authority_guards(actor, warrant)
 		return
-	if not actor.is_downed_state():
+	if not actor.is_downed_state() or not (actor is HumanoidCharacter):
 		return
+	var humanoid_actor := actor as HumanoidCharacter
 	var guard := _find_custody_guard(actor, warrant, settlement)
 	if guard == null:
 		return
-	var cell_reference: Node = guard if guard.get_carried_character() == actor else actor
+	var cell_reference: Node = guard if guard.get_carried_character() == humanoid_actor else actor
 	var cell = jail.call("get_available_cell", actor, cell_reference) if jail.has_method("get_available_cell") else null
 	if cell == null:
 		return
 	warrant["custody_guard_key"] = _actor_key(guard)
 	_disengage_authority_guards(actor, warrant)
-	if guard.get_carried_character() == actor:
+	if guard.get_carried_character() == humanoid_actor:
 		guard.assign_place_carried_in_cell_target(cell, false)
 		return
-	if not actor.is_carried() and guard.get_carried_character() == null:
-		guard.assign_carry_target(actor, false)
+	if not humanoid_actor.is_carried() and guard.get_carried_character() == null:
+		guard.assign_carry_target(humanoid_actor, false)
 
 
-func _complete_jailing(actor: HumanoidCharacter, warrant: Dictionary, jail: Node) -> void:
+func _complete_jailing(actor: WorldActor, warrant: Dictionary, jail: Node) -> void:
 	var prisoner_key := _actor_key(actor)
 	var prisoner_record := warrant.duplicate(true)
 	prisoner_record["state"] = "jailed"
@@ -474,7 +470,7 @@ func _complete_jailing(actor: HumanoidCharacter, warrant: Dictionary, jail: Node
 	_assign_custody_guard_return(custody_guard, jail)
 
 
-func register_prisoner_locker_transfer(actor: HumanoidCharacter, _locker, warrant: Dictionary) -> Dictionary:
+func register_prisoner_locker_transfer(actor: WorldActor, _locker, warrant: Dictionary) -> Dictionary:
 	return {
 		"prisoner_key": _actor_key(actor),
 		"case_id": str(warrant.get("case_id", "%s:%d" % [_actor_key(actor), _now_minute()])),
@@ -482,7 +478,7 @@ func register_prisoner_locker_transfer(actor: HumanoidCharacter, _locker, warran
 	}
 
 
-func complete_prisoner_sentence_delivery(actor: HumanoidCharacter) -> bool:
+func complete_prisoner_sentence_delivery(actor: WorldActor) -> bool:
 	if actor == null:
 		return false
 	var prisoner_key := _actor_key(actor)
@@ -502,7 +498,7 @@ func complete_prisoner_sentence_delivery(actor: HumanoidCharacter) -> bool:
 	return true
 
 
-func has_pending_prisoner_sentence_notification(actor: HumanoidCharacter) -> bool:
+func has_pending_prisoner_sentence_notification(actor: WorldActor) -> bool:
 	if actor == null:
 		return false
 	var prisoner_key := _actor_key(actor)
@@ -512,7 +508,7 @@ func has_pending_prisoner_sentence_notification(actor: HumanoidCharacter) -> boo
 	return str(record.get("state", "")) == "jailed" and bool(record.get("sentence_notification_pending", false)) and not bool(record.get("sentence_notification_given", false))
 
 
-func _decide_prisoner_sentence(actor: HumanoidCharacter, record: Dictionary, now: int) -> Dictionary:
+func _decide_prisoner_sentence(actor: WorldActor, record: Dictionary, now: int) -> Dictionary:
 	record["sentence_decision_given"] = true
 	record["sentence_started_at_minute"] = now
 	record["release_at_minute"] = now + max(1, int(record.get("sentence_minutes", THEFT_SENTENCE_MINUTES)))
@@ -523,7 +519,12 @@ func _decide_prisoner_sentence(actor: HumanoidCharacter, record: Dictionary, now
 	return record
 
 
-func _request_prisoner_sentence_notification(actor: HumanoidCharacter, record: Dictionary, jail: Node) -> Dictionary:
+func _request_prisoner_sentence_notification(actor: WorldActor, record: Dictionary, jail: Node) -> Dictionary:
+	if not (actor is HumanoidCharacter):
+		record["sentence_notification_pending"] = false
+		record["sentence_notification_requested"] = false
+		record["sentence_notification_given"] = true
+		return record
 	if jail == null or not jail.has_method("tell_prisoner_sentence"):
 		record["sentence_notification_requested"] = false
 		return record
@@ -536,7 +537,9 @@ func _release_prisoner(actor: WorldActor, record: Dictionary, jail) -> void:
 		jail.call("release_prisoner", actor, record, false)
 	_clear_warrant_for_actor(actor, str(record.get("faction_id", "")))
 	prisoner_records.erase(_actor_key(actor))
-	actor.get_legal_status().clear_warrant_display()
+	var status := actor.get_legal_status()
+	status.clear_prisoner()
+	status.clear_warrant_display()
 	_save_law_order_state_to_gecs()
 
 
@@ -723,7 +726,7 @@ func _existing_local_alert_context(actor: WorldActor, faction_id: String) -> Dic
 	return context
 
 
-func _find_custody_guard(actor: HumanoidCharacter, warrant: Dictionary, settlement: Node) -> HumanoidCharacter:
+func _find_custody_guard(actor: WorldActor, warrant: Dictionary, settlement: Node) -> HumanoidCharacter:
 	var faction_id := str(warrant.get("faction_id", ""))
 	var assigned_guard := _find_actor_by_key(str(warrant.get("custody_guard_key", ""))) as HumanoidCharacter
 	if _is_valid_custody_guard(assigned_guard, actor, faction_id, settlement):
@@ -747,7 +750,7 @@ func _find_custody_guard(actor: HumanoidCharacter, warrant: Dictionary, settleme
 	return best
 
 
-func _is_valid_custody_guard(guard: HumanoidCharacter, actor: HumanoidCharacter, faction_id: String, settlement: Node) -> bool:
+func _is_valid_custody_guard(guard: HumanoidCharacter, actor: WorldActor, faction_id: String, settlement: Node) -> bool:
 	if guard == null or guard == actor or guard.life_state != NpcRules.LifeState.ALIVE or guard.player_party_member:
 		return false
 	if not _is_law_soldier_responder(guard):
