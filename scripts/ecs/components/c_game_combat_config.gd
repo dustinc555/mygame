@@ -15,6 +15,8 @@ class_name CGameCombatConfig
 @export var active_attack_slots := 3
 @export var combat_stance := 0
 @export var protected_from_combat := false
+@export var retarget_interval_seconds := 0.5
+@export var retarget_jitter_seconds := 0.25
 @export var attack_cooldown_seconds := 1.2
 @export var blunt_damage := 0.0
 @export var cut_damage := 0.0

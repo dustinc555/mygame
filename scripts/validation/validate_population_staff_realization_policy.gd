@@ -1,6 +1,9 @@
 extends SceneTree
 
-const TWO_TOWNS_SCENE := preload("res://scenes/test_levels/two_towns_road_test.tscn")
+const TWO_TOWNS_SCENE_PATH := "res://scenes/test_levels/two_towns_road_test.tscn"
+const AI_UTILITY_ADAPTER_PATH := "res://scripts/ai/utility/ai_utility_adapter.gd"
+const COMBAT_COORDINATOR_PATH := "res://scripts/characters/combat_coordinator.gd"
+const SKIN_TEXTURE_BUILDER_PATH := "res://scripts/character_appearance/skin_texture_builder.gd"
 
 var _failures: Array[String] = []
 var _scene: Node
@@ -11,13 +14,28 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_scene = TWO_TOWNS_SCENE.instantiate()
+	_scene = _instantiate_scene()
+	if _scene == null:
+		_fail("Two towns scene missing for staff realization validation")
+		_finish()
+		return
 	var farmer_town := _scene.get_node_or_null("Settlements/FarmerCrossing")
 	if farmer_town != null:
 		farmer_town.set("actor_realization_policy", "important_plus_near")
+	farmer_town = null
 	root.add_child(_scene)
 	await _wait_frames(180)
 	_validate_staff_fills_under_non_full_policy()
+	await _cleanup_scene()
+	_finish()
+
+
+func _instantiate_scene() -> Node:
+	var scene_resource := load(TWO_TOWNS_SCENE_PATH) as PackedScene
+	return scene_resource.instantiate() if scene_resource != null else null
+
+
+func _finish() -> void:
 	if _failures.is_empty():
 		print("POPULATION_STAFF_REALIZATION_POLICY_OK")
 		quit(0)
@@ -69,3 +87,26 @@ func _fail(message: String) -> void:
 func _wait_frames(frame_count: int) -> void:
 	for _index in range(frame_count):
 		await process_frame
+
+
+func _cleanup_scene() -> void:
+	if _scene != null and is_instance_valid(_scene):
+		root.remove_child(_scene)
+		_scene.free()
+	_scene = null
+	await process_frame
+	await physics_frame
+	_cleanup_runtime_state()
+	await _wait_frames(20)
+
+
+func _cleanup_runtime_state() -> void:
+	var combat_coordinator = load(COMBAT_COORDINATOR_PATH)
+	if combat_coordinator != null and combat_coordinator.has_method("reset_all_state"):
+		combat_coordinator.reset_all_state()
+	var ai_utility_adapter = load(AI_UTILITY_ADAPTER_PATH)
+	if ai_utility_adapter != null and ai_utility_adapter.has_method("clear_runtime_caches"):
+		ai_utility_adapter.clear_runtime_caches()
+	var skin_texture_builder = load(SKIN_TEXTURE_BUILDER_PATH)
+	if skin_texture_builder != null and skin_texture_builder.has_method("clear_runtime_caches"):
+		skin_texture_builder.clear_runtime_caches()

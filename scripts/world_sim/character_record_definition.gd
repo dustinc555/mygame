@@ -18,8 +18,12 @@ class_name CharacterRecordDefinition
 
 
 func to_record() -> Dictionary:
+	var clean_actor_id := actor_id.strip_edges()
+	if clean_actor_id.is_empty():
+		push_error("CharacterRecordDefinition requires a non-empty actor_id")
+		return {}
 	return {
-		"actor_id": actor_id,
+		"actor_id": clean_actor_id,
 		"member_name": member_name,
 		"appearance": appearance.duplicate(true),
 		"skill_levels": skill_levels.duplicate(true),

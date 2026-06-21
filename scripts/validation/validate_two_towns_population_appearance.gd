@@ -1,7 +1,9 @@
 extends SceneTree
 
-const TWO_TOWNS_SCENE := preload("res://scenes/test_levels/two_towns_road_test.tscn")
+const TWO_TOWNS_SCENE_PATH := "res://scenes/test_levels/two_towns_road_test.tscn"
 const SKIN_TEXTURE_BUILDER := preload("res://scripts/character_appearance/skin_texture_builder.gd")
+const AI_UTILITY_ADAPTER_PATH := "res://scripts/ai/utility/ai_utility_adapter.gd"
+const COMBAT_COORDINATOR_PATH := "res://scripts/characters/combat_coordinator.gd"
 const FARMER_PROFILE := preload("res://resources/world_sim/population_appearance_profiles/farmer_peasant.tres")
 const RAIDER_PROFILE := preload("res://resources/world_sim/population_appearance_profiles/raider_scrapper.tres")
 const FARMER_NAME_PROFILE := preload("res://resources/world_sim/population_name_profiles/farmer_names.tres")
@@ -36,7 +38,11 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_scene = TWO_TOWNS_SCENE.instantiate()
+	_scene = _instantiate_scene()
+	if _scene == null:
+		_fail("Two towns scene missing for population appearance validation")
+		await _finish()
+		return
 	root.add_child(_scene)
 	await _wait_frames(120)
 	_validate_culture_profile_source("Settlements/FarmerCrossing/Residents", FARMER_NAME_PROFILE, FARMER_PERSONALITY_PROFILE, COMMON_LAW_PROFILE, "Farmer")
@@ -47,14 +53,26 @@ func _run() -> void:
 	_validate_slave_group("Settlements/RaiderCamp/Residents/Slaves")
 	var farmer_names := _collect_resident_name_map("Settlements/FarmerCrossing/Residents", "Farmer")
 	var raider_names := _collect_resident_name_map("Settlements/RaiderCamp/Residents", "Raider")
-	root.remove_child(_scene)
-	_scene.queue_free()
-	await _wait_frames(5)
-	_scene = TWO_TOWNS_SCENE.instantiate()
+	await _cleanup_scene()
+	_scene = _instantiate_scene()
+	if _scene == null:
+		_fail("Two towns scene missing for deterministic name validation")
+		await _finish()
+		return
 	root.add_child(_scene)
 	await _wait_frames(120)
 	_validate_name_stability("Settlements/FarmerCrossing/Residents", farmer_names, "Farmer")
 	_validate_name_stability("Settlements/RaiderCamp/Residents", raider_names, "Raider")
+	await _finish()
+
+
+func _instantiate_scene() -> Node:
+	var scene_resource := load(TWO_TOWNS_SCENE_PATH) as PackedScene
+	return scene_resource.instantiate() if scene_resource != null else null
+
+
+func _finish() -> void:
+	await _cleanup_scene()
 	if _failures.is_empty():
 		print("TWO_TOWNS_POPULATION_APPEARANCE_OK")
 		quit(0)
@@ -202,6 +220,8 @@ func _validate_faction_menu_ui(faction_controller: Node) -> void:
 	if hud == null:
 		_fail("GameHUD missing for factions menu")
 		return
+	if faction_controller != null and faction_controller.has_method("_setup_factions_ui"):
+		faction_controller.call("_setup_factions_ui")
 	var factions_button := hud.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/PortraitBar/Margin/PortraitColumn/SquadCommandStrip/FactionsButton") as Button
 	if factions_button == null:
 		_fail("Factions menu button missing")
@@ -248,7 +268,7 @@ func _validate_faction_menu_ui(faction_controller: Node) -> void:
 	panel.position = Vector2(5000.0, 5000.0)
 	if faction_controller != null and faction_controller.has_method("_clamp_factions_panel_to_viewport"):
 		faction_controller.call("_clamp_factions_panel_to_viewport")
-	var viewport_size := root.size
+	var viewport_size := panel.get_viewport().get_visible_rect().size
 	var max_position := Vector2(maxf(0.0, float(viewport_size.x) - panel.size.x), maxf(0.0, float(viewport_size.y) - panel.size.y))
 	if panel.position.x > max_position.x + 0.1 or panel.position.y > max_position.y + 0.1:
 		_fail("Factions panel did not clamp to the viewport")
@@ -263,6 +283,7 @@ func _validate_forced_raid_prompt() -> void:
 		_fail("Controllers missing for forced raid world-sim validation")
 		return
 	var event_count_before := int(event_controller.call("get_event_count"))
+	var existing_squad_ids := _faction_squad_ids(gecs)
 	var result := str(faction_sim.call("force_demand_tribute_raid"))
 	if result.is_empty() or result.contains("not ready") or result.contains("No hostile target"):
 		_fail("Forced Raider world-sim raid request failed: %s" % result)
@@ -271,7 +292,7 @@ func _validate_forced_raid_prompt() -> void:
 		_fail("Forced Raider raid should not create a local conflict event during travel")
 	if bool(event_controller.call("is_prompt_visible")):
 		_fail("Forced Raider raid should not show a prompt during data travel")
-	var squad_id := _first_faction_squad_id(gecs)
+	var squad_id := _first_faction_squad_id(gecs) if result.contains("already afield") else _new_faction_squad_id(gecs, existing_squad_ids)
 	if squad_id.is_empty():
 		_fail("Forced Raider raid did not create a GECS world-sim squad")
 		return
@@ -586,9 +607,51 @@ func _wait_frames(frame_count: int) -> void:
 		await process_frame
 
 
+func _cleanup_scene() -> void:
+	if _scene != null and is_instance_valid(_scene):
+		root.remove_child(_scene)
+		_scene.free()
+	_scene = null
+	await process_frame
+	await physics_frame
+	_cleanup_runtime_state()
+	await _wait_frames(6)
+
+
+func _cleanup_runtime_state() -> void:
+	var combat_coordinator = load(COMBAT_COORDINATOR_PATH)
+	if combat_coordinator != null and combat_coordinator.has_method("reset_all_state"):
+		combat_coordinator.reset_all_state()
+	var ai_utility_adapter = load(AI_UTILITY_ADAPTER_PATH)
+	if ai_utility_adapter != null and ai_utility_adapter.has_method("clear_runtime_caches"):
+		ai_utility_adapter.clear_runtime_caches()
+	SKIN_TEXTURE_BUILDER.clear_runtime_caches()
+
+
 func _get_controller(group_name: String) -> Node:
 	var nodes := get_nodes_in_group(group_name)
 	return nodes[0] if not nodes.is_empty() else null
+
+
+func _faction_squad_ids(gecs: Node) -> Dictionary:
+	var ids := {}
+	if gecs == null or not gecs.has_method("get_world_sim_squads"):
+		return ids
+	for record in gecs.call("get_world_sim_squads"):
+		if record is Dictionary and str(record.get("owner_kind", "")) == "faction":
+			ids[str(record.get("squad_id", ""))] = true
+	return ids
+
+
+func _new_faction_squad_id(gecs: Node, existing_ids: Dictionary) -> String:
+	if gecs == null or not gecs.has_method("get_world_sim_squads"):
+		return ""
+	for record in gecs.call("get_world_sim_squads"):
+		if record is Dictionary and str(record.get("owner_kind", "")) == "faction":
+			var squad_id := str(record.get("squad_id", ""))
+			if not squad_id.is_empty() and not bool(existing_ids.get(squad_id, false)):
+				return squad_id
+	return ""
 
 
 func _first_faction_squad_id(gecs: Node) -> String:
@@ -596,7 +659,9 @@ func _first_faction_squad_id(gecs: Node) -> String:
 		return ""
 	for record in gecs.call("get_world_sim_squads"):
 		if record is Dictionary and str(record.get("owner_kind", "")) == "faction":
-			return str(record.get("squad_id", ""))
+			var squad_id := str(record.get("squad_id", ""))
+			if not squad_id.is_empty():
+				return squad_id
 	return ""
 
 

@@ -15,3 +15,4 @@ var personal_hostile_ids: PackedInt64Array = PackedInt64Array()
 # Written by the batched targeting system (S2.1). Runtime id is a bridge cache only.
 var system_target_id := 0
 @export var system_target_actor_id := ""
+var system_target_retarget_remaining := 0.0

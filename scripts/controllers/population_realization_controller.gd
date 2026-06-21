@@ -66,6 +66,7 @@ func unregister_spawner(spawner: Node) -> void:
 		_spawners.remove_at(index)
 	if spawner != null:
 		_spawner_near_by_id.erase(spawner.get_instance_id())
+		_update_settlement_activation_for_spawner(spawner)
 
 
 func should_realize_actor(settlement: Node, actor_record: Dictionary, policy := "") -> bool:
@@ -164,14 +165,14 @@ func _update_spawner_lod(spawner: Node, reference: Vector3) -> void:
 	var key := spawner.get_instance_id()
 	var was_near := bool(_spawner_near_by_id.get(key, false))
 	var near := policy == POLICY_FULL_TOWN or _is_spawner_near(spawner, reference, was_near)
-	_set_spawner_settlement_active(spawner, near)
+	_spawner_near_by_id[key] = near
+	_update_settlement_activation_for_spawner(spawner)
 	var dirty := bool(spawner.call("needs_population_realization_resync")) if spawner.has_method("needs_population_realization_resync") else true
 	if near != was_near or dirty:
 		if spawner.has_method("resync_population_realization"):
 			spawner.call("resync_population_realization")
 		if spawner.has_method("clear_population_realization_dirty"):
 			spawner.call("clear_population_realization_dirty")
-	_spawner_near_by_id[key] = near
 
 
 func _spawner_policy(spawner: Node) -> String:
@@ -192,13 +193,15 @@ func _is_spawner_near(spawner: Node, reference: Vector3, was_near: bool) -> bool
 	return reference.distance_to(origin) <= threshold
 
 
-func _set_spawner_settlement_active(spawner: Node, active: bool) -> void:
+func _update_settlement_activation_for_spawner(spawner: Node) -> void:
 	if spawner == null or not spawner.has_method("get_settlement_node"):
 		return
 	var settlement := spawner.call("get_settlement_node") as Node
 	if settlement == null or not is_instance_valid(settlement):
 		return
-	settlement.process_mode = Node.PROCESS_MODE_INHERIT if active else Node.PROCESS_MODE_DISABLED
+	# LOD may realize/derealize actor bodies, but the settlement tree owns facilities,
+	# staff slots, and service points that must keep ticking for towns to bootstrap.
+	settlement.process_mode = Node.PROCESS_MODE_INHERIT
 
 
 func _policy_for_settlement(settlement: Node) -> String:
@@ -213,7 +216,7 @@ func _is_important_actor(actor_record: Dictionary) -> bool:
 	if bool(actor_record.get("important", false)):
 		return true
 	var role_id := str(actor_record.get("role_id", "")).strip_edges().to_lower()
-	return ["merchant", "barkeeper", "waiter", "guard", "warden", "ruler", "mayor", "worker", "prisoner"].has(role_id)
+	return ["merchant", "barkeeper", "waiter", "guard", "barber", "warden", "ruler", "mayor", "worker", "prisoner"].has(role_id)
 
 
 func _is_record_near_player(actor_record: Dictionary) -> bool:

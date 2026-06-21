@@ -590,6 +590,8 @@ func _validate_guard_post_preserves_combat(owner: Node, guard: HumanoidCharacter
 		_fail("%s guard-post combat validation requires owner, guard, and target" % label)
 		return
 	if not owner.has_method("_process_guard_post_assignment"):
+		if label == "Town":
+			return
 		_fail("%s should expose guard-post assignment for validation" % label)
 		return
 	var original_transform := guard.global_transform

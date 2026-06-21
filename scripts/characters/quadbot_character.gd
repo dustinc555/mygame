@@ -118,6 +118,12 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_process_actor_capabilities(delta)
+	if is_in_cell_custody():
+		_process_combat_cooldown(delta)
+		_process_recovery(delta)
+		_recalculate_vitals()
+		_update_quadbot_selection_visual()
+		return
 	_process_combat_cooldown(delta)
 	_process_ragdoll_impulse_memory(delta)
 	_process_ai(delta)
@@ -177,6 +183,8 @@ func set_combat_stance(value: int) -> void:
 
 
 func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
+	if is_in_cell_custody():
+		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
 	if issued_by_player:
@@ -192,6 +200,8 @@ func assign_attack_target(target_actor: Node, issued_by_player: bool = true, not
 
 
 func _assign_combat_target(target_actor: Node, combat_job_type: int, issued_by_player: bool, notify_target: bool, notify_allies: bool) -> bool:
+	if is_in_cell_custody():
+		return false
 	if target_actor == null or target_actor == self or not is_instance_valid(target_actor):
 		return false
 	if life_state != NpcRules.LifeState.ALIVE or not _is_valid_combat_target(target_actor):
@@ -504,12 +514,16 @@ func _process_ai(delta: float) -> void:
 	if should_run_close_combat_retarget(delta):
 		if _try_reconfigure_system_combat_target():
 			return
+		if _try_reconfigure_close_combat_target():
+			return
 	if _get_active_combat_target() != null:
 		return
 	if not _should_run_ai_decision_tick(delta):
 		return
 	if _should_seek_combat_target():
 		var target := _get_system_combat_target()
+		if target == null:
+			target = _find_ai_target()
 		if target != null:
 			assign_attack_target(target, false)
 

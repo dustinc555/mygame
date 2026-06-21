@@ -75,14 +75,20 @@ func get_occupant_count() -> int:
 
 
 func can_assign_prisoner(actor: Node) -> bool:
-	if actor == null or get_available_capacity() <= 0:
+	if actor == null or not (actor is WorldActor):
 		return false
-	if actor is WorldActor:
-		var world_actor := actor as WorldActor
-		if not world_actor.is_imprisonable():
-			return false
-		if world_actor.get_containment_size_class() > max_containment_size_class:
-			return false
+	var world_actor := actor as WorldActor
+	var occupant_id := _occupant_key(world_actor)
+	if occupant_id.is_empty():
+		return false
+	if occupant_ids.has(occupant_id):
+		return true
+	if get_available_capacity() <= 0:
+		return false
+	if not world_actor.is_imprisonable():
+		return false
+	if world_actor.get_containment_size_class() > max_containment_size_class:
+		return false
 	return true
 
 
@@ -115,7 +121,7 @@ func _occupant_key(actor: Node) -> String:
 		return ""
 	var sid_value = actor.get("stable_id")
 	var sid := str(sid_value) if sid_value != null else ""
-	return sid if not sid.strip_edges().is_empty() else str(actor.get_instance_id())
+	return sid.strip_edges()
 
 
 func get_prisoner_position(_actor = null) -> Vector3:

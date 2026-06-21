@@ -23,7 +23,7 @@ const MAX_REAL_MOVEMENT_SECONDS := 0.1
 const FIXED_COMBAT_TICK_SECONDS := 1.0 / 20.0
 const MAX_FIXED_STEPS_PER_FRAME := 5
 
-static var _fixed_accumulator := 0.0
+var _fixed_accumulator := 0.0
 
 
 func query() -> QueryBuilder:

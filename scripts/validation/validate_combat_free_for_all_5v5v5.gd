@@ -2,6 +2,7 @@ extends SceneTree
 
 const FREE_FOR_ALL_SCENE := preload("res://scenes/test_levels/combat_free_for_all_5v5v5.tscn")
 const SIM_FRAMES := 720
+const TARGET_VALIDATION_FRAMES := 120
 const PLAYER_FACTION := "Player"
 const RAIDER_FACTION := "Raiders"
 const CINDER_FACTION := "CinderHorde"
@@ -24,12 +25,14 @@ func _run() -> void:
 	var actors := _get_alive_world_actors()
 	var initial := _capture_actor_snapshot(actors)
 	_validate_spawn(actors)
-	await _wait_simulation_frames(SIM_FRAMES)
-	actors = _get_alive_world_actors()
-	_validate_three_way_targets(actors)
-	_validate_target_spread(actors)
+	await _wait_simulation_frames(TARGET_VALIDATION_FRAMES)
+	var target_sample := _get_alive_world_actors()
+	_validate_three_way_targets(target_sample)
+	_validate_target_spread(target_sample)
+	await _wait_simulation_frames(maxi(SIM_FRAMES - TARGET_VALIDATION_FRAMES, 0))
+	var alive_after_sim := _get_alive_world_actors()
 	_validate_damage_happened(actors, initial)
-	_validate_no_floating(actors, initial)
+	_validate_no_floating(alive_after_sim, initial)
 	await _cleanup_scene()
 	if _failures.is_empty():
 		print("COMBAT_FREE_FOR_ALL_5V5V5_OK")

@@ -102,7 +102,8 @@ func perform_world_sim_debug_action(action_key: String) -> String:
 				return "Occupancy could not be changed"
 			return "%s is %s (%d/%d)" % [settlement_id, state.get("occupancy_label", "Populated"), int(state.get("population", 0)), int(state.get("max_occupancy", 0))]
 		"force_raid", "force_demand_tribute_raid":
-			var faction_sim := get_tree().get_first_node_in_group("faction_world_sim_controller") if get_tree() != null else null
+			var parent_node := get_parent()
+			var faction_sim := parent_node.get_node_or_null("FactionWorldSimController") if parent_node != null else null
 			if faction_sim != null and faction_sim.has_method("force_demand_tribute_raid"):
 				return str(faction_sim.call("force_demand_tribute_raid"))
 			return "World-sim faction brain is not available"
@@ -175,13 +176,14 @@ func _try_initialize() -> void:
 	job_system_controller = get_parent().get_node_or_null("JobSystemController")
 	if world_time == null or settlement_controller == null:
 		return
-	_ensure_world_sim_plugins()
+	if not _ensure_world_sim_plugins():
+		return
 	_initialized = true
 
 
-func _ensure_world_sim_plugins() -> void:
+func _ensure_world_sim_plugins() -> bool:
 	if world_sim_squad_controller == null:
-		return
+		return false
 	if world_sim_squad_controller.has_method("get_world_sim_plugin"):
 		nest_world_sim_plugin = world_sim_squad_controller.call("get_world_sim_plugin", "nests") as Node
 	if nest_world_sim_plugin == null:
@@ -192,6 +194,7 @@ func _ensure_world_sim_plugins() -> void:
 		world_sim_squad_controller.add_child(nest_world_sim_plugin)
 	if world_sim_squad_controller.has_method("register_world_sim_plugin"):
 		world_sim_squad_controller.call("register_world_sim_plugin", nest_world_sim_plugin)
+	return true
 
 
 func _apply_controller_state(controller: Node, state_value) -> void:

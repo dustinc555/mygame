@@ -29,8 +29,7 @@ const CURRENT_TARGET_STICKINESS := 1.15
 const MUTUAL_TARGET_BONUS := 0.45
 
 static var shadow_enabled := false
-static var targeting_interval_seconds := 0.5
-static var _targeting_remaining := 0.0
+static var default_targeting_interval_seconds := 0.5
 static var _report_calls := 0
 static var _cmp_total := 0
 static var _cmp_match := 0
@@ -55,11 +54,31 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		return
 	var alive_value := NpcRules.LifeState.ALIVE
 	var process_frame := Engine.get_process_frames()
-	if _targeting_remaining > 0.0:
-		_targeting_remaining -= _delta
-		_write_cached_node_targets(nodes, states, process_frame, count)
+	var due_flags := PackedByteArray()
+	due_flags.resize(count)
+	var any_due := false
+	for i in range(count):
+		var state_i = states[i]
+		if state_i == null:
+			continue
+		var node_actor_i = nodes[i].actor if nodes[i] != null else null
+		var vit_i = vitals[i]
+		var cfg_i = configs[i]
+		if vit_i == null or cfg_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat:
+			state_i.system_target_id = 0
+			state_i.system_target_actor_id = ""
+			state_i.system_target_retarget_remaining = 0.0
+			_write_node_target(node_actor_i, 0, process_frame)
+			continue
+		state_i.system_target_retarget_remaining = maxf(float(state_i.system_target_retarget_remaining) - maxf(_delta, 0.0), 0.0)
+		if state_i.system_target_retarget_remaining > 0.0:
+			_write_node_target(node_actor_i, int(state_i.system_target_id), process_frame)
+			continue
+		due_flags[i] = 1
+		any_due = true
+		state_i.system_target_retarget_remaining = _next_retarget_seconds(cfg_i)
+	if not any_due:
 		return
-	_targeting_remaining = maxf(targeting_interval_seconds, 0.01)
 
 	# Cache the node instance id per entity once (used for hostility-by-grudge, stickiness, shadow compare).
 	var instance_ids := PackedInt64Array()
@@ -80,9 +99,12 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 	var pressure_by_target_actor_id := _build_current_target_pressure(states, count)
 
 	for i in range(count):
+		if due_flags[i] == 0:
+			continue
 		var state_i = states[i]
 		if state_i == null:
 			continue
+		var previous_system_target_actor_id := str(state_i.system_target_actor_id)
 		state_i.system_target_id = 0
 		state_i.system_target_actor_id = ""
 		var node_actor = nodes[i].actor if nodes[i] != null else null
@@ -94,7 +116,9 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		var pos_i: Vector3 = spatials[i].world_position
 		var fac_i = factions[i]
 		var actor_id_i := actor_ids[i]
-		var current_target_actor_id := str(state_i.current_target_actor_id)
+		var current_target_actor_id := previous_system_target_actor_id
+		if current_target_actor_id.is_empty():
+			current_target_actor_id = str(state_i.current_target_actor_id)
 		var grudges_i: PackedInt64Array = state_i.personal_hostile_ids
 		var grudge_actor_ids_i: PackedStringArray = state_i.personal_hostile_actor_ids
 		# Engagement lock: once the slot system has us committed to a target (seeking a slot or
@@ -250,13 +274,20 @@ func _build_current_target_pressure(states: Array, count: int) -> Dictionary:
 		var state = states[i]
 		if state == null:
 			continue
-		var target_actor_id := str(state.current_target_actor_id)
+		var target_actor_id := str(state.system_target_actor_id)
 		if target_actor_id.is_empty():
-			target_actor_id = str(state.system_target_actor_id)
+			target_actor_id = str(state.current_target_actor_id)
 		if target_actor_id.is_empty():
 			continue
 		pressure[target_actor_id] = int(pressure.get(target_actor_id, 0)) + 1
 	return pressure
+
+
+func _next_retarget_seconds(cfg) -> float:
+	var interval := maxf(float(cfg.retarget_interval_seconds), 0.0)
+	if interval <= 0.0:
+		interval = maxf(default_targeting_interval_seconds, 0.01)
+	return interval + randf_range(0.0, maxf(float(cfg.retarget_jitter_seconds), 0.0))
 
 
 func _apply_projected_pressure_change(pressure_by_target_actor_id: Dictionary, old_target_actor_id: String, new_target_actor_id: String) -> void:

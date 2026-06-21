@@ -2543,8 +2543,12 @@ func _process_ai(delta: float) -> void:
 	if should_run_close_combat_retarget(delta):
 		if _try_reconfigure_system_combat_target():
 			return
+		if _try_reconfigure_close_combat_target():
+			return
 	if should_run_consider_retarget(delta) and _should_consider_combat_retarget():
 		var replacement_target := _get_system_combat_target()
+		if replacement_target == null:
+			replacement_target = _find_ai_target()
 		var active_target := _get_active_combat_target()
 		if replacement_target != null and replacement_target != active_target:
 			assign_attack_target(replacement_target, false, true, false)
@@ -2555,6 +2559,8 @@ func _process_ai(delta: float) -> void:
 		return
 	if _should_seek_combat_target():
 		var system_seek_target := _get_system_combat_target()
+		if system_seek_target == null:
+			system_seek_target = _find_ai_target()
 		if system_seek_target != null:
 			assign_attack_target(system_seek_target, false)
 			return
@@ -2569,6 +2575,8 @@ func _process_ai(delta: float) -> void:
 		return
 	if _should_seek_combat_target():
 		var target := _get_system_combat_target()
+		if target == null:
+			target = _find_ai_target()
 		if target != null:
 			assign_attack_target(target, false)
 
@@ -2615,9 +2623,15 @@ func _process_ai_profiled(delta: float) -> void:
 			_debug_humanoid_ai_profile_checkpoint("close_combat_retarget", profile_last_usec)
 			_debug_humanoid_ai_profile_finish()
 			return
+		if _try_reconfigure_close_combat_target():
+			_debug_humanoid_ai_profile_checkpoint("close_combat_retarget", profile_last_usec)
+			_debug_humanoid_ai_profile_finish()
+			return
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("close_combat_retarget", profile_last_usec)
 	if should_run_consider_retarget(delta) and _should_consider_combat_retarget():
 		var replacement_target := _get_system_combat_target()
+		if replacement_target == null:
+			replacement_target = _find_ai_target()
 		var active_target := _get_active_combat_target()
 		if replacement_target != null and replacement_target != active_target:
 			assign_attack_target(replacement_target, false, true, false)
@@ -2636,6 +2650,8 @@ func _process_ai_profiled(delta: float) -> void:
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("decision_gate", profile_last_usec)
 	if _should_seek_combat_target():
 		var system_seek_target := _get_system_combat_target()
+		if system_seek_target == null:
+			system_seek_target = _find_ai_target()
 		if system_seek_target != null:
 			assign_attack_target(system_seek_target, false)
 			_debug_humanoid_ai_profile_checkpoint("seek_combat", profile_last_usec)
@@ -2661,6 +2677,8 @@ func _process_ai_profiled(delta: float) -> void:
 	profile_last_usec = _debug_humanoid_ai_profile_checkpoint("auto_burn", profile_last_usec)
 	if _should_seek_combat_target():
 		var target := _get_system_combat_target()
+		if target == null:
+			target = _find_ai_target()
 		if target != null:
 			assign_attack_target(target, false)
 	_debug_humanoid_ai_profile_checkpoint("seek_combat", profile_last_usec)
