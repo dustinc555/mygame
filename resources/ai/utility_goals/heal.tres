@@ -37,7 +37,6 @@ lock_seconds = 1.0
 inertia_bonus = 0.05
 switch_threshold = 0.05
 executor_key = &"heal"
-allowed_lod_tiers = null
 target_selector_id = &"heal_target"
 requires_target = true
 considerations = Array[Resource]([SubResource("Consideration_heal_need"), SubResource("Consideration_safe_to_heal"), SubResource("Consideration_no_player_order")])

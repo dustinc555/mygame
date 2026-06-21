@@ -44,7 +44,6 @@ lock_seconds = 1.0
 inertia_bonus = 0.02
 switch_threshold = 0.02
 executor_key = &"idle"
-allowed_lod_tiers = null
 considerations = Array[Resource]([SubResource("Consideration_idle_bias"), SubResource("Consideration_no_threat"), SubResource("Consideration_no_heal_need"), SubResource("Consideration_no_work")])
 job_type = 15
 job_priority = 1

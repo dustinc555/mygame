@@ -2,12 +2,14 @@ extends Node
 
 class_name WorldSimulationController
 
+const NEST_WORLD_SIM_PLUGIN_SCRIPT := preload("res://scripts/world_sim/nests/nest_world_sim_plugin.gd")
+
 var root_scene: Node
 var world_time: Node
 var settlement_controller: Node
 var territory_controller: Node
 var road_controller: Node
-var world_squad_controller: Node
+var world_sim_squad_controller: Node
 var population_controller: Node
 var ai_scheduler_controller: Node
 var actor_query_controller: Node
@@ -18,13 +20,12 @@ var faction_controller: Node
 var law_order_controller: Node
 var world_event_choice_controller: Node
 var job_system_controller: Node
-var nest_controller: Node
+var nest_world_sim_plugin: Node
 var _initialized := false
 
 const CONTROLLER_STATE_SPECS := [
 	{"key": "world_time", "property": "world_time", "sync_method": "sync_world_time_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "settlements", "property": "settlement_controller", "refresh_method": "refresh_from_gecs_state"},
-	{"key": "squads", "property": "world_squad_controller", "sync_method": "sync_world_squad_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "population", "property": "population_controller", "sync_method": "sync_population_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "ai_scheduler", "property": "ai_scheduler_controller", "sync_method": "sync_ai_scheduler_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "actor_query", "property": "actor_query_controller"},
@@ -34,7 +35,7 @@ const CONTROLLER_STATE_SPECS := [
 	{"key": "law_order", "property": "law_order_controller", "sync_method": "sync_law_order_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "world_events", "property": "world_event_choice_controller", "sync_method": "sync_world_event_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "job_system", "property": "job_system_controller", "sync_method": "sync_job_system_state", "refresh_method": "refresh_from_gecs_state"},
-	{"key": "nests", "property": "nest_controller", "sync_method": "sync_nest_state", "refresh_method": "refresh_from_gecs_state"},
+	{"key": "nests", "property": "nest_world_sim_plugin", "sync_method": "sync_nest_state", "refresh_method": "refresh_from_gecs_state"},
 	{"key": "territories", "property": "territory_controller"},
 	{"key": "roads", "property": "road_controller"},
 ]
@@ -100,11 +101,11 @@ func perform_world_sim_debug_action(action_key: String) -> String:
 			if state.is_empty():
 				return "Occupancy could not be changed"
 			return "%s is %s (%d/%d)" % [settlement_id, state.get("occupancy_label", "Populated"), int(state.get("population", 0)), int(state.get("max_occupancy", 0))]
-		"force_raid":
-			if parts.size() < 3 or settlement_controller == null:
-				return "Raid action is misconfigured"
-			var started: bool = bool(settlement_controller.call("force_food_raid", parts[1], parts[2]))
-			return "Raid started" if started else "Raid could not start"
+		"force_raid", "force_demand_tribute_raid":
+			var faction_sim := get_tree().get_first_node_in_group("faction_world_sim_controller") if get_tree() != null else null
+			if faction_sim != null and faction_sim.has_method("force_demand_tribute_raid"):
+				return str(faction_sim.call("force_demand_tribute_raid"))
+			return "World-sim faction brain is not available"
 		"toggle_faction_territories":
 			if territory_controller != null and territory_controller.has_method("toggle_faction_territories_visible"):
 				return str(territory_controller.call("toggle_faction_territories_visible"))
@@ -161,7 +162,7 @@ func _try_initialize() -> void:
 	settlement_controller = get_parent().get_node_or_null("SettlementController")
 	territory_controller = get_parent().get_node_or_null("TerritoryController")
 	road_controller = get_parent().get_node_or_null("RoadController")
-	world_squad_controller = get_parent().get_node_or_null("WorldSquadController")
+	world_sim_squad_controller = get_parent().get_node_or_null("WorldSimSquadController")
 	population_controller = get_parent().get_node_or_null("PopulationController")
 	ai_scheduler_controller = get_parent().get_node_or_null("AiSchedulerController")
 	actor_query_controller = get_parent().get_node_or_null("ActorQueryController")
@@ -172,18 +173,25 @@ func _try_initialize() -> void:
 	law_order_controller = get_parent().get_node_or_null("LawOrderController")
 	world_event_choice_controller = get_parent().get_node_or_null("WorldEventChoiceController")
 	job_system_controller = get_parent().get_node_or_null("JobSystemController")
-	nest_controller = get_parent().get_node_or_null("NestController")
-	if world_time == null or settlement_controller == null or world_squad_controller == null:
+	if world_time == null or settlement_controller == null:
 		return
-	var action_requested_callable := Callable(self, "_on_settlement_action_requested")
-	if settlement_controller.has_signal("settlement_action_requested") and not settlement_controller.is_connected("settlement_action_requested", action_requested_callable):
-		settlement_controller.connect("settlement_action_requested", action_requested_callable)
+	_ensure_world_sim_plugins()
 	_initialized = true
 
 
-func _on_settlement_action_requested(action_record: Dictionary) -> void:
-	if world_squad_controller != null and world_squad_controller.has_method("start_action"):
-		world_squad_controller.call("start_action", action_record)
+func _ensure_world_sim_plugins() -> void:
+	if world_sim_squad_controller == null:
+		return
+	if world_sim_squad_controller.has_method("get_world_sim_plugin"):
+		nest_world_sim_plugin = world_sim_squad_controller.call("get_world_sim_plugin", "nests") as Node
+	if nest_world_sim_plugin == null:
+		nest_world_sim_plugin = NEST_WORLD_SIM_PLUGIN_SCRIPT.new()
+		nest_world_sim_plugin.name = "NestWorldSimPlugin"
+		if nest_world_sim_plugin.has_method("initialize"):
+			nest_world_sim_plugin.call("initialize", root_scene, get_parent())
+		world_sim_squad_controller.add_child(nest_world_sim_plugin)
+	if world_sim_squad_controller.has_method("register_world_sim_plugin"):
+		world_sim_squad_controller.call("register_world_sim_plugin", nest_world_sim_plugin)
 
 
 func _apply_controller_state(controller: Node, state_value) -> void:

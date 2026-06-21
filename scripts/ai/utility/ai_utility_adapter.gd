@@ -72,7 +72,6 @@ func build_context(actor: Node) -> AiUtilityContext:
 	context.profile_id = profile.profile_id if profile != null else "default_humanoid"
 	context.position = (actor as Node3D).global_position if actor is Node3D else Vector3.ZERO
 	context.sim_time = _get_sim_time(actor)
-	context.lod_tier = int(actor.get_meta("ai_lod_tier", 1)) if actor.has_meta("ai_lod_tier") else 1
 	if _debug_profile_enabled:
 		profile_last_usec = _debug_profile_checkpoint("context.init", profile_last_usec)
 	_apply_goal_state(context, actor)

@@ -17,8 +17,6 @@ func decide(context: AiUtilityContext, profile: AiUtilityProfile, target_selecto
 		var goal := goal_resource as AiUtilityGoal
 		if goal == null or goal.id == &"":
 			continue
-		if not goal.is_allowed_for_lod(context.lod_tier):
-			continue
 		if _is_goal_on_cooldown(goal, context) and goal.id != context.current_goal_id:
 			result.all_goal_scores[str(goal.id)] = 0.0
 			result.consideration_breakdown[str(goal.id)] = [{"cooldown_until": context.get_goal_cooldown_until(goal.id)}]

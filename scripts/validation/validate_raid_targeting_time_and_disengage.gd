@@ -17,16 +17,18 @@ func _run() -> void:
 	await _wait_frames(120)
 	var settlement_controller := _get_controller("settlement_controller")
 	var faction_controller := _get_controller("faction_controller")
-	var world_squad_controller := _get_controller("world_squad_controller")
+	var faction_sim := _get_controller("faction_world_sim_controller")
+	var encounter_controller := _get_controller("encounter_controller")
+	var gecs := _get_controller("gecs_world_controller")
 	var event_controller := _get_controller("world_event_choice_controller")
 	var world_time := _scene.get_node_or_null("GameBootstrap/WorldTimeController")
-	if settlement_controller == null or faction_controller == null or world_squad_controller == null or event_controller == null or world_time == null:
+	if settlement_controller == null or faction_controller == null or faction_sim == null or encounter_controller == null or gecs == null or event_controller == null or world_time == null:
 		_fail("Controllers missing for raid targeting/time validation")
 	else:
 		_validate_clock_format(world_time)
-		await _validate_raids_are_manual(settlement_controller, faction_controller, world_squad_controller, world_time)
-		_validate_raid_target_selection(settlement_controller, faction_controller)
-		await _validate_planning_phase_uses_world_clock(settlement_controller, world_squad_controller, event_controller, world_time)
+		_validate_raid_limit(faction_sim, gecs)
+		_validate_raid_target_selection(faction_sim, faction_controller)
+		_validate_encounter_phase_flow(encounter_controller, gecs, event_controller)
 		_validate_combat_disengage_helpers()
 	if _failures.is_empty():
 		print("RAID_TARGETING_TIME_DISENGAGE_OK")
@@ -50,106 +52,79 @@ func _validate_clock_format(world_time: Node) -> void:
 		_fail("Clock should format afternoon time with PM suffix")
 
 
-func _validate_raids_are_manual(settlement_controller: Node, faction_controller: Node, world_squad_controller: Node, world_time: Node) -> void:
-	faction_controller.call("set_diplomatic_state", "Raiders", "Farmers", "war")
-	settlement_controller.call("set_food", "raider_camp", 0.0, "validation_no_auto_raid")
-	var squad_count_before := int(world_squad_controller.call("serialize_state").size())
-	var absolute_hour := int(world_time.call("get_absolute_hour")) + 24
-	settlement_controller.call("_evaluate_settlement_strategy", "raider_camp", absolute_hour, int(world_time.call("get_day_index")), int(world_time.call("get_hour")))
-	await _wait_frames(2)
-	var squad_count_after := int(world_squad_controller.call("serialize_state").size())
-	if squad_count_after != squad_count_before:
-		_fail("Raider raids should not auto-launch from food pressure; use the request/force raid action instead")
+func _validate_raid_limit(faction_sim: Node, gecs: Node) -> void:
+	var squad_count_before := _world_sim_squad_count(gecs)
+	var result := str(faction_sim.call("force_demand_tribute_raid"))
+	if result.is_empty() or result.contains("not ready") or result.contains("No hostile target"):
+		_fail("Forced world-sim raid failed: %s" % result)
+		return
+	var squad_count_after := _world_sim_squad_count(gecs)
+	if squad_count_before == 0 and squad_count_after != 1:
+		_fail("Forced world-sim raid should create one GECS squad")
+	elif squad_count_before > 0 and squad_count_after != squad_count_before:
+		_fail("Already-active world-sim raid count should stay stable")
+	var blocked_result := str(faction_sim.call("force_demand_tribute_raid"))
+	if not blocked_result.contains("already afield"):
+		_fail("World-sim raids should be one-at-a-time")
 
 
-func _validate_raid_target_selection(settlement_controller: Node, faction_controller: Node) -> void:
+func _validate_raid_target_selection(faction_sim: Node, faction_controller: Node) -> void:
 	faction_controller.call("set_diplomatic_state", "Raiders", "Farmers", "war")
-	if str(settlement_controller.call("select_food_raid_target", "raider_camp")) != "farmer_crossing":
+	var source := {"id": "raider_camp", "faction_id": "Raiders", "position": Vector3.ZERO}
+	var farmer := {"id": "farmer_crossing", "faction_id": "Farmers", "position": Vector3(40.0, 0.0, 0.0)}
+	var selected: Dictionary = faction_sim.call("_pick_target", faction_controller, "Raiders", source, [source, farmer])
+	if str(selected.get("id", "")) != "farmer_crossing":
 		_fail("Raider Camp should select Farmer Crossing in the base two-town setup")
 	for blocked_state in ["alliance", "protectorate", "trade", "truce", "vassal", "tributary"]:
 		faction_controller.call("set_diplomatic_state", "Raiders", "Farmers", blocked_state)
-		if str(settlement_controller.call("select_food_raid_target", "raider_camp")) == "farmer_crossing":
+		selected = faction_sim.call("_pick_target", faction_controller, "Raiders", source, [source, farmer])
+		if str(selected.get("id", "")) == "farmer_crossing":
 			_fail("Raid target selection should block %s relations" % blocked_state)
 	faction_controller.call("set_diplomatic_state", "Raiders", "Farmers", "war")
-	_register_test_settlement(settlement_controller, "weak_raid_target", "WeakTargets", Vector3(45.0, 0.0, 0.0), 6, 80.0, 120.0)
-	_register_test_settlement(settlement_controller, "strong_raid_target", "StrongTargets", Vector3(52.0, 0.0, 0.0), 120, 80.0, 120.0)
-	_register_test_settlement(settlement_controller, "same_faction_target", "Raiders", Vector3(56.0, 0.0, 0.0), 1, 300.0, 300.0)
-	faction_controller.call("set_diplomatic_state", "Raiders", "WeakTargets", "neutral")
-	faction_controller.call("set_diplomatic_state", "Raiders", "StrongTargets", "neutral")
-	var selected := str(settlement_controller.call("select_food_raid_target", "raider_camp"))
-	if selected != "weak_raid_target":
-		_fail("Raiders should prefer the nearby weaker target over same-faction or stronger targets; selected=%s" % selected)
+	faction_controller.call("set_diplomatic_state", "Raiders", "WeakTargets", "war")
+	faction_controller.call("set_diplomatic_state", "Raiders", "StrongTargets", "war")
+	var weak := {"id": "weak_raid_target", "faction_id": "WeakTargets", "position": Vector3(30.0, 0.0, 0.0)}
+	var strong := {"id": "strong_raid_target", "faction_id": "StrongTargets", "position": Vector3(80.0, 0.0, 0.0)}
+	var same_faction := {"id": "same_faction_target", "faction_id": "Raiders", "position": Vector3(10.0, 0.0, 0.0)}
+	selected = faction_sim.call("_pick_target", faction_controller, "Raiders", source, [source, farmer, weak, strong, same_faction])
+	if str(selected.get("id", "")) != "weak_raid_target":
+		_fail("Raiders should prefer the nearby hostile target over same-faction or farther targets")
 	faction_controller.call("set_diplomatic_state", "Raiders", "WeakTargets", "trade")
-	selected = str(settlement_controller.call("select_food_raid_target", "raider_camp"))
-	if selected == "weak_raid_target":
+	selected = faction_sim.call("_pick_target", faction_controller, "Raiders", source, [source, farmer, weak, strong, same_faction])
+	if str(selected.get("id", "")) == "weak_raid_target":
 		_fail("Trade relations should remove the weak target from raid selection")
-	faction_controller.call("set_diplomatic_state", "Raiders", "WeakTargets", "neutral")
+	faction_controller.call("set_diplomatic_state", "Raiders", "WeakTargets", "war")
 
 
-func _register_test_settlement(settlement_controller: Node, settlement_id: String, faction_id: String, position: Vector3, population: int, food: float, max_food: float) -> void:
-	var faction := FactionDefinition.new()
-	faction.faction_id = faction_id
-	faction.display_name = faction_id
-	var definition := SettlementDefinition.new()
-	definition.settlement_id = settlement_id
-	definition.display_name = settlement_id.capitalize()
-	definition.faction_definition = faction
-	definition.world_position = position
-	definition.starting_food = food
-	definition.max_food = max_food
-	settlement_controller.call("_register_settlement_definition", definition, null)
-	var states: Dictionary = settlement_controller.get("settlement_states")
-	var state: Dictionary = states.get(settlement_id, {})
-	state["population"] = population
-	state["max_occupancy"] = max(population, 1)
-	state["food"] = food
-	state["max_food"] = maxf(max_food, 1.0)
-	state["food_ratio"] = clampf(food / maxf(max_food, 1.0), 0.0, 1.0)
-	state["world_position"] = position
-	states[settlement_id] = state
-
-
-func _validate_planning_phase_uses_world_clock(settlement_controller: Node, world_squad_controller: Node, event_controller: Node, world_time: Node) -> void:
-	var farmer_anchor: Node3D = settlement_controller.call("get_settlement_anchor", "farmer_crossing") as Node3D
-	var player := _scene.get_node_or_null("PartyMembers/Mira") as Node3D
-	if farmer_anchor == null or player == null:
-		_fail("Could not position player for planning phase validation")
-		return
-	var prompt_position: Vector3 = farmer_anchor.call("get_spawn_position", "defense") if farmer_anchor.has_method("get_spawn_position") else farmer_anchor.global_position
-	player.global_position = prompt_position
-	var event_count_before := int(event_controller.call("get_event_count"))
-	var event_id := "raider_camp:farmer_crossing:%d" % int(world_time.call("get_absolute_hour"))
-	if not bool(settlement_controller.call("force_food_raid", "raider_camp", "farmer_crossing")):
-		_fail("Forced raid failed for planning phase validation")
-		return
-	await _wait_frames(2)
-	var squad_id := _first_squad_id(world_squad_controller)
+func _validate_encounter_phase_flow(encounter_controller: Node, gecs: Node, event_controller: Node) -> void:
+	var squad_id := _first_faction_squad_id(gecs)
 	if squad_id.is_empty():
-		_fail("Planning phase validation could not find spawned squad")
+		_fail("Encounter phase validation could not find spawned squad")
 		return
-	world_squad_controller.call("debug_force_phase", squad_id, "planning")
-	world_time.call("advance_minutes", 59.0)
-	world_squad_controller.call("_process_active_squads")
-	var squad_state: Dictionary = world_squad_controller.call("get_squad_state", squad_id)
-	if str(squad_state.get("phase_id", "")) != "planning":
-		_fail("Raid planning should still be active before 60 world minutes")
-	if float(squad_state.get("phase_elapsed", 0.0)) < 58.9:
-		_fail("Raid planning elapsed time should follow world minutes")
-	world_time.call("advance_minutes", 1.0)
-	world_squad_controller.call("_process_active_squads")
-	squad_state = world_squad_controller.call("get_squad_state", squad_id)
-	if str(squad_state.get("phase_id", "")) != "battle":
-		_fail("Raid planning should transition to battle after 60 world minutes")
-	if int(event_controller.call("get_event_count")) <= event_count_before:
-		_fail("Battle transition should create a local conflict event")
-	if event_controller.call("get_event", event_id) == null:
-		_fail("Battle transition created no event with the raid action id")
-	if not bool(event_controller.call("is_prompt_visible")):
-		_fail("Battle transition should show the local choice prompt")
-	if not bool(world_time.call("is_world_paused")):
-		_fail("Battle prompt should pause world time")
-	if event_controller.has_method("debug_ignore_event"):
-		event_controller.call("debug_ignore_event", event_id)
+	var squad_state := _world_sim_squad_record(gecs, squad_id)
+	squad_state["phase"] = "demand"
+	squad_state["phase_timer"] = 0.0
+	squad_state["decision"] = ""
+	gecs.call("upsert_world_sim_squad", squad_state)
+	encounter_controller.call("_tick", 0.5)
+	squad_state = _world_sim_squad_record(gecs, squad_id)
+	if str(squad_state.get("phase", "")) != "demand" or str(squad_state.get("decision", "")).is_empty():
+		_fail("Raid should enter demand data phase")
+	squad_state["decision"] = "refuse"
+	squad_state["phase_timer"] = 0.1
+	gecs.call("upsert_world_sim_squad", squad_state)
+	encounter_controller.call("_tick", 0.5)
+	squad_state = _world_sim_squad_record(gecs, squad_id)
+	if str(squad_state.get("phase", "")) != "fight":
+		_fail("Raid demand refusal should transition to fight data phase")
+	squad_state["phase_timer"] = 0.1
+	gecs.call("upsert_world_sim_squad", squad_state)
+	encounter_controller.call("_tick", 0.5)
+	squad_state = _world_sim_squad_record(gecs, squad_id)
+	if str(squad_state.get("phase", "")) != "aftermath":
+		_fail("Raid fight should transition to aftermath data phase")
+	if bool(event_controller.call("is_prompt_visible")):
+		_fail("World-sim encounter should not show old modal raid prompt")
 
 
 func _validate_combat_disengage_helpers() -> void:
@@ -209,13 +184,28 @@ func _get_controller(group_name: String) -> Node:
 	return nodes[0] if not nodes.is_empty() else null
 
 
-func _first_squad_id(world_squad_controller: Node) -> String:
-	if world_squad_controller == null or not world_squad_controller.has_method("serialize_state"):
+func _world_sim_squad_count(gecs: Node) -> int:
+	if gecs == null or not gecs.has_method("get_world_sim_squads"):
+		return 0
+	return int(gecs.call("get_world_sim_squads").size())
+
+
+func _first_faction_squad_id(gecs: Node) -> String:
+	if gecs == null or not gecs.has_method("get_world_sim_squads"):
 		return ""
-	var squads: Dictionary = world_squad_controller.call("serialize_state")
-	for squad_id in squads.keys():
-		return str(squad_id)
+	for record in gecs.call("get_world_sim_squads"):
+		if record is Dictionary and str(record.get("owner_kind", "")) == "faction":
+			return str(record.get("squad_id", ""))
 	return ""
+
+
+func _world_sim_squad_record(gecs: Node, squad_id: String) -> Dictionary:
+	if gecs == null or not gecs.has_method("get_world_sim_squads"):
+		return {}
+	for record in gecs.call("get_world_sim_squads"):
+		if record is Dictionary and str(record.get("squad_id", "")) == squad_id:
+			return (record as Dictionary).duplicate(true)
+	return {}
 
 
 func _fail(message: String) -> void:

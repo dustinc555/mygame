@@ -1,6 +1,6 @@
 extends Node
 
-class_name NestController
+class_name NestWorldSimPlugin
 
 const NEST_STATE_ID := "nests"
 const RUSTDEAD_NEST_TYPE := preload("res://resources/world_sim/nests/rustdead.tres")
@@ -50,6 +50,8 @@ const RUSTDEAD_SCRAP_MIN_SEPARATION := 4.5
 const MINUTES_PER_DAY := 24 * 60
 const DEFAULT_MAINTENANCE_INTERVAL_SECONDS := 1.0
 const DEFAULT_RESPAWN_COOLDOWN_DAYS := 7
+## Hysteresis keeps squad LOD from thrashing on the world-sim tick.
+const NEST_LOD_HYSTERESIS := 40.0
 
 const SCRAP_SIZE_SMALL := "small"
 const SCRAP_SIZE_MEDIUM := "medium"
@@ -66,8 +68,10 @@ const RUSTDEAD_HEAD_ITEMS := [RANGER_HOOD]
 @export var minimum_initial_active_nests := 0
 @export var repopulation_weekday_interval := 7
 @export var maintenance_interval_seconds := DEFAULT_MAINTENANCE_INTERVAL_SECONDS
+@export_range(1, 32, 1) var nest_maintenance_budget_per_tick := 8
 
 var root_scene: Node
+var controllers_root: Node
 var world_time: Node
 var settlement_controller: Node
 var faction_controller: Node
@@ -76,29 +80,30 @@ var _nest_types_by_id: Dictionary = {}
 var _markers_by_id: Dictionary = {}
 var _nest_states: Dictionary = {}
 var _nest_index := 0
-var _runtime_spawned_marker_ids: Dictionary = {}
+var _realized_squad_actor_ids: Dictionary = {}
 var _maintenance_remaining := 0.0
 var _runtime_seed := 0
 var _initialized := false
 
 
-func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
+func initialize(target_root: Node, target_controllers_root: Node = null) -> void:
 	root_scene = target_root
+	controllers_root = target_controllers_root
 	_ensure_runtime_seed()
-	set_process(true)
 	call_deferred("_try_initialize")
 
 
 func _ready() -> void:
-	add_to_group("nest_controller")
-	set_process(true)
+	add_to_group("nest_world_sim_plugin")
 	if root_scene == null:
 		root_scene = get_tree().current_scene
+	if controllers_root == null:
+		controllers_root = get_parent()
 	_ensure_runtime_seed()
 	call_deferred("_try_initialize")
 
 
-func _process(delta: float) -> void:
+func world_sim_tick(delta: float, _bridge: Node, _squads: Array, _reference: Vector3, _radius: float) -> void:
 	if not _initialized:
 		_try_initialize()
 		return
@@ -106,7 +111,7 @@ func _process(delta: float) -> void:
 	if _maintenance_remaining > 0.0:
 		return
 	_maintenance_remaining = maxf(maintenance_interval_seconds, 0.1)
-	_maintain_active_nests()
+	_maintain_active_markers()
 
 
 func serialize_state() -> Dictionary:
@@ -136,6 +141,10 @@ func refresh_from_gecs_state() -> void:
 
 func sync_nest_state() -> void:
 	_sync_nest_state_to_gecs()
+
+
+func get_world_sim_plugin_id() -> String:
+	return "nests"
 
 
 func get_debug_summary() -> Dictionary:
@@ -199,10 +208,12 @@ func get_assault_target_position(job) -> Vector3:
 func _try_initialize() -> void:
 	if _initialized or root_scene == null or not is_inside_tree():
 		return
-	world_time = get_parent().get_node_or_null("WorldTimeController")
-	settlement_controller = get_parent().get_node_or_null("SettlementController")
-	faction_controller = get_parent().get_node_or_null("FactionController")
-	actor_query_controller = get_parent().get_node_or_null("ActorQueryController")
+	if controllers_root == null:
+		controllers_root = get_parent()
+	world_time = controllers_root.get_node_or_null("WorldTimeController") if controllers_root != null else null
+	settlement_controller = controllers_root.get_node_or_null("SettlementController") if controllers_root != null else null
+	faction_controller = controllers_root.get_node_or_null("FactionController") if controllers_root != null else null
+	actor_query_controller = controllers_root.get_node_or_null("ActorQueryController") if controllers_root != null else null
 	if world_time == null or settlement_controller == null:
 		return
 	_register_nest_types()
@@ -210,7 +221,7 @@ func _try_initialize() -> void:
 	refresh_from_gecs_state()
 	_collect_markers()
 	_ensure_marker_states()
-	_spawn_active_nest_runtimes()
+	_spawn_active_nest_static_runtimes()
 	_connect_time_signals()
 	_sync_nest_state_to_gecs()
 	_initialized = true
@@ -332,6 +343,9 @@ func _base_marker_state(marker: NestPlacementMarker) -> Dictionary:
 		"population_target": 0,
 		"patrol_squad_count": 0,
 		"patrol_squad_ids": [],
+		"patrol_squad_member_counts": {},
+		"guard_squad_id": "",
+		"guard_count": 0,
 		"attack_squad_ids": [],
 		"actor_ids": [],
 		"visual_scene_index": -1,
@@ -350,17 +364,110 @@ func _activate_marker_state(state: Dictionary, marker: NestPlacementMarker, nest
 	state["destroyed_day"] = -1
 	state["next_repopulation_day"] = -1
 	state["population_target"] = population_target
+	# alive_count is the surviving headcount the world tracks for this nest. It starts at the
+	# rolled target, drops as the player kills rustdead (kills are permanent until repopulation),
+	# and is what a re-realized nest respawns — so walking away and back doesn't resurrect anyone.
+	state["alive_count"] = population_target
 	state["patrol_squad_count"] = int(nest_type.call("get_patrol_squad_count", size_id))
 	state["patrol_squad_ids"] = []
+	state["patrol_squad_member_counts"] = {}
+	state["guard_squad_id"] = ""
+	state["guard_count"] = 0
 	state["attack_squad_ids"] = []
 	state["actor_ids"] = []
 	state["visual_scene_index"] = _pick_visual_scene_index(nest_type, rng)
 	state["scrap_pile_specs"] = _create_scrap_pile_specs(marker, rng)
 	_clear_nest_scrap_runtime(marker)
 	state["last_attack_roll_day"] = day_index
+	_register_world_sim_squads(marker, state)
 
 
-func _spawn_active_nest_runtimes() -> void:
+## Seed this nest's patrol squads into the world-sim squad layer. These GECS records own
+## offscreen patrol truth; live bodies exist only while each squad dot is near the player.
+func _register_world_sim_squads(marker: NestPlacementMarker, state: Dictionary) -> void:
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("upsert_world_sim_squad"):
+		return
+	var marker_id := marker.get_marker_id()
+	var home := marker.global_position
+	var faction_id := str(state.get("nest_type_id", "nest"))
+	var count := int(state.get("patrol_squad_count", 0))
+	var member_counts := _roll_patrol_squad_member_counts(marker, state)
+	var patrol_squad_ids: Array = []
+	var patrol_total := 0
+	for i in range(count):
+		var squad_id := _nest_patrol_squad_id(marker_id, i)
+		var member_count := int(member_counts.get(squad_id, 0))
+		patrol_squad_ids.append(squad_id)
+		patrol_total += member_count
+		bridge.upsert_world_sim_squad({
+			"squad_id": squad_id,
+			"owner_id": marker_id,
+			"owner_kind": "nest",
+			"faction_id": faction_id,
+			"objective": "patrol",
+			"position": home,
+			"target_position": home,
+			"home_position": home,
+			"patrol_radius": 45.0,
+			"move_speed": 3.0,
+			"member_count": member_count,
+			"state": "active",
+		})
+		if bridge.has_method("log_world_event"):
+			bridge.log_world_event("rustdead", "patrol squad %s mustered at nest %s" % [squad_id, marker_id], {})
+	var guard_count := maxi(0, int(state.get("population_target", 0)) - patrol_total)
+	var guard_squad_id := _nest_guard_squad_id(marker_id)
+	if guard_count > 0:
+		bridge.upsert_world_sim_squad({
+			"squad_id": guard_squad_id,
+			"owner_id": marker_id,
+			"owner_kind": "nest",
+			"faction_id": faction_id,
+			"objective": "guard",
+			"position": home,
+			"target_position": home,
+			"home_position": home,
+			"patrol_radius": 0.0,
+			"move_speed": 0.0,
+			"member_count": guard_count,
+			"state": "active",
+		})
+	state["patrol_squad_ids"] = patrol_squad_ids
+	state["patrol_squad_member_counts"] = member_counts
+	state["guard_squad_id"] = guard_squad_id if guard_count > 0 else ""
+	state["guard_count"] = guard_count
+
+
+func _roll_patrol_squad_member_counts(marker: NestPlacementMarker, state: Dictionary) -> Dictionary:
+	var nest_type := _get_nest_type(str(state.get("nest_type_id", "")))
+	if nest_type == null:
+		return {}
+	var marker_id := marker.get_marker_id()
+	var size_id := str(state.get("size_id", marker.get_size_id()))
+	var squad_count := maxi(0, int(state.get("patrol_squad_count", 0)))
+	var total_count := maxi(0, int(state.get("population_target", 0)))
+	var patrol_size_range: Vector2i = nest_type.call("get_patrol_squad_size_range", size_id)
+	var patrol_total := mini(total_count, squad_count * patrol_size_range.y)
+	var remaining_patrol := patrol_total
+	var result := {}
+	for squad_index in range(squad_count):
+		var squad_id := _nest_patrol_squad_id(marker_id, squad_index)
+		var squads_left := squad_count - int(squad_index)
+		var min_remaining_after := maxi(squads_left - 1, 0) * patrol_size_range.x
+		var available_for_squad := maxi(remaining_patrol - min_remaining_after, 0)
+		if available_for_squad <= 0:
+			result[squad_id] = 0
+			continue
+		var squad_min := patrol_size_range.x if remaining_patrol >= patrol_size_range.x else 1
+		var squad_size := clampi(ceili(float(remaining_patrol) / float(maxi(squads_left, 1))), squad_min, patrol_size_range.y)
+		squad_size = mini(squad_size, available_for_squad)
+		result[squad_id] = squad_size
+		remaining_patrol -= squad_size
+	return result
+
+
+func _spawn_active_nest_static_runtimes() -> void:
 	for marker_id_value in _nest_states.keys():
 		var marker_id := str(marker_id_value)
 		var marker := _markers_by_id.get(marker_id, null) as NestPlacementMarker
@@ -368,23 +475,20 @@ func _spawn_active_nest_runtimes() -> void:
 			continue
 		var state: Dictionary = _nest_states[marker_id]
 		if bool(state.get("active", false)):
-			_spawn_runtime_for_state(marker, state)
+			_spawn_static_runtime_for_state(marker, state)
 			_nest_states[marker_id] = state
 
 
-func _spawn_runtime_for_state(marker: NestPlacementMarker, state: Dictionary) -> void:
+func _spawn_static_runtime_for_state(marker: NestPlacementMarker, state: Dictionary) -> bool:
+	var had_visual := marker.get_node_or_null(NEST_VISUAL_NAME) != null
+	var had_scrap := marker.get_node_or_null(NEST_SCRAP_ROOT_NAME) != null
 	_spawn_nest_visual(marker, state)
 	_spawn_nest_scrap_piles(marker, state)
-	if _runtime_spawned_marker_ids.has(marker.get_marker_id()):
-		return
-	if _has_live_nest_actors(state):
-		_runtime_spawned_marker_ids[marker.get_marker_id()] = true
-		call_deferred("_reissue_patrol_jobs_for_marker", marker.get_marker_id())
-		return
-	_spawn_patrol_population(marker, state)
-	_runtime_spawned_marker_ids[marker.get_marker_id()] = true
-	call_deferred("_reissue_patrol_jobs_for_marker", marker.get_marker_id())
-	_sync_nest_state_to_gecs()
+	var changed := not had_visual and marker.get_node_or_null(NEST_VISUAL_NAME) != null
+	changed = changed or (not had_scrap and marker.get_node_or_null(NEST_SCRAP_ROOT_NAME) != null)
+	if changed:
+		_sync_nest_state_to_gecs()
+	return changed
 
 
 func _reissue_patrol_jobs_for_marker(marker_id: String) -> void:
@@ -630,49 +734,123 @@ func _nest_size_bonus(nest_size_id: String) -> int:
 			return 0
 
 
-func _spawn_patrol_population(marker: NestPlacementMarker, state: Dictionary) -> void:
+func is_nest_squad_realized(squad_id: String) -> bool:
+	return _realized_squad_actor_ids.has(squad_id)
+
+
+func is_world_sim_squad_realized(squad_id: String) -> bool:
+	return is_nest_squad_realized(squad_id)
+
+
+func update_lod_swap(bridge: Node, squads: Array, reference: Vector3, radius: float) -> Dictionary:
+	var realized_map: Dictionary = {}
+	for record in squads:
+		if str(record.get("owner_kind", "")) != "nest":
+			continue
+		var squad_id := str(record.get("squad_id", ""))
+		if squad_id.is_empty():
+			continue
+		var position: Vector3 = record.get("position", Vector3.ZERO)
+		var realized := is_nest_squad_realized(squad_id)
+		if realized and _live_nest_squad_actors(squad_id).is_empty():
+			var dead_survivors := derealize_nest_squad(squad_id)
+			realized = false
+			record["member_count"] = dead_survivors
+			_update_state_squad_count(str(record.get("owner_id", "")), squad_id, dead_survivors)
+			if bridge.has_method("remove_world_sim_squad"):
+				bridge.remove_world_sim_squad(squad_id)
+			_check_destroyed_from_squad_counts(str(record.get("owner_id", "")))
+			realized_map[squad_id] = false
+			continue
+		var threshold := radius + (NEST_LOD_HYSTERESIS if realized else 0.0)
+		var near := _flat_distance(position, reference) <= threshold
+		if near and not realized and int(record.get("member_count", 0)) > 0:
+			realize_nest_squad(record)
+			realized = is_nest_squad_realized(squad_id)
+			if realized and bridge.has_method("log_world_event"):
+				bridge.log_world_event("rustdead", "nest squad %s realized" % squad_id, {})
+		elif not near and realized:
+			var survivors := derealize_nest_squad(squad_id)
+			realized = false
+			record["member_count"] = survivors
+			_update_state_squad_count(str(record.get("owner_id", "")), squad_id, survivors)
+			if survivors <= 0:
+				if bridge.has_method("remove_world_sim_squad"):
+					bridge.remove_world_sim_squad(squad_id)
+				_check_destroyed_from_squad_counts(str(record.get("owner_id", "")))
+			elif bridge.has_method("upsert_world_sim_squad"):
+				bridge.upsert_world_sim_squad(record)
+		if realized:
+			record["position"] = drive_realized_squad(record)
+			if bridge.has_method("upsert_world_sim_squad"):
+				bridge.upsert_world_sim_squad(record)
+		realized_map[squad_id] = realized
+	return realized_map
+
+
+func realize_nest_squad(record: Dictionary) -> void:
+	var squad_id := str(record.get("squad_id", ""))
+	var marker_id := str(record.get("owner_id", ""))
+	if squad_id.is_empty() or marker_id.is_empty() or is_nest_squad_realized(squad_id):
+		return
+	var marker := _markers_by_id.get(marker_id, null) as NestPlacementMarker
+	var state: Dictionary = _nest_states.get(marker_id, {})
+	if marker == null or state.is_empty() or not bool(state.get("active", false)):
+		return
 	var nest_type := _get_nest_type(str(state.get("nest_type_id", "")))
 	if nest_type == null:
 		return
-	var size_id := str(state.get("size_id", marker.get_size_id()))
-	var patrol_squad_count: int = maxi(1, int(state.get("patrol_squad_count", 1)))
-	var total_count: int = maxi(1, int(state.get("population_target", 1)))
-	var patrol_size_range: Vector2i = nest_type.call("get_patrol_squad_size_range", size_id)
-	var patrol_total: int = mini(total_count, patrol_squad_count * patrol_size_range.y)
-	var remaining_patrol: int = patrol_total
-	var patrol_squad_ids: Array = []
+	_spawn_static_runtime_for_state(marker, state)
 	var actor_ids: Array = state.get("actor_ids", []) if state.get("actor_ids", []) is Array else []
-	for squad_index in range(patrol_squad_count):
-		var squad_id := "%s.patrol.%02d" % [str(state.get("marker_id", marker.get_marker_id())), squad_index + 1]
-		patrol_squad_ids.append(squad_id)
-		var squads_left: int = patrol_squad_count - int(squad_index)
-		var min_remaining_after: int = maxi(squads_left - 1, 0) * patrol_size_range.x
-		var available_for_squad: int = maxi(remaining_patrol - min_remaining_after, 0)
-		if available_for_squad <= 0:
+	var squad_actor_ids: Array = []
+	var count := maxi(0, int(record.get("member_count", 0)))
+	var origin: Vector3 = record.get("position", marker.global_position)
+	for member_index in range(count):
+		var actor := _spawn_nest_actor(marker, state, nest_type, squad_id, member_index + 1, origin)
+		if actor == null:
 			continue
-		var squad_min: int = patrol_size_range.x if remaining_patrol >= patrol_size_range.x else 1
-		var squad_size: int = clampi(ceili(float(remaining_patrol) / float(maxi(squads_left, 1))), squad_min, patrol_size_range.y)
-		squad_size = mini(squad_size, available_for_squad)
-		for member_index in range(squad_size):
-			var actor := _spawn_nest_actor(marker, state, nest_type, squad_id, actor_ids.size() + 1)
-			if actor != null:
-				actor_ids.append(actor.stable_id)
-			remaining_patrol -= 1
-			if remaining_patrol <= 0:
-				break
-		if remaining_patrol <= 0:
-			break
-	var guard_squad_id := "%s.nest" % str(state.get("marker_id", marker.get_marker_id()))
-	while actor_ids.size() < total_count:
-		var guard_actor := _spawn_nest_actor(marker, state, nest_type, guard_squad_id, actor_ids.size() + 1)
-		if guard_actor == null:
-			break
-		actor_ids.append(guard_actor.stable_id)
-	state["patrol_squad_ids"] = patrol_squad_ids
+		actor_ids.append(actor.stable_id)
+		squad_actor_ids.append(actor.stable_id)
+		if str(record.get("objective", "")) == "attack":
+			call_deferred("_request_assault_job_for_actor", actor.stable_id, marker_id, str(record.get("target_settlement_id", "")), record.get("target_position", marker.global_position))
 	state["actor_ids"] = actor_ids
+	_realized_squad_actor_ids[squad_id] = squad_actor_ids
+	_nest_states[marker_id] = state
+	call_deferred("_reissue_patrol_jobs_for_marker", marker_id)
+	_sync_nest_state_to_gecs()
 
 
-func _spawn_nest_actor(marker: NestPlacementMarker, state: Dictionary, nest_type: Resource, squad_id: String, member_index: int) -> HumanoidCharacter:
+func derealize_nest_squad(squad_id: String) -> int:
+	var actor_ids: Array = _realized_squad_actor_ids.get(squad_id, []) if _realized_squad_actor_ids.get(squad_id, []) is Array else []
+	var survivors := 0
+	var marker_id := _marker_id_from_squad_id(squad_id)
+	var state: Dictionary = _nest_states.get(marker_id, {})
+	var state_actor_ids: Array = state.get("actor_ids", []) if state.get("actor_ids", []) is Array else []
+	for actor_id_value in actor_ids:
+		var actor := _find_actor_by_id(str(actor_id_value)) as HumanoidCharacter
+		if actor != null and is_instance_valid(actor) and actor.life_state != NpcRules.LifeState.DEAD:
+			survivors += 1
+			actor.queue_free()
+		state_actor_ids.erase(str(actor_id_value))
+	_realized_squad_actor_ids.erase(squad_id)
+	if not state.is_empty():
+		state["actor_ids"] = state_actor_ids
+		_nest_states[marker_id] = state
+		_sync_nest_state_to_gecs()
+	return survivors
+
+
+func drive_realized_squad(record: Dictionary) -> Vector3:
+	var actors := _live_nest_squad_actors(str(record.get("squad_id", "")))
+	if actors.is_empty():
+		return record.get("position", Vector3.ZERO)
+	var sum := Vector3.ZERO
+	for actor in actors:
+		sum += actor.global_position
+	return sum / float(actors.size())
+
+
+func _spawn_nest_actor(marker: NestPlacementMarker, state: Dictionary, nest_type: Resource, squad_id: String, member_index: int, spawn_origin := Vector3.INF) -> HumanoidCharacter:
 	var actor_script := nest_type.get("actor_script") as Script
 	if actor_script == null:
 		return null
@@ -680,7 +858,7 @@ func _spawn_nest_actor(marker: NestPlacementMarker, state: Dictionary, nest_type
 	if actor == null:
 		return null
 	var marker_id := str(state.get("marker_id", marker.get_marker_id()))
-	var actor_id := "nest.%s.%03d" % [marker_id, member_index]
+	var actor_id := "nest.%s.%s.%03d" % [marker_id, _stable_id_slug(squad_id), member_index]
 	actor.name = actor_id.replace(".", "_")
 	actor.member_name = "Rustdead" if str(state.get("nest_type_id", "")) == "rustdead" else "Nest Spawn %03d" % member_index
 	actor.stable_id = actor_id
@@ -689,8 +867,9 @@ func _spawn_nest_actor(marker: NestPlacementMarker, state: Dictionary, nest_type
 	actor.world_squad_id = squad_id
 	actor.hostile_factions = _non_nest_hostile_factions(actor.faction_name)
 	actor.combat_stance = NpcRules.CombatStance.AGGRESSIVE
-	actor.position = _spawn_position_near_marker(marker, marker_id, member_index)
-	actor.rotation.y = _make_rng("actor_yaw:%s:%d" % [marker_id, member_index]).randf_range(0.0, TAU)
+	var origin := marker.global_position if spawn_origin == Vector3.INF else spawn_origin
+	actor.position = _spawn_position_near_origin(origin, marker_id, squad_id, member_index)
+	actor.rotation.y = _make_rng("actor_yaw:%s:%s:%d" % [marker_id, squad_id, member_index]).randf_range(0.0, TAU)
 	if str(state.get("nest_type_id", "")) == "rustdead":
 		_configure_rustdead_actor(actor, marker_id, member_index)
 	_add_basic_actor_children(actor, Color(0.42, 0.08, 0.07, 1.0))
@@ -727,33 +906,41 @@ func _configure_rustdead_actor(actor: HumanoidCharacter, marker_id: String, memb
 	actor.combat_squad_assist_radius = 80.0
 
 
-func _spawn_position_near_marker(marker: NestPlacementMarker, marker_id: String, member_index: int) -> Vector3:
-	var rng := _make_rng("spawn_position:%s:%d" % [marker_id, member_index])
+func _spawn_position_near_origin(origin: Vector3, marker_id: String, squad_id: String, member_index: int) -> Vector3:
+	var rng := _make_rng("spawn_position:%s:%s:%d" % [marker_id, squad_id, member_index])
 	var angle := rng.randf_range(0.0, TAU)
 	var distance := rng.randf_range(3.0, 9.0)
-	return marker.global_position + Vector3(cos(angle) * distance, 0.6, sin(angle) * distance)
+	return origin + Vector3(cos(angle) * distance, 0.6, sin(angle) * distance)
 
 
-func _maintain_active_nests() -> void:
+func _maintain_active_markers() -> void:
 	var changed := false
-	for marker_id_value in _nest_states.keys():
-		var marker_id := str(marker_id_value)
+	var marker_ids := _nest_states.keys()
+	if marker_ids.is_empty():
+		return
+	var budget := mini(maxi(1, int(nest_maintenance_budget_per_tick)), marker_ids.size())
+	var processed := 0
+	while processed < budget:
+		if _nest_index >= marker_ids.size():
+			_nest_index = 0
+		var marker_id := str(marker_ids[_nest_index])
+		_nest_index += 1
+		processed += 1
 		var marker := _markers_by_id.get(marker_id, null) as NestPlacementMarker
 		if marker == null:
 			continue
 		var state: Dictionary = _nest_states[marker_id]
 		if not bool(state.get("active", false)):
 			continue
-		if _runtime_spawned_marker_ids.has(marker_id) and not _has_live_nest_actors(state):
-			_mark_nest_destroyed(state, marker, _get_day_index())
-			_nest_states[marker_id] = state
+		if _spawn_static_runtime_for_state(marker, state):
 			changed = true
-			continue
-		_spawn_runtime_for_state(marker, state)
-		_reissue_patrol_jobs(marker, state)
 		_nest_states[marker_id] = state
 	if changed:
 		_sync_nest_state_to_gecs()
+
+
+func _flat_distance(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
 
 
 func _reissue_patrol_jobs(marker: NestPlacementMarker, state: Dictionary) -> void:
@@ -865,18 +1052,27 @@ func _start_settlement_attack(marker: NestPlacementMarker, state: Dictionary, ne
 	var target_position := _settlement_defense_position(target, marker.global_position)
 	var size_range: Vector2i = nest_type.call("get_attack_squad_size_range", str(state.get("size_id", "small")))
 	var count := rng.randi_range(size_range.x, size_range.y)
-	var squad_id := "%s.attack.%03d" % [marker.get_marker_id(), day_index]
+	var squad_id := "nest:%s:attack:%03d" % [marker.get_marker_id(), day_index]
 	var attack_squad_ids: Array = state.get("attack_squad_ids", []) if state.get("attack_squad_ids", []) is Array else []
-	var actor_ids: Array = state.get("actor_ids", []) if state.get("actor_ids", []) is Array else []
 	attack_squad_ids.append(squad_id)
-	for index in range(count):
-		var actor := _spawn_nest_actor(marker, state, nest_type, squad_id, actor_ids.size() + 1)
-		if actor == null:
-			continue
-		actor_ids.append(actor.stable_id)
-		call_deferred("_request_assault_job_for_actor", actor.stable_id, marker.get_marker_id(), target, target_position)
 	state["attack_squad_ids"] = attack_squad_ids
-	state["actor_ids"] = actor_ids
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("upsert_world_sim_squad"):
+		bridge.upsert_world_sim_squad({
+			"squad_id": squad_id,
+			"owner_id": marker.get_marker_id(),
+			"owner_kind": "nest",
+			"faction_id": str(state.get("nest_type_id", "nest")),
+			"objective": "attack",
+			"target_settlement_id": target,
+			"position": marker.global_position,
+			"target_position": target_position,
+			"home_position": marker.global_position,
+			"patrol_radius": 0.0,
+			"move_speed": 3.0,
+			"member_count": count,
+			"state": "active",
+		})
 	return true
 
 
@@ -910,8 +1106,7 @@ func _process_weekly_repopulation(day_index: int) -> void:
 			continue
 		_activate_marker_state(state, marker, nest_type, _make_rng("weekly_state:%s:%d" % [marker_id, day_index]), day_index)
 		_nest_states[marker_id] = state
-		_runtime_spawned_marker_ids.erase(marker_id)
-		_spawn_runtime_for_state(marker, state)
+		_spawn_static_runtime_for_state(marker, state)
 		changed = true
 	if changed:
 		_sync_nest_state_to_gecs()
@@ -919,6 +1114,7 @@ func _process_weekly_repopulation(day_index: int) -> void:
 
 func _mark_nest_destroyed(state: Dictionary, marker: NestPlacementMarker, day_index: int) -> void:
 	var nest_type := _get_nest_type(str(state.get("nest_type_id", "")))
+	var existing_squad_ids := _nest_squad_ids_for_marker(marker.get_marker_id())
 	var cooldown_days := DEFAULT_RESPAWN_COOLDOWN_DAYS
 	if nest_type != null:
 		cooldown_days = int(nest_type.get("respawn_cooldown_days"))
@@ -928,8 +1124,16 @@ func _mark_nest_destroyed(state: Dictionary, marker: NestPlacementMarker, day_in
 	state["next_repopulation_day"] = day_index + cooldown_days
 	state["actor_ids"] = []
 	state["patrol_squad_ids"] = []
+	state["patrol_squad_member_counts"] = {}
+	state["guard_squad_id"] = ""
+	state["guard_count"] = 0
 	state["attack_squad_ids"] = []
-	_runtime_spawned_marker_ids.erase(marker.get_marker_id())
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("remove_world_sim_squad"):
+		for squad_id in existing_squad_ids:
+			bridge.remove_world_sim_squad(squad_id)
+	for squad_id in existing_squad_ids:
+		derealize_nest_squad(squad_id)
 	var visual := marker.get_node_or_null(NEST_VISUAL_NAME)
 	if visual != null:
 		visual.queue_free()
@@ -977,6 +1181,96 @@ func _settlement_defense_position(settlement_id: String, fallback: Vector3) -> V
 	return anchor.global_position if anchor != null else fallback
 
 
+func _nest_patrol_squad_id(marker_id: String, squad_index: int) -> String:
+	return "nest:%s:patrol:%d" % [marker_id, squad_index]
+
+
+func _nest_guard_squad_id(marker_id: String) -> String:
+	return "nest:%s:guard" % marker_id
+
+
+func _marker_id_from_squad_id(squad_id: String) -> String:
+	var parts := squad_id.split(":")
+	return str(parts[1]) if parts.size() >= 3 and parts[0] == "nest" else ""
+
+
+func _nest_squad_ids_for_marker(marker_id: String) -> Array[String]:
+	var result: Array[String] = []
+	var state: Dictionary = _nest_states.get(marker_id, {}) if _nest_states.get(marker_id, {}) is Dictionary else {}
+	for squad_id_value in state.get("patrol_squad_ids", []):
+		result.append(str(squad_id_value))
+	var guard_squad_id := str(state.get("guard_squad_id", ""))
+	if not guard_squad_id.is_empty():
+		result.append(guard_squad_id)
+	for squad_id_value in state.get("attack_squad_ids", []):
+		result.append(str(squad_id_value))
+	return result
+
+
+func _update_state_squad_count(marker_id: String, squad_id: String, survivors: int) -> void:
+	if marker_id.is_empty():
+		return
+	var state: Dictionary = _nest_states.get(marker_id, {})
+	if state.is_empty():
+		return
+	if squad_id == str(state.get("guard_squad_id", "")):
+		state["guard_count"] = maxi(0, survivors)
+		if survivors <= 0:
+			state["guard_squad_id"] = ""
+	else:
+		var patrol_counts: Dictionary = state.get("patrol_squad_member_counts", {}) if state.get("patrol_squad_member_counts", {}) is Dictionary else {}
+		if patrol_counts.has(squad_id):
+			if survivors <= 0:
+				patrol_counts.erase(squad_id)
+				var patrol_ids: Array = state.get("patrol_squad_ids", []) if state.get("patrol_squad_ids", []) is Array else []
+				patrol_ids.erase(squad_id)
+				state["patrol_squad_ids"] = patrol_ids
+			else:
+				patrol_counts[squad_id] = survivors
+			state["patrol_squad_member_counts"] = patrol_counts
+		else:
+			var attack_ids: Array = state.get("attack_squad_ids", []) if state.get("attack_squad_ids", []) is Array else []
+			if survivors <= 0:
+				attack_ids.erase(squad_id)
+			state["attack_squad_ids"] = attack_ids
+	state["alive_count"] = _count_state_squad_members(state)
+	_nest_states[marker_id] = state
+	_sync_nest_state_to_gecs()
+
+
+func _count_state_squad_members(state: Dictionary) -> int:
+	var total := maxi(0, int(state.get("guard_count", 0)))
+	var patrol_counts: Dictionary = state.get("patrol_squad_member_counts", {}) if state.get("patrol_squad_member_counts", {}) is Dictionary else {}
+	for count_value in patrol_counts.values():
+		total += maxi(0, int(count_value))
+	return total
+
+
+func _check_destroyed_from_squad_counts(marker_id: String) -> void:
+	var marker := _markers_by_id.get(marker_id, null) as NestPlacementMarker
+	var state: Dictionary = _nest_states.get(marker_id, {})
+	if marker == null or state.is_empty() or not bool(state.get("active", false)):
+		return
+	if _count_state_squad_members(state) <= 0:
+		_mark_nest_destroyed(state, marker, _get_day_index())
+		_nest_states[marker_id] = state
+		_sync_nest_state_to_gecs()
+
+
+func _live_nest_squad_actors(squad_id: String) -> Array[HumanoidCharacter]:
+	var result: Array[HumanoidCharacter] = []
+	var actor_ids: Array = _realized_squad_actor_ids.get(squad_id, []) if _realized_squad_actor_ids.get(squad_id, []) is Array else []
+	for actor_id_value in actor_ids:
+		var actor := _find_actor_by_id(str(actor_id_value)) as HumanoidCharacter
+		if actor != null and is_instance_valid(actor) and actor.life_state != NpcRules.LifeState.DEAD:
+			result.append(actor)
+	return result
+
+
+func _stable_id_slug(value: String) -> String:
+	return value.replace(":", ".").replace("/", ".").replace(" ", "_")
+
+
 func _has_live_nest_actors(state: Dictionary) -> bool:
 	return not _live_nest_actors(state).is_empty()
 
@@ -997,9 +1291,6 @@ func _find_actor_by_id(actor_id: String) -> Node:
 		var actor := actor_query_controller.call("get_actor_by_stable_id", actor_id) as Node
 		if actor != null:
 			return actor
-	for node in get_tree().get_nodes_in_group("humanoid_character"):
-		if str(node.get("stable_id")) == actor_id:
-			return node
 	return null
 
 
@@ -1190,6 +1481,10 @@ func _sync_nest_state_to_gecs() -> void:
 func _get_gecs_world() -> Node:
 	if not is_inside_tree():
 		return null
+	if controllers_root != null:
+		var controller_local := controllers_root.get_node_or_null("GecsWorldController")
+		if controller_local != null:
+			return controller_local
 	var parent_node := get_parent()
 	if parent_node != null:
 		var local := parent_node.get_node_or_null("GecsWorldController")

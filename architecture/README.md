@@ -67,6 +67,7 @@ flowchart TD
 - **Actors are actuators.** `WorldActor` and `HumanoidCharacter` move, fight, equip, animate, and interact.
 - **Controllers own systems.** Bootstrap creates reusable controllers for population, settlements, factions, inventory, law, jobs, time, and world simulation.
 - **Far NPCs are cheap.** Unloaded actors stay as records and advance through ledger simulation.
+- **Ticks are projection or cadence.** A per-frame `_process`/`_physics_process` is only legitimate if it is *projection-side* (behaves only within LOD, stops outside it) or *driven by the controlled world-sim ticker at O(1) cadence* (e.g. `world_sim_tick(...)`). A node that runs durable logic every frame regardless of camera/LOD, off cadence, is a violator (e.g. `SettlementJail`, `SettlementKeep`). Editor-only ticks are fine.
 
 ## How NPCs Work
 - Important nearby NPCs can think often and use LimboAI behavior trees.
@@ -90,9 +91,17 @@ flowchart TD
 - Buildings are visual/physical shells. Facility definitions decide if a place is a bar, jail, shop, mine, field, or storage site.
 - Imported assets go in `assets/vendor/<author>/<pack>/` and must be listed in `ATTRIBUTION.md`.
 
+## Visualizing Architecture
+We visualize this codebase as a **dependency & coupling graph**, not as taxonomy charts. Architecture lives in the *edges* (what depends on what) and in *rule violations* — neither of which a tree, treemap, or sunburst can show. The tool is code-derived (parses `scripts/`) and checks the rules above: **truth-rule** violations (GECS → live node), **tick/cadence** violations (ungated per-frame durable work), plus **dependency cycles** and **coupling hotspots** (hubs / god-objects).
+
+- Generate + serve: `cd architecture/dependency-graph && node extract_deps.js && node serve.js` → <http://localhost:3031>
+- Views: a force-directed **dependency graph** and a circular **layer-coupling** graph, with a live insights panel.
+- Details and tuning: `architecture/dependency-graph/README.md`.
+
 ## Where Docs Live
 - `AGENT.md` is the short coding-agent rule file.
 - `architecture/README.md` is this human design overview.
+- `architecture/dependency-graph/` is the interactive dependency & coupling graph — how we visualize architecture (checks truth-rule + tick/cadence violations, cycles, hubs).
 - `architecture/core_attributes/` defines shared stat layers and progression rules.
 - `architecture/combat/initiative.md` defines shared melee initiative.
 - `architecture/combat/hit.md` defines shared hit scoring.

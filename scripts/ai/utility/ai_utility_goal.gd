@@ -13,7 +13,6 @@ const AI_JOB_SCRIPT := preload("res://scripts/ai/ai_job.gd")
 @export_range(0.0, 1.0, 0.01) var switch_threshold := 0.0
 @export var emergency := false
 @export var executor_key: StringName = &""
-@export var allowed_lod_tiers: PackedInt32Array = PackedInt32Array()
 @export var target_selector_id: StringName = &""
 @export var requires_target := false
 @export var considerations: Array[Resource] = []
@@ -22,10 +21,6 @@ const AI_JOB_SCRIPT := preload("res://scripts/ai/ai_job.gd")
 @export var source_id := "utility_ai"
 @export var package_id := ""
 @export var debug_label := ""
-
-
-func is_allowed_for_lod(lod_tier: int) -> bool:
-	return allowed_lod_tiers.is_empty() or allowed_lod_tiers.has(lod_tier)
 
 
 func get_priority() -> int:

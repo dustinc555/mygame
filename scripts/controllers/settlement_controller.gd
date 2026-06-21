@@ -4,7 +4,6 @@ class_name SettlementController
 
 signal settlement_state_changed(settlement_id: String, state: Dictionary)
 signal settlement_event_recorded(event_record: Dictionary)
-signal settlement_action_requested(action_record: Dictionary)
 
 const PRESSURE_SUPPLIED := "supplied"
 const PRESSURE_HUNGRY := "hungry"
@@ -221,16 +220,6 @@ func resolve_food_transfer(source_settlement_id: String, target_settlement_id: S
 	return stolen
 
 
-func force_food_raid(source_settlement_id: String, target_settlement_id: String) -> bool:
-	return _request_food_raid(source_settlement_id, target_settlement_id, "forced_food_raid")
-
-
-func select_food_raid_target(source_settlement_id: String, reason := "food_raid") -> String:
-	var definition: Resource = get_settlement_definition(source_settlement_id)
-	var profile := _definition_behavior_profile(definition)
-	return _select_action_target_settlement_id(source_settlement_id, definition, profile, reason)
-
-
 func get_summary_text() -> String:
 	var parts: Array[String] = []
 	for settlement_id in settlement_states.keys():
@@ -361,13 +350,21 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 
 func _on_hour_changed(absolute_hour: int, day_index: int, hour: int) -> void:
 	for settlement_id in settlement_definitions.keys():
-		_sync_settlement_staff_slots(str(settlement_id))
-		_process_staff_vacancies(str(settlement_id))
-		_sync_settlement_resident_deaths(str(settlement_id))
+		var sid := str(settlement_id)
+		# Staff-slot sync (a full subtree walk + GECS re-save), vacancy filling and resident
+		# death reconciliation only matter where the player can see live bodies. Off-screen
+		# towns have no realized staff to sync and reconcile lazily on approach (the population
+		# spawner re-bootstraps their vacancies — that's the promote-from-pool moment). Gating
+		# here keeps the hourly cost O(near towns) instead of O(all towns) — the old ~20s spike.
+		if not _settlement_is_near_player(sid):
+			continue
+		_sync_settlement_staff_slots(sid)
+		_process_staff_vacancies(sid)
+		_sync_settlement_resident_deaths(sid)
+	# Daily upkeep is pure arithmetic on the settlement ledger (food in/out, pressure) and is
+	# the believable background economy — it runs O(1) for every town, near or far.
 	for settlement_id in settlement_definitions.keys():
 		_process_daily_upkeep(str(settlement_id), day_index, hour)
-	for settlement_id in settlement_definitions.keys():
-		_evaluate_settlement_strategy(str(settlement_id), absolute_hour, day_index, hour)
 
 
 func _process_daily_upkeep(settlement_id: String, day_index: int, hour: int) -> void:
@@ -401,61 +398,6 @@ func _process_daily_upkeep(settlement_id: String, day_index: int, hour: int) -> 
 	_notify_state_changed(settlement_id)
 
 
-func _evaluate_settlement_strategy(settlement_id: String, absolute_hour: int, day_index: int, hour: int) -> void:
-	var definition: Resource = get_settlement_definition(settlement_id)
-	var profile := _definition_behavior_profile(definition)
-	if profile == null:
-		return
-	if profile.has_method("is_hour_in_action_window") and not bool(profile.call("is_hour_in_action_window", hour)):
-		return
-	var state: Dictionary = settlement_states[settlement_id]
-	var hours_since_action := float(absolute_hour - int(state.get("last_action_absolute_hour", -999999)))
-	if hours_since_action < _resource_float(profile, "action_cooldown_hours", 6.0):
-		return
-	var food_pressure := _get_effective_food_pressure(state)
-	if bool(profile.get("can_initiate_food_raids")) and food_pressure <= _resource_float(profile, "food_raid_pressure_threshold", 0.28):
-		_request_food_raid(settlement_id, _select_action_target_settlement_id(settlement_id, definition, profile, "food_pressure"), "food_pressure", absolute_hour, day_index, hour)
-		return
-	if bool(profile.get("can_attack_when_starving")) and food_pressure <= _resource_float(profile, "desperate_attack_pressure_threshold", 0.08):
-		_request_food_raid(settlement_id, _select_action_target_settlement_id(settlement_id, definition, profile, "desperation"), "desperation", absolute_hour, day_index, hour)
-
-
-func _request_food_raid(source_settlement_id: String, target_settlement_id: String, reason := "food_raid", absolute_hour := -1, day_index := -1, hour := -1) -> bool:
-	if source_settlement_id.is_empty() or target_settlement_id.is_empty():
-		return false
-	if not settlement_states.has(source_settlement_id) or not settlement_states.has(target_settlement_id):
-		return false
-	var definition: Resource = get_settlement_definition(source_settlement_id)
-	if definition == null:
-		return false
-	var state: Dictionary = settlement_states[source_settlement_id]
-	if absolute_hour < 0 and world_time != null and world_time.has_method("get_absolute_hour"):
-		absolute_hour = int(world_time.call("get_absolute_hour"))
-	if day_index < 0 and world_time != null and world_time.has_method("get_day_index"):
-		day_index = int(world_time.call("get_day_index"))
-	if hour < 0 and world_time != null and world_time.has_method("get_hour"):
-		hour = int(world_time.call("get_hour"))
-	state["last_action_absolute_hour"] = absolute_hour
-	var template: Resource = definition.get("raid_squad_template") as Resource
-	var action_record := {
-		"action_id": "%s:%s:%d" % [source_settlement_id, target_settlement_id, absolute_hour],
-		"type": "raid_food",
-		"reason": reason,
-		"source_settlement_id": source_settlement_id,
-		"target_settlement_id": target_settlement_id,
-		"faction_id": _definition_faction_id(definition),
-		"squad_template_id": _resource_id(template) if template != null else "",
-		"absolute_hour": absolute_hour,
-		"day": day_index,
-		"hour": hour,
-	}
-	state["last_action"] = "Raid requested: %s" % target_settlement_id
-	_record_event(action_record.duplicate(true))
-	settlement_action_requested.emit(action_record)
-	_notify_state_changed(source_settlement_id)
-	return true
-
-
 func _update_pressure_state(settlement_id: String) -> void:
 	var state: Dictionary = settlement_states[settlement_id]
 	var max_food := maxf(float(state.get("max_food", 1.0)), 1.0)
@@ -467,108 +409,6 @@ func _update_pressure_state(settlement_id: String) -> void:
 		state["pressure_state"] = PRESSURE_HUNGRY
 	else:
 		state["pressure_state"] = PRESSURE_SUPPLIED
-
-
-func _select_action_target_settlement_id(source_settlement_id: String, source_definition: Resource, behavior_profile: Resource, reason: String) -> String:
-	if source_settlement_id.is_empty() or not settlement_states.has(source_settlement_id):
-		return ""
-	var fallback_target := _resource_string(source_definition, "default_target_settlement_id", "")
-	var mode := _resource_string(behavior_profile, "raid_target_selection_mode", RAID_TARGET_DEFAULT)
-	if mode == RAID_TARGET_DEFAULT:
-		return fallback_target
-	var best_target_id := ""
-	var best_score := -INF
-	for target_id_value in settlement_states.keys():
-		var target_id := str(target_id_value)
-		if not _is_valid_raid_target_candidate(source_settlement_id, target_id, behavior_profile):
-			continue
-		var score := _raid_target_score(source_settlement_id, target_id, source_definition, behavior_profile, mode, reason)
-		if score > best_score:
-			best_score = score
-			best_target_id = target_id
-	if not best_target_id.is_empty():
-		return best_target_id
-	if not fallback_target.is_empty() and _is_valid_raid_target_candidate(source_settlement_id, fallback_target, behavior_profile):
-		return fallback_target
-	return ""
-
-
-func _is_valid_raid_target_candidate(source_settlement_id: String, target_settlement_id: String, behavior_profile: Resource) -> bool:
-	if source_settlement_id == target_settlement_id or target_settlement_id.is_empty():
-		return false
-	if not settlement_states.has(source_settlement_id) or not settlement_states.has(target_settlement_id):
-		return false
-	var source_state: Dictionary = settlement_states[source_settlement_id]
-	var target_state: Dictionary = settlement_states[target_settlement_id]
-	var source_faction := str(source_state.get("faction_id", ""))
-	var target_faction := str(target_state.get("faction_id", ""))
-	if bool(_resource_value(behavior_profile, "raid_target_exclude_same_faction", true)) and not source_faction.is_empty() and source_faction == target_faction:
-		return false
-	if bool(_resource_value(behavior_profile, "raid_target_requires_food", true)) and float(target_state.get("food", 0.0)) <= 0.0:
-		return false
-	var max_distance := _resource_float(behavior_profile, "raid_target_max_distance", 0.0)
-	if max_distance > 0.0 and _settlement_distance(source_settlement_id, target_settlement_id) > max_distance:
-		return false
-	return _is_allowed_by_raid_relation_policy(source_faction, target_faction, _resource_string(behavior_profile, "raid_target_relation_policy", RAID_RELATION_ANY_NON_SELF))
-
-
-func _is_allowed_by_raid_relation_policy(source_faction: String, target_faction: String, policy: String) -> bool:
-	if policy == RAID_RELATION_ANY_NON_SELF or source_faction.is_empty() or target_faction.is_empty():
-		return true
-	if faction_controller == null or not faction_controller.has_method("get_diplomatic_state"):
-		return policy != RAID_RELATION_HOSTILE_ONLY
-	var state := str(faction_controller.call("get_diplomatic_state", source_faction, target_faction))
-	if policy == RAID_RELATION_HOSTILE_ONLY:
-		return state == "war" or state == "hostile"
-	if policy == RAID_RELATION_NOT_ALLIED:
-		return not BLOCKED_NOT_ALLIED_STATES.has(state)
-	return true
-
-
-func _raid_target_score(source_settlement_id: String, target_settlement_id: String, source_definition: Resource, behavior_profile: Resource, mode: String, _reason: String) -> float:
-	var distance := _settlement_distance(source_settlement_id, target_settlement_id)
-	if mode == RAID_TARGET_CLOSEST_PEER:
-		return -distance
-	var target_state: Dictionary = settlement_states[target_settlement_id]
-	var target_defense := _estimate_settlement_defense(target_settlement_id, behavior_profile)
-	var source_strength := maxf(_estimate_settlement_defense(source_settlement_id, behavior_profile), _estimate_raid_squad_strength(source_definition))
-	var weakness := maxf(source_strength - target_defense, 0.0)
-	var stronger_delta := maxf(target_defense - source_strength, 0.0)
-	return float(target_state.get("population", 0)) * _resource_float(behavior_profile, "raid_target_population_weight", 2.0) \
-		+ float(target_state.get("food", 0.0)) * _resource_float(behavior_profile, "raid_target_food_weight", 0.15) \
-		+ weakness * _resource_float(behavior_profile, "raid_target_weakness_weight", 1.0) \
-		- distance * _resource_float(behavior_profile, "raid_target_distance_weight", 0.25) \
-		- target_defense * _resource_float(behavior_profile, "raid_target_defense_weight", 0.55) \
-		- stronger_delta * _resource_float(behavior_profile, "raid_target_stronger_penalty_weight", 3.0)
-
-
-func _estimate_settlement_defense(settlement_id: String, behavior_profile: Resource) -> float:
-	if not settlement_states.has(settlement_id):
-		return 0.0
-	var state: Dictionary = settlement_states[settlement_id]
-	var population := float(state.get("population", 0))
-	var food_ratio := float(state.get("food_ratio", 0.0))
-	return population * _resource_float(behavior_profile, "raid_target_population_defense_weight", 1.0) \
-		+ float(_count_armed_residents(settlement_id)) * _resource_float(behavior_profile, "raid_target_armed_defense_weight", 4.0) \
-		+ food_ratio * _resource_float(behavior_profile, "raid_target_supply_defense_weight", 18.0)
-
-
-func _estimate_raid_squad_strength(source_definition: Resource) -> float:
-	var template: Resource = source_definition.get("raid_squad_template") as Resource if source_definition != null else null
-	if template == null:
-		return 0.0
-	return _resource_float(template, "base_strength", 0.0) + float(_resource_int(template, "member_count", 1)) * _resource_float(template, "base_attack_damage", 0.0)
-
-
-func _count_armed_residents(settlement_id: String) -> int:
-	var anchor := get_settlement_anchor(settlement_id)
-	if anchor == null or not anchor.has_method("get_resident_characters"):
-		return 0
-	var count := 0
-	for resident in anchor.call("get_resident_characters"):
-		if resident != null and resident.has_method("get_equipped_item") and resident.call("get_equipped_item", "weapon") != null:
-			count += 1
-	return count
 
 
 func _settlement_distance(source_settlement_id: String, target_settlement_id: String) -> float:
@@ -586,6 +426,46 @@ func _settlement_position(settlement_id: String) -> Vector3:
 
 func _flat_distance(left: Vector3, right: Vector3) -> float:
 	return Vector2(left.x, left.z).distance_to(Vector2(right.x, right.z))
+
+
+## True when the player/party is within the population LOD radius of the settlement — i.e.
+## its residents are realized (or about to be) as live bodies. Used to gate heavy per-hour
+## reconciliation to towns the player can actually see; far towns reconcile on approach.
+func _settlement_is_near_player(settlement_id: String) -> bool:
+	var reference := _player_reference_position()
+	if reference == Vector3.INF:
+		return true
+	return _flat_distance(reference, _settlement_position(settlement_id)) <= _population_lod_radius()
+
+
+func _player_reference_position() -> Vector3:
+	var tree := get_tree()
+	if tree == null:
+		return Vector3.INF
+	var members := tree.get_nodes_in_group("party_member")
+	if not members.is_empty():
+		var sum := Vector3.ZERO
+		var count := 0
+		for member in members:
+			if member is Node3D:
+				sum += (member as Node3D).global_position
+				count += 1
+		if count > 0:
+			return sum / float(count)
+	var viewport := get_viewport()
+	var camera := viewport.get_camera_3d() if viewport != null else null
+	return camera.global_position if camera != null else Vector3.INF
+
+
+## Shared population LOD radius (plus a small margin so a town that's realizing its bodies is
+## definitely also staff-synced). Falls back if the realization controller isn't up yet.
+func _population_lod_radius() -> float:
+	var controller := get_tree().get_first_node_in_group("population_realization_controller") if get_tree() != null else null
+	if controller != null:
+		var radius_value = controller.get("near_player_radius")
+		if radius_value != null:
+			return float(radius_value) + 50.0
+	return 490.0
 
 
 func _notify_state_changed(settlement_id: String) -> void:
@@ -967,8 +847,8 @@ func _resync_population_spawners_for_settlement(settlement_id: String) -> void:
 			continue
 		if str(spawner.call("get_settlement_id")) != settlement_id:
 			continue
-		if spawner.has_method("resync_population_realization"):
-			spawner.call("resync_population_realization")
+		if spawner.has_method("mark_population_realization_dirty"):
+			spawner.call("mark_population_realization_dirty")
 
 
 func _get_effective_food_pressure(state: Dictionary) -> float:

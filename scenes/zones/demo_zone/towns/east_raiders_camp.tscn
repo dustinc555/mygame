@@ -137,30 +137,6 @@ exclusive = true
 
 [node name="Guards" type="Node3D" parent="." unique_id=564558979]
 
-[node name="Guard" type="CharacterBody3D" parent="Guards" unique_id=1574583160]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.6, -2)
-script = ExtResource("10_pmxsn")
-starting_equipment = Array[Resource]([ExtResource("11_5vgsm"), ExtResource("12_mbv06"), ExtResource("13_bpiv4"), ExtResource("15_cinder"), ExtResource("15_cinder")])
-member_name = "East Raider Guard (guard)"
-stable_id = "npc.east_raiders_camp.staff.guard"
-faction_name = "EastRaiders"
-squad_name = "EastRaiders"
-auto_heal_enabled = true
-auto_burn_rustdead_enabled = true
-base_attack_damage = 12.0
-metadata/settlement_staff_role = "guard"
-metadata/settlement_staff_role_index = 0
-metadata/settlement_staff_slot_id = "east_raiders_camp.guard"
-metadata/settlement_actor_category = "staff"
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Guards/Guard" unique_id=688630528]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-shape = SubResource("CapsuleShape3D_2py2f")
-
-[node name="BodyMesh" type="MeshInstance3D" parent="Guards/Guard" unique_id=907766883]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
-mesh = SubResource("CapsuleMesh_ajyqu")
-
 [node name="GuardPosts" type="Node3D" parent="." unique_id=1239655576]
 
 [node name="GuardPost" type="Node3D" parent="GuardPosts" unique_id=2119143455]

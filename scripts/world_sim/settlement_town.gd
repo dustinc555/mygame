@@ -40,8 +40,7 @@ const GUARD_PERCEPTION_RANGE := Vector2i(12, 22)
 @export var staff_stable_id_prefix := ""
 @export var staff_squad_name := ""
 @export var use_settlement_population_for_guards := true
-@export_enum("full_town", "important_plus_near", "near_player") var actor_realization_policy := "full_town"
-@export_range(0.05, 2.0, 0.05) var guard_assignment_interval_seconds := 0.25
+@export_enum("full_town", "important_plus_near", "near_player") var actor_realization_policy := "near_player"
 @export var auto_town_border_from_footprint := true:
 	set(value):
 		auto_town_border_from_footprint = value
@@ -74,8 +73,6 @@ const GUARD_PERCEPTION_RANGE := Vector2i(12, 22)
 var _town_border_debug: MeshInstance3D
 var _town_border_refresh_timer := 0.0
 var _last_town_border_signature := ""
-var _guard_post_by_actor_id: Dictionary = {}
-var _guard_assignment_remaining := 0.0
 
 
 func _enter_tree() -> void:
@@ -86,18 +83,12 @@ func _ready() -> void:
 	super._ready()
 	add_to_group("settlement_town")
 	add_to_group(STAFF_ROLE_OWNER_GROUP)
+	set_process(Engine.is_editor_hint())
 	_repair_guard_authoring_tree()
 	_refresh_town_border_debug()
 
 
 func _process(delta: float) -> void:
-	if not Engine.is_editor_hint():
-		_guard_assignment_remaining -= delta
-		if _guard_assignment_remaining > 0.0:
-			return
-		_guard_assignment_remaining = maxf(guard_assignment_interval_seconds, 0.05)
-		_process_guard_staff()
-		return
 	if not Engine.is_editor_hint() or not editor_show_debug_shape:
 		return
 	_town_border_refresh_timer -= delta
@@ -465,44 +456,6 @@ func _can_claim_resident_for_guard(actor: Node) -> bool:
 	return true
 
 
-func _process_guard_staff() -> void:
-	for guard in get_guard_actors():
-		var humanoid_guard := guard as HumanoidCharacter
-		if humanoid_guard == null:
-			continue
-		_process_guard_post_assignment(humanoid_guard)
-
-
-func _process_guard_post_assignment(guard: HumanoidCharacter) -> void:
-	if guard.is_in_combat():
-		return
-	if guard.has_method("is_handling_carried_character") and bool(guard.call("is_handling_carried_character")):
-		return
-	if guard.has_method("is_law_custody_returning") and bool(guard.call("is_law_custody_returning")):
-		return
-	var actor_id := guard.get_instance_id()
-	var post = _guard_post_by_actor_id.get(actor_id)
-	if post == null or not is_instance_valid(post) or (post.has_method("is_available_for") and not post.call("is_available_for", guard)):
-		post = _claim_guard_post_for(guard)
-		if post == null:
-			return
-	if not post.has_method("get_work_position"):
-		return
-	var work_position: Vector3 = post.call("get_work_position")
-	if guard.global_position.distance_to(work_position) > guard.interact_distance:
-		guard.set_move_target(work_position, false)
-
-
-func _claim_guard_post_for(guard: HumanoidCharacter):
-	var post = get_available_guard_post(guard)
-	if post == null:
-		return null
-	if post.has_method("claim_worker") and not post.call("claim_worker", guard):
-		return null
-	_guard_post_by_actor_id[guard.get_instance_id()] = post
-	return post
-
-
 func _guard_post_transform(index: int) -> Transform3D:
 	var side := -1.0 if index % 2 == 0 else 1.0
 	var row := int(float(index) / 2.0)
@@ -680,6 +633,12 @@ func _roll_center_biased_level(minimum: int, maximum: int, rng: RandomNumberGene
 		return low
 	var t := (rng.randf() + rng.randf()) * 0.5
 	return clampi(int(round(lerpf(float(low), float(high), t))), low, high)
+
+
+## Public accessor for the owning faction id (the world-sim brains read this to decide
+## raids and defenders). Resolves through the settlement/faction definitions.
+func get_faction_id() -> String:
+	return _get_settlement_faction_id()
 
 
 func _get_settlement_faction_id() -> String:

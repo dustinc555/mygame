@@ -63,8 +63,8 @@ func _measure_runtime_fps() -> Dictionary:
 func _print_runtime_summary(result: Dictionary) -> void:
 	var humanoids := get_nodes_in_group("humanoid_character")
 	var scavenging := get_nodes_in_group("scavenging_resource")
-	var nest_controller := _get_controller("nest_controller")
-	var nest_summary: Dictionary = nest_controller.call("get_debug_summary") if nest_controller != null and nest_controller.has_method("get_debug_summary") else {}
+	var nest_plugin := _get_controller("nest_world_sim_plugin")
+	var nest_summary: Dictionary = nest_plugin.call("get_debug_summary") if nest_plugin != null and nest_plugin.has_method("get_debug_summary") else {}
 	print("DEMO_WORLD_RUNTIME_FPS avg=%.2f min_chunk=%.2f max_chunk_usec=%d humanoids=%d scavenging=%d nests=%s" % [
 		float(result.get("avg_fps", 0.0)),
 		float(result.get("min_chunk_fps", 0.0)),

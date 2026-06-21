@@ -255,73 +255,43 @@ func _validate_faction_menu_ui(faction_controller: Node) -> void:
 
 
 func _validate_forced_raid_prompt() -> void:
-	var settlement_controller := _get_controller("settlement_controller")
 	var event_controller := _get_controller("world_event_choice_controller")
-	var world_squad_controller := _get_controller("world_squad_controller")
-	var world_time := _scene.get_node_or_null("GameBootstrap/WorldTimeController")
-	if settlement_controller == null or event_controller == null or world_squad_controller == null or world_time == null:
-		_fail("Controllers missing for forced raid prompt validation")
+	var faction_sim := _get_controller("faction_world_sim_controller")
+	var encounter_controller := _get_controller("encounter_controller")
+	var gecs := _get_controller("gecs_world_controller")
+	if event_controller == null or faction_sim == null or encounter_controller == null or gecs == null:
+		_fail("Controllers missing for forced raid world-sim validation")
 		return
-	var farmer_anchor: Node3D = settlement_controller.call("get_settlement_anchor", "farmer_crossing") as Node3D
-	var player := _scene.get_node_or_null("PartyMembers/Mira") as Node3D
-	if farmer_anchor == null or player == null:
-		_fail("Could not position player for forced raid prompt validation")
-		return
-	var prompt_position: Vector3 = farmer_anchor.call("get_spawn_position", "defense") if farmer_anchor.has_method("get_spawn_position") else farmer_anchor.global_position
-	player.global_position = prompt_position
-	var event_id := "raider_camp:farmer_crossing:%d" % int(world_time.call("get_absolute_hour"))
 	var event_count_before := int(event_controller.call("get_event_count"))
-	if not bool(settlement_controller.call("force_food_raid", "raider_camp", "farmer_crossing")):
-		_fail("Forced Raider raid request failed")
+	var result := str(faction_sim.call("force_demand_tribute_raid"))
+	if result.is_empty() or result.contains("not ready") or result.contains("No hostile target"):
+		_fail("Forced Raider world-sim raid request failed: %s" % result)
 		return
 	if int(event_controller.call("get_event_count")) != event_count_before:
-		_fail("Forced Raider raid should not create a world conflict event during travel")
+		_fail("Forced Raider raid should not create a local conflict event during travel")
 	if bool(event_controller.call("is_prompt_visible")):
-		_fail("Forced Raider raid should not show a prompt during travel")
-	var squad_id := _first_squad_id(world_squad_controller)
+		_fail("Forced Raider raid should not show a prompt during data travel")
+	var squad_id := _first_faction_squad_id(gecs)
 	if squad_id.is_empty():
-		_fail("Forced Raider raid did not create a world squad")
+		_fail("Forced Raider raid did not create a GECS world-sim squad")
 		return
-	var squad_state: Dictionary = world_squad_controller.call("get_squad_state", squad_id)
-	if str(squad_state.get("phase_id", "")) != "travel":
-		_fail("Forced Raider raid should start in travel phase")
-	if squad_state.get("operation_profile") == null:
-		_fail("Forced Raider raid should use an operation profile")
-	_validate_generated_raid_squad_members(world_squad_controller, squad_state)
-	world_squad_controller.call("debug_force_phase", squad_id, "planning")
-	if int(event_controller.call("get_event_count")) != event_count_before:
-		_fail("Forced Raider raid should not create a world conflict event during planning")
+	var squad_state := _world_sim_squad_record(gecs, squad_id)
+	if str(squad_state.get("objective", "")) != "attack" or not str(squad_state.get("phase", "")).is_empty():
+		_fail("Forced Raider raid should start as a travelling attack data squad")
+	if str(squad_state.get("target_settlement_id", "")) != "farmer_crossing":
+		_fail("Forced Raider raid should target Farmer Crossing")
+	if int(squad_state.get("member_count", 0)) <= 0:
+		_fail("Forced Raider raid should have squad members")
+	squad_state["phase"] = "demand"
+	squad_state["phase_timer"] = 0.0
+	squad_state["decision"] = ""
+	gecs.call("upsert_world_sim_squad", squad_state)
+	encounter_controller.call("_tick", 0.5)
+	squad_state = _world_sim_squad_record(gecs, squad_id)
+	if str(squad_state.get("phase", "")) != "demand" or str(squad_state.get("decision", "")).is_empty():
+		_fail("Forced Raider raid should enter demand encounter data phase")
 	if bool(event_controller.call("is_prompt_visible")):
-		_fail("Forced Raider raid should not show a help prompt during planning")
-	squad_state = world_squad_controller.call("get_squad_state", squad_id)
-	if str(squad_state.get("phase_id", "")) != "planning":
-		_fail("Forced Raider raid should enter planning phase before battle")
-	var leader := _node_from_path(str(squad_state.get("leader_actor_path", "")))
-	if leader == null or leader.get("conversation_definition") == null:
-		_fail("Planning Raider leader should expose a parley conversation")
-	else:
-		_validate_raider_parley_conversation(leader.get("conversation_definition") as Resource)
-	world_squad_controller.call("debug_force_phase", squad_id, "battle")
-	if int(event_controller.call("get_event_count")) <= event_count_before:
-		_fail("Forced Raider raid should create a world conflict event when battle starts")
-	var event = event_controller.call("get_event", event_id)
-	if event == null:
-		_fail("Forced Raider raid battle conflict event missing expected id")
-	else:
-		if str(event.side_a_faction_id) != "Raiders" or str(event.side_b_faction_id) != "Farmers":
-			_fail("Forced Raider raid battle conflict event has wrong factions")
-		if not bool(event.call("is_player_in_radius", _scene)):
-			_fail("Player should be in forced Raider raid battle prompt radius")
-	if not bool(event_controller.call("is_prompt_visible")):
-		_fail("Forced Raider raid did not show the local choice prompt in battle")
-	if not bool(world_time.call("is_world_paused")):
-		_fail("Forced Raider raid battle prompt did not pause the world")
-	if event_controller.has_method("debug_ignore_event"):
-		event_controller.call("debug_ignore_event", event_id)
-	if bool(event_controller.call("is_prompt_visible")):
-		_fail("Forced Raider raid prompt did not hide after debug ignore")
-	if bool(world_time.call("is_world_paused")):
-		_fail("Forced Raider raid prompt did not release world pause after ignore")
+		_fail("World-sim raid demand should not create an old modal prompt")
 
 
 func _validate_raider_parley_conversation(conversation: Resource) -> void:
@@ -352,20 +322,6 @@ func _validate_raider_parley_conversation(conversation: Resource) -> void:
 				_fail("Raider parley charisma check should use chance-based XP with scale 1.0")
 	if not found_skill_check:
 		_fail("Raider parley conversation missing charisma percent check")
-
-
-func _validate_generated_raid_squad_members(world_squad_controller: Node, squad_state: Dictionary) -> void:
-	var seen_names := {}
-	var paths: Array = squad_state.get("actor_paths", [])
-	if paths.is_empty():
-		_fail("Forced Raider raid should spawn squad actors")
-		return
-	for path in paths:
-		var actor := world_squad_controller.get_node_or_null(path) as HumanoidCharacter
-		if actor == null:
-			_fail("Forced Raider raid actor path could not be resolved")
-			continue
-		_validate_resident(actor, RAIDER_PROFILE, RAIDER_NAME_PROFILE, [RANGER_JERKIN, PEASANT_TUNIC], [RANGER_LEGGINGS, PEASANT_TROUSERS], [RANGER_BOOTS, PEASANT_SHOES], [RANGER_HOOD], IRON_SWORD, "Raider squad", seen_names)
 
 
 func _first_resident_at(path: String) -> HumanoidCharacter:
@@ -635,13 +591,22 @@ func _get_controller(group_name: String) -> Node:
 	return nodes[0] if not nodes.is_empty() else null
 
 
-func _first_squad_id(world_squad_controller: Node) -> String:
-	if world_squad_controller == null or not world_squad_controller.has_method("serialize_state"):
+func _first_faction_squad_id(gecs: Node) -> String:
+	if gecs == null or not gecs.has_method("get_world_sim_squads"):
 		return ""
-	var squads: Dictionary = world_squad_controller.call("serialize_state")
-	for squad_id in squads.keys():
-		return str(squad_id)
+	for record in gecs.call("get_world_sim_squads"):
+		if record is Dictionary and str(record.get("owner_kind", "")) == "faction":
+			return str(record.get("squad_id", ""))
 	return ""
+
+
+func _world_sim_squad_record(gecs: Node, squad_id: String) -> Dictionary:
+	if gecs == null or not gecs.has_method("get_world_sim_squads"):
+		return {}
+	for record in gecs.call("get_world_sim_squads"):
+		if record is Dictionary and str(record.get("squad_id", "")) == squad_id:
+			return (record as Dictionary).duplicate(true)
+	return {}
 
 
 func _node_from_path(path: String) -> Node:

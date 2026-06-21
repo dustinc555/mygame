@@ -542,14 +542,16 @@ func _get_active_combat_target() -> Node:
 	return null
 
 
-func _is_valid_combat_target(target: Node) -> bool:
+func _is_valid_combat_target(target) -> bool:
+	# Untyped param: a freed target (e.g. an enemy LOD-despawned mid-fight) passed to a
+	# typed param crashes at the call boundary; reject it here via is_instance_valid.
 	if target == null or not is_instance_valid(target) or not (target is Node3D):
 		return false
 	var target_life_state = target.get("life_state")
 	return target_life_state != null and int(target_life_state) == NpcRules.LifeState.ALIVE and not _is_actor_protected_from_combat(target)
 
 
-func _is_valid_active_combat_target(target: Node) -> bool:
+func _is_valid_active_combat_target(target) -> bool:
 	return _is_valid_combat_target(target) and has_hostility_with(target) and can_see_actor_for_combat(target)
 
 

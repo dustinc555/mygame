@@ -19,6 +19,12 @@ This is the single project guidance file for coding agents. Human-facing archite
 - Do not use the phrase "you're right" in user-facing replies. Acknowledge issues directly.
 - Do not frame production work as "good enough for now", "V1", "temporary", or "prototype" unless the user explicitly asks for a throwaway experiment. This project is the product. Implement features as durable, extensible game systems with professional-quality architecture, validation, and authoring workflows.
 
+## Dependency Graph Workflow
+- After any project file change, regenerate the architecture dependency graph before finishing: `cd architecture/dependency-graph && node extract_deps.js`.
+- Ensure the graph viewer is served at <http://localhost:3031>: `cd architecture/dependency-graph && node serve.js`.
+- If the viewer is already running, do not start a duplicate server.
+- If graph generation or serving fails, report it as a blocker.
+
 ## State And Persistence
 - Controllers/components own mutable runtime truth. Nodes and resources author data, bridge scene content, execute local behavior, and display state.
 - Use stable IDs for anything that may persist, serialize, replicate, or be referenced by other systems.

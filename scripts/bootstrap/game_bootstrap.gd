@@ -17,12 +17,12 @@ const FACTION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/faction_con
 const SETTLEMENT_CONTROLLER_SCRIPT = preload("res://scripts/controllers/settlement_controller.gd")
 const TERRITORY_CONTROLLER_SCRIPT = preload("res://scripts/controllers/territory_controller.gd")
 const ROAD_CONTROLLER_SCRIPT = preload("res://scripts/controllers/road_controller.gd")
-const SETTLEMENT_ACTIVITY_CONTROLLER_SCRIPT = preload("res://scripts/controllers/settlement_activity_controller.gd")
-const WORLD_SQUAD_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_squad_controller.gd")
+const WORLD_SIM_SQUAD_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_sim_squad_controller.gd")
+const FACTION_WORLD_SIM_CONTROLLER_SCRIPT = preload("res://scripts/controllers/faction_world_sim_controller.gd")
+const ENCOUNTER_CONTROLLER_SCRIPT = preload("res://scripts/controllers/encounter_controller.gd")
 const WORLD_EVENT_CHOICE_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_event_choice_controller.gd")
 const WORLD_SIMULATION_CONTROLLER_SCRIPT = preload("res://scripts/controllers/world_simulation_controller.gd")
 const LAW_ORDER_CONTROLLER_SCRIPT = preload("res://scripts/controllers/law_order_controller.gd")
-const NEST_CONTROLLER_SCRIPT = preload("res://scripts/controllers/nest_controller.gd")
 const GECS_WORLD_CONTROLLER_SCRIPT = preload("res://scripts/controllers/gecs_world_controller.gd")
 const ACTOR_QUERY_CONTROLLER_SCRIPT = preload("res://scripts/controllers/actor_query_controller.gd")
 const AI_SCHEDULER_CONTROLLER_SCRIPT = preload("res://scripts/controllers/ai_scheduler_controller.gd")
@@ -97,12 +97,12 @@ func _controller_specs() -> Array[Dictionary]:
 		{"name": "TerritoryController", "script": TERRITORY_CONTROLLER_SCRIPT},
 		{"name": "RoadController", "script": ROAD_CONTROLLER_SCRIPT},
 		{"name": "WorldEventChoiceController", "script": WORLD_EVENT_CHOICE_CONTROLLER_SCRIPT},
-		{"name": "WorldSquadController", "script": WORLD_SQUAD_CONTROLLER_SCRIPT},
+		{"name": "WorldSimSquadController", "script": WORLD_SIM_SQUAD_CONTROLLER_SCRIPT},
+		{"name": "FactionWorldSimController", "script": FACTION_WORLD_SIM_CONTROLLER_SCRIPT},
+		{"name": "EncounterController", "script": ENCOUNTER_CONTROLLER_SCRIPT},
 		{"name": "WorldSimulationController", "script": WORLD_SIMULATION_CONTROLLER_SCRIPT},
 		{"name": "LedgerSimulationController", "script": LEDGER_SIMULATION_CONTROLLER_SCRIPT},
 		{"name": "LawOrderController", "script": LAW_ORDER_CONTROLLER_SCRIPT},
-		{"name": "SettlementActivityController", "script": SETTLEMENT_ACTIVITY_CONTROLLER_SCRIPT},
-		{"name": "NestController", "script": NEST_CONTROLLER_SCRIPT},
 		{"name": "PartyInventoryController", "script": PARTY_INVENTORY_CONTROLLER_SCRIPT},
 		{"name": "HumanoidDetailsController", "script": HUMANOID_DETAILS_CONTROLLER_SCRIPT},
 		{"name": "CharacterAppearanceController", "script": CHARACTER_APPEARANCE_CONTROLLER_SCRIPT},

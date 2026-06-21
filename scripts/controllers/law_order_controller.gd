@@ -221,6 +221,9 @@ func report_crime(actor: WorldActor, faction_id: String, settlement_id: String, 
 	if witness != null and witness.has_method("show_world_speech"):
 		witness.show_world_speech(_crime_alarm_line(crime_type), 4.0)
 	_alert_authority_guards(actor, record)
+	var brain := _get_gecs_world()
+	if brain != null and brain.has_method("log_world_event"):
+		brain.log_world_event("law", "%s: %s sev=%d @ %s" % [actor_key, crime_type, int(crime_record["severity"]), settlement_id], record)
 	return record
 
 

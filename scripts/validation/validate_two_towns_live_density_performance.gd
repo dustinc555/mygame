@@ -12,6 +12,8 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_scene = TWO_TOWNS_SCENE.instantiate()
+	_set_actor_realization_policy("Settlements/FarmerCrossing", "full_town")
+	_set_actor_realization_policy("Settlements/RaiderCamp", "full_town")
 	root.add_child(_scene)
 	await _wait_frames(180)
 	_validate_dense_cluster_stays_live()
@@ -119,18 +121,14 @@ func _validate_query_performance_smoke() -> void:
 
 
 func _validate_budgeted_controllers() -> void:
-	var activity := _get_controller("settlement_activity_controller")
-	if activity == null:
-		_fail("SettlementActivityController missing for live density validation")
+	var realization := _get_controller("population_realization_controller")
+	if realization == null:
+		_fail("PopulationRealizationController missing for live density validation")
 	else:
-		if int(activity.get("resident_budget_per_tick")) <= 0 or int(activity.get("resident_budget_per_tick")) > 16:
-			_fail("SettlementActivityController should use a small resident assignment budget for dense live towns")
-		if float(activity.get("activity_point_cache_seconds")) <= 0.0:
-			_fail("SettlementActivityController should cache activity point discovery")
-	for town in get_nodes_in_group("settlement_town"):
-		if town != null and float(town.get("guard_assignment_interval_seconds")) < 0.1:
-			_fail("Settlement guard assignment should be throttled instead of per-frame")
-			break
+		if int(realization.get("spawner_budget_per_tick")) <= 0 or int(realization.get("spawner_budget_per_tick")) > 16:
+			_fail("Population realization should use a bounded spawner budget")
+		if float(realization.get("realization_resync_interval_seconds")) <= 0.0:
+			_fail("Population realization should be timer-driven instead of per-frame resync")
 
 
 func _validate_daily_growth_to_capacity() -> void:
@@ -160,7 +158,7 @@ func _validate_soft_cap_and_population_shrink() -> void:
 	var assigned := int(before.get("population_assigned", 0))
 	var resident_records_before := _count_generated_records("farmer_crossing", "npc.farmer_crossing", "resident")
 	settlement_controller.call("set_population_total", "farmer_crossing", target + 5, "validation_over_capacity")
-	await _wait_frames(30)
+	await _wait_frames(90)
 	var over_state: Dictionary = settlement_controller.call("get_settlement_state", "farmer_crossing")
 	if int(over_state.get("population", 0)) != target + 5:
 		_fail("Building capacity should be a soft max; over-capacity population should not be clamped down")
@@ -168,7 +166,7 @@ func _validate_soft_cap_and_population_shrink() -> void:
 	if resident_records_over > resident_records_before:
 		_fail("Over-capacity towns should not auto-generate additional resident records; before=%d after=%d" % [resident_records_before, resident_records_over])
 	settlement_controller.call("set_population_total", "farmer_crossing", assigned, "validation_population_drop")
-	await _wait_frames(30)
+	await _wait_frames(120)
 	var resident_records_after_drop := _count_generated_records("farmer_crossing", "npc.farmer_crossing", "resident")
 	if resident_records_after_drop != 0:
 		_fail("Generated resident records should shrink when available population drops to zero; actual=%d" % resident_records_after_drop)
@@ -180,6 +178,12 @@ func _validate_soft_cap_and_population_shrink() -> void:
 func _get_controller(group_name: String) -> Node:
 	var nodes := get_nodes_in_group(group_name)
 	return nodes[0] as Node if not nodes.is_empty() else null
+
+
+func _set_actor_realization_policy(path: NodePath, policy: String) -> void:
+	var town := _scene.get_node_or_null(path)
+	if town != null:
+		town.set("actor_realization_policy", policy)
 
 
 func _count_root_town_guards(town: Node) -> int:

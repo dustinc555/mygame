@@ -6,18 +6,30 @@ const POLICY_FULL_TOWN := "full_town"
 const POLICY_IMPORTANT_PLUS_NEAR := "important_plus_near"
 const POLICY_NEAR_PLAYER := "near_player"
 
-@export var default_realization_policy := POLICY_FULL_TOWN
-@export var near_player_radius := 55.0
+## Off-screen NPCs stay as cheap ledger records (sim layer), NOT live GECS actors. Only
+## actors near the player (plus flagged-important ones) become full bodies the per-frame
+## GECS systems process — so cost scales with the player's surroundings, not world size.
+## This is the LOD reaching the SIM layer, not just hiding/freezing bodies.
+@export var default_realization_policy := POLICY_NEAR_PLAYER
+@export var near_player_radius := 120.0
 @export var realization_resync_interval_seconds := 1.0
+@export_range(1, 16, 1) var spawner_budget_per_tick := 2
+## A realized actor stays realized until a bit past the radius, so pacing the boundary
+## doesn't thrash spawn/despawn (the record is cached either way — same person re-appears).
+const REALIZATION_HYSTERESIS := 25.0
 
 var root_scene: Node
 var _resync_remaining := 0.0
 var _initialized := false
+var _spawners: Array[Node] = []
+var _spawner_cursor := 0
+var _spawner_near_by_id: Dictionary = {}
 
 
 func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
 	root_scene = target_root
 	_initialized = true
+	_collect_spawners_once()
 	refresh_from_gecs_state()
 	sync_population_realization_state()
 
@@ -25,6 +37,7 @@ func initialize(target_root: Node, _target_hud: CanvasLayer = null) -> void:
 func _ready() -> void:
 	add_to_group("population_realization_controller")
 	_initialized = true
+	_collect_spawners_once()
 	refresh_from_gecs_state()
 	sync_population_realization_state()
 
@@ -37,6 +50,22 @@ func _process(delta: float) -> void:
 		return
 	_resync_remaining = maxf(realization_resync_interval_seconds, 0.1)
 	_resync_population_spawners()
+
+
+func register_spawner(spawner: Node) -> void:
+	if spawner == null or not is_instance_valid(spawner):
+		return
+	if _spawners.has(spawner):
+		return
+	_spawners.append(spawner)
+
+
+func unregister_spawner(spawner: Node) -> void:
+	var index := _spawners.find(spawner)
+	if index >= 0:
+		_spawners.remove_at(index)
+	if spawner != null:
+		_spawner_near_by_id.erase(spawner.get_instance_id())
 
 
 func should_realize_actor(settlement: Node, actor_record: Dictionary, policy := "") -> bool:
@@ -92,14 +121,84 @@ func _current_population_realization_state() -> Dictionary:
 
 
 func _resync_population_spawners() -> void:
+	if _spawners.is_empty():
+		_collect_spawners_once()
+	if _spawners.is_empty():
+		return
+	var reference := _realization_reference_position()
+	var budget: int = mini(maxi(1, int(spawner_budget_per_tick)), _spawners.size())
+	var processed := 0
+	while processed < budget and not _spawners.is_empty():
+		var spawner := _next_spawner()
+		if spawner == null:
+			break
+		_update_spawner_lod(spawner, reference)
+		processed += 1
+
+
+func _collect_spawners_once() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
 	for spawner in tree.get_nodes_in_group("population_spawner"):
-		if spawner != null and spawner.has_method("needs_population_realization_resync") and not bool(spawner.call("needs_population_realization_resync")):
-			continue
-		if spawner != null and spawner.has_method("resync_population_realization"):
+		register_spawner(spawner as Node)
+
+
+func _next_spawner() -> Node:
+	var checked := 0
+	while checked < _spawners.size():
+		if _spawner_cursor >= _spawners.size():
+			_spawner_cursor = 0
+		var spawner := _spawners[_spawner_cursor]
+		_spawner_cursor += 1
+		checked += 1
+		if spawner != null and is_instance_valid(spawner) and spawner.is_inside_tree():
+			return spawner
+		_spawners.remove_at(_spawner_cursor - 1)
+		_spawner_cursor = maxi(0, _spawner_cursor - 1)
+	return null
+
+
+func _update_spawner_lod(spawner: Node, reference: Vector3) -> void:
+	var policy := _spawner_policy(spawner)
+	var key := spawner.get_instance_id()
+	var was_near := bool(_spawner_near_by_id.get(key, false))
+	var near := policy == POLICY_FULL_TOWN or _is_spawner_near(spawner, reference, was_near)
+	_set_spawner_settlement_active(spawner, near)
+	var dirty := bool(spawner.call("needs_population_realization_resync")) if spawner.has_method("needs_population_realization_resync") else true
+	if near != was_near or dirty:
+		if spawner.has_method("resync_population_realization"):
 			spawner.call("resync_population_realization")
+		if spawner.has_method("clear_population_realization_dirty"):
+			spawner.call("clear_population_realization_dirty")
+	_spawner_near_by_id[key] = near
+
+
+func _spawner_policy(spawner: Node) -> String:
+	if spawner != null and spawner.has_method("get_effective_realization_policy"):
+		return str(spawner.call("get_effective_realization_policy"))
+	return default_realization_policy
+
+
+func _is_spawner_near(spawner: Node, reference: Vector3, was_near: bool) -> bool:
+	if reference == Vector3.INF or not (spawner is Node3D):
+		return false
+	var threshold := near_player_radius + (REALIZATION_HYSTERESIS if was_near else 0.0)
+	var origin := (spawner as Node3D).global_position
+	if spawner.has_method("get_realization_origin"):
+		var value = spawner.call("get_realization_origin")
+		if value is Vector3:
+			origin = value
+	return reference.distance_to(origin) <= threshold
+
+
+func _set_spawner_settlement_active(spawner: Node, active: bool) -> void:
+	if spawner == null or not spawner.has_method("get_settlement_node"):
+		return
+	var settlement := spawner.call("get_settlement_node") as Node
+	if settlement == null or not is_instance_valid(settlement):
+		return
+	settlement.process_mode = Node.PROCESS_MODE_INHERIT if active else Node.PROCESS_MODE_DISABLED
 
 
 func _policy_for_settlement(settlement: Node) -> String:
@@ -122,18 +221,23 @@ func _is_record_near_player(actor_record: Dictionary) -> bool:
 	if not (position is Vector3):
 		return false
 	var reference_position: Vector3 = _realization_reference_position()
-	if reference_position is Vector3 and reference_position.distance_to(position) <= near_player_radius:
-		return true
-	return false
+	if not (reference_position is Vector3):
+		return false
+	# Hysteresis: already-realized actors hold on a bit past the radius so walking the
+	# town edge doesn't churn spawn/despawn.
+	var threshold := near_player_radius
+	if str(actor_record.get("realization_state", "ledger")) == "realized":
+		threshold += REALIZATION_HYSTERESIS
+	return reference_position.distance_to(position) <= threshold
 
 
 func _realization_reference_position() -> Vector3:
-	var camera := _get_player_camera()
-	if camera is Camera3D:
-		return camera.global_position
 	for member in _party_members():
 		if member is Node3D:
 			return member.global_position
+	var camera := _get_player_camera()
+	if camera is Camera3D:
+		return camera.global_position
 	return Vector3.INF
 
 

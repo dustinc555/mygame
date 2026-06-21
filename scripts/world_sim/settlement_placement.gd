@@ -6,7 +6,7 @@ class_name SettlementPlacement
 @export var settlement_definition: Resource
 @export var town_scene: PackedScene
 @export var world_transform: Transform3D = Transform3D.IDENTITY
-@export_enum("full_town", "important_plus_near", "near_player") var realization_policy := "full_town"
+@export_enum("full_town", "important_plus_near", "near_player") var realization_policy := "near_player"
 @export var road_connection_ids: PackedStringArray = PackedStringArray()
 
 

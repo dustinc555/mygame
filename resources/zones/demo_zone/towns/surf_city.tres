@@ -10,4 +10,5 @@ placement_id = "surf_city"
 settlement_definition = ExtResource("2_settlement")
 town_scene = ExtResource("3_town")
 world_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -360, 0, 0)
+realization_policy = "near_player"
 road_connection_ids = PackedStringArray("surf_city_gate")

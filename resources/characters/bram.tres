@@ -1,0 +1,64 @@
+[gd_resource type="Resource" script_class="CharacterRecordDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_sim/character_record_definition.gd" id="1_1d0xu"]
+
+[resource]
+script = ExtResource("1_1d0xu")
+actor_id = "bram"
+member_name = "Bram"
+appearance = {
+"arm_length_slider": 0.06,
+"beard_color": Color(0.06, 0.04, 0.03, 1),
+"beard_style": "res://resources/character_appearance/beard_full.tres",
+"body_archetype": "res://resources/character_body_archetypes/human_male.tres",
+"character_race": "res://resources/character_races/human.tres",
+"eyebrow_color": Color(0.05, 0.035, 0.025, 1),
+"eyebrow_style": "res://resources/character_appearance/eyebrows_regular.tres",
+"hair_color": Color(0.06, 0.04, 0.03, 1),
+"hair_style": "res://resources/character_appearance/hair_buzzed.tres",
+"height_slider": 0.02,
+"neck_length_slider": -0.01,
+"shoulder_width_slider": 0.12,
+"skin_color": Color(0.49, 0.31, 0.22, 1),
+"skin_color_customized": true,
+"visual_body_type": 2.0
+}
+skill_levels = {
+"attribute.charisma": 50.0,
+"attribute.dexterity": 46.0,
+"attribute.endurance": 54.0,
+"attribute.perception": 47.0,
+"attribute.strength": 55.0,
+"attribute.toughness": 58.0,
+"combat.axes_one_handed": 55.0,
+"combat.daggers": 39.0,
+"combat.shields": 34.0,
+"combat.swords_one_handed": 38.0,
+"combat.unarmed": 44.0,
+"craft.blacksmithing": 50.0,
+"craft.leatherworking": 41.0,
+"craft.weaving": 35.0,
+"knowledge.archeology": 32.0,
+"knowledge.medicine": 34.0,
+"labor.construction": 58.0,
+"labor.farming": 43.0,
+"labor.fishing": 37.0,
+"labor.mining": 52.0,
+"labor.scavenging": 53.0,
+"movement.running": 45.0,
+"subterfuge.lockpicking": 38.0,
+"subterfuge.sleight_of_hand": 36.0,
+"subterfuge.sneaking": 42.0,
+"tech.robotics": 31.0
+}
+equipment_slots = {
+"chest": "res://resources/items/noble_doublet.tres",
+"feet": "res://resources/items/noble_shoes.tres",
+"hands": "res://resources/items/noble_sleeves.tres",
+"legs": "res://resources/items/noble_trousers.tres",
+"weapon": "res://resources/items/hatchet.tres"
+}
+personality = {
+"risk_tolerance": 0.4,
+"temperament": "warm"
+}

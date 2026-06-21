@@ -32,6 +32,7 @@ var _used_population_names: Dictionary = {}
 var _default_population_name_profile: Resource
 var _population_spawn_defer_attempts := 0
 var _resyncing_population := false
+var _realization_dirty := true
 
 
 func _ready() -> void:
@@ -44,7 +45,12 @@ func _ready() -> void:
 	else:
 		_collect_existing_population_names()
 	_apply_default_skills_to_existing_residents()
+	call_deferred("_register_with_realization_controller")
 	call_deferred("_spawn_missing_residents")
+
+
+func _exit_tree() -> void:
+	_unregister_from_realization_controller()
 
 
 func resync_population_realization() -> void:
@@ -56,6 +62,7 @@ func resync_population_realization() -> void:
 	_resyncing_population = true
 	_spawn_missing_residents_from_records(population_controller)
 	_resyncing_population = false
+	_realization_dirty = false
 
 
 func get_settlement_id() -> String:
@@ -63,7 +70,32 @@ func get_settlement_id() -> String:
 
 
 func needs_population_realization_resync() -> bool:
-	return _get_effective_realization_policy() != "full_town"
+	return _realization_dirty
+
+
+func mark_population_realization_dirty() -> void:
+	_realization_dirty = true
+
+
+func clear_population_realization_dirty() -> void:
+	_realization_dirty = false
+
+
+func get_effective_realization_policy() -> String:
+	return _get_effective_realization_policy()
+
+
+func get_settlement_node() -> Node:
+	return _get_settlement_node()
+
+
+func get_realization_origin() -> Vector3:
+	var settlement := _get_settlement_node()
+	return (settlement as Node3D).global_position if settlement is Node3D else global_position
+
+
+func has_realized_population() -> bool:
+	return _count_existing_residents() > 0
 
 
 func _spawn_missing_residents() -> void:
@@ -143,7 +175,9 @@ func _spawn_missing_residents_from_records(population_controller: Node) -> void:
 		add_child(actor)
 		population_controller.call("register_actor", actor, _get_settlement_id(), {"generation_source": _get_spawner_id(), "generation_index": resident_index})
 		spawned_count += 1
-	_notify_settlement_population_ready()
+	if _count_existing_residents() > 0:
+		_notify_settlement_population_ready()
+	_realization_dirty = false
 
 
 func _register_existing_residents_with_population_controller(population_controller: Node) -> void:
@@ -174,7 +208,7 @@ func _build_population_generation_context(_existing_count: int) -> Dictionary:
 func _should_realize_record(record: Dictionary) -> bool:
 	var realization_controller := _get_population_realization_controller()
 	if realization_controller == null or not realization_controller.has_method("should_realize_actor"):
-		return true
+		return _get_effective_realization_policy() == "full_town"
 	return bool(realization_controller.call("should_realize_actor", _get_settlement_node(), record))
 
 
@@ -189,7 +223,19 @@ func _get_effective_realization_policy() -> String:
 		var default_policy = realization_controller.get("default_realization_policy")
 		if default_policy != null and not str(default_policy).strip_edges().is_empty():
 			return str(default_policy).strip_edges()
-	return "full_town"
+	return "near_player"
+
+
+func _register_with_realization_controller() -> void:
+	var realization_controller := _get_population_realization_controller()
+	if realization_controller != null and realization_controller.has_method("register_spawner"):
+		realization_controller.call("register_spawner", self)
+
+
+func _unregister_from_realization_controller() -> void:
+	var realization_controller := _get_population_realization_controller()
+	if realization_controller != null and realization_controller.has_method("unregister_spawner"):
+		realization_controller.call("unregister_spawner", self)
 
 
 func _find_child_actor_for_record(record: Dictionary) -> Node:
@@ -208,12 +254,6 @@ func _find_child_actor_for_record(record: Dictionary) -> Node:
 			return child
 		if child.has_meta("actor_record_id") and str(child.get_meta("actor_record_id")) == actor_id:
 			return child
-	if is_inside_tree():
-		for actor in get_tree().get_nodes_in_group("humanoid_character"):
-			if str(actor.get("stable_id")) == actor_id:
-				return actor as Node
-			if actor.has_meta("actor_record_id") and str(actor.get_meta("actor_record_id")) == actor_id:
-				return actor as Node
 	return null
 
 
@@ -448,7 +488,7 @@ func _get_population_realization_controller() -> Node:
 
 func _staff_bootstrap_realization_ids(records: Array) -> Dictionary:
 	var forced := {}
-	if _get_effective_realization_policy() == "full_town":
+	if _get_effective_realization_policy() != "important_plus_near":
 		return forced
 	var settlement_controller := _get_settlement_controller()
 	if settlement_controller == null or not settlement_controller.has_method("get_staff_vacancy_realization_count"):

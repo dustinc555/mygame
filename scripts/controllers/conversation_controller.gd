@@ -10,7 +10,6 @@ var hud_layer: CanvasLayer
 var inventory_controller
 var appearance_controller
 var faction_controller: Node
-var world_squad_controller: Node
 var world_time: Node
 var party_manager
 var floating_notice
@@ -53,7 +52,6 @@ func _do_initialize() -> void:
 	inventory_controller = get_parent().get_node_or_null("PartyInventoryController")
 	appearance_controller = get_parent().get_node_or_null("CharacterAppearanceController")
 	faction_controller = get_parent().get_node_or_null("FactionController")
-	world_squad_controller = get_parent().get_node_or_null("WorldSquadController")
 	world_time = get_parent().get_node_or_null("WorldTimeController")
 	conversation_window = hud_layer.get_node_or_null("ConversationWindow")
 	floating_notice = hud_layer.get_node_or_null("FloatingNotice")
@@ -357,14 +355,6 @@ func _execute_action(effect) -> void:
 			var faction_actor = _resolve_subject(effect.parameters.get("subject", "conversation_target"))
 			if faction_actor != null:
 				faction_actor.faction_name = str(effect.parameters.get("faction_name", faction_actor.faction_name))
-		"world_squad.cancel_operation":
-			if world_squad_controller != null and world_squad_controller.has_method("cancel_operation"):
-				var cancel_squad_id := _resolve_squad_id(effect.parameters.get("squad_id", "conversation_target"))
-				world_squad_controller.call("cancel_operation", cancel_squad_id, str(effect.parameters.get("reason", "conversation")))
-		"world_squad.start_battle":
-			if world_squad_controller != null and world_squad_controller.has_method("start_battle"):
-				var battle_squad_id := _resolve_squad_id(effect.parameters.get("squad_id", "conversation_target"))
-				world_squad_controller.call("start_battle", battle_squad_id)
 		"faction.apply_helped_faction_result":
 			if faction_controller != null and faction_controller.has_method("apply_helped_faction_result"):
 				faction_controller.call(

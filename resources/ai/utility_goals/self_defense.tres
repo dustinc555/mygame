@@ -37,7 +37,6 @@ inertia_bonus = 0.08
 switch_threshold = 0.08
 emergency = true
 executor_key = &"combat"
-allowed_lod_tiers = null
 target_selector_id = &"combat_target"
 requires_target = true
 considerations = Array[Resource]([SubResource("Consideration_threat"), SubResource("Consideration_can_self_defend"), SubResource("Consideration_no_player_order")])

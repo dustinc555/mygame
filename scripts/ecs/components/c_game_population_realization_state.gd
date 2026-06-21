@@ -3,8 +3,8 @@ extends "res://addons/gecs/ecs/component.gd"
 class_name CGamePopulationRealizationState
 
 @export var state_id := "population_realization"
-@export var default_realization_policy := "full_town"
-@export var near_player_radius := 55.0
+@export var default_realization_policy := "near_player"
+@export var near_player_radius := 120.0
 @export var realization_resync_interval_seconds := 1.0
 
 
