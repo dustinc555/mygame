@@ -22,7 +22,9 @@
   .ghost { background: #1d2230; border: 1px solid #2a2f3a; color: #c4cad6; padding: 7px 11px; border-radius: 8px; cursor: pointer; font-size: 12px; }
   .ghost:hover { background: #262c3a; }
   #wrap { display: flex; height: calc(100% - var(--bar)); }
-  #chart { flex: 1; height: 100%; }
+  #chart { flex: 1; height: 100%; cursor: grab; }
+  #chart canvas { cursor: grab !important; }
+  #chart.dragging, #chart.dragging canvas { cursor: grabbing !important; }
   #side { width: 340px; background: #12151b; border-left: 1px solid #2a2f3a; overflow-y: auto; padding: 12px 14px; font-size: 12.5px; }
   #side.hidden { display: none; }
   #side h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #8b93a3; margin: 16px 0 7px; }
@@ -67,7 +69,26 @@
 
   const edgeColor = e => e.violation ? '#ff5c5c' : e.cycle ? '#ff9a3b' : 'rgba(120,130,150,.28)';
   const edgeWidth = e => e.violation ? 2.6 : e.cycle ? 1.8 : Math.min(0.6 + e.w*0.25, 2);
+  const systemAnchors = {
+    LedgerSimulationController: {badge:'WORLD O(1)', color:'#3ddcff', shadow:'rgba(61,220,255,.72)', boost:18, fontSize:12},
+    GecsWorldController: {badge:'LIVE O(n)', color:'#b07cff', shadow:'rgba(176,124,255,.72)', boost:18, fontSize:12},
+    PopulationRealizationController: {badge:'LEDGER ↔ LIVE', color:'#4df0a1', shadow:'rgba(77,240,161,.55)', boost:10, fontSize:11}
+  };
   function nodeBorder(n){ if(n.status==='new') return {borderColor:'#3fcf6a',borderWidth:2.6}; if(n.status==='modified') return {borderColor:'#f0b429',borderWidth:2.6}; if(n.tick) return {borderColor:'#ffd24a',borderWidth:2}; if(n.cycle) return {borderColor:'#ff9a3b',borderWidth:1.6}; return {}; }
+  function systemAnchor(n){ return systemAnchors[n.id] || null; }
+  function nodeSize(n){ const a=systemAnchor(n); return 7+Math.min(n.in*1.5,38)+(a?a.boost:0); }
+  function nodeStyle(n){
+    const style = Object.assign({color:colorOf[n.layer]}, nodeBorder(n));
+    const a = systemAnchor(n);
+    if(a) Object.assign(style, {borderColor:a.color, borderWidth:4, shadowBlur:22, shadowColor:a.shadow});
+    return style;
+  }
+  function nodeLabel(n){
+    const a = systemAnchor(n);
+    return a
+      ? {show:true, formatter:`${a.badge}\n{b}`, color:'#f8fbff', fontSize:a.fontSize, fontWeight:800, lineHeight:14, textBorderColor:'#0f1115', textBorderWidth:4}
+      : {show:true};
+  }
 
   function keepSet(predNodes){
     const keep = new Set(predNodes);
@@ -92,15 +113,14 @@
           ? `${p.data.source} <span style="color:#7d8595">→</span> ${p.data.target}`+(p.data.violation?'<br><span style="color:#ff6b6b">truth-rule violation</span>':p.data.cycle?'<br><span style="color:#ffac5e">in a cycle</span>':'')
           : `<b>${p.data.name}</b><br><span style="color:#9aa3b2">${p.data.layer}</span><br><span style="color:#7d8595">${p.data.in} depend on it · it uses ${p.data.out}</span>`+(p.data.tick?'<br><span style="color:#ffd24a">self-tick violator</span>':'')+(p.data.status?'<br><span style="color:'+(p.data.status==='new'?'#3fcf6a':'#f0b429')+'">'+p.data.status+' (working tree)</span>':'') },
       series:[{
-        type:'graph', layout:'force', roam:true, draggable:true,
+        id:'deps', type:'graph', layout:'force', roam:false, draggable:false,
         categories: G.layers.map(l=>({name:l.name, itemStyle:{color:l.color}})),
         data: nodes.map(n=>({ name:n.id, category:layerIdx[n.layer], layer:n.layer, in:n.in, out:n.out, tick:n.tick, status:n.status,
-          symbolSize: 7+Math.min(n.in*1.5,38), itemStyle: Object.assign({color:colorOf[n.layer]}, nodeBorder(n)),
-          label:{show:n.in>=8} })),
+          symbolSize: nodeSize(n), itemStyle: nodeStyle(n), label:nodeLabel(n) })),
         links: links.map(e=>({ source:e.source, target:e.target, violation:e.violation, cycle:e.cycle,
           lineStyle:{color:edgeColor(e), width:edgeWidth(e), curveness:0.12, opacity:e.violation||e.cycle?0.95:0.5} })),
         edgeSymbol:['none','arrow'], edgeSymbolSize:5,
-        force:{repulsion:130, edgeLength:90, gravity:0.06, friction:0.2},
+        force:{repulsion:360, edgeLength:165, gravity:0.035, friction:0.22},
         label:{position:'right', color:'#cdd3df', fontSize:10, formatter:'{b}'},
         emphasis:{focus:'adjacency', label:{show:true}, lineStyle:{opacity:1}},
         scaleLimit:{min:0.3, max:6}
@@ -113,7 +133,7 @@
     return { backgroundColor:'transparent',
       tooltip:{backgroundColor:'#171a21',borderColor:'#2a2f3a',textStyle:{color:'#e7e9ee'},
         formatter:p=> p.dataType==='edge'?`${p.data.source} → ${p.data.target}<br><b>${p.data.value}</b> dependencies`+(p.data.violation?'<br><span style="color:#ff6b6b">violates GECS=truth</span>':''):`<b>${p.data.name}</b>`},
-      series:[{ type:'graph', layout:'circular', circular:{rotateLabel:true}, roam:true, draggable:true,
+      series:[{ id:'layers', type:'graph', layout:'circular', circular:{rotateLabel:true}, roam:false, draggable:false,
         data:G.layers.map(l=>({name:l.name, symbolSize:14+Math.sqrt(deg[l.name]||1)*3.2, itemStyle:{color:l.color}})),
         links:G.layerLinks.map(e=>({source:e.source,target:e.target,value:e.w,violation:e.violation,
           lineStyle:{color:e.violation?'#ff5c5c':'rgba(140,150,170,.45)', width:Math.sqrt(e.w)*1.4, curveness:0.22, opacity:0.8},
@@ -122,6 +142,37 @@
         lineStyle:{opacity:0.7}, emphasis:{focus:'adjacency'} }] };
   }
   function render(){ chart.setOption(mode==='graph'?graphOption():layerOption(), true); }
+  function activeSeriesId(){ return mode==='graph' ? 'deps' : 'layers'; }
+  const chartEl = document.getElementById('chart');
+  const canvasPan = {active:false,lastX:0,lastY:0};
+  function endCanvasPan(){ canvasPan.active=false; chartEl.classList.remove('dragging'); }
+  chart.getZr().on('mousedown', e=>{
+    const raw = e.event || {};
+    if(raw.button != null && raw.button !== 0) return;
+    canvasPan.active = true;
+    canvasPan.lastX = e.offsetX;
+    canvasPan.lastY = e.offsetY;
+    chartEl.classList.add('dragging');
+    raw.preventDefault && raw.preventDefault();
+  });
+  chart.getZr().on('mousemove', e=>{
+    if(!canvasPan.active) return;
+    const dx = e.offsetX - canvasPan.lastX;
+    const dy = e.offsetY - canvasPan.lastY;
+    if(dx || dy){
+      chart.dispatchAction({type:'graphRoam', seriesId:activeSeriesId(), dx, dy});
+      canvasPan.lastX = e.offsetX;
+      canvasPan.lastY = e.offsetY;
+    }
+  });
+  chart.getZr().on('mouseup', endCanvasPan);
+  chart.getZr().on('globalout', endCanvasPan);
+  chartEl.addEventListener('wheel', e=>{
+    e.preventDefault();
+    const rect = chartEl.getBoundingClientRect();
+    const scale = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    chart.dispatchAction({type:'graphRoam', seriesId:activeSeriesId(), zoom:scale, originX:e.clientX-rect.left, originY:e.clientY-rect.top});
+  }, {passive:false});
   function esc(value){
     return String(value).replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
@@ -135,6 +186,8 @@
       chg.new.map(id=>`<div class="row" data-focus="${esc(id)}"><span class="new">＋</span><span class="nm">${esc(id)}</span></div>`).join('')+
       chg.modified.map(id=>`<div class="row" data-focus="${esc(id)}"><span class="mod">~</span><span class="nm">${esc(id)}</span></div>`).join('')+
       `<h2>Overview</h2><p class="note">${i.totals.nodes} scripts · ${i.totals.edges} dependencies. Color = layer. Node size = how many depend on it.</p>`+
+      `<h2>System anchors</h2><p class="note"><span style="color:#3ddcff">WORLD O(1)</span> = ledger/world sim. <span style="color:#b07cff">LIVE O(n)</span> = realized/live sim. <span style="color:#4df0a1">LEDGER ↔ LIVE</span> = realization seam.</p>`+
+      Object.keys(systemAnchors).map(id=>`<div class="row" data-focus="${esc(id)}"><span class="nm" style="color:${esc(systemAnchors[id].color)}">${esc(systemAnchors[id].badge)}</span><span class="ly">${esc(id)}</span></div>`).join('')+
       `<h2 class="viol">Truth-rule violations (${i.violations.length})</h2><p class="note">GECS reads components, not live nodes. These reach into <code>WorldActor</code>.</p>`+
       i.violations.map(v=>`<div class="row"><span class="nm viol">${esc(v.s)}</span><span class="ly">→ ${esc(v.t)}</span></div>`).join('')+
       `<h2 class="tick">Self-tick violators (${i.tick.length})</h2><p class="note">Durable work on <code>_process</code> every frame — not LOD-gated, not on world-sim cadence.</p>`+

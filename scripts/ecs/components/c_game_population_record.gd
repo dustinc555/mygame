@@ -11,6 +11,9 @@ class_name CGamePopulationRecord
 @export var faction_id := ""
 @export var squad_name := ""
 @export var role_id := "resident"
+## When this record is assigned to a settlement staff slot, the slot id is stored here so the
+## assignment is ledger truth (survives LOD) and the record is excluded from the resident pool.
+@export var assigned_slot_id := ""
 @export var hostile_faction_ids: PackedStringArray = PackedStringArray()
 @export var combat_stance := 0
 @export var auto_heal_enabled := false
@@ -59,6 +62,7 @@ func apply_record(source: Dictionary) -> void:
 	faction_id = str(source.get("faction_id", faction_id))
 	squad_name = str(source.get("squad_name", squad_name))
 	role_id = str(source.get("role_id", role_id))
+	assigned_slot_id = str(source.get("assigned_slot_id", assigned_slot_id))
 	hostile_faction_ids = PackedStringArray(source.get("hostile_faction_ids", hostile_faction_ids))
 	combat_stance = int(source.get("combat_stance", combat_stance))
 	auto_heal_enabled = bool(source.get("auto_heal_enabled", auto_heal_enabled))
@@ -108,6 +112,7 @@ func to_record() -> Dictionary:
 		"faction_id": faction_id,
 		"squad_name": squad_name,
 		"role_id": role_id,
+		"assigned_slot_id": assigned_slot_id,
 		"hostile_faction_ids": Array(hostile_faction_ids),
 		"combat_stance": combat_stance,
 		"auto_heal_enabled": auto_heal_enabled,
