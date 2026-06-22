@@ -172,13 +172,28 @@ func fill_settlement_staff_slot(slot_id: String, slot_record: Dictionary) -> Nod
 	var guards_root := _ensure_child_root(guards_root_path)
 	if guards_root == null:
 		return null
-	var actor := _claim_available_resident_for_guard(role_index, guards_root)
-	if actor == null:
-		if _should_defer_guards_to_settlement_population():
-			return null
-		actor = _create_guard_actor(role_index, guards_root)
+	var worker_actor_id := str(slot_record.get("worker_actor_id", "")).strip_edges()
+	var actor: Node = null
+	if not worker_actor_id.is_empty():
+		# Ledger-assigned worker: claim its specific live body if realized, else build from record.
+		actor = SettlementFacility.resolve_live_worker(self, worker_actor_id)
+		if actor != null:
+			# Claimed an existing live resident body — rename it to the role node name (the build
+			# path already names its node; the claim path must match so lookups resolve the slot).
+			actor.name = _available_child_name(guards_root, _indexed_name("Guard", role_index))
+			_prepare_guard_actor(actor, role_index)
+		else:
+			actor = _create_guard_actor(role_index, guards_root)
+		if actor != null:
+			SettlementFacility.adopt_staff_record(actor, worker_actor_id, slot_id, guards_root)
 	else:
-		_prepare_guard_actor(actor, role_index)
+		actor = _claim_available_resident_for_guard(role_index, guards_root)
+		if actor == null:
+			if _should_defer_guards_to_settlement_population():
+				return null
+			actor = _create_guard_actor(role_index, guards_root)
+		else:
+			_prepare_guard_actor(actor, role_index)
 	return actor
 
 

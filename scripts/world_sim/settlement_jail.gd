@@ -147,13 +147,25 @@ func fill_settlement_staff_slot(slot_id: String, slot_record: Dictionary) -> Nod
 	var staff_root := _ensure_root(staff_root_path)
 	if staff_root == null:
 		return null
-	var actor := _claim_available_resident_for_role(role, role_index, staff_root)
-	if actor == null:
-		if _should_defer_staff_to_settlement_population():
-			return null
-		actor = _create_staff_actor(role, role_index, staff_root)
+	var worker_actor_id := str(slot_record.get("worker_actor_id", "")).strip_edges()
+	var actor: Node = null
+	if not worker_actor_id.is_empty():
+		# Ledger-assigned worker: claim its specific live body if realized, else build from record.
+		actor = SettlementFacility.resolve_live_worker(self, worker_actor_id)
+		if actor != null:
+			_prepare_staff_actor(actor, role, role_index, true)
+		else:
+			actor = _create_staff_actor(role, role_index, staff_root)
+		if actor != null:
+			SettlementFacility.adopt_staff_record(actor, worker_actor_id, slot_id, staff_root)
 	else:
-		_prepare_staff_actor(actor, role, role_index, true)
+		actor = _claim_available_resident_for_role(role, role_index, staff_root)
+		if actor == null:
+			if _should_defer_staff_to_settlement_population():
+				return null
+			actor = _create_staff_actor(role, role_index, staff_root)
+		else:
+			_prepare_staff_actor(actor, role, role_index, true)
 	return actor
 
 

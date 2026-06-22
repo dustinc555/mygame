@@ -342,7 +342,7 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 	_register_anchor_facilities(settlement_id, anchor)
 	_sync_settlement_staff_slots(settlement_id)
 	_apply_population_from_occupancy(settlement_id)
-	_process_staff_vacancies(settlement_id, true)
+	_assign_staff_from_ledger(settlement_id, true)
 	call_deferred("_bootstrap_staff_vacancies", settlement_id)
 	_update_pressure_state(settlement_id)
 	_notify_state_changed(settlement_id)
@@ -351,15 +351,18 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 func _on_hour_changed(absolute_hour: int, day_index: int, hour: int) -> void:
 	for settlement_id in settlement_definitions.keys():
 		var sid := str(settlement_id)
-		# Staff-slot sync (a full subtree walk + GECS re-save), vacancy filling and resident
-		# death reconciliation only matter where the player can see live bodies. Off-screen
-		# towns have no realized staff to sync and reconcile lazily on approach (the population
-		# spawner re-bootstraps their vacancies — that's the promote-from-pool moment). Gating
-		# here keeps the hourly cost O(near towns) instead of O(all towns) — the old ~20s spike.
+		# Assignment is world-sim knowledge and runs O(1) for EVERY town, near or far — a faraway
+		# bar knows who tends it without the player ever visiting. It's a cheap ledger bind: no
+		# subtree walk, no live bodies.
+		_assign_staff_from_ledger(sid)
+		# The expensive work — the full subtree walk + GECS re-save to reconcile slot definitions
+		# and dead bodies, plus putting live staff bodies in place — only matters where the player
+		# can see them. Gating keeps the hourly cost O(near towns), not O(all towns).
 		if not _settlement_is_near_player(sid):
 			continue
 		_sync_settlement_staff_slots(sid)
-		_process_staff_vacancies(sid)
+		_assign_staff_from_ledger(sid)
+		_realize_staff_bodies(sid)
 		_sync_settlement_resident_deaths(sid)
 	# Daily upkeep is pure arithmetic on the settlement ledger (food in/out, pressure) and is
 	# the believable background economy — it runs O(1) for every town, near or far.
@@ -482,6 +485,7 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 		_refresh_population_availability(settlement_id)
 		return
 	var state: Dictionary = settlement_states[settlement_id]
+	var prior_slots: Dictionary = state.get("staff_slots", {})
 	var slots: Dictionary = {}
 	var assigned_count := 0
 	var required_count := 0
@@ -507,7 +511,30 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 			var population_cost: int = max(0, int(slot.get("population_cost", 1)))
 			slot["population_cost"] = population_cost
 			required_count += population_cost
-			var filled := bool(slot.get("filled", false))
+			# Ledger binding is the source of truth for "filled": a slot stays filled while a
+			# living record is assigned to it, even when the body is LOD'd out to a record. The
+			# facility-reported `filled` (a live actor) only matters for authored/non-deferred staff.
+			var worker_actor_id := str((prior_slots.get(slot_id, {}) as Dictionary).get("worker_actor_id", ""))
+			var dead_actor_key := str(slot.get("dead_actor_key", "")).strip_edges()
+			# The bound worker is gone if the facility found its corpse (dead_actor_key) or its
+			# record is dead/missing. Mark the record dead and drop the binding so the slot reopens.
+			if not worker_actor_id.is_empty() and (not dead_actor_key.is_empty() or not _is_assigned_record_alive(worker_actor_id)):
+				var pop := _get_population_controller()
+				if pop != null:
+					if pop.has_method("mark_record_dead"):
+						pop.call("mark_record_dead", worker_actor_id)
+					# Detach the corpse from the slot so the next sync doesn't re-detect it as this
+					# slot's worker (which would churn a fresh death every tick and drain population).
+					# Both the slot-id meta AND the role node name resolve a slot's actor, so clear
+					# the meta and rename the body off the role name — otherwise the name fallback
+					# keeps finding the corpse and re-killing each freshly-assigned replacement.
+					var corpse = pop.call("get_live_actor", worker_actor_id) if pop.has_method("get_live_actor") else null
+					if corpse != null and is_instance_valid(corpse):
+						corpse.set_meta("settlement_staff_slot_id", "")
+						corpse.name = "Corpse"
+				worker_actor_id = ""
+			slot["worker_actor_id"] = worker_actor_id
+			var filled := bool(slot.get("filled", false)) or not worker_actor_id.is_empty()
 			slot["filled"] = filled
 			slots[slot_id] = slot
 			if filled:
@@ -516,7 +543,6 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 					vacancies.erase(slot_id)
 				_save_staff_slot_to_gecs(settlement_id, slot_id, slot)
 				continue
-			var dead_actor_key := str(slot.get("dead_actor_key", "")).strip_edges()
 			if not dead_actor_key.is_empty():
 				_record_population_death_if_needed(settlement_id, dead_actor_key, null, "staff_death")
 			_ensure_staff_vacancy(settlement_id, slot_id, slot)
@@ -535,54 +561,141 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 	_save_settlement_state_to_gecs(settlement_id, state)
 
 
+## Staffing has two layers. (1) Assignment is world-sim knowledge — a record is bound to a slot
+## at the ledger level for every town, near or far, in O(records). (2) Realization (putting a live
+## body in place) is LOD-gated and only happens when the player is near. This entry runs both:
+## the cheap ledger bind always, the expensive body realization only when near.
 func _process_staff_vacancies(settlement_id: String, ignore_delay := false) -> void:
 	if not settlement_states.has(settlement_id):
+		return
+	_assign_staff_from_ledger(settlement_id, ignore_delay)
+	if _settlement_is_near_player(settlement_id):
+		_realize_staff_bodies(settlement_id)
+	_notify_state_changed(settlement_id)
+
+
+## Cheap, player-independent: bind an available resident record to each open staff slot. Promoting
+## the record's role_id removes it from the resident pool (so the population accounting balances)
+## and is the durable "who staffs this" knowledge that survives LOD. No subtree walk, no live actors.
+func _assign_staff_from_ledger(settlement_id: String, ignore_delay := false) -> void:
+	if not settlement_states.has(settlement_id):
+		return
+	var pop := _get_population_controller()
+	if pop == null or not pop.has_method("claim_unassigned_record_for_slot"):
 		return
 	var state: Dictionary = settlement_states[settlement_id]
 	var vacancies: Dictionary = state.get("staff_vacancies", {})
 	if vacancies.is_empty():
 		return
+	var slots: Dictionary = state.get("staff_slots", {})
+	var available := get_available_population(settlement_id)
 	var now_minute := _get_absolute_minute()
-	var available_population := get_available_population(settlement_id)
+	var changed := false
 	for slot_id_value in vacancies.keys():
 		var slot_id := str(slot_id_value)
 		var vacancy: Dictionary = vacancies.get(slot_id, {})
 		if not ignore_delay and now_minute < int(vacancy.get("replacement_due_minute", 0)):
 			continue
 		var cost: int = max(0, int(vacancy.get("population_cost", 1)))
-		if cost > available_population:
+		if cost > available:
 			continue
-		if _fill_staff_vacancy(settlement_id, slot_id, vacancy):
-			available_population -= cost
-			vacancies.erase(slot_id)
+		var role_id := str(vacancy.get("role_id", "")).strip_edges()
+		if role_id.is_empty():
+			continue
+		var record: Dictionary = pop.call("claim_unassigned_record_for_slot", settlement_id, slot_id, role_id)
+		if record.is_empty():
+			continue
+		var slot: Dictionary = (slots.get(slot_id, vacancy) as Dictionary).duplicate(true)
+		slot["worker_actor_id"] = str(record.get("actor_id", ""))
+		slot["filled"] = true
+		slots[slot_id] = slot
+		_save_staff_slot_to_gecs(settlement_id, slot_id, slot)
+		vacancies.erase(slot_id)
+		available -= cost
+		changed = true
+		_record_event({
+			"type": "staff_assigned",
+			"settlement_id": settlement_id,
+			"slot_id": slot_id,
+			"role_id": role_id,
+			"actor_id": str(record.get("actor_id", "")),
+			"actor_name": str(record.get("member_name", record.get("actor_id", ""))),
+		})
+	if not changed:
+		return
+	state["staff_slots"] = slots
 	state["staff_vacancies"] = vacancies
-	_sync_settlement_staff_slots(settlement_id)
-	_notify_state_changed(settlement_id)
+	var assigned := 0
+	for sid_key in slots.keys():
+		if bool((slots[sid_key] as Dictionary).get("filled", false)):
+			assigned += max(0, int((slots[sid_key] as Dictionary).get("population_cost", 1)))
+	state["population_assigned"] = assigned
+	settlement_states[settlement_id] = state
+	_refresh_population_availability(settlement_id)
+	_save_settlement_state_to_gecs(settlement_id, state)
+
+
+## LOD-gated: for each filled slot that has a bound record, ask the owning facility to put the body
+## in place (the facility builds it from the record and seats it). Idempotent — already-realized
+## staff are returned as-is.
+func _realize_staff_bodies(settlement_id: String) -> void:
+	if not settlement_states.has(settlement_id):
+		return
+	var anchor := get_settlement_anchor(settlement_id)
+	if anchor == null:
+		return
+	var slots: Dictionary = (settlement_states[settlement_id] as Dictionary).get("staff_slots", {})
+	for slot_id_value in slots.keys():
+		var slot: Dictionary = slots[slot_id_value]
+		if not bool(slot.get("filled", false)):
+			continue
+		if str(slot.get("worker_actor_id", "")).is_empty():
+			continue
+		var owner_path = slot.get("owner_path", NodePath(""))
+		var role_owner := anchor.get_node_or_null(owner_path as NodePath) if owner_path is NodePath else anchor.get_node_or_null(NodePath(str(owner_path)))
+		if role_owner == null or not role_owner.has_method("fill_settlement_staff_slot"):
+			continue
+		role_owner.call("fill_settlement_staff_slot", str(slot_id_value), slot.duplicate(true))
+
+
+## A town left LOD range: free its live staff bodies back to ledger records (on/off, nothing lingers
+## off-screen). The slot bindings stay, so the same staff re-realize when the player returns.
+func derealize_settlement_staff(settlement_id: String) -> void:
+	if not settlement_states.has(settlement_id):
+		return
+	var pop := _get_population_controller()
+	if pop == null or not pop.has_method("get_live_actor"):
+		return
+	var slots: Dictionary = (settlement_states[settlement_id] as Dictionary).get("staff_slots", {})
+	for slot_id_value in slots.keys():
+		var worker := str((slots[slot_id_value] as Dictionary).get("worker_actor_id", "")).strip_edges()
+		if worker.is_empty():
+			continue
+		var actor = pop.call("get_live_actor", worker)
+		if actor == null or not is_instance_valid(actor):
+			continue
+		if actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member")):
+			continue
+		if pop.has_method("unregister_actor"):
+			pop.call("unregister_actor", actor)  # record -> "ledger"; binding (worker_actor_id) kept
+		actor.queue_free()
+
+
+func _get_population_controller() -> Node:
+	if get_tree() == null:
+		return null
+	return get_tree().get_first_node_in_group("population_controller")
+
+
+func _is_assigned_record_alive(actor_id: String) -> bool:
+	var pop := _get_population_controller()
+	if pop == null or not pop.has_method("is_record_alive"):
+		return true  # Can't verify yet — assume alive so we don't churn a valid binding.
+	return bool(pop.call("is_record_alive", actor_id))
 
 
 func _bootstrap_staff_vacancies(settlement_id: String) -> void:
 	bootstrap_staff_vacancies(settlement_id)
-
-
-func _fill_staff_vacancy(settlement_id: String, slot_id: String, vacancy: Dictionary) -> bool:
-	var anchor := get_settlement_anchor(settlement_id)
-	if anchor == null:
-		return false
-	var owner_path = vacancy.get("owner_path", NodePath(""))
-	var role_owner := anchor.get_node_or_null(owner_path as NodePath) if owner_path is NodePath else anchor.get_node_or_null(NodePath(str(owner_path)))
-	if role_owner == null or not role_owner.has_method("fill_settlement_staff_slot"):
-		return false
-	var actor = role_owner.call("fill_settlement_staff_slot", slot_id, vacancy.duplicate(true))
-	if actor == null:
-		return false
-	_record_event({
-		"type": "staff_replaced",
-		"settlement_id": settlement_id,
-		"slot_id": slot_id,
-		"role_id": str(vacancy.get("role_id", "")),
-		"actor_name": str(actor.get("member_name")) if _has_property(actor, "member_name") else str(actor.name),
-	})
-	return true
 
 
 func _ensure_staff_vacancy(settlement_id: String, slot_id: String, slot: Dictionary) -> void:

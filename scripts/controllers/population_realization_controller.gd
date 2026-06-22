@@ -173,6 +173,13 @@ func _update_spawner_lod(spawner: Node, reference: Vector3) -> void:
 			spawner.call("resync_population_realization")
 		if spawner.has_method("clear_population_realization_dirty"):
 			spawner.call("clear_population_realization_dirty")
+	# When a town leaves LOD range its staff bodies go back to ledger records too — pure on/off,
+	# no live bodies linger off-screen. The ledger assignment (who staffs what) is untouched, so
+	# the same staff re-realize on return.
+	if was_near and not near and spawner.has_method("get_settlement_id"):
+		var settlement_controller := get_tree().get_first_node_in_group("settlement_controller") if get_tree() != null else null
+		if settlement_controller != null and settlement_controller.has_method("derealize_settlement_staff"):
+			settlement_controller.call("derealize_settlement_staff", str(spawner.call("get_settlement_id")))
 
 
 func _spawner_policy(spawner: Node) -> String:

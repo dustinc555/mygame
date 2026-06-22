@@ -18,6 +18,53 @@ func _ready() -> void:
 	add_to_group("settlement_facility")
 
 
+## Bind a staff body to the ledger record the world-sim assigned to this slot, re-homing it under
+## the given staff root. `actor` is either the worker's already-live body (claimed, e.g. a resident
+## the full-town spawner realized) or a body the facility freshly built from the record. Either way
+## we drop any orphan record the body was minted with and rebind it to the assigned record id, so
+## one record maps to exactly one body and realization honors the world-sim assignment. Identity
+## only — the facility's role prep (combat stance, faction, authority, role script) is left intact.
+## Static so both facilities (SettlementFacilityInstance) and settlement roots (SettlementAnchor)
+## can share it without a common base.
+static func adopt_staff_record(actor: Node, worker_actor_id: String, slot_id: String, staff_root: Node = null) -> void:
+	if actor == null or not is_instance_valid(actor) or worker_actor_id.strip_edges().is_empty():
+		return
+	if staff_root != null and is_instance_valid(staff_root) and actor.get_parent() != staff_root:
+		var keep_transform := actor is Node3D
+		var global_xform := (actor as Node3D).global_transform if keep_transform else Transform3D.IDENTITY
+		if actor.get_parent() != null:
+			actor.get_parent().remove_child(actor)
+		staff_root.add_child(actor)
+		if keep_transform:
+			(actor as Node3D).global_transform = global_xform
+	var tree := actor.get_tree()
+	var pop := tree.get_first_node_in_group("population_controller") if tree != null else null
+	if pop == null:
+		return
+	var minted_id := str(actor.get("stable_id")).strip_edges()
+	if not minted_id.is_empty() and minted_id != worker_actor_id and pop.has_method("remove_actor_record"):
+		pop.call("remove_actor_record", minted_id, false)
+	actor.set("stable_id", worker_actor_id)
+	actor.set_meta("actor_record_id", worker_actor_id)
+	actor.set_meta("settlement_staff_slot_id", slot_id)
+	if pop.has_method("mark_actor_realized"):
+		pop.call("mark_actor_realized", actor, worker_actor_id)
+
+
+## Resolve the already-live body for an assigned worker record, if it is currently realized
+## (e.g. the full-town spawner realized it as a resident before staffing claimed it). Returns null
+## when the worker is only a ledger record, in which case the facility builds a fresh body instead.
+static func resolve_live_worker(actor: Node, worker_actor_id: String) -> Node:
+	if actor == null or worker_actor_id.strip_edges().is_empty():
+		return null
+	var tree := actor.get_tree()
+	var pop := tree.get_first_node_in_group("population_controller") if tree != null else null
+	if pop == null or not pop.has_method("get_live_actor"):
+		return null
+	var live = pop.call("get_live_actor", worker_actor_id)
+	return live if live != null and is_instance_valid(live) else null
+
+
 func get_facility_id() -> String:
 	return facility_id if not facility_id.is_empty() else str(name)
 

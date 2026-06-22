@@ -23,12 +23,21 @@ Two views (toggle, top-left):
 
 - **Dependencies** — force-directed graph of every script. Color = architectural
   layer. Node size = in-degree (how many things depend on it → hubs are big).
-  Hover a node to spotlight its neighbors; drag, scroll-zoom, filter by name.
+  All node names show by default; drag any chart space to pan, scroll-zoom,
+  filter by name.
 - **Layer coupling** — the macro view: the ~16 layers in a ring, edge thickness =
   number of cross-layer dependencies, arrows = direction. The "shape" of the
   architecture on one screen.
 
 Three rule highlights (checkboxes) + an **Insights** panel:
+
+System-anchor nodes are visually called out in the dependency graph:
+
+| Anchor | Visual | Means |
+|---|---|---|
+| `LedgerSimulationController` | cyan halo, `WORLD O(1)` badge | world/ledger simulation cadence |
+| `GecsWorldController` | violet halo, `LIVE O(n)` badge | realized/live actor simulation |
+| `PopulationRealizationController` | green halo, `LEDGER ↔ LIVE` badge | seam between ledger records and live bodies |
 
 | Highlight | Color | Means |
 |---|---|---|

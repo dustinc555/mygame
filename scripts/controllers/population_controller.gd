@@ -98,6 +98,71 @@ func update_actor_record(actor_id: String, updates: Dictionary) -> Dictionary:
 	return record.duplicate(true)
 
 
+## --- Ledger-level staff assignment --------------------------------------------------------
+## Staffing is world-sim knowledge: a record can be bound to a settlement staff slot (carrying
+## that role) while the town is dormant across the map. Realizing the body is a separate,
+## LOD-gated step owned by the facility. These helpers operate purely on records, so they are
+## O(records) and safe to run for every town regardless of player proximity.
+
+func claim_unassigned_record_for_slot(settlement_id: String, slot_id: String, role_id: String) -> Dictionary:
+	if settlement_id.is_empty() or slot_id.is_empty() or role_id.is_empty():
+		return {}
+	_refresh_actor_records_cache()
+	var best_actor_id := ""
+	for actor_id in actor_records.keys():
+		var record: Dictionary = actor_records[actor_id]
+		if str(record.get("settlement_id", "")) != settlement_id:
+			continue
+		if str(record.get("role_id", "resident")) != "resident":
+			continue
+		if not str(record.get("assigned_slot_id", "")).strip_edges().is_empty():
+			continue
+		if int(record.get("life_state", 0)) == NpcRules.LifeState.DEAD:
+			continue
+		# Deterministic: lowest actor_id (zero-padded generation index) wins.
+		if best_actor_id.is_empty() or str(actor_id) < best_actor_id:
+			best_actor_id = str(actor_id)
+	if best_actor_id.is_empty():
+		return {}
+	return update_actor_record(best_actor_id, {"role_id": role_id, "assigned_slot_id": slot_id})
+
+
+func get_record_assigned_to_slot(settlement_id: String, slot_id: String) -> Dictionary:
+	if settlement_id.is_empty() or slot_id.is_empty():
+		return {}
+	_refresh_actor_records_cache()
+	for actor_id in actor_records.keys():
+		var record: Dictionary = actor_records[actor_id]
+		if str(record.get("settlement_id", "")) == settlement_id and str(record.get("assigned_slot_id", "")) == slot_id:
+			return record.duplicate(true)
+	return {}
+
+
+func release_slot_assignment(settlement_id: String, slot_id: String) -> Dictionary:
+	var record := get_record_assigned_to_slot(settlement_id, slot_id)
+	if record.is_empty():
+		return {}
+	return update_actor_record(str(record.get("actor_id", "")), {"role_id": "resident", "assigned_slot_id": ""})
+
+
+## A bound staff body died — mark its record dead and free the slot binding so the world sim
+## opens a vacancy and assigns a replacement. The dead record keeps its staff role (it is not
+## reclaimable: claims require a living "resident") so it won't be re-promoted.
+func mark_record_dead(actor_id: String) -> void:
+	if actor_id.strip_edges().is_empty() or not _has_actor_record(actor_id):
+		return
+	update_actor_record(actor_id, {"life_state": NpcRules.LifeState.DEAD, "assigned_slot_id": ""})
+
+
+func is_record_alive(actor_id: String) -> bool:
+	if actor_id.strip_edges().is_empty():
+		return false
+	var record := _get_actor_record_mutable(actor_id)
+	if record.is_empty():
+		return false
+	return int(record.get("life_state", 0)) != NpcRules.LifeState.DEAD
+
+
 func get_population_summary() -> Dictionary:
 	_refresh_actor_records_cache()
 	var summary := {
