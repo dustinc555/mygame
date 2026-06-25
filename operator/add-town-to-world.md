@@ -9,7 +9,7 @@ Use this after a town has its own scene file.
 3. Instance the town scene, such as:
 
 ```text
-res://scenes/world/towns/farmer_crossing.tscn
+res://scenes/zones/demo_zone/towns/surf_city.tscn
 ```
 
 4. Move the town instance to its world position.

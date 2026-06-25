@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="BleedFluidDefinition" format=3 uid="uid://bmch8tob417a6"]
 
-[ext_resource type="Script" uid="uid://cpt8imxcdoyil" path="res://scripts/world/effects/bleed_fluid_definition.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://cpt8imxcdoyil" path="res://resources/bleed_fluids/bleed_fluid_definition.gd" id="1_script"]
 
 [resource]
 script = ExtResource("1_script")

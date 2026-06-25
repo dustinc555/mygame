@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3]
 
-[ext_resource type="Script" path="res://scripts/showcase/model_pack_showcase.gd" id="1_showcase"]
-[ext_resource type="Script" path="res://scripts/showcase/free_fly_camera.gd" id="2_camera"]
+[ext_resource type="Script" path="res://scenes/showcase/model_pack_showcase.gd" id="1_showcase"]
+[ext_resource type="Script" path="res://scenes/showcase/free_fly_camera.gd" id="2_camera"]
 
 [sub_resource type="Environment" id="Environment_showcase"]
 background_mode = 1

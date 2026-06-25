@@ -1,11 +1,11 @@
 [gd_scene format=3 uid="uid://b61506dov0k4v"]
 
-[ext_resource type="Script" uid="uid://dm58cnb3kgh5e" path="res://scripts/world_sim/world_loader.gd" id="1_loader"]
-[ext_resource type="Script" uid="uid://bwa8ktkjkxva6" path="res://scripts/world_sim/demo_world_startup.gd" id="1_startup"]
+[ext_resource type="Script" uid="uid://dm58cnb3kgh5e" path="res://src/world_sim/bridge/world_loader.gd" id="1_loader"]
+[ext_resource type="Script" uid="uid://bwa8ktkjkxva6" path="res://src/world_sim/bridge/demo_world_startup.gd" id="1_startup"]
 [ext_resource type="Resource" uid="uid://dcrbc2knu5fjn" path="res://resources/worlds/demo_world/demo_world.tres" id="2_world"]
 [ext_resource type="PackedScene" path="res://scenes/zones/demo_zone/demo_zone.tscn" id="3_demo_zone"]
-[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://scripts/party_manager.gd" id="4_manager"]
-[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://src/core/party/party_manager.gd" id="4_manager"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://src/core/game_bootstrap.gd" id="5_bootstrap"]
 
 [node name="DemoWorld" type="Node3D" unique_id=191955666]
 script = ExtResource("1_startup")

@@ -1,0 +1,35 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://src/core/party/party_member.gd" id="1_party"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
+radius = 0.45
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_member"]
+radius = 0.45
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
+top_radius = 0.72
+bottom_radius = 0.72
+height = 0.05
+radial_segments = 24
+rings = 2
+
+[node name="PartyMember" type="CharacterBody3D"]
+script = ExtResource("1_party")
+member_name = "Wanderer"
+faction_name = "Player"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("CapsuleShape3D_member")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_member")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+visible = false
+mesh = SubResource("CylinderMesh_ring")

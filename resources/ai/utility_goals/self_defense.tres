@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="AiUtilityGoal" format=3 uid="uid://m0uvgfg5jlsm"]
 
-[ext_resource type="Script" uid="uid://dneaaib163jp4" path="res://scripts/ai/utility/ai_utility_goal.gd" id="1_goal"]
-[ext_resource type="Script" uid="uid://d0knxil8gj4h7" path="res://scripts/ai/utility/ai_utility_consideration.gd" id="2_consideration"]
+[ext_resource type="Script" uid="uid://dneaaib163jp4" path="res://resources/ai/ai_utility_goal.gd" id="1_goal"]
+[ext_resource type="Script" uid="uid://d0knxil8gj4h7" path="res://resources/ai/ai_utility_consideration.gd" id="2_consideration"]
 
 [sub_resource type="Resource" id="Consideration_threat"]
 script = ExtResource("2_consideration")

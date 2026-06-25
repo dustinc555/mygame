@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="HumanoidCarryPoseProfile" format=3 uid="uid://cj13rxqow4ekr"]
 
-[ext_resource type="Script" uid="uid://cavsfvhg2bstg" path="res://scripts/characters/humanoid_carry_pose_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://cavsfvhg2bstg" path="res://resources/humanoid_carry_pose_profiles/humanoid_carry_pose_profile.gd" id="1_profile"]
 
 [resource]
 script = ExtResource("1_profile")

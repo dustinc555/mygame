@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="EquipmentGripProfile" format=3 uid="uid://btj2x7kgya5se"]
 
-[ext_resource type="Script" uid="uid://dvj7n3q5e6s0r" path="res://scripts/items/equipment_grip_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://dvj7n3q5e6s0r" path="res://resources/equipment_grip_profiles/equipment_grip_profile.gd" id="1_profile"]
 
 [resource]
 script = ExtResource("1_profile")

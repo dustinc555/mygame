@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://t05fwygrw6g5"]
 
-[ext_resource type="Script" uid="uid://br1v5e4mqu2hq" path="res://scripts/world_sim/zone_loader.gd" id="1_loader"]
+[ext_resource type="Script" uid="uid://br1v5e4mqu2hq" path="res://src/world_sim/bridge/zone_loader.gd" id="1_loader"]
 [ext_resource type="Resource" path="res://resources/zones/demo_zone/demo_zone.tres" id="2_zone"]
-[ext_resource type="Script" uid="uid://duw4pkjyrcwpm" path="res://scripts/world_sim/nests/nest_placement_marker.gd" id="3_nest_marker"]
-[ext_resource type="Script" uid="uid://dou4gsojqabfy" path="res://scripts/world_sim/world_sim_debug_action.gd" id="4_debug_action"]
+[ext_resource type="Script" uid="uid://duw4pkjyrcwpm" path="res://src/world_sim/sim/nests/nest_placement_marker.gd" id="3_nest_marker"]
+[ext_resource type="Script" uid="uid://dou4gsojqabfy" path="res://src/world_sim/bridge/world_sim_debug_action.gd" id="4_debug_action"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(1100, 1, 950)

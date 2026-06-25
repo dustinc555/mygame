@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="HeadAttachmentStyleDefinition" format=3 uid="uid://c8p3sd8g63nkt"]
 
-[ext_resource type="Script" uid="uid://xl3kqw6xfqt8" path="res://scripts/character_appearance/head_attachment_style_definition.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://xl3kqw6xfqt8" path="res://resources/character_appearance/head_attachment_style_definition.gd" id="1_script"]
 [ext_resource type="PackedScene" uid="uid://cs21mbeo8y5kw" path="res://assets/vendor/quaternius/universal_base_characters/head_attachments/Hair_Buns.gltf" id="2_scene"]
 
 [resource]

@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="WorldSquadOperationProfile" format=3 uid="uid://c3nmraeasaxd5"]
 
-[ext_resource type="Script" uid="uid://blqawxwe570np" path="res://scripts/world_sim/world_squad_operation_profile.gd" id="1_operation"]
-[ext_resource type="Script" uid="uid://ckxdbgaicwbtc" path="res://scripts/world_sim/world_squad_phase_profile.gd" id="2_phase"]
+[ext_resource type="Script" uid="uid://blqawxwe570np" path="res://resources/world_sim/world_squad_operation_profile.gd" id="1_operation"]
+[ext_resource type="Script" uid="uid://ckxdbgaicwbtc" path="res://resources/world_sim/world_squad_phase_profile.gd" id="2_phase"]
 [ext_resource type="Resource" uid="uid://co4dp787mr14r" path="res://resources/conversations/raider_raid_parley.tres" id="3_parley"]
 
 [sub_resource type="Resource" id="WorldSquadPhase_travel"]

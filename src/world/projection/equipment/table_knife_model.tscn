@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://cx16td8id7wpj"]
+
+[ext_resource type="PackedScene" uid="uid://8u0u1gkb6wld" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Table_Knife.gltf" id="1_model"]
+[ext_resource type="Script" uid="uid://c6ncuf7x61vvu" path="res://src/world/projection/equipment/grip_point_marker.gd" id="2_grip"]
+
+[node name="TableKnifeModel" type="Node3D" unique_id=1676888688]
+
+[node name="GripPoint_Primary" type="Marker3D" parent="." unique_id=967769537]
+transform = Transform3D(-0.0470274, 0.0066894223, -0.9988711, -0.0028033867, -0.99997437, -0.006564827, -0.9988895, 0.0024914946, 0.047044963, -0.036267802, 0.21910977, 0.11038683)
+script = ExtResource("2_grip")
+
+[node name="Model" parent="." unique_id=631695076 instance=ExtResource("1_model")]
+transform = Transform3D(-0.102479994, -0.0075520696, 0.99470645, 0.994735, -0.0007780323, 0.10247704, 0, 0.99997115, 0.0075920406, -0.044141293, 0.22179496, 0.090019524)

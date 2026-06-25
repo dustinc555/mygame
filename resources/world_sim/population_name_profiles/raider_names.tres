@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="PopulationNameProfile" format=3 uid="uid://pjw2qb2u0hbw"]
 
-[ext_resource type="Script" uid="uid://cwuvb5pgglwkq" path="res://scripts/world_sim/population_name_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://cwuvb5pgglwkq" path="res://resources/world_sim/population_name_profile.gd" id="1_profile"]
 
 [resource]
 script = ExtResource("1_profile")

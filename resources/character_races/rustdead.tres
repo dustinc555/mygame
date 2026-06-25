@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="CharacterRaceDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/characters/character_race_definition.gd" id="1_script"]
+[ext_resource type="Script" path="res://resources/character_races/character_race_definition.gd" id="1_script"]
 [ext_resource type="Resource" path="res://resources/character_body_archetypes/human_male.tres" id="2_male"]
 [ext_resource type="Resource" path="res://resources/character_body_archetypes/human_female.tres" id="3_female"]
 [ext_resource type="Resource" path="res://resources/bleed_fluids/human_blood.tres" id="4_fluid"]

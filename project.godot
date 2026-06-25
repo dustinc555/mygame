@@ -21,9 +21,8 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-ECS="*uid://dfqwl5njvdnmq"
-LimboDebuggerShutdownGuard="*res://scripts/debug/limbo_debugger_shutdown_guard.gd"
-GameDebug="*res://scripts/game_debug.gd"
+LimboDebuggerShutdownGuard="*res://tools/debug/limbo_debugger_shutdown_guard.gd"
+GameDebug="*res://tools/game_debug.gd"
 
 [display]
 

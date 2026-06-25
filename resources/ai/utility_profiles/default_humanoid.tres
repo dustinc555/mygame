@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="AiUtilityProfile" load_steps=6 format=3]
 
-[ext_resource type="Script" path="res://scripts/ai/utility/ai_utility_profile.gd" id="1_profile"]
+[ext_resource type="Script" path="res://resources/ai/ai_utility_profile.gd" id="1_profile"]
 [ext_resource type="Resource" path="res://resources/ai/utility_goals/self_defense.tres" id="2_self_defense"]
 [ext_resource type="Resource" path="res://resources/ai/utility_goals/heal.tres" id="3_heal"]
 [ext_resource type="Resource" path="res://resources/ai/utility_goals/assigned_work.tres" id="4_assigned_work"]

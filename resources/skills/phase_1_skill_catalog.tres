@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="SkillCatalog" format=3 uid="uid://bpswwu2xdrw08"]
 
-[ext_resource type="Script" uid="uid://c0ugiqwgpntxx" path="res://scripts/skills/skill_catalog.gd" id="1_catalog"]
-[ext_resource type="Script" uid="uid://ckeiyxwh137jf" path="res://scripts/skills/skill_definition.gd" id="2_definition"]
+[ext_resource type="Script" uid="uid://c0ugiqwgpntxx" path="res://resources/skills/skill_catalog.gd" id="1_catalog"]
+[ext_resource type="Script" uid="uid://ckeiyxwh137jf" path="res://resources/skills/skill_definition.gd" id="2_definition"]
 
 [sub_resource type="Resource" id="SkillDefinition_strength"]
 script = ExtResource("2_definition")

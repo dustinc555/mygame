@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="SquadTemplate" format=3 uid="uid://cj67rntaps4o2"]
 
-[ext_resource type="Script" uid="uid://c3hflj5he5juw" path="res://scripts/world_sim/squad_template.gd" id="1_template"]
+[ext_resource type="Script" uid="uid://c3hflj5he5juw" path="res://resources/world_sim/squad_template.gd" id="1_template"]
 [ext_resource type="Resource" uid="uid://dkykt4d8s1158" path="res://resources/world_sim/factions/east_raiders.tres" id="2_faction"]
 [ext_resource type="Resource" uid="uid://bkw28d3jsab1n" path="res://resources/items/iron_sword.tres" id="3_sword"]
 [ext_resource type="Resource" uid="uid://c3nmraeasaxd5" path="res://resources/world_sim/squad_operations/raider_slave_raid_parley.tres" id="4_operation"]

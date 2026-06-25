@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://bfhqxe4b3clir"]
 
-[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://resources/items/item_definition.gd" id="1_item"]
 [ext_resource type="Texture2D" uid="uid://cvwbbw2emo1pm" path="res://assets/items/tableware/candle_3_icon.svg" id="2_icon"]
-[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="3_1t6wh"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://resources/items/item_stat_modifier.gd" id="3_1t6wh"]
 [ext_resource type="PackedScene" uid="uid://bop6hmv6lti7k" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Candle_3.gltf" id="3_model"]
 
 [resource]

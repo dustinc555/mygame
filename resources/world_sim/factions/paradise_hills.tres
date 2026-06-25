@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://b4vo3ehw0kwo7"]
 
-[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
+[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://resources/world_sim/faction_definition.gd" id="1_faction"]
 [ext_resource type="Resource" uid="uid://dop3nplurk2vm" path="res://resources/world_sim/behavior_profiles/paradise_hills_camp.tres" id="2_behavior"]
 [ext_resource type="Resource" uid="uid://mw8njq6ugn5d" path="res://resources/world_sim/personality_profiles/paradise_hills_slavers.tres" id="3_personality"]
 [ext_resource type="Resource" uid="uid://tqkaqrllihd0" path="res://resources/world_sim/law_profiles/paradise_hills_law.tres" id="4_law"]

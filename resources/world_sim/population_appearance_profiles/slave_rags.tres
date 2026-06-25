@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="PopulationAppearanceProfile" format=3]
 
-[ext_resource type="Script" path="res://scripts/world_sim/population_appearance_profile.gd" id="1_profile"]
+[ext_resource type="Script" path="res://resources/world_sim/population_appearance_profile.gd" id="1_profile"]
 [ext_resource type="Resource" path="res://resources/character_appearance/hair_buzzed.tres" id="2_hair_buzzed"]
 [ext_resource type="Resource" path="res://resources/character_appearance/hair_simple_parted.tres" id="3_hair_parted"]
 [ext_resource type="Resource" path="res://resources/character_appearance/hair_long.tres" id="4_hair_long"]

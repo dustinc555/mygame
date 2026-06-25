@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="ItemDefinition" load_steps=4 format=3]
 
-[ext_resource type="Script" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" path="res://resources/items/item_definition.gd" id="1_item"]
 [ext_resource type="Texture2D" path="res://assets/items/consumables/cinder_flask_icon.svg" id="2_icon"]
 [ext_resource type="PackedScene" path="res://assets/items/consumables/cinder_flask/meshy_cinder_flask_1.glb" id="3_model"]
 

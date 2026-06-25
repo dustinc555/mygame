@@ -12,15 +12,37 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..', '..');     // repo root (architecture/dependency-graph/../../)
-const SRC = path.join(ROOT, 'scripts');
+// Feature-first layout: all game code lives under src/<feature>/<layer>/. (During the
+// migration this also walked the legacy scripts/ tree; that move is now complete.)
+const SRC_ROOTS = [path.join(ROOT, 'src'), path.join(ROOT, 'scripts')].filter(d => fs.existsSync(d));
+// Resource definitions (.tres-defining .gd) live under top-level resources/. Walk them too so
+// the inert "Resources" layer (and its no-tick / no-live-node rules) stays measured, but force
+// their layer to 'Resources' regardless of which <domain>/ subfolder they sit in.
+const RES_ROOT = path.join(ROOT, 'resources');
+const WALK_ROOTS = SRC_ROOTS.concat(fs.existsSync(RES_ROOT) ? [RES_ROOT] : []);
+const underResources = f => { const r = path.relative(RES_ROOT, f); return r !== '' && !r.startsWith('..'); };
+function relOf(f) {
+  for (const r of WALK_ROOTS) { const rel = path.relative(r, f); if (!rel.startsWith('..' + path.sep) && rel !== '..') return rel; }
+  return path.basename(f);
+}
 
 const EXCLUDE = ['validation','benchmark','test_levels','test_scenes','showcase','dev','tools','debug','conditions'];
+// Feature-first src/ scheme: src/<feature>/<layer>/... — classify by feature.
+// (The sim/bridge/projection split is enforced by the truth/tick rules, not by a
+// distinct color per layer, so a feature gets one color across its layers.)
+const FEATURE_LAYER = {
+  actors:'Actors', combat:'Combat', ai:'AI', world_sim:'World-Sim', settlements:'Settlements',
+  world:'World-Content', inventory:'Inventory', skills:'Skills', ui:'UI', conversation:'Social/Jobs', core:'Core',
+};
 function layerOf(rel) {
   const seg = rel.replace(/\\/g,'/').split('/');
   const d0 = seg[0], d1 = seg[1] || '';
+  // new feature-first paths: <feature>/{sim,bridge,projection}/... OR core/ & conversation/ (no layer subdir)
+  if (FEATURE_LAYER[d0] && (['sim','bridge','projection'].includes(d1) || d0 === 'core' || d0 === 'conversation')) return FEATURE_LAYER[d0];
   if (d0 === 'ecs' && d1 === 'components') return 'GECS·Components';
   if (d0 === 'ecs' && d1 === 'systems') return 'GECS·Systems';
   if (d0 === 'ecs') return 'GECS·Core';
+  if (d0 === 'bridge') return 'WorldBridgeRoot';   // middle-ground shared contracts/rules
   if (d0 === 'controllers') return 'Controllers';
   if (d0 === 'characters' || d0 === 'actors') return 'Actors';
   if (d0 === 'projection') return 'Projection';
@@ -36,6 +58,27 @@ function layerOf(rel) {
   return 'Other';
 }
 
+// Runtime-topology override: re-home controllers (and the trunk roots) into the
+// intended trunk layers, overriding their source-folder layer. Keyed by class_name.
+// GameBootstrap now instantiates these roots; each root owns its cluster.
+const ROOT_LAYER = {
+  WorldBridgeRoot:'WorldBridgeRoot', WorldSimRoot:'WorldSimRoot', ProjectionSim:'ProjectionSim', InputUiRoot:'InputUiRoot',
+  // WorldBridgeRoot — the durable<->live seam (owns the live-actor read path)
+  GecsRuntimeBridge:'WorldBridgeRoot',
+  // WorldSimRoot — background sim
+  AiSchedulerController:'WorldSimRoot', FactionController:'WorldSimRoot', PopulationController:'WorldSimRoot',
+  SettlementController:'WorldSimRoot', TerritoryController:'WorldSimRoot', RoadController:'WorldSimRoot',
+  WorldEventChoiceController:'WorldSimRoot', WorldSimSquadController:'WorldSimRoot', FactionWorldSimController:'WorldSimRoot',
+  EncounterController:'WorldSimRoot', WorldSimulationController:'WorldSimRoot', LedgerSimulationController:'WorldSimRoot',
+  LawOrderController:'WorldSimRoot', JobSystemController:'WorldSimRoot', OwnershipController:'WorldSimRoot',
+  // ProjectionSim — LOD / live bodies / perception / camera / FX
+  PopulationRealizationController:'ProjectionSim', PerceptionController:'ProjectionSim', BuildingVisibilityController:'ProjectionSim',
+  DayNightLightingController:'ProjectionSim', BleedSplotchController:'ProjectionSim', CharacterAppearanceController:'ProjectionSim',
+  // InputUiRoot — player input / HUD / command glue
+  PartyInventoryController:'InputUiRoot', HumanoidDetailsController:'InputUiRoot', ConversationController:'InputUiRoot',
+  WorldStatusController:'InputUiRoot', WorldInteractionController:'InputUiRoot',
+};
+
 function walk(dir) {
   let out = [];
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -45,7 +88,7 @@ function walk(dir) {
   }
   return out;
 }
-let files = walk(SRC).filter(f => !EXCLUDE.includes(path.relative(SRC, f).split(path.sep)[0]));
+let files = WALK_ROOTS.flatMap(walk).filter(f => !EXCLUDE.includes(relOf(f).split(path.sep)[0]));
 
 // ---- git working-tree status (raw diffs): tag new / modified ----
 const changed = {};   // repo-relative path -> 'new' | 'modified'
@@ -68,8 +111,15 @@ const resToFile = f => path.join(ROOT, f.replace(/^res:\/\//,''));
 for (const f of files) {
   const raw = fs.readFileSync(f, 'utf8');
   const cn = (raw.match(/^class_name\s+([A-Za-z_]\w*)/m) || [])[1] || null;
-  const rel = path.relative(SRC, f);
-  fileInfo[f] = { rel, layer: layerOf(rel), className: cn, raw };
+  const rel = relOf(f);
+  // GECS truth code is identified STRUCTURALLY (by its GECS base), not by folder, so the
+  // truth rule keeps flagging it after feature-first migration scatters it into <feature>/sim/.
+  const gecsKind = /addons\/gecs\/ecs\/system\.gd/.test(raw) ? 'GECS·Systems'
+                 : /addons\/gecs\/ecs\/component\.gd/.test(raw) ? 'GECS·Components' : null;
+  const layer = gecsKind ? gecsKind
+              : underResources(f) ? 'Resources'
+              : (cn && ROOT_LAYER[cn]) ? ROOT_LAYER[cn] : layerOf(rel);
+  fileInfo[f] = { rel, layer, className: cn, raw };
   if (cn) classToFile[cn] = f;
 }
 const allClassNames = new Set(Object.keys(classToFile));
@@ -102,11 +152,15 @@ for (const f of files) {
 const TICK_ALLOW = new Set([
   // (a) sanctioned drivers / cadence mechanism
   'GecsWorldController','WorldTimeController','AiSchedulerController','WorldSimulationController','PopulationRealizationController',
+  'WorldSimRoot',
   // (b) projection / FX / input (projection-side)
   'WorldStatusController','WorldInteractionController','CharacterAppearanceController','BuildingVisibilityController',
   'DayNightLightingController','BleedSplotchController','LodRadiusOverlay','~player_controller','~move_command_indicator','~world_text_notice',
 ]);
-const TICK_OK_LAYERS = new Set(['Projection','UI','Actors','Appearance/Nav','GECS·Components','GECS·Systems','GECS·Core','Bootstrap']);
+// ProjectionSim/InputUiRoot/WorldBridgeRoot are projection/UI/bridge-side — ticking there
+// is a projection side effect. WorldSimRoot is deliberately NOT here: its self-ticking sim
+// controllers should keep showing as cadence violators until WorldSimRoot owns a scheduler.
+const TICK_OK_LAYERS = new Set(['Projection','UI','Actors','Appearance/Nav','GECS·Components','GECS·Systems','GECS·Core','Bootstrap','ProjectionSim','InputUiRoot','WorldBridgeRoot']);
 const GATE_RE = /realiz|is_visible|\bvisible\b|_lod\b|in_view|within_view|on_screen|distance_to|\.distance|\bcamera\b|should_tick|should_process|_is_active\b|\b_near\b|_in_range|set_process\(\s*false|set_physics_process\(\s*false/i;
 function funcBody(raw, fn) {
   const lines = raw.split('\n');
@@ -177,7 +231,9 @@ cycles.sort((a,b)=>b.length-a.length).slice(0,8).forEach(c=>console.log('   ('+c
 const LCOL = {
   'GECS·Components':'#2f5fb3','GECS·Systems':'#4f86d6','GECS·Core':'#5566c4','Controllers':'#8a52cf',
   'Actors':'#c0504d','Projection':'#2f8f6b','AI':'#c1742d','World-Sim':'#9a7b22','World-Content':'#7a6a3b',
-  'Items':'#b14b8a','UI':'#2f9a9a','Social/Jobs':'#4a9d4a','Appearance/Nav':'#6b7bd6','Bootstrap':'#9aa3b2','Resources':'#a0863c','Other':'#777' };
+  'Items':'#b14b8a','UI':'#2f9a9a','Social/Jobs':'#4a9d4a','Appearance/Nav':'#6b7bd6','Bootstrap':'#9aa3b2','Resources':'#a0863c','Other':'#777',
+  'Combat':'#d65f5f','Settlements':'#b8863b','Inventory':'#b14b8a','Skills':'#3fa05a','Core':'#9aa3b2',
+  'WorldSimRoot':'#9a7b22','ProjectionSim':'#2f8f6b','WorldBridgeRoot':'#c97f1a','InputUiRoot':'#2f9a9a' };
 const compOf = {}; cycles.forEach((c,i)=>c.forEach(id=>compOf[id]=i));
 const cycleNodes = new Set(Object.keys(compOf));
 const violSet = new Set(violations.map(e=>e.source+' '+e.target));

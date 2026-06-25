@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="ConversationDefinition" format=3 uid="uid://6ec7t6l86odf"]
 
-[ext_resource type="Script" uid="uid://oln7awi2fw1o" path="res://scripts/conversation/conversation_definition.gd" id="1_definition"]
-[ext_resource type="Script" uid="uid://c21vtwxjyyyyi" path="res://scripts/conversation/conversation_node.gd" id="2_node"]
-[ext_resource type="Script" uid="uid://d2gwynnqbm0iq" path="res://scripts/conversation/conversation_response.gd" id="3_response"]
-[ext_resource type="Script" uid="uid://chy0yv7e33qft" path="res://scripts/conversation/conversation_condition.gd" id="4_condition"]
-[ext_resource type="Script" uid="uid://cpf8b6pq8heil" path="res://scripts/conversation/conversation_effect.gd" id="5_effect"]
+[ext_resource type="Script" uid="uid://oln7awi2fw1o" path="res://resources/conversations/conversation_definition.gd" id="1_definition"]
+[ext_resource type="Script" uid="uid://c21vtwxjyyyyi" path="res://resources/conversations/conversation_node.gd" id="2_node"]
+[ext_resource type="Script" uid="uid://d2gwynnqbm0iq" path="res://resources/conversations/conversation_response.gd" id="3_response"]
+[ext_resource type="Script" uid="uid://chy0yv7e33qft" path="res://resources/conversations/conversation_condition.gd" id="4_condition"]
+[ext_resource type="Script" uid="uid://cpf8b6pq8heil" path="res://resources/conversations/conversation_effect.gd" id="5_effect"]
 [ext_resource type="Resource" uid="uid://bhx1scgadb5d7" path="res://resources/items/silver.tres" id="6_silver"]
 
 [sub_resource type="Resource" id="ConversationEffect_mug"]
