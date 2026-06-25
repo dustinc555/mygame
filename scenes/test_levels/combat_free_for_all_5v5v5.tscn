@@ -1,14 +1,14 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene format=3 uid="uid://i43mw2bfkcta"]
 
-[ext_resource type="Script" path="res://scripts/test_levels/combat_free_for_all_5v5v5.gd" id="1_level"]
-[ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_manager"]
-[ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
+[ext_resource type="Script" uid="uid://b4edohwehe5ip" path="res://scenes/test_levels/combat_free_for_all_5v5v5.gd" id="1_level"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://src/core/party/party_manager.gd" id="2_manager"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://src/core/game_bootstrap.gd" id="3_bootstrap"]
 
 [sub_resource type="Environment" id="Environment_5v5v5"]
 background_mode = 1
 background_color = Color(0.055, 0.058, 0.062, 1)
 ambient_light_source = 3
-ambient_light_color = Color(0.65, 0.60, 0.55, 1)
+ambient_light_color = Color(0.65, 0.6, 0.55, 1)
 ambient_light_energy = 0.48
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
@@ -21,58 +21,58 @@ roughness = 0.95
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(90, 1, 70)
 
-[node name="CombatFreeForAll5v5v5" type="Node3D"]
+[node name="CombatFreeForAll5v5v5" type="Node3D" unique_id=468969706]
 script = ExtResource("1_level")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=551666559]
 environment = SubResource("Environment_5v5v5")
 
-[node name="Sun" type="DirectionalLight3D" parent="."]
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=162546751]
 transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 8, 0)
 light_color = Color(1, 0.82, 0.68, 1)
 light_energy = 0.9
 shadow_enabled = true
 
-[node name="ColdFill" type="OmniLight3D" parent="."]
+[node name="ColdFill" type="OmniLight3D" parent="." unique_id=1948104283]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 8, 12)
 light_color = Color(0.43, 0.58, 0.8, 1)
 light_energy = 28.0
 omni_range = 34.0
 
-[node name="Floor" type="StaticBody3D" parent="."]
+[node name="Floor" type="StaticBody3D" parent="." unique_id=2096657512]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor" unique_id=1518991405]
 shape = SubResource("BoxShape3D_floor")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor" unique_id=385765457]
 material_override = SubResource("StandardMaterial3D_floor")
 mesh = SubResource("BoxMesh_floor")
 
-[node name="PartyMembers" type="Node3D" parent="."]
+[node name="PartyMembers" type="Node3D" parent="." unique_id=86216471]
 
-[node name="Raiders" type="Node3D" parent="."]
+[node name="Raiders" type="Node3D" parent="." unique_id=672288109]
 
-[node name="CinderHorde" type="Node3D" parent="."]
+[node name="CinderHorde" type="Node3D" parent="." unique_id=526028630]
 
-[node name="PartyManager" type="Node" parent="."]
+[node name="PartyManager" type="Node" parent="." unique_id=1046643242]
 script = ExtResource("2_manager")
 
-[node name="GameBootstrap" type="Node" parent="."]
+[node name="GameBootstrap" type="Node" parent="." unique_id=1060685166]
 script = ExtResource("3_bootstrap")
 
-[node name="CameraRig" type="Node3D" parent="."]
+[node name="CameraRig" type="Node3D" parent="." unique_id=99828265]
 
-[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+[node name="CameraPivot" type="Node3D" parent="CameraRig" unique_id=896184134]
 
-[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot" unique_id=918887037]
 transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 15, 28)
 current = true
 fov = 52.0
 
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=721265569]
 
-[node name="Instructions" type="Label" parent="CanvasLayer"]
+[node name="Instructions" type="Label" parent="CanvasLayer" unique_id=66043537]
 offset_left = 20.0
 offset_top = 20.0
 offset_right = 900.0

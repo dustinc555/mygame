@@ -2,7 +2,7 @@
 
 Use this to define how many residents a town can support from authored buildings or outdoor shelter.
 
-1. For a reusable housing building, open the building scene such as `res://scenes/world/buildings/tiny_house.tscn`.
+1. For a reusable housing building, open the building scene such as `res://src/world/projection/buildings/tiny_house.tscn`.
 
 2. Select the root `WorldBuilding` node.
 

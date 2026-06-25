@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://h4a4vsdtrlvq"]
 
-[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
+[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://resources/world_sim/faction_definition.gd" id="1_faction"]
 [ext_resource type="Resource" path="res://resources/world_sim/behavior_profiles/farmer_village.tres" id="2_behavior"]
 [ext_resource type="Resource" path="res://resources/world_sim/personality_profiles/farmer_communal.tres" id="3_personality"]
 [ext_resource type="Resource" path="res://resources/world_sim/law_profiles/common_settlement_law.tres" id="4_law"]

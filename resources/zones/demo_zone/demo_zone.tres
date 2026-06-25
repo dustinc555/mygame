@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="ZoneDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/world_sim/zone_definition.gd" id="1_zone"]
+[ext_resource type="Script" path="res://resources/zones/zone_definition.gd" id="1_zone"]
 [ext_resource type="Resource" uid="uid://c2d75xrob0b04" path="res://resources/world_sim/factions/surf_city.tres" id="2_surf_faction"]
 [ext_resource type="Resource" uid="uid://dkykt4d8s1158" path="res://resources/world_sim/factions/east_raiders.tres" id="3_raider_faction"]
 [ext_resource type="Resource" uid="uid://b4vo3ehw0kwo7" path="res://resources/world_sim/factions/paradise_hills.tres" id="4_paradise_faction"]

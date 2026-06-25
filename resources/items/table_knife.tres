@@ -1,9 +1,9 @@
 [gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://ce65m5ilpv2cd"]
 
-[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
-[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="2_mod"]
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://resources/items/item_stat_modifier.gd" id="2_mod"]
 [ext_resource type="Texture2D" uid="uid://b2lqnx58ralh5" path="res://assets/items/tableware/table_knife_icon.svg" id="3_icon"]
-[ext_resource type="PackedScene" uid="uid://cx16td8id7wpj" path="res://scenes/world/equipment/table_knife_model.tscn" id="4_model"]
+[ext_resource type="PackedScene" uid="uid://cx16td8id7wpj" path="res://src/world/projection/equipment/table_knife_model.tscn" id="4_model"]
 [ext_resource type="Resource" uid="uid://ddoq1y4fkfw0i" path="res://resources/equipment_grip_profiles/one_hand_melee.tres" id="5_grip"]
 
 [sub_resource type="Resource" id="ItemStatModifier_damage"]

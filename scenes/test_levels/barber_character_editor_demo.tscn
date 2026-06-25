@@ -1,14 +1,14 @@
 [gd_scene load_steps=20 format=3]
 
-[ext_resource type="Script" path="res://scripts/party_member.gd" id="1_party"]
-[ext_resource type="Script" path="res://scripts/party_manager.gd" id="2_party_manager"]
-[ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="3_bootstrap"]
-[ext_resource type="Script" path="res://scripts/items/inventory_stock.gd" id="4_stock"]
+[ext_resource type="Script" path="res://src/core/party/party_member.gd" id="1_party"]
+[ext_resource type="Script" path="res://src/core/party/party_manager.gd" id="2_party_manager"]
+[ext_resource type="Script" path="res://src/core/game_bootstrap.gd" id="3_bootstrap"]
+[ext_resource type="Script" path="res://resources/items/inventory_stock.gd" id="4_stock"]
 [ext_resource type="Resource" path="res://resources/items/silver.tres" id="5_silver"]
 [ext_resource type="Resource" path="res://resources/items/peasant_tunic.tres" id="6_tunic"]
 [ext_resource type="Resource" path="res://resources/items/peasant_trousers.tres" id="7_trousers"]
 [ext_resource type="Resource" path="res://resources/items/peasant_shoes.tres" id="8_shoes"]
-[ext_resource type="PackedScene" path="res://scenes/characters/vendors/barber_npc.tscn" id="9_barber"]
+[ext_resource type="PackedScene" path="res://src/actors/projection/humanoid/vendors/barber_npc.tscn" id="9_barber"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(24, 1, 24)

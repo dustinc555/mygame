@@ -2,12 +2,12 @@
 
 Use this for towns in the large seamless world.
 
-1. Create a new inherited/instanced scene from `res://scenes/world_sim/settlement_town.tscn`.
+1. Create a new inherited/instanced scene from `res://src/settlements/bridge/settlement_town.tscn`.
 
 2. Save it under a town path, such as:
 
 ```text
-res://scenes/world/towns/farmer_crossing.tscn
+res://scenes/zones/demo_zone/towns/surf_city.tscn
 ```
 
 3. Assign the town's `SettlementDefinition` on the `SettlementTown` root.

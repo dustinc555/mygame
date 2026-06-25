@@ -2,7 +2,7 @@
 
 Use this for nearby player choices in raids, ambushes, caravan attacks, survivor rescues, or similar faction conflicts.
 
-1. Add or spawn a `WorldConflictEvent` node with `res://scripts/world_sim/world_conflict_event.gd`.
+1. Add or spawn a `WorldConflictEvent` node with `res://src/world_sim/sim/world_conflict_event.gd`.
 2. Set `event_id` to a stable unique event instance ID.
 3. Set `side_a_faction_id`, `side_a_label`, `side_b_faction_id`, and `side_b_label`.
 4. Place the node at the conflict location and set `event_radius` to the distance where the player should be offered the choice.

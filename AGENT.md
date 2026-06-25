@@ -24,6 +24,7 @@ This is the single project guidance file for coding agents. Human-facing archite
 - Ensure the graph viewer is served at <http://localhost:3031>: `cd architecture/dependency-graph && node serve.js`.
 - If the viewer is already running, do not start a duplicate server.
 - If graph generation or serving fails, report it as a blocker.
+- **FORBIDDEN: changing the graph type / layout.** The Dependencies view is a force-directed graph by design — the honest physics layout. Do NOT convert it to columns, buckets, lanes, rows, grids, trees, or any category-positioned arrangement (`layout:'none'` with computed x/y), and do not otherwise change the layout/graph type. That hides coupling instead of fixing it. The hairball is removed only by changing the actual code to have fewer cross-cutting edges, then regenerating. Node color/size/labels/highlights and `extract_deps.js` analysis are fine to change; the layout is not. If you believe a different view is warranted, ask the user first.
 
 ## State And Persistence
 - Controllers/components own mutable runtime truth. Nodes and resources author data, bridge scene content, execute local behavior, and display state.

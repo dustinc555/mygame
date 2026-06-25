@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="HumanoidGripSocketProfile" format=3 uid="uid://dalkever0wmlw"]
 
-[ext_resource type="Script" uid="uid://cpmpdxof5fqtg" path="res://scripts/characters/humanoid_grip_socket_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://cpmpdxof5fqtg" path="res://resources/humanoid_grip_socket_profiles/humanoid_grip_socket_profile.gd" id="1_profile"]
 
 [resource]
 script = ExtResource("1_profile")

@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="SquadTemplate" format=3 uid="uid://dxftw2ahwx1yl"]
 
-[ext_resource type="Script" uid="uid://c3hflj5he5juw" path="res://scripts/world_sim/squad_template.gd" id="1_template"]
+[ext_resource type="Script" uid="uid://c3hflj5he5juw" path="res://resources/world_sim/squad_template.gd" id="1_template"]
 [ext_resource type="Resource" uid="uid://b4vo3ehw0kwo7" path="res://resources/world_sim/factions/paradise_hills.tres" id="2_faction"]
 [ext_resource type="Resource" uid="uid://bkw28d3jsab1n" path="res://resources/items/iron_sword.tres" id="3_sword"]
 [ext_resource type="Resource" uid="uid://cqiaromu2uqj3" path="res://resources/world_sim/population_appearance_profiles/raider_scrapper.tres" id="4_appearance"]

@@ -8,7 +8,7 @@ Use this to add a reusable drag-and-play bar facility to a `SettlementTown`.
 
 3. Click `Instantiate Child Scene...`.
 
-4. Choose `res://scenes/world_sim/settlement_bar.tscn`.
+4. Choose `res://src/settlements/bridge/settlement_bar.tscn`.
 
 5. Rename the instance, such as `FarmerBar`.
 
@@ -83,7 +83,7 @@ Generated bar guards spawn with a hatchet and one bandage. They can eject bar tr
 
 If bar staff die, the settlement records the death and the role becomes vacant. The bar does not instantly resurrect that actor; after the replacement delay, the settlement can refill the slot from available population.
 
-To change global default positions for future and uncustomized bars, edit `res://scenes/world_sim/settlement_bar.tscn` and drag nodes like `GuardPosts/GuardPost` or `ServicePoints/WaiterPoint` there.
+To change global default positions for future and uncustomized bars, edit `res://src/settlements/bridge/settlement_bar.tscn` and drag nodes like `GuardPosts/GuardPost` or `ServicePoints/WaiterPoint` there.
 
 12. If you need extra standing points beyond the staff count, use the advanced point fields:
 

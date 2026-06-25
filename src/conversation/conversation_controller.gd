@@ -1,0 +1,484 @@
+extends Node
+
+class_name ConversationController
+
+const SILVER_ITEM = preload("res://resources/items/silver.tres")
+const ACTOR_CONDITION_EVALUATOR_SCRIPT = preload("res://src/settlements/sim/actor_condition_evaluator.gd")
+
+var root_scene: Node
+var hud_layer: CanvasLayer
+var inventory_controller
+var appearance_controller
+var faction_controller: Node
+var world_time: Node
+var party_manager
+var floating_notice
+var conversation_window
+var active_speaker
+var active_target
+var active_definition
+var active_node
+var transcript_lines: PackedStringArray = PackedStringArray()
+var displayed_actions: Array = []
+var _conversation_pause_requested := false
+var _system_conversation_active := false
+var _initialized := false
+
+
+func initialize(target_root: Node, target_hud: CanvasLayer = null) -> void:
+	root_scene = target_root
+	hud_layer = target_hud
+	if is_inside_tree():
+		_do_initialize()
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	add_to_group("conversation_controller")
+	if root_scene != null:
+		if hud_layer == null:
+			hud_layer = root_scene.get_node_or_null("GameHUD")
+		_do_initialize()
+
+
+func _do_initialize() -> void:
+	if _initialized or root_scene == null:
+		return
+	party_manager = root_scene.get_node_or_null("PartyManager")
+	if hud_layer == null:
+		hud_layer = root_scene.get_node_or_null("GameHUD")
+	if hud_layer == null:
+		return
+	inventory_controller = get_parent().get_node_or_null("PartyInventoryController")
+	appearance_controller = get_parent().get_node_or_null("CharacterAppearanceController")
+	faction_controller = get_parent().get_node_or_null("FactionController")
+	world_time = get_parent().get_node_or_null("WorldTimeController")
+	conversation_window = hud_layer.get_node_or_null("ConversationWindow")
+	floating_notice = hud_layer.get_node_or_null("FloatingNotice")
+	if conversation_window != null:
+		conversation_window.process_mode = Node.PROCESS_MODE_ALWAYS
+		conversation_window.response_selected.connect(_on_response_selected)
+	_initialized = true
+
+
+func begin_conversation(speaker, target) -> void:
+	if not _initialized or speaker == null or target == null:
+		return
+	var definition = target.get_conversation_definition()
+	if definition == null:
+		return
+	active_speaker = speaker
+	active_target = target
+	active_definition = definition
+	transcript_lines.clear()
+	_request_conversation_pause()
+	_show_node(definition.get_node_by_id(definition.start_node_id))
+
+
+func begin_system_conversation(speaker, target, text: String, response_text := "Understood") -> bool:
+	if not _initialized or conversation_window == null or speaker == null or target == null or text.is_empty():
+		return false
+	active_speaker = speaker
+	active_target = target
+	active_definition = null
+	active_node = null
+	_system_conversation_active = true
+	transcript_lines.clear()
+	displayed_actions.clear()
+	var speaker_name := _conversation_actor_name(speaker)
+	transcript_lines.append("%s: %s" % [speaker_name, text])
+	displayed_actions.append({"type": "leave"})
+	_request_conversation_pause()
+	conversation_window.show_conversation(speaker_name, "\n\n".join(transcript_lines), [{"text": response_text, "disabled": false}], active_speaker, active_target)
+	return true
+
+
+func _show_node(node) -> void:
+	if node == null:
+		_end_conversation()
+		return
+	active_node = node
+	_apply_effects(node.effects)
+	var speaker_name: String = node.speaker_name
+	if speaker_name.is_empty():
+		speaker_name = active_target.member_name if active_target != null else ""
+	var node_text: String = node.text
+	if active_target != null and active_target.has_method("get_job_provider"):
+		var provider = active_target.get_job_provider()
+		if provider != null and provider.has_method("get_greeting_text_for") and node == active_definition.get_node_by_id(active_definition.start_node_id):
+			node_text = provider.get_greeting_text_for(active_speaker, node_text)
+	transcript_lines.append("%s: %s" % [speaker_name, node_text])
+	var response_data: Array = []
+	displayed_actions.clear()
+	for response in node.responses:
+		if response == null:
+			continue
+		var evaluation := _evaluate_response(response)
+		if evaluation.get("visible", true):
+			var display_data := _build_response_display_data(response)
+			response_data.append({
+				"text": display_data.get("text", response.text),
+				"disabled": evaluation.get("disabled", false),
+				"font_color": display_data.get("font_color", Color(0.95, 0.92, 0.86, 1.0)),
+			})
+			displayed_actions.append({"type": "authored", "response": response})
+	if node.ends_conversation and response_data.is_empty():
+		response_data.append({"text": "End conversation", "disabled": false})
+	if active_target != null and active_target.has_method("get_job_provider"):
+		var provider = active_target.get_job_provider()
+		if provider != null:
+			for option in provider.build_conversation_options(active_speaker, _build_dynamic_option_context()):
+				response_data.append({
+					"text": option.get("text", ""),
+					"disabled": false,
+				})
+				displayed_actions.append({"type": "dynamic", "option": option})
+	response_data.append({"text": "Leave", "disabled": false})
+	displayed_actions.append({"type": "leave"})
+	if conversation_window != null:
+		conversation_window.show_conversation(speaker_name, "\n\n".join(transcript_lines), response_data, active_speaker, active_target)
+
+
+func _on_response_selected(response_index: int) -> void:
+	if active_node == null and not _system_conversation_active:
+		return
+	if response_index < 0 or response_index >= displayed_actions.size():
+		return
+	var action: Dictionary = displayed_actions[response_index]
+	match str(action.get("type", "")):
+		"authored":
+			var response = action.get("response")
+			if response == null:
+				return
+			transcript_lines.append("%s: %s" % [active_speaker.member_name, response.text])
+			_apply_effects(response.effects)
+			var skill_result := _resolve_response_skill_check(response)
+			if not skill_result.is_empty():
+				transcript_lines.append(skill_result.get("transcript", ""))
+				var result_node_id := str(skill_result.get("next_node_id", ""))
+				if result_node_id.is_empty():
+					_end_conversation()
+					return
+				_show_node(active_definition.get_node_by_id(result_node_id))
+				return
+			if response.next_node_id.is_empty():
+				_end_conversation()
+				return
+			_show_node(active_definition.get_node_by_id(response.next_node_id))
+		"dynamic":
+			_handle_dynamic_response(action.get("option", {}))
+		"leave":
+			_end_conversation()
+		_:
+			_end_conversation()
+
+
+func _handle_dynamic_response(option: Dictionary) -> void:
+	if active_target == null or not active_target.has_method("get_job_provider"):
+		return
+	var provider = active_target.get_job_provider()
+	if provider == null:
+		return
+	if option.get("disabled", false):
+		if floating_notice != null and option.get("reason", "") != "":
+			floating_notice.show_message(option.get("reason", ""))
+		return
+	transcript_lines.append("%s: %s" % [active_speaker.member_name, option.get("text", "")])
+	var result: Dictionary = provider.handle_conversation_option(active_speaker, option, _build_dynamic_option_context())
+	var provider_name: String = active_target.member_name if active_target != null else ""
+	if result.get("speaker_text", "") != "":
+		transcript_lines.append("%s: %s" % [provider_name, result.get("speaker_text", "")])
+	_show_result_speech(result)
+	_show_result_world_notice(result)
+	if result.has("follow_up_options"):
+		_show_follow_up_options(provider_name, result.get("follow_up_options", []))
+		return
+	if result.get("end_conversation", true):
+		if floating_notice != null and result.get("speaker_text", "") != "" and result.get("show_floating_notice", true):
+			floating_notice.show_message(result.get("speaker_text", ""))
+		_end_conversation()
+		return
+	_show_node(active_node)
+
+
+func _evaluate_response(response) -> Dictionary:
+	var reason := ""
+	for condition in response.visible_conditions:
+		if condition == null:
+			continue
+		var result := ACTOR_CONDITION_EVALUATOR_SCRIPT.evaluate(condition, {
+			"speaker_member": active_speaker,
+			"conversation_target": active_target,
+		})
+		if not result.get("passed", false):
+			reason = result.get("reason", condition.disabled_reason)
+			return {"visible": false, "disabled": false, "reason": reason}
+	return {"visible": true, "disabled": false, "reason": reason}
+
+
+func _build_response_display_data(response) -> Dictionary:
+	var text := str(response.text)
+	var color := Color(0.95, 0.92, 0.86, 1.0)
+	var skill_check := _response_skill_check(response)
+	if not skill_check.is_empty():
+		var chance := _calculate_skill_check_chance(active_speaker, skill_check)
+		text = "%s [%s]" % [text, _skill_chance_label(chance)]
+		color = _skill_chance_color(chance)
+	return {"text": text, "font_color": color}
+
+
+func _resolve_response_skill_check(response) -> Dictionary:
+	var skill_check := _response_skill_check(response)
+	if skill_check.is_empty():
+		return {}
+	var chance := _calculate_skill_check_chance(active_speaker, skill_check)
+	var passed := randf() <= chance
+	var skill_id := str(skill_check.get("skill_id", SkillRules.ATTRIBUTE_CHARISMA))
+	if active_speaker != null and active_speaker.has_method("add_skill_xp"):
+		active_speaker.call("add_skill_xp", skill_id, _get_skill_check_xp(skill_id, chance, passed, skill_check), "conversation_check")
+	var next_node_id := str(skill_check.get("success_node_id", "")) if passed else str(skill_check.get("failure_node_id", ""))
+	return {
+		"passed": passed,
+		"next_node_id": next_node_id,
+		"transcript": "Check: %s (%s, %d%%)." % ["Success" if passed else "Failure", _skill_chance_label(chance), int(round(chance * 100.0))],
+	}
+
+
+func _calculate_skill_check_chance(actor, skill_check: Dictionary) -> float:
+	var skill_id := str(skill_check.get("skill_id", SkillRules.ATTRIBUTE_CHARISMA))
+	var level := 0
+	if actor != null and actor.has_method("get_skill_level"):
+		level = int(actor.call("get_skill_level", skill_id))
+	var chance := float(skill_check.get("base_chance", 0.25)) + float(level) * float(skill_check.get("chance_per_level", 0.03))
+	return clampf(chance, float(skill_check.get("min_chance", 0.05)), float(skill_check.get("max_chance", 0.9)))
+
+
+func _get_skill_check_xp(skill_id: String, chance: float, passed: bool, skill_check: Dictionary) -> float:
+	if skill_id == SkillRules.ATTRIBUTE_CHARISMA:
+		return SkillRules.get_chance_check_xp(chance, passed, float(skill_check.get("xp_scale", 1.0)))
+	return float(skill_check.get("xp", 1.0))
+
+
+func _skill_chance_label(chance: float) -> String:
+	if chance < 0.2:
+		return "Very Low"
+	if chance < 0.4:
+		return "Low"
+	if chance < 0.65:
+		return "50/50"
+	if chance < 0.9:
+		return "High"
+	return "Very High"
+
+
+func _skill_chance_color(chance: float) -> Color:
+	if chance < 0.2:
+		return Color(0.95, 0.24, 0.2, 1.0)
+	if chance < 0.4:
+		return Color(1.0, 0.52, 0.24, 1.0)
+	if chance < 0.65:
+		return Color(0.95, 0.86, 0.34, 1.0)
+	if chance < 0.9:
+		return Color(0.55, 0.92, 0.48, 1.0)
+	return Color(0.18, 0.95, 0.42, 1.0)
+
+
+func _response_skill_check(response) -> Dictionary:
+	if response == null:
+		return {}
+	var value = response.get("skill_check")
+	return value if value is Dictionary else {}
+
+
+func _build_dynamic_option_context() -> Dictionary:
+	var selected_members: Array = []
+	if party_manager != null:
+		for member in party_manager.selected_members:
+			if member is HumanoidCharacter and is_instance_valid(member):
+				selected_members.append(member)
+	return {"selected_party_members": selected_members}
+
+
+func _apply_effects(effects: Array) -> void:
+	for effect in effects:
+		if effect == null:
+			continue
+		_execute_action(effect)
+
+
+func _execute_action(effect) -> void:
+	match effect.action_id:
+		"barber.open_editor":
+			if appearance_controller != null and active_speaker != null:
+				appearance_controller.open_barber_editor(active_speaker, active_target)
+		"core.start_trade":
+			if inventory_controller != null and active_speaker != null and active_target != null:
+				inventory_controller.open_inventory_pair(active_speaker, active_target)
+		"bar.start_service_area_trade":
+			if inventory_controller != null and active_speaker != null and active_target != null:
+				var service_area := _resolve_bar_service_area(active_target)
+				if service_area == null:
+					return
+				if service_area.get_owner_character() == null:
+					return
+				if service_area.has_method("set_trade_proxy_position"):
+					service_area.set_trade_proxy_position(active_target.global_position)
+				inventory_controller.open_inventory_pair(active_speaker, service_area)
+		"core.start_combat":
+			if active_target == null:
+				return
+			var attackers: Array = []
+			if party_manager != null and not party_manager.selected_members.is_empty() and party_manager.selected_members.has(active_speaker):
+				attackers = party_manager.selected_members.duplicate()
+			elif active_speaker != null:
+				attackers.append(active_speaker)
+			for attacker in attackers:
+				attacker.assign_attack_target(active_target)
+		"core.transfer_item":
+			var from_actor = _resolve_subject(effect.parameters.get("from_subject", "speaker_member"))
+			var to_actor = _resolve_subject(effect.parameters.get("to_subject", "conversation_target"))
+			var item_definition = effect.parameters.get("item_definition", SILVER_ITEM)
+			var count := int(effect.parameters.get("count", 1))
+			if from_actor == null or to_actor == null or item_definition == null or from_actor.inventory == null or to_actor.inventory == null:
+				return
+			if not from_actor.inventory.remove_item_count(item_definition, count):
+				return
+			if not to_actor.inventory.add_item_count(item_definition, count):
+				from_actor.inventory.add_item_count(item_definition, count)
+		"core.join_party":
+			var target_actor = _resolve_subject(effect.parameters.get("subject", "conversation_target"))
+			if target_actor != null:
+				target_actor.set_player_party_member(true)
+				if party_manager != null:
+					party_manager.register_party_member(target_actor)
+		"core.set_faction":
+			var faction_actor = _resolve_subject(effect.parameters.get("subject", "conversation_target"))
+			if faction_actor != null:
+				faction_actor.faction_name = str(effect.parameters.get("faction_name", faction_actor.faction_name))
+		"faction.apply_helped_faction_result":
+			if faction_controller != null and faction_controller.has_method("apply_helped_faction_result"):
+				faction_controller.call(
+					"apply_helped_faction_result",
+					str(effect.parameters.get("helped_faction_id", "")),
+					str(effect.parameters.get("opposed_faction_id", "")),
+					int(effect.parameters.get("reputation_gain", 10)),
+					int(effect.parameters.get("favor_gain", 1)),
+					int(effect.parameters.get("opposed_reputation_loss", 0))
+				)
+		_:
+			return
+
+
+func _resolve_subject(subject_key: Variant):
+	match str(subject_key):
+		"speaker_member":
+			return active_speaker
+		"conversation_target", "npc_self":
+			return active_target
+	return null
+
+
+func _resolve_squad_id(source: Variant) -> String:
+	var direct_value := str(source)
+	if direct_value != "conversation_target" and direct_value != "speaker_member" and not direct_value.is_empty():
+		return direct_value
+	var actor = _resolve_subject(source)
+	if actor != null:
+		return str(actor.get("world_squad_id"))
+	return ""
+
+
+func _resolve_bar_service_area(start_node: Node) -> BarServiceArea:
+	var node := start_node
+	while node != null:
+		if node is BarServiceArea:
+			return node
+		if node.has_method("get_bar_service_area"):
+			var service_area = node.call("get_bar_service_area")
+			if service_area is BarServiceArea:
+				return service_area
+		node = node.get_parent()
+	var tree := get_tree()
+	if tree == null:
+		return null
+	for service_area in tree.get_nodes_in_group("bar_service_area"):
+		if service_area is BarServiceArea and service_area.serves_actor(start_node):
+			return service_area
+	return null
+
+
+func _end_conversation() -> void:
+	_release_conversation_pause()
+	if conversation_window != null:
+		conversation_window.hide_conversation()
+	_system_conversation_active = false
+	active_speaker = null
+	active_target = null
+	active_definition = null
+	active_node = null
+	transcript_lines.clear()
+	displayed_actions.clear()
+
+
+func _conversation_actor_name(actor) -> String:
+	if actor == null:
+		return ""
+	var member_name = actor.get("member_name")
+	if member_name != null and not str(member_name).is_empty():
+		return str(member_name)
+	return str(actor.name) if actor is Node else ""
+
+
+func _request_conversation_pause() -> void:
+	_conversation_pause_requested = false
+	if world_time != null and world_time.has_method("request_conversation_pause"):
+		_conversation_pause_requested = bool(world_time.call("request_conversation_pause"))
+
+
+func _release_conversation_pause() -> void:
+	if not _conversation_pause_requested:
+		return
+	_conversation_pause_requested = false
+	if world_time != null and world_time.has_method("release_conversation_pause"):
+		world_time.call("release_conversation_pause")
+
+
+func _show_follow_up_options(speaker_name: String, options: Array) -> void:
+	var response_data: Array = []
+	displayed_actions.clear()
+	for option in options:
+		response_data.append({"text": option.get("text", ""), "disabled": false})
+		displayed_actions.append({"type": "dynamic", "option": option})
+	if conversation_window != null:
+		conversation_window.show_conversation(speaker_name, "\n\n".join(transcript_lines), response_data, active_speaker, active_target)
+
+
+func _show_result_world_notice(result: Dictionary) -> void:
+	var notice_target = result.get("world_notice_target")
+	if notice_target == null:
+		return
+	if not is_instance_valid(notice_target):
+		return
+	if not notice_target.has_method("show_world_notice"):
+		return
+	var notice_text := str(result.get("world_notice_text", ""))
+	if notice_text.is_empty():
+		return
+	var notice_color: Color = result.get("world_notice_color", Color(0.5, 1.0, 0.65, 1.0))
+	var notice_lifetime := float(result.get("world_notice_lifetime", 1.0))
+	notice_target.show_world_notice(notice_text, notice_color, notice_lifetime)
+
+
+func _show_result_speech(result: Dictionary) -> void:
+	var speech_target = result.get("speech_target")
+	if speech_target == null:
+		return
+	if not is_instance_valid(speech_target):
+		return
+	if not speech_target.has_method("show_world_speech"):
+		return
+	var speech_text := str(result.get("speech_text", ""))
+	if speech_text.is_empty():
+		return
+	var speech_lifetime := float(result.get("speech_lifetime", 5.0))
+	speech_target.show_world_speech(speech_text, speech_lifetime)

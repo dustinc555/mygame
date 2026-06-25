@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="SettlementPlacement" format=3 uid="uid://cjc4px1ogbwcr"]
 
-[ext_resource type="Script" uid="uid://bs5ubf5h7r5y0" path="res://scripts/world_sim/settlement_placement.gd" id="1_placement"]
+[ext_resource type="Script" uid="uid://bs5ubf5h7r5y0" path="res://resources/world_sim/settlement_placement.gd" id="1_placement"]
 [ext_resource type="Resource" uid="uid://3sggop603h5v" path="res://resources/world_sim/settlements/paradise_hills.tres" id="2_settlement"]
 [ext_resource type="PackedScene" path="res://scenes/zones/demo_zone/towns/paradise_hills.tscn" id="3_town"]
 

@@ -45,6 +45,7 @@
     <h1>MyGame <small>dependency &amp; coupling</small></h1>
     <div class="seg" id="mode">
       <button data-m="graph" class="active">Dependencies</button>
+      <button data-m="dag">Layered DAG</button>
       <button data-m="layer">Layer coupling</button>
     </div>
     <label class="chk"><input type="checkbox" id="cViol"> <span class="viol">truth-rule</span></label>
@@ -69,24 +70,31 @@
 
   const edgeColor = e => e.violation ? '#ff5c5c' : e.cycle ? '#ff9a3b' : 'rgba(120,130,150,.28)';
   const edgeWidth = e => e.violation ? 2.6 : e.cycle ? 1.8 : Math.min(0.6 + e.w*0.25, 2);
-  const systemAnchors = {
-    LedgerSimulationController: {badge:'WORLD O(1)', color:'#3ddcff', shadow:'rgba(61,220,255,.72)', boost:18, fontSize:12},
-    GecsWorldController: {badge:'LIVE O(n)', color:'#b07cff', shadow:'rgba(176,124,255,.72)', boost:18, fontSize:12},
-    PopulationRealizationController: {badge:'LEDGER ↔ LIVE', color:'#4df0a1', shadow:'rgba(77,240,161,.55)', boost:10, fontSize:11}
+  // Special treatment ONLY for the structural roots: the bootstrap entry (white
+  // halo) and each trunk root (its own unique color). No individual leaf nodes
+  // are highlighted — they fall naturally under one of the roots. Graph TYPE is
+  // unchanged: this is the same force-directed layout, only the glow set moved.
+  const ROOT_GLOW = {
+    '~bootstrap/game_bootstrap': {color:'#ffffff', label:'★ GAME ENTRY', boost:24, fontSize:13},
+    'WorldSimRoot':        {color:'#ffd34d', label:'WORLD SIM',  boost:18, fontSize:12},
+    'WorldBridgeRoot':     {color:'#ff9a3b', label:'BRIDGE',     boost:18, fontSize:12},
+    'ProjectionSim':       {color:'#46e0a0', label:'PROJECTION', boost:18, fontSize:12},
+    'InputUiRoot':         {color:'#37c7d6', label:'INPUT / UI', boost:14, fontSize:11},
+    'WorldTimeController':  {color:'#b07cff', label:'⏱ CLOCK',    boost:14, fontSize:11},
   };
+  function rootGlow(n){ return ROOT_GLOW[n.id] || null; }
   function nodeBorder(n){ if(n.status==='new') return {borderColor:'#3fcf6a',borderWidth:2.6}; if(n.status==='modified') return {borderColor:'#f0b429',borderWidth:2.6}; if(n.tick) return {borderColor:'#ffd24a',borderWidth:2}; if(n.cycle) return {borderColor:'#ff9a3b',borderWidth:1.6}; return {}; }
-  function systemAnchor(n){ return systemAnchors[n.id] || null; }
-  function nodeSize(n){ const a=systemAnchor(n); return 7+Math.min(n.in*1.5,38)+(a?a.boost:0); }
+  function nodeSize(n){ const g=rootGlow(n); return 7+Math.min(n.in*1.5,38)+(g?g.boost:0); }
   function nodeStyle(n){
     const style = Object.assign({color:colorOf[n.layer]}, nodeBorder(n));
-    const a = systemAnchor(n);
-    if(a) Object.assign(style, {borderColor:a.color, borderWidth:4, shadowBlur:22, shadowColor:a.shadow});
+    const g = rootGlow(n);
+    if(g) Object.assign(style, {borderColor:g.color, borderWidth:4, shadowBlur:26, shadowColor:g.color});
     return style;
   }
   function nodeLabel(n){
-    const a = systemAnchor(n);
-    return a
-      ? {show:true, formatter:`${a.badge}\n{b}`, color:'#f8fbff', fontSize:a.fontSize, fontWeight:800, lineHeight:14, textBorderColor:'#0f1115', textBorderWidth:4}
+    const g = rootGlow(n);
+    return g
+      ? {show:true, formatter:`${g.label}\n{b}`, color:'#f8fbff', fontSize:g.fontSize, fontWeight:800, lineHeight:14, textBorderColor:'#0f1115', textBorderWidth:4}
       : {show:true};
   }
 
@@ -113,7 +121,7 @@
           ? `${p.data.source} <span style="color:#7d8595">→</span> ${p.data.target}`+(p.data.violation?'<br><span style="color:#ff6b6b">truth-rule violation</span>':p.data.cycle?'<br><span style="color:#ffac5e">in a cycle</span>':'')
           : `<b>${p.data.name}</b><br><span style="color:#9aa3b2">${p.data.layer}</span><br><span style="color:#7d8595">${p.data.in} depend on it · it uses ${p.data.out}</span>`+(p.data.tick?'<br><span style="color:#ffd24a">self-tick violator</span>':'')+(p.data.status?'<br><span style="color:'+(p.data.status==='new'?'#3fcf6a':'#f0b429')+'">'+p.data.status+' (working tree)</span>':'') },
       series:[{
-        id:'deps', type:'graph', layout:'force', roam:false, draggable:false,
+        id:'deps', type:'graph', layout:'force', roam:true, draggable:true,
         categories: G.layers.map(l=>({name:l.name, itemStyle:{color:l.color}})),
         data: nodes.map(n=>({ name:n.id, category:layerIdx[n.layer], layer:n.layer, in:n.in, out:n.out, tick:n.tick, status:n.status,
           symbolSize: nodeSize(n), itemStyle: nodeStyle(n), label:nodeLabel(n) })),
@@ -133,7 +141,7 @@
     return { backgroundColor:'transparent',
       tooltip:{backgroundColor:'#171a21',borderColor:'#2a2f3a',textStyle:{color:'#e7e9ee'},
         formatter:p=> p.dataType==='edge'?`${p.data.source} → ${p.data.target}<br><b>${p.data.value}</b> dependencies`+(p.data.violation?'<br><span style="color:#ff6b6b">violates GECS=truth</span>':''):`<b>${p.data.name}</b>`},
-      series:[{ id:'layers', type:'graph', layout:'circular', circular:{rotateLabel:true}, roam:false, draggable:false,
+      series:[{ id:'layers', type:'graph', layout:'circular', circular:{rotateLabel:true}, roam:true, draggable:true,
         data:G.layers.map(l=>({name:l.name, symbolSize:14+Math.sqrt(deg[l.name]||1)*3.2, itemStyle:{color:l.color}})),
         links:G.layerLinks.map(e=>({source:e.source,target:e.target,value:e.w,violation:e.violation,
           lineStyle:{color:e.violation?'#ff5c5c':'rgba(140,150,170,.45)', width:Math.sqrt(e.w)*1.4, curveness:0.22, opacity:0.8},
@@ -141,14 +149,123 @@
         edgeSymbol:['none','arrow'], edgeSymbolSize:7, label:{show:true,color:'#e7e9ee',fontSize:12,fontWeight:600},
         lineStyle:{opacity:0.7}, emphasis:{focus:'adjacency'} }] };
   }
-  function render(){ chart.setOption(mode==='graph'?graphOption():layerOption(), true); }
-  function activeSeriesId(){ return mode==='graph' ? 'deps' : 'layers'; }
+  // Apply the same node/link filters the dependency view uses, return a subset.
+  function filteredGraph(){
+    let nodes=G.nodes, links=G.links;
+    if(opt.q){ const q=opt.q.toLowerCase(); const keep=keepSet(G.nodes.filter(n=>n.id.toLowerCase().includes(q)).map(n=>n.id));
+      nodes=G.nodes.filter(n=>keep.has(n.id)); links=G.links.filter(e=>keep.has(e.source)&&keep.has(e.target)); }
+    if(opt.tick){ const keep=keepSet(G.nodes.filter(n=>n.tick).map(n=>n.id));
+      nodes=nodes.filter(n=>keep.has(n.id)); links=links.filter(e=>keep.has(e.source)&&keep.has(e.target)); }
+    if(opt.changed){ const keep=keepSet(G.nodes.filter(n=>n.status).map(n=>n.id));
+      nodes=nodes.filter(n=>keep.has(n.id)); links=links.filter(e=>keep.has(e.source)&&keep.has(e.target)); }
+    if(opt.viol) links=links.filter(e=>e.violation);
+    else if(opt.cyc) links=links.filter(e=>e.cycle);
+    const ids=new Set(nodes.map(n=>n.id));
+    links=links.filter(e=>ids.has(e.source)&&ids.has(e.target));
+    return {nodes, links};
+  }
+
+  // Sugiyama-style layered layout. Edge A->B means "A depends on B", so sources
+  // (GameBootstrap, the roots) land at the top and the most-depended-upon sinks
+  // (the bridge, ActorEnums) sink to the bottom — the "tree into the bridge" shape
+  // a force layout physically cannot show. Cycles are broken for layering and the
+  // few back-edges are drawn in orange so they stay visible.
+  function computeDag(nodes, links){
+    const id2 = {}; nodes.forEach(n=>id2[n.id]=n);
+    // Split out isolated nodes (no dependency edges). They have no place in a
+    // hierarchy and would pile into the top row; park them below the funnel.
+    const deg={}; nodes.forEach(n=>deg[n.id]=0);
+    links.forEach(e=>{ if(id2[e.source]&&id2[e.target]&&e.source!==e.target){ deg[e.source]++; deg[e.target]++; } });
+    const conn = nodes.filter(n=>deg[n.id]>0);
+    const iso  = nodes.filter(n=>deg[n.id]===0);
+    const isoSet = new Set(iso.map(n=>n.id));
+    const adj = {}; conn.forEach(n=>adj[n.id]=[]);
+    links.forEach(e=>{ if(adj[e.source]&&adj[e.target]&&e.source!==e.target) adj[e.source].push(e.target); });
+    // 1. break cycles: DFS, an edge to a node currently on the stack is a back-edge.
+    const state={}, back=new Set();
+    conn.forEach(n=>{ if(!state[n.id]){
+      const stack=[[n.id,0]]; state[n.id]=1;
+      while(stack.length){
+        const top=stack[stack.length-1]; const u=top[0];
+        if(top[1] < adj[u].length){ const v=adj[u][top[1]++];
+          if(state[v]===1) back.add(u+' '+v);
+          else if(!state[v]){ state[v]=1; stack.push([v,0]); }
+        } else { state[u]=2; stack.pop(); }
+      }
+    }});
+    // 2. acyclic edge set + longest-path layering (Kahn topo).
+    const dag={}, rdag={}; conn.forEach(n=>{dag[n.id]=[]; rdag[n.id]=[];});
+    links.forEach(e=>{ if(id2[e.source]&&id2[e.target]&&e.source!==e.target && !back.has(e.source+' '+e.target)){ dag[e.source].push(e.target); rdag[e.target].push(e.source); } });
+    const indeg={}; conn.forEach(n=>indeg[n.id]=0); conn.forEach(u=>dag[u.id].forEach(v=>indeg[v]++));
+    const layer={}; conn.forEach(n=>layer[n.id]=0);
+    const q=conn.filter(n=>indeg[n.id]===0).map(n=>n.id);
+    while(q.length){ const u=q.shift(); for(const v of dag[u]){ if(layer[u]+1>layer[v]) layer[v]=layer[u]+1; if(--indeg[v]===0) q.push(v); } }
+    const maxL=Math.max(0,...conn.map(n=>layer[n.id]));
+    // 3. order nodes within each layer (barycenter sweeps) to cut crossings.
+    const order={}; for(let L=0;L<=maxL;L++) order[L]=[];
+    conn.forEach(n=>order[layer[n.id]].push(n.id));
+    const pos={}; const reindex=()=>{ for(let L=0;L<=maxL;L++) order[L].forEach((id,i)=>pos[id]=i); }; reindex();
+    for(let it=0; it<8; it++){
+      const down = it%2===0;
+      for(let k=1;k<=maxL;k++){
+        const L = down ? k : maxL-k;
+        const neigh = down ? rdag : dag;
+        order[L] = order[L].map(id=>{ const ns=neigh[id]; const bc = ns.length ? ns.reduce((s,x)=>s+pos[x],0)/ns.length : pos[id]; return {id,bc}; })
+                           .sort((a,b)=>a.bc-b.bc).map(o=>o.id);
+        reindex();
+      }
+    }
+    // 4. pixel coordinates: y by layer (roots on top), x spread+centered per layer.
+    const xGap=44, yGap=130;
+    const maxW = Math.max(1,...Object.values(order).map(a=>a.length)) * xGap;
+    const coord={};
+    for(let L=0;L<=maxL;L++){ const a=order[L]; const x0=(maxW - a.length*xGap)/2; a.forEach((id,i)=>coord[id]={x:x0+i*xGap, y:L*yGap}); }
+    // 5. park isolated nodes in a compact grid below the funnel.
+    const cols=Math.max(1, Math.floor(maxW/xGap));
+    const parkY0=(maxL+2)*yGap;
+    iso.forEach((n,i)=>{ const r=Math.floor(i/cols), c=i%cols; coord[n.id]={x:c*xGap, y:parkY0+r*(yGap*0.5)}; });
+    const totalH=parkY0 + Math.ceil(iso.length/cols)*(yGap*0.5);
+    return {coord, back, isoSet, maxW, maxL, yGap, totalH, isoCount:iso.length};
+  }
+
+  function dagOption(){
+    const {nodes, links} = filteredGraph();
+    const {coord, back, isoSet, maxW, maxL, yGap, isoCount} = computeDag(nodes, links);
+    const dagEdgeColor = e => e.violation ? '#ff5c5c' : (back.has(e.source+' '+e.target) ? '#ff9a3b' : 'rgba(120,130,150,.22)');
+    return {
+      backgroundColor:'transparent',
+      tooltip:{ backgroundColor:'#171a21', borderColor:'#2a2f3a', textStyle:{color:'#e7e9ee'},
+        formatter:p=> p.dataType==='edge'
+          ? `${p.data.source} <span style="color:#7d8595">→</span> ${p.data.target}`+(p.data.violation?'<br><span style="color:#ff6b6b">truth-rule violation</span>':(back.has(p.data.source+' '+p.data.target)?'<br><span style="color:#ffac5e">back-edge (cycle)</span>':''))
+          : `<b>${p.data.name}</b><br><span style="color:#9aa3b2">${p.data.layer}</span><br><span style="color:#7d8595">${p.data.in} depend on it · it uses ${p.data.out}</span>` },
+      series:[{
+        id:'dag', type:'graph', layout:'none', roam:true, draggable:true,
+        center:[maxW/2, (maxL*yGap)/2], zoom:0.55,
+        categories: G.layers.map(l=>({name:l.name, itemStyle:{color:l.color}})),
+        data: nodes.map(n=>{ const g=rootGlow(n); const isIso=isoSet.has(n.id); return { name:n.id, x:coord[n.id].x, y:coord[n.id].y, category:layerIdx[n.layer], layer:n.layer, in:n.in, out:n.out, tick:n.tick, status:n.status,
+          symbolSize: isIso ? 5 : nodeSize(n), itemStyle: isIso ? {color:'#3a3f4b', opacity:0.5} : nodeStyle(n),
+          label: (g && !isIso) ? nodeLabel(n) : {show:false} }; }),
+        links: links.map(e=>({ source:e.source, target:e.target, violation:e.violation,
+          lineStyle:{ color:dagEdgeColor(e), width:e.violation?2.4:(back.has(e.source+' '+e.target)?1.6:0.7), curveness:0.04, opacity:e.violation||back.has(e.source+' '+e.target)?0.95:0.5 } })),
+        edgeSymbol:['none','arrow'], edgeSymbolSize:5,
+        emphasis:{focus:'adjacency', label:{show:true}, lineStyle:{opacity:1}},
+        scaleLimit:{min:0.1, max:8}
+      }]
+    };
+  }
+
+  function render(){ chart.setOption(mode==='graph'?graphOption():(mode==='dag'?dagOption():layerOption()), true); }
+  function activeSeriesId(){ return mode==='graph' ? 'deps' : (mode==='dag' ? 'dag' : 'layers'); }
   const chartEl = document.getElementById('chart');
   const canvasPan = {active:false,lastX:0,lastY:0};
   function endCanvasPan(){ canvasPan.active=false; chartEl.classList.remove('dragging'); }
   chart.getZr().on('mousedown', e=>{
     const raw = e.event || {};
     if(raw.button != null && raw.button !== 0) return;
+    // If the press landed on a node/edge/label, let ECharts' built-in
+    // draggable handle it — only hijack the gesture for canvas panning
+    // when the press is on empty background (no zrender target).
+    if(e.target) return;
     canvasPan.active = true;
     canvasPan.lastX = e.offsetX;
     canvasPan.lastY = e.offsetY;
@@ -186,8 +303,8 @@
       chg.new.map(id=>`<div class="row" data-focus="${esc(id)}"><span class="new">＋</span><span class="nm">${esc(id)}</span></div>`).join('')+
       chg.modified.map(id=>`<div class="row" data-focus="${esc(id)}"><span class="mod">~</span><span class="nm">${esc(id)}</span></div>`).join('')+
       `<h2>Overview</h2><p class="note">${i.totals.nodes} scripts · ${i.totals.edges} dependencies. Color = layer. Node size = how many depend on it.</p>`+
-      `<h2>System anchors</h2><p class="note"><span style="color:#3ddcff">WORLD O(1)</span> = ledger/world sim. <span style="color:#b07cff">LIVE O(n)</span> = realized/live sim. <span style="color:#4df0a1">LEDGER ↔ LIVE</span> = realization seam.</p>`+
-      Object.keys(systemAnchors).map(id=>`<div class="row" data-focus="${esc(id)}"><span class="nm" style="color:${esc(systemAnchors[id].color)}">${esc(systemAnchors[id].badge)}</span><span class="ly">${esc(id)}</span></div>`).join('')+
+      `<h2>Roots</h2><p class="note">The only highlighted nodes: the bootstrap entry (white halo) and each trunk root (its own color). Every other node falls under a root — no individual leaf is special-cased.</p>`+
+      Object.keys(ROOT_GLOW).map(id=>`<div class="row" data-focus="${esc(id)}"><span class="nm" style="color:${esc(ROOT_GLOW[id].color)}">${esc(ROOT_GLOW[id].label)}</span><span class="ly">${esc(id)}</span></div>`).join('')+
       `<h2 class="viol">Truth-rule violations (${i.violations.length})</h2><p class="note">GECS reads components, not live nodes. These reach into <code>WorldActor</code>.</p>`+
       i.violations.map(v=>`<div class="row"><span class="nm viol">${esc(v.s)}</span><span class="ly">→ ${esc(v.t)}</span></div>`).join('')+
       `<h2 class="tick">Self-tick violators (${i.tick.length})</h2><p class="note">Durable work on <code>_process</code> every frame — not LOD-gated, not on world-sim cadence.</p>`+

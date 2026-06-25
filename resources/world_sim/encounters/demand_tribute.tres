@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="EncounterObjective" format=3]
 
-[ext_resource type="Script" path="res://scripts/world_sim/encounter_objective.gd" id="1_objective"]
+[ext_resource type="Script" path="res://resources/world_sim/encounter_objective.gd" id="1_objective"]
 
 [resource]
 script = ExtResource("1_objective")

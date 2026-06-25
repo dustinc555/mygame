@@ -8,7 +8,7 @@ Use this to add a reusable settlement jail facility.
 
 3. Click `Instantiate Child Scene...`.
 
-4. Choose `res://scenes/world_sim/settlement_jail.tscn`.
+4. Choose `res://src/settlements/bridge/settlement_jail.tscn`.
 
 5. Rename the instance, such as `FarmerJail`.
 
@@ -39,12 +39,12 @@ Cells/Cell* as lightweight prisoner assignment hooks
 Lockers/PrisonerLocker
 ```
 
-`Cells/Cell*` are instances of `res://scenes/world_sim/jail_cell.tscn`. Edit that source scene for shared cage visuals or collision.
+`Cells/Cell*` are instances of `res://src/settlements/bridge/jail_cell.tscn`. Edit that source scene for shared cage visuals or collision.
 
-`Lockers/PrisonerLocker` is an instance of `res://scenes/world/containers/prisoner_locker_container.tscn`. Edit that source scene for shared locker visuals, inventory dimensions, or collision.
+`Lockers/PrisonerLocker` is an instance of `res://src/world/projection/containers/prisoner_locker_container.tscn`. Edit that source scene for shared locker visuals, inventory dimensions, or collision.
 
 Jail guards and the warden are settlement authority roles. Only guard-role authority actors answer law combat/custody calls; the warden stays available for sentencing and jail administration. If they die, the settlement records the death and the role refills later only if the town has available population.
 
 Witnessed crimes are handled by `LawOrderController`. Unconscious wanted actors are carried by a guard through `EntryPoint`, placed at the cell's interaction point, then admitted when a cell and locker are available; legal release returns non-stolen gear and forfeits stolen goods.
 
-Done check: run `res://scenes/test_levels/jail_law_demo.tscn` or `godot --headless --path . --script res://scripts/validation/validate_law_order_jail.gd`.
+Done check: run `res://scenes/test_levels/jail_law_demo.tscn` or `godot --headless --path . --script res://tools/validation/validate_law_order_jail.gd`.

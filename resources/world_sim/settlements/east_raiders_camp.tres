@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="SettlementDefinition" format=3 uid="uid://crr7d18aljun7"]
 
-[ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://scripts/world_sim/settlement_definition.gd" id="1_settlement"]
+[ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://resources/world_sim/settlement_definition.gd" id="1_settlement"]
 [ext_resource type="Resource" uid="uid://dkykt4d8s1158" path="res://resources/world_sim/factions/east_raiders.tres" id="2_faction"]
 [ext_resource type="Resource" uid="uid://c3x82unvqthas" path="res://resources/world_sim/behavior_profiles/east_raiders_camp.tres" id="3_behavior"]
 [ext_resource type="Resource" uid="uid://cj67rntaps4o2" path="res://resources/world_sim/squad_templates/east_raider_war_party.tres" id="4_war_party"]

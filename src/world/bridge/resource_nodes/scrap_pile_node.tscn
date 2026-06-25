@@ -1,0 +1,42 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://src/world/bridge/resource_nodes/scavenging_resource_node.gd" id="1_node"]
+[ext_resource type="PackedScene" path="res://assets/items/scrap/mesh_scrap_1.glb" id="2_model"]
+[ext_resource type="Resource" path="res://resources/items/scrap_metal.tres" id="3_scrap"]
+[ext_resource type="Resource" path="res://resources/items/copper_wire.tres" id="4_wire"]
+[ext_resource type="Resource" path="res://resources/items/broken_electronics.tres" id="5_electronics"]
+[ext_resource type="Resource" path="res://resources/items/robot_parts.tres" id="6_robot"]
+[ext_resource type="Resource" path="res://resources/items/rusted_junk.tres" id="7_rusted"]
+[ext_resource type="Resource" path="res://resources/items/moldy_boot.tres" id="8_boot"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_scrap"]
+size = Vector3(4.8, 1.6, 4.8)
+
+[node name="ScrapPileNode" type="StaticBody3D"]
+script = ExtResource("1_node")
+display_name = "Scrap Pile"
+pile_size = 1
+scavenging_difficulty = 10
+slow_scavenge_seconds = 12.0
+fast_scavenge_seconds = 5.0
+levels_to_fast_speed = 30
+scavenge_noise_radius = 10.0
+slot_distance = 3.1
+useful_loot = Array[Resource]([ExtResource("3_scrap"), ExtResource("4_wire"), ExtResource("5_electronics")])
+rare_loot = Array[Resource]([ExtResource("6_robot")])
+junk_loot = Array[Resource]([ExtResource("7_rusted"), ExtResource("8_boot")])
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+shape = SubResource("BoxShape3D_scrap")
+
+[node name="Visual" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(10, 0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0)
+
+[node name="Label3D" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.05, 0)
+billboard = 1
+no_depth_test = true
+font_size = 34
+outline_size = 4
+text = "Scrap Pile"

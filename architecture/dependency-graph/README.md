@@ -6,6 +6,23 @@ architecture in this project from now on**: dependency graph + layer coupling +
 rule-violation insights. Charts that only show *containment* (trees, treemaps,
 taxonomies) don't reveal architecture — the insight lives in the **edges**.
 
+> ## ⛔ DO NOT CHANGE THE GRAPH TYPE — FORBIDDEN
+> The **Dependencies** view is a **force-directed** graph, on purpose. It is the
+> honest physics layout: if the code is a hairball, it *looks* like a hairball.
+> That is the point — the picture is a measurement, not decoration.
+>
+> **Never** replace the force layout with columns/buckets/rows/lanes
+> (`layout:'none'` with computed x/y), grids, trees, or any arrangement that
+> positions nodes by category. Doing so **hides** the coupling instead of fixing
+> it — the hairball is still there, just disguised.
+>
+> The only way to remove the hairball is to **change the actual code** so there
+> are genuinely fewer cross-cutting edges, then regenerate and let the force
+> layout show the improvement. You may freely change node **color**, **size**,
+> **labels/badges**, **highlights**, and the `extract_deps.js` analysis — just
+> **not the layout/graph type**. If you think a different view is needed, ask
+> first; do not change it on your own.
+
 ## Run it
 
 ```sh

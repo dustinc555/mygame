@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="WorldDefinition" format=3 uid="uid://dcrbc2knu5fjn"]
 
-[ext_resource type="Script" uid="uid://kd072amv42dh" path="res://scripts/world_sim/world_definition.gd" id="1_world"]
+[ext_resource type="Script" uid="uid://kd072amv42dh" path="res://resources/worlds/world_definition.gd" id="1_world"]
 [ext_resource type="Resource" path="res://resources/zones/demo_zone/demo_zone.tres" id="2_demo_zone"]
 
 [resource]

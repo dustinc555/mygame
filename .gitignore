@@ -13,5 +13,6 @@
 /plans/
 
 # Claude Code local-only state. Shared .claude/ config (if any) can still be committed.
+/CLAUDE.md
 /.claude/settings.local.json
 /.claude/scheduled_tasks.lock

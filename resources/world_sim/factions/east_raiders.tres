@@ -1,11 +1,11 @@
 [gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://dkykt4d8s1158"]
 
-[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://scripts/world_sim/faction_definition.gd" id="1_faction"]
+[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://resources/world_sim/faction_definition.gd" id="1_faction"]
 [ext_resource type="Resource" uid="uid://c3x82unvqthas" path="res://resources/world_sim/behavior_profiles/east_raiders_camp.tres" id="2_behavior"]
 [ext_resource type="Resource" uid="uid://bhqtvuvarhw1r" path="res://resources/world_sim/personality_profiles/raider_predatory.tres" id="3_personality"]
 [ext_resource type="Resource" uid="uid://biwpjin2saup5" path="res://resources/world_sim/law_profiles/raider_challenge_law.tres" id="4_law"]
 [ext_resource type="Resource" uid="uid://pjw2qb2u0hbw" path="res://resources/world_sim/population_name_profiles/raider_names.tres" id="5_names"]
-[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://scripts/characters/faction_humanoid.gd" id="6_member"]
+[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://src/actors/projection/humanoid/faction_humanoid.gd" id="6_member"]
 [ext_resource type="Resource" uid="uid://cqiaromu2uqj3" path="res://resources/world_sim/population_appearance_profiles/raider_scrapper.tres" id="7_appearance"]
 
 [resource]

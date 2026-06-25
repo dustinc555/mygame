@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://bswlf53ythhn2"]
 
-[ext_resource type="Script" path="res://scripts/world_sim/zone_loader.gd" id="1_zone_loader"]
-[ext_resource type="Script" path="res://scripts/world_sim/character_record_party_spawner.gd" id="3_record_party_spawner"]
-[ext_resource type="Script" path="res://scripts/party_manager.gd" id="4_party_manager"]
-[ext_resource type="Script" path="res://scripts/bootstrap/game_bootstrap.gd" id="5_bootstrap"]
+[ext_resource type="Script" path="res://src/world_sim/bridge/zone_loader.gd" id="1_zone_loader"]
+[ext_resource type="Script" path="res://src/world_sim/bridge/character_record_party_spawner.gd" id="3_record_party_spawner"]
+[ext_resource type="Script" path="res://src/core/party/party_manager.gd" id="4_party_manager"]
+[ext_resource type="Script" path="res://src/core/game_bootstrap.gd" id="5_bootstrap"]
 [ext_resource type="PackedScene" path="res://scenes/zones/rustwash_basin/terrain/rustwash_basin_terrain.tscn" id="5_wjgve"]
 
 [node name="RustwashBasin" type="Node3D" unique_id=1310818615]

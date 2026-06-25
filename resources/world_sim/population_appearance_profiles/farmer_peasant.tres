@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="PopulationAppearanceProfile" format=3 uid="uid://cuihdlkyr6ik0"]
 
-[ext_resource type="Script" uid="uid://c8m6ocw1f8juc" path="res://scripts/world_sim/population_appearance_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://c8m6ocw1f8juc" path="res://resources/world_sim/population_appearance_profile.gd" id="1_profile"]
 [ext_resource type="Resource" uid="uid://cdrfbo0gr4b2k" path="res://resources/character_appearance/hair_buzzed.tres" id="2_hair_buzzed"]
 [ext_resource type="Resource" uid="uid://bnjatfuysejds" path="res://resources/character_appearance/hair_simple_parted.tres" id="3_hair_parted"]
 [ext_resource type="Resource" uid="uid://jn3yk6pk7rua" path="res://resources/character_appearance/hair_long.tres" id="4_hair_long"]

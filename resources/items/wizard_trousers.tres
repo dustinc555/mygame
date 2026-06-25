@@ -1,11 +1,11 @@
 [gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://c72nkf4ip7y7c"]
 
-[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://scripts/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://resources/items/item_definition.gd" id="1_item"]
 [ext_resource type="Texture2D" uid="uid://bkjtg4w50aav0" path="res://assets/items/equipment/peasant_legs.svg" id="2_icon"]
 [ext_resource type="PackedScene" uid="uid://bbo1afh0drpnh" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Legs.gltf" id="3_male"]
 [ext_resource type="PackedScene" uid="uid://bnm68atn6plhl" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Female_Wizard_Legs.gltf" id="4_female"]
-[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://scripts/items/item_stat_modifier.gd" id="5_28yx1"]
-[ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://scripts/items/equipment_visual_definition.gd" id="5_visual"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://resources/items/item_stat_modifier.gd" id="5_28yx1"]
+[ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://resources/items/equipment_visual_definition.gd" id="5_visual"]
 [ext_resource type="Resource" uid="uid://dvxmf3kr3l6cp" path="res://resources/character_body_archetypes/human_male.tres" id="6_human_male"]
 [ext_resource type="Resource" uid="uid://63d1ddh3frua" path="res://resources/character_body_archetypes/human_female.tres" id="7_human_female"]
 
