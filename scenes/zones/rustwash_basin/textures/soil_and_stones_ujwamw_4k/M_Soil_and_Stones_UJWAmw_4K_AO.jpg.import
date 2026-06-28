@@ -3,15 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cgtkwk4bwvrt6"
-path="res://.godot/imported/M_Soil_and_Stones_UJWAmw_4K_AO.jpg-e30b082bdad69a792091bf2aeaf487cc.ctex"
-metadata={
-"vram_texture": false
-}
+valid=false
 
 [deps]
 
 source_file="res://scenes/zones/rustwash_basin/textures/soil_and_stones_ujwamw_4k/M_Soil_and_Stones_UJWAmw_4K_AO.jpg"
-dest_files=["res://.godot/imported/M_Soil_and_Stones_UJWAmw_4K_AO.jpg-e30b082bdad69a792091bf2aeaf487cc.ctex"]
 
 [params]
 

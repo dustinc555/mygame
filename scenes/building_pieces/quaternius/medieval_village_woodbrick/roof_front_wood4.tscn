@@ -1,0 +1,41 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://src/world/projection/buildings/modular_building_piece.gd" id="1_6wj00"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Front_Wood4.gltf" id="2_rjy5d"]
+[ext_resource type="Script" path="res://src/world/projection/buildings/modular_building_snap_marker.gd" id="3_6hmth"]
+
+[node name="RoofFrontWood4" type="Node3D" unique_id=1827572323]
+script = ExtResource("1_6wj00")
+piece_id = "roof_front_wood4"
+display_name = "Roof Front Wood4"
+category = "roof_front"
+grid_size_cells = Vector3i(3, 2, 1)
+bounds_size_meters = Vector3(4.399803, 3.0685048, 1.1291034)
+
+[node name="Model" type="Node3D" parent="." unique_id=2071931598 instance=ExtResource("2_rjy5d")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=659440857]
+
+[node name="Left" type="Marker3D" parent="SnapPoints" unique_id=2124872602]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.1838074, 1.4024503, 0.22958803)
+script = ExtResource("3_6hmth")
+snap_id = "left"
+display_name = "Left"
+connector_type = "roof_front_side"
+accepts_types = PackedStringArray("roof_side")
+
+[node name="Right" type="Marker3D" parent="SnapPoints" unique_id=1354849445]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.2159958, 1.4024503, 0.22958803)
+script = ExtResource("3_6hmth")
+snap_id = "right"
+display_name = "Right"
+connector_type = "roof_front_side"
+accepts_types = PackedStringArray("roof_side")
+
+[node name="WallTop" type="Marker3D" parent="SnapPoints" unique_id=1215151193]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.016094208, -0.13180207, 0.22958803)
+script = ExtResource("3_6hmth")
+snap_id = "wall_top"
+display_name = "Wall Top"
+connector_type = "roof_wall_top"
+accepts_types = PackedStringArray("wall_top")

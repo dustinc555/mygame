@@ -3,15 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://7xeamqows3y7"
-path="res://.godot/imported/M_Soil_and_Stones_UJWAmw_4K_Roughness.JPG-d2e07d156550ad4f70727265c6eae5b7.ctex"
-metadata={
-"vram_texture": false
-}
+valid=false
 
 [deps]
 
 source_file="res://scenes/zones/rustwash_basin/textures/soil_and_stones_ujwamw_4k/M_Soil_and_Stones_UJWAmw_4K_Roughness.JPG"
-dest_files=["res://.godot/imported/M_Soil_and_Stones_UJWAmw_4K_Roughness.JPG-d2e07d156550ad4f70727265c6eae5b7.ctex"]
 
 [params]
 

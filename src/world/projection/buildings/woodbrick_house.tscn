@@ -1,0 +1,449 @@
+[gd_scene format=3 uid="uid://cfnqspbgk48j1"]
+
+[ext_resource type="Script" uid="uid://dnecyfqr28huh" path="res://src/world/projection/buildings/world_building.gd" id="1_7le2p"]
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/wall_woodbrick_straight.tscn" id="3_wall"]
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/wall_woodbrick_door_flat.tscn" id="4_door"]
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/corner_exterior_wood.tscn" id="5_6585m"]
+[ext_resource type="PackedScene" uid="uid://j2ea8tgo10lg" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/floor_wood_light.tscn" id="7_dq7i7"]
+[ext_resource type="PackedScene" uid="uid://bak34on3jmj2w" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/stairs_exterior_straight.tscn" id="7_ec01v"]
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/wall_woodbrick_window_wide_round.tscn" id="8_dq7i7"]
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/wall_woodbrick_door_round.tscn" id="9_ljvap"]
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/window_frame_wide_flat.tscn" id="10_ryqpp"]
+[ext_resource type="PackedScene" uid="uid://b6ok8konpk0u8" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/stair_interior_simple.tscn" id="10_vvy6g"]
+[ext_resource type="Script" uid="uid://dx67lteoodr2x" path="res://src/world/projection/buildings/modular_building_piece.gd" id="11_v6lkq"]
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/door_wood_flat.tscn" id="11_xdnsl"]
+
+[node name="WoodbrickHouse" type="Node3D" unique_id=1418743872]
+script = ExtResource("1_7le2p")
+metadata/_custom_type_script = "uid://dnecyfqr28huh"
+
+[node name="Pieces" type="Node3D" parent="." unique_id=2098891179]
+
+[node name="WallWoodbrickStraight" parent="Pieces" unique_id=650385449 instance=ExtResource("3_wall")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, 1)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight2" parent="Pieces" unique_id=456417092 instance=ExtResource("3_wall")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight3" parent="Pieces" unique_id=813883909 instance=ExtResource("3_wall")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3, 0, 0)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight4" parent="Pieces" unique_id=1031032828 instance=ExtResource("3_wall")]
+transform = Transform3D(-2e-07, 0, 1, 0, 1, 0, -1, 0, -2e-07, 2.999999, 0, -4.000001)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight5" parent="Pieces" unique_id=286936482 instance=ExtResource("3_wall")]
+transform = Transform3D(-4e-07, 0, 1, 0, 1, 0, -1, 0, -4e-07, 2.9999998, 0, -2.0000005)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight7" parent="Pieces" unique_id=1057829488 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -1.1748454e-06, 0, 1, 0, 1.1748454e-06, 0, -1, 2, 0, -5)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight8" parent="Pieces" unique_id=1788300591 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -1.4748454e-06, 0, 1, 0, 1.4748454e-06, 0, -1, -4.7683716e-07, 0, -4.9999976)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight9" parent="Pieces" unique_id=1531085961 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -2.1748458e-06, 0, 1, 0, 2.1748458e-06, 0, -1, -2.000001, 0, -4.999994)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight10" parent="Pieces" unique_id=976797896 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -2.874846e-06, 0, 1, 0, 2.874846e-06, 0, -1, -4.0000014, 0, -4.999989)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight11" parent="Pieces" unique_id=1385624429 instance=ExtResource("3_wall")]
+transform = Transform3D(1, 0, 3.4874229e-06, 0, 1, 0, -3.4874229e-06, 0, 1, -6.1107965, 0, 5.1108127)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight13" parent="Pieces" unique_id=848653612 instance=ExtResource("3_wall")]
+transform = Transform3D(1, 0, 4.8874226e-06, 0, 1, 0, -4.8874226e-06, 0, 1, -9.88922, 0, 5.1107197)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight15" parent="Pieces" unique_id=1843537535 instance=ExtResource("3_wall")]
+transform = Transform3D(6.4e-06, 0, -1, 0, 1, 0, 1, 0, 6.4e-06, -10.999997, 0, 3.9999292)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight16" parent="Pieces" unique_id=712855679 instance=ExtResource("3_wall")]
+transform = Transform3D(7.1e-06, 0, -1, 0, 1, 0, 1, 0, 7.1e-06, -10.999983, 0, 1.9999279)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight17" parent="Pieces" unique_id=480254038 instance=ExtResource("3_wall")]
+transform = Transform3D(7.8e-06, 0, -1, 0, 1, 0, 1, 0, 7.8e-06, -10.999967, 0, -7.35e-05)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight18" parent="Pieces" unique_id=480926113 instance=ExtResource("3_wall")]
+transform = Transform3D(8.5e-06, 0, -1, 0, 1, 0, 1, 0, 8.5e-06, -10.999949, 0, -2.0000749)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight19" parent="Pieces" unique_id=1806289222 instance=ExtResource("3_wall")]
+transform = Transform3D(9.2e-06, 0, -1, 0, 1, 0, 1, 0, 9.2e-06, -10.999931, 0, -4.0000763)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight21" parent="Pieces" unique_id=822975454 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -1.0887423e-05, 0, 1, 0, 1.0887423e-05, 0, -1, -10.000004, 0, -4.9999275)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight22" parent="Pieces" unique_id=796147447 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -1.1587423e-05, 0, 1, 0, 1.1587423e-05, 0, -1, -8.000004, 0, -4.99995)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight23" parent="Pieces" unique_id=1793874321 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -1.2287423e-05, 0, 1, 0, 1.2287423e-05, 0, -1, -6.000003, 0, -4.999974)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickDoorFlat" parent="Pieces" unique_id=288788191 instance=ExtResource("4_door")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.0000005, 0, 0.99999994)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight113" parent="Pieces" unique_id=1466080477 instance=ExtResource("3_wall")]
+transform = Transform3D(1, 0, 6.9748457e-06, 0, 1, 0, -6.9748457e-06, 0, 1, -4.1107955, 0, 5.110802)
+grid_cell_size_meters = 1.0
+
+[node name="CornerExteriorWood" parent="Pieces" unique_id=199942713 instance=ExtResource("5_6585m")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0284476, 0.061344385, 5.0738835)
+grid_cell_size_meters = 0.2
+auto_snap_enabled = false
+
+[node name="CornerExteriorWood3" parent="Pieces" unique_id=1128905949 instance=ExtResource("5_6585m")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.994284, 0.061344385, 4.999929)
+
+[node name="WallWoodbrickStraight6" parent="Pieces" unique_id=825391993 instance=ExtResource("3_wall")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -3.0000017, 0, 4.000001)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight62" parent="Pieces" unique_id=890349544 instance=ExtResource("3_wall")]
+transform = Transform3D(-2.1855695e-07, 0, 1, 0, 1, 0, -1, 0, -2.1855695e-07, -3.000002, 0, 2.0000005)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickWindowWideRound" parent="Pieces" unique_id=1665050718 instance=ExtResource("8_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.110798, 0, 5.1108165)
+
+[node name="StairsExteriorStraight" parent="Pieces" unique_id=1445086580 instance=ExtResource("7_ec01v")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, -0.68167067, 2.077246)
+grid_cell_size_meters = 1.0
+grid_size_cells = Vector3i(1, 1, 1)
+
+[node name="WallWoodbrickDoorRound" parent="Pieces" unique_id=1022020776 instance=ExtResource("9_ljvap")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.0000005, 0, 0.99999994)
+
+[node name="FloorWoodLight" parent="Pieces" unique_id=381911147 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.8892057, 0, -1.1920929e-07)
+
+[node name="FloorWoodLight2" parent="Pieces" unique_id=705730300 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.8892057, 0, -2)
+
+[node name="FloorWoodLight3" parent="Pieces" unique_id=103993869 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -2)
+
+[node name="FloorWoodLight32" parent="Pieces" unique_id=902934743 instance=ExtResource("7_dq7i7")]
+
+[node name="WallWoodbrickStraight92" parent="Pieces" unique_id=1279984628 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -2.1748458e-06, 0, 1, 0, 2.1748458e-06, 0, -1, -2.000001, -3.122689, -4.999994)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight102" parent="Pieces" unique_id=940877161 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -2.874846e-06, 0, 1, 0, 2.874846e-06, 0, -1, -4.0000014, -3.122689, -4.999989)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight12" parent="Pieces" unique_id=1742048732 instance=ExtResource("3_wall")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.9999999, -3.122689, 0.99999976)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight24" parent="Pieces" unique_id=195870411 instance=ExtResource("3_wall")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.1920929e-07, -3.122689, 0.99999976)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight622" parent="Pieces" unique_id=1577278564 instance=ExtResource("3_wall")]
+transform = Transform3D(-2.1855695e-07, 0, 1, 0, 1, 0, -1, 0, -2.1855695e-07, -3.000002, -3.122689, 2.0000002)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight63" parent="Pieces" unique_id=831686127 instance=ExtResource("3_wall")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -3.0000014, -3.122689, 4.0000005)
+grid_cell_size_meters = 1.0
+
+[node name="CornerExteriorWood2" parent="Pieces" unique_id=465040069 instance=ExtResource("5_6585m")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.2158828, -3.0613449, 5.0000005)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight1132" parent="Pieces" unique_id=1182716822 instance=ExtResource("3_wall")]
+transform = Transform3D(1, 0, 6.9748457e-06, 0, 1, 0, -6.9748457e-06, 0, 1, -4.1107955, -3.122689, 5.110802)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight32" parent="Pieces" unique_id=2042651443 instance=ExtResource("3_wall")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3, -3.122689, -2.3841858e-07)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight52" parent="Pieces" unique_id=580882372 instance=ExtResource("3_wall")]
+transform = Transform3D(-4e-07, 0, 1, 0, 1, 0, -1, 0, -4e-07, 3, -3.122689, -2.0000007)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight42" parent="Pieces" unique_id=1677848855 instance=ExtResource("3_wall")]
+transform = Transform3D(-2e-07, 0, 1, 0, 1, 0, -1, 0, -2e-07, 2.999999, -3.122689, -4.0000014)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight72" parent="Pieces" unique_id=1543041052 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -1.1748454e-06, 0, 1, 0, 1.1748454e-06, 0, -1, 2, -3.122689, -5.0000005)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight82" parent="Pieces" unique_id=1645494189 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -1.4748454e-06, 0, 1, 0, 1.4748454e-06, 0, -1, -3.5762787e-07, -3.122689, -4.9999976)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight112" parent="Pieces" unique_id=1097005941 instance=ExtResource("3_wall")]
+transform = Transform3D(1, 0, 3.4874229e-06, 0, 1, 0, -3.4874229e-06, 0, 1, -6.1107965, -3.122689, 5.1108127)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight152" parent="Pieces" unique_id=953278408 instance=ExtResource("3_wall")]
+transform = Transform3D(6.4e-06, 0, -1, 0, 1, 0, 1, 0, 6.4e-06, -10.999997, -3.122689, 3.999929)
+grid_cell_size_meters = 1.0
+
+[node name="CornerExteriorWood32" parent="Pieces" unique_id=206012568 instance=ExtResource("5_6585m")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.994284, -3.0613449, 4.999929)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight132" parent="Pieces" unique_id=1068134175 instance=ExtResource("3_wall")]
+transform = Transform3D(1, 0, 4.8874226e-06, 0, 1, 0, -4.8874226e-06, 0, 1, -9.88922, -3.122689, 5.110719)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight162" parent="Pieces" unique_id=295834145 instance=ExtResource("3_wall")]
+transform = Transform3D(7.1e-06, 0, -1, 0, 1, 0, 1, 0, 7.1e-06, -10.999983, -3.122689, 1.9999278)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight172" parent="Pieces" unique_id=1791174483 instance=ExtResource("3_wall")]
+transform = Transform3D(7.8e-06, 0, -1, 0, 1, 0, 1, 0, 7.8e-06, -10.999967, -3.122689, -7.367134e-05)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight182" parent="Pieces" unique_id=1732245555 instance=ExtResource("3_wall")]
+transform = Transform3D(8.5e-06, 0, -1, 0, 1, 0, 1, 0, 8.5e-06, -10.999949, -3.122689, -2.000075)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight192" parent="Pieces" unique_id=880849403 instance=ExtResource("3_wall")]
+transform = Transform3D(9.2e-06, 0, -1, 0, 1, 0, 1, 0, 9.2e-06, -10.999931, -3.122689, -4.000077)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight212" parent="Pieces" unique_id=320649939 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -1.0887423e-05, 0, 1, 0, 1.0887423e-05, 0, -1, -10.000004, -3.122689, -4.999928)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight222" parent="Pieces" unique_id=996199730 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -1.1587423e-05, 0, 1, 0, 1.1587423e-05, 0, -1, -8.000004, -3.122689, -4.99995)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight232" parent="Pieces" unique_id=2143817329 instance=ExtResource("3_wall")]
+transform = Transform3D(-1, 0, -1.2287423e-05, 0, 1, 0, 1.2287423e-05, 0, -1, -6.000003, -3.122689, -4.999974)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight14" parent="Pieces" unique_id=97227869 instance=ExtResource("3_wall")]
+transform = Transform3D(1, 0, 1.7484555e-07, 0, 1, 0, -1.7484555e-07, 0, 1, 2.0000005, -3.122689, 1)
+grid_cell_size_meters = 1.0
+
+[node name="WallWoodbrickStraight20" parent="Pieces" unique_id=507686770 instance=ExtResource("3_wall")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.88922, -3.122689, 5.1107144)
+
+[node name="FloorWoodLight22" parent="Pieces" unique_id=2119008483 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1.801908e-09, -3.8892055)
+
+[node name="FloorWoodLight222" parent="Pieces" unique_id=330714896 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.3213367e-07, 1.801908e-09, -3.889203)
+
+[node name="FloorWoodLight2222" parent="Pieces" unique_id=574199365 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.0000007, 1.801908e-09, -3.8891993)
+
+[node name="FloorWoodLight22222" parent="Pieces" unique_id=513095721 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, -2)
+
+[node name="FloorWoodLight222222" parent="Pieces" unique_id=868836277 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.9999999, 1.801908e-09, -0.110794365)
+
+[node name="FloorWoodLight2222222" parent="Pieces" unique_id=381395453 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 1.801908e-09, -0.110794365)
+
+[node name="FloorWoodLight22222222" parent="Pieces" unique_id=1018257823 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, -2)
+
+[node name="FloorWoodLight222222222" parent="Pieces" unique_id=1178158341 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, -4)
+
+[node name="FloorWoodLight2222222222" parent="Pieces" unique_id=1888577452 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 1.801908e-09, 1.8892057)
+
+[node name="FloorWoodLight22222222222" parent="Pieces" unique_id=629845592 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 1.801908e-09, 3.8892057)
+
+[node name="FloorWoodLight222222222222" parent="Pieces" unique_id=1882452530 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 1.801908e-09, 3.8892057)
+
+[node name="FloorWoodLight2222222222222" parent="Pieces" unique_id=2016374221 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 1.801908e-09, 3.8892057)
+
+[node name="FloorWoodLight22222222222222" parent="Pieces" unique_id=1263874698 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.889203, 1.801908e-09, 3.9999287)
+
+[node name="FloorWoodLight2222222222223" parent="Pieces" unique_id=1693931733 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 1.801908e-09, 1.8892057)
+
+[node name="FloorWoodLight22222222222223" parent="Pieces" unique_id=1896992799 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 1.801908e-09, 1.8892057)
+
+[node name="FloorWoodLight222222222222222" parent="Pieces" unique_id=66160866 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.889203, 1.801908e-09, 1.9999287)
+
+[node name="FloorWoodLight22222222222232" parent="Pieces" unique_id=367121155 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 1.801908e-09, -0.110794306)
+
+[node name="FloorWoodLight222222222222232" parent="Pieces" unique_id=1342424790 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 1.801908e-09, -0.110794306)
+
+[node name="FloorWoodLight2222222222222222" parent="Pieces" unique_id=589500729 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.889203, 1.801908e-09, -7.1287155e-05)
+
+[node name="FloorWoodLight222222223" parent="Pieces" unique_id=1390795656 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, -2)
+
+[node name="FloorWoodLight2222222223" parent="Pieces" unique_id=1182000901 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, -4)
+
+[node name="FloorWoodLight2222222232" parent="Pieces" unique_id=1456528365 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -2)
+
+[node name="FloorWoodLight22222222232" parent="Pieces" unique_id=1253369168 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -4)
+
+[node name="FloorWoodLight22222222322" parent="Pieces" unique_id=2090478514 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.889155, 1.801908e-09, -2.0000756)
+
+[node name="FloorWoodLight222222222322" parent="Pieces" unique_id=1640645665 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.889155, 1.801908e-09, -4.0000753)
+
+[node name="StairInteriorSimple" parent="Pieces" unique_id=796467222 instance=ExtResource("10_vvy6g")]
+transform = Transform3D(1.3113416e-07, 0, -1, 0, 1, 0, 1, 0, 1.3113416e-07, -9.225318, -0.02458837, -4.1140103)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight223" parent="Pieces" unique_id=157441646 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 3, -4)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight2223" parent="Pieces" unique_id=899734593 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.3213367e-07, 3, -3.9999976)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight22223" parent="Pieces" unique_id=629417706 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.0000007, 3, -3.9999938)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight222223" parent="Pieces" unique_id=938003683 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 3, -2.1107945)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight2222223" parent="Pieces" unique_id=1532016446 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.9999999, 3, -0.22158891)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight22222223" parent="Pieces" unique_id=1000766829 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 3, -0.22158891)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight222222224" parent="Pieces" unique_id=2090246531 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 3, -2.1107945)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight2222222224" parent="Pieces" unique_id=942516234 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 3, -4.1107945)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight22222222223" parent="Pieces" unique_id=850919413 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 3, 1.7784111)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight222222222223" parent="Pieces" unique_id=1511182923 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 3, 3.7784111)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight2222222222224" parent="Pieces" unique_id=734650405 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 3, 3.7784111)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight22222222222224" parent="Pieces" unique_id=1761907496 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 3, 3.7784111)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight222222222222223" parent="Pieces" unique_id=364302596 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.889203, 3, 3.8891342)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight22222222222233" parent="Pieces" unique_id=662401884 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 3, 1.7784111)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight222222222222233" parent="Pieces" unique_id=819037250 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 3, 1.7784111)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight2222222222222223" parent="Pieces" unique_id=933558768 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.889203, 3, 1.8891342)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight222222222222322" parent="Pieces" unique_id=1236370839 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 3, -0.22158885)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight2222222222222322" parent="Pieces" unique_id=1164463760 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 3, -0.22158885)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight22222222222222222" parent="Pieces" unique_id=285183016 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.889203, 3, -0.11086583)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight2222222233" parent="Pieces" unique_id=1997718407 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 3, -2.1107945)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight22222222323" parent="Pieces" unique_id=1386018786 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 3, -2.1107945)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight222222223222" parent="Pieces" unique_id=206893978 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.889155, 3, -2.1108701)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight2222222223222" parent="Pieces" unique_id=992933195 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.889155, 3, -4.11087)
+grid_cell_size_meters = 1.0
+
+[node name="FloorWoodLight22222232" parent="Pieces" unique_id=1541623670 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.1920929e-07, 3, -0.22158891)
+
+[node name="FloorWoodLight222222322" parent="Pieces" unique_id=1557923768 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 3, -0.22158891)
+
+[node name="FloorWoodLight2222223222" parent="Pieces" unique_id=771350251 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 3, -2.2215889)
+
+[node name="FloorWoodLight22222232222" parent="Pieces" unique_id=1825014980 instance=ExtResource("7_dq7i7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.1920929e-07, 3, -2.2215889)
+
+[node name="WindowFrameWideFlat" parent="Pieces" unique_id=2031822729 instance=ExtResource("10_ryqpp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.110798, 0.17770004, 5.1108165)
+
+[node name="CornerExteriorWood33" parent="Pieces" unique_id=1077442682 instance=ExtResource("5_6585m")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.889146, 0.06134434, -5.1198974)
+
+[node name="CornerExteriorWood332" parent="Pieces" unique_id=1264081081 instance=ExtResource("5_6585m")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0000002, 0.06134434, -5.009027)
+
+[node name="CornerExteriorWood3322" parent="Pieces" unique_id=703478826 instance=ExtResource("5_6585m")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0106409, 0.06134434, 0.98337144)
+auto_snap_enabled = false
+
+[node name="DoorWoodFlat" type="Node3D" parent="Pieces" unique_id=1606002474 instance=ExtResource("11_xdnsl")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4858005, 0, 0.99999994)
+script = ExtResource("11_v6lkq")
+piece_id = "door_wood_flat"
+display_name = "Door Wood Flat"
+category = "door"
+bounds_size_meters = Vector3(1.1706, 2.1659, 0.1305)

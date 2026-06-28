@@ -13,6 +13,7 @@ This file is the canonical list of imported third-party assets and software used
 | Modular Character Outfits - Fantasy | Quaternius | CC0 1.0 Universal | $0.00 | https://quaternius.com/packs/modularcharacteroutfitsfantasy.html | `assets/vendor/quaternius/modular_character_outfits_fantasy/` |
 | Modular Weapons Pack | Quaternius | CC0 1.0 Universal | $0.00 | https://quaternius.com/packs/medievalweapons.html | `assets/vendor/quaternius/medieval_weapons/` |
 | Fantasy Props MegaKit | Quaternius | CC0 1.0 Universal | $0.00 | https://quaternius.com/packs/fantasypropsmegakit.html | `assets/vendor/quaternius/fantasy_props_megakit/` |
+| Medieval Village MegaKit Source | Quaternius | CC0 1.0 Universal | Source pack | https://quaternius.com/packs/medievalvillagemegakit.html | `assets/vendor/quaternius/medieval_village_megakit/` |
 | Sci-Fi Essentials Kit | Quaternius | CC0 1.0 Universal | $0.00 | https://quaternius.com/packs/scifiessentialskit.html | `assets/vendor/quaternius/sci_fi_essentials_kit/` |
 
 ## Terrain / Materials
