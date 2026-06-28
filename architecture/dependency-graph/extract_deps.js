@@ -119,7 +119,7 @@ for (const f of files) {
   const layer = gecsKind ? gecsKind
               : underResources(f) ? 'Resources'
               : (cn && ROOT_LAYER[cn]) ? ROOT_LAYER[cn] : layerOf(rel);
-  fileInfo[f] = { rel, layer, className: cn, raw };
+  fileInfo[f] = { rel, layer, className: cn, raw, bytes: Buffer.byteLength(raw, 'utf8') };
   if (cn) classToFile[cn] = f;
 }
 const allClassNames = new Set(Object.keys(classToFile));
@@ -190,7 +190,7 @@ function tickViolation(info) {
 
 // ---- nodes / degrees ----
 const nodes = {};
-for (const f of files) nodes[idOf(f)] = { id: idOf(f), layer: fileInfo[f].layer, in:0, out:0, tick: (tickViolation(fileInfo[f]) && !TICK_ALLOW.has(idOf(f))) ? true : false, status: statusOf(f) };
+for (const f of files) nodes[idOf(f)] = { id: idOf(f), layer: fileInfo[f].layer, bytes: fileInfo[f].bytes, in:0, out:0, tick: (tickViolation(fileInfo[f]) && !TICK_ALLOW.has(idOf(f))) ? true : false, status: statusOf(f) };
 const edgeList = [];
 for (const [k,w] of edges) { const [a,b] = k.split(' '); if (!nodes[a] || !nodes[b]) continue; edgeList.push({source:a,target:b,w}); nodes[a].out++; nodes[b].in++; }
 
@@ -238,7 +238,7 @@ const compOf = {}; cycles.forEach((c,i)=>c.forEach(id=>compOf[id]=i));
 const cycleNodes = new Set(Object.keys(compOf));
 const violSet = new Set(violations.map(e=>e.source+' '+e.target));
 const isCycleEdge = e => compOf[e.source]!==undefined && compOf[e.source]===compOf[e.target];
-const outNodes = arr.map(n=>({ id:n.id, layer:n.layer, in:n.in, out:n.out, cycle:cycleNodes.has(n.id), tick:n.tick, status:n.status }));
+const outNodes = arr.map(n=>({ id:n.id, layer:n.layer, bytes:n.bytes, in:n.in, out:n.out, cycle:cycleNodes.has(n.id), tick:n.tick, status:n.status }));
 const outLinks = edgeList.map(e=>({ source:e.source, target:e.target, w:e.w, violation:violSet.has(e.source+' '+e.target), cycle:isCycleEdge(e) }));
 const layerList = [...new Set(arr.map(n=>n.layer))].map(name=>({ name, color:LCOL[name]||'#777' }));
 const layerLinks = [];
