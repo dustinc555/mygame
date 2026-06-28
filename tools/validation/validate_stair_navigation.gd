@@ -1,8 +1,8 @@
 extends SceneTree
 
 const TWO_TOWNS_SCENE := preload("res://scenes/test_levels/two_towns_road_test.tscn")
-const SETTLEMENT_BAR_SCENE := preload("res://src/settlements/bridge/settlement_bar.tscn")
-const SMALL_BAR_SCENE := preload("res://src/world/projection/buildings/small_bar_scene.tscn")
+const SETTLEMENT_BAR_SCENE := preload("res://features/settlements/bridge/settlement_bar.tscn")
+const SMALL_BAR_SCENE := preload("res://features/world/projection/buildings/small_bar_scene.tscn")
 const MAX_MOVE_FRAMES := 1500
 const SETTLE_FRAMES := 12
 const START_CLEARANCE_Y := 0.7
@@ -59,7 +59,7 @@ func _load_two_towns_scene() -> void:
 	root.add_child(_scene)
 	await _wait_physics(80)
 	_party_manager = _scene.get_node("PartyManager") as PartyManager
-	_interaction_controller = _scene.get_node("GameBootstrap/WorldInteractionController") as WorldInteractionController
+	_interaction_controller = _scene.find_child("WorldInteractionController", true, false) as WorldInteractionController
 	_camera = _scene.get_node("CameraRig/CameraPivot/Camera3D") as Camera3D
 	_mira = _scene.get_node("PartyMembers/Mira") as HumanoidCharacter
 	_tomas = _scene.get_node("PartyMembers/Tomas") as HumanoidCharacter

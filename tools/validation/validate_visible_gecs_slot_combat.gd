@@ -1,15 +1,15 @@
 extends SceneTree
 
-const C_NODE_PATH := "res://src/actors/bridge/c_game_actor_node.gd"
-const C_IDENTITY_PATH := "res://src/actors/sim/c_game_actor_identity.gd"
-const C_SPATIAL_PATH := "res://src/actors/sim/c_game_actor_spatial.gd"
-const C_VITALS_PATH := "res://src/actors/sim/c_game_actor_vitals.gd"
-const C_CONFIG_PATH := "res://src/combat/sim/c_game_combat_config.gd"
-const C_STATE_PATH := "res://src/combat/sim/c_game_combat_state.gd"
-const C_SLOT_PATH := "res://src/combat/sim/c_game_combat_slot_state.gd"
-const C_ACTION_PATH := "res://src/combat/sim/c_game_combat_action.gd"
-const GAME_COMBAT_SLOT_SYSTEM_PATH := "res://src/combat/sim/game_combat_slot_system.gd"
-const GAME_COMBAT_RESOLUTION_SYSTEM_PATH := "res://src/combat/sim/game_combat_resolution_system.gd"
+const C_NODE_PATH := "res://features/actors/bridge/c_game_actor_node.gd"
+const C_IDENTITY_PATH := "res://features/actors/sim/c_game_actor_identity.gd"
+const C_SPATIAL_PATH := "res://features/actors/sim/c_game_actor_spatial.gd"
+const C_VITALS_PATH := "res://features/actors/sim/c_game_actor_vitals.gd"
+const C_CONFIG_PATH := "res://features/combat/sim/c_game_combat_config.gd"
+const C_STATE_PATH := "res://features/combat/sim/c_game_combat_state.gd"
+const C_SLOT_PATH := "res://features/combat/sim/c_game_combat_slot_state.gd"
+const C_ACTION_PATH := "res://features/combat/sim/c_game_combat_action.gd"
+const GAME_COMBAT_SLOT_SYSTEM_PATH := "res://features/combat/sim/game_combat_slot_system.gd"
+const GAME_COMBAT_RESOLUTION_SYSTEM_PATH := "res://features/combat/sim/game_combat_resolution_system.gd"
 const SLOT_STATE_NONE := 0
 const SLOT_STATE_MOVE_TO_TARGET := 1
 const SLOT_STATE_FIGHTING := 3
@@ -85,6 +85,7 @@ func _run() -> void:
 	_test_symmetric_duel_keeps_alternating()
 	_test_out_of_range_returns_to_move_to_target()
 	_test_leash_blocks_impact()
+	_test_humanoid_dies_from_resolution_damage()
 	_cleanup_actors()
 	_clear_script_refs()
 	_cleanup_direct_script_ecs_singleton()
@@ -214,6 +215,42 @@ func _test_leash_blocks_impact() -> void:
 	resolution.free()
 	if a["actor"].received_count != 0 or b["actor"].received_count != 0:
 		_failures.append("leash_broken_slot_should_block_impact a_received=%d b_received=%d" % [a["actor"].received_count, b["actor"].received_count])
+	_cleanup_actors()
+
+
+func _test_humanoid_dies_from_resolution_damage() -> void:
+	# END-TO-END S4 FLIP GATE (the load-bearing one): resolution deals damage straight into the GECS
+	# vitals COMPONENT (humanoid path), recalculate drives the victim into DYING, and then
+	# GameVitalsSystem's dying countdown drives DEAD. This exercises the live bridge
+	# resolution -> component -> VitalsStateMachine -> GameVitalsSystem that the isolated unit tests can't.
+	var vitals_system_script = load("res://features/actors/sim/game_vitals_system.gd")
+	var inputs_script = load("res://features/actors/sim/c_game_actor_vitals_inputs.gd")
+	var a := _make_record("a", Vector3.ZERO)
+	var b := _make_record("b", Vector3(0.9, 0.0, 0.0))
+	# One clean landed hit must be lethal: a symmetric duel stalls its turn token once the victim is
+	# downed, so the victim must cross hp <= death_point (-max_hp) on the FIRST impact, not accumulate.
+	a["config"].blunt_damage = 250.0
+	_make_ready_slot(a, "b", 0, "a")
+	_make_ready_slot(b, "a", 0, "b")
+	var records: Array[Dictionary] = [a, b]
+	var resolution = GAME_COMBAT_RESOLUTION_SYSTEM.new()
+	for _step in range(80):
+		resolution.process([], _resolution_components(records), 0.05)
+	resolution.free()
+	var b_vitals = b["vitals"]
+	if b_vitals.death_profile != CGameActorVitals.DeathProfile.HUMANOID:
+		_failures.append("victim_should_be_humanoid_profile profile=%d" % int(b_vitals.death_profile))
+	if b_vitals.blunt_damage <= 0.0:
+		_failures.append("resolution_should_damage_the_component blunt=%.1f" % float(b_vitals.blunt_damage))
+	if int(b_vitals.life_state) == NpcRules.LifeState.ALIVE:
+		_failures.append("victim_should_be_downed_after_damage life_state=%d hp=%.1f" % [int(b_vitals.life_state), float(b_vitals.hp)])
+	# The vitals system owns the kill: one big tick expires the dying countdown -> DEAD.
+	var vsys = vitals_system_script.new()
+	var b_inputs = inputs_script.new()
+	vsys.process([null], [[b_vitals], [b_inputs]], 30.0)
+	vsys.free()
+	if int(b_vitals.life_state) != NpcRules.LifeState.DEAD:
+		_failures.append("vitals_system_should_kill_dying_victim life_state=%d hp=%.1f timer=%.2f" % [int(b_vitals.life_state), float(b_vitals.hp), float(b_vitals.dying_timer_remaining)])
 	_cleanup_actors()
 
 

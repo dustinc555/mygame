@@ -1,14 +1,14 @@
 extends SceneTree
 
-const AI_UTILITY_CONTEXT_SCRIPT := preload("res://src/ai/sim/ai_utility_context.gd")
-const AI_UTILITY_GOAL_SELECTOR_SCRIPT := preload("res://src/ai/sim/ai_utility_goal_selector.gd")
-const AI_UTILITY_ADAPTER_SCRIPT := preload("res://src/ai/bridge/ai_utility_adapter.gd")
-const AI_UTILITY_PROFILE := preload("res://resources/ai/utility_profiles/default_humanoid.tres")
-const AI_JOB_SCRIPT := preload("res://src/ai/bridge/ai_job.gd")
-const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://src/core/gecs_world_controller.gd")
-const JOB_PROVIDER_SCRIPT := preload("res://src/settlements/bridge/job_provider.gd")
-const JOB_DEFINITION_SCRIPT := preload("res://resources/jobs/job_definition.gd")
-const HUMANOID_CHARACTER_SCRIPT := preload("res://src/actors/projection/humanoid/humanoid_character.gd")
+const AI_UTILITY_CONTEXT_SCRIPT := preload("res://features/ai/sim/ai_utility_context.gd")
+const AI_UTILITY_GOAL_SELECTOR_SCRIPT := preload("res://features/ai/sim/ai_utility_goal_selector.gd")
+const AI_UTILITY_ADAPTER_SCRIPT := preload("res://features/ai/bridge/ai_utility_adapter.gd")
+const AI_UTILITY_PROFILE := preload("res://features/ai/resources/utility_profiles/default_humanoid.tres")
+const AI_JOB_SCRIPT := preload("res://features/ai/bridge/ai_job.gd")
+const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://features/core/gecs_world_controller.gd")
+const JOB_PROVIDER_SCRIPT := preload("res://features/settlements/bridge/job_provider.gd")
+const JOB_DEFINITION_SCRIPT := preload("res://features/settlements/resources/jobs/job_definition.gd")
+const HUMANOID_CHARACTER_SCRIPT := preload("res://features/actors/projection/humanoid/humanoid_character.gd")
 
 var _failures: Array[String] = []
 
@@ -243,7 +243,7 @@ func _validate_adapter_and_gecs_intent() -> void:
 	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
 	bridge.name = "GecsWorldController"
 	root_node.add_child(bridge)
-	bridge.initialize(root_node)
+	bridge.initialize(BootstrapContext.new(root_node))
 	var actor := FakeUtilityActor.new()
 	actor.stable_id = "utility.actor.adapter"
 	root_node.add_child(actor)
@@ -277,7 +277,7 @@ func _validate_job_contract_order_and_quit() -> void:
 	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
 	bridge.name = "GecsWorldController"
 	root_node.add_child(bridge)
-	bridge.initialize(root_node)
+	bridge.initialize(BootstrapContext.new(root_node))
 	bridge.upsert_job_contract({"actor_id": "actor.jobs", "provider_id": "provider.jobs", "job_id": "guard", "display_name": "Guard", "priority_order": 0})
 	var second: Dictionary = bridge.upsert_job_contract({"actor_id": "actor.jobs", "provider_id": "provider.jobs", "job_id": "server", "display_name": "Server", "priority_order": 1})
 	bridge.move_actor_job_contract("actor.jobs", str(second.get("contract_id", "")), -1)
@@ -299,7 +299,7 @@ func _validate_dialogue_accept_creates_job_contract() -> void:
 	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
 	bridge.name = "GecsWorldController"
 	root_node.add_child(bridge)
-	bridge.initialize(root_node)
+	bridge.initialize(BootstrapContext.new(root_node))
 	var provider: JobProvider = JOB_PROVIDER_SCRIPT.new()
 	provider.name = "ContractProvider"
 	var resource := FakeMineNode.new()
@@ -355,7 +355,7 @@ func _validate_no_show_contract_expiration() -> void:
 	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
 	bridge.name = "GecsWorldController"
 	root_node.add_child(bridge)
-	bridge.initialize(root_node)
+	bridge.initialize(BootstrapContext.new(root_node))
 	bridge.upsert_job_contract({
 		"actor_id": "actor.no_show",
 		"provider_id": "provider.no_show",
@@ -409,7 +409,7 @@ func _validate_contract_driven_work_objective() -> void:
 	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
 	bridge.name = "GecsWorldController"
 	root_node.add_child(bridge)
-	bridge.initialize(root_node)
+	bridge.initialize(BootstrapContext.new(root_node))
 	var actor := FakeUtilityActor.new()
 	actor.stable_id = "utility.actor.worker"
 	actor._order_was_player_issued = true
@@ -453,7 +453,7 @@ func _validate_contract_work_not_restarted_when_active() -> void:
 	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
 	bridge.name = "GecsWorldController"
 	root_node.add_child(bridge)
-	bridge.initialize(root_node)
+	bridge.initialize(BootstrapContext.new(root_node))
 	var actor := FakeUtilityActor.new()
 	actor.stable_id = "utility.actor.active_contract"
 	root_node.add_child(actor)
@@ -494,7 +494,7 @@ func _validate_contract_actionability_priority() -> void:
 	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
 	bridge.name = "GecsWorldController"
 	root_node.add_child(bridge)
-	bridge.initialize(root_node)
+	bridge.initialize(BootstrapContext.new(root_node))
 	var actor := FakeUtilityActor.new()
 	actor.stable_id = "utility.actor.multi_job"
 	root_node.add_child(actor)

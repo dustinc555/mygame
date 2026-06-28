@@ -1,8 +1,8 @@
 extends SceneTree
 
-const PERCEPTION_CONTROLLER_SCRIPT := preload("res://src/actors/bridge/perception/perception_controller.gd")
-const FACTION_HUMANOID_SCRIPT := preload("res://src/actors/projection/humanoid/faction_humanoid.gd")
-const RUSTDEAD_HUMANOID_SCRIPT := preload("res://src/actors/projection/rustdead/rustdead_humanoid_character.gd")
+const PERCEPTION_CONTROLLER_SCRIPT := preload("res://features/actors/bridge/perception/perception_controller.gd")
+const FACTION_HUMANOID_SCRIPT := preload("res://features/actors/projection/humanoid/faction_humanoid.gd")
+const RUSTDEAD_HUMANOID_SCRIPT := preload("res://features/actors/projection/rustdead/rustdead_humanoid_character.gd")
 
 const VISUAL_BODY_TYPE_MALE := 2
 
@@ -31,7 +31,7 @@ func _validate_rustdead_stealth_targeting() -> void:
 	var perception_controller := PERCEPTION_CONTROLLER_SCRIPT.new()
 	perception_controller.name = "PerceptionController"
 	scene.add_child(perception_controller)
-	perception_controller.initialize(scene)
+	perception_controller.initialize(BootstrapContext.new(scene))
 	perception_controller.add_to_group("perception_controller")
 
 	var rustdead := _add_rustdead(scene, "StealthRustdead", Vector3.ZERO)

@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://cyd6tthtv87y2"]
 
 [ext_resource type="Script" uid="uid://clbxgt3mmcn6r" path="res://scenes/test_levels/rustdead_5v10_demo.gd" id="1_level"]
-[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://src/core/party/party_manager.gd" id="2_manager"]
-[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://src/core/game_bootstrap.gd" id="3_bootstrap"]
-[ext_resource type="PackedScene" uid="uid://cm38h6w63ec36" path="res://src/world/bridge/props/body_furnace.tscn" id="4_furnace"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://features/core/party/party_manager.gd" id="2_manager"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://features/core/game_bootstrap.gd" id="3_bootstrap"]
+[ext_resource type="PackedScene" uid="uid://cm38h6w63ec36" path="res://features/world/bridge/props/body_furnace.tscn" id="4_furnace"]
 
 [sub_resource type="Environment" id="Environment_rustdead_demo"]
 background_mode = 1

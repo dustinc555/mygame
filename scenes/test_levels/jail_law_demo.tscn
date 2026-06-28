@@ -1,20 +1,20 @@
 [gd_scene format=4 uid="uid://btexptp24y024"]
 
 [ext_resource type="Script" uid="uid://ppaas0s4hphb" path="res://scenes/test_levels/jail_law_demo.gd" id="1_demo"]
-[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://src/core/party/party_manager.gd" id="2_manager"]
-[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://src/core/game_bootstrap.gd" id="3_bootstrap"]
-[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://src/settlements/bridge/settlement_town.gd" id="4_town"]
-[ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://resources/world_sim/settlement_definition.gd" id="5_settlement_definition"]
-[ext_resource type="Resource" uid="uid://h4a4vsdtrlvq" path="res://resources/world_sim/factions/farmers.tres" id="6_farmers"]
-[ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://src/settlements/bridge/settlement_jail.tscn" id="7_jail"]
-[ext_resource type="PackedScene" path="res://src/world/projection/items/world_item.tscn" id="8_world_item"]
-[ext_resource type="Resource" path="res://resources/items/expensive_vase.tres" id="9_vase"]
-[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://src/core/party/party_member.gd" id="10_party_member"]
-[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://src/actors/projection/humanoid/faction_humanoid.gd" id="11_faction_humanoid"]
-[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://resources/items/bandage.tres" id="16_f35vs"]
-[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://resources/items/hatchet.tres" id="17_hatchet"]
-[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://resources/items/round_shield.tres" id="18_0csrm"]
-[ext_resource type="Script" path="res://src/settlements/bridge/venues/settlement_guard_post.gd" id="19_g0vs4"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://features/core/party/party_manager.gd" id="2_manager"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://features/core/game_bootstrap.gd" id="3_bootstrap"]
+[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://features/settlements/bridge/settlement_town.gd" id="4_town"]
+[ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://features/world_sim/resources/settlement_definition.gd" id="5_settlement_definition"]
+[ext_resource type="Resource" uid="uid://h4a4vsdtrlvq" path="res://features/world_sim/resources/factions/farmers.tres" id="6_farmers"]
+[ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://features/settlements/bridge/settlement_jail.tscn" id="7_jail"]
+[ext_resource type="PackedScene" path="res://features/world/projection/items/world_item.tscn" id="8_world_item"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/expensive_vase.tres" id="9_vase"]
+[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://features/core/party/party_member.gd" id="10_party_member"]
+[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://features/actors/projection/humanoid/faction_humanoid.gd" id="11_faction_humanoid"]
+[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://features/inventory/resources/items/bandage.tres" id="16_f35vs"]
+[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://features/inventory/resources/items/hatchet.tres" id="17_hatchet"]
+[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://features/inventory/resources/items/round_shield.tres" id="18_0csrm"]
+[ext_resource type="Script" path="res://features/settlements/bridge/venues/settlement_guard_post.gd" id="19_g0vs4"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(34, 1, 28)
@@ -147,6 +147,7 @@ guard_post_count = 1
 guard_name = "City Guard"
 staff_stable_id_prefix = "npc.jail_demo_town.town"
 staff_squad_name = "JailDemoTown"
+auto_town_border_from_footprint = false
 town_border_radius = 26.0
 editor_show_debug_shape = false
 settlement_definition = SubResource("SettlementDefinition_jail_demo")

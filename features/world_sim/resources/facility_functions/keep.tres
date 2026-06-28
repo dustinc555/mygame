@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3 uid="uid://dvvjlqfwlyaux"]
+
+[ext_resource type="Script" uid="uid://cugx5hdqn8thn" path="res://features/world_sim/resources/facility_function_definition.gd" id="1_function"]
+
+[resource]
+script = ExtResource("1_function")
+function_id = "keep"
+display_name = "Keep"
+facility_type = "keep"
+description = "A settlement's seat of authority for rulers, audiences, planning, and formal command."
+expected_staff_roles = PackedStringArray("ruler", "guard")
+expected_service_points = PackedStringArray("audience", "guard_post")
+expected_activity_types = PackedStringArray("social", "guard")

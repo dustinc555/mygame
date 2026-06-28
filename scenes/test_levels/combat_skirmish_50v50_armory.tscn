@@ -1,8 +1,8 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scenes/test_levels/combat_skirmish_50v50_armory.gd" id="1_level"]
-[ext_resource type="Script" path="res://src/core/party/party_manager.gd" id="2_manager"]
-[ext_resource type="Script" path="res://src/core/game_bootstrap.gd" id="3_bootstrap"]
+[ext_resource type="Script" path="res://features/core/party/party_manager.gd" id="2_manager"]
+[ext_resource type="Script" path="res://features/core/game_bootstrap.gd" id="3_bootstrap"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(140, 1, 92)

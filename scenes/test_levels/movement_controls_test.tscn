@@ -1,13 +1,13 @@
 [gd_scene format=3 uid="uid://jsg3qe0fcfw2"]
 
-[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://src/core/party/party_member.gd" id="1_p4rty"]
-[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://src/core/party/party_manager.gd" id="2_m4n4g"]
-[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://src/core/game_bootstrap.gd" id="4_bootstrap"]
-[ext_resource type="PackedScene" path="res://src/world/bridge/resource_nodes/copper_node.tscn" id="5_366s7"]
-[ext_resource type="PackedScene" path="res://src/actors/projection/humanoid/vendors/shopkeeper_npc.tscn" id="5_shopkeeper"]
-[ext_resource type="Script" uid="uid://h8defgmhh62v" path="res://resources/jobs/job_definition.gd" id="5_si735"]
-[ext_resource type="PackedScene" uid="uid://cxk5vgdnfkroq" path="res://src/world/projection/containers/barrel_container.tscn" id="6_366s7"]
-[ext_resource type="PackedScene" path="res://src/world/projection/buildings/interior_stairs.tscn" id="7_stairs"]
+[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://features/core/party/party_member.gd" id="1_p4rty"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://features/core/party/party_manager.gd" id="2_m4n4g"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://features/core/game_bootstrap.gd" id="4_bootstrap"]
+[ext_resource type="PackedScene" path="res://features/world/bridge/resource_nodes/copper_node.tscn" id="5_366s7"]
+[ext_resource type="PackedScene" path="res://features/actors/projection/humanoid/vendors/shopkeeper_npc.tscn" id="5_shopkeeper"]
+[ext_resource type="Script" uid="uid://h8defgmhh62v" path="res://features/settlements/resources/jobs/job_definition.gd" id="5_si735"]
+[ext_resource type="PackedScene" uid="uid://cxk5vgdnfkroq" path="res://features/world/projection/containers/barrel_container.tscn" id="6_366s7"]
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/interior_stairs.tscn" id="7_stairs"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(60, 1, 60)

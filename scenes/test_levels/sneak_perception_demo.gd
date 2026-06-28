@@ -1,12 +1,12 @@
 extends Node3D
 
-const PARTY_MEMBER_SCRIPT = preload("res://src/core/party/party_member.gd")
-const FACTION_HUMANOID_SCRIPT = preload("res://src/actors/projection/humanoid/faction_humanoid.gd")
+const PARTY_MEMBER_SCRIPT = preload("res://features/core/party/party_member.gd")
+const FACTION_HUMANOID_SCRIPT = preload("res://features/actors/projection/humanoid/faction_humanoid.gd")
 const SNEAK_DEMO_BUTTON_SCRIPT = preload("res://scenes/test_levels/sneak_demo_button.gd")
-const WORLD_ITEM_SCENE = preload("res://src/world/projection/items/world_item.tscn")
-const SELECTION_RING_VISUAL = preload("res://src/actors/projection/selection_ring_visual.gd")
-const IRON_SWORD = preload("res://resources/items/iron_sword.tres")
-const EXPENSIVE_VASE = preload("res://resources/items/expensive_vase.tres")
+const WORLD_ITEM_SCENE = preload("res://features/world/projection/items/world_item.tscn")
+const SELECTION_RING_VISUAL = preload("res://features/actors/projection/selection_ring_visual.gd")
+const IRON_SWORD = preload("res://features/inventory/resources/items/iron_sword.tres")
+const EXPENSIVE_VASE = preload("res://features/inventory/resources/items/expensive_vase.tres")
 
 @export var observer_turn_interval := 15.0
 @export var observer_turn_seconds := 1.8
@@ -73,14 +73,14 @@ func _finish_demo_setup() -> void:
 	if party_manager != null and player != null:
 		party_manager.select_only(player)
 		player.set_sneaking_enabled(true)
-	var world_time := get_node_or_null("GameBootstrap/WorldTimeController") as WorldTimeController
+	var world_time := BootstrapContext.service(WorldTimeController.SERVICE_ID) as WorldTimeController
 	if world_time != null:
 		world_time.total_world_minutes = 16.0 * 60.0 + 30.0
 
 
 func _ensure_perception_controller() -> void:
 	if perception_controller == null:
-		perception_controller = get_node_or_null("GameBootstrap/PerceptionController")
+		perception_controller = BootstrapContext.service(PerceptionController.SERVICE_ID)
 
 
 func _ensure_level_geometry() -> void:

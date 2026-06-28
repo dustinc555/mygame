@@ -1,7 +1,7 @@
 extends SceneTree
 
-const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://src/core/gecs_world_controller.gd")
-const WORLD_TIME_CONTROLLER_SCRIPT := preload("res://src/core/world_time_controller.gd")
+const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://features/core/gecs_world_controller.gd")
+const WORLD_TIME_CONTROLLER_SCRIPT := preload("res://features/core/world_time_controller.gd")
 
 const SAVE_PATH := "user://gecs_save_load_roundtrip_validation.tres"
 
@@ -39,15 +39,19 @@ func _run() -> void:
 	var root_node := Node.new()
 	root.add_child(root_node)
 
+	var context := BootstrapContext.new(root_node)
+
 	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
 	bridge.name = "GecsWorldController"
 	root_node.add_child(bridge)
-	bridge.initialize(root_node)
+	context.register(bridge.SERVICE_ID, bridge)
+	bridge.initialize(context)
 
 	var world_time = WORLD_TIME_CONTROLLER_SCRIPT.new()
 	world_time.name = "WorldTimeController"
 	root_node.add_child(world_time)
-	world_time.initialize(root_node)
+	context.register(world_time.SERVICE_ID, world_time)
+	world_time.initialize(context)
 	world_time.advance_hours(9.5)
 	world_time.set_speed_index(2)
 	world_time.request_manual_pause()
@@ -188,10 +192,12 @@ func _run() -> void:
 
 	var loaded_root := Node.new()
 	root.add_child(loaded_root)
+	var loaded_context := BootstrapContext.new(loaded_root)
 	var loaded_bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
 	loaded_bridge.name = "GecsWorldController"
 	loaded_root.add_child(loaded_bridge)
-	loaded_bridge.initialize(loaded_root)
+	loaded_context.register(loaded_bridge.SERVICE_ID, loaded_bridge)
+	loaded_bridge.initialize(loaded_context)
 	if not bool(loaded_bridge.load_gecs_world(SAVE_PATH)):
 		_fail("GECS bridge should load the validation world")
 	else:

@@ -1,6 +1,6 @@
 extends SceneTree
 
-const WORLD_ACTOR_SCRIPT = preload("res://src/actors/bridge/world_actor.gd")
+const WORLD_ACTOR_SCRIPT = preload("res://features/actors/bridge/world_actor.gd")
 const TEST_CAPABILITY_SCRIPT = preload("res://tools/validation/helpers/test_actor_capability.gd")
 
 var _failures := 0

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="BleedFluidDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/world/resources/bleed_fluids/bleed_fluid_definition.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+fluid_id = "robot_oil"
+display_name = "Oil"
+fresh_color = Color(0.015, 0.014, 0.012, 0.96)
+dried_color = Color(0.005, 0.005, 0.004, 0.86)
+uses_custom_ui_color = true
+ui_bar_color = Color(0.02, 0.019, 0.017, 1)
+ui_glow_color = Color(0.01, 0.01, 0.009, 1)

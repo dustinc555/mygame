@@ -1,10 +1,10 @@
 @tool
 extends EditorPlugin
 
-const CATALOG_PATH := "res://resources/building_pieces/quaternius/medieval_village_woodbrick/starter_woodbrick_catalog.tres"
+const CATALOG_PATH := "res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/starter_woodbrick_catalog.tres"
 const WORLD_BUILDING_ICON_PATH := "res://addons/modular_building_authoring/icons/world_building.svg"
-const WORLD_BUILDING_SCRIPT := preload("res://src/world/projection/buildings/world_building.gd")
-const MODULAR_BUILDING_PIECE_SCRIPT := preload("res://src/world/projection/buildings/modular_building_piece.gd")
+const WORLD_BUILDING_SCRIPT := preload("res://features/world/projection/buildings/world_building.gd")
+const MODULAR_BUILDING_PIECE_SCRIPT := preload("res://features/world/projection/buildings/modular_building_piece.gd")
 
 const SNAP_DISTANCE_METERS := 0.55
 const ROTATION_STEP_RADIANS := PI * 0.5

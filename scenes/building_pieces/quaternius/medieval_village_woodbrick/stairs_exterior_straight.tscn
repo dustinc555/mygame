@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://bak34on3jmj2w"]
 
-[ext_resource type="Script" uid="uid://dx67lteoodr2x" path="res://src/world/projection/buildings/modular_building_piece.gd" id="1_nesjb"]
+[ext_resource type="Script" uid="uid://dx67lteoodr2x" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_nesjb"]
 [ext_resource type="PackedScene" uid="uid://dwnusoeblgynl" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Stairs_Exterior_Straight.gltf" id="2_tmr84"]
-[ext_resource type="Script" uid="uid://brg8efkvn10vo" path="res://src/world/projection/buildings/modular_building_snap_marker.gd" id="3_2it10"]
+[ext_resource type="Script" uid="uid://brg8efkvn10vo" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_2it10"]
 
 [sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_walk_ramp"]
 points = PackedVector3Array(-1, 0.79053473, -1.077246, 1, 0.79053473, -1.077246, -1, -0.203688, 0.9315785, 1, -0.203688, 0.9315785, -1, 0.67053473, -1.077246, 1, 0.67053473, -1.077246, -1, -0.323688, 0.9315785, 1, -0.323688, 0.9315785)

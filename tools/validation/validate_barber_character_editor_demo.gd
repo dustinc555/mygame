@@ -1,12 +1,12 @@
 extends SceneTree
 
 const BARBER_DEMO_SCENE_PATH := "res://scenes/test_levels/barber_character_editor_demo.tscn"
-const SILVER_ITEM := preload("res://resources/items/silver.tres")
-const HAIR_LONG := preload("res://resources/character_appearance/hair_long.tres")
-const HAIR_BUZZED := preload("res://resources/character_appearance/hair_buzzed.tres")
-const BEARD_FULL := preload("res://resources/character_appearance/beard_full.tres")
-const EYEBROWS_FINE := preload("res://resources/character_appearance/eyebrows_female.tres")
-const EYEBROWS_REGULAR := preload("res://resources/character_appearance/eyebrows_regular.tres")
+const SILVER_ITEM := preload("res://features/inventory/resources/items/silver.tres")
+const HAIR_LONG := preload("res://features/actors/resources/character_appearance/hair_long.tres")
+const HAIR_BUZZED := preload("res://features/actors/resources/character_appearance/hair_buzzed.tres")
+const BEARD_FULL := preload("res://features/actors/resources/character_appearance/beard_full.tres")
+const EYEBROWS_FINE := preload("res://features/actors/resources/character_appearance/eyebrows_female.tres")
+const EYEBROWS_REGULAR := preload("res://features/actors/resources/character_appearance/eyebrows_regular.tres")
 const VISUAL_BODY_TYPE_MALE := 2
 const VISUAL_BODY_TYPE_FEMALE := 3
 const VIEW_FULL_BODY := 0
@@ -57,8 +57,8 @@ func _load_scene() -> void:
 	_mira = _scene.get_node_or_null("PartyMembers/Mira") as HumanoidCharacter
 	_tomas = _scene.get_node_or_null("PartyMembers/Tomas") as HumanoidCharacter
 	_barber = _scene.get_node_or_null("NPCs/Barber") as HumanoidCharacter
-	_appearance_controller = _scene.get_node_or_null("GameBootstrap/CharacterAppearanceController")
-	_world_time = _scene.get_node_or_null("GameBootstrap/WorldTimeController") as WorldTimeController
+	_appearance_controller = _scene.find_child("CharacterAppearanceController", true, false)
+	_world_time = _scene.find_child("WorldTimeController", true, false) as WorldTimeController
 	if _mira == null:
 		_fail("Mira was not found")
 	if _tomas == null:

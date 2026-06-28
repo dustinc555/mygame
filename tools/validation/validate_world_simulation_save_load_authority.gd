@@ -1,21 +1,37 @@
 extends SceneTree
 
-const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://src/core/gecs_world_controller.gd")
-const WORLD_TIME_CONTROLLER_SCRIPT := preload("res://src/core/world_time_controller.gd")
-const SETTLEMENT_CONTROLLER_SCRIPT := preload("res://src/settlements/bridge/settlement_controller.gd")
-const WORLD_SIMULATION_CONTROLLER_SCRIPT := preload("res://src/world_sim/sim/world_simulation_controller.gd")
-const JOB_SYSTEM_CONTROLLER_SCRIPT := preload("res://src/settlements/sim/job_system_controller.gd")
-const AI_SCHEDULER_CONTROLLER_SCRIPT := preload("res://src/ai/bridge/ai_scheduler_controller.gd")
-const POPULATION_REALIZATION_CONTROLLER_SCRIPT := preload("res://src/world_sim/bridge/population_realization_controller.gd")
-const LEDGER_SIMULATION_CONTROLLER_SCRIPT := preload("res://src/world_sim/sim/ledger_simulation_controller.gd")
+# Runs in `--script` (SceneTree) mode, where project autoloads (including ECS) are not
+# instantiated and the ECS identifier does not resolve at compile time. GECS-dependent
+# scripts therefore must be load()ed at runtime — never preload()ed — and only after an
+# Engine singleton named "ECS" exists. GecsWorldController swaps the placeholder for the
+# real _ECS node during its initialization.
+
+const GECS_WORLD_CONTROLLER_PATH := "res://features/core/gecs_world_controller.gd"
+const WORLD_TIME_CONTROLLER_PATH := "res://features/core/world_time_controller.gd"
+const SETTLEMENT_CONTROLLER_PATH := "res://features/settlements/bridge/settlement_controller.gd"
+const WORLD_SIMULATION_CONTROLLER_PATH := "res://features/world_sim/sim/world_simulation_controller.gd"
+const JOB_SYSTEM_CONTROLLER_PATH := "res://features/settlements/sim/job_system_controller.gd"
+const AI_SCHEDULER_CONTROLLER_PATH := "res://features/ai/bridge/ai_scheduler_controller.gd"
+const POPULATION_REALIZATION_CONTROLLER_PATH := "res://features/world_sim/bridge/population_realization_controller.gd"
+const LEDGER_SIMULATION_CONTROLLER_PATH := "res://features/world_sim/sim/ledger_simulation_controller.gd"
 
 const SAVE_PATH := "user://world_simulation_save_load_authority_validation.tres"
 
 var _failures: Array[String] = []
+var _ecs_compile_placeholder: Node = null
 
 
 func _initialize() -> void:
+	_register_ecs_compile_placeholder()
 	call_deferred("_run")
+
+
+func _register_ecs_compile_placeholder() -> void:
+	if Engine.has_singleton("ECS") or root.get_node_or_null("ECS") != null:
+		return
+	_ecs_compile_placeholder = Node.new()
+	_ecs_compile_placeholder.name = "ECS"
+	Engine.register_singleton("ECS", _ecs_compile_placeholder)
 
 
 func _run() -> void:
@@ -24,9 +40,12 @@ func _run() -> void:
 	root.add_child(root_node)
 
 	var controllers := _add_controllers(root_node)
+	var context := BootstrapContext.new(root_node)
+	for controller in controllers:
+		context.register(controller.SERVICE_ID, controller)
 	for controller in controllers:
 		if controller.has_method("initialize"):
-			controller.call("initialize", root_node)
+			controller.call("initialize", context)
 
 	var world_time: Node = root_node.get_node("WorldTimeController")
 	var gecs: Node = root_node.get_node("GecsWorldController")
@@ -64,6 +83,8 @@ func _run() -> void:
 	await process_frame
 	_remove_file(SAVE_PATH)
 
+	_free_ecs_compile_placeholder()
+
 	if _failures.is_empty():
 		print("WORLD_SIMULATION_SAVE_LOAD_AUTHORITY_OK")
 		quit(0)
@@ -76,14 +97,14 @@ func _run() -> void:
 
 func _add_controllers(parent: Node) -> Array[Node]:
 	var specs := [
-		{"name": "GecsWorldController", "script": GECS_WORLD_CONTROLLER_SCRIPT},
-		{"name": "WorldTimeController", "script": WORLD_TIME_CONTROLLER_SCRIPT},
-		{"name": "SettlementController", "script": SETTLEMENT_CONTROLLER_SCRIPT},
-		{"name": "JobSystemController", "script": JOB_SYSTEM_CONTROLLER_SCRIPT},
-		{"name": "AiSchedulerController", "script": AI_SCHEDULER_CONTROLLER_SCRIPT},
-		{"name": "PopulationRealizationController", "script": POPULATION_REALIZATION_CONTROLLER_SCRIPT},
-		{"name": "LedgerSimulationController", "script": LEDGER_SIMULATION_CONTROLLER_SCRIPT},
-		{"name": "WorldSimulationController", "script": WORLD_SIMULATION_CONTROLLER_SCRIPT},
+		{"name": "GecsWorldController", "script": load(GECS_WORLD_CONTROLLER_PATH)},
+		{"name": "WorldTimeController", "script": load(WORLD_TIME_CONTROLLER_PATH)},
+		{"name": "SettlementController", "script": load(SETTLEMENT_CONTROLLER_PATH)},
+		{"name": "JobSystemController", "script": load(JOB_SYSTEM_CONTROLLER_PATH)},
+		{"name": "AiSchedulerController", "script": load(AI_SCHEDULER_CONTROLLER_PATH)},
+		{"name": "PopulationRealizationController", "script": load(POPULATION_REALIZATION_CONTROLLER_PATH)},
+		{"name": "LedgerSimulationController", "script": load(LEDGER_SIMULATION_CONTROLLER_PATH)},
+		{"name": "WorldSimulationController", "script": load(WORLD_SIMULATION_CONTROLLER_PATH)},
 	]
 	var controllers: Array[Node] = []
 	for spec in specs:
@@ -133,6 +154,16 @@ func _world_sim_squad_by_id(gecs: Node, squad_id: String) -> Dictionary:
 func _remove_file(path: String) -> void:
 	if FileAccess.file_exists(path):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+func _free_ecs_compile_placeholder() -> void:
+	if _ecs_compile_placeholder == null or not is_instance_valid(_ecs_compile_placeholder):
+		return
+	# Only free once GecsWorldController has swapped the singleton to the real ECS node.
+	if Engine.has_singleton("ECS") and Engine.get_singleton("ECS") == _ecs_compile_placeholder:
+		return
+	_ecs_compile_placeholder.free()
+	_ecs_compile_placeholder = null
 
 
 func _fail(message: String) -> void:

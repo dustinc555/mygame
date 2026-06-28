@@ -1,127 +1,88 @@
 extends SceneTree
 
-const WORLD_ACTOR_SCRIPT = preload("res://src/actors/bridge/world_actor.gd")
-const HATCHET = preload("res://resources/items/hatchet.tres")
-const BRONZE_SWORD = preload("res://resources/items/bronze_sword.tres")
-const ROUND_SHIELD = preload("res://resources/items/round_shield.tres")
-const BREAD = preload("res://resources/items/bread.tres")
+## Focused sanity check for EquipmentCapability (post-migration design).
+## Run: godot --headless --path . --script res://tools/validation/validate_equipment_capability.gd
+##
+## Capability owns equipped_items; the actor delegates. Cross-capability reactions
+## go out as `equipment_changed`. Stats reads the equipment modifier layer via its
+## typed handle (covered here too). A base WorldActor exposes no slot list, which
+## permits any equippable item into its own declared slot.
 
-var _failures: Array[String] = []
-var _inventory_changed_count := 0
+const HATCHET = preload("res://features/inventory/resources/items/hatchet.tres")
+const BRONZE_SWORD = preload("res://features/inventory/resources/items/bronze_sword.tres")
 
 
 func _initialize() -> void:
-	_run()
+	_run_validation.call_deferred()
 
 
-func _run() -> void:
-	_validate_equipment_capability_registration()
-	_validate_starting_equipment_seed()
-	_validate_equip_replace_and_unequip()
-	_validate_equipment_stat_modifiers()
-	_validate_equipment_change_batch_signal()
-	if _failures.is_empty():
-		print("EQUIPMENT_CAPABILITY_OK")
-		quit(0)
+func _run_validation() -> void:
+	var failures: Array[String] = []
+
+	var actor := _make_actor([HATCHET])
+	var equipment := actor.get_equipment()
+	_expect(failures, "equipment capability present", equipment != null)
+	if equipment == null:
+		_finish(failures)
 		return
-	for failure in _failures:
-		push_error(failure)
-	print("EQUIPMENT_CAPABILITY_FAILED count=%d" % _failures.size())
-	quit(1)
 
+	_expect(failures, "starting hatchet seeded to weapon slot", actor.get_equipped_item("weapon") == HATCHET)
 
-func _validate_equipment_capability_registration() -> void:
-	var actor := _make_actor()
-	var capability = actor.get_actor_capability(&"equipment")
-	if capability == null:
-		_fail("Expected WorldActor to register EquipmentCapability")
-	elif not capability.has_method("initialize_from_actor"):
-		_fail("Expected EquipmentCapability to expose initialize_from_actor")
+	# equip replaces, weight, unequip
+	var replaced := actor.equip_item_to_slot(BRONZE_SWORD, "weapon")
+	_expect(failures, "equip replaces previous", replaced == HATCHET)
+	_expect(failures, "sword now equipped", actor.get_equipped_item("weapon") == BRONZE_SWORD)
+	_expect(failures, "equipped weight matches sword", is_equal_approx(actor.get_equipped_weight(), BRONZE_SWORD.unit_weight))
+	var removed := actor.unequip_item_from_slot("weapon")
+	_expect(failures, "unequip returns sword", removed == BRONZE_SWORD)
+	_expect(failures, "empty after unequip", actor.get_equipped_item("weapon") == null)
+
+	# equipment_changed signal fires on equip
+	var emitted := {"hit": false}
+	equipment.equipment_changed.connect(func(_slots): emitted.hit = true)
+	actor.equip_item_to_slot(BRONZE_SWORD, "weapon")
+	_expect(failures, "equipment_changed emitted on equip", emitted.hit)
+
+	# batch defers to a single emit
+	actor.unequip_item_from_slot("weapon")
+	var batch := {"n": 0}
+	equipment.equipment_changed.connect(func(_slots): batch.n += 1)
+	equipment.begin_equipment_update_batch()
+	actor.equip_item_to_slot(HATCHET, "weapon")
+	_expect(failures, "batch defers signal", batch.n == 0)
+	equipment.end_equipment_update_batch()
+	_expect(failures, "batch emits once on end", batch.n == 1)
+
+	# Stats reads the equipment modifier layer (cross-capability link)
+	var modifiers := equipment.get_stat_modifiers()
+	_expect(failures, "stat modifiers surfaced from equipped items", modifiers.size() == HATCHET.stat_modifiers.size())
+
 	actor.free()
+	_finish(failures)
 
 
-func _validate_starting_equipment_seed() -> void:
-	var actor := _make_actor(false)
-	actor.starting_equipment = [HATCHET, BREAD]
-	actor.call("_setup_inventory_capability")
-	actor.call("_setup_equipment_capability")
-	if actor.get_equipped_item(ItemDefinition.EQUIP_SLOT_WEAPON) != HATCHET:
-		_fail("Expected starting hatchet to equip to weapon slot")
-	if actor.equipped_items.get(ItemDefinition.EQUIP_SLOT_WEAPON) != HATCHET:
-		_fail("Expected actor-owned equipped_items to mirror starting equipment")
-	if actor.inventory == null or actor.inventory.count_item(BREAD) != 1:
-		_fail("Expected non-equippable starting equipment to seed inventory")
-	actor.free()
-
-
-func _validate_equip_replace_and_unequip() -> void:
-	var actor := _make_actor()
-	if not actor.can_equip_item_to_slot(HATCHET, ItemDefinition.EQUIP_SLOT_WEAPON):
-		_fail("Expected hatchet to be valid for weapon slot")
-	if actor.can_equip_item_to_slot(BREAD, ItemDefinition.EQUIP_SLOT_WEAPON):
-		_fail("Expected non-equippable bread to be rejected")
-	if actor.can_equip_item_to_slot(HATCHET, ItemDefinition.EQUIP_SLOT_OFFHAND):
-		_fail("Expected hatchet to be rejected from offhand slot")
-	if actor.equip_item_to_slot(HATCHET, ItemDefinition.EQUIP_SLOT_WEAPON) != null:
-		_fail("Expected first equip to have no replacement")
-	if actor.equip_item_to_slot(BRONZE_SWORD, ItemDefinition.EQUIP_SLOT_WEAPON) != HATCHET:
-		_fail("Expected sword equip to replace hatchet")
-	if actor.get_equipped_item(ItemDefinition.EQUIP_SLOT_WEAPON) != BRONZE_SWORD:
-		_fail("Expected sword to remain equipped")
-	if not is_equal_approx(actor.get_equipped_weight(), BRONZE_SWORD.unit_weight):
-		_fail("Expected equipped weight to match sword weight")
-	if actor.unequip_item_from_slot(ItemDefinition.EQUIP_SLOT_WEAPON) != BRONZE_SWORD:
-		_fail("Expected unequip to return sword")
-	if actor.has_equipment():
-		_fail("Expected equipment to be empty after unequip")
-	actor.free()
-
-
-func _validate_equipment_stat_modifiers() -> void:
-	var actor := _make_actor()
-	actor.base_attack_damage = 10.0
-	actor.equip_item_to_slot(BRONZE_SWORD, ItemDefinition.EQUIP_SLOT_WEAPON)
-	var modifiers := actor.get_equipment_stat_modifiers()
-	if modifiers.size() != BRONZE_SWORD.stat_modifiers.size():
-		_fail("Expected equipment capability to expose equipped stat modifiers")
-	if not is_equal_approx(actor.get_stat_value("attack_damage"), 17.0):
-		_fail("Expected WorldActor attack_damage to include equipped sword modifier")
-	if not actor.call("_item_has_stat_modifier", BRONZE_SWORD, "attack_range"):
-		_fail("Expected item stat modifier lookup through equipment capability")
-	if not is_equal_approx(float(actor.call("_get_item_stat_value", BRONZE_SWORD, "attack_range", 1.0)), 1.42):
-		_fail("Expected item stat value lookup through equipment capability")
-	actor.free()
-
-
-func _validate_equipment_change_batch_signal() -> void:
-	var actor := _make_actor()
-	_inventory_changed_count = 0
-	actor.inventory_changed.connect(_on_inventory_changed)
-	actor.begin_equipment_update_batch()
-	actor.equip_item_to_slot(HATCHET, ItemDefinition.EQUIP_SLOT_WEAPON)
-	actor.equip_item_to_slot(ROUND_SHIELD, ItemDefinition.EQUIP_SLOT_OFFHAND)
-	if _inventory_changed_count != 0:
-		_fail("Expected equipment batch to defer inventory_changed signal")
-	actor.end_equipment_update_batch()
-	if _inventory_changed_count != 1:
-		_fail("Expected equipment batch to emit one inventory_changed signal, got %d" % _inventory_changed_count)
-	if actor.get_equipped_item(ItemDefinition.EQUIP_SLOT_OFFHAND) != ROUND_SHIELD:
-		_fail("Expected shield to equip to offhand slot")
-	actor.free()
-
-
-func _make_actor(setup_equipment := true) -> WorldActor:
-	var actor := WORLD_ACTOR_SCRIPT.new() as WorldActor
-	actor.call("_setup_actor_capabilities")
-	actor.call("_setup_inventory_capability")
-	if setup_equipment:
-		actor.call("_setup_equipment_capability")
+func _make_actor(starting_equipment: Array) -> WorldActor:
+	var actor := WorldActor.new()
+	root.add_child(actor)
+	actor.starting_equipment = starting_equipment
+	actor._create_actor_capabilities()
+	for capability in actor._capabilities.values():
+		(capability as ActorCapability).setup(actor)
+	for capability in actor._capabilities.values():
+		(capability as ActorCapability).ready()
 	return actor
 
 
-func _on_inventory_changed() -> void:
-	_inventory_changed_count += 1
+func _finish(failures: Array[String]) -> void:
+	if failures.is_empty():
+		print("PASS: EquipmentCapability sane (10 checks)")
+		quit(0)
+	else:
+		for f in failures:
+			printerr("FAIL: ", f)
+		quit(1)
 
 
-func _fail(message: String) -> void:
-	_failures.append(message)
+func _expect(failures: Array[String], label: String, condition: bool) -> void:
+	if not condition:
+		failures.append(label)

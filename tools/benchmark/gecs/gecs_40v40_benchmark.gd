@@ -2,7 +2,7 @@ extends Node3D
 
 class_name GecsFortyVsFortyBenchmark
 
-const FACTION_HUMANOID_SCRIPT = preload("res://src/actors/projection/humanoid/faction_humanoid.gd")
+const FACTION_HUMANOID_SCRIPT = preload("res://features/actors/projection/humanoid/faction_humanoid.gd")
 const C_ACTOR = preload("res://tools/benchmark/gecs/components/c_benchmark_actor.gd")
 const C_TRANSFORM = preload("res://tools/benchmark/gecs/components/c_benchmark_transform.gd")
 const C_AGENT = preload("res://tools/benchmark/gecs/components/c_benchmark_agent.gd")

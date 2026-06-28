@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="WorldDefinition" format=3 uid="uid://dcrbc2knu5fjn"]
+
+[ext_resource type="Script" uid="uid://kd072amv42dh" path="res://features/world_sim/resources/worlds/world_definition.gd" id="1_world"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/zones/demo_zone/demo_zone.tres" id="2_demo_zone"]
+
+[resource]
+script = ExtResource("1_world")
+world_id = "demo_world"
+display_name = "Demo World"
+random_seed = 1001
+minimum_initial_active_nests = 1
+zone_definitions = Array[Resource]([ExtResource("2_demo_zone")])

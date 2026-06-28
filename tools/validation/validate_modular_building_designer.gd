@@ -4,11 +4,11 @@ const PROJECT_PATH := "res://project.godot"
 const PLUGIN_CFG_PATH := "res://addons/modular_building_authoring/plugin.cfg"
 const PLUGIN_SCRIPT_PATH := "res://addons/modular_building_authoring/plugin.gd"
 const WORLD_BUILDING_ICON_PATH := "res://addons/modular_building_authoring/icons/world_building.svg"
-const WOODBRICK_HOUSE_SCENE_PATH := "res://src/world/projection/buildings/woodbrick_house.tscn"
-const WORLD_BUILDING_SCRIPT_PATH := "res://src/world/projection/buildings/world_building.gd"
-const MODULAR_BUILDING_PIECE_SCRIPT_PATH := "res://src/world/projection/buildings/modular_building_piece.gd"
-const WORLD_BUILDING_SCRIPT := preload("res://src/world/projection/buildings/world_building.gd")
-const MODULAR_BUILDING_PIECE_SCRIPT := preload("res://src/world/projection/buildings/modular_building_piece.gd")
+const WOODBRICK_HOUSE_SCENE_PATH := "res://features/world/projection/buildings/woodbrick_house.tscn"
+const WORLD_BUILDING_SCRIPT_PATH := "res://features/world/projection/buildings/world_building.gd"
+const MODULAR_BUILDING_PIECE_SCRIPT_PATH := "res://features/world/projection/buildings/modular_building_piece.gd"
+const WORLD_BUILDING_SCRIPT := preload("res://features/world/projection/buildings/world_building.gd")
+const MODULAR_BUILDING_PIECE_SCRIPT := preload("res://features/world/projection/buildings/modular_building_piece.gd")
 
 var _failures: Array[String] = []
 

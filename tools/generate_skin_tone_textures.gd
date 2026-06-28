@@ -1,6 +1,6 @@
 extends SceneTree
 
-const SKIN_TEXTURE_BUILDER := preload("res://src/actors/projection/appearance/skin_texture_builder.gd")
+const SKIN_TEXTURE_BUILDER := preload("res://features/actors/projection/appearance/skin_texture_builder.gd")
 const DETAIL_MIN := 0.42
 const DETAIL_MAX := 1.7
 const DEFAULT_RACE_IDS := ["human", "rustdead"]

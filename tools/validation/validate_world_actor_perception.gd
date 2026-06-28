@@ -1,7 +1,7 @@
 extends SceneTree
 
-const WORLD_ACTOR_SCRIPT := preload("res://src/actors/bridge/world_actor.gd")
-const PERCEPTION_CONTROLLER_SCRIPT := preload("res://src/actors/bridge/perception/perception_controller.gd")
+const WORLD_ACTOR_SCRIPT := preload("res://features/actors/bridge/world_actor.gd")
+const PERCEPTION_CONTROLLER_SCRIPT := preload("res://features/actors/bridge/perception/perception_controller.gd")
 
 var _failures: Array[String] = []
 
@@ -28,7 +28,7 @@ func _validate_plain_world_actor_perception() -> void:
 	var perception_controller := PERCEPTION_CONTROLLER_SCRIPT.new()
 	perception_controller.name = "PerceptionController"
 	scene.add_child(perception_controller)
-	perception_controller.initialize(scene)
+	perception_controller.initialize(BootstrapContext.new(scene))
 	perception_controller.add_to_group("perception_controller")
 
 	var observer := _add_world_actor(scene, "WorldObserver", Vector3.ZERO, "Observer")

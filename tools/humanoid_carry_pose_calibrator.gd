@@ -3,10 +3,10 @@ extends Node3D
 
 class_name HumanoidCarryPoseCalibrator
 
-const DEFAULT_CARRY_POSE_PROFILE := preload("res://resources/humanoid_carry_pose_profiles/default.tres")
-const HUMAN_MALE_BODY_ARCHETYPE := preload("res://resources/character_body_archetypes/human_male.tres")
-const HUMAN_FEMALE_BODY_ARCHETYPE := preload("res://resources/character_body_archetypes/human_female.tres")
-const CHARACTER_APPEARANCE_DATA_SCRIPT := preload("res://resources/character_appearance/character_appearance_data.gd")
+const DEFAULT_CARRY_POSE_PROFILE := preload("res://features/actors/resources/humanoid_carry_pose_profiles/default.tres")
+const HUMAN_MALE_BODY_ARCHETYPE := preload("res://features/actors/resources/character_body_archetypes/human_male.tres")
+const HUMAN_FEMALE_BODY_ARCHETYPE := preload("res://features/actors/resources/character_body_archetypes/human_female.tres")
+const CHARACTER_APPEARANCE_DATA_SCRIPT := preload("res://features/actors/resources/character_appearance/character_appearance_data.gd")
 const UAL2_ANIMATION_SOURCE_SCENE := preload("res://assets/vendor/quaternius/universal_animation_library_2/UAL2.glb")
 
 const CARRY_ANIMATION_NAME := "LiftAir_Fall"

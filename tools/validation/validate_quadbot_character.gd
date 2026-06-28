@@ -1,18 +1,18 @@
 extends SceneTree
 
-const QUADBOT_CHARACTER_SCRIPT := preload("res://src/actors/projection/quadbot/quadbot_character.gd")
-const QUADBOT_BODY_PROJECTION_SCRIPT := preload("res://src/actors/projection/quadbot/quadbot_body_projection.gd")
-const HUMANOID_BODY_PROJECTION_SCRIPT := preload("res://src/actors/projection/humanoid/humanoid_body_projection.gd")
-const PARTY_MANAGER_SCRIPT := preload("res://src/core/party/party_manager.gd")
-const HUMANOID_DETAILS_CONTROLLER_SCRIPT := preload("res://src/ui/bridge/humanoid_details_controller.gd")
-const BLEED_SPLOTCH_CONTROLLER_SCRIPT := preload("res://src/world/projection/bleed_splotch_controller.gd")
-const GAME_HUD_SCENE := preload("res://src/ui/projection/game_hud.tscn")
-const QUADBOT_RACE := preload("res://resources/character_races/quadbot.tres")
-const QUADBOT_BODY_ARCHETYPE := preload("res://resources/character_body_archetypes/quadbot.tres")
-const QUADBOT_APPEARANCE_PROFILE := preload("res://resources/world_sim/population_appearance_profiles/quadbot.tres")
-const QUADBOT_NAME_PROFILE := preload("res://resources/world_sim/population_name_profiles/quadbot_names.tres")
-const ROBOT_OIL := preload("res://resources/bleed_fluids/robot_oil.tres")
-const SELECTION_RING_VISUAL := preload("res://src/actors/projection/selection_ring_visual.gd")
+const QUADBOT_CHARACTER_SCRIPT := preload("res://features/actors/projection/quadbot/quadbot_character.gd")
+const QUADBOT_BODY_PROJECTION_SCRIPT := preload("res://features/actors/projection/quadbot/quadbot_body_projection.gd")
+const HUMANOID_BODY_PROJECTION_SCRIPT := preload("res://features/actors/projection/humanoid/humanoid_body_projection.gd")
+const PARTY_MANAGER_SCRIPT := preload("res://features/core/party/party_manager.gd")
+const HUMANOID_DETAILS_CONTROLLER_SCRIPT := preload("res://features/ui/bridge/humanoid_details_controller.gd")
+const BLEED_SPLOTCH_CONTROLLER_SCRIPT := preload("res://features/world/projection/bleed_splotch_controller.gd")
+const GAME_HUD_SCENE := preload("res://features/ui/projection/game_hud.tscn")
+const QUADBOT_RACE := preload("res://features/actors/resources/character_races/quadbot.tres")
+const QUADBOT_BODY_ARCHETYPE := preload("res://features/actors/resources/character_body_archetypes/quadbot.tres")
+const QUADBOT_APPEARANCE_PROFILE := preload("res://features/world_sim/resources/population_appearance_profiles/quadbot.tres")
+const QUADBOT_NAME_PROFILE := preload("res://features/world_sim/resources/population_name_profiles/quadbot_names.tres")
+const ROBOT_OIL := preload("res://features/world/resources/bleed_fluids/robot_oil.tres")
+const SELECTION_RING_VISUAL := preload("res://features/actors/projection/selection_ring_visual.gd")
 
 const EXPECTED_QUADBOT_SKILL_BASE_LEVEL := 40
 const EXPECTED_DAMAGE_RATIO := 2.0 / 3.0
@@ -230,7 +230,7 @@ func _validate_robot_ui_semantics() -> void:
 	root.add_child(_hud_layer)
 	_details_controller = HUMANOID_DETAILS_CONTROLLER_SCRIPT.new()
 	root.add_child(_details_controller)
-	_details_controller.call("initialize", root, _hud_layer)
+	_details_controller.call("initialize", BootstrapContext.new(root, _hud_layer))
 	await process_frame
 	_details_controller.call("inspect_humanoid", _actor)
 	await process_frame
@@ -339,7 +339,7 @@ func _validate_robot_oil_splotch_controller_persistence() -> void:
 	_oil_persistence_controller = BLEED_SPLOTCH_CONTROLLER_SCRIPT.new()
 	root.add_child(_oil_persistence_controller)
 	if _oil_persistence_controller.has_method("initialize"):
-		_oil_persistence_controller.call("initialize", root)
+		_oil_persistence_controller.call("initialize", BootstrapContext.new(root))
 	await process_frame
 	var before_hit_count := _oil_splotch_count()
 	_oil_persistence_controller.call("spawn_hit_splash", _actor, ROBOT_OIL, 24.0)

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://b4vo3ehw0kwo7"]
+
+[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://features/world_sim/resources/faction_definition.gd" id="1_faction"]
+[ext_resource type="Resource" uid="uid://dop3nplurk2vm" path="res://features/world_sim/resources/behavior_profiles/paradise_hills_camp.tres" id="2_behavior"]
+[ext_resource type="Resource" uid="uid://mw8njq6ugn5d" path="res://features/world_sim/resources/personality_profiles/paradise_hills_slavers.tres" id="3_personality"]
+[ext_resource type="Resource" uid="uid://tqkaqrllihd0" path="res://features/world_sim/resources/law_profiles/paradise_hills_law.tres" id="4_law"]
+[ext_resource type="Resource" uid="uid://pjw2qb2u0hbw" path="res://features/world_sim/resources/population_name_profiles/raider_names.tres" id="5_names"]
+
+[resource]
+script = ExtResource("1_faction")
+faction_id = "ParadiseHills"
+display_name = "Paradise Hills"
+description = "A slaver camp faction whose laws treat slavery as legal property order."
+primary_color = Color(0.72, 0.48, 0.16, 1)
+default_hostile_faction_ids = null
+starting_war_faction_ids = null
+open_access = false
+behavior_profile = ExtResource("2_behavior")
+personality_profile = ExtResource("3_personality")
+law_profile = ExtResource("4_law")
+population_name_profile = ExtResource("5_names")

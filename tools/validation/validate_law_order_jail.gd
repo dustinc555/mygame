@@ -1,15 +1,15 @@
 extends SceneTree
 
 const JAIL_LAW_DEMO_SCENE := preload("res://scenes/test_levels/jail_law_demo.tscn")
-const WORLD_ITEM_SCENE := preload("res://src/world/projection/items/world_item.tscn")
-const FACTION_HUMANOID_SCRIPT := preload("res://src/actors/projection/humanoid/faction_humanoid.gd")
-const SETTLEMENT_TOWN_SCRIPT := preload("res://src/settlements/bridge/settlement_town.gd")
-const SETTLEMENT_DEFINITION_SCRIPT := preload("res://resources/world_sim/settlement_definition.gd")
-const FARMERS_FACTION := preload("res://resources/world_sim/factions/farmers.tres")
-const BANDAGE := preload("res://resources/items/bandage.tres")
-const EXPENSIVE_VASE := preload("res://resources/items/expensive_vase.tres")
-const HATCHET := preload("res://resources/items/hatchet.tres")
-const ROUND_SHIELD := preload("res://resources/items/round_shield.tres")
+const WORLD_ITEM_SCENE := preload("res://features/world/projection/items/world_item.tscn")
+const FACTION_HUMANOID_SCRIPT := preload("res://features/actors/projection/humanoid/faction_humanoid.gd")
+const SETTLEMENT_TOWN_SCRIPT := preload("res://features/settlements/bridge/settlement_town.gd")
+const SETTLEMENT_DEFINITION_SCRIPT := preload("res://features/world_sim/resources/settlement_definition.gd")
+const FARMERS_FACTION := preload("res://features/world_sim/resources/factions/farmers.tres")
+const BANDAGE := preload("res://features/inventory/resources/items/bandage.tres")
+const EXPENSIVE_VASE := preload("res://features/inventory/resources/items/expensive_vase.tres")
+const HATCHET := preload("res://features/inventory/resources/items/hatchet.tres")
+const ROUND_SHIELD := preload("res://features/inventory/resources/items/round_shield.tres")
 
 const DEMO_FACTION_ID := "Farmers"
 const DEMO_SETTLEMENT_ID := "jail_demo_town"

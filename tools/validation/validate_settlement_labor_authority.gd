@@ -1,10 +1,10 @@
 extends SceneTree
 
 const TWO_TOWNS_SCENE := preload("res://scenes/test_levels/two_towns_road_test.tscn")
-const SETTLEMENT_BAR_SCENE := preload("res://src/settlements/bridge/settlement_bar.tscn")
-const SETTLEMENT_JAIL_SCENE := preload("res://src/settlements/bridge/settlement_jail.tscn")
-const BANDAGE := preload("res://resources/items/bandage.tres")
-const HATCHET := preload("res://resources/items/hatchet.tres")
+const SETTLEMENT_BAR_SCENE := preload("res://features/settlements/bridge/settlement_bar.tscn")
+const SETTLEMENT_JAIL_SCENE := preload("res://features/settlements/bridge/settlement_jail.tscn")
+const BANDAGE := preload("res://features/inventory/resources/items/bandage.tres")
+const HATCHET := preload("res://features/inventory/resources/items/hatchet.tres")
 
 var _failures: Array[String] = []
 var _scene: Node

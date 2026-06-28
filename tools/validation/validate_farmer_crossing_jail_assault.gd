@@ -1,7 +1,7 @@
 extends SceneTree
 
 const TWO_TOWNS_SCENE := preload("res://scenes/test_levels/two_towns_road_test.tscn")
-const FACTION_HUMANOID_SCRIPT := preload("res://src/actors/projection/humanoid/faction_humanoid.gd")
+const FACTION_HUMANOID_SCRIPT := preload("res://features/actors/projection/humanoid/faction_humanoid.gd")
 const FARMERS_FACTION_ID := "Farmers"
 
 var _failures: Array[String] = []

@@ -1,8 +1,8 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://src/world/projection/buildings/modular_building_piece.gd" id="1_fryav"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_fryav"]
 [ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Modular_FlatTiles_4_L.gltf" id="2_503t8"]
-[ext_resource type="Script" path="res://src/world/projection/buildings/modular_building_snap_marker.gd" id="3_181ej"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_181ej"]
 
 [node name="RoofModularFlattiles4L" type="Node3D" unique_id=394673502]
 script = ExtResource("1_fryav")

@@ -1,13 +1,13 @@
 extends SceneTree
 
-const SETTLEMENT_TOWN_SCRIPT := preload("res://src/settlements/bridge/settlement_town.gd")
-const ACTIVITY_POINT_SCRIPT := preload("res://src/settlements/bridge/settlement_activity_point.gd")
-const FACTION_TERRITORY_ANCHOR_SCRIPT := preload("res://src/world_sim/bridge/faction_territory_anchor.gd")
-const SETTLEMENT_CONTROLLER_SCRIPT := preload("res://src/settlements/bridge/settlement_controller.gd")
-const TERRITORY_CONTROLLER_SCRIPT := preload("res://src/world_sim/sim/territory_controller.gd")
+const SETTLEMENT_TOWN_SCRIPT := preload("res://features/settlements/bridge/settlement_town.gd")
+const ACTIVITY_POINT_SCRIPT := preload("res://features/settlements/bridge/settlement_activity_point.gd")
+const FACTION_TERRITORY_ANCHOR_SCRIPT := preload("res://features/world_sim/bridge/faction_territory_anchor.gd")
+const SETTLEMENT_CONTROLLER_SCRIPT := preload("res://features/settlements/bridge/settlement_controller.gd")
+const TERRITORY_CONTROLLER_SCRIPT := preload("res://features/world_sim/sim/territory_controller.gd")
 const TWO_TOWNS_SCENE := preload("res://scenes/test_levels/two_towns_road_test.tscn")
-const FARMER_FACTION := preload("res://resources/world_sim/factions/farmers.tres")
-const RAIDER_FACTION := preload("res://resources/world_sim/factions/raiders.tres")
+const FARMER_FACTION := preload("res://features/world_sim/resources/factions/farmers.tres")
+const RAIDER_FACTION := preload("res://features/world_sim/resources/factions/raiders.tres")
 const TERRITORY_DEBUG_ALPHA := 0.28
 
 var _failures: Array[String] = []

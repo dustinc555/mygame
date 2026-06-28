@@ -1,7 +1,0 @@
-[gd_resource type="Resource" script_class="EquipmentGripProfile" format=3 uid="uid://ddoq1y4fkfw0i"]
-
-[ext_resource type="Script" uid="uid://dvj7n3q5e6s0r" path="res://resources/equipment_grip_profiles/equipment_grip_profile.gd" id="1_profile"]
-
-[resource]
-script = ExtResource("1_profile")
-authoring_notes = "Use dagger_model.tscn as the current reference: GripPoint_Primary aligns to RightHandGrip and should be oriented so the handle sits naturally clenched in the right fist."

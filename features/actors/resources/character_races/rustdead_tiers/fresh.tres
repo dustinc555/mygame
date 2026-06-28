@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="RustdeadTierDefinition" format=3 uid="uid://o5fspdddb3c4"]
+
+[ext_resource type="Script" uid="uid://cv37v5r5r7u7w" path="res://features/actors/resources/characters/rustdead_tier_definition.gd" id="1_tier"]
+[ext_resource type="Resource" uid="uid://cdrfbo0gr4b2k" path="res://features/actors/resources/character_appearance/hair_buzzed.tres" id="2_hair_buzzed"]
+[ext_resource type="Resource" uid="uid://cv8wkbg62y26w" path="res://features/actors/resources/character_appearance/hair_buzzed_female.tres" id="3_hair_buzzed_female"]
+[ext_resource type="Resource" uid="uid://bnjatfuysejds" path="res://features/actors/resources/character_appearance/hair_simple_parted.tres" id="4_hair_parted"]
+[ext_resource type="Resource" uid="uid://jn3yk6pk7rua" path="res://features/actors/resources/character_appearance/hair_long.tres" id="5_hair_long"]
+[ext_resource type="Resource" uid="uid://c8p3sd8g63nkt" path="res://features/actors/resources/character_appearance/hair_buns.tres" id="6_hair_buns"]
+[ext_resource type="Resource" uid="uid://cvaiysmgrcwh6" path="res://features/actors/resources/character_appearance/beard_full.tres" id="7_beard_full"]
+
+[resource]
+script = ExtResource("1_tier")
+tier_id = "fresh"
+display_name = "Fresh Rustdead"
+stat_range = Vector2i(10, 25)
+max_hp_range = Vector2(85, 105)
+passive_bonus = 0.2
+skin_tone_indices = PackedInt32Array(0, 1)
+male_hair_styles = Array[Resource]([ExtResource("2_hair_buzzed"), ExtResource("4_hair_parted"), ExtResource("5_hair_long")])
+female_hair_styles = Array[Resource]([ExtResource("3_hair_buzzed_female"), ExtResource("4_hair_parted"), ExtResource("5_hair_long"), ExtResource("6_hair_buns")])
+male_beard_styles = Array[Resource]([ExtResource("7_beard_full")])
+hair_color_palette = Array[Color]([Color(0.045, 0.034, 0.026, 1), Color(0.1, 0.065, 0.038, 1), Color(0.16, 0.105, 0.06, 1), Color(0.23, 0.22, 0.2, 1)])
+small_nest_weight = 45.0
+medium_nest_weight = 25.0
+large_nest_weight = 10.0

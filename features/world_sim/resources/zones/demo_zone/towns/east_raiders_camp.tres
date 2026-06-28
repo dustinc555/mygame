@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="SettlementPlacement" format=3 uid="uid://wm8hruqj4vq3"]
+
+[ext_resource type="Script" uid="uid://bs5ubf5h7r5y0" path="res://features/world_sim/resources/settlement_placement.gd" id="1_placement"]
+[ext_resource type="Resource" uid="uid://crr7d18aljun7" path="res://features/world_sim/resources/settlements/east_raiders_camp.tres" id="2_settlement"]
+[ext_resource type="PackedScene" path="res://scenes/zones/demo_zone/towns/east_raiders_camp.tscn" id="3_town"]
+
+[resource]
+script = ExtResource("1_placement")
+placement_id = "east_raiders_camp"
+settlement_definition = ExtResource("2_settlement")
+town_scene = ExtResource("3_town")
+world_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 360, 0, -30)
+realization_policy = "near_player"
+road_connection_ids = PackedStringArray("east_raiders_gate")

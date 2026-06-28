@@ -1,13 +1,13 @@
 extends SceneTree
 
-const COMBAT_COORDINATOR = preload("res://src/combat/bridge/combat_coordinator.gd")
-const CHARACTER_SKILLS_WINDOW_SCRIPT = preload("res://src/ui/projection/character_skills_window.gd")
-const HUMANOID_DETAILS_CONTROLLER_SCRIPT = preload("res://src/ui/bridge/humanoid_details_controller.gd")
-const COPPER_ORE = preload("res://resources/items/copper_ore.tres")
-const PICKAXE = preload("res://resources/items/rusted_pickaxe.tres")
-const WORLD_ITEM_SCENE = preload("res://src/world/projection/items/world_item.tscn")
-const PARTY_INVENTORY_CONTROLLER_SCRIPT = preload("res://src/inventory/bridge/party_inventory_controller.gd")
-const GAME_HUD_SCENE = preload("res://src/ui/projection/game_hud.tscn")
+const COMBAT_COORDINATOR = preload("res://features/combat/bridge/combat_coordinator.gd")
+const CHARACTER_SKILLS_WINDOW_SCRIPT = preload("res://features/ui/projection/character_skills_window.gd")
+const HUMANOID_DETAILS_CONTROLLER_SCRIPT = preload("res://features/ui/bridge/humanoid_details_controller.gd")
+const COPPER_ORE = preload("res://features/inventory/resources/items/copper_ore.tres")
+const PICKAXE = preload("res://features/inventory/resources/items/rusted_pickaxe.tres")
+const WORLD_ITEM_SCENE = preload("res://features/world/projection/items/world_item.tscn")
+const PARTY_INVENTORY_CONTROLLER_SCRIPT = preload("res://features/inventory/bridge/party_inventory_controller.gd")
+const GAME_HUD_SCENE = preload("res://features/ui/projection/game_hud.tscn")
 
 class InitiativeDummy:
 	extends Node3D
@@ -910,7 +910,7 @@ func _validate_inspected_npc_skills_button() -> void:
 	var controller := HUMANOID_DETAILS_CONTROLLER_SCRIPT.new() as HumanoidDetailsController
 	controller.name = "ValidationHumanoidDetailsController"
 	root.add_child(controller)
-	controller.initialize(root, hud)
+	controller.initialize(BootstrapContext.new(root, hud))
 	await _wait_frames(3)
 	controller.inspect_target(npc)
 	await _wait_frames(2)

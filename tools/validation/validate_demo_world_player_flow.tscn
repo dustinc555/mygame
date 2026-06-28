@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://demoflowprobe"]
+
+[ext_resource type="Script" path="res://tools/validation/validate_demo_world_player_flow.gd" id="1"]
+
+[node name="ValidateDemoWorldPlayerFlow" type="Node"]
+script = ExtResource("1")

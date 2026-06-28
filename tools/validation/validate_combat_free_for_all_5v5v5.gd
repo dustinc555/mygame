@@ -6,8 +6,8 @@ const TARGET_VALIDATION_FRAMES := 120
 const PLAYER_FACTION := "Player"
 const RAIDER_FACTION := "Raiders"
 const CINDER_FACTION := "CinderHorde"
-const QUADBOT_CHARACTER_SCRIPT := preload("res://src/actors/projection/quadbot/quadbot_character.gd")
-const RUSTDEAD_CHARACTER_SCRIPT := preload("res://src/actors/projection/rustdead/rustdead_humanoid_character.gd")
+const QUADBOT_CHARACTER_SCRIPT := preload("res://features/actors/projection/quadbot/quadbot_character.gd")
+const RUSTDEAD_CHARACTER_SCRIPT := preload("res://features/actors/projection/rustdead/rustdead_humanoid_character.gd")
 
 var _failures: Array[String] = []
 var _scene: Node

@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://j2ea8tgo10lg"]
 
-[ext_resource type="Script" uid="uid://dx67lteoodr2x" path="res://src/world/projection/buildings/modular_building_piece.gd" id="1_ek6t5"]
+[ext_resource type="Script" uid="uid://dx67lteoodr2x" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_ek6t5"]
 [ext_resource type="PackedScene" uid="uid://b2c5ch7jgac3f" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Floor_WoodLight.gltf" id="2_n0y1b"]
-[ext_resource type="Script" uid="uid://brg8efkvn10vo" path="res://src/world/projection/buildings/modular_building_snap_marker.gd" id="3_hswbj"]
+[ext_resource type="Script" uid="uid://brg8efkvn10vo" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_hswbj"]
 
 [node name="FloorWoodLight" type="Node3D" unique_id=381911147]
 script = ExtResource("1_ek6t5")

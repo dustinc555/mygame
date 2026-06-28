@@ -1,14 +1,14 @@
 extends Node3D
 
-const PARTY_MEMBER_SCRIPT = preload("res://src/core/party/party_member.gd")
-const FACTION_HUMANOID_SCRIPT = preload("res://src/actors/projection/humanoid/faction_humanoid.gd")
-const SETTLEMENT_TOWN_SCRIPT = preload("res://src/settlements/bridge/settlement_town.gd")
-const SETTLEMENT_DEFINITION_SCRIPT = preload("res://resources/world_sim/settlement_definition.gd")
-const SETTLEMENT_JAIL_SCENE = preload("res://src/settlements/bridge/settlement_jail.tscn")
-const WORLD_ITEM_SCENE = preload("res://src/world/projection/items/world_item.tscn")
-const SELECTION_RING_VISUAL = preload("res://src/actors/projection/selection_ring_visual.gd")
-const FARMERS_FACTION = preload("res://resources/world_sim/factions/farmers.tres")
-const EXPENSIVE_VASE = preload("res://resources/items/expensive_vase.tres")
+const PARTY_MEMBER_SCRIPT = preload("res://features/core/party/party_member.gd")
+const FACTION_HUMANOID_SCRIPT = preload("res://features/actors/projection/humanoid/faction_humanoid.gd")
+const SETTLEMENT_TOWN_SCRIPT = preload("res://features/settlements/bridge/settlement_town.gd")
+const SETTLEMENT_DEFINITION_SCRIPT = preload("res://features/world_sim/resources/settlement_definition.gd")
+const SETTLEMENT_JAIL_SCENE = preload("res://features/settlements/bridge/settlement_jail.tscn")
+const WORLD_ITEM_SCENE = preload("res://features/world/projection/items/world_item.tscn")
+const SELECTION_RING_VISUAL = preload("res://features/actors/projection/selection_ring_visual.gd")
+const FARMERS_FACTION = preload("res://features/world_sim/resources/factions/farmers.tres")
+const EXPENSIVE_VASE = preload("res://features/inventory/resources/items/expensive_vase.tres")
 
 const DEMO_FACTION_ID := "Farmers"
 const DEMO_SETTLEMENT_ID := "jail_demo_town"
@@ -35,7 +35,7 @@ func _finish_demo_setup() -> void:
 	var party_manager := get_node_or_null("PartyManager") as PartyManager
 	if party_manager != null and player != null:
 		party_manager.select_only(player)
-	var world_time := get_node_or_null("GameBootstrap/WorldTimeController") as WorldTimeController
+	var world_time := BootstrapContext.service(WorldTimeController.SERVICE_ID) as WorldTimeController
 	if world_time != null:
 		world_time.total_world_minutes = 13.0 * 60.0
 
@@ -53,6 +53,9 @@ func _ensure_demo_settlement() -> void:
 	settlement.set("guard_name", "City Guard")
 	settlement.set("staff_stable_id_prefix", "npc.jail_demo_town.town")
 	settlement.set("staff_squad_name", "JailDemoTown")
+	# The demo floor IS the town: the auto footprint border would box only the
+	# jail facility and leave the vase/witness area outside law jurisdiction.
+	settlement.set("auto_town_border_from_footprint", false)
 	settlement.set("town_border_radius", 26.0)
 	settlement.set("editor_show_debug_shape", false)
 

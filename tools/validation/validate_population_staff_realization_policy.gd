@@ -1,9 +1,9 @@
 extends SceneTree
 
 const TWO_TOWNS_SCENE_PATH := "res://scenes/test_levels/two_towns_road_test.tscn"
-const AI_UTILITY_ADAPTER_PATH := "res://src/ai/bridge/ai_utility_adapter.gd"
-const COMBAT_COORDINATOR_PATH := "res://src/combat/bridge/combat_coordinator.gd"
-const SKIN_TEXTURE_BUILDER_PATH := "res://src/actors/projection/appearance/skin_texture_builder.gd"
+const AI_UTILITY_ADAPTER_PATH := "res://features/ai/bridge/ai_utility_adapter.gd"
+const COMBAT_COORDINATOR_PATH := "res://features/combat/bridge/combat_coordinator.gd"
+const SKIN_TEXTURE_BUILDER_PATH := "res://features/actors/projection/appearance/skin_texture_builder.gd"
 
 var _failures: Array[String] = []
 var _scene: Node

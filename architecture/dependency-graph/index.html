@@ -46,6 +46,7 @@
     <h1>MyGame <small>dependency &amp; coupling</small></h1>
     <div class="seg" id="mode">
       <button data-m="graph" class="active">Dependencies</button>
+      <button data-m="arch">Architecture</button>
       <button data-m="dag">Layered DAG</button>
       <button data-m="layer">Layer coupling</button>
     </div>
@@ -59,9 +60,8 @@
     <label class="chk"><input type="checkbox" id="cChanged"> <span class="new">new</span>/<span class="mod">mod</span></label>
     <input id="search" placeholder="filter node…" />
     <span class="hint">hover = neighbors</span>
-    <button class="ghost" id="toggleSide" style="margin-left:auto">Insights</button>
   </div>
-  <div id="wrap"><div id="chart"></div><div id="side"></div></div>
+  <div id="wrap"><div id="chart"></div></div>
 
   <script src="./vendor/echarts.min.js"></script>
   <script src="./graphdata.js"></script>
@@ -147,7 +147,7 @@
         links: links.map(e=>({ source:e.source, target:e.target, violation:e.violation, cycle:e.cycle,
           lineStyle:{color:edgeColor(e), width:edgeWidth(e), curveness:0.12, opacity:e.violation||e.cycle?0.95:0.5} })),
         edgeSymbol:['none','arrow'], edgeSymbolSize:5,
-        force:{repulsion:360, edgeLength:165, gravity:0.035, friction:0.22},
+        force:{repulsion:520, edgeLength:200, gravity:0.028, friction:0.2},
         label:{position:'right', color:'#cdd3df', fontSize:10, formatter:'{b}'},
         emphasis:{focus:'adjacency', label:{show:true}, lineStyle:{opacity:1}},
         scaleLimit:{min:0.3, max:6}
@@ -273,12 +273,68 @@
     };
   }
 
-  function render(){ chart.setOption(mode==='graph'?graphOption():(mode==='dag'?dagOption():layerOption()), true); }
+  // ---- Architecture view: feature-level DSM (heatmap) + fan-out leaderboard ----
+  // Aggregates the 270-file graph into ~11 feature folders so the STRUCTURE is
+  // legible (a matrix is O(features^2) cells regardless of file count — it never
+  // becomes a hairball). Row depends on column; ordered orchestrators(top) ->
+  // foundations(bottom) so a clean layering falls into the upper triangle and any
+  // back-edge (red border) drops into the lower-left. Does NOT touch the force view.
+  function featureColorMap(feats){
+    const fc={};
+    Object.keys(feats).forEach(f=>{ const cnt={}; feats[f].forEach(n=>{ const c=colorOf[n.layer]||'#777'; cnt[c]=(cnt[c]||0)+1; });
+      fc[f]=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0][0]; });
+    return fc;
+  }
+  function archOption(){
+    const feats={}; G.nodes.forEach(n=>{ const f=n.feature||'?'; (feats[f]=feats[f]||[]).push(n); });
+    const names=Object.keys(feats); const featColor=featureColorMap(feats);
+    const mat={}, fout={}, fin={}; names.forEach(f=>{ mat[f]={}; fout[f]=0; fin[f]=0; });
+    G.links.forEach(e=>{ const a=nodeById[e.source], b=nodeById[e.target]; if(!a||!b) return;
+      const fa=a.feature||'?', fb=b.feature||'?'; if(fa!==fb){ mat[fa][fb]=(mat[fa][fb]||0)+1; fout[fa]++; fin[fb]++; } });
+    const order=names.slice().sort((x,y)=>(fout[y]-fin[y])-(fout[x]-fin[x]));
+    const cells=[]; let maxV=1, back=0;
+    order.forEach((src,yi)=>order.forEach((dst,xi)=>{ const v=(mat[src]&&mat[src][dst])||0; if(!v) return;
+      if(v>maxV) maxV=v; const isBack=xi<yi; if(isBack) back++;
+      cells.push({ value:[xi,yi,v], src, dst, isBack,
+        itemStyle: isBack ? {borderColor:'#ff5c5c',borderWidth:2} : {borderColor:'rgba(10,12,16,0.55)',borderWidth:0.5} }); }));
+    const top=G.nodes.slice().sort((a,b)=>b.out-a.out).slice(0,15).reverse();
+    return {
+      backgroundColor:'transparent',
+      title:[
+        {text:'Feature dependency matrix', subtext:'row → column · red border = back-edge · '+back+' back-edges', left:'6%', top:12, textStyle:{color:'#e7e9ee',fontSize:14}, subtextStyle:{color:'#8b93a3',fontSize:11}},
+        {text:'Fan-out leaderboard', subtext:'files reaching into the most others', left:'64%', top:12, textStyle:{color:'#e7e9ee',fontSize:14}, subtextStyle:{color:'#8b93a3',fontSize:11}},
+      ],
+      grid:[ {left:70, right:'46%', top:96, bottom:70}, {left:'64%', right:150, top:96, bottom:24} ],
+      tooltip:{ backgroundColor:'#171a21', borderColor:'#2a2f3a', textStyle:{color:'#e7e9ee'},
+        formatter:p=>{ if(p.seriesIndex===0){ const d=p.data; return `<b>${d.src}</b> <span style="color:#7d8595">→</span> <b>${d.dst}</b><br><span style="color:#7d8595">${d.value[2]} edge(s)</span>`+(d.isBack?'<br><span style="color:#ff6b6b">back-edge</span>':''); }
+          return `<b>${p.name}</b><br><span style="color:#7d8595">reaches into ${p.value} files</span>`; } },
+      visualMap:{ seriesIndex:0, min:0, max:maxV, calculable:true, orient:'horizontal', left:70, bottom:20,
+        inRange:{color:['#152238','#2f5fb3','#5fa0ff','#a8d4ff']}, textStyle:{color:'#8b93a3'} },
+      xAxis:[
+        {type:'category', gridIndex:0, data:order, position:'top', axisLabel:{color:'#c4cad6',rotate:42,fontSize:11}, axisTick:{show:false}, splitArea:{show:true,areaStyle:{color:['#0f1115','#141821']}} },
+        {type:'value', gridIndex:1, axisLabel:{color:'#8b93a3'}, splitLine:{lineStyle:{color:'#20242e'}} },
+      ],
+      yAxis:[
+        {type:'category', gridIndex:0, data:order, inverse:true, axisLabel:{color:'#c4cad6',fontSize:11}, axisTick:{show:false}, splitArea:{show:true,areaStyle:{color:['#0f1115','#141821']}} },
+        {type:'category', gridIndex:1, data:top.map(n=>n.id), axisLabel:{color:'#c4cad6',fontSize:11} },
+      ],
+      series:[
+        { type:'heatmap', xAxisIndex:0, yAxisIndex:0, data:cells,
+          label:{show:true, formatter:p=>p.value[2], color:'#eef3fb', fontSize:10} },
+        { type:'bar', xAxisIndex:1, yAxisIndex:1, barWidth:'60%',
+          data:top.map(n=>({value:n.out, itemStyle:{color:featColor[n.feature]||'#4f86d6'}})),
+          label:{show:true, position:'right', color:'#c4cad6', formatter:p=>p.value} },
+      ],
+    };
+  }
+
+  function render(){ chart.setOption(mode==='graph'?graphOption():(mode==='dag'?dagOption():(mode==='arch'?archOption():layerOption())), true); }
   function activeSeriesId(){ return mode==='graph' ? 'deps' : (mode==='dag' ? 'dag' : 'layers'); }
   const chartEl = document.getElementById('chart');
   const canvasPan = {active:false,lastX:0,lastY:0};
   function endCanvasPan(){ canvasPan.active=false; chartEl.classList.remove('dragging'); }
   chart.getZr().on('mousedown', e=>{
+    if(mode==='arch') return;   // Architecture view is a static matrix + bars, no pan
     const raw = e.event || {};
     if(raw.button != null && raw.button !== 0) return;
     // If the press landed on a node/edge/label, let ECharts' built-in
@@ -304,6 +360,7 @@
   chart.getZr().on('mouseup', endCanvasPan);
   chart.getZr().on('globalout', endCanvasPan);
   chartEl.addEventListener('wheel', e=>{
+    if(mode==='arch') return;   // no graph zoom in the matrix view
     e.preventDefault();
     const rect = chartEl.getBoundingClientRect();
     const scale = e.deltaY < 0 ? 1.15 : 1 / 1.15;
@@ -313,45 +370,18 @@
     return String(value).replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
 
-  function buildSide(){
-    const i=G.insights, s=document.getElementById('side');
-    const sw=n=>`<span style="color:${esc(colorOf[n.layer]||'')}">${esc(n.id)}</span>`;
-    const chg = i.changed || {new:[],modified:[]};
-    const sizeDesc = opt.size === 'file' ? 'file size' : 'incoming + outgoing dependency edges';
-    s.innerHTML =
-      `<h2><span class="new">new</span> / <span class="mod">modified</span> — working tree (${chg.new.length}+${chg.modified.length})</h2><p class="note">Uncommitted raw diffs. Re-run <code>extract_deps.js</code> to refresh.</p>`+
-      chg.new.map(id=>`<div class="row" data-focus="${esc(id)}"><span class="new">＋</span><span class="nm">${esc(id)}</span></div>`).join('')+
-      chg.modified.map(id=>`<div class="row" data-focus="${esc(id)}"><span class="mod">~</span><span class="nm">${esc(id)}</span></div>`).join('')+
-      `<h2>Overview</h2><p class="note">${i.totals.nodes} scripts · ${i.totals.edges} dependencies. Color = layer. Node size = ${sizeDesc}.</p>`+
-      `<h2>Roots</h2><p class="note">The only highlighted nodes: the bootstrap entry (white halo) and each trunk root (its own color). Every other node falls under a root — no individual leaf is special-cased.</p>`+
-      Object.keys(ROOT_GLOW).map(id=>`<div class="row" data-focus="${esc(id)}"><span class="nm" style="color:${esc(ROOT_GLOW[id].color)}">${esc(ROOT_GLOW[id].label)}</span><span class="ly">${esc(id)}</span></div>`).join('')+
-      `<h2 class="viol">Truth-rule violations (${i.violations.length})</h2><p class="note">GECS reads components, not live nodes. These reach into <code>WorldActor</code>.</p>`+
-      i.violations.map(v=>`<div class="row"><span class="nm viol">${esc(v.s)}</span><span class="ly">→ ${esc(v.t)}</span></div>`).join('')+
-      `<h2 class="tick">Self-tick violators (${i.tick.length})</h2><p class="note">Durable work on <code>_process</code> every frame — not LOD-gated, not on world-sim cadence.</p>`+
-      i.tick.map(v=>`<div class="row" data-focus="${esc(v.id)}"><span class="nm tick">${esc(v.id)}</span><span class="ly">${esc(v.layer)}</span></div>`).join('')+
-      `<h2 class="cyc">Dependency cycles (${i.cycles.length})</h2>`+
-      i.cycles.map(c=>`<div class="row" data-focus="${esc(c[0])}"><span class="cyc">(${c.length})</span><span class="nm">${esc(c.join(' → '))}</span></div>`).join('')+
-      `<h2>Top hubs — most depended-upon</h2><p class="note">Load-bearing; changes ripple widest.</p>`+
-      i.hubs.map(h=>`<div class="row" data-focus="${esc(h.id)}"><span class="deg">${esc(h.deg)}</span>${sw(h)} <span class="ly">${esc(h.layer)}</span></div>`).join('')+
-      `<h2>Most coupled — most dependencies</h2><p class="note">Fragile / god-objects.</p>`+
-      i.coupled.map(h=>`<div class="row" data-focus="${esc(h.id)}"><span class="deg">${esc(h.deg)}</span>${sw(h)} <span class="ly">${esc(h.layer)}</span></div>`).join('');
-    s.querySelectorAll('[data-focus]').forEach(el=>el.addEventListener('click',()=>{
-      if(mode!=='graph'){mode='graph';setMode('graph');}
-      opt.q=el.dataset.focus; document.getElementById('search').value=opt.q; render(); }));
-  }
   function setMode(m){ document.querySelectorAll('#mode button').forEach(b=>b.classList.toggle('active',b.dataset.m===m)); }
   document.querySelectorAll('#mode button').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.m;setMode(mode);render();}));
   function setSizeMode(size){ document.querySelectorAll('#sizeMode button').forEach(b=>b.classList.toggle('active',b.dataset.size===size)); }
-  document.querySelectorAll('#sizeMode button').forEach(b=>b.addEventListener('click',()=>{opt.size=b.dataset.size;setSizeMode(opt.size);buildSide();render();}));
+  document.querySelectorAll('#sizeMode button').forEach(b=>b.addEventListener('click',()=>{opt.size=b.dataset.size;setSizeMode(opt.size);render();}));
   function excl(which){ ['viol','tick','cyc'].forEach(k=>{ if(k!==which){opt[k]=false; const el=document.getElementById('c'+k.charAt(0).toUpperCase()+k.slice(1)); if(el) el.checked=false; } }); }
   document.getElementById('cViol').addEventListener('change',e=>{opt.viol=e.target.checked; if(opt.viol)excl('viol'); render();});
   document.getElementById('cTick').addEventListener('change',e=>{opt.tick=e.target.checked; if(opt.tick)excl('tick'); render();});
   document.getElementById('cCyc').addEventListener('change',e=>{opt.cyc=e.target.checked; if(opt.cyc)excl('cyc'); render();});
   document.getElementById('cChanged').addEventListener('change',e=>{opt.changed=e.target.checked; render();});
   let t; document.getElementById('search').addEventListener('input',e=>{clearTimeout(t);t=setTimeout(()=>{opt.q=e.target.value.trim();render();},200);});
-  document.getElementById('toggleSide').addEventListener('click',()=>document.getElementById('side').classList.toggle('hidden'));
   window.addEventListener('resize',()=>chart.resize());
-  buildSide(); render();
+  render();
   </script>
 </body>
 </html>

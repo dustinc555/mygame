@@ -1,7 +1,7 @@
 extends SceneTree
 
-const BANDAGE := preload("res://resources/items/bandage.tres")
-const WORLD_ITEM_SCENE := preload("res://src/world/projection/items/world_item.tscn")
+const BANDAGE := preload("res://features/inventory/resources/items/bandage.tres")
+const WORLD_ITEM_SCENE := preload("res://features/world/projection/items/world_item.tscn")
 
 var _failures: Array[String] = []
 

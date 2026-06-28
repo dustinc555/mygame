@@ -1,8 +1,8 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://src/world/projection/buildings/modular_building_piece.gd" id="1_gwfmi"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_gwfmi"]
 [ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Corner_Interior_Big.gltf" id="2_g504s"]
-[ext_resource type="Script" path="res://src/world/projection/buildings/modular_building_snap_marker.gd" id="3_3k1ke"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_3k1ke"]
 
 [node name="CornerInteriorBig" type="Node3D" unique_id=1379294911]
 script = ExtResource("1_gwfmi")

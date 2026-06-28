@@ -1,0 +1,274 @@
+[gd_resource type="Resource" script_class="SkillCatalog" format=3 uid="uid://bpswwu2xdrw08"]
+
+[ext_resource type="Script" uid="uid://c0ugiqwgpntxx" path="res://features/skills/resources/skill_catalog.gd" id="1_catalog"]
+[ext_resource type="Script" uid="uid://ckeiyxwh137jf" path="res://features/skills/resources/skill_definition.gd" id="2_definition"]
+
+[sub_resource type="Resource" id="SkillDefinition_strength"]
+script = ExtResource("2_definition")
+skill_id = "attribute.strength"
+display_name = "Strength"
+category_id = "attributes"
+category_name = "Attributes"
+sort_order = 10
+is_attribute = true
+description = "Carry weight, blunt force, heavy labor, and heavy weapon handling."
+training_hint = "Train through heavy hauling, carrying people, heavy weapons, and direct strength training."
+
+[sub_resource type="Resource" id="SkillDefinition_perception"]
+script = ExtResource("2_definition")
+skill_id = "attribute.perception"
+display_name = "Perception"
+category_id = "attributes"
+category_name = "Attributes"
+sort_order = 20
+is_attribute = true
+description = "Awareness for detecting sneaking, theft, ambushes, and suspicious activity."
+training_hint = "Train by detecting sneaking, theft, suspicious noise, and doing guard duty."
+
+[sub_resource type="Resource" id="SkillDefinition_dexterity"]
+script = ExtResource("2_definition")
+skill_id = "attribute.dexterity"
+display_name = "Dexterity"
+category_id = "attributes"
+category_name = "Attributes"
+sort_order = 30
+is_attribute = true
+description = "Fine motor control for initiative, dodging, sleight of hand, lockpicking, daggers, and finesse weapons."
+training_hint = "Train through dodging, finesse weapons, sleight of hand, lockpicking, and careful manipulation."
+
+[sub_resource type="Resource" id="SkillDefinition_toughness"]
+script = ExtResource("2_definition")
+skill_id = "attribute.toughness"
+display_name = "Toughness"
+category_id = "attributes"
+category_name = "Attributes"
+sort_order = 40
+is_attribute = true
+description = "Survivability, natural damage dampening, and bleeding resistance."
+training_hint = "Train by taking real damage and getting back up during dangerous fights."
+
+[sub_resource type="Resource" id="SkillDefinition_endurance"]
+script = ExtResource("2_definition")
+skill_id = "attribute.endurance"
+display_name = "Endurance"
+category_id = "attributes"
+category_name = "Attributes"
+sort_order = 50
+is_attribute = true
+description = "Stamina, stamina recovery, running capacity, and long-term exertion."
+training_hint = "Train by running and performing sustained physical activity."
+
+[sub_resource type="Resource" id="SkillDefinition_charisma"]
+script = ExtResource("2_definition")
+skill_id = "attribute.charisma"
+display_name = "Charisma"
+category_id = "attributes"
+category_name = "Attributes"
+sort_order = 60
+is_attribute = true
+description = "Speech checks, negotiation, social work, and diplomacy."
+training_hint = "Train through social jobs, negotiation, and speech checks."
+
+[sub_resource type="Resource" id="SkillDefinition_swords_one_handed"]
+script = ExtResource("2_definition")
+skill_id = "combat.swords_one_handed"
+display_name = "One Handed Swords"
+category_id = "combat"
+category_name = "Combat"
+sort_order = 10
+description = "One handed sword attacks, timing, and control."
+training_hint = "Train by attacking with one handed swords."
+
+[sub_resource type="Resource" id="SkillDefinition_axes_one_handed"]
+script = ExtResource("2_definition")
+skill_id = "combat.axes_one_handed"
+display_name = "One Handed Axes"
+category_id = "combat"
+category_name = "Combat"
+sort_order = 20
+description = "One handed axe attacks and heavy chopping control."
+training_hint = "Train by attacking with one handed axes."
+
+[sub_resource type="Resource" id="SkillDefinition_daggers"]
+script = ExtResource("2_definition")
+skill_id = "combat.daggers"
+display_name = "Daggers"
+category_id = "combat"
+category_name = "Combat"
+sort_order = 30
+description = "Daggers and finesse weapon attacks."
+training_hint = "Train by attacking with daggers and finesse weapons."
+
+[sub_resource type="Resource" id="SkillDefinition_unarmed"]
+script = ExtResource("2_definition")
+skill_id = "combat.unarmed"
+display_name = "Unarmed Combat"
+category_id = "combat"
+category_name = "Combat"
+sort_order = 40
+description = "Punching, kicking, grappling foundations, and fighting without weapons."
+training_hint = "Train by fighting unarmed."
+
+[sub_resource type="Resource" id="SkillDefinition_shields"]
+script = ExtResource("2_definition")
+skill_id = "combat.shields"
+display_name = "Shields"
+category_id = "combat"
+category_name = "Combat"
+sort_order = 50
+description = "Shield positioning, bracing, and close-quarters shield defense."
+training_hint = "Train by blocking attacks with shields."
+
+[sub_resource type="Resource" id="SkillDefinition_running"]
+script = ExtResource("2_definition")
+skill_id = "movement.running"
+display_name = "Running"
+category_id = "movement"
+category_name = "Movement"
+sort_order = 10
+description = "Run speed, movement efficiency, and sustained running technique."
+training_hint = "Train by running while actually moving."
+
+[sub_resource type="Resource" id="SkillDefinition_mining"]
+script = ExtResource("2_definition")
+skill_id = "labor.mining"
+display_name = "Mining"
+category_id = "labor"
+category_name = "Labor"
+sort_order = 10
+description = "Mining speed, mining technique, and resource extraction."
+training_hint = "Train by mining."
+
+[sub_resource type="Resource" id="SkillDefinition_scavenging"]
+script = ExtResource("2_definition")
+skill_id = "labor.scavenging"
+display_name = "Scavenging"
+category_id = "labor"
+category_name = "Labor"
+sort_order = 15
+description = "Searching ruins, junk piles, and old-world scrap without ruining useful parts."
+training_hint = "Train by scavenging scrap piles and ruined machinery."
+
+[sub_resource type="Resource" id="SkillDefinition_farming"]
+script = ExtResource("2_definition")
+skill_id = "labor.farming"
+display_name = "Farming"
+category_id = "labor"
+category_name = "Labor"
+sort_order = 20
+description = "Crop work, field maintenance, and food production."
+training_hint = "Train by farming."
+
+[sub_resource type="Resource" id="SkillDefinition_fishing"]
+script = ExtResource("2_definition")
+skill_id = "labor.fishing"
+display_name = "Fishing"
+category_id = "labor"
+category_name = "Labor"
+sort_order = 30
+description = "Fishing technique and aquatic gathering."
+training_hint = "Train by fishing."
+
+[sub_resource type="Resource" id="SkillDefinition_construction"]
+script = ExtResource("2_definition")
+skill_id = "labor.construction"
+display_name = "Construction"
+category_id = "labor"
+category_name = "Labor"
+sort_order = 40
+description = "Building, repair, and structural labor."
+training_hint = "Train by constructing and repairing structures."
+
+[sub_resource type="Resource" id="SkillDefinition_blacksmithing"]
+script = ExtResource("2_definition")
+skill_id = "craft.blacksmithing"
+display_name = "Blacksmithing"
+category_id = "craft"
+category_name = "Crafting"
+sort_order = 10
+description = "Forging, shaping, and repairing metal gear."
+training_hint = "Train by blacksmithing."
+
+[sub_resource type="Resource" id="SkillDefinition_weaving"]
+script = ExtResource("2_definition")
+skill_id = "craft.weaving"
+display_name = "Weaving"
+category_id = "craft"
+category_name = "Crafting"
+sort_order = 20
+description = "Cloth work, textile making, and clothing foundations."
+training_hint = "Train by weaving and making cloth gear."
+
+[sub_resource type="Resource" id="SkillDefinition_leatherworking"]
+script = ExtResource("2_definition")
+skill_id = "craft.leatherworking"
+display_name = "Leatherworking"
+category_id = "craft"
+category_name = "Crafting"
+sort_order = 30
+description = "Leather armor, leather gear, and hide processing."
+training_hint = "Train by making leather gear."
+
+[sub_resource type="Resource" id="SkillDefinition_sneaking"]
+script = ExtResource("2_definition")
+skill_id = "subterfuge.sneaking"
+display_name = "Sneaking"
+category_id = "subterfuge"
+category_name = "Subterfuge"
+sort_order = 10
+description = "Moving unseen and staying hidden under risk."
+training_hint = "Train by sneaking near meaningful observers or danger."
+
+[sub_resource type="Resource" id="SkillDefinition_sleight_of_hand"]
+script = ExtResource("2_definition")
+skill_id = "subterfuge.sleight_of_hand"
+display_name = "Sleight of Hand"
+category_id = "subterfuge"
+category_name = "Subterfuge"
+sort_order = 20
+description = "Subtle hand movement, theft, pickpocketing, and quiet item handling."
+training_hint = "Train by pickpocketing or taking items near NPCs."
+
+[sub_resource type="Resource" id="SkillDefinition_lockpicking"]
+script = ExtResource("2_definition")
+skill_id = "subterfuge.lockpicking"
+display_name = "Lockpicking"
+category_id = "subterfuge"
+category_name = "Subterfuge"
+sort_order = 10
+description = "Opening locks and defeating simple security."
+training_hint = "Train by passing or failing lockpick attempts."
+
+[sub_resource type="Resource" id="SkillDefinition_medicine"]
+script = ExtResource("2_definition")
+skill_id = "knowledge.medicine"
+display_name = "Medical"
+category_id = "knowledge"
+category_name = "Knowledge"
+sort_order = 10
+description = "Bandaging, healing, triage, and practical medicine."
+training_hint = "Train by healing and treating wounds."
+
+[sub_resource type="Resource" id="SkillDefinition_robotics"]
+script = ExtResource("2_definition")
+skill_id = "tech.robotics"
+display_name = "Robotics"
+category_id = "tech"
+category_name = "Technology"
+sort_order = 10
+description = "Robot repair, salvaging robot scrap, and machine work."
+training_hint = "Train by repairing robots or salvaging robot scrap."
+
+[sub_resource type="Resource" id="SkillDefinition_archeology"]
+script = ExtResource("2_definition")
+skill_id = "knowledge.archeology"
+display_name = "Archeology"
+category_id = "knowledge"
+category_name = "Knowledge"
+sort_order = 10
+description = "Ancient sites, ancient books, relics, and ruin exploration."
+training_hint = "Train by reading ancient books and exploring ancient ruins."
+
+[resource]
+script = ExtResource("1_catalog")
+definitions = Array[Resource]([SubResource("SkillDefinition_strength"), SubResource("SkillDefinition_perception"), SubResource("SkillDefinition_dexterity"), SubResource("SkillDefinition_toughness"), SubResource("SkillDefinition_endurance"), SubResource("SkillDefinition_charisma"), SubResource("SkillDefinition_swords_one_handed"), SubResource("SkillDefinition_axes_one_handed"), SubResource("SkillDefinition_daggers"), SubResource("SkillDefinition_unarmed"), SubResource("SkillDefinition_shields"), SubResource("SkillDefinition_running"), SubResource("SkillDefinition_mining"), SubResource("SkillDefinition_scavenging"), SubResource("SkillDefinition_farming"), SubResource("SkillDefinition_fishing"), SubResource("SkillDefinition_construction"), SubResource("SkillDefinition_blacksmithing"), SubResource("SkillDefinition_weaving"), SubResource("SkillDefinition_leatherworking"), SubResource("SkillDefinition_sneaking"), SubResource("SkillDefinition_sleight_of_hand"), SubResource("SkillDefinition_lockpicking"), SubResource("SkillDefinition_medicine"), SubResource("SkillDefinition_robotics"), SubResource("SkillDefinition_archeology")])

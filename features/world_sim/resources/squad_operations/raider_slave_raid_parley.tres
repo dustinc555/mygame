@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="WorldSquadOperationProfile" format=3 uid="uid://c3nmraeasaxd5"]
+
+[ext_resource type="Script" uid="uid://blqawxwe570np" path="res://features/world_sim/resources/world_squad_operation_profile.gd" id="1_operation"]
+[ext_resource type="Script" uid="uid://ckxdbgaicwbtc" path="res://features/world_sim/resources/world_squad_phase_profile.gd" id="2_phase"]
+[ext_resource type="Resource" uid="uid://co4dp787mr14r" path="res://features/conversation/resources/raider_raid_parley.tres" id="3_parley"]
+
+[sub_resource type="Resource" id="WorldSquadPhase_travel"]
+script = ExtResource("2_phase")
+phase_id = "travel"
+display_name = "Travel to Encampment"
+target_role = "encamp"
+next_phase_id = "planning"
+leader_shout_lines = null
+
+[sub_resource type="Resource" id="WorldSquadPhase_planning"]
+script = ExtResource("2_phase")
+phase_id = "planning"
+display_name = "Parley Before Raid"
+phase_type = "planning"
+target_role = "encamp"
+duration_seconds = 180.0
+duration_world_minutes = 60.0
+next_phase_id = "battle"
+leader_conversation = ExtResource("3_parley")
+leader_shout_lines = PackedStringArray("EY! GET OUT HERE!", "SEND SOMEONE OUT BEFORE WE COME IN!", "DON\'T MAKE US WALK IN THERE!")
+leader_shout_interval_seconds = 24.0
+leader_shout_interval_world_minutes = 15.0
+
+[sub_resource type="Resource" id="WorldSquadPhase_battle"]
+script = ExtResource("2_phase")
+phase_id = "battle"
+display_name = "Raid Battle"
+phase_type = "battle"
+target_role = "defense"
+next_phase_id = "resolved"
+leader_shout_lines = null
+create_conflict_event_on_enter = true
+
+[resource]
+script = ExtResource("1_operation")
+operation_id = "raider_slave_raid_parley"
+display_name = "Raider Slave Raid Parley"
+phases = Array[Resource]([SubResource("WorldSquadPhase_travel"), SubResource("WorldSquadPhase_planning"), SubResource("WorldSquadPhase_battle")])

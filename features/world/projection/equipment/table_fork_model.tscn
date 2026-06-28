@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://dhao1sp10ox50"]
+
+[ext_resource type="PackedScene" uid="uid://c4hour3vt0i8d" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Table_Fork.gltf" id="1_model"]
+[ext_resource type="Script" uid="uid://c6ncuf7x61vvu" path="res://features/world/projection/equipment/grip_point_marker.gd" id="2_grip"]
+
+[node name="TableForkModel" type="Node3D" unique_id=1496621531]
+
+[node name="GripPoint_Primary" type="Marker3D" parent="." unique_id=2098174233]
+transform = Transform3D(-0.01071547, 0.002135825, -0.9999402, -0.00054651813, -0.9999977, -0.0021300912, -0.99994254, 0.0005236605, 0.010716647, -0.004072167, 0.22145775, 0.11710824)
+script = ExtResource("2_grip")
+
+[node name="Model" parent="." unique_id=619744817 instance=ExtResource("1_model")]
+transform = Transform3D(-0.102479994, -0.0075520696, 0.99470645, 0.994735, -0.0007780323, 0.10247704, 0, 0.99997115, 0.0075920406, -0.044141293, 0.22179496, 0.090019524)

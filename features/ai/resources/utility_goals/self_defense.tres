@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="AiUtilityGoal" format=3 uid="uid://m0uvgfg5jlsm"]
+
+[ext_resource type="Script" uid="uid://dneaaib163jp4" path="res://features/ai/resources/ai_utility_goal.gd" id="1_goal"]
+[ext_resource type="Script" uid="uid://d0knxil8gj4h7" path="res://features/ai/resources/ai_utility_consideration.gd" id="2_consideration"]
+
+[sub_resource type="Resource" id="Consideration_threat"]
+script = ExtResource("2_consideration")
+id = &"threat"
+input_key = &"threat"
+weight = 4.0
+required = true
+explanation = "A valid combat threat is available."
+
+[sub_resource type="Resource" id="Consideration_can_self_defend"]
+script = ExtResource("2_consideration")
+id = &"can_self_defend"
+input_key = &"can_self_defend"
+weight = 2.0
+required = true
+explanation = "The actor can enter autonomous self-defense."
+
+[sub_resource type="Resource" id="Consideration_no_player_order"]
+script = ExtResource("2_consideration")
+id = &"no_player_order"
+input_key = &"no_player_order"
+required = true
+explanation = "Autonomous combat should not override a player order."
+
+[resource]
+script = ExtResource("1_goal")
+id = &"self_defense"
+display_name = "Self Defense"
+min_score = 0.1
+cooldown_seconds = 1.5
+lock_seconds = 1.2
+inertia_bonus = 0.08
+switch_threshold = 0.08
+emergency = true
+executor_key = &"combat"
+target_selector_id = &"combat_target"
+requires_target = true
+considerations = Array[Resource]([SubResource("Consideration_threat"), SubResource("Consideration_can_self_defend"), SubResource("Consideration_no_player_order")])
+job_type = 3
+package_id = "utility:self_defense"
+debug_label = "Self Defense"

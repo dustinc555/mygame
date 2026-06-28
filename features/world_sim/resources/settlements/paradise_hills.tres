@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SettlementDefinition" format=3 uid="uid://3sggop603h5v"]
+
+[ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://features/world_sim/resources/settlement_definition.gd" id="1_settlement"]
+[ext_resource type="Resource" uid="uid://b4vo3ehw0kwo7" path="res://features/world_sim/resources/factions/paradise_hills.tres" id="2_faction"]
+[ext_resource type="Resource" uid="uid://dop3nplurk2vm" path="res://features/world_sim/resources/behavior_profiles/paradise_hills_camp.tres" id="3_behavior"]
+[ext_resource type="Resource" uid="uid://dxftw2ahwx1yl" path="res://features/world_sim/resources/squad_templates/paradise_hills_enforcers.tres" id="4_enforcers"]
+
+[resource]
+script = ExtResource("1_settlement")
+settlement_id = "paradise_hills"
+display_name = "Paradise Hills"
+faction_definition = ExtResource("2_faction")
+behavior_profile = ExtResource("3_behavior")
+world_position = Vector3(20, 0, 350)
+starting_food = 70.0
+max_food = 150.0
+known_settlement_ids = PackedStringArray("surf_city", "east_raiders_camp")
+default_target_settlement_id = "surf_city"
+raid_squad_template = ExtResource("4_enforcers")
+defense_squad_template = ExtResource("4_enforcers")

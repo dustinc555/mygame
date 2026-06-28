@@ -1,11 +1,11 @@
 extends SceneTree
 
 const RUSTDEAD_DEMO_SCENE := preload("res://scenes/test_levels/rustdead_5v10_demo.tscn")
-const RUSTDEAD_RACE := preload("res://resources/character_races/rustdead.tres")
-const SKIN_TEXTURE_BUILDER := preload("res://src/actors/projection/appearance/skin_texture_builder.gd")
-const RUSTDEAD_TIER_LIBRARY := preload("res://src/actors/projection/rustdead/rustdead_tier_library.gd")
-const BANDAGE := preload("res://resources/items/bandage.tres")
-const CINDER_FLASK := preload("res://resources/items/cinder_flask.tres")
+const RUSTDEAD_RACE := preload("res://features/actors/resources/character_races/rustdead.tres")
+const SKIN_TEXTURE_BUILDER := preload("res://features/actors/projection/appearance/skin_texture_builder.gd")
+const RUSTDEAD_TIER_LIBRARY := preload("res://features/actors/projection/rustdead/rustdead_tier_library.gd")
+const BANDAGE := preload("res://features/inventory/resources/items/bandage.tres")
+const CINDER_FLASK := preload("res://features/inventory/resources/items/cinder_flask.tres")
 
 const PARTY_DEFAULT_SKILL_LEVEL := 40
 const PARTY_SKILL_LEVELS := {

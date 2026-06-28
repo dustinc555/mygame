@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="AiUtilityGoal" format=3 uid="uid://b43yra0p6qjfh"]
+
+[ext_resource type="Script" uid="uid://dneaaib163jp4" path="res://features/ai/resources/ai_utility_goal.gd" id="1_goal"]
+[ext_resource type="Script" uid="uid://d0knxil8gj4h7" path="res://features/ai/resources/ai_utility_consideration.gd" id="2_consideration"]
+
+[sub_resource type="Resource" id="Consideration_heal_need"]
+script = ExtResource("2_consideration")
+id = &"heal_need"
+input_key = &"heal_need"
+weight = 3.0
+required = true
+explanation = "A bandageable target needs medical help."
+
+[sub_resource type="Resource" id="Consideration_safe_to_heal"]
+script = ExtResource("2_consideration")
+id = &"safe_to_heal"
+input_key = &"threat"
+weight = 2.0
+invert = true
+required = true
+explanation = "Do not start healing while a combat threat is active."
+
+[sub_resource type="Resource" id="Consideration_no_player_order"]
+script = ExtResource("2_consideration")
+id = &"no_player_order"
+input_key = &"no_player_order"
+required = true
+explanation = "Autonomous healing should not override a player order."
+
+[resource]
+script = ExtResource("1_goal")
+id = &"heal"
+display_name = "Heal"
+min_score = 0.15
+cooldown_seconds = 2.0
+lock_seconds = 1.0
+inertia_bonus = 0.05
+switch_threshold = 0.05
+executor_key = &"heal"
+target_selector_id = &"heal_target"
+requires_target = true
+considerations = Array[Resource]([SubResource("Consideration_heal_need"), SubResource("Consideration_safe_to_heal"), SubResource("Consideration_no_player_order")])
+package_id = "utility:heal"
+debug_label = "Heal"

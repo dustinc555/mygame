@@ -1,14 +1,14 @@
 [gd_scene format=3 uid="uid://cx6pe3hwwaak1"]
 
 [ext_resource type="Script" uid="uid://dit13sqm5hf82" path="res://tools/humanoid_grip_socket_calibrator.gd" id="1_calibrator"]
-[ext_resource type="Resource" path="res://resources/character_body_archetypes/human_female.tres" id="2_body"]
-[ext_resource type="Script" uid="uid://cwj2s41umpq7y" path="res://src/actors/projection/humanoid/humanoid_grip_socket_marker.gd" id="3_socket_marker"]
+[ext_resource type="Resource" path="res://features/actors/resources/character_body_archetypes/human_female.tres" id="2_body"]
+[ext_resource type="Script" uid="uid://cwj2s41umpq7y" path="res://features/actors/projection/humanoid/humanoid_grip_socket_marker.gd" id="3_socket_marker"]
 
 [node name="HumanoidGripSocketCalibratorHumanFemale" type="Node3D" unique_id=1236447942]
 script = ExtResource("1_calibrator")
 preview_body_archetype = ExtResource("2_body")
 profile_dirty = true
-last_status = "Preview applied to profile in memory. Toggle save_grips_to_profile to write res://resources/humanoid_grip_socket_profiles/human_female.tres."
+last_status = "Preview applied to profile in memory. Toggle save_grips_to_profile to write res://features/actors/resources/humanoid_grip_socket_profiles/human_female.tres."
 
 [node name="PreviewHumanoid" type="Node3D" parent="." unique_id=1629342503]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
@@ -49,6 +49,6 @@ fov = 38.0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.55, 0)
 billboard = 1
 no_depth_test = true
-text = "Preview applied to profile in memory. Toggle save_grips_to_profile to write res://resources/humanoid_grip_socket_profiles/human_female.tres.
+text = "Preview applied to profile in memory. Toggle save_grips_to_profile to write res://features/actors/resources/humanoid_grip_socket_profiles/human_female.tres.
 Profile dirty: toggle save_grips_to_profile before testing runtime."
 font_size = 28

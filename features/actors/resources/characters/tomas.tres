@@ -1,0 +1,63 @@
+[gd_resource type="Resource" script_class="CharacterRecordDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/character_record_definition.gd" id="1_e5d8h"]
+
+[resource]
+script = ExtResource("1_e5d8h")
+actor_id = "tomas"
+member_name = "Tomas"
+appearance = {
+"arm_length_slider": 0.04,
+"beard_color": Color(0.1, 0.07, 0.04, 1),
+"beard_style": "res://features/actors/resources/character_appearance/beard_full.tres",
+"body_archetype": "res://features/actors/resources/character_body_archetypes/human_male.tres",
+"character_race": "res://features/actors/resources/character_races/human.tres",
+"eyebrow_color": Color(0.08, 0.06, 0.04, 1),
+"eyebrow_style": "res://features/actors/resources/character_appearance/eyebrows_regular.tres",
+"hair_color": Color(0.1, 0.07, 0.04, 1),
+"hair_style": "res://features/actors/resources/character_appearance/hair_simple_parted.tres",
+"height_slider": 0.11,
+"neck_length_slider": 0.0,
+"shoulder_width_slider": 0.08,
+"skin_color": Color(0.66, 0.43, 0.3, 1),
+"skin_color_customized": true,
+"visual_body_type": 2.0
+}
+skill_levels = {
+"attribute.charisma": 35.0,
+"attribute.dexterity": 49.0,
+"attribute.endurance": 55.0,
+"attribute.perception": 43.0,
+"attribute.strength": 58.0,
+"attribute.toughness": 57.0,
+"combat.axes_one_handed": 58.0,
+"combat.daggers": 33.0,
+"combat.shields": 42.0,
+"combat.swords_one_handed": 39.0,
+"combat.unarmed": 45.0,
+"craft.blacksmithing": 49.0,
+"craft.leatherworking": 36.0,
+"craft.weaving": 28.0,
+"knowledge.archeology": 30.0,
+"knowledge.medicine": 32.0,
+"labor.construction": 52.0,
+"labor.farming": 40.0,
+"labor.fishing": 34.0,
+"labor.mining": 55.0,
+"labor.scavenging": 46.0,
+"movement.running": 48.0,
+"subterfuge.lockpicking": 29.0,
+"subterfuge.sleight_of_hand": 30.0,
+"subterfuge.sneaking": 31.0,
+"tech.robotics": 27.0
+}
+equipment_slots = {
+"chest": "res://features/inventory/resources/items/peasant_tunic.tres",
+"feet": "res://features/inventory/resources/items/peasant_shoes.tres",
+"legs": "res://features/inventory/resources/items/peasant_trousers.tres",
+"weapon": "res://features/inventory/resources/items/iron_axe.tres"
+}
+personality = {
+"risk_tolerance": 0.45,
+"temperament": "stubborn"
+}

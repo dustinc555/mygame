@@ -1,9 +1,9 @@
 extends SceneTree
 
-const AI_UTILITY_ADAPTER_PATH := "res://src/ai/bridge/ai_utility_adapter.gd"
-const COMBAT_COORDINATOR_PATH := "res://src/combat/bridge/combat_coordinator.gd"
+const AI_UTILITY_ADAPTER_PATH := "res://features/ai/bridge/ai_utility_adapter.gd"
+const COMBAT_COORDINATOR_PATH := "res://features/combat/bridge/combat_coordinator.gd"
 const RAGDOLL_PYRAMID_SCENE_PATH := "res://scenes/test_levels/ragdoll_pyramid_test.tscn"
-const SKIN_TEXTURE_BUILDER_PATH := "res://src/actors/projection/appearance/skin_texture_builder.gd"
+const SKIN_TEXTURE_BUILDER_PATH := "res://features/actors/projection/appearance/skin_texture_builder.gd"
 const SPEED_SCENARIOS: Array[Dictionary] = [
 	{"label": "Run 01 Normal", "speed_index": 1, "scale": 1.0, "settle_frames": 300, "seed": 3101},
 	{"label": "Run 02 Normal", "speed_index": 1, "scale": 1.0, "settle_frames": 300, "seed": 9137},
@@ -101,8 +101,8 @@ func _load_scene(label: String) -> void:
 	await _wait_physics(8)
 	_mira = _scene.get_node_or_null("PartyMembers/Mira") as HumanoidCharacter
 	_party_manager = _scene.get_node_or_null("PartyManager") as PartyManager
-	_world_time = _scene.get_node_or_null("GameBootstrap/WorldTimeController") as WorldTimeController
-	_interaction_controller = _scene.get_node_or_null("GameBootstrap/WorldInteractionController") as WorldInteractionController
+	_world_time = _scene.find_child("WorldTimeController", true, false) as WorldTimeController
+	_interaction_controller = _scene.find_child("WorldInteractionController", true, false) as WorldInteractionController
 	if _mira == null:
 		_fail(label, "Mira was not found")
 	if _party_manager == null:

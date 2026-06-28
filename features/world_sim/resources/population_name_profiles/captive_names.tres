@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="PopulationNameProfile" format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/population_name_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "captive_names"
+display_name = "Captive Names"
+body_specific_weight = 68.0
+neutral_weight = 32.0
+nickname_weight = 0.0
+duplicate_name_chance = 0.01
+unique_retry_count = 48
