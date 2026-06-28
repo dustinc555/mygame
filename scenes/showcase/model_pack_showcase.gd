@@ -31,6 +31,13 @@ void fragment() {
 @export var flat_surface_lift := 0.035
 @export var model_yaw_degrees := 0.0
 @export var auto_play_animations := false
+## When true, each model is rescaled to target_model_extent. Set false for kits authored at
+## real-world scale (e.g. modular building pieces) so they keep their authored proportions.
+@export var normalize_model_scale := true
+## Turn off shadow casting on every showcased model (useful for dense kits with many meshes).
+@export var disable_model_shadows := false
+## File names (with extension) in asset_directory to skip — e.g. a sample-scene ground plane.
+@export var excluded_model_files: PackedStringArray = PackedStringArray()
 @export var platform_color := Color(0.28, 0.22, 0.16, 1.0)
 @export var title_label_color := Color(1.0, 0.92, 0.78, 1.0)
 @export var item_label_color := Color(0.92, 0.88, 0.78, 1.0)
@@ -61,7 +68,7 @@ func _get_model_files() -> PackedStringArray:
 	var files := DirAccess.get_files_at(asset_directory)
 	files.sort()
 	for file_name in files:
-		if file_name.get_extension().to_lower() == GLTF_EXTENSION:
+		if file_name.get_extension().to_lower() == GLTF_EXTENSION and not excluded_model_files.has(file_name):
 			result.append(file_name)
 	return result
 
@@ -98,6 +105,8 @@ func _add_model_slot(index: int, file_name: String, slot_position: Vector3) -> v
 	instance.rotation.y = deg_to_rad(model_yaw_degrees)
 	slot.add_child(instance)
 	_apply_known_model_repairs(instance, file_name)
+	if disable_model_shadows:
+		_disable_shadow_casting(instance)
 
 	var display_height := _fit_model_to_slot(instance)
 	if auto_play_animations:
@@ -115,7 +124,9 @@ func _fit_model_to_slot(instance: Node3D) -> float:
 	if largest_extent <= 0.0001:
 		return target_model_extent
 
-	var scale_factor := clampf(target_model_extent / largest_extent, min_model_scale, max_model_scale)
+	var scale_factor := 1.0
+	if normalize_model_scale:
+		scale_factor = clampf(target_model_extent / largest_extent, min_model_scale, max_model_scale)
 	instance.scale = Vector3.ONE * scale_factor
 
 	var bounds_center := bounds.get_center()
@@ -128,6 +139,13 @@ func _fit_model_to_slot(instance: Node3D) -> float:
 	if display_height < 0.03:
 		instance.position.y += flat_surface_lift
 	return maxf(display_height, 0.35)
+
+
+func _disable_shadow_casting(node: Node) -> void:
+	if node is GeometryInstance3D:
+		(node as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for child in node.get_children():
+		_disable_shadow_casting(child)
 
 
 func _apply_known_model_repairs(instance: Node3D, file_name: String) -> void:

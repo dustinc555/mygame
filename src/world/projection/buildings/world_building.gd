@@ -1,7 +1,10 @@
 @tool
-extends StaticBody3D
+@icon("res://addons/modular_building_authoring/icons/world_building.svg")
+extends Node3D
 
 class_name WorldBuilding
+
+const MODULAR_BUILDING_PIECE_SCRIPT := preload("res://src/world/projection/buildings/modular_building_piece.gd")
 
 @export var display_name := "Building"
 @export_enum("home", "bar", "shop", "weapon_shop", "armor_shop", "travel_shop", "potion_shop", "jail", "storage", "guard", "farm", "mine", "generic") var building_type := "home"
@@ -24,6 +27,8 @@ class_name WorldBuilding
 @export var right_occluder_paths: Array[NodePath] = []
 @export var back_occluder_paths: Array[NodePath] = []
 @export var left_occluder_paths: Array[NodePath] = []
+@export var modular_pieces_root_path := NodePath("Pieces")
+@export_range(0.0, 180.0, 1.0) var modular_camera_hide_cone_degrees := 105.0
 
 var _interior_actor_ids: Dictionary = {}
 var _roof_hidden := false
@@ -35,6 +40,10 @@ var _inside_actors: Dictionary = {}
 var _trespass_warning_remaining: Dictionary = {}
 var _trespass_warning_counts: Dictionary = {}
 var _trespass_escalated: Dictionary = {}
+var _hidden_modular_piece_instance_ids: Dictionary = {}
+var _modular_piece_cache: Array = []
+var _modular_piece_cache_dirty := true
+var _watched_modular_pieces_root: Node
 var _world_time: WorldTimeController
 const SIDE_SWITCH_HYSTERESIS := 0.45
 
@@ -84,16 +93,19 @@ func is_actor_inside(actor: WorldActor) -> bool:
 func set_visibility_for_camera(show_interior: bool, camera_world_position: Vector3, actor: WorldActor = null) -> void:
 	if not levels.is_empty():
 		_refresh_level_visibility(show_interior, camera_world_position, actor)
+		_refresh_modular_piece_visibility(show_interior, camera_world_position, _active_level_index)
 		return
 	var next_roof_hidden := show_interior
 	var next_hidden_side := ""
 	if show_interior:
 		next_hidden_side = _get_camera_facing_side(camera_world_position)
 	if _roof_hidden == next_roof_hidden and _hidden_side == next_hidden_side:
+		_refresh_modular_piece_visibility(show_interior, camera_world_position, -1)
 		return
 	_roof_hidden = next_roof_hidden
 	_hidden_side = next_hidden_side
 	_refresh_occluders()
+	_refresh_modular_piece_visibility(show_interior, camera_world_position, -1)
 
 
 func register_extra_level_content(level_index: int, content_path: NodePath) -> void:
@@ -574,13 +586,175 @@ func _apply_occluder_visibility(paths: Array[NodePath], hidden: bool) -> void:
 			node.visible = not hidden
 
 
+func get_or_create_modular_pieces_root() -> Node3D:
+	var pieces_root := get_node_or_null(modular_pieces_root_path) as Node3D
+	if pieces_root != null:
+		_watch_modular_pieces_root(pieces_root)
+		return pieces_root
+	pieces_root = Node3D.new()
+	pieces_root.name = "Pieces"
+	add_child(pieces_root)
+	if Engine.is_editor_hint():
+		pieces_root.owner = owner if owner != null else self
+	elif owner != null:
+		pieces_root.owner = owner
+	_watch_modular_pieces_root(pieces_root)
+	return pieces_root
+
+
+func get_modular_pieces_root() -> Node3D:
+	var pieces_root := get_node_or_null(modular_pieces_root_path) as Node3D
+	if pieces_root != null:
+		_watch_modular_pieces_root(pieces_root)
+	return pieces_root
+
+
+func get_modular_pieces() -> Array:
+	var pieces_root := get_modular_pieces_root()
+	if pieces_root == null:
+		_modular_piece_cache.clear()
+		_modular_piece_cache_dirty = true
+		return []
+	if _modular_piece_cache_dirty:
+		_modular_piece_cache.clear()
+		_collect_modular_pieces(pieces_root, _modular_piece_cache)
+		_modular_piece_cache_dirty = false
+	return _modular_piece_cache
+
+
+func invalidate_modular_piece_cache() -> void:
+	_modular_piece_cache_dirty = true
+
+
+func is_modular_piece_hidden(piece: Node) -> bool:
+	return piece != null and _hidden_modular_piece_instance_ids.has(piece.get_instance_id())
+
+
+func get_modular_piece_for_node(node: Node) -> Node:
+	var current := node
+	while current != null and current != self:
+		if current.get_script() == MODULAR_BUILDING_PIECE_SCRIPT:
+			return current
+		current = current.get_parent()
+	return null
+
+
+func should_skip_modular_collider(collider: Object) -> bool:
+	if not (collider is Node):
+		return false
+	var piece := get_modular_piece_for_node(collider as Node)
+	return piece != null and is_modular_piece_hidden(piece)
+
+
+func _refresh_modular_piece_visibility(show_interior: bool, camera_world_position: Vector3, active_level_index: int) -> void:
+	_hidden_modular_piece_instance_ids.clear()
+	for piece in get_modular_pieces():
+		var hidden := _should_hide_modular_piece(piece, show_interior, camera_world_position, active_level_index)
+		_set_modular_piece_hidden(piece, hidden)
+
+
+func _set_modular_piece_hidden(piece: Node, hidden: bool) -> void:
+	if piece is Node3D:
+		(piece as Node3D).visible = not hidden
+	piece.set_meta("world_building_hidden_by_camera", hidden)
+	if hidden:
+		_hidden_modular_piece_instance_ids[piece.get_instance_id()] = true
+
+
+func _should_hide_modular_piece(piece: Node, show_interior: bool, camera_world_position: Vector3, active_level_index: int) -> bool:
+	if piece == null or not show_interior:
+		return false
+	if piece.has_method("should_hide_with_camera") and not bool(piece.call("should_hide_with_camera")):
+		return false
+	var piece_level := _get_modular_piece_level(piece)
+	if active_level_index >= 0:
+		if piece_level > active_level_index:
+			return true
+		if piece_level < active_level_index:
+			return false
+	var side := _get_modular_piece_occluder_side(piece)
+	if side == "none":
+		return false
+	if side == "roof" or (side == "auto" and _is_modular_roof_piece(piece)):
+		return true
+	if ["front", "right", "back", "left"].has(side):
+		return side == _hidden_side
+	if not _is_modular_side_piece(piece):
+		return false
+	return _is_modular_piece_in_camera_hide_cone(piece, camera_world_position)
+
+
+func _get_modular_piece_level(piece: Node) -> int:
+	if piece.has_method("get_building_level"):
+		return max(0, int(piece.call("get_building_level")))
+	return max(0, int(piece.get("building_level"))) if piece.get("building_level") != null else 0
+
+
+func _get_modular_piece_occluder_side(piece: Node) -> String:
+	if piece.has_method("get_occluder_side"):
+		return str(piece.call("get_occluder_side"))
+	var side = piece.get("occluder_side")
+	return str(side) if side != null else "auto"
+
+
+func _is_modular_roof_piece(piece: Node) -> bool:
+	var category = piece.get("category")
+	return str(category) == "roof" or str(category) == "roof_front"
+
+
+func _is_modular_side_piece(piece: Node) -> bool:
+	var category := str(piece.get("category"))
+	return category == "wall" or category == "wall_door" or category == "wall_window" or category == "window" or category == "door" or category == "corner"
+
+
+func _is_modular_piece_in_camera_hide_cone(piece: Node, camera_world_position: Vector3) -> bool:
+	if not (piece is Node3D):
+		return false
+	var building_center := global_position
+	var camera_direction := camera_world_position - building_center
+	camera_direction.y = 0.0
+	if camera_direction.length_squared() <= 0.0001:
+		return false
+	var piece_direction := (piece as Node3D).global_position - building_center
+	piece_direction.y = 0.0
+	if piece_direction.length_squared() <= 0.0001:
+		return _get_camera_facing_side(camera_world_position) == _hidden_side
+	var half_angle := deg_to_rad(clampf(modular_camera_hide_cone_degrees, 0.0, 180.0) * 0.5)
+	var dot_threshold := cos(half_angle)
+	return camera_direction.normalized().dot(piece_direction.normalized()) >= dot_threshold
+
+
+func _collect_modular_pieces(node: Node, result: Array) -> void:
+	if node.get_script() == MODULAR_BUILDING_PIECE_SCRIPT:
+		result.append(node)
+	for child in node.get_children():
+		_collect_modular_pieces(child, result)
+
+
+func _watch_modular_pieces_root(pieces_root: Node) -> void:
+	if _watched_modular_pieces_root == pieces_root:
+		return
+	if _watched_modular_pieces_root != null and is_instance_valid(_watched_modular_pieces_root):
+		if _watched_modular_pieces_root.child_entered_tree.is_connected(_on_modular_pieces_root_child_changed):
+			_watched_modular_pieces_root.child_entered_tree.disconnect(_on_modular_pieces_root_child_changed)
+		if _watched_modular_pieces_root.child_exiting_tree.is_connected(_on_modular_pieces_root_child_changed):
+			_watched_modular_pieces_root.child_exiting_tree.disconnect(_on_modular_pieces_root_child_changed)
+	_watched_modular_pieces_root = pieces_root
+	_modular_piece_cache_dirty = true
+	if _watched_modular_pieces_root == null:
+		return
+	if not _watched_modular_pieces_root.child_entered_tree.is_connected(_on_modular_pieces_root_child_changed):
+		_watched_modular_pieces_root.child_entered_tree.connect(_on_modular_pieces_root_child_changed)
+	if not _watched_modular_pieces_root.child_exiting_tree.is_connected(_on_modular_pieces_root_child_changed):
+		_watched_modular_pieces_root.child_exiting_tree.connect(_on_modular_pieces_root_child_changed)
+
+
+func _on_modular_pieces_root_child_changed(_child: Node) -> void:
+	invalidate_modular_piece_cache()
+
+
 func is_hidden_occluder_shape(shape_index: int) -> bool:
-	if shape_index < 0:
-		return false
-	var owner_id := shape_find_owner(shape_index)
-	if owner_id < 0:
-		return false
-	var owner_node := shape_owner_get_owner(owner_id)
+	var owner_node := _get_collision_shape_owner(shape_index)
 	if not (owner_node is CollisionShape3D):
 		return false
 	var node_path := get_path_to(owner_node)
@@ -606,16 +780,11 @@ func is_hidden_occluder_shape(shape_index: int) -> bool:
 
 
 func should_project_click_shape(shape_index: int) -> bool:
-	if shape_index < 0:
-		return false
 	if is_hidden_occluder_shape(shape_index):
 		return true
 	if _active_level_index < 0:
 		return false
-	var owner_id := shape_find_owner(shape_index)
-	if owner_id < 0:
-		return false
-	var owner_node := shape_owner_get_owner(owner_id)
+	var owner_node := _get_collision_shape_owner(shape_index)
 	if not (owner_node is CollisionShape3D):
 		return false
 	var node_path := get_path_to(owner_node)
@@ -630,6 +799,17 @@ func should_project_click_shape(shape_index: int) -> bool:
 		if level.front_occluder_paths.has(node_path) or level.right_occluder_paths.has(node_path) or level.back_occluder_paths.has(node_path) or level.left_occluder_paths.has(node_path):
 			return true
 	return false
+
+
+func _get_collision_shape_owner(shape_index: int) -> Node:
+	if shape_index < 0:
+		return null
+	if not has_method("shape_find_owner") or not has_method("shape_owner_get_owner"):
+		return null
+	var owner_id := int(call("shape_find_owner", shape_index))
+	if owner_id < 0:
+		return null
+	return call("shape_owner_get_owner", owner_id) as Node
 
 
 func _get_interior_area() -> Area3D:

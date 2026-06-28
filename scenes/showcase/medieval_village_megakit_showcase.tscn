@@ -1,0 +1,54 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scenes/showcase/model_pack_showcase.gd" id="1_showcase"]
+[ext_resource type="Script" path="res://scenes/showcase/free_fly_camera.gd" id="2_camera"]
+
+[sub_resource type="Environment" id="Environment_showcase"]
+background_mode = 1
+background_color = Color(0.094, 0.086, 0.07, 1)
+ambient_light_source = 3
+ambient_light_color = Color(0.74, 0.66, 0.5, 1)
+ambient_light_energy = 0.5
+
+[node name="MedievalVillageMegaKitShowcase" type="Node3D"]
+script = ExtResource("1_showcase")
+asset_directory = "res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot"
+showcase_title = "Medieval Village MegaKit Showcase"
+pack_note = "Quaternius CC0 medieval village source kit: walls, roofs, floors, props (modular building pieces)."
+columns = 8
+item_spacing = 4.2
+row_spacing = 4.4
+normalize_model_scale = false
+disable_model_shadows = true
+excluded_model_files = PackedStringArray("SampleScene_Ground.gltf")
+platform_color = Color(0.26, 0.21, 0.14, 1)
+title_label_color = Color(1, 0.88, 0.62, 1)
+item_label_color = Color(0.95, 0.88, 0.7, 1)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_showcase")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation = Vector3(-0.7, -0.6, 0.14)
+light_color = Color(1, 0.82, 0.56, 1)
+light_energy = 0.95
+shadow_enabled = true
+
+[node name="WarmFillLeft" type="OmniLight3D" parent="."]
+position = Vector3(-20, 8, 20)
+light_color = Color(1, 0.62, 0.32, 1)
+light_energy = 130.0
+omni_range = 48.0
+
+[node name="WarmFillRight" type="OmniLight3D" parent="."]
+position = Vector3(26, 10, -22)
+light_color = Color(1, 0.74, 0.4, 1)
+light_energy = 105.0
+omni_range = 54.0
+
+[node name="ShowcaseCamera" type="Camera3D" parent="."]
+position = Vector3(26, 20, 40)
+rotation = Vector3(-0.44, 0.52, 0)
+current = true
+fov = 62.0
+script = ExtResource("2_camera")

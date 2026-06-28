@@ -23,6 +23,7 @@ config/icon="res://icon.svg"
 
 LimboDebuggerShutdownGuard="*res://tools/debug/limbo_debugger_shutdown_guard.gd"
 GameDebug="*res://tools/game_debug.gd"
+ECS="*uid://dfqwl5njvdnmq"
 
 [display]
 
@@ -31,7 +32,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/gecs/plugin.cfg", "res://addons/job_authoring/plugin.cfg", "res://addons/road_authoring/plugin.cfg", "res://addons/terrain_3d/plugin.cfg")
+enabled=PackedStringArray("res://addons/gecs/plugin.cfg", "res://addons/job_authoring/plugin.cfg", "res://addons/modular_building_authoring/plugin.cfg", "res://addons/road_authoring/plugin.cfg", "res://addons/terrain_3d/plugin.cfg")
 
 [gui]
 

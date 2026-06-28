@@ -1,0 +1,6 @@
+FBX - Only meshes without collisions
+FBX (Unity) - Meshes with Unity's correct rotation, and separate collision meshes.
+FBX (Unreal Engine) - Meshes with collisions with Unreal's naming (UCX_modelname_##).
+glTF - Only meshes without collisions
+glTF (Godot) - Meshes with collisions using Godots naming convention (-convcolonly).
+OBJ - Meshes without collisions
