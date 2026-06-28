@@ -1,13 +1,13 @@
 extends Node3D
 
-const PARTY_MEMBER_SCENE := preload("res://src/core/party/party_member.tscn")
-const INVENTORY_STOCK_SCRIPT := preload("res://resources/items/inventory_stock.gd")
-const SILVER_ITEM := preload("res://resources/items/silver.tres")
-const PEASANT_TUNIC := preload("res://resources/items/peasant_tunic.tres")
-const PEASANT_TROUSERS := preload("res://resources/items/peasant_trousers.tres")
-const PEASANT_SHOES := preload("res://resources/items/peasant_shoes.tres")
-const IRON_SWORD := preload("res://resources/items/iron_sword.tres")
-const ROUND_SHIELD := preload("res://resources/items/round_shield.tres")
+const PARTY_MEMBER_SCENE := preload("res://features/core/party/party_member.tscn")
+const INVENTORY_STOCK_SCRIPT := preload("res://features/inventory/resources/items/inventory_stock.gd")
+const SILVER_ITEM := preload("res://features/inventory/resources/items/silver.tres")
+const PEASANT_TUNIC := preload("res://features/inventory/resources/items/peasant_tunic.tres")
+const PEASANT_TROUSERS := preload("res://features/inventory/resources/items/peasant_trousers.tres")
+const PEASANT_SHOES := preload("res://features/inventory/resources/items/peasant_shoes.tres")
+const IRON_SWORD := preload("res://features/inventory/resources/items/iron_sword.tres")
+const ROUND_SHIELD := preload("res://features/inventory/resources/items/round_shield.tres")
 
 @export var auto_open_editor := true
 
@@ -77,7 +77,7 @@ func _make_stock(item_definition: ItemDefinition, quantity: int) -> Resource:
 
 func _wait_for_appearance_controller() -> Node:
 	for _index in range(60):
-		var controller := get_node_or_null("GameBootstrap/CharacterAppearanceController")
+		var controller := BootstrapContext.service(CharacterAppearanceController.SERVICE_ID)
 		if controller != null:
 			return controller
 		await get_tree().process_frame

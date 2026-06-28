@@ -1,0 +1,22 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/props/sittable_seat.gd" id="1_seat"]
+[ext_resource type="PackedScene" path="res://assets/world/props/keep/raider_chair.glb" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_raider_chair"]
+size = Vector3(1.6875, 2.3625, 1.62)
+
+[node name="RaiderChair" type="StaticBody3D"]
+script = ExtResource("1_seat")
+interaction_local_offset = Vector3(0, 0, 1.485)
+service_local_offset = Vector3(0, 0, -1.6875)
+seated_floor_local_offset = Vector3(0, 0.108, 0.432)
+seated_yaw_offset_degrees = 155.0
+stand_local_offset = Vector3(0, 0, 1.6875)
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(1.35, 0, 0, 0, 1.35, 0, 0, 0, 1.35, 0, 0, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.188, 0)
+shape = SubResource("BoxShape3D_raider_chair")

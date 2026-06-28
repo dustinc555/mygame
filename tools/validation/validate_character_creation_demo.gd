@@ -1,19 +1,19 @@
 extends SceneTree
 
 const CHARACTER_CREATION_DEMO_SCENE_PATH := "res://scenes/test_levels/character_creation_demo.tscn"
-const CHARACTER_APPEARANCE_DATA_SCRIPT_PATH := "res://resources/character_appearance/character_appearance_data.gd"
-const SKIN_TEXTURE_BUILDER_PATH := "res://src/actors/projection/appearance/skin_texture_builder.gd"
-const HUMAN_RACE_PATH := "res://resources/character_races/human.tres"
-const HUMAN_FEMALE_BODY_ARCHETYPE_PATH := "res://resources/character_body_archetypes/human_female.tres"
+const CHARACTER_APPEARANCE_DATA_SCRIPT_PATH := "res://features/actors/resources/character_appearance/character_appearance_data.gd"
+const SKIN_TEXTURE_BUILDER_PATH := "res://features/actors/projection/appearance/skin_texture_builder.gd"
+const HUMAN_RACE_PATH := "res://features/actors/resources/character_races/human.tres"
+const HUMAN_FEMALE_BODY_ARCHETYPE_PATH := "res://features/actors/resources/character_body_archetypes/human_female.tres"
 const FEMALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Superhero_Female_Dark_BaseColor.png"
-const HAIR_BUNS_PATH := "res://resources/character_appearance/hair_buns.tres"
-const BEARD_FULL_PATH := "res://resources/character_appearance/beard_full.tres"
-const SILVER_ITEM_PATH := "res://resources/items/silver.tres"
-const PEASANT_TUNIC_PATH := "res://resources/items/peasant_tunic.tres"
-const PEASANT_TROUSERS_PATH := "res://resources/items/peasant_trousers.tres"
-const PEASANT_SHOES_PATH := "res://resources/items/peasant_shoes.tres"
-const IRON_SWORD_PATH := "res://resources/items/iron_sword.tres"
-const ROUND_SHIELD_PATH := "res://resources/items/round_shield.tres"
+const HAIR_BUNS_PATH := "res://features/actors/resources/character_appearance/hair_buns.tres"
+const BEARD_FULL_PATH := "res://features/actors/resources/character_appearance/beard_full.tres"
+const SILVER_ITEM_PATH := "res://features/inventory/resources/items/silver.tres"
+const PEASANT_TUNIC_PATH := "res://features/inventory/resources/items/peasant_tunic.tres"
+const PEASANT_TROUSERS_PATH := "res://features/inventory/resources/items/peasant_trousers.tres"
+const PEASANT_SHOES_PATH := "res://features/inventory/resources/items/peasant_shoes.tres"
+const IRON_SWORD_PATH := "res://features/inventory/resources/items/iron_sword.tres"
+const ROUND_SHIELD_PATH := "res://features/inventory/resources/items/round_shield.tres"
 const VISUAL_BODY_TYPE_FEMALE := 3
 const DEFAULT_SKIN_COLOR := Color(0.58, 0.38, 0.27, 1.0)
 const CUSTOM_SKIN_COLOR := Color(0.74, 0.45, 0.31, 1.0)
@@ -69,7 +69,7 @@ func _load_scene() -> void:
 	_scene = CHARACTER_CREATION_DEMO_SCENE.instantiate()
 	root.add_child(_scene)
 	await _wait_frames(90)
-	_appearance_controller = _scene.get_node_or_null("GameBootstrap/CharacterAppearanceController")
+	_appearance_controller = _scene.find_child("CharacterAppearanceController", true, false)
 	_party_manager = _scene.get_node_or_null("PartyManager") as PartyManager
 	if _appearance_controller == null:
 		_fail("CharacterAppearanceController was not found")

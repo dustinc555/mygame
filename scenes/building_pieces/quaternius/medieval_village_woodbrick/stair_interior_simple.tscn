@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://b6ok8konpk0u8"]
 
-[ext_resource type="Script" uid="uid://dx67lteoodr2x" path="res://src/world/projection/buildings/modular_building_piece.gd" id="1_rg6wh"]
+[ext_resource type="Script" uid="uid://dx67lteoodr2x" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_rg6wh"]
 [ext_resource type="PackedScene" uid="uid://dyy57icsha1ol" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Stair_Interior_Simple.gltf" id="2_0tlpe"]
-[ext_resource type="Script" uid="uid://brg8efkvn10vo" path="res://src/world/projection/buildings/modular_building_snap_marker.gd" id="3_qm8qa"]
+[ext_resource type="Script" uid="uid://brg8efkvn10vo" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_qm8qa"]
 
 [node name="StairInteriorSimple" type="Node3D" unique_id=796467222]
 script = ExtResource("1_rg6wh")

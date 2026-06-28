@@ -1,8 +1,8 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://src/world/projection/buildings/modular_building_piece.gd" id="1_ex1fa"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_ex1fa"]
 [ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Corner_Exterior_Wood.gltf" id="2_pd601"]
-[ext_resource type="Script" path="res://src/world/projection/buildings/modular_building_snap_marker.gd" id="3_1oets"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_1oets"]
 
 [node name="CornerExteriorWood" type="Node3D" unique_id=199942713]
 script = ExtResource("1_ex1fa")

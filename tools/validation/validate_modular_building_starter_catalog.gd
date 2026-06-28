@@ -1,6 +1,6 @@
 extends SceneTree
 
-const CATALOG_PATH := "res://resources/building_pieces/quaternius/medieval_village_woodbrick/starter_woodbrick_catalog.tres"
+const CATALOG_PATH := "res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/starter_woodbrick_catalog.tres"
 const EXPECTED_COUNT := 21
 const ALLOWED_CATEGORIES := {
 	"floor": true,

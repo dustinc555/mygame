@@ -1,11 +1,11 @@
 extends SceneTree
 
-const BODY_FURNACE_SCENE := preload("res://src/world/bridge/props/body_furnace.tscn")
-const FACTION_HUMANOID_SCRIPT := preload("res://src/actors/projection/humanoid/faction_humanoid.gd")
-const RUSTDEAD_HUMANOID_SCRIPT := preload("res://src/actors/projection/rustdead/rustdead_humanoid_character.gd")
-const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://src/core/gecs_world_controller.gd")
-const POPULATION_CONTROLLER_SCRIPT := preload("res://src/world_sim/sim/population/population_controller.gd")
-const CINDER_FLASK := preload("res://resources/items/cinder_flask.tres")
+const BODY_FURNACE_SCENE := preload("res://features/world/bridge/props/body_furnace.tscn")
+const FACTION_HUMANOID_SCRIPT := preload("res://features/actors/projection/humanoid/faction_humanoid.gd")
+const RUSTDEAD_HUMANOID_SCRIPT := preload("res://features/actors/projection/rustdead/rustdead_humanoid_character.gd")
+const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://features/core/gecs_world_controller.gd")
+const POPULATION_CONTROLLER_SCRIPT := preload("res://features/world_sim/sim/population/population_controller.gd")
+const CINDER_FLASK := preload("res://features/inventory/resources/items/cinder_flask.tres")
 
 var _failures: Array[String] = []
 
@@ -175,14 +175,16 @@ func _validate_auto_combat_hold() -> void:
 
 
 func _add_population_controllers(scene: Node) -> void:
+	var context := BootstrapContext.new(scene)
 	var gecs = GECS_WORLD_CONTROLLER_SCRIPT.new()
 	gecs.name = "GecsWorldController"
 	scene.add_child(gecs)
-	gecs.initialize(scene)
+	context.register(gecs.SERVICE_ID, gecs)
+	gecs.initialize(context)
 	var population = POPULATION_CONTROLLER_SCRIPT.new()
 	population.name = "PopulationController"
 	scene.add_child(population)
-	population.initialize(scene)
+	population.initialize(context)
 
 
 func _add_humanoid(scene: Node, actor_name: String, position: Vector3) -> HumanoidCharacter:

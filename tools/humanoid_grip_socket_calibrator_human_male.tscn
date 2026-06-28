@@ -1,11 +1,11 @@
 [gd_scene format=3 uid="uid://b4o1fp3xcqvp"]
 
 [ext_resource type="Script" uid="uid://dit13sqm5hf82" path="res://tools/humanoid_grip_socket_calibrator.gd" id="1_calibrator"]
-[ext_resource type="Script" uid="uid://cwj2s41umpq7y" path="res://src/actors/projection/humanoid/humanoid_grip_socket_marker.gd" id="3_socket_marker"]
+[ext_resource type="Script" uid="uid://cwj2s41umpq7y" path="res://features/actors/projection/humanoid/humanoid_grip_socket_marker.gd" id="3_socket_marker"]
 
 [node name="HumanoidGripSocketCalibratorHumanMale" type="Node3D" unique_id=1706721184]
 script = ExtResource("1_calibrator")
-last_status = "Loaded hand grip transforms from res://resources/humanoid_grip_socket_profiles/human_male.tres."
+last_status = "Loaded hand grip transforms from res://features/actors/resources/humanoid_grip_socket_profiles/human_male.tres."
 
 [node name="PreviewHumanoid" type="Node3D" parent="." unique_id=1898920321]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
@@ -46,5 +46,5 @@ fov = 38.0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.55, 0)
 billboard = 1
 no_depth_test = true
-text = "Loaded hand grip transforms from res://resources/humanoid_grip_socket_profiles/human_male.tres."
+text = "Loaded hand grip transforms from res://features/actors/resources/humanoid_grip_socket_profiles/human_male.tres."
 font_size = 28

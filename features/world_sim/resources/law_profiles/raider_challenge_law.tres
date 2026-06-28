@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="FactionLawProfile" format=3 uid="uid://biwpjin2saup5"]
+
+[ext_resource type="Script" uid="uid://s07soucxpyci" path="res://features/world_sim/resources/faction_law_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "raider_challenge_law"
+display_name = "Raider Challenge Law"
+trespass_warning_interval_seconds = 2.5
+trespass_warnings_before_alarm = 1
+trespass_notice_radius = 22.0
+petty_theft_value_threshold = 15
+theft_response = "victim_only"
+assault_response = "victim_only"
+murder_response = "blood_feud"
+operator_notes = "Raider camps still punish murder and intrusion, but small thefts and insults can become personal fights instead of formal settlement-wide crimes."

@@ -1,10 +1,10 @@
 @tool
 extends EditorInspectorPlugin
 
-const JOB_DEFINITION_SCRIPT = preload("res://resources/jobs/job_definition.gd")
-const JOB_PROVIDER_SCRIPT = preload("res://src/settlements/bridge/job_provider.gd")
-const MINING_RESOURCE_NODE_SCRIPT = preload("res://src/world/bridge/resource_nodes/mining_resource_node.gd")
-const WORLD_CONTAINER_SCRIPT = preload("res://src/world/projection/containers/world_container.gd")
+const JOB_DEFINITION_SCRIPT = preload("res://features/settlements/resources/jobs/job_definition.gd")
+const JOB_PROVIDER_SCRIPT = preload("res://features/settlements/bridge/job_provider.gd")
+const MINING_RESOURCE_NODE_SCRIPT = preload("res://features/world/bridge/resource_nodes/mining_resource_node.gd")
+const WORLD_CONTAINER_SCRIPT = preload("res://features/world/projection/containers/world_container.gd")
 
 var _plugin: EditorPlugin
 

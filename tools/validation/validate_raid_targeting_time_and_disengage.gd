@@ -1,9 +1,9 @@
 extends SceneTree
 
 const TWO_TOWNS_SCENE_PATH := "res://scenes/test_levels/two_towns_road_test.tscn"
-const AI_UTILITY_ADAPTER_PATH := "res://src/ai/bridge/ai_utility_adapter.gd"
-const COMBAT_COORDINATOR_PATH := "res://src/combat/bridge/combat_coordinator.gd"
-const SKIN_TEXTURE_BUILDER_PATH := "res://src/actors/projection/appearance/skin_texture_builder.gd"
+const AI_UTILITY_ADAPTER_PATH := "res://features/ai/bridge/ai_utility_adapter.gd"
+const COMBAT_COORDINATOR_PATH := "res://features/combat/bridge/combat_coordinator.gd"
+const SKIN_TEXTURE_BUILDER_PATH := "res://features/actors/projection/appearance/skin_texture_builder.gd"
 
 var _failures: Array[String] = []
 var _scene: Node
@@ -30,7 +30,7 @@ func _run() -> void:
 	var encounter_controller := _get_controller("encounter_controller")
 	var gecs := _get_controller("gecs_world_controller")
 	var event_controller := _get_controller("world_event_choice_controller")
-	var world_time := _scene.get_node_or_null("GameBootstrap/WorldTimeController")
+	var world_time := _scene.find_child("WorldTimeController", true, false)
 	if settlement_controller == null or faction_controller == null or faction_sim == null or encounter_controller == null or gecs == null or event_controller == null or world_time == null:
 		_fail("Controllers missing for raid targeting/time validation")
 	else:

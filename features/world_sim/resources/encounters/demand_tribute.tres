@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="EncounterObjective" format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/encounter_objective.gd" id="1_objective"]
+
+[resource]
+script = ExtResource("1_objective")
+objective_id = "demand_tribute"
+display_name = "Demand Tribute"
+opening = "demand"
+demand_grace_seconds = 18.0
+fight_grace_seconds = 12.0
+demand_food_amount = 25.0
+loot_food_on_win = 35.0
+capture_fraction_on_defense_win = 0.5

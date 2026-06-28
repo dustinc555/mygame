@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceCatalog" format=3]
+
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/wall_woodbrick_straight.tres" id="1_s0l00"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/wall_woodbrick_door_flat.tres" id="2_pxf0b"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/wall_woodbrick_door_round.tres" id="3_dmbt8"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/wall_woodbrick_window_wide_flat.tres" id="4_j03qw"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/wall_woodbrick_window_wide_round.tres" id="5_0k1jv"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/wall_woodbrick_window_thin_round.tres" id="6_lousw"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/corner_exterior_wood.tres" id="7_qinhj"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/corner_interior_big.tres" id="8_3lb36"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/floor_wood_dark.tres" id="9_1f1kn"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/floor_wood_light.tres" id="10_wbwk6"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/roof_modular_flattiles_4_l.tres" id="11_8mi4f"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/roof_modular_flattiles_4_mid.tres" id="12_jlo1w"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/roof_modular_flattiles_4_r.tres" id="13_ue377"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/roof_front_wood4.tres" id="14_6cc4h"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/stair_interior_simple.tres" id="15_wlwqu"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/stairs_exterior_straight.tres" id="16_41cnb"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_catalog.gd" id="17_3frnl"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/window_frame_wide_flat.tres" id="18_wff"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/window_frame_wide_round.tres" id="19_wfr"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/window_frame_thin_round.tres" id="20_tfr"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/door_wood_flat.tres" id="21_dwf"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/door_wood_round.tres" id="22_dwr"]
+
+[resource]
+script = ExtResource("17_3frnl")
+catalog_id = "quaternius.medieval_village.woodbrick_starter"
+display_name = "Medieval Village WoodBrick Starter"
+pieces = [ExtResource("1_s0l00"), ExtResource("2_pxf0b"), ExtResource("3_dmbt8"), ExtResource("4_j03qw"), ExtResource("5_0k1jv"), ExtResource("6_lousw"), ExtResource("7_qinhj"), ExtResource("8_3lb36"), ExtResource("9_1f1kn"), ExtResource("10_wbwk6"), ExtResource("11_8mi4f"), ExtResource("12_jlo1w"), ExtResource("13_ue377"), ExtResource("14_6cc4h"), ExtResource("15_wlwqu"), ExtResource("16_41cnb"), ExtResource("18_wff"), ExtResource("19_wfr"), ExtResource("20_tfr"), ExtResource("21_dwf"), ExtResource("22_dwr")]

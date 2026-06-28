@@ -1,14 +1,14 @@
 extends SceneTree
 
 const DEMO_WORLD_SCENE_PATH := "res://scenes/worlds/demo_world/demo_world.tscn"
-const DEMO_WORLD_DEFINITION_PATH := "res://resources/worlds/demo_world/demo_world.tres"
-const DEMO_ZONE_DEFINITION_PATH := "res://resources/zones/demo_zone/demo_zone.tres"
-const POPULATION_APPEARANCE_PROFILE_DIR := "res://resources/world_sim/population_appearance_profiles"
-const BANDAGE_ITEM_PATH := "res://resources/items/bandage.tres"
-const CINDER_FLASK_ITEM_PATH := "res://resources/items/cinder_flask.tres"
-const AI_UTILITY_ADAPTER_PATH := "res://src/ai/bridge/ai_utility_adapter.gd"
-const COMBAT_COORDINATOR_PATH := "res://src/combat/bridge/combat_coordinator.gd"
-const SKIN_TEXTURE_BUILDER_PATH := "res://src/actors/projection/appearance/skin_texture_builder.gd"
+const DEMO_WORLD_DEFINITION_PATH := "res://features/world_sim/resources/worlds/demo_world/demo_world.tres"
+const DEMO_ZONE_DEFINITION_PATH := "res://features/world_sim/resources/zones/demo_zone/demo_zone.tres"
+const POPULATION_APPEARANCE_PROFILE_DIR := "res://features/world_sim/resources/population_appearance_profiles"
+const BANDAGE_ITEM_PATH := "res://features/inventory/resources/items/bandage.tres"
+const CINDER_FLASK_ITEM_PATH := "res://features/inventory/resources/items/cinder_flask.tres"
+const AI_UTILITY_ADAPTER_PATH := "res://features/ai/bridge/ai_utility_adapter.gd"
+const COMBAT_COORDINATOR_PATH := "res://features/combat/bridge/combat_coordinator.gd"
+const SKIN_TEXTURE_BUILDER_PATH := "res://features/actors/projection/appearance/skin_texture_builder.gd"
 const HUMAN_RACE_ID := "human"
 const RUSTDEAD_RACE_ID := "rustdead"
 

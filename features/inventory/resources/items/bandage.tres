@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://dnguysxebop3d"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_3j8kv"]
+[ext_resource type="Texture2D" uid="uid://dg4tbexeoyub8" path="res://assets/items/medical/bandage.svg" id="2_icon"]
+[ext_resource type="PackedScene" path="res://features/world/projection/items/bandage_world.tscn" id="3_world"]
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Bandage"
+icon = ExtResource("2_icon")
+grid_size = Vector2i(2, 2)
+unit_weight = 0.1
+bandage_power = 12.0
+bandage_max_uses = 5
+alternate_equip_slots = null
+world_scene = ExtResource("3_world")
+world_visual_height_meters = 0.22
+tool_tags = null

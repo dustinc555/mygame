@@ -3,13 +3,13 @@ extends Node3D
 
 class_name HumanoidGripSocketCalibrator
 
-const DEFAULT_GRIP_SOCKET_PROFILE = preload("res://resources/humanoid_grip_socket_profiles/default.tres")
-const HUMAN_MALE_BODY_ARCHETYPE = preload("res://resources/character_body_archetypes/human_male.tres")
+const DEFAULT_GRIP_SOCKET_PROFILE = preload("res://features/actors/resources/humanoid_grip_socket_profiles/default.tres")
+const HUMAN_MALE_BODY_ARCHETYPE = preload("res://features/actors/resources/character_body_archetypes/human_male.tres")
 const PREVIEW_ITEMS := [
-	preload("res://resources/items/iron_sword.tres"),
-	preload("res://resources/items/iron_axe.tres"),
-	preload("res://resources/items/iron_dagger.tres"),
-	preload("res://resources/items/round_shield.tres"),
+	preload("res://features/inventory/resources/items/iron_sword.tres"),
+	preload("res://features/inventory/resources/items/iron_axe.tres"),
+	preload("res://features/inventory/resources/items/iron_dagger.tres"),
+	preload("res://features/inventory/resources/items/round_shield.tres"),
 ]
 const RIGHT_SOCKET_ID := "right_hand_one_hand"
 const LEFT_SOCKET_ID := "left_hand_shield"

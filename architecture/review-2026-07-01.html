@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Architecture Review — 2026-07-01</title>
+<style>
+  body { background:#14161a; color:#d8dce2; font-family:system-ui,sans-serif; margin:0; padding:32px; max-width:1100px; margin:auto; }
+  h1 { font-size:22px; } h2 { font-size:16px; margin-top:36px; color:#fff; }
+  .verdict { background:#173322; border:1px solid #2f6b45; border-radius:8px; padding:14px 18px; font-size:15px; margin:18px 0; }
+  .verdict b { color:#6fdc8f; }
+  svg text { font-family:system-ui,sans-serif; }
+  table { border-collapse:collapse; width:100%; font-size:13px; margin-top:8px; }
+  th, td { text-align:left; padding:6px 10px; border-bottom:1px solid #2a2e35; }
+  th { color:#9aa3af; font-weight:600; }
+  .good { color:#6fdc8f; font-weight:600; } .weak { color:#f0b64e; font-weight:600; } .watch { color:#8ab4f8; font-weight:600; }
+  .note { color:#9aa3af; font-size:12.5px; }
+  .chores li { margin:6px 0; }
+  .done { color:#6fdc8f; }
+</style>
+</head>
+<body>
+
+<h1>mygame — architecture review (2026-07-01)</h1>
+<div class="verdict"><b>Verdict: this is not a ball of mud.</b> 270 scripts, 593 typed edges (avg ~4.4 per file — sparse), <b>zero dependency cycles</b>, one composition root, sim truth isolated in GECS. A real ball of mud has none of those properties. The skeleton is professional; what remains is code-level chores, not architecture.</div>
+
+<h2>The architecture in one picture</h2>
+<svg viewBox="0 0 1040 560" width="100%" style="background:#1a1d22;border-radius:8px;border:1px solid #2a2e35">
+  <!-- layer bands -->
+  <rect x="20"  y="20"  width="760" height="110" rx="8" fill="#232a36"/>
+  <rect x="20"  y="150" width="760" height="110" rx="8" fill="#25313c"/>
+  <rect x="20"  y="280" width="760" height="130" rx="8" fill="#233626"/>
+  <rect x="20"  y="430" width="760" height="100" rx="8" fill="#332b22"/>
+
+  <text x="36" y="46"  fill="#8ab4f8" font-size="15" font-weight="700">PROJECTION — what the camera sees</text>
+  <text x="36" y="68"  fill="#c7ccd4" font-size="12.5">humanoid / quadbot / rustdead bodies · animation · clothing binding · buildings &amp; props · lighting · UI windows</text>
+  <text x="36" y="88"  fill="#7f8894" font-size="12">Rule: displays state, never owns durable truth. Turbofat-style small one-concern scripts.</text>
+
+  <text x="36" y="176" fill="#e2b03c" font-size="15" font-weight="700">BRIDGE — the realized live world</text>
+  <text x="36" y="198" fill="#c7ccd4" font-size="12.5">WorldActor (thin actuator: nav + move_and_slide) + typed capabilities (combat · vitals · stats · carry · custody · inventory)</text>
+  <text x="36" y="216" fill="#c7ccd4" font-size="12.5">settlement venues (bar · jail · keep · town) · combat coordinator · AI brain → LimboAI trees</text>
+  <text x="36" y="236" fill="#7f8894" font-size="12">Rule: maps sim truth ⇄ scene nodes. AI chooses intent here; SIM validates consequences.</text>
+
+  <text x="36" y="306" fill="#6fdc8f" font-size="15" font-weight="700">SIM — durable truth (GECS: 9 systems · 42 components)</text>
+  <text x="36" y="328" fill="#c7ccd4" font-size="12.5">combat targeting/resolution/slots · vitals · population records · ledger simulation (far actors) · law &amp; order · jobs · factions · world events · time</text>
+  <text x="36" y="348" fill="#7f8894" font-size="12">Rule: node-free, stable IDs, plain-data state. This layer IS the save file. (Thrive made the same choice for the same reason.)</text>
+  <text x="36" y="368" fill="#7f8894" font-size="12">LOD: far actor = cheap ledger record here. Near actor = realized up into BRIDGE + PROJECTION, then reconciled back.</text>
+
+  <text x="36" y="456" fill="#f0865e" font-size="15" font-weight="700">CORE — composition root</text>
+  <text x="36" y="478" fill="#c7ccd4" font-size="12.5">GameBootstrap (167 lines) reads 9 feature modules → constructs controllers → injects BootstrapContext (DI)</text>
+  <text x="36" y="498" fill="#7f8894" font-size="12">Rule: the ONLY place things get wired. Stricter than ToF2’s autoload singletons.</text>
+
+  <!-- vertical slice panel -->
+  <rect x="800" y="20" width="220" height="510" rx="8" fill="#1e2128" stroke="#2a2e35"/>
+  <text x="816" y="48" fill="#fff" font-size="13" font-weight="700">One feature = one slice</text>
+  <text x="816" y="66" fill="#9aa3af" font-size="11.5">features/combat/</text>
+  <rect x="816" y="80"  width="188" height="46" rx="6" fill="#232a36"/>
+  <text x="826" y="98"  fill="#8ab4f8" font-size="11.5" font-weight="700">projection</text>
+  <text x="826" y="114" fill="#c7ccd4" font-size="11">swings, hit reactions, ragdoll</text>
+  <rect x="816" y="136" width="188" height="46" rx="6" fill="#25313c"/>
+  <text x="826" y="154" fill="#e2b03c" font-size="11.5" font-weight="700">bridge</text>
+  <text x="826" y="170" fill="#c7ccd4" font-size="11">combat_coordinator.gd</text>
+  <rect x="816" y="192" width="188" height="60" rx="6" fill="#233626"/>
+  <text x="826" y="210" fill="#6fdc8f" font-size="11.5" font-weight="700">sim</text>
+  <text x="826" y="226" fill="#c7ccd4" font-size="11">5 systems + 5 components</text>
+  <text x="826" y="242" fill="#c7ccd4" font-size="11">(targeting · slots · resolution…)</text>
+  <text x="816" y="282" fill="#9aa3af" font-size="11.5">declared once in</text>
+  <text x="816" y="298" fill="#c7ccd4" font-size="11.5">combat_module.gd</text>
+  <text x="816" y="330" fill="#fff" font-size="13" font-weight="700">Data flow</text>
+  <text x="816" y="352" fill="#c7ccd4" font-size="11.5">AI intent ↓ (LimboAI)</text>
+  <text x="816" y="370" fill="#c7ccd4" font-size="11.5">SIM validates + applies</text>
+  <text x="816" y="388" fill="#c7ccd4" font-size="11.5">BRIDGE realizes changes</text>
+  <text x="816" y="406" fill="#c7ccd4" font-size="11.5">PROJECTION shows them</text>
+  <text x="816" y="438" fill="#fff" font-size="13" font-weight="700">Save / load</text>
+  <text x="816" y="460" fill="#c7ccd4" font-size="11.5">Only SIM serializes.</text>
+  <text x="816" y="478" fill="#c7ccd4" font-size="11.5">Bridge + projection are</text>
+  <text x="816" y="496" fill="#c7ccd4" font-size="11.5">rebuilt from truth.</text>
+</svg>
+
+<h2>Scorecard vs the pros (ToF2 “tanks”, Thrive, Turbofat)</h2>
+<table>
+  <tr><th>Axis</th><th>What pros do</th><th>You</th><th>Status</th></tr>
+  <tr><td>Sim / visuals split</td><td>Thrive: ECS sim, nodes only display</td><td>GECS truth + projection layer</td><td class="good">STRONG</td></tr>
+  <tr><td>Wiring</td><td>ToF2: autoload singletons</td><td>Single bootstrap + module descriptors + DI</td><td class="good">STRONGER than ToF2</td></tr>
+  <tr><td>Folder layout</td><td>feature/domain-first</td><td>features/&lt;f&gt;/{sim,bridge,projection,resources}</td><td class="good">STRONG</td></tr>
+  <tr><td>Data-driven content</td><td>stat dicts, resource defs</td><td>.tres definitions per feature</td><td class="good">STRONG</td></tr>
+  <tr><td>Actor composition</td><td>thin coordinator + composed parts</td><td>WorldActor + capabilities (post-HEAD)</td><td class="good">FIXED by HEAD</td></tr>
+  <tr><td>Dependency hygiene</td><td>(mostly untooled)</td><td>0 cycles, automated truth-rule checks</td><td class="good">AHEAD of pros</td></tr>
+  <tr><td>Typed contracts</td><td>direct typed calls</td><td>~1,040 has_method/call string sites</td><td class="weak">WEAK — chore #1</td></tr>
+  <tr><td>Venue code reuse</td><td>shared base owns shared logic</td><td>90 funcs duplicated ×4 (bar/jail/keep/town)</td><td class="weak">WEAK — chore #2</td></tr>
+  <tr><td>Frame discipline</td><td>event/cadence driven</td><td>15 durable controllers tick every frame</td><td class="weak">WEAK — chore #3</td></tr>
+  <tr><td>GecsWorldController</td><td>—</td><td>2,567-line facade, many concerns</td><td class="watch">WATCH (split opportunistically)</td></tr>
+</table>
+
+<h2>What is actually left (finite — and none of it blocks features)</h2>
+<ul class="chores">
+  <li><b>1. De-reflect service seams</b> — replace <code>has_method/call("…")</code> with typed calls. Mechanical; do it file-by-file <i>when you touch a file anyway</i>. <span class="done">(world_simulation_controller.gd done as the template)</span></li>
+  <li><b>2. Hoist the 90 duplicated venue functions</b> into settlement_facility_instance.gd (154 lines today). One focused session.</li>
+  <li><b>3. Gate the 15 per-frame <code>_process</code> loops</b> onto WorldTimeController cadence. One focused session.</li>
+</ul>
+<p class="note">The reorganization era is over: folders, layers, DI, GECS split and actor breakup are DONE. There is no third reorg. Freeze the structure and build the game; the dependency tooling will flag drift automatically.</p>
+
+</body>
+</html>

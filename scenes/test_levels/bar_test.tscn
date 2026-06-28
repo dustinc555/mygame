@@ -1,11 +1,11 @@
 [gd_scene load_steps=15 format=3 uid="uid://pwgo4p6duh50"]
 
-[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://src/core/party/party_member.gd" id="1_party"]
-[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://src/core/party/party_manager.gd" id="2_manager"]
-[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://src/core/game_bootstrap.gd" id="3_bootstrap"]
-[ext_resource type="PackedScene" path="res://src/settlements/bridge/settlement_bar.tscn" id="4_bar"]
-[ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://resources/items/inventory_stock.gd" id="5_inventory_stock"]
-[ext_resource type="Resource" path="res://resources/items/silver.tres" id="6_silver"]
+[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://features/core/party/party_member.gd" id="1_party"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://features/core/party/party_manager.gd" id="2_manager"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://features/core/game_bootstrap.gd" id="3_bootstrap"]
+[ext_resource type="PackedScene" path="res://features/settlements/bridge/settlement_bar.tscn" id="4_bar"]
+[ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://features/inventory/resources/items/inventory_stock.gd" id="5_inventory_stock"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/silver.tres" id="6_silver"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(52, 1, 52)

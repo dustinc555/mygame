@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="FactionPersonalityProfile" format=3 uid="uid://mw8njq6ugn5d"]
+
+[ext_resource type="Script" uid="uid://dj1k34w6mmrj" path="res://features/world_sim/resources/faction_personality_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "paradise_hills_slavers"
+display_name = "Paradise Hills Slavers"
+aggression = 0.48
+risk_tolerance = 0.44
+mercy = 0.08
+greed = 0.82
+openness_to_outsiders = 0.3
+honor = 0.14
+negotiation_patience = 0.52
+operator_notes = "Controlling, transactional, and cruel. They prefer profitable coercion over costly wars."

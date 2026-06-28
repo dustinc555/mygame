@@ -1,6 +1,6 @@
 extends SceneTree
 
-const HUMANOID_SCRIPT = preload("res://src/actors/projection/humanoid/humanoid_character.gd")
+const HUMANOID_SCRIPT = preload("res://features/actors/projection/humanoid/humanoid_character.gd")
 const FLOAT_TOLERANCE := 0.001
 
 var _failures: Array[String] = []

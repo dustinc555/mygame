@@ -12,15 +12,14 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..', '..');     // repo root (architecture/dependency-graph/../../)
-// Feature-first layout: all game code lives under src/<feature>/<layer>/. (During the
-// migration this also walked the legacy scripts/ tree; that move is now complete.)
-const SRC_ROOTS = [path.join(ROOT, 'src'), path.join(ROOT, 'scripts')].filter(d => fs.existsSync(d));
-// Resource definitions (.tres-defining .gd) live under top-level resources/. Walk them too so
-// the inert "Resources" layer (and its no-tick / no-live-node rules) stays measured, but force
-// their layer to 'Resources' regardless of which <domain>/ subfolder they sit in.
-const RES_ROOT = path.join(ROOT, 'resources');
-const WALK_ROOTS = SRC_ROOTS.concat(fs.existsSync(RES_ROOT) ? [RES_ROOT] : []);
-const underResources = f => { const r = path.relative(RES_ROOT, f); return r !== '' && !r.startsWith('..'); };
+// Feature-first layout: all game code lives under features/<feature>/<layer>/.
+const SRC_ROOTS = [path.join(ROOT, 'features')].filter(d => fs.existsSync(d));
+// Resource definitions (.tres-defining .gd) now live inside each feature under
+// features/<feature>/resources/. They are walked as part of features/, but their
+// layer is forced to 'Resources' (keeping the inert no-tick / no-live-node layer
+// measured) regardless of which feature folder they sit in.
+const WALK_ROOTS = SRC_ROOTS;
+const underResources = f => f.replace(/\\/g, '/').split('/').includes('resources');
 function relOf(f) {
   for (const r of WALK_ROOTS) { const rel = path.relative(r, f); if (!rel.startsWith('..' + path.sep) && rel !== '..') return rel; }
   return path.basename(f);
@@ -119,7 +118,10 @@ for (const f of files) {
   const layer = gecsKind ? gecsKind
               : underResources(f) ? 'Resources'
               : (cn && ROOT_LAYER[cn]) ? ROOT_LAYER[cn] : layerOf(rel);
-  fileInfo[f] = { rel, layer, className: cn, raw, bytes: Buffer.byteLength(raw, 'utf8') };
+  // feature = first path segment under features/ (the clean, single-dimension
+  // grouping for the Architecture view — NOT re-homed like `layer`).
+  const feature = rel.split(path.sep)[0];
+  fileInfo[f] = { rel, layer, feature, className: cn, raw, bytes: Buffer.byteLength(raw, 'utf8') };
   if (cn) classToFile[cn] = f;
 }
 const allClassNames = new Set(Object.keys(classToFile));
@@ -190,7 +192,7 @@ function tickViolation(info) {
 
 // ---- nodes / degrees ----
 const nodes = {};
-for (const f of files) nodes[idOf(f)] = { id: idOf(f), layer: fileInfo[f].layer, bytes: fileInfo[f].bytes, in:0, out:0, tick: (tickViolation(fileInfo[f]) && !TICK_ALLOW.has(idOf(f))) ? true : false, status: statusOf(f) };
+for (const f of files) nodes[idOf(f)] = { id: idOf(f), layer: fileInfo[f].layer, feature: fileInfo[f].feature, bytes: fileInfo[f].bytes, in:0, out:0, tick: (tickViolation(fileInfo[f]) && !TICK_ALLOW.has(idOf(f))) ? true : false, status: statusOf(f) };
 const edgeList = [];
 for (const [k,w] of edges) { const [a,b] = k.split(' '); if (!nodes[a] || !nodes[b]) continue; edgeList.push({source:a,target:b,w}); nodes[a].out++; nodes[b].in++; }
 
@@ -238,7 +240,7 @@ const compOf = {}; cycles.forEach((c,i)=>c.forEach(id=>compOf[id]=i));
 const cycleNodes = new Set(Object.keys(compOf));
 const violSet = new Set(violations.map(e=>e.source+' '+e.target));
 const isCycleEdge = e => compOf[e.source]!==undefined && compOf[e.source]===compOf[e.target];
-const outNodes = arr.map(n=>({ id:n.id, layer:n.layer, bytes:n.bytes, in:n.in, out:n.out, cycle:cycleNodes.has(n.id), tick:n.tick, status:n.status }));
+const outNodes = arr.map(n=>({ id:n.id, layer:n.layer, feature:n.feature, bytes:n.bytes, in:n.in, out:n.out, cycle:cycleNodes.has(n.id), tick:n.tick, status:n.status }));
 const outLinks = edgeList.map(e=>({ source:e.source, target:e.target, w:e.w, violation:violSet.has(e.source+' '+e.target), cycle:isCycleEdge(e) }));
 const layerList = [...new Set(arr.map(n=>n.layer))].map(name=>({ name, color:LCOL[name]||'#777' }));
 const layerLinks = [];

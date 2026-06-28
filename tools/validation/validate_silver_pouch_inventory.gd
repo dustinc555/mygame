@@ -1,9 +1,9 @@
 extends SceneTree
 
-const SILVER_ITEM := preload("res://resources/items/silver.tres")
-const SILVER_POUCH_ITEM := preload("res://resources/items/silver_pouch.tres")
-const WORLD_ITEM_SCENE := preload("res://src/world/projection/items/world_item.tscn")
-const PARTY_INVENTORY_CONTROLLER_SCRIPT := preload("res://src/inventory/bridge/party_inventory_controller.gd")
+const SILVER_ITEM := preload("res://features/inventory/resources/items/silver.tres")
+const SILVER_POUCH_ITEM := preload("res://features/inventory/resources/items/silver_pouch.tres")
+const WORLD_ITEM_SCENE := preload("res://features/world/projection/items/world_item.tscn")
+const PARTY_INVENTORY_CONTROLLER_SCRIPT := preload("res://features/inventory/bridge/party_inventory_controller.gd")
 
 var _failures: Array[String] = []
 

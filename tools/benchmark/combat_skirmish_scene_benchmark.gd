@@ -7,6 +7,12 @@ const RUSTDEAD_5V10_AVG_FPS_FLOOR := 55.0
 # Baseline before WorldActor job/combat refactor on this machine, 600 sampled
 # frames after 240 warmup at max 120 FPS: 10v10 avg 85.13/min 46.50 FPS;
 # 20v20 avg 36.84/min 14.83 FPS.
+# 2026-07-01 (post stats-capability fix, ECS placeholder added so GECS actually
+# runs in --script mode): 20v20 avg 116.44/min 55.37 FPS measured with GECS
+# state-sync degraded and combat NOT engaging (scan radii were zero).
+# 2026-07-01 honest scene-mode baseline after combat-config restoration, 40 actors
+# all engaged (validate_combat_skirmish_engagement.tscn, 5s warmup + 25s sample):
+# avg 60.55 / min 32.87 FPS — BELOW the 40 floor; perf work outstanding.
 
 var scene_path := DEFAULT_SCENE_PATH
 var warmup_frames := 240
@@ -17,6 +23,7 @@ var auto_quit := true
 var actor_query_metrics_enabled := false
 
 var _scene: Node
+var _ecs_compile_placeholder: Node
 var _sample_count := 0
 var _sample_delta_sum := 0.0
 var _max_delta := 0.0
@@ -25,6 +32,7 @@ var _is_finalizing := false
 
 
 func _initialize() -> void:
+	_register_ecs_compile_placeholder()
 	_parse_cli_args()
 	OS.low_processor_usage_mode = false
 	OS.low_processor_usage_mode_sleep_usec = 0
@@ -119,16 +127,36 @@ func _quit_after_cleanup(exit_code: int) -> void:
 	quit(exit_code)
 
 
+# In `--script` (SceneTree) mode project autoloads are not instantiated and the ECS
+# identifier does not resolve at compile time, so GECS-dependent scripts in the loaded
+# scene fail to compile without this. GecsWorldController swaps the placeholder for the
+# real _ECS node during its initialization. Same template as the validation scripts.
+func _register_ecs_compile_placeholder() -> void:
+	if Engine.has_singleton("ECS") or root.get_node_or_null("ECS") != null:
+		return
+	_ecs_compile_placeholder = Node.new()
+	_ecs_compile_placeholder.name = "ECS"
+	Engine.register_singleton("ECS", _ecs_compile_placeholder)
+
+
 func _collect_group_counts() -> Dictionary:
+	# WorldActor/NpcRules must not be referenced by class_name in this script: that would
+	# compile the GECS chain while this script itself compiles, before
+	# _register_ecs_compile_placeholder() can run. Load them at runtime instead.
+	var world_actor_script: Script = load("res://features/actors/bridge/world_actor.gd")
+	var npc_rules = load("res://features/world_sim/sim/npc_rules.gd")
+	var alive_life_state: int = npc_rules.LifeState.ALIVE
 	var groups := {}
-	for group_name in ["world_actor", "humanoid_character", "combat_actor", "active_combat_actor", "party_member"]:
+	for group_name in ["world_actor", "party_member"]:
 		groups[group_name] = root.get_tree().get_nodes_in_group(group_name).size()
 	var alive := 0
 	var in_combat := 0
 	for node in root.get_tree().get_nodes_in_group("world_actor"):
-		if node is WorldActor and (node as WorldActor).life_state == NpcRules.LifeState.ALIVE:
+		if not is_instance_of(node, world_actor_script):
+			continue
+		if int(node.life_state) == alive_life_state:
 			alive += 1
-		if node is WorldActor and (node as WorldActor).is_in_combat():
+		if bool(node.is_in_combat()):
 			in_combat += 1
 	groups["alive_world_actor"] = alive
 	groups["in_combat_world_actor"] = in_combat

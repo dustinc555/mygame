@@ -1,9 +1,9 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://src/core/party/party_member.gd" id="1_party"]
-[ext_resource type="Script" path="res://src/core/party/party_manager.gd" id="2_manager"]
-[ext_resource type="Script" path="res://src/core/game_bootstrap.gd" id="3_bootstrap"]
-[ext_resource type="Script" path="res://src/world_sim/bridge/world_sim_debug_action.gd" id="4_debug_action"]
+[ext_resource type="Script" path="res://features/core/party/party_member.gd" id="1_party"]
+[ext_resource type="Script" path="res://features/core/party/party_manager.gd" id="2_manager"]
+[ext_resource type="Script" path="res://features/core/game_bootstrap.gd" id="3_bootstrap"]
+[ext_resource type="Script" path="res://features/world_sim/bridge/world_sim_debug_action.gd" id="4_debug_action"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(48, 1, 48)

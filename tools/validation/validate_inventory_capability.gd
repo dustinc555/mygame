@@ -1,106 +1,77 @@
 extends SceneTree
 
-const WORLD_ACTOR_SCRIPT = preload("res://src/actors/bridge/world_actor.gd")
-const INVENTORY_STOCK_SCRIPT = preload("res://resources/items/inventory_stock.gd")
-const BANDAGE = preload("res://resources/items/bandage.tres")
-const CINDER_FLASK = preload("res://resources/items/cinder_flask.tres")
+## Focused sanity check for InventoryCapability (post-migration design).
+## Run: godot --headless --path . --script res://tools/validation/validate_inventory_capability.gd
+##
+## Capability owns the InventoryData; the actor exposes it as a computed `inventory`
+## property. Changes go out as the capability's `inventory_changed` signal. GECS sync
+## is typed. No actor reflection.
 
-var _failures: Array[String] = []
-var _inventory_changed_count := 0
+const BREAD = preload("res://features/inventory/resources/items/bread.tres")
 
 
 func _initialize() -> void:
-	_run()
+	_run_validation.call_deferred()
 
 
-func _run() -> void:
-	_validate_inventory_capability_registration()
-	_validate_starting_inventory_seed()
-	_validate_work_inventory_override()
-	_validate_inventory_change_signal()
-	if _failures.is_empty():
-		print("INVENTORY_CAPABILITY_OK")
-		quit(0)
-		return
-	for failure in _failures:
-		push_error(failure)
-	print("INVENTORY_CAPABILITY_FAILED count=%d" % _failures.size())
-	quit(1)
+func _run_validation() -> void:
+	var failures: Array[String] = []
 
-
-func _validate_inventory_capability_registration() -> void:
 	var actor := _make_actor()
-	var capability = actor.get_actor_capability(&"inventory")
+	var capability := actor.get_inventory()
+	_expect(failures, "inventory capability present", capability != null)
 	if capability == null:
-		_fail("Expected WorldActor to register InventoryCapability")
-	elif not capability.has_method("initialize_from_actor"):
-		_fail("Expected InventoryCapability to expose initialize_from_actor")
-	actor.free()
-
-
-func _validate_starting_inventory_seed() -> void:
-	var actor := _make_actor(false)
-	actor.inventory_columns = 4
-	actor.inventory_rows = 4
-	actor.starting_items = [_stock(BANDAGE, 1), _stock(CINDER_FLASK, 1)]
-	actor.call("_setup_inventory_capability")
-	if actor.inventory == null:
-		_fail("Expected inventory setup to create actor inventory")
-		actor.free()
+		_finish(failures)
 		return
-	if actor.inventory.count_item(BANDAGE) != 1:
-		_fail("Expected starting bandage to be seeded")
-	if actor.inventory.count_item(CINDER_FLASK) != 1:
-		_fail("Expected starting cinder flask to be seeded")
+
+	# Capability built the InventoryData from authored config; actor proxies to it.
+	_expect(failures, "capability owns InventoryData", capability.inventory != null)
+	_expect(failures, "actor.inventory proxies to capability", actor.inventory == capability.inventory)
+
+	# inventory_changed fires when contents change.
+	var changed := {"hit": false}
+	capability.inventory_changed.connect(func(): changed.hit = true)
+	actor.inventory.add_item_count(BREAD, 2)
+	_expect(failures, "item added", actor.inventory.count_item(BREAD) == 2)
+	_expect(failures, "inventory_changed emitted on add", changed.hit)
+
+	# Work-inventory override swaps the display target.
+	_expect(failures, "not displaying work inventory initially", not capability.is_displaying_work_inventory())
+	var work := InventoryData.new(4, 4, 20.0, true)
+	capability.set_work_inventory(work)
+	_expect(failures, "displaying work inventory after set", capability.is_displaying_work_inventory())
+	_expect(failures, "display returns work inventory", actor.get_inventory_for_display() == work)
+	capability.set_work_inventory(null)
+	_expect(failures, "display returns own inventory after clear", actor.get_inventory_for_display() == capability.inventory)
+
 	actor.free()
+	_finish(failures)
 
 
-func _validate_work_inventory_override() -> void:
-	var actor := _make_actor()
-	var work_inventory := InventoryData.new(2, 2, 0.0, false)
-	actor.call("_set_work_inventory_override", work_inventory)
-	if actor.get_inventory_for_display() != work_inventory:
-		_fail("Expected work inventory to drive display inventory")
-	if not actor.is_displaying_work_inventory():
-		_fail("Expected actor to report work inventory display state")
-	if actor.can_transfer_display_inventory_to(null):
-		_fail("Expected work inventory transfer-out to be locked")
-	actor.call("_set_work_inventory_override", null)
-	if actor.get_inventory_for_display() != actor.inventory:
-		_fail("Expected display inventory to return to actor inventory")
-	if actor.is_displaying_work_inventory():
-		_fail("Expected work inventory display state to clear")
-	actor.free()
-
-
-func _validate_inventory_change_signal() -> void:
-	var actor := _make_actor()
-	_inventory_changed_count = 0
-	actor.inventory_changed.connect(_on_inventory_changed)
-	actor.inventory.add_item_count(BANDAGE, 1)
-	if _inventory_changed_count != 1:
-		_fail("Expected inventory changed signal through capability, got %d" % _inventory_changed_count)
-	actor.free()
-
-
-func _make_actor(setup_inventory := true) -> WorldActor:
-	var actor := WORLD_ACTOR_SCRIPT.new() as WorldActor
-	actor.call("_setup_actor_capabilities")
-	if setup_inventory:
-		actor.call("_setup_inventory_capability")
+func _make_actor() -> WorldActor:
+	var actor := WorldActor.new()
+	root.add_child(actor)
+	actor.inventory_columns = 8
+	actor.inventory_rows = 5
+	actor.max_carry_weight = 40.0
+	actor._create_actor_capabilities()
+	for capability in actor._capabilities.values():
+		(capability as ActorCapability).setup(actor)
+	for capability in actor._capabilities.values():
+		(capability as ActorCapability).ready()
 	return actor
 
 
-func _stock(definition: ItemDefinition, quantity: int) -> InventoryStock:
-	var stock := INVENTORY_STOCK_SCRIPT.new() as InventoryStock
-	stock.item_definition = definition
-	stock.quantity = quantity
-	return stock
+func _finish(failures: Array[String]) -> void:
+	if failures.is_empty():
+		print("PASS: InventoryCapability sane (9 checks)")
+		quit(0)
+	else:
+		for f in failures:
+			printerr("FAIL: ", f)
+		quit(1)
 
 
-func _on_inventory_changed() -> void:
-	_inventory_changed_count += 1
-
-
-func _fail(message: String) -> void:
-	_failures.append(message)
+func _expect(failures: Array[String], label: String, condition: bool) -> void:
+	if not condition:
+		failures.append(label)

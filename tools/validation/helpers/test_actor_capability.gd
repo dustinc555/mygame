@@ -1,4 +1,4 @@
-extends "res://src/actors/bridge/capabilities/actor_capability.gd"
+extends "res://features/actors/bridge/capabilities/actor_capability.gd"
 
 var setup_calls := 0
 var ready_calls := 0

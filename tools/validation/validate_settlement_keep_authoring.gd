@@ -1,12 +1,12 @@
 extends SceneTree
 
-const SETTLEMENT_KEEP_SCENE := preload("res://src/settlements/bridge/settlement_keep.tscn")
-const KEEP_BUILDING_SCENE := preload("res://src/world/projection/buildings/settlement_keep_building.tscn")
-const MAYOR_CHAIR_SCENE := preload("res://src/world/projection/props/keep/mayor_chair.tscn")
-const RAIDER_CHAIR_SCENE := preload("res://src/world/projection/props/keep/raider_chair.tscn")
-const RULER_CONVERSATION := preload("res://resources/conversations/town_ruler.tres")
-const FARMER_APPEARANCE_PROFILE := preload("res://resources/world_sim/population_appearance_profiles/farmer_peasant.tres")
-const FARMER_NAME_PROFILE := preload("res://resources/world_sim/population_name_profiles/farmer_names.tres")
+const SETTLEMENT_KEEP_SCENE := preload("res://features/settlements/bridge/settlement_keep.tscn")
+const KEEP_BUILDING_SCENE := preload("res://features/world/projection/buildings/settlement_keep_building.tscn")
+const MAYOR_CHAIR_SCENE := preload("res://features/world/projection/props/keep/mayor_chair.tscn")
+const RAIDER_CHAIR_SCENE := preload("res://features/world/projection/props/keep/raider_chair.tscn")
+const RULER_CONVERSATION := preload("res://features/conversation/resources/town_ruler.tres")
+const FARMER_APPEARANCE_PROFILE := preload("res://features/world_sim/resources/population_appearance_profiles/farmer_peasant.tres")
+const FARMER_NAME_PROFILE := preload("res://features/world_sim/resources/population_name_profiles/farmer_names.tres")
 
 var _failures: Array[String] = []
 
@@ -147,20 +147,20 @@ func _validate_wrappers() -> void:
 
 
 func _validate_base_layout_is_serialized() -> void:
-	_assert_file_contains("res://src/settlements/bridge/settlement_keep.tscn", "metadata/keep_generated", "Base keep scene should serialize editable generated layout metadata like the bar")
-	_assert_file_contains("res://src/settlements/bridge/settlement_keep.tscn", "parent=\"GuardPosts\"", "Base keep scene should serialize editable guard post markers")
-	_assert_file_contains("res://src/settlements/bridge/settlement_keep.tscn", "bar_guard_post.gd", "Base keep guard posts should use bar-style marker script")
-	_assert_file_contains("res://src/settlements/bridge/settlement_keep.tscn", "metadata/keep_last_default_transform = Transform3D(0.9998561, 0, -0.016963685", "Ruler chair metadata should preserve the authored rotation")
-	_assert_file_does_not_contain("res://src/settlements/bridge/settlement_keep.tscn", "AudiencePoint", "Base keep scene should not serialize audience points")
-	_assert_file_does_not_contain("res://src/settlements/bridge/settlement_keep.tscn", "activity_id = \"settlement_keep.audience", "Base keep scene should not serialize audience activities")
-	_assert_file_does_not_contain("res://src/settlements/bridge/settlement_keep.tscn", "[node name=\"ActivityPoints\"", "Base keep scene should not include unused ActivityPoints root")
-	_assert_file_does_not_contain("res://src/settlements/bridge/settlement_keep.tscn", "[node name=\"ServicePoints\"", "Base keep scene should not include unused ServicePoints root")
-	_assert_file_does_not_contain("res://src/settlements/bridge/settlement_keep.tscn", "[node name=\"Storage\"", "Base keep scene should not include unused Storage root")
-	_assert_file_does_not_contain("res://src/settlements/bridge/settlement_keep.tscn", "[node name=\"JobProviders\"", "Base keep scene should not include unused JobProviders root")
-	_assert_file_does_not_contain("res://src/settlements/bridge/settlement_keep.tscn", "[node name=\"Ruler\" type=\"CharacterBody3D\" parent=\"Staff\"]", "Base keep scene should not serialize the generated ruler actor")
-	_assert_file_does_not_contain("res://src/settlements/bridge/settlement_keep.tscn", "[node name=\"Guard\" type=\"CharacterBody3D\" parent=\"Staff\"]", "Base keep scene should not serialize generated guard actors")
-	_assert_file_does_not_contain("res://src/settlements/bridge/settlement_keep.tscn", "parent=\"Staff/Ruler\"", "Base keep scene should not serialize generated staff actor children")
-	_assert_file_does_not_contain("res://src/settlements/bridge/settlement_keep.tscn", "parent=\"Staff/Guard\"", "Base keep scene should not serialize generated guard actor children")
+	_assert_file_contains("res://features/settlements/bridge/settlement_keep.tscn", "metadata/keep_generated", "Base keep scene should serialize editable generated layout metadata like the bar")
+	_assert_file_contains("res://features/settlements/bridge/settlement_keep.tscn", "parent=\"GuardPosts\"", "Base keep scene should serialize editable guard post markers")
+	_assert_file_contains("res://features/settlements/bridge/settlement_keep.tscn", "bar_guard_post.gd", "Base keep guard posts should use bar-style marker script")
+	_assert_file_contains("res://features/settlements/bridge/settlement_keep.tscn", "metadata/keep_last_default_transform = Transform3D(0.9998561, 0, -0.016963685", "Ruler chair metadata should preserve the authored rotation")
+	_assert_file_does_not_contain("res://features/settlements/bridge/settlement_keep.tscn", "AudiencePoint", "Base keep scene should not serialize audience points")
+	_assert_file_does_not_contain("res://features/settlements/bridge/settlement_keep.tscn", "activity_id = \"settlement_keep.audience", "Base keep scene should not serialize audience activities")
+	_assert_file_does_not_contain("res://features/settlements/bridge/settlement_keep.tscn", "[node name=\"ActivityPoints\"", "Base keep scene should not include unused ActivityPoints root")
+	_assert_file_does_not_contain("res://features/settlements/bridge/settlement_keep.tscn", "[node name=\"ServicePoints\"", "Base keep scene should not include unused ServicePoints root")
+	_assert_file_does_not_contain("res://features/settlements/bridge/settlement_keep.tscn", "[node name=\"Storage\"", "Base keep scene should not include unused Storage root")
+	_assert_file_does_not_contain("res://features/settlements/bridge/settlement_keep.tscn", "[node name=\"JobProviders\"", "Base keep scene should not include unused JobProviders root")
+	_assert_file_does_not_contain("res://features/settlements/bridge/settlement_keep.tscn", "[node name=\"Ruler\" type=\"CharacterBody3D\" parent=\"Staff\"]", "Base keep scene should not serialize the generated ruler actor")
+	_assert_file_does_not_contain("res://features/settlements/bridge/settlement_keep.tscn", "[node name=\"Guard\" type=\"CharacterBody3D\" parent=\"Staff\"]", "Base keep scene should not serialize generated guard actors")
+	_assert_file_does_not_contain("res://features/settlements/bridge/settlement_keep.tscn", "parent=\"Staff/Ruler\"", "Base keep scene should not serialize generated staff actor children")
+	_assert_file_does_not_contain("res://features/settlements/bridge/settlement_keep.tscn", "parent=\"Staff/Guard\"", "Base keep scene should not serialize generated guard actor children")
 	_assert_file_does_not_contain("res://scenes/test_levels/two_towns_road_test.tscn", "Keeps/MayorHouse/GuardPosts", "Farmer keep should rely on generated guard posts instead of serialized children")
 	_assert_file_does_not_contain("res://scenes/test_levels/two_towns_road_test.tscn", "Keeps/BossHut", "Raider Camp should no longer ship with a keep")
 

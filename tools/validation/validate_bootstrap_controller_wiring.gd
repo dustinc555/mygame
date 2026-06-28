@@ -1,40 +1,47 @@
 extends SceneTree
 
-const DEMO_WORLD_SCENE_PATH := "res://scenes/worlds/demo_world/demo_world.tscn"
-const AI_UTILITY_ADAPTER_PATH := "res://src/ai/bridge/ai_utility_adapter.gd"
-const COMBAT_COORDINATOR_PATH := "res://src/combat/bridge/combat_coordinator.gd"
-const SKIN_TEXTURE_BUILDER_PATH := "res://src/actors/projection/appearance/skin_texture_builder.gd"
+# Validates the GameBootstrap composition-root cut: the four layer roots exist,
+# every controller lives under its correct layer root (no migration junk-drawer),
+# the BootstrapContext registry resolves services by id, and
+# WorldSimulationController's injected dependencies are wired.
 
-const REQUIRED_CONTROLLERS := [
-	"GecsWorldController",
-	"WorldTimeController",
-	"ActorQueryController",
-	"AiSchedulerController",
-	"BleedSplotchController",
-	"DayNightLightingController",
-	"PerceptionController",
-	"FactionController",
-	"PopulationController",
-	"PopulationRealizationController",
-	"SettlementController",
-	"TerritoryController",
-	"RoadController",
-	"WorldEventChoiceController",
-	"WorldSimSquadController",
-	"FactionWorldSimController",
-	"EncounterController",
-	"WorldSimulationController",
-	"LedgerSimulationController",
-	"LawOrderController",
-	"PartyInventoryController",
-	"HumanoidDetailsController",
-	"CharacterAppearanceController",
-	"ConversationController",
-	"OwnershipController",
-	"JobSystemController",
-	"BuildingVisibilityController",
-	"WorldStatusController",
-	"WorldInteractionController",
+const DEMO_WORLD_SCENE_PATH := "res://scenes/worlds/demo_world/demo_world.tscn"
+const AI_UTILITY_ADAPTER_PATH := "res://features/ai/bridge/ai_utility_adapter.gd"
+const COMBAT_COORDINATOR_PATH := "res://features/combat/bridge/combat_coordinator.gd"
+const SKIN_TEXTURE_BUILDER_PATH := "res://features/actors/projection/appearance/skin_texture_builder.gd"
+
+# Every controller, keyed by the layer root it must live under. The feature
+# modules declare these placements; there is no longer any not-yet-migrated set.
+const LAYERED_CONTROLLERS := {
+	"CoreServices": ["GecsWorldController", "WorldTimeController", "ActorQueryController"],
+	"ProjectionRoot": [
+		"BuildingVisibilityController", "BleedSplotchController", "DayNightLightingController",
+		"CharacterAppearanceController",
+	],
+	"WorldSimRoot": [
+		"WorldSimulationController", "FactionController", "PopulationController", "TerritoryController",
+		"RoadController", "WorldEventChoiceController", "WorldSimSquadController", "FactionWorldSimController",
+		"EncounterController", "LedgerSimulationController", "LawOrderController", "OwnershipController",
+		"JobSystemController",
+	],
+	"BridgeRoot": [
+		"WorldInteractionController", "WorldStatusController", "PopulationRealizationController",
+		"PerceptionController", "AiSchedulerController", "SettlementController", "PartyInventoryController",
+		"ConversationController", "HumanoidDetailsController",
+	],
+}
+
+# Service ids that must resolve through the BootstrapContext registry. Proves the
+# DI mechanism works end-to-end for moved core/world/world_sim controllers.
+const REQUIRED_SERVICE_IDS := [
+	&"gecs_world",
+	&"world_time",
+	&"actor_query",
+	&"world_simulation",
+	&"world_status",
+	&"world_interaction",
+	&"building_visibility",
+	&"day_night_lighting",
 ]
 
 const WORLD_SIM_DEPENDENCIES := {
@@ -74,7 +81,9 @@ func _run() -> void:
 	demo_world_scene = null
 	root.add_child(_scene)
 	await _wait_frames(180)
-	_validate_bootstrap_controllers()
+	_validate_layer_roots()
+	_validate_controller_placement()
+	_validate_context_registry()
 	_validate_single_gecs_controller()
 	_validate_world_simulation_dependencies()
 	_validate_world_sim_plugins()
@@ -93,14 +102,45 @@ func _print_failures_and_quit() -> void:
 	quit(1)
 
 
-func _validate_bootstrap_controllers() -> void:
-	var bootstrap := _scene.get_node_or_null("GameBootstrap")
+func _bootstrap() -> Node:
+	return _scene.get_node_or_null("GameBootstrap") if _scene != null else null
+
+
+func _validate_layer_roots() -> void:
+	var bootstrap := _bootstrap()
 	if bootstrap == null:
 		_fail("Demo world should have GameBootstrap")
 		return
-	for controller_name in REQUIRED_CONTROLLERS:
-		if bootstrap.get_node_or_null(controller_name) == null:
-			_fail("GameBootstrap missing controller %s" % controller_name)
+	for root_name in LAYERED_CONTROLLERS.keys():
+		if bootstrap.get_node_or_null(root_name) == null:
+			_fail("GameBootstrap missing layer root %s" % root_name)
+
+
+func _validate_controller_placement() -> void:
+	var bootstrap := _bootstrap()
+	if bootstrap == null:
+		return
+	# Every controller must live under its declared layer root.
+	for root_name in LAYERED_CONTROLLERS.keys():
+		var root_node := bootstrap.get_node_or_null(root_name)
+		if root_node == null:
+			continue
+		for controller_name in LAYERED_CONTROLLERS[root_name]:
+			if root_node.get_node_or_null(controller_name) == null:
+				_fail("%s should contain %s" % [root_name, controller_name])
+
+
+func _validate_context_registry() -> void:
+	var bootstrap := _bootstrap()
+	if bootstrap == null:
+		return
+	var context = bootstrap.get("_context")
+	if context == null:
+		_fail("GameBootstrap should expose a BootstrapContext after wiring")
+		return
+	for service_id in REQUIRED_SERVICE_IDS:
+		if context.get_optional(service_id) == null:
+			_fail("BootstrapContext registry missing service '%s'" % service_id)
 
 
 func _validate_single_gecs_controller() -> void:
@@ -110,10 +150,11 @@ func _validate_single_gecs_controller() -> void:
 
 
 func _validate_world_simulation_dependencies() -> void:
-	var bootstrap := _scene.get_node_or_null("GameBootstrap")
+	var bootstrap := _bootstrap()
 	if bootstrap == null:
 		return
-	var world_sim := bootstrap.get_node_or_null("WorldSimulationController")
+	# Controllers now live across layer roots, so resolve by recursive search.
+	var world_sim := bootstrap.find_child("WorldSimulationController", true, false)
 	if world_sim == null:
 		_fail("WorldSimulationController missing")
 		return
@@ -121,7 +162,7 @@ func _validate_world_simulation_dependencies() -> void:
 		_fail("WorldSimulationController should initialize after bootstrap wiring")
 	for property_name in WORLD_SIM_DEPENDENCIES.keys():
 		var expected_name := str(WORLD_SIM_DEPENDENCIES[property_name])
-		var expected_node := bootstrap.get_node_or_null(expected_name)
+		var expected_node := bootstrap.find_child(expected_name, true, false)
 		var actual_node = world_sim.get(str(property_name))
 		if actual_node == null:
 			_fail("WorldSimulationController dependency %s is null" % property_name)
@@ -130,10 +171,10 @@ func _validate_world_simulation_dependencies() -> void:
 
 
 func _validate_world_sim_plugins() -> void:
-	var bootstrap := _scene.get_node_or_null("GameBootstrap")
+	var bootstrap := _bootstrap()
 	if bootstrap == null:
 		return
-	var ticker := bootstrap.get_node_or_null("WorldSimSquadController")
+	var ticker := bootstrap.find_child("WorldSimSquadController", true, false)
 	if ticker == null:
 		_fail("WorldSimSquadController missing")
 		return

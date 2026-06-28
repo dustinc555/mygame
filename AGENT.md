@@ -1,6 +1,6 @@
 # AGENT.md
 
-This is the single project guidance file for coding agents. Human-facing architecture lives in `architecture/README.md`; human editor workflows live in `operator/`.
+This is the single project guidance file for coding agents. Human-facing architecture lives in `architecture/README.md`.
 
 ## Core Architecture
 - GECS is the canonical game-state layer. Durable actor records, job metadata, scheduler state, world simulation state, save/load truth, and long-lived gameplay state belong in GECS-backed controllers/components.
@@ -10,10 +10,16 @@ This is the single project guidance file for coding agents. Human-facing archite
 - AI chooses intent. GECS-backed systems/controllers validate and apply consequences.
 - LimboAI blackboards are runtime scratch unless a value is explicitly mirrored to GECS. Do not treat blackboard values as save/load truth.
 
+## Project Layout (where does a file go?)
+- Game code is **feature-first**: `features/<feature>/` owns a single domain. Inside it, split by execution layer: `sim/` (durable simulation/state), `bridge/` (maps sim <-> projection), `projection/` (camera-facing scene work). A feature's data lives in `features/<feature>/resources/` (its `.tres` plus the definition `.gd`), and its scenes sit next to the scripts that drive them.
+- Each feature declares its controllers in `features/<feature>/<feature>_module.gd` as `CORE/PROJECTION/SIM/BRIDGE` arrays of `{name, script, service}`. To add a controller: write it under the right layer folder, give it a `const SERVICE_ID`, and add one line to that module. Do not register it anywhere else.
+- `features/core/` holds the composition root only: `game_bootstrap.gd`, `bootstrap_context.gd`, `core_services_module.gd`, and engine-level services (time, GECS world, actor query).
+- Top-level roots: `scenes/` = composed levels (`worlds/`, `zones/`, `test_levels/`, `showcase/`); `assets/` = raw art + `vendor/<author>/`; `addons/` = third-party; `tools/` = validation/benchmark/editor scripts. New files use `snake_case`; node names use `PascalCase`.
+- Wiring rule: `GameBootstrap` is the only composition root. Controllers receive dependencies through the injected `BootstrapContext` (`_context.get_optional(id)` / `require(id)`). The static `BootstrapContext.service(id)` is for leaf scene nodes only (authored content the bootstrap does not construct) — **never** call it from a `*_controller.gd`. This is enforced by `tools/validation/validate_controller_no_service_locator.gd`.
+
 ## Setup And Docs
 - LimboAI is fetched locally, not versioned. If `addons/limboai/` is missing, run `./setup_limboai.sh` before Godot validation.
 - Keep `SETUP.md` for setup instructions and `ATTRIBUTION.md` for licenses.
-- Keep `operator/` as concise human editor instructions. Update it when reusable editor workflows change.
 - Do not edit `addons/gecs/`; it is a git submodule. If GECS behavior seems necessary, stop and ask before touching the submodule.
 - Leave vendor docs under `addons/gecs/docs/` alone unless explicitly asked to edit vendor content.
 - Do not use the phrase "you're right" in user-facing replies. Acknowledge issues directly.

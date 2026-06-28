@@ -38,7 +38,7 @@ func _load_scene() -> void:
 	root.add_child(_scene)
 	await _wait_physics(80)
 	_party_manager = _scene.get_node("PartyManager") as PartyManager
-	_interaction_controller = _scene.get_node("GameBootstrap/WorldInteractionController") as WorldInteractionController
+	_interaction_controller = _scene.find_child("WorldInteractionController", true, false) as WorldInteractionController
 	_camera = _scene.get_node("CameraRig/CameraPivot/Camera3D") as Camera3D
 	_mira = _scene.get_node("PartyMembers/Mira") as HumanoidCharacter
 	_tomas = _scene.get_node("PartyMembers/Tomas") as HumanoidCharacter

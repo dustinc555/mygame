@@ -1,7 +1,7 @@
 extends SceneTree
 
-const FACTION_HUMANOID_SCRIPT := preload("res://src/actors/projection/humanoid/faction_humanoid.gd")
-const RUSTDEAD_HUMANOID_SCRIPT := preload("res://src/actors/projection/rustdead/rustdead_humanoid_character.gd")
+const FACTION_HUMANOID_SCRIPT := preload("res://features/actors/projection/humanoid/faction_humanoid.gd")
+const RUSTDEAD_HUMANOID_SCRIPT := preload("res://features/actors/projection/rustdead/rustdead_humanoid_character.gd")
 
 const VISUAL_BODY_TYPE_MALE := 2
 const RAGDOLL_WAIT_FRAMES := 540

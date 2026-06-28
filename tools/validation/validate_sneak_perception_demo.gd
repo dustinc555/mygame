@@ -1,7 +1,7 @@
 extends SceneTree
 
 const SNEAK_DEMO_SCENE := preload("res://scenes/test_levels/sneak_perception_demo.tscn")
-const FACTION_HUMANOID_SCRIPT := preload("res://src/actors/projection/humanoid/faction_humanoid.gd")
+const FACTION_HUMANOID_SCRIPT := preload("res://features/actors/projection/humanoid/faction_humanoid.gd")
 const CROWD_OBSERVER_COUNT := 36
 
 var _failures: Array[String] = []
@@ -55,10 +55,10 @@ func _load_scene() -> void:
 	_noisy_player = _scene.get_node_or_null("PartyMembers/Noisy") as HumanoidCharacter
 	_invisible_player = _scene.get_node_or_null("PartyMembers/Invisible") as HumanoidCharacter
 	_observer = _scene.get_node_or_null("PartyMembers/Watcher") as HumanoidCharacter
-	_perception_controller = _scene.get_node_or_null("GameBootstrap/PerceptionController")
-	_ownership_controller = _scene.get_node_or_null("GameBootstrap/OwnershipController") as OwnershipController
-	_interaction_controller = _scene.get_node_or_null("GameBootstrap/WorldInteractionController") as WorldInteractionController
-	_world_time = _scene.get_node_or_null("GameBootstrap/WorldTimeController") as WorldTimeController
+	_perception_controller = _scene.find_child("PerceptionController", true, false)
+	_ownership_controller = _scene.find_child("OwnershipController", true, false) as OwnershipController
+	_interaction_controller = _scene.find_child("WorldInteractionController", true, false) as WorldInteractionController
+	_world_time = _scene.find_child("WorldTimeController", true, false) as WorldTimeController
 	_camera = _scene.get_node_or_null("CameraRig/CameraPivot/Camera3D") as Camera3D
 	_owned_sword = _scene.get_node_or_null("OwnedSword") as WorldItem
 	_owned_vase = _scene.get_node_or_null("OwnedVase") as WorldItem

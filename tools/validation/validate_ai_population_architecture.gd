@@ -1,16 +1,16 @@
 extends SceneTree
 
-const AI_BRAIN_SCRIPT := preload("res://src/ai/bridge/ai_brain.gd")
-const AI_JOB_SCRIPT := preload("res://src/ai/bridge/ai_job.gd")
-const AI_ASSIGNED_WORK_STEP_SCRIPT := preload("res://src/ai/bridge/steps/ai_assigned_work_step.gd")
-const AI_START_ACTIVITY_STEP_SCRIPT := preload("res://src/ai/bridge/steps/ai_start_activity_step.gd")
-const AI_WAIT_STEP_SCRIPT := preload("res://src/ai/bridge/steps/ai_wait_step.gd")
-const AI_RELEASE_ACTIVITY_STEP_SCRIPT := preload("res://src/ai/bridge/steps/ai_release_activity_step.gd")
-const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://src/core/gecs_world_controller.gd")
-const POPULATION_CONTROLLER_SCRIPT := preload("res://src/world_sim/sim/population/population_controller.gd")
-const ACTOR_QUERY_CONTROLLER_SCRIPT := preload("res://src/core/actor_query_controller.gd")
-const AI_SCHEDULER_CONTROLLER_SCRIPT := preload("res://src/ai/bridge/ai_scheduler_controller.gd")
-const POPULATION_REALIZATION_CONTROLLER_SCRIPT := preload("res://src/world_sim/bridge/population_realization_controller.gd")
+const AI_BRAIN_SCRIPT := preload("res://features/ai/bridge/ai_brain.gd")
+const AI_JOB_SCRIPT := preload("res://features/ai/bridge/ai_job.gd")
+const AI_ASSIGNED_WORK_STEP_SCRIPT := preload("res://features/ai/bridge/steps/ai_assigned_work_step.gd")
+const AI_START_ACTIVITY_STEP_SCRIPT := preload("res://features/ai/bridge/steps/ai_start_activity_step.gd")
+const AI_WAIT_STEP_SCRIPT := preload("res://features/ai/bridge/steps/ai_wait_step.gd")
+const AI_RELEASE_ACTIVITY_STEP_SCRIPT := preload("res://features/ai/bridge/steps/ai_release_activity_step.gd")
+const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://features/core/gecs_world_controller.gd")
+const POPULATION_CONTROLLER_SCRIPT := preload("res://features/world_sim/sim/population/population_controller.gd")
+const ACTOR_QUERY_CONTROLLER_SCRIPT := preload("res://features/core/actor_query_controller.gd")
+const AI_SCHEDULER_CONTROLLER_SCRIPT := preload("res://features/ai/bridge/ai_scheduler_controller.gd")
+const POPULATION_REALIZATION_CONTROLLER_SCRIPT := preload("res://features/world_sim/bridge/population_realization_controller.gd")
 
 var _failures: Array[String] = []
 
@@ -109,10 +109,11 @@ func _run() -> void:
 func _validate_population_records_and_ledger() -> void:
 	var root_node := Node3D.new()
 	root.add_child(root_node)
-	_add_gecs_bridge(root_node)
+	var context := BootstrapContext.new(root_node)
+	_add_gecs_bridge(root_node, context)
 	var population = POPULATION_CONTROLLER_SCRIPT.new()
 	root_node.add_child(population)
-	population.initialize(root_node)
+	population.initialize(context)
 	var actor := FakeHumanoid.new()
 	actor.name = "AuthoredWorker"
 	root_node.add_child(actor)
@@ -168,10 +169,12 @@ func _validate_population_records_and_ledger() -> void:
 func _validate_actor_query_indexes() -> void:
 	var root_node := Node.new()
 	root.add_child(root_node)
-	_add_gecs_bridge(root_node)
+	var context := BootstrapContext.new(root_node)
+	_add_gecs_bridge(root_node, context)
 	var query = ACTOR_QUERY_CONTROLLER_SCRIPT.new()
 	query.add_to_group("actor_query_controller")
 	root_node.add_child(query)
+	query.initialize(context)
 	var actor := FakeHumanoid.new()
 	actor.stable_id = "actor.indexed"
 	actor.faction_name = "IndexedFaction"
@@ -189,6 +192,7 @@ func _validate_actor_query_indexes() -> void:
 		_fail("ActorQueryController should index actors by faction")
 	var population = POPULATION_CONTROLLER_SCRIPT.new()
 	root_node.add_child(population)
+	population.initialize(context)
 	var unstamped_actor := FakeHumanoid.new()
 	unstamped_actor.name = "BootOrderedActor"
 	unstamped_actor.faction_name = "BootFaction"
@@ -213,10 +217,11 @@ func _validate_actor_query_indexes() -> void:
 func _validate_dense_population_indexes_and_batches() -> void:
 	var root_node := Node3D.new()
 	root.add_child(root_node)
-	_add_gecs_bridge(root_node)
+	var context := BootstrapContext.new(root_node)
+	_add_gecs_bridge(root_node, context)
 	var population = POPULATION_CONTROLLER_SCRIPT.new()
 	root_node.add_child(population)
-	population.initialize(root_node)
+	population.initialize(context)
 	var dense_records: Array = population.ensure_generated_population("dense_town", "worker", 125, {"role_id": "worker", "faction_id": "DenseFaction"})
 	if dense_records.size() != 125:
 		_fail("Dense population validation should create at least 100 persistent records")
@@ -232,6 +237,7 @@ func _validate_dense_population_indexes_and_batches() -> void:
 			_fail("Dense ledger batch should summarize worker count and activity")
 	var query = ACTOR_QUERY_CONTROLLER_SCRIPT.new()
 	root_node.add_child(query)
+	query.initialize(context)
 	var live_actors: Array[FakeHumanoid] = []
 	for index in range(125):
 		var actor := FakeHumanoid.new()
@@ -257,10 +263,11 @@ func _validate_dense_population_indexes_and_batches() -> void:
 func _validate_ai_scheduler() -> void:
 	var root_node := Node.new()
 	root.add_child(root_node)
-	_add_gecs_bridge(root_node)
+	var context := BootstrapContext.new(root_node)
+	_add_gecs_bridge(root_node, context)
 	var scheduler = AI_SCHEDULER_CONTROLLER_SCRIPT.new()
 	root_node.add_child(scheduler)
-	scheduler.initialize(root_node)
+	scheduler.initialize(context)
 	var actor := FakeHumanoid.new()
 	actor.stable_id = "actor.scheduled"
 	root_node.add_child(actor)
@@ -388,7 +395,8 @@ func _validate_malformed_ai_step_failure() -> void:
 func _validate_realization_policy() -> void:
 	var root_node := Node.new()
 	root.add_child(root_node)
-	_add_gecs_bridge(root_node)
+	var context := BootstrapContext.new(root_node)
+	_add_gecs_bridge(root_node, context)
 	var party_manager := FakePartyManager.new()
 	party_manager.name = "PartyManager"
 	root_node.add_child(party_manager)
@@ -398,7 +406,7 @@ func _validate_realization_policy() -> void:
 	party_manager.party_members = [party_actor]
 	var realization = POPULATION_REALIZATION_CONTROLLER_SCRIPT.new()
 	root_node.add_child(realization)
-	realization.initialize(root_node)
+	realization.initialize(context)
 	realization.default_realization_policy = "near_player"
 	realization.near_player_radius = 10.0
 	if not bool(realization.should_realize_actor(null, {"last_world_position": Vector3(5.0, 0.0, 0.0)})):
@@ -415,9 +423,10 @@ func _fail(message: String) -> void:
 	_failures.append(message)
 
 
-func _add_gecs_bridge(parent: Node) -> Node:
+func _add_gecs_bridge(parent: Node, context: BootstrapContext) -> Node:
 	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
 	bridge.name = "GecsWorldController"
 	parent.add_child(bridge)
-	bridge.call("initialize", parent)
+	context.register(bridge.SERVICE_ID, bridge)
+	bridge.call("initialize", context)
 	return bridge

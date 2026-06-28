@@ -33,9 +33,9 @@ size = Vector3(6, 0.04, 6)
 script = ExtResource("1_calibrator")
 show_carrier_preview = true
 current_pose_text = "ShoulderOrigin is the shoulder origin. Edit ShoulderOrigin/CarriedPose locally, then use Save > Save Now.
-profile = res://resources/humanoid_carry_pose_profiles/default.tres
-carried_local_position = Vector3(-0.594, 0.801, 0.495)
-rotation_degrees = Vector3(-15.12, 174.52, -174.99)
+profile = res://features/actors/resources/humanoid_carry_pose_profiles/default.tres
+carried_local_position = Vector3(0.030, 0.515, 0.783)
+rotation_degrees = Vector3(-32.50, -180.00, 179.53)
 carried_pose_time_ratio = 0.00"
 
 [node name="Carrier" type="Node3D" parent="." unique_id=1710732690]
@@ -51,7 +51,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.23303267, 2.0302663, 0.0524
 mesh = SubResource("SphereMesh_shoulder")
 
 [node name="CarriedPose" type="Node3D" parent="ShoulderOrigin" unique_id=957991663]
-transform = Transform3D(0.9938028, -0.06206977, 0.092213765, -0.084261455, -0.96171993, 0.260759, 0.072498545, -0.26691315, -0.9609898, -0.5938164, 0.80071425, 0.49537686)
+transform = Transform3D(0.9999658, 0.008272039, 7.373326e-08, 0.0069766804, -0.84338164, 0.5372702, 0.0044443808, -0.537252, -0.8434102, 0.030464917, 0.51496315, 0.7825834)
 
 [node name="Floor" type="MeshInstance3D" parent="." unique_id=1277356060]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.02, 0)
@@ -71,8 +71,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.15, 0)
 billboard = 1
 no_depth_test = true
 text = "ShoulderOrigin is the shoulder origin. Edit ShoulderOrigin/CarriedPose locally, then use Save > Save Now.
-profile = res://resources/humanoid_carry_pose_profiles/default.tres
-carried_local_position = Vector3(-0.594, 0.801, 0.495)
-rotation_degrees = Vector3(-15.12, 174.52, -174.99)
+profile = res://features/actors/resources/humanoid_carry_pose_profiles/default.tres
+carried_local_position = Vector3(0.030, 0.515, 0.783)
+rotation_degrees = Vector3(-32.50, -180.00, 179.53)
 carried_pose_time_ratio = 0.00"
 font_size = 26

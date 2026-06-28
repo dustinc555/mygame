@@ -1,15 +1,15 @@
 extends SceneTree
 
 const TWO_TOWNS_SCENE_PATH := "res://scenes/test_levels/two_towns_road_test.tscn"
-const SETTLEMENT_BAR_SCENE_PATH := "res://src/settlements/bridge/settlement_bar.tscn"
-const STOOL_SCENE_PATH := "res://src/world/projection/props/stool_chair.tscn"
-const BREAD_ITEM_PATH := "res://resources/items/bread.tres"
-const FOOD_ITEM_PATH := "res://resources/items/food.tres"
-const FACTION_HUMANOID_SCRIPT_PATH := "res://src/actors/projection/humanoid/faction_humanoid.gd"
-const FARMER_NAME_PROFILE_PATH := "res://resources/world_sim/population_name_profiles/farmer_names.tres"
-const BARBER_CONVERSATION_PATH := "res://resources/conversations/barber_services.tres"
-const CHARACTER_JOBS_WINDOW_SCRIPT_PATH := "res://src/ui/projection/character_jobs_window.gd"
-const AI_UTILITY_ADAPTER_SCRIPT_PATH := "res://src/ai/bridge/ai_utility_adapter.gd"
+const SETTLEMENT_BAR_SCENE_PATH := "res://features/settlements/bridge/settlement_bar.tscn"
+const STOOL_SCENE_PATH := "res://features/world/projection/props/stool_chair.tscn"
+const BREAD_ITEM_PATH := "res://features/inventory/resources/items/bread.tres"
+const FOOD_ITEM_PATH := "res://features/inventory/resources/items/food.tres"
+const FACTION_HUMANOID_SCRIPT_PATH := "res://features/actors/projection/humanoid/faction_humanoid.gd"
+const FARMER_NAME_PROFILE_PATH := "res://features/world_sim/resources/population_name_profiles/farmer_names.tres"
+const BARBER_CONVERSATION_PATH := "res://features/conversation/resources/barber_services.tres"
+const CHARACTER_JOBS_WINDOW_SCRIPT_PATH := "res://features/ui/projection/character_jobs_window.gd"
+const AI_UTILITY_ADAPTER_SCRIPT_PATH := "res://features/ai/bridge/ai_utility_adapter.gd"
 
 var TWO_TOWNS_SCENE: PackedScene
 var SETTLEMENT_BAR_SCENE: PackedScene

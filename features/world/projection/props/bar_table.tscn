@@ -1,0 +1,86 @@
+[gd_scene load_steps=4 format=3 uid="uid://ce4x44b3l8733"]
+
+[ext_resource type="PackedScene" uid="uid://ba70m8t4shgec" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Table_Large.gltf" id="1_table"]
+[ext_resource type="Script" path="res://features/world/projection/props/tabletop_item_spawner.gd" id="2_spawner"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_table"]
+size = Vector3(2.857254, 0.9, 1.3)
+
+[node name="BarTable" type="StaticBody3D" unique_id=166008169]
+script = ExtResource("2_spawner")
+metadata/table_style = "comfortable_tavern"
+metadata/prop_slots_ready_for_review = true
+
+[node name="Model" parent="." unique_id=1822715910 instance=ExtResource("1_table")]
+
+[node name="BodyCollision" type="CollisionShape3D" parent="." unique_id=1997830140]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.00415802, 0.45, 0)
+shape = SubResource("BoxShape3D_table")
+
+[node name="PropSlots" type="Node3D" parent="." unique_id=374176261]
+metadata/description = "Runtime tabletop spawner treats these as optional weighted comfortable tavern slots."
+
+[node name="PlateCenter" type="Marker3D" parent="PropSlots" unique_id=1389026766]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.02, 0.92, 0.02)
+metadata/prop_category = "dish"
+metadata/comfortable_weight = 0.75
+
+[node name="PlateLeft" type="Marker3D" parent="PropSlots" unique_id=1674572408]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.58, 0.92, 0.16)
+metadata/prop_category = "dish"
+metadata/comfortable_weight = 0.48
+
+[node name="PlateRight" type="Marker3D" parent="PropSlots" unique_id=2110366336]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.58, 0.92, -0.12)
+metadata/prop_category = "dish"
+metadata/comfortable_weight = 0.48
+
+[node name="MugNearLeft" type="Marker3D" parent="PropSlots" unique_id=807397568]
+transform = Transform3D(0.9393727, 0, 0.3428978, 0, 1, 0, -0.3428978, 0, 0.9393727, -0.36, 0.92, 0.43)
+metadata/prop_category = "drink"
+metadata/comfortable_weight = 0.7
+
+[node name="MugNearRight" type="Marker3D" parent="PropSlots" unique_id=1860771169]
+transform = Transform3D(0.87758255, 0, -0.47942555, 0, 1, 0, 0.47942555, 0, 0.87758255, 0.42, 0.92, 0.38)
+metadata/prop_category = "drink"
+metadata/comfortable_weight = 0.62
+
+[node name="BottleBackLeft" type="Marker3D" parent="PropSlots" unique_id=125549410]
+transform = Transform3D(0.8253356, 0, 0.5646425, 0, 1, 0, -0.5646425, 0, 0.8253356, -0.72, 0.92, -0.38)
+metadata/prop_category = "bottle"
+metadata/comfortable_weight = 0.26
+
+[node name="BottleBackRight" type="Marker3D" parent="PropSlots" unique_id=32110562]
+transform = Transform3D(0.6967067, 0, -0.7173561, 0, 1, 0, 0.7173561, 0, 0.6967067, 0.76, 0.92, -0.34)
+metadata/prop_category = "bottle"
+metadata/comfortable_weight = 0.22
+
+[node name="UtensilLeft" type="Marker3D" parent="PropSlots" unique_id=507216855]
+transform = Transform3D(0.4535961, 0, 0.89120734, 0, 1, 0, -0.89120734, 0, 0.4535961, -0.18, 0.93, 0.31)
+metadata/prop_category = "utensil"
+metadata/comfortable_weight = 0.68
+
+[node name="UtensilRight" type="Marker3D" parent="PropSlots" unique_id=123173193]
+transform = Transform3D(0.3623577, 0, -0.9320391, 0, 1, 0, 0.9320391, 0, 0.3623577, 0.25, 0.93, -0.27)
+metadata/prop_category = "utensil"
+metadata/comfortable_weight = 0.58
+
+[node name="BreadOrFood" type="Marker3D" parent="PropSlots" unique_id=706577953]
+transform = Transform3D(0.9553365, 0, 0.29552022, 0, 1, 0, -0.29552022, 0, 0.9553365, -0.08, 0.92, -0.33)
+metadata/prop_category = "food"
+metadata/comfortable_weight = 0.38
+
+[node name="CandleBackCenter" type="Marker3D" parent="PropSlots" unique_id=1570246083]
+transform = Transform3D(0.9950042, 0, -0.099833414, 0, 1, 0, 0.099833414, 0, 0.9950042, 0.05, 0.92, -0.48)
+metadata/prop_category = "candle"
+metadata/comfortable_weight = 0.24
+
+[node name="ChaliceFrontCenter" type="Marker3D" parent="PropSlots" unique_id=624585638]
+transform = Transform3D(0.921061, 0, 0.38941833, 0, 1, 0, -0.38941833, 0, 0.921061, 0.04, 0.92, 0.46)
+metadata/prop_category = "drink_fancy"
+metadata/comfortable_weight = 0.1
+
+[node name="SmallClutterCorner" type="Marker3D" parent="PropSlots" unique_id=650958440]
+transform = Transform3D(0.7648422, 0, 0.64421767, 0, 1, 0, -0.64421767, 0, 0.7648422, -0.88, 0.92, 0.43)
+metadata/prop_category = "small_clutter"
+metadata/comfortable_weight = 0.18

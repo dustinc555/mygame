@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="SquadTemplate" format=3 uid="uid://dtbjlvj3dehp8"]
+
+[ext_resource type="Script" uid="uid://c3hflj5he5juw" path="res://features/world_sim/resources/squad_template.gd" id="1_template"]
+[ext_resource type="Resource" uid="uid://c0lapmuy3jsy0" path="res://features/world_sim/resources/factions/raiders.tres" id="2_faction"]
+[ext_resource type="Resource" uid="uid://bkw28d3jsab1n" path="res://features/inventory/resources/items/iron_sword.tres" id="3_sword"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/squad_operations/raider_slave_raid_parley.tres" id="4_operation"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/raider_scrapper.tres" id="5_appearance"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/population_name_profiles/raider_names.tres" id="6_names"]
+
+[resource]
+script = ExtResource("1_template")
+template_id = "raider_food_party"
+display_name = "Raider Food Party"
+faction_definition = ExtResource("2_faction")
+member_name_prefix = "Food Raider"
+base_strength = 28.0
+food_capacity = 42.0
+operation_profile = ExtResource("4_operation")
+population_appearance_profile = ExtResource("5_appearance")
+population_name_profile = ExtResource("6_names")
+base_color = Color(0.62, 0.22, 0.18, 1)
+base_attack_damage = 17.0
+combat_stance = 0
+hostile_faction_ids = PackedStringArray("Farmers")
+starting_equipment = Array[Resource]([ExtResource("3_sword")])

@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://36gfo8o8l6r"]
 
 [ext_resource type="Script" uid="uid://dit13sqm5hf82" path="res://tools/humanoid_grip_socket_calibrator.gd" id="1_calibrator"]
-[ext_resource type="Script" path="res://src/actors/projection/humanoid/humanoid_grip_socket_marker.gd" id="3_socket_marker"]
+[ext_resource type="Script" path="res://features/actors/projection/humanoid/humanoid_grip_socket_marker.gd" id="3_socket_marker"]
 
 [node name="HumanoidGripSocketCalibrator" type="Node3D" unique_id=2115297245]
 script = ExtResource("1_calibrator")

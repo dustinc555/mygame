@@ -1,12 +1,12 @@
 extends Node3D
 
-const PARTY_MEMBER_SCRIPT = preload("res://src/core/party/party_member.gd")
-const SCRAP_PILE_SCENE = preload("res://src/world/bridge/resource_nodes/scrap_pile_node.tscn")
-const TWISTED_SCRAP_HEAP_SCENE = preload("res://src/world/bridge/resource_nodes/scrap_pile_variant_2_node.tscn")
-const HALF_BURIED_ROBOT_WRECK_SCENE = preload("res://src/world/bridge/resource_nodes/half_buried_robot_wreck_node.tscn")
+const PARTY_MEMBER_SCRIPT = preload("res://features/core/party/party_member.gd")
+const SCRAP_PILE_SCENE = preload("res://features/world/bridge/resource_nodes/scrap_pile_node.tscn")
+const TWISTED_SCRAP_HEAP_SCENE = preload("res://features/world/bridge/resource_nodes/scrap_pile_variant_2_node.tscn")
+const HALF_BURIED_ROBOT_WRECK_SCENE = preload("res://features/world/bridge/resource_nodes/half_buried_robot_wreck_node.tscn")
 const SNEAK_DEMO_BUTTON_SCRIPT = preload("res://scenes/test_levels/sneak_demo_button.gd")
-const SELECTION_RING_VISUAL = preload("res://src/actors/projection/selection_ring_visual.gd")
-const ROBOT_PARTS = preload("res://resources/items/robot_parts.tres")
+const SELECTION_RING_VISUAL = preload("res://features/actors/projection/selection_ring_visual.gd")
+const ROBOT_PARTS = preload("res://features/inventory/resources/items/robot_parts.tres")
 
 @export var show_charge_labels := true
 @export var show_noise_radius := false
@@ -60,7 +60,7 @@ func perform_sneak_demo_action(key: String, _actors: Array = []) -> String:
 func _finish_demo_setup() -> void:
 	await get_tree().process_frame
 	_select_member(novice)
-	var world_time := get_node_or_null("GameBootstrap/WorldTimeController") as WorldTimeController
+	var world_time := BootstrapContext.service(WorldTimeController.SERVICE_ID) as WorldTimeController
 	if world_time != null:
 		world_time.total_world_minutes = 16.0 * 60.0 + 30.0
 

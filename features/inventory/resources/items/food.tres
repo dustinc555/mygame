@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://cighg4y750kcr"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_hpx3t"]
+
+[resource]
+script = ExtResource("1_item")
+display_name = "FOOD"
+grid_size = Vector2i(2, 1)
+unit_weight = 0.5
+nutrition_value = 25.0
+alternate_equip_slots = null
+tool_tags = null

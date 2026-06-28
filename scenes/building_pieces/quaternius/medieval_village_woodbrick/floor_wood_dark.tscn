@@ -1,8 +1,8 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://src/world/projection/buildings/modular_building_piece.gd" id="1_1xggt"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_1xggt"]
 [ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Floor_WoodDark.gltf" id="2_4kgiu"]
-[ext_resource type="Script" path="res://src/world/projection/buildings/modular_building_snap_marker.gd" id="3_bpw66"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_bpw66"]
 
 [node name="FloorWoodDark" type="Node3D" unique_id=1886419301]
 script = ExtResource("1_1xggt")

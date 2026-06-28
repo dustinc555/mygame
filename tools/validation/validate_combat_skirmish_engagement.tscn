@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://combatprobe1"]
+
+[ext_resource type="Script" path="res://tools/validation/validate_combat_skirmish_engagement.gd" id="1"]
+
+[node name="ValidateCombatSkirmishEngagement" type="Node"]
+script = ExtResource("1")

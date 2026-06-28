@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://bswlf53ythhn2"]
 
-[ext_resource type="Script" path="res://src/world_sim/bridge/zone_loader.gd" id="1_zone_loader"]
-[ext_resource type="Script" path="res://src/world_sim/bridge/character_record_party_spawner.gd" id="3_record_party_spawner"]
-[ext_resource type="Script" path="res://src/core/party/party_manager.gd" id="4_party_manager"]
-[ext_resource type="Script" path="res://src/core/game_bootstrap.gd" id="5_bootstrap"]
+[ext_resource type="Script" path="res://features/world_sim/bridge/zone_loader.gd" id="1_zone_loader"]
+[ext_resource type="Script" path="res://features/world_sim/bridge/character_record_party_spawner.gd" id="3_record_party_spawner"]
+[ext_resource type="Script" path="res://features/core/party/party_manager.gd" id="4_party_manager"]
+[ext_resource type="Script" path="res://features/core/game_bootstrap.gd" id="5_bootstrap"]
 [ext_resource type="PackedScene" path="res://scenes/zones/rustwash_basin/terrain/rustwash_basin_terrain.tscn" id="5_wjgve"]
 
 [node name="RustwashBasin" type="Node3D" unique_id=1310818615]
@@ -28,7 +28,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.4446583, -151.05225)
 [node name="CharacterRecordPartySpawner" type="Node3D" parent="PartyMembers" unique_id=438871241]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.7933922, 0)
 script = ExtResource("3_record_party_spawner")
-character_record_paths = PackedStringArray("res://resources/characters/mira.tres", "res://resources/characters/tomas.tres", "res://resources/characters/sable.tres", "res://resources/characters/bram.tres", "res://resources/characters/nika.tres")
+character_record_paths = PackedStringArray("res://features/actors/resources/characters/mira.tres", "res://features/actors/resources/characters/tomas.tres", "res://features/actors/resources/characters/sable.tres", "res://features/actors/resources/characters/bram.tres", "res://features/actors/resources/characters/nika.tres")
 hostile_faction_ids = PackedStringArray()
 member_colors = PackedColorArray(0.72, 0.48, 0.78, 1, 0.35, 0.56, 0.42, 1, 0.58, 0.72, 0.38, 1, 0.33, 0.55, 0.78, 1, 0.67, 0.45, 0.75, 1)
 

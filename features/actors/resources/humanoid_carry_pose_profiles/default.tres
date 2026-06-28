@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="HumanoidCarryPoseProfile" format=3 uid="uid://cj13rxqow4ekr"]
+
+[ext_resource type="Script" uid="uid://cavsfvhg2bstg" path="res://features/actors/resources/humanoid_carry_pose_profiles/humanoid_carry_pose_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+carried_local_position = Vector3(0.030464917, 0.51496315, 0.7825834)
+rotation_degrees = Vector3(-32.498, -180, 179.52603)
+carrier_anchor_bones = PackedStringArray("upperarm_r", "clavicle_r", "spine_03")
+carried_anchor_bones = PackedStringArray("pelvis")

@@ -3,8 +3,8 @@ extends EditorInspectorPlugin
 
 # Dustin's road authoring inspector controls for RoadNetwork waypoint graphs.
 
-const ROAD_NETWORK_SCRIPT = preload("res://src/world_sim/sim/roads/road_network.gd")
-const ROAD_WAYPOINT_SCRIPT = preload("res://src/world_sim/sim/roads/road_waypoint.gd")
+const ROAD_NETWORK_SCRIPT = preload("res://features/world_sim/sim/roads/road_network.gd")
+const ROAD_WAYPOINT_SCRIPT = preload("res://features/world_sim/sim/roads/road_waypoint.gd")
 const NEW_WAYPOINT_OFFSET = Vector3(4.0, 0.0, 0.0)
 
 var _plugin: EditorPlugin

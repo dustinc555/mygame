@@ -1,0 +1,61 @@
+[gd_resource type="Resource" script_class="ConversationDefinition" format=3 uid="uid://b7283wqeydmk8"]
+
+[ext_resource type="Script" uid="uid://oln7awi2fw1o" path="res://features/conversation/resources/conversation_definition.gd" id="1_definition"]
+[ext_resource type="Script" uid="uid://c21vtwxjyyyyi" path="res://features/conversation/resources/conversation_node.gd" id="2_node"]
+[ext_resource type="Script" uid="uid://d2gwynnqbm0iq" path="res://features/conversation/resources/conversation_response.gd" id="3_response"]
+
+[sub_resource type="Resource" id="ConversationResponse_laws"]
+script = ExtResource("3_response")
+text = "What laws govern this place?"
+next_node_id = "laws"
+
+[sub_resource type="Resource" id="ConversationResponse_diplomacy"]
+script = ExtResource("3_response")
+text = "Let's talk diplomacy."
+next_node_id = "diplomacy"
+
+[sub_resource type="Resource" id="ConversationResponse_leave"]
+script = ExtResource("3_response")
+text = "That's all."
+next_node_id = "goodbye"
+
+[sub_resource type="Resource" id="ConversationNode_intro"]
+script = ExtResource("2_node")
+node_id = "intro"
+text = "State your business."
+responses = Array[Resource]([SubResource("ConversationResponse_laws"), SubResource("ConversationResponse_diplomacy"), SubResource("ConversationResponse_leave")])
+
+[sub_resource type="Resource" id="ConversationResponse_back_from_laws"]
+script = ExtResource("3_response")
+text = "Something else."
+next_node_id = "intro"
+
+[sub_resource type="Resource" id="ConversationNode_laws"]
+script = ExtResource("2_node")
+node_id = "laws"
+text = "Taxes, crimes, and permissions are settled here. The details depend on who holds this town."
+responses = Array[Resource]([SubResource("ConversationResponse_back_from_laws"), SubResource("ConversationResponse_leave")])
+
+[sub_resource type="Resource" id="ConversationResponse_back_from_diplomacy"]
+script = ExtResource("3_response")
+text = "Something else."
+next_node_id = "intro"
+
+[sub_resource type="Resource" id="ConversationNode_diplomacy"]
+script = ExtResource("2_node")
+node_id = "diplomacy"
+text = "Tribute, territory, and war plans will be handled here once those systems are wired in."
+responses = Array[Resource]([SubResource("ConversationResponse_back_from_diplomacy"), SubResource("ConversationResponse_leave")])
+
+[sub_resource type="Resource" id="ConversationNode_goodbye"]
+script = ExtResource("2_node")
+node_id = "goodbye"
+text = "Then leave me to my work."
+ends_conversation = true
+
+[resource]
+script = ExtResource("1_definition")
+conversation_id = "conv.town.ruler"
+display_name = "Town Ruler"
+start_node_id = "intro"
+nodes = Array[Resource]([SubResource("ConversationNode_intro"), SubResource("ConversationNode_laws"), SubResource("ConversationNode_diplomacy"), SubResource("ConversationNode_goodbye")])

@@ -75,7 +75,7 @@ func _validate_bootstrap_state(settlement_id: String, expected_max: int, expecte
 
 func _validate_root_town_guards_use_population() -> void:
 	var farmer_town := _scene.get_node_or_null("Settlements/FarmerCrossing")
-	var world_time := _scene.get_node_or_null("GameBootstrap/WorldTimeController")
+	var world_time := _scene.find_child("WorldTimeController", true, false)
 	var settlement_controller := _get_controller("settlement_controller")
 	if farmer_town == null or world_time == null or settlement_controller == null:
 		_fail("Root town guard validation needs FarmerCrossing, WorldTimeController, and SettlementController")
@@ -133,7 +133,7 @@ func _validate_budgeted_controllers() -> void:
 
 func _validate_daily_growth_to_capacity() -> void:
 	var settlement_controller := _get_controller("settlement_controller")
-	var world_time := _scene.get_node_or_null("GameBootstrap/WorldTimeController")
+	var world_time := _scene.find_child("WorldTimeController", true, false)
 	if settlement_controller == null or world_time == null:
 		_fail("Daily growth validation needs SettlementController and WorldTimeController")
 		return

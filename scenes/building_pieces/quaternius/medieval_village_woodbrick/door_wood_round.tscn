@@ -1,8 +1,8 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://src/world/projection/buildings/modular_building_piece.gd" id="1_piece"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_piece"]
 [ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Door_1_Round.gltf" id="2_model"]
-[ext_resource type="Script" path="res://src/world/projection/buildings/modular_building_snap_marker.gd" id="3_snap"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_snap"]
 
 [node name="DoorWoodRound" type="Node3D"]
 script = ExtResource("1_piece")

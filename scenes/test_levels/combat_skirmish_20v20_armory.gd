@@ -1,45 +1,58 @@
 extends Node3D
 
-const PARTY_MEMBER_SCRIPT = preload("res://src/core/party/party_member.gd")
-const HUMANOID_SCRIPT = preload("res://src/actors/projection/humanoid/humanoid_character.gd")
-const SELECTION_RING_VISUAL = preload("res://src/actors/projection/selection_ring_visual.gd")
+const PARTY_MEMBER_SCRIPT = preload("res://features/core/party/party_member.gd")
+const HUMANOID_SCRIPT = preload("res://features/actors/projection/humanoid/humanoid_character.gd")
+const SELECTION_RING_VISUAL = preload("res://features/actors/projection/selection_ring_visual.gd")
+const PARTY_APPEARANCE_PROFILE = preload("res://features/world_sim/resources/population_appearance_profiles/farmer_peasant.tres")
+const RAIDER_APPEARANCE_PROFILE = preload("res://features/world_sim/resources/population_appearance_profiles/raider_scrapper.tres")
 
-const IRON_SWORD = preload("res://resources/items/iron_sword.tres")
-const IRON_AXE = preload("res://resources/items/iron_axe.tres")
-const IRON_DAGGER = preload("res://resources/items/iron_dagger.tres")
-const STEEL_SWORD = preload("res://resources/items/steel_sword.tres")
-const GOLDEN_SWORD = preload("res://resources/items/golden_sword.tres")
-const HATCHET = preload("res://resources/items/hatchet.tres")
-const STEEL_DAGGER = preload("res://resources/items/steel_dagger.tres")
-const WAR_HAMMER = preload("res://resources/items/war_hammer.tres")
-const ROUND_SHIELD = preload("res://resources/items/round_shield.tres")
-const HEATER_SHIELD = preload("res://resources/items/heater_shield.tres")
-const HEATER_SHIELD_2 = preload("res://resources/items/heater_shield_2.tres")
-const ROUND_SHIELD_2 = preload("res://resources/items/round_shield_2.tres")
-const GOLDEN_CELTIC_SHIELD = preload("res://resources/items/golden_celtic_shield.tres")
-const PEASANT_TUNIC = preload("res://resources/items/peasant_tunic.tres")
-const PEASANT_TROUSERS = preload("res://resources/items/peasant_trousers.tres")
-const PEASANT_SHOES = preload("res://resources/items/peasant_shoes.tres")
-const RANGER_JERKIN = preload("res://resources/items/ranger_jerkin.tres")
-const RANGER_LEGGINGS = preload("res://resources/items/ranger_leggings.tres")
-const RANGER_BOOTS = preload("res://resources/items/ranger_boots.tres")
-const RANGER_HOOD = preload("res://resources/items/ranger_hood.tres")
-const KNIGHT_GAMBESON = preload("res://resources/items/knight_gambeson.tres")
-const KNIGHT_CUIRASS = preload("res://resources/items/knight_cuirass.tres")
-const KNIGHT_GAUNTLETS = preload("res://resources/items/knight_gauntlets.tres")
-const KNIGHT_GREVES = preload("res://resources/items/knight_greaves.tres")
-const KNIGHT_SABATONS = preload("res://resources/items/knight_sabatons.tres")
-const KNIGHT_ARMET = preload("res://resources/items/knight_armet.tres")
-const KNIGHT_HORNED_HELM = preload("res://resources/items/knight_horned_helm.tres")
-const NOBLE_DOUBLET = preload("res://resources/items/noble_doublet.tres")
-const NOBLE_SLEEVES = preload("res://resources/items/noble_sleeves.tres")
-const NOBLE_TROUSERS = preload("res://resources/items/noble_trousers.tres")
-const NOBLE_SHOES = preload("res://resources/items/noble_shoes.tres")
-const NOBLE_CROWN = preload("res://resources/items/noble_crown.tres")
-const WIZARD_ROBES = preload("res://resources/items/wizard_robes.tres")
-const WIZARD_SLEEVES = preload("res://resources/items/wizard_sleeves.tres")
-const WIZARD_TROUSERS = preload("res://resources/items/wizard_trousers.tres")
-const WIZARD_SHOES = preload("res://resources/items/wizard_shoes.tres")
+# Authored party identities — these are canon characters with records on disk;
+# their looks are never randomized. Names without a record fall back to the
+# random appearance profile.
+const CHARACTER_RECORDS := {
+	"Mira": preload("res://features/actors/resources/characters/mira.tres"),
+	"Tomas": preload("res://features/actors/resources/characters/tomas.tres"),
+	"Sable": preload("res://features/actors/resources/characters/sable.tres"),
+	"Nika": preload("res://features/actors/resources/characters/nika.tres"),
+	"Bram": preload("res://features/actors/resources/characters/bram.tres"),
+}
+
+const IRON_SWORD = preload("res://features/inventory/resources/items/iron_sword.tres")
+const IRON_AXE = preload("res://features/inventory/resources/items/iron_axe.tres")
+const IRON_DAGGER = preload("res://features/inventory/resources/items/iron_dagger.tres")
+const STEEL_SWORD = preload("res://features/inventory/resources/items/steel_sword.tres")
+const GOLDEN_SWORD = preload("res://features/inventory/resources/items/golden_sword.tres")
+const HATCHET = preload("res://features/inventory/resources/items/hatchet.tres")
+const STEEL_DAGGER = preload("res://features/inventory/resources/items/steel_dagger.tres")
+const WAR_HAMMER = preload("res://features/inventory/resources/items/war_hammer.tres")
+const ROUND_SHIELD = preload("res://features/inventory/resources/items/round_shield.tres")
+const HEATER_SHIELD = preload("res://features/inventory/resources/items/heater_shield.tres")
+const HEATER_SHIELD_2 = preload("res://features/inventory/resources/items/heater_shield_2.tres")
+const ROUND_SHIELD_2 = preload("res://features/inventory/resources/items/round_shield_2.tres")
+const GOLDEN_CELTIC_SHIELD = preload("res://features/inventory/resources/items/golden_celtic_shield.tres")
+const PEASANT_TUNIC = preload("res://features/inventory/resources/items/peasant_tunic.tres")
+const PEASANT_TROUSERS = preload("res://features/inventory/resources/items/peasant_trousers.tres")
+const PEASANT_SHOES = preload("res://features/inventory/resources/items/peasant_shoes.tres")
+const RANGER_JERKIN = preload("res://features/inventory/resources/items/ranger_jerkin.tres")
+const RANGER_LEGGINGS = preload("res://features/inventory/resources/items/ranger_leggings.tres")
+const RANGER_BOOTS = preload("res://features/inventory/resources/items/ranger_boots.tres")
+const RANGER_HOOD = preload("res://features/inventory/resources/items/ranger_hood.tres")
+const KNIGHT_GAMBESON = preload("res://features/inventory/resources/items/knight_gambeson.tres")
+const KNIGHT_CUIRASS = preload("res://features/inventory/resources/items/knight_cuirass.tres")
+const KNIGHT_GAUNTLETS = preload("res://features/inventory/resources/items/knight_gauntlets.tres")
+const KNIGHT_GREVES = preload("res://features/inventory/resources/items/knight_greaves.tres")
+const KNIGHT_SABATONS = preload("res://features/inventory/resources/items/knight_sabatons.tres")
+const KNIGHT_ARMET = preload("res://features/inventory/resources/items/knight_armet.tres")
+const KNIGHT_HORNED_HELM = preload("res://features/inventory/resources/items/knight_horned_helm.tres")
+const NOBLE_DOUBLET = preload("res://features/inventory/resources/items/noble_doublet.tres")
+const NOBLE_SLEEVES = preload("res://features/inventory/resources/items/noble_sleeves.tres")
+const NOBLE_TROUSERS = preload("res://features/inventory/resources/items/noble_trousers.tres")
+const NOBLE_SHOES = preload("res://features/inventory/resources/items/noble_shoes.tres")
+const NOBLE_CROWN = preload("res://features/inventory/resources/items/noble_crown.tres")
+const WIZARD_ROBES = preload("res://features/inventory/resources/items/wizard_robes.tres")
+const WIZARD_SLEEVES = preload("res://features/inventory/resources/items/wizard_sleeves.tres")
+const WIZARD_TROUSERS = preload("res://features/inventory/resources/items/wizard_trousers.tres")
+const WIZARD_SHOES = preload("res://features/inventory/resources/items/wizard_shoes.tres")
 
 const PARTY_CONFIGS := [
 	{"name": "Mira", "color": Color(0.72, 0.48, 0.78, 1.0), "equipment": [STEEL_SWORD, ROUND_SHIELD, RANGER_JERKIN, RANGER_LEGGINGS, RANGER_BOOTS, RANGER_HOOD], "hp": 118.0, "damage": 20.0, "block": 0.1},
@@ -76,6 +89,7 @@ const RAIDER_LOADOUTS := [
 ]
 
 var _spawned := false
+var _appearance_rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
@@ -107,6 +121,9 @@ func _spawn_party_members() -> void:
 		actor.base_attack_damage = float(config.get("damage", 19.0))
 		actor.base_dodge_chance = float(config.get("dodge", 0.08))
 		actor.base_block_chance = float(config.get("block", 0.06))
+		if not _apply_authored_appearance(actor, str(config["name"])):
+			# No canon record: randomized look only; equipment stays authored above.
+			PARTY_APPEARANCE_PROFILE.apply_to_actor(actor, _appearance_rng, false)
 		_add_basic_actor_children(actor, Color(config["color"]), true)
 		party_root.add_child(actor)
 
@@ -128,6 +145,7 @@ func _spawn_raiders() -> void:
 		actor.base_attack_damage = 17.0 + float(index % 5) * 0.35
 		actor.base_dodge_chance = 0.08 if index % 3 == 0 else 0.06
 		actor.base_block_chance = 0.08 if index % 2 == 0 else 0.06
+		RAIDER_APPEARANCE_PROFILE.apply_to_actor(actor, _appearance_rng, false)
 		_add_basic_actor_children(actor, Color(0.64, 0.22, 0.16, 1.0).lerp(Color(0.95, 0.6, 0.32, 1.0), float(index % 5) * 0.14), false)
 		add_child(actor)
 
@@ -142,6 +160,20 @@ func _raider_position(index: int) -> Vector3:
 	var column := index / 10
 	var row := index % 10
 	return Vector3(4.0 - float(column) * 2.2, 0.6, -13.5 + float(row) * 3.0)
+
+
+## Applies the canon character's authored appearance from its disk record.
+## Returns false when no record exists so the caller can randomize instead.
+func _apply_authored_appearance(actor: HumanoidCharacter, character_name: String) -> bool:
+	var record_def: Resource = CHARACTER_RECORDS.get(character_name)
+	if record_def == null:
+		return false
+	var authored = PopulationController.appearance_from_record(record_def.get("appearance") as Dictionary)
+	if authored == null:
+		push_warning("Authored appearance for %s skipped: record appearance empty" % character_name)
+		return false
+	actor.appearance_data = authored
+	return true
 
 
 func _equipment_array(items: Array) -> Array[Resource]:

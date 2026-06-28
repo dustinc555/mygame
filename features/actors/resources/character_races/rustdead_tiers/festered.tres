@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="RustdeadTierDefinition" format=3 uid="uid://cgffftyds033h"]
+
+[ext_resource type="Script" uid="uid://cv37v5r5r7u7w" path="res://features/actors/resources/characters/rustdead_tier_definition.gd" id="1_tier"]
+
+[resource]
+script = ExtResource("1_tier")
+tier_id = "festered"
+display_name = "Festered Rustdead"
+stat_range = Vector2i(25, 35)
+max_hp_range = Vector2(100, 125)
+passive_bonus = 0.3
+skin_tone_indices = PackedInt32Array(2, 3)
+small_nest_weight = 40.0
+medium_nest_weight = 45.0
+large_nest_weight = 30.0

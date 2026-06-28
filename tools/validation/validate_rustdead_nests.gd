@@ -1,14 +1,14 @@
 extends SceneTree
 
 const DEMO_WORLD_SCENE_PATH := "res://scenes/worlds/demo_world/demo_world.tscn"
-const RUSTDEAD_NEST_TYPE_PATH := "res://resources/world_sim/nests/rustdead.tres"
-const ANCIENT_VENT_SCENE_PATH := "res://src/world_sim/sim/nests/rustdead/ancient_vent_01.tscn"
-const AI_JOB_SCRIPT_PATH := "res://src/ai/bridge/ai_job.gd"
-const AI_PATROL_STEP_SCRIPT_PATH := "res://src/ai/bridge/steps/ai_patrol_step.gd"
-const AI_NEST_ASSAULT_STEP_SCRIPT_PATH := "res://src/ai/bridge/steps/ai_nest_assault_step.gd"
-const AI_UTILITY_ADAPTER_PATH := "res://src/ai/bridge/ai_utility_adapter.gd"
-const COMBAT_COORDINATOR_PATH := "res://src/combat/bridge/combat_coordinator.gd"
-const SKIN_TEXTURE_BUILDER_PATH := "res://src/actors/projection/appearance/skin_texture_builder.gd"
+const RUSTDEAD_NEST_TYPE_PATH := "res://features/world_sim/resources/nests/rustdead.tres"
+const ANCIENT_VENT_SCENE_PATH := "res://features/world_sim/sim/nests/rustdead/ancient_vent_01.tscn"
+const AI_JOB_SCRIPT_PATH := "res://features/ai/bridge/ai_job.gd"
+const AI_PATROL_STEP_SCRIPT_PATH := "res://features/ai/bridge/steps/ai_patrol_step.gd"
+const AI_NEST_ASSAULT_STEP_SCRIPT_PATH := "res://features/ai/bridge/steps/ai_nest_assault_step.gd"
+const AI_UTILITY_ADAPTER_PATH := "res://features/ai/bridge/ai_utility_adapter.gd"
+const COMBAT_COORDINATOR_PATH := "res://features/combat/bridge/combat_coordinator.gd"
+const SKIN_TEXTURE_BUILDER_PATH := "res://features/actors/projection/appearance/skin_texture_builder.gd"
 
 const WEST_MARKER_ID := "demo_rustdead_west_vent"
 const PATROL_SOURCE_ID := "nest_patrol"
@@ -17,7 +17,7 @@ const NEST_VISUAL_NAME := "ActiveNestVisual"
 const NEST_INTERACTION_BODY_NAME := "NestInteractionBody"
 const NEST_SCRAP_ROOT_NAME := "NestScrapPiles"
 const VISUAL_BODY_TYPE_MALE := 2
-const RUSTDEAD_TIER_LIBRARY_PATH := "res://src/actors/projection/rustdead/rustdead_tier_library.gd"
+const RUSTDEAD_TIER_LIBRARY_PATH := "res://features/actors/projection/rustdead/rustdead_tier_library.gd"
 const MAX_VISUAL_FOOT_SINK := 0.035
 const WROUGHT_MIN_SKIN_METALLIC := 0.30
 const ANCIENT_MIN_SKIN_METALLIC := 0.58
