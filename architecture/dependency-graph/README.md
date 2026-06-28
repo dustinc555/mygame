@@ -36,12 +36,13 @@ ECharts is vendored in `vendor/` — no internet or `npm install` needed.
 
 ## What it shows
 
-Two views (toggle, top-left):
+Three views (toggle, top-left):
 
 - **Dependencies** — force-directed graph of every script. Color = architectural
-  layer. Node size = in-degree (how many things depend on it → hubs are big).
+  layer. Node size toggles between edge count and file size.
   All node names show by default; drag any chart space to pan, scroll-zoom,
   filter by name.
+- **Layered DAG** — dependency hierarchy view using the same node-size toggle.
 - **Layer coupling** — the macro view: the ~16 layers in a ring, edge thickness =
   number of cross-layer dependencies, arrows = direction. The "shape" of the
   architecture on one screen.
