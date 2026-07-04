@@ -389,6 +389,12 @@ func _update_locomotion_animation(delta: float) -> void:
 		_face_world_position((interaction.current_mining_node as Node3D).global_position)
 		if body.play_clip(HumanoidBodyProjection.MINING_ANIMATION_NAME):
 			return
+	# Scavenging works the same way: kneel and rummage at the pile while the
+	# roll timer runs; walking between piles stays locomotion.
+	if interaction != null and interaction.scavenging_active and interaction.current_scavenging_node is Node3D:
+		_face_world_position((interaction.current_scavenging_node as Node3D).global_position)
+		if body.play_clip(HumanoidBodyProjection.SCAVENGING_ANIMATION_NAME):
+			return
 	var horizontal_speed := Vector2(velocity.x, velocity.z).length()
 	# System combat movement drives velocity without a nav move target, so it counts
 	# as moving for locomotion the same way nav-agent movement does.
@@ -629,13 +635,13 @@ const WORLD_TEXT_NOTICE_SCENE = preload("res://features/world/projection/effects
 
 
 ## Floating combat/world feedback text above the actor ("Hit", "Dodge", ...).
-func _show_world_notice(text: String, color: Color = Color.WHITE, duration: float = 1.5) -> void:
+func _show_world_notice(message: String, color: Color = Color(1.0, 0.28, 0.28, 1.0), lifetime: float = 1.0, rise_height: float = 0.4) -> void:
 	var tree := get_tree()
-	if tree == null or tree.current_scene == null or text.is_empty():
+	if tree == null or tree.current_scene == null or message.is_empty():
 		return
 	var notice := WORLD_TEXT_NOTICE_SCENE.instantiate()
 	tree.current_scene.add_child(notice)
-	notice.setup(global_position + Vector3(0.0, overhead_text_height, 0.0), text, color, duration)
+	notice.setup(global_position + Vector3(0.0, overhead_text_height, 0.0), message, color, lifetime, rise_height)
 
 
 ## Override in subclasses to provide a custom BodyProjection type.

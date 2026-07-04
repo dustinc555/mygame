@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="CharacterRecordDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/character_record_definition.gd" id="1_record"]
+
+[resource]
+script = ExtResource("1_record")
+actor_id = "expert_scavenger"
+member_name = "Expert Scavenger"
+appearance = {
+"arm_length_slider": 0.0,
+"beard_color": Color(0.2, 0.12, 0.08, 1),
+"beard_style": "",
+"body_archetype": "res://features/actors/resources/character_body_archetypes/human_female.tres",
+"character_race": "res://features/actors/resources/character_races/human.tres",
+"eyebrow_color": Color(0.16, 0.1, 0.07, 1),
+"eyebrow_style": "res://features/actors/resources/character_appearance/eyebrows_female.tres",
+"hair_color": Color(0.12, 0.1, 0.09, 1),
+"hair_style": "res://features/actors/resources/character_appearance/hair_long.tres",
+"height_slider": 0.02,
+"neck_length_slider": 0.0,
+"shoulder_width_slider": -0.03,
+"skin_color": Color(0.7, 0.5, 0.38, 1),
+"skin_color_customized": true,
+"visual_body_type": 3.0
+}
+skill_levels = {
+"attribute.dexterity": 20.0,
+"attribute.perception": 24.0,
+"labor.scavenging": 38.0,
+"tech.robotics": 32.0
+}
+equipment_slots = {}
+personality = {
+"risk_tolerance": 0.62,
+"temperament": "methodical"
+}

@@ -40,6 +40,7 @@ const TIRED_IDLE_ANIMATION_NAME := "Idle_Tired"
 const FOLD_ARMS_IDLE_ANIMATION_NAME := "Idle_FoldArms"
 const WALK_ANIMATION_NAME := "Walk"
 const MINING_ANIMATION_NAME := "Mining"
+const SCAVENGING_ANIMATION_NAME := "Fixing_Kneeling"
 const CROUCH_ENTER_ANIMATION_NAME := "Crouch_Enter"
 const CROUCH_IDLE_ANIMATION_NAME := "Crouch_Idle"
 const CROUCH_WALK_ANIMATION_NAME := "Crouch_Fwd"
@@ -1090,7 +1091,7 @@ func setup_animation(model_root: Node3D) -> void:
 	animation_player.root_node = NodePath("..")
 	model_root.add_child(animation_player)
 	var animation_library := AnimationLibrary.new()
-	_copy_character_animations(animation_library)
+	_copy_character_animations(animation_library, _find_skeleton(model_root))
 	if animation_library.get_animation_list().is_empty():
 		animation_player.queue_free()
 		return
@@ -1100,7 +1101,7 @@ func setup_animation(model_root: Node3D) -> void:
 		_character_animation_player = animation_player
 
 
-func _copy_character_animations(animation_library: AnimationLibrary) -> void:
+func _copy_character_animations(animation_library: AnimationLibrary, target_skeleton: Skeleton3D) -> void:
 	var ual1_source: Node = UAL1_ANIMATION_SOURCE_SCENE.instantiate()
 	var ual1_player := _find_animation_player(ual1_source)
 	if ual1_player != null:
@@ -1122,6 +1123,12 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 		_copy_contextual_combat_reaction_animations(ual1_player, animation_library)
 		_copy_ragdoll_profile_animations(ual1_player, animation_library)
 		_copy_unarmed_combat_idle_animation(ual1_player, animation_library)
+		_copy_animation(ual1_player, animation_library, SCAVENGING_ANIMATION_NAME)
+	# Rig-proportion compensation per pack (each pack has its own source rig):
+	# scale the pelvis/root position tracks so feet land on the floor instead
+	# of the vendor mannequin's heights. See AnimationPositionScale.
+	var ual1_names := animation_library.get_animation_list()
+	AnimationPositionScale.scale_animation_names(animation_library, ual1_names, AnimationPositionScale.ratio_between(_find_skeleton(ual1_source), target_skeleton))
 	ual1_source.queue_free()
 
 	var ual2_source: Node = UAL2_ANIMATION_SOURCE_SCENE.instantiate()
@@ -1134,6 +1141,11 @@ func _copy_character_animations(animation_library: AnimationLibrary) -> void:
 		_copy_ragdoll_profile_animations(ual2_player, animation_library)
 		_copy_named_animations(ual2_player, animation_library, CARRY_POSE_ANIMATION_NAMES)
 		_copy_named_animations(ual2_player, animation_library, CELL_CUSTODY_ANIMATION_NAMES)
+	var ual2_names := []
+	for animation_name in animation_library.get_animation_list():
+		if not (animation_name in ual1_names):
+			ual2_names.append(animation_name)
+	AnimationPositionScale.scale_animation_names(animation_library, ual2_names, AnimationPositionScale.ratio_between(_find_skeleton(ual2_source), target_skeleton))
 	ual2_source.queue_free()
 
 
