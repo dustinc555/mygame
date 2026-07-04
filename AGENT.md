@@ -59,7 +59,10 @@ This is the single project guidance file for coding agents. Human-facing archite
 
 ## Navigation And Buildings
 - Prefer real walkable 3D geometry over `NavigationLink3D` for stairs, ramps, bridges, roofs, and normal building traversal.
-- Use hidden ramp collision plus visible step meshes for reliable `CharacterBody3D` stairs.
+- Use hidden ramp collision plus visible step meshes for reliable `CharacterBody3D` stairs. Instance the reusable `features/world/projection/buildings/interior_stairs.tscn` instead of re-authoring stair collision per building.
+- Multi-level buildings need real floor/roof openings above stair runs; a sealed slab over stairs presents as a stair traversal failure. Level visibility stays simple: show the active level, hide the camera-facing wall side, keep the roof visible only when the roof is the active level.
+- Hidden building walls stay physically solid; only click picking ignores hidden/non-active geometry (`WorldBuilding.should_project_click_shape()` decides whether a click on hidden geometry projects to the active level).
+- When triaging movement bugs, verify the plain ramp/stairs proof in `scenes/test_levels/movement_controls_test.tscn` before blaming a building asset.
 - Keep move targets on or very near the navmesh. Do not add Y offsets to movement targets unless a local interaction truly needs a non-floor target.
 - Do not turn navigation path point Y into upward actor velocity. Let `move_and_slide()`, floor snapping, and walkable collision handle vertical movement.
 - Be suspicious of path simplification in interiors, stairs, roofs, railings, and tight corners.

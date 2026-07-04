@@ -1,24 +1,22 @@
 extends Node3D
 
-const PARTY_MEMBER_SCRIPT = preload("res://features/core/party/party_member.gd")
 const SCRAP_PILE_SCENE = preload("res://features/world/bridge/resource_nodes/scrap_pile_node.tscn")
 const TWISTED_SCRAP_HEAP_SCENE = preload("res://features/world/bridge/resource_nodes/scrap_pile_variant_2_node.tscn")
 const HALF_BURIED_ROBOT_WRECK_SCENE = preload("res://features/world/bridge/resource_nodes/half_buried_robot_wreck_node.tscn")
 const SNEAK_DEMO_BUTTON_SCRIPT = preload("res://scenes/test_levels/sneak_demo_button.gd")
-const SELECTION_RING_VISUAL = preload("res://features/actors/projection/selection_ring_visual.gd")
 const ROBOT_PARTS = preload("res://features/inventory/resources/items/robot_parts.tres")
+
+const NOVICE_ACTOR_ID := "novice_scavenger"
+const EXPERT_ACTOR_ID := "expert_scavenger"
 
 @export var show_charge_labels := true
 @export var show_noise_radius := false
 
-var novice: HumanoidCharacter
-var expert: HumanoidCharacter
 var noise_radius_visuals: Array[MeshInstance3D] = []
 
 
 func _ready() -> void:
 	_ensure_level_geometry()
-	_ensure_characters()
 	_ensure_scrap_piles()
 	_ensure_demo_buttons()
 	_ensure_noise_radius_visuals()
@@ -46,10 +44,10 @@ func perform_sneak_demo_action(key: String, _actors: Array = []) -> String:
 			_update_noise_radius_visuals()
 			return "Scavenge noise radius: %s" % ("shown" if show_noise_radius else "hidden")
 		"select_novice":
-			_select_member(novice)
+			_select_member(_find_party_member(NOVICE_ACTOR_ID))
 			return "Selected novice scavenger"
 		"select_expert":
-			_select_member(expert)
+			_select_member(_find_party_member(EXPERT_ACTOR_ID))
 			return "Selected expert scavenger"
 		"fill_inventory":
 			var filled := _fill_selected_inventories()
@@ -59,7 +57,6 @@ func perform_sneak_demo_action(key: String, _actors: Array = []) -> String:
 
 func _finish_demo_setup() -> void:
 	await get_tree().process_frame
-	_select_member(novice)
 	var world_time := BootstrapContext.service(WorldTimeController.SERVICE_ID) as WorldTimeController
 	if world_time != null:
 		world_time.total_world_minutes = 16.0 * 60.0 + 30.0
@@ -140,55 +137,15 @@ func _ensure_lighting() -> void:
 	add_child(glow)
 
 
-func _ensure_characters() -> void:
-	if novice != null and expert != null:
-		return
+func _find_party_member(actor_id: String) -> WorldActor:
 	var party_root := get_node_or_null("PartyMembers")
 	if party_root == null:
-		party_root = Node3D.new()
-		party_root.name = "PartyMembers"
-		add_child(party_root)
-	novice = _make_humanoid("Novice Scavenger", Vector3(-6.2, 0.0, -6.2), Color(0.72, 0.58, 0.35, 1.0))
-	expert = _make_humanoid("Expert Scavenger", Vector3(-4.8, 0.0, -6.2), Color(0.34, 0.67, 0.84, 1.0))
-	party_root.add_child(novice)
-	party_root.add_child(expert)
-	novice.set_skill_level(SkillRules.LABOR_SCAVENGING, 1)
-	novice.set_skill_level(SkillRules.TECH_ROBOTICS, 1)
-	expert.set_skill_level(SkillRules.LABOR_SCAVENGING, 38)
-	expert.set_skill_level(SkillRules.TECH_ROBOTICS, 32)
-	expert.set_skill_level(SkillRules.ATTRIBUTE_PERCEPTION, 24)
-	expert.set_skill_level(SkillRules.ATTRIBUTE_DEXTERITY, 20)
-
-
-func _make_humanoid(node_name: String, position: Vector3, color: Color) -> HumanoidCharacter:
-	var character := CharacterBody3D.new()
-	character.name = node_name.replace(" ", "")
-	character.set_script(PARTY_MEMBER_SCRIPT)
-	character.position = position
-	character.set("base_color", color)
-	character.set("member_name", node_name)
-	character.set("faction_name", "Player")
-	var collision := CollisionShape3D.new()
-	collision.name = "CollisionShape3D"
-	var capsule := CapsuleShape3D.new()
-	capsule.radius = 0.45
-	capsule.height = 1.1
-	collision.shape = capsule
-	collision.position.y = 0.95
-	character.add_child(collision)
-	var body_mesh := MeshInstance3D.new()
-	body_mesh.name = "BodyMesh"
-	var capsule_mesh := CapsuleMesh.new()
-	capsule_mesh.radius = 0.45
-	body_mesh.mesh = capsule_mesh
-	body_mesh.position.y = 0.95
-	character.add_child(body_mesh)
-	var ring := MeshInstance3D.new()
-	ring.name = "SelectionRing"
-	ring.position.y = 0.03
-	SELECTION_RING_VISUAL.setup_ring(ring)
-	character.add_child(ring)
-	return character as HumanoidCharacter
+		return null
+	for child in party_root.get_children():
+		var actor := child as WorldActor
+		if actor != null and str(actor.stable_id).strip_edges() == actor_id:
+			return actor
+	return null
 
 
 func _ensure_scrap_piles() -> void:
@@ -337,7 +294,7 @@ func _get_scrap_piles() -> Array[ScavengingResourceNode]:
 	return piles
 
 
-func _select_member(member: HumanoidCharacter) -> void:
+func _select_member(member: WorldActor) -> void:
 	var party_manager := get_node_or_null("PartyManager") as PartyManager
 	if party_manager != null and member != null:
 		party_manager.select_only(member)
