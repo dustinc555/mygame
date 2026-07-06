@@ -7,11 +7,11 @@
 [ext_resource type="Resource" path="res://features/inventory/resources/items/silver.tres" id="5_silver"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_member"]
-radius = 0.45
+radius = 0.4
 height = 1.1
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_member"]
-radius = 0.45
+radius = 0.4
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
 top_radius = 0.72

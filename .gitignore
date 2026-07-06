@@ -12,7 +12,22 @@
 # Local planning docs. Not committed.
 /plans/
 
-# Claude Code local-only state. Shared .claude/ config (if any) can still be committed.
+# Claude Code local-only state.
 /CLAUDE.md
+/.claude/
 /.claude/settings.local.json
 /.claude/scheduled_tasks.lock
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+
+# Beads (bd) local agent-memory database. Not committed per operator decision.
+/.beads/
+
+# Baked navmesh caches; rebake via world_authoring "Bake World Nav".
+navcache/
+
+# Obsidian workspace state (personal editor config).
+/architecture/.obsidian/

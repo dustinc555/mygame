@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://bfi0yutk80t8b"]
 
-[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/window_frame_wide_flat.tscn" id="1_scene"]
+[ext_resource type="PackedScene" uid="uid://dsqn3r6pdpsap" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/window_frame_wide_flat.tscn" id="1_scene"]
 [ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_def"]
 [ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_snap"]
 [ext_resource type="PackedScene" uid="uid://cbow5bxh3c88t" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Window_Wide_Flat1.gltf" id="4_source"]

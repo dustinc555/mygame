@@ -1,5 +1,5 @@
 @tool
-@icon("res://addons/modular_building_authoring/icons/world_building.svg")
+@icon("res://addons/world_authoring/icons/world_building.svg")
 extends Node3D
 
 class_name WorldBuilding
@@ -7,6 +7,9 @@ class_name WorldBuilding
 const MODULAR_BUILDING_PIECE_SCRIPT := preload("res://features/world/projection/buildings/modular_building_piece.gd")
 
 @export var display_name := "Building"
+## Intentional raise above the terrain (foundation on uneven ground). Ground
+## snap at load re-solves the terrain Y, then adds this back on top.
+@export var foundation_height := 0.0
 @export_enum("home", "bar", "shop", "weapon_shop", "armor_shop", "travel_shop", "potion_shop", "jail", "storage", "guard", "farm", "mine", "generic") var building_type := "home"
 @export var owner_character_path: NodePath
 @export var owner_faction_name := ""
@@ -28,7 +31,12 @@ const MODULAR_BUILDING_PIECE_SCRIPT := preload("res://features/world/projection/
 @export var back_occluder_paths: Array[NodePath] = []
 @export var left_occluder_paths: Array[NodePath] = []
 @export var modular_pieces_root_path := NodePath("Pieces")
-@export_range(0.0, 180.0, 1.0) var modular_camera_hide_cone_degrees := 105.0
+## See-through corridor between camera and the followed actor: pieces inside
+## it turn SHADOWS_ONLY (camera loses them; light/physics/nav keep them).
+@export_range(0.5, 12.0, 0.1) var see_through_camera_radius_meters := 4.5
+@export_range(0.25, 8.0, 0.1) var see_through_actor_radius_meters := 2.2
+## The corridor stops this far short of the actor so their backdrop stays.
+@export_range(0.0, 4.0, 0.1) var see_through_focus_pull_back_meters := 1.5
 
 var _interior_actor_ids: Dictionary = {}
 var _roof_hidden := false
@@ -43,6 +51,8 @@ var _trespass_escalated: Dictionary = {}
 var _hidden_modular_piece_instance_ids: Dictionary = {}
 var _modular_piece_cache: Array = []
 var _modular_piece_cache_dirty := true
+var _modular_floor_footprints: Array = []
+var _modular_bounds_dirty := true
 var _watched_modular_pieces_root: Node
 var _world_time: WorldTimeController
 const SIDE_SWITCH_HYSTERESIS := 0.45
@@ -87,25 +97,67 @@ func is_actor_inside(actor: WorldActor) -> bool:
 		return false
 	if not levels.is_empty():
 		return get_level_index_for_actor(actor) >= 0
-	return _interior_actor_ids.has(actor.get_instance_id()) or _is_actor_inside_area(actor, _get_interior_area())
+	if _interior_actor_ids.has(actor.get_instance_id()) or _is_actor_inside_area(actor, _get_interior_area()):
+		return true
+	return _is_actor_inside_modular_bounds(actor)
 
 
-func set_visibility_for_camera(show_interior: bool, camera_world_position: Vector3, actor: WorldActor = null) -> void:
+## Modular buildings need no authored interior Area3D: you are inside when
+## you stand over an actual interior floor piece. Merged boxes are wrong —
+## an L-shaped house's front notch, the porch steps, and the strip along the
+## outside of a wall are all outdoors.
+func _is_actor_inside_modular_bounds(actor: WorldActor) -> bool:
+	var footprints := _get_modular_floor_footprints()
+	if footprints.is_empty():
+		return false
+	for probe_position in _actor_visibility_probe_positions(actor):
+		for footprint in footprints:
+			var local_probe: Vector3 = footprint["from_world"] * probe_position
+			var half: Vector2 = footprint["half_extents"]
+			if absf(local_probe.x) <= half.x and absf(local_probe.z) <= half.y \
+					and local_probe.y >= -0.6 and local_probe.y <= 2.6:
+				return true
+	return false
+
+
+func _get_modular_floor_footprints() -> Array:
+	if not _modular_bounds_dirty:
+		return _modular_floor_footprints
+	_modular_floor_footprints.clear()
+	for piece in get_modular_pieces():
+		if not (piece is Node3D) or str(piece.get("category")) != "floor":
+			continue
+		var size := _modular_piece_bounds_size(piece)
+		_modular_floor_footprints.append({
+			"from_world": (piece as Node3D).global_transform.affine_inverse(),
+			"half_extents": Vector2(size.x * 0.5, size.z * 0.5),
+		})
+	_modular_bounds_dirty = false
+	return _modular_floor_footprints
+
+
+func set_visibility_for_camera(show_interior: bool, camera_world_position: Vector3, actor: WorldActor = null, camera_focused := false) -> void:
+	# Modular see-through only opens for the camera-followed (double-clicked)
+	# actor, matching the demo-building focus pattern — selection alone never
+	# hides modular pieces.
+	var focus_position: Variant = null
+	if show_interior and camera_focused and actor != null and is_instance_valid(actor) and actor.is_inside_tree():
+		focus_position = actor.global_position
 	if not levels.is_empty():
 		_refresh_level_visibility(show_interior, camera_world_position, actor)
-		_refresh_modular_piece_visibility(show_interior, camera_world_position, _active_level_index)
+		_refresh_modular_piece_visibility(show_interior, camera_world_position, _active_level_index, focus_position)
 		return
 	var next_roof_hidden := show_interior
 	var next_hidden_side := ""
 	if show_interior:
 		next_hidden_side = _get_camera_facing_side(camera_world_position)
 	if _roof_hidden == next_roof_hidden and _hidden_side == next_hidden_side:
-		_refresh_modular_piece_visibility(show_interior, camera_world_position, -1)
+		_refresh_modular_piece_visibility(show_interior, camera_world_position, -1, focus_position)
 		return
 	_roof_hidden = next_roof_hidden
 	_hidden_side = next_hidden_side
 	_refresh_occluders()
-	_refresh_modular_piece_visibility(show_interior, camera_world_position, -1)
+	_refresh_modular_piece_visibility(show_interior, camera_world_position, -1, focus_position)
 
 
 func register_extra_level_content(level_index: int, content_path: NodePath) -> void:
@@ -620,6 +672,7 @@ func get_modular_pieces() -> Array:
 
 func invalidate_modular_piece_cache() -> void:
 	_modular_piece_cache_dirty = true
+	_modular_bounds_dirty = true
 
 
 func is_modular_piece_hidden(piece: Node) -> bool:
@@ -642,22 +695,43 @@ func should_skip_modular_collider(collider: Object) -> bool:
 	return piece != null and is_modular_piece_hidden(piece)
 
 
-func _refresh_modular_piece_visibility(show_interior: bool, camera_world_position: Vector3, active_level_index: int) -> void:
+func _refresh_modular_piece_visibility(show_interior: bool, camera_world_position: Vector3, active_level_index: int, focus_position: Variant = null) -> void:
 	_hidden_modular_piece_instance_ids.clear()
 	for piece in get_modular_pieces():
-		var hidden := _should_hide_modular_piece(piece, show_interior, camera_world_position, active_level_index)
+		var hidden := _should_hide_modular_piece(piece, show_interior, camera_world_position, active_level_index, focus_position)
 		_set_modular_piece_hidden(piece, hidden)
 
 
+## Hidden pieces stay in the world for everything except the camera: their
+## meshes flip to SHADOWS_ONLY (light still blocked), collision and nav are
+## untouched, and click picking skips them via the hidden set. Only state
+## transitions touch the meshes; steady state costs nothing.
 func _set_modular_piece_hidden(piece: Node, hidden: bool) -> void:
-	if piece is Node3D:
-		(piece as Node3D).visible = not hidden
+	var was_hidden := bool(piece.get_meta("world_building_hidden_by_camera", false))
+	if hidden != was_hidden:
+		if piece is Node3D:
+			(piece as Node3D).visible = true
+		_apply_piece_shadow_only(piece, hidden)
 	piece.set_meta("world_building_hidden_by_camera", hidden)
 	if hidden:
 		_hidden_modular_piece_instance_ids[piece.get_instance_id()] = true
 
 
-func _should_hide_modular_piece(piece: Node, show_interior: bool, camera_world_position: Vector3, active_level_index: int) -> bool:
+func _apply_piece_shadow_only(node: Node, hidden: bool) -> void:
+	if node is GeometryInstance3D:
+		var geometry := node as GeometryInstance3D
+		if hidden:
+			if not geometry.has_meta("world_building_cast_shadow_restore"):
+				geometry.set_meta("world_building_cast_shadow_restore", int(geometry.cast_shadow))
+			geometry.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		elif geometry.has_meta("world_building_cast_shadow_restore"):
+			geometry.cast_shadow = int(geometry.get_meta("world_building_cast_shadow_restore")) as GeometryInstance3D.ShadowCastingSetting
+			geometry.remove_meta("world_building_cast_shadow_restore")
+	for child in node.get_children():
+		_apply_piece_shadow_only(child, hidden)
+
+
+func _should_hide_modular_piece(piece: Node, show_interior: bool, camera_world_position: Vector3, active_level_index: int, focus_position: Variant = null) -> bool:
 	if piece == null or not show_interior:
 		return false
 	if piece.has_method("should_hide_with_camera") and not bool(piece.call("should_hide_with_camera")):
@@ -668,16 +742,90 @@ func _should_hide_modular_piece(piece: Node, show_interior: bool, camera_world_p
 			return true
 		if piece_level < active_level_index:
 			return false
-	var side := _get_modular_piece_occluder_side(piece)
-	if side == "none":
+	# Modular pieces hide only for the camera-followed actor, following the
+	# demo-building pattern: levels above the actor vanish wholesale, the
+	# actor's own level only loses walls inside the camera corridor, and
+	# floors/stairs/roofs at or below the actor never hide.
+	if focus_position == null:
 		return false
-	if side == "roof" or (side == "auto" and _is_modular_roof_piece(piece)):
+	if _get_modular_piece_occluder_side(piece) == "none":
+		return false
+	if not (piece is Node3D):
+		return false
+	var piece_base_y := to_local((piece as Node3D).global_position).y
+	var actor_level_y := to_local(focus_position).y
+	if piece_base_y > actor_level_y + 1.5:
 		return true
-	if ["front", "right", "back", "left"].has(side):
-		return side == _hidden_side
 	if not _is_modular_side_piece(piece):
 		return false
-	return _is_modular_piece_in_camera_hide_cone(piece, camera_world_position)
+	if _is_piece_actor_standing_surface(piece, focus_position):
+		return false
+	return _is_modular_piece_in_view_corridor(piece, camera_world_position, focus_position)
+
+
+func _is_modular_side_piece(piece: Node) -> bool:
+	var category := str(piece.get("category"))
+	return category == "wall" or category == "wall_door" or category == "wall_window" or category == "window" or category == "door" or category == "corner"
+
+
+## Never hide what the actor is standing on or anything at/below their feet:
+## the floor under them, the stairs they are climbing, the roof deck they
+## stand on. Feet = actor origin (capsule sits above it).
+func _is_piece_actor_standing_surface(piece: Node, feet_position: Vector3) -> bool:
+	if not (piece is Node3D):
+		return false
+	var node := piece as Node3D
+	var size := _modular_piece_bounds_size(piece)
+	# Whole piece sits at or below the feet level (floors of their level and
+	# everything under it).
+	if node.global_position.y + size.y <= feet_position.y + 0.35:
+		return true
+	# The piece's own volume holds their feet (stairs mid-flight, thick decks).
+	var local_feet := node.global_transform.affine_inverse() * feet_position
+	var margin := 0.5
+	return absf(local_feet.x) <= size.x * 0.5 + margin \
+		and local_feet.y >= -margin and local_feet.y <= size.y + margin \
+		and absf(local_feet.z) <= size.z * 0.5 + margin
+
+
+## Capsule test against the camera -> actor sight line. The corridor tapers
+## toward the actor and stops short of them so their backdrop stays visible.
+func _is_modular_piece_in_view_corridor(piece: Node, camera_world_position: Vector3, focus_position: Vector3) -> bool:
+	if not (piece is Node3D):
+		return false
+	var node := piece as Node3D
+	var size := _modular_piece_bounds_size(piece)
+	var center := node.global_position + node.global_transform.basis.y * (size.y * 0.5)
+	var piece_radius := (size * 0.5).length()
+	var sight := focus_position - camera_world_position
+	var sight_length := sight.length()
+	if sight_length <= 0.01:
+		return false
+	var pulled_length := maxf(sight_length - see_through_focus_pull_back_meters, 0.1)
+	var segment := sight * (pulled_length / sight_length)
+	# Only pieces whose entire volume ends strictly in front of the actor can
+	# block the view. Project the piece's oriented box onto the sight axis:
+	# a wall at the actor's depth (the divider they stand before, and its
+	# neighbors) reaches their depth and must stay solid.
+	var direction := sight / sight_length
+	var piece_basis := node.global_transform.basis
+	var depth_extent := absf(direction.dot(piece_basis.x)) * size.x * 0.5 \
+		+ absf(direction.dot(piece_basis.y)) * size.y * 0.5 \
+		+ absf(direction.dot(piece_basis.z)) * size.z * 0.5
+	var center_depth := direction.dot(center - camera_world_position)
+	if center_depth + depth_extent >= pulled_length:
+		return false
+	var t := clampf((center - camera_world_position).dot(segment) / segment.length_squared(), 0.0, 1.0)
+	var closest := camera_world_position + segment * t
+	var corridor_radius := lerpf(see_through_camera_radius_meters, see_through_actor_radius_meters, t)
+	return center.distance_to(closest) <= corridor_radius + piece_radius
+
+
+func _modular_piece_bounds_size(piece: Node) -> Vector3:
+	var bounds: Variant = piece.get("bounds_size_meters")
+	if bounds is Vector3 and (bounds as Vector3).length_squared() > 0.01:
+		return bounds as Vector3
+	return Vector3(2.0, 3.0, 2.0)
 
 
 func _get_modular_piece_level(piece: Node) -> int:
@@ -691,33 +839,6 @@ func _get_modular_piece_occluder_side(piece: Node) -> String:
 		return str(piece.call("get_occluder_side"))
 	var side = piece.get("occluder_side")
 	return str(side) if side != null else "auto"
-
-
-func _is_modular_roof_piece(piece: Node) -> bool:
-	var category = piece.get("category")
-	return str(category) == "roof" or str(category) == "roof_front"
-
-
-func _is_modular_side_piece(piece: Node) -> bool:
-	var category := str(piece.get("category"))
-	return category == "wall" or category == "wall_door" or category == "wall_window" or category == "window" or category == "door" or category == "corner"
-
-
-func _is_modular_piece_in_camera_hide_cone(piece: Node, camera_world_position: Vector3) -> bool:
-	if not (piece is Node3D):
-		return false
-	var building_center := global_position
-	var camera_direction := camera_world_position - building_center
-	camera_direction.y = 0.0
-	if camera_direction.length_squared() <= 0.0001:
-		return false
-	var piece_direction := (piece as Node3D).global_position - building_center
-	piece_direction.y = 0.0
-	if piece_direction.length_squared() <= 0.0001:
-		return _get_camera_facing_side(camera_world_position) == _hidden_side
-	var half_angle := deg_to_rad(clampf(modular_camera_hide_cone_degrees, 0.0, 180.0) * 0.5)
-	var dot_threshold := cos(half_angle)
-	return camera_direction.normalized().dot(piece_direction.normalized()) >= dot_threshold
 
 
 func _collect_modular_pieces(node: Node, result: Array) -> void:

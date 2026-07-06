@@ -1,17 +1,12 @@
 [gd_scene format=3 uid="uid://byehurhhiswl0"]
 
-[ext_resource type="NavigationMesh" path="res://scenes/zones/rustwash_basin/terrain/rustwash_basin_navigation_mesh.res" id="1_navmesh"]
 [ext_resource type="Terrain3DMaterial" path="res://scenes/zones/rustwash_basin/terrain/rustwash_basin_terrain3d_material.tres" id="2_material"]
 [ext_resource type="Terrain3DAssets" path="res://scenes/zones/rustwash_basin/terrain/rustwash_basin_terrain3d_assets.tres" id="3_assets"]
 
-[node name="NavigationRegion3D" type="NavigationRegion3D" unique_id=664859720]
-navigation_mesh = ExtResource("1_navmesh")
-
-[node name="Terrain3D" type="Terrain3D" parent="." unique_id=1979617968]
+[node name="Terrain3D" type="Terrain3D" unique_id=1979617968]
 debug_level = 1
 data_directory = "res://scenes/zones/rustwash_basin/terrain/data"
 material = ExtResource("2_material")
 assets = ExtResource("3_assets")
 collision_mode = 3
-top_level = true
 metadata/_edit_lock_ = true

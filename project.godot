@@ -15,8 +15,8 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="MyGame"
-run/main_scene="res://tools/animation_browser/animation_browser.tscn"
-config/features=PackedStringArray("4.6", "Forward Plus")
+run/main_scene="uid://nnujv16cqkau"
+config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
 [autoload]
@@ -32,7 +32,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/gecs/plugin.cfg", "res://addons/job_authoring/plugin.cfg", "res://addons/modular_building_authoring/plugin.cfg", "res://addons/road_authoring/plugin.cfg", "res://addons/terrain_3d/plugin.cfg")
+enabled=PackedStringArray("res://addons/gecs/plugin.cfg", "res://addons/job_authoring/plugin.cfg", "res://addons/world_authoring/plugin.cfg", "res://addons/road_authoring/plugin.cfg", "res://addons/terrain_3d/plugin.cfg")
 
 [gui]
 

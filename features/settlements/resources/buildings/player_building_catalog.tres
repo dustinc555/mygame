@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="PlaceableBuildingCatalog" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/placeable_building_catalog.gd" id="1_catalog"]
+[ext_resource type="Resource" path="res://features/settlements/resources/buildings/woodbrick_house_placeable.tres" id="2_woodbrick"]
+
+[resource]
+script = ExtResource("1_catalog")
+catalog_id = "player_buildings"
+display_name = "Player Buildings"
+buildings = [ExtResource("2_woodbrick")]

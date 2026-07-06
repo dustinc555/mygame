@@ -758,7 +758,16 @@ func _pick_ground_position(screen_position: Vector2) -> Variant:
 
 
 func _pick_ground_hit(screen_position: Vector2) -> Dictionary:
+	# Camera-hidden modular pieces are click-transparent: what you cannot
+	# see cannot take a move command. The ray re-casts past them onto the
+	# floor that is actually visible.
+	var hidden_piece_rids: Array[RID] = []
 	var result := _raycast_from_screen(screen_position)
+	for _attempt in range(8):
+		if result.is_empty() or not _is_camera_hidden_modular_collider(result.get("collider")):
+			break
+		hidden_piece_rids.append(result["rid"])
+		result = _raycast_from_screen(screen_position, hidden_piece_rids)
 	if not result.is_empty():
 		var collider: Object = result["collider"]
 		var actor_collider := _resolve_actor_collider(collider)
@@ -894,6 +903,17 @@ func _should_skip_building_target_hit(collider: Object, shape_index: int) -> boo
 	if not collider.has_method("should_project_click_shape"):
 		return false
 	return collider.should_project_click_shape(shape_index)
+
+
+func _is_camera_hidden_modular_collider(collider: Object) -> bool:
+	if not (collider is Node):
+		return false
+	var current := collider as Node
+	while current != null:
+		if current.has_method("should_skip_modular_collider"):
+			return bool(current.call("should_skip_modular_collider", collider))
+		current = current.get_parent()
+	return false
 
 
 func _resolve_actor_collider(collider: Object) -> WorldActor:

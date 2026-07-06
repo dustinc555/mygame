@@ -1,4 +1,5 @@
 @tool
+@icon("res://addons/world_authoring/icons/town.svg")
 extends "res://features/settlements/bridge/settlement_anchor.gd"
 
 class_name SettlementTown
@@ -86,6 +87,73 @@ func _ready() -> void:
 	set_process(Engine.is_editor_hint())
 	_repair_guard_authoring_tree()
 	_refresh_town_border_debug()
+	if not Engine.is_editor_hint():
+		_snap_grounded_content.call_deferred()
+
+
+## Authored transforms are hints; terrain is truth. At load, every
+## ground-anchored child keeps its authored XZ and yaw but re-solves Y and
+## surface tilt against the live terrain (editor terrain may have changed
+## since the town was authored). Buildings restore their exported
+## foundation_height on top; markers snap Y only. Moved buildings re-dirty
+## their navmesh tiles.
+func _snap_grounded_content() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	# Let terrain and physics finish registering collision before querying.
+	await tree.physics_frame
+	await tree.physics_frame
+	if not is_inside_tree():
+		return
+	var space := get_world_3d().direct_space_state
+	var moved_positions: Array[Vector3] = []
+	for root_path in [facilities_root_path, bars_root_path, fields_root_path, shops_root_path, mines_root_path, housing_root_path, guard_posts_root_path]:
+		var root := get_node_or_null(root_path)
+		if root == null:
+			continue
+		for child in root.get_children():
+			var node := child as Node3D
+			if node == null:
+				continue
+			var before := node.global_position
+			var foundation = node.get("foundation_height")
+			var snapped := BuildingPlacementSolver.snap_to_terrain(
+				space,
+				node.global_transform,
+				BuildingPlacementSolver.estimate_footprint(node),
+				float(foundation) if foundation != null else 0.0)
+			if snapped.is_empty():
+				continue
+			node.global_transform = snapped["transform"]
+			if before.distance_to(node.global_position) > 0.05:
+				moved_positions.append(node.global_position)
+	_snap_markers_to_ground(space)
+	if moved_positions.is_empty():
+		return
+	var navigation := tree.get_first_node_in_group("world_navigation_controller")
+	if navigation != null and navigation.has_method("notify_content_changed_at"):
+		for moved_position in moved_positions:
+			navigation.call("notify_content_changed_at", moved_position)
+
+
+func _snap_markers_to_ground(space: PhysicsDirectSpaceState3D) -> void:
+	var markers: Array = []
+	var activity_root := get_node_or_null(activity_points_root_path)
+	if activity_root != null:
+		markers.append_array(activity_root.get_children())
+	markers.append(get_node_or_null("RoadSpawn"))
+	markers.append(get_node_or_null("DefenseSpawn"))
+	for entry in markers:
+		var marker := entry as Node3D
+		if marker == null:
+			continue
+		var hit := BuildingPlacementSolver.terrain_ray(
+			space,
+			marker.global_position + Vector3(0.0, 30.0, 0.0),
+			marker.global_position - Vector3(0.0, 60.0, 0.0))
+		if not hit.is_empty():
+			marker.global_position = Vector3(marker.global_position.x, hit["position"].y, marker.global_position.z)
 
 
 func _process(delta: float) -> void:
@@ -262,10 +330,13 @@ func set_town_border_debug_visible(value: bool) -> void:
 func _repair_guard_authoring_tree() -> void:
 	if not is_inside_tree():
 		return
-	var guards_root := _ensure_child_root(guards_root_path)
-	var posts_root := _ensure_child_root(guard_posts_root_path)
+	# Guard roots exist only when guards are actually authored: a town with
+	# zero guard counts stays a minimal root + Facilities scene.
+	var effective_posts: int = max(guard_count, guard_post_count)
+	var wants_guards := guard_count > 0 and (Engine.is_editor_hint() or not use_settlement_population_for_guards)
+	var guards_root := _ensure_child_root(guards_root_path) if wants_guards else get_node_or_null(guards_root_path)
+	var posts_root := _ensure_child_root(guard_posts_root_path) if effective_posts > 0 else get_node_or_null(guard_posts_root_path)
 	if posts_root != null:
-		var effective_posts: int = max(guard_count, guard_post_count)
 		for index in range(effective_posts):
 			_ensure_guard_post(posts_root, index)
 		_trim_generated_children(posts_root, "GuardPost", effective_posts)
@@ -730,7 +801,7 @@ func _add_basic_humanoid_children(actor: Node) -> void:
 		collision.name = "CollisionShape3D"
 		collision.transform = Transform3D(Basis(), Vector3(0.0, 0.95, 0.0))
 		var capsule_shape := CapsuleShape3D.new()
-		capsule_shape.radius = 0.45
+		capsule_shape.radius = 0.4
 		capsule_shape.height = 1.1
 		collision.shape = capsule_shape
 		actor.add_child(collision)
@@ -739,7 +810,7 @@ func _add_basic_humanoid_children(actor: Node) -> void:
 		body.name = "BodyMesh"
 		body.transform = Transform3D(Basis(), Vector3(0.0, 0.95, 0.0))
 		var capsule_mesh := CapsuleMesh.new()
-		capsule_mesh.radius = 0.45
+		capsule_mesh.radius = 0.4
 		body.mesh = capsule_mesh
 		actor.add_child(body)
 

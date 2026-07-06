@@ -1,8 +1,16 @@
 @tool
-extends EditorPlugin
+extends RefCounted
+
+## WorldBuilding concept tool context for the world_authoring plugin.
+## Owns the modular-piece toolbar and all piece authoring input (spawn, snap,
+## rotate, copy/paste, hierarchy normalization). The plugin router creates one
+## of these, mounts toolbar() in the spatial editor menu, and forwards
+## editor callbacks through the concept-context contract:
+## handles/claims_node/edit/refresh/is_active/process/shortcut_input/
+## forward_3d_gui_input/on_selection_changed/on_scene_changed/teardown.
 
 const CATALOG_PATH := "res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/starter_woodbrick_catalog.tres"
-const WORLD_BUILDING_ICON_PATH := "res://addons/modular_building_authoring/icons/world_building.svg"
+const WORLD_BUILDING_ICON_PATH := "res://addons/world_authoring/icons/world_building.svg"
 const WORLD_BUILDING_SCRIPT := preload("res://features/world/projection/buildings/world_building.gd")
 const MODULAR_BUILDING_PIECE_SCRIPT := preload("res://features/world/projection/buildings/modular_building_piece.gd")
 
@@ -20,6 +28,7 @@ const CATEGORY_GROUPS := [
 	{"label": "Stairs", "categories": ["stairs"]},
 ]
 
+var _plugin: EditorPlugin
 var _toolbar: HBoxContainer
 var _status_label: Label
 var _pieces_menu_button: MenuButton
@@ -36,26 +45,26 @@ var _last_handled_shortcut_event_id := 0
 var _world_building_icon: Texture2D
 
 
-func _enter_tree() -> void:
-	set_process(true)
-	set_process_shortcut_input(true)
+func _init(plugin: EditorPlugin) -> void:
+	_plugin = plugin
 	_build_toolbar()
-	add_control_to_container(EditorPlugin.CONTAINER_SPATIAL_EDITOR_MENU, _toolbar)
-	if not scene_changed.is_connected(_on_scene_changed):
-		scene_changed.connect(_on_scene_changed)
-	var selection := get_editor_interface().get_selection()
-	if not selection.selection_changed.is_connected(_on_selection_changed):
-		selection.selection_changed.connect(_on_selection_changed)
-	call_deferred("_refresh_active_building_context")
 
 
-func _handles(object: Object) -> bool:
+func toolbar() -> Control:
+	return _toolbar
+
+
+func handles(object: Object) -> bool:
 	if object is Node:
 		return _find_world_building_ancestor(object as Node) != null
 	return _find_world_building_from_edited_scene_root() != null
 
 
-func _edit(object: Object) -> void:
+func claims_node(node: Node) -> bool:
+	return _is_script_node(node, WORLD_BUILDING_SCRIPT)
+
+
+func edit(object: Object) -> void:
 	if object is Node:
 		_active_building = _find_world_building_ancestor(object as Node)
 	if _active_building == null:
@@ -63,37 +72,34 @@ func _edit(object: Object) -> void:
 	_refresh_toolbar()
 
 
-func _make_visible(_visible: bool) -> void:
+func refresh() -> void:
 	_refresh_active_building_context()
 
 
-func _exit_tree() -> void:
-	set_process(false)
-	set_process_shortcut_input(false)
-	if scene_changed.is_connected(_on_scene_changed):
-		scene_changed.disconnect(_on_scene_changed)
-	var selection := get_editor_interface().get_selection()
-	if selection.selection_changed.is_connected(_on_selection_changed):
-		selection.selection_changed.disconnect(_on_selection_changed)
+func is_active() -> bool:
+	return get_active_building() != null
+
+
+func on_selection_changed() -> void:
+	_refresh_active_building_context()
+
+
+func on_scene_changed(_scene_root: Node) -> void:
+	_refresh_active_building_context()
+
+
+func process(_delta: float) -> void:
+	_snap_selected_gizmo_motion_to_grid()
+
+
+func teardown() -> void:
 	if _toolbar != null:
-		remove_control_from_container(EditorPlugin.CONTAINER_SPATIAL_EDITOR_MENU, _toolbar)
 		_toolbar.free()
 		_toolbar = null
 	_active_building = null
 	_clear_gizmo_watch()
 	_native_transform_mouse_down = false
-
-
-func _process(_delta: float) -> void:
-	_snap_selected_gizmo_motion_to_grid()
-
-
-func is_build_mode_enabled() -> bool:
-	return get_active_building() != null
-
-
-func set_build_mode_enabled(_enabled: bool) -> void:
-	_refresh_toolbar()
+	_plugin = null
 
 
 func get_active_building() -> Node:
@@ -144,7 +150,7 @@ func fix_active_building_hierarchy() -> void:
 	_refresh_toolbar()
 
 
-func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
+func forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 	if get_active_building() == null:
 		return EditorPlugin.AFTER_GUI_INPUT_PASS
 	if event is InputEventKey:
@@ -161,9 +167,8 @@ func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 	return EditorPlugin.AFTER_GUI_INPUT_PASS
 
 
-func _shortcut_input(event: InputEvent) -> void:
-	if event is InputEventKey and _handle_modular_copy_paste_shortcut(event as InputEventKey):
-		get_viewport().set_input_as_handled()
+func shortcut_input(event: InputEvent) -> bool:
+	return event is InputEventKey and _handle_modular_copy_paste_shortcut(event as InputEventKey)
 
 
 func _handle_modular_copy_paste_shortcut(key_event: InputEventKey) -> bool:
@@ -294,8 +299,8 @@ func _spawn_piece(piece_definition: Resource, world_position: Vector3) -> void:
 	if _piece_auto_snap_enabled(piece) and not _snap_new_piece_to_selected_piece(piece):
 		_place_piece_near_world_position(piece, world_position)
 	piece.transform = parent.global_transform.affine_inverse() * piece.global_transform
-	var edited_root := get_editor_interface().get_edited_scene_root()
-	var undo_redo := get_undo_redo()
+	var edited_root := _plugin.get_editor_interface().get_edited_scene_root()
+	var undo_redo := _plugin.get_undo_redo()
 	undo_redo.create_action("Add Modular Building Piece")
 	undo_redo.add_do_method(parent, "add_child", piece)
 	undo_redo.add_do_method(piece, "set_owner", edited_root)
@@ -484,7 +489,7 @@ func _get_or_create_pieces_root(building: Node) -> Node3D:
 func _ensure_scene_owner(node: Node) -> void:
 	if node == null:
 		return
-	var edited_root := get_editor_interface().get_edited_scene_root()
+	var edited_root := _plugin.get_editor_interface().get_edited_scene_root()
 	if edited_root != null and node != edited_root:
 		node.owner = edited_root
 
@@ -505,7 +510,7 @@ func _commit_transform_changes(pieces: Array, old_transforms: Array, new_transfo
 			break
 	if not changed:
 		return
-	var undo_redo := get_undo_redo()
+	var undo_redo := _plugin.get_undo_redo()
 	undo_redo.create_action(action_name)
 	for index in range(pieces.size()):
 		var piece := pieces[index] as Node3D
@@ -544,7 +549,7 @@ func _paste_copied_modular_pieces() -> bool:
 	var parent := _get_or_create_pieces_root(building)
 	if parent == null:
 		return false
-	var edited_root := get_editor_interface().get_edited_scene_root()
+	var edited_root := _plugin.get_editor_interface().get_edited_scene_root()
 	var pieces_to_add: Array[Node3D] = []
 	for entry in _copied_modular_piece_entries:
 		var scene_path := str(entry.get("scene_path", ""))
@@ -562,7 +567,7 @@ func _paste_copied_modular_pieces() -> bool:
 		pieces_to_add.append(copy)
 	if pieces_to_add.is_empty():
 		return false
-	var undo_redo := get_undo_redo()
+	var undo_redo := _plugin.get_undo_redo()
 	undo_redo.create_action("Paste Modular Building Pieces")
 	for copy in pieces_to_add:
 		undo_redo.add_do_method(parent, "add_child", copy)
@@ -578,14 +583,6 @@ func _paste_copied_modular_pieces() -> bool:
 	return true
 
 
-func _on_selection_changed() -> void:
-	_refresh_active_building_context()
-
-
-func _on_scene_changed(_scene_root: Node) -> void:
-	_refresh_active_building_context()
-
-
 func _refresh_active_building_context() -> void:
 	_active_building = _find_world_building_from_selection()
 	if _active_building == null:
@@ -598,7 +595,7 @@ func _refresh_active_building_context() -> void:
 func _can_author_building(building: Node) -> bool:
 	if building == null:
 		return false
-	return building == get_editor_interface().get_edited_scene_root()
+	return building == _plugin.get_editor_interface().get_edited_scene_root()
 
 
 func _normalize_modular_piece_hierarchy(building: Node) -> void:
@@ -608,7 +605,7 @@ func _normalize_modular_piece_hierarchy(building: Node) -> void:
 	if pieces_root == null:
 		return
 	var pieces: Array = []
-	for selected_node in get_editor_interface().get_selection().get_selected_nodes():
+	for selected_node in _plugin.get_editor_interface().get_selection().get_selected_nodes():
 		var selected_piece := _find_modular_piece_ancestor(selected_node)
 		if selected_piece != null and not pieces.has(selected_piece):
 			pieces.append(selected_piece)
@@ -640,7 +637,7 @@ func _append_modular_pieces_under(node: Node, result: Array) -> void:
 
 
 func _find_world_building_from_selection() -> Node:
-	for node in get_editor_interface().get_selection().get_selected_nodes():
+	for node in _plugin.get_editor_interface().get_selection().get_selected_nodes():
 		var building := _find_world_building_ancestor(node)
 		if building != null:
 			return building
@@ -648,7 +645,7 @@ func _find_world_building_from_selection() -> Node:
 
 
 func _find_world_building_from_edited_scene_root() -> Node:
-	return _find_world_building_ancestor(get_editor_interface().get_edited_scene_root())
+	return _find_world_building_ancestor(_plugin.get_editor_interface().get_edited_scene_root())
 
 
 func _find_world_building_ancestor(node: Node) -> Node:
@@ -667,7 +664,7 @@ func _get_selected_modular_piece() -> Node3D:
 
 func _get_selected_modular_pieces() -> Array[Node3D]:
 	var pieces: Array[Node3D] = []
-	for node in get_editor_interface().get_selection().get_selected_nodes():
+	for node in _plugin.get_editor_interface().get_selection().get_selected_nodes():
 		var piece := _find_modular_piece_ancestor(node)
 		if piece != null and not pieces.has(piece):
 			pieces.append(piece)
@@ -681,7 +678,7 @@ func _is_control_or_meta_pressed(key_event: InputEventKey) -> bool:
 
 
 func _is_text_input_focused() -> bool:
-	var base_control := get_editor_interface().get_base_control()
+	var base_control := _plugin.get_editor_interface().get_base_control()
 	if base_control == null:
 		return false
 	var focus_owner := base_control.get_viewport().gui_get_focus_owner()
@@ -711,7 +708,7 @@ func _select_node(node: Node) -> void:
 
 
 func _select_nodes(nodes: Array) -> void:
-	var selection := get_editor_interface().get_selection()
+	var selection := _plugin.get_editor_interface().get_selection()
 	selection.clear()
 	var first_node: Node = null
 	for node in nodes:
@@ -721,7 +718,7 @@ func _select_nodes(nodes: Array) -> void:
 			first_node = node
 		selection.add_node(node)
 	if first_node != null and nodes.size() == 1:
-		get_editor_interface().edit_node(first_node)
+		_plugin.get_editor_interface().edit_node(first_node)
 
 
 func _unique_child_name(parent: Node, base_name: String) -> String:

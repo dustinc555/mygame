@@ -8,10 +8,8 @@
 [ext_resource type="PackedScene" uid="uid://bak34on3jmj2w" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/stairs_exterior_straight.tscn" id="7_ec01v"]
 [ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/wall_woodbrick_window_wide_round.tscn" id="8_dq7i7"]
 [ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/wall_woodbrick_door_round.tscn" id="9_ljvap"]
-[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/window_frame_wide_flat.tscn" id="10_ryqpp"]
+[ext_resource type="PackedScene" uid="uid://dsqn3r6pdpsap" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/window_frame_wide_flat.tscn" id="10_ryqpp"]
 [ext_resource type="PackedScene" uid="uid://b6ok8konpk0u8" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/stair_interior_simple.tscn" id="10_vvy6g"]
-[ext_resource type="Script" uid="uid://dx67lteoodr2x" path="res://features/world/projection/buildings/modular_building_piece.gd" id="11_v6lkq"]
-[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/door_wood_flat.tscn" id="11_xdnsl"]
 
 [node name="WoodbrickHouse" type="Node3D" unique_id=1418743872]
 script = ExtResource("1_7le2p")
@@ -238,7 +236,7 @@ transform = Transform3D(-1, 0, -1.2287423e-05, 0, 1, 0, 1.2287423e-05, 0, -1, -6
 grid_cell_size_meters = 1.0
 
 [node name="WallWoodbrickStraight14" parent="Pieces" unique_id=97227869 instance=ExtResource("3_wall")]
-transform = Transform3D(1, 0, 1.7484555e-07, 0, 1, 0, -1.7484555e-07, 0, 1, 2.0000005, -3.122689, 1)
+transform = Transform3D(1, 0, 1.7484555e-07, 0, 1, 0, -1.7484555e-07, 0, 1, 2.0000005, -3.322689, 1)
 grid_cell_size_meters = 1.0
 
 [node name="WallWoodbrickStraight20" parent="Pieces" unique_id=507686770 instance=ExtResource("3_wall")]
@@ -428,7 +426,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 3, -2.2215889)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.1920929e-07, 3, -2.2215889)
 
 [node name="WindowFrameWideFlat" parent="Pieces" unique_id=2031822729 instance=ExtResource("10_ryqpp")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.110798, 0.17770004, 5.1108165)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.113993, 0.11512089, 5.1108165)
 
 [node name="CornerExteriorWood33" parent="Pieces" unique_id=1077442682 instance=ExtResource("5_6585m")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.889146, 0.06134434, -5.1198974)
@@ -439,11 +437,3 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0000002, 0.06134434, -5.009
 [node name="CornerExteriorWood3322" parent="Pieces" unique_id=703478826 instance=ExtResource("5_6585m")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0106409, 0.06134434, 0.98337144)
 auto_snap_enabled = false
-
-[node name="DoorWoodFlat" type="Node3D" parent="Pieces" unique_id=1606002474 instance=ExtResource("11_xdnsl")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4858005, 0, 0.99999994)
-script = ExtResource("11_v6lkq")
-piece_id = "door_wood_flat"
-display_name = "Door Wood Flat"
-category = "door"
-bounds_size_meters = Vector3(1.1706, 2.1659, 0.1305)

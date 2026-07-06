@@ -40,15 +40,18 @@ func _process(_delta: float) -> void:
 	var meaningful_actor := _get_meaningful_actor()
 	var visibility_actor := _get_visibility_proxy_actor(meaningful_actor)
 	var next_building: Node = _find_building_for_actor(visibility_actor)
+	# Modular see-through only opens when the camera actually follows the
+	# actor (double-click); selection alone keeps buildings solid.
+	var camera_focused := meaningful_actor != null and meaningful_actor == _party_manager.followed_member
 	if _active_building == next_building:
 		if _active_building != null and is_instance_valid(_active_building):
-			_active_building.set_visibility_for_camera(true, _camera.global_position, visibility_actor)
+			_active_building.set_visibility_for_camera(true, _camera.global_position, visibility_actor, camera_focused)
 		return
 	if _active_building != null and is_instance_valid(_active_building):
 		_active_building.set_visibility_for_camera(false, _camera.global_position, null)
 	_active_building = next_building
 	if _active_building != null:
-		_active_building.set_visibility_for_camera(true, _camera.global_position, visibility_actor)
+		_active_building.set_visibility_for_camera(true, _camera.global_position, visibility_actor, camera_focused)
 
 
 func _get_meaningful_actor() -> WorldActor:
