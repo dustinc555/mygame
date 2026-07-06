@@ -31,7 +31,7 @@ var lod_radius_overlay: Node3D
 var debug_menu: Control
 var escape_menu_panel: PanelContainer
 var escape_menu_resume_button: Button
-var escape_menu_debug_button: Button
+var escape_menu_debug_buttons: VBoxContainer
 var pause_button: Button
 var slow_button: Button
 var normal_button: Button
@@ -460,13 +460,38 @@ func _setup_escape_menu() -> void:
 	escape_menu_resume_button.focus_mode = Control.FOCUS_NONE
 	escape_menu_resume_button.pressed.connect(_on_escape_menu_resume_pressed)
 	column.add_child(escape_menu_resume_button)
-	escape_menu_debug_button = Button.new()
-	escape_menu_debug_button.text = "Debug Information"
-	escape_menu_debug_button.focus_mode = Control.FOCUS_NONE
-	escape_menu_debug_button.visible = _debug_enabled()
-	escape_menu_debug_button.pressed.connect(_on_escape_menu_debug_pressed)
-	column.add_child(escape_menu_debug_button)
+	escape_menu_debug_buttons = VBoxContainer.new()
+	escape_menu_debug_buttons.add_theme_constant_override("separation", 6)
+	column.add_child(escape_menu_debug_buttons)
 	pause_overlay.add_child(escape_menu_panel)
+
+
+## One button per debug panel — opening the menu never floods the screen;
+## each panel toggles individually.
+func _refresh_escape_debug_buttons() -> void:
+	if escape_menu_debug_buttons == null:
+		return
+	for child in escape_menu_debug_buttons.get_children():
+		child.free()
+	if not _debug_enabled():
+		return
+	if debug_menu == null:
+		_setup_debug_tools()
+	if debug_menu == null or not debug_menu.has_method("get_window_titles"):
+		return
+	for title in debug_menu.call("get_window_titles"):
+		var button := Button.new()
+		button.text = "Debug - %s" % str(title).replace(" Debug", "")
+		button.toggle_mode = true
+		button.button_pressed = bool(debug_menu.call("is_window_open", title))
+		button.focus_mode = Control.FOCUS_NONE
+		button.pressed.connect(_on_escape_debug_window_pressed.bind(str(title)))
+		escape_menu_debug_buttons.add_child(button)
+
+
+func _on_escape_debug_window_pressed(title: String) -> void:
+	if debug_menu != null and debug_menu.has_method("toggle_window"):
+		debug_menu.call("toggle_window", title)
 
 
 func _toggle_escape_menu() -> void:
@@ -484,6 +509,7 @@ func _show_escape_menu() -> void:
 	_escape_menu_requested_pause = world_time != null and not bool(world_time.is_manual_paused())
 	if _escape_menu_requested_pause and world_time.has_method("request_manual_pause"):
 		world_time.request_manual_pause()
+	_refresh_escape_debug_buttons()
 	escape_menu_panel.visible = true
 	if pause_overlay != null:
 		pause_overlay.visible = true
@@ -511,15 +537,6 @@ func _on_escape_menu_resume_pressed() -> void:
 	_refresh_buttons()
 
 
-func _on_escape_menu_debug_pressed() -> void:
-	if not _debug_enabled():
-		return
-	if debug_menu == null:
-		_setup_debug_tools()
-	if debug_menu != null and debug_menu.has_method("open_menu"):
-		debug_menu.call("open_menu")
-	if escape_menu_panel != null:
-		escape_menu_panel.visible = false
 	# Resume the game while the debug menu is open — it's a non-modal overlay, so you can
 	# move, command the party, and watch the LOD ring / overlays update live. (Only lift
 	# the pause this menu itself requested; respect a manual pause the player set.)

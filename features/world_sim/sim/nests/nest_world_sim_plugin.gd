@@ -1380,7 +1380,7 @@ func _add_basic_actor_children(actor: HumanoidCharacter, color: Color) -> void:
 	collision.name = "CollisionShape3D"
 	collision.transform = Transform3D(Basis(), Vector3(0.0, 0.95, 0.0))
 	var capsule_shape := CapsuleShape3D.new()
-	capsule_shape.radius = 0.45
+	capsule_shape.radius = 0.4
 	capsule_shape.height = 1.1
 	collision.shape = capsule_shape
 	actor.add_child(collision)
@@ -1389,7 +1389,7 @@ func _add_basic_actor_children(actor: HumanoidCharacter, color: Color) -> void:
 	body.name = "BodyMesh"
 	body.transform = Transform3D(Basis(), Vector3(0.0, 0.95, 0.0))
 	var capsule_mesh := CapsuleMesh.new()
-	capsule_mesh.radius = 0.45
+	capsule_mesh.radius = 0.4
 	body.mesh = capsule_mesh
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color

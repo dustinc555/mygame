@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="SettlementDefinition" format=3 uid="uid://d1vj8dp4wi276"]
+
+[ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://features/world_sim/resources/settlement_definition.gd" id="1_7dw37"]
+
+[resource]
+script = ExtResource("1_7dw37")
+settlement_id = "freeman_outpost"
+display_name = "Freeman Outpost"
+known_settlement_ids = PackedStringArray()

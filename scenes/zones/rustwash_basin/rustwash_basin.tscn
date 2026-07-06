@@ -1,12 +1,15 @@
 [gd_scene format=3 uid="uid://bswlf53ythhn2"]
 
-[ext_resource type="Script" path="res://features/world_sim/bridge/zone_loader.gd" id="1_zone_loader"]
-[ext_resource type="Script" path="res://features/world_sim/bridge/character_record_party_spawner.gd" id="3_record_party_spawner"]
-[ext_resource type="Script" path="res://features/core/party/party_manager.gd" id="4_party_manager"]
-[ext_resource type="Script" path="res://features/core/game_bootstrap.gd" id="5_bootstrap"]
-[ext_resource type="PackedScene" path="res://scenes/zones/rustwash_basin/terrain/rustwash_basin_terrain.tscn" id="5_wjgve"]
+[ext_resource type="Script" uid="uid://br1v5e4mqu2hq" path="res://features/world_sim/bridge/zone_loader.gd" id="1_zone_loader"]
+[ext_resource type="Script" uid="uid://bgmswqpae3nme" path="res://features/world_sim/bridge/character_record_party_spawner.gd" id="3_record_party_spawner"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://features/core/party/party_manager.gd" id="4_party_manager"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://features/core/game_bootstrap.gd" id="5_bootstrap"]
+[ext_resource type="PackedScene" uid="uid://byehurhhiswl0" path="res://scenes/zones/rustwash_basin/terrain/rustwash_basin_terrain.tscn" id="5_wjgve"]
+[ext_resource type="Script" path="res://features/world/projection/zone_root.gd" id="7_zone_root"]
 
 [node name="RustwashBasin" type="Node3D" unique_id=1310818615]
+script = ExtResource("7_zone_root")
+zone_id = "rustwash_basin"
 
 [node name="ZoneLoader" type="Node" parent="." unique_id=358756727]
 script = ExtResource("1_zone_loader")
@@ -27,6 +30,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.4446583, -151.05225)
 
 [node name="CharacterRecordPartySpawner" type="Node3D" parent="PartyMembers" unique_id=438871241]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.7933922, 0)
+visible = false
 script = ExtResource("3_record_party_spawner")
 character_record_paths = PackedStringArray("res://features/actors/resources/characters/mira.tres", "res://features/actors/resources/characters/tomas.tres", "res://features/actors/resources/characters/sable.tres", "res://features/actors/resources/characters/bram.tres", "res://features/actors/resources/characters/nika.tres")
 hostile_faction_ids = PackedStringArray()
@@ -47,4 +51,5 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.439958, -156.32843)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 18)
 current = true
 
-[node name="Terrain" type="NavigationRegion3D" parent="." unique_id=664859720 instance=ExtResource("5_wjgve")]
+[node name="Terrain" parent="." unique_id=664859720 instance=ExtResource("5_wjgve")]
+top_level = true

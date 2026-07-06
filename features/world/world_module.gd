@@ -11,6 +11,7 @@ extends RefCounted
 const BUILDING_VISIBILITY := preload("res://features/world/projection/building_visibility_controller.gd")
 const BLEED_SPLOTCH := preload("res://features/world/projection/bleed_splotch_controller.gd")
 const DAY_NIGHT_LIGHTING := preload("res://features/world/projection/lighting/day_night_lighting_controller.gd")
+const TERRAIN_CAMERA := preload("res://features/world/projection/terrain_camera_controller.gd")
 const WORLD_INTERACTION := preload("res://features/world/bridge/world_interaction_controller.gd")
 
 const CORE := []
@@ -18,6 +19,7 @@ const PROJECTION := [
 	{"name": "BuildingVisibilityController", "script": BUILDING_VISIBILITY, "service": BUILDING_VISIBILITY.SERVICE_ID},
 	{"name": "BleedSplotchController", "script": BLEED_SPLOTCH, "service": BLEED_SPLOTCH.SERVICE_ID},
 	{"name": "DayNightLightingController", "script": DAY_NIGHT_LIGHTING, "service": DAY_NIGHT_LIGHTING.SERVICE_ID},
+	{"name": "TerrainCameraController", "script": TERRAIN_CAMERA, "service": TERRAIN_CAMERA.SERVICE_ID},
 ]
 const SIM := []
 const BRIDGE := [

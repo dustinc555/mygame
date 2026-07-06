@@ -28,7 +28,7 @@ material = SubResource("StandardMaterial3D_floor")
 size = Vector3(34, 1, 28)
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_humanoid"]
-radius = 0.45
+radius = 0.4
 height = 1.1
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_player"]
@@ -37,7 +37,7 @@ roughness = 0.86
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_player"]
 material = SubResource("StandardMaterial3D_player")
-radius = 0.45
+radius = 0.4
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_selection_ring"]
 top_radius = 0.78
@@ -60,14 +60,14 @@ roughness = 0.86
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_witness"]
 material = SubResource("StandardMaterial3D_witness")
-radius = 0.45
+radius = 0.4
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_x1p02"]
-radius = 0.45
+radius = 0.4
 height = 1.1
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_wtr6o"]
-radius = 0.45
+radius = 0.4
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_uyr20"]
 transparency = 1

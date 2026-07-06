@@ -45,7 +45,6 @@ const MODULES := [
 	UI_MODULE,
 ]
 
-const WORLD_NAVIGATION_BAKER_SCRIPT := preload("res://features/core/navigation/world_navigation_baker.gd")
 const GAME_HUD_SCENE := preload("res://features/ui/projection/game_hud.tscn")
 
 var root_scene: Node
@@ -65,7 +64,6 @@ func _ready() -> void:
 
 
 func _deferred_bootstrap() -> void:
-	_ensure_world_navigation()
 	_ensure_hud()
 	_create_roots()
 
@@ -135,28 +133,6 @@ func _install_spec(spec: Dictionary, parent_node: Node) -> Node:
 		parent_node.add_child(node)
 	_context.register(spec["service"], node)
 	return node
-
-
-func _ensure_world_navigation() -> void:
-	# A scene that already ships its own NavigationRegion3D (e.g. an editor-baked
-	# zone navmesh) must NOT also get the runtime baker: two regions on the same
-	# navigation map overlap and produce erratic closest-point/pathing results.
-	if _find_navigation_region(root_scene) != null:
-		return
-	var navigation := NavigationRegion3D.new()
-	navigation.name = "WorldNavigation"
-	navigation.set_script(WORLD_NAVIGATION_BAKER_SCRIPT)
-	root_scene.add_child(navigation)
-
-
-func _find_navigation_region(node: Node) -> NavigationRegion3D:
-	if node is NavigationRegion3D:
-		return node
-	for child in node.get_children():
-		var found := _find_navigation_region(child)
-		if found != null:
-			return found
-	return null
 
 
 func _ensure_hud() -> void:

@@ -4,6 +4,9 @@
 [ext_resource type="PackedScene" uid="uid://dyy57icsha1ol" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Stair_Interior_Simple.gltf" id="2_0tlpe"]
 [ext_resource type="Script" uid="uid://brg8efkvn10vo" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_qm8qa"]
 
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_walk_ramp"]
+points = PackedVector3Array(-0.8, 3.024, -4.225, 0.8, 3.024, -4.225, -0.8, -0.01, 0.035, 0.8, -0.01, 0.035, -0.8, 2.904, -4.225, 0.8, 2.904, -4.225, -0.8, -0.13, 0.035, 0.8, -0.13, 0.035)
+
 [node name="StairInteriorSimple" type="Node3D" unique_id=796467222]
 script = ExtResource("1_rg6wh")
 piece_id = "stair_interior_simple"
@@ -11,8 +14,14 @@ display_name = "Stair Interior Simple"
 category = "stairs"
 grid_size_cells = Vector3i(1, 2, 3)
 bounds_size_meters = Vector3(1.6761798, 3.0349936, 4.6195393)
+disable_model_collision = true
 
 [node name="Model" parent="." unique_id=1846155945 instance=ExtResource("2_0tlpe")]
+
+[node name="GeneratedWalkRamp" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="GeneratedWalkRamp"]
+shape = SubResource("ConvexPolygonShape3D_walk_ramp")
 
 [node name="SnapPoints" type="Node3D" parent="." unique_id=551161651]
 
