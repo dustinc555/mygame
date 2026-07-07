@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="FacilityDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/facility_definition.gd" id="1_script"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/field.tres" id="2_function"]
+
+[resource]
+script = ExtResource("1_script")
+facility_id = "field"
+display_name = "Field"
+scene_path = "res://features/settlements/bridge/settlement_field.tscn"
+function = ExtResource("2_function")
+staff_role_counts = {}
+population_capacity = 0

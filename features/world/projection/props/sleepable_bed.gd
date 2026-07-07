@@ -2,6 +2,7 @@ extends StaticBody3D
 
 class_name SleepableBed
 
+@export var furniture_type := FurnitureRules.Type.BED
 @export var interaction_local_offset := Vector3(0.0, 0.0, 1.55)
 @export var sleep_local_offset := Vector3(0.0, 0.55, 0.7)
 @export var sleep_roll_degrees := 90.0
@@ -14,6 +15,7 @@ var _bar_service_area: BarServiceArea
 
 func _ready() -> void:
 	add_to_group("sleepable_bed")
+	add_to_group(FurnitureRules.FURNITURE_GROUP)
 
 
 func get_interaction_position(_member: HumanoidCharacter) -> Vector3:

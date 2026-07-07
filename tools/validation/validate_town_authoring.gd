@@ -10,6 +10,8 @@ const TOWN_ICON_PATH := "res://addons/world_authoring/icons/town.svg"
 const SETTLEMENT_TOWN_SCRIPT_PATH := "res://features/settlements/bridge/settlement_town.gd"
 const TOWN_TEMPLATE_PATH := "res://features/settlements/bridge/settlement_town.tscn"
 const TOWN_TOOLS_PATH := "res://addons/world_authoring/town_tools.gd"
+const ZONE_TOOLS_PATH := "res://addons/world_authoring/zone_tools.gd"
+const PLACEMENT_GHOST_PATH := "res://addons/world_authoring/placement_ghost.gd"
 const PLUGIN_SCRIPT_PATH := "res://addons/world_authoring/plugin.gd"
 const SETTLEMENT_DEFINITION_SCRIPT_PATH := "res://features/world_sim/resources/settlement_definition.gd"
 const ROUND_TRIP_PATH := "user://validate_town_authoring_round_trip.tscn"
@@ -61,7 +63,7 @@ func _validate_facility_add_remove() -> void:
 	packed.pack(town)
 	town.free()
 	ResourceSaver.save(packed, ROUND_TRIP_PATH)
-	if not bool(tools.call("add_facility_to_town_scene", ROUND_TRIP_PATH, HOUSE_SCENE_PATH, Vector3(4.0, 0.0, -6.0))):
+	if not bool(tools.call("add_facility_to_town_scene", ROUND_TRIP_PATH, HOUSE_SCENE_PATH, Transform3D(Basis(), Vector3(4.0, 0.0, -6.0)))):
 		_fail("add_facility_to_town_scene failed")
 		return
 	var with_facility := ResourceLoader.load(ROUND_TRIP_PATH, "PackedScene", ResourceLoader.CACHE_MODE_REPLACE) as PackedScene
@@ -97,13 +99,19 @@ func _validate_plugin_registration() -> void:
 	var plugin_text := _read_text(PLUGIN_SCRIPT_PATH)
 	if not plugin_text.contains("town_tools.gd"):
 		_fail("world_authoring plugin should register the town tool context")
+	if not plugin_text.contains("zone_tools.gd"):
+		_fail("world_authoring plugin should register the zone tool context")
+	var zone_tools_text := _read_text(ZONE_TOOLS_PATH)
+	if not zone_tools_text.contains("towns/%s.tscn"):
+		_fail("Add Town should save per-town scenes under the zone's towns/ folder")
+	if not zone_tools_text.contains("scene_file_path = \"\""):
+		_fail("Add Town should expand the template into a standalone scene, not an inherited one")
+	var ghost_text := _read_text(PLACEMENT_GHOST_PATH)
+	if not ghost_text.contains("terrain_ray"):
+		_fail("Placement ghost should use the shared placement solver terrain ray")
 	var town_tools_text := _read_text(TOWN_TOOLS_PATH)
-	if not town_tools_text.contains("towns/%s.tscn"):
-		_fail("New Town should save per-town scenes under the zone's towns/ folder")
-	if not town_tools_text.contains("scene_file_path = \"\""):
-		_fail("New Town should expand the template into a standalone scene, not an inherited one")
-	if not town_tools_text.contains("BuildingPlacementSolver.terrain_ray"):
-		_fail("New Town drop point should use the shared placement solver terrain ray")
+	if not town_tools_text.contains("FACILITIES_DIR"):
+		_fail("Facility catalog should be scanned from FacilityDefinition resources, not hardcoded")
 
 
 func _validate_new_town_round_trip() -> void:

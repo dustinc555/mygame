@@ -43,11 +43,6 @@ _surfaces = [{
 
 [node name="SurfCity" type="Node3D" unique_id=365395331]
 script = ExtResource("1_town")
-guard_count = 1
-guard_post_count = 1
-guard_name = "Surf City Watch"
-staff_stable_id_prefix = "npc.surf_city.staff"
-staff_squad_name = "SurfCity"
 town_border_radius = 30.0
 town_border_debug_color = Color(0.12, 0.72, 0.88, 0.34)
 settlement_definition = ExtResource("6_settlement")

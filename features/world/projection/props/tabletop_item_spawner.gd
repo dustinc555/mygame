@@ -31,6 +31,7 @@ const CATEGORY_ITEMS := {
 	"small_clutter": [SMALL_BOTTLE, CANDLE_3, TABLE_SPOON],
 }
 
+@export var furniture_type := FurnitureRules.Type.TABLE
 @export var spawn_on_ready := true
 @export var prop_slots_path := NodePath("PropSlots")
 @export_range(0.0, 1.0, 0.01) var spawn_density := 1.0
@@ -52,6 +53,7 @@ const CATEGORY_ITEMS := {
 
 func _ready() -> void:
 	add_to_group("tabletop_item_spawner")
+	add_to_group(FurnitureRules.FURNITURE_GROUP)
 	if Engine.is_editor_hint() or not spawn_on_ready:
 		return
 	call_deferred("spawn_tabletop_items")

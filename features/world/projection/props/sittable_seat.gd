@@ -2,6 +2,7 @@ extends StaticBody3D
 
 class_name SittableSeat
 
+@export var furniture_type := FurnitureRules.Type.SEAT
 @export var interaction_local_offset := Vector3(0.0, 0.0, 0.9)
 @export var service_local_offset := Vector3(0.0, 0.0, -1.15)
 @export var seated_floor_local_offset := Vector3.ZERO
@@ -18,6 +19,7 @@ var _service_requested := false
 
 func _ready() -> void:
 	add_to_group("sittable_seat")
+	add_to_group(FurnitureRules.FURNITURE_GROUP)
 
 
 func get_interaction_position(_member: HumanoidCharacter) -> Vector3:

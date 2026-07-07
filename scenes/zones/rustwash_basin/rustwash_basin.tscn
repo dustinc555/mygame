@@ -1,11 +1,31 @@
-[gd_scene format=3 uid="uid://bswlf53ythhn2"]
+[gd_scene format=4 uid="uid://bswlf53ythhn2"]
 
 [ext_resource type="Script" uid="uid://br1v5e4mqu2hq" path="res://features/world_sim/bridge/zone_loader.gd" id="1_zone_loader"]
 [ext_resource type="Script" uid="uid://bgmswqpae3nme" path="res://features/world_sim/bridge/character_record_party_spawner.gd" id="3_record_party_spawner"]
+[ext_resource type="PackedScene" uid="uid://bnqqdlduxcd3i" path="res://scenes/zones/rustwash_basin/towns/canyon.tscn" id="3_trp15"]
+[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://features/settlements/bridge/settlement_town.gd" id="4_aytii"]
 [ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://features/core/party/party_manager.gd" id="4_party_manager"]
+[ext_resource type="Resource" uid="uid://j6nyneohu3ag" path="res://features/world_sim/resources/settlements/canyon.tres" id="5_7w8d8"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://features/core/game_bootstrap.gd" id="5_bootstrap"]
 [ext_resource type="PackedScene" uid="uid://byehurhhiswl0" path="res://scenes/zones/rustwash_basin/terrain/rustwash_basin_terrain.tscn" id="5_wjgve"]
-[ext_resource type="Script" path="res://features/world/projection/zone_root.gd" id="7_zone_root"]
+[ext_resource type="Script" uid="uid://dtpasxx6o7akq" path="res://features/world/projection/zone_root.gd" id="7_zone_root"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6xxjo"]
+transparency = 1
+cull_mode = 2
+no_depth_test = true
+shading_mode = 0
+albedo_color = Color(0.62, 1, 0.94, 0.34)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_qu4ww"]
+_surfaces = [{
+"aabb": AABB(-24, 0, -24, 48, 1e-05, 48),
+"format": 34359738369,
+"primitive": 1,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 192,
+"vertex_data": PackedByteArray("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")
+}]
 
 [node name="RustwashBasin" type="Node3D" unique_id=1310818615]
 script = ExtResource("7_zone_root")
@@ -15,6 +35,17 @@ zone_id = "rustwash_basin"
 script = ExtResource("1_zone_loader")
 
 [node name="Towns" type="Node3D" parent="." unique_id=1512349854]
+
+[node name="Canyon" type="Node3D" parent="Towns" unique_id=396429240 instance=ExtResource("3_trp15")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5942535, -0.007736206, -313.2602)
+script = ExtResource("4_aytii")
+settlement_definition = ExtResource("5_7w8d8")
+
+[node name="TownBorderDebug" type="MeshInstance3D" parent="Towns/Canyon" unique_id=1262411676]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
+material_override = SubResource("StandardMaterial3D_6xxjo")
+cast_shadow = 0
+mesh = SubResource("ArrayMesh_qu4ww")
 
 [node name="NestMarkers" type="Node3D" parent="." unique_id=833802370]
 

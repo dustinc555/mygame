@@ -26,11 +26,18 @@ const DEFAULT_STAFF_REPLACEMENT_DELAY_DAYS := 7.0
 const POPULATION_RECOVERY_PER_DAY := 1
 const BOOTSTRAP_UNASSIGNED_POPULATION := 2
 const MINUTES_PER_DAY := 24 * 60
+const FEAR_PER_DEATH := 0.08
+## Global staffing priority (2026-07-06 design; per-faction orders deferred).
+## A vacancy may poach a worker from any role listed AFTER its own — the
+## poached slot opens a vacancy in turn, so a massacre drains the labor
+## market bottom-up instead of leaving the walls unmanned.
+const ROLE_POACH_PRIORITY := ["ruler", "warden", "guard", "barkeeper", "merchant", "worker"]
 
 var root_scene: Node
 var _context: BootstrapContext
 var world_time: Node
 var faction_controller: Node
+var census: Node
 var settlement_definitions: Dictionary = {}
 var settlement_states: Dictionary = {}
 var settlement_anchors: Dictionary = {}
@@ -114,6 +121,39 @@ func get_staff_vacancy_realization_count(settlement_id: String) -> int:
 	if vacancies.is_empty():
 		return 0
 	return mini(vacancies.size(), int(state.get("population_available", 0)))
+
+
+func adjust_fear(settlement_id: String, delta: float, reason := "manual") -> float:
+	if not settlement_states.has(settlement_id):
+		return 0.0
+	var state: Dictionary = settlement_states[settlement_id]
+	var previous := float(state.get("fear", 0.0))
+	state["fear"] = clampf(previous + delta, 0.0, 1.0)
+	if not is_equal_approx(previous, float(state["fear"])):
+		_save_settlement_state_to_gecs(settlement_id, state)
+		_record_event({
+			"type": "fear_changed",
+			"settlement_id": settlement_id,
+			"fear": float(state["fear"]),
+			"reason": reason,
+		})
+	return float(state["fear"])
+
+
+func adjust_wealth(settlement_id: String, delta: float, reason := "manual") -> float:
+	if not settlement_states.has(settlement_id):
+		return 0.0
+	var state: Dictionary = settlement_states[settlement_id]
+	state["wealth"] = maxf(float(state.get("wealth", 0.0)) + delta, 0.0)
+	_save_settlement_state_to_gecs(settlement_id, state)
+	_record_event({
+		"type": "wealth_changed",
+		"settlement_id": settlement_id,
+		"wealth": float(state["wealth"]),
+		"delta": delta,
+		"reason": reason,
+	})
+	return float(state["wealth"])
 
 
 func record_population_death(settlement_id: String, actor: Node, reason := "death") -> bool:
@@ -262,6 +302,7 @@ func _try_initialize() -> void:
 	if world_time == null:
 		return
 	faction_controller = _context.get_optional(FactionController.SERVICE_ID)
+	census = _context.get_optional(&"settlement_census")
 	_collect_world_definitions()
 	var hour_changed_callable := Callable(self, "_on_hour_changed")
 	if world_time.has_signal("hour_changed") and not world_time.is_connected("hour_changed", hour_changed_callable):
@@ -298,6 +339,11 @@ func _register_settlement_definition(definition: Resource, anchor: Node3D) -> vo
 		_register_anchor_facilities(settlement_id, anchor)
 		_sync_settlement_staff_slots(settlement_id)
 		_apply_population_from_occupancy(settlement_id)
+		# A registry-known settlement gained its live anchor (zone loaded):
+		# real housing/staff demand exists only now, so seed here too —
+		# seed_settlement no-ops if records already exist.
+		if census != null and census.has_method("seed_settlement"):
+			census.call_deferred("seed_settlement", settlement_id)
 		_notify_state_changed(settlement_id)
 	if faction_controller != null and faction_controller.has_method("register_faction"):
 		faction_controller.call("register_faction", definition.get("faction_definition") as Resource)
@@ -328,6 +374,9 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 		"occupancy_ratio": 1.0,
 		"food": clampf(_resource_float(definition, "starting_food", 0.0), 0.0, maxf(_resource_float(definition, "max_food", 1.0), 1.0)),
 		"max_food": maxf(_resource_float(definition, "max_food", 1.0), 1.0),
+		"wealth": maxf(_resource_float(definition, "starting_wealth", 0.0), 0.0),
+		"supplies": maxf(_resource_float(definition, "starting_supplies", 0.0), 0.0),
+		"fear": 0.0,
 		"morale": 1.0,
 		"food_ratio": 1.0,
 		"pressure_state": PRESSURE_SUPPLIED,
@@ -346,6 +395,10 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 	_register_anchor_facilities(settlement_id, anchor)
 	_sync_settlement_staff_slots(settlement_id)
 	_apply_population_from_occupancy(settlement_id)
+	# Born settled: the census mints a resident record for every staff slot
+	# plus surplus before vacancies process, so day zero starts staffed.
+	if census != null and census.has_method("seed_settlement"):
+		census.call_deferred("seed_settlement", settlement_id)
 	_assign_staff_from_ledger(settlement_id, true)
 	call_deferred("_bootstrap_staff_vacancies", settlement_id)
 	_update_pressure_state(settlement_id)
@@ -608,6 +661,11 @@ func _assign_staff_from_ledger(settlement_id: String, ignore_delay := false) -> 
 			continue
 		var record: Dictionary = pop.call("claim_unassigned_record_for_slot", settlement_id, slot_id, role_id)
 		if record.is_empty():
+			# No surplus left — poach the lowest-priority filled role. The
+			# poached slot opens its own vacancy, cascading the labor shortage
+			# to the least critical job instead of leaving this one open.
+			record = _poach_assigned_record_for_slot(settlement_id, slot_id, role_id, slots, vacancies, pop)
+		if record.is_empty():
 			continue
 		var slot: Dictionary = (slots.get(slot_id, vacancy) as Dictionary).duplicate(true)
 		slot["worker_actor_id"] = str(record.get("actor_id", ""))
@@ -637,6 +695,47 @@ func _assign_staff_from_ledger(settlement_id: String, ignore_delay := false) -> 
 	settlement_states[settlement_id] = state
 	_refresh_population_availability(settlement_id)
 	_save_settlement_state_to_gecs(settlement_id, state)
+
+
+## Surplus is exhausted: take the worker from the filled slot whose role sits
+## LOWEST in ROLE_POACH_PRIORITY (strictly below the vacancy's role), rebind
+## the record to the vacancy, and open a vacancy for the poached slot.
+func _poach_assigned_record_for_slot(settlement_id: String, slot_id: String, role_id: String, slots: Dictionary, vacancies: Dictionary, pop: Node) -> Dictionary:
+	var vacancy_priority := ROLE_POACH_PRIORITY.find(role_id)
+	if vacancy_priority < 0:
+		return {}
+	var best_slot_id := ""
+	var best_priority := vacancy_priority
+	for candidate_id_value in slots.keys():
+		var candidate_id := str(candidate_id_value)
+		if candidate_id == slot_id or vacancies.has(candidate_id):
+			continue
+		var candidate: Dictionary = slots[candidate_id]
+		if not bool(candidate.get("filled", false)) or str(candidate.get("worker_actor_id", "")).strip_edges().is_empty():
+			continue
+		var candidate_priority := ROLE_POACH_PRIORITY.find(str(candidate.get("role_id", "")))
+		if candidate_priority > best_priority:
+			best_priority = candidate_priority
+			best_slot_id = candidate_id
+	if best_slot_id.is_empty():
+		return {}
+	var poached: Dictionary = (slots[best_slot_id] as Dictionary).duplicate(true)
+	var worker_actor_id := str(poached.get("worker_actor_id", ""))
+	poached["filled"] = false
+	poached["worker_actor_id"] = ""
+	slots[best_slot_id] = poached
+	_save_staff_slot_to_gecs(settlement_id, best_slot_id, poached)
+	_ensure_staff_vacancy(settlement_id, best_slot_id, poached)
+	_record_event({
+		"type": "staff_poached",
+		"settlement_id": settlement_id,
+		"from_slot_id": best_slot_id,
+		"to_slot_id": slot_id,
+		"actor_id": worker_actor_id,
+	})
+	if pop == null or not pop.has_method("update_actor_record"):
+		return {}
+	return pop.call("update_actor_record", worker_actor_id, {"role_id": role_id, "assigned_slot_id": slot_id})
 
 
 ## LOD-gated: for each filled slot that has a bound record, ask the owning facility to put the body
@@ -765,6 +864,10 @@ func _collect_staff_role_owners_recursive(node: Node, owners: Array[Node]) -> vo
 func _process_population_recovery(settlement_id: String, day_index: int) -> void:
 	if not settlement_states.has(settlement_id):
 		return
+	if census != null:
+		# The census owns population growth (record-backed, food/fear gated);
+		# this flat legacy recovery only runs census-less (isolated test scenes).
+		return
 	var state: Dictionary = settlement_states[settlement_id]
 	if int(state.get("last_population_recovery_day", -1)) == day_index:
 		return
@@ -801,6 +904,9 @@ func _record_population_death_if_needed(settlement_id: String, actor_key: String
 		"absolute_minute": _get_absolute_minute(),
 	}
 	state["population_death_records"] = death_records
+	# Violence scares the town: fear gates population growth and decays daily
+	# (the census owns the decay).
+	state["fear"] = clampf(float(state.get("fear", 0.0)) + FEAR_PER_DEATH, 0.0, 1.0)
 	_set_population_total(settlement_id, max(0, int(state.get("population", 0)) - 1))
 	_record_event({
 		"type": "population_death",
@@ -930,6 +1036,10 @@ func _apply_population_from_occupancy(settlement_id: String, fill_to_target := f
 	var should_bootstrap_population := not bool(state.get("population_initialized", false)) or (previous_target <= 0 and previous_population <= 0 and target_population > 0)
 	if fill_to_target:
 		state["population"] = target_population
+		state["population_initialized"] = true
+	elif should_bootstrap_population and census != null:
+		# Census-backed worlds: population is the count of living records; the
+		# census reconciles it after seeding. Occupancy only shapes the target.
 		state["population_initialized"] = true
 	elif should_bootstrap_population:
 		state["population"] = _get_bootstrap_population(state)

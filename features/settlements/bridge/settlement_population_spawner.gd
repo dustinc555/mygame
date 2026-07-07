@@ -113,7 +113,7 @@ func _spawn_missing_residents() -> void:
 	if missing_count <= 0:
 		return
 	var rng := RandomNumberGenerator.new()
-	rng.seed = max(1, random_seed)
+	rng.seed = max(1, _effective_generation_seed())
 	for index in range(missing_count):
 		var resident_index := existing_count + index + 1
 		var actor := CharacterBody3D.new()
@@ -138,10 +138,18 @@ func _spawn_missing_residents() -> void:
 func _spawn_missing_residents_from_records(population_controller: Node) -> void:
 	_register_existing_residents_with_population_controller(population_controller)
 	var desired_count: int = _get_desired_population()
-	var context := _build_population_generation_context(_count_existing_residents())
-	var records: Array = population_controller.call("ensure_generated_population", _get_settlement_id(), _get_spawner_id(), desired_count, context)
+	# Census-seeded settlements already own their people; the main-population
+	# spawner's job is only to realize them. Sub-population spawners (a
+	# different faction inside the town, e.g. captives in a raider camp) and
+	# census-less test scenes keep minting their own records.
+	var records: Array = []
+	if _spawner_owns_settlement_population(population_controller):
+		records = population_controller.call("get_seeded_resident_records", _get_settlement_id())
+	if records.is_empty():
+		var context := _build_population_generation_context(_count_existing_residents())
+		records = population_controller.call("ensure_generated_population", _get_settlement_id(), _get_spawner_id(), desired_count, context)
 	var rng := RandomNumberGenerator.new()
-	rng.seed = max(1, random_seed)
+	rng.seed = max(1, _effective_generation_seed())
 	_ensure_record_spawn_positions(population_controller, records, desired_count, rng)
 	var forced_realization_ids := _staff_bootstrap_realization_ids(records)
 	var spawned_count := 0
@@ -178,6 +186,21 @@ func _spawn_missing_residents_from_records(population_controller: Node) -> void:
 	if _count_existing_residents() > 0:
 		_notify_settlement_population_ready()
 	_realization_dirty = false
+
+
+## True when this spawner realizes the settlement's own people (its faction
+## matches the settlement's), as opposed to a sub-population with its own
+## faction and generation flavor.
+func _spawner_owns_settlement_population(population_controller: Node) -> bool:
+	if not population_controller.has_method("get_seeded_resident_records"):
+		return false
+	var spawner_faction := faction_id.strip_edges()
+	if spawner_faction.is_empty():
+		return true
+	var definition_faction := ""
+	if settlement_definition != null and settlement_definition.has_method("get_faction_id"):
+		definition_faction = str(settlement_definition.call("get_faction_id"))
+	return spawner_faction == definition_faction
 
 
 func _register_existing_residents_with_population_controller(population_controller: Node) -> void:
@@ -527,9 +550,20 @@ func _get_occupancy_multiplier() -> float:
 	return 1.0
 
 
+## The settlement definition's generation_seed (when authored non-zero) wins
+## over the node's random_seed so a town's people are reproducible from its
+## .tres alone; the node export remains the fallback for definition-less
+## spawners (test scenes).
+func _effective_generation_seed() -> int:
+	var definition := settlement_definition as SettlementDefinition
+	if definition != null and definition.generation_seed != 0:
+		return definition.generation_seed
+	return random_seed
+
+
 func _make_resident_rng(resident_index: int, stable_id := "") -> RandomNumberGenerator:
 	var rng := RandomNumberGenerator.new()
-	var seed_key := "%d:%s:%d:%s" % [random_seed, stable_id_prefix, resident_index, stable_id]
+	var seed_key := "%d:%s:%d:%s" % [_effective_generation_seed(), stable_id_prefix, resident_index, stable_id]
 	rng.seed = max(1, absi(seed_key.hash()))
 	return rng
 

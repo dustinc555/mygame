@@ -1,16 +1,16 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3 uid="uid://b1d50c4cghp2b"]
 
-[ext_resource type="Script" path="res://scenes/showcase/model_pack_showcase.gd" id="1_showcase"]
-[ext_resource type="Script" path="res://scenes/showcase/free_fly_camera.gd" id="2_camera"]
+[ext_resource type="Script" uid="uid://dfdevr0unv3ah" path="res://scenes/showcase/model_pack_showcase.gd" id="1_showcase"]
+[ext_resource type="Script" uid="uid://b01y80mn7jqwy" path="res://scenes/showcase/free_fly_camera.gd" id="2_camera"]
 
 [sub_resource type="Environment" id="Environment_showcase"]
 background_mode = 1
-background_color = Color(0.105, 0.082, 0.058, 1)
+background_color = Color(0.13, 0.135, 0.15, 1)
 ambient_light_source = 3
-ambient_light_color = Color(0.8, 0.62, 0.43, 1)
-ambient_light_energy = 0.52
+ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 0.85
 
-[node name="FantasyPropsMegaKitShowcase" type="Node3D"]
+[node name="FantasyPropsMegaKitShowcase" type="Node3D" unique_id=1147538365]
 script = ExtResource("1_showcase")
 asset_directory = "res://assets/vendor/quaternius/fantasy_props_megakit/gltf"
 showcase_title = "Fantasy Props MegaKit Showcase"
@@ -18,34 +18,21 @@ pack_note = "Quaternius CC0 medieval props: furniture, tools, markets, weapons, 
 columns = 14
 item_spacing = 3.2
 row_spacing = 3.6
-platform_color = Color(0.3, 0.2, 0.12, 1)
-title_label_color = Color(1, 0.86, 0.55, 1)
-item_label_color = Color(0.96, 0.87, 0.68, 1)
+platform_color = Color(0.33, 0.33, 0.35, 1)
+title_label_color = Color(1, 0.95, 0.82, 1)
+item_label_color = Color(0.95, 0.95, 0.92, 1)
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1119575809]
 environment = SubResource("Environment_showcase")
 
-[node name="Sun" type="DirectionalLight3D" parent="."]
-rotation = Vector3(-0.72, -0.58, 0.16)
-light_color = Color(1, 0.78, 0.48, 1)
-light_energy = 0.9
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=788692063]
+transform = Transform3D(0.8833498, 0.2234793, -0.41200754, 0.11977634, 0.7422031, 0.65938467, 0.4531521, -0.6318161, 0.62885743, 0, 0, 0)
+light_color = Color(1, 0.98, 0.94, 1)
+light_energy = 1.25
 shadow_enabled = true
 
-[node name="LanternFillLeft" type="OmniLight3D" parent="."]
-position = Vector3(-18, 7, 18)
-light_color = Color(1, 0.56, 0.25, 1)
-light_energy = 150.0
-omni_range = 44.0
-
-[node name="LanternFillRight" type="OmniLight3D" parent="."]
-position = Vector3(24, 9, -20)
-light_color = Color(1, 0.7, 0.34, 1)
-light_energy = 115.0
-omni_range = 52.0
-
-[node name="ShowcaseCamera" type="Camera3D" parent="."]
-position = Vector3(24, 18, 36)
-rotation = Vector3(-0.43, 0.52, 0)
+[node name="ShowcaseCamera" type="Camera3D" parent="." unique_id=2018886124]
+transform = Transform3D(1, 0, 0, 0, 0.91914505, 0.3939193, 0, -0.3939193, 0.91914505, 0, 30, 66)
 current = true
 fov = 62.0
 script = ExtResource("2_camera")

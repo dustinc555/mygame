@@ -43,11 +43,6 @@ _surfaces = [{
 
 [node name="EastRaidersCamp" type="Node3D" unique_id=1803383065]
 script = ExtResource("1_town")
-guard_count = 1
-guard_post_count = 1
-guard_name = "East Raider Guard"
-staff_stable_id_prefix = "npc.east_raiders_camp.staff"
-staff_squad_name = "EastRaiders"
 town_border_radius = 28.0
 town_border_debug_color = Color(0.86, 0.16, 0.08, 0.32)
 settlement_definition = ExtResource("6_settlement")
