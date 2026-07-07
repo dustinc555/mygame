@@ -7,6 +7,7 @@ signal inventory_changed
 signal interaction_resolved(container, actor)
 
 @export var display_name := "Container"
+@export var furniture_type := FurnitureRules.Type.CONTAINER
 @export var inventory_columns := 7
 @export var inventory_rows := 5
 @export var is_locked := false
@@ -49,6 +50,7 @@ func _ready() -> void:
 		inventory.changed.connect(_on_inventory_changed)
 		_seed_starting_inventory()
 	add_to_group("world_container")
+	add_to_group(FurnitureRules.FURNITURE_GROUP)
 	_apply_collision_settings()
 	_rebuild_visual()
 	_sync_inventory_to_gecs()

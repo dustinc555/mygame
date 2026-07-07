@@ -1,0 +1,16 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/container.tscn" id="1_container"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Chest_Wood.gltf" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="Shape_body"]
+size = Vector3(1.28, 0.72, 0.76)
+
+[node name="ChestWood" instance=ExtResource("1_container")]
+display_name = "Wooden Chest"
+inventory_columns = 7
+inventory_rows = 5
+interaction_distance = 2.2
+visual_scene = ExtResource("2_model")
+collision_shape = SubResource("Shape_body")
+collision_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0.0)

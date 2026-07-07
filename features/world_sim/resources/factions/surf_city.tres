@@ -5,6 +5,7 @@
 [ext_resource type="Resource" uid="uid://b1bula4spi1xt" path="res://features/world_sim/resources/personality_profiles/surf_city_civic.tres" id="3_personality"]
 [ext_resource type="Resource" uid="uid://d38nciiubvt1q" path="res://features/world_sim/resources/law_profiles/surf_city_law.tres" id="4_law"]
 [ext_resource type="Resource" uid="uid://4464sf7u02lx" path="res://features/world_sim/resources/population_name_profiles/farmer_names.tres" id="5_names"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/farmer_peasant.tres" id="9_appearance"]
 
 [resource]
 script = ExtResource("1_faction")
@@ -17,4 +18,5 @@ starting_war_faction_ids = null
 behavior_profile = ExtResource("2_behavior")
 personality_profile = ExtResource("3_personality")
 law_profile = ExtResource("4_law")
+population_appearance_profile = ExtResource("9_appearance")
 population_name_profile = ExtResource("5_names")

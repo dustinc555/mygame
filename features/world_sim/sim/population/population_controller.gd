@@ -212,6 +212,64 @@ func ensure_generated_population(settlement_id: String, spawner_id: String, desi
 	return records
 
 
+## Mints one record with authored overrides (member_name, role_id, skills…)
+## on top of the generated baseline — the seeding path for a settlement's
+## hand-authored residents. Idempotent per (settlement, spawner, index).
+func ensure_authored_record(settlement_id: String, spawner_id: String, generation_index: int, context: Dictionary, overrides: Dictionary) -> Dictionary:
+	if settlement_id.is_empty() or spawner_id.is_empty():
+		return {}
+	var existing := _get_generated_records(settlement_id, spawner_id)
+	for record in existing:
+		if int(record.get("generation_index", 0)) == generation_index:
+			return record
+	var created := _create_generated_actor_record(settlement_id, spawner_id, generation_index, context, _collect_used_names(settlement_id))
+	for key in overrides:
+		var value = overrides[key]
+		if value == null:
+			continue
+		if value is String and (value as String).strip_edges().is_empty():
+			continue
+		if (value is Dictionary and (value as Dictionary).is_empty()) or (value is Array and (value as Array).is_empty()):
+			continue
+		created[key] = value
+	return _save_actor_record(str(created["actor_id"]), created)
+
+
+## Census-seeded surplus residents (alive, still role "resident"). Population
+## spawners realize these instead of minting a parallel record namespace, so
+## the ambient crowd IS the census.
+func get_seeded_resident_records(settlement_id: String) -> Array[Dictionary]:
+	_refresh_actor_records_cache()
+	var records: Array[Dictionary] = []
+	for actor_id in actor_records.keys():
+		var record: Dictionary = actor_records[actor_id]
+		if str(record.get("settlement_id", "")) != settlement_id:
+			continue
+		var source := str(record.get("generation_source", ""))
+		if source != "census" and source != "census_authored":
+			continue
+		if str(record.get("role_id", "resident")) != "resident":
+			continue
+		if int(record.get("life_state", 0)) == NpcRules.LifeState.DEAD:
+			continue
+		records.append(record.duplicate(true))
+	records.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("generation_index", 0)) < int(b.get("generation_index", 0)))
+	return records
+
+
+func count_alive_records_for_settlement(settlement_id: String) -> int:
+	_refresh_actor_records_cache()
+	var count := 0
+	for actor_id in actor_records.keys():
+		var record: Dictionary = actor_records[actor_id]
+		if str(record.get("settlement_id", "")) != settlement_id:
+			continue
+		if int(record.get("life_state", 0)) == NpcRules.LifeState.DEAD:
+			continue
+		count += 1
+	return count
+
+
 func remove_actor_record(actor_id: String, remove_live_actor := true) -> void:
 	_remove_actor_record(actor_id, remove_live_actor)
 
@@ -453,13 +511,14 @@ func _next_generation_index(settlement_id: String, spawner_id: String, start_ind
 
 func _create_generated_actor_record(settlement_id: String, spawner_id: String, generation_index: int, context: Dictionary, used_names: Dictionary) -> Dictionary:
 	var actor_id := "%s.%s.%03d" % [_sanitize_id(settlement_id), _sanitize_id(spawner_id), generation_index]
+	var generation_seed := int(context.get("generation_seed", 0))
 	var appearance_profile: Resource = context.get("population_appearance_profile") as Resource
-	var appearance_rng := _make_rng(actor_id, "appearance")
+	var appearance_rng := _make_rng(actor_id, "appearance", generation_seed)
 	var appearance = appearance_profile.call("create_appearance", appearance_rng) if appearance_profile != null and appearance_profile.has_method("create_appearance") else CHARACTER_APPEARANCE_DATA_SCRIPT.new()
 	_repair_non_rustdead_appearance(appearance, str(context.get("faction_id", "")))
 	var body_type := int(appearance.visual_body_type) if appearance != null else 0
 	var name_profile: Resource = context.get("population_name_profile") as Resource
-	var name_rng := _make_rng(actor_id, "name")
+	var name_rng := _make_rng(actor_id, "name", generation_seed)
 	var display_name := "%s %02d" % [str(context.get("member_name_prefix", "Resident")), generation_index]
 	if name_profile != null and name_profile.has_method("generate_name"):
 		display_name = str(name_profile.call("generate_name", body_type, name_rng, used_names)).strip_edges()
@@ -580,7 +639,7 @@ func _generate_equipment_slots(appearance_profile: Resource, context: Dictionary
 		_add_equipment_path(slots, item)
 	if appearance_profile == null:
 		return slots
-	var rng := _make_rng(actor_id, "equipment")
+	var rng := _make_rng(actor_id, "equipment", int(context.get("generation_seed", 0)))
 	for property_name in ["chest_items", "leg_items", "feet_items"]:
 		_pick_equipment_from_pool(slots, appearance_profile.get(property_name), rng)
 	var head_chance = appearance_profile.get("head_item_chance")
@@ -610,7 +669,7 @@ func _add_equipment_path(slots: Dictionary, item) -> void:
 func _generate_skill_levels(context: Dictionary, actor_id: String) -> Dictionary:
 	var minimum := int(context.get("resident_perception_min", SkillRules.DEFAULT_LEVEL))
 	var maximum := int(context.get("resident_perception_max", SkillRules.DEFAULT_LEVEL))
-	var rng := _make_rng(actor_id, "skills")
+	var rng := _make_rng(actor_id, "skills", int(context.get("generation_seed", 0)))
 	var low := mini(minimum, maximum)
 	var high := maxi(minimum, maximum)
 	var t := (rng.randf() + rng.randf()) * 0.5
@@ -821,9 +880,12 @@ func _increment_count(counts: Dictionary, key: String) -> void:
 	counts[safe_key] = int(counts.get(safe_key, 0)) + 1
 
 
-func _make_rng(actor_id: String, purpose: String) -> RandomNumberGenerator:
+## extra_seed perturbs the actor_id-derived stream: a settlement's authored
+## generation_seed makes its whole population reproducible, while a per-run
+## rolled seed makes each new game generate different people.
+func _make_rng(actor_id: String, purpose: String, extra_seed := 0) -> RandomNumberGenerator:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = max(1, absi(("%s:%s" % [actor_id, purpose]).hash()))
+	rng.seed = max(1, absi(("%s:%s:%d" % [actor_id, purpose, extra_seed]).hash()))
 	return rng
 
 

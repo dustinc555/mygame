@@ -43,11 +43,6 @@ _surfaces = [{
 
 [node name="ParadiseHills" type="Node3D" unique_id=1011136473]
 script = ExtResource("1_town")
-guard_count = 1
-guard_post_count = 1
-guard_name = "Paradise Enforcer"
-staff_stable_id_prefix = "npc.paradise_hills.staff"
-staff_squad_name = "ParadiseHills"
 town_border_radius = 28.0
 town_border_debug_color = Color(0.72, 0.48, 0.16, 0.34)
 settlement_definition = ExtResource("6_settlement")

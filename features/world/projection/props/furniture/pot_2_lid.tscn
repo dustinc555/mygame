@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/props/prop.tscn" id="1_prop"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Pot_2_Lid.gltf" id="2_model"]
+
+[sub_resource type="CylinderShape3D" id="Shape_body"]
+radius = 0.28
+height = 0.41
+
+[node name="Pot2Lid" instance=ExtResource("1_prop")]
+display_name = "Lidded Pot"
+visual_scene = ExtResource("2_model")
+collision_shapes = Array[Shape3D]([SubResource("Shape_body")])
+collision_transforms = Array[Transform3D]([Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, 0.0)])

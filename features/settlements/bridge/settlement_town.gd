@@ -29,19 +29,43 @@ const GUARD_PERCEPTION_RANGE := Vector2i(12, 22)
 @export var territory_root_path: NodePath = NodePath("Territory")
 @export var guards_root_path: NodePath = NodePath("Guards")
 @export var guard_posts_root_path: NodePath = NodePath("GuardPosts")
-@export_range(0, 24, 1) var guard_count := 0:
+# Guard/staff counts, naming, and realization policy live on the
+# SettlementDefinition — the single sim-truth home the Town dock edits.
+# These properties proxy the definition so readers keep property access;
+# realization policy additionally accepts a runtime placement override
+# written by the zone/world loaders.
+var guard_count: int:
+	get:
+		var definition := _settlement_definition_typed()
+		return clampi(definition.guard_count, 0, 24) if definition != null else 0
+var guard_post_count: int:
+	get:
+		var definition := _settlement_definition_typed()
+		return clampi(definition.guard_post_count, 0, 24) if definition != null else 0
+var guard_name: String:
+	get:
+		var definition := _settlement_definition_typed()
+		return definition.get_guard_name() if definition != null else "Town Guard"
+var staff_stable_id_prefix: String:
+	get:
+		var definition := _settlement_definition_typed()
+		return definition.staff_stable_id_prefix if definition != null else ""
+var staff_squad_name: String:
+	get:
+		var definition := _settlement_definition_typed()
+		return definition.staff_squad_name if definition != null else ""
+var use_settlement_population_for_guards: bool:
+	get:
+		var definition := _settlement_definition_typed()
+		return definition.use_settlement_population_for_guards if definition != null else true
+var actor_realization_policy: String:
+	get:
+		if not _realization_policy_override.is_empty():
+			return _realization_policy_override
+		var definition := _settlement_definition_typed()
+		return definition.get_actor_realization_policy() if definition != null else ""
 	set(value):
-		guard_count = clampi(int(value), 0, 24)
-		_repair_guard_authoring_tree()
-@export_range(0, 24, 1) var guard_post_count := 0:
-	set(value):
-		guard_post_count = clampi(int(value), 0, 24)
-		_repair_guard_authoring_tree()
-@export var guard_name := "Town Guard"
-@export var staff_stable_id_prefix := ""
-@export var staff_squad_name := ""
-@export var use_settlement_population_for_guards := true
-@export_enum("full_town", "important_plus_near", "near_player") var actor_realization_policy := "near_player"
+		_realization_policy_override = str(value).strip_edges()
 @export var auto_town_border_from_footprint := true:
 	set(value):
 		auto_town_border_from_footprint = value
@@ -74,6 +98,12 @@ const GUARD_PERCEPTION_RANGE := Vector2i(12, 22)
 var _town_border_debug: MeshInstance3D
 var _town_border_refresh_timer := 0.0
 var _last_town_border_signature := ""
+var _realization_policy_override := ""
+var _last_guard_authoring_signature := ""
+
+
+func _settlement_definition_typed() -> SettlementDefinition:
+	return settlement_definition as SettlementDefinition
 
 
 func _enter_tree() -> void:
@@ -157,13 +187,26 @@ func _snap_markers_to_ground(space: PhysicsDirectSpaceState3D) -> void:
 
 
 func _process(delta: float) -> void:
-	if not Engine.is_editor_hint() or not editor_show_debug_shape:
+	if not Engine.is_editor_hint():
 		return
 	_town_border_refresh_timer -= delta
 	if _town_border_refresh_timer > 0.0:
 		return
 	_town_border_refresh_timer = 0.25
-	_refresh_town_border_debug_if_changed()
+	_poll_guard_authoring_signature()
+	if editor_show_debug_shape:
+		_refresh_town_border_debug_if_changed()
+
+
+## Guard counts now live on the definition .tres, which has no setter hook
+## into this node — poll the authored values in the editor so the generated
+## guard/post tree tracks Town dock and inspector edits.
+func _poll_guard_authoring_signature() -> void:
+	var signature := "%d:%d:%s" % [guard_count, guard_post_count, use_settlement_population_for_guards]
+	if signature == _last_guard_authoring_signature:
+		return
+	_last_guard_authoring_signature = signature
+	_repair_guard_authoring_tree()
 
 
 func get_facility_nodes() -> Array:

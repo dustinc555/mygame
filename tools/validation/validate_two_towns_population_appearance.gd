@@ -93,8 +93,11 @@ func _validate_resident_group(path: String, profile: Resource, name_profile: Res
 	for child in root_node.get_children():
 		if child is HumanoidCharacter:
 			residents.append(child as HumanoidCharacter)
-	if residents.size() != 2:
-		_fail("%s should bootstrap exactly two unassigned generated townies; count=%d" % [label, residents.size()])
+	# Census seeding sizes the surplus from housing + occupancy (born-settled
+	# design, 2026-07-06); the invariant is that generated townies exist, not
+	# a specific count.
+	if residents.size() < 2:
+		_fail("%s should bootstrap at least two unassigned generated townies; count=%d" % [label, residents.size()])
 	for resident in residents:
 		if ["FarmerA", "FarmerB", "FarmerC", "RaiderA", "RaiderB", "RaiderC"].has(str(resident.name)):
 			_fail("%s should not use hand-authored townie node %s" % [label, resident.name])

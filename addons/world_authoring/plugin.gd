@@ -11,6 +11,7 @@ extends EditorPlugin
 const WORLD_NAV_BAKE_TOOL := preload("res://addons/world_authoring/world_nav_bake_tool.gd")
 const BUILDING_TOOLS := preload("res://addons/world_authoring/building_tools.gd")
 const TOWN_TOOLS := preload("res://addons/world_authoring/town_tools.gd")
+const ZONE_TOOLS := preload("res://addons/world_authoring/zone_tools.gd")
 
 var _contexts: Array = []
 var _world_nav_bake_tool: Control
@@ -19,7 +20,9 @@ var _world_nav_bake_tool: Control
 func _enter_tree() -> void:
 	set_process(true)
 	set_process_shortcut_input(true)
-	_contexts = [BUILDING_TOOLS.new(self), TOWN_TOOLS.new(self)]
+	# Order matters for input routing: innermost concept first (a piece inside
+	# a building inside a town inside a zone resolves to the building tools).
+	_contexts = [BUILDING_TOOLS.new(self), TOWN_TOOLS.new(self), ZONE_TOOLS.new(self)]
 	for context in _contexts:
 		add_control_to_container(EditorPlugin.CONTAINER_SPATIAL_EDITOR_MENU, context.toolbar())
 	_world_nav_bake_tool = WORLD_NAV_BAKE_TOOL.new()

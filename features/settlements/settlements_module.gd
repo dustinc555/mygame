@@ -15,6 +15,7 @@ const LAW_ORDER := preload("res://features/settlements/sim/law/law_order_control
 const OWNERSHIP := preload("res://features/settlements/sim/ownership_controller.gd")
 const JOB_SYSTEM := preload("res://features/settlements/sim/job_system_controller.gd")
 const CONSTRUCTION := preload("res://features/settlements/sim/construction_records.gd")
+const CENSUS := preload("res://features/settlements/sim/settlement_census.gd")
 const SETTLEMENT := preload("res://features/settlements/bridge/settlement_controller.gd")
 const CONSTRUCTION_REALIZER := preload("res://features/settlements/bridge/construction_realizer.gd")
 
@@ -25,6 +26,7 @@ const SIM := [
 	{"name": "OwnershipController", "script": OWNERSHIP, "service": OWNERSHIP.SERVICE_ID},
 	{"name": "JobSystemController", "script": JOB_SYSTEM, "service": JOB_SYSTEM.SERVICE_ID},
 	{"name": "ConstructionRecords", "script": CONSTRUCTION, "service": CONSTRUCTION.SERVICE_ID},
+	{"name": "SettlementCensus", "script": CENSUS, "service": CENSUS.SERVICE_ID},
 ]
 const BRIDGE := [
 	{"name": "SettlementController", "script": SETTLEMENT, "service": SETTLEMENT.SERVICE_ID},

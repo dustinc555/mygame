@@ -4,6 +4,7 @@ extends StaticBody3D
 class_name WorldProp
 
 @export var display_name := "Prop"
+@export var furniture_type := FurnitureRules.Type.DECOR
 @export var visual_scene: PackedScene:
 	set(value):
 		visual_scene = value
@@ -26,6 +27,7 @@ class_name WorldProp
 
 func _ready() -> void:
 	add_to_group("world_prop")
+	add_to_group(FurnitureRules.FURNITURE_GROUP)
 	_rebuild_collision_shapes()
 	_rebuild_visual()
 

@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://bnqqdlduxcd3i"]
+
+[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://features/settlements/bridge/settlement_town.gd" id="1_7m1m3"]
+[ext_resource type="Resource" uid="uid://j6nyneohu3ag" path="res://features/world_sim/resources/settlements/canyon.tres" id="2_iimnv"]
+[ext_resource type="PackedScene" uid="uid://fpat6npxukfj" path="res://features/settlements/bridge/settlement_bar.tscn" id="3_r7d1i"]
+[ext_resource type="Script" uid="uid://c354oqtn4bw75" path="res://features/settlements/bridge/settlement_bar.gd" id="4_ft55j"]
+[ext_resource type="Resource" uid="uid://c61gqpdemh37e" path="res://features/world_sim/resources/facility_functions/bar.tres" id="5_okr6t"]
+
+[node name="Canyon" type="Node3D" unique_id=396429240]
+script = ExtResource("1_7m1m3")
+settlement_definition = ExtResource("2_iimnv")
+
+[node name="Facilities" type="Node3D" parent="." unique_id=1227199672]
+
+[node name="SettlementBar" type="Node3D" parent="Facilities" unique_id=556110935 instance=ExtResource("3_r7d1i")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.486578, -0.010965347, -8.417877)
+script = ExtResource("4_ft55j")
+guard_post_count = 3
+facility_function = ExtResource("5_okr6t")
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+display_name = "Settlement Bar"
+facility_type = "bar"
+activity_points_root_path = NodePath("ActivityPoints")

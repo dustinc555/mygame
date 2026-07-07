@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="FacilityDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/facility_definition.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+facility_id = "medium_shop_shell"
+display_name = "Medium Shop Shell"
+scene_path = "res://features/world/projection/buildings/woodbrick_shop_medium.tscn"
+
+staff_role_counts = {}
+population_capacity = 0

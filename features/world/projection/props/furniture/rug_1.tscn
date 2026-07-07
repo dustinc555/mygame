@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/props/prop.tscn" id="1_prop"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Rug_1.gltf" id="2_model"]
+
+[node name="Rug1" instance=ExtResource("1_prop")]
+display_name = "Rug"
+furniture_type = 6
+visual_scene = ExtResource("2_model")

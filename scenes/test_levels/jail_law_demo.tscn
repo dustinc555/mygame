@@ -53,6 +53,11 @@ faction_definition = ExtResource("6_farmers")
 starting_food = 80.0
 max_food = 80.0
 known_settlement_ids = null
+guard_count = 1
+guard_post_count = 1
+guard_name = "City Guard"
+staff_stable_id_prefix = "npc.jail_demo_town.town"
+staff_squad_name = "JailDemoTown"
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_witness"]
 albedo_color = Color(0.56, 0.63, 0.76, 1)
@@ -142,11 +147,6 @@ script = ExtResource("3_bootstrap")
 
 [node name="JailDemoTown" type="Node3D" parent="." unique_id=580618190]
 script = ExtResource("4_town")
-guard_count = 1
-guard_post_count = 1
-guard_name = "City Guard"
-staff_stable_id_prefix = "npc.jail_demo_town.town"
-staff_squad_name = "JailDemoTown"
 auto_town_border_from_footprint = false
 town_border_radius = 26.0
 editor_show_debug_shape = false

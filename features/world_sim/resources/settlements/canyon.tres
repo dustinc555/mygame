@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="SettlementDefinition" format=3 uid="uid://j6nyneohu3ag"]
+
+[ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://features/world_sim/resources/settlement_definition.gd" id="1_47tud"]
+
+[resource]
+script = ExtResource("1_47tud")
+settlement_id = "canyon"
+display_name = "Canyon"
+world_position = Vector3(-2.5942535, -0.007736206, -313.2602)
+known_settlement_ids = PackedStringArray()
