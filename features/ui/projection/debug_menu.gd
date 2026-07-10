@@ -216,9 +216,9 @@ func _on_towns_law_toggled(pressed: bool) -> void:
 func _add_law_border(y: float, points: PackedVector2Array) -> void:
 	var instance := MeshInstance3D.new()
 	instance.mesh = _dashed_polyline_mesh(points, y)
-	var material := _ghost_disc_material(true)
-	material.albedo_color = Color(0.4, 0.7, 0.95, 0.9)
-	instance.material_override = material
+	var border_material := _ghost_disc_material(true)
+	border_material.albedo_color = Color(0.4, 0.7, 0.95, 0.9)
+	instance.material_override = border_material
 	_law_border_root.add_child(instance)
 
 
@@ -674,16 +674,16 @@ func _update_ghost(screen_position: Vector2) -> void:
 		_apply_ghost_transform(hit["position"])
 
 
-func _apply_ghost_transform(position: Vector3) -> void:
-	_ghost_ground = position
+func _apply_ghost_transform(ground_position: Vector3) -> void:
+	_ghost_ground = ground_position
 	var camera := get_viewport().get_camera_3d()
 	if camera == null:
 		return
-	var solution := BuildingPlacementSolver.solve(camera.get_world_3d().direct_space_state, position, _ghost_footprint, _ghost_yaw, _ghost_y_offset)
+	var solution := BuildingPlacementSolver.solve(camera.get_world_3d().direct_space_state, ground_position, _ghost_footprint, _ghost_yaw, _ghost_y_offset)
 	var zone := {"allowed": true, "reason": ""}
 	var construction := get_tree().get_first_node_in_group("construction_records")
 	if construction != null:
-		zone = construction.call("can_place", position, _ghost_faction)
+		zone = construction.call("can_place", ground_position, _ghost_faction)
 	_ghost_valid = bool(solution["slope_ok"]) and bool(zone["allowed"])
 	_ghost_reason = ""
 	if not bool(zone["allowed"]):
@@ -691,7 +691,7 @@ func _apply_ghost_transform(position: Vector3) -> void:
 	elif not bool(solution["slope_ok"]):
 		_ghost_reason = "Slope too steep."
 	_ghost.global_transform = solution["transform"]
-	_ghost_disc.global_position = position + Vector3(0.0, 0.15, 0.0)
+	_ghost_disc.global_position = ground_position + Vector3(0.0, 0.15, 0.0)
 	_ghost_disc.material_override = _ghost_disc_material(_ghost_valid)
 	if _placer_status != null:
 		if not _ghost_reason.is_empty():
@@ -753,11 +753,11 @@ func _apply_ghost_transparency(node: Node) -> void:
 
 
 func _ghost_disc_material(valid: bool) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.albedo_color = Color(0.25, 0.85, 0.35, 0.35) if valid else Color(0.9, 0.2, 0.15, 0.45)
-	return material
+	var disc_material := StandardMaterial3D.new()
+	disc_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	disc_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	disc_material.albedo_color = Color(0.25, 0.85, 0.35, 0.35) if valid else Color(0.9, 0.2, 0.15, 0.45)
+	return disc_material
 
 
 ## --- Shared lookups -----------------------------------------------------------

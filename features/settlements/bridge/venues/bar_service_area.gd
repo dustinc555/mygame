@@ -70,6 +70,13 @@ var inventory: InventoryData
 var _trade_proxy_position := Vector3.ZERO
 var _has_trade_proxy_position := false
 var _proxied_owner: HumanoidCharacter
+
+# Counter duty bookkeeping (owner working the barkeeper point).
+var _counter_duty_owner: HumanoidCharacter
+var _counter_duty_merchant: MerchantRole
+var _owner_conversation_gesture_played := false
+var _conversation_controller: ConversationController
+var _conversation_controller_lookup_pending := true
 var _guard_post_by_actor_id: Dictionary = {}
 var _guard_shuffle_remaining_by_actor_id: Dictionary = {}
 var _next_waiter_order_prompt_seconds := 0.0
@@ -95,6 +102,7 @@ func _process(delta: float) -> void:
 		return
 	_process_waiter_service()
 	_process_guard_staff(delta)
+	_process_owner_counter_duty()
 
 
 func refresh_scope() -> void:
@@ -726,6 +734,103 @@ func _try_shuffle_guard_post(guard: WorldActor, current_post):
 		current_post.release_worker(guard)
 	_guard_post_by_actor_id[guard.get_instance_id()] = next_post
 	return next_post
+
+
+## The owner works their counter by default: walk to the barkeeper service
+## point, hold the Counter idle there, gesture on conversation (Counter_Show)
+## and on completed trades (Counter_Give).
+func _process_owner_counter_duty() -> void:
+	var owner_character := get_owner_character()
+	if owner_character != _counter_duty_owner:
+		_release_counter_duty()
+		_counter_duty_owner = owner_character
+	if owner_character == null or not is_instance_valid(owner_character):
+		return
+	_connect_owner_trade_gesture(owner_character)
+	if owner_character.life_state != NpcRules.LifeState.ALIVE \
+			or owner_character.is_in_combat() or owner_character.is_sitting():
+		if owner_character.is_on_counter_duty():
+			owner_character.end_counter_duty()
+		return
+	var point = get_barkeeper_service_point()
+	if point == null or not point.has_method("get_work_position"):
+		return
+	if point.has_method("is_available_for") and not point.is_available_for(owner_character):
+		return
+	var work_position: Vector3 = point.get_work_position()
+	# Tighter than the point's work_radius on purpose: the counter pose is
+	# calibrated to an exact stand distance; stopping anywhere in a 1.1m ring
+	# leaves the hands short of (or through) the counter top. 0.5 leaves room
+	# for steering slack — nav arrival regularly settles ~0.35 from the mark.
+	var work_radius := 0.5
+	var flat_distance := Vector2(owner_character.global_position.x - work_position.x, owner_character.global_position.z - work_position.z).length()
+	if flat_distance > work_radius:
+		if owner_character.is_on_counter_duty():
+			owner_character.end_counter_duty()
+		owner_character.set_move_target(work_position, false)
+		return
+	if point.has_method("claim_worker") and not point.claim_worker(owner_character):
+		return
+	if not owner_character.is_on_counter_duty():
+		owner_character.begin_counter_duty(_counter_duty_face_position(point))
+	_update_owner_conversation_gesture(owner_character)
+
+
+func _counter_duty_face_position(point: Node3D) -> Vector3:
+	# Face across the counter: the nearest shop counter's customer side.
+	var best_position := point.global_position + point.global_basis.z
+	var best_distance := 3.0
+	if is_inside_tree():
+		for counter in get_tree().get_nodes_in_group("shop_counter"):
+			if not (counter is Node3D) or not counter.has_method("get_customer_position"):
+				continue
+			var distance: float = (counter as Node3D).global_position.distance_to(point.global_position)
+			if distance < best_distance:
+				best_distance = distance
+				best_position = counter.get_customer_position()
+	return best_position
+
+
+func _connect_owner_trade_gesture(owner_character: HumanoidCharacter) -> void:
+	var merchant := owner_character.get_node_or_null("MerchantRole") as MerchantRole
+	if merchant == _counter_duty_merchant:
+		return
+	if _counter_duty_merchant != null and is_instance_valid(_counter_duty_merchant) \
+			and _counter_duty_merchant.shop_inventory_changed.is_connected(_on_owner_shop_inventory_changed):
+		_counter_duty_merchant.shop_inventory_changed.disconnect(_on_owner_shop_inventory_changed)
+	_counter_duty_merchant = merchant
+	if merchant != null and not merchant.shop_inventory_changed.is_connected(_on_owner_shop_inventory_changed):
+		merchant.shop_inventory_changed.connect(_on_owner_shop_inventory_changed)
+
+
+func _on_owner_shop_inventory_changed() -> void:
+	var owner_character := get_owner_character()
+	if owner_character != null and owner_character.is_on_counter_duty():
+		owner_character.play_counter_gesture(HumanoidBodyProjection.COUNTER_GIVE_ANIMATION_NAME)
+
+
+func _update_owner_conversation_gesture(owner_character: HumanoidCharacter) -> void:
+	if _conversation_controller_lookup_pending:
+		_conversation_controller_lookup_pending = false
+		_conversation_controller = BootstrapContext.service(ConversationController.SERVICE_ID) as ConversationController
+	if _conversation_controller == null:
+		return
+	var talking: bool = _conversation_controller.active_target == owner_character
+	if talking and not _owner_conversation_gesture_played:
+		owner_character.play_counter_gesture(HumanoidBodyProjection.COUNTER_SHOW_ANIMATION_NAME)
+	_owner_conversation_gesture_played = talking
+
+
+func _release_counter_duty() -> void:
+	if _counter_duty_owner != null and is_instance_valid(_counter_duty_owner) \
+			and _counter_duty_owner.is_on_counter_duty():
+		_counter_duty_owner.end_counter_duty()
+	if _counter_duty_merchant != null and is_instance_valid(_counter_duty_merchant) \
+			and _counter_duty_merchant.shop_inventory_changed.is_connected(_on_owner_shop_inventory_changed):
+		_counter_duty_merchant.shop_inventory_changed.disconnect(_on_owner_shop_inventory_changed)
+	_counter_duty_owner = null
+	_counter_duty_merchant = null
+	_owner_conversation_gesture_played = false
 
 
 func _release_guard_post_for(guard: WorldActor) -> void:

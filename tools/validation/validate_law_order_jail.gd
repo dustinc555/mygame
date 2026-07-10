@@ -303,7 +303,6 @@ func _validate_witnessed_theft_jail_release() -> void:
 		_fail("Jail should have a prisoner locker inventory after intake")
 	elif locker_inventory.count_item(BANDAGE) != 1 or locker_inventory.count_item(EXPENSIVE_VASE) != 1:
 		_fail("Prisoner locker should hold confiscated legal and stolen items")
-	player.set("_downed_recover_delay_remaining", 0.0)
 	var woke := await _wait_until(func() -> bool: return player.life_state == NpcRules.LifeState.ALIVE, 1200)
 	if not woke:
 		_fail("Prisoner should wake in cell after recovery delay")

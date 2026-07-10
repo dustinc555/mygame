@@ -1,30 +1,42 @@
 [gd_scene format=4 uid="uid://bswlf53ythhn2"]
 
 [ext_resource type="Script" uid="uid://br1v5e4mqu2hq" path="res://features/world_sim/bridge/zone_loader.gd" id="1_zone_loader"]
+[ext_resource type="Resource" uid="uid://j6nyneohu3ag" path="res://features/world_sim/resources/settlements/canyon.tres" id="3_canyon_def"]
 [ext_resource type="Script" uid="uid://bgmswqpae3nme" path="res://features/world_sim/bridge/character_record_party_spawner.gd" id="3_record_party_spawner"]
-[ext_resource type="PackedScene" uid="uid://bnqqdlduxcd3i" path="res://scenes/zones/rustwash_basin/towns/canyon.tscn" id="3_trp15"]
-[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://features/settlements/bridge/settlement_town.gd" id="4_aytii"]
+[ext_resource type="Script" uid="uid://b0dly4xukg4rw" path="res://features/settlements/bridge/settlement_towns_root.gd" id="3_towns_root"]
+[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://features/settlements/bridge/settlement_town.gd" id="3_town_script"]
 [ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://features/core/party/party_manager.gd" id="4_party_manager"]
-[ext_resource type="Resource" uid="uid://j6nyneohu3ag" path="res://features/world_sim/resources/settlements/canyon.tres" id="5_7w8d8"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://features/core/game_bootstrap.gd" id="5_bootstrap"]
 [ext_resource type="PackedScene" uid="uid://byehurhhiswl0" path="res://scenes/zones/rustwash_basin/terrain/rustwash_basin_terrain.tscn" id="5_wjgve"]
+[ext_resource type="Script" uid="uid://c354oqtn4bw75" path="res://features/settlements/bridge/settlement_bar.gd" id="6_61aqc"]
+[ext_resource type="Resource" uid="uid://c61gqpdemh37e" path="res://features/world_sim/resources/facility_functions/bar.tres" id="7_omktg"]
 [ext_resource type="Script" uid="uid://dtpasxx6o7akq" path="res://features/world/projection/zone_root.gd" id="7_zone_root"]
+[ext_resource type="PackedScene" uid="uid://c4x37j4yjvxxb" path="res://features/world/projection/buildings/woodbrick_shop_medium.tscn" id="8_l7lbw"]
+[ext_resource type="Script" uid="uid://kn8yaubx5vgk" path="res://features/settlements/bridge/venues/bar_service_point.gd" id="26_by240"]
+[ext_resource type="Script" uid="uid://cxr7vjw8dylgu" path="res://features/settlements/bridge/facility_visit_activity_point.gd" id="27_favvj"]
+[ext_resource type="Script" uid="uid://c32mdje85i12b" path="res://features/settlements/bridge/venues/bar_guard_post.gd" id="28_amlfp"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bar_counter.tscn" id="29_hpbre"]
+[ext_resource type="Script" uid="uid://dw7e6d4p7nh3q" path="res://features/settlements/bridge/venues/bar_service_area.gd" id="29_thxgd"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furnishing/vignettes/table_cluster_2.tscn" id="31_hpbre"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_1.tscn" id="40_amlfp"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_stocked.tscn" id="42_xh5ub"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_2.tscn" id="43_ev028"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6xxjo"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_vwoy0"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_qu4ww"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_1mwd3"]
 _surfaces = [{
-"aabb": AABB(-24, 0, -24, 48, 1e-05, 48),
+"aabb": AABB(-9.041908, 0, -37.768005, 24.945087, 1e-05, 26.857666),
 "format": 34359738369,
 "primitive": 1,
 "uv_scale": Vector4(0, 0, 0, 0),
-"vertex_count": 192,
-"vertex_data": PackedByteArray("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")
+"vertex_count": 72,
+"vertex_data": PackedByteArray("qKsQwQAAAABwEhfCUFfhwAAAAABwEhfCUFfBwAAAAABwEhfCUFeBwAAAAABwEhfCoK5CwAAAAABwEhfCQF2FvwAAAABwEhfCAKgrvQAAAABwEhfCwKL6PwAAAABwEhfCYFE9QAAAAABwEhfCsKieQAAAAABwEhfCsKi+QAAAAABwEhfCsKj+QAAAAABwEhfCWFQPQQAAAABwEhfCWFQvQQAAAABwEhfCWFQ/QQAAAABwEhfCWFRfQQAAAABwEhfCWFRvQQAAAABwEhfCbHN+QQAAAABwEhfCbHN+QQAAAABwEhfCbHN+QQAAAABwEg/CbHN+QQAAAABwEgvCbHN+QQAAAABwEgPCbHN+QQAAAADgJP7BbHN+QQAAAADgJO7BbHN+QQAAAADgJObBbHN+QQAAAADgJNbBbHN+QQAAAADgJM7BbHN+QQAAAADgJL7BbHN+QQAAAADgJLbBbHN+QQAAAADgJKbBbHN+QQAAAADgJJ7BbHN+QQAAAADgJI7BbHN+QQAAAADgJIbBbHN+QQAAAADASWzBbHN+QQAAAADASVzBbHN+QQAAAADASTzBbHN+QQAAAADAkC7BbHNeQQAAAADAkC7BbHNOQQAAAADAkC7BbHMuQQAAAADAkC7BbHMeQQAAAADAkC7B2Ob8QAAAAADAkC7B2ObcQAAAAADAkC7B2OacQAAAAADAkC7BsM15QAAAAADAkC7BYJvzPwAAAADAkC7BwDZnPwAAAADAkC7BoGSMvwAAAADAkC7BUDIGwAAAAADAkC7BKBmDwAAAAADAkC7BKBmjwAAAAADAkC7BKBnjwAAAAADAkC7BlIwBwQAAAADAkC7BqKsQwQAAAADAkC7BqKsQwQAAAADAkC7BqKsQwQAAAADAkE7BqKsQwQAAAADAkF7BqKsQwQAAAADAkH7BqKsQwQAAAABgSIfBqKsQwQAAAABgSJfBqKsQwQAAAABgSJ/BqKsQwQAAAABgSK/BqKsQwQAAAABgSLfBqKsQwQAAAABgSMfBqKsQwQAAAABgSM/BqKsQwQAAAABgSN/BqKsQwQAAAABgSOfBqKsQwQAAAABgSPfBqKsQwQAAAABgSP/BqKsQwQAAAAAwpAfCqKsQwQAAAAAwpAvCqKsQwQAAAAAwpBPC")
 }]
 
 [node name="RustwashBasin" type="Node3D" unique_id=1310818615]
@@ -35,17 +47,206 @@ zone_id = "rustwash_basin"
 script = ExtResource("1_zone_loader")
 
 [node name="Towns" type="Node3D" parent="." unique_id=1512349854]
+script = ExtResource("3_towns_root")
 
-[node name="Canyon" type="Node3D" parent="Towns" unique_id=396429240 instance=ExtResource("3_trp15")]
+[node name="Canyon" type="Node3D" parent="Towns" unique_id=396429240]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5942535, -0.007736206, -313.2602)
-script = ExtResource("4_aytii")
-settlement_definition = ExtResource("5_7w8d8")
+script = ExtResource("3_town_script")
+settlement_definition = ExtResource("3_canyon_def")
+metadata/_edit_group_ = true
 
-[node name="TownBorderDebug" type="MeshInstance3D" parent="Towns/Canyon" unique_id=1262411676]
+[node name="TownBorderDebug" type="MeshInstance3D" parent="Towns/Canyon" unique_id=532431889]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_6xxjo")
+material_override = SubResource("StandardMaterial3D_vwoy0")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_qu4ww")
+mesh = SubResource("ArrayMesh_1mwd3")
+
+[node name="SettlementBar" type="Node3D" parent="Towns/Canyon" unique_id=556110935]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.3732715, 0.35287, -25.344269)
+script = ExtResource("6_61aqc")
+has_barkeeper = true
+guard_count = 4
+has_barber = true
+guard_post_count = 3
+facility_function = ExtResource("7_omktg")
+furnish_seed = 1
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+display_name = "Settlement Bar"
+facility_type = "bar"
+activity_points_root_path = NodePath("ActivityPoints")
+
+[node name="BuildingSlot" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=1227217522]
+
+[node name="CurrentBuilding" parent="Towns/Canyon/SettlementBar/BuildingSlot" unique_id=428466980 instance=ExtResource("8_l7lbw")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0048208237, 0, 0.005098343)
+building_type = "bar"
+
+[node name="Staff" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=656447651]
+
+[node name="ServicePoints" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=1269284558]
+
+[node name="BarkeeperCounterPoint" type="Node3D" parent="Towns/Canyon/SettlementBar/ServicePoints" unique_id=1246845458]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 4.6775814, 0, 3.0050964)
+script = ExtResource("26_by240")
+debug_color = Color(0.36, 1, 0.48, 0.76)
+metadata/facility_generated = true
+metadata/facility_role = "barkeeper"
+metadata/facility_index = 0
+metadata/facility_layout_version = 1
+metadata/facility_last_default_transform = Transform3D(0.76604444, 0, 0.6427876, 0, 1, 0, -0.6427876, 0, 0.76604444, 0, 0.35, -1.85)
+metadata/facility_layout_custom = true
+
+[node name="ActivityPoints" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=1355834480]
+
+[node name="FacilityVisitPoint" type="Node3D" parent="Towns/Canyon/SettlementBar/ActivityPoints" unique_id=433540529]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -2.2, 0.05, 2.1)
+script = ExtResource("27_favvj")
+facility_path = NodePath("../..")
+visit_seats_root_path = NodePath("../../Furniture")
+display_name = "Bar Visit Spot"
+activity_type = "social"
+weight = 16.0
+assignment_min_seconds = 25.0
+assignment_max_seconds = 35.0
+metadata/facility_generated = true
+metadata/facility_role = "visitor"
+metadata/facility_index = 0
+metadata/facility_layout_version = 1
+metadata/facility_last_default_transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -2.2, 0.05, 2.1)
+
+[node name="GuardPosts" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=1411637297]
+
+[node name="GuardPost" type="Node3D" parent="Towns/Canyon/SettlementBar/GuardPosts" unique_id=1673331212]
+transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 1.5209091, 0.050000012, 7.5720215)
+script = ExtResource("28_amlfp")
+metadata/facility_generated = true
+metadata/facility_role = "guard"
+metadata/facility_index = 0
+metadata/facility_layout_version = 1
+metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 3.1, 0.05, 4.35)
+metadata/facility_layout_custom = true
+
+[node name="GuardPost2" type="Node3D" parent="Towns/Canyon/SettlementBar/GuardPosts" unique_id=268992819]
+transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -3.9598918, 0.050000012, 6.925049)
+script = ExtResource("28_amlfp")
+metadata/facility_generated = true
+metadata/facility_role = "guard"
+metadata/facility_index = 1
+metadata/facility_layout_version = 1
+metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -1.4, 0.05, 4.25)
+metadata/facility_layout_custom = true
+
+[node name="GuardPost3" type="Node3D" parent="Towns/Canyon/SettlementBar/GuardPosts" unique_id=1530145352]
+transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -0.5943253, 0.050000012, 1.0533752)
+script = ExtResource("28_amlfp")
+metadata/facility_generated = true
+metadata/facility_role = "guard"
+metadata/facility_index = 2
+metadata/facility_layout_version = 1
+metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 0, 0.05, 4.25)
+metadata/facility_layout_custom = true
+
+[node name="GuardPost4" type="Node3D" parent="Towns/Canyon/SettlementBar/GuardPosts" unique_id=1349679336]
+transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 4.958971, -0.3537979, -5.443939)
+script = ExtResource("28_amlfp")
+metadata/facility_generated = true
+metadata/facility_role = "guard"
+metadata/facility_index = 3
+metadata/facility_layout_version = 1
+metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 1.4, 0.05, 4.25)
+metadata/facility_layout_custom = true
+
+[node name="Furniture" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=686453821]
+
+[node name="Counter1" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=390285799 instance=ExtResource("29_hpbre")]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 3.8075814, 0, 3.0050964)
+metadata/furnish_generated = true
+
+[node name="Cluster1" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1560654918 instance=ExtResource("31_hpbre")]
+transform = Transform3D(0.050337326, 0, 0.99873227, 0, 1, 0, -0.99873227, 0, 0.050337326, -3.3701792, 0, 2.6300964)
+metadata/furnish_generated = true
+
+[node name="Shelf1" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=553842687 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, -5.070483, 1.6, -0.22490357)
+metadata/furnish_generated = true
+
+[node name="Shelf2" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=156321999 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9348568, 1.6, 0.23509644)
+metadata/furnish_generated = true
+
+[node name="Shelf3" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=896653734 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, -0.9391727, 1.6, -0.22490357)
+metadata/furnish_generated = true
+
+[node name="Shelf4" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=114960713 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 5.09857, 1.6, -0.22490357)
+metadata/furnish_generated = true
+
+[node name="Shelf5" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=223716484 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.9749227, 1.6, -3.7649035)
+metadata/furnish_generated = true
+
+[node name="Shelf6" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=2044664319 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.774821, 1.6, 0.8868513)
+metadata/furnish_generated = true
+
+[node name="Shelf7" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1920518405 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 3.0049663, 1.6, 5.7750964)
+metadata/furnish_generated = true
+
+[node name="Shelf8" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1227243394 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -5.765179, 1.6, -1.0051509)
+metadata/furnish_generated = true
+
+[node name="Shelf9" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=408071424 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -5.765179, 1.6, 2.9439304)
+metadata/furnish_generated = true
+
+[node name="Bed1" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1786683260 instance=ExtResource("40_amlfp")]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 4.554821, 3, -1.2405485)
+metadata/furnish_generated = true
+
+[node name="Bed2" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=33850214 instance=ExtResource("43_ev028")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.5451794, 3, 0.819397)
+metadata/furnish_generated = true
+
+[node name="Bed3" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1022524044 instance=ExtResource("40_amlfp")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, -2.8883317, 3, 4.5550966)
+metadata/furnish_generated = true
+
+[node name="Bed4" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=991656898 instance=ExtResource("40_amlfp")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 1.1368833, 3, 4.5550966)
+metadata/furnish_generated = true
+
+[node name="Shelf10" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1020435918 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.9928174, 4.6, -3.7649035)
+metadata/furnish_generated = true
+
+[node name="Shelf11" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1250729456 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 3.1414104, 4.6, 5.7750964)
+metadata/furnish_generated = true
+
+[node name="Shelf12" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1405025515 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -5.765179, 4.6, -1.0582728)
+metadata/furnish_generated = true
+
+[node name="Shelf13" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=886173412 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -5.765179, 4.6, 0.86916137)
+metadata/furnish_generated = true
+
+[node name="BarServiceArea" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=896339976]
+script = ExtResource("29_thxgd")
+service_area_id = "canyon.settlement_bar.service_area"
+owner_faction_name = "SurfCity"
+beds_root_path = NodePath("../Furniture")
+seats_root_path = NodePath("../Furniture")
+tables_root_path = NodePath("../Furniture")
+guard_posts_root_path = NodePath("../GuardPosts")
+service_points_root_path = NodePath("../ServicePoints")
+guards_root_path = NodePath("../Staff")
+waiters_root_path = NodePath("../Staff")
+waiter_character_path = NodePath("")
 
 [node name="NestMarkers" type="Node3D" parent="." unique_id=833802370]
 
@@ -57,7 +258,7 @@ mesh = SubResource("ArrayMesh_qu4ww")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 9.645544, -157.3202)
 
 [node name="PartyMembers" type="Node3D" parent="." unique_id=1973708000]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.4446583, -151.05225)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.4446583, -282.04453)
 
 [node name="CharacterRecordPartySpawner" type="Node3D" parent="PartyMembers" unique_id=438871241]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.7933922, 0)
@@ -74,7 +275,7 @@ script = ExtResource("4_party_manager")
 script = ExtResource("5_bootstrap")
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=1054260023]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.439958, -156.32843)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.439958, -287.3207)
 
 [node name="CameraPivot" type="Node3D" parent="CameraRig" unique_id=733302108]
 

@@ -33,7 +33,7 @@ func _ready() -> void:
 
 
 func get_piece_id() -> String:
-	return piece_id if not piece_id.is_empty() else name
+	return piece_id if not piece_id.is_empty() else String(name)
 
 
 func get_building_level() -> int:

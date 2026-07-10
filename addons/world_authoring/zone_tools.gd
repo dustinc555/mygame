@@ -84,6 +84,11 @@ func shortcut_input(_event: InputEvent) -> bool:
 	return false
 
 
+## Pre-GUI wheel claim while placing (router calls this from _input).
+func handle_global_input(event: InputEvent) -> bool:
+	return _ghost.handle_global_input(event)
+
+
 func forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 	return _ghost.handle_3d_input(camera, event)
 
@@ -150,9 +155,11 @@ func _on_new_town_confirmed() -> void:
 		_set_status("Open a Zone scene to create a town.")
 		return
 	var settlement_id := display_name.to_snake_case()
-	if FileAccess.file_exists(_town_scene_path(zone, settlement_id)) \
-			or FileAccess.file_exists(_definition_path(settlement_id)):
-		_set_status("Town '%s' already exists (scene or definition)." % settlement_id)
+	if FileAccess.file_exists(_definition_path(settlement_id)):
+		_set_status("Settlement '%s' already exists (definition)." % settlement_id)
+		return
+	if zone.get_node_or_null("Towns/%s" % display_name.to_pascal_case()) != null:
+		_set_status("Town '%s' already exists in this zone." % display_name)
 		return
 	_pending_town_name = display_name
 	# The editor forwards viewport input only while this plugin handles the
@@ -162,7 +169,7 @@ func _on_new_town_confirmed() -> void:
 			_on_town_placement_committed, _on_town_placement_cancelled):
 		_set_status("Could not start placement (no edited scene).")
 		return
-	_set_status("Click terrain to place %s." % display_name)
+	_set_status("Placing %s: hold left-click, drag rotates, scroll = height, release places." % display_name)
 
 
 func _on_town_placement_committed(world_transform: Transform3D) -> void:
@@ -177,21 +184,13 @@ func _on_town_placement_committed(world_transform: Transform3D) -> void:
 	if definition == null:
 		_set_status("Failed to save settlement definition.")
 		return
-	var town_scene_path := _town_scene_path(zone, settlement_id)
-	if not _save_town_scene(settlement_id, definition, town_scene_path):
-		_set_status("Failed to save town scene.")
-		return
-	_instance_town_into_zone(zone, town_scene_path, drop_position)
-	_set_status("Created %s (%s)." % [display_name, town_scene_path])
+	_add_inline_town(zone, settlement_id, definition, drop_position)
+	_set_status("Created %s in %s (save the zone to keep it)." % [display_name, zone.name])
 
 
 func _on_town_placement_cancelled() -> void:
 	_pending_town_name = ""
 	_set_status("Town placement cancelled.")
-
-
-func _town_scene_path(zone: Node, settlement_id: String) -> String:
-	return "%s/towns/%s.tscn" % [zone.scene_file_path.get_base_dir(), settlement_id]
 
 
 func _definition_path(settlement_id: String) -> String:
@@ -210,50 +209,54 @@ func _save_settlement_definition(settlement_id: String, display_name: String, wo
 	return load(path)
 
 
-func _save_town_scene(settlement_id: String, definition: Resource, path: String) -> bool:
-	var town := TOWN_TEMPLATE.instantiate()
+## Towns are plain child nodes of the zone (Dustin decision 2026-07-07):
+## one file, one truth — the zone scene owns its towns outright, no per-town
+## .tscn, no instance dance. The template expands into plain nodes at add
+## time; the SettlementDefinition .tres stays the sim-truth resource.
+func _add_inline_town(zone: Node3D, settlement_id: String, definition: Resource, drop_position: Vector3) -> void:
+	var town := TOWN_TEMPLATE.instantiate() as Node3D
 	town.name = settlement_id.to_pascal_case()
-	# Expand the template into a standalone per-town scene (demo-town pattern)
-	# instead of an inherited scene: towns diverge freely once authored.
 	town.scene_file_path = ""
 	town.set("settlement_definition", definition)
-	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
-	var packed := PackedScene.new()
-	if packed.pack(town) != OK:
-		town.free()
-		return false
-	var saved := ResourceSaver.save(packed, path) == OK
-	town.free()
-	if saved:
-		EditorInterface.get_resource_filesystem().scan()
-	return saved
-
-
-func _instance_town_into_zone(zone: Node3D, town_scene_path: String, drop_position: Vector3) -> void:
-	var town_scene := load(town_scene_path) as PackedScene
-	if town_scene == null:
-		return
+	town.position = drop_position - zone.global_position
 	var towns_root := zone.get_node_or_null("Towns") as Node3D
 	var undo_redo := _plugin.get_undo_redo()
 	undo_redo.create_action("Add Town")
 	if towns_root == null:
-		towns_root = Node3D.new()
+		towns_root = SettlementTownsRoot.new()
 		towns_root.name = "Towns"
 		undo_redo.add_do_method(zone, "add_child", towns_root)
 		undo_redo.add_do_method(towns_root, "set_owner", zone)
 		undo_redo.add_undo_method(zone, "remove_child", towns_root)
 		undo_redo.add_do_reference(towns_root)
-	var town := town_scene.instantiate() as Node3D
-	town.position = drop_position - zone.global_position
 	undo_redo.add_do_method(towns_root, "add_child", town)
-	undo_redo.add_do_method(town, "set_owner", zone)
-	# Towns are edited IN the zone (terrain visible, gizmos live); the per-town
-	# scene stays source of truth via the Town toolbar's Save Town writeback.
-	undo_redo.add_do_method(zone, "set_editable_instance", town, true)
+	undo_redo.add_do_method(self, "_own_town_tree", town, zone)
 	undo_redo.add_undo_method(towns_root, "remove_child", town)
 	undo_redo.add_do_reference(town)
 	undo_redo.commit_action()
 	_select_node(town)
+
+
+## Every node of the expanded town belongs to the zone scene so it saves with
+## the zone; nested scene instances keep their internals. Everything folds
+## in the scene tree so only what's being worked on stays visible.
+func _own_town_tree(town: Node, zone: Node) -> void:
+	town.owner = zone
+	_own_children_recursive(town, zone)
+	town.set_display_folded(true)
+
+
+func _own_children_recursive(node: Node, zone: Node) -> void:
+	# An instance root owns its internals. Claiming them makes the editor save
+	# duplicate type+instance entries that load as phantom off-tree nodes.
+	if not node.scene_file_path.is_empty():
+		return
+	for child in node.get_children():
+		child.owner = zone
+		if child.get_child_count() > 0:
+			child.set_display_folded(true)
+		if child.scene_file_path.is_empty():
+			_own_children_recursive(child, zone)
 
 
 ## --- Context plumbing --------------------------------------------------------
@@ -306,11 +309,17 @@ func _build_toolbar() -> void:
 	_toolbar.add_theme_constant_override("separation", 6)
 	_status_label = Label.new()
 	_status_label.text = "Zone: none"
+	# Hard width cap: status messages must never stretch the spatial editor
+	# menu row (that pushes the viewport past the screen edge). Full text
+	# lives in the tooltip.
+	_status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_status_label.custom_minimum_size = Vector2(180, 0)
+	_status_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_toolbar.add_child(_status_label)
 	_add_town_button = Button.new()
 	_add_town_button.text = "Add Town"
 	_add_town_button.icon = _get_zone_icon()
-	_add_town_button.tooltip_text = "Create a per-town scene in this Zone's towns/ folder and click-place it on the terrain."
+	_add_town_button.tooltip_text = "Create a town as plain nodes in this zone: hold left-click on terrain to anchor, drag to rotate, scroll to raise/lower, release to place."
 	_add_town_button.pressed.connect(_on_add_town_pressed)
 	_toolbar.add_child(_add_town_button)
 	_refresh_toolbar()
@@ -329,6 +338,7 @@ func _refresh_toolbar() -> void:
 func _set_status(message: String) -> void:
 	if _status_label != null:
 		_status_label.text = message
+		_status_label.tooltip_text = message
 
 
 func _get_zone_icon() -> Texture2D:

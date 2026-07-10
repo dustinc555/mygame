@@ -15,7 +15,7 @@ const ZONE_SCRIPT := preload("res://features/world/projection/zone_root.gd")
 
 
 func get_world_id() -> String:
-	return world_id if not world_id.is_empty() else name
+	return world_id if not world_id.is_empty() else String(name)
 
 
 func get_zones() -> Array[Node3D]:

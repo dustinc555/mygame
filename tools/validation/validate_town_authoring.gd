@@ -16,9 +16,8 @@ const PLUGIN_SCRIPT_PATH := "res://addons/world_authoring/plugin.gd"
 const SETTLEMENT_DEFINITION_SCRIPT_PATH := "res://features/world_sim/resources/settlement_definition.gd"
 const ROUND_TRIP_PATH := "user://validate_town_authoring_round_trip.tscn"
 const HOUSE_SCENE_PATH := "res://features/world/projection/buildings/woodbrick_house.tscn"
-## Towns are minimal by design: a root plus Facilities. Everything else is
-## optional authored content or lives inside a facility.
-const CANONICAL_ROOTS := ["Facilities"]
+## Towns are minimal by design: a bare root. Facilities are direct town
+## children (flat model, 2026-07-07) — no container roots at all.
 
 var _failures: Array[String] = []
 
@@ -40,7 +39,7 @@ func _run() -> void:
 ## Towns never carry debug hover text or the legacy root anatomy.
 func _validate_template_is_minimal() -> void:
 	var template_text := _read_text(TOWN_TEMPLATE_PATH)
-	for forbidden in ["StateLabel", "Storage", "ActivityPoints", "GuardPosts", "Territory", "Residents"]:
+	for forbidden in ["StateLabel", "Storage", "ActivityPoints", "GuardPosts", "Territory", "Residents", "Facilities"]:
 		if template_text.contains(forbidden):
 			_fail("Town template must stay minimal; found forbidden node: %s" % forbidden)
 	var tools_text := _read_text(TOWN_TOOLS_PATH)
@@ -68,7 +67,7 @@ func _validate_facility_add_remove() -> void:
 		return
 	var with_facility := ResourceLoader.load(ROUND_TRIP_PATH, "PackedScene", ResourceLoader.CACHE_MODE_REPLACE) as PackedScene
 	var reloaded := with_facility.instantiate()
-	var facility := reloaded.get_node_or_null("Facilities/WoodbrickHouse") as Node3D
+	var facility := reloaded.get_node_or_null("WoodbrickHouse") as Node3D
 	if facility == null:
 		_fail("Added facility missing from saved town scene")
 	elif facility.position.distance_to(Vector3(4.0, 0.0, -6.0)) > 0.001:
@@ -79,7 +78,7 @@ func _validate_facility_add_remove() -> void:
 		return
 	var without_facility := ResourceLoader.load(ROUND_TRIP_PATH, "PackedScene", ResourceLoader.CACHE_MODE_REPLACE) as PackedScene
 	var stripped := without_facility.instantiate()
-	if stripped.get_node_or_null("Facilities/WoodbrickHouse") != null:
+	if stripped.get_node_or_null("WoodbrickHouse") != null:
 		_fail("Removed facility still present in saved town scene")
 	stripped.free()
 	DirAccess.remove_absolute(ROUND_TRIP_PATH)
@@ -102,10 +101,14 @@ func _validate_plugin_registration() -> void:
 	if not plugin_text.contains("zone_tools.gd"):
 		_fail("world_authoring plugin should register the zone tool context")
 	var zone_tools_text := _read_text(ZONE_TOOLS_PATH)
-	if not zone_tools_text.contains("towns/%s.tscn"):
-		_fail("Add Town should save per-town scenes under the zone's towns/ folder")
+	# Towns are inline zone children (2026-07-07 decision): the zone scene is
+	# the single source of truth, no per-town .tscn is ever written.
+	if zone_tools_text.contains("towns/%s.tscn"):
+		_fail("Add Town must not write per-town scene files (towns are inline zone children)")
+	if not zone_tools_text.contains("_add_inline_town"):
+		_fail("Add Town should build the town as plain nodes under the zone's Towns root")
 	if not zone_tools_text.contains("scene_file_path = \"\""):
-		_fail("Add Town should expand the template into a standalone scene, not an inherited one")
+		_fail("Add Town should expand the template into plain nodes, not an inherited instance")
 	var ghost_text := _read_text(PLACEMENT_GHOST_PATH)
 	if not ghost_text.contains("terrain_ray"):
 		_fail("Placement ghost should use the shared placement solver terrain ray")
@@ -136,12 +139,10 @@ func _validate_new_town_round_trip() -> void:
 		_fail("Saved town scene failed to reload")
 		return
 	var state := reloaded.get_state()
-	if state.get_node_count() <= 1:
-		_fail("Saved town scene should contain expanded canonical roots, not a bare template instance")
+	# Flat model: a fresh town is exactly one bare SettlementTown root.
+	if state.get_node_count() != 1:
+		_fail("Saved town scene should be a bare SettlementTown root (facilities are direct children added later)")
 	var reloaded_town := reloaded.instantiate()
-	for root_name in CANONICAL_ROOTS:
-		if reloaded_town.get_node_or_null(NodePath(root_name)) == null:
-			_fail("Saved town scene lost canonical root: %s" % root_name)
 	var town_script := reloaded_town.get_script() as Script
 	if town_script == null or town_script.resource_path != SETTLEMENT_TOWN_SCRIPT_PATH:
 		_fail("Saved town scene root should keep the SettlementTown script")

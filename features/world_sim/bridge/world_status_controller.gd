@@ -20,6 +20,11 @@ var hud_layer: CanvasLayer
 var world_time: Node
 var time_label: Label
 var phase_label: Label
+var level_stepper: PanelContainer
+var level_value_label: Label
+var level_up_button: Button
+var level_down_button: Button
+var building_visibility: BuildingVisibilityController
 var fps_label: Label
 var gecs_metrics_label: Label
 var gecs_world: Node
@@ -110,6 +115,7 @@ func _process(delta: float) -> void:
 	_fps_refresh_elapsed = 0.0
 	_refresh_fps_label()
 	_refresh_gecs_metrics_label()
+	_refresh_level_stepper()
 
 
 func _try_initialize() -> void:
@@ -121,6 +127,15 @@ func _try_initialize() -> void:
 	hud_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	time_label = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/TimeLabel") as Label
 	phase_label = hud_layer.get_node_or_null("WorldClockPanel/Margin/ClockRow/PhaseLabel") as Label
+	level_stepper = hud_layer.get_node_or_null("LevelStepper") as PanelContainer
+	level_value_label = hud_layer.get_node_or_null("LevelStepper/Margin/Column/LevelValue") as Label
+	level_up_button = hud_layer.get_node_or_null("LevelStepper/Margin/Column/UpButton") as Button
+	level_down_button = hud_layer.get_node_or_null("LevelStepper/Margin/Column/DownButton") as Button
+	if level_up_button != null:
+		level_up_button.pressed.connect(_on_level_step_pressed.bind(1))
+	if level_down_button != null:
+		level_down_button.pressed.connect(_on_level_step_pressed.bind(-1))
+	building_visibility = _context.get_optional(BuildingVisibilityController.SERVICE_ID) as BuildingVisibilityController if _context != null else null
 	fps_label = hud_layer.get_node_or_null("FPSLabel") as Label
 	gecs_metrics_label = hud_layer.get_node_or_null("GecsMetricsLabel") as Label
 	if gecs_metrics_label != null:
@@ -227,6 +242,23 @@ func _refresh_labels() -> void:
 	time_label.text = world_time.format_time()
 	phase_label.text = "%s  %s" % [world_time.get_phase_name(), world_time.get_status_speed_label()]
 	_refresh_buttons()
+
+
+func _refresh_level_stepper() -> void:
+	if level_stepper == null:
+		return
+	if building_visibility == null or not is_instance_valid(building_visibility):
+		building_visibility = _context.get_optional(BuildingVisibilityController.SERVICE_ID) as BuildingVisibilityController if _context != null else null
+	var level := building_visibility.get_focus_display_level() if building_visibility != null else 0
+	level_stepper.visible = level > 0
+	if level > 0 and level_value_label != null:
+		level_value_label.text = str(level)
+
+
+func _on_level_step_pressed(delta: int) -> void:
+	if building_visibility != null and is_instance_valid(building_visibility):
+		building_visibility.step_focus_level(delta)
+		_refresh_level_stepper()
 
 
 func _refresh_fps_label() -> void:

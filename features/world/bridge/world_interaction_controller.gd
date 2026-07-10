@@ -4,6 +4,11 @@ class_name WorldInteractionController
 
 const SERVICE_ID := &"world_interaction"
 
+# Characters get click priority within this many screen pixels of the cursor;
+# precise capsule hits indoors (behind counters, under low ceilings) are
+# otherwise nearly impossible.
+const ACTOR_CLICK_SCREEN_RADIUS := 26.0
+
 const MOVE_COMMAND_INDICATOR_SCENE = preload("res://features/world/projection/effects/move_command_indicator.tscn")
 const WORLD_TEXT_NOTICE_SCENE = preload("res://features/world/projection/effects/world_text_notice.tscn")
 const PARTY_PORTRAIT_CARD_SCENE = preload("res://features/ui/projection/party_portrait_card.tscn")
@@ -117,7 +122,12 @@ var humanoid_details_controller
 var conversation_controller
 var ownership_controller
 var building_visibility_controller
+var terrain_camera_controller
 var floating_notice: FloatingNotice
+# Free-camera altitude above the surface underneath (terrain or the floor the
+# building cut is showing); maintained while panning so the camera rides hills
+# and stepped floors instead of holding a fixed world height.
+var _free_camera_clearance := FOLLOW_CAMERA_HEIGHT
 var squad_names: Array[String] = []
 var squad_tab_buttons: Dictionary = {}
 var squad_tab_menu_buttons: Dictionary = {}
@@ -190,6 +200,8 @@ func _do_initialize() -> void:
 	ownership_controller = _context.get_optional(OwnershipController.SERVICE_ID)
 	law_order_controller = _context.get_optional(LawOrderController.SERVICE_ID) as LawOrderController
 	building_visibility_controller = _context.get_optional(BuildingVisibilityController.SERVICE_ID)
+	terrain_camera_controller = _context.get_optional(TerrainCameraController.SERVICE_ID)
+	_free_camera_clearance = camera_anchor.y - _free_surface_height(camera_anchor)
 	_initialized = true
 
 	for child in party_root.get_children():
@@ -290,7 +302,16 @@ func _process(delta: float) -> void:
 		var move_basis := Basis(Vector3.UP, camera_yaw)
 		var move_direction := move_basis * Vector3(move_input.x, 0.0, move_input.y)
 		if move_direction.length() > 0.0:
-			camera_anchor += move_direction.normalized() * free_camera_move_speed * input_delta
+			var speed := free_camera_move_speed * (2.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0)
+			camera_anchor += move_direction.normalized() * speed * input_delta
+
+	if party_manager.followed_member == null:
+		# Ride the surface underneath: terrain hills and stepped building
+		# floors move the camera; its clearance above them stays constant.
+		var free_target_y := _free_surface_height(camera_anchor) + _free_camera_clearance
+		if absf(free_target_y - camera_anchor.y) > 0.001:
+			camera_anchor.y = free_target_y
+			_apply_camera_transform()
 
 	if party_manager.followed_member != null:
 		camera_anchor = _get_anchor_position()
@@ -818,28 +839,104 @@ func _raycast_building_child_hit(screen_position: Vector2, building: Object) -> 
 
 func _raycast_target_from_screen(screen_position: Vector2) -> Dictionary:
 	var excluded_rids: Array[RID] = []
-	for _attempt in range(4):
-		var result := _raycast_from_screen(screen_position, excluded_rids)
+	var result := {}
+	for _attempt in range(6):
+		result = _raycast_from_screen(screen_position, excluded_rids)
 		if result.is_empty():
-			return result
+			break
 		var collider: Object = result["collider"]
 		var actor_collider := _resolve_actor_collider(collider)
 		if actor_collider != null:
 			result["collider"] = actor_collider
 			return result
+		# Geometry hidden by the camera (upper-level furniture, see-through
+		# walls) is never a click target; the ray passes through it.
+		if _is_camera_hidden_modular_collider(collider):
+			if not _exclude_collider_rid(collider, excluded_rids):
+				result = {}
+				break
+			continue
 		var obscured_item_hit := _raycast_obscured_world_item_hit(screen_position, collider)
 		if not obscured_item_hit.is_empty():
-			return obscured_item_hit
+			result = obscured_item_hit
+			break
 		if not _should_skip_building_target_hit(collider, int(result.get("shape", -1))):
-			return result
-		if not (collider is CollisionObject3D):
-			return result
-		var collision_object := collider as CollisionObject3D
-		var collider_rid: RID = collision_object.get_rid()
-		if excluded_rids.has(collider_rid):
-			return result
-		excluded_rids.append(collider_rid)
-	return {}
+			break
+		if not _exclude_collider_rid(collider, excluded_rids):
+			break
+	# Characters take click priority: a visible live actor near the cursor
+	# beats the furniture/floor hit that would otherwise swallow the click.
+	# Direct hits on pickup items keep their click — items are small and an
+	# exact hit on one is always intentional.
+	var keeps_click := false
+	if not result.is_empty():
+		var hit_collider: Object = result.get("collider")
+		keeps_click = _resolve_actor_collider(hit_collider) != null \
+				or _resolve_world_item_collider(hit_collider) != null
+	if not keeps_click:
+		var nearby_actor := _pick_actor_near_screen_position(screen_position)
+		if nearby_actor != null:
+			return {"collider": nearby_actor, "position": nearby_actor.global_position}
+	return result
+
+
+func _exclude_collider_rid(collider: Object, excluded_rids: Array[RID]) -> bool:
+	if not (collider is CollisionObject3D):
+		return false
+	var collider_rid: RID = (collider as CollisionObject3D).get_rid()
+	if excluded_rids.has(collider_rid):
+		return false
+	excluded_rids.append(collider_rid)
+	return true
+
+
+## Screen-space fat pick: the closest live actor whose chest projects within
+## a small radius of the cursor and who is actually visible from the camera
+## (hidden geometry and other characters don't count as cover — walls do).
+func _pick_actor_near_screen_position(screen_position: Vector2) -> WorldActor:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return null
+	var best: WorldActor = null
+	var best_distance := ACTOR_CLICK_SCREEN_RADIUS
+	for actor_node in get_tree().get_nodes_in_group("world_actor"):
+		var actor := actor_node as WorldActor
+		if actor == null or not actor.is_inside_tree():
+			continue
+		var chest: Vector3 = actor.global_position + Vector3(0.0, 1.2, 0.0)
+		if camera.is_position_behind(chest):
+			continue
+		var distance := camera.unproject_position(chest).distance_to(screen_position)
+		if distance >= best_distance:
+			continue
+		if not _actor_clickable_from_camera(actor, camera, chest):
+			continue
+		best_distance = distance
+		best = actor
+	return best
+
+
+func _actor_clickable_from_camera(actor: WorldActor, camera: Camera3D, chest: Vector3) -> bool:
+	var world := camera.get_world_3d()
+	if world == null:
+		return true
+	var exclusions: Array[RID] = []
+	if actor is CollisionObject3D:
+		exclusions.append((actor as CollisionObject3D).get_rid())
+	for _attempt in range(6):
+		var query := PhysicsRayQueryParameters3D.create(camera.global_position, chest)
+		query.exclude = exclusions
+		query.collide_with_areas = false
+		var hit := world.direct_space_state.intersect_ray(query)
+		if hit.is_empty():
+			return true
+		var hit_collider: Object = hit.get("collider")
+		var see_through: bool = hit_collider is CharacterBody3D \
+				or _is_camera_hidden_modular_collider(hit_collider) \
+				or _should_skip_building_target_hit(hit_collider, int(hit.get("shape", -1)))
+		if not see_through or not _exclude_collider_rid(hit_collider, exclusions):
+			return false
+	return false
 
 
 func _raycast_obscured_world_item_hit(screen_position: Vector2, collider: Object) -> Dictionary:
@@ -910,6 +1007,10 @@ func _is_camera_hidden_modular_collider(collider: Object) -> bool:
 		return false
 	var current := collider as Node
 	while current != null:
+		# External furniture hidden by a building's level visibility lives
+		# outside the building node, so it carries the hidden flag itself.
+		if bool(current.get_meta("world_building_hidden_by_camera", false)):
+			return true
 		if current.has_method("should_skip_modular_collider"):
 			return bool(current.call("should_skip_modular_collider", collider))
 		current = current.get_parent()
@@ -957,6 +1058,8 @@ func _clear_follow_target() -> void:
 		return
 	camera_anchor = _get_anchor_position()
 	party_manager.clear_followed_member()
+	# Free flight starts at the altitude follow mode left us at.
+	_free_camera_clearance = camera_anchor.y - _free_surface_height(camera_anchor)
 	_apply_camera_transform()
 
 
@@ -1468,8 +1571,42 @@ func _get_selection_rect(start: Vector2, finish: Vector2) -> Rect2:
 
 func _get_anchor_position() -> Vector3:
 	if party_manager.followed_member != null:
-		return party_manager.followed_member.get_follow_anchor_position() + Vector3(0.0, FOLLOW_CAMERA_HEIGHT, 0.0)
+		var anchor: Vector3 = party_manager.followed_member.get_follow_anchor_position() + Vector3(0.0, FOLLOW_CAMERA_HEIGHT, 0.0)
+		# A manually stepped floor lifts the camera to that story while still
+		# tracking the character horizontally; refocusing clears the override.
+		var override_y := _building_cut_override_world_y()
+		if not is_nan(override_y):
+			anchor.y = override_y + FOLLOW_CAMERA_HEIGHT
+		return anchor
 	return camera_anchor
+
+
+## Height of whatever the free camera floats above: the floor plate the
+## building cut is showing, or the terrain, whichever is higher.
+func _free_surface_height(position: Vector3) -> float:
+	var surface := GROUND_Y
+	var has_surface := false
+	if terrain_camera_controller != null and terrain_camera_controller.has_method("get_terrain_height"):
+		var terrain_height := float(terrain_camera_controller.get_terrain_height(position))
+		if not is_nan(terrain_height):
+			surface = terrain_height
+			has_surface = true
+	var cut_y := _building_cut_world_y()
+	if not is_nan(cut_y):
+		surface = maxf(surface, cut_y) if has_surface else cut_y
+	return surface
+
+
+func _building_cut_world_y() -> float:
+	if building_visibility_controller == null or not building_visibility_controller.has_method("get_focus_level_world_y"):
+		return NAN
+	return float(building_visibility_controller.get_focus_level_world_y())
+
+
+func _building_cut_override_world_y() -> float:
+	if building_visibility_controller == null or not building_visibility_controller.has_method("get_focus_level_override_world_y"):
+		return NAN
+	return float(building_visibility_controller.get_focus_level_override_world_y())
 
 
 func _apply_camera_transform() -> void:

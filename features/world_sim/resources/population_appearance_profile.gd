@@ -27,6 +27,10 @@ static var _available_races_cache: Array[Resource] = []
 
 @export var profile_id := ""
 @export var display_name := "Population Appearance"
+# The character class this profile's people are built from (quadbots are a
+# different actor class than humanoids, not just a different look). Null =
+# the spawning system's default humanoid script.
+@export var actor_script: Script
 @export var allowed_races: Array[Resource] = []
 @export_flags("Male", "Female") var allowed_body_type_flags := BODY_TYPE_MALE_FLAG | BODY_TYPE_FEMALE_FLAG
 @export var hair_styles: Array[Resource] = []

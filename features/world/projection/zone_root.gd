@@ -15,4 +15,4 @@ class_name Zone
 
 
 func get_zone_id() -> String:
-	return zone_id if not zone_id.is_empty() else name
+	return zone_id if not zone_id.is_empty() else String(name)

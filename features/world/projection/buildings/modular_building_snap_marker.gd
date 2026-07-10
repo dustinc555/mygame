@@ -129,7 +129,7 @@ func _add_center_dot(parent: Node3D) -> void:
 func _add_label(parent: Node3D) -> void:
 	var label := Label3D.new()
 	label.name = "SnapLabel"
-	label.text = snap_id if not snap_id.is_empty() else name
+	label.text = snap_id if not snap_id.is_empty() else String(name)
 	label.position = Vector3.UP * (axis_length * 0.72)
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.font_size = 34

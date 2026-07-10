@@ -1,4 +1,5 @@
 @tool
+@icon("res://addons/world_authoring/icons/facility_field.svg")
 extends "res://features/settlements/bridge/settlement_facility_instance.gd"
 
 class_name SettlementField

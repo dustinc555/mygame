@@ -201,21 +201,28 @@ func release_sleep_target_without_waking() -> void:
 func stop_seat_assignment() -> void:
 	var seat_target = current_seat_target
 	var did_stop_sitting := is_sitting
+	var stand_position = null
 	if did_stop_sitting and _is_valid_node(seat_target):
-		var stand_position = current_seat_stand_position
-		if stand_position is Vector3:
-			_set_actor_global_position(stand_position)
-		elif seat_target.has_method("get_stand_position"):
-			_set_actor_global_position(seat_target.call("get_stand_position"))
-		elif seat_target.has_method("get_interaction_position"):
-			_set_actor_global_position(seat_target.call("get_interaction_position", actor))
+		stand_position = current_seat_stand_position
+		if not (stand_position is Vector3):
+			if seat_target.has_method("get_stand_position"):
+				stand_position = seat_target.call("get_stand_position")
+			elif seat_target.has_method("get_interaction_position"):
+				stand_position = seat_target.call("get_interaction_position", actor)
 	if _is_valid_node(seat_target) and seat_target.has_method("release_sitter"):
 		seat_target.call("release_sitter", actor)
 	current_seat_target = null
 	current_seat_stand_position = null
 	if did_stop_sitting:
 		is_sitting = false
-		_call_void("_start_sitting_exit_animation")
+		# Rise in place through the exit clip, then settle a step in front —
+		# humanoids own that presentation; anything else keeps the plain move.
+		if stand_position is Vector3 and actor.has_method("begin_stand_up_exit"):
+			actor.call("begin_stand_up_exit", stand_position)
+		else:
+			if stand_position is Vector3:
+				_set_actor_global_position(stand_position)
+			_call_void("_start_sitting_exit_animation")
 		var rotation := _actor_rotation()
 		_set_actor_rotation(Vector3(0.0, rotation.y, 0.0))
 		_set_node_property("velocity", Vector3.ZERO)
@@ -272,7 +279,7 @@ func assign_conversation_target(target_character, issued_by_player := true) -> v
 	current_conversation_target = target_character
 	if target_character.has_method("register_talker"):
 		target_character.call("register_talker", actor)
-	if preserve_seat and _position().distance_to(_position_of(target_character)) <= get_conversation_interaction_distance():
+	if preserve_seat and _position().distance_to(_position_of(target_character)) <= get_conversation_interaction_distance(target_character):
 		_clear_actor_move_target()
 	else:
 		_set_actor_move_target(target_character.call("get_interaction_position", actor))
@@ -560,20 +567,13 @@ func wake_up_from_rest(show_notice := true) -> void:
 	var did_stand := is_sitting
 	var stand_position = null
 	var sleep_target = current_sleep_target
-	var seat_target = current_seat_target
 	if did_wake and _is_valid_node(sleep_target) and sleep_target.has_method("get_interaction_position"):
 		stand_position = sleep_target.call("get_interaction_position", actor)
-	elif did_stand and _is_valid_node(seat_target):
-		var seat_stand_position = current_seat_stand_position
-		if seat_stand_position is Vector3:
-			stand_position = seat_stand_position
-		elif seat_target.has_method("get_stand_position"):
-			stand_position = seat_target.call("get_stand_position")
-		elif seat_target.has_method("get_interaction_position"):
-			stand_position = seat_target.call("get_interaction_position", actor)
+	# Seats own their stand-up: stop_seat_assignment rises the sitter in
+	# place through the exit clip and settles them off the chair itself.
 	stop_sleep_assignment()
 	stop_seat_assignment()
-	if stand_position is Vector3:
+	if did_wake and stand_position is Vector3:
 		_set_actor_global_position(stand_position)
 	if did_wake or did_stand:
 		_set_node_property("life_state", NpcRules.LifeState.ALIVE)
@@ -748,7 +748,16 @@ func process_conversation_interaction() -> void:
 		return
 	var interaction_position: Vector3 = target.call("get_interaction_position", actor)
 	var target_position := _position_of(target)
-	if _position().distance_to(target_position) > get_conversation_interaction_distance():
+	# Kenshi-model conversations: no exact stand point is ever required. The
+	# talker connects the moment they are within talk range of the PERSON,
+	# with one wall guard — the walking path to them can't be much longer
+	# than the room allows (through a wall it wraps the whole building, so
+	# it never fires; around a counter inside the room it always does).
+	# Requiring an exact point breaks whenever navmesh erosion shifts it.
+	var reach := get_conversation_interaction_distance(target)
+	var reached: bool = _position().distance_to(target_position) <= reach \
+			and _nav_path_distance_to(target_position) <= maxf(8.0, reach * 2.5)
+	if not reached:
 		if is_sitting:
 			_call_void("stop_seat_assignment")
 		_set_actor_move_target(interaction_position)
@@ -1184,10 +1193,37 @@ func set_next_place_cell_move_target(final_position: Vector3) -> void:
 	_set_actor_move_target(next_position)
 
 
-func get_conversation_interaction_distance() -> float:
+## Walking distance to a destination on the navmesh. The map path ends at the
+## closest REACHABLE point, so the leftover gap is added: an unreachable spot
+## reads as far away, never as arrived.
+func _nav_path_distance_to(destination: Vector3) -> float:
+	if not (actor is Node3D):
+		return INF
+	var world := (actor as Node3D).get_world_3d()
+	if world == null:
+		return INF
+	var nav_map: RID = world.navigation_map
+	if NavigationServer3D.map_get_iteration_id(nav_map) == 0:
+		return INF
+	var path := NavigationServer3D.map_get_path(nav_map, _position(), destination, true)
+	if path.is_empty():
+		return INF
+	var length := 0.0
+	for i in range(1, path.size()):
+		length += path[i - 1].distance_to(path[i])
+	return length + path[path.size() - 1].distance_to(destination)
+
+
+func get_conversation_interaction_distance(target: Node = null) -> float:
+	var distance := _actor_float("interact_distance", 1.8)
 	if order_was_player_issued and is_sitting:
-		return _actor_float("interact_distance", 1.8) * maxf(1.0, _actor_float("seated_player_talk_distance_multiplier", 2.0))
-	return _actor_float("interact_distance", 1.8)
+		distance *= maxf(1.0, _actor_float("seated_player_talk_distance_multiplier", 2.0))
+	# Counter service spans ~1.4m of furniture between the two speakers; the
+	# bubble grows so the customer side counts as reached. Never through
+	# walls: the line-of-sight gate in process_conversation_interaction.
+	if target != null and target.has_method("is_on_counter_duty") and bool(target.call("is_on_counter_duty")):
+		distance = maxf(distance, 3.0)
+	return distance
 
 
 func ensure_mining_tool_equipped(mining_node: Node, issued_by_player: bool) -> bool:

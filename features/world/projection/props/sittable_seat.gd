@@ -7,7 +7,7 @@ class_name SittableSeat
 @export var service_local_offset := Vector3(0.0, 0.0, -1.15)
 @export var seated_floor_local_offset := Vector3.ZERO
 @export var seated_yaw_offset_degrees := 180.0
-@export var stand_local_offset := Vector3(0.0, 0.0, 1.15)
+@export var stand_local_offset := Vector3(0.0, 0.0, 0.65)
 @export var sit_arrival_distance := 3.0
 
 var _sitter: HumanoidCharacter

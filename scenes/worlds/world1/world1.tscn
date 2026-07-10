@@ -2,17 +2,9 @@
 
 [ext_resource type="Script" uid="uid://dv5ymfj63bgah" path="res://features/world/projection/world_root.gd" id="1_world_root"]
 [ext_resource type="PackedScene" uid="uid://bswlf53ythhn2" path="res://scenes/zones/rustwash_basin/rustwash_basin.tscn" id="2_rustwash"]
-[ext_resource type="PackedScene" uid="uid://cfnqspbgk48j1" path="res://features/world/projection/buildings/woodbrick_house.tscn" id="3_tmv8t"]
-[ext_resource type="PackedScene" uid="uid://c4x37j4yjvxxb" path="res://features/world/projection/buildings/woodbrick_shop_medium.tscn" id="4_plrh0"]
 
 [node name="World1" type="Node3D" unique_id=170748501]
 script = ExtResource("1_world_root")
 world_id = "world1"
 
 [node name="RustwashBasin" parent="." unique_id=1795985858 instance=ExtResource("2_rustwash")]
-
-[node name="WoodbrickHouse" parent="." unique_id=1418743872 instance=ExtResource("3_tmv8t")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.80369, 1.0053945, -166.23598)
-
-[node name="WoodbrickShopMedium" parent="." unique_id=1695141653 instance=ExtResource("4_plrh0")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25.400562, 0.6731911, -165.05862)

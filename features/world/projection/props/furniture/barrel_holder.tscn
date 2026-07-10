@@ -1,0 +1,13 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/props/prop.tscn" id="1_prop"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Barrel_Holder.gltf" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="Shape_body"]
+size = Vector3(1.36, 1.26, 0.74)
+
+[node name="BarrelHolder" instance=ExtResource("1_prop")]
+display_name = "Barrel Holder"
+visual_scene = ExtResource("2_model")
+collision_shapes = Array[Shape3D]([SubResource("Shape_body")])
+collision_transforms = Array[Transform3D]([Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)])

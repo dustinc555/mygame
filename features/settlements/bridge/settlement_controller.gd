@@ -405,7 +405,7 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 	_notify_state_changed(settlement_id)
 
 
-func _on_hour_changed(absolute_hour: int, day_index: int, hour: int) -> void:
+func _on_hour_changed(_absolute_hour: int, day_index: int, hour: int) -> void:
 	for settlement_id in settlement_definitions.keys():
 		var sid := str(settlement_id)
 		# Assignment is world-sim knowledge and runs O(1) for EVERY town, near or far — a faraway

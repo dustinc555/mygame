@@ -98,6 +98,16 @@ func has_realized_population() -> bool:
 	return _count_existing_residents() > 0
 
 
+## The character generator decides the actor class (a quadbot population is a
+## different actor class, not humanoids in a costume).
+func _resident_actor_script() -> Script:
+	if population_appearance_profile != null:
+		var override := population_appearance_profile.get("actor_script") as Script
+		if override != null:
+			return override
+	return FACTION_HUMANOID_SCRIPT
+
+
 func _spawn_missing_residents() -> void:
 	var population_controller := _get_population_controller()
 	if population_controller == null and _population_spawn_defer_attempts < 5:
@@ -118,7 +128,7 @@ func _spawn_missing_residents() -> void:
 		var resident_index := existing_count + index + 1
 		var actor := CharacterBody3D.new()
 		actor.name = "%s%02d" % [member_name_prefix.replace(" ", ""), resident_index]
-		actor.set_script(FACTION_HUMANOID_SCRIPT)
+		actor.set_script(_resident_actor_script())
 		actor.set("member_name", "%s %02d" % [member_name_prefix, resident_index])
 		actor.set("stable_id", "%s.%02d" % [stable_id_prefix, resident_index])
 		actor.set("faction_name", _get_faction_id())
@@ -176,7 +186,7 @@ func _spawn_missing_residents_from_records(population_controller: Node) -> void:
 		var resident_index: int = max(1, int(record.get("generation_index", spawned_count + 1)))
 		var actor := CharacterBody3D.new()
 		actor.name = "%s%02d" % [member_name_prefix.replace(" ", ""), resident_index]
-		actor.set_script(FACTION_HUMANOID_SCRIPT)
+		actor.set_script(_resident_actor_script())
 		population_controller.call("apply_record_to_actor", actor, record)
 		actor.position = _record_local_spawn_position(record, resident_index - 1, max(desired_count, 1), rng)
 		_add_basic_humanoid_children(actor)

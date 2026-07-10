@@ -64,7 +64,7 @@ static func estimate_footprint(node: Node3D) -> Vector2:
 
 static func _merge_visual_bounds(node: Node) -> Variant:
 	var merged: Variant = null
-	if node is VisualInstance3D:
+	if node is VisualInstance3D and node.is_inside_tree():
 		var visual := node as VisualInstance3D
 		merged = visual.global_transform * visual.get_aabb()
 	for child in node.get_children():

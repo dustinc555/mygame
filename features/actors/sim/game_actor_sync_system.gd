@@ -114,7 +114,7 @@ func _sync_vitals(component: CGameActorVitals, actor: WorldActor) -> void:
 	# death_profile is the single source for "who owns this actor's vitals". We branch on the actor's
 	# typed virtual get_death_profile() (data), NOT `actor is RobotActor` (a GECS-system->live-node-class
 	# reference = truth-rule violation). Unblocked once quadbot was de-staled — see cleanup.md S5.
-	component.death_profile = actor.get_death_profile()
+	component.death_profile = actor.get_death_profile() as CGameActorVitals.DeathProfile
 	var is_robot := component.death_profile == CGameActorVitals.DeathProfile.ROBOT
 	# Node authors max/base + the recovery modifier (refresh_max_blood_from_toughness lives node-side);
 	# the system reads these as thresholds, so they always flow node->component.

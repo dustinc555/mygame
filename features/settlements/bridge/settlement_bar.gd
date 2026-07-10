@@ -1,4 +1,5 @@
 @tool
+@icon("res://addons/world_authoring/icons/facility_bar.svg")
 extends "res://features/settlements/bridge/settlement_facility_instance.gd"
 
 class_name SettlementBar
@@ -38,10 +39,7 @@ const HATCHET_ITEM = preload("res://features/inventory/resources/items/hatchet.t
 const SHOPKEEPER_CONVERSATION = preload("res://features/conversation/resources/generic_shopkeeper.tres")
 const WAITER_CONVERSATION = preload("res://features/conversation/resources/waiter_order.tres")
 const BARBER_CONVERSATION = preload("res://features/conversation/resources/barber_services.tres")
-const DEFAULT_BUILDING_SCENE = preload("res://features/world/projection/buildings/bar_scene.tscn")
-const TABLE_SCENE = preload("res://features/world/projection/props/bar_table.tscn")
-const STOOL_SCENE = preload("res://features/world/projection/props/stool_chair.tscn")
-const BED_SCENE = preload("res://features/world/projection/props/simple_bed.tscn")
+const DEFAULT_BUILDING_SCENE = preload("res://features/world/projection/buildings/woodbrick_shop_medium.tscn")
 const LEGACY_FURNITURE_ROOT_NAMES := ["Tables", "Stools", "Beds"]
 const STAFF_PERCEPTION_RANGE := Vector2i(5, 12)
 const GUARD_PERCEPTION_RANGE := Vector2i(14, 24)
@@ -59,12 +57,19 @@ const GUARD_PERCEPTION_RANGE := Vector2i(14, 24)
 		population_name_profile = value
 		_repair_authoring_tree()
 @export_group("Staff Roles")
+## Facilities start empty: every role is opt-in through these fields (the
+## Facility dock's staff buttons drive them). At runtime the settlement
+## population fills opted-in slots with real residents.
+@export var has_barkeeper := false:
+	set(value):
+		has_barkeeper = value
+		_repair_authoring_tree()
 @export var barkeeper_actor_path: NodePath:
 	set(value):
 		barkeeper_actor_path = value
 		_repair_authoring_tree()
 @export var barkeeper_name := "Barkeeper"
-@export_range(0, 12, 1) var waiter_count: int = 1:
+@export_range(0, 12, 1) var waiter_count: int = 0:
 	set(value):
 		waiter_count = _clamp_count(value, 0, 12)
 		_repair_authoring_tree()
@@ -73,7 +78,7 @@ const GUARD_PERCEPTION_RANGE := Vector2i(14, 24)
 		assigned_waiter_paths = value
 		_repair_authoring_tree()
 @export var waiter_name := "Waiter"
-@export_range(0, 12, 1) var guard_count: int = 1:
+@export_range(0, 12, 1) var guard_count: int = 0:
 	set(value):
 		guard_count = _clamp_count(value, 0, 12)
 		_repair_authoring_tree()
@@ -82,7 +87,7 @@ const GUARD_PERCEPTION_RANGE := Vector2i(14, 24)
 		assigned_guard_paths = value
 		_repair_authoring_tree()
 @export var guard_name := "Bar Guard"
-@export var has_barber := true:
+@export var has_barber := false:
 	set(value):
 		has_barber = value
 		_repair_authoring_tree()
@@ -149,6 +154,28 @@ func _ready() -> void:
 	super._ready()
 	if not Engine.is_editor_hint():
 		_connect_service_conversation.call_deferred()
+		_ensure_staff_population_records.call_deferred()
+
+
+## World-init case: an authored staffer standing in the facility without a
+## population record gets one minted from their live body, so the world sim
+## can own them like any spawned resident.
+func _ensure_staff_population_records() -> void:
+	if not is_inside_tree():
+		return
+	var staff_root := get_node_or_null(staff_root_path)
+	if staff_root == null:
+		return
+	var population = get_tree().get_first_node_in_group("population_controller")
+	if population == null or not population.has_method("register_actor"):
+		return
+	for staff in staff_root.get_children():
+		if not (staff is HumanoidCharacter) or not _is_actor_alive(staff):
+			continue
+		if not str(staff.get_meta("actor_record_id", "")).is_empty():
+			continue
+		var role := str(staff.get_meta(META_SETTLEMENT_ROLE, "worker"))
+		population.call("register_actor", staff, "", {"role_id": role})
 
 
 ## Runtime wiring host for the bar's table-service chat. The venue announces the
@@ -182,7 +209,6 @@ func _repair_authoring_tree() -> void:
 	_ensure_root(furniture_root_path)
 	_ensure_bar_service_area()
 	_ensure_default_building()
-	_ensure_furniture()
 	_ensure_staff()
 	_ensure_guard_and_service_points()
 	_ensure_visitor_activity_points()
@@ -227,7 +253,8 @@ func can_actor_visit_facility(actor: Node) -> bool:
 
 func get_settlement_staff_slots() -> Array[Dictionary]:
 	var slots: Array[Dictionary] = []
-	_append_staff_slot(slots, "barkeeper", 0, _get_role_actor_for_slot("barkeeper", 0), "Barkeeper")
+	if has_barkeeper or _get_assigned_actor(barkeeper_actor_path) != null:
+		_append_staff_slot(slots, "barkeeper", 0, _get_role_actor_for_slot("barkeeper", 0), "Barkeeper")
 	for index in range(waiter_count):
 		_append_staff_slot(slots, "waiter", index, _get_role_actor_for_slot("waiter", index), _indexed_display_name(waiter_name, index))
 	for index in range(guard_count):
@@ -343,22 +370,24 @@ func _ensure_default_building() -> void:
 	_set_editor_owner_recursive(building)
 
 
-func _ensure_furniture() -> void:
-	var furniture := _ensure_root(furniture_root_path)
-	_ensure_furniture_scene_child(furniture, "TableA", TABLE_SCENE, Transform3D(Basis(Vector3.UP, deg_to_rad(4.0)), Vector3(6.6154256, 0.0, -5.3079047)))
-	_ensure_furniture_scene_child(furniture, "StoolAFront", STOOL_SCENE, Transform3D(Basis(Vector3.UP, deg_to_rad(184.0)), Vector3(6.6154256, 0.0, -4.007905)))
-	_ensure_furniture_scene_child(furniture, "StoolABack", STOOL_SCENE, Transform3D(Basis(Vector3.UP, deg_to_rad(4.0)), Vector3(6.6154256, 0.0, -6.607905)))
-	_ensure_furniture_scene_child(furniture, "BedA", BED_SCENE, Transform3D(Basis(Vector3.UP, deg_to_rad(-90.0)), Vector3(5.843021, 3.0, -6.185916)))
-	_ensure_furniture_scene_child(furniture, "BedB", BED_SCENE, Transform3D(Basis(Vector3.UP, deg_to_rad(-90.0)), Vector3(5.843021, 3.0, -3.8859162)))
-	_ensure_furniture_scene_child(furniture, "BedC", BED_SCENE, Transform3D(Basis(Vector3.UP, deg_to_rad(-90.0)), Vector3(5.843021, 3.0, -1.5859163)))
-
-
+## Furniture is never script-generated: it is authored (or produced by the
+## furnish pass) and discovered via FurnitureRules at runtime. A fresh bar
+## spawns as the shell plus function points only.
 func _ensure_staff() -> void:
 	var staff_root := _ensure_root(staff_root_path)
-	var defer_staff := _should_defer_staff_to_settlement_population()
+	# In the editor, staff are pure configuration (role toggles + counts); no
+	# placeholder bodies get generated or kept — they configure nothing and
+	# clutter the scene. Bodies exist only at runtime: realized from the
+	# settlement population, or generated on the spot in standalone scenes.
+	var defer_staff := _should_defer_staff_to_settlement_population() or Engine.is_editor_hint()
+	var trim_generated := Engine.is_editor_hint() or not _should_defer_staff_to_settlement_population()
 	var barkeeper := _get_assigned_actor(barkeeper_actor_path)
-	if barkeeper == null and not defer_staff:
+	var generated_barkeeper_count := 0
+	if has_barkeeper and barkeeper == null and not defer_staff:
+		generated_barkeeper_count = 1
 		barkeeper = _ensure_staff_member(staff_root, "Barkeeper", barkeeper_name, Color(0.58, 0.43, 0.2, 1.0), _point_local_position(_barkeeper_point_transform()), SHOPKEEPER_CONVERSATION, MERCHANT_HUMANOID_SCRIPT, "barkeeper", 0)
+	if trim_generated:
+		_trim_generated_children(staff_root, "Barkeeper", generated_barkeeper_count)
 	if barkeeper != null:
 		_apply_assigned_role_defaults(barkeeper, "barkeeper", SHOPKEEPER_CONVERSATION)
 		_ensure_merchant_role(barkeeper)
@@ -371,7 +400,7 @@ func _ensure_staff() -> void:
 	for waiter_index in range(generated_waiter_count):
 		var role_index := assigned_waiters.size() + waiter_index
 		_ensure_staff_member(staff_root, _indexed_name("Waiter", waiter_index), _indexed_display_name(waiter_name, role_index), Color(0.28, 0.47, 0.56, 1.0), _waiter_local_position(role_index), WAITER_CONVERSATION, MERCHANT_HUMANOID_SCRIPT, _indexed_name("waiter", role_index), role_index)
-	if not defer_staff:
+	if trim_generated:
 		_trim_generated_children(staff_root, "Waiter", generated_waiter_count)
 	var assigned_guards := _get_assigned_actors(assigned_guard_paths)
 	for guard_index in range(assigned_guards.size()):
@@ -385,7 +414,7 @@ func _ensure_staff() -> void:
 		var guard := _ensure_staff_member(staff_root, _indexed_name("Guard", guard_index), _indexed_display_name(guard_name, role_index), Color(0.42, 0.42, 0.48, 1.0), _guard_local_position(role_index), null, MERCHANT_HUMANOID_SCRIPT, _indexed_name("guard", role_index), role_index)
 		if _has_property(guard, "base_attack_damage"):
 			guard.set("base_attack_damage", 20.0)
-	if not defer_staff:
+	if trim_generated:
 		_trim_generated_children(staff_root, "Guard", generated_guard_count)
 	var barber := _get_assigned_actor(barber_actor_path)
 	var generated_barber_count := 0
@@ -396,7 +425,7 @@ func _ensure_staff() -> void:
 		_sync_staff_member(barber, "barber")
 		if _has_property(barber, "conversation_definition"):
 			barber.set("conversation_definition", BARBER_CONVERSATION)
-	if not defer_staff:
+	if trim_generated:
 		_trim_generated_children(staff_root, "Barber", generated_barber_count)
 
 
@@ -608,10 +637,18 @@ func _ensure_staff_member(root: Node, node_name: String, member_name: String, co
 	staff = CharacterBody3D.new()
 	staff.name = node_name
 	staff.position = local_position
-	staff.set_script(script)
+	# The character generator decides the actor class (a quadbot facility
+	# spawns quadbots, not humanoids in a quadbot costume); the role script
+	# is only the humanoid default.
+	var profile := _get_effective_population_appearance_profile()
+	var profile_script := profile.get("actor_script") as Script if profile != null else null
+	staff.set_script(profile_script if profile_script != null else script)
 	staff.set("stable_id", "%s.%s" % [_get_staff_id_prefix(), node_name.to_lower()])
-	_apply_staff_role_defaults(staff, member_name, color, conversation, role, role_index)
+	# Tag BEFORE role defaults: the appearance/name/skill generation inside
+	# _apply_staff_role_defaults only touches generated staff, and the tag is
+	# what marks this actor as generated. Tagging after left staff bald.
 	_tag_generated_layout_node(staff, role, role_index, Transform3D(Basis(), local_position))
+	_apply_staff_role_defaults(staff, member_name, color, conversation, role, role_index)
 	_add_basic_humanoid_children(staff)
 	root.add_child(staff)
 	_set_editor_owner_recursive(staff)
@@ -647,7 +684,7 @@ func _add_basic_humanoid_children(actor: Node) -> void:
 		collision.name = "CollisionShape3D"
 		collision.transform = Transform3D(Basis(), Vector3(0.0, 0.95, 0.0))
 		var capsule_shape := CapsuleShape3D.new()
-		capsule_shape.radius = 0.45
+		capsule_shape.radius = 0.4
 		capsule_shape.height = 1.1
 		collision.shape = capsule_shape
 		actor.add_child(collision)
@@ -656,7 +693,7 @@ func _add_basic_humanoid_children(actor: Node) -> void:
 		body.name = "BodyMesh"
 		body.transform = Transform3D(Basis(), Vector3(0.0, 0.95, 0.0))
 		var capsule_mesh := CapsuleMesh.new()
-		capsule_mesh.radius = 0.45
+		capsule_mesh.radius = 0.4
 		body.mesh = capsule_mesh
 		actor.add_child(body)
 	if actor.get_node_or_null("SelectionRing") == null:
@@ -1141,38 +1178,6 @@ func _ensure_child_root(parent: Node, root_name: String) -> Node:
 	parent.add_child(child)
 	_set_editor_owner(child)
 	return child
-
-
-func _ensure_scene_child(parent: Node, child_name: String, scene: PackedScene, scene_transform: Transform3D) -> Node:
-	var child := parent.get_node_or_null(child_name)
-	if child != null:
-		return child
-	child = scene.instantiate()
-	child.name = child_name
-	parent.add_child(child)
-	if child is Node3D:
-		(child as Node3D).transform = scene_transform
-	_set_editor_owner_recursive(child)
-	return child
-
-
-func _ensure_furniture_scene_child(parent: Node, child_name: String, scene: PackedScene, scene_transform: Transform3D) -> Node:
-	var existing := _find_named_descendant(parent, child_name)
-	if existing != null:
-		return existing
-	return _ensure_scene_child(parent, child_name, scene, scene_transform)
-
-
-func _find_named_descendant(root: Node, node_name: String) -> Node:
-	if root == null:
-		return null
-	for child in root.get_children():
-		if str(child.name) == node_name:
-			return child
-		var descendant := _find_named_descendant(child, node_name)
-		if descendant != null:
-			return descendant
-	return null
 
 
 func _sync_staff_member(staff: Node, role: String) -> void:
@@ -1686,22 +1691,65 @@ func _get_effective_population_appearance_profile() -> Resource:
 	if population_appearance_profile != null:
 		return population_appearance_profile
 	var settlement := _get_ancestor_settlement()
-	if settlement == null:
-		return null
-	return _find_population_appearance_profile(settlement)
+	if settlement != null:
+		# Live inheritance: ask the town for ITS effective profile (own field,
+		# then definition, then faction) — changing the town changes every
+		# inheriting facility. The subtree scan is only a legacy fallback and
+		# must not run first: it would pick up sibling facilities' overrides.
+		if settlement.has_method("get_effective_population_appearance_profile"):
+			var town_profile := settlement.call("get_effective_population_appearance_profile") as Resource
+			if town_profile != null:
+				return town_profile
+		var found := _find_population_appearance_profile(settlement)
+		if found != null:
+			return found
+	return _definition_chain_population_profile("population_appearance_profile")
 
 
 func _get_effective_population_name_profile() -> Resource:
 	if population_name_profile != null:
 		return population_name_profile
+	var settlement := _get_ancestor_settlement()
+	if settlement != null and settlement.has_method("get_effective_population_name_profile"):
+		var town_effective := settlement.call("get_effective_population_name_profile") as Resource
+		if town_effective != null:
+			return town_effective
+	if settlement != null and _has_property(settlement, "population_name_profile"):
+		var town_profile := settlement.get("population_name_profile") as Resource
+		if town_profile != null:
+			return town_profile
 	var definition := _get_ancestor_settlement_definition()
+	var profile: Resource = null
 	if definition != null and definition.has_method("get_population_name_profile"):
-		return definition.call("get_population_name_profile") as Resource
-	return definition.get("population_name_profile") as Resource if definition != null else null
+		profile = definition.call("get_population_name_profile") as Resource
+	elif definition != null:
+		profile = definition.get("population_name_profile") as Resource
+	if profile != null:
+		return profile
+	return _definition_chain_population_profile("population_name_profile")
+
+
+## Settlement-definition fallback chain: the definition's own generator
+## profile, then its faction's. Facility and town node overrides are checked
+## by the callers before reaching here.
+func _definition_chain_population_profile(property_name: String) -> Resource:
+	var definition := _get_ancestor_settlement_definition()
+	if definition == null:
+		return null
+	var profile := definition.get(property_name) as Resource
+	if profile != null:
+		return profile
+	var faction := definition.get("faction_definition") as Resource
+	if faction != null:
+		return faction.get(property_name) as Resource
+	return null
 
 
 func _find_population_appearance_profile(root: Node) -> Resource:
 	if root == null:
+		return null
+	# Sibling facilities' overrides are facility-local, not town defaults.
+	if root != self and root is SettlementFacility and not root.is_ancestor_of(self):
 		return null
 	if _has_property(root, "population_appearance_profile"):
 		var profile := root.get("population_appearance_profile") as Resource
@@ -1783,7 +1831,7 @@ func _nearest_available_seat(actor: Node, seats: Array[Node], target_position: V
 		if not _seat_available_for_actor(seat, actor):
 			continue
 		var seat_node := seat as Node3D
-		if seat_node == null:
+		if seat_node == null or not seat_node.is_inside_tree():
 			continue
 		var distance := seat_node.global_position.distance_squared_to(target_position)
 		if distance < best_distance:

@@ -80,14 +80,20 @@ func release_trader(member: HumanoidCharacter) -> void:
 func resolve_trade(member: HumanoidCharacter) -> bool:
 	if member == null:
 		return false
-	var actor_id := member.get_instance_id()
-	if not _pending_trader_ids.has(actor_id):
+	var member_id := member.get_instance_id()
+	if not _pending_trader_ids.has(member_id):
 		return false
 	_pending_trader_ids.clear()
 	return true
 
 
 func get_interaction_position(member: Node) -> Vector3:
+	# Behind a counter on duty: customers come to the customer side; radial
+	# trader slots can land behind the counter's wall.
+	if is_on_counter_duty():
+		var counter_front := _counter_customer_position()
+		if counter_front.is_finite():
+			return counter_front
 	var trader := member as HumanoidCharacter
 	if trader == null:
 		return global_position + Vector3(0.0, 0.0, 1.5)

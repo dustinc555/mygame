@@ -17,6 +17,10 @@ const META_SETTLEMENT_SLOT_ID := "settlement_staff_slot_id"
 const DEFAULT_REPLACEMENT_DELAY_DAYS := 7.0
 const GUARD_PERCEPTION_RANGE := Vector2i(12, 22)
 
+# Character generator defaults for everyone this town brings into the world
+# (staff, residents). Facilities inherit these unless they set their own.
+@export var population_appearance_profile: Resource
+@export var population_name_profile: Resource
 @export var facilities_root_path: NodePath = NodePath("Facilities")
 @export var keeps_root_path: NodePath = NodePath("Keeps")
 @export var bars_root_path: NodePath = NodePath("Bars")
@@ -138,26 +142,30 @@ func _snap_grounded_content() -> void:
 		return
 	var space := get_world_3d().direct_space_state
 	var moved_positions: Array[Vector3] = []
+	var snap_targets: Array = get_direct_facility_children()
 	for root_path in [facilities_root_path, bars_root_path, fields_root_path, shops_root_path, mines_root_path, housing_root_path, guard_posts_root_path]:
 		var root := get_node_or_null(root_path)
 		if root == null:
 			continue
 		for child in root.get_children():
-			var node := child as Node3D
-			if node == null:
-				continue
-			var before := node.global_position
-			var foundation = node.get("foundation_height")
-			var snapped := BuildingPlacementSolver.snap_to_terrain(
-				space,
-				node.global_transform,
-				BuildingPlacementSolver.estimate_footprint(node),
-				float(foundation) if foundation != null else 0.0)
-			if snapped.is_empty():
-				continue
-			node.global_transform = snapped["transform"]
-			if before.distance_to(node.global_position) > 0.05:
-				moved_positions.append(node.global_position)
+			if child is Node3D and not snap_targets.has(child):
+				snap_targets.append(child)
+	for target in snap_targets:
+		var node := target as Node3D
+		if node == null:
+			continue
+		var before := node.global_position
+		var foundation = node.get("foundation_height")
+		var snap_result := BuildingPlacementSolver.snap_to_terrain(
+			space,
+			node.global_transform,
+			BuildingPlacementSolver.estimate_footprint(node),
+			float(foundation) if foundation != null else 0.0)
+		if snap_result.is_empty():
+			continue
+		node.global_transform = snap_result["transform"]
+		if before.distance_to(node.global_position) > 0.05:
+			moved_positions.append(node.global_position)
 	_snap_markers_to_ground(space)
 	if moved_positions.is_empty():
 		return
@@ -210,12 +218,22 @@ func _poll_guard_authoring_signature() -> void:
 
 
 func get_facility_nodes() -> Array:
+	# Facilities are direct town children (flat model); the recursive walk
+	# also still finds anything under legacy container roots ("Facilities").
 	var facilities: Array = []
-	for root_path in _get_facility_root_paths():
-		var root := get_node_or_null(root_path)
-		if root != null:
-			_collect_facilities(root, facilities)
+	_collect_facilities(self, facilities)
 	return facilities
+
+
+## Flat-model facilities standing directly under the town root: composed
+## facilities (anything with a facility record) plus raw WorldBuilding
+## shells (houses).
+func get_direct_facility_children() -> Array:
+	var result: Array = []
+	for child in get_children():
+		if child is Node3D and (child.has_method("get_facility_record") or child is WorldBuilding):
+			result.append(child)
+	return result
 
 
 func get_facility_records() -> Array[Dictionary]:
@@ -706,23 +724,64 @@ func _apply_guard_skills(actor: Node, index: int) -> void:
 	actor.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(GUARD_PERCEPTION_RANGE.x, GUARD_PERCEPTION_RANGE.y, rng))
 
 
+## Public: facilities inherit through these — changing the town's generator
+## changes every facility that hasn't set its own.
+func get_effective_population_appearance_profile() -> Resource:
+	return _get_effective_population_appearance_profile()
+
+
+func get_effective_population_name_profile() -> Resource:
+	return _get_effective_population_name_profile()
+
+
 func _get_effective_population_appearance_profile() -> Resource:
 	if _has_property(self, "population_appearance_profile"):
 		var direct := get("population_appearance_profile") as Resource
 		if direct != null:
 			return direct
-	return _find_population_appearance_profile(self)
+	var found := _find_population_appearance_profile(self)
+	if found != null:
+		return found
+	return _definition_chain_population_profile("population_appearance_profile")
 
 
 func _get_effective_population_name_profile() -> Resource:
+	if _has_property(self, "population_name_profile"):
+		var direct := get("population_name_profile") as Resource
+		if direct != null:
+			return direct
 	var definition = settlement_definition
+	var profile: Resource = null
 	if definition != null and definition.has_method("get_population_name_profile"):
-		return definition.call("get_population_name_profile") as Resource
-	return definition.get("population_name_profile") as Resource if definition != null and _has_property(definition, "population_name_profile") else null
+		profile = definition.call("get_population_name_profile") as Resource
+	elif definition != null and _has_property(definition, "population_name_profile"):
+		profile = definition.get("population_name_profile") as Resource
+	if profile != null:
+		return profile
+	return _definition_chain_population_profile("population_name_profile")
+
+
+## Settlement-definition fallback chain: the definition's own generator
+## profile, then its faction's.
+func _definition_chain_population_profile(property_name: String) -> Resource:
+	var definition = settlement_definition
+	if definition == null:
+		return null
+	var profile := definition.get(property_name) as Resource
+	if profile != null:
+		return profile
+	var faction := definition.get("faction_definition") as Resource
+	if faction != null:
+		return faction.get(property_name) as Resource
+	return null
 
 
 func _find_population_appearance_profile(root: Node) -> Resource:
 	if root == null:
+		return null
+	# A facility's own generator override is facility-local; it must never
+	# leak out as the town default for its siblings.
+	if root != self and root is SettlementFacility:
 		return null
 	if _has_property(root, "population_appearance_profile"):
 		var profile := root.get("population_appearance_profile") as Resource
@@ -901,18 +960,6 @@ func _collect_population_capacity_records(root: Node, records: Array[Dictionary]
 		_collect_population_capacity_records(child, records, settlement_id)
 
 
-func _get_facility_root_paths() -> Array[NodePath]:
-	return [
-		facilities_root_path,
-		keeps_root_path,
-		bars_root_path,
-		fields_root_path,
-		shops_root_path,
-		mines_root_path,
-		housing_root_path,
-	]
-
-
 func _get_border_root_paths() -> Array[NodePath]:
 	return [
 		housing_root_path,
@@ -972,6 +1019,8 @@ func _get_auto_town_border_rect() -> Rect2:
 		"min": Vector2.ZERO,
 		"max": Vector2.ZERO,
 	}
+	for facility in get_direct_facility_children():
+		_collect_border_bounds(facility, bounds)
 	for root_path in _get_border_root_paths():
 		var root := get_node_or_null(root_path)
 		if root == null:

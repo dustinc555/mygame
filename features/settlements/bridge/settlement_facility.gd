@@ -1,3 +1,4 @@
+@icon("res://addons/world_authoring/icons/facility.svg")
 extends Node3D
 
 class_name SettlementFacility

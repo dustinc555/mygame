@@ -1,15 +1,20 @@
 @tool
 extends RefCounted
 
-## Shared click-to-place engine for world_authoring concept tools.
-## begin_scene()/begin_marker() spawn a transient preview that follows the
-## terrain under the mouse in the 3D viewport; left-click commits (the
-## callback receives the world transform), right-click or Escape cancels,
-## R yaws the preview 90 degrees. The preview is added to the edited scene
-## with no owner, so it can never be saved into the scene file.
+## Shared placement engine for world_authoring concept tools, matching the
+## in-game debug spawner's feel: the preview follows the terrain under the
+## mouse; left-press anchors it, dragging while held rotates it to face the
+## cursor, the mouse wheel raises/lowers it, and releasing commits (the
+## callback receives the world transform). Right-click or Escape cancels;
+## R yaws 90 degrees. The preview is added to the edited scene with no
+## owner, so it can never be saved into the scene file.
 
 const PLACEMENT_SOLVER := preload("res://features/settlements/bridge/building_placement_solver.gd")
 const RAY_LENGTH_METERS := 4000.0
+const ROTATE_DEAD_ZONE_METERS := 0.6
+const HEIGHT_STEP_METERS := 0.25
+const HEIGHT_MIN_METERS := -1.0
+const HEIGHT_MAX_METERS := 4.0
 
 var _plugin: EditorPlugin
 var _preview: Node3D
@@ -17,6 +22,11 @@ var _on_commit: Callable
 var _on_cancel: Callable
 var _has_terrain_hit := false
 var _terrain: Node
+var _anchored := false
+var _anchor := Vector3.ZERO
+var _ground := Vector3.ZERO
+var _yaw := 0.0
+var _y_offset := 0.0
 
 
 func _init(plugin: EditorPlugin) -> void:
@@ -63,22 +73,28 @@ func handle_3d_input(camera: Camera3D, event: InputEvent) -> int:
 	if not is_active() or camera == null:
 		return EditorPlugin.AFTER_GUI_INPUT_PASS
 	if event is InputEventMouseMotion:
+		if _anchored:
+			_rotate_toward_cursor(camera, (event as InputEventMouseMotion).position)
+			# Consume drags while anchored so the editor doesn't box-select.
+			return EditorPlugin.AFTER_GUI_INPUT_STOP
 		_update_preview_position(camera, (event as InputEventMouseMotion).position)
 		return EditorPlugin.AFTER_GUI_INPUT_PASS
 	if event is InputEventMouseButton:
 		var mouse_button := event as InputEventMouseButton
-		if not mouse_button.pressed:
-			return EditorPlugin.AFTER_GUI_INPUT_PASS
 		if mouse_button.button_index == MOUSE_BUTTON_LEFT:
-			# Resolve against this click's position too — the commit click can
-			# arrive without a preceding motion event.
-			_update_preview_position(camera, mouse_button.position)
-			if _has_terrain_hit:
+			if mouse_button.pressed:
+				# Resolve against this click's position too — the press can
+				# arrive without a preceding motion event.
+				_update_preview_position(camera, mouse_button.position)
+				if _has_terrain_hit:
+					_anchored = true
+					_anchor = _ground
+			elif _anchored:
 				_commit()
 			# Consume hitless clicks as well: letting them through changes the
 			# editor selection and silently derails the placement session.
 			return EditorPlugin.AFTER_GUI_INPUT_STOP
-		if mouse_button.button_index == MOUSE_BUTTON_RIGHT:
+		if mouse_button.button_index == MOUSE_BUTTON_RIGHT and mouse_button.pressed:
 			cancel()
 			return EditorPlugin.AFTER_GUI_INPUT_STOP
 	if event is InputEventKey and (event as InputEventKey).pressed:
@@ -87,9 +103,41 @@ func handle_3d_input(camera: Camera3D, event: InputEvent) -> int:
 			cancel()
 			return EditorPlugin.AFTER_GUI_INPUT_STOP
 		if key.keycode == KEY_R:
-			_preview.rotate_y(PI * 0.5)
+			_yaw += PI * 0.5
+			_apply_preview_transform()
 			return EditorPlugin.AFTER_GUI_INPUT_STOP
 	return EditorPlugin.AFTER_GUI_INPUT_PASS
+
+
+## Mouse wheel raise/lower, intercepted at _input level by the plugin: the
+## 3D viewport applies wheel zoom without consulting AFTER_GUI_INPUT_STOP,
+## so consuming wheel inside forward_3d_gui_input still zooms the camera.
+## Foundations exist so a building can sit above uneven terrain instead of
+## clipping into it.
+func handle_global_input(event: InputEvent) -> bool:
+	if not is_active():
+		return false
+	var mouse_button := event as InputEventMouseButton
+	if mouse_button == null or not mouse_button.pressed:
+		return false
+	if not mouse_button.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		return false
+	var step := HEIGHT_STEP_METERS if mouse_button.button_index == MOUSE_BUTTON_WHEEL_UP else -HEIGHT_STEP_METERS
+	_y_offset = clampf(_y_offset + step, HEIGHT_MIN_METERS, HEIGHT_MAX_METERS)
+	_apply_preview_transform()
+	return true
+
+
+## While anchored, the preview yaws to face the terrain point under the
+## cursor — same drag-to-aim as the in-game debug building spawner.
+func _rotate_toward_cursor(camera: Camera3D, mouse_position: Vector2) -> void:
+	var toward := _terrain_point(camera, mouse_position)
+	if toward == null:
+		return
+	var flat: Vector3 = (toward as Vector3) - _anchor
+	if Vector2(flat.x, flat.z).length() > ROTATE_DEAD_ZONE_METERS:
+		_yaw = atan2(flat.x, flat.z)
+		_apply_preview_transform()
 
 
 func _begin(preview: Node3D, on_commit: Callable, on_cancel: Callable) -> bool:
@@ -107,6 +155,9 @@ func _begin(preview: Node3D, on_commit: Callable, on_cancel: Callable) -> bool:
 	_on_commit = on_commit
 	_on_cancel = on_cancel
 	_has_terrain_hit = false
+	_anchored = false
+	_yaw = 0.0
+	_y_offset = 0.0
 	return true
 
 
@@ -118,31 +169,41 @@ func _commit() -> void:
 
 
 func _update_preview_position(camera: Camera3D, mouse_position: Vector2) -> void:
+	var point := _terrain_point(camera, mouse_position)
+	if point == null:
+		_preview.visible = false
+		_has_terrain_hit = false
+		return
+	_ground = point as Vector3
+	_has_terrain_hit = true
+	_apply_preview_transform()
+
+
+## Terrain point under a screen position: physics first (hits building
+## floors, works at runtime), then Terrain3D's GPU intersection — editor
+## terrain has NO physics collision, so that's the path editor picking
+## actually takes (same as Terrain3D's own tools). Returns Vector3 or null.
+func _terrain_point(camera: Camera3D, mouse_position: Vector2) -> Variant:
 	var from := camera.project_ray_origin(mouse_position)
 	var direction := camera.project_ray_normal(mouse_position)
-	# Physics first (hits building floors, works at runtime)…
 	var space := camera.get_world_3d().direct_space_state
 	var hit := PLACEMENT_SOLVER.terrain_ray(space, from, from + direction * RAY_LENGTH_METERS)
 	if not hit.is_empty():
-		_set_preview_position(hit["position"])
-		return
-	# …then Terrain3D's GPU intersection: terrain has NO physics collision in
-	# the editor, so this is the path editor picking actually takes (same as
-	# Terrain3D's own tools).
+		return hit["position"]
 	var terrain := _find_terrain()
 	if terrain != null:
 		var point: Vector3 = terrain.call("get_intersection", from, direction, true)
 		if point.z < 3.4e38 and not is_nan(point.y):
-			_set_preview_position(point)
-			return
-	_preview.visible = false
-	_has_terrain_hit = false
+			return point
+	return null
 
 
-func _set_preview_position(world_position: Vector3) -> void:
-	_preview.global_position = world_position
+func _apply_preview_transform() -> void:
+	if not _has_terrain_hit:
+		return
+	var base: Vector3 = _anchor if _anchored else _ground
+	_preview.global_transform = Transform3D(Basis(Vector3.UP, _yaw), base + Vector3.UP * _y_offset)
 	_preview.visible = true
-	_has_terrain_hit = true
 
 
 func _find_terrain() -> Node:
@@ -181,3 +242,6 @@ func _free_preview() -> void:
 	_preview = null
 	_terrain = null
 	_has_terrain_hit = false
+	_anchored = false
+	_yaw = 0.0
+	_y_offset = 0.0

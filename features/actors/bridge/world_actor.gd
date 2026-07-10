@@ -260,6 +260,10 @@ var hunger_drain_rate: float:
 		if stats != null:
 			stats.hunger_drain_rate = value
 
+# The underscored vitals properties below are compatibility bridges written
+# by name through reflection (e.g. settlement_jail's _set_property_if_present)
+# — the analyzer can't see those writers. Deleting them kills combat silently.
+@warning_ignore("unused_private_class_variable")
 var _current_blunt_damage: float:
 	get:
 		return get_blunt_damage()
@@ -268,6 +272,7 @@ var _current_blunt_damage: float:
 		if vitals != null:
 			vitals.set_blunt_damage(value)
 
+@warning_ignore("unused_private_class_variable")
 var _current_open_cut_damage: float:
 	get:
 		return get_open_cut_damage()
@@ -276,6 +281,7 @@ var _current_open_cut_damage: float:
 		if vitals != null:
 			vitals.set_open_cut_damage(value)
 
+@warning_ignore("unused_private_class_variable")
 var _current_bandaged_cut_damage: float:
 	get:
 		return get_bandaged_cut_damage()
@@ -284,6 +290,7 @@ var _current_bandaged_cut_damage: float:
 		if vitals != null:
 			vitals.set_bandaged_cut_damage(value)
 
+@warning_ignore("unused_private_class_variable")
 var _bleed_rate: float:
 	get:
 		var vitals := get_vitals()
@@ -293,6 +300,7 @@ var _bleed_rate: float:
 		if vitals != null:
 			vitals.set_bleed_rate(value)
 
+@warning_ignore("unused_private_class_variable")
 var _bleed_burst_rate: float:
 	get:
 		var vitals := get_vitals()
@@ -829,6 +837,12 @@ func on_system_combat_attack_started(_target_actor: Node, _animation_names: Pack
 
 func play_system_combat_action_clip(_animation_name: String) -> float:
 	return 0.0
+
+
+## Base: only humanoids can be carried (HumanoidCharacter overrides through
+## its carry capability). GECS vitals sync calls this on every actor class.
+func is_carried() -> bool:
+	return false
 
 
 ## Victim-side presentation for a resolved attack; subclasses with body
@@ -1801,16 +1815,26 @@ func resolve_talk(member: Node) -> bool:
 # writes this state on the actor and the dispatcher below advances the active order
 # each physics tick. Signals are re-emitted here for UI and venue observers.
 
+# Capabilities emit these by name (_emit_actor_signal), which the analyzer
+# can't see — they are NOT unused.
+@warning_ignore("unused_signal")
 signal mining_changed
+@warning_ignore("unused_signal")
 signal scavenging_changed
+@warning_ignore("unused_signal")
 signal container_reached(member, container)
+@warning_ignore("unused_signal")
 signal trade_target_reached(member, target)
+@warning_ignore("unused_signal")
 signal conversation_target_reached(member, target)
+@warning_ignore("unused_signal")
 signal center_notice_requested(text, color)
 
 @export var interact_distance := 1.8
 
-## Mirror the carry capability's carried body for order-flow reads.
+## Mirror the carry capability's carried body for order-flow reads (read by
+## name through reflection; not dead).
+@warning_ignore("unused_private_class_variable")
 var _carried_character: Node:
 	get:
 		var carry := get_carry()
