@@ -12,6 +12,9 @@ var _camera: Camera3D
 var _initialized := false
 var _active_building: Node
 var _visibility_actor: WorldActor
+var _latched_focus_actor: WorldActor
+var _focus_active := false
+var _last_followed_id := 0
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -41,13 +44,30 @@ func _process(_delta: float) -> void:
 	var visibility_actor := _get_visibility_proxy_actor(meaningful_actor)
 	var next_building: Node = _find_building_for_actor(visibility_actor)
 	# Modular see-through only opens when the camera actually follows the
-	# actor (double-click); selection alone keeps buildings solid.
-	var camera_focused := meaningful_actor != null and meaningful_actor == _party_manager.followed_member
+	# actor (double-click); selection alone keeps buildings solid. Once open it
+	# is lazy: WASD-panning away (followed_member -> null) keeps the building
+	# open on the last focused character; it only closes when a refocused
+	# character changes level or leaves, or the focus moves to someone else.
+	var followed := _party_manager.followed_member
+	var camera_focused := meaningful_actor != null and meaningful_actor == followed
+	if camera_focused:
+		_latched_focus_actor = meaningful_actor
+	elif followed == null and _is_valid_actor(_latched_focus_actor) and meaningful_actor == _latched_focus_actor:
+		camera_focused = true
+	else:
+		_latched_focus_actor = null
+	_focus_active = camera_focused and next_building != null
+	# Refocusing any character hands the floor cut back to them.
+	var followed_id := followed.get_instance_id() if _is_valid_actor(followed) else 0
+	if followed_id != 0 and followed_id != _last_followed_id:
+		_clear_level_override(_active_building)
+	_last_followed_id = followed_id
 	if _active_building == next_building:
 		if _active_building != null and is_instance_valid(_active_building):
 			_active_building.set_visibility_for_camera(true, _camera.global_position, visibility_actor, camera_focused)
 		return
 	if _active_building != null and is_instance_valid(_active_building):
+		_clear_level_override(_active_building)
 		_active_building.set_visibility_for_camera(false, _camera.global_position, null)
 	_active_building = next_building
 	if _active_building != null:
@@ -125,3 +145,62 @@ func _find_building_for_actor(actor: WorldActor) -> Node:
 
 func get_active_building() -> Node:
 	return _active_building
+
+
+## HUD-facing: the level the camera cut is showing. 0 = outside,
+## 1+ = building level (ground floor = 1). A manual override wins.
+func get_focus_display_level() -> int:
+	if not _focus_active or _active_building == null or not is_instance_valid(_active_building):
+		return 0
+	if _active_building.has_method("get_display_level_override"):
+		var override_level := int(_active_building.call("get_display_level_override"))
+		if override_level > 0:
+			return override_level
+	var actor := _get_visibility_proxy_actor(_visibility_actor)
+	if actor == null or not _active_building.has_method("get_display_level_for_actor"):
+		return 0
+	return int(_active_building.call("get_display_level_for_actor", actor))
+
+
+## World height of the floor plate the cut is showing (override or the focused
+## actor's level). NAN when no cut is open.
+func get_focus_level_world_y() -> float:
+	var level := get_focus_display_level()
+	if level <= 0 or _active_building == null or not is_instance_valid(_active_building):
+		return NAN
+	if not _active_building.has_method("get_display_level_world_y"):
+		return NAN
+	return float(_active_building.call("get_display_level_world_y", level))
+
+
+## World height of a manually stepped floor; NAN unless an override is active.
+func get_focus_level_override_world_y() -> float:
+	if not _focus_active or _active_building == null or not is_instance_valid(_active_building):
+		return NAN
+	if not _active_building.has_method("get_display_level_override") or not _active_building.has_method("get_display_level_world_y"):
+		return NAN
+	var override_level := int(_active_building.call("get_display_level_override"))
+	if override_level <= 0:
+		return NAN
+	return float(_active_building.call("get_display_level_world_y", override_level))
+
+
+## Step the camera cut one floor up/down in the focused building (HUD stepper).
+## Detaches the cut from the focused actor until the next refocus.
+func step_focus_level(delta: int) -> void:
+	if not _focus_active or _active_building == null or not is_instance_valid(_active_building):
+		return
+	if not _active_building.has_method("get_display_level_count"):
+		return
+	var count := int(_active_building.call("get_display_level_count"))
+	if count <= 1:
+		return
+	var current := int(_active_building.call("get_display_level_override"))
+	if current <= 0:
+		current = maxi(get_focus_display_level(), 1)
+	_active_building.call("set_display_level_override", clampi(current + delta, 1, count))
+
+
+func _clear_level_override(building: Node) -> void:
+	if building != null and is_instance_valid(building) and building.has_method("set_display_level_override"):
+		building.call("set_display_level_override", 0)

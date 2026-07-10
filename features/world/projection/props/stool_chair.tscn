@@ -35,7 +35,7 @@ size = Vector3(0.58, 0.7, 0.08)
 script = ExtResource("1_seat")
 interaction_local_offset = Vector3(0, 0, -0.9)
 seated_floor_local_offset = Vector3(0, 0.08, 0.24)
-stand_local_offset = Vector3(0, 0, -1.15)
+stand_local_offset = Vector3(0, 0, -0.65)
 
 [node name="Seat" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)

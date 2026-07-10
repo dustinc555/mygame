@@ -52,6 +52,11 @@ const SITTING_ENTER_ANIMATION_NAME := "Sitting_Enter"
 const SITTING_IDLE_ANIMATION_NAME := "Sitting_Idle"
 const SITTING_TALKING_ANIMATION_NAME := "Sitting_Talking"
 const SITTING_EXIT_ANIMATION_NAME := "Sitting_Exit"
+const COUNTER_ENTER_ANIMATION_NAME := "Counter_Enter"
+const COUNTER_IDLE_ANIMATION_NAME := "Counter_Idle"
+const COUNTER_SHOW_ANIMATION_NAME := "Counter_Show"
+const COUNTER_GIVE_ANIMATION_NAME := "Counter_Give"
+const COUNTER_EXIT_ANIMATION_NAME := "Counter_Exit"
 const UNARMED_STANCE_ID := "unarmed"
 const UNARMED_COMBAT_IDLE_ANIMATION_NAME := "Unarmed_Combat_Idle"
 const UNARMED_STANCE_ENTER_ANIMATION_NAME := "PunchKick_Enter"
@@ -1124,6 +1129,11 @@ func _copy_character_animations(animation_library: AnimationLibrary, target_skel
 		_copy_ragdoll_profile_animations(ual1_player, animation_library)
 		_copy_unarmed_combat_idle_animation(ual1_player, animation_library)
 		_copy_animation(ual1_player, animation_library, SCAVENGING_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, COUNTER_ENTER_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, COUNTER_IDLE_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, COUNTER_SHOW_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, COUNTER_GIVE_ANIMATION_NAME)
+		_copy_animation(ual1_player, animation_library, COUNTER_EXIT_ANIMATION_NAME)
 	# Rig-proportion compensation per pack (each pack has its own source rig):
 	# scale the pelvis/root position tracks so feet land on the floor instead
 	# of the vendor mannequin's heights. See AnimationPositionScale.
@@ -1361,6 +1371,12 @@ func clip_length(animation_name: String) -> float:
 		return 0.0
 	var animation := player.get_animation(animation_name)
 	return animation.length if animation != null else 0.0
+
+
+func get_clip_length(animation_name: String) -> float:
+	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
+		return 0.0
+	return _character_animation_player.get_animation(animation_name).length
 
 
 func has_clip(animation_name: String) -> bool:

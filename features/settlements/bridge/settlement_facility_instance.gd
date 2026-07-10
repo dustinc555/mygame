@@ -1,4 +1,5 @@
 @tool
+@icon("res://addons/world_authoring/icons/facility.svg")
 extends "res://features/settlements/bridge/settlement_facility.gd"
 
 class_name SettlementFacilityInstance
@@ -8,6 +9,9 @@ class_name SettlementFacilityInstance
 		facility_function = value
 		_apply_function_defaults()
 @export var building_root_path: NodePath = NodePath("BuildingSlot")
+## Deterministic seed for the editor furnish pass; Reroll increments it.
+## Same seed always regenerates the same layout.
+@export var furnish_seed := 0
 @export var staff_root_path: NodePath = NodePath("Staff")
 @export var service_points_root_path: NodePath = NodePath("ServicePoints")
 @export var storage_root_path: NodePath = NodePath("Storage")

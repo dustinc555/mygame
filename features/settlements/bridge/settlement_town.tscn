@@ -4,5 +4,3 @@
 
 [node name="SettlementTown" type="Node3D"]
 script = ExtResource("1_town")
-
-[node name="Facilities" type="Node3D" parent="."]

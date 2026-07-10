@@ -41,10 +41,14 @@ const CATEGORY_ITEMS := {
 @export var tabletop_pickup_clearance := 0.6
 @export var tabletop_pickup_seat_clearance := 0.6
 @export var tabletop_grab_horizontal_reach := 1.9
-@export var tabletop_grab_vertical_reach := 1.45
+# Measured from the actor's feet: a standing grab tops out around 2m, which
+# keeps chest-height wall shelves (slots ~1.7m) reachable.
+@export var tabletop_grab_vertical_reach := 2.05
 @export var tabletop_pickup_arrival_slack := 0.25
 @export var tabletop_pickup_nav_projection_limit := 1.25
-@export var tabletop_pickup_vertical_projection_limit := 1.1
+# Wall-mounted shelves sit ~1.6m up; their access candidates must be allowed
+# to project down to the floor beside them or the route solver rejects them.
+@export var tabletop_pickup_vertical_projection_limit := 2.0
 @export var seed_salt := "comfortable_tavern"
 @export var owner_faction_name := ""
 @export var theft_noise_radius := 1.2

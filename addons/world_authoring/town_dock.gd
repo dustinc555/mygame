@@ -15,6 +15,7 @@ const PROFILE_PICKERS := [
 	{"label": "Personality", "property": "personality_profile", "dir": "res://features/world_sim/resources/personality_profiles", "empty": "(inherit faction)"},
 	{"label": "Law", "property": "law_profile", "dir": "res://features/world_sim/resources/law_profiles", "empty": "(inherit faction)"},
 	{"label": "Names", "property": "population_name_profile", "dir": "res://features/world_sim/resources/population_name_profiles", "empty": "(inherit faction)"},
+	{"label": "Characters", "property": "population_appearance_profile", "dir": "res://features/world_sim/resources/population_appearance_profiles", "empty": "(inherit faction)"},
 ]
 const OCCUPANCY_LABELS := ["Depopulated", "Sparse", "Populated", "Overcrowded"]
 const REALIZATION_POLICIES := ["", "full_town", "important_plus_near", "near_player"]
@@ -27,7 +28,6 @@ var _content: HBoxContainer
 var _definition_box: VBoxContainer
 var _population_text: RichTextLabel
 var _validation_text: RichTextLabel
-var _catalog_grid: GridContainer
 var _facility_list: ItemList
 
 
@@ -92,10 +92,8 @@ func _build_facilities_column() -> void:
 	var column := VBoxContainer.new()
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	column.add_child(_section_title("Place Facility (click terrain; R rotates)"))
-	_catalog_grid = GridContainer.new()
-	_catalog_grid.columns = 3
-	column.add_child(_catalog_grid)
+	# Facility placement lives in ONE place: the Town toolbar's Add Facility
+	# menu. This dock only reports and navigates.
 	column.add_child(_section_title("Markers"))
 	var marker_row := HBoxContainer.new()
 	var road_button := Button.new()
@@ -115,12 +113,9 @@ func _build_facilities_column() -> void:
 	var actions := HBoxContainer.new()
 	var select_button := Button.new()
 	select_button.text = "Select"
+	select_button.tooltip_text = "Select the highlighted facility in the scene tree (removal lives on the Facility toolbar)."
 	select_button.pressed.connect(_on_select_facility_pressed)
 	actions.add_child(select_button)
-	var remove_button := Button.new()
-	remove_button.text = "Remove"
-	remove_button.pressed.connect(_on_remove_facility_pressed)
-	actions.add_child(remove_button)
 	column.add_child(actions)
 	_content.add_child(column)
 
@@ -144,7 +139,6 @@ func _rebuild() -> void:
 	_updating = true
 	_rebuild_definition_fields(definition)
 	_rebuild_population_preview(definition)
-	_rebuild_catalog_grid()
 	_rebuild_facility_list()
 	_updating = false
 
@@ -260,29 +254,6 @@ func _compute_demand(definition: Resource) -> Dictionary:
 	return {"roles": roles, "housing": housing, "has_keep": has_keep}
 
 
-func _rebuild_catalog_grid() -> void:
-	for child in _catalog_grid.get_children():
-		child.free()
-	for entry_value in _tools.rescan_facility_catalog():
-		var entry: FacilityDefinition = entry_value
-		var button := Button.new()
-		button.text = entry.get_display_name()
-		if entry.icon != null:
-			button.icon = entry.icon
-		button.tooltip_text = "%s\n%s" % [entry.scene_path, _demand_tooltip(entry)]
-		button.pressed.connect(func(): _tools.begin_facility_placement(entry))
-		_catalog_grid.add_child(button)
-
-
-func _demand_tooltip(entry: FacilityDefinition) -> String:
-	var parts: Array[String] = []
-	for role_id in entry.staff_role_counts:
-		parts.append("%s x%d" % [str(role_id), int(entry.staff_role_counts[role_id])])
-	if entry.population_capacity > 0:
-		parts.append("houses %d" % entry.population_capacity)
-	return "no staff demand" if parts.is_empty() else ", ".join(parts)
-
-
 func _rebuild_facility_list() -> void:
 	_facility_list.clear()
 	for facility in _tools.get_town_facility_nodes(_town):
@@ -300,13 +271,6 @@ func _on_select_facility_pressed() -> void:
 		var selection := EditorInterface.get_selection()
 		selection.clear()
 		selection.add_node(facility)
-
-
-func _on_remove_facility_pressed() -> void:
-	var facility := _selected_list_facility()
-	if facility != null:
-		_tools.remove_facility_node(facility)
-		_rebuild()
 
 
 func _selected_list_facility() -> Node3D:

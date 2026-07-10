@@ -94,8 +94,8 @@ static func shield_block_score(shields_skill: float, strength: float, shield_blo
 
 
 ## block.md.
-static func defense_chance(defense_score: float, hit_score: float) -> float:
-	return clampf(0.15 + (defense_score - hit_score) / 220.0, 0.02, 0.75)
+static func defense_chance(defense_score: float, attacker_hit_score: float) -> float:
+	return clampf(0.15 + (defense_score - attacker_hit_score) / 220.0, 0.02, 0.75)
 
 
 ## block.md.

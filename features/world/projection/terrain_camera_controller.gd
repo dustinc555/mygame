@@ -52,6 +52,20 @@ func _assign_camera() -> void:
 		terrain.set_physics_process(true)
 
 
+## Terrain surface height under a world position; NAN where no terrain covers.
+func get_terrain_height(world_position: Vector3) -> float:
+	for terrain in _terrains:
+		if not is_instance_valid(terrain):
+			continue
+		var data = terrain.get("data")
+		if data == null:
+			continue
+		var height := float(data.get_height(world_position))
+		if not is_nan(height):
+			return height
+	return NAN
+
+
 func _find_terrains(node: Node) -> Array[Node]:
 	var found: Array[Node] = []
 	if node.is_class("Terrain3D"):

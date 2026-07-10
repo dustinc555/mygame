@@ -43,6 +43,7 @@ var _roof_hidden := false
 var _hidden_side := ""
 var _level_actor_ids: Array[Dictionary] = []
 var _active_level_index := -1
+var _display_level_override := 0
 var _extra_level_content_paths: Dictionary = {}
 var _inside_actors: Dictionary = {}
 var _trespass_warning_remaining: Dictionary = {}
@@ -53,6 +54,15 @@ var _modular_piece_cache: Array = []
 var _modular_piece_cache_dirty := true
 var _modular_floor_footprints: Array = []
 var _modular_bounds_dirty := true
+
+# External furniture: beds/shelves/counters authored under settlement facility
+# nodes (outside this building's scene) while standing physically inside the
+# building. Enrolled by position so upper-level furniture hides with its level
+# exactly like authored level content. Furniture does not move at runtime; the
+# cache rebuilds each time the camera focus enters the building.
+var _external_furniture_cache: Array = []
+var _external_furniture_cache_valid := false
+var _hidden_external_furniture := {}
 var _watched_modular_pieces_root: Node
 var _world_time: WorldTimeController
 const SIDE_SWITCH_HYSTERESIS := 0.45
@@ -131,9 +141,184 @@ func _get_modular_floor_footprints() -> Array:
 		_modular_floor_footprints.append({
 			"from_world": (piece as Node3D).global_transform.affine_inverse(),
 			"half_extents": Vector2(size.x * 0.5, size.z * 0.5),
+			"local_y": to_local((piece as Node3D).global_position).y,
 		})
 	_modular_bounds_dirty = false
 	return _modular_floor_footprints
+
+
+## Hides external furniture on levels above the active one (levels buildings)
+## or above the focused actor's Y band (modular buildings), mirroring how
+## authored level content and modular pieces hide.
+func _refresh_external_furniture_visibility(show_interior: bool, focus_position: Variant) -> void:
+	var focused := show_interior and (focus_position != null or _active_level_index >= 0)
+	if not focused:
+		_restore_external_furniture()
+		_external_furniture_cache_valid = false
+		return
+	if not _external_furniture_cache_valid:
+		_rebuild_external_furniture_cache()
+	var still_hidden := {}
+	for entry in _external_furniture_cache:
+		var node: Node3D = entry["node"]
+		if node == null or not is_instance_valid(node) or not node.is_inside_tree():
+			continue
+		var hide := false
+		if not levels.is_empty():
+			hide = _active_level_index >= 0 and int(entry["level"]) > _active_level_index
+		elif focus_position != null:
+			# Compare floor plates, not raw heights: a shelf mounted 1.8m up a
+			# ground-floor wall belongs to the ground floor and must stay visible.
+			hide = _modular_furniture_level_y(node.global_position) > to_local(focus_position).y + 1.5
+		if hide:
+			still_hidden[node.get_instance_id()] = node
+			if node.visible:
+				node.visible = false
+			# Click picking must skip hidden furniture; the flag is checked by
+			# the interaction controller's collider walk.
+			node.set_meta("world_building_hidden_by_camera", true)
+	for id in _hidden_external_furniture:
+		if not still_hidden.has(id):
+			var node: Node3D = _hidden_external_furniture[id]
+			if node != null and is_instance_valid(node):
+				node.visible = true
+				node.remove_meta("world_building_hidden_by_camera")
+	_hidden_external_furniture = still_hidden
+
+
+func _restore_external_furniture() -> void:
+	for id in _hidden_external_furniture:
+		var node: Node3D = _hidden_external_furniture[id]
+		if node != null and is_instance_valid(node):
+			node.visible = true
+			node.remove_meta("world_building_hidden_by_camera")
+	_hidden_external_furniture.clear()
+
+
+func _rebuild_external_furniture_cache() -> void:
+	_external_furniture_cache.clear()
+	_external_furniture_cache_valid = true
+	if not is_inside_tree():
+		return
+	for furniture in get_tree().get_nodes_in_group(FurnitureRules.FURNITURE_GROUP):
+		var node := furniture as Node3D
+		if node == null or not node.is_inside_tree() or is_ancestor_of(node):
+			continue
+		if not levels.is_empty():
+			var level_index := _get_level_index_for_position(node.global_position)
+			if level_index < 0:
+				continue
+			_external_furniture_cache.append({"node": node, "level": level_index})
+		elif _is_position_inside_modular_bounds(node.global_position):
+			_external_furniture_cache.append({"node": node, "level": -1})
+
+
+func _get_level_index_for_position(world_position: Vector3) -> int:
+	var local_y := to_local(world_position).y
+	for level_index in range(levels.size() - 1, -1, -1):
+		var level: BuildingLevelDefinition = levels[level_index]
+		if level == null:
+			continue
+		if local_y < level.min_local_y or local_y >= level.max_local_y:
+			continue
+		var area := _get_level_area(level_index)
+		if area != null and _area_contains_world_position(area, world_position):
+			return level_index
+	return -1
+
+
+## The building-local floor height a piece of furniture belongs to: the highest
+## modular floor plate whose footprint holds it horizontally and sits at or
+## below it. Wall-mounted furniture classifies by its floor, not mount height.
+func _modular_furniture_level_y(world_position: Vector3) -> float:
+	var best := 0.0
+	var found := false
+	for footprint in _get_modular_floor_footprints():
+		var local: Vector3 = footprint["from_world"] * world_position
+		var half: Vector2 = footprint["half_extents"]
+		if absf(local.x) > half.x or absf(local.z) > half.y or local.y < -0.6:
+			continue
+		var floor_y: float = footprint["local_y"]
+		if not found or floor_y > best:
+			best = floor_y
+			found = true
+	return best if found else to_local(world_position).y
+
+
+## 1-based display level for the HUD indicator; 0 = outside. Levels buildings
+## use their authored level bands; modular buildings count distinct floor
+## plate heights at or below the actor.
+func get_display_level_for_actor(actor: WorldActor) -> int:
+	if actor == null or not is_instance_valid(actor) or not actor.is_inside_tree():
+		return 0
+	if not levels.is_empty():
+		return get_level_index_for_actor(actor) + 1
+	if not is_actor_inside(actor):
+		return 0
+	var plate_ys := _get_modular_plate_ys()
+	if plate_ys.is_empty():
+		return 1
+	var local_y := to_local(actor.global_position).y
+	var level := 0
+	for y in plate_ys:
+		if local_y >= y - 0.6:
+			level += 1
+	return maxi(level, 1)
+
+
+## Distinct modular floor plate heights (building-local, sorted ascending,
+## deduped within 1m) — one entry per walkable story.
+func _get_modular_plate_ys() -> Array[float]:
+	var plate_ys: Array[float] = []
+	for footprint in _get_modular_floor_footprints():
+		var y: float = footprint["local_y"]
+		var seen := false
+		for existing in plate_ys:
+			if absf(existing - y) < 1.0:
+				seen = true
+				break
+		if not seen:
+			plate_ys.append(y)
+	plate_ys.sort()
+	return plate_ys
+
+
+## World-space floor height of a 1-based display level (for camera altitude).
+func get_display_level_world_y(level: int) -> float:
+	if not levels.is_empty():
+		var level_def: BuildingLevelDefinition = levels[clampi(level - 1, 0, levels.size() - 1)]
+		return to_global(Vector3(0.0, level_def.min_local_y if level_def != null else 0.0, 0.0)).y
+	var plate_ys := _get_modular_plate_ys()
+	if plate_ys.is_empty():
+		return global_position.y
+	return to_global(Vector3(0.0, plate_ys[clampi(level - 1, 0, plate_ys.size() - 1)], 0.0)).y
+
+
+func get_display_level_count() -> int:
+	if not levels.is_empty():
+		return levels.size()
+	return maxi(_get_modular_plate_ys().size(), 1)
+
+
+## Manual camera-floor override (HUD stepper). 0 = follow the focused actor;
+## 1+ = force that display level. The visibility controller clears it on
+## refocus and when the active building changes.
+func set_display_level_override(level: int) -> void:
+	_display_level_override = clampi(level, 0, get_display_level_count())
+
+
+func get_display_level_override() -> int:
+	return _display_level_override
+
+
+func _is_position_inside_modular_bounds(world_position: Vector3) -> bool:
+	for footprint in _get_modular_floor_footprints():
+		var local: Vector3 = footprint["from_world"] * world_position
+		var half: Vector2 = footprint["half_extents"]
+		if absf(local.x) <= half.x and absf(local.z) <= half.y \
+				and local.y >= -0.6 and local.y <= 3.2:
+			return true
+	return false
 
 
 func set_visibility_for_camera(show_interior: bool, camera_world_position: Vector3, actor: WorldActor = null, camera_focused := false) -> void:
@@ -143,9 +328,18 @@ func set_visibility_for_camera(show_interior: bool, camera_world_position: Vecto
 	var focus_position: Variant = null
 	if show_interior and camera_focused and actor != null and is_instance_valid(actor) and actor.is_inside_tree():
 		focus_position = actor.global_position
+	# Manual floor override: cut modular buildings at the chosen plate height
+	# instead of the actor's feet.
+	if focus_position != null and levels.is_empty() and _display_level_override > 0:
+		var plate_ys := _get_modular_plate_ys()
+		if not plate_ys.is_empty():
+			var plate_index := clampi(_display_level_override - 1, 0, plate_ys.size() - 1)
+			var local_focus := to_local(focus_position)
+			focus_position = to_global(Vector3(local_focus.x, plate_ys[plate_index] + 0.1, local_focus.z))
 	if not levels.is_empty():
 		_refresh_level_visibility(show_interior, camera_world_position, actor)
 		_refresh_modular_piece_visibility(show_interior, camera_world_position, _active_level_index, focus_position)
+		_refresh_external_furniture_visibility(show_interior, focus_position)
 		return
 	var next_roof_hidden := show_interior
 	var next_hidden_side := ""
@@ -153,11 +347,13 @@ func set_visibility_for_camera(show_interior: bool, camera_world_position: Vecto
 		next_hidden_side = _get_camera_facing_side(camera_world_position)
 	if _roof_hidden == next_roof_hidden and _hidden_side == next_hidden_side:
 		_refresh_modular_piece_visibility(show_interior, camera_world_position, -1, focus_position)
+		_refresh_external_furniture_visibility(show_interior, focus_position)
 		return
 	_roof_hidden = next_roof_hidden
 	_hidden_side = next_hidden_side
 	_refresh_occluders()
 	_refresh_modular_piece_visibility(show_interior, camera_world_position, -1, focus_position)
+	_refresh_external_furniture_visibility(show_interior, focus_position)
 
 
 func register_extra_level_content(level_index: int, content_path: NodePath) -> void:
@@ -1066,6 +1262,8 @@ func _refresh_level_visibility(show_interior: bool, camera_world_position: Vecto
 	var next_hidden_side := ""
 	if show_interior:
 		next_level_index = get_level_index_for_actor(actor)
+		if _display_level_override > 0 and next_level_index >= 0:
+			next_level_index = clampi(_display_level_override - 1, 0, levels.size() - 1)
 		if next_level_index >= 0 and not is_roof_level(next_level_index):
 			next_hidden_side = _get_camera_facing_side(camera_world_position)
 	if _active_level_index == next_level_index and _hidden_side == next_hidden_side:

@@ -104,13 +104,13 @@ func _snap_realized_building(instance: Node3D, definition: Resource, building: D
 	if not is_instance_valid(instance) or not instance.is_inside_tree():
 		return
 	var footprint: Vector2 = definition.get("footprint_size") if definition.get("footprint_size") != null else BuildingPlacementSolver.estimate_footprint(instance)
-	var snapped := BuildingPlacementSolver.snap_to_terrain(
+	var snap_result := BuildingPlacementSolver.snap_to_terrain(
 		instance.get_world_3d().direct_space_state,
 		instance.global_transform,
 		footprint,
 		float(building.get("foundation", 0.0)))
-	if not snapped.is_empty():
-		instance.global_transform = snapped["transform"]
+	if not snap_result.is_empty():
+		instance.global_transform = snap_result["transform"]
 
 
 func _redraw_border(settlement: Dictionary) -> void:

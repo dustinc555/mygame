@@ -1,4 +1,5 @@
 @tool
+@icon("res://addons/world_authoring/icons/facility_jail.svg")
 extends "res://features/settlements/bridge/settlement_facility_instance.gd"
 
 class_name SettlementJail
@@ -997,16 +998,19 @@ func _claim_guard_post_for(guard: HumanoidCharacter):
 	return null
 
 
+## Typed vitals writes: the old property-name reflection here was invisible
+## to the analyzer and silently broke when members were renamed.
 func _stabilize_prisoner(actor: WorldActor) -> void:
 	if actor == null or actor.life_state == NpcRules.LifeState.DEAD:
 		return
-	_set_property_if_present(actor, "blood", maxf(float(actor.get("blood")), float(actor.get("max_blood")) * 0.55))
-	_set_property_if_present(actor, "_current_open_cut_damage", 0.0)
-	_set_property_if_present(actor, "_bleed_rate", 0.0)
-	_set_property_if_present(actor, "_bleed_burst_rate", 0.0)
-	_set_property_if_present(actor, "_downed_recover_delay_remaining", 2.0)
-	if actor.has_method("_recalculate_vitals"):
-		actor.call("_recalculate_vitals")
+	actor.blood = maxf(actor.blood, actor.max_blood * 0.55)
+	var vitals := actor.get_vitals()
+	if vitals == null:
+		return
+	vitals.set_open_cut_damage(0.0)
+	vitals.set_bleed_rate(0.0)
+	vitals.set_bleed_burst_rate(0.0)
+	vitals.recalculate_vitals()
 
 
 func _confiscate_prisoner_items(actor: WorldActor, locker: Node, warrant: Dictionary, law_controller: Node = null) -> void:

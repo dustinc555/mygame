@@ -21,6 +21,7 @@ const FACILITIES_DIR := "res://features/settlements/resources/facilities"
 const SETTLEMENT_TOWN_SCRIPT := preload("res://features/settlements/bridge/settlement_town.gd")
 const PLACEMENT_GHOST := preload("res://addons/world_authoring/placement_ghost.gd")
 const TOWN_DOCK := preload("res://addons/world_authoring/town_dock.gd")
+const INSTANCE_UNPACK := preload("res://addons/world_authoring/instance_unpack.gd")
 const MARKER_GHOST_RADIUS := 1.2
 const MARKER_GHOST_COLORS := {
 	"RoadSpawn": Color(0.95, 0.8, 0.2, 0.5),
@@ -31,9 +32,7 @@ var _plugin: EditorPlugin
 var _toolbar: HBoxContainer
 var _status_label: Label
 var _add_facility_button: MenuButton
-var _remove_facility_button: Button
 var _edit_in_zone_button: Button
-var _save_town_button: Button
 var _snap_terrain_button: Button
 var _active_town: Node
 var _town_icon: Texture2D
@@ -41,15 +40,19 @@ var _ghost
 var _dock: Control
 var _facility_catalog: Array = []
 var _pending_facility: Resource
+var _unpacker
+## Managed by the plugin router: the dock is mounted in the bottom panel only
+## while a SettlementTown node is literally selected.
+var dock_mounted := false
 
 
 func _init(plugin: EditorPlugin) -> void:
 	_plugin = plugin
 	_ghost = PLACEMENT_GHOST.new(plugin)
+	_unpacker = INSTANCE_UNPACK.new()
 	_build_toolbar()
 	_dock = TOWN_DOCK.new()
 	_dock.setup(self)
-	plugin.add_control_to_bottom_panel(_dock, "Town")
 
 
 func toolbar() -> Control:
@@ -99,6 +102,11 @@ func shortcut_input(_event: InputEvent) -> bool:
 	return false
 
 
+## Pre-GUI wheel claim while placing (router calls this from _input).
+func handle_global_input(event: InputEvent) -> bool:
+	return _ghost.handle_global_input(event)
+
+
 func forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 	return _ghost.handle_3d_input(camera, event)
 
@@ -106,8 +114,10 @@ func forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 func teardown() -> void:
 	_ghost.cancel()
 	if _dock != null and is_instance_valid(_dock):
-		_plugin.remove_control_from_bottom_panel(_dock)
+		if dock_mounted:
+			_plugin.remove_control_from_bottom_panel(_dock)
 		_dock.free()
+	dock_mounted = false
 	_dock = null
 	if _toolbar != null:
 		_toolbar.free()
@@ -173,7 +183,7 @@ func begin_facility_placement(definition: FacilityDefinition) -> void:
 	if not _ghost.begin_scene(facility_scene, _on_facility_placement_committed, _on_placement_cancelled):
 		_set_status("Could not start placement (no edited scene).")
 		return
-	_set_status("Click terrain to place %s; R rotates, right-click cancels." % definition.get_display_name())
+	_set_status("Placing %s: hold left-click, drag rotates, scroll = height, release places." % definition.get_display_name())
 
 
 func _on_facility_placement_committed(world_transform: Transform3D) -> void:
@@ -264,7 +274,7 @@ static func _spawn_path_property(marker_name: String) -> String:
 ## --- Scene file surgery (single source of truth for instanced towns) ---------
 
 
-## Adds a facility scene under the town scene's Facilities root, editing the
+## Adds a facility scene as a direct child of the town root, editing the
 ## town's own .tscn. Pure file surgery: usable from the editor context and
 ## from headless validation.
 static func add_facility_to_town_scene(town_scene_path: String, facility_scene_path: String, local_transform: Transform3D) -> bool:
@@ -273,18 +283,12 @@ static func add_facility_to_town_scene(town_scene_path: String, facility_scene_p
 	if town_scene == null or facility_scene == null:
 		return false
 	var town := town_scene.instantiate()
-	var facilities := town.get_node_or_null("Facilities") as Node3D
-	if facilities == null:
-		facilities = Node3D.new()
-		facilities.name = "Facilities"
-		town.add_child(facilities)
-		facilities.owner = town
 	var facility := facility_scene.instantiate() as Node3D
 	if facility == null:
 		town.free()
 		return false
-	facility.name = _unique_facility_name(facilities, facility_scene_path.get_file().get_basename().to_pascal_case())
-	facilities.add_child(facility)
+	facility.name = _unique_facility_name(town, facility_scene_path.get_file().get_basename().to_pascal_case())
+	town.add_child(facility)
 	facility.owner = town
 	facility.transform = local_transform
 	var packed := PackedScene.new()
@@ -298,7 +302,10 @@ static func remove_facility_from_town_scene(town_scene_path: String, facility_na
 	if town_scene == null:
 		return false
 	var town := town_scene.instantiate()
-	var facility := town.get_node_or_null("Facilities/%s" % facility_name)
+	var facility := town.get_node_or_null(NodePath(facility_name))
+	if facility == null:
+		# Legacy towns still group facilities under a "Facilities" container.
+		facility = town.get_node_or_null("Facilities/%s" % facility_name)
 	if facility == null:
 		town.free()
 		return false
@@ -358,88 +365,65 @@ func _add_facility_live(town: Node3D, definition: FacilityDefinition, local_tran
 	if facility_scene == null:
 		return
 	var owner_root := _plugin.get_editor_interface().get_edited_scene_root()
-	var facilities := town.get_node_or_null("Facilities")
 	var undo_redo := _plugin.get_undo_redo()
 	undo_redo.create_action("Add Facility")
-	if facilities == null:
-		facilities = Node3D.new()
-		facilities.name = "Facilities"
-		undo_redo.add_do_method(town, "add_child", facilities)
-		undo_redo.add_do_method(facilities, "set_owner", owner_root)
-		undo_redo.add_undo_method(town, "remove_child", facilities)
-		undo_redo.add_do_reference(facilities)
+	# Facilities are direct town children — no container ceremony.
 	var facility := facility_scene.instantiate() as Node3D
-	facility.name = _unique_facility_name(facilities, definition.scene_path.get_file().get_basename().to_pascal_case())
+	facility.name = _unique_facility_name(town, definition.scene_path.get_file().get_basename().to_pascal_case())
 	facility.transform = local_transform
-	undo_redo.add_do_method(facilities, "add_child", facility)
-	undo_redo.add_do_method(facility, "set_owner", owner_root)
-	undo_redo.add_undo_method(facilities, "remove_child", facility)
+	# Same 2026-07-07 decision as inline towns: the facility template expands
+	# into plain nodes owned by the edited scene, so its children (furniture,
+	# service points) are freely editable. Nested instances (the shell,
+	# furniture pieces) stay intact.
+	facility.scene_file_path = ""
+	undo_redo.add_do_method(town, "add_child", facility)
+	undo_redo.add_do_method(self, "_own_facility_tree", facility, owner_root)
+	undo_redo.add_undo_method(town, "remove_child", facility)
 	undo_redo.add_do_reference(facility)
 	undo_redo.commit_action()
 	_select_node(facility)
 	_set_status("Added %s." % definition.get_display_name())
 
 
-func remove_facility_node(facility: Node3D) -> void:
-	if facility == null:
+func _own_facility_tree(facility: Node, owner_root: Node) -> void:
+	facility.owner = owner_root
+	_own_facility_children(facility, owner_root)
+	facility.set_display_folded(true)
+
+
+func _own_facility_children(node: Node, owner_root: Node) -> void:
+	# An instance root owns its internals. Claiming them makes the editor save
+	# duplicate type+instance entries that load as phantom off-tree nodes.
+	if not node.scene_file_path.is_empty():
 		return
-	var town := _find_town_ancestor(facility) as Node3D
-	if town == null:
-		return
-	if _can_edit_town_live(town):
-		var owner_root := _plugin.get_editor_interface().get_edited_scene_root()
-		var facilities := facility.get_parent()
-		var undo_redo := _plugin.get_undo_redo()
-		undo_redo.create_action("Remove Facility")
-		undo_redo.add_do_method(facilities, "remove_child", facility)
-		undo_redo.add_undo_method(facilities, "add_child", facility)
-		undo_redo.add_undo_method(facility, "set_owner", owner_root)
-		undo_redo.add_undo_reference(facility)
-		undo_redo.commit_action()
-		_set_status("Removed facility.")
-	else:
-		if town.scene_file_path.is_empty():
-			_set_status("Town has no scene file; open its scene to edit.")
-			return
-		var facility_name := str(facility.name)
-		if not remove_facility_from_town_scene(town.scene_file_path, facility_name):
-			_set_status("Failed to remove %s." % facility_name)
-			return
-		_refresh_town_instance(town)
-		_set_status("Removed %s." % facility_name)
-	_refresh_dock()
-
-
-func _on_remove_facility_pressed() -> void:
-	remove_facility_node(_selected_facility())
-
-
-## The selected node's facility: the direct child of the town's Facilities
-## root that the selection sits under.
-func _selected_facility() -> Node3D:
-	for node in _plugin.get_editor_interface().get_selection().get_selected_nodes():
-		var town := _find_town_ancestor(node)
-		if town == null:
-			continue
-		var facilities := town.get_node_or_null("Facilities")
-		if facilities == null:
-			continue
-		var current := node as Node
-		while current != null and current.get_parent() != facilities:
-			current = current.get_parent()
-		if current is Node3D:
-			return current as Node3D
-	return null
+	for child in node.get_children():
+		child.owner = owner_root
+		if child.get_child_count() > 0:
+			child.set_display_folded(true)
+		if child.scene_file_path.is_empty():
+			_own_facility_children(child, owner_root)
 
 
 func get_town_facility_nodes(town: Node) -> Array:
-	var facilities := town.get_node_or_null("Facilities") if town != null else null
 	var result: Array = []
-	if facilities != null:
-		for child in facilities.get_children():
+	if town == null:
+		return result
+	for child in town.get_children():
+		if _is_facility_node(child):
+			result.append(child)
+	var legacy := town.get_node_or_null("Facilities")
+	if legacy != null:
+		for child in legacy.get_children():
 			if child is Node3D:
 				result.append(child)
 	return result
+
+
+func _is_facility_node(node: Node) -> bool:
+	if node is SettlementFacilityInstance or node is WorldBuilding:
+		return true
+	var parent := node.get_parent()
+	return parent != null and str(parent.name) == "Facilities" and node is Node3D
 
 
 func _town_is_edited_scene_root(town: Node) -> bool:
@@ -456,54 +440,33 @@ func _town_is_editable_instance(town: Node) -> bool:
 	return root != null and root.is_editable_instance(town)
 
 
+## Inline towns (plain nodes in the zone — the primary model since
+## 2026-07-07) are always live-editable; instanced towns need to be the
+## edited root or an unlocked (editable-children) instance.
+func _town_is_inline(town: Node) -> bool:
+	if town == null or not town.scene_file_path.is_empty():
+		return false
+	var root := _plugin.get_editor_interface().get_edited_scene_root()
+	return root != null and root.is_ancestor_of(town)
+
+
 func _can_edit_town_live(town: Node) -> bool:
-	return _town_is_edited_scene_root(town) or _town_is_editable_instance(town)
+	return _town_is_edited_scene_root(town) or _town_is_editable_instance(town) or _town_is_inline(town)
 
 
-## Unlock an instanced town for in-zone editing.
+## Unpack an instanced (legacy) town into plain zone-owned nodes — the
+## inline model: the zone scene becomes the single truth for this town.
+## Facility instances inside keep their own scene links until unpacked
+## themselves from the Facility dock. Undoable.
 func make_town_editable(town: Node) -> void:
 	var root := _plugin.get_editor_interface().get_edited_scene_root()
 	if town == null or root == null or _town_is_edited_scene_root(town):
 		return
-	root.set_editable_instance(town, true)
+	_unpacker.unpack(town, root, _plugin.get_undo_redo())
+	# The unpack reattaches the node, which drops the editor selection.
+	_select_node(town)
 	_refresh_context_ui()
-	_set_status("%s is now editable in this scene; Save Town commits changes back to its file." % town.name)
-
-
-## Commit the live in-zone state of an editable town instance back to its own
-## .tscn — the per-town scene stays the single source of truth. Packs the
-## LIVE node (temporarily detached from its scene path so overrides expand),
-## keeping nested facility scene instances as references, then swaps in a
-## fresh clean instance.
-func save_town_instance_to_scene(town: Node3D) -> void:
-	if town == null or not _town_is_editable_instance(town):
-		return
-	var scene_path := town.scene_file_path
-	var kept_transform := town.transform
-	town.scene_file_path = ""
-	town.transform = Transform3D.IDENTITY
-	_own_recursive(town, town)
-	var packed := PackedScene.new()
-	var packed_ok := packed.pack(town) == OK
-	var saved := packed_ok and ResourceSaver.save(packed, scene_path) == OK
-	town.scene_file_path = scene_path
-	town.transform = kept_transform
-	if not saved:
-		_set_status("Failed to save %s." % scene_path)
-		return
-	var fresh := _refresh_town_instance(town)
-	_set_status("Saved %s%s." % [scene_path, "" if fresh != null else " (instance refresh failed)"])
-	_refresh_dock()
-
-
-## Owner pass for packing: every node under the town belongs to the town, but
-## nested scene instances (facility buildings) stay references — own their
-## root, never descend into their internals.
-func _own_recursive(node: Node, root: Node) -> void:
-	for child in node.get_children():
-		child.owner = root
-		if child.scene_file_path.is_empty():
-			_own_recursive(child, root)
+	_set_status("%s is now plain nodes owned by this zone (save the zone to keep it)." % town.name)
 
 
 ## Conform the town's facilities and markers to the current terrain height —
@@ -641,29 +604,27 @@ func _build_toolbar() -> void:
 	_toolbar.add_theme_constant_override("separation", 6)
 	_status_label = Label.new()
 	_status_label.text = "Town: none"
+	# Hard width cap: status messages must never stretch the spatial editor
+	# menu row (that pushes the viewport past the screen edge). Full text
+	# lives in the tooltip.
+	_status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_status_label.custom_minimum_size = Vector2(180, 0)
+	_status_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_toolbar.add_child(_status_label)
 	_add_facility_button = MenuButton.new()
 	_add_facility_button.text = "Add Facility"
 	_add_facility_button.icon = _get_town_icon()
-	_add_facility_button.tooltip_text = "Pick a facility, then click the terrain to place it (R rotates, right-click cancels)."
+	_add_facility_button.tooltip_text = "Pick a facility, then: hold left-click on terrain to anchor, drag to rotate, scroll to raise/lower, release to place. Right-click cancels."
 	_add_facility_button.about_to_popup.connect(_populate_facility_menu)
 	_add_facility_button.get_popup().id_pressed.connect(_on_add_facility_pressed)
 	_toolbar.add_child(_add_facility_button)
-	_remove_facility_button = Button.new()
-	_remove_facility_button.text = "Remove Facility"
-	_remove_facility_button.tooltip_text = "Remove the selected facility from its town."
-	_remove_facility_button.pressed.connect(_on_remove_facility_pressed)
-	_toolbar.add_child(_remove_facility_button)
+	# Facility removal lives on the Facility toolbar (it acts on the selected
+	# facility, and selecting a facility switches toolbars).
 	_edit_in_zone_button = Button.new()
-	_edit_in_zone_button.text = "Edit In Zone"
-	_edit_in_zone_button.tooltip_text = "Unlock this town instance's children for editing here, with the zone terrain in view."
+	_edit_in_zone_button.text = "Unpack Into Zone"
+	_edit_in_zone_button.tooltip_text = "Expand this legacy town instance into plain nodes owned by the zone scene — the inline model. Undoable."
 	_edit_in_zone_button.pressed.connect(func(): make_town_editable(_get_active_town()))
 	_toolbar.add_child(_edit_in_zone_button)
-	_save_town_button = Button.new()
-	_save_town_button.text = "Save Town"
-	_save_town_button.tooltip_text = "Write the town's in-zone edits back to its own scene file (the source of truth)."
-	_save_town_button.pressed.connect(func(): save_town_instance_to_scene(_get_active_town() as Node3D))
-	_toolbar.add_child(_save_town_button)
 	_snap_terrain_button = Button.new()
 	_snap_terrain_button.text = "Snap To Terrain"
 	_snap_terrain_button.tooltip_text = "Conform facilities and markers to the current terrain height (after sculpting)."
@@ -694,24 +655,40 @@ func _refresh_toolbar() -> void:
 		var mode := "editing here" if _can_edit_town_live(town) else "locked instance"
 		_status_label.text = "Town: %s (%s)" % [town.name, mode]
 	_add_facility_button.disabled = town == null
-	_remove_facility_button.disabled = _selected_facility() == null
-	_edit_in_zone_button.visible = town != null and not _can_edit_town_live(town) and not town.scene_file_path.is_empty()
-	_save_town_button.visible = _town_is_editable_instance(town)
+	# Any instanced town in a zone is legacy now — offer the unpack regardless
+	# of whether its children happen to be unlocked (editable instance).
+	_edit_in_zone_button.visible = town != null and not _town_is_edited_scene_root(town) and not town.scene_file_path.is_empty()
 	_snap_terrain_button.disabled = town == null or not _can_edit_town_live(town)
 
 
 func _refresh_dock() -> void:
 	if _dock == null or not is_instance_valid(_dock):
 		return
-	var town := _get_active_town()
-	_dock.set_town(town)
-	if town != null:
-		_plugin.make_bottom_panel_item_visible(_dock)
+	_dock.set_town(_get_active_town())
+
+
+## Dock mounting is managed by the plugin router: the Town tab exists only
+## while a SettlementTown node itself is selected — never merely because the
+## selection sits somewhere inside a town.
+func wants_dock() -> bool:
+	for node in _plugin.get_editor_interface().get_selection().get_selected_nodes():
+		if claims_node(node):
+			return true
+	return false
+
+
+func dock_control() -> Control:
+	return _dock
+
+
+func dock_title() -> String:
+	return "Town"
 
 
 func _set_status(message: String) -> void:
 	if _status_label != null:
 		_status_label.text = message
+		_status_label.tooltip_text = message
 
 
 func _get_town_icon() -> Texture2D:

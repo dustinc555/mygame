@@ -56,6 +56,9 @@ var _geometry_dirty := true
 var _tiles := {}
 var _inflight := {}
 var _initial_ready := false
+# Nav-relevant geometry changes seen before tiles are seeded (scene-load
+# runtime mutation, e.g. furniture freeing imported collision hulls).
+var _pending_dirty_positions: Array[Vector3] = []
 
 # Debug visualization.
 var _debug_root: Node3D
@@ -129,6 +132,9 @@ func _activate() -> void:
 	else:
 		_seed_world_tiles()
 		_load_world_cache()
+		for position in _pending_dirty_positions:
+			_dirty_tiles_at(position)
+		_pending_dirty_positions.clear()
 		if pending_tile_count() == 0 and not _initial_ready:
 			_initial_ready = true
 			initial_navigation_ready.emit()
@@ -517,6 +523,10 @@ func _finish_full_scene_bake(nav_mesh: NavigationMesh) -> void:
 ## content — e.g. a building placed as a sibling of a zone — must bake and
 ## patch exactly like zone content. Hierarchy is irrelevant to nav.
 func _nav_root() -> Node:
+	# Teardown-safe: node-removed signals keep firing while this controller
+	# itself is leaving the tree, when get_tree() is already null.
+	if not is_inside_tree():
+		return root_scene
 	var current := get_tree().current_scene
 	if current != null and (current == root_scene or current.is_ancestor_of(root_scene)):
 		return current
@@ -524,9 +534,14 @@ func _nav_root() -> Node:
 
 
 func _parse_world_geometry() -> void:
-	# Main-thread only: parse_source_geometry_data walks the scene tree.
+	# Main-thread only: parse_source_geometry_data walks the scene tree, so
+	# the nav root must actually be IN the tree (scene switches can tick a
+	# bake while the world is detaching). Stays dirty and retries otherwise.
+	var nav_root := _nav_root()
+	if nav_root == null or not nav_root.is_inside_tree():
+		return
 	_scene_geometry = NavigationMeshSourceGeometryData3D.new()
-	NavigationServer3D.parse_source_geometry_data(_template, _scene_geometry, _nav_root())
+	NavigationServer3D.parse_source_geometry_data(_template, _scene_geometry, nav_root)
 	_scan_terrains()
 	_geometry_dirty = false
 
@@ -548,6 +563,9 @@ func _on_scene_node_removed(node: Node) -> void:
 
 
 func _is_nav_relevant(node: Node) -> bool:
+	# Scene-teardown removals are not nav events; the whole map is going away.
+	if not is_inside_tree():
+		return false
 	if _mode != Mode.TILED and _mode != Mode.FULL_SCENE:
 		return false
 	if node == self or is_ancestor_of(node):
@@ -566,8 +584,19 @@ func _dirty_tiles_for_node(node: Node) -> void:
 		# only safe answer for an unknown position.
 		notify_world_geometry_changed()
 		return
+	var position := (node as Node3D).global_position
+	# Geometry can change during scene load, before tiles are seeded (e.g.
+	# furniture freeing its imported collision hulls in _ready). Losing that
+	# dirt would leave stale cached tiles; apply it after activation instead.
+	if _mode == Mode.INACTIVE or _tiles.is_empty():
+		_pending_dirty_positions.append(position)
+		return
+	_dirty_tiles_at(position)
+
+
+func _dirty_tiles_at(position: Vector3) -> void:
 	var tile := PIPELINE.clamped_tile_size(settings)
-	var center := PIPELINE.tile_coord((node as Node3D).global_position, tile)
+	var center := PIPELINE.tile_coord(position, tile)
 	# Instant patch: re-dirty only the tiles the object's volume touches.
 	for dx in range(-1, 2):
 		for dz in range(-1, 2):

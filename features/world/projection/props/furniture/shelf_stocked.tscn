@@ -1,0 +1,43 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/props/tabletop_item_spawner.gd" id="1_spawner"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Shelf_Simple.gltf" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="Shape_body"]
+size = Vector3(1.19, 0.31, 0.3)
+
+[node name="ShelfStocked" type="StaticBody3D"]
+script = ExtResource("1_spawner")
+furniture_type = 5
+seed_salt = "stocked_shelf"
+spawn_density = 0.9
+minimum_spawned_items = 1
+tabletop_spawn_surface_offset = 0.0
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+
+[node name="BodyCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+shape = SubResource("Shape_body")
+
+[node name="PropSlots" type="Node3D" parent="."]
+
+[node name="BottleLeft" type="Marker3D" parent="PropSlots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+metadata/prop_category = "bottle"
+metadata/comfortable_weight = 0.65
+
+[node name="BottleMid" type="Marker3D" parent="PropSlots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12, 0.11, 0.17)
+metadata/prop_category = "bottle"
+metadata/comfortable_weight = 0.5
+
+[node name="CandleRight" type="Marker3D" parent="PropSlots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+metadata/prop_category = "candle"
+metadata/comfortable_weight = 0.45
+
+[node name="ClutterFarRight" type="Marker3D" parent="PropSlots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.44, 0.11, 0.16)
+metadata/prop_category = "small_clutter"
+metadata/comfortable_weight = 0.4

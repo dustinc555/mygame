@@ -4,7 +4,6 @@
 [ext_resource type="Terrain3DAssets" path="res://scenes/zones/rustwash_basin/terrain/rustwash_basin_terrain3d_assets.tres" id="3_assets"]
 
 [node name="Terrain3D" type="Terrain3D" unique_id=1979617968]
-debug_level = 1
 data_directory = "res://scenes/zones/rustwash_basin/terrain/data"
 material = ExtResource("2_material")
 assets = ExtResource("3_assets")

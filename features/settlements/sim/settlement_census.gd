@@ -150,6 +150,7 @@ func _on_day_changed(_day_index: int) -> void:
 ## "starving"), "wealth", "supplies". definition carries
 ## population_growth_per_day (authored base rate) and
 ## get_occupancy_multiplier(). Return 0 to stall growth.
+@warning_ignore("unused_parameter")
 func _compute_daily_growth(state: Dictionary, definition: SettlementDefinition) -> int:
 	# TODO(human)
 	return 0

@@ -1,0 +1,25 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/props/furnishing/furniture_vignette.gd" id="1_vignette"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/bar_table.tscn" id="2_table"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chair_1.tscn" id="3_chair1"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chair_2.tscn" id="4_chair2"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/stool.tscn" id="5_stool"]
+
+[node name="TableCluster4" type="Node3D"]
+script = ExtResource("1_vignette")
+footprint_meters = Vector2(3.4, 3.0)
+
+[node name="Table" parent="." instance=ExtResource("2_table")]
+
+[node name="ChairSouthLeft" parent="." instance=ExtResource("3_chair1")]
+transform = Transform3D(-0.99756, 0, -0.06976, 0, 1, 0, 0.06976, 0, -0.99756, -0.72, 0, 1.04)
+
+[node name="ChairSouthRight" parent="." instance=ExtResource("4_chair2")]
+transform = Transform3D(-0.99756, 0, 0.06976, 0, 1, 0, -0.06976, 0, -0.99756, 0.68, 0, 0.99)
+
+[node name="ChairNorthLeft" parent="." instance=ExtResource("4_chair2")]
+transform = Transform3D(0.99756, 0, 0.06976, 0, 1, 0, -0.06976, 0, 0.99756, -0.62, 0, -1.01)
+
+[node name="StoolNorthRight" parent="." instance=ExtResource("5_stool")]
+transform = Transform3D(0.99255, 0, -0.12187, 0, 1, 0, 0.12187, 0, 0.99255, 0.76, 0, -0.97)

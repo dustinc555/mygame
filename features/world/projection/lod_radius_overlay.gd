@@ -84,9 +84,9 @@ func _draw_edge_ring(center: Vector3, height: float) -> void:
 	_immediate.surface_end()
 
 
-func _add_vertex(position: Vector3, color: Color) -> void:
+func _add_vertex(vertex_position: Vector3, color: Color) -> void:
 	_immediate.surface_set_color(color)
-	_immediate.surface_add_vertex(position)
+	_immediate.surface_add_vertex(vertex_position)
 
 
 func _reference_position() -> Vector3:

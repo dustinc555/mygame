@@ -52,7 +52,6 @@ signal appearance_changed
 var _inspect_ring: Node3D = null
 var _body: BodyProjection = null
 var _is_getting_up: bool = false
-var _downed_recover_delay_remaining: float = 0.0
 
 
 const LOCOMOTION_SPEED_THRESHOLD := 0.05
@@ -361,6 +360,125 @@ func _update_carried_pose() -> void:
 	carried.global_transform = CarryPoseSolver.solve_carried_transform(carrier_body, self, carry.carry_pose_profile, carried_body, carried)
 
 
+# --- Stand-up presentation (rising from a seat) ---
+# Rise where you sat: the Sitting_Exit clip plays in place for its full
+# length, then the character settles one small step in front of the seat —
+# instead of teleporting a body-length away mid-sit.
+var _stand_up_exit_remaining := 0.0
+var _stand_up_position := Vector3.INF
+
+
+func begin_stand_up_exit(final_position: Vector3) -> void:
+	var body := get_body_projection() as HumanoidBodyProjection
+	var clip_length := body.get_clip_length(HumanoidBodyProjection.SITTING_EXIT_ANIMATION_NAME) if body != null else 0.0
+	_stand_up_position = final_position
+	if clip_length <= 0.0:
+		_finish_stand_up_exit()
+		return
+	_stand_up_exit_remaining = clip_length
+	if body != null:
+		body.play_clip(HumanoidBodyProjection.SITTING_EXIT_ANIMATION_NAME, 0.0, true, 0.1)
+
+
+func _finish_stand_up_exit() -> void:
+	_stand_up_exit_remaining = 0.0
+	if _stand_up_position.is_finite():
+		global_position = _stand_up_position
+	_stand_up_position = Vector3.INF
+
+
+# --- Counter duty (a shopkeeper working their counter) ---
+# Set by BarServiceArea while the owner stands at the barkeeper service point.
+var _counter_duty_active := false
+var _counter_duty_face_position := Vector3.ZERO
+var _counter_gesture_name := ""
+var _counter_gesture_pending := ""
+
+
+func begin_counter_duty(face_position: Vector3) -> void:
+	_counter_duty_active = true
+	_counter_duty_face_position = face_position
+
+
+func end_counter_duty() -> void:
+	if not _counter_duty_active:
+		return
+	_counter_duty_active = false
+	_counter_gesture_name = ""
+	_counter_gesture_pending = ""
+
+
+func is_on_counter_duty() -> bool:
+	return _counter_duty_active
+
+
+## One-shot gesture (Counter_Show / Counter_Give) layered over the counter
+## idle. Gestures play whole and in order: a request during a running gesture
+## queues (one deep) instead of restarting it — rapid purchases must not chop
+## the give animation into twitches.
+func play_counter_gesture(animation_name: String) -> void:
+	if not _counter_duty_active:
+		return
+	if _counter_gesture_name.is_empty():
+		_counter_gesture_name = animation_name
+	else:
+		_counter_gesture_pending = animation_name
+
+
+## Where a conversation partner should stand. On counter duty that is the
+## customer side of the counter — a straight-line approach point can land
+## behind the counter's wall and route the talker around the building.
+func get_interaction_position(_member: Node) -> Vector3:
+	if _counter_duty_active:
+		var counter_front := _counter_customer_position()
+		if counter_front.is_finite():
+			return counter_front
+	return global_position - global_basis.z * 1.4
+
+
+func _counter_customer_position() -> Vector3:
+	if not is_inside_tree():
+		return Vector3.INF
+	var best := Vector3.INF
+	var best_distance := 2.5
+	for counter in get_tree().get_nodes_in_group("shop_counter"):
+		if not (counter is Node3D) or not counter.has_method("get_customer_position"):
+			continue
+		var distance: float = (counter as Node3D).global_position.distance_to(global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best = counter.get_customer_position()
+	return best
+
+
+func _play_counter_duty_animation(body: HumanoidBodyProjection) -> void:
+	_face_world_position(_counter_duty_face_position)
+	var current_clip := body.get_current_clip()
+	if not _counter_gesture_name.is_empty():
+		if current_clip == _counter_gesture_name:
+			if body.is_current_clip_playing():
+				return
+			# Finished a full gesture; the queued one (if any) plays next,
+			# force-restarted since it may be the same clip.
+			_counter_gesture_name = _counter_gesture_pending
+			_counter_gesture_pending = ""
+			if not _counter_gesture_name.is_empty() and body.play_clip(_counter_gesture_name, 0.0, true, 0.1):
+				return
+			_counter_gesture_name = ""
+		elif body.play_clip(_counter_gesture_name, 0.0, true, 0.15):
+			return
+		else:
+			_counter_gesture_name = ""
+			_counter_gesture_pending = ""
+	if current_clip == HumanoidBodyProjection.COUNTER_ENTER_ANIMATION_NAME and body.is_current_clip_playing():
+		return
+	if current_clip != HumanoidBodyProjection.COUNTER_ENTER_ANIMATION_NAME \
+			and current_clip != HumanoidBodyProjection.COUNTER_IDLE_ANIMATION_NAME \
+			and body.play_clip(HumanoidBodyProjection.COUNTER_ENTER_ANIMATION_NAME, 0.0, false, 0.2):
+		return
+	body.play_clip(HumanoidBodyProjection.COUNTER_IDLE_ANIMATION_NAME, 0.0, false, 0.2)
+
+
 ## Feeds movement state to the body projection's locomotion animation driver.
 func _update_locomotion_animation(delta: float) -> void:
 	var body := get_body_projection() as HumanoidBodyProjection
@@ -374,6 +492,12 @@ func _update_locomotion_animation(delta: float) -> void:
 		return
 	if is_in_cell_custody():
 		return
+	# Rising from a seat: hold the exit clip to its end, then step off.
+	if _stand_up_exit_remaining > 0.0:
+		_stand_up_exit_remaining -= delta
+		if _stand_up_exit_remaining <= 0.0:
+			_finish_stand_up_exit()
+		return
 	if is_sitting():
 		# Hold the seated pose: after the enter clip finishes, loop the sitting idle.
 		var current_clip := body.get_current_clip()
@@ -381,6 +505,12 @@ func _update_locomotion_animation(delta: float) -> void:
 			return
 		if current_clip != HumanoidBodyProjection.SITTING_IDLE_ANIMATION_NAME:
 			body.play_clip(HumanoidBodyProjection.SITTING_IDLE_ANIMATION_NAME, 0.0, true, 0.2)
+		return
+	# Counter duty holds the barkeeper pose while standing at the counter;
+	# walking to/from the counter stays plain locomotion.
+	if _counter_duty_active and not _has_move_target \
+			and Vector2(velocity.x, velocity.z).length() <= LOCOMOTION_SPEED_THRESHOLD:
+		_play_counter_duty_animation(body)
 		return
 	# Mining swings own the animation while actively working the node (main's rule:
 	# face the node, loop the Mining clip; the walk-to-node phase stays locomotion).

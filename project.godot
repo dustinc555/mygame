@@ -24,6 +24,7 @@ config/icon="res://icon.svg"
 LimboDebuggerShutdownGuard="*res://tools/debug/limbo_debugger_shutdown_guard.gd"
 GameDebug="*res://tools/game_debug.gd"
 ECS="*uid://dfqwl5njvdnmq"
+MCPGameBridge="res://addons/godot_mcp/game_bridge/mcp_game_bridge.gd"
 
 [display]
 
@@ -32,8 +33,19 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/gecs/plugin.cfg", "res://addons/job_authoring/plugin.cfg", "res://addons/world_authoring/plugin.cfg", "res://addons/road_authoring/plugin.cfg", "res://addons/terrain_3d/plugin.cfg")
+enabled=PackedStringArray("res://addons/gecs/plugin.cfg", "res://addons/godot_mcp/plugin.cfg", "res://addons/job_authoring/plugin.cfg", "res://addons/world_authoring/plugin.cfg", "res://addons/road_authoring/plugin.cfg", "res://addons/terrain_3d/plugin.cfg")
+
+[godot_mcp]
+
+bind_mode=0
+custom_bind_ip=""
+port_override_enabled=false
+port_override=6550
 
 [gui]
 
 timers/tooltip_delay_sec=0.0
+
+[navigation]
+
+3d/warnings/navmesh_edge_merge_errors=false
