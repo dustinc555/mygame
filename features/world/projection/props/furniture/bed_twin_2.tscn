@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://features/world/projection/props/sleepable_bed.gd" id="1_bed"]
 [ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Bed_Twin2.gltf" id="2_model"]
@@ -6,7 +6,12 @@
 [sub_resource type="BoxShape3D" id="Shape_body"]
 size = Vector3(1.88, 0.81, 2.42)
 
+[sub_resource type="BoxShape3D" id="Shape_mattress"]
+size = Vector3(1.88, 0.515, 2.42)
+
 [node name="BedTwin2" type="StaticBody3D"]
+collision_layer = 4
+collision_mask = 0
 script = ExtResource("1_bed")
 
 [node name="Model" parent="." instance=ExtResource("2_model")]
@@ -14,3 +19,10 @@ script = ExtResource("1_bed")
 [node name="BodyCollision" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0.0)
 shape = SubResource("Shape_body")
+
+[node name="MattressBody" type="StaticBody3D" parent="."]
+collision_mask = 0
+
+[node name="MattressCollision" type="CollisionShape3D" parent="MattressBody"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2575, 0.0)
+shape = SubResource("Shape_mattress")

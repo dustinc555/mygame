@@ -29,6 +29,7 @@ var _law_sentence_move_target := Vector3.ZERO
 
 
 signal order_changed(order_type: int, issued_by_player: bool)
+signal rest_state_requested(actor_id: String, next_state: int)
 
 # Order state — owned HERE. The pre-migration design mirrored this onto the actor
 # and read it back through _node_property reflection; typed fields replace that.
@@ -43,6 +44,9 @@ var current_carry_target: Node
 var current_heal_target: Node
 var current_finish_off_target: Node
 var current_sleep_target: Node
+# Retained through sleep so wake-up returns to the same reachable bed side.
+var current_sleep_stand_position = null
+var _pending_wake_notice := false
 var current_seat_target: Node
 # Vector3 when a stand position is known, null otherwise (readers check `is Vector3`).
 var current_seat_stand_position = null
@@ -173,16 +177,11 @@ func stop_place_in_furnace_assignment() -> void:
 
 
 func stop_sleep_assignment() -> void:
-	var sleep_target = current_sleep_target
-	if _actor_life_state() == NpcRules.LifeState.ASLEEP and _is_valid_node(sleep_target) and sleep_target.has_method("get_interaction_position"):
-		_set_actor_global_position(sleep_target.call("get_interaction_position", actor))
-	release_sleep_target_without_waking()
 	if _actor_life_state() == NpcRules.LifeState.ASLEEP:
-		_set_node_property("life_state", NpcRules.LifeState.ALIVE)
-		var rotation := _actor_rotation()
-		_set_actor_rotation(Vector3(0.0, rotation.y, 0.0))
-		_set_node_property("velocity", Vector3.ZERO)
-		_emit_actor_signal("state_changed")
+		_pending_wake_notice = false
+		_request_rest_state(actor, NpcRules.LifeState.ALIVE)
+		return
+	release_sleep_target_without_waking()
 	if current_order_type == ORDER_TYPE_SLEEP:
 		_clear_actor_move_target()
 		current_order_type = ORDER_TYPE_NONE
@@ -193,6 +192,7 @@ func release_sleep_target_without_waking() -> void:
 	if _is_valid_node(sleep_target) and sleep_target.has_method("release_sleeper"):
 		sleep_target.call("release_sleeper", actor)
 	current_sleep_target = null
+	current_sleep_stand_position = null
 	if current_order_type == ORDER_TYPE_SLEEP:
 		_clear_actor_move_target()
 		current_order_type = ORDER_TYPE_NONE
@@ -408,7 +408,12 @@ func assign_sleep_target(bed, issued_by_player := true) -> void:
 	if not _set_order(ORDER_TYPE_SLEEP, issued_by_player):
 		return
 	current_sleep_target = bed
-	_set_actor_move_target(bed.call("get_interaction_position", actor))
+	if bed.has_method("can_sleep_from_position") and bool(bed.call("can_sleep_from_position", _position())):
+		current_sleep_stand_position = _position()
+		_clear_actor_move_target()
+	else:
+		current_sleep_stand_position = bed.call("get_interaction_position", actor)
+		_set_actor_move_target(current_sleep_stand_position)
 
 
 func assign_seat_target(seat, issued_by_player := true) -> void:
@@ -565,24 +570,49 @@ func _clear_law_move_target_if_idle() -> void:
 func wake_up_from_rest(show_notice := true) -> void:
 	var did_wake := _actor_life_state() == NpcRules.LifeState.ASLEEP
 	var did_stand := is_sitting
-	var stand_position = null
-	var sleep_target = current_sleep_target
-	if did_wake and _is_valid_node(sleep_target) and sleep_target.has_method("get_interaction_position"):
-		stand_position = sleep_target.call("get_interaction_position", actor)
+	if did_wake:
+		_pending_wake_notice = show_notice
+		_request_rest_state(actor, NpcRules.LifeState.ALIVE)
+		return
 	# Seats own their stand-up: stop_seat_assignment rises the sitter in
 	# place through the exit clip and settles them off the chair itself.
 	stop_sleep_assignment()
 	stop_seat_assignment()
-	if did_wake and stand_position is Vector3:
-		_set_actor_global_position(stand_position)
-	if did_wake or did_stand:
-		_set_node_property("life_state", NpcRules.LifeState.ALIVE)
+	if did_stand:
 		_clear_actor_move_target()
 		current_order_type = ORDER_TYPE_NONE
 		_set_node_property("velocity", Vector3.ZERO)
 		if show_notice:
-			_call_void("_show_world_notice", ["Awake" if did_wake else "Standing", Color(0.5, 1.0, 0.65, 1.0)])
+			_call_void("_show_world_notice", ["Standing", Color(0.5, 1.0, 0.65, 1.0)])
 		_emit_actor_signal("state_changed")
+
+
+func on_life_state_changed(previous_state: int, next_state: int) -> void:
+	if previous_state != NpcRules.LifeState.ASLEEP or next_state != NpcRules.LifeState.ALIVE:
+		return
+	var stand_position = current_sleep_stand_position
+	var sleep_target = current_sleep_target
+	if not (stand_position is Vector3) and _is_valid_node(sleep_target) and sleep_target.has_method("get_interaction_position"):
+		stand_position = sleep_target.call("get_interaction_position", actor)
+	release_sleep_target_without_waking()
+	if stand_position is Vector3:
+		if actor.has_method("begin_lay_exit"):
+			actor.call("begin_lay_exit", stand_position)
+		else:
+			_set_actor_global_position(stand_position)
+	_set_node_property("velocity", Vector3.ZERO)
+	if _pending_wake_notice:
+		_call_void("_show_world_notice", ["Awake", Color(0.5, 1.0, 0.65, 1.0)])
+	_pending_wake_notice = false
+
+
+func _request_rest_state(target: Node, next_state: int) -> void:
+	if target == null:
+		return
+	var actor_id := str(target.get_meta("actor_record_id", "")).strip_edges()
+	if actor_id.is_empty():
+		return
+	rest_state_requested.emit(actor_id, next_state)
 
 
 func has_mining_assignment() -> bool:
@@ -919,7 +949,7 @@ func process_place_in_bed_interaction() -> void:
 		stop_place_in_bed_assignment()
 		return
 	_call("_detach_carried_character")
-	_set_node3d_position(carried, bed.call("get_sleep_position"))
+	_set_node3d_position(carried, bed.call("get_sleep_position", carried))
 	carried.set("rotation", bed.call("get_sleep_rotation"))
 	carried.set("velocity", Vector3.ZERO)
 	carried.set("running", false)
@@ -928,7 +958,7 @@ func process_place_in_bed_interaction() -> void:
 	carried.set("_current_order_type", ORDER_TYPE_SLEEP)
 	carried.set("_current_sleep_target", bed)
 	if int(carried.get("life_state")) == NpcRules.LifeState.ALIVE:
-		carried.set("life_state", NpcRules.LifeState.ASLEEP)
+		_request_rest_state(carried, NpcRules.LifeState.ASLEEP)
 	var success_message := str(sleep_result.get("message", ""))
 	if not success_message.is_empty():
 		_emit_actor_signal("center_notice_requested", [success_message])
@@ -937,7 +967,6 @@ func process_place_in_bed_interaction() -> void:
 	current_order_type = ORDER_TYPE_NONE
 	_call_void("_show_world_notice", ["Placed in bed", Color(0.55, 0.72, 1.0, 1.0)])
 	_emit_actor_signal("state_changed")
-	_emit_node_signal(carried, "state_changed")
 
 
 func process_place_in_cell_interaction() -> void:
@@ -1009,12 +1038,20 @@ func process_sleep_interaction() -> void:
 	if not _has_node_methods(sleep_target, ["get_interaction_position", "claim_sleeper", "get_sleep_position", "get_sleep_rotation"]):
 		stop_sleep_assignment()
 		return
-	var interaction_position: Vector3 = sleep_target.call("get_interaction_position", actor)
-	if _position().distance_to(interaction_position) > _actor_float("interact_distance", 1.8):
-		_set_actor_move_target(interaction_position)
-		return
-	if _actor_bool("_has_move_target", false):
-		return
+	var can_sleep := sleep_target.has_method("can_sleep_from_position") and bool(sleep_target.call("can_sleep_from_position", _position()))
+	if not can_sleep:
+		var interaction_position: Vector3
+		if current_sleep_stand_position is Vector3:
+			interaction_position = current_sleep_stand_position
+		else:
+			interaction_position = sleep_target.call("get_interaction_position", actor)
+		can_sleep = _position().distance_to(interaction_position) <= _actor_float("interact_distance", 1.8)
+		if not can_sleep:
+			if not _actor_bool("_has_move_target", false):
+				current_sleep_stand_position = sleep_target.call("get_interaction_position", actor)
+				_set_actor_move_target(current_sleep_stand_position)
+			return
+	_clear_actor_move_target()
 	var sleep_result: Dictionary = sleep_target.call("request_sleep", actor) if sleep_target.has_method("request_sleep") else {"allowed": true, "message": ""}
 	if not bool(sleep_result.get("allowed", false)):
 		var failure_message := str(sleep_result.get("message", "Cannot sleep here"))
@@ -1031,15 +1068,18 @@ func process_sleep_interaction() -> void:
 	var success_message := str(sleep_result.get("message", ""))
 	if not success_message.is_empty():
 		_emit_actor_signal("center_notice_requested", [success_message])
-	_set_actor_global_position(sleep_target.call("get_sleep_position"))
+	_set_actor_global_position(sleep_target.call("get_sleep_position", actor))
 	_set_actor_rotation(sleep_target.call("get_sleep_rotation"))
 	_set_node_property("velocity", Vector3.ZERO)
 	_set_node_property("running", false)
 	_call_void("_set_sneaking_state", [false, false])
 	_clear_actor_move_target()
-	_set_node_property("life_state", NpcRules.LifeState.ASLEEP)
+	_request_rest_state(actor, NpcRules.LifeState.ASLEEP)
+	# The order is done once asleep (mirrors seats): leaving it active re-runs
+	# this every frame and hands the sleeper a move target back to the
+	# interaction point — sleepwalking off the mattress.
+	current_order_type = ORDER_TYPE_NONE
 	_call_void("_show_world_notice", ["Sleeping", Color(0.55, 0.72, 1.0, 1.0)])
-	_emit_actor_signal("state_changed")
 
 
 func process_seat_interaction() -> void:

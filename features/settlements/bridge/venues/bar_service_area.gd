@@ -45,7 +45,7 @@ const CUSTOMER_READY_LINES := [
 @export var seats_root_path: NodePath = NodePath("Furniture")
 @export var tables_root_path: NodePath = NodePath("Furniture")
 @export var guard_posts_root_path: NodePath = NodePath("GuardPosts")
-@export var service_points_root_path: NodePath = NodePath("ServicePoints")
+@export var service_points_root_path: NodePath
 @export var guards_root_path: NodePath = NodePath("Staff")
 @export var waiters_root_path: NodePath = NodePath("Staff")
 @export var waiter_character_path: NodePath = NodePath("Staff/Waiter")
@@ -74,6 +74,8 @@ var _proxied_owner: HumanoidCharacter
 # Counter duty bookkeeping (owner working the barkeeper point).
 var _counter_duty_owner: HumanoidCharacter
 var _counter_duty_merchant: MerchantRole
+var _barkeeper_counter: Node3D
+var _barkeeper_counter_lookup_complete := false
 var _owner_conversation_gesture_played := false
 var _conversation_controller: ConversationController
 var _conversation_controller_lookup_pending := true
@@ -108,6 +110,8 @@ func _process(delta: float) -> void:
 func refresh_scope() -> void:
 	if Engine.is_editor_hint():
 		return
+	_barkeeper_counter = null
+	_barkeeper_counter_lookup_complete = false
 	_register_scoped_children()
 	_sync_trade_inventory()
 
@@ -272,11 +276,11 @@ func get_service_point():
 
 
 func get_barkeeper_service_point():
-	for point in _collect_nodes(service_points_root_path):
-		if _is_service_point_role(point, "barkeeper"):
-			return point
-	var points := _collect_nodes(service_points_root_path)
-	return points[0] if not points.is_empty() else null
+	if _barkeeper_counter_lookup_complete:
+		return _barkeeper_counter if _barkeeper_counter != null and is_instance_valid(_barkeeper_counter) else null
+	_barkeeper_counter_lookup_complete = true
+	_barkeeper_counter = _find_shop_counter(get_node_or_null(tables_root_path))
+	return _barkeeper_counter
 
 
 func get_barkeeper_order_position(_worker: HumanoidCharacter = null) -> Vector3:
@@ -777,7 +781,9 @@ func _process_owner_counter_duty() -> void:
 
 
 func _counter_duty_face_position(point: Node3D) -> Vector3:
-	# Face across the counter: the nearest shop counter's customer side.
+	if point.has_method("get_customer_position"):
+		return point.get_customer_position()
+	# Non-counter custom work points face the nearest counter customer side.
 	var best_position := point.global_position + point.global_basis.z
 	var best_distance := 3.0
 	if is_inside_tree():
@@ -789,6 +795,18 @@ func _counter_duty_face_position(point: Node3D) -> Vector3:
 				best_distance = distance
 				best_position = counter.get_customer_position()
 	return best_position
+
+
+func _find_shop_counter(root: Node) -> Node3D:
+	if root == null:
+		return null
+	if root is Node3D and root.has_method("get_staff_stand_position") and root.has_method("get_customer_position"):
+		return root as Node3D
+	for child in root.get_children():
+		var counter := _find_shop_counter(child)
+		if counter != null:
+			return counter
+	return null
 
 
 func _connect_owner_trade_gesture(owner_character: HumanoidCharacter) -> void:
@@ -822,6 +840,9 @@ func _update_owner_conversation_gesture(owner_character: HumanoidCharacter) -> v
 
 
 func _release_counter_duty() -> void:
+	if _barkeeper_counter != null and is_instance_valid(_barkeeper_counter) \
+			and _counter_duty_owner != null and _barkeeper_counter.has_method("release_worker"):
+		_barkeeper_counter.release_worker(_counter_duty_owner)
 	if _counter_duty_owner != null and is_instance_valid(_counter_duty_owner) \
 			and _counter_duty_owner.is_on_counter_duty():
 		_counter_duty_owner.end_counter_duty()

@@ -115,6 +115,21 @@ func _validate_base_bar_scene_staff_authoring() -> void:
 				_fail("Base reusable bar scene should not ship authored default Staff/%s" % staff_name)
 	if bar.get_node_or_null("Storage") != null or bar.get_node_or_null("JobProviders") != null:
 		_fail("Base reusable bar scene should not ship unused Storage or JobProviders roots")
+	if bar.get_node_or_null("ServicePoints") != null:
+		_fail("Base reusable bar scene should not ship a redundant barkeeper ServicePoints root")
+	var service_area := bar.get_node_or_null("BarServiceArea") as BarServiceArea
+	if service_area == null:
+		_fail("Base reusable bar scene should contain BarServiceArea")
+	else:
+		if service_area.get_barkeeper_service_point() != null:
+			_fail("Base reusable bar scene should not resolve a counter before furnishing")
+		var counter := ShopCounter.new()
+		bar.get_node("Furniture").add_child(counter)
+		if service_area.get_barkeeper_service_point() != null:
+			_fail("BarServiceArea should cache a missing barkeeper counter")
+		service_area.refresh_scope()
+		if service_area.get_barkeeper_service_point() != counter:
+			_fail("BarServiceArea refresh should resolve newly furnished counter")
 	bar.free()
 
 
@@ -254,13 +269,13 @@ func _validate_staff_combat_response(bar: Node) -> void:
 
 
 func _validate_role_points(bar: Node) -> void:
-	if bar.get_node_or_null("ServicePoints/BarkeeperCounterPoint") == null:
-		_fail("Reusable bar should create a barkeeper point")
-	if bar.get_node_or_null("ServicePoints/WaiterPoint") == null or bar.get_node_or_null("ServicePoints/WaiterPoint2") == null:
+	if bar.get_node_or_null("ServicePoints") != null:
+		_fail("Reusable bar should use its ShopCounter instead of a barkeeper ServicePoints root")
+	if bar.get_node_or_null("WaiterPoints/WaiterPoint") == null or bar.get_node_or_null("WaiterPoints/WaiterPoint2") == null:
 		_fail("Reusable bar should derive waiter points from waiter_count")
 	if bar.get_node_or_null("GuardPosts/GuardPost") == null or bar.get_node_or_null("GuardPosts/GuardPost2") == null:
 		_fail("Reusable bar should derive guard posts from guard_count")
-	if bar.get_node_or_null("ServicePoints/BarberPoint") != null:
+	if bar.get_node_or_null("WaiterPoints/BarberPoint") != null:
 		_fail("Barber should be a normal idle bar occupant, not a generated service point")
 	var visit_point := bar.get_node_or_null("ActivityPoints/FacilityVisitPoint")
 	if visit_point == null:
@@ -285,7 +300,7 @@ func _validate_role_points(bar: Node) -> void:
 		for point in activity_points.get_children():
 			if str(point.name).begins_with("VisitorPoint"):
 				_fail("Reusable bar should not generate per-chair VisitorPoint nodes")
-	for path in ["ServicePoints/BarkeeperCounterPoint", "ServicePoints/WaiterPoint", "GuardPosts/GuardPost", "ActivityPoints/FacilityVisitPoint"]:
+	for path in ["WaiterPoints/WaiterPoint", "GuardPosts/GuardPost", "ActivityPoints/FacilityVisitPoint"]:
 		var node := bar.get_node_or_null(path)
 		if node == null:
 			continue

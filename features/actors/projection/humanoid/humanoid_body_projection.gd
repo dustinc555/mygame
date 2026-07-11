@@ -57,6 +57,8 @@ const COUNTER_IDLE_ANIMATION_NAME := "Counter_Idle"
 const COUNTER_SHOW_ANIMATION_NAME := "Counter_Show"
 const COUNTER_GIVE_ANIMATION_NAME := "Counter_Give"
 const COUNTER_EXIT_ANIMATION_NAME := "Counter_Exit"
+const LAY_ENTER_ANIMATION_NAME := "IdleToLay"
+const LAY_EXIT_ANIMATION_NAME := "LayToIdle"
 const UNARMED_STANCE_ID := "unarmed"
 const UNARMED_COMBAT_IDLE_ANIMATION_NAME := "Unarmed_Combat_Idle"
 const UNARMED_STANCE_ENTER_ANIMATION_NAME := "PunchKick_Enter"
@@ -1146,6 +1148,8 @@ func _copy_character_animations(animation_library: AnimationLibrary, target_skel
 	if ual2_player != null:
 		_copy_animation(ual2_player, animation_library, FOLD_ARMS_IDLE_ANIMATION_NAME)
 		_copy_animation(ual2_player, animation_library, MINING_ANIMATION_NAME)
+		_copy_animation(ual2_player, animation_library, LAY_ENTER_ANIMATION_NAME)
+		_copy_animation(ual2_player, animation_library, LAY_EXIT_ANIMATION_NAME)
 		_copy_default_combat_set_animations(ual2_player, animation_library)
 		_copy_contextual_combat_reaction_animations(ual2_player, animation_library)
 		_copy_ragdoll_profile_animations(ual2_player, animation_library)

@@ -203,6 +203,10 @@ func _test_sync_bridge(failures: Array[String]) -> void:
 	fresh.blunt_damage = 0.0
 	sync._sync_vitals(fresh, actor2)
 	_expect(failures, "reverse-after-seed: component clears the node wound", absf(vitals2.blunt_damage - 0.0) <= 0.0001)
+	actor2.life_state = NpcRules.LifeState.ASLEEP
+	sync._sync_vitals(fresh, actor2)
+	_expect(failures, "reverse-after-seed: node rest state cannot overwrite component", fresh.life_state == NpcRules.LifeState.ALIVE)
+	_expect(failures, "reverse-after-seed: component rest state restores node", actor2.life_state == NpcRules.LifeState.ALIVE)
 	actor2.free()
 
 	# 3) ROBOT: a RobotActor stays node-owned (death_profile == ROBOT) so GameVitalsSystem skips it.

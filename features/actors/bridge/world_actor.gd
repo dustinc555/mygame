@@ -479,6 +479,9 @@ func get_death_profile() -> int:
 ## capability (instead of the capability reaching up into us) inverts the dependency: the node
 ## depends on the capability, never the reverse.
 func _on_vitals_life_state_changed(previous_state: int, next_state: int) -> void:
+	var interaction := get_interaction()
+	if interaction != null:
+		interaction.on_life_state_changed(previous_state, next_state)
 	life_state_changed.emit(previous_state, next_state)
 	if next_state == NpcRules.LifeState.DEAD:
 		died.emit(self)
@@ -595,6 +598,10 @@ const CARRY_STRENGTH_XP_PER_SECOND := 0.1
 func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
 	if is_in_cell_custody():
 		return
+	# ASLEEP is voluntary bed rest. A direct player move wakes the actor first;
+	# unconscious/downed states use different life states and remain immobile.
+	if issued_by_player and life_state == NpcRules.LifeState.ASLEEP:
+		wake_up_from_rest(false)
 	var interaction := get_interaction()
 	if interaction != null:
 		# Ambient movement (staff post loops, patrol steps, schedules) yields to an

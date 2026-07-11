@@ -21,9 +21,11 @@ class_name ShopCounter
 	set(value):
 		customer_stand_local_offset = value
 		_update_editor_markers()
+@export var staff_work_radius := 0.5
 
 var _staff_marker: MeshInstance3D
 var _customer_marker: MeshInstance3D
+var _assigned_worker: HumanoidCharacter
 
 
 func _ready() -> void:
@@ -42,6 +44,10 @@ func get_staff_stand_position() -> Vector3:
 	return global_transform * staff_stand_local_offset
 
 
+func get_work_position() -> Vector3:
+	return get_staff_stand_position()
+
+
 func get_customer_position() -> Vector3:
 	return global_transform * customer_stand_local_offset
 
@@ -50,6 +56,32 @@ func get_customer_position() -> Vector3:
 func get_staff_facing_yaw() -> float:
 	var direction := get_customer_position() - get_staff_stand_position()
 	return atan2(direction.x, direction.z)
+
+
+func claim_worker(worker: HumanoidCharacter) -> bool:
+	if worker == null:
+		return false
+	if _assigned_worker != null and is_instance_valid(_assigned_worker) and _assigned_worker != worker:
+		return false
+	_assigned_worker = worker
+	return true
+
+
+func release_worker(worker: HumanoidCharacter) -> void:
+	if _assigned_worker == worker:
+		_assigned_worker = null
+
+
+func is_available_for(worker: HumanoidCharacter) -> bool:
+	return _assigned_worker == null or not is_instance_valid(_assigned_worker) or _assigned_worker == worker
+
+
+func get_assigned_worker() -> HumanoidCharacter:
+	return _assigned_worker if _assigned_worker != null and is_instance_valid(_assigned_worker) else null
+
+
+func is_worker_at_point(worker: HumanoidCharacter) -> bool:
+	return worker != null and worker.global_position.distance_to(get_staff_stand_position()) <= staff_work_radius
 
 
 func _build_editor_markers() -> void:

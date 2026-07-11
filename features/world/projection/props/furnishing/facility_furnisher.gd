@@ -44,9 +44,8 @@ func last_error() -> String:
 
 ## Returns an array of placements:
 ##   {"scene": PackedScene, "transform": Transform3D (building-local), "kind": String}
-## plus for the counter a "staff_point_transform" the caller uses to move the
-## barkeeper service point. Every storey is furnished: the ground floor gets
-## counter + table clusters + shelves, upper floors get beds + shelves.
+## Every storey is furnished: the ground floor gets counter + table clusters +
+## shelves, upper floors get beds + shelves.
 ## Empty array + last_error() on failure.
 func furnish(building: Node3D, rules: FurnishRules, seed_value: int) -> Array[Dictionary]:
 	_last_error = ""
@@ -128,10 +127,6 @@ func _furnish_level(pieces: Array[Dictionary], rules: FurnishRules, rng: RandomN
 		lifted.origin.y += floor_y
 		placement["transform"] = lifted
 		placement["level_index"] = level_index
-		if placement.has("staff_point_transform"):
-			var staff: Transform3D = placement["staff_point_transform"]
-			staff.origin.y += floor_y
-			placement["staff_point_transform"] = staff
 	return placements
 
 
@@ -312,7 +307,6 @@ func _place_counter(anchors: Array[Dictionary], rules: FurnishRules, rng: Random
 			"kind": "counter",
 			"scene": rules.counter_scenes[rng.randi_range(0, rules.counter_scenes.size() - 1)],
 			"transform": counter_transform,
-			"staff_point_transform": Transform3D(Basis(Vector3.UP, yaw), staff_transform.origin),
 			"reach_probe": customer_transform.origin,
 		}
 	return {}

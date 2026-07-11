@@ -4,7 +4,6 @@
 [ext_resource type="Resource" uid="uid://c61gqpdemh37e" path="res://features/world_sim/resources/facility_functions/bar.tres" id="2_function"]
 [ext_resource type="PackedScene" uid="uid://c4x37j4yjvxxb" path="res://features/world/projection/buildings/woodbrick_shop_medium.tscn" id="3_building"]
 [ext_resource type="Script" uid="uid://dw7e6d4p7nh3q" path="res://features/settlements/bridge/venues/bar_service_area.gd" id="4_service_area"]
-[ext_resource type="Script" uid="uid://kn8yaubx5vgk" path="res://features/settlements/bridge/venues/bar_service_point.gd" id="5_service_point"]
 [ext_resource type="Script" uid="uid://c32mdje85i12b" path="res://features/settlements/bridge/venues/bar_guard_post.gd" id="6_guard_post"]
 [ext_resource type="Script" uid="uid://cxr7vjw8dylgu" path="res://features/settlements/bridge/facility_visit_activity_point.gd" id="22_visit"]
 
@@ -28,28 +27,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0048208237, 0, 0.005098343)
 building_type = "bar"
 
 [node name="Staff" type="Node3D" parent="." unique_id=656447651]
-
-[node name="ServicePoints" type="Node3D" parent="." unique_id=1269284558]
-
-[node name="BarkeeperCounterPoint" type="Node3D" parent="ServicePoints" unique_id=1246845458]
-transform = Transform3D(0.76604444, 0, 0.6427876, 0, 1, 0, -0.6427876, 0, 0.76604444, 0, 0.35, -1.85)
-script = ExtResource("5_service_point")
-debug_color = Color(0.36, 1, 0.48, 0.76)
-metadata/facility_generated = true
-metadata/facility_role = "barkeeper"
-metadata/facility_index = 0
-metadata/facility_layout_version = 1
-metadata/facility_last_default_transform = Transform3D(0.76604444, 0, 0.6427876, 0, 1, 0, -0.6427876, 0, 0.76604444, 0, 0.35, -1.85)
-
-[node name="WaiterPoint" type="Node3D" parent="ServicePoints" unique_id=822455023]
-transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, 2.1900706, 0.35, -6.034371)
-script = ExtResource("5_service_point")
-point_role = "waiter"
-metadata/facility_generated = true
-metadata/facility_role = "waiter"
-metadata/facility_index = 0
-metadata/facility_layout_version = 1
-metadata/facility_last_default_transform = Transform3D(0.99026805, 0, 0.1391731, 0, 1, 0, -0.1391731, 0, 0.99026805, 2.1900706, 0.35, -6.034371)
 
 [node name="ActivityPoints" type="Node3D" parent="." unique_id=1355834480]
 
@@ -107,7 +84,6 @@ beds_root_path = NodePath("../Furniture")
 seats_root_path = NodePath("../Furniture")
 tables_root_path = NodePath("../Furniture")
 guard_posts_root_path = NodePath("../GuardPosts")
-service_points_root_path = NodePath("../ServicePoints")
 guards_root_path = NodePath("../Staff")
 waiters_root_path = NodePath("../Staff")
 waiter_character_path = NodePath("../Staff/Waiter")

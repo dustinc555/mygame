@@ -343,8 +343,6 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 		undo_redo.add_do_method(self, "_own_facility_placement", node, owner_root)
 		undo_redo.add_undo_method(furniture_root, "remove_child", node)
 		undo_redo.add_do_reference(node)
-		if kind == "counter" and placement.has("staff_point_transform"):
-			_queue_barkeeper_point_move(undo_redo, facility, (building as Node3D), placement["staff_point_transform"])
 	undo_redo.commit_action()
 	_select_node(facility)
 	_set_status("Furnished %s: %d counter, %d clusters, %d shelves (seed %d)." % [facility.name, int(counts.get("counter", 0)), int(counts.get("cluster", 0)), int(counts.get("shelf", 0)), seed_value])
@@ -355,20 +353,6 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 func _own_facility_placement(node: Node, owner_root: Node) -> void:
 	node.owner = owner_root
 	_own_restored_children(node, owner_root)
-
-
-## The barkeeper works where the counter says the staff stands — the furnish
-## pass moves the authored service point onto the placed counter.
-func _queue_barkeeper_point_move(undo_redo: EditorUndoRedoManager, facility: Node, building: Node3D, staff_point_transform: Transform3D) -> void:
-	var point := facility.get_node_or_null("ServicePoints/BarkeeperCounterPoint") as Node3D
-	if point == null:
-		return
-	var point_parent := point.get_parent() as Node3D
-	if point_parent == null:
-		return
-	var new_transform := point_parent.global_transform.affine_inverse() * building.global_transform * staff_point_transform
-	undo_redo.add_do_property(point, "transform", new_transform)
-	undo_redo.add_undo_property(point, "transform", point.transform)
 
 
 func _facility_building(facility: Node) -> Node3D:

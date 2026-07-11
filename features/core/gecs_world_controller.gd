@@ -251,10 +251,29 @@ func _connect_actor_gecs_sync(actor: Node) -> void:
 		var equipment_signal: Signal = world_actor.get_equipment().equipment_changed
 		if not equipment_signal.is_connected(_on_actor_equipment_changed.bind(actor)):
 			equipment_signal.connect(_on_actor_equipment_changed.bind(actor))
+	if world_actor.get_interaction() != null:
+		var rest_signal: Signal = world_actor.get_interaction().rest_state_requested
+		if not rest_signal.is_connected(request_actor_rest_state):
+			rest_signal.connect(request_actor_rest_state)
 
 
 func _on_actor_equipment_changed(_changed_slots: Array, actor: Node) -> void:
 	sync_actor_inventory(actor)
+
+
+## Queues a voluntary ALIVE/ASLEEP transition by stable ID. GameVitalsSystem
+## validates and applies it; this command boundary never mutates durable vitals.
+func request_actor_rest_state(actor_id: String, next_state: int) -> bool:
+	if next_state != NpcRules.LifeState.ALIVE and next_state != NpcRules.LifeState.ASLEEP:
+		return false
+	var entity = _actor_entity_by_actor_id.get(actor_id.strip_edges())
+	if entity == null or not is_instance_valid(entity):
+		return false
+	var inputs = entity.get_component(C_VITALS_INPUTS)
+	if inputs == null:
+		return false
+	inputs.pending_rest_state = next_state
+	return true
 
 
 func _ensure_actor_combat_components(entity) -> void:

@@ -59,6 +59,13 @@ equipment_slots = {
 "offhand": "res://features/inventory/resources/items/golden_celtic_shield.tres",
 "weapon": "res://features/inventory/resources/items/iron_sword.tres"
 }
+inventory_entries = [{
+"contained_item_counts": {"res://features/inventory/resources/items/silver.tres": 10},
+"count": 1,
+"grid_position": Vector2i(0, 0),
+"item_id": "res://features/inventory/resources/items/silver_pouch.tres",
+"metadata": {}
+}]
 personality = {
 "risk_tolerance": 0.62,
 "temperament": "curious"
