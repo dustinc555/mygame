@@ -57,6 +57,13 @@ equipment_slots = {
 "legs": "res://features/inventory/resources/items/peasant_trousers.tres",
 "weapon": "res://features/inventory/resources/items/iron_axe.tres"
 }
+inventory_entries = [{
+"contained_item_counts": {"res://features/inventory/resources/items/silver.tres": 10},
+"count": 1,
+"grid_position": Vector2i(0, 0),
+"item_id": "res://features/inventory/resources/items/silver_pouch.tres",
+"metadata": {}
+}]
 personality = {
 "risk_tolerance": 0.45,
 "temperament": "stubborn"

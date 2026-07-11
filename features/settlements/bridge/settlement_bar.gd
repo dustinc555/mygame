@@ -41,6 +41,7 @@ const WAITER_CONVERSATION = preload("res://features/conversation/resources/waite
 const BARBER_CONVERSATION = preload("res://features/conversation/resources/barber_services.tres")
 const DEFAULT_BUILDING_SCENE = preload("res://features/world/projection/buildings/woodbrick_shop_medium.tscn")
 const LEGACY_FURNITURE_ROOT_NAMES := ["Tables", "Stools", "Beds"]
+const WAITER_POINTS_ROOT_PATH := NodePath("WaiterPoints")
 const STAFF_PERCEPTION_RANGE := Vector2i(5, 12)
 const GUARD_PERCEPTION_RANGE := Vector2i(14, 24)
 
@@ -332,7 +333,7 @@ func _apply_bar_defaults() -> void:
 		facility_function = BAR_FUNCTION
 	building_root_path = NodePath("BuildingSlot")
 	staff_root_path = NodePath("Staff")
-	service_points_root_path = NodePath("ServicePoints")
+	service_points_root_path = WAITER_POINTS_ROOT_PATH if _effective_waiter_point_count() > 0 else NodePath("")
 	storage_root_path = NodePath("")
 	job_providers_root_path = NodePath("")
 	activity_points_root_path = NodePath("ActivityPoints")
@@ -431,18 +432,23 @@ func _ensure_staff() -> void:
 
 func _ensure_guard_and_service_points() -> void:
 	var guard_posts := _ensure_root(guard_posts_root_path)
-	var service_points := _ensure_root(service_points_root_path)
 	_migrate_legacy_guard_post_names(guard_posts)
 	var effective_guard_post_count := _effective_guard_post_count()
 	for guard_index in range(effective_guard_post_count):
 		var post_name := _guard_post_name(guard_index)
 		_ensure_guard_post(guard_posts, post_name, _layout_default_transform(guard_posts_root_path, post_name, _guard_post_transform(guard_index)))
 	_trim_generated_children(guard_posts, "GuardPost", effective_guard_post_count)
-	_ensure_service_point(service_points, "BarkeeperCounterPoint", _layout_default_transform(service_points_root_path, "BarkeeperCounterPoint", _barkeeper_point_transform()), "barkeeper", Color(0.36, 1.0, 0.48, 0.76))
 	var effective_waiter_point_count := _effective_waiter_point_count()
+	var service_points := get_node_or_null(WAITER_POINTS_ROOT_PATH)
+	if effective_waiter_point_count <= 0:
+		if service_points != null:
+			remove_child(service_points)
+			service_points.queue_free()
+		return
+	service_points = _ensure_root(WAITER_POINTS_ROOT_PATH)
 	for waiter_index in range(effective_waiter_point_count):
 		var point_name := _waiter_point_name(waiter_index)
-		_ensure_service_point(service_points, point_name, _layout_default_transform(service_points_root_path, point_name, _waiter_point_transform(waiter_index)), "waiter", Color(0.0, 0.82, 0.78, 0.76))
+		_ensure_service_point(service_points, point_name, _layout_default_transform(WAITER_POINTS_ROOT_PATH, point_name, _waiter_point_transform(waiter_index)), "waiter", Color(0.0, 0.82, 0.78, 0.76))
 	_trim_generated_children(service_points, "WaiterPoint", effective_waiter_point_count)
 	_trim_generated_children(service_points, "BarberPoint", 0)
 
@@ -522,7 +528,7 @@ func _sync_bar_authoring() -> void:
 	_set_node_path_property(service_area, "seats_root_path", "../Furniture")
 	_set_node_path_property(service_area, "tables_root_path", "../Furniture")
 	_set_node_path_property(service_area, "guard_posts_root_path", "../GuardPosts")
-	_set_node_path_property(service_area, "service_points_root_path", "../ServicePoints")
+	_set_node_path_property(service_area, "service_points_root_path", "../WaiterPoints" if _effective_waiter_point_count() > 0 else "")
 	_set_node_path_property(service_area, "guards_root_path", "../Staff")
 	_set_node_path_property(service_area, "waiters_root_path", "../Staff")
 	_sync_staff_member(barkeeper, "barkeeper")
@@ -1038,7 +1044,7 @@ func _generated_child_index(child_name: String, base_name: String) -> int:
 
 
 func _point_base_name(point_name: String) -> String:
-	for base_name in ["BarkeeperCounterPoint", "WaiterPoint", "FacilityVisitPoint", "GuardPost"]:
+	for base_name in ["WaiterPoint", "FacilityVisitPoint", "GuardPost"]:
 		if _generated_child_index(point_name, base_name) >= 0:
 			return base_name
 	return point_name
@@ -1856,7 +1862,14 @@ func _send_actor_to_service_point(actor: Node, role: String) -> void:
 	if actor == null or Engine.is_editor_hint() or not actor.has_method("set_move_target"):
 		return
 	var service_area := get_bar_service_area()
-	if service_area == null or not service_area.has_method("get_service_points"):
+	if service_area == null:
+		return
+	if role == "barkeeper" and service_area.has_method("get_barkeeper_service_point"):
+		var counter = service_area.call("get_barkeeper_service_point")
+		if counter != null and counter.has_method("get_work_position"):
+			actor.call("set_move_target", counter.call("get_work_position"), false)
+		return
+	if not service_area.has_method("get_service_points"):
 		return
 	for point in service_area.call("get_service_points"):
 		if point != null and point.has_method("is_point_role") and bool(point.call("is_point_role", role)) and point.has_method("get_work_position"):

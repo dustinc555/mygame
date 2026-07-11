@@ -99,18 +99,39 @@ func _initialize() -> void:
 	var system = VITALS_SYSTEM.new()
 	var robot := _new_vitals({"blood": 100.0, "bleed_rate": 1000.0, "death_profile": CGameActorVitals.DeathProfile.ROBOT})
 	var robot_inp = C_VITALS_INPUTS.new()
-	system.process([null], [[robot], [robot_inp]], 1.0)
+	system.process([null], [[robot], [robot_inp]], 0.05)
 	_expect(failures, "robot death_profile not simulated", is_equal_approx(robot.blood, 100.0))
 
 	# --- GameVitalsSystem: realized humanoids (default profile) ARE simulated. ---
 	var live := _new_vitals({"blood": 100.0, "bleed_rate": 1000.0})
 	var live_inp = C_VITALS_INPUTS.new()
-	system.process([null], [[live], [live_inp]], 1.0)
+	system.process([null], [[live], [live_inp]], 0.05)
 	_expect(failures, "humanoid profile simulated (bled)", live.blood < 100.0)
+
+	# --- Rest commands are consumed only on fixed ticks and permit exact voluntary transitions. ---
+	var rest_system = VITALS_SYSTEM.new()
+	var resting := _new_vitals({})
+	var rest_input = C_VITALS_INPUTS.new()
+	rest_input.pending_rest_state = NpcRules.LifeState.ASLEEP
+	rest_system.process([null], [[resting], [rest_input]], 0.049)
+	_expect(failures, "rest request waits for fixed tick", resting.life_state == ALIVE)
+	rest_system.process([null], [[resting], [rest_input]], 0.001)
+	_expect(failures, "fixed tick applies ALIVE -> ASLEEP", resting.life_state == NpcRules.LifeState.ASLEEP)
+	_expect(failures, "sleep request is consumed once", rest_input.pending_rest_state == -1)
+	rest_input.pending_rest_state = ALIVE
+	rest_system.process([null], [[resting], [rest_input]], 0.05)
+	_expect(failures, "fixed tick applies ASLEEP -> ALIVE", resting.life_state == ALIVE)
+	var downed := _new_vitals({"life_state": UNCONSCIOUS})
+	var downed_input = C_VITALS_INPUTS.new()
+	downed_input.healing_rate = 0.0
+	downed_input.pending_rest_state = ALIVE
+	rest_system.process([null], [[downed], [downed_input]], 0.05)
+	_expect(failures, "rest wake cannot revive unconscious actor", downed.life_state == UNCONSCIOUS)
+	_expect(failures, "rejected wake request is consumed", downed_input.pending_rest_state == -1)
 
 	_teardown_ecs_singleton()
 	if failures.is_empty():
-		print("PASS validate_vitals_system (20 checks)")
+		print("PASS validate_vitals_system (26 checks)")
 	else:
 		for f in failures:
 			push_error(f)

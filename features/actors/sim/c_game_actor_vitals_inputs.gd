@@ -27,3 +27,7 @@ class_name CGameActorVitalsInputs
 # recovery must hold while carried — main's invariant (_carried_by == null):
 # waking mid-haul deadlocks arrests and stomps the carry pose.
 @export var held_externally := false
+
+# One-shot command mailbox. Interaction code may request voluntary rest transitions;
+# GameVitalsSystem validates and consumes them on its fixed tick.
+var pending_rest_state := -1

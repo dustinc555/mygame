@@ -368,16 +368,32 @@ var _stand_up_exit_remaining := 0.0
 var _stand_up_position := Vector3.INF
 
 
+func process_world_actor_movement(delta: float) -> void:
+	if _stand_up_exit_remaining > 0.0:
+		velocity = Vector3.ZERO
+		return
+	super.process_world_actor_movement(delta)
+
+
 func begin_stand_up_exit(final_position: Vector3) -> void:
+	_begin_pose_exit(HumanoidBodyProjection.SITTING_EXIT_ANIMATION_NAME, final_position)
+
+
+## Waking from a bed: play the get-up clip in place, then step off the bed.
+func begin_lay_exit(final_position: Vector3) -> void:
+	_begin_pose_exit(HumanoidBodyProjection.LAY_EXIT_ANIMATION_NAME, final_position)
+
+
+func _begin_pose_exit(clip_name: String, final_position: Vector3) -> void:
 	var body := get_body_projection() as HumanoidBodyProjection
-	var clip_length := body.get_clip_length(HumanoidBodyProjection.SITTING_EXIT_ANIMATION_NAME) if body != null else 0.0
+	var clip_length := body.get_clip_length(clip_name) if body != null else 0.0
 	_stand_up_position = final_position
 	if clip_length <= 0.0:
 		_finish_stand_up_exit()
 		return
 	_stand_up_exit_remaining = clip_length
 	if body != null:
-		body.play_clip(HumanoidBodyProjection.SITTING_EXIT_ANIMATION_NAME, 0.0, true, 0.1)
+		body.play_clip(clip_name, 0.0, true, 0.1)
 
 
 func _finish_stand_up_exit() -> void:
@@ -483,6 +499,12 @@ func _play_counter_duty_animation(body: HumanoidBodyProjection) -> void:
 func _update_locomotion_animation(delta: float) -> void:
 	var body := get_body_projection() as HumanoidBodyProjection
 	if body == null:
+		return
+	if life_state == NpcRules.LifeState.ASLEEP:
+		# Lie down through the enter clip, then hold its final pose as the
+		# sleeping loop (the library has no separate lying idle).
+		if body.get_current_clip() != HumanoidBodyProjection.LAY_ENTER_ANIMATION_NAME:
+			body.play_clip(HumanoidBodyProjection.LAY_ENTER_ANIMATION_NAME, 0.0, true, 0.2)
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return

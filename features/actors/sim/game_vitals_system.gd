@@ -18,6 +18,10 @@ class_name GameVitalsSystem
 
 const C_VITALS = preload("res://features/actors/sim/c_game_actor_vitals.gd")
 const C_VITALS_INPUTS = preload("res://features/actors/sim/c_game_actor_vitals_inputs.gd")
+const FIXED_VITALS_TICK_SECONDS := 1.0 / 20.0
+const MAX_FIXED_STEPS_PER_FRAME := 8
+
+var _fixed_accumulator := 0.0
 
 
 func query() -> QueryBuilder:
@@ -28,6 +32,10 @@ func process(_entities: Array, components: Array, delta: float) -> void:
 	var vitals: Array = components[0]
 	var inputs: Array = components[1]
 	var count := vitals.size()
+	_fixed_accumulator = minf(_fixed_accumulator + maxf(delta, 0.0), FIXED_VITALS_TICK_SECONDS * float(MAX_FIXED_STEPS_PER_FRAME))
+	var rest_tick_due := _fixed_accumulator >= FIXED_VITALS_TICK_SECONDS
+	if rest_tick_due:
+		_fixed_accumulator = fmod(_fixed_accumulator, FIXED_VITALS_TICK_SECONDS)
 	for index in range(count):
 		var v := vitals[index] as CGameActorVitals
 		var inp := inputs[index] as CGameActorVitalsInputs
@@ -38,5 +46,18 @@ func process(_entities: Array, components: Array, delta: float) -> void:
 		# sync stamps them ROBOT and this system leaves them alone — no double-sim.
 		if v.death_profile != CGameActorVitals.DeathProfile.HUMANOID:
 			continue
+		if rest_tick_due:
+			_apply_rest_request(v, inp)
 		v.held_externally_hold = inp.held_externally
 		VitalsStateMachine.tick(v, inp.toughness, inp.healing_rate, delta)
+
+
+func _apply_rest_request(v: CGameActorVitals, inp: CGameActorVitalsInputs) -> void:
+	var requested_state := inp.pending_rest_state
+	if requested_state < 0:
+		return
+	inp.pending_rest_state = -1
+	if requested_state == NpcRules.LifeState.ASLEEP and v.life_state == NpcRules.LifeState.ALIVE:
+		v.life_state = NpcRules.LifeState.ASLEEP
+	elif requested_state == NpcRules.LifeState.ALIVE and v.life_state == NpcRules.LifeState.ASLEEP:
+		v.life_state = NpcRules.LifeState.ALIVE
