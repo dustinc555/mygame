@@ -18,9 +18,9 @@ const FACILITY_FURNISHER := preload("res://features/world/projection/props/furni
 const FURNISH_RULES_DIR := "res://features/settlements/resources/furnishing"
 const FURNISH_GENERATED_META := "furnish_generated"
 const GUARD_POST_SCRIPT := preload("res://features/settlements/bridge/venues/settlement_guard_post.gd")
-const BUILDINGS_DIR := "res://features/world/projection/buildings"
+const BUILDING_SHELLS_DIR := "res://features/world/projection/buildings/shells/modular"
 const WORLD_BUILDING_SCRIPT_PATH := "res://features/world/projection/buildings/world_building.gd"
-const DEFAULT_SHELL_PATH := "res://features/world/projection/buildings/woodbrick_shop_medium.tscn"
+const DEFAULT_SHELL_PATH := "res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn"
 const GUARD_POST_GHOST_COLOR := Color(0.35, 0.78, 1.0, 0.55)
 
 var _plugin: EditorPlugin
@@ -116,25 +116,29 @@ func teardown() -> void:
 ## --- Shell catalog ------------------------------------------------------------
 
 
-## Every building scene whose root is a WorldBuilding qualifies as a shell —
-## derived from the scenes themselves, never a hardcoded list. demo_* scenes
-## are legacy buildings: they stay on disk for towns that still use them but
-## are not offered for new swaps. The default shell leads the list.
+## Production shells are discovered recursively under BUILDING_SHELLS_DIR.
+## Deprecated initial buildings live outside this root and cannot appear here.
 func get_shell_catalog() -> Array[String]:
 	if not _shell_catalog.is_empty():
 		return _shell_catalog
-	for file_name in DirAccess.get_files_at(BUILDINGS_DIR):
-		if file_name.get_extension() != "tscn" or file_name.begins_with("demo_"):
-			continue
-		var path := BUILDINGS_DIR.path_join(file_name)
-		if FileAccess.get_file_as_string(path).contains(WORLD_BUILDING_SCRIPT_PATH):
-			_shell_catalog.append(path)
+	_collect_shell_paths(BUILDING_SHELLS_DIR)
 	_shell_catalog.sort()
 	var default_index := _shell_catalog.find(DEFAULT_SHELL_PATH)
 	if default_index > 0:
 		_shell_catalog.remove_at(default_index)
 		_shell_catalog.insert(0, DEFAULT_SHELL_PATH)
 	return _shell_catalog
+
+
+func _collect_shell_paths(directory_path: String) -> void:
+	for file_name in DirAccess.get_files_at(directory_path):
+		if file_name.get_extension() != "tscn":
+			continue
+		var path := directory_path.path_join(file_name)
+		if FileAccess.get_file_as_string(path).contains(WORLD_BUILDING_SCRIPT_PATH):
+			_shell_catalog.append(path)
+	for child_directory in DirAccess.get_directories_at(directory_path):
+		_collect_shell_paths(directory_path.path_join(child_directory))
 
 
 func rescan_shell_catalog() -> Array[String]:

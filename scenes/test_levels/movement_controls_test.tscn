@@ -7,7 +7,7 @@
 [ext_resource type="PackedScene" path="res://features/actors/projection/humanoid/vendors/shopkeeper_npc.tscn" id="5_shopkeeper"]
 [ext_resource type="Script" uid="uid://h8defgmhh62v" path="res://features/settlements/resources/jobs/job_definition.gd" id="5_si735"]
 [ext_resource type="PackedScene" uid="uid://cxk5vgdnfkroq" path="res://features/world/projection/containers/barrel_container.tscn" id="6_366s7"]
-[ext_resource type="PackedScene" path="res://features/world/projection/buildings/interior_stairs.tscn" id="7_stairs"]
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/traversal/interior_stairs.tscn" id="7_stairs"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(60, 1, 60)

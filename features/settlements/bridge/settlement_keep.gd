@@ -7,7 +7,7 @@ class_name SettlementKeep
 const KEEP_LAYOUT_VERSION := 1
 const SELECTION_RING_VISUAL = preload("res://features/actors/projection/selection_ring_visual.gd")
 const KEEP_FUNCTION = preload("res://features/world_sim/resources/facility_functions/keep.tres")
-const DEFAULT_BUILDING_SCENE = preload("res://features/world/projection/buildings/settlement_keep_building.tscn")
+const DEFAULT_BUILDING_SCENE = preload("res://features/world/projection/buildings/deprecated/initial_buildings/settlement_keep_building.tscn")
 const PLANNING_TABLE_SCENE = preload("res://features/world/projection/props/keep/planning_table.tscn")
 const MAYOR_CHAIR_SCENE = preload("res://features/world/projection/props/keep/mayor_chair.tscn")
 const RAIDER_CHAIR_SCENE = preload("res://features/world/projection/props/keep/raider_chair.tscn")

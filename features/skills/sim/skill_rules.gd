@@ -1,8 +1,10 @@
+@tool
 extends RefCounted
 
 class_name SkillRules
 
 const SKILL_CATALOG: SkillCatalog = preload("res://features/skills/resources/phase_1_skill_catalog.tres")
+const SKILL_PROGRESSION: Resource = preload("res://features/skills/resources/skill_progression.tres")
 
 const DEFAULT_LEVEL := 1
 const BASE_XP_TO_NEXT := 50.0
@@ -63,13 +65,13 @@ static func get_default_level(skill_id: String) -> int:
 
 
 static func get_xp_to_next_level(level: int) -> float:
-	return ceil(BASE_XP_TO_NEXT / get_level_xp_multiplier(level))
+	return ceil(SKILL_PROGRESSION.base_xp_to_next / get_level_xp_multiplier(level))
 
 
 static func get_level_xp_multiplier(level: int) -> float:
 	var safe_level := maxf(0.0, float(level))
-	var remaining_ratio := clampf(1.0 - safe_level / LEVEL_XP_DECAY_CAP, 0.0, 1.0)
-	return maxf(MIN_LEVEL_XP_MULTIPLIER, remaining_ratio * remaining_ratio)
+	var remaining_ratio := clampf(1.0 - safe_level / SKILL_PROGRESSION.level_xp_decay_cap, 0.0, 1.0)
+	return maxf(SKILL_PROGRESSION.minimum_level_xp_multiplier, remaining_ratio * remaining_ratio)
 
 
 static func get_diminishing_bonus(level: float, cap: float, curve: float = 35.0) -> float:
@@ -93,14 +95,14 @@ static func get_assisted_skill_score(primary_level: float, attribute_level: floa
 static func get_chance_check_xp(chance: float, passed: bool, scale := 1.0) -> float:
 	var bounded_chance := clampf(chance, 0.0, 1.0)
 	var base_xp := 0.0
-	if bounded_chance < CHECK_CHANCE_VERY_LOW_MAX:
-		base_xp = 20.0 if passed else 10.0
-	elif bounded_chance < CHECK_CHANCE_LOW_MAX:
-		base_xp = 12.0 if passed else 4.5
-	elif bounded_chance < CHECK_CHANCE_EVEN_MAX:
-		base_xp = 5.0 if passed else 2.0
-	elif bounded_chance < CHECK_CHANCE_HIGH_MAX:
-		base_xp = 3.0 if passed else 1.5
+	if bounded_chance < SKILL_PROGRESSION.chance_very_low_max:
+		base_xp = SKILL_PROGRESSION.very_low_success_xp if passed else SKILL_PROGRESSION.very_low_failure_xp
+	elif bounded_chance < SKILL_PROGRESSION.chance_low_max:
+		base_xp = SKILL_PROGRESSION.low_success_xp if passed else SKILL_PROGRESSION.low_failure_xp
+	elif bounded_chance < SKILL_PROGRESSION.chance_even_max:
+		base_xp = SKILL_PROGRESSION.even_success_xp if passed else SKILL_PROGRESSION.even_failure_xp
+	elif bounded_chance < SKILL_PROGRESSION.chance_high_max:
+		base_xp = SKILL_PROGRESSION.high_success_xp if passed else SKILL_PROGRESSION.high_failure_xp
 	else:
-		base_xp = 0.5 if passed else 0.25
+		base_xp = SKILL_PROGRESSION.trivial_success_xp if passed else SKILL_PROGRESSION.trivial_failure_xp
 	return base_xp * maxf(scale, 0.0)

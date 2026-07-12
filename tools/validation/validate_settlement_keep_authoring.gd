@@ -1,7 +1,7 @@
 extends SceneTree
 
 const SETTLEMENT_KEEP_SCENE := preload("res://features/settlements/bridge/settlement_keep.tscn")
-const KEEP_BUILDING_SCENE := preload("res://features/world/projection/buildings/settlement_keep_building.tscn")
+const KEEP_BUILDING_SCENE := preload("res://features/world/projection/buildings/deprecated/initial_buildings/settlement_keep_building.tscn")
 const MAYOR_CHAIR_SCENE := preload("res://features/world/projection/props/keep/mayor_chair.tscn")
 const RAIDER_CHAIR_SCENE := preload("res://features/world/projection/props/keep/raider_chair.tscn")
 const RULER_CONVERSATION := preload("res://features/conversation/resources/town_ruler.tres")

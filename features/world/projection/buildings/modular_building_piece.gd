@@ -7,7 +7,7 @@ const SNAP_MARKER_SCRIPT := preload("res://features/world/projection/buildings/m
 
 @export var piece_id := ""
 @export var display_name := ""
-@export_enum("floor", "wall", "wall_door", "wall_window", "window", "door", "corner", "roof", "roof_front", "stairs") var category := "wall"
+@export_enum("floor", "wall", "wall_door", "wall_window", "window", "door", "corner", "roof", "roof_front", "stairs", "door_frame") var category := "wall"
 @export var grid_cell_size_meters := 2.0
 @export var grid_size_cells := Vector3i.ONE
 @export var bounds_size_meters := Vector3.ZERO
@@ -16,6 +16,9 @@ const SNAP_MARKER_SCRIPT := preload("res://features/world/projection/buildings/m
 @export var hide_with_camera := true
 @export_enum("auto", "none", "front", "right", "back", "left", "roof") var occluder_side := "auto"
 @export var disable_model_collision := false
+## Navigation parses disabled imported shapes, so authored replacement collision
+## must remove those shapes instead of merely setting their physics layers to 0.
+@export var strip_model_collision_shapes := false
 @export var editor_show_snap_markers := true:
 	set(value):
 		editor_show_snap_markers = value
@@ -29,6 +32,8 @@ func _ready() -> void:
 	# uses snap markers, not model collision, so disabling it in-editor is safe.
 	if disable_model_collision:
 		_set_model_collision_enabled(false)
+		if strip_model_collision_shapes:
+			_strip_model_collision_shapes()
 	_sync_snap_marker_visibility()
 
 
@@ -69,7 +74,7 @@ func _collect_snap_markers(node: Node, result: Array) -> void:
 
 
 func _set_model_collision_enabled(enabled: bool) -> void:
-	var model := get_node_or_null("Model")
+	var model := _get_model_root()
 	if model == null:
 		return
 	_set_collision_enabled_recursive(model, enabled)
@@ -84,3 +89,26 @@ func _set_collision_enabled_recursive(node: Node, enabled: bool) -> void:
 		(node as CollisionShape3D).disabled = not enabled
 	for child in node.get_children():
 		_set_collision_enabled_recursive(child, enabled)
+
+
+func _strip_model_collision_shapes() -> void:
+	var model := _get_model_root()
+	if model == null:
+		return
+	var shapes: Array[Node] = []
+	_collect_model_collision_shapes(model, shapes)
+	for shape in shapes:
+		shape.free()
+
+
+func _collect_model_collision_shapes(node: Node, result: Array[Node]) -> void:
+	if node is CollisionShape3D or node is CollisionPolygon3D:
+		result.append(node)
+		return
+	for child in node.get_children():
+		_collect_model_collision_shapes(child, result)
+
+
+func _get_model_root() -> Node:
+	var direct := get_node_or_null("Model")
+	return direct if direct != null else find_child("Model", true, false)

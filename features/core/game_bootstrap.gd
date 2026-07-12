@@ -28,6 +28,7 @@ const SETTLEMENTS_MODULE := preload("res://features/settlements/settlements_modu
 const INVENTORY_MODULE := preload("res://features/inventory/inventory_module.gd")
 const CONVERSATION_MODULE := preload("res://features/conversation/conversation_module.gd")
 const UI_MODULE := preload("res://features/ui/ui_module.gd")
+const DOORS_MODULE := preload("res://features/doors/doors_module.gd")
 
 # Core services install first (time / GECS / actor lookup that everything else
 # resolves); feature modules follow. Order does not affect correctness -- all
@@ -41,6 +42,7 @@ const MODULES := [
 	AI_MODULE,
 	SETTLEMENTS_MODULE,
 	INVENTORY_MODULE,
+	DOORS_MODULE,
 	CONVERSATION_MODULE,
 	UI_MODULE,
 ]

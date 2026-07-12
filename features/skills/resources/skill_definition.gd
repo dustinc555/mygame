@@ -1,3 +1,4 @@
+@tool
 extends Resource
 
 class_name SkillDefinition
@@ -8,6 +9,7 @@ class_name SkillDefinition
 @export var category_name := "Misc"
 @export var sort_order := 0
 @export var is_attribute := false
+@export var is_archived := false
 @export var default_level := 1
 @export_multiline var description := ""
 @export_multiline var training_hint := ""

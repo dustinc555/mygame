@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://features/core/party/party_member.gd" id="1_party"]
 [ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://features/core/party/party_manager.gd" id="2_manager"]
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://features/core/game_bootstrap.gd" id="3_bootstrap"]
-[ext_resource type="PackedScene" path="res://features/world/projection/buildings/two_story_house.tscn" id="4_house"]
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/deprecated/initial_buildings/two_story_house.tscn" id="4_house"]
 [ext_resource type="PackedScene" path="res://features/world/projection/containers/locker_container.tscn" id="5_locker"]
 [ext_resource type="PackedScene" path="res://features/world/projection/containers/weapon_chest_container.tscn" id="6_chest"]
 [ext_resource type="PackedScene" path="res://features/world/projection/items/world_item.tscn" id="7_world_item"]

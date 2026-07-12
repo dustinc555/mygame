@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dw44ti43p7trh"]
+
+[ext_resource type="Script" uid="uid://dgg16s62a7q14" path="res://tools/building_piece_browser/building_piece_browser.gd" id="1_browser"]
+
+[node name="BuildingPieceBrowser" type="Node3D" unique_id=1212753298]
+script = ExtResource("1_browser")

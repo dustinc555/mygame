@@ -25,6 +25,7 @@ const CATEGORY_GROUPS := [
 	{"label": "Corners", "categories": ["corner"]},
 	{"label": "Floors", "categories": ["floor"]},
 	{"label": "Roofs", "categories": ["roof", "roof_front"]},
+	{"label": "Door Frames", "categories": ["door_frame"]},
 	{"label": "Stairs", "categories": ["stairs"]},
 ]
 

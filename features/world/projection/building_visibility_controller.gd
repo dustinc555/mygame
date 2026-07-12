@@ -41,21 +41,22 @@ func _process(_delta: float) -> void:
 	if not _initialized:
 		return
 	var meaningful_actor := _get_meaningful_actor()
-	var visibility_actor := _get_visibility_proxy_actor(meaningful_actor)
-	var next_building: Node = _find_building_for_actor(visibility_actor)
 	# Modular see-through only opens when the camera actually follows the
 	# actor (double-click); selection alone keeps buildings solid. Once open it
-	# is lazy: WASD-panning away (followed_member -> null) keeps the building
-	# open on the last focused character; it only closes when a refocused
-	# character changes level or leaves, or the focus moves to someone else.
+	# is lazy: while the camera follows nobody (WASD pan, unfocus, or plain
+	# single-click selection of anyone else), the last focused character keeps
+	# the cut. Only a new double-click focus hands it to someone else.
 	var followed := _party_manager.followed_member
 	var camera_focused := meaningful_actor != null and meaningful_actor == followed
 	if camera_focused:
 		_latched_focus_actor = meaningful_actor
-	elif followed == null and _is_valid_actor(_latched_focus_actor) and meaningful_actor == _latched_focus_actor:
+	elif followed == null and _is_valid_actor(_latched_focus_actor):
+		meaningful_actor = _latched_focus_actor
 		camera_focused = true
 	else:
 		_latched_focus_actor = null
+	var visibility_actor := _get_visibility_proxy_actor(meaningful_actor)
+	var next_building: Node = _find_building_for_actor(visibility_actor)
 	_focus_active = camera_focused and next_building != null
 	# Refocusing any character hands the floor cut back to them.
 	var followed_id := followed.get_instance_id() if _is_valid_actor(followed) else 0

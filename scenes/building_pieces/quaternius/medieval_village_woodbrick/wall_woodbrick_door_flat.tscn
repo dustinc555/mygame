@@ -18,13 +18,15 @@ disable_model_collision = true
 
 [node name="Model" type="Node3D" parent="." unique_id=973696048 instance=ExtResource("2_gfpc6")]
 
-[node name="GeneratedDoorWall" type="StaticBody3D" parent="."]
+[node name="GeneratedDoorWallLeft" type="StaticBody3D" parent="."]
 
-[node name="SegmentLeft" type="CollisionShape3D" parent="GeneratedDoorWall"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="GeneratedDoorWallLeft"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 1.5613443, -0.110794306)
 shape = SubResource("BoxShape3D_doorseg")
 
-[node name="SegmentRight" type="CollisionShape3D" parent="GeneratedDoorWall"]
+[node name="GeneratedDoorWallRight" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="GeneratedDoorWallRight"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 1.5613443, -0.110794306)
 shape = SubResource("BoxShape3D_doorseg")
 

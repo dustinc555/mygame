@@ -5,7 +5,7 @@ extends "res://features/settlements/bridge/settlement_facility_instance.gd"
 class_name SettlementJail
 
 const JAIL_FUNCTION = preload("res://features/world_sim/resources/facility_functions/jail.tres")
-const DEFAULT_BUILDING_SCENE = preload("res://features/world/projection/buildings/settlement_keep_building.tscn")
+const DEFAULT_BUILDING_SCENE = preload("res://features/world/projection/buildings/deprecated/initial_buildings/settlement_keep_building.tscn")
 const FACTION_HUMANOID_SCRIPT = preload("res://features/actors/projection/humanoid/faction_humanoid.gd")
 const SETTLEMENT_GUARD_POST_SCRIPT = preload("res://features/settlements/bridge/venues/settlement_guard_post.gd")
 const JAIL_CELL_SCRIPT = preload("res://features/settlements/bridge/jail_cell.gd")

@@ -10,7 +10,7 @@ extends Node3D
 ##   FURNISH_SEED            layout seed (default 1)
 ##   FURNISH_TEST_SCREENSHOT absolute PNG path; capture after spawn, then quit
 
-const SHELL_SCENE := preload("res://features/world/projection/buildings/woodbrick_shop_medium.tscn")
+const SHELL_SCENE := preload("res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn")
 const RULES := preload("res://features/settlements/resources/furnishing/bar.tres")
 
 var _screenshot_path := ""

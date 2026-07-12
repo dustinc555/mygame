@@ -1,0 +1,50 @@
+[gd_resource type="Resource" script_class="SkillCheckDefinition" format=3 uid="uid://cmxomssx0mbhi"]
+
+[ext_resource type="Script" uid="uid://doq3to1bqy6nc" path="res://features/skills/resources/skill_check_definition.gd" id="1_check"]
+[ext_resource type="Script" uid="uid://bypav74hcx0x1" path="res://features/skills/resources/skill_check_tier.gd" id="2_tier"]
+
+[sub_resource type="Resource" id="Tier_very_easy"]
+script = ExtResource("2_tier")
+tier_id = "very_easy"
+display_name = "Very Easy"
+
+[sub_resource type="Resource" id="Tier_easy"]
+script = ExtResource("2_tier")
+tier_id = "easy"
+display_name = "Easy"
+difficulty_level = 10
+
+[sub_resource type="Resource" id="Tier_medium"]
+script = ExtResource("2_tier")
+tier_id = "medium"
+display_name = "Medium"
+difficulty_level = 25
+
+[sub_resource type="Resource" id="Tier_hard"]
+script = ExtResource("2_tier")
+tier_id = "hard"
+display_name = "Hard"
+difficulty_level = 50
+minimum_attempt_level = 15
+
+[sub_resource type="Resource" id="Tier_very_hard"]
+script = ExtResource("2_tier")
+tier_id = "very_hard"
+display_name = "Very Hard"
+difficulty_level = 75
+minimum_attempt_level = 50
+
+[sub_resource type="Resource" id="Tier_master"]
+script = ExtResource("2_tier")
+tier_id = "master"
+display_name = "Master"
+difficulty_level = 100
+minimum_attempt_level = 75
+
+[resource]
+script = ExtResource("1_check")
+check_id = "lockpicking"
+display_name = "Lockpicking"
+primary_skill_id = "subterfuge.lockpicking"
+assisting_attribute_id = "attribute.dexterity"
+tiers = Array[Resource]([SubResource("Tier_very_easy"), SubResource("Tier_easy"), SubResource("Tier_medium"), SubResource("Tier_hard"), SubResource("Tier_very_hard"), SubResource("Tier_master")])

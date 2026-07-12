@@ -32,6 +32,7 @@ const EQUIP_SLOT_OFFHAND := "offhand"
 @export var equipped_transform := Transform3D.IDENTITY
 @export var stat_modifiers: Array[ItemStatModifier] = []
 @export var tool_tags: PackedStringArray = PackedStringArray()
+@export var access_key_ids: PackedStringArray = PackedStringArray()
 @export var currency_id := ""
 @export_range(0, 1000000, 1) var currency_container_capacity := 0
 @export var sellable := true

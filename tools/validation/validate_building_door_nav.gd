@@ -5,7 +5,7 @@ extends SceneTree
 ## (front door), and storefront -> back room (interior divider doorway).
 ## Uses load() at runtime: --script mode cannot compile GECS preload chains.
 
-const SHOP_SCENE_PATH := "res://features/world/projection/buildings/woodbrick_shop_medium.tscn"
+const SHOP_SCENE_PATH := "res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn"
 const SETTINGS_PATH := "res://features/core/navigation/resources/world_navigation_settings.tres"
 const PIPELINE_PATH := "res://features/core/navigation/world_nav_bake_pipeline.gd"
 
@@ -27,6 +27,9 @@ func _run() -> void:
 	var region := NavigationRegion3D.new()
 	region.navigation_mesh = pipeline.call("build_template", settings, false)
 	root.add_child(region)
+	var navigation_map := region.get_world_3d().navigation_map
+	NavigationServer3D.map_set_cell_size(navigation_map, settings.cell_size)
+	NavigationServer3D.map_set_cell_height(navigation_map, settings.cell_height)
 	var floor_body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
@@ -37,6 +40,11 @@ func _run() -> void:
 	floor_body.position = Vector3(0.0, -0.5, 0.0)
 	var shop := shop_scene.instantiate()
 	region.add_child(shop)
+	var divider_door := shop.get_node_or_null("Pieces/WallWoodWearDoorFlat") as Node3D
+	if divider_door == null:
+		_fail("Medium shop is missing the reviewed WoodWear divider door wall")
+		_finish()
+		return
 	await physics_frame
 	await physics_frame
 	region.bake_navigation_mesh(false)
@@ -49,7 +57,7 @@ func _run() -> void:
 	# thresholds are the connectors: coverage there means the rooms join.
 	_assert_covered(nav_mesh, Vector3(3.0, 0.0, 3.0), "storefront floor")
 	_assert_covered(nav_mesh, Vector3(3.5, 0.0, -2.0), "back room floor")
-	_assert_covered(nav_mesh, Vector3(1.0, 0.0, 0.0), "divider doorway threshold")
+	_assert_covered(nav_mesh, divider_door.global_position, "WoodWear divider doorway threshold")
 	_assert_covered(nav_mesh, Vector3(-1.0, 0.0, 6.0), "front door threshold")
 	_assert_covered(nav_mesh, Vector3(3.0, 0.0, -4.0), "back door threshold")
 	_assert_covered(nav_mesh, Vector3(3.0, 0.0, 10.0), "open ground outside")
@@ -63,9 +71,9 @@ func _run() -> void:
 	for _frame in range(4):
 		await physics_frame
 	var tilted := region.navigation_mesh
-	var tilted_threshold: Vector3 = (shop as Node3D).global_transform * Vector3(1.0, 0.0, 0.0)
+	var tilted_threshold := divider_door.global_position
 	print("DOOR_NAV_DEBUG tilted polygons=%d divider_threshold=%s" % [tilted.get_polygon_count(), tilted_threshold])
-	_assert_covered(tilted, tilted_threshold, "TILTED divider doorway threshold")
+	_assert_covered(tilted, tilted_threshold, "TILTED WoodWear divider doorway threshold")
 
 	# Worst case: arbitrary world placement — off the cell grid and yaw-rotated
 	# like a real placed building.
@@ -77,9 +85,9 @@ func _run() -> void:
 	for _frame in range(4):
 		await physics_frame
 	var rotated := region.navigation_mesh
-	var rotated_threshold: Vector3 = (shop as Node3D).global_transform * Vector3(1.0, 0.0, 0.0)
+	var rotated_threshold := divider_door.global_position
 	print("DOOR_NAV_DEBUG rotated polygons=%d divider_threshold=%s" % [rotated.get_polygon_count(), rotated_threshold])
-	_assert_covered(rotated, rotated_threshold, "ROTATED off-grid divider doorway threshold")
+	_assert_covered(rotated, rotated_threshold, "ROTATED off-grid WoodWear divider doorway threshold")
 	_finish()
 
 

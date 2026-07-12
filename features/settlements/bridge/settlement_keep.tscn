@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dnur177a65hcv" path="res://features/settlements/bridge/settlement_keep.gd" id="1_keep"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/keep.tres" id="2_function"]
-[ext_resource type="PackedScene" path="res://features/world/projection/buildings/woodbrick_shop_medium.tscn" id="3_building"]
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn" id="3_building"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/keep/planning_table.tscn" id="4_table"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/keep/mayor_chair.tscn" id="5_chair"]
 [ext_resource type="Script" uid="uid://c32mdje85i12b" path="res://features/settlements/bridge/venues/bar_guard_post.gd" id="6_guard_post"]

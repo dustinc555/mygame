@@ -11,11 +11,7 @@
 [ext_resource type="Script" uid="uid://c354oqtn4bw75" path="res://features/settlements/bridge/settlement_bar.gd" id="6_61aqc"]
 [ext_resource type="Resource" uid="uid://c61gqpdemh37e" path="res://features/world_sim/resources/facility_functions/bar.tres" id="7_omktg"]
 [ext_resource type="Script" uid="uid://dtpasxx6o7akq" path="res://features/world/projection/zone_root.gd" id="7_zone_root"]
-[ext_resource type="PackedScene" uid="uid://c4x37j4yjvxxb" path="res://features/world/projection/buildings/woodbrick_shop_medium.tscn" id="8_l7lbw"]
-[ext_resource type="Script" uid="uid://xndx3k4rgxwe" path="res://features/world/projection/props/shop_counter.gd" id="13_qp1a2"]
-[ext_resource type="Script" uid="uid://5sxixg3irfa2" path="res://features/world/projection/props/furnishing/furniture_vignette.gd" id="15_t2qin"]
-[ext_resource type="Script" uid="uid://dautrs31k4dly" path="res://features/world/projection/props/tabletop_item_spawner.gd" id="17_o06rb"]
-[ext_resource type="Script" uid="uid://cg1bcbhcty0lg" path="res://features/world/projection/props/sleepable_bed.gd" id="19_ywld2"]
+[ext_resource type="PackedScene" uid="uid://c4x37j4yjvxxb" path="res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn" id="8_l7lbw"]
 [ext_resource type="Script" uid="uid://cxr7vjw8dylgu" path="res://features/settlements/bridge/facility_visit_activity_point.gd" id="27_favvj"]
 [ext_resource type="Script" uid="uid://c32mdje85i12b" path="res://features/settlements/bridge/venues/bar_guard_post.gd" id="28_amlfp"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bar_counter.tscn" id="29_hpbre"]
@@ -25,14 +21,14 @@
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_stocked.tscn" id="42_xh5ub"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_2.tscn" id="43_ev028"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3dsc0"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_xdi6q"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_4rbkh"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_ynu0x"]
 _surfaces = [{
 "aabb": AABB(-9.041908, 0, -37.768005, 24.945087, 1e-05, 26.857666),
 "format": 34359738369,
@@ -60,12 +56,12 @@ metadata/_edit_group_ = true
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Towns/Canyon" unique_id=532431889]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_3dsc0")
+material_override = SubResource("StandardMaterial3D_xdi6q")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_4rbkh")
+mesh = SubResource("ArrayMesh_ynu0x")
 
 [node name="SettlementBar" type="Node3D" parent="Towns/Canyon" unique_id=556110935]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.3732715, 0.35287, -25.344269)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.3732715, 0.42611122, -25.344269)
 script = ExtResource("6_61aqc")
 has_barkeeper = true
 guard_count = 4
@@ -73,6 +69,7 @@ has_barber = true
 guard_post_count = 3
 facility_function = ExtResource("7_omktg")
 furnish_seed = 2
+service_points_root_path = NodePath("")
 storage_root_path = NodePath("")
 job_providers_root_path = NodePath("")
 display_name = "Settlement Bar"
@@ -149,207 +146,105 @@ metadata/facility_layout_custom = true
 
 [node name="Furniture" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=686453821]
 
-[node name="Counter1" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1022857362 instance=ExtResource("29_hpbre")]
+[node name="Counter1" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1022857362 instance=ExtResource("29_hpbre")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 2.891275, 0, 1.348114)
-script = ExtResource("13_qp1a2")
 staff_stand_local_offset = Vector3(0, 0, -0.95)
-customer_stand_local_offset = Vector3(0, 0, 0.9)
 metadata/furnish_generated = true
 
-[node name="Cluster1" type="Node3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=559241704 instance=ExtResource("31_hpbre")]
+[node name="Cluster1" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=559241704 instance=ExtResource("31_hpbre")]
 transform = Transform3D(-0.07182463, 0, -0.9974173, 0, 1, 0, 0.9974173, 0, -0.07182463, -3.3701792, 0, 3.1300964)
-script = ExtResource("15_t2qin")
-footprint_meters = Vector2(3.2, 2.9)
 metadata/furnish_generated = true
 
-[node name="Shelf1" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=741419754 instance=ExtResource("42_xh5ub")]
-transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, -1.0412899, 1.6, -0.22490357)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
+[node name="Shelf1" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=741419754 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, -2.2549505, 1.5999999, -0.22491455)
 metadata/furnish_generated = true
 
-[node name="Shelf2" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1712398393 instance=ExtResource("42_xh5ub")]
+[node name="Shelf2" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1712398393 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 3.0876155, 1.6, -0.22490357)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf3" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1841548590 instance=ExtResource("42_xh5ub")]
+[node name="Shelf3" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1841548590 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.031317, 1.6, 0.23509644)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf4" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1130269696 instance=ExtResource("42_xh5ub")]
+[node name="Shelf4" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1130269696 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.036458, 1.6, -3.7649035)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf5" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=980629039 instance=ExtResource("42_xh5ub")]
+[node name="Shelf5" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=980629039 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.774821, 1.6, -2.9726002)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf6" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1701635005 instance=ExtResource("42_xh5ub")]
+[node name="Shelf6" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1701635005 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.774821, 1.6, -0.9988549)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf7" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1271824512 instance=ExtResource("42_xh5ub")]
+[node name="Shelf7" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1271824512 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.774821, 1.6, 0.99633723)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf8" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=597768834 instance=ExtResource("42_xh5ub")]
+[node name="Shelf8" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=597768834 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.774821, 1.6, 5.043325)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf9" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1685630914 instance=ExtResource("42_xh5ub")]
+[node name="Shelf9" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1685630914 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 3.1250422, 1.6, 5.7750964)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf10" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=171536435 instance=ExtResource("42_xh5ub")]
+[node name="Shelf10" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=171536435 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -5.765179, 1.6, -2.9843972)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Bed1" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1868995732 instance=ExtResource("43_ev028")]
+[node name="Bed1" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1868995732 instance=ExtResource("43_ev028")]
 transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 0.8772807, 3, 4.5550966)
-script = ExtResource("19_ywld2")
 metadata/furnish_generated = true
 
-[node name="Bed2" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=782693221 instance=ExtResource("40_amlfp")]
+[node name="Bed1" parent="Towns/Canyon/SettlementBar/Furniture/Bed1" unique_id=101324565 instance=ExtResource("43_ev028")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 0.8772807, 3, 4.5550966)
+metadata/furnish_generated = true
+
+[node name="Bed2" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=782693221 instance=ExtResource("40_amlfp")]
 transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 4.968025, 3, 4.5550966)
-script = ExtResource("19_ywld2")
 metadata/furnish_generated = true
 
-[node name="Bed3" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=666158793 instance=ExtResource("43_ev028")]
+[node name="Bed3" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=666158793 instance=ExtResource("43_ev028")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 4.554821, 3, 1.1134982)
-script = ExtResource("19_ywld2")
 metadata/furnish_generated = true
 
-[node name="Bed4" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1520177742 instance=ExtResource("43_ev028")]
+[node name="Bed4" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1520177742 instance=ExtResource("43_ev028")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.5451794, 3, 0.826567)
-script = ExtResource("19_ywld2")
 metadata/furnish_generated = true
 
-[node name="Shelf11" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1460254265 instance=ExtResource("42_xh5ub")]
+[node name="Shelf11" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1460254265 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.896373, 4.6, -3.7649035)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf12" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1523084981 instance=ExtResource("42_xh5ub")]
+[node name="Shelf12" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1523084981 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.1204925, 4.6, -3.7649035)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf13" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=2052060459 instance=ExtResource("42_xh5ub")]
+[node name="Shelf13" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=2052060459 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.774821, 4.6, 3.1305256)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf14" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=2080324950 instance=ExtResource("42_xh5ub")]
+[node name="Shelf14" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=2080324950 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.774821, 4.6, 5.06536)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf15" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=697888678 instance=ExtResource("42_xh5ub")]
+[node name="Shelf15" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=697888678 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 2.9206283, 4.6, 5.7750964)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf16" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=834716826 instance=ExtResource("42_xh5ub")]
+[node name="Shelf16" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=834716826 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -5.765179, 4.6, -2.886367)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
 metadata/furnish_generated = true
 
-[node name="Shelf17" type="StaticBody3D" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1414095968 instance=ExtResource("42_xh5ub")]
+[node name="Shelf17" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1414095968 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -5.765179, 4.6, 3.1262386)
-script = ExtResource("17_o06rb")
-furniture_type = 5
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
-seed_salt = "stocked_shelf"
+metadata/furnish_generated = true
+
+[node name="Bed5" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=31829737 instance=ExtResource("43_ev028")]
+transform = Transform3D(-0.9999988, 0, -0.001551643, 0, 1, 0, 0.001551643, 0, -0.9999988, -2.9658606, 3, 4.5563965)
 metadata/furnish_generated = true
 
 [node name="BarServiceArea" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=896339976]

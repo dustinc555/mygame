@@ -2,7 +2,7 @@ extends SceneTree
 
 const TWO_TOWNS_SCENE := preload("res://scenes/test_levels/two_towns_road_test.tscn")
 const SETTLEMENT_BAR_SCENE := preload("res://features/settlements/bridge/settlement_bar.tscn")
-const SMALL_BAR_SCENE := preload("res://features/world/projection/buildings/small_bar_scene.tscn")
+const SMALL_BAR_SCENE := preload("res://features/world/projection/buildings/deprecated/initial_buildings/small_bar_scene.tscn")
 const MAX_MOVE_FRAMES := 1500
 const SETTLE_FRAMES := 12
 const START_CLEARANCE_Y := 0.7

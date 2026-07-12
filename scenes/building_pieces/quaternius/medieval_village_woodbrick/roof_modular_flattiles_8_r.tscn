@@ -1,0 +1,49 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_piece"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Modular_FlatTiles_8_R.gltf" id="2_model"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_snap"]
+
+[node name="RoofModularFlatTiles8R" type="Node3D"]
+script = ExtResource("1_piece")
+piece_id = "roof_modular_flattiles_8_r"
+display_name = "Roof Modular FlatTiles 8 R"
+category = "roof"
+grid_size_cells = Vector3i(5, 4, 2)
+bounds_size_meters = Vector3(9.949485, 6.85589, 2.251659)
+
+[node name="Model" type="Node3D" parent="." instance=ExtResource("2_model")]
+
+[node name="SnapPoints" type="Node3D" parent="."]
+
+[node name="Left" type="Marker3D" parent="SnapPoints"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.974742, 2.674524, -0.08029282)
+script = ExtResource("3_snap")
+snap_id = "left"
+display_name = "Left"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+
+[node name="Right" type="Marker3D" parent="SnapPoints"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 4.974742, 2.674524, -0.08029282)
+script = ExtResource("3_snap")
+snap_id = "right"
+display_name = "Right"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+
+[node name="WallTop" type="Marker3D" parent="SnapPoints"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, -0.753421, -0.08029282)
+script = ExtResource("3_snap")
+snap_id = "wall_top"
+display_name = "Wall Top"
+connector_type = "roof_wall_top"
+accepts_types = PackedStringArray("wall_top")
+
+[node name="Ridge" type="Marker3D" parent="SnapPoints"]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 6.102469, -0.08029282)
+script = ExtResource("3_snap")
+snap_id = "ridge"
+display_name = "Ridge"
+connector_type = "roof_ridge"
+accepts_types = PackedStringArray("roof_ridge")

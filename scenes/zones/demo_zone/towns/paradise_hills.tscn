@@ -1,7 +1,7 @@
 [gd_scene format=4 uid="uid://m6lrbtq1ji6u"]
 
 [ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://features/settlements/bridge/settlement_town.gd" id="1_town"]
-[ext_resource type="PackedScene" path="res://features/world/projection/buildings/tiny_house.tscn" id="2_house"]
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/deprecated/initial_buildings/tiny_house.tscn" id="2_house"]
 [ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://features/settlements/bridge/settlement_jail.tscn" id="3_jail"]
 [ext_resource type="PackedScene" uid="uid://fpat6npxukfj" path="res://features/settlements/bridge/settlement_bar.tscn" id="4_bar"]
 [ext_resource type="PackedScene" uid="uid://cmh02fasnxjgq" path="res://features/settlements/bridge/settlement_keep.tscn" id="5_keep"]

@@ -10,7 +10,7 @@
 [ext_resource type="Script" uid="uid://dou4gsojqabfy" path="res://features/world_sim/bridge/world_sim_debug_action.gd" id="10_debug_action"]
 [ext_resource type="PackedScene" uid="uid://cxk5vgdnfkroq" path="res://features/world/projection/containers/barrel_container.tscn" id="11_barrel"]
 [ext_resource type="PackedScene" path="res://features/world/projection/containers/weapon_chest_container.tscn" id="12_chest"]
-[ext_resource type="PackedScene" path="res://features/world/projection/buildings/tiny_house.tscn" id="13_house"]
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/deprecated/initial_buildings/tiny_house.tscn" id="13_house"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/settlements/farmer_crossing.tres" id="14_farmer_settlement"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/settlements/raider_camp.tres" id="15_raider_settlement"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/factions/player_drifters.tres" id="16_player_faction"]

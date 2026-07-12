@@ -39,7 +39,7 @@ const HATCHET_ITEM = preload("res://features/inventory/resources/items/hatchet.t
 const SHOPKEEPER_CONVERSATION = preload("res://features/conversation/resources/generic_shopkeeper.tres")
 const WAITER_CONVERSATION = preload("res://features/conversation/resources/waiter_order.tres")
 const BARBER_CONVERSATION = preload("res://features/conversation/resources/barber_services.tres")
-const DEFAULT_BUILDING_SCENE = preload("res://features/world/projection/buildings/woodbrick_shop_medium.tscn")
+const DEFAULT_BUILDING_SCENE = preload("res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn")
 const LEGACY_FURNITURE_ROOT_NAMES := ["Tables", "Stools", "Beds"]
 const WAITER_POINTS_ROOT_PATH := NodePath("WaiterPoints")
 const STAFF_PERCEPTION_RANGE := Vector2i(5, 12)
@@ -546,6 +546,49 @@ func _sync_bar_authoring() -> void:
 		job_provider.set("bar_service_area_path", job_provider.get_path_to(service_area))
 	if service_area.has_method("refresh_scope"):
 		service_area.call("refresh_scope")
+	if not Engine.is_editor_hint():
+		_sync_door_access.call_deferred()
+
+
+## The facility owns door semantics for its building: every staff member
+## (barkeeper, waiters, guards) is authorized on the building's doors, the
+## barkeeper is the keeper who opens up, locks up, and fixes drift, and the
+## front doors stand open during business hours.
+func _sync_door_access(retries_remaining := 30) -> void:
+	if not is_inside_tree():
+		return
+	var doors := BootstrapContext.service(&"doors")
+	if doors == null or not doors.has_method("configure_building_doors"):
+		# The bootstrap installs controllers a frame after scene _ready; retry
+		# briefly instead of ticking forever.
+		if retries_remaining > 0:
+			_sync_door_access.call_deferred(retries_remaining - 1)
+		return
+	var building := _get_current_building()
+	if building == null:
+		return
+	var building_id := str(building.get("building_id"))
+	if building_id.is_empty():
+		return
+	var barkeeper := _get_barkeeper_actor()
+	var staff_ids := PackedStringArray()
+	var staff: Array[Node] = [barkeeper]
+	staff.append_array(_get_role_actors("waiter"))
+	staff.append_array(_get_role_actors("guard"))
+	for member in staff:
+		if member == null or not _has_property(member, "stable_id"):
+			continue
+		var stable_id := str(member.get("stable_id"))
+		if not stable_id.is_empty() and not staff_ids.has(stable_id):
+			staff_ids.append(stable_id)
+	var keeper_id := str(barkeeper.get("stable_id")) if barkeeper != null and _has_property(barkeeper, "stable_id") else ""
+	doors.call("configure_building_doors", building_id, {
+		"authorized_actor_ids": staff_ids,
+		"keeper_actor_id": keeper_id,
+		"open_hour": int(building.get("public_open_hour")),
+		"close_hour": int(building.get("public_close_hour")),
+		"kept_open": true,
+	})
 
 
 func _sync_building_level_content() -> void:
