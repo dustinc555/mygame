@@ -570,6 +570,8 @@ func _is_nav_relevant(node: Node) -> bool:
 		return false
 	if node == self or is_ancestor_of(node):
 		return false
+	if node.is_in_group("navigation_bake_excluded"):
+		return false
 	if not (node is StaticBody3D or node.is_class("Terrain3D")):
 		return false
 	return root_scene != null and _nav_root().is_ancestor_of(node)

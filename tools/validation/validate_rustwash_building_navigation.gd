@@ -21,7 +21,7 @@ const SCENE_PATH := "res://scenes/zones/rustwash_basin/rustwash_basin.tscn"
 ## The house is spawned at RUNTIME (it is no longer authored in the zone):
 ## this exercises the full dynamic-building path — spawn dirties its tiles,
 ## they re-bake, and the walks prove the patched navmesh.
-const HOUSE_SCENE_PATH := "res://features/world/projection/buildings/woodbrick_house.tscn"
+const HOUSE_SCENE_PATH := "res://features/world/projection/buildings/shells/modular/woodbrick_house.tscn"
 const HOUSE_TRANSFORM := Transform3D(Basis.IDENTITY, Vector3(3.8771572, 0.42435217, -177.07948))
 const MAX_SETUP_FRAMES := 600
 # The whole world (~288 tiles at fine cells) bakes at startup on 4 worker

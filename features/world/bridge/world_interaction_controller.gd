@@ -546,9 +546,10 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 		else:
 			_show_context_menu_actions(screen_position, [_get_pickup_item_action(context_world_item)])
 		return false
-	if collider is Node and collider.has_method("get_world_context_actions"):
-		context_world_action_target = collider
-		context_world_actions = collider.get_world_context_actions(_get_focused_party_member())
+	var world_context_target := _get_world_context_target(collider)
+	if world_context_target != null:
+		context_world_action_target = world_context_target
+		context_world_actions = world_context_target.get_world_context_actions(_get_focused_party_member())
 		if not context_world_actions.is_empty():
 			var actions: Array = []
 			for index in range(context_world_actions.size()):
@@ -567,8 +568,17 @@ func _is_hold_move_blocked(screen_position: Vector2) -> bool:
 	if collider is WorldActor:
 		return true
 	if collider is Node:
-		return collider.is_in_group("sleepable_bed") or collider.is_in_group("sittable_seat") or collider.is_in_group("mining_resource") or collider.is_in_group("world_container") or collider.is_in_group("world_item") or collider.has_method("get_world_context_actions")
+		return collider.is_in_group("sleepable_bed") or collider.is_in_group("sittable_seat") or collider.is_in_group("mining_resource") or collider.is_in_group("world_container") or collider.is_in_group("world_item") or _get_world_context_target(collider) != null
 	return false
+
+
+func _get_world_context_target(collider: Object) -> Node:
+	var node := collider as Node
+	while node != null:
+		if node.has_method("get_world_context_actions"):
+			return node
+		node = node.get_parent()
+	return null
 
 
 func _show_context_menu(screen_position: Vector2, action_id: int, label: String) -> void:

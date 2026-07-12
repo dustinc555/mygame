@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="PlaceableBuildingDefinition" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://features/settlements/resources/placeable_building_definition.gd" id="1_def"]
-[ext_resource type="PackedScene" uid="uid://cfnqspbgk48j1" path="res://features/world/projection/buildings/woodbrick_house.tscn" id="2_scene"]
+[ext_resource type="PackedScene" uid="uid://cfnqspbgk48j1" path="res://features/world/projection/buildings/shells/modular/woodbrick_house.tscn" id="2_scene"]
 
 [resource]
 script = ExtResource("1_def")

@@ -31,3 +31,6 @@ navcache/
 
 # Obsidian workspace state (personal editor config).
 /architecture/.obsidian/
+
+# Playwright local state (browser traces/screenshots). Never commit.
+.playwright/

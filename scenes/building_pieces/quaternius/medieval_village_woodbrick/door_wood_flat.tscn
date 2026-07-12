@@ -1,8 +1,18 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_piece"]
+[ext_resource type="Script" path="res://features/doors/projection/world_door.gd" id="1_piece"]
 [ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Door_1_Flat.gltf" id="2_model"]
 [ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_snap"]
+[ext_resource type="Resource" path="res://features/doors/resources/wood_door_flat.tres" id="4_definition"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_closed"]
+size = Vector3(1.38, 2.1659, 0.406482)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_panel"]
+size = Vector3(1.1706, 2.1659, 0.1305)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_auto_open"]
+size = Vector3(1.38, 2.1659, 2.4)
 
 [node name="DoorWoodFlat" type="Node3D"]
 script = ExtResource("1_piece")
@@ -11,8 +21,46 @@ display_name = "Door Wood Flat"
 category = "door"
 grid_size_cells = Vector3i(1, 1, 1)
 bounds_size_meters = Vector3(1.1706, 2.1659, 0.1305)
+disable_model_collision = true
+strip_model_collision_shapes = true
+door_definition = ExtResource("4_definition")
 
-[node name="Model" type="Node3D" parent="." instance=ExtResource("2_model")]
+[node name="HingePivot" type="Node3D" parent="."]
+position = Vector3(-0.0711, 0, -0.110794306)
+
+[node name="Model" type="Node3D" parent="HingePivot" instance=ExtResource("2_model")]
+position = Vector3(0.0711, 0, 0.110794306)
+
+[node name="PanelClickTarget" type="StaticBody3D" parent="HingePivot"]
+collision_layer = 16
+collision_mask = 0
+groups = ["navigation_bake_excluded"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HingePivot/PanelClickTarget"]
+position = Vector3(0.5853, 1.08295, 0)
+shape = SubResource("BoxShape3D_panel")
+
+[node name="ClosedBlocker" type="StaticBody3D" parent="."]
+collision_layer = 8
+groups = ["navigation_bake_excluded"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ClosedBlocker"]
+position = Vector3(0.5142, 1.08295, -0.110794306)
+shape = SubResource("BoxShape3D_closed")
+
+[node name="InteractionSideA" type="Marker3D" parent="."]
+position = Vector3(0.5142, 0, -1.01079428)
+
+[node name="InteractionSideB" type="Marker3D" parent="."]
+position = Vector3(0.5142, 0, 0.78920567)
+
+[node name="AutoOpenArea" type="Area3D" parent="."]
+collision_layer = 0
+collision_mask = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="AutoOpenArea"]
+position = Vector3(0.5142, 1.08295, -0.110794306)
+shape = SubResource("BoxShape3D_auto_open")
 
 [node name="SnapPoints" type="Node3D" parent="."]
 

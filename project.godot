@@ -33,7 +33,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/gecs/plugin.cfg", "res://addons/godot_mcp/plugin.cfg", "res://addons/job_authoring/plugin.cfg", "res://addons/world_authoring/plugin.cfg", "res://addons/road_authoring/plugin.cfg", "res://addons/terrain_3d/plugin.cfg")
+enabled=PackedStringArray("res://addons/gecs/plugin.cfg", "res://addons/godot_mcp/plugin.cfg", "res://addons/job_authoring/plugin.cfg", "res://addons/skills_manager/plugin.cfg", "res://addons/world_authoring/plugin.cfg", "res://addons/road_authoring/plugin.cfg", "res://addons/terrain_3d/plugin.cfg")
 
 [godot_mcp]
 

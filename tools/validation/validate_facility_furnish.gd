@@ -6,7 +6,7 @@ extends SceneTree
 ## and no overlapping floor footprints. Uses load() at runtime, not preload:
 ## --script mode cannot compile GECS preload chains at parse time.
 
-const SHELL_PATH := "res://features/world/projection/buildings/woodbrick_shop_medium.tscn"
+const SHELL_PATH := "res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn"
 const FURNISHER_PATH := "res://features/world/projection/props/furnishing/facility_furnisher.gd"
 const RULES_PATH := "res://features/settlements/resources/furnishing/bar.tres"
 

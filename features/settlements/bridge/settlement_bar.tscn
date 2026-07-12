@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://c354oqtn4bw75" path="res://features/settlements/bridge/settlement_bar.gd" id="1_bar"]
 [ext_resource type="Resource" uid="uid://c61gqpdemh37e" path="res://features/world_sim/resources/facility_functions/bar.tres" id="2_function"]
-[ext_resource type="PackedScene" uid="uid://c4x37j4yjvxxb" path="res://features/world/projection/buildings/woodbrick_shop_medium.tscn" id="3_building"]
+[ext_resource type="PackedScene" uid="uid://c4x37j4yjvxxb" path="res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn" id="3_building"]
 [ext_resource type="Script" uid="uid://dw7e6d4p7nh3q" path="res://features/settlements/bridge/venues/bar_service_area.gd" id="4_service_area"]
 [ext_resource type="Script" uid="uid://c32mdje85i12b" path="res://features/settlements/bridge/venues/bar_guard_post.gd" id="6_guard_post"]
 [ext_resource type="Script" uid="uid://cxr7vjw8dylgu" path="res://features/settlements/bridge/facility_visit_activity_point.gd" id="22_visit"]

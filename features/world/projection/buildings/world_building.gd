@@ -7,6 +7,10 @@ class_name WorldBuilding
 const MODULAR_BUILDING_PIECE_SCRIPT := preload("res://features/world/projection/buildings/modular_building_piece.gd")
 
 @export var display_name := "Building"
+## Stable ID for door records and other durable per-building state. Left empty
+## it derives from the building's scene-root path at ready time; author it
+## explicitly for buildings that are spawned or reparented at runtime.
+@export var building_id := ""
 ## Intentional raise above the terrain (foundation on uneven ground). Ground
 ## snap at load re-solves the terrain Y, then adds this back on top.
 @export var foundation_height := 0.0
@@ -94,6 +98,43 @@ func _ready() -> void:
 		_apply_occluder_visibility(left_occluder_paths, false)
 	else:
 		_refresh_level_visibility(false, Vector3.ZERO, null)
+	if not Engine.is_editor_hint():
+		_assign_door_identities()
+
+
+## Doors instanced inside reusable shells cannot author unique IDs, so an
+## un-minted door is decoration the door system never hears about. Mint a
+## stable ID per placement (building placement path + door path) and hand it
+## to every descendant door. Doors ready before this node, so the group is
+## already populated.
+func _assign_door_identities() -> void:
+	if building_id.is_empty():
+		building_id = _derive_stable_building_id()
+	for door in get_tree().get_nodes_in_group("world_door"):
+		if not is_ancestor_of(door):
+			continue
+		if str(door.get("door_id")).is_empty():
+			_stamp_building_access(door)
+			door.call("assign_runtime_identity", "%s/%s" % [building_id, get_path_to(door)], building_id)
+
+
+## Doors derive access from their building unless explicitly authored: the
+## owning faction is always authorized, and public buildings unlock at open
+## hour and lock at close hour (performed by scheduled_actor_id when authored,
+## flipped directly by the door controller when not).
+func _stamp_building_access(door: Node) -> void:
+	if (door.get("authorized_faction_ids") as PackedStringArray).is_empty() and not owner_faction_name.is_empty():
+		door.set("authorized_faction_ids", PackedStringArray([owner_faction_name]))
+	if access_mode == "public" and int(door.get("scheduled_open_hour")) < 0 and int(door.get("scheduled_close_hour")) < 0:
+		door.set("scheduled_open_hour", public_open_hour)
+		door.set("scheduled_close_hour", public_close_hour)
+		door.set("keep_open_during_hours", true)
+
+
+func _derive_stable_building_id() -> String:
+	# Absolute tree path, not current_scene-relative: current_scene is still
+	# null while the initial scene's _ready pass runs.
+	return str(get_path()).trim_prefix("/root/")
 
 
 func _process(delta: float) -> void:

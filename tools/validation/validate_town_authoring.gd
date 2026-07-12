@@ -15,7 +15,7 @@ const PLACEMENT_GHOST_PATH := "res://addons/world_authoring/placement_ghost.gd"
 const PLUGIN_SCRIPT_PATH := "res://addons/world_authoring/plugin.gd"
 const SETTLEMENT_DEFINITION_SCRIPT_PATH := "res://features/world_sim/resources/settlement_definition.gd"
 const ROUND_TRIP_PATH := "user://validate_town_authoring_round_trip.tscn"
-const HOUSE_SCENE_PATH := "res://features/world/projection/buildings/woodbrick_house.tscn"
+const HOUSE_SCENE_PATH := "res://features/world/projection/buildings/shells/modular/woodbrick_house.tscn"
 ## Towns are minimal by design: a bare root. Facilities are direct town
 ## children (flat model, 2026-07-07) — no container roots at all.
 

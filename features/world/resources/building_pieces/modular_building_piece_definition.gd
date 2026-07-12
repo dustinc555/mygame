@@ -4,7 +4,7 @@ class_name ModularBuildingPieceDefinition
 
 @export var piece_id := ""
 @export var display_name := ""
-@export_enum("floor", "wall", "wall_door", "wall_window", "window", "door", "corner", "roof", "roof_front", "stairs") var category := "wall"
+@export_enum("floor", "wall", "wall_door", "wall_window", "window", "door", "corner", "roof", "roof_front", "stairs", "door_frame") var category := "wall"
 @export var scene: PackedScene
 @export var source_scene: PackedScene
 @export var grid_cell_size_meters := 2.0

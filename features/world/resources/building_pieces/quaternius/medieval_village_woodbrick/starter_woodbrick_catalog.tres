@@ -22,9 +22,18 @@
 [ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/window_frame_thin_round.tres" id="20_tfr"]
 [ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/door_wood_flat.tres" id="21_dwf"]
 [ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/door_wood_round.tres" id="22_dwr"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/roof_modular_flattiles_6_l.tres" id="23_r6l"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/roof_modular_flattiles_6_mid.tres" id="24_r6m"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/roof_modular_flattiles_6_r.tres" id="25_r6r"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/roof_modular_flattiles_8_l.tres" id="26_r8l"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/roof_modular_flattiles_8_mid.tres" id="27_r8m"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/roof_modular_flattiles_8_r.tres" id="28_r8r"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village/door_frame_flat_brick.tres" id="29_door_frame"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village/wall_wood_wear_straight.tres" id="30_wood_wear_wall"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/quaternius/medieval_village/wall_wood_wear_door_flat.tres" id="31_wood_wear_door"]
 
 [resource]
 script = ExtResource("17_3frnl")
 catalog_id = "quaternius.medieval_village.woodbrick_starter"
 display_name = "Medieval Village WoodBrick Starter"
-pieces = [ExtResource("1_s0l00"), ExtResource("2_pxf0b"), ExtResource("3_dmbt8"), ExtResource("4_j03qw"), ExtResource("5_0k1jv"), ExtResource("6_lousw"), ExtResource("7_qinhj"), ExtResource("8_3lb36"), ExtResource("9_1f1kn"), ExtResource("10_wbwk6"), ExtResource("11_8mi4f"), ExtResource("12_jlo1w"), ExtResource("13_ue377"), ExtResource("14_6cc4h"), ExtResource("15_wlwqu"), ExtResource("16_41cnb"), ExtResource("18_wff"), ExtResource("19_wfr"), ExtResource("20_tfr"), ExtResource("21_dwf"), ExtResource("22_dwr")]
+pieces = [ExtResource("1_s0l00"), ExtResource("2_pxf0b"), ExtResource("3_dmbt8"), ExtResource("4_j03qw"), ExtResource("5_0k1jv"), ExtResource("6_lousw"), ExtResource("7_qinhj"), ExtResource("8_3lb36"), ExtResource("9_1f1kn"), ExtResource("10_wbwk6"), ExtResource("11_8mi4f"), ExtResource("12_jlo1w"), ExtResource("13_ue377"), ExtResource("14_6cc4h"), ExtResource("15_wlwqu"), ExtResource("16_41cnb"), ExtResource("18_wff"), ExtResource("19_wfr"), ExtResource("20_tfr"), ExtResource("21_dwf"), ExtResource("22_dwr"), ExtResource("23_r6l"), ExtResource("24_r6m"), ExtResource("25_r6r"), ExtResource("26_r8l"), ExtResource("27_r8m"), ExtResource("28_r8r"), ExtResource("29_door_frame"), ExtResource("30_wood_wear_wall"), ExtResource("31_wood_wear_door")]

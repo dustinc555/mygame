@@ -18,6 +18,10 @@ const ORDER_TYPE_PLACE_IN_CELL := 13
 const ORDER_TYPE_PLACE_IN_FURNACE := 14
 const ORDER_TYPE_SIT := 15
 const ORDER_TYPE_PICKUP_ITEM := 16
+## Walking to and operating a door (keeper duty, NPC auto-open). A priority
+## order so ambient staff-post/patrol moves stop tugging the actor off the
+## approach; the door bridge sets and clears it.
+const ORDER_TYPE_USE_DOOR := 17
 const MINING_ORE_WORTH_FOR_FIRST_LEVEL := 4.0
 const MINING_STRENGTH_XP_FACTOR := 0.08
 const SCAVENGING_ATTEMPTS_FOR_FIRST_LEVEL := 4.0

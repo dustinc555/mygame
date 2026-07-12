@@ -593,6 +593,10 @@ var _system_target_id: int = 0
 const RUNNING_SKILL_XP_PER_SECOND := 0.35
 const RUNNING_ENDURANCE_XP_PER_SECOND := 0.05
 const CARRY_STRENGTH_XP_PER_SECOND := 0.1
+## Physics layer 4 (value 8), reserved for runtime door blockers. Must never
+## overlap ACTOR_COLLISION_LAYER (layer 2) or actors would collide with each
+## other; actor-vs-actor collision is intentionally off for crowd pathing.
+const DOOR_BLOCKER_COLLISION_LAYER := 8
 
 
 func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
@@ -622,6 +626,14 @@ func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
 func stop_movement() -> void:
 	_clear_actor_move_target()
 	velocity = Vector3.ZERO
+
+
+func has_move_target() -> bool:
+	return _has_move_target
+
+
+func get_move_target() -> Vector3:
+	return _move_target
 
 
 ## Returns whether the mode change was accepted. Sneaking and running are
@@ -964,9 +976,10 @@ func _get_actor_move_speed() -> float:
 # Soft-body crowd model: actors live on their own physics layer so rays and areas
 # still find them, but their mask excludes that layer — actors never hard-collide
 # with EACH OTHER (no capsule wedging in melee piles; separation steering and the
-# combat ring slots own spacing). They still hard-collide with the world (layer 1).
+# combat ring slots own spacing). They still hard-collide with the world (layer 1)
+# and with closed door blockers (layer 4, DOOR_BLOCKER_COLLISION_LAYER).
 const ACTOR_COLLISION_LAYER := 1 << 1
-const ACTOR_COLLISION_MASK := 1
+const ACTOR_COLLISION_MASK := 1 | 8
 
 
 func _configure_world_actor_movement() -> void:

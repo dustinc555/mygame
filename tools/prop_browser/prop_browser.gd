@@ -6,8 +6,8 @@ extends Node3D
 ## animation browser. ● marks models already wrapped as placeable furniture.
 ## Run: godot res://tools/prop_browser/prop_browser.tscn
 
-# Modular building pieces (medieval_village_megakit) are deliberately absent:
-# they belong to the building tools' piece catalog, not the prop explorer.
+# Modular building pieces are deliberately absent. Browse those raw sources in
+# tools/building_piece_browser instead of mixing construction kit assets with props.
 const PACKS := [
 	{"label": "Fantasy Props", "dir": "res://assets/vendor/quaternius/fantasy_props_megakit/gltf", "extension": "gltf"},
 	{"label": "Sci-Fi Essentials", "dir": "res://assets/vendor/quaternius/sci_fi_essentials_kit/gltf", "extension": "gltf"},
