@@ -223,6 +223,7 @@ func _register_existing_residents_with_population_controller(population_controll
 func _build_population_generation_context(_existing_count: int) -> Dictionary:
 	return {
 		"start_index": 0,
+		"generation_seed": _effective_generation_seed(),
 		"member_name_prefix": member_name_prefix,
 		"faction_id": _get_faction_id(),
 		"squad_name": squad_name if not squad_name.is_empty() else str(get_parent().name),

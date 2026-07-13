@@ -283,12 +283,16 @@ func fill_settlement_staff_slot(slot_id: String, slot_record: Dictionary) -> Nod
 		# from the record. The world-sim assignment — not a scramble for any free body — decides who.
 		actor = SettlementFacility.resolve_live_worker(self, worker_actor_id)
 		if actor != null:
+			# Adopt first: the reparent preserves global transform, so the
+			# slot-local prep position must be set after the actor hangs
+			# under the staff root.
+			SettlementFacility.adopt_staff_record(actor, worker_actor_id, slot_id, staff_root)
 			_prepare_claimed_resident_for_role(actor, role, role_index)
 		else:
 			actor = _create_generated_staff_for_role(role, role_index, staff_root)
-		if actor == null:
-			return null
-		SettlementFacility.adopt_staff_record(actor, worker_actor_id, slot_id, staff_root)
+			if actor == null:
+				return null
+			SettlementFacility.adopt_staff_record(actor, worker_actor_id, slot_id, staff_root)
 	else:
 		actor = _claim_available_resident_for_role(role, role_index, staff_root)
 		if actor == null:
@@ -1943,7 +1947,7 @@ func _send_actor_to_service_point(actor: Node, role: String) -> void:
 		var counter = service_area.call("get_barkeeper_service_point")
 		if counter != null and counter.has_method("get_work_position"):
 			actor.call("set_move_target", counter.call("get_work_position"), false)
-		return
+			return
 	if not service_area.has_method("get_service_points"):
 		return
 	for point in service_area.call("get_service_points"):

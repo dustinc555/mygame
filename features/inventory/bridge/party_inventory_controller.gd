@@ -395,6 +395,11 @@ func _on_inventory_transfer_requested(source_owner, target_owner, entry, target_
 	if source_owner != target_owner and _entry_is_silver_pouch(source_inventory, entry):
 		_show_floating_notice("Drop onto pouch")
 		return
+	# Roll the theft and mark the goods stolen only for a move that will
+	# actually commit; a full or overweight target must not fire witnesses
+	# or taint an item that stays in the source container.
+	if not source_inventory.can_move_entry_to_inventory(entry, target_inventory, target_cell):
+		return
 	if not _authorize_container_take(source_owner, target_owner):
 		return
 	entry.metadata = _stolen_take_metadata(source_owner, target_owner, entry.metadata)
@@ -430,6 +435,9 @@ func _on_inventory_quick_transfer_requested(source_owner, entry) -> void:
 		return
 	if source_owner != target_owner and _entry_is_silver_pouch(source_inventory, entry):
 		_show_floating_notice("Drop onto pouch")
+		return
+	# Theft roll and stolen metadata only for a move that will commit.
+	if not source_inventory.can_move_entry_to_inventory(entry, target_inventory, target_cell):
 		return
 	if not _authorize_container_take(source_owner, target_owner):
 		return
@@ -620,15 +628,20 @@ func _on_cursor_item_place_requested(data: Dictionary, target_owner, target_cell
 		_show_floating_notice("Drop onto pouch")
 		_keep_cursor_drag(data)
 		return
+	var target_inventory = _get_owner_inventory(target_owner)
+	if target_inventory == null:
+		_keep_cursor_drag(data)
+		return
+	# Theft roll and stolen metadata only for a placement that will commit;
+	# a full or overweight target must not fire witnesses or taint the item.
+	if not _can_place_cursor_item_in_inventory(target_inventory, definition, count, target_cell, data.get("contained_item_counts", {})):
+		_keep_cursor_drag(data)
+		return
 	if source_owner != null and source_owner != target_owner:
 		if not _authorize_container_take(source_owner, target_owner):
 			_keep_cursor_drag(data)
 			return
 		data["metadata"] = _stolen_take_metadata(source_owner, target_owner, data.get("metadata", {}))
-	var target_inventory = _get_owner_inventory(target_owner)
-	if target_inventory == null:
-		_keep_cursor_drag(data)
-		return
 	if not _place_cursor_item_in_inventory(target_inventory, definition, count, target_cell, data.get("contained_item_counts", {}), data.get("metadata", {})):
 		_keep_cursor_drag(data)
 		return
@@ -874,7 +887,10 @@ func _try_store_replaced_equipment(source_owner, target_owner, definition: ItemD
 	return false
 
 
-func _place_cursor_item_in_inventory(target_inventory, definition: ItemDefinition, count: int, target_cell: Vector2i, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> bool:
+## Feasibility half of _place_cursor_item_in_inventory (shows the same
+## notices), so callers can gate theft side effects on a placement that
+## will actually commit.
+func _can_place_cursor_item_in_inventory(target_inventory, definition: ItemDefinition, count: int, target_cell: Vector2i, contained_item_counts: Dictionary = {}) -> bool:
 	if target_inventory == null or definition == null or count <= 0:
 		return false
 	if target_inventory.use_weight and target_inventory.get_total_weight() + target_inventory.get_item_weight(definition, count, contained_item_counts) > target_inventory.max_weight:
@@ -882,6 +898,12 @@ func _place_cursor_item_in_inventory(target_inventory, definition: ItemDefinitio
 		return false
 	if not target_inventory.can_place_item(definition, target_cell):
 		_show_floating_notice("No room")
+		return false
+	return true
+
+
+func _place_cursor_item_in_inventory(target_inventory, definition: ItemDefinition, count: int, target_cell: Vector2i, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> bool:
+	if not _can_place_cursor_item_in_inventory(target_inventory, definition, count, target_cell, contained_item_counts):
 		return false
 	target_inventory.entries.append(InventoryData.InventoryEntry.new(definition, target_cell, count, contained_item_counts, metadata))
 	target_inventory.changed.emit()
