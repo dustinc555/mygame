@@ -2,9 +2,60 @@
 
 [ext_resource type="Script" uid="uid://dv5ymfj63bgah" path="res://features/world/projection/world_root.gd" id="1_world_root"]
 [ext_resource type="PackedScene" uid="uid://bswlf53ythhn2" path="res://scenes/zones/rustwash_basin/rustwash_basin.tscn" id="2_rustwash"]
+[ext_resource type="Script" uid="uid://j7ht3e8ivxm7" path="res://features/factions/bridge/factions.gd" id="3_factions"]
+[ext_resource type="Script" uid="uid://ikuv44ho3ntf" path="res://features/factions/bridge/faction.gd" id="4_faction"]
+[ext_resource type="Resource" uid="uid://c2d75xrob0b04" path="res://features/factions/resources/factions/surf_city.tres" id="5_surf_city"]
+[ext_resource type="Resource" uid="uid://dkykt4d8s1158" path="res://features/factions/resources/factions/east_raiders.tres" id="6_east_raiders"]
+[ext_resource type="Resource" uid="uid://b4vo3ehw0kwo7" path="res://features/factions/resources/factions/paradise_hills.tres" id="7_paradise_hills"]
+[ext_resource type="Resource" uid="uid://b7igw66c0684t" path="res://features/factions/resources/factions/rustdead.tres" id="8_rustdead"]
+[ext_resource type="Resource" uid="uid://c0lapmuy3jsy0" path="res://features/factions/resources/factions/raiders.tres" id="9_raiders"]
+[ext_resource type="Resource" uid="uid://h4a4vsdtrlvq" path="res://features/factions/resources/factions/farmers.tres" id="10_farmers"]
+[ext_resource type="Resource" uid="uid://dhmpw325gf3wi" path="res://features/factions/resources/factions/player_drifters.tres" id="11_player_drifters"]
+[ext_resource type="Resource" path="res://features/factions/resources/factions/captives.tres" id="12_captives"]
+[ext_resource type="Resource" uid="uid://bdqbw1l1nr1rw" path="res://features/factions/resources/factions/canyonites.tres" id="12_wnl40"]
 
 [node name="World1" type="Node3D" unique_id=170748501]
 script = ExtResource("1_world_root")
 world_id = "world1"
+start_hour = 0
+
+[node name="Factions" type="Node" parent="." unique_id=54634220]
+script = ExtResource("3_factions")
+
+[node name="SurfCity" type="Node" parent="Factions" unique_id=1959051476]
+script = ExtResource("4_faction")
+definition = ExtResource("5_surf_city")
+
+[node name="EastRaiders" type="Node" parent="Factions" unique_id=1779771294]
+script = ExtResource("4_faction")
+definition = ExtResource("6_east_raiders")
+
+[node name="ParadiseHills" type="Node" parent="Factions" unique_id=1462046404]
+script = ExtResource("4_faction")
+definition = ExtResource("7_paradise_hills")
+
+[node name="Rustdead" type="Node" parent="Factions" unique_id=1175699841]
+script = ExtResource("4_faction")
+definition = ExtResource("8_rustdead")
+
+[node name="DustknifeRaiders" type="Node" parent="Factions" unique_id=1369818637]
+script = ExtResource("4_faction")
+definition = ExtResource("9_raiders")
+
+[node name="GreenfieldFarmers" type="Node" parent="Factions" unique_id=270695210]
+script = ExtResource("4_faction")
+definition = ExtResource("10_farmers")
+
+[node name="HomelessDrifters" type="Node" parent="Factions" unique_id=2062773496]
+script = ExtResource("4_faction")
+definition = ExtResource("11_player_drifters")
+
+[node name="Captives" type="Node" parent="Factions" unique_id=747770751]
+script = ExtResource("4_faction")
+definition = ExtResource("12_captives")
+
+[node name="Canyonites" type="Node" parent="Factions" unique_id=271374036]
+script = ExtResource("4_faction")
+definition = ExtResource("12_wnl40")
 
 [node name="RustwashBasin" parent="." unique_id=1795985858 instance=ExtResource("2_rustwash")]

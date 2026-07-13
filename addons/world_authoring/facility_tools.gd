@@ -18,6 +18,13 @@ const FACILITY_FURNISHER := preload("res://features/world/projection/props/furni
 const FURNISH_RULES_DIR := "res://features/settlements/resources/furnishing"
 const FURNISH_GENERATED_META := "furnish_generated"
 const GUARD_POST_SCRIPT := preload("res://features/settlements/bridge/venues/settlement_guard_post.gd")
+## Hand-placeable furniture catalog roots, scanned (never hardcoded). Each
+## .tscn found becomes a browser entry labeled by its folder.
+const FURNITURE_DIRS := [
+	"res://features/world/projection/props/furniture",
+	"res://features/world/projection/props/lighting",
+	"res://features/world/projection/props/furnishing/vignettes",
+]
 const BUILDING_SHELLS_DIR := "res://features/world/projection/buildings/shells/modular"
 const WORLD_BUILDING_SCRIPT_PATH := "res://features/world/projection/buildings/world_building.gd"
 const DEFAULT_SHELL_PATH := "res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn"
@@ -29,6 +36,8 @@ var _status_label: Label
 var _dock: Control
 var _active_facility: Node
 var _shell_catalog: Array[String] = []
+var _furniture_catalog: Array[Dictionary] = []
+var _pending_furniture_path := ""
 var _ghost
 var _unpacker
 ## Managed by the plugin router: the dock is mounted in the bottom panel only
@@ -287,6 +296,96 @@ func _has_instanced_ancestor(node: Node, root: Node) -> bool:
 	return false
 
 
+## --- Hand furniture placement ---------------------------------------------------
+
+
+## Catalog entries: {"path": String, "category": String, "name": String},
+## sorted by category then name.
+func get_furniture_catalog() -> Array[Dictionary]:
+	if not _furniture_catalog.is_empty():
+		return _furniture_catalog
+	for dir_path in FURNITURE_DIRS:
+		var category := str(dir_path).get_file()
+		for file_name in DirAccess.get_files_at(str(dir_path)):
+			if file_name.get_extension() != "tscn":
+				continue
+			_furniture_catalog.append({
+				"path": str(dir_path).path_join(file_name),
+				"category": category,
+				"name": file_name.get_basename().capitalize(),
+			})
+	_furniture_catalog.sort_custom(func(a, b):
+		return a["category"] < b["category"] if a["category"] != b["category"] else a["name"] < b["name"])
+	return _furniture_catalog
+
+
+func rescan_furniture_catalog() -> Array[Dictionary]:
+	_furniture_catalog.clear()
+	return get_furniture_catalog()
+
+
+## Ghost-place a single furniture piece under the facility's Furniture root —
+## the "just add a torch" path. The placed node is a plain editable child
+## with NO furnish_generated tag, so Furnish/Reroll never touch it.
+func begin_furniture_placement(facility: Node, scene_path: String) -> void:
+	if not (facility is SettlementFacilityInstance):
+		_set_status("Select a composed facility (e.g. a bar) to add furniture.")
+		return
+	if not _can_edit_live(facility):
+		_set_status("Unpack the town first (select the town node, then Unpack Into Zone).")
+		return
+	var furniture_scene := load(scene_path) as PackedScene
+	if furniture_scene == null:
+		_set_status("Failed to load %s." % scene_path)
+		return
+	_pending_furniture_path = scene_path
+	# Keep the facility selected so the editor keeps forwarding viewport input
+	# to this context while the ghost is live.
+	_select_node(facility)
+	var committed := func(world_transform: Transform3D) -> void:
+		_place_furniture_piece(facility, world_transform)
+	if not _ghost.begin_scene(furniture_scene, committed, _on_furniture_placement_cancelled):
+		_set_status("Could not start placement (no edited scene).")
+		return
+	_set_status("Placing %s: hold left-click to anchor, drag rotates, scroll = height, release places. Right-click cancels." % scene_path.get_file().get_basename())
+
+
+func _on_furniture_placement_cancelled() -> void:
+	_pending_furniture_path = ""
+	_set_status("Placement cancelled.")
+
+
+func _place_furniture_piece(facility: Node, world_transform: Transform3D) -> void:
+	var scene_path := _pending_furniture_path
+	_pending_furniture_path = ""
+	var furniture_scene := load(scene_path) as PackedScene
+	var owner_root := _plugin.get_editor_interface().get_edited_scene_root()
+	if furniture_scene == null or owner_root == null or facility == null or not is_instance_valid(facility):
+		return
+	var undo_redo := _plugin.get_undo_redo()
+	undo_redo.create_action("Add Furniture Piece")
+	var furniture_root := facility.get_node_or_null("Furniture") as Node3D
+	if furniture_root == null:
+		furniture_root = Node3D.new()
+		furniture_root.name = "Furniture"
+		undo_redo.add_do_method(facility, "add_child", furniture_root)
+		undo_redo.add_do_method(furniture_root, "set_owner", owner_root)
+		undo_redo.add_undo_method(facility, "remove_child", furniture_root)
+		undo_redo.add_do_reference(furniture_root)
+	var node := furniture_scene.instantiate() as Node3D
+	node.name = _unique_child_name(furniture_root, scene_path.get_file().get_basename().to_pascal_case())
+	undo_redo.add_do_method(furniture_root, "add_child", node)
+	undo_redo.add_do_method(node, "set_owner", owner_root)
+	undo_redo.add_do_property(node, "global_transform", world_transform)
+	undo_redo.add_undo_method(furniture_root, "remove_child", node)
+	undo_redo.add_do_reference(node)
+	undo_redo.commit_action()
+	_select_node(facility)
+	_set_status("Placed %s." % node.name)
+	if _dock != null and is_instance_valid(_dock):
+		_dock.set_facility(facility)
+
+
 ## --- Furnish pass -------------------------------------------------------------------
 
 
@@ -353,7 +452,7 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 		undo_redo.add_do_reference(node)
 	undo_redo.commit_action()
 	_select_node(facility)
-	_set_status("Furnished %s: %d counter, %d clusters, %d containers, %d shelves (seed %d)." % [facility.name, int(counts.get("counter", 0)), int(counts.get("cluster", 0)), int(counts.get("container", 0)), int(counts.get("shelf", 0)), seed_value])
+	_set_status("Furnished %s: %d counter, %d clusters, %d containers, %d shelves, %d lights (seed %d)." % [facility.name, int(counts.get("counter", 0)), int(counts.get("cluster", 0)), int(counts.get("container", 0)), int(counts.get("shelf", 0)), int(counts.get("light", 0)), seed_value])
 	if _dock != null and is_instance_valid(_dock):
 		_dock.set_facility(facility)
 

@@ -1,15 +1,13 @@
 [gd_resource type="Resource" script_class="SettlementDefinition" format=3 uid="uid://j6nyneohu3ag"]
 
-[ext_resource type="Resource" uid="uid://c2d75xrob0b04" path="res://features/world_sim/resources/factions/surf_city.tres" id="1_0cjtd"]
+[ext_resource type="Resource" uid="uid://bdqbw1l1nr1rw" path="res://features/factions/resources/factions/canyonites.tres" id="1_0cjtd"]
 [ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://features/world_sim/resources/settlement_definition.gd" id="1_47tud"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/slave_rags.tres" id="2_4cvdm"]
 
 [resource]
 script = ExtResource("1_47tud")
 settlement_id = "canyon"
 display_name = "Canyon"
 faction_definition = ExtResource("1_0cjtd")
-population_appearance_profile = ExtResource("2_4cvdm")
 world_position = Vector3(-2.5942535, -0.007736206, -313.2602)
 known_settlement_ids = PackedStringArray()
 starting_supplies = 2.5

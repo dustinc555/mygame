@@ -38,7 +38,28 @@ var _base_max_physics_steps_per_frame := 8
 func initialize(context: BootstrapContext) -> void:
 	_context = context
 	root_scene = context.root_scene
+	_apply_authored_start_time()
 	sync_world_time_state()
+
+
+## The WorldRoot above the playing zone authors session spawn options (start
+## time in the World dock). Applied at bootstrap only — loading a save
+## overwrites through apply_serialized_state afterwards.
+func _apply_authored_start_time() -> void:
+	var current := root_scene
+	while current != null and not (current is WorldRoot):
+		current = current.get_parent()
+	if current == null:
+		return
+	var authored_hour = current.get("start_hour")
+	var authored_minute = current.get("start_minute")
+	if authored_hour == null or authored_minute == null:
+		return
+	start_hour = clampi(int(authored_hour), 0, 23)
+	start_minute = clampi(int(authored_minute), 0, 59)
+	total_world_minutes = float(start_hour * 60 + start_minute)
+	_last_boundary_absolute_minute = get_absolute_minute()
+	_emit_time_changed(true)
 
 
 func _ready() -> void:

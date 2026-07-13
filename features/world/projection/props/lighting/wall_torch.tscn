@@ -1,0 +1,21 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/props/lighting/light_fixture.gd" id="1_fixture"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Torch_Metal.gltf" id="2_model"]
+
+[node name="WallTorch" type="Node3D"]
+script = ExtResource("1_fixture")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+
+[node name="Light" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0.3)
+light_color = Color(1, 0.72, 0.42, 1)
+light_energy = 2.2
+light_specular = 0.3
+shadow_enabled = false
+distance_fade_enabled = true
+distance_fade_begin = 22.0
+distance_fade_length = 8.0
+omni_range = 7.0
+omni_attenuation = 1.4

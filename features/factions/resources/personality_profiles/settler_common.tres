@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="FactionPersonalityProfile" format=3]
+
+[ext_resource type="Script" uid="uid://dj1k34w6mmrj" path="res://features/factions/resources/faction_personality_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "settler_common"
+display_name = "Settler Common"
+aggression = 0.2
+risk_tolerance = 0.32
+mercy = 0.7
+greed = 0.25
+openness_to_outsiders = 0.7
+honor = 0.65
+negotiation_patience = 0.65
+operator_notes = "Shared default for every normal survivor settlement (Surf City, Canyonites, ...). Ordinary people: law-abiding, open to strangers, no appetite for raiding. Factions with a distinct character (raiders, slavers, rustdead) author their own profile instead."

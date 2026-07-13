@@ -10,10 +10,10 @@ extends PanelContainer
 ## its own.
 
 const PROFILE_PICKERS := [
-	{"label": "Faction", "property": "faction_definition", "dir": "res://features/world_sim/resources/factions", "empty": "(none)"},
+	{"label": "Faction", "property": "faction_definition", "dir": "res://features/factions/resources/factions", "empty": "(none)"},
 	{"label": "Behavior", "property": "behavior_profile", "dir": "res://features/world_sim/resources/behavior_profiles", "empty": "(inherit faction)"},
-	{"label": "Personality", "property": "personality_profile", "dir": "res://features/world_sim/resources/personality_profiles", "empty": "(inherit faction)"},
-	{"label": "Law", "property": "law_profile", "dir": "res://features/world_sim/resources/law_profiles", "empty": "(inherit faction)"},
+	{"label": "Personality", "property": "personality_profile", "dir": "res://features/factions/resources/personality_profiles", "empty": "(inherit faction)"},
+	{"label": "Law", "property": "law_profile", "dir": "res://features/factions/resources/law_profiles", "empty": "(inherit faction)"},
 	{"label": "Names", "property": "population_name_profile", "dir": "res://features/world_sim/resources/population_name_profiles", "empty": "(inherit faction)"},
 	{"label": "Characters", "property": "population_appearance_profile", "dir": "res://features/world_sim/resources/population_appearance_profiles", "empty": "(inherit faction)"},
 ]

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://dhmpw325gf3wi"]
+
+[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://features/factions/resources/faction_definition.gd" id="1_faction"]
+[ext_resource type="Texture2D" path="res://features/factions/resources/icons/player_drifters.svg" id="2_icon"]
+
+[resource]
+script = ExtResource("1_faction")
+icon = ExtResource("2_icon")
+faction_id = "Player"
+display_name = "Homeless Drifters"
+description = "A nobody faction with no settlement, land, or political weight."
+default_hostile_faction_ids = null
+starting_war_faction_ids = null

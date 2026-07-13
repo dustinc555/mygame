@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="SquadTemplate" format=3 uid="uid://16cyuw6ql2sc"]
 
 [ext_resource type="Script" uid="uid://c3hflj5he5juw" path="res://features/world_sim/resources/squad_template.gd" id="1_template"]
-[ext_resource type="Resource" uid="uid://c2d75xrob0b04" path="res://features/world_sim/resources/factions/surf_city.tres" id="2_faction"]
+[ext_resource type="Resource" uid="uid://c2d75xrob0b04" path="res://features/factions/resources/factions/surf_city.tres" id="2_faction"]
 [ext_resource type="Resource" uid="uid://bkw28d3jsab1n" path="res://features/inventory/resources/items/iron_sword.tres" id="3_sword"]
 [ext_resource type="Resource" uid="uid://cuihdlkyr6ik0" path="res://features/world_sim/resources/population_appearance_profiles/farmer_peasant.tres" id="4_appearance"]
 [ext_resource type="Resource" uid="uid://4464sf7u02lx" path="res://features/world_sim/resources/population_name_profiles/farmer_names.tres" id="5_names"]

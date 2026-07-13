@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="FactionRelationDefinition" format=3 uid="uid://2idduny7aexr"]
 
-[ext_resource type="Script" uid="uid://vdldujrpx8fh" path="res://features/world_sim/resources/faction_relation_definition.gd" id="1_relation"]
+[ext_resource type="Script" uid="uid://vdldujrpx8fh" path="res://features/factions/resources/faction_relation_definition.gd" id="1_relation"]
 
 [resource]
 script = ExtResource("1_relation")

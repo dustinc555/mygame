@@ -3,8 +3,9 @@ extends RefCounted
 ## World simulation feature module.
 ##
 ## Sim: the durable world-simulation systems that advance far/off-camera state --
-## the simulation aggregate, factions, population, territory, roads, world events,
-## squads, encounters, and the O(1) ledger. Bridge: the world status surface and
+## the simulation aggregate, population, territory, roads, world events,
+## squads, encounters, and the O(1) ledger (faction identity/diplomacy lives
+## in features/factions). Bridge: the world status surface and
 ## the realization controller that decides which records become live bodies.
 ##
 ## A module is pure declaration: const arrays of {name, script, service} specs,
@@ -12,7 +13,6 @@ extends RefCounted
 ## BridgeRoot, registers each as a service, then injects the context.
 
 const WORLD_SIMULATION := preload("res://features/world_sim/sim/world_simulation_controller.gd")
-const FACTION := preload("res://features/world_sim/sim/faction_controller.gd")
 const POPULATION := preload("res://features/world_sim/sim/population/population_controller.gd")
 const TERRITORY := preload("res://features/world_sim/sim/territory_controller.gd")
 const ROAD := preload("res://features/world_sim/sim/roads/road_controller.gd")
@@ -30,7 +30,6 @@ const PROJECTION := []
 # simulation aggregate / GECS state during initialize().
 const SIM := [
 	{"name": "WorldSimulationController", "script": WORLD_SIMULATION, "service": WORLD_SIMULATION.SERVICE_ID},
-	{"name": "FactionController", "script": FACTION, "service": FACTION.SERVICE_ID},
 	{"name": "PopulationController", "script": POPULATION, "service": POPULATION.SERVICE_ID},
 	{"name": "TerritoryController", "script": TERRITORY, "service": TERRITORY.SERVICE_ID},
 	{"name": "RoadController", "script": ROAD, "service": ROAD.SERVICE_ID},

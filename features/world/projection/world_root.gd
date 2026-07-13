@@ -1,3 +1,4 @@
+@tool
 @icon("res://addons/world_authoring/icons/world.svg")
 extends Node3D
 
@@ -12,6 +13,11 @@ const ZONE_SCRIPT := preload("res://features/world/projection/zone_root.gd")
 
 ## Stable identifier for save/load and tooling. Defaults to the node name.
 @export var world_id := ""
+
+## Session spawn options (edited in the World dock). Applied by
+## WorldTimeController on a fresh game start; loaded saves override them.
+@export_range(0, 23, 1) var start_hour := 6
+@export_range(0, 59, 1) var start_minute := 0
 
 
 func get_world_id() -> String:

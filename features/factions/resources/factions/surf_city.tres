@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://c2d75xrob0b04"]
+
+[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://features/factions/resources/faction_definition.gd" id="1_faction"]
+[ext_resource type="Texture2D" path="res://features/factions/resources/icons/surf_city.svg" id="2_icon"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/behavior_profiles/settler_common_town.tres" id="2_behavior"]
+[ext_resource type="Resource" path="res://features/factions/resources/personality_profiles/settler_common.tres" id="3_personality"]
+[ext_resource type="Resource" path="res://features/factions/resources/law_profiles/settler_common_law.tres" id="4_law"]
+[ext_resource type="Resource" uid="uid://4464sf7u02lx" path="res://features/world_sim/resources/population_name_profiles/farmer_names.tres" id="5_names"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/settler_common.tres" id="9_appearance"]
+
+[resource]
+script = ExtResource("1_faction")
+icon = ExtResource("2_icon")
+faction_id = "SurfCity"
+display_name = "Surf City"
+description = "A civic coastal settlement faction with its own laws, watch, and cautious politics."
+primary_color = Color(0.12, 0.72, 0.88, 1)
+default_hostile_faction_ids = null
+starting_war_faction_ids = null
+behavior_profile = ExtResource("2_behavior")
+personality_profile = ExtResource("3_personality")
+law_profile = ExtResource("4_law")
+population_appearance_profile = ExtResource("9_appearance")
+population_name_profile = ExtResource("5_names")

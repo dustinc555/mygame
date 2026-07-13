@@ -26,6 +26,16 @@ class_name FurnishRules
 @export_range(0.0, 1.0, 0.05) var shelf_chance := 0.45
 @export var shelf_mount_height := 1.6
 
+## Wall-mounted light fixtures (LightFixture wrappers — they switch with
+## world time on their own), rolled per solid interior wall segment on every
+## storey. Mounted above head height, so they never touch the floor grid.
+@export var light_scenes: Array[PackedScene] = []
+@export_range(0.0, 1.0, 0.05) var light_chance := 0.55
+@export var light_mount_height := 2.1
+## Minimum distance between two placed lights on the same storey.
+@export var light_spacing_meters := 3.0
+@export var max_lights_per_level := 6
+
 ## Floor-standing lootable containers (crates/barrels), stood against solid
 ## ground-floor walls after tables claim their space.
 @export var container_scenes: Array[PackedScene] = []

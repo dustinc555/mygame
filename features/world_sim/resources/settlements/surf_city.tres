@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="SettlementDefinition" format=3 uid="uid://j36qo607q4mc"]
 
 [ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://features/world_sim/resources/settlement_definition.gd" id="1_settlement"]
-[ext_resource type="Resource" uid="uid://c2d75xrob0b04" path="res://features/world_sim/resources/factions/surf_city.tres" id="2_faction"]
-[ext_resource type="Resource" uid="uid://da8ehr8v4ldlr" path="res://features/world_sim/resources/behavior_profiles/surf_city_town.tres" id="3_behavior"]
+[ext_resource type="Resource" uid="uid://c2d75xrob0b04" path="res://features/factions/resources/factions/surf_city.tres" id="2_faction"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/behavior_profiles/settler_common_town.tres" id="3_behavior"]
 [ext_resource type="Resource" uid="uid://16cyuw6ql2sc" path="res://features/world_sim/resources/squad_templates/surf_city_watch.tres" id="4_watch"]
 
 [resource]

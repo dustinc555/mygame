@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="SettlementDefinition" format=3 uid="uid://crr7d18aljun7"]
 
 [ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://features/world_sim/resources/settlement_definition.gd" id="1_settlement"]
-[ext_resource type="Resource" uid="uid://dkykt4d8s1158" path="res://features/world_sim/resources/factions/east_raiders.tres" id="2_faction"]
+[ext_resource type="Resource" uid="uid://dkykt4d8s1158" path="res://features/factions/resources/factions/east_raiders.tres" id="2_faction"]
 [ext_resource type="Resource" uid="uid://c3x82unvqthas" path="res://features/world_sim/resources/behavior_profiles/east_raiders_camp.tres" id="3_behavior"]
 [ext_resource type="Resource" uid="uid://cj67rntaps4o2" path="res://features/world_sim/resources/squad_templates/east_raider_war_party.tres" id="4_war_party"]
 

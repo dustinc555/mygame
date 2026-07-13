@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="FactionDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/factions/resources/faction_definition.gd" id="1_faction"]
+[ext_resource type="Texture2D" path="res://features/factions/resources/icons/captives.svg" id="2_icon"]
+[ext_resource type="Resource" path="res://features/factions/resources/personality_profiles/farmer_communal.tres" id="2_personality"]
+[ext_resource type="Resource" path="res://features/factions/resources/law_profiles/settler_common_law.tres" id="3_law"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/population_name_profiles/captive_names.tres" id="4_names"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/slave_rags.tres" id="9_appearance"]
+
+[resource]
+script = ExtResource("1_faction")
+icon = ExtResource("2_icon")
+faction_id = "Captives"
+display_name = "Captives"
+description = "A neutral generated faction for prisoners, slaves, and displaced people whose original allegiance is unknown."
+open_access = true
+personality_profile = ExtResource("2_personality")
+law_profile = ExtResource("3_law")
+population_appearance_profile = ExtResource("9_appearance")
+population_name_profile = ExtResource("4_names")

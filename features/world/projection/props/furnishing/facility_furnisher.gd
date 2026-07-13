@@ -116,9 +116,11 @@ func _furnish_level(pieces: Array[Dictionary], rules: FurnishRules, rng: RandomN
 		placements.append_array(_place_clusters(rules, rng, placements))
 		placements.append_array(_place_containers(anchors, rules, rng, placements))
 		placements.append_array(_place_shelves(anchors, rules, rng, counter))
+		placements.append_array(_place_lights(anchors, rules, rng))
 	else:
 		placements.append_array(_place_beds(anchors, rules, rng))
 		placements.append_array(_place_shelves(anchors, rules, rng, {}))
+		placements.append_array(_place_lights(anchors, rules, rng))
 	if not _walkability_holds(placements):
 		if level_index == 0:
 			_last_error = "Walkability check failed after placement (solver bug guard)."
@@ -524,6 +526,47 @@ func _place_shelves(anchors: Array[Dictionary], rules: FurnishRules, rng: Random
 			"kind": "shelf",
 			"scene": rules.shelf_scenes[rng.randi_range(0, rules.shelf_scenes.size() - 1)],
 			"transform": Transform3D(Basis(Vector3.UP, yaw), Vector3(origin.x, rules.shelf_mount_height, origin.y)),
+		})
+	return placements
+
+
+## Wall lights mount on solid wall segments above head height (same
+## structural exclusion as shelves — never doors or windows), spaced so a
+## storey reads evenly lit instead of clustered. They never touch the floor
+## grid or the navmesh; the fixture scenes handle their own dusk/dawn
+## switching at runtime.
+func _place_lights(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator) -> Array[Dictionary]:
+	var placements: Array[Dictionary] = []
+	if rules.light_scenes.is_empty():
+		return placements
+	var candidates := anchors.filter(func(anchor): return anchor["category"] == "wall")
+	for index in range(candidates.size() - 1, 0, -1):
+		var swap := rng.randi_range(0, index)
+		var held = candidates[index]
+		candidates[index] = candidates[swap]
+		candidates[swap] = held
+	var lit_positions: Array[Vector2] = []
+	for anchor in candidates:
+		if placements.size() >= rules.max_lights_per_level:
+			break
+		if rng.randf() > rules.light_chance:
+			continue
+		var anchor_position: Vector2 = anchor["position"]
+		var too_close := false
+		for lit in lit_positions:
+			if lit.distance_to(anchor_position) < rules.light_spacing_meters:
+				too_close = true
+				break
+		if too_close:
+			continue
+		var normal: Vector2 = anchor["normal"]
+		var origin := anchor_position + normal * (WALL_THICKNESS * 0.5 + 0.03)
+		var yaw := atan2(normal.x, normal.y)
+		lit_positions.append(anchor_position)
+		placements.append({
+			"kind": "light",
+			"scene": rules.light_scenes[rng.randi_range(0, rules.light_scenes.size() - 1)],
+			"transform": Transform3D(Basis(Vector3.UP, yaw), Vector3(origin.x, rules.light_mount_height, origin.y)),
 		})
 	return placements
 
