@@ -7,7 +7,7 @@ const SETTLEMENT_DEFINITION_SCRIPT = preload("res://features/world_sim/resources
 const SETTLEMENT_JAIL_SCENE = preload("res://features/settlements/bridge/settlement_jail.tscn")
 const WORLD_ITEM_SCENE = preload("res://features/world/projection/items/world_item.tscn")
 const SELECTION_RING_VISUAL = preload("res://features/actors/projection/selection_ring_visual.gd")
-const FARMERS_FACTION = preload("res://features/world_sim/resources/factions/farmers.tres")
+const FARMERS_FACTION = preload("res://features/factions/resources/factions/farmers.tres")
 const EXPENSIVE_VASE = preload("res://features/inventory/resources/items/expensive_vase.tres")
 
 const DEMO_FACTION_ID := "Farmers"

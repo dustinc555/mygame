@@ -13,6 +13,8 @@ const BUILDING_TOOLS := preload("res://addons/world_authoring/building_tools.gd"
 const TOWN_TOOLS := preload("res://addons/world_authoring/town_tools.gd")
 const ZONE_TOOLS := preload("res://addons/world_authoring/zone_tools.gd")
 const FACILITY_TOOLS := preload("res://addons/world_authoring/facility_tools.gd")
+const FACTION_TOOLS := preload("res://addons/world_authoring/faction_tools.gd")
+const WORLD_TOOLS := preload("res://addons/world_authoring/world_tools.gd")
 
 var _contexts: Array = []
 var _world_nav_bake_tool: Control
@@ -28,7 +30,7 @@ func _enter_tree() -> void:
 	# Order matters for input routing: innermost concept first (a piece inside
 	# a building inside a facility inside a town inside a zone resolves to the
 	# building tools).
-	_contexts = [BUILDING_TOOLS.new(self), FACILITY_TOOLS.new(self), TOWN_TOOLS.new(self), ZONE_TOOLS.new(self)]
+	_contexts = [BUILDING_TOOLS.new(self), FACILITY_TOOLS.new(self), TOWN_TOOLS.new(self), FACTION_TOOLS.new(self), ZONE_TOOLS.new(self), WORLD_TOOLS.new(self)]
 	for context in _contexts:
 		add_control_to_container(EditorPlugin.CONTAINER_SPATIAL_EDITOR_MENU, context.toolbar())
 	_world_nav_bake_tool = WORLD_NAV_BAKE_TOOL.new()

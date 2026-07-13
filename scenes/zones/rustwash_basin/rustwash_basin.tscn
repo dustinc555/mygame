@@ -18,6 +18,7 @@
 [ext_resource type="Resource" uid="uid://cighg4y750kcr" path="res://features/inventory/resources/items/food.tres" id="19_fikcy"]
 [ext_resource type="Resource" uid="uid://dqrhf4vkx21eu" path="res://features/inventory/resources/items/bottle_1.tres" id="20_qk1h5"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/barrel.tscn" id="22_06rmy"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/lighting/wall_torch.tscn" id="22_ywld2"]
 [ext_resource type="Script" uid="uid://cxr7vjw8dylgu" path="res://features/settlements/bridge/facility_visit_activity_point.gd" id="27_favvj"]
 [ext_resource type="Script" uid="uid://c32mdje85i12b" path="res://features/settlements/bridge/venues/bar_guard_post.gd" id="28_amlfp"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_3.tscn" id="28_xo48a"]
@@ -27,21 +28,21 @@
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_1.tscn" id="40_amlfp"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_stocked.tscn" id="42_xh5ub"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_t2qin"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_o06rb"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_o06rb"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_ywld2"]
 _surfaces = [{
-"aabb": AABB(-9.041908, 0, -37.768005, 24.945087, 1e-05, 26.857666),
+"aabb": AABB(-9.41291, 0, -39.021606, 27.47874, 1e-05, 28.202301),
 "format": 34359738369,
 "primitive": 1,
 "uv_scale": Vector4(0, 0, 0, 0),
-"vertex_count": 72,
-"vertex_data": PackedByteArray("qKsQwQAAAABwEhfCUFfhwAAAAABwEhfCUFfBwAAAAABwEhfCUFeBwAAAAABwEhfCoK5CwAAAAABwEhfCQF2FvwAAAABwEhfCAKgrvQAAAABwEhfCwKL6PwAAAABwEhfCYFE9QAAAAABwEhfCsKieQAAAAABwEhfCsKi+QAAAAABwEhfCsKj+QAAAAABwEhfCWFQPQQAAAABwEhfCWFQvQQAAAABwEhfCWFQ/QQAAAABwEhfCWFRfQQAAAABwEhfCWFRvQQAAAABwEhfCbHN+QQAAAABwEhfCbHN+QQAAAABwEhfCbHN+QQAAAABwEg/CbHN+QQAAAABwEgvCbHN+QQAAAABwEgPCbHN+QQAAAADgJP7BbHN+QQAAAADgJO7BbHN+QQAAAADgJObBbHN+QQAAAADgJNbBbHN+QQAAAADgJM7BbHN+QQAAAADgJL7BbHN+QQAAAADgJLbBbHN+QQAAAADgJKbBbHN+QQAAAADgJJ7BbHN+QQAAAADgJI7BbHN+QQAAAADgJIbBbHN+QQAAAADASWzBbHN+QQAAAADASVzBbHN+QQAAAADASTzBbHN+QQAAAADAkC7BbHNeQQAAAADAkC7BbHNOQQAAAADAkC7BbHMuQQAAAADAkC7BbHMeQQAAAADAkC7B2Ob8QAAAAADAkC7B2ObcQAAAAADAkC7B2OacQAAAAADAkC7BsM15QAAAAADAkC7BYJvzPwAAAADAkC7BwDZnPwAAAADAkC7BoGSMvwAAAADAkC7BUDIGwAAAAADAkC7BKBmDwAAAAADAkC7BKBmjwAAAAADAkC7BKBnjwAAAAADAkC7BlIwBwQAAAADAkC7BqKsQwQAAAADAkC7BqKsQwQAAAADAkC7BqKsQwQAAAADAkE7BqKsQwQAAAADAkF7BqKsQwQAAAADAkH7BqKsQwQAAAABgSIfBqKsQwQAAAABgSJfBqKsQwQAAAABgSJ/BqKsQwQAAAABgSK/BqKsQwQAAAABgSLfBqKsQwQAAAABgSMfBqKsQwQAAAABgSM/BqKsQwQAAAABgSN/BqKsQwQAAAABgSOfBqKsQwQAAAABgSPfBqKsQwQAAAABgSP/BqKsQwQAAAAAwpAfCqKsQwQAAAAAwpAvCqKsQwQAAAAAwpBPC")
+"vertex_count": 80,
+"vertex_data": PackedByteArray("SJsWwQAAAAAgFhzCkDbtwAAAAAAgFhzCkDbNwAAAAAAgFhzCkDaNwAAAAAAgFhzCIG1awAAAAAAgFhzCQNq0vwAAAAAgFhzCAGnTvgAAAAAgFhzCwCXLPwAAAAAgFhzC4JIlQAAAAAAgFhzCcMmSQAAAAAAgFhzCcMmyQAAAAAAgFhzCcMnyQAAAAAAgFhzCuGQJQQAAAAAgFhzCuGQpQQAAAAAgFhzCuGQ5QQAAAAAgFhzCuGRZQQAAAAAgFhzCuGRpQQAAAAAgFhzCXLKEQQAAAAAgFhzCXLKMQQAAAAAgFhzC0oaQQQAAAAAgFhzC0oaQQQAAAAAgFhzC0oaQQQAAAAAgFhTC0oaQQQAAAAAgFhDC0oaQQQAAAAAgFgjC0oaQQQAAAAAgFgTC0oaQQQAAAABALPjB0oaQQQAAAABALPDB0oaQQQAAAABALODB0oaQQQAAAABALNjB0oaQQQAAAABALMjB0oaQQQAAAABALMDB0oaQQQAAAABALLDB0oaQQQAAAABALKjB0oaQQQAAAABALJjB0oaQQQAAAABALJDB0oaQQQAAAABALIDB0oaQQQAAAACAWHDB0oaQQQAAAACAWFDB0oaQQQAAAACAWEDB0oaQQQAAAADgGy3B0oaQQQAAAADgGy3B0oaAQQAAAADgGy3BpA1xQQAAAADgGy3BpA1RQQAAAADgGy3BpA1BQQAAAADgGy3BpA0hQQAAAADgGy3BpA0RQQAAAADgGy3BSBviQAAAAADgGy3BSBvCQAAAAADgGy3BSBuCQAAAAADgGy3BkDZEQAAAAADgGy3BIG2IPwAAAADgGy3BANKGPQAAAADgGy3B4JL3vwAAAADgGy3BcMk7wAAAAADgGy3BuOSdwAAAAADgGy3BuOS9wAAAAADgGy3BuOT9wAAAAADgGy3BXPIOwQAAAADgGy3BSJsWwQAAAADgGy3BSJsWwQAAAADgGy3BSJsWwQAAAADgG03BSJsWwQAAAADgG13BSJsWwQAAAADgG33BSJsWwQAAAADwjYbBSJsWwQAAAADwjZbBSJsWwQAAAADwjZ7BSJsWwQAAAADwja7BSJsWwQAAAADwjbbBSJsWwQAAAADwjcbBSJsWwQAAAADwjc7BSJsWwQAAAADwjd7BSJsWwQAAAADwjebBSJsWwQAAAADwjfbBSJsWwQAAAADwjf7BSJsWwQAAAAD4RgfCSJsWwQAAAAD4RgvCSJsWwQAAAAD4RhPCSJsWwQAAAAD4RhfCSJsWwQAAAAAgFhzC")
 }]
 
 [sub_resource type="Resource" id="Resource_hpbre"]
@@ -88,19 +89,19 @@ script = ExtResource("1_zone_loader")
 script = ExtResource("3_towns_root")
 
 [node name="Canyon" type="Node3D" parent="Towns" unique_id=396429240]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5942535, -0.007736206, -313.2602)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17.698988, -0.007736206, -299.90732)
 script = ExtResource("3_town_script")
 settlement_definition = ExtResource("3_canyon_def")
 metadata/_edit_group_ = true
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Towns/Canyon" unique_id=532431889]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_t2qin")
+material_override = SubResource("StandardMaterial3D_o06rb")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_o06rb")
+mesh = SubResource("ArrayMesh_ywld2")
 
-[node name="SettlementBar" type="Node3D" parent="Towns/Canyon" unique_id=556110935]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.3732715, 0.42611122, -25.344269)
+[node name="CanyonCityRestStop" type="Node3D" parent="Towns/Canyon" unique_id=556110935]
+transform = Transform3D(0.49863517, 0, 0.86681193, 0, 1, 0, -0.86681193, 0, 0.49863517, 3.373272, 0.42611122, -25.344269)
 script = ExtResource("6_61aqc")
 has_barkeeper = true
 guard_count = 2
@@ -111,21 +112,21 @@ furnish_seed = 5
 service_points_root_path = NodePath("")
 storage_root_path = NodePath("")
 job_providers_root_path = NodePath("")
-display_name = "Settlement Bar"
+display_name = "Canyon City Rest Stop"
 facility_type = "bar"
 activity_points_root_path = NodePath("ActivityPoints")
 
-[node name="BuildingSlot" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=1227217522]
+[node name="BuildingSlot" type="Node3D" parent="Towns/Canyon/CanyonCityRestStop" unique_id=1227217522]
 
-[node name="CurrentBuilding" parent="Towns/Canyon/SettlementBar/BuildingSlot" unique_id=428466980 instance=ExtResource("8_l7lbw")]
+[node name="CurrentBuilding" parent="Towns/Canyon/CanyonCityRestStop/BuildingSlot" unique_id=428466980 instance=ExtResource("8_l7lbw")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0048208237, 0, 0.005098343)
 building_type = "bar"
 
-[node name="Staff" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=656447651]
+[node name="Staff" type="Node3D" parent="Towns/Canyon/CanyonCityRestStop" unique_id=656447651]
 
-[node name="ActivityPoints" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=1355834480]
+[node name="ActivityPoints" type="Node3D" parent="Towns/Canyon/CanyonCityRestStop" unique_id=1355834480]
 
-[node name="FacilityVisitPoint" type="Node3D" parent="Towns/Canyon/SettlementBar/ActivityPoints" unique_id=433540529]
+[node name="FacilityVisitPoint" type="Node3D" parent="Towns/Canyon/CanyonCityRestStop/ActivityPoints" unique_id=433540529]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -2.2, 0.05, 2.1)
 script = ExtResource("27_favvj")
 facility_path = NodePath("../..")
@@ -141,9 +142,9 @@ metadata/facility_index = 0
 metadata/facility_layout_version = 1
 metadata/facility_last_default_transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -2.2, 0.05, 2.1)
 
-[node name="GuardPosts" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=1411637297]
+[node name="GuardPosts" type="Node3D" parent="Towns/Canyon/CanyonCityRestStop" unique_id=1411637297]
 
-[node name="GuardPost" type="Node3D" parent="Towns/Canyon/SettlementBar/GuardPosts" unique_id=1673331212]
+[node name="GuardPost" type="Node3D" parent="Towns/Canyon/CanyonCityRestStop/GuardPosts" unique_id=1673331212]
 transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 1.5209091, 0.050000012, 7.5720215)
 script = ExtResource("28_amlfp")
 metadata/facility_generated = true
@@ -153,7 +154,7 @@ metadata/facility_layout_version = 1
 metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 3.1, 0.05, 4.35)
 metadata/facility_layout_custom = true
 
-[node name="GuardPost2" type="Node3D" parent="Towns/Canyon/SettlementBar/GuardPosts" unique_id=268992819]
+[node name="GuardPost2" type="Node3D" parent="Towns/Canyon/CanyonCityRestStop/GuardPosts" unique_id=268992819]
 transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -3.9598918, 0.050000012, 6.925049)
 script = ExtResource("28_amlfp")
 metadata/facility_generated = true
@@ -163,7 +164,7 @@ metadata/facility_layout_version = 1
 metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, -1.4, 0.05, 4.25)
 metadata/facility_layout_custom = true
 
-[node name="GuardPost3" type="Node3D" parent="Towns/Canyon/SettlementBar/GuardPosts" unique_id=1530145352]
+[node name="GuardPost3" type="Node3D" parent="Towns/Canyon/CanyonCityRestStop/GuardPosts" unique_id=1530145352]
 transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 2.513914, 0.050000012, 3.8668823)
 script = ExtResource("28_amlfp")
 metadata/facility_generated = true
@@ -173,7 +174,7 @@ metadata/facility_layout_version = 1
 metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 0, 0.05, 4.25)
 metadata/facility_layout_custom = true
 
-[node name="GuardPost4" type="Node3D" parent="Towns/Canyon/SettlementBar/GuardPosts" unique_id=1349679336]
+[node name="GuardPost4" type="Node3D" parent="Towns/Canyon/CanyonCityRestStop/GuardPosts" unique_id=1349679336]
 transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 4.958971, -0.3537979, -5.443939)
 script = ExtResource("28_amlfp")
 metadata/facility_generated = true
@@ -183,132 +184,139 @@ metadata/facility_layout_version = 1
 metadata/facility_last_default_transform = Transform3D(0.087155804, 0, -0.9961947, 0, 1, 0, 0.9961947, 0, 0.087155804, 1.4, 0.05, 4.25)
 metadata/facility_layout_custom = true
 
-[node name="Furniture" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=686453821]
+[node name="Furniture" type="Node3D" parent="Towns/Canyon/CanyonCityRestStop" unique_id=686453821]
 
-[node name="Counter1" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=2046459730 instance=ExtResource("29_hpbre")]
+[node name="Counter1" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=2046459730 instance=ExtResource("29_hpbre")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 1.8274169, 0, 1.5591125)
 metadata/furnish_generated = true
 
-[node name="Cluster1" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1526341838 instance=ExtResource("31_hpbre")]
+[node name="Cluster1" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1526341838 instance=ExtResource("31_hpbre")]
 transform = Transform3D(0.99846774, 0, 0.055336628, 0, 1, 0, -0.055336628, 0, 0.99846774, -3.6201792, 0, 2.3800964)
 metadata/furnish_generated = true
 
-[node name="Container1" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1138436519 instance=ExtResource("15_l7lbw")]
+[node name="Container1" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1138436519 instance=ExtResource("15_l7lbw")]
 transform = Transform3D(-0.99916327, 0, -0.04089946, 0, 1, 0, 0.04089946, 0, -0.99916327, 4.5183115, 0, -0.9356823)
-owner_faction_name = "SurfCity"
+owner_faction_name = "Canyonites"
 starting_items = Array[ExtResource("17_pqxta")]([SubResource("Resource_hpbre"), SubResource("Resource_ystfk"), SubResource("Resource_i3ypv")])
 collision_shape = SubResource("Shape_body")
 metadata/furnish_generated = true
 
-[node name="Container2" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1498450716 instance=ExtResource("15_l7lbw")]
+[node name="Container2" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1498450716 instance=ExtResource("15_l7lbw")]
 transform = Transform3D(0.994734, 0, -0.10249044, 0, 1, 0, 0.10249044, 0, 0.994734, -5.025026, 0, -3.1649036)
-owner_faction_name = "SurfCity"
+owner_faction_name = "Canyonites"
 starting_items = Array[ExtResource("17_pqxta")]([SubResource("Resource_qt4s2")])
 collision_shape = SubResource("Shape_body")
 metadata/furnish_generated = true
 
-[node name="Container3" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1256356894 instance=ExtResource("15_l7lbw")]
+[node name="Container3" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1256356894 instance=ExtResource("15_l7lbw")]
 transform = Transform3D(0.9962976, 0, 0.08597116, 0, 1, 0, -0.08597116, 0, 0.9962976, 5.297401, 0, 0.72431755)
-owner_faction_name = "SurfCity"
+owner_faction_name = "Canyonites"
 starting_items = Array[ExtResource("17_pqxta")]([SubResource("Resource_by240")])
 collision_shape = SubResource("Shape_body")
 metadata/furnish_generated = true
 
-[node name="Container4" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=614287613 instance=ExtResource("22_06rmy")]
+[node name="Container4" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=614287613 instance=ExtResource("22_06rmy")]
 transform = Transform3D(0.09936605, 0, -0.99505097, 0, 1, 0, 0.99505097, 0, 0.09936605, 5.404821, 0, -2.8532906)
-owner_faction_name = "SurfCity"
+owner_faction_name = "Canyonites"
 starting_items = Array[ExtResource("17_pqxta")]([SubResource("Resource_favvj")])
 collision_shape = SubResource("CylinderShape3D_amlfp")
 metadata/furnish_generated = true
 
-[node name="Shelf1" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1192742436 instance=ExtResource("42_xh5ub")]
+[node name="Shelf1" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1192742436 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.8048525, 1.5999999, -3.7648926)
 metadata/furnish_generated = true
 
-[node name="Shelf2" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=72687329 instance=ExtResource("42_xh5ub")]
+[node name="Shelf2" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=72687329 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.774821, 1.6, -3.037308)
 metadata/furnish_generated = true
 
-[node name="Shelf3" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1754469904 instance=ExtResource("42_xh5ub")]
+[node name="Shelf3" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1754469904 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.774821, 1.6, 5.013156)
 metadata/furnish_generated = true
 
-[node name="Shelf4" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=103471624 instance=ExtResource("42_xh5ub")]
+[node name="Shelf4" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=103471624 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, -3.0397873, 1.6, 5.7750964)
 metadata/furnish_generated = true
 
-[node name="Shelf5" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=344075730 instance=ExtResource("42_xh5ub")]
+[node name="Shelf5" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=344075730 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 3.0835474, 1.6, 5.7750964)
 metadata/furnish_generated = true
 
-[node name="Shelf6" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1270216926 instance=ExtResource("42_xh5ub")]
+[node name="Shelf6" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1270216926 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -5.765179, 1.6, 3.0179389)
 metadata/furnish_generated = true
 
-[node name="Shelf7" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=2071188120 instance=ExtResource("42_xh5ub")]
+[node name="Shelf7" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=2071188120 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-1, 0, -1.509958e-07, 0, 1, 0, 1.509958e-07, 0, -1, 0.9386941, 1.6, -0.3356824)
 metadata/furnish_generated = true
 
-[node name="Shelf8" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1716334739 instance=ExtResource("42_xh5ub")]
+[node name="Shelf8" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1716334739 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, 1, 4.8469043, 1.6, 0.12431764)
 metadata/furnish_generated = true
 
-[node name="Shelf9" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=188107910 instance=ExtResource("42_xh5ub")]
+[node name="Shelf9" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=188107910 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-1, 0, -1.509958e-07, 0, 1, 0, 1.509958e-07, 0, -1, -2.8254566, 1.6, -0.3356824)
 metadata/furnish_generated = true
 
-[node name="Shelf10" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=2082057679 instance=ExtResource("42_xh5ub")]
+[node name="Shelf10" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=2082057679 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, 1, -3.0163853, 1.6, 0.124317646)
 metadata/furnish_generated = true
 
-[node name="Shelf11" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=90912078 instance=ExtResource("42_xh5ub")]
+[node name="Shelf11" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=90912078 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, 1, -4.747335, 1.6, 0.124317616)
 metadata/furnish_generated = true
 
-[node name="Bed1" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1971125384 instance=ExtResource("40_amlfp")]
+[node name="Bed1" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1971125384 instance=ExtResource("40_amlfp")]
 transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, -3.0375674, 3, 4.5550966)
 metadata/furnish_generated = true
 
-[node name="Bed2" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=29124585 instance=ExtResource("40_amlfp")]
+[node name="Bed2" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=29124585 instance=ExtResource("40_amlfp")]
 transform = Transform3D(0.004382089, 0, -0.9999904, 0, 1, 0, 0.9999904, 0, 0.004382089, 4.232111, 3, -1.5145874)
 metadata/furnish_generated = true
 
-[node name="Bed4" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=377692707 instance=ExtResource("28_xo48a")]
+[node name="Bed4" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=377692707 instance=ExtResource("28_xo48a")]
 transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 1.2083079, 3, 4.5550966)
 metadata/furnish_generated = true
 
-[node name="Shelf12" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=977846393 instance=ExtResource("42_xh5ub")]
+[node name="Shelf12" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=977846393 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.855237, 4.6, -3.7649035)
 metadata/furnish_generated = true
 
-[node name="Shelf13" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1785884560 instance=ExtResource("42_xh5ub")]
+[node name="Shelf13" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1785884560 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.997452, 4.6, -3.7649035)
 metadata/furnish_generated = true
 
-[node name="Shelf14" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=302839742 instance=ExtResource("42_xh5ub")]
+[node name="Shelf14" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=302839742 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.0087857, 4.6, -3.7649035)
 metadata/furnish_generated = true
 
-[node name="Shelf15" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1867316332 instance=ExtResource("42_xh5ub")]
+[node name="Shelf15" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1867316332 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.774821, 4.6, 3.022721)
 metadata/furnish_generated = true
 
-[node name="Shelf16" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1144944309 instance=ExtResource("42_xh5ub")]
+[node name="Shelf16" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1144944309 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 5.774821, 4.6, 5.106131)
 metadata/furnish_generated = true
 
-[node name="Shelf17" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=1543049109 instance=ExtResource("42_xh5ub")]
+[node name="Shelf17" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1543049109 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -5.765179, 4.6, 3.1136613)
 metadata/furnish_generated = true
 
-[node name="Bed5" parent="Towns/Canyon/SettlementBar/Furniture" unique_id=685982698 instance=ExtResource("28_xo48a")]
+[node name="Bed5" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=685982698 instance=ExtResource("28_xo48a")]
 transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 4.993068, 3, 4.555084)
 metadata/furnish_generated = true
 
-[node name="BarServiceArea" type="Node3D" parent="Towns/Canyon/SettlementBar" unique_id=896339976]
+[node name="WallTorch2" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1347360750 instance=ExtResource("22_ywld2")]
+transform = Transform3D(-0.03712803, 0, 0.9993124, 0, 1, 0, -0.9993124, 0, -0.03712803, -5.7937927, 4.2424664, -0.45825195)
+light_path = NodePath("../WallTorch/Light")
+
+[node name="WallTorch" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=625346754 instance=ExtResource("22_ywld2")]
+transform = Transform3D(0.99969864, 0, 0.024568021, 0, 1, 0, -0.024568021, 0, 0.99969864, 0.12322998, 1.639997, 0.103652954)
+
+[node name="BarServiceArea" type="Node3D" parent="Towns/Canyon/CanyonCityRestStop" unique_id=896339976]
 script = ExtResource("29_thxgd")
 service_area_id = "canyon.settlement_bar.service_area"
-owner_faction_name = "SurfCity"
+owner_faction_name = "Canyonites"
 beds_root_path = NodePath("../Furniture")
 seats_root_path = NodePath("../Furniture")
 tables_root_path = NodePath("../Furniture")

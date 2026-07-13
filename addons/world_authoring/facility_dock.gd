@@ -11,6 +11,7 @@ extends PanelContainer
 
 const FUNCTIONS_DIR := "res://features/world_sim/resources/facility_functions"
 const APPEARANCE_PROFILES_DIR := "res://features/world_sim/resources/population_appearance_profiles"
+const FACTIONS_DIR := "res://features/factions/resources/factions"
 const ICONS_DIR := "res://addons/world_authoring/icons"
 ## facility_type / function facility_type -> icon file.
 const TYPE_ICONS := {
@@ -37,6 +38,12 @@ var _content: HBoxContainer
 var _identity_box: VBoxContainer
 var _shell_list: VBoxContainer
 var _furniture_text: RichTextLabel
+var _furniture_browser: ItemList
+var _furniture_search: LineEdit
+var _furniture_category: OptionButton
+var _furnish_button: Button
+var _reroll_button: Button
+var _place_furniture_button: Button
 var _clear_furniture_check: CheckBox
 var _staffing_box: VBoxContainer
 var _icon_cache := {}
@@ -83,15 +90,64 @@ func setup(tools: RefCounted) -> void:
 	_staffing_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	staffing_scroll.add_child(_staffing_box)
 	_content.add_child(staffing_scroll)
+	_content.add_child(_build_furniture_column())
+
+
+## Dedicated Furniture column: generation (Furnish/Reroll) and hand placement
+## live together. The browser is a thumbnail grid fed by the editor's
+## resource previewer, narrowed by a search box and a category filter —
+## built to stay usable as the furniture library grows.
+func _build_furniture_column() -> Control:
 	var furniture_column := VBoxContainer.new()
-	furniture_column.custom_minimum_size = Vector2(220, 0)
-	furniture_column.add_child(_section_title("Furniture (discovered)"))
+	furniture_column.custom_minimum_size = Vector2(320, 0)
+	furniture_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	furniture_column.add_child(_section_title("Furniture"))
+	var generate_row := HBoxContainer.new()
+	_furnish_button = Button.new()
+	_furnish_button.text = "Furnish"
+	_furnish_button.tooltip_text = "Generate a full layout for this facility (counter, tables, shelves, lights). Replaces previously GENERATED pieces only — hand-placed furniture is never touched."
+	_furnish_button.pressed.connect(func(): _tools.furnish_facility(_facility))
+	generate_row.add_child(_furnish_button)
+	_reroll_button = Button.new()
+	_reroll_button.text = "Reroll"
+	_reroll_button.tooltip_text = "New seed, new generated layout. Hand-placed furniture stays."
+	_reroll_button.pressed.connect(func(): _tools.furnish_facility(_facility, true))
+	generate_row.add_child(_reroll_button)
+	furniture_column.add_child(generate_row)
+	var filter_row := HBoxContainer.new()
+	_furniture_search = LineEdit.new()
+	_furniture_search.placeholder_text = "Search furniture..."
+	_furniture_search.clear_button_enabled = true
+	_furniture_search.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_furniture_search.text_changed.connect(func(_text: String): _rebuild_furniture_browser())
+	filter_row.add_child(_furniture_search)
+	_furniture_category = OptionButton.new()
+	_furniture_category.item_selected.connect(func(_index: int): _rebuild_furniture_browser())
+	filter_row.add_child(_furniture_category)
+	furniture_column.add_child(filter_row)
+	_furniture_browser = ItemList.new()
+	_furniture_browser.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_furniture_browser.custom_minimum_size = Vector2(0, 150)
+	_furniture_browser.icon_mode = ItemList.ICON_MODE_TOP
+	_furniture_browser.fixed_icon_size = Vector2i(56, 56)
+	_furniture_browser.max_columns = 0
+	_furniture_browser.same_column_width = true
+	_furniture_browser.item_activated.connect(func(index: int): _begin_browser_placement(index))
+	furniture_column.add_child(_furniture_browser)
+	_place_furniture_button = Button.new()
+	_place_furniture_button.text = "Place Selected"
+	_place_furniture_button.tooltip_text = "Ghost-place the selected piece (double-click does the same): hold left-click to anchor, drag rotates, scroll = height (wall mounts), release places. Lands under this facility's Furniture root as a normal editable node."
+	_place_furniture_button.pressed.connect(func():
+		var selected := _furniture_browser.get_selected_items()
+		if not selected.is_empty():
+			_begin_browser_placement(selected[0]))
+	furniture_column.add_child(_place_furniture_button)
+	furniture_column.add_child(_section_title("In this facility"))
 	_furniture_text = RichTextLabel.new()
 	_furniture_text.bbcode_enabled = true
 	_furniture_text.fit_content = true
-	_furniture_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	furniture_column.add_child(_furniture_text)
-	_content.add_child(furniture_column)
+	return furniture_column
 
 
 func set_facility(facility: Node) -> void:
@@ -116,6 +172,7 @@ func _rebuild() -> void:
 	_rebuild_identity()
 	_rebuild_shell_list()
 	_rebuild_staffing()
+	_rebuild_furniture_browser()
 	_rebuild_furniture_summary()
 	_updating = false
 
@@ -143,20 +200,10 @@ func _rebuild_identity() -> void:
 			unpack.tooltip_text = "This facility is a locked scene instance — its furniture and points can't be edited here. Unpack expands it into plain nodes owned by this scene. Undoable."
 			unpack.pressed.connect(func(): _tools.unpack_facility(_facility))
 		_identity_box.add_child(unpack)
+	if _facility.get("owner_faction_id") != null:
+		_identity_box.add_child(_owner_faction_picker())
 	if _facility is SettlementFacilityInstance:
 		_identity_box.add_child(_function_picker())
-		var furnish_row := HBoxContainer.new()
-		var furnish := Button.new()
-		furnish.text = "Furnish"
-		furnish.tooltip_text = "Generate furniture for this facility as normal editable nodes (counter, table clusters, wall shelves). Hand-placed furniture is never touched. Undoable."
-		furnish.pressed.connect(func(): _tools.furnish_facility(_facility))
-		furnish_row.add_child(furnish)
-		var reroll := Button.new()
-		reroll.text = "Reroll"
-		reroll.tooltip_text = "New seed, new layout. Replaces only generated furniture; your edits stay."
-		reroll.pressed.connect(func(): _tools.furnish_facility(_facility, true))
-		furnish_row.add_child(reroll)
-		_identity_box.add_child(furnish_row)
 	elif _facility is WorldBuilding:
 		var note := Label.new()
 		note.text = "Pure shell (housing). Assigning a function will wrap it in a facility — coming with the furnish pass."
@@ -179,6 +226,46 @@ func _facility_name_field(current_name: String) -> Control:
 	edit.text_submitted.connect(func(_text: String): commit.call())
 	edit.focus_exited.connect(commit)
 	row.add_child(edit)
+	return row
+
+
+## Who owns this facility's property (theft/ownership checks resolve to it).
+## "(inherit town)" leaves owner_faction_id empty so the town's faction
+## applies; options come from the on-disk faction database.
+func _owner_faction_picker() -> Control:
+	var paths := _scan_resource_paths(FACTIONS_DIR)
+	var option := OptionButton.new()
+	option.add_item("(inherit town)")
+	var current := str(_facility.get("owner_faction_id")).strip_edges()
+	var ids: Array[String] = []
+	var selected := 0
+	for path in paths:
+		var definition := load(path) as Resource
+		if definition == null or not definition.has_method("get_id"):
+			continue
+		var id := str(definition.call("get_id"))
+		ids.append(id)
+		var emblem := definition.get("icon") as Texture2D
+		var label_text := "%s (%s)" % [str(definition.get("display_name")), id]
+		if emblem != null:
+			option.add_icon_item(emblem, label_text)
+		else:
+			option.add_item(label_text)
+		if id == current:
+			selected = ids.size()
+	option.selected = selected
+	option.item_selected.connect(func(index: int):
+		if _updating:
+			return
+		var value := "" if index == 0 else ids[index - 1]
+		_tools.set_facility_property(_facility, "owner_faction_id", value))
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = "Owner Faction"
+	label.custom_minimum_size = Vector2(110, 0)
+	row.add_child(label)
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(option)
 	return row
 
 
@@ -346,6 +433,79 @@ func _staff_count_field(property_name: String, value: int) -> Control:
 	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(spin)
 	return row
+
+
+func _rebuild_furniture_browser() -> void:
+	if _furniture_browser == null:
+		return
+	var entries: Array = _tools.get_furniture_catalog()
+	_populate_furniture_categories(entries)
+	var placeable := _facility is SettlementFacilityInstance
+	_furniture_browser.tooltip_text = "" if placeable else "Hand placement needs a composed facility (bar/jail/keep)."
+	_place_furniture_button.disabled = not placeable
+	_furnish_button.disabled = not placeable
+	_reroll_button.disabled = not placeable
+	var query := _furniture_search.text.strip_edges().to_lower() if _furniture_search != null else ""
+	var category := ""
+	if _furniture_category != null and _furniture_category.selected > 0:
+		category = str(_furniture_category.get_item_metadata(_furniture_category.selected))
+	_furniture_browser.clear()
+	var fallback_icon := get_theme_icon("PackedScene", "EditorIcons")
+	var previewer := EditorInterface.get_resource_previewer()
+	for entry in entries:
+		if not category.is_empty() and str(entry["category"]) != category:
+			continue
+		if not query.is_empty() and not str(entry["name"]).to_lower().contains(query):
+			continue
+		var path := str(entry["path"])
+		var index := _furniture_browser.add_item(str(entry["name"]), fallback_icon)
+		_furniture_browser.set_item_metadata(index, path)
+		_furniture_browser.set_item_tooltip(index, "%s\nDouble-click to place." % path)
+		if not placeable:
+			_furniture_browser.set_item_disabled(index, true)
+		previewer.queue_resource_preview(path, self, "_on_furniture_preview_ready", path)
+
+
+## Category dropdown is rebuilt from the catalog (never hardcoded) while
+## preserving the current selection.
+func _populate_furniture_categories(entries: Array) -> void:
+	if _furniture_category == null:
+		return
+	var selected := ""
+	if _furniture_category.selected > 0:
+		selected = str(_furniture_category.get_item_metadata(_furniture_category.selected))
+	var categories: Array[String] = []
+	for entry in entries:
+		if not categories.has(str(entry["category"])):
+			categories.append(str(entry["category"]))
+	categories.sort()
+	_furniture_category.clear()
+	_furniture_category.add_item("All")
+	for category in categories:
+		_furniture_category.add_item(category.capitalize())
+		_furniture_category.set_item_metadata(_furniture_category.item_count - 1, category)
+		if category == selected:
+			_furniture_category.selected = _furniture_category.item_count - 1
+
+
+## Async thumbnail arrival from the editor's resource previewer: items are
+## matched back by path metadata because the grid may have been refiltered
+## while the preview rendered.
+func _on_furniture_preview_ready(path: String, preview: Texture2D, _thumbnail: Texture2D, _userdata: Variant) -> void:
+	if preview == null or _furniture_browser == null or not is_instance_valid(_furniture_browser):
+		return
+	for index in range(_furniture_browser.item_count):
+		if str(_furniture_browser.get_item_metadata(index)) == path:
+			_furniture_browser.set_item_icon(index, preview)
+			return
+
+
+func _begin_browser_placement(index: int) -> void:
+	if _facility == null or not is_instance_valid(_facility):
+		return
+	var path := str(_furniture_browser.get_item_metadata(index))
+	if not path.is_empty():
+		_tools.begin_furniture_placement(_facility, path)
 
 
 func _rebuild_furniture_summary() -> void:

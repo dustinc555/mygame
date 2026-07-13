@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://features/core/game_bootstrap.gd" id="3_bootstrap"]
 [ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://features/settlements/bridge/settlement_town.gd" id="4_town"]
 [ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://features/world_sim/resources/settlement_definition.gd" id="5_settlement_definition"]
-[ext_resource type="Resource" uid="uid://h4a4vsdtrlvq" path="res://features/world_sim/resources/factions/farmers.tres" id="6_farmers"]
+[ext_resource type="Resource" uid="uid://h4a4vsdtrlvq" path="res://features/factions/resources/factions/farmers.tres" id="6_farmers"]
 [ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://features/settlements/bridge/settlement_jail.tscn" id="7_jail"]
 [ext_resource type="PackedScene" path="res://features/world/projection/items/world_item.tscn" id="8_world_item"]
 [ext_resource type="Resource" path="res://features/inventory/resources/items/expensive_vase.tres" id="9_vase"]

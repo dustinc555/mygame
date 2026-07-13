@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://bdqbw1l1nr1rw"]
+
+[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://features/factions/resources/faction_definition.gd" id="1_065xx"]
+[ext_resource type="Texture2D" uid="uid://badch4qn3pi6y" path="res://features/factions/resources/icons/canyon.svg" id="1_lr0s0"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/behavior_profiles/settler_common_town.tres" id="2_behavior"]
+[ext_resource type="Resource" path="res://features/factions/resources/personality_profiles/settler_common.tres" id="3_personality"]
+[ext_resource type="Resource" path="res://features/factions/resources/law_profiles/settler_common_law.tres" id="4_law"]
+[ext_resource type="Resource" uid="uid://4464sf7u02lx" path="res://features/world_sim/resources/population_name_profiles/farmer_names.tres" id="5_names"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/settler_common.tres" id="6_appearance"]
+
+[resource]
+script = ExtResource("1_065xx")
+faction_id = "Canyonites"
+display_name = "Canyonites"
+description = "People of the canyon. Mostly survivors banding together."
+icon = ExtResource("1_lr0s0")
+primary_color = Color(0.76953125, 0.5374836, 0.04508972, 1)
+default_hostile_faction_ids = PackedStringArray()
+starting_war_faction_ids = PackedStringArray()
+active_zone_ids = PackedStringArray()
+owned_settlement_ids = PackedStringArray()
+behavior_profile = ExtResource("2_behavior")
+personality_profile = ExtResource("3_personality")
+law_profile = ExtResource("4_law")
+population_name_profile = ExtResource("5_names")
+population_appearance_profile = ExtResource("6_appearance")
