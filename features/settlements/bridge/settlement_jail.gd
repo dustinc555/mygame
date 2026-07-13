@@ -154,11 +154,15 @@ func fill_settlement_staff_slot(slot_id: String, slot_record: Dictionary) -> Nod
 		# Ledger-assigned worker: claim its specific live body if realized, else build from record.
 		actor = SettlementFacility.resolve_live_worker(self, worker_actor_id)
 		if actor != null:
+			# Adopt first: the reparent preserves global transform, so the
+			# slot-local prep position must be set after the actor hangs
+			# under the staff root.
+			SettlementFacility.adopt_staff_record(actor, worker_actor_id, slot_id, staff_root)
 			_prepare_staff_actor(actor, role, role_index, true)
 		else:
 			actor = _create_staff_actor(role, role_index, staff_root)
-		if actor != null:
-			SettlementFacility.adopt_staff_record(actor, worker_actor_id, slot_id, staff_root)
+			if actor != null:
+				SettlementFacility.adopt_staff_record(actor, worker_actor_id, slot_id, staff_root)
 	else:
 		actor = _claim_available_resident_for_role(role, role_index, staff_root)
 		if actor == null:

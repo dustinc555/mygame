@@ -169,17 +169,26 @@ func get_entry_at_cell(cell: Vector2i):
 	return null
 
 
-func move_entry_to_inventory(entry, target_inventory, target_position: Vector2i) -> bool:
+## True when move_entry_to_inventory would commit: the entry lives here, the
+## target has the weight budget, and the cell fits. Lets callers gate side
+## effects (theft rolls, stolen-item metadata) on a take that will happen.
+func can_move_entry_to_inventory(entry, target_inventory, target_position: Vector2i) -> bool:
 	if entry == null or target_inventory == null:
 		return false
 	if not entries.has(entry):
 		return false
 	if target_inventory == self:
-		return move_entry(entry, target_position)
+		return true
 	if target_inventory.use_weight and target_inventory.get_total_weight() + get_entry_weight(entry) > target_inventory.max_weight:
 		return false
-	if not target_inventory.can_place_item(entry.definition, target_position):
+	return target_inventory.can_place_item(entry.definition, target_position)
+
+
+func move_entry_to_inventory(entry, target_inventory, target_position: Vector2i) -> bool:
+	if not can_move_entry_to_inventory(entry, target_inventory, target_position):
 		return false
+	if target_inventory == self:
+		return move_entry(entry, target_position)
 
 	entries.erase(entry)
 	target_inventory.entries.append(InventoryEntry.new(entry.definition, target_position, entry.count, entry.contained_item_counts, entry.metadata))
