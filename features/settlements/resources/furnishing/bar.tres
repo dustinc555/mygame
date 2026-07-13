@@ -8,6 +8,10 @@
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_1.tscn" id="6_bed1"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_2.tscn" id="7_bed2"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_3.tscn" id="8_bed3"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/barrel.tscn" id="9_barrel"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/barrel_dark.tscn" id="10_barrel_dark"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/crate_wooden.tscn" id="11_crate"]
+[ext_resource type="Resource" path="res://features/settlements/resources/furnishing/bar_container_stock.tres" id="12_stock"]
 
 [resource]
 script = ExtResource("1_rules")
@@ -17,6 +21,10 @@ counter_staff_strip_meters = 0.9
 cluster_scenes = Array[PackedScene]([ExtResource("3_cluster4"), ExtResource("4_cluster2")])
 square_meters_per_cluster = 14.0
 max_clusters = 3
+container_scenes = Array[PackedScene]([ExtResource("9_barrel"), ExtResource("10_barrel_dark"), ExtResource("11_crate")])
+container_stock = ExtResource("12_stock")
+max_containers = 4
+container_chance = 0.5
 shelf_scenes = Array[PackedScene]([ExtResource("5_shelf")])
 shelf_chance = 0.45
 shelf_mount_height = 1.6

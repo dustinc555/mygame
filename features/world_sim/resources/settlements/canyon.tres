@@ -12,3 +12,4 @@ faction_definition = ExtResource("1_0cjtd")
 population_appearance_profile = ExtResource("2_4cvdm")
 world_position = Vector3(-2.5942535, -0.007736206, -313.2602)
 known_settlement_ids = PackedStringArray()
+starting_supplies = 2.5

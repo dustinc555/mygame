@@ -76,10 +76,6 @@ func refresh() -> void:
 		weight_label.text = "Weight: %.1f / %.1f" % [inventory.get_total_weight(), inventory.max_weight]
 	else:
 		weight_label.visible = false
-	if inventory_owner.has_method("get_inventory_cell_size"):
-		inventory_grid.cell_size = inventory_owner.get_inventory_cell_size()
-	else:
-		inventory_grid.cell_size = Vector2(30.0, 30.0)
 	inventory_grid.set_inventory_data(inventory)
 	inventory_grid.set_meta("source_owner", inventory_owner)
 	_refresh_equipment_slots()

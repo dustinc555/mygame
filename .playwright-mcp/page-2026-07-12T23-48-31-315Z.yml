@@ -1,0 +1,73 @@
+- generic [ref=e1]:
+  - generic "Google Maps" [ref=e2]:
+    - generic [ref=e3]:
+      - application "Map · Use arrow keys to pan the map. · Get details about a place by pressing its corresponding number key." [ref=e8]
+      - search [ref=e14]:
+        - generic [ref=e15]:
+          - combobox [ref=e17]: 2926 Mockingbird Trail
+          - button "Search" [ref=e19] [cursor=pointer]:
+            - generic [ref=e20]: 
+          - button "Close" [ref=e22] [cursor=pointer]:
+            - generic [ref=e23]: 
+      - generic [ref=e24]:
+        - generic [ref=e25]:
+          - list [ref=e27]:
+            - listitem [ref=e28]:
+              - button "Menu" [ref=e29] [cursor=pointer]:
+                - generic [ref=e30]: 
+            - listitem [ref=e32]:
+              - button "Saved" [ref=e33] [cursor=pointer]:
+                - generic [ref=e34]: 
+            - listitem [ref=e38]:
+              - button "Recents" [disabled] [ref=e39]:
+                - generic [ref=e40]: 
+            - listitem [ref=e45]:
+              - button "Get app" [ref=e46] [cursor=pointer]:
+                - generic [ref=e47]: 
+          - main [ref=e55]:
+            - button [active] [ref=e58] [cursor=pointer]
+            - generic [ref=e62]:
+              - heading "2926 Mockingbird Trail" [level=1] [ref=e64]
+              - generic [ref=e65]: Building
+            - region "Actions for 2926 Mockingbird Trail" [ref=e71]:
+              - button "Directions" [ref=e73] [cursor=pointer]:
+                - generic [ref=e74]: 
+              - button "Save" [ref=e78] [cursor=pointer]:
+                - generic [ref=e79]: 
+              - button "Nearby" [ref=e83] [cursor=pointer]:
+                - generic [ref=e84]: 
+              - button "Send to phone" [ref=e88] [cursor=pointer]:
+                - generic [ref=e89]: 
+              - button "Share" [ref=e93] [cursor=pointer]:
+                - generic [ref=e94]: 
+            - button "Address 2926 Mockingbird Trail, Casper, WY 82604 Copy address" [ref=e100]:
+              - generic [ref=e101]:
+                - img "Address" [ref=e102]: 
+                - generic [ref=e103]: 2926 Mockingbird Trail, Casper, WY 82604
+                - button "Copy address" [ref=e105] [cursor=pointer]:
+                  - generic [ref=e106]: 
+                  - textbox [ref=e107]
+            - button "Suggest an edit on 2926 Mockingbird Trail" [ref=e109]:
+              - generic [ref=e110]:
+                - generic [ref=e111]: 
+                - generic [ref=e112]: Suggest an edit on 2926 Mockingbird Trail
+            - button "Add a missing place" [ref=e114]:
+              - generic [ref=e115]:
+                - generic [ref=e116]: 
+                - generic [ref=e117]: Add a missing place
+            - link "Add your business" [ref=e119] [cursor=pointer]:
+              - /url: https://business.google.com/create?service=plus&hl=en&authuser=0&gmbsrc=us-en-et-ip-z-gmb-s-z-l~mrc%7Cayb%7Cpg&skiplp=1
+              - generic [ref=e120]:
+                - generic [ref=e121]: 
+                - generic [ref=e122]: Add your business
+            - heading "Photos" [level=2] [ref=e124]
+            - button "Street View" [ref=e127] [cursor=pointer]:
+              - generic [ref=e131]: 
+            - heading "Get the most out of Google Maps Sign in" [level=2] [ref=e137]:
+              - generic [ref=e138]: Get the most out of Google Maps
+              - button "Sign in" [ref=e141] [cursor=pointer]
+        - generic [ref=e144]:
+          - button "Collapse side panel" [ref=e145] [cursor=pointer]:
+            - generic [ref=e146]: 
+          - generic [ref=e147]: Collapse side panel
+  - generic [ref=e149]: Loading...

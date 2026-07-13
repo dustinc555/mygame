@@ -164,13 +164,6 @@ func get_inventory_world_position() -> Vector3:
 	return owner_character.global_position if owner_character != null else global_position
 
 
-func get_inventory_cell_size() -> Vector2:
-	var owner_character := get_owner_character()
-	if owner_character != null and owner_character.has_method("get_inventory_cell_size"):
-		return owner_character.get_inventory_cell_size()
-	return Vector2(30.0, 30.0)
-
-
 func shows_inventory_weight() -> bool:
 	return false
 

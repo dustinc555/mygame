@@ -6,6 +6,10 @@ const SERVICE_ID := &"ownership"
 
 const OWNERSHIP_UTILS_SCRIPT = preload("res://features/settlements/sim/ownership_utils.gd")
 
+## Human-readable record of the most recent steal authorization, for the
+## Stealth Debug window — the theft dice are invisible otherwise.
+var last_steal_roll_summary := ""
+
 @export var notice_radius := 12.0
 @export var warnings_before_attack := 2
 @export var beloved_reputation_threshold := 75
@@ -76,29 +80,49 @@ func request_take_item(actor: HumanoidCharacter, item) -> bool:
 	if _can_take_legally(actor, item):
 		return true
 	if _actor_is_in_theft_combat(actor, item):
+		last_steal_roll_summary = "take during live fight with the owner: free"
 		return true
 	var witnesses := _find_theft_witnesses(actor, item)
+	if not witnesses.is_empty():
+		last_steal_roll_summary = "SEEN stealing by %s" % str(witnesses[0].name)
+	elif not actor.sneaking:
+		# Grabbing someone's goods while standing in the open is not an
+		# attempt to conceal anything — no roll: ANYONE close enough to
+		# notice catches it outright, related to the owner or not.
+		witnesses = _find_nearby_theft_witnesses(actor, item, THEFT_NOTICE_RADIUS)
+		last_steal_roll_summary = "open grab: %s" % ("no one within %.0fm — free" % THEFT_NOTICE_RADIUS if witnesses.is_empty() else "caught by %d nearby" % witnesses.size())
 	if witnesses.is_empty():
 		var suspicious_witness := _find_theft_suspicion_witness(actor, item)
 		if suspicious_witness == null:
 			_award_theft_attempt_xp(actor, true)
 			return true
-		_award_theft_attempt_xp(actor, false)
-		var suspicious_witnesses: Array[HumanoidCharacter] = [suspicious_witness]
-		_award_theft_detection_xp(suspicious_witnesses)
 		_warn_suspicious_witness(suspicious_witness, actor)
+		var suspicious_witnesses: Array[HumanoidCharacter] = [suspicious_witness]
+		_handle_caught_theft(actor, item, suspicious_witnesses)
 		return false
+	_handle_caught_theft(actor, item, witnesses)
+	# Caught red-handed: the attempt is reported AND the take fails — a thief
+	# cannot pocket goods while someone watches them do it.
+	return false
+
+
+## Every caught theft, seen or heard, converges here: XP both ways, the law
+## report (warrant + guards), and the human reaction — witnesses face the
+## thief, the owner's own people fight for their property on the spot,
+## unrelated bystanders raise the alarm through the report instead.
+func _handle_caught_theft(actor: HumanoidCharacter, item, witnesses: Array[HumanoidCharacter]) -> void:
 	_award_theft_attempt_xp(actor, false)
 	_award_theft_detection_xp(witnesses)
 	var law_controller := _get_law_order_controller()
 	if law_controller != null and law_controller.has_method("report_theft_if_witnessed"):
 		law_controller.call("report_theft_if_witnessed", actor, item, witnesses)
 	else:
-		var lead_witness: HumanoidCharacter = witnesses[0]
-		lead_witness.show_world_speech("Thief! Guards!", 4.0)
-		for witness in witnesses:
+		witnesses[0].show_world_speech("Thief! Guards!", 4.0)
+	for witness in witnesses:
+		_turn_witness_toward_actor(witness, actor)
+		if _witness_defends_property(witness, item):
 			witness.assign_attack_target(actor, false)
-	return true
+	_alert_private_security(actor, item)
 
 
 func get_take_item_metadata(actor: HumanoidCharacter, item, current_metadata: Dictionary = {}) -> Dictionary:
@@ -115,6 +139,12 @@ func get_take_item_metadata(actor: HumanoidCharacter, item, current_metadata: Di
 
 func get_take_item_label(actor: HumanoidCharacter, item) -> String:
 	return "Pick Up" if _can_take_legally(actor, item) or _actor_is_in_theft_combat(actor, item) else "Steal"
+
+
+## Opening someone else's container is always allowed — the red tint is the
+## warning that taking anything from it is burglary for this actor.
+func get_open_container_color(actor: HumanoidCharacter, container) -> Color:
+	return Color.TRANSPARENT if _can_take_legally(actor, container) or _actor_is_in_theft_combat(actor, container) else STEAL_ACTION_COLOR
 
 
 func get_take_item_color(actor: HumanoidCharacter, item) -> Color:
@@ -148,11 +178,53 @@ func _is_reputation_take_tolerated(actor: HumanoidCharacter, target) -> bool:
 	return int(faction_controller.call("get_reputation", actor.faction_name, owner_faction)) >= beloved_reputation_threshold
 
 
+## Looting during the actual brawl is combat, not a fresh theft to re-report.
+## Requires LIVE engagement — one side actively targeting the other. A stale
+## grudge record is NOT combat: it latches after the first caught attempt and
+## once made every later steal from that owner silently free.
 func _actor_is_in_theft_combat(actor: HumanoidCharacter, target) -> bool:
 	for witness in _find_relevant_owner_witnesses(target):
-		if actor.has_hostility_with(witness):
+		if not actor.has_hostility_with(witness):
+			continue
+		if actor.get_current_combat_target() == witness or witness.get_current_combat_target() == actor:
 			return true
 	return false
+
+
+# The one theft detection bubble, sneaking or not: owner-side people inside
+# it catch an open grab outright and contest a sneaking one. Per-item
+# theft_noise_radius never changes this range — it only scales how hard the
+# sneaking roll gets as a witness closes in on a loud target.
+const THEFT_NOTICE_RADIUS := 8.0
+
+
+## Anyone alive and nearby can catch a theft — being unrelated to the owner
+## only changes the reaction (bystanders alarm and report, the owner's people
+## fight). Distance is the only gate: an open grab is caught from behind too.
+func _find_nearby_theft_witnesses(actor: HumanoidCharacter, target, radius: float) -> Array[HumanoidCharacter]:
+	var witnesses: Array[HumanoidCharacter] = []
+	if not (target is Node3D) or not is_inside_tree():
+		return witnesses
+	var target_position := (target as Node3D).global_position
+	for node in get_tree().get_nodes_in_group("npc_character"):
+		var humanoid := node as HumanoidCharacter
+		if humanoid == null or humanoid == actor or humanoid.player_party_member:
+			continue
+		if humanoid.life_state != NpcRules.LifeState.ALIVE:
+			continue
+		if humanoid.global_position.distance_to(target_position) <= radius:
+			witnesses.append(humanoid)
+	return witnesses
+
+
+## Whether a witness fights for the goods: the property's owner or someone of
+## the owner's faction. Everyone else just reports.
+func _witness_defends_property(witness: HumanoidCharacter, target) -> bool:
+	var explicit_owner = OWNERSHIP_UTILS_SCRIPT.get_explicit_owner(target)
+	if explicit_owner != null and witness == explicit_owner:
+		return true
+	var owner_faction := _get_enforcing_faction_name(target)
+	return not owner_faction.is_empty() and witness.faction_name == owner_faction
 
 
 func _find_theft_witnesses(actor: HumanoidCharacter, target) -> Array[HumanoidCharacter]:
@@ -160,39 +232,77 @@ func _find_theft_witnesses(actor: HumanoidCharacter, target) -> Array[HumanoidCh
 	var perception_controller := _get_perception_controller()
 	if perception_controller == null or not perception_controller.has_method("evaluate_observer"):
 		return witnesses
-	for humanoid in _find_relevant_owner_witnesses(target):
-		if actor == humanoid or humanoid.life_state != NpcRules.LifeState.ALIVE:
-			continue
-		if humanoid.global_position.distance_to(actor.global_position) > notice_radius:
-			continue
+	for humanoid in _find_nearby_theft_witnesses(actor, target, notice_radius):
 		var result := perception_controller.call("evaluate_observer", humanoid, actor) as Dictionary
 		if bool(result.get("clearly_seen", false)):
 			witnesses.append(humanoid)
 	return witnesses
 
 
+## Sneaking theft: everyone in the SAME notice bubble as open theft could
+## notice — sneaking just buys a percent chance the take happens quietly.
+## The roll runs against the hardest witness in range (closest to the item,
+## sharpest perception); per-item loudness only shapes how fast proximity
+## piles on pressure, it is not a separate detection range.
 func _find_theft_suspicion_witness(actor: HumanoidCharacter, target) -> HumanoidCharacter:
-	var noise_radius := _get_theft_noise_radius(target)
-	if noise_radius <= 0.01 or not (target is Node3D):
+	if not (target is Node3D):
 		return null
 	var target_node := target as Node3D
 	var actor_skill := _get_actor_theft_skill(actor)
-	var best_witness: HumanoidCharacter = null
-	var best_margin := -1.0
-	for humanoid in _find_relevant_owner_witnesses(target):
-		if actor == humanoid or humanoid.life_state != NpcRules.LifeState.ALIVE:
-			continue
+	var noise_radius := _get_theft_noise_radius(target)
+	var hardest_witness: HumanoidCharacter = null
+	var hardest_required := -INF
+	for humanoid in _find_nearby_theft_witnesses(actor, target, THEFT_NOTICE_RADIUS):
 		var witness_distance := humanoid.global_position.distance_to(target_node.global_position)
-		if witness_distance > noise_radius:
-			continue
 		var required_skill := _get_required_theft_skill(actor, target, humanoid, witness_distance, noise_radius)
-		if actor_skill >= required_skill:
+		if required_skill > hardest_required:
+			hardest_required = required_skill
+			hardest_witness = humanoid
+	if hardest_witness == null:
+		last_steal_roll_summary = "sneak take: no one within %.0fm — silent" % THEFT_NOTICE_RADIUS
+		return null
+	# Parity is a 1-in-4 shot, not a coin flip: stealing under someone's nose
+	# should demand clearly outclassing the situation, and even a master keeps
+	# a sliver of fumble risk (0.97 cap).
+	var quiet_chance := clampf(0.25 + (actor_skill - hardest_required) / 60.0, 0.03, 0.97)
+	var stayed_quiet := _rng.randf() <= quiet_chance
+	last_steal_roll_summary = "sneak roll: skill %.0f vs need %.0f (%s %.1fm) -> %d%% quiet: %s" % [
+		actor_skill,
+		hardest_required,
+		str(hardest_witness.name),
+		hardest_witness.global_position.distance_to(target_node.global_position),
+		int(round(quiet_chance * 100.0)),
+		"quiet" if stayed_quiet else "CAUGHT",
+	]
+	if stayed_quiet:
+		return null
+	return hardest_witness
+
+
+## Caught thieves face the property's own muscle immediately: private
+## security of the owning faction near the scene engages on the spot. Town
+## soldiers still come separately through the warrant the law report filed —
+## bar guards are deliberately NOT faction soldiers (facility layering).
+const PRIVATE_SECURITY_RESPONSE_RADIUS := 16.0
+
+
+func _alert_private_security(actor: HumanoidCharacter, target) -> void:
+	if actor == null or not (target is Node3D) or root_scene == null or not root_scene.is_inside_tree():
+		return
+	var owner_faction := _get_enforcing_faction_name(target)
+	if owner_faction.is_empty():
+		return
+	var scene_position := (target as Node3D).global_position
+	for node in root_scene.get_tree().get_nodes_in_group("private_security"):
+		var guard := node as HumanoidCharacter
+		if guard == null or guard == actor or guard.life_state != NpcRules.LifeState.ALIVE or guard.player_party_member:
 			continue
-		var margin := required_skill - actor_skill
-		if margin > best_margin:
-			best_margin = margin
-			best_witness = humanoid
-	return best_witness
+		if guard.faction_name != owner_faction:
+			continue
+		if guard.global_position.distance_to(scene_position) > PRIVATE_SECURITY_RESPONSE_RADIUS:
+			continue
+		guard.show_world_speech("Stop! Thief!", 4.0)
+		guard.assign_attack_target(actor, false)
 
 
 func _warn_suspicious_witness(witness: HumanoidCharacter, actor: HumanoidCharacter) -> void:
@@ -213,10 +323,17 @@ func _turn_witness_toward_actor(witness: HumanoidCharacter, actor: HumanoidChara
 
 func _get_required_theft_skill(actor: HumanoidCharacter, target, observer: HumanoidCharacter, witness_distance: float, noise_radius: float) -> float:
 	var difficulty := float(_get_theft_difficulty(target))
-	var proximity_pressure := 35.0 * (1.0 - clampf(witness_distance / maxf(noise_radius, 0.001), 0.0, 1.0))
+	# A witness anywhere in the notice bubble presses on the roll the closer
+	# they stand — stealing at arm's length from the owner is near-hopeless
+	# for a novice. Loud targets (crate rummage) stack extra pressure inside
+	# their own loudness radius on top of that.
+	var proximity_pressure := 35.0 * (1.0 - clampf(witness_distance / THEFT_NOTICE_RADIUS, 0.0, 1.0))
+	var loudness_pressure := 0.0
+	if noise_radius > 0.01:
+		loudness_pressure = 15.0 * (1.0 - clampf(witness_distance / noise_radius, 0.0, 1.0))
 	var perception_pressure := SkillRules.get_diminishing_bonus(float(observer.get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION)) if observer != null else 0.0, 24.0, 45.0)
 	var posture_penalty := 0.0 if actor != null and actor.sneaking else 15.0
-	return maxf(0.0, difficulty + proximity_pressure + perception_pressure + posture_penalty)
+	return maxf(0.0, difficulty + proximity_pressure + loudness_pressure + perception_pressure + posture_penalty)
 
 
 func _get_actor_theft_skill(actor: HumanoidCharacter) -> float:

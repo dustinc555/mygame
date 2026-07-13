@@ -114,6 +114,7 @@ func _furnish_level(pieces: Array[Dictionary], rules: FurnishRules, rng: RandomN
 		if not counter.is_empty():
 			placements.append(counter)
 		placements.append_array(_place_clusters(rules, rng, placements))
+		placements.append_array(_place_containers(anchors, rules, rng, placements))
 		placements.append_array(_place_shelves(anchors, rules, rng, counter))
 	else:
 		placements.append_array(_place_beds(anchors, rules, rng))
@@ -423,6 +424,76 @@ func _place_beds(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNum
 	if not OS.get_environment("FURNISH_DEBUG").is_empty():
 		print("beds: %d placed, %d candidates, rejects %s" % [placements.size(), candidates.size(), rejects])
 	return placements
+
+
+## Containers (crates/barrels) stand against solid walls in whatever floor
+## space the tables left over — door corridors and staff/customer strips are
+## WALK_ONLY on the grid, so the FREE-state requirement keeps them out of
+## traffic without any explicit door logic. Each placed container carries a
+## stock list rolled from the rules' loot table, baked into the saved node.
+func _place_containers(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, existing: Array[Dictionary]) -> Array[Dictionary]:
+	var placements: Array[Dictionary] = []
+	if rules.container_scenes.is_empty():
+		return placements
+	var footprints := {}
+	for scene in rules.container_scenes:
+		footprints[scene] = _container_footprint(scene)
+	var candidates := anchors.filter(func(anchor): return anchor["category"] == "wall")
+	for index in range(candidates.size() - 1, 0, -1):
+		var swap := rng.randi_range(0, index)
+		var held = candidates[index]
+		candidates[index] = candidates[swap]
+		candidates[swap] = held
+	for anchor in candidates:
+		if placements.size() >= rules.max_containers:
+			break
+		if rng.randf() > rules.container_chance:
+			continue
+		var scene: PackedScene = rules.container_scenes[rng.randi_range(0, rules.container_scenes.size() - 1)]
+		var footprint: Vector2 = footprints[scene]
+		var normal: Vector2 = anchor["normal"]
+		var along: Vector2 = anchor["along"]
+		var slide := rng.randf_range(-0.6, 0.6)
+		var center: Vector2 = anchor["position"] + normal * (WALL_THICKNESS * 0.5 + footprint.y * 0.5 + 0.05) + along * slide
+		var yaw := atan2(normal.x, normal.y) + deg_to_rad(rng.randf_range(-8.0, 8.0))
+		var container_transform := Transform3D(Basis(Vector3.UP, yaw), Vector3(center.x, 0.0, center.y))
+		if not _region_is(container_transform, footprint, 0.0, [STATE_FREE]):
+			continue
+		# Like beds: the margin ring may overlap the wall band behind it, but
+		# other furniture must not crowd the reach side.
+		if _region_touches(container_transform, footprint, CLUSTER_MARGIN, STATE_OCCUPIED):
+			continue
+		_stamp_oriented_box(container_transform, footprint, 0.0, STATE_OCCUPIED, [STATE_FREE])
+		var probe: Vector2 = center + normal * (footprint.y * 0.5 + CLUSTER_MARGIN + CELL)
+		var placement := {
+			"kind": "container",
+			"scene": scene,
+			"transform": container_transform,
+			"reach_probe": Vector3(probe.x, 0.0, probe.y),
+		}
+		if rules.container_stock != null:
+			placement["stock"] = rules.container_stock.roll(rng)
+		var check: Array[Dictionary] = existing + placements
+		check.append(placement)
+		if not _walkability_holds(check):
+			_stamp_oriented_box(container_transform, footprint, 0.0, STATE_FREE, [STATE_OCCUPIED])
+			continue
+		placements.append(placement)
+	return placements
+
+
+## A container wrapper's floor footprint comes from its exported collision
+## shape — no per-scene footprint authoring, the physics box IS the truth.
+func _container_footprint(scene: PackedScene) -> Vector2:
+	var instance := scene.instantiate()
+	var shape: Shape3D = instance.get("collision_shape")
+	instance.free()
+	if shape is BoxShape3D:
+		return Vector2((shape as BoxShape3D).size.x, (shape as BoxShape3D).size.z)
+	if shape is CylinderShape3D:
+		var diameter := (shape as CylinderShape3D).radius * 2.0
+		return Vector2(diameter, diameter)
+	return Vector2(1.2, 1.2)
 
 
 ## Shelves mount on solid wall segments only (never doors or windows — that

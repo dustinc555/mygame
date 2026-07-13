@@ -19,6 +19,19 @@ func _ready() -> void:
 	add_to_group("settlement_facility")
 
 
+## Everything inside a facility is the facility owner's property: spawned
+## prop items resolve ownership by walking up to these instead of per-node
+## stamping, so ownership follows staff turnover automatically.
+func get_property_owner_faction() -> String:
+	return owner_faction_id
+
+
+## The person who personally owns the facility's goods (a bar's barkeeper);
+## facilities without a personal owner stay faction-owned only.
+func get_property_owner_character() -> HumanoidCharacter:
+	return null
+
+
 ## Bind a staff body to the ledger record the world-sim assigned to this slot, re-homing it under
 ## the given staff root. `actor` is either the worker's already-live body (claimed, e.g. a resident
 ## the full-town spawner realized) or a body the facility freshly built from the record. Either way

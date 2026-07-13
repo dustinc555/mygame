@@ -69,6 +69,10 @@ var _tile_debug_enabled := false
 var _full_scene_region: NavigationRegion3D
 var _full_scene_baking := false
 var _has_navmesh := false
+# True once the first whole-scene bake finished, even with zero polygons: a
+# scene with no bakeable collision must still release the startup gate, or
+# the loading overlay pauses the tree forever (nothing will ever retry).
+var _full_scene_bake_completed := false
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -180,7 +184,7 @@ func is_idle() -> bool:
 
 func is_initial_navigation_pending() -> bool:
 	if _mode == Mode.FULL_SCENE:
-		return not _has_navmesh
+		return not _has_navmesh and not _full_scene_bake_completed
 	return _mode == Mode.TILED and not _initial_ready
 
 
@@ -196,7 +200,7 @@ func initial_tiles_total() -> int:
 ## >0 only during the startup bake; after that the game never gates.
 func gate_tiles_pending() -> int:
 	if _mode == Mode.FULL_SCENE:
-		return 0 if _has_navmesh else 1
+		return 0 if (_has_navmesh or _full_scene_bake_completed) else 1
 	if _mode != Mode.TILED or _initial_ready:
 		return 0
 	return pending_tile_count()
@@ -506,12 +510,15 @@ func _task_bake_full_scene(geometry: NavigationMeshSourceGeometryData3D, postpro
 func _finish_full_scene_bake(nav_mesh: NavigationMesh) -> void:
 	_inflight.clear()
 	_full_scene_baking = false
+	var first := not _full_scene_bake_completed
+	_full_scene_bake_completed = true
 	if nav_mesh.get_polygon_count() > 0 and is_instance_valid(_full_scene_region):
 		_full_scene_region.navigation_mesh = nav_mesh
-		var first := not _has_navmesh
 		_has_navmesh = true
-		if first:
-			initial_navigation_ready.emit()
+	elif first:
+		push_warning("WorldNavigationController: full-scene bake produced no navmesh (no bakeable collision in scene); releasing the startup gate without navigation.")
+	if first:
+		initial_navigation_ready.emit()
 	bake_finished.emit()
 
 

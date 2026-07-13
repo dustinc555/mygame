@@ -312,6 +312,28 @@ func _current_move_target(actor: Node):
 	return target if target is Vector3 else null
 
 
+## A door is private when anything restricts it — any authorized actor,
+## faction, or key list. Public doors (no lists) are nobody's business.
+func is_door_private(door: Node) -> bool:
+	if _doors == null or door == null:
+		return false
+	var state: Dictionary = _doors.get_door_state(_door_id(door))
+	return not (state.get("authorized_actor_ids", PackedStringArray()) as PackedStringArray).is_empty() \
+		or not (state.get("authorized_faction_ids", PackedStringArray()) as PackedStringArray).is_empty() \
+		or not (state.get("authorized_key_ids", PackedStringArray()) as PackedStringArray).is_empty()
+
+
+## Same access rule the sim applies to commands, exposed for UI legality
+## tinting: actor id, faction, or a carried key grants access.
+func is_actor_authorized(actor: Node, door: Node) -> bool:
+	if _doors == null or actor == null or door == null:
+		return true
+	var state: Dictionary = _doors.get_door_state(_door_id(door))
+	if state.is_empty():
+		return true
+	return _snapshot_has_authorized_access(_actor_snapshot(actor, door), state, _actor_id(actor))
+
+
 func _snapshot_has_authorized_access(snapshot: Dictionary, state: Dictionary, actor_id: String) -> bool:
 	return (state.get("authorized_actor_ids", PackedStringArray()) as PackedStringArray).has(actor_id) or (state.get("authorized_faction_ids", PackedStringArray()) as PackedStringArray).has(str(snapshot.get("actor_faction_id", ""))) or _shared_key_exists(state.get("authorized_key_ids", PackedStringArray()), snapshot.get("actor_key_ids", PackedStringArray()))
 

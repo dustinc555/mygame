@@ -36,7 +36,7 @@ metadata/_custom_type_script = "uid://dnecyfqr28huh"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 6)
 
 [node name="GroundFrontAFrame" parent="Pieces" unique_id=1409157824 instance=ExtResource("6_winframe")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.115, 6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.0031953, -0.062579155, 6)
 
 [node name="GroundFrontB" parent="Pieces" unique_id=193635067 instance=ExtResource("2_wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 6)
@@ -51,7 +51,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, 6)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 6)
 
 [node name="GroundFrontDFrame" parent="Pieces" unique_id=26392621 instance=ExtResource("6_winframe")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.115, 6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99680495, -0.062579155, 6)
 
 [node name="GroundFrontE" parent="Pieces" unique_id=1608362427 instance=ExtResource("2_wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 6)
@@ -60,7 +60,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 6)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 6)
 
 [node name="GroundFrontFFrame" parent="Pieces" unique_id=731754351 instance=ExtResource("6_winframe")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.115, 6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.9968047, -0.062579155, 6)
 
 [node name="GroundBackA" parent="Pieces" unique_id=1109234675 instance=ExtResource("2_wall")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -5, 0, -4)
@@ -108,7 +108,7 @@ transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -6, 0, -1)
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -6, 0, 1)
 
 [node name="GroundWestCFrame" parent="Pieces" unique_id=305577663 instance=ExtResource("8_winthinframe")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -6, 0.115, 1)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -6, 0, 1)
 
 [node name="GroundWestD" parent="Pieces" unique_id=851199430 instance=ExtResource("2_wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -6, 0, 3)
@@ -123,7 +123,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 3, 6)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 3, 6)
 
 [node name="UpperFrontBFrame" parent="Pieces" unique_id=486216575 instance=ExtResource("6_winframe")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 3.115, 6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.003195, 2.9374208, 6)
 
 [node name="UpperFrontC" parent="Pieces" unique_id=1912776713 instance=ExtResource("2_wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 3, 6)
@@ -132,7 +132,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 3, 6)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 3, 6)
 
 [node name="UpperFrontDFrame" parent="Pieces" unique_id=654894111 instance=ExtResource("6_winframe")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 3.115, 6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99680495, 2.9374206, 6)
 
 [node name="UpperFrontE" parent="Pieces" unique_id=576484765 instance=ExtResource("2_wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 3, 6)
@@ -141,7 +141,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 3, 6)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 3, 6)
 
 [node name="UpperFrontFFrame" parent="Pieces" unique_id=2093509621 instance=ExtResource("6_winframe")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 3.115, 6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.9968047, 2.9374206, 6)
 
 [node name="UpperBackA" parent="Pieces" unique_id=1393218394 instance=ExtResource("2_wall")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -5, 3, -4)
@@ -171,7 +171,7 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 6, 3, -1)
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 6, 3, 1)
 
 [node name="UpperEastCFrame" parent="Pieces" unique_id=512159391 instance=ExtResource("8_winthinframe")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 6, 3.115, 1)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 6, 3.0000002, 1)
 
 [node name="UpperEastD" parent="Pieces" unique_id=460557827 instance=ExtResource("2_wall")]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 6, 3, 3)
@@ -260,9 +260,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 6, 5)
 [node name="Floor10" parent="Pieces" unique_id=265148343 instance=ExtResource("10_floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
 
-[node name="Roof10" parent="Pieces" unique_id=2127163176 instance=ExtResource("10_floor")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 6, -3)
-
 [node name="Floor11" parent="Pieces" unique_id=1945779459 instance=ExtResource("10_floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -1)
 
@@ -298,9 +295,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 6, 5)
 
 [node name="Floor20" parent="Pieces" unique_id=1146199517 instance=ExtResource("10_floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, -3)
-
-[node name="Roof20" parent="Pieces" unique_id=686099294 instance=ExtResource("10_floor")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 6, -3)
 
 [node name="Floor21" parent="Pieces" unique_id=2111704771 instance=ExtResource("10_floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, -1)
@@ -573,7 +567,7 @@ transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 3, -0.68167067, -5.077246)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.99909794, -0.06793702, 5.9371758)
 
 [node name="DoorFrameFlatBrick22" parent="Pieces" unique_id=266005727 instance=ExtResource("13_5n3nn")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.999098, 0.037963033, -3.9371755)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.999098, -0.06793702, -3.9371758)
 
 [node name="WallWoodWearDoorFlat" parent="Pieces" unique_id=251883374 instance=ExtResource("16_giefj")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -0.88920546, 2.3841858e-07, -0.11079409)
@@ -597,58 +591,35 @@ authorized_faction_ids = PackedStringArray()
 authorized_key_ids = PackedStringArray()
 
 [node name="DoorWoodFlat2" parent="Pieces" unique_id=792067360 instance=ExtResource("16_clr0h")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 3.5142, 0, -4)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 3.5139782, -0.002932191, -4.0008197)
 authorized_actor_ids = PackedStringArray()
 authorized_faction_ids = PackedStringArray()
 authorized_key_ids = PackedStringArray()
 
-[node name="DoorFrameFlatBrick2" type="Node3D" parent="Pieces" unique_id=1664286777 instance=ExtResource("13_5n3nn")]
+[node name="DoorFrameFlatBrick2" parent="Pieces" unique_id=1664286777 instance=ExtResource("13_5n3nn")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.89010745, -0.068214774, -0.04797009)
-script = ExtResource("17_clr0h")
-piece_id = "door_frame_flat_brick"
-display_name = "DoorFrame Flat Brick"
-category = "door_frame"
-grid_size_cells = Vector3i(1, 2, 1)
-bounds_size_meters = Vector3(1.574607, 2.375659, 0.494327)
-disable_model_collision = true
-strip_model_collision_shapes = true
 
-[node name="WallWoodWearStraight" type="Node3D" parent="Pieces" unique_id=728989116 instance=ExtResource("15_0arr6")]
+[node name="WallWoodWearStraight" parent="Pieces" unique_id=728989116 instance=ExtResource("15_0arr6")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 1, -1.9650906e-07, -0.110794)
-script = ExtResource("17_clr0h")
-piece_id = "wall_wood_wear_straight"
-display_name = "Wall WoodWear Straight"
-grid_size_cells = Vector3i(2, 2, 1)
-bounds_size_meters = Vector3(2, 3.122689, 0.406482)
 
-[node name="WallWoodWearStraight2" type="Node3D" parent="Pieces" unique_id=309949632 instance=ExtResource("15_0arr6")]
+[node name="WallWoodWearStraight2" parent="Pieces" unique_id=309949632 instance=ExtResource("15_0arr6")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 3, -1.9650906e-07, -0.11079418)
-script = ExtResource("17_clr0h")
-piece_id = "wall_wood_wear_straight"
-display_name = "Wall WoodWear Straight"
-grid_size_cells = Vector3i(2, 2, 1)
-bounds_size_meters = Vector3(2, 3.122689, 0.406482)
 
-[node name="WallWoodWearStraight22" type="Node3D" parent="Pieces" unique_id=984155630 instance=ExtResource("15_0arr6")]
+[node name="WallWoodWearStraight22" parent="Pieces" unique_id=984155630 instance=ExtResource("15_0arr6")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 4.8892055, 2.803281e-07, -0.11079379)
-script = ExtResource("17_clr0h")
-piece_id = "wall_wood_wear_straight"
-display_name = "Wall WoodWear Straight"
-grid_size_cells = Vector3i(2, 2, 1)
-bounds_size_meters = Vector3(2, 3.122689, 0.406482)
 
-[node name="WallWoodWearStraight3" type="Node3D" parent="Pieces" unique_id=1701448499 instance=ExtResource("15_0arr6")]
+[node name="WallWoodWearStraight3" parent="Pieces" unique_id=1701448499 instance=ExtResource("15_0arr6")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -2.8892055, 2.803281e-07, -0.11079391)
-script = ExtResource("17_clr0h")
-piece_id = "wall_wood_wear_straight"
-display_name = "Wall WoodWear Straight"
-grid_size_cells = Vector3i(2, 2, 1)
-bounds_size_meters = Vector3(2, 3.122689, 0.406482)
 
-[node name="WallWoodWearStraight32" type="Node3D" parent="Pieces" unique_id=1865927931 instance=ExtResource("15_0arr6")]
+[node name="WallWoodWearStraight32" parent="Pieces" unique_id=1865927931 instance=ExtResource("15_0arr6")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -4.8892055, 2.803281e-07, -0.11079373)
+
+[node name="StairInteriorSimple" type="Node3D" parent="Pieces" unique_id=796467222 instance=ExtResource("11_stairs")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0.22531796, 2.975412, -2.9967837)
 script = ExtResource("17_clr0h")
-piece_id = "wall_wood_wear_straight"
-display_name = "Wall WoodWear Straight"
-grid_size_cells = Vector3i(2, 2, 1)
-bounds_size_meters = Vector3(2, 3.122689, 0.406482)
+piece_id = "stair_interior_simple"
+display_name = "Stair Interior Simple"
+category = "stairs"
+grid_size_cells = Vector3i(1, 2, 3)
+bounds_size_meters = Vector3(1.6761798, 3.0349936, 4.6195393)
+disable_model_collision = true

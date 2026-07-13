@@ -642,6 +642,45 @@ func get_character_visual_root() -> Node3D:
 	var body := get_body_projection()
 	return body.get_visual_root() if body != null else null
 
+
+## Sneak toggles play the crouch enter/exit transition clips; state changes
+## that must snap (death, sleep, being carried) pass play_transition=false.
+## Reinstated after the reorganize dropped it — interaction_capability still
+## calls _set_sneaking_state by name, and without it sneak state never drove
+## the crouch transitions.
+func set_sneaking_enabled(enabled: bool) -> bool:
+	_set_sneaking_state(enabled, true)
+	if enabled:
+		running = false
+	return true
+
+
+func set_running_enabled(enabled: bool) -> bool:
+	if enabled:
+		_set_sneaking_state(false, true)
+	running = enabled
+	return true
+
+
+func _set_sneaking_state(value: bool, play_transition: bool) -> bool:
+	var next_sneaking := value and life_state == NpcRules.LifeState.ALIVE
+	if sneaking == next_sneaking:
+		return false
+	sneaking = next_sneaking
+	var body := get_body_projection() as HumanoidBodyProjection
+	if body != null:
+		if play_transition:
+			if sneaking:
+				body.cancel_run_transition()
+				body.start_crouch_enter_animation()
+			else:
+				body.start_crouch_exit_animation()
+		else:
+			body.cancel_crouch_transition()
+			body.cancel_run_transition()
+	state_changed.emit()
+	return true
+
 # ---------------------------------------------------------------------------
 # Selection / focus — visual concerns, will move to a child node
 # ---------------------------------------------------------------------------
@@ -784,6 +823,20 @@ func get_ground_marker_position(marker_height: float = 0.03) -> Vector3:
 const WORLD_TEXT_NOTICE_SCENE = preload("res://features/world/projection/effects/world_text_notice.tscn")
 
 @export var overhead_text_height := 2.4
+
+
+const SPEECH_TEXT_COLOR := Color(0.94, 0.92, 0.86, 1.0)
+
+
+func show_world_notice(text: String, color: Color = Color.WHITE, duration: float = 1.5) -> void:
+	_show_world_notice(text, color, duration)
+
+
+## Spoken NPC lines (barks, alarms, warnings) render as slow-rising overhead
+## text. Every reaction system routes through here; the WorldActor base is a
+## silent stub, so this override IS the audible/visible layer.
+func show_world_speech(text: String, duration: float = 2.0) -> void:
+	_show_world_notice(text, SPEECH_TEXT_COLOR, duration, 0.22)
 
 
 ## Floating combat/world feedback text above the actor ("Hit", "Dodge", ...).

@@ -54,6 +54,28 @@ var _towns_zoning_check: CheckButton
 var _towns_list: VBoxContainer
 var _law_border_root: Node3D
 
+var _stealth_cones_check: CheckButton
+var _stealth_los_check: CheckButton
+var _stealth_noise_check: CheckButton
+var _stealth_open_check: CheckButton
+var _stealth_roll_label: Label
+var _stealth_overlay: Node3D
+var _stealth_cone_pool: Array[MeshInstance3D] = []
+var _stealth_noise_pool: Array[MeshInstance3D] = []
+var _stealth_open_pool: Array[MeshInstance3D] = []
+var _stealth_cone_observers: Array[Node3D] = []
+var _stealth_cone_mesh: Mesh
+var _stealth_unit_disc_mesh: Mesh
+var _stealth_refresh_timer := 0.0
+
+const STEALTH_REFRESH_INTERVAL := 0.5
+const STEALTH_OVERLAY_RANGE := 40.0
+const STEALTH_MAX_CONES := 24
+const STEALTH_MAX_DISCS := 32
+const STEALTH_CONE_COLOR := Color(1.0, 0.62, 0.08, 0.16)
+const STEALTH_NOISE_COLOR := Color(0.56, 0.35, 0.94, 0.22)
+const STEALTH_OPEN_THEFT_COLOR := Color(0.95, 0.42, 0.12, 0.16)
+
 const WINDOW_BG := Color(0.12, 0.12, 0.14, 1.0)
 const WINDOW_BORDER := Color(0.42, 0.38, 0.28, 1.0)
 const TITLE_BAR_BG := Color(0.18, 0.17, 0.15, 1.0)
@@ -72,6 +94,7 @@ func _ready() -> void:
 	_build_nav_window()
 	_build_placer_window()
 	_build_towns_window()
+	_build_stealth_window()
 	# Everything stays closed and off until explicitly opened, one panel at a
 	# time — debug windows never flood the screen.
 	for panel in _windows:
@@ -247,6 +270,216 @@ func _refresh_towns_list() -> void:
 			var state: Dictionary = states[settlement_id]
 			var label := _make_label(_towns_list)
 			label.text = "%s [%s] (authored)" % [state.get("display_name", settlement_id), state.get("faction_id", "?")]
+
+
+## --- Stealth debug ---------------------------------------------------------
+##
+## The sneak_perception_demo tools, available in any scene as world overlays:
+## NPC vision cones (what "clearly seen" tests against), the perception LOS
+## rays, and the theft radii around every owned item and container.
+## Orange disc = THEFT_NOTICE_RADIUS, the one detection bubble: owner-side
+## people inside it auto-catch an open grab and roll against a sneaking one.
+## Purple disc = the item's loudness — inside it, proximity pressure makes
+## the sneaking roll rapidly harder. It is not a separate detection range.
+
+
+func _build_stealth_window() -> void:
+	var vbox := _build_window("Stealth Debug", Vector2(12.0, 348.0))
+	_stealth_cones_check = _make_check(vbox, "Show NPC vision cones", _on_stealth_overlay_toggled)
+	_stealth_los_check = _make_check(vbox, "Show sneak LOS rays", _on_stealth_los_toggled)
+	_stealth_noise_check = _make_check(vbox, "Show item loudness radius (purple)", _on_stealth_overlay_toggled)
+	_stealth_open_check = _make_check(vbox, "Show theft notice radius (orange)", _on_stealth_overlay_toggled)
+	_stealth_roll_label = _make_label(vbox)
+	_stealth_roll_label.text = "Last steal: (none yet)"
+	_stealth_roll_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_stealth_roll_label.custom_minimum_size = Vector2(300.0, 0.0)
+
+
+func _on_stealth_overlay_toggled(_pressed: bool) -> void:
+	_stealth_refresh_timer = 0.0
+
+
+func _on_stealth_los_toggled(pressed: bool) -> void:
+	var perception := _get_perception_controller()
+	if perception != null:
+		perception.set("debug_show_los_rays", pressed)
+
+
+func _update_stealth_overlay(delta: float) -> void:
+	var cones_on := _stealth_cones_check != null and _stealth_cones_check.button_pressed
+	var noise_on := _stealth_noise_check != null and _stealth_noise_check.button_pressed
+	var open_on := _stealth_open_check != null and _stealth_open_check.button_pressed
+	if not (cones_on or noise_on or open_on):
+		_clear_stealth_overlay()
+		return
+	if _stealth_overlay == null or not is_instance_valid(_stealth_overlay):
+		_stealth_overlay = Node3D.new()
+		_stealth_overlay.name = "StealthDebugOverlay"
+		add_child(_stealth_overlay)
+	_stealth_refresh_timer -= delta
+	if _stealth_refresh_timer <= 0.0:
+		_stealth_refresh_timer = STEALTH_REFRESH_INTERVAL
+		_refresh_stealth_overlay(cones_on, noise_on, open_on)
+	_update_stealth_cone_transforms()
+
+
+func _clear_stealth_overlay() -> void:
+	if _stealth_overlay != null and is_instance_valid(_stealth_overlay):
+		_stealth_overlay.queue_free()
+	_stealth_overlay = null
+	_stealth_cone_pool.clear()
+	_stealth_noise_pool.clear()
+	_stealth_open_pool.clear()
+	_stealth_cone_observers.clear()
+	_stealth_cone_mesh = null
+
+
+func _refresh_stealth_overlay(cones_on: bool, noise_on: bool, open_on: bool) -> void:
+	var camera := get_viewport().get_camera_3d() if get_viewport() != null else null
+	var anchor := camera.global_position if camera != null else Vector3.ZERO
+	_refresh_stealth_cones(anchor, cones_on)
+	var none: Array[Node3D] = []
+	var targets := _find_stealth_owned_targets(anchor) if (noise_on or open_on) else none
+	_refresh_stealth_discs(_stealth_noise_pool, targets if noise_on else none, true)
+	_refresh_stealth_discs(_stealth_open_pool, targets if open_on else none, false)
+
+
+func _refresh_stealth_cones(anchor: Vector3, enabled: bool) -> void:
+	_stealth_cone_observers.clear()
+	if enabled:
+		for node in get_tree().get_nodes_in_group("npc_character"):
+			if _stealth_cone_observers.size() >= STEALTH_MAX_CONES:
+				break
+			var observer := node as Node3D
+			if observer == null or not observer.is_inside_tree() or bool(observer.get("player_party_member")):
+				continue
+			if int(observer.get("life_state")) != NpcRules.LifeState.ALIVE:
+				continue
+			if Vector2(observer.global_position.x - anchor.x, observer.global_position.z - anchor.z).length() > STEALTH_OVERLAY_RANGE:
+				continue
+			_stealth_cone_observers.append(observer)
+	if _stealth_cone_mesh == null:
+		_stealth_cone_mesh = _build_stealth_cone_mesh()
+	for index in range(_stealth_cone_observers.size()):
+		_stealth_pool_instance(_stealth_cone_pool, index, _stealth_cone_mesh, STEALTH_CONE_COLOR)
+	_hide_stealth_pool_tail(_stealth_cone_pool, _stealth_cone_observers.size())
+
+
+## Cone size/angle mirrors the live perception tuning, not hardcoded demo
+## numbers — what you see is what evaluate_observer actually tests.
+func _build_stealth_cone_mesh() -> Mesh:
+	var view_distance := 15.0
+	var view_cone_degrees := 105.0
+	var perception := _get_perception_controller()
+	if perception != null:
+		view_distance = float(perception.get("view_distance"))
+		view_cone_degrees = float(perception.get("view_cone_degrees"))
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var segments := 32
+	var half_angle := deg_to_rad(view_cone_degrees) * 0.5
+	for index in range(segments):
+		var a0 := lerpf(-half_angle, half_angle, float(index) / float(segments))
+		var a1 := lerpf(-half_angle, half_angle, float(index + 1) / float(segments))
+		st.add_vertex(Vector3.ZERO)
+		st.add_vertex(Vector3(sin(a0) * view_distance, 0.0, -cos(a0) * view_distance))
+		st.add_vertex(Vector3(sin(a1) * view_distance, 0.0, -cos(a1) * view_distance))
+	return st.commit()
+
+
+func _update_stealth_cone_transforms() -> void:
+	for index in range(mini(_stealth_cone_observers.size(), _stealth_cone_pool.size())):
+		var cone := _stealth_cone_pool[index]
+		var observer := _stealth_cone_observers[index]
+		if observer == null or not is_instance_valid(observer) or not observer.is_inside_tree():
+			cone.visible = false
+			continue
+		var forward := -observer.global_transform.basis.z
+		if observer.has_method("get_perception_forward_vector"):
+			forward = observer.call("get_perception_forward_vector")
+		var yaw := atan2(-forward.x, -forward.z)
+		cone.global_transform = Transform3D(Basis(Vector3.UP, yaw), observer.global_position + Vector3(0.0, 0.08, 0.0))
+
+
+func _find_stealth_owned_targets(anchor: Vector3) -> Array[Node3D]:
+	var targets: Array[Node3D] = []
+	for group_name in ["world_item", "world_container"]:
+		for node in get_tree().get_nodes_in_group(group_name):
+			if targets.size() >= STEALTH_MAX_DISCS:
+				return targets
+			var target := node as Node3D
+			if target == null or not target.is_inside_tree() or not target.has_method("get_owner_faction_name"):
+				continue
+			if Vector2(target.global_position.x - anchor.x, target.global_position.z - anchor.z).length() > STEALTH_OVERLAY_RANGE:
+				continue
+			if str(target.call("get_owner_faction_name")).is_empty():
+				continue
+			targets.append(target)
+	return targets
+
+
+func _refresh_stealth_discs(pool: Array[MeshInstance3D], targets: Array[Node3D], use_item_noise: bool) -> void:
+	if _stealth_unit_disc_mesh == null:
+		var disc := CylinderMesh.new()
+		disc.top_radius = 1.0
+		disc.bottom_radius = 1.0
+		disc.height = 0.02
+		disc.radial_segments = 64
+		_stealth_unit_disc_mesh = disc
+	var visible_count := 0
+	for target in targets:
+		var radius := OwnershipController.THEFT_NOTICE_RADIUS
+		if use_item_noise:
+			radius = float(target.call("get_theft_noise_radius")) if target.has_method("get_theft_noise_radius") else 0.0
+		if radius <= 0.01:
+			continue
+		var color := STEALTH_NOISE_COLOR if use_item_noise else STEALTH_OPEN_THEFT_COLOR
+		var instance := _stealth_pool_instance(pool, visible_count, _stealth_unit_disc_mesh, color)
+		instance.global_position = target.global_position + Vector3(0.0, 0.06, 0.0)
+		instance.scale = Vector3(radius, 1.0, radius)
+		visible_count += 1
+	_hide_stealth_pool_tail(pool, visible_count)
+
+
+func _stealth_pool_instance(pool: Array[MeshInstance3D], index: int, mesh: Mesh, color: Color) -> MeshInstance3D:
+	while pool.size() <= index:
+		var instance := MeshInstance3D.new()
+		instance.material_override = _stealth_material(color)
+		_stealth_overlay.add_child(instance)
+		pool.append(instance)
+	var existing := pool[index]
+	existing.mesh = mesh
+	existing.visible = true
+	return existing
+
+
+func _hide_stealth_pool_tail(pool: Array[MeshInstance3D], from_index: int) -> void:
+	for index in range(from_index, pool.size()):
+		pool[index].visible = false
+
+
+func _stealth_material(color: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = color
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return material
+
+
+func _get_perception_controller() -> Node:
+	return get_tree().get_first_node_in_group("perception_controller") if get_tree() != null else null
+
+
+## Leaf scene node: static service lookup is the sanctioned path here.
+func _update_stealth_roll_label() -> void:
+	if _stealth_roll_label == null or not _stealth_roll_label.is_visible_in_tree():
+		return
+	var ownership := BootstrapContext.service(OwnershipController.SERVICE_ID)
+	if ownership == null:
+		return
+	var summary := str(ownership.get("last_steal_roll_summary"))
+	_stealth_roll_label.text = "Last steal: %s" % (summary if not summary.is_empty() else "(none yet)")
 
 
 func _dashed_polyline_mesh(points: PackedVector2Array, y: float) -> ArrayMesh:
@@ -559,7 +792,9 @@ func _sync_nav_tuning() -> void:
 		_nav_tile_label.text = "Nav tile size: %dm (smaller = faster patches)" % int(tile)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_update_stealth_overlay(delta)
+	_update_stealth_roll_label()
 	if not visible or _nav_bake_label == null:
 		return
 	var navigation := _get_world_navigation_controller()

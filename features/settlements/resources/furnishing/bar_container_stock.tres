@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="ContainerStockTable" format=3 uid="uid://d3obywylkubn5"]
+
+[ext_resource type="Script" uid="uid://binw0mrkk6ac2" path="res://features/settlements/resources/furnishing/container_stock_table.gd" id="1_table"]
+[ext_resource type="Script" uid="uid://bjfw3acss3ann" path="res://features/settlements/resources/furnishing/container_stock_entry.gd" id="2_entry"]
+[ext_resource type="Resource" uid="uid://y2dcron3ak5a" path="res://features/inventory/resources/items/bread.tres" id="3_bread"]
+[ext_resource type="Resource" uid="uid://cighg4y750kcr" path="res://features/inventory/resources/items/food.tres" id="4_food"]
+[ext_resource type="Resource" uid="uid://dqrhf4vkx21eu" path="res://features/inventory/resources/items/bottle_1.tres" id="5_bottle1"]
+[ext_resource type="Resource" uid="uid://b62peti1fl0ft" path="res://features/inventory/resources/items/bottle_2.tres" id="6_bottle2"]
+
+[sub_resource type="Resource" id="Entry_bread"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("3_bread")
+chance = 0.8
+max_quantity = 3
+
+[sub_resource type="Resource" id="Entry_food"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("4_food")
+chance = 0.5
+max_quantity = 2
+
+[sub_resource type="Resource" id="Entry_bottle1"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("5_bottle1")
+chance = 0.4
+max_quantity = 2
+
+[sub_resource type="Resource" id="Entry_bottle2"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("6_bottle2")
+chance = 0.4
+max_quantity = 2
+
+[resource]
+script = ExtResource("1_table")
+entries = Array[ExtResource("2_entry")]([SubResource("Entry_bread"), SubResource("Entry_food"), SubResource("Entry_bottle1"), SubResource("Entry_bottle2")])

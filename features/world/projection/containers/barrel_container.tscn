@@ -9,9 +9,8 @@ radius = 0.55
 
 [node name="BarrelContainer" instance=ExtResource("1_container")]
 display_name = "Barrel"
-interaction_distance = 2.2
+interaction_distance = 1.6
 slot_distance = 2.0
-cell_size = Vector2(26, 26)
 visual_scene = ExtResource("2_barrel")
 collision_shape = SubResource("CylinderShape3D_barrel")
 collision_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, 0)

@@ -534,10 +534,15 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 		return false
 	if collider is Node and collider.is_in_group("world_container") and not party_manager.selected_members.is_empty():
 		context_container = collider
+		var container_action := {"id": ACTION_OPEN_CONTAINER, "label": "Open"}
 		if context_container.is_locked:
-			_show_context_menu(screen_position, ACTION_UNLOCK_CONTAINER, "Unlock")
-		else:
-			_show_context_menu(screen_position, ACTION_OPEN_CONTAINER, "Open")
+			container_action = {"id": ACTION_UNLOCK_CONTAINER, "label": "Unlock"}
+		var container_actor := _get_focused_party_member()
+		if ownership_controller != null and container_actor != null and ownership_controller.has_method("get_open_container_color"):
+			var open_color = ownership_controller.call("get_open_container_color", container_actor, context_container)
+			if open_color is Color and (open_color as Color).a > 0.0:
+				container_action["color"] = open_color
+		_show_context_menu_actions(screen_position, [container_action])
 		return false
 	if collider is Node and collider.is_in_group("world_item") and not party_manager.selected_members.is_empty():
 		context_world_item = collider
@@ -554,7 +559,10 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 			var actions: Array = []
 			for index in range(context_world_actions.size()):
 				var action: Dictionary = context_world_actions[index]
-				actions.append({"id": ACTION_WORLD_CONTEXT_BASE + index, "label": str(action.get("label", "Action"))})
+				var menu_action := {"id": ACTION_WORLD_CONTEXT_BASE + index, "label": str(action.get("label", "Action"))}
+				if action.has("color"):
+					menu_action["color"] = action["color"]
+				actions.append(menu_action)
 			_show_context_menu_actions(screen_position, actions)
 			return false
 	return issue_move_command(screen_position)
@@ -591,11 +599,15 @@ func _show_context_menu_actions(screen_position: Vector2, actions: Array) -> voi
 	context_menu.clear()
 	context_menu.remove_theme_color_override("font_color")
 	context_menu.remove_theme_color_override("font_hover_color")
-	if actions.size() == 1:
-		var action_color = actions[0].get("color", null)
+	# PopupMenu has no per-item font color, so the first colored action tints
+	# the whole menu — right for doors/containers where the color means "this
+	# is someone else's property" and applies to the interaction as a whole.
+	for action in actions:
+		var action_color = action.get("color", null)
 		if action_color is Color and (action_color as Color).a > 0.0:
 			context_menu.add_theme_color_override("font_color", action_color)
 			context_menu.add_theme_color_override("font_hover_color", (action_color as Color).lerp(Color.WHITE, 0.25))
+			break
 	for action in actions:
 		context_menu.add_item(action["label"], action["id"])
 	context_menu.position = Vector2i(screen_position)
@@ -1706,7 +1718,9 @@ func _on_inspector_action_requested(target, action_key: String) -> void:
 		"open_container":
 			if target is Node:
 				for member in party_manager.selected_members:
-					if member.has_method("assign_open_container") and (ownership_controller == null or ownership_controller.request_interaction(member, target, "Opening")):
+					# Opening an owned container is legal (the red Open label is
+					# the warning); only transferring items out is burglary.
+					if member.has_method("assign_open_container"):
 						member.call("assign_open_container", target)
 		"unlock_container":
 			_perform_unlock_action(target)
@@ -1841,7 +1855,7 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 		ACTION_OPEN_CONTAINER:
 			if context_container != null:
 				for member in party_manager.selected_members:
-					if member.has_method("assign_open_container") and (ownership_controller == null or ownership_controller.request_interaction(member, context_container, "Opening")):
+					if member.has_method("assign_open_container"):
 						member.call("assign_open_container", context_container)
 		ACTION_UNLOCK_CONTAINER:
 			if context_container != null:

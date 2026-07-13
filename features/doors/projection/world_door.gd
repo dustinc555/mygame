@@ -85,18 +85,43 @@ func get_interaction_positions() -> Array[Vector3]:
 	return positions
 
 
-func get_world_context_actions(_actor: Node = null) -> Array:
+## Matches OwnershipController.STEAL_ACTION_COLOR — red marks actions on
+## someone else's property: legal to attempt, incriminating if witnessed.
+const PRIVATE_ACTION_COLOR := Color(0.92, 0.34, 0.30, 1.0)
+
+
+func get_world_context_actions(actor: Node = null) -> Array:
 	if _door_controller == null or door_id.is_empty():
 		return []
 	var state: Dictionary = _door_controller.get_door_state(door_id)
 	if state.is_empty():
 		return []
+	var restricted := _actor_lacks_access(actor)
 	if bool(state.get("is_locked", false)):
-		return [{"key": "unlock", "label": "Unlock"}, {"key": "lockpick", "label": "Pick Lock"}]
-	var actions := [{"key": "close" if bool(state.get("is_open", false)) else "open", "label": "Close" if bool(state.get("is_open", false)) else "Open"}]
-	if not bool(state.get("is_open", false)):
+		var unlock_action := {"key": "unlock", "label": "Unlock"}
+		var lockpick_action := {"key": "lockpick", "label": "Pick Lock"}
+		if restricted:
+			unlock_action["color"] = PRIVATE_ACTION_COLOR
+			lockpick_action["color"] = PRIVATE_ACTION_COLOR
+		return [unlock_action, lockpick_action]
+	var door_open := bool(state.get("is_open", false))
+	var open_action := {"key": "close" if door_open else "open", "label": "Close" if door_open else "Open"}
+	if restricted and not door_open:
+		open_action["color"] = PRIVATE_ACTION_COLOR
+	var actions := [open_action]
+	if not door_open:
 		actions.append({"key": "lock", "label": "Lock"})
 	return actions
+
+
+## Red-label test: the door is someone's (any authorization list) and this
+## actor is not on any of them — same rule the sim enforces on commands.
+func _actor_lacks_access(actor: Node) -> bool:
+	if actor == null or _door_interactions == null:
+		return false
+	if not _door_interactions.has_method("is_door_private") or not _door_interactions.has_method("is_actor_authorized"):
+		return false
+	return bool(_door_interactions.call("is_door_private", self)) and not bool(_door_interactions.call("is_actor_authorized", actor, self))
 
 
 func perform_world_context_action(action_key: String, actors: Array = []) -> String:
