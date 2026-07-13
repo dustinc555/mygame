@@ -5,6 +5,9 @@ class_name SelectionRingVisual
 
 const DEFAULT_SELECTED_COLOR := Color(0.28, 0.78, 1.0, 1.0)
 const DEFAULT_FOCUSED_COLOR := Color(0.95, 0.78, 0.26, 1.0)
+## Sneaking members trade their selection color for this stealth violet so the
+## active sneak state is always readable at a glance.
+const DEFAULT_SNEAK_COLOR := Color(0.56, 0.42, 0.9, 1.0)
 const MAJOR_RADIUS := 1.12
 const TUBE_RADIUS := 0.075
 const TUBE_CENTER_Y := 0.06
@@ -37,7 +40,9 @@ static func apply_state(
 	is_selected: bool,
 	is_focused: bool,
 	selected_color: Color = DEFAULT_SELECTED_COLOR,
-	focused_color: Color = DEFAULT_FOCUSED_COLOR
+	focused_color: Color = DEFAULT_FOCUSED_COLOR,
+	is_sneaking: bool = false,
+	sneak_color: Color = DEFAULT_SNEAK_COLOR
 ) -> void:
 	if ring == null:
 		return
@@ -45,6 +50,8 @@ static func apply_state(
 	if material == null:
 		return
 	var color := focused_color if is_focused else selected_color
+	if is_sneaking:
+		color = sneak_color
 	material.albedo_color = color
 	material.emission = color
 

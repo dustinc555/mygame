@@ -342,6 +342,10 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 		var node := scene.instantiate() as Node3D
 		node.name = "%s%d" % [kind.to_pascal_case(), counts[kind]]
 		node.transform = to_furniture * (placement["transform"] as Transform3D)
+		if placement.has("stock"):
+			# Rolled loot bakes into the saved container node; the fresh
+			# InventoryStock resources embed in the town scene on save.
+			node.set("starting_items", placement["stock"])
 		node.set_meta(FURNISH_GENERATED_META, true)
 		undo_redo.add_do_method(furniture_root, "add_child", node)
 		undo_redo.add_do_method(self, "_own_facility_placement", node, owner_root)
@@ -349,7 +353,7 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 		undo_redo.add_do_reference(node)
 	undo_redo.commit_action()
 	_select_node(facility)
-	_set_status("Furnished %s: %d counter, %d clusters, %d shelves (seed %d)." % [facility.name, int(counts.get("counter", 0)), int(counts.get("cluster", 0)), int(counts.get("shelf", 0)), seed_value])
+	_set_status("Furnished %s: %d counter, %d clusters, %d containers, %d shelves (seed %d)." % [facility.name, int(counts.get("counter", 0)), int(counts.get("cluster", 0)), int(counts.get("container", 0)), int(counts.get("shelf", 0)), seed_value])
 	if _dock != null and is_instance_valid(_dock):
 		_dock.set_facility(facility)
 

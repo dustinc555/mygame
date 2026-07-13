@@ -29,8 +29,14 @@ static var _left_alt_item_labels_visible := false
 		owner_faction_name = value
 		_refresh_label()
 @export var theft_value := 10
-@export var theft_noise_radius := 0.0
+## Pocketing an owned item makes some noise: witnesses inside this radius
+## contest the thief's stealing skill even when they cannot see the grab.
+@export var theft_noise_radius := 4.0
 @export_range(0, 100, 1) var theft_difficulty := 25
+
+## Matches OwnershipController.STEAL_ACTION_COLOR — owned items read red so
+## the player knows grabbing them is theft before committing.
+const OWNED_LABEL_COLOR := Color(0.92, 0.34, 0.30, 1.0)
 
 @onready var collision_shape_node: CollisionShape3D = $CollisionShape3D
 @onready var model_root: Node3D = $ModelRoot
@@ -98,8 +104,27 @@ func _find_tabletop_pickup_provider() -> Node:
 	return null
 
 
+## Explicit stamp wins; otherwise anything sitting inside a facility (shelf
+## stock, tabletop props) belongs to the facility owner automatically.
 func get_owner_faction_name() -> String:
-	return owner_faction_name
+	if not owner_faction_name.is_empty():
+		return owner_faction_name
+	var facility := _find_owning_facility()
+	return str(facility.call("get_property_owner_faction")) if facility != null else ""
+
+
+func get_explicit_owner_character() -> HumanoidCharacter:
+	var facility := _find_owning_facility()
+	return facility.call("get_property_owner_character") as HumanoidCharacter if facility != null else null
+
+
+func _find_owning_facility() -> Node:
+	var current := get_parent()
+	while current != null:
+		if current.has_method("get_property_owner_faction"):
+			return current
+		current = current.get_parent()
+	return null
 
 
 func get_theft_value() -> int:
@@ -192,15 +217,22 @@ func _show_pickup_failure(actor) -> void:
 func _refresh_label() -> void:
 	if label == null:
 		return
+	var effective_owner_faction := get_owner_faction_name() if is_inside_tree() else owner_faction_name
 	if item_definition == null:
-		label.text = "Owned Item" if not owner_faction_name.is_empty() else "Item"
+		label.text = "Owned Item" if not effective_owner_faction.is_empty() else "Item"
+		label.modulate = OWNED_LABEL_COLOR if not effective_owner_faction.is_empty() else Color.WHITE
 		_refresh_label_visibility()
 		return
 	var item_label := _item_display_label()
 	if bool(item_metadata.get(InventoryData.META_STOLEN, false)):
 		label.text = "%s (Stolen)" % item_label
+		label.modulate = OWNED_LABEL_COLOR
+	elif not effective_owner_faction.is_empty():
+		label.text = "%s (Owned)" % item_label
+		label.modulate = OWNED_LABEL_COLOR
 	else:
-		label.text = "%s (Owned)" % item_label if not owner_faction_name.is_empty() else item_label
+		label.text = item_label
+		label.modulate = Color.WHITE
 	_refresh_label_visibility()
 	_sync_world_item_to_gecs()
 

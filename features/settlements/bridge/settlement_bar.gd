@@ -524,6 +524,7 @@ func _sync_bar_authoring() -> void:
 		service_area.set("waiter_character_paths", _paths_from(service_area, waiters))
 	if _has_property(service_area, "guard_character_paths"):
 		service_area.set("guard_character_paths", _paths_from(service_area, guards))
+	_sync_container_ownership(barkeeper, owner_faction)
 	_set_node_path_property(service_area, "beds_root_path", "../Furniture")
 	_set_node_path_property(service_area, "seats_root_path", "../Furniture")
 	_set_node_path_property(service_area, "tables_root_path", "../Furniture")
@@ -548,6 +549,37 @@ func _sync_bar_authoring() -> void:
 		service_area.call("refresh_scope")
 	if not Engine.is_editor_hint():
 		_sync_door_access.call_deferred()
+
+
+## The bar's goods belong to the barkeeper personally.
+func get_property_owner_character() -> HumanoidCharacter:
+	var barkeeper := _get_barkeeper_actor()
+	return barkeeper if _is_actor_alive(barkeeper) else null
+
+
+func get_property_owner_faction() -> String:
+	return _get_effective_owner_faction_id()
+
+
+## Every container inside the bar belongs to the barkeeper and the owning
+## faction, so looting crates/barrels is burglary through the standard
+## ownership/theft flow (Steal label, witness roll, law report). Re-stamped
+## on every sync so ownership follows staff turnover.
+func _sync_container_ownership(barkeeper: HumanoidCharacter, owner_faction: String) -> void:
+	for container in _collect_world_containers(self):
+		if not owner_faction.is_empty() and _has_property(container, "owner_faction_name"):
+			container.set("owner_faction_name", owner_faction)
+		if _has_property(container, "owner_character_path"):
+			container.set("owner_character_path", container.get_path_to(barkeeper) if barkeeper != null else NodePath(""))
+
+
+func _collect_world_containers(root: Node) -> Array[Node]:
+	var found: Array[Node] = []
+	if root is WorldContainer:
+		found.append(root)
+	for child in root.get_children():
+		found.append_array(_collect_world_containers(child))
+	return found
 
 
 ## The facility owns door semantics for its building: every staff member

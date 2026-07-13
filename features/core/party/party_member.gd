@@ -7,6 +7,7 @@ const SELECTION_RING_VISUAL = preload("res://features/actors/projection/selectio
 @export var base_color := Color(0.7, 0.7, 0.7, 1.0)
 @export var selected_color := Color(0.28, 0.78, 1.0, 1.0)
 @export var focused_color := Color(0.95, 0.78, 0.26, 1.0)
+@export var sneak_color := SelectionRingVisual.DEFAULT_SNEAK_COLOR
 
 @onready var body_mesh: MeshInstance3D = $BodyMesh
 @onready var selection_ring: MeshInstance3D = $SelectionRing
@@ -30,6 +31,8 @@ func _ready() -> void:
 	_body_material.albedo_color = base_color
 	body_mesh.material_override = _body_material
 	_setup_selection_ring()
+	# Sneak toggles emit state_changed; the ring recolors the moment it flips.
+	state_changed.connect(_update_visuals)
 	_update_visuals()
 
 
@@ -49,8 +52,10 @@ func _update_visuals() -> void:
 		body_color = base_color.lerp(selected_color, 0.4)
 	if is_focused:
 		body_color = body_color.lerp(focused_color, 0.45)
+	if sneaking:
+		body_color = body_color.lerp(sneak_color, 0.5)
 	_body_material.albedo_color = body_color
-	SELECTION_RING_VISUAL.apply_state(selection_ring, _ring_material, is_selected, is_focused, selected_color, focused_color)
+	SELECTION_RING_VISUAL.apply_state(selection_ring, _ring_material, is_selected, is_focused, selected_color, focused_color, sneaking, sneak_color)
 	if _inspect_ring != null:
 		_inspect_ring.visible = is_inspected and not is_selected and not is_focused
 	_update_ground_markers()

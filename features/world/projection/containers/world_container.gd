@@ -11,12 +11,16 @@ signal interaction_resolved(container, actor)
 @export var inventory_columns := 7
 @export var inventory_rows := 5
 @export var is_locked := false
-@export var interaction_distance := 2.0
-@export var slot_distance := 2.2
+## Arm's length: opening a container means standing at it, not across the room.
+@export var interaction_distance := 1.6
+@export var slot_distance := 1.3
 @export var slot_count := 6
 @export var owner_character_path: NodePath
 @export var owner_faction_name := ""
-@export var cell_size := Vector2(22.0, 22.0)
+@export var theft_value := 10
+## Rummaging through a crate or barrel is loud: witnesses inside this radius
+## contest the thief's stealing skill even when they cannot see the attempt.
+@export var theft_noise_radius := 8.0
 @export var starting_items: Array[InventoryStock] = []
 @export var visual_scene: PackedScene:
 	set(value):
@@ -79,7 +83,9 @@ func resolve_interaction(member: HumanoidCharacter) -> bool:
 	var actor_id: int = member.get_instance_id()
 	if not _pending_actor_ids.has(actor_id):
 		return false
-	_pending_actor_ids.clear()
+	# Only this member's pending claim resolves — clearing everyone's made the
+	# second member of a multi-select arrive to a silent no-op.
+	_pending_actor_ids.erase(actor_id)
 	interaction_resolved.emit(self, member)
 	return true
 
@@ -87,7 +93,20 @@ func resolve_interaction(member: HumanoidCharacter) -> bool:
 func get_interaction_position(member: HumanoidCharacter) -> Vector3:
 	var slot_index := _get_slot_index(member)
 	var angle := TAU * float(slot_index) / float(max(slot_count, 1))
-	return global_position + Vector3(cos(angle), 0.0, sin(angle)) * slot_distance
+	var slot := global_position + Vector3(cos(angle), 0.0, sin(angle)) * slot_distance
+	# Wall-hugging containers put ring slots inside walls or the container's
+	# own navmesh carve; an off-mesh move target strands the actor short of
+	# it forever. Hand out the nearest walkable point instead.
+	return _clamped_to_navmesh(slot)
+
+
+func _clamped_to_navmesh(point: Vector3) -> Vector3:
+	if Engine.is_editor_hint() or not is_inside_tree():
+		return point
+	var map := get_world_3d().navigation_map
+	if not map.is_valid() or NavigationServer3D.map_get_iteration_id(map) == 0:
+		return point
+	return NavigationServer3D.map_get_closest_point(map, point)
 
 
 func get_inventory_display_name() -> String:
@@ -96,10 +115,6 @@ func get_inventory_display_name() -> String:
 
 func get_inventory_world_position() -> Vector3:
 	return global_position
-
-
-func get_inventory_cell_size() -> Vector2:
-	return cell_size
 
 
 func shows_inventory_weight() -> bool:
@@ -115,6 +130,14 @@ func get_owner_faction_name() -> String:
 		return owner_faction_name
 	var owner_character := get_explicit_owner_character()
 	return owner_character.faction_name if owner_character != null else ""
+
+
+func get_theft_value() -> int:
+	return theft_value
+
+
+func get_theft_noise_radius() -> float:
+	return theft_noise_radius
 
 
 func _get_slot_index(member: HumanoidCharacter) -> int:
@@ -191,6 +214,7 @@ func _rebuild_visual() -> void:
 	if visual_scene == null:
 		return
 	var visual_instance := visual_scene.instantiate()
+	_strip_visual_collision(visual_instance)
 	model_root.add_child(visual_instance)
 	if Engine.is_editor_hint():
 		var edited_root := get_tree().edited_scene_root
@@ -198,6 +222,19 @@ func _rebuild_visual() -> void:
 			visual_instance.owner = edited_root
 	if visual_instance is Node3D:
 		visual_instance.transform = visual_transform
+
+
+## The wrapper's exported collision_shape is the container's single collision
+## truth. Imported models (e.g. Quaternius gltf crates/barrels) may ship their
+## own static bodies; left in, they double up physics and click collision and
+## read as runtime-spawned geometry that dirties navmesh tiles at startup.
+func _strip_visual_collision(node: Node) -> void:
+	for child in node.get_children():
+		if child is CollisionObject3D:
+			node.remove_child(child)
+			child.free()
+		else:
+			_strip_visual_collision(child)
 
 
 func _refresh_editor_preview() -> void:

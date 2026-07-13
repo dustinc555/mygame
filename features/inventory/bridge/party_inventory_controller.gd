@@ -395,6 +395,9 @@ func _on_inventory_transfer_requested(source_owner, target_owner, entry, target_
 	if source_owner != target_owner and _entry_is_silver_pouch(source_inventory, entry):
 		_show_floating_notice("Drop onto pouch")
 		return
+	if not _authorize_container_take(source_owner, target_owner):
+		return
+	entry.metadata = _stolen_take_metadata(source_owner, target_owner, entry.metadata)
 
 	if source_inventory.move_entry_to_inventory(entry, target_inventory, target_cell):
 		if target_window != null:
@@ -428,6 +431,9 @@ func _on_inventory_quick_transfer_requested(source_owner, entry) -> void:
 	if source_owner != target_owner and _entry_is_silver_pouch(source_inventory, entry):
 		_show_floating_notice("Drop onto pouch")
 		return
+	if not _authorize_container_take(source_owner, target_owner):
+		return
+	entry.metadata = _stolen_take_metadata(source_owner, target_owner, entry.metadata)
 	source_inventory.move_entry_to_inventory(entry, target_inventory, target_cell)
 
 
@@ -559,8 +565,11 @@ func _on_inventory_item_drop_requested(source_owner, entry) -> void:
 	var source_inventory = _get_owner_inventory(source_owner)
 	if source_inventory == null or not source_inventory.entries.has(entry):
 		return
+	# Dropping a container's item on the floor is still taking it out.
+	if not _authorize_container_take(source_owner, null):
+		return
 	var contained_item_counts: Dictionary = entry.contained_item_counts.duplicate(true)
-	var metadata: Dictionary = entry.metadata.duplicate(true)
+	var metadata: Dictionary = _stolen_take_metadata(source_owner, null, entry.metadata.duplicate(true))
 	if not source_inventory.remove_entry(entry):
 		return
 	_spawn_world_item(source_owner, entry.definition, entry.count, contained_item_counts, metadata)
@@ -611,6 +620,11 @@ func _on_cursor_item_place_requested(data: Dictionary, target_owner, target_cell
 		_show_floating_notice("Drop onto pouch")
 		_keep_cursor_drag(data)
 		return
+	if source_owner != null and source_owner != target_owner:
+		if not _authorize_container_take(source_owner, target_owner):
+			_keep_cursor_drag(data)
+			return
+		data["metadata"] = _stolen_take_metadata(source_owner, target_owner, data.get("metadata", {}))
 	var target_inventory = _get_owner_inventory(target_owner)
 	if target_inventory == null:
 		_keep_cursor_drag(data)
@@ -650,6 +664,11 @@ func _on_cursor_item_equip_requested(data: Dictionary, target_owner, slot_name: 
 
 
 func _on_cursor_item_dropped_outside(source_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
+	# The item already left its inventory when the cursor drag began, so a
+	# blocked roll cannot put it back — run the roll for its consequences
+	# (witnesses, law report) and spawn the item regardless, marked stolen.
+	_authorize_container_take(source_owner, null)
+	metadata = _stolen_take_metadata(source_owner, null, metadata)
 	_spawn_world_item(source_owner, definition, count, contained_item_counts, metadata)
 
 
@@ -1181,6 +1200,55 @@ func _get_merchant_role(inventory_owner):
 
 func _get_law_order_controller() -> Node:
 	return _context.get_optional(LawOrderController.SERVICE_ID) if _context != null else null
+
+
+## --- Container burglary -------------------------------------------------------
+## Opening someone else's container is legal; taking anything OUT of it (into
+## any inventory or onto the floor) is burglary. The standard theft roll runs
+## against the container: witnesses, sneak-adjusted stealing skill, XP both
+## ways, stolen metadata, law report. Putting items IN stays legal.
+
+
+## Returns false when a suspicious witness blocks the attempt before it
+## happens (the item stays where it is).
+func _authorize_container_take(source_owner, acting_owner) -> bool:
+	if not _owner_is_owned_container(source_owner):
+		return true
+	var ownership := _get_ownership_controller()
+	var actor := _burglary_actor(acting_owner)
+	if ownership == null or actor == null or not ownership.has_method("request_take_item"):
+		return true
+	return bool(ownership.call("request_take_item", actor, source_owner))
+
+
+func _stolen_take_metadata(source_owner, acting_owner, current_metadata: Dictionary) -> Dictionary:
+	if not _owner_is_owned_container(source_owner):
+		return current_metadata
+	var ownership := _get_ownership_controller()
+	var actor := _burglary_actor(acting_owner)
+	if ownership == null or actor == null or not ownership.has_method("get_take_item_metadata"):
+		return current_metadata
+	return ownership.call("get_take_item_metadata", actor, source_owner, current_metadata) as Dictionary
+
+
+func _owner_is_owned_container(inventory_owner) -> bool:
+	if not (inventory_owner is Node) or not (inventory_owner as Node).is_in_group("world_container"):
+		return false
+	return OwnershipUtils.is_owned(inventory_owner)
+
+
+## The burglar is the character receiving the goods when that is a character;
+## container-to-container moves and floor drops fall back to the focused
+## party member doing the dragging.
+func _burglary_actor(acting_owner) -> HumanoidCharacter:
+	if acting_owner is HumanoidCharacter:
+		return acting_owner
+	var focused = _get_focused_character_owner()
+	return focused if focused is HumanoidCharacter else null
+
+
+func _get_ownership_controller() -> Node:
+	return _context.get_optional(OwnershipController.SERVICE_ID) if _context != null else null
 
 
 func _take_silver_from_pouch(inventory_owner, entry, action: String) -> void:

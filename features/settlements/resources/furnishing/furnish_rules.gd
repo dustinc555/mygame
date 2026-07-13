@@ -26,6 +26,14 @@ class_name FurnishRules
 @export_range(0.0, 1.0, 0.05) var shelf_chance := 0.45
 @export var shelf_mount_height := 1.6
 
+## Floor-standing lootable containers (crates/barrels), stood against solid
+## ground-floor walls after tables claim their space.
+@export var container_scenes: Array[PackedScene] = []
+## Loot recipe rolled per placed container with the furnish RNG.
+@export var container_stock: ContainerStockTable
+@export var max_containers := 4
+@export_range(0.0, 1.0, 0.05) var container_chance := 0.5
+
 ## Beds for the upper floors, headboard against a wall.
 @export var bed_scenes: Array[PackedScene] = []
 @export var max_beds := 4

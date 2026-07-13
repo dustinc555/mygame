@@ -174,13 +174,14 @@ func _get_tabletop_pickup_half_extents() -> Vector2:
 func _get_best_tabletop_access_position(item_local: Vector3, actor_local: Vector3, half_extents: Vector2) -> Vector3:
 	var best_position := global_position
 	var best_score := INF
+	var nearby_seats := _get_nearby_seats()
 	for candidate_local in _get_tabletop_access_candidates(item_local, half_extents):
 		var candidate_world := global_transform * candidate_local
 		var projected_world := _project_tabletop_access_to_navigation(candidate_world)
 		var projected_local := global_transform.affine_inverse() * projected_world
 		if _get_local_horizontal_distance(projected_local, item_local) > _get_tabletop_route_horizontal_reach():
 			continue
-		var score := _get_tabletop_access_score(projected_world, projected_local, actor_local)
+		var score := _get_tabletop_access_score(projected_world, projected_local, actor_local, nearby_seats)
 		if score < best_score:
 			best_score = score
 			best_position = projected_world
@@ -226,21 +227,30 @@ func _get_tabletop_access_candidates(item_local: Vector3, half_extents: Vector2)
 	]
 
 
-func _get_tabletop_access_score(world_position: Vector3, local_position: Vector3, actor_local: Vector3) -> float:
+func _get_tabletop_access_score(world_position: Vector3, local_position: Vector3, actor_local: Vector3, nearby_seats: Array[Node3D]) -> float:
 	var actor_distance := Vector2(local_position.x - actor_local.x, local_position.z - actor_local.z).length()
-	return actor_distance + _get_nearby_seat_penalty(world_position)
+	return actor_distance + _get_nearby_seat_penalty(world_position, nearby_seats)
 
 
-func _get_nearby_seat_penalty(world_position: Vector3) -> float:
+## Seats within reach of this table, fetched once per access solve — the group
+## scan must not run per candidate.
+func _get_nearby_seats() -> Array[Node3D]:
+	var seats: Array[Node3D] = []
 	if not is_inside_tree() or tabletop_pickup_seat_clearance <= 0.0:
-		return 0.0
-	var penalty := 0.0
+		return seats
 	for node in get_tree().get_nodes_in_group("sittable_seat"):
 		var seat := node as Node3D
 		if seat == null or not is_instance_valid(seat):
 			continue
 		if seat.global_position.distance_squared_to(global_position) > 16.0:
 			continue
+		seats.append(seat)
+	return seats
+
+
+func _get_nearby_seat_penalty(world_position: Vector3, nearby_seats: Array[Node3D]) -> float:
+	var penalty := 0.0
+	for seat in nearby_seats:
 		var distance := Vector2(world_position.x - seat.global_position.x, world_position.z - seat.global_position.z).length()
 		if distance < tabletop_pickup_seat_clearance:
 			penalty += (tabletop_pickup_seat_clearance - distance) * 200.0

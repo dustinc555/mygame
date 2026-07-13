@@ -83,9 +83,18 @@ func report_theft_if_witnessed(actor: WorldActor, item, witnesses: Array = []) -
 		witnesses = _find_witnesses(actor, item, owner_faction)
 	if witnesses.is_empty():
 		return {}
+	var settlement := _find_containing_settlement(item)
 	var settlement_id := get_current_settlement_id_for(item)
 	var severity: int = max(1, _target_int(item, "get_theft_value", "theft_value", 10))
-	return report_crime(actor, owner_faction, settlement_id, CRIME_THEFT, severity, witnesses[0], item)
+	# The warrant belongs to whoever polices the ground the theft happened on.
+	# Facility owners (a barkeeper's civilian faction) field no soldiers, so a
+	# warrant filed under them alerted nobody — the town's jurisdiction faction
+	# is the one with guards and a jail. Outside any settlement, the owner
+	# faction keeps the warrant (camps enforce their own property).
+	var enforcing_faction := _settlement_faction_id(settlement)
+	if enforcing_faction.is_empty():
+		enforcing_faction = owner_faction
+	return report_crime(actor, enforcing_faction, settlement_id, CRIME_THEFT, severity, witnesses[0], item)
 
 
 func report_trespass(actor: WorldActor, building, witness: WorldActor = null) -> Dictionary:

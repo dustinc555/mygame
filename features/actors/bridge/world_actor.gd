@@ -1390,29 +1390,49 @@ func get_actor_capability(id: StringName) -> ActorCapability:
 # These exist so subclasses compile during Phase 0.
 # ---------------------------------------------------------------------------
 
-# MIGRATION STUB: move to PerceptionCapability.
+# Perception geometry — restored from the pre-reorganize implementations
+# (commit b6adab8); the reorganize left these as return-false/feet-height
+# stubs, which silently disabled the whole sneak perception system,
+# eye/arrow indicators included. Future home: PerceptionCapability.
 func can_participate_in_perception() -> bool:
-	return false
+	return life_state == NpcRules.LifeState.ALIVE and is_inside_tree()
 
 
-# MIGRATION STUB: move to PerceptionCapability.
 func get_stealth_sample_positions() -> Array[Vector3]:
-	return [global_position]
+	var height := _get_perception_body_height()
+	var side_offset := maxf(0.18, navigation_agent_radius * 0.62)
+	return [
+		global_position + Vector3(0.0, height * 0.32, 0.0),
+		global_position + Vector3(0.0, height * 0.58, 0.0),
+		global_position + Vector3(-side_offset, height * 0.58, 0.0),
+		global_position + Vector3(side_offset, height * 0.58, 0.0),
+		global_position + Vector3(0.0, height * 0.82, 0.0),
+	]
 
 
-# MIGRATION STUB: move to PerceptionCapability.
 func get_perception_eye_position() -> Vector3:
-	return global_position
+	return global_position + Vector3(0.0, _get_perception_body_height() * 0.82, 0.0)
 
 
-# MIGRATION STUB: move to PerceptionCapability.
 func get_stealth_light_sample_position() -> Vector3:
-	return global_position
+	return global_position + Vector3(0.0, _get_perception_body_height() * 0.55, 0.0)
 
 
-# MIGRATION STUB: move to PerceptionCapability.
 func get_perception_forward_vector() -> Vector3:
-	return -global_transform.basis.z
+	var forward := -global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() <= 0.0001:
+		return Vector3.FORWARD
+	return forward.normalized()
+
+
+## Where the observer's eye/arrow indicator floats, above the head.
+func get_stealth_indicator_position() -> Vector3:
+	return global_position + Vector3(0.0, _get_perception_body_height() + 0.65, 0.0)
+
+
+func _get_perception_body_height() -> float:
+	return maxf(navigation_agent_height, 0.6)
 
 
 # ---------------------------------------------------------------------------

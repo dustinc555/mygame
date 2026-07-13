@@ -60,6 +60,11 @@ var current_conversation_target: Node
 var current_mining_node: Node
 var current_scavenging_node: Node
 var current_pickup_item: Node
+# Cached pickup approach point: computing it can cost navmesh closest-point
+# queries (tabletop/shelf access solving), so it refreshes only when the item
+# itself moves instead of every processed frame.
+var _pickup_route_position := Vector3.ZERO
+var _pickup_route_item_position := Vector3.INF
 var current_place_bed_target: Node
 var current_place_cell_target: Node
 var current_place_cell_waypoints: Array = []
@@ -238,6 +243,7 @@ func stop_seat_assignment() -> void:
 
 func stop_pickup_assignment() -> void:
 	current_pickup_item = null
+	_pickup_route_item_position = Vector3.INF
 	if current_order_type == ORDER_TYPE_PICKUP_ITEM:
 		_clear_actor_move_target()
 		current_order_type = ORDER_TYPE_NONE
@@ -472,7 +478,8 @@ func assign_pickup_item(world_item, issued_by_player := true) -> void:
 	if not _set_order(ORDER_TYPE_PICKUP_ITEM, issued_by_player):
 		return
 	current_pickup_item = world_item
-	_set_actor_move_target(get_pickup_route_position(world_item))
+	_pickup_route_item_position = Vector3.INF
+	_set_actor_move_target(_get_cached_pickup_route_position(world_item))
 
 
 func assign_heal_target(target_character, issued_by_player := true) -> void:
@@ -748,12 +755,25 @@ func process_container_interaction() -> void:
 	if not _is_valid_node(container) or not container.has_method("get_interaction_position"):
 		stop_container_interaction()
 		return
-	var interaction_position: Vector3 = container.call("get_interaction_position", actor)
-	if _position().distance_to(interaction_position) > _actor_float("interact_distance", 1.8):
-		_set_actor_move_target(interaction_position)
+	# Arrival is distance to the CONTAINER (arm's length, per its authored
+	# interaction_distance) — never gated on the move target having cleared,
+	# which stranded opens when a wall slot was unreachable. The nav-clamped
+	# slot can legally sit slightly past the authored reach (the container's
+	# own navmesh carve plus agent radius), so reach stretches just enough to
+	# cover the slot ring plus stopping tolerance.
+	var slot: Vector3 = container.call("get_interaction_position", actor)
+	var container_reach := _actor_float("interact_distance", 1.8)
+	var container_distance = container.get("interaction_distance")
+	if container_distance != null:
+		container_reach = float(container_distance)
+	container_reach = maxf(container_reach, _position_of(container).distance_to(slot) + 0.6)
+	if _position().distance_to(_position_of(container)) > container_reach:
+		if not _actor_bool("_has_move_target", false):
+			_set_actor_move_target(slot)
 		return
+	# Within reach: stop pressing toward the slot and open where we stand.
 	if _actor_bool("_has_move_target", false):
-		return
+		_clear_actor_move_target()
 	current_container_target = null
 	current_order_type = ORDER_TYPE_NONE
 	_emit_actor_signal("container_reached", [actor, container])
@@ -1129,7 +1149,7 @@ func process_pickup_interaction() -> void:
 		return
 	if try_complete_pickup_interaction(_actor_float("PICKUP_GRAB_EXTRA_DISTANCE", 0.1)):
 		return
-	var pickup_position := get_pickup_route_position(pickup_item)
+	var pickup_position := _get_cached_pickup_route_position(pickup_item)
 	if _horizontal_distance_to(pickup_position) > _move_target_arrival_distance():
 		_set_actor_move_target(pickup_position)
 		return
@@ -1171,6 +1191,15 @@ func get_pickup_route_position(item) -> Vector3:
 	if item is Node3D:
 		return (item as Node3D).global_position
 	return _position()
+
+
+func _get_cached_pickup_route_position(item) -> Vector3:
+	var item_position := (item as Node3D).global_position if item is Node3D else _position()
+	if _pickup_route_item_position == Vector3.INF \
+			or item_position.distance_squared_to(_pickup_route_item_position) > 0.0625:
+		_pickup_route_position = get_pickup_route_position(item)
+		_pickup_route_item_position = item_position
+	return _pickup_route_position
 
 
 func validate_carried_order_targets() -> void:
