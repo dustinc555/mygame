@@ -32,9 +32,13 @@ var activity_running := false
 var activity_sitting := false
 var activity_working := false
 
+## Active food effect: nutrition drips into hunger at a fixed rate until the
+## timer runs out. Only one effect at a time; eating is blocked while active.
+var food_effect_rate := 0.0
+var food_effect_remaining_seconds := 0.0
+
 var _stats: StatsCapability
 var _vitals: VitalsCapability
-var _pending_nourishment := 0.0
 var _tick_accumulated := 0.0
 var _tick_remaining := 0.0
 
@@ -94,10 +98,12 @@ func process(delta: float) -> void:
 func process_needs(tick_delta: float) -> void:
 	var life_state := _life_state()
 	if hunger_enabled:
-		if _pending_nourishment > 0.0:
-			var nourishment_step := minf(_pending_nourishment, NpcRules.NOURISHMENT_APPLY_RATE * tick_delta * 100.0)
-			_pending_nourishment -= nourishment_step
-			apply_hunger_delta(nourishment_step)
+		if food_effect_remaining_seconds > 0.0:
+			var effect_step := minf(tick_delta, food_effect_remaining_seconds)
+			food_effect_remaining_seconds -= effect_step
+			apply_hunger_delta(food_effect_rate * effect_step)
+			if food_effect_remaining_seconds <= 0.0:
+				food_effect_rate = 0.0
 		else:
 			apply_hunger_delta(-_stat_value("hunger_drain_rate") * NpcRules.WORLD_HUNGER_DRAIN_MULTIPLIER * tick_delta)
 	if fatigue_enabled:
@@ -171,8 +177,23 @@ func apply_fatigue_delta(amount: float) -> void:
 	fatigue = clampf(fatigue, 0.0, 100.0)
 
 
-func add_nourishment(amount: float) -> void:
-	_pending_nourishment += maxf(amount, 0.0)
+func is_food_effect_active() -> bool:
+	return food_effect_remaining_seconds > 0.0
+
+
+## Total nutrition points spread evenly across the duration. Refuses while an
+## effect is already running — one food at a time.
+func start_food_effect(total_points: float, duration_seconds: float) -> bool:
+	if is_food_effect_active() or total_points <= 0.0 or duration_seconds <= 0.0:
+		return false
+	food_effect_rate = total_points / duration_seconds
+	food_effect_remaining_seconds = duration_seconds
+	return true
+
+
+## Hunger points per second the active effect grants; 0 when no effect runs.
+func get_food_effect_rate() -> float:
+	return food_effect_rate if is_food_effect_active() else 0.0
 
 
 func get_hunger_stage_label() -> String:

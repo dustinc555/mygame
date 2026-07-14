@@ -1759,6 +1759,30 @@ func get_hunger_stage_label() -> String:
 	return needs.get_hunger_stage_label() if needs != null else ""
 
 
+func can_eat_item(definition: ItemDefinition) -> bool:
+	var needs := get_needs()
+	return definition != null and definition.nutrition_value > 0.0 \
+		and needs != null and needs.hunger_enabled
+
+
+func is_food_effect_active() -> bool:
+	var needs := get_needs()
+	return needs != null and needs.is_food_effect_active()
+
+
+func get_food_effect_rate() -> float:
+	var needs := get_needs()
+	return needs.get_food_effect_rate() if needs != null else 0.0
+
+
+func eat_item(definition: ItemDefinition) -> bool:
+	if not can_eat_item(definition) or is_food_effect_active():
+		return false
+	if inventory == null or not inventory.remove_item_count(definition, 1):
+		return false
+	return get_needs().start_food_effect(definition.nutrition_value, NpcRules.FOOD_EFFECT_DURATION_SECONDS)
+
+
 func shows_fatigue_vital() -> bool:
 	var needs := get_needs()
 	return needs != null and needs.fatigue_enabled
