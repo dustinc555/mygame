@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/prop_exterior_border_corner.tscn" id="1_qw5qw"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_48b6l"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_ExteriorBorder_Corner.gltf" id="3_g03wp"]
+
+[resource]
+script = ExtResource("2_48b6l")
+piece_id = "prop_exterior_border_corner"
+display_name = "Prop ExteriorBorder Corner"
+category = "prop"
+scene = ExtResource("1_qw5qw")
+source_scene = ExtResource("3_g03wp")
+bounds_size_meters = Vector3(0.7000001, 0.13401799, 0.7)
+tags = PackedStringArray("prop", "exterior_border", "corner")

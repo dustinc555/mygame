@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://dygtnr7vwa2ee"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/overhang_roof_incline_uneven_bricks.tscn" id="1_rhonn"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_7k8vw"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_rlfqe"]
+[ext_resource type="PackedScene" uid="uid://dmpnbh61yat21" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Overhang_RoofIncline_UnevenBricks.gltf" id="4_5pu40"]
+
+[sub_resource type="Resource" id="Resource_sqf2n"]
+script = ExtResource("3_rlfqe")
+snap_id = "bottom"
+display_name = "Bottom"
+connector_type = "wall_bottom"
+accepts_types = PackedStringArray("wall_top")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, -0.32443213, -0.30684543)
+
+[sub_resource type="Resource" id="Resource_y0gi6"]
+script = ExtResource("3_rlfqe")
+snap_id = "top"
+display_name = "Top"
+connector_type = "wall_top"
+accepts_types = PackedStringArray("roof_wall_top", "wall_bottom")
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, -0.05856687, -0.30684543)
+
+[resource]
+script = ExtResource("2_7k8vw")
+piece_id = "overhang_roof_incline_uneven_bricks"
+display_name = "Overhang RoofIncline UnevenBricks"
+category = "overhang"
+scene = ExtResource("1_rhonn")
+source_scene = ExtResource("4_5pu40")
+bounds_size_meters = Vector3(2, 0.26586527, 1.4295332)
+tags = PackedStringArray("overhang", "roof_incline", "uneven_bricks")
+snap_points = [SubResource("Resource_sqf2n"), SubResource("Resource_y0gi6")]

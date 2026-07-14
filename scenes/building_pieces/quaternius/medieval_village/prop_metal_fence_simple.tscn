@@ -1,0 +1,16 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_2kxow"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_MetalFence_Simple.gltf" id="2_7brmt"]
+
+[node name="PropMetalFenceSimple" type="Node3D" unique_id=465120880]
+script = ExtResource("1_2kxow")
+piece_id = "prop_metal_fence_simple"
+display_name = "Prop MetalFence Simple"
+category = "prop"
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(1.9491038, 2.8683505, 0.15605798)
+
+[node name="Model" type="Node3D" parent="." unique_id=1569008536 instance=ExtResource("2_7brmt")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=824832640]

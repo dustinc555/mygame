@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/prop_brick_2.tscn" id="1_j4i7q"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_feq8v"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Brick2.gltf" id="3_skfe6"]
+
+[resource]
+script = ExtResource("2_feq8v")
+piece_id = "prop_brick_2"
+display_name = "Prop Brick2"
+category = "prop"
+scene = ExtResource("1_j4i7q")
+source_scene = ExtResource("3_skfe6")
+bounds_size_meters = Vector3(0.39540976, 0.24488914, 0.216888)
+tags = PackedStringArray("prop", "brick_2")

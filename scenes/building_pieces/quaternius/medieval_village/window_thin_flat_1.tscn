@@ -1,0 +1,24 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_jf5o3"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Window_Thin_Flat1.gltf" id="2_uujj8"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_ptnmn"]
+
+[node name="WindowThinFlat1" type="Node3D" unique_id=1213446157]
+script = ExtResource("1_jf5o3")
+piece_id = "window_thin_flat_1"
+display_name = "Window Thin Flat1"
+category = "window"
+bounds_size_meters = Vector3(0.787971, 1.5579672, 0.43574303)
+
+[node name="Model" type="Node3D" parent="." unique_id=197521848 instance=ExtResource("2_uujj8")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1942586678]
+
+[node name="Center" type="Marker3D" parent="SnapPoints" unique_id=47121405]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.011072814, 1.8206, -0.110794306)
+script = ExtResource("3_ptnmn")
+snap_id = "center"
+display_name = "Center"
+connector_type = "window_insert"
+accepts_types = PackedStringArray("window_socket")

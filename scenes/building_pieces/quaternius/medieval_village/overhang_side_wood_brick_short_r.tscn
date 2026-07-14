@@ -1,0 +1,33 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_gwjcv"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Overhang_Side_WoodBrick_Short_R.gltf" id="2_l1pt6"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_5c8j5"]
+
+[node name="OverhangSideWoodBrickShortR" type="Node3D" unique_id=2105623335]
+script = ExtResource("1_gwjcv")
+piece_id = "overhang_side_wood_brick_short_r"
+display_name = "Overhang Side WoodBrick Short R"
+category = "overhang"
+grid_size_cells = Vector3i(1, 4, 1)
+bounds_size_meters = Vector3(0.4793324, 6.116765, 1.436869)
+
+[node name="Model" type="Node3D" parent="." unique_id=1658074303 instance=ExtResource("2_l1pt6")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=258730304]
+
+[node name="Bottom" type="Marker3D" parent="SnapPoints" unique_id=360803322]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.92563057, -2.3841858e-07, 0.40440062)
+script = ExtResource("3_5c8j5")
+snap_id = "bottom"
+display_name = "Bottom"
+connector_type = "wall_bottom"
+accepts_types = PackedStringArray("wall_top")
+
+[node name="Top" type="Marker3D" parent="SnapPoints" unique_id=202182222]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0.92563057, 6.116765, 0.40440062)
+script = ExtResource("3_5c8j5")
+snap_id = "top"
+display_name = "Top"
+connector_type = "wall_top"
+accepts_types = PackedStringArray("roof_wall_top", "wall_bottom")

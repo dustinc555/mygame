@@ -1,0 +1,50 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://kf0cqhwbj15u"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/roof_flat_tiles_8x_8.tscn" id="1_nywol"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_ux0yj"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_iib43"]
+[ext_resource type="PackedScene" uid="uid://0gc6dtteu317" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_FlatTiles_8x8.gltf" id="4_jvm7o"]
+
+[sub_resource type="Resource" id="Resource_edqhg"]
+script = ExtResource("3_iib43")
+snap_id = "left"
+display_name = "Left"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -5.3546686, 2.5690424, 0.08135319)
+
+[sub_resource type="Resource" id="Resource_xfksh"]
+script = ExtResource("3_iib43")
+snap_id = "right"
+display_name = "Right"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5.3546686, 2.5690424, 0.08135319)
+
+[sub_resource type="Resource" id="Resource_84d0n"]
+script = ExtResource("3_iib43")
+snap_id = "wall_top"
+display_name = "Wall Top"
+connector_type = "roof_wall_top"
+accepts_types = PackedStringArray("wall_top")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, -0.86328244, 0.08135319)
+
+[sub_resource type="Resource" id="Resource_i3b7l"]
+script = ExtResource("3_iib43")
+snap_id = "ridge"
+display_name = "Ridge"
+connector_type = "roof_ridge"
+accepts_types = PackedStringArray("roof_ridge")
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 6.0013676, 0.08135319)
+
+[resource]
+script = ExtResource("2_ux0yj")
+piece_id = "roof_flat_tiles_8x_8"
+display_name = "Roof FlatTiles 8x8"
+category = "roof"
+scene = ExtResource("1_nywol")
+source_scene = ExtResource("4_jvm7o")
+grid_size_cells = Vector3i(6, 4, 6)
+bounds_size_meters = Vector3(10.709337, 6.86465, 10.332188)
+tags = PackedStringArray("roof", "flat_tiles", "8x_8")
+snap_points = [SubResource("Resource_edqhg"), SubResource("Resource_xfksh"), SubResource("Resource_84d0n"), SubResource("Resource_i3b7l")]

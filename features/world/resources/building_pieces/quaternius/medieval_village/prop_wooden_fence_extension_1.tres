@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/prop_wooden_fence_extension_1.tscn" id="1_skxjm"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_4rln2"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_WoodenFence_Extension1.gltf" id="3_qu3o8"]
+
+[resource]
+script = ExtResource("2_4rln2")
+piece_id = "prop_wooden_fence_extension_1"
+display_name = "Prop WoodenFence Extension1"
+category = "prop"
+scene = ExtResource("1_skxjm")
+source_scene = ExtResource("3_qu3o8")
+grid_size_cells = Vector3i(2, 1, 1)
+bounds_size_meters = Vector3(2.045045, 0.8381091, 0.11035727)
+tags = PackedStringArray("prop", "wooden_fence", "extension_1")

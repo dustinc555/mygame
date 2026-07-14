@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/prop_crate.tscn" id="1_tuswi"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_xbwko"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Crate.gltf" id="3_ci2xf"]
+
+[resource]
+script = ExtResource("2_xbwko")
+piece_id = "prop_crate"
+display_name = "Prop Crate"
+category = "prop"
+scene = ExtResource("1_tuswi")
+source_scene = ExtResource("3_ci2xf")
+bounds_size_meters = Vector3(1.0835824, 1.0595808, 1.0835824)
+tags = PackedStringArray("prop", "crate")

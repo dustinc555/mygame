@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://bpa3e5hq6bl2v"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/window_shutters_wide_round_open.tscn" id="1_1yxlm"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_sd3r8"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_61ghe"]
+[ext_resource type="PackedScene" uid="uid://dc4xigjmihi1k" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/WindowShutters_Wide_Round_Open.gltf" id="4_dnlg1"]
+
+[sub_resource type="Resource" id="Resource_gyvi6"]
+script = ExtResource("3_61ghe")
+snap_id = "center"
+display_name = "Center"
+connector_type = "window_insert"
+accepts_types = PackedStringArray("window_socket")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.04821551, 1.8882, -0.110794306)
+
+[resource]
+script = ExtResource("2_sd3r8")
+piece_id = "window_shutters_wide_round_open"
+display_name = "WindowShutters Wide Round Open"
+category = "shutter"
+scene = ExtResource("1_1yxlm")
+source_scene = ExtResource("4_dnlg1")
+grid_size_cells = Vector3i(2, 1, 1)
+bounds_size_meters = Vector3(2.3034835, 1.6471877, 0.4723553)
+tags = PackedStringArray("window_shutters", "wide", "round", "open", "shutter")
+snap_points = [SubResource("Resource_gyvi6")]

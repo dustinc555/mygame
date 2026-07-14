@@ -1,0 +1,58 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://c0yyxs1tw46o6"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/wall_plaster_door_flat.tscn" id="1_mf3i3"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_uqyje"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_o201q"]
+[ext_resource type="PackedScene" uid="uid://b3dlga6ovofl4" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Wall_Plaster_Door_Flat.gltf" id="4_ad5hl"]
+
+[sub_resource type="Resource" id="Resource_06d7o"]
+script = ExtResource("3_o201q")
+snap_id = "left"
+display_name = "Left"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1.0000001, 1.5613444, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_3yw30"]
+script = ExtResource("3_o201q")
+snap_id = "right"
+display_name = "Right"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0.9999999, 1.5613444, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_n15l6"]
+script = ExtResource("3_o201q")
+snap_id = "bottom"
+display_name = "Bottom"
+connector_type = "wall_bottom"
+accepts_types = PackedStringArray("floor_edge")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -1.1920929e-07, 0, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_kysk4"]
+script = ExtResource("3_o201q")
+snap_id = "top"
+display_name = "Top"
+connector_type = "wall_top"
+accepts_types = PackedStringArray("roof_wall_top", "wall_bottom")
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -1.1920929e-07, 3.1226888, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_ao718"]
+script = ExtResource("3_o201q")
+snap_id = "center"
+display_name = "Door Center"
+connector_type = "door_socket"
+accepts_types = PackedStringArray("door_insert")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1920929e-07, 1.1182, -0.110794306)
+
+[resource]
+script = ExtResource("2_uqyje")
+piece_id = "wall_plaster_door_flat"
+display_name = "Wall Plaster Door Flat"
+category = "wall_door"
+scene = ExtResource("1_mf3i3")
+source_scene = ExtResource("4_ad5hl")
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(2, 3.1226888, 0.40648204)
+tags = PackedStringArray("wall", "plaster", "door", "flat", "wall_door")
+snap_points = [SubResource("Resource_06d7o"), SubResource("Resource_3yw30"), SubResource("Resource_n15l6"), SubResource("Resource_kysk4"), SubResource("Resource_ao718")]

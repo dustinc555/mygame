@@ -1,0 +1,57 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_id60g"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Wall_Plaster_Window_Wide_Flat2.gltf" id="2_la1jp"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_1wq2s"]
+
+[node name="WallPlasterWindowWideFlat2" type="Node3D" unique_id=824114133]
+script = ExtResource("1_id60g")
+piece_id = "wall_plaster_window_wide_flat_2"
+display_name = "Wall Plaster Window Wide Flat2"
+category = "wall_window"
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(2, 3.1457345, 0.40648204)
+
+[node name="Model" type="Node3D" parent="." unique_id=169120812 instance=ExtResource("2_la1jp")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=340710905]
+
+[node name="Left" type="Marker3D" parent="SnapPoints" unique_id=1044842372]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1.0000001, 1.5498215, -0.110794306)
+script = ExtResource("3_1wq2s")
+snap_id = "left"
+display_name = "Left"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+
+[node name="Right" type="Marker3D" parent="SnapPoints" unique_id=229622306]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0.9999999, 1.5498215, -0.110794306)
+script = ExtResource("3_1wq2s")
+snap_id = "right"
+display_name = "Right"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+
+[node name="Bottom" type="Marker3D" parent="SnapPoints" unique_id=278093891]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -1.1920929e-07, -0.023045778, -0.110794306)
+script = ExtResource("3_1wq2s")
+snap_id = "bottom"
+display_name = "Bottom"
+connector_type = "wall_bottom"
+accepts_types = PackedStringArray("floor_edge")
+
+[node name="Top" type="Marker3D" parent="SnapPoints" unique_id=1909427148]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -1.1920929e-07, 3.1226888, -0.110794306)
+script = ExtResource("3_1wq2s")
+snap_id = "top"
+display_name = "Top"
+connector_type = "wall_top"
+accepts_types = PackedStringArray("roof_wall_top", "wall_bottom")
+
+[node name="WindowCenter" type="Marker3D" parent="SnapPoints" unique_id=820961860]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1920929e-07, 1.7105, -0.110794306)
+script = ExtResource("3_1wq2s")
+snap_id = "center"
+display_name = "Window Center"
+connector_type = "window_socket"
+accepts_types = PackedStringArray("window_insert")

@@ -1,0 +1,16 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_iwt1s"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_MetalFence_Ornament.gltf" id="2_4he2e"]
+
+[node name="PropMetalFenceOrnament" type="Node3D" unique_id=566559163]
+script = ExtResource("1_iwt1s")
+piece_id = "prop_metal_fence_ornament"
+display_name = "Prop MetalFence Ornament"
+category = "prop"
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(1.952312, 2.8523812, 0.15605798)
+
+[node name="Model" type="Node3D" parent="." unique_id=897653273 instance=ExtResource("2_4he2e")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=2009574226]

@@ -1,0 +1,57 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://caxwvn5u1ktt2"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/floor_wood_light_overhang_corner.tscn" id="1_enbiy"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_whvx8"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_38ed7"]
+[ext_resource type="PackedScene" uid="uid://cnf2ugluovx4u" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Floor_WoodLight_OverhangCorner.gltf" id="4_cbodg"]
+
+[sub_resource type="Resource" id="Resource_nwrji"]
+script = ExtResource("3_38ed7")
+snap_id = "north"
+display_name = "North"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, -8.8475645e-08, -0.7564598)
+
+[sub_resource type="Resource" id="Resource_x8r0y"]
+script = ExtResource("3_38ed7")
+snap_id = "south"
+display_name = "South"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+local_transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.5, -8.8475645e-08, 0.99999994)
+
+[sub_resource type="Resource" id="Resource_subyb"]
+script = ExtResource("3_38ed7")
+snap_id = "east"
+display_name = "East"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0, -8.8475645e-08, 0.121770084)
+
+[sub_resource type="Resource" id="Resource_601n7"]
+script = ExtResource("3_38ed7")
+snap_id = "west"
+display_name = "West"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1, -8.8475645e-08, 0.121770084)
+
+[sub_resource type="Resource" id="Resource_3ulew"]
+script = ExtResource("3_38ed7")
+snap_id = "up"
+display_name = "Up"
+connector_type = "floor_up"
+accepts_types = PackedStringArray("wall_bottom", "stairs_bottom")
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -0.5, 0.009999991, 0.121770084)
+
+[resource]
+script = ExtResource("2_whvx8")
+piece_id = "floor_wood_light_overhang_corner"
+display_name = "Floor WoodLight OverhangCorner"
+category = "floor"
+scene = ExtResource("1_enbiy")
+source_scene = ExtResource("4_cbodg")
+bounds_size_meters = Vector3(1, 0.02000016, 1.7564597)
+tags = PackedStringArray("floor", "wood_light", "overhang_corner")
+snap_points = [SubResource("Resource_nwrji"), SubResource("Resource_x8r0y"), SubResource("Resource_subyb"), SubResource("Resource_601n7"), SubResource("Resource_3ulew")]

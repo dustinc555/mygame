@@ -1,0 +1,49 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_owcwo"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Spike.gltf" id="2_0128o"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_pabix"]
+
+[node name="RoofSpike" type="Node3D" unique_id=1815594160]
+script = ExtResource("1_owcwo")
+piece_id = "roof_spike"
+display_name = "Roof Spike"
+category = "roof"
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(0.25379756, 2.2295046, 0.2535041)
+
+[node name="Model" type="Node3D" parent="." unique_id=440667775 instance=ExtResource("2_0128o")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1408240848]
+
+[node name="Left" type="Marker3D" parent="SnapPoints" unique_id=826646349]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -0.12689878, 1.0179329, 0.0009563863)
+script = ExtResource("3_pabix")
+snap_id = "left"
+display_name = "Left"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+
+[node name="Right" type="Marker3D" parent="SnapPoints" unique_id=968013922]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0.12689878, 1.0179329, 0.0009563863)
+script = ExtResource("3_pabix")
+snap_id = "right"
+display_name = "Right"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+
+[node name="WallTop" type="Marker3D" parent="SnapPoints" unique_id=894186143]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, -0.096819416, 0.0009563863)
+script = ExtResource("3_pabix")
+snap_id = "wall_top"
+display_name = "Wall Top"
+connector_type = "roof_wall_top"
+accepts_types = PackedStringArray("wall_top")
+
+[node name="Ridge" type="Marker3D" parent="SnapPoints" unique_id=882815151]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 2.1326852, 0.0009563863)
+script = ExtResource("3_pabix")
+snap_id = "ridge"
+display_name = "Ridge"
+connector_type = "roof_ridge"
+accepts_types = PackedStringArray("roof_ridge")

@@ -6,9 +6,8 @@ extends EditorPlugin
 ## tool context object that owns its own toolbar and input handling. The
 ## router mounts every context's toolbar in the spatial editor menu, resolves
 ## which context a selection belongs to, and forwards editor callbacks.
-## Concept-agnostic tools (world nav bake) stay mounted directly.
+## The world nav bake row lives in the World bottom dock (world_dock.gd).
 
-const WORLD_NAV_BAKE_TOOL := preload("res://addons/world_authoring/world_nav_bake_tool.gd")
 const BUILDING_TOOLS := preload("res://addons/world_authoring/building_tools.gd")
 const TOWN_TOOLS := preload("res://addons/world_authoring/town_tools.gd")
 const ZONE_TOOLS := preload("res://addons/world_authoring/zone_tools.gd")
@@ -17,7 +16,6 @@ const FACTION_TOOLS := preload("res://addons/world_authoring/faction_tools.gd")
 const WORLD_TOOLS := preload("res://addons/world_authoring/world_tools.gd")
 
 var _contexts: Array = []
-var _world_nav_bake_tool: Control
 ## Scene roots (instance IDs) already folded once — manual expand state is
 ## never fought after the initial collapse.
 var _folded_scene_roots := {}
@@ -33,8 +31,6 @@ func _enter_tree() -> void:
 	_contexts = [BUILDING_TOOLS.new(self), FACILITY_TOOLS.new(self), TOWN_TOOLS.new(self), FACTION_TOOLS.new(self), ZONE_TOOLS.new(self), WORLD_TOOLS.new(self)]
 	for context in _contexts:
 		add_control_to_container(EditorPlugin.CONTAINER_SPATIAL_EDITOR_MENU, context.toolbar())
-	_world_nav_bake_tool = WORLD_NAV_BAKE_TOOL.new()
-	add_control_to_container(EditorPlugin.CONTAINER_SPATIAL_EDITOR_MENU, _world_nav_bake_tool)
 	if not scene_changed.is_connected(_on_scene_changed):
 		scene_changed.connect(_on_scene_changed)
 	var selection := get_editor_interface().get_selection()
@@ -61,10 +57,6 @@ func _exit_tree() -> void:
 		remove_control_from_container(EditorPlugin.CONTAINER_SPATIAL_EDITOR_MENU, context.toolbar())
 		context.teardown()
 	_contexts.clear()
-	if _world_nav_bake_tool != null:
-		remove_control_from_container(EditorPlugin.CONTAINER_SPATIAL_EDITOR_MENU, _world_nav_bake_tool)
-		_world_nav_bake_tool.free()
-		_world_nav_bake_tool = null
 
 
 func _handles(object: Object) -> bool:

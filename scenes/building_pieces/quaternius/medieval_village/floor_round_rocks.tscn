@@ -1,0 +1,56 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_jd6eq"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Floor_RoundRocks.gltf" id="2_e8aib"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_myndj"]
+
+[node name="FloorRoundRocks" type="Node3D" unique_id=441694247]
+script = ExtResource("1_jd6eq")
+piece_id = "floor_round_rocks"
+display_name = "Floor RoundRocks"
+category = "floor"
+bounds_size_meters = Vector3(2, 0.020000376, 2)
+
+[node name="Model" type="Node3D" parent="." unique_id=1870389031 instance=ExtResource("2_e8aib")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=687917867]
+
+[node name="North" type="Marker3D" parent="SnapPoints" unique_id=1320604095]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.9650906e-07, -1)
+script = ExtResource("3_myndj")
+snap_id = "north"
+display_name = "North"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+
+[node name="South" type="Marker3D" parent="SnapPoints" unique_id=1204336612]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, -1.9650906e-07, 1)
+script = ExtResource("3_myndj")
+snap_id = "south"
+display_name = "South"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+
+[node name="East" type="Marker3D" parent="SnapPoints" unique_id=357215381]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1, -1.9650906e-07, 0)
+script = ExtResource("3_myndj")
+snap_id = "east"
+display_name = "East"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+
+[node name="West" type="Marker3D" parent="SnapPoints" unique_id=1764204586]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1, -1.9650906e-07, 0)
+script = ExtResource("3_myndj")
+snap_id = "west"
+display_name = "West"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+
+[node name="Up" type="Marker3D" parent="SnapPoints" unique_id=2063039833]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 0.009999991, 0)
+script = ExtResource("3_myndj")
+snap_id = "up"
+display_name = "Up"
+connector_type = "floor_up"
+accepts_types = PackedStringArray("wall_bottom", "stairs_bottom")

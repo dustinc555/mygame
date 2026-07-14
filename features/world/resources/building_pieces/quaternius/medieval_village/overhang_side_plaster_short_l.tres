@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://ddsseemvec571"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/overhang_side_plaster_short_l.tscn" id="1_ervod"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_ju2pf"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_vg3qi"]
+[ext_resource type="PackedScene" uid="uid://g5mcn4ivwb4m" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Overhang_Side_Plaster_Short_L.gltf" id="4_j246e"]
+
+[sub_resource type="Resource" id="Resource_rpit8"]
+script = ExtResource("3_vg3qi")
+snap_id = "bottom"
+display_name = "Bottom"
+connector_type = "wall_bottom"
+accepts_types = PackedStringArray("wall_top")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -0.92563057, -2.3841858e-07, 0.40440062)
+
+[sub_resource type="Resource" id="Resource_bcbdh"]
+script = ExtResource("3_vg3qi")
+snap_id = "top"
+display_name = "Top"
+connector_type = "wall_top"
+accepts_types = PackedStringArray("roof_wall_top", "wall_bottom")
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -0.92563057, 6.116765, 0.40440062)
+
+[resource]
+script = ExtResource("2_ju2pf")
+piece_id = "overhang_side_plaster_short_l"
+display_name = "Overhang Side Plaster Short L"
+category = "overhang"
+scene = ExtResource("1_ervod")
+source_scene = ExtResource("4_j246e")
+grid_size_cells = Vector3i(1, 4, 1)
+bounds_size_meters = Vector3(0.47933227, 6.116765, 1.436869)
+tags = PackedStringArray("overhang", "side", "plaster", "short", "l")
+snap_points = [SubResource("Resource_rpit8"), SubResource("Resource_bcbdh")]

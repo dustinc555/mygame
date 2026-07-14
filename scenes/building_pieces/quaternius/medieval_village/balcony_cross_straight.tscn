@@ -1,0 +1,49 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_2qaeb"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Balcony_Cross_Straight.gltf" id="2_rjya0"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_abdht"]
+
+[node name="BalconyCrossStraight" type="Node3D" unique_id=1203873715]
+script = ExtResource("1_2qaeb")
+piece_id = "balcony_cross_straight"
+display_name = "Balcony Cross Straight"
+category = "balcony"
+grid_size_cells = Vector3i(2, 1, 1)
+bounds_size_meters = Vector3(2.0000007, 1.2298867, 0.20628303)
+
+[node name="Model" type="Node3D" parent="." unique_id=921447764 instance=ExtResource("2_rjya0")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=443538073]
+
+[node name="South" type="Marker3D" parent="SnapPoints" unique_id=1332139326]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 1)
+script = ExtResource("3_abdht")
+snap_id = "south"
+display_name = "South"
+connector_type = "balcony_rail"
+accepts_types = PackedStringArray("floor_edge")
+
+[node name="SouthBottom" type="Marker3D" parent="SnapPoints" unique_id=1704706042]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 1)
+script = ExtResource("3_abdht")
+snap_id = "south_bottom"
+display_name = "South Bottom"
+connector_type = "balcony_rail_bottom"
+accepts_types = PackedStringArray("wall_top")
+
+[node name="SouthEndSouthwest" type="Marker3D" parent="SnapPoints" unique_id=284700869]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1, 0, 1)
+script = ExtResource("3_abdht")
+snap_id = "south_end_southwest"
+display_name = "South End Southwest"
+connector_type = "balcony_rail_end"
+accepts_types = PackedStringArray("balcony_rail_end")
+
+[node name="SouthEndSoutheast" type="Marker3D" parent="SnapPoints" unique_id=914562876]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1, 0, 1)
+script = ExtResource("3_abdht")
+snap_id = "south_end_southeast"
+display_name = "South End Southeast"
+connector_type = "balcony_rail_end"
+accepts_types = PackedStringArray("balcony_rail_end")

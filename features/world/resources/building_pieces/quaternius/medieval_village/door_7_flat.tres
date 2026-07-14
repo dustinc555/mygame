@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://h7t3k8a5qocm"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/door_7_flat.tscn" id="1_0q25s"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_4lwlw"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_aiau1"]
+[ext_resource type="PackedScene" uid="uid://c58c4axvutl06" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Door_7_Flat.gltf" id="4_ogjhb"]
+
+[sub_resource type="Resource" id="Resource_vcho1"]
+script = ExtResource("3_aiau1")
+snap_id = "center"
+display_name = "Center"
+connector_type = "door_insert"
+accepts_types = PackedStringArray("door_socket")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5127346, 1.1182, -0.110794306)
+
+[resource]
+script = ExtResource("2_4lwlw")
+piece_id = "door_7_flat"
+display_name = "Door 7 Flat"
+category = "door"
+scene = ExtResource("1_0q25s")
+source_scene = ExtResource("4_ogjhb")
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(1.1333737, 2.104632, 0.20934628)
+tags = PackedStringArray("door", "7", "flat")
+snap_points = [SubResource("Resource_vcho1")]

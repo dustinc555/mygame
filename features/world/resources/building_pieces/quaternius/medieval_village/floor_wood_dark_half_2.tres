@@ -1,0 +1,57 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://k7xtdse63uv3"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/floor_wood_dark_half_2.tscn" id="1_r83j8"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_7ndas"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_2wn5n"]
+[ext_resource type="PackedScene" uid="uid://dexrunx8ja3bs" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Floor_WoodDark_Half2.gltf" id="4_eukvh"]
+
+[sub_resource type="Resource" id="Resource_w4ht6"]
+script = ExtResource("3_2wn5n")
+snap_id = "north"
+display_name = "North"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, -3.4458935e-08, -1)
+
+[sub_resource type="Resource" id="Resource_fc57t"]
+script = ExtResource("3_2wn5n")
+snap_id = "south"
+display_name = "South"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+local_transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.5, -3.4458935e-08, 1)
+
+[sub_resource type="Resource" id="Resource_2154j"]
+script = ExtResource("3_2wn5n")
+snap_id = "east"
+display_name = "East"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1, -3.4458935e-08, 0)
+
+[sub_resource type="Resource" id="Resource_75l7u"]
+script = ExtResource("3_2wn5n")
+snap_id = "west"
+display_name = "West"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0, -3.4458935e-08, 0)
+
+[sub_resource type="Resource" id="Resource_udevt"]
+script = ExtResource("3_2wn5n")
+snap_id = "up"
+display_name = "Up"
+connector_type = "floor_up"
+accepts_types = PackedStringArray("wall_bottom", "stairs_bottom")
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0.5, 0.00999999, 0)
+
+[resource]
+script = ExtResource("2_7ndas")
+piece_id = "floor_wood_dark_half_2"
+display_name = "Floor WoodDark Half2"
+category = "floor"
+scene = ExtResource("1_r83j8")
+source_scene = ExtResource("4_eukvh")
+bounds_size_meters = Vector3(1, 0.02000005, 2)
+tags = PackedStringArray("floor", "wood_dark", "half_2")
+snap_points = [SubResource("Resource_w4ht6"), SubResource("Resource_fc57t"), SubResource("Resource_2154j"), SubResource("Resource_75l7u"), SubResource("Resource_udevt")]

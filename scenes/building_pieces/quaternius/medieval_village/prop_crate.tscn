@@ -1,0 +1,15 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_5ii72"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Crate.gltf" id="2_fs34t"]
+
+[node name="PropCrate" type="Node3D" unique_id=1281631604]
+script = ExtResource("1_5ii72")
+piece_id = "prop_crate"
+display_name = "Prop Crate"
+category = "prop"
+bounds_size_meters = Vector3(1.0835824, 1.0595808, 1.0835824)
+
+[node name="Model" type="Node3D" parent="." unique_id=1682465875 instance=ExtResource("2_fs34t")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=417582071]

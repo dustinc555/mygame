@@ -1,0 +1,15 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_08snp"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_ExteriorBorder_Corner.gltf" id="2_in7gq"]
+
+[node name="PropExteriorBorderCorner" type="Node3D" unique_id=2069752643]
+script = ExtResource("1_08snp")
+piece_id = "prop_exterior_border_corner"
+display_name = "Prop ExteriorBorder Corner"
+category = "prop"
+bounds_size_meters = Vector3(0.7000001, 0.13401799, 0.7)
+
+[node name="Model" type="Node3D" parent="." unique_id=1409589216 instance=ExtResource("2_in7gq")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1593176714]

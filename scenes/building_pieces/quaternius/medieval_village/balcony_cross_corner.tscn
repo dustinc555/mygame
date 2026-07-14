@@ -1,0 +1,65 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_odixo"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Balcony_Cross_Corner.gltf" id="2_j5wob"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_l3q10"]
+
+[node name="BalconyCrossCorner" type="Node3D" unique_id=1828750994]
+script = ExtResource("1_odixo")
+piece_id = "balcony_cross_corner"
+display_name = "Balcony Cross Corner"
+category = "balcony"
+grid_size_cells = Vector3i(2, 1, 2)
+bounds_size_meters = Vector3(2.1042538, 1.2298867, 2.104254)
+
+[node name="Model" type="Node3D" parent="." unique_id=1170335855 instance=ExtResource("2_j5wob")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=629725346]
+
+[node name="North" type="Marker3D" parent="SnapPoints" unique_id=1601719516]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1)
+script = ExtResource("3_l3q10")
+snap_id = "north"
+display_name = "North"
+connector_type = "balcony_rail"
+accepts_types = PackedStringArray("floor_edge")
+
+[node name="NorthBottom" type="Marker3D" parent="SnapPoints" unique_id=2137075061]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -1)
+script = ExtResource("3_l3q10")
+snap_id = "north_bottom"
+display_name = "North Bottom"
+connector_type = "balcony_rail_bottom"
+accepts_types = PackedStringArray("wall_top")
+
+[node name="NorthEndNorthwest" type="Marker3D" parent="SnapPoints" unique_id=2026900978]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1, 0, -1)
+script = ExtResource("3_l3q10")
+snap_id = "north_end_northwest"
+display_name = "North End Northwest"
+connector_type = "balcony_rail_end"
+accepts_types = PackedStringArray("balcony_rail_end")
+
+[node name="East" type="Marker3D" parent="SnapPoints" unique_id=374059186]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1, 0, 0)
+script = ExtResource("3_l3q10")
+snap_id = "east"
+display_name = "East"
+connector_type = "balcony_rail"
+accepts_types = PackedStringArray("floor_edge")
+
+[node name="EastBottom" type="Marker3D" parent="SnapPoints" unique_id=1844476689]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 1, 0, 0)
+script = ExtResource("3_l3q10")
+snap_id = "east_bottom"
+display_name = "East Bottom"
+connector_type = "balcony_rail_bottom"
+accepts_types = PackedStringArray("wall_top")
+
+[node name="EastEndSoutheast" type="Marker3D" parent="SnapPoints" unique_id=917073055]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 1, 0, 1)
+script = ExtResource("3_l3q10")
+snap_id = "east_end_southeast"
+display_name = "East End Southeast"
+connector_type = "balcony_rail_end"
+accepts_types = PackedStringArray("balcony_rail_end")

@@ -1,0 +1,16 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_8pcdx"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_WoodenFence_Extension2.gltf" id="2_jlx27"]
+
+[node name="PropWoodenFenceExtension2" type="Node3D" unique_id=2097557879]
+script = ExtResource("1_8pcdx")
+piece_id = "prop_wooden_fence_extension_2"
+display_name = "Prop WoodenFence Extension2"
+category = "prop"
+grid_size_cells = Vector3i(2, 1, 1)
+bounds_size_meters = Vector3(2.0270317, 0.8381091, 0.11035727)
+
+[node name="Model" type="Node3D" parent="." unique_id=651396570 instance=ExtResource("2_jlx27")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=119542149]

@@ -7,7 +7,7 @@ const SNAP_MARKER_SCRIPT := preload("res://features/world/projection/buildings/m
 
 @export var piece_id := ""
 @export var display_name := ""
-@export_enum("floor", "wall", "wall_door", "wall_window", "window", "door", "corner", "roof", "roof_front", "stairs", "door_frame") var category := "wall"
+@export_enum("floor", "wall", "wall_door", "wall_window", "window", "door", "corner", "roof", "roof_front", "stairs", "door_frame", "shutter", "overhang", "balcony", "hole_cover", "prop") var category := "wall"
 @export var grid_cell_size_meters := 2.0
 @export var grid_size_cells := Vector3i.ONE
 @export var bounds_size_meters := Vector3.ZERO

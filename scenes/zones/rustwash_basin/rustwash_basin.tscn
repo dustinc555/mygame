@@ -246,10 +246,6 @@ metadata/furnish_generated = true
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -5.765179, 1.6, 3.0179389)
 metadata/furnish_generated = true
 
-[node name="Shelf7" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=2071188120 instance=ExtResource("42_xh5ub")]
-transform = Transform3D(-1, 0, -1.509958e-07, 0, 1, 0, 1.509958e-07, 0, -1, 0.9386941, 1.6, -0.3356824)
-metadata/furnish_generated = true
-
 [node name="Shelf8" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1716334739 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, 1, 4.8469043, 1.6, 0.12431764)
 metadata/furnish_generated = true

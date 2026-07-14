@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://c68epkqvdt44a"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/door_frame_flat_wood_dark.tscn" id="1_wxxfa"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_cg8cr"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_sofmn"]
+[ext_resource type="PackedScene" uid="uid://ck8cu84d3kurc" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/DoorFrame_Flat_WoodDark.gltf" id="4_kth33"]
+
+[sub_resource type="Resource" id="Resource_jvtxu"]
+script = ExtResource("3_sofmn")
+snap_id = "center"
+display_name = "Center"
+connector_type = "door_insert"
+accepts_types = PackedStringArray("door_socket")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0007864833, 1.1475849, -0.049063727)
+
+[resource]
+script = ExtResource("2_cg8cr")
+piece_id = "door_frame_flat_wood_dark"
+display_name = "DoorFrame Flat WoodDark"
+category = "door_frame"
+scene = ExtResource("1_wxxfa")
+source_scene = ExtResource("4_kth33")
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(1.573992, 2.3122594, 0.38845217)
+tags = PackedStringArray("door_frame", "flat", "wood_dark")
+snap_points = [SubResource("Resource_jvtxu")]

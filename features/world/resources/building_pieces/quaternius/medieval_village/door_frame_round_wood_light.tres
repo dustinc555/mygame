@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://2sxs64nyplm"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/door_frame_round_wood_light.tscn" id="1_dobe4"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_qbt20"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_3d5u1"]
+[ext_resource type="PackedScene" uid="uid://cy8yu6qtoj2fu" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/DoorFrame_Round_WoodLight.gltf" id="4_ca2e0"]
+
+[sub_resource type="Resource" id="Resource_v1ttw"]
+script = ExtResource("3_3d5u1")
+snap_id = "center"
+display_name = "Center"
+connector_type = "door_insert"
+accepts_types = PackedStringArray("door_socket")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.748604e-07, 1.2731519, 0.029453784)
+
+[resource]
+script = ExtResource("2_qbt20")
+piece_id = "door_frame_round_wood_light"
+display_name = "DoorFrame Round WoodLight"
+category = "door_frame"
+scene = ExtResource("1_dobe4")
+source_scene = ExtResource("4_ca2e0")
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(1.4073402, 2.5633936, 0.538964)
+tags = PackedStringArray("door_frame", "round", "wood_light")
+snap_points = [SubResource("Resource_v1ttw")]

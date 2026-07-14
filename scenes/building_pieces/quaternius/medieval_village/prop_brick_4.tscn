@@ -1,0 +1,15 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_phmbi"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Brick4.gltf" id="2_0y471"]
+
+[node name="PropBrick4" type="Node3D" unique_id=247067184]
+script = ExtResource("1_phmbi")
+piece_id = "prop_brick_4"
+display_name = "Prop Brick4"
+category = "prop"
+bounds_size_meters = Vector3(0.25667202, 0.24970606, 0.21563)
+
+[node name="Model" type="Node3D" parent="." unique_id=1557525986 instance=ExtResource("2_0y471")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=252315548]

@@ -1,0 +1,74 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/doors/projection/world_door.gd" id="1_qnkwx"]
+[ext_resource type="Resource" path="res://features/doors/resources/door_3_round.tres" id="2_06e0r"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Door_3_Round.gltf" id="3_w1rc2"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="4_vh4gv"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_uwa8l"]
+size = Vector3(1.1690521, 2.3209276, 0.25296313)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1ej7o"]
+size = Vector3(1.38, 2.3209276, 0.406482)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_7txt5"]
+size = Vector3(1.38, 2.3209276, 2.4)
+
+[node name="Door3Round" type="Node3D" unique_id=812506964]
+script = ExtResource("1_qnkwx")
+door_definition = ExtResource("2_06e0r")
+authorized_actor_ids = PackedStringArray()
+authorized_faction_ids = PackedStringArray()
+authorized_key_ids = PackedStringArray()
+piece_id = "door_3_round"
+display_name = "Door 3 Round"
+category = "door"
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(1.1690521, 2.3209276, 0.25296313)
+disable_model_collision = true
+strip_model_collision_shapes = true
+
+[node name="HingePivot" type="Node3D" parent="." unique_id=1925012963]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.06639069, 0, -0.110794306)
+
+[node name="Model" type="Node3D" parent="HingePivot" unique_id=764919168 instance=ExtResource("3_w1rc2")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.06639069, 0, 0.110794306)
+
+[node name="PanelClickTarget" type="StaticBody3D" parent="HingePivot" unique_id=553226996 groups=["navigation_bake_excluded"]]
+collision_layer = 16
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HingePivot/PanelClickTarget" unique_id=385380802]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.58452606, 1.1604638, 0)
+shape = SubResource("BoxShape3D_uwa8l")
+
+[node name="ClosedBlocker" type="StaticBody3D" parent="." unique_id=1572470801 groups=["navigation_bake_excluded"]]
+collision_layer = 8
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ClosedBlocker" unique_id=835876986]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.51813537, 1.1604638, -0.110794306)
+shape = SubResource("BoxShape3D_1ej7o")
+
+[node name="InteractionSideA" type="Marker3D" parent="." unique_id=2140711894]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.51813537, 0, -1.0107943)
+
+[node name="InteractionSideB" type="Marker3D" parent="." unique_id=315490789]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.51813537, 0, 0.7892057)
+
+[node name="AutoOpenArea" type="Area3D" parent="." unique_id=1442103126]
+collision_layer = 0
+collision_mask = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="AutoOpenArea" unique_id=502493551]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.51813537, 1.1604638, -0.110794306)
+shape = SubResource("BoxShape3D_7txt5")
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=556439951]
+
+[node name="Center" type="Marker3D" parent="SnapPoints" unique_id=1299297393]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.51813537, 1.2241, -0.110794306)
+script = ExtResource("4_vh4gv")
+snap_id = "center"
+display_name = "Center"
+connector_type = "door_insert"
+accepts_types = PackedStringArray("door_socket")

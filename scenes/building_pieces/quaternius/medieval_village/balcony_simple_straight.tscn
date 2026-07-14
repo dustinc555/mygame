@@ -1,0 +1,48 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_n4rtv"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Balcony_Simple_Straight.gltf" id="2_7o2y0"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_6rtnh"]
+
+[node name="BalconySimpleStraight" type="Node3D" unique_id=790814097]
+script = ExtResource("1_n4rtv")
+piece_id = "balcony_simple_straight"
+display_name = "Balcony Simple Straight"
+category = "balcony"
+bounds_size_meters = Vector3(2, 1.2298867, 0.20628303)
+
+[node name="Model" type="Node3D" parent="." unique_id=2110451963 instance=ExtResource("2_7o2y0")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1482815050]
+
+[node name="South" type="Marker3D" parent="SnapPoints" unique_id=2050164833]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 1)
+script = ExtResource("3_6rtnh")
+snap_id = "south"
+display_name = "South"
+connector_type = "balcony_rail"
+accepts_types = PackedStringArray("floor_edge")
+
+[node name="SouthBottom" type="Marker3D" parent="SnapPoints" unique_id=1301738168]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 1)
+script = ExtResource("3_6rtnh")
+snap_id = "south_bottom"
+display_name = "South Bottom"
+connector_type = "balcony_rail_bottom"
+accepts_types = PackedStringArray("wall_top")
+
+[node name="SouthEndSouthwest" type="Marker3D" parent="SnapPoints" unique_id=621159539]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1, 0, 1)
+script = ExtResource("3_6rtnh")
+snap_id = "south_end_southwest"
+display_name = "South End Southwest"
+connector_type = "balcony_rail_end"
+accepts_types = PackedStringArray("balcony_rail_end")
+
+[node name="SouthEndSoutheast" type="Marker3D" parent="SnapPoints" unique_id=139333551]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1, 0, 1)
+script = ExtResource("3_6rtnh")
+snap_id = "south_end_southeast"
+display_name = "South End Southeast"
+connector_type = "balcony_rail_end"
+accepts_types = PackedStringArray("balcony_rail_end")

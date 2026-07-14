@@ -1,0 +1,24 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_fr1ym"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/WindowShutters_Wide_Round_Closed.gltf" id="2_ht2bb"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_bi3xo"]
+
+[node name="WindowShuttersWideRoundClosed" type="Node3D" unique_id=866265834]
+script = ExtResource("1_fr1ym")
+piece_id = "window_shutters_wide_round_closed"
+display_name = "WindowShutters Wide Round Closed"
+category = "shutter"
+bounds_size_meters = Vector3(1.3469353, 1.6471877, 0.13576958)
+
+[node name="Model" type="Node3D" parent="." unique_id=1580182552 instance=ExtResource("2_ht2bb")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1522033990]
+
+[node name="Center" type="Marker3D" parent="SnapPoints" unique_id=1279507942]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1920929e-07, 1.8882, -0.110794306)
+script = ExtResource("3_bi3xo")
+snap_id = "center"
+display_name = "Center"
+connector_type = "window_insert"
+accepts_types = PackedStringArray("window_socket")

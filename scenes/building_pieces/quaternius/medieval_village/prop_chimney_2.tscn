@@ -1,0 +1,16 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_x2c5p"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Chimney2.gltf" id="2_qtc01"]
+
+[node name="PropChimney2" type="Node3D" unique_id=349019306]
+script = ExtResource("1_x2c5p")
+piece_id = "prop_chimney_2"
+display_name = "Prop Chimney2"
+category = "prop"
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(0.9457785, 3, 0.9880171)
+
+[node name="Model" type="Node3D" parent="." unique_id=474268354 instance=ExtResource("2_qtc01")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=288393336]

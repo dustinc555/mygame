@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/prop_support.tscn" id="1_11kf6"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_3t1sm"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Support.gltf" id="3_cadiw"]
+
+[resource]
+script = ExtResource("2_3t1sm")
+piece_id = "prop_support"
+display_name = "Prop Support"
+category = "prop"
+scene = ExtResource("1_11kf6")
+source_scene = ExtResource("3_cadiw")
+grid_size_cells = Vector3i(1, 1, 2)
+bounds_size_meters = Vector3(0.19860354, 1.708637, 2.036273)
+tags = PackedStringArray("prop", "support")

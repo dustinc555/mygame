@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://bhsyxn6f4faoq"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/window_thin_round_3.tscn" id="1_yavdo"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_d0v01"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_ftgdl"]
+[ext_resource type="PackedScene" uid="uid://60s6dj5krrlw" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Window_Thin_Round3.gltf" id="4_g78dp"]
+
+[sub_resource type="Resource" id="Resource_wufsp"]
+script = ExtResource("3_ftgdl")
+snap_id = "center"
+display_name = "Center"
+connector_type = "window_insert"
+accepts_types = PackedStringArray("window_socket")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0040881336, 1.8206, -0.110794306)
+
+[resource]
+script = ExtResource("2_d0v01")
+piece_id = "window_thin_round_3"
+display_name = "Window Thin Round3"
+category = "window"
+scene = ExtResource("1_yavdo")
+source_scene = ExtResource("4_g78dp")
+bounds_size_meters = Vector3(0.88304055, 1.6056774, 0.41352913)
+tags = PackedStringArray("window", "thin", "round_3")
+snap_points = [SubResource("Resource_wufsp")]

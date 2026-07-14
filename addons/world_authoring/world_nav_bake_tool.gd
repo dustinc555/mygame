@@ -1,7 +1,7 @@
 @tool
-extends HBoxContainer
+extends VBoxContainer
 
-## World nav tools for the 3D viewport toolbar:
+## World nav column (mounted in the World bottom dock):
 ## - "Bake World Nav": bakes the edited world scene's navcache by launching
 ##   the headless CLI baker (tools/bake_world_navcache.gd) as a background
 ##   subprocess. The editor process never bakes: in-editor worker bakes fight
@@ -10,6 +10,8 @@ extends HBoxContainer
 ##   button doubles as Cancel (kills the subprocess).
 ## - "Nav" / "Tiles" toggles: preview the CACHED bake result directly in the
 ##   editor viewport (transient meshes, never saved into the scene).
+## - Bake parameter editors: every WorldNavigationSettings knob as a sectioned
+##   list, saved to the settings .tres on change; the next bake picks them up.
 ##
 ## Visible whenever the edited scene contains a Terrain3D.
 
@@ -17,11 +19,34 @@ const PIPELINE := preload("res://features/core/navigation/world_nav_bake_pipelin
 const SETTINGS_PATH := "res://features/core/navigation/resources/world_navigation_settings.tres"
 const BAKER_SCRIPT_PATH := "res://tools/bake_world_navcache.gd"
 
+const SECTION_COLOR := Color(0.75, 0.82, 0.9)
+
+## Numeric bake knobs, listed per section. Ranges/steps mirror the
+## @export_range annotations on WorldNavigationSettings.
+const PARAM_SECTIONS := [
+	{"title": "Agent (walkability)", "tooltip": "What the baked nav triangles accept as walkable: the actor capsule the bake carves space for. Wrong values here promise paths bodies cannot walk.", "params": [
+		{"key": "agent_radius", "label": "Radius", "min": 0.2, "max": 0.6, "step": 0.01, "suffix": "m", "tooltip": "Walkable erosion around obstacles. Must be >= capsule radius (0.4) or bodies wedge in doorways."},
+		{"key": "agent_height", "label": "Height", "min": 1.0, "max": 2.5, "step": 0.05, "suffix": "m", "tooltip": "Actor capsule height for ceiling clearance."},
+		{"key": "agent_max_slope", "label": "Max Slope", "min": 30.0, "max": 75.0, "step": 1.0, "suffix": "deg", "tooltip": "Steepest walkable slope. Keep <= CharacterBody3D floor_max_angle (~45); stair ramps are ~33."},
+		{"key": "agent_max_climb", "label": "Max Climb", "min": 0.1, "max": 0.6, "step": 0.05, "suffix": "m", "tooltip": "Highest step climbed without a ramp. Effective climb = floor(climb / cell height)."},
+	]},
+	{"title": "Bake Cells (voxel resolution)", "tooltip": "How finely the bake voxelizes collision. Finer = cleaner ramps/doorways and slower bakes; erosion and climb both round to whole cells, so cell size changes their effective values.", "params": [
+		{"key": "cell_size", "label": "Cell Size", "min": 0.05, "max": 0.5, "step": 0.01, "suffix": "m", "tooltip": "Bake voxel size. THE cost knob: per-tile cost scales with (tile/cell)^2. Coarser cells erase narrow corridors."},
+		{"key": "cell_height", "label": "Cell Height", "min": 0.05, "max": 0.5, "step": 0.01, "suffix": "m", "tooltip": "Bake voxel height. Finer resolves climb more precisely at thresholds and stairs."},
+	]},
+	{"title": "Bake Tiles", "tooltip": "How the world is split into navmesh tiles. Affects bake speed and patching granularity, not walkability.", "params": [
+		{"key": "tile_size", "label": "Tile Size", "min": 32.0, "max": 128.0, "step": 16.0, "suffix": "m", "tooltip": "Navmesh tile edge length. Smaller = faster per-tile bakes, more tiles."},
+		{"key": "tile_height", "label": "Tile Height", "min": 64.0, "max": 512.0, "step": 32.0, "suffix": "m", "tooltip": "Vertical extent of each tile bake."},
+	]},
+]
+
 var _bake_button: Button
 var _progress_bar: ProgressBar
 var _status_label: Label
 var _nav_toggle: CheckBox
 var _tiles_toggle: CheckBox
+var _settings: WorldNavigationSettings
+var _updating_params := false
 
 var _baking := false
 var _bake_pid := -1
@@ -34,29 +59,115 @@ var _preview_scene_root: Node
 
 
 func _ready() -> void:
+	custom_minimum_size = Vector2(300, 0)
+	add_theme_constant_override("separation", 4)
+	var title := Label.new()
+	title.text = "World Nav"
+	title.add_theme_color_override("font_color", SECTION_COLOR)
+	add_child(title)
+	var controls_row := HBoxContainer.new()
+	add_child(controls_row)
 	_bake_button = Button.new()
 	_bake_button.text = "Bake World Nav"
 	_bake_button.tooltip_text = "Bake this world's navmesh tiles to disk (navcache/ beside the scene) in a background process. Runtime loads them instantly."
 	_bake_button.pressed.connect(_on_bake_pressed)
-	add_child(_bake_button)
-	_progress_bar = ProgressBar.new()
-	_progress_bar.custom_minimum_size = Vector2(140.0, 0.0)
-	_progress_bar.show_percentage = false
-	_progress_bar.visible = false
-	add_child(_progress_bar)
-	_status_label = Label.new()
-	add_child(_status_label)
+	controls_row.add_child(_bake_button)
 	_nav_toggle = CheckBox.new()
 	_nav_toggle.text = "Nav"
 	_nav_toggle.tooltip_text = "Preview the cached navmesh in the viewport."
 	_nav_toggle.toggled.connect(func(_pressed: bool) -> void: _refresh_preview())
-	add_child(_nav_toggle)
+	controls_row.add_child(_nav_toggle)
 	_tiles_toggle = CheckBox.new()
 	_tiles_toggle.text = "Tiles"
 	_tiles_toggle.tooltip_text = "Preview cached tile boundaries in the viewport."
 	_tiles_toggle.toggled.connect(func(_pressed: bool) -> void: _refresh_preview())
-	add_child(_tiles_toggle)
+	controls_row.add_child(_tiles_toggle)
+	_progress_bar = ProgressBar.new()
+	_progress_bar.show_percentage = false
+	_progress_bar.visible = false
+	add_child(_progress_bar)
+	_status_label = Label.new()
+	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(_status_label)
+	add_child(_build_param_editors())
 	set_process(true)
+
+
+## --- Bake parameter editors ------------------------------------------------
+
+
+func _build_param_editors() -> Control:
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 4)
+	scroll.add_child(list)
+	# CACHE_MODE_REPLACE: refresh the editor-cached resource from disk, so a
+	# dock built after an external edit (CLI, another session) can never save
+	# stale values back over the file.
+	_settings = ResourceLoader.load(SETTINGS_PATH, "", ResourceLoader.CACHE_MODE_REPLACE)
+	if _settings == null:
+		return scroll
+	_updating_params = true
+	for section in PARAM_SECTIONS:
+		var header := Label.new()
+		header.text = section["title"]
+		header.add_theme_color_override("font_color", SECTION_COLOR)
+		header.tooltip_text = section["tooltip"]
+		header.mouse_filter = Control.MOUSE_FILTER_STOP
+		list.add_child(header)
+		var grid := GridContainer.new()
+		grid.columns = 2
+		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		list.add_child(grid)
+		for spec in section["params"]:
+			var label := Label.new()
+			label.text = spec["label"]
+			label.custom_minimum_size = Vector2(110, 0)
+			label.tooltip_text = spec["tooltip"]
+			label.mouse_filter = Control.MOUSE_FILTER_STOP
+			grid.add_child(label)
+			var spin := SpinBox.new()
+			spin.min_value = spec["min"]
+			spin.max_value = spec["max"]
+			spin.step = spec["step"]
+			spin.suffix = spec["suffix"]
+			spin.value = float(_settings.get(spec["key"]))
+			spin.tooltip_text = spec["tooltip"]
+			spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			spin.value_changed.connect(_on_param_changed.bind(String(spec["key"])))
+			grid.add_child(spin)
+	var options_header := Label.new()
+	options_header.text = "Bake Options"
+	options_header.add_theme_color_override("font_color", SECTION_COLOR)
+	list.add_child(options_header)
+	var paint := CheckBox.new()
+	paint.text = "Painted areas only"
+	paint.tooltip_text = "On: only areas painted navigable with Terrain3D's brush are walkable. Off: whole terrain, filtered by Max Slope."
+	paint.set_pressed_no_signal(bool(_settings.require_navigable_paint))
+	paint.toggled.connect(_on_param_changed.bind("require_navigable_paint"))
+	list.add_child(paint)
+	var postprocess := CheckBox.new()
+	postprocess.text = "Postprocess (seam fix)"
+	postprocess.tooltip_text = "Godot #85548 workaround: vertex rounding + degenerate/overlap removal; keeps tile borders cell-aligned."
+	postprocess.set_pressed_no_signal(bool(_settings.postprocess_enabled))
+	postprocess.toggled.connect(_on_param_changed.bind("postprocess_enabled"))
+	list.add_child(postprocess)
+	_updating_params = false
+	return scroll
+
+
+func _on_param_changed(value: Variant, key: String) -> void:
+	if _updating_params or _settings == null:
+		return
+	_settings.set(key, value)
+	var save_error := ResourceSaver.save(_settings, SETTINGS_PATH)
+	if save_error != OK:
+		_status_label.text = "Failed to save nav settings (%d)." % save_error
+		return
+	_status_label.text = "Nav settings saved — re-bake to apply."
 
 
 func _process(delta: float) -> void:
