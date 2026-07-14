@@ -18,6 +18,8 @@ const EQUIP_SLOT_OFFHAND := "offhand"
 @export var grid_size := Vector2i(1, 1)
 @export var unit_weight := 1.0
 @export var max_stack := 1
+## Total hunger points this food restores, dripped in over the food effect
+## duration (NpcRules.FOOD_EFFECT_DURATION_SECONDS). 100 points = one full bar.
 @export var nutrition_value := 0.0
 @export var bandage_power := 0.0
 @export_range(0, 100, 1) var bandage_max_uses := 0

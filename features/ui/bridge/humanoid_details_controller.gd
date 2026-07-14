@@ -10,6 +10,16 @@ const CHARACTER_SKILLS_WINDOW_SCRIPT = preload("res://features/ui/projection/cha
 const CHARACTER_JOBS_WINDOW_SCRIPT = preload("res://features/ui/projection/character_jobs_window.gd")
 
 const BLOOD_GLOW_CRITICAL_LOSS_PER_SECOND := 8.0
+const BAR_GOOD_COLOR := Color(0.47, 0.78, 0.43, 1.0)
+const BAR_WARNING_COLOR := Color(0.82, 0.69, 0.22, 1.0)
+const BAR_DANGER_COLOR := Color(0.83, 0.24, 0.24, 1.0)
+const BAR_EMPTY_COLOR := Color(0.035, 0.035, 0.035, 1.0)
+## The drained bar area shows the color the vital is heading toward, dimmed
+## this much so the live fill still reads clearly on top of it.
+const BAR_DRAIN_DIM := 0.45
+## Food effect rate (hunger points/second) that reads as maximum glow strength.
+## Bread (150 points over 180s) lands at ~0.83, just over half strength.
+const HUNGER_GLOW_STRONG_NUTRITION_PER_SECOND := 1.5
 const ACTION_ATTACK := "attack"
 const ACTION_CARRY := "carry"
 const ACTION_FINISH_OFF := "finish_off"
@@ -51,6 +61,8 @@ var blood_fill: ColorRect
 var blood_value: Label
 var blood_bleed_glow: Panel
 var _blood_bleed_glow_style := StyleBoxFlat.new()
+var hunger_nutrition_glow: Panel
+var _hunger_nutrition_glow_style := StyleBoxFlat.new()
 var hp_label: Label
 var hp_bar_stack: Control
 var hp_health_fill: ColorRect
@@ -138,6 +150,7 @@ func _do_initialize() -> void:
 	hunger_bar_stack = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack")
 	hunger_fill = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack/HungerFill")
 	hunger_value = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack/HungerValue")
+	_setup_hunger_nutrition_glow()
 	blood_label = details_panel.get_node("Margin/DetailsVBox/BloodRow/BloodLabel")
 	blood_bar_stack = details_panel.get_node("Margin/DetailsVBox/BloodRow/BloodBarFrame/BloodBarStack")
 	blood_fill = details_panel.get_node("Margin/DetailsVBox/BloodRow/BloodBarFrame/BloodBarStack/BloodFill")
@@ -222,11 +235,14 @@ func _update_humanoid_panel(target: WorldActor) -> void:
 	if target.shows_hunger_vital():
 		var hunger_stage_label: String = target.get_hunger_stage_label()
 		hunger_value.text = "%s %d / 100" % [hunger_stage_label, int(round(target.hunger))]
-		_update_fill_bar(hunger_bar_stack, hunger_fill, target.hunger / 100.0, _get_stage_color(target.get_hunger_stage(), NpcRules.HungerStage.WELL_NOURISHED, NpcRules.HungerStage.HUNGRY, NpcRules.HungerStage.STARVING))
+		_update_fill_bar(hunger_bar_stack, hunger_fill, target.hunger / 100.0, _get_stage_color(target.get_hunger_stage(), NpcRules.HungerStage.WELL_NOURISHED, NpcRules.HungerStage.HUNGRY, NpcRules.HungerStage.STARVING), _get_stage_drain_color(target.get_hunger_stage(), NpcRules.HungerStage.WELL_NOURISHED, NpcRules.HungerStage.HUNGRY, NpcRules.HungerStage.STARVING))
+		_update_hunger_nutrition_glow(target.get_food_effect_rate() if target.has_method("get_food_effect_rate") else 0.0)
+	else:
+		_update_hunger_nutrition_glow(0.0)
 	blood_value.text = "%d / %d" % [int(round(target.blood)), int(round(target.max_blood))]
 	var vital_fluid_ratio := target.blood / maxf(target.max_blood, 1.0)
 	var vital_fluid_color := target.get_vital_fluid_bar_color(_get_ratio_color(vital_fluid_ratio))
-	_update_fill_bar(blood_bar_stack, blood_fill, vital_fluid_ratio, vital_fluid_color)
+	_update_fill_bar(blood_bar_stack, blood_fill, vital_fluid_ratio, vital_fluid_color, _get_ratio_drain_color(vital_fluid_ratio))
 	_update_vital_fluid_blink(target, vital_fluid_color)
 	_update_blood_bleed_glow(target.get_bleed_rate() if target.has_method("get_bleed_rate") else 0.0, target.get_vital_fluid_glow_color(Color(1.0, 0.04, 0.02, 1.0)))
 	_update_hp_bar_visuals(target.hp, target.get_open_cut_damage(), target.get_bandaged_cut_damage(), target.max_hp, target.get_blunt_damage())
@@ -234,7 +250,7 @@ func _update_humanoid_panel(target: WorldActor) -> void:
 	if target.shows_fatigue_vital():
 		var fatigue_stage_label: String = target.get_fatigue_stage_label()
 		fatigue_value.text = "%s %d / 100" % [fatigue_stage_label, int(round(target.fatigue))]
-		_update_fill_bar(fatigue_bar_stack, fatigue_fill, target.fatigue / 100.0, _get_stage_color(target.get_fatigue_stage(), NpcRules.FatigueStage.WELL_RESTED, NpcRules.FatigueStage.WINDED, NpcRules.FatigueStage.EXHAUSTED))
+		_update_fill_bar(fatigue_bar_stack, fatigue_fill, target.fatigue / 100.0, _get_stage_color(target.get_fatigue_stage(), NpcRules.FatigueStage.WELL_RESTED, NpcRules.FatigueStage.WINDED, NpcRules.FatigueStage.EXHAUSTED), _get_stage_drain_color(target.get_fatigue_stage(), NpcRules.FatigueStage.WELL_RESTED, NpcRules.FatigueStage.WINDED, NpcRules.FatigueStage.EXHAUSTED))
 	_set_actions(_get_humanoid_actions(target))
 
 
@@ -508,11 +524,12 @@ func _clear_bar_values() -> void:
 	blood_value.text = ""
 	hp_value.text = ""
 	fatigue_value.text = ""
-	_update_fill_bar(hunger_bar_stack, hunger_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
-	_update_fill_bar(blood_bar_stack, blood_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
+	_update_fill_bar(hunger_bar_stack, hunger_fill, 0.0, BAR_GOOD_COLOR)
+	_update_fill_bar(blood_bar_stack, blood_fill, 0.0, BAR_GOOD_COLOR)
 	_update_blood_bleed_glow(0.0)
+	_update_hunger_nutrition_glow(0.0)
 	_update_hp_bar_visuals(0.0, 0.0, 0.0, 1.0)
-	_update_fill_bar(fatigue_bar_stack, fatigue_fill, 0.0, Color(0.47, 0.78, 0.43, 1.0))
+	_update_fill_bar(fatigue_bar_stack, fatigue_fill, 0.0, BAR_GOOD_COLOR)
 
 
 func _get_target_display_name(target) -> String:
@@ -930,7 +947,7 @@ func _update_hp_bar_visuals(current_hp: float, open_cut: float, bandaged_cut: fl
 	hp_cut_outline.size = Vector2(maxf(0.0, minf(cut_width, maxf(0.0, occupied_width - cut_start))), total_height)
 
 
-func _update_fill_bar(bar_stack: Control, fill_rect: ColorRect, ratio: float, color: Color) -> void:
+func _update_fill_bar(bar_stack: Control, fill_rect: ColorRect, ratio: float, color: Color, drain_color: Color = BAR_EMPTY_COLOR) -> void:
 	if bar_stack == null or fill_rect == null:
 		return
 	var total_width := bar_stack.size.x
@@ -939,9 +956,26 @@ func _update_fill_bar(bar_stack: Control, fill_rect: ColorRect, ratio: float, co
 	var total_height := bar_stack.size.y
 	if total_height <= 0.0:
 		total_height = maxf(bar_stack.custom_minimum_size.y, 14.0)
+	var drain_rect := _get_bar_drain_rect(bar_stack)
+	drain_rect.color = drain_color
+	drain_rect.position = Vector2.ZERO
+	drain_rect.size = Vector2(total_width, total_height)
 	fill_rect.color = color
 	fill_rect.position = Vector2.ZERO
 	fill_rect.size = Vector2(total_width * clampf(ratio, 0.0, 1.0), total_height)
+
+
+## Full-width layer behind the fill so the drained area reads as the color the
+## vital is decaying toward instead of the frame's black.
+func _get_bar_drain_rect(bar_stack: Control) -> ColorRect:
+	var drain_rect := bar_stack.get_node_or_null("DrainFill") as ColorRect
+	if drain_rect == null:
+		drain_rect = ColorRect.new()
+		drain_rect.name = "DrainFill"
+		drain_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bar_stack.add_child(drain_rect)
+		bar_stack.move_child(drain_rect, 0)
+	return drain_rect
 
 
 func _update_vital_fluid_blink(target: WorldActor, base_color: Color) -> void:
@@ -1000,22 +1034,81 @@ func _update_blood_bleed_glow(bleed_rate: float, glow_color: Color = Color(1.0, 
 	blood_bleed_glow.visible = true
 
 
-func _get_stage_color(stage: int, good_stage: int, warning_stage: int, danger_stage: int) -> Color:
-	if stage == danger_stage:
-		return Color(0.83, 0.24, 0.24, 1.0)
-	if stage == warning_stage:
-		return Color(0.82, 0.69, 0.22, 1.0)
+func _setup_hunger_nutrition_glow() -> void:
+	if hunger_bar_stack == null:
+		return
+	hunger_nutrition_glow = Panel.new()
+	hunger_nutrition_glow.name = "HungerNutritionGlow"
+	hunger_nutrition_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hunger_nutrition_glow_style.bg_color = Color(0.0, 1.0, 0.0, 0.0)
+	_hunger_nutrition_glow_style.border_width_left = 2
+	_hunger_nutrition_glow_style.border_width_top = 2
+	_hunger_nutrition_glow_style.border_width_right = 2
+	_hunger_nutrition_glow_style.border_width_bottom = 2
+	_hunger_nutrition_glow_style.corner_radius_top_left = 4
+	_hunger_nutrition_glow_style.corner_radius_top_right = 4
+	_hunger_nutrition_glow_style.corner_radius_bottom_right = 4
+	_hunger_nutrition_glow_style.corner_radius_bottom_left = 4
+	_hunger_nutrition_glow_style.shadow_size = 5
+	hunger_nutrition_glow.add_theme_stylebox_override("panel", _hunger_nutrition_glow_style)
+	hunger_nutrition_glow.visible = false
+	hunger_bar_stack.add_child(hunger_nutrition_glow)
+	hunger_bar_stack.move_child(hunger_value, hunger_bar_stack.get_child_count() - 1)
+
+
+## Pulsing green ring around the hunger bar while a food effect is active;
+## pulse speed and brightness scale with how strong the nutrition intake is.
+func _update_hunger_nutrition_glow(nutrition_per_second: float, glow_color: Color = Color(0.36, 0.85, 0.3, 1.0)) -> void:
+	if hunger_nutrition_glow == null or hunger_bar_stack == null:
+		return
+	if nutrition_per_second <= 0.001:
+		hunger_nutrition_glow.visible = false
+		return
+	var strength := clampf(nutrition_per_second / HUNGER_GLOW_STRONG_NUTRITION_PER_SECOND, 0.0, 1.0)
+	var pulse_rate := lerpf(0.35, 0.7, strength)
+	var pulse := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.001 * TAU * pulse_rate)
+	var minimum_alpha := lerpf(0.06, 0.55, strength)
+	var maximum_alpha := lerpf(0.4, 0.95, strength)
+	var alpha := lerpf(minimum_alpha, maximum_alpha, pulse)
+	_hunger_nutrition_glow_style.border_color = Color(glow_color.r, glow_color.g, glow_color.b, alpha)
+	_hunger_nutrition_glow_style.shadow_color = Color(glow_color.r, glow_color.g, glow_color.b, alpha * 0.7)
+	hunger_nutrition_glow.position = Vector2(-3.0, -3.0)
+	hunger_nutrition_glow.size = hunger_bar_stack.size + Vector2(6.0, 6.0)
+	hunger_nutrition_glow.visible = true
+
+
+func _get_stage_color(stage: int, good_stage: int, warning_stage: int, _danger_stage: int) -> Color:
 	if stage == good_stage:
-		return Color(0.47, 0.78, 0.43, 1.0)
-	return Color(0.47, 0.78, 0.43, 1.0)
+		return BAR_GOOD_COLOR
+	if stage == warning_stage:
+		return BAR_WARNING_COLOR
+	return BAR_DANGER_COLOR
+
+
+## Drained area previews the next stage down: green drains toward yellow,
+## yellow toward red, red toward empty black.
+func _get_stage_drain_color(stage: int, good_stage: int, warning_stage: int, _danger_stage: int) -> Color:
+	if stage == good_stage:
+		return BAR_WARNING_COLOR.darkened(BAR_DRAIN_DIM)
+	if stage == warning_stage:
+		return BAR_DANGER_COLOR.darkened(BAR_DRAIN_DIM)
+	return BAR_EMPTY_COLOR
 
 
 func _get_ratio_color(ratio: float) -> Color:
 	if ratio <= 0.33:
-		return Color(0.83, 0.24, 0.24, 1.0)
+		return BAR_DANGER_COLOR
 	if ratio <= 0.66:
-		return Color(0.82, 0.69, 0.22, 1.0)
-	return Color(0.47, 0.78, 0.43, 1.0)
+		return BAR_WARNING_COLOR
+	return BAR_GOOD_COLOR
+
+
+func _get_ratio_drain_color(ratio: float) -> Color:
+	if ratio > 0.66:
+		return BAR_WARNING_COLOR.darkened(BAR_DRAIN_DIM)
+	if ratio > 0.33:
+		return BAR_DANGER_COLOR.darkened(BAR_DRAIN_DIM)
+	return BAR_EMPTY_COLOR
 
 
 func _get_life_state_color(life_state: int) -> Color:

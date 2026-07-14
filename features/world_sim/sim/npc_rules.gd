@@ -95,7 +95,10 @@ const FATIGUE_BLOCK_COST := 0.45
 const FATIGUE_DODGE_COST := 0.55
 const WORLD_HUNGER_DRAIN_MULTIPLIER := 1.0
 
-const NOURISHMENT_APPLY_RATE := 0.35
+## Eating starts a single timed food effect that drips the item's
+## nutrition_value into hunger over this many seconds (3 game hours at the
+## canonical 1 real second = 1 game minute). Only one effect runs at a time.
+const FOOD_EFFECT_DURATION_SECONDS := 180.0
 const RUN_SPEED_MULTIPLIER := 1.7
 const MIN_EXHAUSTED_MOVE_MULTIPLIER := 0.2
 

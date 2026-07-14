@@ -169,7 +169,10 @@ func _on_inventory_item_right_clicked(entry, _local_position: Vector2, shift_pre
 	_context_entry = entry
 	item_menu.clear()
 	if can_eat:
-		item_menu.add_item("Eat", ACTION_EAT)
+		var digesting: bool = inventory_owner.has_method("is_food_effect_active") and inventory_owner.is_food_effect_active()
+		item_menu.add_item("Eat (digesting)" if digesting else "Eat", ACTION_EAT)
+		if digesting:
+			item_menu.set_item_disabled(item_menu.get_item_index(ACTION_EAT), true)
 	if can_take_silver:
 		item_menu.add_item("Take 1", ACTION_TAKE_SILVER_1)
 		item_menu.add_item("Take 5", ACTION_TAKE_SILVER_5)
