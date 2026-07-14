@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://cthu4ubf3br2v"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/roof_front_wood_6.tscn" id="1_qmfin"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_srkuj"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_5lj8h"]
+[ext_resource type="PackedScene" uid="uid://c70nqfmg1k47s" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Front_Wood6.gltf" id="4_ps20b"]
+
+[sub_resource type="Resource" id="Resource_l16tm"]
+script = ExtResource("3_5lj8h")
+snap_id = "left"
+display_name = "Left"
+connector_type = "roof_front_side"
+accepts_types = PackedStringArray("roof_side")
+local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.346518, 2.1260898, 0.22958833)
+
+[sub_resource type="Resource" id="Resource_cwm2q"]
+script = ExtResource("3_5lj8h")
+snap_id = "right"
+display_name = "Right"
+connector_type = "roof_front_side"
+accepts_types = PackedStringArray("roof_side")
+local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.347877, 2.1260898, 0.22958833)
+
+[sub_resource type="Resource" id="Resource_vde21"]
+script = ExtResource("3_5lj8h")
+snap_id = "wall_top"
+display_name = "Wall Top"
+connector_type = "roof_wall_top"
+accepts_types = PackedStringArray("wall_top")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.00067949295, -0.1318021, 0.22958833)
+
+[resource]
+script = ExtResource("2_srkuj")
+piece_id = "roof_front_wood_6"
+display_name = "Roof Front Wood6"
+category = "roof_front"
+scene = ExtResource("1_qmfin")
+source_scene = ExtResource("4_ps20b")
+grid_size_cells = Vector3i(4, 3, 1)
+bounds_size_meters = Vector3(6.694395, 4.515784, 1.129104)
+tags = PackedStringArray("roof", "front", "wood_6", "roof_front")
+snap_points = [SubResource("Resource_l16tm"), SubResource("Resource_cwm2q"), SubResource("Resource_vde21")]

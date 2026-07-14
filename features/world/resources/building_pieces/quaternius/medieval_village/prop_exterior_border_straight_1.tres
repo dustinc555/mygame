@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/prop_exterior_border_straight_1.tscn" id="1_h4w3x"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_e2jva"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_ExteriorBorder_Straight1.gltf" id="3_mwuek"]
+
+[resource]
+script = ExtResource("2_e2jva")
+piece_id = "prop_exterior_border_straight_1"
+display_name = "Prop ExteriorBorder Straight1"
+category = "prop"
+scene = ExtResource("1_h4w3x")
+source_scene = ExtResource("3_mwuek")
+grid_size_cells = Vector3i(2, 1, 1)
+bounds_size_meters = Vector3(2.0000002, 0.13401799, 0.7)
+tags = PackedStringArray("prop", "exterior_border", "straight_1")

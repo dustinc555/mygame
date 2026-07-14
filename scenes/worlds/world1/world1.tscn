@@ -17,7 +17,7 @@
 [node name="World1" type="Node3D" unique_id=170748501]
 script = ExtResource("1_world_root")
 world_id = "world1"
-start_hour = 0
+start_hour = 12
 
 [node name="Factions" type="Node" parent="." unique_id=54634220]
 script = ExtResource("3_factions")

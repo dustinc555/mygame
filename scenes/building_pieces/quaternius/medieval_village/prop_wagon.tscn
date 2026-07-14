@@ -1,0 +1,16 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_fht73"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Wagon.gltf" id="2_ftd67"]
+
+[node name="PropWagon" type="Node3D" unique_id=1486906754]
+script = ExtResource("1_fht73")
+piece_id = "prop_wagon"
+display_name = "Prop Wagon"
+category = "prop"
+grid_size_cells = Vector3i(1, 1, 3)
+bounds_size_meters = Vector3(1.9514084, 1.5291971, 4.0240164)
+
+[node name="Model" type="Node3D" parent="." unique_id=353984026 instance=ExtResource("2_ftd67")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1497609874]

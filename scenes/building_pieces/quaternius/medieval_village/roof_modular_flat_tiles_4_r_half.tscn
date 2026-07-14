@@ -1,0 +1,49 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_1l43y"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Modular_FlatTiles_4_R_Half.gltf" id="2_o5rbu"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_2wvyh"]
+
+[node name="RoofModularFlatTiles4RHalf" type="Node3D" unique_id=1326272017]
+script = ExtResource("1_1l43y")
+piece_id = "roof_modular_flat_tiles_4_r_half"
+display_name = "Roof Modular FlatTiles 4 R Half"
+category = "roof"
+grid_size_cells = Vector3i(2, 2, 2)
+bounds_size_meters = Vector3(2.6985118, 3.894951, 2.2385137)
+
+[node name="Model" type="Node3D" parent="." unique_id=992743631 instance=ExtResource("2_o5rbu")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1541404819]
+
+[node name="Left" type="Marker3D" parent="SnapPoints" unique_id=339673561]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -0.0005674958, 1.4252009, -0.11925709)
+script = ExtResource("3_2wvyh")
+snap_id = "left"
+display_name = "Left"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+
+[node name="Right" type="Marker3D" parent="SnapPoints" unique_id=1073839573]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.6979444, 1.4252009, -0.11925709)
+script = ExtResource("3_2wvyh")
+snap_id = "right"
+display_name = "Right"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+
+[node name="WallTop" type="Marker3D" parent="SnapPoints" unique_id=1714776809]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 1.3486884, -0.5222747, -0.11925709)
+script = ExtResource("3_2wvyh")
+snap_id = "wall_top"
+display_name = "Wall Top"
+connector_type = "roof_wall_top"
+accepts_types = PackedStringArray("wall_top")
+
+[node name="Ridge" type="Marker3D" parent="SnapPoints" unique_id=1474769356]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 1.3486884, 3.3726764, -0.11925709)
+script = ExtResource("3_2wvyh")
+snap_id = "ridge"
+display_name = "Ridge"
+connector_type = "roof_ridge"
+accepts_types = PackedStringArray("roof_ridge")

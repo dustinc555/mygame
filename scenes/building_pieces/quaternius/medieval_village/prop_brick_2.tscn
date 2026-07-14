@@ -1,0 +1,15 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_0sugx"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Brick2.gltf" id="2_ynohy"]
+
+[node name="PropBrick2" type="Node3D" unique_id=1762263238]
+script = ExtResource("1_0sugx")
+piece_id = "prop_brick_2"
+display_name = "Prop Brick2"
+category = "prop"
+bounds_size_meters = Vector3(0.39540976, 0.24488914, 0.216888)
+
+[node name="Model" type="Node3D" parent="." unique_id=123765090 instance=ExtResource("2_ynohy")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1660641271]

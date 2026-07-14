@@ -1,0 +1,57 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://qx8h8g2n22e5"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/hole_cover_straight_half.tscn" id="1_j288q"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_1q25n"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_pdbls"]
+[ext_resource type="PackedScene" uid="uid://c1si0ca5ypt8x" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/HoleCover_StraightHalf.gltf" id="4_tymgc"]
+
+[sub_resource type="Resource" id="Resource_d4mry"]
+script = ExtResource("3_pdbls")
+snap_id = "north"
+display_name = "North"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.046627e-07, -1.11982)
+
+[sub_resource type="Resource" id="Resource_8a55v"]
+script = ExtResource("3_pdbls")
+snap_id = "south"
+display_name = "South"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+local_transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 8.046627e-07, -0.88017994)
+
+[sub_resource type="Resource" id="Resource_dkpps"]
+script = ExtResource("3_pdbls")
+snap_id = "east"
+display_name = "East"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0.5, 8.046627e-07, -1)
+
+[sub_resource type="Resource" id="Resource_dpw0r"]
+script = ExtResource("3_pdbls")
+snap_id = "west"
+display_name = "West"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_bottom")
+local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -0.5, 8.046627e-07, -1)
+
+[sub_resource type="Resource" id="Resource_hq6eg"]
+script = ExtResource("3_pdbls")
+snap_id = "up"
+display_name = "Up"
+connector_type = "floor_up"
+accepts_types = PackedStringArray("wall_bottom", "stairs_bottom")
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 0.10508765, -1)
+
+[resource]
+script = ExtResource("2_1q25n")
+piece_id = "hole_cover_straight_half"
+display_name = "HoleCover StraightHalf"
+category = "hole_cover"
+scene = ExtResource("1_j288q")
+source_scene = ExtResource("4_tymgc")
+bounds_size_meters = Vector3(1, 0.2101737, 0.23964006)
+tags = PackedStringArray("hole_cover", "straight_half")
+snap_points = [SubResource("Resource_d4mry"), SubResource("Resource_8a55v"), SubResource("Resource_dkpps"), SubResource("Resource_dpw0r"), SubResource("Resource_hq6eg")]

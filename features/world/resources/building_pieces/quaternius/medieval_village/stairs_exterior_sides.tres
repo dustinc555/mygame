@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://dpp4t7h4nl47c"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/stairs_exterior_sides.tscn" id="1_pqusr"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_qjw2f"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_ekyna"]
+[ext_resource type="PackedScene" uid="uid://s0gl6q0744tm" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Stairs_Exterior_Sides.gltf" id="4_1cdbq"]
+
+[sub_resource type="Resource" id="Resource_fyrl1"]
+script = ExtResource("3_ekyna")
+snap_id = "bottom"
+display_name = "Bottom"
+connector_type = "stairs_bottom"
+accepts_types = PackedStringArray("floor_up")
+local_transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, -3.8206755e-16, 1)
+
+[sub_resource type="Resource" id="Resource_bvs27"]
+script = ExtResource("3_ekyna")
+snap_id = "top"
+display_name = "Top"
+connector_type = "stairs_top"
+accepts_types = PackedStringArray("floor_edge", "floor_up")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -1)
+
+[resource]
+script = ExtResource("2_qjw2f")
+piece_id = "stairs_exterior_sides"
+display_name = "Stairs Exterior Sides"
+category = "stairs"
+scene = ExtResource("1_pqusr")
+source_scene = ExtResource("4_1cdbq")
+grid_size_cells = Vector3i(2, 1, 1)
+bounds_size_meters = Vector3(2.0000005, 1, 2)
+tags = PackedStringArray("stairs", "exterior", "sides")
+snap_points = [SubResource("Resource_fyrl1"), SubResource("Resource_bvs27")]

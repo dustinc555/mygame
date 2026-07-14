@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/prop_vine_5.tscn" id="1_rtdxa"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_ix4hc"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Vine5.gltf" id="3_nb60x"]
+
+[resource]
+script = ExtResource("2_ix4hc")
+piece_id = "prop_vine_5"
+display_name = "Prop Vine5"
+category = "prop"
+scene = ExtResource("1_rtdxa")
+source_scene = ExtResource("3_nb60x")
+grid_size_cells = Vector3i(2, 2, 1)
+bounds_size_meters = Vector3(2.3010845, 2.9857197, 1.1258395)
+tags = PackedStringArray("prop", "vine_5")

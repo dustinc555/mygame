@@ -1,0 +1,49 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_jtk2l"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Log.gltf" id="2_7hme2"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_icmkb"]
+
+[node name="RoofLog" type="Node3D" unique_id=1072664396]
+script = ExtResource("1_jtk2l")
+piece_id = "roof_log"
+display_name = "Roof Log"
+category = "roof"
+grid_size_cells = Vector3i(1, 1, 6)
+bounds_size_meters = Vector3(1.1489304, 1.3869467, 10.695795)
+
+[node name="Model" type="Node3D" parent="." unique_id=404230156 instance=ExtResource("2_7hme2")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=679028382]
+
+[node name="Left" type="Marker3D" parent="SnapPoints" unique_id=544398106]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -0.58631945, 4.542198, 0)
+script = ExtResource("3_icmkb")
+snap_id = "left"
+display_name = "Left"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+
+[node name="Right" type="Marker3D" parent="SnapPoints" unique_id=1406630535]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0.562611, 4.542198, 0)
+script = ExtResource("3_icmkb")
+snap_id = "right"
+display_name = "Right"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+
+[node name="WallTop" type="Marker3D" parent="SnapPoints" unique_id=1930720661]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -0.011854231, 3.8487248, 0)
+script = ExtResource("3_icmkb")
+snap_id = "wall_top"
+display_name = "Wall Top"
+connector_type = "roof_wall_top"
+accepts_types = PackedStringArray("wall_top")
+
+[node name="Ridge" type="Marker3D" parent="SnapPoints" unique_id=612860872]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -0.011854231, 5.2356715, 0)
+script = ExtResource("3_icmkb")
+snap_id = "ridge"
+display_name = "Ridge"
+connector_type = "roof_ridge"
+accepts_types = PackedStringArray("roof_ridge")

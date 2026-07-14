@@ -1,0 +1,66 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://cfglfpexklfel"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/balcony_simple_corner.tscn" id="1_wkxni"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_a71xr"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_68qbq"]
+[ext_resource type="PackedScene" uid="uid://i3u8ex7l0vrp" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Balcony_Simple_Corner.gltf" id="4_26tpv"]
+
+[sub_resource type="Resource" id="Resource_smvvr"]
+script = ExtResource("3_68qbq")
+snap_id = "north"
+display_name = "North"
+connector_type = "balcony_rail"
+accepts_types = PackedStringArray("floor_edge")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1)
+
+[sub_resource type="Resource" id="Resource_i8joj"]
+script = ExtResource("3_68qbq")
+snap_id = "north_bottom"
+display_name = "North Bottom"
+connector_type = "balcony_rail_bottom"
+accepts_types = PackedStringArray("wall_top")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -1)
+
+[sub_resource type="Resource" id="Resource_erc34"]
+script = ExtResource("3_68qbq")
+snap_id = "north_end_northwest"
+display_name = "North End Northwest"
+connector_type = "balcony_rail_end"
+accepts_types = PackedStringArray("balcony_rail_end")
+local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1, 0, -1)
+
+[sub_resource type="Resource" id="Resource_i8f4s"]
+script = ExtResource("3_68qbq")
+snap_id = "east"
+display_name = "East"
+connector_type = "balcony_rail"
+accepts_types = PackedStringArray("floor_edge")
+local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1, 0, 0)
+
+[sub_resource type="Resource" id="Resource_3pj2s"]
+script = ExtResource("3_68qbq")
+snap_id = "east_bottom"
+display_name = "East Bottom"
+connector_type = "balcony_rail_bottom"
+accepts_types = PackedStringArray("wall_top")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 1, 0, 0)
+
+[sub_resource type="Resource" id="Resource_wnmhw"]
+script = ExtResource("3_68qbq")
+snap_id = "east_end_southeast"
+display_name = "East End Southeast"
+connector_type = "balcony_rail_end"
+accepts_types = PackedStringArray("balcony_rail_end")
+local_transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 1, 0, 1)
+
+[resource]
+script = ExtResource("2_a71xr")
+piece_id = "balcony_simple_corner"
+display_name = "Balcony Simple Corner"
+category = "balcony"
+scene = ExtResource("1_wkxni")
+source_scene = ExtResource("4_26tpv")
+grid_size_cells = Vector3i(2, 1, 2)
+bounds_size_meters = Vector3(2.1042533, 1.2298867, 2.1042538)
+tags = PackedStringArray("balcony", "simple", "corner")
+snap_points = [SubResource("Resource_smvvr"), SubResource("Resource_i8joj"), SubResource("Resource_erc34"), SubResource("Resource_i8f4s"), SubResource("Resource_3pj2s"), SubResource("Resource_wnmhw")]

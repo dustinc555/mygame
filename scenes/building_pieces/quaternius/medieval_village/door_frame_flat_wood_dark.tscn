@@ -1,0 +1,25 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_cr6au"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/DoorFrame_Flat_WoodDark.gltf" id="2_8fjc6"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_s2are"]
+
+[node name="DoorFrameFlatWoodDark" type="Node3D" unique_id=934324177]
+script = ExtResource("1_cr6au")
+piece_id = "door_frame_flat_wood_dark"
+display_name = "DoorFrame Flat WoodDark"
+category = "door_frame"
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(1.573992, 2.3122594, 0.38845217)
+
+[node name="Model" type="Node3D" parent="." unique_id=334426138 instance=ExtResource("2_8fjc6")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1639159610]
+
+[node name="Center" type="Marker3D" parent="SnapPoints" unique_id=794838909]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0007864833, 1.1475849, -0.049063727)
+script = ExtResource("3_s2are")
+snap_id = "center"
+display_name = "Center"
+connector_type = "door_insert"
+accepts_types = PackedStringArray("door_socket")

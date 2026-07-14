@@ -1,0 +1,33 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_d5tiw"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Stairs_Exterior_Platform45.gltf" id="2_xw8bf"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_dbxng"]
+
+[node name="StairsExteriorPlatform45" type="Node3D" unique_id=50416207]
+script = ExtResource("1_d5tiw")
+piece_id = "stairs_exterior_platform_45"
+display_name = "Stairs Exterior Platform45"
+category = "stairs"
+grid_size_cells = Vector3i(2, 1, 2)
+bounds_size_meters = Vector3(2.0006711, 1, 2.0006714)
+
+[node name="Model" type="Node3D" parent="." unique_id=744699054 instance=ExtResource("2_xw8bf")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=743579874]
+
+[node name="Bottom" type="Marker3D" parent="SnapPoints" unique_id=1202007866]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.00033533573, -3.8206755e-16, 1.0006713)
+script = ExtResource("3_dbxng")
+snap_id = "bottom"
+display_name = "Bottom"
+connector_type = "stairs_bottom"
+accepts_types = PackedStringArray("floor_up")
+
+[node name="Top" type="Marker3D" parent="SnapPoints" unique_id=128264556]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00033533573, 1, -1.0000001)
+script = ExtResource("3_dbxng")
+snap_id = "top"
+display_name = "Top"
+connector_type = "stairs_top"
+accepts_types = PackedStringArray("floor_edge", "floor_up")

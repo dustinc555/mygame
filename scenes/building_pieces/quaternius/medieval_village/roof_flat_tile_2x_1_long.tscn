@@ -1,0 +1,49 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_p4kfe"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_FlatTile_2x1_Long.gltf" id="2_r11ys"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_fp3nh"]
+
+[node name="RoofFlatTile2x1Long" type="Node3D" unique_id=282586629]
+script = ExtResource("1_p4kfe")
+piece_id = "roof_flat_tile_2x_1_long"
+display_name = "Roof FlatTile 2x1 Long"
+category = "roof"
+grid_size_cells = Vector3i(3, 2, 1)
+bounds_size_meters = Vector3(4.1468153, 3.1733797, 1.9067712)
+
+[node name="Model" type="Node3D" parent="." unique_id=800146739 instance=ExtResource("2_r11ys")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=763825020]
+
+[node name="Left" type="Marker3D" parent="SnapPoints" unique_id=1238829800]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.0734076, 0.57855594, 0.50610024)
+script = ExtResource("3_fp3nh")
+snap_id = "left"
+display_name = "Left"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+
+[node name="Right" type="Marker3D" parent="SnapPoints" unique_id=669344791]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.0734076, 0.57855594, 0.50610024)
+script = ExtResource("3_fp3nh")
+snap_id = "right"
+display_name = "Right"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+
+[node name="WallTop" type="Marker3D" parent="SnapPoints" unique_id=55735058]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, -1.0081339, 0.50610024)
+script = ExtResource("3_fp3nh")
+snap_id = "wall_top"
+display_name = "Wall Top"
+connector_type = "roof_wall_top"
+accepts_types = PackedStringArray("wall_top")
+
+[node name="Ridge" type="Marker3D" parent="SnapPoints" unique_id=443769623]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 2.1652458, 0.50610024)
+script = ExtResource("3_fp3nh")
+snap_id = "ridge"
+display_name = "Ridge"
+connector_type = "roof_ridge"
+accepts_types = PackedStringArray("roof_ridge")

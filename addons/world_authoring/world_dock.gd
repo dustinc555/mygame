@@ -6,7 +6,11 @@ extends PanelContainer
 ## from this world (a loaded save overrides them). First resident: start
 ## time, so a night playtest doesn't need an in-game time skip. Every edit
 ## writes the WorldRoot node's exported properties (undoable; saving the
-## world scene persists them).
+## world scene persists them). The world nav bake row (bake button, previews,
+## bake parameters) lives at the bottom of the dock and follows the edited
+## scene, not the selection.
+
+const WORLD_NAV_BAKE_TOOL := preload("res://addons/world_authoring/world_nav_bake_tool.gd")
 
 const TIME_PRESETS := [
 	{"label": "Dawn", "hour": 6, "minute": 0},
@@ -27,20 +31,30 @@ var _minute_spin: SpinBox
 
 func setup(tools: RefCounted) -> void:
 	_tools = tools
-	custom_minimum_size = Vector2(0, 170)
+	custom_minimum_size = Vector2(0, 240)
+	var layout := HBoxContainer.new()
+	layout.add_theme_constant_override("separation", 12)
+	add_child(layout)
+	var main_column := VBoxContainer.new()
+	main_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.add_child(main_column)
 	_placeholder = Label.new()
 	_placeholder.text = "Select a WorldRoot to edit its session options here."
 	_placeholder.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_placeholder.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	add_child(_placeholder)
+	_placeholder.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	main_column.add_child(_placeholder)
 	_content = VBoxContainer.new()
 	_content.visible = false
+	_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_content.add_theme_constant_override("separation", 8)
-	add_child(_content)
+	main_column.add_child(_content)
 	_title = Label.new()
 	_title.add_theme_color_override("font_color", Color(0.75, 0.82, 0.9))
 	_content.add_child(_title)
 	_content.add_child(_build_spawn_options())
+	layout.add_child(VSeparator.new())
+	layout.add_child(WORLD_NAV_BAKE_TOOL.new())
 
 
 func _build_spawn_options() -> Control:

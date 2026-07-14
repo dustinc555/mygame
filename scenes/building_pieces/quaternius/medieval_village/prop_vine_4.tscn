@@ -1,0 +1,15 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_qbg37"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Vine4.gltf" id="2_o8vep"]
+
+[node name="PropVine4" type="Node3D" unique_id=1772515168]
+script = ExtResource("1_qbg37")
+piece_id = "prop_vine_4"
+display_name = "Prop Vine4"
+category = "prop"
+bounds_size_meters = Vector3(1.0165728, 1.5881727, 0.15001652)
+
+[node name="Model" type="Node3D" parent="." unique_id=572164241 instance=ExtResource("2_o8vep")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=2006297581]

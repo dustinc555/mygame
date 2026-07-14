@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://dh5twh22wsw7u"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/window_wide_round_rocks.tscn" id="1_fkf86"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_n5m0c"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_06pds"]
+[ext_resource type="PackedScene" uid="uid://b72y8wuoas7er" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Window_Wide_Round_Rocks.gltf" id="4_hmw8o"]
+
+[sub_resource type="Resource" id="Resource_45gxu"]
+script = ExtResource("3_06pds")
+snap_id = "center"
+display_name = "Center"
+connector_type = "window_insert"
+accepts_types = PackedStringArray("window_socket")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0020051003, 1.8882, -0.110794306)
+
+[resource]
+script = ExtResource("2_n5m0c")
+piece_id = "window_wide_round_rocks"
+display_name = "Window Wide Round Rocks"
+category = "window"
+scene = ExtResource("1_fkf86")
+source_scene = ExtResource("4_hmw8o")
+bounds_size_meters = Vector3(1.5137076, 1.8157122, 0.40089315)
+tags = PackedStringArray("window", "wide", "round", "rocks")
+snap_points = [SubResource("Resource_45gxu")]

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/prop_metal_fence_ornament.tscn" id="1_2aqfx"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_6tx4x"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_MetalFence_Ornament.gltf" id="3_ohn64"]
+
+[resource]
+script = ExtResource("2_6tx4x")
+piece_id = "prop_metal_fence_ornament"
+display_name = "Prop MetalFence Ornament"
+category = "prop"
+scene = ExtResource("1_2aqfx")
+source_scene = ExtResource("3_ohn64")
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(1.952312, 2.8523812, 0.15605798)
+tags = PackedStringArray("prop", "metal_fence", "ornament")

@@ -1,0 +1,58 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://dy226nnqdjc0q"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/wall_plaster_window_wide_round.tscn" id="1_i4p11"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_q2fve"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_0jtkt"]
+[ext_resource type="PackedScene" uid="uid://bu7f8xx28o1f4" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Wall_Plaster_Window_Wide_Round.gltf" id="4_tkirg"]
+
+[sub_resource type="Resource" id="Resource_d4po7"]
+script = ExtResource("3_0jtkt")
+snap_id = "left"
+display_name = "Left"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1.0000001, 1.5613444, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_rcqgd"]
+script = ExtResource("3_0jtkt")
+snap_id = "right"
+display_name = "Right"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0.9999999, 1.5613444, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_15270"]
+script = ExtResource("3_0jtkt")
+snap_id = "bottom"
+display_name = "Bottom"
+connector_type = "wall_bottom"
+accepts_types = PackedStringArray("floor_edge")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -1.1920929e-07, 0, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_wna3t"]
+script = ExtResource("3_0jtkt")
+snap_id = "top"
+display_name = "Top"
+connector_type = "wall_top"
+accepts_types = PackedStringArray("roof_wall_top", "wall_bottom")
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -1.1920929e-07, 3.1226888, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_alddp"]
+script = ExtResource("3_0jtkt")
+snap_id = "center"
+display_name = "Window Center"
+connector_type = "window_socket"
+accepts_types = PackedStringArray("window_insert")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1920929e-07, 1.8882, -0.110794306)
+
+[resource]
+script = ExtResource("2_q2fve")
+piece_id = "wall_plaster_window_wide_round"
+display_name = "Wall Plaster Window Wide Round"
+category = "wall_window"
+scene = ExtResource("1_i4p11")
+source_scene = ExtResource("4_tkirg")
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(2, 3.1226888, 0.40648204)
+tags = PackedStringArray("wall", "plaster", "window", "wide", "round", "wall_window")
+snap_points = [SubResource("Resource_d4po7"), SubResource("Resource_rcqgd"), SubResource("Resource_15270"), SubResource("Resource_wna3t"), SubResource("Resource_alddp")]

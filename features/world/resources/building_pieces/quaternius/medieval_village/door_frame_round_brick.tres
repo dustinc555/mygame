@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://gn8jmsa20xxr"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/door_frame_round_brick.tscn" id="1_hrq0p"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_vy1ko"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_tftyd"]
+[ext_resource type="PackedScene" uid="uid://bwijxvlbituj5" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/DoorFrame_Round_Brick.gltf" id="4_w2ay7"]
+
+[sub_resource type="Resource" id="Resource_540qm"]
+script = ExtResource("3_tftyd")
+snap_id = "center"
+display_name = "Center"
+connector_type = "door_insert"
+accepts_types = PackedStringArray("door_socket")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0025558472, 1.2913932, -0.056548744)
+
+[resource]
+script = ExtResource("2_vy1ko")
+piece_id = "door_frame_round_brick"
+display_name = "DoorFrame Round Brick"
+category = "door_frame"
+scene = ExtResource("1_hrq0p")
+source_scene = ExtResource("4_w2ay7")
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(1.6031201, 2.5861714, 0.47717)
+tags = PackedStringArray("door_frame", "round", "brick")
+snap_points = [SubResource("Resource_540qm")]

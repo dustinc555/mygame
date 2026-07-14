@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/prop_wagon.tscn" id="1_gfo4e"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_3fvaw"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Wagon.gltf" id="3_s00rj"]
+
+[resource]
+script = ExtResource("2_3fvaw")
+piece_id = "prop_wagon"
+display_name = "Prop Wagon"
+category = "prop"
+scene = ExtResource("1_gfo4e")
+source_scene = ExtResource("3_s00rj")
+grid_size_cells = Vector3i(1, 1, 3)
+bounds_size_meters = Vector3(1.9514084, 1.5291971, 4.0240164)
+tags = PackedStringArray("prop", "wagon")

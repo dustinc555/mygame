@@ -1,0 +1,16 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_3ayy4"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_ExteriorBorder_Straight1.gltf" id="2_ohpyl"]
+
+[node name="PropExteriorBorderStraight1" type="Node3D" unique_id=461939257]
+script = ExtResource("1_3ayy4")
+piece_id = "prop_exterior_border_straight_1"
+display_name = "Prop ExteriorBorder Straight1"
+category = "prop"
+grid_size_cells = Vector3i(2, 1, 1)
+bounds_size_meters = Vector3(2.0000002, 0.13401799, 0.7)
+
+[node name="Model" type="Node3D" parent="." unique_id=532164514 instance=ExtResource("2_ohpyl")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1152435118]

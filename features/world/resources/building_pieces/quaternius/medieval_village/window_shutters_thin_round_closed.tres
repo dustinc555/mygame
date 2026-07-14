@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://dx1h43ufktq5q"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/window_shutters_thin_round_closed.tscn" id="1_o4qvq"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_dtppm"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_ixa14"]
+[ext_resource type="PackedScene" uid="uid://cccpojbgftu6s" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/WindowShutters_Thin_Round_Closed.gltf" id="4_0i30j"]
+
+[sub_resource type="Resource" id="Resource_1e58j"]
+script = ExtResource("3_ixa14")
+snap_id = "center"
+display_name = "Center"
+connector_type = "window_insert"
+accepts_types = PackedStringArray("window_socket")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0050186813, 1.8206, -0.110794306)
+
+[resource]
+script = ExtResource("2_dtppm")
+piece_id = "window_shutters_thin_round_closed"
+display_name = "WindowShutters Thin Round Closed"
+category = "shutter"
+scene = ExtResource("1_o4qvq")
+source_scene = ExtResource("4_0i30j")
+bounds_size_meters = Vector3(0.867403, 1.5184228, 0.13576958)
+tags = PackedStringArray("window_shutters", "thin", "round", "closed", "shutter")
+snap_points = [SubResource("Resource_1e58j")]

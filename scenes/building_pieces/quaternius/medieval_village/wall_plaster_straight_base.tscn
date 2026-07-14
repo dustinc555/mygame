@@ -1,0 +1,48 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_xw1ke"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Wall_Plaster_Straight_Base.gltf" id="2_a32y2"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_b71k3"]
+
+[node name="WallPlasterStraightBase" type="Node3D" unique_id=1524969342]
+script = ExtResource("1_xw1ke")
+piece_id = "wall_plaster_straight_base"
+display_name = "Wall Plaster Straight Base"
+grid_size_cells = Vector3i(1, 2, 1)
+bounds_size_meters = Vector3(2, 3.1226888, 0.40648204)
+
+[node name="Model" type="Node3D" parent="." unique_id=1009942689 instance=ExtResource("2_a32y2")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1079422481]
+
+[node name="Left" type="Marker3D" parent="SnapPoints" unique_id=134109254]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1.0000001, 1.5613444, -0.110794306)
+script = ExtResource("3_b71k3")
+snap_id = "left"
+display_name = "Left"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+
+[node name="Right" type="Marker3D" parent="SnapPoints" unique_id=1664811658]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0.9999999, 1.5613444, -0.110794306)
+script = ExtResource("3_b71k3")
+snap_id = "right"
+display_name = "Right"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+
+[node name="Bottom" type="Marker3D" parent="SnapPoints" unique_id=2118029191]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -1.1920929e-07, 0, -0.110794306)
+script = ExtResource("3_b71k3")
+snap_id = "bottom"
+display_name = "Bottom"
+connector_type = "wall_bottom"
+accepts_types = PackedStringArray("floor_edge")
+
+[node name="Top" type="Marker3D" parent="SnapPoints" unique_id=1432651638]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -1.1920929e-07, 3.1226888, -0.110794306)
+script = ExtResource("3_b71k3")
+snap_id = "top"
+display_name = "Top"
+connector_type = "wall_top"
+accepts_types = PackedStringArray("roof_wall_top", "wall_bottom")

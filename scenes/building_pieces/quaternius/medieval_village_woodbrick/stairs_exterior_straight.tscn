@@ -7,6 +7,9 @@
 [sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_walk_ramp"]
 points = PackedVector3Array(-1, 0.79053473, -1.077246, 1, 0.79053473, -1.077246, -1, -0.203688, 0.9315785, 1, -0.203688, 0.9315785, -1, 0.67053473, -1.077246, 1, 0.67053473, -1.077246, -1, -0.323688, 0.9315785, 1, -0.323688, 0.9315785)
 
+[sub_resource type="BoxShape3D" id="BoxShape3D_side_rail"]
+size = Vector3(0.1, 0.8, 1.12)
+
 [node name="StairsExteriorStraight" type="Node3D" unique_id=1445086580]
 script = ExtResource("1_nesjb")
 piece_id = "stairs_exterior_straight"
@@ -22,6 +25,18 @@ disable_model_collision = true
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="GeneratedWalkRamp" unique_id=729186551]
 shape = SubResource("ConvexPolygonShape3D_walk_ramp")
+
+[node name="NavShapingRails" type="StaticBody3D" parent="."]
+collision_layer = 32
+collision_mask = 0
+
+[node name="SideRailWest" type="CollisionShape3D" parent="NavShapingRails"]
+transform = Transform3D(1, 0, 0, 0, 0.8963, -0.4436, 0, 0.4436, 0.8963, -0.95, 0.31, 0.5)
+shape = SubResource("BoxShape3D_side_rail")
+
+[node name="SideRailEast" type="CollisionShape3D" parent="NavShapingRails"]
+transform = Transform3D(1, 0, 0, 0, 0.8963, -0.4436, 0, 0.4436, 0.8963, 0.95, 0.31, 0.5)
+shape = SubResource("BoxShape3D_side_rail")
 
 [node name="SnapPoints" type="Node3D" parent="." unique_id=716752230]
 

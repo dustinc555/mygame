@@ -1,0 +1,50 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://dxfi0dj2bw3g7"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/roof_modular_flat_tiles_6_mid_half.tscn" id="1_6p6sj"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_afl6k"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_8a8dg"]
+[ext_resource type="PackedScene" uid="uid://d4h56fuu3rgxu" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Modular_FlatTiles_6_Mid_Half.gltf" id="4_hl75s"]
+
+[sub_resource type="Resource" id="Resource_2k8yd"]
+script = ExtResource("3_8a8dg")
+snap_id = "left"
+display_name = "Left"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -0.06753421, 1.9163234, -2.3841858e-07)
+
+[sub_resource type="Resource" id="Resource_2bmuh"]
+script = ExtResource("3_8a8dg")
+snap_id = "right"
+display_name = "Right"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 4.033943, 1.9163234, -2.3841858e-07)
+
+[sub_resource type="Resource" id="Resource_6ynnb"]
+script = ExtResource("3_8a8dg")
+snap_id = "wall_top"
+display_name = "Wall Top"
+connector_type = "roof_wall_top"
+accepts_types = PackedStringArray("wall_top")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 1.9832046, -0.74355483, -2.3841858e-07)
+
+[sub_resource type="Resource" id="Resource_d0ohl"]
+script = ExtResource("3_8a8dg")
+snap_id = "ridge"
+display_name = "Ridge"
+connector_type = "roof_ridge"
+accepts_types = PackedStringArray("roof_ridge")
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 1.9832046, 4.5762014, -2.3841858e-07)
+
+[resource]
+script = ExtResource("2_afl6k")
+piece_id = "roof_modular_flat_tiles_6_mid_half"
+display_name = "Roof Modular FlatTiles 6 Mid Half"
+category = "roof"
+scene = ExtResource("1_6p6sj")
+source_scene = ExtResource("4_hl75s")
+grid_size_cells = Vector3i(3, 3, 2)
+bounds_size_meters = Vector3(4.1014776, 5.3197565, 2.0000014)
+tags = PackedStringArray("roof", "modular", "flat_tiles", "6", "mid", "half")
+snap_points = [SubResource("Resource_2k8yd"), SubResource("Resource_2bmuh"), SubResource("Resource_6ynnb"), SubResource("Resource_d0ohl")]

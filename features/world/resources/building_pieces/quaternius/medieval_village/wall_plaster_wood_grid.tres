@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://jwaycphxg47w"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/wall_plaster_wood_grid.tscn" id="1_kgsvi"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_lkdu5"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_kejh3"]
+[ext_resource type="PackedScene" uid="uid://c4wgy26k5mdmi" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Wall_Plaster_WoodGrid.gltf" id="4_rgmmu"]
+
+[sub_resource type="Resource" id="Resource_w5ydx"]
+script = ExtResource("3_kejh3")
+snap_id = "left"
+display_name = "Left"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1.0000002, 1.5613444, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_6ct8i"]
+script = ExtResource("3_kejh3")
+snap_id = "right"
+display_name = "Right"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1.0000002, 1.5613444, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_ie8h8"]
+script = ExtResource("3_kejh3")
+snap_id = "bottom"
+display_name = "Bottom"
+connector_type = "wall_bottom"
+accepts_types = PackedStringArray("floor_edge")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_s85x2"]
+script = ExtResource("3_kejh3")
+snap_id = "top"
+display_name = "Top"
+connector_type = "wall_top"
+accepts_types = PackedStringArray("roof_wall_top", "wall_bottom")
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 3.1226888, -0.110794306)
+
+[resource]
+script = ExtResource("2_lkdu5")
+piece_id = "wall_plaster_wood_grid"
+display_name = "Wall Plaster WoodGrid"
+scene = ExtResource("1_kgsvi")
+source_scene = ExtResource("4_rgmmu")
+grid_size_cells = Vector3i(2, 2, 1)
+bounds_size_meters = Vector3(2.0000005, 3.1226888, 0.40648204)
+tags = PackedStringArray("wall", "plaster", "wood_grid")
+snap_points = [SubResource("Resource_w5ydx"), SubResource("Resource_6ct8i"), SubResource("Resource_ie8h8"), SubResource("Resource_s85x2")]

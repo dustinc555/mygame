@@ -217,7 +217,11 @@ static func load_tile(cache_dir: String, coord: Vector2i) -> NavigationMesh:
 static func build_navmesh_debug_mesh(nav_mesh: NavigationMesh) -> ArrayMesh:
 	var vertices: PackedVector3Array = nav_mesh.get_vertices()
 	var triangles := PackedVector3Array()
-	var lift := Vector3(0.0, 0.08, 0.0)
+	# The bake quantizes Y to cell_height (0.1), so navmesh polygons can sit up
+	# to a full cell BELOW the walkable surface; modular floor visuals add a
+	# little more on top. The lift must clear both or the preview renders just
+	# beneath floor panels and reads as "nav missing on floors".
+	var lift := Vector3(0.0, 0.2, 0.0)
 	for p in range(nav_mesh.get_polygon_count()):
 		var polygon: PackedInt32Array = nav_mesh.get_polygon(p)
 		for i in range(1, polygon.size() - 1):

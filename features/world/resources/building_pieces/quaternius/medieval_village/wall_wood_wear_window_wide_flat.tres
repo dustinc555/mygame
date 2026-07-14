@@ -1,0 +1,58 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://dsm6136x0be08"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/wall_wood_wear_window_wide_flat.tscn" id="1_a0t7s"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_2p8we"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_8ygki"]
+[ext_resource type="PackedScene" uid="uid://ds61wlo2ymkse" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Wall_WoodWear_Window_Wide_Flat.gltf" id="4_2ly8m"]
+
+[sub_resource type="Resource" id="Resource_ln8b0"]
+script = ExtResource("3_8ygki")
+snap_id = "left"
+display_name = "Left"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1.0000002, 1.5613443, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_in8hj"]
+script = ExtResource("3_8ygki")
+snap_id = "right"
+display_name = "Right"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1.0000002, 1.5613443, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_tknqn"]
+script = ExtResource("3_8ygki")
+snap_id = "bottom"
+display_name = "Bottom"
+connector_type = "wall_bottom"
+accepts_types = PackedStringArray("floor_edge")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, -1.9470716e-07, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_svmhp"]
+script = ExtResource("3_8ygki")
+snap_id = "top"
+display_name = "Top"
+connector_type = "wall_top"
+accepts_types = PackedStringArray("roof_wall_top", "wall_bottom")
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 3.1226888, -0.110794306)
+
+[sub_resource type="Resource" id="Resource_88lg4"]
+script = ExtResource("3_8ygki")
+snap_id = "center"
+display_name = "Window Center"
+connector_type = "window_socket"
+accepts_types = PackedStringArray("window_insert")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.7105, -0.110794306)
+
+[resource]
+script = ExtResource("2_2p8we")
+piece_id = "wall_wood_wear_window_wide_flat"
+display_name = "Wall WoodWear Window Wide Flat"
+category = "wall_window"
+scene = ExtResource("1_a0t7s")
+source_scene = ExtResource("4_2ly8m")
+grid_size_cells = Vector3i(2, 2, 1)
+bounds_size_meters = Vector3(2.0000005, 3.122689, 0.40648204)
+tags = PackedStringArray("wall", "wood_wear", "window", "wide", "flat", "wall_window")
+snap_points = [SubResource("Resource_ln8b0"), SubResource("Resource_in8hj"), SubResource("Resource_tknqn"), SubResource("Resource_svmhp"), SubResource("Resource_88lg4")]

@@ -1,0 +1,24 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_gdwxk"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/WindowShutters_Thin_Flat_Open.gltf" id="2_3pun5"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_uaape"]
+
+[node name="WindowShuttersThinFlatOpen" type="Node3D" unique_id=460699464]
+script = ExtResource("1_gdwxk")
+piece_id = "window_shutters_thin_flat_open"
+display_name = "WindowShutters Thin Flat Open"
+category = "shutter"
+bounds_size_meters = Vector3(1.354006, 1.4241946, 0.37707388)
+
+[node name="Model" type="Node3D" parent="." unique_id=1716002940 instance=ExtResource("2_3pun5")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1392558786]
+
+[node name="Center" type="Marker3D" parent="SnapPoints" unique_id=1021978715]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.01646161, 1.8206, -0.110794306)
+script = ExtResource("3_uaape")
+snap_id = "center"
+display_name = "Center"
+connector_type = "window_insert"
+accepts_types = PackedStringArray("window_socket")

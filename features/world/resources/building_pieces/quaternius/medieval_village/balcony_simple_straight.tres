@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://bo60ua508fswo"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/balcony_simple_straight.tscn" id="1_lmnrf"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_6qtj7"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_sd8c0"]
+[ext_resource type="PackedScene" uid="uid://cp6qklq1hpq62" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Balcony_Simple_Straight.gltf" id="4_dc0dp"]
+
+[sub_resource type="Resource" id="Resource_13dkx"]
+script = ExtResource("3_sd8c0")
+snap_id = "south"
+display_name = "South"
+connector_type = "balcony_rail"
+accepts_types = PackedStringArray("floor_edge")
+local_transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 1)
+
+[sub_resource type="Resource" id="Resource_ncjwy"]
+script = ExtResource("3_sd8c0")
+snap_id = "south_bottom"
+display_name = "South Bottom"
+connector_type = "balcony_rail_bottom"
+accepts_types = PackedStringArray("wall_top")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 1)
+
+[sub_resource type="Resource" id="Resource_gki34"]
+script = ExtResource("3_sd8c0")
+snap_id = "south_end_southwest"
+display_name = "South End Southwest"
+connector_type = "balcony_rail_end"
+accepts_types = PackedStringArray("balcony_rail_end")
+local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1, 0, 1)
+
+[sub_resource type="Resource" id="Resource_b8p7j"]
+script = ExtResource("3_sd8c0")
+snap_id = "south_end_southeast"
+display_name = "South End Southeast"
+connector_type = "balcony_rail_end"
+accepts_types = PackedStringArray("balcony_rail_end")
+local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1, 0, 1)
+
+[resource]
+script = ExtResource("2_6qtj7")
+piece_id = "balcony_simple_straight"
+display_name = "Balcony Simple Straight"
+category = "balcony"
+scene = ExtResource("1_lmnrf")
+source_scene = ExtResource("4_dc0dp")
+bounds_size_meters = Vector3(2, 1.2298867, 0.20628303)
+tags = PackedStringArray("balcony", "simple", "straight")
+snap_points = [SubResource("Resource_13dkx"), SubResource("Resource_ncjwy"), SubResource("Resource_gki34"), SubResource("Resource_b8p7j")]

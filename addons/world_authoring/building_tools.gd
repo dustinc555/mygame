@@ -9,12 +9,13 @@ extends RefCounted
 ## handles/claims_node/edit/refresh/is_active/process/shortcut_input/
 ## forward_3d_gui_input/on_selection_changed/on_scene_changed/teardown.
 
-const CATALOG_PATH := "res://features/world/resources/building_pieces/quaternius/medieval_village_woodbrick/starter_woodbrick_catalog.tres"
+const CATALOG_PATH := "res://features/world/resources/building_pieces/quaternius/medieval_village_full_catalog.tres"
 const WORLD_BUILDING_ICON_PATH := "res://addons/world_authoring/icons/world_building.svg"
 const WORLD_BUILDING_SCRIPT := preload("res://features/world/projection/buildings/world_building.gd")
 const MODULAR_BUILDING_PIECE_SCRIPT := preload("res://features/world/projection/buildings/modular_building_piece.gd")
 
-const SNAP_DISTANCE_METERS := 0.55
+const SNAP_SOLVER := preload("res://addons/world_authoring/building_snap_solver.gd")
+const SNAP_DISTANCE_METERS := SNAP_SOLVER.SNAP_DISTANCE_METERS
 const ROTATION_STEP_RADIANS := PI * 0.5
 const CATEGORY_GROUPS := [
 	{"label": "Walls", "categories": ["wall"]},
@@ -27,6 +28,11 @@ const CATEGORY_GROUPS := [
 	{"label": "Roofs", "categories": ["roof", "roof_front"]},
 	{"label": "Door Frames", "categories": ["door_frame"]},
 	{"label": "Stairs", "categories": ["stairs"]},
+	{"label": "Shutters", "categories": ["shutter"]},
+	{"label": "Overhangs", "categories": ["overhang"]},
+	{"label": "Balconies", "categories": ["balcony"]},
+	{"label": "Hole Covers", "categories": ["hole_cover"]},
+	{"label": "Props", "categories": ["prop"]},
 ]
 
 var _plugin: EditorPlugin
@@ -343,24 +349,7 @@ func _get_piece_nearest_snap_delta(piece: Node3D, max_distance: float = SNAP_DIS
 func _get_piece_nearest_snap_result(piece: Node3D, max_distance: float = SNAP_DISTANCE_METERS, excluded_pieces: Array = []) -> Dictionary:
 	if piece == null or not piece.has_method("get_snap_markers"):
 		return {}
-	var best_distance := INF
-	var best_transform := Transform3D.IDENTITY
-	var found := false
-	for source_marker in piece.call("get_snap_markers"):
-		if not (source_marker is Node3D):
-			continue
-		for target_marker in _get_other_snap_markers(piece, excluded_pieces):
-			if not _snap_markers_compatible(source_marker, target_marker):
-				continue
-			var delta := (target_marker as Node3D).global_position - (source_marker as Node3D).global_position
-			var distance := delta.length()
-			if distance < best_distance:
-				best_distance = distance
-				best_transform = _get_piece_snap_transform(piece, source_marker, target_marker)
-				found = true
-	if found and best_distance <= max_distance:
-		return {"transform": best_transform, "distance": best_distance}
-	return {}
+	return SNAP_SOLVER.find_best_snap(piece, _get_other_snap_markers(piece, excluded_pieces), max_distance)
 
 
 func _snap_new_piece_to_selected_piece(piece: Node3D) -> bool:
@@ -388,14 +377,7 @@ func _snap_new_piece_to_selected_piece(piece: Node3D) -> bool:
 
 
 func _new_piece_snap_score(source_marker: Node, target_marker: Node) -> float:
-	var source_type := str(source_marker.get("connector_type"))
-	var target_type := str(target_marker.get("connector_type"))
-	var target_id := str(target_marker.get("snap_id"))
-	if _snap_markers_align_transform(source_marker, target_marker):
-		return 0.0
-	if source_type == "wall_bottom" and target_type == "floor_edge":
-		return 0.0 if target_id == "south" else 5.0
-	return 10.0
+	return SNAP_SOLVER.new_piece_snap_score(source_marker, target_marker)
 
 
 func _get_other_snap_markers(piece: Node3D, excluded_pieces: Array = []) -> Array:
@@ -411,30 +393,11 @@ func _get_other_snap_markers(piece: Node3D, excluded_pieces: Array = []) -> Arra
 
 
 func _snap_markers_compatible(source_marker: Node, target_marker: Node) -> bool:
-	var source_type := str(source_marker.get("connector_type"))
-	var target_type := str(target_marker.get("connector_type"))
-	var source_accepts: PackedStringArray = source_marker.get("accepts_types")
-	var target_accepts: PackedStringArray = target_marker.get("accepts_types")
-	return source_accepts.has(target_type) or target_accepts.has(source_type)
+	return SNAP_SOLVER.markers_compatible(source_marker, target_marker)
 
 
 func _get_piece_snap_transform(piece: Node3D, source_marker: Node, target_marker: Node) -> Transform3D:
-	var snapped_transform := piece.global_transform
-	var source_marker_3d := source_marker as Node3D
-	var target_marker_3d := target_marker as Node3D
-	if source_marker_3d == null or target_marker_3d == null:
-		return snapped_transform
-	if _snap_markers_align_transform(source_marker, target_marker):
-		var source_local_transform := piece.global_transform.affine_inverse() * source_marker_3d.global_transform
-		return target_marker_3d.global_transform * source_local_transform.affine_inverse()
-	snapped_transform.origin += target_marker_3d.global_position - source_marker_3d.global_position
-	return snapped_transform
-
-
-func _snap_markers_align_transform(source_marker: Node, target_marker: Node) -> bool:
-	var source_type := str(source_marker.get("connector_type"))
-	var target_type := str(target_marker.get("connector_type"))
-	return (source_type == "window_insert" and target_type == "window_socket") or (source_type == "window_socket" and target_type == "window_insert") or (source_type == "door_insert" and target_type == "door_socket") or (source_type == "door_socket" and target_type == "door_insert")
+	return SNAP_SOLVER.piece_snap_transform(piece, source_marker, target_marker)
 
 
 func _snap_piece_transform_to_grid(piece: Node3D, source_transform: Transform3D) -> Transform3D:

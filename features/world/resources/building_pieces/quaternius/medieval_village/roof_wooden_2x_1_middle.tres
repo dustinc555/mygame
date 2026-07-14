@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://cdvwhc5hurh1y"]
+
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/roof_wooden_2x_1_middle.tscn" id="1_3g7v1"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_ynt85"]
+[ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_s5vft"]
+[ext_resource type="PackedScene" uid="uid://cibs6chdla60n" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Wooden_2x1_Middle.gltf" id="4_mf6p4"]
+
+[sub_resource type="Resource" id="Resource_efvkv"]
+script = ExtResource("3_s5vft")
+snap_id = "left"
+display_name = "Left"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -0.99999994, 0.9932747, 0)
+
+[sub_resource type="Resource" id="Resource_1pgny"]
+script = ExtResource("3_s5vft")
+snap_id = "right"
+display_name = "Right"
+connector_type = "roof_side"
+accepts_types = PackedStringArray("roof_side")
+local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1, 0.9932747, 0)
+
+[sub_resource type="Resource" id="Resource_mc1ub"]
+script = ExtResource("3_s5vft")
+snap_id = "wall_top"
+display_name = "Wall Top"
+connector_type = "roof_wall_top"
+accepts_types = PackedStringArray("wall_top")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 5.9604645e-08, 0.9243064, 0)
+
+[sub_resource type="Resource" id="Resource_we1e5"]
+script = ExtResource("3_s5vft")
+snap_id = "ridge"
+display_name = "Ridge"
+connector_type = "roof_ridge"
+accepts_types = PackedStringArray("roof_ridge")
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 5.9604645e-08, 1.062243, 0)
+
+[resource]
+script = ExtResource("2_ynt85")
+piece_id = "roof_wooden_2x_1_middle"
+display_name = "Roof Wooden 2x1 Middle"
+category = "roof"
+scene = ExtResource("1_3g7v1")
+source_scene = ExtResource("4_mf6p4")
+bounds_size_meters = Vector3(2, 0.13793659, 2)
+tags = PackedStringArray("roof", "wooden", "2x_1", "middle")
+snap_points = [SubResource("Resource_efvkv"), SubResource("Resource_1pgny"), SubResource("Resource_mc1ub"), SubResource("Resource_we1e5")]

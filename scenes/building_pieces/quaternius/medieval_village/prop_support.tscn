@@ -1,0 +1,16 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_telec"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Support.gltf" id="2_xcyeq"]
+
+[node name="PropSupport" type="Node3D" unique_id=750129178]
+script = ExtResource("1_telec")
+piece_id = "prop_support"
+display_name = "Prop Support"
+category = "prop"
+grid_size_cells = Vector3i(1, 1, 2)
+bounds_size_meters = Vector3(0.19860354, 1.708637, 2.036273)
+
+[node name="Model" type="Node3D" parent="." unique_id=459914443 instance=ExtResource("2_xcyeq")]
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=373620949]
