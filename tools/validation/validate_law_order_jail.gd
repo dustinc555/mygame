@@ -8,6 +8,7 @@ const SETTLEMENT_DEFINITION_SCRIPT := preload("res://features/world_sim/resource
 const FARMERS_FACTION := preload("res://features/factions/resources/factions/farmers.tres")
 const BANDAGE := preload("res://features/inventory/resources/items/bandage.tres")
 const EXPENSIVE_VASE := preload("res://features/inventory/resources/items/expensive_vase.tres")
+const SILVER := preload("res://features/inventory/resources/items/silver.tres")
 const HATCHET := preload("res://features/inventory/resources/items/hatchet.tres")
 const ROUND_SHIELD := preload("res://features/inventory/resources/items/round_shield.tres")
 
@@ -359,6 +360,48 @@ func _validate_witnessed_theft_jail_release() -> void:
 		_fail("Stolen goods should be forfeited on legal release")
 	if bool(law.call("actor_has_active_warrant", player, DEMO_FACTION_ID)):
 		_fail("Release after sentence should clear the active warrant")
+	_validate_bail_release(law, jail, player)
+
+
+func _validate_bail_release(law: Node, jail: Node, prisoner: HumanoidCharacter) -> void:
+	var payer := _scene.get_node_or_null("JailDemoTown/Residents/Witness") as HumanoidCharacter
+	if law == null or jail == null or prisoner == null or payer == null or payer.inventory == null:
+		_fail("Bail validation requires law, jail, prisoner, and payer inventory")
+		return
+	var cell := jail.call("get_reserved_or_available_cell", prisoner, prisoner) as Node
+	if cell == null:
+		_fail("Bail validation requires a free jail cell")
+		return
+	cell.call("place_carried_prisoner", payer, prisoner)
+	var status := prisoner.get_legal_status()
+	status.is_prisoner = true
+	status.jail_id = str(jail.call("get_facility_id"))
+	status.cell_id = str(cell.call("get_cell_id"))
+	var record := {
+		"state": "jailed",
+		"actor_key": str(prisoner.stable_id),
+		"jail_id": status.jail_id,
+		"cell_id": status.cell_id,
+		"faction_id": DEMO_FACTION_ID,
+		"severity": 3,
+		"confiscated_items": [],
+	}
+	var records: Dictionary = law.get("prisoner_records")
+	records[str(prisoner.stable_id)] = record
+	law.set("prisoner_records", records)
+	payer.set_player_party_member(true)
+	var expected_cost := 16
+	payer.inventory.add_item_count(SILVER, expected_cost)
+	var silver_before := payer.inventory.count_item(SILVER)
+	if int(law.call("get_bail_cost", payer, jail)) != expected_cost or not bool(law.call("can_pay_bail", payer, jail)):
+		_fail("Bail should cost base plus severity for jailed party companions")
+	elif not bool(law.call("pay_bail", payer, jail)):
+		_fail("Funded bail payment should release the prisoner")
+	elif payer.inventory.count_item(SILVER) != silver_before - expected_cost:
+		_fail("Bail payment should remove the exact silver cost")
+	elif prisoner.is_law_prisoner() or cell.call("has_occupant", prisoner):
+		_fail("Bail should clear prisoner status and cell occupancy")
+	payer.set_player_party_member(false)
 
 
 func _validate_cell_lay_building_visibility(player: HumanoidCharacter, jail: Node) -> void:
@@ -582,6 +625,36 @@ func _validate_jail_cell_authoring(jail: Node) -> void:
 			if horizontal_spacing < 2.3:
 				_fail("Authored jail cells should be spaced for enlarged cages")
 			previous_cell = current_cell
+	var reservation_actors: Array[Node] = [
+		_get_player(),
+		_scene.get_node_or_null("JailDemoTown/Residents/Witness"),
+		_scene.get_node_or_null("JailDemoTown/Guards/Guard"),
+	]
+	var reserved_cells: Array[Node] = []
+	for actor in reservation_actors:
+		var reserved := jail.call("get_reserved_or_available_cell", actor, actor) as Node
+		if reserved == null:
+			_fail("Each prisoner should reserve a free discovered jail-cell furniture item")
+			continue
+		if reserved_cells.has(reserved):
+			_fail("Two prisoners must never reserve the same jail cell")
+		reserved_cells.append(reserved)
+	if reserved_cells.size() >= 2:
+		var first_position: Vector3 = reserved_cells[0].call("get_prisoner_position", reservation_actors[0])
+		var second_position: Vector3 = reserved_cells[1].call("get_prisoner_position", reservation_actors[1])
+		if first_position.distance_squared_to(second_position) < 0.25:
+			_fail("Copied jail cells must use their own prisoner marker")
+	var warden: Node = jail.call("get_warden_actor") as Node if jail.has_method("get_warden_actor") else null
+	if warden != null and reserved_cells.size() == cells.size():
+		var over_capacity_cell = jail.call("get_reserved_or_available_cell", warden, warden)
+		if over_capacity_cell != null:
+			_fail("A full jail must not return an occupied cell")
+			jail.call("release_cell_reservation", warden)
+	for actor in reservation_actors:
+		jail.call("release_cell_reservation", actor)
+	var locker: Node = jail.call("get_prisoner_locker") as Node if jail.has_method("get_prisoner_locker") else null
+	if locker == null or locker.get_node_or_null("ModelRoot/PropLocker") == null:
+		_fail("Discovered prisoner locker should keep its authored Quaternius locker model")
 
 
 func _validate_guard_post_preserves_combat(owner: Node, guard: HumanoidCharacter, target: HumanoidCharacter, label: String) -> void:
@@ -598,7 +671,10 @@ func _validate_guard_post_preserves_combat(owner: Node, guard: HumanoidCharacter
 	target.disengage_combat_with(guard)
 	guard.global_position = original_transform.origin + Vector3(8.0, 0.0, 0.0)
 	guard.assign_attack_target(target, false, false, false)
-	owner.call("_process_guard_post_assignment", guard)
+	if owner is SettlementJail:
+		owner.call("_process_guard_post_assignment", guard, 0.0)
+	else:
+		owner.call("_process_guard_post_assignment", guard)
 	if guard.get_current_combat_target() != target or not guard.is_in_combat():
 		_fail("%s guard-post assignment should not cancel active combat" % label)
 	guard.disengage_combat_with(target)
@@ -745,7 +821,7 @@ func _horizontal_distance(left: Vector3, right: Vector3) -> float:
 
 
 func _get_warden_home_post(jail: Node) -> Node3D:
-	return jail.get_node_or_null("WardenPosts/WardenPost") as Node3D if jail != null else null
+	return jail.call("get_warden_service_point") as Node3D if jail != null and jail.has_method("get_warden_service_point") else null
 
 
 func _is_law_responder_arresting_actor(responder: HumanoidCharacter, actor: HumanoidCharacter) -> bool:

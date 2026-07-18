@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://o0d7b0btt52k"]
 
-[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/overhang_uneven_brick_corner_front.tscn" id="1_y866e"]
+[ext_resource type="PackedScene" uid="uid://cj5mvir4thyie" path="res://scenes/building_pieces/quaternius/medieval_village/overhang_uneven_brick_corner_front.tscn" id="1_y866e"]
 [ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_xnfd1"]
 [ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_sye8c"]
 [ext_resource type="PackedScene" uid="uid://bk5ctje0gt5uk" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Overhang_UnevenBrick_Corner_Front.gltf" id="4_ydvkj"]

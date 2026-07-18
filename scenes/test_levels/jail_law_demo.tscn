@@ -7,6 +7,9 @@
 [ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://features/world_sim/resources/settlement_definition.gd" id="5_settlement_definition"]
 [ext_resource type="Resource" uid="uid://h4a4vsdtrlvq" path="res://features/factions/resources/factions/farmers.tres" id="6_farmers"]
 [ext_resource type="PackedScene" uid="uid://g8aq5jo30vws" path="res://features/settlements/bridge/settlement_jail.tscn" id="7_jail"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/jail_cell.tscn" id="7_cell"]
+[ext_resource type="PackedScene" uid="uid://c63jdgt2b68gb" path="res://features/world/projection/containers/prisoner_locker_container.tscn" id="7_locker"]
+[ext_resource type="Script" path="res://features/settlements/bridge/venues/settlement_guard_post.gd" id="7_guard_post"]
 [ext_resource type="PackedScene" path="res://features/world/projection/items/world_item.tscn" id="8_world_item"]
 [ext_resource type="Resource" path="res://features/inventory/resources/items/expensive_vase.tres" id="9_vase"]
 [ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://features/core/party/party_member.gd" id="10_party_member"]
@@ -160,11 +163,34 @@ transform = Transform3D(-0.029910438, 0, -0.9995526, 0, 1, 0, 0.9995526, 0, -0.0
 warden_name = "Demo Warden"
 staff_stable_id_prefix = "npc.jail_demo_town.jail"
 staff_squad_name = "JailDemoTown"
-cell_lock_difficulties = Array[int]([5, 35, 90])
-locker_lock_difficulty = 90
 facility_id = "jail_demo_town.jail"
 display_name = "Demo Jail"
 owner_faction_id = "Farmers"
+
+[node name="Furniture" type="Node3D" parent="JailDemoTown/Facilities/Jail" unique_id=1948210433]
+
+[node name="Cell1" parent="JailDemoTown/Facilities/Jail/Furniture" unique_id=1948210434 instance=ExtResource("7_cell")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 0.05, -6.035112)
+cell_id = "cell_01"
+lock_difficulty = 5
+
+[node name="Cell2" parent="JailDemoTown/Facilities/Jail/Furniture" unique_id=1948210435 instance=ExtResource("7_cell")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 0.05, -6.035112)
+cell_id = "cell_02"
+lock_difficulty = 35
+
+[node name="Cell3" parent="JailDemoTown/Facilities/Jail/Furniture" unique_id=1948210436 instance=ExtResource("7_cell")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.05, -6.035112)
+cell_id = "cell_03"
+lock_difficulty = 90
+
+[node name="PrisonerLocker" parent="JailDemoTown/Facilities/Jail/Furniture" unique_id=1948210437 instance=ExtResource("7_locker")]
+transform = Transform3D(0.06444523, 0, -0.9979212, 0, 1, 0, 0.9979212, 0, 0.06444523, 5.281292, 0.10320526, -3.8477674)
+lock_difficulty = 90
+
+[node name="GuardPost" type="Node3D" parent="JailDemoTown/Facilities/Jail/Furniture" unique_id=1948210438]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.7, 0.05, 0.2060163)
+script = ExtResource("7_guard_post")
 
 [node name="Residents" type="Node3D" parent="JailDemoTown" unique_id=215764947]
 

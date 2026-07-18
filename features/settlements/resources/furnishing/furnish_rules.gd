@@ -15,11 +15,21 @@ class_name FurnishRules
 ## Walk strip reserved between wall and counter for the staff member.
 @export var counter_staff_strip_meters := 0.9
 
+## Clusters the facility cannot function without (a jail's cell block):
+## each is placed exactly once, trying every candidate spot on every
+## eligible storey. If one still fits nowhere, the whole furnish fails
+## loudly instead of yielding a non-functional facility.
+@export var required_cluster_scenes: Array[PackedScene] = []
+
 ## Hand-authored table vignettes (FurnitureVignette roots), stamped whole.
 @export var cluster_scenes: Array[PackedScene] = []
 ## One cluster per this many square meters of free interior floor.
 @export var square_meters_per_cluster := 14.0
 @export var max_clusters := 3
+## Also roll clusters on upper storeys (before beds claim the space). Ground
+## floors with central stairs often can't seat a large vignette; a jail's
+## cell block or an inn's bunk room belongs upstairs.
+@export var clusters_on_upper_floors := false
 
 ## Wall shelves, rolled per solid interior wall segment.
 @export var shelf_scenes: Array[PackedScene] = []
@@ -35,6 +45,12 @@ class_name FurnishRules
 ## Minimum distance between two placed lights on the same storey.
 @export var light_spacing_meters := 3.0
 @export var max_lights_per_level := 6
+
+## Function-required utility furniture (a jail's prisoner locker, a shop's
+## strongbox): each scene placed exactly once against a ground-floor wall,
+## before the random containers roll. No loot stock — these serve the
+## facility's function, they aren't lootable set dressing.
+@export var utility_scenes: Array[PackedScene] = []
 
 ## Floor-standing lootable containers (crates/barrels), stood against solid
 ## ground-floor walls after tables claim their space.

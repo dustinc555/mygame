@@ -17,7 +17,7 @@ bounds_size_meters = Vector3(3.1007972, 3.1167645, 3.1007977)
 [node name="SnapPoints" type="Node3D" parent="." unique_id=1425822591]
 
 [node name="Bottom" type="Marker3D" parent="SnapPoints" unique_id=1144745042]
-transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -0.4496014, 0, 0.44960105)
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.3812258, 0, -0.45064807)
 script = ExtResource("3_repeh")
 snap_id = "bottom"
 display_name = "Bottom"
@@ -25,9 +25,25 @@ connector_type = "wall_bottom"
 accepts_types = PackedStringArray("wall_top")
 
 [node name="Top" type="Marker3D" parent="SnapPoints" unique_id=1782141078]
-transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -0.4496014, 3.1167645, 0.44960105)
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0.4276572, 3.1167645, -0.38750055)
 script = ExtResource("3_repeh")
 snap_id = "top"
 display_name = "Top"
 connector_type = "wall_top"
 accepts_types = PackedStringArray("roof_wall_top", "wall_bottom")
+
+[node name="WestLeg" type="Marker3D" parent="SnapPoints"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2, 1.5613444, -0.8848374)
+script = ExtResource("3_repeh")
+snap_id = "west_leg"
+display_name = "West Leg"
+connector_type = "corner_side"
+accepts_types = PackedStringArray("wall_side")
+
+[node name="NorthLeg" type="Marker3D" parent="SnapPoints"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0.93179566, 1.5613444, 2)
+script = ExtResource("3_repeh")
+snap_id = "north_leg"
+display_name = "North Leg"
+connector_type = "corner_side"
+accepts_types = PackedStringArray("wall_side")

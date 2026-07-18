@@ -425,7 +425,7 @@ func _arrest_or_eject(actor: HumanoidCharacter, warrant: Dictionary) -> void:
 
 
 func _process_custody(actor: WorldActor, warrant: Dictionary) -> void:
-	if actor == null or actor.life_state == NpcRules.LifeState.DEAD:
+	if actor == null:
 		return
 	var settlement := _find_settlement_for_warrant(actor, warrant)
 	var jail := _find_jail_by_id(str(warrant.get("custody_jail_id", "")))
@@ -433,10 +433,16 @@ func _process_custody(actor: WorldActor, warrant: Dictionary) -> void:
 		jail = _find_jail_for_settlement(settlement)
 	if jail == null:
 		return
+	if actor.life_state == NpcRules.LifeState.DEAD:
+		if jail.has_method("release_cell_reservation"):
+			jail.call("release_cell_reservation", actor)
+		return
 	if jail.has_method("admit_prisoner") and bool(jail.call("admit_prisoner", actor, warrant, self)):
 		_complete_jailing(actor, warrant, jail)
 		return
 	if actor.life_state == NpcRules.LifeState.ALIVE:
+		if jail.has_method("release_cell_reservation"):
+			jail.call("release_cell_reservation", actor)
 		warrant["state"] = "wanted"
 		_alert_authority_guards(actor, warrant)
 		return
@@ -447,7 +453,7 @@ func _process_custody(actor: WorldActor, warrant: Dictionary) -> void:
 	if guard == null:
 		return
 	var cell_reference: Node = guard if guard.get_carried_character() == humanoid_actor else actor
-	var cell = jail.call("get_available_cell", actor, cell_reference) if jail.has_method("get_available_cell") else null
+	var cell = jail.call("get_reserved_or_available_cell", actor, cell_reference) if jail.has_method("get_reserved_or_available_cell") else (jail.call("get_available_cell", actor, cell_reference) if jail.has_method("get_available_cell") else null)
 	if cell == null:
 		return
 	warrant["custody_guard_key"] = _actor_key(guard)
@@ -549,6 +555,59 @@ func _request_prisoner_sentence_notification(actor: WorldActor, record: Dictiona
 		return record
 	record["sentence_notification_requested"] = bool(jail.call("tell_prisoner_sentence", actor, record))
 	return record
+
+
+## Bail: a party member buys jailed companions out at the warden. Cost
+## scales with each prisoner's crime severity; paying releases every jailed
+## player-party member held in that jail through the standard release flow
+## (locker items restored, warrant cleared).
+const BAIL_SILVER_ITEM = preload("res://features/inventory/resources/items/silver.tres")
+const BAIL_BASE_COST := 10
+const BAIL_COST_PER_SEVERITY := 2
+
+
+func get_bailable_prisoners(payer: WorldActor, jail: Node) -> Array[Dictionary]:
+	var results: Array[Dictionary] = []
+	if payer == null or jail == null or not jail.has_method("get_facility_id"):
+		return results
+	if not payer.is_player_party_member():
+		return results
+	var jail_id := str(jail.call("get_facility_id"))
+	for prisoner_key in prisoner_records.keys():
+		var record: Dictionary = prisoner_records[prisoner_key]
+		if str(record.get("state", "")) != "jailed" or str(record.get("jail_id", "")) != jail_id:
+			continue
+		var prisoner := _find_actor_by_key(str(prisoner_key))
+		if prisoner == null or prisoner == payer:
+			continue
+		if not (prisoner.has_method("is_player_party_member") and bool(prisoner.call("is_player_party_member"))):
+			continue
+		results.append({"actor": prisoner, "record": record})
+	return results
+
+
+func get_bail_cost(payer: WorldActor, jail: Node) -> int:
+	var total := 0
+	for entry in get_bailable_prisoners(payer, jail):
+		total += BAIL_BASE_COST + BAIL_COST_PER_SEVERITY * int((entry["record"] as Dictionary).get("severity", 1))
+	return total
+
+
+func can_pay_bail(payer: WorldActor, jail: Node) -> bool:
+	var cost := get_bail_cost(payer, jail)
+	return cost > 0 and payer != null and payer.inventory != null and payer.inventory.count_item(BAIL_SILVER_ITEM) >= cost
+
+
+func pay_bail(payer: WorldActor, jail: Node) -> bool:
+	var bailable := get_bailable_prisoners(payer, jail)
+	if bailable.is_empty():
+		return false
+	var cost := get_bail_cost(payer, jail)
+	if payer == null or payer.inventory == null or not payer.inventory.remove_item_count(BAIL_SILVER_ITEM, cost):
+		return false
+	for entry in bailable:
+		_release_prisoner(entry["actor"] as WorldActor, entry["record"] as Dictionary, jail)
+	return true
 
 
 func _release_prisoner(actor: WorldActor, record: Dictionary, jail) -> void:

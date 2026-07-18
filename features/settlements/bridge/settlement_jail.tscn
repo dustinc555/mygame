@@ -3,38 +3,10 @@
 [ext_resource type="Script" uid="uid://bsceawqilt6vt" path="res://features/settlements/bridge/settlement_jail.gd" id="1_jail"]
 [ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn" id="2_building"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/jail.tres" id="2_eoaic"]
-[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://features/actors/projection/humanoid/faction_humanoid.gd" id="3_humanoid"]
-[ext_resource type="Script" path="res://features/settlements/bridge/venues/settlement_guard_post.gd" id="4_guard_post"]
-[ext_resource type="PackedScene" path="res://features/settlements/bridge/jail_cell.tscn" id="5_cell"]
-[ext_resource type="PackedScene" uid="uid://c63jdgt2b68gb" path="res://features/world/projection/containers/prisoner_locker_container.tscn" id="7_locker"]
-[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://features/inventory/resources/items/bandage.tres" id="9_bandage"]
-[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://features/inventory/resources/items/hatchet.tres" id="10_hatchet"]
-[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://features/inventory/resources/items/round_shield.tres" id="11_shield"]
-
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_staff"]
-radius = 0.45
-height = 1.1
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_warden"]
-albedo_color = Color(0.48, 0.42, 0.34, 1)
-roughness = 0.86
-
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_warden"]
-material = SubResource("StandardMaterial3D_warden")
-radius = 0.45
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_guard"]
-albedo_color = Color(0.34, 0.38, 0.46, 1)
-roughness = 0.86
-
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_guard"]
-material = SubResource("StandardMaterial3D_guard")
-radius = 0.45
 
 [node name="SettlementJail" type="Node3D" unique_id=1524920645]
 script = ExtResource("1_jail")
 guard_count = 1
-guard_post_count = 1
 facility_function = ExtResource("2_eoaic")
 service_points_root_path = NodePath("")
 storage_root_path = NodePath("")
@@ -50,57 +22,4 @@ building_type = "jail"
 use_law_profile_trespass_rules = false
 population_capacity = 2
 
-[node name="EntryPoint" type="Marker3D" parent="." unique_id=1623819207]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 7.8)
-
 [node name="Staff" type="Node3D" parent="." unique_id=407603258]
-
-[node name="GuardPosts" type="Node3D" parent="." unique_id=2073445006]
-
-[node name="GuardPost" type="Node3D" parent="GuardPosts" unique_id=1129732830]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.7, 0.05, 0.2060163)
-script = ExtResource("4_guard_post")
-debug_color = Color(0.35, 0.78, 1, 0.76)
-metadata/jail_generated = true
-metadata/jail_role = "guard_post"
-metadata/jail_index = 0
-
-[node name="WardenPosts" type="Node3D" parent="."]
-
-[node name="WardenPost" type="Node3D" parent="WardenPosts"]
-transform = Transform3D(-0.12043145, 0, -0.9927216, 0, 1, 0, 0.9927216, 0, -0.12043145, 1.3208423, 0.6, 4.1061177)
-script = ExtResource("4_guard_post")
-debug_color = Color(0.25, 1, 0.35, 0.82)
-metadata/jail_generated = true
-metadata/jail_role = "warden_post"
-metadata/jail_index = 0
-
-[node name="Cells" type="Node3D" parent="." unique_id=313408103]
-
-[node name="Cell" parent="Cells" unique_id=534350961 instance=ExtResource("5_cell")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 0.05, -6.035112)
-lock_difficulty = 5
-metadata/jail_generated = true
-metadata/jail_role = "cell"
-metadata/jail_index = 0
-
-[node name="Cell2" parent="Cells" unique_id=897316988 instance=ExtResource("5_cell")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 0.05, -6.035112)
-lock_difficulty = 35
-metadata/jail_generated = true
-metadata/jail_role = "cell"
-metadata/jail_index = 1
-
-[node name="Cell3" parent="Cells" unique_id=1065579974 instance=ExtResource("5_cell")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.05, -6.035112)
-lock_difficulty = 70
-metadata/jail_generated = true
-metadata/jail_role = "cell"
-metadata/jail_index = 2
-
-[node name="Lockers" type="Node3D" parent="." unique_id=880890459]
-
-[node name="PrisonerLocker" parent="Lockers" unique_id=1704443232 instance=ExtResource("7_locker")]
-transform = Transform3D(0.06444523, 0, -0.9979212, 0, 1, 0, 0.9979212, 0, 0.06444523, 5.281292, 0.10320526, -3.8477674)
-metadata/jail_generated = true
-metadata/jail_role = "prisoner_locker"

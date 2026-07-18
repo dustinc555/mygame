@@ -385,6 +385,7 @@ func _apply_default_skills_to_actor(actor: Node, resident_index: int) -> void:
 		return
 	var rng := _make_resident_rng(resident_index, "%s:perception" % str(actor.get("stable_id")))
 	actor.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(resident_perception_min, resident_perception_max, rng))
+	SettlementFacility.apply_civilian_stat_tiers(actor, rng)
 
 
 func _get_effective_population_name_profile() -> Resource:

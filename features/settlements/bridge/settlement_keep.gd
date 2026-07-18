@@ -720,6 +720,10 @@ func _apply_staff_role_skills(staff: Node, role: String, role_index: int) -> voi
 	var perception_range := _perception_range_for_role(role)
 	var rng := _make_staff_rng("skill:%s:%d:%s" % [role, role_index, str(staff.name)])
 	staff.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(perception_range.x, perception_range.y, rng))
+	if _role_label(role) == "guard":
+		SettlementFacility.apply_guard_stat_tiers(staff, rng)
+	else:
+		SettlementFacility.apply_civilian_stat_tiers(staff, rng)
 
 
 func _perception_range_for_role(role: String) -> Vector2i:

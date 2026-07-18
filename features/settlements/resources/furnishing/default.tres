@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="FurnishRules" format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/furnishing/furnish_rules.gd" id="1_rules"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furnishing/vignettes/table_cluster_2.tscn" id="2_cluster2"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furnishing/vignettes/table_cluster_4.tscn" id="3_cluster4"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/barrel.tscn" id="4_barrel"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/crate_wooden.tscn" id="5_crate"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_1.tscn" id="6_bed1"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_2.tscn" id="7_bed2"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_3.tscn" id="8_bed3"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/lighting/wall_torch.tscn" id="9_torch"]
+
+[resource]
+script = ExtResource("1_rules")
+counter_scenes = Array[PackedScene]([])
+cluster_scenes = Array[PackedScene]([ExtResource("2_cluster2"), ExtResource("3_cluster4")])
+square_meters_per_cluster = 16.0
+max_clusters = 2
+container_scenes = Array[PackedScene]([ExtResource("4_barrel"), ExtResource("5_crate")])
+max_containers = 3
+container_chance = 0.45
+shelf_scenes = Array[PackedScene]([])
+shelf_chance = 0.0
+light_scenes = Array[PackedScene]([ExtResource("9_torch")])
+light_chance = 0.55
+light_mount_height = 2.1
+light_spacing_meters = 3.0
+max_lights_per_level = 6
+bed_scenes = Array[PackedScene]([ExtResource("6_bed1"), ExtResource("7_bed2"), ExtResource("8_bed3")])
+max_beds = 3
+bed_chance = 0.6
+bed_footprint = Vector2(1.8, 2.4)

@@ -18,12 +18,14 @@ const FACILITY_FURNISHER := preload("res://features/world/projection/props/furni
 const FURNISH_RULES_DIR := "res://features/settlements/resources/furnishing"
 const FURNISH_GENERATED_META := "furnish_generated"
 const GUARD_POST_SCRIPT := preload("res://features/settlements/bridge/venues/settlement_guard_post.gd")
+const FURNISH_RULES_SCRIPT := preload("res://features/settlements/resources/furnishing/furnish_rules.gd")
 ## Hand-placeable furniture catalog roots, scanned (never hardcoded). Each
 ## .tscn found becomes a browser entry labeled by its folder.
 const FURNITURE_DIRS := [
 	"res://features/world/projection/props/furniture",
 	"res://features/world/projection/props/lighting",
 	"res://features/world/projection/props/furnishing/vignettes",
+	"res://features/world/projection/containers",
 ]
 const BUILDING_SHELLS_DIR := "res://features/world/projection/buildings/shells/modular"
 const WORLD_BUILDING_SCRIPT_PATH := "res://features/world/projection/buildings/world_building.gd"
@@ -309,6 +311,10 @@ func get_furniture_catalog() -> Array[Dictionary]:
 		for file_name in DirAccess.get_files_at(str(dir_path)):
 			if file_name.get_extension() != "tscn":
 				continue
+			# *_model.tscn are raw visual halves of container wrappers, not
+			# placeable furniture.
+			if file_name.ends_with("_model.tscn"):
+				continue
 			_furniture_catalog.append({
 				"path": str(dir_path).path_join(file_name),
 				"category": category,
@@ -405,9 +411,10 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 	if building == null:
 		_set_status("%s has no building shell to furnish." % facility.name)
 		return
-	var rules := _furnish_rules_for(facility)
+	var resolved := resolve_furnish_rules(facility)
+	var rules: Resource = resolved.get("rules")
 	if rules == null:
-		_set_status("No furnish rules for facility type '%s' (add %s/<type>.tres)." % [str(facility.get("facility_type")), FURNISH_RULES_DIR])
+		_set_status("No furnish rules resolve for type '%s' — create %s/default.tres." % [str(facility.get("facility_type")), FURNISH_RULES_DIR])
 		return
 	var seed_value := int(facility.get("furnish_seed")) + (1 if reroll else 0)
 	var furnisher = FACILITY_FURNISHER.new()
@@ -439,8 +446,29 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 		counts[kind] = int(counts.get(kind, 0)) + 1
 		var scene: PackedScene = placement["scene"]
 		var node := scene.instantiate() as Node3D
+		var placement_transform: Transform3D = to_furniture * (placement["transform"] as Transform3D)
+		# Unpack-marked vignettes (cell blocks) land as INDIVIDUAL saved
+		# pieces — the vignette is only the solver's layout stencil, never a
+		# sealed container node in the scene. Tables keep their cluster node.
+		if bool(node.get("unpack_on_furnish")):
+			for child in node.get_children():
+				var child_3d := child as Node3D
+				if child_3d == null or str(child_3d.scene_file_path).is_empty():
+					continue
+				var piece := (load(child_3d.scene_file_path) as PackedScene).instantiate() as Node3D
+				var base_name := str(child_3d.name).rstrip("0123456789")
+				counts[base_name] = int(counts.get(base_name, 0)) + 1
+				piece.name = "%s%d" % [base_name, counts[base_name]]
+				piece.transform = placement_transform * child_3d.transform
+				piece.set_meta(FURNISH_GENERATED_META, true)
+				undo_redo.add_do_method(furniture_root, "add_child", piece)
+				undo_redo.add_do_method(self, "_own_facility_placement", piece, owner_root)
+				undo_redo.add_undo_method(furniture_root, "remove_child", piece)
+				undo_redo.add_do_reference(piece)
+			node.free()
+			continue
 		node.name = "%s%d" % [kind.to_pascal_case(), counts[kind]]
-		node.transform = to_furniture * (placement["transform"] as Transform3D)
+		node.transform = placement_transform
 		if placement.has("stock"):
 			# Rolled loot bakes into the saved container node; the fresh
 			# InventoryStock resources embed in the town scene on save.
@@ -469,12 +497,94 @@ func _facility_building(facility: Node) -> Node3D:
 	return slot.get_child(0) as Node3D
 
 
-func _furnish_rules_for(facility: Node) -> Resource:
-	var facility_type := str(facility.get("facility_type"))
-	var path := "%s/%s.tres" % [FURNISH_RULES_DIR, facility_type]
-	if not ResourceLoader.exists(path):
-		return null
-	return load(path)
+## Furnish rules resolve through four visible tiers, first hit wins:
+## the facility's own furnish_rules export, the owning faction's
+## <faction>/<type>.tres, the type's <type>.tres, then default.tres.
+## Returns {rules, tier, path, label} so the dock can show which tier won.
+func resolve_furnish_rules(facility: Node) -> Dictionary:
+	if facility == null or not is_instance_valid(facility):
+		return {}
+	var explicit = facility.get("furnish_rules")
+	if explicit is Resource:
+		var explicit_path := str((explicit as Resource).resource_path)
+		return {
+			"rules": explicit,
+			"tier": "override",
+			"path": explicit_path,
+			"label": "%s (override)" % (explicit_path.get_file() if not explicit_path.is_empty() else "embedded"),
+		}
+	for candidate in _furnish_rule_candidates(facility):
+		if ResourceLoader.exists(str(candidate["path"])):
+			candidate["rules"] = load(str(candidate["path"]))
+			return candidate
+	return {}
+
+
+## The convention tiers that do NOT exist yet for this facility — the dock
+## offers a Create button per entry so authoring never requires the
+## filesystem. The faction tier only appears once the facility has an owner
+## faction to name the folder after.
+func missing_furnish_rule_tiers(facility: Node) -> Array[Dictionary]:
+	var missing: Array[Dictionary] = []
+	if facility == null or not is_instance_valid(facility):
+		return missing
+	for candidate in _furnish_rule_candidates(facility):
+		if not ResourceLoader.exists(str(candidate["path"])):
+			missing.append(candidate)
+	return missing
+
+
+## Create a tier's .tres seeded from whatever currently resolves (or blank
+## rules when nothing does), then open it in the Inspector. Shallow copy on
+## purpose: the new file references the same piece scenes and stock table
+## rather than embedding duplicates.
+func create_furnish_rules_file(facility: Node, tier: Dictionary) -> void:
+	var path := str(tier.get("path", ""))
+	if path.is_empty():
+		return
+	var resolved := resolve_furnish_rules(facility)
+	var base: Resource = resolved.get("rules")
+	var rules: Resource = base.duplicate(false) if base != null else FURNISH_RULES_SCRIPT.new()
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	var error := ResourceSaver.save(rules, path)
+	if error != OK:
+		_set_status("Failed to save %s (error %d)." % [path, error])
+		return
+	var editor := _plugin.get_editor_interface()
+	editor.get_resource_filesystem().scan()
+	editor.edit_resource(load(path))
+	_set_status("Created %s — tune it in the Inspector, then Furnish." % path)
+
+
+func _furnish_rule_candidates(facility: Node) -> Array[Dictionary]:
+	var facility_type := str(facility.get("facility_type")).strip_edges()
+	var candidates: Array[Dictionary] = []
+	var faction_id := _facility_faction_id(facility)
+	if not faction_id.is_empty() and not facility_type.is_empty():
+		candidates.append({
+			"tier": "faction",
+			"path": "%s/%s/%s.tres" % [FURNISH_RULES_DIR, faction_id, facility_type],
+			"label": "%s/%s.tres (faction)" % [faction_id, facility_type],
+		})
+	if not facility_type.is_empty():
+		candidates.append({
+			"tier": "type",
+			"path": "%s/%s.tres" % [FURNISH_RULES_DIR, facility_type],
+			"label": "%s.tres (type)" % facility_type,
+		})
+	candidates.append({
+		"tier": "default",
+		"path": "%s/default.tres" % FURNISH_RULES_DIR,
+		"label": "default.tres (default)",
+	})
+	return candidates
+
+
+func _facility_faction_id(facility: Node) -> String:
+	if facility.has_method("get_property_owner_faction"):
+		return str(facility.call("get_property_owner_faction")).strip_edges()
+	var value = facility.get("owner_faction_id")
+	return str(value).strip_edges() if value != null else ""
 
 
 ## --- Function assignment ---------------------------------------------------------

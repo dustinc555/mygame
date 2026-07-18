@@ -1,0 +1,32 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" uid="uid://0j1cr6qy1kdl" path="res://features/world/projection/props/furniture/jail_cell.gd" id="1_cell"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Cage_Large.gltf" id="2_cage"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cell"]
+size = Vector3(1.5446142, 2.3987106, 1.4573514)
+
+[node name="JailCell" type="StaticBody3D"]
+script = ExtResource("1_cell")
+visual_scene = ExtResource("2_cage")
+visual_transform = Transform3D(1.8, 0, 0, 0, 1.8, 0, 0, 0, 1.8, 0, 0.0736812, 0)
+collision_shape = SubResource("BoxShape3D_cell")
+collision_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0120753, 1.1993553, 0.0311967)
+
+[node name="InteractionPoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 1.7)
+
+[node name="PrisonerPoint" type="Marker3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, -0.35, 0)
+
+[node name="ReleasePoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 1.7)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0120753, 1.1993553, 0.0311967)
+shape = SubResource("BoxShape3D_cell")
+
+[node name="ModelRoot" type="Node3D" parent="."]
+
+[node name="CageLarge" parent="ModelRoot" instance=ExtResource("2_cage")]
+transform = Transform3D(1.8, 0, 0, 0, 1.8, 0, 0, 0, 1.8, 0, 0.0736812, 0)

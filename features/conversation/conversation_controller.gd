@@ -13,6 +13,7 @@ var hud_layer: CanvasLayer
 var inventory_controller
 var appearance_controller
 var faction_controller: Node
+var law_order_controller: Node
 var world_time: Node
 var party_manager
 var floating_notice
@@ -57,6 +58,7 @@ func _do_initialize() -> void:
 	appearance_controller = _context.get_optional(CharacterAppearanceController.SERVICE_ID)
 	faction_controller = _context.get_optional(FactionController.SERVICE_ID)
 	world_time = _context.get_optional(WorldTimeController.SERVICE_ID)
+	law_order_controller = _context.get_optional(&"law_order")
 	conversation_window = hud_layer.get_node_or_null("ConversationWindow")
 	floating_notice = hud_layer.get_node_or_null("FloatingNotice")
 	if conversation_window != null:
@@ -213,6 +215,7 @@ func _evaluate_response(response) -> Dictionary:
 		var result := ACTOR_CONDITION_EVALUATOR_SCRIPT.evaluate(condition, {
 			"speaker_member": active_speaker,
 			"conversation_target": active_target,
+			"law_order": law_order_controller,
 		})
 		if not result.get("passed", false):
 			reason = result.get("reason", condition.disabled_reason)
@@ -359,6 +362,10 @@ func _execute_action(effect) -> void:
 			var faction_actor = _resolve_subject(effect.parameters.get("subject", "conversation_target"))
 			if faction_actor != null:
 				faction_actor.faction_name = str(effect.parameters.get("faction_name", faction_actor.faction_name))
+		"law.pay_bail":
+			var jail := ActorConditionEvaluator.find_jail_ancestor(active_target)
+			if law_order_controller != null and jail != null and active_speaker != null and law_order_controller.has_method("pay_bail"):
+				law_order_controller.call("pay_bail", active_speaker, jail)
 		"faction.apply_helped_faction_result":
 			if faction_controller != null and faction_controller.has_method("apply_helped_faction_result"):
 				faction_controller.call(

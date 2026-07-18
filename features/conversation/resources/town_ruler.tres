@@ -14,18 +14,13 @@ script = ExtResource("3_response")
 text = "Let's talk diplomacy."
 next_node_id = "diplomacy"
 
-[sub_resource type="Resource" id="ConversationResponse_leave"]
-script = ExtResource("3_response")
-text = "That's all."
-next_node_id = "goodbye"
-
 [sub_resource type="Resource" id="ConversationNode_intro"]
 script = ExtResource("2_node")
 node_id = "intro"
 text = "State your business."
-responses = Array[Resource]([SubResource("ConversationResponse_laws"), SubResource("ConversationResponse_diplomacy"), SubResource("ConversationResponse_leave")])
+responses = Array[Resource]([SubResource("ConversationResponse_laws"), SubResource("ConversationResponse_diplomacy")])
 
-[sub_resource type="Resource" id="ConversationResponse_back_from_laws"]
+[sub_resource type="Resource" id="ConversationResponse_back"]
 script = ExtResource("3_response")
 text = "Something else."
 next_node_id = "intro"
@@ -34,28 +29,17 @@ next_node_id = "intro"
 script = ExtResource("2_node")
 node_id = "laws"
 text = "Taxes, crimes, and permissions are settled here. The details depend on who holds this town."
-responses = Array[Resource]([SubResource("ConversationResponse_back_from_laws"), SubResource("ConversationResponse_leave")])
-
-[sub_resource type="Resource" id="ConversationResponse_back_from_diplomacy"]
-script = ExtResource("3_response")
-text = "Something else."
-next_node_id = "intro"
+responses = Array[Resource]([SubResource("ConversationResponse_back")])
 
 [sub_resource type="Resource" id="ConversationNode_diplomacy"]
 script = ExtResource("2_node")
 node_id = "diplomacy"
 text = "Tribute, territory, and war plans will be handled here once those systems are wired in."
-responses = Array[Resource]([SubResource("ConversationResponse_back_from_diplomacy"), SubResource("ConversationResponse_leave")])
-
-[sub_resource type="Resource" id="ConversationNode_goodbye"]
-script = ExtResource("2_node")
-node_id = "goodbye"
-text = "Then leave me to my work."
-ends_conversation = true
+responses = Array[Resource]([SubResource("ConversationResponse_back")])
 
 [resource]
 script = ExtResource("1_definition")
 conversation_id = "conv.town.ruler"
 display_name = "Town Ruler"
 start_node_id = "intro"
-nodes = Array[Resource]([SubResource("ConversationNode_intro"), SubResource("ConversationNode_laws"), SubResource("ConversationNode_diplomacy"), SubResource("ConversationNode_goodbye")])
+nodes = Array[Resource]([SubResource("ConversationNode_intro"), SubResource("ConversationNode_laws"), SubResource("ConversationNode_diplomacy")])

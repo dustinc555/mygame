@@ -25,7 +25,7 @@ const SECTION_COLOR := Color(0.75, 0.82, 0.9)
 ## @export_range annotations on WorldNavigationSettings.
 const PARAM_SECTIONS := [
 	{"title": "Agent (walkability)", "tooltip": "What the baked nav triangles accept as walkable: the actor capsule the bake carves space for. Wrong values here promise paths bodies cannot walk.", "params": [
-		{"key": "agent_radius", "label": "Radius", "min": 0.2, "max": 0.6, "step": 0.01, "suffix": "m", "tooltip": "Walkable erosion around obstacles. Must be >= capsule radius (0.4) or bodies wedge in doorways."},
+		{"key": "agent_radius", "label": "Radius", "min": 0.2, "max": 0.6, "step": 0.01, "suffix": "m", "tooltip": "Walkable erosion around obstacles. Must be >= capsule radius (0.45) or bodies wedge in doorways."},
 		{"key": "agent_height", "label": "Height", "min": 1.0, "max": 2.5, "step": 0.05, "suffix": "m", "tooltip": "Actor capsule height for ceiling clearance."},
 		{"key": "agent_max_slope", "label": "Max Slope", "min": 30.0, "max": 75.0, "step": 1.0, "suffix": "deg", "tooltip": "Steepest walkable slope. Keep <= CharacterBody3D floor_max_angle (~45); stair ramps are ~33."},
 		{"key": "agent_max_climb", "label": "Max Climb", "min": 0.1, "max": 0.6, "step": 0.05, "suffix": "m", "tooltip": "Highest step climbed without a ramp. Effective climb = floor(climb / cell height)."},

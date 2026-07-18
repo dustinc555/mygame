@@ -4,7 +4,6 @@ extends StaticBody3D
 class_name JailCell
 
 @export var cell_id := ""
-@export_range(1, 12, 1) var prisoner_capacity := 1
 ## Largest WorldActor.CONTAINMENT_SIZE_* this cell can hold. A standard cell is
 ## MEDIUM (1); special cages for large/giant creatures raise this.
 @export_range(0, 3, 1) var max_containment_size_class := 1
@@ -12,9 +11,6 @@ class_name JailCell
 # Occupants are tracked by stable id (AGENT.md: stable IDs for anything referenced
 # by other systems / persisted), not NodePath.
 @export var occupant_ids: Array[String] = []
-@export var interaction_point_path: NodePath = NodePath("InteractionPoint")
-@export var prisoner_point_path: NodePath = NodePath("PrisonerPoint")
-@export var release_point_path: NodePath = NodePath("ReleasePoint")
 @export var prisoner_stand_offset := Vector3(0.0, 0.08, 0.0)
 @export var visual_scene: PackedScene:
 	set(value):
@@ -47,7 +43,7 @@ func get_cell_id() -> String:
 
 
 func get_interaction_position(_actor = null) -> Vector3:
-	var point := get_node_or_null(interaction_point_path) as Node3D
+	var point := get_node_or_null("InteractionPoint") as Node3D
 	return point.global_position if point != null else global_transform * Vector3(0.0, 0.6, 1.4)
 
 
@@ -61,7 +57,7 @@ func get_interaction_route(actor = null) -> Array[Vector3]:
 
 
 func get_available_capacity() -> int:
-	return max(0, prisoner_capacity - get_occupant_count())
+	return 1 if get_occupant_count() == 0 else 0
 
 
 func get_occupant_count() -> int:
@@ -125,7 +121,7 @@ func _occupant_key(actor: Node) -> String:
 
 
 func get_prisoner_position(_actor = null) -> Vector3:
-	var point := get_node_or_null(prisoner_point_path) as Node3D
+	var point := get_node_or_null("PrisonerPoint") as Node3D
 	return point.global_position if point != null else global_transform * Vector3(0.0, -0.35, 0.0)
 
 
@@ -134,17 +130,17 @@ func get_prisoner_stand_position(actor = null) -> Vector3:
 
 
 func get_prisoner_rotation(_actor = null) -> Vector3:
-	var point := get_node_or_null(prisoner_point_path) as Node3D
+	var point := get_node_or_null("PrisonerPoint") as Node3D
 	return point.global_rotation if point != null else global_rotation + Vector3(0.0, PI, 0.0)
 
 
 func get_release_position() -> Vector3:
-	var point := get_node_or_null(release_point_path) as Node3D
+	var point := get_node_or_null("ReleasePoint") as Node3D
 	return point.global_position if point != null else global_transform * Vector3(0.0, 0.6, 1.4)
 
 
 func get_release_rotation() -> Vector3:
-	var point := get_node_or_null(release_point_path) as Node3D
+	var point := get_node_or_null("ReleasePoint") as Node3D
 	return point.global_rotation if point != null else global_rotation
 
 
@@ -191,7 +187,7 @@ func perform_world_context_action(action_key: String, actors: Array) -> String:
 func get_cell_record() -> Dictionary:
 	return {
 		"cell_id": get_cell_id(),
-		"prisoner_capacity": prisoner_capacity,
+		"prisoner_capacity": 1,
 		"occupant_count": get_occupant_count(),
 		"lock_difficulty": lock_difficulty,
 	}

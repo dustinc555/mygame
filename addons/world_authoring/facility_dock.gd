@@ -13,6 +13,9 @@ const FUNCTIONS_DIR := "res://features/world_sim/resources/facility_functions"
 const APPEARANCE_PROFILES_DIR := "res://features/world_sim/resources/population_appearance_profiles"
 const FACTIONS_DIR := "res://features/factions/resources/factions"
 const ICONS_DIR := "res://addons/world_authoring/icons"
+## Catalog category (folder name) whose scenes are room-scale cluster
+## vignettes rather than single furniture pieces.
+const CLUSTER_CATEGORY := "vignettes"
 ## facility_type / function facility_type -> icon file.
 const TYPE_ICONS := {
 	"bar": "facility_bar.svg",
@@ -39,8 +42,13 @@ var _identity_box: VBoxContainer
 var _shell_list: VBoxContainer
 var _furniture_text: RichTextLabel
 var _furniture_browser: ItemList
+var _cluster_browser: ItemList
 var _furniture_search: LineEdit
 var _furniture_category: OptionButton
+var _furnisher_label: Label
+var _open_rules_button: Button
+var _create_rules_menu: MenuButton
+var _create_rules_tiers: Array[Dictionary] = []
 var _furnish_button: Button
 var _reroll_button: Button
 var _place_furniture_button: Button
@@ -91,6 +99,7 @@ func setup(tools: RefCounted) -> void:
 	staffing_scroll.add_child(_staffing_box)
 	_content.add_child(staffing_scroll)
 	_content.add_child(_build_furniture_column())
+	_content.add_child(_build_cluster_column())
 
 
 ## Dedicated Furniture column: generation (Furnish/Reroll) and hand placement
@@ -102,6 +111,26 @@ func _build_furniture_column() -> Control:
 	furniture_column.custom_minimum_size = Vector2(320, 0)
 	furniture_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	furniture_column.add_child(_section_title("Furniture"))
+	# Which furnish recipe Furnish/Reroll will use is authoring truth, so it
+	# is shown up front instead of hiding in the path convention: resolution
+	# is facility override -> faction/type -> type -> default.
+	var furnisher_row := HBoxContainer.new()
+	_furnisher_label = Label.new()
+	_furnisher_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_furnisher_label.clip_text = true
+	furnisher_row.add_child(_furnisher_label)
+	_open_rules_button = Button.new()
+	_open_rules_button.text = "Open"
+	_open_rules_button.tooltip_text = "Open the resolved furnish rules in the Inspector — every dial (clusters, chances, counts) is an export there."
+	_open_rules_button.pressed.connect(_on_open_furnish_rules)
+	furnisher_row.add_child(_open_rules_button)
+	_create_rules_menu = MenuButton.new()
+	_create_rules_menu.text = "Create"
+	_create_rules_menu.flat = false
+	_create_rules_menu.tooltip_text = "Create furnish rules for a tier this facility doesn't have yet (faction/type/default), seeded from the currently resolved rules, and open them for tuning."
+	_create_rules_menu.get_popup().index_pressed.connect(_on_create_furnish_rules)
+	furnisher_row.add_child(_create_rules_menu)
+	furniture_column.add_child(furnisher_row)
 	var generate_row := HBoxContainer.new()
 	_furnish_button = Button.new()
 	_furnish_button.text = "Furnish"
@@ -148,6 +177,34 @@ func _build_furniture_column() -> Control:
 	_furniture_text.fit_content = true
 	furniture_column.add_child(_furniture_text)
 	return furniture_column
+
+
+## Clusters are room-scale vignettes (cell blocks, table groups) that lay out
+## their own children — a different act than placing one piece, so they get
+## their own column instead of hiding among single furniture items.
+func _build_cluster_column() -> Control:
+	var cluster_column := VBoxContainer.new()
+	cluster_column.custom_minimum_size = Vector2(200, 0)
+	cluster_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	cluster_column.add_child(_section_title("Clusters"))
+	_cluster_browser = ItemList.new()
+	_cluster_browser.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_cluster_browser.custom_minimum_size = Vector2(0, 150)
+	_cluster_browser.icon_mode = ItemList.ICON_MODE_TOP
+	_cluster_browser.fixed_icon_size = Vector2i(56, 56)
+	_cluster_browser.max_columns = 0
+	_cluster_browser.same_column_width = true
+	_cluster_browser.item_activated.connect(func(index: int): _begin_browser_placement(index, _cluster_browser))
+	cluster_column.add_child(_cluster_browser)
+	var place_cluster := Button.new()
+	place_cluster.text = "Place Selected"
+	place_cluster.tooltip_text = "Ghost-place the selected cluster (double-click does the same). It spawns its own furniture; select it afterwards to tune count/rows/spacing in the inspector."
+	place_cluster.pressed.connect(func():
+		var selected := _cluster_browser.get_selected_items()
+		if not selected.is_empty():
+			_begin_browser_placement(selected[0], _cluster_browser))
+	cluster_column.add_child(place_cluster)
+	return cluster_column
 
 
 func set_facility(facility: Node) -> void:
@@ -435,13 +492,60 @@ func _staff_count_field(property_name: String, value: int) -> Control:
 	return row
 
 
+func _rebuild_furnisher_row() -> void:
+	if _furnisher_label == null:
+		return
+	var resolved: Dictionary = {}
+	if _facility is SettlementFacilityInstance:
+		resolved = _tools.resolve_furnish_rules(_facility)
+	var rules: Resource = resolved.get("rules")
+	if rules == null:
+		_furnisher_label.text = "Furnisher: none — create one"
+		_furnisher_label.tooltip_text = "Nothing resolves. Resolution: facility override -> faction/type -> type -> default."
+	else:
+		_furnisher_label.text = "Furnisher: %s" % str(resolved.get("label", "?"))
+		_furnisher_label.tooltip_text = "%s\nResolution: facility override -> faction/type -> type -> default." % str(resolved.get("path", "embedded on this facility"))
+	_open_rules_button.disabled = rules == null
+	_create_rules_tiers = _tools.missing_furnish_rule_tiers(_facility) if _facility is SettlementFacilityInstance else []
+	var popup := _create_rules_menu.get_popup()
+	popup.clear()
+	for tier in _create_rules_tiers:
+		popup.add_item(str(tier["label"]))
+	_create_rules_menu.disabled = _create_rules_tiers.is_empty()
+
+
+func _on_open_furnish_rules() -> void:
+	var resolved: Dictionary = _tools.resolve_furnish_rules(_facility) if _facility != null else {}
+	var rules: Resource = resolved.get("rules")
+	if rules != null:
+		EditorInterface.edit_resource(rules)
+
+
+func _on_create_furnish_rules(index: int) -> void:
+	if index < 0 or index >= _create_rules_tiers.size():
+		return
+	_tools.create_furnish_rules_file(_facility, _create_rules_tiers[index])
+	_rebuild_furnisher_row()
+
+
 func _rebuild_furniture_browser() -> void:
 	if _furniture_browser == null:
 		return
+	_rebuild_furnisher_row()
 	var entries: Array = _tools.get_furniture_catalog()
-	_populate_furniture_categories(entries)
+	# Vignette scenes are clusters: they get their own column, never the
+	# per-piece grid or its category dropdown.
+	var piece_entries: Array = []
+	var cluster_entries: Array = []
+	for entry in entries:
+		if str(entry["category"]) == CLUSTER_CATEGORY:
+			cluster_entries.append(entry)
+		else:
+			piece_entries.append(entry)
+	_populate_furniture_categories(piece_entries)
 	var placeable := _facility is SettlementFacilityInstance
-	_furniture_browser.tooltip_text = "" if placeable else "Hand placement needs a composed facility (bar/jail/keep)."
+	var blocked_tooltip := "" if placeable else "Hand placement needs a composed facility (bar/jail/keep)."
+	_furniture_browser.tooltip_text = blocked_tooltip
 	_place_furniture_button.disabled = not placeable
 	_furnish_button.disabled = not placeable
 	_reroll_button.disabled = not placeable
@@ -452,7 +556,7 @@ func _rebuild_furniture_browser() -> void:
 	_furniture_browser.clear()
 	var fallback_icon := get_theme_icon("PackedScene", "EditorIcons")
 	var previewer := EditorInterface.get_resource_previewer()
-	for entry in entries:
+	for entry in piece_entries:
 		if not category.is_empty() and str(entry["category"]) != category:
 			continue
 		if not query.is_empty() and not str(entry["name"]).to_lower().contains(query):
@@ -463,6 +567,18 @@ func _rebuild_furniture_browser() -> void:
 		_furniture_browser.set_item_tooltip(index, "%s\nDouble-click to place." % path)
 		if not placeable:
 			_furniture_browser.set_item_disabled(index, true)
+		previewer.queue_resource_preview(path, self, "_on_furniture_preview_ready", path)
+	if _cluster_browser == null:
+		return
+	_cluster_browser.tooltip_text = blocked_tooltip
+	_cluster_browser.clear()
+	for entry in cluster_entries:
+		var path := str(entry["path"])
+		var index := _cluster_browser.add_item(str(entry["name"]), fallback_icon)
+		_cluster_browser.set_item_metadata(index, path)
+		_cluster_browser.set_item_tooltip(index, "%s\nDouble-click to place." % path)
+		if not placeable:
+			_cluster_browser.set_item_disabled(index, true)
 		previewer.queue_resource_preview(path, self, "_on_furniture_preview_ready", path)
 
 
@@ -492,18 +608,22 @@ func _populate_furniture_categories(entries: Array) -> void:
 ## matched back by path metadata because the grid may have been refiltered
 ## while the preview rendered.
 func _on_furniture_preview_ready(path: String, preview: Texture2D, _thumbnail: Texture2D, _userdata: Variant) -> void:
-	if preview == null or _furniture_browser == null or not is_instance_valid(_furniture_browser):
+	if preview == null:
 		return
-	for index in range(_furniture_browser.item_count):
-		if str(_furniture_browser.get_item_metadata(index)) == path:
-			_furniture_browser.set_item_icon(index, preview)
-			return
+	for browser in [_furniture_browser, _cluster_browser]:
+		if browser == null or not is_instance_valid(browser):
+			continue
+		for index in range(browser.item_count):
+			if str(browser.get_item_metadata(index)) == path:
+				browser.set_item_icon(index, preview)
+				return
 
 
-func _begin_browser_placement(index: int) -> void:
+func _begin_browser_placement(index: int, browser: ItemList = null) -> void:
 	if _facility == null or not is_instance_valid(_facility):
 		return
-	var path := str(_furniture_browser.get_item_metadata(index))
+	var source := browser if browser != null else _furniture_browser
+	var path := str(source.get_item_metadata(index))
 	if not path.is_empty():
 		_tools.begin_furniture_placement(_facility, path)
 

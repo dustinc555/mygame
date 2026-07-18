@@ -102,12 +102,6 @@ func _ensure_jail(facilities: Node) -> void:
 		jail.set("warden_name", "Demo Warden")
 		jail.set("guard_name", "Jail Guard")
 		jail.set("guard_count", 1)
-		jail.set("guard_post_count", 1)
-		jail.set("cell_count", 3)
-		jail.set("prisoners_per_cell", 1)
-		var difficulties: Array[int] = [5, 35, 90]
-		jail.set("cell_lock_difficulties", difficulties)
-		jail.set("locker_lock_difficulty", 90)
 		jail.set("staff_stable_id_prefix", "npc.jail_demo_town.jail")
 		jail.set("staff_squad_name", "JailDemoTown")
 	_configure_jail_building(jail)

@@ -1,0 +1,78 @@
+[gd_resource type="Resource" script_class="ConversationDefinition" format=3 uid="uid://hq2n8omcrnt"]
+
+[ext_resource type="Script" uid="uid://oln7awi2fw1o" path="res://features/conversation/resources/conversation_definition.gd" id="1_definition"]
+[ext_resource type="Script" uid="uid://c21vtwxjyyyyi" path="res://features/conversation/resources/conversation_node.gd" id="2_node"]
+[ext_resource type="Script" uid="uid://d2gwynnqbm0iq" path="res://features/conversation/resources/conversation_response.gd" id="3_response"]
+[ext_resource type="Script" uid="uid://chy0yv7e33qft" path="res://features/conversation/resources/conversation_condition.gd" id="4_condition"]
+[ext_resource type="Script" uid="uid://cpf8b6pq8heil" path="res://features/conversation/resources/conversation_effect.gd" id="5_effect"]
+
+[sub_resource type="Resource" id="ConversationEffect_pay_bail"]
+script = ExtResource("5_effect")
+action_id = "law.pay_bail"
+
+[sub_resource type="Resource" id="ConversationCondition_can_pay"]
+script = ExtResource("4_condition")
+condition_id = "law.can_pay_bail"
+
+[sub_resource type="Resource" id="ConversationResponse_pay_bail"]
+script = ExtResource("3_response")
+text = "I'll pay their bail. Release my companions."
+next_node_id = "bail_paid"
+visible_conditions = Array[Resource]([SubResource("ConversationCondition_can_pay")])
+effects = Array[Resource]([SubResource("ConversationEffect_pay_bail")])
+
+[sub_resource type="Resource" id="ConversationCondition_has_bailable"]
+script = ExtResource("4_condition")
+condition_id = "law.has_bailable_prisoners"
+
+[sub_resource type="Resource" id="ConversationCondition_cannot_pay"]
+script = ExtResource("4_condition")
+condition_id = "law.can_pay_bail"
+negate = true
+
+[sub_resource type="Resource" id="ConversationResponse_bail_short"]
+script = ExtResource("3_response")
+text = "I want to pay their bail."
+next_node_id = "bail_short"
+visible_conditions = Array[Resource]([SubResource("ConversationCondition_has_bailable"), SubResource("ConversationCondition_cannot_pay")])
+
+[sub_resource type="Resource" id="ConversationResponse_rules"]
+script = ExtResource("3_response")
+text = "How does custody work here?"
+next_node_id = "rules"
+
+[sub_resource type="Resource" id="ConversationNode_intro"]
+script = ExtResource("2_node")
+node_id = "intro"
+text = "Visiting hours are what I say they are. State your business."
+responses = Array[Resource]([SubResource("ConversationResponse_pay_bail"), SubResource("ConversationResponse_bail_short"), SubResource("ConversationResponse_rules")])
+
+[sub_resource type="Resource" id="ConversationResponse_back"]
+script = ExtResource("3_response")
+text = "Something else."
+next_node_id = "intro"
+
+[sub_resource type="Resource" id="ConversationNode_bail_paid"]
+script = ExtResource("2_node")
+node_id = "bail_paid"
+text = "Coin counts. Guards — open the cage. Keep them out of trouble or the price doubles."
+responses = Array[Resource]([SubResource("ConversationResponse_back")])
+
+[sub_resource type="Resource" id="ConversationNode_bail_short"]
+script = ExtResource("2_node")
+node_id = "bail_short"
+text = "Your purse says otherwise. Come back when you can cover the fine."
+responses = Array[Resource]([SubResource("ConversationResponse_back")])
+
+[sub_resource type="Resource" id="ConversationNode_rules"]
+script = ExtResource("2_node")
+node_id = "rules"
+text = "Break the law, get carried in. Sit your sentence or have a friend cover the bail — severity sets the price."
+responses = Array[Resource]([SubResource("ConversationResponse_back")])
+
+[resource]
+script = ExtResource("1_definition")
+conversation_id = "conv.jail.warden"
+display_name = "Warden"
+start_node_id = "intro"
+nodes = Array[Resource]([SubResource("ConversationNode_intro"), SubResource("ConversationNode_bail_paid"), SubResource("ConversationNode_bail_short"), SubResource("ConversationNode_rules")])

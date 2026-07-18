@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="FurnishRules" format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/furnishing/furnish_rules.gd" id="1_rules"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/warden_desk.tscn" id="2_desk"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furnishing/vignettes/cell_block_row.tscn" id="3_cells"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furnishing/vignettes/cell_block_pair.tscn" id="3_cells_pair"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/barrel.tscn" id="4_barrel"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/crate_wooden.tscn" id="5_crate"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_1.tscn" id="6_bed1"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_2.tscn" id="7_bed2"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/lighting/wall_torch.tscn" id="8_torch"]
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/prisoner_locker_container.tscn" id="9_locker"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_stocked.tscn" id="10_shelf"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furnishing/vignettes/table_cluster_2.tscn" id="11_table2"]
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/locker_container.tscn" id="12_storage"]
+
+[resource]
+script = ExtResource("1_rules")
+counter_scenes = Array[PackedScene]([ExtResource("2_desk")])
+counter_footprint = Vector2(2.1, 0.7)
+counter_staff_strip_meters = 0.9
+required_cluster_scenes = Array[PackedScene]([ExtResource("3_cells_pair")])
+cluster_scenes = Array[PackedScene]([ExtResource("3_cells"), ExtResource("11_table2")])
+square_meters_per_cluster = 16.0
+max_clusters = 3
+clusters_on_upper_floors = true
+utility_scenes = Array[PackedScene]([ExtResource("9_locker")])
+container_scenes = Array[PackedScene]([ExtResource("4_barrel"), ExtResource("5_crate"), ExtResource("12_storage")])
+max_containers = 3
+container_chance = 0.4
+shelf_scenes = Array[PackedScene]([ExtResource("10_shelf")])
+shelf_chance = 0.4
+light_scenes = Array[PackedScene]([ExtResource("8_torch")])
+light_chance = 0.55
+light_mount_height = 2.1
+light_spacing_meters = 3.0
+max_lights_per_level = 6
+bed_scenes = Array[PackedScene]([ExtResource("6_bed1"), ExtResource("7_bed2")])
+max_beds = 2
+bed_chance = 0.4
+bed_footprint = Vector2(1.8, 2.4)
