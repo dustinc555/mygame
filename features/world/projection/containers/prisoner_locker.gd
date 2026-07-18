@@ -20,6 +20,12 @@ func _ready() -> void:
 	is_locked = true
 
 
+# This furniture has one authored model. The generic container visual_scene
+# swap must never replace it at startup.
+func _rebuild_visual() -> void:
+	pass
+
+
 func attempt_unlock(actor: HumanoidCharacter) -> bool:
 	if not is_locked:
 		return true

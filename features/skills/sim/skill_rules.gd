@@ -17,6 +17,14 @@ const CHECK_CHANCE_HIGH_MAX := 0.9
 const TOUGHNESS_MAX_BLOOD_BONUS_CAP := 0.5
 const TOUGHNESS_MAX_BLOOD_BONUS_CURVE := 45.0
 
+## Named competence tiers on the 1-100 skill scale; spawners roll stat
+## bands by tier (civilians beginner-intermediate, guard martial stats
+## trained-veteran).
+const TIER_BEGINNER := Vector2i(1, 14)
+const TIER_INTERMEDIATE := Vector2i(15, 29)
+const TIER_TRAINED := Vector2i(30, 44)
+const TIER_VETERAN := Vector2i(45, 60)
+
 const ATTRIBUTE_STRENGTH := "attribute.strength"
 const ATTRIBUTE_PERCEPTION := "attribute.perception"
 const ATTRIBUTE_DEXTERITY := "attribute.dexterity"

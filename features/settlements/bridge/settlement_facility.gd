@@ -32,6 +32,54 @@ func get_property_owner_character() -> HumanoidCharacter:
 	return null
 
 
+## Spawn stat bands by competence tier (SkillRules.TIER_*): guards roll
+## martial stats trained-to-veteran and everything else
+## beginner-to-intermediate; civilians roll beginner-to-intermediate across
+## the board. Already-authored levels (anything above default) are never
+## lowered.
+const GUARD_MARTIAL_RANGE := Vector2i(SkillRules.TIER_TRAINED.x, SkillRules.TIER_VETERAN.y)
+const CIVILIAN_RANGE := Vector2i(SkillRules.TIER_BEGINNER.x, SkillRules.TIER_INTERMEDIATE.y)
+const MARTIAL_SKILL_IDS: Array[String] = [
+	SkillRules.ATTRIBUTE_STRENGTH,
+	SkillRules.ATTRIBUTE_DEXTERITY,
+	SkillRules.ATTRIBUTE_TOUGHNESS,
+	SkillRules.ATTRIBUTE_ENDURANCE,
+	SkillRules.COMBAT_SWORDS_ONE_HANDED,
+	SkillRules.COMBAT_AXES_ONE_HANDED,
+	SkillRules.COMBAT_DAGGERS,
+	SkillRules.COMBAT_SHIELDS,
+	SkillRules.COMBAT_UNARMED,
+]
+const GENERAL_SKILL_IDS: Array[String] = [
+	SkillRules.ATTRIBUTE_CHARISMA,
+	SkillRules.MOVEMENT_RUNNING,
+]
+
+
+static func apply_guard_stat_tiers(actor: Node, rng: RandomNumberGenerator) -> void:
+	_apply_stat_tier_rolls(actor, rng, GUARD_MARTIAL_RANGE, CIVILIAN_RANGE)
+
+
+static func apply_civilian_stat_tiers(actor: Node, rng: RandomNumberGenerator) -> void:
+	_apply_stat_tier_rolls(actor, rng, CIVILIAN_RANGE, CIVILIAN_RANGE)
+
+
+static func _apply_stat_tier_rolls(actor: Node, rng: RandomNumberGenerator, martial_range: Vector2i, general_range: Vector2i) -> void:
+	if actor == null or not actor.has_method("set_skill_level") or not actor.has_method("get_skill_level"):
+		return
+	for skill_id in MARTIAL_SKILL_IDS:
+		_roll_stat_if_default(actor, rng, skill_id, martial_range)
+	for skill_id in GENERAL_SKILL_IDS:
+		_roll_stat_if_default(actor, rng, skill_id, general_range)
+
+
+static func _roll_stat_if_default(actor: Node, rng: RandomNumberGenerator, skill_id: String, level_range: Vector2i) -> void:
+	if int(actor.call("get_skill_level", skill_id)) > SkillRules.DEFAULT_LEVEL:
+		return
+	var t := (rng.randf() + rng.randf()) * 0.5
+	actor.call("set_skill_level", skill_id, clampi(int(round(lerpf(float(level_range.x), float(level_range.y), t))), level_range.x, level_range.y))
+
+
 ## Bind a staff body to the ledger record the world-sim assigned to this slot, re-homing it under
 ## the given staff root. `actor` is either the worker's already-live body (claimed, e.g. a resident
 ## the full-town spawner realized) or a body the facility freshly built from the record. Either way

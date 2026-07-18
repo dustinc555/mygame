@@ -8,11 +8,11 @@ class_name WorldNavigationSettings
 ## winners back here. Hover any property in the inspector for its trade-off.
 
 ## Walkable area is eroded by this much around every obstacle. INVARIANT:
-## must be >= the character capsule radius (0.4) or the navmesh promises
+## must be >= the character capsule radius (0.45) or the navmesh promises
 ## paths the body cannot fit (wedged characters at stair bottoms/doorways).
-## Recast rounds erosion UP to whole cells: 0.4 at cell_size 0.1 erodes
-## exactly 0.4/side, keeping 1.2m modular doorways open.
-@export_range(0.2, 0.6, 0.01) var agent_radius := 0.4
+## At cell_size 0.1, 0.5m/side keeps a center path through 1.2m modular
+## doorways while clearing the 0.45m physical capsule.
+@export_range(0.2, 0.6, 0.01) var agent_radius := 0.5
 
 ## Actor capsule height for ceiling clearance.
 @export_range(1.0, 2.5, 0.05) var agent_height := 1.5
@@ -24,7 +24,7 @@ class_name WorldNavigationSettings
 
 ## Highest step an agent climbs without a ramp (thresholds, curbs). Also
 ## rounded to voxels: effective climb = floor(agent_max_climb / cell_height).
-@export_range(0.1, 0.6, 0.05) var agent_max_climb := 0.35
+@export_range(0.1, 0.6, 0.05) var agent_max_climb := 0.3
 
 ## Voxel size of the bake. THE bake-time knob: per-tile cost scales with
 ## (tile_size / cell_size)^2. Coarser cells erase narrow corridors and snag

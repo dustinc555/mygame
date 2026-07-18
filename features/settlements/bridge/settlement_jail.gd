@@ -5,15 +5,15 @@ extends "res://features/settlements/bridge/settlement_facility_instance.gd"
 class_name SettlementJail
 
 const JAIL_FUNCTION = preload("res://features/world_sim/resources/facility_functions/jail.tres")
+const WARDEN_CONVERSATION = preload("res://features/conversation/resources/jail_warden.tres")
 const DEFAULT_BUILDING_SCENE = preload("res://features/world/projection/buildings/deprecated/initial_buildings/settlement_keep_building.tscn")
 const FACTION_HUMANOID_SCRIPT = preload("res://features/actors/projection/humanoid/faction_humanoid.gd")
-const SETTLEMENT_GUARD_POST_SCRIPT = preload("res://features/settlements/bridge/venues/settlement_guard_post.gd")
-const JAIL_CELL_SCRIPT = preload("res://features/settlements/bridge/jail_cell.gd")
-const JAIL_CELL_SCENE = preload("res://features/settlements/bridge/jail_cell.tscn")
-const PRISONER_LOCKER_SCENE = preload("res://features/world/projection/containers/prisoner_locker_container.tscn")
 const BANDAGE_ITEM = preload("res://features/inventory/resources/items/bandage.tres")
 const HATCHET_ITEM = preload("res://features/inventory/resources/items/hatchet.tres")
 const ROUND_SHIELD_ITEM = preload("res://features/inventory/resources/items/round_shield.tres")
+const LAW_ORDER_SERVICE_ID := &"law_order"
+const CONVERSATION_SERVICE_ID := &"conversation"
+const WORLD_TIME_SERVICE_ID := &"world_time"
 
 const STAFF_ROLE_OWNER_GROUP := "settlement_staff_role_owner"
 const META_GENERATED := "jail_generated"
@@ -28,13 +28,8 @@ const WARDEN_PERCEPTION_RANGE := Vector2i(18, 30)
 const SENTENCE_ROUTE_STALL_SECONDS := 6.0
 const SENTENCE_ROUTE_PROGRESS_EPSILON := 0.12
 const SENTENCE_STALLED_DELIVERY_DISTANCE := 3.0
-const WARDEN_POST_DEBUG_COLOR := Color(0.25, 1.0, 0.35, 0.82)
+const GUARD_SHUFFLE_SECONDS := Vector2(14.0, 32.0)
 
-@export var guard_posts_root_path: NodePath = NodePath("GuardPosts")
-@export var warden_posts_root_path: NodePath = NodePath("WardenPosts")
-@export var cells_root_path: NodePath = NodePath("Cells")
-@export var lockers_root_path: NodePath = NodePath("Lockers")
-@export var entry_point_path: NodePath = NodePath("EntryPoint")
 @export var auto_create_default_building := true:
 	set(value):
 		auto_create_default_building = value
@@ -44,19 +39,7 @@ const WARDEN_POST_DEBUG_COLOR := Color(0.25, 1.0, 0.35, 0.82)
 	set(value):
 		guard_count = clampi(int(value), 0, 12)
 		_repair_authoring_tree()
-@export_range(0, 12, 1) var guard_post_count := 0:
-	set(value):
-		guard_post_count = clampi(int(value), 0, 12)
-		_repair_authoring_tree()
 @export var guard_name := "Jail Guard"
-@export_range(0, 24, 1) var cell_count := 3:
-	set(value):
-		cell_count = clampi(int(value), 0, 24)
-		_repair_authoring_tree()
-@export_range(1, 12, 1) var prisoners_per_cell := 1:
-	set(value):
-		prisoners_per_cell = max(1, int(value))
-		_repair_authoring_tree()
 @export var population_appearance_profile: Resource:
 	set(value):
 		population_appearance_profile = value
@@ -68,11 +51,18 @@ const WARDEN_POST_DEBUG_COLOR := Color(0.25, 1.0, 0.35, 0.82)
 @export var staff_stable_id_prefix := ""
 @export var staff_squad_name := ""
 @export var sync_staff_from_owner := true
-@export var cell_lock_difficulties: Array[int] = [5, 35, 70]
-@export_range(0, 100, 1) var locker_lock_difficulty := 70
 
 var _guard_post_by_actor_id: Dictionary = {}
+var _guard_shuffle_remaining_by_actor_id: Dictionary = {}
 var _pending_sentence_announcements: Array[Dictionary] = []
+var _cached_cells: Array[Node] = []
+var _cached_cell_by_id: Dictionary = {}
+var _cached_guard_posts: Array[Node] = []
+var _cached_warden_post: Node3D
+var _cached_staff_counter: Node3D
+var _cached_prisoner_locker: Node
+var _cached_entry_marker: Node3D
+var _cached_building_door: Node3D
 
 
 func _ready() -> void:
@@ -80,6 +70,7 @@ func _ready() -> void:
 	add_to_group(STAFF_ROLE_OWNER_GROUP)
 	_repair_authoring_tree()
 	super._ready()
+	_refresh_discovered_furniture()
 
 
 func _process(delta: float) -> void:
@@ -88,7 +79,7 @@ func _process(delta: float) -> void:
 	_process_sentence_announcements(delta)
 	_process_warden_home_return()
 	for guard in get_guard_actors():
-		_process_guard_post_assignment(guard as HumanoidCharacter)
+		_process_guard_post_assignment(guard as HumanoidCharacter, delta)
 
 
 func _repair_authoring_tree() -> void:
@@ -99,16 +90,11 @@ func _repair_authoring_tree() -> void:
 		return
 	_ensure_root(building_root_path)
 	_ensure_root(staff_root_path)
-	_ensure_root(guard_posts_root_path)
-	_ensure_root(warden_posts_root_path)
-	_ensure_root(cells_root_path)
-	_ensure_root(lockers_root_path)
 	_ensure_default_building()
-	_ensure_guard_posts()
-	_ensure_warden_posts()
-	_ensure_cells()
-	_ensure_prisoner_locker()
+	_purge_generated_designated_nodes()
 	_ensure_staff()
+	if not Engine.is_editor_hint():
+		sync_property_ownership()
 
 
 func get_facility_id() -> String:
@@ -171,6 +157,10 @@ func fill_settlement_staff_slot(slot_id: String, slot_record: Dictionary) -> Nod
 			actor = _create_staff_actor(role, role_index, staff_root)
 		else:
 			_prepare_staff_actor(actor, role, role_index, true)
+	# The warden owns the jail's goods — restamp property ownership once the
+	# owner actually exists (staffing lands after the initial repair sync).
+	if actor != null and role == "warden" and not Engine.is_editor_hint():
+		sync_property_ownership.call_deferred()
 	return actor
 
 
@@ -178,20 +168,29 @@ func get_warden_actor() -> Node:
 	return _find_actor_by_slot_id(_staff_slot_id("warden", 0), "Warden")
 
 
+## The jail's goods — locker, crates, shelf stock — belong to the warden
+## personally, mirroring the barkeeper owning the bar's goods.
+func get_property_owner_character() -> HumanoidCharacter:
+	var warden := get_warden_actor() as HumanoidCharacter
+	return warden if _is_actor_alive(warden) else null
+
+
+func get_property_owner_faction() -> String:
+	return _get_effective_owner_faction_id()
+
+
 func _process_warden_home_return() -> void:
 	var warden := get_warden_actor() as HumanoidCharacter
 	if warden == null or warden.life_state != NpcRules.LifeState.ALIVE:
 		return
-	if warden.is_in_combat():
+	if warden.is_in_combat() or _is_actor_hauling(warden) or _is_warden_sentence_delivery_active(warden):
+		if warden.has_method("is_on_counter_duty") and bool(warden.call("is_on_counter_duty")):
+			warden.call("end_counter_duty")
 		return
-	if warden.has_method("is_handling_carried_character") and bool(warden.call("is_handling_carried_character")):
-		return
-	if _is_warden_sentence_delivery_active(warden):
-		return
-	var post := _ensure_warden_post()
+	var post := get_warden_service_point()
 	if post == null:
 		return
-	var home_position := post.global_position
+	var home_position: Vector3 = post.call("get_work_position") if post.has_method("get_work_position") else post.global_position
 	if _horizontal_distance(warden.global_position, home_position) <= _warden_home_arrival_distance(warden):
 		if warden.has_method("clear_law_custody_return"):
 			warden.call("clear_law_custody_return")
@@ -200,7 +199,15 @@ func _process_warden_home_return() -> void:
 		if warden.has_method("_clear_actor_move_target"):
 			warden.call("_clear_actor_move_target")
 		warden.velocity = Vector3.ZERO
+		# At the desk with nothing more important to do: hold the counter
+		# idle facing the visitor side, same duty pose as the barkeeper.
+		if not (post.has_method("claim_worker") and not post.call("claim_worker", warden)):
+			if warden.has_method("is_on_counter_duty") and not bool(warden.call("is_on_counter_duty")):
+				var face_position: Vector3 = post.call("get_customer_position") if post.has_method("get_customer_position") else post.global_position + (post as Node3D).global_basis.z
+				warden.call("begin_counter_duty", face_position)
 		return
+	if warden.has_method("is_on_counter_duty") and bool(warden.call("is_on_counter_duty")):
+		warden.call("end_counter_duty")
 	if warden.has_method("clear_law_sentence_move"):
 		warden.call("clear_law_sentence_move")
 	if warden.has_method("assign_law_custody_return_target"):
@@ -209,56 +216,76 @@ func _process_warden_home_return() -> void:
 		warden.set_move_target(home_position, false)
 
 
-func _ensure_warden_posts() -> void:
-	var root := _ensure_root(warden_posts_root_path)
-	if root == null:
+## The warden's duty spot is discovered, never designated — mirroring how
+## the barkeeper finds the bar counter. An authored warden post anywhere in
+## the facility wins (name "WardenPost" or jail_role meta), else the warden
+## desk (shop-counter API). Null means the jail has no duty furniture yet;
+## the warden simply holds position.
+func get_warden_service_point() -> Node3D:
+	return _cached_warden_post if is_instance_valid(_cached_warden_post) else _cached_staff_counter
+
+
+## Facility furniture is static authored content. Index it once after the full
+## subtree enters the scene so per-frame duty and custody work never scans the
+## scene tree.
+func _refresh_discovered_furniture() -> void:
+	_cached_cells.clear()
+	_cached_cell_by_id.clear()
+	_cached_guard_posts.clear()
+	_cached_warden_post = null
+	_cached_staff_counter = null
+	_cached_prisoner_locker = null
+	_cached_entry_marker = null
+	_cached_building_door = null
+	_collect_discovered_furniture(self)
+	for cell in _cached_cells:
+		var id := str(cell.call("get_cell_id")) if cell.has_method("get_cell_id") else ""
+		if not id.is_empty():
+			_cached_cell_by_id[id] = cell
+
+
+func _collect_discovered_furniture(node: Node) -> void:
+	if node != self and node is WorldActor:
 		return
-	var post := root.get_node_or_null("WardenPost") as Node3D
-	if post == null:
-		post = Node3D.new()
-		post.name = "WardenPost"
-		post.transform = _default_warden_post_transform()
-		root.add_child(post)
-		_set_editor_owner(post)
-	_prepare_warden_post(post)
-
-
-func _ensure_warden_post() -> Node3D:
-	var root := get_node_or_null(warden_posts_root_path)
-	if root == null:
-		_ensure_warden_posts()
-		root = get_node_or_null(warden_posts_root_path)
-	if root == null:
-		return null
-	var post := root.get_node_or_null("WardenPost") as Node3D
-	if post == null:
-		_ensure_warden_posts()
-		post = root.get_node_or_null("WardenPost") as Node3D
-	if post != null:
-		_prepare_warden_post(post)
-	return post
-
-
-func _prepare_warden_post(post: Node3D) -> void:
-	if post == null:
+	if node is JailCell:
+		_cached_cells.append(node)
 		return
-	if not post.has_method("get_work_position"):
-		post.set_script(SETTLEMENT_GUARD_POST_SCRIPT)
-	if _has_property(post, "debug_color"):
-		post.set("debug_color", WARDEN_POST_DEBUG_COLOR)
-	if _has_property(post, "editor_show_debug_marker"):
-		post.set("editor_show_debug_marker", true)
-	post.set_meta(META_GENERATED, true)
-	post.set_meta(META_ROLE, "warden_post")
-	post.set_meta(META_INDEX, 0)
-
-
-func _default_warden_post_transform() -> Transform3D:
-	return Transform3D(Basis(Vector3(-0.12043145, 0.0, -0.9927216), Vector3(0.0, 1.0, 0.0), Vector3(0.9927216, 0.0, -0.12043145)), Vector3(1.3208423, 0.6, 4.1061177))
+	if node is PrisonerLocker and _cached_prisoner_locker == null:
+		_cached_prisoner_locker = node
+	if node is SettlementGuardPost:
+		if str(node.name) == "WardenPost" or str(node.get_meta(META_ROLE, "")) == "warden_post":
+			if _cached_warden_post == null:
+				_cached_warden_post = node as Node3D
+		else:
+			_cached_guard_posts.append(node)
+	elif node != self and node is Node3D and node.has_method("get_staff_stand_position") and node.has_method("get_customer_position") and _cached_staff_counter == null:
+		_cached_staff_counter = node as Node3D
+	if node != self and node is Node3D and str(node.name) == "EntryPoint" and _cached_entry_marker == null:
+		_cached_entry_marker = node as Node3D
+	if node != self and node is Node3D and node.is_in_group("world_door") and _cached_building_door == null:
+		_cached_building_door = node as Node3D
+	for child in node.get_children():
+		_collect_discovered_furniture(child)
 
 
 func _horizontal_distance(left: Vector3, right: Vector3) -> float:
 	return Vector2(left.x - right.x, left.z - right.z).length()
+
+
+## Hauling a prisoner (carrying, or under a carry/place-in-cell order)
+## outranks every desk or post idle. NOTE: is_handling_carried_character
+## exists only on the carry CAPABILITY, not the actor — has_method checks
+## against the actor for it silently pass-through.
+func _is_actor_hauling(actor: HumanoidCharacter) -> bool:
+	if actor == null:
+		return false
+	if actor.has_method("is_carrying_someone") and bool(actor.call("is_carrying_someone")):
+		return true
+	var interaction = actor.get_interaction() if actor.has_method("get_interaction") else null
+	if interaction == null:
+		return false
+	var order := int(interaction.current_order_type)
+	return order == InteractionCapability.ORDER_TYPE_CARRY or order == InteractionCapability.ORDER_TYPE_PLACE_IN_CELL
 
 
 func _warden_home_arrival_distance(warden: HumanoidCharacter) -> float:
@@ -281,13 +308,8 @@ func _is_warden_sentence_delivery_active(_warden: HumanoidCharacter) -> bool:
 func _has_pending_sentence_notification(actor: HumanoidCharacter) -> bool:
 	if actor == null:
 		return false
-	var tree := get_tree()
-	if tree == null:
-		return false
-	for controller in tree.get_nodes_in_group("law_order_controller"):
-		if controller != null and controller.has_method("has_pending_prisoner_sentence_notification"):
-			return bool(controller.call("has_pending_prisoner_sentence_notification", actor))
-	return false
+	var controller := BootstrapContext.service(LAW_ORDER_SERVICE_ID)
+	return controller != null and controller.has_method("has_pending_prisoner_sentence_notification") and bool(controller.call("has_pending_prisoner_sentence_notification", actor))
 
 
 func get_guard_actors() -> Array[Node]:
@@ -301,21 +323,27 @@ func get_guard_actors() -> Array[Node]:
 	return guards
 
 
+## Guard posts are discovered: any SettlementGuardPost anywhere under this
+## facility counts — the dock's "Place Guard Post" parents under a GuardPosts
+## child by convention, but nothing requires that. Authored warden posts are
+## excluded; they belong to get_warden_service_point().
 func get_guard_posts() -> Array[Node]:
-	return _children_at(guard_posts_root_path)
+	return _cached_guard_posts.duplicate()
 
 
+## Cells are discovered, not designated: any JailCell under this facility
+## counts — generated cells under the Cells root, hand-placed cells, and
+## cells inside a hand-authored cell-block vignette (stamped under
+## Furniture). Mirrors how the bar discovers its shop counter.
 func get_cells() -> Array[Node]:
-	return _children_at(cells_root_path)
+	return _cached_cells.duplicate()
 
 
 func _find_cell_by_id(cell_id: String) -> Node:
 	if cell_id.strip_edges().is_empty():
 		return null
-	for cell in get_cells():
-		if cell != null and cell.has_method("get_cell_id") and str(cell.call("get_cell_id")) == cell_id:
-			return cell
-	return null
+	var cell = _cached_cell_by_id.get(cell_id)
+	return cell as Node if cell != null and is_instance_valid(cell) else null
 
 
 # Re-seat an already-jailed prisoner into their cell after their actor node
@@ -350,12 +378,34 @@ func get_prisoner_capacity() -> int:
 	return total
 
 
+## Custody targeting RESERVES the cell (occupancy counts by assignment, not
+## physical presence), so two simultaneous arrests can never be hauled to
+## the same single-occupancy cage. The reservation is released if custody
+## breaks before delivery.
+func get_reserved_or_available_cell(actor: Node, reference: Node = null) -> Node:
+	for cell in get_cells():
+		if cell != null and cell.has_method("has_occupant") and bool(cell.call("has_occupant", actor)):
+			return cell
+	var cell := get_available_cell(actor, reference)
+	if cell == null or not cell.has_method("assign_prisoner"):
+		return null
+	return cell if bool(cell.call("assign_prisoner", actor)) else null
+
+
+func release_cell_reservation(actor: Node) -> void:
+	for cell in get_cells():
+		if cell != null and cell.has_method("has_occupant") and bool(cell.call("has_occupant", actor)) and cell.has_method("release_prisoner"):
+			cell.call("release_prisoner", actor)
+
+
 func get_available_cell(actor: Node = null, reference: Node = null) -> Node:
 	var reference_position := _cell_selection_reference_position(reference if reference != null else actor)
 	var best_cell: Node = null
 	var best_distance := INF
 	for cell in get_cells():
-		if cell == null or not cell.has_method("can_assign_prisoner") or not bool(cell.call("can_assign_prisoner", actor)):
+		if cell == null or not cell.has_method("get_occupant_count") or int(cell.call("get_occupant_count")) != 0:
+			continue
+		if not cell.has_method("can_assign_prisoner") or not bool(cell.call("can_assign_prisoner", actor)):
 			continue
 		if reference_position == Vector3.INF:
 			return cell
@@ -379,9 +429,16 @@ func _cell_selection_position(cell: Node, actor: Node = null) -> Vector3:
 	return (cell as Node3D).global_position if cell is Node3D else Vector3.ZERO
 
 
+## Entry derives from the shell's actual door (the building stamps its doors
+## into the world_door group), so it survives shell swaps without authoring.
+## An EntryPoint marker anywhere under the jail overrides it for shells that
+## need a custom approach.
 func get_entry_position(_actor: Node = null) -> Vector3:
-	var point := get_node_or_null(entry_point_path) as Node3D
-	return point.global_position if point != null else global_transform * Vector3(0.0, 0.6, 7.8)
+	if is_instance_valid(_cached_entry_marker):
+		return _cached_entry_marker.global_position
+	if is_instance_valid(_cached_building_door):
+		return _cached_building_door.global_position
+	return global_transform * Vector3(0.0, 0.6, 7.8)
 
 
 func get_exit_position(actor: Node = null) -> Vector3:
@@ -414,33 +471,35 @@ func get_cell_interaction_route(cell: Node, actor: Node = null) -> Array[Vector3
 	var actor_starts_outside := actor is Node3D and not is_actor_inside_jail(actor)
 	if actor_starts_outside and (actor as Node3D).global_position.distance_to(entry_position) > 0.75:
 		route.append(entry_position)
-	var local_interaction := global_transform.affine_inverse() * interaction_position
-	var aisle_position := global_transform * Vector3(0.0, local_interaction.y, 0.0)
-	if (route.is_empty() or route[route.size() - 1].distance_to(aisle_position) > 0.75) and aisle_position.distance_to(interaction_position) > 0.75:
-		route.append(aisle_position)
-	var cell_row_position := global_transform * Vector3(0.0, local_interaction.y, local_interaction.z)
-	if (route.is_empty() or route[route.size() - 1].distance_to(cell_row_position) > 0.75) and cell_row_position.distance_to(interaction_position) > 0.75:
-		route.append(cell_row_position)
 	if route.is_empty() or route[route.size() - 1].distance_to(interaction_position) > 0.75:
 		route.append(interaction_position)
 	return route
 
 
+## The prisoner locker is discovered like cells: any PrisonerLocker under
+## this facility (hand-placed or furnish-generated) serves confiscation.
 func get_prisoner_locker() -> Node:
-	var root := get_node_or_null(lockers_root_path)
-	return root.get_node_or_null("PrisonerLocker") if root != null else null
+	return _cached_prisoner_locker if is_instance_valid(_cached_prisoner_locker) else null
 
 
 func admit_prisoner(actor: WorldActor, warrant: Dictionary, law_controller: Node = null) -> bool:
 	if actor == null or actor.life_state == NpcRules.LifeState.DEAD:
 		return false
-	var cell := _find_cell_for_prisoner(actor)
-	var locker := get_prisoner_locker()
-	if cell == null or locker == null:
+	# Reservation is not delivery: a reserved cage means a hauler is en
+	# route. Admission — confiscation included — happens only once the
+	# placement interaction has physically seated the prisoner in custody.
+	if not (actor.has_method("is_in_cell_custody") and bool(actor.call("is_in_cell_custody"))):
 		return false
+	var cell := _find_cell_for_prisoner(actor)
+	if cell == null:
+		return false
+	var locker := get_prisoner_locker()
+	if locker == null:
+		push_warning("SettlementJail '%s' has no PrisonerLocker furniture — admitting '%s' without confiscation. Place one from the furniture browser or run Furnish." % [get_facility_id(), str(actor.name)])
 	actor.velocity = Vector3.ZERO
 	_stabilize_prisoner(actor)
-	_confiscate_prisoner_items(actor, locker, warrant, law_controller)
+	if locker != null:
+		_confiscate_prisoner_items(actor, locker, warrant, law_controller)
 	var status := actor.get_legal_status()
 	status.is_prisoner = true
 	status.jail_id = get_facility_id()
@@ -637,22 +696,12 @@ func _open_sentence_conversation(warden: HumanoidCharacter, actor: WorldActor, m
 
 
 func _notify_sentence_delivered(actor: WorldActor) -> bool:
-	var tree := get_tree()
-	if tree == null:
-		return false
-	for controller in tree.get_nodes_in_group("law_order_controller"):
-		if controller != null and controller.has_method("complete_prisoner_sentence_delivery"):
-			return bool(controller.call("complete_prisoner_sentence_delivery", actor))
-	return false
+	var controller := BootstrapContext.service(LAW_ORDER_SERVICE_ID)
+	return controller != null and controller.has_method("complete_prisoner_sentence_delivery") and bool(controller.call("complete_prisoner_sentence_delivery", actor))
 
 
 func _get_conversation_controller() -> Node:
-	var tree := get_tree()
-	if tree == null:
-		return null
-	for controller in tree.get_nodes_in_group("conversation_controller"):
-		return controller
-	return null
+	return BootstrapContext.service(CONVERSATION_SERVICE_ID)
 
 
 func release_prisoner(actor: WorldActor, record: Dictionary, escaped := false) -> void:
@@ -681,7 +730,6 @@ func _apply_jail_defaults() -> void:
 	storage_root_path = NodePath("")
 	job_providers_root_path = NodePath("")
 	activity_points_root_path = NodePath("")
-	lockers_root_path = NodePath("Lockers")
 	facility_type = "jail"
 	if display_name.is_empty() or display_name == "Facility":
 		display_name = "Settlement Jail"
@@ -710,76 +758,24 @@ func _ensure_default_building() -> Node:
 	return building
 
 
-func _ensure_guard_posts() -> void:
-	var root := _ensure_root(guard_posts_root_path)
-	if root == null:
-		return
-	var effective_count: int = max(guard_count, guard_post_count)
-	for index in range(effective_count):
-		var post_name := _indexed_name("GuardPost", index)
-		var post := root.get_node_or_null(post_name)
-		if post == null:
-			post = Node3D.new()
-			post.name = post_name
-			post.transform = _guard_post_transform(index)
-			post.set_script(SETTLEMENT_GUARD_POST_SCRIPT)
-			root.add_child(post)
-			_set_editor_owner(post)
-		if not post.has_method("get_work_position"):
-			post.set_script(SETTLEMENT_GUARD_POST_SCRIPT)
-		if _has_property(post, "debug_color"):
-			post.set("debug_color", Color(0.35, 0.78, 1.0, 0.76))
-		post.set_meta(META_GENERATED, true)
-		post.set_meta(META_ROLE, "guard_post")
-		post.set_meta(META_INDEX, index)
-	_trim_generated_children(root, "GuardPost", effective_count)
-
-
-func _ensure_cells() -> void:
-	var root := _ensure_root(cells_root_path)
-	if root == null:
-		return
-	for index in range(cell_count):
-		var cell_name := _indexed_name("Cell", index)
-		var cell := root.get_node_or_null(cell_name)
-		if cell == null:
-			cell = JAIL_CELL_SCENE.instantiate()
-			cell.name = cell_name
-			if cell is Node3D:
-				(cell as Node3D).position = Vector3(-4.2 + float(index % 4) * 2.6, 0.05, -6.035112 - float(int(float(index) / 4.0)) * 1.9)
-			root.add_child(cell)
-			_set_editor_owner_recursive(cell)
-		elif not cell.has_method("get_cell_record"):
-			cell.set_script(JAIL_CELL_SCRIPT)
-		if _has_property(cell, "prisoner_capacity"):
-			cell.set("prisoner_capacity", prisoners_per_cell)
-		if _has_property(cell, "lock_difficulty"):
-			cell.set("lock_difficulty", int(cell_lock_difficulties[index]) if index < cell_lock_difficulties.size() else 70)
-		cell.set_meta(META_GENERATED, true)
-		cell.set_meta(META_ROLE, "cell")
-		cell.set_meta(META_INDEX, index)
-	_trim_generated_children(root, "Cell", cell_count)
-
-
-func _ensure_prisoner_locker() -> Node:
-	var root := _ensure_root(lockers_root_path)
-	if root == null:
-		return null
-	var locker := root.get_node_or_null("PrisonerLocker")
-	if locker == null:
-		locker = PRISONER_LOCKER_SCENE.instantiate()
-		locker.name = "PrisonerLocker"
-		if locker is Node3D:
-			(locker as Node3D).transform = Transform3D(Basis(Vector3(0.06444523, 0.0, -0.9979212), Vector3(0.0, 1.0, 0.0), Vector3(0.9979212, 0.0, 0.06444523)), Vector3(5.281292, 0.0, -3.8477674))
-		root.add_child(locker)
-		_set_editor_owner_recursive(locker)
-	if _has_property(locker, "lock_difficulty"):
-		locker.set("lock_difficulty", locker_lock_difficulty)
-	if _has_property(locker, "owner_faction_name"):
-		locker.set("owner_faction_name", _get_effective_owner_faction_id())
-	locker.set_meta(META_GENERATED, true)
-	locker.set_meta(META_ROLE, "prisoner_locker")
-	return locker
+## Everything the jail's law/AI needs is discovered from the facility
+## subtree, never designated or auto-spawned. Jails saved before that
+## migration carry auto-spawned cells/lockers/posts under designated roots —
+## drop the generated nodes and any root left empty; hand-authored children
+## (including dock-placed guard posts, which carry no generated meta) are
+## kept wherever they stand.
+func _purge_generated_designated_nodes() -> void:
+	for root_name in ["Cells", "Lockers", "GuardPosts", "WardenPosts"]:
+		var root := get_node_or_null(NodePath(root_name))
+		if root == null:
+			continue
+		for child in root.get_children():
+			if bool(child.get_meta(META_GENERATED, false)):
+				root.remove_child(child)
+				child.queue_free()
+		if root.get_child_count() == 0:
+			remove_child(root)
+			root.queue_free()
 
 
 func _ensure_staff() -> void:
@@ -836,6 +832,10 @@ func _prepare_staff_actor(actor: Node, role: String, index: int, apply_default_p
 	if _has_property(actor, "member_name") and (_is_generated_staff(actor) or str(actor.get("member_name")).strip_edges().is_empty() or str(actor.get("member_name")) == "Character"):
 		actor.set("member_name", _display_name_for_role(role, index))
 	_apply_role_suffix(actor, role)
+	# The warden is talkable: bail payment and custody rules run through the
+	# standard conversation flow, same as the keep's ruler.
+	if role == "warden" and _has_property(actor, "conversation_definition"):
+		actor.set("conversation_definition", WARDEN_CONVERSATION)
 	var faction_id := _get_effective_owner_faction_id()
 	if sync_staff_from_owner and not faction_id.is_empty() and _has_property(actor, "faction_name"):
 		actor.set("faction_name", faction_id)
@@ -969,12 +969,10 @@ func _can_claim_resident_for_staff(actor: Node) -> bool:
 	return true
 
 
-func _process_guard_post_assignment(guard: HumanoidCharacter) -> void:
+func _process_guard_post_assignment(guard: HumanoidCharacter, delta: float) -> void:
 	if guard == null:
 		return
-	if guard.is_in_combat():
-		return
-	if guard.has_method("is_handling_carried_character") and bool(guard.call("is_handling_carried_character")):
+	if guard.is_in_combat() or _is_actor_hauling(guard):
 		return
 	var actor_id := guard.get_instance_id()
 	var post = _guard_post_by_actor_id.get(actor_id)
@@ -982,6 +980,14 @@ func _process_guard_post_assignment(guard: HumanoidCharacter) -> void:
 		post = _claim_guard_post_for(guard)
 		if post == null:
 			return
+	# Same rotation the bar runs: guards shuffle to another free post on a
+	# random cadence, so hand-placed extra posts all get manned over time
+	# instead of the surplus standing empty forever.
+	var remaining := float(_guard_shuffle_remaining_by_actor_id.get(actor_id, _next_guard_shuffle_seconds())) - delta
+	if remaining <= 0.0:
+		post = _try_shuffle_guard_post(guard, post)
+		remaining = _next_guard_shuffle_seconds()
+	_guard_shuffle_remaining_by_actor_id[actor_id] = remaining
 	if not post.has_method("get_work_position"):
 		return
 	var work_position: Vector3 = post.call("get_work_position")
@@ -998,8 +1004,31 @@ func _claim_guard_post_for(guard: HumanoidCharacter):
 		if post.has_method("claim_worker") and not post.call("claim_worker", guard):
 			continue
 		_guard_post_by_actor_id[guard.get_instance_id()] = post
+		_guard_shuffle_remaining_by_actor_id[guard.get_instance_id()] = _next_guard_shuffle_seconds()
 		return post
 	return null
+
+
+func _try_shuffle_guard_post(guard: HumanoidCharacter, current_post):
+	var posts := get_guard_posts()
+	if posts.size() <= 1:
+		return current_post
+	for post in posts:
+		if post == null or post == current_post:
+			continue
+		if post.has_method("is_available_for") and not post.call("is_available_for", guard):
+			continue
+		if post.has_method("claim_worker") and not post.call("claim_worker", guard):
+			continue
+		if current_post != null and current_post.has_method("release_worker"):
+			current_post.call("release_worker", guard)
+		_guard_post_by_actor_id[guard.get_instance_id()] = post
+		return post
+	return current_post
+
+
+func _next_guard_shuffle_seconds() -> float:
+	return randf_range(GUARD_SHUFFLE_SECONDS.x, GUARD_SHUFFLE_SECONDS.y)
 
 
 ## Typed vitals writes: the old property-name reflection here was invisible
@@ -1121,13 +1150,8 @@ func _minutes_label(minutes: int) -> String:
 
 
 func _now_minute() -> int:
-	var tree := get_tree()
-	if tree == null:
-		return 0
-	for controller in tree.get_nodes_in_group("world_time_controller"):
-		if controller != null and controller.has_method("get_absolute_minute"):
-			return int(controller.call("get_absolute_minute"))
-	return 0
+	var controller := BootstrapContext.service(WORLD_TIME_SERVICE_ID)
+	return int(controller.call("get_absolute_minute")) if controller != null and controller.has_method("get_absolute_minute") else 0
 
 
 func _set_property_if_present(target: Object, property_name: String, value) -> void:
@@ -1145,20 +1169,22 @@ func _children_at(root_path: NodePath) -> Array[Node]:
 	return children
 
 
-func _guard_post_transform(index: int) -> Transform3D:
-	var side := -1.0 if index % 2 == 0 else 1.0
-	var row := int(float(index) / 2.0)
-	return Transform3D(Basis(Vector3.UP, deg_to_rad(90.0 * -side)), Vector3(4.7 * side, 0.05, 0.2060163 - float(row) * 1.6))
-
-
+## Staff spawn prep positions come from discovered duty furniture — the
+## warden's desk, a free guard post — with the building entry as the shared
+## fallback. Runtime assignment walks them to their real spot either way.
 func _local_position_for_role(role: String, index: int) -> Vector3:
+	var anchor: Node3D = null
 	if role == "warden":
-		var warden_post := _ensure_warden_post()
-		if warden_post != null:
-			return global_transform.affine_inverse() * warden_post.global_position if is_inside_tree() else warden_post.position
-		return _default_warden_post_transform().origin
-	var guard_post_transform := _guard_post_transform(index)
-	return Vector3(guard_post_transform.origin.x, 0.6, guard_post_transform.origin.z)
+		anchor = get_warden_service_point()
+	else:
+		var posts := get_guard_posts()
+		if not posts.is_empty():
+			anchor = posts[index % posts.size()] as Node3D
+	if anchor != null and anchor.is_inside_tree() and is_inside_tree():
+		return global_transform.affine_inverse() * anchor.global_position
+	if is_inside_tree():
+		return global_transform.affine_inverse() * get_entry_position()
+	return Vector3(0.0, 0.6, 5.0)
 
 
 func _display_name_for_role(role: String, index: int) -> String:
@@ -1275,18 +1301,27 @@ func _apply_staff_skills(actor: Node, role: String, index: int) -> void:
 	var perception_range := WARDEN_PERCEPTION_RANGE if role == "warden" else GUARD_PERCEPTION_RANGE
 	var rng := _make_staff_rng("skill:%s:%d:%s" % [role, index, str(actor.name)])
 	actor.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(perception_range.x, perception_range.y, rng))
+	SettlementFacility.apply_guard_stat_tiers(actor, rng)
 
 
+## Profiles delegate to the town's effective resolvers, which include the
+## settlement definition chain — the jail must never re-derive a weaker
+## fallback of its own or staff drop to the neutral default body.
 func _get_effective_population_appearance_profile() -> Resource:
 	if population_appearance_profile != null:
 		return population_appearance_profile
 	var settlement := _get_ancestor_settlement()
+	if settlement != null and settlement.has_method("get_effective_population_appearance_profile"):
+		return settlement.call("get_effective_population_appearance_profile") as Resource
 	return _find_population_appearance_profile(settlement) if settlement != null else null
 
 
 func _get_effective_population_name_profile() -> Resource:
 	if population_name_profile != null:
 		return population_name_profile
+	var settlement := _get_ancestor_settlement()
+	if settlement != null and settlement.has_method("get_effective_population_name_profile"):
+		return settlement.call("get_effective_population_name_profile") as Resource
 	var definition := _get_ancestor_settlement_definition()
 	if definition != null and definition.has_method("get_population_name_profile"):
 		return definition.call("get_population_name_profile") as Resource

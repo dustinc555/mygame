@@ -241,7 +241,19 @@ func _rebuild_external_furniture_cache() -> void:
 	_external_furniture_cache_valid = true
 	if not is_inside_tree():
 		return
+	var candidates := {}
 	for furniture in get_tree().get_nodes_in_group(FurnitureRules.FURNITURE_GROUP):
+		candidates[furniture.get_instance_id()] = furniture
+	# Structural, not opt-in: every direct child of the owning facility's
+	# Furniture root IS furniture and hides with its level — a new furniture
+	# scene must never need to remember a group join to participate.
+	var facility := _find_facility_ancestor()
+	if facility != null:
+		var furniture_root := facility.get_node_or_null("Furniture")
+		if furniture_root != null:
+			for child in furniture_root.get_children():
+				candidates[child.get_instance_id()] = child
+	for furniture in candidates.values():
 		var node := furniture as Node3D
 		if node == null or not node.is_inside_tree() or is_ancestor_of(node):
 			continue
@@ -252,6 +264,15 @@ func _rebuild_external_furniture_cache() -> void:
 			_external_furniture_cache.append({"node": node, "level": level_index})
 		elif _is_position_inside_modular_bounds(node.global_position):
 			_external_furniture_cache.append({"node": node, "level": -1})
+
+
+func _find_facility_ancestor() -> Node:
+	var current: Node = get_parent()
+	while current != null:
+		if current.has_method("get_facility_record"):
+			return current
+		current = current.get_parent()
+	return null
 
 
 func _get_level_index_for_position(world_position: Vector3) -> int:

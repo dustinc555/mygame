@@ -12,6 +12,10 @@ class_name SettlementFacilityInstance
 ## Deterministic seed for the editor furnish pass; Reroll increments it.
 ## Same seed always regenerates the same layout.
 @export var furnish_seed := 0
+## Explicit furnish recipe for this one facility. Leave empty to resolve by
+## convention: <faction>/<type>.tres, then <type>.tres, then default.tres
+## under features/settlements/resources/furnishing.
+@export var furnish_rules: FurnishRules
 @export var staff_root_path: NodePath = NodePath("Staff")
 @export var service_points_root_path: NodePath = NodePath("ServicePoints")
 @export var storage_root_path: NodePath = NodePath("Storage")
@@ -39,6 +43,29 @@ func get_facility_record(settlement_id := "") -> Dictionary:
 	record["service_point_count"] = _get_child_count_at(service_points_root_path)
 	record["storage_link_count"] = _get_child_count_at(storage_root_path)
 	return record
+
+
+## Stamp every ownable node in the facility subtree (containers, world
+## items, service areas — anything exposing owner_faction_name) with the
+## facility's owner. Re-run after staffing changes so ownership follows
+## staff turnover; actors' own subtrees are skipped (their inventory is
+## theirs).
+func sync_property_ownership() -> void:
+	var owner_character := get_property_owner_character()
+	var owner_faction := get_property_owner_faction()
+	_stamp_property_ownership(self, owner_character, owner_faction)
+
+
+func _stamp_property_ownership(node: Node, owner_character: HumanoidCharacter, owner_faction: String) -> void:
+	if node != self and node is WorldActor:
+		return
+	if node != self:
+		if not owner_faction.is_empty() and "owner_faction_name" in node:
+			node.set("owner_faction_name", owner_faction)
+		if owner_character != null and "owner_character_path" in node:
+			node.set("owner_character_path", node.get_path_to(owner_character))
+	for child in node.get_children():
+		_stamp_property_ownership(child, owner_character, owner_faction)
 
 
 func get_building_root() -> Node3D:

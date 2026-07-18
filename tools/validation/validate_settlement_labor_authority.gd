@@ -3,6 +3,9 @@ extends SceneTree
 const TWO_TOWNS_SCENE := preload("res://scenes/test_levels/two_towns_road_test.tscn")
 const SETTLEMENT_BAR_SCENE := preload("res://features/settlements/bridge/settlement_bar.tscn")
 const SETTLEMENT_JAIL_SCENE := preload("res://features/settlements/bridge/settlement_jail.tscn")
+const JAIL_CELL_SCENE := preload("res://features/world/projection/props/furniture/jail_cell.tscn")
+const PRISONER_LOCKER_SCENE := preload("res://features/world/projection/containers/prisoner_locker_container.tscn")
+const SETTLEMENT_GUARD_POST_SCRIPT := preload("res://features/settlements/bridge/venues/settlement_guard_post.gd")
 const BANDAGE := preload("res://features/inventory/resources/items/bandage.tres")
 const HATCHET := preload("res://features/inventory/resources/items/hatchet.tres")
 
@@ -21,7 +24,7 @@ func _run() -> void:
 	_validate_population_role_ledger()
 	await _validate_delayed_town_guard_replacement()
 	await _validate_private_bar_guard()
-	_validate_jail_authoring()
+	await _validate_jail_authoring()
 	if _failures.is_empty():
 		print("SETTLEMENT_LABOR_AUTHORITY_OK")
 		quit(0)
@@ -107,24 +110,41 @@ func _validate_private_bar_guard() -> void:
 
 func _validate_jail_authoring() -> void:
 	var jail := SETTLEMENT_JAIL_SCENE.instantiate()
+	var furniture := Node3D.new()
+	furniture.name = "Furniture"
+	jail.add_child(furniture)
+	var cell := JAIL_CELL_SCENE.instantiate()
+	cell.name = "AuthoredCell"
+	furniture.add_child(cell)
+	var locker := PRISONER_LOCKER_SCENE.instantiate()
+	locker.name = "AuthoredLocker"
+	furniture.add_child(locker)
+	var guard_post := Node3D.new()
+	guard_post.name = "AuthoredGuardPost"
+	guard_post.set_script(SETTLEMENT_GUARD_POST_SCRIPT)
+	furniture.add_child(guard_post)
 	root.add_child(jail)
 	await _wait_frames(4)
 	if jail.get_node_or_null("Staff/Warden") == null:
 		_fail("Settlement jail should create a warden")
 	if jail.get_node_or_null("Staff/Guard") == null:
 		_fail("Settlement jail should create guards")
-	if jail.get_node_or_null("GuardPosts/GuardPost") == null:
-		_fail("Settlement jail should create guard posts")
-	if jail.get_node_or_null("Cells/Cell") == null:
-		_fail("Settlement jail should create cells")
+	if jail.get_node_or_null("GuardPosts") != null or jail.get_node_or_null("Cells") != null:
+		_fail("Settlement jail should not create designated furniture roots")
+	if not jail.has_method("get_guard_posts") or not jail.call("get_guard_posts").has(guard_post):
+		_fail("Settlement jail should discover authored guard-post furniture")
+	if not jail.has_method("get_cells") or not jail.call("get_cells").has(cell):
+		_fail("Settlement jail should discover authored cell furniture")
+	if not jail.has_method("get_prisoner_locker") or jail.call("get_prisoner_locker") != locker:
+		_fail("Settlement jail should discover authored prisoner-locker furniture")
 	var warden := jail.get_node_or_null("Staff/Warden") as HumanoidCharacter
 	if warden == null or not warden.has_method("is_settlement_authority") or not bool(warden.call("is_settlement_authority")):
 		_fail("Jail warden should be settlement authority")
 	var record: Dictionary = jail.call("get_facility_record", "test_settlement")
 	if str(record.get("function_id", "")) != "jail":
 		_fail("Jail facility record should report jail function_id")
-	if int(record.get("prisoner_capacity", 0)) < 1:
-		_fail("Jail facility record should report prisoner capacity")
+	if int(record.get("prisoner_capacity", 0)) != 1:
+		_fail("Jail facility record should report authored single-cell capacity")
 	jail.queue_free()
 
 

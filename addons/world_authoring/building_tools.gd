@@ -41,6 +41,7 @@ var _status_label: Label
 var _pieces_menu_button: MenuButton
 var _rotate_button: Button
 var _fix_hierarchy_button: Button
+var _snap_points_button: CheckBox
 var _active_building: Node
 var _watched_gizmo_anchor_piece: Node3D
 var _last_gizmo_anchor_transform := Transform3D.IDENTITY
@@ -661,10 +662,14 @@ func _find_modular_piece_ancestor(node: Node) -> Node3D:
 func _is_script_node(node: Node, script_resource: Script) -> bool:
 	if node == null or script_resource == null:
 		return false
+	# Walk the inheritance chain: subclassed pieces (e.g. WorldDoor extends
+	# ModularBuildingPiece) must count as pieces for selection and snapping.
 	var node_script := node.get_script() as Script
-	if node_script == null:
-		return false
-	return node_script == script_resource or node_script.resource_path == script_resource.resource_path
+	while node_script != null:
+		if node_script == script_resource or node_script.resource_path == script_resource.resource_path:
+			return true
+		node_script = node_script.get_base_script()
+	return false
 
 
 func _select_node(node: Node) -> void:
@@ -707,6 +712,13 @@ func _build_toolbar() -> void:
 	_toolbar.add_child(_status_label)
 
 	_add_piece_drawer()
+
+	_snap_points_button = CheckBox.new()
+	_snap_points_button.text = "Show/Hide Snap Points"
+	_snap_points_button.button_pressed = true
+	_snap_points_button.tooltip_text = "Show or hide snap point markers on modular pieces."
+	_snap_points_button.toggled.connect(_on_snap_points_toggled)
+	_toolbar.add_child(_snap_points_button)
 
 	_rotate_button = Button.new()
 	_rotate_button.text = "Rot 90"
@@ -792,6 +804,28 @@ func _refresh_toolbar() -> void:
 	var selected_piece := _get_selected_modular_piece()
 	_rotate_button.disabled = selected_piece == null or not can_author
 	_fix_hierarchy_button.disabled = not can_author
+	# Markers rebuild visible whenever a piece (re)enters the tree, so re-assert
+	# the toggle on every refresh to keep newly spawned pieces in line.
+	_apply_snap_marker_visibility(_snap_points_button.button_pressed)
+
+
+func _on_snap_points_toggled(show_markers: bool) -> void:
+	_apply_snap_marker_visibility(show_markers)
+
+
+## Flips the markers' generated visual nodes (unowned, never saved) instead of
+## the editor_show_snap_markers export, so toggling leaves no scene diffs.
+func _apply_snap_marker_visibility(show_markers: bool) -> void:
+	var building := get_active_building()
+	if building == null or not building.is_inside_tree():
+		return
+	for piece in building.get_tree().get_nodes_in_group("modular_building_piece"):
+		if not building.is_ancestor_of(piece) or not piece.has_method("get_snap_markers"):
+			continue
+		for marker in piece.call("get_snap_markers"):
+			var visual: Node = (marker as Node).get_node_or_null(ModularBuildingSnapMarker.VISUAL_NAME)
+			if visual is Node3D:
+				(visual as Node3D).visible = show_markers
 
 
 func _piece_auto_snap_enabled(piece: Node) -> bool:

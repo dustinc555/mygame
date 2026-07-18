@@ -3,6 +3,17 @@ extends RefCounted
 class_name ActorConditionEvaluator
 
 
+## The jail a staff member speaks for: walk up from the conversation target
+## (a warden) to the facility that employs them.
+static func find_jail_ancestor(node) -> Node:
+	var current := node as Node
+	while current != null:
+		if current.has_method("admit_prisoner"):
+			return current
+		current = current.get_parent()
+	return null
+
+
 static func evaluate(condition, context: Dictionary = {}) -> Dictionary:
 	if condition == null:
 		return {"passed": true, "reason": ""}
@@ -25,6 +36,16 @@ static func evaluate(condition, context: Dictionary = {}) -> Dictionary:
 		"actor.is_player_party_member":
 			var party_actor = _resolve_subject(condition.parameters.get("subject", "speaker_member"), context)
 			passed = party_actor != null and party_actor.has_method("is_player_party_member") and party_actor.is_player_party_member()
+		"law.has_bailable_prisoners":
+			var law = context.get("law_order")
+			var bail_jail := find_jail_ancestor(context.get("conversation_target"))
+			passed = law != null and bail_jail != null and law.has_method("get_bailable_prisoners") \
+					and not (law.call("get_bailable_prisoners", context.get("speaker_member"), bail_jail) as Array).is_empty()
+		"law.can_pay_bail":
+			var law = context.get("law_order")
+			var bail_jail := find_jail_ancestor(context.get("conversation_target"))
+			passed = law != null and bail_jail != null and law.has_method("can_pay_bail") \
+					and bool(law.call("can_pay_bail", context.get("speaker_member"), bail_jail))
 		_:
 			passed = false
 

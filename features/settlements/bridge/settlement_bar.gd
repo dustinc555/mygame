@@ -1738,9 +1738,14 @@ func _apply_population_generation_to_staff(staff: Node, role: String, role_index
 func _apply_staff_role_skills(staff: Node, role: String, role_index: int) -> void:
 	if staff == null or Engine.is_editor_hint() or not _is_generated_staff(staff) or not staff.has_method("get_skill_level") or not staff.has_method("set_skill_level"):
 		return
-	var perception_range := GUARD_PERCEPTION_RANGE if str(role).strip_edges().to_lower().begins_with("guard") else STAFF_PERCEPTION_RANGE
+	var is_guard := str(role).strip_edges().to_lower().begins_with("guard")
+	var perception_range := GUARD_PERCEPTION_RANGE if is_guard else STAFF_PERCEPTION_RANGE
 	var rng := _make_staff_rng("skill:%s:%d:%s" % [role, role_index, str(staff.name)])
 	staff.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(perception_range.x, perception_range.y, rng))
+	if is_guard:
+		SettlementFacility.apply_guard_stat_tiers(staff, rng)
+	else:
+		SettlementFacility.apply_civilian_stat_tiers(staff, rng)
 
 
 func _roll_center_biased_level(minimum: int, maximum: int, rng: RandomNumberGenerator) -> int:

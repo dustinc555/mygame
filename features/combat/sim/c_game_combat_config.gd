@@ -11,7 +11,7 @@ class_name CGameCombatConfig
 @export var witness_radius := 0.0
 @export var squad_assist_radius := 0.0
 @export var move_target_vertical_tolerance := 0.75
-@export var navigation_agent_radius := 0.4
+@export var navigation_agent_radius := 0.45
 @export var active_attack_slots := 3
 @export var combat_stance := 0
 @export var protected_from_combat := false

@@ -1,0 +1,19 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/props/shop_counter.gd" id="1_counter"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Desk.gltf" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="Shape_desk"]
+size = Vector3(2.02, 1.14, 0.5)
+
+[node name="WardenDesk" type="StaticBody3D"]
+script = ExtResource("1_counter")
+staff_stand_local_offset = Vector3(0, 0, -0.87)
+customer_stand_local_offset = Vector3(0, 0, 0.9)
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(1.0837, 0, 0, 0, 1.3562, 0, 0, 0, 1.3149, 0, 0, 0)
+
+[node name="BodyCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.57, -0.1)
+shape = SubResource("Shape_desk")

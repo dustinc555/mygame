@@ -54,6 +54,7 @@ This is the single project guidance file for coding agents. Human-facing archite
 - Reusable editor content must work when dragged into another bootstrapped scene.
 - Prefer `class_name` nodes, exported fields, named child roots, safe defaults, stable IDs, and clear editor workflows.
 - Visual shells stay separate from gameplay function. A building model is neutral; a facility function makes it a bar, field, shop, jail, mine, or storage site.
+- **Facilities use the discovery pattern.** All furniture lives under the facility's `Furniture` root (hand-placed via the dock or furnish-generated). Staff and law AI discover what they need from the facility subtree at runtime by duck-typed capability — barkeeper→counter, warden→desk, guards→guard posts, custody→jail cells and prisoner lockers. Never add designated node paths, hardcoded position markers, or auto-spawned default furniture to a facility type; if a role needs a workstation, it discovers one and idles gracefully when none exists yet.
 - Test levels are proofs, not implementations. If a feature only works in one test scene, refactor it into a reusable system.
 - Treat `project.godot` `run/main_scene` as user-owned development state. Do not revert or normalize it unless explicitly asked.
 

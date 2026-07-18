@@ -1,0 +1,18 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/props/furnishing/furniture_vignette.gd" id="1_vignette"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/jail_cell.tscn" id="2_cell"]
+
+[node name="CellBlockRow" type="Node3D"]
+script = ExtResource("1_vignette")
+footprint_meters = Vector2(6.35, 3.86)
+unpack_on_furnish = true
+
+[node name="Cell1" parent="." instance=ExtResource("2_cell")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1, 0, -1.2)
+
+[node name="Cell2" parent="." instance=ExtResource("2_cell")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.2)
+
+[node name="Cell3" parent="." instance=ExtResource("2_cell")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1, 0, -1.2)

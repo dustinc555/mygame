@@ -16,3 +16,4 @@ alternate_equip_slots = null
 world_scene = ExtResource("3_world")
 world_visual_height_meters = 0.18
 tool_tags = null
+access_key_ids = null

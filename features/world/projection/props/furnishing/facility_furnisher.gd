@@ -36,6 +36,8 @@ var _region_labels := PackedInt32Array()
 var _main_region := -1
 var _exterior_regions := {}
 var _last_error := ""
+var _pending_required_clusters: Array = []
+var _pending_required_utilities: Array = []
 
 
 func last_error() -> String:
@@ -49,6 +51,8 @@ func last_error() -> String:
 ## Empty array + last_error() on failure.
 func furnish(building: Node3D, rules: FurnishRules, seed_value: int) -> Array[Dictionary]:
 	_last_error = ""
+	_pending_required_clusters = rules.required_cluster_scenes.duplicate()
+	_pending_required_utilities = rules.utility_scenes.duplicate()
 	var pieces := _collect_pieces(building)
 	var level_ys := _floor_level_ys(pieces)
 	if level_ys.is_empty():
@@ -62,6 +66,14 @@ func furnish(building: Node3D, rules: FurnishRules, seed_value: int) -> Array[Di
 		if level_index == 0 and level_placements.is_empty():
 			return []
 		placements.append_array(level_placements)
+	if not _pending_required_clusters.is_empty():
+		var scene: PackedScene = _pending_required_clusters[0]
+		_last_error = "Required cluster '%s' fits on no storey of this shell." % str(scene.resource_path).get_file()
+		return []
+	if not _pending_required_utilities.is_empty():
+		var scene: PackedScene = _pending_required_utilities[0]
+		_last_error = "Required utility '%s' fits nowhere on the ground floor." % str(scene.resource_path).get_file()
+		return []
 	return placements
 
 
@@ -73,6 +85,7 @@ func furnish(building: Node3D, rules: FurnishRules, seed_value: int) -> Array[Di
 func _furnish_level(pieces: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, level_index: int, floor_y: float) -> Array[Dictionary]:
 	var floors: Array[Dictionary] = []
 	var walls: Array[Dictionary] = []
+	var blockers: Array[Dictionary] = []
 	var stair_pieces: Array[Dictionary] = []
 	for piece in pieces:
 		var category: String = piece["category"]
@@ -81,6 +94,12 @@ func _furnish_level(pieces: Array[Dictionary], rules: FurnishRules, rng: RandomN
 			floors.append(piece)
 		elif (category == "wall" or category == "wall_door" or category == "wall_window") and absf(piece_y - floor_y) < 0.5:
 			walls.append(piece)
+		elif (category == "corner" or category == "overhang") and absf(piece_y - floor_y) < 0.5:
+			# Solid structural masonry (round corner towers, overhang corners)
+			# seals the perimeter like a wall does. Without it the interior
+			# flood leaks through the corner gaps to the grid border and the
+			# whole building classifies as exterior — nothing gets furnished.
+			blockers.append(piece)
 		elif category == "stairs" and piece_y > floor_y - 3.6 and piece_y < floor_y + 0.5:
 			# A stair run blocks the level it starts on AND feeds the level it
 			# arrives at (its footprint marks the upper stairwell mouth).
@@ -89,7 +108,7 @@ func _furnish_level(pieces: Array[Dictionary], rules: FurnishRules, rng: RandomN
 		if level_index == 0:
 			_last_error = "Shell has no ground-floor floor pieces."
 		return []
-	_build_grid(floors, walls)
+	_build_grid(floors, walls, blockers)
 	var stair_mouth_cells: Array[Vector2i] = []
 	for stair in stair_pieces:
 		var size: Vector3 = stair["bounds"]
@@ -114,10 +133,13 @@ func _furnish_level(pieces: Array[Dictionary], rules: FurnishRules, rng: RandomN
 		if not counter.is_empty():
 			placements.append(counter)
 		placements.append_array(_place_clusters(rules, rng, placements))
+		placements.append_array(_place_utilities(anchors, rules, rng, placements))
 		placements.append_array(_place_containers(anchors, rules, rng, placements))
 		placements.append_array(_place_shelves(anchors, rules, rng, counter))
 		placements.append_array(_place_lights(anchors, rules, rng))
 	else:
+		if rules.clusters_on_upper_floors:
+			placements.append_array(_place_clusters(rules, rng, placements))
 		placements.append_array(_place_beds(anchors, rules, rng))
 		placements.append_array(_place_shelves(anchors, rules, rng, {}))
 		placements.append_array(_place_lights(anchors, rules, rng))
@@ -175,7 +197,7 @@ func _floor_level_ys(pieces: Array[Dictionary]) -> Array[float]:
 	return level_ys
 
 
-func _build_grid(floors: Array[Dictionary], walls: Array[Dictionary]) -> void:
+func _build_grid(floors: Array[Dictionary], walls: Array[Dictionary], blockers: Array[Dictionary] = []) -> void:
 	var rect := Rect2()
 	var has_rect := false
 	for floor_piece in floors:
@@ -192,6 +214,8 @@ func _build_grid(floors: Array[Dictionary], walls: Array[Dictionary]) -> void:
 		_stamp_rect(_piece_rect(floor_piece), STATE_FREE, [STATE_BLOCKED])
 	for wall in walls:
 		_stamp_oriented_box(wall["transform"], Vector2(wall["bounds"].x, WALL_THICKNESS), 0.0, STATE_BLOCKED, [])
+	for blocker in blockers:
+		_stamp_oriented_box(blocker["transform"], Vector2(blocker["bounds"].x, blocker["bounds"].z), 0.0, STATE_BLOCKED, [])
 	_door_cells.clear()
 	var interior_mouths: Array[Vector2i] = []
 	for wall in walls:
@@ -317,14 +341,8 @@ func _place_counter(anchors: Array[Dictionary], rules: FurnishRules, rng: Random
 
 func _place_clusters(rules: FurnishRules, rng: RandomNumberGenerator, existing: Array[Dictionary]) -> Array[Dictionary]:
 	var placements: Array[Dictionary] = []
-	if rules.cluster_scenes.is_empty():
+	if rules.cluster_scenes.is_empty() and _pending_required_clusters.is_empty():
 		return placements
-	var footprints := {}
-	for scene in rules.cluster_scenes:
-		footprints[scene] = _vignette_footprint(scene)
-	var free_area := _count_state(STATE_FREE) * CELL * CELL
-	var target := clampi(int(free_area / maxf(rules.square_meters_per_cluster, 1.0)), 1, rules.max_clusters)
-	var placed := 0
 	# Seeded-shuffled sweep over every candidate cell: still random-feeling
 	# across seeds, but exhaustive — if a cluster can fit anywhere, it fits.
 	var candidates: Array[Vector2i] = []
@@ -338,41 +356,68 @@ func _place_clusters(rules: FurnishRules, rng: RandomNumberGenerator, existing: 
 		var held := candidates[index]
 		candidates[index] = candidates[swap]
 		candidates[swap] = held
+	# Required clusters first: they claim space before any optional roll and
+	# each gets the full exhaustive sweep on this storey. Whatever is still
+	# pending after the last storey fails the furnish in furnish().
+	for scene_index in range(_pending_required_clusters.size() - 1, -1, -1):
+		var required_scene: PackedScene = _pending_required_clusters[scene_index]
+		var required_footprint := _vignette_footprint(required_scene)
+		for cell in candidates:
+			if _state(cell) != STATE_FREE:
+				continue
+			var placement := _try_stamp_cluster(required_scene, required_footprint, cell, rng, existing + placements)
+			if not placement.is_empty():
+				placements.append(placement)
+				_pending_required_clusters.remove_at(scene_index)
+				break
+	if rules.cluster_scenes.is_empty():
+		return placements
+	var footprints := {}
+	for scene in rules.cluster_scenes:
+		footprints[scene] = _vignette_footprint(scene)
+	var free_area := _count_state(STATE_FREE) * CELL * CELL
+	var target := clampi(int(free_area / maxf(rules.square_meters_per_cluster, 1.0)), 1, rules.max_clusters)
+	var placed := 0
 	for cell in candidates:
 		if placed >= target:
 			break
 		if _state(cell) != STATE_FREE:
 			continue
 		var scene: PackedScene = rules.cluster_scenes[rng.randi_range(0, rules.cluster_scenes.size() - 1)]
-		var footprint: Vector2 = footprints[scene]
-		var yaw := (PI * 0.5) * rng.randi_range(0, 3) + deg_to_rad(rng.randf_range(-5.0, 5.0))
-		var origin := _cell_center(cell)
-		var cluster_transform := Transform3D(Basis(Vector3.UP, yaw), Vector3(origin.x, 0.0, origin.y))
-		# The furniture itself needs free floor; the breathing margin around
-		# it may border walk corridors — people walking past a table is fine,
-		# a table standing IN the corridor is not.
-		if not _region_is(cluster_transform, footprint, 0.0, [STATE_FREE]):
-			continue
-		if not _region_is(cluster_transform, footprint, CLUSTER_MARGIN, [STATE_FREE, STATE_WALK_ONLY]):
-			continue
-		_stamp_oriented_box(cluster_transform, footprint, 0.0, STATE_OCCUPIED, [STATE_FREE])
-		var probe := origin + Vector2(cos(yaw), -sin(yaw)) * (footprint.x * 0.5 + CLUSTER_MARGIN + CELL)
-		var placement := {
-			"kind": "cluster",
-			"scene": scene,
-			"transform": cluster_transform,
-			"reach_probe": Vector3(probe.x, 0.0, probe.y),
-		}
-		# Every probe placed so far must survive this stamp — a new cluster
-		# may not wall off the counter or an earlier cluster.
-		var all_placed: Array[Dictionary] = existing + placements
-		all_placed.append(placement)
-		if not _walkability_holds(all_placed):
-			_stamp_oriented_box(cluster_transform, footprint, 0.0, STATE_FREE, [STATE_OCCUPIED])
+		var placement := _try_stamp_cluster(scene, footprints[scene], cell, rng, existing + placements)
+		if placement.is_empty():
 			continue
 		placements.append(placement)
 		placed += 1
 	return placements
+
+
+## One cluster fit attempt at one candidate cell: footprint must be free,
+## the breathing margin may border walk corridors (people walking past a
+## table is fine, a table standing IN the corridor is not), and the stamp
+## must not strand any earlier placement's reach probe.
+func _try_stamp_cluster(scene: PackedScene, footprint: Vector2, cell: Vector2i, rng: RandomNumberGenerator, already_placed: Array[Dictionary]) -> Dictionary:
+	var yaw := (PI * 0.5) * rng.randi_range(0, 3) + deg_to_rad(rng.randf_range(-5.0, 5.0))
+	var origin := _cell_center(cell)
+	var cluster_transform := Transform3D(Basis(Vector3.UP, yaw), Vector3(origin.x, 0.0, origin.y))
+	if not _region_is(cluster_transform, footprint, 0.0, [STATE_FREE]):
+		return {}
+	if not _region_is(cluster_transform, footprint, CLUSTER_MARGIN, [STATE_FREE, STATE_WALK_ONLY]):
+		return {}
+	_stamp_oriented_box(cluster_transform, footprint, 0.0, STATE_OCCUPIED, [STATE_FREE])
+	var probe := origin + Vector2(cos(yaw), -sin(yaw)) * (footprint.x * 0.5 + CLUSTER_MARGIN + CELL)
+	var placement := {
+		"kind": "cluster",
+		"scene": scene,
+		"transform": cluster_transform,
+		"reach_probe": Vector3(probe.x, 0.0, probe.y),
+	}
+	var check: Array[Dictionary] = already_placed.duplicate()
+	check.append(placement)
+	if not _walkability_holds(check):
+		_stamp_oriented_box(cluster_transform, footprint, 0.0, STATE_FREE, [STATE_OCCUPIED])
+		return {}
+	return placement
 
 
 ## Beds stand against upper-floor walls, headboard to the wall, foot into the
@@ -433,6 +478,53 @@ func _place_beds(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNum
 ## WALK_ONLY on the grid, so the FREE-state requirement keeps them out of
 ## traffic without any explicit door logic. Each placed container carries a
 ## stock list rolled from the rules' loot table, baked into the saved node.
+## Utility pieces: one guaranteed wall placement per scene (no chance roll,
+## no stock) — a jail without its prisoner locker isn't furnished, so the
+## sweep tries every wall anchor before giving up on a piece.
+func _place_utilities(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, existing: Array[Dictionary]) -> Array[Dictionary]:
+	var placements: Array[Dictionary] = []
+	if _pending_required_utilities.is_empty():
+		return placements
+	var candidates := anchors.filter(func(anchor): return anchor["category"] == "wall")
+	for index in range(candidates.size() - 1, 0, -1):
+		var swap := rng.randi_range(0, index)
+		var held = candidates[index]
+		candidates[index] = candidates[swap]
+		candidates[swap] = held
+	for scene_index in range(_pending_required_utilities.size() - 1, -1, -1):
+		var scene: PackedScene = _pending_required_utilities[scene_index]
+		var footprint := _container_footprint(scene)
+		for anchor in candidates:
+			var normal: Vector2 = anchor["normal"]
+			var center: Vector2 = anchor["position"] + normal * (WALL_THICKNESS * 0.5 + footprint.y * 0.5 + 0.05)
+			var yaw := atan2(normal.x, normal.y)
+			var utility_transform := Transform3D(Basis(Vector3.UP, yaw), Vector3(center.x, 0.0, center.y))
+			if not _region_is(utility_transform, footprint, 0.0, [STATE_FREE]):
+				continue
+			if _region_touches(utility_transform, footprint, CLUSTER_MARGIN, STATE_OCCUPIED):
+				continue
+			_stamp_oriented_box(utility_transform, footprint, 0.0, STATE_OCCUPIED, [STATE_FREE])
+			var probe: Vector2 = center + normal * (footprint.y * 0.5 + CLUSTER_MARGIN + CELL)
+			var placement := {
+				"kind": "utility",
+				"scene": scene,
+				"transform": utility_transform,
+				"reach_probe": Vector3(probe.x, 0.0, probe.y),
+			}
+			# Same rule as containers: the stamp must not strand any earlier
+			# placement's reach probe, or the whole level gets rejected by
+			# the final walkability guard.
+			var check: Array[Dictionary] = existing + placements
+			check.append(placement)
+			if not _walkability_holds(check):
+				_stamp_oriented_box(utility_transform, footprint, 0.0, STATE_FREE, [STATE_OCCUPIED])
+				continue
+			placements.append(placement)
+			_pending_required_utilities.remove_at(scene_index)
+			break
+	return placements
+
+
 func _place_containers(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, existing: Array[Dictionary]) -> Array[Dictionary]:
 	var placements: Array[Dictionary] = []
 	if rules.container_scenes.is_empty():

@@ -102,6 +102,7 @@ var actor_realization_policy: String:
 var _town_border_debug: MeshInstance3D
 var _town_border_refresh_timer := 0.0
 var _last_town_border_signature := ""
+var _last_border_watch_signature := 0
 var _realization_policy_override := ""
 var _last_guard_authoring_signature := ""
 
@@ -132,7 +133,13 @@ func _process(delta: float) -> void:
 	_town_border_refresh_timer = 0.25
 	_poll_guard_authoring_signature()
 	if editor_show_debug_shape:
-		_refresh_town_border_debug_if_changed()
+		# Cheap watch first: integer-hash facility identities/transforms and
+		# modular piece transforms. The deep bounds recompute only runs when
+		# something actually changed — an idle editor pays ~nothing here.
+		var watch := _border_watch_signature()
+		if watch != _last_border_watch_signature:
+			_last_border_watch_signature = watch
+			_refresh_town_border_debug_if_changed()
 
 
 ## Guard counts now live on the definition .tres, which has no setter hook
@@ -655,6 +662,7 @@ func _apply_guard_skills(actor: Node, index: int) -> void:
 		return
 	var rng := _make_staff_rng("skill:%d:%s" % [index, str(actor.name)])
 	actor.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(GUARD_PERCEPTION_RANGE.x, GUARD_PERCEPTION_RANGE.y, rng))
+	SettlementFacility.apply_guard_stat_tiers(actor, rng)
 
 
 ## Public: facilities inherit through these — changing the town's generator
@@ -973,10 +981,68 @@ func _get_auto_town_border_rect() -> Rect2:
 func _collect_border_bounds(node: Node, bounds: Dictionary) -> void:
 	if _should_skip_border_subtree(node):
 		return
+	# Modular shells contribute their authored piece bounds — flat cost per
+	# piece, never a recursion into piece scene internals, mesh AABBs, or
+	# collision debug meshes. Shells without modular pieces (legacy authored
+	# buildings) fall through to the per-mesh walk below.
+	if node is Node3D and node.has_method("get_modular_pieces"):
+		var pieces: Array = node.call("get_modular_pieces")
+		if not pieces.is_empty():
+			for piece_value in pieces:
+				var piece := piece_value as Node3D
+				if piece == null or not piece.is_inside_tree():
+					continue
+				var size_value = piece.get("bounds_size_meters")
+				if size_value is Vector3:
+					var size := size_value as Vector3
+					var piece_bounds := AABB(Vector3(-size.x * 0.5, 0.0, -size.z * 0.5), size)
+					for corner in _aabb_corners(piece_bounds):
+						_expand_border_bounds(bounds, piece.global_transform * corner)
+				else:
+					_expand_border_bounds(bounds, piece.global_position)
+			return
 	if not _should_skip_border_node(node) and node is Node3D:
 		_include_node3d_border_bounds(node as Node3D, bounds)
 	for child in node.get_children():
 		_collect_border_bounds(child, bounds)
+
+
+## Cheap per-tick change detector for the editor border: integer-hashes the
+## same node set the bounds walk reads (facility identities, transforms,
+## modular piece transforms, child counts) without any AABB math or mesh
+## access. The expensive bounds recompute runs only when this value moves.
+func _border_watch_signature() -> int:
+	var accumulator := hash([auto_town_border_from_footprint, town_border_radius, town_border_padding])
+	if not auto_town_border_from_footprint:
+		return accumulator
+	for facility in get_direct_facility_children():
+		accumulator = _accumulate_border_watch(accumulator, facility)
+	for root_path in _get_border_root_paths():
+		var root := get_node_or_null(root_path)
+		if root == null:
+			continue
+		for child in root.get_children():
+			accumulator = _accumulate_border_watch(accumulator, child)
+	return accumulator
+
+
+func _accumulate_border_watch(accumulator: int, node: Node) -> int:
+	if _should_skip_border_subtree(node):
+		return accumulator
+	var node_3d := node as Node3D
+	if node_3d != null and node_3d.is_inside_tree():
+		accumulator = hash([accumulator, node.name, node_3d.transform, node.get_child_count()])
+		if node.has_method("get_modular_pieces"):
+			var pieces: Array = node.call("get_modular_pieces")
+			if not pieces.is_empty():
+				for piece_value in pieces:
+					var piece := piece_value as Node3D
+					if piece != null and piece.is_inside_tree():
+						accumulator = hash([accumulator, piece.transform])
+				return accumulator
+	for child in node.get_children():
+		accumulator = _accumulate_border_watch(accumulator, child)
+	return accumulator
 
 
 func _should_skip_border_subtree(node: Node) -> bool:
