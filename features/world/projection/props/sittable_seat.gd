@@ -1,8 +1,10 @@
+@tool
 extends StaticBody3D
 
 class_name SittableSeat
 
 @export var furniture_type := FurnitureRules.Type.SEAT
+@export var facility_role_ids: Array[String] = []
 @export var interaction_local_offset := Vector3(0.0, 0.0, 0.9)
 @export var service_local_offset := Vector3(0.0, 0.0, -1.15)
 @export var seated_floor_local_offset := Vector3.ZERO
@@ -24,6 +26,14 @@ func _ready() -> void:
 
 func get_interaction_position(_member: HumanoidCharacter) -> Vector3:
 	return global_transform * interaction_local_offset
+
+
+func supports_facility_role(role_id: String) -> bool:
+	var normalized := role_id.strip_edges().to_lower()
+	for candidate in facility_role_ids:
+		if candidate.strip_edges().to_lower() == normalized:
+			return true
+	return false
 
 
 func get_service_position(_member: HumanoidCharacter) -> Vector3:

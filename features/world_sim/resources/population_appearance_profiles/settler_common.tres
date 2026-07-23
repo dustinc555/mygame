@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="PopulationAppearanceProfile" format=3]
 
 [ext_resource type="Script" uid="uid://c8m6ocw1f8juc" path="res://features/world_sim/resources/population_appearance_profile.gd" id="1_profile"]
+[ext_resource type="Script" path="res://features/actors/projection/humanoid/faction_humanoid.gd" id="1_actor"]
 [ext_resource type="Resource" uid="uid://cdrfbo0gr4b2k" path="res://features/actors/resources/character_appearance/hair_buzzed.tres" id="2_hair_buzzed"]
 [ext_resource type="Resource" uid="uid://bnjatfuysejds" path="res://features/actors/resources/character_appearance/hair_simple_parted.tres" id="3_hair_parted"]
 [ext_resource type="Resource" uid="uid://jn3yk6pk7rua" path="res://features/actors/resources/character_appearance/hair_long.tres" id="4_hair_long"]
@@ -15,6 +16,7 @@
 script = ExtResource("1_profile")
 profile_id = "settler_common"
 display_name = "Settler Common"
+actor_script = ExtResource("1_actor")
 hair_styles = Array[Resource]([ExtResource("2_hair_buzzed"), ExtResource("3_hair_parted"), ExtResource("4_hair_long"), ExtResource("5_hair_buns"), ExtResource("6_hair_buzzed_female")])
 beard_styles = Array[Resource]([ExtResource("7_beard_full")])
 male_beard_chance = 0.4

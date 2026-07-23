@@ -27,9 +27,8 @@ static var _available_races_cache: Array[Resource] = []
 
 @export var profile_id := ""
 @export var display_name := "Population Appearance"
-# The character class this profile's people are built from (quadbots are a
-# different actor class than humanoids, not just a different look). Null =
-# the spawning system's default humanoid script.
+# The character class this realizer builds. Required: there is deliberately no
+# generic humanoid fallback because a missing class must never produce a body.
 @export var actor_script: Script
 @export var allowed_races: Array[Resource] = []
 @export_flags("Male", "Female") var allowed_body_type_flags := BODY_TYPE_MALE_FLAG | BODY_TYPE_FEMALE_FLAG
@@ -93,6 +92,21 @@ func apply_to_actor(actor: Node, rng: RandomNumberGenerator, apply_equipment := 
 
 func get_natural_hair_colors() -> Array:
 	return _get_hair_palette().duplicate()
+
+
+func get_realization_signature() -> String:
+	var parts: Array[String] = [resource_path, profile_id, actor_script.resource_path if actor_script != null else "", str(allowed_body_type_flags)]
+	for resources in [allowed_races, hair_styles, beard_styles, chest_items, leg_items, feet_items, head_items]:
+		for resource in resources:
+			parts.append(resource.resource_path if resource != null else "")
+	parts.append(str(hair_color_palette))
+	parts.append(str(male_beard_chance))
+	parts.append(str(head_item_chance))
+	parts.append(str(height_range))
+	parts.append(str(shoulder_range))
+	parts.append(str(arm_length_range))
+	parts.append(str(neck_length_range))
+	return "|".join(parts)
 
 
 func _pick_race(rng: RandomNumberGenerator) -> Resource:

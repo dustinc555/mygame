@@ -137,7 +137,7 @@ size = Vector3(17.6, 1.9, 12.2)
 script = ExtResource("1_174vv")
 display_name = "Small Bar"
 building_type = "bar"
-population_capacity = 6
+housing_capacity = 6
 levels = Array[ExtResource("2_1iq6m")]([SubResource("BuildingLevelDefinition_ground"), SubResource("BuildingLevelDefinition_upper"), SubResource("BuildingLevelDefinition_roof")])
 
 [node name="GroundFloorMesh" type="MeshInstance3D" parent="." unique_id=1907957060]

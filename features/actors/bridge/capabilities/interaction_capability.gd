@@ -113,8 +113,10 @@ func stop_container_interaction() -> void:
 
 func stop_trade_interaction() -> void:
 	var trade_target = current_trade_target
-	if trade_target != null and is_instance_valid(trade_target) and trade_target.has_method("release_trader"):
-		trade_target.call("release_trader", actor)
+	if trade_target != null and is_instance_valid(trade_target):
+		var merchant_role := trade_target.get_node_or_null("MerchantRole") as MerchantRole
+		if merchant_role != null:
+			merchant_role.release_trader(actor)
 	current_trade_target = null
 	if current_order_type == ORDER_TYPE_TRADE:
 		_clear_actor_move_target()
@@ -269,11 +271,14 @@ func assign_trade_target(target_character, issued_by_player := true) -> void:
 	if not _set_order(ORDER_TYPE_TRADE, issued_by_player):
 		return
 	var current_target = current_trade_target
-	if _is_valid_node(current_target) and current_target != target_character and current_target.has_method("release_trader"):
-		current_target.call("release_trader", actor)
+	if _is_valid_node(current_target) and current_target != target_character:
+		var current_role := current_target.get_node_or_null("MerchantRole") as MerchantRole
+		if current_role != null:
+			current_role.release_trader(actor)
 	current_trade_target = target_character
-	if target_character.has_method("register_trader"):
-		target_character.call("register_trader", actor)
+	var merchant_role := target_character.get_node_or_null("MerchantRole") as MerchantRole
+	if merchant_role != null:
+		merchant_role.register_trader(actor)
 	_set_actor_move_target(target_character.call("get_interaction_position", actor))
 
 
@@ -451,14 +456,20 @@ func sit_at_seat_immediately(seat) -> bool:
 		return false
 	if not _is_actor_alive():
 		return false
+	if is_sitting and current_seat_target == seat:
+		_set_actor_global_position(seat.call("get_seat_position", actor))
+		if seat.has_method("get_seat_rotation"):
+			_set_actor_global_rotation(seat.call("get_seat_rotation", actor))
+		return true
 	stop_seat_assignment()
+	_call_void("cancel_stand_up_exit")
 	if not bool(seat.call("claim_sitter", actor)):
 		return false
 	current_seat_target = seat
 	current_seat_stand_position = seat.call("get_stand_position") if seat.has_method("get_stand_position") else _position()
 	_set_actor_global_position(seat.call("get_seat_position", actor))
 	if seat.has_method("get_seat_rotation"):
-		_set_actor_rotation(seat.call("get_seat_rotation", actor))
+		_set_actor_global_rotation(seat.call("get_seat_rotation", actor))
 	_set_node_property("velocity", Vector3.ZERO)
 	_set_node_property("running", false)
 	_call_void("_set_sneaking_state", [false, false])
@@ -1093,7 +1104,7 @@ func process_sleep_interaction() -> void:
 	if not success_message.is_empty():
 		_emit_actor_signal("center_notice_requested", [success_message])
 	_set_actor_global_position(sleep_target.call("get_sleep_position", actor))
-	_set_actor_rotation(sleep_target.call("get_sleep_rotation"))
+	_set_actor_global_rotation(sleep_target.call("get_sleep_rotation"))
 	_set_node_property("velocity", Vector3.ZERO)
 	_set_node_property("running", false)
 	_call_void("_set_sneaking_state", [false, false])
@@ -1131,7 +1142,7 @@ func process_seat_interaction() -> void:
 		stop_seat_assignment()
 		return
 	_set_actor_global_position(seat_target.call("get_seat_position", actor))
-	_set_actor_rotation(seat_target.call("get_seat_rotation", actor))
+	_set_actor_global_rotation(seat_target.call("get_seat_rotation", actor))
 	_set_node_property("velocity", Vector3.ZERO)
 	_set_node_property("running", false)
 	_call_void("_set_sneaking_state", [false, false])
@@ -1546,6 +1557,11 @@ func _actor_rotation() -> Vector3:
 
 func _set_actor_rotation(rotation: Vector3) -> void:
 	_set_node_property("rotation", rotation)
+
+
+func _set_actor_global_rotation(rotation: Vector3) -> void:
+	if actor is Node3D:
+		(actor as Node3D).global_rotation = rotation
 
 
 func _horizontal_distance_to(target_position: Vector3) -> float:

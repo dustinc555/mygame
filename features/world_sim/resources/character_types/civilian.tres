@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="CharacterTypeDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/character_type_definition.gd" id="1_type"]
+
+[resource]
+script = ExtResource("1_type")
+type_id = "civilian"
+display_name = "Civilian"
+starting_skill_ranges = {
+"attribute.perception": Vector2i(1, 29)
+}

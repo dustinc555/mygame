@@ -61,6 +61,7 @@ mesh = SubResource("BoxMesh_floor")
 [node name="TestBar" parent="." instance=ExtResource("4_bar")]
 transform = Transform3D(0.996195, 0, -0.0871557, 0, 1, 0, 0.0871557, 0, 0.996195, 0, 0, 0)
 facility_id = "bar_test.bar"
+building_id = "bar_test.bar.building"
 display_name = "Bar Test Bar"
 owner_faction_id = "Bar Staff"
 staff_stable_id_prefix = "npc.bar_test"

@@ -17,6 +17,7 @@ const WORLD_ITEM_STACK_RADIUS := 0.2
 const WORLD_ITEM_GROUND_RAY_UP := 3.0
 const WORLD_ITEM_GROUND_RAY_DOWN := 6.0
 const WORLD_ITEM_GROUND_RAY_MAX_SKIPS := 12
+const META_DURABLE_STACK_ID := "_durable_stack_id"
 
 @export var inventory_toggle_key := KEY_I
 
@@ -476,6 +477,11 @@ func _on_inventory_item_action_requested(inventory_owner, entry, action: String)
 	if action == "eat" and inventory_owner.has_method("eat_item"):
 		inventory_owner.eat_item(entry.definition)
 		return
+	if action == "read":
+		var read_controller := _context.get_optional(&"item_read")
+		if read_controller != null:
+			read_controller.read_inventory_item(_get_inventory_owner_actor(inventory_owner), entry)
+		return
 	if action.begins_with("take_silver_"):
 		_take_silver_from_pouch(inventory_owner, entry, action)
 
@@ -483,7 +489,8 @@ func _on_inventory_item_action_requested(inventory_owner, entry, action: String)
 func _on_inventory_equip_requested(source_owner, entry, target_owner, slot_name: String) -> void:
 	if source_owner == null or target_owner == null or entry == null:
 		return
-	if not target_owner.has_method("can_equip_item_to_slot") or not target_owner.can_equip_item_to_slot(entry.definition, slot_name):
+	var target_equipment := _get_owner_equipment(target_owner)
+	if target_equipment == null or not target_equipment.can_equip_item_to_slot(entry.definition, slot_name):
 		_show_floating_notice("Cannot equip")
 		return
 	if source_owner != target_owner:
@@ -499,11 +506,17 @@ func _on_inventory_equip_requested(source_owner, entry, target_owner, slot_name:
 		return
 	if not _try_pay_for_equipment_transfer(source_owner, target_owner, entry):
 		return
+	var replaced_stack_id := target_equipment.get_equipped_stack_id(slot_name)
+	var replaced = target_equipment.equip_item_to_slot(entry.definition, slot_name, str(entry.stack_id))
 	if not source_inventory.remove_entry(entry):
+		target_equipment.unequip_item_from_slot(slot_name)
+		if replaced != null:
+			target_equipment.equip_item_to_slot(replaced, slot_name, replaced_stack_id)
+		source_inventory.changed.emit()
 		return
-	var replaced = target_owner.equip_item_to_slot(entry.definition, slot_name)
-	if replaced != null and not _try_store_replaced_equipment(source_owner, target_owner, replaced):
-		_start_cursor_item_drag(target_owner, replaced, 1)
+	if replaced != null and not _try_store_replaced_equipment(source_owner, target_owner, replaced, replaced_stack_id):
+		var replaced_snapshot := _stack_snapshot(replaced_stack_id)
+		_start_cursor_item_drag(target_owner, replaced, 1, replaced_snapshot.get("contained_item_counts", {}), replaced_snapshot.get("metadata", {}), replaced_stack_id)
 	_refresh_inventory_windows_for(source_owner, target_owner)
 
 
@@ -513,27 +526,30 @@ func _on_equipment_transfer_requested(source_owner, source_slot_name: String, ta
 	if source_owner != target_owner and _owners_too_far(source_owner, target_owner):
 		_show_floating_notice("Too far away")
 		return
-	if not source_owner.has_method("get_equipped_item") or not source_owner.has_method("unequip_item_from_slot"):
+	var source_equipment := _get_owner_equipment(source_owner)
+	var target_equipment := _get_owner_equipment(target_owner)
+	if source_equipment == null or target_equipment == null:
 		return
-	if not target_owner.has_method("can_equip_item_to_slot") or not target_owner.has_method("equip_item_to_slot"):
-		return
-	var moving_item: ItemDefinition = source_owner.get_equipped_item(source_slot_name)
-	if moving_item == null or not target_owner.can_equip_item_to_slot(moving_item, target_slot_name):
+	var moving_item: ItemDefinition = source_equipment.get_equipped_item(source_slot_name)
+	if moving_item == null or not target_equipment.can_equip_item_to_slot(moving_item, target_slot_name):
 		_show_floating_notice("Cannot equip")
 		return
 	if source_owner == target_owner and source_slot_name == target_slot_name:
 		return
-	var target_previous: ItemDefinition = target_owner.get_equipped_item(target_slot_name)
-	var can_swap_back: bool = target_previous != null and source_owner.has_method("can_equip_item_to_slot") and source_owner.has_method("equip_item_to_slot") and source_owner.can_equip_item_to_slot(target_previous, source_slot_name)
-	var batched_owners := _begin_equipment_update_batch(source_owner, target_owner)
-	source_owner.unequip_item_from_slot(source_slot_name)
-	var replaced = target_owner.equip_item_to_slot(moving_item, target_slot_name)
+	var target_previous: ItemDefinition = target_equipment.get_equipped_item(target_slot_name)
+	var moving_stack_id := source_equipment.get_equipped_stack_id(source_slot_name)
+	var target_previous_stack_id := target_equipment.get_equipped_stack_id(target_slot_name)
+	var can_swap_back: bool = target_previous != null and source_equipment.can_equip_item_to_slot(target_previous, source_slot_name)
+	var batched_equipment := _begin_equipment_update_batch(source_equipment, target_equipment)
+	source_equipment.unequip_item_from_slot(source_slot_name)
+	var replaced = target_equipment.equip_item_to_slot(moving_item, target_slot_name, moving_stack_id)
 	if replaced != null:
 		if can_swap_back:
-			source_owner.equip_item_to_slot(replaced, source_slot_name)
+			source_equipment.equip_item_to_slot(replaced, source_slot_name, target_previous_stack_id)
 		else:
-			_start_cursor_item_drag(target_owner, replaced, 1)
-	_end_equipment_update_batch(batched_owners)
+			var replaced_snapshot := _stack_snapshot(target_previous_stack_id)
+			_start_cursor_item_drag(target_owner, replaced, 1, replaced_snapshot.get("contained_item_counts", {}), replaced_snapshot.get("metadata", {}), target_previous_stack_id)
+	_end_equipment_update_batch(batched_equipment)
 	_refresh_inventory_windows_for(source_owner, target_owner)
 
 
@@ -547,9 +563,10 @@ func _on_inventory_unequip_requested(source_owner, slot_name: String, target_own
 		if _owners_too_far(source_owner, target_owner):
 			_show_floating_notice("Too far away")
 			return
-	if not source_owner.has_method("get_equipped_item") or not source_owner.has_method("unequip_item_from_slot"):
+	var source_equipment := _get_owner_equipment(source_owner)
+	if source_equipment == null:
 		return
-	var item: ItemDefinition = source_owner.get_equipped_item(slot_name)
+	var item: ItemDefinition = source_equipment.get_equipped_item(slot_name)
 	var target_inventory = _get_owner_inventory(target_owner)
 	if item == null or target_inventory == null:
 		return
@@ -559,10 +576,19 @@ func _on_inventory_unequip_requested(source_owner, slot_name: String, target_own
 	if not target_inventory.can_place_item(item, target_cell):
 		_show_floating_notice("No room")
 		return
-	var removed: ItemDefinition = source_owner.unequip_item_from_slot(slot_name)
+	var stack_id := source_equipment.get_equipped_stack_id(slot_name)
+	var snapshot := _stack_snapshot(stack_id)
+	var removed: ItemDefinition = source_equipment.unequip_item_from_slot(slot_name)
 	if removed == null:
 		return
-	target_inventory.entries.append(InventoryData.InventoryEntry.new(removed, target_cell, 1))
+	target_inventory.entries.append(target_inventory.create_entry(
+		removed,
+		target_cell,
+		int(snapshot.get("count", 1)),
+		(snapshot.get("contained_item_counts", {}) as Dictionary).duplicate(true),
+		(snapshot.get("metadata", {}) as Dictionary).duplicate(true),
+		stack_id
+	))
 	target_inventory.changed.emit()
 	_refresh_inventory_windows_for(source_owner, target_owner)
 
@@ -580,16 +606,19 @@ func _on_inventory_item_drop_requested(source_owner, entry) -> void:
 	var metadata: Dictionary = _stolen_take_metadata(source_owner, null, entry.metadata.duplicate(true))
 	if not source_inventory.remove_entry(entry):
 		return
-	_spawn_world_item(source_owner, entry.definition, entry.count, contained_item_counts, metadata)
+	_spawn_world_item(source_owner, entry.definition, entry.count, contained_item_counts, metadata, entry.stack_id)
 
 
 func _on_inventory_equipment_drop_requested(source_owner, slot_name: String) -> void:
-	if source_owner == null or not source_owner.has_method("unequip_item_from_slot"):
+	var source_equipment := _get_owner_equipment(source_owner)
+	if source_equipment == null:
 		return
-	var item: ItemDefinition = source_owner.unequip_item_from_slot(slot_name)
+	var stack_id := source_equipment.get_equipped_stack_id(slot_name)
+	var snapshot := _stack_snapshot(stack_id)
+	var item: ItemDefinition = source_equipment.unequip_item_from_slot(slot_name)
 	if item == null:
 		return
-	_spawn_world_item(source_owner, item, 1)
+	_spawn_world_item(source_owner, item, int(snapshot.get("count", 1)), snapshot.get("contained_item_counts", {}), snapshot.get("metadata", {}), stack_id)
 
 
 func _on_cursor_item_place_requested(data: Dictionary, target_owner, target_cell: Vector2i) -> void:
@@ -655,7 +684,8 @@ func _on_cursor_item_equip_requested(data: Dictionary, target_owner, slot_name: 
 	if definition == null or target_owner == null:
 		_keep_cursor_drag(data)
 		return
-	if not target_owner.has_method("can_equip_item_to_slot") or not target_owner.can_equip_item_to_slot(definition, slot_name):
+	var target_equipment := _get_owner_equipment(target_owner)
+	if target_equipment == null or not target_equipment.can_equip_item_to_slot(definition, slot_name):
 		_show_floating_notice("Cannot equip")
 		_keep_cursor_drag(data)
 		return
@@ -668,9 +698,13 @@ func _on_cursor_item_equip_requested(data: Dictionary, target_owner, slot_name: 
 			_show_floating_notice("Too far away")
 			_keep_cursor_drag(data)
 			return
-	var replaced = target_owner.equip_item_to_slot(definition, slot_name)
+	var incoming_metadata := (data.get("metadata", {}) as Dictionary).duplicate(true)
+	var incoming_stack_id := str(incoming_metadata.get(META_DURABLE_STACK_ID, ""))
+	var replaced_stack_id := target_equipment.get_equipped_stack_id(slot_name)
+	var replaced = target_equipment.equip_item_to_slot(definition, slot_name, incoming_stack_id)
 	if replaced != null:
-		_replace_cursor_drag(data, target_owner, replaced, 1)
+		var replaced_snapshot := _stack_snapshot(replaced_stack_id)
+		_replace_cursor_drag(data, target_owner, replaced, 1, replaced_snapshot.get("contained_item_counts", {}), replaced_snapshot.get("metadata", {}), replaced_stack_id)
 	else:
 		_consume_cursor_drag(data)
 	_refresh_inventory_windows_for(source_owner, target_owner)
@@ -682,7 +716,9 @@ func _on_cursor_item_dropped_outside(source_owner, definition: ItemDefinition, c
 	# (witnesses, law report) and spawn the item regardless, marked stolen.
 	_authorize_container_take(source_owner, null)
 	metadata = _stolen_take_metadata(source_owner, null, metadata)
-	_spawn_world_item(source_owner, definition, count, contained_item_counts, metadata)
+	var stack_id := str(metadata.get(META_DURABLE_STACK_ID, ""))
+	metadata.erase(META_DURABLE_STACK_ID)
+	_spawn_world_item(source_owner, definition, count, contained_item_counts, metadata, stack_id)
 
 
 func _get_owner_inventory(inventory_owner):
@@ -691,6 +727,12 @@ func _get_owner_inventory(inventory_owner):
 	if inventory_owner == null:
 		return null
 	return inventory_owner.inventory
+
+
+func _get_owner_equipment(inventory_owner) -> EquipmentCapability:
+	if inventory_owner == null or not inventory_owner.has_method("get_equipment"):
+		return null
+	return inventory_owner.get_equipment() as EquipmentCapability
 
 
 func _refresh_inventory_windows_for(owner_a, owner_b = null) -> void:
@@ -702,7 +744,7 @@ func _refresh_inventory_windows_for(owner_a, owner_b = null) -> void:
 			window.refresh()
 
 
-func _spawn_world_item(source_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
+func _spawn_world_item(source_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}, stack_id := "") -> void:
 	if root_scene == null or definition == null or count <= 0:
 		return
 	var drop_position_value = _get_world_drop_position(source_owner)
@@ -710,17 +752,34 @@ func _spawn_world_item(source_owner, definition: ItemDefinition, count: int, con
 		return
 	var requested_drop_position: Vector3 = drop_position_value
 	var stack := _get_world_item_stack(requested_drop_position)
-	var drop_position: Vector3 = stack["position"]
-	var next_bottom_y: float = stack["next_bottom_y"]
-	for _index in range(count):
-		var world_item := WORLD_ITEM_SCENE.instantiate() as WorldItem
-		if world_item == null:
-			return
-		root_scene.add_child(world_item)
-		world_item.setup(definition, 1, contained_item_counts if _index == 0 else {})
-		world_item.item_metadata = metadata.duplicate(true) if _index == 0 else metadata.duplicate(true)
-		var item_height := world_item.place_bottom_at(drop_position, next_bottom_y)
-		next_bottom_y += maxf(item_height, 0.05)
+	var world_item := WORLD_ITEM_SCENE.instantiate() as WorldItem
+	if world_item == null:
+		return
+	world_item.setup(definition, count, contained_item_counts, stack_id)
+	world_item.item_metadata = metadata.duplicate(true)
+	root_scene.add_child(world_item)
+	world_item.place_bottom_at(stack["position"], float(stack["next_bottom_y"]))
+	var lifecycle := _context.get_optional(ItemLifecycleController.SERVICE_ID) as ItemLifecycleController
+	if lifecycle == null:
+		world_item.queue_free()
+		return
+	var result := lifecycle.submit_world_stack({
+		"stack_id": world_item.stack_id,
+		"container_id": "world",
+		"owner_actor_id": "",
+		"item_definition_path": definition.resource_path,
+		"count": count,
+		"grid_position": Vector2i.ZERO,
+		"contained_item_counts": contained_item_counts.duplicate(true),
+		"metadata": metadata.duplicate(true),
+		"location_kind": "world_loose",
+		"world_transform": world_item.global_transform,
+		"placement_host_id": "",
+		"placement_slot_id": "",
+		"location_settlement_id": "",
+	})
+	if not bool(result.get("accepted", false)):
+		world_item.queue_free()
 
 
 func _get_world_drop_position(source_owner) -> Variant:
@@ -834,27 +893,30 @@ func _get_world_item_stack(drop_position: Vector3) -> Dictionary:
 	return {"position": stack_position, "next_bottom_y": next_bottom_y}
 
 
-func _start_cursor_item_drag(drag_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
+func _start_cursor_item_drag(drag_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}, stack_id := "") -> void:
 	if definition == null or count <= 0:
 		return
 	_ensure_cursor_item_drag_source()
-	cursor_item_drag_source.start_drag(drag_owner, definition, count, contained_item_counts, metadata)
+	var drag_metadata := metadata.duplicate(true)
+	if not stack_id.is_empty():
+		drag_metadata[META_DURABLE_STACK_ID] = stack_id
+	cursor_item_drag_source.start_drag(drag_owner, definition, count, contained_item_counts, drag_metadata)
 
 
-func _begin_equipment_update_batch(owner_a, owner_b = null) -> Array:
-	var owners := []
-	for inventory_owner in [owner_a, owner_b]:
-		if inventory_owner == null or owners.has(inventory_owner) or not inventory_owner.has_method("begin_equipment_update_batch"):
+func _begin_equipment_update_batch(equipment_a, equipment_b = null) -> Array:
+	var capabilities := []
+	for equipment in [equipment_a, equipment_b]:
+		if equipment == null or capabilities.has(equipment):
 			continue
-		inventory_owner.begin_equipment_update_batch()
-		owners.append(inventory_owner)
-	return owners
+		equipment.begin_equipment_update_batch()
+		capabilities.append(equipment)
+	return capabilities
 
 
-func _end_equipment_update_batch(owners: Array) -> void:
-	for inventory_owner in owners:
-		if inventory_owner != null and inventory_owner.has_method("end_equipment_update_batch"):
-			inventory_owner.end_equipment_update_batch()
+func _end_equipment_update_batch(capabilities: Array) -> void:
+	for equipment in capabilities:
+		if equipment != null:
+			equipment.end_equipment_update_batch()
 
 
 func _consume_cursor_drag(data: Dictionary) -> void:
@@ -869,22 +931,33 @@ func _keep_cursor_drag(data: Dictionary) -> void:
 		source.keep_drag(int(data.get("cursor_drag_id", 0)))
 
 
-func _replace_cursor_drag(data: Dictionary, drag_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> void:
+func _replace_cursor_drag(data: Dictionary, drag_owner, definition: ItemDefinition, count: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}, stack_id := "") -> void:
 	var source = data.get("cursor_source", null)
 	if source != null and source.has_method("replace_drag_item"):
-		source.replace_drag_item(int(data.get("cursor_drag_id", 0)), drag_owner, definition, count, contained_item_counts, metadata)
+		var drag_metadata := metadata.duplicate(true)
+		if not stack_id.is_empty():
+			drag_metadata[META_DURABLE_STACK_ID] = stack_id
+		source.replace_drag_item(int(data.get("cursor_drag_id", 0)), drag_owner, definition, count, contained_item_counts, drag_metadata)
 
 
-func _try_store_replaced_equipment(source_owner, target_owner, definition: ItemDefinition) -> bool:
+func _try_store_replaced_equipment(source_owner, target_owner, definition: ItemDefinition, stack_id := "") -> bool:
 	if definition == null:
 		return true
+	var snapshot := _stack_snapshot(stack_id)
 	var source_inventory = _get_owner_inventory(source_owner)
 	if source_inventory != null and _get_merchant_role(source_owner) == null and source_inventory.can_add_item(definition):
-		return source_inventory.add_item(definition)
+		return source_inventory.add_entry_with_contents(definition, int(snapshot.get("count", 1)), snapshot.get("contained_item_counts", {}), snapshot.get("metadata", {}), stack_id)
 	var target_inventory = _get_owner_inventory(target_owner)
 	if target_inventory != null and target_inventory != source_inventory and target_inventory.can_add_item(definition):
-		return target_inventory.add_item(definition)
+		return target_inventory.add_entry_with_contents(definition, int(snapshot.get("count", 1)), snapshot.get("contained_item_counts", {}), snapshot.get("metadata", {}), stack_id)
 	return false
+
+
+func _stack_snapshot(stack_id: String) -> Dictionary:
+	if stack_id.is_empty() or _context == null:
+		return {}
+	var gecs := _context.get_optional(GecsWorldController.SERVICE_ID)
+	return gecs.call("get_item_stack", stack_id) if gecs != null and gecs.has_method("get_item_stack") else {}
 
 
 ## Feasibility half of _place_cursor_item_in_inventory (shows the same
@@ -905,7 +978,10 @@ func _can_place_cursor_item_in_inventory(target_inventory, definition: ItemDefin
 func _place_cursor_item_in_inventory(target_inventory, definition: ItemDefinition, count: int, target_cell: Vector2i, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> bool:
 	if not _can_place_cursor_item_in_inventory(target_inventory, definition, count, target_cell, contained_item_counts):
 		return false
-	target_inventory.entries.append(InventoryData.InventoryEntry.new(definition, target_cell, count, contained_item_counts, metadata))
+	var item_metadata := metadata.duplicate(true)
+	var stack_id := str(item_metadata.get(META_DURABLE_STACK_ID, ""))
+	item_metadata.erase(META_DURABLE_STACK_ID)
+	target_inventory.entries.append(target_inventory.create_entry(definition, target_cell, count, contained_item_counts, item_metadata, stack_id))
 	target_inventory.changed.emit()
 	return true
 
@@ -936,12 +1012,17 @@ func _try_sell_cursor_item(source_owner, merchant_owner, definition: ItemDefinit
 		return false
 	merchant_inventory.remove_item_count(SILVER_ITEM, price)
 	source_owner.inventory.add_item_count(SILVER_ITEM, price)
-	merchant_inventory.entries.append(InventoryData.InventoryEntry.new(definition, target_cell, count, {}, metadata))
+	var item_metadata := metadata.duplicate(true)
+	var stack_id := str(item_metadata.get(META_DURABLE_STACK_ID, ""))
+	item_metadata.erase(META_DURABLE_STACK_ID)
+	merchant_inventory.entries.append(merchant_inventory.create_entry(definition, target_cell, count, {}, item_metadata, stack_id))
 	merchant_inventory.changed.emit()
 	return true
 
 
 func _try_pay_for_equipment_transfer(source_owner, target_owner, entry) -> bool:
+	if source_owner == target_owner:
+		return true
 	var source_role = _get_merchant_role(source_owner)
 	var target_role = _get_merchant_role(target_owner)
 	if source_role == null and target_role == null:

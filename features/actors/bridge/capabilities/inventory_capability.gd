@@ -45,6 +45,8 @@ func initialize_from_actor() -> bool:
 			actor.max_carry_weight,
 			true
 		)
+		if not actor.stable_id.strip_edges().is_empty():
+			inventory.configure_stack_allocator("%s.inventory" % actor.stable_id)
 	_connect_inventory(inventory)
 	if _initialized:
 		return true
@@ -71,9 +73,17 @@ func apply_population_inventory_entries_if_present() -> void:
 	if not _ensure_inventory_ready() or not actor.has_meta("population_inventory_entries"):
 		return
 	var snapshots: Array = actor.get_meta("population_inventory_entries")
-	if snapshots.is_empty():
+	hydrate_population_entries(snapshots)
+
+
+func hydrate_population_entries(snapshots: Array, emit_changed := true) -> void:
+	if not _ensure_inventory_ready():
 		return
 	inventory.entries.clear()
+	if snapshots.is_empty():
+		if emit_changed:
+			inventory.changed.emit()
+		return
 	for snapshot_value in snapshots:
 		if not (snapshot_value is Dictionary):
 			continue
@@ -85,14 +95,16 @@ func apply_population_inventory_entries_if_present() -> void:
 		if definition == null:
 			continue
 		var grid_position: Vector2i = snapshot.get("grid_position", Vector2i.ZERO)
-		inventory.entries.append(InventoryData.InventoryEntry.new(
+		inventory.entries.append(inventory.create_entry(
 			definition,
 			grid_position,
 			maxi(1, int(snapshot.get("count", 1))),
 			(snapshot.get("contained_item_counts", {}) as Dictionary).duplicate(true),
-			(snapshot.get("metadata", {}) as Dictionary).duplicate(true)
+			(snapshot.get("metadata", {}) as Dictionary).duplicate(true),
+			str(snapshot.get("stack_id", ""))
 		))
-	inventory.changed.emit()
+	if emit_changed:
+		inventory.changed.emit()
 
 
 func set_work_inventory(next_work_inventory: InventoryData) -> void:

@@ -4,23 +4,13 @@ extends "res://features/settlements/bridge/settlement_anchor.gd"
 
 class_name SettlementTown
 
-const FACTION_HUMANOID_SCRIPT = preload("res://features/actors/projection/humanoid/faction_humanoid.gd")
 const SETTLEMENT_GUARD_POST_SCRIPT = preload("res://features/settlements/bridge/venues/settlement_guard_post.gd")
-const BANDAGE_ITEM = preload("res://features/inventory/resources/items/bandage.tres")
-const CINDER_FLASK_ITEM = preload("res://features/inventory/resources/items/cinder_flask.tres")
-const HATCHET_ITEM = preload("res://features/inventory/resources/items/hatchet.tres")
-const ROUND_SHIELD_ITEM = preload("res://features/inventory/resources/items/round_shield.tres")
 const STAFF_ROLE_OWNER_GROUP := "settlement_staff_role_owner"
 const META_SETTLEMENT_ROLE := "settlement_staff_role"
 const META_SETTLEMENT_ROLE_INDEX := "settlement_staff_role_index"
 const META_SETTLEMENT_SLOT_ID := "settlement_staff_slot_id"
 const DEFAULT_REPLACEMENT_DELAY_DAYS := 7.0
-const GUARD_PERCEPTION_RANGE := Vector2i(12, 22)
 
-# Character generator defaults for everyone this town brings into the world
-# (staff, residents). Facilities inherit these unless they set their own.
-@export var population_appearance_profile: Resource
-@export var population_name_profile: Resource
 @export var facilities_root_path: NodePath = NodePath("Facilities")
 @export var keeps_root_path: NodePath = NodePath("Keeps")
 @export var bars_root_path: NodePath = NodePath("Bars")
@@ -161,13 +151,11 @@ func get_facility_nodes() -> Array:
 	return facilities
 
 
-## Flat-model facilities standing directly under the town root: composed
-## facilities (anything with a facility record) plus raw WorldBuilding
-## shells (houses).
+## Flat-model composed facilities standing directly under the town root.
 func get_direct_facility_children() -> Array:
 	var result: Array = []
 	for child in get_children():
-		if child is Node3D and (child.has_method("get_facility_record") or child is WorldBuilding):
+		if child is Node3D and child.has_method("get_facility_record"):
 			result.append(child)
 	return result
 
@@ -179,19 +167,6 @@ func get_facility_records() -> Array[Dictionary]:
 		if facility.has_method("get_facility_record"):
 			records.append(facility.call("get_facility_record", settlement_id))
 	return records
-
-
-func get_population_capacity_records() -> Array[Dictionary]:
-	var records: Array[Dictionary] = []
-	_collect_population_capacity_records(self, records, get_settlement_id())
-	return records
-
-
-func get_authored_population_capacity() -> int:
-	var total := 0
-	for record in get_population_capacity_records():
-		total += max(0, int(record.get("population_capacity", 0)))
-	return total
 
 
 func get_activity_points() -> Array:
@@ -223,47 +198,21 @@ func get_settlement_staff_slots() -> Array[Dictionary]:
 	var slots: Array[Dictionary] = []
 	for index in range(guard_count):
 		var actor := _get_guard_actor_for_slot(index)
-		if _is_actor_alive(actor):
-			_prepare_guard_actor(actor, index)
 		_append_guard_slot(slots, index, actor)
 	return slots
 
 
-func fill_settlement_staff_slot(slot_id: String, slot_record: Dictionary) -> Node:
+func get_staff_realization_parent() -> Node3D:
+	return _ensure_child_root(guards_root_path)
+
+
+func configure_settlement_staff_actor(actor: Node, slot_id: String, slot_record: Dictionary) -> void:
 	var role_index: int = max(0, int(slot_record.get("role_index", _role_index_from_slot_id(slot_id))))
-	var existing := _get_guard_actor_for_slot(role_index)
-	if _is_actor_alive(existing):
-		return existing
 	var guards_root := _ensure_child_root(guards_root_path)
-	if guards_root == null:
-		return null
-	var worker_actor_id := str(slot_record.get("worker_actor_id", "")).strip_edges()
-	var actor: Node = null
-	if not worker_actor_id.is_empty():
-		# Ledger-assigned worker: claim its specific live body if realized, else build from record.
-		actor = SettlementFacility.resolve_live_worker(self, worker_actor_id)
-		if actor != null:
-			# Adopt first: the reparent preserves global transform, so the
-			# slot-local prep position must be set after the actor hangs
-			# under the guards root.
-			SettlementFacility.adopt_staff_record(actor, worker_actor_id, slot_id, guards_root)
-			# Claimed an existing live resident body — rename it to the role node name (the build
-			# path already names its node; the claim path must match so lookups resolve the slot).
-			actor.name = _available_child_name(guards_root, _indexed_name("Guard", role_index))
-			_prepare_guard_actor(actor, role_index)
-		else:
-			actor = _create_guard_actor(role_index, guards_root)
-			if actor != null:
-				SettlementFacility.adopt_staff_record(actor, worker_actor_id, slot_id, guards_root)
-	else:
-		actor = _claim_available_resident_for_guard(role_index, guards_root)
-		if actor == null:
-			if _should_defer_guards_to_settlement_population():
-				return null
-			actor = _create_guard_actor(role_index, guards_root)
-		else:
-			_prepare_guard_actor(actor, role_index)
-	return actor
+	if actor == null or guards_root == null:
+		return
+	actor.name = _available_child_name(guards_root, _indexed_name("Guard", role_index))
+	_prepare_guard_actor(actor, role_index)
 
 
 func get_guard_actors() -> Array[Node]:
@@ -360,7 +309,6 @@ func _append_guard_slot(slots: Array[Dictionary], role_index: int, actor: Node) 
 		"authority_scope": "settlement_authority",
 	}
 	if actor != null:
-		slot["actor_path"] = get_path_to(actor) if actor.is_inside_tree() else NodePath("")
 		if not actor_alive:
 			slot["dead_actor_key"] = _actor_key(actor)
 	slots.append(slot)
@@ -392,37 +340,20 @@ func _ensure_guard_actor(root: Node, index: int) -> Node:
 	var actor := root.get_node_or_null(_indexed_name("Guard", index))
 	if actor != null and not _is_actor_alive(actor):
 		actor = null
-	if actor == null:
-		actor = _create_guard_actor(index, root)
-	else:
+	if actor != null:
 		_prepare_guard_actor(actor, index)
-	return actor
-
-
-func _create_guard_actor(index: int, root: Node) -> Node:
-	var actor := CharacterBody3D.new()
-	actor.name = _available_child_name(root, _indexed_name("Guard", index))
-	actor.position = _guard_local_position(index)
-	actor.set_script(FACTION_HUMANOID_SCRIPT)
-	_prepare_guard_actor(actor, index)
-	_add_basic_humanoid_children(actor)
-	root.add_child(actor)
-	_set_editor_owner_recursive(actor)
 	return actor
 
 
 func _prepare_guard_actor(actor: Node, index: int) -> void:
 	if actor == null:
 		return
-	if actor.get_script() != FACTION_HUMANOID_SCRIPT:
-		actor.set_script(FACTION_HUMANOID_SCRIPT)
 	actor.set_meta(META_SETTLEMENT_ROLE, "guard")
 	actor.set_meta(META_SETTLEMENT_ROLE_INDEX, index)
 	actor.set_meta(META_SETTLEMENT_SLOT_ID, _staff_slot_id("guard", index))
 	actor.set_meta("settlement_actor_category", "staff")
-	if _has_property(actor, "member_name") and (_is_generated_staff(actor) or str(actor.get("member_name")).strip_edges().is_empty() or str(actor.get("member_name")) == "Character"):
+	if _has_property(actor, "member_name") and (str(actor.get("member_name")).strip_edges().is_empty() or str(actor.get("member_name")) == "Character"):
 		actor.set("member_name", _indexed_display_name(guard_name, index))
-	_apply_role_suffix(actor, "guard")
 	var faction_id := _get_settlement_faction_id()
 	if not faction_id.is_empty() and _has_property(actor, "faction_name"):
 		actor.set("faction_name", faction_id)
@@ -430,13 +361,10 @@ func _prepare_guard_actor(actor: Node, index: int) -> void:
 		actor.set("squad_name", _get_staff_squad_name())
 	if _has_property(actor, "stable_id") and str(actor.get("stable_id")).strip_edges().is_empty():
 		actor.set("stable_id", "%s.%s" % [_get_staff_id_prefix(), _indexed_name("guard", index)])
-	if _has_property(actor, "base_attack_damage"):
-		actor.set("base_attack_damage", 12.0)
 	if _has_property(actor, "auto_heal_enabled"):
 		actor.set("auto_heal_enabled", true)
 	if _has_property(actor, "auto_burn_rustdead_enabled"):
 		actor.set("auto_burn_rustdead_enabled", true)
-	_apply_guard_starting_equipment(actor)
 	if not Engine.is_editor_hint():
 		if actor.has_method("set_settlement_authority"):
 			actor.call("set_settlement_authority", true)
@@ -444,47 +372,12 @@ func _prepare_guard_actor(actor: Node, index: int) -> void:
 			actor.call("set_private_security", false)
 		if actor.has_method("set_faction_soldier"):
 			actor.call("set_faction_soldier", true)
-	_apply_population_generation_to_actor(actor, index)
-	_apply_guard_skills(actor, index)
 	if actor is Node3D:
 		(actor as Node3D).position = _guard_local_position(index)
-	_sync_guard_actor_population_record(actor)
 
 
 func _should_defer_guards_to_settlement_population() -> bool:
 	return use_settlement_population_for_guards and not Engine.is_editor_hint()
-
-
-func _sync_guard_actor_population_record(actor: Node) -> void:
-	if actor == null or Engine.is_editor_hint() or not actor.is_inside_tree():
-		return
-	var population_controller := get_tree().get_first_node_in_group("population_controller")
-	if population_controller != null and population_controller.has_method("register_actor"):
-		population_controller.call("register_actor", actor, get_settlement_id(), {})
-
-
-func _apply_guard_starting_equipment(actor: Node) -> void:
-	if actor == null or not _has_property(actor, "starting_equipment"):
-		return
-	var starting_equipment: Array = (actor.get("starting_equipment") as Array).duplicate()
-	for item in [BANDAGE_ITEM, HATCHET_ITEM, ROUND_SHIELD_ITEM]:
-		if item == null or starting_equipment.has(item):
-			continue
-		starting_equipment.append(item)
-		var slot_name := str(item.get("equip_slot")) if _has_property(item, "equip_slot") else ""
-		if not Engine.is_editor_hint() and not slot_name.is_empty() and actor.has_method("get_equipped_item") and actor.has_method("equip_item_to_slot") and actor.call("get_equipped_item", slot_name) == null:
-			actor.call("equip_item_to_slot", item, slot_name)
-	while _count_starting_equipment_item(starting_equipment, CINDER_FLASK_ITEM) < 2:
-		starting_equipment.append(CINDER_FLASK_ITEM)
-	actor.set("starting_equipment", starting_equipment)
-
-
-func _count_starting_equipment_item(starting_equipment: Array, item: Resource) -> int:
-	var count := 0
-	for candidate in starting_equipment:
-		if candidate == item:
-			count += 1
-	return count
 
 
 func _get_guard_actor_for_slot(index: int) -> Node:
@@ -619,151 +512,6 @@ func _is_generated_staff(actor: Node) -> bool:
 	return actor != null and str(actor.get_meta(META_SETTLEMENT_ROLE, "")) == "guard"
 
 
-func _apply_role_suffix(actor: Node, role: String) -> void:
-	if actor == null or not _has_property(actor, "member_name"):
-		return
-	var display_name := _strip_role_suffix(str(actor.get("member_name"))).strip_edges()
-	if display_name.is_empty():
-		display_name = guard_name
-	actor.set("member_name", "%s (%s)" % [display_name, role])
-	if not Engine.is_editor_hint() and actor.is_inside_tree() and actor.has_method("refresh_nameplate"):
-		actor.call("refresh_nameplate")
-
-
-func _strip_role_suffix(display_name: String) -> String:
-	var result := display_name.strip_edges()
-	var suffix_start := result.rfind(" (")
-	if suffix_start >= 0 and result.ends_with(")"):
-		return result.substr(0, suffix_start).strip_edges()
-	return result
-
-
-func _apply_population_generation_to_actor(actor: Node, index: int) -> void:
-	if actor == null or Engine.is_editor_hint() or not _is_generated_staff(actor):
-		return
-	var appearance_profile := _get_effective_population_appearance_profile()
-	var seed_key := "%s:%d:%s" % [_get_staff_id_prefix(), index, str(actor.name)]
-	if appearance_profile != null and appearance_profile.has_method("apply_to_actor"):
-		appearance_profile.call("apply_to_actor", actor, _make_staff_rng("appearance:%s" % seed_key), true)
-	var name_profile := _get_effective_population_name_profile()
-	if name_profile != null and name_profile.has_method("generate_name") and _has_property(actor, "member_name"):
-		var appearance = actor.get("appearance_data")
-		var body_type := int(appearance.visual_body_type) if appearance != null else 0
-		var generated_name := str(name_profile.call("generate_name", body_type, _make_staff_rng("name:%s" % seed_key), _used_staff_names(actor))).strip_edges()
-		if not generated_name.is_empty():
-			actor.set("member_name", generated_name)
-			_apply_role_suffix(actor, "guard")
-
-
-func _apply_guard_skills(actor: Node, index: int) -> void:
-	if actor == null or Engine.is_editor_hint() or not actor.has_method("get_skill_level") or not actor.has_method("set_skill_level"):
-		return
-	if int(actor.call("get_skill_level", SkillRules.ATTRIBUTE_PERCEPTION)) > SkillRules.DEFAULT_LEVEL:
-		return
-	var rng := _make_staff_rng("skill:%d:%s" % [index, str(actor.name)])
-	actor.call("set_skill_level", SkillRules.ATTRIBUTE_PERCEPTION, _roll_center_biased_level(GUARD_PERCEPTION_RANGE.x, GUARD_PERCEPTION_RANGE.y, rng))
-	SettlementFacility.apply_guard_stat_tiers(actor, rng)
-
-
-## Public: facilities inherit through these — changing the town's generator
-## changes every facility that hasn't set its own.
-func get_effective_population_appearance_profile() -> Resource:
-	return _get_effective_population_appearance_profile()
-
-
-func get_effective_population_name_profile() -> Resource:
-	return _get_effective_population_name_profile()
-
-
-func _get_effective_population_appearance_profile() -> Resource:
-	if _has_property(self, "population_appearance_profile"):
-		var direct := get("population_appearance_profile") as Resource
-		if direct != null:
-			return direct
-	var found := _find_population_appearance_profile(self)
-	if found != null:
-		return found
-	return _definition_chain_population_profile("population_appearance_profile")
-
-
-func _get_effective_population_name_profile() -> Resource:
-	if _has_property(self, "population_name_profile"):
-		var direct := get("population_name_profile") as Resource
-		if direct != null:
-			return direct
-	var definition = settlement_definition
-	var profile: Resource = null
-	if definition != null and definition.has_method("get_population_name_profile"):
-		profile = definition.call("get_population_name_profile") as Resource
-	elif definition != null and _has_property(definition, "population_name_profile"):
-		profile = definition.get("population_name_profile") as Resource
-	if profile != null:
-		return profile
-	return _definition_chain_population_profile("population_name_profile")
-
-
-## Settlement-definition fallback chain: the definition's own generator
-## profile, then its faction's.
-func _definition_chain_population_profile(property_name: String) -> Resource:
-	var definition = settlement_definition
-	if definition == null:
-		return null
-	var profile := definition.get(property_name) as Resource
-	if profile != null:
-		return profile
-	var faction := definition.get("faction_definition") as Resource
-	if faction != null:
-		return faction.get(property_name) as Resource
-	return null
-
-
-func _find_population_appearance_profile(root: Node) -> Resource:
-	if root == null:
-		return null
-	# A facility's own generator override is facility-local; it must never
-	# leak out as the town default for its siblings.
-	if root != self and root is SettlementFacility:
-		return null
-	if _has_property(root, "population_appearance_profile"):
-		var profile := root.get("population_appearance_profile") as Resource
-		if profile != null:
-			return profile
-	for child in root.get_children():
-		var profile := _find_population_appearance_profile(child)
-		if profile != null:
-			return profile
-	return null
-
-
-func _used_staff_names(excluded_staff: Node = null) -> Dictionary:
-	var names := {}
-	var root := get_node_or_null(guards_root_path)
-	if root == null:
-		return names
-	for child in root.get_children():
-		if child == excluded_staff or not _has_property(child, "member_name"):
-			continue
-		var display_name := _strip_role_suffix(str(child.get("member_name"))).strip_edges()
-		if not display_name.is_empty():
-			names[display_name.to_lower()] = true
-	return names
-
-
-func _make_staff_rng(seed_key: String) -> RandomNumberGenerator:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = max(1, absi(seed_key.hash()))
-	return rng
-
-
-func _roll_center_biased_level(minimum: int, maximum: int, rng: RandomNumberGenerator) -> int:
-	var low := mini(minimum, maximum)
-	var high := maxi(minimum, maximum)
-	if low == high:
-		return low
-	var t := (rng.randf() + rng.randf()) * 0.5
-	return clampi(int(round(lerpf(float(low), float(high), t))), low, high)
-
-
 ## Public accessor for the owning faction id (the world-sim brains read this to decide
 ## raids and defenders). Resolves through the settlement/faction definitions.
 func get_faction_id() -> String:
@@ -838,26 +586,6 @@ func _ensure_child_root(root_path: NodePath) -> Node:
 	return root
 
 
-func _add_basic_humanoid_children(actor: Node) -> void:
-	if actor.get_node_or_null("CollisionShape3D") == null:
-		var collision := CollisionShape3D.new()
-		collision.name = "CollisionShape3D"
-		collision.transform = Transform3D(Basis(), Vector3(0.0, 0.95, 0.0))
-		var capsule_shape := CapsuleShape3D.new()
-		capsule_shape.radius = 0.4
-		capsule_shape.height = 1.1
-		collision.shape = capsule_shape
-		actor.add_child(collision)
-	if actor.get_node_or_null("BodyMesh") == null:
-		var body := MeshInstance3D.new()
-		body.name = "BodyMesh"
-		body.transform = Transform3D(Basis(), Vector3(0.0, 0.95, 0.0))
-		var capsule_mesh := CapsuleMesh.new()
-		capsule_mesh.radius = 0.4
-		body.mesh = capsule_mesh
-		actor.add_child(body)
-
-
 func _has_property(target: Object, property_name: String) -> bool:
 	if target == null:
 		return false
@@ -887,18 +615,6 @@ func _collect_facilities(root: Node, facilities: Array) -> void:
 		if child.has_method("get_facility_record") and not facilities.has(child):
 			facilities.append(child)
 		_collect_facilities(child, facilities)
-
-
-func _collect_population_capacity_records(root: Node, records: Array[Dictionary], settlement_id: String) -> void:
-	for child in root.get_children():
-		if child.is_in_group("settlement_town"):
-			continue
-		if child.has_method("get_population_capacity_record"):
-			var record: Dictionary = child.call("get_population_capacity_record", settlement_id)
-			if int(record.get("population_capacity", 0)) > 0:
-				records.append(record)
-			continue
-		_collect_population_capacity_records(child, records, settlement_id)
 
 
 func _get_border_root_paths() -> Array[NodePath]:

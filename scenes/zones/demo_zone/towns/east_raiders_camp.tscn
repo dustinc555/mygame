@@ -67,14 +67,16 @@ outline_size = 18
 
 [node name="TinyHome" parent="Housing" unique_id=1162182109 instance=ExtResource("2_house")]
 transform = Transform3D(0.999391, 0, -0.0348995, 0, 1, 0, 0.0348995, 0, 0.999391, -12.236639, 0, -21.96903)
-owner_faction_name = "EastRaiders"
-population_capacity_id = "east_raiders_camp.tiny_home"
+building_id = "east_raiders_camp.tiny_home"
+settlement_id = "east_raiders_camp"
+owner_faction_id = "EastRaiders"
 
 [node name="Facilities" type="Node3D" parent="." unique_id=1845084245]
 
 [node name="Jail" parent="Facilities" unique_id=226395233 instance=ExtResource("3_jail")]
 transform = Transform3D(-0.996195, 0, -0.0871557, 0, 1, 0, 0.0871557, 0, -0.996195, 9, 0, 10)
 facility_id = "east_raiders_camp.jail"
+building_id = "east_raiders_camp.jail.building"
 display_name = "East Raider Jail"
 owner_faction_id = "EastRaiders"
 
@@ -83,6 +85,7 @@ transform = Transform3D(-0.9981983, 0, 0.060003355, 0, 1, 0, -0.060003355, 0, -0
 storage_root_path = NodePath("")
 job_providers_root_path = NodePath("")
 facility_id = "east_raiders_camp.bar"
+building_id = "east_raiders_camp.bar.building"
 display_name = "East Raider Bar"
 owner_faction_id = "EastRaiders"
 
@@ -94,6 +97,7 @@ guard_name = "Raider Guard"
 staff_stable_id_prefix = "npc.east_raiders_camp.keep"
 staff_squad_name = "EastRaiders"
 facility_id = "east_raiders_camp.keep"
+building_id = "east_raiders_camp.keep.building"
 display_name = "East Raider Keep"
 owner_faction_id = "EastRaiders"
 

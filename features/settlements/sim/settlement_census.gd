@@ -106,7 +106,8 @@ func _resolve_generation_seed(definition: SettlementDefinition) -> int:
 
 
 func _generation_context(definition: SettlementDefinition, generation_seed: int) -> Dictionary:
-	var faction := definition.faction_definition
+	var type_set := definition.get_character_type_set()
+	var character_type := type_set.call("resolve_character_type", "", "resident") as Resource if type_set != null and type_set.has_method("resolve_character_type") else null
 	return {
 		"role_id": "resident",
 		"faction_id": definition.get_faction_id(),
@@ -114,7 +115,8 @@ func _generation_context(definition: SettlementDefinition, generation_seed: int)
 		"member_name_prefix": "Resident",
 		"generation_seed": generation_seed,
 		"population_name_profile": definition.get_population_name_profile(),
-		"population_appearance_profile": faction.get("population_appearance_profile") if faction != null else null,
+		"population_appearance_profile": definition.get_character_realizer(),
+		"character_type": character_type,
 	}
 
 
@@ -145,9 +147,8 @@ func _on_day_changed(_day_index: int) -> void:
 
 
 ## How many new residents (births/arrivals) a settlement gains today.
-## state carries: "population", "population_target" (housing cap), "fear"
-## (0-1), "food_ratio" (0-1), "pressure_state" ("supplied"/"hungry"/
-## "starving"), "wealth", "supplies". definition carries
+## state carries population, housing, fear, wealth, and supplies. Food
+## pressure is read from SettlementFoodController when growth is implemented.
 ## population_growth_per_day (authored base rate) and
 ## get_occupancy_multiplier(). Return 0 to stall growth.
 @warning_ignore("unused_parameter")

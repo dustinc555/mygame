@@ -4,26 +4,164 @@ extends Node3D
 class_name SettlementFacility
 
 @export var facility_id := ""
+@export var building_id := ""
 @export var display_name := "Facility"
-@export_enum("generic", "housing", "farm", "mine", "bar", "shop", "storage", "guard", "social", "police", "weapon_shop", "armor_shop", "travel_shop", "potion_shop", "tavern", "keep") var facility_type := "generic"
+@export_enum("generic", "housing", "farm", "mine", "bar", "jail", "shop", "storage", "guard", "social", "police", "weapon_shop", "armor_shop", "travel_shop", "potion_shop", "tavern", "keep") var facility_type := "generic"
 @export var owner_faction_id := ""
+@export_group("Door Policy")
+@export_enum("private", "public") var door_access_policy := "private":
+	set(value):
+		door_access_policy = value
+		_refresh_door_authoring()
+@export_enum("door_default", "closed", "open", "locked") var door_initial_state := "door_default"
+@export var door_schedule_enabled := false:
+	set(value):
+		door_schedule_enabled = value
+		_refresh_door_authoring()
+@export_range(0, 23, 1) var door_open_hour := 8:
+	set(value):
+		door_open_hour = clampi(value, 0, 23)
+		_refresh_door_authoring()
+@export_range(0, 23, 1) var door_close_hour := 21:
+	set(value):
+		door_close_hour = clampi(value, 0, 23)
+		_refresh_door_authoring()
+@export var doors_keep_open_during_hours := false
+@export_group("")
+@export_group("Character Realization")
+@export var population_appearance_profile: Resource
+@export var population_name_profile: Resource
+@export var character_type_set: Resource
+## Optional per-role or per-slot type override. Keys are role IDs or
+## "role:index"; empty/missing values use the effective type set's role map.
+@export var staff_character_type_ids: Dictionary = {}
+@export_group("")
 @export var enabled := true
-@export var food_production_per_day := 0.0
-@export var food_consumption_per_day := 0.0
+## Optional abstract capacity floor. Physical SleepableBed children always
+## contribute and the assigned neutral shell receives the effective total.
+@export_range(0, 1000, 1) var housing_capacity := 0
+@export var food_outputs_per_day: Array[Resource] = []
 @export var storage_capacity_bonus := 0.0
 @export var activity_points_root_path: NodePath
 @export var linked_node_paths: Array[NodePath] = []
 
 
+func _enter_tree() -> void:
+	stamp_building_identity()
+
+
 func _ready() -> void:
 	add_to_group("settlement_facility")
+	stamp_building_identity()
+
+
+func stamp_building_identity() -> void:
+	_stamp_building_identity(self)
+
+
+func stamp_building_node_identity(node: Node) -> void:
+	_stamp_building_identity(node)
+
+
+func _stamp_building_identity(node: Node) -> void:
+	if "building_id" in node and "settlement_id" in node and "facility_id" in node and "building_type" in node:
+		var effective_facility_id := get_facility_id()
+		node.set("building_id", building_id if not building_id.strip_edges().is_empty() else "%s.building" % effective_facility_id)
+		node.set("facility_id", effective_facility_id)
+		node.set("settlement_id", _effective_settlement_id())
+		node.set("building_type", facility_type)
+		if "owner_faction_id" in node:
+			node.set("owner_faction_id", get_property_owner_faction())
+		if "access_state" in node:
+			node.set("access_state", door_access_policy)
+		if "public_schedule_enabled" in node:
+			node.set("public_schedule_enabled", door_schedule_enabled)
+		if "public_open_hour" in node:
+			node.set("public_open_hour", door_open_hour)
+		if "public_close_hour" in node:
+			node.set("public_close_hour", door_close_hour)
+		var physical_beds := get_physical_bed_count()
+		if "bed_count" in node:
+			node.set("bed_count", physical_beds)
+		if "housing_capacity" in node:
+			node.set("housing_capacity", maxi(housing_capacity, physical_beds))
+		return
+	for child in node.get_children():
+		_stamp_building_identity(child)
 
 
 ## Everything inside a facility is the facility owner's property: spawned
 ## prop items resolve ownership by walking up to these instead of per-node
 ## stamping, so ownership follows staff turnover automatically.
 func get_property_owner_faction() -> String:
-	return owner_faction_id
+	if not Engine.is_editor_hint():
+		var registry := BootstrapContext.service(&"building_registry")
+		if registry != null and not building_id.strip_edges().is_empty():
+			var record: Dictionary = registry.call("get_building", building_id)
+			var canonical_owner := str(record.get("owner_faction_id", "")).strip_edges()
+			if not canonical_owner.is_empty():
+				return canonical_owner
+	if not owner_faction_id.strip_edges().is_empty():
+		return owner_faction_id
+	var settlement := _find_settlement_ancestor()
+	if settlement == null:
+		return ""
+	if settlement.has_method("get_faction_id"):
+		return str(settlement.call("get_faction_id"))
+	var definition = settlement.get("settlement_definition")
+	return str(definition.call("get_faction_id")) if definition != null and definition.has_method("get_faction_id") else ""
+
+
+func get_effective_character_realizer() -> Resource:
+	if population_appearance_profile != null:
+		return population_appearance_profile
+	var settlement := _find_settlement_ancestor()
+	var definition = settlement.get("settlement_definition") if settlement != null else null
+	return definition.call("get_character_realizer") as Resource if definition != null and definition.has_method("get_character_realizer") else null
+
+
+func get_effective_character_realizer_source() -> String:
+	if population_appearance_profile != null:
+		return "facility"
+	var settlement := _find_settlement_ancestor()
+	var definition = settlement.get("settlement_definition") if settlement != null else null
+	return "town" if definition != null and definition.get("population_appearance_profile") != null else "faction"
+
+
+func get_effective_character_type_set() -> Resource:
+	if character_type_set != null:
+		return character_type_set
+	var settlement := _find_settlement_ancestor()
+	var definition = settlement.get("settlement_definition") if settlement != null else null
+	return definition.call("get_character_type_set") as Resource if definition != null and definition.has_method("get_character_type_set") else null
+
+
+func get_effective_character_type_set_source() -> String:
+	if character_type_set != null:
+		return "facility"
+	var settlement := _find_settlement_ancestor()
+	var definition = settlement.get("settlement_definition") if settlement != null else null
+	return "town" if definition != null and definition.get("character_type_set") != null else "faction"
+
+
+func get_staff_character_type_id(role_id: String, role_index := 0) -> String:
+	var normalized_role := role_id.strip_edges().to_lower()
+	var slot_key := "%s:%d" % [normalized_role, role_index]
+	return str(staff_character_type_ids.get(slot_key, staff_character_type_ids.get(normalized_role, ""))).strip_edges().to_lower()
+
+
+func _effective_settlement_id() -> String:
+	var settlement := _find_settlement_ancestor()
+	return str(settlement.call("get_settlement_id")) if settlement != null and settlement.has_method("get_settlement_id") else ""
+
+
+func _find_settlement_ancestor() -> Node:
+	var current := get_parent()
+	while current != null:
+		if current is SettlementAnchor:
+			return current
+		current = current.get_parent()
+	return null
 
 
 ## The person who personally owns the facility's goods (a bar's barkeeper);
@@ -32,99 +170,13 @@ func get_property_owner_character() -> HumanoidCharacter:
 	return null
 
 
-## Spawn stat bands by competence tier (SkillRules.TIER_*): guards roll
-## martial stats trained-to-veteran and everything else
-## beginner-to-intermediate; civilians roll beginner-to-intermediate across
-## the board. Already-authored levels (anything above default) are never
-## lowered.
-const GUARD_MARTIAL_RANGE := Vector2i(SkillRules.TIER_TRAINED.x, SkillRules.TIER_VETERAN.y)
-const CIVILIAN_RANGE := Vector2i(SkillRules.TIER_BEGINNER.x, SkillRules.TIER_INTERMEDIATE.y)
-const MARTIAL_SKILL_IDS: Array[String] = [
-	SkillRules.ATTRIBUTE_STRENGTH,
-	SkillRules.ATTRIBUTE_DEXTERITY,
-	SkillRules.ATTRIBUTE_TOUGHNESS,
-	SkillRules.ATTRIBUTE_ENDURANCE,
-	SkillRules.COMBAT_SWORDS_ONE_HANDED,
-	SkillRules.COMBAT_AXES_ONE_HANDED,
-	SkillRules.COMBAT_DAGGERS,
-	SkillRules.COMBAT_SHIELDS,
-	SkillRules.COMBAT_UNARMED,
-]
-const GENERAL_SKILL_IDS: Array[String] = [
-	SkillRules.ATTRIBUTE_CHARISMA,
-	SkillRules.MOVEMENT_RUNNING,
-]
+func get_property_owner_role_id() -> String:
+	return ""
 
 
-static func apply_guard_stat_tiers(actor: Node, rng: RandomNumberGenerator) -> void:
-	_apply_stat_tier_rolls(actor, rng, GUARD_MARTIAL_RANGE, CIVILIAN_RANGE)
-
-
-static func apply_civilian_stat_tiers(actor: Node, rng: RandomNumberGenerator) -> void:
-	_apply_stat_tier_rolls(actor, rng, CIVILIAN_RANGE, CIVILIAN_RANGE)
-
-
-static func _apply_stat_tier_rolls(actor: Node, rng: RandomNumberGenerator, martial_range: Vector2i, general_range: Vector2i) -> void:
-	if actor == null or not actor.has_method("set_skill_level") or not actor.has_method("get_skill_level"):
-		return
-	for skill_id in MARTIAL_SKILL_IDS:
-		_roll_stat_if_default(actor, rng, skill_id, martial_range)
-	for skill_id in GENERAL_SKILL_IDS:
-		_roll_stat_if_default(actor, rng, skill_id, general_range)
-
-
-static func _roll_stat_if_default(actor: Node, rng: RandomNumberGenerator, skill_id: String, level_range: Vector2i) -> void:
-	if int(actor.call("get_skill_level", skill_id)) > SkillRules.DEFAULT_LEVEL:
-		return
-	var t := (rng.randf() + rng.randf()) * 0.5
-	actor.call("set_skill_level", skill_id, clampi(int(round(lerpf(float(level_range.x), float(level_range.y), t))), level_range.x, level_range.y))
-
-
-## Bind a staff body to the ledger record the world-sim assigned to this slot, re-homing it under
-## the given staff root. `actor` is either the worker's already-live body (claimed, e.g. a resident
-## the full-town spawner realized) or a body the facility freshly built from the record. Either way
-## we drop any orphan record the body was minted with and rebind it to the assigned record id, so
-## one record maps to exactly one body and realization honors the world-sim assignment. Identity
-## only — the facility's role prep (combat stance, faction, authority, role script) is left intact.
-## Static so both facilities (SettlementFacilityInstance) and settlement roots (SettlementAnchor)
-## can share it without a common base.
-static func adopt_staff_record(actor: Node, worker_actor_id: String, slot_id: String, staff_root: Node = null) -> void:
-	if actor == null or not is_instance_valid(actor) or worker_actor_id.strip_edges().is_empty():
-		return
-	if staff_root != null and is_instance_valid(staff_root) and actor.get_parent() != staff_root:
-		var keep_transform := actor is Node3D
-		var global_xform := (actor as Node3D).global_transform if keep_transform else Transform3D.IDENTITY
-		if actor.get_parent() != null:
-			actor.get_parent().remove_child(actor)
-		staff_root.add_child(actor)
-		if keep_transform:
-			(actor as Node3D).global_transform = global_xform
-	var tree := actor.get_tree()
-	var pop := tree.get_first_node_in_group("population_controller") if tree != null else null
-	if pop == null:
-		return
-	var minted_id := str(actor.get("stable_id")).strip_edges()
-	if not minted_id.is_empty() and minted_id != worker_actor_id and pop.has_method("remove_actor_record"):
-		pop.call("remove_actor_record", minted_id, false)
-	actor.set("stable_id", worker_actor_id)
-	actor.set_meta("actor_record_id", worker_actor_id)
-	actor.set_meta("settlement_staff_slot_id", slot_id)
-	if pop.has_method("mark_actor_realized"):
-		pop.call("mark_actor_realized", actor, worker_actor_id)
-
-
-## Resolve the already-live body for an assigned worker record, if it is currently realized
-## (e.g. the full-town spawner realized it as a resident before staffing claimed it). Returns null
-## when the worker is only a ledger record, in which case the facility builds a fresh body instead.
-static func resolve_live_worker(actor: Node, worker_actor_id: String) -> Node:
-	if actor == null or worker_actor_id.strip_edges().is_empty():
-		return null
-	var tree := actor.get_tree()
-	var pop := tree.get_first_node_in_group("population_controller") if tree != null else null
-	if pop == null or not pop.has_method("get_live_actor"):
-		return null
-	var live = pop.call("get_live_actor", worker_actor_id)
-	return live if live != null and is_instance_valid(live) else null
+func _refresh_door_authoring() -> void:
+	if is_inside_tree():
+		stamp_building_identity()
 
 
 func get_facility_id() -> String:
@@ -132,21 +184,65 @@ func get_facility_id() -> String:
 
 
 func get_facility_record(settlement_id := "") -> Dictionary:
+	var physical_beds := get_physical_bed_count()
 	return {
 		"facility_id": get_facility_id(),
 		"settlement_id": settlement_id,
 		"display_name": display_name if not display_name.is_empty() else get_facility_id().capitalize(),
 		"facility_type": facility_type,
-		"owner_faction_id": owner_faction_id,
+		"owner_faction_id": get_property_owner_faction(),
+		"owner_role_id": get_property_owner_role_id(),
+		"door_access_policy": door_access_policy,
+		"door_initial_state": door_initial_state,
+		"door_schedule_enabled": door_schedule_enabled,
+		"door_open_hour": door_open_hour,
+		"door_close_hour": door_close_hour,
+		"doors_keep_open_during_hours": doors_keep_open_during_hours,
 		"enabled": enabled,
+		"bed_count": physical_beds,
+		"housing_capacity": maxi(housing_capacity, physical_beds),
 		"world_position": global_position,
-		"food_production_per_day": food_production_per_day if enabled else 0.0,
-		"food_consumption_per_day": food_consumption_per_day if enabled else 0.0,
+		"food_outputs_per_day": _food_output_records() if enabled else [],
 		"storage_capacity_bonus": storage_capacity_bonus if enabled else 0.0,
 		"activity_point_count": get_activity_points().size(),
 		"job_provider_count": get_job_providers().size(),
 		"bar_service_area_count": get_bar_service_areas().size(),
 	}
+
+
+func get_physical_bed_count() -> int:
+	var count := 0
+	var pending: Array[Node] = [self]
+	while not pending.is_empty():
+		var parent: Node = pending.pop_back()
+		for child in parent.get_children():
+			if child is SettlementFacility:
+				continue
+			if child.is_in_group("sleepable_bed"):
+				count += 1
+			pending.append(child)
+	return count
+
+
+func _food_outputs_per_day() -> Array:
+	return food_outputs_per_day.duplicate()
+
+
+func _food_output_records() -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	for output in _food_outputs_per_day():
+		if output == null:
+			continue
+		var item := output.get("item") as ItemDefinition
+		var count := int(output.get("count"))
+		if item == null or item.resource_path.is_empty() or count <= 0:
+			continue
+		records.append({
+			"item_definition_path": item.resource_path,
+			"count": count,
+			"food_units_per_item": item.settlement_food_units,
+		})
+	return records
 
 
 func get_activity_points() -> Array:

@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="FurnishRules" format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/furnishing/furnish_rules.gd" id="1_rules"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furnishing/vignettes/ruler_office.tscn" id="2_office"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furnishing/vignettes/table_cluster_2.tscn" id="4_table"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_stocked.tscn" id="5_shelf"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chest_wood.tscn" id="6_chest"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/crate_wooden.tscn" id="7_crate"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/lighting/wall_torch.tscn" id="8_torch"]
+
+[resource]
+script = ExtResource("1_rules")
+required_cluster_scenes = Array[PackedScene]([ExtResource("2_office")])
+cluster_scenes = Array[PackedScene]([ExtResource("4_table")])
+square_meters_per_cluster = 22.0
+max_clusters = 1
+container_scenes = Array[PackedScene]([ExtResource("6_chest"), ExtResource("7_crate")])
+max_containers = 2
+container_chance = 0.45
+shelf_scenes = Array[PackedScene]([ExtResource("5_shelf")])
+shelf_chance = 0.4
+light_scenes = Array[PackedScene]([ExtResource("8_torch")])
+light_chance = 0.55
+light_mount_height = 2.1
+light_spacing_meters = 3.0
+max_lights_per_level = 5

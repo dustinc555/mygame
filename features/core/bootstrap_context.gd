@@ -21,6 +21,7 @@ const LAYER_CORE := &"core"
 const LAYER_PROJECTION := &"projection"
 const LAYER_SIM := &"sim"
 const LAYER_BRIDGE := &"bridge"
+const SERVICE_CONSUMER_GROUP := &"bootstrap_service_consumer"
 
 ## Live context published by the composition root (GameBootstrap) for leaf scene
 ## nodes that have no injection point. Set on startup, cleared on teardown.

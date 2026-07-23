@@ -140,7 +140,7 @@ is_roof = true
 script = ExtResource("1_building")
 display_name = "Bar"
 building_type = "bar"
-population_capacity = 6
+housing_capacity = 6
 levels = Array[Resource]([SubResource("BuildingLevelDefinition_ground"), SubResource("BuildingLevelDefinition_upper"), SubResource("BuildingLevelDefinition_roof")])
 
 [node name="GroundFloorMesh" type="MeshInstance3D" parent="."]

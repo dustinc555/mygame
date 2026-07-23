@@ -150,7 +150,7 @@ func _scan_facility_catalog() -> Array:
 	while not file_name.is_empty():
 		if not dir.current_is_dir() and file_name.get_extension() == "tres":
 			var definition := load("%s/%s" % [FACILITIES_DIR, file_name]) as FacilityDefinition
-			if definition != null and not definition.scene_path.is_empty():
+			if definition != null and definition.catalog_enabled and not definition.scene_path.is_empty():
 				catalog.append(definition)
 		file_name = dir.get_next()
 	dir.list_dir_end()
@@ -199,7 +199,7 @@ func _on_facility_placement_committed(world_transform: Transform3D) -> void:
 		if town.scene_file_path.is_empty():
 			_set_status("Town has no scene file; open its scene to edit.")
 			return
-		if not add_facility_to_town_scene(town.scene_file_path, definition.scene_path, local_transform):
+		if not add_facility_to_town_scene(town.scene_file_path, definition, local_transform):
 			_set_status("Failed to add %s." % definition.get_display_name())
 			return
 		var fresh := _refresh_town_instance(town)
@@ -277,9 +277,9 @@ static func _spawn_path_property(marker_name: String) -> String:
 ## Adds a facility scene as a direct child of the town root, editing the
 ## town's own .tscn. Pure file surgery: usable from the editor context and
 ## from headless validation.
-static func add_facility_to_town_scene(town_scene_path: String, facility_scene_path: String, local_transform: Transform3D) -> bool:
+static func add_facility_to_town_scene(town_scene_path: String, definition: FacilityDefinition, local_transform: Transform3D) -> bool:
 	var town_scene := ResourceLoader.load(town_scene_path, "PackedScene", ResourceLoader.CACHE_MODE_REPLACE) as PackedScene
-	var facility_scene := load(facility_scene_path) as PackedScene
+	var facility_scene := load(definition.scene_path) as PackedScene if definition != null else null
 	if town_scene == null or facility_scene == null:
 		return false
 	var town := town_scene.instantiate()
@@ -287,7 +287,7 @@ static func add_facility_to_town_scene(town_scene_path: String, facility_scene_p
 	if facility == null:
 		town.free()
 		return false
-	facility.name = _unique_facility_name(town, facility_scene_path.get_file().get_basename().to_pascal_case())
+	_apply_facility_identity(facility, town, definition)
 	town.add_child(facility)
 	facility.owner = town
 	facility.transform = local_transform
@@ -346,6 +346,50 @@ static func _unique_facility_name(parent: Node, base_name: String) -> String:
 	return candidate
 
 
+static func facility_identity_for(parent: Node, settlement_id: String, definition_id: String) -> Dictionary:
+	var clean_id := definition_id.strip_edges().to_snake_case()
+	var base_name := clean_id.to_pascal_case()
+	var node_name := _unique_facility_name(parent, base_name)
+	var suffix := node_name.trim_prefix(base_name).to_lower()
+	var local_id := "%s%s" % [clean_id, suffix]
+	var facility_id := "%s.%s" % [settlement_id, local_id] if not settlement_id.is_empty() else local_id
+	return {
+		"node_name": node_name,
+		"facility_id": facility_id,
+		"building_id": "%s.building" % facility_id,
+	}
+
+
+static func _apply_facility_identity(facility: Node, town: Node, definition: FacilityDefinition) -> void:
+	var settlement_id := str(town.call("get_settlement_id")) if town.has_method("get_settlement_id") else ""
+	var identity := facility_identity_for(town, settlement_id, definition.get_id())
+	facility.name = identity["node_name"]
+	var facility_id := str(identity["facility_id"])
+	facility.set("facility_id", facility_id)
+	if "building_id" in facility:
+		facility.set("building_id", identity["building_id"])
+	if "staff_role_counts" in facility:
+		facility.set("staff_role_counts", definition.staff_role_counts.duplicate(true))
+	var owner_faction_id := str(facility.get("owner_faction_id")).strip_edges()
+	if owner_faction_id.is_empty() and town.has_method("get_faction_id"):
+		owner_faction_id = str(town.call("get_faction_id"))
+	_stamp_building_ids_recursive(facility, settlement_id, facility_id, str(facility.get("facility_type")), owner_faction_id, int(facility.get("housing_capacity")))
+
+
+static func _stamp_building_ids_recursive(node: Node, settlement_id: String, facility_id: String, facility_type: String, owner_faction_id: String, housing_capacity: int) -> void:
+	if node is WorldBuilding:
+		var building := node as WorldBuilding
+		building.building_id = "%s.building" % facility_id
+		building.settlement_id = settlement_id
+		building.facility_id = facility_id
+		building.building_type = facility_type
+		building.owner_faction_id = owner_faction_id
+		building.housing_capacity = housing_capacity
+		return
+	for child in node.get_children():
+		_stamp_building_ids_recursive(child, settlement_id, facility_id, facility_type, owner_faction_id, housing_capacity)
+
+
 ## --- Facility add/remove entry points ----------------------------------------
 
 
@@ -369,8 +413,8 @@ func _add_facility_live(town: Node3D, definition: FacilityDefinition, local_tran
 	undo_redo.create_action("Add Facility")
 	# Facilities are direct town children — no container ceremony.
 	var facility := facility_scene.instantiate() as Node3D
-	facility.name = _unique_facility_name(town, definition.scene_path.get_file().get_basename().to_pascal_case())
 	facility.transform = local_transform
+	_apply_facility_identity(facility, town, definition)
 	# Same 2026-07-07 decision as inline towns: the facility template expands
 	# into plain nodes owned by the edited scene, so its children (furniture,
 	# service points) are freely editable. Nested instances (the shell,
@@ -420,10 +464,7 @@ func get_town_facility_nodes(town: Node) -> Array:
 
 
 func _is_facility_node(node: Node) -> bool:
-	if node is SettlementFacilityInstance or node is WorldBuilding:
-		return true
-	var parent := node.get_parent()
-	return parent != null and str(parent.name) == "Facilities" and node is Node3D
+	return node is SettlementFacilityInstance
 
 
 func _town_is_edited_scene_root(town: Node) -> bool:

@@ -5,7 +5,10 @@
 
 [resource]
 script = ExtResource("1_item")
-display_name = "FOOD"
+display_name = "Provisions"
+item_id = "food.generic"
+food_type_id = "prepared_food"
+settlement_food_units = 2.0
 grid_size = Vector2i(2, 1)
 unit_weight = 0.5
 nutrition_value = 200.0

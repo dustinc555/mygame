@@ -345,9 +345,11 @@ resource_node_id = "mining_test.copper_node"
 owner_character_path = NodePath("../Jim")
 
 [node name="TwoStoryHouse" parent="." unique_id=307274349 instance=ExtResource("19_two_story_house")]
+building_id = "test.mining.two_story_house"
 transform = Transform3D(0.990268, 0, -0.139173, 0, 1, 0, 0.139173, 0, 0.990268, 1.0143967, 0, -14.200055)
 
 [node name="TinyHouse" parent="." unique_id=1517733317 instance=ExtResource("18_house")]
+building_id = "test.mining.tiny_house"
 transform = Transform3D(-0.115475, 0, -0.993311, 0, 1, 0, 0.993311, 0, -0.115475, 21.5291, 0, 6.23198)
 
 [node name="PartyManager" type="Node" parent="." unique_id=1363365783]

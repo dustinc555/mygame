@@ -11,6 +11,7 @@ class_name ShopCounter
 ## runtime.
 
 @export var furniture_type := FurnitureRules.Type.COUNTER
+@export var facility_role_ids: Array[String] = []
 ## Where the keeper stands, local space (behind the counter).
 @export var staff_stand_local_offset := Vector3(0.0, 0.0, -0.85):
 	set(value):
@@ -42,6 +43,14 @@ func _ready() -> void:
 
 func get_staff_stand_position() -> Vector3:
 	return global_transform * staff_stand_local_offset
+
+
+func supports_facility_role(role_id: String) -> bool:
+	var normalized := role_id.strip_edges().to_lower()
+	for candidate in facility_role_ids:
+		if candidate.strip_edges().to_lower() == normalized:
+			return true
+	return false
 
 
 func get_work_position() -> Vector3:

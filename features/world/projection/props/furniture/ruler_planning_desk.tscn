@@ -1,0 +1,95 @@
+[gd_scene load_steps=18 format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/props/shop_counter.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Desk.gltf" id="2"]
+[ext_resource type="Script" path="res://features/world/projection/props/tabletop_item_spawner.gd" id="3"]
+[ext_resource type="Script" path="res://features/world/projection/props/tabletop_item_slot.gd" id="4"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/town_ledger.tres" id="5"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/town_map.tres" id="6"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/scroll_1.tres" id="7"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/scroll_2.tres" id="8"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/book_1.tres" id="9"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/book_2.tres" id="10"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/book_3.tres" id="11"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/candle_1.tres" id="12"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/candle_2.tres" id="13"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/mug.tres" id="14"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/chalice.tres" id="15"]
+
+[sub_resource type="BoxShape3D" id="Body"]
+size = Vector3(2.02, 1.14, 0.5)
+
+[node name="RulerPlanningDesk" type="StaticBody3D"]
+script = ExtResource("1")
+facility_role_ids = Array[String](["ruler"])
+staff_stand_local_offset = Vector3(0, 0, -1.05)
+customer_stand_local_offset = Vector3(0, 0, 1.1)
+
+[node name="Desk" parent="." instance=ExtResource("2")]
+scale = Vector3(1.0837, 1.3562, 1.3149)
+
+[node name="BodyCollision" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.57, -0.1)
+shape = SubResource("Body")
+
+[node name="TabletopSurface" type="Node3D" parent="."]
+script = ExtResource("3")
+surface_id = "ruler_desk"
+seed_salt = "ruler_desk_v1"
+tabletop_half_extents = Vector2(1.0, 0.45)
+
+[node name="Ledger" type="Marker3D" parent="TabletopSurface"]
+position = Vector3(-0.54, 1.155, -0.08)
+rotation = Vector3(0, -0.2, 0)
+script = ExtResource("4")
+slot_id = "ledger"
+required_item = ExtResource("5")
+
+[node name="Map" type="Marker3D" parent="TabletopSurface"]
+position = Vector3(0.08, 1.155, 0.04)
+rotation = Vector3(0, 0.14, 0)
+script = ExtResource("4")
+slot_id = "map"
+required_item = ExtResource("6")
+
+[node name="Candle" type="Marker3D" parent="TabletopSurface"]
+position = Vector3(-0.82, 1.155, -0.24)
+script = ExtResource("4")
+slot_id = "candle"
+spawn_chance = 0.72
+optional_items = Array[ItemDefinition]([ExtResource("12"), ExtResource("13")])
+optional_weights = PackedFloat32Array(2, 1)
+
+[node name="Drink" type="Marker3D" parent="TabletopSurface"]
+position = Vector3(0.78, 1.155, 0.22)
+script = ExtResource("4")
+slot_id = "drink"
+spawn_chance = 0.52
+optional_items = Array[ItemDefinition]([ExtResource("14"), ExtResource("15")])
+optional_weights = PackedFloat32Array(3, 1)
+
+[node name="Scroll" type="Marker3D" parent="TabletopSurface"]
+position = Vector3(-0.08, 1.155, 0.3)
+script = ExtResource("4")
+slot_id = "scroll"
+spawn_chance = 0.68
+optional_items = Array[ItemDefinition]([ExtResource("7"), ExtResource("8")])
+optional_weights = PackedFloat32Array(1, 1)
+
+[node name="BookLeft" type="Marker3D" parent="TabletopSurface"]
+position = Vector3(0.62, 1.155, -0.2)
+rotation = Vector3(0, 0.12, 0)
+script = ExtResource("4")
+slot_id = "book_left"
+spawn_chance = 0.76
+optional_items = Array[ItemDefinition]([ExtResource("9"), ExtResource("10"), ExtResource("11")])
+optional_weights = PackedFloat32Array(1, 1, 1)
+
+[node name="BookRight" type="Marker3D" parent="TabletopSurface"]
+position = Vector3(0.88, 1.155, -0.16)
+rotation = Vector3(0, -0.09, 0)
+script = ExtResource("4")
+slot_id = "book_right"
+spawn_chance = 0.46
+optional_items = Array[ItemDefinition]([ExtResource("9"), ExtResource("10"), ExtResource("11")])
+optional_weights = PackedFloat32Array(1, 1, 1)

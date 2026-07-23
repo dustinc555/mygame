@@ -9,6 +9,9 @@ const WORLD_ITEM_SCENE = preload("res://features/world/projection/items/world_it
 const SELECTION_RING_VISUAL = preload("res://features/actors/projection/selection_ring_visual.gd")
 const FARMERS_FACTION = preload("res://features/factions/resources/factions/farmers.tres")
 const EXPENSIVE_VASE = preload("res://features/inventory/resources/items/expensive_vase.tres")
+const BREAD = preload("res://features/inventory/resources/items/bread.tres")
+const STORAGE_SEED_SCRIPT = preload("res://features/world_sim/resources/settlement_storage_seed.gd")
+const STORAGE_STACK_SEED_SCRIPT = preload("res://features/world_sim/resources/settlement_storage_stack_seed.gd")
 
 const DEMO_FACTION_ID := "Farmers"
 const DEMO_SETTLEMENT_ID := "jail_demo_town"
@@ -81,8 +84,17 @@ func _make_demo_settlement_definition() -> Resource:
 	definition.set("settlement_id", DEMO_SETTLEMENT_ID)
 	definition.set("display_name", "Jail Demo Town")
 	definition.set("faction_definition", FARMERS_FACTION)
-	definition.set("starting_food", 80.0)
-	definition.set("max_food", 80.0)
+	var stack: Resource = STORAGE_STACK_SEED_SCRIPT.new()
+	stack.set("stack_id", "%s.granary.stack.1" % DEMO_SETTLEMENT_ID)
+	stack.set("item", BREAD)
+	stack.set("count", 20)
+	var storage: Resource = STORAGE_SEED_SCRIPT.new()
+	storage.set("container_id", "%s.granary" % DEMO_SETTLEMENT_ID)
+	storage.set("facility_id", "%s.granary" % DEMO_SETTLEMENT_ID)
+	var stacks: Array[Resource] = [stack]
+	storage.set("stacks", stacks)
+	var storage_seeds: Array[Resource] = [storage]
+	definition.set("storage_seeds", storage_seeds)
 	return definition
 
 
@@ -113,8 +125,8 @@ func _configure_jail_building(jail: Node) -> void:
 		return
 	if _has_property(building, "building_type"):
 		building.set("building_type", "jail")
-	if _has_property(building, "access_mode"):
-		building.set("access_mode", "public")
+	if _has_property(building, "access_state"):
+		building.set("access_state", "public")
 	if _has_property(building, "use_law_profile_trespass_rules"):
 		building.set("use_law_profile_trespass_rules", false)
 

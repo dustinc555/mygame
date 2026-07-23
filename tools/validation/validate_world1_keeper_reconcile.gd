@@ -71,7 +71,8 @@ func _wait_for(condition: Callable, seconds: float) -> bool:
 
 func _find_bar_door() -> Node:
 	for door in get_nodes_in_group("world_door"):
-		if str(door.get("door_id")).contains("SettlementBar"):
+		# world1's bar facility is canyon.rest_stop; door IDs are minted from the building ID.
+		if str(door.get("door_id")).contains("rest_stop.building"):
 			return door
 	return null
 

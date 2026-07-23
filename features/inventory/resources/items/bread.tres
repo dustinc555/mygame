@@ -8,6 +8,9 @@
 [resource]
 script = ExtResource("1_item")
 display_name = "Bread"
+item_id = "food.bread"
+food_type_id = "bread"
+settlement_food_units = 1.5
 icon = ExtResource("2_icon")
 grid_size = Vector2i(3, 2)
 unit_weight = 0.25

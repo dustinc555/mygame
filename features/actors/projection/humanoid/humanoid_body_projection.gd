@@ -143,7 +143,7 @@ static var _fallback_visual_material: Material
 
 ## Inject authored appearance (called by the actor when it builds the body).
 func configure_appearance(data: CharacterAppearanceData) -> void:
-	appearance_data = data
+	appearance_data = data.make_copy() if data != null else null
 	_ensure_appearance_data()
 
 

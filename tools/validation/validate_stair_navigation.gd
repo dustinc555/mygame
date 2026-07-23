@@ -92,6 +92,7 @@ func _ensure_stair_validation_bar() -> Node:
 		child.queue_free()
 	var small_bar := SMALL_BAR_SCENE.instantiate()
 	small_bar.name = "SmallBarScene"
+	small_bar.set("building_id", "validation.stair_navigation_bar")
 	small_bar.transform = Transform3D(Basis(), Vector3(0.011291504, -0.007889509, -0.012234688))
 	building_root.add_child(small_bar)
 	if bar.has_method("_repair_authoring_tree"):

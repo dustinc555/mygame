@@ -1,5 +1,5 @@
 @tool
-extends "res://features/settlements/bridge/venues/bar_guard_post.gd"
+extends "res://features/settlements/bridge/venues/facility_guard_post.gd"
 
 class_name SettlementGuardPost
 

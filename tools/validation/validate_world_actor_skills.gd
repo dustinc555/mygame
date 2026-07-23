@@ -360,20 +360,17 @@ func _validate_copper_ore_world_visual() -> void:
 	for child in drop_root.get_children():
 		if child is WorldItem:
 			spawned_items.append(child as WorldItem)
-	if spawned_items.size() != 5:
-		_fail("Expected dropping copper ore to spawn separate physical items, got %d" % spawned_items.size())
+	if spawned_items.size() != 1:
+		_fail("Expected one physical projection for the dropped copper stack, got %d" % spawned_items.size())
 	else:
-		for index in range(spawned_items.size()):
-			if spawned_items[index].quantity != 1:
-				_fail("Expected stacked copper ore world item quantity to stay 1")
-			var world_bounds := spawned_items[index].get_visual_world_bounds()
-			if world_bounds.position.y < -0.001:
-				_fail("Expected stacked copper ore visual bottom above floor, got y=%.3f" % world_bounds.position.y)
-			var item_xz := Vector2(spawned_items[index].global_position.x, spawned_items[index].global_position.z)
-			if item_xz.distance_to(expected_drop_xz) > 0.05:
-				_fail("Expected dropped copper ore to stay beside source, got %.3f from target" % item_xz.distance_to(expected_drop_xz))
-			if index > 0 and spawned_items[index].global_position.y <= spawned_items[index - 1].global_position.y:
-				_fail("Expected stacked copper ore Y positions to increase")
+		if spawned_items[0].quantity != 5:
+			_fail("Expected dropped copper ore stack quantity to stay 5")
+		var world_bounds := spawned_items[0].get_visual_world_bounds()
+		if world_bounds.position.y < -0.001:
+			_fail("Expected dropped copper ore visual bottom above floor, got y=%.3f" % world_bounds.position.y)
+		var item_xz := Vector2(spawned_items[0].global_position.x, spawned_items[0].global_position.z)
+		if item_xz.distance_to(expected_drop_xz) > 0.05:
+			_fail("Expected dropped copper ore to stay beside source, got %.3f from target" % item_xz.distance_to(expected_drop_xz))
 	var falling_item := WORLD_ITEM_SCENE.instantiate() as WorldItem
 	drop_root.add_child(falling_item)
 	falling_item.setup(COPPER_ORE, 1)

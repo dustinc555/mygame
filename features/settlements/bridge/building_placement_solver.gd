@@ -6,7 +6,7 @@ extends RefCounted
 ## surface: the runtime Building Placer ghost and the editor town authoring
 ## tools. Pure static functions over an explicit PhysicsDirectSpaceState3D —
 ## no scene lookups, no records access. Zoning/faction rules stay with
-## ConstructionRecords.can_place(); callers combine that with slope_ok.
+## ConstructionController.can_place(); callers combine that with slope_ok.
 
 const MAX_SLOPE_DEG := 15.0
 ## Above this raise the building is presumed on a foundation, which

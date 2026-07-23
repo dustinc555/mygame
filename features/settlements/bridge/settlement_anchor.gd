@@ -46,16 +46,29 @@ func get_storage_nodes() -> Array[Node]:
 
 
 func apply_settlement_state(state: Dictionary) -> void:
+	set_meta("settlement_state", state.duplicate(true))
+	_refresh_state_label()
+
+
+func apply_settlement_food_status(status: Dictionary) -> void:
+	set_meta("settlement_food_status", status.duplicate(true))
+	_refresh_state_label()
+
+
+func _refresh_state_label() -> void:
 	var label := get_node_or_null(state_label_path) as Label3D
 	if label == null:
 		label = get_node_or_null("StateLabel") as Label3D
 	if label == null:
 		return
-	label.text = "%s\nFOOD  %d / %d    %s\nPOP   %d / %d    %s\n%s" % [
+	var state := get_meta("settlement_state", {}) as Dictionary
+	var food := get_meta("settlement_food_status", {}) as Dictionary
+	label.text = "%s\nFOOD  %.1f units    %s\nNET   %+.1f/day    %s\nPOP   %d / %d    %s\n%s" % [
 		str(state.get("display_name", get_settlement_id())).to_upper(),
-		int(round(float(state.get("food", 0.0)))),
-		int(round(float(state.get("max_food", 0.0)))),
-		str(state.get("pressure_state", "stable")).to_upper(),
+		float(food.get("food_units", 0.0)),
+		str(food.get("pressure_state", "supplied")).to_upper(),
+		float(food.get("net_per_day", 0.0)),
+		str(food.get("reserve_state", "finite")).to_upper(),
 		int(state.get("population", 0)),
 		int(state.get("max_occupancy", 0)),
 		str(state.get("occupancy_label", "Populated")).to_upper(),

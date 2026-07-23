@@ -97,17 +97,45 @@ func configure_building_doors(building_id: String, config: Dictionary) -> void:
 
 
 func _apply_building_config(state, config: Dictionary) -> void:
-	for actor_id in PackedStringArray(config.get("authorized_actor_ids", [])):
-		if not state.authorized_actor_ids.has(actor_id):
-			state.authorized_actor_ids.append(actor_id)
+	var keeper_actor_id := str(config.get("keeper_actor_id", ""))
+	if config.has("authorized_actor_ids"):
+		state.authorized_actor_ids = PackedStringArray(config.get("authorized_actor_ids", []))
+	if config.has("authorized_faction_ids"):
+		state.authorized_faction_ids = PackedStringArray(config.get("authorized_faction_ids", []))
+	if bool(config.get("public_access", false)):
+		# Public use removes entry restrictions, but the keeper still needs
+		# authority for the scheduled lock/unlock ceremony.
+		state.authorized_actor_ids = PackedStringArray([keeper_actor_id]) if not keeper_actor_id.is_empty() else PackedStringArray()
+		state.authorized_faction_ids = PackedStringArray()
 	if config.has("keeper_actor_id"):
-		state.scheduled_actor_id = str(config.get("keeper_actor_id"))
+		state.scheduled_actor_id = keeper_actor_id
 	if config.has("open_hour"):
 		state.scheduled_open_hour = int(config.get("open_hour"))
 	if config.has("close_hour"):
 		state.scheduled_close_hour = int(config.get("close_hour"))
 	if config.has("kept_open"):
 		state.kept_open = bool(config.get("kept_open"))
+	var initial_state_changed := false
+	if state.state_revision == 0 and config.has("initial_state"):
+		var initial_state := str(config.get("initial_state", "door_default"))
+		var initial_open: bool = state.is_open
+		var initial_locked: bool = state.is_locked
+		match initial_state:
+			"open":
+				initial_open = true
+				initial_locked = false
+			"closed":
+				initial_open = false
+				initial_locked = false
+			"locked":
+				initial_open = false
+				initial_locked = true
+		if state.is_open != initial_open or state.is_locked != initial_locked:
+			state.is_open = initial_open
+			state.is_locked = initial_locked
+			initial_state_changed = true
+	if initial_state_changed:
+		_commit_state_change(state)
 	_apply_business_hours_state(state)
 
 

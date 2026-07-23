@@ -306,6 +306,7 @@ material_override = SubResource("StandardMaterial3D_floor")
 mesh = SubResource("BoxMesh_floor")
 
 [node name="TwoStoryHouse" parent="." unique_id=2102512227 instance=ExtResource("4_house")]
+building_id = "test.armory.two_story_house"
 
 [node name="ArmoryContainers" type="Node3D" parent="." unique_id=564829923]
 

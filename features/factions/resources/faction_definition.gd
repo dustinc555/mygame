@@ -18,10 +18,6 @@ class_name FactionDefinition
 ## which zones it is active in (empty = active everywhere).
 @export var spawns_nests := false
 @export var active_zone_ids: PackedStringArray = PackedStringArray()
-## How this faction manifests live bodies when one of its world-sim squads realizes
-## near the player. member_actor_script = the character spawner type (a HumanoidCharacter
-## script — generic humanoid, rustdead, etc.), attached in the editor like a race spawner.
-@export var member_actor_script: Script
 @export_range(1, 20, 1) var default_squad_size := 4
 ## Aggregate fitness of this faction's squads (endurance + run), 1.0 ≈ a civilian walk.
 ## Drives world-sim march speed; raids are hard-capped below the player's run so they
@@ -37,6 +33,9 @@ class_name FactionDefinition
 ## Appearance profile for this faction's realized squad members (race/skin/clothes), so a
 ## manifested raider looks like a raider instead of a nameless default body.
 @export var population_appearance_profile: Resource
+## Authored occupational types (civilian, soldier, warden, etc.). Required;
+## towns and facilities may override this object or inherit it unchanged.
+@export var character_type_set: Resource
 
 
 func get_id() -> String:
@@ -55,8 +54,12 @@ func is_active_in_zone(zone_id: String) -> bool:
 	return active_zone_ids == null or active_zone_ids.is_empty() or active_zone_ids.has(zone_id)
 
 
-func get_member_actor_script() -> Script:
-	return member_actor_script
+func get_character_realizer() -> Resource:
+	return population_appearance_profile
+
+
+func get_character_type_set() -> Resource:
+	return character_type_set
 
 
 func get_default_squad_size() -> int:

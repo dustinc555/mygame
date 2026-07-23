@@ -17,6 +17,10 @@ class_name SettlementFacilityInstance
 ## under features/settlements/resources/furnishing.
 @export var furnish_rules: FurnishRules
 @export var staff_root_path: NodePath = NodePath("Staff")
+## Generic facilities get staff demand directly from their catalog definition.
+## Specialized facilities may override get_settlement_staff_slots only when
+## they need additional role behavior, never character construction.
+@export var staff_role_counts: Dictionary = {}
 @export var service_points_root_path: NodePath = NodePath("ServicePoints")
 @export var storage_root_path: NodePath = NodePath("Storage")
 @export var job_providers_root_path: NodePath = NodePath("JobProviders")
@@ -27,12 +31,17 @@ class_name SettlementFacilityInstance
 
 
 func _enter_tree() -> void:
+	super._enter_tree()
 	call_deferred("_repair_authoring_tree")
 
 
 func _ready() -> void:
 	_repair_authoring_tree()
 	super._ready()
+	if not staff_role_counts.is_empty():
+		add_to_group("settlement_staff_role_owner")
+	if not Engine.is_editor_hint():
+		sync_door_policy.call_deferred()
 
 
 func get_facility_record(settlement_id := "") -> Dictionary:
@@ -72,8 +81,93 @@ func get_building_root() -> Node3D:
 	return get_node_or_null(building_root_path) as Node3D
 
 
+func get_current_building() -> WorldBuilding:
+	var root := get_building_root()
+	if root == null:
+		return null
+	if root is WorldBuilding:
+		return root as WorldBuilding
+	for child in root.get_children():
+		if child is WorldBuilding:
+			return child as WorldBuilding
+	return null
+
+
+func sync_door_policy(retries_remaining := 30) -> void:
+	if Engine.is_editor_hint() or not is_inside_tree():
+		return
+	var doors := BootstrapContext.service(&"doors")
+	if doors == null or not doors.has_method("configure_building_doors"):
+		if retries_remaining > 0:
+			sync_door_policy.call_deferred(retries_remaining - 1)
+		return
+	var building := get_current_building()
+	if building == null or building.building_id.strip_edges().is_empty():
+		return
+	var owner := get_property_owner_character()
+	var owner_actor_id := str(owner.get("stable_id")).strip_edges() if owner != null and "stable_id" in owner else ""
+	var private_access := door_access_policy == "private"
+	var config := {
+		"authorized_actor_ids": PackedStringArray([owner_actor_id]) if private_access and not owner_actor_id.is_empty() else PackedStringArray(),
+		"authorized_faction_ids": PackedStringArray([get_property_owner_faction()]) if private_access and not get_property_owner_faction().is_empty() else PackedStringArray(),
+		"public_access": not private_access,
+		"initial_state": door_initial_state,
+		"keeper_actor_id": owner_actor_id,
+		"open_hour": door_open_hour if door_schedule_enabled else -1,
+		"close_hour": door_close_hour if door_schedule_enabled else -1,
+		"kept_open": door_schedule_enabled and doors_keep_open_during_hours,
+	}
+	doors.call("configure_building_doors", building.building_id, config)
+
+
 func get_staff_root() -> Node3D:
 	return get_node_or_null(staff_root_path) as Node3D
+
+
+func get_staff_realization_parent() -> Node3D:
+	return get_staff_root()
+
+
+func get_settlement_staff_slots() -> Array[Dictionary]:
+	var slots: Array[Dictionary] = []
+	var role_ids := staff_role_counts.keys()
+	role_ids.sort()
+	for role_id_value in role_ids:
+		var role_id := str(role_id_value).strip_edges().to_lower()
+		for index in range(maxi(0, int(staff_role_counts[role_id_value]))):
+			var suffix := role_id if index == 0 else "%s%d" % [role_id, index + 1]
+			slots.append({
+				"slot_id": "%s.%s" % [get_facility_id(), suffix],
+				"role_id": role_id,
+				"role_index": index,
+				"character_type_id": get_staff_character_type_id(role_id, index),
+				"display_name": role_id.capitalize() if index == 0 else "%s %d" % [role_id.capitalize(), index + 1],
+				"population_cost": 1,
+				"replacement_delay_days": 7.0,
+				"filled": _staff_actor_for_slot("%s.%s" % [get_facility_id(), suffix]) != null,
+				"authority_scope": "facility_staff",
+			})
+	return slots
+
+
+func configure_settlement_staff_actor(actor: Node, slot_id: String, slot_record: Dictionary) -> void:
+	if actor == null:
+		return
+	actor.name = str(slot_record.get("role_id", "staff")).to_pascal_case() + (str(int(slot_record.get("role_index", 0)) + 1) if int(slot_record.get("role_index", 0)) > 0 else "")
+	actor.set_meta("settlement_staff_role", str(slot_record.get("role_id", "staff")))
+	actor.set_meta("settlement_staff_role_index", int(slot_record.get("role_index", 0)))
+	actor.set_meta("settlement_staff_slot_id", slot_id)
+	actor.set_meta("settlement_actor_category", "staff")
+
+
+func _staff_actor_for_slot(slot_id: String) -> Node:
+	var root := get_staff_root()
+	if root == null:
+		return null
+	for child in root.get_children():
+		if str(child.get_meta("settlement_staff_slot_id", "")) == slot_id:
+			return child
+	return null
 
 
 func get_service_points_root() -> Node3D:
@@ -92,7 +186,9 @@ func validate_authoring() -> Array[String]:
 	var warnings: Array[String] = []
 	if get_facility_id().is_empty():
 		warnings.append("Missing facility_id")
-	if facility_function == null:
+	if building_id.strip_edges().is_empty():
+		warnings.append("Missing building_id")
+	if facility_function == null and facility_type != "housing":
 		warnings.append("Missing facility_function")
 	for root_path in [building_root_path, staff_root_path, service_points_root_path, storage_root_path, job_providers_root_path, activity_points_root_path]:
 		if root_path.is_empty():
@@ -123,10 +219,6 @@ func _apply_function_defaults() -> void:
 		facility_type = function_type
 	if display_name.is_empty() or display_name == "Facility":
 		display_name = function_display if not function_display.is_empty() else display_name
-	if absf(food_production_per_day) <= 0.0001:
-		food_production_per_day = _resource_float(facility_function, "default_food_production_per_day", food_production_per_day)
-	if absf(food_consumption_per_day) <= 0.0001:
-		food_consumption_per_day = _resource_float(facility_function, "default_food_consumption_per_day", food_consumption_per_day)
 	if absf(storage_capacity_bonus) <= 0.0001:
 		storage_capacity_bonus = _resource_float(facility_function, "default_storage_capacity_bonus", storage_capacity_bonus)
 
@@ -137,6 +229,12 @@ func _function_id() -> String:
 	if facility_function != null and not _resource_string(facility_function, "function_id", "").strip_edges().is_empty():
 		return _resource_string(facility_function, "function_id", "")
 	return _resource_string(facility_function, "display_name", "")
+
+
+func _food_outputs_per_day() -> Array:
+	if facility_function == null:
+		return super._food_outputs_per_day()
+	return Array(facility_function.get("food_outputs_per_day")).duplicate()
 
 
 func _ensure_root(root_path: NodePath) -> Node:

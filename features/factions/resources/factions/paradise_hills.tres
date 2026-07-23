@@ -7,6 +7,7 @@
 [ext_resource type="Resource" uid="uid://tqkaqrllihd0" path="res://features/factions/resources/law_profiles/paradise_hills_law.tres" id="4_law"]
 [ext_resource type="Resource" uid="uid://pjw2qb2u0hbw" path="res://features/world_sim/resources/population_name_profiles/raider_names.tres" id="5_names"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/raider_scrapper.tres" id="9_appearance"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/character_type_sets/standard.tres" id="99_types"]
 
 [resource]
 script = ExtResource("1_faction")
@@ -23,3 +24,4 @@ personality_profile = ExtResource("3_personality")
 law_profile = ExtResource("4_law")
 population_appearance_profile = ExtResource("9_appearance")
 population_name_profile = ExtResource("5_names")
+character_type_set = ExtResource("99_types")

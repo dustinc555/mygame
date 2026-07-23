@@ -6,7 +6,8 @@
 script = ExtResource("1_script")
 facility_id = "house"
 display_name = "House"
-scene_path = "res://features/world/projection/buildings/shells/modular/woodbrick_house.tscn"
-
+scene_path = "res://features/settlements/bridge/settlement_house.tscn"
+catalog_enabled = true
+shell_policy = 0
 staff_role_counts = {}
-population_capacity = 4
+category = "housing"

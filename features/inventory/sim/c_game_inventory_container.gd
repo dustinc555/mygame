@@ -4,7 +4,11 @@ class_name CGameInventoryContainer
 
 @export var container_id := ""
 @export var owner_actor_id := ""
-@export var owner_path: NodePath
+@export var settlement_id := ""
+@export var facility_id := ""
+@export var container_kind := ""
+@export var contributes_to_town_stock := false
+@export var next_stack_sequence := 1
 @export var columns := 0
 @export var rows := 0
 @export var max_weight := 0.0

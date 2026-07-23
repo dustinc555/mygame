@@ -14,6 +14,7 @@ class_name EquipmentCapability
 signal equipment_changed(changed_slots: Array)
 
 var equipped_items: Dictionary = {}
+var equipped_stack_ids: Dictionary = {}
 
 var _initialized := false
 var _equipment_update_batch_depth := 0
@@ -31,6 +32,7 @@ func ready() -> void:
 
 func teardown() -> void:
 	equipped_items.clear()
+	equipped_stack_ids.clear()
 	_equipment_changed_slots.clear()
 	_equipment_update_batch_depth = 0
 	_equipment_change_pending = false
@@ -59,6 +61,10 @@ func get_equipped_item(slot_name: String) -> ItemDefinition:
 	return equipped_items.get(slot_name) as ItemDefinition
 
 
+func get_equipped_stack_id(slot_name: String) -> String:
+	return str(equipped_stack_ids.get(slot_name, ""))
+
+
 func can_equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> bool:
 	if definition == null or not definition.is_equippable():
 		return false
@@ -68,11 +74,12 @@ func can_equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> bo
 	return definition.can_equip_to_slot(slot_name)
 
 
-func equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> ItemDefinition:
+func equip_item_to_slot(definition: ItemDefinition, slot_name: String, stack_id := "") -> ItemDefinition:
 	if not can_equip_item_to_slot(definition, slot_name):
 		return null
 	var previous := get_equipped_item(slot_name)
 	equipped_items[slot_name] = definition
+	equipped_stack_ids[slot_name] = stack_id
 	_mark_equipment_changed(slot_name)
 	return previous
 
@@ -84,12 +91,35 @@ func unequip_item_from_slot(slot_name: String) -> ItemDefinition:
 	if previous == null:
 		return null
 	equipped_items.erase(slot_name)
+	equipped_stack_ids.erase(slot_name)
 	_mark_equipment_changed(slot_name)
 	return previous
 
 
 func begin_equipment_update_batch() -> void:
 	_equipment_update_batch_depth += 1
+
+
+func hydrate_gecs_slots(slots: Array, emit_changed := true) -> void:
+	begin_equipment_update_batch()
+	var changed_slots := equipped_items.keys()
+	equipped_items.clear()
+	equipped_stack_ids.clear()
+	for slot_value in slots:
+		var slot := slot_value as Dictionary
+		var definition_path := str(slot.get("item_definition_path", ""))
+		var definition := load(definition_path) as ItemDefinition if not definition_path.is_empty() and ResourceLoader.exists(definition_path) else null
+		var slot_name := str(slot.get("slot_name", ""))
+		if definition == null or slot_name.is_empty():
+			continue
+		equipped_items[slot_name] = definition
+		equipped_stack_ids[slot_name] = str(slot.get("stack_id", ""))
+		if not changed_slots.has(slot_name):
+			changed_slots.append(slot_name)
+	if emit_changed:
+		for slot_name in changed_slots:
+			_mark_equipment_changed(str(slot_name))
+	end_equipment_update_batch()
 
 
 func end_equipment_update_batch() -> void:
@@ -164,6 +194,8 @@ func seed_starting_equipment_from_actor() -> void:
 			continue
 		if get_equipped_item(item_definition.equip_slot) == null and can_equip_item_to_slot(item_definition, item_definition.equip_slot):
 			equipped_items[item_definition.equip_slot] = item_definition
+			var actor_id := str(actor.get("stable_id")).strip_edges()
+			equipped_stack_ids[item_definition.equip_slot] = "%s.equipment.%s" % [actor_id, item_definition.equip_slot] if not actor_id.is_empty() else InventoryData.create_stack_id()
 			changed = true
 	if changed:
 		_mark_equipment_changed()

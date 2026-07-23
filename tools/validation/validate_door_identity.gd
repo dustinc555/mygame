@@ -1,16 +1,17 @@
 extends SceneTree
 
 ## Doors inside reusable shells author no door_id; the owning WorldBuilding
-## mints one per placement at ready time. This proves every shipped shell ends
+## receives an explicit building_id from its placement before ready. This proves every shipped shell ends
 ## up with uniquely identified doors — an ID-less door is silent decoration
 ## the door system never hears about (the originally shipped bug).
 ## Uses load() at runtime: --script mode cannot compile GECS preload chains.
 
 const SHELL_PATHS := [
-	"res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn",
-	"res://features/world/projection/buildings/shells/modular/woodbrick_house.tscn",
+	"res://features/world/projection/buildings/shells/modular/medium_wood_hall.tscn",
+	"res://features/world/projection/buildings/shells/modular/medium_wood_l_hall.tscn",
+	"res://features/world/projection/buildings/shells/modular/large_wood_hall_tower.tscn",
 ]
-const EXPECTED_MINIMUM_DOORS := 3
+const EXPECTED_MINIMUM_DOORS := 4
 
 var _failed := false
 
@@ -28,6 +29,7 @@ func _run() -> void:
 			_fail("Missing shell scene: %s" % path)
 			continue
 		var shell := scene.instantiate() as Node3D
+		shell.set("building_id", "validation.%s" % path.get_file().get_basename())
 		get_root().add_child(shell)
 		await process_frame
 		await process_frame

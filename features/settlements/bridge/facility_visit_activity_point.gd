@@ -77,7 +77,8 @@ func _assign_actor_to_visit_target(actor: Node, target: Node) -> bool:
 func _assign_actor_to_seat(actor: Node, seat: Node) -> bool:
 	if actor == null or seat == null:
 		return false
-	if actor.has_method("sit_at_seat_immediately") and bool(actor.call("sit_at_seat_immediately", seat)):
+	var interaction = actor.get_interaction() if actor.has_method("get_interaction") else null
+	if interaction != null and interaction.sit_at_seat_immediately(seat):
 		return true
 	if actor.has_method("assign_seat_target"):
 		actor.call("assign_seat_target", seat, false)

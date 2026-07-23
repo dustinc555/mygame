@@ -8,8 +8,9 @@ script = ExtResource("1_script")
 facility_id = "bar"
 display_name = "Bar"
 scene_path = "res://features/settlements/bridge/settlement_bar.tscn"
+catalog_enabled = true
+shell_policy = 0
 function = ExtResource("2_function")
 staff_role_counts = {
 "barkeeper": 1
 }
-population_capacity = 0

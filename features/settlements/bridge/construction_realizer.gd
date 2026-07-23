@@ -2,8 +2,8 @@ extends Node
 
 class_name ConstructionRealizer
 
-## Realizes ConstructionRecords records into the live world: instantiates
-## each building record's catalog scene at its recorded transform under the
+## Realizes constructed BuildingRegistry records into the live world: instantiates
+## each building's catalog scene at its exact committed transform under the
 ## played scene root (so navigation tiles patch automatically), and draws a
 ## dashed circular town border per constructed settlement that redraws as the
 ## record's radius grows. Because it only consumes records, a future
@@ -11,15 +11,15 @@ class_name ConstructionRealizer
 
 const SERVICE_ID := &"construction_realizer"
 
-const CONSTRUCTION_SCRIPT := preload("res://features/settlements/sim/construction_records.gd")
-
 const BORDER_Y_OFFSET := 0.5
 const BORDER_SEGMENTS := 96
 const BORDER_DASH_RATIO := 0.6
 
 var root_scene: Node
 
-var _construction: Node
+var _construction: ConstructionController
+var _registry: BuildingRegistry
+var _projection_bridge: BuildingProjectionBridge
 var _building_instances := {}
 var _border_instances := {}
 var _zoning_borders_visible := false
@@ -27,10 +27,11 @@ var _zoning_borders_visible := false
 
 func initialize(context: BootstrapContext) -> void:
 	root_scene = context.root_scene
-	_construction = context.get_optional(CONSTRUCTION_SCRIPT.SERVICE_ID)
-	if _construction == null:
-		return
-	_construction.building_added.connect(_on_building_added)
+	_construction = context.require(ConstructionController.SERVICE_ID) as ConstructionController
+	_registry = context.require(BuildingRegistry.SERVICE_ID) as BuildingRegistry
+	_projection_bridge = context.require(BuildingProjectionBridge.SERVICE_ID) as BuildingProjectionBridge
+	_registry.building_created.connect(_on_building_created)
+	_registry.registry_rebuilt.connect(_reconcile_realized_records)
 	_construction.settlement_added.connect(_on_settlement_changed)
 	_construction.settlement_updated.connect(_on_settlement_changed)
 	_realize_all.call_deferred()
@@ -58,16 +59,43 @@ func are_zoning_borders_visible() -> bool:
 func _realize_all() -> void:
 	if _construction == null:
 		return
-	var settlements: Dictionary = _construction.call("get_settlements")
-	for settlement_id in settlements:
-		var settlement: Dictionary = settlements[settlement_id]
-		for building_id in settlement["buildings"]:
-			_realize_building(settlement["buildings"][building_id])
+	_reconcile_realized_records()
+
+
+func _reconcile_realized_records() -> void:
+	if _construction == null or _registry == null:
+		return
+	var live_record_ids := {}
+	for building in _registry.get_all_buildings():
+		if str(building.get("source", "")) == "constructed":
+			live_record_ids[str(building.get("building_id", ""))] = true
+			_realize_building(building)
+	for building_id_value in _building_instances.keys():
+		var building_id := str(building_id_value)
+		if live_record_ids.has(building_id):
+			continue
+		var stale: Node = _building_instances.get(building_id)
+		if stale != null and is_instance_valid(stale):
+			stale.queue_free()
+		_building_instances.erase(building_id)
+	var live_settlement_ids := {}
+	for settlement in _construction.get_settlements().values():
+		live_settlement_ids[str(settlement.get("settlement_id", ""))] = true
 		_redraw_border(settlement)
+	for settlement_id_value in _border_instances.keys():
+		var settlement_id := str(settlement_id_value)
+		if live_settlement_ids.has(settlement_id):
+			continue
+		var stale_border: Node = _border_instances.get(settlement_id)
+		if stale_border != null and is_instance_valid(stale_border):
+			stale_border.queue_free()
+		_border_instances.erase(settlement_id)
 
 
-func _on_building_added(_settlement_id: String, building: Dictionary) -> void:
-	_realize_building(building)
+func _on_building_created(building_id: String) -> void:
+	var building := _registry.get_building(building_id)
+	if str(building.get("source", "")) == "constructed":
+		_realize_building(building)
 
 
 func _on_settlement_changed(settlement: Dictionary) -> void:
@@ -77,40 +105,30 @@ func _on_settlement_changed(settlement: Dictionary) -> void:
 func _realize_building(building: Dictionary) -> void:
 	var building_id: String = building["building_id"]
 	if _building_instances.has(building_id) and is_instance_valid(_building_instances[building_id]):
+		var existing := _building_instances[building_id] as Node3D
+		if not (existing is WorldBuilding) or (existing as WorldBuilding).catalog_id == str(building.get("catalog_id", "")):
+			if existing is WorldBuilding:
+				(existing as WorldBuilding).apply_registry_state(building)
+			else:
+				existing.global_transform = building["world_transform"] as Transform3D
+			return
+		existing.queue_free()
+		_building_instances.erase(building_id)
+	var definition: Resource = _construction.catalog.get_building(building["catalog_id"])
+	var scene: PackedScene = definition.get("scene") as PackedScene if definition != null else null
+	if scene == null:
+		push_error("ConstructionRealizer: cannot realize unknown catalog id '%s' for building '%s'" % [building["catalog_id"], building_id])
 		return
-	var definition: Resource = _construction.get("catalog").call("get_building", building["catalog_id"])
-	if definition == null or definition.get("scene") == null:
-		push_warning("ConstructionRealizer: no scene for catalog id '%s'" % building["catalog_id"])
-		return
-	var instance: Node3D = (definition.get("scene") as PackedScene).instantiate()
+	var instance: Node3D = scene.instantiate()
 	instance.name = building_id
-	instance.set_meta("constructed_building_id", building_id)
-	instance.set_meta("faction_id", building["faction_id"])
+	if instance is WorldBuilding:
+		(instance as WorldBuilding).building_id = building_id
+		(instance as WorldBuilding).apply_registry_state(building)
 	_world_parent().add_child(instance)
-	instance.global_transform = CONSTRUCTION_SCRIPT.deserialize_transform(building["transform"])
+	instance.global_transform = building["world_transform"] as Transform3D
 	_building_instances[building_id] = instance
-	_snap_realized_building(instance, definition, building)
-
-
-## Records hold the transform solved at placement time; terrain may have
-## changed since (world edits between sessions). Re-solve ground Y and tilt
-## at the recorded XZ+yaw, restoring the recorded foundation raise.
-func _snap_realized_building(instance: Node3D, definition: Resource, building: Dictionary) -> void:
-	var tree := instance.get_tree()
-	if tree == null:
-		return
-	await tree.physics_frame
-	await tree.physics_frame
-	if not is_instance_valid(instance) or not instance.is_inside_tree():
-		return
-	var footprint: Vector2 = definition.get("footprint_size") if definition.get("footprint_size") != null else BuildingPlacementSolver.estimate_footprint(instance)
-	var snap_result := BuildingPlacementSolver.snap_to_terrain(
-		instance.get_world_3d().direct_space_state,
-		instance.global_transform,
-		footprint,
-		float(building.get("foundation", 0.0)))
-	if not snap_result.is_empty():
-		instance.global_transform = snap_result["transform"]
+	if instance is WorldBuilding:
+		_projection_bridge.bind_projection(instance as WorldBuilding, false)
 
 
 func _redraw_border(settlement: Dictionary) -> void:
@@ -118,7 +136,7 @@ func _redraw_border(settlement: Dictionary) -> void:
 	var old: Node = _border_instances.get(settlement_id)
 	if old != null and is_instance_valid(old):
 		old.queue_free()
-	var center: Array = settlement["center"]
+	var center: Vector3 = settlement["world_position"]
 	var radius: float = settlement["radius"]
 	var instance := MeshInstance3D.new()
 	instance.name = "TownBorder_%s" % settlement_id
@@ -126,7 +144,7 @@ func _redraw_border(settlement: Dictionary) -> void:
 	instance.material_override = _border_material()
 	instance.visible = _zoning_borders_visible
 	_world_parent().add_child(instance)
-	instance.global_position = Vector3(center[0], center[1] + BORDER_Y_OFFSET, center[2])
+	instance.global_position = center + Vector3.UP * BORDER_Y_OFFSET
 	_border_instances[settlement_id] = instance
 
 

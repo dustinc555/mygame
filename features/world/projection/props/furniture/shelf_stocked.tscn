@@ -1,43 +1,42 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=11 format=3]
 
-[ext_resource type="Script" path="res://features/world/projection/props/tabletop_item_spawner.gd" id="1_spawner"]
-[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Shelf_Simple.gltf" id="2_model"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Shelf_Simple.gltf" id="1"]
+[ext_resource type="Script" path="res://features/world/projection/props/tabletop_furniture.gd" id="2"]
+[ext_resource type="Script" path="res://features/world/projection/props/tabletop_item_spawner.gd" id="3"]
+[ext_resource type="Script" path="res://features/world/projection/props/tabletop_item_slot.gd" id="4"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/bottle_1.tres" id="5"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/bottle_2.tres" id="6"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/candle_2.tres" id="7"]
 
-[sub_resource type="BoxShape3D" id="Shape_body"]
+[sub_resource type="BoxShape3D" id="Body"]
 size = Vector3(1.19, 0.31, 0.3)
 
 [node name="ShelfStocked" type="StaticBody3D"]
-script = ExtResource("1_spawner")
+script = ExtResource("2")
 furniture_type = 5
-seed_salt = "stocked_shelf"
-spawn_density = 0.9
-minimum_spawned_items = 1
-tabletop_spawn_surface_offset = 0.0
 
-[node name="Model" parent="." instance=ExtResource("2_model")]
+[node name="Model" parent="." instance=ExtResource("1")]
 
 [node name="BodyCollision" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
-shape = SubResource("Shape_body")
+position = Vector3(0, -0.046, 0.19)
+shape = SubResource("Body")
 
-[node name="PropSlots" type="Node3D" parent="."]
+[node name="TabletopSurface" type="Node3D" parent="."]
+script = ExtResource("3")
+seed_salt = "stocked_shelf"
+tabletop_half_extents = Vector2(0.6, 0.18)
 
-[node name="BottleLeft" type="Marker3D" parent="PropSlots"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
-metadata/prop_category = "bottle"
-metadata/comfortable_weight = 0.65
+[node name="BottleLeft" type="Marker3D" parent="TabletopSurface"]
+position = Vector3(-0.42, 0.11, 0.19)
+script = ExtResource("4")
+slot_id = "bottle_left"
+spawn_chance = 0.65
+optional_items = Array[ItemDefinition]([ExtResource("5"), ExtResource("6")])
+optional_weights = PackedFloat32Array(1, 1)
 
-[node name="BottleMid" type="Marker3D" parent="PropSlots"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12, 0.11, 0.17)
-metadata/prop_category = "bottle"
-metadata/comfortable_weight = 0.5
-
-[node name="CandleRight" type="Marker3D" parent="PropSlots"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
-metadata/prop_category = "candle"
-metadata/comfortable_weight = 0.45
-
-[node name="ClutterFarRight" type="Marker3D" parent="PropSlots"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.44, 0.11, 0.16)
-metadata/prop_category = "small_clutter"
-metadata/comfortable_weight = 0.4
+[node name="CandleRight" type="Marker3D" parent="TabletopSurface"]
+position = Vector3(0.2, 0.11, 0.2)
+script = ExtResource("4")
+slot_id = "candle_right"
+spawn_chance = 0.45
+optional_items = Array[ItemDefinition]([ExtResource("7")])

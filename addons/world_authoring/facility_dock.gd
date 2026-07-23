@@ -11,11 +11,9 @@ extends PanelContainer
 
 const FUNCTIONS_DIR := "res://features/world_sim/resources/facility_functions"
 const APPEARANCE_PROFILES_DIR := "res://features/world_sim/resources/population_appearance_profiles"
+const CHARACTER_TYPE_SETS_DIR := "res://features/world_sim/resources/character_type_sets"
 const FACTIONS_DIR := "res://features/factions/resources/factions"
 const ICONS_DIR := "res://addons/world_authoring/icons"
-## Catalog category (folder name) whose scenes are room-scale cluster
-## vignettes rather than single furniture pieces.
-const CLUSTER_CATEGORY := "vignettes"
 ## facility_type / function facility_type -> icon file.
 const TYPE_ICONS := {
 	"bar": "facility_bar.svg",
@@ -42,7 +40,6 @@ var _identity_box: VBoxContainer
 var _shell_list: VBoxContainer
 var _furniture_text: RichTextLabel
 var _furniture_browser: ItemList
-var _cluster_browser: ItemList
 var _furniture_search: LineEdit
 var _furniture_category: OptionButton
 var _furnisher_label: Label
@@ -99,7 +96,6 @@ func setup(tools: RefCounted) -> void:
 	staffing_scroll.add_child(_staffing_box)
 	_content.add_child(staffing_scroll)
 	_content.add_child(_build_furniture_column())
-	_content.add_child(_build_cluster_column())
 
 
 ## Dedicated Furniture column: generation (Furnish/Reroll) and hand placement
@@ -178,35 +174,6 @@ func _build_furniture_column() -> Control:
 	furniture_column.add_child(_furniture_text)
 	return furniture_column
 
-
-## Clusters are room-scale vignettes (cell blocks, table groups) that lay out
-## their own children — a different act than placing one piece, so they get
-## their own column instead of hiding among single furniture items.
-func _build_cluster_column() -> Control:
-	var cluster_column := VBoxContainer.new()
-	cluster_column.custom_minimum_size = Vector2(200, 0)
-	cluster_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	cluster_column.add_child(_section_title("Clusters"))
-	_cluster_browser = ItemList.new()
-	_cluster_browser.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_cluster_browser.custom_minimum_size = Vector2(0, 150)
-	_cluster_browser.icon_mode = ItemList.ICON_MODE_TOP
-	_cluster_browser.fixed_icon_size = Vector2i(56, 56)
-	_cluster_browser.max_columns = 0
-	_cluster_browser.same_column_width = true
-	_cluster_browser.item_activated.connect(func(index: int): _begin_browser_placement(index, _cluster_browser))
-	cluster_column.add_child(_cluster_browser)
-	var place_cluster := Button.new()
-	place_cluster.text = "Place Selected"
-	place_cluster.tooltip_text = "Ghost-place the selected cluster (double-click does the same). It spawns its own furniture; select it afterwards to tune count/rows/spacing in the inspector."
-	place_cluster.pressed.connect(func():
-		var selected := _cluster_browser.get_selected_items()
-		if not selected.is_empty():
-			_begin_browser_placement(selected[0], _cluster_browser))
-	cluster_column.add_child(place_cluster)
-	return cluster_column
-
-
 func set_facility(facility: Node) -> void:
 	_facility = facility if facility != null and is_instance_valid(facility) else null
 	# Deferred on purpose: set_facility is reachable from this dock's own
@@ -238,8 +205,7 @@ func _rebuild_identity() -> void:
 	for child in _identity_box.get_children():
 		_identity_box.remove_child(child)
 		child.queue_free()
-	var kind := "composed facility" if _facility is SettlementFacilityInstance else "building shell"
-	_identity_box.add_child(_section_title("%s  —  %s" % [_facility.name, kind]))
+	_identity_box.add_child(_section_title("%s  —  composed facility" % _facility.name))
 	if _facility.get("display_name") != null:
 		_identity_box.add_child(_facility_name_field(str(_facility.get("display_name"))))
 	var shell_path: String = _tools.current_shell_path(_facility)
@@ -259,13 +225,10 @@ func _rebuild_identity() -> void:
 		_identity_box.add_child(unpack)
 	if _facility.get("owner_faction_id") != null:
 		_identity_box.add_child(_owner_faction_picker())
+	if _facility.get("door_access_policy") != null:
+		_identity_box.add_child(_door_policy_editor())
 	if _facility is SettlementFacilityInstance:
 		_identity_box.add_child(_function_picker())
-	elif _facility is WorldBuilding:
-		var note := Label.new()
-		note.text = "Pure shell (housing). Assigning a function will wrap it in a facility — coming with the furnish pass."
-		note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_identity_box.add_child(note)
 
 
 func _facility_name_field(current_name: String) -> Control:
@@ -326,6 +289,130 @@ func _owner_faction_picker() -> Control:
 	return row
 
 
+func _door_policy_editor() -> Control:
+	var column := VBoxContainer.new()
+	column.add_child(_section_title("Door Policy"))
+	var owner := _facility.call("get_property_owner_character") if _facility.has_method("get_property_owner_character") else null
+	var owner_role := str(_facility.call("get_property_owner_role_id")).strip_edges() if _facility.has_method("get_property_owner_role_id") else ""
+	var owner_faction := str(_facility.call("get_property_owner_faction")).strip_edges() if _facility.has_method("get_property_owner_faction") else ""
+	var owner_label := Label.new()
+	if owner != null:
+		owner_label.text = "Owner: %s" % str(owner.get("member_name"))
+	elif not owner_role.is_empty():
+		owner_label.text = "Owner: %s staff slot" % owner_role.capitalize()
+	else:
+		owner_label.text = "Owner: faction"
+	if not owner_faction.is_empty():
+		owner_label.text += " (%s)" % owner_faction
+	column.add_child(owner_label)
+	var access_row := HBoxContainer.new()
+	var access_label := Label.new()
+	access_label.text = "Access"
+	access_label.custom_minimum_size = Vector2(110, 0)
+	access_row.add_child(access_label)
+	var access := OptionButton.new()
+	access.add_item("Private (owner)")
+	access.set_item_metadata(0, "private")
+	access.add_item("Public")
+	access.set_item_metadata(1, "public")
+	access.selected = 1 if str(_facility.get("door_access_policy")) == "public" else 0
+	access.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	access.item_selected.connect(func(index: int):
+		if not _updating:
+			_tools.set_facility_property(_facility, "door_access_policy", str(access.get_item_metadata(index))))
+	access_row.add_child(access)
+	column.add_child(access_row)
+	column.add_child(_door_initial_state_field())
+	column.add_child(_door_toggle("Use Schedule", "door_schedule_enabled", "Open and close at authored world hours."))
+	var schedule_enabled := bool(_facility.get("door_schedule_enabled"))
+	column.add_child(_door_hour_field("Open Hour", "door_open_hour", schedule_enabled))
+	column.add_child(_door_hour_field("Close Hour", "door_close_hour", schedule_enabled))
+	var keep_open := _door_toggle("Keep Open During Hours", "doors_keep_open_during_hours", "The owner walks over to reopen a scheduled door if someone closes it.")
+	keep_open.modulate = Color.WHITE if schedule_enabled else Color(1.0, 1.0, 1.0, 0.45)
+	column.add_child(keep_open)
+	column.add_child(_section_title("Discovered Doors"))
+	var doors: Array[Node] = []
+	_collect_doors(_facility, doors)
+	if doors.is_empty():
+		var none := Label.new()
+		none.text = "No WorldDoor nodes in the current shell."
+		none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		column.add_child(none)
+	for door in doors:
+		var target := door
+		var button := Button.new()
+		button.text = str(_facility.get_path_to(target))
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.tooltip_text = "Select this door to edit its DoorDefinition and per-door overrides."
+		button.pressed.connect(func(): _tools.select_facility_node(target))
+		column.add_child(button)
+	return column
+
+
+func _door_initial_state_field() -> Control:
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = "Initial State"
+	label.custom_minimum_size = Vector2(110, 0)
+	row.add_child(label)
+	var option := OptionButton.new()
+	for entry in [
+		{"label": "Door Default", "value": "door_default"},
+		{"label": "Closed", "value": "closed"},
+		{"label": "Open", "value": "open"},
+		{"label": "Locked", "value": "locked"},
+	]:
+		option.add_item(str(entry["label"]))
+		option.set_item_metadata(option.item_count - 1, entry["value"])
+		if str(_facility.get("door_initial_state")) == str(entry["value"]):
+			option.selected = option.item_count - 1
+	option.tooltip_text = "Initial state for newly-created door records. Saved gameplay state is never reset."
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	option.item_selected.connect(func(index: int):
+		if not _updating:
+			_tools.set_facility_property(_facility, "door_initial_state", str(option.get_item_metadata(index))))
+	row.add_child(option)
+	return row
+
+
+func _door_toggle(label_text: String, property_name: String, tooltip: String) -> CheckBox:
+	var toggle := CheckBox.new()
+	toggle.text = label_text
+	toggle.tooltip_text = tooltip
+	toggle.button_pressed = bool(_facility.get(property_name))
+	toggle.toggled.connect(func(pressed: bool):
+		if not _updating:
+			_tools.set_facility_property(_facility, property_name, pressed))
+	return toggle
+
+
+func _door_hour_field(label_text: String, property_name: String, enabled: bool) -> Control:
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = label_text
+	label.custom_minimum_size = Vector2(110, 0)
+	row.add_child(label)
+	var spin := SpinBox.new()
+	spin.min_value = 0
+	spin.max_value = 23
+	spin.step = 1
+	spin.value = int(_facility.get(property_name))
+	spin.get_line_edit().editable = enabled
+	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spin.value_changed.connect(func(value: float):
+		if not _updating:
+			_tools.set_facility_property(_facility, property_name, int(value)))
+	row.add_child(spin)
+	return row
+
+
+func _collect_doors(node: Node, doors: Array[Node]) -> void:
+	if node is WorldDoor:
+		doors.append(node)
+	for child in node.get_children():
+		_collect_doors(child, doors)
+
+
 func _function_picker() -> Control:
 	var paths := _scan_function_paths()
 	var option := OptionButton.new()
@@ -363,10 +450,21 @@ func _rebuild_shell_list() -> void:
 		_shell_list.remove_child(child)
 		child.queue_free()
 	var current_path: String = _tools.current_shell_path(_facility)
+	var no_shell := Button.new()
+	no_shell.text = "No Shell"
+	no_shell.tooltip_text = "Remove the current shell. The facility remains valid and idle."
+	no_shell.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	if current_path.is_empty():
+		no_shell.disabled = true
+		no_shell.text += "  (current)"
+	no_shell.pressed.connect(func(): _tools.swap_shell(_facility, "", _clear_furniture_check.button_pressed))
+	_shell_list.add_child(no_shell)
 	for shell_path_value in _tools.rescan_shell_catalog():
 		var shell_path := str(shell_path_value)
 		var button := Button.new()
-		button.text = shell_path.get_file().get_basename()
+		var basename := shell_path.get_file().get_basename()
+		var display_name := str(_tools.shell_display_name(shell_path))
+		button.text = display_name if display_name.to_snake_case() == basename else "%s (%s)" % [display_name, basename]
 		button.tooltip_text = shell_path
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		if shell_path == current_path:
@@ -402,6 +500,9 @@ func _rebuild_staffing() -> void:
 	if _facility.get("population_appearance_profile") != null or "population_appearance_profile" in _facility:
 		has_any = true
 		_staffing_box.add_child(_appearance_profile_picker())
+	if _facility.get("character_type_set") != null or "character_type_set" in _facility:
+		has_any = true
+		_staffing_box.add_child(_character_type_set_picker())
 	if has_any:
 		var place_post := Button.new()
 		place_post.text = "Place Guard Post"
@@ -422,18 +523,21 @@ func _rebuild_staffing() -> void:
 			var filled := bool(slot.get("filled", false))
 			row.text = "%s %s — %s" % ["●" if filled else "○", str(slot.get("display_name", slot.get("slot_id", "slot"))), "assigned" if filled else "vacant"]
 			_staffing_box.add_child(row)
+			_staffing_box.add_child(_character_type_field(slot))
 	if not has_any and not _facility.has_method("get_settlement_staff_slots"):
 		var none := Label.new()
 		none.text = "This facility has no staffing."
 		_staffing_box.add_child(none)
 
 
-## Character generator for whoever this facility realizes (staff, visitors).
-## "(inherit)" falls back to the parent town's profile.
+## Exact character realizer used by gameplay. Inheritance is facility -> town
+## -> faction; missing or invalid realizers reject spawning instead of falling
+## back to a generic humanoid.
 func _appearance_profile_picker() -> Control:
 	var paths: Array[String] = _scan_resource_paths(APPEARANCE_PROFILES_DIR)
+	var column := VBoxContainer.new()
 	var option := OptionButton.new()
-	option.add_item("(inherit from town)")
+	option.add_item("Default (inherit town/faction)")
 	var current: Resource = _facility.get("population_appearance_profile") as Resource
 	var selected := 0
 	for index in range(paths.size()):
@@ -448,11 +552,89 @@ func _appearance_profile_picker() -> Control:
 		_tools.set_facility_property(_facility, "population_appearance_profile", value))
 	var row := HBoxContainer.new()
 	var label := Label.new()
-	label.text = "Characters"
-	label.tooltip_text = "Appearance generator used when this facility realizes new characters."
+	label.text = "Character Realizer"
+	label.tooltip_text = "Runtime character class and appearance. This exact value, or its town/faction inheritance, is used in gameplay."
 	label.custom_minimum_size = Vector2(120, 0)
 	row.add_child(label)
 	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(option)
+	column.add_child(row)
+	var effective := _facility.call("get_effective_character_realizer") as Resource if _facility.has_method("get_effective_character_realizer") else current
+	var effective_label := Label.new()
+	var source: String = str(_facility.call("get_effective_character_realizer_source")) if _facility.has_method("get_effective_character_realizer_source") else ("facility" if current != null else "inherited")
+	effective_label.text = "Effective: %s (%s)" % [effective.resource_path.get_file().get_basename().capitalize() if effective != null else "INVALID", source]
+	effective_label.modulate = Color(0.72, 0.9, 0.72) if effective != null and effective.get("actor_script") != null and not str(effective.get("profile_id")).strip_edges().is_empty() and effective.has_method("create_appearance") else Color(1.0, 0.42, 0.35)
+	column.add_child(effective_label)
+	return column
+
+
+func _character_type_set_picker() -> Control:
+	var paths: Array[String] = _scan_resource_paths(CHARACTER_TYPE_SETS_DIR)
+	var column := VBoxContainer.new()
+	var option := OptionButton.new()
+	option.add_item("Default (inherit town/faction)")
+	var current: Resource = _facility.get("character_type_set") as Resource
+	var selected := 0
+	for index in range(paths.size()):
+		option.add_item(paths[index].get_file().get_basename().capitalize())
+		if current != null and current.resource_path == paths[index]:
+			selected = index + 1
+	option.selected = selected
+	option.item_selected.connect(func(index: int):
+		if _updating:
+			return
+		var value: Resource = null if index == 0 else load(paths[index - 1])
+		_tools.set_facility_property(_facility, "character_type_set", value))
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = "Character Types"
+	label.custom_minimum_size = Vector2(120, 0)
+	row.add_child(label)
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(option)
+	column.add_child(row)
+	var effective := _facility.call("get_effective_character_type_set") as Resource if _facility.has_method("get_effective_character_type_set") else current
+	var effective_label := Label.new()
+	var source: String = str(_facility.call("get_effective_character_type_set_source")) if _facility.has_method("get_effective_character_type_set_source") else ("facility" if current != null else "inherited")
+	effective_label.text = "Effective: %s (%s)" % [effective.resource_path.get_file().get_basename().capitalize() if effective != null else "INVALID", source]
+	effective_label.modulate = Color(0.72, 0.9, 0.72) if effective != null and effective.has_method("resolve_character_type") and effective.call("resolve_character_type", "", "resident") != null else Color(1.0, 0.42, 0.35)
+	column.add_child(effective_label)
+	return column
+
+
+func _character_type_field(slot: Dictionary) -> Control:
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = "  Character Type"
+	label.custom_minimum_size = Vector2(120, 0)
+	row.add_child(label)
+	var option := OptionButton.new()
+	var type_set := _facility.call("get_effective_character_type_set") as Resource if _facility.has_method("get_effective_character_type_set") else null
+	var role_id := str(slot.get("role_id", "")).strip_edges().to_lower()
+	var role_index := int(slot.get("role_index", 0))
+	var requested := str(slot.get("character_type_id", "")).strip_edges().to_lower()
+	var default_type := type_set.call("resolve_character_type", "", role_id) as Resource if type_set != null and type_set.has_method("resolve_character_type") else null
+	option.add_item("Default: %s" % (str(default_type.get("display_name")) if default_type != null else "INVALID"))
+	var available: Array = type_set.call("get_character_types") if type_set != null and type_set.has_method("get_character_types") else []
+	var selected := 0
+	for character_type in available:
+		var type_id := str(character_type.get("type_id")).strip_edges().to_lower()
+		option.add_item(str(character_type.get("display_name")))
+		option.set_item_metadata(option.item_count - 1, type_id)
+		if requested == type_id:
+			selected = option.item_count - 1
+	option.selected = selected
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	option.item_selected.connect(func(index: int):
+		if _updating:
+			return
+		var overrides: Dictionary = (_facility.get("staff_character_type_ids") as Dictionary).duplicate(true)
+		var key := "%s:%d" % [role_id, role_index]
+		if index == 0:
+			overrides.erase(key)
+		else:
+			overrides[key] = str(option.get_item_metadata(index))
+		_tools.set_facility_property(_facility, "staff_character_type_ids", overrides))
 	row.add_child(option)
 	return row
 
@@ -533,16 +715,7 @@ func _rebuild_furniture_browser() -> void:
 		return
 	_rebuild_furnisher_row()
 	var entries: Array = _tools.get_furniture_catalog()
-	# Vignette scenes are clusters: they get their own column, never the
-	# per-piece grid or its category dropdown.
-	var piece_entries: Array = []
-	var cluster_entries: Array = []
-	for entry in entries:
-		if str(entry["category"]) == CLUSTER_CATEGORY:
-			cluster_entries.append(entry)
-		else:
-			piece_entries.append(entry)
-	_populate_furniture_categories(piece_entries)
+	_populate_furniture_categories(entries)
 	var placeable := _facility is SettlementFacilityInstance
 	var blocked_tooltip := "" if placeable else "Hand placement needs a composed facility (bar/jail/keep)."
 	_furniture_browser.tooltip_text = blocked_tooltip
@@ -556,7 +729,7 @@ func _rebuild_furniture_browser() -> void:
 	_furniture_browser.clear()
 	var fallback_icon := get_theme_icon("PackedScene", "EditorIcons")
 	var previewer := EditorInterface.get_resource_previewer()
-	for entry in piece_entries:
+	for entry in entries:
 		if not category.is_empty() and str(entry["category"]) != category:
 			continue
 		if not query.is_empty() and not str(entry["name"]).to_lower().contains(query):
@@ -567,18 +740,6 @@ func _rebuild_furniture_browser() -> void:
 		_furniture_browser.set_item_tooltip(index, "%s\nDouble-click to place." % path)
 		if not placeable:
 			_furniture_browser.set_item_disabled(index, true)
-		previewer.queue_resource_preview(path, self, "_on_furniture_preview_ready", path)
-	if _cluster_browser == null:
-		return
-	_cluster_browser.tooltip_text = blocked_tooltip
-	_cluster_browser.clear()
-	for entry in cluster_entries:
-		var path := str(entry["path"])
-		var index := _cluster_browser.add_item(str(entry["name"]), fallback_icon)
-		_cluster_browser.set_item_metadata(index, path)
-		_cluster_browser.set_item_tooltip(index, "%s\nDouble-click to place." % path)
-		if not placeable:
-			_cluster_browser.set_item_disabled(index, true)
 		previewer.queue_resource_preview(path, self, "_on_furniture_preview_ready", path)
 
 
@@ -610,20 +771,16 @@ func _populate_furniture_categories(entries: Array) -> void:
 func _on_furniture_preview_ready(path: String, preview: Texture2D, _thumbnail: Texture2D, _userdata: Variant) -> void:
 	if preview == null:
 		return
-	for browser in [_furniture_browser, _cluster_browser]:
-		if browser == null or not is_instance_valid(browser):
-			continue
-		for index in range(browser.item_count):
-			if str(browser.get_item_metadata(index)) == path:
-				browser.set_item_icon(index, preview)
-				return
+	for index in range(_furniture_browser.item_count):
+		if str(_furniture_browser.get_item_metadata(index)) == path:
+			_furniture_browser.set_item_icon(index, preview)
+			return
 
 
-func _begin_browser_placement(index: int, browser: ItemList = null) -> void:
+func _begin_browser_placement(index: int) -> void:
 	if _facility == null or not is_instance_valid(_facility):
 		return
-	var source := browser if browser != null else _furniture_browser
-	var path := str(source.get_item_metadata(index))
+	var path := str(_furniture_browser.get_item_metadata(index))
 	if not path.is_empty():
 		_tools.begin_furniture_placement(_facility, path)
 

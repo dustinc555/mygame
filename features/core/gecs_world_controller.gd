@@ -30,6 +30,7 @@ const C_AI_STATE_PATH := "res://features/ai/sim/c_game_ai_state.gd"
 const C_GOAL_INTENT_PATH := "res://features/ai/sim/c_game_goal_intent.gd"
 const C_POPULATION_RECORD_PATH := "res://features/world_sim/sim/population/c_game_population_record.gd"
 const C_SETTLEMENT_STATE_PATH := "res://features/settlements/sim/c_game_settlement_state.gd"
+const C_SETTLEMENT_FOOD_STATUS_PATH := "res://features/settlements/sim/c_game_settlement_food_status.gd"
 const C_STAFF_SLOT_PATH := "res://features/settlements/sim/c_game_staff_slot.gd"
 const C_STAFF_VACANCY_PATH := "res://features/settlements/sim/c_game_staff_vacancy.gd"
 const C_INVENTORY_CONTAINER_PATH := "res://features/inventory/sim/c_game_inventory_container.gd"
@@ -60,6 +61,10 @@ const C_COMBAT_SLOT_STATE_PATH := "res://features/combat/sim/c_game_combat_slot_
 const C_COMBAT_ACTION_PATH := "res://features/combat/sim/c_game_combat_action.gd"
 const C_MOVEMENT_STATE_PATH := "res://features/actors/sim/c_game_movement_state.gd"
 const C_WORLD_SIM_SQUAD_PATH := "res://features/world_sim/sim/c_game_world_sim_squad.gd"
+const C_BUILDING_RECORD_PATH := "res://features/world/sim/c_game_building_record.gd"
+const CONSTRUCTION_CATALOG_ID_LOAD_MIGRATIONS := {
+	"woodbrick_house": "medium_wood_l_hall",
+}
 
 @export var spatial_cell_size := 6.0
 @export var spatial_rebuild_interval_seconds := 0.25
@@ -71,6 +76,7 @@ var _actor_entity_by_actor_id: Dictionary = {}
 var _actor_id_by_instance_id: Dictionary = {}
 var _population_entity_by_actor_id: Dictionary = {}
 var _settlement_entity_by_id: Dictionary = {}
+var _settlement_food_entity_by_id: Dictionary = {}
 var _staff_slot_entity_by_key: Dictionary = {}
 var _staff_vacancy_entity_by_key: Dictionary = {}
 var _inventory_container_entity_by_id: Dictionary = {}
@@ -85,6 +91,7 @@ var _job_provider_memory_entity_by_id: Dictionary = {}
 var _activity_point_entity_by_id: Dictionary = {}
 var _activity_assignment_entity_by_actor_id: Dictionary = {}
 var _world_sim_squad_entity_by_id: Dictionary = {}
+var _building_entity_by_id: Dictionary = {}
 var _world_time_entity
 var _law_order_entity
 var _faction_state_entity
@@ -99,6 +106,7 @@ var _initialized := false
 
 const WORLD_BRAIN_LOG_CAP := 200
 signal world_event_logged(entry)
+signal world_reindexed
 var _world_brain_log: Array[Dictionary] = []
 var _actor_spatial_nodes_by_cell: Dictionary = {}
 var _actor_spatial_index_valid := false
@@ -167,6 +175,7 @@ var C_COMBAT_SLOT_STATE
 var C_COMBAT_ACTION
 var C_MOVEMENT_STATE
 var C_WORLD_SIM_SQUAD
+var C_BUILDING_RECORD
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -292,8 +301,15 @@ func unregister_actor(actor: Node) -> void:
 		actor_id = _actor_id_by_instance_id.get(actor.get_instance_id(), "")
 	if actor_id.is_empty():
 		return
-	sync_actor_inventory(actor)
+	_disconnect_actor_gecs_sync(actor)
 	var entity = _actor_entity_by_actor_id.get(actor_id)
+	var final_world_position := Vector3.ZERO
+	var has_final_world_position := false
+	if entity != null and is_instance_valid(entity):
+		var spatial = entity.get_component(C_SPATIAL)
+		if spatial != null:
+			final_world_position = spatial.world_position
+			has_final_world_position = true
 	if entity != null and is_instance_valid(entity) and world != null:
 		world.remove_entity(entity)
 	_actor_entity_by_actor_id.erase(actor_id)
@@ -303,13 +319,26 @@ func unregister_actor(actor: Node) -> void:
 	if pop_entity != null and is_instance_valid(pop_entity):
 		var record_component = pop_entity.get_component(C_POPULATION_RECORD)
 		if record_component != null:
-			var record: Dictionary = record_component.to_record() if record_component.has_method("to_record") else {}
-			record["realization_state"] = "ledger"
-			record.erase("live_node_path")
-			if actor is Node3D:
-				record["last_world_position"] = (actor as Node3D).global_position
-				record["last_world_position_initialized"] = true
-			upsert_population_record(record)
+			record_component.realization_state = "ledger"
+			if has_final_world_position:
+				record_component.last_world_position = final_world_position
+				record_component.last_world_position_initialized = true
+
+
+func _disconnect_actor_gecs_sync(actor: Node) -> void:
+	var world_actor := actor as WorldActor
+	if world_actor == null:
+		return
+	if world_actor.get_inventory() != null:
+		var inventory_callback := sync_actor_inventory.bind(actor)
+		if world_actor.get_inventory().inventory_changed.is_connected(inventory_callback):
+			world_actor.get_inventory().inventory_changed.disconnect(inventory_callback)
+	if world_actor.get_equipment() != null:
+		var equipment_callback := _on_actor_equipment_changed.bind(actor)
+		if world_actor.get_equipment().equipment_changed.is_connected(equipment_callback):
+			world_actor.get_equipment().equipment_changed.disconnect(equipment_callback)
+	if world_actor.get_interaction() != null and world_actor.get_interaction().rest_state_requested.is_connected(request_actor_rest_state):
+		world_actor.get_interaction().rest_state_requested.disconnect(request_actor_rest_state)
 
 
 ## Public entity lookup for tools/probes and controllers that must reach an
@@ -674,6 +703,39 @@ func remove_world_sim_squad(squad_id: String) -> void:
 	_world_sim_squad_entity_by_id.erase(squad_id)
 
 
+func upsert_building_record(record: Dictionary) -> Dictionary:
+	_try_initialize()
+	if world == null or record.is_empty():
+		return {}
+	var building_id := str(record.get("building_id", "")).strip_edges()
+	if building_id.is_empty():
+		return {}
+	var entity = _building_entity_by_id.get(building_id)
+	if entity == null or not is_instance_valid(entity):
+		entity = _entity_script.new()
+		entity.name = _entity_node_name("Building", building_id)
+		entity.id = _entity_id("building", building_id)
+		world.add_entity(entity, [C_BUILDING_RECORD.new()])
+		_building_entity_by_id[building_id] = entity
+	var component = entity.get_component(C_BUILDING_RECORD)
+	component.apply_record(record)
+	return component.to_record()
+
+
+func get_building_records() -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	if world == null:
+		return records
+	for entity in world.query.with_all([C_BUILDING_RECORD]).execute():
+		var component = entity.get_component(C_BUILDING_RECORD)
+		if component == null:
+			continue
+		var record: Dictionary = component.to_record()
+		records.append(record)
+		_building_entity_by_id[str(record["building_id"])] = entity
+	return records
+
+
 func upsert_settlement_state(settlement_id: String, state: Dictionary) -> Dictionary:
 	_try_initialize()
 	if world == null or settlement_id.strip_edges().is_empty():
@@ -690,6 +752,38 @@ func upsert_settlement_state(settlement_id: String, state: Dictionary) -> Dictio
 	updated["settlement_id"] = settlement_id
 	component.apply_state(updated)
 	return component.to_state()
+
+
+func upsert_settlement_food_status(settlement_id: String, status: Dictionary) -> Dictionary:
+	_try_initialize()
+	if world == null or settlement_id.is_empty():
+		return {}
+	var script = load(C_SETTLEMENT_FOOD_STATUS_PATH)
+	var entity = _settlement_food_entity_by_id.get(settlement_id)
+	if entity == null or not is_instance_valid(entity):
+		entity = _entity_script.new()
+		entity.name = _entity_node_name("SettlementFood", settlement_id)
+		entity.id = _entity_id("settlement_food", settlement_id)
+		world.add_entity(entity, [script.new()])
+		_settlement_food_entity_by_id[settlement_id] = entity
+	var component = entity.get_component(script)
+	var updated := status.duplicate(true)
+	updated["settlement_id"] = settlement_id
+	component.apply_status(updated)
+	return component.to_status()
+
+
+func get_settlement_food_statuses() -> Dictionary:
+	var statuses: Dictionary = {}
+	if world == null:
+		return statuses
+	var script = load(C_SETTLEMENT_FOOD_STATUS_PATH)
+	for entity in world.query.with_all([script]).execute():
+		var component = entity.get_component(script)
+		if component != null:
+			statuses[str(component.settlement_id)] = component.to_status()
+			_settlement_food_entity_by_id[str(component.settlement_id)] = entity
+	return statuses
 
 
 func record_settlement_event(event_record: Dictionary) -> void:
@@ -862,21 +956,52 @@ func sync_world_container(container: Node) -> void:
 	var inventory = container.get("inventory") if _has_property(container, "inventory") else null
 	if inventory == null:
 		return
-	var container_id := _node_container_id(container)
+	var container_id := str(container.get("container_id")).strip_edges() if _has_property(container, "container_id") else ""
+	if container_id.is_empty():
+		return
 	_sync_inventory_container("", container_id, container, inventory, false, true)
 
 
-func sync_world_item(item: Node) -> void:
-	if item == null or not is_instance_valid(item):
-		return
+func get_item_stack_entity(stack_id: String):
+	return _item_stack_entity_by_id.get(stack_id)
+
+
+func register_item_stack_entity(stack_id: String, entity) -> void:
+	_item_stack_entity_by_id[stack_id] = entity
+
+
+func remove_item_stack_entity(stack_id: String) -> void:
+	var entity = _item_stack_entity_by_id.get(stack_id)
+	_item_stack_entity_by_id.erase(stack_id)
+	if entity != null and is_instance_valid(entity) and world != null:
+		world.remove_entity(entity)
+
+
+func get_inventory_container_entity(container_id: String):
+	return _inventory_container_entity_by_id.get(container_id)
+
+
+func register_inventory_container_entity(container_id: String, entity) -> void:
+	_inventory_container_entity_by_id[container_id] = entity
+
+
+func remove_inventory_container_entity(container_id: String) -> void:
+	var entity = _inventory_container_entity_by_id.get(container_id)
+	_inventory_container_entity_by_id.erase(container_id)
+	if entity != null and is_instance_valid(entity) and world != null:
+		world.remove_entity(entity)
+
+
+func upsert_item_stack_record(record: Dictionary) -> Dictionary:
 	_try_initialize()
 	if world == null:
-		return
-	var definition = item.get("item_definition") if _has_property(item, "item_definition") else null
-	var item_path := _resource_path(definition)
+		return {}
+	var item_path := str(record.get("item_definition_path", "")).strip_edges()
 	if item_path.is_empty():
-		return
-	var stack_id := _world_item_stack_id(item)
+		return {}
+	var stack_id := str(record.get("stack_id", "")).strip_edges()
+	if stack_id.is_empty():
+		return {}
 	var entity = _item_stack_entity_by_id.get(stack_id)
 	if entity == null or not is_instance_valid(entity):
 		entity = _entity_script.new()
@@ -886,24 +1011,19 @@ func sync_world_item(item: Node) -> void:
 		_item_stack_entity_by_id[stack_id] = entity
 	var component = entity.get_component(C_ITEM_STACK)
 	component.stack_id = stack_id
-	component.container_id = "world"
-	component.owner_actor_id = ""
+	component.container_id = str(record.get("container_id", "world"))
+	component.owner_actor_id = str(record.get("owner_actor_id", ""))
 	component.item_definition_path = item_path
-	component.count = int(item.get("quantity")) if _has_property(item, "quantity") else 1
-	component.grid_position = Vector2i.ZERO
-	component.contained_item_counts = (item.get("contained_item_counts") as Dictionary).duplicate(true) if _has_property(item, "contained_item_counts") else {}
-	component.metadata = (item.get("item_metadata") as Dictionary).duplicate(true) if _has_property(item, "item_metadata") else {}
-	component.world_item_path = item.get_path() if item.is_inside_tree() else NodePath()
-
-
-func remove_world_item(item: Node) -> void:
-	if item == null:
-		return
-	var stack_id := _world_item_stack_id(item)
-	var entity = _item_stack_entity_by_id.get(stack_id)
-	if entity != null and is_instance_valid(entity) and world != null:
-		world.remove_entity(entity)
-	_item_stack_entity_by_id.erase(stack_id)
+	component.count = maxi(1, int(record.get("count", 1)))
+	component.grid_position = record.get("grid_position", Vector2i.ZERO)
+	component.contained_item_counts = (record.get("contained_item_counts", {}) as Dictionary).duplicate(true)
+	component.metadata = (record.get("metadata", {}) as Dictionary).duplicate(true)
+	component.location_kind = str(record.get("location_kind", "inventory"))
+	component.world_transform = record.get("world_transform", Transform3D.IDENTITY)
+	component.placement_host_id = str(record.get("placement_host_id", ""))
+	component.placement_slot_id = str(record.get("placement_slot_id", ""))
+	component.location_settlement_id = str(record.get("location_settlement_id", ""))
+	return get_item_stack(stack_id)
 
 
 func get_inventory_stacks(container_id := "") -> Array[Dictionary]:
@@ -925,8 +1045,35 @@ func get_inventory_stacks(container_id := "") -> Array[Dictionary]:
 			"grid_position": component.grid_position,
 			"contained_item_counts": component.contained_item_counts.duplicate(true),
 			"metadata": component.metadata.duplicate(true),
+			"location_kind": str(component.location_kind),
+			"world_transform": component.world_transform,
+			"placement_host_id": str(component.placement_host_id),
+			"placement_slot_id": str(component.placement_slot_id),
+			"location_settlement_id": str(component.location_settlement_id),
 		})
 	return stacks
+
+
+func get_item_stack(stack_id: String) -> Dictionary:
+	var entity = _item_stack_entity_by_id.get(stack_id)
+	var component = entity.get_component(C_ITEM_STACK) if entity != null and is_instance_valid(entity) else null
+	if component == null:
+		return {}
+	return {
+		"stack_id": str(component.stack_id),
+		"container_id": str(component.container_id),
+		"owner_actor_id": str(component.owner_actor_id),
+		"item_definition_path": str(component.item_definition_path),
+		"count": int(component.count),
+		"grid_position": component.grid_position,
+		"contained_item_counts": component.contained_item_counts.duplicate(true),
+		"metadata": component.metadata.duplicate(true),
+		"location_kind": str(component.location_kind),
+		"world_transform": component.world_transform,
+		"placement_host_id": str(component.placement_host_id),
+		"placement_slot_id": str(component.placement_slot_id),
+		"location_settlement_id": str(component.location_settlement_id),
+	}
 
 
 func get_equipment_slots(actor_id := "") -> Array[Dictionary]:
@@ -1365,12 +1512,26 @@ func load_gecs_world(filepath: String) -> bool:
 	var entities: Array = _gecs_io_script.deserialize(clean_path)
 	if entities.is_empty():
 		return false
+	_migrate_loaded_construction_catalog_ids(entities)
 	_clear_world_entities()
 	for entity in entities:
 		if entity != null:
 			world.add_entity(entity)
 	_rebuild_entity_indexes()
+	world_reindexed.emit()
 	return true
+
+
+func _migrate_loaded_construction_catalog_ids(entities: Array) -> void:
+	for entity in entities:
+		if entity == null:
+			continue
+		var building = entity.get_component(C_BUILDING_RECORD)
+		if building == null:
+			continue
+		var old_id := str(building.catalog_id)
+		if CONSTRUCTION_CATALOG_ID_LOAD_MIGRATIONS.has(old_id):
+			building.catalog_id = CONSTRUCTION_CATALOG_ID_LOAD_MIGRATIONS[old_id]
 
 
 func can_tick_actor_ai_job(actor: Node) -> bool:
@@ -1397,6 +1558,7 @@ func serialize_state() -> Dictionary:
 		"actor_entity_count": _actor_entity_by_actor_id.size(),
 		"population_entity_count": _population_entity_by_actor_id.size(),
 		"settlement_entity_count": _settlement_entity_by_id.size(),
+		"building_entity_count": _building_entity_by_id.size(),
 		"staff_slot_entity_count": _staff_slot_entity_by_key.size(),
 		"inventory_container_entity_count": _inventory_container_entity_by_id.size(),
 		"item_stack_entity_count": _item_stack_entity_by_id.size(),
@@ -1482,6 +1644,7 @@ func _load_component_scripts() -> void:
 	C_COMBAT_ACTION = load(C_COMBAT_ACTION_PATH) if C_COMBAT_ACTION == null else C_COMBAT_ACTION
 	C_MOVEMENT_STATE = load(C_MOVEMENT_STATE_PATH) if C_MOVEMENT_STATE == null else C_MOVEMENT_STATE
 	C_WORLD_SIM_SQUAD = load(C_WORLD_SIM_SQUAD_PATH) if C_WORLD_SIM_SQUAD == null else C_WORLD_SIM_SQUAD
+	C_BUILDING_RECORD = load(C_BUILDING_RECORD_PATH) if C_BUILDING_RECORD == null else C_BUILDING_RECORD
 
 
 func _component_scripts_loaded() -> bool:
@@ -1528,6 +1691,7 @@ func _component_scripts_loaded() -> bool:
 		C_COMBAT_ACTION,
 		C_MOVEMENT_STATE,
 		C_WORLD_SIM_SQUAD,
+		C_BUILDING_RECORD,
 	]:
 		if component_script == null:
 			return false
@@ -1667,7 +1831,11 @@ func _sync_inventory_container(actor_id: String, container_id: String, inventory
 	var component = entity.get_component(C_INVENTORY_CONTAINER)
 	component.container_id = container_id
 	component.owner_actor_id = actor_id
-	component.owner_path = inventory_owner.get_path() if inventory_owner != null and inventory_owner.is_inside_tree() else NodePath()
+	component.settlement_id = str(inventory_owner.get("settlement_id")) if is_world_container and _has_property(inventory_owner, "settlement_id") else ""
+	component.facility_id = str(inventory_owner.get("facility_id")) if is_world_container and _has_property(inventory_owner, "facility_id") else ""
+	component.container_kind = str(inventory_owner.get("container_kind")) if is_world_container and _has_property(inventory_owner, "container_kind") else "actor_work" if is_work_inventory else "actor"
+	component.contributes_to_town_stock = bool(inventory_owner.get("contributes_to_town_stock")) if is_world_container and _has_property(inventory_owner, "contributes_to_town_stock") else false
+	component.next_stack_sequence = int(inventory.get("next_stack_sequence")) if _has_property(inventory, "next_stack_sequence") else 1
 	component.columns = int(inventory.get("columns")) if _has_property(inventory, "columns") else 0
 	component.rows = int(inventory.get("rows")) if _has_property(inventory, "rows") else 0
 	component.max_weight = float(inventory.get("max_weight")) if _has_property(inventory, "max_weight") else 0.0
@@ -1676,17 +1844,19 @@ func _sync_inventory_container(actor_id: String, container_id: String, inventory
 	component.is_job_work_inventory = is_work_inventory
 	_clear_item_stacks_for_container(container_id)
 	var entries: Array = inventory.get("entries") if _has_property(inventory, "entries") else []
-	for index in range(entries.size()):
-		_sync_item_stack(actor_id, container_id, index, entries[index], NodePath())
+	for entry in entries:
+		_sync_item_stack(actor_id, container_id, entry)
 
 
-func _sync_item_stack(actor_id: String, container_id: String, index: int, entry, world_item_path: NodePath) -> void:
+func _sync_item_stack(actor_id: String, container_id: String, entry) -> void:
 	if entry == null:
 		return
 	var item_path := _resource_path(entry.get("definition")) if _has_property(entry, "definition") else ""
 	if item_path.is_empty():
 		return
-	var stack_id := "%s.stack.%03d" % [container_id, index]
+	var stack_id := str(entry.get("stack_id")).strip_edges() if _has_property(entry, "stack_id") else ""
+	if stack_id.is_empty():
+		return
 	var entity = _item_stack_entity_by_id.get(stack_id)
 	if entity == null or not is_instance_valid(entity):
 		entity = _entity_script.new()
@@ -1703,14 +1873,23 @@ func _sync_item_stack(actor_id: String, container_id: String, index: int, entry,
 	component.grid_position = entry.get("grid_position") if _has_property(entry, "grid_position") else Vector2i.ZERO
 	component.contained_item_counts = (entry.get("contained_item_counts") as Dictionary).duplicate(true) if _has_property(entry, "contained_item_counts") else {}
 	component.metadata = (entry.get("metadata") as Dictionary).duplicate(true) if _has_property(entry, "metadata") else {}
-	component.world_item_path = world_item_path
+	component.location_kind = "inventory"
+	component.world_transform = Transform3D.IDENTITY
+	component.placement_host_id = ""
+	component.placement_slot_id = ""
+	component.location_settlement_id = ""
 
 
 func _sync_equipment_slots(actor_id: String, actor: Node) -> void:
+	var previous_stack_ids: Dictionary = {}
+	for slot in get_equipment_slots(actor_id):
+		previous_stack_ids[str(slot.get("slot_name", ""))] = str(slot.get("stack_id", ""))
 	_clear_equipment_slots_for_actor(actor_id)
-	if actor == null or not _has_property(actor, "equipped_items"):
+	var world_actor := actor as WorldActor
+	if world_actor == null:
 		return
-	var equipped = actor.get("equipped_items")
+	var equipment = world_actor.get_equipment()
+	var equipped = equipment.get_equipped_items() if equipment != null else null
 	if not (equipped is Dictionary):
 		return
 	for slot_name_value in equipped.keys():
@@ -1728,29 +1907,68 @@ func _sync_equipment_slots(actor_id: String, actor: Node) -> void:
 		component.actor_id = actor_id
 		component.slot_name = slot_name
 		component.item_definition_path = item_path
-		component.stack_id = ""
+		component.stack_id = str(equipment.get_equipped_stack_id(slot_name))
+		if component.stack_id.is_empty():
+			component.stack_id = str(previous_stack_ids.get(slot_name, "%s.equipment.%s" % [actor_id, slot_name]))
+		_ensure_equipment_item_stack(actor_id, slot_name, item_path, component.stack_id)
 
 
 func _sync_record_equipment_slots(actor_id: String, equipment_slots) -> void:
 	if actor_id.is_empty() or not (equipment_slots is Dictionary):
 		return
-	_clear_equipment_slots_for_actor(actor_id)
+	var expected_keys: Dictionary = {}
 	for slot_name_value in (equipment_slots as Dictionary).keys():
 		var slot_name := str(slot_name_value)
 		var item_path := str((equipment_slots as Dictionary)[slot_name_value])
 		if slot_name.is_empty() or item_path.is_empty():
 			continue
 		var key := "%s:%s" % [actor_id, slot_name]
-		var entity = _entity_script.new()
-		entity.name = _entity_node_name("Equipment", key)
-		entity.id = _entity_id("equipment", key)
-		world.add_entity(entity, [C_EQUIPMENT_SLOT.new()])
-		_equipment_slot_entity_by_key[key] = entity
+		expected_keys[key] = true
+		var entity = _equipment_slot_entity_by_key.get(key)
+		if entity == null or not is_instance_valid(entity):
+			entity = _entity_script.new()
+			entity.name = _entity_node_name("Equipment", key)
+			entity.id = _entity_id("equipment", key)
+			world.add_entity(entity, [C_EQUIPMENT_SLOT.new()])
+			_equipment_slot_entity_by_key[key] = entity
 		var component = entity.get_component(C_EQUIPMENT_SLOT)
 		component.actor_id = actor_id
 		component.slot_name = slot_name
 		component.item_definition_path = item_path
-		component.stack_id = ""
+		if str(component.stack_id).is_empty():
+			component.stack_id = "%s.equipment.%s" % [actor_id, slot_name]
+		_ensure_equipment_item_stack(actor_id, slot_name, item_path, str(component.stack_id))
+	for key_value in _equipment_slot_entity_by_key.keys():
+		var key := str(key_value)
+		if not key.begins_with("%s:" % actor_id) or expected_keys.has(key):
+			continue
+		var entity = _equipment_slot_entity_by_key.get(key)
+		if entity != null and is_instance_valid(entity) and world != null:
+			world.remove_entity(entity)
+		_equipment_slot_entity_by_key.erase(key)
+
+
+func _ensure_equipment_item_stack(actor_id: String, slot_name: String, item_path: String, stack_id: String) -> void:
+	if actor_id.is_empty() or slot_name.is_empty() or item_path.is_empty() or stack_id.is_empty():
+		return
+	var stack_entity = _item_stack_entity_by_id.get(stack_id)
+	if stack_entity == null or not is_instance_valid(stack_entity):
+		stack_entity = _entity_script.new()
+		stack_entity.name = _entity_node_name("ItemStack", stack_id)
+		stack_entity.id = _entity_id("item_stack", stack_id)
+		world.add_entity(stack_entity, [C_ITEM_STACK.new()])
+		_item_stack_entity_by_id[stack_id] = stack_entity
+	var stack_component = stack_entity.get_component(C_ITEM_STACK)
+	stack_component.stack_id = stack_id
+	stack_component.container_id = ""
+	stack_component.owner_actor_id = actor_id
+	stack_component.item_definition_path = item_path
+	stack_component.count = 1
+	stack_component.location_kind = "equipment"
+	stack_component.world_transform = Transform3D.IDENTITY
+	stack_component.placement_host_id = ""
+	stack_component.placement_slot_id = slot_name
+	stack_component.location_settlement_id = ""
 
 
 func _sync_record_inventory_entries(actor_id: String, inventory_entries) -> void:
@@ -1767,18 +1985,20 @@ func _sync_record_inventory_entries(actor_id: String, inventory_entries) -> void
 	var container_component = container.get_component(C_INVENTORY_CONTAINER)
 	container_component.container_id = container_id
 	container_component.owner_actor_id = actor_id
+	container_component.container_kind = "actor"
 	_clear_item_stacks_for_container(container_id)
-	for index in range((inventory_entries as Array).size()):
-		var snapshot = (inventory_entries as Array)[index]
+	for snapshot in inventory_entries as Array:
 		if snapshot is Dictionary:
-			_sync_item_stack_from_snapshot(actor_id, container_id, index, snapshot)
+			_sync_item_stack_from_snapshot(actor_id, container_id, snapshot)
 
 
-func _sync_item_stack_from_snapshot(actor_id: String, container_id: String, index: int, snapshot: Dictionary) -> void:
+func _sync_item_stack_from_snapshot(actor_id: String, container_id: String, snapshot: Dictionary) -> void:
 	var item_path := str(snapshot.get("item_id", snapshot.get("item_definition_path", "")))
 	if item_path.is_empty():
 		return
-	var stack_id := "%s.stack.%03d" % [container_id, index]
+	var stack_id := str(snapshot.get("stack_id", "")).strip_edges()
+	if stack_id.is_empty():
+		stack_id = InventoryData.create_stack_id()
 	var entity = _entity_script.new()
 	entity.name = _entity_node_name("ItemStack", stack_id)
 	entity.id = _entity_id("item_stack", stack_id)
@@ -1806,12 +2026,22 @@ func _populate_record_inventory_and_equipment(record: Dictionary) -> Dictionary:
 	var inventory_entries: Array = []
 	for stack in get_inventory_stacks("%s.inventory" % actor_id):
 		inventory_entries.append({
+			"stack_id": str(stack.get("stack_id", "")),
 			"item_id": str(stack.get("item_definition_path", "")),
 			"count": int(stack.get("count", 1)),
 			"grid_position": stack.get("grid_position", Vector2i.ZERO),
 			"contained_item_counts": (stack.get("contained_item_counts", {}) as Dictionary).duplicate(true),
 			"metadata": (stack.get("metadata", {}) as Dictionary).duplicate(true),
 		})
+	inventory_entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_position: Vector2i = a.get("grid_position", Vector2i.ZERO)
+		var b_position: Vector2i = b.get("grid_position", Vector2i.ZERO)
+		if a_position.y != b_position.y:
+			return a_position.y < b_position.y
+		if a_position.x != b_position.x:
+			return a_position.x < b_position.x
+		return str(a.get("stack_id", "")).naturalnocasecmp_to(str(b.get("stack_id", ""))) < 0
+	)
 	record["inventory_entries"] = inventory_entries
 	return record
 
@@ -1938,7 +2168,9 @@ func _state_component_to_dictionary(entity, component_script) -> Dictionary:
 func _clear_item_stacks_for_container(container_id: String) -> void:
 	var remove_ids: Array[String] = []
 	for stack_id in _item_stack_entity_by_id.keys():
-		if str(stack_id).begins_with("%s.stack." % container_id):
+		var entity = _item_stack_entity_by_id.get(stack_id)
+		var component = entity.get_component(C_ITEM_STACK) if entity != null and is_instance_valid(entity) else null
+		if component != null and str(component.container_id) == container_id:
 			remove_ids.append(str(stack_id))
 	for stack_id in remove_ids:
 		var entity = _item_stack_entity_by_id.get(stack_id)
@@ -2346,18 +2578,6 @@ func _notify_live_provider_contract_abandoned(contract: Dictionary, reason: Stri
 		provider.call("on_job_contract_abandoned", contract, reason)
 
 
-func _node_container_id(node: Node) -> String:
-	if node == null:
-		return ""
-	if node.is_inside_tree():
-		return str(node.get_path())
-	return str(node.get_instance_id())
-
-
-func _world_item_stack_id(item: Node) -> String:
-	return "world_item:%s" % _node_container_id(item)
-
-
 func _target_id_for_ai_job(job) -> String:
 	if job == null:
 		return ""
@@ -2389,8 +2609,6 @@ func _sync_live_scene_state_for_save() -> void:
 		sync_actor_inventory(actor)
 	for container in get_tree().get_nodes_in_group("world_container"):
 		sync_world_container(container)
-	for item in get_tree().get_nodes_in_group("world_item"):
-		sync_world_item(item)
 
 
 func _clear_world_entities() -> void:
@@ -2404,6 +2622,7 @@ func _clear_world_entities() -> void:
 	_actor_id_by_instance_id.clear()
 	_population_entity_by_actor_id.clear()
 	_settlement_entity_by_id.clear()
+	_settlement_food_entity_by_id.clear()
 	_staff_slot_entity_by_key.clear()
 	_staff_vacancy_entity_by_key.clear()
 	_inventory_container_entity_by_id.clear()
@@ -2418,6 +2637,7 @@ func _clear_world_entities() -> void:
 	_activity_point_entity_by_id.clear()
 	_activity_assignment_entity_by_actor_id.clear()
 	_world_sim_squad_entity_by_id.clear()
+	_building_entity_by_id.clear()
 	_actor_spatial_nodes_by_cell.clear()
 	_actor_spatial_index_valid = false
 	_world_time_entity = null
@@ -2450,6 +2670,15 @@ func _rebuild_entity_indexes() -> void:
 		var settlement = entity.get_component(C_SETTLEMENT_STATE)
 		if settlement != null:
 			_settlement_entity_by_id[str(settlement.settlement_id)] = entity
+	for entity in world.query.with_all([C_BUILDING_RECORD]).execute():
+		var building = entity.get_component(C_BUILDING_RECORD)
+		if building != null:
+			_building_entity_by_id[str(building.building_id)] = entity
+	var food_status_script = load(C_SETTLEMENT_FOOD_STATUS_PATH)
+	for entity in world.query.with_all([food_status_script]).execute():
+		var food_status = entity.get_component(food_status_script)
+		if food_status != null:
+			_settlement_food_entity_by_id[str(food_status.settlement_id)] = entity
 	for entity in world.query.with_all([C_STAFF_SLOT]).execute():
 		var slot = entity.get_component(C_STAFF_SLOT)
 		if slot != null:

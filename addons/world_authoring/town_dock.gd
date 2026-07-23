@@ -15,7 +15,8 @@ const PROFILE_PICKERS := [
 	{"label": "Personality", "property": "personality_profile", "dir": "res://features/factions/resources/personality_profiles", "empty": "(inherit faction)"},
 	{"label": "Law", "property": "law_profile", "dir": "res://features/factions/resources/law_profiles", "empty": "(inherit faction)"},
 	{"label": "Names", "property": "population_name_profile", "dir": "res://features/world_sim/resources/population_name_profiles", "empty": "(inherit faction)"},
-	{"label": "Characters", "property": "population_appearance_profile", "dir": "res://features/world_sim/resources/population_appearance_profiles", "empty": "(inherit faction)"},
+	{"label": "Character Realizer", "property": "population_appearance_profile", "dir": "res://features/world_sim/resources/population_appearance_profiles", "empty": "Default (inherit faction)"},
+	{"label": "Character Types", "property": "character_type_set", "dir": "res://features/world_sim/resources/character_type_sets", "empty": "Default (inherit faction)"},
 ]
 const OCCUPANCY_LABELS := ["Depopulated", "Sparse", "Populated", "Overcrowded"]
 const REALIZATION_POLICIES := ["", "full_town", "important_plus_near", "near_player"]
@@ -158,6 +159,16 @@ func _rebuild_definition_fields(definition: Resource) -> void:
 		func(index: int): _write(definition, "actor_realization_policy", REALIZATION_POLICIES[index])))
 	for picker in PROFILE_PICKERS:
 		_definition_box.add_child(_profile_picker(definition, picker))
+	var effective_realizer := definition.call("get_character_realizer") as Resource if definition.has_method("get_character_realizer") else null
+	var realizer_status := Label.new()
+	realizer_status.text = "Effective Realizer: %s (%s)" % [effective_realizer.resource_path.get_file().get_basename().capitalize() if effective_realizer != null else "INVALID", "town" if definition.get("population_appearance_profile") != null else "faction"]
+	realizer_status.modulate = Color(0.72, 0.9, 0.72) if effective_realizer != null and effective_realizer.get("actor_script") != null and not str(effective_realizer.get("profile_id")).strip_edges().is_empty() and effective_realizer.has_method("create_appearance") else Color(1.0, 0.42, 0.35)
+	_definition_box.add_child(realizer_status)
+	var effective_types := definition.call("get_character_type_set") as Resource if definition.has_method("get_character_type_set") else null
+	var type_status := Label.new()
+	type_status.text = "Effective Character Types: %s (%s)" % [effective_types.resource_path.get_file().get_basename().capitalize() if effective_types != null else "INVALID", "town" if definition.get("character_type_set") != null else "faction"]
+	type_status.modulate = Color(0.72, 0.9, 0.72) if effective_types != null and effective_types.has_method("resolve_character_type") and effective_types.call("resolve_character_type", "", "resident") != null else Color(1.0, 0.42, 0.35)
+	_definition_box.add_child(type_status)
 	_definition_box.add_child(_section_title("Staffing"))
 	_definition_box.add_child(_int_field("Guards", int(definition.get("guard_count")), 0, 24,
 		func(value: int): _write(definition, "guard_count", value)))
@@ -175,10 +186,6 @@ func _rebuild_definition_fields(definition: Resource) -> void:
 	_definition_box.add_child(_int_field("Generation Seed (0 = random)", int(definition.get("generation_seed")), 0, 999999999,
 		func(value: int): _write(definition, "generation_seed", value)))
 	_definition_box.add_child(_section_title("Economy"))
-	_definition_box.add_child(_float_field("Starting Food", float(definition.get("starting_food")),
-		func(value: float): _write(definition, "starting_food", value)))
-	_definition_box.add_child(_float_field("Max Food", float(definition.get("max_food")),
-		func(value: float): _write(definition, "max_food", value)))
 	_definition_box.add_child(_float_field("Starting Wealth", float(definition.get("starting_wealth")),
 		func(value: float): _write(definition, "starting_wealth", value)))
 	_definition_box.add_child(_float_field("Starting Supplies", float(definition.get("starting_supplies")),
@@ -213,6 +220,12 @@ func _rebuild_validation(definition: Resource, demand: Dictionary, total_staff: 
 	var warnings: Array[String] = []
 	if definition.get("faction_definition") == null:
 		warnings.append("No faction set — profiles and squads have nothing to inherit.")
+	var realizer := definition.call("get_character_realizer") as Resource if definition.has_method("get_character_realizer") else null
+	if realizer == null or realizer.get("actor_script") == null or str(realizer.get("profile_id")).strip_edges().is_empty() or not realizer.has_method("create_appearance"):
+		warnings.append("No valid Character Realizer — population bodies will be rejected.")
+	var type_set := definition.call("get_character_type_set") as Resource if definition.has_method("get_character_type_set") else null
+	if type_set == null or not type_set.has_method("resolve_character_type") or type_set.call("resolve_character_type", "", "resident") == null:
+		warnings.append("No valid Character Type Set — population bodies will be rejected.")
 	var occupancy := int(definition.get("occupancy_state"))
 	if occupancy > 0 and int(demand["housing"]) <= 0 and total_staff > 0:
 		warnings.append("Populated town with zero housing capacity — place housing.")
@@ -246,12 +259,17 @@ func _compute_demand(definition: Resource) -> Dictionary:
 				roles[role_id] = int(roles.get(role_id, 0)) + int(entry.staff_role_counts[role_id])
 			if entry.get_category() == "keep":
 				has_keep = true
-		var node_capacity = facility.get("population_capacity")
-		if node_capacity != null and int(node_capacity) > 0:
-			housing += int(node_capacity)
-		elif entry != null:
-			housing += entry.population_capacity
+		housing += _authored_housing_capacity(facility)
 	return {"roles": roles, "housing": housing, "has_keep": has_keep}
+
+
+func _authored_housing_capacity(node: Node) -> int:
+	if node is WorldBuilding:
+		return maxi(0, int((node as WorldBuilding).housing_capacity))
+	var total := 0
+	for child in node.get_children():
+		total += _authored_housing_capacity(child)
+	return total
 
 
 func _rebuild_facility_list() -> void:

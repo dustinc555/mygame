@@ -1,0 +1,23 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Page_Single.gltf" id="1_page"]
+[ext_resource type="Texture2D" path="res://assets/world/props/keep/ruler_map_markings.svg" id="2_map"]
+
+[sub_resource type="StandardMaterial3D" id="MapInk"]
+transparency = 1
+cull_mode = 2
+shading_mode = 1
+albedo_texture = ExtResource("2_map")
+roughness = 1.0
+
+[sub_resource type="PlaneMesh" id="MapPlane"]
+material = SubResource("MapInk")
+size = Vector2(0.46, 0.34)
+
+[node name="TownMapVisual" type="Node3D"]
+
+[node name="Parchment" parent="." instance=ExtResource("1_page")]
+
+[node name="Markings" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.012, 0)
+mesh = SubResource("MapPlane")

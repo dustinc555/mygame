@@ -1,9 +1,26 @@
-[gd_resource type="Resource" script_class="SettlementDefinition" format=3]
+[gd_resource type="Resource" script_class="SettlementDefinition" format=3 uid="uid://dlnuebglfryew"]
 
-[ext_resource type="Script" path="res://features/world_sim/resources/settlement_definition.gd" id="1_settlement"]
-[ext_resource type="Resource" path="res://features/factions/resources/factions/farmers.tres" id="2_faction"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/behavior_profiles/farmer_village.tres" id="3_profile"]
+[ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://features/world_sim/resources/settlement_definition.gd" id="1_settlement"]
+[ext_resource type="Resource" uid="uid://h4a4vsdtrlvq" path="res://features/factions/resources/factions/farmers.tres" id="2_faction"]
+[ext_resource type="Resource" uid="uid://3wqtqbev8xot" path="res://features/world_sim/resources/behavior_profiles/farmer_village.tres" id="3_profile"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/squad_templates/farmer_militia.tres" id="4_militia"]
+[ext_resource type="Script" uid="uid://bq8faoetmfpb7" path="res://features/world_sim/resources/settlement_storage_seed.gd" id="5_seed"]
+[ext_resource type="Script" uid="uid://dn6hi2dfhg5ub" path="res://features/world_sim/resources/settlement_storage_stack_seed.gd" id="6_stack"]
+[ext_resource type="Resource" uid="uid://cighg4y750kcr" path="res://features/inventory/resources/items/food.tres" id="7_food"]
+
+[sub_resource type="Resource" id="Stack_food"]
+script = ExtResource("6_stack")
+stack_id = "farmer_crossing.granary.stack.1"
+item = ExtResource("7_food")
+count = 65
+
+[sub_resource type="Resource" id="Seed_granary"]
+script = ExtResource("5_seed")
+container_id = "farmer_crossing.granary"
+facility_id = "farmer_crossing.granary"
+columns = 20
+rows = 20
+stacks = Array[Resource]([SubResource("Stack_food")])
 
 [resource]
 script = ExtResource("1_settlement")
@@ -12,9 +29,7 @@ display_name = "Farmer Crossing"
 faction_definition = ExtResource("2_faction")
 behavior_profile = ExtResource("3_profile")
 world_position = Vector3(-58, 0, 0)
-occupancy_state = 2
-starting_food = 130.0
-max_food = 240.0
+storage_seeds = Array[Resource]([SubResource("Seed_granary")])
 known_settlement_ids = PackedStringArray("raider_camp")
 default_target_settlement_id = "raider_camp"
 raid_squad_template = ExtResource("4_militia")

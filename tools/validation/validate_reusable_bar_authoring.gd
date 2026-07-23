@@ -531,9 +531,11 @@ func _validate_seated_talk_range(bar: Node) -> void:
 	barber.stop_conversation_interaction()
 	talker.stop_seat_assignment()
 	barber.stop_seat_assignment()
-	if not talker.sit_at_seat_immediately(talker_seat):
+	var talker_interaction = talker.get_interaction()
+	var barber_interaction = barber.get_interaction()
+	if talker_interaction == null or not talker_interaction.sit_at_seat_immediately(talker_seat):
 		_fail("Seated talk validation talker should be able to claim a chair")
-	elif not barber.sit_at_seat_immediately(barber_seat):
+	elif barber_interaction == null or not barber_interaction.sit_at_seat_immediately(barber_seat):
 		_fail("Seated talk validation barber should be able to claim a chair")
 	else:
 		barber.global_position = talker.global_position + Vector3(target_distance, 0.0, 0.0)

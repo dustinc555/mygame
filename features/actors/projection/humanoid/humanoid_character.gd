@@ -379,6 +379,14 @@ func begin_stand_up_exit(final_position: Vector3) -> void:
 	_begin_pose_exit(HumanoidBodyProjection.SITTING_EXIT_ANIMATION_NAME, final_position)
 
 
+func cancel_stand_up_exit() -> void:
+	_stand_up_exit_remaining = 0.0
+	_stand_up_position = Vector3.INF
+	var body := get_body_projection() as HumanoidBodyProjection
+	if body != null:
+		body.cancel_sitting_exit_animation()
+
+
 ## Waking from a bed: play the get-up clip in place, then step off the bed.
 func begin_lay_exit(final_position: Vector3) -> void:
 	_begin_pose_exit(HumanoidBodyProjection.LAY_EXIT_ANIMATION_NAME, final_position)

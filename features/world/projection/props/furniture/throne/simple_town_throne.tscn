@@ -1,0 +1,22 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/props/sittable_seat.gd" id="1_seat"]
+[ext_resource type="PackedScene" path="res://assets/world/props/furniture/simple_town_throne.glb" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="Shape_body"]
+size = Vector3(0.8, 1.8, 0.79)
+
+[node name="SimpleTownThrone" type="StaticBody3D"]
+script = ExtResource("1_seat")
+facility_role_ids = Array[String](["ruler"])
+interaction_local_offset = Vector3(0, 0, 1.08)
+service_local_offset = Vector3(0, 0, 1.38)
+seated_floor_local_offset = Vector3(0, 0.08, 0.24)
+stand_local_offset = Vector3(0, 0, 0.9)
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+scale = Vector3(3.6, 3.6, 3.6)
+
+[node name="BodyCollision" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.9, 0)
+shape = SubResource("Shape_body")

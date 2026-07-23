@@ -2,6 +2,9 @@
 
 [ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://features/factions/resources/faction_definition.gd" id="1_faction"]
 [ext_resource type="Texture2D" path="res://features/factions/resources/icons/rustdead.svg" id="2_icon"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/population_name_profiles/raider_names.tres" id="3_names"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/rustdead.tres" id="4_realizer"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/character_type_sets/standard.tres" id="99_types"]
 
 [resource]
 script = ExtResource("1_faction")
@@ -14,3 +17,6 @@ default_hostile_faction_ids = null
 starting_war_faction_ids = null
 open_access = false
 permanently_hostile = true
+population_name_profile = ExtResource("3_names")
+population_appearance_profile = ExtResource("4_realizer")
+character_type_set = ExtResource("99_types")

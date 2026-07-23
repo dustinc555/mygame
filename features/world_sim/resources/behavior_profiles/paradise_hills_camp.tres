@@ -1,13 +1,20 @@
 [gd_resource type="Resource" script_class="SettlementBehaviorProfile" format=3 uid="uid://dop3nplurk2vm"]
 
 [ext_resource type="Script" uid="uid://cgjwenavn4kmp" path="res://features/world_sim/resources/settlement_behavior_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://cdn5161onbu3" path="res://features/world_sim/resources/settlement_food_output.gd" id="2_output"]
+[ext_resource type="Resource" uid="uid://cighg4y750kcr" path="res://features/inventory/resources/items/food.tres" id="3_food"]
+
+[sub_resource type="Resource" id="Output_food"]
+script = ExtResource("2_output")
+item = ExtResource("3_food")
+count = 2
 
 [resource]
 script = ExtResource("1_profile")
 profile_id = "paradise_hills_camp"
 display_name = "Paradise Hills Camp"
-food_production_per_day = 4.0
-food_consumption_per_person_per_day = 1.1
+food_units_per_person_per_day = 1.1
+food_outputs_per_day = Array[Resource]([SubResource("Output_food")])
 base_aggression = 0.34
 can_attack_when_starving = true
 desperate_attack_pressure_threshold = 0.05

@@ -85,6 +85,7 @@ func _deferred_bootstrap() -> void:
 	for controller in installed:
 		if controller.has_method("initialize"):
 			controller.initialize(_context)
+	get_tree().call_group(BootstrapContext.SERVICE_CONSUMER_GROUP, "_on_bootstrap_context_ready", _context)
 
 
 func _exit_tree() -> void:

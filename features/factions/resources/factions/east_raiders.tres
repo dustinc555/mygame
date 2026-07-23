@@ -6,8 +6,8 @@
 [ext_resource type="Resource" uid="uid://bhqtvuvarhw1r" path="res://features/factions/resources/personality_profiles/raider_predatory.tres" id="3_personality"]
 [ext_resource type="Resource" uid="uid://biwpjin2saup5" path="res://features/factions/resources/law_profiles/raider_challenge_law.tres" id="4_law"]
 [ext_resource type="Resource" uid="uid://pjw2qb2u0hbw" path="res://features/world_sim/resources/population_name_profiles/raider_names.tres" id="5_names"]
-[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://features/actors/projection/humanoid/faction_humanoid.gd" id="6_member"]
 [ext_resource type="Resource" uid="uid://cqiaromu2uqj3" path="res://features/world_sim/resources/population_appearance_profiles/raider_scrapper.tres" id="7_appearance"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/character_type_sets/standard.tres" id="99_types"]
 
 [resource]
 script = ExtResource("1_faction")
@@ -20,7 +20,6 @@ default_hostile_faction_ids = null
 starting_war_faction_ids = null
 open_access = false
 active_zone_ids = null
-member_actor_script = ExtResource("6_member")
 squad_march_fitness = 1.2
 owned_settlement_ids = null
 behavior_profile = ExtResource("2_behavior")
@@ -28,3 +27,4 @@ personality_profile = ExtResource("3_personality")
 law_profile = ExtResource("4_law")
 population_name_profile = ExtResource("5_names")
 population_appearance_profile = ExtResource("7_appearance")
+character_type_set = ExtResource("99_types")

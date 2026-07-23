@@ -7,6 +7,12 @@ signal inventory_changed
 signal interaction_resolved(container, actor)
 
 @export var display_name := "Container"
+@export var container_id := ""
+@export var settlement_id := ""
+@export var facility_id := ""
+@export var container_kind := "storage"
+@export var contributes_to_town_stock := false
+@export var next_stack_sequence := 1
 @export var furniture_type := FurnitureRules.Type.CONTAINER
 @export var inventory_columns := 7
 @export var inventory_rows := 5
@@ -42,27 +48,49 @@ signal interaction_resolved(container, actor)
 var inventory
 var _assigned_slots: Dictionary = {}
 var _pending_actor_ids: Dictionary = {}
+var _inventory_sync_suspended := false
+var _bind_attempts := 0
+var _should_seed_starting_inventory := false
 
 @onready var collision_shape_node: CollisionShape3D = $CollisionShape3D
 @onready var model_root: Node3D = $ModelRoot
 
 
 func _ready() -> void:
+	if container_id.strip_edges().is_empty():
+		push_warning("WorldContainer '%s' needs an authored container_id; it will not sync or contribute to town stock" % name)
+	if contributes_to_town_stock and (settlement_id.strip_edges().is_empty() or container_kind.strip_edges().is_empty()):
+		push_warning("WorldContainer '%s' needs settlement_id and container_kind to contribute to town stock" % name)
 	if inventory == null:
+		_should_seed_starting_inventory = true
 		var inventory_data_script = load("res://features/inventory/sim/inventory_data.gd")
 		inventory = inventory_data_script.new(inventory_columns, inventory_rows, 0.0, false)
+	if not inventory.changed.is_connected(_on_inventory_changed):
 		inventory.changed.connect(_on_inventory_changed)
-		_seed_starting_inventory()
+	if not container_id.strip_edges().is_empty():
+		inventory.configure_stack_allocator(container_id, next_stack_sequence)
 	add_to_group("world_container")
 	add_to_group(FurnitureRules.FURNITURE_GROUP)
 	_apply_collision_settings()
 	_rebuild_visual()
-	_sync_inventory_to_gecs()
+	if container_id.strip_edges().is_empty():
+		if _should_seed_starting_inventory:
+			_seed_starting_inventory()
+	else:
+		call_deferred("_bind_inventory_state")
 
 
 func _enter_tree() -> void:
 	if Engine.is_editor_hint():
 		call_deferred("_refresh_editor_preview")
+
+
+func _exit_tree() -> void:
+	if Engine.is_editor_hint() or container_id.strip_edges().is_empty():
+		return
+	var stock_controller := BootstrapContext.service(InventoryStockController.SERVICE_ID)
+	if stock_controller != null:
+		stock_controller.call("detach_world_container", container_id, self)
 
 
 func register_interactor(member: HumanoidCharacter) -> void:
@@ -179,15 +207,62 @@ func _slot_position_from_index(slot_index: int) -> Vector3:
 
 func _on_inventory_changed() -> void:
 	inventory_changed.emit()
+	if not _inventory_sync_suspended:
+		_sync_inventory_to_gecs()
+
+
+func _bind_inventory_state() -> void:
+	if Engine.is_editor_hint() or container_id.strip_edges().is_empty():
+		return
+	var stock_controller := BootstrapContext.service(InventoryStockController.SERVICE_ID)
+	if stock_controller == null and _bind_attempts < 8:
+		_bind_attempts += 1
+		call_deferred("_bind_inventory_state")
+		return
+	if stock_controller != null and bool(stock_controller.call("bind_world_container", self)):
+		return
+	_inventory_sync_suspended = true
+	if _should_seed_starting_inventory:
+		_seed_starting_inventory()
+	_inventory_sync_suspended = false
 	_sync_inventory_to_gecs()
+
+
+func hydrate_inventory_from_gecs(stack_snapshots: Array, sequence: int) -> void:
+	_inventory_sync_suspended = true
+	inventory.entries.clear()
+	inventory.configure_stack_allocator(container_id, sequence)
+	for snapshot_value in stack_snapshots:
+		var snapshot := snapshot_value as Dictionary
+		var item_path := str(snapshot.get("item_definition_path", ""))
+		var definition := snapshot.get("definition") as ItemDefinition
+		if definition == null and not item_path.is_empty() and ResourceLoader.exists(item_path):
+			definition = load(item_path) as ItemDefinition
+		if definition == null:
+			continue
+		inventory.entries.append(inventory.create_entry(
+			definition,
+			snapshot.get("grid_position", Vector2i.ZERO),
+			int(snapshot.get("count", 1)),
+			(snapshot.get("contained_item_counts", {}) as Dictionary).duplicate(true),
+			(snapshot.get("metadata", {}) as Dictionary).duplicate(true),
+			str(snapshot.get("stack_id", ""))
+		))
+	next_stack_sequence = inventory.next_stack_sequence
+	inventory.changed.emit()
+	_inventory_sync_suspended = false
 
 
 func _sync_inventory_to_gecs() -> void:
 	if not is_inside_tree():
 		return
-	var bridge := get_tree().get_first_node_in_group("gecs_world_controller")
+	next_stack_sequence = inventory.next_stack_sequence
+	var bridge := BootstrapContext.service(GecsWorldController.SERVICE_ID)
 	if bridge != null and bridge.has_method("sync_world_container"):
 		bridge.call("sync_world_container", self)
+	var stock_controller := BootstrapContext.service(InventoryStockController.SERVICE_ID)
+	if stock_controller != null:
+		stock_controller.call("sync_world_container", self)
 
 
 func _seed_starting_inventory() -> void:

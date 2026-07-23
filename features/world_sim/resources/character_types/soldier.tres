@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="CharacterTypeDefinition" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/character_type_definition.gd" id="1_type"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/hatchet.tres" id="2_hatchet"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/round_shield.tres" id="3_shield"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/bandage.tres" id="4_bandage"]
+
+[resource]
+script = ExtResource("1_type")
+type_id = "soldier"
+display_name = "Soldier"
+starting_equipment = Array[Resource]([ExtResource("2_hatchet"), ExtResource("3_shield"), ExtResource("4_bandage")])
+starting_skill_ranges = {
+"attribute.dexterity": Vector2i(30, 60),
+"attribute.endurance": Vector2i(30, 60),
+"attribute.perception": Vector2i(12, 22),
+"attribute.strength": Vector2i(30, 60),
+"attribute.toughness": Vector2i(30, 60),
+"combat.axes_one_handed": Vector2i(30, 60),
+"combat.daggers": Vector2i(30, 60),
+"combat.shields": Vector2i(30, 60),
+"combat.swords_one_handed": Vector2i(30, 60),
+"combat.unarmed": Vector2i(30, 60)
+}
