@@ -14,7 +14,8 @@ const PROFILE_PICKERS := [
 	{"label": "Personality", "property": "personality_profile", "dir": "res://features/factions/resources/personality_profiles", "empty": "(none)"},
 	{"label": "Law", "property": "law_profile", "dir": "res://features/factions/resources/law_profiles", "empty": "(none)"},
 	{"label": "Names", "property": "population_name_profile", "dir": "res://features/world_sim/resources/population_name_profiles", "empty": "(none)"},
-	{"label": "Characters", "property": "population_appearance_profile", "dir": "res://features/world_sim/resources/population_appearance_profiles", "empty": "(none)"},
+	{"label": "Character Realizer", "property": "population_appearance_profile", "dir": "res://features/world_sim/resources/population_appearance_profiles", "empty": "(required)"},
+	{"label": "Character Types", "property": "character_type_set", "dir": "res://features/world_sim/resources/character_type_sets", "empty": "(required)"},
 ]
 
 var _tools: RefCounted
@@ -194,6 +195,16 @@ func _rebuild_profiles(definition: Resource) -> void:
 	_profiles_box.add_child(_section_title("Profiles"))
 	for picker in PROFILE_PICKERS:
 		_profiles_box.add_child(_profile_picker(definition, picker))
+	var realizer := definition.call("get_character_realizer") as Resource if definition.has_method("get_character_realizer") else null
+	var realizer_status := Label.new()
+	realizer_status.text = "Effective Realizer: %s" % (realizer.resource_path.get_file().get_basename().capitalize() if realizer != null else "INVALID")
+	realizer_status.modulate = Color(0.72, 0.9, 0.72) if realizer != null and realizer.get("actor_script") != null and not str(realizer.get("profile_id")).strip_edges().is_empty() and realizer.has_method("create_appearance") else Color(1.0, 0.42, 0.35)
+	_profiles_box.add_child(realizer_status)
+	var type_set := definition.call("get_character_type_set") as Resource if definition.has_method("get_character_type_set") else null
+	var type_status := Label.new()
+	type_status.text = "Effective Character Types: %s" % (type_set.resource_path.get_file().get_basename().capitalize() if type_set != null else "INVALID")
+	type_status.modulate = Color(0.72, 0.9, 0.72) if type_set != null and type_set.has_method("resolve_character_type") and type_set.call("resolve_character_type", "", "resident") != null else Color(1.0, 0.42, 0.35)
+	_profiles_box.add_child(type_status)
 	_profiles_box.add_child(_section_title("World Sim"))
 	_profiles_box.add_child(_check_field("Spawns Nests", bool(definition.get("spawns_nests")),
 		func(value: bool): _write(definition, "spawns_nests", value)))

@@ -6,10 +6,12 @@ const SERVICE_ID := &"settlement"
 
 signal settlement_state_changed(settlement_id: String, state: Dictionary)
 signal settlement_event_recorded(event_record: Dictionary)
+signal settlement_registered(settlement_id: String, definition: Resource)
 
 const PRESSURE_SUPPLIED := "supplied"
 const PRESSURE_HUNGRY := "hungry"
 const PRESSURE_STARVING := "starving"
+const META_SETTLEMENT_SLOT_ID := "settlement_staff_slot_id"
 const OCCUPANCY_DEPOPULATED := "depopulated"
 const OCCUPANCY_SPARSE := "sparse"
 const OCCUPANCY_POPULATED := "populated"
@@ -23,7 +25,6 @@ const RAID_RELATION_HOSTILE_ONLY := "hostile_only"
 const BLOCKED_NOT_ALLIED_STATES := ["alliance", "protectorate", "trade", "truce", "vassal", "tributary"]
 const STAFF_ROLE_OWNER_GROUP := "settlement_staff_role_owner"
 const DEFAULT_STAFF_REPLACEMENT_DELAY_DAYS := 7.0
-const POPULATION_RECOVERY_PER_DAY := 1
 const BOOTSTRAP_UNASSIGNED_POPULATION := 2
 const MINUTES_PER_DAY := 24 * 60
 const FEAR_PER_DEATH := 0.08
@@ -38,6 +39,7 @@ var _context: BootstrapContext
 var world_time: Node
 var faction_controller: Node
 var census: Node
+var building_registry: BuildingRegistry
 var settlement_definitions: Dictionary = {}
 var settlement_states: Dictionary = {}
 var settlement_anchors: Dictionary = {}
@@ -78,6 +80,14 @@ func get_settlement_state(settlement_id: String) -> Dictionary:
 			return ecs_state.duplicate(true)
 	var state: Dictionary = settlement_states.get(settlement_id, {})
 	return state.duplicate(true)
+
+
+func get_settlement_buildings(settlement_id: String) -> Array[Dictionary]:
+	return building_registry.get_buildings_for_settlement(settlement_id) if building_registry != null else []
+
+
+func get_settlement_building_snapshot(settlement_id: String) -> Array[Dictionary]:
+	return building_registry.get_settlement_building_snapshot(settlement_id) if building_registry != null else []
 
 
 func get_available_population(settlement_id: String) -> int:
@@ -183,6 +193,10 @@ func set_settlement_owner(settlement_id: String, faction_id: String, reason := "
 	if previous_owner == next_owner:
 		return get_settlement_state(settlement_id)
 	state["faction_id"] = next_owner
+	if building_registry != null:
+		for building in building_registry.get_buildings_for_settlement(settlement_id):
+			building_registry.update_building(str(building.get("building_id", "")), {"owner_faction_id": next_owner})
+	_refresh_live_settlement_ownership(settlement_id)
 	state["last_action"] = "Owner changed: %s" % (next_owner if not next_owner.is_empty() else "None")
 	_record_event({
 		"type": "settlement_owner_changed",
@@ -195,30 +209,19 @@ func set_settlement_owner(settlement_id: String, faction_id: String, reason := "
 	return get_settlement_state(settlement_id)
 
 
-func adjust_food(settlement_id: String, amount: float, reason := "manual") -> float:
-	if not settlement_states.has(settlement_id):
-		return 0.0
-	var state: Dictionary = settlement_states[settlement_id]
-	var previous_food := float(state.get("food", 0.0))
-	var max_food := maxf(float(state.get("max_food", 1.0)), 1.0)
-	state["food"] = clampf(previous_food + amount, 0.0, max_food)
-	_update_pressure_state(settlement_id)
-	state["last_action"] = "Food %+.0f" % (float(state["food"]) - previous_food)
-	_record_event({
-		"type": "food_changed",
-		"settlement_id": settlement_id,
-		"amount": float(state["food"]) - previous_food,
-		"reason": reason,
-	})
-	_notify_state_changed(settlement_id)
-	return float(state["food"])
-
-
-func set_food(settlement_id: String, amount: float, reason := "manual") -> float:
-	if not settlement_states.has(settlement_id):
-		return 0.0
-	var state: Dictionary = settlement_states[settlement_id]
-	return adjust_food(settlement_id, amount - float(state.get("food", 0.0)), reason)
+func _refresh_live_settlement_ownership(settlement_id: String) -> void:
+	var anchor := get_settlement_anchor(settlement_id)
+	if anchor == null:
+		return
+	for facility in get_tree().get_nodes_in_group("settlement_facility"):
+		if facility == null or not anchor.is_ancestor_of(facility):
+			continue
+		if facility.has_method("stamp_building_identity"):
+			facility.call("stamp_building_identity")
+		if facility.has_method("sync_property_ownership"):
+			facility.call("sync_property_ownership")
+		if facility.has_method("sync_door_policy"):
+			facility.call("sync_door_policy")
 
 
 func set_occupancy_state(settlement_id: String, occupancy_key: String, reason := "manual") -> Dictionary:
@@ -242,33 +245,13 @@ func set_occupancy_state(settlement_id: String, occupancy_key: String, reason :=
 	return get_settlement_state(settlement_id)
 
 
-func resolve_food_transfer(source_settlement_id: String, target_settlement_id: String, requested_amount: float, reason := "food_raid") -> float:
-	if not settlement_states.has(source_settlement_id) or not settlement_states.has(target_settlement_id):
-		return 0.0
-	var target_state: Dictionary = settlement_states[target_settlement_id]
-	var source_state: Dictionary = settlement_states[source_settlement_id]
-	var stolen := minf(maxf(requested_amount, 0.0), float(target_state.get("food", 0.0)))
-	var source_space := maxf(float(source_state.get("max_food", 0.0)) - float(source_state.get("food", 0.0)), 0.0)
-	stolen = minf(stolen, source_space)
-	if stolen <= 0.0:
-		return 0.0
-	adjust_food(target_settlement_id, -stolen, reason)
-	adjust_food(source_settlement_id, stolen, reason)
-	_record_event({
-		"type": "food_transferred",
-		"source_settlement_id": source_settlement_id,
-		"target_settlement_id": target_settlement_id,
-		"amount": stolen,
-		"reason": reason,
-	})
-	return stolen
-
-
 func get_summary_text() -> String:
 	var parts: Array[String] = []
+	var food_controller: Node = _context.get_optional(&"settlement_food") if _context != null else null
 	for settlement_id in settlement_states.keys():
 		var state: Dictionary = settlement_states[settlement_id]
-		parts.append("%s: %s food, %s" % [state.get("display_name", settlement_id), int(round(float(state.get("food", 0.0)))), str(state.get("pressure_state", PRESSURE_SUPPLIED)).capitalize()])
+		var food_status: Dictionary = food_controller.get_status(str(settlement_id)) if food_controller != null else {}
+		parts.append("%s: %s food units, %s" % [state.get("display_name", settlement_id), int(round(float(food_status.get("food_units", 0.0)))), str(food_status.get("pressure_state", PRESSURE_SUPPLIED)).capitalize()])
 	if parts.is_empty():
 		return "World: Stable"
 	return " | ".join(parts)
@@ -303,6 +286,13 @@ func _try_initialize() -> void:
 		return
 	faction_controller = _context.get_optional(FactionController.SERVICE_ID)
 	census = _context.get_optional(&"settlement_census")
+	building_registry = _context.require(BuildingRegistry.SERVICE_ID) as BuildingRegistry
+	if not building_registry.building_created.is_connected(_on_building_registry_changed):
+		building_registry.building_created.connect(_on_building_registry_changed)
+	if not building_registry.building_updated.is_connected(_on_building_registry_changed):
+		building_registry.building_updated.connect(_on_building_registry_changed)
+	if not building_registry.registry_rebuilt.is_connected(_on_building_registry_rebuilt):
+		building_registry.registry_rebuilt.connect(_on_building_registry_rebuilt)
 	_collect_world_definitions()
 	var hour_changed_callable := Callable(self, "_on_hour_changed")
 	if world_time.has_signal("hour_changed") and not world_time.is_connected("hour_changed", hour_changed_callable):
@@ -335,7 +325,7 @@ func _register_settlement_definition(definition: Resource, anchor: Node3D) -> vo
 	elif anchor != null:
 		var state: Dictionary = settlement_states[settlement_id]
 		state["world_position"] = anchor.global_position
-		_register_anchor_population_capacity(settlement_id, anchor, false)
+		_refresh_settlement_housing_capacity(settlement_id, false)
 		_register_anchor_facilities(settlement_id, anchor)
 		_sync_settlement_staff_slots(settlement_id)
 		_apply_population_from_occupancy(settlement_id)
@@ -347,6 +337,7 @@ func _register_settlement_definition(definition: Resource, anchor: Node3D) -> vo
 		_notify_state_changed(settlement_id)
 	if faction_controller != null and faction_controller.has_method("register_faction"):
 		faction_controller.call("register_faction", definition.get("faction_definition") as Resource)
+	settlement_registered.emit(settlement_id, definition)
 
 
 func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
@@ -367,20 +358,14 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 		"population_shortfall": 0,
 		"population_initialized": false,
 		"max_occupancy": 0,
-		"population_capacity_sources": [],
 		"occupancy_state": _definition_occupancy_key(definition),
 		"occupancy_label": _definition_occupancy_label(definition),
 		"occupancy_multiplier": _definition_occupancy_multiplier(definition),
 		"occupancy_ratio": 1.0,
-		"food": clampf(_resource_float(definition, "starting_food", 0.0), 0.0, maxf(_resource_float(definition, "max_food", 1.0), 1.0)),
-		"max_food": maxf(_resource_float(definition, "max_food", 1.0), 1.0),
 		"wealth": maxf(_resource_float(definition, "starting_wealth", 0.0), 0.0),
 		"supplies": maxf(_resource_float(definition, "starting_supplies", 0.0), 0.0),
 		"fear": 0.0,
 		"morale": 1.0,
-		"food_ratio": 1.0,
-		"pressure_state": PRESSURE_SUPPLIED,
-		"last_upkeep_day": -1,
 		"last_action_absolute_hour": -999999,
 		"last_action": "Idle",
 		"world_position": position,
@@ -389,9 +374,8 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 		"staff_slots": {},
 		"staff_vacancies": {},
 		"population_death_records": {},
-		"last_population_recovery_day": -1,
 	}
-	_register_anchor_population_capacity(settlement_id, anchor, false)
+	_refresh_settlement_housing_capacity(settlement_id, false)
 	_register_anchor_facilities(settlement_id, anchor)
 	_sync_settlement_staff_slots(settlement_id)
 	_apply_population_from_occupancy(settlement_id)
@@ -401,11 +385,10 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 		census.call_deferred("seed_settlement", settlement_id)
 	_assign_staff_from_ledger(settlement_id, true)
 	call_deferred("_bootstrap_staff_vacancies", settlement_id)
-	_update_pressure_state(settlement_id)
 	_notify_state_changed(settlement_id)
 
 
-func _on_hour_changed(_absolute_hour: int, day_index: int, hour: int) -> void:
+func _on_hour_changed(_absolute_hour: int, _day_index: int, _hour: int) -> void:
 	for settlement_id in settlement_definitions.keys():
 		var sid := str(settlement_id)
 		# Assignment is world-sim knowledge and runs O(1) for EVERY town, near or far — a faraway
@@ -421,54 +404,6 @@ func _on_hour_changed(_absolute_hour: int, day_index: int, hour: int) -> void:
 		_assign_staff_from_ledger(sid)
 		_realize_staff_bodies(sid)
 		_sync_settlement_resident_deaths(sid)
-	# Daily upkeep is pure arithmetic on the settlement ledger (food in/out, pressure) and is
-	# the believable background economy — it runs O(1) for every town, near or far.
-	for settlement_id in settlement_definitions.keys():
-		_process_daily_upkeep(str(settlement_id), day_index, hour)
-
-
-func _process_daily_upkeep(settlement_id: String, day_index: int, hour: int) -> void:
-	var definition: Resource = get_settlement_definition(settlement_id)
-	var profile := _definition_behavior_profile(definition)
-	if profile == null:
-		return
-	if hour != _resource_int(profile, "daily_upkeep_hour", 6):
-		return
-	var state: Dictionary = settlement_states[settlement_id]
-	if int(state.get("last_upkeep_day", -1)) == day_index:
-		return
-	state["last_upkeep_day"] = day_index
-	var facility_totals: Dictionary = state.get("facility_totals", {})
-	var produced := maxf(_resource_float(profile, "food_production_per_day", 0.0) + float(facility_totals.get("food_production_per_day", 0.0)), 0.0)
-	var consumed := maxf(float(state.get("population", 1)) * _resource_float(profile, "food_consumption_per_person_per_day", 1.0) + float(facility_totals.get("food_consumption_per_day", 0.0)), 0.0)
-	var previous_food := float(state.get("food", 0.0))
-	state["food"] = clampf(previous_food + produced - consumed, 0.0, float(state.get("max_food", 1.0)))
-	_update_pressure_state(settlement_id)
-	_process_population_recovery(settlement_id, day_index)
-	state["last_action"] = "Daily upkeep %+.0f food" % (float(state["food"]) - previous_food)
-	_record_event({
-		"type": "daily_upkeep",
-		"settlement_id": settlement_id,
-		"day": day_index,
-		"hour": hour,
-		"produced_food": produced,
-		"consumed_food": consumed,
-		"food_delta": float(state["food"]) - previous_food,
-	})
-	_notify_state_changed(settlement_id)
-
-
-func _update_pressure_state(settlement_id: String) -> void:
-	var state: Dictionary = settlement_states[settlement_id]
-	var max_food := maxf(float(state.get("max_food", 1.0)), 1.0)
-	var ratio := clampf(float(state.get("food", 0.0)) / max_food, 0.0, 1.0)
-	state["food_ratio"] = ratio
-	if ratio <= 0.08:
-		state["pressure_state"] = PRESSURE_STARVING
-	elif ratio <= 0.28:
-		state["pressure_state"] = PRESSURE_HUNGRY
-	else:
-		state["pressure_state"] = PRESSURE_SUPPLIED
 
 
 func _settlement_distance(source_settlement_id: String, target_settlement_id: String) -> float:
@@ -563,14 +498,12 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 				continue
 			slot["slot_id"] = slot_id
 			slot["settlement_id"] = settlement_id
-			if not slot.has("owner_path"):
-				slot["owner_path"] = anchor.get_path_to(role_owner)
+			slot["owner_id"] = _staff_role_owner_id(role_owner, settlement_id)
 			var population_cost: int = max(0, int(slot.get("population_cost", 1)))
 			slot["population_cost"] = population_cost
 			required_count += population_cost
-			# Ledger binding is the source of truth for "filled": a slot stays filled while a
-			# living record is assigned to it, even when the body is LOD'd out to a record. The
-			# facility-reported `filled` (a live actor) only matters for authored/non-deferred staff.
+			# Ledger binding is the only source of truth for "filled". A scene body
+			# without a permanent record must never bypass Character Realization.
 			var worker_actor_id := str((prior_slots.get(slot_id, {}) as Dictionary).get("worker_actor_id", ""))
 			var dead_actor_key := str(slot.get("dead_actor_key", "")).strip_edges()
 			# The bound worker is gone if the facility found its corpse (dead_actor_key) or its
@@ -591,7 +524,7 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 						corpse.name = "Corpse"
 				worker_actor_id = ""
 			slot["worker_actor_id"] = worker_actor_id
-			var filled := bool(slot.get("filled", false)) or not worker_actor_id.is_empty()
+			var filled := not worker_actor_id.is_empty()
 			slot["filled"] = filled
 			slots[slot_id] = slot
 			if filled:
@@ -738,27 +671,71 @@ func _poach_assigned_record_for_slot(settlement_id: String, slot_id: String, rol
 	return pop.call("update_actor_record", worker_actor_id, {"role_id": role_id, "assigned_slot_id": slot_id})
 
 
-## LOD-gated: for each filled slot that has a bound record, ask the owning facility to put the body
-## in place (the facility builds it from the record and seats it). Idempotent — already-realized
-## staff are returned as-is.
+## LOD-gated: one shared realizer turns the bound population record into a body,
+## then the owning facility only attaches role behavior and placement.
 func _realize_staff_bodies(settlement_id: String) -> void:
 	if not settlement_states.has(settlement_id):
 		return
 	var anchor := get_settlement_anchor(settlement_id)
 	if anchor == null:
 		return
+	var population := _get_population_controller()
 	var slots: Dictionary = (settlement_states[settlement_id] as Dictionary).get("staff_slots", {})
+	var realizer := _context.get_optional(PopulationCharacterRealizer.SERVICE_ID) as PopulationCharacterRealizer if _context != null else null
+	if realizer == null:
+		push_error("Settlement staffing cannot realize %s: PopulationCharacterRealizer is unavailable" % settlement_id)
+		return
+	var owners_by_id := {}
+	for owner in _collect_staff_role_owners(anchor):
+		owners_by_id[_staff_role_owner_id(owner, settlement_id)] = owner
+	var expected_actor_ids := {}
+	for expected_slot_value in slots.values():
+		var expected_actor_id := str((expected_slot_value as Dictionary).get("worker_actor_id", "")).strip_edges()
+		if not expected_actor_id.is_empty():
+			expected_actor_ids[expected_actor_id] = true
+	var cleaned_parents := {}
 	for slot_id_value in slots.keys():
 		var slot: Dictionary = slots[slot_id_value]
 		if not bool(slot.get("filled", false)):
 			continue
 		if str(slot.get("worker_actor_id", "")).is_empty():
 			continue
-		var owner_path = slot.get("owner_path", NodePath(""))
-		var role_owner := anchor.get_node_or_null(owner_path as NodePath) if owner_path is NodePath else anchor.get_node_or_null(NodePath(str(owner_path)))
-		if role_owner == null or not role_owner.has_method("fill_settlement_staff_slot"):
+		var role_owner: Node = owners_by_id.get(str(slot.get("owner_id", "")))
+		if role_owner == null:
+			role_owner = _infer_staff_role_owner(str(slot_id_value), owners_by_id)
+		if role_owner == null or not role_owner.has_method("configure_settlement_staff_actor") or not role_owner.has_method("get_staff_realization_parent"):
 			continue
-		role_owner.call("fill_settlement_staff_slot", str(slot_id_value), slot.duplicate(true))
+		var parent := role_owner.call("get_staff_realization_parent") as Node
+		if parent != null and not cleaned_parents.has(parent):
+			_remove_unbound_staff_bodies(parent, expected_actor_ids)
+			cleaned_parents[parent] = true
+		var actor_id := str(slot.get("worker_actor_id", ""))
+		var actor = population.call("get_live_actor", actor_id) if population != null and population.has_method("get_live_actor") else null
+		if actor != null \
+				and actor.get_parent() == parent \
+				and str(actor.get_meta(META_SETTLEMENT_SLOT_ID, "")) == str(slot_id_value):
+			continue
+		actor = realizer.realize_actor(actor_id, role_owner, parent, "", str(slot.get("character_type_id", "")))
+		if actor != null:
+			role_owner.call("configure_settlement_staff_actor", actor, str(slot_id_value), slot.duplicate(true))
+			if role_owner.has_method("sync_property_ownership"):
+				role_owner.call("sync_property_ownership")
+			if role_owner.has_method("sync_door_policy"):
+				role_owner.call("sync_door_policy")
+
+
+func _remove_unbound_staff_bodies(parent: Node, expected_actor_ids: Dictionary) -> void:
+	var population := _get_population_controller()
+	for child in parent.get_children():
+		if not (child is WorldActor):
+			continue
+		var actor_id := str(child.get_meta("actor_record_id", "")).strip_edges()
+		if not actor_id.is_empty() and expected_actor_ids.has(actor_id):
+			continue
+		if not actor_id.is_empty() and population != null and population.has_method("unregister_actor"):
+			population.call("unregister_actor", child)
+		parent.remove_child(child)
+		child.queue_free()
 
 
 ## A town left LOD range: free its live staff bodies back to ledger records (on/off, nothing lingers
@@ -818,7 +795,7 @@ func _ensure_staff_vacancy(settlement_id: String, slot_id: String, slot: Diction
 		"role_id": str(slot.get("role_id", "")),
 		"role_index": int(slot.get("role_index", 0)),
 		"display_name": str(slot.get("display_name", slot_id)),
-		"owner_path": slot.get("owner_path", NodePath("")),
+		"owner_id": str(slot.get("owner_id", "")),
 		"population_cost": max(0, int(slot.get("population_cost", 1))),
 		"replacement_delay_days": delay_days,
 		"vacant_since_minute": now_minute,
@@ -852,6 +829,23 @@ func _collect_staff_role_owners(root: Node) -> Array[Node]:
 	return owners
 
 
+func _staff_role_owner_id(owner: Node, settlement_id: String) -> String:
+	if owner != null and owner.has_method("get_facility_id"):
+		var facility_id := str(owner.call("get_facility_id")).strip_edges()
+		if not facility_id.is_empty():
+			return facility_id
+	return settlement_id
+
+
+func _infer_staff_role_owner(slot_id: String, owners_by_id: Dictionary) -> Node:
+	var best_id := ""
+	for owner_id_value in owners_by_id.keys():
+		var owner_id := str(owner_id_value)
+		if slot_id.begins_with("%s." % owner_id) and owner_id.length() > best_id.length():
+			best_id = owner_id
+	return owners_by_id.get(best_id) as Node if not best_id.is_empty() else null
+
+
 func _collect_staff_role_owners_recursive(node: Node, owners: Array[Node]) -> void:
 	if node == null:
 		return
@@ -859,35 +853,6 @@ func _collect_staff_role_owners_recursive(node: Node, owners: Array[Node]) -> vo
 		owners.append(node)
 	for child in node.get_children():
 		_collect_staff_role_owners_recursive(child, owners)
-
-
-func _process_population_recovery(settlement_id: String, day_index: int) -> void:
-	if not settlement_states.has(settlement_id):
-		return
-	if census != null:
-		# The census owns population growth (record-backed, food/fear gated);
-		# this flat legacy recovery only runs census-less (isolated test scenes).
-		return
-	var state: Dictionary = settlement_states[settlement_id]
-	if int(state.get("last_population_recovery_day", -1)) == day_index:
-		return
-	state["last_population_recovery_day"] = day_index
-	if str(state.get("pressure_state", PRESSURE_SUPPLIED)) == PRESSURE_STARVING:
-		_refresh_population_availability(settlement_id)
-		return
-	var target: int = max(0, int(state.get("population_target", 0)))
-	var current: int = max(0, int(state.get("population", 0)))
-	if current >= target:
-		_refresh_population_availability(settlement_id)
-		return
-	var recovered := mini(POPULATION_RECOVERY_PER_DAY, target - current)
-	_set_population_total(settlement_id, current + recovered)
-	_record_event({
-		"type": "population_recovered",
-		"settlement_id": settlement_id,
-		"amount": recovered,
-		"population": int(state.get("population", 0)),
-	})
 
 
 func _record_population_death_if_needed(settlement_id: String, actor_key: String, actor: Node, reason: String) -> bool:
@@ -963,22 +928,11 @@ func _register_anchor_facilities(settlement_id: String, anchor: Node3D) -> void:
 	_recalculate_facility_totals(settlement_id)
 
 
-func _register_anchor_population_capacity(settlement_id: String, anchor: Node3D, apply_population := true) -> void:
-	if anchor == null or not settlement_states.has(settlement_id):
+func _refresh_settlement_housing_capacity(settlement_id: String, apply_population := true) -> void:
+	if building_registry == null or not settlement_states.has(settlement_id):
 		return
 	var state: Dictionary = settlement_states[settlement_id]
-	var records: Array[Dictionary] = []
-	var total := 0
-	if anchor.has_method("get_population_capacity_records"):
-		for record in anchor.call("get_population_capacity_records"):
-			if not (record is Dictionary):
-				continue
-			var capacity: int = max(0, int(record.get("population_capacity", 0)))
-			if capacity <= 0:
-				continue
-			records.append(record.duplicate(true))
-			total += capacity
-	state["population_capacity_sources"] = records
+	var total := building_registry.get_settlement_housing_capacity(settlement_id)
 	state["max_occupancy"] = total
 	if apply_population:
 		_apply_population_from_occupancy(settlement_id)
@@ -987,12 +941,37 @@ func _register_anchor_population_capacity(settlement_id: String, anchor: Node3D,
 	_refresh_population_availability(settlement_id)
 
 
+func _on_building_registry_changed(building_id: String) -> void:
+	call_deferred("_apply_building_registry_change", building_id)
+
+
+func _apply_building_registry_change(building_id: String) -> void:
+	refresh_from_gecs_state()
+	var record := building_registry.get_building(building_id)
+	var settlement_id := str(record.get("settlement_id", ""))
+	if settlement_id.is_empty() or not settlement_states.has(settlement_id):
+		return
+	_refresh_settlement_housing_capacity(settlement_id)
+	_notify_state_changed(settlement_id)
+
+
+func _on_building_registry_rebuilt() -> void:
+	call_deferred("_refresh_housing_after_registry_rebuild")
+
+
+func _refresh_housing_after_registry_rebuild() -> void:
+	# registry_rebuilt fires synchronously inside GECS load, before the world
+	# simulation facade refreshes this controller's cached settlement states.
+	refresh_from_gecs_state()
+	for settlement_id in settlement_states.keys():
+		_refresh_settlement_housing_capacity(str(settlement_id))
+		_notify_state_changed(str(settlement_id))
+
+
 func _recalculate_facility_totals(settlement_id: String) -> void:
 	var state: Dictionary = settlement_states[settlement_id]
 	var facilities: Dictionary = state.get("facilities", {})
 	var totals := {
-		"food_production_per_day": 0.0,
-		"food_consumption_per_day": 0.0,
 		"storage_capacity_bonus": 0.0,
 		"activity_point_count": 0,
 		"job_provider_count": 0,
@@ -1001,8 +980,6 @@ func _recalculate_facility_totals(settlement_id: String) -> void:
 	for record in facilities.values():
 		if not (record is Dictionary):
 			continue
-		totals["food_production_per_day"] = float(totals["food_production_per_day"]) + float(record.get("food_production_per_day", 0.0))
-		totals["food_consumption_per_day"] = float(totals["food_consumption_per_day"]) + float(record.get("food_consumption_per_day", 0.0))
 		totals["storage_capacity_bonus"] = float(totals["storage_capacity_bonus"]) + float(record.get("storage_capacity_bonus", 0.0))
 		totals["activity_point_count"] = int(totals["activity_point_count"]) + int(record.get("activity_point_count", 0))
 		totals["job_provider_count"] = int(totals["job_provider_count"]) + int(record.get("job_provider_count", 0))
@@ -1073,12 +1050,6 @@ func _resync_population_spawners_for_settlement(settlement_id: String) -> void:
 			continue
 		if spawner.has_method("mark_population_realization_dirty"):
 			spawner.call("mark_population_realization_dirty")
-
-
-func _get_effective_food_pressure(state: Dictionary) -> float:
-	var food_ratio := float(state.get("food_ratio", 1.0))
-	var occupancy_ratio := maxf(float(state.get("occupancy_ratio", 1.0)), 0.25)
-	return clampf(food_ratio / occupancy_ratio, 0.0, 1.0)
 
 
 func _get_absolute_minute() -> int:

@@ -81,10 +81,10 @@ func get_available_idle_clip_names() -> Array[String]:
 
 
 func apply_automatic_eyebrow_style() -> void:
-	if _actor.appearance_data == null:
+	if appearance_data == null:
 		return
-	_actor.appearance_data.eyebrow_style = null
-	_actor.appearance_data.eyebrow_color = Color(0.08, 0.015, 0.018, 1.0)
+	appearance_data.eyebrow_style = null
+	appearance_data.eyebrow_color = Color(0.08, 0.015, 0.018, 1.0)
 
 
 func begin_cinder_burn_visuals() -> void:

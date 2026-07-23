@@ -232,12 +232,12 @@ func roll_raid(attackers: int, target_id: String) -> Dictionary:
 
 
 ## Loot applied when the attackers win (called from the encounter aftermath).
-func apply_raid_win_spoils(target_id: String, food_amount: float) -> void:
-	if target_id.is_empty():
+func apply_raid_win_spoils(target_id: String, home_settlement_id: String, food_amount: float) -> void:
+	if target_id.is_empty() or home_settlement_id.is_empty():
 		return
-	var settlements := _get_settlement_controller()
-	if settlements != null and settlements.has_method("adjust_food"):
-		settlements.call("adjust_food", target_id, -absf(food_amount), "world_sim_raid")
+	var stock := _context.get_optional(InventoryStockController.SERVICE_ID) as InventoryStockController if _context != null else null
+	if stock != null:
+		stock.transfer_food_units(target_id, home_settlement_id, absf(food_amount))
 
 
 func _settlement_defender_power(settlement_id: String) -> float:
@@ -334,9 +334,10 @@ func realize_faction_squad(record: Dictionary) -> void:
 		return
 	var faction_id := str(record.get("faction_id", ""))
 	var definition = factions.get_faction_definition(faction_id)
-	if definition == null or not definition.has_method("get_member_actor_script"):
+	if definition == null or not definition.has_method("get_character_realizer"):
 		return
-	var actor_script: Script = definition.get_member_actor_script()
+	var character_realizer := definition.get_character_realizer() as Resource
+	var actor_script: Script = character_realizer.get("actor_script") as Script if character_realizer != null else null
 	if actor_script == null:
 		return
 	var size := int(record.get("member_count", 0))

@@ -18,13 +18,15 @@ signal changed
 
 
 class InventoryEntry:
+	var stack_id: String
 	var definition
 	var grid_position: Vector2i
 	var count := 1
 	var contained_item_counts: Dictionary = {}
 	var metadata: Dictionary = {}
 
-	func _init(item_definition, item_grid_position: Vector2i, item_count: int = 1, item_contained_item_counts: Dictionary = {}, item_metadata: Dictionary = {}) -> void:
+	func _init(item_definition, item_grid_position: Vector2i, item_count: int = 1, item_contained_item_counts: Dictionary = {}, item_metadata: Dictionary = {}, item_stack_id := "") -> void:
+		stack_id = item_stack_id if not item_stack_id.is_empty() else InventoryData.create_stack_id()
 		definition = item_definition
 		grid_position = item_grid_position
 		count = item_count
@@ -37,6 +39,41 @@ var rows := 6
 var max_weight := 60.0
 var use_weight := true
 var entries: Array[InventoryEntry] = []
+var stack_id_prefix := ""
+var next_stack_sequence := 1
+
+
+static func create_stack_id() -> String:
+	return "stack:%x" % ResourceUID.create_id()
+
+
+func configure_stack_allocator(prefix: String, sequence := 1) -> void:
+	stack_id_prefix = prefix.strip_edges()
+	next_stack_sequence = maxi(1, sequence)
+	for entry in entries:
+		if entry != null:
+			_observe_stack_id(entry.stack_id)
+
+
+func create_entry(definition, grid_position: Vector2i, count := 1, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}, stack_id := "") -> InventoryEntry:
+	var resolved_id := stack_id if not stack_id.is_empty() else _allocate_stack_id()
+	_observe_stack_id(resolved_id)
+	return InventoryEntry.new(definition, grid_position, count, contained_item_counts, metadata, resolved_id)
+
+
+func _allocate_stack_id() -> String:
+	if stack_id_prefix.is_empty():
+		return create_stack_id()
+	var stack_id := "%s.stack.%d" % [stack_id_prefix, next_stack_sequence]
+	next_stack_sequence += 1
+	return stack_id
+
+
+func _observe_stack_id(stack_id: String) -> void:
+	var prefix := "%s.stack." % stack_id_prefix
+	if stack_id_prefix.is_empty() or not stack_id.begins_with(prefix):
+		return
+	next_stack_sequence = maxi(next_stack_sequence, int(stack_id.trim_prefix(prefix)) + 1)
 
 
 func _init(inventory_columns: int = 10, inventory_rows: int = 6, inventory_max_weight: float = 60.0, inventory_use_weight: bool = true) -> void:
@@ -136,7 +173,7 @@ func _add_standard_item_count(definition, amount: int, emit_changed := true) -> 
 		if slot == Vector2i(-1, -1):
 			return false
 		var stack_count: int = min(remaining, max(definition.max_stack, 1))
-		entries.append(InventoryEntry.new(definition, slot, stack_count))
+		entries.append(create_entry(definition, slot, stack_count))
 		remaining -= stack_count
 	if emit_changed:
 		changed.emit()
@@ -151,13 +188,13 @@ func can_add_entry_with_contents(definition, amount: int = 1, contained_item_cou
 	return find_first_space(definition) != Vector2i(-1, -1)
 
 
-func add_entry_with_contents(definition, amount: int = 1, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> bool:
+func add_entry_with_contents(definition, amount: int = 1, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}, stack_id := "") -> bool:
 	if not can_add_entry_with_contents(definition, amount, contained_item_counts, metadata):
 		return false
 	var slot := find_first_space(definition)
 	if slot == Vector2i(-1, -1):
 		return false
-	entries.append(InventoryEntry.new(definition, slot, amount, contained_item_counts, metadata))
+	entries.append(create_entry(definition, slot, amount, contained_item_counts, metadata, stack_id))
 	changed.emit()
 	return true
 
@@ -191,7 +228,7 @@ func move_entry_to_inventory(entry, target_inventory, target_position: Vector2i)
 		return move_entry(entry, target_position)
 
 	entries.erase(entry)
-	target_inventory.entries.append(InventoryEntry.new(entry.definition, target_position, entry.count, entry.contained_item_counts, entry.metadata))
+	target_inventory.entries.append(InventoryEntry.new(entry.definition, target_position, entry.count, entry.contained_item_counts, entry.metadata, entry.stack_id))
 	changed.emit()
 	target_inventory.changed.emit()
 	return true
@@ -479,7 +516,7 @@ func _add_item_count_as_distinct_entries(definition, amount: int, contained_item
 		if slot == Vector2i(-1, -1):
 			return false
 		var stack_count: int = min(remaining, max(definition.max_stack, 1))
-		entries.append(InventoryEntry.new(definition, slot, stack_count, contained_item_counts if remaining == amount else {}, metadata))
+		entries.append(create_entry(definition, slot, stack_count, contained_item_counts if remaining == amount else {}, metadata))
 		remaining -= stack_count
 	if emit_changed:
 		changed.emit()
@@ -603,7 +640,7 @@ func _add_silver_count(amount: int) -> bool:
 		if pouch_slot == Vector2i(-1, -1):
 			break
 		var stored_in_new_pouch: int = min(remaining, pouch_capacity)
-		entries.append(InventoryEntry.new(SILVER_POUCH_ITEM, pouch_slot, 1, {_item_key(SILVER_ITEM): stored_in_new_pouch}))
+		entries.append(create_entry(SILVER_POUCH_ITEM, pouch_slot, 1, {_item_key(SILVER_ITEM): stored_in_new_pouch}))
 		remaining -= stored_in_new_pouch
 		did_change = true
 

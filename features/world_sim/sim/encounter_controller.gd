@@ -92,8 +92,8 @@ func _advance_demand(gecs: Node, record: Dictionary, dt: float) -> void:
 	# Commit.
 	if str(record.get("decision", "")) == "comply":
 		var amount := _objective_float("demand_food_amount", 25.0)
-		_settlement_adjust_food(target_id, -absf(amount))
-		_log(gecs, "%s pays %d tribute to %s — raiders march home" % [target_id, int(amount), faction_id])
+		var transferred := _transfer_food(target_id, str(record.get("owner_id", "")), absf(amount))
+		_log(gecs, "%s pays %d food units tribute to %s — raiders march home" % [target_id, int(transferred), faction_id])
 		_send_home(record, "march home with tribute")
 		gecs.upsert_world_sim_squad(record)
 	else:
@@ -142,7 +142,7 @@ func _advance_aftermath(gecs: Node, record: Dictionary, dt: float) -> void:
 		var loot := _objective_float("loot_food_on_win", 35.0)
 		var faction_ctrl := _get_faction_world_sim()
 		if faction_ctrl != null and faction_ctrl.has_method("apply_raid_win_spoils"):
-			faction_ctrl.apply_raid_win_spoils(target_id, loot)
+			faction_ctrl.apply_raid_win_spoils(target_id, str(record.get("owner_id", "")), loot)
 		_log(gecs, "%s loots %d food from %s and heads home" % [faction_id, int(loot), target_id])
 		_send_home(record, "haul loot home")
 		gecs.upsert_world_sim_squad(record)
@@ -228,10 +228,11 @@ func _faction_personality(faction_id: String) -> Resource:
 	return definition.get_personality_profile()
 
 
-func _settlement_adjust_food(settlement_id: String, amount: float) -> void:
-	var settlements := _get_settlement_controller()
-	if settlements != null and settlements.has_method("adjust_food"):
-		settlements.call("adjust_food", settlement_id, amount, "world_sim_tribute")
+func _transfer_food(source_settlement_id: String, target_settlement_id: String, amount: float) -> float:
+	var stock := _context.get_optional(InventoryStockController.SERVICE_ID) as InventoryStockController if _context != null else null
+	if stock == null or target_settlement_id.is_empty():
+		return 0.0
+	return float(stock.transfer_food_units(source_settlement_id, target_settlement_id, amount).get("food_units", 0.0))
 
 
 func _objective_float(property: String, fallback: float) -> float:

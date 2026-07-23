@@ -1,324 +1,291 @@
-extends StaticBody3D
+extends Node3D
 
 class_name TabletopItemSpawner
 
 const WORLD_ITEM_SCENE := preload("res://features/world/projection/items/world_item.tscn")
 
-const TABLE_PLATE := preload("res://features/inventory/resources/items/table_plate.tres")
-const MUG := preload("res://features/inventory/resources/items/mug.tres")
-const TABLE_FORK := preload("res://features/inventory/resources/items/table_fork.tres")
-const TABLE_SPOON := preload("res://features/inventory/resources/items/table_spoon.tres")
-const TABLE_KNIFE := preload("res://features/inventory/resources/items/table_knife.tres")
-const BOTTLE_1 := preload("res://features/inventory/resources/items/bottle_1.tres")
-const BOTTLE_2 := preload("res://features/inventory/resources/items/bottle_2.tres")
-const SMALL_BOTTLE := preload("res://features/inventory/resources/items/small_bottle.tres")
-const CHALICE := preload("res://features/inventory/resources/items/chalice.tres")
-const CANDLE_1 := preload("res://features/inventory/resources/items/candle_1.tres")
-const CANDLE_2 := preload("res://features/inventory/resources/items/candle_2.tres")
-const CANDLE_3 := preload("res://features/inventory/resources/items/candle_3.tres")
-const CANDLESTICK := preload("res://features/inventory/resources/items/candlestick.tres")
-const BREAD := preload("res://features/inventory/resources/items/bread.tres")
+## Composable tabletop surface. Furniture remains its own body/workstation;
+## this child authors stable slots and realizes durable item-stack records.
 
-const SPAWNED_ITEMS_ROOT_NAME := "SpawnedTabletopItems"
-const CATEGORY_ITEMS := {
-	"dish": [TABLE_PLATE],
-	"drink": [MUG, MUG, MUG, SMALL_BOTTLE],
-	"bottle": [BOTTLE_1, BOTTLE_2, SMALL_BOTTLE],
-	"utensil": [TABLE_FORK, TABLE_SPOON, TABLE_KNIFE],
-	"food": [BREAD],
-	"candle": [CANDLE_1, CANDLE_2, CANDLE_3, CANDLESTICK],
-	"drink_fancy": [CHALICE, CHALICE, MUG],
-	"small_clutter": [SMALL_BOTTLE, CANDLE_3, TABLE_SPOON],
-}
-
-@export var furniture_type := FurnitureRules.Type.TABLE
-@export var spawn_on_ready := true
-@export var prop_slots_path := NodePath("PropSlots")
-@export_range(0.0, 1.0, 0.01) var spawn_density := 1.0
-@export var minimum_spawned_items := 3
-@export_range(0.0, 0.5, 0.01) var yaw_jitter_radians := 0.12
-@export var tabletop_spawn_surface_offset := -0.10
-@export var tabletop_pickup_clearance := 0.6
-@export var tabletop_pickup_seat_clearance := 0.6
-@export var tabletop_grab_horizontal_reach := 1.9
-# Measured from the actor's feet: a standing grab tops out around 2m, which
-# keeps chest-height wall shelves (slots ~1.7m) reachable.
-@export var tabletop_grab_vertical_reach := 2.05
-@export var tabletop_pickup_arrival_slack := 0.25
-@export var tabletop_pickup_nav_projection_limit := 1.25
-# Wall-mounted shelves sit ~1.6m up; their access candidates must be allowed
-# to project down to the floor beside them or the route solver rejects them.
-@export var tabletop_pickup_vertical_projection_limit := 2.0
-@export var seed_salt := "comfortable_tavern"
+@export var surface_id := ""
+@export var seed_salt := "tabletop"
 @export var owner_faction_name := ""
+@export var tabletop_half_extents := Vector2(1.35, 0.65)
+@export var tabletop_pickup_clearance := 0.6
+@export var tabletop_grab_horizontal_reach := 1.9
+@export var tabletop_grab_vertical_reach := 2.05
+@export var tabletop_pickup_nav_projection_limit := 1.25
+@export var tabletop_pickup_vertical_projection_limit := 2.0
 @export var theft_noise_radius := 1.2
 @export_range(0, 100, 1) var theft_difficulty := 15
+
+var _resolved_surface_id := ""
+var _lifecycle: ItemLifecycleController
+var _reconcile_queued := false
 
 
 func _ready() -> void:
 	add_to_group("tabletop_item_spawner")
-	add_to_group(FurnitureRules.FURNITURE_GROUP)
-	if Engine.is_editor_hint() or not spawn_on_ready:
-		return
-	call_deferred("spawn_tabletop_items")
-
-
-func spawn_tabletop_items() -> void:
+	add_to_group(BootstrapContext.SERVICE_CONSUMER_GROUP)
 	if Engine.is_editor_hint():
 		return
-	var slots_root := get_node_or_null(prop_slots_path)
-	if slots_root == null:
+	if BootstrapContext.active != null and BootstrapContext.active.has_service(ItemLifecycleController.SERVICE_ID):
+		_on_bootstrap_context_ready(BootstrapContext.active)
+
+
+func _on_bootstrap_context_ready(context: BootstrapContext) -> void:
+	if Engine.is_editor_hint() or context == null:
 		return
-	var spawned_items_root := _get_or_create_spawned_items_root()
-	if spawned_items_root.get_child_count() > 0:
+	_lifecycle = context.get_optional(ItemLifecycleController.SERVICE_ID) as ItemLifecycleController
+	if _lifecycle == null:
 		return
-	var eligible_slots := _collect_eligible_slots(slots_root)
-	var spawned_count := 0
-	for slot in eligible_slots:
-		var rng := _make_slot_rng(slot, "roll")
-		var spawn_chance := clampf(_get_slot_weight(slot) * spawn_density, 0.0, 1.0)
-		if rng.randf() <= spawn_chance and _spawn_item_at_slot(spawned_items_root, slot, rng):
-			spawned_count += 1
-	for slot in eligible_slots:
-		if spawned_count >= minimum_spawned_items:
-			break
-		if _slot_already_spawned(spawned_items_root, slot):
+	var gecs := context.get_optional(GecsWorldController.SERVICE_ID) as GecsWorldController
+	if gecs != null and not gecs.world_reindexed.is_connected(_on_world_reindexed):
+		gecs.world_reindexed.connect(_on_world_reindexed)
+	var stock := context.get_optional(InventoryStockController.SERVICE_ID) as InventoryStockController
+	if stock != null and not stock.stock_changed.is_connected(_on_stock_changed):
+		stock.stock_changed.connect(_on_stock_changed)
+	call_deferred("_seed_or_restore")
+
+
+func _on_world_reindexed() -> void:
+	_queue_reconcile()
+
+
+func _on_stock_changed(settlement_id: String, _facility_id: String) -> void:
+	if settlement_id == _settlement_id():
+		_queue_reconcile()
+
+
+func _queue_reconcile() -> void:
+	if _reconcile_queued:
+		return
+	_reconcile_queued = true
+	_reconcile_item_projections.call_deferred()
+
+
+func _reconcile_item_projections() -> void:
+	_reconcile_queued = false
+	for child in get_children():
+		if child is WorldItem:
+			remove_child(child)
+			child.free()
+	_seed_or_restore()
+
+
+func _seed_or_restore() -> void:
+	if _lifecycle == null:
+		return
+	_resolved_surface_id = _get_surface_id()
+	if _resolved_surface_id.is_empty():
+		push_warning("TabletopItemSpawner '%s' needs an explicit surface_id or an owning facility_id" % get_path())
+		return
+	var existing_by_slot: Dictionary = {}
+	for record in _lifecycle.get_stack_records_for_host(_resolved_surface_id):
+		var record_metadata := record.get("metadata", {}) as Dictionary
+		var seeded_slot_id := str(record.get("placement_slot_id", record_metadata.get("tabletop_origin_slot_id", "")))
+		if seeded_slot_id.is_empty():
+			seeded_slot_id = str(record_metadata.get("tabletop_origin_slot_id", ""))
+		existing_by_slot[seeded_slot_id] = record
+		if str(record.get("location_kind", "")) == "tabletop_slot":
+			_realize_record(record)
+	for child in get_children():
+		var slot := child as TabletopItemSlot
+		if slot == null:
 			continue
-		if _spawn_item_at_slot(spawned_items_root, slot, _make_slot_rng(slot, "minimum")):
-			spawned_count += 1
+		if slot.stock_projection:
+			_spawn_stock_projection(slot)
+			continue
+		if existing_by_slot.has(slot.slot_id):
+			continue
+		var definition := slot.choose_definition(_make_slot_rng(slot.slot_id))
+		if definition == null:
+			continue
+		var stack_id := "%s.slot.%s" % [_resolved_surface_id, slot.slot_id]
+		var metadata := {
+			"tabletop_seeded": true,
+			"tabletop_origin_host_id": _resolved_surface_id,
+			"tabletop_origin_slot_id": slot.slot_id,
+		}
+		var item := _create_world_item(definition, stack_id, slot.slot_id, _settlement_id(), metadata)
+		if item == null:
+			continue
+		add_child(item)
+		item.global_transform = slot.global_transform
+		_configure_item(item)
+		item.place_bottom_at(slot.global_position, slot.global_position.y)
+		var result := _lifecycle.submit_world_stack({
+			"stack_id": stack_id,
+			"container_id": "world",
+			"owner_actor_id": "",
+			"item_definition_path": definition.resource_path,
+			"count": 1,
+			"grid_position": Vector2i.ZERO,
+			"contained_item_counts": {},
+			"metadata": metadata,
+			"location_kind": "tabletop_slot",
+			"world_transform": item.global_transform,
+			"placement_host_id": _resolved_surface_id,
+			"placement_slot_id": slot.slot_id,
+			"location_settlement_id": _settlement_id(),
+		})
+		if not bool(result.get("accepted", false)):
+			item.queue_free()
+
+
+func _spawn_stock_projection(slot: TabletopItemSlot) -> void:
+	var settlement_id := _settlement_id()
+	var stock := BootstrapContext.service(InventoryStockController.SERVICE_ID) as InventoryStockController
+	if stock == null or settlement_id.is_empty():
+		return
+	var snapshot := stock.get_settlement_stock_snapshot(settlement_id)
+	var definition := slot.choose_available_definition(_make_slot_rng(slot.slot_id), snapshot.get("items", {}), _food_spawn_scale(settlement_id))
+	if definition == null:
+		return
+	var item := _create_world_item(definition, "display.%s.%s" % [_resolved_surface_id, slot.slot_id], slot.slot_id, settlement_id, {})
+	if item == null:
+		return
+	item.stock_projection = true
+	item.stock_source_settlement_id = settlement_id
+	add_child(item)
+	item.global_transform = slot.global_transform
+	_configure_item(item)
+	item.place_bottom_at(slot.global_position, slot.global_position.y)
+
+
+func _food_spawn_scale(settlement_id: String) -> float:
+	var food := BootstrapContext.service(SettlementFoodController.SERVICE_ID) as SettlementFoodController
+	if food == null:
+		return 1.0
+	match str(food.get_status(settlement_id).get("pressure_state", "supplied")):
+		"starving":
+			return 0.12
+		"hungry":
+			return 0.5
+		_:
+			return 1.0
+
+
+func _realize_record(record: Dictionary) -> void:
+	var definition := load(str(record.get("item_definition_path", ""))) as ItemDefinition
+	if definition == null:
+		return
+	var item := _create_world_item(definition, str(record["stack_id"]), str(record.get("placement_slot_id", "")), str(record.get("location_settlement_id", "")), record.get("metadata", {}))
+	if item == null:
+		return
+	var saved_world_transform: Transform3D = record.get("world_transform", global_transform)
+	item.transform = global_transform.affine_inverse() * saved_world_transform
+	add_child(item)
+	_configure_item(item)
+
+
+func _create_world_item(definition: ItemDefinition, stack_id: String, slot_id: String, settlement_id: String, metadata: Dictionary) -> WorldItem:
+	var item := WORLD_ITEM_SCENE.instantiate() as WorldItem
+	if item == null:
+		return null
+	item.stack_id = stack_id
+	item.item_definition = definition
+	item.item_metadata = metadata.duplicate(true)
+	item.location_kind = "tabletop_slot"
+	item.placement_host_id = _resolved_surface_id
+	item.placement_slot_id = slot_id
+	item.location_settlement_id = settlement_id
+	return item
+
+
+func _configure_item(item: WorldItem) -> void:
+	item.owner_faction_name = owner_faction_name
+	item.theft_noise_radius = theft_noise_radius
+	item.theft_difficulty = theft_difficulty
+	item.set_meta("tabletop_slot", item.placement_slot_id)
+	item.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+	item.freeze = true
+	item.sleeping = true
+	item.gravity_scale = 0.0
 
 
 func get_tabletop_pickup_position(item: Node3D, actor = null) -> Vector3:
-	if item == null:
-		return global_position
-	var half_extents := _get_tabletop_pickup_half_extents()
 	var inverse := global_transform.affine_inverse()
 	var item_local := inverse * item.global_position
 	var actor_local := item_local
 	if actor is Node3D:
 		actor_local = inverse * (actor as Node3D).global_position
-	return _get_best_tabletop_access_position(item_local, actor_local, half_extents)
+	var candidates := [
+		Vector3(-tabletop_half_extents.x - tabletop_pickup_clearance, 0.0, clampf(item_local.z, -tabletop_half_extents.y, tabletop_half_extents.y)),
+		Vector3(tabletop_half_extents.x + tabletop_pickup_clearance, 0.0, clampf(item_local.z, -tabletop_half_extents.y, tabletop_half_extents.y)),
+		Vector3(clampf(item_local.x, -tabletop_half_extents.x, tabletop_half_extents.x), 0.0, -tabletop_half_extents.y - tabletop_pickup_clearance),
+		Vector3(clampf(item_local.x, -tabletop_half_extents.x, tabletop_half_extents.x), 0.0, tabletop_half_extents.y + tabletop_pickup_clearance),
+	]
+	var best := global_position
+	var best_distance := INF
+	for local_position in candidates:
+		var projected := _project_to_navigation(global_transform * local_position)
+		var distance := Vector2(local_position.x - actor_local.x, local_position.z - actor_local.z).length()
+		if distance < best_distance:
+			best = projected
+			best_distance = distance
+	return best
 
 
 func is_tabletop_item_reachable_from(item: Node3D, _actor, actor_position: Vector3, reach_distance: float) -> bool:
-	if item == null:
-		return false
 	if absf(actor_position.y - item.global_position.y) > tabletop_grab_vertical_reach:
 		return false
-	var horizontal_distance := Vector2(actor_position.x - item.global_position.x, actor_position.z - item.global_position.z).length()
-	return horizontal_distance <= minf(reach_distance, tabletop_grab_horizontal_reach)
+	return Vector2(actor_position.x - item.global_position.x, actor_position.z - item.global_position.z).length() <= minf(reach_distance, tabletop_grab_horizontal_reach)
 
 
-func _get_or_create_spawned_items_root() -> Node3D:
-	var existing := get_node_or_null(SPAWNED_ITEMS_ROOT_NAME) as Node3D
-	if existing != null:
-		return existing
-	var root := Node3D.new()
-	root.name = SPAWNED_ITEMS_ROOT_NAME
-	add_child(root)
-	return root
-
-
-func _collect_eligible_slots(slots_root: Node) -> Array[Node3D]:
-	var result: Array[Node3D] = []
-	for child in slots_root.get_children():
-		var slot := child as Node3D
-		if slot == null:
-			continue
-		if not CATEGORY_ITEMS.has(_get_slot_category(slot)):
-			continue
-		result.append(slot)
-	return result
-
-
-func _spawn_item_at_slot(parent: Node, slot: Node3D, rng: RandomNumberGenerator) -> bool:
-	var definition := _choose_item_definition(_get_slot_category(slot), rng)
-	if definition == null:
-		return false
-	var item := WORLD_ITEM_SCENE.instantiate() as WorldItem
-	if item == null:
-		return false
-	item.name = _spawned_item_name(slot)
-	parent.add_child(item)
-	item.setup(definition, 1)
-	item.owner_faction_name = owner_faction_name
-	item.theft_value = _get_theft_value(definition)
-	item.theft_noise_radius = theft_noise_radius
-	item.theft_difficulty = theft_difficulty
-	item.set_meta("tabletop_slot", String(slot.name))
-	var surface_position := slot.global_position + Vector3.UP * tabletop_spawn_surface_offset
-	item.global_transform = Transform3D(_get_slot_basis(slot, rng), surface_position)
-	item.place_bottom_at(surface_position, surface_position.y)
-	item.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
-	item.freeze = true
-	item.sleeping = true
-	item.gravity_scale = 0.0
-	return true
-
-
-func _choose_item_definition(category: String, rng: RandomNumberGenerator) -> ItemDefinition:
-	var choices: Array = CATEGORY_ITEMS.get(category, [])
-	if choices.is_empty():
-		return null
-	return choices[rng.randi_range(0, choices.size() - 1)] as ItemDefinition
-
-
-func _get_tabletop_pickup_half_extents() -> Vector2:
-	var collision := get_node_or_null("BodyCollision") as CollisionShape3D
-	if collision != null and collision.shape is BoxShape3D:
-		var box := collision.shape as BoxShape3D
-		return Vector2(maxf(box.size.x * 0.5, 0.1), maxf(box.size.z * 0.5, 0.1))
-	return Vector2(1.35, 0.65)
-
-
-func _get_best_tabletop_access_position(item_local: Vector3, actor_local: Vector3, half_extents: Vector2) -> Vector3:
-	var best_position := global_position
-	var best_score := INF
-	var nearby_seats := _get_nearby_seats()
-	for candidate_local in _get_tabletop_access_candidates(item_local, half_extents):
-		var candidate_world := global_transform * candidate_local
-		var projected_world := _project_tabletop_access_to_navigation(candidate_world)
-		var projected_local := global_transform.affine_inverse() * projected_world
-		if _get_local_horizontal_distance(projected_local, item_local) > _get_tabletop_route_horizontal_reach():
-			continue
-		var score := _get_tabletop_access_score(projected_world, projected_local, actor_local, nearby_seats)
-		if score < best_score:
-			best_score = score
-			best_position = projected_world
-	return best_position
-
-
-func _get_local_horizontal_distance(a: Vector3, b: Vector3) -> float:
-	return Vector2(a.x - b.x, a.z - b.z).length()
-
-
-func _get_tabletop_route_horizontal_reach() -> float:
-	return maxf(0.2, tabletop_grab_horizontal_reach - maxf(tabletop_pickup_arrival_slack, 0.0) - 0.05)
-
-
-func _get_tabletop_access_candidates(item_local: Vector3, half_extents: Vector2) -> Array[Vector3]:
-	var x_edge := half_extents.x + tabletop_pickup_clearance
-	var z_edge := half_extents.y + tabletop_pickup_clearance
-	var clamped_x := clampf(item_local.x, -half_extents.x, half_extents.x)
-	var clamped_z := clampf(item_local.z, -half_extents.y, half_extents.y)
-	var side_step := minf(0.85, maxf(0.0, half_extents.x - 0.2))
-	var wide_side_step := minf(1.2, maxf(0.0, half_extents.x - 0.05))
-	var side_left_x := clampf(item_local.x - side_step, -half_extents.x, half_extents.x)
-	var side_right_x := clampf(item_local.x + side_step, -half_extents.x, half_extents.x)
-	var wide_side_left_x := clampf(item_local.x - wide_side_step, -half_extents.x, half_extents.x)
-	var wide_side_right_x := clampf(item_local.x + wide_side_step, -half_extents.x, half_extents.x)
-	return [
-		Vector3(-x_edge, 0.0, clamped_z),
-		Vector3(x_edge, 0.0, clamped_z),
-		Vector3(clamped_x, 0.0, -z_edge),
-		Vector3(clamped_x, 0.0, z_edge),
-		Vector3(side_left_x, 0.0, -z_edge),
-		Vector3(side_right_x, 0.0, -z_edge),
-		Vector3(side_left_x, 0.0, z_edge),
-		Vector3(side_right_x, 0.0, z_edge),
-		Vector3(wide_side_left_x, 0.0, -z_edge),
-		Vector3(wide_side_right_x, 0.0, -z_edge),
-		Vector3(wide_side_left_x, 0.0, z_edge),
-		Vector3(wide_side_right_x, 0.0, z_edge),
-		Vector3(-x_edge, 0.0, -z_edge),
-		Vector3(x_edge, 0.0, -z_edge),
-		Vector3(-x_edge, 0.0, z_edge),
-		Vector3(x_edge, 0.0, z_edge),
-	]
-
-
-func _get_tabletop_access_score(world_position: Vector3, local_position: Vector3, actor_local: Vector3, nearby_seats: Array[Node3D]) -> float:
-	var actor_distance := Vector2(local_position.x - actor_local.x, local_position.z - actor_local.z).length()
-	return actor_distance + _get_nearby_seat_penalty(world_position, nearby_seats)
-
-
-## Seats within reach of this table, fetched once per access solve — the group
-## scan must not run per candidate.
-func _get_nearby_seats() -> Array[Node3D]:
-	var seats: Array[Node3D] = []
-	if not is_inside_tree() or tabletop_pickup_seat_clearance <= 0.0:
-		return seats
-	for node in get_tree().get_nodes_in_group("sittable_seat"):
-		var seat := node as Node3D
-		if seat == null or not is_instance_valid(seat):
-			continue
-		if seat.global_position.distance_squared_to(global_position) > 16.0:
-			continue
-		seats.append(seat)
-	return seats
-
-
-func _get_nearby_seat_penalty(world_position: Vector3, nearby_seats: Array[Node3D]) -> float:
-	var penalty := 0.0
-	for seat in nearby_seats:
-		var distance := Vector2(world_position.x - seat.global_position.x, world_position.z - seat.global_position.z).length()
-		if distance < tabletop_pickup_seat_clearance:
-			penalty += (tabletop_pickup_seat_clearance - distance) * 200.0
-	return penalty
-
-
-func _project_tabletop_access_to_navigation(access_position: Vector3) -> Vector3:
-	if not is_inside_tree():
-		return access_position
-	var world_3d := get_world_3d()
-	if world_3d == null:
-		return access_position
-	var navigation_map: RID = world_3d.navigation_map
-	if NavigationServer3D.map_get_iteration_id(navigation_map) == 0:
-		return access_position
-	var closest := NavigationServer3D.map_get_closest_point(navigation_map, access_position)
-	var horizontal_offset := Vector2(closest.x - access_position.x, closest.z - access_position.z).length()
-	if horizontal_offset > tabletop_pickup_nav_projection_limit:
-		return access_position
-	if absf(closest.y - access_position.y) > tabletop_pickup_vertical_projection_limit:
-		return access_position
+func _project_to_navigation(position: Vector3) -> Vector3:
+	if not is_inside_tree() or get_world_3d() == null:
+		return position
+	var map := get_world_3d().navigation_map
+	if NavigationServer3D.map_get_iteration_id(map) == 0:
+		return position
+	var closest := NavigationServer3D.map_get_closest_point(map, position)
+	if Vector2(closest.x - position.x, closest.z - position.z).length() > tabletop_pickup_nav_projection_limit:
+		return position
+	if absf(closest.y - position.y) > tabletop_pickup_vertical_projection_limit:
+		return position
 	return closest
 
 
-func _get_slot_category(slot: Node) -> String:
-	return str(slot.get_meta("prop_category", ""))
+func _get_surface_id() -> String:
+	var facility_id := _facility_id()
+	var local_id := surface_id.strip_edges()
+	if facility_id.is_empty() or local_id.is_empty():
+		return ""
+	return "%s.%s" % [facility_id, local_id]
 
 
-func _get_slot_weight(slot: Node) -> float:
-	return clampf(float(slot.get_meta("comfortable_weight", 0.0)), 0.0, 1.0)
+func _facility_id() -> String:
+	var current := get_parent()
+	while current != null:
+		if current.has_method("get_facility_id"):
+			var resolved := str(current.call("get_facility_id"))
+			if not resolved.is_empty():
+				return resolved
+		for property in current.get_property_list():
+			if str(property.get("name", "")) == "facility_id":
+				var value := str(current.get("facility_id"))
+				if not value.is_empty():
+					return value
+		current = current.get_parent()
+	return ""
 
 
-func _slot_already_spawned(parent: Node, slot: Node3D) -> bool:
-	return parent.get_node_or_null(NodePath(_spawned_item_name(slot))) != null
+func _settlement_id() -> String:
+	var current := get_parent()
+	while current != null:
+		if current.has_method("get_settlement_id"):
+			return str(current.call("get_settlement_id"))
+		for property in current.get_property_list():
+			if str(property.get("name", "")) == "settlement_id":
+				var value := str(current.get("settlement_id"))
+				if not value.is_empty():
+					return value
+		current = current.get_parent()
+	return ""
 
 
-func _spawned_item_name(slot: Node3D) -> String:
-	return "Tabletop_%s" % String(slot.name)
-
-
-func _make_slot_rng(slot: Node3D, phase: String) -> RandomNumberGenerator:
+func _make_slot_rng(slot_id: String) -> RandomNumberGenerator:
 	var rng := RandomNumberGenerator.new()
-	var seed_text := "%s|%s|%s|%s|%.2f|%.2f|%.2f" % [
-		seed_salt,
-		phase,
-		str(get_path()),
-		String(slot.name),
-		global_position.x,
-		global_position.y,
-		global_position.z,
-	]
-	var seed_value := int(seed_text.hash())
-	if seed_value < 0:
-		seed_value = -seed_value
-	if seed_value == 0:
-		seed_value = 1
-	rng.seed = seed_value
+	rng.seed = maxi(1, abs(("%s|%s|%s" % [_get_surface_id(), seed_salt, slot_id]).hash()))
 	return rng
-
-
-func _get_slot_basis(slot: Node3D, rng: RandomNumberGenerator) -> Basis:
-	var slot_basis := slot.global_transform.basis.orthonormalized()
-	if yaw_jitter_radians > 0.0:
-		slot_basis = Basis(Vector3.UP, rng.randf_range(-yaw_jitter_radians, yaw_jitter_radians)) * slot_basis
-	return slot_basis
-
-
-func _get_theft_value(definition: ItemDefinition) -> int:
-	if definition == null:
-		return 5
-	return maxi(1, int(round(definition.unit_weight * 20.0)))

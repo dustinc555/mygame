@@ -6,6 +6,7 @@
 [ext_resource type="Resource" path="res://features/factions/resources/law_profiles/settler_common_law.tres" id="3_law"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/population_name_profiles/captive_names.tres" id="4_names"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/slave_rags.tres" id="9_appearance"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/character_type_sets/standard.tres" id="99_types"]
 
 [resource]
 script = ExtResource("1_faction")
@@ -18,3 +19,4 @@ personality_profile = ExtResource("2_personality")
 law_profile = ExtResource("3_law")
 population_appearance_profile = ExtResource("9_appearance")
 population_name_profile = ExtResource("4_names")
+character_type_set = ExtResource("99_types")

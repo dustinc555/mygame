@@ -4,8 +4,8 @@ class_name SettlementBehaviorProfile
 
 @export var profile_id := ""
 @export var display_name := "Settlement Behavior"
-@export var food_production_per_day := 0.0
-@export var food_consumption_per_person_per_day := 1.0
+@export var food_units_per_person_per_day := 1.0
+@export var food_outputs_per_day: Array[Resource] = []
 @export_range(0.0, 1.0, 0.01) var base_aggression := 0.0
 @export var can_initiate_food_raids := false
 @export_range(0.0, 1.0, 0.01) var food_raid_pressure_threshold := 0.28

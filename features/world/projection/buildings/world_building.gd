@@ -4,28 +4,27 @@ extends Node3D
 
 class_name WorldBuilding
 
-const MODULAR_BUILDING_PIECE_SCRIPT := preload("res://features/world/projection/buildings/modular_building_piece.gd")
-
 @export var display_name := "Building"
-## Stable ID for door records and other durable per-building state. Left empty
-## it derives from the building's scene-root path at ready time; author it
-## explicitly for buildings that are spawned or reparented at runtime.
+## Placement scenes must stamp this. Reusable shell scenes intentionally leave it empty.
 @export var building_id := ""
-## Intentional raise above the terrain (foundation on uneven ground). Ground
-## snap at load re-solves the terrain Y, then adds this back on top.
+@export var settlement_id := ""
+@export var facility_id := ""
 @export var foundation_height := 0.0
-@export_enum("home", "bar", "shop", "weapon_shop", "armor_shop", "travel_shop", "potion_shop", "jail", "storage", "guard", "farm", "mine", "generic") var building_type := "home"
-@export var owner_character_path: NodePath
-@export var owner_faction_name := ""
-@export_enum("default", "occupied", "abandoned", "public", "scheduled", "private") var access_mode := "default"
+@export_enum("home", "housing", "bar", "tavern", "social", "shop", "weapon_shop", "armor_shop", "travel_shop", "potion_shop", "jail", "police", "keep", "storage", "guard", "farm", "mine", "generic") var building_type := "home"
+@export var owner_faction_id := ""
+@export_enum("default", "occupied", "public", "scheduled", "private") var access_state := "default"
+@export var abandoned := false
+@export_enum("operational", "disabled", "damaged", "under_construction") var operational_state := "operational"
+@export var catalog_id := ""
 @export var use_law_profile_trespass_rules := true
+@export var public_schedule_enabled := true
 @export_range(0, 23, 1) var public_open_hour := 8
 @export_range(0, 23, 1) var public_close_hour := 21
 @export_range(1.0, 30.0, 0.5) var trespass_warning_interval_seconds := 3.0
 @export_range(1, 6, 1) var trespass_warnings_before_alarm := 2
 @export var trespass_notice_radius := 18.0
-@export var population_capacity_id := ""
-@export_range(0, 1000, 1) var population_capacity := 0
+@export_range(0, 1000, 1) var bed_count := 0
+@export_range(0, 1000, 1) var housing_capacity := 0
 @export var levels: Array[BuildingLevelDefinition] = []
 @export var click_local_y := 0.1
 @export var interior_area_path: NodePath
@@ -69,6 +68,7 @@ var _external_furniture_cache_valid := false
 var _hidden_external_furniture := {}
 var _watched_modular_pieces_root: Node
 var _world_time: WorldTimeController
+var _registry_state: Dictionary = {}
 const SIDE_SWITCH_HYSTERESIS := 0.45
 
 
@@ -109,7 +109,8 @@ func _ready() -> void:
 ## already populated.
 func _assign_door_identities() -> void:
 	if building_id.is_empty():
-		building_id = _derive_stable_building_id()
+		push_error("WorldBuilding '%s' is missing explicit building_id" % name)
+		return
 	for door in get_tree().get_nodes_in_group("world_door"):
 		if not is_ancestor_of(door):
 			continue
@@ -123,18 +124,14 @@ func _assign_door_identities() -> void:
 ## hour and lock at close hour (performed by scheduled_actor_id when authored,
 ## flipped directly by the door controller when not).
 func _stamp_building_access(door: Node) -> void:
-	if (door.get("authorized_faction_ids") as PackedStringArray).is_empty() and not owner_faction_name.is_empty():
-		door.set("authorized_faction_ids", PackedStringArray([owner_faction_name]))
-	if access_mode == "public" and int(door.get("scheduled_open_hour")) < 0 and int(door.get("scheduled_close_hour")) < 0:
+	var owner_faction := get_owner_faction_name()
+	var public_access := get_effective_access_mode() == "public"
+	if not public_access and (door.get("authorized_faction_ids") as PackedStringArray).is_empty() and not owner_faction.is_empty():
+		door.set("authorized_faction_ids", PackedStringArray([owner_faction]))
+	if public_access and public_schedule_enabled and int(door.get("scheduled_open_hour")) < 0 and int(door.get("scheduled_close_hour")) < 0:
 		door.set("scheduled_open_hour", public_open_hour)
 		door.set("scheduled_close_hour", public_close_hour)
 		door.set("keep_open_during_hours", true)
-
-
-func _derive_stable_building_id() -> String:
-	# Absolute tree path, not current_scene-relative: current_scene is still
-	# null while the initial scene's _ready pass runs.
-	return str(get_path()).trim_prefix("/root/")
 
 
 func _process(delta: float) -> void:
@@ -429,26 +426,12 @@ func register_extra_level_content(level_index: int, content_path: NodePath) -> v
 	_apply_registered_level_visibility(level_index)
 
 
-func get_population_capacity_id() -> String:
-	return population_capacity_id if not population_capacity_id.is_empty() else str(name)
-
-
 func get_explicit_owner_character() -> HumanoidCharacter:
-	return get_node_or_null(owner_character_path) as HumanoidCharacter
+	return null
 
 
 func get_owner_faction_name() -> String:
-	if not owner_faction_name.is_empty():
-		return owner_faction_name
-	var owner_character := get_explicit_owner_character()
-	if owner_character != null:
-		return owner_character.faction_name
-	var facility := get_ancestor_facility()
-	if facility != null:
-		var facility_owner := str(facility.get("owner_faction_id"))
-		if not facility_owner.is_empty():
-			return facility_owner
-	return ""
+	return str(_registry_state.get("owner_faction_id", owner_faction_id))
 
 
 func get_ancestor_facility() -> SettlementFacility:
@@ -520,8 +503,15 @@ func get_building_type_label() -> String:
 
 
 func get_effective_access_mode() -> String:
-	if access_mode != "default":
-		return access_mode
+	var registry_access := str(_registry_state.get("access_state", access_state))
+	if bool(_registry_state.get("abandoned", abandoned)):
+		return "abandoned"
+	if registry_access != "default":
+		return registry_access
+	return _default_access_state()
+
+
+func _default_access_state() -> String:
 	match building_type:
 		"home":
 			return "occupied"
@@ -866,15 +856,72 @@ func _clear_trespass_state(actor_id: int) -> void:
 	_trespass_escalated.erase(actor_id)
 
 
-func get_population_capacity_record(settlement_id := "") -> Dictionary:
+func get_building_seed() -> Dictionary:
+	var resolved_settlement_id := settlement_id.strip_edges()
+	var resolved_facility_id := facility_id.strip_edges()
+	var resolved_owner_faction_id := owner_faction_id.strip_edges()
+	var resolved_operational_state := operational_state
+	var facility := get_ancestor_facility()
+	if facility != null:
+		if resolved_facility_id.is_empty():
+			resolved_facility_id = facility.get_facility_id()
+		if resolved_owner_faction_id.is_empty():
+			resolved_owner_faction_id = str(facility.owner_faction_id)
+		if not bool(facility.enabled):
+			resolved_operational_state = "disabled"
+	var settlement := get_ancestor_settlement()
+	if settlement != null and resolved_settlement_id.is_empty():
+		resolved_settlement_id = settlement.get_settlement_id()
 	return {
-		"capacity_id": get_population_capacity_id(),
-		"settlement_id": settlement_id,
-		"display_name": display_name if not display_name.is_empty() else get_population_capacity_id().capitalize(),
-		"source_type": "building",
-		"world_position": global_position,
-		"population_capacity": max(0, population_capacity),
+		"building_id": building_id.strip_edges(),
+		"settlement_id": resolved_settlement_id,
+		"facility_id": resolved_facility_id,
+		"type_id": building_type,
+		"display_name": display_name,
+		"owner_faction_id": resolved_owner_faction_id,
+		"access_state": _default_access_state() if access_state == "default" else access_state,
+		"abandoned": abandoned,
+		"operational_state": resolved_operational_state,
+		"bed_count": bed_count,
+		"housing_capacity": housing_capacity,
+		"world_transform": global_transform,
+		"source": "authored",
+		"catalog_id": catalog_id,
+		"foundation_height": foundation_height,
 	}
+
+
+func apply_registry_state(record: Dictionary) -> void:
+	if str(record.get("building_id", "")) != building_id:
+		return
+	_registry_state = record.duplicate(true)
+	settlement_id = str(record.get("settlement_id", settlement_id))
+	facility_id = str(record.get("facility_id", facility_id))
+	building_type = str(record.get("type_id", building_type))
+	display_name = str(record.get("display_name", display_name))
+	owner_faction_id = str(record.get("owner_faction_id", owner_faction_id))
+	access_state = str(record.get("access_state", access_state))
+	abandoned = bool(record.get("abandoned", abandoned))
+	operational_state = str(record.get("operational_state", operational_state))
+	bed_count = int(record.get("bed_count", bed_count))
+	housing_capacity = int(record.get("housing_capacity", housing_capacity))
+	catalog_id = str(record.get("catalog_id", catalog_id))
+	foundation_height = float(record.get("foundation_height", foundation_height))
+	if record.has("world_transform"):
+		var saved_transform := record["world_transform"] as Transform3D
+		if is_inside_tree():
+			global_transform = saved_transform
+		else:
+			transform = saved_transform
+	_stamp_all_building_access()
+
+
+func _stamp_all_building_access() -> void:
+	if not is_inside_tree():
+		return
+	for door in get_tree().get_nodes_in_group("world_door"):
+		if is_ancestor_of(door):
+			_stamp_building_access(door)
 
 
 func _refresh_occluders() -> void:
@@ -940,7 +987,7 @@ func is_modular_piece_hidden(piece: Node) -> bool:
 func get_modular_piece_for_node(node: Node) -> Node:
 	var current := node
 	while current != null and current != self:
-		if current.get_script() == MODULAR_BUILDING_PIECE_SCRIPT:
+		if current is ModularBuildingPiece:
 			return current
 		current = current.get_parent()
 	return null
@@ -1100,7 +1147,7 @@ func _get_modular_piece_occluder_side(piece: Node) -> String:
 
 
 func _collect_modular_pieces(node: Node, result: Array) -> void:
-	if node.get_script() == MODULAR_BUILDING_PIECE_SCRIPT:
+	if node is ModularBuildingPiece:
 		result.append(node)
 	for child in node.get_children():
 		_collect_modular_pieces(child, result)

@@ -1,12 +1,19 @@
-[gd_resource type="Resource" script_class="SettlementBehaviorProfile" format=3]
+[gd_resource type="Resource" script_class="SettlementBehaviorProfile" format=3 uid="uid://ddmaegaonwrn3"]
 
 [ext_resource type="Script" uid="uid://cgjwenavn4kmp" path="res://features/world_sim/resources/settlement_behavior_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://cdn5161onbu3" path="res://features/world_sim/resources/settlement_food_output.gd" id="2_output"]
+[ext_resource type="Resource" uid="uid://cighg4y750kcr" path="res://features/inventory/resources/items/food.tres" id="3_food"]
+
+[sub_resource type="Resource" id="Output_food"]
+script = ExtResource("2_output")
+item = ExtResource("3_food")
+count = 6
 
 [resource]
 script = ExtResource("1_profile")
 profile_id = "settler_common_town"
 display_name = "Settler Common Town"
-food_production_per_day = 12.0
+food_outputs_per_day = Array[Resource]([SubResource("Output_food")])
 base_aggression = 0.08
 can_attack_when_starving = true
 desperate_attack_pressure_threshold = 0.06

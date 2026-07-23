@@ -30,6 +30,16 @@ func set_skill_level(skill_id: String, level: int, clear_xp := true) -> void:
 	emit_changed()
 
 
+func set_skill_progress(skill_id: String, level: int, xp: float) -> void:
+	if skill_id.is_empty():
+		return
+	var entry := _get_entry(skill_id, true)
+	entry.level = maxi(0, level)
+	entry.xp = maxf(0.0, xp)
+	skill_changed.emit(skill_id)
+	emit_changed()
+
+
 func add_skill_xp(skill_id: String, amount: float, _reason := "") -> int:
 	if skill_id.is_empty() or amount <= 0.0:
 		return 0

@@ -2,6 +2,8 @@ extends Node
 
 class_name PopulationController
 
+signal population_record_changed(settlement_id: String, actor_id: String)
+
 const SERVICE_ID := &"population"
 
 const CHARACTER_APPEARANCE_DATA_SCRIPT := preload("res://features/actors/resources/character_appearance/character_appearance_data.gd")
@@ -14,12 +16,16 @@ var root_scene: Node
 var _context: BootstrapContext
 var actor_records: Dictionary = {}
 var _live_actor_by_id: Dictionary = {}
+var _skill_change_callable_by_actor_id: Dictionary = {}
 var _initialized := false
 
 
 func initialize(context: BootstrapContext) -> void:
 	_context = context
 	root_scene = context.root_scene
+	var gecs := context.get_optional(GecsWorldController.SERVICE_ID) as GecsWorldController
+	if gecs != null and not gecs.world_reindexed.is_connected(_on_world_reindexed):
+		gecs.world_reindexed.connect(_on_world_reindexed)
 	_try_initialize()
 
 
@@ -47,6 +53,7 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 	record["live_node_path"] = actor.get_path()
 	_save_actor_record(actor_id, record)
 	_live_actor_by_id[actor_id] = actor
+	_connect_actor_skill_changes(actor, actor_id)
 	actor.set_meta("settlement_id", str(record.get("settlement_id", settlement_id)))
 	actor.set_meta("actor_role_id", str(record.get("role_id", "resident")))
 	_register_actor_with_query_controller(actor)
@@ -60,17 +67,32 @@ func unregister_actor(actor: Node) -> void:
 	if actor_id.is_empty():
 		return
 	_unregister_actor_from_query_controller(actor)
-	var record: Dictionary = _get_actor_record_mutable(actor_id)
+	_disconnect_actor_skill_changes(actor, actor_id)
+	var bridge := _get_gecs_world()
+	var record: Dictionary = bridge.call("get_population_record", actor_id) if bridge != null and bridge.has_method("get_population_record") else _get_actor_record_mutable(actor_id)
 	if not record.is_empty():
-		record = _merge_actor_state_into_record(record, actor, str(record.get("settlement_id", "")), {})
-		record["realization_state"] = "ledger"
-		record.erase("live_node_path")
-		_save_actor_record(actor_id, record)
+		actor_records[actor_id] = record.duplicate(true)
+		population_record_changed.emit(str(record.get("settlement_id", "")), actor_id)
 	_live_actor_by_id.erase(actor_id)
 
 
 func get_actor_record(actor_id: String) -> Dictionary:
 	return _get_actor_record_mutable(actor_id).duplicate(true)
+
+
+func update_actor_appearance(actor_id: String, appearance) -> Dictionary:
+	if actor_id.strip_edges().is_empty() or appearance == null:
+		return {}
+	var record := _get_actor_record_mutable(actor_id)
+	if record.is_empty():
+		return {}
+	var canonical_appearance = appearance.make_copy() if appearance.has_method("make_copy") else appearance
+	_repair_non_rustdead_appearance(canonical_appearance, str(record.get("faction_id", "")))
+	var serialized := _appearance_to_record(canonical_appearance)
+	if serialized.is_empty():
+		return {}
+	record["appearance"] = serialized
+	return _save_actor_record(actor_id, record)
 
 
 func get_records_for_settlement(settlement_id: String) -> Array[Dictionary]:
@@ -204,6 +226,8 @@ func ensure_generated_population(settlement_id: String, spawner_id: String, desi
 		var generation_index: int = next_generation_index
 		next_generation_index += 1
 		var record: Dictionary = _create_generated_actor_record(settlement_id, spawner_id, generation_index, context, used_names)
+		if record.is_empty():
+			break
 		_save_actor_record(str(record["actor_id"]), record)
 		records.append(record.duplicate(true))
 		var display_name := str(record.get("member_name", "")).strip_edges()
@@ -301,7 +325,10 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 		actor.set("character_race", appearance.character_race)
 		actor.set("body_archetype", appearance.body_archetype)
 		actor.set("visual_body_type", appearance.visual_body_type)
-		actor.set("appearance_data", appearance)
+		if actor.is_inside_tree() and actor.has_method("apply_appearance_data"):
+			actor.call("apply_appearance_data", appearance)
+		else:
+			actor.set("appearance_data", appearance)
 	var starting_equipment: Array[Resource] = []
 	var equipment_slots: Dictionary = record.get("equipment_slots", {})
 	for slot in equipment_slots.keys():
@@ -309,6 +336,97 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 		if item != null:
 			starting_equipment.append(item)
 	actor.set("starting_equipment", starting_equipment)
+	actor.set_meta("population_character_realizer_id", str(record.get("character_realizer_id", "")))
+	actor.set_meta("population_character_type_id", str(record.get("character_type_id", "")))
+	if actor.is_inside_tree():
+		var stats = actor.call("get_stats") if actor.has_method("get_stats") else null
+		if stats != null and stats.has_method("hydrate_skill_progress"):
+			stats.call("hydrate_skill_progress", record.get("skill_levels", {}), record.get("skill_xp", {}))
+		var inventory = actor.call("get_inventory") if actor.has_method("get_inventory") else null
+		if inventory != null and inventory.has_method("hydrate_population_entries"):
+			inventory.call("hydrate_population_entries", record.get("inventory_entries", []), false)
+		var equipment = actor.call("get_equipment") if actor.has_method("get_equipment") else null
+		var gecs := _get_gecs_world()
+		if equipment != null and equipment.has_method("hydrate_gecs_slots") and gecs != null:
+			equipment.call("hydrate_gecs_slots", gecs.call("get_equipment_slots", actor_id), true)
+		elif inventory != null:
+			inventory.inventory_changed.emit()
+
+
+func ensure_record_character_realizer(actor_id: String, realizer: Resource, name_profile: Resource = null) -> Dictionary:
+	if actor_id.strip_edges().is_empty() or realizer == null:
+		return {}
+	var realizer_id := str(realizer.get("profile_id")).strip_edges()
+	var actor_script := realizer.get("actor_script") as Script
+	if realizer_id.is_empty() or actor_script == null or not realizer.has_method("create_appearance"):
+		push_error("Population record realizer rejected: actor=%s profile=%s" % [actor_id, realizer.resource_path])
+		return {}
+	var record := _get_actor_record_mutable(actor_id)
+	if record.is_empty():
+		return {}
+	var appearance_record: Dictionary = record.get("appearance", {})
+	var realizer_signature := _realization_signature(realizer)
+	if str(record.get("character_realizer_signature", "")) == realizer_signature and not appearance_record.is_empty():
+		return record.duplicate(true)
+	var realizer_changed := str(record.get("character_realizer_id", "")) != realizer_id
+	var initialize_appearance := appearance_record.is_empty() or realizer_changed
+	var appearance = realizer.call("create_appearance", _make_rng(actor_id, "appearance", 0)) if initialize_appearance else appearance_from_record(appearance_record)
+	if initialize_appearance:
+		appearance_record = _appearance_to_record(appearance)
+		if appearance == null or appearance_record.is_empty():
+			push_error("Population record realizer produced no appearance: actor=%s realizer=%s" % [actor_id, realizer_id])
+			return {}
+		record["appearance"] = appearance_record
+		var equipment_slots: Dictionary = (record.get("equipment_slots", {}) as Dictionary).duplicate(true)
+		if realizer_changed:
+			for clothing_slot in ["chest", "legs", "feet", "head"]:
+				equipment_slots.erase(clothing_slot)
+		var generated_equipment := _generate_equipment_slots(realizer, {}, actor_id)
+		for slot in generated_equipment:
+			if not equipment_slots.has(slot):
+				equipment_slots[slot] = generated_equipment[slot]
+		record["equipment_slots"] = equipment_slots
+	record["character_realizer_id"] = realizer_id
+	record["character_realizer_path"] = realizer.resource_path
+	record["character_realizer_signature"] = realizer_signature
+	var member_name := str(record.get("member_name", "")).strip_edges()
+	if (member_name.is_empty() or member_name == "Character") and name_profile != null and name_profile.has_method("generate_name"):
+		var body_type := int(appearance.visual_body_type)
+		record["member_name"] = str(name_profile.call("generate_name", body_type, _make_rng(actor_id, "name", 0), _collect_used_names(str(record.get("settlement_id", ""))))).strip_edges()
+	_save_actor_record(actor_id, record)
+	return record.duplicate(true)
+
+
+func ensure_record_character_type(actor_id: String, character_type: Resource) -> Dictionary:
+	if actor_id.strip_edges().is_empty() or character_type == null:
+		return {}
+	var type_id := str(character_type.get("type_id")).strip_edges().to_lower()
+	if type_id.is_empty():
+		return {}
+	var record := _get_actor_record_mutable(actor_id)
+	if record.is_empty():
+		return {}
+	var signature := _realization_signature(character_type)
+	if str(record.get("character_type_signature", "")) == signature:
+		return record.duplicate(true)
+	var equipment_slots: Dictionary = (record.get("equipment_slots", {}) as Dictionary).duplicate(true)
+	var inventory_entries: Array = Array(record.get("inventory_entries", [])).duplicate(true)
+	for item in character_type.get("starting_equipment") as Array:
+		if item == null:
+			continue
+		var equip_slot := str(item.get("equip_slot")).strip_edges()
+		if not equip_slot.is_empty():
+			if not equipment_slots.has(equip_slot):
+				equipment_slots[equip_slot] = item.resource_path
+			continue
+		_add_character_type_inventory_item(inventory_entries, item, actor_id, type_id)
+	record["equipment_slots"] = equipment_slots
+	record["inventory_entries"] = inventory_entries
+	record["character_type_id"] = type_id
+	record["character_type_path"] = character_type.resource_path
+	record["character_type_signature"] = signature
+	_save_actor_record(actor_id, record)
+	return record.duplicate(true)
 
 
 func mark_actor_realized(actor: Node, actor_id := "") -> void:
@@ -319,11 +437,19 @@ func mark_actor_realized(actor: Node, actor_id := "") -> void:
 	if actor_id.is_empty():
 		return
 	_live_actor_by_id[actor_id] = actor
+	_connect_actor_skill_changes(actor, actor_id)
 	var record: Dictionary = _get_actor_record_mutable(actor_id)
 	if not record.is_empty():
 		record["realization_state"] = "realized"
-		record["live_node_path"] = actor.get_path()
+		if actor.is_inside_tree():
+			record["live_node_path"] = actor.get_path()
+		else:
+			record.erase("live_node_path")
 		_save_actor_record(actor_id, record)
+	var equipment = actor.call("get_equipment") if actor.has_method("get_equipment") else null
+	var gecs := _get_gecs_world()
+	if equipment != null and equipment.has_method("hydrate_gecs_slots") and gecs != null:
+		equipment.call("hydrate_gecs_slots", gecs.call("get_equipment_slots", actor_id))
 
 
 func advance_ledger_minutes(minutes: int, absolute_minute := -1) -> Dictionary:
@@ -359,7 +485,6 @@ func advance_ledger_minutes(minutes: int, absolute_minute := -1) -> Dictionary:
 
 
 func serialize_state() -> Dictionary:
-	sync_population_state()
 	_refresh_actor_records_cache()
 	var records := {}
 	for actor_id in actor_records.keys():
@@ -375,6 +500,7 @@ func apply_serialized_state(state: Dictionary) -> void:
 		return
 	_clear_population_records_in_gecs()
 	actor_records.clear()
+	_disconnect_all_actor_skill_changes()
 	_live_actor_by_id.clear()
 	var records: Dictionary = state.get("actor_records", {})
 	for actor_id in records.keys():
@@ -391,21 +517,27 @@ func refresh_from_gecs_state() -> void:
 
 
 func sync_population_state() -> void:
-	_collect_existing_actors()
 	for actor_id_value in _live_actor_by_id.keys():
-		var actor_id := str(actor_id_value)
+		var actor = _live_actor_by_id.get(actor_id_value)
+		if actor == null or not is_instance_valid(actor):
+			_live_actor_by_id.erase(actor_id_value)
+	_refresh_actor_records_cache()
+
+
+func _on_world_reindexed() -> void:
+	_refresh_actor_records_cache()
+	_hydrate_live_actors_from_gecs.call_deferred()
+
+
+func _hydrate_live_actors_from_gecs() -> void:
+	for actor_id_value in _live_actor_by_id.keys():
 		var actor = _live_actor_by_id.get(actor_id_value)
 		if actor == null or not is_instance_valid(actor):
 			_live_actor_by_id.erase(actor_id_value)
 			continue
-		var record: Dictionary = _get_actor_record_mutable(actor_id)
-		if record.is_empty():
-			record = _new_record_from_actor(actor, actor_id, _find_actor_settlement_id(actor), {})
-		else:
-			record = _merge_actor_state_into_record(record, actor, str(record.get("settlement_id", "")), {})
-		record["realization_state"] = "realized"
-		record["live_node_path"] = actor.get_path()
-		_save_actor_record(actor_id, record)
+		var record := get_actor_record(str(actor_id_value))
+		if not record.is_empty():
+			apply_record_to_actor(actor, record)
 
 
 func _try_initialize() -> void:
@@ -447,14 +579,14 @@ func _has_actor_record(actor_id: String) -> bool:
 func _get_actor_record_mutable(actor_id: String) -> Dictionary:
 	if actor_id.is_empty():
 		return {}
-	if actor_records.has(actor_id):
-		return (actor_records[actor_id] as Dictionary).duplicate(true)
 	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("get_population_record"):
 		var record: Dictionary = bridge.call("get_population_record", actor_id)
 		if not record.is_empty():
 			actor_records[actor_id] = record
 			return record.duplicate(true)
+	if actor_records.has(actor_id):
+		return (actor_records[actor_id] as Dictionary).duplicate(true)
 	return {}
 
 
@@ -468,6 +600,7 @@ func _save_actor_record(actor_id: String, record: Dictionary) -> Dictionary:
 	if bridge != null and bridge.has_method("upsert_population_record"):
 		saved = bridge.call("upsert_population_record", saved)
 	actor_records[actor_id] = saved.duplicate(true)
+	population_record_changed.emit(str(saved.get("settlement_id", "")), actor_id)
 	return saved.duplicate(true)
 
 
@@ -513,17 +646,39 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 	var actor_id := "%s.%s.%03d" % [_sanitize_id(settlement_id), _sanitize_id(spawner_id), generation_index]
 	var generation_seed := int(context.get("generation_seed", 0))
 	var appearance_profile: Resource = context.get("population_appearance_profile") as Resource
+	var realizer_id := str(appearance_profile.get("profile_id")).strip_edges() if appearance_profile != null else ""
+	var actor_script := appearance_profile.get("actor_script") as Script if appearance_profile != null else null
+	if appearance_profile == null or realizer_id.is_empty() or actor_script == null or not appearance_profile.has_method("create_appearance"):
+		push_error("Population generation rejected: settlement=%s source=%s has no valid character realizer" % [settlement_id, spawner_id])
+		return {}
 	var appearance_rng := _make_rng(actor_id, "appearance", generation_seed)
-	var appearance = appearance_profile.call("create_appearance", appearance_rng) if appearance_profile != null and appearance_profile.has_method("create_appearance") else CHARACTER_APPEARANCE_DATA_SCRIPT.new()
+	var appearance = appearance_profile.call("create_appearance", appearance_rng)
+	if appearance == null:
+		push_error("Population generation rejected: character realizer %s produced no appearance" % realizer_id)
+		return {}
 	_repair_non_rustdead_appearance(appearance, str(context.get("faction_id", "")))
 	var body_type := int(appearance.visual_body_type) if appearance != null else 0
 	var name_profile: Resource = context.get("population_name_profile") as Resource
+	if name_profile == null or not name_profile.has_method("generate_name"):
+		push_error("Population generation rejected: settlement=%s source=%s has no valid name profile" % [settlement_id, spawner_id])
+		return {}
 	var name_rng := _make_rng(actor_id, "name", generation_seed)
-	var display_name := "%s %02d" % [str(context.get("member_name_prefix", "Resident")), generation_index]
-	if name_profile != null and name_profile.has_method("generate_name"):
-		display_name = str(name_profile.call("generate_name", body_type, name_rng, used_names)).strip_edges()
+	var display_name := str(name_profile.call("generate_name", body_type, name_rng, used_names)).strip_edges()
+	if display_name.is_empty():
+		push_error("Population generation rejected: name profile produced an empty name for %s" % actor_id)
+		return {}
 	var equipment_slots := _generate_equipment_slots(appearance_profile, context, actor_id)
+	var character_type: Resource = context.get("character_type") as Resource
+	if character_type != null:
+		for item in character_type.get("starting_equipment") as Array:
+			_add_equipment_path(equipment_slots, item)
 	var skill_levels := _generate_skill_levels(context, actor_id)
+	var inventory_entries: Array = []
+	var character_type_id := str(character_type.get("type_id")).strip_edges().to_lower() if character_type != null else ""
+	if character_type != null:
+		for item in character_type.get("starting_equipment") as Array:
+			if item != null and str(item.get("equip_slot")).strip_edges().is_empty():
+				_add_character_type_inventory_item(inventory_entries, item, actor_id, character_type_id)
 	return {
 		"actor_id": actor_id,
 		"stable_id": actor_id,
@@ -531,6 +686,12 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"generation_source": spawner_id,
 		"generation_index": generation_index,
 		"member_name": display_name,
+		"character_realizer_id": realizer_id,
+		"character_realizer_path": appearance_profile.resource_path,
+		"character_realizer_signature": _realization_signature(appearance_profile),
+		"character_type_id": character_type_id,
+		"character_type_path": character_type.resource_path if character_type != null else "",
+		"character_type_signature": _realization_signature(character_type),
 		"faction_id": str(context.get("faction_id", "")),
 		"squad_name": str(context.get("squad_name", "")),
 		"role_id": str(context.get("role_id", "resident")),
@@ -541,7 +702,7 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"base_color": context.get("base_color", Color(0.62, 0.62, 0.62, 1.0)),
 		"appearance": _appearance_to_record(appearance),
 		"equipment_slots": equipment_slots,
-		"inventory_entries": [],
+		"inventory_entries": inventory_entries,
 		"skill_levels": skill_levels,
 		"traits": {},
 		"personality": {},
@@ -588,7 +749,11 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 	record["appearance"] = _appearance_to_record(appearance)
 	record["equipment_slots"] = _equipment_slots_from_actor(actor)
 	record["inventory_entries"] = _inventory_entries_from_actor(actor)
-	record["skill_levels"] = _skill_levels_from_actor(actor)
+	var actor_skill_levels := _skill_levels_from_actor(actor)
+	for skill_id in (record.get("skill_levels", {}) as Dictionary):
+		if not actor_skill_levels.has(skill_id) and actor.has_method("get_skill_level"):
+			actor_skill_levels[skill_id] = int(actor.call("get_skill_level", str(skill_id)))
+	record["skill_levels"] = actor_skill_levels
 	if actor is Node3D:
 		record["last_world_position"] = (actor as Node3D).global_position
 		record["last_world_position_initialized"] = true
@@ -604,6 +769,55 @@ func _register_actor_with_query_controller(actor: Node) -> void:
 	for query_controller in tree.get_nodes_in_group("actor_query_controller"):
 		if query_controller != null and query_controller.has_method("register_actor"):
 			query_controller.call("register_actor", actor)
+
+
+func _connect_actor_skill_changes(actor: Node, actor_id: String) -> void:
+	var stats = actor.call("get_stats") if actor != null and actor.has_method("get_stats") else null
+	if stats == null:
+		return
+	_disconnect_actor_skill_changes(actor, actor_id)
+	var callback := _on_actor_skill_level_changed.bind(actor_id)
+	stats.skill_progress_changed.connect(callback)
+	_skill_change_callable_by_actor_id[actor_id] = callback
+
+
+func _disconnect_actor_skill_changes(actor: Node, actor_id: String) -> void:
+	var callback: Callable = _skill_change_callable_by_actor_id.get(actor_id, Callable())
+	if callback.is_null():
+		return
+	var stats = actor.call("get_stats") if actor != null and actor.has_method("get_stats") else null
+	if stats != null and stats.skill_progress_changed.is_connected(callback):
+		stats.skill_progress_changed.disconnect(callback)
+	_skill_change_callable_by_actor_id.erase(actor_id)
+
+
+func _disconnect_all_actor_skill_changes() -> void:
+	for actor_id_value in _skill_change_callable_by_actor_id.keys():
+		var actor_id := str(actor_id_value)
+		_disconnect_actor_skill_changes(_live_actor_by_id.get(actor_id), actor_id)
+
+
+func _on_actor_skill_level_changed(skill_id: String, actor_id: String) -> void:
+	var actor = _live_actor_by_id.get(actor_id)
+	var record := _get_actor_record_mutable(actor_id)
+	var stats = actor.call("get_stats") if actor != null and is_instance_valid(actor) and actor.has_method("get_stats") else null
+	if record.is_empty() or stats == null:
+		return
+	var skill_levels: Dictionary = (record.get("skill_levels", {}) as Dictionary).duplicate(true)
+	var skill_xp: Dictionary = (record.get("skill_xp", {}) as Dictionary).duplicate(true)
+	var level := int(stats.call("get_skill_level", skill_id))
+	var xp := float(stats.call("get_skill_xp", skill_id))
+	if level > SkillRules.DEFAULT_LEVEL:
+		skill_levels[skill_id] = level
+	else:
+		skill_levels.erase(skill_id)
+	if xp > 0.0:
+		skill_xp[skill_id] = xp
+	else:
+		skill_xp.erase(skill_id)
+	record["skill_levels"] = skill_levels
+	record["skill_xp"] = skill_xp
+	_save_actor_record(actor_id, record)
 
 
 func _unregister_actor_from_query_controller(actor: Node) -> void:
@@ -673,7 +887,45 @@ func _generate_skill_levels(context: Dictionary, actor_id: String) -> Dictionary
 	var low := mini(minimum, maximum)
 	var high := maxi(minimum, maximum)
 	var t := (rng.randf() + rng.randf()) * 0.5
-	return {SkillRules.ATTRIBUTE_PERCEPTION: clampi(int(round(lerpf(float(low), float(high), t))), low, high)}
+	var result := {SkillRules.ATTRIBUTE_PERCEPTION: clampi(int(round(lerpf(float(low), float(high), t))), low, high)}
+	var character_type: Resource = context.get("character_type") as Resource
+	var ranges: Dictionary = character_type.get("starting_skill_ranges") if character_type != null else {}
+	var skill_ids := ranges.keys()
+	skill_ids.sort()
+	for skill_id_value in skill_ids:
+		var range_value = ranges[skill_id_value]
+		if not (range_value is Vector2i):
+			continue
+		var skill_range := range_value as Vector2i
+		var skill_low := mini(skill_range.x, skill_range.y)
+		var skill_high := maxi(skill_range.x, skill_range.y)
+		var skill_t := (rng.randf() + rng.randf()) * 0.5
+		result[str(skill_id_value)] = clampi(int(round(lerpf(float(skill_low), float(skill_high), skill_t))), skill_low, skill_high)
+	return result
+
+
+func _add_character_type_inventory_item(entries: Array, item: Resource, actor_id: String, type_id: String) -> void:
+	if item == null or item.resource_path.is_empty():
+		return
+	for entry_value in entries:
+		if entry_value is Dictionary and str((entry_value as Dictionary).get("item_id", "")) == item.resource_path:
+			return
+	entries.append({
+		"stack_id": "%s.type.%s.%03d" % [actor_id, type_id, entries.size() + 1],
+		"item_id": item.resource_path,
+		"count": 1,
+		"grid_position": Vector2i(0, entries.size() * 2),
+		"contained_item_counts": {},
+		"metadata": {"character_type_id": type_id},
+	})
+
+
+func _realization_signature(resource: Resource) -> String:
+	if resource == null:
+		return ""
+	if resource.has_method("get_realization_signature"):
+		return str(resource.call("get_realization_signature"))
+	return resource.resource_path
 
 
 func _appearance_to_record(appearance) -> Dictionary:
@@ -686,16 +938,25 @@ func _appearance_to_record(appearance) -> Dictionary:
 		"hair_style": _resource_path(appearance.hair_style),
 		"beard_style": _resource_path(appearance.beard_style),
 		"eyebrow_style": _resource_path(appearance.eyebrow_style),
-		"hair_color": appearance.hair_color,
-		"beard_color": appearance.beard_color,
-		"eyebrow_color": appearance.eyebrow_color,
+		"hair_color": _canonical_color(appearance.hair_color),
+		"beard_color": _canonical_color(appearance.beard_color),
+		"eyebrow_color": _canonical_color(appearance.eyebrow_color),
 		"skin_color_customized": bool(appearance.skin_color_customized),
-		"skin_color": appearance.skin_color,
-		"height_slider": float(appearance.height_slider),
-		"shoulder_width_slider": float(appearance.shoulder_width_slider),
-		"arm_length_slider": float(appearance.arm_length_slider),
-		"neck_length_slider": float(appearance.neck_length_slider),
+		"skin_color": _canonical_color(appearance.skin_color),
+		"height_slider": snappedf(float(appearance.height_slider), 0.000001),
+		"shoulder_width_slider": snappedf(float(appearance.shoulder_width_slider), 0.000001),
+		"arm_length_slider": snappedf(float(appearance.arm_length_slider), 0.000001),
+		"neck_length_slider": snappedf(float(appearance.neck_length_slider), 0.000001),
 	}
+
+
+static func _canonical_color(color: Color) -> Color:
+	return Color(
+		snappedf(color.r, 0.000001),
+		snappedf(color.g, 0.000001),
+		snappedf(color.b, 0.000001),
+		snappedf(color.a, 0.000001)
+	)
 
 
 func _repair_non_rustdead_appearance(appearance, faction_id: String) -> void:
@@ -771,6 +1032,7 @@ func _inventory_entries_from_actor(actor: Node) -> Array:
 		if entry == null:
 			continue
 		result.append({
+			"stack_id": str(entry.stack_id),
 			"item_id": _resource_path(entry.definition),
 			"count": int(entry.count),
 			"grid_position": entry.grid_position,
@@ -782,11 +1044,14 @@ func _inventory_entries_from_actor(actor: Node) -> Array:
 
 func _skill_levels_from_actor(actor: Node) -> Dictionary:
 	var result := {}
-	var skill_set = actor.get("skill_set")
+	var stats = actor.call("get_stats") if actor != null and actor.has_method("get_stats") else null
+	var skill_set = stats.get("skill_set") if stats != null else null
 	if skill_set != null and skill_set.has_method("get_all_entry_snapshots"):
 		for snapshot in skill_set.call("get_all_entry_snapshots"):
 			if snapshot is Dictionary:
-				result[str(snapshot.get("skill_id", ""))] = int(snapshot.get("level", SkillRules.DEFAULT_LEVEL))
+				var level := int(snapshot.get("level", SkillRules.DEFAULT_LEVEL))
+				if level > SkillRules.DEFAULT_LEVEL:
+					result[str(snapshot.get("skill_id", ""))] = level
 	return result
 
 

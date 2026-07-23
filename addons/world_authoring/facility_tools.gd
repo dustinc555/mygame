@@ -2,9 +2,8 @@
 extends RefCounted
 
 ## Facility concept tool context for the world_authoring plugin. A facility
-## is a function node placed under a town's Facilities root: either a
-## composed SettlementFacilityInstance (bar/jail/keep — function roots with a
-## BuildingSlot shell child) or a raw WorldBuilding shell (housing). The
+## is a composed SettlementFacilityInstance placed under a town: a function
+## root with a BuildingSlot shell child and Furniture root. The
 ## Facility bottom dock activates whenever the selection sits inside one and
 ## edits the function assignment and the building shell — the shell swap is
 ## the whole point: shells stay neutral scenes, the facility decides which
@@ -17,19 +16,19 @@ const INSTANCE_UNPACK := preload("res://addons/world_authoring/instance_unpack.g
 const FACILITY_FURNISHER := preload("res://features/world/projection/props/furnishing/facility_furnisher.gd")
 const FURNISH_RULES_DIR := "res://features/settlements/resources/furnishing"
 const FURNISH_GENERATED_META := "furnish_generated"
-const GUARD_POST_SCRIPT := preload("res://features/settlements/bridge/venues/settlement_guard_post.gd")
+const GUARD_POST_SCENE := preload("res://features/settlements/bridge/venues/facility_guard_post.tscn")
 const FURNISH_RULES_SCRIPT := preload("res://features/settlements/resources/furnishing/furnish_rules.gd")
 ## Hand-placeable furniture catalog roots, scanned (never hardcoded). Each
 ## .tscn found becomes a browser entry labeled by its folder.
 const FURNITURE_DIRS := [
 	"res://features/world/projection/props/furniture",
+	"res://features/world/projection/props/furniture/throne",
 	"res://features/world/projection/props/lighting",
-	"res://features/world/projection/props/furnishing/vignettes",
 	"res://features/world/projection/containers",
 ]
 const BUILDING_SHELLS_DIR := "res://features/world/projection/buildings/shells/modular"
 const WORLD_BUILDING_SCRIPT_PATH := "res://features/world/projection/buildings/world_building.gd"
-const DEFAULT_SHELL_PATH := "res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn"
+const DEFAULT_SHELL_PATH := "res://features/world/projection/buildings/shells/modular/medium_wood_hall.tscn"
 const GUARD_POST_GHOST_COLOR := Color(0.35, 0.78, 1.0, 0.55)
 
 var _plugin: EditorPlugin
@@ -166,7 +165,17 @@ func current_shell_path(facility: Node) -> String:
 		if slot != null and slot.get_child_count() > 0:
 			return slot.get_child(0).scene_file_path
 		return ""
-	return facility.scene_file_path if facility != null else ""
+	return ""
+
+
+func shell_display_name(shell_path: String) -> String:
+	var scene := load(shell_path) as PackedScene
+	var shell := scene.instantiate() as WorldBuilding if scene != null else null
+	if shell == null:
+		return shell_path.get_file().get_basename()
+	var label := shell.display_name.strip_edges()
+	shell.free()
+	return label if not label.is_empty() else shell_path.get_file().get_basename()
 
 
 ## clear_furniture also removes the facility's Furniture/Beds children in the
@@ -176,21 +185,18 @@ func swap_shell(facility: Node, shell_path: String, clear_furniture := true) -> 
 	if facility == null or not _can_edit_live(facility):
 		_set_status("Town is a locked instance — use Edit In Zone on the town first.")
 		return
-	var shell_scene := load(shell_path) as PackedScene
-	if shell_scene == null:
+	if not (facility is SettlementFacilityInstance):
+		_set_status("Select a composed facility to swap its shell.")
+		return
+	var shell_scene := load(shell_path) as PackedScene if not shell_path.is_empty() else null
+	if not shell_path.is_empty() and shell_scene == null:
 		_set_status("Failed to load %s." % shell_path)
 		return
-	if facility is SettlementFacilityInstance:
-		_swap_slot_shell(facility as SettlementFacilityInstance, shell_scene, shell_path, clear_furniture)
-	elif facility is WorldBuilding:
-		_swap_facility_node(facility as Node3D, shell_scene, shell_path)
-	else:
-		_set_status("%s has no swappable shell." % facility.name)
-		return
+	_swap_slot_shell(facility as SettlementFacilityInstance, shell_scene, shell_path, clear_furniture)
 	_refresh_ui()
 
 
-## Composed facility (bar/jail/keep): replace the BuildingSlot child, keep
+## Composed facility: replace or remove the BuildingSlot child, keep
 ## its local transform; function roots (ServicePoints, Furniture…) untouched.
 func _swap_slot_shell(facility: SettlementFacilityInstance, shell_scene: PackedScene, shell_path: String, clear_furniture: bool) -> void:
 	var slot := facility.get_building_root()
@@ -199,61 +205,43 @@ func _swap_slot_shell(facility: SettlementFacilityInstance, shell_scene: PackedS
 		return
 	var owner_root := _plugin.get_editor_interface().get_edited_scene_root()
 	var old_shell := slot.get_child(0) if slot.get_child_count() > 0 else null
-	var fresh := shell_scene.instantiate() as Node3D
-	fresh.name = "CurrentBuilding"
-	if old_shell is Node3D:
-		fresh.transform = (old_shell as Node3D).transform
+	var fresh := shell_scene.instantiate() as Node3D if shell_scene != null else null
+	if fresh != null:
+		fresh.name = "CurrentBuilding"
+		if old_shell is Node3D:
+			fresh.transform = (old_shell as Node3D).transform
+		facility.stamp_building_node_identity(fresh)
 	var undo_redo := _plugin.get_undo_redo()
-	undo_redo.create_action("Swap Facility Shell")
+	undo_redo.create_action("Remove Facility Shell" if fresh == null else "Swap Facility Shell")
 	if old_shell != null:
 		undo_redo.add_do_method(slot, "remove_child", old_shell)
 		undo_redo.add_undo_method(slot, "add_child", old_shell)
 		undo_redo.add_undo_method(old_shell, "set_owner", owner_root)
 		undo_redo.add_undo_reference(old_shell)
-	undo_redo.add_do_method(slot, "add_child", fresh)
-	undo_redo.add_do_method(fresh, "set_owner", owner_root)
-	undo_redo.add_undo_method(slot, "remove_child", fresh)
-	undo_redo.add_do_reference(fresh)
+	if fresh != null:
+		undo_redo.add_do_method(slot, "add_child", fresh)
+		undo_redo.add_do_method(fresh, "set_owner", owner_root)
+		undo_redo.add_undo_method(slot, "remove_child", fresh)
+		undo_redo.add_do_reference(fresh)
 	if clear_furniture:
-		for root_name in ["Furniture", "Beds"]:
-			var furniture_root := facility.get_node_or_null(root_name)
-			if furniture_root == null:
-				continue
-			for child in furniture_root.get_children():
-				undo_redo.add_do_method(furniture_root, "remove_child", child)
-				undo_redo.add_undo_method(furniture_root, "add_child", child)
-				undo_redo.add_undo_method(child, "set_owner", owner_root)
-				undo_redo.add_undo_reference(child)
+		_append_clear_furniture_undo(undo_redo, facility, owner_root)
 	undo_redo.commit_action()
 	# Keep the facility selected so the inspector and this dock stay on it.
 	_select_node(facility)
-	_set_status("Shell -> %s%s." % [shell_path.get_file().get_basename(), ", old furniture cleared" if clear_furniture else ""])
+	var shell_label := "No Shell" if shell_path.is_empty() else shell_display_name(shell_path)
+	_set_status("Shell -> %s%s." % [shell_label, ", old furniture cleared" if clear_furniture else ""])
 
 
-## Raw-shell facility (a house standing directly under Facilities): replace
-## the whole node, preserving name and transform.
-func _swap_facility_node(facility: Node3D, shell_scene: PackedScene, shell_path: String) -> void:
-	var parent := facility.get_parent()
-	var owner_root := _plugin.get_editor_interface().get_edited_scene_root()
-	if parent == null or owner_root == null:
-		return
-	var fresh := shell_scene.instantiate() as Node3D
-	fresh.name = str(facility.name)
-	fresh.transform = facility.transform
-	var undo_redo := _plugin.get_undo_redo()
-	undo_redo.create_action("Swap Facility Shell")
-	undo_redo.add_do_method(parent, "remove_child", facility)
-	undo_redo.add_do_method(parent, "add_child", fresh)
-	undo_redo.add_do_method(fresh, "set_owner", owner_root)
-	undo_redo.add_undo_method(parent, "remove_child", fresh)
-	undo_redo.add_undo_method(parent, "add_child", facility)
-	undo_redo.add_undo_method(facility, "set_owner", owner_root)
-	undo_redo.add_do_reference(fresh)
-	undo_redo.add_undo_reference(facility)
-	undo_redo.commit_action()
-	_active_facility = fresh
-	_select_node(fresh)
-	_set_status("Shell -> %s." % shell_path.get_file().get_basename())
+func _append_clear_furniture_undo(undo_redo: EditorUndoRedoManager, facility: Node, owner_root: Node) -> void:
+	for root_name in ["Furniture", "Beds"]:
+		var furniture_root := facility.get_node_or_null(root_name)
+		if furniture_root == null:
+			continue
+		for child in furniture_root.get_children():
+			undo_redo.add_do_method(furniture_root, "remove_child", child)
+			undo_redo.add_undo_method(furniture_root, "add_child", child)
+			undo_redo.add_undo_method(child, "set_owner", owner_root)
+			undo_redo.add_undo_reference(child)
 
 
 ## --- Instance unpack ---------------------------------------------------------------
@@ -447,10 +435,9 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 		var scene: PackedScene = placement["scene"]
 		var node := scene.instantiate() as Node3D
 		var placement_transform: Transform3D = to_furniture * (placement["transform"] as Transform3D)
-		# Unpack-marked vignettes (cell blocks) land as INDIVIDUAL saved
-		# pieces — the vignette is only the solver's layout stencil, never a
-		# sealed container node in the scene. Tables keep their cluster node.
-		if bool(node.get("unpack_on_furnish")):
+		# Vignettes are solver-only layout stencils. Their children always land
+		# as individual editable nodes; no cluster container enters the scene.
+		if node is FurnitureVignette:
 			for child in node.get_children():
 				var child_3d := child as Node3D
 				if child_3d == null or str(child_3d.scene_file_path).is_empty():
@@ -459,6 +446,7 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 				var base_name := str(child_3d.name).rstrip("0123456789")
 				counts[base_name] = int(counts.get(base_name, 0)) + 1
 				piece.name = "%s%d" % [base_name, counts[base_name]]
+				_stamp_tabletop_surface_id(piece)
 				piece.transform = placement_transform * child_3d.transform
 				piece.set_meta(FURNISH_GENERATED_META, true)
 				undo_redo.add_do_method(furniture_root, "add_child", piece)
@@ -468,6 +456,7 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 			node.free()
 			continue
 		node.name = "%s%d" % [kind.to_pascal_case(), counts[kind]]
+		_stamp_tabletop_surface_id(node)
 		node.transform = placement_transform
 		if placement.has("stock"):
 			# Rolled loot bakes into the saved container node; the fresh
@@ -483,6 +472,11 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 	_set_status("Furnished %s: %d counter, %d clusters, %d containers, %d shelves, %d lights (seed %d)." % [facility.name, int(counts.get("counter", 0)), int(counts.get("cluster", 0)), int(counts.get("container", 0)), int(counts.get("shelf", 0)), int(counts.get("light", 0)), seed_value])
 	if _dock != null and is_instance_valid(_dock):
 		_dock.set_facility(facility)
+
+
+func _stamp_tabletop_surface_id(node: Node) -> void:
+	if node != null and "surface_id" in node:
+		node.set("surface_id", str(node.name).to_snake_case())
 
 
 func _own_facility_placement(node: Node, owner_root: Node) -> void:
@@ -624,7 +618,12 @@ func set_facility_property(facility: Node, property_name: String, value) -> void
 		_dock.set_facility(facility)
 
 
-## Ghost-place an authored guard post under the facility's GuardPosts root.
+func select_facility_node(node: Node) -> void:
+	if node != null and is_instance_valid(node):
+		_select_node(node)
+
+
+## Ghost-place an authored guard stand spot under the facility's GuardPosts root.
 func begin_guard_post_placement(facility: Node) -> void:
 	if facility == null or not _can_edit_live(facility):
 		_set_status("Town is a locked instance — use Edit In Zone on the town first.")
@@ -643,7 +642,7 @@ func _place_guard_post(facility: Node, world_transform: Transform3D) -> void:
 	var facility_3d := facility as Node3D
 	if facility_3d == null or owner_root == null:
 		return
-	var posts_root := facility.get_node_or_null("GuardPosts")
+	var posts_root := facility.get_node_or_null("GuardPosts") as Node3D
 	var undo_redo := _plugin.get_undo_redo()
 	undo_redo.create_action("Place Guard Post")
 	if posts_root == null:
@@ -653,11 +652,10 @@ func _place_guard_post(facility: Node, world_transform: Transform3D) -> void:
 		undo_redo.add_do_method(posts_root, "set_owner", owner_root)
 		undo_redo.add_undo_method(facility, "remove_child", posts_root)
 		undo_redo.add_do_reference(posts_root)
-	var post := Node3D.new()
+	var post := GUARD_POST_SCENE.instantiate() as Node3D
 	post.name = _unique_child_name(posts_root, "GuardPost")
-	post.set_script(GUARD_POST_SCRIPT)
-	post.position = facility_3d.global_transform.affine_inverse() * world_transform.origin
-	post.set_meta("settlement_guard_post_custom", true)
+	var parent_global := posts_root.global_transform if posts_root.is_inside_tree() else facility_3d.global_transform
+	post.transform = parent_global.affine_inverse() * world_transform
 	undo_redo.add_do_method(posts_root, "add_child", post)
 	undo_redo.add_do_method(post, "set_owner", owner_root)
 	undo_redo.add_undo_method(posts_root, "remove_child", post)
@@ -696,35 +694,14 @@ func _refresh_from_selection() -> void:
 	_refresh_ui()
 
 
-## Innermost facility above the node: a composed facility instance, or a
-## WorldBuilding standing directly under a town's Facilities root.
+## Innermost composed facility above the node.
 func _find_facility_ancestor(node: Node) -> Node:
 	var current := node
 	while current != null:
 		if current is SettlementFacilityInstance:
 			return current
-		if current is WorldBuilding and _is_town_facility_child(current):
-			return current
 		current = current.get_parent()
 	return null
-
-
-## Flat model: facilities are direct town children. Legacy towns still group
-## them under a "Facilities" container; both count.
-func _is_town_facility_child(node: Node) -> bool:
-	var parent := node.get_parent()
-	if parent == null:
-		return false
-	if parent is SettlementTown:
-		return true
-	if str(parent.name) != "Facilities":
-		return false
-	var walker := parent.get_parent()
-	while walker != null:
-		if walker is SettlementTown:
-			return true
-		walker = walker.get_parent()
-	return false
 
 
 ## Live-editable when the facility sits under the edited scene root through
@@ -824,14 +801,11 @@ func _refresh_ui() -> void:
 
 
 ## Dock mounting is managed by the plugin router: the Facility tab exists
-## only while a facility node itself is selected (a composed facility
-## instance, or a WorldBuilding directly under a town's Facilities root) —
+## only while a composed facility node itself is selected —
 ## never merely because the selection sits somewhere inside one.
 func wants_dock() -> bool:
 	for node in _plugin.get_editor_interface().get_selection().get_selected_nodes():
 		if node is SettlementFacilityInstance:
-			return true
-		if node is WorldBuilding and _is_town_facility_child(node):
 			return true
 	return false
 

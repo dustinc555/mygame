@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Scroll_1.gltf" id="2"]
+[resource]
+script = ExtResource("1")
+display_name = "Sealed Scroll"
+item_id = "document.scroll_1"
+unit_weight = 0.15
+world_scene = ExtResource("2")
+world_visual_long_axis_meters = 0.32
+read_behavior = 1
+read_title = "Sealed Scroll"

@@ -211,8 +211,8 @@ func _validate_town_contract(town: Node, town_name: String) -> void:
 		_fail("%s should author at least one home" % town_name)
 	else:
 		var home := housing.get_child(0)
-		if str(home.get("population_capacity_id")).strip_edges().is_empty():
-			_fail("%s home should have a stable population capacity id" % town_name)
+		if str(home.get("building_id")).strip_edges().is_empty():
+			_fail("%s home should have a stable building id" % town_name)
 	var facilities := town.get_node_or_null("Facilities")
 	if facilities == null:
 		return
@@ -226,6 +226,8 @@ func _validate_town_contract(town: Node, town_name: String) -> void:
 		var facility_id := str(facility.get("facility_id")).strip_edges()
 		if facility_id.is_empty():
 			_fail("%s/%s should have a stable facility_id" % [town_name, facility_name])
+		if str(facility.get("building_id")).strip_edges().is_empty():
+			_fail("%s/%s should have a stable building_id" % [town_name, facility_name])
 		if seen_facility_ids.has(facility_id):
 			_fail("%s has duplicate facility_id %s" % [town_name, facility_id])
 		seen_facility_ids[facility_id] = true

@@ -18,6 +18,7 @@ signal cursor_item_equip_requested(data, target_owner, slot_name)
 @export var transfer_distance := 5.0
 
 const ACTION_EAT := 1
+const ACTION_READ := 2
 const ACTION_TAKE_SILVER_1 := 101
 const ACTION_TAKE_SILVER_5 := 105
 const ACTION_TAKE_SILVER_10 := 110
@@ -164,7 +165,8 @@ func _on_inventory_item_right_clicked(entry, _local_position: Vector2, shift_pre
 	else:
 		can_eat = inventory_owner.has_method("can_eat_item") and inventory_owner.can_eat_item(entry.definition)
 	var can_take_silver := _can_take_silver_from_pouch(entry)
-	if not can_eat and not can_take_silver:
+	var can_read: bool = entry.definition != null and entry.definition.read_behavior != ItemDefinition.ReadBehavior.NONE
+	if not can_eat and not can_take_silver and not can_read:
 		return
 	_context_entry = entry
 	item_menu.clear()
@@ -173,6 +175,8 @@ func _on_inventory_item_right_clicked(entry, _local_position: Vector2, shift_pre
 		item_menu.add_item("Eat (digesting)" if digesting else "Eat", ACTION_EAT)
 		if digesting:
 			item_menu.set_item_disabled(item_menu.get_item_index(ACTION_EAT), true)
+	if can_read:
+		item_menu.add_item("Read", ACTION_READ)
 	if can_take_silver:
 		item_menu.add_item("Take 1", ACTION_TAKE_SILVER_1)
 		item_menu.add_item("Take 5", ACTION_TAKE_SILVER_5)
@@ -353,6 +357,8 @@ func _on_item_menu_id_pressed(action_id: int) -> void:
 	if inventory_owner == null or _context_entry == null:
 		return
 	match action_id:
+		ACTION_READ:
+			item_action_requested.emit(inventory_owner, _context_entry, "read")
 		ACTION_EAT:
 			if inventory_owner.has_method("consume_inventory_entry"):
 				inventory_owner.consume_inventory_entry(_context_entry)

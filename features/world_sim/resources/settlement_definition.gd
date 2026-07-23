@@ -11,11 +11,11 @@ class_name SettlementDefinition
 @export var law_profile: Resource
 @export var population_name_profile: Resource
 @export var population_appearance_profile: Resource
+@export var character_type_set: Resource
 # Compatibility default for older authored scenes. SettlementPlacement.world_transform is the canonical world placement for new worlds.
 @export var world_position := Vector3.ZERO
 @export_enum("Depopulated", "Sparse", "Populated", "Overcrowded") var occupancy_state := 2
-@export var starting_food := 60.0
-@export var max_food := 160.0
+@export var storage_seeds: Array[Resource] = []
 @export var known_settlement_ids: PackedStringArray = PackedStringArray()
 @export var default_target_settlement_id := ""
 @export var raid_squad_template: Resource
@@ -70,6 +70,18 @@ func get_law_profile() -> Resource:
 
 func get_population_name_profile() -> Resource:
 	return population_name_profile if population_name_profile != null else _faction_profile("get_population_name_profile", "population_name_profile")
+
+
+func get_character_realizer() -> Resource:
+	return population_appearance_profile if population_appearance_profile != null else _faction_profile("get_character_realizer", "population_appearance_profile")
+
+
+func get_population_appearance_profile() -> Resource:
+	return get_character_realizer()
+
+
+func get_character_type_set() -> Resource:
+	return character_type_set if character_type_set != null else _faction_profile("get_character_type_set", "character_type_set")
 
 
 func get_actor_realization_policy() -> String:

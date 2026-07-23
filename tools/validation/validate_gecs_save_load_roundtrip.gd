@@ -1,7 +1,7 @@
 extends SceneTree
 
-const GECS_WORLD_CONTROLLER_SCRIPT := preload("res://features/core/gecs_world_controller.gd")
-const WORLD_TIME_CONTROLLER_SCRIPT := preload("res://features/core/world_time_controller.gd")
+const GECS_WORLD_CONTROLLER_PATH := "res://features/core/gecs_world_controller.gd"
+const WORLD_TIME_CONTROLLER_PATH := "res://features/core/world_time_controller.gd"
 
 const SAVE_PATH := "user://gecs_save_load_roundtrip_validation.tres"
 
@@ -41,13 +41,13 @@ func _run() -> void:
 
 	var context := BootstrapContext.new(root_node)
 
-	var bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
+	var bridge = load(GECS_WORLD_CONTROLLER_PATH).new()
 	bridge.name = "GecsWorldController"
 	root_node.add_child(bridge)
 	context.register(bridge.SERVICE_ID, bridge)
 	bridge.initialize(context)
 
-	var world_time = WORLD_TIME_CONTROLLER_SCRIPT.new()
+	var world_time = load(WORLD_TIME_CONTROLLER_PATH).new()
 	world_time.name = "WorldTimeController"
 	root_node.add_child(world_time)
 	context.register(world_time.SERVICE_ID, world_time)
@@ -73,10 +73,18 @@ func _run() -> void:
 		"generation_source": "validation",
 		"generation_index": 4,
 		"member_name": "Roundtrip Worker",
+		"character_realizer_id": "settler_common",
+		"character_realizer_path": "res://realizers/settler_common.tres",
+		"character_realizer_signature": "settler-signature",
+		"character_type_id": "soldier",
+		"character_type_path": "res://character_types/soldier.tres",
+		"character_type_signature": "soldier-signature",
 		"faction_id": "RoundtripFaction",
 		"role_id": "worker",
 		"realization_state": "ledger",
 		"ledger_work_minutes": 90,
+		"skill_levels": {SkillRules.MOVEMENT_RUNNING: 5},
+		"skill_xp": {SkillRules.MOVEMENT_RUNNING: 12.5},
 		"inventory_entries": [
 			{
 				"item_id": "res://items/validation/iron_ore.tres",
@@ -93,8 +101,6 @@ func _run() -> void:
 		"display_name": "Roundtrip Town",
 		"population": 12,
 		"population_target": 16,
-		"food": 42.5,
-		"max_food": 120.0,
 		"facilities": {"forge": 1},
 		"staff_slots": {
 			"guard_0": {
@@ -185,6 +191,23 @@ func _run() -> void:
 	bridge.upsert_ledger_simulation_state({"last_processed_minute": 1530, "last_batch_summary": {"updated_actor_count": 2}})
 	bridge.upsert_ai_scheduler_state({"sim_time": 7.25, "default_tick_interval_seconds": 0.35, "default_tick_jitter_seconds": 0.05})
 	bridge.upsert_population_realization_state({"default_realization_policy": "near_player", "near_player_radius": 44.0, "realization_resync_interval_seconds": 0.75})
+	bridge.upsert_building_record({
+		"building_id": "building.roundtrip.home",
+		"settlement_id": "roundtrip_town",
+		"facility_id": "roundtrip_town.housing",
+		"type_id": "home",
+		"display_name": "Roundtrip Home",
+		"owner_faction_id": "RoundtripFaction",
+		"access_state": "private",
+		"abandoned": false,
+		"operational_state": "operational",
+		"bed_count": 4,
+		"housing_capacity": 6,
+		"world_transform": Transform3D(Basis(Vector3.UP, 0.4), Vector3(7.0, 2.0, -3.0)),
+		"source": "authored",
+		"catalog_id": "woodbrick_house",
+		"foundation_height": 0.5,
+	})
 
 	if not bool(bridge.save_gecs_world(SAVE_PATH, false)):
 		_fail("GECS bridge should save the validation world")
@@ -193,7 +216,7 @@ func _run() -> void:
 	var loaded_root := Node.new()
 	root.add_child(loaded_root)
 	var loaded_context := BootstrapContext.new(loaded_root)
-	var loaded_bridge = GECS_WORLD_CONTROLLER_SCRIPT.new()
+	var loaded_bridge = load(GECS_WORLD_CONTROLLER_PATH).new()
 	loaded_bridge.name = "GecsWorldController"
 	loaded_root.add_child(loaded_bridge)
 	loaded_context.register(loaded_bridge.SERVICE_ID, loaded_bridge)
@@ -241,6 +264,12 @@ func _validate_loaded_state(bridge: Node) -> void:
 		_fail("GECS save/load should round-trip population records")
 	if int(actor_record.get("ledger_work_minutes", 0)) != 90:
 		_fail("GECS save/load should round-trip population ledger fields")
+	if str(actor_record.get("character_realizer_id", "")) != "settler_common" or str(actor_record.get("character_realizer_signature", "")) != "settler-signature":
+		_fail("GECS save/load should round-trip Character Realizer provenance")
+	if str(actor_record.get("character_type_id", "")) != "soldier" or str(actor_record.get("character_type_signature", "")) != "soldier-signature":
+		_fail("GECS save/load should round-trip Character Type provenance")
+	if int((actor_record.get("skill_levels", {}) as Dictionary).get(SkillRules.MOVEMENT_RUNNING, 0)) != 5 or not is_equal_approx(float((actor_record.get("skill_xp", {}) as Dictionary).get(SkillRules.MOVEMENT_RUNNING, 0.0)), 12.5):
+		_fail("GECS save/load should round-trip skill level and XP provenance")
 	var inventory_entries: Array = actor_record.get("inventory_entries", [])
 	if inventory_entries.size() != 1 or int((inventory_entries[0] as Dictionary).get("count", 0)) != 7:
 		_fail("GECS save/load should round-trip actor inventory stacks")
@@ -251,13 +280,22 @@ func _validate_loaded_state(bridge: Node) -> void:
 	var settlement_state: Dictionary = bridge.call("get_settlement_state", "roundtrip_town")
 	if int(settlement_state.get("population", 0)) != 12:
 		_fail("GECS save/load should round-trip settlement population")
-	if float(settlement_state.get("food", 0.0)) < 42.49:
-		_fail("GECS save/load should round-trip settlement food")
 	if int(settlement_state.get("population_assigned", 0)) != 1:
 		_fail("GECS save/load should derive settlement staff counts from GECS staff slots")
 	var staff_slots: Array = bridge.call("get_staff_slots", "roundtrip_town")
 	if staff_slots.size() != 1 or str((staff_slots[0] as Dictionary).get("role_id", "")) != "guard":
 		_fail("GECS save/load should round-trip staff slot entities")
+	var building_records: Array = bridge.call("get_building_records")
+	if building_records.size() != 1:
+		_fail("GECS save/load should round-trip building entities")
+	else:
+		var building: Dictionary = building_records[0]
+		if str(building.get("building_id", "")) != "building.roundtrip.home" or int(building.get("bed_count", 0)) != 4 or int(building.get("housing_capacity", 0)) != 6:
+			_fail("GECS save/load should preserve canonical building fields")
+		if str(building.get("catalog_id", "")) != "medium_wood_l_hall":
+			_fail("GECS load should normalize legacy woodbrick_house catalog IDs once")
+		if (building.get("world_transform", Transform3D.IDENTITY) as Transform3D).origin.distance_to(Vector3(7.0, 2.0, -3.0)) > 0.001:
+			_fail("GECS save/load should preserve exact building transforms")
 
 	var event_count := 0
 	for _entity in bridge.get("world").query.with_all([bridge.get("C_SETTLEMENT_EVENT")]).execute():

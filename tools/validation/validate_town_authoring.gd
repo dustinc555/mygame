@@ -15,7 +15,7 @@ const PLACEMENT_GHOST_PATH := "res://addons/world_authoring/placement_ghost.gd"
 const PLUGIN_SCRIPT_PATH := "res://addons/world_authoring/plugin.gd"
 const SETTLEMENT_DEFINITION_SCRIPT_PATH := "res://features/world_sim/resources/settlement_definition.gd"
 const ROUND_TRIP_PATH := "user://validate_town_authoring_round_trip.tscn"
-const HOUSE_SCENE_PATH := "res://features/world/projection/buildings/shells/modular/woodbrick_house.tscn"
+const KEEP_DEFINITION_PATH := "res://features/settlements/resources/facilities/keep.tres"
 ## Towns are minimal by design: a bare root. Facilities are direct town
 ## children (flat model, 2026-07-07) — no container roots at all.
 
@@ -62,23 +62,24 @@ func _validate_facility_add_remove() -> void:
 	packed.pack(town)
 	town.free()
 	ResourceSaver.save(packed, ROUND_TRIP_PATH)
-	if not bool(tools.call("add_facility_to_town_scene", ROUND_TRIP_PATH, HOUSE_SCENE_PATH, Transform3D(Basis(), Vector3(4.0, 0.0, -6.0)))):
+	var keep_definition := load(KEEP_DEFINITION_PATH) as Resource
+	if not bool(tools.call("add_facility_to_town_scene", ROUND_TRIP_PATH, keep_definition, Transform3D(Basis(), Vector3(4.0, 0.0, -6.0)))):
 		_fail("add_facility_to_town_scene failed")
 		return
 	var with_facility := ResourceLoader.load(ROUND_TRIP_PATH, "PackedScene", ResourceLoader.CACHE_MODE_REPLACE) as PackedScene
 	var reloaded := with_facility.instantiate()
-	var facility := reloaded.get_node_or_null("WoodbrickHouse") as Node3D
+	var facility := reloaded.get_node_or_null("Keep") as Node3D
 	if facility == null:
 		_fail("Added facility missing from saved town scene")
 	elif facility.position.distance_to(Vector3(4.0, 0.0, -6.0)) > 0.001:
 		_fail("Added facility lost its local position")
 	reloaded.free()
-	if not bool(tools.call("remove_facility_from_town_scene", ROUND_TRIP_PATH, "WoodbrickHouse")):
+	if not bool(tools.call("remove_facility_from_town_scene", ROUND_TRIP_PATH, "Keep")):
 		_fail("remove_facility_from_town_scene failed")
 		return
 	var without_facility := ResourceLoader.load(ROUND_TRIP_PATH, "PackedScene", ResourceLoader.CACHE_MODE_REPLACE) as PackedScene
 	var stripped := without_facility.instantiate()
-	if stripped.get_node_or_null("WoodbrickHouse") != null:
+	if stripped.get_node_or_null("Keep") != null:
 		_fail("Removed facility still present in saved town scene")
 	stripped.free()
 	DirAccess.remove_absolute(ROUND_TRIP_PATH)

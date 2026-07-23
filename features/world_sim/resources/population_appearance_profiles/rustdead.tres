@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="PopulationAppearanceProfile" format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/population_appearance_profile.gd" id="1_profile"]
+[ext_resource type="Script" path="res://features/actors/projection/rustdead/rustdead_humanoid_character.gd" id="2_actor"]
+[ext_resource type="Resource" path="res://features/actors/resources/character_races/rustdead.tres" id="3_race"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/peasant_tunic.tres" id="4_tunic"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/peasant_trousers.tres" id="5_trousers"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/peasant_shoes.tres" id="6_shoes"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = "rustdead"
+display_name = "Rustdead"
+actor_script = ExtResource("2_actor")
+allowed_races = Array[Resource]([ExtResource("3_race")])
+chest_items = Array[Resource]([ExtResource("4_tunic")])
+leg_items = Array[Resource]([ExtResource("5_trousers")])
+feet_items = Array[Resource]([ExtResource("6_shoes")])

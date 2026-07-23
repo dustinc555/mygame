@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="PopulationAppearanceProfile" format=3]
 
 [ext_resource type="Script" path="res://features/world_sim/resources/population_appearance_profile.gd" id="1_profile"]
+[ext_resource type="Script" path="res://features/actors/projection/humanoid/faction_humanoid.gd" id="1_actor"]
 [ext_resource type="Resource" path="res://features/actors/resources/character_appearance/hair_buzzed.tres" id="2_hair_buzzed"]
 [ext_resource type="Resource" path="res://features/actors/resources/character_appearance/hair_simple_parted.tres" id="3_hair_parted"]
 [ext_resource type="Resource" path="res://features/actors/resources/character_appearance/hair_long.tres" id="4_hair_long"]
@@ -14,6 +15,7 @@
 script = ExtResource("1_profile")
 profile_id = "slave_rags"
 display_name = "Slave Rags"
+actor_script = ExtResource("1_actor")
 allowed_body_type_flags = 3
 hair_styles = Array[Resource]([ExtResource("2_hair_buzzed"), ExtResource("3_hair_parted"), ExtResource("4_hair_long"), ExtResource("5_hair_buns"), ExtResource("6_hair_buzzed_female")])
 male_beard_chance = 0.1

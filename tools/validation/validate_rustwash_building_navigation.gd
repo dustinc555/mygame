@@ -2,7 +2,7 @@ extends SceneTree
 
 ## Live-movement proof that the runtime navmesh bake unifies Terrain3D ground
 ## and WorldBuilding interiors: a party member walks from open terrain through
-## the WoodbrickHouse door (possible only if walls carve the navmesh) and up
+## the medium wood L hall door (possible only if walls carve the navmesh) and up
 ## the interior stairs to the second floor (possible only if the stair ramp
 ## collider joined terrain and floor polygons in one bake).
 ##
@@ -18,11 +18,11 @@ extends SceneTree
 ## Dynamic changes re-bake only touched tiles (~1s).
 
 const SCENE_PATH := "res://scenes/zones/rustwash_basin/rustwash_basin.tscn"
-## The house is spawned at RUNTIME (it is no longer authored in the zone):
+## The shell is spawned at RUNTIME (it is no longer authored in the zone):
 ## this exercises the full dynamic-building path — spawn dirties its tiles,
 ## they re-bake, and the walks prove the patched navmesh.
-const HOUSE_SCENE_PATH := "res://features/world/projection/buildings/shells/modular/woodbrick_house.tscn"
-const HOUSE_TRANSFORM := Transform3D(Basis.IDENTITY, Vector3(3.8771572, 0.42435217, -177.07948))
+const SHELL_SCENE_PATH := "res://features/world/projection/buildings/shells/modular/medium_wood_l_hall.tscn"
+const SHELL_TRANSFORM := Transform3D(Basis.IDENTITY, Vector3(3.8771572, 0.42435217, -177.07948))
 const MAX_SETUP_FRAMES := 600
 # The whole world (~288 tiles at fine cells) bakes at startup on 4 worker
 # threads; the wait budget must outlast it.
@@ -50,7 +50,7 @@ func _run() -> void:
 	if _failures.is_empty():
 		await _await_fresh_bake()
 	if _failures.is_empty():
-		_check_polygons_near_house()
+		_check_polygons_near_shell()
 	if _failures.is_empty():
 		await _run_walk_tests()
 	_finish()
@@ -85,12 +85,12 @@ func _load_scene() -> void:
 		return
 	var nav_settings: Resource = _controller.get("settings")
 	if nav_settings != null:
-		nav_settings.set("log_timing", true)
-	var house_scene: PackedScene = load(HOUSE_SCENE_PATH)
-	var house: Node3D = house_scene.instantiate()
-	house.name = "WoodbrickHouse"
-	_scene.add_child(house)
-	house.global_transform = HOUSE_TRANSFORM
+		nav_settings.set("log_timing", false)
+	var shell_scene: PackedScene = load(SHELL_SCENE_PATH)
+	var shell: Node3D = shell_scene.instantiate()
+	shell.set("building_id", "validation.rustwash_navigation_shell")
+	_scene.add_child(shell)
+	shell.global_transform = SHELL_TRANSFORM
 	_actor = await _wait_for(func() -> Node:
 		var manager := _scene.get_node_or_null("PartyManager")
 		if manager != null and manager.get("party_members") is Array:
@@ -103,8 +103,8 @@ func _load_scene() -> void:
 
 
 func _await_fresh_bake() -> void:
-	# The startup bake covers the whole world (house included); wait for the
-	# gate to release and polygons to be queryable near the house.
+	# The startup bake covers the whole world (shell included); wait for the
+	# gate to release and polygons to be queryable near the shell.
 	_controller.connect("bake_finished", _on_bake_finished)
 	var probe := _outside_front_target() + Vector3(0.0, 0.5, 0.0)
 	for _frame in range(MAX_BAKE_FRAMES):
@@ -113,18 +113,18 @@ func _await_fresh_bake() -> void:
 			continue
 		if _closest_nav_point(probe).distance_to(probe) <= 2.5:
 			return
-	_failures.append("no queryable navmesh near house within %d frames (bakes seen: %d)" % [MAX_BAKE_FRAMES, _bake_count])
+	_failures.append("no queryable navmesh near shell within %d frames (bakes seen: %d)" % [MAX_BAKE_FRAMES, _bake_count])
 
 
 func _on_bake_finished() -> void:
 	_bake_count += 1
 
 
-func _check_polygons_near_house() -> void:
+func _check_polygons_near_shell() -> void:
 	var probe := _outside_front_target() + Vector3(0.0, 0.5, 0.0)
 	var closest := _closest_nav_point(probe)
 	if closest.distance_to(probe) > 2.5:
-		_failures.append("no navmesh near house door: probe=%s closest=%s" % [probe, closest])
+		_failures.append("no navmesh near shell door: probe=%s closest=%s" % [probe, closest])
 
 
 func _run_walk_tests() -> void:
@@ -158,7 +158,7 @@ func _run_walk_tests() -> void:
 	if not _failures.is_empty():
 		return
 	# Long open-terrain walk crossing at least two 64m tile borders (and up
-	# the mountain slope north of the house): proves tile seams stitch.
+	# the mountain slope north of the shell): proves tile seams stitch.
 	# Snap allows any height — the terrain rises ~20m along the way.
 	var far_probe := outside + Vector3(0.0, 0.0, 110.0)
 	var far_target := _closest_nav_point(far_probe)
@@ -173,7 +173,7 @@ func _run_walk_tests() -> void:
 		return
 	# Stair support is asserted at the mesh level: the hidden ramp collider
 	# must produce a continuous polygon band bottom-to-top. The full upstairs
-	# walk is blocked by unfinished house content (ground-floor dirt/plank
+	# walk is blocked by unfinished shell content (ground-floor dirt/plank
 	# step exceeds agent_max_climb), not by the navigation system.
 	_check_stair_ramp_meshed(upstairs)
 
@@ -217,22 +217,21 @@ func _place_actor(start_position: Vector3) -> void:
 	_actor.set("velocity", Vector3.ZERO)
 
 
-## House landmarks resolved from the live scene, not hardcoded coordinates,
-## so the validator survives the user moving or editing the house.
-func _house() -> Node3D:
-	var house := _scene.get_node_or_null("WoodbrickHouse") as Node3D
-	if house == null:
-		_failures.append("WoodbrickHouse not found in rustwash scene")
-	return house
+## Shell landmarks resolve from the live scene, not hardcoded coordinates.
+func _shell() -> Node3D:
+	var shell := _scene.get_node_or_null("MediumWoodLHall") as Node3D
+	if shell == null:
+		_failures.append("MediumWoodLHall not found in rustwash scene")
+	return shell
 
 
 func _stair_marker(marker_name: String) -> Node3D:
-	var house := _house()
-	if house == null:
+	var shell := _shell()
+	if shell == null:
 		return null
-	var stair := house.get_node_or_null("Pieces/StairInteriorSimple") as Node3D
+	var stair := shell.get_node_or_null("Pieces/StairInteriorSimple") as Node3D
 	if stair == null:
-		_failures.append("Pieces/StairInteriorSimple not found in WoodbrickHouse")
+		_failures.append("Pieces/StairInteriorSimple not found in MediumWoodLHall")
 		return null
 	var marker := stair.get_node_or_null("SnapPoints/" + marker_name) as Node3D
 	if marker == null:
@@ -241,24 +240,24 @@ func _stair_marker(marker_name: String) -> Node3D:
 
 
 func _outside_front_target() -> Vector3:
-	var house := _house()
-	if house == null:
+	var shell := _shell()
+	if shell == null:
 		return Vector3.ZERO
-	var door := house.get_node_or_null("Pieces/WallWoodbrickDoorFlat") as Node3D
+	var door := shell.get_node_or_null("Pieces/WallWoodbrickDoorFlat") as Node3D
 	if door == null:
-		_failures.append("Pieces/WallWoodbrickDoorFlat not found in WoodbrickHouse")
+		_failures.append("Pieces/WallWoodbrickDoorFlat not found in MediumWoodLHall")
 		return Vector3.ZERO
-	# Exterior approach: the door wall sits on the +Z face of the house.
+	# Exterior approach: the door wall sits on the +Z face of the shell.
 	return door.global_position + Vector3(0.0, 0.0, 3.5)
 
 
 func _interior_ground_target() -> Vector3:
-	var house := _house()
-	if house == null:
+	var shell := _shell()
+	if shell == null:
 		return Vector3.ZERO
-	var door := house.get_node_or_null("Pieces/WallWoodbrickDoorFlat") as Node3D
+	var door := shell.get_node_or_null("Pieces/WallWoodbrickDoorFlat") as Node3D
 	if door == null:
-		_failures.append("Pieces/WallWoodbrickDoorFlat not found in WoodbrickHouse")
+		_failures.append("Pieces/WallWoodbrickDoorFlat not found in MediumWoodLHall")
 		return Vector3.ZERO
 	# On the wood floor 1.5m inside the front door (interior is -Z of the door).
 	return _snap_to_navmesh(door.global_position + Vector3(0.0, 0.4, -1.5))

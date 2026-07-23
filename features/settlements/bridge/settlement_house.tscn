@@ -1,0 +1,19 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_facility_instance.gd" id="1_facility"]
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/medium_wood_hall.tscn" id="2_building"]
+
+[node name="SettlementHouse" type="Node3D"]
+script = ExtResource("1_facility")
+display_name = "House"
+facility_type = "housing"
+housing_capacity = 2
+service_points_root_path = NodePath("")
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+
+[node name="BuildingSlot" type="Node3D" parent="."]
+
+[node name="CurrentBuilding" parent="BuildingSlot" instance=ExtResource("2_building")]
+
+[node name="Furniture" type="Node3D" parent="."]

@@ -454,13 +454,15 @@ outline_size = 28
 
 [node name="HouseA" parent="Settlements/FarmerCrossing/Housing" unique_id=57726035 instance=ExtResource("13_house")]
 transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -8, 0, -11)
-owner_faction_name = "Farmers"
-population_capacity_id = "farmer_crossing.house_a"
+building_id = "farmer_crossing.house_a"
+settlement_id = "farmer_crossing"
+owner_faction_id = "Farmers"
 
 [node name="HouseC" parent="Settlements/FarmerCrossing/Housing" unique_id=344220963 instance=ExtResource("13_house")]
 transform = Transform3D(0.9999057, 0, 0.013752788, 0, 1, 0, -0.013752788, 0, 0.9999057, 2, 0, -13)
-owner_faction_name = "Farmers"
-population_capacity_id = "farmer_crossing.house_c"
+building_id = "farmer_crossing.house_c"
+settlement_id = "farmer_crossing"
+owner_faction_id = "Farmers"
 
 [node name="Territory" type="Node3D" parent="Settlements/FarmerCrossing" unique_id=1816135088]
 script = ExtResource("27_territory")
@@ -510,11 +512,17 @@ activity_type = "social"
 
 [node name="SettlementJail" parent="Settlements/FarmerCrossing/Facilities" unique_id=1524920645 instance=ExtResource("17_fn7q7")]
 transform = Transform3D(-0.99811447, 0, 0.0613796, 0, 1, 0, -0.0613796, 0, -0.99811447, 0, 0, 11.81296)
+facility_id = "farmer_crossing.jail"
+building_id = "farmer_crossing.jail.building"
+owner_faction_id = "Farmers"
 
 [node name="Bars" type="Node3D" parent="Settlements/FarmerCrossing" unique_id=1212047921]
 
 [node name="SettlementBar" parent="Settlements/FarmerCrossing/Bars" unique_id=556110935 instance=ExtResource("17_gijgr")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.916183, 0, -26.820736)
+facility_id = "farmer_crossing.bar"
+building_id = "farmer_crossing.bar.building"
+owner_faction_id = "Farmers"
 guard_count = 3
 has_barber = true
 storage_root_path = NodePath("")
@@ -530,6 +538,7 @@ guard_name = "Mayor Guard"
 staff_stable_id_prefix = "npc.farmer_crossing.keep"
 staff_squad_name = "FarmerCrossing"
 facility_id = "farmer_crossing.keep"
+building_id = "farmer_crossing.keep.building"
 display_name = "Mayor House"
 owner_faction_id = "Farmers"
 
@@ -541,7 +550,6 @@ facility_id = "farmer_crossing.farm_fields"
 display_name = "Farm Fields"
 facility_type = "farm"
 owner_faction_id = "Farmers"
-food_production_per_day = 24.0
 activity_points_root_path = NodePath("ActivityPoints")
 
 [node name="BuildingSlot" type="Node3D" parent="Settlements/FarmerCrossing/Fields/FarmFields" unique_id=1237243326]
@@ -623,11 +631,13 @@ script = ExtResource("26_activity_point")
 
 [node name="FoodBarrelA" parent="Settlements/FarmerCrossing/Storage" unique_id=1109077067 instance=ExtResource("11_barrel")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -4)
+container_id = "farmer_crossing.food_barrel_a"
 owner_faction_name = "Farmers"
 starting_items = Array[ExtResource("5_stock")]([SubResource("InventoryStock_farmer_food")])
 
 [node name="FoodBarrelB" parent="Settlements/FarmerCrossing/Storage" unique_id=757116607 instance=ExtResource("11_barrel")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 0, -4.3)
+container_id = "farmer_crossing.food_barrel_b"
 owner_faction_name = "Farmers"
 starting_items = Array[ExtResource("5_stock")]([SubResource("InventoryStock_farmer_food")])
 
@@ -689,13 +699,15 @@ outline_size = 28
 
 [node name="ShackA" parent="Settlements/RaiderCamp/Housing" unique_id=1535015457 instance=ExtResource("13_house")]
 transform = Transform3D(0.99982464, 0, -0.018708348, 0, 1, 0, 0.018708348, 0, 0.99982464, 8.802101, 0, -6.8154106)
-owner_faction_name = "Raiders"
-population_capacity_id = "raider_camp.shack_a"
+building_id = "raider_camp.shack_a"
+settlement_id = "raider_camp"
+owner_faction_id = "Raiders"
 
 [node name="ShackB" parent="Settlements/RaiderCamp/Housing" unique_id=277085555 instance=ExtResource("13_house")]
 transform = Transform3D(0.9992663, 0, 0.038300663, 0, 1, 0, -0.038300663, 0, 0.9992663, -8, 0, -13.165606)
-owner_faction_name = "Raiders"
-population_capacity_id = "raider_camp.shack_b"
+building_id = "raider_camp.shack_b"
+settlement_id = "raider_camp"
+owner_faction_id = "Raiders"
 
 [node name="Territory" type="Node3D" parent="Settlements/RaiderCamp" unique_id=1630031440]
 script = ExtResource("27_territory")
@@ -729,7 +741,6 @@ facility_id = "raider_camp.war_camp"
 display_name = "War Camp"
 facility_type = "guard"
 owner_faction_id = "Raiders"
-food_consumption_per_day = 2.0
 activity_points_root_path = NodePath("ActivityPoints")
 
 [node name="ActivityPoints" type="Node3D" parent="Settlements/RaiderCamp/Facilities/WarCamp" unique_id=1524314363]
@@ -761,6 +772,7 @@ activity_type = "social"
 [node name="SettlementJail" parent="Settlements/RaiderCamp/Facilities" unique_id=2047235934 instance=ExtResource("17_fn7q7")]
 transform = Transform3D(-0.9996203, -0.025028368, -0.011535045, -0.025064515, 0.99968135, 0.0030002776, 0.011456277, 0.0032882409, -0.9999291, 10.712364, 0, 11.81296)
 facility_id = "raider_camp.jail"
+building_id = "raider_camp.jail.building"
 display_name = "Raider Jail"
 owner_faction_id = "Raiders"
 
@@ -780,11 +792,13 @@ script = ExtResource("26_activity_point")
 
 [node name="FoodBarrel" parent="Settlements/RaiderCamp/Storage" unique_id=2044039156 instance=ExtResource("11_barrel")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -6)
+container_id = "raider_camp.food_barrel"
 owner_faction_name = "Raiders"
 starting_items = Array[ExtResource("5_stock")]([SubResource("InventoryStock_raider_food")])
 
 [node name="WeaponChest" parent="Settlements/RaiderCamp/Storage" unique_id=1693433475 instance=ExtResource("12_chest")]
 transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -5, 0, -4.5)
+container_id = "raider_camp.weapon_chest"
 owner_faction_name = "Raiders"
 
 [node name="Residents" type="Node3D" parent="Settlements/RaiderCamp" unique_id=1600855031]
@@ -1003,7 +1017,7 @@ Day"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 54, 0.6, 54)
 script = ExtResource("10_debug_action")
 display_name = "Starve Raiders"
-action_key = "set_food:raider_camp:0"
+action_key = "clear_food:raider_camp"
 action_label = "Starve Raiders"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/StarveRaiders" unique_id=1863094162]
@@ -1023,7 +1037,7 @@ Raiders"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0.6, 54)
 script = ExtResource("10_debug_action")
 display_name = "Feed Raiders"
-action_key = "set_food:raider_camp:70"
+action_key = "add_food_items:raider_camp:35"
 action_label = "Feed Raiders"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/FeedRaiders" unique_id=1048996733]
@@ -1043,7 +1057,7 @@ Raiders"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -72, 0.6, 54)
 script = ExtResource("10_debug_action")
 display_name = "Starve Farmers"
-action_key = "set_food:farmer_crossing:0"
+action_key = "clear_food:farmer_crossing"
 action_label = "Starve Farmers"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/StarveFarmers" unique_id=1529682097]
@@ -1063,7 +1077,7 @@ Farmers"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -66, 0.6, 54)
 script = ExtResource("10_debug_action")
 display_name = "Feed Farmers"
-action_key = "set_food:farmer_crossing:150"
+action_key = "add_food_items:farmer_crossing:75"
 action_label = "Feed Farmers"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="WorldSimActions/FeedFarmers" unique_id=953784710]

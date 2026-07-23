@@ -3,6 +3,7 @@ extends Node
 class_name WorldSimulationController
 
 const SERVICE_ID := &"world_simulation"
+const DEBUG_FOOD := preload("res://features/inventory/resources/items/food.tres")
 
 var root_scene: Node
 var world_time: WorldTimeController
@@ -64,20 +65,22 @@ func perform_world_sim_debug_action(action_key: String) -> String:
 				world_time.set_time_of_day(hour, minute)
 				return "Time set to %s" % world_time.format_time()
 			return "World time is not available"
-		"adjust_food":
-			if parts.size() < 3 or settlement_controller == null:
+		"add_food_items":
+			if parts.size() < 3:
 				return "Food action is misconfigured"
 			var settlement_id := parts[1]
-			var amount := float(parts[2])
-			var food := settlement_controller.adjust_food(settlement_id, amount, "debug_action")
-			return "%s food is now %.0f" % [settlement_id, food]
-		"set_food":
-			if parts.size() < 3 or settlement_controller == null:
+			var count := int(parts[2])
+			var stock := _context.get_optional(InventoryStockController.SERVICE_ID) as InventoryStockController
+			var changed := stock.transact_item_count(settlement_id, DEBUG_FOOD, count) if stock != null else false
+			return "%s food item transaction: %s" % [settlement_id, "ok" if changed else "rejected"]
+		"clear_food":
+			if parts.size() < 2:
 				return "Food action is misconfigured"
 			var settlement_id := parts[1]
-			var amount := float(parts[2])
-			var food := settlement_controller.set_food(settlement_id, amount, "debug_action")
-			return "%s food is now %.0f" % [settlement_id, food]
+			var stock := _context.get_optional(InventoryStockController.SERVICE_ID) as InventoryStockController
+			var available := stock.get_total_food_units(settlement_id) if stock != null else 0.0
+			var removed := stock.consume_food_units(settlement_id, available) if stock != null else {}
+			return "%s removed %.1f food units" % [settlement_id, float(removed.get("food_units", 0.0))]
 		"set_occupancy":
 			if parts.size() < 3 or settlement_controller == null:
 				return "Occupancy action is misconfigured"

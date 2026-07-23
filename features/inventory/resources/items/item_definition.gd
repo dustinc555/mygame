@@ -13,7 +13,16 @@ const EQUIP_SLOT_FEET := "feet"
 const EQUIP_SLOT_WEAPON := "weapon"
 const EQUIP_SLOT_OFFHAND := "offhand"
 
+enum ReadBehavior {
+	NONE,
+	DUD,
+	TOWN_LEDGER,
+}
+
 @export var display_name := "Item"
+@export var item_id := ""
+@export var food_type_id := ""
+@export var settlement_food_units := 0.0
 @export var icon: Texture2D
 @export var grid_size := Vector2i(1, 1)
 @export var unit_weight := 1.0
@@ -38,6 +47,9 @@ const EQUIP_SLOT_OFFHAND := "offhand"
 @export var currency_id := ""
 @export_range(0, 1000000, 1) var currency_container_capacity := 0
 @export var sellable := true
+## Typed interaction handled by ItemReadBridge. Empty items have no Read action.
+@export var read_behavior := ReadBehavior.NONE
+@export var read_title := ""
 
 
 func is_equippable() -> bool:

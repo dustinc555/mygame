@@ -517,6 +517,9 @@ func get_inventory() -> InventoryCapability:
 
 func get_inventory_for_display() -> InventoryData:
 	var inv := get_inventory()
+	var merchant_role := get_node_or_null("MerchantRole") as MerchantRole
+	if merchant_role != null and (inv == null or not inv.is_displaying_work_inventory()):
+		return merchant_role.get_shop_inventory()
 	return inv.get_inventory_for_display() if inv != null else null
 
 

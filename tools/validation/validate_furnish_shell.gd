@@ -12,12 +12,12 @@ extends Node3D
 ##
 ## Run:
 ##   godot --headless --path . res://tools/validation/validate_furnish_shell.tscn \
-##     -- --shell=res://features/world/projection/buildings/shells/modular/stone_jail_medium.tscn \
+##     -- --shell=res://features/world/projection/buildings/shells/modular/medium_brick_round_tower.tscn \
 ##        --rules=res://features/settlements/resources/furnishing/jail.tres --seeds=4 --grid
 
 const FURNISHER := preload("res://features/world/projection/props/furnishing/facility_furnisher.gd")
 
-var _shell_path := "res://features/world/projection/buildings/shells/modular/stone_jail_medium.tscn"
+var _shell_path := "res://features/world/projection/buildings/shells/modular/medium_brick_round_tower.tscn"
 var _rules_path := "res://features/settlements/resources/furnishing/jail.tres"
 var _seed_count := 4
 var _dump_grid := false

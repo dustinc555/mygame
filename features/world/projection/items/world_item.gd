@@ -8,6 +8,9 @@ const MIN_COLLIDER_SIZE := Vector3(0.08, 0.03, 0.08)
 
 static var _left_alt_item_labels_visible := false
 
+@export var stack_id := ""
+@export var stock_projection := false
+@export var stock_source_settlement_id := ""
 @export var item_definition: ItemDefinition:
 	set(value):
 		item_definition = value
@@ -33,6 +36,10 @@ static var _left_alt_item_labels_visible := false
 ## contest the thief's stealing skill even when they cannot see the grab.
 @export var theft_noise_radius := 4.0
 @export_range(0, 100, 1) var theft_difficulty := 25
+@export_enum("world_loose", "world_placed", "tabletop_slot") var location_kind := "world_loose"
+@export var placement_host_id := ""
+@export var placement_slot_id := ""
+@export var location_settlement_id := ""
 
 ## Matches OwnershipController.STEAL_ACTION_COLOR — owned items read red so
 ## the player knows grabbing them is theft before committing.
@@ -44,25 +51,68 @@ const OWNED_LABEL_COLOR := Color(0.92, 0.34, 0.30, 1.0)
 
 
 func _ready() -> void:
+	if stack_id.is_empty():
+		stack_id = InventoryData.create_stack_id()
 	add_to_group("world_item")
+	if not sleeping_state_changed.is_connected(_on_sleeping_state_changed):
+		sleeping_state_changed.connect(_on_sleeping_state_changed)
+	var projection_bridge := BootstrapContext.service(&"world_item_projection")
+	if projection_bridge != null and projection_bridge.has_method("register_projection"):
+		projection_bridge.call("register_projection", self)
 	_rebuild_visual()
 	_refresh_label()
-	_sync_world_item_to_gecs()
 
 
-func setup(definition: ItemDefinition, amount: int = 1, item_contained_item_counts: Dictionary = {}) -> void:
+func _exit_tree() -> void:
+	var projection_bridge := BootstrapContext.service(&"world_item_projection")
+	if projection_bridge != null and projection_bridge.has_method("unregister_projection"):
+		projection_bridge.call("unregister_projection", self)
+
+
+func setup(definition: ItemDefinition, amount: int = 1, item_contained_item_counts: Dictionary = {}, item_stack_id := "") -> void:
+	if not item_stack_id.is_empty():
+		stack_id = item_stack_id
+	elif stack_id.is_empty():
+		stack_id = InventoryData.create_stack_id()
 	item_definition = definition
 	quantity = amount
 	contained_item_counts = item_contained_item_counts.duplicate(true)
 	_rebuild_visual()
 	_refresh_label()
-	_sync_world_item_to_gecs()
+
+
+func apply_lifecycle_record(record: Dictionary) -> void:
+	stack_id = str(record.get("stack_id", ""))
+	item_definition = load(str(record.get("item_definition_path", ""))) as ItemDefinition
+	quantity = maxi(1, int(record.get("count", 1)))
+	contained_item_counts = (record.get("contained_item_counts", {}) as Dictionary).duplicate(true)
+	item_metadata = (record.get("metadata", {}) as Dictionary).duplicate(true)
+	location_kind = str(record.get("location_kind", "world_loose"))
+	placement_host_id = str(record.get("placement_host_id", ""))
+	placement_slot_id = str(record.get("placement_slot_id", ""))
+	location_settlement_id = str(record.get("location_settlement_id", ""))
+	if is_inside_tree():
+		global_transform = record.get("world_transform", global_transform)
+	if location_kind == "world_placed":
+		freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+		freeze = true
+		gravity_scale = 0.0
+	else:
+		freeze = false
+		gravity_scale = 1.0
 
 
 func _process(_delta: float) -> void:
 	if _left_alt_item_labels_visible and not Input.is_key_pressed(KEY_ALT):
 		_left_alt_item_labels_visible = false
 	_refresh_label_visibility()
+
+
+func _on_sleeping_state_changed() -> void:
+	if sleeping and location_kind == "world_loose":
+		var lifecycle := BootstrapContext.service(ItemLifecycleController.SERVICE_ID) as ItemLifecycleController
+		if lifecycle != null:
+			lifecycle.submit_world_loose(stack_id, global_transform, location_settlement_id)
 
 
 func _input(event: InputEvent) -> void:
@@ -152,17 +202,25 @@ func try_pickup(actor) -> bool:
 	if actor_inventory == null:
 		_show_pickup_failure(actor)
 		return false
-	var picked_up := false
-	if _item_has_contained_counts():
-		picked_up = actor_inventory.add_entry_with_contents(item_definition, quantity, contained_item_counts, pickup_metadata)
-	elif not pickup_metadata.is_empty() and actor_inventory.has_method("add_item_count_with_metadata"):
-		picked_up = actor_inventory.add_item_count_with_metadata(item_definition, quantity, pickup_metadata)
-	else:
-		picked_up = actor_inventory.add_item_count(item_definition, quantity)
-	if not picked_up:
+	if not actor_inventory.can_add_entry_with_contents(item_definition, quantity, contained_item_counts, pickup_metadata):
 		_show_pickup_failure(actor)
 		return false
-	_remove_world_item_from_gecs()
+	var stock: InventoryStockController
+	if stock_projection:
+		stock = BootstrapContext.service(InventoryStockController.SERVICE_ID) as InventoryStockController
+		if stock == null or not stock.transact_item_count(stock_source_settlement_id, item_definition, -quantity):
+			_show_pickup_failure(actor)
+			return false
+	var inventory_stack_id := "" if stock_projection else stack_id
+	var picked_up: bool = actor_inventory.add_entry_with_contents(item_definition, quantity, contained_item_counts, pickup_metadata, inventory_stack_id)
+	if not picked_up:
+		if stock_projection and stock != null:
+			stock.transact_item_count(stock_source_settlement_id, item_definition, quantity)
+		_show_pickup_failure(actor)
+		return false
+	var lifecycle := BootstrapContext.service(&"item_lifecycle")
+	if not stock_projection and lifecycle != null:
+		lifecycle.call("submit_inventory", stack_id, str(actor.get("stable_id")), "%s.inventory" % str(actor.get("stable_id")))
 	queue_free()
 	return true
 
@@ -234,28 +292,11 @@ func _refresh_label() -> void:
 		label.text = item_label
 		label.modulate = Color.WHITE
 	_refresh_label_visibility()
-	_sync_world_item_to_gecs()
 
 
 func _refresh_label_visibility() -> void:
 	if label != null:
 		label.visible = _left_alt_item_labels_visible
-
-
-func _sync_world_item_to_gecs() -> void:
-	if not is_inside_tree():
-		return
-	var bridge := get_tree().get_first_node_in_group("gecs_world_controller")
-	if bridge != null and bridge.has_method("sync_world_item"):
-		bridge.call("sync_world_item", self)
-
-
-func _remove_world_item_from_gecs() -> void:
-	if not is_inside_tree():
-		return
-	var bridge := get_tree().get_first_node_in_group("gecs_world_controller")
-	if bridge != null and bridge.has_method("remove_world_item"):
-		bridge.call("remove_world_item", self)
 
 
 func _item_display_label() -> String:

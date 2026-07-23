@@ -18,6 +18,9 @@
 [ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://features/inventory/resources/items/hatchet.tres" id="17_hatchet"]
 [ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://features/inventory/resources/items/round_shield.tres" id="18_0csrm"]
 [ext_resource type="Script" path="res://features/settlements/bridge/venues/settlement_guard_post.gd" id="19_g0vs4"]
+[ext_resource type="Script" path="res://features/world_sim/resources/settlement_storage_seed.gd" id="20_seed"]
+[ext_resource type="Script" path="res://features/world_sim/resources/settlement_storage_stack_seed.gd" id="21_stack"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/bread.tres" id="22_bread"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(34, 1, 28)
@@ -48,13 +51,26 @@ bottom_radius = 0.78
 height = 0.018
 radial_segments = 48
 
+[sub_resource type="Resource" id="JailDemoFoodStack"]
+script = ExtResource("21_stack")
+stack_id = "jail_demo_town.granary.stack.1"
+item = ExtResource("22_bread")
+count = 20
+
+[sub_resource type="Resource" id="JailDemoStorage"]
+script = ExtResource("20_seed")
+container_id = "jail_demo_town.granary"
+facility_id = "jail_demo_town.granary"
+columns = 10
+rows = 10
+stacks = Array[ExtResource("21_stack")]([SubResource("JailDemoFoodStack")])
+
 [sub_resource type="Resource" id="SettlementDefinition_jail_demo"]
 script = ExtResource("5_settlement_definition")
 settlement_id = "jail_demo_town"
 display_name = "Jail Demo Town"
 faction_definition = ExtResource("6_farmers")
-starting_food = 80.0
-max_food = 80.0
+storage_seeds = Array[ExtResource("20_seed")]([SubResource("JailDemoStorage")])
 known_settlement_ids = null
 guard_count = 1
 guard_post_count = 1
@@ -164,6 +180,7 @@ warden_name = "Demo Warden"
 staff_stable_id_prefix = "npc.jail_demo_town.jail"
 staff_squad_name = "JailDemoTown"
 facility_id = "jail_demo_town.jail"
+building_id = "jail_demo_town.jail.building"
 display_name = "Demo Jail"
 owner_faction_id = "Farmers"
 

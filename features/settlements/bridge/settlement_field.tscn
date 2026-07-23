@@ -8,4 +8,3 @@ script = ExtResource("1_field")
 facility_id = "settlement_field"
 display_name = "Settlement Field"
 facility_function = ExtResource("2_function")
-food_production_per_day = 12.0

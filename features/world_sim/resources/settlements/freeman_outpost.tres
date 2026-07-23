@@ -1,9 +1,27 @@
 [gd_resource type="Resource" script_class="SettlementDefinition" format=3 uid="uid://d1vj8dp4wi276"]
 
 [ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://features/world_sim/resources/settlement_definition.gd" id="1_7dw37"]
+[ext_resource type="Script" path="res://features/world_sim/resources/settlement_storage_seed.gd" id="2_seed"]
+[ext_resource type="Script" path="res://features/world_sim/resources/settlement_storage_stack_seed.gd" id="3_stack"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/bread.tres" id="4_bread"]
+
+[sub_resource type="Resource" id="Stack_bread"]
+script = ExtResource("3_stack")
+stack_id = "freeman_outpost.granary.stack.1"
+item = ExtResource("4_bread")
+count = 1
+
+[sub_resource type="Resource" id="Seed_granary"]
+script = ExtResource("2_seed")
+container_id = "freeman_outpost.granary"
+facility_id = "freeman_outpost.granary"
+columns = 10
+rows = 10
+stacks = Array[ExtResource("3_stack")]([SubResource("Stack_bread")])
 
 [resource]
 script = ExtResource("1_7dw37")
 settlement_id = "freeman_outpost"
 display_name = "Freeman Outpost"
+storage_seeds = Array[ExtResource("2_seed")]([SubResource("Seed_granary")])
 known_settlement_ids = PackedStringArray()

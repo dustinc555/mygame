@@ -11,6 +11,7 @@ class_name MerchantRole
 
 var shop_inventory: InventoryData
 var _stock_seeded := false
+var _pending_trader_ids: Dictionary = {}
 
 signal shop_inventory_changed
 
@@ -23,6 +24,23 @@ func _ready() -> void:
 func get_shop_inventory() -> InventoryData:
 	_ensure_shop_inventory()
 	return shop_inventory
+
+
+func register_trader(member: Node) -> void:
+	if member != null:
+		_pending_trader_ids[member.get_instance_id()] = true
+
+
+func release_trader(member: Node) -> void:
+	if member != null:
+		_pending_trader_ids.erase(member.get_instance_id())
+
+
+func resolve_trade(member: Node) -> bool:
+	if member == null or not _pending_trader_ids.has(member.get_instance_id()):
+		return false
+	_pending_trader_ids.erase(member.get_instance_id())
+	return true
 
 
 func _ensure_shop_inventory() -> void:

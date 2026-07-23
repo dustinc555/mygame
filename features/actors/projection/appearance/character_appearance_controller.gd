@@ -76,6 +76,9 @@ func open_creation_editor() -> bool:
 func open_barber_editor(actor: HumanoidCharacter, barber: Node = null) -> bool:
 	if actor == null or actor.inventory == null:
 		return false
+	if not _ensure_durable_actor(actor):
+		_show_message("Character record unavailable")
+		return false
 	_ensure_editor_window()
 	if editor_window == null:
 		return false
@@ -122,9 +125,29 @@ func _on_editor_save_requested(actor, draft_appearance) -> void:
 	if actor == null:
 		creation_saved.emit(draft_appearance, editor_window.get_character_name() if editor_window != null and editor_window.has_method("get_character_name") else "")
 	elif draft_appearance != null and actor.has_method("apply_appearance_data"):
-		actor.apply_appearance_data(draft_appearance)
-		_show_message("Appearance saved")
+		var population := _context.get_optional(&"population") if _context != null else null
+		_ensure_durable_actor(actor)
+		var actor_id := str(actor.get_meta("actor_record_id", actor.get("stable_id"))).strip_edges()
+		var record: Dictionary = population.call("update_actor_appearance", actor_id, draft_appearance) if population != null and population.has_method("update_actor_appearance") else {}
+		var canonical_appearance = PopulationController.appearance_from_record(record.get("appearance", {}) as Dictionary)
+		if canonical_appearance == null:
+			push_error("Appearance save rejected: actor '%s' has no durable population record" % actor_id)
+		else:
+			actor.apply_appearance_data(canonical_appearance)
+			_show_message("Appearance saved")
 	_release_editor_pause()
+
+
+func _ensure_durable_actor(actor: Node) -> bool:
+	var population := _context.get_optional(&"population") if _context != null else null
+	if population == null or not population.has_method("get_actor_record"):
+		return false
+	var actor_id := str(actor.get_meta("actor_record_id", actor.get("stable_id"))).strip_edges()
+	if actor_id.is_empty():
+		return false
+	if (population.call("get_actor_record", actor_id) as Dictionary).is_empty() and population.has_method("register_actor"):
+		population.call("register_actor", actor)
+	return not (population.call("get_actor_record", actor_id) as Dictionary).is_empty()
 
 
 func _on_editor_cancel_requested() -> void:
@@ -153,6 +176,8 @@ func _release_editor_pause() -> void:
 func _get_barber_price(barber: Node) -> int:
 	if barber != null and barber.has_method("get_barber_service_price"):
 		return maxi(0, int(barber.call("get_barber_service_price")))
+	if barber != null and barber.has_meta("barber_service_price"):
+		return maxi(0, int(barber.get_meta("barber_service_price")))
 	return 1
 
 

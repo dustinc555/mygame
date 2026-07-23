@@ -1,6 +1,13 @@
 [gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3 uid="uid://ctxocg83twg3t"]
 
 [ext_resource type="Script" uid="uid://cugx5hdqn8thn" path="res://features/world_sim/resources/facility_function_definition.gd" id="1_function"]
+[ext_resource type="Script" uid="uid://cdn5161onbu3" path="res://features/world_sim/resources/settlement_food_output.gd" id="2_output"]
+[ext_resource type="Resource" uid="uid://cighg4y750kcr" path="res://features/inventory/resources/items/food.tres" id="3_food"]
+
+[sub_resource type="Resource" id="Output_food"]
+script = ExtResource("2_output")
+item = ExtResource("3_food")
+count = 6
 
 [resource]
 script = ExtResource("1_function")
@@ -8,7 +15,7 @@ function_id = "field"
 display_name = "Field"
 facility_type = "farm"
 description = "A food-producing farm field with farming activity points."
-default_food_production_per_day = 12.0
-expected_staff_roles = null
-expected_service_points = null
+food_outputs_per_day = Array[Resource]([SubResource("Output_food")])
+expected_staff_roles = PackedStringArray()
+expected_service_points = PackedStringArray()
 expected_activity_types = PackedStringArray("farm")

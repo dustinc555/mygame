@@ -4,6 +4,23 @@
 [ext_resource type="Resource" uid="uid://b4vo3ehw0kwo7" path="res://features/factions/resources/factions/paradise_hills.tres" id="2_faction"]
 [ext_resource type="Resource" uid="uid://dop3nplurk2vm" path="res://features/world_sim/resources/behavior_profiles/paradise_hills_camp.tres" id="3_behavior"]
 [ext_resource type="Resource" uid="uid://dxftw2ahwx1yl" path="res://features/world_sim/resources/squad_templates/paradise_hills_enforcers.tres" id="4_enforcers"]
+[ext_resource type="Script" uid="uid://bq8faoetmfpb7" path="res://features/world_sim/resources/settlement_storage_seed.gd" id="5_seed"]
+[ext_resource type="Script" uid="uid://dn6hi2dfhg5ub" path="res://features/world_sim/resources/settlement_storage_stack_seed.gd" id="6_stack"]
+[ext_resource type="Resource" uid="uid://cighg4y750kcr" path="res://features/inventory/resources/items/food.tres" id="7_food"]
+
+[sub_resource type="Resource" id="Stack_food"]
+script = ExtResource("6_stack")
+stack_id = "paradise_hills.granary.stack.1"
+item = ExtResource("7_food")
+count = 35
+
+[sub_resource type="Resource" id="Seed_granary"]
+script = ExtResource("5_seed")
+container_id = "paradise_hills.granary"
+facility_id = "paradise_hills.granary"
+columns = 20
+rows = 20
+stacks = Array[Resource]([SubResource("Stack_food")])
 
 [resource]
 script = ExtResource("1_settlement")
@@ -12,8 +29,7 @@ display_name = "Paradise Hills"
 faction_definition = ExtResource("2_faction")
 behavior_profile = ExtResource("3_behavior")
 world_position = Vector3(20, 0, 350)
-starting_food = 70.0
-max_food = 150.0
+storage_seeds = Array[Resource]([SubResource("Seed_granary")])
 known_settlement_ids = PackedStringArray("surf_city", "east_raiders_camp")
 default_target_settlement_id = "surf_city"
 raid_squad_template = ExtResource("4_enforcers")

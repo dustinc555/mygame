@@ -31,6 +31,7 @@ const ACTION_WAKE_UP := 14
 const ACTION_STAND_UP := 15
 const ACTION_PLACE_IN_BED := 16
 const ACTION_PICKUP_ITEM := 17
+const ACTION_READ_ITEM := 18
 const ACTION_WORLD_CONTEXT_BASE := 10000
 const SQUAD_MENU_RENAME := 1
 const ALL_SQUADS_FILTER := ""
@@ -121,6 +122,7 @@ var inventory_controller: PartyInventoryController
 var humanoid_details_controller
 var conversation_controller
 var ownership_controller
+var item_read_controller: Node
 var building_visibility_controller
 var terrain_camera_controller
 var floating_notice: FloatingNotice
@@ -198,6 +200,7 @@ func _do_initialize() -> void:
 			humanoid_details_controller.connect("inspector_action_requested", inspector_action_callable)
 	conversation_controller = _context.require(ConversationController.SERVICE_ID)
 	ownership_controller = _context.get_optional(OwnershipController.SERVICE_ID)
+	item_read_controller = _context.get_optional(&"item_read")
 	law_order_controller = _context.get_optional(LawOrderController.SERVICE_ID) as LawOrderController
 	building_visibility_controller = _context.get_optional(BuildingVisibilityController.SERVICE_ID)
 	terrain_camera_controller = _context.get_optional(TerrainCameraController.SERVICE_ID)
@@ -549,7 +552,14 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 		if Input.is_key_pressed(KEY_SHIFT):
 			_assign_pickup_to_selection(context_world_item)
 		else:
-			_show_context_menu_actions(screen_position, [_get_pickup_item_action(context_world_item)])
+			var item_actions: Array = [_get_pickup_item_action(context_world_item)]
+			var read_action: Dictionary = {}
+			if item_read_controller != null:
+				read_action = item_read_controller.get_world_read_action(_get_focused_party_member() as HumanoidCharacter, context_world_item as WorldItem)
+			if not read_action.is_empty():
+				read_action["id"] = ACTION_READ_ITEM
+				item_actions.append(read_action)
+			_show_context_menu_actions(screen_position, item_actions)
 		return false
 	var world_context_target := _get_world_context_target(collider)
 	if world_context_target != null:
@@ -867,6 +877,12 @@ func _raycast_target_from_screen(screen_position: Vector2) -> Dictionary:
 		if result.is_empty():
 			break
 		var collider: Object = result["collider"]
+		var occupied_seat := _find_sittable_seat(collider)
+		if occupied_seat != null and occupied_seat.has_method("is_occupied") and bool(occupied_seat.call("is_occupied")):
+			if not _exclude_collider_rid(collider, excluded_rids):
+				result = {}
+				break
+			continue
 		var actor_collider := _resolve_actor_collider(collider)
 		if actor_collider != null:
 			result["collider"] = actor_collider
@@ -900,6 +916,15 @@ func _raycast_target_from_screen(screen_position: Vector2) -> Dictionary:
 		if nearby_actor != null:
 			return {"collider": nearby_actor, "position": nearby_actor.global_position}
 	return result
+
+
+func _find_sittable_seat(collider: Object) -> Node:
+	var current := collider as Node
+	while current != null:
+		if current.is_in_group("sittable_seat"):
+			return current
+		current = current.get_parent()
+	return null
 
 
 func _exclude_collider_rid(collider: Object, excluded_rids: Array[RID]) -> bool:
@@ -953,7 +978,12 @@ func _actor_clickable_from_camera(actor: WorldActor, camera: Camera3D, chest: Ve
 		if hit.is_empty():
 			return true
 		var hit_collider: Object = hit.get("collider")
+		var seat := _find_sittable_seat(hit_collider)
+		var occupied_by_actor: bool = seat != null \
+				and seat.has_method("get_sitter") \
+				and seat.call("get_sitter") == actor
 		var see_through: bool = hit_collider is CharacterBody3D \
+				or occupied_by_actor \
 				or _is_camera_hidden_modular_collider(hit_collider) \
 				or _should_skip_building_target_hit(hit_collider, int(hit.get("shape", -1)))
 		if not see_through or not _exclude_collider_rid(hit_collider, exclusions):
@@ -1916,6 +1946,9 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 		ACTION_PICKUP_ITEM:
 			if context_world_item != null:
 				_assign_pickup_to_selection(context_world_item)
+		ACTION_READ_ITEM:
+			if context_world_item != null and item_read_controller != null:
+				item_read_controller.read_world_item(_get_focused_party_member() as HumanoidCharacter, context_world_item as WorldItem)
 
 
 func _perform_world_context_action(action_index: int) -> void:
@@ -2118,8 +2151,9 @@ func _on_party_member_trade_target_reached(member: HumanoidCharacter, target) ->
 	if target is HumanoidCharacter and target.is_player_party_member():
 		inventory_controller.open_inventory_pair(member, target)
 		return
-	if target is CharacterBody3D and target.has_method("resolve_trade"):
-		if not target.resolve_trade(member):
+	if target is CharacterBody3D:
+		var merchant_role := target.get_node_or_null("MerchantRole") as MerchantRole
+		if merchant_role == null or not merchant_role.resolve_trade(member):
 			return
 		inventory_controller.open_inventory_pair(member, target)
 

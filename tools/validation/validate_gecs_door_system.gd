@@ -74,6 +74,7 @@ func _run() -> void:
 	context.register(&"door_interactions", _interactions)
 	_interactions.initialize(context)
 	_doors.door_command_resolved.connect(func(result: Dictionary) -> void: _results.append(result))
+	_validate_facility_door_policy()
 	await _setup_projected_access_door(root)
 	_validate_lock_and_access()
 	_validate_npc_auto_open()
@@ -87,6 +88,52 @@ func _run() -> void:
 	if _ecs_placeholder != null and is_instance_valid(_ecs_placeholder):
 		_ecs_placeholder.free()
 	quit()
+
+
+func _validate_facility_door_policy() -> void:
+	_doors.configure_building_doors("validation.facility", {
+		"authorized_actor_ids": PackedStringArray(["validator.actor"]),
+		"authorized_faction_ids": PackedStringArray(["validation.faction"]),
+		"initial_state": "open",
+	})
+	_doors.register_door({
+		"door_id": "validation.facility.front",
+		"building_id": "validation.facility",
+		"default_locked": true,
+		"authorized_key_ids": PackedStringArray(["validation.key"]),
+	})
+	var initial: Dictionary = _doors.get_door_state("validation.facility.front")
+	_expect(bool(initial.get("is_open", false)) and not bool(initial.get("is_locked", true)), "Facility Start Open must apply to a pristine door record.")
+	_expect(initial.get("authorized_actor_ids", PackedStringArray()) == PackedStringArray(["validator.actor"]), "Private facility policy must authorize its owner actor.")
+	_expect(initial.get("authorized_faction_ids", PackedStringArray()) == PackedStringArray(["validation.faction"]), "Private facility policy must authorize its owner faction.")
+	_expect(_run_command("validator.actor", "validation.facility.front", "close", {}).get("result_code") == "closed", "Facility policy fixture must close through normal door commands.")
+	_doors.configure_building_doors("validation.facility", {
+		"authorized_actor_ids": PackedStringArray(["replacement.actor"]),
+		"authorized_faction_ids": PackedStringArray(["replacement.faction"]),
+		"initial_state": "open",
+	})
+	var replaced: Dictionary = _doors.get_door_state("validation.facility.front")
+	_expect(not bool(replaced.get("is_open", true)), "Repeated facility sync must not reapply Start Open after gameplay changes state.")
+	_expect(replaced.get("authorized_actor_ids", PackedStringArray()) == PackedStringArray(["replacement.actor"]), "Facility ownership turnover must remove the old owner actor.")
+	_expect(replaced.get("authorized_key_ids", PackedStringArray()) == PackedStringArray(["validation.key"]), "Facility policy must preserve per-door key authorization.")
+	_doors.configure_building_doors("validation.facility", {"public_access": true, "keeper_actor_id": "validator.actor"})
+	var public_state: Dictionary = _doors.get_door_state("validation.facility.front")
+	_expect(public_state.get("authorized_actor_ids", PackedStringArray()) == PackedStringArray(["validator.actor"]), "Public facility policy must retain keeper lock authority.")
+	_expect((public_state.get("authorized_faction_ids", PackedStringArray()) as PackedStringArray).is_empty(), "Public facility policy must clear faction restrictions.")
+	_expect(_run_command("validator.actor", "validation.facility.front", "lock", {}).get("result_code") == "locked", "Public facility keeper must lock its scheduled door.")
+	_expect(_run_command("validator.actor", "validation.facility.front", "unlock", {}).get("result_code") == "unlocked", "Public facility keeper must unlock its scheduled door.")
+	_doors.configure_building_doors("validation.locked_facility", {"initial_state": "locked"})
+	_doors.register_door({"door_id": "validation.locked_facility.front", "building_id": "validation.locked_facility"})
+	var locked: Dictionary = _doors.get_door_state("validation.locked_facility.front")
+	_expect(bool(locked.get("is_locked", false)) and not bool(locked.get("is_open", true)), "Locked initial state must be closed and locked.")
+	_doors.configure_building_doors("validation.closed_facility", {"initial_state": "closed"})
+	_doors.register_door({"door_id": "validation.closed_facility.front", "building_id": "validation.closed_facility", "default_open": true, "default_locked": true})
+	var closed: Dictionary = _doors.get_door_state("validation.closed_facility.front")
+	_expect(not bool(closed.get("is_open", true)) and not bool(closed.get("is_locked", true)), "Closed initial state must be closed and unlocked.")
+	_doors.configure_building_doors("validation.default_facility", {"initial_state": "door_default"})
+	_doors.register_door({"door_id": "validation.default_facility.front", "building_id": "validation.default_facility", "default_open": true})
+	var door_default: Dictionary = _doors.get_door_state("validation.default_facility.front")
+	_expect(bool(door_default.get("is_open", false)) and not bool(door_default.get("is_locked", true)), "Door Default initial state must preserve DoorDefinition defaults.")
 
 
 func _register_actor(root: Node, actor_id: String) -> void:

@@ -1,0 +1,20 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_facility_instance.gd" id="1_facility"]
+
+[node name="GenericStaffedFacility" type="Node3D"]
+script = ExtResource("1_facility")
+display_name = "Generic Staffed Facility"
+facility_type = "generic"
+
+[node name="BuildingSlot" type="Node3D" parent="."]
+
+[node name="Staff" type="Node3D" parent="."]
+
+[node name="ServicePoints" type="Node3D" parent="."]
+
+[node name="Storage" type="Node3D" parent="."]
+
+[node name="JobProviders" type="Node3D" parent="."]
+
+[node name="ActivityPoints" type="Node3D" parent="."]

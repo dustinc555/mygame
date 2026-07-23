@@ -1,0 +1,15 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/props/furnishing/furniture_vignette.gd" id="1_vignette"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/ruler_planning_desk.tscn" id="2_desk"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/ruler_seat.tscn" id="3_seat"]
+
+[node name="RulerOffice" type="Node3D"]
+script = ExtResource("1_vignette")
+footprint_meters = Vector2(3.2, 3.4)
+
+[node name="Workstation" parent="." instance=ExtResource("2_desk")]
+position = Vector3(0, 0, 0.55)
+
+[node name="IdleSeat" parent="." instance=ExtResource("3_seat")]
+position = Vector3(0, 0, -1.05)

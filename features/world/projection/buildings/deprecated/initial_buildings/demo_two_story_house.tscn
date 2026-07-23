@@ -133,7 +133,7 @@ size = Vector3(7.8, 1.9, 7.8)
 [node name="TwoStoryHouse" type="StaticBody3D" unique_id=1406781773]
 script = ExtResource("1_building")
 display_name = "Two-Story House"
-population_capacity = 6
+housing_capacity = 6
 levels = Array[ExtResource("2_level")]([SubResource("BuildingLevelDefinition_ground"), SubResource("BuildingLevelDefinition_upper"), SubResource("BuildingLevelDefinition_roof")])
 
 [node name="GroundFloorMesh" type="MeshInstance3D" parent="." unique_id=676423235]

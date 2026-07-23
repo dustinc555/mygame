@@ -8,6 +8,12 @@ class_name CGamePopulationRecord
 @export var generation_source := ""
 @export var generation_index := 0
 @export var member_name := ""
+@export var character_realizer_id := ""
+@export var character_realizer_path := ""
+@export var character_realizer_signature := ""
+@export var character_type_id := ""
+@export var character_type_path := ""
+@export var character_type_signature := ""
 @export var faction_id := ""
 @export var squad_name := ""
 @export var role_id := "resident"
@@ -20,6 +26,7 @@ class_name CGamePopulationRecord
 @export var auto_burn_rustdead_enabled := false
 @export var base_color := Color(0.62, 0.62, 0.62, 1.0)
 @export var skill_levels: Dictionary = {}
+@export var skill_xp: Dictionary = {}
 @export var traits: Dictionary = {}
 @export var personality: Dictionary = {}
 @export var life_state := 0
@@ -59,6 +66,12 @@ func apply_record(source: Dictionary) -> void:
 	generation_source = str(source.get("generation_source", generation_source))
 	generation_index = int(source.get("generation_index", generation_index))
 	member_name = str(source.get("member_name", member_name))
+	character_realizer_id = str(source.get("character_realizer_id", character_realizer_id))
+	character_realizer_path = str(source.get("character_realizer_path", character_realizer_path))
+	character_realizer_signature = str(source.get("character_realizer_signature", character_realizer_signature))
+	character_type_id = str(source.get("character_type_id", character_type_id))
+	character_type_path = str(source.get("character_type_path", character_type_path))
+	character_type_signature = str(source.get("character_type_signature", character_type_signature))
 	faction_id = str(source.get("faction_id", faction_id))
 	squad_name = str(source.get("squad_name", squad_name))
 	role_id = str(source.get("role_id", role_id))
@@ -69,6 +82,7 @@ func apply_record(source: Dictionary) -> void:
 	auto_burn_rustdead_enabled = bool(source.get("auto_burn_rustdead_enabled", auto_burn_rustdead_enabled))
 	base_color = source.get("base_color", base_color)
 	skill_levels = (source.get("skill_levels", skill_levels) as Dictionary).duplicate(true)
+	skill_xp = (source.get("skill_xp", skill_xp) as Dictionary).duplicate(true)
 	traits = (source.get("traits", traits) as Dictionary).duplicate(true)
 	personality = (source.get("personality", personality) as Dictionary).duplicate(true)
 	life_state = int(source.get("life_state", life_state))
@@ -109,6 +123,12 @@ func to_record() -> Dictionary:
 		"generation_source": generation_source,
 		"generation_index": generation_index,
 		"member_name": member_name,
+		"character_realizer_id": character_realizer_id,
+		"character_realizer_path": character_realizer_path,
+		"character_realizer_signature": character_realizer_signature,
+		"character_type_id": character_type_id,
+		"character_type_path": character_type_path,
+		"character_type_signature": character_type_signature,
 		"faction_id": faction_id,
 		"squad_name": squad_name,
 		"role_id": role_id,
@@ -119,6 +139,7 @@ func to_record() -> Dictionary:
 		"auto_burn_rustdead_enabled": auto_burn_rustdead_enabled,
 		"base_color": base_color,
 		"skill_levels": skill_levels.duplicate(true),
+		"skill_xp": skill_xp.duplicate(true),
 		"traits": traits.duplicate(true),
 		"personality": personality.duplicate(true),
 		"life_state": life_state,

@@ -1,7 +1,7 @@
 extends SceneTree
 
 ## Proves the construction system: placing a building through the
-## ConstructionRecords creates a durable settlement record for the placing
+## ConstructionController creates canonical GECS building and settlement records for the placing
 ## faction, the ConstructionRealizer instantiates the scene at the recorded
 ## transform, a second nearby building JOINS the settlement (border radius
 ## grows), a distant one FOUNDS a new settlement, and placements dirty
@@ -26,17 +26,17 @@ func _run() -> void:
 	var construction: Node = null
 	for _i in range(MAX_SETUP_FRAMES):
 		await physics_frame
-		construction = get_first_node_in_group("construction_records")
+		construction = get_first_node_in_group("construction_controller")
 		if construction != null:
 			break
 	if construction == null:
-		_fail("no ConstructionRecords")
+		_fail("no ConstructionController")
 		return
 	var navigation := get_first_node_in_group("world_navigation_controller")
 
 	# 1. First placement founds a player settlement.
 	var first_transform := Transform3D(Basis(Vector3.UP, 0.4), Vector3(20.0, 0.4, -150.0))
-	var first: Dictionary = construction.call("place_building", "woodbrick_house", first_transform, "Player")
+	var first: Dictionary = construction.call("place_building", "medium_wood_l_hall", first_transform, "Player")
 	if first.is_empty():
 		_fail("first placement returned no record")
 		return
@@ -50,9 +50,7 @@ func _run() -> void:
 	var founding_radius: float = settlement["radius"]
 	print("CONSTRUCTION_TEST_OK founded settlement=%s radius=%.1f" % [settlement["settlement_id"], founding_radius])
 
-	# 2. Realizer instantiated the scene at the recorded XZ; ground snap
-	# re-solves Y against the live terrain (records store intent, terrain
-	# owns height), so only XZ must match and Y must stay near the ground.
+	# 2. Realizer uses the exact transform committed after placement solving.
 	await physics_frame
 	await physics_frame
 	await physics_frame
@@ -61,17 +59,14 @@ func _run() -> void:
 	if instance == null:
 		_fail("building instance not realized in scene")
 		return
-	var xz_delta := Vector2(instance.global_position.x - first_transform.origin.x, instance.global_position.z - first_transform.origin.z)
-	if xz_delta.length() > 0.1:
-		_fail("realized XZ %s != recorded XZ %s" % [instance.global_position, first_transform.origin])
-	if absf(instance.global_position.y - first_transform.origin.y) > 2.0:
-		_fail("ground-snapped Y %.2f strayed too far from recorded %.2f" % [instance.global_position.y, first_transform.origin.y])
-	print("CONSTRUCTION_TEST_OK realized %s at %s (ground-snapped)" % [first["building_id"], instance.global_position])
+	if not instance.global_transform.is_equal_approx(first_transform):
+		_fail("realized transform differs from committed registry transform")
+	print("CONSTRUCTION_TEST_OK realized %s at exact committed transform" % first["building_id"])
 
 	# 3. Nearby placement joins the same settlement and grows the border.
 	# 70m away: inside the 90m join radius, far enough that the border
 	# (centroid distance 35m + margin) must exceed the 40m minimum.
-	var second: Dictionary = construction.call("place_building", "woodbrick_house",
+	var second: Dictionary = construction.call("place_building", "medium_wood_l_hall",
 		Transform3D(Basis.IDENTITY, Vector3(90.0, 0.4, -150.0)), "Player")
 	if second["settlement_id"] != first["settlement_id"]:
 		_fail("nearby building founded a new settlement instead of joining")
@@ -81,7 +76,7 @@ func _run() -> void:
 	print("CONSTRUCTION_TEST_OK joined settlement radius=%.1f" % settlement["radius"])
 
 	# 4. Distant placement founds a second settlement.
-	var third: Dictionary = construction.call("place_building", "woodbrick_house",
+	var third: Dictionary = construction.call("place_building", "medium_wood_l_hall",
 		Transform3D(Basis.IDENTITY, Vector3(-300.0, 0.4, -150.0)), "Player")
 	if third["settlement_id"] == first["settlement_id"]:
 		_fail("distant building joined instead of founding")
@@ -104,7 +99,7 @@ func _run() -> void:
 	var blocked: Dictionary = construction.call("can_place", Vector3(30.0, 0.4, -150.0), "Raiders")
 	if bool(blocked["allowed"]):
 		_fail("foreign faction allowed to build inside player zone")
-	var rejected: Dictionary = construction.call("place_building", "woodbrick_house",
+	var rejected: Dictionary = construction.call("place_building", "medium_wood_l_hall",
 		Transform3D(Basis.IDENTITY, Vector3(30.0, 0.4, -150.0)), "Raiders")
 	if not rejected.is_empty():
 		_fail("place_building accepted a zoned-out foreign placement")
@@ -113,12 +108,12 @@ func _run() -> void:
 		_fail("foreign faction blocked far outside every zone")
 	print("CONSTRUCTION_TEST_OK zoning blocks foreign builds inside the border")
 
-	# 6. Records serialize to plain data.
-	var serialized: Dictionary = construction.call("serialize_state")
-	if not serialized.has("constructed_settlements") or serialized["constructed_settlements"].size() != 2:
-		_fail("serialize_state missing settlements")
-	else:
-		print("CONSTRUCTION_TEST_OK serialize_state has %d settlements" % serialized["constructed_settlements"].size())
+	# 6. Buildings are canonical registry records, not nested construction dictionaries.
+	var registry: Node = BootstrapContext.service(&"building_registry")
+	if registry == null or registry.get_buildings_for_settlement(first["settlement_id"]).size() != 2:
+		_fail("registry settlement index missing constructed buildings")
+	if construction.call("get_settlement", first["settlement_id"]).has("buildings"):
+		_fail("construction settlement still duplicates nested building records")
 	_finish()
 
 

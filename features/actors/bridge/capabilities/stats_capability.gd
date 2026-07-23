@@ -21,9 +21,11 @@ class_name StatsCapability
 
 const ACTOR_SKILL_SET_SCRIPT = preload("res://features/skills/resources/actor_skill_set.gd")
 
-## Emitted when a skill/attribute level changes. VitalsCapability (Phase 2) will
-## connect to refresh toughness-derived max blood. Nothing listens yet.
+## Emitted when a skill/attribute level changes. VitalsCapability connects to
+## refresh toughness-derived max blood.
 signal skill_level_changed(skill_id: String)
+## Emitted for any level or XP change so persistence can mirror full progress.
+signal skill_progress_changed(skill_id: String)
 
 # --- Raw skill/attribute storage -------------------------------------------
 
@@ -96,6 +98,7 @@ func set_skill_level(skill_id: String, level: int, clear_xp := true) -> void:
 	_ensure_skill_set()
 	skill_set.set_skill_level(skill_id, level, clear_xp)
 	skill_level_changed.emit(skill_id)
+	skill_progress_changed.emit(skill_id)
 
 
 func add_skill_xp(skill_id: String, amount: float, reason := "") -> int:
@@ -103,7 +106,19 @@ func add_skill_xp(skill_id: String, amount: float, reason := "") -> int:
 	var levels := skill_set.add_skill_xp(skill_id, amount, reason)
 	if levels > 0:
 		skill_level_changed.emit(skill_id)
+	skill_progress_changed.emit(skill_id)
 	return levels
+
+
+func hydrate_skill_progress(skill_levels: Dictionary, skill_xp: Dictionary) -> void:
+	_ensure_skill_set()
+	var skill_ids := {}
+	for skill_id in skill_levels:
+		skill_ids[str(skill_id)] = true
+	for skill_id in skill_xp:
+		skill_ids[str(skill_id)] = true
+	for skill_id in skill_ids:
+		skill_set.set_skill_progress(str(skill_id), int(skill_levels.get(skill_id, SkillRules.DEFAULT_LEVEL)), float(skill_xp.get(skill_id, 0.0)))
 
 
 func get_skill_xp(skill_id: String) -> float:

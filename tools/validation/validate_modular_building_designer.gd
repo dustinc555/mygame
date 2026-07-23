@@ -5,13 +5,14 @@ const PLUGIN_CFG_PATH := "res://addons/world_authoring/plugin.cfg"
 const PLUGIN_SCRIPT_PATH := "res://addons/world_authoring/plugin.gd"
 const BUILDING_TOOLS_PATH := "res://addons/world_authoring/building_tools.gd"
 const WORLD_BUILDING_ICON_PATH := "res://addons/world_authoring/icons/world_building.svg"
-const WOODBRICK_HOUSE_SCENE_PATH := "res://features/world/projection/buildings/shells/modular/woodbrick_house.tscn"
+const MEDIUM_WOOD_L_HALL_SCENE_PATH := "res://features/world/projection/buildings/shells/modular/medium_wood_l_hall.tscn"
 const WORLD_BUILDING_SCRIPT_PATH := "res://features/world/projection/buildings/world_building.gd"
 const MODULAR_BUILDING_PIECE_SCRIPT_PATH := "res://features/world/projection/buildings/modular_building_piece.gd"
-const WORLD_BUILDING_SCRIPT := preload("res://features/world/projection/buildings/world_building.gd")
-const MODULAR_BUILDING_PIECE_SCRIPT := preload("res://features/world/projection/buildings/modular_building_piece.gd")
+const SNAP_SOLVER_PATH := "res://addons/world_authoring/building_snap_solver.gd"
 
 var _failures: Array[String] = []
+var _world_building_script: Script
+var _modular_building_piece_script: Script
 
 
 func _initialize() -> void:
@@ -19,9 +20,13 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	# Runtime loads let project autoloads register before WorldBuilding's GECS
+	# dependency chain compiles under --script validation.
+	_world_building_script = load(WORLD_BUILDING_SCRIPT_PATH) as Script
+	_modular_building_piece_script = load(MODULAR_BUILDING_PIECE_SCRIPT_PATH) as Script
 	_validate_plugin_files()
 	_validate_project_enables_plugin()
-	_validate_woodbrick_house_root()
+	_validate_medium_wood_l_hall_root()
 	_validate_world_building_modular_visibility()
 	_finish()
 
@@ -34,6 +39,7 @@ func _validate_plugin_files() -> void:
 		_fail("modular building plugin.cfg script must be relative: script=\"plugin.gd\"")
 	var router_text := _read_text(PLUGIN_SCRIPT_PATH)
 	var building_text := _read_text(BUILDING_TOOLS_PATH)
+	var snap_solver_text := _read_text(SNAP_SOLVER_PATH)
 	var combined_text := router_text + building_text
 	if combined_text.contains("add_control_to_dock") or combined_text.contains("DOCK_SLOT"):
 		_fail("modular building plugin must not add editor docks")
@@ -81,13 +87,13 @@ func _validate_plugin_files() -> void:
 		_fail("modular building gizmo snap should preserve group selection and commit group snap as one action")
 	if not building_text.contains("_get_piece_nearest_snap_delta") or not building_text.contains("excluded_pieces.has(other_piece)"):
 		_fail("modular building group snap should use one anchor snap delta and ignore selected pieces as snap targets")
-	if not building_text.contains("_get_piece_snap_transform") or not building_text.contains("_snap_markers_align_transform"):
+	if not building_text.contains("_get_piece_snap_transform") or not building_text.contains("SNAP_SOLVER.piece_snap_transform"):
 		_fail("modular building plugin should align transform for window insert sockets")
 	if not building_text.contains("Door Walls") or not building_text.contains("Window Walls"):
 		_fail("modular building plugin should label wall-door/window pieces as wall categories")
 	if not building_text.contains("Window Frames") or not building_text.contains("\"Doors\", \"categories\": [\"door\"]"):
 		_fail("modular building plugin should expose real window frames and doors separately")
-	if not building_text.contains("door_insert") or not building_text.contains("door_socket"):
+	if not snap_solver_text.contains("door_insert") or not snap_solver_text.contains("door_socket"):
 		_fail("modular building plugin should align transform for door insert sockets")
 	if combined_text.contains("Auto Snap") or combined_text.contains("_auto_snap_button"):
 		_fail("modular building plugin should not expose toolbar Auto Snap; snap is per piece")
@@ -124,25 +130,26 @@ func _validate_project_enables_plugin() -> void:
 		_fail("project.godot should enable modular building authoring plugin")
 
 
-func _validate_woodbrick_house_root() -> void:
-	var scene := load(WOODBRICK_HOUSE_SCENE_PATH) as PackedScene
+func _validate_medium_wood_l_hall_root() -> void:
+	var scene := load(MEDIUM_WOOD_L_HALL_SCENE_PATH) as PackedScene
 	if scene == null:
-		_fail("Missing woodbrick house authoring scene")
+		_fail("Missing medium wood L hall authoring scene")
 		return
 	var root_node := scene.instantiate()
 	if root_node == null:
-		_fail("Unable to instantiate woodbrick house authoring scene")
+		_fail("Unable to instantiate medium wood L hall authoring scene")
 		return
 	var root_script := root_node.get_script() as Script
 	if root_script == null or root_script.resource_path != WORLD_BUILDING_SCRIPT_PATH:
-		_fail("woodbrick_house.tscn root should use WorldBuilding script")
+		_fail("medium_wood_l_hall.tscn root should use WorldBuilding script")
 	root_node.free()
 
 
 func _validate_world_building_modular_visibility() -> void:
 	var building := Node3D.new()
 	building.name = "VisibilityTestBuilding"
-	building.set_script(WORLD_BUILDING_SCRIPT)
+	building.set_script(_world_building_script)
+	building.set("building_id", "validation.visibility_test")
 	root.add_child(building)
 
 	var pieces_root := Node3D.new()
@@ -205,7 +212,8 @@ func _piece_mesh_cast_shadow(piece: Node) -> int:
 func _validate_auto_pieces_root_creation() -> void:
 	var building := StaticBody3D.new()
 	building.name = "AutoPiecesBuilding"
-	building.set_script(WORLD_BUILDING_SCRIPT)
+	building.set_script(_world_building_script)
+	building.set("building_id", "validation.auto_pieces")
 	root.add_child(building)
 	var pieces_root = building.call("get_or_create_modular_pieces_root")
 	if not (pieces_root is Node3D):
@@ -218,7 +226,7 @@ func _validate_auto_pieces_root_creation() -> void:
 func _make_piece(node_name: String, category: String, position: Vector3, bounds := Vector3.ZERO) -> Node3D:
 	var piece := Node3D.new()
 	piece.name = node_name
-	piece.set_script(MODULAR_BUILDING_PIECE_SCRIPT)
+	piece.set_script(_modular_building_piece_script)
 	piece.set("category", category)
 	piece.set("building_level", 0)
 	piece.set("bounds_size_meters", bounds)

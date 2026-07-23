@@ -1,12 +1,12 @@
 extends SceneTree
 
 ## Validates the facility furnish pass end-to-end against the real
-## woodbrick_shop_medium shell: exactly one counter, at least one table
+## medium wood hall shell: exactly one counter, at least one table
 ## cluster, deterministic layouts per seed, different layouts across seeds,
 ## and no overlapping floor footprints. Uses load() at runtime, not preload:
 ## --script mode cannot compile GECS preload chains at parse time.
 
-const SHELL_PATH := "res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn"
+const SHELL_PATH := "res://features/world/projection/buildings/shells/modular/medium_wood_hall.tscn"
 const FURNISHER_PATH := "res://features/world/projection/props/furnishing/facility_furnisher.gd"
 const RULES_PATH := "res://features/settlements/resources/furnishing/bar.tres"
 
@@ -26,6 +26,7 @@ func _run() -> void:
 		_finish()
 		return
 	var building := shell_scene.instantiate() as Node3D
+	building.set("building_id", "validation.facility_furnish")
 	root.add_child(building)
 	await process_frame
 	await process_frame

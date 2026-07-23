@@ -27,6 +27,7 @@ func _run_validation() -> void:
 		return
 
 	_expect(failures, "starting hatchet seeded to weapon slot", actor.get_equipped_item("weapon") == HATCHET)
+	_expect(failures, "starting hatchet has durable stack ID", not equipment.get_equipped_stack_id("weapon").is_empty())
 
 	# equip replaces, weight, unequip
 	var replaced := actor.equip_item_to_slot(BRONZE_SWORD, "weapon")
@@ -63,6 +64,7 @@ func _run_validation() -> void:
 
 func _make_actor(starting_equipment: Array) -> WorldActor:
 	var actor := WorldActor.new()
+	actor.stable_id = "validation.equipment_actor"
 	root.add_child(actor)
 	actor.starting_equipment = starting_equipment
 	actor._create_actor_capabilities()
@@ -75,7 +77,7 @@ func _make_actor(starting_equipment: Array) -> WorldActor:
 
 func _finish(failures: Array[String]) -> void:
 	if failures.is_empty():
-		print("PASS: EquipmentCapability sane (10 checks)")
+		print("PASS: EquipmentCapability sane (11 checks)")
 		quit(0)
 	else:
 		for f in failures:

@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://g8aq5jo30vws"]
 
 [ext_resource type="Script" uid="uid://bsceawqilt6vt" path="res://features/settlements/bridge/settlement_jail.gd" id="1_jail"]
-[ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/woodbrick_shop_medium.tscn" id="2_building"]
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/medium_wood_hall.tscn" id="2_building"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/jail.tres" id="2_eoaic"]
 
 [node name="SettlementJail" type="Node3D" unique_id=1524920645]
@@ -20,6 +20,7 @@ facility_type = "jail"
 display_name = "Jail"
 building_type = "jail"
 use_law_profile_trespass_rules = false
-population_capacity = 2
 
 [node name="Staff" type="Node3D" parent="." unique_id=407603258]
+
+[node name="Furniture" type="Node3D" parent="."]

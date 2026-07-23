@@ -196,19 +196,19 @@ func _on_towns_law_toggled(pressed: bool) -> void:
 		_add_law_border((town as Node3D).global_position.y + 0.6, points)
 	# Constructed towns get a tight law border too: their buildings'
 	# footprint plus padding (the zoning circle is the separate, larger claim).
-	var construction := get_tree().get_first_node_in_group("construction_records")
-	if construction != null:
+	var construction := get_tree().get_first_node_in_group("construction_controller")
+	var building_registry := BootstrapContext.service(BuildingRegistry.SERVICE_ID) as BuildingRegistry
+	if construction != null and building_registry != null:
 		var settlements: Dictionary = construction.call("get_settlements")
 		for settlement_id in settlements:
 			var settlement: Dictionary = settlements[settlement_id]
-			var buildings: Dictionary = settlement["buildings"]
+			var buildings := building_registry.get_buildings_for_settlement(settlement_id)
 			if buildings.is_empty():
 				continue
 			var bounds_min := Vector2(INF, INF)
 			var bounds_max := Vector2(-INF, -INF)
-			for building_id in buildings:
-				var building: Dictionary = buildings[building_id]
-				var t: Array = building["transform"]
+			for building in buildings:
+				var transform: Transform3D = building["world_transform"]
 				# Wrap the building's actual rotated footprint, not just its
 				# origin (which sits at a model corner): a town of ONE
 				# building still gets a visible border around the whole house.
@@ -217,9 +217,9 @@ func _on_towns_law_toggled(pressed: bool) -> void:
 				if definition != null:
 					footprint = definition.get("footprint_size")
 				var half := footprint * 0.5
-				var basis_x := Vector2(t[0], t[2])
-				var basis_z := Vector2(t[6], t[8])
-				var origin := Vector2(t[9], t[11])
+				var basis_x := Vector2(transform.basis.x.x, transform.basis.x.z)
+				var basis_z := Vector2(transform.basis.z.x, transform.basis.z.z)
+				var origin := Vector2(transform.origin.x, transform.origin.z)
 				for corner: Vector2 in [Vector2(half.x, half.y), Vector2(half.x, -half.y), Vector2(-half.x, half.y), Vector2(-half.x, -half.y)]:
 					var world_corner: Vector2 = origin + basis_x * corner.x + basis_z * corner.y
 					bounds_min = Vector2(minf(bounds_min.x, world_corner.x), minf(bounds_min.y, world_corner.y))
@@ -232,8 +232,8 @@ func _on_towns_law_toggled(pressed: bool) -> void:
 				bounds_max,
 				Vector2(bounds_min.x, bounds_max.y),
 			])
-			var center: Array = settlement["center"]
-			_add_law_border(float(center[1]) + 0.6, points)
+			var center: Vector3 = settlement["world_position"]
+			_add_law_border(center.y + 0.6, points)
 
 
 func _add_law_border(y: float, points: PackedVector2Array) -> void:
@@ -256,7 +256,7 @@ func _refresh_towns_list() -> void:
 		return
 	for child in _towns_list.get_children():
 		child.queue_free()
-	var construction := get_tree().get_first_node_in_group("construction_records")
+	var construction := get_tree().get_first_node_in_group("construction_controller")
 	if construction != null:
 		var settlements: Dictionary = construction.call("get_settlements")
 		for settlement_id in settlements:
@@ -817,7 +817,7 @@ func _process(delta: float) -> void:
 ## averaged terrain normal under its footprint. A translucent footprint disc
 ## shows green (slope acceptable) or red (too steep). Left press anchors the
 ## position; dragging while held rotates the building to face the cursor;
-## release finalizes through the ConstructionRecords (record first, scene
+## release finalizes through the ConstructionController (record first, scene
 ## realized by the bridge). Right click or Escape cancels.
 
 
@@ -916,7 +916,7 @@ func _apply_ghost_transform(ground_position: Vector3) -> void:
 		return
 	var solution := BuildingPlacementSolver.solve(camera.get_world_3d().direct_space_state, ground_position, _ghost_footprint, _ghost_yaw, _ghost_y_offset)
 	var zone := {"allowed": true, "reason": ""}
-	var construction := get_tree().get_first_node_in_group("construction_records")
+	var construction := get_tree().get_first_node_in_group("construction_controller")
 	if construction != null:
 		zone = construction.call("can_place", ground_position, _ghost_faction)
 	_ghost_valid = bool(solution["slope_ok"]) and bool(zone["allowed"])
@@ -941,7 +941,7 @@ func _finalize_placement() -> void:
 			_placer_status.text = _ghost_reason if not _ghost_reason.is_empty() else "Cannot place here."
 		_ghost_anchored = false
 		return
-	var construction := get_tree().get_first_node_in_group("construction_records")
+	var construction := get_tree().get_first_node_in_group("construction_controller")
 	if construction == null:
 		_placer_status.text = "No construction records service."
 		_cancel_placement()
