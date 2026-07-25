@@ -15,6 +15,7 @@ var _visibility_actor: WorldActor
 var _latched_focus_actor: WorldActor
 var _focus_active := false
 var _last_followed_id := 0
+var _buildings: Array[Node] = []
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -35,6 +36,12 @@ func _do_initialize() -> void:
 	_party_manager = root_scene.get_node_or_null("PartyManager") as PartyManager
 	_camera = root_scene.get_node_or_null("CameraRig/CameraPivot/Camera3D") as Camera3D
 	_initialized = _party_manager != null and _camera != null
+	var tree := get_tree()
+	if tree != null:
+		for node in tree.get_nodes_in_group("world_building"):
+			_register_building(node)
+		if not tree.node_added.is_connected(_on_node_added):
+			tree.node_added.connect(_on_node_added)
 
 
 func _process(_delta: float) -> void:
@@ -138,10 +145,26 @@ func _get_shared_selected_building_level_actor() -> WorldActor:
 func _find_building_for_actor(actor: WorldActor) -> Node:
 	if actor == null:
 		return null
-	for node in get_tree().get_nodes_in_group("world_building"):
-		if node != null and node.get_script() == WORLD_BUILDING_SCRIPT and node.is_actor_inside(actor):
+	for index in range(_buildings.size() - 1, -1, -1):
+		var node := _buildings[index]
+		if node == null or not is_instance_valid(node) or not node.is_inside_tree():
+			_buildings.remove_at(index)
+			continue
+		if node.has_method("is_visibility_candidate") and not bool(node.call("is_visibility_candidate", actor)):
+			continue
+		if node.is_actor_inside(actor):
 			return node
 	return null
+
+
+func _on_node_added(node: Node) -> void:
+	_register_building(node)
+
+
+func _register_building(node: Node) -> void:
+	if node == null or node.get_script() != WORLD_BUILDING_SCRIPT or _buildings.has(node):
+		return
+	_buildings.append(node)
 
 
 func get_active_building() -> Node:

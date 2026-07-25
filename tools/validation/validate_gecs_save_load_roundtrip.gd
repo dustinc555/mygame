@@ -73,6 +73,7 @@ func _run() -> void:
 		"generation_source": "validation",
 		"generation_index": 4,
 		"member_name": "Roundtrip Worker",
+		"actor_script_path": "res://features/core/party/party_member.gd",
 		"character_realizer_id": "settler_common",
 		"character_realizer_path": "res://realizers/settler_common.tres",
 		"character_realizer_signature": "settler-signature",
@@ -81,6 +82,12 @@ func _run() -> void:
 		"character_type_signature": "soldier-signature",
 		"faction_id": "RoundtripFaction",
 		"role_id": "worker",
+		"life_state": NpcRules.LifeState.DEAD,
+		"body_state": "corpse",
+		"last_world_position": Vector3(18.0, 0.5, -27.0),
+		"last_world_position_initialized": true,
+		"last_world_transform": Transform3D(Basis.from_euler(Vector3(0.0, 0.7, 0.0)), Vector3(18.0, 0.5, -27.0)),
+		"last_world_transform_initialized": true,
 		"realization_state": "ledger",
 		"ledger_work_minutes": 90,
 		"skill_levels": {SkillRules.MOVEMENT_RUNNING: 5},
@@ -95,6 +102,24 @@ func _run() -> void:
 		],
 		"equipment_slots": {"main_hand": "res://items/validation/hammer.tres"},
 	})
+	bridge.upsert_population_record({
+		"actor_id": "actor.corpse_transform",
+		"stable_id": "actor.corpse_transform",
+		"settlement_id": "roundtrip_town",
+		"member_name": "Moved Corpse",
+		"faction_id": "RoundtripFaction",
+		"life_state": NpcRules.LifeState.DEAD,
+		"body_state": "corpse",
+		"last_world_position": Vector3(30.0, 0.0, 30.0),
+		"last_world_position_initialized": true,
+	})
+	var corpse_actor := FakeHumanoid.new()
+	corpse_actor.name = "CorpseTransformActor"
+	corpse_actor.stable_id = "actor.corpse_transform"
+	corpse_actor.life_state = NpcRules.LifeState.DEAD
+	root_node.add_child(corpse_actor)
+	bridge.register_actor(corpse_actor, "roundtrip_town", {"role_id": "worker"})
+	corpse_actor.global_transform = Transform3D(Basis.from_euler(Vector3(0.0, 1.1, 0.0)), Vector3(31.0, 0.75, 29.0))
 	bridge.upsert_settlement_state("roundtrip_town", {
 		"settlement_id": "roundtrip_town",
 		"faction_id": "RoundtripFaction",
@@ -221,10 +246,15 @@ func _run() -> void:
 	loaded_root.add_child(loaded_bridge)
 	loaded_context.register(loaded_bridge.SERVICE_ID, loaded_bridge)
 	loaded_bridge.initialize(loaded_context)
+	var loaded_world_time = load(WORLD_TIME_CONTROLLER_PATH).new()
+	loaded_world_time.name = "WorldTimeController"
+	loaded_root.add_child(loaded_world_time)
+	loaded_context.register(loaded_world_time.SERVICE_ID, loaded_world_time)
+	loaded_world_time.initialize(loaded_context)
 	if not bool(loaded_bridge.load_gecs_world(SAVE_PATH)):
 		_fail("GECS bridge should load the validation world")
 	else:
-		_validate_loaded_state(loaded_bridge)
+		_validate_loaded_state(loaded_bridge, loaded_world_time)
 
 	root_node.queue_free()
 	loaded_root.queue_free()
@@ -240,7 +270,7 @@ func _run() -> void:
 	quit(1)
 
 
-func _validate_loaded_state(bridge: Node) -> void:
+func _validate_loaded_state(bridge: Node, world_time: Node) -> void:
 	var time_state: Dictionary = bridge.call("get_world_time_state")
 	if absf(float(time_state.get("total_world_minutes", 0.0)) - ((6.0 * 60.0) + 9.5 * 60.0)) > 0.01:
 		_fail("GECS save/load should round-trip total world minutes")
@@ -262,6 +292,21 @@ func _validate_loaded_state(bridge: Node) -> void:
 	var actor_record: Dictionary = bridge.call("get_population_record", "actor.roundtrip")
 	if str(actor_record.get("member_name", "")) != "Roundtrip Worker":
 		_fail("GECS save/load should round-trip population records")
+	if str(actor_record.get("actor_script_path", "")) != "res://features/core/party/party_member.gd":
+		_fail("GECS save/load should preserve the person's projection script")
+	if int(actor_record.get("life_state", -1)) != NpcRules.LifeState.DEAD or str(actor_record.get("body_state", "")) != "corpse":
+		_fail("GECS save/load should preserve a dead person's corpse state")
+	var expected_corpse_transform := Transform3D(Basis.from_euler(Vector3(0.0, 0.7, 0.0)), Vector3(18.0, 0.5, -27.0))
+	var saved_corpse_transform: Transform3D = actor_record.get("last_world_transform", Transform3D.IDENTITY)
+	if not bool(actor_record.get("last_world_transform_initialized", false)) or not saved_corpse_transform.is_equal_approx(expected_corpse_transform):
+		_fail("GECS save/load should preserve a corpse's world transform")
+	var nearby_corpses: Array = bridge.call("get_corpse_population_records_near", Vector3(18.0, 0.0, -27.0), 2.0)
+	if nearby_corpses.size() != 1 or str((nearby_corpses[0] as Dictionary).get("actor_id", "")) != "actor.roundtrip":
+		_fail("GECS corpse spatial index should restore nearby dead people without a global scan")
+	bridge.call("_rebuild_actor_spatial_index")
+	nearby_corpses = bridge.call("get_corpse_population_records_near", Vector3(18.0, 0.0, -27.0), 2.0)
+	if nearby_corpses.size() != 1:
+		_fail("Live actor spatial rebuilds must not erase the durable corpse index")
 	if int(actor_record.get("ledger_work_minutes", 0)) != 90:
 		_fail("GECS save/load should round-trip population ledger fields")
 	if str(actor_record.get("character_realizer_id", "")) != "settler_common" or str(actor_record.get("character_realizer_signature", "")) != "settler-signature":
@@ -276,6 +321,22 @@ func _validate_loaded_state(bridge: Node) -> void:
 	var equipment_slots: Dictionary = actor_record.get("equipment_slots", {})
 	if str(equipment_slots.get("main_hand", "")) != "res://items/validation/hammer.tres":
 		_fail("GECS save/load should round-trip actor equipment slots")
+	var moved_corpse_record: Dictionary = bridge.call("get_population_record", "actor.corpse_transform")
+	var expected_moved_transform := Transform3D(Basis.from_euler(Vector3(0.0, 1.1, 0.0)), Vector3(31.0, 0.75, 29.0))
+	if not (moved_corpse_record.get("last_world_transform", Transform3D.IDENTITY) as Transform3D).is_equal_approx(expected_moved_transform):
+		_fail("Direct GECS save should capture a live corpse's exact current transform")
+	world_time.advance_hours(24.0 * 30.0)
+	actor_record = bridge.call("get_population_record", "actor.roundtrip")
+	if int(actor_record.get("life_state", -1)) != NpcRules.LifeState.DEAD or str(actor_record.get("body_state", "")) != "corpse":
+		_fail("Thirty days of world time must not remove or alter an untouched corpse")
+	if not bool(bridge.call("update_population_body_state", "actor.roundtrip", "buried", "grave.roundtrip")):
+		_fail("Explicit burial should update body disposition")
+	actor_record = bridge.call("get_population_record", "actor.roundtrip")
+	if str(actor_record.get("body_state", "")) != "buried" or str(actor_record.get("body_container_id", "")) != "grave.roundtrip":
+		_fail("Burial should retain the person and link their grave")
+	nearby_corpses = bridge.call("get_corpse_population_records_near", Vector3(18.0, 0.0, -27.0), 2.0)
+	if not nearby_corpses.is_empty():
+		_fail("Buried people should leave the world-corpse spatial index")
 
 	var settlement_state: Dictionary = bridge.call("get_settlement_state", "roundtrip_town")
 	if int(settlement_state.get("population", 0)) != 12:

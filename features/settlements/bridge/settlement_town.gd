@@ -112,6 +112,30 @@ func _ready() -> void:
 	set_process(Engine.is_editor_hint())
 	_repair_guard_authoring_tree()
 	_refresh_town_border_debug()
+	if not Engine.is_editor_hint():
+		_register_with_population_realization.call_deferred()
+
+
+func _exit_tree() -> void:
+	if Engine.is_editor_hint() or get_tree() == null:
+		return
+	var settlement_controller := get_tree().get_first_node_in_group("settlement_controller")
+	if settlement_controller != null and settlement_controller.has_method("unregister_settlement_anchor"):
+		settlement_controller.call("unregister_settlement_anchor", self)
+	var controller := get_tree().get_first_node_in_group("population_realization_controller")
+	if controller != null and controller.has_method("unregister_settlement"):
+		controller.call("unregister_settlement", self)
+
+
+func _register_with_population_realization() -> void:
+	if not is_inside_tree() or get_tree() == null:
+		return
+	var settlement_controller := get_tree().get_first_node_in_group("settlement_controller")
+	if settlement_controller != null and settlement_controller.has_method("register_settlement_anchor"):
+		settlement_controller.call("register_settlement_anchor", self)
+	var controller := get_tree().get_first_node_in_group("population_realization_controller")
+	if controller != null and controller.has_method("register_settlement"):
+		controller.call("register_settlement", self)
 
 
 func _process(delta: float) -> void:
@@ -297,7 +321,7 @@ func _repair_guard_authoring_tree() -> void:
 
 
 func _append_guard_slot(slots: Array[Dictionary], role_index: int, actor: Node) -> void:
-	var actor_alive := _is_actor_alive(actor)
+	var actor_dead := actor != null and int(actor.get("life_state")) == NpcRules.LifeState.DEAD
 	var slot := {
 		"slot_id": _staff_slot_id("guard", role_index),
 		"role_id": "guard",
@@ -305,12 +329,11 @@ func _append_guard_slot(slots: Array[Dictionary], role_index: int, actor: Node) 
 		"display_name": _indexed_display_name(guard_name, role_index),
 		"population_cost": 1,
 		"replacement_delay_days": DEFAULT_REPLACEMENT_DELAY_DAYS,
-		"filled": actor_alive,
+		"filled": actor != null and not actor_dead,
 		"authority_scope": "settlement_authority",
 	}
-	if actor != null:
-		if not actor_alive:
-			slot["dead_actor_key"] = _actor_key(actor)
+	if actor_dead:
+		slot["dead_actor_key"] = _actor_key(actor)
 	slots.append(slot)
 
 

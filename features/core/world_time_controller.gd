@@ -88,7 +88,7 @@ func _process(delta: float) -> void:
 	if is_world_paused():
 		return
 	var seconds_per_minute := maxf(real_seconds_per_game_minute, 0.01)
-	advance_minutes(delta / seconds_per_minute)
+	_advance_minutes(delta / seconds_per_minute, false)
 
 
 func get_day_index() -> int:
@@ -226,9 +226,17 @@ func release_pause(reason: String) -> void:
 
 
 func advance_minutes(minutes: float) -> void:
+	_advance_minutes(minutes, true)
+
+
+func _advance_minutes(minutes: float, catch_up_vitals: bool) -> void:
 	if minutes <= 0.0:
 		return
 	total_world_minutes += minutes
+	if catch_up_vitals:
+		var bridge := _get_gecs_world()
+		if bridge != null and bridge.has_method("catch_up_vitals"):
+			bridge.call("catch_up_vitals", minutes * maxf(real_seconds_per_game_minute, 0.01))
 	_emit_time_boundaries()
 	_emit_time_changed(false)
 	sync_world_time_state()

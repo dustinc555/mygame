@@ -16,6 +16,7 @@ const COMBAT_TARGETING_SYSTEM_SCRIPT_PATH := "res://features/combat/sim/game_com
 const COMBAT_SLOT_SYSTEM_SCRIPT_PATH := "res://features/combat/sim/game_combat_slot_system.gd"
 const COMBAT_RESOLUTION_SYSTEM_SCRIPT_PATH := "res://features/combat/sim/game_combat_resolution_system.gd"
 const VITALS_SYSTEM_SCRIPT_PATH := "res://features/actors/sim/game_vitals_system.gd"
+const POPULATION_VITALS_SYSTEM_SCRIPT_PATH := "res://features/world_sim/sim/population/game_population_vitals_system.gd"
 const COMBAT_MOVEMENT_SYSTEM_SCRIPT_PATH := "res://features/combat/sim/game_combat_movement_system.gd"
 
 const C_NODE_PATH := "res://features/actors/bridge/c_game_actor_node.gd"
@@ -29,6 +30,7 @@ const C_AI_SCHEDULE_PATH := "res://features/ai/sim/c_game_ai_schedule.gd"
 const C_AI_STATE_PATH := "res://features/ai/sim/c_game_ai_state.gd"
 const C_GOAL_INTENT_PATH := "res://features/ai/sim/c_game_goal_intent.gd"
 const C_POPULATION_RECORD_PATH := "res://features/world_sim/sim/population/c_game_population_record.gd"
+const C_ACTIVE_POPULATION_VITALS_PATH := "res://features/world_sim/sim/population/c_game_active_population_vitals.gd"
 const C_SETTLEMENT_STATE_PATH := "res://features/settlements/sim/c_game_settlement_state.gd"
 const C_SETTLEMENT_FOOD_STATUS_PATH := "res://features/settlements/sim/c_game_settlement_food_status.gd"
 const C_STAFF_SLOT_PATH := "res://features/settlements/sim/c_game_staff_slot.gd"
@@ -75,6 +77,11 @@ var world
 var _actor_entity_by_actor_id: Dictionary = {}
 var _actor_id_by_instance_id: Dictionary = {}
 var _population_entity_by_actor_id: Dictionary = {}
+var _population_actor_ids_by_settlement: Dictionary = {}
+var _population_settlement_by_actor_id: Dictionary = {}
+var _population_actor_ids_by_squad: Dictionary = {}
+var _population_squad_by_actor_id: Dictionary = {}
+var _alive_population_count_by_settlement: Dictionary = {}
 var _settlement_entity_by_id: Dictionary = {}
 var _settlement_food_entity_by_id: Dictionary = {}
 var _staff_slot_entity_by_key: Dictionary = {}
@@ -107,8 +114,12 @@ var _initialized := false
 const WORLD_BRAIN_LOG_CAP := 200
 signal world_event_logged(entry)
 signal world_reindexed
+signal population_life_state_changed(actor_id: String, previous_state: int, next_state: int)
 var _world_brain_log: Array[Dictionary] = []
 var _actor_spatial_nodes_by_cell: Dictionary = {}
+const CORPSE_SPATIAL_CELL_SIZE := 32.0
+var _corpse_actor_ids_by_cell: Dictionary = {}
+var _corpse_cell_by_actor_id: Dictionary = {}
 var _actor_spatial_index_valid := false
 var _actor_spatial_index_elapsed := 999.0
 var _spatial_query_calls := 0
@@ -130,6 +141,9 @@ var _combat_targeting_system_script
 var _combat_slot_system_script
 var _combat_resolution_system_script
 var _vitals_system_script
+var _vitals_system
+var _population_vitals_system_script
+var _population_vitals_system
 var _combat_movement_system_script
 var _registered_direct_script_ecs_singleton := false
 var _direct_script_ecs_placeholder: Node
@@ -144,6 +158,7 @@ var C_AI_SCHEDULE
 var C_AI_STATE
 var C_GOAL_INTENT
 var C_POPULATION_RECORD
+var C_ACTIVE_POPULATION_VITALS
 var C_SETTLEMENT_STATE
 var C_STAFF_SLOT
 var C_STAFF_VACANCY
@@ -236,6 +251,7 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 	else:
 		_ensure_actor_combat_components(entity)
 	_write_actor_components(entity, actor, actor_id, settlement_id, context)
+	_hydrate_live_vitals_from_population(entity, actor_id)
 	_actor_id_by_instance_id[actor.get_instance_id()] = actor_id
 	_actor_spatial_index_valid = false
 	sync_actor_inventory(actor)
@@ -310,6 +326,11 @@ func unregister_actor(actor: Node) -> void:
 		if spatial != null:
 			final_world_position = spatial.world_position
 			has_final_world_position = true
+		var population_entity = _population_entity_by_actor_id.get(actor_id)
+		var population = population_entity.get_component(C_POPULATION_RECORD) if population_entity != null and is_instance_valid(population_entity) else null
+		if population != null:
+			population.realization_state = "ledger"
+		_copy_live_vitals_to_population(entity, actor_id)
 	if entity != null and is_instance_valid(entity) and world != null:
 		world.remove_entity(entity)
 	_actor_entity_by_actor_id.erase(actor_id)
@@ -557,25 +578,310 @@ func upsert_population_record(record: Dictionary) -> Dictionary:
 		entity = _entity_script.new()
 		entity.name = _entity_node_name("Population", actor_id)
 		entity.id = _entity_id("population", actor_id)
-		world.add_entity(entity, [C_POPULATION_RECORD.new()])
+		world.add_entity(entity, [C_POPULATION_RECORD.new(), C_VITALS.new(), C_VITALS_INPUTS.new()])
 		_population_entity_by_actor_id[actor_id] = entity
+	_ensure_population_vitals_components(entity)
 	var component = entity.get_component(C_POPULATION_RECORD)
+	var vitals = entity.get_component(C_VITALS)
+	var vitals_inputs = entity.get_component(C_VITALS_INPUTS)
+	var previous_settlement_id := str(component.settlement_id)
+	var previous_squad_id := str(component.squad_name)
+	var was_alive := not str(component.actor_id).is_empty() and int(component.life_state) != NpcRules.LifeState.DEAD
 	component.apply_record(record)
+	if record.has("vitals"):
+		vitals.apply_durable_state(record.get("vitals", {}))
+		vitals.vitals_seeded = true
+	else:
+		vitals.life_state = component.life_state
+	if record.has("vitals_inputs"):
+		vitals_inputs.apply_durable_state(record.get("vitals_inputs", {}))
+	component.life_state = vitals.life_state
+	_sync_active_population_vitals_tag(entity, vitals)
+	_adjust_alive_population_count(previous_settlement_id, -1 if was_alive else 0)
+	_adjust_alive_population_count(str(component.settlement_id), 1 if int(component.life_state) != NpcRules.LifeState.DEAD else 0)
+	_reindex_population_settlement(component, previous_settlement_id)
+	_reindex_population_squad(component, previous_squad_id)
+	_reindex_corpse_record(component)
 	_sync_record_equipment_slots(actor_id, record.get("equipment_slots", {}))
 	_sync_record_inventory_entries(actor_id, record.get("inventory_entries", []))
-	return _populate_record_inventory_and_equipment(component.to_record())
+	return _population_record_from_entity(entity)
+
+
+func update_population_skill_progress(actor_id: String, skill_id: String, level: int, xp: float) -> bool:
+	var entity = _population_entity_by_actor_id.get(actor_id)
+	var component = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
+	if component == null or skill_id.is_empty():
+		return false
+	if level > SkillRules.DEFAULT_LEVEL:
+		component.skill_levels[skill_id] = level
+	else:
+		component.skill_levels.erase(skill_id)
+	if xp > 0.0:
+		component.skill_xp[skill_id] = xp
+	else:
+		component.skill_xp.erase(skill_id)
+	return true
+
+
+func update_population_ledger_state(actor_id: String, state: Dictionary) -> bool:
+	var entity = _population_entity_by_actor_id.get(actor_id)
+	var component = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
+	if component == null:
+		return false
+	component.ledger_activity_state = str(state.get("ledger_activity_state", component.ledger_activity_state))
+	component.ledger_minutes_elapsed = int(state.get("ledger_minutes_elapsed", component.ledger_minutes_elapsed))
+	component.ledger_work_minutes = int(state.get("ledger_work_minutes", component.ledger_work_minutes))
+	component.ledger_rest_minutes = int(state.get("ledger_rest_minutes", component.ledger_rest_minutes))
+	component.ledger_activity_minutes = (state.get("ledger_activity_minutes", component.ledger_activity_minutes) as Dictionary).duplicate(true)
+	component.last_ledger_absolute_minute = int(state.get("last_ledger_absolute_minute", component.last_ledger_absolute_minute))
+	return true
+
+
+func update_population_realization(actor_id: String, realization_state: String, world_position: Vector3, position_initialized: bool) -> bool:
+	var entity = _population_entity_by_actor_id.get(actor_id)
+	var component = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
+	if component == null:
+		return false
+	component.realization_state = realization_state
+	component.last_world_position = world_position
+	component.last_world_position_initialized = position_initialized
+	if int(component.life_state) == NpcRules.LifeState.DEAD:
+		component.last_world_transform.origin = world_position
+		component.last_world_transform_initialized = position_initialized
+		_reindex_corpse_record(component)
+	return true
+
+
+func update_population_death(actor_id: String, world_transform: Transform3D) -> bool:
+	var entity = _population_entity_by_actor_id.get(actor_id)
+	var component = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
+	if component == null:
+		return false
+	if int(component.life_state) != NpcRules.LifeState.DEAD:
+		_adjust_alive_population_count(str(component.settlement_id), -1)
+	component.life_state = NpcRules.LifeState.DEAD
+	var vitals = entity.get_component(C_VITALS)
+	if vitals != null:
+		vitals.life_state = NpcRules.LifeState.DEAD
+	_sync_active_population_vitals_tag(entity, vitals)
+	component.body_state = "corpse"
+	component.body_container_id = ""
+	component.assigned_slot_id = ""
+	component.last_world_transform = world_transform
+	component.last_world_transform_initialized = true
+	component.last_world_position = world_transform.origin
+	component.last_world_position_initialized = true
+	_reindex_corpse_record(component)
+	return true
+
+
+func update_population_corpse_transform(actor_id: String, world_transform: Transform3D) -> bool:
+	var entity = _population_entity_by_actor_id.get(actor_id)
+	var component = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
+	if component == null or int(component.life_state) != NpcRules.LifeState.DEAD or str(component.body_state) != "corpse":
+		return false
+	component.last_world_transform = world_transform
+	component.last_world_transform_initialized = true
+	component.last_world_position = world_transform.origin
+	component.last_world_position_initialized = true
+	_reindex_corpse_record(component)
+	return true
+
+
+func update_population_body_state(actor_id: String, body_state: String, body_container_id := "") -> bool:
+	var entity = _population_entity_by_actor_id.get(actor_id)
+	var component = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
+	if component == null or int(component.life_state) != NpcRules.LifeState.DEAD:
+		return false
+	component.body_state = body_state
+	component.body_container_id = body_container_id
+	component.realization_state = "ledger"
+	_reindex_corpse_record(component)
+	return true
+
+
+func get_corpse_population_records_near(world_position: Vector3, radius: float) -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	if radius < 0.0:
+		return records
+	var min_cell := _corpse_spatial_cell(world_position - Vector3(radius, 0.0, radius))
+	var max_cell := _corpse_spatial_cell(world_position + Vector3(radius, 0.0, radius))
+	var radius_squared := radius * radius
+	for cell_x in range(min_cell.x, max_cell.x + 1):
+		for cell_y in range(min_cell.y, max_cell.y + 1):
+			var ids: Dictionary = _corpse_actor_ids_by_cell.get(Vector2i(cell_x, cell_y), {})
+			for actor_id_value in ids.keys():
+				var entity = _population_entity_by_actor_id.get(str(actor_id_value))
+				var component = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
+				if component == null:
+					continue
+				var offset: Vector3 = component.last_world_position - world_position
+				offset.y = 0.0
+				if offset.length_squared() <= radius_squared:
+					records.append(_population_record_from_entity(entity))
+	return records
+
+
+func _corpse_spatial_cell(world_position: Vector3) -> Vector2i:
+	return Vector2i(floori(world_position.x / CORPSE_SPATIAL_CELL_SIZE), floori(world_position.z / CORPSE_SPATIAL_CELL_SIZE))
+
+
+func _reindex_corpse_record(component) -> void:
+	if component == null:
+		return
+	var actor_id := str(component.actor_id)
+	var previous_cell = _corpse_cell_by_actor_id.get(actor_id)
+	if previous_cell is Vector2i:
+		var previous_ids: Dictionary = _corpse_actor_ids_by_cell.get(previous_cell, {})
+		previous_ids.erase(actor_id)
+		if previous_ids.is_empty():
+			_corpse_actor_ids_by_cell.erase(previous_cell)
+		else:
+			_corpse_actor_ids_by_cell[previous_cell] = previous_ids
+		_corpse_cell_by_actor_id.erase(actor_id)
+	if int(component.life_state) != NpcRules.LifeState.DEAD or str(component.body_state) != "corpse" or not bool(component.last_world_position_initialized):
+		return
+	var cell := _corpse_spatial_cell(component.last_world_position)
+	var ids: Dictionary = _corpse_actor_ids_by_cell.get(cell, {})
+	ids[actor_id] = true
+	_corpse_actor_ids_by_cell[cell] = ids
+	_corpse_cell_by_actor_id[actor_id] = cell
+
+
+func _reindex_population_settlement(component, previous_settlement_id := "") -> void:
+	if component == null:
+		return
+	var actor_id := str(component.actor_id)
+	var old_settlement_id := str(previous_settlement_id)
+	if old_settlement_id.is_empty():
+		old_settlement_id = str(_population_settlement_by_actor_id.get(actor_id, ""))
+	if not old_settlement_id.is_empty():
+		var old_ids: Dictionary = _population_actor_ids_by_settlement.get(old_settlement_id, {})
+		old_ids.erase(actor_id)
+		if old_ids.is_empty():
+			_population_actor_ids_by_settlement.erase(old_settlement_id)
+		else:
+			_population_actor_ids_by_settlement[old_settlement_id] = old_ids
+	var settlement_id := str(component.settlement_id)
+	if settlement_id.is_empty():
+		_population_settlement_by_actor_id.erase(actor_id)
+		return
+	var ids: Dictionary = _population_actor_ids_by_settlement.get(settlement_id, {})
+	ids[actor_id] = true
+	_population_actor_ids_by_settlement[settlement_id] = ids
+	_population_settlement_by_actor_id[actor_id] = settlement_id
+
+
+func _reindex_population_squad(component, previous_squad_id := "") -> void:
+	if component == null:
+		return
+	var actor_id := str(component.actor_id)
+	var old_squad_id := str(previous_squad_id)
+	if old_squad_id.is_empty():
+		old_squad_id = str(_population_squad_by_actor_id.get(actor_id, ""))
+	if not old_squad_id.is_empty():
+		var old_ids: Dictionary = _population_actor_ids_by_squad.get(old_squad_id, {})
+		old_ids.erase(actor_id)
+		if old_ids.is_empty():
+			_population_actor_ids_by_squad.erase(old_squad_id)
+		else:
+			_population_actor_ids_by_squad[old_squad_id] = old_ids
+	var squad_id := str(component.squad_name)
+	if squad_id.is_empty():
+		_population_squad_by_actor_id.erase(actor_id)
+		return
+	var ids: Dictionary = _population_actor_ids_by_squad.get(squad_id, {})
+	ids[actor_id] = true
+	_population_actor_ids_by_squad[squad_id] = ids
+	_population_squad_by_actor_id[actor_id] = squad_id
+
+
+func get_population_records_for_settlement(settlement_id: String) -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	var actor_ids: Dictionary = _population_actor_ids_by_settlement.get(settlement_id, {})
+	for actor_id_value in actor_ids.keys():
+		var entity = _population_entity_by_actor_id.get(str(actor_id_value))
+		var component = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
+		if component == null:
+			continue
+		records.append(_population_record_from_entity(entity))
+	records.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("actor_id", "")) < str(b.get("actor_id", "")))
+	return records
+
+
+func get_population_records_for_squad(squad_id: String) -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	var actor_ids: Dictionary = _population_actor_ids_by_squad.get(squad_id, {})
+	for actor_id_value in actor_ids.keys():
+		var entity = _population_entity_by_actor_id.get(str(actor_id_value))
+		var component = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
+		if component != null:
+			records.append(_population_record_from_entity(entity))
+	records.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("actor_id", "")) < str(b.get("actor_id", "")))
+	return records
+
+
+func count_alive_population_records_for_settlement(settlement_id: String) -> int:
+	return int(_alive_population_count_by_settlement.get(settlement_id, 0))
+
+
+func _adjust_alive_population_count(settlement_id: String, delta: int) -> void:
+	if settlement_id.is_empty() or delta == 0:
+		return
+	var next_count := maxi(0, int(_alive_population_count_by_settlement.get(settlement_id, 0)) + delta)
+	if next_count == 0:
+		_alive_population_count_by_settlement.erase(settlement_id)
+	else:
+		_alive_population_count_by_settlement[settlement_id] = next_count
 
 
 func remove_population_record(actor_id: String) -> void:
 	var entity = _population_entity_by_actor_id.get(actor_id)
+	var component = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
+	if component != null and int(component.life_state) != NpcRules.LifeState.DEAD:
+		_adjust_alive_population_count(str(component.settlement_id), -1)
 	if entity != null and is_instance_valid(entity) and world != null:
 		world.remove_entity(entity)
 	_population_entity_by_actor_id.erase(actor_id)
+	var settlement_id := str(_population_settlement_by_actor_id.get(actor_id, ""))
+	if not settlement_id.is_empty():
+		var settlement_ids: Dictionary = _population_actor_ids_by_settlement.get(settlement_id, {})
+		settlement_ids.erase(actor_id)
+		if settlement_ids.is_empty():
+			_population_actor_ids_by_settlement.erase(settlement_id)
+		else:
+			_population_actor_ids_by_settlement[settlement_id] = settlement_ids
+	_population_settlement_by_actor_id.erase(actor_id)
+	var squad_id := str(_population_squad_by_actor_id.get(actor_id, ""))
+	if not squad_id.is_empty():
+		var squad_ids: Dictionary = _population_actor_ids_by_squad.get(squad_id, {})
+		squad_ids.erase(actor_id)
+		if squad_ids.is_empty():
+			_population_actor_ids_by_squad.erase(squad_id)
+		else:
+			_population_actor_ids_by_squad[squad_id] = squad_ids
+	_population_squad_by_actor_id.erase(actor_id)
+	var corpse_cell = _corpse_cell_by_actor_id.get(actor_id)
+	if corpse_cell is Vector2i:
+		var ids: Dictionary = _corpse_actor_ids_by_cell.get(corpse_cell, {})
+		ids.erase(actor_id)
+		if ids.is_empty():
+			_corpse_actor_ids_by_cell.erase(corpse_cell)
+		else:
+			_corpse_actor_ids_by_cell[corpse_cell] = ids
+	_corpse_cell_by_actor_id.erase(actor_id)
 
 
 func clear_population_records() -> void:
 	if world == null:
 		_population_entity_by_actor_id.clear()
+		_alive_population_count_by_settlement.clear()
+		_population_actor_ids_by_settlement.clear()
+		_population_settlement_by_actor_id.clear()
+		_population_actor_ids_by_squad.clear()
+		_population_squad_by_actor_id.clear()
+		_corpse_actor_ids_by_cell.clear()
+		_corpse_cell_by_actor_id.clear()
 		return
 	var entities: Array = []
 	for entity in world.query.with_all([C_POPULATION_RECORD]).execute():
@@ -584,14 +890,20 @@ func clear_population_records() -> void:
 		if entity != null and is_instance_valid(entity):
 			world.remove_entity(entity)
 	_population_entity_by_actor_id.clear()
+	_alive_population_count_by_settlement.clear()
+	_population_actor_ids_by_settlement.clear()
+	_population_settlement_by_actor_id.clear()
+	_population_actor_ids_by_squad.clear()
+	_population_squad_by_actor_id.clear()
+	_corpse_actor_ids_by_cell.clear()
+	_corpse_cell_by_actor_id.clear()
 
 
 func get_population_record(actor_id: String) -> Dictionary:
 	var entity = _population_entity_by_actor_id.get(actor_id)
 	if entity == null or not is_instance_valid(entity):
 		return {}
-	var component = entity.get_component(C_POPULATION_RECORD)
-	return _populate_record_inventory_and_equipment(component.to_record()) if component != null and component.has_method("to_record") else {}
+	return _population_record_from_entity(entity)
 
 
 func get_population_records() -> Dictionary:
@@ -602,9 +914,141 @@ func get_population_records() -> Dictionary:
 		var component = entity.get_component(C_POPULATION_RECORD)
 		if component == null:
 			continue
-		records[str(component.actor_id)] = _populate_record_inventory_and_equipment(component.to_record()) if component.has_method("to_record") else {}
+		records[str(component.actor_id)] = _population_record_from_entity(entity)
 		_population_entity_by_actor_id[str(component.actor_id)] = entity
 	return records
+
+
+func get_active_population_vitals_count() -> int:
+	return world.query.with_all([C_POPULATION_RECORD, C_ACTIVE_POPULATION_VITALS]).execute().size() if world != null else 0
+
+
+func catch_up_vitals(duration_seconds: float) -> void:
+	if duration_seconds <= 0.0:
+		return
+	if _vitals_system != null:
+		_vitals_system.catch_up_seconds(duration_seconds)
+		for actor_id_value in _actor_entity_by_actor_id.keys():
+			var actor_id := str(actor_id_value)
+			var entity = _actor_entity_by_actor_id.get(actor_id)
+			if entity != null and is_instance_valid(entity):
+				_copy_live_vitals_to_population(entity, actor_id)
+	if _population_vitals_system != null:
+		_population_vitals_system.catch_up_seconds(duration_seconds)
+
+
+func _population_record_from_entity(entity) -> Dictionary:
+	if entity == null or not is_instance_valid(entity):
+		return {}
+	var population = entity.get_component(C_POPULATION_RECORD)
+	if population == null:
+		return {}
+	var record: Dictionary = population.to_record()
+	var vitals = entity.get_component(C_VITALS)
+	if vitals != null and bool(vitals.vitals_seeded):
+		record["life_state"] = vitals.life_state
+		record["vitals"] = vitals.durable_state()
+		var inputs = entity.get_component(C_VITALS_INPUTS)
+		if inputs != null:
+			record["vitals_inputs"] = inputs.durable_state()
+	return _populate_record_inventory_and_equipment(record)
+
+
+func _ensure_population_vitals_components(entity) -> void:
+	if entity == null or not is_instance_valid(entity):
+		return
+	var population = entity.get_component(C_POPULATION_RECORD)
+	if entity.get_component(C_VITALS) == null:
+		var vitals = C_VITALS.new()
+		if population != null:
+			vitals.life_state = population.life_state
+		entity.add_component(vitals)
+	if entity.get_component(C_VITALS_INPUTS) == null:
+		entity.add_component(C_VITALS_INPUTS.new())
+
+
+func _hydrate_live_vitals_from_population(live_entity, actor_id: String) -> void:
+	var population_entity = _population_entity_by_actor_id.get(actor_id)
+	if population_entity == null or not is_instance_valid(population_entity):
+		return
+	_ensure_population_vitals_components(population_entity)
+	var stored = population_entity.get_component(C_VITALS)
+	var live = live_entity.get_component(C_VITALS)
+	if stored == null or live == null or not stored.vitals_seeded:
+		return
+	stored.copy_durable_state_to(live)
+	live.vitals_seeded = true
+	var stored_inputs = population_entity.get_component(C_VITALS_INPUTS)
+	var live_inputs = live_entity.get_component(C_VITALS_INPUTS)
+	if stored_inputs != null:
+		stored_inputs.copy_durable_state_to(live_inputs)
+	var population = population_entity.get_component(C_POPULATION_RECORD)
+	if population != null:
+		population.life_state = live.life_state
+	_sync_active_population_vitals_tag(population_entity, null)
+
+
+func _copy_live_vitals_to_population(live_entity, actor_id: String) -> void:
+	var population_entity = _population_entity_by_actor_id.get(actor_id)
+	if population_entity == null or not is_instance_valid(population_entity):
+		return
+	_ensure_population_vitals_components(population_entity)
+	var live = live_entity.get_component(C_VITALS)
+	var stored = population_entity.get_component(C_VITALS)
+	if live == null or stored == null:
+		return
+	var previous_state: int = int(stored.life_state)
+	live.copy_durable_state_to(stored)
+	stored.vitals_seeded = true
+	var live_inputs = live_entity.get_component(C_VITALS_INPUTS)
+	var stored_inputs = population_entity.get_component(C_VITALS_INPUTS)
+	if live_inputs != null:
+		live_inputs.copy_durable_state_to(stored_inputs)
+	if live.life_state == NpcRules.LifeState.DEAD:
+		var actor := _actor_from_entity(live_entity)
+		var population = population_entity.get_component(C_POPULATION_RECORD)
+		if actor is Node3D and population != null:
+			population.last_world_transform = (actor as Node3D).global_transform
+			population.last_world_transform_initialized = true
+			population.last_world_position = (actor as Node3D).global_position
+			population.last_world_position_initialized = true
+	_apply_population_life_state(population_entity, previous_state, stored.life_state)
+	_sync_active_population_vitals_tag(population_entity, stored)
+
+
+func _sync_active_population_vitals_tag(entity, vitals) -> void:
+	if entity == null or not is_instance_valid(entity):
+		return
+	var active = entity.get_component(C_ACTIVE_POPULATION_VITALS)
+	var population = entity.get_component(C_POPULATION_RECORD)
+	var should_be_active: bool = population != null and str(population.realization_state) != "realized" \
+		and vitals != null and bool(vitals.vitals_seeded) and bool(vitals.needs_active_simulation())
+	if should_be_active and active == null:
+		entity.add_component(C_ACTIVE_POPULATION_VITALS.new())
+	elif not should_be_active and active != null:
+		entity.remove_component(C_ACTIVE_POPULATION_VITALS)
+
+
+func _on_population_vitals_life_state_changed(entity, previous_state: int, next_state: int) -> void:
+	_apply_population_life_state(entity, previous_state, next_state)
+
+
+func _apply_population_life_state(entity, previous_state: int, next_state: int) -> void:
+	var population = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
+	if population == null:
+		return
+	population.life_state = next_state
+	if previous_state == next_state:
+		return
+	if previous_state != NpcRules.LifeState.DEAD and next_state == NpcRules.LifeState.DEAD:
+		_adjust_alive_population_count(str(population.settlement_id), -1)
+		population.body_state = "corpse"
+		population.body_container_id = ""
+		population.assigned_slot_id = ""
+		_reindex_corpse_record(population)
+	elif previous_state == NpcRules.LifeState.DEAD and next_state != NpcRules.LifeState.DEAD:
+		_adjust_alive_population_count(str(population.settlement_id), 1)
+	population_life_state_changed.emit(str(population.actor_id), previous_state, next_state)
 
 
 ## Lightweight counts for the on-screen brain/observability HUD. Reads component
@@ -1581,7 +2025,7 @@ func serialize_state() -> Dictionary:
 
 
 func _load_gecs_scripts() -> bool:
-	if _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _combat_state_sync_system_script != null and _combat_targeting_system_script != null and _combat_slot_system_script != null and _combat_resolution_system_script != null and _vitals_system_script != null and _combat_movement_system_script != null and _component_scripts_loaded():
+	if _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _combat_state_sync_system_script != null and _combat_targeting_system_script != null and _combat_slot_system_script != null and _combat_resolution_system_script != null and _vitals_system_script != null and _population_vitals_system_script != null and _combat_movement_system_script != null and _component_scripts_loaded():
 		return true
 	_ensure_direct_script_ecs_singleton()
 	_load_component_scripts()
@@ -1597,8 +2041,9 @@ func _load_gecs_scripts() -> bool:
 	_combat_slot_system_script = load(COMBAT_SLOT_SYSTEM_SCRIPT_PATH) if _combat_slot_system_script == null else _combat_slot_system_script
 	_combat_resolution_system_script = load(COMBAT_RESOLUTION_SYSTEM_SCRIPT_PATH) if _combat_resolution_system_script == null else _combat_resolution_system_script
 	_vitals_system_script = load(VITALS_SYSTEM_SCRIPT_PATH) if _vitals_system_script == null else _vitals_system_script
+	_population_vitals_system_script = load(POPULATION_VITALS_SYSTEM_SCRIPT_PATH) if _population_vitals_system_script == null else _population_vitals_system_script
 	_combat_movement_system_script = load(COMBAT_MOVEMENT_SYSTEM_SCRIPT_PATH) if _combat_movement_system_script == null else _combat_movement_system_script
-	return _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _combat_state_sync_system_script != null and _combat_targeting_system_script != null and _combat_slot_system_script != null and _combat_resolution_system_script != null and _vitals_system_script != null and _combat_movement_system_script != null and _component_scripts_loaded()
+	return _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _combat_state_sync_system_script != null and _combat_targeting_system_script != null and _combat_slot_system_script != null and _combat_resolution_system_script != null and _vitals_system_script != null and _population_vitals_system_script != null and _combat_movement_system_script != null and _component_scripts_loaded()
 
 
 func _load_component_scripts() -> void:
@@ -1613,6 +2058,7 @@ func _load_component_scripts() -> void:
 	C_AI_STATE = load(C_AI_STATE_PATH) if C_AI_STATE == null else C_AI_STATE
 	C_GOAL_INTENT = load(C_GOAL_INTENT_PATH) if C_GOAL_INTENT == null else C_GOAL_INTENT
 	C_POPULATION_RECORD = load(C_POPULATION_RECORD_PATH) if C_POPULATION_RECORD == null else C_POPULATION_RECORD
+	C_ACTIVE_POPULATION_VITALS = load(C_ACTIVE_POPULATION_VITALS_PATH) if C_ACTIVE_POPULATION_VITALS == null else C_ACTIVE_POPULATION_VITALS
 	C_SETTLEMENT_STATE = load(C_SETTLEMENT_STATE_PATH) if C_SETTLEMENT_STATE == null else C_SETTLEMENT_STATE
 	C_STAFF_SLOT = load(C_STAFF_SLOT_PATH) if C_STAFF_SLOT == null else C_STAFF_SLOT
 	C_STAFF_VACANCY = load(C_STAFF_VACANCY_PATH) if C_STAFF_VACANCY == null else C_STAFF_VACANCY
@@ -1660,6 +2106,7 @@ func _component_scripts_loaded() -> bool:
 		C_AI_STATE,
 		C_GOAL_INTENT,
 		C_POPULATION_RECORD,
+		C_ACTIVE_POPULATION_VITALS,
 		C_SETTLEMENT_STATE,
 		C_STAFF_SLOT,
 		C_STAFF_VACANCY,
@@ -1740,9 +2187,13 @@ func _try_initialize() -> void:
 		var combat_resolution = _combat_resolution_system_script.new()
 		combat_resolution.name = "GameCombatResolutionSystem"
 		world.add_system(combat_resolution)
-		var vitals_system = _vitals_system_script.new()
-		vitals_system.name = "GameVitalsSystem"
-		world.add_system(vitals_system)
+		_vitals_system = _vitals_system_script.new()
+		_vitals_system.name = "GameVitalsSystem"
+		world.add_system(_vitals_system)
+		_population_vitals_system = _population_vitals_system_script.new()
+		_population_vitals_system.name = "GamePopulationVitalsSystem"
+		_population_vitals_system.life_state_changed.connect(_on_population_vitals_life_state_changed)
+		world.add_system(_population_vitals_system)
 		var ai_job_system = _ai_job_system_script.new()
 		ai_job_system.name = "GameAiJobSystem"
 		world.add_system(ai_job_system)
@@ -2606,7 +3057,16 @@ func _sync_live_scene_state_for_save() -> void:
 		if actor == null:
 			continue
 		_write_actor_components(entity, actor, actor_id, _actor_settlement_id(actor), {})
+		_copy_live_vitals_to_population(entity, actor_id)
 		sync_actor_inventory(actor)
+		var population_entity = _population_entity_by_actor_id.get(actor_id)
+		var population = population_entity.get_component(C_POPULATION_RECORD) if population_entity != null and is_instance_valid(population_entity) else null
+		if population != null and int(population.life_state) == NpcRules.LifeState.DEAD and str(population.body_state) == "corpse" and actor is Node3D:
+			population.last_world_transform = (actor as Node3D).global_transform
+			population.last_world_transform_initialized = true
+			population.last_world_position = (actor as Node3D).global_position
+			population.last_world_position_initialized = true
+			_reindex_corpse_record(population)
 	for container in get_tree().get_nodes_in_group("world_container"):
 		sync_world_container(container)
 
@@ -2621,6 +3081,13 @@ func _clear_world_entities() -> void:
 	_actor_entity_by_actor_id.clear()
 	_actor_id_by_instance_id.clear()
 	_population_entity_by_actor_id.clear()
+	_alive_population_count_by_settlement.clear()
+	_population_actor_ids_by_settlement.clear()
+	_population_settlement_by_actor_id.clear()
+	_population_actor_ids_by_squad.clear()
+	_population_squad_by_actor_id.clear()
+	_corpse_actor_ids_by_cell.clear()
+	_corpse_cell_by_actor_id.clear()
 	_settlement_entity_by_id.clear()
 	_settlement_food_entity_by_id.clear()
 	_staff_slot_entity_by_key.clear()
@@ -2655,6 +3122,13 @@ func _clear_world_entities() -> void:
 func _rebuild_entity_indexes() -> void:
 	if world == null:
 		return
+	_alive_population_count_by_settlement.clear()
+	_population_actor_ids_by_settlement.clear()
+	_population_settlement_by_actor_id.clear()
+	_population_actor_ids_by_squad.clear()
+	_population_squad_by_actor_id.clear()
+	_corpse_actor_ids_by_cell.clear()
+	_corpse_cell_by_actor_id.clear()
 	for entity in world.query.with_all([C_IDENTITY]).execute():
 		var identity = entity.get_component(C_IDENTITY)
 		if identity == null:
@@ -2662,10 +3136,21 @@ func _rebuild_entity_indexes() -> void:
 		if entity.get_component(C_NODE) != null:
 			_ensure_actor_combat_components(entity)
 		_actor_entity_by_actor_id[str(identity.actor_id)] = entity
-	for entity in world.query.with_all([C_POPULATION_RECORD]).execute():
+	var population_entities: Array = world.query.with_all([C_POPULATION_RECORD]).execute()
+	for entity in population_entities:
+		_ensure_population_vitals_components(entity)
 		var population = entity.get_component(C_POPULATION_RECORD)
 		if population != null:
+			var population_vitals = entity.get_component(C_VITALS)
+			if population_vitals != null:
+				population.life_state = population_vitals.life_state
+			_sync_active_population_vitals_tag(entity, population_vitals)
 			_population_entity_by_actor_id[str(population.actor_id)] = entity
+			_reindex_population_settlement(population)
+			_reindex_population_squad(population)
+			if int(population.life_state) != NpcRules.LifeState.DEAD:
+				_adjust_alive_population_count(str(population.settlement_id), 1)
+			_reindex_corpse_record(population)
 	for entity in world.query.with_all([C_SETTLEMENT_STATE]).execute():
 		var settlement = entity.get_component(C_SETTLEMENT_STATE)
 		if settlement != null:

@@ -85,11 +85,13 @@ func _run() -> void:
 
 	stock.detach_world_container(container_a.container_id, container_a)
 	stock.detach_world_container(container_b.container_id, container_b)
+	var stable_stack_entity = gecs.get_item_stack_entity("town.storage.a.stack.1")
 	container_a.free()
 	container_b.free()
 	_assert_stock(stock, 4, 8.0, "after unload")
 
 	_expect(stock.transact_item_count("town", FOOD, 3, "town.storehouse"), "offscreen add failed")
+	_expect(gecs.get_item_stack_entity("town.storage.a.stack.1") == stable_stack_entity, "stock count update recreated an unchanged stack entity")
 	_assert_stock(stock, 7, 14.0, "after offscreen add")
 	_expect(stock.transact_item_count("town", FOOD, -3, "town.storehouse"), "offscreen remove failed")
 	_assert_stock(stock, 4, 8.0, "after offscreen remove")
@@ -119,6 +121,7 @@ func _run() -> void:
 	_expect(stock.get_settlement_stock_snapshot("town") == totals_before_rebuild, "GECS rebuild changed aggregate totals")
 	_expect(_all_stack_ids(gecs) == ids_before_rebuild, "GECS rebuild changed stack IDs")
 	_assert_indexed_selection_source()
+	_assert_population_hot_updates_are_narrow()
 
 	stock.detach_world_container(rebound.container_id, rebound)
 	rebound.free()
@@ -173,6 +176,28 @@ func _assert_indexed_selection_source() -> void:
 	_expect(not function_source.contains("_containers_by_id.keys"), "transaction selection scans all containers")
 	var container_source := FileAccess.get_file_as_string("res://features/world/projection/containers/world_container.gd")
 	_expect(container_source.contains("_inventory_sync_suspended") and container_source.contains("hydrate_inventory_from_gecs"), "WorldContainer hydration lacks recursion suppression")
+
+
+func _assert_population_hot_updates_are_narrow() -> void:
+	var source := FileAccess.get_file_as_string("res://features/world_sim/sim/population/population_controller.gd")
+	var skill_start := source.find("func _on_actor_skill_level_changed")
+	var skill_end := source.find("\n\nfunc ", skill_start + 1)
+	var skill_source := source.substr(skill_start, skill_end - skill_start)
+	_expect(skill_source.contains("update_population_skill_progress"), "skill progress does not use the narrow GECS update")
+	_expect(not skill_source.contains("_save_actor_record"), "skill progress still performs a full population upsert")
+	_expect(not skill_source.contains("_get_actor_record_mutable"), "skill progress still reconstructs the full population record")
+	var ledger_start := source.find("func advance_ledger_minutes")
+	var ledger_end := source.find("\n\nfunc ", ledger_start + 1)
+	var ledger_source := source.substr(ledger_start, ledger_end - ledger_start)
+	_expect(ledger_source.contains("update_population_ledger_state"), "ledger simulation does not use the narrow GECS update")
+	_expect(not ledger_source.contains("_save_actor_record"), "ledger simulation still performs full population upserts")
+	var lod_source := FileAccess.get_file_as_string("res://features/world_sim/bridge/population_realization_controller.gd")
+	var lod_start := lod_source.find("func _update_spawner_lod")
+	var lod_end := lod_source.find("\n\nfunc ", lod_start + 1)
+	var lod_function := lod_source.substr(lod_start, lod_end - lod_start)
+	_expect(lod_function.contains("had_lod_state"), "first LOD evaluation does not enforce far-town staff cleanup")
+	_expect(lod_source.contains("func _resync_settlement_staff"), "staff LOD still depends on population spawners")
+	_expect(lod_source.contains("set_settlement_staff_lod_active"), "staff LOD does not drive settlement realization directly")
 
 
 func _assert_changed_scripts_load() -> void:

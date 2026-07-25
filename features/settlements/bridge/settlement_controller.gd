@@ -63,7 +63,29 @@ func get_settlement_definition(settlement_id: String) -> Resource:
 
 
 func get_settlement_anchor(settlement_id: String) -> Node3D:
-	return settlement_anchors.get(settlement_id, null) as Node3D
+	var anchor = settlement_anchors.get(settlement_id)
+	if anchor == null or not is_instance_valid(anchor):
+		settlement_anchors.erase(settlement_id)
+		return null
+	return anchor as Node3D
+
+
+func register_settlement_anchor(anchor: Node3D) -> void:
+	if anchor == null or not is_instance_valid(anchor):
+		return
+	_register_settlement_definition(anchor.get("settlement_definition") as Resource, anchor)
+
+
+func unregister_settlement_anchor(anchor: Node3D) -> void:
+	if anchor == null:
+		return
+	var settlement_id := str(anchor.call("get_settlement_id")) if anchor.has_method("get_settlement_id") else ""
+	if settlement_id.is_empty():
+		return
+	if settlement_anchors.get(settlement_id) != anchor:
+		return
+	derealize_settlement_staff(settlement_id)
+	settlement_anchors.erase(settlement_id)
 
 
 func get_raid_squad_template(settlement_id: String) -> Resource:
@@ -398,7 +420,7 @@ func _on_hour_changed(_absolute_hour: int, _day_index: int, _hour: int) -> void:
 		# The expensive work — the full subtree walk + GECS re-save to reconcile slot definitions
 		# and dead bodies, plus putting live staff bodies in place — only matters where the player
 		# can see them. Gating keeps the hourly cost O(near towns), not O(all towns).
-		if not _settlement_is_near_player(sid):
+		if not _settlement_is_within_lod_exit(sid):
 			continue
 		_sync_settlement_staff_slots(sid)
 		_assign_staff_from_ledger(sid)
@@ -427,8 +449,15 @@ func _flat_distance(left: Vector3, right: Vector3) -> float:
 ## its residents are realized (or about to be) as live bodies. Used to gate heavy per-hour
 ## reconciliation to towns the player can actually see; far towns reconcile on approach.
 func _settlement_is_near_player(settlement_id: String) -> bool:
+	return _settlement_is_within_radius(settlement_id, _population_lod_radius())
+
+
+func _settlement_is_within_lod_exit(settlement_id: String) -> bool:
+	return _settlement_is_within_radius(settlement_id, _population_lod_radius() + 25.0)
+
+
+func _settlement_is_within_radius(settlement_id: String, radius: float) -> bool:
 	var settlement_position := _settlement_position(settlement_id)
-	var radius := _population_lod_radius()
 	var tree := get_tree()
 	if tree != null:
 		var members := tree.get_nodes_in_group("party_member")
@@ -439,7 +468,7 @@ func _settlement_is_near_player(settlement_id: String) -> bool:
 			return false
 	var reference := _fallback_player_reference_position()
 	if reference == Vector3.INF:
-		return true
+		return DisplayServer.get_name() == "headless"
 	return _flat_distance(reference, settlement_position) <= radius
 
 
@@ -449,15 +478,15 @@ func _fallback_player_reference_position() -> Vector3:
 	return camera.global_position if camera != null else Vector3.INF
 
 
-## Shared population LOD radius (plus a small margin so a town that's realizing its bodies is
-## definitely also staff-synced). Falls back if the realization controller isn't up yet.
+## Shared population LOD entry radius. Exit-band reconciliation adds the controller's
+## 25m hysteresis separately without realizing staff early.
 func _population_lod_radius() -> float:
 	var controller := get_tree().get_first_node_in_group("population_realization_controller") if get_tree() != null else null
 	if controller != null:
 		var radius_value = controller.get("near_player_radius")
 		if radius_value != null:
-			return float(radius_value) + 50.0
-	return 490.0
+			return float(radius_value)
+	return 120.0
 
 
 func _notify_state_changed(settlement_id: String) -> void:
@@ -674,7 +703,7 @@ func _poach_assigned_record_for_slot(settlement_id: String, slot_id: String, rol
 ## LOD-gated: one shared realizer turns the bound population record into a body,
 ## then the owning facility only attaches role behavior and placement.
 func _realize_staff_bodies(settlement_id: String) -> void:
-	if not settlement_states.has(settlement_id):
+	if not settlement_states.has(settlement_id) or not _settlement_is_near_player(settlement_id):
 		return
 	var anchor := get_settlement_anchor(settlement_id)
 	if anchor == null:
@@ -729,6 +758,8 @@ func _remove_unbound_staff_bodies(parent: Node, expected_actor_ids: Dictionary) 
 	for child in parent.get_children():
 		if not (child is WorldActor):
 			continue
+		if int(child.get("life_state")) == NpcRules.LifeState.DEAD:
+			continue
 		var actor_id := str(child.get_meta("actor_record_id", "")).strip_edges()
 		if not actor_id.is_empty() and expected_actor_ids.has(actor_id):
 			continue
@@ -759,6 +790,13 @@ func derealize_settlement_staff(settlement_id: String) -> void:
 		if pop.has_method("unregister_actor"):
 			pop.call("unregister_actor", actor)  # record -> "ledger"; binding (worker_actor_id) kept
 		actor.queue_free()
+
+
+func set_settlement_staff_lod_active(settlement_id: String, active: bool) -> void:
+	if active:
+		_realize_staff_bodies(settlement_id)
+	else:
+		derealize_settlement_staff(settlement_id)
 
 
 func _get_population_controller() -> Node:
@@ -916,7 +954,7 @@ func _register_anchor_facilities(settlement_id: String, anchor: Node3D) -> void:
 	if not anchor.has_method("get_facility_records"):
 		return
 	var state: Dictionary = settlement_states[settlement_id]
-	var facilities: Dictionary = state.get("facilities", {})
+	var facilities: Dictionary = {}
 	for record in anchor.call("get_facility_records"):
 		if not (record is Dictionary):
 			continue

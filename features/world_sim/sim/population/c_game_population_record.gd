@@ -8,6 +8,7 @@ class_name CGamePopulationRecord
 @export var generation_source := ""
 @export var generation_index := 0
 @export var member_name := ""
+@export var actor_script_path := ""
 @export var character_realizer_id := ""
 @export var character_realizer_path := ""
 @export var character_realizer_signature := ""
@@ -30,6 +31,10 @@ class_name CGamePopulationRecord
 @export var traits: Dictionary = {}
 @export var personality: Dictionary = {}
 @export var life_state := 0
+## Durable physical disposition. Death creates a corpse; only explicit gameplay
+## actions may transition it to buried, cremated, or consumed.
+@export var body_state := "living"
+@export var body_container_id := ""
 @export var realization_state := "ledger"
 @export var ledger_activity_state := "routine"
 @export var ledger_minutes_elapsed := 0
@@ -39,6 +44,8 @@ class_name CGamePopulationRecord
 @export var last_ledger_absolute_minute := -1
 @export var last_world_position := Vector3.ZERO
 @export var last_world_position_initialized := false
+@export var last_world_transform := Transform3D.IDENTITY
+@export var last_world_transform_initialized := false
 @export var important := false
 @export var appearance_character_race := ""
 @export var appearance_body_archetype := ""
@@ -66,6 +73,7 @@ func apply_record(source: Dictionary) -> void:
 	generation_source = str(source.get("generation_source", generation_source))
 	generation_index = int(source.get("generation_index", generation_index))
 	member_name = str(source.get("member_name", member_name))
+	actor_script_path = str(source.get("actor_script_path", actor_script_path))
 	character_realizer_id = str(source.get("character_realizer_id", character_realizer_id))
 	character_realizer_path = str(source.get("character_realizer_path", character_realizer_path))
 	character_realizer_signature = str(source.get("character_realizer_signature", character_realizer_signature))
@@ -86,6 +94,8 @@ func apply_record(source: Dictionary) -> void:
 	traits = (source.get("traits", traits) as Dictionary).duplicate(true)
 	personality = (source.get("personality", personality) as Dictionary).duplicate(true)
 	life_state = int(source.get("life_state", life_state))
+	body_state = str(source.get("body_state", "corpse" if life_state == NpcRules.LifeState.DEAD else body_state))
+	body_container_id = str(source.get("body_container_id", body_container_id))
 	realization_state = str(source.get("realization_state", realization_state))
 	ledger_activity_state = str(source.get("ledger_activity_state", ledger_activity_state))
 	ledger_minutes_elapsed = int(source.get("ledger_minutes_elapsed", ledger_minutes_elapsed))
@@ -95,6 +105,8 @@ func apply_record(source: Dictionary) -> void:
 	last_ledger_absolute_minute = int(source.get("last_ledger_absolute_minute", last_ledger_absolute_minute))
 	last_world_position = source.get("last_world_position", last_world_position)
 	last_world_position_initialized = bool(source.get("last_world_position_initialized", last_world_position_initialized))
+	last_world_transform = source.get("last_world_transform", last_world_transform)
+	last_world_transform_initialized = bool(source.get("last_world_transform_initialized", last_world_transform_initialized))
 	important = bool(source.get("important", important))
 	var appearance: Dictionary = source.get("appearance", {})
 	appearance_character_race = str(appearance.get("character_race", appearance_character_race))
@@ -123,6 +135,7 @@ func to_record() -> Dictionary:
 		"generation_source": generation_source,
 		"generation_index": generation_index,
 		"member_name": member_name,
+		"actor_script_path": actor_script_path,
 		"character_realizer_id": character_realizer_id,
 		"character_realizer_path": character_realizer_path,
 		"character_realizer_signature": character_realizer_signature,
@@ -143,6 +156,8 @@ func to_record() -> Dictionary:
 		"traits": traits.duplicate(true),
 		"personality": personality.duplicate(true),
 		"life_state": life_state,
+		"body_state": body_state,
+		"body_container_id": body_container_id,
 		"realization_state": realization_state,
 		"ledger_activity_state": ledger_activity_state,
 		"ledger_minutes_elapsed": ledger_minutes_elapsed,
@@ -152,6 +167,8 @@ func to_record() -> Dictionary:
 		"last_ledger_absolute_minute": last_ledger_absolute_minute,
 		"last_world_position": last_world_position,
 		"last_world_position_initialized": last_world_position_initialized,
+		"last_world_transform": last_world_transform,
+		"last_world_transform_initialized": last_world_transform_initialized,
 		"important": important,
 		"appearance": {
 			"character_race": appearance_character_race,

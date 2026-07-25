@@ -105,7 +105,7 @@ func _build_lod_window() -> void:
 	var vbox := _build_window("LOD Debug", Vector2(12.0, 88.0))
 	_lod_check = _make_check(vbox, "Show LOD radius", _on_lod_toggled)
 	_radius_label = _make_label(vbox)
-	_radius_slider = _make_slider(vbox, 60.0, 1200.0, 10.0, _on_radius_changed)
+	_radius_slider = _make_slider(vbox, 1.0, 1200.0, 1.0, _on_radius_changed)
 	_radius_slider.set_value_no_signal(_current_lod_radius())
 	_update_radius_label(_radius_slider.value)
 	_brain_log_check = _make_check(vbox, "Show world brain log", _on_brain_log_toggled)

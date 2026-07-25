@@ -271,7 +271,7 @@ func _find_actor_by_slot_id(slot_id: String) -> Node:
 
 
 func _append_staff_slot(slots: Array[Dictionary], role: String, role_index: int, actor: Node, staff_display_name: String, authority_scope: String) -> void:
-	var actor_alive := _is_actor_alive(actor)
+	var actor_dead := actor != null and int(actor.get("life_state")) == NpcRules.LifeState.DEAD
 	var slot := {
 		"slot_id": _staff_slot_id(role, role_index),
 		"role_id": role,
@@ -280,10 +280,10 @@ func _append_staff_slot(slots: Array[Dictionary], role: String, role_index: int,
 		"display_name": staff_display_name,
 		"population_cost": 1,
 		"replacement_delay_days": DEFAULT_REPLACEMENT_DELAY_DAYS,
-		"filled": actor_alive,
+		"filled": actor != null and not actor_dead,
 		"authority_scope": authority_scope,
 	}
-	if actor != null and not actor_alive:
+	if actor_dead:
 		slot["dead_actor_key"] = _actor_key(actor)
 	slots.append(slot)
 

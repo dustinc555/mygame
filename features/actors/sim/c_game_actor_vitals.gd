@@ -13,6 +13,23 @@ class_name CGameActorVitals
 
 enum DeathProfile { HUMANOID = 0, ROBOT = 1 }
 
+const DURABLE_FIELDS := [
+	&"life_state",
+	&"hp",
+	&"max_hp",
+	&"blood",
+	&"max_blood",
+	&"base_max_blood",
+	&"blunt_damage",
+	&"open_cut_damage",
+	&"bandaged_cut_damage",
+	&"bleed_rate",
+	&"bleed_burst_rate",
+	&"recovery_multiplier",
+	&"dying_timer_remaining",
+	&"death_profile",
+]
+
 # --- Life / health ----------------------------------------------------------
 @export var life_state := 0
 @export var hp := 100.0
@@ -36,13 +53,6 @@ enum DeathProfile { HUMANOID = 0, ROBOT = 1 }
 @export var recovery_multiplier := 1.0
 @export var dying_timer_remaining := 0.0
 
-# --- LOD sim gate -----------------------------------------------------------
-# Seconds of vitals simulation remaining. GameVitalsSystem skips any entity at <= 0 and decrements
-# this each simulated tick. While the actor is realized, GameActorSyncSystem keeps it topped up (S4);
-# on derealization it is stamped to a bounded window so a bleeding/wounded actor keeps simulating
-# off-screen for a while before falling back to cheap ledger sim. Far / never-realized actors stay 0.
-@export var vitals_sim_remaining := 0.0
-
 # Runtime scratch (plain var — never serialized): mirrored from
 # CGameActorVitalsInputs.held_externally by GameVitalsSystem each tick so the
 # state machine can hold recovery while the body is being carried.
@@ -57,3 +67,32 @@ var held_externally_hold := false
 # flows component->node. Without this, a pre-wounded / non-default-max_hp / loaded actor would be
 # clobbered to defaults on its first simulated tick.
 @export var vitals_seeded := false
+
+
+func copy_durable_state_to(target) -> void:
+	if target == null:
+		return
+	for field in DURABLE_FIELDS:
+		target.set(field, get(field))
+
+
+func apply_durable_state(source: Dictionary) -> void:
+	for field in DURABLE_FIELDS:
+		if source.has(field):
+			set(field, source[field])
+
+
+func durable_state() -> Dictionary:
+	var state := {}
+	for field in DURABLE_FIELDS:
+		state[field] = get(field)
+	return state
+
+
+func needs_active_simulation() -> bool:
+	if life_state == NpcRules.LifeState.DEAD:
+		return false
+	if life_state == NpcRules.LifeState.UNCONSCIOUS or life_state == NpcRules.LifeState.RECOVERY_COMA or life_state == NpcRules.LifeState.DYING:
+		return true
+	return blunt_damage > 0.0 or open_cut_damage > 0.0 or bandaged_cut_damage > 0.0 \
+		or bleed_rate > 0.0 or bleed_burst_rate > 0.0 or blood < max_blood

@@ -64,8 +64,11 @@ func _validate_furnace_acceptance_and_removal() -> void:
 	await _wait_frames(12)
 	if is_instance_valid(rustdead) and rustdead.is_inside_tree():
 		_fail("Furnace burn should remove the placed body")
-	if not actor_id.is_empty() and not (population.call("get_actor_record", actor_id) as Dictionary).is_empty():
-		_fail("Furnace burn should remove the body population record")
+	var cremated_record: Dictionary = population.call("get_actor_record", actor_id) if not actor_id.is_empty() else {}
+	if cremated_record.is_empty() or str(cremated_record.get("body_state", "")) != "cremated":
+		_fail("Furnace burn should retain the person and mark their body cremated")
+	if population.call("get_live_actor", actor_id) != null:
+		_fail("Furnace burn should unregister the destroyed body projection")
 	scene.queue_free()
 	await _wait_frames(3)
 
@@ -163,8 +166,7 @@ func _validate_auto_combat_hold() -> void:
 	rustdead.force_kill(actor)
 	actor.mark_hostile(enemy)
 	if not actor.assign_attack_target(enemy, false):
-		actor.set("_current_order_type", HumanoidCharacter.OrderType.ATTACK)
-		actor.set("_current_attack_target", enemy)
+		_fail("Combat setup should assign the hostile target")
 	await _wait_frames(2)
 	if bool(actor.call("_try_assign_auto_burn_action")):
 		_fail("Auto Burn Rustdead should not interrupt combat")

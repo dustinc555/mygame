@@ -428,28 +428,30 @@ func _remove_from_inventory(inventory: InventoryData, item_id: String, amount: i
 func _commit_container_inventory(container_id: String, inventory: InventoryData) -> void:
 	var record := _containers_by_id[container_id] as Dictionary
 	var container_component = record["component"]
-	var old_stack_ids := (_stack_ids_by_container.get(container_id, {}) as Dictionary).keys()
+	var stale_stack_ids := (_stack_ids_by_container.get(container_id, {}) as Dictionary).duplicate()
 	_remove_indexed_container(container_id)
-	for stack_id_value in old_stack_ids:
-		_gecs_world.remove_item_stack_entity(str(stack_id_value))
 	container_component.next_stack_sequence = inventory.next_stack_sequence
 	_index_container(record["entity"], container_component)
 	for entry in inventory.entries:
-		var entity = _entity_script.new()
-		entity.name = "InventoryStack_%x" % str(entry.stack_id).hash()
-		entity.id = "item_stack:%s" % entry.stack_id
-		var component = _stack_component_script.new()
-		component.stack_id = entry.stack_id
-		component.container_id = container_id
-		component.owner_actor_id = ""
-		component.item_definition_path = entry.definition.resource_path
-		component.count = entry.count
-		component.grid_position = entry.grid_position
-		component.contained_item_counts = entry.contained_item_counts.duplicate(true)
-		component.metadata = entry.metadata.duplicate(true)
-		_gecs_world.world.add_entity(entity, [component])
-		_gecs_world.register_item_stack_entity(entry.stack_id, entity)
+		stale_stack_ids.erase(entry.stack_id)
+		_gecs_world.upsert_item_stack_record({
+			"stack_id": entry.stack_id,
+			"container_id": container_id,
+			"owner_actor_id": "",
+			"item_definition_path": entry.definition.resource_path,
+			"count": entry.count,
+			"grid_position": entry.grid_position,
+			"contained_item_counts": entry.contained_item_counts,
+			"metadata": entry.metadata,
+			"location_kind": "inventory",
+		})
+		var entity = _gecs_world.get_item_stack_entity(entry.stack_id)
+		var component = entity.get_component(_stack_component_script) if entity != null and is_instance_valid(entity) else null
+		if component == null:
+			continue
 		_index_stack(entity, component)
+	for stack_id_value in stale_stack_ids.keys():
+		_gecs_world.remove_item_stack_entity(str(stack_id_value))
 	_add_container_aggregate(container_id)
 	_hydrate_live_projection(container_id)
 
