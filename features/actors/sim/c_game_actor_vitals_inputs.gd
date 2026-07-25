@@ -2,6 +2,8 @@ extends "res://addons/gecs/ecs/component.gd"
 
 class_name CGameActorVitalsInputs
 
+const DURABLE_FIELDS := [&"toughness", &"healing_rate"]
+
 # Per-actor vitals INPUTS authored by the node (from StatsCapability) on an event (skill change),
 # read only by GameVitalsSystem. This is the one legitimate node->component direction (same pattern
 # as CGameCombatLoadout): the node pushes these typed, the system never reflects into the node.
@@ -31,3 +33,23 @@ class_name CGameActorVitalsInputs
 # One-shot command mailbox. Interaction code may request voluntary rest transitions;
 # GameVitalsSystem validates and consumes them on its fixed tick.
 var pending_rest_state := -1
+
+
+func copy_durable_state_to(target) -> void:
+	if target == null:
+		return
+	for field in DURABLE_FIELDS:
+		target.set(field, get(field))
+
+
+func apply_durable_state(source: Dictionary) -> void:
+	for field in DURABLE_FIELDS:
+		if source.has(field):
+			set(field, source[field])
+
+
+func durable_state() -> Dictionary:
+	var state := {}
+	for field in DURABLE_FIELDS:
+		state[field] = get(field)
+	return state

@@ -389,6 +389,7 @@ func _register_world_sim_squads(marker: NestPlacementMarker, state: Dictionary) 
 	var marker_id := marker.get_marker_id()
 	var home := marker.global_position
 	var faction_id := str(state.get("nest_type_id", "nest"))
+	var nest_type := _get_nest_type(str(state.get("nest_type_id", "")))
 	var count := int(state.get("patrol_squad_count", 0))
 	var member_counts := _roll_patrol_squad_member_counts(marker, state)
 	var patrol_squad_ids: Array = []
@@ -398,6 +399,7 @@ func _register_world_sim_squads(marker: NestPlacementMarker, state: Dictionary) 
 		var member_count := int(member_counts.get(squad_id, 0))
 		patrol_squad_ids.append(squad_id)
 		patrol_total += member_count
+		_ensure_nest_squad_people(marker_id, state, nest_type, squad_id, member_count, home)
 		bridge.upsert_world_sim_squad({
 			"squad_id": squad_id,
 			"owner_id": marker_id,
@@ -417,6 +419,7 @@ func _register_world_sim_squads(marker: NestPlacementMarker, state: Dictionary) 
 	var guard_count := maxi(0, int(state.get("population_target", 0)) - patrol_total)
 	var guard_squad_id := _nest_guard_squad_id(marker_id)
 	if guard_count > 0:
+		_ensure_nest_squad_people(marker_id, state, nest_type, guard_squad_id, guard_count, home)
 		bridge.upsert_world_sim_squad({
 			"squad_id": guard_squad_id,
 			"owner_id": marker_id,
@@ -803,11 +806,35 @@ func realize_nest_squad(record: Dictionary) -> void:
 	var squad_actor_ids: Array = []
 	var count := maxi(0, int(record.get("member_count", 0)))
 	var origin: Vector3 = record.get("position", marker.global_position)
-	for member_index in range(count):
-		var actor := _spawn_nest_actor(marker, state, nest_type, squad_id, member_index + 1, origin)
+	var population := _get_population_controller()
+	var person_ids_by_squad: Dictionary = state.get("person_ids_by_squad", {})
+	var person_ids: Array = (person_ids_by_squad.get(squad_id, []) as Array).duplicate()
+	if person_ids.is_empty() and population != null and population.has_method("get_actor_record"):
+		for actor_id_value in actor_ids:
+			var prior_record: Dictionary = population.call("get_actor_record", str(actor_id_value))
+			if str(prior_record.get("squad_name", "")) == squad_id:
+				person_ids.append(str(actor_id_value))
+	var living_person_ids: Array = []
+	for actor_id_value in person_ids:
+		var actor_id := str(actor_id_value)
+		var person_record: Dictionary = population.call("get_actor_record", actor_id) if population != null and population.has_method("get_actor_record") else {}
+		if person_record.is_empty() or int(person_record.get("life_state", NpcRules.LifeState.ALIVE)) != NpcRules.LifeState.DEAD:
+			living_person_ids.append(actor_id)
+	while living_person_ids.size() < count:
+		var sequence := int(state.get("next_person_sequence", 0)) + 1
+		state["next_person_sequence"] = sequence
+		var actor_id := "nest.%s.%s.person.%06d" % [str(state.get("marker_id", marker.get_marker_id())), _stable_id_slug(squad_id), sequence]
+		person_ids.append(actor_id)
+		living_person_ids.append(actor_id)
+	person_ids_by_squad[squad_id] = person_ids
+	state["person_ids_by_squad"] = person_ids_by_squad
+	for member_index in range(mini(count, living_person_ids.size())):
+		var actor_id := str(living_person_ids[member_index])
+		var actor := _spawn_nest_actor(marker, state, nest_type, squad_id, member_index + 1, origin, actor_id)
 		if actor == null:
 			continue
-		actor_ids.append(actor.stable_id)
+		if not actor_ids.has(actor.stable_id):
+			actor_ids.append(actor.stable_id)
 		squad_actor_ids.append(actor.stable_id)
 		if str(record.get("objective", "")) == "attack":
 			call_deferred("_request_assault_job_for_actor", actor.stable_id, marker_id, str(record.get("target_settlement_id", "")), record.get("target_position", marker.global_position))
@@ -823,16 +850,17 @@ func derealize_nest_squad(squad_id: String) -> int:
 	var survivors := 0
 	var marker_id := _marker_id_from_squad_id(squad_id)
 	var state: Dictionary = _nest_states.get(marker_id, {})
-	var state_actor_ids: Array = state.get("actor_ids", []) if state.get("actor_ids", []) is Array else []
+	var population := _get_population_controller()
 	for actor_id_value in actor_ids:
 		var actor := _find_actor_by_id(str(actor_id_value)) as HumanoidCharacter
-		if actor != null and is_instance_valid(actor) and actor.life_state != NpcRules.LifeState.DEAD:
-			survivors += 1
+		if actor != null and is_instance_valid(actor):
+			if actor.life_state != NpcRules.LifeState.DEAD:
+				survivors += 1
+			if population != null and population.has_method("unregister_actor"):
+				population.call("unregister_actor", actor)
 			actor.queue_free()
-		state_actor_ids.erase(str(actor_id_value))
 	_realized_squad_actor_ids.erase(squad_id)
 	if not state.is_empty():
-		state["actor_ids"] = state_actor_ids
 		_nest_states[marker_id] = state
 		_sync_nest_state_to_gecs()
 	return survivors
@@ -848,7 +876,7 @@ func drive_realized_squad(record: Dictionary) -> Vector3:
 	return sum / float(actors.size())
 
 
-func _spawn_nest_actor(marker: NestPlacementMarker, state: Dictionary, nest_type: Resource, squad_id: String, member_index: int, spawn_origin := Vector3.INF) -> HumanoidCharacter:
+func _spawn_nest_actor(marker: NestPlacementMarker, state: Dictionary, nest_type: Resource, squad_id: String, member_index: int, spawn_origin := Vector3.INF, actor_id := "") -> HumanoidCharacter:
 	var actor_script := nest_type.get("actor_script") as Script
 	if actor_script == null:
 		return null
@@ -856,7 +884,8 @@ func _spawn_nest_actor(marker: NestPlacementMarker, state: Dictionary, nest_type
 	if actor == null:
 		return null
 	var marker_id := str(state.get("marker_id", marker.get_marker_id()))
-	var actor_id := "nest.%s.%s.%03d" % [marker_id, _stable_id_slug(squad_id), member_index]
+	if actor_id.is_empty():
+		actor_id = "nest.%s.%s.%03d" % [marker_id, _stable_id_slug(squad_id), member_index]
 	actor.name = actor_id.replace(".", "_")
 	actor.member_name = "Rustdead" if str(state.get("nest_type_id", "")) == "rustdead" else "Nest Spawn %03d" % member_index
 	actor.stable_id = actor_id
@@ -871,6 +900,10 @@ func _spawn_nest_actor(marker: NestPlacementMarker, state: Dictionary, nest_type
 	if str(state.get("nest_type_id", "")) == "rustdead":
 		_configure_rustdead_actor(actor, marker_id, member_index)
 	_add_basic_actor_children(actor, Color(0.42, 0.08, 0.07, 1.0))
+	var population := _get_population_controller()
+	var existing_record: Dictionary = population.call("get_actor_record", actor_id) if population != null and population.has_method("get_actor_record") else {}
+	if not existing_record.is_empty() and population.has_method("apply_record_to_actor"):
+		population.call("apply_record_to_actor", actor, existing_record)
 	_ensure_actor_root().add_child(actor)
 	if actor.has_method("request_spawn_grounding_refresh"):
 		actor.call("request_spawn_grounding_refresh", 8)
@@ -1055,6 +1088,7 @@ func _start_settlement_attack(marker: NestPlacementMarker, state: Dictionary, ne
 	state["attack_squad_ids"] = attack_squad_ids
 	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("upsert_world_sim_squad"):
+		_ensure_nest_squad_people(marker.get_marker_id(), state, nest_type, squad_id, count, marker.global_position)
 		bridge.upsert_world_sim_squad({
 			"squad_id": squad_id,
 			"owner_id": marker.get_marker_id(),
@@ -1071,6 +1105,44 @@ func _start_settlement_attack(marker: NestPlacementMarker, state: Dictionary, ne
 			"state": "active",
 		})
 	return true
+
+
+func _ensure_nest_squad_people(marker_id: String, state: Dictionary, nest_type: Resource, squad_id: String, count: int, spawn_position: Vector3) -> void:
+	var population := _get_population_controller()
+	if population == null or nest_type == null or not population.has_method("ensure_generated_population"):
+		return
+	var faction = nest_type.get("faction_definition")
+	var realizer := faction.call("get_character_realizer") as Resource if faction != null and faction.has_method("get_character_realizer") else null
+	var name_profile := faction.call("get_population_name_profile") as Resource if faction != null and faction.has_method("get_population_name_profile") else null
+	if realizer == null or name_profile == null:
+		return
+	var records: Array = population.call("ensure_generated_population", marker_id, squad_id, count, {
+		"faction_id": str(nest_type.call("get_faction_id")) if nest_type.has_method("get_faction_id") else "",
+		"squad_name": squad_id,
+		"role_id": "nest_member",
+		"population_appearance_profile": realizer,
+		"population_name_profile": name_profile,
+		"combat_stance": NpcRules.CombatStance.AGGRESSIVE,
+		"spawn_position": spawn_position,
+	})
+	var person_ids: Array = []
+	for record_value in records:
+		if record_value is Dictionary:
+			person_ids.append(str((record_value as Dictionary).get("actor_id", "")))
+	var person_ids_by_squad: Dictionary = state.get("person_ids_by_squad", {})
+	person_ids_by_squad[squad_id] = person_ids
+	state["person_ids_by_squad"] = person_ids_by_squad
+
+
+func ensure_nest_squad_people_for_record(record: Dictionary) -> void:
+	var marker_id := str(record.get("owner_id", ""))
+	var state: Dictionary = _nest_states.get(marker_id, {})
+	if state.is_empty():
+		return
+	var nest_type := _get_nest_type(str(state.get("nest_type_id", "")))
+	_ensure_nest_squad_people(marker_id, state, nest_type, str(record.get("squad_id", "")), int(record.get("member_count", 0)), record.get("position", Vector3.ZERO))
+	_nest_states[marker_id] = state
+	_sync_nest_state_to_gecs()
 
 
 func _request_assault_job_for_actor(actor_id: String, marker_id: String, target_settlement_id: String, target_position: Vector3) -> void:
@@ -1473,6 +1545,10 @@ func _sync_nest_state_to_gecs() -> void:
 	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("upsert_nest_state"):
 		bridge.call("upsert_nest_state", _current_nest_state())
+
+
+func _get_population_controller() -> Node:
+	return _context.get_optional(PopulationController.SERVICE_ID) if _context != null else null
 
 
 func _get_gecs_world() -> Node:

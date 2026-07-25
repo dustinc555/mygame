@@ -74,6 +74,35 @@ func realize_actor(actor_id: String, role_owner: Node, parent: Node, node_name :
 	return actor
 
 
+func realize_record_actor(actor_id: String, parent: Node, node_name := "") -> Node:
+	if actor_id.is_empty() or parent == null:
+		return null
+	var record := _population.get_actor_record(actor_id)
+	if record.is_empty():
+		return null
+	var actor_script := load(str(record.get("actor_script_path", ""))) as Script if not str(record.get("actor_script_path", "")).is_empty() else null
+	if actor_script == null:
+		return realize_actor(actor_id, parent, parent, node_name)
+	var actor := _population.get_live_actor(actor_id)
+	if actor == null:
+		actor = actor_script.new() as Node
+		if actor == null or not (actor is Node3D):
+			if actor != null:
+				actor.free()
+			return null
+		actor.name = node_name if not node_name.is_empty() else actor_id.to_pascal_case()
+		_population.apply_record_to_actor(actor, record)
+		_ensure_projection_bootstrap(actor)
+		parent.add_child(actor)
+	else:
+		_reparent_preserving_transform(actor, parent)
+		_population.apply_record_to_actor(actor, record)
+	if int(record.get("life_state", NpcRules.LifeState.ALIVE)) == NpcRules.LifeState.DEAD and actor.has_method("set_player_party_member"):
+		actor.call("set_player_party_member", false)
+	_population.mark_actor_realized(actor, actor_id)
+	return actor
+
+
 func resolve_effective_realizer(role_owner: Node, record: Dictionary = {}) -> Resource:
 	if role_owner != null and role_owner.has_method("get_effective_character_realizer"):
 		var effective := role_owner.call("get_effective_character_realizer") as Resource

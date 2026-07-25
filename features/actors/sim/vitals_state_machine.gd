@@ -1,6 +1,10 @@
 class_name VitalsStateMachine
 extends RefCounted
 
+const FIXED_TICK_SECONDS := 1.0 / 20.0
+const MAX_CATCH_UP_FIXED_STEPS := 2400
+const MAX_CATCH_UP_COARSE_STEPS := 120
+
 ## Shared, signal-free actor vitals state machine. Mutates a duck-typed vitals target (today the GECS
 ## CGameActorVitals component; the node VitalsCapability can be pointed here in cleanup) using
 ## VitalsMath for every formula. This is VitalsCapability.recalculate_vitals / process_bleeding /
@@ -67,6 +71,26 @@ static func tick(v, toughness: float, healing_rate: float, delta: float) -> void
 	process_bleeding(v, toughness, delta)
 	process_dying(v, delta)
 	process_recovery(v, toughness, healing_rate, delta)
+
+
+## Deterministic bounded fast-forward for explicit world-time jumps. Normal play remains exact 20 Hz.
+## Typical wounds resolve during the exact window; pathological long spans use a fixed coarse budget.
+static func catch_up(v, toughness: float, healing_rate: float, duration_seconds: float) -> void:
+	var remaining := maxf(duration_seconds, 0.0)
+	var exact_steps := mini(int(floor(remaining / FIXED_TICK_SECONDS)), MAX_CATCH_UP_FIXED_STEPS)
+	for _step in range(exact_steps):
+		tick(v, toughness, healing_rate, FIXED_TICK_SECONDS)
+		remaining -= FIXED_TICK_SECONDS
+		if not v.needs_active_simulation():
+			return
+	if remaining <= 0.000001:
+		return
+	var coarse_steps := mini(MAX_CATCH_UP_COARSE_STEPS, maxi(1, int(ceil(remaining / FIXED_TICK_SECONDS))))
+	var coarse_delta := remaining / float(coarse_steps)
+	for _step in range(coarse_steps):
+		tick(v, toughness, healing_rate, coarse_delta)
+		if not v.needs_active_simulation():
+			return
 
 
 static func process_bleeding(v, toughness: float, delta: float) -> void:

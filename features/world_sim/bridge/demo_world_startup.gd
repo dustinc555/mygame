@@ -57,7 +57,7 @@ func spawn_created_character(appearance: Resource, character_name := "") -> Huma
 		return null
 	member.name = "CreatedCharacter"
 	member.member_name = character_name.strip_edges() if not character_name.strip_edges().is_empty() else "Wanderer"
-	member.stable_id = "player.created"
+	member.stable_id = "player.created.%s" % Crypto.new().generate_random_bytes(16).hex_encode()
 	member.faction_name = "Player"
 	member.squad_name = "Drifters"
 	# appearance_data carries race/archetype/body type; the body projection reads

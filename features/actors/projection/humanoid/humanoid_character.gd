@@ -68,6 +68,11 @@ func _ready() -> void:
 	add_to_group("combat_actor")
 	_apply_canon_definition()
 	_setup_body_projection()
+	if life_state != NpcRules.LifeState.ALIVE and life_state != NpcRules.LifeState.ASLEEP:
+		var body := _body as HumanoidBodyProjection
+		if body != null:
+			body.enter_downed_visuals(life_state == NpcRules.LifeState.DEAD)
+			_apply_downed_collision_shape()
 
 
 ## Canon characters (Mira, Tomas, ...) always use their disk definition. Enforced

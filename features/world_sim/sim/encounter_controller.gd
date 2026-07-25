@@ -113,11 +113,20 @@ func _advance_fight(gecs: Node, faction_ctrl: Node, record: Dictionary, dt: floa
 	var faction_id := str(record.get("faction_id", ""))
 	var target_id := str(record.get("target_settlement_id", ""))
 	var attackers := int(record.get("member_count", 0))
+	if str(record.get("owner_kind", "")) == "faction" and faction_ctrl != null and faction_ctrl.has_method("ensure_faction_squad_people"):
+		faction_ctrl.call("ensure_faction_squad_people", record)
+	elif str(record.get("owner_kind", "")) == "nest" and get_tree() != null:
+		var nest_plugin := get_tree().get_first_node_in_group("nest_world_sim_plugin")
+		if nest_plugin != null and nest_plugin.has_method("ensure_nest_squad_people_for_record"):
+			nest_plugin.call("ensure_nest_squad_people_for_record", record)
 	var outcome: Dictionary = {}
 	if faction_ctrl != null and faction_ctrl.has_method("roll_raid"):
 		outcome = faction_ctrl.roll_raid(attackers, target_id)
 	var won := bool(outcome.get("won", false))
 	var survivors := int(outcome.get("survivors", attackers))
+	var population := _context.get_optional(PopulationController.SERVICE_ID) if _context != null else null
+	if population != null and population.has_method("apply_offscreen_squad_casualties"):
+		population.call("apply_offscreen_squad_casualties", str(record.get("squad_id", "")), survivors, record.get("position", Vector3.ZERO))
 	record["member_count"] = survivors
 	record["decision"] = "won" if won else "lost"
 	record["phase"] = "aftermath"
@@ -152,8 +161,17 @@ func _advance_aftermath(gecs: Node, record: Dictionary, dt: float) -> void:
 	var captured := int(floor(float(survivors) * capture_fraction))
 	var fleeing := maxi(0, survivors - captured)
 	if captured > 0:
-		# TODO Slice 2: seat captives in the town jail (prisoner_records) once bodies
-		# exist. For now the off-screen capture is logged only — pure logic.
+		var population := _context.get_optional(PopulationController.SERVICE_ID) if _context != null else null
+		var captured_actor_ids: Array[String] = []
+		if population != null and population.has_method("apply_offscreen_squad_captures"):
+			captured_actor_ids.assign(population.call("apply_offscreen_squad_captures", str(record.get("squad_id", "")), captured, target_id, record.get("position", Vector3.ZERO)))
+		var law_order := _context.get_optional(LawOrderController.SERVICE_ID) if _context != null else null
+		var settlement := _get_settlement_controller()
+		var settlement_state: Dictionary = settlement.call("get_settlement_state", target_id) if settlement != null and settlement.has_method("get_settlement_state") else {}
+		var jurisdiction_faction_id := str(settlement_state.get("faction_id", ""))
+		if law_order != null and law_order.has_method("register_offscreen_prisoner"):
+			for actor_id in captured_actor_ids:
+				law_order.call("register_offscreen_prisoner", actor_id, target_id, jurisdiction_faction_id)
 		_log(gecs, "%s captures %d raider(s) — held at %s" % [target_id, captured, target_id])
 	if fleeing > 0:
 		record["member_count"] = fleeing

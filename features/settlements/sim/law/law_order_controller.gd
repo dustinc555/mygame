@@ -412,6 +412,27 @@ func _process_prisoners() -> void:
 			_release_prisoner(actor, record, jail)
 
 
+func register_offscreen_prisoner(actor_id: String, settlement_id: String, faction_id: String) -> void:
+	if actor_id.is_empty() or settlement_id.is_empty() or prisoner_records.has(actor_id):
+		return
+	prisoner_records[actor_id] = {
+		"state": "jailed",
+		"actor_key": actor_id,
+		"settlement_id": settlement_id,
+		"faction_id": faction_id,
+		"jail_id": "",
+		"cell_id": "",
+		"release_at_minute": -1,
+		"sentence_decision_at_minute": _now_minute() + _sentence_decision_delay_minutes(),
+		"sentence_decision_given": false,
+		"sentence_notification_given": false,
+		"sentence_notification_pending": false,
+		"sentence_notification_requested": false,
+		"crimes": [{"crime_type": "war_capture", "severity": 0}],
+	}
+	_save_law_order_state_to_gecs()
+
+
 func _arrest_or_eject(actor: HumanoidCharacter, warrant: Dictionary) -> void:
 	var settlement := _find_settlement_for_warrant(actor, warrant)
 	var jail := _find_jail_for_settlement(settlement)

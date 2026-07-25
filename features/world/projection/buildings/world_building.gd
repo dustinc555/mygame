@@ -57,6 +57,8 @@ var _modular_piece_cache: Array = []
 var _modular_piece_cache_dirty := true
 var _modular_floor_footprints: Array = []
 var _modular_bounds_dirty := true
+var _modular_local_bounds := AABB()
+var _modular_local_bounds_valid := false
 
 # External furniture: beds/shelves/counters authored under settlement facility
 # nodes (outside this building's scene) while standing physically inside the
@@ -150,6 +152,15 @@ func is_actor_inside(actor: WorldActor) -> bool:
 	return _is_actor_inside_modular_bounds(actor)
 
 
+func is_visibility_candidate(actor: WorldActor) -> bool:
+	if actor == null or not actor.is_inside_tree():
+		return false
+	if not levels.is_empty() or _get_interior_area() != null:
+		return true
+	_get_modular_floor_footprints()
+	return _modular_local_bounds_valid and _modular_local_bounds.has_point(to_local(actor.global_position))
+
+
 ## Modular buildings need no authored interior Area3D: you are inside when
 ## you stand over an actual interior floor piece. Merged boxes are wrong —
 ## an L-shaped house's front notch, the porch steps, and the strip along the
@@ -172,6 +183,8 @@ func _get_modular_floor_footprints() -> Array:
 	if not _modular_bounds_dirty:
 		return _modular_floor_footprints
 	_modular_floor_footprints.clear()
+	_modular_local_bounds = AABB()
+	_modular_local_bounds_valid = false
 	for piece in get_modular_pieces():
 		if not (piece is Node3D) or str(piece.get("category")) != "floor":
 			continue
@@ -181,8 +194,24 @@ func _get_modular_floor_footprints() -> Array:
 			"half_extents": Vector2(size.x * 0.5, size.z * 0.5),
 			"local_y": to_local((piece as Node3D).global_position).y,
 		})
+		var piece_to_building := global_transform.affine_inverse() * (piece as Node3D).global_transform
+		var piece_bounds := _transform_aabb(
+			AABB(Vector3(-size.x * 0.5, -0.6, -size.z * 0.5), Vector3(size.x, size.y + 3.2, size.z)),
+			piece_to_building
+		)
+		_modular_local_bounds = _modular_local_bounds.merge(piece_bounds) if _modular_local_bounds_valid else piece_bounds
+		_modular_local_bounds_valid = true
 	_modular_bounds_dirty = false
 	return _modular_floor_footprints
+
+
+func _transform_aabb(bounds: AABB, bounds_transform: Transform3D) -> AABB:
+	var transformed := AABB(bounds_transform * bounds.position, Vector3.ZERO)
+	for x in [bounds.position.x, bounds.end.x]:
+		for y in [bounds.position.y, bounds.end.y]:
+			for z in [bounds.position.z, bounds.end.z]:
+				transformed = transformed.expand(bounds_transform * Vector3(x, y, z))
+	return transformed
 
 
 ## Hides external furniture on levels above the active one (levels buildings)
@@ -978,6 +1007,7 @@ func get_modular_pieces() -> Array:
 func invalidate_modular_piece_cache() -> void:
 	_modular_piece_cache_dirty = true
 	_modular_bounds_dirty = true
+	_modular_local_bounds_valid = false
 
 
 func is_modular_piece_hidden(piece: Node) -> bool:

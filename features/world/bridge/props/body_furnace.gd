@@ -182,20 +182,22 @@ func _finish_burning_body() -> void:
 	_set_burn_effect_active(false)
 	if body == null or not is_instance_valid(body):
 		return
-	_remove_population_record_for_body(body)
+	_record_cremated_body(body)
 	_remove_from_party_managers(body)
 	body.queue_free()
 
 
-func _remove_population_record_for_body(body: HumanoidCharacter) -> void:
+func _record_cremated_body(body: HumanoidCharacter) -> void:
 	var actor_id := str(body.get_meta("actor_record_id", "")).strip_edges()
 	if actor_id.is_empty():
 		actor_id = str(body.get("stable_id")).strip_edges()
 	if actor_id.is_empty() or not is_inside_tree():
 		return
 	for controller in get_tree().get_nodes_in_group("population_controller"):
-		if controller != null and controller.has_method("remove_actor_record"):
-			controller.call("remove_actor_record", actor_id, false)
+		if controller != null and controller.has_method("set_person_body_state"):
+			controller.call("set_person_body_state", actor_id, "cremated", "", true)
+			if controller.has_method("unregister_actor"):
+				controller.call("unregister_actor", body)
 			return
 
 

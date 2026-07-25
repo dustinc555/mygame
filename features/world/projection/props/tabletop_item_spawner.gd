@@ -22,6 +22,7 @@ const WORLD_ITEM_SCENE := preload("res://features/world/projection/items/world_i
 var _resolved_surface_id := ""
 var _lifecycle: ItemLifecycleController
 var _reconcile_queued := false
+var _stock_reconcile_queued := false
 
 
 func _ready() -> void:
@@ -54,14 +55,22 @@ func _on_world_reindexed() -> void:
 
 func _on_stock_changed(settlement_id: String, _facility_id: String) -> void:
 	if settlement_id == _settlement_id():
-		_queue_reconcile()
+		_queue_stock_reconcile()
 
 
 func _queue_reconcile() -> void:
 	if _reconcile_queued:
 		return
 	_reconcile_queued = true
+	_stock_reconcile_queued = false
 	_reconcile_item_projections.call_deferred()
+
+
+func _queue_stock_reconcile() -> void:
+	if _reconcile_queued or _stock_reconcile_queued:
+		return
+	_stock_reconcile_queued = true
+	_reconcile_stock_projections.call_deferred()
 
 
 func _reconcile_item_projections() -> void:
@@ -71,6 +80,20 @@ func _reconcile_item_projections() -> void:
 			remove_child(child)
 			child.free()
 	_seed_or_restore()
+
+
+func _reconcile_stock_projections() -> void:
+	if not _stock_reconcile_queued:
+		return
+	_stock_reconcile_queued = false
+	for child in get_children():
+		if child is WorldItem and bool(child.get("stock_projection")):
+			remove_child(child)
+			child.free()
+	for child in get_children():
+		var slot := child as TabletopItemSlot
+		if slot != null and slot.stock_projection:
+			_spawn_stock_projection(slot)
 
 
 func _seed_or_restore() -> void:

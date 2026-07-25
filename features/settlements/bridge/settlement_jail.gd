@@ -757,7 +757,7 @@ func _prepare_staff_actor(actor: Node, role: String, index: int, apply_default_p
 	if apply_default_position and actor is Node3D:
 		(actor as Node3D).position = _local_position_for_role(role, index)
 func _append_staff_slot(slots: Array[Dictionary], role: String, index: int, actor: Node, staff_display_name: String, authority_scope: String) -> void:
-	var actor_alive := _is_actor_alive(actor)
+	var actor_dead := actor != null and int(actor.get("life_state")) == NpcRules.LifeState.DEAD
 	var slot := {
 		"slot_id": _staff_slot_id(role, index),
 		"role_id": role,
@@ -766,12 +766,11 @@ func _append_staff_slot(slots: Array[Dictionary], role: String, index: int, acto
 		"display_name": staff_display_name,
 		"population_cost": 1,
 		"replacement_delay_days": DEFAULT_REPLACEMENT_DELAY_DAYS,
-		"filled": actor_alive,
+		"filled": actor != null and not actor_dead,
 		"authority_scope": authority_scope,
 	}
-	if actor != null:
-		if not actor_alive:
-			slot["dead_actor_key"] = _actor_key(actor)
+	if actor_dead:
+		slot["dead_actor_key"] = _actor_key(actor)
 	slots.append(slot)
 
 

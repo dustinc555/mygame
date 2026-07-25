@@ -3,6 +3,8 @@ extends Node
 class_name PopulationController
 
 signal population_record_changed(settlement_id: String, actor_id: String)
+signal person_died(actor_id: String)
+signal dead_projection_registered(actor_id: String)
 
 const SERVICE_ID := &"population"
 
@@ -17,6 +19,7 @@ var _context: BootstrapContext
 var actor_records: Dictionary = {}
 var _live_actor_by_id: Dictionary = {}
 var _skill_change_callable_by_actor_id: Dictionary = {}
+var _life_change_callable_by_actor_id: Dictionary = {}
 var _initialized := false
 
 
@@ -26,6 +29,8 @@ func initialize(context: BootstrapContext) -> void:
 	var gecs := context.get_optional(GecsWorldController.SERVICE_ID) as GecsWorldController
 	if gecs != null and not gecs.world_reindexed.is_connected(_on_world_reindexed):
 		gecs.world_reindexed.connect(_on_world_reindexed)
+	if gecs != null and not gecs.population_life_state_changed.is_connected(_on_population_life_state_changed):
+		gecs.population_life_state_changed.connect(_on_population_life_state_changed)
 	_try_initialize()
 
 
@@ -54,6 +59,7 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 	_save_actor_record(actor_id, record)
 	_live_actor_by_id[actor_id] = actor
 	_connect_actor_skill_changes(actor, actor_id)
+	_connect_actor_life_changes(actor, actor_id)
 	actor.set_meta("settlement_id", str(record.get("settlement_id", settlement_id)))
 	actor.set_meta("actor_role_id", str(record.get("role_id", "resident")))
 	_register_actor_with_query_controller(actor)
@@ -68,6 +74,7 @@ func unregister_actor(actor: Node) -> void:
 		return
 	_unregister_actor_from_query_controller(actor)
 	_disconnect_actor_skill_changes(actor, actor_id)
+	_disconnect_actor_life_changes(actor, actor_id)
 	var bridge := _get_gecs_world()
 	var record: Dictionary = bridge.call("get_population_record", actor_id) if bridge != null and bridge.has_method("get_population_record") else _get_actor_record_mutable(actor_id)
 	if not record.is_empty():
@@ -96,14 +103,21 @@ func update_actor_appearance(actor_id: String, appearance) -> Dictionary:
 
 
 func get_records_for_settlement(settlement_id: String) -> Array[Dictionary]:
-	_refresh_actor_records_cache()
-	var records: Array[Dictionary] = []
-	for actor_id in actor_records.keys():
-		var record: Dictionary = actor_records[actor_id]
-		if str(record.get("settlement_id", "")) == settlement_id:
-			records.append(record.duplicate(true))
-	records.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("actor_id", "")) < str(b.get("actor_id", "")))
-	return records
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("get_population_records_for_settlement"):
+		var result: Array[Dictionary] = []
+		result.assign(bridge.call("get_population_records_for_settlement", settlement_id))
+		return result
+	return []
+
+
+func get_records_for_squad(squad_id: String) -> Array[Dictionary]:
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("get_population_records_for_squad"):
+		var result: Array[Dictionary] = []
+		result.assign(bridge.call("get_population_records_for_squad", squad_id))
+		return result
+	return []
 
 
 func get_live_actor(actor_id: String) -> Node:
@@ -174,10 +188,73 @@ func release_slot_assignment(settlement_id: String, slot_id: String) -> Dictiona
 ## A bound staff body died — mark its record dead and free the slot binding so the world sim
 ## opens a vacancy and assigns a replacement. The dead record keeps its staff role (it is not
 ## reclaimable: claims require a living "resident") so it won't be re-promoted.
-func mark_record_dead(actor_id: String) -> void:
+func mark_record_dead(actor_id: String, actor: Node = null, corpse_transform_override: Variant = null) -> void:
 	if actor_id.strip_edges().is_empty() or not _has_actor_record(actor_id):
 		return
-	update_actor_record(actor_id, {"life_state": NpcRules.LifeState.DEAD, "assigned_slot_id": ""})
+	if actor == null:
+		actor = _live_actor_by_id.get(actor_id)
+	var record := actor_records.get(actor_id, {}) as Dictionary
+	var was_dead := int(record.get("life_state", NpcRules.LifeState.ALIVE)) == NpcRules.LifeState.DEAD and str(record.get("body_state", "")) == "corpse"
+	var corpse_transform: Transform3D = record.get("last_world_transform", Transform3D.IDENTITY)
+	if corpse_transform_override is Transform3D:
+		corpse_transform = corpse_transform_override
+	elif actor is Node3D and is_instance_valid(actor):
+		corpse_transform = (actor as Node3D).global_transform
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("update_population_death"):
+		bridge.call("update_population_death", actor_id, corpse_transform)
+	record["life_state"] = NpcRules.LifeState.DEAD
+	record["body_state"] = "corpse"
+	record["body_container_id"] = ""
+	record["assigned_slot_id"] = ""
+	record["last_world_position"] = corpse_transform.origin
+	record["last_world_position_initialized"] = true
+	record["last_world_transform"] = corpse_transform
+	record["last_world_transform_initialized"] = true
+	actor_records[actor_id] = record
+	population_record_changed.emit(str(record.get("settlement_id", "")), actor_id)
+	if not was_dead:
+		person_died.emit(actor_id)
+
+
+func apply_offscreen_squad_casualties(squad_id: String, survivor_count: int, world_position: Vector3) -> void:
+	var living_records: Array[Dictionary] = []
+	for record in get_records_for_squad(squad_id):
+		if str(record.get("squad_name", "")) == squad_id and int(record.get("life_state", NpcRules.LifeState.ALIVE)) != NpcRules.LifeState.DEAD:
+			living_records.append(record)
+	living_records.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("actor_id", "")) < str(b.get("actor_id", "")))
+	var survivors := clampi(survivor_count, 0, living_records.size())
+	for index in range(survivors, living_records.size()):
+		var actor_id := str(living_records[index].get("actor_id", ""))
+		var hash_value := absi(hash(actor_id))
+		var angle := TAU * float(hash_value % 360) / 360.0
+		var radius := 0.75 + float((hash_value / 360) % 100) / 100.0
+		var corpse_position := world_position + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
+		mark_record_dead(actor_id, null, Transform3D(Basis(), corpse_position))
+
+
+func apply_offscreen_squad_captures(squad_id: String, captured_count: int, settlement_id: String, world_position: Vector3) -> Array[String]:
+	var captured_actor_ids: Array[String] = []
+	var living_records: Array[Dictionary] = []
+	for record in get_records_for_squad(squad_id):
+		if int(record.get("life_state", NpcRules.LifeState.ALIVE)) != NpcRules.LifeState.DEAD:
+			living_records.append(record)
+	living_records.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("actor_id", "")) < str(b.get("actor_id", "")))
+	var count := mini(maxi(captured_count, 0), living_records.size())
+	for index in range(living_records.size() - count, living_records.size()):
+		var actor_id := str(living_records[index].get("actor_id", ""))
+		captured_actor_ids.append(actor_id)
+		update_actor_record(actor_id, {
+			"settlement_id": settlement_id,
+			"role_id": "prisoner",
+			"squad_name": "",
+			"assigned_slot_id": "",
+			"last_world_position": world_position,
+			"last_world_position_initialized": true,
+			"last_world_transform": Transform3D(Basis(), world_position),
+			"last_world_transform_initialized": true,
+		})
+	return captured_actor_ids
 
 
 func is_record_alive(actor_id: String) -> bool:
@@ -215,10 +292,11 @@ func ensure_generated_population(settlement_id: String, spawner_id: String, desi
 		return []
 	desired_count = max(0, desired_count)
 	var role_id := str(context.get("role_id", "resident"))
-	var records: Array[Dictionary] = _get_generated_records(settlement_id, spawner_id, role_id)
-	while records.size() > desired_count:
-		var removed_record: Dictionary = records.pop_back()
-		_remove_actor_record(str(removed_record.get("actor_id", "")), true)
+	var all_records: Array[Dictionary] = _get_generated_records(settlement_id, spawner_id, role_id)
+	var records: Array[Dictionary] = []
+	for record in all_records:
+		if int(record.get("life_state", NpcRules.LifeState.ALIVE)) != NpcRules.LifeState.DEAD:
+			records.append(record)
 	var start_index: int = max(0, int(context.get("start_index", 0)))
 	var next_generation_index: int = _next_generation_index(settlement_id, spawner_id, start_index)
 	var used_names := _collect_used_names(settlement_id)
@@ -233,7 +311,7 @@ func ensure_generated_population(settlement_id: String, spawner_id: String, desi
 		var display_name := str(record.get("member_name", "")).strip_edges()
 		if not display_name.is_empty():
 			used_names[display_name.to_lower()] = true
-	return records
+	return records.slice(0, desired_count)
 
 
 ## Mints one record with authored overrides (member_name, role_id, skills…)
@@ -282,20 +360,32 @@ func get_seeded_resident_records(settlement_id: String) -> Array[Dictionary]:
 
 
 func count_alive_records_for_settlement(settlement_id: String) -> int:
-	_refresh_actor_records_cache()
-	var count := 0
-	for actor_id in actor_records.keys():
-		var record: Dictionary = actor_records[actor_id]
-		if str(record.get("settlement_id", "")) != settlement_id:
-			continue
-		if int(record.get("life_state", 0)) == NpcRules.LifeState.DEAD:
-			continue
-		count += 1
-	return count
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("count_alive_population_records_for_settlement"):
+		return int(bridge.call("count_alive_population_records_for_settlement", settlement_id))
+	return 0
 
 
 func remove_actor_record(actor_id: String, remove_live_actor := true) -> void:
 	_remove_actor_record(actor_id, remove_live_actor)
+
+
+func set_person_body_state(actor_id: String, body_state: String, body_container_id := "", destroy_items := false) -> Dictionary:
+	if actor_id.is_empty() or body_state.is_empty():
+		return {}
+	var updates := {
+		"body_state": body_state,
+		"body_container_id": body_container_id,
+		"realization_state": "ledger",
+	}
+	if destroy_items:
+		updates["inventory_entries"] = []
+		updates["equipment_slots"] = {}
+	var saved := update_actor_record(actor_id, updates)
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("update_population_body_state"):
+		bridge.call("update_population_body_state", actor_id, body_state, body_container_id)
+	return saved
 
 
 func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
@@ -313,6 +403,7 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 	actor.set("combat_stance", int(record.get("combat_stance", actor.get("combat_stance"))))
 	actor.set("auto_heal_enabled", bool(record.get("auto_heal_enabled", actor.get("auto_heal_enabled"))))
 	actor.set("auto_burn_rustdead_enabled", bool(record.get("auto_burn_rustdead_enabled", actor.get("auto_burn_rustdead_enabled"))))
+	actor.set("life_state", int(record.get("life_state", actor.get("life_state"))))
 	actor.set("starting_skill_levels", record.get("skill_levels", {}))
 	actor.set_meta("settlement_id", str(record.get("settlement_id", "")))
 	actor.set_meta("actor_role_id", str(record.get("role_id", "resident")))
@@ -436,20 +527,39 @@ func mark_actor_realized(actor: Node, actor_id := "") -> void:
 		actor_id = _actor_record_id(actor)
 	if actor_id.is_empty():
 		return
+	actor.set("stable_id", actor_id)
+	actor.set_meta("actor_record_id", actor_id)
 	_live_actor_by_id[actor_id] = actor
 	_connect_actor_skill_changes(actor, actor_id)
 	var record: Dictionary = _get_actor_record_mutable(actor_id)
 	if not record.is_empty():
 		record["realization_state"] = "realized"
-		if actor.is_inside_tree():
-			record["live_node_path"] = actor.get_path()
-		else:
-			record.erase("live_node_path")
-		_save_actor_record(actor_id, record)
+		if actor is Node3D and actor.is_inside_tree():
+			record["last_world_position"] = (actor as Node3D).global_position
+			record["last_world_position_initialized"] = true
+		actor_records[actor_id] = record
+		var realization_bridge := _get_gecs_world()
+		if realization_bridge != null and realization_bridge.has_method("update_population_realization"):
+			realization_bridge.call("update_population_realization", actor_id, "realized", record.get("last_world_position", Vector3.ZERO), bool(record.get("last_world_position_initialized", false)))
+	actor.set_meta("settlement_id", str(record.get("settlement_id", "")))
+	actor.set_meta("actor_role_id", str(record.get("role_id", "resident")))
+	_register_actor_with_query_controller(actor)
 	var equipment = actor.call("get_equipment") if actor.has_method("get_equipment") else null
 	var gecs := _get_gecs_world()
 	if equipment != null and equipment.has_method("hydrate_gecs_slots") and gecs != null:
 		equipment.call("hydrate_gecs_slots", gecs.call("get_equipment_slots", actor_id))
+
+
+func update_realized_actor_position(actor_id: String, world_position: Vector3) -> void:
+	var record := _get_actor_record_mutable(actor_id)
+	if record.is_empty():
+		return
+	record["last_world_position"] = world_position
+	record["last_world_position_initialized"] = true
+	actor_records[actor_id] = record
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("update_population_realization"):
+		bridge.call("update_population_realization", actor_id, str(record.get("realization_state", "realized")), world_position, true)
 
 
 func advance_ledger_minutes(minutes: int, absolute_minute := -1) -> Dictionary:
@@ -472,7 +582,10 @@ func advance_ledger_minutes(minutes: int, absolute_minute := -1) -> Dictionary:
 			record["ledger_work_minutes"] = int(record.get("ledger_work_minutes", 0)) + minutes
 		elif activity == "resting":
 			record["ledger_rest_minutes"] = int(record.get("ledger_rest_minutes", 0)) + minutes
-		_save_actor_record(str(actor_id), record)
+		actor_records[actor_id] = record
+		var bridge := _get_gecs_world()
+		if bridge != null and bridge.has_method("update_population_ledger_state"):
+			bridge.call("update_population_ledger_state", str(actor_id), record)
 		summary["updated_actor_count"] = int(summary["updated_actor_count"]) + 1
 		var batch_key := "%s:%s:%s" % [str(record.get("settlement_id", "world")), str(record.get("role_id", "resident")), activity]
 		var batches: Dictionary = summary["batches"]
@@ -485,6 +598,7 @@ func advance_ledger_minutes(minutes: int, absolute_minute := -1) -> Dictionary:
 
 
 func serialize_state() -> Dictionary:
+	_sync_live_corpse_transforms()
 	_refresh_actor_records_cache()
 	var records := {}
 	for actor_id in actor_records.keys():
@@ -517,6 +631,7 @@ func refresh_from_gecs_state() -> void:
 
 
 func sync_population_state() -> void:
+	_sync_live_corpse_transforms()
 	for actor_id_value in _live_actor_by_id.keys():
 		var actor = _live_actor_by_id.get(actor_id_value)
 		if actor == null or not is_instance_valid(actor):
@@ -529,6 +644,15 @@ func _on_world_reindexed() -> void:
 	_hydrate_live_actors_from_gecs.call_deferred()
 
 
+func _on_population_life_state_changed(actor_id: String, _previous_state: int, next_state: int) -> void:
+	var record := get_actor_record(actor_id)
+	if not record.is_empty():
+		actor_records[actor_id] = record
+		population_record_changed.emit(str(record.get("settlement_id", "")), actor_id)
+	if next_state == NpcRules.LifeState.DEAD:
+		person_died.emit(actor_id)
+
+
 func _hydrate_live_actors_from_gecs() -> void:
 	for actor_id_value in _live_actor_by_id.keys():
 		var actor = _live_actor_by_id.get(actor_id_value)
@@ -538,12 +662,17 @@ func _hydrate_live_actors_from_gecs() -> void:
 		var record := get_actor_record(str(actor_id_value))
 		if not record.is_empty():
 			apply_record_to_actor(actor, record)
+			if int(record.get("life_state", NpcRules.LifeState.ALIVE)) == NpcRules.LifeState.DEAD:
+				dead_projection_registered.emit(str(actor_id_value))
 
 
 func _try_initialize() -> void:
 	if _initialized or root_scene == null or not is_inside_tree():
 		return
 	_collect_existing_actors()
+	var tree := get_tree()
+	if tree != null and not tree.node_added.is_connected(_on_tree_node_added):
+		tree.node_added.connect(_on_tree_node_added)
 	_initialized = true
 
 
@@ -553,6 +682,20 @@ func _collect_existing_actors() -> void:
 		return
 	for actor in tree.get_nodes_in_group("humanoid_character"):
 		register_actor(actor)
+
+
+func _on_tree_node_added(node: Node) -> void:
+	if node == null or not node.has_signal("life_state_changed"):
+		return
+	if node.is_node_ready():
+		_register_late_humanoid(node)
+	else:
+		node.ready.connect(_register_late_humanoid.bind(node), CONNECT_ONE_SHOT)
+
+
+func _register_late_humanoid(node: Node) -> void:
+	if node != null and is_instance_valid(node) and node.is_in_group("humanoid_character"):
+		register_actor(node)
 
 
 func _refresh_actor_records_cache() -> void:
@@ -686,6 +829,7 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"generation_source": spawner_id,
 		"generation_index": generation_index,
 		"member_name": display_name,
+		"actor_script_path": actor_script.resource_path,
 		"character_realizer_id": realizer_id,
 		"character_realizer_path": appearance_profile.resource_path,
 		"character_realizer_signature": _realization_signature(appearance_profile),
@@ -707,9 +851,11 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"traits": {},
 		"personality": {},
 		"life_state": NpcRules.LifeState.ALIVE,
+		"body_state": "living",
 		"realization_state": "ledger",
 		"ledger_minutes_elapsed": 0,
 		"last_world_position": context.get("spawn_position", Vector3.ZERO),
+		"last_world_position_initialized": context.has("spawn_position"),
 	}
 
 
@@ -733,9 +879,16 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 		return record
 	if settlement_id.is_empty():
 		settlement_id = _find_actor_settlement_id(actor)
-	record["settlement_id"] = settlement_id
-	record["role_id"] = str(context.get("role_id", _actor_role(actor)))
+	if not settlement_id.is_empty() or str(record.get("settlement_id", "")).is_empty():
+		record["settlement_id"] = settlement_id
+	if context.has("role_id"):
+		record["role_id"] = str(context.get("role_id"))
+	elif actor.has_meta("actor_role_id") and not str(actor.get_meta("actor_role_id", "")).is_empty():
+		record["role_id"] = str(actor.get_meta("actor_role_id"))
 	record["member_name"] = str(actor.get("member_name"))
+	var actor_script := actor.get_script() as Script
+	if actor_script != null and not actor_script.resource_path.is_empty():
+		record["actor_script_path"] = actor_script.resource_path
 	var faction_id := str(actor.get("faction_name"))
 	record["faction_id"] = faction_id
 	record["squad_name"] = str(actor.get("squad_name"))
@@ -744,6 +897,12 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 	record["auto_heal_enabled"] = bool(actor.get("auto_heal_enabled"))
 	record["auto_burn_rustdead_enabled"] = bool(actor.get("auto_burn_rustdead_enabled"))
 	record["life_state"] = int(actor.get("life_state")) if actor.get("life_state") != null else NpcRules.LifeState.ALIVE
+	if int(record["life_state"]) == NpcRules.LifeState.DEAD:
+		record["body_state"] = str(record.get("body_state", "corpse"))
+		if str(record["body_state"]) == "living":
+			record["body_state"] = "corpse"
+	else:
+		record["body_state"] = "living"
 	var appearance = actor.get("appearance_data")
 	_repair_non_rustdead_appearance(appearance, faction_id)
 	record["appearance"] = _appearance_to_record(appearance)
@@ -757,6 +916,8 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 	if actor is Node3D:
 		record["last_world_position"] = (actor as Node3D).global_position
 		record["last_world_position_initialized"] = true
+		record["last_world_transform"] = (actor as Node3D).global_transform
+		record["last_world_transform_initialized"] = true
 	return record
 
 
@@ -795,18 +956,65 @@ func _disconnect_all_actor_skill_changes() -> void:
 	for actor_id_value in _skill_change_callable_by_actor_id.keys():
 		var actor_id := str(actor_id_value)
 		_disconnect_actor_skill_changes(_live_actor_by_id.get(actor_id), actor_id)
+	for actor_id_value in _life_change_callable_by_actor_id.keys():
+		var actor_id := str(actor_id_value)
+		_disconnect_actor_life_changes(_live_actor_by_id.get(actor_id), actor_id)
+
+
+func _connect_actor_life_changes(actor: Node, actor_id: String) -> void:
+	if actor == null or not actor.has_signal("life_state_changed"):
+		return
+	_disconnect_actor_life_changes(actor, actor_id)
+	var callback := _on_actor_life_state_changed.bind(actor_id, actor)
+	actor.life_state_changed.connect(callback)
+	_life_change_callable_by_actor_id[actor_id] = callback
+	if int(actor.get("life_state")) == NpcRules.LifeState.DEAD:
+		mark_record_dead(actor_id, actor)
+		dead_projection_registered.emit(actor_id)
+
+
+func _disconnect_actor_life_changes(actor: Node, actor_id: String) -> void:
+	var callback: Callable = _life_change_callable_by_actor_id.get(actor_id, Callable())
+	if callback.is_null():
+		return
+	if actor != null and is_instance_valid(actor) and actor.has_signal("life_state_changed") and actor.life_state_changed.is_connected(callback):
+		actor.life_state_changed.disconnect(callback)
+	_life_change_callable_by_actor_id.erase(actor_id)
+
+
+func _on_actor_life_state_changed(_previous_state: int, next_state: int, actor_id: String, actor: Node) -> void:
+	if next_state == NpcRules.LifeState.DEAD:
+		mark_record_dead(actor_id, actor)
+
+
+func _sync_live_corpse_transforms() -> void:
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("update_population_corpse_transform"):
+		return
+	for actor_id_value in _live_actor_by_id.keys():
+		var actor = _live_actor_by_id.get(actor_id_value)
+		if not (actor is Node3D) or not is_instance_valid(actor):
+			continue
+		if int(actor.get("life_state")) != NpcRules.LifeState.DEAD:
+			continue
+		bridge.call("update_population_corpse_transform", str(actor_id_value), (actor as Node3D).global_transform)
 
 
 func _on_actor_skill_level_changed(skill_id: String, actor_id: String) -> void:
 	var actor = _live_actor_by_id.get(actor_id)
-	var record := _get_actor_record_mutable(actor_id)
 	var stats = actor.call("get_stats") if actor != null and is_instance_valid(actor) and actor.has_method("get_stats") else null
-	if record.is_empty() or stats == null:
+	if stats == null:
 		return
-	var skill_levels: Dictionary = (record.get("skill_levels", {}) as Dictionary).duplicate(true)
-	var skill_xp: Dictionary = (record.get("skill_xp", {}) as Dictionary).duplicate(true)
 	var level := int(stats.call("get_skill_level", skill_id))
 	var xp := float(stats.call("get_skill_xp", skill_id))
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("update_population_skill_progress"):
+		bridge.call("update_population_skill_progress", actor_id, skill_id, level, xp)
+	if not actor_records.has(actor_id):
+		return
+	var record := actor_records[actor_id] as Dictionary
+	var skill_levels := record.get("skill_levels", {}) as Dictionary
+	var skill_xp := record.get("skill_xp", {}) as Dictionary
 	if level > SkillRules.DEFAULT_LEVEL:
 		skill_levels[skill_id] = level
 	else:
@@ -815,9 +1023,6 @@ func _on_actor_skill_level_changed(skill_id: String, actor_id: String) -> void:
 		skill_xp[skill_id] = xp
 	else:
 		skill_xp.erase(skill_id)
-	record["skill_levels"] = skill_levels
-	record["skill_xp"] = skill_xp
-	_save_actor_record(actor_id, record)
 
 
 func _unregister_actor_from_query_controller(actor: Node) -> void:
@@ -834,6 +1039,7 @@ func _unregister_actor_from_query_controller(actor: Node) -> void:
 func _remove_actor_record(actor_id: String, remove_live_actor := true) -> void:
 	if actor_id.strip_edges().is_empty() or not _has_actor_record(actor_id):
 		return
+	var settlement_id := str((actor_records.get(actor_id, {}) as Dictionary).get("settlement_id", ""))
 	var live_actor = _live_actor_by_id.get(actor_id)
 	if remove_live_actor and live_actor != null and is_instance_valid(live_actor):
 		if live_actor.has_method("is_player_party_member") and bool(live_actor.call("is_player_party_member")):
@@ -844,6 +1050,7 @@ func _remove_actor_record(actor_id: String, remove_live_actor := true) -> void:
 	_live_actor_by_id.erase(actor_id)
 	actor_records.erase(actor_id)
 	_remove_actor_record_from_gecs(actor_id)
+	population_record_changed.emit(settlement_id, actor_id)
 
 
 func _generate_equipment_slots(appearance_profile: Resource, context: Dictionary, actor_id: String) -> Dictionary:

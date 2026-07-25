@@ -106,6 +106,11 @@ func _launch_raid(gecs: Node, factions: Node, source: Dictionary, target: Dictio
 	_raid_index += 1
 	var squad_id := "faction:%s:raid:%d" % [faction_id, _raid_index]
 	var squad_size := _faction_squad_size(factions, faction_id)
+	var definition = factions.get_faction_definition(faction_id) if factions.has_method("get_faction_definition") else null
+	if definition != null:
+		var hostiles = definition.get("default_hostile_faction_ids")
+		var body_color: Color = definition.get("primary_color") if definition.get("primary_color") != null else Color(0.6, 0.6, 0.6, 1.0)
+		_generate_squad_records(_get_population_controller(), definition, faction_id, squad_id, squad_size, hostiles, body_color)
 	gecs.upsert_world_sim_squad({
 		"squad_id": squad_id,
 		"owner_id": str(source.get("id", "")),
@@ -290,6 +295,17 @@ func _generate_squad_records(population: Node, definition, faction_id: String, s
 	return population.ensure_generated_population(squad_id, squad_id, size, context)
 
 
+func ensure_faction_squad_people(record: Dictionary) -> void:
+	var faction_id := str(record.get("faction_id", ""))
+	var factions := _get_faction_controller()
+	var definition = factions.get_faction_definition(faction_id) if factions != null and factions.has_method("get_faction_definition") else null
+	if definition == null:
+		return
+	var hostiles = definition.get("default_hostile_faction_ids")
+	var body_color: Color = definition.get("primary_color") if definition.get("primary_color") != null else Color(0.6, 0.6, 0.6, 1.0)
+	_generate_squad_records(_get_population_controller(), definition, faction_id, str(record.get("squad_id", "")), int(record.get("member_count", 0)), hostiles, body_color)
+
+
 func _get_population_controller() -> Node:
 	return _context.get_optional(PopulationController.SERVICE_ID) if _context != null else null
 
@@ -427,6 +443,7 @@ func derealize_faction_squad(squad_id: String) -> int:
 	var root := _faction_squad_actor_root(false)
 	if root == null:
 		return survivors
+	var population := _get_population_controller()
 	for node in root.get_children():
 		if str(node.get("world_squad_id")) != squad_id:
 			continue
@@ -435,6 +452,8 @@ func derealize_faction_squad(squad_id: String) -> int:
 				survivors += 1
 		else:
 			survivors += 1
+		if population != null and population.has_method("unregister_actor"):
+			population.call("unregister_actor", node)
 		node.queue_free()
 	return survivors
 

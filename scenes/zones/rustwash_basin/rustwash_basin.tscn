@@ -43,14 +43,14 @@
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chair_3.tscn" id="46_chair"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/stool.tscn" id="47_stool"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_m77th"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_06rmy"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_kiev5"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_m77th"]
 _surfaces = [{
 "aabb": AABB(-8.339571, 0, -116.74548, 87.260994, 1e-05, 92.96738),
 "format": 34359738369,
@@ -126,9 +126,9 @@ metadata/_edit_group_ = true
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Towns/Canyon" unique_id=532431889]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_m77th")
+material_override = SubResource("StandardMaterial3D_06rmy")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_kiev5")
+mesh = SubResource("ArrayMesh_m77th")
 
 [node name="CanyonCityRestStop" type="Node3D" parent="Towns/Canyon" unique_id=556110935]
 transform = Transform3D(0.28083363, 0, 0.9597566, 0, 1, 0, -0.9597566, 0, 0.28083363, 3.373272, 0.42611122, -37.413513)
@@ -231,16 +231,16 @@ metadata/facility_layout_custom = true
 transform = Transform3D(-2.9802322e-08, 0, -1.0000001, 0, 1, 0, 1.0000001, 0, -2.9802322e-08, 2.57193, 0, 1.5128937)
 metadata/furnish_generated = true
 
-[node name="Table1" parent="Towns/Canyon/CanyonCityRestStop/Furniture" instance=ExtResource("45_table")]
+[node name="Table1" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=214246016 instance=ExtResource("45_table")]
 transform = Transform3D(0.99846774, 0, 0.055336628, 0, 1, 0, -0.055336628, 0, 0.99846774, -3.6201792, 0, 2.3800964)
 surface_id = "table_1"
 metadata/furnish_generated = true
 
-[node name="ChairSouth" parent="Towns/Canyon/CanyonCityRestStop/Furniture" instance=ExtResource("46_chair")]
+[node name="ChairSouth" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=957367139 instance=ExtResource("46_chair")]
 transform = Transform3D(-0.9964538, 0, 0.08415855, 0, 1, 0, -0.08415855, 0, -0.9964538, -3.7964387, 0, 3.3918931)
 metadata/furnish_generated = true
 
-[node name="StoolNorth" parent="Towns/Canyon/CanyonCityRestStop/Furniture" instance=ExtResource("47_stool")]
+[node name="StoolNorth" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=997449938 instance=ExtResource("47_stool")]
 transform = Transform3D(0.9994867, 0, -0.03190065, 0, 1, 0, 0.03190065, 0, 0.9994867, -3.296363, 0, 1.416539)
 metadata/furnish_generated = true
 
@@ -581,6 +581,7 @@ facility_id = "canyon.keep"
 building_type = "keep"
 owner_faction_id = "Canyonites"
 access_state = "private"
+bed_count = 0
 
 [node name="Staff" type="Node3D" parent="Towns/Canyon/Keep" unique_id=1253643577]
 

@@ -15,6 +15,8 @@ var _settlements: SettlementController
 var _population: Node
 var _gecs: GecsWorldController
 var _statuses: Dictionary = {}
+var _processing_day_settlement_ids: Dictionary = {}
+var _queued_population_refresh_ids: Dictionary = {}
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -25,6 +27,8 @@ func initialize(context: BootstrapContext) -> void:
 	_gecs = context.require(GecsWorldController.SERVICE_ID) as GecsWorldController
 	_world_time.hour_changed.connect(_on_hour_changed)
 	_stock.stock_changed.connect(_on_stock_changed)
+	if _population.has_signal("population_record_changed"):
+		_population.connect("population_record_changed", _on_population_record_changed)
 	_settlements.settlement_registered.connect(_on_settlement_registered)
 	_gecs.world_reindexed.connect(_rebuild_from_gecs)
 	_rebuild_from_gecs()
@@ -144,6 +148,7 @@ func _on_hour_changed(_absolute_hour: int, day_index: int, hour: int) -> void:
 
 
 func _process_day(settlement_id: String, definition: SettlementDefinition, day_index: int) -> void:
+	_processing_day_settlement_ids[settlement_id] = true
 	var outputs := _production_outputs(definition, _settlements.get_settlement_state(settlement_id))
 	var production_result := _stock.add_production_outputs(settlement_id, outputs)
 	var produced := float(production_result.get("food_units", 0.0))
@@ -158,6 +163,7 @@ func _process_day(settlement_id: String, definition: SettlementDefinition, day_i
 	status["last_consumed_item_counts"] = _stock.normalize_item_counts(consumption_result.get("items", {}) as Dictionary)
 	status["last_shortfall"] = maxf(demand - consumed, 0.0)
 	_statuses[settlement_id] = status
+	_processing_day_settlement_ids.erase(settlement_id)
 	refresh_status(settlement_id)
 
 
@@ -196,8 +202,24 @@ func _production_outputs(definition: SettlementDefinition, state: Dictionary) ->
 
 
 func _on_stock_changed(settlement_id: String, _facility_id: String) -> void:
-	if _settlements.get_settlement_definition(settlement_id) != null:
+	if not _processing_day_settlement_ids.has(settlement_id) and _settlements.get_settlement_definition(settlement_id) != null:
 		refresh_status(settlement_id)
+
+
+func _on_population_record_changed(settlement_id: String, _actor_id: String) -> void:
+	if settlement_id.is_empty() or _settlements.get_settlement_definition(settlement_id) == null:
+		return
+	var was_empty := _queued_population_refresh_ids.is_empty()
+	_queued_population_refresh_ids[settlement_id] = true
+	if was_empty:
+		_flush_population_refreshes.call_deferred()
+
+
+func _flush_population_refreshes() -> void:
+	var settlement_ids := _queued_population_refresh_ids.keys()
+	_queued_population_refresh_ids.clear()
+	for settlement_id in settlement_ids:
+		refresh_status(str(settlement_id))
 
 
 func _store_status(settlement_id: String, status: Dictionary) -> void:

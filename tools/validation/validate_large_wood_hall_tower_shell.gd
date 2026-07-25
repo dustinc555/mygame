@@ -44,7 +44,19 @@ func _run() -> void:
 	_validate_balconies(pieces)
 	_validate_doors(shell)
 	_validate_upstairs_door_visibility(shell, pieces)
+	_validate_visibility_lookup_source()
 	_finish(shell)
+
+
+func _validate_visibility_lookup_source() -> void:
+	var source := FileAccess.get_file_as_string("res://features/world/projection/building_visibility_controller.gd")
+	var function_start := source.find("func _find_building_for_actor")
+	var function_end := source.find("\n\nfunc ", function_start + 1)
+	var function_source := source.substr(function_start, function_end - function_start)
+	if function_source.contains("get_nodes_in_group"):
+		_fail("Building visibility must not scan the scene-tree building group per frame")
+	if not function_source.contains("is_visibility_candidate"):
+		_fail("Building visibility must coarse-reject unrelated buildings before exact containment")
 
 
 func _validate_tower_alignment(pieces: Node) -> void:

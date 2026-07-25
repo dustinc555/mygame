@@ -152,7 +152,8 @@ func _spawn_missing_residents_from_records(population_controller: Node) -> void:
 		if actor == null:
 			continue
 		actor.position = _record_local_spawn_position(record, resident_index - 1, max(desired_count, 1), rng)
-		population_controller.call("register_actor", actor, _get_settlement_id(), {"generation_source": _get_spawner_id(), "generation_index": resident_index})
+		if population_controller.has_method("update_realized_actor_position"):
+			population_controller.call("update_realized_actor_position", actor_id, actor.global_position)
 		spawned_count += 1
 	if _count_existing_residents() > 0:
 		_notify_settlement_population_ready()
