@@ -3,16 +3,14 @@ extends Control
 class_name DebugMenu
 
 ## Dev-only debug windows, shown only while the GameDebug sentinel is true.
-## Two independent draggable windows that can be open at the same time:
-## "LOD Debug" (realization ring, brain log) and "Nav Debug" (navmesh
-## visualization, tile grid, bake tuning). WorldStatusController opens them
-## from the Escape menu.
+## Independent draggable debug windows opened from the Escape menu.
 
 var _lod_overlay: Node3D
 var _lod_check: CheckButton
-var _brain_log_check: CheckButton
 var _radius_slider: HSlider
 var _radius_label: Label
+var _retention_spin: SpinBox
+var _retention_label: Label
 
 var _navmesh_check: CheckButton
 var _tiles_check: CheckButton
@@ -108,7 +106,10 @@ func _build_lod_window() -> void:
 	_radius_slider = _make_slider(vbox, 1.0, 1200.0, 1.0, _on_radius_changed)
 	_radius_slider.set_value_no_signal(_current_lod_radius())
 	_update_radius_label(_radius_slider.value)
-	_brain_log_check = _make_check(vbox, "Show world brain log", _on_brain_log_toggled)
+	_retention_label = _make_label(vbox)
+	_retention_spin = _make_spin_box(vbox, 0.0, 3600.0, 1.0, _on_retention_changed)
+	_retention_spin.set_value_no_signal(_current_retention_seconds())
+	_update_retention_label(_retention_spin.value)
 
 
 func _build_nav_window() -> void:
@@ -604,6 +605,18 @@ func _make_slider(parent_control: Control, min_value: float, max_value: float, s
 	return slider
 
 
+func _make_spin_box(parent_control: Control, min_value: float, max_value: float, step: float, handler: Callable) -> SpinBox:
+	var spin := SpinBox.new()
+	spin.min_value = min_value
+	spin.max_value = max_value
+	spin.step = step
+	spin.allow_greater = true
+	spin.custom_minimum_size = Vector2(160.0, 0.0)
+	spin.value_changed.connect(handler)
+	parent_control.add_child(spin)
+	return spin
+
+
 func _on_title_bar_input(event: InputEvent, panel: PanelContainer) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		_drag_panel = panel if event.pressed else null
@@ -673,12 +686,6 @@ func _on_lod_toggled(pressed: bool) -> void:
 		_lod_overlay.visible = pressed
 
 
-func _on_brain_log_toggled(pressed: bool) -> void:
-	var status := _get_world_status_controller()
-	if status != null and status.has_method("set_brain_log_visible"):
-		status.call("set_brain_log_visible", pressed)
-
-
 func _on_radius_changed(value: float) -> void:
 	var controller := _get_realization_controller()
 	if controller != null:
@@ -688,9 +695,21 @@ func _on_radius_changed(value: float) -> void:
 	_update_radius_label(value)
 
 
+func _on_retention_changed(value: float) -> void:
+	var controller := _get_realization_controller()
+	if controller != null and controller.has_method("set_realization_retention_seconds"):
+		controller.call("set_realization_retention_seconds", value)
+	_update_retention_label(value)
+
+
 func _update_radius_label(value: float) -> void:
 	if _radius_label != null:
 		_radius_label.text = "LOD radius: %dm" % int(value)
+
+
+func _update_retention_label(value: float) -> void:
+	if _retention_label != null:
+		_retention_label.text = "Phase-out time: %ds (0 = instant)" % int(value)
 
 
 func _current_lod_radius() -> float:
@@ -698,6 +717,13 @@ func _current_lod_radius() -> float:
 	if controller != null and controller.get("near_player_radius") != null:
 		return float(controller.get("near_player_radius"))
 	return 120.0
+
+
+func _current_retention_seconds() -> float:
+	var controller := _get_realization_controller()
+	if controller != null and controller.get("realization_retention_seconds") != null:
+		return float(controller.get("realization_retention_seconds"))
+	return 900.0
 
 
 ## --- Nav window handlers ------------------------------------------------------
@@ -1002,13 +1028,12 @@ func _sync_toggles() -> void:
 	if _lod_check != null:
 		var lod := _get_lod_overlay()
 		_lod_check.set_pressed_no_signal(lod != null and lod.visible)
-	if _brain_log_check != null:
-		var status := _get_world_status_controller()
-		var shown := bool(status.call("is_brain_log_visible")) if status != null and status.has_method("is_brain_log_visible") else false
-		_brain_log_check.set_pressed_no_signal(shown)
 	if _radius_slider != null:
 		_radius_slider.set_value_no_signal(_current_lod_radius())
 		_update_radius_label(_radius_slider.value)
+	if _retention_spin != null:
+		_retention_spin.set_value_no_signal(_current_retention_seconds())
+		_update_retention_label(_retention_spin.value)
 	var navigation := _get_world_navigation_controller()
 	if _navmesh_check != null and navigation != null and navigation.has_method("is_debug_visualization_enabled"):
 		_navmesh_check.set_pressed_no_signal(bool(navigation.call("is_debug_visualization_enabled")))
@@ -1029,10 +1054,6 @@ func _get_lod_overlay() -> Node3D:
 
 func _get_world_navigation_controller() -> Node:
 	return get_tree().get_first_node_in_group("world_navigation_controller") if get_tree() != null else null
-
-
-func _get_world_status_controller() -> Node:
-	return get_tree().get_first_node_in_group("world_status_controller") if get_tree() != null else null
 
 
 func _debug_enabled() -> bool:

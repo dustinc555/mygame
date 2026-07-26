@@ -67,14 +67,16 @@ func _advance_squads(dt: float) -> void:
 	if bridge == null or not bridge.has_method("get_world_sim_squads"):
 		return
 	var squads: Array = bridge.get_world_sim_squads()
-	var reference := _lod_reference()
+	_prune_removed_squad_retention(squads)
+	var anchors := _lod_anchors()
+	var reference: Vector3 = anchors[0] if not anchors.is_empty() else Vector3.INF
 	var radius := _lod_radius()
 	for plugin in get_world_sim_plugins():
 		if plugin.has_method("world_sim_tick"):
 			plugin.call("world_sim_tick", dt, bridge, squads, reference, radius)
 	# Always on: a raid squad manifests as real characters whenever the player is in range
 	# and folds back to data (kills kept) when they leave. No longer behind a debug toggle.
-	var realized: Dictionary = _update_lod_swap(bridge, squads, reference, radius)
+	var realized: Dictionary = _update_lod_swap(bridge, squads, anchors, radius)
 	for record in squads:
 		if int(record.get("member_count", 0)) <= 0:
 			continue
@@ -88,31 +90,33 @@ func _advance_squads(dt: float) -> void:
 ## Realize squads (owners) inside the LOD ring into live bodies, derealize those
 ## outside it. Whole-nest granularity, reusing nest's own spawn/reconcile. Returns
 ## owner_id -> realized so the mover can freeze realized squads.
-func _update_lod_swap(bridge: Node, squads: Array, reference: Vector3, radius: float) -> Dictionary:
+func _update_lod_swap(bridge: Node, squads: Array, anchors: Array[Vector3], radius: float) -> Dictionary:
 	var realized_map: Dictionary = {}
-	if reference == Vector3.INF:
+	if anchors.is_empty():
 		return realized_map
 	for plugin in get_world_sim_plugins():
 		if not plugin.has_method("update_lod_swap"):
 			continue
-		var plugin_realized: Dictionary = plugin.call("update_lod_swap", bridge, squads, reference, radius)
+		var plugin_realized: Dictionary = plugin.call("update_lod_swap", bridge, squads, anchors, radius)
 		for key in plugin_realized.keys():
 			realized_map[str(key)] = bool(plugin_realized[key])
-	var faction_ctrl := get_tree().get_first_node_in_group("faction_world_sim_controller") if get_tree() != null else null
+	var faction_ctrl := _faction_world_sim_controller()
 	if faction_ctrl != null:
 		for record in squads:
 			if str(record.get("owner_kind", "")) != "faction":
 				continue
 			var squad_id := str(record.get("squad_id", ""))
 			var position: Vector3 = record.get("position", Vector3.ZERO)
-			var near_faction := Vector2(position.x - reference.x, position.z - reference.z).length() <= radius
 			var faction_real := bool(faction_ctrl.is_faction_squad_realized(squad_id)) if faction_ctrl.has_method("is_faction_squad_realized") else false
-			if near_faction and not faction_real and faction_ctrl.has_method("realize_faction_squad"):
+			var threshold := _exit_lod_radius() if faction_real else radius
+			var near_faction := _is_near_any_anchor(position, anchors, threshold)
+			var keep_faction := _should_keep_realized("squad:%s" % squad_id, near_faction, faction_real)
+			if keep_faction and not faction_real and faction_ctrl.has_method("realize_faction_squad"):
 				faction_ctrl.realize_faction_squad(record)
 				faction_real = true
 				if bridge.has_method("log_world_event"):
 					bridge.log_world_event("faction", "%s squad realized — bodies on the ground" % str(record.get("faction_id", "")), {})
-			elif not near_faction and faction_real and faction_ctrl.has_method("derealize_faction_squad"):
+			elif not keep_faction and faction_real and faction_ctrl.has_method("derealize_faction_squad"):
 				var survivors := int(faction_ctrl.derealize_faction_squad(squad_id))
 				faction_real = false
 				record["member_count"] = survivors
@@ -134,34 +138,61 @@ func _update_lod_swap(bridge: Node, squads: Array, reference: Vector3, radius: f
 	return realized_map
 
 
-func _lod_reference() -> Vector3:
-	var tree := get_tree()
-	if tree == null:
-		return Vector3.INF
-	var members := tree.get_nodes_in_group("party_member")
-	if not members.is_empty():
-		var sum := Vector3.ZERO
-		var count := 0
-		for member in members:
-			if member is Node3D:
-				sum += (member as Node3D).global_position
-				count += 1
-		if count > 0:
-			return sum / float(count)
-	var viewport := get_viewport()
-	var camera := viewport.get_camera_3d() if viewport != null else null
-	if camera != null:
-		return Vector3(camera.global_position.x, 0.0, camera.global_position.z)
-	return Vector3.INF
+func _lod_anchors() -> Array[Vector3]:
+	var result: Array[Vector3] = []
+	var controller := _realization_controller()
+	if controller == null or not controller.has_method("get_realization_anchor_positions"):
+		return result
+	for value in controller.call("get_realization_anchor_positions"):
+		if value is Vector3:
+			result.append(value)
+	return result
+
+
+func _is_near_any_anchor(position: Vector3, anchors: Array[Vector3], radius: float) -> bool:
+	var radius_squared := radius * radius
+	for anchor in anchors:
+		var offset := position - anchor
+		offset.y = 0.0
+		if offset.length_squared() <= radius_squared:
+			return true
+	return false
+
+
+func _should_keep_realized(cache_key: String, near: bool, realized: bool) -> bool:
+	var controller := _realization_controller()
+	return bool(controller.call("should_keep_realized", cache_key, near, realized)) if controller != null and controller.has_method("should_keep_realized") else near
+
+
+func _prune_removed_squad_retention(squads: Array) -> void:
+	var controller := _realization_controller()
+	if controller == null or not controller.has_method("prune_realization_retention"):
+		return
+	var active_keys := {}
+	for record in squads:
+		active_keys["squad:%s" % str(record.get("squad_id", ""))] = true
+	controller.call("prune_realization_retention", "squad:", active_keys)
 
 
 func _lod_radius() -> float:
-	var controller := get_tree().get_first_node_in_group("population_realization_controller") if get_tree() != null else null
+	var controller := _realization_controller()
 	if controller != null:
-		var radius_value = controller.get("near_player_radius")
-		if radius_value != null:
-			return float(radius_value)
+		if controller.has_method("get_entry_radius"):
+			return float(controller.call("get_entry_radius"))
 	return 120.0
+
+
+func _exit_lod_radius() -> float:
+	var controller := _realization_controller()
+	return float(controller.call("get_exit_radius")) if controller != null and controller.has_method("get_exit_radius") else _lod_radius() + 25.0
+
+
+func _realization_controller() -> Node:
+	return _context.get_optional(PopulationRealizationController.SERVICE_ID) if _context != null else null
+
+
+func _faction_world_sim_controller() -> Node:
+	return _context.get_optional(FactionWorldSimController.SERVICE_ID) if _context != null else null
 
 
 func _log_event(category: String, message: String) -> void:

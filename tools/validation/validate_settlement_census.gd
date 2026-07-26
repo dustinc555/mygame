@@ -91,12 +91,14 @@ func _validate_settlement(settlement: Node, population: Node, settlement_id: Str
 	if _projection_silent_only:
 		return
 	await _validate_immediate_provenance(population, staff_snapshots, settlement_id)
-	settlement.call("derealize_settlement_staff", settlement_id)
+	for slot_id_value in slots.keys():
+		settlement.call("derealize_staff_slot", settlement_id, str(slot_id_value))
 	for worker_id in staff_snapshots:
 		var ledger_record: Dictionary = population.call("get_actor_record", str(worker_id))
 		if str(ledger_record.get("realization_state", "")) != "ledger":
 			_fail("%s did not return %s to its permanent GECS ledger record" % [settlement_id, str(worker_id)])
-	settlement.call("_realize_staff_bodies", settlement_id)
+	for slot_id_value in slots.keys():
+		settlement.call("realize_staff_slot", settlement_id, str(slot_id_value))
 	for worker_id in staff_snapshots:
 		var restored: Dictionary = population.call("get_actor_record", str(worker_id))
 		var before: Dictionary = staff_snapshots[worker_id]
@@ -122,7 +124,8 @@ func _validate_reconciliation_is_projection_silent(settlement: Node, population:
 				"transform": (actor as Node3D).global_transform,
 			}
 	settlement.call("_sync_settlement_staff_slots", settlement_id)
-	settlement.call("_realize_staff_bodies", settlement_id)
+	for slot_id_value in slots.keys():
+		settlement.call("realize_staff_slot", settlement_id, str(slot_id_value))
 	for actor_id in live_snapshots:
 		var actor = population.call("get_live_actor", str(actor_id))
 		var before: Dictionary = live_snapshots[actor_id]

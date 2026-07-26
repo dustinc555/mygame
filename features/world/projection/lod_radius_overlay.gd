@@ -2,21 +2,22 @@ extends Node3D
 
 class_name LodRadiusOverlay
 
-## Draws a ground ring at the population realization cutoff radius
-## (PopulationRealizationController.near_player_radius) centered on the party.
-## This is the "LOD line" — the boundary where actors would realize into live
-## nodes vs stay in the cheap world-sim ledger. Toggled from the debug menu.
+## Draws the actual population realization boundaries: camera plus every living
+## party member. The green bands sample collision so slopes do not turn into walls.
 
 const SEGMENTS := 72
-const WALL_HEIGHT := 3.0
-const WALL_COLOR := Color(1.0, 0.78, 0.18, 0.13)
-const EDGE_COLOR := Color(1.0, 0.86, 0.22, 0.95)
+const RING_WIDTH := 0.5
+const GROUND_OFFSET := 0.08
+const REFRESH_INTERVAL := 1.0
+const RING_COLOR := Color(0.18, 1.0, 0.32, 0.82)
+const EDGE_COLOR := Color(0.42, 1.0, 0.5, 1.0)
 
 var _immediate: ImmediateMesh
 var _mesh_instance: MeshInstance3D
 var _material: StandardMaterial3D
 var _realization_controller: Node
 var _radius := 120.0
+var _refresh_remaining := 0.0
 
 
 func _ready() -> void:
@@ -32,15 +33,18 @@ func _ready() -> void:
 	_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_material.vertex_color_use_as_albedo = true
-	# Drawn over geometry so you can always see the boundary, even through terrain/buildings.
-	_material.no_depth_test = true
+	_material.no_depth_test = false
 	_mesh_instance.material_override = _material
 	add_child(_mesh_instance)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not visible:
 		return
+	_refresh_remaining -= delta
+	if _refresh_remaining > 0.0:
+		return
+	_refresh_remaining = REFRESH_INTERVAL
 	_update_ring()
 
 
@@ -51,36 +55,42 @@ func _update_ring() -> void:
 		var radius_value = _realization_controller.get("near_player_radius")
 		if radius_value != null:
 			_radius = float(radius_value)
-	var center := _reference_position()
 	_immediate.clear_surfaces()
-	if center == Vector3.INF:
+	var anchors := _anchor_positions()
+	if anchors.is_empty():
 		return
-	# Translucent vertical wall — the boundary reads as a "fence" you can see the size of.
-	_immediate.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-	for i in range(SEGMENTS):
-		var a0 := TAU * float(i) / float(SEGMENTS)
-		var a1 := TAU * float(i + 1) / float(SEGMENTS)
-		var b0 := center + Vector3(cos(a0) * _radius, 0.1, sin(a0) * _radius)
-		var b1 := center + Vector3(cos(a1) * _radius, 0.1, sin(a1) * _radius)
-		var t0 := b0 + Vector3(0.0, WALL_HEIGHT, 0.0)
-		var t1 := b1 + Vector3(0.0, WALL_HEIGHT, 0.0)
-		_add_vertex(b0, WALL_COLOR)
-		_add_vertex(t0, WALL_COLOR)
-		_add_vertex(t1, WALL_COLOR)
-		_add_vertex(b0, WALL_COLOR)
-		_add_vertex(t1, WALL_COLOR)
-		_add_vertex(b1, WALL_COLOR)
-	_immediate.surface_end()
-	# Bright top + bottom edge rings to crisp the boundary.
-	_draw_edge_ring(center, 0.15)
-	_draw_edge_ring(center, WALL_HEIGHT)
+	for anchor in anchors:
+		_draw_ground_ring(anchor)
 
 
-func _draw_edge_ring(center: Vector3, height: float) -> void:
-	_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+func _draw_ground_ring(anchor: Vector3) -> void:
+	var points: Array[Vector3] = []
 	for i in range(SEGMENTS + 1):
 		var angle := TAU * float(i) / float(SEGMENTS)
-		_add_vertex(center + Vector3(cos(angle) * _radius, height, sin(angle) * _radius), EDGE_COLOR)
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		points.append(_ground_point(anchor + direction * _radius, anchor.y))
+	_immediate.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in range(SEGMENTS):
+		var direction0 := Vector3(points[i].x - anchor.x, 0.0, points[i].z - anchor.z).normalized()
+		var direction1 := Vector3(points[i + 1].x - anchor.x, 0.0, points[i + 1].z - anchor.z).normalized()
+		var inner0 := points[i] - direction0 * (RING_WIDTH * 0.5)
+		var outer0 := points[i] + direction0 * (RING_WIDTH * 0.5)
+		var inner1 := points[i + 1] - direction1 * (RING_WIDTH * 0.5)
+		var outer1 := points[i + 1] + direction1 * (RING_WIDTH * 0.5)
+		_add_vertex(inner0, RING_COLOR)
+		_add_vertex(outer0, RING_COLOR)
+		_add_vertex(outer1, RING_COLOR)
+		_add_vertex(inner0, RING_COLOR)
+		_add_vertex(outer1, RING_COLOR)
+		_add_vertex(inner1, RING_COLOR)
+	_immediate.surface_end()
+	_draw_edge_ring(points)
+
+
+func _draw_edge_ring(points: Array[Vector3]) -> void:
+	_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+	for point in points:
+		_add_vertex(point, EDGE_COLOR)
 	_immediate.surface_end()
 
 
@@ -89,22 +99,28 @@ func _add_vertex(vertex_position: Vector3, color: Color) -> void:
 	_immediate.surface_add_vertex(vertex_position)
 
 
-func _reference_position() -> Vector3:
-	var tree := get_tree()
-	if tree == null:
-		return Vector3.INF
-	var members := tree.get_nodes_in_group("party_member")
-	if not members.is_empty():
-		var sum := Vector3.ZERO
-		var count := 0
-		for member in members:
-			if member is Node3D:
-				sum += (member as Node3D).global_position
-				count += 1
-		if count > 0:
-			return sum / float(count)
-	var viewport := get_viewport()
-	var camera := viewport.get_camera_3d() if viewport != null else null
-	if camera != null:
-		return Vector3(camera.global_position.x, 0.0, camera.global_position.z)
-	return Vector3.INF
+func _anchor_positions() -> Array[Vector3]:
+	var result: Array[Vector3] = []
+	if _realization_controller == null or not _realization_controller.has_method("get_realization_anchor_positions"):
+		return result
+	for value in _realization_controller.call("get_realization_anchor_positions"):
+		if value is Vector3:
+			result.append(value)
+	return result
+
+
+func _ground_point(world_position: Vector3, fallback_y: float) -> Vector3:
+	var world := get_world_3d()
+	if world == null:
+		return Vector3(world_position.x, fallback_y + GROUND_OFFSET, world_position.z)
+	var from := Vector3(world_position.x, fallback_y + 200.0, world_position.z)
+	var to := Vector3(world_position.x, fallback_y - 500.0, world_position.z)
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.collide_with_areas = false
+	var hit := world.direct_space_state.intersect_ray(query)
+	var y := fallback_y
+	if not hit.is_empty():
+		var hit_position = hit.get("position", Vector3(world_position.x, fallback_y, world_position.z))
+		if hit_position is Vector3:
+			y = hit_position.y
+	return Vector3(world_position.x, y + GROUND_OFFSET, world_position.z)

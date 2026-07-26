@@ -16,6 +16,15 @@ var _c_vitals_inputs
 class FakeActor:
 	extends Node3D
 
+	class FakeNeeds:
+		extends RefCounted
+
+		var hunger := 100.0
+		var food_effect_remaining_seconds := 0.0
+
+		func durable_state() -> Dictionary:
+			return {"hunger": hunger, "food_effect_remaining_seconds": food_effect_remaining_seconds}
+
 	var stable_id := ""
 	var member_name := "LOD Vitals"
 	var faction_name := "Settlers"
@@ -28,6 +37,33 @@ class FakeActor:
 	var max_hp := 100.0
 	var blood := 100.0
 	var max_blood := 100.0
+	var needs := FakeNeeds.new()
+	var move_target := Vector3.ZERO
+	var move_target_active := false
+	var sneaking := false
+	var running := false
+	var player_order := false
+
+	func get_needs():
+		return needs
+
+	func has_move_target() -> bool:
+		return move_target_active
+
+	func get_move_target() -> Vector3:
+		return move_target
+
+	func is_running_enabled() -> bool:
+		return running
+
+	func is_running_requested() -> bool:
+		return running
+
+	func is_sneaking() -> bool:
+		return sneaking
+
+	func has_active_player_order() -> bool:
+		return player_order
 
 
 func _initialize() -> void:
@@ -43,6 +79,8 @@ func _run() -> void:
 	var actor := FakeActor.new()
 	actor.stable_id = "person.lod.vitals"
 	first["root"].add_child(actor)
+	var expected_living_transform := Transform3D(Basis.from_euler(Vector3(0.17, 1.2, -0.08)), Vector3(11.25, 3.5, -7.75))
+	actor.global_transform = expected_living_transform
 	bridge.upsert_population_record({
 		"actor_id": actor.stable_id,
 		"stable_id": actor.stable_id,
@@ -56,6 +94,18 @@ func _run() -> void:
 	var live_entity = bridge.get_actor_entity(actor)
 	var live_vitals = live_entity.get_component(_c_vitals)
 	var live_inputs = live_entity.get_component(_c_vitals_inputs)
+	actor.needs.hunger = 38.75
+	actor.needs.food_effect_remaining_seconds = 6.25
+	actor.move_target = Vector3(30.0, 3.5, -12.0)
+	actor.move_target_active = true
+	actor.sneaking = true
+	actor.player_order = true
+	bridge.call("_sync_live_scene_state_for_save")
+	var live_save_record: Dictionary = bridge.get_population_record(actor.stable_id)
+	_expect((live_save_record.get("last_world_transform", Transform3D.IDENTITY) as Transform3D).is_equal_approx(expected_living_transform), "Live save sync should preserve exact living position and facing")
+	_expect(is_equal_approx(float((live_save_record.get("needs_state", {}) as Dictionary).get("hunger", 0.0)), 38.75), "Live save sync should preserve exact needs")
+	_expect(bool((live_save_record.get("movement_state", {}) as Dictionary).get("has_move_target", false)), "Live save sync should preserve movement intent")
+	_expect(bool((live_save_record.get("movement_state", {}) as Dictionary).get("issued_by_player", false)), "Live save sync should preserve player-issued movement intent")
 	_set_wounded_state(live_vitals, live_inputs)
 	var expected: Dictionary = live_vitals.durable_state()
 	var expected_inputs: Dictionary = live_inputs.durable_state()
@@ -64,6 +114,8 @@ func _run() -> void:
 	bridge.unregister_actor(actor)
 
 	var ledger_record: Dictionary = bridge.get_population_record(actor.stable_id)
+	_expect(bool(ledger_record.get("last_world_transform_initialized", false)), "LOD unload should initialize the full living transform")
+	_expect((ledger_record.get("last_world_transform", Transform3D.IDENTITY) as Transform3D).is_equal_approx(expected_living_transform), "LOD unload should preserve exact living position and facing")
 	_expect_state("LOD unload", ledger_record.get("vitals", {}), expected)
 	_expect_state("LOD unload inputs", ledger_record.get("vitals_inputs", {}), expected_inputs)
 	_expect(bridge.get_active_population_vitals_count() == 1, "LOD unload should index exactly one active injury")
@@ -219,7 +271,7 @@ func _validate_realized_skip_death(bridge, world_time, scene_root: Node) -> void
 	actor.global_transform = Transform3D(Basis(Vector3.UP, 0.6), Vector3(17.0, 0.5, -4.0))
 	scene_root.add_child(actor)
 	bridge.register_actor(actor, "lod_town", {"role_id": "guard"})
-	bridge.update_population_realization(ACTOR_ID, "realized", actor.global_position, true)
+	bridge.update_population_realization(ACTOR_ID, "realized", actor.global_transform, true)
 	var entity = bridge.get_actor_entity(actor)
 	var vitals = entity.get_component(_c_vitals)
 	var inputs = entity.get_component(_c_vitals_inputs)

@@ -189,7 +189,7 @@ func configure_settlement_staff_actor(actor: Node, slot_id: String, slot_record:
 		return
 	actor.name = _indexed_name("Ruler" if role == "ruler" else "Guard", role_index)
 	_prepare_staff_actor(actor, role, role_index, slot_record)
-	if role == "ruler":
+	if role == "ruler" and not bool(slot_record.get("preserve_durable_transform", false)):
 		_seat_ruler_at_idle.call_deferred()
 		sync_property_ownership.call_deferred()
 

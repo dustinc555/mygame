@@ -397,6 +397,15 @@ func _validate_realization_policy() -> void:
 	root.add_child(root_node)
 	var context := BootstrapContext.new(root_node)
 	_add_gecs_bridge(root_node, context)
+	var camera_rig := Node3D.new()
+	camera_rig.name = "CameraRig"
+	root_node.add_child(camera_rig)
+	var camera_pivot := Node3D.new()
+	camera_pivot.name = "CameraPivot"
+	camera_rig.add_child(camera_pivot)
+	var camera := Camera3D.new()
+	camera.name = "Camera3D"
+	camera_pivot.add_child(camera)
 	var party_manager := FakePartyManager.new()
 	party_manager.name = "PartyManager"
 	root_node.add_child(party_manager)
@@ -409,10 +418,21 @@ func _validate_realization_policy() -> void:
 	realization.initialize(context)
 	realization.default_realization_policy = "near_player"
 	realization.near_player_radius = 10.0
-	if not bool(realization.should_realize_actor(null, {"last_world_position": Vector3(5.0, 0.0, 0.0)})):
+	realization.realization_preload_margin = 6.0
+	if not is_equal_approx(float(realization.get_visible_radius()), 10.0) or not is_equal_approx(float(realization.get_entry_radius()), 16.0) or not is_equal_approx(float(realization.get_exit_radius()), 41.0):
+		_fail("Population realization should expose visible, preload-entry, and hysteresis-exit radii")
+	if not bool(realization.should_realize_actor(null, {"last_world_position": Vector3(5.0, 0.0, 0.0), "last_world_position_initialized": true})):
 		_fail("near_player realization should realize nearby actor records")
-	if bool(realization.should_realize_actor(null, {"last_world_position": Vector3(50.0, 0.0, 0.0)})):
+	if not bool(realization.should_realize_actor(null, {"actor_id": "preload", "last_world_position": Vector3(15.0, 0.0, 0.0), "last_world_position_initialized": true})):
+		_fail("near_player realization should preload actor records before visible range")
+	if bool(realization.should_realize_actor(null, {"actor_id": "far", "last_world_position": Vector3(50.0, 0.0, 0.0), "last_world_position_initialized": true})):
 		_fail("near_player realization should keep far actor records in ledger")
+	var secondary_actor := Node3D.new()
+	root_node.add_child(secondary_actor)
+	secondary_actor.global_position = Vector3(100.0, 0.0, 0.0)
+	party_manager.party_members.append(secondary_actor)
+	if bool(realization.should_realize_actor(null, {"actor_id": "secondary", "last_world_position": Vector3(108.0, 0.0, 0.0), "last_world_position_initialized": true})):
+		_fail("Remote party members must not keep surrounding world detail realized")
 	realization.default_realization_policy = "important_plus_near"
 	if not bool(realization.should_realize_actor(null, {"role_id": "guard", "last_world_position": Vector3(50.0, 0.0, 0.0)})):
 		_fail("important_plus_near realization should realize important roles")

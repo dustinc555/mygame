@@ -355,6 +355,10 @@ func _ready() -> void:
 	_configure_world_actor_movement()
 	for cap in _capabilities.values():
 		(cap as ActorCapability).ready()
+	apply_population_runtime_state(
+		get_meta("population_needs_state", {}) as Dictionary,
+		get_meta("population_movement_state", {}) as Dictionary
+	)
 	var inv := get_inventory()
 	if inv != null and not inv.inventory_changed.is_connected(_on_inventory_capability_changed):
 		inv.inventory_changed.connect(_on_inventory_capability_changed)
@@ -363,6 +367,24 @@ func _ready() -> void:
 ## Re-emits the actor-level inventory_changed signal that external systems connect to.
 func _on_inventory_capability_changed() -> void:
 	inventory_changed.emit()
+
+
+func apply_population_runtime_state(needs_state: Dictionary, movement_state: Dictionary) -> void:
+	var needs := get_needs()
+	if needs != null:
+		needs.apply_durable_state(needs_state)
+	if movement_state.is_empty():
+		stop_movement()
+		set_running_enabled(false)
+		set_sneaking_enabled(false)
+		set_active_player_order(false)
+		return
+	set_running_enabled(bool(movement_state.get("running", false)))
+	set_sneaking_enabled(bool(movement_state.get("sneaking", false)))
+	if bool(movement_state.get("has_move_target", false)):
+		set_move_target(movement_state.get("move_target", global_position), bool(movement_state.get("issued_by_player", false)))
+	else:
+		stop_movement()
 
 
 func _exit_tree() -> void:
@@ -650,6 +672,10 @@ func set_running_enabled(enabled: bool) -> bool:
 
 func is_running_enabled() -> bool:
 	return running and can_continue_running()
+
+
+func is_running_requested() -> bool:
+	return running
 
 
 ## Exhausted actors cannot keep sprinting (main's rule): once EXHAUSTED, running

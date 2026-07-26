@@ -743,7 +743,7 @@ func is_world_sim_squad_realized(squad_id: String) -> bool:
 	return is_nest_squad_realized(squad_id)
 
 
-func update_lod_swap(bridge: Node, squads: Array, reference: Vector3, radius: float) -> Dictionary:
+func update_lod_swap(bridge: Node, squads: Array, anchors: Array[Vector3], radius: float) -> Dictionary:
 	var realized_map: Dictionary = {}
 	for record in squads:
 		if str(record.get("owner_kind", "")) != "nest":
@@ -764,13 +764,14 @@ func update_lod_swap(bridge: Node, squads: Array, reference: Vector3, radius: fl
 			realized_map[squad_id] = false
 			continue
 		var threshold := radius + (NEST_LOD_HYSTERESIS if realized else 0.0)
-		var near := _flat_distance(position, reference) <= threshold
-		if near and not realized and int(record.get("member_count", 0)) > 0:
+		var near := _near_any_anchor(position, anchors, threshold)
+		var keep := _should_keep_realized("squad:%s" % squad_id, near, realized)
+		if keep and not realized and int(record.get("member_count", 0)) > 0:
 			realize_nest_squad(record)
 			realized = is_nest_squad_realized(squad_id)
 			if realized and bridge.has_method("log_world_event"):
 				bridge.log_world_event("rustdead", "nest squad %s realized" % squad_id, {})
-		elif not near and realized:
+		elif not keep and realized:
 			var survivors := derealize_nest_squad(squad_id)
 			realized = false
 			record["member_count"] = survivors
@@ -787,6 +788,18 @@ func update_lod_swap(bridge: Node, squads: Array, reference: Vector3, radius: fl
 				bridge.upsert_world_sim_squad(record)
 		realized_map[squad_id] = realized
 	return realized_map
+
+
+func _near_any_anchor(position: Vector3, anchors: Array[Vector3], radius: float) -> bool:
+	for anchor in anchors:
+		if _flat_distance(position, anchor) <= radius:
+			return true
+	return false
+
+
+func _should_keep_realized(cache_key: String, near: bool, realized: bool) -> bool:
+	var controller := _context.get_optional(PopulationRealizationController.SERVICE_ID) if _context != null else null
+	return bool(controller.call("should_keep_realized", cache_key, near, realized)) if controller != null and controller.has_method("should_keep_realized") else near
 
 
 func realize_nest_squad(record: Dictionary) -> void:

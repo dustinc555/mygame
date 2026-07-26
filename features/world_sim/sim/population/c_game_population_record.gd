@@ -21,6 +21,7 @@ class_name CGamePopulationRecord
 ## When this record is assigned to a settlement staff slot, the slot id is stored here so the
 ## assignment is ledger truth (survives LOD) and the record is excluded from the resident pool.
 @export var assigned_slot_id := ""
+@export var staff_assignment_realized_once := false
 @export var hostile_faction_ids: PackedStringArray = PackedStringArray()
 @export var combat_stance := 0
 @export var auto_heal_enabled := false
@@ -28,6 +29,8 @@ class_name CGamePopulationRecord
 @export var base_color := Color(0.62, 0.62, 0.62, 1.0)
 @export var skill_levels: Dictionary = {}
 @export var skill_xp: Dictionary = {}
+@export var needs_state: Dictionary = {}
+@export var movement_state: Dictionary = {}
 @export var traits: Dictionary = {}
 @export var personality: Dictionary = {}
 @export var life_state := 0
@@ -84,6 +87,7 @@ func apply_record(source: Dictionary) -> void:
 	squad_name = str(source.get("squad_name", squad_name))
 	role_id = str(source.get("role_id", role_id))
 	assigned_slot_id = str(source.get("assigned_slot_id", assigned_slot_id))
+	staff_assignment_realized_once = bool(source.get("staff_assignment_realized_once", staff_assignment_realized_once))
 	hostile_faction_ids = PackedStringArray(source.get("hostile_faction_ids", hostile_faction_ids))
 	combat_stance = int(source.get("combat_stance", combat_stance))
 	auto_heal_enabled = bool(source.get("auto_heal_enabled", auto_heal_enabled))
@@ -91,6 +95,8 @@ func apply_record(source: Dictionary) -> void:
 	base_color = source.get("base_color", base_color)
 	skill_levels = (source.get("skill_levels", skill_levels) as Dictionary).duplicate(true)
 	skill_xp = (source.get("skill_xp", skill_xp) as Dictionary).duplicate(true)
+	needs_state = (source.get("needs_state", needs_state) as Dictionary).duplicate(true)
+	movement_state = (source.get("movement_state", movement_state) as Dictionary).duplicate(true)
 	traits = (source.get("traits", traits) as Dictionary).duplicate(true)
 	personality = (source.get("personality", personality) as Dictionary).duplicate(true)
 	life_state = int(source.get("life_state", life_state))
@@ -146,6 +152,7 @@ func to_record() -> Dictionary:
 		"squad_name": squad_name,
 		"role_id": role_id,
 		"assigned_slot_id": assigned_slot_id,
+		"staff_assignment_realized_once": staff_assignment_realized_once,
 		"hostile_faction_ids": Array(hostile_faction_ids),
 		"combat_stance": combat_stance,
 		"auto_heal_enabled": auto_heal_enabled,
@@ -153,6 +160,8 @@ func to_record() -> Dictionary:
 		"base_color": base_color,
 		"skill_levels": skill_levels.duplicate(true),
 		"skill_xp": skill_xp.duplicate(true),
+		"needs_state": needs_state.duplicate(true),
+		"movement_state": movement_state.duplicate(true),
 		"traits": traits.duplicate(true),
 		"personality": personality.duplicate(true),
 		"life_state": life_state,

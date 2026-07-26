@@ -16,7 +16,7 @@ const LAYERED_CONTROLLERS := {
 	"CoreServices": ["GecsWorldController", "WorldTimeController", "ActorQueryController"],
 	"ProjectionRoot": [
 		"BuildingVisibilityController", "BleedSplotchController", "DayNightLightingController",
-		"CharacterAppearanceController",
+		"CharacterAppearanceController", "WorldLightLodController",
 	],
 	"WorldSimRoot": [
 		"WorldSimulationController", "FactionController", "PopulationController", "TerritoryController",
@@ -42,6 +42,7 @@ const REQUIRED_SERVICE_IDS := [
 	&"world_interaction",
 	&"building_visibility",
 	&"day_night_lighting",
+	&"world_light_lod",
 ]
 
 const WORLD_SIM_DEPENDENCIES := {

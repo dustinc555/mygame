@@ -72,14 +72,26 @@ func unregister_actor(actor: Node) -> void:
 	var actor_id := _actor_record_id(actor)
 	if actor_id.is_empty():
 		return
+	var stats = actor.call("get_stats") if is_instance_valid(actor) and actor.has_method("get_stats") else null
+	if stats != null and stats.has_method("flush_pending_xp"):
+		stats.call("flush_pending_xp")
 	_unregister_actor_from_query_controller(actor)
 	_disconnect_actor_skill_changes(actor, actor_id)
 	_disconnect_actor_life_changes(actor, actor_id)
 	var bridge := _get_gecs_world()
 	var record: Dictionary = bridge.call("get_population_record", actor_id) if bridge != null and bridge.has_method("get_population_record") else _get_actor_record_mutable(actor_id)
 	if not record.is_empty():
-		actor_records[actor_id] = record.duplicate(true)
-		population_record_changed.emit(str(record.get("settlement_id", "")), actor_id)
+		record = _merge_actor_state_into_record(record, actor, str(record.get("settlement_id", "")), {})
+		record["realization_state"] = "ledger"
+		record.erase("live_node_path")
+		if actor is Node3D:
+			record["last_world_transform"] = (actor as Node3D).global_transform
+			record["last_world_transform_initialized"] = true
+			record["last_world_position"] = (actor as Node3D).global_transform.origin
+			record["last_world_position_initialized"] = true
+		if bridge != null and bridge.has_method("update_population_realization"):
+			bridge.call("update_population_realization", actor_id, "ledger", record.get("last_world_transform", Transform3D.IDENTITY), bool(record.get("last_world_transform_initialized", false)))
+		_save_actor_record(actor_id, record)
 	_live_actor_by_id.erase(actor_id)
 
 
@@ -164,7 +176,7 @@ func claim_unassigned_record_for_slot(settlement_id: String, slot_id: String, ro
 			best_actor_id = str(actor_id)
 	if best_actor_id.is_empty():
 		return {}
-	return update_actor_record(best_actor_id, {"role_id": role_id, "assigned_slot_id": slot_id})
+	return update_actor_record(best_actor_id, {"role_id": role_id, "assigned_slot_id": slot_id, "staff_assignment_realized_once": false, "movement_state": {}})
 
 
 func get_record_assigned_to_slot(settlement_id: String, slot_id: String) -> Dictionary:
@@ -182,7 +194,7 @@ func release_slot_assignment(settlement_id: String, slot_id: String) -> Dictiona
 	var record := get_record_assigned_to_slot(settlement_id, slot_id)
 	if record.is_empty():
 		return {}
-	return update_actor_record(str(record.get("actor_id", "")), {"role_id": "resident", "assigned_slot_id": ""})
+	return update_actor_record(str(record.get("actor_id", "")), {"role_id": "resident", "assigned_slot_id": "", "staff_assignment_realized_once": false, "movement_state": {}})
 
 
 ## A bound staff body died — mark its record dead and free the slot binding so the world sim
@@ -410,6 +422,10 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 	actor.set_meta("population_inventory_entries", Array(record.get("inventory_entries", [])).duplicate(true))
 	if record.has("base_color"):
 		actor.set("base_color", record.get("base_color"))
+	actor.set_meta("population_needs_state", (record.get("needs_state", {}) as Dictionary).duplicate(true))
+	actor.set_meta("population_movement_state", (record.get("movement_state", {}) as Dictionary).duplicate(true))
+	if actor.is_inside_tree() and actor.has_method("apply_population_runtime_state"):
+		actor.call("apply_population_runtime_state", record.get("needs_state", {}), record.get("movement_state", {}))
 	var appearance = appearance_from_record(record.get("appearance", {}) as Dictionary)
 	if appearance != null:
 		_repair_non_rustdead_appearance(appearance, faction_id)
@@ -535,12 +551,14 @@ func mark_actor_realized(actor: Node, actor_id := "") -> void:
 	if not record.is_empty():
 		record["realization_state"] = "realized"
 		if actor is Node3D and actor.is_inside_tree():
-			record["last_world_position"] = (actor as Node3D).global_position
+			record["last_world_transform"] = (actor as Node3D).global_transform
+			record["last_world_transform_initialized"] = true
+			record["last_world_position"] = (actor as Node3D).global_transform.origin
 			record["last_world_position_initialized"] = true
 		actor_records[actor_id] = record
 		var realization_bridge := _get_gecs_world()
 		if realization_bridge != null and realization_bridge.has_method("update_population_realization"):
-			realization_bridge.call("update_population_realization", actor_id, "realized", record.get("last_world_position", Vector3.ZERO), bool(record.get("last_world_position_initialized", false)))
+			realization_bridge.call("update_population_realization", actor_id, "realized", record.get("last_world_transform", Transform3D.IDENTITY), bool(record.get("last_world_transform_initialized", false)))
 	actor.set_meta("settlement_id", str(record.get("settlement_id", "")))
 	actor.set_meta("actor_role_id", str(record.get("role_id", "resident")))
 	_register_actor_with_query_controller(actor)
@@ -550,16 +568,18 @@ func mark_actor_realized(actor: Node, actor_id := "") -> void:
 		equipment.call("hydrate_gecs_slots", gecs.call("get_equipment_slots", actor_id))
 
 
-func update_realized_actor_position(actor_id: String, world_position: Vector3) -> void:
+func update_realized_actor_transform(actor_id: String, world_transform: Transform3D) -> void:
 	var record := _get_actor_record_mutable(actor_id)
 	if record.is_empty():
 		return
-	record["last_world_position"] = world_position
+	record["last_world_transform"] = world_transform
+	record["last_world_transform_initialized"] = true
+	record["last_world_position"] = world_transform.origin
 	record["last_world_position_initialized"] = true
 	actor_records[actor_id] = record
 	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("update_population_realization"):
-		bridge.call("update_population_realization", actor_id, str(record.get("realization_state", "realized")), world_position, true)
+		bridge.call("update_population_realization", actor_id, str(record.get("realization_state", "realized")), world_transform, true)
 
 
 func advance_ledger_minutes(minutes: int, absolute_minute := -1) -> Dictionary:
@@ -883,6 +903,8 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 		record["settlement_id"] = settlement_id
 	if context.has("role_id"):
 		record["role_id"] = str(context.get("role_id"))
+	elif actor.has_meta("settlement_staff_role") and not str(actor.get_meta("settlement_staff_role", "")).is_empty():
+		record["role_id"] = str(actor.get_meta("settlement_staff_role"))
 	elif actor.has_meta("actor_role_id") and not str(actor.get_meta("actor_role_id", "")).is_empty():
 		record["role_id"] = str(actor.get_meta("actor_role_id"))
 	record["member_name"] = str(actor.get("member_name"))
@@ -913,6 +935,16 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 		if not actor_skill_levels.has(skill_id) and actor.has_method("get_skill_level"):
 			actor_skill_levels[skill_id] = int(actor.call("get_skill_level", str(skill_id)))
 	record["skill_levels"] = actor_skill_levels
+	var needs = actor.call("get_needs") if actor.has_method("get_needs") else null
+	if needs != null and needs.has_method("durable_state"):
+		record["needs_state"] = needs.call("durable_state")
+	record["movement_state"] = {
+		"has_move_target": bool(actor.call("has_move_target")) if actor.has_method("has_move_target") else false,
+		"move_target": actor.call("get_move_target") if actor.has_method("get_move_target") else Vector3.ZERO,
+		"running": bool(actor.call("is_running_requested")) if actor.has_method("is_running_requested") else false,
+		"sneaking": bool(actor.call("is_sneaking")) if actor.has_method("is_sneaking") else false,
+		"issued_by_player": bool(actor.call("has_active_player_order")) if actor.has_method("has_active_player_order") else false,
+	}
 	if actor is Node3D:
 		record["last_world_position"] = (actor as Node3D).global_position
 		record["last_world_position_initialized"] = true

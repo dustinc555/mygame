@@ -37,18 +37,35 @@ func _initialize() -> void:
 	stats.configure_base_stats({"base_attack_damage": 25.0})
 	_expect(failures, "attack_damage passes base through", is_equal_approx(stats.get_stat_value("attack_damage"), 25.0))
 
-	# XP raises level and emits.
-	var emitted := {"hit": false}
-	stats.skill_level_changed.connect(func(_id): emitted.hit = true)
+	# XP mutates immediately but batches signal fanout once per skill.
+	var emitted := {"level": 0, "progress": 0}
+	stats.skill_level_changed.connect(func(_id): emitted.level += 1)
+	stats.skill_progress_changed.connect(func(_id): emitted.progress += 1)
+	var running_xp_before := stats.get_skill_xp(SkillRules.MOVEMENT_RUNNING)
+	stats.add_skill_xp(SkillRules.MOVEMENT_RUNNING, 0.25)
+	stats.add_skill_xp(SkillRules.MOVEMENT_RUNNING, 0.75)
+	_expect(failures, "xp enables only its bounded flush tick", stats.physics_process_enabled)
+	_expect(failures, "xp mutates authoritative progress immediately", is_equal_approx(stats.get_skill_xp(SkillRules.MOVEMENT_RUNNING) - running_xp_before, 1.0))
+	_expect(failures, "xp signal waits for batch flush", emitted.progress == 0)
+	stats.flush_pending_xp()
+	_expect(failures, "idle stats stop physics processing", not stats.physics_process_enabled)
+	_expect(failures, "non-level xp emits one progress signal on flush", emitted.progress == 1 and emitted.level == 0)
+	emitted.level = 0
+	emitted.progress = 0
 	stats.add_skill_xp(SkillRules.ATTRIBUTE_TOUGHNESS, 100000.0)
-	_expect(failures, "toughness leveled from xp", stats.get_skill_level(SkillRules.ATTRIBUTE_TOUGHNESS) > SkillRules.DEFAULT_LEVEL)
-	_expect(failures, "skill_level_changed emitted", emitted.hit)
+	stats.add_skill_xp(SkillRules.ATTRIBUTE_TOUGHNESS, 1.0)
+	_expect(failures, "level mutation is immediate", stats.get_skill_level(SkillRules.ATTRIBUTE_TOUGHNESS) > SkillRules.DEFAULT_LEVEL)
+	_expect(failures, "level signal waits for batch flush", emitted.progress == 0)
+	stats.flush_pending_xp()
+	_expect(failures, "toughness remains leveled after signal flush", stats.get_skill_level(SkillRules.ATTRIBUTE_TOUGHNESS) > SkillRules.DEFAULT_LEVEL)
+	_expect(failures, "skill_level_changed emitted once", emitted.level == 1)
+	_expect(failures, "skill_progress_changed emitted once", emitted.progress == 1)
 
 	# Unknown stat is safe.
 	_expect(failures, "unknown stat returns 0", is_equal_approx(stats.get_stat_value("nonsense"), 0.0))
 
 	if failures.is_empty():
-		print("PASS: StatsCapability resolution sane (8 checks)")
+		print("PASS: StatsCapability resolution and XP batching sane")
 		quit(0)
 	else:
 		for f in failures:

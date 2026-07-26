@@ -20,6 +20,7 @@ class_name StatsCapability
 ##     This is what keeps the graph free of cycles.
 
 const ACTOR_SKILL_SET_SCRIPT = preload("res://features/skills/resources/actor_skill_set.gd")
+const XP_FLUSH_INTERVAL_SECONDS := 1.0
 
 ## Emitted when a skill/attribute level changes. VitalsCapability connects to
 ## refresh toughness-derived max blood.
@@ -48,6 +49,9 @@ var hunger_drain_rate := 0.08
 
 var _equipment: EquipmentCapability
 var _starting_skill_levels_applied := false
+var _pending_progress_signal_by_skill: Dictionary = {}
+var _pending_level_signal_by_skill: Dictionary = {}
+var _xp_flush_remaining := XP_FLUSH_INTERVAL_SECONDS
 
 
 func _init() -> void:
@@ -61,9 +65,16 @@ func ready() -> void:
 
 
 func teardown() -> void:
+	flush_pending_xp()
 	_equipment = null
 	skill_set = null
 	super.teardown()
+
+
+func physics_process(delta: float) -> void:
+	_xp_flush_remaining -= delta
+	if _xp_flush_remaining <= 0.0:
+		flush_pending_xp()
 
 # ---------------------------------------------------------------------------
 # Authoring / save injection
@@ -95,6 +106,7 @@ func get_skill_level(skill_id: String) -> int:
 
 
 func set_skill_level(skill_id: String, level: int, clear_xp := true) -> void:
+	flush_pending_xp()
 	_ensure_skill_set()
 	skill_set.set_skill_level(skill_id, level, clear_xp)
 	skill_level_changed.emit(skill_id)
@@ -102,15 +114,43 @@ func set_skill_level(skill_id: String, level: int, clear_xp := true) -> void:
 
 
 func add_skill_xp(skill_id: String, amount: float, reason := "") -> int:
+	if skill_id.is_empty() or amount <= 0.0:
+		return 0
 	_ensure_skill_set()
 	var levels := skill_set.add_skill_xp(skill_id, amount, reason)
+	if _pending_progress_signal_by_skill.is_empty():
+		_xp_flush_remaining = XP_FLUSH_INTERVAL_SECONDS
+		physics_process_enabled = true
+	_pending_progress_signal_by_skill[skill_id] = true
 	if levels > 0:
-		skill_level_changed.emit(skill_id)
-	skill_progress_changed.emit(skill_id)
+		_pending_level_signal_by_skill[skill_id] = true
 	return levels
 
 
+func flush_pending_xp() -> int:
+	if _pending_progress_signal_by_skill.is_empty():
+		_xp_flush_remaining = XP_FLUSH_INTERVAL_SECONDS
+		physics_process_enabled = false
+		return 0
+	var pending_progress := _pending_progress_signal_by_skill
+	var pending_levels := _pending_level_signal_by_skill
+	_pending_progress_signal_by_skill = {}
+	_pending_level_signal_by_skill = {}
+	_xp_flush_remaining = XP_FLUSH_INTERVAL_SECONDS
+	physics_process_enabled = false
+	for skill_id_value in pending_progress.keys():
+		var skill_id := str(skill_id_value)
+		if pending_levels.has(skill_id_value):
+			skill_level_changed.emit(skill_id)
+		skill_progress_changed.emit(skill_id)
+	return pending_levels.size()
+
+
 func hydrate_skill_progress(skill_levels: Dictionary, skill_xp: Dictionary) -> void:
+	_pending_progress_signal_by_skill.clear()
+	_pending_level_signal_by_skill.clear()
+	_xp_flush_remaining = XP_FLUSH_INTERVAL_SECONDS
+	physics_process_enabled = false
 	_ensure_skill_set()
 	var skill_ids := {}
 	for skill_id in skill_levels:

@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://features/world/projection/props/lighting/flame_glow.svg" id="1_glow"]
+
+[node name="FlameGlow" type="Sprite3D"]
+modulate = Color(1.6, 1.15, 0.55, 0.9)
+pixel_size = 0.004
+texture = ExtResource("1_glow")
+billboard = 1
+shaded = false
+double_sided = true

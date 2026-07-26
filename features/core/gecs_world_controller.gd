@@ -319,13 +319,12 @@ func unregister_actor(actor: Node) -> void:
 		return
 	_disconnect_actor_gecs_sync(actor)
 	var entity = _actor_entity_by_actor_id.get(actor_id)
-	var final_world_position := Vector3.ZERO
-	var has_final_world_position := false
+	var final_world_transform := Transform3D.IDENTITY
+	var has_final_world_transform := false
+	if actor is Node3D:
+		final_world_transform = (actor as Node3D).global_transform
+		has_final_world_transform = true
 	if entity != null and is_instance_valid(entity):
-		var spatial = entity.get_component(C_SPATIAL)
-		if spatial != null:
-			final_world_position = spatial.world_position
-			has_final_world_position = true
 		var population_entity = _population_entity_by_actor_id.get(actor_id)
 		var population = population_entity.get_component(C_POPULATION_RECORD) if population_entity != null and is_instance_valid(population_entity) else null
 		if population != null:
@@ -341,8 +340,10 @@ func unregister_actor(actor: Node) -> void:
 		var record_component = pop_entity.get_component(C_POPULATION_RECORD)
 		if record_component != null:
 			record_component.realization_state = "ledger"
-			if has_final_world_position:
-				record_component.last_world_position = final_world_position
+			if has_final_world_transform:
+				record_component.last_world_transform = final_world_transform
+				record_component.last_world_transform_initialized = true
+				record_component.last_world_position = final_world_transform.origin
 				record_component.last_world_position_initialized = true
 
 
@@ -637,17 +638,17 @@ func update_population_ledger_state(actor_id: String, state: Dictionary) -> bool
 	return true
 
 
-func update_population_realization(actor_id: String, realization_state: String, world_position: Vector3, position_initialized: bool) -> bool:
+func update_population_realization(actor_id: String, realization_state: String, world_transform: Transform3D, transform_initialized: bool) -> bool:
 	var entity = _population_entity_by_actor_id.get(actor_id)
 	var component = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
 	if component == null:
 		return false
 	component.realization_state = realization_state
-	component.last_world_position = world_position
-	component.last_world_position_initialized = position_initialized
+	component.last_world_transform = world_transform
+	component.last_world_transform_initialized = transform_initialized
+	component.last_world_position = world_transform.origin
+	component.last_world_position_initialized = transform_initialized
 	if int(component.life_state) == NpcRules.LifeState.DEAD:
-		component.last_world_transform.origin = world_position
-		component.last_world_transform_initialized = position_initialized
 		_reindex_corpse_record(component)
 	return true
 
@@ -3056,17 +3057,31 @@ func _sync_live_scene_state_for_save() -> void:
 		var actor := _actor_from_entity(entity)
 		if actor == null:
 			continue
+		var stats = actor.call("get_stats") if actor.has_method("get_stats") else null
+		if stats != null and stats.has_method("flush_pending_xp"):
+			stats.call("flush_pending_xp")
 		_write_actor_components(entity, actor, actor_id, _actor_settlement_id(actor), {})
 		_copy_live_vitals_to_population(entity, actor_id)
 		sync_actor_inventory(actor)
 		var population_entity = _population_entity_by_actor_id.get(actor_id)
 		var population = population_entity.get_component(C_POPULATION_RECORD) if population_entity != null and is_instance_valid(population_entity) else null
-		if population != null and int(population.life_state) == NpcRules.LifeState.DEAD and str(population.body_state) == "corpse" and actor is Node3D:
+		if population != null and actor is Node3D:
 			population.last_world_transform = (actor as Node3D).global_transform
 			population.last_world_transform_initialized = true
 			population.last_world_position = (actor as Node3D).global_position
 			population.last_world_position_initialized = true
-			_reindex_corpse_record(population)
+			var needs = actor.call("get_needs") if actor.has_method("get_needs") else null
+			if needs != null and needs.has_method("durable_state"):
+				population.needs_state = needs.call("durable_state")
+			population.movement_state = {
+				"has_move_target": bool(actor.call("has_move_target")) if actor.has_method("has_move_target") else false,
+				"move_target": actor.call("get_move_target") if actor.has_method("get_move_target") else Vector3.ZERO,
+				"running": bool(actor.call("is_running_requested")) if actor.has_method("is_running_requested") else false,
+				"sneaking": bool(actor.call("is_sneaking")) if actor.has_method("is_sneaking") else false,
+				"issued_by_player": bool(actor.call("has_active_player_order")) if actor.has_method("has_active_player_order") else false,
+			}
+			if int(population.life_state) == NpcRules.LifeState.DEAD and str(population.body_state) == "corpse":
+				_reindex_corpse_record(population)
 	for container in get_tree().get_nodes_in_group("world_container"):
 		sync_world_container(container)
 
