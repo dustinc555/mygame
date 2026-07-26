@@ -3,7 +3,7 @@ extends RefCounted
 ## UI feature module.
 ##
 ## Projection: the navigation loading gate that pauses the game behind a
-## LOADING veil until the first navmesh bake of the session is usable.
+## Loading indicator until the first navmesh bake of the session is usable.
 ## Bridge: the humanoid details controller that maps a selected actor's live state
 ## onto its inspector panel on the HUD.
 ##

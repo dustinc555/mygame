@@ -74,9 +74,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not key_event.pressed or key_event.echo:
 		return
 	if key_event.keycode == KEY_ESCAPE and not _is_text_input_focused():
-		if _close_debug_menu_if_visible():
-			get_viewport().set_input_as_handled()
-			return
 		_toggle_escape_menu()
 		get_viewport().set_input_as_handled()
 		return
@@ -461,9 +458,9 @@ func _setup_escape_menu() -> void:
 	escape_menu_panel.add_theme_stylebox_override("panel", _make_window_style())
 	escape_menu_panel.set_anchors_preset(Control.PRESET_CENTER)
 	escape_menu_panel.offset_left = -170.0
-	escape_menu_panel.offset_top = -96.0
+	escape_menu_panel.offset_top = -180.0
 	escape_menu_panel.offset_right = 170.0
-	escape_menu_panel.offset_bottom = 96.0
+	escape_menu_panel.offset_bottom = 180.0
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 14)
 	margin.add_theme_constant_override("margin_top", 12)
@@ -519,11 +516,22 @@ func _refresh_escape_debug_buttons() -> void:
 		button.focus_mode = Control.FOCUS_NONE
 		button.pressed.connect(_on_escape_debug_window_pressed.bind(str(title)))
 		escape_menu_debug_buttons.add_child(button)
+	var brain_button := Button.new()
+	brain_button.text = "Debug - GECS Log"
+	brain_button.toggle_mode = true
+	brain_button.button_pressed = is_brain_log_visible()
+	brain_button.focus_mode = Control.FOCUS_NONE
+	brain_button.pressed.connect(_on_brain_log_debug_pressed)
+	escape_menu_debug_buttons.add_child(brain_button)
 
 
 func _on_escape_debug_window_pressed(title: String) -> void:
 	if debug_menu != null and debug_menu.has_method("toggle_window"):
 		debug_menu.call("toggle_window", title)
+
+
+func _on_brain_log_debug_pressed() -> void:
+	set_brain_log_visible(not is_brain_log_visible())
 
 
 func _toggle_escape_menu() -> void:
@@ -559,38 +567,7 @@ func _hide_escape_menu(release_requested_pause: bool) -> void:
 
 
 func _on_escape_menu_resume_pressed() -> void:
-	_escape_menu_requested_pause = false
-	if escape_menu_panel != null:
-		escape_menu_panel.visible = false
-	if paused_label != null:
-		paused_label.visible = false
-	if world_time != null and world_time.has_method("release_manual_pause"):
-		world_time.release_manual_pause()
-	_refresh_buttons()
-
-
-	# Resume the game while the debug menu is open — it's a non-modal overlay, so you can
-	# move, command the party, and watch the LOD ring / overlays update live. (Only lift
-	# the pause this menu itself requested; respect a manual pause the player set.)
-	if _escape_menu_requested_pause and world_time != null and world_time.has_method("release_manual_pause"):
-		world_time.release_manual_pause()
-	_escape_menu_requested_pause = false
-	if pause_overlay != null:
-		pause_overlay.visible = false
-	if paused_label != null:
-		paused_label.visible = false
-	_refresh_buttons()
-
-
-func _close_debug_menu_if_visible() -> bool:
-	if debug_menu == null or not bool(debug_menu.get("visible")):
-		return false
-	if debug_menu.has_method("close_menu"):
-		debug_menu.call("close_menu")
-	else:
-		debug_menu.visible = false
-	_refresh_buttons()
-	return true
+	_hide_escape_menu(true)
 
 
 func _make_window_style() -> StyleBoxFlat:

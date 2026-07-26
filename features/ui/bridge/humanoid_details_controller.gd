@@ -20,6 +20,8 @@ const BAR_DRAIN_DIM := 0.45
 ## Food effect rate (hunger points/second) that reads as maximum glow strength.
 ## Bread (150 points over 180s) lands at ~0.83, just over half strength.
 const HUNGER_GLOW_STRONG_NUTRITION_PER_SECOND := 1.5
+const NEED_BAR_RESPONSE_SECONDS := 0.14
+const NEED_BAR_SNAP_THRESHOLD := 0.35
 const ACTION_ATTACK := "attack"
 const ACTION_CARRY := "carry"
 const ACTION_FINISH_OFF := "finish_off"
@@ -86,6 +88,11 @@ var skills_window: Control
 var jobs_window: Control
 var current_target
 var _initialized := false
+var _displayed_hunger_ratio := NAN
+var _displayed_fatigue_ratio := NAN
+var _displayed_hunger_stage := -1
+var _displayed_fatigue_stage := -1
+var _ui_delta := 0.0
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -104,9 +111,10 @@ func _ready() -> void:
 		_do_initialize()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not _initialized:
 		return
+	_ui_delta = clampf(delta / maxf(Engine.time_scale, 0.001), 0.0, 0.1)
 	_update_panel()
 
 
@@ -120,6 +128,7 @@ func inspect_target(target) -> void:
 		return
 	_set_target_inspected(current_target, false)
 	current_target = target
+	_reset_need_bar_display()
 	_set_target_inspected(current_target, true)
 	_update_panel()
 
@@ -199,6 +208,7 @@ func _update_panel() -> void:
 		return
 	if current_target != null and not is_instance_valid(current_target):
 		current_target = null
+		_reset_need_bar_display()
 	if current_target == null:
 		_update_empty_panel()
 		return
@@ -233,11 +243,16 @@ func _update_humanoid_panel(target: WorldActor) -> void:
 	state_label.text = target.get_life_state_label().to_upper()
 	state_label.modulate = _get_life_state_color(target.life_state)
 	if target.shows_hunger_vital():
+		var hunger_stage := target.get_hunger_stage()
 		var hunger_stage_label: String = target.get_hunger_stage_label()
 		hunger_value.text = "%s %d / 100" % [hunger_stage_label, int(round(target.hunger))]
-		_update_fill_bar(hunger_bar_stack, hunger_fill, target.hunger / 100.0, _get_stage_color(target.get_hunger_stage(), NpcRules.HungerStage.WELL_NOURISHED, NpcRules.HungerStage.HUNGRY, NpcRules.HungerStage.STARVING), _get_stage_drain_color(target.get_hunger_stage(), NpcRules.HungerStage.WELL_NOURISHED, NpcRules.HungerStage.HUNGRY, NpcRules.HungerStage.STARVING))
+		_displayed_hunger_ratio = _smooth_need_ratio(_displayed_hunger_ratio, target.hunger / 100.0, _displayed_hunger_stage, hunger_stage)
+		_displayed_hunger_stage = hunger_stage
+		_update_fill_bar(hunger_bar_stack, hunger_fill, _displayed_hunger_ratio, _get_stage_color(hunger_stage, NpcRules.HungerStage.WELL_NOURISHED, NpcRules.HungerStage.HUNGRY, NpcRules.HungerStage.STARVING), _get_stage_drain_color(hunger_stage, NpcRules.HungerStage.WELL_NOURISHED, NpcRules.HungerStage.HUNGRY, NpcRules.HungerStage.STARVING))
 		_update_hunger_nutrition_glow(target.get_food_effect_rate() if target.has_method("get_food_effect_rate") else 0.0)
 	else:
+		_displayed_hunger_ratio = NAN
+		_displayed_hunger_stage = -1
 		_update_hunger_nutrition_glow(0.0)
 	blood_value.text = "%d / %d" % [int(round(target.blood)), int(round(target.max_blood))]
 	var vital_fluid_ratio := target.blood / maxf(target.max_blood, 1.0)
@@ -248,9 +263,15 @@ func _update_humanoid_panel(target: WorldActor) -> void:
 	_update_hp_bar_visuals(target.hp, target.get_open_cut_damage(), target.get_bandaged_cut_damage(), target.max_hp, target.get_blunt_damage())
 	hp_value.text = "%d / %d" % [int(round(target.hp)), int(round(target.max_hp))]
 	if target.shows_fatigue_vital():
+		var fatigue_stage := target.get_fatigue_stage()
 		var fatigue_stage_label: String = target.get_fatigue_stage_label()
 		fatigue_value.text = "%s %d / 100" % [fatigue_stage_label, int(round(target.fatigue))]
-		_update_fill_bar(fatigue_bar_stack, fatigue_fill, target.fatigue / 100.0, _get_stage_color(target.get_fatigue_stage(), NpcRules.FatigueStage.WELL_RESTED, NpcRules.FatigueStage.WINDED, NpcRules.FatigueStage.EXHAUSTED), _get_stage_drain_color(target.get_fatigue_stage(), NpcRules.FatigueStage.WELL_RESTED, NpcRules.FatigueStage.WINDED, NpcRules.FatigueStage.EXHAUSTED))
+		_displayed_fatigue_ratio = _smooth_need_ratio(_displayed_fatigue_ratio, target.fatigue / 100.0, _displayed_fatigue_stage, fatigue_stage)
+		_displayed_fatigue_stage = fatigue_stage
+		_update_fill_bar(fatigue_bar_stack, fatigue_fill, _displayed_fatigue_ratio, _get_stage_color(fatigue_stage, NpcRules.FatigueStage.WELL_RESTED, NpcRules.FatigueStage.WINDED, NpcRules.FatigueStage.EXHAUSTED), _get_stage_drain_color(fatigue_stage, NpcRules.FatigueStage.WELL_RESTED, NpcRules.FatigueStage.WINDED, NpcRules.FatigueStage.EXHAUSTED))
+	else:
+		_displayed_fatigue_ratio = NAN
+		_displayed_fatigue_stage = -1
 	_set_actions(_get_humanoid_actions(target))
 
 
@@ -520,6 +541,7 @@ func _set_row_label(label: Label, text: String) -> void:
 
 
 func _clear_bar_values() -> void:
+	_reset_need_bar_display()
 	hunger_value.text = ""
 	blood_value.text = ""
 	hp_value.text = ""
@@ -530,6 +552,21 @@ func _clear_bar_values() -> void:
 	_update_hunger_nutrition_glow(0.0)
 	_update_hp_bar_visuals(0.0, 0.0, 0.0, 1.0)
 	_update_fill_bar(fatigue_bar_stack, fatigue_fill, 0.0, BAR_GOOD_COLOR)
+
+
+func _reset_need_bar_display() -> void:
+	_displayed_hunger_ratio = NAN
+	_displayed_fatigue_ratio = NAN
+	_displayed_hunger_stage = -1
+	_displayed_fatigue_stage = -1
+
+
+func _smooth_need_ratio(displayed: float, authoritative: float, displayed_stage: int, authoritative_stage: int) -> float:
+	var target := clampf(authoritative, 0.0, 1.0)
+	if is_nan(displayed) or displayed_stage != authoritative_stage or absf(displayed - target) >= NEED_BAR_SNAP_THRESHOLD:
+		return target
+	var alpha := 1.0 - exp(-_ui_delta / NEED_BAR_RESPONSE_SECONDS)
+	return lerpf(displayed, target, alpha)
 
 
 func _get_target_display_name(target) -> String:

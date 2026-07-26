@@ -248,31 +248,23 @@ func _draw_hover() -> void:
 		y += 16.0
 
 
-## The realization cutoff drawn around the party (matches the 3D LOD wall) so you can
-## see how big the LOD boundary is relative to the whole world.
+## Draw every active realization anchor, matching the 3D terrain rings.
 func _draw_lod_ring() -> void:
 	if not _debug_lod_visible():
-		return
-	var center := _party_screen_center()
-	if center == Vector2.INF:
 		return
 	var radius_px := _lod_radius() * pixels_per_meter
 	if radius_px <= 1.0:
 		return
-	draw_circle(center, radius_px, Color(1.0, 0.85, 0.2, 0.07))
-	draw_arc(center, radius_px, 0.0, TAU, 64, Color(1.0, 0.85, 0.2, 0.85), 1.5)
-
-
-func _party_screen_center() -> Vector2:
-	var sum := Vector2.ZERO
-	var count := 0
-	for marker in _markers:
-		if str(marker.get("kind", "")) == "party":
-			sum += marker["world"]
-			count += 1
-	if count == 0:
-		return Vector2.INF
-	return _world_to_screen(sum / float(count))
+	var tree := get_tree()
+	var controller := tree.get_first_node_in_group("population_realization_controller") if tree != null else null
+	if controller == null or not controller.has_method("get_realization_anchor_positions"):
+		return
+	for value in controller.call("get_realization_anchor_positions"):
+		if not (value is Vector3):
+			continue
+		var center := _world_to_screen(Vector2(value.x, value.z))
+		draw_circle(center, radius_px, Color(0.18, 1.0, 0.32, 0.06))
+		draw_arc(center, radius_px, 0.0, TAU, 64, Color(0.32, 1.0, 0.42, 0.9), 1.5)
 
 
 func _lod_radius() -> float:

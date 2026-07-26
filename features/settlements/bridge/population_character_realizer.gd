@@ -20,25 +20,11 @@ func realize_actor(actor_id: String, role_owner: Node, parent: Node, node_name :
 	if actor_id.strip_edges().is_empty() or role_owner == null or parent == null:
 		_fail(actor_id, role_owner, "missing actor id, role owner, or parent")
 		return null
-	var record := _population.get_actor_record(actor_id)
+	var record := apply_record_authorship(actor_id, role_owner, requested_character_type_id)
 	if record.is_empty():
-		_fail(actor_id, role_owner, "population record does not exist")
 		return null
 	var realizer := resolve_effective_realizer(role_owner, record)
-	if not _valid_realizer(realizer):
-		_fail(actor_id, role_owner, "no valid character realizer resolves from facility -> town -> faction")
-		return null
-	record = _population.ensure_record_character_realizer(actor_id, realizer, resolve_effective_name_profile(role_owner, record))
-	var type_set := resolve_effective_character_type_set(role_owner, record)
-	var role_id := str(record.get("role_id", "resident")).strip_edges().to_lower()
-	var character_type := type_set.call("resolve_character_type", requested_character_type_id, role_id) as Resource if type_set != null and type_set.has_method("resolve_character_type") else null
-	if character_type == null:
-		_fail(actor_id, role_owner, "no valid Character Type resolves from facility -> town -> faction")
-		return null
-	record = _population.ensure_record_character_type(actor_id, character_type)
-	if not _valid_record(record):
-		_fail(actor_id, role_owner, "realizer produced an incomplete population record")
-		return null
+	var character_type_id := str(record.get("character_type_id", ""))
 	var actor_script := realizer.get("actor_script") as Script
 	var actor := _population.get_live_actor(actor_id)
 	var prior_realizer_id := str(actor.get_meta("population_character_realizer_id", "")) if actor != null else ""
@@ -57,21 +43,50 @@ func realize_actor(actor_id: String, role_owner: Node, parent: Node, node_name :
 		_population.apply_record_to_actor(actor, record)
 		_ensure_projection_bootstrap(actor)
 		parent.add_child(actor)
+		restore_record_transform(actor as Node3D, record)
 	else:
 		_reparent_preserving_transform(actor, parent)
 		_population.apply_record_to_actor(actor, record)
 		if prior_realizer_id != _realizer_id(realizer) and actor.has_method("apply_appearance_data"):
 			actor.call("apply_appearance_data", actor.get("appearance_data"))
-		if prior_type_id != str(character_type.get("type_id")) and actor.has_method("get_equipment"):
+		if prior_type_id != character_type_id and actor.has_method("get_equipment"):
 			var equipment = actor.call("get_equipment")
 			if equipment != null and equipment.has_method("seed_starting_equipment_from_actor"):
 				equipment.call("seed_starting_equipment_from_actor")
 	if not node_name.is_empty():
 		actor.name = node_name
 	actor.set_meta("population_character_realizer_id", _realizer_id(realizer))
-	actor.set_meta("population_character_type_id", str(character_type.get("type_id")))
+	actor.set_meta("population_character_type_id", character_type_id)
 	_population.mark_actor_realized(actor, actor_id)
 	return actor
+
+
+## Apply inherited appearance/type authorship to the permanent record without
+## creating a body. Staffing can therefore remain correct while fully off-screen.
+func apply_record_authorship(actor_id: String, role_owner: Node, requested_character_type_id := "") -> Dictionary:
+	if actor_id.strip_edges().is_empty() or role_owner == null:
+		_fail(actor_id, role_owner, "missing actor id or role owner")
+		return {}
+	var record := _population.get_actor_record(actor_id)
+	if record.is_empty():
+		_fail(actor_id, role_owner, "population record does not exist")
+		return {}
+	var realizer := resolve_effective_realizer(role_owner, record)
+	if not _valid_realizer(realizer):
+		_fail(actor_id, role_owner, "no valid character realizer resolves from facility -> town -> faction")
+		return {}
+	record = _population.ensure_record_character_realizer(actor_id, realizer, resolve_effective_name_profile(role_owner, record))
+	var type_set := resolve_effective_character_type_set(role_owner, record)
+	var role_id := str(record.get("role_id", "resident")).strip_edges().to_lower()
+	var character_type := type_set.call("resolve_character_type", requested_character_type_id, role_id) as Resource if type_set != null and type_set.has_method("resolve_character_type") else null
+	if character_type == null:
+		_fail(actor_id, role_owner, "no valid Character Type resolves from facility -> town -> faction")
+		return {}
+	record = _population.ensure_record_character_type(actor_id, character_type)
+	if not _valid_record(record):
+		_fail(actor_id, role_owner, "realizer produced an incomplete population record")
+		return {}
+	return record
 
 
 func realize_record_actor(actor_id: String, parent: Node, node_name := "") -> Node:
@@ -94,6 +109,7 @@ func realize_record_actor(actor_id: String, parent: Node, node_name := "") -> No
 		_population.apply_record_to_actor(actor, record)
 		_ensure_projection_bootstrap(actor)
 		parent.add_child(actor)
+		restore_record_transform(actor as Node3D, record)
 	else:
 		_reparent_preserving_transform(actor, parent)
 		_population.apply_record_to_actor(actor, record)
@@ -101,6 +117,15 @@ func realize_record_actor(actor_id: String, parent: Node, node_name := "") -> No
 		actor.call("set_player_party_member", false)
 	_population.mark_actor_realized(actor, actor_id)
 	return actor
+
+
+func restore_record_transform(actor: Node3D, record: Dictionary) -> void:
+	if actor == null:
+		return
+	if bool(record.get("last_world_transform_initialized", false)) and record.get("last_world_transform") is Transform3D:
+		actor.global_transform = record.get("last_world_transform") as Transform3D
+	elif bool(record.get("last_world_position_initialized", false)) and record.get("last_world_position") is Vector3:
+		actor.global_position = record.get("last_world_position") as Vector3
 
 
 func resolve_effective_realizer(role_owner: Node, record: Dictionary = {}) -> Resource:

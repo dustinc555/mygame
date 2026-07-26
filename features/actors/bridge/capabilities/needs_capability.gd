@@ -77,6 +77,36 @@ func set_tick_remaining(seconds: float) -> void:
 	_tick_remaining = maxf(0.0, seconds)
 
 
+func durable_state() -> Dictionary:
+	return {
+		"hunger_enabled": hunger_enabled,
+		"fatigue_enabled": fatigue_enabled,
+		"hunger": hunger,
+		"fatigue": fatigue,
+		"hunger_stage": hunger_stage,
+		"fatigue_stage": fatigue_stage,
+		"food_effect_rate": food_effect_rate,
+		"food_effect_remaining_seconds": food_effect_remaining_seconds,
+		"tick_accumulated": _tick_accumulated,
+		"tick_remaining": _tick_remaining,
+	}
+
+
+func apply_durable_state(state: Dictionary) -> void:
+	if state.is_empty():
+		return
+	hunger_enabled = bool(state.get("hunger_enabled", hunger_enabled))
+	fatigue_enabled = bool(state.get("fatigue_enabled", fatigue_enabled))
+	hunger = clampf(float(state.get("hunger", hunger)), 0.0, 100.0)
+	fatigue = clampf(float(state.get("fatigue", fatigue)), 0.0, 100.0)
+	hunger_stage = int(state.get("hunger_stage", hunger_stage))
+	fatigue_stage = int(state.get("fatigue_stage", fatigue_stage))
+	food_effect_rate = float(state.get("food_effect_rate", food_effect_rate))
+	food_effect_remaining_seconds = maxf(float(state.get("food_effect_remaining_seconds", food_effect_remaining_seconds)), 0.0)
+	_tick_accumulated = maxf(float(state.get("tick_accumulated", _tick_accumulated)), 0.0)
+	_tick_remaining = maxf(float(state.get("tick_remaining", _tick_remaining)), 0.0)
+
+
 func set_activity(moving: bool, running: bool, sitting: bool, working: bool) -> void:
 	activity_moving = moving
 	activity_running = running

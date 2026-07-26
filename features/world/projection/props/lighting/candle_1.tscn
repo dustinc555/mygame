@@ -1,12 +1,16 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://features/world/projection/props/lighting/light_fixture.gd" id="1_fixture"]
 [ext_resource type="PackedScene" uid="uid://b5ht7uwa1lley" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Candle_1.gltf" id="2_model"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/lighting/flame_glow.tscn" id="3_glow"]
 
 [node name="Candle1" type="Node3D"]
 script = ExtResource("1_fixture")
 
 [node name="Model" parent="." instance=ExtResource("2_model")]
+
+[node name="FlameGlow" parent="." instance=ExtResource("3_glow")]
+transform = Transform3D(0.65, 0, 0, 0, 0.65, 0, 0, 0, 0.65, 0, 0.18, 0)
 
 [node name="Light" type="OmniLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, 0)

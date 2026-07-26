@@ -402,11 +402,9 @@ metadata/furnish_generated = true
 
 [node name="WallTorch2" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=1347360750 instance=ExtResource("22_ywld2")]
 transform = Transform3D(-0.03712803, 0, 0.9993124, 0, 1, 0, -0.9993124, 0, -0.03712803, -5.7937927, 4.2424664, -0.45825195)
-light_path = NodePath("../WallTorch/Light")
 
 [node name="WallTorch3" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=239086914 instance=ExtResource("22_ywld2")]
 transform = Transform3D(0.9999879, 0, -0.0053319037, 0, 1, 0, 0.0053319037, 0, 0.9999879, -2.4416504, 1.9528272, 5.9983063)
-light_path = NodePath("../WallTorch/Light")
 
 [node name="WallTorch" parent="Towns/Canyon/CanyonCityRestStop/Furniture" unique_id=625346754 instance=ExtResource("22_ywld2")]
 transform = Transform3D(0.99969894, 0, 0.024567962, 0, 1, 0, -0.024567962, 0, 0.99969894, -1.1468506, 1.639997, 0.09437561)
@@ -518,7 +516,6 @@ metadata/furnish_generated = true
 
 [node name="Light4" parent="Towns/Canyon/SettlementJail/Furniture" unique_id=1756927550 instance=ExtResource("22_ywld2")]
 transform = Transform3D(0.9990794, 0, -0.042897165, 0, 1, 0, 0.042897165, 0, 0.9990794, -2.6495667, 1.7634289, 4.8950195)
-light_path = NodePath("../Light1/Light")
 metadata/furnish_generated = true
 
 [node name="Light1" parent="Towns/Canyon/SettlementJail/Furniture" unique_id=1465968461 instance=ExtResource("22_ywld2")]

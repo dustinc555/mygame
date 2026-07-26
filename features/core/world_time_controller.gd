@@ -17,6 +17,7 @@ const SPEED_SCALES: Array[float] = [0.5, 1.0, 3.0, 8.0]
 const PAUSE_REASON_MANUAL := "manual"
 const PAUSE_REASON_CONVERSATION := "conversation"
 const PAUSE_REASON_APPEARANCE_EDITOR := "appearance_editor"
+const PAUSE_REASON_LOADING := "loading"
 
 @export_range(0, 23, 1) var start_hour := 6
 @export_range(0, 59, 1) var start_minute := 0

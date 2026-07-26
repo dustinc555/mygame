@@ -21,10 +21,16 @@ class_name SettlementPopulationSpawner
 @export var random_seed := 1
 @export_range(1, 100, 1) var resident_perception_min := 2
 @export_range(1, 100, 1) var resident_perception_max := 8
+@export_range(1, 32, 1) var realization_actor_budget_per_resync := 4
+
+const MAX_REALIZATION_FAILURES := 20
 
 var _population_spawn_defer_attempts := 0
 var _resyncing_population := false
 var _realization_dirty := true
+var _realization_pending := false
+var _failed_realization_actor_ids: Dictionary = {}
+var _realization_record_cursor := 0
 
 
 func _ready() -> void:
@@ -46,7 +52,6 @@ func resync_population_realization() -> void:
 	_resyncing_population = true
 	_spawn_missing_residents_from_records(population_controller)
 	_resyncing_population = false
-	_realization_dirty = false
 
 
 func _remove_unbound_resident_bodies(population_controller: Node) -> void:
@@ -65,7 +70,11 @@ func get_settlement_id() -> String:
 
 
 func needs_population_realization_resync() -> bool:
-	return _realization_dirty
+	return _realization_dirty or _realization_pending
+
+
+func has_population_realization_backlog() -> bool:
+	return _realization_pending
 
 
 func mark_population_realization_dirty() -> void:
@@ -91,6 +100,70 @@ func get_realization_origin() -> Vector3:
 
 func has_realized_population() -> bool:
 	return _count_existing_residents() > 0
+
+
+## Lower values are serviced first by PopulationRealizationController. This uses
+## each initialized ledger position, not the settlement origin.
+func get_population_realization_priority(anchors: Array[Vector3], visible_radius: float, entry_radius: float) -> int:
+	var population := _get_population_controller()
+	if population == null:
+		return 2
+	var best := 2
+	for record in _records_for_realization_priority(population):
+		var position = record.get("last_world_position", Vector3.INF)
+		if not (position is Vector3) or not bool(record.get("last_world_position_initialized", false)):
+			continue
+		var actor_id := str(record.get("actor_id", ""))
+		var actor = population.call("get_live_actor", actor_id) if population.has_method("get_live_actor") else null
+		if actor != null and is_instance_valid(actor):
+			continue
+		if _position_near_anchors(position, anchors, visible_radius):
+			return 0
+		if _position_near_anchors(position, anchors, entry_radius):
+			best = 1
+	return best
+
+
+func count_missing_population_projections(anchors: Array[Vector3], radius: float) -> int:
+	var population := _get_population_controller()
+	if population == null:
+		return 0
+	var missing := 0
+	for record in _records_for_realization_priority(population):
+		var position = record.get("last_world_position", Vector3.INF)
+		if not bool(record.get("last_world_position_initialized", false)) or not (position is Vector3) or not _position_near_anchors(position, anchors, radius):
+			continue
+		var actor_id := str(record.get("actor_id", ""))
+		var actor = population.call("get_live_actor", actor_id) if population.has_method("get_live_actor") else null
+		if (actor == null or not is_instance_valid(actor)) and int(_failed_realization_actor_ids.get(actor_id, 0)) < MAX_REALIZATION_FAILURES:
+			missing += 1
+	return missing
+
+
+func _records_for_realization_priority(population: Node) -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	var owns_settlement := _spawner_owns_settlement_population(population)
+	for record_value in population.call("get_records_for_settlement", _get_settlement_id()):
+		if not (record_value is Dictionary):
+			continue
+		var record: Dictionary = record_value
+		var source := str(record.get("generation_source", ""))
+		if owns_settlement:
+			if source in ["census", "census_authored"] and str(record.get("role_id", "resident")) == "resident" and int(record.get("life_state", NpcRules.LifeState.ALIVE)) != NpcRules.LifeState.DEAD:
+				records.append(record)
+		elif source == _get_spawner_id():
+			records.append(record)
+	return records
+
+
+func _position_near_anchors(position: Vector3, anchors: Array[Vector3], radius: float) -> bool:
+	var radius_squared := radius * radius
+	for anchor in anchors:
+		var offset := position - anchor
+		offset.y = 0.0
+		if offset.length_squared() <= radius_squared:
+			return true
+	return false
 
 
 func _spawn_missing_residents() -> void:
@@ -120,41 +193,77 @@ func _spawn_missing_residents_from_records(population_controller: Node) -> void:
 		records = population_controller.call("ensure_generated_population", _get_settlement_id(), _get_spawner_id(), desired_count, context)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = max(1, _effective_generation_seed())
+	_ensure_record_spawn_positions(population_controller, records, desired_count, rng)
+	var active_actor_ids := {}
+	for record_value in records:
+		if record_value is Dictionary:
+			active_actor_ids[str(record_value.get("actor_id", ""))] = true
+	for actor_id_value in _failed_realization_actor_ids.keys():
+		if not active_actor_ids.has(str(actor_id_value)):
+			_failed_realization_actor_ids.erase(actor_id_value)
+	if records.is_empty():
+		_realization_record_cursor = 0
+	else:
+		_realization_record_cursor %= records.size()
+		records = records.slice(_realization_record_cursor) + records.slice(0, _realization_record_cursor)
 	var character_realizer := BootstrapContext.service(PopulationCharacterRealizer.SERVICE_ID) as PopulationCharacterRealizer
 	if character_realizer == null:
 		push_error("Population realization rejected for %s: PopulationCharacterRealizer is unavailable" % _get_settlement_id())
 		return
-	_ensure_record_spawn_positions(population_controller, records, desired_count, rng)
-	var forced_realization_ids := _staff_bootstrap_realization_ids(records)
 	var spawned_count := 0
+	var attempted_count := 0
+	_realization_pending = false
 	for record_value in records:
 		if not (record_value is Dictionary):
 			continue
 		var record: Dictionary = record_value
 		var existing_actor := _find_child_actor_for_record(record)
 		if existing_actor is Node3D and population_controller.has_method("update_actor_record"):
-			var updated_record: Dictionary = population_controller.call("update_actor_record", str(record.get("actor_id", "")), {
-				"last_world_position": (existing_actor as Node3D).global_position,
-				"last_world_position_initialized": true,
-			})
-			if not updated_record.is_empty():
-				record = updated_record
+			var live_transform := (existing_actor as Node3D).global_transform
+			var stored_transform: Transform3D = record.get("last_world_transform", Transform3D.IDENTITY)
+			if not bool(record.get("last_world_transform_initialized", false)) or not stored_transform.is_equal_approx(live_transform):
+				var updated_record: Dictionary = population_controller.call("update_actor_record", str(record.get("actor_id", "")), {
+					"last_world_transform": live_transform,
+					"last_world_transform_initialized": true,
+					"last_world_position": live_transform.origin,
+					"last_world_position_initialized": true,
+				})
+				if not updated_record.is_empty():
+					record = updated_record
 		var actor_id := str(record.get("actor_id", ""))
-		var should_realize := forced_realization_ids.has(actor_id) or _should_realize_record(record)
+		var should_realize := _should_realize_record(record)
 		if existing_actor != null:
 			if not should_realize:
 				_unrealize_actor(existing_actor, population_controller)
 			continue
 		if not should_realize:
+			_failed_realization_actor_ids.erase(actor_id)
 			continue
+		if int(_failed_realization_actor_ids.get(actor_id, 0)) >= MAX_REALIZATION_FAILURES:
+			continue
+		if attempted_count >= realization_actor_budget_per_resync:
+			if int(_failed_realization_actor_ids.get(actor_id, 0)) < MAX_REALIZATION_FAILURES:
+				_realization_pending = true
+			continue
+		attempted_count += 1
 		var resident_index: int = max(1, int(record.get("generation_index", spawned_count + 1)))
 		var actor := character_realizer.realize_actor(actor_id, self, self, "%s%02d" % [member_name_prefix.replace(" ", ""), resident_index])
 		if actor == null:
+			var failures := int(_failed_realization_actor_ids.get(actor_id, 0)) + 1
+			_failed_realization_actor_ids[actor_id] = failures
+			if failures < MAX_REALIZATION_FAILURES:
+				_realization_pending = true
+			elif failures == MAX_REALIZATION_FAILURES:
+				push_error("Visible resident realization failed after %d attempts: %s" % [MAX_REALIZATION_FAILURES, actor_id])
 			continue
-		actor.position = _record_local_spawn_position(record, resident_index - 1, max(desired_count, 1), rng)
-		if population_controller.has_method("update_realized_actor_position"):
-			population_controller.call("update_realized_actor_position", actor_id, actor.global_position)
+		_failed_realization_actor_ids.erase(actor_id)
+		if not bool(record.get("last_world_position_initialized", false)):
+			actor.position = _record_local_spawn_position(record, resident_index - 1, max(desired_count, 1), rng)
+		if population_controller.has_method("update_realized_actor_transform"):
+			population_controller.call("update_realized_actor_transform", actor_id, actor.global_transform)
 		spawned_count += 1
+	if not records.is_empty():
+		_realization_record_cursor = (_realization_record_cursor + maxi(attempted_count, 1)) % records.size()
 	if _count_existing_residents() > 0:
 		_notify_settlement_population_ready()
 	_realization_dirty = false
@@ -374,32 +483,6 @@ func _get_population_realization_controller() -> Node:
 		return null
 	var nodes := get_tree().get_nodes_in_group("population_realization_controller")
 	return nodes[0] as Node if not nodes.is_empty() else null
-
-
-func _staff_bootstrap_realization_ids(records: Array) -> Dictionary:
-	var forced := {}
-	if _get_effective_realization_policy() != "important_plus_near":
-		return forced
-	var settlement_controller := _get_settlement_controller()
-	if settlement_controller == null or not settlement_controller.has_method("get_staff_vacancy_realization_count"):
-		return forced
-	var needed: int = max(0, int(settlement_controller.call("get_staff_vacancy_realization_count", _get_settlement_id())))
-	if needed <= 0:
-		return forced
-	for record_value in records:
-		if needed <= 0:
-			break
-		if not (record_value is Dictionary):
-			continue
-		var record: Dictionary = record_value
-		if str(record.get("role_id", "resident")) != "resident":
-			continue
-		var actor_id := str(record.get("actor_id", ""))
-		if actor_id.is_empty():
-			continue
-		forced[actor_id] = true
-		needed -= 1
-	return forced
 
 
 func _get_occupancy_multiplier() -> float:

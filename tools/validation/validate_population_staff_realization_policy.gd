@@ -26,6 +26,9 @@ func _run() -> void:
 	root.add_child(_scene)
 	await _wait_frames(180)
 	_validate_staff_fills_under_non_full_policy()
+	_validate_realization_lod_contract()
+	_validate_exact_transform_restore()
+	_validate_need_bar_smoothing()
 	await _cleanup_scene()
 	_finish()
 
@@ -55,12 +58,17 @@ func _validate_staff_fills_under_non_full_policy() -> void:
 	var required_staff := int(state.get("population_required_staff", 0))
 	var assigned_staff := int(state.get("population_assigned", 0))
 	var vacancies: Dictionary = state.get("staff_vacancies", {})
+	var staff_slots: Dictionary = state.get("staff_slots", {})
 	if required_staff <= 0:
 		_fail("Farmer Crossing should expose required staff slots")
 	if assigned_staff < required_staff:
 		_fail("Non-full realization policy should still realize enough residents to fill staff; required=%d assigned=%d" % [required_staff, assigned_staff])
 	if not vacancies.is_empty():
 		_fail("Staff vacancies should not deadlock under important_plus_near policy; vacancies=%d" % vacancies.size())
+	for slot_value in staff_slots.values():
+		if not ((slot_value as Dictionary).get("world_position", null) is Vector3):
+			_fail("Staff slots need stable world positions for per-slot LOD")
+			break
 	var population := _get_controller("population_controller")
 	if population == null or not population.has_method("get_records_for_settlement"):
 		_fail("PopulationController missing for staff record validation")
@@ -73,6 +81,127 @@ func _validate_staff_fills_under_non_full_policy() -> void:
 			staff_record_count += 1
 	if staff_record_count < required_staff:
 		_fail("Claimed staff should update generated population records to staff roles; records=%d required=%d" % [staff_record_count, required_staff])
+	_validate_new_staff_assignment_clears_movement(population)
+
+
+func _validate_new_staff_assignment_clears_movement(population: Node) -> void:
+	var candidate_id := ""
+	var assigned_slot_id := ""
+	for record_value in population.call("get_records_for_settlement", "farmer_crossing"):
+		if not (record_value is Dictionary):
+			continue
+		var record: Dictionary = record_value
+		if str(record.get("role_id", "resident")) == "resident" and str(record.get("assigned_slot_id", "")).is_empty():
+			var actor_id := str(record.get("actor_id", ""))
+			if not assigned_slot_id.is_empty() or candidate_id.is_empty() or actor_id < candidate_id:
+				candidate_id = actor_id
+				assigned_slot_id = ""
+		elif candidate_id.is_empty() and not str(record.get("assigned_slot_id", "")).is_empty():
+			candidate_id = str(record.get("actor_id", ""))
+			assigned_slot_id = str(record.get("assigned_slot_id", ""))
+	if candidate_id.is_empty():
+		_fail("Staff assignment validation needs one population record")
+		return
+	if not assigned_slot_id.is_empty():
+		population.call("release_slot_assignment", "farmer_crossing", assigned_slot_id)
+	population.call("update_actor_record", candidate_id, {
+		"movement_state": {
+			"has_move_target": true,
+			"move_target": Vector3(999.0, 0.0, 999.0),
+			"issued_by_player": true,
+		},
+	})
+	var claimed: Dictionary = population.call("claim_unassigned_record_for_slot", "farmer_crossing", "validation.staff.slot", "guard")
+	if str(claimed.get("actor_id", "")) != candidate_id or not (claimed.get("movement_state", {}) as Dictionary).is_empty() or bool(claimed.get("staff_assignment_realized_once", true)):
+		_fail("New staff assignment must clear unrelated resident movement intent")
+
+
+func _validate_realization_lod_contract() -> void:
+	var realization := _get_controller("population_realization_controller")
+	var party_manager := _get_controller("party_manager")
+	if realization == null or party_manager == null:
+		_fail("LOD contract validation needs realization and party controllers")
+		return
+	var members = party_manager.get("party_members")
+	if not (members is Array) or members.is_empty() or not (members[0] is Node3D):
+		_fail("LOD contract validation needs a living party member")
+		return
+	var member := members[0] as Node3D
+	var original_position := member.global_position
+	var primary: Vector3 = realization.call("get_primary_realization_anchor")
+	member.global_position = primary + Vector3(500.0, 0.0, 0.0)
+	var anchors: Array = realization.call("get_realization_anchor_positions")
+	if anchors.size() != 1:
+		_fail("Population realization should use only the camera as its detail anchor")
+	var visible_radius := float(realization.call("get_visible_radius"))
+	var entry_radius := float(realization.call("get_entry_radius"))
+	var remote_party_position := member.global_position
+	var remote_party_record := {
+		"actor_id": "validation.secondary",
+		"last_world_position": remote_party_position,
+		"last_world_position_initialized": true,
+		"realization_state": "ledger",
+	}
+	if bool(realization.call("should_realize_actor", null, remote_party_record, "near_player")):
+		_fail("A remote party member must not keep nearby town projections realized")
+	var preload_position := primary + Vector3((visible_radius + entry_radius) * 0.5, 0.0, 0.0)
+	var preload_record := remote_party_record.duplicate()
+	preload_record["actor_id"] = "validation.preload"
+	preload_record["last_world_position"] = preload_position
+	if bool(realization.call("is_position_within_realization_range", preload_position)):
+		_fail("Preload test position should remain outside the visible LOD radius")
+	if not bool(realization.call("should_realize_actor", null, preload_record, "near_player")):
+		_fail("Population realization should prepare initialized records before they enter visible LOD")
+	var uninitialized_record := remote_party_record.duplicate()
+	uninitialized_record["actor_id"] = "validation.uninitialized"
+	uninitialized_record["last_world_position_initialized"] = false
+	if bool(realization.call("should_realize_actor", null, uninitialized_record, "near_player")):
+		_fail("Uninitialized ledger positions must not realize at an accidental world position")
+	if str(realization.call("_staff_retention_key", "town_a", "guard.0")) == str(realization.call("_staff_retention_key", "town_b", "guard.0")):
+		_fail("Staff retention keys must include settlement identity")
+	member.global_position = original_position
+
+
+func _validate_exact_transform_restore() -> void:
+	var realizer_script := load("res://features/settlements/bridge/population_character_realizer.gd") as GDScript
+	var realizer: Node = realizer_script.new()
+	var actor := Node3D.new()
+	_scene.add_child(realizer)
+	_scene.add_child(actor)
+	var expected := Transform3D(Basis.from_euler(Vector3(0.11, 1.37, -0.06)), Vector3(18.25, 4.75, -31.5))
+	realizer.call("restore_record_transform", actor, {
+		"last_world_transform": expected,
+		"last_world_transform_initialized": true,
+	})
+	if not actor.global_transform.is_equal_approx(expected):
+		_fail("Character realization should restore exact world position, height, and facing")
+
+
+func _validate_need_bar_smoothing() -> void:
+	var details := _get_controller("humanoid_details_controller")
+	if details == null or not details.has_method("_smooth_need_ratio"):
+		_fail("Humanoid details controller should expose need-bar presentation smoothing")
+		return
+	details.set("_ui_delta", 1.0 / 60.0)
+	var first_step := float(details.call("_smooth_need_ratio", 1.0, 0.98, 0, 0))
+	if first_step <= 0.98 or first_step >= 1.0:
+		_fail("Need bars should move toward a new value instead of jumping in one frame")
+	var at_30_fps := _converged_need_ratio(details, 30)
+	var at_60_fps := _converged_need_ratio(details, 60)
+	if absf(at_30_fps - at_60_fps) > 0.001:
+		_fail("Need-bar smoothing should look the same across frame rates")
+	details.set("_ui_delta", 1.0 / 60.0)
+	var stage_snap := float(details.call("_smooth_need_ratio", 0.02, 1.0, 0, 1))
+	if not is_equal_approx(stage_snap, 1.0):
+		_fail("Need bars should snap when the hunger or fatigue stage changes")
+
+
+func _converged_need_ratio(details: Node, fps: int) -> float:
+	details.set("_ui_delta", 1.0 / float(fps))
+	var displayed := 1.0
+	for _frame in range(fps):
+		displayed = float(details.call("_smooth_need_ratio", displayed, 0.5, 0, 0))
+	return displayed
 
 
 func _get_controller(group_name: String) -> Node:

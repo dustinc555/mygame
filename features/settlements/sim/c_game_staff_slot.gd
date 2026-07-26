@@ -13,6 +13,7 @@ class_name CGameStaffSlot
 @export var dead_actor_key := ""
 @export var replacement_due_minute := 0
 @export var vacancy_reason := ""
+@export var world_position := Vector3.ZERO
 
 var slot_record: Dictionary = {}
 
@@ -29,6 +30,9 @@ func apply_slot(source: Dictionary) -> void:
 	dead_actor_key = str(source.get("dead_actor_key", dead_actor_key))
 	replacement_due_minute = int(source.get("replacement_due_minute", replacement_due_minute))
 	vacancy_reason = str(source.get("vacancy_reason", source.get("reason", vacancy_reason)))
+	var position_value = source.get("world_position", world_position)
+	if position_value is Vector3:
+		world_position = position_value
 	slot_record = to_slot()
 
 
@@ -45,4 +49,5 @@ func to_slot() -> Dictionary:
 		"dead_actor_key": dead_actor_key,
 		"replacement_due_minute": replacement_due_minute,
 		"vacancy_reason": vacancy_reason,
+		"world_position": world_position,
 	}

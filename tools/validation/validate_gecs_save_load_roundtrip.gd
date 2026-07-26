@@ -82,6 +82,8 @@ func _run() -> void:
 		"character_type_signature": "soldier-signature",
 		"faction_id": "RoundtripFaction",
 		"role_id": "worker",
+		"assigned_slot_id": "roundtrip_town.guard.0",
+		"staff_assignment_realized_once": true,
 		"life_state": NpcRules.LifeState.DEAD,
 		"body_state": "corpse",
 		"last_world_position": Vector3(18.0, 0.5, -27.0),
@@ -92,6 +94,8 @@ func _run() -> void:
 		"ledger_work_minutes": 90,
 		"skill_levels": {SkillRules.MOVEMENT_RUNNING: 5},
 		"skill_xp": {SkillRules.MOVEMENT_RUNNING: 12.5},
+		"needs_state": {"hunger": 42.25, "fatigue": 71.5, "hunger_stage": 2, "food_effect_rate": 1.75, "food_effect_remaining_seconds": 8.5},
+		"movement_state": {"has_move_target": true, "move_target": Vector3(21.0, 0.5, -31.0), "running": false, "sneaking": true, "issued_by_player": true},
 		"inventory_entries": [
 			{
 				"item_id": "res://items/validation/iron_ore.tres",
@@ -143,6 +147,7 @@ func _run() -> void:
 		"role_id": "guard",
 		"filled": true,
 		"population_cost": 1,
+		"world_position": Vector3(12.0, 1.5, -8.0),
 	})
 	bridge.record_settlement_event({
 		"event_id": "roundtrip:event:1",
@@ -215,7 +220,7 @@ func _run() -> void:
 	bridge.upsert_job_system_state({"sim_time": 12.75})
 	bridge.upsert_ledger_simulation_state({"last_processed_minute": 1530, "last_batch_summary": {"updated_actor_count": 2}})
 	bridge.upsert_ai_scheduler_state({"sim_time": 7.25, "default_tick_interval_seconds": 0.35, "default_tick_jitter_seconds": 0.05})
-	bridge.upsert_population_realization_state({"default_realization_policy": "near_player", "near_player_radius": 44.0, "realization_resync_interval_seconds": 0.75})
+	bridge.upsert_population_realization_state({"default_realization_policy": "near_player", "near_player_radius": 44.0, "realization_preload_margin": 30.0, "realization_resync_interval_seconds": 0.75, "realization_retention_seconds": 321.0})
 	bridge.upsert_building_record({
 		"building_id": "building.roundtrip.home",
 		"settlement_id": "roundtrip_town",
@@ -313,8 +318,16 @@ func _validate_loaded_state(bridge: Node, world_time: Node) -> void:
 		_fail("GECS save/load should round-trip Character Realizer provenance")
 	if str(actor_record.get("character_type_id", "")) != "soldier" or str(actor_record.get("character_type_signature", "")) != "soldier-signature":
 		_fail("GECS save/load should round-trip Character Type provenance")
+	if not bool(actor_record.get("staff_assignment_realized_once", false)):
+		_fail("GECS save/load should preserve whether staff assignment placement already occurred")
 	if int((actor_record.get("skill_levels", {}) as Dictionary).get(SkillRules.MOVEMENT_RUNNING, 0)) != 5 or not is_equal_approx(float((actor_record.get("skill_xp", {}) as Dictionary).get(SkillRules.MOVEMENT_RUNNING, 0.0)), 12.5):
 		_fail("GECS save/load should round-trip skill level and XP provenance")
+	var needs_state: Dictionary = actor_record.get("needs_state", {})
+	if not is_equal_approx(float(needs_state.get("hunger", 0.0)), 42.25) or not is_equal_approx(float(needs_state.get("food_effect_remaining_seconds", 0.0)), 8.5):
+		_fail("GECS save/load should round-trip exact actor needs and timed effects")
+	var movement_state: Dictionary = actor_record.get("movement_state", {})
+	if not bool(movement_state.get("has_move_target", false)) or movement_state.get("move_target", Vector3.ZERO) != Vector3(21.0, 0.5, -31.0) or not bool(movement_state.get("sneaking", false)) or not bool(movement_state.get("issued_by_player", false)):
+		_fail("GECS save/load should round-trip actor movement intent and stance")
 	var inventory_entries: Array = actor_record.get("inventory_entries", [])
 	if inventory_entries.size() != 1 or int((inventory_entries[0] as Dictionary).get("count", 0)) != 7:
 		_fail("GECS save/load should round-trip actor inventory stacks")
@@ -346,6 +359,8 @@ func _validate_loaded_state(bridge: Node, world_time: Node) -> void:
 	var staff_slots: Array = bridge.call("get_staff_slots", "roundtrip_town")
 	if staff_slots.size() != 1 or str((staff_slots[0] as Dictionary).get("role_id", "")) != "guard":
 		_fail("GECS save/load should round-trip staff slot entities")
+	elif (staff_slots[0] as Dictionary).get("world_position", Vector3.INF) != Vector3(12.0, 1.5, -8.0):
+		_fail("GECS save/load should round-trip staff slot world positions")
 	var building_records: Array = bridge.call("get_building_records")
 	if building_records.size() != 1:
 		_fail("GECS save/load should round-trip building entities")
@@ -405,7 +420,7 @@ func _validate_loaded_state(bridge: Node, world_time: Node) -> void:
 	if absf(float(ai_scheduler_state.get("sim_time", 0.0)) - 7.25) > 0.01 or absf(float(ai_scheduler_state.get("default_tick_interval_seconds", 0.0)) - 0.35) > 0.01:
 		_fail("GECS save/load should round-trip AI scheduler state")
 	var realization_state: Dictionary = bridge.call("get_population_realization_state")
-	if str(realization_state.get("default_realization_policy", "")) != "near_player" or absf(float(realization_state.get("near_player_radius", 0.0)) - 44.0) > 0.01:
+	if str(realization_state.get("default_realization_policy", "")) != "near_player" or absf(float(realization_state.get("near_player_radius", 0.0)) - 44.0) > 0.01 or absf(float(realization_state.get("realization_preload_margin", 0.0)) - 30.0) > 0.01 or absf(float(realization_state.get("realization_retention_seconds", 0.0)) - 321.0) > 0.01:
 		_fail("GECS save/load should round-trip population realization settings")
 
 
