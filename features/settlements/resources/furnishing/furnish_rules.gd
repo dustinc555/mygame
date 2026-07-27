@@ -26,6 +26,8 @@ class_name FurnishRules
 ## One cluster per this many square meters of free interior floor.
 @export var square_meters_per_cluster := 14.0
 @export var max_clusters := 3
+## Clear walking space around a table or room vignette.
+@export var cluster_margin := 0.35
 ## Also roll clusters on upper storeys (before beds claim the space). Ground
 ## floors with central stairs often can't seat a large vignette; a jail's
 ## cell block or an inn's bunk room belongs upstairs.
@@ -35,6 +37,8 @@ class_name FurnishRules
 @export var shelf_scenes: Array[PackedScene] = []
 @export_range(0.0, 1.0, 0.05) var shelf_chance := 0.45
 @export var shelf_mount_height := 1.6
+@export var max_shelves := 8
+@export var min_shelves := 0
 
 ## Wall-mounted light fixtures (LightFixture wrappers — they switch with
 ## world time on their own), rolled per solid interior wall segment on every
@@ -45,6 +49,7 @@ class_name FurnishRules
 ## Minimum distance between two placed lights on the same storey.
 @export var light_spacing_meters := 3.0
 @export var max_lights_per_level := 6
+@export var min_lights := 0
 
 ## Function-required utility furniture (a jail's prisoner locker, a shop's
 ## strongbox): each scene placed exactly once against a ground-floor wall,
@@ -59,10 +64,14 @@ class_name FurnishRules
 @export var container_stock: ContainerStockTable
 @export var max_containers := 4
 @export_range(0.0, 1.0, 0.05) var container_chance := 0.5
+@export var min_containers := 0
 
 ## Beds for the upper floors, headboard against a wall.
 @export var bed_scenes: Array[PackedScene] = []
+## Small one-storey homes may place beds on their ground floor.
+@export var beds_on_ground_floor := false
 @export var max_beds := 4
 @export_range(0.0, 1.0, 0.05) var bed_chance := 0.55
+@export var min_beds := 0
 ## Bed floor footprint (width along wall, length into room).
 @export var bed_footprint := Vector2(2.0, 2.6)

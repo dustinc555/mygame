@@ -5,6 +5,7 @@ class_name PopulationController
 signal population_record_changed(settlement_id: String, actor_id: String)
 signal person_died(actor_id: String)
 signal dead_projection_registered(actor_id: String)
+signal assignment_error(code: String, actor_id: String, settlement_ids: PackedStringArray)
 
 const SERVICE_ID := &"population"
 
@@ -17,6 +18,7 @@ const VISUAL_BODY_TYPE_FEMALE := 3
 var root_scene: Node
 var _context: BootstrapContext
 var actor_records: Dictionary = {}
+var _actor_id_by_assignment_key: Dictionary = {}
 var _live_actor_by_id: Dictionary = {}
 var _skill_change_callable_by_actor_id: Dictionary = {}
 var _life_change_callable_by_actor_id: Dictionary = {}
@@ -31,6 +33,9 @@ func initialize(context: BootstrapContext) -> void:
 		gecs.world_reindexed.connect(_on_world_reindexed)
 	if gecs != null and not gecs.population_life_state_changed.is_connected(_on_population_life_state_changed):
 		gecs.population_life_state_changed.connect(_on_population_life_state_changed)
+	var party_manager := root_scene.get_node_or_null("PartyManager") as PartyManager if root_scene != null else null
+	if party_manager != null and not party_manager.party_membership_changed.is_connected(_on_party_membership_changed):
+		party_manager.party_membership_changed.connect(_on_party_membership_changed)
 	_try_initialize()
 
 
@@ -150,51 +155,133 @@ func update_actor_record(actor_id: String, updates: Dictionary) -> Dictionary:
 	return record.duplicate(true)
 
 
-## --- Ledger-level staff assignment --------------------------------------------------------
-## Staffing is world-sim knowledge: a record can be bound to a settlement staff slot (carrying
-## that role) while the town is dormant across the map. Realizing the body is a separate,
-## LOD-gated step owned by the facility. These helpers operate purely on records, so they are
-## O(records) and safe to run for every town regardless of player proximity.
-
-func claim_unassigned_record_for_slot(settlement_id: String, slot_id: String, role_id: String) -> Dictionary:
-	if settlement_id.is_empty() or slot_id.is_empty() or role_id.is_empty():
+## Assignment claims only inspect the GECS settlement index. They never create population.
+func claim_record_for_assignment(settlement_id: String, slot: Dictionary) -> Dictionary:
+	var domain := str(slot.get("assignment_domain", "employment")).strip_edges().to_lower()
+	var slot_id := str(slot.get("slot_id", "")).strip_edges()
+	if settlement_id.is_empty() or domain.is_empty() or slot_id.is_empty():
 		return {}
-	_refresh_actor_records_cache()
-	var best_actor_id := ""
-	for actor_id in actor_records.keys():
-		var record: Dictionary = actor_records[actor_id]
-		if str(record.get("settlement_id", "")) != settlement_id:
+	var preferred_actor_id := str(slot.get("preferred_actor_id", "")).strip_edges()
+	if not preferred_actor_id.is_empty():
+		var preferred := get_actor_record(preferred_actor_id)
+		if _eligible_for_assignment(preferred, settlement_id, domain, str(slot.get("assignment_exclusivity_group", ""))):
+			return assign_record_to_slot(preferred_actor_id, slot)
+	var candidates := get_records_for_settlement(settlement_id)
+	var best: Dictionary = {}
+	var best_score := -1
+	for candidate in candidates:
+		if not _eligible_for_assignment(candidate, settlement_id, domain, str(slot.get("assignment_exclusivity_group", ""))):
 			continue
-		if str(record.get("role_id", "resident")) != "resident":
-			continue
-		if not str(record.get("assigned_slot_id", "")).strip_edges().is_empty():
-			continue
-		if int(record.get("life_state", 0)) == NpcRules.LifeState.DEAD:
-			continue
-		# Deterministic: lowest actor_id (zero-padded generation index) wins.
-		if best_actor_id.is_empty() or str(actor_id) < best_actor_id:
-			best_actor_id = str(actor_id)
-	if best_actor_id.is_empty():
+		var score := 0
+		if str(candidate.get("character_type_id", "")) == str(slot.get("character_type_id", "")) and not str(slot.get("character_type_id", "")).is_empty():
+			score += 100
+		if str(candidate.get("generation_source", "")).begins_with("assignment_auto"):
+			score += 10
+		var actor_id := str(candidate.get("actor_id", ""))
+		if score > best_score or (score == best_score and actor_id < str(best.get("actor_id", "~"))):
+			best = candidate
+			best_score = score
+	return assign_record_to_slot(str(best.get("actor_id", "")), slot) if not best.is_empty() else {}
+
+
+func assign_record_to_slot(actor_id: String, slot: Dictionary) -> Dictionary:
+	var record := get_actor_record(actor_id)
+	var settlement_id := str(slot.get("settlement_id", ""))
+	var domain := str(slot.get("assignment_domain", "employment")).strip_edges().to_lower()
+	var scope := str(slot.get("authority_scope", "")).strip_edges()
+	var exclusivity_group := str(slot.get("assignment_exclusivity_group", "")).strip_edges()
+	var assigned_actor_id := str(_actor_id_by_assignment_key.get(_assignment_index_key(settlement_id, domain, str(slot.get("slot_id", ""))), ""))
+	if not assigned_actor_id.is_empty() and assigned_actor_id != actor_id:
 		return {}
-	return update_actor_record(best_actor_id, {"role_id": role_id, "assigned_slot_id": slot_id, "staff_assignment_realized_once": false, "movement_state": {}})
-
-
-func get_record_assigned_to_slot(settlement_id: String, slot_id: String) -> Dictionary:
-	if settlement_id.is_empty() or slot_id.is_empty():
+	if not _eligible_for_assignment(record, settlement_id, domain, exclusivity_group):
 		return {}
-	_refresh_actor_records_cache()
-	for actor_id in actor_records.keys():
-		var record: Dictionary = actor_records[actor_id]
-		if str(record.get("settlement_id", "")) == settlement_id and str(record.get("assigned_slot_id", "")) == slot_id:
-			return record.duplicate(true)
-	return {}
+	var assignments: Dictionary = (record.get("assignments", {}) as Dictionary).duplicate(true)
+	var scopes: Dictionary = (record.get("assignment_authority_scopes", {}) as Dictionary).duplicate(true)
+	var exclusivity_groups: Dictionary = (record.get("assignment_exclusivity_groups", {}) as Dictionary).duplicate(true)
+	var realized: Dictionary = (record.get("assignment_realized_once", {}) as Dictionary).duplicate(true)
+	assignments[domain] = str(slot.get("slot_id", ""))
+	scopes[domain] = scope
+	exclusivity_groups[domain] = exclusivity_group
+	realized[domain] = false
+	var updates := {
+		"assignments": assignments,
+		"assignment_authority_scopes": scopes,
+		"assignment_exclusivity_groups": exclusivity_groups,
+		"assignment_realized_once": realized,
+	}
+	if domain == "residence" and not bool(record.get("last_world_position_initialized", false)):
+		var slot_position = slot.get("world_position", Vector3.INF)
+		if slot_position is Vector3 and slot_position != Vector3.INF:
+			var role_index := maxi(int(slot.get("role_index", 0)), 0)
+			var home_position: Vector3 = slot_position + Vector3(-0.6 if role_index % 2 == 0 else 0.6, 0.0, float(role_index / 2) * 0.8)
+			updates["last_world_position"] = home_position
+			updates["last_world_position_initialized"] = true
+			updates["last_world_transform"] = Transform3D(Basis.IDENTITY, home_position)
+			updates["last_world_transform_initialized"] = true
+	if domain == "employment":
+		updates["role_id"] = str(slot.get("role_id", "resident"))
+		updates["movement_state"] = {}
+	return update_actor_record(actor_id, updates)
 
 
-func release_slot_assignment(settlement_id: String, slot_id: String) -> Dictionary:
-	var record := get_record_assigned_to_slot(settlement_id, slot_id)
+func get_record_assigned_to_slot(settlement_id: String, assignment_domain: String, slot_id: String) -> Dictionary:
+	var actor_id := str(_actor_id_by_assignment_key.get(_assignment_index_key(settlement_id, assignment_domain, slot_id), ""))
+	return get_actor_record(actor_id) if not actor_id.is_empty() else {}
+
+
+func release_assignment(settlement_id: String, assignment_domain: String, slot_id: String) -> Dictionary:
+	var record := get_record_assigned_to_slot(settlement_id, assignment_domain, slot_id)
 	if record.is_empty():
 		return {}
-	return update_actor_record(str(record.get("actor_id", "")), {"role_id": "resident", "assigned_slot_id": "", "staff_assignment_realized_once": false, "movement_state": {}})
+	return release_actor_assignment(str(record.get("actor_id", "")), assignment_domain)
+
+
+func release_actor_assignment(actor_id: String, assignment_domain: String) -> Dictionary:
+	var record := get_actor_record(actor_id)
+	if record.is_empty():
+		return {}
+	var assignments: Dictionary = (record.get("assignments", {}) as Dictionary).duplicate(true)
+	var scopes: Dictionary = (record.get("assignment_authority_scopes", {}) as Dictionary).duplicate(true)
+	var exclusivity_groups: Dictionary = (record.get("assignment_exclusivity_groups", {}) as Dictionary).duplicate(true)
+	var realized: Dictionary = (record.get("assignment_realized_once", {}) as Dictionary).duplicate(true)
+	assignments.erase(assignment_domain)
+	scopes.erase(assignment_domain)
+	exclusivity_groups.erase(assignment_domain)
+	realized.erase(assignment_domain)
+	var updates := {"assignments": assignments, "assignment_authority_scopes": scopes, "assignment_exclusivity_groups": exclusivity_groups, "assignment_realized_once": realized}
+	if assignment_domain == "employment":
+		updates["role_id"] = "resident"
+		updates["movement_state"] = {}
+	return update_actor_record(actor_id, updates)
+
+
+func release_all_actor_assignments(actor_id: String) -> Dictionary:
+	var record := get_actor_record(actor_id)
+	if record.is_empty():
+		return {}
+	return update_actor_record(actor_id, {
+		"assignments": {},
+		"assignment_authority_scopes": {},
+		"assignment_exclusivity_groups": {},
+		"assignment_realized_once": {},
+		"role_id": "resident" if int(record.get("life_state", NpcRules.LifeState.ALIVE)) != NpcRules.LifeState.DEAD else str(record.get("role_id", "resident")),
+		"movement_state": {},
+	})
+
+
+func _eligible_for_assignment(record: Dictionary, settlement_id: String, domain: String, exclusivity_group: String) -> bool:
+	if record.is_empty() or str(record.get("settlement_id", "")) != settlement_id:
+		return false
+	if int(record.get("life_state", NpcRules.LifeState.ALIVE)) == NpcRules.LifeState.DEAD:
+		return false
+	if not str((record.get("assignments", {}) as Dictionary).get(domain, "")).is_empty():
+		return false
+	if domain == "employment" and not ["resident", "civilian"].has(str(record.get("role_id", "resident"))):
+		return false
+	if not exclusivity_group.is_empty() and (record.get("assignment_exclusivity_groups", {}) as Dictionary).values().has(exclusivity_group):
+		return false
+	var live_actor := get_live_actor(str(record.get("actor_id", "")))
+	return live_actor == null or not live_actor.has_method("is_player_party_member") or not bool(live_actor.call("is_player_party_member"))
 
 
 ## A bound staff body died — mark its record dead and free the slot binding so the world sim
@@ -205,7 +292,7 @@ func mark_record_dead(actor_id: String, actor: Node = null, corpse_transform_ove
 		return
 	if actor == null:
 		actor = _live_actor_by_id.get(actor_id)
-	var record := actor_records.get(actor_id, {}) as Dictionary
+	var record := (actor_records.get(actor_id, {}) as Dictionary).duplicate(true)
 	var was_dead := int(record.get("life_state", NpcRules.LifeState.ALIVE)) == NpcRules.LifeState.DEAD and str(record.get("body_state", "")) == "corpse"
 	var corpse_transform: Transform3D = record.get("last_world_transform", Transform3D.IDENTITY)
 	if corpse_transform_override is Transform3D:
@@ -215,16 +302,22 @@ func mark_record_dead(actor_id: String, actor: Node = null, corpse_transform_ove
 	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("update_population_death"):
 		bridge.call("update_population_death", actor_id, corpse_transform)
+		if bridge.has_method("get_population_record"):
+			var durable_record: Dictionary = bridge.call("get_population_record", actor_id)
+			if not durable_record.is_empty():
+				record = durable_record
 	record["life_state"] = NpcRules.LifeState.DEAD
 	record["body_state"] = "corpse"
 	record["body_container_id"] = ""
-	record["assigned_slot_id"] = ""
+	record["assignments"] = {}
+	record["assignment_authority_scopes"] = {}
+	record["assignment_exclusivity_groups"] = {}
+	record["assignment_realized_once"] = {}
 	record["last_world_position"] = corpse_transform.origin
 	record["last_world_position_initialized"] = true
 	record["last_world_transform"] = corpse_transform
 	record["last_world_transform_initialized"] = true
-	actor_records[actor_id] = record
-	population_record_changed.emit(str(record.get("settlement_id", "")), actor_id)
+	_save_actor_record(actor_id, record)
 	if not was_dead:
 		person_died.emit(actor_id)
 
@@ -260,7 +353,10 @@ func apply_offscreen_squad_captures(squad_id: String, captured_count: int, settl
 			"settlement_id": settlement_id,
 			"role_id": "prisoner",
 			"squad_name": "",
-			"assigned_slot_id": "",
+			"assignments": {},
+			"assignment_authority_scopes": {},
+			"assignment_exclusivity_groups": {},
+			"assignment_realized_once": {},
 			"last_world_position": world_position,
 			"last_world_position_initialized": true,
 			"last_world_transform": Transform3D(Basis(), world_position),
@@ -349,6 +445,50 @@ func ensure_authored_record(settlement_id: String, spawner_id: String, generatio
 	return _save_actor_record(str(created["actor_id"]), created)
 
 
+func ensure_preferred_assignment_record(settlement_id: String, slot: Dictionary, context: Dictionary) -> Dictionary:
+	var actor_id := str(slot.get("preferred_actor_id", "")).strip_edges()
+	var character_path := str(slot.get("preferred_character_path", "")).strip_edges()
+	var definition := load(character_path) if not character_path.is_empty() else null
+	var authored: Dictionary = definition.call("to_record") if definition != null and definition.has_method("to_record") else {}
+	actor_id = str(authored.get("actor_id", actor_id)).strip_edges()
+	if actor_id.is_empty():
+		return {}
+	var existing := get_actor_record(actor_id)
+	if not existing.is_empty():
+		if str(existing.get("settlement_id", "")) != settlement_id:
+			assignment_error.emit("duplicate_named_actor", actor_id, PackedStringArray([str(existing.get("settlement_id", "")), settlement_id]))
+			return {}
+		return existing
+	var created := _create_generated_actor_record(settlement_id, "assignment_preferred.%s" % _sanitize_id(str(slot.get("slot_id", ""))), 1, context, _collect_used_names(settlement_id))
+	if created.is_empty():
+		return {}
+	for key in authored.keys():
+		created[key] = authored[key]
+	created["actor_id"] = actor_id
+	created["stable_id"] = actor_id
+	created["settlement_id"] = settlement_id
+	created["generation_source"] = "assignment_preferred"
+	created["role_id"] = "resident"
+	return _save_actor_record(actor_id, created)
+
+
+func ensure_assignment_filler_record(settlement_id: String, slot: Dictionary, context: Dictionary) -> Dictionary:
+	var domain := _sanitize_id(str(slot.get("assignment_domain", "employment")))
+	var slot_id := _sanitize_id(str(slot.get("slot_id", "")))
+	var actor_id := "%s.assignment_auto.%s.%s" % [_sanitize_id(settlement_id), domain, slot_id]
+	var existing := get_actor_record(actor_id)
+	if not existing.is_empty():
+		return existing
+	var created := _create_generated_actor_record(settlement_id, "assignment_auto.%s.%s" % [domain, slot_id], 1, context, _collect_used_names(settlement_id))
+	if created.is_empty():
+		return {}
+	created["actor_id"] = actor_id
+	created["stable_id"] = actor_id
+	created["generation_source"] = "assignment_auto"
+	created["role_id"] = "resident"
+	return _save_actor_record(actor_id, created)
+
+
 ## Census-seeded surplus residents (alive, still role "resident"). Population
 ## spawners realize these instead of minting a parallel record namespace, so
 ## the ambient crowd IS the census.
@@ -410,6 +550,11 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 	actor.set("member_name", str(record.get("member_name", actor.get("member_name"))))
 	var faction_id := str(record.get("faction_id", actor.get("faction_name")))
 	actor.set("faction_name", faction_id)
+	var party_id := str(record.get("party_id", "")).strip_edges()
+	if party_id.is_empty():
+		actor.remove_meta("party_id")
+	else:
+		actor.set_meta("party_id", party_id)
 	actor.set("squad_name", str(record.get("squad_name", actor.get("squad_name"))))
 	actor.set("hostile_factions", PackedStringArray(record.get("hostile_faction_ids", [])))
 	actor.set("combat_stance", int(record.get("combat_stance", actor.get("combat_stance"))))
@@ -589,9 +734,16 @@ func advance_ledger_minutes(minutes: int, absolute_minute := -1) -> Dictionary:
 		return summary
 	for actor_id in actor_records.keys():
 		var record: Dictionary = actor_records[actor_id]
-		if str(record.get("realization_state", "ledger")) == "realized":
-			continue
 		var activity := _ledger_activity_for_record(record, absolute_minute)
+		if str(record.get("realization_state", "ledger")) == "realized":
+			if str(record.get("ledger_activity_state", "")) != activity:
+				record["ledger_activity_state"] = activity
+				record["last_ledger_absolute_minute"] = absolute_minute
+				actor_records[actor_id] = record
+				var realized_bridge := _get_gecs_world()
+				if realized_bridge != null and realized_bridge.has_method("update_population_ledger_state"):
+					realized_bridge.call("update_population_ledger_state", str(actor_id), record)
+			continue
 		record["ledger_minutes_elapsed"] = int(record.get("ledger_minutes_elapsed", 0)) + minutes
 		record["ledger_activity_state"] = activity
 		record["last_ledger_absolute_minute"] = absolute_minute
@@ -634,16 +786,31 @@ func apply_serialized_state(state: Dictionary) -> void:
 		return
 	_clear_population_records_in_gecs()
 	actor_records.clear()
+	_actor_id_by_assignment_key.clear()
 	_disconnect_all_actor_skill_changes()
 	_live_actor_by_id.clear()
 	var records: Dictionary = state.get("actor_records", {})
 	for actor_id in records.keys():
 		if records[actor_id] is Dictionary:
 			var record: Dictionary = (records[actor_id] as Dictionary).duplicate(true)
+			_migrate_legacy_assignment_record(record)
 			record.erase("live_node_path")
 			if str(record.get("realization_state", "ledger")) == "realized":
 				record["realization_state"] = "ledger"
 			_save_actor_record(str(actor_id), record)
+
+
+func _migrate_legacy_assignment_record(record: Dictionary) -> void:
+	var legacy_slot := str(record.get("assigned_slot_id", "")).strip_edges()
+	if not legacy_slot.is_empty():
+		var assignments: Dictionary = (record.get("assignments", {}) as Dictionary).duplicate(true)
+		assignments["employment"] = legacy_slot
+		record["assignments"] = assignments
+		var realized: Dictionary = (record.get("assignment_realized_once", {}) as Dictionary).duplicate(true)
+		realized["employment"] = bool(record.get("staff_assignment_realized_once", false))
+		record["assignment_realized_once"] = realized
+	record.erase("assigned_slot_id")
+	record.erase("staff_assignment_realized_once")
 
 
 func refresh_from_gecs_state() -> void:
@@ -671,6 +838,15 @@ func _on_population_life_state_changed(actor_id: String, _previous_state: int, n
 		population_record_changed.emit(str(record.get("settlement_id", "")), actor_id)
 	if next_state == NpcRules.LifeState.DEAD:
 		person_died.emit(actor_id)
+
+
+func _on_party_membership_changed(member: WorldActor, party_id: String) -> void:
+	if member == null:
+		return
+	var actor_id := _actor_record_id(member)
+	if actor_id.is_empty() or get_actor_record(actor_id).is_empty():
+		return
+	update_actor_record(actor_id, {"party_id": party_id.strip_edges()})
 
 
 func _hydrate_live_actors_from_gecs() -> void:
@@ -723,6 +899,7 @@ func _refresh_actor_records_cache() -> void:
 	if bridge == null or not bridge.has_method("get_population_records"):
 		return
 	actor_records = bridge.call("get_population_records")
+	_rebuild_assignment_index()
 
 
 func _has_actor_record(actor_id: String) -> bool:
@@ -758,11 +935,13 @@ func _save_actor_record(actor_id: String, record: Dictionary) -> Dictionary:
 		return {}
 	record["actor_id"] = actor_id
 	record["stable_id"] = str(record.get("stable_id", actor_id))
+	var previous: Dictionary = actor_records.get(actor_id, {})
 	var saved := record.duplicate(true)
 	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("upsert_population_record"):
 		saved = bridge.call("upsert_population_record", saved)
 	actor_records[actor_id] = saved.duplicate(true)
+	_index_record_assignments(saved, previous)
 	population_record_changed.emit(str(saved.get("settlement_id", "")), actor_id)
 	return saved.duplicate(true)
 
@@ -857,6 +1036,7 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"character_type_path": character_type.resource_path if character_type != null else "",
 		"character_type_signature": _realization_signature(character_type),
 		"faction_id": str(context.get("faction_id", "")),
+		"party_id": str(context.get("party_id", "")),
 		"squad_name": str(context.get("squad_name", "")),
 		"role_id": str(context.get("role_id", "resident")),
 		"hostile_faction_ids": Array(context.get("hostile_faction_ids", [])),
@@ -913,6 +1093,7 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 		record["actor_script_path"] = actor_script.resource_path
 	var faction_id := str(actor.get("faction_name"))
 	record["faction_id"] = faction_id
+	record["party_id"] = str(actor.get_meta("party_id", ""))
 	record["squad_name"] = str(actor.get("squad_name"))
 	record["hostile_faction_ids"] = Array(actor.get("hostile_factions"))
 	record["combat_stance"] = int(actor.get("combat_stance"))
@@ -1080,9 +1261,33 @@ func _remove_actor_record(actor_id: String, remove_live_actor := true) -> void:
 			unregister_actor(live_actor)
 			live_actor.queue_free()
 	_live_actor_by_id.erase(actor_id)
+	_index_record_assignments({}, actor_records.get(actor_id, {}))
 	actor_records.erase(actor_id)
 	_remove_actor_record_from_gecs(actor_id)
 	population_record_changed.emit(settlement_id, actor_id)
+
+
+func _rebuild_assignment_index() -> void:
+	_actor_id_by_assignment_key.clear()
+	for record_value in actor_records.values():
+		_index_record_assignments(record_value)
+
+
+func _index_record_assignments(record: Dictionary, previous: Dictionary = {}) -> void:
+	var previous_actor_id := str(previous.get("actor_id", ""))
+	var previous_settlement_id := str(previous.get("settlement_id", ""))
+	for domain_value in (previous.get("assignments", {}) as Dictionary).keys():
+		var key := _assignment_index_key(previous_settlement_id, str(domain_value), str((previous.get("assignments", {}) as Dictionary)[domain_value]))
+		if str(_actor_id_by_assignment_key.get(key, "")) == previous_actor_id:
+			_actor_id_by_assignment_key.erase(key)
+	var actor_id := str(record.get("actor_id", ""))
+	var settlement_id := str(record.get("settlement_id", ""))
+	for domain_value in (record.get("assignments", {}) as Dictionary).keys():
+		_actor_id_by_assignment_key[_assignment_index_key(settlement_id, str(domain_value), str((record.get("assignments", {}) as Dictionary)[domain_value]))] = actor_id
+
+
+func _assignment_index_key(settlement_id: String, assignment_domain: String, slot_id: String) -> String:
+	return "%s:%s:%s" % [settlement_id, assignment_domain, slot_id]
 
 
 func _generate_equipment_slots(appearance_profile: Resource, context: Dictionary, actor_id: String) -> Dictionary:
@@ -1368,15 +1573,27 @@ func _collect_used_names(settlement_id: String) -> Dictionary:
 
 
 func _ledger_activity_for_record(record: Dictionary, absolute_minute: int) -> String:
-	if int(record.get("life_state", NpcRules.LifeState.ALIVE)) != NpcRules.LifeState.ALIVE:
+	var life_state := int(record.get("life_state", NpcRules.LifeState.ALIVE))
+	if life_state != NpcRules.LifeState.ALIVE and life_state != NpcRules.LifeState.ASLEEP:
 		return "recovering"
 	var hour := int(floor(float(max(absolute_minute, 0) % 1440) / 60.0)) if absolute_minute >= 0 else 12
+	var assignments: Dictionary = record.get("assignments", {})
+	var has_home := not str(assignments.get("residence", "")).is_empty()
 	if hour >= 22 or hour < 6:
-		return "resting"
+		return "home_sleep" if has_home else "resting"
+	if not str(assignments.get("employment", "")).is_empty():
+		return "working"
+	if has_home:
+		return "home_day"
 	var role_id := str(record.get("role_id", "resident")).to_lower()
 	if ["worker", "waiter", "barkeeper", "merchant", "guard", "barber", "warden", "ruler", "mayor"].has(role_id):
 		return "working"
 	return "routine"
+
+
+func get_actor_routine_activity(actor_id: String, absolute_minute: int) -> String:
+	var record := get_actor_record(actor_id)
+	return _ledger_activity_for_record(record, absolute_minute) if not record.is_empty() else ""
 
 
 func _increment_count(counts: Dictionary, key: String) -> void:

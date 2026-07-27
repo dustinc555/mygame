@@ -209,6 +209,7 @@ func submit_command(actor_id: String, door_id: String, action_name: String, acto
 	command.lockpick_skill_level = maxf(0.0, float(actor_snapshot.get("lockpick_skill_level", 0.0)))
 	command.assisting_attribute_level = maxf(0.0, float(actor_snapshot.get("assisting_attribute_level", 0.0)))
 	command.actor_faction_id = str(actor_snapshot.get("actor_faction_id", ""))
+	command.active_law_response = bool(actor_snapshot.get("active_law_response", false))
 	command.actor_key_ids = PackedStringArray(actor_snapshot.get("actor_key_ids", []))
 	command.has_required_lockpick = bool(actor_snapshot.get("has_required_lockpick", false))
 	command.from_inside = bool(actor_snapshot.get("from_inside", false))
@@ -352,7 +353,7 @@ func _resolve_lockpick(command, state) -> void:
 
 
 func _has_authorized_access(command, state) -> bool:
-	return state.authorized_actor_ids.has(command.actor_id) or state.authorized_faction_ids.has(command.actor_faction_id) or _contains_shared_value(state.authorized_key_ids, command.actor_key_ids)
+	return command.active_law_response or state.authorized_actor_ids.has(command.actor_id) or state.authorized_faction_ids.has(command.actor_faction_id) or _contains_shared_value(state.authorized_key_ids, command.actor_key_ids)
 
 
 func _contains_shared_value(required_values: PackedStringArray, candidate_values: PackedStringArray) -> bool:

@@ -196,8 +196,8 @@ func _assert_population_hot_updates_are_narrow() -> void:
 	var lod_end := lod_source.find("\n\nfunc ", lod_start + 1)
 	var lod_function := lod_source.substr(lod_start, lod_end - lod_start)
 	_expect(lod_function.contains("had_lod_state"), "first LOD evaluation does not enforce far-town staff cleanup")
-	_expect(lod_source.contains("func _resync_settlement_staff"), "staff LOD still depends on population spawners")
-	_expect(lod_source.contains("realize_staff_slot") and lod_source.contains("derealize_staff_slot"), "staff LOD does not drive per-slot settlement realization directly")
+	_expect(lod_source.contains("func _resync_settlement_assignments"), "assignment LOD still depends on population spawners")
+	_expect(lod_source.contains("realize_assignment_slot") and lod_source.contains("derealize_assignment_slot"), "staff LOD does not drive assignment-slot realization directly")
 
 
 func _assert_changed_scripts_load() -> void:

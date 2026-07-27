@@ -1,8 +1,8 @@
 extends SceneTree
 
-const TWO_TOWNS_SCENE := preload("res://scenes/test_levels/two_towns_road_test.tscn")
-const SETTLEMENT_BAR_SCENE := preload("res://features/settlements/bridge/settlement_bar.tscn")
-const SMALL_BAR_SCENE := preload("res://features/world/projection/buildings/deprecated/initial_buildings/small_bar_scene.tscn")
+const TWO_TOWNS_SCENE_PATH := "res://scenes/test_levels/two_towns_road_test.tscn"
+const SETTLEMENT_BAR_SCENE_PATH := "res://features/settlements/bridge/settlement_bar.tscn"
+const SMALL_BAR_SCENE_PATH := "res://features/world/projection/buildings/deprecated/initial_buildings/small_bar_scene.tscn"
 const MAX_MOVE_FRAMES := 1500
 const SETTLE_FRAMES := 12
 const START_CLEARANCE_Y := 0.7
@@ -55,7 +55,7 @@ func _finish() -> void:
 
 
 func _load_two_towns_scene() -> void:
-	_scene = TWO_TOWNS_SCENE.instantiate()
+	_scene = (load(TWO_TOWNS_SCENE_PATH) as PackedScene).instantiate()
 	root.add_child(_scene)
 	await _wait_physics(80)
 	_party_manager = _scene.get_node("PartyManager") as PartyManager
@@ -76,21 +76,20 @@ func _ensure_stair_validation_bar() -> Node:
 	var existing := bars.get_node_or_null("StairValidationBar")
 	if existing != null:
 		return existing
-	var bar := SETTLEMENT_BAR_SCENE.instantiate()
+	var bar := (load(SETTLEMENT_BAR_SCENE_PATH) as PackedScene).instantiate()
 	bar.name = "StairValidationBar"
 	bar.position = Vector3(17.523285, 0.0, -13.375732)
+	bar.set("role_slots", [])
 	bars.add_child(bar)
 	bar.set("facility_id", "stair_validation.bar")
 	bar.set("owner_faction_id", "Farmers")
-	bar.set("waiter_count", 0)
-	bar.set("guard_count", 0)
 	bar.set("guard_post_count", 3)
 	bar.set("visitor_capacity", 0)
 	var building_root := bar.get_node("BuildingSlot")
 	for child in building_root.get_children():
 		building_root.remove_child(child)
 		child.queue_free()
-	var small_bar := SMALL_BAR_SCENE.instantiate()
+	var small_bar := (load(SMALL_BAR_SCENE_PATH) as PackedScene).instantiate()
 	small_bar.name = "SmallBarScene"
 	small_bar.set("building_id", "validation.stair_navigation_bar")
 	small_bar.transform = Transform3D(Basis(), Vector3(0.011291504, -0.007889509, -0.012234688))

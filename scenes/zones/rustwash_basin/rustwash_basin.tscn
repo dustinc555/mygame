@@ -36,29 +36,69 @@
 [ext_resource type="PackedScene" uid="uid://bvwtxenllp0ry" path="res://features/world/projection/buildings/shells/modular/large_wood_hall_tower.tscn" id="33_qk1h5"]
 [ext_resource type="PackedScene" path="res://features/settlements/bridge/venues/facility_guard_post.tscn" id="36_xo48a"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/throne/simple_town_throne.tscn" id="38_kiev5"]
+[ext_resource type="Script" uid="uid://wpyxu6bik6ao" path="res://features/settlements/bridge/settlement_facility_instance.gd" id="39_xo48a"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/home.tres" id="40_3rkdy"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_1.tscn" id="40_amlfp"]
+[ext_resource type="PackedScene" uid="uid://bux4sxu7v7iiu" path="res://features/world/projection/buildings/shells/modular/small_wood_cottage.tscn" id="41_crisj"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_stocked.tscn" id="42_xh5ub"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/ruler_planning_desk.tscn" id="43_ruler_desk"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chest_wood.tscn" id="43_thxgd"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/bar_table.tscn" id="45_table"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chair_3.tscn" id="46_chair"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chair_1.tscn" id="47_hqxgy"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/stool.tscn" id="47_stool"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chair_2.tscn" id="49_xh5ub"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_2.tscn" id="50_jdtbr"]
+[ext_resource type="Script" uid="uid://ukjf4vtbquwi" path="res://features/settlements/resources/facility_role_slot_definition.gd" id="53_role_slot"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/resident.tres" id="54_resident"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/barkeeper.tres" id="55_barkeeper"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/barber.tres" id="56_barber"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/guard.tres" id="57_guard"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/warden.tres" id="58_warden"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/ruler.tres" id="59_ruler"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_06rmy"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_thxgd"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_m77th"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_77k1n"]
 _surfaces = [{
-"aabb": AABB(-8.339571, 0, -116.74548, 87.260994, 1e-05, 92.96738),
+"aabb": AABB(-8.339571, 0, -116.74548, 88.055725, 1e-05, 100.10727),
 "format": 34359738369,
 "primitive": 1,
 "uv_scale": Vector4(0, 0, 0, 0),
-"vertex_count": 244,
-"vertex_data": PackedByteArray("4m4FwQAAAACwfenCxN3KwAAAAACwfenCxN2qwAAAAACwfenCiLtVwAAAAACwfenCiLsVwAAAAACwfenCQNytvgAAAACwfenC4BEpPwAAAACwfenCeEQqQAAAAACwfenCeERqQAAAAACwfenCPCK1QAAAAACwfenCPCLVQAAAAACwfenCHpEKQQAAAACwfenCHpEaQQAAAACwfenCHpE6QQAAAACwfenCHpFKQQAAAACwfenCHpFqQQAAAACwfenCHpF6QQAAAACwfenCj0iNQQAAAACwfenCj0iVQQAAAACwfenCj0ilQQAAAACwfenCj0itQQAAAACwfenCj0i9QQAAAACwfenCj0jFQQAAAACwfenCj0jVQQAAAACwfenCj0jdQQAAAACwfenCj0jtQQAAAACwfenCj0j1QQAAAACwfenCSKQCQgAAAACwfenCSKQGQgAAAACwfenCSKQOQgAAAACwfenCSKQSQgAAAACwfenCSKQaQgAAAACwfenCSKQeQgAAAACwfenCSKQmQgAAAACwfenCSKQqQgAAAACwfenCSKQyQgAAAACwfenCSKQ2QgAAAACwfenCSKQ+QgAAAACwfenCSKRCQgAAAACwfenCSKRKQgAAAACwfenCSKROQgAAAACwfenCSKRWQgAAAACwfenCSKRaQgAAAACwfenCSKRiQgAAAACwfenCSKRmQgAAAACwfenCSKRuQgAAAACwfenCSKRyQgAAAACwfenCSKR6QgAAAACwfenCSKR+QgAAAACwfenCJFKDQgAAAACwfenCJFKFQgAAAACwfenCJFKJQgAAAACwfenCJFKLQgAAAACwfenCJFKPQgAAAACwfenCJFKRQgAAAACwfenCJFKVQgAAAACwfenCJFKXQgAAAACwfenCJFKbQgAAAACwfenCJFKdQgAAAACwfenCxdedQgAAAACwfenCxdedQgAAAACwfenCxdedQgAAAACwfeXCxdedQgAAAACwfePCxdedQgAAAACwfd/CxdedQgAAAACwfd3CxdedQgAAAACwfdnCxdedQgAAAACwfdfCxdedQgAAAACwfdPCxdedQgAAAACwfdHCxdedQgAAAACwfc3CxdedQgAAAACwfcvCxdedQgAAAACwfcfCxdedQgAAAACwfcXCxdedQgAAAACwfcHCxdedQgAAAACwfb/CxdedQgAAAACwfbvCxdedQgAAAACwfbnCxdedQgAAAACwfbXCxdedQgAAAACwfbPCxdedQgAAAACwfa/CxdedQgAAAACwfa3CxdedQgAAAACwfanCxdedQgAAAACwfafCxdedQgAAAACwfaPCxdedQgAAAACwfaHCxdedQgAAAACwfZ3CxdedQgAAAACwfZvCxdedQgAAAACwfZfCxdedQgAAAACwfZXCxdedQgAAAACwfZHCxdedQgAAAACwfY/CxdedQgAAAACwfYvCxdedQgAAAACwfYnCxdedQgAAAACwfYXCxdedQgAAAACwfYPCxdedQgAAAABg+37CxdedQgAAAABg+3rCxdedQgAAAABg+3LCxdedQgAAAABg+27CxdedQgAAAABg+2bCxdedQgAAAABg+2LCxdedQgAAAABg+1rCxdedQgAAAABg+1bCxdedQgAAAABg+07CxdedQgAAAABg+0rCxdedQgAAAABg+0LCxdedQgAAAABg+z7CxdedQgAAAABg+zbCxdedQgAAAABg+zLCxdedQgAAAABg+yrCxdedQgAAAABg+ybCxdedQgAAAABg+x7CxdedQgAAAABg+xrCxdedQgAAAABg+xLCxdedQgAAAABg+w7CxdedQgAAAABg+wbCxdedQgAAAABg+wLCxdedQgAAAADA9vXBxdedQgAAAADA9u3BxdedQgAAAADA9t3BxdedQgAAAADA9tXBxdedQgAAAADA9sXBxdedQgAAAACQOb7BxdeZQgAAAACQOb7BxdeXQgAAAACQOb7BxdeTQgAAAACQOb7BxdeRQgAAAACQOb7BxdeNQgAAAACQOb7BxdeLQgAAAACQOb7BxdeHQgAAAACQOb7BxdeFQgAAAACQOb7BxdeBQgAAAACQOb7Biq9/QgAAAACQOb7Biq93QgAAAACQOb7Biq9zQgAAAACQOb7Biq9rQgAAAACQOb7Biq9nQgAAAACQOb7Biq9fQgAAAACQOb7Biq9bQgAAAACQOb7Biq9TQgAAAACQOb7Biq9PQgAAAACQOb7Biq9HQgAAAACQOb7Biq9DQgAAAACQOb7Biq87QgAAAACQOb7Biq83QgAAAACQOb7Biq8vQgAAAACQOb7Biq8rQgAAAACQOb7Biq8jQgAAAACQOb7Biq8fQgAAAACQOb7Biq8XQgAAAACQOb7Biq8TQgAAAACQOb7Biq8LQgAAAACQOb7Biq8HQgAAAACQOb7BFF//QQAAAACQOb7BFF/3QQAAAACQOb7BFF/nQQAAAACQOb7BFF/fQQAAAACQOb7BFF/PQQAAAACQOb7BFF/HQQAAAACQOb7BFF+3QQAAAACQOb7BFF+vQQAAAACQOb7BFF+fQQAAAACQOb7BFF+XQQAAAACQOb7BFF+HQQAAAACQOb7BKL5+QQAAAACQOb7BKL5eQQAAAACQOb7BKL5OQQAAAACQOb7BKL4uQQAAAACQOb7BKL4eQQAAAACQOb7BUHz9QAAAAACQOb7BUHzdQAAAAACQOb7BUHydQAAAAACQOb7BoPh6QAAAAACQOb7BQPH1PwAAAACQOb7BgOJrPwAAAACQOb7BwA6KvwAAAACQOb7BYAcFwAAAAACQOb7BsIOCwAAAAACQOb7BsIOiwAAAAACQOb7BsIPiwAAAAACQOb7B2EEBwQAAAACQOb7B4G4FwQAAAACQOb7B4m4FwQAAAACQOb7B4m4FwQAAAACQOc7B4m4FwQAAAACQOdbB4m4FwQAAAACQOebB4m4FwQAAAACQOe7B4m4FwQAAAACQOf7B4m4FwQAAAADIHAPC4m4FwQAAAADIHAvC4m4FwQAAAADIHA/C4m4FwQAAAADIHBfC4m4FwQAAAADIHBvC4m4FwQAAAADIHCPC4m4FwQAAAADIHCfC4m4FwQAAAADIHC/C4m4FwQAAAADIHDPC4m4FwQAAAADIHDvC4m4FwQAAAADIHD/C4m4FwQAAAADIHEfC4m4FwQAAAADIHEvC4m4FwQAAAADIHFPC4m4FwQAAAADIHFfC4m4FwQAAAADIHF/C4m4FwQAAAADIHGPC4m4FwQAAAADIHGvC4m4FwQAAAADIHG/C4m4FwQAAAADIHHfC4m4FwQAAAADIHHvC4m4FwQAAAABkjoHC4m4FwQAAAABkjoPC4m4FwQAAAABkjofC4m4FwQAAAABkjonC4m4FwQAAAABkjo3C4m4FwQAAAABkjo/C4m4FwQAAAABkjpPC4m4FwQAAAABkjpXC4m4FwQAAAABkjpnC4m4FwQAAAABkjpvC4m4FwQAAAABkjp/C4m4FwQAAAABkjqHC4m4FwQAAAABkjqXC4m4FwQAAAABkjqfC4m4FwQAAAABkjqvC4m4FwQAAAABkjq3C4m4FwQAAAABkjrHC4m4FwQAAAABkjrPC4m4FwQAAAABkjrfC4m4FwQAAAABkjrnC4m4FwQAAAABkjr3C4m4FwQAAAABkjr/C4m4FwQAAAABkjsPC4m4FwQAAAABkjsXC4m4FwQAAAABkjsnC4m4FwQAAAABkjsvC4m4FwQAAAABkjs/C4m4FwQAAAABkjtHC4m4FwQAAAABkjtXC4m4FwQAAAABkjtfC4m4FwQAAAABkjtvC4m4FwQAAAABkjt3C4m4FwQAAAABkjuHC4m4FwQAAAABkjuPC4m4FwQAAAABkjufC")
+"vertex_count": 256,
+"vertex_data": PackedByteArray("4m4FwQAAAACwfenCxN3KwAAAAACwfenCxN2qwAAAAACwfenCiLtVwAAAAACwfenCiLsVwAAAAACwfenCQNytvgAAAACwfenC4BEpPwAAAACwfenCeEQqQAAAAACwfenCeERqQAAAAACwfenCPCK1QAAAAACwfenCPCLVQAAAAACwfenCHpEKQQAAAACwfenCHpEaQQAAAACwfenCHpE6QQAAAACwfenCHpFKQQAAAACwfenCHpFqQQAAAACwfenCHpF6QQAAAACwfenCj0iNQQAAAACwfenCj0iVQQAAAACwfenCj0ilQQAAAACwfenCj0itQQAAAACwfenCj0i9QQAAAACwfenCj0jFQQAAAACwfenCj0jVQQAAAACwfenCj0jdQQAAAACwfenCj0jtQQAAAACwfenCj0j1QQAAAACwfenCSKQCQgAAAACwfenCSKQGQgAAAACwfenCSKQOQgAAAACwfenCSKQSQgAAAACwfenCSKQaQgAAAACwfenCSKQeQgAAAACwfenCSKQmQgAAAACwfenCSKQqQgAAAACwfenCSKQyQgAAAACwfenCSKQ2QgAAAACwfenCSKQ+QgAAAACwfenCSKRCQgAAAACwfenCSKRKQgAAAACwfenCSKROQgAAAACwfenCSKRWQgAAAACwfenCSKRaQgAAAACwfenCSKRiQgAAAACwfenCSKRmQgAAAACwfenCSKRuQgAAAACwfenCSKRyQgAAAACwfenCSKR6QgAAAACwfenCSKR+QgAAAACwfenCJFKDQgAAAACwfenCJFKFQgAAAACwfenCJFKJQgAAAACwfenCJFKLQgAAAACwfenCJFKPQgAAAACwfenCJFKRQgAAAACwfenCJFKVQgAAAACwfenCJFKXQgAAAACwfenCJFKbQgAAAACwfenCJFKdQgAAAACwfenCrG6fQgAAAACwfenCrG6fQgAAAACwfenCrG6fQgAAAACwfeXCrG6fQgAAAACwfePCrG6fQgAAAACwfd/CrG6fQgAAAACwfd3CrG6fQgAAAACwfdnCrG6fQgAAAACwfdfCrG6fQgAAAACwfdPCrG6fQgAAAACwfdHCrG6fQgAAAACwfc3CrG6fQgAAAACwfcvCrG6fQgAAAACwfcfCrG6fQgAAAACwfcXCrG6fQgAAAACwfcHCrG6fQgAAAACwfb/C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")
 }]
+
+[sub_resource type="Resource" id="RoleSlot_bar_proprietor"]
+script = ExtResource("53_role_slot")
+slot_id = "proprietor"
+role = ExtResource("55_barkeeper")
+display_name = "Barkeeper"
+
+[sub_resource type="Resource" id="RoleSlot_bar_security_a"]
+script = ExtResource("53_role_slot")
+slot_id = "security_front"
+role = ExtResource("57_guard")
+display_name = "Bar Guard"
+authority_scope = "private_security"
+
+[sub_resource type="Resource" id="RoleSlot_bar_security_b"]
+script = ExtResource("53_role_slot")
+slot_id = "security_rear"
+role = ExtResource("57_guard")
+display_name = "Bar Guard 2"
+authority_scope = "private_security"
+
+[sub_resource type="Resource" id="RoleSlot_bar_barber"]
+script = ExtResource("53_role_slot")
+slot_id = "barber_chair"
+role = ExtResource("56_barber")
+display_name = "Barber"
 
 [sub_resource type="Resource" id="Resource_hpbre"]
 script = ExtResource("17_pqxta")
@@ -93,6 +133,41 @@ item_definition = ExtResource("18_0mjsx")
 height = 0.9
 radius = 0.35
 
+[sub_resource type="Resource" id="RoleSlot_jail_warden"]
+script = ExtResource("53_role_slot")
+slot_id = "warden_desk"
+role = ExtResource("58_warden")
+display_name = "Warden"
+authority_scope = "settlement_authority"
+
+[sub_resource type="Resource" id="RoleSlot_jail_guard_a"]
+script = ExtResource("53_role_slot")
+slot_id = "custody_guard_north"
+role = ExtResource("57_guard")
+display_name = "Jail Guard"
+authority_scope = "settlement_authority"
+
+[sub_resource type="Resource" id="RoleSlot_jail_guard_b"]
+script = ExtResource("53_role_slot")
+slot_id = "custody_guard_south"
+role = ExtResource("57_guard")
+display_name = "Jail Guard 2"
+authority_scope = "settlement_authority"
+
+[sub_resource type="Resource" id="RoleSlot_jail_guard_c"]
+script = ExtResource("53_role_slot")
+slot_id = "custody_guard_cells"
+role = ExtResource("57_guard")
+display_name = "Jail Guard 3"
+authority_scope = "settlement_authority"
+
+[sub_resource type="Resource" id="RoleSlot_jail_guard_d"]
+script = ExtResource("53_role_slot")
+slot_id = "custody_guard_entry"
+role = ExtResource("57_guard")
+display_name = "Jail Guard 4"
+authority_scope = "settlement_authority"
+
 [sub_resource type="BoxShape3D" id="BoxShape3D_locker"]
 size = Vector3(0.6636963, 0.90704346, 0.4975586)
 
@@ -102,11 +177,66 @@ size = Vector3(1.08, 1.2, 1.16)
 [sub_resource type="BoxShape3D" id="BoxShape3D_cell"]
 size = Vector3(1.5446142, 2.3987105, 1.4573514)
 
+[sub_resource type="Resource" id="RoleSlot_keep_ruler"]
+script = ExtResource("53_role_slot")
+slot_id = "seat_of_rule"
+role = ExtResource("59_ruler")
+display_name = "Ruler"
+authority_scope = "settlement_leader"
+
+[sub_resource type="Resource" id="RoleSlot_keep_guard_a"]
+script = ExtResource("53_role_slot")
+slot_id = "keep_guard_west"
+role = ExtResource("57_guard")
+display_name = "Keep Guard"
+authority_scope = "settlement_authority"
+
+[sub_resource type="Resource" id="RoleSlot_keep_guard_b"]
+script = ExtResource("53_role_slot")
+slot_id = "keep_guard_east"
+role = ExtResource("57_guard")
+display_name = "Keep Guard 2"
+authority_scope = "settlement_authority"
+
 [sub_resource type="BoxShape3D" id="BoxShape3D_i3ypv"]
 size = Vector3(1.08, 1.2, 1.16)
 
 [sub_resource type="BoxShape3D" id="PlacementFootprint"]
 size = Vector3(0.7, 0.1, 0.7)
+
+[sub_resource type="Resource" id="RoleSlot_house_a_resident_a"]
+script = ExtResource("53_role_slot")
+slot_id = "resident_bed_a"
+role = ExtResource("54_resident")
+display_name = "Resident"
+authority_scope = "residence"
+
+[sub_resource type="Resource" id="RoleSlot_house_a_resident_b"]
+script = ExtResource("53_role_slot")
+slot_id = "resident_bed_b"
+role = ExtResource("54_resident")
+display_name = "Resident 2"
+authority_scope = "residence"
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_y4ye1"]
+size = Vector3(1.28, 0.72, 0.76)
+
+[sub_resource type="Resource" id="RoleSlot_house_b_resident_a"]
+script = ExtResource("53_role_slot")
+slot_id = "resident_bed_a"
+role = ExtResource("54_resident")
+display_name = "Resident"
+authority_scope = "residence"
+
+[sub_resource type="Resource" id="RoleSlot_house_b_resident_b"]
+script = ExtResource("53_role_slot")
+slot_id = "resident_bed_b"
+role = ExtResource("54_resident")
+display_name = "Resident 2"
+authority_scope = "residence"
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_jm3eg"]
+size = Vector3(1.28, 0.72, 0.76)
 
 [node name="RustwashBasin" type="Node3D" unique_id=1310818615]
 script = ExtResource("7_zone_root")
@@ -126,16 +256,13 @@ metadata/_edit_group_ = true
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Towns/Canyon" unique_id=532431889]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_06rmy")
+material_override = SubResource("StandardMaterial3D_thxgd")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_m77th")
+mesh = SubResource("ArrayMesh_77k1n")
 
 [node name="CanyonCityRestStop" type="Node3D" parent="Towns/Canyon" unique_id=556110935]
 transform = Transform3D(0.28083363, 0, 0.9597566, 0, 1, 0, -0.9597566, 0, 0.28083363, 3.373272, 0.42611122, -37.413513)
 script = ExtResource("6_61aqc")
-has_barkeeper = true
-guard_count = 2
-has_barber = true
 guard_post_count = 3
 facility_function = ExtResource("7_omktg")
 furnish_seed = 5
@@ -147,6 +274,7 @@ building_id = "canyon.rest_stop.building"
 display_name = "Canyon City Rest Stop"
 facility_type = "bar"
 owner_faction_id = "Canyonites"
+role_slots = Array[ExtResource("53_role_slot")]([SubResource("RoleSlot_bar_proprietor"), SubResource("RoleSlot_bar_security_a"), SubResource("RoleSlot_bar_security_b"), SubResource("RoleSlot_bar_barber")])
 door_access_policy = "public"
 door_initial_state = "open"
 activity_points_root_path = NodePath("ActivityPoints")
@@ -428,7 +556,6 @@ waiter_character_path = NodePath("")
 [node name="SettlementJail" type="Node3D" parent="Towns/Canyon" unique_id=1524920645]
 transform = Transform3D(0.41127056, 0, -0.9115133, 0, 1, 0, 0.9115133, 0, 0.41127056, 65.714165, 0.33847356, -47.38513)
 script = ExtResource("25_0mjsx")
-guard_count = 4
 facility_function = ExtResource("26_fikcy")
 furnish_seed = 5
 service_points_root_path = NodePath("")
@@ -439,6 +566,7 @@ building_id = "canyon.jail.building"
 display_name = "Canyon Jail"
 facility_type = "jail"
 owner_faction_id = "Canyonites"
+role_slots = Array[ExtResource("53_role_slot")]([SubResource("RoleSlot_jail_warden"), SubResource("RoleSlot_jail_guard_a"), SubResource("RoleSlot_jail_guard_b"), SubResource("RoleSlot_jail_guard_c"), SubResource("RoleSlot_jail_guard_d")])
 door_access_policy = "public"
 door_initial_state = "open"
 
@@ -565,6 +693,7 @@ facility_id = "canyon.keep"
 building_id = "canyon.keep.building"
 display_name = "Canyon Keep"
 facility_type = "keep"
+role_slots = Array[ExtResource("53_role_slot")]([SubResource("RoleSlot_keep_ruler"), SubResource("RoleSlot_keep_guard_a"), SubResource("RoleSlot_keep_guard_b")])
 door_initial_state = "open"
 door_schedule_enabled = true
 doors_keep_open_during_hours = true
@@ -724,6 +853,170 @@ debug_color = Color(0.35, 0.78, 1, 0.76)
 [node name="GuardPost3" parent="Towns/Canyon/Keep/GuardPosts" unique_id=727656727 instance=ExtResource("36_xo48a")]
 transform = Transform3D(0.7502491, 0, 0.6611553, 0, 1, 0, -0.6611553, 0, 0.7502491, -1.8026581, -0.0638659, 7.99115)
 collision_shape = SubResource("PlacementFootprint")
+
+[node name="House" type="Node3D" parent="Towns/Canyon" unique_id=953642328]
+transform = Transform3D(0.08585084, 0, -0.996308, 0, 1, 0, 0.996308, 0, 0.08585084, 68.8045, 0.038066864, -28.460327)
+script = ExtResource("39_xo48a")
+facility_function = ExtResource("40_3rkdy")
+furnish_seed = 3
+service_points_root_path = NodePath("")
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+facility_id = "canyon.house"
+building_id = "canyon.house.building"
+display_name = "Home"
+facility_type = "housing"
+role_slots = Array[ExtResource("53_role_slot")]([SubResource("RoleSlot_house_a_resident_a"), SubResource("RoleSlot_house_a_resident_b")])
+housing_capacity = 2
+
+[node name="BuildingSlot" type="Node3D" parent="Towns/Canyon/House" unique_id=1611146213]
+
+[node name="CurrentBuilding" parent="Towns/Canyon/House/BuildingSlot" unique_id=1500705093 instance=ExtResource("41_crisj")]
+building_id = "canyon.house.building"
+settlement_id = "canyon"
+facility_id = "canyon.house"
+building_type = "housing"
+owner_faction_id = "Canyonites"
+access_state = "private"
+public_schedule_enabled = false
+housing_capacity = 2
+
+[node name="Furniture" type="Node3D" parent="Towns/Canyon/House" unique_id=404182905]
+
+[node name="@StaticBody3D@62766" parent="Towns/Canyon/House/Furniture" unique_id=1024638723 instance=ExtResource("43_thxgd")]
+transform = Transform3D(-0.008702911, 0, -0.9999618, 0, 1, 0, 0.9999618, 0, -0.008702911, -4.12619, 0, 0.070991516)
+container_id = "canyon.house.utility_1"
+collision_shape = SubResource("BoxShape3D_y4ye1")
+metadata/furnish_generated = true
+
+[node name="@StaticBody3D@62768" parent="Towns/Canyon/House/Furniture" unique_id=189784280 instance=ExtResource("45_table")]
+transform = Transform3D(-0.999135, 0, -0.041583065, 0, 1, 0, 0.041583065, 0, -0.999135, -0.13244627, 0, -0.13241576)
+surface_id = "table_1"
+metadata/furnish_generated = true
+
+[node name="@StaticBody3D@62769" parent="Towns/Canyon/House/Furniture" unique_id=1799130821 instance=ExtResource("47_hqxgy")]
+transform = Transform3D(0.9937963, 0, 0.11118126, 0, 1, 0, -0.11118126, 0, 0.9937963, 0.54368454, 0, -1.201456)
+metadata/furnish_generated = true
+
+[node name="@StaticBody3D@62770" parent="Towns/Canyon/House/Furniture" unique_id=182138886 instance=ExtResource("49_xh5ub")]
+transform = Transform3D(0.99959797, 0, -0.028218057, 0, 1, 0, 0.028218057, 0, 0.99959797, -0.8530254, 0, -1.0932829)
+metadata/furnish_generated = true
+
+[node name="@StaticBody3D@62771" parent="Towns/Canyon/House/Furniture" unique_id=702483789 instance=ExtResource("49_xh5ub")]
+transform = Transform3D(-0.9937963, 0, -0.11118126, 0, 1, 0, 0.11118126, 0, -0.9937963, 0.5290164, 0, 0.850929)
+metadata/furnish_generated = true
+
+[node name="@StaticBody3D@62772" parent="Towns/Canyon/House/Furniture" unique_id=2055256570 instance=ExtResource("47_stool")]
+transform = Transform3D(-0.9967592, 0, 0.08049131, 0, 1, 0, -0.08049131, 0, -0.9967592, -0.8514533, 0, 0.86834836)
+metadata/furnish_generated = true
+
+[node name="@StaticBody3D@62773" parent="Towns/Canyon/House/Furniture" unique_id=1312444352 instance=ExtResource("50_jdtbr")]
+transform = Transform3D(0.99902934, 0, 0.044042997, 0, 1, 0, -0.044042997, 0, 0.99902934, 3.6154785, 0, -0.7779541)
+metadata/furnish_generated = true
+
+[node name="@StaticBody3D@62774" parent="Towns/Canyon/House/Furniture" unique_id=516526353 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(0.99999994, 0, -1.4901161e-08, 0, 1, 0, 1.4901161e-08, 0, 0.99999994, 0.92357117, 1.55, -3.6700013)
+surface_id = "shelf_1"
+metadata/furnish_generated = true
+
+[node name="@StaticBody3D@62775" parent="Towns/Canyon/House/Furniture" unique_id=2104966329 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(0.99999994, 0, -1.4901161e-08, 0, 1, 0, 1.4901161e-08, 0, 0.99999994, -0.99977577, 1.55, -3.6700013)
+surface_id = "shelf_2"
+metadata/furnish_generated = true
+
+[node name="@Node3D@62776" parent="Towns/Canyon/House/Furniture" unique_id=458673961 instance=ExtResource("22_ywld2")]
+transform = Transform3D(0.9999995, 0, -3.7252903e-08, 0, 1, 0, 3.7252903e-08, 0, 0.9999995, -2.1327515, 2.15, 3.859024)
+metadata/furnish_generated = true
+
+[node name="@Node3D@62777" parent="Towns/Canyon/House/Furniture" unique_id=1573994789 instance=ExtResource("22_ywld2")]
+transform = Transform3D(0.7038675, 0, 0.7103305, 0, 1, 0, -0.7103305, 0, 0.7038675, -4.201416, 1.8089631, -3.169403)
+metadata/furnish_generated = true
+
+[node name="Staff" type="Node3D" parent="Towns/Canyon/House" unique_id=857475925]
+
+[node name="House2" type="Node3D" parent="Towns/Canyon" unique_id=1654047937]
+transform = Transform3D(0.0542349, 0, 0.9985282, 0, 1, 0, -0.9985282, 0, 0.0542349, 36.523643, 0.037299037, -59.59207)
+script = ExtResource("39_xo48a")
+facility_function = ExtResource("40_3rkdy")
+furnish_seed = 4
+service_points_root_path = NodePath("")
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+facility_id = "canyon.house2"
+building_id = "canyon.house2.building"
+display_name = "Home"
+facility_type = "housing"
+role_slots = Array[ExtResource("53_role_slot")]([SubResource("RoleSlot_house_b_resident_a"), SubResource("RoleSlot_house_b_resident_b")])
+housing_capacity = 2
+
+[node name="BuildingSlot" type="Node3D" parent="Towns/Canyon/House2" unique_id=345072899]
+
+[node name="CurrentBuilding" parent="Towns/Canyon/House2/BuildingSlot" unique_id=1476791386 instance=ExtResource("41_crisj")]
+building_id = "canyon.house2.building"
+settlement_id = "canyon"
+facility_id = "canyon.house2"
+building_type = "housing"
+owner_faction_id = "Canyonites"
+access_state = "private"
+public_schedule_enabled = false
+housing_capacity = 2
+
+[node name="Furniture" type="Node3D" parent="Towns/Canyon/House2" unique_id=852512044]
+
+[node name="Light1" parent="Towns/Canyon/House2/Furniture" unique_id=632060526 instance=ExtResource("22_ywld2")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.010467529, 2.15, 3.8898277)
+metadata/furnish_generated = true
+
+[node name="Utility1" parent="Towns/Canyon/House2/Furniture" unique_id=862698253 instance=ExtResource("43_thxgd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, -3.2700014)
+container_id = "canyon.house2.utility_1"
+collision_shape = SubResource("BoxShape3D_jm3eg")
+metadata/furnish_generated = true
+
+[node name="Table1" parent="Towns/Canyon/House2/Furniture" unique_id=439114169 instance=ExtResource("45_table")]
+transform = Transform3D(0.00031234027, 0, -0.99999994, 0, 1, 0, 0.99999994, 0, 0.00031234027, -0.13241577, 0, -0.63241005)
+surface_id = "table_1"
+metadata/furnish_generated = true
+
+[node name="ChairSouthLeft1" parent="Towns/Canyon/House2/Furniture" unique_id=1571463804 instance=ExtResource("47_hqxgy")]
+transform = Transform3D(-0.07007157, 0, 0.99753815, 0, 1, 0, -0.99753815, 0, -0.07007157, -1.1726404, 0, -1.3520851)
+metadata/furnish_generated = true
+
+[node name="ChairSouthRight1" parent="Towns/Canyon/House2/Furniture" unique_id=1444368438 instance=ExtResource("49_xh5ub")]
+transform = Transform3D(0.06944842, 0, 0.9975818, 0, 1, 0, -0.9975818, 0, 0.06944842, -1.1222034, 0, 0.047899127)
+metadata/furnish_generated = true
+
+[node name="ChairNorthLeft1" parent="Towns/Canyon/House2/Furniture" unique_id=77428006 instance=ExtResource("49_xh5ub")]
+transform = Transform3D(0.07007157, 0, -0.99753815, 0, 1, 0, 0.99753815, 0, 0.07007157, 0.8773905, 0, -1.2527255)
+metadata/furnish_generated = true
+
+[node name="StoolNorthRight1" parent="Towns/Canyon/House2/Furniture" unique_id=418542848 instance=ExtResource("47_stool")]
+transform = Transform3D(-0.121559985, 0, -0.99258804, 0, 1, 0, 0.99258804, 0, -0.121559985, 0.8378216, 0, 0.12728691)
+metadata/furnish_generated = true
+
+[node name="Bed1" parent="Towns/Canyon/House2/Furniture" unique_id=2039422698 instance=ExtResource("50_jdtbr")]
+transform = Transform3D(0.99878955, 0, 0.049189623, 0, 1, 0, -0.049189623, 0, 0.99878955, -3.4500427, 0, 0.22707748)
+metadata/furnish_generated = true
+
+[node name="Bed2" parent="Towns/Canyon/House2/Furniture" unique_id=1430253843 instance=ExtResource("40_amlfp")]
+transform = Transform3D(0.999875, 0, 0.01581353, 0, 1, 0, -0.01581353, 0, 0.999875, 3.4500122, 0, 0.13579369)
+metadata/furnish_generated = true
+
+[node name="Shelf1" parent="Towns/Canyon/House2/Furniture" unique_id=508892081 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.9942759, 1.55, -3.6700015)
+surface_id = "shelf_1"
+metadata/furnish_generated = true
+
+[node name="Shelf2" parent="Towns/Canyon/House2/Furniture" unique_id=1142254512 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.0167642, 1.55, -3.6700015)
+surface_id = "shelf_2"
+metadata/furnish_generated = true
+
+[node name="Light2" parent="Towns/Canyon/House2/Furniture" unique_id=204746433 instance=ExtResource("22_ywld2")]
+transform = Transform3D(0.68179864, 0, 0.73154056, 0, 1, 0, -0.73154056, 0, 0.68179864, -4.288269, 2.15, -3.0709162)
+metadata/furnish_generated = true
+
+[node name="Staff" type="Node3D" parent="Towns/Canyon/House2" unique_id=818178335]
 
 [node name="NestMarkers" type="Node3D" parent="." unique_id=833802370]
 

@@ -1,13 +1,33 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://features/settlements/bridge/settlement_facility_instance.gd" id="1_facility"]
-[ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/medium_wood_hall.tscn" id="2_building"]
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/small_wood_cottage.tscn" id="2_building"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/home.tres" id="3_function"]
+[ext_resource type="Script" path="res://features/settlements/resources/facility_role_slot_definition.gd" id="4_slot"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/resident.tres" id="5_resident"]
+
+[sub_resource type="Resource" id="RoleSlot_resident_a"]
+script = ExtResource("4_slot")
+slot_id = "resident_bed_a"
+role = ExtResource("5_resident")
+display_name = "Resident"
+authority_scope = "residence"
+
+[sub_resource type="Resource" id="RoleSlot_resident_b"]
+script = ExtResource("4_slot")
+slot_id = "resident_bed_b"
+role = ExtResource("5_resident")
+display_name = "Resident 2"
+authority_scope = "residence"
 
 [node name="SettlementHouse" type="Node3D"]
 script = ExtResource("1_facility")
-display_name = "House"
+role_slots = Array[ExtResource("4_slot")]([SubResource("RoleSlot_resident_a"), SubResource("RoleSlot_resident_b")])
+display_name = "Home"
+facility_function = ExtResource("3_function")
 facility_type = "housing"
 housing_capacity = 2
+furnish_seed = 3
 service_points_root_path = NodePath("")
 storage_root_path = NodePath("")
 job_providers_root_path = NodePath("")

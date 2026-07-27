@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Front_Brick8.gltf" id="2_r5wp3"]
 [ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_b8bow"]
 
-[node name="RoofFrontBrick8" type="Node3D" unique_id=344068634]
+[node name="RoofFrontBrick8" type="Node3D" unique_id=1640094882]
 script = ExtResource("1_bx0o6")
 piece_id = "roof_front_brick_8"
 display_name = "Roof Front Brick8"
@@ -14,28 +14,44 @@ bounds_size_meters = Vector3(8.510795, 5.445868, 1.1291033)
 
 [node name="Model" type="Node3D" parent="." unique_id=387543759 instance=ExtResource("2_r5wp3")]
 
-[node name="SnapPoints" type="Node3D" parent="." unique_id=864956194]
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1092526962]
 
-[node name="Left" type="Marker3D" parent="SnapPoints" unique_id=1642125545]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.254718, 2.591132, 0.22958794)
+[node name="RoofInsert" type="Marker3D" parent="SnapPoints" unique_id=1926345319]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1318021, 0.8392057)
 script = ExtResource("3_b8bow")
-snap_id = "left"
-display_name = "Left"
-connector_type = "roof_front_side"
-accepts_types = PackedStringArray("roof_side")
+snap_id = "roof_insert"
+display_name = "Roof Insert"
+connector_type = "roof_gable_insert"
+accepts_types = PackedStringArray("roof_gable_socket")
 
-[node name="Right" type="Marker3D" parent="SnapPoints" unique_id=456124056]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 4.256077, 2.591132, 0.22958794)
+[node name="Wall1" type="Marker3D" parent="SnapPoints" unique_id=58620448]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -3, -0.1318021, 0.8392057)
 script = ExtResource("3_b8bow")
-snap_id = "right"
-display_name = "Right"
-connector_type = "roof_front_side"
-accepts_types = PackedStringArray("roof_side")
+snap_id = "wall_0"
+display_name = "Wall 1"
+connector_type = "roof_front_wall"
+accepts_types = PackedStringArray("wall_top")
 
-[node name="WallTop" type="Marker3D" parent="SnapPoints" unique_id=821936789]
-transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.00067949295, -0.1318021, 0.22958794)
+[node name="Wall2" type="Marker3D" parent="SnapPoints" unique_id=1130712979]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -1, -0.1318021, 0.8392057)
 script = ExtResource("3_b8bow")
-snap_id = "wall_top"
-display_name = "Wall Top"
-connector_type = "roof_wall_top"
+snap_id = "wall_1"
+display_name = "Wall 2"
+connector_type = "roof_front_wall"
+accepts_types = PackedStringArray("wall_top")
+
+[node name="Wall3" type="Marker3D" parent="SnapPoints" unique_id=1653356377]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 1, -0.1318021, 0.8392057)
+script = ExtResource("3_b8bow")
+snap_id = "wall_2"
+display_name = "Wall 3"
+connector_type = "roof_front_wall"
+accepts_types = PackedStringArray("wall_top")
+
+[node name="Wall4" type="Marker3D" parent="SnapPoints" unique_id=702764950]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 3, -0.1318021, 0.8392057)
+script = ExtResource("3_b8bow")
+snap_id = "wall_3"
+display_name = "Wall 4"
+connector_type = "roof_front_wall"
 accepts_types = PackedStringArray("wall_top")

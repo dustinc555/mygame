@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Front_Wood4.gltf" id="2_rjy5d"]
 [ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_6hmth"]
 
-[node name="RoofFrontWood4" type="Node3D" unique_id=1827572323]
+[node name="RoofFrontWood4" type="Node3D" unique_id=2112194500]
 script = ExtResource("1_6wj00")
 piece_id = "roof_front_wood4"
 display_name = "Roof Front Wood4"
@@ -14,28 +14,28 @@ bounds_size_meters = Vector3(4.399803, 3.0685048, 1.1291034)
 
 [node name="Model" type="Node3D" parent="." unique_id=2071931598 instance=ExtResource("2_rjy5d")]
 
-[node name="SnapPoints" type="Node3D" parent="." unique_id=659440857]
+[node name="SnapPoints" type="Node3D" parent="." unique_id=247550059]
 
-[node name="Left" type="Marker3D" parent="SnapPoints" unique_id=2124872602]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.1838074, 1.4024503, 0.22958803)
+[node name="RoofInsert" type="Marker3D" parent="SnapPoints" unique_id=1230851851]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.13180207, 0.8392057)
 script = ExtResource("3_6hmth")
-snap_id = "left"
-display_name = "Left"
-connector_type = "roof_front_side"
-accepts_types = PackedStringArray("roof_side")
+snap_id = "roof_insert"
+display_name = "Roof Insert"
+connector_type = "roof_gable_insert"
+accepts_types = PackedStringArray("roof_gable_socket")
 
-[node name="Right" type="Marker3D" parent="SnapPoints" unique_id=1354849445]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.2159958, 1.4024503, 0.22958803)
+[node name="Wall1" type="Marker3D" parent="SnapPoints" unique_id=497686119]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -1, -0.13180207, 0.8392057)
 script = ExtResource("3_6hmth")
-snap_id = "right"
-display_name = "Right"
-connector_type = "roof_front_side"
-accepts_types = PackedStringArray("roof_side")
+snap_id = "wall_0"
+display_name = "Wall 1"
+connector_type = "roof_front_wall"
+accepts_types = PackedStringArray("wall_top")
 
-[node name="WallTop" type="Marker3D" parent="SnapPoints" unique_id=1215151193]
-transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.016094208, -0.13180207, 0.22958803)
+[node name="Wall2" type="Marker3D" parent="SnapPoints" unique_id=1935234322]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 1, -0.13180207, 0.8392057)
 script = ExtResource("3_6hmth")
-snap_id = "wall_top"
-display_name = "Wall Top"
-connector_type = "roof_wall_top"
+snap_id = "wall_1"
+display_name = "Wall 2"
+connector_type = "roof_front_wall"
 accepts_types = PackedStringArray("wall_top")

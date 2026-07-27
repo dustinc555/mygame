@@ -8,6 +8,9 @@ class_name SettlementFacility
 @export var display_name := "Facility"
 @export_enum("generic", "housing", "farm", "mine", "bar", "jail", "shop", "storage", "guard", "social", "police", "weapon_shop", "armor_shop", "travel_shop", "potion_shop", "tavern", "keep") var facility_type := "generic"
 @export var owner_faction_id := ""
+@export_group("Assignments")
+@export var role_slots: Array[FacilityRoleSlotDefinition] = []
+@export_group("")
 @export_group("Door Policy")
 @export_enum("private", "public") var door_access_policy := "private":
 	set(value):
@@ -32,9 +35,6 @@ class_name SettlementFacility
 @export var population_appearance_profile: Resource
 @export var population_name_profile: Resource
 @export var character_type_set: Resource
-## Optional per-role or per-slot type override. Keys are role IDs or
-## "role:index"; empty/missing values use the effective type set's role map.
-@export var staff_character_type_ids: Dictionary = {}
 @export_group("")
 @export var enabled := true
 ## Optional abstract capacity floor. Physical SleepableBed children always
@@ -52,6 +52,8 @@ func _enter_tree() -> void:
 
 func _ready() -> void:
 	add_to_group("settlement_facility")
+	if not role_slots.is_empty():
+		add_to_group("settlement_staff_role_owner")
 	stamp_building_identity()
 
 
@@ -144,10 +146,49 @@ func get_effective_character_type_set_source() -> String:
 	return "town" if definition != null and definition.get("character_type_set") != null else "faction"
 
 
-func get_staff_character_type_id(role_id: String, role_index := 0) -> String:
+func get_assignment_slot_specs() -> Array[Dictionary]:
+	var specs: Array[Dictionary] = []
+	var role_indexes: Dictionary = {}
+	for slot in role_slots:
+		if slot == null:
+			continue
+		var spec := slot.to_slot_spec(get_facility_id())
+		if spec.is_empty():
+			continue
+		var role_id := str(spec.get("role_id", ""))
+		spec["role_index"] = int(role_indexes.get(role_id, 0))
+		role_indexes[role_id] = int(spec["role_index"]) + 1
+		specs.append(spec)
+	return specs
+
+
+func count_role_slots(role_id: String, assignment_domain := "") -> int:
+	var count := 0
 	var normalized_role := role_id.strip_edges().to_lower()
-	var slot_key := "%s:%d" % [normalized_role, role_index]
-	return str(staff_character_type_ids.get(slot_key, staff_character_type_ids.get(normalized_role, ""))).strip_edges().to_lower()
+	for slot in role_slots:
+		if slot == null or slot.role == null or slot.role.get_id() != normalized_role:
+			continue
+		if not assignment_domain.is_empty() and slot.role.assignment_domain != assignment_domain:
+			continue
+		count += 1
+	return count
+
+
+func get_role_slot(role_id: String, role_index := 0) -> FacilityRoleSlotDefinition:
+	var current_index := 0
+	var normalized_role := role_id.strip_edges().to_lower()
+	for slot in role_slots:
+		if slot == null or slot.role == null or slot.role.get_id() != normalized_role:
+			continue
+		if current_index == role_index:
+			return slot
+		current_index += 1
+	return null
+
+
+func get_role_slot_id(role_id: String, role_index := 0) -> String:
+	var slot := get_role_slot(role_id, role_index)
+	return "%s.%s" % [get_facility_id(), slot.slot_id.strip_edges().to_lower()] if slot != null else ""
 
 
 func _effective_settlement_id() -> String:

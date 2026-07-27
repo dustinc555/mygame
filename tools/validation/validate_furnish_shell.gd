@@ -41,6 +41,8 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 	var shell := shell_scene.instantiate() as Node3D
+	if "building_id" in shell:
+		shell.set("building_id", "validation.furnish_shell")
 	add_child(shell)
 	await get_tree().process_frame
 	var placed_kinds := {}
@@ -49,10 +51,22 @@ func _ready() -> void:
 		var furnisher = FURNISHER.new()
 		var placements: Array[Dictionary] = furnisher.furnish(shell, rules, seed_value)
 		var counts := {}
+		var claimed_wall_faces := {}
+		var exterior_entry_lights := 0
 		for placement in placements:
 			var kind := str(placement["kind"])
 			counts[kind] = int(counts.get(kind, 0)) + 1
 			placed_kinds[kind] = true
+			if kind == "shelf" or kind == "light":
+				var wall_face_key := str(placement.get("wall_face_key", ""))
+				if wall_face_key.is_empty() or claimed_wall_faces.has(wall_face_key):
+					push_error("validate_furnish_shell: seed %d reuses wall face '%s'" % [seed_value, wall_face_key])
+					_probe_failed = true
+				claimed_wall_faces[wall_face_key] = true
+			exterior_entry_lights += 1 if bool(placement.get("exterior_entry_light", false)) else 0
+		if not rules.light_scenes.is_empty() and exterior_entry_lights != 1:
+			push_error("validate_furnish_shell: seed %d expected one exterior entry light, got %d" % [seed_value, exterior_entry_lights])
+			_probe_failed = true
 		var error := str(furnisher.last_error())
 		print("seed %d: %d placements %s%s" % [seed_value, placements.size(), counts, "" if error.is_empty() else " ERROR: " + error])
 		if placements.is_empty():

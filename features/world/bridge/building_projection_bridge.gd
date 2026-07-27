@@ -4,6 +4,9 @@ class_name BuildingProjectionBridge
 
 const SERVICE_ID := &"building_projection_bridge"
 
+signal projection_bound(building_id: String, projection: WorldBuilding)
+signal projection_unbound(building_id: String, projection: WorldBuilding)
+
 var _registry: BuildingRegistry
 var _projections_by_id: Dictionary = {}
 var _imports_seed_by_id: Dictionary = {}
@@ -36,13 +39,30 @@ func bind_projection(building: WorldBuilding, import_seed := true) -> bool:
 			record = _registry.update_building(building_id, composition_changes)
 	if record.is_empty():
 		return false
+	var previous: WorldBuilding = _projections_by_id.get(building_id)
+	if previous != null and previous != building and is_instance_valid(previous):
+		projection_unbound.emit(building_id, previous)
 	_projections_by_id[building_id] = building
 	_imports_seed_by_id[building_id] = import_seed
 	var exiting := _on_projection_exiting.bind(building_id, building)
 	if not building.tree_exiting.is_connected(exiting):
 		building.tree_exiting.connect(exiting, CONNECT_ONE_SHOT)
 	building.apply_registry_state(record)
+	projection_bound.emit(building_id, building)
 	return true
+
+
+func get_projection(building_id: String) -> WorldBuilding:
+	var projection: WorldBuilding = _projections_by_id.get(building_id.strip_edges())
+	return projection if projection != null and is_instance_valid(projection) else null
+
+
+func get_bound_building_ids() -> Array[String]:
+	var result: Array[String] = []
+	for building_id in _projections_by_id:
+		result.append(str(building_id))
+	result.sort()
+	return result
 
 
 func _bind_authored_buildings_once() -> void:
@@ -55,6 +75,7 @@ func _apply_record_to_projection(building_id: String) -> void:
 	var building: WorldBuilding = _projections_by_id.get(building_id)
 	if building != null and is_instance_valid(building):
 		building.apply_registry_state(_registry.get_building(building_id))
+		projection_bound.emit(building_id, building)
 
 
 func _reconcile_all_projections() -> void:
@@ -72,9 +93,11 @@ func _reconcile_all_projections() -> void:
 			record = _registry.create_building(building.get_building_seed())
 		if not record.is_empty():
 			building.apply_registry_state(record)
+			projection_bound.emit(clean_id, building)
 
 
 func _on_projection_exiting(building_id: String, building: WorldBuilding) -> void:
 	if _projections_by_id.get(building_id) == building:
 		_projections_by_id.erase(building_id)
 		_imports_seed_by_id.erase(building_id)
+		projection_unbound.emit(building_id, building)

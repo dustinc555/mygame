@@ -37,6 +37,43 @@
 [ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/raider_scrapper.tres" id="38_raider_profile"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/slave_rags.tres" id="39_slave_profile"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/population_name_profiles/captive_names.tres" id="40_captive_names"]
+[ext_resource type="Script" path="res://features/settlements/resources/facility_role_slot_definition.gd" id="41_role_slot"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/barkeeper.tres" id="42_barkeeper"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/barber.tres" id="43_barber"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/guard.tres" id="44_guard"]
+
+[sub_resource type="Resource" id="RoleSlot_farmer_bar_barkeeper"]
+script = ExtResource("41_role_slot")
+slot_id = "proprietor"
+role = ExtResource("42_barkeeper")
+display_name = "Barkeeper"
+
+[sub_resource type="Resource" id="RoleSlot_farmer_bar_guard_a"]
+script = ExtResource("41_role_slot")
+slot_id = "security_front"
+role = ExtResource("44_guard")
+display_name = "Bar Guard"
+authority_scope = "private_security"
+
+[sub_resource type="Resource" id="RoleSlot_farmer_bar_guard_b"]
+script = ExtResource("41_role_slot")
+slot_id = "security_rear"
+role = ExtResource("44_guard")
+display_name = "Bar Guard 2"
+authority_scope = "private_security"
+
+[sub_resource type="Resource" id="RoleSlot_farmer_bar_guard_c"]
+script = ExtResource("41_role_slot")
+slot_id = "security_roaming"
+role = ExtResource("44_guard")
+display_name = "Bar Guard 3"
+authority_scope = "private_security"
+
+[sub_resource type="Resource" id="RoleSlot_farmer_bar_barber"]
+script = ExtResource("41_role_slot")
+slot_id = "barber_chair"
+role = ExtResource("43_barber")
+display_name = "Barber"
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(180, 1, 128)
@@ -523,8 +560,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.916183, 0, -26.820736)
 facility_id = "farmer_crossing.bar"
 building_id = "farmer_crossing.bar.building"
 owner_faction_id = "Farmers"
-guard_count = 3
-has_barber = true
+role_slots = Array[ExtResource("41_role_slot")]([SubResource("RoleSlot_farmer_bar_barkeeper"), SubResource("RoleSlot_farmer_bar_guard_a"), SubResource("RoleSlot_farmer_bar_guard_b"), SubResource("RoleSlot_farmer_bar_guard_c"), SubResource("RoleSlot_farmer_bar_barber")])
 storage_root_path = NodePath("")
 job_providers_root_path = NodePath("")
 

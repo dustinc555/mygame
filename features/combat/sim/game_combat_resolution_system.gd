@@ -25,6 +25,7 @@ static var profile_enabled := OS.get_cmdline_args().has("--gecs-combat-profile")
 static var _profile_calls := 0
 static var _profile_usec := 0
 var _fixed_accumulator := 0.0
+var combat_response_system: Node
 
 
 func query() -> QueryBuilder:
@@ -141,10 +142,14 @@ func _try_start_slot_action(index: int, nodes: Array, identities: Array, spatial
 	var target_actor := _actor_from_node_component(nodes[target_index])
 	var spec := actor.call("get_system_combat_attack_spec") as Dictionary if actor.has_method("get_system_combat_attack_spec") else {}
 	_start_action(action, actor, target_actor, target_actor_id, cfg, spec)
+	if combat_response_system != null:
+		var response_depth := int(combat_response_system.get_response_depth(actor_id, target_actor_id))
+		combat_response_system.emit_attack_started(actor_id, target_actor_id, spatials[target_index].world_position, response_depth)
 	_mark_pair_attacking(tempo_owner_index, slots)
 
 
 func _start_action(action, actor: Node, target_actor: Node, target_actor_id: String, cfg, spec: Dictionary) -> void:
+	action.action_sequence += 1
 	var total_seconds := maxf(float(spec.get("total_seconds", 0.45)), 0.05)
 	action.action_active = true
 	action.action_target_actor_id = target_actor_id
@@ -199,16 +204,12 @@ func _resolve_action_impact(attacker_index: int, nodes: Array, identities: Array
 	if not bool(receive_context.get("accepted", true)):
 		return
 	var can_actively_defend := bool(receive_context.get("can_actively_defend", true))
-	# Consequence propagation: any resolved swing refreshes both grudges (live
-	# fights never decay mid-duel) and alerts the victim's nearby faction-mates —
-	# aggressive allies (guards) converge and pursue; defensive allies fight only
-	# if it reaches them; passive allies never join.
+	# Every resolved swing refreshes both grudges so live fights never decay mid-duel.
 	var target_wa := target_actor as WorldActor
 	var attacker_wa := attacker_actor as WorldActor
 	if target_wa != null and attacker_wa != null:
 		target_wa.mark_hostile(attacker_wa)
 		attacker_wa.mark_hostile(target_wa)
-		_alert_faction_allies(target_index, attacker_index, target_wa, attacker_wa, nodes, spatials, vitals, configs)
 	var outcome := "hit"
 	var final_blunt := blunt
 	var final_cut := cut
@@ -256,36 +257,6 @@ func _resolve_action_impact(attacker_index: int, nodes: Array, identities: Array
 			# a reacting target, so overlapping reactions freeze everyone.
 			target_action.reaction_remaining = minf(reaction_seconds, MAX_REACTION_HOLD_SECONDS)
 			target_action.reaction_source_actor_id = str(identities[attacker_index].actor_id) if identities[attacker_index] != null else ""
-
-
-func _alert_faction_allies(target_index: int, attacker_index: int, target_wa: WorldActor, attacker_wa: WorldActor, nodes: Array, spatials: Array, vitals: Array, configs: Array) -> void:
-	var faction := str(target_wa.faction_name).strip_edges()
-	if faction.is_empty():
-		return
-	var victim_position: Vector3 = spatials[target_index].world_position
-	for j in range(nodes.size()):
-		if j == target_index or j == attacker_index:
-			continue
-		var vit = vitals[j]
-		var cfg = configs[j]
-		if vit == null or cfg == null or vit.life_state != NpcRules.LifeState.ALIVE or cfg.protected_from_combat:
-			continue
-		if int(cfg.combat_stance) == NpcRules.CombatStance.PASSIVE:
-			continue
-		# Defensive allies defend what's next to them (assist range); aggressive
-		# responders — guards — react to violence they can witness (witness range).
-		var assist_radius := float(cfg.assist_scan_radius)
-		if int(cfg.combat_stance) == NpcRules.CombatStance.AGGRESSIVE:
-			assist_radius = maxf(assist_radius, float(cfg.witness_radius))
-		if assist_radius <= 0.0:
-			continue
-		var spatial = spatials[j]
-		if spatial == null or spatial.world_position.distance_squared_to(victim_position) > assist_radius * assist_radius:
-			continue
-		var ally := _actor_from_node_component(nodes[j]) as WorldActor
-		if ally == null or str(ally.faction_name).strip_edges() != faction:
-			continue
-		ally.mark_hostile(attacker_wa)
 
 
 func _build_incoming_fighting_pairs(identities: Array, slots: Array, count: int) -> Dictionary:

@@ -8,6 +8,7 @@ signal inspector_action_requested(target, action_key: String)
 
 const CHARACTER_SKILLS_WINDOW_SCRIPT = preload("res://features/ui/projection/character_skills_window.gd")
 const CHARACTER_JOBS_WINDOW_SCRIPT = preload("res://features/ui/projection/character_jobs_window.gd")
+const FACILITY_PEOPLE_PROJECTION_SCRIPT = preload("res://features/ui/projection/facility_people_projection.gd")
 
 const BLOOD_GLOW_CRITICAL_LOSS_PER_SECOND := 8.0
 const BAR_GOOD_COLOR := Color(0.47, 0.78, 0.43, 1.0)
@@ -30,6 +31,7 @@ const ACTION_INVENTORY := "inventory"
 const ACTION_JOBS := "jobs"
 const ACTION_MINE := "mine"
 const ACTION_OPEN_CONTAINER := "open_container"
+const ACTION_PEOPLE := "people"
 const ACTION_ORDER := "order"
 const ACTION_PICKUP_ITEM := "pickup_item"
 const ACTION_SKILLS := "skills"
@@ -86,6 +88,7 @@ var info_labels: Array[Label] = []
 var info_values: Array[Label] = []
 var skills_window: Control
 var jobs_window: Control
+var facility_people_projection: FacilityPeopleProjection
 var current_target
 var _initialized := false
 var _displayed_hunger_ratio := NAN
@@ -99,6 +102,8 @@ func initialize(context: BootstrapContext) -> void:
 	root_scene = context.root_scene
 	hud_layer = context.hud_layer
 	_context = context
+	facility_people_projection = FACILITY_PEOPLE_PROJECTION_SCRIPT.new() as FacilityPeopleProjection
+	facility_people_projection.setup(context.get_optional(FacilityPeopleProjection.ASSIGNMENT_SERVICE_ID))
 	if is_inside_tree():
 		_do_initialize()
 
@@ -307,12 +312,6 @@ func _get_humanoid_law_status_color(target: WorldActor) -> Color:
 	return INFO_VALUE_COLOR
 
 
-func _get_humanoid_meta_text(target: WorldActor, meta_name: String) -> String:
-	if target == null or not target.has_meta(meta_name):
-		return ""
-	return str(target.get_meta(meta_name))
-
-
 func _get_humanoid_law_field(target: WorldActor, field: StringName) -> String:
 	if target == null or not target.has_method("get_legal_status"):
 		return ""
@@ -371,6 +370,8 @@ func _get_humanoid_actions(target: WorldActor) -> Array:
 
 func _get_world_target_actions(target) -> Array:
 	var actions: Array = []
+	if _is_building_target(target):
+		actions.append({"key": ACTION_PEOPLE, "label": facility_people_projection.get_action_label(target)})
 	if target is Node and target.is_in_group("mining_resource"):
 		actions.append({"key": ACTION_MINE, "label": "Mine"})
 	if target is Node and target.is_in_group("world_container"):
@@ -422,6 +423,9 @@ func _on_action_button_pressed(button: Button) -> void:
 		return
 	if action_key == ACTION_JOBS:
 		_on_jobs_button_pressed()
+		return
+	if action_key == ACTION_PEOPLE:
+		_on_people_button_pressed()
 		return
 	if not _has_valid_current_target():
 		return
@@ -739,7 +743,7 @@ func _get_target_state_color(target) -> Color:
 
 
 func _is_building_target(target) -> bool:
-	return target is WorldBuilding or (target is Node and target.is_in_group("world_building"))
+	return target is WorldBuilding or (target is Node and (target.is_in_group("world_building") or target.is_in_group("settlement_facility") or target.has_method("get_facility_id")))
 
 
 func _get_ancestor_facility(target) -> SettlementFacility:
@@ -899,10 +903,6 @@ func _target_can_open_skills() -> bool:
 	return _has_valid_current_target() and current_target is WorldActor
 
 
-func _target_can_open_jobs() -> bool:
-	return _has_valid_current_target() and current_target is WorldActor
-
-
 func _target_can_order_from_waiter(target: WorldActor) -> bool:
 	if target == null or not target.is_player_party_member() or not target.has_method("is_sitting") or not target.is_sitting():
 		return false
@@ -940,7 +940,7 @@ func _ensure_skills_window() -> void:
 
 
 func _on_jobs_button_pressed() -> void:
-	if not _target_can_open_jobs():
+	if not _has_valid_current_target() or not current_target is WorldActor:
 		return
 	_ensure_jobs_window()
 	jobs_window.call("show_for_actor", current_target)
@@ -955,6 +955,12 @@ func _ensure_jobs_window() -> void:
 	if jobs_window.has_method("setup"):
 		jobs_window.call("setup", root_scene)
 	jobs_window.visible = false
+
+
+func _on_people_button_pressed() -> void:
+	if not _has_valid_current_target() or not _is_building_target(current_target):
+		return
+	facility_people_projection.show_for_target(hud_layer, current_target)
 
 
 func _update_hp_bar_visuals(current_hp: float, open_cut: float, bandaged_cut: float, max_hp: float, blunt_damage: float = 0.0) -> void:

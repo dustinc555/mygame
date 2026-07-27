@@ -4,6 +4,7 @@ const PARTY_MEMBER_SCENE := preload("res://features/core/party/party_member.tscn
 
 @export var character_record_paths: PackedStringArray = PackedStringArray()
 @export var faction_id := "Player"
+@export var party_id := PartyManager.PLAYER_PARTY_ID
 @export var squad_name := "Rustwash"
 @export var hostile_faction_ids: PackedStringArray = PackedStringArray()
 @export_range(0, 2, 1) var combat_stance := NpcRules.CombatStance.DEFENSIVE
@@ -137,6 +138,7 @@ func _record_for_scene(source_record: Dictionary, record_index: int, total_count
 	record["actor_id"] = actor_id
 	record["stable_id"] = actor_id
 	record["faction_id"] = faction_id
+	record["party_id"] = party_id
 	record["squad_name"] = squad_name
 	record["hostile_faction_ids"] = Array(hostile_faction_ids)
 	record["combat_stance"] = combat_stance

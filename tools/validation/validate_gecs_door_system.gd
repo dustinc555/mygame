@@ -171,6 +171,12 @@ func _validate_lock_and_access() -> void:
 	_expect(_run_command("validator.actor", "validation.access", "close", {}).get("result_code") == "closed", "Open doors must close.")
 	_expect(_projected_blocker.get_parent() == _projected_door and _projected_blocker.collision_layer == 8, "Closing must restore runtime-only door collision.")
 	_expect(_run_command("validator.actor", "validation.access", "lock", {}).get("result_code") == "locked", "Authorized actors must lock closed doors.")
+	_doors.register_door({
+		"door_id": "validation.law_access",
+		"default_locked": true,
+		"authorized_actor_ids": ["resident.actor"],
+	})
+	_expect(_run_command("validator.actor", "validation.law_access", "unlock", {"active_law_response": true}).get("result_code") == "unlocked", "Dispatched law responders must receive temporary private-door authority.")
 
 
 func _validate_lockpick_gate_and_chance() -> void:

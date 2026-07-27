@@ -16,9 +16,11 @@ const TRESPASS_SENTENCE_MINUTES := 2 * 60
 const ASSAULT_SENTENCE_MINUTES := 24 * 60
 const LOCKPICK_SENTENCE_MINUTES := 12 * 60
 const DEFAULT_WITNESS_RADIUS := 18.0
-const LOCAL_COMBAT_ALARM_RADIUS := 25.0
 const SENTENCE_DECISION_MIN_DELAY_MINUTES := 120
 const SENTENCE_DECISION_MAX_DELAY_MINUTES := 180
+const FIXED_TICK_SECONDS := 0.25
+const MAINTENANCE_INTERVAL_SECONDS := 0.5
+const MAX_CATCH_UP_TICKS := 8
 
 const CRIME_THEFT := "theft"
 const CRIME_TRESPASS := "trespass"
@@ -35,6 +37,13 @@ var warrants: Dictionary = {}
 var prisoner_records: Dictionary = {}
 var _rng := RandomNumberGenerator.new()
 var _process_accumulator := 0.0
+var _maintenance_accumulator := 0.0
+var _building_registry: BuildingRegistry
+var _actor_query: ActorQueryController
+var _crime_alerts: CrimeAlertController
+var _combat_responses: GameCombatResponseSystem
+var _occupied_buildings_by_actor: Dictionary = {}
+var _active_trespass_by_actor: Dictionary = {}
 
 
 func _ready() -> void:
@@ -48,6 +57,10 @@ func initialize(context: BootstrapContext) -> void:
 	root_scene = context.root_scene
 	hud_layer = context.hud_layer
 	_context = context
+	_building_registry = context.require(BuildingRegistry.SERVICE_ID) as BuildingRegistry
+	_actor_query = context.require(ActorQueryController.SERVICE_ID) as ActorQueryController
+	_crime_alerts = context.require(CrimeAlertController.SERVICE_ID) as CrimeAlertController
+	_combat_responses = context.require(GameCombatResponseSystem.SERVICE_ID) as GameCombatResponseSystem
 	_connect_world_time()
 	refresh_from_gecs_state()
 
@@ -97,22 +110,6 @@ func report_theft_if_witnessed(actor: WorldActor, item, witnesses: Array = []) -
 	return report_crime(actor, enforcing_faction, settlement_id, CRIME_THEFT, severity, witnesses[0], item)
 
 
-func report_trespass(actor: WorldActor, building, witness: WorldActor = null) -> Dictionary:
-	if actor == null or building == null:
-		return {}
-	var faction_id := ""
-	if building.has_method("get_jurisdiction_faction_name"):
-		faction_id = str(building.call("get_jurisdiction_faction_name"))
-	if faction_id.is_empty() and building.has_method("get_owner_faction_name"):
-		faction_id = str(building.call("get_owner_faction_name"))
-	if faction_id.is_empty():
-		return {}
-	var witnesses: Array = [witness] if witness != null else _find_witnesses(actor, building, faction_id)
-	if witnesses.is_empty():
-		return {}
-	return report_crime(actor, faction_id, get_current_settlement_id_for(building), CRIME_TRESPASS, 5, witnesses[0], building)
-
-
 func report_player_assault(attacker: HumanoidCharacter, victim: HumanoidCharacter) -> Dictionary:
 	if attacker == null or victim == null or not attacker.is_player_party_member():
 		return {}
@@ -122,7 +119,7 @@ func report_player_assault(attacker: HumanoidCharacter, victim: HumanoidCharacte
 	if faction_id.is_empty():
 		return {}
 	var settlement := _find_containing_settlement(victim)
-	var public_witnesses := _find_local_assault_witnesses(attacker, victim, faction_id, settlement, LOCAL_COMBAT_ALARM_RADIUS)
+	var public_witnesses := _find_local_assault_witnesses(attacker, victim, faction_id, settlement, NpcRules.NPC_ALERT_PROXIMITY_RADIUS)
 	var witnesses: Array[HumanoidCharacter] = [victim]
 	for witness in public_witnesses:
 		if witness != null and not witnesses.has(witness):
@@ -133,7 +130,7 @@ func report_player_assault(attacker: HumanoidCharacter, victim: HumanoidCharacte
 		"provisional_victim_key": _actor_key(victim),
 		"authority_alert_mode": "local",
 		"local_alarm_position": victim.global_position,
-		"local_alarm_radius": LOCAL_COMBAT_ALARM_RADIUS,
+		"local_alarm_radius": NpcRules.NPC_ALERT_PROXIMITY_RADIUS,
 	})
 
 
@@ -176,7 +173,7 @@ func report_murder_if_witnessed(attacker: HumanoidCharacter, victim: HumanoidCha
 	if public_witnesses.is_empty() and not has_public_case:
 		crime_context["authority_alert_mode"] = "local"
 		crime_context["local_alarm_position"] = victim.global_position
-		crime_context["local_alarm_radius"] = LOCAL_COMBAT_ALARM_RADIUS
+		crime_context["local_alarm_radius"] = NpcRules.NPC_ALERT_PROXIMITY_RADIUS
 	crime_context.merge(_existing_local_alert_context(attacker, faction_id), true)
 	return report_crime(attacker, faction_id, get_current_settlement_id_for(victim), CRIME_MURDER, 1000, lead_witness, victim, crime_context)
 
@@ -200,6 +197,8 @@ func report_crime(actor: WorldActor, faction_id: String, settlement_id: String, 
 		return {}
 	var actor_key := _actor_key(actor)
 	var faction_key := faction_id.strip_edges()
+	if not _crime_alerts.crime_is_illegal_for_faction(crime_type, faction_key):
+		return {}
 	var by_faction: Dictionary = warrants.get(actor_key, {})
 	var is_new_record := not by_faction.has(faction_key)
 	var record: Dictionary = by_faction.get(faction_key, _new_warrant(actor, faction_key, settlement_id))
@@ -213,7 +212,7 @@ func report_crime(actor: WorldActor, faction_id: String, settlement_id: String, 
 		"settlement_id": settlement_id,
 		"witness_key": _actor_key(witness),
 		"witness_keys": witness_keys,
-		"target_key": _target_key(target),
+		"target_key": str(crime_context.get("target_key", _target_key(target))).strip_edges(),
 		"public": is_public,
 		"provisional_victim_key": str(crime_context.get("provisional_victim_key", "")),
 		"absolute_minute": _now_minute(),
@@ -227,6 +226,11 @@ func report_crime(actor: WorldActor, faction_id: String, settlement_id: String, 
 		record["settlement_id"] = settlement_id
 	record["state"] = "wanted"
 	_configure_authority_alert_context(record, crime_context, is_new_record)
+	var crime_event := _crime_alerts.create_event(actor, faction_key, settlement_id, crime_type, int(crime_record["severity"]), witness, crime_context)
+	record["latest_event_id"] = str(crime_event.get("event_id", ""))
+	record["latest_witness_actor_id"] = str(crime_event.get("witness_actor_id", ""))
+	record["latest_alert_origin"] = crime_event.get("origin", actor.global_position)
+	record["latest_alert_radius"] = float(crime_event.get("radius", NpcRules.NPC_ALERT_PROXIMITY_RADIUS))
 	by_faction[faction_key] = record
 	warrants[actor_key] = by_faction
 	_apply_actor_law_meta(actor, record)
@@ -336,13 +340,296 @@ func complete_custody_if_placed(actor: WorldActor) -> bool:
 
 
 func _process(delta: float) -> void:
-	_process_accumulator += delta
-	if _process_accumulator < 0.35:
+	_process_accumulator = minf(_process_accumulator + delta, FIXED_TICK_SECONDS * MAX_CATCH_UP_TICKS)
+	var ticks := 0
+	while _process_accumulator >= FIXED_TICK_SECONDS and ticks < MAX_CATCH_UP_TICKS:
+		_process_accumulator -= FIXED_TICK_SECONDS
+		_process_fixed_tick()
+		ticks += 1
+
+
+func update_actor_building_occupancy(actor_id: String, building_ids: Array[String]) -> void:
+	var clean_actor_id := actor_id.strip_edges()
+	if clean_actor_id.is_empty():
 		return
-	_process_accumulator = 0.0
+	var previous: Dictionary = _occupied_buildings_by_actor.get(clean_actor_id, {})
+	var current: Dictionary = {}
+	for building_id in building_ids:
+		var clean_building_id := building_id.strip_edges()
+		if not clean_building_id.is_empty():
+			current[clean_building_id] = true
+	for building_id in previous:
+		if not current.has(building_id):
+			_remove_trespass_pair(clean_actor_id, str(building_id))
+	for building_id in current:
+		if not previous.has(building_id):
+			_get_or_create_trespass_pair(clean_actor_id, str(building_id))
+	if current.is_empty():
+		_occupied_buildings_by_actor.erase(clean_actor_id)
+	else:
+		_occupied_buildings_by_actor[clean_actor_id] = current
+
+
+func _process_fixed_tick() -> void:
+	_process_active_trespass_pairs()
+	_crime_alerts.advance(FIXED_TICK_SECONDS)
+	_maintenance_accumulator += FIXED_TICK_SECONDS
+	if _maintenance_accumulator < MAINTENANCE_INTERVAL_SECONDS:
+		return
+	_maintenance_accumulator -= MAINTENANCE_INTERVAL_SECONDS
 	_process_warrants()
 	_process_prisoners()
 	_save_law_order_state_to_gecs()
+
+
+func _process_active_trespass_pairs() -> void:
+	if _building_registry == null or _actor_query == null:
+		return
+	for actor_id in _active_trespass_by_actor.keys():
+		var actor := _actor_query.get_actor_by_stable_id(str(actor_id)) as WorldActor
+		if actor == null:
+			continue
+		var pairs: Dictionary = _active_trespass_by_actor.get(actor_id, {})
+		for building_id in pairs.keys():
+			var record := _building_registry.get_building(str(building_id))
+			if record.is_empty() or not _is_actor_trespassing_in_record(actor, record):
+				_reset_trespass_pair(actor, str(building_id), pairs)
+				continue
+			_clear_active_trespass_display(actor, str(building_id))
+			var state: Dictionary = pairs[building_id]
+			if bool(state.get("escalated", false)):
+				continue
+			var remaining := float(state.get("seconds_until_warning", 0.0)) - FIXED_TICK_SECONDS
+			if remaining <= 0.0:
+				_issue_trespass_response(actor, record, state)
+			else:
+				state["seconds_until_warning"] = remaining
+			pairs[building_id] = state
+		_active_trespass_by_actor[actor_id] = pairs
+
+
+func _is_actor_trespassing_in_record(actor: WorldActor, record: Dictionary) -> bool:
+	if actor == null or actor.life_state != NpcRules.LifeState.ALIVE or not actor.is_player_party_member():
+		return false
+	if bool(record.get("abandoned", false)):
+		return false
+	var access_state := str(record.get("access_state", "public")).strip_edges().to_lower()
+	var private_now := access_state in ["private", "occupied"]
+	if access_state == "scheduled" and bool(record.get("public_schedule_enabled", true)):
+		private_now = not _is_building_schedule_open(record)
+	if not private_now:
+		return false
+	if str(record.get("type_id", "")).strip_edges() == "housing" or int(record.get("housing_capacity", 0)) > 0:
+		return not _residence_actor_ids_for_building(record).has(_actor_key(actor))
+	var actor_faction := actor.faction_name.strip_edges()
+	var owner_faction := str(record.get("owner_faction_id", "")).strip_edges()
+	if not owner_faction.is_empty():
+		return actor_faction != owner_faction
+	var jurisdiction_faction := str(record.get("jurisdiction_faction_id", "")).strip_edges()
+	return jurisdiction_faction.is_empty() or actor_faction != jurisdiction_faction
+
+
+func _is_building_schedule_open(record: Dictionary) -> bool:
+	var open_hour := clampi(int(record.get("public_open_hour", 8)), 0, 23)
+	var close_hour := clampi(int(record.get("public_close_hour", 21)), 0, 23)
+	if open_hour == close_hour:
+		return true
+	var hour := _world_hour()
+	if open_hour < close_hour:
+		return hour >= open_hour and hour < close_hour
+	return hour >= open_hour or hour < close_hour
+
+
+func _world_hour() -> int:
+	if world_time != null and world_time.has_method("get_hour"):
+		return int(world_time.call("get_hour"))
+	return int(floor(fposmod(float(_now_minute()), float(MINUTES_PER_DAY)) / 60.0))
+
+
+func _issue_trespass_response(actor: WorldActor, record: Dictionary, state: Dictionary) -> void:
+	var witness := _find_trespass_witness(actor, record)
+	if witness == null:
+		state["seconds_until_warning"] = maxf(0.0, float(record.get("trespass_warning_interval_seconds", 3.0)))
+		return
+	var warning_count := int(state.get("warning_count", 0))
+	var warnings_before_alarm := maxi(0, int(record.get("trespass_warnings_before_alarm", 2)))
+	if warning_count < warnings_before_alarm:
+		_face_witness_toward_actor(witness, actor)
+		var warning_line := "Leave my home." if str(record.get("type_id", "")) == "housing" else "Leave this property."
+		witness.show_world_speech(warning_line, 3.0)
+		state["warning_count"] = warning_count + 1
+		state["seconds_until_warning"] = maxf(0.0, float(record.get("trespass_warning_interval_seconds", 3.0)))
+		return
+	state["escalated"] = true
+	state["seconds_until_warning"] = maxf(0.0, float(record.get("trespass_warning_interval_seconds", 3.0)))
+	var escalation := str(record.get("trespass_escalation", "settlement_alarm")).strip_edges().to_lower()
+	_start_home_defense(witness, actor, state, str(record.get("building_id", "")))
+	if escalation == "warning_only":
+		return
+	if escalation == "victim_only":
+		if witness != null and witness != actor:
+			witness.show_world_speech(_crime_alarm_line(CRIME_TRESPASS), 4.0)
+		return
+	_report_stable_id_trespass(actor, record, witness)
+
+
+func _find_trespass_witness(actor: WorldActor, record: Dictionary) -> WorldActor:
+	if actor == null or _actor_query == null:
+		return null
+	var resident_actor_ids := _residence_actor_ids_for_building(record)
+	if not resident_actor_ids.is_empty():
+		return _nearest_detecting_trespass_witness(actor, record, resident_actor_ids)
+	var owner_faction := str(record.get("owner_faction_id", "")).strip_edges()
+	var jurisdiction_faction := str(record.get("jurisdiction_faction_id", "")).strip_edges()
+	if owner_faction.is_empty() and jurisdiction_faction.is_empty():
+		return null
+	var radius := maxf(0.0, float(record.get("trespass_notice_radius", 18.0)))
+	var perception := _get_perception_controller()
+	var candidate_actor_ids := PackedStringArray()
+	for nearby in _actor_query.get_nearby_actors(actor.global_position, radius, true):
+		var witness := nearby as WorldActor
+		if witness == null or witness == actor or witness.life_state != NpcRules.LifeState.ALIVE or witness.is_player_party_member():
+			continue
+		if witness.faction_name != owner_faction and witness.faction_name != jurisdiction_faction:
+			continue
+		candidate_actor_ids.append(_actor_key(witness))
+	return _nearest_detecting_trespass_witness(actor, record, candidate_actor_ids, perception)
+
+
+func _residence_actor_ids_for_building(record: Dictionary) -> PackedStringArray:
+	var bridge := _get_gecs_world()
+	if bridge == null or not bridge.has_method("get_assignment_slots"):
+		return PackedStringArray()
+	var building_id := str(record.get("building_id", ""))
+	var actor_ids := PackedStringArray()
+	for slot_value in bridge.call("get_assignment_slots", str(record.get("settlement_id", "")), "residence"):
+		var slot: Dictionary = slot_value
+		if str(slot.get("building_id", "")) != building_id:
+			continue
+		var actor_id := str(slot.get("occupant_actor_id", "")).strip_edges()
+		if not actor_id.is_empty():
+			actor_ids.append(actor_id)
+	return actor_ids
+
+
+func _nearest_detecting_trespass_witness(actor: WorldActor, record: Dictionary, actor_ids: PackedStringArray, perception: Node = null) -> WorldActor:
+	if perception == null:
+		perception = _get_perception_controller()
+	var radius_squared := pow(maxf(0.0, float(record.get("trespass_notice_radius", 18.0))), 2.0)
+	var nearest: WorldActor
+	var nearest_distance := INF
+	for actor_id in actor_ids:
+		var witness := _actor_query.get_actor_by_stable_id(actor_id) as WorldActor
+		if witness == null or witness == actor or witness.life_state != NpcRules.LifeState.ALIVE or witness.is_player_party_member():
+			continue
+		var distance := witness.global_position.distance_squared_to(actor.global_position)
+		if distance > radius_squared:
+			continue
+		if perception != null and perception.has_method("evaluate_observer"):
+			var result := perception.call("evaluate_observer", witness, actor) as Dictionary
+			var detected := bool(result.get("clearly_seen", false))
+			if not actor.sneaking:
+				detected = float(result.get("line_of_sight_fraction", 0.0)) > 0.0
+			if not detected:
+				continue
+		if distance < nearest_distance:
+			nearest_distance = distance
+			nearest = witness
+	return nearest
+
+
+func _face_witness_toward_actor(witness: WorldActor, actor: WorldActor) -> void:
+	var target_position := Vector3(actor.global_position.x, witness.global_position.y, actor.global_position.z)
+	if witness.global_position.distance_squared_to(target_position) <= 0.001:
+		return
+	witness.look_at(target_position, Vector3.UP)
+	witness.rotation.x = 0.0
+	witness.rotation.z = 0.0
+
+
+func _report_stable_id_trespass(actor: WorldActor, record: Dictionary, witness: WorldActor) -> Dictionary:
+	if actor == null or witness == null:
+		return {}
+	var faction_id := str(record.get("jurisdiction_faction_id", "")).strip_edges()
+	if faction_id.is_empty():
+		faction_id = str(record.get("owner_faction_id", "")).strip_edges()
+	if faction_id.is_empty():
+		return {}
+	return report_crime(actor, faction_id, str(record.get("settlement_id", "")), CRIME_TRESPASS, 5, witness, null, {
+		"target_key": str(record.get("building_id", "")),
+		"event_origin": actor.global_position,
+	})
+
+
+func _start_home_defense(witness: WorldActor, actor: WorldActor, state: Dictionary, building_id: String) -> void:
+	if witness == null or actor == null:
+		return
+	var interaction = witness.get_interaction() if witness.has_method("get_interaction") else null
+	if interaction != null:
+		interaction.stop_seat_assignment()
+		interaction.stop_sleep_assignment()
+	var witness_id := _actor_key(witness)
+	var target_id := _actor_key(actor)
+	var authority_id := "home|%s|%s" % [building_id, witness_id]
+	state["witness_actor_id"] = witness_id
+	state["target_actor_id"] = target_id
+	state["response_authority_id"] = authority_id
+	if _combat_responses != null:
+		_combat_responses.authorize_response(CGameCombatEvent.Audience.EXPLICIT_ACTORS, target_id, witness_id, authority_id, "", "", actor.global_position, NpcRules.NPC_ALERT_PROXIMITY_RADIUS, CGameCombatResponseIntent.Kind.PRIVATE_DEFENSE, PackedStringArray([witness_id]))
+
+
+func _clear_home_defense(state: Dictionary, actor: WorldActor) -> void:
+	var witness_id := str(state.get("witness_actor_id", ""))
+	var target_id := str(state.get("target_actor_id", _actor_key(actor)))
+	var authority_id := str(state.get("response_authority_id", ""))
+	if _combat_responses != null and not authority_id.is_empty():
+		_combat_responses.revoke_response(authority_id, target_id)
+	var witness := _actor_query.get_actor_by_stable_id(witness_id) as WorldActor if _actor_query != null and not witness_id.is_empty() else null
+	if witness != null and actor != null:
+		witness.clear_personal_hostility(actor)
+
+
+func _get_or_create_trespass_pair(actor_id: String, building_id: String) -> Dictionary:
+	var pairs: Dictionary = _active_trespass_by_actor.get(actor_id, {})
+	if not pairs.has(building_id):
+		pairs[building_id] = _new_trespass_pair_state()
+		_active_trespass_by_actor[actor_id] = pairs
+	return pairs[building_id]
+
+
+func _new_trespass_pair_state() -> Dictionary:
+	return {
+		"warning_count": 0,
+		"seconds_until_warning": 0.0,
+		"escalated": false,
+		"witness_actor_id": "",
+	}
+
+
+func _reset_trespass_pair(actor: WorldActor, building_id: String, pairs: Dictionary) -> void:
+	_clear_home_defense(pairs.get(building_id, {}) as Dictionary, actor)
+	pairs[building_id] = _new_trespass_pair_state()
+	_clear_active_trespass_display(actor, building_id)
+
+
+func _remove_trespass_pair(actor_id: String, building_id: String) -> void:
+	var pairs: Dictionary = _active_trespass_by_actor.get(actor_id, {})
+	var actor := _actor_query.get_actor_by_stable_id(actor_id) as WorldActor if _actor_query != null else null
+	_clear_home_defense(pairs.get(building_id, {}) as Dictionary, actor)
+	pairs.erase(building_id)
+	if pairs.is_empty():
+		_active_trespass_by_actor.erase(actor_id)
+	else:
+		_active_trespass_by_actor[actor_id] = pairs
+	_clear_active_trespass_display(actor, building_id)
+
+
+func _clear_active_trespass_display(actor: WorldActor, building_id: String) -> void:
+	if actor == null:
+		return
+	var status := actor.get_legal_status()
+	if status.active_crime_source_key == building_id:
+		status.clear_active_crime()
 
 
 func _on_minute_changed(absolute_minute: int, _day_index: int, _hour: int, _minute: int) -> void:
@@ -377,11 +664,11 @@ func _process_warrants() -> void:
 			if actor.life_state != NpcRules.LifeState.ALIVE:
 				continue
 			var settlement := _find_settlement_for_warrant(actor, record)
-			if _should_alert_authority_guards(actor, record, settlement):
+			var in_authority_scope := _should_alert_authority_guards(actor, record, settlement)
+			var response_active := _has_active_authority_arrest_response(actor, record, settlement)
+			if in_authority_scope and not response_active:
 				_alert_authority_guards(actor, record)
-			elif _has_active_authority_arrest_response(actor, record, settlement):
-				_alert_authority_guards(actor, record)
-			else:
+			elif not in_authority_scope and response_active:
 				_disengage_authority_guards(actor, record)
 
 
@@ -645,20 +932,24 @@ func _release_prisoner(actor: WorldActor, record: Dictionary, jail) -> void:
 func _alert_authority_guards(actor: WorldActor, warrant: Dictionary) -> void:
 	if actor == null or actor.life_state != NpcRules.LifeState.ALIVE:
 		return
-	for guard in _find_authority_guards(str(warrant.get("faction_id", "")), _find_settlement_for_warrant(actor, warrant)):
-		if guard != null and guard != actor and guard.life_state == NpcRules.LifeState.ALIVE:
-			if not _is_guard_in_authority_alert_scope(guard, warrant, actor):
-				continue
-			if actor is HumanoidCharacter and guard.has_method("assign_law_arrest_target"):
-				guard.call("assign_law_arrest_target", actor, true, false)
-			elif guard.has_method("assign_attack_target"):
-				guard.call("assign_attack_target", actor, false, true, false)
+	if _combat_responses == null:
+		return
+	var authority_id := _warrant_response_authority_id(actor, warrant)
+	warrant["response_authority_id"] = authority_id
+	var origin: Vector3 = warrant.get("latest_alert_origin", warrant.get("local_alarm_position", actor.global_position))
+	var radius := float(warrant.get("latest_alert_radius", NpcRules.NPC_ALERT_PROXIMITY_RADIUS))
+	warrant["latest_response_event_id"] = _combat_responses.authorize_response(CGameCombatEvent.Audience.SETTLEMENT_AUTHORITY, _actor_key(actor), str(warrant.get("latest_witness_actor_id", "")), authority_id, str(warrant.get("faction_id", "")), str(warrant.get("settlement_id", "")), origin, radius, CGameCombatResponseIntent.Kind.LAW_ENFORCEMENT)
 
 
 func _disengage_authority_guards(actor: WorldActor, warrant: Dictionary) -> void:
 	if actor == null:
 		return
-	for guard in _find_authority_guards(str(warrant.get("faction_id", "")), _find_settlement_for_warrant(actor, warrant)):
+	var authority_id := str(warrant.get("response_authority_id", _warrant_response_authority_id(actor, warrant)))
+	var responder_ids: PackedStringArray = _combat_responses.get_active_responder_ids(authority_id) if _combat_responses != null else PackedStringArray()
+	if _combat_responses != null:
+		_combat_responses.revoke_response(authority_id, _actor_key(actor))
+	for guard_id in responder_ids:
+		var guard := _actor_query.get_actor_by_stable_id(guard_id) as WorldActor if _actor_query != null else null
 		if guard == null:
 			continue
 		if guard.has_method("disengage_combat_with"):
@@ -682,12 +973,8 @@ func _should_alert_authority_guards(actor: WorldActor, _warrant: Dictionary, set
 func _has_active_authority_arrest_response(actor: WorldActor, warrant: Dictionary, settlement: Node) -> bool:
 	if actor == null or settlement == null:
 		return false
-	for guard in _find_authority_guards(str(warrant.get("faction_id", "")), settlement):
-		if guard != null and guard.has_method("is_law_arresting") and bool(guard.call("is_law_arresting", actor)):
-			return true
-		if guard != null and guard.has_method("get_current_combat_target") and guard.call("get_current_combat_target") == actor:
-			return true
-	return false
+	var authority_id := str(warrant.get("response_authority_id", _warrant_response_authority_id(actor, warrant)))
+	return _combat_responses != null and _combat_responses.has_active_authority_response(authority_id, _actor_key(actor))
 
 
 func _actor_is_downed(actor: WorldActor) -> bool:
@@ -790,7 +1077,7 @@ func _configure_authority_alert_context(record: Dictionary, crime_context: Dicti
 			var alarm_position = crime_context.get("local_alarm_position", Vector3.INF)
 			if alarm_position is Vector3:
 				record["local_alarm_position"] = alarm_position
-			record["local_alarm_radius"] = maxf(0.0, float(crime_context.get("local_alarm_radius", LOCAL_COMBAT_ALARM_RADIUS)))
+			record["local_alarm_radius"] = maxf(0.0, float(crime_context.get("local_alarm_radius", NpcRules.NPC_ALERT_PROXIMITY_RADIUS)))
 		return
 	record["authority_alert_mode"] = "settlement"
 	record.erase("local_alarm_position")
@@ -807,7 +1094,7 @@ func _is_guard_in_authority_alert_scope(guard: WorldActor, warrant: Dictionary, 
 	var alarm_position = warrant.get("local_alarm_position", Vector3.INF)
 	if not (alarm_position is Vector3):
 		return false
-	var radius := maxf(0.0, float(warrant.get("local_alarm_radius", LOCAL_COMBAT_ALARM_RADIUS)))
+	var radius := maxf(0.0, float(warrant.get("local_alarm_radius", NpcRules.NPC_ALERT_PROXIMITY_RADIUS)))
 	return guard.global_position.distance_to(alarm_position) <= radius
 
 
@@ -817,7 +1104,7 @@ func _existing_local_alert_context(actor: WorldActor, faction_id: String) -> Dic
 		return {}
 	var context := {
 		"authority_alert_mode": "local",
-		"local_alarm_radius": float(record.get("local_alarm_radius", LOCAL_COMBAT_ALARM_RADIUS)),
+		"local_alarm_radius": float(record.get("local_alarm_radius", NpcRules.NPC_ALERT_PROXIMITY_RADIUS)),
 	}
 	var alarm_position = record.get("local_alarm_position", Vector3.INF)
 	if alarm_position is Vector3:
@@ -1356,6 +1643,10 @@ func _target_key(target) -> String:
 	if target is Node:
 		return str((target as Node).get_path()) if (target as Node).is_inside_tree() else str((target as Node).name)
 	return ""
+
+
+func _warrant_response_authority_id(actor: WorldActor, warrant: Dictionary) -> String:
+	return "warrant|%s|%s" % [str(warrant.get("faction_id", "")), _actor_key(actor)]
 
 
 func _actor_key(actor: WorldActor) -> String:

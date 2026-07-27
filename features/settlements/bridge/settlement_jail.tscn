@@ -3,10 +3,27 @@
 [ext_resource type="Script" uid="uid://bsceawqilt6vt" path="res://features/settlements/bridge/settlement_jail.gd" id="1_jail"]
 [ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/medium_wood_hall.tscn" id="2_building"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/jail.tres" id="2_eoaic"]
+[ext_resource type="Script" path="res://features/settlements/resources/facility_role_slot_definition.gd" id="3_slot"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/warden.tres" id="4_warden"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/guard.tres" id="5_guard"]
+
+[sub_resource type="Resource" id="RoleSlot_warden"]
+script = ExtResource("3_slot")
+slot_id = "warden_desk"
+role = ExtResource("4_warden")
+display_name = "Warden"
+authority_scope = "settlement_authority"
+
+[sub_resource type="Resource" id="RoleSlot_guard"]
+script = ExtResource("3_slot")
+slot_id = "custody_guard_a"
+role = ExtResource("5_guard")
+display_name = "Jail Guard"
+authority_scope = "settlement_authority"
 
 [node name="SettlementJail" type="Node3D" unique_id=1524920645]
 script = ExtResource("1_jail")
-guard_count = 1
+role_slots = Array[ExtResource("3_slot")]([SubResource("RoleSlot_warden"), SubResource("RoleSlot_guard")])
 facility_function = ExtResource("2_eoaic")
 service_points_root_path = NodePath("")
 storage_root_path = NodePath("")

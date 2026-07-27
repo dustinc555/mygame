@@ -12,6 +12,8 @@ const PRESSURE_SUPPLIED := "supplied"
 const PRESSURE_HUNGRY := "hungry"
 const PRESSURE_STARVING := "starving"
 const META_SETTLEMENT_SLOT_ID := "settlement_staff_slot_id"
+const META_ASSIGNMENT_SLOT_ID := "settlement_assignment_slot_id"
+const META_ASSIGNMENT_DOMAIN := "settlement_assignment_domain"
 const OCCUPANCY_DEPOPULATED := "depopulated"
 const OCCUPANCY_SPARSE := "sparse"
 const OCCUPANCY_POPULATED := "populated"
@@ -28,11 +30,6 @@ const DEFAULT_STAFF_REPLACEMENT_DELAY_DAYS := 7.0
 const BOOTSTRAP_UNASSIGNED_POPULATION := 2
 const MINUTES_PER_DAY := 24 * 60
 const FEAR_PER_DEATH := 0.08
-## Global staffing priority (2026-07-06 design; per-faction orders deferred).
-## A vacancy may poach a worker from any role listed AFTER its own — the
-## poached slot opens a vacancy in turn, so a massacre drains the labor
-## market bottom-up instead of leaving the walls unmanned.
-const ROLE_POACH_PRIORITY := ["ruler", "warden", "guard", "barkeeper", "merchant", "worker"]
 
 var root_scene: Node
 var _context: BootstrapContext
@@ -85,7 +82,7 @@ func unregister_settlement_anchor(anchor: Node3D) -> void:
 		return
 	if settlement_anchors.get(settlement_id) != anchor:
 		return
-	derealize_all_settlement_staff(settlement_id)
+	derealize_all_settlement_assignments(settlement_id)
 	settlement_anchors.erase(settlement_id)
 	_staff_role_owners_by_settlement.erase(settlement_id)
 
@@ -126,8 +123,90 @@ func can_assign_population(settlement_id: String, count := 1) -> bool:
 	return get_available_population(settlement_id) >= max(0, count)
 
 
-func bootstrap_staff_vacancies(settlement_id: String) -> void:
-	_process_staff_vacancies(settlement_id, true)
+func bootstrap_assignments(settlement_id: String) -> void:
+	_process_assignment_vacancies(settlement_id, true)
+
+
+func assign_actor_to_assignment_slot(settlement_id: String, assignment_domain: String, slot_id: String, actor_id: String) -> Dictionary:
+	var state: Dictionary = settlement_states.get(settlement_id, {})
+	var slots: Dictionary = state.get("assignment_slots", {})
+	var key := _assignment_key(assignment_domain, slot_id)
+	var slot: Dictionary = (slots.get(key, {}) as Dictionary).duplicate(true)
+	var population := _get_population_controller()
+	if slot.is_empty() or population == null or not population.has_method("assign_record_to_slot"):
+		return {}
+	var record: Dictionary = population.call("assign_record_to_slot", actor_id, slot)
+	if record.is_empty():
+		return {}
+	slot["occupant_actor_id"] = actor_id
+	slot["filled"] = true
+	slots[key] = slot
+	var vacancies: Dictionary = state.get("assignment_vacancies", {})
+	vacancies.erase(key)
+	state["assignment_slots"] = slots
+	state["assignment_vacancies"] = vacancies
+	settlement_states[settlement_id] = state
+	_apply_assignment_record_authorship(settlement_id, slot)
+	_save_assignment_slot_to_gecs(settlement_id, slot)
+	_save_settlement_state_to_gecs(settlement_id, state)
+	return record
+
+
+func release_actor_facility_assignments(actor_id: String, is_replacement := false) -> void:
+	for settlement_id_value in settlement_states.keys():
+		var settlement_id := str(settlement_id_value)
+		var state: Dictionary = settlement_states[settlement_id]
+		var slots: Dictionary = state.get("assignment_slots", {})
+		var changed := false
+		for key_value in slots.keys():
+			var key := str(key_value)
+			var slot: Dictionary = (slots[key] as Dictionary).duplicate(true)
+			if str(slot.get("occupant_actor_id", "")) != actor_id:
+				continue
+			slot["occupant_actor_id"] = ""
+			slot["filled"] = false
+			if is_replacement:
+				slot["dead_actor_key"] = actor_id
+			slots[key] = slot
+			_ensure_assignment_vacancy(settlement_id, slot, key)
+			_save_assignment_slot_to_gecs(settlement_id, slot)
+			_sync_assignment_owner_access(settlement_id, slot)
+			changed = true
+		if changed:
+			state = settlement_states[settlement_id]
+			state["assignment_slots"] = slots
+			settlement_states[settlement_id] = state
+			_notify_state_changed(settlement_id)
+
+
+func _on_population_record_changed(_settlement_id: String, actor_id: String) -> void:
+	var population := _get_population_controller()
+	var record: Dictionary = population.call("get_actor_record", actor_id) if population != null and population.has_method("get_actor_record") else {}
+	# The death signal releases assignments with replacement timing intact.
+	if int(record.get("life_state", NpcRules.LifeState.ALIVE)) == NpcRules.LifeState.DEAD:
+		return
+	var assignments: Dictionary = record.get("assignments", {})
+	for state_value in settlement_states.values():
+		for slot_value in ((state_value as Dictionary).get("assignment_slots", {}) as Dictionary).values():
+			var slot: Dictionary = slot_value
+			if str(slot.get("occupant_actor_id", "")) != actor_id:
+				continue
+			var domain := str(slot.get("assignment_domain", "employment"))
+			if str(assignments.get(domain, "")) != str(slot.get("slot_id", "")):
+				release_actor_facility_assignments(actor_id)
+				return
+
+
+func _on_person_died(actor_id: String) -> void:
+	release_actor_facility_assignments(actor_id, true)
+	var population := _get_population_controller()
+	if population == null or not population.has_method("get_actor_record") or not population.has_method("count_alive_records_for_settlement"):
+		return
+	var record: Dictionary = population.call("get_actor_record", actor_id)
+	var settlement_id := str(record.get("settlement_id", ""))
+	if settlement_id.is_empty() or not settlement_states.has(settlement_id):
+		return
+	_set_population_total(settlement_id, int(population.call("count_alive_records_for_settlement", settlement_id)))
 
 
 func set_population_total(settlement_id: String, value: int, reason := "manual") -> Dictionary:
@@ -146,12 +225,12 @@ func set_population_total(settlement_id: String, value: int, reason := "manual")
 	return get_settlement_state(settlement_id)
 
 
-func get_staff_vacancy_realization_count(settlement_id: String) -> int:
+func get_assignment_vacancy_count(settlement_id: String) -> int:
 	if not settlement_states.has(settlement_id):
 		return 0
 	_refresh_population_availability(settlement_id)
 	var state: Dictionary = settlement_states[settlement_id]
-	var vacancies: Dictionary = state.get("staff_vacancies", {})
+	var vacancies: Dictionary = state.get("assignment_vacancies", {})
 	if vacancies.is_empty():
 		return 0
 	return mini(vacancies.size(), int(state.get("population_available", 0)))
@@ -310,6 +389,11 @@ func _try_initialize() -> void:
 		return
 	faction_controller = _context.get_optional(FactionController.SERVICE_ID)
 	census = _context.get_optional(&"settlement_census")
+	var population := _context.get_optional(PopulationController.SERVICE_ID)
+	if population != null and population.has_signal("person_died") and not population.person_died.is_connected(_on_person_died):
+		population.person_died.connect(_on_person_died)
+	if population != null and population.has_signal("population_record_changed") and not population.population_record_changed.is_connected(_on_population_record_changed):
+		population.population_record_changed.connect(_on_population_record_changed)
 	building_registry = _context.require(BuildingRegistry.SERVICE_ID) as BuildingRegistry
 	if not building_registry.building_created.is_connected(_on_building_registry_changed):
 		building_registry.building_created.connect(_on_building_registry_changed)
@@ -351,7 +435,7 @@ func _register_settlement_definition(definition: Resource, anchor: Node3D) -> vo
 		state["world_position"] = anchor.global_position
 		_refresh_settlement_housing_capacity(settlement_id, false)
 		_register_anchor_facilities(settlement_id, anchor)
-		_sync_settlement_staff_slots(settlement_id)
+		_sync_settlement_assignment_slots(settlement_id)
 		_apply_population_from_occupancy(settlement_id)
 		# A registry-known settlement gained its live anchor (zone loaded):
 		# real housing/staff demand exists only now, so seed here too —
@@ -395,20 +479,19 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 		"world_position": position,
 		"facilities": {},
 		"facility_totals": {},
-		"staff_slots": {},
-		"staff_vacancies": {},
+		"assignment_slots": {},
+		"assignment_vacancies": {},
 		"population_death_records": {},
 	}
 	_refresh_settlement_housing_capacity(settlement_id, false)
 	_register_anchor_facilities(settlement_id, anchor)
-	_sync_settlement_staff_slots(settlement_id)
+	_sync_settlement_assignment_slots(settlement_id)
 	_apply_population_from_occupancy(settlement_id)
 	# Born settled: the census mints a resident record for every staff slot
 	# plus surplus before vacancies process, so day zero starts staffed.
 	if census != null and census.has_method("seed_settlement"):
 		census.call_deferred("seed_settlement", settlement_id)
-	_assign_staff_from_ledger(settlement_id, true)
-	call_deferred("_bootstrap_staff_vacancies", settlement_id)
+	call_deferred("_bootstrap_assignments", settlement_id)
 	_notify_state_changed(settlement_id)
 
 
@@ -418,14 +501,14 @@ func _on_hour_changed(_absolute_hour: int, _day_index: int, _hour: int) -> void:
 		# Assignment is world-sim knowledge and runs O(1) for EVERY town, near or far — a faraway
 		# bar knows who tends it without the player ever visiting. It's a cheap ledger bind: no
 		# subtree walk, no live bodies.
-		_assign_staff_from_ledger(sid)
+		_assign_from_ledger(sid)
 		# The expensive work — the full subtree walk + GECS re-save to reconcile slot definitions
 		# and dead bodies, plus putting live staff bodies in place — only matters where the player
 		# can see them. Gating keeps the hourly cost O(near towns), not O(all towns).
 		if not _settlement_is_within_lod_exit(sid):
 			continue
-		_sync_settlement_staff_slots(sid)
-		_assign_staff_from_ledger(sid)
+		_sync_settlement_assignment_slots(sid)
+		_assign_from_ledger(sid)
 		_sync_settlement_resident_deaths(sid)
 
 
@@ -460,7 +543,7 @@ func _notify_state_changed(settlement_id: String) -> void:
 	settlement_state_changed.emit(settlement_id, state)
 
 
-func _sync_settlement_staff_slots(settlement_id: String) -> void:
+func _sync_settlement_assignment_slots(settlement_id: String) -> void:
 	if not settlement_states.has(settlement_id):
 		return
 	var anchor := get_settlement_anchor(settlement_id)
@@ -468,19 +551,18 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 		_refresh_population_availability(settlement_id)
 		return
 	var state: Dictionary = settlement_states[settlement_id]
-	var prior_slots: Dictionary = state.get("staff_slots", {})
+	var prior_slots: Dictionary = state.get("assignment_slots", {})
 	var slots: Dictionary = {}
 	var assigned_count := 0
 	var required_count := 0
-	var vacancies: Dictionary = state.get("staff_vacancies", {})
-	_clear_staff_slots_for_settlement_in_gecs(settlement_id)
+	var vacancies: Dictionary = state.get("assignment_vacancies", {})
 	var owners_by_id := {}
 	for role_owner in _collect_staff_role_owners(anchor):
-		if role_owner == null or not role_owner.has_method("get_settlement_staff_slots"):
+		if role_owner == null or not role_owner.has_method("get_assignment_slot_specs"):
 			continue
 		var owner_id := _staff_role_owner_id(role_owner, settlement_id)
 		owners_by_id[owner_id] = role_owner
-		var owner_slots = role_owner.call("get_settlement_staff_slots")
+		var owner_slots = role_owner.call("get_assignment_slot_specs")
 		if not (owner_slots is Array):
 			continue
 		for slot_value in owner_slots:
@@ -490,55 +572,72 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 			var slot_id := str(slot.get("slot_id", "")).strip_edges()
 			if slot_id.is_empty():
 				continue
+			var domain := str(slot.get("assignment_domain", "employment")).strip_edges().to_lower()
+			if domain.is_empty():
+				continue
+			var assignment_key := _assignment_key(domain, slot_id)
 			slot["slot_id"] = slot_id
+			slot["assignment_domain"] = domain
 			slot["settlement_id"] = settlement_id
 			slot["owner_id"] = owner_id
+			slot["facility_id"] = str(role_owner.call("get_facility_id")) if role_owner.has_method("get_facility_id") else ""
+			slot["building_id"] = str(role_owner.get("building_id")) if _has_property(role_owner, "building_id") else ""
 			slot["world_position"] = (role_owner as Node3D).global_position if role_owner is Node3D else anchor.global_position
 			var population_cost: int = max(0, int(slot.get("population_cost", 1)))
 			slot["population_cost"] = population_cost
-			required_count += population_cost
+			if domain == "employment":
+				required_count += population_cost
 			# Ledger binding is the only source of truth for "filled". A scene body
 			# without a permanent record must never bypass Character Realization.
-			var worker_actor_id := str((prior_slots.get(slot_id, {}) as Dictionary).get("worker_actor_id", ""))
+			var occupant_actor_id := str((prior_slots.get(assignment_key, {}) as Dictionary).get("occupant_actor_id", ""))
 			var dead_actor_key := str(slot.get("dead_actor_key", "")).strip_edges()
 			# The bound worker is gone if the facility found its corpse (dead_actor_key) or its
 			# record is dead/missing. Mark the record dead and drop the binding so the slot reopens.
-			if not worker_actor_id.is_empty() and (not dead_actor_key.is_empty() or not _is_assigned_record_alive(worker_actor_id)):
+			if not occupant_actor_id.is_empty() and (not dead_actor_key.is_empty() or not _is_assigned_record_alive(occupant_actor_id)):
 				var pop := _get_population_controller()
 				if pop != null:
 					if pop.has_method("mark_record_dead"):
-						pop.call("mark_record_dead", worker_actor_id)
+						pop.call("mark_record_dead", occupant_actor_id)
 					# Detach the corpse from the slot so the next sync doesn't re-detect it as this
 					# slot's worker (which would churn a fresh death every tick and drain population).
 					# Both the slot-id meta AND the role node name resolve a slot's actor, so clear
 					# the meta and rename the body off the role name — otherwise the name fallback
 					# keeps finding the corpse and re-killing each freshly-assigned replacement.
-					var corpse = pop.call("get_live_actor", worker_actor_id) if pop.has_method("get_live_actor") else null
+					var corpse = pop.call("get_live_actor", occupant_actor_id) if pop.has_method("get_live_actor") else null
 					if corpse != null and is_instance_valid(corpse):
 						corpse.set_meta("settlement_staff_slot_id", "")
 						corpse.name = "Corpse"
-				worker_actor_id = ""
-			slot["worker_actor_id"] = worker_actor_id
-			var filled := not worker_actor_id.is_empty()
+				occupant_actor_id = ""
+			slot["occupant_actor_id"] = occupant_actor_id
+			var filled := not occupant_actor_id.is_empty()
 			slot["filled"] = filled
-			slots[slot_id] = slot
+			slots[assignment_key] = slot
 			if filled:
-				assigned_count += population_cost
-				if vacancies.has(slot_id):
-					vacancies.erase(slot_id)
-				_save_staff_slot_to_gecs(settlement_id, slot_id, slot)
+				if domain == "employment":
+					assigned_count += population_cost
+				vacancies.erase(assignment_key)
+				_save_assignment_slot_to_gecs(settlement_id, slot)
 				continue
 			if not dead_actor_key.is_empty():
 				_record_population_death_if_needed(settlement_id, dead_actor_key, null, "staff_death")
-			_ensure_staff_vacancy(settlement_id, slot_id, slot)
-			_save_staff_slot_to_gecs(settlement_id, slot_id, slot)
+			_ensure_assignment_vacancy(settlement_id, slot, assignment_key)
+			_save_assignment_slot_to_gecs(settlement_id, slot)
 			state = settlement_states[settlement_id]
-			vacancies = state.get("staff_vacancies", {})
-	state["staff_slots"] = slots
+			vacancies = state.get("assignment_vacancies", {})
+	var population := _get_population_controller()
+	for prior_key_value in prior_slots.keys():
+		var prior_key := str(prior_key_value)
+		if slots.has(prior_key):
+			continue
+		var removed: Dictionary = prior_slots[prior_key]
+		if population != null and population.has_method("release_assignment"):
+			population.call("release_assignment", settlement_id, str(removed.get("assignment_domain", "employment")), str(removed.get("slot_id", "")))
+		_remove_assignment_slot_from_gecs(settlement_id, removed)
+	state["assignment_slots"] = slots
 	for vacancy_id in vacancies.keys():
 		if not slots.has(str(vacancy_id)):
 			vacancies.erase(vacancy_id)
-	state["staff_vacancies"] = vacancies
+	state["assignment_vacancies"] = vacancies
 	state["population_required_staff"] = required_count
 	state["population_assigned"] = assigned_count
 	settlement_states[settlement_id] = state
@@ -546,181 +645,219 @@ func _sync_settlement_staff_slots(settlement_id: String) -> void:
 	for slot_value in slots.values():
 		var filled_slot: Dictionary = slot_value
 		if bool(filled_slot.get("filled", false)):
-			_apply_staff_record_authorship(settlement_id, filled_slot)
+			_apply_assignment_record_authorship(settlement_id, filled_slot)
+		_sync_assignment_owner_access(settlement_id, filled_slot)
 	_refresh_population_availability(settlement_id)
 	_save_settlement_state_to_gecs(settlement_id, state)
-	_remove_unbound_staff_bodies_for_settlement(settlement_id)
+	_remove_unbound_assignment_bodies_for_settlement(settlement_id)
 
 
 ## Staffing has two layers. (1) Assignment is world-sim knowledge — a record is bound to a slot
 ## at the ledger level for every town, near or far, in O(records). (2) Realization (putting a live
 ## body in place) is LOD-gated and only happens when the player is near. This entry runs both:
 ## the cheap ledger bind always, the expensive body realization only when near.
-func _process_staff_vacancies(settlement_id: String, ignore_delay := false) -> void:
+func _process_assignment_vacancies(settlement_id: String, ignore_delay := false) -> void:
 	if not settlement_states.has(settlement_id):
 		return
-	_assign_staff_from_ledger(settlement_id, ignore_delay)
+	_assign_from_ledger(settlement_id, ignore_delay)
 	_notify_state_changed(settlement_id)
 
 
 ## Cheap, player-independent: bind an available resident record to each open staff slot. Promoting
 ## the record's role_id removes it from the resident pool (so the population accounting balances)
 ## and is the durable "who staffs this" knowledge that survives LOD. No subtree walk, no live actors.
-func _assign_staff_from_ledger(settlement_id: String, ignore_delay := false) -> void:
+func _assign_from_ledger(settlement_id: String, ignore_delay := false) -> void:
 	if not settlement_states.has(settlement_id):
 		return
 	var pop := _get_population_controller()
-	if pop == null or not pop.has_method("claim_unassigned_record_for_slot"):
+	if pop == null or not pop.has_method("claim_record_for_assignment"):
 		return
 	var state: Dictionary = settlement_states[settlement_id]
-	var vacancies: Dictionary = state.get("staff_vacancies", {})
+	var vacancies: Dictionary = state.get("assignment_vacancies", {})
 	if vacancies.is_empty():
 		return
-	var slots: Dictionary = state.get("staff_slots", {})
+	var slots: Dictionary = state.get("assignment_slots", {})
 	var available := get_available_population(settlement_id)
 	var now_minute := _get_absolute_minute()
 	var changed := false
-	for slot_id_value in vacancies.keys():
-		var slot_id := str(slot_id_value)
-		var vacancy: Dictionary = vacancies.get(slot_id, {})
+	var vacancy_keys := vacancies.keys()
+	vacancy_keys.sort()
+	for assignment_key_value in vacancy_keys:
+		var assignment_key := str(assignment_key_value)
+		var vacancy: Dictionary = vacancies.get(assignment_key, {})
 		if not ignore_delay and now_minute < int(vacancy.get("replacement_due_minute", 0)):
 			continue
 		var cost: int = max(0, int(vacancy.get("population_cost", 1)))
-		if cost > available:
+		var domain := str(vacancy.get("assignment_domain", "employment"))
+		if domain == "employment" and cost > available:
 			continue
 		var role_id := str(vacancy.get("role_id", "")).strip_edges()
 		if role_id.is_empty():
 			continue
-		var record: Dictionary = pop.call("claim_unassigned_record_for_slot", settlement_id, slot_id, role_id)
-		if record.is_empty():
-			# No surplus left — poach the lowest-priority filled role. The
-			# poached slot opens its own vacancy, cascading the labor shortage
-			# to the least critical job instead of leaving this one open.
-			record = _poach_assigned_record_for_slot(settlement_id, slot_id, role_id, slots, vacancies, pop)
+		var slot: Dictionary = (slots.get(assignment_key, vacancy) as Dictionary).duplicate(true)
+		var record: Dictionary = pop.call("claim_record_for_assignment", settlement_id, slot)
 		if record.is_empty():
 			continue
-		var slot: Dictionary = (slots.get(slot_id, vacancy) as Dictionary).duplicate(true)
-		slot["worker_actor_id"] = str(record.get("actor_id", ""))
+		slot["occupant_actor_id"] = str(record.get("actor_id", ""))
 		slot["filled"] = true
-		slots[slot_id] = slot
-		_apply_staff_record_authorship(settlement_id, slot)
-		_save_staff_slot_to_gecs(settlement_id, slot_id, slot)
-		vacancies.erase(slot_id)
-		available -= cost
+		slots[assignment_key] = slot
+		_apply_assignment_record_authorship(settlement_id, slot)
+		_save_assignment_slot_to_gecs(settlement_id, slot)
+		vacancies.erase(assignment_key)
+		if domain == "employment":
+			available -= cost
 		changed = true
 		_record_event({
 			"type": "staff_assigned",
 			"settlement_id": settlement_id,
-			"slot_id": slot_id,
+			"slot_id": str(slot.get("slot_id", "")),
+			"assignment_domain": str(slot.get("assignment_domain", "employment")),
 			"role_id": role_id,
 			"actor_id": str(record.get("actor_id", "")),
 			"actor_name": str(record.get("member_name", record.get("actor_id", ""))),
 		})
 	if not changed:
 		return
-	state["staff_slots"] = slots
-	state["staff_vacancies"] = vacancies
+	state["assignment_slots"] = slots
+	state["assignment_vacancies"] = vacancies
 	var assigned := 0
 	for sid_key in slots.keys():
-		if bool((slots[sid_key] as Dictionary).get("filled", false)):
+		if str((slots[sid_key] as Dictionary).get("assignment_domain", "")) == "employment" and bool((slots[sid_key] as Dictionary).get("filled", false)):
 			assigned += max(0, int((slots[sid_key] as Dictionary).get("population_cost", 1)))
 	state["population_assigned"] = assigned
 	settlement_states[settlement_id] = state
 	_refresh_population_availability(settlement_id)
 	_save_settlement_state_to_gecs(settlement_id, state)
-
-
-## Surplus is exhausted: take the worker from the filled slot whose role sits
-## LOWEST in ROLE_POACH_PRIORITY (strictly below the vacancy's role), rebind
-## the record to the vacancy, and open a vacancy for the poached slot.
-func _poach_assigned_record_for_slot(settlement_id: String, slot_id: String, role_id: String, slots: Dictionary, vacancies: Dictionary, pop: Node) -> Dictionary:
-	var vacancy_priority := ROLE_POACH_PRIORITY.find(role_id)
-	if vacancy_priority < 0:
-		return {}
-	var best_slot_id := ""
-	var best_priority := vacancy_priority
-	for candidate_id_value in slots.keys():
-		var candidate_id := str(candidate_id_value)
-		if candidate_id == slot_id or vacancies.has(candidate_id):
-			continue
-		var candidate: Dictionary = slots[candidate_id]
-		if not bool(candidate.get("filled", false)) or str(candidate.get("worker_actor_id", "")).strip_edges().is_empty():
-			continue
-		var candidate_priority := ROLE_POACH_PRIORITY.find(str(candidate.get("role_id", "")))
-		if candidate_priority > best_priority:
-			best_priority = candidate_priority
-			best_slot_id = candidate_id
-	if best_slot_id.is_empty():
-		return {}
-	var poached: Dictionary = (slots[best_slot_id] as Dictionary).duplicate(true)
-	var worker_actor_id := str(poached.get("worker_actor_id", ""))
-	poached["filled"] = false
-	poached["worker_actor_id"] = ""
-	slots[best_slot_id] = poached
-	_save_staff_slot_to_gecs(settlement_id, best_slot_id, poached)
-	_ensure_staff_vacancy(settlement_id, best_slot_id, poached)
-	_record_event({
-		"type": "staff_poached",
-		"settlement_id": settlement_id,
-		"from_slot_id": best_slot_id,
-		"to_slot_id": slot_id,
-		"actor_id": worker_actor_id,
-	})
-	if pop == null or not pop.has_method("update_actor_record"):
-		return {}
-	return pop.call("update_actor_record", worker_actor_id, {"role_id": role_id, "assigned_slot_id": slot_id, "staff_assignment_realized_once": false, "movement_state": {}})
-
-
-func get_staff_slots_for_realization(settlement_id: String) -> Array[Dictionary]:
+func get_assignment_slots_for_realization(settlement_id: String) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var state: Dictionary = settlement_states.get(settlement_id, {})
-	for slot_value in (state.get("staff_slots", {}) as Dictionary).values():
+	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
 		if slot_value is Dictionary:
 			result.append((slot_value as Dictionary).duplicate(true))
 	return result
 
 
-func is_staff_slot_realized(settlement_id: String, slot_id: String) -> bool:
+func get_facility_assignment_slots(stable_owner_id: String, assignment_domain := "") -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for state_value in settlement_states.values():
+		for slot_value in ((state_value as Dictionary).get("assignment_slots", {}) as Dictionary).values():
+			var slot: Dictionary = slot_value
+			if stable_owner_id != str(slot.get("owner_id", "")) and stable_owner_id != str(slot.get("facility_id", "")) and stable_owner_id != str(slot.get("building_id", "")):
+				continue
+			if not assignment_domain.is_empty() and str(slot.get("assignment_domain", "")) != assignment_domain:
+				continue
+			result.append(slot.duplicate(true))
+	result.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return _assignment_key(str(a.get("assignment_domain", "")), str(a.get("slot_id", ""))) < _assignment_key(str(b.get("assignment_domain", "")), str(b.get("slot_id", ""))))
+	return result
+
+
+func get_facility_assignment_counts(stable_owner_id: String, assignment_domain := "") -> Dictionary:
+	var slots := get_facility_assignment_slots(stable_owner_id, assignment_domain)
+	var filled := 0
+	for slot in slots:
+		if not str(slot.get("occupant_actor_id", "")).is_empty():
+			filled += 1
+	return {"filled": filled, "expected": slots.size()}
+
+
+func get_assignment_actor_display_name(actor_id: String) -> String:
+	var population := _get_population_controller()
+	var record: Dictionary = population.call("get_actor_record", actor_id) if population != null and population.has_method("get_actor_record") else {}
+	return str(record.get("member_name", actor_id))
+
+
+func get_facility_assignments_grouped_by_role(stable_owner_id: String, assignment_domain := "") -> Dictionary:
+	var grouped := {}
+	for slot in get_facility_assignment_slots(stable_owner_id, assignment_domain):
+		var role_id := str(slot.get("role_id", ""))
+		if not grouped.has(role_id):
+			grouped[role_id] = []
+		var entry := slot.duplicate(true)
+		entry["actor_display_name"] = get_assignment_actor_display_name(str(slot.get("occupant_actor_id", ""))) if not str(slot.get("occupant_actor_id", "")).is_empty() else ""
+		(grouped[role_id] as Array).append(entry)
+	return grouped
+
+
+func get_facility_people_snapshot(building_id: String, facility_id: String, settlement_id: String) -> Dictionary:
+	var owner_id := facility_id.strip_edges()
+	var slots := get_facility_assignment_slots(owner_id)
+	if slots.is_empty() and not building_id.strip_edges().is_empty():
+		owner_id = building_id.strip_edges()
+		slots = get_facility_assignment_slots(owner_id)
+	var rows: Array[Dictionary] = []
+	var population := _get_population_controller()
+	for slot in slots:
+		var actor_id := str(slot.get("occupant_actor_id", "")).strip_edges()
+		var record: Dictionary = population.call("get_actor_record", actor_id) if population != null and not actor_id.is_empty() else {}
+		var preferred_actor_id := str(slot.get("preferred_actor_id", "")).strip_edges()
+		var source := ""
+		if not actor_id.is_empty():
+			source = "named" if actor_id == preferred_actor_id and not preferred_actor_id.is_empty() else ("auto" if str(record.get("generation_source", "")).begins_with("assignment_auto") else "assigned")
+		rows.append({
+			"slot_id": str(slot.get("slot_id", "")),
+			"group": str(slot.get("assignment_domain", "employment")),
+			"role_id": str(slot.get("role_id", "role")),
+			"actor_id": actor_id,
+			"character_name": str(record.get("member_name", actor_id)),
+			"source": source,
+		})
+	return {
+		"display_name": _facility_display_name(settlement_id, facility_id),
+		"rows": rows,
+		"role_count": rows.size(),
+	}
+
+
+func _facility_display_name(settlement_id: String, facility_id: String) -> String:
 	var state: Dictionary = settlement_states.get(settlement_id, {})
-	var slot: Dictionary = (state.get("staff_slots", {}) as Dictionary).get(slot_id, {})
-	var actor_id := str(slot.get("worker_actor_id", ""))
+	var facility: Dictionary = (state.get("facilities", {}) as Dictionary).get(facility_id, {})
+	var display_name := str(facility.get("display_name", "")).strip_edges()
+	return display_name if not display_name.is_empty() else "Facility"
+
+
+func is_assignment_slot_realized(settlement_id: String, assignment_domain: String, slot_id: String) -> bool:
+	var state: Dictionary = settlement_states.get(settlement_id, {})
+	var slot: Dictionary = (state.get("assignment_slots", {}) as Dictionary).get(_assignment_key(assignment_domain, slot_id), {})
+	var actor_id := str(slot.get("occupant_actor_id", ""))
 	var population := _get_population_controller()
 	var actor = population.call("get_live_actor", actor_id) if population != null and population.has_method("get_live_actor") and not actor_id.is_empty() else null
-	return actor != null and is_instance_valid(actor) and str(actor.get_meta(META_SETTLEMENT_SLOT_ID, "")) == slot_id
+	return actor != null and is_instance_valid(actor) and str(actor.get_meta(META_ASSIGNMENT_DOMAIN, "")) == assignment_domain and str(actor.get_meta(META_ASSIGNMENT_SLOT_ID, "")) == slot_id
 
 
-## Realize one ledger-bound worker. The facility configures only this body's projection.
-func realize_staff_slot(settlement_id: String, slot_id: String) -> bool:
+## Realize one ledger-bound assignment. The facility configures only this body's projection.
+func realize_assignment_slot(settlement_id: String, assignment_domain: String, slot_id: String) -> bool:
 	if not settlement_states.has(settlement_id):
 		return false
-	var slots: Dictionary = (settlement_states[settlement_id] as Dictionary).get("staff_slots", {})
-	var slot: Dictionary = slots.get(slot_id, {})
+	var slots: Dictionary = (settlement_states[settlement_id] as Dictionary).get("assignment_slots", {})
+	var slot: Dictionary = slots.get(_assignment_key(assignment_domain, slot_id), {})
 	if not bool(slot.get("filled", false)):
 		return false
-	var actor_id := str(slot.get("worker_actor_id", ""))
+	var actor_id := str(slot.get("occupant_actor_id", ""))
 	if actor_id.is_empty():
 		return false
 	var role_owner := _staff_role_owner(settlement_id, slot)
-	if role_owner == null or not role_owner.has_method("configure_settlement_staff_actor") or not role_owner.has_method("get_staff_realization_parent"):
+	if role_owner == null or not role_owner.has_method("configure_settlement_assignment_actor") or not role_owner.has_method("get_assignment_realization_parent"):
 		return false
 	var population := _get_population_controller()
 	var realizer := _context.get_optional(PopulationCharacterRealizer.SERVICE_ID) as PopulationCharacterRealizer if _context != null else null
 	if realizer == null:
-		push_error("Settlement staffing cannot realize %s: PopulationCharacterRealizer is unavailable" % slot_id)
+		push_error("Settlement assignment cannot realize %s/%s: PopulationCharacterRealizer is unavailable" % [assignment_domain, slot_id])
 		return false
-	var parent := role_owner.call("get_staff_realization_parent") as Node
+	var parent := role_owner.call("get_assignment_realization_parent") as Node
 	var actor = population.call("get_live_actor", actor_id) if population != null and population.has_method("get_live_actor") else null
-	if actor != null and is_instance_valid(actor) and actor.get_parent() == parent and str(actor.get_meta(META_SETTLEMENT_SLOT_ID, "")) == slot_id:
+	if actor != null and is_instance_valid(actor) and actor.get_parent() == parent and str(actor.get_meta(META_ASSIGNMENT_DOMAIN, "")) == assignment_domain and str(actor.get_meta(META_ASSIGNMENT_SLOT_ID, "")) == slot_id:
 		return true
 	var durable_record: Dictionary = population.call("get_actor_record", actor_id) if population != null and population.has_method("get_actor_record") else {}
-	var returning_staff := bool(durable_record.get("staff_assignment_realized_once", false))
+	var returning_assignment := bool((durable_record.get("assignment_realized_once", {}) as Dictionary).get(assignment_domain, false))
 	actor = realizer.realize_actor(actor_id, role_owner, parent, "", str(slot.get("character_type_id", "")))
 	if actor == null:
 		return false
 	var configuration_record := slot.duplicate(true)
-	configuration_record["preserve_durable_transform"] = returning_staff
-	role_owner.call("configure_settlement_staff_actor", actor, slot_id, configuration_record)
-	if returning_staff and not durable_record.is_empty():
+	configuration_record["preserve_durable_transform"] = returning_assignment
+	role_owner.call("configure_settlement_assignment_actor", actor, slot_id, configuration_record)
+	actor.set_meta(META_ASSIGNMENT_DOMAIN, assignment_domain)
+	actor.set_meta(META_ASSIGNMENT_SLOT_ID, slot_id)
+	if returning_assignment and not durable_record.is_empty():
 		var durable_movement: Dictionary = durable_record.get("movement_state", {})
 		# Facility defaults win for a new assignment; returning workers resume their exact order.
 		if actor.has_method("apply_population_runtime_state"):
@@ -728,12 +865,15 @@ func realize_staff_slot(settlement_id: String, slot_id: String) -> bool:
 		# Role setup must never teleport a persistent person away from their durable position.
 		realizer.restore_record_transform(actor as Node3D, durable_record)
 	if population != null and population.has_method("update_actor_record"):
-		population.call("update_actor_record", actor_id, {"staff_assignment_realized_once": true})
+		var realized: Dictionary = (durable_record.get("assignment_realized_once", {}) as Dictionary).duplicate(true)
+		realized[assignment_domain] = true
+		population.call("update_actor_record", actor_id, {"assignment_realized_once": realized})
 	if role_owner.has_method("sync_property_ownership"):
 		role_owner.call("sync_property_ownership")
 	if role_owner.has_method("sync_door_policy"):
 		role_owner.call("sync_door_policy")
-	return is_staff_slot_realized(settlement_id, slot_id)
+	refresh_assignment_slot_projection(settlement_id, assignment_domain, slot_id)
+	return is_assignment_slot_realized(settlement_id, assignment_domain, slot_id)
 
 
 func _staff_role_owner(settlement_id: String, slot: Dictionary) -> Node:
@@ -751,29 +891,54 @@ func _staff_role_owner(settlement_id: String, slot: Dictionary) -> Node:
 	return owners.get(str(slot.get("owner_id", ""))) as Node
 
 
-func _apply_staff_record_authorship(settlement_id: String, slot: Dictionary) -> void:
-	var actor_id := str(slot.get("worker_actor_id", ""))
+func _apply_assignment_record_authorship(settlement_id: String, slot: Dictionary) -> void:
+	var actor_id := str(slot.get("occupant_actor_id", ""))
 	if actor_id.is_empty():
 		return
 	var role_owner := _staff_role_owner(settlement_id, slot)
 	var realizer := _context.get_optional(PopulationCharacterRealizer.SERVICE_ID) as PopulationCharacterRealizer if _context != null else null
 	if role_owner != null and realizer != null:
 		realizer.apply_record_authorship(actor_id, role_owner, str(slot.get("character_type_id", "")))
+	_sync_assignment_owner_access(settlement_id, slot)
 
 
-func _remove_unbound_staff_bodies_for_settlement(settlement_id: String) -> void:
+func _sync_assignment_owner_access(settlement_id: String, slot: Dictionary) -> void:
+	var role_owner := _staff_role_owner(settlement_id, slot)
+	if role_owner != null and role_owner.has_method("sync_door_policy"):
+		role_owner.call("sync_door_policy")
+
+
+func refresh_assignment_slot_projection(settlement_id: String, assignment_domain: String, slot_id: String) -> void:
+	var state: Dictionary = settlement_states.get(settlement_id, {})
+	var slot: Dictionary = (state.get("assignment_slots", {}) as Dictionary).get(_assignment_key(assignment_domain, slot_id), {})
+	var actor_id := str(slot.get("occupant_actor_id", ""))
+	var population := _get_population_controller()
+	var actor = population.call("get_live_actor", actor_id) if population != null and population.has_method("get_live_actor") else null
+	if actor == null or not is_instance_valid(actor):
+		return
+	if str(actor.get_meta(META_ASSIGNMENT_DOMAIN, "")) != assignment_domain or str(actor.get_meta(META_ASSIGNMENT_SLOT_ID, "")) != slot_id:
+		return
+	var role_owner := _staff_role_owner(settlement_id, slot)
+	if role_owner != null and role_owner.has_method("refresh_settlement_assignment_actor"):
+		var projection_record := slot.duplicate(true)
+		if population.has_method("get_actor_routine_activity"):
+			projection_record["routine_activity_state"] = population.call("get_actor_routine_activity", actor_id, _get_absolute_minute())
+		role_owner.call("refresh_settlement_assignment_actor", actor, projection_record)
+
+
+func _remove_unbound_assignment_bodies_for_settlement(settlement_id: String) -> void:
 	var state: Dictionary = settlement_states.get(settlement_id, {})
 	var expected_actor_ids := {}
-	for slot_value in (state.get("staff_slots", {}) as Dictionary).values():
-		var actor_id := str((slot_value as Dictionary).get("worker_actor_id", ""))
+	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
+		var actor_id := str((slot_value as Dictionary).get("occupant_actor_id", ""))
 		if not actor_id.is_empty():
 			expected_actor_ids[actor_id] = true
 	var cleaned_parents := {}
 	var population := _get_population_controller()
 	for owner in (_staff_role_owners_by_settlement.get(settlement_id, {}) as Dictionary).values():
-		if owner == null or not is_instance_valid(owner) or not owner.has_method("get_staff_realization_parent"):
+		if owner == null or not is_instance_valid(owner) or not owner.has_method("get_assignment_realization_parent"):
 			continue
-		var parent := owner.call("get_staff_realization_parent") as Node
+		var parent := owner.call("get_assignment_realization_parent") as Node
 		if parent == null or cleaned_parents.has(parent):
 			continue
 		cleaned_parents[parent] = true
@@ -788,18 +953,20 @@ func _remove_unbound_staff_bodies_for_settlement(settlement_id: String) -> void:
 			child.queue_free()
 
 
-func derealize_staff_slot(settlement_id: String, slot_id: String) -> void:
+func derealize_assignment_slot(settlement_id: String, assignment_domain: String, slot_id: String) -> void:
 	if not settlement_states.has(settlement_id):
 		return
 	var pop := _get_population_controller()
 	if pop == null or not pop.has_method("get_live_actor"):
 		return
-	var slots: Dictionary = (settlement_states[settlement_id] as Dictionary).get("staff_slots", {})
-	var worker := str((slots.get(slot_id, {}) as Dictionary).get("worker_actor_id", ""))
+	var slots: Dictionary = (settlement_states[settlement_id] as Dictionary).get("assignment_slots", {})
+	var worker := str((slots.get(_assignment_key(assignment_domain, slot_id), {}) as Dictionary).get("occupant_actor_id", ""))
 	if worker.is_empty():
 		return
 	var actor = pop.call("get_live_actor", worker)
 	if actor == null or not is_instance_valid(actor):
+		return
+	if str(actor.get_meta(META_ASSIGNMENT_DOMAIN, "")) != assignment_domain or str(actor.get_meta(META_ASSIGNMENT_SLOT_ID, "")) != slot_id:
 		return
 	if actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member")):
 		return
@@ -808,10 +975,11 @@ func derealize_staff_slot(settlement_id: String, slot_id: String) -> void:
 	actor.queue_free()
 
 
-func derealize_all_settlement_staff(settlement_id: String) -> void:
+func derealize_all_settlement_assignments(settlement_id: String) -> void:
 	var state: Dictionary = settlement_states.get(settlement_id, {})
-	for slot_id_value in (state.get("staff_slots", {}) as Dictionary).keys():
-		derealize_staff_slot(settlement_id, str(slot_id_value))
+	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
+		var slot: Dictionary = slot_value
+		derealize_assignment_slot(settlement_id, str(slot.get("assignment_domain", "")), str(slot.get("slot_id", "")))
 
 
 func _get_population_controller() -> Node:
@@ -827,39 +995,43 @@ func _is_assigned_record_alive(actor_id: String) -> bool:
 	return bool(pop.call("is_record_alive", actor_id))
 
 
-func _bootstrap_staff_vacancies(settlement_id: String) -> void:
-	bootstrap_staff_vacancies(settlement_id)
+func _bootstrap_assignments(settlement_id: String) -> void:
+	bootstrap_assignments(settlement_id)
 
 
-func _ensure_staff_vacancy(settlement_id: String, slot_id: String, slot: Dictionary) -> void:
+func _ensure_assignment_vacancy(settlement_id: String, slot: Dictionary, assignment_key: String) -> void:
 	if not settlement_states.has(settlement_id):
 		return
 	var state: Dictionary = settlement_states[settlement_id]
-	var vacancies: Dictionary = state.get("staff_vacancies", {})
-	if vacancies.has(slot_id):
-		state["staff_vacancies"] = vacancies
+	var vacancies: Dictionary = state.get("assignment_vacancies", {})
+	if vacancies.has(assignment_key):
+		state["assignment_vacancies"] = vacancies
 		return
 	var now_minute := _get_absolute_minute()
 	var is_replacement := not str(slot.get("dead_actor_key", "")).strip_edges().is_empty()
 	var delay_days := maxf(float(slot.get("replacement_delay_days", DEFAULT_STAFF_REPLACEMENT_DELAY_DAYS)), 0.0) if is_replacement else 0.0
 	var vacancy := {
-		"slot_id": slot_id,
+		"slot_id": str(slot.get("slot_id", "")),
+		"assignment_domain": str(slot.get("assignment_domain", "employment")),
+		"authority_scope": str(slot.get("authority_scope", "")),
+		"assignment_exclusivity_group": str(slot.get("assignment_exclusivity_group", "")),
 		"settlement_id": settlement_id,
 		"role_id": str(slot.get("role_id", "")),
 		"role_index": int(slot.get("role_index", 0)),
-		"display_name": str(slot.get("display_name", slot_id)),
+		"display_name": str(slot.get("display_name", slot.get("slot_id", ""))),
 		"owner_id": str(slot.get("owner_id", "")),
 		"population_cost": max(0, int(slot.get("population_cost", 1))),
 		"replacement_delay_days": delay_days,
 		"vacant_since_minute": now_minute,
 		"replacement_due_minute": now_minute + int(round(delay_days * float(MINUTES_PER_DAY))),
 	}
-	vacancies[slot_id] = vacancy
-	state["staff_vacancies"] = vacancies
+	vacancies[assignment_key] = vacancy
+	state["assignment_vacancies"] = vacancies
 	_record_event({
 		"type": "staff_vacancy_created",
 		"settlement_id": settlement_id,
-		"slot_id": slot_id,
+		"slot_id": str(slot.get("slot_id", "")),
+		"assignment_domain": str(slot.get("assignment_domain", "employment")),
 		"role_id": str(vacancy.get("role_id", "")),
 		"replacement_due_minute": int(vacancy.get("replacement_due_minute", now_minute)),
 	})
@@ -893,7 +1065,7 @@ func _staff_role_owner_id(owner: Node, settlement_id: String) -> String:
 func _collect_staff_role_owners_recursive(node: Node, owners: Array[Node]) -> void:
 	if node == null:
 		return
-	if node.is_in_group(STAFF_ROLE_OWNER_GROUP) or node.has_method("get_settlement_staff_slots"):
+	if node.is_in_group(STAFF_ROLE_OWNER_GROUP) or node.has_method("get_assignment_slot_specs"):
 		owners.append(node)
 	for child in node.get_children():
 		_collect_staff_role_owners_recursive(child, owners)
@@ -1135,16 +1307,20 @@ func _save_settlement_state_to_gecs(settlement_id: String, state: Dictionary) ->
 		bridge.call("upsert_settlement_state", settlement_id, state)
 
 
-func _save_staff_slot_to_gecs(settlement_id: String, slot_id: String, slot: Dictionary) -> void:
+func _save_assignment_slot_to_gecs(settlement_id: String, slot: Dictionary) -> void:
 	var bridge := _get_gecs_world()
-	if bridge != null and bridge.has_method("upsert_staff_slot"):
-		bridge.call("upsert_staff_slot", settlement_id, slot_id, slot)
+	if bridge != null and bridge.has_method("upsert_assignment_slot"):
+		bridge.call("upsert_assignment_slot", settlement_id, slot)
 
 
-func _clear_staff_slots_for_settlement_in_gecs(settlement_id: String) -> void:
+func _remove_assignment_slot_from_gecs(settlement_id: String, slot: Dictionary) -> void:
 	var bridge := _get_gecs_world()
-	if bridge != null and bridge.has_method("clear_staff_slots_for_settlement"):
-		bridge.call("clear_staff_slots_for_settlement", settlement_id)
+	if bridge != null and bridge.has_method("remove_assignment_slot"):
+		bridge.call("remove_assignment_slot", settlement_id, str(slot.get("assignment_domain", "employment")), str(slot.get("slot_id", "")))
+
+
+func _assignment_key(assignment_domain: String, slot_id: String) -> String:
+	return "%s:%s" % [assignment_domain, slot_id]
 
 
 func _get_gecs_world() -> Node:

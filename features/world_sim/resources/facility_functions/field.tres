@@ -16,6 +16,5 @@ display_name = "Field"
 facility_type = "farm"
 description = "A food-producing farm field with farming activity points."
 food_outputs_per_day = Array[Resource]([SubResource("Output_food")])
-expected_staff_roles = PackedStringArray()
 expected_service_points = PackedStringArray()
 expected_activity_types = PackedStringArray("farm")

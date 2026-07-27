@@ -8,6 +8,5 @@ function_id = "jail"
 display_name = "Jail"
 facility_type = "jail"
 description = "A settlement authority facility with cells, a warden, and jail guards. Crime and court simulation can attach to its prisoner hooks later."
-expected_staff_roles = PackedStringArray("warden", "guard")
 expected_service_points = PackedStringArray("guard_post", "cell")
 expected_activity_types = PackedStringArray("guard")

@@ -264,8 +264,6 @@ func _spawn_missing_residents_from_records(population_controller: Node) -> void:
 		spawned_count += 1
 	if not records.is_empty():
 		_realization_record_cursor = (_realization_record_cursor + maxi(attempted_count, 1)) % records.size()
-	if _count_existing_residents() > 0:
-		_notify_settlement_population_ready()
 	_realization_dirty = false
 
 
@@ -470,12 +468,6 @@ func _get_settlement_controller() -> Node:
 		return null
 	var nodes := get_tree().get_nodes_in_group("settlement_controller")
 	return nodes[0] as Node if not nodes.is_empty() else null
-
-
-func _notify_settlement_population_ready() -> void:
-	var settlement_controller := _get_settlement_controller()
-	if settlement_controller != null and settlement_controller.has_method("bootstrap_staff_vacancies"):
-		settlement_controller.call("bootstrap_staff_vacancies", _get_settlement_id())
 
 
 func _get_population_realization_controller() -> Node:

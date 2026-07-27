@@ -1,41 +1,41 @@
-[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://ckxpj1nsvik6d"]
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://cd4iklbg7t2op"]
 
 [ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/roof_modular_round_tiles_8_r.tscn" id="1_b33jr"]
 [ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_tyqyb"]
 [ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_2snar"]
 [ext_resource type="PackedScene" uid="uid://d4bsp641ihhhp" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Modular_RoundTiles_8_R.gltf" id="4_5ueyc"]
 
-[sub_resource type="Resource" id="Resource_yy83p"]
+[sub_resource type="Resource" id="Resource_b33jr"]
 script = ExtResource("3_2snar")
-snap_id = "left"
-display_name = "Left"
-connector_type = "roof_side"
-accepts_types = PackedStringArray("roof_side")
-local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -5.063901, 2.6745243, -0.08029282)
-
-[sub_resource type="Resource" id="Resource_le1e1"]
-script = ExtResource("3_2snar")
-snap_id = "right"
-display_name = "Right"
-connector_type = "roof_side"
-accepts_types = PackedStringArray("roof_side")
-local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5.063901, 2.6745243, -0.08029282)
-
-[sub_resource type="Resource" id="Resource_qnb66"]
-script = ExtResource("3_2snar")
-snap_id = "wall_top"
-display_name = "Wall Top"
+snap_id = "eave_west"
+display_name = "Eave West"
 connector_type = "roof_wall_top"
 accepts_types = PackedStringArray("wall_top")
-local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, -0.75342077, -0.08029282)
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -5.1107945, -0.75342077, 0)
 
-[sub_resource type="Resource" id="Resource_risin"]
+[sub_resource type="Resource" id="Resource_tyqyb"]
 script = ExtResource("3_2snar")
-snap_id = "ridge"
-display_name = "Ridge"
-connector_type = "roof_ridge"
-accepts_types = PackedStringArray("roof_ridge")
-local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 6.1024694, -0.08029282)
+snap_id = "eave_east"
+display_name = "Eave East"
+connector_type = "roof_wall_top"
+accepts_types = PackedStringArray("wall_top")
+local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 5.1107945, -0.75342077, 0)
+
+[sub_resource type="Resource" id="Resource_2snar"]
+script = ExtResource("3_2snar")
+snap_id = "run_negative_z"
+display_name = "Run Negative Z"
+connector_type = "roof_run_negative_z"
+accepts_types = PackedStringArray("roof_run_positive_z")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75342077, -1)
+
+[sub_resource type="Resource" id="Resource_5ueyc"]
+script = ExtResource("3_2snar")
+snap_id = "gable_positive_z"
+display_name = "Gable Positive Z"
+connector_type = "roof_gable_socket"
+accepts_types = PackedStringArray("roof_gable_insert")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75342077, 0.8892057)
 
 [resource]
 script = ExtResource("2_tyqyb")
@@ -47,4 +47,4 @@ source_scene = ExtResource("4_5ueyc")
 grid_size_cells = Vector3i(6, 4, 2)
 bounds_size_meters = Vector3(10.127802, 6.8558903, 2.2516592)
 tags = PackedStringArray("roof", "modular", "round_tiles", "8", "r")
-snap_points = [SubResource("Resource_yy83p"), SubResource("Resource_le1e1"), SubResource("Resource_qnb66"), SubResource("Resource_risin")]
+snap_points = [SubResource("Resource_b33jr"), SubResource("Resource_tyqyb"), SubResource("Resource_2snar"), SubResource("Resource_5ueyc")]

@@ -28,6 +28,7 @@ enum Phase {
 @export var lockpick_skill_level := 0.0
 @export var assisting_attribute_level := 0.0
 @export var actor_faction_id := ""
+@export var active_law_response := false
 @export var actor_key_ids := PackedStringArray()
 @export var has_required_lockpick := false
 @export var from_inside := false

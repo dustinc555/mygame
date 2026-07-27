@@ -1,13 +1,14 @@
-[gd_resource type="Resource" script_class="FacilityDefinition" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="FacilityDefinition" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://features/settlements/resources/facility_definition.gd" id="1_script"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/home.tres" id="2_function"]
 
 [resource]
 script = ExtResource("1_script")
 facility_id = "house"
-display_name = "House"
+display_name = "Home"
 scene_path = "res://features/settlements/bridge/settlement_house.tscn"
 catalog_enabled = true
 shell_policy = 0
-staff_role_counts = {}
+function = ExtResource("2_function")
 category = "housing"

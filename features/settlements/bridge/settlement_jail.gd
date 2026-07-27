@@ -17,17 +17,12 @@ const META_INDEX := "jail_index"
 const META_SETTLEMENT_ROLE := "settlement_staff_role"
 const META_SETTLEMENT_ROLE_INDEX := "settlement_staff_role_index"
 const META_SETTLEMENT_SLOT_ID := "settlement_staff_slot_id"
-const DEFAULT_REPLACEMENT_DELAY_DAYS := 7.0
 const SENTENCE_ROUTE_STALL_SECONDS := 6.0
 const SENTENCE_ROUTE_PROGRESS_EPSILON := 0.12
 const SENTENCE_STALLED_DELIVERY_DISTANCE := 3.0
 const GUARD_SHUFFLE_SECONDS := Vector2(14.0, 32.0)
 
 @export var warden_name := "Warden"
-@export_range(0, 12, 1) var guard_count := 2:
-	set(value):
-		guard_count = clampi(int(value), 0, 12)
-		_repair_authoring_tree()
 @export var guard_name := "Jail Guard"
 @export var staff_stable_id_prefix := ""
 @export var staff_squad_name := ""
@@ -97,22 +92,17 @@ func get_facility_record(settlement_id := "") -> Dictionary:
 	return record
 
 
-func get_settlement_staff_slots() -> Array[Dictionary]:
-	var slots: Array[Dictionary] = []
-	_append_staff_slot(slots, "warden", 0, get_warden_actor(), warden_name, "settlement_authority")
-	for index in range(guard_count):
-		_append_staff_slot(slots, "guard", index, _get_guard_actor_for_slot(index), _indexed_display_name(guard_name, index), "settlement_authority")
-	return slots
-
-
-func configure_settlement_staff_actor(actor: Node, slot_id: String, slot_record: Dictionary) -> void:
+func configure_settlement_assignment_actor(actor: Node, slot_id: String, slot_record: Dictionary) -> void:
+	super.configure_settlement_assignment_actor(actor, slot_id, slot_record)
 	var role := str(slot_record.get("role_id", "")).strip_edges().to_lower()
-	var role_index: int = max(0, int(slot_record.get("role_index", _role_index_from_slot_id(slot_id))))
+	var role_index: int = max(0, int(slot_record.get("role_index", 0)))
 	var staff_root := _ensure_root(staff_root_path)
 	if actor == null or staff_root == null:
 		return
+	if role not in ["warden", "guard"]:
+		return
 	actor.name = _available_child_name(staff_root, "Warden" if role == "warden" else _indexed_name("Guard", role_index))
-	_prepare_staff_actor(actor, role, role_index, true)
+	_prepare_staff_actor(actor, role, role_index, slot_id, true)
 	# The warden owns the jail's goods — restamp property ownership once the
 	# owner actually exists (staffing lands after the initial repair sync).
 	if actor != null and role == "warden" and not Engine.is_editor_hint():
@@ -120,7 +110,7 @@ func configure_settlement_staff_actor(actor: Node, slot_id: String, slot_record:
 
 
 func get_warden_actor() -> Node:
-	return _find_actor_by_slot_id(_staff_slot_id("warden", 0), "Warden")
+	return _find_actor_by_slot_id(get_role_slot_id("warden", 0), "Warden")
 
 
 ## The jail's goods — locker, crates, shelf stock — belong to the warden
@@ -726,13 +716,13 @@ func _is_editing_jail_base_scene() -> bool:
 	return tree != null and tree.edited_scene_root == self
 
 
-func _prepare_staff_actor(actor: Node, role: String, index: int, apply_default_position := false) -> void:
+func _prepare_staff_actor(actor: Node, role: String, index: int, slot_id: String, apply_default_position := false) -> void:
 	if actor == null:
 		return
 	actor.set_meta(META_GENERATED, true)
 	actor.set_meta(META_SETTLEMENT_ROLE, role)
 	actor.set_meta(META_SETTLEMENT_ROLE_INDEX, index)
-	actor.set_meta(META_SETTLEMENT_SLOT_ID, _staff_slot_id(role, index))
+	actor.set_meta(META_SETTLEMENT_SLOT_ID, slot_id)
 	actor.set_meta("settlement_actor_category", "staff")
 	if _has_property(actor, "member_name") and (str(actor.get("member_name")).strip_edges().is_empty() or str(actor.get("member_name")) == "Character"):
 		actor.set("member_name", _display_name_for_role(role, index))
@@ -756,24 +746,6 @@ func _prepare_staff_actor(actor: Node, role: String, index: int, apply_default_p
 			actor.call("set_faction_soldier", true)
 	if apply_default_position and actor is Node3D:
 		(actor as Node3D).position = _local_position_for_role(role, index)
-func _append_staff_slot(slots: Array[Dictionary], role: String, index: int, actor: Node, staff_display_name: String, authority_scope: String) -> void:
-	var actor_dead := actor != null and int(actor.get("life_state")) == NpcRules.LifeState.DEAD
-	var slot := {
-		"slot_id": _staff_slot_id(role, index),
-		"role_id": role,
-		"role_index": index,
-		"character_type_id": get_staff_character_type_id(role, index),
-		"display_name": staff_display_name,
-		"population_cost": 1,
-		"replacement_delay_days": DEFAULT_REPLACEMENT_DELAY_DAYS,
-		"filled": actor != null and not actor_dead,
-		"authority_scope": authority_scope,
-	}
-	if actor_dead:
-		slot["dead_actor_key"] = _actor_key(actor)
-	slots.append(slot)
-
-
 func _find_actor_by_slot_id(slot_id: String, fallback_name: String) -> Node:
 	var root := get_node_or_null(staff_root_path)
 	if root == null:
@@ -782,10 +754,6 @@ func _find_actor_by_slot_id(slot_id: String, fallback_name: String) -> Node:
 		if str(child.get_meta(META_SETTLEMENT_SLOT_ID, "")) == slot_id:
 			return child
 	return root.get_node_or_null(fallback_name)
-
-
-func _get_guard_actor_for_slot(index: int) -> Node:
-	return _find_actor_by_slot_id(_staff_slot_id("guard", index), _indexed_name("Guard", index))
 
 
 func _claim_available_resident_for_role(role: String, index: int, staff_root: Node) -> Node:
@@ -1061,21 +1029,6 @@ func _display_name_for_role(role: String, index: int) -> String:
 	return warden_name if role == "warden" else _indexed_display_name(guard_name, index)
 
 
-func _staff_slot_id(role: String, index: int) -> String:
-	return "%s.%s" % [get_facility_id(), _indexed_name(role, index)]
-
-
-func _role_index_from_slot_id(slot_id: String) -> int:
-	var suffix := slot_id.get_slice(".", slot_id.get_slice_count(".") - 1)
-	for role in ["warden", "guard"]:
-		if suffix == role:
-			return 0
-		if suffix.begins_with(role):
-			var index_text := suffix.substr(role.length())
-			return max(0, int(index_text) - 1) if index_text.is_valid_int() else 0
-	return 0
-
-
 func _indexed_name(base_name: String, index: int) -> String:
 	return base_name if index == 0 else "%s%d" % [base_name, index + 1]
 
@@ -1203,16 +1156,6 @@ func _is_actor_alive(actor: Node) -> bool:
 	if _has_property(actor, "life_state"):
 		return int(actor.get("life_state")) == NpcRules.LifeState.ALIVE
 	return true
-
-
-func _actor_key(actor: Node) -> String:
-	if actor == null:
-		return ""
-	if _has_property(actor, "stable_id"):
-		var stable_id := str(actor.get("stable_id")).strip_edges()
-		if not stable_id.is_empty():
-			return stable_id
-	return str(actor.get_path()) if actor.is_inside_tree() else str(actor.get_instance_id())
 
 
 func _to_snake_id(value: String) -> String:

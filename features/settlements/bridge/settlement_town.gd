@@ -63,14 +63,17 @@ var actor_realization_policy: String:
 @export var auto_town_border_from_footprint := true:
 	set(value):
 		auto_town_border_from_footprint = value
+		_invalidate_town_border_shape()
 		_refresh_town_border_debug()
 @export var town_border_radius := 24.0:
 	set(value):
 		town_border_radius = value
+		_invalidate_town_border_shape()
 		_refresh_town_border_debug()
 @export_range(0.0, 30.0, 0.5) var town_border_padding := 6.0:
 	set(value):
 		town_border_padding = maxf(0.0, float(value))
+		_invalidate_town_border_shape()
 		_refresh_town_border_debug()
 @export_range(0.25, 10.0, 0.25) var town_border_dash_length := 2.0:
 	set(value):
@@ -95,6 +98,7 @@ var _last_town_border_signature := ""
 var _last_border_watch_signature := 0
 var _realization_policy_override := ""
 var _last_guard_authoring_signature := ""
+var _cached_town_border_shape: Dictionary = {}
 
 
 func _settlement_definition_typed() -> SettlementDefinition:
@@ -111,6 +115,7 @@ func _ready() -> void:
 	add_to_group(STAFF_ROLE_OWNER_GROUP)
 	set_process(Engine.is_editor_hint())
 	_repair_guard_authoring_tree()
+	_connect_town_border_invalidation_signals()
 	_refresh_town_border_debug()
 	if not Engine.is_editor_hint():
 		_register_with_population_realization.call_deferred()
@@ -153,6 +158,7 @@ func _process(delta: float) -> void:
 		var watch := _border_watch_signature()
 		if watch != _last_border_watch_signature:
 			_last_border_watch_signature = watch
+			_invalidate_town_border_shape()
 			_refresh_town_border_debug_if_changed()
 
 
@@ -218,7 +224,7 @@ func get_bar_service_area_nodes() -> Array:
 	return service_areas
 
 
-func get_settlement_staff_slots() -> Array[Dictionary]:
+func get_assignment_slot_specs() -> Array[Dictionary]:
 	var slots: Array[Dictionary] = []
 	for index in range(guard_count):
 		var actor := _get_guard_actor_for_slot(index)
@@ -226,11 +232,11 @@ func get_settlement_staff_slots() -> Array[Dictionary]:
 	return slots
 
 
-func get_staff_realization_parent() -> Node3D:
+func get_assignment_realization_parent() -> Node3D:
 	return _ensure_child_root(guards_root_path)
 
 
-func configure_settlement_staff_actor(actor: Node, slot_id: String, slot_record: Dictionary) -> void:
+func configure_settlement_assignment_actor(actor: Node, slot_id: String, slot_record: Dictionary) -> void:
 	var role_index: int = max(0, int(slot_record.get("role_index", _role_index_from_slot_id(slot_id))))
 	var guards_root := _ensure_child_root(guards_root_path)
 	if actor == null or guards_root == null:
@@ -324,7 +330,10 @@ func _append_guard_slot(slots: Array[Dictionary], role_index: int, actor: Node) 
 	var actor_dead := actor != null and int(actor.get("life_state")) == NpcRules.LifeState.DEAD
 	var slot := {
 		"slot_id": _staff_slot_id("guard", role_index),
+		"assignment_domain": "employment",
+		"assignment_exclusivity_group": "employment",
 		"role_id": "guard",
+		"character_type_id": "default",
 		"role_index": role_index,
 		"display_name": _indexed_display_name(guard_name, role_index),
 		"population_cost": 1,
@@ -666,11 +675,14 @@ func _collect_nodes_with_group(root: Node, group_name: String, nodes: Array) -> 
 
 
 func _get_town_border_shape() -> Dictionary:
+	if not _cached_town_border_shape.is_empty():
+		return _cached_town_border_shape.duplicate(true)
+	var shape: Dictionary
 	if auto_town_border_from_footprint:
 		var auto_rect := _get_auto_town_border_rect()
 		if auto_rect.size.x > 0.0 and auto_rect.size.y > 0.0:
 			var center_local := auto_rect.get_center()
-			return {
+			shape = {
 				"shape_mode": "box",
 				"center": global_transform * Vector3(center_local.x, 0.0, center_local.y),
 				"bounds_min": auto_rect.position,
@@ -683,14 +695,38 @@ func _get_town_border_shape() -> Dictionary:
 					Vector2(auto_rect.position.x, auto_rect.position.y + auto_rect.size.y),
 				]),
 			}
-	return {
-		"shape_mode": "circle",
-		"center": global_position,
-		"radius": town_border_radius,
-		"bounds_min": Vector2(-town_border_radius, -town_border_radius),
-		"bounds_max": Vector2(town_border_radius, town_border_radius),
-		"polygon_points": _circle_points(town_border_radius, 96),
-	}
+	if shape.is_empty():
+		shape = {
+			"shape_mode": "circle",
+			"center": global_position,
+			"radius": town_border_radius,
+			"bounds_min": Vector2(-town_border_radius, -town_border_radius),
+			"bounds_max": Vector2(town_border_radius, town_border_radius),
+			"polygon_points": _circle_points(town_border_radius, 96),
+		}
+	_cached_town_border_shape = shape.duplicate(true)
+	return shape
+
+
+func _connect_town_border_invalidation_signals() -> void:
+	var roots: Array[Node] = [self]
+	for root_path in _get_border_root_paths():
+		var border_root := get_node_or_null(root_path)
+		if border_root != null and not roots.has(border_root):
+			roots.append(border_root)
+	for border_root in roots:
+		if not border_root.child_entered_tree.is_connected(_on_town_border_child_changed):
+			border_root.child_entered_tree.connect(_on_town_border_child_changed)
+		if not border_root.child_exiting_tree.is_connected(_on_town_border_child_changed):
+			border_root.child_exiting_tree.connect(_on_town_border_child_changed)
+
+
+func _on_town_border_child_changed(_child: Node) -> void:
+	_invalidate_town_border_shape()
+
+
+func _invalidate_town_border_shape() -> void:
+	_cached_town_border_shape.clear()
 
 
 func _get_auto_town_border_rect() -> Rect2:

@@ -10,6 +10,12 @@ const FARMER_NAME_PROFILE_PATH := "res://features/world_sim/resources/population
 const BARBER_CONVERSATION_PATH := "res://features/conversation/resources/barber_services.tres"
 const CHARACTER_JOBS_WINDOW_SCRIPT_PATH := "res://features/ui/projection/character_jobs_window.gd"
 const AI_UTILITY_ADAPTER_SCRIPT_PATH := "res://features/ai/bridge/ai_utility_adapter.gd"
+const ROLE_RESOURCE_PATHS := {
+	"barkeeper": "res://features/settlements/resources/roles/barkeeper.tres",
+	"waiter": "res://features/settlements/resources/roles/waiter.tres",
+	"guard": "res://features/settlements/resources/roles/guard.tres",
+	"barber": "res://features/settlements/resources/roles/barber.tres",
+}
 
 var TWO_TOWNS_SCENE: PackedScene
 var SETTLEMENT_BAR_SCENE: PackedScene
@@ -21,6 +27,7 @@ var FARMER_NAME_PROFILE: Resource
 var BARBER_CONVERSATION: Resource
 var CHARACTER_JOBS_WINDOW_SCRIPT: Script
 var AI_UTILITY_ADAPTER_SCRIPT: Script
+var ROLE_RESOURCES: Dictionary = {}
 
 var _failures: Array[String] = []
 var _scene: Node
@@ -63,6 +70,8 @@ func _load_validation_resources() -> void:
 	BARBER_CONVERSATION = load(BARBER_CONVERSATION_PATH) as Resource
 	CHARACTER_JOBS_WINDOW_SCRIPT = load(CHARACTER_JOBS_WINDOW_SCRIPT_PATH) as Script
 	AI_UTILITY_ADAPTER_SCRIPT = load(AI_UTILITY_ADAPTER_SCRIPT_PATH) as Script
+	for role_id in ROLE_RESOURCE_PATHS:
+		ROLE_RESOURCES[role_id] = load(ROLE_RESOURCE_PATHS[role_id]) as FacilityRoleDefinition
 
 
 func _cleanup_scene() -> void:
@@ -84,6 +93,7 @@ func _cleanup_validation_resources() -> void:
 	BARBER_CONVERSATION = null
 	CHARACTER_JOBS_WINDOW_SCRIPT = null
 	AI_UTILITY_ADAPTER_SCRIPT = null
+	ROLE_RESOURCES.clear()
 
 
 func _validate_demo_starts_without_bar() -> void:
@@ -110,9 +120,9 @@ func _validate_base_bar_scene_staff_authoring() -> void:
 	if staff_root == null:
 		_fail("Base reusable bar scene should keep a Staff root")
 	else:
-		for staff_name in ["Barkeeper", "Waiter", "Guard", "Barber"]:
-			if staff_root.get_node_or_null(staff_name) != null:
-				_fail("Base reusable bar scene should not ship authored default Staff/%s" % staff_name)
+		for child in staff_root.get_children():
+			if child is HumanoidCharacter:
+				_fail("Base reusable bar scene should not ship authored staff actors")
 	if bar.get_node_or_null("Storage") != null or bar.get_node_or_null("JobProviders") != null:
 		_fail("Base reusable bar scene should not ship unused Storage or JobProviders roots")
 	if bar.get_node_or_null("ServicePoints") != null:
@@ -135,32 +145,25 @@ func _validate_base_bar_scene_staff_authoring() -> void:
 
 func _validate_operator_instantiated_bar() -> void:
 	var bars := _scene.get_node_or_null("Settlements/FarmerCrossing/Bars")
-	var townies := _collect_settlement_townies("Settlements/FarmerCrossing/Residents")
+	var townies := _collect_unassigned_townies("farmer_crossing")
 	var assigned_waiter := townies[0] if townies.size() > 0 else null
 	var assigned_guard := townies[1] if townies.size() > 1 else null
 	if bars == null or assigned_waiter == null or assigned_guard == null:
 		_fail("Could not find bar container or generated townies for reusable bar validation")
 		return
-	var waiter_parent := assigned_waiter.get_parent()
-	var guard_parent := assigned_guard.get_parent()
 	var bar := SETTLEMENT_BAR_SCENE.instantiate()
 	bar.name = "OperatorBar"
-	bar.set("use_settlement_population_for_staff", false)
+	bar.set("role_slots", _bar_role_slots(assigned_waiter, assigned_guard))
 	bars.add_child(bar)
 	bar.set("display_name", "Operator Test Bar")
-	var waiter_paths: Array[NodePath] = [bar.get_path_to(assigned_waiter)]
-	var guard_paths: Array[NodePath] = [bar.get_path_to(assigned_guard)]
-	bar.set("waiter_count", 2)
-	bar.set("assigned_waiter_paths", waiter_paths)
-	bar.set("guard_count", 2)
-	bar.set("assigned_guard_paths", guard_paths)
-	bar.set("has_barber", true)
 	bar.set("visitor_capacity", 4)
 	if bar.has_method("_repair_authoring_tree"):
 		bar.call("_repair_authoring_tree")
+	if not await _sync_and_realize_bar_assignments(bar):
+		return
 	await _wait_frames(20)
 	_validate_inferred_defaults(bar)
-	_validate_staff(bar, assigned_waiter, assigned_guard, waiter_parent, guard_parent)
+	_validate_staff(bar, assigned_waiter, assigned_guard)
 	_validate_role_points(bar)
 	_validate_furniture_authoring(bar)
 	_validate_bar_visit_capacity(bar, assigned_waiter, assigned_guard)
@@ -188,32 +191,40 @@ func _validate_inferred_defaults(bar: Node) -> void:
 		_fail("Reusable bar should infer owner_faction_id from the parent settlement")
 
 
-func _validate_staff(bar: Node, assigned_waiter: HumanoidCharacter, assigned_guard: HumanoidCharacter, waiter_parent: Node, guard_parent: Node) -> void:
-	var barkeeper := bar.get_node_or_null("Staff/Barkeeper") as HumanoidCharacter
-	var generated_waiter := bar.get_node_or_null("Staff/Waiter") as HumanoidCharacter
-	var generated_guard := bar.get_node_or_null("Staff/Guard") as HumanoidCharacter
-	var barber := bar.get_node_or_null("Staff/Barber") as HumanoidCharacter
+func _validate_staff(bar: Node, assigned_waiter: HumanoidCharacter, assigned_guard: HumanoidCharacter) -> void:
+	var barkeeper := _role_actor(bar, "barkeeper")
+	var waiters := _role_actors(bar, "waiter")
+	var guards := _role_actors(bar, "guard")
+	var barber := _role_actor(bar, "barber")
 	if barkeeper == null:
-		_fail("Reusable bar should auto-generate a barkeeper")
-	if generated_waiter == null:
-		_fail("Reusable bar should generate only missing waiter staff")
-	if bar.get_node_or_null("Staff/Waiter2") != null:
-		_fail("Assigned waiter should count toward waiter_count instead of generating Waiter2")
-	if generated_guard == null:
-		_fail("Reusable bar should generate only missing guard staff")
-	if bar.get_node_or_null("Staff/Guard2") != null:
-		_fail("Assigned guard should count toward guard_count instead of generating Guard2")
+		_fail("Reusable bar should realize its barkeeper assignment")
+	if waiters.size() != 2 or not waiters.has(assigned_waiter):
+		_fail("Reusable bar should realize one named and one Auto waiter assignment")
+	if guards.size() != 2 or not guards.has(assigned_guard):
+		_fail("Reusable bar should realize one named and one Auto guard assignment")
 	if barber == null:
-		_fail("has_barber should auto-generate a barber")
-	if assigned_waiter.get_parent() != waiter_parent:
-		_fail("Assigned waiter should be referenced in place, not reparented into the bar")
-	if assigned_guard.get_parent() != guard_parent:
-		_fail("Assigned guard should be referenced in place, not reparented into the bar")
+		_fail("Reusable bar should realize its barber assignment")
+	var named_waiter_slot := _assignment_slot_for_actor(bar, str(assigned_waiter.get("stable_id")))
+	var named_guard_slot := _assignment_slot_for_actor(bar, str(assigned_guard.get("stable_id")))
+	if str(named_waiter_slot.get("preferred_actor_id", "")) != str(assigned_waiter.get("stable_id")):
+		_fail("Named waiter row should bind its CharacterRecordDefinition actor")
+	if str(named_guard_slot.get("preferred_actor_id", "")) != str(assigned_guard.get("stable_id")):
+		_fail("Named guard row should bind its CharacterRecordDefinition actor")
+	var population := get_first_node_in_group("population_controller")
+	for slot in _assignment_slots(bar):
+		if not str(slot.get("preferred_actor_id", "")).is_empty() or population == null:
+			continue
+		var record: Dictionary = population.call("get_actor_record", str(slot.get("occupant_actor_id", "")))
+		if str(record.get("generation_source", "")) != "assignment_auto":
+			_fail("Auto role row should use an assignment_auto population record: %s" % str(slot.get("slot_id", "")))
 	if not str(assigned_waiter.get("member_name")).ends_with("(waiter)"):
 		_fail("Assigned waiter should be easy to identify with a waiter role suffix")
 	if not str(assigned_guard.get("member_name")).ends_with("(guard)"):
 		_fail("Assigned guard should be easy to identify with a guard role suffix")
-	for actor in [barkeeper, generated_waiter, generated_guard, barber]:
+	var staff: Array[HumanoidCharacter] = [barkeeper, barber]
+	staff.append_array(waiters)
+	staff.append_array(guards)
+	for actor in staff:
 		if actor == null:
 			continue
 		if actor.faction_name != "Farmers":
@@ -239,7 +250,7 @@ func _validate_staff(bar: Node, assigned_waiter: HumanoidCharacter, assigned_gua
 
 
 func _validate_staff_combat_response(bar: Node) -> void:
-	var barkeeper := bar.get_node_or_null("Staff/Barkeeper") as HumanoidCharacter
+	var barkeeper := _role_actor(bar, "barkeeper")
 	if barkeeper == null:
 		return
 	var attacker := CharacterBody3D.new()
@@ -255,10 +266,11 @@ func _validate_staff_combat_response(bar: Node) -> void:
 	barkeeper.notify_incoming_attack(attacker)
 	await _wait_frames(12)
 	var responders: Array[HumanoidCharacter] = [barkeeper]
-	for role_name in ["Waiter", "Guard", "Barber"]:
-		var actor := bar.get_node_or_null("Staff/%s" % role_name) as HumanoidCharacter
-		if actor != null:
-			responders.append(actor)
+	responders.append_array(_role_actors(bar, "waiter"))
+	responders.append_array(_role_actors(bar, "guard"))
+	var barber := _role_actor(bar, "barber")
+	if barber != null:
+		responders.append(barber)
 	for responder in responders:
 		if responder == null or responder.life_state != NpcRules.LifeState.ALIVE:
 			continue
@@ -271,10 +283,10 @@ func _validate_staff_combat_response(bar: Node) -> void:
 func _validate_role_points(bar: Node) -> void:
 	if bar.get_node_or_null("ServicePoints") != null:
 		_fail("Reusable bar should use its ShopCounter instead of a barkeeper ServicePoints root")
-	if bar.get_node_or_null("WaiterPoints/WaiterPoint") == null or bar.get_node_or_null("WaiterPoints/WaiterPoint2") == null:
-		_fail("Reusable bar should derive waiter points from waiter_count")
-	if bar.get_node_or_null("GuardPosts/GuardPost") == null or bar.get_node_or_null("GuardPosts/GuardPost2") == null:
-		_fail("Reusable bar should derive guard posts from guard_count")
+	if _generated_role_node_count(bar.get_node_or_null("WaiterPoints"), "waiter") != 2:
+		_fail("Reusable bar should derive two waiter points from waiter role slots")
+	if _generated_role_node_count(bar.get_node_or_null("GuardPosts"), "guard") != 3:
+		_fail("Reusable bar should preserve three authored guard posts while two guard role slots are assigned")
 	if bar.get_node_or_null("WaiterPoints/BarberPoint") != null:
 		_fail("Barber should be a normal idle bar occupant, not a generated service point")
 	var visit_point := bar.get_node_or_null("ActivityPoints/FacilityVisitPoint")
@@ -487,13 +499,13 @@ func _validate_bar_visit_capacity(bar: Node, assigned_waiter: HumanoidCharacter,
 
 
 func _validate_barber_seating(bar: Node) -> void:
-	var barber := bar.get_node_or_null("Staff/Barber") as HumanoidCharacter
+	var barber := _role_actor(bar, "barber")
 	if barber == null:
 		return
 	barber.stop_seat_assignment()
 	var seat = bar.call("_barber_seat_for_actor", barber)
 	if seat == null:
-		_fail("has_barber should find an existing bar chair for the barber")
+		_fail("Assigned barber should find an existing bar chair")
 		return
 	bar.call("_send_barber_to_seat", barber)
 	if barber.has_method("_process_seat_interaction"):
@@ -510,8 +522,8 @@ func _validate_barber_seating(bar: Node) -> void:
 
 
 func _validate_seated_talk_range(bar: Node) -> void:
-	var talker := bar.get_node_or_null("Staff/Guard") as HumanoidCharacter
-	var barber := bar.get_node_or_null("Staff/Barber") as HumanoidCharacter
+	var talker := _role_actor(bar, "guard")
+	var barber := _role_actor(bar, "barber")
 	var furniture := bar.get_node_or_null("Furniture") as Node3D
 	var bar_node := bar as Node3D
 	if talker == null or barber == null or furniture == null or bar_node == null:
@@ -568,7 +580,7 @@ func _validate_seated_talk_range(bar: Node) -> void:
 
 
 func _validate_barkeeper_stock(bar: Node) -> void:
-	var barkeeper := bar.get_node_or_null("Staff/Barkeeper")
+	var barkeeper := _role_actor(bar, "barkeeper")
 	if barkeeper == null:
 		return
 	var role := barkeeper.get_node_or_null("MerchantRole")
@@ -600,8 +612,9 @@ func _validate_waiter_order_job(bar: Node, worker: HumanoidCharacter, pacing_cus
 	if worker == null:
 		return
 	var service_area := bar.get_node_or_null("BarServiceArea")
-	var provider := bar.get_node_or_null("Staff/Barkeeper/JobProvider")
-	var customer := bar.get_node_or_null("Staff/Guard") as HumanoidCharacter
+	var barkeeper := _role_actor(bar, "barkeeper")
+	var provider := barkeeper.get_node_or_null("JobProvider") if barkeeper != null else null
+	var customer := _role_actor(bar, "guard")
 	var seats: Array = []
 	if service_area != null:
 		seats = service_area.call("_collect_seat_nodes")
@@ -646,7 +659,7 @@ func _validate_waiter_order_job(bar: Node, worker: HumanoidCharacter, pacing_cus
 	var first_seat = seats[0]
 	var second_seat = seats[1]
 	if pacing_customer == null:
-		pacing_customer = bar.get_node_or_null("Staff/Barber") as HumanoidCharacter
+		pacing_customer = _role_actor(bar, "barber")
 	if not _seat_actor_for_waiter_validation(customer, first_seat) or not _seat_actor_for_waiter_validation(pacing_customer, second_seat):
 		_fail("Waiter order pacing validation customers should be seated before service")
 	else:
@@ -693,7 +706,8 @@ func _validate_waiter_order_job(bar: Node, worker: HumanoidCharacter, pacing_cus
 
 func _validate_player_waiter_job_order_priority(bar: Node, customer: HumanoidCharacter) -> void:
 	var service_area := bar.get_node_or_null("BarServiceArea")
-	var provider := bar.get_node_or_null("Staff/Barkeeper/JobProvider")
+	var barkeeper := _role_actor(bar, "barkeeper")
+	var provider := barkeeper.get_node_or_null("JobProvider") if barkeeper != null else null
 	var player := _scene.get_node_or_null("PartyMembers/Mira") as HumanoidCharacter
 	var bridge := _get_gecs_world()
 	var seats: Array = []
@@ -1000,20 +1014,31 @@ func _validate_waiter_job_offer_text(provider: Node, job_index: int) -> void:
 func _validate_standalone_bar_stock() -> void:
 	var bar := SETTLEMENT_BAR_SCENE.instantiate()
 	bar.name = "StandaloneStockBar"
-	root.add_child(bar)
+	bar.set("role_slots", [_role_slot("proprietor", "barkeeper")])
+	var bars := _scene.get_node_or_null("Settlements/FarmerCrossing/Bars")
+	if bars == null:
+		_fail("Standalone stock validation needs the Farmer Crossing bar container")
+		bar.free()
+		return
+	bars.add_child(bar)
 	bar.set("stock_source", "standalone_fallback")
 	bar.set("standalone_stock_ratio", 0.25)
 	if bar.has_method("_repair_authoring_tree"):
 		bar.call("_repair_authoring_tree")
+	if not await _sync_and_realize_bar_assignments(bar):
+		bars.remove_child(bar)
+		bar.queue_free()
+		return
 	await _wait_frames(10)
-	var role := bar.get_node_or_null("Staff/Barkeeper/MerchantRole")
+	var barkeeper := _role_actor(bar, "barkeeper")
+	var role := barkeeper.get_node_or_null("MerchantRole") if barkeeper != null else null
 	if role == null:
 		_fail("Standalone bar should create barkeeper merchant stock")
 	else:
 		var bread_stock := _merchant_initial_stock_quantity(role, BREAD_ITEM)
 		if bread_stock != 3:
 			_fail("Standalone bar should use standalone_stock_ratio for bread stock; expected=3 actual=%d" % bread_stock)
-	root.remove_child(bar)
+	bars.remove_child(bar)
 	bar.queue_free()
 
 
@@ -1066,13 +1091,130 @@ func _validate_service_area(bar: Node, assigned_waiter: HumanoidCharacter, assig
 	var waiters: Array = service_area.call("get_waiter_characters")
 	if not waiters.has(assigned_waiter):
 		_fail("Assigned waiter should be registered with BarServiceArea")
-	if not waiters.has(bar.get_node_or_null("Staff/Waiter")):
-		_fail("Generated waiter should be registered with BarServiceArea")
+	for waiter in _role_actors(bar, "waiter"):
+		if not waiters.has(waiter):
+			_fail("Every waiter assignment should be registered with BarServiceArea")
 	var guards: Array = service_area.call("get_guard_characters")
 	if not guards.has(assigned_guard):
 		_fail("Assigned guard should be registered with BarServiceArea")
-	if not guards.has(bar.get_node_or_null("Staff/Guard")):
-		_fail("Generated guard should be registered with BarServiceArea")
+	for guard in _role_actors(bar, "guard"):
+		if not guards.has(guard):
+			_fail("Every guard assignment should be registered with BarServiceArea")
+
+
+func _bar_role_slots(named_waiter: HumanoidCharacter, named_guard: HumanoidCharacter) -> Array[FacilityRoleSlotDefinition]:
+	return [
+		_role_slot("proprietor", "barkeeper"),
+		_role_slot("server_named", "waiter", _character_definition(named_waiter)),
+		_role_slot("server_auto", "waiter"),
+		_role_slot("security_named", "guard", _character_definition(named_guard)),
+		_role_slot("security_auto", "guard"),
+		_role_slot("barber_auto", "barber"),
+	]
+
+
+func _role_slot(slot_id: String, role_id: String, named_character: CharacterRecordDefinition = null) -> FacilityRoleSlotDefinition:
+	var slot := FacilityRoleSlotDefinition.new()
+	slot.slot_id = slot_id
+	slot.role = ROLE_RESOURCES.get(role_id) as FacilityRoleDefinition
+	slot.named_character = named_character
+	return slot
+
+
+func _character_definition(actor: HumanoidCharacter) -> CharacterRecordDefinition:
+	var definition := CharacterRecordDefinition.new()
+	definition.actor_id = str(actor.get("stable_id"))
+	definition.member_name = str(actor.get("member_name"))
+	return definition
+
+
+func _sync_and_realize_bar_assignments(bar: Node) -> bool:
+	var settlement := get_first_node_in_group("settlement_controller")
+	var population := get_first_node_in_group("population_controller")
+	if settlement == null or population == null:
+		_fail("Reusable bar assignment validation needs settlement and population controllers")
+		return false
+	settlement.call("_sync_settlement_assignment_slots", "farmer_crossing")
+	var slots: Array = settlement.call("get_facility_assignment_slots", str(bar.call("get_facility_id")), "employment")
+	if slots.size() != (bar.get("role_slots") as Array).size():
+		_fail("Reusable bar should register every authored role slot; expected=%d actual=%d" % [(bar.get("role_slots") as Array).size(), slots.size()])
+		return false
+	for slot_value in slots:
+		var slot: Dictionary = slot_value
+		if not str(slot.get("occupant_actor_id", "")).is_empty():
+			continue
+		var actor_id := str(slot.get("preferred_actor_id", "")).strip_edges()
+		if actor_id.is_empty():
+			var filler: Dictionary = population.call("ensure_assignment_filler_record", "farmer_crossing", slot, {})
+			actor_id = str(filler.get("actor_id", ""))
+		if not actor_id.is_empty():
+			settlement.call("assign_actor_to_assignment_slot", "farmer_crossing", "employment", str(slot.get("slot_id", "")), actor_id)
+	settlement.call("bootstrap_assignments", "farmer_crossing")
+	slots = settlement.call("get_facility_assignment_slots", str(bar.call("get_facility_id")), "employment")
+	for slot_value in slots:
+		var slot: Dictionary = slot_value
+		if str(slot.get("occupant_actor_id", "")).is_empty():
+			_fail("Reusable bar role slot should have a durable population assignment: %s" % str(slot.get("slot_id", "")))
+			return false
+		if not bool(settlement.call("realize_assignment_slot", "farmer_crossing", "employment", str(slot.get("slot_id", "")))):
+			_fail("Reusable bar role slot should realize through SettlementController: %s" % str(slot.get("slot_id", "")))
+			return false
+	bar.call("_repair_authoring_tree")
+	return true
+
+
+func _assignment_slots(bar: Node, role_id := "") -> Array[Dictionary]:
+	var settlement := get_first_node_in_group("settlement_controller")
+	var result: Array[Dictionary] = []
+	if settlement == null:
+		return result
+	for slot_value in settlement.call("get_facility_assignment_slots", str(bar.call("get_facility_id")), "employment"):
+		var slot: Dictionary = slot_value
+		if role_id.is_empty() or str(slot.get("role_id", "")) == role_id:
+			result.append(slot)
+	result.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("role_index", 0)) < int(b.get("role_index", 0)))
+	return result
+
+
+func _assignment_slot_for_actor(bar: Node, actor_id: String) -> Dictionary:
+	for slot in _assignment_slots(bar):
+		if str(slot.get("occupant_actor_id", "")) == actor_id:
+			return slot
+	return {}
+
+
+func _role_actors(bar: Node, role_id: String) -> Array[HumanoidCharacter]:
+	var actors: Array[HumanoidCharacter] = []
+	var population := get_first_node_in_group("population_controller")
+	if population == null:
+		return actors
+	for slot in _assignment_slots(bar, role_id):
+		var actor_id := str(slot.get("occupant_actor_id", ""))
+		var record: Dictionary = population.call("get_actor_record", actor_id)
+		if record.is_empty():
+			_fail("Bar assignment occupant should have a durable population record: %s" % actor_id)
+			continue
+		var actor := population.call("get_live_actor", actor_id) as HumanoidCharacter
+		if actor == null:
+			_fail("Bar assignment occupant should have a live actor projection: %s" % actor_id)
+			continue
+		actors.append(actor)
+	return actors
+
+
+func _role_actor(bar: Node, role_id: String, role_index := 0) -> HumanoidCharacter:
+	var actors := _role_actors(bar, role_id)
+	return actors[role_index] if role_index >= 0 and role_index < actors.size() else null
+
+
+func _generated_role_node_count(root_node: Node, role_id: String) -> int:
+	var count := 0
+	if root_node == null:
+		return count
+	for child in root_node.get_children():
+		if bool(child.get_meta("facility_generated", false)) and str(child.get_meta("facility_role", "")) == role_id:
+			count += 1
+	return count
 
 
 func _indexed_name(base_name: String, index: int) -> String:
@@ -1096,14 +1238,19 @@ func _strip_role_suffix(display_name: String) -> String:
 	return result
 
 
-func _collect_settlement_townies(path: String) -> Array[HumanoidCharacter]:
+func _collect_unassigned_townies(settlement_id: String) -> Array[HumanoidCharacter]:
 	var townies: Array[HumanoidCharacter] = []
-	var root_node := _scene.get_node_or_null(path)
-	if root_node == null:
+	var population := get_first_node_in_group("population_controller")
+	if population == null:
 		return townies
-	for child in root_node.get_children():
-		if child is HumanoidCharacter:
-			townies.append(child as HumanoidCharacter)
+	for record_value in population.call("get_records_for_settlement", settlement_id):
+		var record: Dictionary = record_value
+		if str(record.get("role_id", "resident")) != "resident" or not (record.get("assignments", {}) as Dictionary).is_empty():
+			continue
+		var actor := population.call("get_live_actor", str(record.get("actor_id", ""))) as HumanoidCharacter
+		if actor != null:
+			townies.append(actor)
+	townies.sort_custom(func(a: HumanoidCharacter, b: HumanoidCharacter) -> bool: return str(a.get("stable_id")) < str(b.get("stable_id")))
 	return townies
 
 

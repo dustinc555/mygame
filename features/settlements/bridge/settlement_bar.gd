@@ -17,7 +17,6 @@ const META_SETTLEMENT_ROLE := "settlement_staff_role"
 const META_SETTLEMENT_ROLE_INDEX := "settlement_staff_role_index"
 const META_SETTLEMENT_SLOT_ID := "settlement_staff_slot_id"
 const STAFF_ROLE_OWNER_GROUP := "settlement_staff_role_owner"
-const DEFAULT_REPLACEMENT_DELAY_DAYS := 7.0
 const BAR_FUNCTION = preload("res://features/world_sim/resources/facility_functions/bar.tres")
 const BAR_SERVICE_AREA_SCRIPT = preload("res://features/settlements/bridge/venues/bar_service_area.gd")
 const MERCHANT_ROLE_SCRIPT = preload("res://features/settlements/bridge/merchant_role.gd")
@@ -41,44 +40,9 @@ const WAITER_POINTS_ROOT_PATH := NodePath("WaiterPoints")
 @export var guard_posts_root_path: NodePath = NodePath("GuardPosts")
 @export var furniture_root_path: NodePath = NodePath("Furniture")
 @export_group("Staff Roles")
-## Facilities start empty: every role is opt-in through these fields (the
-## Facility dock's staff buttons drive them). At runtime the settlement
-## population fills opted-in slots with real residents.
-@export var has_barkeeper := false:
-	set(value):
-		has_barkeeper = value
-		_repair_authoring_tree()
-@export var barkeeper_actor_path: NodePath:
-	set(value):
-		barkeeper_actor_path = value
-		_repair_authoring_tree()
 @export var barkeeper_name := "Barkeeper"
-@export_range(0, 12, 1) var waiter_count: int = 0:
-	set(value):
-		waiter_count = _clamp_count(value, 0, 12)
-		_repair_authoring_tree()
-@export var assigned_waiter_paths: Array[NodePath] = []:
-	set(value):
-		assigned_waiter_paths = value
-		_repair_authoring_tree()
 @export var waiter_name := "Waiter"
-@export_range(0, 12, 1) var guard_count: int = 0:
-	set(value):
-		guard_count = _clamp_count(value, 0, 12)
-		_repair_authoring_tree()
-@export var assigned_guard_paths: Array[NodePath] = []:
-	set(value):
-		assigned_guard_paths = value
-		_repair_authoring_tree()
 @export var guard_name := "Bar Guard"
-@export var has_barber := false:
-	set(value):
-		has_barber = value
-		_repair_authoring_tree()
-@export var barber_actor_path: NodePath:
-	set(value):
-		barber_actor_path = value
-		_repair_authoring_tree()
 @export var barber_name := "Barber"
 @export_group("Visitors")
 @export_range(0, 24, 1) var visitor_capacity := 4:
@@ -212,29 +176,18 @@ func can_actor_visit_facility(actor: Node) -> bool:
 	return _is_actor_under_settlement_resident_root(actor)
 
 
-func get_settlement_staff_slots() -> Array[Dictionary]:
-	var slots: Array[Dictionary] = []
-	if has_barkeeper or _get_assigned_actor(barkeeper_actor_path) != null:
-		_append_staff_slot(slots, "barkeeper", 0, _get_role_actor_for_slot("barkeeper", 0), "Barkeeper")
-	for index in range(waiter_count):
-		_append_staff_slot(slots, "waiter", index, _get_role_actor_for_slot("waiter", index), _indexed_display_name(waiter_name, index))
-	for index in range(guard_count):
-		_append_staff_slot(slots, "guard", index, _get_role_actor_for_slot("guard", index), _indexed_display_name(guard_name, index), "private_security")
-	if has_barber:
-		_append_staff_slot(slots, "barber", 0, _get_role_actor_for_slot("barber", 0), "Barber")
-	return slots
-
-
-func configure_settlement_staff_actor(actor: Node, slot_id: String, slot_record: Dictionary) -> void:
+func configure_settlement_assignment_actor(actor: Node, slot_id: String, slot_record: Dictionary) -> void:
+	super.configure_settlement_assignment_actor(actor, slot_id, slot_record)
 	var role := str(slot_record.get("role_id", "")).strip_edges().to_lower()
 	var role_index: int = max(0, int(slot_record.get("role_index", 0)))
-	if role.is_empty():
-		role = _role_from_slot_id(slot_id)
 	var staff_root := _ensure_root(staff_root_path)
 	if actor == null or staff_root == null:
 		return
+	if role not in ["barkeeper", "waiter", "guard", "barber"]:
+		return
 	actor.name = _available_child_name(staff_root, _role_node_base_name(role))
 	_prepare_claimed_resident_for_role(actor, role, role_index)
+	actor.set_meta(META_SETTLEMENT_SLOT_ID, slot_id)
 	if role == "barkeeper":
 		_ensure_merchant_role(actor)
 		_ensure_job_provider(actor)
@@ -242,24 +195,6 @@ func configure_settlement_staff_actor(actor: Node, slot_id: String, slot_record:
 		_send_barber_to_seat(actor)
 	_send_actor_to_service_point(actor, role)
 	_sync_bar_authoring()
-
-
-func _append_staff_slot(slots: Array[Dictionary], role: String, role_index: int, actor: Node, staff_display_name: String, authority_scope := "facility_staff") -> void:
-	var actor_dead := actor != null and int(actor.get("life_state")) == NpcRules.LifeState.DEAD
-	var slot := {
-		"slot_id": _staff_slot_id(role, role_index),
-		"role_id": role,
-		"role_index": role_index,
-		"character_type_id": get_staff_character_type_id(role, role_index),
-		"display_name": staff_display_name,
-		"population_cost": 1,
-		"replacement_delay_days": DEFAULT_REPLACEMENT_DELAY_DAYS,
-		"filled": actor != null and not actor_dead,
-		"authority_scope": authority_scope,
-	}
-	if actor_dead:
-		slot["dead_actor_key"] = _actor_key(actor)
-	slots.append(slot)
 
 
 func _apply_bar_defaults() -> void:
@@ -297,23 +232,23 @@ func _ensure_bar_service_area() -> Node:
 ## furnish pass) and discovered via FurnitureRules at runtime. A fresh bar
 ## spawns as the shell plus function points only.
 func _ensure_staff() -> void:
-	var barkeeper := _get_assigned_actor(barkeeper_actor_path)
+	var barkeeper := _get_barkeeper_actor()
 	if barkeeper != null:
 		_apply_assigned_role_defaults(barkeeper, "barkeeper", SHOPKEEPER_CONVERSATION)
 		_ensure_merchant_role(barkeeper)
 		_ensure_job_provider(barkeeper)
 	_sync_job_provider_jobs(barkeeper.get_node_or_null("JobProvider") if barkeeper != null else null)
-	var assigned_waiters := _get_assigned_actors(assigned_waiter_paths)
-	for waiter_index in range(assigned_waiters.size()):
-		_apply_assigned_role_defaults(assigned_waiters[waiter_index], _indexed_name("waiter", waiter_index), WAITER_CONVERSATION)
-	var assigned_guards := _get_assigned_actors(assigned_guard_paths)
-	for guard_index in range(assigned_guards.size()):
-		var guard := assigned_guards[guard_index]
+	var waiters := _get_role_actors("waiter")
+	for waiter_index in range(waiters.size()):
+		_apply_assigned_role_defaults(waiters[waiter_index], _indexed_name("waiter", waiter_index), WAITER_CONVERSATION)
+	var guards := _get_role_actors("guard")
+	for guard_index in range(guards.size()):
+		var guard := guards[guard_index]
 		_apply_assigned_role_defaults(guard, _indexed_name("guard", guard_index), null)
 		if _has_property(guard, "base_attack_damage"):
 			guard.set("base_attack_damage", 20.0)
-	var barber := _get_assigned_actor(barber_actor_path)
-	if has_barber and barber != null:
+	var barber := _get_barber_actor()
+	if barber != null:
 		_sync_staff_member(barber, "barber")
 		if _has_property(barber, "conversation_definition"):
 			barber.set("conversation_definition", BARBER_CONVERSATION)
@@ -426,8 +361,8 @@ func _sync_bar_authoring() -> void:
 		_sync_staff_member(waiters[waiter_index], _indexed_name("waiter", waiter_index))
 	for guard_index in range(guards.size()):
 		_sync_staff_member(guards[guard_index], _indexed_name("guard", guard_index))
-	if has_barber:
-		var barber := _get_barber_actor()
+	var barber := _get_barber_actor()
+	if barber != null:
 		_sync_staff_member(barber, "barber")
 		_send_barber_to_seat(barber)
 	var job_provider := barkeeper.get_node_or_null("JobProvider") if barkeeper != null else null
@@ -604,7 +539,7 @@ func _sync_job_provider_jobs(provider: Node) -> void:
 			"guard_post":
 				job.set("slot_count", max(_effective_guard_job_slot_count(), 1))
 			"server_shift":
-				job.set("slot_count", max(waiter_count, 1))
+				job.set("slot_count", max(count_role_slots("waiter"), 1))
 
 
 func _ensure_bar_job_definitions(provider: Node) -> void:
@@ -809,15 +744,15 @@ func _point_local_position(point_transform: Transform3D) -> Vector3:
 
 
 func _effective_waiter_point_count() -> int:
-	return max(waiter_count, waiter_point_count)
+	return max(count_role_slots("waiter"), waiter_point_count)
 
 
 func _effective_guard_post_count() -> int:
-	return max(guard_count, guard_post_count)
+	return max(count_role_slots("guard"), guard_post_count)
 
 
 func _effective_guard_job_slot_count() -> int:
-	return max(guard_count, guard_job_slot_count)
+	return max(count_role_slots("guard"), guard_job_slot_count)
 
 
 func _clamp_count(value, minimum: int, maximum: int) -> int:
@@ -1013,7 +948,9 @@ func _sync_staff_member(staff: Node, role: String) -> void:
 	if not role_base.is_empty():
 		staff.set_meta(META_SETTLEMENT_ROLE, role_base)
 		staff.set_meta(META_SETTLEMENT_ROLE_INDEX, role_index)
-		staff.set_meta(META_SETTLEMENT_SLOT_ID, _staff_slot_id(role_base, role_index))
+		var authored_slot_id := get_role_slot_id(role_base, role_index)
+		if not authored_slot_id.is_empty():
+			staff.set_meta(META_SETTLEMENT_SLOT_ID, authored_slot_id)
 		staff.set_meta("settlement_actor_category", "staff")
 	var owner_faction := _get_effective_owner_faction_id()
 	if sync_staff_from_owner and not owner_faction.is_empty() and _has_property(staff, "faction_name"):
@@ -1055,10 +992,6 @@ func _role_index_from_role(role: String, role_base: String) -> int:
 	return max(0, int(suffix) - 1) if suffix.is_valid_int() else 0
 
 
-func _staff_slot_id(role: String, role_index: int) -> String:
-	return "%s.%s" % [get_facility_id(), _indexed_name(role, role_index)]
-
-
 func _apply_security_groups(staff: Node, role_base: String) -> void:
 	if staff == null or Engine.is_editor_hint():
 		return
@@ -1079,31 +1012,20 @@ func _is_actor_alive(actor: Node) -> bool:
 
 
 func _get_barkeeper_actor() -> Node:
-	var assigned := _get_assigned_actor(barkeeper_actor_path)
-	return assigned if assigned != null else get_node_or_null("Staff/Barkeeper")
+	return _get_role_actor_for_slot("barkeeper", 0)
 
 
 func _get_barber_actor() -> Node:
-	var assigned := _get_assigned_actor(barber_actor_path)
-	return assigned if assigned != null else get_node_or_null("Staff/Barber")
+	return _get_role_actor_for_slot("barber", 0)
 
 
 func _get_role_actor_for_slot(role: String, role_index: int) -> Node:
-	var slot_id := _staff_slot_id(role, role_index)
+	var slot_id := get_role_slot_id(role, role_index)
 	var by_slot := _find_role_actor_by_slot_id(slot_id)
 	if by_slot != null:
 		return by_slot
-	match role:
-		"barkeeper":
-			return _get_barkeeper_actor()
-		"barber":
-			return _get_barber_actor()
-		"waiter":
-			return _get_role_actor_by_index("waiter", role_index, assigned_waiter_paths, "Waiter")
-		"guard":
-			return _get_role_actor_by_index("guard", role_index, assigned_guard_paths, "Guard")
-		_:
-			return null
+	var actors := _get_role_actors(role)
+	return actors[role_index] if role_index < actors.size() else null
 
 
 func _find_role_actor_by_slot_id(slot_id: String) -> Node:
@@ -1113,27 +1035,8 @@ func _find_role_actor_by_slot_id(slot_id: String) -> Node:
 	return null
 
 
-func _get_role_actor_by_index(_role: String, role_index: int, assigned_paths: Array[NodePath], generated_base_name: String) -> Node:
-	if role_index < assigned_paths.size():
-		var assigned := _get_assigned_actor(assigned_paths[role_index])
-		if assigned != null:
-			return assigned
-	var generated_index := role_index - assigned_paths.size()
-	return get_node_or_null("%s/%s" % [str(staff_root_path), _indexed_name(generated_base_name, generated_index)])
-
-
 func _all_potential_role_actors() -> Array[Node]:
 	var actors: Array[Node] = []
-	for path in [barkeeper_actor_path, barber_actor_path]:
-		var actor := _get_assigned_actor(path)
-		if actor != null and not actors.has(actor):
-			actors.append(actor)
-	for actor in _get_assigned_actors_raw(assigned_waiter_paths):
-		if not actors.has(actor):
-			actors.append(actor)
-	for actor in _get_assigned_actors_raw(assigned_guard_paths):
-		if not actors.has(actor):
-			actors.append(actor)
 	var root := get_node_or_null(staff_root_path)
 	if root != null:
 		for child in root.get_children():
@@ -1210,11 +1113,6 @@ func _available_child_name(root: Node, preferred_name: String) -> String:
 	return _next_generated_child_name(root, preferred_name)
 
 
-func _role_from_slot_id(slot_id: String) -> String:
-	var suffix := slot_id.get_slice(".", slot_id.get_slice_count(".") - 1)
-	return _role_base(suffix)
-
-
 func _role_node_base_name(role: String) -> String:
 	match role:
 		"barkeeper":
@@ -1283,29 +1181,14 @@ func _local_position_for_role(role: String, role_index: int) -> Vector3:
 			return Vector3.ZERO
 
 
-func _actor_key(actor: Node) -> String:
-	if actor == null:
-		return ""
-	if _has_property(actor, "stable_id"):
-		var stable_id := str(actor.get("stable_id")).strip_edges()
-		if not stable_id.is_empty():
-			return stable_id
-	return str(actor.get_path()) if actor.is_inside_tree() else str(actor.get_instance_id())
-
-
 func _get_role_actors(role: String) -> Array[Node]:
 	var actors: Array[Node] = []
-	match role:
-		"waiter":
-			actors.append_array(_get_assigned_actors(assigned_waiter_paths))
-			_collect_generated_role_actors(actors, "Waiter")
-		"guard":
-			actors.append_array(_get_assigned_actors(assigned_guard_paths))
-			_collect_generated_role_actors(actors, "Guard")
-		"barber":
-			var barber := _get_barber_actor()
-			if barber != null:
-				actors.append(barber)
+	var root := get_node_or_null(staff_root_path)
+	if root == null:
+		return actors
+	for child in root.get_children():
+		if str(child.get_meta(META_SETTLEMENT_ROLE, "")) == role and _is_actor_alive(child):
+			actors.append(child)
 	return actors
 
 
@@ -1351,39 +1234,6 @@ func _is_descendant_of(node: Node, ancestor: Node) -> bool:
 			return true
 		current = current.get_parent()
 	return false
-
-
-func _collect_generated_role_actors(actors: Array[Node], base_name: String) -> void:
-	var root := get_node_or_null(staff_root_path)
-	if root == null:
-		return
-	for child in root.get_children():
-		if _generated_child_index(str(child.name), base_name) >= 0 and child is HumanoidCharacter and _is_actor_alive(child) and not actors.has(child):
-			actors.append(child)
-
-
-func _get_assigned_actor(actor_path: NodePath) -> Node:
-	if actor_path.is_empty():
-		return null
-	return get_node_or_null(actor_path)
-
-
-func _get_assigned_actors(actor_paths: Array[NodePath]) -> Array[Node]:
-	var actors: Array[Node] = []
-	for actor_path in actor_paths:
-		var actor := _get_assigned_actor(actor_path)
-		if actor != null and _is_actor_alive(actor) and not actors.has(actor):
-			actors.append(actor)
-	return actors
-
-
-func _get_assigned_actors_raw(actor_paths: Array[NodePath]) -> Array[Node]:
-	var actors: Array[Node] = []
-	for actor_path in actor_paths:
-		var actor := _get_assigned_actor(actor_path)
-		if actor != null and not actors.has(actor):
-			actors.append(actor)
-	return actors
 
 
 func _paths_from(origin: Node, actors: Array[Node]) -> Array[NodePath]:

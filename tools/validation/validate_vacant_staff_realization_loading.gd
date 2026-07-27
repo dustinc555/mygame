@@ -13,17 +13,17 @@ class FakeSettlementController:
 	var slots: Array[Dictionary] = []
 	var realization_attempts := 0
 
-	func get_staff_slots_for_realization(_settlement_id: String) -> Array[Dictionary]:
+	func get_assignment_slots_for_realization(_settlement_id: String) -> Array[Dictionary]:
 		return slots
 
-	func is_staff_slot_realized(_settlement_id: String, _slot_id: String) -> bool:
+	func is_assignment_slot_realized(_settlement_id: String, _assignment_domain: String, _slot_id: String) -> bool:
 		return false
 
-	func realize_staff_slot(_settlement_id: String, _slot_id: String) -> bool:
+	func realize_assignment_slot(_settlement_id: String, _assignment_domain: String, _slot_id: String) -> bool:
 		realization_attempts += 1
 		return false
 
-	func derealize_staff_slot(_settlement_id: String, _slot_id: String) -> void:
+	func derealize_assignment_slot(_settlement_id: String, _assignment_domain: String, _slot_id: String) -> void:
 		pass
 
 
@@ -55,8 +55,9 @@ func _run() -> void:
 		settlement_controller.slots.append({
 			"slot_id": "vacant_%d" % index,
 			"settlement_id": "validation_settlement",
+			"assignment_domain": "employment",
 			"filled": false,
-			"worker_actor_id": "",
+			"occupant_actor_id": "",
 			"world_position": Vector3.ZERO,
 		})
 	var loading := FakeLoadingOverlay.new()
@@ -73,7 +74,7 @@ func _run() -> void:
 	var stayed_active := true
 	for _cycle in range(8):
 		realization.set("_mandatory_work_pending", 0)
-		realization.call("_resync_settlement_staff", anchors)
+		realization.call("_resync_settlement_assignments", anchors)
 		realization.call("_update_loading_request")
 		stayed_active = stayed_active and loading.requested
 	if stayed_active:
@@ -81,16 +82,32 @@ func _run() -> void:
 		quit(1)
 		return
 	settlement_controller.slots = [{
+		"slot_id": "occupied_home",
+		"settlement_id": "validation_settlement",
+		"assignment_domain": "residence",
+		"filled": true,
+		"occupant_actor_id": "validation.resident",
+		"world_position": Vector3.ZERO,
+	}]
+	settlement_controller.realization_attempts = 0
+	realization.set("_mandatory_work_pending", 0)
+	realization.call("_resync_settlement_assignments", anchors)
+	if settlement_controller.realization_attempts != 1:
+		push_error("Occupied residence assignments must use the generic assignment realization path")
+		quit(1)
+		return
+	settlement_controller.slots = [{
 		"slot_id": "failed_occupied",
 		"settlement_id": "validation_settlement",
+		"assignment_domain": "employment",
 		"filled": true,
-		"worker_actor_id": "validation.worker",
+		"occupant_actor_id": "validation.worker",
 		"world_position": Vector3.ZERO,
 	}]
 	stayed_active = true
 	for _cycle in range(8):
 		realization.set("_mandatory_work_pending", 0)
-		realization.call("_resync_settlement_staff", anchors)
+		realization.call("_resync_settlement_assignments", anchors)
 		realization.call("_update_loading_request")
 		stayed_active = stayed_active and loading.requested
 	if not stayed_active:
@@ -98,9 +115,9 @@ func _run() -> void:
 		quit(1)
 		return
 	var attempts_before_cap_check := settlement_controller.realization_attempts
-	realization.set("_failed_staff_realization_attempts", {"staff:validation_settlement:failed_occupied": 20})
+	realization.set("_failed_assignment_realization_attempts", {"assignment:validation_settlement:employment:failed_occupied": 20})
 	realization.set("_mandatory_work_pending", 0)
-	realization.call("_resync_settlement_staff", anchors)
+	realization.call("_resync_settlement_assignments", anchors)
 	realization.call("_update_loading_request")
 	if settlement_controller.realization_attempts != attempts_before_cap_check or loading.requested:
 		push_error("Exhausted visible staff realization must stop retrying and release loading")

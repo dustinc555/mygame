@@ -10,8 +10,9 @@ extends PanelContainer
 ## function behavior binds to furniture at runtime.
 
 const FUNCTIONS_DIR := "res://features/world_sim/resources/facility_functions"
-const APPEARANCE_PROFILES_DIR := "res://features/world_sim/resources/population_appearance_profiles"
-const CHARACTER_TYPE_SETS_DIR := "res://features/world_sim/resources/character_type_sets"
+const ROLES_DIR := "res://features/settlements/resources/roles"
+const CHARACTERS_DIR := "res://features/actors/resources/characters"
+const ROLE_SLOT_SCRIPT := "res://features/settlements/resources/facility_role_slot_definition.gd"
 const FACTIONS_DIR := "res://features/factions/resources/factions"
 const ICONS_DIR := "res://addons/world_authoring/icons"
 ## facility_type / function facility_type -> icon file.
@@ -50,7 +51,7 @@ var _furnish_button: Button
 var _reroll_button: Button
 var _place_furniture_button: Button
 var _clear_furniture_check: CheckBox
-var _staffing_box: VBoxContainer
+var _people_box: VBoxContainer
 var _icon_cache := {}
 
 
@@ -88,13 +89,14 @@ func setup(tools: RefCounted) -> void:
 	shell_scroll.add_child(_shell_list)
 	shell_column.add_child(shell_scroll)
 	_content.add_child(shell_column)
-	var staffing_scroll := ScrollContainer.new()
-	staffing_scroll.custom_minimum_size = Vector2(300, 0)
-	staffing_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_staffing_box = VBoxContainer.new()
-	_staffing_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	staffing_scroll.add_child(_staffing_box)
-	_content.add_child(staffing_scroll)
+	var people_scroll := ScrollContainer.new()
+	people_scroll.custom_minimum_size = Vector2(360, 0)
+	people_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_people_box = VBoxContainer.new()
+	_people_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_people_box.add_theme_constant_override("separation", 5)
+	people_scroll.add_child(_people_box)
+	_content.add_child(people_scroll)
 	_content.add_child(_build_furniture_column())
 
 
@@ -195,7 +197,7 @@ func _rebuild() -> void:
 	_updating = true
 	_rebuild_identity()
 	_rebuild_shell_list()
-	_rebuild_staffing()
+	_rebuild_people()
 	_rebuild_furniture_browser()
 	_rebuild_furniture_summary()
 	_updating = false
@@ -205,7 +207,8 @@ func _rebuild_identity() -> void:
 	for child in _identity_box.get_children():
 		_identity_box.remove_child(child)
 		child.queue_free()
-	_identity_box.add_child(_section_title("%s  —  composed facility" % _facility.name))
+	var facility_label := str(_facility.get("display_name")).strip_edges() if _facility.get("display_name") != null else ""
+	_identity_box.add_child(_section_title("%s  —  composed facility" % (facility_label if not facility_label.is_empty() else _facility.name)))
 	if _facility.get("display_name") != null:
 		_identity_box.add_child(_facility_name_field(str(_facility.get("display_name"))))
 	var shell_path: String = _tools.current_shell_path(_facility)
@@ -474,204 +477,307 @@ func _rebuild_shell_list() -> void:
 		_shell_list.add_child(button)
 
 
-## Guard counts, guard-post placement, and the facility's staff slots (who is
-## assigned). Controls appear only when the facility actually has the
-## property — a plain housing shell shows none.
-func _rebuild_staffing() -> void:
-	for child in _staffing_box.get_children():
-		_staffing_box.remove_child(child)
+func _rebuild_people() -> void:
+	for child in _people_box.get_children():
+		_people_box.remove_child(child)
 		child.queue_free()
-	_staffing_box.add_child(_section_title("Staffing"))
-	var has_any := false
-	# Role toggles first (facilities start empty; each role is opt-in), then
-	# counted roles. Only properties the facility actually has show up.
-	for property_name in ["has_barkeeper", "has_barber"]:
-		var toggle_value = _facility.get(property_name)
-		if toggle_value == null:
+	_people_box.add_child(_section_title("People"))
+	if not _has_property(_facility, "role_slots"):
+		_people_box.add_child(_inline_message("Facility does not expose role_slots.", true))
+		return
+	var roles := _role_catalog()
+	var characters := _character_catalog()
+	var slots: Array = _facility.get("role_slots")
+	var headings := HBoxContainer.new()
+	for heading in [{"text": "Role", "width": 130}, {"text": "Character", "width": 150}, {"text": "", "width": 28}, {"text": "Status", "width": 36}]:
+		var label := Label.new()
+		label.text = heading.text
+		label.custom_minimum_size = Vector2(heading.width, 0)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL if heading.text in ["Role", "Character"] else Control.SIZE_SHRINK_BEGIN
+		label.add_theme_font_size_override("font_size", 11)
+		label.modulate = Color(0.68, 0.72, 0.78)
+		headings.add_child(label)
+	_people_box.add_child(headings)
+	var slot_id_counts := {}
+	var local_assignments := {}
+	for slot in slots:
+		if slot == null:
 			continue
-		has_any = true
-		_staffing_box.add_child(_staff_toggle_field(property_name, bool(toggle_value)))
-	for property_name in ["waiter_count", "guard_count", "guard_post_count", "visitor_capacity"]:
-		var value = _facility.get(property_name)
-		if value == null:
-			continue
-		has_any = true
-		_staffing_box.add_child(_staff_count_field(property_name, int(value)))
-	if _facility.get("population_appearance_profile") != null or "population_appearance_profile" in _facility:
-		has_any = true
-		_staffing_box.add_child(_appearance_profile_picker())
-	if _facility.get("character_type_set") != null or "character_type_set" in _facility:
-		has_any = true
-		_staffing_box.add_child(_character_type_set_picker())
-	if has_any:
-		var place_post := Button.new()
-		place_post.text = "Place Guard Post"
-		place_post.tooltip_text = "Click terrain to add an authored guard post to this facility (extra to the generated ones)."
-		place_post.pressed.connect(func(): _tools.begin_guard_post_placement(_facility))
-		_staffing_box.add_child(place_post)
-	if _facility.has_method("get_settlement_staff_slots"):
-		_staffing_box.add_child(_section_title("Staff Slots"))
-		var slots: Array = _facility.call("get_settlement_staff_slots")
-		if slots.is_empty():
-			var empty := Label.new()
-			empty.text = "No staff slots (add guards or assign a function)."
-			empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			_staffing_box.add_child(empty)
-		for slot_value in slots:
-			var slot: Dictionary = slot_value
-			var row := Label.new()
-			var filled := bool(slot.get("filled", false))
-			row.text = "%s %s — %s" % ["●" if filled else "○", str(slot.get("display_name", slot.get("slot_id", "slot"))), "assigned" if filled else "vacant"]
-			_staffing_box.add_child(row)
-			_staffing_box.add_child(_character_type_field(slot))
-	if not has_any and not _facility.has_method("get_settlement_staff_slots"):
-		var none := Label.new()
-		none.text = "This facility has no staffing."
-		_staffing_box.add_child(none)
+		var slot_id := str(slot.get("slot_id")).strip_edges()
+		slot_id_counts[slot_id] = int(slot_id_counts.get(slot_id, 0)) + 1
+		var key := _assignment_key(slot.get("named_character") as Resource, slot.get("role") as Resource)
+		if not key.is_empty():
+			local_assignments[key] = int(local_assignments.get(key, 0)) + 1
+	var scene_assignments := _scene_named_assignment_counts()
+	if slots.is_empty():
+		_people_box.add_child(_inline_message("No people assigned.", false))
+	for index in range(slots.size()):
+		_people_box.add_child(_person_row(index, slots[index] as Resource, roles, characters, slot_id_counts, local_assignments, scene_assignments))
+	var add_button := Button.new()
+	add_button.text = "+ Add Person"
+	add_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	add_button.disabled = roles.is_empty()
+	add_button.tooltip_text = "Add one stable facility role slot." if not roles.is_empty() else "No registered role resources found."
+	add_button.pressed.connect(_add_person)
+	_people_box.add_child(add_button)
 
 
-## Exact character realizer used by gameplay. Inheritance is facility -> town
-## -> faction; missing or invalid realizers reject spawning instead of falling
-## back to a generic humanoid.
-func _appearance_profile_picker() -> Control:
-	var paths: Array[String] = _scan_resource_paths(APPEARANCE_PROFILES_DIR)
+func _person_row(index: int, slot: Resource, roles: Array[Resource], characters: Array[Resource], slot_id_counts: Dictionary, local_assignments: Dictionary, scene_assignments: Dictionary) -> Control:
 	var column := VBoxContainer.new()
-	var option := OptionButton.new()
-	option.add_item("Default (inherit town/faction)")
-	var current: Resource = _facility.get("population_appearance_profile") as Resource
-	var selected := 0
-	for index in range(paths.size()):
-		option.add_item(paths[index].get_file().get_basename().capitalize())
-		if current != null and current.resource_path == paths[index]:
-			selected = index + 1
-	option.selected = selected
-	option.item_selected.connect(func(index: int):
-		if _updating:
-			return
-		var value: Resource = null if index == 0 else load(paths[index - 1])
-		_tools.set_facility_property(_facility, "population_appearance_profile", value))
+	column.add_theme_constant_override("separation", 2)
+	if slot == null:
+		column.add_child(_inline_message("Row %d: missing slot resource." % (index + 1), true))
+		return column
 	var row := HBoxContainer.new()
-	var label := Label.new()
-	label.text = "Character Realizer"
-	label.tooltip_text = "Runtime character class and appearance. This exact value, or its town/faction inheritance, is used in gameplay."
-	label.custom_minimum_size = Vector2(120, 0)
-	row.add_child(label)
-	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(option)
+	row.add_theme_constant_override("separation", 5)
+	var role_option := OptionButton.new()
+	var current_role := slot.get("role") as Resource
+	var role_selected := -1
+	for role in roles:
+		role_option.add_item(_role_name(role))
+		role_option.set_item_metadata(role_option.item_count - 1, role)
+		if _same_resource(role, current_role):
+			role_selected = role_option.item_count - 1
+	if role_selected < 0:
+		role_option.add_item("Missing: %s" % _resource_label(current_role, "role"))
+		role_option.set_item_metadata(role_option.item_count - 1, current_role)
+		role_selected = role_option.item_count - 1
+	role_option.selected = role_selected
+	role_option.custom_minimum_size = Vector2(130, 0)
+	role_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	role_option.tooltip_text = "Registered facility role"
+	role_option.item_selected.connect(func(selected: int): _set_person_value(index, "role", role_option.get_item_metadata(selected)))
+	row.add_child(role_option)
+	var character_option := OptionButton.new()
+	var current_character := slot.get("named_character") as Resource
+	var character_selected := 0
+	var character_registered := current_character == null
+	character_option.add_item("Auto")
+	character_option.set_item_metadata(0, null)
+	for character in characters:
+		character_option.add_item(_character_name(character))
+		character_option.set_item_metadata(character_option.item_count - 1, character)
+		if _same_resource(character, current_character):
+			character_selected = character_option.item_count - 1
+			character_registered = true
+	if not character_registered:
+		character_option.add_item("Missing: %s" % _resource_label(current_character, "character"))
+		character_option.set_item_metadata(character_option.item_count - 1, current_character)
+		character_selected = character_option.item_count - 1
+	character_option.selected = character_selected
+	character_option.custom_minimum_size = Vector2(150, 0)
+	character_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	character_option.tooltip_text = "Auto realizes a suitable person; named entries bind that authored actor."
+	character_option.item_selected.connect(func(selected: int): _set_person_value(index, "named_character", character_option.get_item_metadata(selected)))
+	row.add_child(character_option)
+	var remove := Button.new()
+	remove.text = "x"
+	remove.custom_minimum_size = Vector2(28, 0)
+	remove.tooltip_text = "Remove this person"
+	remove.pressed.connect(func(): _remove_person(index))
+	row.add_child(remove)
+	var issues := _person_issues(slot, current_role, current_character, roles, characters, slot_id_counts, local_assignments, scene_assignments)
+	var status := Label.new()
+	status.custom_minimum_size = Vector2(36, 0)
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status.text = "ERR" if not issues.error.is_empty() else ("WARN" if not issues.warning.is_empty() else "OK")
+	status.modulate = Color(1.0, 0.38, 0.32) if not issues.error.is_empty() else (Color(1.0, 0.72, 0.28) if not issues.warning.is_empty() else Color(0.55, 0.86, 0.62))
+	status.tooltip_text = "\n".join(issues.error + issues.warning)
+	row.add_child(status)
 	column.add_child(row)
-	var effective := _facility.call("get_effective_character_realizer") as Resource if _facility.has_method("get_effective_character_realizer") else current
-	var effective_label := Label.new()
-	var source: String = str(_facility.call("get_effective_character_realizer_source")) if _facility.has_method("get_effective_character_realizer_source") else ("facility" if current != null else "inherited")
-	effective_label.text = "Effective: %s (%s)" % [effective.resource_path.get_file().get_basename().capitalize() if effective != null else "INVALID", source]
-	effective_label.modulate = Color(0.72, 0.9, 0.72) if effective != null and effective.get("actor_script") != null and not str(effective.get("profile_id")).strip_edges().is_empty() and effective.has_method("create_appearance") else Color(1.0, 0.42, 0.35)
-	column.add_child(effective_label)
+	for message in issues.error:
+		column.add_child(_inline_message(message, true))
+	for message in issues.warning:
+		column.add_child(_inline_message(message, false))
 	return column
 
 
-func _character_type_set_picker() -> Control:
-	var paths: Array[String] = _scan_resource_paths(CHARACTER_TYPE_SETS_DIR)
-	var column := VBoxContainer.new()
-	var option := OptionButton.new()
-	option.add_item("Default (inherit town/faction)")
-	var current: Resource = _facility.get("character_type_set") as Resource
-	var selected := 0
-	for index in range(paths.size()):
-		option.add_item(paths[index].get_file().get_basename().capitalize())
-		if current != null and current.resource_path == paths[index]:
-			selected = index + 1
-	option.selected = selected
-	option.item_selected.connect(func(index: int):
-		if _updating:
-			return
-		var value: Resource = null if index == 0 else load(paths[index - 1])
-		_tools.set_facility_property(_facility, "character_type_set", value))
-	var row := HBoxContainer.new()
-	var label := Label.new()
-	label.text = "Character Types"
-	label.custom_minimum_size = Vector2(120, 0)
-	row.add_child(label)
-	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(option)
-	column.add_child(row)
-	var effective := _facility.call("get_effective_character_type_set") as Resource if _facility.has_method("get_effective_character_type_set") else current
-	var effective_label := Label.new()
-	var source: String = str(_facility.call("get_effective_character_type_set_source")) if _facility.has_method("get_effective_character_type_set_source") else ("facility" if current != null else "inherited")
-	effective_label.text = "Effective: %s (%s)" % [effective.resource_path.get_file().get_basename().capitalize() if effective != null else "INVALID", source]
-	effective_label.modulate = Color(0.72, 0.9, 0.72) if effective != null and effective.has_method("resolve_character_type") and effective.call("resolve_character_type", "", "resident") != null else Color(1.0, 0.42, 0.35)
-	column.add_child(effective_label)
-	return column
+func _person_issues(slot: Resource, role: Resource, character: Resource, roles: Array[Resource], characters: Array[Resource], slot_id_counts: Dictionary, local_assignments: Dictionary, scene_assignments: Dictionary) -> Dictionary:
+	var errors: Array[String] = []
+	var warnings: Array[String] = []
+	var slot_id := str(slot.get("slot_id")).strip_edges()
+	if slot_id.is_empty():
+		errors.append("Missing slot ID.")
+	elif int(slot_id_counts.get(slot_id, 0)) > 1:
+		errors.append("Duplicate slot ID: %s." % slot_id)
+	if role == null:
+		errors.append("Missing role.")
+	elif not _catalog_has_resource(roles, role):
+		errors.append("Role is not registered: %s." % _resource_label(role, "role"))
+	if character != null and not _catalog_has_resource(characters, character):
+		errors.append("Missing character resource: %s." % _resource_label(character, "character"))
+	elif character != null and _character_id(character).is_empty():
+		errors.append("Character resource has no actor ID.")
+	var key := _assignment_key(character, role)
+	if not key.is_empty() and int(local_assignments.get(key, 0)) > 1:
+		errors.append("Named actor %s has incompatible rows here." % _character_id(character))
+	elif not key.is_empty() and int(scene_assignments.get(key, 0)) > 1:
+		errors.append("Named actor %s has an incompatible assignment elsewhere." % _character_id(character))
+	if character == null and role != null and not _role_supports_auto(role):
+		warnings.append("Role has no Auto realizer/type.")
+	return {"error": errors, "warning": warnings}
 
 
-func _character_type_field(slot: Dictionary) -> Control:
-	var row := HBoxContainer.new()
-	var label := Label.new()
-	label.text = "  Character Type"
-	label.custom_minimum_size = Vector2(120, 0)
-	row.add_child(label)
-	var option := OptionButton.new()
+func _add_person() -> void:
+	var roles := _role_catalog()
+	var slot_script := load(ROLE_SLOT_SCRIPT) as Script
+	if roles.is_empty() or slot_script == null:
+		return
+	var slots = _facility.get("role_slots").duplicate(true)
+	var slot := slot_script.new() as Resource
+	slot.set("slot_id", _new_slot_id(slots))
+	slot.set("role", roles[0])
+	slots.append(slot)
+	_tools.set_facility_role_slots(_facility, slots, "Add Facility Person")
+
+
+func _remove_person(index: int) -> void:
+	var slots = _facility.get("role_slots").duplicate(true)
+	if index >= 0 and index < slots.size():
+		slots.remove_at(index)
+		_tools.set_facility_role_slots(_facility, slots, "Remove Facility Person")
+
+
+func _set_person_value(index: int, property_name: String, value: Variant) -> void:
+	if _updating:
+		return
+	var slots = _facility.get("role_slots").duplicate(true)
+	if index < 0 or index >= slots.size() or slots[index] == null:
+		return
+	var slot := (slots[index] as Resource).duplicate(true)
+	slot.set(property_name, value)
+	slots[index] = slot
+	_tools.set_facility_role_slots(_facility, slots, "Set Facility Person %s" % property_name.capitalize())
+
+
+func _new_slot_id(slots: Array) -> String:
+	var existing := {}
+	for slot in slots:
+		if slot != null:
+			existing[str(slot.get("slot_id"))] = true
+	var base := "person_%x" % Time.get_ticks_usec()
+	var candidate := base
+	var suffix := 2
+	while existing.has(candidate):
+		candidate = "%s_%d" % [base, suffix]
+		suffix += 1
+	return candidate
+
+
+func _role_catalog() -> Array[Resource]:
+	var result: Array[Resource] = []
+	for path in _scan_resource_paths_recursive(ROLES_DIR):
+		var role := load(path) as Resource
+		if role != null and _has_property(role, "role_id"):
+			result.append(role)
+	result.sort_custom(func(a: Resource, b: Resource): return _role_name(a).naturalnocasecmp_to(_role_name(b)) < 0)
+	return result
+
+
+func _character_catalog() -> Array[Resource]:
+	var result: Array[Resource] = []
+	for path in _scan_resource_paths_recursive(CHARACTERS_DIR):
+		var character := load(path) as Resource
+		if character != null and _has_property(character, "actor_id"):
+			result.append(character)
+	result.sort_custom(func(a: Resource, b: Resource): return _character_name(a).naturalnocasecmp_to(_character_name(b)) < 0)
+	return result
+
+
+func _role_name(role: Resource) -> String:
+	var role_id := _resource_string(role, ["role_id"])
+	var display := _resource_string(role, ["display_name"])
+	return display if display == role_id or role_id.is_empty() else "%s (%s)" % [display, role_id]
+
+
+func _character_name(character: Resource) -> String:
+	var actor_id := _character_id(character)
+	var display := _resource_string(character, ["member_name"])
+	return actor_id if display.is_empty() else "%s (%s)" % [display, actor_id]
+
+
+func _character_id(character: Resource) -> String:
+	return _resource_string(character, ["actor_id"])
+
+
+func _resource_string(resource: Resource, names: Array[String]) -> String:
+	if resource != null:
+		for property_name in names:
+			if _has_property(resource, property_name):
+				var value := str(resource.get(property_name)).strip_edges()
+				if not value.is_empty():
+					return value
+	return ""
+
+
+func _role_supports_auto(role: Resource) -> bool:
+	var realizer := _facility.call("get_effective_character_realizer") as Resource if _facility.has_method("get_effective_character_realizer") else null
 	var type_set := _facility.call("get_effective_character_type_set") as Resource if _facility.has_method("get_effective_character_type_set") else null
-	var role_id := str(slot.get("role_id", "")).strip_edges().to_lower()
-	var role_index := int(slot.get("role_index", 0))
-	var requested := str(slot.get("character_type_id", "")).strip_edges().to_lower()
-	var default_type := type_set.call("resolve_character_type", "", role_id) as Resource if type_set != null and type_set.has_method("resolve_character_type") else null
-	option.add_item("Default: %s" % (str(default_type.get("display_name")) if default_type != null else "INVALID"))
-	var available: Array = type_set.call("get_character_types") if type_set != null and type_set.has_method("get_character_types") else []
-	var selected := 0
-	for character_type in available:
-		var type_id := str(character_type.get("type_id")).strip_edges().to_lower()
-		option.add_item(str(character_type.get("display_name")))
-		option.set_item_metadata(option.item_count - 1, type_id)
-		if requested == type_id:
-			selected = option.item_count - 1
-	option.selected = selected
-	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	option.item_selected.connect(func(index: int):
-		if _updating:
-			return
-		var overrides: Dictionary = (_facility.get("staff_character_type_ids") as Dictionary).duplicate(true)
-		var key := "%s:%d" % [role_id, role_index]
-		if index == 0:
-			overrides.erase(key)
-		else:
-			overrides[key] = str(option.get_item_metadata(index))
-		_tools.set_facility_property(_facility, "staff_character_type_ids", overrides))
-	row.add_child(option)
-	return row
+	if realizer == null or type_set == null or not type_set.has_method("resolve_character_type"):
+		return false
+	return type_set.call("resolve_character_type", _resource_string(role, ["default_character_type_id"]), _resource_string(role, ["role_id"])) != null
 
 
-func _staff_toggle_field(property_name: String, value: bool) -> Control:
-	var row := HBoxContainer.new()
+func _catalog_has_resource(catalog: Array[Resource], resource: Resource) -> bool:
+	for entry in catalog:
+		if _same_resource(entry, resource):
+			return true
+	return false
+
+
+func _same_resource(a: Resource, b: Resource) -> bool:
+	return a == b or (a != null and b != null and not a.resource_path.is_empty() and a.resource_path == b.resource_path)
+
+
+func _resource_label(resource: Resource, fallback: String) -> String:
+	if resource == null:
+		return fallback
+	if not resource.resource_path.is_empty():
+		return resource.resource_path
+	var label := _resource_string(resource, ["role_id", "actor_id", "display_name", "member_name"])
+	return label if not label.is_empty() else "embedded %s" % fallback
+
+
+func _assignment_key(character: Resource, role: Resource) -> String:
+	var actor_id := _character_id(character)
+	if actor_id.is_empty() or role == null:
+		return ""
+	return "%s|%s" % [actor_id, _resource_string(role, ["assignment_exclusivity_group"])]
+
+
+func _scene_named_assignment_counts() -> Dictionary:
+	var counts := {}
+	var root := EditorInterface.get_edited_scene_root()
+	if root != null:
+		_collect_named_assignment_counts(root, counts)
+	return counts
+
+
+func _collect_named_assignment_counts(node: Node, counts: Dictionary) -> void:
+	if _has_property(node, "role_slots"):
+		for slot in node.get("role_slots"):
+			var key := _assignment_key(slot.get("named_character") as Resource, slot.get("role") as Resource) if slot != null else ""
+			if not key.is_empty():
+				counts[key] = int(counts.get(key, 0)) + 1
+	for child in node.get_children():
+		_collect_named_assignment_counts(child, counts)
+
+
+func _inline_message(text: String, error: bool) -> Label:
 	var label := Label.new()
-	label.text = property_name.trim_prefix("has_").capitalize()
-	label.custom_minimum_size = Vector2(120, 0)
-	row.add_child(label)
-	var check := CheckBox.new()
-	check.button_pressed = value
-	check.text = "staffed" if value else "none"
-	check.toggled.connect(func(pressed: bool):
-		if not _updating:
-			_tools.set_facility_property(_facility, property_name, pressed))
-	row.add_child(check)
-	return row
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_font_size_override("font_size", 12)
+	label.modulate = Color(1.0, 0.38, 0.32) if error else Color(1.0, 0.72, 0.28)
+	return label
 
 
-func _staff_count_field(property_name: String, value: int) -> Control:
-	var row := HBoxContainer.new()
-	var label := Label.new()
-	label.text = property_name.capitalize()
-	label.custom_minimum_size = Vector2(120, 0)
-	row.add_child(label)
-	var spin := SpinBox.new()
-	spin.min_value = 0
-	spin.max_value = 24
-	spin.step = 1
-	spin.value = value
-	spin.value_changed.connect(func(new_value: float):
-		if not _updating:
-			_tools.set_facility_property(_facility, property_name, int(new_value)))
-	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spin)
-	return row
+func _has_property(target: Object, property_name: String) -> bool:
+	if target != null:
+		for property in target.get_property_list():
+			if str(property.get("name", "")) == property_name:
+				return true
+	return false
 
 
 func _rebuild_furnisher_row() -> void:
@@ -826,6 +932,24 @@ func _scan_resource_paths(directory: String) -> Array[String]:
 	dir.list_dir_end()
 	result.sort()
 	return result
+
+
+func _scan_resource_paths_recursive(directory: String) -> Array[String]:
+	var result: Array[String] = []
+	_collect_resource_paths(directory, result)
+	result.sort()
+	return result
+
+
+func _collect_resource_paths(directory: String, result: Array[String]) -> void:
+	var dir := DirAccess.open(directory)
+	if dir == null:
+		return
+	for file_name in DirAccess.get_files_at(directory):
+		if file_name.get_extension() == "tres":
+			result.append(directory.path_join(file_name))
+	for child_directory in DirAccess.get_directories_at(directory):
+		_collect_resource_paths(directory.path_join(child_directory), result)
 
 
 func _type_icon(facility_type: String) -> Texture2D:

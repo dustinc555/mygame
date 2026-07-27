@@ -105,6 +105,7 @@ const MIN_EXHAUSTED_MOVE_MULTIPLIER := 0.2
 const ASSIST_RANGE := 8.5
 const AGGRO_RANGE := 8.5
 const COMBAT_WITNESS_RANGE := 16.0
+const NPC_ALERT_PROXIMITY_RADIUS := 40.0
 # Grudges are freshness-based: refreshed by every combat exchange, expired after
 # this many seconds without one. Drives disengage (nobody chases forever) and
 # defensive re-engagement rules (old enemies are ignored unless they attack again).
