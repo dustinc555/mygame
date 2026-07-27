@@ -3,23 +3,25 @@ extends Node
 class_name BuildingVisibilityController
 
 const SERVICE_ID := &"building_visibility"
-
-const WORLD_BUILDING_SCRIPT = preload("res://features/world/projection/buildings/world_building.gd")
+const BUILDING_OCCUPANCY_CONTROLLER := preload("res://features/world/bridge/building_occupancy_controller.gd")
 
 var root_scene: Node
 var _party_manager: PartyManager
 var _camera: Camera3D
+var _occupancy: Node
+var _projection_bridge: BuildingProjectionBridge
 var _initialized := false
 var _active_building: Node
 var _visibility_actor: WorldActor
 var _latched_focus_actor: WorldActor
 var _focus_active := false
 var _last_followed_id := 0
-var _buildings: Array[Node] = []
 
 
 func initialize(context: BootstrapContext) -> void:
 	root_scene = context.root_scene
+	_occupancy = context.require(BUILDING_OCCUPANCY_CONTROLLER.SERVICE_ID)
+	_projection_bridge = context.require(BuildingProjectionBridge.SERVICE_ID) as BuildingProjectionBridge
 	if is_inside_tree():
 		_do_initialize()
 
@@ -35,13 +37,7 @@ func _do_initialize() -> void:
 		return
 	_party_manager = root_scene.get_node_or_null("PartyManager") as PartyManager
 	_camera = root_scene.get_node_or_null("CameraRig/CameraPivot/Camera3D") as Camera3D
-	_initialized = _party_manager != null and _camera != null
-	var tree := get_tree()
-	if tree != null:
-		for node in tree.get_nodes_in_group("world_building"):
-			_register_building(node)
-		if not tree.node_added.is_connected(_on_node_added):
-			tree.node_added.connect(_on_node_added)
+	_initialized = _party_manager != null and _camera != null and _occupancy != null and _projection_bridge != null
 
 
 func _process(_delta: float) -> void:
@@ -63,7 +59,7 @@ func _process(_delta: float) -> void:
 	else:
 		_latched_focus_actor = null
 	var visibility_actor := _get_visibility_proxy_actor(meaningful_actor)
-	var next_building: Node = _find_building_for_actor(visibility_actor)
+	var next_building: Node = _get_building_for_actor(visibility_actor)
 	_focus_active = camera_focused and next_building != null
 	# Refocusing any character hands the floor cut back to them.
 	var followed_id := followed.get_instance_id() if _is_valid_actor(followed) else 0
@@ -99,7 +95,7 @@ func _get_meaningful_actor() -> WorldActor:
 			_visibility_actor = shared_level_actor
 			return _visibility_actor
 		return null
-	if _is_valid_actor(_visibility_actor) and _find_building_for_actor(_get_visibility_proxy_actor(_visibility_actor)) != null:
+	if _is_valid_actor(_visibility_actor) and _get_building_for_actor(_get_visibility_proxy_actor(_visibility_actor)) != null:
 		return _visibility_actor
 	return null
 
@@ -126,12 +122,13 @@ func _get_shared_selected_building_level_actor() -> WorldActor:
 	for member in selected_members:
 		if not _is_valid_actor(member):
 			return null
-		var member_building := _find_building_for_actor(_get_visibility_proxy_actor(member))
+		var proxy_actor := _get_visibility_proxy_actor(member)
+		var member_building := _get_building_for_actor(proxy_actor)
 		if member_building == null:
 			return null
 		var member_level_index := -1
 		if member_building.has_method("get_level_index_for_actor"):
-			member_level_index = int(member_building.call("get_level_index_for_actor", _get_visibility_proxy_actor(member)))
+			member_level_index = int(member_building.call("get_level_index_for_actor", proxy_actor))
 		if shared_building == null:
 			shared_actor = member
 			shared_building = member_building
@@ -142,29 +139,16 @@ func _get_shared_selected_building_level_actor() -> WorldActor:
 	return shared_actor
 
 
-func _find_building_for_actor(actor: WorldActor) -> Node:
+func _get_building_for_actor(actor: WorldActor) -> WorldBuilding:
 	if actor == null:
 		return null
-	for index in range(_buildings.size() - 1, -1, -1):
-		var node := _buildings[index]
-		if node == null or not is_instance_valid(node) or not node.is_inside_tree():
-			_buildings.remove_at(index)
-			continue
-		if node.has_method("is_visibility_candidate") and not bool(node.call("is_visibility_candidate", actor)):
-			continue
-		if node.is_actor_inside(actor):
-			return node
-	return null
-
-
-func _on_node_added(node: Node) -> void:
-	_register_building(node)
-
-
-func _register_building(node: Node) -> void:
-	if node == null or node.get_script() != WORLD_BUILDING_SCRIPT or _buildings.has(node):
-		return
-	_buildings.append(node)
+	var actor_id := actor.stable_id.strip_edges()
+	if actor_id.is_empty() and actor.has_meta("actor_record_id"):
+		actor_id = str(actor.get_meta("actor_record_id")).strip_edges()
+	if actor_id.is_empty():
+		return null
+	var building_id: String = _occupancy.get_building_id_for_actor(actor_id)
+	return _projection_bridge.get_projection(building_id) if not building_id.is_empty() else null
 
 
 func get_active_building() -> Node:

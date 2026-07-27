@@ -23,6 +23,7 @@ class_name WorldBuilding
 @export_range(1.0, 30.0, 0.5) var trespass_warning_interval_seconds := 3.0
 @export_range(1, 6, 1) var trespass_warnings_before_alarm := 2
 @export var trespass_notice_radius := 18.0
+@export_enum("settlement_alarm", "victim_only", "warning_only") var trespass_escalation := "settlement_alarm"
 @export_range(0, 1000, 1) var bed_count := 0
 @export_range(0, 1000, 1) var housing_capacity := 0
 @export var levels: Array[BuildingLevelDefinition] = []
@@ -48,10 +49,6 @@ var _level_actor_ids: Array[Dictionary] = []
 var _active_level_index := -1
 var _display_level_override := 0
 var _extra_level_content_paths: Dictionary = {}
-var _inside_actors: Dictionary = {}
-var _trespass_warning_remaining: Dictionary = {}
-var _trespass_warning_counts: Dictionary = {}
-var _trespass_escalated: Dictionary = {}
 var _hidden_modular_piece_instance_ids: Dictionary = {}
 var _modular_piece_cache: Array = []
 var _modular_piece_cache_dirty := true
@@ -59,6 +56,10 @@ var _modular_floor_footprints: Array = []
 var _modular_bounds_dirty := true
 var _modular_local_bounds := AABB()
 var _modular_local_bounds_valid := false
+var _occupancy_world_bounds := AABB()
+var _occupancy_world_bounds_valid := false
+var _occupancy_world_bounds_dirty := true
+var _area_collision_shapes_by_id: Dictionary = {}
 
 # External furniture: beds/shelves/counters authored under settlement facility
 # nodes (outside this building's scene) while standing physically inside the
@@ -76,7 +77,6 @@ const SIDE_SWITCH_HYSTERESIS := 0.45
 
 func _ready() -> void:
 	add_to_group("world_building")
-	set_process(not Engine.is_editor_hint())
 	_level_actor_ids.clear()
 	for level_index in range(levels.size()):
 		_level_actor_ids.append({})
@@ -134,12 +134,6 @@ func _stamp_building_access(door: Node) -> void:
 		door.set("scheduled_open_hour", public_open_hour)
 		door.set("scheduled_close_hour", public_close_hour)
 		door.set("keep_open_during_hours", true)
-
-
-func _process(delta: float) -> void:
-	if Engine.is_editor_hint():
-		return
-	_process_trespass(delta / maxf(Engine.time_scale, 0.001))
 
 
 func is_actor_inside(actor: WorldActor) -> bool:
@@ -212,6 +206,53 @@ func _transform_aabb(bounds: AABB, bounds_transform: Transform3D) -> AABB:
 			for z in [bounds.position.z, bounds.end.z]:
 				transformed = transformed.expand(bounds_transform * Vector3(x, y, z))
 	return transformed
+
+
+## Cached broad-phase bounds only. Call is_actor_inside() for authority.
+func get_occupancy_world_aabb() -> AABB:
+	if not _occupancy_world_bounds_dirty:
+		return _occupancy_world_bounds
+	_occupancy_world_bounds = AABB()
+	_occupancy_world_bounds_valid = false
+	_get_modular_floor_footprints()
+	if _modular_local_bounds_valid:
+		_merge_occupancy_world_bounds(_transform_aabb(_modular_local_bounds, global_transform))
+	_merge_area_world_bounds(_get_interior_area())
+	for level_index in range(levels.size()):
+		_merge_area_world_bounds(_get_level_area(level_index))
+	_occupancy_world_bounds_dirty = false
+	return _occupancy_world_bounds
+
+
+func _merge_area_world_bounds(area: Area3D) -> void:
+	if area == null:
+		return
+	for collision_shape in _get_area_collision_shapes(area):
+		if collision_shape == null or not is_instance_valid(collision_shape) or collision_shape.disabled or collision_shape.shape == null:
+			continue
+		var local_bounds := _shape_local_bounds(collision_shape.shape)
+		if local_bounds.size.length_squared() > 0.0:
+			_merge_occupancy_world_bounds(_transform_aabb(local_bounds, collision_shape.global_transform))
+
+
+func _merge_occupancy_world_bounds(bounds: AABB) -> void:
+	_occupancy_world_bounds = _occupancy_world_bounds.merge(bounds) if _occupancy_world_bounds_valid else bounds
+	_occupancy_world_bounds_valid = true
+
+
+func _get_area_collision_shapes(area: Area3D) -> Array[CollisionShape3D]:
+	if area == null:
+		var empty: Array[CollisionShape3D] = []
+		return empty
+	var area_id := area.get_instance_id()
+	if _area_collision_shapes_by_id.has(area_id):
+		return _area_collision_shapes_by_id[area_id]
+	var shapes: Array[CollisionShape3D] = []
+	for child in area.get_children():
+		if child is CollisionShape3D:
+			shapes.append(child as CollisionShape3D)
+	_area_collision_shapes_by_id[area_id] = shapes
+	return shapes
 
 
 ## Hides external furniture on levels above the active one (levels buildings)
@@ -482,6 +523,9 @@ func get_ancestor_settlement() -> SettlementAnchor:
 
 
 func get_jurisdiction_faction_name() -> String:
+	var registry_jurisdiction := str(_registry_state.get("jurisdiction_faction_id", ""))
+	if not registry_jurisdiction.is_empty():
+		return registry_jurisdiction
 	var settlement := get_ancestor_settlement()
 	if settlement == null:
 		return ""
@@ -591,8 +635,8 @@ func get_hours_label(world_minutes: int = -1) -> String:
 			return "24/7"
 		"scheduled":
 			if is_public_now(world_minutes):
-				return "%02d:00-%02d:00" % [public_open_hour, public_close_hour]
-			return "Opens %02d:00" % public_open_hour
+				return "%02d:00-%02d:00" % [_get_public_open_hour(), _get_public_close_hour()]
+			return "Opens %02d:00" % _get_public_open_hour()
 		_:
 			return ""
 
@@ -603,12 +647,24 @@ func is_public_now(world_minutes: int = -1) -> bool:
 		return true
 	if mode == "occupied" or mode == "private":
 		return false
-	var hour := _get_world_hour(world_minutes)
-	if public_open_hour == public_close_hour:
+	if not bool(_registry_state.get("public_schedule_enabled", public_schedule_enabled)):
 		return true
-	if public_open_hour < public_close_hour:
-		return hour >= public_open_hour and hour < public_close_hour
-	return hour >= public_open_hour or hour < public_close_hour
+	var hour := _get_world_hour(world_minutes)
+	var open_hour := _get_public_open_hour()
+	var close_hour := _get_public_close_hour()
+	if open_hour == close_hour:
+		return true
+	if open_hour < close_hour:
+		return hour >= open_hour and hour < close_hour
+	return hour >= open_hour or hour < close_hour
+
+
+func _get_public_open_hour() -> int:
+	return int(_registry_state.get("public_open_hour", public_open_hour))
+
+
+func _get_public_close_hour() -> int:
+	return int(_registry_state.get("public_close_hour", public_close_hour))
 
 
 func is_private_now(world_minutes: int = -1) -> bool:
@@ -650,108 +706,6 @@ func _get_world_time_controller() -> WorldTimeController:
 	return _world_time
 
 
-func _get_law_order_controller() -> Node:
-	var tree := get_tree()
-	if tree == null:
-		return null
-	for node in tree.get_nodes_in_group("law_order_controller"):
-		return node
-	return null
-
-
-func _process_trespass(delta: float) -> void:
-	var actor_ids := _inside_actors.keys()
-	for actor_id in actor_ids:
-		# Check validity on the raw value BEFORE casting — a tracked actor may have been
-		# freed by LOD derealization, and casting a freed object crashes.
-		var raw = _inside_actors.get(actor_id)
-		if raw == null or not is_instance_valid(raw):
-			_clear_trespass_state(actor_id)
-			_inside_actors.erase(actor_id)
-			continue
-		var actor := raw as WorldActor
-		if actor == null or not is_actor_inside(actor):
-			if actor != null:
-				_clear_active_trespass_meta(actor)
-			_clear_trespass_state(actor_id)
-			_inside_actors.erase(actor_id)
-			continue
-		if not _is_actor_trespassing(actor):
-			_clear_active_trespass_meta(actor)
-			_clear_trespass_state(actor_id)
-			continue
-		_set_active_trespass_meta(actor)
-		var remaining := float(_trespass_warning_remaining.get(actor_id, 0.0)) - delta
-		if remaining <= 0.0:
-			_issue_trespass_response(actor)
-		else:
-			_trespass_warning_remaining[actor_id] = remaining
-
-
-func _is_actor_trespassing(actor: WorldActor) -> bool:
-	return is_actor_trespassing_now(actor)
-
-
-func _issue_trespass_response(actor: WorldActor) -> void:
-	if actor == null:
-		return
-	var actor_id := actor.get_instance_id()
-	if bool(_trespass_escalated.get(actor_id, false)):
-		_trespass_warning_remaining[actor_id] = _get_trespass_warning_interval_seconds()
-		return
-	var warning_count := int(_trespass_warning_counts.get(actor_id, 0))
-	var witness := _find_trespass_witness(actor)
-	if warning_count < _get_trespass_warnings_before_alarm():
-		if witness != null:
-			_turn_witness_toward_actor(witness, actor)
-			witness.show_world_speech("You aren't supposed to be here.", 3.0)
-		else:
-			actor.show_world_notice("Private property", Color(1.0, 0.78, 0.38, 1.0), 2.0)
-		_trespass_warning_counts[actor_id] = warning_count + 1
-		_trespass_warning_remaining[actor_id] = _get_trespass_warning_interval_seconds()
-		return
-	_escalate_trespass(actor, witness)
-
-
-func _escalate_trespass(actor: WorldActor, witness: HumanoidCharacter = null) -> void:
-	if actor == null:
-		return
-	var actor_id := actor.get_instance_id()
-	_trespass_escalated[actor_id] = true
-	_trespass_warning_remaining[actor_id] = _get_trespass_warning_interval_seconds()
-	var lead_witness := witness if witness != null else _find_trespass_witness(actor)
-	if lead_witness != null:
-		_turn_witness_toward_actor(lead_witness, actor)
-		lead_witness.show_world_speech("Guards! Trespasser!", 4.0)
-	var law_controller := _get_law_order_controller()
-	if law_controller != null and law_controller.has_method("report_trespass"):
-		law_controller.call("report_trespass", actor, self, lead_witness)
-	var escalation := _get_trespass_escalation()
-	if escalation == "warning_only":
-		return
-	if escalation == "victim_only":
-		var owner_character := get_explicit_owner_character()
-		var responder := owner_character if owner_character != null else lead_witness
-		if responder != null and responder != actor:
-			responder.assign_attack_target(actor, false)
-		return
-	for responder in _find_trespass_responders(actor):
-		if responder == null or responder == actor:
-			continue
-		responder.assign_attack_target(actor, false)
-
-
-func _find_trespass_witness(actor: WorldActor) -> HumanoidCharacter:
-	var best_witness: HumanoidCharacter = null
-	var best_distance := INF
-	for responder in _find_trespass_responders(actor):
-		var distance := responder.global_position.distance_to(actor.global_position)
-		if distance <= _get_trespass_notice_radius() and distance < best_distance:
-			best_distance = distance
-			best_witness = responder
-	return best_witness
-
-
 func get_effective_law_profile() -> Resource:
 	var settlement := get_ancestor_settlement()
 	if settlement == null:
@@ -779,7 +733,7 @@ func _get_trespass_notice_radius() -> float:
 
 func _get_trespass_escalation() -> String:
 	var profile := get_effective_law_profile()
-	return _law_string(profile, "trespass_escalation", "settlement_alarm") if use_law_profile_trespass_rules else "settlement_alarm"
+	return _law_string(profile, "trespass_escalation", trespass_escalation) if use_law_profile_trespass_rules else trespass_escalation
 
 
 func _law_float(profile: Resource, property_name: String, fallback: float) -> float:
@@ -803,88 +757,6 @@ func _law_string(profile: Resource, property_name: String, fallback: String) -> 
 	return fallback if value == null else str(value)
 
 
-func _find_trespass_responders(actor: WorldActor) -> Array[HumanoidCharacter]:
-	var responders: Array[HumanoidCharacter] = []
-	var owner_character := get_explicit_owner_character()
-	var owner_faction := get_owner_faction_name()
-	var jurisdiction := get_jurisdiction_faction_name()
-	var alarm_town := get_ancestor_settlement()
-	for node in get_tree().get_nodes_in_group("npc_character"):
-		if not (node is HumanoidCharacter):
-			continue
-		var humanoid := node as HumanoidCharacter
-		if humanoid == actor or humanoid.life_state != NpcRules.LifeState.ALIVE or humanoid.player_party_member:
-			continue
-		if owner_character != null:
-			if humanoid == owner_character or humanoid.faction_name == owner_character.faction_name:
-				responders.append(humanoid)
-		elif not owner_faction.is_empty():
-			if humanoid.faction_name == owner_faction:
-				responders.append(humanoid)
-		elif not jurisdiction.is_empty():
-			if humanoid.has_method("is_settlement_authority") and bool(humanoid.call("is_settlement_authority")) and (humanoid.faction_name == jurisdiction or (alarm_town != null and _is_node_descendant_of(humanoid, alarm_town))):
-				responders.append(humanoid)
-	return responders
-
-
-func _turn_witness_toward_actor(witness: HumanoidCharacter, actor: WorldActor) -> void:
-	if witness == null or actor == null:
-		return
-	var target_position := Vector3(actor.global_position.x, witness.global_position.y, actor.global_position.z)
-	if witness.global_position.distance_squared_to(target_position) <= 0.001:
-		return
-	witness.look_at(target_position, Vector3.UP)
-	witness.rotation.x = 0.0
-	witness.rotation.z = 0.0
-
-
-func _is_node_descendant_of(node: Node, ancestor: Node) -> bool:
-	var current := node
-	while current != null:
-		if current == ancestor:
-			return true
-		current = current.get_parent()
-	return false
-
-
-func _remember_inside_actor(actor: WorldActor) -> void:
-	if actor != null:
-		_inside_actors[actor.get_instance_id()] = actor
-
-
-func _forget_inside_actor(actor: WorldActor) -> void:
-	if actor == null:
-		return
-	var actor_id := actor.get_instance_id()
-	_clear_active_trespass_meta(actor)
-	_inside_actors.erase(actor_id)
-	_clear_trespass_state(actor_id)
-
-
-func _set_active_trespass_meta(actor: WorldActor) -> void:
-	if actor == null:
-		return
-	var status := actor.get_legal_status()
-	status.active_crime_label = "Committing a crime! (Trespassing)"
-	status.active_crime_kind = "active"
-	status.active_crime_source_id = get_instance_id()
-
-
-func _clear_active_trespass_meta(actor: WorldActor) -> void:
-	if actor == null:
-		return
-	var status := actor.get_legal_status()
-	if status.active_crime_source_id != get_instance_id():
-		return
-	status.clear_active_crime()
-
-
-func _clear_trespass_state(actor_id: int) -> void:
-	_trespass_warning_remaining.erase(actor_id)
-	_trespass_warning_counts.erase(actor_id)
-	_trespass_escalated.erase(actor_id)
-
-
 func get_building_seed() -> Dictionary:
 	var resolved_settlement_id := settlement_id.strip_edges()
 	var resolved_facility_id := facility_id.strip_edges()
@@ -901,6 +773,7 @@ func get_building_seed() -> Dictionary:
 	var settlement := get_ancestor_settlement()
 	if settlement != null and resolved_settlement_id.is_empty():
 		resolved_settlement_id = settlement.get_settlement_id()
+	var resolved_jurisdiction_faction_id := get_jurisdiction_faction_name()
 	return {
 		"building_id": building_id.strip_edges(),
 		"settlement_id": resolved_settlement_id,
@@ -908,7 +781,15 @@ func get_building_seed() -> Dictionary:
 		"type_id": building_type,
 		"display_name": display_name,
 		"owner_faction_id": resolved_owner_faction_id,
+		"jurisdiction_faction_id": resolved_jurisdiction_faction_id,
 		"access_state": _default_access_state() if access_state == "default" else access_state,
+		"public_schedule_enabled": public_schedule_enabled,
+		"public_open_hour": public_open_hour,
+		"public_close_hour": public_close_hour,
+		"trespass_warning_interval_seconds": _get_trespass_warning_interval_seconds(),
+		"trespass_warnings_before_alarm": _get_trespass_warnings_before_alarm(),
+		"trespass_notice_radius": _get_trespass_notice_radius(),
+		"trespass_escalation": _get_trespass_escalation(),
 		"abandoned": abandoned,
 		"operational_state": resolved_operational_state,
 		"bed_count": bed_count,
@@ -930,6 +811,9 @@ func apply_registry_state(record: Dictionary) -> void:
 	display_name = str(record.get("display_name", display_name))
 	owner_faction_id = str(record.get("owner_faction_id", owner_faction_id))
 	access_state = str(record.get("access_state", access_state))
+	public_schedule_enabled = bool(record.get("public_schedule_enabled", public_schedule_enabled))
+	public_open_hour = int(record.get("public_open_hour", public_open_hour))
+	public_close_hour = int(record.get("public_close_hour", public_close_hour))
 	abandoned = bool(record.get("abandoned", abandoned))
 	operational_state = str(record.get("operational_state", operational_state))
 	bed_count = int(record.get("bed_count", bed_count))
@@ -942,6 +826,7 @@ func apply_registry_state(record: Dictionary) -> void:
 			global_transform = saved_transform
 		else:
 			transform = saved_transform
+		_occupancy_world_bounds_dirty = true
 	_stamp_all_building_access()
 
 
@@ -1008,6 +893,7 @@ func invalidate_modular_piece_cache() -> void:
 	_modular_piece_cache_dirty = true
 	_modular_bounds_dirty = true
 	_modular_local_bounds_valid = false
+	_occupancy_world_bounds_dirty = true
 
 
 func is_modular_piece_hidden(piece: Node) -> bool:
@@ -1337,8 +1223,7 @@ func _actor_visibility_probe_positions(actor: WorldActor) -> Array[Vector3]:
 func _area_contains_world_position(area: Area3D, world_position: Vector3) -> bool:
 	if area == null or not area.is_inside_tree():
 		return false
-	for child in area.get_children():
-		var collision_shape := child as CollisionShape3D
+	for collision_shape in _get_area_collision_shapes(area):
 		if collision_shape == null or not collision_shape.is_inside_tree() or collision_shape.disabled or collision_shape.shape == null:
 			continue
 		if _shape_contains_local_position(collision_shape.shape, collision_shape.global_transform.affine_inverse() * world_position):
@@ -1506,24 +1391,19 @@ func _project_click_to_local_y(ray_origin: Vector3, ray_direction: Vector3, loca
 
 func _on_interior_body_entered(body: Node) -> void:
 	if body is WorldActor:
-		_remember_inside_actor(body as WorldActor)
 		_interior_actor_ids[body.get_instance_id()] = true
 
 
 func _on_interior_body_exited(body: Node) -> void:
 	if body is WorldActor:
-		_forget_inside_actor(body as WorldActor)
 		_interior_actor_ids.erase(body.get_instance_id())
 
 
 func _on_level_body_entered(body: Node, level_index: int) -> void:
 	if body is WorldActor and level_index >= 0 and level_index < _level_actor_ids.size():
-		_remember_inside_actor(body as WorldActor)
 		_level_actor_ids[level_index][body.get_instance_id()] = true
 
 
 func _on_level_body_exited(body: Node, level_index: int) -> void:
 	if body is WorldActor and level_index >= 0 and level_index < _level_actor_ids.size():
 		_level_actor_ids[level_index].erase(body.get_instance_id())
-		if not is_actor_inside(body as WorldActor):
-			_forget_inside_actor(body as WorldActor)

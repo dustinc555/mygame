@@ -24,10 +24,10 @@ var status_label := ""
 var status_kind := ""  # "jailed" | "caught" | ""
 var sentence_summary := ""
 
-# Active-crime markers, owned by the building currently witnessing the crime.
+# Active-crime markers, owned by the law controller.
 var active_crime_label := ""
 var active_crime_kind := ""
-var active_crime_source_id := 0
+var active_crime_source_key := ""
 
 
 func clear_prisoner() -> void:
@@ -46,7 +46,7 @@ func clear_warrant_display() -> void:
 func clear_active_crime() -> void:
 	active_crime_label = ""
 	active_crime_kind = ""
-	active_crime_source_id = 0
+	active_crime_source_key = ""
 
 
 func is_empty() -> bool:
@@ -59,4 +59,4 @@ func is_empty() -> bool:
 		and sentence_summary.is_empty() \
 		and active_crime_label.is_empty() \
 		and active_crime_kind.is_empty() \
-		and active_crime_source_id == 0
+		and active_crime_source_key.is_empty()

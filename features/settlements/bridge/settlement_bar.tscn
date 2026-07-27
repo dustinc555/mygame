@@ -6,13 +6,22 @@
 [ext_resource type="Script" uid="uid://dw7e6d4p7nh3q" path="res://features/settlements/bridge/venues/bar_service_area.gd" id="4_service_area"]
 [ext_resource type="Script" path="res://features/settlements/bridge/venues/facility_guard_post.gd" id="6_guard_post"]
 [ext_resource type="Script" uid="uid://cxr7vjw8dylgu" path="res://features/settlements/bridge/facility_visit_activity_point.gd" id="22_visit"]
+[ext_resource type="Script" path="res://features/settlements/resources/facility_role_slot_definition.gd" id="23_slot"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/barkeeper.tres" id="24_barkeeper"]
 
+[sub_resource type="Resource" id="RoleSlot_barkeeper"]
+script = ExtResource("23_slot")
+slot_id = "proprietor"
+role = ExtResource("24_barkeeper")
+display_name = "Barkeeper"
+authority_scope = "facility_staff"
 
 
 
 [node name="SettlementBar" type="Node3D" unique_id=556110935]
 script = ExtResource("1_bar")
 guard_post_count = 3
+role_slots = Array[ExtResource("23_slot")]([SubResource("RoleSlot_barkeeper")])
 facility_function = ExtResource("2_function")
 storage_root_path = NodePath("")
 job_providers_root_path = NodePath("")

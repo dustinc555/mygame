@@ -5,11 +5,11 @@ class_name FacilityDefinition
 
 ## Catalog entry for a placeable settlement facility. The world_authoring
 ## Town tools scan a directory of these to build the placement catalog, and
-## the authoring preview reads staff_role_counts plus the placed building seed
-## to compute a town's day-zero demand table. Adding a facility type is
+## the authoring preview reads role slots from the facility scene template to
+## compute a town's day-zero demand table. Adding a facility type is
 ## authoring a .tres, never editing plugin code.
 ##
-## The gameplay function (economy rates, expected roles) stays on the linked
+## The gameplay function (economy rates and venue capabilities) stays on the linked
 ## FacilityFunctionDefinition. scene_path is a facility function/composition
 ## template, never a neutral building shell.
 
@@ -26,14 +26,9 @@ enum ShellPolicy {
 ## New compositions receive the one global default shell unless explicitly
 ## authored as shell-less. No facility owns a shell path.
 @export_enum("Default", "None") var shell_policy: int = ShellPolicy.DEFAULT
-## FacilityFunctionDefinition this composition provides (null for housing).
+## FacilityFunctionDefinition this composition provides.
 @export var function: Resource
 @export_enum("shell", "housing") var category := "shell"
-## Staff the facility demands when placed in a town: role_id -> count
-## (e.g. {"barkeeper": 1, "guard": 1}). Seeding fills these on day zero.
-@export var staff_role_counts: Dictionary = {}
-
-
 func get_id() -> String:
 	if not facility_id.strip_edges().is_empty():
 		return facility_id
@@ -53,8 +48,22 @@ func get_category() -> String:
 	return category
 
 
-func get_total_staff_demand() -> int:
+func get_default_assignment_slot_specs() -> Array[Dictionary]:
+	var specs: Array[Dictionary] = []
+	if scene_path.is_empty():
+		return specs
+	var scene := load(scene_path) as PackedScene
+	var facility := scene.instantiate() if scene != null else null
+	if facility != null and facility.has_method("get_assignment_slot_specs"):
+		for slot in facility.call("get_assignment_slot_specs"):
+			specs.append((slot as Dictionary).duplicate(true))
+	if facility != null:
+		facility.free()
+	return specs
+
+
+func get_total_assignment_demand() -> int:
 	var total := 0
-	for role_id in staff_role_counts:
-		total += max(0, int(staff_role_counts[role_id]))
+	for slot in get_default_assignment_slot_specs():
+		total += maxi(0, int(slot.get("population_cost", 1)))
 	return total

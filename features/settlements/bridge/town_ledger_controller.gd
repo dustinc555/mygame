@@ -157,11 +157,13 @@ func _refresh_stack(stack_id: String, settlement_id: String) -> void:
 	for person in people:
 		people_by_id[str(person.get("actor_id", ""))] = person
 	var assignments_by_actor: Dictionary = {}
-	for slot_value in (state.get("staff_slots", {}) as Dictionary).values():
+	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
 		if not (slot_value is Dictionary):
 			continue
 		var slot := slot_value as Dictionary
-		var actor_id := str(slot.get("worker_actor_id", ""))
+		if str(slot.get("assignment_domain", "employment")) != "employment":
+			continue
+		var actor_id := str(slot.get("occupant_actor_id", ""))
 		var person := people_by_id.get(actor_id, {}) as Dictionary
 		var owner_id := str(slot.get("owner_id", ""))
 		var role_id := str(slot.get("role_id", ""))

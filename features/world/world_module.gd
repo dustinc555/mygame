@@ -16,6 +16,7 @@ const TERRAIN_CAMERA := preload("res://features/world/projection/terrain_camera_
 const WORLD_INTERACTION := preload("res://features/world/bridge/world_interaction_controller.gd")
 const BUILDING_REGISTRY := preload("res://features/world/sim/building_registry.gd")
 const BUILDING_PROJECTION_BRIDGE := preload("res://features/world/bridge/building_projection_bridge.gd")
+const BUILDING_OCCUPANCY := preload("res://features/world/bridge/building_occupancy_controller.gd")
 
 const CORE := []
 const PROJECTION := [
@@ -31,4 +32,5 @@ const SIM := [
 const BRIDGE := [
 	{"name": "WorldInteractionController", "script": WORLD_INTERACTION, "service": WORLD_INTERACTION.SERVICE_ID},
 	{"name": "BuildingProjectionBridge", "script": BUILDING_PROJECTION_BRIDGE, "service": BUILDING_PROJECTION_BRIDGE.SERVICE_ID},
+	{"name": "BuildingOccupancyController", "script": BUILDING_OCCUPANCY, "service": BUILDING_OCCUPANCY.SERVICE_ID},
 ]

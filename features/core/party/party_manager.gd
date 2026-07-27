@@ -2,9 +2,12 @@ extends Node
 
 class_name PartyManager
 
+const PLAYER_PARTY_ID := "player_party"
+
 signal selection_changed
 signal follow_changed
 signal party_member_added(member)
+signal party_membership_changed(member: WorldActor, party_id: String)
 
 var party_members: Array[WorldActor] = []
 var selected_members: Array[WorldActor] = []
@@ -27,10 +30,14 @@ func set_party_members(members: Array) -> void:
 	party_members = next_members
 	for previous_member in previous_members:
 		if previous_member != null and is_instance_valid(previous_member) and not party_members.has(previous_member):
+			previous_member.remove_meta("party_id")
+			party_membership_changed.emit(previous_member, "")
 			previous_member.set_player_party_member(false)
 			previous_member.set_selected(false)
 			previous_member.set_focused(false)
 	for member in party_members:
+		member.set_meta("party_id", PLAYER_PARTY_ID)
+		party_membership_changed.emit(member, PLAYER_PARTY_ID)
 		member.set_player_party_member(true)
 	_prune_selection_to_party()
 	if followed_member != null and not party_members.has(followed_member):
@@ -90,6 +97,8 @@ func register_party_member(member: WorldActor) -> void:
 	if member == null or party_members.has(member):
 		return
 	party_members.append(member)
+	member.set_meta("party_id", PLAYER_PARTY_ID)
+	party_membership_changed.emit(member, PLAYER_PARTY_ID)
 	member.set_player_party_member(true)
 	_sync_member_states()
 	party_member_added.emit(member)
@@ -104,6 +113,8 @@ func unregister_party_member(member: WorldActor) -> void:
 		followed_member = null
 		follow_changed.emit()
 	member.set_player_party_member(false)
+	member.remove_meta("party_id")
+	party_membership_changed.emit(member, "")
 	_sync_member_states()
 	selection_changed.emit()
 

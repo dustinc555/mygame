@@ -71,16 +71,20 @@ func _sync_identity(component: CGameActorIdentity, actor: WorldActor) -> void:
 		component.role_id = str(actor.get_meta("actor_role_id"))
 	elif actor.has_meta("settlement_staff_role"):
 		component.role_id = str(actor.get_meta("settlement_staff_role"))
+	if actor.is_in_group("settlement_authority") and not component.authority_scopes.has("settlement_authority"):
+		component.authority_scopes.append("settlement_authority")
 
 
 func _sync_faction(component: CGameActorFaction, actor: WorldActor) -> void:
 	if component == null:
 		return
 	component.faction_id = actor.faction_name.strip_edges()
+	component.party_id = str(actor.get_meta("party_id", "")).strip_edges()
 	component.squad_name = actor.squad_name
 	component.hostile_faction_ids = actor.hostile_factions
 	component.combat_stance = actor.combat_stance
 	component.player_party_member = actor.player_party_member
+	component.player_order_active = actor.has_active_player_order()
 
 
 func _sync_settlement(component: CGameActorSettlement, actor: WorldActor) -> void:

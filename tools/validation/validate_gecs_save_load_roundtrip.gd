@@ -81,9 +81,11 @@ func _run() -> void:
 		"character_type_path": "res://character_types/soldier.tres",
 		"character_type_signature": "soldier-signature",
 		"faction_id": "RoundtripFaction",
+		"party_id": "party.roundtrip",
 		"role_id": "worker",
-		"assigned_slot_id": "roundtrip_town.guard.0",
-		"staff_assignment_realized_once": true,
+		"assignments": {"residence": "roundtrip_town.house.0", "employment": "roundtrip_town.guard.0"},
+		"assignment_exclusivity_groups": {"residence": "residence", "employment": "employment"},
+		"assignment_realized_once": {"employment": true},
 		"life_state": NpcRules.LifeState.DEAD,
 		"body_state": "corpse",
 		"last_world_position": Vector3(18.0, 0.5, -27.0),
@@ -131,21 +133,25 @@ func _run() -> void:
 		"population": 12,
 		"population_target": 16,
 		"facilities": {"forge": 1},
-		"staff_slots": {
-			"guard_0": {
+		"assignment_slots": {
+			"employment:guard_0": {
 				"slot_id": "guard_0",
 				"settlement_id": "roundtrip_town",
+				"assignment_domain": "employment",
 				"role_id": "guard",
 				"filled": true,
+				"occupant_actor_id": "actor.roundtrip",
 				"population_cost": 1,
 			},
 		},
 	})
-	bridge.upsert_staff_slot("roundtrip_town", "guard_0", {
+	bridge.upsert_assignment_slot("roundtrip_town", {
 		"slot_id": "guard_0",
 		"settlement_id": "roundtrip_town",
+		"assignment_domain": "employment",
 		"role_id": "guard",
 		"filled": true,
+		"occupant_actor_id": "actor.roundtrip",
 		"population_cost": 1,
 		"world_position": Vector3(12.0, 1.5, -8.0),
 	})
@@ -299,6 +305,8 @@ func _validate_loaded_state(bridge: Node, world_time: Node) -> void:
 		_fail("GECS save/load should round-trip population records")
 	if str(actor_record.get("actor_script_path", "")) != "res://features/core/party/party_member.gd":
 		_fail("GECS save/load should preserve the person's projection script")
+	if str(actor_record.get("party_id", "")) != "party.roundtrip":
+		_fail("GECS save/load should preserve stable party membership")
 	if int(actor_record.get("life_state", -1)) != NpcRules.LifeState.DEAD or str(actor_record.get("body_state", "")) != "corpse":
 		_fail("GECS save/load should preserve a dead person's corpse state")
 	var expected_corpse_transform := Transform3D(Basis.from_euler(Vector3(0.0, 0.7, 0.0)), Vector3(18.0, 0.5, -27.0))
@@ -318,8 +326,12 @@ func _validate_loaded_state(bridge: Node, world_time: Node) -> void:
 		_fail("GECS save/load should round-trip Character Realizer provenance")
 	if str(actor_record.get("character_type_id", "")) != "soldier" or str(actor_record.get("character_type_signature", "")) != "soldier-signature":
 		_fail("GECS save/load should round-trip Character Type provenance")
-	if not bool(actor_record.get("staff_assignment_realized_once", false)):
-		_fail("GECS save/load should preserve whether staff assignment placement already occurred")
+	if str((actor_record.get("assignments", {}) as Dictionary).get("employment", "")) != "roundtrip_town.guard.0":
+		_fail("GECS save/load should preserve employment assignment ownership")
+	if str((actor_record.get("assignments", {}) as Dictionary).get("residence", "")) != "roundtrip_town.house.0":
+		_fail("GECS save/load should preserve concurrent residence and employment assignments")
+	if not bool((actor_record.get("assignment_realized_once", {}) as Dictionary).get("employment", false)):
+		_fail("GECS save/load should preserve employment realization state")
 	if int((actor_record.get("skill_levels", {}) as Dictionary).get(SkillRules.MOVEMENT_RUNNING, 0)) != 5 or not is_equal_approx(float((actor_record.get("skill_xp", {}) as Dictionary).get(SkillRules.MOVEMENT_RUNNING, 0.0)), 12.5):
 		_fail("GECS save/load should round-trip skill level and XP provenance")
 	var needs_state: Dictionary = actor_record.get("needs_state", {})
@@ -354,12 +366,12 @@ func _validate_loaded_state(bridge: Node, world_time: Node) -> void:
 	var settlement_state: Dictionary = bridge.call("get_settlement_state", "roundtrip_town")
 	if int(settlement_state.get("population", 0)) != 12:
 		_fail("GECS save/load should round-trip settlement population")
-	if int(settlement_state.get("population_assigned", 0)) != 1:
-		_fail("GECS save/load should derive settlement staff counts from GECS staff slots")
-	var staff_slots: Array = bridge.call("get_staff_slots", "roundtrip_town")
-	if staff_slots.size() != 1 or str((staff_slots[0] as Dictionary).get("role_id", "")) != "guard":
+	var assignment_slots: Array = bridge.call("get_assignment_slots", "roundtrip_town", "employment")
+	if assignment_slots.size() != 1 or str((assignment_slots[0] as Dictionary).get("role_id", "")) != "guard":
 		_fail("GECS save/load should round-trip staff slot entities")
-	elif (staff_slots[0] as Dictionary).get("world_position", Vector3.INF) != Vector3(12.0, 1.5, -8.0):
+	elif str((assignment_slots[0] as Dictionary).get("occupant_actor_id", "")) != "actor.roundtrip":
+		_fail("GECS save/load should round-trip assignment slot occupants")
+	elif (assignment_slots[0] as Dictionary).get("world_position", Vector3.INF) != Vector3(12.0, 1.5, -8.0):
 		_fail("GECS save/load should round-trip staff slot world positions")
 	var building_records: Array = bridge.call("get_building_records")
 	if building_records.size() != 1:

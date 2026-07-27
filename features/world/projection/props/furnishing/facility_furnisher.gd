@@ -32,6 +32,7 @@ var _grid_width := 0
 var _grid_height := 0
 var _grid_origin := Vector2.ZERO
 var _door_cells: Array[Vector2i] = []
+var _exterior_door_interior_sides := {}
 var _region_labels := PackedInt32Array()
 var _main_region := -1
 var _exterior_regions := {}
@@ -47,7 +48,8 @@ func last_error() -> String:
 ## Returns an array of placements:
 ##   {"scene": PackedScene, "transform": Transform3D (building-local), "kind": String}
 ## Every storey is furnished: the ground floor gets counter + table clusters +
-## shelves, upper floors get beds + shelves.
+## shelves, upper floors get beds + shelves. Rules may allow ground-floor beds
+## for one-storey homes.
 ## Empty array + last_error() on failure.
 func furnish(building: Node3D, rules: FurnishRules, seed_value: int) -> Array[Dictionary]:
 	_last_error = ""
@@ -74,6 +76,21 @@ func furnish(building: Node3D, rules: FurnishRules, seed_value: int) -> Array[Di
 		var scene: PackedScene = _pending_required_utilities[0]
 		_last_error = "Required utility '%s' fits nowhere on the ground floor." % str(scene.resource_path).get_file()
 		return []
+	var kind_counts := {}
+	for placement in placements:
+		var kind := str(placement.get("kind", ""))
+		kind_counts[kind] = int(kind_counts.get(kind, 0)) + 1
+	for requirement in [
+		["bed", rules.min_beds],
+		["container", rules.min_containers],
+		["shelf", rules.min_shelves],
+		["light", rules.min_lights],
+	]:
+		var kind := str(requirement[0])
+		var minimum := int(requirement[1])
+		if int(kind_counts.get(kind, 0)) < minimum:
+			_last_error = "Required %s count is %d, but only %d fit this shell." % [kind, minimum, int(kind_counts.get(kind, 0))]
+			return []
 	return placements
 
 
@@ -127,22 +144,29 @@ func _furnish_level(pieces: Array[Dictionary], rules: FurnishRules, rng: RandomN
 		return []
 	_label_regions()
 	var anchors := _wall_anchors(walls)
+	var claimed_wall_faces := {}
 	var placements: Array[Dictionary] = []
 	if level_index == 0:
+		var exterior_light := _place_exterior_entry_light(walls, anchors, rules, rng, claimed_wall_faces)
+		if not exterior_light.is_empty():
+			placements.append(exterior_light)
 		var counter := _place_counter(anchors, rules, rng)
 		if not counter.is_empty():
 			placements.append(counter)
-		placements.append_array(_place_clusters(rules, rng, placements))
+		# Function-required wall storage claims its anchor before room layouts.
 		placements.append_array(_place_utilities(anchors, rules, rng, placements))
+		placements.append_array(_place_clusters(rules, rng, placements))
+		if rules.beds_on_ground_floor:
+			placements.append_array(_place_beds(anchors, rules, rng))
 		placements.append_array(_place_containers(anchors, rules, rng, placements))
-		placements.append_array(_place_shelves(anchors, rules, rng, counter))
-		placements.append_array(_place_lights(anchors, rules, rng))
+		placements.append_array(_place_shelves(anchors, rules, rng, counter, claimed_wall_faces))
+		placements.append_array(_place_lights(anchors, rules, rng, claimed_wall_faces))
 	else:
 		if rules.clusters_on_upper_floors:
 			placements.append_array(_place_clusters(rules, rng, placements))
 		placements.append_array(_place_beds(anchors, rules, rng))
-		placements.append_array(_place_shelves(anchors, rules, rng, {}))
-		placements.append_array(_place_lights(anchors, rules, rng))
+		placements.append_array(_place_shelves(anchors, rules, rng, {}, claimed_wall_faces))
+		placements.append_array(_place_lights(anchors, rules, rng, claimed_wall_faces))
 	if not _walkability_holds(placements):
 		if level_index == 0:
 			_last_error = "Walkability check failed after placement (solver bug guard)."
@@ -217,6 +241,7 @@ func _build_grid(floors: Array[Dictionary], walls: Array[Dictionary], blockers: 
 	for blocker in blockers:
 		_stamp_oriented_box(blocker["transform"], Vector2(blocker["bounds"].x, blocker["bounds"].z), 0.0, STATE_BLOCKED, [])
 	_door_cells.clear()
+	_exterior_door_interior_sides.clear()
 	var interior_mouths: Array[Vector2i] = []
 	for wall in walls:
 		if wall["category"] != "wall_door":
@@ -245,6 +270,8 @@ func _build_grid(floors: Array[Dictionary], walls: Array[Dictionary], blockers: 
 			if _in_grid(probe) and _state(probe) != STATE_BLOCKED:
 				interior_sides.append(side)
 		var is_entrance := interior_sides.size() == 1
+		if is_entrance:
+			_exterior_door_interior_sides[wall["node"].get_instance_id()] = interior_sides[0]
 		for side in interior_sides:
 			var step := 0.0
 			while step < DOOR_CORRIDOR_DEPTH:
@@ -279,20 +306,38 @@ func _wall_anchors(walls: Array[Dictionary]) -> Array[Dictionary]:
 			var center := Vector2(wall_transform.origin.x, wall_transform.origin.z)
 			var probe: Vector2 = center + normal * (WALL_THICKNESS * 0.5 + 0.4)
 			var cell := _cell_at(probe)
-			if not _in_grid(cell) or _state(cell) == STATE_BLOCKED:
-				continue
-			# Interior faces only — a porch under an exterior wall face is
-			# walkable floor, but nothing mounts or stands out there.
-			if not _is_interior_region(_region_of(probe)):
-				continue
+			var is_known_door_interior: bool = wall["category"] == "wall_door" and is_equal_approx(float(_exterior_door_interior_sides.get(wall["node"].get_instance_id(), 0.0)), side)
+			if not is_known_door_interior:
+				if not _in_grid(cell) or _state(cell) == STATE_BLOCKED:
+					continue
+				# Interior faces only — a porch under an exterior wall face is
+				# walkable floor, but nothing mounts or stands out there.
+				if not _is_interior_region(_region_of(probe)):
+					continue
 			anchors.append({
 				"name": str(wall["node"].name) + ("+" if side > 0.0 else "-"),
+				"wall_node_id": wall["node"].get_instance_id(),
+				"wall_face_key": _wall_face_key(wall, side),
+				"side": side,
 				"category": wall["category"],
 				"position": center,
+				"mount_position": _wall_mount_position(wall, center),
 				"normal": normal,
 				"along": Vector2(wall_transform.basis.x.x, wall_transform.basis.x.z).normalized(),
 			})
 	return anchors
+
+
+func _wall_face_key(wall: Dictionary, side: float) -> String:
+	return "%d:%d" % [wall["node"].get_instance_id(), 1 if side > 0.0 else -1]
+
+
+func _wall_mount_position(wall: Dictionary, center: Vector2) -> Vector2:
+	if wall["category"] != "wall_door":
+		return center
+	var transform: Transform3D = wall["transform"]
+	var along := Vector2(transform.basis.x.x, transform.basis.x.z).normalized()
+	return center + along * minf(float((wall["bounds"] as Vector3).x) * 0.35, 0.7)
 
 
 ## --- Archetypes ----------------------------------------------------------------
@@ -365,7 +410,7 @@ func _place_clusters(rules: FurnishRules, rng: RandomNumberGenerator, existing: 
 		for cell in candidates:
 			if _state(cell) != STATE_FREE:
 				continue
-			var placement := _try_stamp_cluster(required_scene, required_footprint, cell, rng, existing + placements)
+			var placement := _try_stamp_cluster(required_scene, required_footprint, cell, rules.cluster_margin, rng, existing + placements)
 			if not placement.is_empty():
 				placements.append(placement)
 				_pending_required_clusters.remove_at(scene_index)
@@ -384,7 +429,7 @@ func _place_clusters(rules: FurnishRules, rng: RandomNumberGenerator, existing: 
 		if _state(cell) != STATE_FREE:
 			continue
 		var scene: PackedScene = rules.cluster_scenes[rng.randi_range(0, rules.cluster_scenes.size() - 1)]
-		var placement := _try_stamp_cluster(scene, footprints[scene], cell, rng, existing + placements)
+		var placement := _try_stamp_cluster(scene, footprints[scene], cell, rules.cluster_margin, rng, existing + placements)
 		if placement.is_empty():
 			continue
 		placements.append(placement)
@@ -396,16 +441,16 @@ func _place_clusters(rules: FurnishRules, rng: RandomNumberGenerator, existing: 
 ## the breathing margin may border walk corridors (people walking past a
 ## table is fine, a table standing IN the corridor is not), and the stamp
 ## must not strand any earlier placement's reach probe.
-func _try_stamp_cluster(scene: PackedScene, footprint: Vector2, cell: Vector2i, rng: RandomNumberGenerator, already_placed: Array[Dictionary]) -> Dictionary:
+func _try_stamp_cluster(scene: PackedScene, footprint: Vector2, cell: Vector2i, margin: float, rng: RandomNumberGenerator, already_placed: Array[Dictionary]) -> Dictionary:
 	var yaw := (PI * 0.5) * rng.randi_range(0, 3) + deg_to_rad(rng.randf_range(-5.0, 5.0))
 	var origin := _cell_center(cell)
 	var cluster_transform := Transform3D(Basis(Vector3.UP, yaw), Vector3(origin.x, 0.0, origin.y))
 	if not _region_is(cluster_transform, footprint, 0.0, [STATE_FREE]):
 		return {}
-	if not _region_is(cluster_transform, footprint, CLUSTER_MARGIN, [STATE_FREE, STATE_WALK_ONLY]):
+	if not _region_is(cluster_transform, footprint, margin, [STATE_FREE, STATE_WALK_ONLY]):
 		return {}
 	_stamp_oriented_box(cluster_transform, footprint, 0.0, STATE_OCCUPIED, [STATE_FREE])
-	var probe := origin + Vector2(cos(yaw), -sin(yaw)) * (footprint.x * 0.5 + CLUSTER_MARGIN + CELL)
+	var probe := origin + Vector2(cos(yaw), -sin(yaw)) * (footprint.x * 0.5 + margin + CELL)
 	var placement := {
 		"kind": "cluster",
 		"scene": scene,
@@ -593,7 +638,7 @@ func _container_footprint(scene: PackedScene) -> Vector2:
 ## Shelves mount on solid wall segments only (never doors or windows — that
 ## exclusion is structural, not a heuristic) at head height, so they never
 ## touch the floor grid or the navmesh.
-func _place_shelves(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, counter: Dictionary) -> Array[Dictionary]:
+func _place_shelves(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, counter: Dictionary, claimed_wall_faces: Dictionary) -> Array[Dictionary]:
 	var placements: Array[Dictionary] = []
 	if rules.shelf_scenes.is_empty():
 		return placements
@@ -601,7 +646,12 @@ func _place_shelves(anchors: Array[Dictionary], rules: FurnishRules, rng: Random
 	if not counter.is_empty():
 		counter_anchor_position = Vector2(counter["transform"].origin.x, counter["transform"].origin.z)
 	for anchor in anchors:
+		if placements.size() >= rules.max_shelves:
+			break
 		if anchor["category"] != "wall":
+			continue
+		var wall_face_key := str(anchor["wall_face_key"])
+		if claimed_wall_faces.has(wall_face_key):
 			continue
 		var anchor_position: Vector2 = anchor["position"]
 		# Leave the counter's own wall bay clean.
@@ -614,24 +664,102 @@ func _place_shelves(anchors: Array[Dictionary], rules: FurnishRules, rng: Random
 		var slide := rng.randf_range(-0.15, 0.15)
 		var origin := anchor_position + normal * (WALL_THICKNESS * 0.5 + 0.03) + along * slide
 		var yaw := atan2(normal.x, normal.y)
+		claimed_wall_faces[wall_face_key] = true
 		placements.append({
 			"kind": "shelf",
 			"scene": rules.shelf_scenes[rng.randi_range(0, rules.shelf_scenes.size() - 1)],
 			"transform": Transform3D(Basis(Vector3.UP, yaw), Vector3(origin.x, rules.shelf_mount_height, origin.y)),
+			"wall_face_key": wall_face_key,
 		})
 	return placements
 
 
-## Wall lights mount on solid wall segments above head height (same
-## structural exclusion as shelves — never doors or windows), spaced so a
-## storey reads evenly lit instead of clustered. They never touch the floor
-## grid or the navmesh; the fixture scenes handle their own dusk/dawn
-## switching at runtime.
-func _place_lights(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator) -> Array[Dictionary]:
+## One guaranteed light marks the exterior of the primary ground-floor door.
+## Prefer the exterior face of an adjacent solid wall. Compact shells whose
+## door neighbors are windows fall back to the door piece beside its opening.
+func _place_exterior_entry_light(walls: Array[Dictionary], anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, claimed_wall_faces: Dictionary) -> Dictionary:
+	if rules.light_scenes.is_empty():
+		return {}
+	var door_anchors := anchors.filter(func(anchor): return anchor["category"] == "wall_door")
+	door_anchors.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a["name"]) < str(b["name"]))
+	for interior_anchor in door_anchors:
+		var door_wall: Dictionary = {}
+		for wall in walls:
+			if wall["node"].get_instance_id() == int(interior_anchor["wall_node_id"]):
+				door_wall = wall
+				break
+		if door_wall.is_empty():
+			continue
+		var exterior_normal: Vector2 = -(interior_anchor["normal"] as Vector2)
+		var exterior_anchor := _adjacent_exterior_wall_anchor(door_wall, walls, exterior_normal)
+		if exterior_anchor.is_empty():
+			var exterior_side := -float(interior_anchor["side"])
+			exterior_anchor = {
+				"wall_face_key": _wall_face_key(door_wall, exterior_side),
+				"position": _wall_mount_position(door_wall, Vector2((door_wall["transform"] as Transform3D).origin.x, (door_wall["transform"] as Transform3D).origin.z)),
+				"normal": exterior_normal,
+			}
+		var wall_face_key := str(exterior_anchor["wall_face_key"])
+		if claimed_wall_faces.has(wall_face_key):
+			continue
+		var anchor_position: Vector2 = exterior_anchor["position"]
+		var normal: Vector2 = exterior_anchor["normal"]
+		var origin := anchor_position + normal * (WALL_THICKNESS * 0.5 + 0.03)
+		var yaw := atan2(normal.x, normal.y)
+		claimed_wall_faces[wall_face_key] = true
+		return {
+			"kind": "light",
+			"scene": rules.light_scenes[rng.randi_range(0, rules.light_scenes.size() - 1)],
+			"transform": Transform3D(Basis(Vector3.UP, yaw), Vector3(origin.x, rules.light_mount_height, origin.y)),
+			"wall_face_key": wall_face_key,
+			"exterior_entry_light": true,
+		}
+	return {}
+
+
+func _adjacent_exterior_wall_anchor(door_wall: Dictionary, walls: Array[Dictionary], exterior_normal: Vector2) -> Dictionary:
+	var door_transform: Transform3D = door_wall["transform"]
+	var door_center := Vector2(door_transform.origin.x, door_transform.origin.z)
+	var door_along := Vector2(door_transform.basis.x.x, door_transform.basis.x.z).normalized()
+	var door_half_width := float((door_wall["bounds"] as Vector3).x) * 0.5
+	var best: Dictionary = {}
+	var best_distance := INF
+	for wall in walls:
+		if wall["category"] != "wall":
+			continue
+		var wall_transform: Transform3D = wall["transform"]
+		var wall_along := Vector2(wall_transform.basis.x.x, wall_transform.basis.x.z).normalized()
+		if absf(door_along.dot(wall_along)) < 0.95:
+			continue
+		var wall_center := Vector2(wall_transform.origin.x, wall_transform.origin.z)
+		var offset := wall_center - door_center
+		var along_distance := absf(offset.dot(door_along))
+		var normal_distance := absf(offset.dot(exterior_normal))
+		var wall_half_width := float((wall["bounds"] as Vector3).x) * 0.5
+		if along_distance < 0.1 or along_distance > door_half_width + wall_half_width + 0.35 or normal_distance > 0.35:
+			continue
+		if along_distance >= best_distance:
+			continue
+		var wall_normal3 := wall_transform.basis.z.normalized()
+		var wall_normal := Vector2(wall_normal3.x, wall_normal3.z)
+		var side := 1.0 if wall_normal.dot(exterior_normal) >= 0.0 else -1.0
+		best = {
+			"wall_face_key": _wall_face_key(wall, side),
+			"position": wall_center,
+			"normal": exterior_normal,
+		}
+		best_distance = along_distance
+	return best
+
+
+## Interior wall lights share the same one-item-per-face claims as shelves.
+## Door pieces are valid light anchors, but their mount point is shifted beside
+## the opening; window pieces remain excluded.
+func _place_lights(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, claimed_wall_faces: Dictionary) -> Array[Dictionary]:
 	var placements: Array[Dictionary] = []
 	if rules.light_scenes.is_empty():
 		return placements
-	var candidates := anchors.filter(func(anchor): return anchor["category"] == "wall")
+	var candidates := anchors.filter(func(anchor): return anchor["category"] == "wall" or anchor["category"] == "wall_door")
 	for index in range(candidates.size() - 1, 0, -1):
 		var swap := rng.randi_range(0, index)
 		var held = candidates[index]
@@ -643,7 +771,10 @@ func _place_lights(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomN
 			break
 		if rng.randf() > rules.light_chance:
 			continue
-		var anchor_position: Vector2 = anchor["position"]
+		var wall_face_key := str(anchor["wall_face_key"])
+		if claimed_wall_faces.has(wall_face_key):
+			continue
+		var anchor_position: Vector2 = anchor["mount_position"]
 		var too_close := false
 		for lit in lit_positions:
 			if lit.distance_to(anchor_position) < rules.light_spacing_meters:
@@ -655,10 +786,12 @@ func _place_lights(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomN
 		var origin := anchor_position + normal * (WALL_THICKNESS * 0.5 + 0.03)
 		var yaw := atan2(normal.x, normal.y)
 		lit_positions.append(anchor_position)
+		claimed_wall_faces[wall_face_key] = true
 		placements.append({
 			"kind": "light",
 			"scene": rules.light_scenes[rng.randi_range(0, rules.light_scenes.size() - 1)],
 			"transform": Transform3D(Basis(Vector3.UP, yaw), Vector3(origin.x, rules.light_mount_height, origin.y)),
+			"wall_face_key": wall_face_key,
 		})
 	return placements
 

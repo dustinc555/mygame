@@ -16,12 +16,13 @@ class_name CGamePopulationRecord
 @export var character_type_path := ""
 @export var character_type_signature := ""
 @export var faction_id := ""
+@export var party_id := ""
 @export var squad_name := ""
 @export var role_id := "resident"
-## When this record is assigned to a settlement staff slot, the slot id is stored here so the
-## assignment is ledger truth (survives LOD) and the record is excluded from the resident pool.
-@export var assigned_slot_id := ""
-@export var staff_assignment_realized_once := false
+@export var assignments: Dictionary = {}
+@export var assignment_authority_scopes: Dictionary = {}
+@export var assignment_exclusivity_groups: Dictionary = {}
+@export var assignment_realized_once: Dictionary = {}
 @export var hostile_faction_ids: PackedStringArray = PackedStringArray()
 @export var combat_stance := 0
 @export var auto_heal_enabled := false
@@ -69,6 +70,18 @@ class_name CGamePopulationRecord
 var record: Dictionary = {}
 
 
+func _set(property: StringName, value: Variant) -> bool:
+	if property == &"assigned_slot_id":
+		var legacy_slot_id := str(value)
+		if not legacy_slot_id.is_empty():
+			assignments["employment"] = legacy_slot_id
+		return true
+	if property == &"staff_assignment_realized_once":
+		assignment_realized_once["employment"] = bool(value)
+		return true
+	return false
+
+
 func apply_record(source: Dictionary) -> void:
 	actor_id = str(source.get("actor_id", source.get("stable_id", actor_id))).strip_edges()
 	stable_id = str(source.get("stable_id", actor_id)).strip_edges()
@@ -84,10 +97,13 @@ func apply_record(source: Dictionary) -> void:
 	character_type_path = str(source.get("character_type_path", character_type_path))
 	character_type_signature = str(source.get("character_type_signature", character_type_signature))
 	faction_id = str(source.get("faction_id", faction_id))
+	party_id = str(source.get("party_id", party_id))
 	squad_name = str(source.get("squad_name", squad_name))
 	role_id = str(source.get("role_id", role_id))
-	assigned_slot_id = str(source.get("assigned_slot_id", assigned_slot_id))
-	staff_assignment_realized_once = bool(source.get("staff_assignment_realized_once", staff_assignment_realized_once))
+	assignments = (source.get("assignments", assignments) as Dictionary).duplicate(true)
+	assignment_authority_scopes = (source.get("assignment_authority_scopes", assignment_authority_scopes) as Dictionary).duplicate(true)
+	assignment_exclusivity_groups = (source.get("assignment_exclusivity_groups", assignment_exclusivity_groups) as Dictionary).duplicate(true)
+	assignment_realized_once = (source.get("assignment_realized_once", assignment_realized_once) as Dictionary).duplicate(true)
 	hostile_faction_ids = PackedStringArray(source.get("hostile_faction_ids", hostile_faction_ids))
 	combat_stance = int(source.get("combat_stance", combat_stance))
 	auto_heal_enabled = bool(source.get("auto_heal_enabled", auto_heal_enabled))
@@ -149,10 +165,13 @@ func to_record() -> Dictionary:
 		"character_type_path": character_type_path,
 		"character_type_signature": character_type_signature,
 		"faction_id": faction_id,
+		"party_id": party_id,
 		"squad_name": squad_name,
 		"role_id": role_id,
-		"assigned_slot_id": assigned_slot_id,
-		"staff_assignment_realized_once": staff_assignment_realized_once,
+		"assignments": assignments.duplicate(true),
+		"assignment_authority_scopes": assignment_authority_scopes.duplicate(true),
+		"assignment_exclusivity_groups": assignment_exclusivity_groups.duplicate(true),
+		"assignment_realized_once": assignment_realized_once.duplicate(true),
 		"hostile_faction_ids": Array(hostile_faction_ids),
 		"combat_stance": combat_stance,
 		"auto_heal_enabled": auto_heal_enabled,

@@ -16,6 +16,8 @@ const C_FACTION = preload("res://features/actors/sim/c_game_actor_faction.gd")
 const C_CONFIG = preload("res://features/combat/sim/c_game_combat_config.gd")
 const C_STATE = preload("res://features/combat/sim/c_game_combat_state.gd")
 const C_SLOT = preload("res://features/combat/sim/c_game_combat_slot_state.gd")
+const C_FACTION_STATE = preload("res://features/world_sim/sim/c_game_faction_state.gd")
+const C_RESPONSE_INTENT = preload("res://features/combat/sim/c_game_combat_response_intent.gd")
 
 const FIGHT_STATE_SEEKING_SLOT := 2
 const FIGHT_STATE_FIGHTING := 3
@@ -66,7 +68,8 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		var cfg_i = configs[i]
 		# player_order_active suppresses target ACQUISITION only — ordered actors
 		# disengage but stay valid targets for their enemies.
-		if vit_i == null or cfg_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat or cfg_i.player_order_active:
+		var player_order_active := factions[i] != null and bool(factions[i].player_order_active)
+		if vit_i == null or cfg_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat or player_order_active:
 			state_i.system_target_id = 0
 			state_i.system_target_actor_id = ""
 			state_i.system_target_retarget_remaining = 0.0
@@ -99,6 +102,7 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		_add_spatial_bucket(spatial_buckets, spatials[i].world_position, i)
 	var hostile_relation_pairs := _build_hostile_relation_pairs(factions, count)
 	var pressure_by_target_actor_id := _build_current_target_pressure(states, count)
+	var response_intents_by_actor_id := _build_response_intents_by_actor_id()
 
 	for i in range(count):
 		if due_flags[i] == 0:
@@ -112,7 +116,8 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		var node_actor = nodes[i].actor if nodes[i] != null else null
 		var vit_i = vitals[i]
 		var cfg_i = configs[i]
-		if vit_i == null or cfg_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat or cfg_i.player_order_active:
+		var fac_i = factions[i]
+		if vit_i == null or cfg_i == null or fac_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat or bool(fac_i.player_order_active):
 			_write_node_target(node_actor, 0, process_frame)
 			continue
 		var stance_i := int(cfg_i.combat_stance)
@@ -123,22 +128,29 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		# faction hostility alone never makes them initiate, and they never chase.
 		var require_grudge := stance_i == NpcRules.CombatStance.DEFENSIVE
 		var pos_i: Vector3 = spatials[i].world_position
-		var fac_i = factions[i]
 		var actor_id_i := actor_ids[i]
 		var current_target_actor_id := previous_system_target_actor_id
 		if current_target_actor_id.is_empty():
 			current_target_actor_id = str(state_i.current_target_actor_id)
 		var grudges_i: PackedInt64Array = state_i.personal_hostile_ids
 		var grudge_actor_ids_i: PackedStringArray = state_i.personal_hostile_actor_ids
-		# Engagement lock: once the slot system has us committed to a target (seeking a slot or
-		# trading blows), keep that target instead of re-scanning for a "cheaper" enemy. This is
-		# what stops an actor abandoning a live duel mid-fight. The lock releases automatically the
-		# moment the engagement ends — target dies/protected/no-longer-hostile here, or the slot
-		# system drops FIGHTING (e.g. the target fled out of leash), so we free-pick again next pass.
+		var authority_j := _response_target_index(actor_id_i, response_intents_by_actor_id, index_by_actor_id, vitals, configs, i, alive_value, false)
+		if authority_j >= 0:
+			state_i.system_target_id = instance_ids[authority_j]
+			state_i.system_target_actor_id = actor_ids[authority_j]
+			_write_node_target(node_actor, state_i.system_target_id, process_frame)
+			continue
+		# A committed duel outranks social response intent.
 		var lock_j := _engagement_lock_index(i, slots, index_by_actor_id, vitals, configs, factions, instance_ids, actor_ids, alive_value, hostile_relation_pairs, fac_i, grudges_i, grudge_actor_ids_i, require_grudge)
 		if lock_j >= 0:
 			state_i.system_target_id = instance_ids[lock_j]
 			state_i.system_target_actor_id = actor_ids[lock_j]
+			_write_node_target(node_actor, state_i.system_target_id, process_frame)
+			continue
+		var social_j := _response_target_index(actor_id_i, response_intents_by_actor_id, index_by_actor_id, vitals, configs, i, alive_value, true)
+		if social_j >= 0:
+			state_i.system_target_id = instance_ids[social_j]
+			state_i.system_target_actor_id = actor_ids[social_j]
 			_write_node_target(node_actor, state_i.system_target_id, process_frame)
 			continue
 		var vtol: float = cfg_i.move_target_vertical_tolerance
@@ -212,6 +224,55 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 
 	if shadow_enabled:
 		_record_shadow(states, count)
+
+
+func _build_response_intents_by_actor_id() -> Dictionary:
+	var result := {}
+	for entity in _world.query.with_all([C_RESPONSE_INTENT]).execute():
+		var intent = entity.get_component(C_RESPONSE_INTENT)
+		if intent == null or int(intent.remaining_ticks) <= 0:
+			continue
+		var actor_id := str(intent.responder_actor_id)
+		var intents: Array = result.get(actor_id, [])
+		intents.append(intent)
+		result[actor_id] = intents
+	for actor_id in result.keys():
+		(result[actor_id] as Array).sort_custom(func(left, right) -> bool:
+			var left_priority := _response_intent_priority(int(left.kind))
+			var right_priority := _response_intent_priority(int(right.kind))
+			if left_priority != right_priority:
+				return left_priority < right_priority
+			if int(left.sequence) != int(right.sequence):
+				return int(left.sequence) < int(right.sequence)
+			return str(left.target_actor_id) < str(right.target_actor_id)
+		)
+	return result
+
+
+func _response_target_index(actor_id: String, intents_by_actor_id: Dictionary, index_by_actor_id: Dictionary, vitals: Array, configs: Array, actor_index: int, alive_value: int, social_only: bool) -> int:
+	for intent in (intents_by_actor_id.get(actor_id, []) as Array):
+		var is_social := int(intent.kind) == C_RESPONSE_INTENT.Kind.SOCIAL_DEFENSE
+		if is_social != social_only:
+			continue
+		var target_actor_id := str(intent.target_actor_id)
+		if not index_by_actor_id.has(target_actor_id):
+			continue
+		var target_index := int(index_by_actor_id[target_actor_id])
+		var target_vitals = vitals[target_index]
+		var target_config = configs[target_index]
+		if target_index != actor_index and target_vitals != null and target_config != null and target_vitals.life_state == alive_value and not target_config.protected_from_combat:
+			return target_index
+	return -1
+
+
+func _response_intent_priority(kind: int) -> int:
+	match kind:
+		C_RESPONSE_INTENT.Kind.LAW_ENFORCEMENT:
+			return 0
+		C_RESPONSE_INTENT.Kind.PRIVATE_DEFENSE:
+			return 1
+		_:
+			return 2
 
 
 func _is_hostile(fac_a, fac_b, grudges_a: PackedInt64Array, instance_id_b: int, grudge_actor_ids_a: PackedStringArray, actor_id_b: String, hostile_relation_pairs: Dictionary, require_grudge := false) -> bool:
@@ -331,26 +392,30 @@ func _apply_projected_pressure_change(pressure_by_target_actor_id: Dictionary, o
 
 
 func _build_hostile_relation_pairs(factions: Array, count: int) -> Dictionary:
-	var faction_ids := PackedStringArray()
+	var active_faction_ids := {}
 	for i in range(count):
 		var faction = factions[i]
 		if faction == null:
 			continue
 		var faction_id := str(faction.faction_id)
-		if not faction_id.is_empty() and not faction_ids.has(faction_id):
-			faction_ids.append(faction_id)
-	if faction_ids.size() < 2:
-		return {}
-	var faction_controller := get_tree().get_first_node_in_group("faction_controller") if get_tree() != null else null
-	if faction_controller == null or not faction_controller.has_method("are_hostile"):
+		if not faction_id.is_empty():
+			active_faction_ids[faction_id] = true
+	if active_faction_ids.size() < 2 or _world == null:
 		return {}
 	var pairs := {}
-	for a_index in range(faction_ids.size()):
-		for b_index in range(a_index + 1, faction_ids.size()):
-			var faction_a := str(faction_ids[a_index])
-			var faction_b := str(faction_ids[b_index])
-			if bool(faction_controller.call("are_hostile", faction_a, faction_b)):
-				pairs[_relation_key(faction_a, faction_b)] = true
+	for entity in _world.query.with_all([C_FACTION_STATE]).execute():
+		var faction_state = entity.get_component(C_FACTION_STATE)
+		if faction_state == null:
+			break
+		for stored_key in faction_state.diplomatic_states:
+			var record: Dictionary = faction_state.diplomatic_states[stored_key]
+			var relation := str(record.get("state", "neutral"))
+			if relation != "war" and relation != "hostile":
+				continue
+			var ids := str(stored_key).split(":", false, 1)
+			if ids.size() == 2 and active_faction_ids.has(ids[0]) and active_faction_ids.has(ids[1]):
+				pairs[_relation_key(ids[0], ids[1])] = true
+		break
 	return pairs
 
 

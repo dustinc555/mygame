@@ -72,7 +72,6 @@ display_name = "Jail Demo Town"
 faction_definition = ExtResource("6_farmers")
 storage_seeds = Array[ExtResource("20_seed")]([SubResource("JailDemoStorage")])
 known_settlement_ids = null
-guard_count = 1
 guard_post_count = 1
 guard_name = "City Guard"
 staff_stable_id_prefix = "npc.jail_demo_town.town"

@@ -6,6 +6,7 @@ extends SceneTree
 ## Usage:
 ##   godot --headless --path . --script res://tools/importers/import_medieval_village_modular_pieces.gd -- verify
 ##   godot --headless --path . --script res://tools/importers/import_medieval_village_modular_pieces.gd -- generate
+##   godot --headless --path . --script res://tools/importers/import_medieval_village_modular_pieces.gd -- refresh_roofs
 ##
 ## verify:   recompute every already-imported piece from its source gltf and
 ##           diff bounds/snap points against the checked-in definition. Proves
@@ -45,6 +46,9 @@ const DOOR_OPENING_WIDTH := 1.38
 const WALL_THICKNESS := 0.406482
 const AUTO_OPEN_DEPTH := 2.4
 const INTERACTION_DISTANCE := 0.9
+const ROOF_RUN_HALF_LENGTH := 1.0
+const ROOF_GABLE_SOCKET_Z := 1.0 - absf(DOOR_PLANE_Z)
+const ROOF_GABLE_INSERT_Z := ROOF_GABLE_SOCKET_Z - 0.05
 ## Balcony rails wrap a 2m floor cell (origin at cell center); the rail mesh
 ## overhangs the cell edge by a ~0.1m lip, which is how rail sides are detected.
 const BALCONY_CELL_HALF := 1.0
@@ -78,8 +82,10 @@ func _initialize() -> void:
 			exit_code = _run_verify()
 		"generate":
 			exit_code = _run_generate()
+		"refresh_roofs":
+			exit_code = _run_refresh_roofs()
 		_:
-			push_error("Unknown mode '%s' (expected verify or generate)" % mode)
+			push_error("Unknown mode '%s' (expected verify, generate, or refresh_roofs)" % mode)
 			exit_code = 2
 	quit(exit_code)
 
@@ -257,6 +263,8 @@ func _build_snap_plan(category: String, piece_name: String, aabb: AABB) -> Array
 				_snap("up", "Up", "floor_up", ["wall_bottom", "stairs_bottom"], BASIS_FACE_UP, Vector3(center.x, max_point.y, center.z)),
 			]
 		"roof":
+			if _is_full_modular_roof(piece_name):
+				return _build_modular_roof_snap_plan(piece_name, aabb)
 			var roof_z := _roof_family_plane_z(piece_name, center.z)
 			return [
 				_snap("left", "Left", "roof_side", ["roof_side"], BASIS_SIDE_MIN_X, Vector3(min_point.x, center.y, roof_z)),
@@ -265,6 +273,8 @@ func _build_snap_plan(category: String, piece_name: String, aabb: AABB) -> Array
 				_snap("ridge", "Ridge", "roof_ridge", ["roof_ridge"], BASIS_FACE_UP, Vector3(center.x, max_point.y, roof_z)),
 			]
 		"roof_front":
+			if not piece_name.contains("_Half_"):
+				return _build_roof_front_snap_plan(aabb)
 			return [
 				_snap("left", "Left", "roof_front_side", ["roof_side"], BASIS_SIDE_MIN_X, Vector3(min_point.x, center.y, center.z)),
 				_snap("right", "Right", "roof_front_side", ["roof_side"], BASIS_SIDE_MAX_X, Vector3(max_point.x, center.y, center.z)),
@@ -294,6 +304,43 @@ func _build_snap_plan(category: String, piece_name: String, aabb: AABB) -> Array
 			# prop: free placement.
 			return []
 	return []
+
+
+func _is_full_modular_roof(piece_name: String) -> bool:
+	if not piece_name.begins_with("Roof_Modular_"):
+		return false
+	return piece_name.ends_with("_L") or piece_name.ends_with("_Mid") or piece_name.ends_with("_R")
+
+
+func _build_modular_roof_snap_plan(piece_name: String, aabb: AABB) -> Array:
+	var min_y := aabb.position.y
+	var eave_x := roundf(aabb.size.x * 0.5) + absf(DOOR_PLANE_Z)
+	var plan := [
+		_snap("eave_west", "Eave West", "roof_wall_top", ["wall_top"], BASIS_FACE_DOWN, Vector3(-eave_x, min_y, 0)),
+		_snap("eave_east", "Eave East", "roof_wall_top", ["wall_top"], BASIS_FACE_DOWN, Vector3(eave_x, min_y, 0)),
+	]
+	if piece_name.ends_with("_L"):
+		plan.append(_snap("run_positive_z", "Run Positive Z", "roof_run_positive_z", ["roof_run_negative_z"], BASIS_IDENTITY, Vector3(0, min_y, ROOF_RUN_HALF_LENGTH)))
+		plan.append(_snap("gable_negative_z", "Gable Negative Z", "roof_gable_socket", ["roof_gable_insert"], BASIS_Y_180, Vector3(0, min_y, -ROOF_GABLE_SOCKET_Z)))
+	elif piece_name.ends_with("_Mid"):
+		plan.append(_snap("run_negative_z", "Run Negative Z", "roof_run_negative_z", ["roof_run_positive_z"], BASIS_IDENTITY, Vector3(0, min_y, -ROOF_RUN_HALF_LENGTH)))
+		plan.append(_snap("run_positive_z", "Run Positive Z", "roof_run_positive_z", ["roof_run_negative_z"], BASIS_IDENTITY, Vector3(0, min_y, ROOF_RUN_HALF_LENGTH)))
+	else:
+		plan.append(_snap("run_negative_z", "Run Negative Z", "roof_run_negative_z", ["roof_run_positive_z"], BASIS_IDENTITY, Vector3(0, min_y, -ROOF_RUN_HALF_LENGTH)))
+		plan.append(_snap("gable_positive_z", "Gable Positive Z", "roof_gable_socket", ["roof_gable_insert"], BASIS_IDENTITY, Vector3(0, min_y, ROOF_GABLE_SOCKET_Z)))
+	return plan
+
+
+func _build_roof_front_snap_plan(aabb: AABB) -> Array:
+	var min_y := aabb.position.y
+	var plan := [
+		_snap("roof_insert", "Roof Insert", "roof_gable_insert", ["roof_gable_socket"], BASIS_IDENTITY, Vector3(0, min_y, ROOF_GABLE_INSERT_Z)),
+	]
+	var wall_count := maxi(1, roundi(aabb.size.x * 0.5))
+	for index in range(wall_count):
+		var x := float(-(wall_count - 1) + index * 2)
+		plan.append(_snap("wall_%d" % index, "Wall %d" % (index + 1), "roof_front_wall", ["wall_top"], BASIS_FACE_UP, Vector3(x, min_y, ROOF_GABLE_INSERT_Z)))
+	return plan
 
 
 ## Balcony pieces are railing strips wrapping a 2m floor cell with the origin
@@ -439,6 +486,8 @@ func _run_verify() -> int:
 				diffs.append("snap '%s' basis stored %s vs computed %s" % [stored.snap_id, stored.local_transform.basis, planned_transform.basis])
 			if stored.connector_type != planned.connector_type:
 				diffs.append("snap '%s' connector stored '%s' vs computed '%s'" % [stored.snap_id, stored.connector_type, planned.connector_type])
+			if stored.accepts_types != planned.accepts:
+				diffs.append("snap '%s' accepts stored %s vs computed %s" % [stored.snap_id, stored.accepts_types, planned.accepts])
 		for planned in plan:
 			if not stored_ids.has(planned.snap_id):
 				diffs.append("computed snap '%s' absent from stored definition" % planned.snap_id)
@@ -512,6 +561,52 @@ func _run_generate() -> int:
 			printerr("ERROR: %s" % error)
 		return 1
 	return 0
+
+
+func _run_refresh_roofs() -> int:
+	var existing := _collect_existing_definitions()
+	var refreshed := 0
+	for source_path in existing.keys():
+		var piece_name := String(source_path).get_file().get_basename()
+		var spec := _classify(piece_name)
+		var refreshable: bool = spec.category == "roof" and _is_full_modular_roof(piece_name)
+		refreshable = refreshable or (spec.category == "roof_front" and not piece_name.contains("_Half_"))
+		if not refreshable:
+			continue
+		var definition_path: String = existing[source_path]
+		var existing_definition := load(definition_path) as Resource
+		var scene_path := str((existing_definition.scene as PackedScene).resource_path)
+		var aabb := _instantiate_and_measure(source_path)
+		var plan := _build_snap_plan(spec.category, piece_name, aabb)
+		var wrapper_error := _refresh_wrapper_snap_points(scene_path, plan, definition_path.get_file().get_basename())
+		if not wrapper_error.is_empty():
+			_fail("%s: %s" % [piece_name, wrapper_error])
+			continue
+		existing_definition.piece_id = definition_path.get_file().get_basename()
+		existing_definition.snap_points = _make_snap_point_resources(plan)
+		var save_error := ResourceSaver.save(existing_definition, definition_path)
+		if save_error != OK:
+			_fail("%s: definition save failed (%d)" % [piece_name, save_error])
+			continue
+		refreshed += 1
+	print("REFRESH_ROOFS: %d wrappers and definitions" % refreshed)
+	return 0 if _errors.is_empty() else 1
+
+
+func _refresh_wrapper_snap_points(scene_path: String, plan: Array, piece_id: String) -> String:
+	var packed := load(scene_path) as PackedScene
+	if packed == null:
+		return "cannot load wrapper"
+	var root_node := packed.instantiate() as Node3D
+	if root_node == null:
+		return "cannot instantiate wrapper"
+	root_node.piece_id = piece_id
+	var old_snap_points := root_node.get_node_or_null("SnapPoints")
+	if old_snap_points != null:
+		root_node.remove_child(old_snap_points)
+		old_snap_points.free()
+	_add_snap_markers(root_node, plan)
+	return _pack_and_save(root_node, scene_path)
 
 
 func _generate_piece(piece_name: String, source_path: String) -> String:
@@ -689,6 +784,14 @@ func _save_definition(spec: Dictionary, source_path: String, scene_path: String,
 	definition.grid_size_cells = _grid_size_for(aabb.size, definition.grid_cell_size_meters)
 	definition.bounds_size_meters = aabb.size
 	definition.tags = spec.tags
+	definition.snap_points = _make_snap_point_resources(plan)
+	var save_error := ResourceSaver.save(definition, definition_path)
+	if save_error != OK:
+		return "definition save failed (%d)" % save_error
+	return ""
+
+
+func _make_snap_point_resources(plan: Array) -> Array:
 	var snap_points: Array = []
 	for entry in plan:
 		var snap_point: Resource = SNAP_POINT_SCRIPT.new()
@@ -698,11 +801,7 @@ func _save_definition(spec: Dictionary, source_path: String, scene_path: String,
 		snap_point.accepts_types = entry.accepts
 		snap_point.local_transform = entry.transform
 		snap_points.append(snap_point)
-	definition.snap_points = snap_points
-	var save_error := ResourceSaver.save(definition, definition_path)
-	if save_error != OK:
-		return "definition save failed (%d)" % save_error
-	return ""
+	return snap_points
 
 
 func _write_catalog(definition_paths: Array[String]) -> void:

@@ -255,8 +255,10 @@ func _compute_demand(definition: Resource) -> Dictionary:
 	for facility in _tools.get_town_facility_nodes(_town):
 		var entry: FacilityDefinition = _tools.find_catalog_entry_for_scene(facility.scene_file_path)
 		if entry != null:
-			for role_id in entry.staff_role_counts:
-				roles[role_id] = int(roles.get(role_id, 0)) + int(entry.staff_role_counts[role_id])
+			for slot in entry.get_default_assignment_slot_specs():
+				var role_id := str(slot.get("role_id", "")).strip_edges()
+				if not role_id.is_empty():
+					roles[role_id] = int(roles.get(role_id, 0)) + 1
 			if entry.get_category() == "keep":
 				has_keep = true
 		housing += _authored_housing_capacity(facility)
@@ -276,9 +278,12 @@ func _rebuild_facility_list() -> void:
 	_facility_list.clear()
 	for facility in _tools.get_town_facility_nodes(_town):
 		var entry: FacilityDefinition = _tools.find_catalog_entry_for_scene(facility.scene_file_path)
-		var label := str(facility.name)
+		var display_name := str(facility.get("display_name")).strip_edges() if facility.get("display_name") != null else ""
+		var label := display_name if not display_name.is_empty() else str(facility.name)
 		if entry != null:
 			label += "  (%s)" % entry.get_category()
+		elif facility.get("facility_type") != null:
+			label += "  (%s)" % str(facility.get("facility_type"))
 		var index := _facility_list.add_item(label)
 		_facility_list.set_item_metadata(index, facility.get_path())
 

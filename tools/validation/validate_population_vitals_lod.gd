@@ -85,7 +85,7 @@ func _run() -> void:
 		"actor_id": actor.stable_id,
 		"stable_id": actor.stable_id,
 		"settlement_id": "lod_town",
-		"assigned_slot_id": "lod_town.guard.0",
+		"assignments": {"employment": "lod_town.guard.0"},
 		"realization_state": "ledger",
 		"last_world_position": Vector3(11.0, 0.0, -7.0),
 		"last_world_position_initialized": true,
@@ -119,7 +119,7 @@ func _run() -> void:
 	_expect_state("LOD unload", ledger_record.get("vitals", {}), expected)
 	_expect_state("LOD unload inputs", ledger_record.get("vitals_inputs", {}), expected_inputs)
 	_expect(bridge.get_active_population_vitals_count() == 1, "LOD unload should index exactly one active injury")
-	_expect(str(ledger_record.get("assigned_slot_id", "")) == "lod_town.guard.0", "Unconscious staff should keep their assignment")
+	_expect(str((ledger_record.get("assignments", {}) as Dictionary).get("employment", "")) == "lod_town.guard.0", "Unconscious staff should keep their employment assignment")
 	_expect(bridge.save_gecs_world(SAVE_PATH), "Wounded ledger person should save")
 
 	var second := _make_bridge()
@@ -171,7 +171,7 @@ func _run() -> void:
 
 	_validate_offscreen_death(loaded, world_time)
 	_validate_realized_skip_death(loaded, world_time, second["root"])
-	_validate_staff_slot_sources()
+	_validate_assignment_death_authority()
 	_remove_save()
 	first["root"].queue_free()
 	second["root"].queue_free()
@@ -219,7 +219,7 @@ func _validate_offscreen_death(bridge, world_time) -> void:
 		"actor_id": "person.lod.dying",
 		"stable_id": "person.lod.dying",
 		"settlement_id": "lod_town",
-		"assigned_slot_id": "lod_town.guard.1",
+		"assignments": {"employment": "lod_town.guard.1"},
 		"realization_state": "ledger",
 		"last_world_position": Vector3(3.0, 0.0, 2.0),
 		"last_world_position_initialized": true,
@@ -253,7 +253,7 @@ func _validate_offscreen_death(bridge, world_time) -> void:
 	var dead: Dictionary = bridge.get_population_record("person.lod.dying")
 	_expect(int(dead.get("life_state", -1)) == NpcRules.LifeState.DEAD, "Dying ledger person should die offscreen")
 	_expect(str(dead.get("body_state", "")) == "corpse", "Offscreen death should create a durable corpse")
-	_expect(str(dead.get("assigned_slot_id", "")) == "", "Offscreen death should release the staff assignment")
+	_expect((dead.get("assignments", {}) as Dictionary).is_empty(), "Offscreen death should release every assignment domain")
 	_expect(bridge.get_active_population_vitals_count() == 0, "Stable corpses should leave the sparse injury index")
 
 
@@ -263,7 +263,7 @@ func _validate_realized_skip_death(bridge, world_time, scene_root: Node) -> void
 		"actor_id": ACTOR_ID,
 		"stable_id": ACTOR_ID,
 		"settlement_id": "lod_town",
-		"assigned_slot_id": "lod_town.guard.2",
+		"assignments": {"employment": "lod_town.guard.2"},
 		"realization_state": "ledger",
 	})
 	var actor := FakeActor.new()
@@ -296,15 +296,11 @@ func _validate_realized_skip_death(bridge, world_time, scene_root: Node) -> void
 	_expect((record.get("last_world_transform", Transform3D.IDENTITY) as Transform3D).is_equal_approx(actor.global_transform), "Realized skip death should preserve the exact corpse transform")
 
 
-func _validate_staff_slot_sources() -> void:
-	for path in [
-		"res://features/settlements/bridge/settlement_bar.gd",
-		"res://features/settlements/bridge/settlement_jail.gd",
-		"res://features/settlements/bridge/settlement_keep.gd",
-		"res://features/settlements/bridge/settlement_town.gd",
-	]:
-		var source := FileAccess.get_file_as_string(path)
-		_expect(source.contains("actor_dead := actor != null and int(actor.get(\"life_state\")) == NpcRules.LifeState.DEAD"), "%s must only open a vacancy for DEAD staff" % path)
+func _validate_assignment_death_authority() -> void:
+	var source := FileAccess.get_file_as_string("res://features/settlements/bridge/settlement_controller.gd")
+	var reconciliation := source.get_slice("func _sync_settlement_assignment_slots", 1).get_slice("func _process_assignment_vacancies", 0)
+	_expect(reconciliation.contains("not _is_assigned_record_alive(occupant_actor_id)"), "Assignment reconciliation must reject dead occupants")
+	_expect(reconciliation.contains("_ensure_assignment_vacancy(settlement_id, slot, assignment_key)"), "Assignment reconciliation must open vacancies for dead occupants")
 
 
 func _expect_state(label: String, actual: Dictionary, expected: Dictionary) -> void:

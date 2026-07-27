@@ -36,6 +36,9 @@ func _run() -> void:
 		return
 	for settlement_id in SETTLEMENT_IDS:
 		await _validate_settlement(settlement, population, str(settlement_id))
+	if _projection_silent_only:
+		_finish()
+		return
 	await _validate_in_place_load_provenance(population)
 	_validate_provenance_sources()
 	_finish()
@@ -52,7 +55,7 @@ func _validate_settlement(settlement: Node, population: Node, settlement_id: Str
 	for record_value in records:
 		var record: Dictionary = record_value
 		var source := str(record.get("generation_source", ""))
-		if source != "census" and source != "census_authored":
+		if source != "census" and source != "census_authored" and source != "assignment_preferred" and source != "assignment_auto":
 			continue
 		census_total += 1
 		if int(record.get("life_state", 0)) != NpcRules.LifeState.DEAD:
@@ -67,7 +70,7 @@ func _validate_settlement(settlement: Node, population: Node, settlement_id: Str
 	# Staff may come from census surplus OR hand-authored scene residents —
 	# both are registered town people. The pool invariant is that every
 	# filled slot's worker is a living population record (no minted ghosts).
-	var slots: Dictionary = state.get("staff_slots", {})
+	var slots: Dictionary = state.get("assignment_slots", {})
 	var filled := 0
 	var filled_with_record := 0
 	var staff_snapshots := {}
@@ -76,7 +79,7 @@ func _validate_settlement(settlement: Node, population: Node, settlement_id: Str
 		if not bool(slot.get("filled", false)):
 			continue
 		filled += 1
-		var worker_id := str(slot.get("worker_actor_id", ""))
+		var worker_id := str(slot.get("occupant_actor_id", ""))
 		if worker_id.is_empty():
 			continue
 		var record: Dictionary = population.call("get_actor_record", worker_id)
@@ -92,13 +95,15 @@ func _validate_settlement(settlement: Node, population: Node, settlement_id: Str
 		return
 	await _validate_immediate_provenance(population, staff_snapshots, settlement_id)
 	for slot_id_value in slots.keys():
-		settlement.call("derealize_staff_slot", settlement_id, str(slot_id_value))
+		var slot: Dictionary = slots[slot_id_value]
+		settlement.call("derealize_assignment_slot", settlement_id, str(slot.get("assignment_domain", "employment")), str(slot.get("slot_id", "")))
 	for worker_id in staff_snapshots:
 		var ledger_record: Dictionary = population.call("get_actor_record", str(worker_id))
 		if str(ledger_record.get("realization_state", "")) != "ledger":
 			_fail("%s did not return %s to its permanent GECS ledger record" % [settlement_id, str(worker_id)])
 	for slot_id_value in slots.keys():
-		settlement.call("realize_staff_slot", settlement_id, str(slot_id_value))
+		var slot: Dictionary = slots[slot_id_value]
+		settlement.call("realize_assignment_slot", settlement_id, str(slot.get("assignment_domain", "employment")), str(slot.get("slot_id", "")))
 	for worker_id in staff_snapshots:
 		var restored: Dictionary = population.call("get_actor_record", str(worker_id))
 		var before: Dictionary = staff_snapshots[worker_id]
@@ -116,16 +121,17 @@ func _validate_settlement(settlement: Node, population: Node, settlement_id: Str
 func _validate_reconciliation_is_projection_silent(settlement: Node, population: Node, settlement_id: String, slots: Dictionary) -> void:
 	var live_snapshots := {}
 	for slot_value in slots.values():
-		var actor_id := str((slot_value as Dictionary).get("worker_actor_id", ""))
+		var actor_id := str((slot_value as Dictionary).get("occupant_actor_id", ""))
 		var actor = population.call("get_live_actor", actor_id)
 		if actor is Node3D:
 			live_snapshots[actor_id] = {
 				"instance_id": actor.get_instance_id(),
 				"transform": (actor as Node3D).global_transform,
 			}
-	settlement.call("_sync_settlement_staff_slots", settlement_id)
+	settlement.call("_sync_settlement_assignment_slots", settlement_id)
 	for slot_id_value in slots.keys():
-		settlement.call("realize_staff_slot", settlement_id, str(slot_id_value))
+		var slot: Dictionary = slots[slot_id_value]
+		settlement.call("realize_assignment_slot", settlement_id, str(slot.get("assignment_domain", "employment")), str(slot.get("slot_id", "")))
 	for actor_id in live_snapshots:
 		var actor = population.call("get_live_actor", str(actor_id))
 		var before: Dictionary = live_snapshots[actor_id]

@@ -172,8 +172,16 @@ func _normalize_record(record: Dictionary) -> Dictionary:
 		"type_id": str(record.get("type_id", "generic")).strip_edges(),
 		"display_name": str(record.get("display_name", "Building")),
 		"owner_faction_id": str(record.get("owner_faction_id", "")).strip_edges(),
+		"jurisdiction_faction_id": str(record.get("jurisdiction_faction_id", "")).strip_edges(),
 		"access_state": str(record.get("access_state", "public")).strip_edges(),
 		"abandoned": bool(record.get("abandoned", false)),
+		"public_schedule_enabled": bool(record.get("public_schedule_enabled", true)),
+		"public_open_hour": clampi(int(record.get("public_open_hour", 8)), 0, 23),
+		"public_close_hour": clampi(int(record.get("public_close_hour", 21)), 0, 23),
+		"trespass_warning_interval_seconds": maxf(0.0, float(record.get("trespass_warning_interval_seconds", 3.0))),
+		"trespass_warnings_before_alarm": maxi(0, int(record.get("trespass_warnings_before_alarm", 2))),
+		"trespass_notice_radius": maxf(0.0, float(record.get("trespass_notice_radius", 18.0))),
+		"trespass_escalation": _normalize_trespass_escalation(record.get("trespass_escalation", "settlement_alarm")),
 		"operational_state": str(record.get("operational_state", "operational")).strip_edges(),
 		"bed_count": maxi(0, int(record.get("bed_count", 0))),
 		"housing_capacity": maxi(0, int(record.get("housing_capacity", 0))),
@@ -182,3 +190,8 @@ func _normalize_record(record: Dictionary) -> Dictionary:
 		"catalog_id": str(record.get("catalog_id", "")).strip_edges(),
 		"foundation_height": float(record.get("foundation_height", 0.0)),
 	}
+
+
+func _normalize_trespass_escalation(value: Variant) -> String:
+	var escalation := str(value).strip_edges().to_lower()
+	return escalation if escalation in ["settlement_alarm", "victim_only", "warning_only"] else "settlement_alarm"

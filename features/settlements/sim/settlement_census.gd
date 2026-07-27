@@ -49,16 +49,51 @@ func seed_settlement(settlement_id: String) -> void:
 	if not _census_records(population, settlement_id).is_empty():
 		# Already seeded (this run or a loaded save) — reconcile the count only.
 		_reconcile_population(settlement, population, settlement_id)
+		settlement.bootstrap_assignments(settlement_id)
 		return
 	var state: Dictionary = settlement.get_settlement_state(settlement_id)
 	var seeded_count := _compute_seed_count(state, definition)
 	var generation_seed := _resolve_generation_seed(definition)
 	var context := _generation_context(definition, generation_seed)
-	var authored_count := _seed_authored_residents(population, settlement_id, definition, context)
-	var generated_count: int = max(0, seeded_count - authored_count)
+	_seed_startup_assignments(settlement, population, settlement_id, state, definition, context)
+	_seed_authored_residents(population, settlement_id, definition, context)
+	var existing_count := int(population.call("count_alive_records_for_settlement", settlement_id))
+	var generated_count: int = max(0, seeded_count - existing_count)
 	population.call("ensure_generated_population", settlement_id, GENERATED_SOURCE, generated_count, context)
 	_reconcile_population(settlement, population, settlement_id)
-	settlement.bootstrap_staff_vacancies(settlement_id)
+	settlement.bootstrap_assignments(settlement_id)
+
+
+func _seed_startup_assignments(settlement: SettlementController, population: Node, settlement_id: String, state: Dictionary, definition: SettlementDefinition, base_context: Dictionary) -> void:
+	var slots: Array[Dictionary] = []
+	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
+		if slot_value is Dictionary:
+			slots.append(slot_value)
+	slots.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return "%s:%s" % [str(a.get("assignment_domain", "")), str(a.get("slot_id", ""))] < "%s:%s" % [str(b.get("assignment_domain", "")), str(b.get("slot_id", ""))])
+	for slot in slots:
+		if str(slot.get("preferred_actor_id", "")).is_empty() and str(slot.get("preferred_character_path", "")).is_empty():
+			continue
+		var context := _assignment_generation_context(definition, base_context, slot)
+		var record: Dictionary = population.call("ensure_preferred_assignment_record", settlement_id, slot, context)
+		if not record.is_empty():
+			settlement.assign_actor_to_assignment_slot(settlement_id, str(slot.get("assignment_domain", "employment")), str(slot.get("slot_id", "")), str(record.get("actor_id", "")))
+	for slot in slots:
+		var current: Dictionary = population.call("get_record_assigned_to_slot", settlement_id, str(slot.get("assignment_domain", "employment")), str(slot.get("slot_id", "")))
+		if not current.is_empty():
+			continue
+		var context := _assignment_generation_context(definition, base_context, slot)
+		var filler: Dictionary = population.call("ensure_assignment_filler_record", settlement_id, slot, context)
+		if not filler.is_empty():
+			settlement.assign_actor_to_assignment_slot(settlement_id, str(slot.get("assignment_domain", "employment")), str(slot.get("slot_id", "")), str(filler.get("actor_id", "")))
+
+
+func _assignment_generation_context(definition: SettlementDefinition, base_context: Dictionary, slot: Dictionary) -> Dictionary:
+	var context := base_context.duplicate(true)
+	var role_id := str(slot.get("role_id", "resident"))
+	var type_set := definition.get_character_type_set()
+	context["role_id"] = "resident"
+	context["character_type"] = type_set.call("resolve_character_type", str(slot.get("character_type_id", "")), role_id) as Resource if type_set != null and type_set.has_method("resolve_character_type") else null
+	return context
 
 
 ## Fill policy: occupancy scales the housing target — Sparse towns start
@@ -85,8 +120,6 @@ func _seed_authored_residents(population: Node, settlement_id: String, definitio
 		var character := entry.character
 		if character != null and character.has_method("to_record"):
 			overrides = character.call("to_record")
-		if not entry.pinned_role_id.strip_edges().is_empty():
-			overrides["role_id"] = entry.pinned_role_id.strip_edges()
 		if not entry.stable_id.strip_edges().is_empty():
 			overrides["actor_id"] = entry.stable_id.strip_edges()
 			overrides["stable_id"] = entry.stable_id.strip_edges()
@@ -173,7 +206,7 @@ func _census_records(population: Node, settlement_id: String) -> Array:
 		if not (record_value is Dictionary):
 			continue
 		var source := str((record_value as Dictionary).get("generation_source", ""))
-		if source == GENERATED_SOURCE or source == AUTHORED_SOURCE:
+		if source == GENERATED_SOURCE or source == AUTHORED_SOURCE or source == "assignment_preferred" or source == "assignment_auto":
 			result.append(record_value)
 	return result
 

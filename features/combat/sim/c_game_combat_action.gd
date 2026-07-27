@@ -19,3 +19,4 @@ class_name CGameCombatAction
 @export var action_is_critical := false
 @export var reaction_remaining := 0.0
 @export var reaction_source_actor_id := ""
+@export var action_sequence := 0

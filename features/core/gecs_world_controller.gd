@@ -11,6 +11,7 @@ const GECS_IO_SCRIPT_PATH := "res://addons/gecs/io/io.gd"
 const ACTOR_SYNC_SYSTEM_SCRIPT_PATH := "res://features/actors/sim/game_actor_sync_system.gd"
 const AI_JOB_SYSTEM_SCRIPT_PATH := "res://features/ai/sim/game_ai_job_system.gd"
 const COMBAT_STATE_SYNC_SYSTEM_SCRIPT_PATH := "res://features/combat/sim/game_combat_state_sync_system.gd"
+const COMBAT_RESPONSE_SYSTEM_SCRIPT_PATH := "res://features/combat/sim/game_combat_response_system.gd"
 const COMBAT_SCORE_SYSTEM_SCRIPT_PATH := "res://features/combat/sim/game_combat_score_system.gd"
 const COMBAT_TARGETING_SYSTEM_SCRIPT_PATH := "res://features/combat/sim/game_combat_targeting_system.gd"
 const COMBAT_SLOT_SYSTEM_SCRIPT_PATH := "res://features/combat/sim/game_combat_slot_system.gd"
@@ -61,6 +62,8 @@ const C_COMBAT_CONFIG_PATH := "res://features/combat/sim/c_game_combat_config.gd
 const C_COMBAT_STATE_PATH := "res://features/combat/sim/c_game_combat_state.gd"
 const C_COMBAT_SLOT_STATE_PATH := "res://features/combat/sim/c_game_combat_slot_state.gd"
 const C_COMBAT_ACTION_PATH := "res://features/combat/sim/c_game_combat_action.gd"
+const C_COMBAT_EVENT_PATH := "res://features/combat/sim/c_game_combat_event.gd"
+const C_COMBAT_RESPONSE_INTENT_PATH := "res://features/combat/sim/c_game_combat_response_intent.gd"
 const C_MOVEMENT_STATE_PATH := "res://features/actors/sim/c_game_movement_state.gd"
 const C_WORLD_SIM_SQUAD_PATH := "res://features/world_sim/sim/c_game_world_sim_squad.gd"
 const C_BUILDING_RECORD_PATH := "res://features/world/sim/c_game_building_record.gd"
@@ -136,6 +139,8 @@ var _gecs_io_script
 var _actor_sync_system_script
 var _ai_job_system_script
 var _combat_state_sync_system_script
+var _combat_response_system_script
+var _combat_response_system
 var _combat_score_system_script
 var _combat_targeting_system_script
 var _combat_slot_system_script
@@ -188,6 +193,8 @@ var C_COMBAT_CONFIG
 var C_COMBAT_STATE
 var C_COMBAT_SLOT_STATE
 var C_COMBAT_ACTION
+var C_COMBAT_EVENT
+var C_COMBAT_RESPONSE_INTENT
 var C_MOVEMENT_STATE
 var C_WORLD_SIM_SQUAD
 var C_BUILDING_RECORD
@@ -197,6 +204,8 @@ func initialize(context: BootstrapContext) -> void:
 	root_scene = context.root_scene
 	_context = context
 	_try_initialize()
+	if _combat_response_system != null and not context.has_service(GameCombatResponseSystem.SERVICE_ID):
+		context.register(GameCombatResponseSystem.SERVICE_ID, _combat_response_system)
 
 
 func _ready() -> void:
@@ -571,6 +580,7 @@ func upsert_population_record(record: Dictionary) -> Dictionary:
 	_try_initialize()
 	if world == null or record.is_empty():
 		return {}
+	record = _migrate_population_assignment_record(record)
 	var actor_id: String = str(record.get("actor_id", record.get("stable_id", ""))).strip_edges()
 	if actor_id.is_empty():
 		return {}
@@ -606,6 +616,21 @@ func upsert_population_record(record: Dictionary) -> Dictionary:
 	_sync_record_equipment_slots(actor_id, record.get("equipment_slots", {}))
 	_sync_record_inventory_entries(actor_id, record.get("inventory_entries", []))
 	return _population_record_from_entity(entity)
+
+
+func _migrate_population_assignment_record(source: Dictionary) -> Dictionary:
+	var record := source.duplicate(true)
+	var legacy_slot := str(record.get("assigned_slot_id", "")).strip_edges()
+	if not legacy_slot.is_empty():
+		var assignments: Dictionary = (record.get("assignments", {}) as Dictionary).duplicate(true)
+		assignments["employment"] = legacy_slot
+		record["assignments"] = assignments
+		var realized: Dictionary = (record.get("assignment_realized_once", {}) as Dictionary).duplicate(true)
+		realized["employment"] = bool(record.get("staff_assignment_realized_once", false))
+		record["assignment_realized_once"] = realized
+	record.erase("assigned_slot_id")
+	record.erase("staff_assignment_realized_once")
+	return record
 
 
 func update_population_skill_progress(actor_id: String, skill_id: String, level: int, xp: float) -> bool:
@@ -667,7 +692,10 @@ func update_population_death(actor_id: String, world_transform: Transform3D) -> 
 	_sync_active_population_vitals_tag(entity, vitals)
 	component.body_state = "corpse"
 	component.body_container_id = ""
-	component.assigned_slot_id = ""
+	component.assignments = {}
+	component.assignment_authority_scopes = {}
+	component.assignment_exclusivity_groups = {}
+	component.assignment_realized_once = {}
 	component.last_world_transform = world_transform
 	component.last_world_transform_initialized = true
 	component.last_world_position = world_transform.origin
@@ -1045,7 +1073,10 @@ func _apply_population_life_state(entity, previous_state: int, next_state: int) 
 		_adjust_alive_population_count(str(population.settlement_id), -1)
 		population.body_state = "corpse"
 		population.body_container_id = ""
-		population.assigned_slot_id = ""
+		population.assignments = {}
+		population.assignment_authority_scopes = {}
+		population.assignment_exclusivity_groups = {}
+		population.assignment_realized_once = {}
 		_reindex_corpse_record(population)
 	elif previous_state == NpcRules.LifeState.DEAD and next_state != NpcRules.LifeState.DEAD:
 		_adjust_alive_population_count(str(population.settlement_id), 1)
@@ -1265,7 +1296,7 @@ func get_settlement_state(settlement_id: String) -> Dictionary:
 	if entity == null or not is_instance_valid(entity):
 		return {}
 	var component = entity.get_component(C_SETTLEMENT_STATE)
-	return _derive_settlement_staff_counts(component.to_state()) if component != null and component.has_method("to_state") else {}
+	return _derive_settlement_assignment_counts(component.to_state()) if component != null and component.has_method("to_state") else {}
 
 
 func get_settlement_states() -> Dictionary:
@@ -1276,41 +1307,44 @@ func get_settlement_states() -> Dictionary:
 		var component = entity.get_component(C_SETTLEMENT_STATE)
 		if component == null:
 			continue
-		states[str(component.settlement_id)] = _derive_settlement_staff_counts(component.to_state()) if component.has_method("to_state") else {}
+		states[str(component.settlement_id)] = _derive_settlement_assignment_counts(component.to_state()) if component.has_method("to_state") else {}
 		_settlement_entity_by_id[str(component.settlement_id)] = entity
 	return states
 
 
-func _derive_settlement_staff_counts(state: Dictionary) -> Dictionary:
+func _derive_settlement_assignment_counts(state: Dictionary) -> Dictionary:
 	var updated := state.duplicate(true)
-	var slots: Dictionary = updated.get("staff_slots", {})
-	var vacancies: Dictionary = (updated.get("staff_vacancies", {}) as Dictionary).duplicate(true)
+	var slots: Dictionary = updated.get("assignment_slots", {})
+	var vacancies: Dictionary = (updated.get("assignment_vacancies", {}) as Dictionary).duplicate(true)
 	var required_count := 0
 	var assigned_count := 0
 	for slot_id_value in slots.keys():
-		var slot_id := str(slot_id_value)
 		var slot = slots.get(slot_id_value)
 		if not (slot is Dictionary):
 			continue
 		var slot_record: Dictionary = slot
+		if str(slot_record.get("assignment_domain", "employment")) != "employment":
+			continue
 		var cost: int = max(0, int(slot_record.get("population_cost", 1)))
 		required_count += cost
 		if bool(slot_record.get("filled", false)):
 			assigned_count += cost
-			vacancies.erase(slot_id)
+			vacancies.erase(str(slot_id_value))
 	updated["population_required_staff"] = required_count
 	updated["population_assigned"] = clampi(assigned_count, 0, max(0, int(updated.get("population", assigned_count))))
 	updated["population_available"] = max(0, int(updated.get("population", 0)) - int(updated.get("population_assigned", 0)))
 	updated["population_shortfall"] = max(0, int(updated.get("population_target", updated.get("population", 0))) - int(updated.get("population", 0)))
-	updated["staff_vacancies"] = vacancies
+	updated["assignment_vacancies"] = vacancies
 	return updated
 
 
-func upsert_staff_slot(settlement_id: String, slot_id: String, slot: Dictionary) -> Dictionary:
+func upsert_assignment_slot(settlement_id: String, slot: Dictionary) -> Dictionary:
 	_try_initialize()
+	var slot_id := str(slot.get("slot_id", ""))
+	var assignment_domain := str(slot.get("assignment_domain", "employment"))
 	if world == null or settlement_id.is_empty() or slot_id.is_empty():
 		return {}
-	var key: String = "%s:%s" % [settlement_id, slot_id]
+	var key: String = "%s:%s:%s" % [settlement_id, assignment_domain, slot_id]
 	var entity = _staff_slot_entity_by_key.get(key)
 	if entity == null or not is_instance_valid(entity):
 		entity = _entity_script.new()
@@ -1326,15 +1360,15 @@ func upsert_staff_slot(settlement_id: String, slot_id: String, slot: Dictionary)
 	return component.to_slot()
 
 
-func remove_staff_slot(settlement_id: String, slot_id: String) -> void:
-	var key: String = "%s:%s" % [settlement_id, slot_id]
+func remove_assignment_slot(settlement_id: String, assignment_domain: String, slot_id: String) -> void:
+	var key: String = "%s:%s:%s" % [settlement_id, assignment_domain, slot_id]
 	var entity = _staff_slot_entity_by_key.get(key)
 	if entity != null and is_instance_valid(entity) and world != null:
 		world.remove_entity(entity)
 	_staff_slot_entity_by_key.erase(key)
 
 
-func clear_staff_slots_for_settlement(settlement_id: String) -> void:
+func clear_assignment_slots_for_settlement(settlement_id: String) -> void:
 	if settlement_id.is_empty():
 		return
 	var remove_keys: Array[String] = []
@@ -1348,8 +1382,8 @@ func clear_staff_slots_for_settlement(settlement_id: String) -> void:
 		_staff_slot_entity_by_key.erase(key)
 
 
-func get_staff_slot(settlement_id: String, slot_id: String) -> Dictionary:
-	var key: String = "%s:%s" % [settlement_id, slot_id]
+func get_assignment_slot(settlement_id: String, assignment_domain: String, slot_id: String) -> Dictionary:
+	var key: String = "%s:%s:%s" % [settlement_id, assignment_domain, slot_id]
 	var entity = _staff_slot_entity_by_key.get(key)
 	if entity == null or not is_instance_valid(entity):
 		return {}
@@ -1357,7 +1391,7 @@ func get_staff_slot(settlement_id: String, slot_id: String) -> Dictionary:
 	return component.to_slot() if component != null and component.has_method("to_slot") else {}
 
 
-func get_staff_slots(settlement_id := "") -> Array[Dictionary]:
+func get_assignment_slots(settlement_id := "", assignment_domain := "") -> Array[Dictionary]:
 	var slots: Array[Dictionary] = []
 	if world == null:
 		return slots
@@ -1367,8 +1401,10 @@ func get_staff_slots(settlement_id := "") -> Array[Dictionary]:
 			continue
 		if not settlement_id.is_empty() and str(component.settlement_id) != settlement_id:
 			continue
+		if not assignment_domain.is_empty() and str(component.assignment_domain) != assignment_domain:
+			continue
 		slots.append(component.to_slot() if component.has_method("to_slot") else {})
-		_staff_slot_entity_by_key["%s:%s" % [str(component.settlement_id), str(component.slot_id)]] = entity
+		_staff_slot_entity_by_key["%s:%s:%s" % [str(component.settlement_id), str(component.assignment_domain), str(component.slot_id)]] = entity
 	return slots
 
 
@@ -2026,7 +2062,7 @@ func serialize_state() -> Dictionary:
 
 
 func _load_gecs_scripts() -> bool:
-	if _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _combat_state_sync_system_script != null and _combat_targeting_system_script != null and _combat_slot_system_script != null and _combat_resolution_system_script != null and _vitals_system_script != null and _population_vitals_system_script != null and _combat_movement_system_script != null and _component_scripts_loaded():
+	if _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _combat_state_sync_system_script != null and _combat_response_system_script != null and _combat_targeting_system_script != null and _combat_slot_system_script != null and _combat_resolution_system_script != null and _vitals_system_script != null and _population_vitals_system_script != null and _combat_movement_system_script != null and _component_scripts_loaded():
 		return true
 	_ensure_direct_script_ecs_singleton()
 	_load_component_scripts()
@@ -2037,6 +2073,7 @@ func _load_gecs_scripts() -> bool:
 	_actor_sync_system_script = load(ACTOR_SYNC_SYSTEM_SCRIPT_PATH) if _actor_sync_system_script == null else _actor_sync_system_script
 	_ai_job_system_script = load(AI_JOB_SYSTEM_SCRIPT_PATH) if _ai_job_system_script == null else _ai_job_system_script
 	_combat_state_sync_system_script = load(COMBAT_STATE_SYNC_SYSTEM_SCRIPT_PATH) if _combat_state_sync_system_script == null else _combat_state_sync_system_script
+	_combat_response_system_script = load(COMBAT_RESPONSE_SYSTEM_SCRIPT_PATH) if _combat_response_system_script == null else _combat_response_system_script
 	_combat_score_system_script = load(COMBAT_SCORE_SYSTEM_SCRIPT_PATH) if _combat_score_system_script == null else _combat_score_system_script
 	_combat_targeting_system_script = load(COMBAT_TARGETING_SYSTEM_SCRIPT_PATH) if _combat_targeting_system_script == null else _combat_targeting_system_script
 	_combat_slot_system_script = load(COMBAT_SLOT_SYSTEM_SCRIPT_PATH) if _combat_slot_system_script == null else _combat_slot_system_script
@@ -2044,7 +2081,7 @@ func _load_gecs_scripts() -> bool:
 	_vitals_system_script = load(VITALS_SYSTEM_SCRIPT_PATH) if _vitals_system_script == null else _vitals_system_script
 	_population_vitals_system_script = load(POPULATION_VITALS_SYSTEM_SCRIPT_PATH) if _population_vitals_system_script == null else _population_vitals_system_script
 	_combat_movement_system_script = load(COMBAT_MOVEMENT_SYSTEM_SCRIPT_PATH) if _combat_movement_system_script == null else _combat_movement_system_script
-	return _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _combat_state_sync_system_script != null and _combat_targeting_system_script != null and _combat_slot_system_script != null and _combat_resolution_system_script != null and _vitals_system_script != null and _population_vitals_system_script != null and _combat_movement_system_script != null and _component_scripts_loaded()
+	return _world_script != null and _entity_script != null and _ecs_script != null and _gecs_io_script != null and _actor_sync_system_script != null and _ai_job_system_script != null and _combat_state_sync_system_script != null and _combat_response_system_script != null and _combat_targeting_system_script != null and _combat_slot_system_script != null and _combat_resolution_system_script != null and _vitals_system_script != null and _population_vitals_system_script != null and _combat_movement_system_script != null and _component_scripts_loaded()
 
 
 func _load_component_scripts() -> void:
@@ -2089,6 +2126,8 @@ func _load_component_scripts() -> void:
 	C_COMBAT_STATE = load(C_COMBAT_STATE_PATH) if C_COMBAT_STATE == null else C_COMBAT_STATE
 	C_COMBAT_SLOT_STATE = load(C_COMBAT_SLOT_STATE_PATH) if C_COMBAT_SLOT_STATE == null else C_COMBAT_SLOT_STATE
 	C_COMBAT_ACTION = load(C_COMBAT_ACTION_PATH) if C_COMBAT_ACTION == null else C_COMBAT_ACTION
+	C_COMBAT_EVENT = load(C_COMBAT_EVENT_PATH) if C_COMBAT_EVENT == null else C_COMBAT_EVENT
+	C_COMBAT_RESPONSE_INTENT = load(C_COMBAT_RESPONSE_INTENT_PATH) if C_COMBAT_RESPONSE_INTENT == null else C_COMBAT_RESPONSE_INTENT
 	C_MOVEMENT_STATE = load(C_MOVEMENT_STATE_PATH) if C_MOVEMENT_STATE == null else C_MOVEMENT_STATE
 	C_WORLD_SIM_SQUAD = load(C_WORLD_SIM_SQUAD_PATH) if C_WORLD_SIM_SQUAD == null else C_WORLD_SIM_SQUAD
 	C_BUILDING_RECORD = load(C_BUILDING_RECORD_PATH) if C_BUILDING_RECORD == null else C_BUILDING_RECORD
@@ -2137,6 +2176,8 @@ func _component_scripts_loaded() -> bool:
 		C_COMBAT_STATE,
 		C_COMBAT_SLOT_STATE,
 		C_COMBAT_ACTION,
+		C_COMBAT_EVENT,
+		C_COMBAT_RESPONSE_INTENT,
 		C_MOVEMENT_STATE,
 		C_WORLD_SIM_SQUAD,
 		C_BUILDING_RECORD,
@@ -2176,6 +2217,11 @@ func _try_initialize() -> void:
 			var combat_score = _combat_score_system_script.new()
 			combat_score.name = "GameCombatScoreSystem"
 			world.add_system(combat_score)
+		_combat_response_system = _combat_response_system_script.new()
+		_combat_response_system.name = "GameCombatResponseSystem"
+		world.add_system(_combat_response_system)
+		if _context != null and not _context.has_service(GameCombatResponseSystem.SERVICE_ID):
+			_context.register(GameCombatResponseSystem.SERVICE_ID, _combat_response_system)
 		var combat_targeting = _combat_targeting_system_script.new()
 		combat_targeting.name = "GameCombatTargetingSystem"
 		world.add_system(combat_targeting)
@@ -2187,6 +2233,7 @@ func _try_initialize() -> void:
 		world.add_system(combat_movement)
 		var combat_resolution = _combat_resolution_system_script.new()
 		combat_resolution.name = "GameCombatResolutionSystem"
+		combat_resolution.combat_response_system = _combat_response_system
 		world.add_system(combat_resolution)
 		_vitals_system = _vitals_system_script.new()
 		_vitals_system.name = "GameVitalsSystem"
@@ -2230,19 +2277,22 @@ func _write_actor_components(entity, actor: Node, actor_id: String, settlement_i
 	var member_name = actor.get("member_name")
 	identity.member_name = str(member_name) if member_name != null else str(actor.name)
 	identity.role_id = str(context.get("role_id", _actor_role_id(actor)))
+	identity.authority_scopes = _actor_authority_scopes(actor, actor_id, context)
 	identity.important = bool(context.get("important", _actor_is_important(actor)))
 
 	var faction = entity.get_component(C_FACTION)
 	var faction_value = actor.get("faction_name")
 	faction.faction_id = str(faction_value).strip_edges() if faction_value != null else ""
+	var party_value := str(actor.get_meta("party_id", ""))
+	faction.party_id = str(context.get("party_id", party_value)).strip_edges()
 	var squad_value = actor.get("squad_name")
 	faction.squad_name = str(squad_value) if squad_value != null else ""
 	var hostile_value = actor.get("hostile_factions")
 	faction.hostile_faction_ids = hostile_value if hostile_value is PackedStringArray else PackedStringArray(hostile_value if hostile_value is Array else [])
 	var stance_value = actor.get("combat_stance")
 	faction.combat_stance = int(stance_value) if stance_value != null else 0
-	var party_value = actor.get("player_party_member")
-	faction.player_party_member = bool(party_value) if party_value != null else false
+	var player_party_value = actor.get("player_party_member")
+	faction.player_party_member = bool(player_party_value) if player_party_value != null else false
 
 	var settlement = entity.get_component(C_SETTLEMENT)
 	settlement.settlement_id = settlement_id if not settlement_id.is_empty() else _actor_settlement_id(actor)
@@ -2875,6 +2925,8 @@ func _actor_state_from_entity(entity) -> Dictionary:
 	var settlement = entity.get_component(C_SETTLEMENT)
 	var spatial = entity.get_component(C_SPATIAL)
 	var vitals = entity.get_component(C_VITALS)
+	var combat_state = entity.get_component(C_COMBAT_STATE)
+	var combat_slot = entity.get_component(C_COMBAT_SLOT_STATE)
 	var goal_intent = entity.get_component(C_GOAL_INTENT) if C_GOAL_INTENT != null else null
 	var actor_id := str(identity.actor_id)
 	var state := {
@@ -2882,10 +2934,12 @@ func _actor_state_from_entity(entity) -> Dictionary:
 		"stable_id": str(identity.stable_id),
 		"member_name": str(identity.member_name),
 		"role_id": str(identity.role_id),
+		"authority_scopes": Array(identity.authority_scopes),
 		"important": bool(identity.important),
 	}
 	if faction != null:
 		state["faction_id"] = str(faction.faction_id)
+		state["party_id"] = str(faction.party_id)
 		state["squad_name"] = str(faction.squad_name)
 		state["hostile_faction_ids"] = Array(faction.hostile_faction_ids)
 		state["combat_stance"] = int(faction.combat_stance)
@@ -2906,9 +2960,38 @@ func _actor_state_from_entity(entity) -> Dictionary:
 		state["max_hp"] = float(vitals.max_hp)
 		state["blood"] = float(vitals.blood)
 		state["max_blood"] = float(vitals.max_blood)
+	if combat_state != null:
+		state["current_target_actor_id"] = str(combat_state.current_target_actor_id)
+		state["system_target_actor_id"] = str(combat_state.system_target_actor_id)
+	if combat_slot != null:
+		state["combat_slot_state"] = int(combat_slot.slot_state)
+		state["combat_slot_target_actor_id"] = str(combat_slot.slot_target_actor_id)
 	if goal_intent != null and goal_intent.has_method("to_dictionary"):
 		state["goal_intent"] = goal_intent.call("to_dictionary", false)
 	return state
+
+
+func _actor_authority_scopes(actor: Node, actor_id: String, context: Dictionary) -> PackedStringArray:
+	var source = context.get("assignment_authority_scopes", {})
+	if source is Dictionary and (source as Dictionary).is_empty():
+		var population_entity = _population_entity_by_actor_id.get(actor_id)
+		var population = population_entity.get_component(C_POPULATION_RECORD) if population_entity != null and is_instance_valid(population_entity) else null
+		if population != null:
+			source = population.assignment_authority_scopes
+	var scopes := PackedStringArray()
+	if source is Dictionary:
+		for value in (source as Dictionary).values():
+			var scope := str(value).strip_edges()
+			if not scope.is_empty() and not scopes.has(scope):
+				scopes.append(scope)
+	elif source is Array or source is PackedStringArray:
+		for value in source:
+			var scope := str(value).strip_edges()
+			if not scope.is_empty() and not scopes.has(scope):
+				scopes.append(scope)
+	if actor != null and actor.is_in_group("settlement_authority") and not scopes.has("settlement_authority"):
+		scopes.append("settlement_authority")
+	return scopes
 
 
 func _ensure_actor_goal_intent_component(entity):
@@ -3182,7 +3265,7 @@ func _rebuild_entity_indexes() -> void:
 	for entity in world.query.with_all([C_STAFF_SLOT]).execute():
 		var slot = entity.get_component(C_STAFF_SLOT)
 		if slot != null:
-			_staff_slot_entity_by_key["%s:%s" % [str(slot.settlement_id), str(slot.slot_id)]] = entity
+			_staff_slot_entity_by_key["%s:%s:%s" % [str(slot.settlement_id), str(slot.assignment_domain), str(slot.slot_id)]] = entity
 	for entity in world.query.with_all([C_SETTLEMENT_EVENT]).execute():
 		var event = entity.get_component(C_SETTLEMENT_EVENT)
 		if event != null:

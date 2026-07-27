@@ -39,12 +39,17 @@ static func is_balcony_pair(source_marker: Node, target_marker: Node) -> bool:
 	return str(source_marker.get("connector_type")).begins_with("balcony_rail") or str(target_marker.get("connector_type")).begins_with("balcony_rail")
 
 
-## Insert pairs (door/window) adopt the full target frame instead of a
-## translate-only delta.
+## Inserts and directional roof joins adopt the full target frame instead of
+## a translate-only delta.
 static func align_transform_pair(source_marker: Node, target_marker: Node) -> bool:
 	var source_type := str(source_marker.get("connector_type"))
 	var target_type := str(target_marker.get("connector_type"))
-	return (source_type == "window_insert" and target_type == "window_socket") or (source_type == "window_socket" and target_type == "window_insert") or (source_type == "door_insert" and target_type == "door_socket") or (source_type == "door_socket" and target_type == "door_insert")
+	var pair := PackedStringArray([source_type, target_type])
+	return (pair.has("window_insert") and pair.has("window_socket")) \
+		or (pair.has("door_insert") and pair.has("door_socket")) \
+		or (pair.has("roof_run_negative_z") and pair.has("roof_run_positive_z")) \
+		or (pair.has("roof_gable_insert") and pair.has("roof_gable_socket")) \
+		or (pair.has("roof_front_wall") and pair.has("wall_top"))
 
 
 static func new_piece_snap_score(source_marker: Node, target_marker: Node) -> float:

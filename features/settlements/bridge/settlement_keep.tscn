@@ -4,9 +4,34 @@
 [ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/keep.tres" id="2_function"]
 [ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/medium_wood_hall.tscn" id="3_building"]
 [ext_resource type="PackedScene" path="res://features/settlements/bridge/venues/facility_guard_post.tscn" id="4_guard_post"]
+[ext_resource type="Script" path="res://features/settlements/resources/facility_role_slot_definition.gd" id="5_slot"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/ruler.tres" id="6_ruler"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/guard.tres" id="7_guard"]
+
+[sub_resource type="Resource" id="RoleSlot_ruler"]
+script = ExtResource("5_slot")
+slot_id = "seat_of_rule"
+role = ExtResource("6_ruler")
+display_name = "Ruler"
+authority_scope = "settlement_leader"
+
+[sub_resource type="Resource" id="RoleSlot_guard_a"]
+script = ExtResource("5_slot")
+slot_id = "keep_guard_west"
+role = ExtResource("7_guard")
+display_name = "Keep Guard"
+authority_scope = "settlement_authority"
+
+[sub_resource type="Resource" id="RoleSlot_guard_b"]
+script = ExtResource("5_slot")
+slot_id = "keep_guard_east"
+role = ExtResource("7_guard")
+display_name = "Keep Guard 2"
+authority_scope = "settlement_authority"
 
 [node name="SettlementKeep" type="Node3D"]
 script = ExtResource("1_keep")
+role_slots = Array[ExtResource("5_slot")]([SubResource("RoleSlot_ruler"), SubResource("RoleSlot_guard_a"), SubResource("RoleSlot_guard_b")])
 facility_function = ExtResource("2_function")
 service_points_root_path = NodePath("")
 storage_root_path = NodePath("")

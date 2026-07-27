@@ -2,6 +2,8 @@ extends Control
 
 class_name DebugMenu
 
+const C_COMBAT_RESPONSE_INTENT := preload("res://features/combat/sim/c_game_combat_response_intent.gd")
+
 ## Dev-only debug windows, shown only while the GameDebug sentinel is true.
 ## Independent draggable debug windows opened from the Escape menu.
 
@@ -30,6 +32,7 @@ var _drag_panel: PanelContainer
 var _drag_offset := Vector2.ZERO
 
 const PLACEABLE_CATALOG_PATH := "res://features/settlements/resources/buildings/player_building_catalog.tres"
+const LAW_DEBUG_OVERLAY_SCRIPT := preload("res://features/settlements/projection/law_debug_overlay.gd")
 const PLACER_GHOST_TRANSPARENCY := 0.6
 
 var _placer_catalog: Resource
@@ -51,6 +54,10 @@ var _towns_law_check: CheckButton
 var _towns_zoning_check: CheckButton
 var _towns_list: VBoxContainer
 var _law_border_root: Node3D
+var _law_overlay: Node3D
+var _law_actor_radii_check: CheckButton
+var _law_events_check: CheckButton
+var _law_event_label: Label
 
 var _stealth_cones_check: CheckButton
 var _stealth_los_check: CheckButton
@@ -92,6 +99,7 @@ func _ready() -> void:
 	_build_nav_window()
 	_build_placer_window()
 	_build_towns_window()
+	_build_law_window()
 	_build_stealth_window()
 	# Everything stays closed and off until explicitly opened, one panel at a
 	# time — debug windows never flood the screen.
@@ -168,6 +176,31 @@ func _build_towns_window() -> void:
 	_towns_list = VBoxContainer.new()
 	vbox.add_child(_towns_list)
 	_refresh_towns_list.call_deferred()
+
+
+func _build_law_window() -> void:
+	var vbox := _build_window("Law & Order", Vector2(1092.0, 348.0))
+	_law_actor_radii_check = _make_check(vbox, "Show NPC alert radii", _on_law_actor_radii_toggled)
+	_law_events_check = _make_check(vbox, "Show active crime events", _on_law_events_toggled)
+	_law_events_check.set_pressed_no_signal(true)
+	_law_event_label = _make_label(vbox)
+	_law_event_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_law_overlay = LAW_DEBUG_OVERLAY_SCRIPT.new() as Node3D
+	_law_overlay.name = "LawDebugOverlay"
+	_law_overlay.visible = false
+	add_child(_law_overlay)
+
+
+func _on_law_actor_radii_toggled(pressed: bool) -> void:
+	if _law_overlay != null:
+		_law_overlay.set_actor_radii_visible(pressed)
+		_law_overlay.visible = pressed or (_law_events_check != null and _law_events_check.button_pressed)
+
+
+func _on_law_events_toggled(pressed: bool) -> void:
+	if _law_overlay != null:
+		_law_overlay.set_crime_events_visible(pressed)
+		_law_overlay.visible = pressed or (_law_actor_radii_check != null and _law_actor_radii_check.button_pressed)
 
 
 func _on_towns_law_toggled(pressed: bool) -> void:
@@ -821,6 +854,7 @@ func _sync_nav_tuning() -> void:
 func _process(delta: float) -> void:
 	_update_stealth_overlay(delta)
 	_update_stealth_roll_label()
+	_update_law_event_label()
 	if not visible or _nav_bake_label == null:
 		return
 	var navigation := _get_world_navigation_controller()
@@ -834,6 +868,25 @@ func _process(delta: float) -> void:
 		_nav_bake_label.text = "Tiles: %d baked, %d pending | last %.2fs" % [baked, pending, seconds]
 	else:
 		_nav_bake_label.text = "Tiles: %d baked | last %.2fs" % [baked, seconds]
+
+
+func _update_law_event_label() -> void:
+	if _law_event_label == null or not is_window_open("Law & Order"):
+		return
+	var alerts := BootstrapContext.service(CrimeAlertController.SERVICE_ID) as CrimeAlertController
+	if alerts == null:
+		_law_event_label.text = "No crime alert controller"
+		return
+	var responses := BootstrapContext.service(GameCombatResponseSystem.SERVICE_ID) as GameCombatResponseSystem
+	var response_intents: Array[Dictionary] = responses.get_active_intents() if responses != null else []
+	var law_responder_count := 0
+	for intent in response_intents:
+		if int(intent.get("kind", -1)) == C_COMBAT_RESPONSE_INTENT.Kind.LAW_ENFORCEMENT:
+			law_responder_count += 1
+	var lines: Array[String] = []
+	for event_record in alerts.get_active_events():
+		lines.append("%s | %s | %.0fm | %.1fs | active guards %d" % [str(event_record.get("crime_type", "crime")), str(event_record.get("faction_id", "")), float(event_record.get("radius", 0.0)), float(event_record.get("remaining_seconds", 0.0)), law_responder_count])
+	_law_event_label.text = "No active crime events" if lines.is_empty() else "\n".join(lines)
 
 
 ## --- Building placer ghost ------------------------------------------------------

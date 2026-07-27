@@ -11,4 +11,3 @@ scene_path = "res://features/settlements/bridge/settlement_field.tscn"
 catalog_enabled = false
 shell_policy = 1
 function = ExtResource("2_function")
-staff_role_counts = {}

@@ -368,8 +368,6 @@ static func _apply_facility_identity(facility: Node, town: Node, definition: Fac
 	facility.set("facility_id", facility_id)
 	if "building_id" in facility:
 		facility.set("building_id", identity["building_id"])
-	if "staff_role_counts" in facility:
-		facility.set("staff_role_counts", definition.staff_role_counts.duplicate(true))
 	var owner_faction_id := str(facility.get("owner_faction_id")).strip_edges()
 	if owner_faction_id.is_empty() and town.has_method("get_faction_id"):
 		owner_faction_id = str(town.call("get_faction_id"))

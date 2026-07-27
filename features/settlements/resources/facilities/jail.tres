@@ -11,6 +11,3 @@ scene_path = "res://features/settlements/bridge/settlement_jail.tscn"
 catalog_enabled = true
 shell_policy = 0
 function = ExtResource("2_function")
-staff_role_counts = {
-"warden": 1
-}

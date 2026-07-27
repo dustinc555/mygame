@@ -4,6 +4,8 @@ extends "res://features/settlements/bridge/settlement_facility.gd"
 
 class_name SettlementFacilityInstance
 
+const HOME_RESIDENT_PROJECTION := preload("res://features/settlements/bridge/home_resident_projection.gd")
+
 @export var facility_function: Resource:
 	set(value):
 		facility_function = value
@@ -17,10 +19,6 @@ class_name SettlementFacilityInstance
 ## under features/settlements/resources/furnishing.
 @export var furnish_rules: FurnishRules
 @export var staff_root_path: NodePath = NodePath("Staff")
-## Generic facilities get staff demand directly from their catalog definition.
-## Specialized facilities may override get_settlement_staff_slots only when
-## they need additional role behavior, never character construction.
-@export var staff_role_counts: Dictionary = {}
 @export var service_points_root_path: NodePath = NodePath("ServicePoints")
 @export var storage_root_path: NodePath = NodePath("Storage")
 @export var job_providers_root_path: NodePath = NodePath("JobProviders")
@@ -28,6 +26,8 @@ class_name SettlementFacilityInstance
 	set(value):
 		auto_create_standard_roots = value
 		_repair_authoring_tree()
+
+var _home_resident_projection: RefCounted
 
 
 func _enter_tree() -> void:
@@ -38,10 +38,11 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	_repair_authoring_tree()
 	super._ready()
-	if not staff_role_counts.is_empty():
-		add_to_group("settlement_staff_role_owner")
 	if not Engine.is_editor_hint():
 		sync_door_policy.call_deferred()
+		if facility_type == "housing":
+			_home_resident_projection = HOME_RESIDENT_PROJECTION.new()
+			_home_resident_projection.setup(self)
 
 
 func get_facility_record(settlement_id := "") -> Dictionary:
@@ -107,9 +108,16 @@ func sync_door_policy(retries_remaining := 30) -> void:
 	var owner := get_property_owner_character()
 	var owner_actor_id := str(owner.get("stable_id")).strip_edges() if owner != null and "stable_id" in owner else ""
 	var private_access := door_access_policy == "private"
+	var authorized_actor_ids: Array[String] = []
+	if private_access and not owner_actor_id.is_empty():
+		authorized_actor_ids.append(owner_actor_id)
+	if private_access and facility_type == "housing":
+		for actor_id in _residence_actor_ids():
+			if not authorized_actor_ids.has(actor_id):
+				authorized_actor_ids.append(actor_id)
 	var config := {
-		"authorized_actor_ids": PackedStringArray([owner_actor_id]) if private_access and not owner_actor_id.is_empty() else PackedStringArray(),
-		"authorized_faction_ids": PackedStringArray([get_property_owner_faction()]) if private_access and not get_property_owner_faction().is_empty() else PackedStringArray(),
+		"authorized_actor_ids": PackedStringArray(authorized_actor_ids),
+		"authorized_faction_ids": PackedStringArray() if facility_type == "housing" else (PackedStringArray([get_property_owner_faction()]) if private_access and not get_property_owner_faction().is_empty() else PackedStringArray()),
 		"public_access": not private_access,
 		"initial_state": door_initial_state,
 		"keeper_actor_id": owner_actor_id,
@@ -124,50 +132,40 @@ func get_staff_root() -> Node3D:
 	return get_node_or_null(staff_root_path) as Node3D
 
 
-func get_staff_realization_parent() -> Node3D:
+func get_assignment_realization_parent() -> Node3D:
 	return get_staff_root()
 
 
-func get_settlement_staff_slots() -> Array[Dictionary]:
-	var slots: Array[Dictionary] = []
-	var role_ids := staff_role_counts.keys()
-	role_ids.sort()
-	for role_id_value in role_ids:
-		var role_id := str(role_id_value).strip_edges().to_lower()
-		for index in range(maxi(0, int(staff_role_counts[role_id_value]))):
-			var suffix := role_id if index == 0 else "%s%d" % [role_id, index + 1]
-			slots.append({
-				"slot_id": "%s.%s" % [get_facility_id(), suffix],
-				"role_id": role_id,
-				"role_index": index,
-				"character_type_id": get_staff_character_type_id(role_id, index),
-				"display_name": role_id.capitalize() if index == 0 else "%s %d" % [role_id.capitalize(), index + 1],
-				"population_cost": 1,
-				"replacement_delay_days": 7.0,
-				"filled": _staff_actor_for_slot("%s.%s" % [get_facility_id(), suffix]) != null,
-				"authority_scope": "facility_staff",
-			})
-	return slots
-
-
-func configure_settlement_staff_actor(actor: Node, slot_id: String, slot_record: Dictionary) -> void:
+func configure_settlement_assignment_actor(actor: Node, slot_id: String, slot_record: Dictionary) -> void:
 	if actor == null:
 		return
+	var domain := str(slot_record.get("assignment_domain", "employment"))
 	actor.name = str(slot_record.get("role_id", "staff")).to_pascal_case() + (str(int(slot_record.get("role_index", 0)) + 1) if int(slot_record.get("role_index", 0)) > 0 else "")
-	actor.set_meta("settlement_staff_role", str(slot_record.get("role_id", "staff")))
-	actor.set_meta("settlement_staff_role_index", int(slot_record.get("role_index", 0)))
-	actor.set_meta("settlement_staff_slot_id", slot_id)
-	actor.set_meta("settlement_actor_category", "staff")
+	if domain == "employment":
+		actor.set_meta("settlement_staff_role", str(slot_record.get("role_id", "staff")))
+		actor.set_meta("settlement_staff_role_index", int(slot_record.get("role_index", 0)))
+		actor.set_meta("settlement_staff_slot_id", slot_id)
+		actor.set_meta("settlement_actor_category", "staff")
+	else:
+		actor.set_meta("settlement_actor_category", "resident")
 
 
-func _staff_actor_for_slot(slot_id: String) -> Node:
-	var root := get_staff_root()
-	if root == null:
-		return null
-	for child in root.get_children():
-		if str(child.get_meta("settlement_staff_slot_id", "")) == slot_id:
-			return child
-	return null
+func refresh_settlement_assignment_actor(actor: Node, slot_record: Dictionary) -> void:
+	if _home_resident_projection != null:
+		_home_resident_projection.refresh(actor, slot_record)
+
+
+func _residence_actor_ids() -> Array[String]:
+	var result: Array[String] = []
+	var settlements := BootstrapContext.service(SettlementController.SERVICE_ID)
+	if settlements == null or not settlements.has_method("get_facility_assignment_slots"):
+		return result
+	for slot_value in settlements.call("get_facility_assignment_slots", get_facility_id(), "residence"):
+		var actor_id := str((slot_value as Dictionary).get("occupant_actor_id", "")).strip_edges()
+		if not actor_id.is_empty():
+			result.append(actor_id)
+	result.sort()
+	return result
 
 
 func get_service_points_root() -> Node3D:
@@ -221,6 +219,8 @@ func _apply_function_defaults() -> void:
 		display_name = function_display if not function_display.is_empty() else display_name
 	if absf(storage_capacity_bonus) <= 0.0001:
 		storage_capacity_bonus = _resource_float(facility_function, "default_storage_capacity_bonus", storage_capacity_bonus)
+	if housing_capacity <= 0:
+		housing_capacity = _resource_int(facility_function, "default_housing_capacity", housing_capacity)
 
 
 func _function_id() -> String:
@@ -270,6 +270,13 @@ func _resource_float(resource: Resource, property_name: String, fallback: float)
 		return fallback
 	var value = resource.get(property_name)
 	return fallback if value == null else float(value)
+
+
+func _resource_int(resource: Resource, property_name: String, fallback: int) -> int:
+	if resource == null:
+		return fallback
+	var value = resource.get(property_name)
+	return fallback if value == null else int(value)
 
 
 func _set_editor_owner(node: Node) -> void:

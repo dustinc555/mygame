@@ -8,6 +8,5 @@ function_id = "keep"
 display_name = "Keep"
 facility_type = "keep"
 description = "A settlement's seat of authority for rulers, audiences, planning, and formal command."
-expected_staff_roles = PackedStringArray("ruler", "guard")
 expected_service_points = PackedStringArray("audience", "guard_post")
 expected_activity_types = PackedStringArray("social", "guard")

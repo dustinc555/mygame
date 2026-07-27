@@ -10,6 +10,7 @@ const SKILL_RULES := preload("res://features/skills/sim/skill_rules.gd")
 var _context: BootstrapContext
 var _doors: Node
 var _gecs_world: Node
+var _combat_responses: GameCombatResponseSystem
 var _approaches_by_command_id := {}
 var _command_info_by_id := {}
 var _active_command_by_actor_door := {}
@@ -20,6 +21,7 @@ func initialize(context: BootstrapContext) -> void:
 	_context = context
 	_doors = context.require(&"doors")
 	_gecs_world = context.require(&"gecs_world")
+	_combat_responses = context.require(GameCombatResponseSystem.SERVICE_ID) as GameCombatResponseSystem
 	if _doors != null and not _doors.door_command_resolved.is_connected(_on_door_command_resolved):
 		_doors.door_command_resolved.connect(_on_door_command_resolved)
 	if _doors != null and not _doors.scheduled_door_action_requested.is_connected(_on_scheduled_door_action_requested):
@@ -209,6 +211,7 @@ func _actor_snapshot(actor: Node, door: Node) -> Dictionary:
 		"lockpick_skill_level": float(actor.call("get_skill_level", SKILL_RULES.SUBTERFUGE_LOCKPICKING)) if actor.has_method("get_skill_level") else 0.0,
 		"assisting_attribute_level": float(actor.call("get_skill_level", SKILL_RULES.ATTRIBUTE_DEXTERITY)) if actor.has_method("get_skill_level") else 0.0,
 		"actor_faction_id": str(actor_state.get("faction_id", "")),
+		"active_law_response": _combat_responses != null and _combat_responses.has_active_law_response(_actor_id(actor)),
 		"actor_key_ids": _actor_key_ids(actor),
 		"has_required_lockpick": _find_inventory_tool(actor, "lockpick") != null,
 		"from_inside": _actor_is_inside_door_building(actor, door),
@@ -335,7 +338,7 @@ func is_actor_authorized(actor: Node, door: Node) -> bool:
 
 
 func _snapshot_has_authorized_access(snapshot: Dictionary, state: Dictionary, actor_id: String) -> bool:
-	return (state.get("authorized_actor_ids", PackedStringArray()) as PackedStringArray).has(actor_id) or (state.get("authorized_faction_ids", PackedStringArray()) as PackedStringArray).has(str(snapshot.get("actor_faction_id", ""))) or _shared_key_exists(state.get("authorized_key_ids", PackedStringArray()), snapshot.get("actor_key_ids", PackedStringArray()))
+	return bool(snapshot.get("active_law_response", false)) or (state.get("authorized_actor_ids", PackedStringArray()) as PackedStringArray).has(actor_id) or (state.get("authorized_faction_ids", PackedStringArray()) as PackedStringArray).has(str(snapshot.get("actor_faction_id", ""))) or _shared_key_exists(state.get("authorized_key_ids", PackedStringArray()), snapshot.get("actor_key_ids", PackedStringArray()))
 
 
 func _shared_key_exists(required_keys: PackedStringArray, actor_keys: PackedStringArray) -> bool:

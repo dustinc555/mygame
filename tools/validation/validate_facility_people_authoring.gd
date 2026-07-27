@@ -1,0 +1,151 @@
+extends SceneTree
+
+const FACILITIES_DIR := "res://features/settlements/resources/facilities"
+const ROLES_DIR := "res://features/settlements/resources/roles"
+const CHARACTERS_DIR := "res://features/actors/resources/characters"
+const DOCK_PATH := "res://addons/world_authoring/facility_dock.gd"
+const TOOLS_PATH := "res://addons/world_authoring/facility_tools.gd"
+
+var _failures: Array[String] = []
+var _roles_by_path := {}
+var _characters_by_path := {}
+
+
+func _initialize() -> void:
+	call_deferred("_run")
+
+
+func _run() -> void:
+	_validate_role_catalog()
+	_validate_character_catalog()
+	_validate_facility_templates()
+	_validate_plugin_contract()
+	_finish()
+
+
+func _validate_role_catalog() -> void:
+	var ids := {}
+	for path in _resource_paths(ROLES_DIR):
+		var role := load(path) as Resource
+		_expect(role != null, "Role failed to load: %s" % path)
+		if role == null:
+			continue
+		var role_id := str(role.get("role_id")).strip_edges().to_lower()
+		_expect(not role_id.is_empty(), "Role has no role_id: %s" % path)
+		_expect(not ids.has(role_id), "Duplicate role_id: %s" % role_id)
+		_expect(not str(role.get("display_name")).strip_edges().is_empty(), "Role has no display_name: %s" % path)
+		_expect(not str(role.get("default_character_type_id")).strip_edges().is_empty(), "Role has no Auto character type: %s" % path)
+		ids[role_id] = path
+		_roles_by_path[path] = role
+	_expect(not _roles_by_path.is_empty(), "Role catalog is empty")
+
+
+func _validate_character_catalog() -> void:
+	var ids := {}
+	for path in _resource_paths(CHARACTERS_DIR):
+		var character := load(path) as Resource
+		_expect(character != null, "Character failed to load: %s" % path)
+		if character == null:
+			continue
+		var actor_id := str(character.get("actor_id")).strip_edges()
+		_expect(not actor_id.is_empty(), "Character has no actor_id: %s" % path)
+		_expect(not ids.has(actor_id), "Duplicate character actor_id: %s" % actor_id)
+		_expect(not str(character.get("member_name")).strip_edges().is_empty(), "Character has no member_name: %s" % path)
+		ids[actor_id] = path
+		_characters_by_path[path] = character
+	_expect(not _characters_by_path.is_empty(), "Character catalog is empty")
+
+
+func _validate_facility_templates() -> void:
+	for definition_path in _resource_paths(FACILITIES_DIR):
+		var definition := load(definition_path) as Resource
+		_expect(definition != null, "Facility definition failed to load: %s" % definition_path)
+		if definition == null:
+			continue
+		var scene_path := str(definition.get("scene_path"))
+		var scene := load(scene_path) as PackedScene
+		_expect(scene != null, "Facility template failed to load: %s" % scene_path)
+		if scene == null:
+			continue
+		var facility := scene.instantiate()
+		_expect(_has_property(facility, "role_slots"), "Facility template has no role_slots: %s" % scene_path)
+		if _has_property(facility, "role_slots"):
+			_validate_slots(scene_path, facility.get("role_slots"))
+		facility.free()
+
+
+func _validate_slots(scene_path: String, slots: Array) -> void:
+	var slot_ids := {}
+	var assignments := {}
+	for slot in slots:
+		_expect(slot != null, "%s has a null role slot" % scene_path)
+		if slot == null:
+			continue
+		var slot_id := str(slot.get("slot_id")).strip_edges()
+		_expect(not slot_id.is_empty(), "%s has a role slot without slot_id" % scene_path)
+		_expect(not slot_ids.has(slot_id), "%s has duplicate slot_id %s" % [scene_path, slot_id])
+		slot_ids[slot_id] = true
+		var role := slot.get("role") as Resource
+		_expect(role != null, "%s slot %s has no role" % [scene_path, slot_id])
+		if role != null:
+			_expect(_roles_by_path.has(role.resource_path), "%s slot %s uses an unregistered role" % [scene_path, slot_id])
+		var character := slot.get("named_character") as Resource
+		if character == null:
+			continue
+		_expect(_characters_by_path.has(character.resource_path), "%s slot %s uses an unregistered character" % [scene_path, slot_id])
+		var group := str(role.get("assignment_exclusivity_group")) if role != null else ""
+		var key := "%s|%s" % [str(character.get("actor_id")), group]
+		_expect(not assignments.has(key), "%s assigns named actor %s to incompatible rows" % [scene_path, character.get("actor_id")])
+		assignments[key] = true
+
+
+func _validate_plugin_contract() -> void:
+	var dock := FileAccess.get_file_as_string(DOCK_PATH)
+	var tools := FileAccess.get_file_as_string(TOOLS_PATH)
+	for obsolete in ["_rebuild_staffing", "_staff_toggle_field", "_staff_count_field", "_appearance_profile_picker", "_character_type_set_picker", "_character_type_field", "has_barkeeper", "waiter_count", "guard_count", "staff_character_type_ids"]:
+		_expect(not dock.contains(obsolete), "Facility dock retains obsolete staffing symbol: %s" % obsolete)
+	_expect(dock.contains("ROLES_DIR") and dock.contains("CHARACTERS_DIR"), "Facility dock must discover role and character catalogs")
+	_expect(dock.contains("character_option.add_item(\"Auto\")"), "Character picker must put Auto first")
+	_expect(dock.contains("Missing: %s"), "Facility dock must preserve invalid saved values visibly")
+	_expect(dock.contains("Time.get_ticks_usec()") and dock.contains("func _new_slot_id"), "Add Person must create a stable local slot ID")
+	_expect(tools.contains("func set_facility_role_slots") and tools.contains("role_slots.duplicate(true)"), "People edits must deep-copy through UndoRedo")
+
+
+func _resource_paths(directory: String) -> Array[String]:
+	var paths: Array[String] = []
+	_collect_resource_paths(directory, paths)
+	paths.sort()
+	return paths
+
+
+func _collect_resource_paths(directory: String, paths: Array[String]) -> void:
+	if DirAccess.open(directory) == null:
+		return
+	for file_name in DirAccess.get_files_at(directory):
+		if file_name.get_extension() == "tres":
+			paths.append(directory.path_join(file_name))
+	for child in DirAccess.get_directories_at(directory):
+		_collect_resource_paths(directory.path_join(child), paths)
+
+
+func _has_property(target: Object, property_name: String) -> bool:
+	for property in target.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false
+
+
+func _expect(condition: bool, message: String) -> void:
+	if not condition:
+		_failures.append(message)
+
+
+func _finish() -> void:
+	if _failures.is_empty():
+		print("FACILITY_PEOPLE_AUTHORING_OK")
+		quit(0)
+		return
+	for failure in _failures:
+		push_error(failure)
+	print("FACILITY_PEOPLE_AUTHORING_FAILED count=%d" % _failures.size())
+	quit(1)

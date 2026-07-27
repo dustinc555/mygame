@@ -26,11 +26,30 @@ class_name CGameSettlementState
 @export var constructed := false
 @export var facilities: Dictionary = {}
 @export var facility_totals: Dictionary = {}
-@export var staff_slots: Dictionary = {}
-@export var staff_vacancies: Dictionary = {}
+@export var assignment_slots: Dictionary = {}
+@export var assignment_vacancies: Dictionary = {}
 @export var population_death_records: Dictionary = {}
 
 var state: Dictionary = {}
+
+
+func _set(property: StringName, value: Variant) -> bool:
+	if property == &"staff_slots" and value is Dictionary:
+		for slot_id_value in (value as Dictionary).keys():
+			var slot: Dictionary = ((value as Dictionary)[slot_id_value] as Dictionary).duplicate(true)
+			slot["assignment_domain"] = "employment"
+			if slot.has("worker_actor_id"):
+				slot["occupant_actor_id"] = slot.get("worker_actor_id", "")
+				slot.erase("worker_actor_id")
+			assignment_slots["employment:%s" % str(slot_id_value)] = slot
+		return true
+	if property == &"staff_vacancies" and value is Dictionary:
+		for slot_id_value in (value as Dictionary).keys():
+			var vacancy: Dictionary = ((value as Dictionary)[slot_id_value] as Dictionary).duplicate(true)
+			vacancy["assignment_domain"] = "employment"
+			assignment_vacancies["employment:%s" % str(slot_id_value)] = vacancy
+		return true
+	return false
 
 
 func apply_state(source: Dictionary) -> void:
@@ -58,8 +77,8 @@ func apply_state(source: Dictionary) -> void:
 	constructed = bool(source.get("constructed", constructed))
 	facilities = (source.get("facilities", facilities) as Dictionary).duplicate(true)
 	facility_totals = (source.get("facility_totals", facility_totals) as Dictionary).duplicate(true)
-	staff_slots = (source.get("staff_slots", staff_slots) as Dictionary).duplicate(true)
-	staff_vacancies = (source.get("staff_vacancies", staff_vacancies) as Dictionary).duplicate(true)
+	assignment_slots = (source.get("assignment_slots", assignment_slots) as Dictionary).duplicate(true)
+	assignment_vacancies = (source.get("assignment_vacancies", assignment_vacancies) as Dictionary).duplicate(true)
 	population_death_records = (source.get("population_death_records", population_death_records) as Dictionary).duplicate(true)
 	state = to_state()
 
@@ -90,7 +109,7 @@ func to_state() -> Dictionary:
 		"constructed": constructed,
 		"facilities": facilities.duplicate(true),
 		"facility_totals": facility_totals.duplicate(true),
-		"staff_slots": staff_slots.duplicate(true),
-		"staff_vacancies": staff_vacancies.duplicate(true),
+		"assignment_slots": assignment_slots.duplicate(true),
+		"assignment_vacancies": assignment_vacancies.duplicate(true),
 		"population_death_records": population_death_records.duplicate(true),
 	}

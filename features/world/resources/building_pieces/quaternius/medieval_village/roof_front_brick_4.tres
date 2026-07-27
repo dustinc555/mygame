@@ -1,33 +1,33 @@
-[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://isptnwrwthqk"]
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://d2x5b2mef1nc8"]
 
 [ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/roof_front_brick_4.tscn" id="1_w2ord"]
 [ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_tnnpp"]
 [ext_resource type="Script" uid="uid://demamdmwt5tc7" path="res://features/world/resources/building_pieces/modular_building_snap_point.gd" id="3_ghyyu"]
 [ext_resource type="PackedScene" uid="uid://c3wwu3kd13uim" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Front_Brick4.gltf" id="4_87fy7"]
 
-[sub_resource type="Resource" id="Resource_avf6k"]
+[sub_resource type="Resource" id="Resource_w2ord"]
 script = ExtResource("3_ghyyu")
-snap_id = "left"
-display_name = "Left"
-connector_type = "roof_front_side"
-accepts_types = PackedStringArray("roof_side")
-local_transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.1838074, 1.4024503, 0.22958803)
+snap_id = "roof_insert"
+display_name = "Roof Insert"
+connector_type = "roof_gable_insert"
+accepts_types = PackedStringArray("roof_gable_socket")
+local_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.13180207, 0.8392057)
 
-[sub_resource type="Resource" id="Resource_w2x4v"]
+[sub_resource type="Resource" id="Resource_tnnpp"]
 script = ExtResource("3_ghyyu")
-snap_id = "right"
-display_name = "Right"
-connector_type = "roof_front_side"
-accepts_types = PackedStringArray("roof_side")
-local_transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.2159958, 1.4024503, 0.22958803)
-
-[sub_resource type="Resource" id="Resource_nyrp5"]
-script = ExtResource("3_ghyyu")
-snap_id = "wall_top"
-display_name = "Wall Top"
-connector_type = "roof_wall_top"
+snap_id = "wall_0"
+display_name = "Wall 1"
+connector_type = "roof_front_wall"
 accepts_types = PackedStringArray("wall_top")
-local_transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.016094208, -0.13180207, 0.22958803)
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -1, -0.13180207, 0.8392057)
+
+[sub_resource type="Resource" id="Resource_ghyyu"]
+script = ExtResource("3_ghyyu")
+snap_id = "wall_1"
+display_name = "Wall 2"
+connector_type = "roof_front_wall"
+accepts_types = PackedStringArray("wall_top")
+local_transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 1, -0.13180207, 0.8392057)
 
 [resource]
 script = ExtResource("2_tnnpp")
@@ -39,4 +39,4 @@ source_scene = ExtResource("4_87fy7")
 grid_size_cells = Vector3i(3, 2, 1)
 bounds_size_meters = Vector3(4.399803, 3.0685048, 1.1291034)
 tags = PackedStringArray("roof", "front", "brick_4", "roof_front")
-snap_points = [SubResource("Resource_avf6k"), SubResource("Resource_w2x4v"), SubResource("Resource_nyrp5")]
+snap_points = [SubResource("Resource_w2ord"), SubResource("Resource_tnnpp"), SubResource("Resource_ghyyu")]

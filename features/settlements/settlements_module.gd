@@ -12,6 +12,7 @@ extends RefCounted
 ## Installed by GameBootstrap into WorldSimRoot (sim) and BridgeRoot (bridge).
 
 const LAW_ORDER := preload("res://features/settlements/sim/law/law_order_controller.gd")
+const CRIME_ALERT := preload("res://features/settlements/sim/law/crime_alert_controller.gd")
 const OWNERSHIP := preload("res://features/settlements/sim/ownership_controller.gd")
 const JOB_SYSTEM := preload("res://features/settlements/sim/job_system_controller.gd")
 const CONSTRUCTION := preload("res://features/settlements/sim/construction_controller.gd")
@@ -27,6 +28,7 @@ const POPULATION_CHARACTER_REALIZER := preload("res://features/settlements/bridg
 const CORE := []
 const PROJECTION := []
 const SIM := [
+	{"name": "CrimeAlertController", "script": CRIME_ALERT, "service": CRIME_ALERT.SERVICE_ID},
 	{"name": "LawOrderController", "script": LAW_ORDER, "service": LAW_ORDER.SERVICE_ID},
 	{"name": "OwnershipController", "script": OWNERSHIP, "service": OWNERSHIP.SERVICE_ID},
 	{"name": "JobSystemController", "script": JOB_SYSTEM, "service": JOB_SYSTEM.SERVICE_ID},

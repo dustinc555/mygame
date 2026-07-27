@@ -6,13 +6,16 @@ const CANYON_DEFINITION := "res://features/world_sim/resources/settlements/canyo
 const CANYON_FACTION := "res://features/factions/resources/factions/canyonites.tres"
 const QUADBOT_REALIZER := "res://features/world_sim/resources/population_appearance_profiles/quadbot.tres"
 const STANDARD_CHARACTER_TYPES := "res://features/world_sim/resources/character_type_sets/standard.tres"
+const GUARD_ROLE := "res://features/settlements/resources/roles/guard.tres"
 const TOWN_TOOLS := "res://addons/world_authoring/town_tools.gd"
 const FACILITY_DEFINITION_SCRIPT := "res://features/settlements/resources/facility_definition.gd"
+const FACILITY_ROLE_SLOT_SCRIPT := "res://features/settlements/resources/facility_role_slot_definition.gd"
 const POPULATION_CONTROLLER_SCRIPT := "res://features/world_sim/sim/population/population_controller.gd"
 const FACTION_CONTROLLER_SCRIPT := "res://features/factions/sim/faction_controller.gd"
 const CHARACTER_REALIZER_SCRIPT := "res://features/settlements/bridge/population_character_realizer.gd"
 const FACTIONS_DIR := "res://features/factions/resources/factions"
 const TEMP_TOWN := "user://character_realizer_add_facility_test.tscn"
+const TEMP_FACILITY := "user://character_realizer_facility_test.tscn"
 
 var _failures: Array[String] = []
 var _population
@@ -37,11 +40,20 @@ func _run() -> void:
 	_expect(packed.pack(town) == OK and ResourceSaver.save(packed, TEMP_TOWN) == OK, "Could not create temporary town scene")
 	town.free()
 
+	var facility_template := (load(FACILITY_SCENE) as PackedScene).instantiate()
+	var guard_slot = load(FACILITY_ROLE_SLOT_SCRIPT).new()
+	guard_slot.slot_id = "guard"
+	guard_slot.role = load(GUARD_ROLE)
+	guard_slot.character_type_id = ""
+	facility_template.role_slots.append(guard_slot)
+	var packed_facility := PackedScene.new()
+	_expect(packed_facility.pack(facility_template) == OK and ResourceSaver.save(packed_facility, TEMP_FACILITY) == OK, "Could not create temporary role-slotted facility scene")
+	facility_template.free()
+
 	var facility_definition = load(FACILITY_DEFINITION_SCRIPT).new()
 	facility_definition.facility_id = "realizer_probe"
 	facility_definition.display_name = "Realizer Probe"
-	facility_definition.scene_path = FACILITY_SCENE
-	facility_definition.staff_role_counts = {"guard": 1}
+	facility_definition.scene_path = TEMP_FACILITY
 	var town_tools = load(TOWN_TOOLS)
 	_expect(town_tools.add_facility_to_town_scene(TEMP_TOWN, facility_definition, Transform3D.IDENTITY), "Actual Add Facility scene path failed")
 
@@ -52,7 +64,7 @@ func _run() -> void:
 	if facility == null:
 		_finish(added_town)
 		return
-	_expect(facility.staff_role_counts == {"guard": 1}, "Add Facility did not stamp catalog staff roles onto the generic facility")
+	_expect(facility.role_slots.size() == 1, "Add Facility did not preserve the facility scene role slot")
 	_expect(facility.population_appearance_profile == null, "Generic facility should inherit its realizer")
 
 	_population = load(POPULATION_CONTROLLER_SCRIPT).new()
@@ -95,17 +107,27 @@ func _run() -> void:
 	if records.is_empty():
 		_finish(added_town)
 		return
-	var slots = facility.get_settlement_staff_slots()
-	_expect(slots.size() == 1, "Generic facility did not expose its catalog staff slot")
+	var slots = facility.get_assignment_slot_specs()
+	_expect(slots.size() == 1, "Generic facility did not expose its authored assignment slot")
+	var authored_slot = facility.role_slots[0]
+	_expect(authored_slot.character_type_id.is_empty(), "Guard slot must remain Auto rather than authoring a concrete Character Type")
+	_expect(authored_slot.role.default_character_type_id == "default", "Auto guard slot did not inherit its type request from the role definition")
+	var slot: Dictionary = slots[0] if not slots.is_empty() else {}
+	_expect(str(slot.get("character_type_id", "")) == authored_slot.role.default_character_type_id, "Assignment slot did not derive its Auto type request from the role definition")
+	var effective_slot_type = _realizer.resolve_effective_character_type_set(facility).call(
+		"resolve_character_type",
+		str(slot.get("character_type_id", "")),
+		str(slot.get("role_id", ""))
+	)
+	_expect(effective_slot_type != null and str(effective_slot_type.get("type_id")) == "soldier", "Auto guard type did not resolve through the effective Character Type Set")
 	var record: Dictionary = records[0]
 	var actor_id := str(record.get("actor_id", ""))
 	var original_skills: Dictionary = (record.get("skill_levels", {}) as Dictionary).duplicate(true)
 	_population.update_actor_record(actor_id, {"role_id": "guard"})
-	var slot: Dictionary = slots[0]
 	var actor = _realizer.realize_actor(actor_id, facility, facility.get_staff_root(), "Guard", str(slot.get("character_type_id", "")))
 	_expect(actor != null, "Shared realizer rejected a valid inherited faction record")
 	if actor != null:
-		facility.configure_settlement_staff_actor(actor, str(slot.get("slot_id", "")), slot)
+		facility.configure_settlement_assignment_actor(actor, str(slot.get("slot_id", "")), slot)
 		_expect(actor.get_script() == faction_realizer.get("actor_script"), "Runtime actor class differs from the editor-selected faction realizer")
 		_expect(actor.get("appearance_data") != null, "Runtime actor has no appearance data")
 		_expect(str(actor.get("member_name")) != "Character" and not str(actor.get("member_name")).strip_edges().is_empty(), "Runtime actor used the default Character name")
@@ -212,6 +234,8 @@ func _finish(town: Node) -> void:
 		_population.free()
 	if FileAccess.file_exists(TEMP_TOWN):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TEMP_TOWN))
+	if FileAccess.file_exists(TEMP_FACILITY):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(TEMP_FACILITY))
 	if _failures.is_empty():
 		print("CHARACTER_REALIZER_INHERITANCE_OK")
 		quit(0)

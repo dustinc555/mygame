@@ -446,7 +446,7 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 				var base_name := str(child_3d.name).rstrip("0123456789")
 				counts[base_name] = int(counts.get(base_name, 0)) + 1
 				piece.name = "%s%d" % [base_name, counts[base_name]]
-				_stamp_tabletop_surface_id(piece)
+				_stamp_furniture_ids(piece, facility)
 				piece.transform = placement_transform * child_3d.transform
 				piece.set_meta(FURNISH_GENERATED_META, true)
 				undo_redo.add_do_method(furniture_root, "add_child", piece)
@@ -456,7 +456,7 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 			node.free()
 			continue
 		node.name = "%s%d" % [kind.to_pascal_case(), counts[kind]]
-		_stamp_tabletop_surface_id(node)
+		_stamp_furniture_ids(node, facility)
 		node.transform = placement_transform
 		if placement.has("stock"):
 			# Rolled loot bakes into the saved container node; the fresh
@@ -469,14 +469,23 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 		undo_redo.add_do_reference(node)
 	undo_redo.commit_action()
 	_select_node(facility)
-	_set_status("Furnished %s: %d counter, %d clusters, %d containers, %d shelves, %d lights (seed %d)." % [facility.name, int(counts.get("counter", 0)), int(counts.get("cluster", 0)), int(counts.get("container", 0)), int(counts.get("shelf", 0)), int(counts.get("light", 0)), seed_value])
+	var facility_label := str(facility.get("display_name")).strip_edges() if facility.get("display_name") != null else str(facility.name)
+	var storage_count := int(counts.get("container", 0)) + int(counts.get("utility", 0))
+	_set_status("Furnished %s: %d beds, %d dining sets, %d storage, %d shelves, %d lights (seed %d)." % [facility_label, int(counts.get("bed", 0)), int(counts.get("cluster", 0)), storage_count, int(counts.get("shelf", 0)), int(counts.get("light", 0)), seed_value])
 	if _dock != null and is_instance_valid(_dock):
 		_dock.set_facility(facility)
 
 
-func _stamp_tabletop_surface_id(node: Node) -> void:
-	if node != null and "surface_id" in node:
-		node.set("surface_id", str(node.name).to_snake_case())
+func _stamp_furniture_ids(node: Node, facility: Node) -> void:
+	if node == null:
+		return
+	var local_id := str(node.name).to_snake_case()
+	if "surface_id" in node:
+		node.set("surface_id", local_id)
+	if "container_id" in node:
+		var facility_id := str(facility.get("facility_id")).strip_edges()
+		if not facility_id.is_empty():
+			node.set("container_id", "%s.%s" % [facility_id, local_id])
 
 
 func _own_facility_placement(node: Node, owner_root: Node) -> void:
@@ -599,12 +608,24 @@ func assign_function(facility: Node, function_resource: Resource) -> void:
 	_refresh_ui()
 
 
-## --- Staffing -------------------------------------------------------------------------
+## --- People ---------------------------------------------------------------------------
 
 
-## Undo-aware property write for the facility's staffing knobs (guard_count,
-## guard_post_count, guard_name…). Property setters on the facility scripts
-## regenerate their guard/post trees, so this is all the dock needs.
+func set_facility_role_slots(facility: Node, role_slots: Variant, action_name: String) -> void:
+	if facility == null or not _can_edit_live(facility):
+		_set_status("Town is a locked instance — use Edit In Zone on the town first.")
+		return
+	var before = facility.get("role_slots").duplicate(true)
+	var after = role_slots.duplicate(true)
+	var undo_redo := _plugin.get_undo_redo()
+	undo_redo.create_action(action_name)
+	undo_redo.add_do_property(facility, "role_slots", after)
+	undo_redo.add_undo_property(facility, "role_slots", before)
+	undo_redo.commit_action()
+	if _dock != null and is_instance_valid(_dock):
+		_dock.set_facility(facility)
+
+
 func set_facility_property(facility: Node, property_name: String, value) -> void:
 	if facility == null or not _can_edit_live(facility):
 		_set_status("Town is a locked instance — use Edit In Zone on the town first.")

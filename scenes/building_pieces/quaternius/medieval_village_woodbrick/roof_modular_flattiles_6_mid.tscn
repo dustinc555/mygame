@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Modular_FlatTiles_6_Mid.gltf" id="2_model"]
 [ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_snap"]
 
-[node name="RoofModularFlatTiles6Mid" type="Node3D"]
+[node name="RoofModularFlatTiles6Mid" type="Node3D" unique_id=1869713232]
 script = ExtResource("1_piece")
 piece_id = "roof_modular_flattiles_6_mid"
 display_name = "Roof Modular FlatTiles 6 Mid"
@@ -12,38 +12,38 @@ category = "roof"
 grid_size_cells = Vector3i(4, 3, 2)
 bounds_size_meters = Vector3(8.067887, 5.633599, 2.251659)
 
-[node name="Model" type="Node3D" parent="." instance=ExtResource("2_model")]
+[node name="Model" type="Node3D" parent="." unique_id=1496596166 instance=ExtResource("2_model")]
 
-[node name="SnapPoints" type="Node3D" parent="."]
+[node name="SnapPoints" type="Node3D" parent="." unique_id=2068139950]
 
-[node name="Left" type="Marker3D" parent="SnapPoints"]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.033944, 2.0732445, -0.08029282)
+[node name="EaveWest" type="Marker3D" parent="SnapPoints" unique_id=247554119]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -4.1107945, -0.74355483, 0)
 script = ExtResource("3_snap")
-snap_id = "left"
-display_name = "Left"
-connector_type = "roof_side"
-accepts_types = PackedStringArray("roof_side")
-
-[node name="Right" type="Marker3D" parent="SnapPoints"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 4.033943, 2.0732445, -0.08029282)
-script = ExtResource("3_snap")
-snap_id = "right"
-display_name = "Right"
-connector_type = "roof_side"
-accepts_types = PackedStringArray("roof_side")
-
-[node name="WallTop" type="Marker3D" parent="SnapPoints"]
-transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, -0.743555, -0.08029282)
-script = ExtResource("3_snap")
-snap_id = "wall_top"
-display_name = "Wall Top"
+snap_id = "eave_west"
+display_name = "Eave West"
 connector_type = "roof_wall_top"
 accepts_types = PackedStringArray("wall_top")
 
-[node name="Ridge" type="Marker3D" parent="SnapPoints"]
-transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 4.890044, -0.08029282)
+[node name="EaveEast" type="Marker3D" parent="SnapPoints" unique_id=968913183]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 4.1107945, -0.74355483, 0)
 script = ExtResource("3_snap")
-snap_id = "ridge"
-display_name = "Ridge"
-connector_type = "roof_ridge"
-accepts_types = PackedStringArray("roof_ridge")
+snap_id = "eave_east"
+display_name = "Eave East"
+connector_type = "roof_wall_top"
+accepts_types = PackedStringArray("wall_top")
+
+[node name="RunNegativeZ" type="Marker3D" parent="SnapPoints" unique_id=1889462051]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.74355483, -1)
+script = ExtResource("3_snap")
+snap_id = "run_negative_z"
+display_name = "Run Negative Z"
+connector_type = "roof_run_negative_z"
+accepts_types = PackedStringArray("roof_run_positive_z")
+
+[node name="RunPositiveZ" type="Marker3D" parent="SnapPoints" unique_id=722256825]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.74355483, 1)
+script = ExtResource("3_snap")
+snap_id = "run_positive_z"
+display_name = "Run Positive Z"
+connector_type = "roof_run_positive_z"
+accepts_types = PackedStringArray("roof_run_negative_z")

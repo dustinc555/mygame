@@ -56,6 +56,8 @@ func _furnish(furnisher_script, building: Node3D, rules, seed_value: int) -> Arr
 func _validate_layout(placements: Array, label: String) -> void:
 	var counters := placements.filter(func(p): return p["kind"] == "counter")
 	var clusters := placements.filter(func(p): return p["kind"] == "cluster")
+	var claimed_wall_faces := {}
+	var exterior_entry_lights := 0
 	if counters.size() != 1:
 		_fail("%s: expected exactly 1 counter, got %d" % [label, counters.size()])
 	if clusters.is_empty():
@@ -71,6 +73,18 @@ func _validate_layout(placements: Array, label: String) -> void:
 	for placement in placements:
 		if placement["kind"] == "shelf" and absf(fmod((placement["transform"] as Transform3D).origin.y, 3.0) - 1.6) > 0.2:
 			_fail("%s: shelf not at mount height" % label)
+		if placement["kind"] != "shelf" and placement["kind"] != "light":
+			continue
+		var wall_face_key := str(placement.get("wall_face_key", ""))
+		if wall_face_key.is_empty():
+			_fail("%s: wall-mounted item has no wall-face claim" % label)
+		elif claimed_wall_faces.has(wall_face_key):
+			_fail("%s: multiple wall-mounted items claim wall face %s" % [label, wall_face_key])
+		else:
+			claimed_wall_faces[wall_face_key] = true
+		exterior_entry_lights += 1 if bool(placement.get("exterior_entry_light", false)) else 0
+	if exterior_entry_lights != 1:
+		_fail("%s: expected exactly one exterior entry light, got %d" % [label, exterior_entry_lights])
 
 
 ## Regressions that shipped once and must never again: shelves mounted over

@@ -20,7 +20,7 @@ const POLICY_NEAR_PLAYER := "near_player"
 @export var realization_resync_interval_seconds := 1.0
 @export var realization_retention_seconds := 900.0
 @export_range(1, 16, 1) var spawner_budget_per_tick := 2
-@export_range(1, 32, 1) var staff_slot_budget_per_tick := 4
+@export_range(1, 32, 1) var assignment_slot_budget_per_tick := 4
 @export_range(1, 32, 1) var corpse_budget_per_tick := 4
 ## A realized actor stays realized until a bit past the radius, so pacing the boundary
 ## doesn't thrash spawn/despawn (the record is cached either way — same person re-appears).
@@ -35,8 +35,8 @@ var _spawner_cursor := 0
 var _spawner_near_by_id: Dictionary = {}
 var _settlements: Array[Node] = []
 var _settlement_by_stable_id: Dictionary = {}
-var _staff_slot_cursor := 0
-var _staff_maintenance_cursor := 0
+var _assignment_slot_cursor := 0
+var _assignment_maintenance_cursor := 0
 var _retention_expiry_by_key: Dictionary = {}
 var _realized_corpse_ids: Dictionary = {}
 var _corpse_transform_restore_pending: Dictionary = {}
@@ -49,10 +49,10 @@ var _last_resync_camera_position := Vector3.INF
 
 const LOADING_SERVICE := &"navigation_loading_overlay"
 const LOADING_OWNER_ID := "population_realization"
-const MAX_STAFF_REALIZATION_FAILURES := 20
+const MAX_ASSIGNMENT_REALIZATION_FAILURES := 20
 const MAX_CORPSE_REALIZATION_FAILURES := 20
 
-var _failed_staff_realization_attempts: Dictionary = {}
+var _failed_assignment_realization_attempts: Dictionary = {}
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -63,6 +63,7 @@ func initialize(context: BootstrapContext) -> void:
 	_collect_spawners_once()
 	_collect_settlements_once()
 	_connect_population_deaths()
+	_connect_party_lifecycle()
 	refresh_from_gecs_state()
 	sync_population_realization_state()
 
@@ -74,6 +75,7 @@ func _ready() -> void:
 	_collect_spawners_once()
 	_collect_settlements_once()
 	_connect_population_deaths()
+	_connect_party_lifecycle()
 	refresh_from_gecs_state()
 	sync_population_realization_state()
 
@@ -97,7 +99,7 @@ func _process(delta: float) -> void:
 	_last_resync_camera_position = _resync_anchors[0] if not _resync_anchors.is_empty() else Vector3.INF
 	_mandatory_work_pending = 0
 	_resync_population_spawners(_resync_anchors)
-	_resync_settlement_staff(_resync_anchors)
+	_resync_settlement_assignments(_resync_anchors)
 	_resync_corpses(_resync_anchors)
 	_update_loading_request()
 	_resync_anchors.clear()
@@ -256,14 +258,15 @@ func _collect_settlements_once() -> void:
 		register_settlement(settlement as Node)
 
 
-func _resync_settlement_staff(anchors: Array[Vector3]) -> void:
+func _resync_settlement_assignments(anchors: Array[Vector3]) -> void:
 	if _settlements.is_empty():
 		_collect_settlements_once()
 	if _settlements.is_empty():
 		return
 	var settlement_controller := _context.get_optional(SettlementController.SERVICE_ID) if _context != null else null
-	if settlement_controller == null or not settlement_controller.has_method("get_staff_slots_for_realization"):
+	if settlement_controller == null or not settlement_controller.has_method("get_assignment_slots_for_realization"):
 		return
+	var population := _get_population_controller()
 	var urgent: Array[Dictionary] = []
 	var maintenance: Array[Dictionary] = []
 	var active_retention_keys := {}
@@ -275,49 +278,56 @@ func _resync_settlement_staff(anchors: Array[Vector3]) -> void:
 		if not settlement.has_method("get_settlement_id"):
 			continue
 		var settlement_id := str(settlement.call("get_settlement_id"))
-		for slot_value in settlement_controller.call("get_staff_slots_for_realization", settlement_id):
+		for slot_value in settlement_controller.call("get_assignment_slots_for_realization", settlement_id):
 			if slot_value is Dictionary:
 				var slot: Dictionary = slot_value
 				var slot_id := str(slot.get("slot_id", ""))
-				var occupied := bool(slot.get("filled", false)) and not str(slot.get("worker_actor_id", "")).is_empty()
+				var domain := str(slot.get("assignment_domain", ""))
+				var occupied := bool(slot.get("filled", false)) and not str(slot.get("occupant_actor_id", "")).is_empty()
 				if not occupied:
 					continue
-				var realized := bool(settlement_controller.call("is_staff_slot_realized", settlement_id, slot_id))
+				var actor_id := str(slot.get("occupant_actor_id", ""))
+				if domain == "residence" and population != null and population.has_method("get_actor_record"):
+					var record: Dictionary = population.call("get_actor_record", actor_id)
+					if not str((record.get("assignments", {}) as Dictionary).get("employment", "")).is_empty():
+						continue
+				var realized := bool(settlement_controller.call("is_assignment_slot_realized", settlement_id, domain, slot_id))
 				var position = slot.get("world_position", Vector3.INF)
 				var within_entry := position is Vector3 and _is_near_any_anchor(position, anchors, get_entry_radius())
-				var retention_key := _staff_retention_key(settlement_id, slot_id)
+				var retention_key := _assignment_retention_key(settlement_id, domain, slot_id)
 				if not within_entry and not realized:
-					_failed_staff_realization_attempts.erase(retention_key)
-				if within_entry and not realized and int(_failed_staff_realization_attempts.get(retention_key, 0)) < MAX_STAFF_REALIZATION_FAILURES:
+					_failed_assignment_realization_attempts.erase(retention_key)
+				if within_entry and not realized and int(_failed_assignment_realization_attempts.get(retention_key, 0)) < MAX_ASSIGNMENT_REALIZATION_FAILURES:
 					urgent.append(slot)
 				elif realized:
 					maintenance.append(slot)
 				active_retention_keys[retention_key] = true
-	prune_realization_retention("staff:", active_retention_keys)
-	for failure_key in _failed_staff_realization_attempts.keys():
+	prune_realization_retention("assignment:", active_retention_keys)
+	for failure_key in _failed_assignment_realization_attempts.keys():
 		if not active_retention_keys.has(failure_key):
-			_failed_staff_realization_attempts.erase(failure_key)
+			_failed_assignment_realization_attempts.erase(failure_key)
 	if urgent.is_empty() and maintenance.is_empty():
-		_staff_slot_cursor = 0
-		_staff_maintenance_cursor = 0
+		_assignment_slot_cursor = 0
+		_assignment_maintenance_cursor = 0
 		return
-	var budget := maxi(staff_slot_budget_per_tick, 1)
-	var attempted_staff_keys := {}
-	_staff_slot_cursor = _process_staff_candidates(urgent, _staff_slot_cursor, budget, settlement_controller, anchors, attempted_staff_keys)
+	var budget := maxi(assignment_slot_budget_per_tick, 1)
+	var attempted_assignment_keys := {}
+	_assignment_slot_cursor = _process_assignment_candidates(urgent, _assignment_slot_cursor, budget, settlement_controller, anchors, attempted_assignment_keys)
 	var urgent_processed := mini(budget, urgent.size())
 	if urgent_processed < budget:
-		_staff_maintenance_cursor = _process_staff_candidates(maintenance, _staff_maintenance_cursor, budget - urgent_processed, settlement_controller, anchors, attempted_staff_keys)
+		_assignment_maintenance_cursor = _process_assignment_candidates(maintenance, _assignment_maintenance_cursor, budget - urgent_processed, settlement_controller, anchors, attempted_assignment_keys)
 	for slot in urgent:
 		var position = slot.get("world_position", Vector3.INF)
 		var settlement_id := str(slot.get("settlement_id", ""))
 		var slot_id := str(slot.get("slot_id", ""))
-		var slot_key := "%s:%s" % [settlement_id, slot_id]
-		var retention_key := _staff_retention_key(settlement_id, slot_id)
-		if not attempted_staff_keys.has(slot_key) and int(_failed_staff_realization_attempts.get(retention_key, 0)) < MAX_STAFF_REALIZATION_FAILURES and position is Vector3 and _is_near_any_anchor(position, anchors, get_visible_radius()) and not bool(settlement_controller.call("is_staff_slot_realized", settlement_id, slot_id)):
+		var domain := str(slot.get("assignment_domain", "employment"))
+		var slot_key := "%s:%s:%s" % [settlement_id, domain, slot_id]
+		var retention_key := _assignment_retention_key(settlement_id, domain, slot_id)
+		if not attempted_assignment_keys.has(slot_key) and int(_failed_assignment_realization_attempts.get(retention_key, 0)) < MAX_ASSIGNMENT_REALIZATION_FAILURES and position is Vector3 and _is_near_any_anchor(position, anchors, get_visible_radius()) and not bool(settlement_controller.call("is_assignment_slot_realized", settlement_id, domain, slot_id)):
 			_mandatory_work_pending += 1
 
 
-func _process_staff_candidates(candidates: Array[Dictionary], cursor: int, budget: int, settlement_controller: Node, anchors: Array[Vector3], attempted_keys: Dictionary) -> int:
+func _process_assignment_candidates(candidates: Array[Dictionary], cursor: int, budget: int, settlement_controller: Node, anchors: Array[Vector3], attempted_keys: Dictionary) -> int:
 	if candidates.is_empty() or budget <= 0:
 		return 0
 	cursor %= candidates.size()
@@ -328,37 +338,40 @@ func _process_staff_candidates(candidates: Array[Dictionary], cursor: int, budge
 		processed += 1
 		var slot_id := str(slot.get("slot_id", ""))
 		var settlement_id := str(slot.get("settlement_id", ""))
-		var actor_id := str(slot.get("worker_actor_id", ""))
-		attempted_keys["%s:%s" % [settlement_id, slot_id]] = true
+		var assignment_domain := str(slot.get("assignment_domain", "employment"))
+		var actor_id := str(slot.get("occupant_actor_id", ""))
+		attempted_keys["%s:%s:%s" % [settlement_id, assignment_domain, slot_id]] = true
 		if slot_id.is_empty() or settlement_id.is_empty() or actor_id.is_empty() or not bool(slot.get("filled", false)):
 			continue
 		var position = slot.get("world_position", Vector3.INF)
-		var realized := bool(settlement_controller.call("is_staff_slot_realized", settlement_id, slot_id))
+		var realized := bool(settlement_controller.call("is_assignment_slot_realized", settlement_id, assignment_domain, slot_id))
 		var threshold := get_exit_radius() if realized else get_entry_radius()
 		var near := position is Vector3 and _is_near_any_anchor(position, anchors, threshold)
-		var retention_key := _staff_retention_key(settlement_id, slot_id)
+		var retention_key := _assignment_retention_key(settlement_id, assignment_domain, slot_id)
 		var keep := should_keep_realized(retention_key, near, realized)
 		if keep and not realized:
-			if int(_failed_staff_realization_attempts.get(retention_key, 0)) >= MAX_STAFF_REALIZATION_FAILURES:
+			if int(_failed_assignment_realization_attempts.get(retention_key, 0)) >= MAX_ASSIGNMENT_REALIZATION_FAILURES:
 				continue
-			var succeeded := bool(settlement_controller.call("realize_staff_slot", settlement_id, slot_id))
+			var succeeded := bool(settlement_controller.call("realize_assignment_slot", settlement_id, assignment_domain, slot_id))
 			if succeeded:
-				_failed_staff_realization_attempts.erase(retention_key)
+				_failed_assignment_realization_attempts.erase(retention_key)
 			elif position is Vector3 and _is_near_any_anchor(position, anchors, get_visible_radius()):
-				var failures := int(_failed_staff_realization_attempts.get(retention_key, 0)) + 1
-				_failed_staff_realization_attempts[retention_key] = failures
-				if failures < MAX_STAFF_REALIZATION_FAILURES:
+				var failures := int(_failed_assignment_realization_attempts.get(retention_key, 0)) + 1
+				_failed_assignment_realization_attempts[retention_key] = failures
+				if failures < MAX_ASSIGNMENT_REALIZATION_FAILURES:
 					_mandatory_work_pending += 1
-				elif failures == MAX_STAFF_REALIZATION_FAILURES:
-					push_error("Visible staff realization failed after %d attempts: %s/%s" % [MAX_STAFF_REALIZATION_FAILURES, settlement_id, slot_id])
+				elif failures == MAX_ASSIGNMENT_REALIZATION_FAILURES:
+					push_error("Visible assignment realization failed after %d attempts: %s/%s/%s" % [MAX_ASSIGNMENT_REALIZATION_FAILURES, settlement_id, assignment_domain, slot_id])
+		elif keep and realized:
+			settlement_controller.call("refresh_assignment_slot_projection", settlement_id, assignment_domain, slot_id)
 		elif not keep and realized:
-			settlement_controller.call("derealize_staff_slot", settlement_id, slot_id)
-			_failed_staff_realization_attempts.erase(retention_key)
+			settlement_controller.call("derealize_assignment_slot", settlement_id, assignment_domain, slot_id)
+			_failed_assignment_realization_attempts.erase(retention_key)
 	return cursor
 
 
-func _staff_retention_key(settlement_id: String, slot_id: String) -> String:
-	return "staff:%s:%s" % [settlement_id, slot_id]
+func _assignment_retention_key(settlement_id: String, assignment_domain: String, slot_id: String) -> String:
+	return "assignment:%s:%s:%s" % [settlement_id, assignment_domain, slot_id]
 
 
 func _connect_population_deaths() -> void:
@@ -367,6 +380,26 @@ func _connect_population_deaths() -> void:
 		population.person_died.connect(_on_person_died)
 	if population != null and population.has_signal("dead_projection_registered") and not population.dead_projection_registered.is_connected(_on_dead_projection_registered):
 		population.dead_projection_registered.connect(_on_dead_projection_registered)
+
+
+func _connect_party_lifecycle() -> void:
+	if _context == null:
+		return
+	var party_manager := _context.get_optional(&"party_manager")
+	if party_manager != null and party_manager.has_signal("party_member_added") and not party_manager.party_member_added.is_connected(_on_party_member_added):
+		party_manager.party_member_added.connect(_on_party_member_added)
+
+
+func _on_party_member_added(actor: Node) -> void:
+	var population := _get_population_controller()
+	if population == null or not population.has_method("release_all_actor_assignments"):
+		return
+	var actor_id := str(actor.get_meta("actor_record_id", actor.get("stable_id") if actor != null else "")) if actor != null else ""
+	if not actor_id.is_empty():
+		population.call("release_all_actor_assignments", actor_id)
+		var settlement := _context.get_optional(SettlementController.SERVICE_ID) if _context != null else null
+		if settlement != null and settlement.has_method("release_actor_facility_assignments"):
+			settlement.call("release_actor_facility_assignments", actor_id)
 
 
 func _on_person_died(actor_id: String) -> void:

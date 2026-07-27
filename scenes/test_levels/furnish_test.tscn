@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://ga5ayrytr0ow"]
 
-[ext_resource type="Script" path="res://scenes/test_levels/furnish_test.gd" id="1_test"]
+[ext_resource type="Script" uid="uid://kmb272bvi62e" path="res://scenes/test_levels/furnish_test.gd" id="1_test"]
 
-[node name="FurnishTest" type="Node3D"]
+[node name="FurnishTest" type="Node3D" unique_id=1589152168]
 script = ExtResource("1_test")

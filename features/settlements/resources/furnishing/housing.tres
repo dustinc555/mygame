@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="FurnishRules" format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/furnishing/furnish_rules.gd" id="1_rules"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furnishing/vignettes/table_cluster_4.tscn" id="2_dining"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_1.tscn" id="3_bed1"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_2.tscn" id="4_bed2"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_3.tscn" id="5_bed3"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chest_wood.tscn" id="6_chest"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_stocked.tscn" id="8_shelf"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/lighting/wall_torch.tscn" id="9_torch"]
+
+[resource]
+script = ExtResource("1_rules")
+counter_scenes = Array[PackedScene]([])
+required_cluster_scenes = Array[PackedScene]([ExtResource("2_dining")])
+cluster_scenes = Array[PackedScene]([])
+square_meters_per_cluster = 12.0
+max_clusters = 1
+cluster_margin = 0.1
+utility_scenes = Array[PackedScene]([ExtResource("6_chest")])
+container_scenes = Array[PackedScene]([])
+max_containers = 0
+shelf_scenes = Array[PackedScene]([ExtResource("8_shelf")])
+shelf_chance = 1.0
+shelf_mount_height = 1.55
+max_shelves = 2
+min_shelves = 2
+light_scenes = Array[PackedScene]([ExtResource("9_torch")])
+light_chance = 1.0
+light_mount_height = 2.15
+light_spacing_meters = 1.5
+max_lights_per_level = 2
+min_lights = 2
+bed_scenes = Array[PackedScene]([ExtResource("3_bed1"), ExtResource("4_bed2"), ExtResource("5_bed3")])
+beds_on_ground_floor = true
+max_beds = 2
+bed_chance = 1.0
+min_beds = 2
+bed_footprint = Vector2(1.8, 2.4)

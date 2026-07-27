@@ -9,7 +9,7 @@ class_name FacilityFunctionDefinition
 @export_multiline var description := ""
 @export var food_outputs_per_day: Array[Resource] = []
 @export var default_storage_capacity_bonus := 0.0
-@export var expected_staff_roles: PackedStringArray = PackedStringArray()
+@export var default_housing_capacity := 0
 @export var expected_service_points: PackedStringArray = PackedStringArray()
 @export var expected_activity_types: PackedStringArray = PackedStringArray()
 
