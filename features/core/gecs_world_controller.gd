@@ -678,11 +678,15 @@ func update_population_realization(actor_id: String, realization_state: String, 
 	return true
 
 
-func update_population_death(actor_id: String, world_transform: Transform3D) -> bool:
+func update_population_death(actor_id: String, actor: Node, world_transform: Transform3D) -> bool:
 	var entity = _population_entity_by_actor_id.get(actor_id)
 	var component = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
 	if component == null:
 		return false
+	var live_entity = _actor_entity_for_actor(actor) if actor != null and is_instance_valid(actor) else null
+	var live_vitals = live_entity.get_component(C_VITALS) if live_entity != null and is_instance_valid(live_entity) else null
+	if live_vitals != null:
+		live_vitals.life_state = NpcRules.LifeState.DEAD
 	if int(component.life_state) != NpcRules.LifeState.DEAD:
 		_adjust_alive_population_count(str(component.settlement_id), -1)
 	component.life_state = NpcRules.LifeState.DEAD
@@ -864,44 +868,9 @@ func _adjust_alive_population_count(settlement_id: String, delta: int) -> void:
 		_alive_population_count_by_settlement[settlement_id] = next_count
 
 
-func remove_population_record(actor_id: String) -> void:
-	var entity = _population_entity_by_actor_id.get(actor_id)
-	var component = entity.get_component(C_POPULATION_RECORD) if entity != null and is_instance_valid(entity) else null
-	if component != null and int(component.life_state) != NpcRules.LifeState.DEAD:
-		_adjust_alive_population_count(str(component.settlement_id), -1)
-	if entity != null and is_instance_valid(entity) and world != null:
-		world.remove_entity(entity)
-	_population_entity_by_actor_id.erase(actor_id)
-	var settlement_id := str(_population_settlement_by_actor_id.get(actor_id, ""))
-	if not settlement_id.is_empty():
-		var settlement_ids: Dictionary = _population_actor_ids_by_settlement.get(settlement_id, {})
-		settlement_ids.erase(actor_id)
-		if settlement_ids.is_empty():
-			_population_actor_ids_by_settlement.erase(settlement_id)
-		else:
-			_population_actor_ids_by_settlement[settlement_id] = settlement_ids
-	_population_settlement_by_actor_id.erase(actor_id)
-	var squad_id := str(_population_squad_by_actor_id.get(actor_id, ""))
-	if not squad_id.is_empty():
-		var squad_ids: Dictionary = _population_actor_ids_by_squad.get(squad_id, {})
-		squad_ids.erase(actor_id)
-		if squad_ids.is_empty():
-			_population_actor_ids_by_squad.erase(squad_id)
-		else:
-			_population_actor_ids_by_squad[squad_id] = squad_ids
-	_population_squad_by_actor_id.erase(actor_id)
-	var corpse_cell = _corpse_cell_by_actor_id.get(actor_id)
-	if corpse_cell is Vector2i:
-		var ids: Dictionary = _corpse_actor_ids_by_cell.get(corpse_cell, {})
-		ids.erase(actor_id)
-		if ids.is_empty():
-			_corpse_actor_ids_by_cell.erase(corpse_cell)
-		else:
-			_corpse_actor_ids_by_cell[corpse_cell] = ids
-	_corpse_cell_by_actor_id.erase(actor_id)
-
-
-func clear_population_records() -> void:
+## Save loading reconstructs the complete GECS population snapshot atomically.
+## Gameplay must never call this or delete an individual permanent person.
+func _clear_population_records_for_load() -> void:
 	if world == null:
 		_population_entity_by_actor_id.clear()
 		_alive_population_count_by_settlement.clear()

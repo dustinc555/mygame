@@ -72,6 +72,7 @@ var _stealth_cone_observers: Array[Node3D] = []
 var _stealth_cone_mesh: Mesh
 var _stealth_unit_disc_mesh: Mesh
 var _stealth_refresh_timer := 0.0
+var _npc_action_status: Label
 
 const STEALTH_REFRESH_INTERVAL := 0.5
 const STEALTH_OVERLAY_RANGE := 40.0
@@ -101,6 +102,7 @@ func _ready() -> void:
 	_build_towns_window()
 	_build_law_window()
 	_build_stealth_window()
+	_build_npc_instant_actions_window()
 	# Everything stays closed and off until explicitly opened, one panel at a
 	# time — debug windows never flood the screen.
 	for panel in _windows:
@@ -139,6 +141,45 @@ func _build_nav_window() -> void:
 	rebake_button.pressed.connect(_on_rebake_pressed)
 	vbox.add_child(rebake_button)
 	_sync_nav_tuning()
+
+
+func _build_npc_instant_actions_window() -> void:
+	var vbox := _build_window("NPC Instant Actions", Vector2(372.0, 348.0))
+	var kill_button := Button.new()
+	kill_button.text = "Kill"
+	kill_button.focus_mode = Control.FOCUS_NONE
+	kill_button.pressed.connect(_on_npc_kill_pressed)
+	vbox.add_child(kill_button)
+	_npc_action_status = _make_label(vbox)
+	_npc_action_status.text = "Click Kill, then click a non-party NPC."
+	var interaction := BootstrapContext.service(WorldInteractionController.SERVICE_ID)
+	if interaction != null and interaction.has_signal("npc_instant_action_finished") and not interaction.npc_instant_action_finished.is_connected(_on_npc_instant_action_finished):
+		interaction.npc_instant_action_finished.connect(_on_npc_instant_action_finished)
+	var panel: Control = _window_panels.get("NPC Instant Actions")
+	if panel != null:
+		panel.visibility_changed.connect(_on_npc_actions_visibility_changed.bind(panel))
+
+
+func _on_npc_kill_pressed() -> void:
+	var interaction := BootstrapContext.service(WorldInteractionController.SERVICE_ID)
+	if interaction == null or not interaction.has_method("arm_npc_instant_action") or not bool(interaction.call("arm_npc_instant_action", WorldInteractionController.NPC_ACTION_KILL)):
+		_npc_action_status.text = "World interaction unavailable."
+		return
+	_npc_action_status.text = "Click a living non-party NPC to kill. Right-click or Escape cancels."
+
+
+func _on_npc_instant_action_finished(_action_id: StringName, _target: WorldActor, success: bool, message: String) -> void:
+	_npc_action_status.text = message
+	if success:
+		_npc_action_status.text += " Corpse persisted."
+
+
+func _on_npc_actions_visibility_changed(panel: Control) -> void:
+	if panel.visible:
+		return
+	var interaction := BootstrapContext.service(WorldInteractionController.SERVICE_ID)
+	if interaction != null and interaction.has_method("cancel_npc_instant_action"):
+		interaction.call("cancel_npc_instant_action")
 
 
 func _build_placer_window() -> void:
