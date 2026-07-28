@@ -403,8 +403,9 @@ func _on_party_member_added(actor: Node) -> void:
 
 
 func _on_person_died(actor_id: String) -> void:
-	if not actor_id.is_empty():
-		_realized_corpse_ids[actor_id] = true
+	if actor_id.is_empty():
+		return
+	_realized_corpse_ids[actor_id] = true
 	_remove_dead_person_from_active_party(actor_id)
 
 
@@ -489,7 +490,6 @@ func _resync_corpses(anchors: Array[Vector3]) -> void:
 			_mandatory_work_pending += 1
 		if actor != null and is_instance_valid(actor):
 			_restore_corpse_transform_if_pending(actor_id, actor, record)
-			_adopt_corpse_projection(actor)
 			_realized_corpse_ids[actor_id] = true
 	if not nearby_records.is_empty():
 		_corpse_realization_cursor = (_corpse_realization_cursor + maxi(attempts_this_tick, 1)) % nearby_records.size()
@@ -541,17 +541,6 @@ func _realize_corpse(actor_id: String, record: Dictionary) -> Node:
 		elif bool(record.get("last_world_position_initialized", false)):
 			(actor as Node3D).global_position = record.get("last_world_position", Vector3.ZERO)
 	return actor
-
-
-func _adopt_corpse_projection(actor: Node) -> void:
-	if not (actor is Node3D) or (actor.has_method("is_carried") and bool(actor.call("is_carried"))):
-		return
-	var root := _get_corpse_projection_root()
-	if root == null or actor.get_parent() == root:
-		return
-	var transform := (actor as Node3D).global_transform
-	actor.reparent(root)
-	(actor as Node3D).global_transform = transform
 
 
 func _get_corpse_projection_root() -> Node3D:

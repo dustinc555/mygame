@@ -3,6 +3,9 @@ extends Node
 class_name WorldInteractionController
 
 const SERVICE_ID := &"world_interaction"
+const NPC_ACTION_KILL := &"kill"
+
+signal npc_instant_action_finished(action_id: StringName, target: WorldActor, success: bool, message: String)
 
 # Characters get click priority within this many screen pixels of the cursor;
 # precise capsule hits indoors (behind counters, under low ceilings) are
@@ -108,6 +111,7 @@ var squad_all_button: Button
 var squad_add_button: Button
 var squad_name_label: Label
 var squad_formation_button: Button
+var _pending_npc_instant_action := &""
 var squad_ai_button: Button
 var command_title_label: Label
 var walk_button: Button
@@ -123,6 +127,7 @@ var humanoid_details_controller
 var conversation_controller
 var ownership_controller
 var item_read_controller: Node
+var population_controller: PopulationController
 var building_visibility_controller
 var terrain_camera_controller
 var floating_notice: FloatingNotice
@@ -201,6 +206,7 @@ func _do_initialize() -> void:
 	conversation_controller = _context.require(ConversationController.SERVICE_ID)
 	ownership_controller = _context.get_optional(OwnershipController.SERVICE_ID)
 	item_read_controller = _context.get_optional(&"item_read")
+	population_controller = _context.require(PopulationController.SERVICE_ID) as PopulationController
 	law_order_controller = _context.get_optional(LawOrderController.SERVICE_ID) as LawOrderController
 	building_visibility_controller = _context.get_optional(BuildingVisibilityController.SERVICE_ID)
 	terrain_camera_controller = _context.get_optional(TerrainCameraController.SERVICE_ID)
@@ -347,6 +353,9 @@ func _is_text_input_focused() -> bool:
 func _unhandled_input(event: InputEvent) -> void:
 	if not _initialized:
 		return
+	if _handle_npc_instant_action_input(event):
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
 			camera_distance = max(camera_min_distance, camera_distance - camera_zoom_step)
@@ -392,6 +401,60 @@ func _unhandled_input(event: InputEvent) -> void:
 		camera_yaw -= event.relative.x * orbit_sensitivity
 		camera_pitch = clamp(camera_pitch - event.relative.y * orbit_sensitivity, ORBIT_MIN_PITCH, ORBIT_MAX_PITCH)
 		_apply_camera_transform()
+
+
+func arm_npc_instant_action(action_id: StringName) -> bool:
+	if action_id != NPC_ACTION_KILL:
+		return false
+	_pending_npc_instant_action = action_id
+	return true
+
+
+func cancel_npc_instant_action() -> void:
+	if _pending_npc_instant_action.is_empty():
+		return
+	var action_id := _pending_npc_instant_action
+	_pending_npc_instant_action = &""
+	npc_instant_action_finished.emit(action_id, null, false, "Cancelled")
+
+
+func _handle_npc_instant_action_input(event: InputEvent) -> bool:
+	if _pending_npc_instant_action.is_empty():
+		return false
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		cancel_npc_instant_action()
+		return true
+	if not (event is InputEventMouseButton) or not event.pressed:
+		return false
+	if event.button_index == MOUSE_BUTTON_RIGHT:
+		cancel_npc_instant_action()
+		return true
+	if event.button_index != MOUSE_BUTTON_LEFT:
+		return false
+	var target := _pick_inspectable_target(event.position) as WorldActor
+	if target == null or target.is_player_party_member():
+		npc_instant_action_finished.emit(_pending_npc_instant_action, null, false, "Click a living non-party NPC")
+		return true
+	var action_id := _pending_npc_instant_action
+	_pending_npc_instant_action = &""
+	var result := _execute_npc_instant_action(action_id, target)
+	npc_instant_action_finished.emit(action_id, target, bool(result.get("success", false)), str(result.get("message", "")))
+	return true
+
+
+func _execute_npc_instant_action(action_id: StringName, target: WorldActor) -> Dictionary:
+	if action_id != NPC_ACTION_KILL or target == null or not is_instance_valid(target) or target.is_player_party_member():
+		return {"success": false, "message": "Invalid NPC target"}
+	if target.life_state == NpcRules.LifeState.DEAD:
+		return {"success": false, "message": "NPC is already dead"}
+	var actor_id := str(target.get_meta("actor_record_id", target.stable_id))
+	if population_controller == null or actor_id.is_empty() or population_controller.get_actor_record(actor_id).is_empty():
+		return {"success": false, "message": "NPC has no permanent population record"}
+	population_controller.mark_record_dead(actor_id, target)
+	var record := population_controller.get_actor_record(actor_id)
+	var killed := int(record.get("life_state", NpcRules.LifeState.ALIVE)) == NpcRules.LifeState.DEAD \
+			and str(record.get("body_state", "")) == "corpse"
+	return {"success": killed, "message": "Killed %s" % target.member_name if killed else "Kill failed"}
 
 
 func _handle_left_mouse_release(screen_position: Vector2) -> void:

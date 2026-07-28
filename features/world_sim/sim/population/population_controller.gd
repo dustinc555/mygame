@@ -301,7 +301,7 @@ func mark_record_dead(actor_id: String, actor: Node = null, corpse_transform_ove
 		corpse_transform = (actor as Node3D).global_transform
 	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("update_population_death"):
-		bridge.call("update_population_death", actor_id, corpse_transform)
+		bridge.call("update_population_death", actor_id, actor, corpse_transform)
 		if bridge.has_method("get_population_record"):
 			var durable_record: Dictionary = bridge.call("get_population_record", actor_id)
 			if not durable_record.is_empty():
@@ -318,7 +318,10 @@ func mark_record_dead(actor_id: String, actor: Node = null, corpse_transform_ove
 	record["last_world_transform"] = corpse_transform
 	record["last_world_transform_initialized"] = true
 	_save_actor_record(actor_id, record)
+	if actor != null and is_instance_valid(actor) and int(actor.get("life_state")) != NpcRules.LifeState.DEAD:
+		actor.set("life_state", NpcRules.LifeState.DEAD)
 	if not was_dead:
+		dead_projection_registered.emit(actor_id)
 		person_died.emit(actor_id)
 
 
@@ -516,10 +519,6 @@ func count_alive_records_for_settlement(settlement_id: String) -> int:
 	if bridge != null and bridge.has_method("count_alive_population_records_for_settlement"):
 		return int(bridge.call("count_alive_population_records_for_settlement", settlement_id))
 	return 0
-
-
-func remove_actor_record(actor_id: String, remove_live_actor := true) -> void:
-	_remove_actor_record(actor_id, remove_live_actor)
 
 
 func set_person_body_state(actor_id: String, body_state: String, body_container_id := "", destroy_items := false) -> Dictionary:
@@ -784,7 +783,7 @@ func apply_serialized_state(state: Dictionary) -> void:
 	if state.is_empty() or not state.has("actor_records"):
 		refresh_from_gecs_state()
 		return
-	_clear_population_records_in_gecs()
+	_clear_population_records_for_load()
 	actor_records.clear()
 	_actor_id_by_assignment_key.clear()
 	_disconnect_all_actor_skill_changes()
@@ -946,16 +945,10 @@ func _save_actor_record(actor_id: String, record: Dictionary) -> Dictionary:
 	return saved.duplicate(true)
 
 
-func _remove_actor_record_from_gecs(actor_id: String) -> void:
+func _clear_population_records_for_load() -> void:
 	var bridge := _get_gecs_world()
-	if bridge != null and bridge.has_method("remove_population_record"):
-		bridge.call("remove_population_record", actor_id)
-
-
-func _clear_population_records_in_gecs() -> void:
-	var bridge := _get_gecs_world()
-	if bridge != null and bridge.has_method("clear_population_records"):
-		bridge.call("clear_population_records")
+	if bridge != null and bridge.has_method("_clear_population_records_for_load"):
+		bridge.call("_clear_population_records_for_load")
 
 
 func _get_gecs_world() -> Node:
@@ -1247,24 +1240,6 @@ func _unregister_actor_from_query_controller(actor: Node) -> void:
 	for query_controller in tree.get_nodes_in_group("actor_query_controller"):
 		if query_controller != null and query_controller.has_method("unregister_actor"):
 			query_controller.call("unregister_actor", actor)
-
-
-func _remove_actor_record(actor_id: String, remove_live_actor := true) -> void:
-	if actor_id.strip_edges().is_empty() or not _has_actor_record(actor_id):
-		return
-	var settlement_id := str((actor_records.get(actor_id, {}) as Dictionary).get("settlement_id", ""))
-	var live_actor = _live_actor_by_id.get(actor_id)
-	if remove_live_actor and live_actor != null and is_instance_valid(live_actor):
-		if live_actor.has_method("is_player_party_member") and bool(live_actor.call("is_player_party_member")):
-			remove_live_actor = false
-		else:
-			unregister_actor(live_actor)
-			live_actor.queue_free()
-	_live_actor_by_id.erase(actor_id)
-	_index_record_assignments({}, actor_records.get(actor_id, {}))
-	actor_records.erase(actor_id)
-	_remove_actor_record_from_gecs(actor_id)
-	population_record_changed.emit(settlement_id, actor_id)
 
 
 func _rebuild_assignment_index() -> void:
