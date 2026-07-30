@@ -143,8 +143,8 @@ func _try_start_slot_action(index: int, nodes: Array, identities: Array, spatial
 	var spec := actor.call("get_system_combat_attack_spec") as Dictionary if actor.has_method("get_system_combat_attack_spec") else {}
 	_start_action(action, actor, target_actor, target_actor_id, cfg, spec)
 	if combat_response_system != null:
-		var response_depth := int(combat_response_system.get_response_depth(actor_id, target_actor_id))
-		combat_response_system.emit_attack_started(actor_id, target_actor_id, spatials[target_index].world_position, response_depth)
+		var response_context: Dictionary = combat_response_system.get_response_context(actor_id, target_actor_id)
+		combat_response_system.emit_attack_started(actor_id, target_actor_id, spatials[target_index].world_position, int(response_context.get("response_depth", 0)), str(response_context.get("encounter_id", "")), bool(response_context.get("authorized_response", false)))
 	_mark_pair_attacking(tempo_owner_index, slots)
 
 
