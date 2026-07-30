@@ -21,6 +21,7 @@ enum Audience {
 @export var attacker_actor_id := ""
 @export var protected_actor_id := ""
 @export var target_actor_id := ""
+@export var encounter_id := ""
 @export var authority_id := ""
 @export var authority_faction_id := ""
 @export var settlement_id := ""
@@ -28,4 +29,5 @@ enum Audience {
 @export var radius := 0.0
 @export var response_depth := 0
 @export var response_kind := 0
+@export var authorized_response := false
 @export var explicit_responder_actor_ids: PackedStringArray = PackedStringArray()

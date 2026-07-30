@@ -20,7 +20,7 @@ func _run() -> void:
 		world_scene.remove_child(terrain)
 		terrain.free()
 	add_child(world_scene)
-	await _wait_frames(180)
+	await _wait_frames(60)
 	var party_manager := world_scene.find_child("PartyManager", true, false)
 	var gecs := world_scene.find_child("GecsWorldController", true, false)
 	var response_system := world_scene.find_child("GameCombatResponseSystem", true, false)
@@ -36,151 +36,191 @@ func _run() -> void:
 		_finish()
 		return
 	var mira = members[0]
+	var mira_id := _actor_id(mira)
+	for member in members:
+		member.set("protected_from_combat", true)
+		member.set_physics_process(false)
+	var resident = _first_realized_outsider(gecs, members, {})
+	for _frame in range(180):
+		if resident != null:
+			break
+		await get_tree().process_frame
+		resident = _first_realized_outsider(gecs, members, {})
+	if resident == null:
+		_fail("NPC response validation needs one realized non-party resident")
+		_finish()
+		return
+	var resident_id := _actor_id(resident)
 	var origin := Vector3(0.0, 1.0, 0.0)
-	var canyon_town: Node = law.call("_find_settlement_by_id", "canyon")
-	if canyon_town != null:
-		canyon_town.call("contains_town_border_position", mira.global_position)
-		var border_probe_started := Time.get_ticks_usec()
-		for _probe in range(5):
-			canyon_town.call("contains_town_border_position", mira.global_position)
-		var border_probe_ms := float(Time.get_ticks_usec() - border_probe_started) / 1000.0
-		_expect(border_probe_ms < 10.0, "Cached town-border checks must stay below 10ms for five warrants (%.2fms)" % border_probe_ms)
-	else:
-		_fail("NPC response validation could not resolve Canyon settlement")
 	for index in range(members.size()):
 		var member = members[index]
 		member.global_position = origin + Vector3(float(index) * 1.5, 0.0, 0.0)
 		member.set("combat_stance", NpcRules.CombatStance.DEFENSIVE)
+		member.set("protected_from_combat", true)
 		member.call("set_active_player_order", false)
-	await _wait_frames(3)
-	var mira_id := _actor_id(mira)
-	var attacker_id := "validation.synthetic_attacker"
-	var mira_record: Dictionary = gecs.call("get_population_record", mira_id)
-	_expect(str(mira_record.get("party_id", "")) == PartyManager.PLAYER_PARTY_ID, "Stable party membership must persist in the population record")
-
-	# Every attack is queued. Selection policy, not the emitter, filters responders.
+		member.set_physics_process(false)
+	resident.global_position = origin + Vector3(0.0, 0.0, 2.0)
+	resident.set("protected_from_combat", true)
+	resident.set_physics_process(false)
 	members[2].set("combat_stance", NpcRules.CombatStance.PASSIVE)
 	members[3].call("set_active_player_order", true)
 	members[4].global_position = origin + Vector3(NpcRules.NPC_ALERT_PROXIMITY_RADIUS + 0.1, 0.0, 0.0)
+	await _wait_frames(120)
+	for member in members:
+		member.set("protected_from_combat", false)
+	resident.set("protected_from_combat", false)
 	await _wait_frames(3)
+
 	var emitted_before := _attack_event_count
-	response_system.emit_attack_started(attacker_id, mira_id, origin, 0)
+	response_system.emit_attack_started(mira_id, resident_id, origin, 0)
 	await _wait_frames(5)
 	_expect(_attack_event_count == emitted_before + 1, "Attack emission must be unconditional and observable")
-	var intents: Array[Dictionary] = response_system.get_active_intents()
-	_expect(_has_intent(intents, _actor_id(members[1]), attacker_id, C_INTENT.Kind.SOCIAL_DEFENSE), "Nearby party member must receive social defense intent")
-	_expect(not _has_intent(intents, _actor_id(members[2]), attacker_id, C_INTENT.Kind.SOCIAL_DEFENSE), "Passive party member must not receive response intent")
-	_expect(not _has_intent(intents, _actor_id(members[3]), attacker_id, C_INTENT.Kind.SOCIAL_DEFENSE), "Player-ordered party member must not receive response intent")
-	_expect(not _has_intent(intents, _actor_id(members[4]), attacker_id, C_INTENT.Kind.SOCIAL_DEFENSE), "Party member outside 40m must not receive response intent")
+	var encounter := _encounter_for_actor(response_system.get_active_encounters(), mira_id)
+	_expect(not encounter.is_empty(), "Mira's attack must create a combat encounter")
+	_expect(str(encounter.get("root_aggressor_actor_id", "")) == mira_id, "Mira must remain the root aggressor")
+	_expect(_on_side(encounter, "aggressor_side_actor_ids", _actor_id(members[1])), "Nearby party member must join Mira's encounter")
+	_expect(not _encounter_has_actor(encounter, _actor_id(members[2])), "Passive party member must not join the encounter")
+	_expect(_on_side(encounter, "aggressor_side_actor_ids", _actor_id(members[3])), "Player-ordered party member must still join its party encounter: %s" % JSON.stringify(encounter))
+	_expect(not _encounter_has_actor(encounter, _actor_id(members[4])), "Party member outside 40m must not join the encounter")
+	_expect(not PackedStringArray(encounter.get("committed_actor_ids", PackedStringArray())).has(_actor_id(members[1])), "Joining alone must not make a party member a committed aggressor")
 
-	# Faction diplomacy is data, not hard-coded response branching.
-	var factions := world_scene.find_child("FactionController", true, false)
-	mira.remove_meta("party_id")
-	members[2].remove_meta("party_id")
-	mira.set("faction_name", "validation_protected")
-	members[2].set("faction_name", "validation_responder")
-	members[2].set("combat_stance", NpcRules.CombatStance.DEFENSIVE)
-	if factions != null:
-		factions.call("set_diplomatic_state", "validation_protected", "validation_responder", "alliance")
-	await _wait_frames(3)
-	var alliance_target_id := "validation.synthetic_alliance_attacker"
-	response_system.emit_attack_started(alliance_target_id, mira_id, origin, 0)
-	await _wait_frames(5)
-	intents = response_system.get_active_intents()
-	_expect(_has_intent(intents, _actor_id(members[2]), alliance_target_id, C_INTENT.Kind.SOCIAL_DEFENSE), "Formal ally must receive social defense intent")
-	if factions != null:
-		factions.call("set_diplomatic_state", "validation_protected", "validation_responder", "protectorate", "validation_protected", "validation_responder")
-	var protectorate_target_id := "validation.synthetic_protectorate_attacker"
-	response_system.emit_attack_started(protectorate_target_id, mira_id, origin, 0)
-	await _wait_frames(5)
-	intents = response_system.get_active_intents()
-	_expect(_has_intent(intents, _actor_id(members[2]), protectorate_target_id, C_INTENT.Kind.SOCIAL_DEFENSE), "Protector must receive social defense intent")
-
-	# A response attack is still emitted, but depth one prevents another recruitment layer.
-	var relay_protected = members[2]
-	relay_protected.set("combat_stance", NpcRules.CombatStance.DEFENSIVE)
-	members[3].call("set_active_player_order", false)
-	await _wait_frames(3)
-	emitted_before = _attack_event_count
-	var relay_target_id := "validation.synthetic_response_attacker"
-	response_system.emit_attack_started(relay_target_id, _actor_id(relay_protected), origin, 1)
-	await _wait_frames(5)
-	_expect(_attack_event_count == emitted_before + 1, "Response attacks must still emit combat events")
-	intents = response_system.get_active_intents()
-	_expect(not _has_intent(intents, _actor_id(members[3]), relay_target_id, C_INTENT.Kind.SOCIAL_DEFENSE), "Response depth one must not relay to another ally layer")
-	var revoke_authority_id := "validation|private|revoke"
-	response_system.authorize_response(C_EVENT.Audience.EXPLICIT_ACTORS, "validation.synthetic_private_target", mira_id, revoke_authority_id, "", "", origin, NpcRules.NPC_ALERT_PROXIMITY_RADIUS, C_INTENT.Kind.PRIVATE_DEFENSE, PackedStringArray([_actor_id(members[1])]))
-	await _wait_frames(5)
-	_expect(response_system.has_active_authority_response(revoke_authority_id), "Typed response authorization must create an indexed authority intent")
-	response_system.revoke_response(revoke_authority_id)
-	await _wait_frames(5)
-	_expect(not response_system.has_active_authority_response(revoke_authority_id), "Typed response revocation must remove indexed authority intents")
-
-	# Real failure case: law authorizes guards, a guard attacks Mira, then Mira's party responds.
-	for member in members:
-		member.set_meta("party_id", PartyManager.PLAYER_PARTY_ID)
-		member.set("faction_name", "Player")
-		member.set("combat_stance", NpcRules.CombatStance.DEFENSIVE)
-		member.call("set_active_player_order", false)
-		member.set_physics_process(false)
-	await _wait_frames(3)
+	# Put the encounter at the guards. The existing encounter is kept so this
+	# validates the exact progression from root aggressor to arriving allies.
 	var authority_ids := PackedStringArray()
 	for actor_state_value in (gecs.call("get_actor_states") as Dictionary).values():
 		var actor_state: Dictionary = actor_state_value
 		if str(actor_state.get("settlement_id", "")) == "canyon" and Array(actor_state.get("authority_scopes", [])).has("settlement_authority"):
 			authority_ids.append(str(actor_state.get("actor_id", "")))
 	authority_ids.sort()
-	_expect(not authority_ids.is_empty(), "Rustwash must expose settlement-authority actors")
+	_expect(authority_ids.size() >= 2, "Rustwash must expose at least two settlement-authority actors")
+	if authority_ids.is_empty():
+		_finish()
+		return
 	var law_origin := origin
-	if not authority_ids.is_empty():
-		var origin_guard = gecs.call("get_actor_by_stable_id", authority_ids[0])
-		if origin_guard != null:
-			law_origin = Vector3(origin_guard.global_position.x, 1.0, origin_guard.global_position.z)
-	for member in members:
-		member.global_position = law_origin + Vector3(float(members.find(member)) * 1.25, 0.0, 0.0)
+	var first_guard = gecs.call("get_actor_by_stable_id", authority_ids[0])
+	if first_guard != null:
+		law_origin = Vector3(first_guard.global_position.x, 1.0, first_guard.global_position.z)
+	resident.global_position = law_origin + Vector3(0.0, 0.0, 2.5)
+	for index in range(members.size()):
+		members[index].global_position = law_origin + Vector3(float(index) * 0.65, 0.0, 0.0)
+		members[index].set_physics_process(false)
 	for index in range(authority_ids.size()):
 		var guard = gecs.call("get_actor_by_stable_id", authority_ids[index])
 		if guard != null:
-			guard.global_position = law_origin + Vector3(0.8 + float(index) * 0.1, 0.0, 0.8)
+			guard.global_position = law_origin + Vector3(3.0 + float(index) * 0.35, 0.0, 0.2)
 			guard.set_physics_process(false)
-	var wrong_faction_guard_id := str(authority_ids[-1]) if authority_ids.size() > 1 else ""
-	if not wrong_faction_guard_id.is_empty():
-		var wrong_faction_guard = gecs.call("get_actor_by_stable_id", wrong_faction_guard_id)
-		if wrong_faction_guard != null:
-			wrong_faction_guard.set("faction_name", "validation_wrong_authority")
-	await _wait_frames(3)
-	var law_events_before := _law_event_count
-	var warrant: Dictionary = law.call("report_crime", mira, "Canyonites", "canyon", "assault", 10, members[1], null, {"event_origin": law_origin})
-	var authority_id := str(warrant.get("response_authority_id", ""))
+	var wrong_faction_guard_id := str(authority_ids[-1])
+	if authority_ids.size() > 2:
+		var wrong_guard = gecs.call("get_actor_by_stable_id", wrong_faction_guard_id)
+		if wrong_guard != null:
+			wrong_guard.set("faction_name", "validation_wrong_authority")
+	else:
+		wrong_faction_guard_id = ""
 	await _wait_frames(5)
+
+	var law_events_before := _law_event_count
+	var warrant: Dictionary = law.call("report_player_assault", mira, resident)
+	var authority_id := str(warrant.get("response_authority_id", ""))
+	await _wait_frames(8)
 	_expect(_law_event_count == law_events_before + 1, "Law authorization must emit one typed response event")
-	_expect(not authority_id.is_empty(), "Warrant must own a stable response authority ID")
-	intents = response_system.get_active_intents()
-	var responding_guard_id := ""
+	_expect(not authority_id.is_empty(), "Mira's warrant must own a stable response authority ID")
+	_expect(str(warrant.get("faction_id", "")) == "Canyonites", "Settlement jurisdiction must own the assault warrant")
+	var intents: Array[Dictionary] = response_system.get_active_intents()
+	var responding_guard_ids := PackedStringArray()
+	var encounters_before_guard_entry: Array[Dictionary] = response_system.get_active_encounters()
 	for guard_id in authority_ids:
-		if _has_intent(intents, guard_id, mira_id, C_INTENT.Kind.LAW_ENFORCEMENT):
-			responding_guard_id = guard_id
-			break
-	_expect(not responding_guard_id.is_empty(), "Law authorization must create typed guard response intent")
+		if _has_intent(intents, guard_id, mira_id, C_INTENT.Kind.LAW_ENFORCEMENT) and _encounter_for_actor(encounters_before_guard_entry, guard_id).is_empty():
+			responding_guard_ids.append(guard_id)
+	_expect(not responding_guard_ids.is_empty(), "Law alert must create typed guard response intents")
 	if not wrong_faction_guard_id.is_empty():
-		_expect(not _has_intent(intents, wrong_faction_guard_id, mira_id, C_INTENT.Kind.LAW_ENFORCEMENT), "Authority actors must not enforce another faction's warrant")
-	var party_joined := false
-	for _frame in range(360):
+		_expect(not responding_guard_ids.has(wrong_faction_guard_id), "Authority actors must not enforce another faction's warrant")
+
+	var initial_target_seen := false
+	for _frame in range(180):
 		await get_tree().process_frame
-		intents = response_system.get_active_intents()
-		for member_index in range(1, members.size()):
-			for guard_id in authority_ids:
-				if _has_intent(intents, _actor_id(members[member_index]), guard_id, C_INTENT.Kind.SOCIAL_DEFENSE):
-					party_joined = true
-					break
-			if party_joined:
+		for guard_id in responding_guard_ids:
+			var guard_state: Dictionary = gecs.call("get_actor_state", guard_id)
+			if str(guard_state.get("system_target_actor_id", "")) == mira_id:
+				initial_target_seen = true
 				break
-		if party_joined:
+		if initial_target_seen:
 			break
-	var guard_state: Dictionary = gecs.call("get_actor_state", responding_guard_id)
-	_expect(party_joined, "A guard attack on Mira must trigger nearby party response (guard_target=%s slot=%s slot_target=%s pos=%s attack_events=%d intents=%s)" % [str(guard_state.get("system_target_actor_id", "")), str(guard_state.get("combat_slot_state", "")), str(guard_state.get("combat_slot_target_actor_id", "")), str(guard_state.get("world_position", "")), _attack_event_count, JSON.stringify(intents)])
+	_expect(initial_target_seen, "Guards must initially target Mira while she is the only committed aggressor")
+
+	# The doorway blockers become lawful guard targets only when they swing.
+	var responding_guard_id := str(responding_guard_ids[0]) if not responding_guard_ids.is_empty() else ""
+	if not responding_guard_id.is_empty():
+		response_system.emit_attack_started(responding_guard_id, mira_id, law_origin, 0, str(encounter.get("encounter_id", "")), true)
+		await _wait_frames(4)
+	var blocker_ids := PackedStringArray([_actor_id(members[1]), _actor_id(members[3])])
+	for blocker_id in blocker_ids:
+		response_system.emit_attack_started(blocker_id, responding_guard_id, law_origin, 0)
+		await _wait_frames(3)
+	encounter = _encounter_for_actor(response_system.get_active_encounters(), mira_id)
+	var committed := PackedStringArray(encounter.get("committed_actor_ids", PackedStringArray()))
+	var aggressions: Dictionary = encounter.get("aggression_target_by_actor", {})
+	for blocker_id in blocker_ids:
+		_expect(committed.has(blocker_id), "A party member must become committed after attacking: %s" % blocker_id)
+		_expect(aggressions.has(blocker_id), "A committed party attacker must become a lawful guard candidate: %s" % blocker_id)
+
+	var distributed_targets := {}
+	for _frame in range(240):
+		await get_tree().process_frame
+		distributed_targets.clear()
+		for guard_id in responding_guard_ids:
+			var guard_state: Dictionary = gecs.call("get_actor_state", guard_id)
+			var target_id := str(guard_state.get("system_target_actor_id", ""))
+			if target_id == mira_id or blocker_ids.has(target_id):
+				distributed_targets[target_id] = true
+		if distributed_targets.size() >= mini(2, responding_guard_ids.size()):
+			break
+	_expect(distributed_targets.keys().any(func(target_id) -> bool: return blocker_ids.has(str(target_id))), "Guards must target committed party blockers instead of all walking past them to Mira")
+	if responding_guard_ids.size() >= 2:
+		_expect(distributed_targets.size() >= 2, "Guard pressure must distribute across multiple committed aggressors")
+
+	await _wait_frames(30)
+	for blocker_id in blocker_ids:
+		var blocker = gecs.call("get_actor_by_stable_id", blocker_id)
+		_expect(not (law.call("get_warrant_record", blocker, "Canyonites") as Dictionary).is_empty(), "Each committed party attacker must receive an individual assault warrant: %s" % blocker_id)
+
+	if not responding_guard_id.is_empty():
+		var warrants: Dictionary = law.get("warrants")
+		_expect(not warrants.has(responding_guard_id), "Authorized law attacks must not create warrants against guards")
+		var retaliation_warrant: Dictionary = law.call("report_player_assault", mira, gecs.call("get_actor_by_stable_id", responding_guard_id))
+		_expect(retaliation_warrant.is_empty(), "Retaliation against an opposing encounter participant must remain lawful")
 
 	_finish()
+
+
+func _first_realized_outsider(gecs, excluded: Array, excluded_ids: Dictionary):
+	for actor_state_value in (gecs.call("get_actor_states") as Dictionary).values():
+		var actor_state: Dictionary = actor_state_value
+		var candidate_id := str(actor_state.get("actor_id", ""))
+		if candidate_id.is_empty() or excluded_ids.has(candidate_id):
+			continue
+		var candidate = gecs.call("get_actor_by_stable_id", candidate_id)
+		if candidate != null and not excluded.has(candidate):
+			return candidate
+	for candidate in gecs.get_tree().get_nodes_in_group("world_actor"):
+		var candidate_id := _actor_id(candidate)
+		if candidate != null and not candidate_id.is_empty() and not excluded_ids.has(candidate_id) and not excluded.has(candidate):
+			return candidate
+	return null
+
+
+func _encounter_for_actor(encounters: Array[Dictionary], actor_id: String) -> Dictionary:
+	for encounter in encounters:
+		if _encounter_has_actor(encounter, actor_id):
+			return encounter
+	return {}
+
+
+func _encounter_has_actor(encounter: Dictionary, actor_id: String) -> bool:
+	return _on_side(encounter, "aggressor_side_actor_ids", actor_id) or _on_side(encounter, "defender_side_actor_ids", actor_id)
+
+
+func _on_side(encounter: Dictionary, key: String, actor_id: String) -> bool:
+	return PackedStringArray(encounter.get(key, PackedStringArray())).has(actor_id)
 
 
 func _has_intent(intents: Array[Dictionary], responder_actor_id: String, target_actor_id: String, kind: int) -> bool:

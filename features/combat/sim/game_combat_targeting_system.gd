@@ -18,6 +18,7 @@ const C_STATE = preload("res://features/combat/sim/c_game_combat_state.gd")
 const C_SLOT = preload("res://features/combat/sim/c_game_combat_slot_state.gd")
 const C_FACTION_STATE = preload("res://features/world_sim/sim/c_game_faction_state.gd")
 const C_RESPONSE_INTENT = preload("res://features/combat/sim/c_game_combat_response_intent.gd")
+const C_ENCOUNTER = preload("res://features/combat/sim/c_game_combat_encounter.gd")
 
 const FIGHT_STATE_SEEKING_SLOT := 2
 const FIGHT_STATE_FIGHTING := 3
@@ -54,6 +55,13 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 	var count := entities.size()
 	if count == 0:
 		return
+	var response_intents_by_actor_id := _build_response_intents_by_actor_id()
+	var encounter_targeting_context := _build_encounter_targeting_context()
+	var opposing_side_by_actor: Dictionary = encounter_targeting_context.get("opposing_side_by_actor", {})
+	var members_by_side: Dictionary = encounter_targeting_context.get("members_by_side", {})
+	var encounter_by_actor: Dictionary = encounter_targeting_context.get("encounter_by_actor", {})
+	var law_candidates_by_encounter: Dictionary = encounter_targeting_context.get("law_candidates_by_encounter", {})
+	var law_candidates_by_actor := _build_law_candidates_by_actor(response_intents_by_actor_id, encounter_by_actor, law_candidates_by_encounter)
 	var alive_value := NpcRules.LifeState.ALIVE
 	var process_frame := Engine.get_process_frames()
 	var due_flags := PackedByteArray()
@@ -68,7 +76,9 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		var cfg_i = configs[i]
 		# player_order_active suppresses target ACQUISITION only — ordered actors
 		# disengage but stay valid targets for their enemies.
-		var player_order_active := factions[i] != null and bool(factions[i].player_order_active)
+		var actor_id_i := str(identities[i].actor_id) if identities[i] != null else ""
+		var encounter_active := opposing_side_by_actor.has(actor_id_i)
+		var player_order_active := factions[i] != null and bool(factions[i].player_order_active) and not encounter_active
 		if vit_i == null or cfg_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat or player_order_active:
 			state_i.system_target_id = 0
 			state_i.system_target_actor_id = ""
@@ -102,7 +112,6 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		_add_spatial_bucket(spatial_buckets, spatials[i].world_position, i)
 	var hostile_relation_pairs := _build_hostile_relation_pairs(factions, count)
 	var pressure_by_target_actor_id := _build_current_target_pressure(states, count)
-	var response_intents_by_actor_id := _build_response_intents_by_actor_id()
 
 	for i in range(count):
 		if due_flags[i] == 0:
@@ -117,7 +126,12 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		var vit_i = vitals[i]
 		var cfg_i = configs[i]
 		var fac_i = factions[i]
-		if vit_i == null or cfg_i == null or fac_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat or bool(fac_i.player_order_active):
+		var actor_id_i := actor_ids[i]
+		var opposing_side_key := str(opposing_side_by_actor.get(actor_id_i, ""))
+		var encounter_opponents: Dictionary = members_by_side.get(opposing_side_key, {})
+		var law_opponents: Dictionary = law_candidates_by_actor.get(actor_id_i, {})
+		var tactical_opponents: Dictionary = law_opponents if not law_opponents.is_empty() else encounter_opponents
+		if vit_i == null or cfg_i == null or fac_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat or (bool(fac_i.player_order_active) and tactical_opponents.is_empty()):
 			_write_node_target(node_actor, 0, process_frame)
 			continue
 		var stance_i := int(cfg_i.combat_stance)
@@ -128,34 +142,34 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		# faction hostility alone never makes them initiate, and they never chase.
 		var require_grudge := stance_i == NpcRules.CombatStance.DEFENSIVE
 		var pos_i: Vector3 = spatials[i].world_position
-		var actor_id_i := actor_ids[i]
 		var current_target_actor_id := previous_system_target_actor_id
 		if current_target_actor_id.is_empty():
 			current_target_actor_id = str(state_i.current_target_actor_id)
 		var grudges_i: PackedInt64Array = state_i.personal_hostile_ids
 		var grudge_actor_ids_i: PackedStringArray = state_i.personal_hostile_actor_ids
-		var authority_j := _response_target_index(actor_id_i, response_intents_by_actor_id, index_by_actor_id, vitals, configs, i, alive_value, false)
-		if authority_j >= 0:
-			state_i.system_target_id = instance_ids[authority_j]
-			state_i.system_target_actor_id = actor_ids[authority_j]
+		var private_j := _forced_authority_target_index(actor_id_i, response_intents_by_actor_id, law_candidates_by_actor, index_by_actor_id, vitals, configs, i, alive_value, true)
+		if private_j >= 0:
+			state_i.system_target_id = instance_ids[private_j]
+			state_i.system_target_actor_id = actor_ids[private_j]
 			_write_node_target(node_actor, state_i.system_target_id, process_frame)
 			continue
-		# A committed duel outranks social response intent.
-		var lock_j := _engagement_lock_index(i, slots, index_by_actor_id, vitals, configs, factions, instance_ids, actor_ids, alive_value, hostile_relation_pairs, fac_i, grudges_i, grudge_actor_ids_i, require_grudge)
+		var lock_j := _engagement_lock_index(i, slots, index_by_actor_id, vitals, configs, factions, instance_ids, actor_ids, alive_value, hostile_relation_pairs, fac_i, grudges_i, grudge_actor_ids_i, tactical_opponents, law_opponents.is_empty(), require_grudge)
 		if lock_j >= 0:
 			state_i.system_target_id = instance_ids[lock_j]
 			state_i.system_target_actor_id = actor_ids[lock_j]
 			_write_node_target(node_actor, state_i.system_target_id, process_frame)
 			continue
-		var social_j := _response_target_index(actor_id_i, response_intents_by_actor_id, index_by_actor_id, vitals, configs, i, alive_value, true)
-		if social_j >= 0:
-			state_i.system_target_id = instance_ids[social_j]
-			state_i.system_target_actor_id = actor_ids[social_j]
+		var law_fallback_j := _forced_authority_target_index(actor_id_i, response_intents_by_actor_id, law_candidates_by_actor, index_by_actor_id, vitals, configs, i, alive_value, false)
+		if law_fallback_j >= 0:
+			state_i.system_target_id = instance_ids[law_fallback_j]
+			state_i.system_target_actor_id = actor_ids[law_fallback_j]
 			_write_node_target(node_actor, state_i.system_target_id, process_frame)
 			continue
 		var vtol: float = cfg_i.move_target_vertical_tolerance
 		var attack_range: float = cfg_i.attack_range
 		var base_radius: float = _target_scan_radius(cfg_i, fac_i, attack_range)
+		if not tactical_opponents.is_empty():
+			base_radius = maxf(base_radius, NpcRules.NPC_ALERT_PROXIMITY_RADIUS)
 		# Aggressive actors with a live grudge chase it beyond their normal scan
 		# radius (guards pursue); the grudge decaying is the give-up condition.
 		var pursuit_active := stance_i == NpcRules.CombatStance.AGGRESSIVE and (grudges_i.size() > 0 or grudge_actor_ids_i.size() > 0)
@@ -189,7 +203,7 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 					# (they defend; they don't hound someone who is leaving).
 					if require_grudge and cfg_j.player_order_active:
 						continue
-					if not _is_hostile(fac_i, factions[j], grudges_i, instance_ids[j], grudge_actor_ids_i, actor_ids[j], hostile_relation_pairs, require_grudge):
+					if not tactical_opponents.has(actor_ids[j]) and not _is_hostile(fac_i, factions[j], grudges_i, instance_ids[j], grudge_actor_ids_i, actor_ids[j], hostile_relation_pairs, require_grudge):
 						continue
 					candidate_checks += 1
 					if candidate_checks > MAX_TARGET_CANDIDATE_CHECKS:
@@ -249,10 +263,76 @@ func _build_response_intents_by_actor_id() -> Dictionary:
 	return result
 
 
-func _response_target_index(actor_id: String, intents_by_actor_id: Dictionary, index_by_actor_id: Dictionary, vitals: Array, configs: Array, actor_index: int, alive_value: int, social_only: bool) -> int:
+func _build_encounter_targeting_context() -> Dictionary:
+	var members_by_side := {}
+	var opposing_side_by_actor := {}
+	var encounter_by_actor := {}
+	var law_candidates_by_encounter := {}
+	for entity in _world.query.with_all([C_ENCOUNTER]).execute():
+		var encounter = entity.get_component(C_ENCOUNTER)
+		if encounter == null or int(encounter.remaining_ticks) <= 0:
+			continue
+		var encounter_id := str(encounter.encounter_id)
+		var aggressor_key := _encounter_side_key(encounter_id, 1)
+		var defender_key := _encounter_side_key(encounter_id, 2)
+		var aggressors := _actor_id_set(encounter.aggressor_side_actor_ids)
+		var defenders := _actor_id_set(encounter.defender_side_actor_ids)
+		members_by_side[aggressor_key] = aggressors
+		members_by_side[defender_key] = defenders
+		for actor_id in encounter.aggressor_side_actor_ids:
+			opposing_side_by_actor[actor_id] = defender_key
+			encounter_by_actor[actor_id] = encounter_id
+		for actor_id in encounter.defender_side_actor_ids:
+			opposing_side_by_actor[actor_id] = aggressor_key
+			encounter_by_actor[actor_id] = encounter_id
+		var law_candidates := {}
+		if not str(encounter.root_aggressor_actor_id).is_empty():
+			law_candidates[str(encounter.root_aggressor_actor_id)] = true
+		for attacker_value in encounter.aggression_target_by_actor.keys():
+			var attacker_id := str(attacker_value)
+			if aggressors.has(attacker_id) and encounter.committed_actor_ids.has(attacker_id):
+				law_candidates[attacker_id] = true
+		law_candidates_by_encounter[encounter_id] = law_candidates
+	return {
+		"members_by_side": members_by_side,
+		"opposing_side_by_actor": opposing_side_by_actor,
+		"encounter_by_actor": encounter_by_actor,
+		"law_candidates_by_encounter": law_candidates_by_encounter,
+	}
+
+
+func _actor_id_set(actor_ids: PackedStringArray) -> Dictionary:
+	var result := {}
+	for actor_id in actor_ids:
+		result[actor_id] = true
+	return result
+
+
+func _encounter_side_key(encounter_id: String, side: int) -> String:
+	return "%s|%d" % [encounter_id, side]
+
+
+func _build_law_candidates_by_actor(intents_by_actor_id: Dictionary, encounter_by_actor: Dictionary, law_candidates_by_encounter: Dictionary) -> Dictionary:
+	var result := {}
+	for actor_id_value in intents_by_actor_id.keys():
+		var actor_id := str(actor_id_value)
+		for intent in (intents_by_actor_id[actor_id_value] as Array):
+			if int(intent.kind) != C_RESPONSE_INTENT.Kind.LAW_ENFORCEMENT:
+				continue
+			var encounter_id := str(encounter_by_actor.get(str(intent.target_actor_id), ""))
+			var candidates: Dictionary = law_candidates_by_encounter.get(encounter_id, {})
+			if not candidates.is_empty():
+				result[actor_id] = candidates
+			break
+	return result
+
+
+func _forced_authority_target_index(actor_id: String, intents_by_actor_id: Dictionary, law_candidates_by_actor: Dictionary, index_by_actor_id: Dictionary, vitals: Array, configs: Array, actor_index: int, alive_value: int, private_only: bool) -> int:
 	for intent in (intents_by_actor_id.get(actor_id, []) as Array):
-		var is_social := int(intent.kind) == C_RESPONSE_INTENT.Kind.SOCIAL_DEFENSE
-		if is_social != social_only:
+		var kind := int(intent.kind)
+		if private_only and kind != C_RESPONSE_INTENT.Kind.PRIVATE_DEFENSE:
+			continue
+		if not private_only and (kind != C_RESPONSE_INTENT.Kind.LAW_ENFORCEMENT or law_candidates_by_actor.has(actor_id)):
 			continue
 		var target_actor_id := str(intent.target_actor_id)
 		if not index_by_actor_id.has(target_actor_id):
@@ -299,7 +379,7 @@ func _is_hostile(fac_a, fac_b, grudges_a: PackedInt64Array, instance_id_b: int, 
 	return false
 
 
-func _engagement_lock_index(i: int, slots: Array, index_by_actor_id: Dictionary, vitals: Array, configs: Array, factions: Array, instance_ids: PackedInt64Array, actor_ids: PackedStringArray, alive_value: int, hostile_relation_pairs: Dictionary, fac_i, grudges_i: PackedInt64Array, grudge_actor_ids_i: PackedStringArray, require_grudge := false) -> int:
+func _engagement_lock_index(i: int, slots: Array, index_by_actor_id: Dictionary, vitals: Array, configs: Array, factions: Array, instance_ids: PackedInt64Array, actor_ids: PackedStringArray, alive_value: int, hostile_relation_pairs: Dictionary, fac_i, grudges_i: PackedInt64Array, grudge_actor_ids_i: PackedStringArray, encounter_opponents: Dictionary, preserve_seeking_lock: bool, require_grudge := false) -> int:
 	if i >= slots.size():
 		return -1
 	var slot = slots[i]
@@ -307,6 +387,8 @@ func _engagement_lock_index(i: int, slots: Array, index_by_actor_id: Dictionary,
 		return -1
 	var fight_state := int(slot.slot_state)
 	if fight_state != FIGHT_STATE_FIGHTING and fight_state != FIGHT_STATE_SEEKING_SLOT:
+		return -1
+	if fight_state == FIGHT_STATE_SEEKING_SLOT and not preserve_seeking_lock:
 		return -1
 	var target_id := str(slot.slot_target_actor_id)
 	if target_id.is_empty() or not index_by_actor_id.has(target_id):
@@ -322,7 +404,7 @@ func _engagement_lock_index(i: int, slots: Array, index_by_actor_id: Dictionary,
 	# disengaging under a player order — this is what actually breaks the chase.
 	if require_grudge and cfg_j.player_order_active:
 		return -1
-	if not _is_hostile(fac_i, factions[j], grudges_i, instance_ids[j], grudge_actor_ids_i, actor_ids[j], hostile_relation_pairs, require_grudge):
+	if not encounter_opponents.has(actor_ids[j]) and not _is_hostile(fac_i, factions[j], grudges_i, instance_ids[j], grudge_actor_ids_i, actor_ids[j], hostile_relation_pairs, require_grudge):
 		return -1
 	return j
 

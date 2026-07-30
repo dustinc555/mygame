@@ -21,6 +21,8 @@ const SENTENCE_DECISION_MAX_DELAY_MINUTES := 180
 const FIXED_TICK_SECONDS := 0.25
 const MAINTENANCE_INTERVAL_SECONDS := 0.5
 const MAX_CATCH_UP_TICKS := 8
+const MAX_ACTIVE_COMBAT_AGGRESSIONS_PER_MAINTENANCE := 32
+const MAX_AUTHORITY_WITNESS_CANDIDATES := 64
 
 const CRIME_THEFT := "theft"
 const CRIME_TRESPASS := "trespass"
@@ -44,6 +46,7 @@ var _crime_alerts: CrimeAlertController
 var _combat_responses: GameCombatResponseSystem
 var _occupied_buildings_by_actor: Dictionary = {}
 var _active_trespass_by_actor: Dictionary = {}
+var _combat_aggression_poll_cursor := 0
 
 
 func _ready() -> void:
@@ -61,6 +64,9 @@ func initialize(context: BootstrapContext) -> void:
 	_actor_query = context.require(ActorQueryController.SERVICE_ID) as ActorQueryController
 	_crime_alerts = context.require(CrimeAlertController.SERVICE_ID) as CrimeAlertController
 	_combat_responses = context.require(GameCombatResponseSystem.SERVICE_ID) as GameCombatResponseSystem
+	var combat_started_callable := Callable(self, "_on_root_combat_started")
+	if not _combat_responses.root_combat_started.is_connected(combat_started_callable):
+		_combat_responses.root_combat_started.connect(combat_started_callable)
 	_connect_world_time()
 	refresh_from_gecs_state()
 
@@ -113,18 +119,24 @@ func report_theft_if_witnessed(actor: WorldActor, item, witnesses: Array = []) -
 func report_player_assault(attacker: HumanoidCharacter, victim: HumanoidCharacter) -> Dictionary:
 	if attacker == null or victim == null or not attacker.is_player_party_member():
 		return {}
-	if victim.is_player_party_member() or victim.has_hostility_with(attacker):
+	if victim.is_player_party_member():
 		return {}
-	var faction_id := victim.faction_name.strip_edges()
-	if faction_id.is_empty():
+	var response_context: Dictionary = _combat_responses.get_response_context(_actor_key(attacker), _actor_key(victim)) if _combat_responses != null else {}
+	if int(response_context.get("response_depth", 0)) > 0:
 		return {}
 	var settlement := _find_containing_settlement(victim)
-	var public_witnesses := _find_local_assault_witnesses(attacker, victim, faction_id, settlement, NpcRules.NPC_ALERT_PROXIMITY_RADIUS)
-	var witnesses: Array[HumanoidCharacter] = [victim]
+	var faction_id := _settlement_faction_id(settlement)
+	if faction_id.is_empty():
+		faction_id = victim.faction_name.strip_edges()
+	if faction_id.is_empty():
+		return {}
+	var public_witnesses := _find_local_authority_witnesses(attacker, victim, faction_id, settlement, NpcRules.NPC_ALERT_PROXIMITY_RADIUS)
+	var witnesses: Array[WorldActor] = [victim]
 	for witness in public_witnesses:
 		if witness != null and not witnesses.has(witness):
 			witnesses.append(witness)
-	return report_crime(attacker, faction_id, _settlement_id(settlement), CRIME_ASSAULT, 35, victim, victim, {
+	var lead_witness: WorldActor = public_witnesses[0] if not public_witnesses.is_empty() else victim
+	return report_crime(attacker, faction_id, _settlement_id(settlement), CRIME_ASSAULT, 35, lead_witness, victim, {
 		"public": not public_witnesses.is_empty(),
 		"witnesses": witnesses,
 		"provisional_victim_key": _actor_key(victim),
@@ -132,6 +144,45 @@ func report_player_assault(attacker: HumanoidCharacter, victim: HumanoidCharacte
 		"local_alarm_position": victim.global_position,
 		"local_alarm_radius": NpcRules.NPC_ALERT_PROXIMITY_RADIUS,
 	})
+
+
+func _on_root_combat_started(attacker_actor_id: String, protected_actor_id: String, origin: Vector3, _encounter_id: String) -> void:
+	var attacker := _actor_query.get_actor_by_stable_id(attacker_actor_id) as WorldActor if _actor_query != null else null
+	var victim := _actor_query.get_actor_by_stable_id(protected_actor_id) as WorldActor if _actor_query != null else null
+	if attacker == null or victim == null:
+		return
+	var settlement := _find_containing_settlement(victim)
+	var enforcing_faction := _settlement_faction_id(settlement)
+	var settlement_id := _settlement_id(settlement)
+	if enforcing_faction.is_empty() or settlement_id.is_empty():
+		return
+	if _has_assault_warrant_for_target(attacker, enforcing_faction, victim):
+		return
+	var witnesses := _find_local_authority_witnesses(attacker, victim, enforcing_faction, settlement, NpcRules.NPC_ALERT_PROXIMITY_RADIUS)
+	if _is_law_soldier_responder(victim) and victim.faction_name == enforcing_faction and _is_law_actor_attached_to_settlement(victim, settlement):
+		witnesses.append(victim)
+	if witnesses.is_empty():
+		return
+	report_crime(attacker, enforcing_faction, settlement_id, CRIME_ASSAULT, 35, witnesses[0], victim, {
+		"public": true,
+		"witnesses": witnesses,
+		"event_origin": origin,
+		"authority_alert_mode": "local",
+		"local_alarm_position": origin,
+		"local_alarm_radius": NpcRules.NPC_ALERT_PROXIMITY_RADIUS,
+	})
+
+
+func _has_assault_warrant_for_target(attacker: WorldActor, enforcing_faction_id: String, victim: WorldActor) -> bool:
+	var record := _get_mutable_warrant_record(attacker, enforcing_faction_id)
+	if record.is_empty():
+		return false
+	var victim_key := _actor_key(victim)
+	for crime_value in (record.get("crimes", []) as Array):
+		var crime := crime_value as Dictionary
+		if str(crime.get("crime_type", "")) == CRIME_ASSAULT and str(crime.get("target_key", "")) == victim_key:
+			return true
+	return false
 
 
 func report_assault_if_witnessed(attacker: HumanoidCharacter, victim: HumanoidCharacter) -> Dictionary:
@@ -377,9 +428,25 @@ func _process_fixed_tick() -> void:
 	if _maintenance_accumulator < MAINTENANCE_INTERVAL_SECONDS:
 		return
 	_maintenance_accumulator -= MAINTENANCE_INTERVAL_SECONDS
+	_process_active_combat_aggressions()
 	_process_warrants()
 	_process_prisoners()
 	_save_law_order_state_to_gecs()
+
+
+func _process_active_combat_aggressions() -> void:
+	if _combat_responses == null:
+		return
+	var aggressions := _combat_responses.get_active_root_aggressions()
+	if aggressions.is_empty():
+		_combat_aggression_poll_cursor = 0
+		return
+	var poll_count := mini(aggressions.size(), MAX_ACTIVE_COMBAT_AGGRESSIONS_PER_MAINTENANCE)
+	var start_index := _combat_aggression_poll_cursor % aggressions.size()
+	for offset in range(poll_count):
+		var aggression: Dictionary = aggressions[(start_index + offset) % aggressions.size()]
+		_on_root_combat_started(str(aggression.get("attacker_actor_id", "")), str(aggression.get("protected_actor_id", "")), aggression.get("origin", Vector3.ZERO), str(aggression.get("encounter_id", "")))
+	_combat_aggression_poll_cursor = (start_index + poll_count) % aggressions.size()
 
 
 func _process_active_trespass_pairs() -> void:
@@ -1151,23 +1218,27 @@ func _is_valid_custody_guard(guard: HumanoidCharacter, actor: WorldActor, factio
 	return guard.get_carried_character() == null or guard.get_carried_character() == actor
 
 
-func _find_local_assault_witnesses(attacker: HumanoidCharacter, victim: HumanoidCharacter, faction_id: String, settlement: Node, radius: float) -> Array[HumanoidCharacter]:
-	var witnesses: Array[HumanoidCharacter] = []
-	if attacker == null or victim == null or root_scene == null or not root_scene.is_inside_tree():
+func _find_local_authority_witnesses(attacker: WorldActor, victim: WorldActor, enforcing_faction_id: String, settlement: Node, radius: float) -> Array[WorldActor]:
+	var witnesses: Array[WorldActor] = []
+	if attacker == null or victim == null or settlement == null or _actor_query == null:
 		return witnesses
-	for node in root_scene.get_tree().get_nodes_in_group("npc_character"):
-		var humanoid := node as HumanoidCharacter
-		if humanoid == null or humanoid == attacker or humanoid == victim:
+	var perception := _get_perception_controller()
+	for node in _actor_query.get_nearby_humanoids_limited(victim.global_position, radius, MAX_AUTHORITY_WITNESS_CANDIDATES, false):
+		var authority := node as WorldActor
+		if authority == null or authority == attacker or authority == victim:
 			continue
-		if humanoid.life_state != NpcRules.LifeState.ALIVE or humanoid.player_party_member:
+		if authority.life_state != NpcRules.LifeState.ALIVE or authority.player_party_member:
 			continue
-		if not faction_id.is_empty() and humanoid.faction_name != faction_id:
+		if not _is_law_soldier_responder(authority) or authority.faction_name != enforcing_faction_id:
 			continue
-		if settlement != null and not _is_node_descendant_of(humanoid, settlement) and _find_containing_settlement(humanoid) != settlement:
+		if not _is_law_actor_attached_to_settlement(authority, settlement):
 			continue
-		if humanoid.global_position.distance_to(victim.global_position) > radius:
-			continue
-		witnesses.append(humanoid)
+		if perception != null and perception.has_method("evaluate_observer"):
+			var result := perception.call("evaluate_observer", authority, attacker) as Dictionary
+			if not bool(result.get("clearly_seen", false)):
+				continue
+		witnesses.append(authority)
+	witnesses.sort_custom(func(left: WorldActor, right: WorldActor) -> bool: return _actor_key(left) < _actor_key(right))
 	return witnesses
 
 
