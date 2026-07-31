@@ -74,11 +74,10 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		var node_actor_i = nodes[i].actor if nodes[i] != null else null
 		var vit_i = vitals[i]
 		var cfg_i = configs[i]
-		# player_order_active suppresses target ACQUISITION only — ordered actors
-		# disengage but stay valid targets for their enemies.
-		var actor_id_i := str(identities[i].actor_id) if identities[i] != null else ""
-		var encounter_active := opposing_side_by_actor.has(actor_id_i)
-		var player_order_active := factions[i] != null and bool(factions[i].player_order_active) and not encounter_active
+		# Player intent always suppresses target ACQUISITION. Encounter membership
+		# records what happened; it must never force an ordered actor to keep fighting.
+		# Ordered actors disengage but remain valid targets for their enemies.
+		var player_order_active := factions[i] != null and bool(factions[i].player_order_active)
 		if vit_i == null or cfg_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat or player_order_active:
 			state_i.system_target_id = 0
 			state_i.system_target_actor_id = ""
@@ -131,7 +130,7 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		var encounter_opponents: Dictionary = members_by_side.get(opposing_side_key, {})
 		var law_opponents: Dictionary = law_candidates_by_actor.get(actor_id_i, {})
 		var tactical_opponents: Dictionary = law_opponents if not law_opponents.is_empty() else encounter_opponents
-		if vit_i == null or cfg_i == null or fac_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat or (bool(fac_i.player_order_active) and tactical_opponents.is_empty()):
+		if vit_i == null or cfg_i == null or fac_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat or bool(fac_i.player_order_active):
 			_write_node_target(node_actor, 0, process_frame)
 			continue
 		var stance_i := int(cfg_i.combat_stance)

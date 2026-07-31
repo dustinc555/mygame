@@ -49,7 +49,11 @@ func setup(target_actor: Node) -> void:
 ## Wired by the owning actor at capability-creation time so eligibility can read
 ## life state without a get_capability lookup (which would need the actor type).
 func bind_vitals(vitals: VitalsCapability) -> void:
+	if _vitals != null and _vitals.life_state_changed.is_connected(_on_life_state_changed):
+		_vitals.life_state_changed.disconnect(_on_life_state_changed)
 	_vitals = vitals
+	if _vitals != null and not _vitals.life_state_changed.is_connected(_on_life_state_changed):
+		_vitals.life_state_changed.connect(_on_life_state_changed)
 
 
 ## The actor node this capability belongs to, as a plain physics body. Lets a
@@ -59,6 +63,8 @@ func get_owner_body() -> CharacterBody3D:
 
 
 func teardown() -> void:
+	if _vitals != null and _vitals.life_state_changed.is_connected(_on_life_state_changed):
+		_vitals.life_state_changed.disconnect(_on_life_state_changed)
 	if _carried_carry != null:
 		_detach_carried_character()
 	if _carrier_carry != null and _carrier_carry._carried_carry == self:
@@ -79,12 +85,16 @@ func teardown() -> void:
 func begin_carry(target_carry: CarryCapability, carrier_is_same_faction := false) -> bool:
 	if _owner_body == null or not is_instance_valid(_owner_body):
 		return false
+	if _vitals == null or _vitals.life_state != NpcRules.LifeState.ALIVE:
+		return false
 	if target_carry == null or target_carry == self:
 		return false
 	var target_body := target_carry.get_owner_body()
 	if target_body == null or not is_instance_valid(target_body) or target_body == _owner_body:
 		return false
-	if _carried_carry != null:
+	# Carry relationships are a one-to-one matching, never a tree. An actor may
+	# occupy either side of one relationship, but can never carry and be carried.
+	if _carried_carry != null or _carrier_carry != null:
 		return false
 	if not target_carry.can_be_carried_by(carrier_is_same_faction):
 		return false
@@ -114,7 +124,10 @@ func can_be_carried() -> bool:
 func can_be_carried_by(carrier_is_same_faction: bool) -> bool:
 	if _owner_body == null or not is_instance_valid(_owner_body):
 		return false
-	if is_carried():
+	# Reject both occupied relationship roles. Checking the capability links,
+	# rather than only valid bodies, also keeps partially torn-down state from
+	# ever becoming a recursive carry chain.
+	if _carrier_carry != null or _carried_carry != null:
 		return false
 	if carrier_is_same_faction:
 		return true
@@ -144,6 +157,14 @@ func get_carried_character() -> CharacterBody3D:
 
 func get_carrier() -> CharacterBody3D:
 	return _carrier_body if _carrier_body != null and is_instance_valid(_carrier_body) else null
+
+
+## Carrying requires an active carrier. Any incapacitating life-state transition
+## releases the passenger immediately, before another actor can interact with
+## either body. This also covers sleep and death, which cannot sustain carrying.
+func _on_life_state_changed(_previous_state: int, next_state: int) -> void:
+	if next_state != NpcRules.LifeState.ALIVE and _carried_carry != null:
+		drop()
 
 
 func _attach_carried_character(target_carry: CarryCapability, target_body: CharacterBody3D) -> void:

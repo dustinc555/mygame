@@ -50,6 +50,7 @@ var current_finish_off_target: Node
 var current_sleep_target: Node
 # Retained through sleep so wake-up returns to the same reachable bed side.
 var current_sleep_stand_position = null
+var bed_rest_active := false
 var _pending_wake_notice := false
 var current_seat_target: Node
 # Vector3 when a stand position is known, null otherwise (readers check `is Vector3`).
@@ -66,15 +67,30 @@ var current_pickup_item: Node
 var _pickup_route_position := Vector3.ZERO
 var _pickup_route_item_position := Vector3.INF
 var current_place_bed_target: Node
+# Cached because SleepableBed.get_interaction_position performs navigation path
+# queries. Beds are static, so recomputing this every approach frame is wasteful.
+var current_place_bed_stand_position = null
 var current_place_cell_target: Node
 var current_place_cell_waypoints: Array = []
 var current_place_furnace_target: Node
 var auto_burn_reserved_furnace: Node
 var auto_burn_reserved_target: Node
 
+var _vitals: VitalsCapability
+
 
 func _init() -> void:
 	super._init(&"interaction")
+
+
+func bind_vitals(vitals: VitalsCapability) -> void:
+	_vitals = vitals
+
+
+func teardown() -> void:
+	release_sleep_target_without_waking()
+	_vitals = null
+	super.teardown()
 
 
 func stop_mining_assignment() -> void:
@@ -166,6 +182,7 @@ func stop_carry_assignment() -> void:
 
 func stop_place_in_bed_assignment() -> void:
 	current_place_bed_target = null
+	current_place_bed_stand_position = null
 	if current_order_type == ORDER_TYPE_PLACE_IN_BED:
 		_clear_actor_move_target()
 		current_order_type = ORDER_TYPE_NONE
@@ -200,10 +217,16 @@ func stop_sleep_assignment() -> void:
 
 func release_sleep_target_without_waking() -> void:
 	var sleep_target = current_sleep_target
+	var was_in_bed_rest := bed_rest_active
 	if _is_valid_node(sleep_target) and sleep_target.has_method("release_sleeper"):
 		sleep_target.call("release_sleeper", actor)
 	current_sleep_target = null
 	current_sleep_stand_position = null
+	bed_rest_active = false
+	if was_in_bed_rest:
+		if _vitals != null:
+			_vitals.set_recovery_multiplier(VitalsCapability.RECOVERY_MULTIPLIER_GROUND)
+		_call_void("_on_exit_bed_rest")
 	if current_order_type == ORDER_TYPE_SLEEP:
 		_clear_actor_move_target()
 		current_order_type = ORDER_TYPE_NONE
@@ -364,7 +387,10 @@ func assign_place_carried_in_bed_target(bed, issued_by_player := true) -> void:
 	if not _set_order(ORDER_TYPE_PLACE_IN_BED, issued_by_player):
 		return
 	current_place_bed_target = bed
-	_set_actor_move_target(bed.call("get_interaction_position", actor))
+	# SleepableBed chooses among four sides using navigation path queries. A
+	# bed is static, so calculate the approach point once for this order.
+	current_place_bed_stand_position = bed.call("get_interaction_position", actor)
+	_set_actor_move_target(current_place_bed_stand_position)
 
 
 func assign_place_carried_in_cell_target(cell, issued_by_player := true) -> void:
@@ -610,6 +636,11 @@ func wake_up_from_rest(show_notice := true) -> void:
 
 
 func on_life_state_changed(previous_state: int, next_state: int) -> void:
+	# Recovery from a medical downed state does not eject a bed occupant. Once
+	# medically alive, they remain in the bed as an ordinary sleeper.
+	if bed_rest_active and previous_state != NpcRules.LifeState.ASLEEP and next_state == NpcRules.LifeState.ALIVE:
+		_request_rest_state(actor, NpcRules.LifeState.ASLEEP)
+		return
 	if previous_state != NpcRules.LifeState.ASLEEP or next_state != NpcRules.LifeState.ALIVE:
 		return
 	var stand_position = current_sleep_stand_position
@@ -962,9 +993,15 @@ func process_place_in_bed_interaction() -> void:
 	if not _is_valid_node(carried):
 		stop_place_in_bed_assignment()
 		return
-	var interaction_position: Vector3 = bed.call("get_interaction_position", actor)
+	var interaction_position: Vector3
+	if current_place_bed_stand_position is Vector3:
+		interaction_position = current_place_bed_stand_position
+	else:
+		interaction_position = bed.call("get_interaction_position", actor)
+		current_place_bed_stand_position = interaction_position
 	if _position().distance_to(interaction_position) > _actor_float("interact_distance", 1.8):
-		_set_actor_move_target(interaction_position)
+		if not _actor_bool("_has_move_target", false):
+			_set_actor_move_target(interaction_position)
 		return
 	if _actor_bool("_has_move_target", false):
 		return
@@ -983,6 +1020,12 @@ func process_place_in_bed_interaction() -> void:
 		_call_void("_show_world_notice", ["Bed occupied", Color(1.0, 0.78, 0.38, 1.0)])
 		stop_place_in_bed_assignment()
 		return
+	# Bed ownership starts before carry detachment so a downed passenger never
+	# transitions through ground ragdoll while being laid onto the mattress.
+	if not carried.has_method("enter_bed_rest") or not bool(carried.call("enter_bed_rest", bed, interaction_position)):
+		bed.call("release_sleeper", carried)
+		stop_place_in_bed_assignment()
+		return
 	_call("_detach_carried_character")
 	_set_node3d_position(carried, bed.call("get_sleep_position", carried))
 	carried.set("rotation", bed.call("get_sleep_rotation"))
@@ -990,8 +1033,6 @@ func process_place_in_bed_interaction() -> void:
 	carried.set("running", false)
 	_call_node_void(carried, "_set_sneaking_state", [false, false])
 	_call_node_void(carried, "_clear_actor_move_target")
-	carried.set("_current_order_type", ORDER_TYPE_SLEEP)
-	carried.set("_current_sleep_target", bed)
 	if int(carried.get("life_state")) == NpcRules.LifeState.ALIVE:
 		_request_rest_state(carried, NpcRules.LifeState.ASLEEP)
 	var success_message := str(sleep_result.get("message", ""))
@@ -999,6 +1040,7 @@ func process_place_in_bed_interaction() -> void:
 		_emit_actor_signal("center_notice_requested", [success_message])
 	_clear_actor_move_target()
 	current_place_bed_target = null
+	current_place_bed_stand_position = null
 	current_order_type = ORDER_TYPE_NONE
 	_call_void("_show_world_notice", ["Placed in bed", Color(0.55, 0.72, 1.0, 1.0)])
 	_emit_actor_signal("state_changed")
@@ -1100,6 +1142,7 @@ func process_sleep_interaction() -> void:
 		_call_void("_show_world_notice", ["Bed occupied", Color(1.0, 0.78, 0.38, 1.0)])
 		stop_sleep_assignment()
 		return
+	enter_bed_rest(sleep_target, current_sleep_stand_position)
 	var success_message := str(sleep_result.get("message", ""))
 	if not success_message.is_empty():
 		_emit_actor_signal("center_notice_requested", [success_message])
@@ -1115,6 +1158,35 @@ func process_sleep_interaction() -> void:
 	# interaction point — sleepwalking off the mattress.
 	current_order_type = ORDER_TYPE_NONE
 	_call_void("_show_world_notice", ["Sleeping", Color(0.55, 0.72, 1.0, 1.0)])
+
+
+func enter_bed_rest(bed: Node, stand_position = null) -> bool:
+	if not _is_valid_node(bed):
+		return false
+	current_sleep_target = bed
+	current_sleep_stand_position = stand_position
+	bed_rest_active = true
+	current_order_type = ORDER_TYPE_NONE
+	if _vitals != null:
+		var multiplier := float(bed.call("get_recovery_multiplier")) if bed.has_method("get_recovery_multiplier") else VitalsCapability.RECOVERY_MULTIPLIER_BED
+		_vitals.set_recovery_multiplier(multiplier)
+	_call_void("_on_enter_bed_rest")
+	return true
+
+
+func leave_bed_rest_for_external_move() -> void:
+	var was_asleep := _actor_life_state() == NpcRules.LifeState.ASLEEP
+	release_sleep_target_without_waking()
+	if was_asleep:
+		_request_rest_state(actor, NpcRules.LifeState.ALIVE)
+
+
+func is_in_bed_rest() -> bool:
+	return bed_rest_active and _is_valid_node(current_sleep_target)
+
+
+func get_bed_rest_target() -> Node:
+	return current_sleep_target if is_in_bed_rest() else null
 
 
 func process_seat_interaction() -> void:

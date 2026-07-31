@@ -472,6 +472,7 @@ func _create_actor_capabilities() -> void:
 	add_capability(needs)
 	add_capability(CustodyCapability.new())
 	var interaction := InteractionCapability.new()
+	interaction.bind_vitals(vitals)
 	interaction.order_changed.connect(_on_order_changed)
 	add_capability(interaction)
 	# Inventory before Equipment: equipment seeds non-equippable starting items
@@ -1945,6 +1946,18 @@ func get_interaction() -> InteractionCapability:
 func _on_order_changed(order_type: int, issued_by_player: bool) -> void:
 	if issued_by_player and order_type != InteractionCapability.ORDER_TYPE_NONE:
 		_active_player_order = true
+		# Explicit player intent wins immediately, without waiting for the next
+		# GECS targeting tick to notice player_order_active. Clear the transient
+		# combat bridges so the order can start moving this physics frame.
+		_system_target_id = 0
+		_system_move_active = false
+		_system_move_settled = true
+		_system_desired_velocity = Vector3.ZERO
+		_system_look_target = Vector3.ZERO
+		_system_combat_action_active = false
+		_system_combat_reaction_remaining = 0.0
+		_system_combat_focus_id = 0
+		_clear_system_movement_collision_exception()
 		# A player order is an explicit disengage: drop all grudges so the member
 		# doesn't boomerang back to an old enemy when the order completes. Attack
 		# commands re-add their own grudge (assign_attack_target marks it before
@@ -1968,7 +1981,12 @@ func _process_active_order(delta: float) -> void:
 			interaction.order_was_player_issued = false
 			_active_player_order = false
 		return
-	if life_state != NpcRules.LifeState.ALIVE or is_in_combat():
+	if life_state != NpcRules.LifeState.ALIVE:
+		return
+	# Automatic orders still yield to combat. Explicit player orders do the
+	# opposite: they must progress even if a stale combat bridge survives until
+	# the next GECS targeting tick.
+	if is_in_combat() and not interaction.order_was_player_issued:
 		return
 	match interaction.current_order_type:
 		InteractionCapability.ORDER_TYPE_MINE:
@@ -2016,7 +2034,29 @@ func _attach_carried_character(target: Node) -> void:
 	var target_carry := target_actor.get_carry() if target_actor != null else null
 	if carry == null or target_carry == null:
 		return
-	carry.begin_carry(target_carry, target_actor.faction_name == faction_name)
+	if carry.begin_carry(target_carry, target_actor.faction_name == faction_name):
+		target_actor.leave_bed_rest_for_external_move()
+
+
+func enter_bed_rest(bed: Node, stand_position = null) -> bool:
+	var interaction := get_interaction()
+	return interaction.enter_bed_rest(bed, stand_position) if interaction != null else false
+
+
+func leave_bed_rest_for_external_move() -> void:
+	var interaction := get_interaction()
+	if interaction != null and interaction.is_in_bed_rest():
+		interaction.leave_bed_rest_for_external_move()
+
+
+func is_in_bed_rest() -> bool:
+	var interaction := get_interaction()
+	return interaction != null and interaction.is_in_bed_rest()
+
+
+func get_bed_rest_target() -> Node:
+	var interaction := get_interaction()
+	return interaction.get_bed_rest_target() if interaction != null else null
 
 
 ## Close enough to interact with a downed body (bandage, carry, finish off).

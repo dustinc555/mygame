@@ -93,7 +93,9 @@ func _physics_process(delta: float) -> void:
 	_update_locomotion_animation(delta)
 	_update_carried_pose()
 	_update_ground_markers()
-	if is_in_cell_custody():
+	if is_in_bed_rest():
+		_update_bed_rest_pose()
+	elif is_in_cell_custody():
 		_update_cell_custody_animation(delta)
 	elif life_state != NpcRules.LifeState.ALIVE and life_state != NpcRules.LifeState.ASLEEP:
 		var carry := get_carry()
@@ -288,7 +290,9 @@ func _on_carry_changed() -> void:
 		# body free-falls out of the world. Stand the transform upright first.
 		rotation = Vector3(0.0, rotation.y, 0.0)
 		velocity = Vector3.ZERO
-		if is_downed_state():
+		if is_in_bed_rest():
+			_on_enter_bed_rest()
+		elif is_downed_state() or life_state == NpcRules.LifeState.DEAD:
 			body.enter_downed_visuals(life_state == NpcRules.LifeState.DEAD)
 			_apply_downed_collision_shape()
 
@@ -318,6 +322,9 @@ func _on_vitals_life_state_changed(previous_state: int, next_state: int) -> void
 	var body := _body as HumanoidBodyProjection
 	if body == null:
 		return
+	if is_in_bed_rest():
+		_on_enter_bed_rest()
+		return
 	var carry := get_carry()
 	if carry != null and carry.is_carried():
 		# Carried bodies keep the limp pose; ground presentation resumes on drop.
@@ -343,6 +350,47 @@ func _on_vitals_life_state_changed(previous_state: int, next_state: int) -> void
 		else:
 			body.restore_from_downed_visuals()
 			_restore_downed_collision_shape()
+
+
+func _on_enter_bed_rest() -> void:
+	velocity = Vector3.ZERO
+	var body := _body as HumanoidBodyProjection
+	if body == null:
+		return
+	body.cancel_downed_visual_transitions()
+	body.stop_ragdoll_simulation(true)
+	_update_bed_rest_pose()
+
+
+func _on_exit_bed_rest() -> void:
+	var body := _body as HumanoidBodyProjection
+	if body == null:
+		return
+	body.stop_clip(true)
+	var carry := get_carry()
+	if carry != null and carry.is_carried():
+		_play_carried_pose_animation(carry)
+	elif is_downed_state() or life_state == NpcRules.LifeState.DEAD:
+		body.enter_downed_visuals(life_state == NpcRules.LifeState.DEAD)
+		_apply_downed_collision_shape()
+	else:
+		body.play_random_idle_animation(true)
+
+
+func _update_bed_rest_pose() -> void:
+	var bed := get_bed_rest_target()
+	if bed == null:
+		return
+	velocity = Vector3.ZERO
+	if bed.has_method("get_sleep_position"):
+		global_position = bed.call("get_sleep_position", self)
+	if bed.has_method("get_sleep_rotation"):
+		global_rotation = bed.call("get_sleep_rotation")
+	var body := _body as HumanoidBodyProjection
+	if body == null:
+		return
+	if body.get_current_clip() != HumanoidBodyProjection.LAY_ENTER_ANIMATION_NAME:
+		body.play_clip(HumanoidBodyProjection.LAY_ENTER_ANIMATION_NAME, 0.0, true, 0.0)
 
 
 ## Positions any actor this one is carrying against our own skeleton. Runs on the
