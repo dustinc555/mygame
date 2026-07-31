@@ -42,6 +42,16 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 2.2)
 base_color = Color(0.42, 0.72, 0.46, 1)
 member_name = "Mira"
 
+[node name="Tomas" parent="PartyMembers" instance=ExtResource("1_party")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.0, 0.6, -5.0)
+base_color = Color(0.45, 0.58, 0.8, 1)
+member_name = "Tomas"
+
+[node name="Sigrid" parent="PartyMembers" instance=ExtResource("1_party")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.0, 0.6, -5.0)
+base_color = Color(0.72, 0.48, 0.36, 1)
+member_name = "Sigrid"
+
 [node name="PartyManager" type="Node" parent="."]
 script = ExtResource("2_manager")
 

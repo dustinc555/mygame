@@ -81,6 +81,8 @@ func _run() -> void:
 	_expect(_on_side(encounter, "aggressor_side_actor_ids", _actor_id(members[1])), "Nearby party member must join Mira's encounter")
 	_expect(not _encounter_has_actor(encounter, _actor_id(members[2])), "Passive party member must not join the encounter")
 	_expect(_on_side(encounter, "aggressor_side_actor_ids", _actor_id(members[3])), "Player-ordered party member must still join its party encounter: %s" % JSON.stringify(encounter))
+	var ordered_member_state: Dictionary = gecs.call("get_actor_state", _actor_id(members[3]))
+	_expect(str(ordered_member_state.get("system_target_actor_id", "")).is_empty(), "Encounter membership must not override an explicit player order with automatic combat")
 	_expect(not _encounter_has_actor(encounter, _actor_id(members[4])), "Party member outside 40m must not join the encounter")
 	_expect(not PackedStringArray(encounter.get("committed_actor_ids", PackedStringArray())).has(_actor_id(members[1])), "Joining alone must not make a party member a committed aggressor")
 
