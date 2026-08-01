@@ -25,6 +25,11 @@ const DEFAULT_SKIN_COLOR := Color(0.58, 0.38, 0.27, 1.0)
 @export_range(-1.0, 1.0, 0.01) var arm_length_slider := 0.0
 @export_range(-1.0, 1.0, 0.01) var neck_length_slider := 0.0
 
+# Transient presentation context. Durable age and Toughness remain owned by the
+# population record and skill state, respectively.
+var visual_age_years := CharacterVisualRules.DEFAULT_ADULT_AGE
+var visual_toughness_level := 1
+
 
 func make_copy():
 	var result = get_script().new()
@@ -50,6 +55,8 @@ func copy_to(target) -> void:
 	target.shoulder_width_slider = shoulder_width_slider
 	target.arm_length_slider = arm_length_slider
 	target.neck_length_slider = neck_length_slider
+	target.visual_age_years = visual_age_years
+	target.visual_toughness_level = visual_toughness_level
 
 
 func set_from_character(character) -> void:
@@ -72,6 +79,8 @@ func set_from_character(character) -> void:
 		shoulder_width_slider = source.shoulder_width_slider
 		arm_length_slider = source.arm_length_slider
 		neck_length_slider = source.neck_length_slider
+		visual_age_years = source.visual_age_years
+		visual_toughness_level = source.visual_toughness_level
 
 
 func get_body_type_id() -> String:

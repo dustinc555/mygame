@@ -4,25 +4,12 @@ class_name CharacterAppearanceController
 
 const SERVICE_ID := &"character_appearance"
 
-signal creation_saved(draft_appearance, character_name)
+signal creation_saved(draft_appearance, character_name, age_years)
+signal creation_completed(draft_appearance, character_name, age_years, request_id: StringName)
+signal creation_cancelled(request_id: StringName)
 
 const CHARACTER_EDITOR_SCENE = preload("res://features/ui/projection/character_editor.tscn")
 const SILVER_ITEM = preload("res://features/inventory/resources/items/silver.tres")
-
-const HAIR_STYLES: Array[Resource] = [
-	preload("res://features/actors/resources/character_appearance/hair_buzzed.tres"),
-	preload("res://features/actors/resources/character_appearance/hair_buzzed_female.tres"),
-	preload("res://features/actors/resources/character_appearance/hair_simple_parted.tres"),
-	preload("res://features/actors/resources/character_appearance/hair_long.tres"),
-	preload("res://features/actors/resources/character_appearance/hair_buns.tres"),
-]
-const BEARD_STYLES: Array[Resource] = [
-	preload("res://features/actors/resources/character_appearance/beard_full.tres"),
-]
-const EYEBROW_STYLES: Array[Resource] = [
-	preload("res://features/actors/resources/character_appearance/eyebrows_regular.tres"),
-	preload("res://features/actors/resources/character_appearance/eyebrows_female.tres"),
-]
 
 var root_scene: Node
 var _context: BootstrapContext
@@ -32,6 +19,7 @@ var floating_notice: FloatingNotice
 var editor_window
 var _initialized := false
 var _appearance_pause_requested := false
+var _active_creation_request_id := &""
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -63,10 +51,11 @@ func _do_initialize() -> void:
 	_initialized = true
 
 
-func open_creation_editor() -> bool:
+func open_creation_editor(request_id: StringName = &"") -> bool:
 	_ensure_editor_window()
-	if editor_window == null:
+	if editor_window == null or is_editor_open():
 		return false
+	_active_creation_request_id = request_id
 	_request_editor_pause()
 	editor_window.open_for_actor(null, "creation")
 	editor_window.move_to_front()
@@ -74,13 +63,13 @@ func open_creation_editor() -> bool:
 
 
 func open_barber_editor(actor: HumanoidCharacter, barber: Node = null) -> bool:
-	if actor == null or actor.inventory == null:
+	if actor == null or not is_instance_valid(actor) or actor.inventory == null:
+		return false
+	_ensure_editor_window()
+	if editor_window == null or is_editor_open():
 		return false
 	if not _ensure_durable_actor(actor):
 		_show_message("Character record unavailable")
-		return false
-	_ensure_editor_window()
-	if editor_window == null:
 		return false
 	var price := _get_barber_price(barber)
 	if price > 0:
@@ -92,6 +81,7 @@ func open_barber_editor(actor: HumanoidCharacter, barber: Node = null) -> bool:
 		if not actor.inventory.remove_item_count(SILVER_ITEM, price):
 			_show_message("Need %d silver" % price)
 			return false
+	_active_creation_request_id = &""
 	_request_editor_pause()
 	editor_window.open_for_actor(actor, "barber")
 	editor_window.move_to_front()
@@ -116,14 +106,24 @@ func _ensure_editor_window() -> void:
 	editor_window.name = "CharacterEditor"
 	editor_window.process_mode = Node.PROCESS_MODE_ALWAYS
 	hud_layer.add_child(editor_window)
-	editor_window.configure_styles(HAIR_STYLES, BEARD_STYLES, EYEBROW_STYLES)
+	editor_window.configure_styles(
+		CharacterAppearanceCatalog.get_hair_styles(),
+		CharacterAppearanceCatalog.get_beard_styles(),
+		CharacterAppearanceCatalog.get_eyebrow_styles()
+	)
 	editor_window.save_requested.connect(_on_editor_save_requested)
 	editor_window.cancel_requested.connect(_on_editor_cancel_requested)
 
 
 func _on_editor_save_requested(actor, draft_appearance) -> void:
 	if actor == null:
-		creation_saved.emit(draft_appearance, editor_window.get_character_name() if editor_window != null and editor_window.has_method("get_character_name") else "")
+		var character_name: String = str(editor_window.get_character_name()) if editor_window != null and editor_window.has_method("get_character_name") else ""
+		var age_years: int = int(editor_window.get_character_age()) if editor_window != null and editor_window.has_method("get_character_age") else CharacterAgeRules.DEFAULT_ADULT_AGE
+		var request_id := _active_creation_request_id
+		_active_creation_request_id = &""
+		creation_completed.emit(draft_appearance, character_name, age_years, request_id)
+		if request_id == &"":
+			creation_saved.emit(draft_appearance, character_name, age_years)
 	elif draft_appearance != null and actor.has_method("apply_appearance_data"):
 		var population := _context.get_optional(&"population") if _context != null else null
 		_ensure_durable_actor(actor)
@@ -133,6 +133,8 @@ func _on_editor_save_requested(actor, draft_appearance) -> void:
 		if canonical_appearance == null:
 			push_error("Appearance save rejected: actor '%s' has no durable population record" % actor_id)
 		else:
+			canonical_appearance.visual_age_years = draft_appearance.visual_age_years
+			canonical_appearance.visual_toughness_level = draft_appearance.visual_toughness_level
 			actor.apply_appearance_data(canonical_appearance)
 			_show_message("Appearance saved")
 	_release_editor_pause()
@@ -151,6 +153,10 @@ func _ensure_durable_actor(actor: Node) -> bool:
 
 
 func _on_editor_cancel_requested() -> void:
+	var request_id := _active_creation_request_id
+	_active_creation_request_id = &""
+	if request_id != &"":
+		creation_cancelled.emit(request_id)
 	_release_editor_pause()
 
 

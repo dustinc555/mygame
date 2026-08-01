@@ -8,6 +8,7 @@ class_name CGamePopulationRecord
 @export var generation_source := ""
 @export var generation_index := 0
 @export var member_name := ""
+@export var birth_day_index := CharacterAgeRules.UNKNOWN_BIRTH_DAY
 @export var actor_script_path := ""
 @export var character_realizer_id := ""
 @export var character_realizer_path := ""
@@ -89,6 +90,7 @@ func apply_record(source: Dictionary) -> void:
 	generation_source = str(source.get("generation_source", generation_source))
 	generation_index = int(source.get("generation_index", generation_index))
 	member_name = str(source.get("member_name", member_name))
+	birth_day_index = int(source.get("birth_day_index", birth_day_index))
 	actor_script_path = str(source.get("actor_script_path", actor_script_path))
 	character_realizer_id = str(source.get("character_realizer_id", character_realizer_id))
 	character_realizer_path = str(source.get("character_realizer_path", character_realizer_path))
@@ -157,6 +159,7 @@ func to_record() -> Dictionary:
 		"generation_source": generation_source,
 		"generation_index": generation_index,
 		"member_name": member_name,
+		"birth_day_index": birth_day_index,
 		"actor_script_path": actor_script_path,
 		"character_realizer_id": character_realizer_id,
 		"character_realizer_path": character_realizer_path,

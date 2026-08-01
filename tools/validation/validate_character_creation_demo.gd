@@ -132,6 +132,7 @@ func _run_creation_save_case() -> void:
 	if Array(editor.get_race_option_labels()) != ["Human"]:
 		_fail("Creation race options are not Human-only")
 	editor.set_character_name("Kaia")
+	editor.set_character_age(16)
 	editor.set_creation_body_type(VISUAL_BODY_TYPE_FEMALE)
 	await _validate_editor_height_keeps_feet_planted(editor)
 	editor.set_creation_skeleton_sliders(0.62, -0.35, 0.18, 0.28)
@@ -206,6 +207,10 @@ func _expect_created_character(created: HumanoidCharacter) -> void:
 		_fail("Created character body archetype is not female human")
 	if int(appearance.visual_body_type) != VISUAL_BODY_TYPE_FEMALE:
 		_fail("Created character sex/body type is not female")
+	if int(appearance.visual_age_years) != 16:
+		_fail("Created character age did not persist into presentation context")
+	if int(created.get_meta("population_age_years", -1)) != 16:
+		_fail("Created character durable age metadata was not initialized")
 	_expect_close(appearance.height_slider, 0.62, "height slider")
 	_expect_close(appearance.shoulder_width_slider, -0.35, "shoulder slider")
 	_expect_close(appearance.arm_length_slider, 0.18, "arm length slider")

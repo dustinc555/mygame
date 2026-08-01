@@ -7,17 +7,24 @@ const VISUAL_BODY_TYPE_FEMALE := 3
 const GENERATED_TEXTURE_MAX_SIZE := 768
 const HUMAN_RACE_ID := "human"
 const RUSTDEAD_RACE_ID := "rustdead"
+const BODY_VARIANT_HEROIC := "heroic"
+const BODY_VARIANT_REGULAR := "regular"
+const BODY_VARIANT_TEEN := "teen"
 const GENERATED_SKIN_TEXTURE_ROOT := "res://assets/generated/character_skin"
 const SKIN_HUE_TARGET := 0.073
 const SKIN_HUE_SOFT_START := 0.045
 const SKIN_HUE_MAX_DISTANCE := 0.105
-const SKIN_SATURATION_MIN := 0.12
-const SKIN_SATURATION_FULL := 0.22
+const SKIN_SATURATION_MIN := 0.18
+const SKIN_SATURATION_FULL := 0.30
 const SKIN_VALUE_MIN := 0.075
 const SKIN_VALUE_FULL := 0.18
 
 const MALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Superhero_Male_Dark.png"
 const FEMALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Superhero_Female_Dark_BaseColor.png"
+const REGULAR_MALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Dark_BaseColor_png.png"
+const REGULAR_FEMALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Female_Dark_BaseColor_png.png"
+const TEEN_MALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Teen_Male_Dark_BaseColor.png"
+const TEEN_FEMALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Teen_Female_Dark_BaseColor_png.png"
 const NATURAL_SKIN_TONES := [
 	Color(0.94, 0.78, 0.66, 1.0),
 	Color(0.88, 0.68, 0.54, 1.0),
@@ -61,7 +68,7 @@ static func apply_custom_skin_materials(root: Node, race_id: String, body_type: 
 		return false
 	var normalized_race_id := normalize_race_id(race_id)
 	var tone_index := get_nearest_skin_tone_index(skin_color, normalized_race_id)
-	var skin_texture := get_skin_texture(normalized_race_id, body_type, skin_color)
+	var skin_texture := get_skin_texture(normalized_race_id, body_type, skin_color, detect_body_variant(root))
 	if skin_texture == null:
 		return false
 	return _apply_skin_texture(root, skin_texture, normalized_race_id, tone_index)
@@ -84,9 +91,9 @@ static func build_skin_texture(race_id: String, body_type: int, skin_color: Colo
 	return get_skin_texture(race_id, body_type, skin_color)
 
 
-static func get_skin_texture(race_id: String, body_type: int, skin_color: Color) -> Texture2D:
+static func get_skin_texture(race_id: String, body_type: int, skin_color: Color, body_variant := BODY_VARIANT_HEROIC) -> Texture2D:
 	var tone_index := get_nearest_skin_tone_index(skin_color, race_id)
-	var path := get_generated_skin_texture_path(race_id, body_type, tone_index)
+	var path := get_generated_skin_texture_path(race_id, body_type, tone_index, body_variant)
 	if path.is_empty():
 		push_warning("Missing race id for generated skin texture lookup.")
 		return null
@@ -107,12 +114,40 @@ static func get_generated_skin_texture_dir(race_id: String) -> String:
 	return "%s/%s" % [GENERATED_SKIN_TEXTURE_ROOT, normalized_race_id]
 
 
-static func get_generated_skin_texture_path(race_id: String, body_type: int, tone_index: int) -> String:
+static func get_generated_skin_texture_path(race_id: String, body_type: int, tone_index: int, body_variant := BODY_VARIANT_HEROIC) -> String:
 	var texture_dir := get_generated_skin_texture_dir(race_id)
 	if texture_dir.is_empty():
 		return ""
 	var body_id := "female" if _normalize_body_type(body_type) == VISUAL_BODY_TYPE_FEMALE else "male"
+	if body_variant != BODY_VARIANT_HEROIC:
+		body_id = "%s_%s" % [body_id, body_variant]
 	return "%s/%s_skin_tone_%02d.png" % [texture_dir, body_id, clampi(tone_index, 0, get_skin_tone_count(race_id) - 1)]
+
+
+static func get_source_texture_path(body_type: int, body_variant := BODY_VARIANT_HEROIC) -> String:
+	var is_female := _normalize_body_type(body_type) == VISUAL_BODY_TYPE_FEMALE
+	match body_variant:
+		BODY_VARIANT_REGULAR:
+			return REGULAR_FEMALE_DARK_TEXTURE_PATH if is_female else REGULAR_MALE_DARK_TEXTURE_PATH
+		BODY_VARIANT_TEEN:
+			return TEEN_FEMALE_DARK_TEXTURE_PATH if is_female else TEEN_MALE_DARK_TEXTURE_PATH
+		_:
+			return FEMALE_DARK_TEXTURE_PATH if is_female else MALE_DARK_TEXTURE_PATH
+
+
+static func detect_body_variant(root: Node) -> String:
+	if root == null:
+		return BODY_VARIANT_HEROIC
+	var normalized_name := str(root.name).to_lower()
+	if normalized_name.contains("teen"):
+		return BODY_VARIANT_TEEN
+	if normalized_name.contains("regular"):
+		return BODY_VARIANT_REGULAR
+	for child in root.get_children():
+		var child_variant := detect_body_variant(child)
+		if child_variant != BODY_VARIANT_HEROIC:
+			return child_variant
+	return BODY_VARIANT_HEROIC
 
 
 static func normalize_race_id(race_id: String) -> String:
@@ -350,7 +385,7 @@ static func _apply_rustdead_skin_material_profile(material: Material, race_id: S
 
 static func _is_skin_visual(mesh_instance: MeshInstance3D) -> bool:
 	var node_name := str(mesh_instance.name).to_lower()
-	if node_name.contains("superhero"):
+	if node_name.contains("superhero") or node_name.contains("regular") or node_name.contains("teen"):
 		return true
 	if mesh_instance.mesh == null:
 		return false
@@ -362,9 +397,12 @@ static func _is_skin_visual(mesh_instance: MeshInstance3D) -> bool:
 
 static func _is_skin_surface(mesh_instance: MeshInstance3D, material: Material) -> bool:
 	var node_name := str(mesh_instance.name).to_lower()
-	if node_name.contains("superhero"):
+	if node_name.contains("superhero") or node_name.contains("regular") or node_name.contains("teen"):
 		return true
-	return material != null and str(material.resource_name).to_lower().contains("superhero")
+	if material == null:
+		return false
+	var material_name := str(material.resource_name).to_lower()
+	return material_name.contains("superhero") or material_name.contains("regular_") or material_name.contains("teen_")
 
 
 static func _mesh_has_surface_override(mesh_instance: MeshInstance3D) -> bool:

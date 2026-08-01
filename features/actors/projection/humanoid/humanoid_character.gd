@@ -929,6 +929,10 @@ func apply_appearance_data(next_appearance: CharacterAppearanceData) -> void:
 		body.rebuild_visual_for_appearance()
 	appearance_changed.emit()
 
+
+func get_appearance_copy() -> CharacterAppearanceData:
+	return appearance_data.make_copy() if appearance_data != null else CharacterAppearanceData.new()
+
 # ---------------------------------------------------------------------------
 # Combat attack presentation — overrides of the WorldActor hooks driven by
 # GameCombatResolutionSystem. Attack CHOICE is weighted-random over the stance

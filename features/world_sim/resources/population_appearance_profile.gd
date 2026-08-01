@@ -49,18 +49,22 @@ static var _available_races_cache: Array[Resource] = []
 
 func create_appearance(rng: RandomNumberGenerator) -> Resource:
 	var appearance = CHARACTER_APPEARANCE_DATA_SCRIPT.new()
-	var body_type := _pick_body_type(rng)
 	var race := _pick_race(rng)
+	var body_type := _pick_body_type(rng)
+	var use_human_catalog := race != null and str(race.get("race_id")).strip_edges().to_lower() == "human"
 	appearance.character_race = race
 	appearance.visual_body_type = body_type
 	appearance.body_archetype = _get_body_archetype(race, body_type)
 	var hair_color := _pick_color(_get_hair_palette(), rng)
-	appearance.hair_style = _pick_style_for_body(hair_styles, body_type, rng)
+	var available_hair_styles := _merged_styles(hair_styles, CharacterAppearanceCatalog.get_hair_styles()) if use_human_catalog else hair_styles
+	var available_beard_styles := _merged_styles(beard_styles, CharacterAppearanceCatalog.get_beard_styles()) if use_human_catalog else beard_styles
+	appearance.hair_style = _pick_style_for_body(available_hair_styles, body_type, rng)
 	appearance.hair_color = hair_color
 	appearance.beard_style = null
 	appearance.beard_color = hair_color
 	if body_type == VISUAL_BODY_TYPE_MALE and rng.randf() < male_beard_chance:
-		appearance.beard_style = _pick_style_for_body(beard_styles, body_type, rng)
+		appearance.beard_style = _pick_style_for_body(available_beard_styles, body_type, rng)
+	appearance.eyebrow_style = _pick_style_for_body(CharacterAppearanceCatalog.get_eyebrow_styles(), body_type, rng) if use_human_catalog else null
 	appearance.eyebrow_color = hair_color
 	appearance.skin_color_customized = true
 	appearance.skin_color = _pick_color(SKIN_TEXTURE_BUILDER.NATURAL_SKIN_TONES, rng)
@@ -165,6 +169,19 @@ func _pick_style_for_body(styles: Array[Resource], body_type: int, rng: RandomNu
 	if supported.is_empty():
 		return null
 	return supported[rng.randi_range(0, supported.size() - 1)]
+
+
+func _merged_styles(authored_styles: Array[Resource], catalog_styles: Array[Resource]) -> Array[Resource]:
+	var result := authored_styles.duplicate()
+	var known_ids := {}
+	for style in result:
+		if style != null:
+			known_ids[str(style.get("style_id"))] = true
+	for style in catalog_styles:
+		if style == null or known_ids.has(str(style.get("style_id"))):
+			continue
+		result.append(style)
+	return result
 
 
 func _pick_color(colors: Array, rng: RandomNumberGenerator) -> Color:

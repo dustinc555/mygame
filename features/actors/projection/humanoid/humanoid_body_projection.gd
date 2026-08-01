@@ -249,17 +249,13 @@ func setup_visual() -> void:
 	var resolved_body_type := get_resolved_visual_body_type()
 	if resolved_body_type == VisualBodyType.NONE:
 		return
-	var visual_scene := _get_character_visual_scene(resolved_body_type, resolved_body_archetype)
-	if visual_scene == null:
+	var race := _get_character_race()
+	var race_id := str(race.get("race_id")) if race != null else ""
+	var fallback_scene := _get_character_visual_scene(resolved_body_type, resolved_body_archetype)
+	var model_root := CharacterVisualAssembler.instantiate_body(resolved_body_archetype, appearance_data, race_id, resolved_body_type, fallback_scene)
+	if model_root == null:
 		return
-
-	var model := visual_scene.instantiate()
-	if not (model is Node3D):
-		model.queue_free()
-		return
-	var model_root := model as Node3D
 	model_root.rotation.y = CHARACTER_VISUAL_YAW_OFFSET
-	apply_appearance_materials(model_root, resolved_body_type)
 
 	_visual_root = Node3D.new()
 	_visual_root.name = CHARACTER_VISUAL_NODE_NAME
@@ -952,7 +948,9 @@ func _infer_visual_body_type() -> int:
 
 func _get_character_visual_scene(body_type: int, resolved_body_archetype: Resource) -> PackedScene:
 	if resolved_body_archetype != null:
-		var archetype_visual_scene := resolved_body_archetype.get("visual_scene") as PackedScene
+		var age_years := appearance_data.visual_age_years if appearance_data != null else CharacterVisualRules.DEFAULT_ADULT_AGE
+		var toughness_level := appearance_data.visual_toughness_level if appearance_data != null else SkillRules.DEFAULT_LEVEL
+		var archetype_visual_scene := CharacterVisualRules.get_body_visual_scene(resolved_body_archetype, age_years, toughness_level)
 		if archetype_visual_scene != null:
 			return archetype_visual_scene
 	match body_type:
@@ -1862,19 +1860,15 @@ func _setup_head_attachment_visuals(visual_root: Node3D, character_skeleton: Ske
 func _setup_head_attachment_visual(visual_root: Node3D, character_skeleton: Skeleton3D, style_resource: Resource, color: Color, slot_label: String) -> void:
 	if visual_root == null or style_resource == null:
 		return
-	var visual_scene := style_resource.get("visual_scene") as PackedScene
-	if visual_scene == null:
+	var age_years := appearance_data.visual_age_years if appearance_data != null else CharacterVisualRules.DEFAULT_ADULT_AGE
+	var source_root := CharacterVisualAssembler.instantiate_head_attachment(style_resource, age_years, color)
+	if source_root == null:
 		return
-	var instance := visual_scene.instantiate()
-	if not (instance is Node3D):
-		instance.queue_free()
-		return
-	var source_root := instance as Node3D
 	source_root.name = "%s%s" % [APPEARANCE_HEAD_ATTACHMENT_PREFIX, slot_label]
-	if character_skeleton != null and _setup_shared_skeleton_head_attachment_visual(visual_root, character_skeleton, source_root, color, bool(style_resource.get("colorize"))):
+	if character_skeleton != null and _setup_shared_skeleton_head_attachment_visual(visual_root, character_skeleton, source_root, color, false):
 		source_root.free()
 		return
-	_setup_legacy_head_attachment_visual(visual_root, source_root, color, bool(style_resource.get("colorize")))
+	_setup_legacy_head_attachment_visual(visual_root, source_root, color, false)
 
 
 func _setup_shared_skeleton_head_attachment_visual(visual_root: Node3D, character_skeleton: Skeleton3D, source_root: Node3D, color: Color, colorize: bool) -> bool:

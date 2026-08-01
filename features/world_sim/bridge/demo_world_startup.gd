@@ -43,10 +43,10 @@ func spawn_default_character() -> HumanoidCharacter:
 	appearance.visual_body_type = CHARACTER_APPEARANCE_DATA_SCRIPT.VISUAL_BODY_TYPE_MALE
 	appearance.skin_color_customized = true
 	appearance.skin_color = CHARACTER_APPEARANCE_DATA_SCRIPT.DEFAULT_SKIN_COLOR
-	return spawn_created_character(appearance, "Wanderer")
+	return spawn_created_character(appearance, "Wanderer", CharacterAgeRules.DEFAULT_ADULT_AGE)
 
 
-func spawn_created_character(appearance: Resource, character_name := "") -> HumanoidCharacter:
+func spawn_created_character(appearance: Resource, character_name := "", age_years := CharacterAgeRules.DEFAULT_ADULT_AGE) -> HumanoidCharacter:
 	if appearance == null:
 		return null
 	var party_root := get_node_or_null("PartyMembers") as Node3D
@@ -63,6 +63,9 @@ func spawn_created_character(appearance: Resource, character_name := "") -> Huma
 	# appearance_data carries race/archetype/body type; the body projection reads
 	# them from it directly (the actor no longer mirrors them as properties).
 	member.appearance_data = appearance.make_copy() if appearance.has_method("make_copy") else appearance
+	member.appearance_data.visual_age_years = age_years
+	member.set_meta("population_birth_day_index", CharacterAgeRules.birth_day_for_age(age_years, _current_world_day()))
+	member.set_meta("population_age_years", age_years)
 	member.starting_items = [
 		_make_stock(BANDAGE_ITEM, 3),
 		_make_stock(SILVER_ITEM, 10),
@@ -86,8 +89,13 @@ func get_created_member() -> HumanoidCharacter:
 	return created_member
 
 
-func _on_creation_saved(appearance: Resource, character_name: String) -> void:
-	spawn_created_character(appearance, character_name)
+func _on_creation_saved(appearance: Resource, character_name: String, age_years: int) -> void:
+	spawn_created_character(appearance, character_name, age_years)
+
+
+func _current_world_day() -> int:
+	var world_time := BootstrapContext.service(WorldTimeController.SERVICE_ID) as WorldTimeController
+	return world_time.get_day_index() if world_time != null else 0
 
 
 func _make_stock(item_definition: ItemDefinition, quantity: int) -> Resource:

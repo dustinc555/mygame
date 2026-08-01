@@ -73,6 +73,7 @@ var _stealth_cone_mesh: Mesh
 var _stealth_unit_disc_mesh: Mesh
 var _stealth_refresh_timer := 0.0
 var _npc_action_status: Label
+var _character_creation_status: Label
 
 const STEALTH_REFRESH_INTERVAL := 0.5
 const STEALTH_OVERLAY_RANGE := 40.0
@@ -103,6 +104,7 @@ func _ready() -> void:
 	_build_law_window()
 	_build_stealth_window()
 	_build_npc_instant_actions_window()
+	_build_character_creation_window()
 	# Everything stays closed and off until explicitly opened, one panel at a
 	# time — debug windows never flood the screen.
 	for panel in _windows:
@@ -180,6 +182,54 @@ func _on_npc_actions_visibility_changed(panel: Control) -> void:
 	var interaction := BootstrapContext.service(WorldInteractionController.SERVICE_ID)
 	if interaction != null and interaction.has_method("cancel_npc_instant_action"):
 		interaction.call("cancel_npc_instant_action")
+
+
+func _build_character_creation_window() -> void:
+	var vbox := _build_window("Create Character", Vector2(732.0, 348.0))
+	_character_creation_status = _make_label(vbox)
+	_character_creation_status.text = "Creates a new party member beneath camera center."
+	_get_debug_character_creation_controller()
+	var panel: Control = _window_panels.get("Create Character")
+	if panel != null:
+		panel.visibility_changed.connect(_on_character_creation_visibility_changed.bind(panel))
+
+
+func _on_character_creation_visibility_changed(panel: Control) -> void:
+	if panel.visible:
+		call_deferred("_on_create_character_pressed")
+
+
+func _on_create_character_pressed() -> void:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		_character_creation_status.text = "No active world camera."
+		return
+	var screen_center := get_viewport().get_visible_rect().size * 0.5
+	var hit := BuildingPlacementSolver.terrain_hit_from_screen(camera, screen_center)
+	if hit.is_empty():
+		_character_creation_status.text = "No terrain beneath camera center."
+		return
+	var controller := _get_debug_character_creation_controller()
+	if controller == null or not controller.has_method("open_at") or not bool(controller.call("open_at", hit["position"])):
+		_character_creation_status.text = "Character creator unavailable."
+		return
+	_character_creation_status.text = "Character creator opened."
+	var panel: Control = _window_panels.get("Create Character")
+	if panel != null:
+		panel.hide()
+	visible = false
+
+
+func _on_debug_character_creation_finished(_success: bool, message: String, _actor: WorldActor) -> void:
+	if _character_creation_status != null:
+		_character_creation_status.text = message
+
+
+func _get_debug_character_creation_controller() -> Node:
+	var controller := BootstrapContext.service(DebugCharacterCreationController.SERVICE_ID)
+	if controller != null and controller.has_signal("creation_finished") and not controller.creation_finished.is_connected(_on_debug_character_creation_finished):
+		controller.creation_finished.connect(_on_debug_character_creation_finished)
+	return controller
 
 
 func _build_placer_window() -> void:

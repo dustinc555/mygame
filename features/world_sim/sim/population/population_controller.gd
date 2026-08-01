@@ -36,6 +36,9 @@ func initialize(context: BootstrapContext) -> void:
 	var party_manager := root_scene.get_node_or_null("PartyManager") as PartyManager if root_scene != null else null
 	if party_manager != null and not party_manager.party_membership_changed.is_connected(_on_party_membership_changed):
 		party_manager.party_membership_changed.connect(_on_party_membership_changed)
+	var world_time := context.get_optional(WorldTimeController.SERVICE_ID) as WorldTimeController
+	if world_time != null and not world_time.day_changed.is_connected(_on_world_day_changed):
+		world_time.day_changed.connect(_on_world_day_changed)
 	_try_initialize()
 
 
@@ -61,12 +64,13 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 		record = _merge_actor_state_into_record(record, actor, settlement_id, context)
 	record["realization_state"] = "realized"
 	record["live_node_path"] = actor.get_path()
-	_save_actor_record(actor_id, record)
+	record = _save_actor_record(actor_id, record)
 	_live_actor_by_id[actor_id] = actor
 	_connect_actor_skill_changes(actor, actor_id)
 	_connect_actor_life_changes(actor, actor_id)
 	actor.set_meta("settlement_id", str(record.get("settlement_id", settlement_id)))
 	actor.set_meta("actor_role_id", str(record.get("role_id", "resident")))
+	_refresh_actor_visual_context(actor, record)
 	_register_actor_with_query_controller(actor)
 	return record.duplicate(true)
 
@@ -411,10 +415,47 @@ func ensure_generated_population(settlement_id: String, spawner_id: String, desi
 	var start_index: int = max(0, int(context.get("start_index", 0)))
 	var next_generation_index: int = _next_generation_index(settlement_id, spawner_id, start_index)
 	var used_names := _collect_used_names(settlement_id)
+	var current_actor_ids := {}
+	for record in records:
+		current_actor_ids[str(record.get("actor_id", ""))] = true
+	var known_ages: Array[int] = []
+	var missing_external_records: Array[Dictionary] = []
+	var external_population_count := 0
+	for external_record in get_records_for_settlement(settlement_id):
+		if current_actor_ids.has(str(external_record.get("actor_id", ""))) or int(external_record.get("life_state", NpcRules.LifeState.ALIVE)) == NpcRules.LifeState.DEAD:
+			continue
+		external_population_count += 1
+		var external_birth_day := int(external_record.get("birth_day_index", CharacterAgeRules.UNKNOWN_BIRTH_DAY))
+		if external_birth_day == CharacterAgeRules.UNKNOWN_BIRTH_DAY:
+			missing_external_records.append(external_record)
+		else:
+			known_ages.append(CharacterAgeRules.age_years(external_birth_day, _current_world_day()))
+	var missing_existing_indices: Array[int] = []
+	for index in range(mini(records.size(), desired_count)):
+		var birth_day := int(records[index].get("birth_day_index", CharacterAgeRules.UNKNOWN_BIRTH_DAY))
+		if birth_day == CharacterAgeRules.UNKNOWN_BIRTH_DAY:
+			missing_existing_indices.append(index)
+		else:
+			known_ages.append(CharacterAgeRules.age_years(birth_day, _current_world_day()))
+	var age_rng := _make_rng("%s:%s" % [settlement_id, spawner_id], "age_cohort", int(context.get("generation_seed", 0)))
+	var missing_ages := CharacterAgeRules.generate_missing_ages(external_population_count + desired_count, known_ages, age_rng)
+	for missing_external_record in missing_external_records:
+		if missing_ages.is_empty():
+			break
+		missing_external_record["birth_day_index"] = CharacterAgeRules.birth_day_for_age(missing_ages.pop_back(), _current_world_day(), age_rng)
+		_save_actor_record(str(missing_external_record.get("actor_id", "")), missing_external_record)
+	for record_index in missing_existing_indices:
+		if missing_ages.is_empty():
+			break
+		var migrated_record := records[record_index]
+		migrated_record["birth_day_index"] = CharacterAgeRules.birth_day_for_age(missing_ages.pop_back(), _current_world_day(), age_rng)
+		records[record_index] = _save_actor_record(str(migrated_record.get("actor_id", "")), migrated_record)
 	while records.size() < desired_count:
 		var generation_index: int = next_generation_index
 		next_generation_index += 1
-		var record: Dictionary = _create_generated_actor_record(settlement_id, spawner_id, generation_index, context, used_names)
+		var generation_context := context.duplicate(true)
+		generation_context["generated_age_years"] = missing_ages.pop_back() if not missing_ages.is_empty() else CharacterAgeRules.DEFAULT_ADULT_AGE
+		var record: Dictionary = _create_generated_actor_record(settlement_id, spawner_id, generation_index, generation_context, used_names)
 		if record.is_empty():
 			break
 		_save_actor_record(str(record["actor_id"]), record)
@@ -561,6 +602,9 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 	actor.set("auto_burn_rustdead_enabled", bool(record.get("auto_burn_rustdead_enabled", actor.get("auto_burn_rustdead_enabled"))))
 	actor.set("life_state", int(record.get("life_state", actor.get("life_state"))))
 	actor.set("starting_skill_levels", record.get("skill_levels", {}))
+	var age_years := CharacterAgeRules.age_years(int(record.get("birth_day_index", CharacterAgeRules.UNKNOWN_BIRTH_DAY)), _current_world_day())
+	actor.set_meta("population_birth_day_index", int(record.get("birth_day_index", CharacterAgeRules.UNKNOWN_BIRTH_DAY)))
+	actor.set_meta("population_age_years", age_years)
 	actor.set_meta("settlement_id", str(record.get("settlement_id", "")))
 	actor.set_meta("actor_role_id", str(record.get("role_id", "resident")))
 	actor.set_meta("population_inventory_entries", Array(record.get("inventory_entries", [])).duplicate(true))
@@ -572,6 +616,8 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 		actor.call("apply_population_runtime_state", record.get("needs_state", {}), record.get("movement_state", {}))
 	var appearance = appearance_from_record(record.get("appearance", {}) as Dictionary)
 	if appearance != null:
+		appearance.visual_age_years = age_years
+		appearance.visual_toughness_level = int((record.get("skill_levels", {}) as Dictionary).get(SkillRules.ATTRIBUTE_TOUGHNESS, SkillRules.DEFAULT_LEVEL))
 		_repair_non_rustdead_appearance(appearance, faction_id)
 		actor.set("character_race", appearance.character_race)
 		actor.set("body_archetype", appearance.body_archetype)
@@ -789,6 +835,7 @@ func apply_serialized_state(state: Dictionary) -> void:
 	_disconnect_all_actor_skill_changes()
 	_live_actor_by_id.clear()
 	var records: Dictionary = state.get("actor_records", {})
+	var migrated_records := {}
 	for actor_id in records.keys():
 		if records[actor_id] is Dictionary:
 			var record: Dictionary = (records[actor_id] as Dictionary).duplicate(true)
@@ -796,7 +843,49 @@ func apply_serialized_state(state: Dictionary) -> void:
 			record.erase("live_node_path")
 			if str(record.get("realization_state", "ledger")) == "realized":
 				record["realization_state"] = "ledger"
-			_save_actor_record(str(actor_id), record)
+			migrated_records[str(actor_id)] = record
+	_migrate_serialized_birth_days(migrated_records)
+	var migrated_actor_ids: Array = migrated_records.keys()
+	migrated_actor_ids.sort()
+	for actor_id_value in migrated_actor_ids:
+		_save_actor_record(str(actor_id_value), migrated_records[actor_id_value] as Dictionary)
+
+
+func _migrate_serialized_birth_days(records: Dictionary) -> void:
+	var actor_ids_by_settlement := {}
+	for actor_id_value in records.keys():
+		var actor_id := str(actor_id_value)
+		var record: Dictionary = records[actor_id]
+		if CharacterAgeRules.has_birth_day(record):
+			continue
+		var settlement_id := str(record.get("settlement_id", "world")).strip_edges()
+		if settlement_id.is_empty():
+			settlement_id = "world"
+		var actor_ids: Array = actor_ids_by_settlement.get(settlement_id, [])
+		actor_ids.append(actor_id)
+		actor_ids_by_settlement[settlement_id] = actor_ids
+	var settlement_ids: Array = actor_ids_by_settlement.keys()
+	settlement_ids.sort()
+	for settlement_id_value in settlement_ids:
+		var settlement_id := str(settlement_id_value)
+		var all_settlement_records: Array[Dictionary] = []
+		var known_ages: Array[int] = []
+		for record_value in records.values():
+			var record := record_value as Dictionary
+			if str(record.get("settlement_id", "world")) != settlement_id:
+				continue
+			all_settlement_records.append(record)
+			if CharacterAgeRules.has_birth_day(record):
+				known_ages.append(CharacterAgeRules.age_years(int(record.get("birth_day_index")), _current_world_day()))
+		var rng := _make_rng(settlement_id, "birth_day_migration", all_settlement_records.size())
+		var missing_ages := CharacterAgeRules.generate_missing_ages(all_settlement_records.size(), known_ages, rng)
+		var missing_actor_ids: Array = actor_ids_by_settlement[settlement_id]
+		missing_actor_ids.sort()
+		for actor_id_value in missing_actor_ids:
+			var actor_id := str(actor_id_value)
+			var age_years: int = int(missing_ages.pop_back()) if not missing_ages.is_empty() else CharacterAgeRules.DEFAULT_ADULT_AGE
+			var record: Dictionary = records[actor_id]
+			record["birth_day_index"] = CharacterAgeRules.birth_day_for_age(age_years, _current_world_day(), rng)
 
 
 func _migrate_legacy_assignment_record(record: Dictionary) -> void:
@@ -889,7 +978,7 @@ func _on_tree_node_added(node: Node) -> void:
 
 
 func _register_late_humanoid(node: Node) -> void:
-	if node != null and is_instance_valid(node) and node.is_in_group("humanoid_character"):
+	if node != null and is_instance_valid(node) and node.is_in_group("humanoid_character") and not bool(node.get_meta("defer_population_registration", false)):
 		register_actor(node)
 
 
@@ -934,6 +1023,8 @@ func _save_actor_record(actor_id: String, record: Dictionary) -> Dictionary:
 		return {}
 	record["actor_id"] = actor_id
 	record["stable_id"] = str(record.get("stable_id", actor_id))
+	if int(record.get("birth_day_index", CharacterAgeRules.UNKNOWN_BIRTH_DAY)) == CharacterAgeRules.UNKNOWN_BIRTH_DAY:
+		_assign_birth_day_for_new_record(actor_id, record)
 	var previous: Dictionary = actor_records.get(actor_id, {})
 	var saved := record.duplicate(true)
 	var bridge := _get_gecs_world()
@@ -943,6 +1034,28 @@ func _save_actor_record(actor_id: String, record: Dictionary) -> Dictionary:
 	_index_record_assignments(saved, previous)
 	population_record_changed.emit(str(saved.get("settlement_id", "")), actor_id)
 	return saved.duplicate(true)
+
+
+func _assign_birth_day_for_new_record(actor_id: String, record: Dictionary) -> void:
+	var settlement_id := str(record.get("settlement_id", "world")).strip_edges()
+	if settlement_id.is_empty():
+		settlement_id = "world"
+	var existing_ages: Array[int] = []
+	for existing_actor_id_value in actor_records.keys():
+		var existing_actor_id := str(existing_actor_id_value)
+		if existing_actor_id == actor_id:
+			continue
+		var existing_record: Dictionary = actor_records[existing_actor_id]
+		if str(existing_record.get("settlement_id", "world")) != settlement_id:
+			continue
+		if int(existing_record.get("life_state", NpcRules.LifeState.ALIVE)) == NpcRules.LifeState.DEAD:
+			continue
+		if CharacterAgeRules.has_birth_day(existing_record):
+			existing_ages.append(CharacterAgeRules.age_years(int(existing_record.get("birth_day_index")), _current_world_day()))
+	var age_rng := _make_rng(actor_id, "birth_day_migration", existing_ages.size())
+	var generated_ages := CharacterAgeRules.generate_missing_ages(existing_ages.size() + 1, existing_ages, age_rng)
+	var age_years: int = int(generated_ages.pop_back()) if not generated_ages.is_empty() else CharacterAgeRules.DEFAULT_ADULT_AGE
+	record["birth_day_index"] = CharacterAgeRules.birth_day_for_age(age_years, _current_world_day(), age_rng)
 
 
 func _clear_population_records_for_load() -> void:
@@ -1021,6 +1134,7 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"generation_source": spawner_id,
 		"generation_index": generation_index,
 		"member_name": display_name,
+		"birth_day_index": CharacterAgeRules.birth_day_for_age(int(context.get("generated_age_years", CharacterAgeRules.DEFAULT_ADULT_AGE)), _current_world_day(), _make_rng(actor_id, "birth_day", generation_seed)),
 		"actor_script_path": actor_script.resource_path,
 		"character_realizer_id": realizer_id,
 		"character_realizer_path": appearance_profile.resource_path,
@@ -1080,6 +1194,8 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 		record["role_id"] = str(actor.get_meta("settlement_staff_role"))
 	elif actor.has_meta("actor_role_id") and not str(actor.get_meta("actor_role_id", "")).is_empty():
 		record["role_id"] = str(actor.get_meta("actor_role_id"))
+	if actor.has_meta("population_birth_day_index"):
+		record["birth_day_index"] = int(actor.get_meta("population_birth_day_index"))
 	record["member_name"] = str(actor.get("member_name"))
 	var actor_script := actor.get_script() as Script
 	if actor_script != null and not actor_script.resource_path.is_empty():
@@ -1229,6 +1345,8 @@ func _on_actor_skill_level_changed(skill_id: String, actor_id: String) -> void:
 		skill_xp[skill_id] = xp
 	else:
 		skill_xp.erase(skill_id)
+	if skill_id == SkillRules.ATTRIBUTE_TOUGHNESS:
+		_refresh_actor_visual_context(actor, record, level)
 
 
 func _unregister_actor_from_query_controller(actor: Node) -> void:
@@ -1583,6 +1701,40 @@ func _make_rng(actor_id: String, purpose: String, extra_seed := 0) -> RandomNumb
 	var rng := RandomNumberGenerator.new()
 	rng.seed = max(1, absi(("%s:%s:%d" % [actor_id, purpose, extra_seed]).hash()))
 	return rng
+
+
+func _current_world_day() -> int:
+	var world_time := _context.get_optional(WorldTimeController.SERVICE_ID) as WorldTimeController if _context != null else null
+	return world_time.get_day_index() if world_time != null else 0
+
+
+func _on_world_day_changed(_day_index: int) -> void:
+	for actor_id_value in _live_actor_by_id.keys():
+		var actor = _live_actor_by_id.get(actor_id_value)
+		if actor == null or not is_instance_valid(actor):
+			continue
+		var record := get_actor_record(str(actor_id_value))
+		if not record.is_empty():
+			_refresh_actor_visual_context(actor, record)
+
+
+func _refresh_actor_visual_context(actor: Node, record: Dictionary, toughness_override := -1) -> void:
+	if actor == null or not actor.has_method("apply_appearance_data"):
+		return
+	var appearance = actor.get("appearance_data")
+	if appearance == null:
+		return
+	var next_age := CharacterAgeRules.age_years(int(record.get("birth_day_index", CharacterAgeRules.UNKNOWN_BIRTH_DAY)), _current_world_day())
+	var next_toughness := toughness_override
+	if next_toughness < 0:
+		next_toughness = int((record.get("skill_levels", {}) as Dictionary).get(SkillRules.ATTRIBUTE_TOUGHNESS, SkillRules.DEFAULT_LEVEL))
+	var body_variant_changed := CharacterVisualRules.is_teen_age(int(appearance.visual_age_years)) != CharacterVisualRules.is_teen_age(next_age) \
+		or CharacterVisualRules.is_heroic(int(appearance.visual_age_years), int(appearance.visual_toughness_level)) != CharacterVisualRules.is_heroic(next_age, next_toughness)
+	appearance.visual_age_years = next_age
+	appearance.visual_toughness_level = next_toughness
+	actor.set_meta("population_age_years", next_age)
+	if body_variant_changed:
+		actor.call("apply_appearance_data", appearance)
 
 
 func _resource_path(resource) -> String:

@@ -12,8 +12,8 @@ const VISUAL_BODY_TYPE_FEMALE := 3
 const VIEW_FULL_BODY := 0
 const VIEW_FACE := 1
 const CLOTHING_EQUIPMENT_SLOTS := ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head"]
-const MALE_HAIR_IDS: Array[String] = ["hair_buzzed", "hair_simple_parted", "hair_long"]
-const FEMALE_HAIR_IDS: Array[String] = ["hair_buns", "hair_long", "hair_buzzed_female"]
+const MALE_HAIR_IDS: Array[String] = ["hair_balding", "hair_buzzed", "hair_dreads", "hair_long", "hair_mohawk", "hair_ponytail", "hair_simple_parted", "hair_slick_back"]
+const FEMALE_HAIR_IDS: Array[String] = ["hair_bob", "hair_buns", "hair_buzzed_female", "hair_ponytail_2", "hair_long", "hair_long_dreads"]
 
 var _failures: Array[String] = []
 var _scene: Node
