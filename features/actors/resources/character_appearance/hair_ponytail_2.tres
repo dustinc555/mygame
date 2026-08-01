@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="HeadAttachmentStyleDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/actors/resources/character_appearance/head_attachment_style_definition.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/universal_base_characters/head_attachments/Hair_Ponytail_2.gltf" id="2_adult"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/universal_base_characters/head_attachments/Hair_Ponytail_2_Teen.gltf" id="3_teen"]
+
+[resource]
+script = ExtResource("1_script")
+style_id = "hair_ponytail_2"
+display_name = "High Ponytail"
+visual_scene = ExtResource("2_adult")
+teen_visual_scene = ExtResource("3_teen")
+allowed_body_types = PackedStringArray("female")

@@ -1,14 +1,19 @@
 [gd_resource type="Resource" script_class="CharacterBodyArchetypeDefinition" format=3 uid="uid://dvxmf3kr3l6cp"]
 
 [ext_resource type="Script" uid="uid://sa213mic48vf" path="res://features/actors/resources/character_body_archetypes/character_body_archetype_definition.gd" id="1_script"]
-[ext_resource type="PackedScene" uid="uid://cdm4dgu4fafyd" path="res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf" id="2_visual"]
-[ext_resource type="Resource" uid="uid://soecod0ccclj" path="res://features/actors/resources/humanoid_grip_socket_profiles/human_male.tres" id="3_grip"]
+[ext_resource type="PackedScene" uid="uid://c7nrheu1vsin" path="res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.gltf" id="2_regular"]
+[ext_resource type="PackedScene" uid="uid://cdm4dgu4fafyd" path="res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf" id="3_heroic"]
+[ext_resource type="PackedScene" uid="uid://cm07fwjyorbh6" path="res://assets/vendor/quaternius/universal_base_characters/base_characters/Teen_Male_FullBody.gltf" id="4_teen"]
+[ext_resource type="Resource" uid="uid://soecod0ccclj" path="res://features/actors/resources/humanoid_grip_socket_profiles/human_male.tres" id="5_grip"]
 
 [resource]
 script = ExtResource("1_script")
 archetype_id = "human_male"
 display_name = "Human Male"
 race_id = "human"
-visual_scene = ExtResource("2_visual")
-grip_socket_profile = ExtResource("3_grip")
+visual_scene = ExtResource("2_regular")
+regular_visual_scene = ExtResource("2_regular")
+heroic_visual_scene = ExtResource("3_heroic")
+teen_visual_scene = ExtResource("4_teen")
+grip_socket_profile = ExtResource("5_grip")
 visual_body_type = 2

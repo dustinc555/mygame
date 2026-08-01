@@ -18,15 +18,20 @@ func _run() -> void:
 			push_error("Could not create generated skin texture directory: %s" % SKIN_TEXTURE_BUILDER.get_generated_skin_texture_dir(race_id))
 			quit(1)
 			return
-		_generate_for_body_type(race_id, SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_MALE)
-		_generate_for_body_type(race_id, SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_FEMALE)
+		var variants := [SKIN_TEXTURE_BUILDER.BODY_VARIANT_HEROIC]
+		if race_id == SKIN_TEXTURE_BUILDER.HUMAN_RACE_ID:
+			variants.append(SKIN_TEXTURE_BUILDER.BODY_VARIANT_REGULAR)
+			variants.append(SKIN_TEXTURE_BUILDER.BODY_VARIANT_TEEN)
+		for body_variant in variants:
+			_generate_for_body_type(race_id, SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_MALE, body_variant)
+			_generate_for_body_type(race_id, SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_FEMALE, body_variant)
 	print("GENERATED_SKIN_TONE_TEXTURES_OK")
 	quit(0)
 
 
 func _get_requested_race_ids() -> Array[String]:
 	var result: Array[String] = []
-	for argument in OS.get_cmdline_args():
+	for argument in OS.get_cmdline_user_args():
 		var arg := str(argument)
 		if not arg.begins_with("--skin-race="):
 			continue
@@ -56,8 +61,8 @@ func _is_supported_race_id(race_id: String) -> bool:
 	return race_id == SKIN_TEXTURE_BUILDER.HUMAN_RACE_ID or race_id == SKIN_TEXTURE_BUILDER.RUSTDEAD_RACE_ID
 
 
-func _generate_for_body_type(race_id: String, body_type: int) -> void:
-	var source_texture_path: String = SKIN_TEXTURE_BUILDER.FEMALE_DARK_TEXTURE_PATH if body_type == SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_FEMALE else SKIN_TEXTURE_BUILDER.MALE_DARK_TEXTURE_PATH
+func _generate_for_body_type(race_id: String, body_type: int, body_variant: String) -> void:
+	var source_texture_path: String = SKIN_TEXTURE_BUILDER.get_source_texture_path(body_type, body_variant)
 	var source_texture := load(source_texture_path) as Texture2D
 	var base_image := _get_readable_image(source_texture)
 	if base_image == null:
@@ -74,7 +79,7 @@ func _generate_for_body_type(race_id: String, body_type: int) -> void:
 	var tones: Array = SKIN_TEXTURE_BUILDER.get_skin_tones_for_race(race_id)
 	for tone_index in range(tones.size()):
 		var texture_image := _build_skin_image(race_id, body_type, tone_index, base_bytes, mask, average, width, height, tones[tone_index])
-		var output_path := SKIN_TEXTURE_BUILDER.get_generated_skin_texture_path(race_id, body_type, tone_index)
+		var output_path := SKIN_TEXTURE_BUILDER.get_generated_skin_texture_path(race_id, body_type, tone_index, body_variant)
 		var save_error := texture_image.save_png(output_path)
 		if save_error != OK:
 			push_error("Could not save generated skin texture: %s" % output_path)

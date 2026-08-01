@@ -1,11 +1,13 @@
 [gd_resource type="Resource" script_class="HeadAttachmentStyleDefinition" format=3 uid="uid://cv8wkbg62y26w"]
 
 [ext_resource type="Script" uid="uid://xl3kqw6xfqt8" path="res://features/actors/resources/character_appearance/head_attachment_style_definition.gd" id="1_script"]
-[ext_resource type="PackedScene" uid="uid://bjckhpk7bd5cc" path="res://assets/vendor/quaternius/universal_base_characters/head_attachments/Hair_BuzzedFemale.gltf" id="2_scene"]
+[ext_resource type="PackedScene" uid="uid://bjckhpk7bd5cc" path="res://assets/vendor/quaternius/universal_base_characters/head_attachments/Hair_BuzzedFemale.gltf" id="2_adult"]
+[ext_resource type="PackedScene" uid="uid://duxn1mdshun06" path="res://assets/vendor/quaternius/universal_base_characters/head_attachments/Hair_BuzzedFemale_Teen.gltf" id="3_teen"]
 
 [resource]
 script = ExtResource("1_script")
 style_id = "hair_buzzed_female"
-display_name = "Buzzed Female"
-visual_scene = ExtResource("2_scene")
+display_name = "Buzzed"
+visual_scene = ExtResource("2_adult")
+teen_visual_scene = ExtResource("3_teen")
 allowed_body_types = PackedStringArray("female")

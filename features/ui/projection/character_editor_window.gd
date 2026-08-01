@@ -67,6 +67,7 @@ var _preview_skeleton: Skeleton3D
 var _preview_foot_anchor_correction_y := 0.0
 
 var _name_edit: LineEdit
+var _age_spin: SpinBox
 var _creation_section: VBoxContainer
 var _race_option: OptionButton
 var _body_type_option: OptionButton
@@ -77,6 +78,7 @@ var _shoulder_slider: HSlider
 var _arm_slider: HSlider
 var _neck_slider: HSlider
 var _hair_option: OptionButton
+var _eyebrow_option: OptionButton
 var _beard_row: Control
 var _beard_color_row: Control
 var _beard_option: OptionButton
@@ -272,6 +274,13 @@ func _build_ui() -> void:
 	_body_type_option.add_item("Female", VISUAL_BODY_TYPE_FEMALE)
 	_body_type_option.item_selected.connect(_on_body_type_selected)
 	_creation_section.add_child(_labeled_control("Sex", _body_type_option))
+	_age_spin = SpinBox.new()
+	_age_spin.min_value = CharacterAgeRules.TEEN_MIN_AGE
+	_age_spin.max_value = CharacterAgeRules.ELDERLY_MAX_AGE
+	_age_spin.step = 1.0
+	_age_spin.value = CharacterAgeRules.DEFAULT_ADULT_AGE
+	_age_spin.value_changed.connect(_on_age_changed)
+	_creation_section.add_child(_labeled_control("Age", _age_spin))
 	_creation_section.add_child(_labeled_control("Skin color", _create_skin_tone_controls()))
 	_height_slider = _make_slider()
 	_height_slider.value_changed.connect(_on_height_changed)
@@ -292,6 +301,9 @@ func _build_ui() -> void:
 	_hair_color = ColorPickerButton.new()
 	_hair_color.color_changed.connect(_on_hair_color_changed)
 	control_column.add_child(_labeled_control("Hair color", _hair_color))
+	_eyebrow_option = OptionButton.new()
+	_eyebrow_option.item_selected.connect(_on_eyebrow_selected)
+	control_column.add_child(_labeled_control("Eyebrows", _eyebrow_option))
 	_beard_option = OptionButton.new()
 	_beard_option.item_selected.connect(_on_beard_selected)
 	_beard_row = _labeled_control("Beard", _beard_option)
@@ -408,6 +420,7 @@ func _setup_default_creation_appearance() -> void:
 	draft_appearance.visual_body_type = VISUAL_BODY_TYPE_MALE
 	draft_appearance.skin_color_customized = true
 	draft_appearance.skin_color = CHARACTER_APPEARANCE_DATA_SCRIPT.DEFAULT_SKIN_COLOR
+	draft_appearance.visual_age_years = CharacterAgeRules.DEFAULT_ADULT_AGE
 
 
 func _sync_controls_from_draft() -> void:
@@ -424,6 +437,7 @@ func _sync_controls_from_draft() -> void:
 	_apply_body_type_style_constraints(body_type)
 	_populate_style_option(_hair_option, _get_supported_styles(hair_styles, body_type), draft_appearance.hair_style)
 	_populate_style_option(_beard_option, _get_supported_styles(beard_styles, body_type), draft_appearance.beard_style)
+	_populate_style_option(_eyebrow_option, _get_supported_styles(eyebrow_styles, body_type), draft_appearance.eyebrow_style)
 	_hair_color.color = draft_appearance.hair_color
 	_beard_color.color = draft_appearance.beard_color
 	_race_option.select(0)
@@ -432,6 +446,7 @@ func _sync_controls_from_draft() -> void:
 	_shoulder_slider.set_value_no_signal(draft_appearance.shoulder_width_slider)
 	_arm_slider.set_value_no_signal(draft_appearance.arm_length_slider)
 	_neck_slider.set_value_no_signal(draft_appearance.neck_length_slider)
+	_age_spin.set_value_no_signal(draft_appearance.visual_age_years)
 	_body_type_option.select(1 if body_type == VISUAL_BODY_TYPE_FEMALE else 0)
 	if target_actor != null:
 		_name_edit.text = target_actor.member_name
@@ -440,7 +455,8 @@ func _sync_controls_from_draft() -> void:
 func _apply_body_type_style_constraints(body_type: int) -> void:
 	if not _style_supports_body_type(draft_appearance.hair_style, body_type):
 		draft_appearance.hair_style = null
-	draft_appearance.eyebrow_style = _get_default_eyebrow_style(body_type)
+	if draft_appearance.eyebrow_style == null or not _style_supports_body_type(draft_appearance.eyebrow_style, body_type):
+		draft_appearance.eyebrow_style = _get_default_eyebrow_style(body_type)
 	draft_appearance.eyebrow_color = draft_appearance.hair_color
 	var allow_beard := body_type != VISUAL_BODY_TYPE_FEMALE
 	if not allow_beard or not _style_supports_body_type(draft_appearance.beard_style, body_type):
@@ -562,17 +578,13 @@ func _create_preview_model() -> Node3D:
 	_preview_visual_root = visual_root
 	_preview_foot_anchor_correction_y = 0.0
 	_last_preview_body_type = _resolve_preview_body_type(body_archetype)
-	var visual_scene := _get_preview_visual_scene(body_archetype)
-	if visual_scene == null:
+	var race_id := str(draft_appearance.character_race.get("race_id")) if draft_appearance.character_race != null else ""
+	var fallback_scene := _get_preview_visual_scene(body_archetype)
+	var body_root := CharacterVisualAssembler.instantiate_body(body_archetype, draft_appearance, race_id, _last_preview_body_type, fallback_scene)
+	if body_root == null:
 		return null
-	var body_instance := visual_scene.instantiate()
-	if not (body_instance is Node3D):
-		body_instance.queue_free()
-		return null
-	var body_root := body_instance as Node3D
 	body_root.name = PREVIEW_BODY_NODE_NAME
 	body_root.rotation.y = PREVIEW_VISUAL_YAW_OFFSET
-	_apply_preview_skin_materials(body_root)
 	visual_root.add_child(body_root)
 	_setup_preview_idle_animation(body_root)
 	_set_base_eyebrow_visuals_visible(body_root, draft_appearance.eyebrow_style == null)
@@ -766,6 +778,16 @@ func get_character_name() -> String:
 	return _name_edit.text.strip_edges()
 
 
+func get_character_age() -> int:
+	return int(_age_spin.value) if _age_spin != null else CharacterAgeRules.DEFAULT_ADULT_AGE
+
+
+func set_character_age(age_years: int) -> void:
+	if _age_spin == null or draft_appearance == null:
+		return
+	_age_spin.value = clampi(age_years, CharacterAgeRules.TEEN_MIN_AGE, CharacterAgeRules.ELDERLY_MAX_AGE)
+
+
 func set_character_name(next_name: String) -> void:
 	if _name_edit == null:
 		return
@@ -934,7 +956,7 @@ func _resolve_preview_body_type(body_archetype: Resource) -> int:
 
 func _get_preview_visual_scene(body_archetype: Resource) -> PackedScene:
 	if body_archetype != null:
-		var archetype_scene := body_archetype.get("visual_scene") as PackedScene
+		var archetype_scene := CharacterVisualRules.get_body_visual_scene(body_archetype, draft_appearance.visual_age_years, draft_appearance.visual_toughness_level)
 		if archetype_scene != null:
 			return archetype_scene
 	var body_type: int = _resolve_preview_body_type(body_archetype)
@@ -1075,23 +1097,15 @@ func _setup_preview_head_attachment_visuals(visual_root: Node3D, skeleton: Skele
 func _setup_preview_head_attachment_visual(visual_root: Node3D, skeleton: Skeleton3D, style_resource: Resource, color: Color, slot_label: String) -> void:
 	if style_resource == null:
 		return
-	var visual_scene := style_resource.get("visual_scene") as PackedScene
-	if visual_scene == null:
+	var source_root := CharacterVisualAssembler.instantiate_head_attachment(style_resource, draft_appearance.visual_age_years, color)
+	if source_root == null:
 		return
-	var instance := visual_scene.instantiate()
-	if not (instance is Node3D):
-		instance.queue_free()
-		return
-	var source_root := instance as Node3D
 	var node_name := "Appearance%s" % slot_label
-	var colorize := bool(style_resource.get("colorize"))
-	if skeleton != null and _setup_preview_shared_skeleton_visual(visual_root, skeleton, source_root, node_name, Transform3D.IDENTITY, color, colorize):
+	if skeleton != null and _setup_preview_shared_skeleton_visual(visual_root, skeleton, source_root, node_name, Transform3D.IDENTITY, color, false):
 		source_root.free()
 		return
 	source_root.name = node_name
 	source_root.transform = Transform3D(Basis(Vector3.UP, PREVIEW_VISUAL_YAW_OFFSET), Vector3.ZERO)
-	if colorize:
-		_apply_preview_material(source_root, color)
 	visual_root.add_child(source_root)
 
 
@@ -1410,6 +1424,13 @@ func _on_body_type_selected(index: int) -> void:
 	_rebuild_preview()
 
 
+func _on_age_changed(value: float) -> void:
+	if draft_appearance == null:
+		return
+	draft_appearance.visual_age_years = int(value)
+	_rebuild_preview()
+
+
 func _on_skin_tone_pressed(index: int) -> void:
 	var tones: Array = SKIN_TEXTURE_BUILDER.NATURAL_SKIN_TONES
 	if index < 0 or index >= tones.size():
@@ -1443,6 +1464,11 @@ func _on_neck_length_changed(value: float) -> void:
 
 func _on_hair_selected(_index: int) -> void:
 	draft_appearance.hair_style = _get_selected_style(_hair_option)
+	_rebuild_preview()
+
+
+func _on_eyebrow_selected(_index: int) -> void:
+	draft_appearance.eyebrow_style = _get_selected_style(_eyebrow_option)
 	_rebuild_preview()
 
 

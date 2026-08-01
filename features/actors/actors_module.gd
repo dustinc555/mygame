@@ -11,6 +11,7 @@ extends RefCounted
 
 const CHARACTER_APPEARANCE := preload("res://features/actors/projection/appearance/character_appearance_controller.gd")
 const PERCEPTION := preload("res://features/actors/bridge/perception/perception_controller.gd")
+const DEBUG_CHARACTER_CREATION := preload("res://features/actors/bridge/debug_character_creation_controller.gd")
 
 const CORE := []
 const PROJECTION := [
@@ -19,4 +20,5 @@ const PROJECTION := [
 const SIM := []
 const BRIDGE := [
 	{"name": "PerceptionController", "script": PERCEPTION, "service": PERCEPTION.SERVICE_ID},
+	{"name": "DebugCharacterCreationController", "script": DEBUG_CHARACTER_CREATION, "service": DEBUG_CHARACTER_CREATION.SERVICE_ID},
 ]

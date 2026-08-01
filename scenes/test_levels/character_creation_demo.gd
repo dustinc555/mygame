@@ -30,7 +30,7 @@ func _deferred_setup() -> void:
 		_creation_opened = bool(appearance_controller.open_creation_editor())
 
 
-func spawn_created_character(appearance: Resource, character_name := "") -> HumanoidCharacter:
+func spawn_created_character(appearance: Resource, character_name := "", age_years := CharacterAgeRules.DEFAULT_ADULT_AGE) -> HumanoidCharacter:
 	if appearance == null:
 		return null
 	var party_root := get_node_or_null("PartyMembers") as Node3D
@@ -43,6 +43,9 @@ func spawn_created_character(appearance: Resource, character_name := "") -> Huma
 	member.member_name = character_name.strip_edges() if not character_name.strip_edges().is_empty() else "Wanderer"
 	member.faction_name = "Player"
 	member.appearance_data = appearance.make_copy() if appearance.has_method("make_copy") else appearance
+	member.appearance_data.visual_age_years = age_years
+	member.set_meta("population_birth_day_index", CharacterAgeRules.birth_day_for_age(age_years, _current_world_day()))
+	member.set_meta("population_age_years", age_years)
 	member.character_race = member.appearance_data.character_race
 	member.body_archetype = member.appearance_data.body_archetype
 	member.visual_body_type = member.appearance_data.visual_body_type
@@ -64,8 +67,13 @@ func get_created_member() -> HumanoidCharacter:
 	return created_member
 
 
-func _on_creation_saved(appearance: Resource, character_name: String) -> void:
-	spawn_created_character(appearance, character_name)
+func _on_creation_saved(appearance: Resource, character_name: String, age_years: int) -> void:
+	spawn_created_character(appearance, character_name, age_years)
+
+
+func _current_world_day() -> int:
+	var world_time := BootstrapContext.service(WorldTimeController.SERVICE_ID) as WorldTimeController
+	return world_time.get_day_index() if world_time != null else 0
 
 
 func _make_stock(item_definition: ItemDefinition, quantity: int) -> Resource:
