@@ -1,0 +1,21 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://features/farming/projection/farm_water_source.gd" id="1_source"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Barrel_Holder.gltf" id="2_barrels"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Bucket_Wooden_1.gltf" id="3_bucket"]
+
+[sub_resource type="BoxShape3D" id="CisternShape"]
+size = Vector3(1.55, 1.3, 0.9)
+
+[node name="FarmWaterCistern" type="StaticBody3D"]
+script = ExtResource("1_source")
+
+[node name="AuthoredBarrelHolder" parent="." instance=ExtResource("2_barrels")]
+
+[node name="AuthoredBucket" parent="." instance=ExtResource("3_bucket")]
+transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0.9, 0, 0.18)
+rotation = Vector3(0, -0.35, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.65, 0)
+shape = SubResource("CisternShape")

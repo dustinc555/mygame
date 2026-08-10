@@ -15,6 +15,7 @@ const BAR_GOOD_COLOR := Color(0.47, 0.78, 0.43, 1.0)
 const BAR_WARNING_COLOR := Color(0.82, 0.69, 0.22, 1.0)
 const BAR_DANGER_COLOR := Color(0.83, 0.24, 0.24, 1.0)
 const BAR_EMPTY_COLOR := Color(0.035, 0.035, 0.035, 1.0)
+const FARM_HYDRATION_COLOR := Color(0.15, 0.56, 0.95, 1.0)
 ## The drained bar area shows the color the vital is heading toward, dimmed
 ## this much so the live fill still reads clearly on top of it.
 const BAR_DRAIN_DIM := 0.45
@@ -26,6 +27,7 @@ const NEED_BAR_SNAP_THRESHOLD := 0.35
 const ACTION_ATTACK := "attack"
 const ACTION_CARRY := "carry"
 const ACTION_FINISH_OFF := "finish_off"
+const ACTION_FARM_TILL := "farm_till"
 const ACTION_HEAL := "heal"
 const ACTION_INVENTORY := "inventory"
 const ACTION_JOBS := "jobs"
@@ -41,6 +43,8 @@ const ACTION_TRADE := "trade"
 const ACTION_UNLOCK_CONTAINER := "unlock_container"
 const ACTION_WAKE_UP := "wake_up"
 const WORLD_ACTION_PREFIX := "world:"
+const DELETE_FIELD_ACTION := WORLD_ACTION_PREFIX + "farm_plot|delete"
+const DESTRUCTIVE_ACTION_COLOR := Color(0.96, 0.28, 0.24, 1.0)
 const INFO_LABEL_COLOR := Color(0.58, 0.56, 0.5, 1.0)
 const INFO_VALUE_COLOR := Color(0.8, 0.75, 0.62, 1.0)
 const INFO_RESTRICTED_COLOR := Color(0.94, 0.34, 0.28, 1.0)
@@ -55,6 +59,7 @@ var name_label: Label
 var faction_label: Label
 var work_label: Label
 var state_label: Label
+var tool_requirement_label: Label
 var hunger_label: Label
 var hunger_bar_stack: Control
 var hunger_fill: ColorRect
@@ -77,7 +82,18 @@ var fatigue_label: Label
 var fatigue_bar_stack: Control
 var fatigue_fill: ColorRect
 var fatigue_value: Label
+var farm_growth_row: Control
+var farm_growth_stack: Control
+var farm_growth_fill: ColorRect
+var farm_growth_value: Label
+var farm_hydration_row: Control
+var farm_hydration_stack: Control
+var farm_hydration_fill: ColorRect
+var farm_hydration_value: Label
+var action_row: Control
 var action_buttons: Array[Button] = []
+var _farm_crop_menu: PopupMenu
+var _farm_crop_menu_target
 var vital_rows: Array[Control] = []
 var hunger_row: Control
 var blood_row: Control
@@ -90,6 +106,8 @@ var skills_window: Control
 var jobs_window: Control
 var facility_people_projection: FacilityPeopleProjection
 var current_target
+var _current_target_world_position := Vector3.ZERO
+var _has_current_target_world_position := false
 var _initialized := false
 var _displayed_hunger_ratio := NAN
 var _displayed_fatigue_ratio := NAN
@@ -128,11 +146,27 @@ func inspect_humanoid(target) -> void:
 
 
 func inspect_target(target) -> void:
+	_inspect_target(target, false, Vector3.ZERO)
+
+
+func inspect_target_at(target, world_position: Vector3) -> void:
+	_inspect_target(target, true, world_position)
+
+
+func _inspect_target(target, has_world_position: bool, world_position: Vector3) -> void:
 	if current_target == target:
+		_has_current_target_world_position = has_world_position
+		_current_target_world_position = world_position
+		if has_world_position and target != null and target.has_method("begin_inspection_at"):
+			target.call("begin_inspection_at", world_position)
 		_update_panel()
 		return
 	_set_target_inspected(current_target, false)
 	current_target = target
+	_has_current_target_world_position = has_world_position
+	_current_target_world_position = world_position
+	if has_world_position and target != null and target.has_method("begin_inspection_at"):
+		target.call("begin_inspection_at", world_position)
 	_reset_need_bar_display()
 	_set_target_inspected(current_target, true)
 	_update_panel()
@@ -160,6 +194,7 @@ func _do_initialize() -> void:
 	faction_label = details_panel.get_node("Margin/DetailsVBox/Faction")
 	work_label = details_panel.get_node("Margin/DetailsVBox/WorkStatus")
 	state_label = details_panel.get_node("Margin/DetailsVBox/HeaderRow/State")
+	tool_requirement_label = details_panel.get_node("Margin/DetailsVBox/ToolRequirement")
 	hunger_label = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerLabel")
 	hunger_bar_stack = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack")
 	hunger_fill = details_panel.get_node("Margin/DetailsVBox/HungerRow/HungerBarFrame/HungerBarStack/HungerFill")
@@ -180,6 +215,14 @@ func _do_initialize() -> void:
 	fatigue_bar_stack = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack")
 	fatigue_fill = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack/FatigueFill")
 	fatigue_value = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack/FatigueValue")
+	farm_growth_row = details_panel.get_node("Margin/DetailsVBox/FarmGrowthRow")
+	farm_growth_stack = details_panel.get_node("Margin/DetailsVBox/FarmGrowthRow/GrowthBarFrame/GrowthBarStack")
+	farm_growth_fill = details_panel.get_node("Margin/DetailsVBox/FarmGrowthRow/GrowthBarFrame/GrowthBarStack/GrowthFill")
+	farm_growth_value = details_panel.get_node("Margin/DetailsVBox/FarmGrowthRow/GrowthBarFrame/GrowthBarStack/GrowthValue")
+	farm_hydration_row = details_panel.get_node("Margin/DetailsVBox/FarmHydrationRow")
+	farm_hydration_stack = details_panel.get_node("Margin/DetailsVBox/FarmHydrationRow/HydrationBarFrame/HydrationBarStack")
+	farm_hydration_fill = details_panel.get_node("Margin/DetailsVBox/FarmHydrationRow/HydrationBarFrame/HydrationBarStack/HydrationFill")
+	farm_hydration_value = details_panel.get_node("Margin/DetailsVBox/FarmHydrationRow/HydrationBarFrame/HydrationBarStack/HydrationValue")
 	hunger_row = details_panel.get_node("Margin/DetailsVBox/HungerRow")
 	blood_row = details_panel.get_node("Margin/DetailsVBox/BloodRow")
 	hp_row = details_panel.get_node("Margin/DetailsVBox/HpRow")
@@ -190,11 +233,13 @@ func _do_initialize() -> void:
 		info_rows.append(info_row)
 		info_labels.append(info_row.get_node("InfoLabel") as Label)
 		info_values.append(info_row.get_node("InfoValue") as Label)
+	action_row = details_panel.get_node("Margin/DetailsVBox/ActionRow")
 	_register_action_button("Margin/DetailsVBox/ActionRow/PrimaryActionButton")
 	_register_action_button("Margin/DetailsVBox/ActionRow/SecondaryActionButton")
 	_register_action_button("Margin/DetailsVBox/ActionRow/TertiaryActionButton")
-	_register_action_button("Margin/DetailsVBox/ActionRow/MoreActionButton")
+	_register_action_button("Margin/DetailsVBox/ActionRow/QuaternaryActionButton")
 	_register_action_button("Margin/DetailsVBox/ActionRow/JobsActionButton")
+	_register_action_button("Margin/DetailsVBox/ActionRow/SixthActionButton")
 	details_panel.visible = true
 	_initialized = true
 	_update_panel()
@@ -205,6 +250,7 @@ func _register_action_button(path: String) -> void:
 	if button == null:
 		return
 	button.pressed.connect(_on_action_button_pressed.bind(button))
+	button.gui_input.connect(_on_action_button_gui_input.bind(button))
 	action_buttons.append(button)
 
 
@@ -225,7 +271,10 @@ func _update_panel() -> void:
 
 func _update_empty_panel() -> void:
 	_set_vitals_visible(false)
+	_set_farm_rows_visible(false)
 	_set_info_rows_visible(false)
+	faction_label.visible = true
+	work_label.visible = true
 	name_label.text = "No target"
 	faction_label.text = "Left-click a person, item, or resource"
 	work_label.text = "Inspector ready"
@@ -236,6 +285,9 @@ func _update_empty_panel() -> void:
 
 func _update_humanoid_panel(target: WorldActor) -> void:
 	_set_vitals_visible(true)
+	_set_farm_rows_visible(false)
+	faction_label.visible = true
+	work_label.visible = true
 	var humanoid_info_rows := _get_humanoid_info_rows(target)
 	_set_info_rows_visible(not humanoid_info_rows.is_empty())
 	if not humanoid_info_rows.is_empty():
@@ -319,10 +371,20 @@ func _get_humanoid_law_field(target: WorldActor, field: StringName) -> String:
 	return str(status.get(field)) if status != null else ""
 
 
+## DETAILS PANEL RULE: this is player-facing game UI, never a debug dump.
+## Do not expose class names, node names, script identifiers, generic Object /
+## World Object labels, or placeholder Action / Status rows. Inspectable systems
+## must provide concise authored language that describes what the player sees.
 func _update_world_target_panel(target) -> void:
+	if target != null and target.has_method("get_details_panel_data_at"):
+		_update_farm_target_panel(target)
+		return
 	_set_vitals_visible(false)
+	_set_farm_rows_visible(false)
 	_set_info_rows_visible(true)
 	_clear_bar_values()
+	faction_label.visible = true
+	work_label.visible = true
 	name_label.text = _get_target_display_name(target)
 	faction_label.text = _get_target_subtitle(target)
 	work_label.text = _get_target_detail(target)
@@ -332,10 +394,63 @@ func _update_world_target_panel(target) -> void:
 	_set_actions(_get_world_target_actions(target))
 
 
+func _update_farm_target_panel(target) -> void:
+	_set_vitals_visible(false)
+	_set_info_rows_visible(false)
+	faction_label.visible = false
+	work_label.visible = false
+	var world_position: Vector3 = _current_target_world_position if _has_current_target_world_position else (target.global_position if target is Node3D else Vector3.ZERO)
+	var data: Dictionary = target.call("get_details_panel_data_at", world_position)
+	name_label.text = str(data.get("title", "Soil"))
+	var crop_state := str(data.get("state", ""))
+	state_label.text = crop_state.to_upper()
+	state_label.modulate = _get_farm_state_color(crop_state)
+	var tool_requirement := str(data.get("tool_requirement", ""))
+	tool_requirement_label.text = tool_requirement
+	tool_requirement_label.visible = not tool_requirement.is_empty()
+	var show_bars := bool(data.get("show_crop_bars", false))
+	_set_farm_rows_visible(show_bars)
+	if show_bars:
+		var growth_ratio := clampf(float(data.get("growth_ratio", 0.0)), 0.0, 1.0)
+		var hydration_ratio := clampf(float(data.get("hydration_ratio", 0.0)), 0.0, 1.0)
+		farm_growth_value.text = "%d%%" % int(round(growth_ratio * 100.0))
+		farm_hydration_value.text = "%d%%" % int(round(hydration_ratio * 100.0))
+		_update_fill_bar(farm_growth_stack, farm_growth_fill, growth_ratio, BAR_GOOD_COLOR)
+		_update_fill_bar(farm_hydration_stack, farm_hydration_fill, hydration_ratio, FARM_HYDRATION_COLOR)
+	var actions: Array = []
+	if target.has_method("get_details_panel_actions_at"):
+		actions = target.call("get_details_panel_actions_at", world_position, _get_focused_party_member()) \
+				if target is Node and target.is_in_group("farm_plot") \
+				else target.call("get_details_panel_actions_at", world_position)
+	var routed_actions: Array = []
+	for action_value in actions:
+		var action: Dictionary = (action_value as Dictionary).duplicate()
+		var key := str(action.get("key", ""))
+		if key != "farm_crop_menu" and not key.begins_with(WORLD_ACTION_PREFIX):
+			action["key"] = WORLD_ACTION_PREFIX + key
+		routed_actions.append(action)
+	_set_actions(routed_actions)
+
+
+func _get_farm_state_color(crop_state: String) -> Color:
+	match crop_state:
+		"Alive":
+			return BAR_GOOD_COLOR
+		"Ready for Harvest":
+			return Color(0.88, 0.72, 0.25, 1.0)
+		"Dead":
+			return BAR_DANGER_COLOR
+		_:
+			return Color(0.66, 0.62, 0.52, 1.0)
+
+
 func _get_humanoid_actions(target: WorldActor) -> Array:
 	var actions: Array = []
 	if target.is_player_party_member():
 		actions.append({"key": ACTION_INVENTORY, "label": "Inventory"})
+		var placement = _context.get_optional(&"farm_placement") if _context != null else null
+		if placement != null and placement.has_method("can_begin_manual_till") and bool(placement.call("can_begin_manual_till", target)):
+			actions.append({"key": ACTION_FARM_TILL, "label": "Till"})
 		if _target_can_open_skills():
 			actions.append({"key": ACTION_SKILLS, "label": "Skills"})
 		actions.append({"key": ACTION_JOBS, "label": "Jobs"})
@@ -398,10 +513,13 @@ func _get_world_target_actions(target) -> Array:
 
 
 func _set_actions(actions: Array) -> void:
+	if action_row != null:
+		action_row.visible = not actions.is_empty()
 	for index in range(action_buttons.size()):
 		var button := action_buttons[index]
 		if button == null:
 			continue
+		_set_action_button_destructive(button, false)
 		if index >= actions.size():
 			button.visible = false
 			button.disabled = true
@@ -411,12 +529,28 @@ func _set_actions(actions: Array) -> void:
 		button.visible = true
 		button.text = str(action.get("label", "Action"))
 		button.disabled = bool(action.get("disabled", false))
-		button.set_meta("inspector_action_key", str(action.get("key", "")))
+		var action_key := str(action.get("key", ""))
+		button.set_meta("inspector_action_key", action_key)
+		_set_action_button_destructive(button, action_key == DELETE_FIELD_ACTION)
+
+
+func _set_action_button_destructive(button: Button, destructive: bool) -> void:
+	for color_name in [&"font_color", &"font_hover_color", &"font_pressed_color", &"font_focus_color"]:
+		button.remove_theme_color_override(color_name)
+		if destructive:
+			button.add_theme_color_override(color_name, DESTRUCTIVE_ACTION_COLOR)
 
 
 func _on_action_button_pressed(button: Button) -> void:
 	var action_key := str(button.get_meta("inspector_action_key", ""))
+	var shift_armed := bool(button.get_meta("inspector_shift_armed", false))
+	button.set_meta("inspector_shift_armed", false)
 	if action_key.is_empty():
+		return
+	if action_key == WORLD_ACTION_PREFIX + "farm_plot|till" and shift_armed:
+		action_key = WORLD_ACTION_PREFIX + "farm_plot|till_all"
+	if action_key == "farm_crop_menu":
+		_open_farm_crop_menu(button)
 		return
 	if action_key == ACTION_SKILLS:
 		_on_skills_button_pressed()
@@ -432,10 +566,59 @@ func _on_action_button_pressed(button: Button) -> void:
 	inspector_action_requested.emit(current_target, action_key)
 
 
+func _on_action_button_gui_input(event: InputEvent, button: Button) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		button.set_meta("inspector_shift_armed", event.shift_pressed)
+
+
+func _open_farm_crop_menu(anchor_button: Button) -> void:
+	if not _has_valid_current_target() or not current_target.has_method("get_field_crop_options"):
+		return
+	if _farm_crop_menu == null or not is_instance_valid(_farm_crop_menu):
+		_farm_crop_menu = PopupMenu.new()
+		_farm_crop_menu.name = "FarmCropMenu"
+		(hud_layer if hud_layer != null else details_panel).add_child(_farm_crop_menu)
+		_farm_crop_menu.id_pressed.connect(_on_farm_crop_menu_selected)
+	_farm_crop_menu.clear()
+	_farm_crop_menu_target = current_target
+	var options: Array = current_target.call("get_field_crop_options")
+	for index in options.size():
+		var option: Dictionary = options[index]
+		_farm_crop_menu.add_radio_check_item(str(option.get("label", "Crop")), index)
+		_farm_crop_menu.set_item_metadata(index, str(option.get("crop_id", "")))
+		_farm_crop_menu.set_item_checked(index, bool(option.get("selected", false)))
+	var menu_height := mini(360, maxi(44, options.size() * 30 + 12))
+	var popup_position := Vector2i(
+		roundi(anchor_button.global_position.x),
+		roundi(anchor_button.global_position.y) - menu_height - 96
+	)
+	_farm_crop_menu.popup(Rect2i(popup_position, Vector2i(230, menu_height)))
+
+
+func _on_farm_crop_menu_selected(item_id: int) -> void:
+	if _farm_crop_menu == null or _farm_crop_menu_target == null \
+			or not is_instance_valid(_farm_crop_menu_target):
+		return
+	var item_index := _farm_crop_menu.get_item_index(item_id)
+	if item_index < 0:
+		return
+	var crop_id := str(_farm_crop_menu.get_item_metadata(item_index))
+	inspector_action_requested.emit(_farm_crop_menu_target, WORLD_ACTION_PREFIX + "farm_policy|" + crop_id)
+
+
 func _set_vitals_visible(is_visible: bool) -> void:
 	for row in vital_rows:
 		if row != null:
 			row.visible = is_visible
+
+
+func _set_farm_rows_visible(is_visible: bool) -> void:
+	if farm_growth_row != null:
+		farm_growth_row.visible = is_visible
+	if farm_hydration_row != null:
+		farm_hydration_row.visible = is_visible
+	if not is_visible and tool_requirement_label != null:
+		tool_requirement_label.visible = false
 
 
 func _set_info_rows_visible(is_visible: bool) -> void:
@@ -508,12 +691,7 @@ func _set_world_target_rows(target) -> void:
 			{"label": "Status", "value": _get_target_state_text(target)},
 		])
 		return
-	_set_info_rows([
-		{"label": "Type", "value": _get_target_type_text(target)},
-		{"label": "Ownership", "value": _get_target_owner_text(target)},
-		{"label": "Action", "value": _get_target_requirement_text(target)},
-		{"label": "Status", "value": _get_target_state_text(target)},
-	])
+	_set_info_rows_visible(false)
 
 
 func _set_info_rows(rows: Array) -> void:
@@ -587,9 +765,7 @@ func _get_target_display_name(target) -> String:
 	var display_name := _get_string_property(target, "display_name", "")
 	if not display_name.is_empty():
 		return display_name
-	if target is Node:
-		return target.name.capitalize()
-	return "World Target"
+	return "Unknown"
 
 
 func _get_target_subtitle(target) -> String:
@@ -610,7 +786,7 @@ func _get_target_subtitle(target) -> String:
 		return "Storage"
 	if target is Node and target.is_in_group("world_item"):
 		return "Dropped item"
-	return "World object"
+	return ""
 
 
 func _get_target_detail(target) -> String:
@@ -634,9 +810,8 @@ func _get_target_detail(target) -> String:
 		var owner_text := _get_target_subtitle(target)
 		return owner_text if owner_text != "Dropped item" else "On the ground"
 	if target is Node and target.has_method("get_world_context_actions"):
-		var actions: Array = target.get_world_context_actions(null)
-		return "No available actions" if actions.is_empty() else "Context actions available"
-	return "Right-click for context actions"
+		return ""
+	return ""
 
 
 func _get_target_type_text(target) -> String:
@@ -654,7 +829,7 @@ func _get_target_type_text(target) -> String:
 		return "Bed"
 	if target is Node and target.is_in_group("sittable_seat"):
 		return "Seat"
-	return "Object"
+	return ""
 
 
 func _get_target_owner_text(target) -> String:
@@ -681,8 +856,8 @@ func _get_target_requirement_text(target) -> String:
 	if target is Node and target.is_in_group("world_item"):
 		return "Inventory space"
 	if target is Node and target.has_method("get_world_context_actions"):
-		return "Context action"
-	return "None"
+		return ""
+	return ""
 
 
 func _get_target_state_text(target) -> String:
@@ -701,8 +876,7 @@ func _get_target_state_text(target) -> String:
 		var quantity := _get_int_property(target, "quantity", 1)
 		return "Single" if quantity <= 1 else "x%d" % quantity
 	if target is Node and target.has_method("get_world_context_actions"):
-		var actions: Array = target.get_world_context_actions(null)
-		return "No actions" if actions.is_empty() else "%d actions" % actions.size()
+		return ""
 	return _get_target_state_label(target).capitalize()
 
 
@@ -724,7 +898,7 @@ func _get_target_state_label(target) -> String:
 		return "BED"
 	if target is Node and target.is_in_group("sittable_seat"):
 		return "SEAT"
-	return "OBJECT"
+	return ""
 
 
 func _get_target_state_color(target) -> Color:

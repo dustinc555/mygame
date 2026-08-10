@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Bucket_Wooden_1.gltf" id="1_model"]
+[ext_resource type="Script" path="res://features/world/projection/equipment/grip_point_marker.gd" id="2_grip"]
+
+[node name="BucketModel" type="Node3D"]
+[node name="GripPoint_Primary" type="Marker3D" parent="."]
+position = Vector3(0, 0.28, 0)
+script = ExtResource("2_grip")
+[node name="Model" parent="." instance=ExtResource("1_model")]
+scale = Vector3(0.42, 0.42, 0.42)

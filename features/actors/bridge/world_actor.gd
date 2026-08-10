@@ -652,6 +652,8 @@ func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
 func stop_movement() -> void:
 	_clear_actor_move_target()
 	velocity = Vector3.ZERO
+	_active_player_order = false
+	_clear_move_order_state()
 
 
 func has_move_target() -> bool:
@@ -1673,6 +1675,11 @@ func _on_exit_custody() -> void:
 func get_equipped_item(slot_name: String) -> ItemDefinition:
 	var equipment := get_equipment()
 	return equipment.get_equipped_item(slot_name) if equipment != null else null
+
+
+func can_equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> bool:
+	var equipment := get_equipment()
+	return equipment != null and equipment.can_equip_item_to_slot(definition, slot_name)
 
 
 func equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> ItemDefinition:

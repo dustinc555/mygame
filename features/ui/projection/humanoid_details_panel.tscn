@@ -83,6 +83,14 @@ horizontal_alignment = 2
 vertical_alignment = 1
 text = "IDLE"
 
+[node name="ToolRequirement" type="Label" parent="Margin/DetailsVBox"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.55, 0.5, 1)
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 2
+text = "Requires tool: Scythe"
+
 [node name="Faction" type="Label" parent="Margin/DetailsVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
@@ -193,6 +201,90 @@ theme_override_font_sizes/font_size = 10
 vertical_alignment = 1
 text = "-"
 text_overrun_behavior = 3
+
+[node name="FarmGrowthRow" type="HBoxContainer" parent="Margin/DetailsVBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="GrowthLabel" type="Label" parent="Margin/DetailsVBox/FarmGrowthRow"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
+theme_override_font_sizes/font_size = 9
+vertical_alignment = 1
+text = "Growth"
+
+[node name="GrowthBarFrame" type="PanelContainer" parent="Margin/DetailsVBox/FarmGrowthRow"]
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_hp_frame")
+
+[node name="GrowthBarStack" type="Control" parent="Margin/DetailsVBox/FarmGrowthRow/GrowthBarFrame"]
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="GrowthFill" type="ColorRect" parent="Margin/DetailsVBox/FarmGrowthRow/GrowthBarFrame/GrowthBarStack"]
+offset_right = 160.0
+offset_bottom = 14.0
+color = Color(0.47, 0.78, 0.43, 1)
+
+[node name="GrowthValue" type="Label" parent="Margin/DetailsVBox/FarmGrowthRow/GrowthBarFrame/GrowthBarStack"]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_colors/font_color = Color(0.96, 0.95, 0.92, 1)
+theme_override_colors/font_outline_color = Color(0.05, 0.05, 0.05, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 9
+text = "0%"
+
+[node name="FarmHydrationRow" type="HBoxContainer" parent="Margin/DetailsVBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="HydrationLabel" type="Label" parent="Margin/DetailsVBox/FarmHydrationRow"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.58, 0.56, 0.5, 1)
+theme_override_font_sizes/font_size = 9
+vertical_alignment = 1
+text = "Hydration"
+
+[node name="HydrationBarFrame" type="PanelContainer" parent="Margin/DetailsVBox/FarmHydrationRow"]
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_hp_frame")
+
+[node name="HydrationBarStack" type="Control" parent="Margin/DetailsVBox/FarmHydrationRow/HydrationBarFrame"]
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="HydrationFill" type="ColorRect" parent="Margin/DetailsVBox/FarmHydrationRow/HydrationBarFrame/HydrationBarStack"]
+offset_right = 160.0
+offset_bottom = 14.0
+color = Color(0.15, 0.56, 0.95, 1)
+
+[node name="HydrationValue" type="Label" parent="Margin/DetailsVBox/FarmHydrationRow/HydrationBarFrame/HydrationBarStack"]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_colors/font_color = Color(0.96, 0.95, 0.92, 1)
+theme_override_colors/font_outline_color = Color(0.05, 0.05, 0.05, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 9
+text = "0%"
 
 [node name="HungerRow" type="HBoxContainer" parent="Margin/DetailsVBox"]
 layout_mode = 2
@@ -397,13 +489,13 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_button_flat")
 theme_override_font_sizes/font_size = 10
 text = "Action"
 
-[node name="MoreActionButton" type="Button" parent="Margin/DetailsVBox/ActionRow"]
+[node name="QuaternaryActionButton" type="Button" parent="Margin/DetailsVBox/ActionRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
 theme_override_styles/normal = SubResource("StyleBoxFlat_button_flat")
 theme_override_font_sizes/font_size = 10
-text = "More"
+text = "Action"
 
 [node name="JobsActionButton" type="Button" parent="Margin/DetailsVBox/ActionRow"]
 layout_mode = 2
@@ -412,3 +504,11 @@ focus_mode = 0
 theme_override_styles/normal = SubResource("StyleBoxFlat_button_flat")
 theme_override_font_sizes/font_size = 10
 text = "Jobs"
+
+[node name="SixthActionButton" type="Button" parent="Margin/DetailsVBox/ActionRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_flat")
+theme_override_font_sizes/font_size = 10
+text = "Action"

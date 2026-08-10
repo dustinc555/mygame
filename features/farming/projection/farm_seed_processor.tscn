@@ -1,0 +1,37 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://features/farming/projection/farm_seed_processor.gd" id="1_script"]
+
+[sub_resource type="BoxShape3D" id="CylinderShape_seed"]
+size = Vector3(1.1, 1.25, 1.1)
+
+[sub_resource type="StandardMaterial3D" id="BarrelMaterial"]
+albedo_color = Color(0.32, 0.16, 0.07, 1)
+roughness = 0.9
+
+[sub_resource type="CylinderMesh" id="BarrelMesh"]
+top_radius = 0.52
+bottom_radius = 0.58
+height = 1.18
+radial_segments = 20
+material = SubResource("BarrelMaterial")
+
+[node name="FarmSeedProcessor" type="StaticBody3D"]
+script = ExtResource("1_script")
+display_name = "Seed Processing Barrel"
+container_kind = "seed_processing"
+contributes_to_town_stock = false
+inventory_columns = 8
+inventory_rows = 6
+collision_shape = SubResource("CylinderShape_seed")
+collision_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CylinderShape_seed")
+position = Vector3(0, 0.62, 0)
+
+[node name="ModelRoot" type="Node3D" parent="."]
+
+[node name="Barrel" type="MeshInstance3D" parent="ModelRoot"]
+position = Vector3(0, 0.59, 0)
+mesh = SubResource("BarrelMesh")

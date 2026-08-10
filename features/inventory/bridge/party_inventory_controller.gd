@@ -172,6 +172,7 @@ func _ensure_inventory_window(inventory_owner):
 	window.notice_requested.connect(_show_floating_notice)
 	window.transfer_requested.connect(_on_inventory_transfer_requested)
 	window.quick_transfer_requested.connect(_on_inventory_quick_transfer_requested)
+	window.quick_equip_requested.connect(_on_inventory_quick_equip_requested)
 	window.item_action_requested.connect(_on_inventory_item_action_requested)
 	window.equip_requested.connect(_on_inventory_equip_requested)
 	window.equipment_transfer_requested.connect(_on_equipment_transfer_requested)
@@ -504,9 +505,14 @@ func _on_inventory_equip_requested(source_owner, entry, target_owner, slot_name:
 	var target_inventory = _get_owner_inventory(target_owner)
 	if source_inventory == null or target_inventory == null or not source_inventory.entries.has(entry):
 		return
+	var replaced_item: ItemDefinition = target_equipment.get_equipped_item(slot_name)
+	var replaced_stack_id := target_equipment.get_equipped_stack_id(slot_name)
+	if source_owner == target_owner and replaced_item != null \
+			and not _can_store_replaced_after_entry_removal(source_inventory, entry, replaced_item, replaced_stack_id):
+		_show_floating_notice("No room for equipped item")
+		return
 	if not _try_pay_for_equipment_transfer(source_owner, target_owner, entry):
 		return
-	var replaced_stack_id := target_equipment.get_equipped_stack_id(slot_name)
 	var replaced = target_equipment.equip_item_to_slot(entry.definition, slot_name, str(entry.stack_id))
 	if not source_inventory.remove_entry(entry):
 		target_equipment.unequip_item_from_slot(slot_name)
@@ -518,6 +524,60 @@ func _on_inventory_equip_requested(source_owner, entry, target_owner, slot_name:
 		var replaced_snapshot := _stack_snapshot(replaced_stack_id)
 		_start_cursor_item_drag(target_owner, replaced, 1, replaced_snapshot.get("contained_item_counts", {}), replaced_snapshot.get("metadata", {}), replaced_stack_id)
 	_refresh_inventory_windows_for(source_owner, target_owner)
+
+
+func _on_inventory_quick_equip_requested(inventory_owner, entry) -> void:
+	if inventory_owner == null or entry == null or entry.definition == null:
+		return
+	if _first_other_inventory_window(inventory_owner) != null:
+		_on_inventory_quick_transfer_requested(inventory_owner, entry)
+		return
+	var equipment := _get_owner_equipment(inventory_owner)
+	if equipment == null:
+		return
+	var slot_name := _preferred_compatible_equipment_slot(inventory_owner, equipment, entry.definition)
+	if slot_name.is_empty():
+		return
+	_on_inventory_equip_requested(inventory_owner, entry, inventory_owner, slot_name)
+
+
+func _preferred_compatible_equipment_slot(inventory_owner, equipment, definition: ItemDefinition) -> String:
+	if definition == null or equipment == null:
+		return ""
+	var candidates: Array[String] = []
+	if not definition.equip_slot.is_empty():
+		candidates.append(definition.equip_slot)
+	for slot_value in definition.alternate_equip_slots:
+		var alternate_slot := str(slot_value)
+		if not alternate_slot.is_empty() and not candidates.has(alternate_slot):
+			candidates.append(alternate_slot)
+	if inventory_owner != null and inventory_owner.has_method("get_equipment_slot_names"):
+		for slot_value in inventory_owner.get_equipment_slot_names():
+			var actor_slot := str(slot_value)
+			if not candidates.has(actor_slot):
+				candidates.append(actor_slot)
+	for candidate in candidates:
+		if equipment.can_equip_item_to_slot(definition, candidate):
+			return candidate
+	return ""
+
+
+func _can_store_replaced_after_entry_removal(inventory, incoming_entry, replaced: ItemDefinition, replaced_stack_id: String) -> bool:
+	if inventory == null or incoming_entry == null or replaced == null:
+		return false
+	var snapshot := _stack_snapshot(replaced_stack_id)
+	var replaced_count := int(snapshot.get("count", 1))
+	var replaced_contents: Dictionary = snapshot.get("contained_item_counts", {})
+	if inventory.use_weight:
+		var incoming_weight: float = inventory.get_item_weight(incoming_entry.definition, int(incoming_entry.count), incoming_entry.contained_item_counts)
+		var replaced_weight: float = inventory.get_item_weight(replaced, replaced_count, replaced_contents)
+		if inventory.get_total_weight() - incoming_weight + replaced_weight > inventory.max_weight:
+			return false
+	for y in range(inventory.rows - replaced.grid_size.y + 1):
+		for x in range(inventory.columns - replaced.grid_size.x + 1):
+			if inventory.can_place_item(replaced, Vector2i(x, y), incoming_entry):
+				return true
+	return false
 
 
 func _on_equipment_transfer_requested(source_owner, source_slot_name: String, target_owner, target_slot_name: String) -> void:

@@ -250,7 +250,55 @@ func remove_item_count(definition, amount: int) -> bool:
 	return _remove_standard_item_count(definition, amount)
 
 
-func _remove_standard_item_count(definition, amount: int) -> bool:
+## Atomically replaces one standard item count with another and emits one
+## observer-visible mutation. Used by processors where removing the input may
+## be what frees the output slot.
+func can_exchange_item_counts(remove_definition, remove_amount: int, add_definition, add_amount: int) -> bool:
+	if remove_definition == null or add_definition == null or remove_amount <= 0 or add_amount <= 0:
+		return false
+	if _is_silver_currency(remove_definition) or _is_silver_currency(add_definition):
+		return false
+	var snapshot := _snapshot_standard_transaction()
+	var possible := _remove_standard_item_count(remove_definition, remove_amount, false) \
+			and _add_standard_item_count(add_definition, add_amount, false)
+	_restore_standard_transaction(snapshot)
+	return possible
+
+
+func exchange_item_counts(remove_definition, remove_amount: int, add_definition, add_amount: int) -> bool:
+	if remove_definition == null or add_definition == null or remove_amount <= 0 or add_amount <= 0:
+		return false
+	if _is_silver_currency(remove_definition) or _is_silver_currency(add_definition):
+		return false
+	var snapshot := _snapshot_standard_transaction()
+	if not _remove_standard_item_count(remove_definition, remove_amount, false) \
+			or not _add_standard_item_count(add_definition, add_amount, false):
+		_restore_standard_transaction(snapshot)
+		return false
+	changed.emit()
+	return true
+
+
+## Atomically moves standard items between inventories. Neither inventory
+## exposes an intermediate removed-only state to persistence observers.
+func transfer_item_count_to(definition, amount: int, target_inventory) -> bool:
+	if definition == null or amount <= 0 or target_inventory == null or target_inventory == self:
+		return false
+	if _is_silver_currency(definition) or not target_inventory.has_method("_add_standard_item_count"):
+		return false
+	var source_snapshot := _snapshot_standard_transaction()
+	var target_snapshot: Dictionary = target_inventory.call("_snapshot_standard_transaction")
+	if not _remove_standard_item_count(definition, amount, false) \
+			or not bool(target_inventory.call("_add_standard_item_count", definition, amount, false)):
+		_restore_standard_transaction(source_snapshot)
+		target_inventory.call("_restore_standard_transaction", target_snapshot)
+		return false
+	changed.emit()
+	target_inventory.changed.emit()
+	return true
+
+
+func _remove_standard_item_count(definition, amount: int, emit_changed := true) -> bool:
 	if definition == null or amount <= 0:
 		return false
 	if count_item(definition) < amount:
@@ -266,10 +314,37 @@ func _remove_standard_item_count(definition, amount: int) -> bool:
 		if entry.count <= 0:
 			entries.remove_at(index)
 		if remaining <= 0:
-			changed.emit()
+			if emit_changed:
+				changed.emit()
 			return true
-	changed.emit()
+	if emit_changed:
+		changed.emit()
 	return true
+
+
+func _snapshot_standard_transaction() -> Dictionary:
+	var copied_entries: Array[InventoryEntry] = []
+	for entry in entries:
+		if entry == null:
+			continue
+		copied_entries.append(InventoryEntry.new(
+			entry.definition,
+			entry.grid_position,
+			entry.count,
+			entry.contained_item_counts,
+			entry.metadata,
+			entry.stack_id
+		))
+	return {"entries": copied_entries, "next_stack_sequence": next_stack_sequence}
+
+
+func _restore_standard_transaction(snapshot: Dictionary) -> void:
+	var restored: Array[InventoryEntry] = []
+	for entry in snapshot.get("entries", []):
+		if entry is InventoryEntry:
+			restored.append(entry)
+	entries = restored
+	next_stack_sequence = int(snapshot.get("next_stack_sequence", next_stack_sequence))
 
 
 func get_entry_weight(entry) -> float:

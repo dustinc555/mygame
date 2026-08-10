@@ -27,6 +27,7 @@ const ACTORS_MODULE := preload("res://features/actors/actors_module.gd")
 const AI_MODULE := preload("res://features/ai/ai_module.gd")
 const SETTLEMENTS_MODULE := preload("res://features/settlements/settlements_module.gd")
 const INVENTORY_MODULE := preload("res://features/inventory/inventory_module.gd")
+const FARMING_MODULE := preload("res://features/farming/farming_module.gd")
 const CONVERSATION_MODULE := preload("res://features/conversation/conversation_module.gd")
 const UI_MODULE := preload("res://features/ui/ui_module.gd")
 const DOORS_MODULE := preload("res://features/doors/doors_module.gd")
@@ -44,6 +45,7 @@ const MODULES := [
 	AI_MODULE,
 	SETTLEMENTS_MODULE,
 	INVENTORY_MODULE,
+	FARMING_MODULE,
 	DOORS_MODULE,
 	CONVERSATION_MODULE,
 	UI_MODULE,

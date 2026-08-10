@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://3qxhv78dnp0r"]
 
-[ext_resource type="Script" path="res://tools/animation_browser/animation_browser.gd" id="1_browser"]
+[ext_resource type="Script" uid="uid://blld2bhgac3u6" path="res://tools/animation_browser/animation_browser.gd" id="1_browser"]
 
-[node name="AnimationBrowser" type="Node3D"]
+[node name="AnimationBrowser" type="Node3D" unique_id=461163352]
 script = ExtResource("1_browser")
