@@ -36,7 +36,9 @@ var _tools: RefCounted
 var _facility: Node
 var _updating := false
 var _placeholder: Label
-var _content: HBoxContainer
+var _content: VBoxContainer
+var _tabs: TabContainer
+var _top_row: HBoxContainer
 var _identity_box: VBoxContainer
 var _shell_list: VBoxContainer
 var _furniture_text: RichTextLabel
@@ -52,28 +54,40 @@ var _reroll_button: Button
 var _place_furniture_button: Button
 var _clear_furniture_check: CheckBox
 var _people_box: VBoxContainer
+var _people_add_button: Button
 var _icon_cache := {}
 
 
 func setup(tools: RefCounted) -> void:
 	_tools = tools
-	custom_minimum_size = Vector2(0, 220)
+	custom_minimum_size = Vector2(0, 460)
 	_placeholder = Label.new()
 	_placeholder.text = "Select a facility (a building under a town's Facilities root) to edit it here."
 	_placeholder.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_placeholder.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	add_child(_placeholder)
-	_content = HBoxContainer.new()
+	_content = VBoxContainer.new()
 	_content.add_theme_constant_override("separation", 14)
 	_content.visible = false
 	add_child(_content)
+	_tabs = TabContainer.new()
+	_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_content.add_child(_tabs)
+	_top_row = HBoxContainer.new()
+	_top_row.name = "General"
+	_top_row.add_theme_constant_override("separation", 14)
+	_top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_top_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_tabs.add_child(_top_row)
 	var identity_scroll := ScrollContainer.new()
-	identity_scroll.custom_minimum_size = Vector2(340, 0)
+	identity_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	identity_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	identity_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_identity_box = VBoxContainer.new()
 	_identity_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	identity_scroll.add_child(_identity_box)
-	_content.add_child(identity_scroll)
+	_top_row.add_child(identity_scroll)
 	var shell_column := VBoxContainer.new()
 	shell_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	shell_column.add_child(_section_title("Building Shell (click to swap)"))
@@ -88,16 +102,47 @@ func setup(tools: RefCounted) -> void:
 	_shell_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	shell_scroll.add_child(_shell_list)
 	shell_column.add_child(shell_scroll)
-	_content.add_child(shell_column)
+	_top_row.add_child(shell_column)
+	var furniture_tab := _build_furniture_column()
+	furniture_tab.name = "Furniture"
+	_tabs.add_child(furniture_tab)
+	var people_tab := VBoxContainer.new()
+	people_tab.name = "People"
+	people_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	people_tab.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	people_tab.add_theme_constant_override("separation", 8)
+	_tabs.add_child(people_tab)
+	var people_toolbar := HBoxContainer.new()
+	var people_hint := Label.new()
+	people_hint.text = "Facility assignments"
+	people_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	people_toolbar.add_child(people_hint)
+	_people_add_button = Button.new()
+	_people_add_button.text = "+ Add Person"
+	_people_add_button.tooltip_text = "Add one stable facility role slot."
+	_people_add_button.pressed.connect(_add_person)
+	people_toolbar.add_child(_people_add_button)
+	people_tab.add_child(people_toolbar)
+	var headings := HBoxContainer.new()
+	headings.add_theme_constant_override("separation", 5)
+	for heading in [{"text": "Role", "width": 130}, {"text": "Character", "width": 240}, {"text": "", "width": 32}, {"text": "Status", "width": 48}]:
+		var label := Label.new()
+		label.text = heading.text
+		label.custom_minimum_size = Vector2(heading.width, 0)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL if heading.text in ["Role", "Character"] else Control.SIZE_SHRINK_BEGIN
+		label.add_theme_font_size_override("font_size", 13)
+		label.modulate = Color(0.78, 0.81, 0.86)
+		headings.add_child(label)
+	people_tab.add_child(headings)
 	var people_scroll := ScrollContainer.new()
-	people_scroll.custom_minimum_size = Vector2(360, 0)
+	people_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	people_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	people_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_people_box = VBoxContainer.new()
 	_people_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_people_box.add_theme_constant_override("separation", 5)
 	people_scroll.add_child(_people_box)
-	_content.add_child(people_scroll)
-	_content.add_child(_build_furniture_column())
+	people_tab.add_child(people_scroll)
 
 
 ## Dedicated Furniture column: generation (Furnish/Reroll) and hand placement
@@ -107,15 +152,13 @@ func setup(tools: RefCounted) -> void:
 func _build_furniture_column() -> Control:
 	var furniture_column := VBoxContainer.new()
 	furniture_column.custom_minimum_size = Vector2(320, 0)
+	furniture_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	furniture_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	furniture_column.add_child(_section_title("Furniture"))
 	# Which furnish recipe Furnish/Reroll will use is authoring truth, so it
 	# is shown up front instead of hiding in the path convention: resolution
 	# is facility override -> faction/type -> type -> default.
 	var furnisher_row := HBoxContainer.new()
 	_furnisher_label = Label.new()
-	_furnisher_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_furnisher_label.clip_text = true
 	furnisher_row.add_child(_furnisher_label)
 	_open_rules_button = Button.new()
 	_open_rules_button.text = "Open"
@@ -207,8 +250,7 @@ func _rebuild_identity() -> void:
 	for child in _identity_box.get_children():
 		_identity_box.remove_child(child)
 		child.queue_free()
-	var facility_label := str(_facility.get("display_name")).strip_edges() if _facility.get("display_name") != null else ""
-	_identity_box.add_child(_section_title("%s  —  composed facility" % (facility_label if not facility_label.is_empty() else _facility.name)))
+	_identity_box.add_child(_section_title("Identity"))
 	if _facility.get("display_name") != null:
 		_identity_box.add_child(_facility_name_field(str(_facility.get("display_name"))))
 	var shell_path: String = _tools.current_shell_path(_facility)
@@ -481,23 +523,15 @@ func _rebuild_people() -> void:
 	for child in _people_box.get_children():
 		_people_box.remove_child(child)
 		child.queue_free()
-	_people_box.add_child(_section_title("People"))
 	if not _has_property(_facility, "role_slots"):
+		_people_add_button.disabled = true
 		_people_box.add_child(_inline_message("Facility does not expose role_slots.", true))
 		return
 	var roles := _role_catalog()
+	_people_add_button.disabled = roles.is_empty()
+	_people_add_button.tooltip_text = "Add one stable facility role slot." if not roles.is_empty() else "No registered role resources found."
 	var characters := _character_catalog()
 	var slots: Array = _facility.get("role_slots")
-	var headings := HBoxContainer.new()
-	for heading in [{"text": "Role", "width": 130}, {"text": "Character", "width": 150}, {"text": "", "width": 28}, {"text": "Status", "width": 36}]:
-		var label := Label.new()
-		label.text = heading.text
-		label.custom_minimum_size = Vector2(heading.width, 0)
-		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL if heading.text in ["Role", "Character"] else Control.SIZE_SHRINK_BEGIN
-		label.add_theme_font_size_override("font_size", 11)
-		label.modulate = Color(0.68, 0.72, 0.78)
-		headings.add_child(label)
-	_people_box.add_child(headings)
 	var slot_id_counts := {}
 	var local_assignments := {}
 	for slot in slots:
@@ -513,13 +547,6 @@ func _rebuild_people() -> void:
 		_people_box.add_child(_inline_message("No people assigned.", false))
 	for index in range(slots.size()):
 		_people_box.add_child(_person_row(index, slots[index] as Resource, roles, characters, slot_id_counts, local_assignments, scene_assignments))
-	var add_button := Button.new()
-	add_button.text = "+ Add Person"
-	add_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	add_button.disabled = roles.is_empty()
-	add_button.tooltip_text = "Add one stable facility role slot." if not roles.is_empty() else "No registered role resources found."
-	add_button.pressed.connect(_add_person)
-	_people_box.add_child(add_button)
 
 
 func _person_row(index: int, slot: Resource, roles: Array[Resource], characters: Array[Resource], slot_id_counts: Dictionary, local_assignments: Dictionary, scene_assignments: Dictionary) -> Control:
@@ -548,37 +575,25 @@ func _person_row(index: int, slot: Resource, roles: Array[Resource], characters:
 	role_option.tooltip_text = "Registered facility role"
 	role_option.item_selected.connect(func(selected: int): _set_person_value(index, "role", role_option.get_item_metadata(selected)))
 	row.add_child(role_option)
-	var character_option := OptionButton.new()
 	var current_character := slot.get("named_character") as Resource
-	var character_selected := 0
-	var character_registered := current_character == null
-	character_option.add_item("Auto")
-	character_option.set_item_metadata(0, null)
-	for character in characters:
-		character_option.add_item(_character_name(character))
-		character_option.set_item_metadata(character_option.item_count - 1, character)
-		if _same_resource(character, current_character):
-			character_selected = character_option.item_count - 1
-			character_registered = true
-	if not character_registered:
-		character_option.add_item("Missing: %s" % _resource_label(current_character, "character"))
-		character_option.set_item_metadata(character_option.item_count - 1, current_character)
-		character_selected = character_option.item_count - 1
-	character_option.selected = character_selected
-	character_option.custom_minimum_size = Vector2(150, 0)
-	character_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	character_option.tooltip_text = "Auto realizes a suitable person; named entries bind that authored actor."
-	character_option.item_selected.connect(func(selected: int): _set_person_value(index, "named_character", character_option.get_item_metadata(selected)))
-	row.add_child(character_option)
+	var character_registered := current_character == null or _catalog_has_resource(characters, current_character)
+	var character_button := Button.new()
+	character_button.text = "Auto Generate" if current_character == null else (_character_name(current_character) if character_registered else "Missing: %s" % _resource_label(current_character, "character"))
+	character_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	character_button.custom_minimum_size = Vector2(240, 0)
+	character_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	character_button.tooltip_text = "Search authored characters, or choose Auto Generate to create a suitable person."
+	character_button.pressed.connect(func(): _show_character_picker(character_button, index, current_character, characters))
+	row.add_child(character_button)
 	var remove := Button.new()
-	remove.text = "x"
-	remove.custom_minimum_size = Vector2(28, 0)
+	remove.text = "×"
+	remove.custom_minimum_size = Vector2(32, 0)
 	remove.tooltip_text = "Remove this person"
 	remove.pressed.connect(func(): _remove_person(index))
 	row.add_child(remove)
 	var issues := _person_issues(slot, current_role, current_character, roles, characters, slot_id_counts, local_assignments, scene_assignments)
 	var status := Label.new()
-	status.custom_minimum_size = Vector2(36, 0)
+	status.custom_minimum_size = Vector2(48, 0)
 	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status.text = "ERR" if not issues.error.is_empty() else ("WARN" if not issues.warning.is_empty() else "OK")
 	status.modulate = Color(1.0, 0.38, 0.32) if not issues.error.is_empty() else (Color(1.0, 0.72, 0.28) if not issues.warning.is_empty() else Color(0.55, 0.86, 0.62))
@@ -590,6 +605,68 @@ func _person_row(index: int, slot: Resource, roles: Array[Resource], characters:
 	for message in issues.warning:
 		column.add_child(_inline_message(message, false))
 	return column
+
+
+func _show_character_picker(anchor: Control, slot_index: int, current_character: Resource, characters: Array[Resource]) -> void:
+	var popup := PopupPanel.new()
+	popup.name = "CharacterPickerPopup"
+	add_child(popup)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 10)
+	popup.add_child(margin)
+	var column := VBoxContainer.new()
+	column.custom_minimum_size = Vector2(360, 300)
+	column.add_theme_constant_override("separation", 8)
+	margin.add_child(column)
+	var search := LineEdit.new()
+	search.placeholder_text = "Search characters..."
+	search.clear_button_enabled = true
+	column.add_child(search)
+	var character_list := ItemList.new()
+	character_list.name = "CharacterList"
+	character_list.select_mode = ItemList.SELECT_SINGLE
+	character_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_child(character_list)
+	var refresh_list := func(query: String):
+		_populate_character_list(character_list, characters, query, current_character)
+	search.text_changed.connect(refresh_list)
+	character_list.item_selected.connect(func(item_index: int):
+		var selected_character := character_list.get_item_metadata(item_index) as Resource
+		popup.hide()
+		_set_person_value(slot_index, "named_character", selected_character)
+	)
+	popup.popup_hide.connect(func(): popup.queue_free())
+	refresh_list.call("")
+	var anchor_position := anchor.get_screen_position()
+	var popup_width := maxi(380, int(anchor.size.x))
+	popup.popup(Rect2i(Vector2i(int(anchor_position.x), int(anchor_position.y + anchor.size.y)), Vector2i(popup_width, 340)))
+	search.grab_focus.call_deferred()
+
+
+func _populate_character_list(character_list: ItemList, characters: Array[Resource], query: String, current_character: Resource) -> void:
+	character_list.clear()
+	var auto_index := character_list.add_item("Auto Generate")
+	character_list.set_item_metadata(auto_index, null)
+	if current_character == null:
+		character_list.select(auto_index)
+	for character in characters:
+		if not _character_matches_search(character, query):
+			continue
+		var item_index := character_list.add_item(_character_name(character))
+		character_list.set_item_metadata(item_index, character)
+		if _same_resource(character, current_character):
+			character_list.select(item_index)
+			character_list.ensure_current_is_visible()
+
+
+func _character_matches_search(character: Resource, query: String) -> bool:
+	var normalized_query := query.strip_edges().to_lower()
+	if normalized_query.is_empty():
+		return true
+	return _character_name(character).to_lower().contains(normalized_query) or _character_id(character).to_lower().contains(normalized_query)
 
 
 func _person_issues(slot: Resource, role: Resource, character: Resource, roles: Array[Resource], characters: Array[Resource], slot_id_counts: Dictionary, local_assignments: Dictionary, scene_assignments: Dictionary) -> Dictionary:
