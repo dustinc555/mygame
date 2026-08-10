@@ -5,6 +5,7 @@ class_name InventoryWindow
 signal close_requested(inventory_owner)
 signal transfer_requested(source_owner, target_owner, entry, target_cell)
 signal quick_transfer_requested(inventory_owner, entry)
+signal quick_equip_requested(inventory_owner, entry)
 signal notice_requested(message)
 signal item_action_requested(inventory_owner, entry, action)
 signal equip_requested(source_owner, entry, target_owner, slot_name)
@@ -53,6 +54,7 @@ func _ready() -> void:
 	inventory_grid.drop_validator = Callable(self, "_can_accept_drop")
 	inventory_grid.drop_handler = Callable(self, "_handle_drop")
 	inventory_grid.drop_error_provider = Callable(self, "_get_drop_error")
+	inventory_grid.item_clicked.connect(_on_inventory_item_clicked)
 	inventory_grid.item_right_clicked.connect(_on_inventory_item_right_clicked)
 	inventory_grid.invalid_drop_attempted.connect(_on_invalid_drop_attempted)
 	inventory_grid.item_dropped_outside.connect(_on_inventory_item_dropped_outside)
@@ -187,6 +189,12 @@ func _on_inventory_item_right_clicked(entry, _local_position: Vector2, shift_pre
 	var popup_position := inventory_grid.get_global_position() + item_rect.position + Vector2(item_rect.size.x + 8.0, 0.0)
 	item_menu.position = Vector2i(popup_position)
 	item_menu.popup()
+
+
+func _on_inventory_item_clicked(entry, shift_pressed: bool) -> void:
+	if inventory_owner == null or entry == null or not shift_pressed:
+		return
+	quick_equip_requested.emit(inventory_owner, entry)
 
 
 func _on_invalid_drop_attempted(message: String) -> void:

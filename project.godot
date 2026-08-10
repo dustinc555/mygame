@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="MyGame"
-run/main_scene="uid://nnujv16cqkau"
+run/main_scene="uid://bda5nml7ybwhg"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
@@ -23,8 +23,8 @@ config/icon="res://icon.svg"
 
 LimboDebuggerShutdownGuard="*res://tools/debug/limbo_debugger_shutdown_guard.gd"
 GameDebug="*res://tools/game_debug.gd"
-ECS="*uid://dfqwl5njvdnmq"
 MCPGameBridge="res://addons/godot_mcp/game_bridge/mcp_game_bridge.gd"
+ECS="*uid://dfqwl5njvdnmq"
 
 [display]
 

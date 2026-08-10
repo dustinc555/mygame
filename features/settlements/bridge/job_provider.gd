@@ -64,6 +64,10 @@ func get_provider_name() -> String:
 	return provider.member_name if provider != null else str(name)
 
 
+func get_provider_id() -> String:
+	return _provider_id()
+
+
 func get_greeting_text_for(worker: WorldActor, fallback: String) -> String:
 	var record := _get_worker_record(worker)
 	if float(record.get("total_worked_seconds", 0.0)) >= greeting_return_threshold_seconds:
@@ -870,6 +874,9 @@ func _is_player_party_worker(worker: WorldActor) -> bool:
 
 func _is_worker_listening_for_server_shift(worker: WorldActor) -> bool:
 	if worker == null or not is_instance_valid(worker) or worker.life_state != NpcRules.LifeState.ALIVE or worker.is_in_combat():
+		return false
+	var ranked_jobs := BootstrapContext.service(JobSystemController.SERVICE_ID)
+	if ranked_jobs == null or not ranked_jobs.has_method("is_actor_jobs_enabled") or not bool(ranked_jobs.call("is_actor_jobs_enabled", worker)):
 		return false
 	var service_area := _resolve_bar_service_area()
 	return service_area != null and _is_worker_near_service_area(worker, service_area)

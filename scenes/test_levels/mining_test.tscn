@@ -11,26 +11,26 @@
 [ext_resource type="Script" uid="uid://bid84rrfurtuw" path="res://features/settlements/bridge/merchant_role.gd" id="8_role"]
 [ext_resource type="Script" uid="uid://cwebktnxurrer" path="res://features/inventory/resources/items/merchant_price.gd" id="9_price_script"]
 [ext_resource type="Script" uid="uid://dsk8y40jpriw8" path="res://features/inventory/resources/items/merchant_stock.gd" id="10_stock_script"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/copper_ore.tres" id="11_copper_item"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/silver.tres" id="12_silver"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/food.tres" id="13_food"]
+[ext_resource type="Resource" uid="uid://c24tlcnkcfnv4" path="res://features/inventory/resources/items/copper_ore.tres" id="11_copper_item"]
+[ext_resource type="Resource" uid="uid://bhx1scgadb5d7" path="res://features/inventory/resources/items/silver.tres" id="12_silver"]
+[ext_resource type="Resource" uid="uid://cighg4y750kcr" path="res://features/inventory/resources/items/food.tres" id="13_food"]
 [ext_resource type="Resource" uid="uid://6ec7t6l86odf" path="res://features/conversation/resources/jim_intro.tres" id="14_jim_conversation"]
 [ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://features/inventory/resources/items/inventory_stock.gd" id="16_inventory_stock"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/bandage.tres" id="17_bandage"]
+[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://features/inventory/resources/items/bandage.tres" id="17_bandage"]
 [ext_resource type="PackedScene" path="res://features/world/projection/buildings/deprecated/initial_buildings/tiny_house.tscn" id="18_house"]
 [ext_resource type="PackedScene" path="res://features/world/projection/buildings/deprecated/initial_buildings/two_story_house.tscn" id="19_two_story_house"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/iron_sword.tres" id="20_sword"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/iron_axe.tres" id="21_axe"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/iron_dagger.tres" id="32_dagger"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/rusted_pickaxe.tres" id="33_rusted_pickaxe"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/ranger_hood.tres" id="22_hood"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/round_shield.tres" id="23_shield"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/ranger_jerkin.tres" id="24_ranger_jerkin"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/ranger_leggings.tres" id="25_ranger_leggings"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/ranger_boots.tres" id="27_ranger_boots"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/peasant_tunic.tres" id="28_peasant_tunic"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/peasant_trousers.tres" id="29_peasant_trousers"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/peasant_shoes.tres" id="31_peasant_shoes"]
+[ext_resource type="Resource" uid="uid://bkw28d3jsab1n" path="res://features/inventory/resources/items/iron_sword.tres" id="20_sword"]
+[ext_resource type="Resource" uid="uid://c0avcbruqei8v" path="res://features/inventory/resources/items/iron_axe.tres" id="21_axe"]
+[ext_resource type="Resource" uid="uid://ce37ea6u42yu7" path="res://features/inventory/resources/items/ranger_hood.tres" id="22_hood"]
+[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://features/inventory/resources/items/round_shield.tres" id="23_shield"]
+[ext_resource type="Resource" uid="uid://dobeoitcyev7o" path="res://features/inventory/resources/items/ranger_jerkin.tres" id="24_ranger_jerkin"]
+[ext_resource type="Resource" uid="uid://d2aqrvmv6ajlq" path="res://features/inventory/resources/items/ranger_leggings.tres" id="25_ranger_leggings"]
+[ext_resource type="Resource" uid="uid://co4qqg3dq7m2u" path="res://features/inventory/resources/items/ranger_boots.tres" id="27_ranger_boots"]
+[ext_resource type="Resource" uid="uid://dl6mt20md0f0h" path="res://features/inventory/resources/items/peasant_tunic.tres" id="28_peasant_tunic"]
+[ext_resource type="Resource" uid="uid://b1tg50i80y8xm" path="res://features/inventory/resources/items/peasant_trousers.tres" id="29_peasant_trousers"]
+[ext_resource type="Resource" uid="uid://dc3425jyf5t2g" path="res://features/inventory/resources/items/peasant_shoes.tres" id="31_peasant_shoes"]
+[ext_resource type="Resource" uid="uid://cc26yahy7c18b" path="res://features/inventory/resources/items/iron_dagger.tres" id="32_dagger"]
+[ext_resource type="Resource" uid="uid://cwnykqcx0ckbg" path="res://features/inventory/resources/items/rusted_pickaxe.tres" id="33_rusted_pickaxe"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(70, 1, 70)
@@ -157,7 +157,6 @@ sell_price = 6
 [sub_resource type="Resource" id="MerchantPrice_peasant_shoes"]
 script = ExtResource("9_price_script")
 item_definition = ExtResource("31_peasant_shoes")
-buy_price = 1
 sell_price = 4
 
 [sub_resource type="Resource" id="MerchantStock_silver"]
@@ -264,10 +263,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.6, 4)
 script = ExtResource("1_party")
 base_color = Color(0.82, 0.43, 0.31, 1)
 member_name = "Mira"
-starting_items = Array[Resource]([SubResource("InventoryStock_mira_bandage"), SubResource("InventoryStock_mira_silver")])
-starting_equipment = Array[Resource]([ExtResource("33_rusted_pickaxe"), ExtResource("22_hood"), ExtResource("24_ranger_jerkin"), ExtResource("25_ranger_leggings"), ExtResource("27_ranger_boots")])
 hunger_enabled = true
-hunger_drain_rate = 0.2
+starting_equipment = [ExtResource("33_rusted_pickaxe"), ExtResource("22_hood"), ExtResource("24_ranger_jerkin"), ExtResource("25_ranger_leggings"), ExtResource("27_ranger_boots")]
+starting_items = [SubResource("InventoryStock_mira_bandage"), SubResource("InventoryStock_mira_silver")]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Mira" unique_id=63411430]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -286,10 +284,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.6, 5)
 script = ExtResource("1_party")
 base_color = Color(0.33, 0.55, 0.78, 1)
 member_name = "Tomas"
-starting_items = Array[Resource]([SubResource("InventoryStock_tomas_bandage"), SubResource("InventoryStock_tomas_silver")])
-starting_equipment = Array[Resource]([ExtResource("33_rusted_pickaxe"), ExtResource("23_shield"), ExtResource("28_peasant_tunic"), ExtResource("29_peasant_trousers"), ExtResource("31_peasant_shoes")])
 hunger_enabled = true
-hunger_drain_rate = 0.2
+starting_equipment = [ExtResource("33_rusted_pickaxe"), ExtResource("23_shield"), ExtResource("28_peasant_tunic"), ExtResource("29_peasant_trousers"), ExtResource("31_peasant_shoes")]
+starting_items = [SubResource("InventoryStock_tomas_bandage"), SubResource("InventoryStock_tomas_silver")]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Tomas" unique_id=2059236128]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -306,15 +303,14 @@ mesh = SubResource("CylinderMesh_ring")
 [node name="Jim" type="CharacterBody3D" parent="." unique_id=804901492]
 transform = Transform3D(0.805897, 0, -0.592055, 0, 1, 0, 0.592055, 0, 0.805897, 20.309809, 0.6, 6)
 script = ExtResource("7_merchant")
-member_name = "Jim"
 stable_id = "npc.mining_test.jim"
+member_name = "Jim"
+faction_name = "Surf City"
+starting_equipment = [ExtResource("22_hood"), ExtResource("28_peasant_tunic"), ExtResource("29_peasant_trousers"), ExtResource("31_peasant_shoes")]
 inventory_columns = 15
 inventory_rows = 12
 max_carry_weight = 9999.0
-show_inventory_weight = false
-faction_name = "Surf City"
 conversation_definition = ExtResource("14_jim_conversation")
-starting_equipment = Array[Resource]([ExtResource("22_hood"), ExtResource("28_peasant_tunic"), ExtResource("29_peasant_trousers"), ExtResource("31_peasant_shoes")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Jim" unique_id=1098743020]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
@@ -341,16 +337,16 @@ wage_item_definition = ExtResource("12_silver")
 
 [node name="CopperNode" parent="." unique_id=734667647 instance=ExtResource("3_copper")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, -2)
-resource_node_id = "mining_test.copper_node"
 owner_character_path = NodePath("../Jim")
+resource_node_id = "mining_test.copper_node"
 
 [node name="TwoStoryHouse" parent="." unique_id=307274349 instance=ExtResource("19_two_story_house")]
-building_id = "test.mining.two_story_house"
 transform = Transform3D(0.990268, 0, -0.139173, 0, 1, 0, 0.139173, 0, 0.990268, 1.0143967, 0, -14.200055)
+building_id = "test.mining.two_story_house"
 
 [node name="TinyHouse" parent="." unique_id=1517733317 instance=ExtResource("18_house")]
-building_id = "test.mining.tiny_house"
 transform = Transform3D(-0.115475, 0, -0.993311, 0, 1, 0, 0.993311, 0, -0.115475, 21.5291, 0, 6.23198)
+building_id = "test.mining.tiny_house"
 
 [node name="PartyManager" type="Node" parent="." unique_id=1363365783]
 script = ExtResource("2_mgr")

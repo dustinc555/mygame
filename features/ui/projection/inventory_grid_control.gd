@@ -2,7 +2,7 @@ extends Control
 
 class_name InventoryGridControl
 
-signal item_clicked(entry)
+signal item_clicked(entry, shift_pressed)
 signal item_right_clicked(entry, local_position, shift_pressed)
 signal invalid_drop_attempted(message)
 signal item_dropped_outside(source_owner, entry)
@@ -70,7 +70,7 @@ func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		var entry = _entry_at_local_position(event.position)
 		if entry != null:
-			item_clicked.emit(entry)
+			item_clicked.emit(entry, event.shift_pressed)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 		var right_clicked_entry = _entry_at_local_position(event.position)
 		if right_clicked_entry != null:

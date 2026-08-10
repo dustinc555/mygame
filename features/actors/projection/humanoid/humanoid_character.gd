@@ -471,6 +471,34 @@ var _counter_duty_face_position := Vector3.ZERO
 var _counter_gesture_name := ""
 var _counter_gesture_pending := ""
 
+# Farming work is driven by FarmWorkBridge rather than InteractionCapability,
+# but animation/progress still lives on the universal character surface.
+var _farming_work_active := false
+var _farming_work_action := ""
+var _farming_work_target := Vector3.ZERO
+var _farming_work_progress := 0.0
+
+
+func set_farming_work_visual(active: bool, action: String, target: Vector3, progress: float) -> void:
+	var next_action := action if active else ""
+	var materially_changed := _farming_work_active != active \
+			or _farming_work_action != next_action \
+			or _farming_work_target.distance_squared_to(target) > 0.0001
+	_farming_work_active = active
+	_farming_work_action = next_action
+	_farming_work_target = target
+	_farming_work_progress = clampf(progress, 0.0, 1.0) if active else 0.0
+	if materially_changed:
+		state_changed.emit()
+
+
+func is_actively_farming() -> bool:
+	return _farming_work_active
+
+
+func get_farming_progress_ratio() -> float:
+	return _farming_work_progress
+
 
 func begin_counter_duty(face_position: Vector3) -> void:
 	_counter_duty_active = true
@@ -595,6 +623,25 @@ func _update_locomotion_animation(delta: float) -> void:
 			and Vector2(velocity.x, velocity.z).length() <= LOCOMOTION_SPEED_THRESHOLD:
 		_play_counter_duty_animation(body)
 		return
+	# Farming work uses the universal equipment/grip rig. Walking to the cell or
+	# supply source remains locomotion; only in-range uninterrupted work owns the
+	# clip. Planting/seed processing use the kneeling work clip, while ground-tool
+	# work uses the full-body Mining swing pending live MCP contact calibration.
+	if _farming_work_active and not _has_move_target \
+			and Vector2(velocity.x, velocity.z).length() <= LOCOMOTION_SPEED_THRESHOLD:
+		_face_world_position(_farming_work_target)
+		var farming_clip := HumanoidBodyProjection.SCAVENGING_ANIMATION_NAME
+		match _farming_work_action:
+			"plant":
+				farming_clip = HumanoidBodyProjection.FARM_PLANT_ANIMATION_NAME
+			"water":
+				farming_clip = HumanoidBodyProjection.FARM_WATER_ANIMATION_NAME
+			"harvest", "clear":
+				farming_clip = HumanoidBodyProjection.FARM_HARVEST_ANIMATION_NAME
+			"till":
+				farming_clip = HumanoidBodyProjection.MINING_ANIMATION_NAME
+		if body.play_clip(farming_clip):
+			return
 	# Mining swings own the animation while actively working the node (main's rule:
 	# face the node, loop the Mining clip; the walk-to-node phase stays locomotion).
 	var interaction := get_interaction()

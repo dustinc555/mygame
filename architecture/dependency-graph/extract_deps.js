@@ -91,6 +91,7 @@ let files = WALK_ROOTS.flatMap(walk).filter(f => !EXCLUDE.includes(relOf(f).spli
 
 // ---- git working-tree status (raw diffs): tag new / modified ----
 const changed = {};   // repo-relative path -> 'new' | 'modified'
+const changedPrefixes = []; // git may collapse whole untracked directories
 try {
   const out = execSync('git status --porcelain', { cwd: ROOT, encoding: 'utf8' });
   for (const line of out.split('\n')) {
@@ -98,11 +99,18 @@ try {
     const xy = line.slice(0, 2);
     let p = line.slice(3).trim();
     if (p.includes(' -> ')) p = p.split(' -> ').pop();   // renames
-    if (xy.includes('?') || xy.includes('A')) changed[p] = 'new';
+    if (xy.includes('?') || xy.includes('A')) {
+      changed[p] = 'new';
+      if (p.endsWith('/')) changedPrefixes.push(p);
+    }
     else if (/[MRC]/.test(xy)) changed[p] = 'modified';
   }
 } catch (e) { /* not a git repo / git unavailable */ }
-const statusOf = f => changed[path.relative(ROOT, f).split(path.sep).join('/')] || null;
+const statusOf = f => {
+  const rel = path.relative(ROOT, f).split(path.sep).join('/');
+  if (changed[rel]) return changed[rel];
+  return changedPrefixes.some(prefix => rel.startsWith(prefix)) ? 'new' : null;
+};
 
 // ---- pass 1: class_name maps ----
 const fileInfo = {}, classToFile = {};

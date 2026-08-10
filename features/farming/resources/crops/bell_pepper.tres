@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="CropDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/farming/resources/crop_definition.gd" id="1_crop"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/bell_pepper.tres" id="2_produce"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/bell_pepper_seeds.tres" id="3_seed"]
+
+[resource]
+script = ExtResource("1_crop")
+crop_id = "bell_pepper"
+display_name = "Bell Pepper"
+source_node_prefix = "Crop_BellPepper"
+procedural_visual = ""
+produce_item = ExtResource("2_produce")
+seed_item = ExtResource("3_seed")
+growth_minutes = 2520.0
+dry_grace_minutes = 360.0
+ripe_window_minutes = 720.0
+water_capacity = 24.0
+water_per_growth_minute = 0.012
+base_yield = 4
+required_harvest_tool_tag = ""
+required_harvest_tool_label = ""

@@ -27,9 +27,8 @@ This is the single project guidance file for coding agents. Human-facing archite
 
 ## Dependency Graph Workflow
 - After any project file change, regenerate the architecture dependency graph before finishing: `cd architecture/dependency-graph && node extract_deps.js`.
-- Ensure the graph viewer is served at <http://localhost:3031>: `cd architecture/dependency-graph && node serve.js`.
-- If the viewer is already running, do not start a duplicate server.
-- If graph generation or serving fails, report it as a blocker.
+- The dependency graph viewer is optional. Do not run `node serve.js`, open port `3031`, or start the viewer unless the user explicitly asks to inspect it.
+- If graph generation fails, report it as a blocker.
 - **FORBIDDEN: changing the graph type / layout.** The Dependencies view is a force-directed graph by design — the honest physics layout. Do NOT convert it to columns, buckets, lanes, rows, grids, trees, or any category-positioned arrangement (`layout:'none'` with computed x/y), and do not otherwise change the layout/graph type. That hides coupling instead of fixing it. The hairball is removed only by changing the actual code to have fewer cross-cutting edges, then regenerating. Node color/size/labels/highlights and `extract_deps.js` analysis are fine to change; the layout is not. If you believe a different view is warranted, ask the user first.
 
 ## State And Persistence
@@ -77,6 +76,28 @@ This is the single project guidance file for coding agents. Human-facing archite
 - Hand-held equipment attaches by aligning item `GripPoint_Primary` to generated body sockets such as `RightHandGrip` and `LeftHandGrip`.
 - Do not hardcode per-item weapon placement in scripts. Fix wrapper scenes, item resources, or shared grip socket profiles.
 - Skills and attributes belong to `WorldActor`, use stable dotted IDs from `SkillRules`, and share the centralized XP curve.
+
+### Held-Tool Grip Calibration And Godot MCP
+- The attachment equation in `humanoid_body_projection.gd` is `model_root.transform = item.equipped_transform * grip_marker_transform.affine_inverse()`. Preserve this pipeline. An item's grip profile selects the shared, body-specific socket; the wrapper scene's `GripPoint_Primary` describes the model's grasp point. Never add item-specific or male/female placement branches to actor code.
+- Start from a visibly correct item with the same grip class. Compare the complete chain: grip profile, selected socket, `ItemDefinition.equipped_transform`, `GripPoint_Primary` basis and origin, and visual `Model` child basis. Copying only one transform is not reference transfer.
+- Calibrate the shaft before the working head. Find the actual shaft centerline from mesh vertices around the grip slice after applying the visual model-child transform. Do not assume the imported mesh is centered at local `(0, 0, 0)`.
+- Preserve the known-good hand-relative shaft offset. For a shaft center `C`, marker `M`, and item transform `E`, calculate `socket_offset = E.basis * M.basis.inverse() * (C - M.origin)`. Match that value to the known-good item. Solve a new marker origin with `M.origin = C - M.basis * E.basis.inverse() * reference_socket_offset`. Perform this math with Godot `Basis`/`Transform3D`; do not manually reinterpret serialized `Transform3D` rows or columns.
+- Match the effective shaft diameter to the known-good grasp. A centered shaft can still clip through fingers if it is thicker than the reference. If a monolithic model needs correction, scale the visual model's cross-section axes while preserving its authored long-axis length, then recompute the marker origin because the shaft centerline moved.
+- Once the fist fit is correct, keep the grip marker fixed and rotate only the visual `Model` child around the shaft's long axis to aim a hoe blade, axe edge, or pick head. This separates grip placement from working-head orientation.
+- Shared humanoid socket profiles are not item-calibration knobs. Change `human_male.tres`, `human_female.tres`, or another body socket profile only when several already-correct reference items demonstrate the same rig-wide error.
+
+Godot MCP runtime procedure:
+1. Confirm the editor serving MCP is the active checkout at `/home/dustin/mygame`, not `/HardDrive/mygame`. Check port `6550` and relevant processes before connecting. If wedged, stop only stale Godot/MCP processes for this project, launch `godot --editor --path /home/dustin/mygame`, wait until `127.0.0.1:6550` listens, then reconnect with `npx -y @satelliteoflove/godot-mcp`.
+2. Inspect the real equipped descendant tree before mutating it. Equipped instances may be nested under `EquippedWeaponVisual/<WrapperName>/Model`; a screenshot after a failed lookup or failed mutation is unchanged baseline evidence, not a candidate.
+3. Persist each candidate in the wrapper/item resource, restart the game, and load the item with `ResourceLoader.CACHE_MODE_IGNORE`. Runtime-only mutations and cached scenes cannot prove the saved source.
+4. Test normal standing idle first. Do not use `Mining`, a work animation, camera rotation, actor rotation, or world rotation to disguise an incorrectly mounted item. The item follows the hand; the hand follows animation.
+5. Exercise both authoritative humanoid archetypes (`human_male.tres` / visual body type `2`, and `human_female.tres` / visual body type `3`) through the normal equip API.
+6. Capture matched close views centered on `GripPoint_Primary` from front, back, right, and left. A useful starting camera is perspective FOV `20`, approximately `1.05 m` from the grip. Treat body-occluded angles as unusable and obtain an unobstructed opposite/oblique view instead.
+7. Capture a full-tool side/opposite view that includes the fist, complete handle, working head, body, and ground. A useful starting camera is FOV `40`, approximately `3.4 m` from the actor. Close views prove contact; full views prove handle direction, head direction, and body clearance.
+8. Build matched comparison sheets against the known-good item using identical cameras. Reject the candidate if any usable angle shows a gap, shaft beside the fingers, unnatural emergence through palm/knuckles, torso/pelvis/thigh clipping, the long end pointing upward, or a blade/edge facing away from the work surface.
+9. After visual acceptance, run a focused `/tmp/hermes-verify-*` Godot script that loads the saved resources and asserts the grip class, marker basis/origin, model roll/scale, reference socket-space shaft offset, and effective shaft diameter. Clean up the temporary script. This supplements rendered evidence; it does not replace it.
+
+- Do not call a held tool complete from a favorable crop, a front-only overlap, a transform validator, or a successful project boot. Completion requires saved-source reload plus male and female full-tool and multi-angle close evidence with no visible clipping.
 
 ## Imports And Licensing
 - Imported third-party assets live under `assets/vendor/<author>/<pack>/` unless explicitly approved otherwise.

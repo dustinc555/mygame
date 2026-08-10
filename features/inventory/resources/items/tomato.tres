@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://assets/items/farming/tomato.svg" id="2_icon"]
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Tomato"
+item_id = "food.tomato"
+food_type_id = "tomato"
+settlement_food_units = 1.0
+icon = ExtResource("2_icon")
+grid_size = Vector2i(1, 1)
+unit_weight = 0.15
+max_stack = 20
+nutrition_value = 55.0
+world_visual_height_meters = 0.12

@@ -24,6 +24,7 @@ add = 0.95
 [resource]
 script = ExtResource("1_item")
 display_name = "Scythe"
+item_id = "tool.scythe"
 icon = ExtResource("3_icon")
 grid_size = Vector2i(2, 4)
 unit_weight = 3.5
@@ -32,6 +33,7 @@ alternate_equip_slots = null
 world_scene = ExtResource("4_model")
 equipped_scene = ExtResource("4_model")
 grip_profile = ExtResource("5_grip")
-equipped_transform = Transform3D(0.189, 0, 0, 0, 0.189, 0, 0, 0, 0.189, 0, 0, 0)
+equipped_transform = Transform3D(0.31, 0, 0, 0, 0.31, 0, 0, 0, 0.31, 0, 0, 0)
 stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_damage"), SubResource("ItemStatModifier_cut"), SubResource("ItemStatModifier_range")])
-tool_tags = null
+tool_tags = PackedStringArray("tool.scythe", "tool.harvest", "tool.farming")
+access_key_ids = null

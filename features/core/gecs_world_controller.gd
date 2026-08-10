@@ -67,6 +67,8 @@ const C_COMBAT_RESPONSE_INTENT_PATH := "res://features/combat/sim/c_game_combat_
 const C_MOVEMENT_STATE_PATH := "res://features/actors/sim/c_game_movement_state.gd"
 const C_WORLD_SIM_SQUAD_PATH := "res://features/world_sim/sim/c_game_world_sim_squad.gd"
 const C_BUILDING_RECORD_PATH := "res://features/world/sim/c_game_building_record.gd"
+const C_FARM_PLOT_STATE_PATH := "res://features/farming/sim/c_game_farm_plot_state.gd"
+const C_FARM_WATER_SOURCE_STATE_PATH := "res://features/farming/sim/c_game_farm_water_source_state.gd"
 const CONSTRUCTION_CATALOG_ID_LOAD_MIGRATIONS := {
 	"woodbrick_house": "medium_wood_l_hall",
 }
@@ -102,6 +104,8 @@ var _activity_point_entity_by_id: Dictionary = {}
 var _activity_assignment_entity_by_actor_id: Dictionary = {}
 var _world_sim_squad_entity_by_id: Dictionary = {}
 var _building_entity_by_id: Dictionary = {}
+var _farm_plot_entity_by_id: Dictionary = {}
+var _farm_water_source_entity_by_id: Dictionary = {}
 var _world_time_entity
 var _law_order_entity
 var _faction_state_entity
@@ -198,6 +202,8 @@ var C_COMBAT_RESPONSE_INTENT
 var C_MOVEMENT_STATE
 var C_WORLD_SIM_SQUAD
 var C_BUILDING_RECORD
+var C_FARM_PLOT_STATE
+var C_FARM_WATER_SOURCE_STATE
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -1181,6 +1187,84 @@ func get_building_records() -> Array[Dictionary]:
 	return records
 
 
+func upsert_farm_plot_state(state: Dictionary) -> Dictionary:
+	_try_initialize()
+	if world == null or state.is_empty():
+		return {}
+	var plot_id := str(state.get("plot_id", "")).strip_edges()
+	if plot_id.is_empty():
+		return {}
+	var entity = _farm_plot_entity_by_id.get(plot_id)
+	if entity == null or not is_instance_valid(entity):
+		entity = _entity_script.new()
+		entity.name = _entity_node_name("FarmPlot", plot_id)
+		entity.id = _entity_id("farm_plot", plot_id)
+		world.add_entity(entity, [C_FARM_PLOT_STATE.new()])
+		_farm_plot_entity_by_id[plot_id] = entity
+	var component = entity.get_component(C_FARM_PLOT_STATE)
+	component.apply_state(state)
+	return component.to_state()
+
+
+func get_farm_plot_states() -> Dictionary:
+	var states: Dictionary = {}
+	if world == null:
+		return states
+	for entity in world.query.with_all([C_FARM_PLOT_STATE]).execute():
+		var component = entity.get_component(C_FARM_PLOT_STATE)
+		if component == null:
+			continue
+		var state: Dictionary = component.to_state()
+		var plot_id := str(state.get("plot_id", ""))
+		if plot_id.is_empty():
+			continue
+		states[plot_id] = state
+		_farm_plot_entity_by_id[plot_id] = entity
+	return states
+
+
+func remove_farm_plot_state(plot_id: String) -> void:
+	var entity = _farm_plot_entity_by_id.get(plot_id)
+	if entity != null and is_instance_valid(entity) and world != null:
+		world.remove_entity(entity)
+	_farm_plot_entity_by_id.erase(plot_id)
+
+
+func upsert_farm_water_source_state(state: Dictionary) -> Dictionary:
+	_try_initialize()
+	if world == null or state.is_empty():
+		return {}
+	var source_id := str(state.get("source_id", "")).strip_edges()
+	if source_id.is_empty():
+		return {}
+	var entity = _farm_water_source_entity_by_id.get(source_id)
+	if entity == null or not is_instance_valid(entity):
+		entity = _entity_script.new()
+		entity.name = _entity_node_name("FarmWater", source_id)
+		entity.id = _entity_id("farm_water", source_id)
+		world.add_entity(entity, [C_FARM_WATER_SOURCE_STATE.new()])
+		_farm_water_source_entity_by_id[source_id] = entity
+	var component = entity.get_component(C_FARM_WATER_SOURCE_STATE)
+	component.apply_state(state)
+	return component.to_state()
+
+
+func get_farm_water_source_states() -> Dictionary:
+	var states: Dictionary = {}
+	if world == null:
+		return states
+	for entity in world.query.with_all([C_FARM_WATER_SOURCE_STATE]).execute():
+		var component = entity.get_component(C_FARM_WATER_SOURCE_STATE)
+		if component == null:
+			continue
+		var state: Dictionary = component.to_state()
+		var source_id := str(state.get("source_id", ""))
+		if not source_id.is_empty():
+			states[source_id] = state
+			_farm_water_source_entity_by_id[source_id] = entity
+	return states
+
+
 func upsert_settlement_state(settlement_id: String, state: Dictionary) -> Dictionary:
 	_try_initialize()
 	if world == null or settlement_id.strip_edges().is_empty():
@@ -2100,6 +2184,8 @@ func _load_component_scripts() -> void:
 	C_MOVEMENT_STATE = load(C_MOVEMENT_STATE_PATH) if C_MOVEMENT_STATE == null else C_MOVEMENT_STATE
 	C_WORLD_SIM_SQUAD = load(C_WORLD_SIM_SQUAD_PATH) if C_WORLD_SIM_SQUAD == null else C_WORLD_SIM_SQUAD
 	C_BUILDING_RECORD = load(C_BUILDING_RECORD_PATH) if C_BUILDING_RECORD == null else C_BUILDING_RECORD
+	C_FARM_PLOT_STATE = load(C_FARM_PLOT_STATE_PATH) if C_FARM_PLOT_STATE == null else C_FARM_PLOT_STATE
+	C_FARM_WATER_SOURCE_STATE = load(C_FARM_WATER_SOURCE_STATE_PATH) if C_FARM_WATER_SOURCE_STATE == null else C_FARM_WATER_SOURCE_STATE
 
 
 func _component_scripts_loaded() -> bool:
@@ -2150,6 +2236,8 @@ func _component_scripts_loaded() -> bool:
 		C_MOVEMENT_STATE,
 		C_WORLD_SIM_SQUAD,
 		C_BUILDING_RECORD,
+		C_FARM_PLOT_STATE,
+		C_FARM_WATER_SOURCE_STATE,
 	]:
 		if component_script == null:
 			return false
@@ -3172,6 +3260,8 @@ func _clear_world_entities() -> void:
 	_activity_assignment_entity_by_actor_id.clear()
 	_world_sim_squad_entity_by_id.clear()
 	_building_entity_by_id.clear()
+	_farm_plot_entity_by_id.clear()
+	_farm_water_source_entity_by_id.clear()
 	_actor_spatial_nodes_by_cell.clear()
 	_actor_spatial_index_valid = false
 	_world_time_entity = null
@@ -3226,6 +3316,14 @@ func _rebuild_entity_indexes() -> void:
 		var building = entity.get_component(C_BUILDING_RECORD)
 		if building != null:
 			_building_entity_by_id[str(building.building_id)] = entity
+	for entity in world.query.with_all([C_FARM_PLOT_STATE]).execute():
+		var farm_plot = entity.get_component(C_FARM_PLOT_STATE)
+		if farm_plot != null:
+			_farm_plot_entity_by_id[str(farm_plot.plot_id)] = entity
+	for entity in world.query.with_all([C_FARM_WATER_SOURCE_STATE]).execute():
+		var farm_water = entity.get_component(C_FARM_WATER_SOURCE_STATE)
+		if farm_water != null:
+			_farm_water_source_entity_by_id[str(farm_water.source_id)] = entity
 	var food_status_script = load(C_SETTLEMENT_FOOD_STATUS_PATH)
 	for entity in world.query.with_all([food_status_script]).execute():
 		var food_status = entity.get_component(food_status_script)

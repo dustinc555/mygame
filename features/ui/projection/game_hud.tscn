@@ -40,6 +40,17 @@ mouse_filter = 2
 
 [node name="ContextMenu" type="PopupMenu" parent="."]
 
+[node name="BuildMenuButton" type="Button" parent="."]
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = -228.0
+offset_right = 108.0
+offset_bottom = -196.0
+grow_vertical = 0
+focus_mode = 0
+text = "Build"
+
 [node name="FloatingNotice" parent="." instance=ExtResource("1_notice")]
 layout_mode = 3
 anchors_preset = 5
@@ -410,6 +421,14 @@ toggle_mode = true
 focus_mode = 0
 theme_override_font_sizes/font_size = 9
 text = "Burn Rustdead"
+
+[node name="JobsButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/AssistRow"]
+custom_minimum_size = Vector2(60, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+focus_mode = 0
+text = "Jobs"
 
 [node name="PortraitBar" type="PanelContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")

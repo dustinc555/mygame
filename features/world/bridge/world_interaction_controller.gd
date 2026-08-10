@@ -16,6 +16,7 @@ const MOVE_COMMAND_INDICATOR_SCENE = preload("res://features/world/projection/ef
 const WORLD_TEXT_NOTICE_SCENE = preload("res://features/world/projection/effects/world_text_notice.tscn")
 const PARTY_PORTRAIT_CARD_SCENE = preload("res://features/ui/projection/party_portrait_card.tscn")
 const COMBAT_COORDINATOR = preload("res://features/combat/bridge/combat_coordinator.gd")
+const WORLD_CONTEXT_ACTION_MENU = preload("res://features/world/bridge/world_context_action_menu.gd")
 
 const ACTION_INVENTORY := 1
 const ACTION_MINE := 2
@@ -53,6 +54,7 @@ const SEGMENT_SINGLE := 0
 const SEGMENT_LEFT := 1
 const SEGMENT_MIDDLE := 2
 const SEGMENT_RIGHT := 3
+const BUILD_PLAN_FIELD := 1
 
 @export var free_camera_move_speed := 14.0
 @export var camera_zoom_step := 1.0
@@ -104,6 +106,9 @@ var camera_pivot: Node3D
 var camera: Camera3D
 var selection_rect: ColorRect
 var context_menu: PopupMenu
+var build_menu_button: Button
+var build_menu_popup: PopupMenu
+var farming_build_menu: PopupMenu
 var progress_layer: Control
 var portrait_flow: Container
 var squad_tab_row: HBoxContainer
@@ -119,6 +124,7 @@ var running_button: Button
 var sneaking_button: Button
 var auto_heal_button: Button
 var auto_burn_rustdead_button: Button
+var jobs_button: Button
 var aggressive_button: Button
 var defensive_button: Button
 var passive_button: Button
@@ -176,6 +182,7 @@ func _do_initialize() -> void:
 		hud_layer = root.get_node_or_null("GameHUD")
 	selection_rect = hud_layer.get_node("SelectionRect")
 	context_menu = hud_layer.get_node_or_null("ContextMenu")
+	build_menu_button = hud_layer.get_node_or_null("BuildMenuButton")
 	progress_layer = hud_layer.get_node_or_null("ProgressLayer")
 	var command_rows_path := "HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows"
 	command_title_label = hud_layer.get_node_or_null("HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/Title")
@@ -186,6 +193,7 @@ func _do_initialize() -> void:
 	sneaking_button = hud_layer.get_node_or_null(command_rows_path + "/MoveRow/MovementSegment/SneakingButton")
 	auto_heal_button = hud_layer.get_node_or_null(command_rows_path + "/AssistRow/AutoHealButton")
 	auto_burn_rustdead_button = hud_layer.get_node_or_null(command_rows_path + "/AssistRow/BurnRustdeadButton")
+	jobs_button = hud_layer.get_node_or_null(command_rows_path + "/AssistRow/JobsButton")
 	aggressive_button = hud_layer.get_node_or_null(command_rows_path + "/FightRow/CombatSegment/AggressiveButton")
 	defensive_button = hud_layer.get_node_or_null(command_rows_path + "/FightRow/CombatSegment/DefensiveButton")
 	passive_button = hud_layer.get_node_or_null(command_rows_path + "/FightRow/CombatSegment/PassiveButton")
@@ -237,6 +245,7 @@ func _do_initialize() -> void:
 
 	if context_menu != null:
 		context_menu.id_pressed.connect(_on_context_menu_id_pressed)
+	_setup_build_menu()
 	_setup_squad_tabs()
 	_setup_command_bar()
 	_refresh_squad_tabs()
@@ -476,14 +485,18 @@ func _handle_world_selection(screen_position: Vector2, should_follow: bool) -> v
 		if world_item != null:
 			_assign_pickup_to_selection(world_item)
 			return
-	var inspected_target = _pick_inspectable_target(screen_position)
+	var inspection := _pick_inspectable_result(screen_position)
+	var inspected_target = inspection.get("target")
 	if inspected_target == null:
 		party_manager.clear_selection()
 		if humanoid_details_controller != null:
 			humanoid_details_controller.clear_if_not_party_target()
 		return
 	if humanoid_details_controller != null:
-		humanoid_details_controller.inspect_target(inspected_target)
+		if humanoid_details_controller.has_method("inspect_target_at") and inspection.get("position") is Vector3:
+			humanoid_details_controller.call("inspect_target_at", inspected_target, inspection.get("position"))
+		else:
+			humanoid_details_controller.inspect_target(inspected_target)
 	if not (inspected_target is WorldActor):
 		return
 	var member := inspected_target as WorldActor
@@ -627,7 +640,10 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 	var world_context_target := _get_world_context_target(collider)
 	if world_context_target != null:
 		context_world_action_target = world_context_target
-		context_world_actions = world_context_target.get_world_context_actions(_get_focused_party_member())
+		if world_context_target.has_method("get_world_context_actions_at"):
+			context_world_actions = world_context_target.call("get_world_context_actions_at", _get_focused_party_member(), result["position"])
+		else:
+			context_world_actions = world_context_target.get_world_context_actions(_get_focused_party_member())
 		if not context_world_actions.is_empty():
 			var actions: Array = []
 			for index in range(context_world_actions.size()):
@@ -752,10 +768,17 @@ func _pick_world_item(screen_position: Vector2):
 
 
 func _pick_inspectable_target(screen_position: Vector2):
+	return _pick_inspectable_result(screen_position).get("target")
+
+
+func _pick_inspectable_result(screen_position: Vector2) -> Dictionary:
 	var result := _raycast_target_from_screen(screen_position)
 	if result.is_empty():
-		return null
-	return _resolve_inspectable_target(result["collider"])
+		return {}
+	var target = _resolve_inspectable_target(result["collider"])
+	if target == null:
+		return {}
+	return {"target": target, "position": result.get("position", Vector3.ZERO)}
 
 
 func _resolve_inspectable_target(collider: Object):
@@ -936,7 +959,7 @@ func _raycast_target_from_screen(screen_position: Vector2) -> Dictionary:
 	var excluded_rids: Array[RID] = []
 	var result := {}
 	for _attempt in range(6):
-		result = _raycast_from_screen(screen_position, excluded_rids)
+		result = _raycast_from_screen(screen_position, excluded_rids, true)
 		if result.is_empty():
 			break
 		var collider: Object = result["collider"]
@@ -1145,11 +1168,12 @@ func _resolve_actor_collider(collider: Object) -> WorldActor:
 	return null
 
 
-func _raycast_from_screen(screen_position: Vector2, excluded_rids: Array[RID] = []) -> Dictionary:
+func _raycast_from_screen(screen_position: Vector2, excluded_rids: Array[RID] = [], include_areas := false) -> Dictionary:
 	var ray_origin := camera.project_ray_origin(screen_position)
 	var ray_end := ray_origin + camera.project_ray_normal(screen_position) * 500.0
 	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
 	query.exclude = excluded_rids
+	query.collide_with_areas = include_areas
 	return camera.get_world_3d().direct_space_state.intersect_ray(query)
 
 
@@ -1186,6 +1210,37 @@ func _update_portraits() -> void:
 		var is_followed: bool = bool(member.get("is_focused"))
 		card.visible = _should_show_member_in_active_squad(member)
 		card.apply_state(is_selected, is_followed)
+
+
+func _setup_build_menu() -> void:
+	if build_menu_button == null:
+		return
+	build_menu_popup = PopupMenu.new()
+	build_menu_popup.name = "BuildPopup"
+	build_menu_button.add_child(build_menu_popup)
+	farming_build_menu = PopupMenu.new()
+	farming_build_menu.name = "FarmingBuildMenu"
+	build_menu_popup.add_child(farming_build_menu)
+	build_menu_popup.add_submenu_item("Farming", farming_build_menu.name)
+	farming_build_menu.add_item("Plan Field", BUILD_PLAN_FIELD)
+	farming_build_menu.id_pressed.connect(_on_farming_build_menu_id_pressed)
+	build_menu_button.pressed.connect(_on_build_menu_pressed)
+
+
+func _on_build_menu_pressed() -> void:
+	if build_menu_popup == null or build_menu_button == null:
+		return
+	var button_position := build_menu_button.global_position
+	build_menu_popup.position = Vector2i(roundi(button_position.x), roundi(button_position.y - 64.0))
+	build_menu_popup.popup()
+
+
+func _on_farming_build_menu_id_pressed(item_id: int) -> void:
+	if item_id != BUILD_PLAN_FIELD or _context == null:
+		return
+	var placement = _context.get_optional(&"farm_placement")
+	if placement != null and placement.has_method("begin_placement"):
+		placement.call("begin_placement", "", "", "")
 
 
 func _setup_squad_tabs() -> void:
@@ -1494,8 +1549,9 @@ func _setup_command_bar() -> void:
 	_set_command_segment_position(aggressive_button, SEGMENT_LEFT)
 	_set_command_segment_position(defensive_button, SEGMENT_MIDDLE)
 	_set_command_segment_position(passive_button, SEGMENT_RIGHT)
-	_set_command_segment_position(auto_heal_button, SEGMENT_LEFT)
-	_set_command_segment_position(auto_burn_rustdead_button, SEGMENT_RIGHT)
+	_set_command_segment_position(auto_heal_button, SEGMENT_SINGLE)
+	_set_command_segment_position(auto_burn_rustdead_button, SEGMENT_SINGLE)
+	_set_command_segment_position(jobs_button, SEGMENT_SINGLE)
 	if walk_button != null:
 		walk_button.pressed.connect(_on_movement_button_pressed.bind(MOVEMENT_MODE_WALK))
 	if running_button != null:
@@ -1506,6 +1562,8 @@ func _setup_command_bar() -> void:
 		auto_heal_button.toggled.connect(_on_auto_heal_button_toggled)
 	if auto_burn_rustdead_button != null:
 		auto_burn_rustdead_button.toggled.connect(_on_auto_burn_rustdead_button_toggled)
+	if jobs_button != null:
+		jobs_button.toggled.connect(_on_jobs_button_toggled)
 	if aggressive_button != null:
 		aggressive_button.pressed.connect(_on_stance_button_pressed.bind(NpcRules.CombatStance.AGGRESSIVE))
 	if defensive_button != null:
@@ -1516,7 +1574,7 @@ func _setup_command_bar() -> void:
 
 
 func _update_command_bar() -> void:
-	if walk_button == null or running_button == null or sneaking_button == null or auto_heal_button == null or auto_burn_rustdead_button == null or aggressive_button == null or defensive_button == null or passive_button == null:
+	if walk_button == null or running_button == null or sneaking_button == null or auto_heal_button == null or auto_burn_rustdead_button == null or jobs_button == null or aggressive_button == null or defensive_button == null or passive_button == null:
 		return
 	var has_selection := not party_manager.selected_members.is_empty()
 	if not has_selection:
@@ -1525,6 +1583,7 @@ func _update_command_bar() -> void:
 		_set_command_toggle(sneaking_button, false, true)
 		_set_command_toggle(auto_heal_button, false, true)
 		_set_command_toggle(auto_burn_rustdead_button, false, true)
+		_set_command_toggle(jobs_button, false, true)
 		_set_command_toggle(aggressive_button, false, true)
 		_set_command_toggle(defensive_button, false, true)
 		_set_command_toggle(passive_button, false, true)
@@ -1539,6 +1598,9 @@ func _update_command_bar() -> void:
 	var all_auto_heal := true
 	var any_auto_burn := false
 	var all_auto_burn := true
+	var any_jobs := false
+	var all_jobs := true
+	var job_system = _context.get_optional(&"job_system") if _context != null else null
 	var first_stance: int = party_manager.selected_members[0].combat_stance
 	var mixed_stance := false
 	for member in party_manager.selected_members:
@@ -1547,6 +1609,7 @@ func _update_command_bar() -> void:
 		var member_walking := not member_running and not member_sneaking
 		var member_auto_heal: bool = member.has_method("is_auto_heal_enabled") and member.is_auto_heal_enabled()
 		var member_auto_burn: bool = member.has_method("is_auto_burn_rustdead_enabled") and member.is_auto_burn_rustdead_enabled()
+		var member_jobs: bool = job_system != null and job_system.has_method("is_actor_jobs_enabled") and bool(job_system.call("is_actor_jobs_enabled", member))
 		if member_walking:
 			any_walking = true
 		else:
@@ -1567,6 +1630,10 @@ func _update_command_bar() -> void:
 			any_auto_burn = true
 		else:
 			all_auto_burn = false
+		if member_jobs:
+			any_jobs = true
+		else:
+			all_jobs = false
 		if member.combat_stance != first_stance:
 			mixed_stance = true
 	_set_command_toggle(walk_button, any_walking, false, any_walking and not all_walking)
@@ -1574,6 +1641,7 @@ func _update_command_bar() -> void:
 	_set_command_toggle(sneaking_button, any_sneaking, false, any_sneaking and not all_sneaking)
 	_set_command_toggle(auto_heal_button, any_auto_heal, false, any_auto_heal and not all_auto_heal)
 	_set_command_toggle(auto_burn_rustdead_button, any_auto_burn, false, any_auto_burn and not all_auto_burn)
+	_set_command_toggle(jobs_button, any_jobs, false, any_jobs and not all_jobs)
 	_set_command_toggle(aggressive_button, not mixed_stance and first_stance == NpcRules.CombatStance.AGGRESSIVE, false)
 	_set_command_toggle(defensive_button, not mixed_stance and first_stance == NpcRules.CombatStance.DEFENSIVE, false)
 	_set_command_toggle(passive_button, not mixed_stance and first_stance == NpcRules.CombatStance.PASSIVE, false)
@@ -1666,6 +1734,8 @@ func _get_member_work_progress_ratio(member: WorldActor) -> float:
 		return float(member.call("get_mining_progress_ratio"))
 	if member.has_method("is_actively_scavenging") and bool(member.call("is_actively_scavenging")):
 		return float(member.call("get_scavenging_progress_ratio"))
+	if member.has_method("is_actively_farming") and bool(member.call("is_actively_farming")):
+		return float(member.call("get_farming_progress_ratio"))
 	return 0.0
 
 
@@ -1786,6 +1856,15 @@ func _on_auto_burn_rustdead_button_toggled(button_pressed: bool) -> void:
 	_update_command_bar()
 
 
+func _on_jobs_button_toggled(button_pressed: bool) -> void:
+	var job_system = _context.get_optional(&"job_system") if _context != null else null
+	if job_system == null or not job_system.has_method("set_actor_jobs_enabled"):
+		return
+	for member in party_manager.selected_members:
+		job_system.call("set_actor_jobs_enabled", member, button_pressed)
+	_update_command_bar()
+
+
 func _on_stance_button_pressed(stance: int) -> void:
 	for member in party_manager.selected_members:
 		member.set_combat_stance(stance)
@@ -1803,6 +1882,10 @@ func _on_inspector_action_requested(target, action_key: String) -> void:
 			_perform_inspector_inventory_action(target)
 		"order":
 			_perform_inspector_order_action(target)
+		"farm_till":
+			var placement = _context.get_optional(&"farm_placement") if _context != null else null
+			if placement != null and placement.has_method("begin_manual_till"):
+				placement.call("begin_manual_till", target)
 		"mine":
 			if target is Node:
 				for member in party_manager.selected_members:
@@ -1893,16 +1976,50 @@ func _get_bar_service_area_for_seated_member(member: HumanoidCharacter) -> BarSe
 	return null
 
 
-func _perform_direct_world_context_action(target, action_key: String) -> void:
-	if action_key.is_empty() or target == null or not target.has_method("perform_world_context_action"):
+func _cancel_selected_settlement_work() -> void:
+	var context := BootstrapContext.active
+	var farm_work = context.get_optional(&"farm_work") if context != null else null
+	if farm_work == null or not farm_work.has_method("cancel_work_for_actor"):
 		return
+	for member in party_manager.selected_members:
+		farm_work.call("cancel_work_for_actor", member)
+
+
+func _perform_direct_world_context_action(target, action_key: String) -> void:
+	_dispatch_world_context_action(target, action_key)
+
+
+func _dispatch_world_context_action(target, action_key: String) -> void:
+	if action_key.is_empty() or target == null or not is_instance_valid(target) \
+			or not target.has_method("perform_world_context_action"):
+		return
+	action_key = _with_shift_field_scope(action_key)
+	if not _action_preserves_field_work(action_key):
+		_cancel_selected_settlement_work()
 	var message := str(target.perform_world_context_action(action_key, party_manager.selected_members))
+	if target is Node and target.is_in_group("farm_plot"):
+		return
 	if message.is_empty():
 		return
 	if target is Node3D:
 		_spawn_world_notice(target.global_position + Vector3(0.0, 1.6, 0.0), message)
 	else:
 		_show_center_notice(message)
+
+
+func _with_shift_field_scope(action_key: String, shift_pressed := Input.is_key_pressed(KEY_SHIFT)) -> String:
+	if not shift_pressed or not action_key.begins_with("farm_cell|"):
+		return action_key
+	return "farm_field|%s" % action_key.trim_prefix("farm_cell|")
+
+
+func _action_preserves_field_work(action_key: String) -> bool:
+	return action_key in [
+		"farm_plot|expand",
+		"farm_plot|shrink",
+		"farm_plot|merge",
+		"farm_plot|delete",
+	]
 
 
 func _perform_unlock_action(target) -> void:
@@ -2018,14 +2135,26 @@ func _perform_world_context_action(action_index: int) -> void:
 	if context_world_action_target == null or action_index < 0 or action_index >= context_world_actions.size():
 		return
 	var action: Dictionary = context_world_actions[action_index]
-	var action_key := str(action.get("key", ""))
-	if action_key.is_empty() or not context_world_action_target.has_method("perform_world_context_action"):
+	var children: Array = action.get("children", [])
+	if not children.is_empty():
+		context_world_actions = WORLD_CONTEXT_ACTION_MENU.expand_children(action)
+		var popup_actions: Array = []
+		for index in range(context_world_actions.size()):
+			popup_actions.append({
+				"id": ACTION_WORLD_CONTEXT_BASE + index,
+				"label": str(context_world_actions[index].get("label", "Action")),
+			})
+		var popup_position := Vector2(context_menu.position) if context_menu != null else get_viewport().get_mouse_position()
+		_show_context_menu_actions(popup_position, popup_actions)
 		return
-	var message := str(context_world_action_target.perform_world_context_action(action_key, party_manager.selected_members))
-	if not message.is_empty() and context_world_action_target is Node3D:
-		_spawn_world_notice(context_world_action_target.global_position + Vector3(0.0, 1.6, 0.0), message)
-	elif not message.is_empty():
-		_show_center_notice(message)
+	var action_key := str(action.get("key", ""))
+	if action_key == WORLD_CONTEXT_ACTION_MENU.CANCEL_KEY:
+		if context_menu != null:
+			context_menu.hide()
+		return
+	if action_key.is_empty():
+		return
+	_dispatch_world_context_action(context_world_action_target, action_key)
 
 
 func _assign_pickup_to_selection(world_item) -> void:

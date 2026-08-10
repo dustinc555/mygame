@@ -218,6 +218,14 @@ func _apply_heal_target_context(context: AiUtilityContext, actor: Node) -> void:
 
 
 func _apply_work_context(context: AiUtilityContext, actor: Node) -> void:
+	var party_member := actor != null and actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member"))
+	var ranked_jobs := BootstrapContext.service(JobSystemController.SERVICE_ID)
+	if party_member and (ranked_jobs == null or not ranked_jobs.has_method("is_actor_jobs_enabled") or not bool(ranked_jobs.call("is_actor_jobs_enabled", actor))):
+		context.set_fact(&"assigned_work_available", 0.0)
+		return
+	if actor != null and actor.has_meta(&"active_settlement_work"):
+		context.set_fact(&"assigned_work_available", 0.0)
+		return
 	var provider = actor.call("get_active_job_provider") if actor.has_method("get_active_job_provider") else null
 	var candidates: Array = []
 	var has_contracts := false
@@ -241,7 +249,10 @@ func _apply_work_context(context: AiUtilityContext, actor: Node) -> void:
 			var work_status := _contract_work_status(actor, contract_provider, contract_data)
 			if not bool(work_status.get("actionable", true)):
 				continue
-			var priority_score := clampf(1.0 - float(contract_data.get("priority_order", 0)) * 0.12, 0.25, 1.0)
+			var priority_order := int(contract_data.get("priority_order", 0))
+			if party_member and ranked_jobs != null and ranked_jobs.has_method("get_actor_job_entry_rank"):
+				priority_order = int(ranked_jobs.call("get_actor_job_entry_rank", actor, "facility_contract:%s" % str(contract_data.get("contract_id", ""))))
+			var priority_score := clampf(1.0 - float(priority_order) * 0.12, 0.25, 1.0)
 			var candidate := _target_candidate(contract_provider, priority_score, str(work_status.get("reason", "job contract")))
 			candidate["contract"] = contract_data.duplicate(true)
 			candidate["work_status"] = work_status.duplicate(true)

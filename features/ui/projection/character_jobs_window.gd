@@ -102,21 +102,23 @@ func _rebuild_rows() -> void:
 	for child in rows_root.get_children():
 		rows_root.remove_child(child)
 		child.queue_free()
-	var contracts := _get_contracts()
+	var rows := _get_job_rows()
 	title_label.text = "%s Jobs" % (actor.member_name if actor != null else "Character")
-	empty_label.visible = contracts.is_empty()
-	for contract in contracts:
-		rows_root.add_child(_build_job_row(contract, _can_edit_jobs()))
+	var is_party := _is_party_actor()
+	var editable := true if is_party else _can_edit_jobs()
+	empty_label.visible = rows.is_empty()
+	for row in rows:
+		rows_root.add_child(_build_job_row(row, editable))
 
 
-func _build_job_row(contract: Dictionary, editable: bool) -> Control:
+func _build_job_row(job_row: Dictionary, editable: bool) -> Control:
 	var row := HBoxContainer.new()
 	row.custom_minimum_size = Vector2(0, 34)
 	row.add_theme_constant_override("separation", 6)
 
 	var order_label := Label.new()
 	order_label.custom_minimum_size = Vector2(28, 0)
-	order_label.text = str(int(contract.get("priority_order", 0)) + 1)
+	order_label.text = str(int(job_row.get("priority_order", 0)) + 1)
 	order_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	order_label.add_theme_color_override("font_color", Color(0.72, 0.64, 0.48, 1.0))
 	row.add_child(order_label)
@@ -124,21 +126,24 @@ func _build_job_row(contract: Dictionary, editable: bool) -> Control:
 	var title := Label.new()
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title.text = "%s  -  %s" % [str(contract.get("display_name", "Job")), str(contract.get("provider_name", "Provider"))]
+	title.text = str(job_row.get("display_name", "Job"))
 	title.add_theme_color_override("font_color", Color(0.90, 0.82, 0.64, 1.0))
 	row.add_child(title)
 
+	var entry_id := str(job_row.get("entry_id", job_row.get("contract_id", "")))
 	var up_button := _row_button("Up", editable)
-	up_button.pressed.connect(_move_contract.bind(str(contract.get("contract_id", "")), -1))
+	up_button.pressed.connect(_move_job_entry.bind(entry_id, -1))
 	row.add_child(up_button)
 
 	var down_button := _row_button("Down", editable)
-	down_button.pressed.connect(_move_contract.bind(str(contract.get("contract_id", "")), 1))
+	down_button.pressed.connect(_move_job_entry.bind(entry_id, 1))
 	row.add_child(down_button)
 
-	var quit_button := _row_button("Quit", editable)
-	quit_button.pressed.connect(_quit_contract.bind(str(contract.get("contract_id", ""))))
-	row.add_child(quit_button)
+	var contract_id := str(job_row.get("contract_id", ""))
+	if not contract_id.is_empty():
+		var quit_button := _row_button("Quit", editable)
+		quit_button.pressed.connect(_quit_contract.bind(contract_id))
+		row.add_child(quit_button)
 	return row
 
 
@@ -151,10 +156,14 @@ func _row_button(label: String, enabled: bool) -> Button:
 	return button
 
 
-func _move_contract(contract_id: String, direction: int) -> void:
-	var bridge := _get_gecs_world()
-	if bridge != null and bridge.has_method("move_actor_job_contract"):
-		bridge.call("move_actor_job_contract", actor, contract_id, direction)
+func _move_job_entry(entry_id: String, direction: int) -> void:
+	var job_system := _get_job_system()
+	if _is_party_actor() and job_system != null and job_system.has_method("move_actor_job_entry"):
+		job_system.call("move_actor_job_entry", actor, entry_id, direction)
+	else:
+		var bridge := _get_gecs_world()
+		if bridge != null and bridge.has_method("move_actor_job_contract"):
+			bridge.call("move_actor_job_contract", actor, entry_id, direction)
 	_rebuild_rows()
 
 
@@ -163,6 +172,16 @@ func _quit_contract(contract_id: String) -> void:
 	if bridge != null and bridge.has_method("abandon_job_contract"):
 		bridge.call("abandon_job_contract", actor, contract_id, "quit", _get_sim_time())
 	_rebuild_rows()
+
+
+func _get_job_rows() -> Array[Dictionary]:
+	var job_system := _get_job_system()
+	if _is_party_actor() and job_system != null and job_system.has_method("get_actor_ranked_jobs"):
+		var rows: Array[Dictionary] = []
+		for row in job_system.call("get_actor_ranked_jobs", actor):
+			rows.append(row)
+		return rows
+	return _get_contracts()
 
 
 func _get_contracts() -> Array[Dictionary]:
@@ -197,6 +216,14 @@ func _get_sim_time() -> float:
 	if job_system != null and job_system.has_method("get_sim_time"):
 		return float(job_system.call("get_sim_time"))
 	return float(Time.get_ticks_msec()) / 1000.0
+
+
+func _get_job_system() -> Node:
+	return BootstrapContext.service(JobSystemController.SERVICE_ID)
+
+
+func _is_party_actor() -> bool:
+	return actor != null and actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member"))
 
 
 func _get_gecs_world() -> Node:

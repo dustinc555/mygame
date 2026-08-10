@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://assets/items/farming/hoe.svg" id="2_icon"]
+[ext_resource type="PackedScene" path="res://features/world/projection/equipment/hoe_model.tscn" id="3_model"]
+[ext_resource type="Resource" path="res://features/actors/resources/equipment_grip_profiles/one_hand_melee.tres" id="4_grip"]
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Hoe"
+item_id = "tool.hoe"
+icon = ExtResource("2_icon")
+grid_size = Vector2i(2, 3)
+unit_weight = 3.0
+max_stack = 1
+equip_slot = "weapon"
+world_scene = ExtResource("3_model")
+equipped_scene = ExtResource("3_model")
+grip_profile = ExtResource("4_grip")
+equipped_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+tool_tags = PackedStringArray("tool.hoe", "tool.farming")

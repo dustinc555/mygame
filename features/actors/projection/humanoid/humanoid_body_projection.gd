@@ -41,6 +41,9 @@ const FOLD_ARMS_IDLE_ANIMATION_NAME := "Idle_FoldArms"
 const WALK_ANIMATION_NAME := "Walk"
 const MINING_ANIMATION_NAME := "Mining"
 const SCAVENGING_ANIMATION_NAME := "Fixing_Kneeling"
+const FARM_HARVEST_ANIMATION_NAME := "Farm_Harvest"
+const FARM_PLANT_ANIMATION_NAME := "Farm_PlantSeed"
+const FARM_WATER_ANIMATION_NAME := "Farm_Watering"
 const CROUCH_ENTER_ANIMATION_NAME := "Crouch_Enter"
 const CROUCH_IDLE_ANIMATION_NAME := "Crouch_Idle"
 const CROUCH_WALK_ANIMATION_NAME := "Crouch_Fwd"
@@ -1146,6 +1149,9 @@ func _copy_character_animations(animation_library: AnimationLibrary, target_skel
 	if ual2_player != null:
 		_copy_animation(ual2_player, animation_library, FOLD_ARMS_IDLE_ANIMATION_NAME)
 		_copy_animation(ual2_player, animation_library, MINING_ANIMATION_NAME)
+		_copy_animation(ual2_player, animation_library, FARM_HARVEST_ANIMATION_NAME)
+		_copy_animation(ual2_player, animation_library, FARM_PLANT_ANIMATION_NAME)
+		_copy_animation(ual2_player, animation_library, FARM_WATER_ANIMATION_NAME)
 		_copy_animation(ual2_player, animation_library, LAY_ENTER_ANIMATION_NAME)
 		_copy_animation(ual2_player, animation_library, LAY_EXIT_ANIMATION_NAME)
 		_copy_default_combat_set_animations(ual2_player, animation_library)
