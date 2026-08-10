@@ -11,6 +11,7 @@
 
 # Local planning docs. Not committed.
 /plans/
+/.hermes/
 
 # Claude Code local-only state.
 /CLAUDE.md

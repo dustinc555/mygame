@@ -1,0 +1,76 @@
+[gd_resource type="Resource" script_class="CharacterRecordDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/character_record_definition.gd" id="1_ada"]
+
+[resource]
+script = ExtResource("1_ada")
+actor_id = "ada"
+member_name = "Ada"
+age_years = 27
+appearance = {
+"arm_length_slider": -0.01,
+"beard_color": Color(0.18, 0.08, 0.035, 1),
+"beard_style": "",
+"body_archetype": "res://features/actors/resources/character_body_archetypes/human_female.tres",
+"character_race": "res://features/actors/resources/character_races/human.tres",
+"eyebrow_color": Color(0.16, 0.07, 0.03, 1),
+"eyebrow_style": "res://features/actors/resources/character_appearance/eyebrows_female.tres",
+"hair_color": Color(0.24, 0.1, 0.035, 1),
+"hair_style": "res://features/actors/resources/character_appearance/hair_long.tres",
+"height_slider": -0.03,
+"neck_length_slider": 0.01,
+"shoulder_width_slider": -0.06,
+"skin_color": Color(0.82, 0.58, 0.42, 1),
+"skin_color_customized": true,
+"visual_body_type": 3.0
+}
+skill_levels = {
+"attribute.charisma": 38.0,
+"attribute.dexterity": 42.0,
+"attribute.endurance": 45.0,
+"attribute.perception": 44.0,
+"attribute.strength": 33.0,
+"attribute.toughness": 34.0,
+"combat.axes_one_handed": 12.0,
+"combat.daggers": 14.0,
+"combat.shields": 10.0,
+"combat.swords_one_handed": 11.0,
+"combat.unarmed": 16.0,
+"craft.blacksmithing": 12.0,
+"craft.leatherworking": 20.0,
+"craft.weaving": 28.0,
+"knowledge.archeology": 14.0,
+"knowledge.medicine": 22.0,
+"labor.construction": 26.0,
+"labor.farming": 55.0,
+"labor.fishing": 28.0,
+"labor.mining": 18.0,
+"labor.scavenging": 30.0,
+"movement.running": 38.0,
+"subterfuge.lockpicking": 12.0,
+"subterfuge.sleight_of_hand": 14.0,
+"subterfuge.sneaking": 18.0,
+"tech.robotics": 8.0
+}
+equipment_slots = {
+"chest": "res://features/inventory/resources/items/peasant_tunic.tres",
+"feet": "res://features/inventory/resources/items/peasant_shoes.tres",
+"legs": "res://features/inventory/resources/items/peasant_trousers.tres"
+}
+inventory_entries = [{
+"contained_item_counts": {},
+"count": 1,
+"grid_position": Vector2i(0, 0),
+"item_id": "res://features/inventory/resources/items/hoe.tres",
+"metadata": {}
+}, {
+"contained_item_counts": {},
+"count": 1,
+"grid_position": Vector2i(2, 0),
+"item_id": "res://features/inventory/resources/items/watering_can.tres",
+"metadata": {"farm_water": 16.0}
+}]
+personality = {
+"risk_tolerance": 0.28,
+"temperament": "grounded"
+}
