@@ -14,6 +14,7 @@ class_name CharacterRecordDefinition
 @export var skill_levels: Dictionary = {}
 @export var equipment_slots: Dictionary = {}
 @export var inventory_entries: Array = []
+@export var conversation_definition: Resource
 @export var traits: Dictionary = {}
 @export var personality: Dictionary = {}
 
@@ -23,7 +24,7 @@ func to_record() -> Dictionary:
 	if clean_actor_id.is_empty():
 		push_error("CharacterRecordDefinition requires a non-empty actor_id")
 		return {}
-	return {
+	var record := {
 		"actor_id": clean_actor_id,
 		"member_name": member_name,
 		"birth_day_index": CharacterAgeRules.birth_day_for_age(age_years, 0),
@@ -34,3 +35,6 @@ func to_record() -> Dictionary:
 		"traits": traits.duplicate(true),
 		"personality": personality.duplicate(true),
 	}
+	if conversation_definition != null and not conversation_definition.resource_path.is_empty():
+		record["conversation_definition_path"] = conversation_definition.resource_path
+	return record

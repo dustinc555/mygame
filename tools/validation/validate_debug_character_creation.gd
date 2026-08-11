@@ -87,6 +87,9 @@ func _run() -> void:
 	real_appearance_controller.call("_on_editor_cancel_requested")
 	var debug_menu := DebugMenu.new()
 	scene_root.add_child(debug_menu)
+	if not debug_menu.get_window_titles().has("Farming Debug"):
+		_fail("Debug menu does not expose Farming Debug")
+		return
 	if not debug_menu.get_window_titles().has("Create Character"):
 		_fail("Debug menu does not expose Create Character")
 		return

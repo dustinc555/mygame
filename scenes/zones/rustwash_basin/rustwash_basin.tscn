@@ -12,6 +12,7 @@
 [ext_resource type="Resource" uid="uid://c61gqpdemh37e" path="res://features/world_sim/resources/facility_functions/bar.tres" id="7_omktg"]
 [ext_resource type="Script" uid="uid://dtpasxx6o7akq" path="res://features/world/projection/zone_root.gd" id="7_zone_root"]
 [ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/medium_wood_hall.tscn" id="8_l7lbw"]
+[ext_resource type="Resource" path="res://features/actors/resources/characters/ada.tres" id="12_77k1n"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/crate_wooden.tscn" id="15_l7lbw"]
 [ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://features/inventory/resources/items/inventory_stock.gd" id="17_pqxta"]
 [ext_resource type="Resource" uid="uid://y2dcron3ak5a" path="res://features/inventory/resources/items/bread.tres" id="18_0mjsx"]
@@ -57,14 +58,14 @@
 [ext_resource type="Resource" path="res://features/settlements/resources/roles/warden.tres" id="58_warden"]
 [ext_resource type="Resource" path="res://features/settlements/resources/roles/ruler.tres" id="59_ruler"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_thxgd"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ev028"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_77k1n"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_vaooy"]
 _surfaces = [{
 "aabb": AABB(-8.339571, 0, -116.74548, 88.055725, 1e-05, 100.10727),
 "format": 34359738369,
@@ -99,6 +100,12 @@ script = ExtResource("53_role_slot")
 slot_id = "barber_chair"
 role = ExtResource("56_barber")
 display_name = "Barber"
+
+[sub_resource type="Resource" id="Resource_hqxgy"]
+script = ExtResource("53_role_slot")
+slot_id = "person_42c12bb"
+role = ExtResource("54_resident")
+named_character = ExtResource("12_77k1n")
 
 [sub_resource type="Resource" id="Resource_hpbre"]
 script = ExtResource("17_pqxta")
@@ -256,9 +263,9 @@ metadata/_edit_group_ = true
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Towns/Canyon" unique_id=532431889]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_thxgd")
+material_override = SubResource("StandardMaterial3D_ev028")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_77k1n")
+mesh = SubResource("ArrayMesh_vaooy")
 
 [node name="CanyonCityRestStop" type="Node3D" parent="Towns/Canyon" unique_id=556110935]
 transform = Transform3D(0.28083363, 0, 0.9597566, 0, 1, 0, -0.9597566, 0, 0.28083363, 3.373272, 0.42611122, -37.413513)
@@ -274,7 +281,7 @@ building_id = "canyon.rest_stop.building"
 display_name = "Canyon City Rest Stop"
 facility_type = "bar"
 owner_faction_id = "Canyonites"
-role_slots = Array[ExtResource("53_role_slot")]([SubResource("RoleSlot_bar_proprietor"), SubResource("RoleSlot_bar_security_a"), SubResource("RoleSlot_bar_security_b"), SubResource("RoleSlot_bar_barber")])
+role_slots = Array[ExtResource("53_role_slot")]([SubResource("RoleSlot_bar_proprietor"), SubResource("RoleSlot_bar_security_a"), SubResource("RoleSlot_bar_security_b"), SubResource("RoleSlot_bar_barber"), SubResource("Resource_hqxgy")])
 door_access_policy = "public"
 door_initial_state = "open"
 activity_points_root_path = NodePath("ActivityPoints")

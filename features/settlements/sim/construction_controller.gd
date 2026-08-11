@@ -19,6 +19,7 @@ signal settlement_updated(settlement: Dictionary)
 var catalog: Resource
 var _gecs: GecsWorldController
 var _buildings: BuildingRegistry
+var _territory: Node
 var _next_settlement_index := 1
 var _next_building_index := 1
 
@@ -27,6 +28,7 @@ func initialize(context: BootstrapContext) -> void:
 	catalog = load(CATALOG_PATH)
 	_gecs = context.require(GecsWorldController.SERVICE_ID) as GecsWorldController
 	_buildings = context.require(BuildingRegistry.SERVICE_ID) as BuildingRegistry
+	_territory = context.require(&"territory")
 	_gecs.world_reindexed.connect(_rebuild_id_counters)
 	_rebuild_id_counters()
 
@@ -35,16 +37,29 @@ func _ready() -> void:
 	add_to_group("construction_controller")
 
 
-func can_place(position: Vector3, faction_id: String) -> Dictionary:
-	for settlement in _gecs.get_settlement_states().values():
-		if str(settlement.get("faction_id", "")) == faction_id:
-			continue
-		var radius := float(settlement.get("radius", 0.0))
-		if radius <= 0.0:
-			radius = authored_town_zone_radius
-		var center: Vector3 = settlement.get("world_position", Vector3.INF)
-		if center != Vector3.INF and Vector2(center.x - position.x, center.z - position.z).length() <= radius:
-			return {"allowed": false, "reason": "Too close to another faction's town.", "blocking_settlement": str(settlement.get("settlement_id", ""))}
+func can_place(position: Vector3, faction_id: String, footprint_size := Vector2.ZERO, yaw := 0.0) -> Dictionary:
+	var placement_transform := Transform3D(Basis(Vector3.UP, yaw), position)
+	return _can_place_transform(placement_transform, faction_id, footprint_size)
+
+
+func _can_place_transform(placement_transform: Transform3D, faction_id: String, footprint_size: Vector2) -> Dictionary:
+	if _territory == null:
+		return {"allowed": false, "reason": "Territory authority unavailable.", "blocking_settlement": ""}
+	var permission: Dictionary
+	if footprint_size.x > 0.0 and footprint_size.y > 0.0:
+		if not _territory.has_method("get_build_permission_for_footprint"):
+			return {"allowed": false, "reason": "Territory authority unavailable.", "blocking_settlement": ""}
+		permission = _territory.call("get_build_permission_for_footprint", placement_transform, footprint_size, faction_id)
+	else:
+		if not _territory.has_method("get_build_permission"):
+			return {"allowed": false, "reason": "Territory authority unavailable.", "blocking_settlement": ""}
+		permission = _territory.call("get_build_permission", placement_transform.origin, faction_id)
+	if not bool(permission.get("can_build", false)):
+		return {
+			"allowed": false,
+			"reason": "Too close to another faction's town.",
+			"blocking_settlement": str(permission.get("settlement_id", "")),
+		}
 	return {"allowed": true, "reason": "", "blocking_settlement": ""}
 
 
@@ -53,7 +68,8 @@ func place_building(catalog_building_id: String, transform: Transform3D, faction
 	if definition == null:
 		push_warning("ConstructionController: unknown building id '%s'" % catalog_building_id)
 		return {}
-	if not bool(can_place(transform.origin, faction_id)["allowed"]):
+	var footprint_size: Vector2 = definition.get("footprint_size")
+	if not bool(_can_place_transform(transform, faction_id, footprint_size)["allowed"]):
 		return {}
 	var settlement := _find_joinable_settlement(transform.origin, faction_id)
 	var founded := settlement.is_empty()

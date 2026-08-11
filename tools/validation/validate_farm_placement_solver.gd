@@ -2,6 +2,7 @@ extends SceneTree
 ## Run: godot --headless --path . --script res://tools/validation/validate_farm_placement_solver.gd
 
 const SOLVER = preload("res://features/farming/bridge/farm_placement_solver.gd")
+const PLACEMENT_BRIDGE = preload("res://features/farming/bridge/farm_placement_bridge.gd")
 
 var failures: Array[String] = []
 
@@ -14,6 +15,7 @@ func _initialize() -> void:
 	var bounded_dimensions: Vector2i = bounded.get("dimensions", Vector2i.ZERO)
 	_expect(bounded_dimensions.x <= 24 and bounded_dimensions.y <= 24, "drag dimensions are bounded")
 	_expect((bounded.get("positions", []) as Array).size() <= 256, "drag cell count is bounded")
+	_expect(SOLVER.MAX_CELL_OVERLAP_RESULTS >= 128, "crowded ignored overlaps cannot exhaust a low obstacle-query cap")
 	var samples := [
 		{"position": Vector3.ZERO, "normal": Vector3.UP, "blocked_reason": ""},
 		{"position": Vector3(1.25, 0.1, 0), "normal": Vector3(0.1, 0.99, 0).normalized(), "blocked_reason": "rock"},
@@ -23,6 +25,20 @@ func _initialize() -> void:
 	_expect(str((result.get("blocked_cells", {}) as Dictionary).get("1:0", "")) == "rock", "blocked cell keeps a recoverable reason")
 	var steep := [{"position": Vector3.ZERO, "normal": Vector3(0.8, 0.2, 0).normalized(), "blocked_reason": ""}]
 	_expect(not bool(SOLVER.validate_samples(steep, 18.0).get("valid", true)), "building-grade slope tolerance rejects steep terrain")
+	var preview_root := Node3D.new()
+	get_root().add_child(preview_root)
+	var preview := Node3D.new()
+	preview_root.add_child(preview)
+	var bridge := PLACEMENT_BRIDGE.new()
+	preview_root.add_child(bridge)
+	bridge.set("_preview", preview)
+	bridge.call("_draw_mixed_preview", [Vector3.ZERO], [Vector3(1.25, 0.0, 0.0)])
+	_expect(preview.get_child_count() == 2, "preview draws valid and invalid cells instead of dropping invalid cells")
+	if preview.get_child_count() == 2:
+		var invalid_material := (preview.get_child(0) as MeshInstance3D).material_override as StandardMaterial3D
+		var valid_material := (preview.get_child(1) as MeshInstance3D).material_override as StandardMaterial3D
+		_expect(invalid_material != null and invalid_material.albedo_color == PLACEMENT_BRIDGE.PREVIEW_INVALID_COLOR, "invalid cell keeps clear invalid feedback")
+		_expect(valid_material != null and valid_material.albedo_color == PLACEMENT_BRIDGE.PREVIEW_ADD_COLOR, "valid cell keeps add feedback")
 	_finish()
 
 

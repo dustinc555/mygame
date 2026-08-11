@@ -6,10 +6,12 @@ class FakeGecs:
 	signal world_reindexed
 	var states := {}
 	var water_states := {}
+	var farm_state_reads := 0
 	func upsert_farm_plot_state(state: Dictionary) -> Dictionary:
 		states[str(state.get("plot_id", ""))] = state.duplicate(true)
 		return states[str(state.get("plot_id", ""))].duplicate(true)
 	func get_farm_plot_states() -> Dictionary:
+		farm_state_reads += 1
 		return states.duplicate(true)
 	func remove_farm_plot_state(plot_id: String) -> void:
 		states.erase(plot_id)
@@ -25,6 +27,16 @@ class FakeTime:
 	var absolute_minute := 0
 	func get_absolute_minute() -> int:
 		return absolute_minute
+
+class FakeTerritory:
+	extends Node
+	func get_build_permission(_position: Vector3, _faction_id := "") -> Dictionary:
+		return {"can_build": true}
+	func get_build_permissions(positions: Array, _faction_id := "") -> Array[Dictionary]:
+		var permissions: Array[Dictionary] = []
+		for _position in positions:
+			permissions.append({"can_build": true})
+		return permissions
 
 class FakeActor:
 	extends Node
@@ -54,11 +66,14 @@ func _init() -> void:
 	var controller = load("res://features/farming/sim/farm_controller.gd").new()
 	var gecs := FakeGecs.new()
 	var time := FakeTime.new()
+	var territory := FakeTerritory.new()
 	root.add_child(gecs)
 	root.add_child(time)
+	root.add_child(territory)
 	root.add_child(controller)
 	controller._gecs = gecs
 	controller._world_time = time
+	controller._territory = territory
 	for crop_id in controller.CROP_PATHS:
 		controller._crops[crop_id] = load(controller.CROP_PATHS[crop_id])
 	var positions: Array[Vector3] = [Vector3.ZERO, Vector3(1.25, 0, 0)]
@@ -69,6 +84,12 @@ func _init() -> void:
 	var painted_positions: Array[Vector3] = [Vector3(5.0, 0, 5.0), Vector3(6.25, 0, 5.0), Vector3(6.25, 0, 6.25)]
 	var painted: Dictionary = controller.create_plot(painted_positions, Vector2i(2, 2), "tomato", "Player", "", {}, PackedStringArray(["0:0", "1:0", "1:1"]))
 	_expect((painted.get("cells", {}) as Dictionary).size() == 3 and not (painted.get("cells", {}) as Dictionary).has("0:1"), "painted plot persists only painted cells")
+	var query_positions: Array[Vector3] = []
+	for index in 128:
+		query_positions.append(Vector3(float(index) * 1.25, 0.0, 50.0))
+	gecs.farm_state_reads = 0
+	var query_results: Array = controller.find_plot_cells_at_world_positions(query_positions)
+	_expect(query_results.size() == query_positions.size() and gecs.farm_state_reads == 1, "batched occupancy query reconstructs GECS farm state once")
 	var excessive_positions: Array[Vector3] = []
 	excessive_positions.resize(300)
 	_expect(controller.create_plot(excessive_positions, Vector2i(20, 15), "tomato", "Player").is_empty(), "rejects plots above the authored cell limit")
@@ -137,6 +158,15 @@ func _init() -> void:
 		harvest_state["cells"]["1:0"]["state"] = "ripe"
 		harvest_state["cells"]["1:0"]["crop_id"] = "wheat"
 		controller.call("_save_plot", harvest_state)
+		harvest_state = controller.get_plot(str(harvest_plot.get("plot_id", "")))
+		harvest_state["cells"]["0:0"]["state"] = "growing"
+		harvest_state["cells"]["0:0"]["growth"] = 0.0
+		harvest_state["cells"]["0:0"]["stage_index"] = 0
+		controller.call("_save_plot", harvest_state)
+		var advanced_crop: Dictionary = controller.debug_crop_action_at(harvest_positions[0])
+		_expect(bool(advanced_crop.get("success", false)) and int(controller.get_cell(str(harvest_plot.get("plot_id", "")), "0:0").get("stage_index", 0)) == 1, "debug Advance Crop advances only the clicked crop one stage")
+		var full_grown_crop: Dictionary = controller.debug_crop_action_at(harvest_positions[0], true)
+		_expect(bool(full_grown_crop.get("success", false)) and str(controller.get_cell(str(harvest_plot.get("plot_id", "")), "0:0").get("state", "")) == "ripe", "debug Full Grow Crop makes only the clicked crop ripe")
 		var harvest_order: Dictionary = controller.prepare_plot_operation(str(harvest_plot.get("plot_id", "")), "harvest", "", actor_ids, "0:0", owner)
 		var harvest_targets: Array = harvest_order.get("targets", [])
 		_expect(harvest_targets.size() == 1 and str((harvest_targets[0] as Dictionary).get("cell_key", "")) == "0:0", "Shift Harvest skips mixed-crop cells whose required tool the selected actor cannot equip")

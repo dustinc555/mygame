@@ -1,0 +1,58 @@
+[gd_resource type="Resource" script_class="ConversationDefinition" format=3 uid="uid://bl8ohweyk47b3"]
+
+[ext_resource type="Script" uid="uid://oln7awi2fw1o" path="res://features/conversation/resources/conversation_definition.gd" id="1_definition"]
+[ext_resource type="Script" uid="uid://c21vtwxjyyyyi" path="res://features/conversation/resources/conversation_node.gd" id="2_node"]
+[ext_resource type="Script" uid="uid://d2gwynnqbm0iq" path="res://features/conversation/resources/conversation_response.gd" id="3_response"]
+[ext_resource type="Script" uid="uid://chy0yv7e33qft" path="res://features/conversation/resources/conversation_condition.gd" id="4_condition"]
+[ext_resource type="Script" uid="uid://cpf8b6pq8heil" path="res://features/conversation/resources/conversation_effect.gd" id="5_effect"]
+
+[sub_resource type="Resource" id="ConversationCondition_not_in_party"]
+script = ExtResource("4_condition")
+condition_id = "actor.is_player_party_member"
+parameters = {
+"subject": "conversation_target"
+}
+negate = true
+
+[sub_resource type="Resource" id="ConversationResponse_recruit"]
+script = ExtResource("3_response")
+text = "Come with us."
+next_node_id = "join"
+visible_conditions = Array[Resource]([SubResource("ConversationCondition_not_in_party")])
+
+[sub_resource type="Resource" id="ConversationNode_intro"]
+script = ExtResource("2_node")
+node_id = "intro"
+speaker_name = "Ada"
+text = "Need another hand?"
+responses = Array[Resource]([SubResource("ConversationResponse_recruit")])
+
+[sub_resource type="Resource" id="ConversationEffect_join_party"]
+script = ExtResource("5_effect")
+action_id = "core.join_party"
+parameters = {
+"subject": "conversation_target"
+}
+
+[sub_resource type="Resource" id="ConversationEffect_set_faction"]
+script = ExtResource("5_effect")
+action_id = "core.set_faction"
+parameters = {
+"faction_name": "Player",
+"subject": "conversation_target"
+}
+
+[sub_resource type="Resource" id="ConversationNode_join"]
+script = ExtResource("2_node")
+node_id = "join"
+speaker_name = "Ada"
+text = "All right. Let's get moving."
+effects = Array[Resource]([SubResource("ConversationEffect_join_party"), SubResource("ConversationEffect_set_faction")])
+ends_conversation = true
+
+[resource]
+script = ExtResource("1_definition")
+conversation_id = "conv.character.ada.recruitment"
+display_name = "Ada Recruitment"
+start_node_id = "intro"
+nodes = Array[Resource]([SubResource("ConversationNode_intro"), SubResource("ConversationNode_join")])

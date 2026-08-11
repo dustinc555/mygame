@@ -7,6 +7,7 @@ const PLAYER_PARTY_ID := "player_party"
 signal selection_changed
 signal follow_changed
 signal party_member_added(member)
+signal party_member_removed(member)
 signal party_membership_changed(member: WorldActor, party_id: String)
 
 var party_members: Array[WorldActor] = []
@@ -35,6 +36,7 @@ func set_party_members(members: Array) -> void:
 			previous_member.set_player_party_member(false)
 			previous_member.set_selected(false)
 			previous_member.set_focused(false)
+			party_member_removed.emit(previous_member)
 	for member in party_members:
 		member.set_meta("party_id", PLAYER_PARTY_ID)
 		party_membership_changed.emit(member, PLAYER_PARTY_ID)
@@ -96,12 +98,55 @@ func clear_followed_member() -> void:
 func register_party_member(member: WorldActor) -> void:
 	if member == null or party_members.has(member):
 		return
+	for index in range(party_members.size() - 1, -1, -1):
+		var existing := party_members[index]
+		if existing == null or not is_instance_valid(existing):
+			party_members.remove_at(index)
+			selected_members.erase(existing)
+	var stable_id := _stable_member_id(member)
+	if not stable_id.is_empty():
+		for index in party_members.size():
+			var existing := party_members[index]
+			if _stable_member_id(existing) != stable_id:
+				continue
+			var was_selected := selected_members.has(existing)
+			var was_followed := followed_member == existing
+			party_members[index] = member
+			selected_members.erase(existing)
+			if was_selected:
+				selected_members.append(member)
+			if was_followed:
+				followed_member = member
+			existing.set_player_party_member(false)
+			existing.remove_meta("party_id")
+			existing.set_selected(false)
+			existing.set_focused(false)
+			party_member_removed.emit(existing)
+			member.set_meta("party_id", PLAYER_PARTY_ID)
+			party_membership_changed.emit(member, PLAYER_PARTY_ID)
+			member.set_player_party_member(true)
+			_sync_member_states()
+			party_member_added.emit(member)
+			if was_selected:
+				selection_changed.emit()
+			if was_followed:
+				follow_changed.emit()
+			return
 	party_members.append(member)
 	member.set_meta("party_id", PLAYER_PARTY_ID)
 	party_membership_changed.emit(member, PLAYER_PARTY_ID)
 	member.set_player_party_member(true)
 	_sync_member_states()
 	party_member_added.emit(member)
+
+
+func _stable_member_id(member: WorldActor) -> String:
+	if member == null or not is_instance_valid(member):
+		return ""
+	var stable_id := str(member.stable_id).strip_edges()
+	if stable_id.is_empty() and member.has_meta("actor_record_id"):
+		stable_id = str(member.get_meta("actor_record_id")).strip_edges()
+	return stable_id
 
 
 func unregister_party_member(member: WorldActor) -> void:
@@ -115,6 +160,7 @@ func unregister_party_member(member: WorldActor) -> void:
 	member.set_player_party_member(false)
 	member.remove_meta("party_id")
 	party_membership_changed.emit(member, "")
+	party_member_removed.emit(member)
 	_sync_member_states()
 	selection_changed.emit()
 

@@ -4,6 +4,7 @@ const FACILITIES_DIR := "res://features/settlements/resources/facilities"
 const ROLES_DIR := "res://features/settlements/resources/roles"
 const CHARACTERS_DIR := "res://features/actors/resources/characters"
 const ADA_PATH := "res://features/actors/resources/characters/ada.tres"
+const MIRA_PATH := "res://features/actors/resources/characters/mira.tres"
 const DOCK_PATH := "res://addons/world_authoring/facility_dock.gd"
 const TOOLS_PATH := "res://addons/world_authoring/facility_tools.gd"
 
@@ -60,21 +61,28 @@ func _validate_character_catalog() -> void:
 
 func _validate_ada_record() -> void:
 	var ada := load(ADA_PATH) as Resource
+	var mira := load(MIRA_PATH) as Resource
 	_expect(ada != null, "Ada permanent character record is missing")
-	if ada == null or not ada.has_method("to_record"):
+	_expect(mira != null, "Mira permanent character record is missing")
+	if ada == null or mira == null or not ada.has_method("to_record") or not mira.has_method("to_record"):
 		return
 	var record: Dictionary = ada.call("to_record")
+	var mira_record: Dictionary = mira.call("to_record")
 	var appearance: Dictionary = record.get("appearance", {})
+	var mira_appearance: Dictionary = mira_record.get("appearance", {})
 	var skills: Dictionary = record.get("skill_levels", {})
 	var equipment: Dictionary = record.get("equipment_slots", {})
 	var inventory: Array = record.get("inventory_entries", [])
 	_expect(str(record.get("actor_id", "")) == "ada" and str(record.get("member_name", "")) == "Ada", "Ada must have stable authored identity")
 	_expect(str(appearance.get("body_archetype", "")).ends_with("human_female.tres") and int(appearance.get("visual_body_type", 0)) == 3, "Ada must use the female body record")
+	_expect(str(appearance.get("hair_style", "")) != str(mira_appearance.get("hair_style", "")), "Ada must not reuse Mira's hair")
+	_expect(absf(float(appearance.get("height_slider", 0.0)) - float(mira_appearance.get("height_slider", 0.0))) >= 0.08 or absf(float(appearance.get("shoulder_width_slider", 0.0)) - float(mira_appearance.get("shoulder_width_slider", 0.0))) >= 0.08, "Ada must have a distinct silhouette from Mira")
 	_expect(is_equal_approx(float(skills.get("labor.farming", 0.0)), 55.0), "Ada Farming must be 55")
 	for combat_skill in ["combat.axes_one_handed", "combat.daggers", "combat.shields", "combat.swords_one_handed", "combat.unarmed"]:
 		_expect(float(skills.get(combat_skill, 999.0)) <= 20.0, "Ada combat skill must remain weak: %s" % combat_skill)
 	_expect(equipment.has("chest") and equipment.has("legs") and equipment.has("feet"), "Ada must start clothed")
-	var has_hoe := false
+	_expect(str(equipment.get("weapon", "")).ends_with("hoe.tres"), "Ada must start with her Hoe equipped in the weapon slot")
+	var carries_duplicate_hoe := false
 	var has_full_can := false
 	for entry_value in inventory:
 		if not (entry_value is Dictionary):
@@ -82,10 +90,10 @@ func _validate_ada_record() -> void:
 		var entry: Dictionary = entry_value
 		var item_id := str(entry.get("item_id", ""))
 		if item_id.ends_with("hoe.tres"):
-			has_hoe = true
+			carries_duplicate_hoe = true
 		elif item_id.ends_with("watering_can.tres"):
 			has_full_can = is_equal_approx(float((entry.get("metadata", {}) as Dictionary).get("farm_water", 0.0)), 16.0)
-	_expect(has_hoe, "Ada must start with a Hoe")
+	_expect(not carries_duplicate_hoe, "Ada's equipped Hoe must not also be duplicated in inventory")
 	_expect(has_full_can, "Ada must start with a full Watering Can")
 
 

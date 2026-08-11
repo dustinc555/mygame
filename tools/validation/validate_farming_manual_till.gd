@@ -21,7 +21,7 @@ func _run() -> void:
 	var work_source := FileAccess.get_file_as_string("res://features/farming/bridge/farm_work_bridge.gd")
 	_expect(placement_source.contains("prepare_manual_till"), "dragged till cells become durable farming requests")
 	_expect(projection_source.contains("prepare_plot_operation") and projection_source.contains("assign_cell_sequence"), "Shift-click cell actions expand through the selected actor's field-wide command path")
-	_expect(controller_source.contains("request_cell_operation(plot_id, cell_key, \"till\""), "painted Till publishes durable per-cell work for every selected square")
+	_expect(controller_source.contains("_request_cell_operations") and controller_source.contains("eligible_targets"), "painted Till publishes durable batched work for every selected square")
 	_expect(work_source.contains("assign_cell_sequence") and work_source.contains("command_targets") and not work_source.contains("_manual_queues"), "manual field commands chain normal cell assignments without a separate private queue")
 	_finish()
 

@@ -16,6 +16,7 @@ class_name CGamePopulationRecord
 @export var character_type_id := ""
 @export var character_type_path := ""
 @export var character_type_signature := ""
+@export var conversation_definition_path := ""
 @export var faction_id := ""
 @export var party_id := ""
 @export var squad_name := ""
@@ -98,6 +99,7 @@ func apply_record(source: Dictionary) -> void:
 	character_type_id = str(source.get("character_type_id", character_type_id))
 	character_type_path = str(source.get("character_type_path", character_type_path))
 	character_type_signature = str(source.get("character_type_signature", character_type_signature))
+	conversation_definition_path = str(source.get("conversation_definition_path", conversation_definition_path))
 	faction_id = str(source.get("faction_id", faction_id))
 	party_id = str(source.get("party_id", party_id))
 	squad_name = str(source.get("squad_name", squad_name))
@@ -167,6 +169,7 @@ func to_record() -> Dictionary:
 		"character_type_id": character_type_id,
 		"character_type_path": character_type_path,
 		"character_type_signature": character_type_signature,
+		"conversation_definition_path": conversation_definition_path,
 		"faction_id": faction_id,
 		"party_id": party_id,
 		"squad_name": squad_name,

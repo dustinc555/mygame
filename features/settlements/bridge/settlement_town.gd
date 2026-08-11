@@ -99,6 +99,9 @@ var _last_border_watch_signature := 0
 var _realization_policy_override := ""
 var _last_guard_authoring_signature := ""
 var _cached_town_border_shape: Dictionary = {}
+var _cached_circle_world_ellipse: Dictionary = {}
+var _cached_circle_world_transform := Transform3D.IDENTITY
+var _cached_circle_world_radius := -1.0
 
 
 func _settlement_definition_typed() -> SettlementDefinition:
@@ -283,21 +286,240 @@ func get_town_border_record() -> Dictionary:
 	return shape
 
 
-func contains_town_border_position(world_position: Vector3) -> bool:
+func contains_town_border_position(world_position: Vector3, extra_margin := 0.0) -> bool:
 	var shape := _get_town_border_shape()
+	var margin := maxf(0.0, extra_margin)
 	match str(shape.get("shape_mode", "circle")):
 		"box":
 			var local := to_local(world_position)
 			var bounds_min: Vector2 = shape.get("bounds_min", Vector2.ZERO)
 			var bounds_max: Vector2 = shape.get("bounds_max", Vector2.ZERO)
-			return Rect2(bounds_min, bounds_max - bounds_min).has_point(Vector2(local.x, local.z))
+			var point := Vector2(local.x, local.z)
+			var nearest := Vector2(
+				clampf(point.x, bounds_min.x, bounds_max.x),
+				clampf(point.y, bounds_min.y, bounds_max.y)
+			)
+			var nearest_world := to_global(Vector3(nearest.x, local.y, nearest.y))
+			var flat_position := Vector2(world_position.x, world_position.z)
+			var flat_nearest := Vector2(nearest_world.x, nearest_world.z)
+			return flat_position.distance_squared_to(flat_nearest) <= margin * margin
 		_:
 			var radius := float(shape.get("radius", town_border_radius))
 			if radius <= 0.0:
 				return false
-			var flat_center := Vector2(global_position.x, global_position.z)
-			var flat_position := Vector2(world_position.x, world_position.z)
-			return flat_center.distance_to(flat_position) <= radius
+			return _point_to_world_ellipse_distance_squared(Vector2(world_position.x, world_position.z), radius) <= pow(margin + 0.001, 2.0)
+
+
+func overlaps_town_border_footprint(world_corners: PackedVector2Array, extra_margin := 0.0) -> bool:
+	if world_corners.size() < 3:
+		return false
+	var shape := _get_town_border_shape()
+	var margin := maxf(0.0, extra_margin)
+	if str(shape.get("shape_mode", "circle")) == "box":
+		var bounds_min: Vector2 = shape.get("bounds_min", Vector2.ZERO)
+		var bounds_max: Vector2 = shape.get("bounds_max", Vector2.ZERO)
+		var town_polygon := PackedVector2Array()
+		for local_corner in [
+			Vector2(bounds_min.x, bounds_min.y),
+			Vector2(bounds_max.x, bounds_min.y),
+			Vector2(bounds_max.x, bounds_max.y),
+			Vector2(bounds_min.x, bounds_max.y),
+		]:
+			var world_corner := to_global(Vector3(local_corner.x, 0.0, local_corner.y))
+			town_polygon.append(Vector2(world_corner.x, world_corner.z))
+		return _polygon_distance_squared(town_polygon, world_corners) <= margin * margin
+	var ellipse := _circle_world_ellipse(float(shape.get("radius", town_border_radius)))
+	return _ellipse_polygon_distance_squared(ellipse, world_corners) <= pow(margin + 0.001, 2.0)
+
+
+func _circle_world_ellipse(radius: float) -> Dictionary:
+	if radius <= 0.0:
+		return {}
+	if is_equal_approx(radius, _cached_circle_world_radius) and global_transform == _cached_circle_world_transform \
+			and not _cached_circle_world_ellipse.is_empty():
+		return _cached_circle_world_ellipse
+	var center3 := to_global(Vector3.ZERO)
+	var axis_x3 := to_global(Vector3(radius, 0.0, 0.0)) - center3
+	var axis_z3 := to_global(Vector3(0.0, 0.0, radius)) - center3
+	var axis_x := Vector2(axis_x3.x, axis_x3.z)
+	var axis_z := Vector2(axis_z3.x, axis_z3.z)
+	var matrix_xx := axis_x.x * axis_x.x + axis_z.x * axis_z.x
+	var matrix_xz := axis_x.x * axis_x.y + axis_z.x * axis_z.y
+	var matrix_zz := axis_x.y * axis_x.y + axis_z.y * axis_z.y
+	var discriminant := sqrt(maxf(0.0, (matrix_xx - matrix_zz) * (matrix_xx - matrix_zz) + 4.0 * matrix_xz * matrix_xz))
+	var major_squared := maxf(0.0, 0.5 * (matrix_xx + matrix_zz + discriminant))
+	var minor_squared := maxf(0.0, 0.5 * (matrix_xx + matrix_zz - discriminant))
+	var major_direction := Vector2.RIGHT
+	if absf(matrix_xz) > 0.000001:
+		major_direction = Vector2(matrix_xz, major_squared - matrix_xx).normalized()
+	elif matrix_zz > matrix_xx:
+		major_direction = Vector2.DOWN
+	_cached_circle_world_ellipse = {
+		"center": Vector2(center3.x, center3.z),
+		"major": sqrt(major_squared),
+		"minor": sqrt(minor_squared),
+		"major_direction": major_direction,
+		"minor_direction": Vector2(-major_direction.y, major_direction.x),
+	}
+	_cached_circle_world_transform = global_transform
+	_cached_circle_world_radius = radius
+	return _cached_circle_world_ellipse
+
+
+func _point_to_world_ellipse_distance_squared(point: Vector2, radius: float) -> float:
+	var ellipse := _circle_world_ellipse(radius)
+	if ellipse.is_empty():
+		return INF
+	var center: Vector2 = ellipse["center"]
+	var major_direction: Vector2 = ellipse["major_direction"]
+	var minor_direction: Vector2 = ellipse["minor_direction"]
+	var major := float(ellipse["major"])
+	var minor := float(ellipse["minor"])
+	var delta := point - center
+	var x := absf(delta.dot(major_direction))
+	var y := absf(delta.dot(minor_direction))
+	if minor <= 0.000001:
+		return point.distance_squared_to(center + major_direction * clampf(delta.dot(major_direction), -major, major))
+	if x * x / (major * major) + y * y / (minor * minor) <= 1.0:
+		return 0.0
+	var low := 0.0
+	var high := maxf(1.0, maxf(major * x, minor * y))
+	while _ellipse_distance_constraint(high, x, y, major, minor) > 0.0:
+		high *= 2.0
+	for _iteration in 64:
+		var middle := (low + high) * 0.5
+		if _ellipse_distance_constraint(middle, x, y, major, minor) > 0.0:
+			low = middle
+		else:
+			high = middle
+	var parameter := (low + high) * 0.5
+	var closest_x := major * major * x / (parameter + major * major)
+	var closest_y := minor * minor * y / (parameter + minor * minor)
+	return Vector2(x, y).distance_squared_to(Vector2(closest_x, closest_y))
+
+
+func _ellipse_distance_constraint(parameter: float, x: float, y: float, major: float, minor: float) -> float:
+	var major_term := major * x / (parameter + major * major)
+	var minor_term := minor * y / (parameter + minor * minor)
+	return major_term * major_term + minor_term * minor_term - 1.0
+
+
+func _ellipse_polygon_distance_squared(ellipse: Dictionary, polygon: PackedVector2Array) -> float:
+	if ellipse.is_empty() or polygon.size() < 3:
+		return INF
+	var center: Vector2 = ellipse["center"]
+	if Geometry2D.is_point_in_polygon(center, polygon):
+		return 0.0
+	for point in polygon:
+		if _point_inside_world_ellipse(point, ellipse):
+			return 0.0
+	var best := INF
+	for index in polygon.size():
+		var start := polygon[index]
+		var finish := polygon[(index + 1) % polygon.size()]
+		if _segment_intersects_world_ellipse(start, finish, ellipse):
+			return 0.0
+		best = minf(best, _ellipse_segment_distance_squared(ellipse, start, finish))
+	return best
+
+
+func _point_inside_world_ellipse(point: Vector2, ellipse: Dictionary) -> bool:
+	var delta: Vector2 = point - (ellipse["center"] as Vector2)
+	var major := float(ellipse["major"])
+	var minor := float(ellipse["minor"])
+	if major <= 0.000001 or minor <= 0.000001:
+		return false
+	var x := delta.dot(ellipse["major_direction"] as Vector2) / major
+	var y := delta.dot(ellipse["minor_direction"] as Vector2) / minor
+	return x * x + y * y <= 1.0
+
+
+func _segment_intersects_world_ellipse(start: Vector2, finish: Vector2, ellipse: Dictionary) -> bool:
+	var center: Vector2 = ellipse["center"]
+	var major_direction: Vector2 = ellipse["major_direction"]
+	var minor_direction: Vector2 = ellipse["minor_direction"]
+	var major := float(ellipse["major"])
+	var minor := float(ellipse["minor"])
+	if major <= 0.000001 or minor <= 0.000001:
+		return false
+	var start_delta := start - center
+	var direction := finish - start
+	var normalized_start := Vector2(start_delta.dot(major_direction) / major, start_delta.dot(minor_direction) / minor)
+	var normalized_direction := Vector2(direction.dot(major_direction) / major, direction.dot(minor_direction) / minor)
+	var quadratic := normalized_direction.length_squared()
+	if quadratic <= 0.0000001:
+		return normalized_start.length_squared() <= 1.0
+	var linear := 2.0 * normalized_start.dot(normalized_direction)
+	var constant := normalized_start.length_squared() - 1.0
+	var discriminant := linear * linear - 4.0 * quadratic * constant
+	if discriminant < 0.0:
+		return false
+	var root := sqrt(discriminant)
+	var first := (-linear - root) / (2.0 * quadratic)
+	var second := (-linear + root) / (2.0 * quadratic)
+	return (first >= 0.0 and first <= 1.0) or (second >= 0.0 and second <= 1.0)
+
+
+func _ellipse_segment_distance_squared(ellipse: Dictionary, start: Vector2, finish: Vector2) -> float:
+	const SAMPLE_COUNT := 128
+	var step := TAU / float(SAMPLE_COUNT)
+	var best_index := 0
+	var best := INF
+	for index in SAMPLE_COUNT:
+		var distance := _ellipse_point_at_angle(ellipse, float(index) * step).distance_squared_to(Geometry2D.get_closest_point_to_segment(_ellipse_point_at_angle(ellipse, float(index) * step), start, finish))
+		if distance < best:
+			best = distance
+			best_index = index
+	var low := (float(best_index) - 1.0) * step
+	var high := (float(best_index) + 1.0) * step
+	for _iteration in 40:
+		var first := low + (high - low) / 3.0
+		var second := high - (high - low) / 3.0
+		var first_point := _ellipse_point_at_angle(ellipse, first)
+		var second_point := _ellipse_point_at_angle(ellipse, second)
+		var first_distance := first_point.distance_squared_to(Geometry2D.get_closest_point_to_segment(first_point, start, finish))
+		var second_distance := second_point.distance_squared_to(Geometry2D.get_closest_point_to_segment(second_point, start, finish))
+		if first_distance <= second_distance:
+			high = second
+		else:
+			low = first
+	var point := _ellipse_point_at_angle(ellipse, (low + high) * 0.5)
+	return minf(best, point.distance_squared_to(Geometry2D.get_closest_point_to_segment(point, start, finish)))
+
+
+func _ellipse_point_at_angle(ellipse: Dictionary, angle: float) -> Vector2:
+	return (ellipse["center"] as Vector2) \
+			+ (ellipse["major_direction"] as Vector2) * float(ellipse["major"]) * cos(angle) \
+			+ (ellipse["minor_direction"] as Vector2) * float(ellipse["minor"]) * sin(angle)
+
+
+func _polygon_distance_squared(first: PackedVector2Array, second: PackedVector2Array) -> float:
+	if first.size() < 3 or second.size() < 3:
+		return INF
+	if Geometry2D.is_point_in_polygon(first[0], second) or Geometry2D.is_point_in_polygon(second[0], first):
+		return 0.0
+	var best := INF
+	for first_index in first.size():
+		var first_start := first[first_index]
+		var first_end := first[(first_index + 1) % first.size()]
+		for second_index in second.size():
+			var second_start := second[second_index]
+			var second_end := second[(second_index + 1) % second.size()]
+			if Geometry2D.segment_intersects_segment(first_start, first_end, second_start, second_end) != null:
+				return 0.0
+			best = minf(best, first_start.distance_squared_to(Geometry2D.get_closest_point_to_segment(first_start, second_start, second_end)))
+			best = minf(best, second_start.distance_squared_to(Geometry2D.get_closest_point_to_segment(second_start, first_start, first_end)))
+	return best
+
+
+func _point_to_polygon_distance_squared(point: Vector2, polygon: PackedVector2Array) -> float:
+	if Geometry2D.is_point_in_polygon(point, polygon):
+		return 0.0
+	var best := INF
+	for index in polygon.size():
+		var closest := Geometry2D.get_closest_point_to_segment(point, polygon[index], polygon[(index + 1) % polygon.size()])
+		best = minf(best, point.distance_squared_to(closest))
+	return best
 
 
 func set_town_border_debug_visible(value: bool) -> void:
@@ -727,6 +949,8 @@ func _on_town_border_child_changed(_child: Node) -> void:
 
 func _invalidate_town_border_shape() -> void:
 	_cached_town_border_shape.clear()
+	_cached_circle_world_ellipse.clear()
+	_cached_circle_world_radius = -1.0
 
 
 func _get_auto_town_border_rect() -> Rect2:

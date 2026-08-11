@@ -14,6 +14,7 @@ var inventory_controller
 var appearance_controller
 var faction_controller: Node
 var law_order_controller: Node
+var population_controller: Node
 var world_time: Node
 var party_manager
 var floating_notice
@@ -57,6 +58,7 @@ func _do_initialize() -> void:
 	inventory_controller = _context.get_optional(PartyInventoryController.SERVICE_ID)
 	appearance_controller = _context.get_optional(CharacterAppearanceController.SERVICE_ID)
 	faction_controller = _context.get_optional(FactionController.SERVICE_ID)
+	population_controller = _context.get_optional(&"population")
 	world_time = _context.get_optional(WorldTimeController.SERVICE_ID)
 	law_order_controller = _context.get_optional(&"law_order")
 	conversation_window = hud_layer.get_node_or_null("ConversationWindow")
@@ -358,10 +360,13 @@ func _execute_action(effect) -> void:
 				target_actor.set_player_party_member(true)
 				if party_manager != null:
 					party_manager.register_party_member(target_actor)
+				_persist_actor_record(target_actor, {"party_id": str(party_manager.PLAYER_PARTY_ID) if party_manager != null else "player_party"})
 		"core.set_faction":
 			var faction_actor = _resolve_subject(effect.parameters.get("subject", "conversation_target"))
 			if faction_actor != null:
-				faction_actor.faction_name = str(effect.parameters.get("faction_name", faction_actor.faction_name))
+				var faction_name := str(effect.parameters.get("faction_name", faction_actor.faction_name))
+				faction_actor.faction_name = faction_name
+				_persist_actor_record(faction_actor, {"faction_id": faction_name})
 		"law.pay_bail":
 			var jail := ActorConditionEvaluator.find_jail_ancestor(active_target)
 			if law_order_controller != null and jail != null and active_speaker != null and law_order_controller.has_method("pay_bail"):
@@ -387,6 +392,14 @@ func _resolve_subject(subject_key: Variant):
 		"conversation_target", "npc_self":
 			return active_target
 	return null
+
+
+func _persist_actor_record(actor: Node, updates: Dictionary) -> void:
+	if population_controller == null or actor == null or not population_controller.has_method("update_actor_record"):
+		return
+	var actor_id := str(actor.get_meta("actor_record_id", actor.get("stable_id"))).strip_edges()
+	if not actor_id.is_empty():
+		population_controller.call("update_actor_record", actor_id, updates)
 
 
 func _resolve_squad_id(source: Variant) -> String:

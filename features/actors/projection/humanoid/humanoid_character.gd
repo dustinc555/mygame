@@ -14,6 +14,7 @@ extends WorldActor
 # ---------------------------------------------------------------------------
 
 const EQUIPMENT_SLOTS: Array[String] = ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head", "weapon", "offhand"]
+const SHARED_SELECTION_RING_VISUAL = preload("res://features/actors/projection/selection_ring_visual.gd")
 const EQUIPMENT_SLOT_LABELS := {
 	"undershirt": "Undershirt",
 	"hands": "Hands",
@@ -68,6 +69,7 @@ func _ready() -> void:
 	add_to_group("combat_actor")
 	_apply_canon_definition()
 	_setup_body_projection()
+	_update_selection_ring_visual()
 	if life_state != NpcRules.LifeState.ALIVE and life_state != NpcRules.LifeState.ASLEEP:
 		var body := _body as HumanoidBodyProjection
 		if body != null:
@@ -795,10 +797,34 @@ func _set_sneaking_state(value: bool, play_transition: bool) -> bool:
 
 func set_selected(value: bool) -> void:
 	is_selected = value
+	_update_selection_ring_visual()
 
 
 func set_focused(value: bool) -> void:
 	is_focused = value
+	_update_selection_ring_visual()
+
+
+## Selection belongs to commandable humanoids, not to one permanent-party
+## subclass. Contract/member permissions are separate from this shared visual.
+func _update_selection_ring_visual() -> void:
+	var ring := get_node_or_null("SelectionRing") as MeshInstance3D
+	if ring != null:
+		var material := ring.material_override as StandardMaterial3D
+		if material == null:
+			material = SHARED_SELECTION_RING_VISUAL.setup_ring(ring)
+		SHARED_SELECTION_RING_VISUAL.apply_state(
+			ring,
+			material,
+			is_selected,
+			is_focused,
+			SHARED_SELECTION_RING_VISUAL.DEFAULT_SELECTED_COLOR,
+			SHARED_SELECTION_RING_VISUAL.DEFAULT_FOCUSED_COLOR,
+			sneaking
+		)
+	if _inspect_ring != null:
+		_inspect_ring.visible = is_inspected and not is_selected and not is_focused
+	_update_ground_markers()
 
 # ---------------------------------------------------------------------------
 # Inventory display — get_inventory_for_display / is_displaying_work_inventory
@@ -893,6 +919,9 @@ const UPRIGHT_SELECTION_GROUND_MARKER_HEIGHT := 0.34
 func _update_ground_markers() -> void:
 	if _inspect_ring != null and is_instance_valid(_inspect_ring) and _inspect_ring.visible:
 		_seat_ground_marker(_inspect_ring, _selection_marker_height())
+	var selection_ring := get_node_or_null("SelectionRing") as Node3D
+	if selection_ring != null and selection_ring.visible:
+		_seat_ground_marker(selection_ring, _selection_marker_height())
 
 
 func _seat_ground_marker(marker: Node3D, marker_height: float) -> void:
