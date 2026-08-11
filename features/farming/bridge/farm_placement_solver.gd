@@ -7,6 +7,7 @@ const RAY_HEIGHT := 40.0
 const RAY_RETRIES := 12
 const MAX_DIMENSION := 24
 const MAX_CELL_COUNT := 256
+const MAX_CELL_OVERLAP_RESULTS := 256
 
 
 static func build_grid(anchor: Vector3, drag_end: Vector3, cell_size := 1.25) -> Dictionary:
@@ -181,7 +182,7 @@ static func _ground_ray(space: PhysicsDirectSpaceState3D, position: Vector3, ign
 
 
 static func _is_ground_collider(collider) -> bool:
-	if collider == null:
+	if BUILDING_SOLVER.is_native_terrain_collider(collider):
 		return true
 	var node := collider as Node
 	while node != null:
@@ -203,7 +204,7 @@ static func _obstacle_reason(space: PhysicsDirectSpaceState3D, ground: Vector3, 
 	query.collide_with_areas = true
 	if ground_rid.is_valid():
 		query.exclude = [ground_rid]
-	for hit in space.intersect_shape(query, 12):
+	for hit in space.intersect_shape(query, MAX_CELL_OVERLAP_RESULTS):
 		var collider = hit.get("collider")
 		if collider == null:
 			continue

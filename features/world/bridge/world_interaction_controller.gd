@@ -4,8 +4,11 @@ class_name WorldInteractionController
 
 const SERVICE_ID := &"world_interaction"
 const NPC_ACTION_KILL := &"kill"
+const CROP_ACTION_ADVANCE := &"advance_crop"
+const CROP_ACTION_FULL_GROW := &"full_grow_crop"
 
 signal npc_instant_action_finished(action_id: StringName, target: WorldActor, success: bool, message: String)
+signal crop_debug_action_finished(action_id: StringName, success: bool, message: String)
 
 # Characters get click priority within this many screen pixels of the cursor;
 # precise capsule hits indoors (behind counters, under low ceilings) are
@@ -117,6 +120,7 @@ var squad_add_button: Button
 var squad_name_label: Label
 var squad_formation_button: Button
 var _pending_npc_instant_action := &""
+var _pending_crop_debug_action := &""
 var squad_ai_button: Button
 var command_title_label: Label
 var walk_button: Button
@@ -231,6 +235,7 @@ func _do_initialize() -> void:
 	party_manager.selection_changed.connect(_sync_inspected_party_member)
 	party_manager.selection_changed.connect(_update_command_bar)
 	party_manager.party_member_added.connect(_on_party_member_added)
+	party_manager.party_member_removed.connect(_on_party_member_removed)
 
 	if portrait_flow != null:
 		for child in portrait_flow.get_children():
@@ -362,6 +367,9 @@ func _is_text_input_focused() -> bool:
 func _unhandled_input(event: InputEvent) -> void:
 	if not _initialized:
 		return
+	if _handle_crop_debug_action_input(event):
+		get_viewport().set_input_as_handled()
+		return
 	if _handle_npc_instant_action_input(event):
 		get_viewport().set_input_as_handled()
 		return
@@ -416,6 +424,48 @@ func arm_npc_instant_action(action_id: StringName) -> bool:
 	if action_id != NPC_ACTION_KILL:
 		return false
 	_pending_npc_instant_action = action_id
+	return true
+
+
+func arm_crop_debug_action(action_id: StringName) -> bool:
+	if action_id not in [CROP_ACTION_ADVANCE, CROP_ACTION_FULL_GROW]:
+		return false
+	cancel_npc_instant_action()
+	_pending_crop_debug_action = action_id
+	return true
+
+
+func cancel_crop_debug_action() -> void:
+	if _pending_crop_debug_action.is_empty():
+		return
+	var action_id := _pending_crop_debug_action
+	_pending_crop_debug_action = &""
+	crop_debug_action_finished.emit(action_id, false, "Cancelled")
+
+
+func _handle_crop_debug_action_input(event: InputEvent) -> bool:
+	if _pending_crop_debug_action.is_empty():
+		return false
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		cancel_crop_debug_action()
+		return true
+	if not (event is InputEventMouseButton) or not event.pressed:
+		return false
+	if event.button_index == MOUSE_BUTTON_RIGHT:
+		cancel_crop_debug_action()
+		return true
+	if event.button_index != MOUSE_BUTTON_LEFT:
+		return false
+	var picked := _pick_inspectable_result(event.position)
+	var farm := BootstrapContext.service(FarmController.SERVICE_ID)
+	if picked.is_empty() or farm == null or not farm.has_method("debug_crop_action_at"):
+		crop_debug_action_finished.emit(_pending_crop_debug_action, false, "Click a planted crop")
+		return true
+	var action_id := _pending_crop_debug_action
+	var result: Dictionary = farm.call("debug_crop_action_at", picked.get("position", Vector3.ZERO), action_id == CROP_ACTION_FULL_GROW)
+	if bool(result.get("success", false)):
+		_pending_crop_debug_action = &""
+	crop_debug_action_finished.emit(action_id, bool(result.get("success", false)), str(result.get("message", "")))
 	return true
 
 
@@ -2363,6 +2413,24 @@ func _on_party_member_added(member: WorldActor) -> void:
 	_register_party_member(member)
 	_add_portrait_for_member(member)
 	_ensure_work_progress_bar(member)
+	_refresh_squad_tabs()
+	_update_portraits()
+	_update_command_bar()
+
+
+func _on_party_member_removed(member: WorldActor) -> void:
+	var index := party_members.find(member)
+	if index < 0:
+		return
+	party_members.remove_at(index)
+	if index < portrait_cards.size():
+		var card := portrait_cards[index]
+		portrait_cards.remove_at(index)
+		card.queue_free()
+	var progress_bar = work_progress_bars.get(member)
+	work_progress_bars.erase(member)
+	if progress_bar is ProgressBar:
+		(progress_bar as ProgressBar).queue_free()
 	_refresh_squad_tabs()
 	_update_portraits()
 	_update_command_bar()

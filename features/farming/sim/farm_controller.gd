@@ -25,6 +25,7 @@ signal water_source_changed(source_id: String, state: Dictionary)
 var _context: BootstrapContext
 var _gecs: Node
 var _world_time: Node
+var _territory: Node
 var _crops: Dictionary = {}
 var _next_plot_sequence := 1
 var _world_reindex_pending := false
@@ -34,6 +35,7 @@ func initialize(context: BootstrapContext) -> void:
 	_context = context
 	_gecs = context.get_optional(&"gecs_world")
 	_world_time = context.get_optional(&"world_time")
+	_territory = context.require(&"territory")
 	for crop_id in CROP_PATHS:
 		_crops[crop_id] = load(CROP_PATHS[crop_id])
 	_recover_sequence()
@@ -56,6 +58,40 @@ func get_crops() -> Array[CropDefinition]:
 	return crops
 
 
+## Debug-only exact-cell mutation used by the Debug Farming click tools.
+func debug_crop_action_at(world_position: Vector3, full_grow := false) -> Dictionary:
+	var found := find_plot_cell_at_world_position(world_position)
+	if found.is_empty():
+		return {"success": false, "message": "Click a planted crop"}
+	var plot: Dictionary = (found.get("plot", {}) as Dictionary).duplicate(true)
+	var cell_key := str(found.get("cell_key", ""))
+	var cells: Dictionary = plot.get("cells", {}).duplicate(true)
+	var cell: Dictionary = (cells.get(cell_key, {}) as Dictionary).duplicate(true)
+	var crop_id := str(cell.get("crop_id", ""))
+	if crop_id.is_empty() or str(cell.get("state", "")) not in [FARM_SIMULATION.STATE_GROWING, FARM_SIMULATION.STATE_RIPE]:
+		return {"success": false, "message": "Click a planted crop"}
+	var current_stage := int(cell.get("stage_index", 0))
+	if full_grow or current_stage >= FARM_SIMULATION.RIPE_VISUAL_STAGE_INDEX - 1:
+		cell["growth"] = 1.0
+		cell["stage_index"] = FARM_SIMULATION.RIPE_VISUAL_STAGE_INDEX
+		cell["state"] = FARM_SIMULATION.STATE_RIPE
+		cell["ripe_minutes"] = 0.0
+	else:
+		var next_stage := current_stage + 1
+		cell["growth"] = (float(next_stage) + 0.01) / float(FARM_SIMULATION.GROWTH_VISUAL_STAGE_COUNT - 1)
+		cell["stage_index"] = next_stage
+		cell["state"] = FARM_SIMULATION.STATE_GROWING
+	cells[cell_key] = cell
+	plot["cells"] = cells
+	_save_plot(plot)
+	var crop := get_crop(crop_id)
+	var crop_name := crop.display_name if crop != null else crop_id.capitalize()
+	return {
+		"success": true,
+		"message": "%s is fully grown" % crop_name if bool(full_grow) or str(cell.get("state", "")) == FARM_SIMULATION.STATE_RIPE else "%s advanced to stage %d" % [crop_name, int(cell.get("stage_index", 0)) + 1],
+	}
+
+
 func create_plot(cell_positions: Array[Vector3], dimensions: Vector2i, crop_id: String, owner_faction_id: String, settlement_id := "", blocked_cells: Dictionary = {}, cell_keys := PackedStringArray()) -> Dictionary:
 	var width := maxi(0, dimensions.x)
 	var height := maxi(0, dimensions.y)
@@ -68,14 +104,18 @@ func create_plot(cell_positions: Array[Vector3], dimensions: Vector2i, crop_id: 
 			or (explicit_keys.is_empty() and cell_positions.size() != width * height) \
 			or (not explicit_keys.is_empty() and explicit_keys.size() != cell_positions.size()):
 		return {}
+	if not _all_field_positions_permitted(cell_positions, owner_faction_id):
+		return {}
 	var reclaimed_by_index: Dictionary = {}
+	var reclaimed_cells := _reclaimable_physical_cells_at_world_positions(cell_positions, DEFAULT_CELL_SIZE)
+	var occupied_cells := find_plot_cells_at_world_positions(cell_positions, "", DEFAULT_CELL_SIZE)
 	for index in cell_positions.size():
-		var physical := _reclaimable_physical_cell_at_world_position(cell_positions[index], DEFAULT_CELL_SIZE)
+		var physical: Dictionary = reclaimed_cells[index]
 		if physical.is_empty():
-			if not find_plot_cell_at_world_position(cell_positions[index], "", DEFAULT_CELL_SIZE).is_empty():
+			if not occupied_cells[index].is_empty():
 				return {}
 			continue
-		var source: Dictionary = get_plot(str(physical.get("plot_id", "")))
+		var source: Dictionary = physical.get("source_state", {})
 		var source_owner := str(source.get("owner_faction_id", ""))
 		var physical_cell: Dictionary = physical.get("cell", {})
 		var is_detached_remnant := str(physical.get("container", "")) == "soil_remnants"
@@ -126,6 +166,15 @@ func create_plot(cell_positions: Array[Vector3], dimensions: Vector2i, crop_id: 
 
 
 func _reclaimable_physical_cell_at_world_position(world_position: Vector3, candidate_cell_size: float) -> Dictionary:
+	var results := _reclaimable_physical_cells_at_world_positions([world_position], candidate_cell_size)
+	return results[0] if not results.is_empty() else {}
+
+
+func _reclaimable_physical_cells_at_world_positions(world_positions: Array, candidate_cell_size: float) -> Array[Dictionary]:
+	var results := _empty_cell_query_results(world_positions.size())
+	if world_positions.is_empty():
+		return results
+	var buckets := _candidate_position_buckets(world_positions, candidate_cell_size)
 	for plot_value in get_plots().values():
 		var plot: Dictionary = plot_value
 		var field_deleted := bool(plot.get("field_deleted", false))
@@ -139,15 +188,19 @@ func _reclaimable_physical_cell_at_world_position(world_position: Vector3, candi
 			for key_value in container.keys():
 				var cell: Dictionary = container[key_value]
 				var existing: Vector3 = cell.get("world_position", Vector3.ZERO)
-				if absf(existing.x - world_position.x) < overlap_extent \
-						and absf(existing.z - world_position.z) < overlap_extent:
-					return {
-						"plot_id": plot_id,
-						"container": container_name,
-						"cell_key": str(key_value),
-						"cell": cell.duplicate(true),
-					}
-	return {}
+				for candidate_index in _nearby_candidate_indices(existing, overlap_extent, candidate_cell_size, buckets):
+					if not results[candidate_index].is_empty():
+						continue
+					var candidate := world_positions[candidate_index] as Vector3
+					if absf(existing.x - candidate.x) < overlap_extent and absf(existing.z - candidate.z) < overlap_extent:
+						results[candidate_index] = {
+							"plot_id": plot_id,
+							"container": container_name,
+							"cell_key": str(key_value),
+							"cell": cell.duplicate(true),
+							"source_state": plot,
+						}
+	return results
 
 
 func _cell_has_pending_work(cell: Dictionary) -> bool:
@@ -163,7 +216,13 @@ func _release_reclaimed_physical_cells(reclaimed_values: Array) -> void:
 		var source_id := str(reclaimed.get("plot_id", ""))
 		if source_id.is_empty():
 			continue
-		var source: Dictionary = changed_plots.get(source_id, get_plot(source_id))
+		var source: Dictionary
+		if changed_plots.has(source_id):
+			source = changed_plots[source_id]
+		else:
+			source = (reclaimed.get("source_state", {}) as Dictionary).duplicate(true)
+			if source.is_empty():
+				continue
 		var container_name := str(reclaimed.get("container", "cells"))
 		var container: Dictionary = source.get(container_name, {}).duplicate(true)
 		container.erase(str(reclaimed.get("cell_key", "")))
@@ -219,6 +278,15 @@ func get_cell(plot_id: String, cell_key: String) -> Dictionary:
 ## positions rather than projection collision, so untilled and unloaded-looking
 ## fields still own their ground.
 func find_plot_cell_at_world_position(world_position: Vector3, excluded_plot_id := "", candidate_cell_size := DEFAULT_CELL_SIZE) -> Dictionary:
+	var results := find_plot_cells_at_world_positions([world_position], excluded_plot_id, candidate_cell_size)
+	return results[0] if not results.is_empty() else {}
+
+
+func find_plot_cells_at_world_positions(world_positions: Array, excluded_plot_id := "", candidate_cell_size := DEFAULT_CELL_SIZE) -> Array[Dictionary]:
+	var results := _empty_cell_query_results(world_positions.size())
+	if world_positions.is_empty():
+		return results
+	var buckets := _candidate_position_buckets(world_positions, candidate_cell_size)
 	for plot_value in get_plots().values():
 		var plot: Dictionary = plot_value
 		var plot_id := str(plot.get("plot_id", ""))
@@ -229,14 +297,51 @@ func find_plot_cell_at_world_position(world_position: Vector3, excluded_plot_id 
 		for key_value in (plot.get("cells", {}) as Dictionary).keys():
 			var cell: Dictionary = (plot.get("cells", {}) as Dictionary)[key_value]
 			var existing: Vector3 = cell.get("world_position", Vector3.ZERO)
-			if absf(existing.x - world_position.x) < overlap_extent \
-					and absf(existing.z - world_position.z) < overlap_extent:
-				return {"plot_id": plot_id, "cell_key": str(key_value), "world_position": existing}
-	return {}
+			for candidate_index in _nearby_candidate_indices(existing, overlap_extent, candidate_cell_size, buckets):
+				if not results[candidate_index].is_empty():
+					continue
+				var candidate := world_positions[candidate_index] as Vector3
+				if absf(existing.x - candidate.x) < overlap_extent and absf(existing.z - candidate.z) < overlap_extent:
+					results[candidate_index] = {"plot_id": plot_id, "cell_key": str(key_value), "world_position": existing, "cell": cell, "plot": plot}
+	return results
+
+
+func _empty_cell_query_results(count: int) -> Array[Dictionary]:
+	var results: Array[Dictionary] = []
+	for _index in count:
+		results.append({})
+	return results
+
+
+func _candidate_position_buckets(world_positions: Array, bucket_size: float) -> Dictionary:
+	var buckets: Dictionary = {}
+	var safe_bucket_size := maxf(0.01, bucket_size)
+	for index in world_positions.size():
+		var position := world_positions[index] as Vector3
+		var key := Vector2i(floori(position.x / safe_bucket_size), floori(position.z / safe_bucket_size))
+		var indices: Array = buckets.get(key, [])
+		indices.append(index)
+		buckets[key] = indices
+	return buckets
+
+
+func _nearby_candidate_indices(existing: Vector3, overlap_extent: float, bucket_size: float, buckets: Dictionary) -> Array[int]:
+	var result: Array[int] = []
+	var safe_bucket_size := maxf(0.01, bucket_size)
+	var center := Vector2i(floori(existing.x / safe_bucket_size), floori(existing.z / safe_bucket_size))
+	var radius := ceili(overlap_extent / safe_bucket_size) + 1
+	for offset_y in range(-radius, radius + 1):
+		for offset_x in range(-radius, radius + 1):
+			for candidate_index in (buckets.get(center + Vector2i(offset_x, offset_y), []) as Array):
+				result.append(int(candidate_index))
+	return result
 
 
 func can_actor_command_plot(actor: Node, plot_id: String) -> bool:
-	var state := get_plot(plot_id)
+	return can_actor_command_plot_state(actor, get_plot(plot_id))
+
+
+func can_actor_command_plot_state(actor: Node, state: Dictionary) -> bool:
 	if state.is_empty() or actor == null:
 		return false
 	var owner := str(state.get("owner_faction_id", ""))
@@ -273,14 +378,30 @@ func prepare_manual_till(cell_positions: Array[Vector3], actor: Node, anchor_pos
 	if owner_faction_id.is_empty():
 		return {}
 	var unique_positions: Array[Vector3] = []
+	var uniqueness_buckets: Dictionary = {}
+	var uniqueness_size := DEFAULT_CELL_SIZE * 0.2
 	for position in cell_positions:
+		var bucket := Vector2i(floori(position.x / uniqueness_size), floori(position.z / uniqueness_size))
 		var duplicate := false
-		for existing in unique_positions:
-			if Vector2(existing.x, existing.z).distance_to(Vector2(position.x, position.z)) < DEFAULT_CELL_SIZE * 0.2:
-				duplicate = true
+		for offset_y in range(-1, 2):
+			for offset_x in range(-1, 2):
+				for existing_value in (uniqueness_buckets.get(bucket + Vector2i(offset_x, offset_y), []) as Array):
+					var existing := existing_value as Vector3
+					if Vector2(existing.x, existing.z).distance_to(Vector2(position.x, position.z)) < uniqueness_size:
+						duplicate = true
+						break
+				if duplicate:
+					break
+			if duplicate:
 				break
 		if not duplicate:
 			unique_positions.append(position)
+			var bucket_positions: Array = uniqueness_buckets.get(bucket, [])
+			bucket_positions.append(position)
+			uniqueness_buckets[bucket] = bucket_positions
+	unique_positions = _permitted_field_positions(unique_positions, owner_faction_id)
+	if unique_positions.is_empty():
+		return {}
 	var target_plot_id := ""
 	var anchor_cell := find_plot_cell_at_world_position(anchor_position)
 	if not anchor_cell.is_empty() \
@@ -291,15 +412,18 @@ func prepare_manual_till(cell_positions: Array[Vector3], actor: Node, anchor_pos
 		target_plot_id = _adjacent_compatible_plot(anchor_position, owner_faction_id, "")
 	var new_positions: Array = []
 	var targets: Array[Dictionary] = []
-	for position in unique_positions:
-		var occupant := find_plot_cell_at_world_position(position)
+	var occupied_cells := find_plot_cells_at_world_positions(unique_positions)
+	for index in unique_positions.size():
+		var position := unique_positions[index]
+		var occupant: Dictionary = occupied_cells[index]
 		if occupant.is_empty():
 			new_positions.append(position)
 			continue
 		var occupant_plot_id := str(occupant.get("plot_id", ""))
 		var occupant_cell_key := str(occupant.get("cell_key", ""))
-		if is_active_field(occupant_plot_id) and can_actor_command_plot(actor, occupant_plot_id) \
-				and str(get_cell(occupant_plot_id, occupant_cell_key).get("state", "")) == FARM_SIMULATION.STATE_UNTILLED:
+		var occupant_plot: Dictionary = occupant.get("plot", {})
+		if is_active_field(occupant_plot) and can_actor_command_plot_state(actor, occupant_plot) \
+				and str((occupant.get("cell", {}) as Dictionary).get("state", "")) == FARM_SIMULATION.STATE_UNTILLED:
 			targets.append({"plot_id": occupant_plot_id, "cell_key": occupant_cell_key})
 	if not new_positions.is_empty():
 		var changed: Dictionary
@@ -319,8 +443,9 @@ func prepare_manual_till(cell_positions: Array[Vector3], actor: Node, anchor_pos
 			changed = expand_plot(target_plot_id, new_positions, actor)
 		if changed.is_empty():
 			return {}
-		for position in new_positions:
-			var added := find_plot_cell_at_world_position(position)
+		var added_cells := find_plot_cells_at_world_positions(new_positions)
+		for index in new_positions.size():
+			var added: Dictionary = added_cells[index]
 			if str(added.get("plot_id", "")) == target_plot_id:
 				targets.append({"plot_id": target_plot_id, "cell_key": str(added.get("cell_key", ""))})
 	if not target_plot_id.is_empty():
@@ -328,26 +453,19 @@ func prepare_manual_till(cell_positions: Array[Vector3], actor: Node, anchor_pos
 	# A merge can change the owning plot/key for cells already collected above.
 	# Resolve every exact world square again from authoritative state.
 	targets.clear()
-	for position in unique_positions:
-		var current := find_plot_cell_at_world_position(position)
+	var target_plot_states: Dictionary = {}
+	var current_cells := find_plot_cells_at_world_positions(unique_positions)
+	for index in unique_positions.size():
+		var current: Dictionary = current_cells[index]
 		var current_plot_id := str(current.get("plot_id", ""))
 		var current_cell_key := str(current.get("cell_key", ""))
-		if not current.is_empty() and is_active_field(current_plot_id) and can_actor_command_plot(actor, current_plot_id) \
-				and str(get_cell(current_plot_id, current_cell_key).get("state", "")) == FARM_SIMULATION.STATE_UNTILLED:
+		var current_plot: Dictionary = current.get("plot", {})
+		if not current.is_empty() and is_active_field(current_plot) and can_actor_command_plot_state(actor, current_plot) \
+				and str((current.get("cell", {}) as Dictionary).get("state", "")) == FARM_SIMULATION.STATE_UNTILLED:
 			targets.append({"plot_id": current_plot_id, "cell_key": current_cell_key})
-	var requested: Array[Dictionary] = []
+			target_plot_states[current_plot_id] = current_plot
 	var allowed_actor_ids := PackedStringArray([_actor_work_id(actor)])
-	for target in targets:
-		var plot_id := str(target.get("plot_id", ""))
-		var cell_key := str(target.get("cell_key", ""))
-		var requested_state := request_cell_operation(plot_id, cell_key, "till", "", allowed_actor_ids)
-		var requested_cell: Dictionary = (requested_state.get("cells", {}) as Dictionary).get(cell_key, {})
-		if not requested_cell.is_empty():
-			requested.append({
-				"plot_id": plot_id,
-				"cell_key": cell_key,
-				"request_revision": int(requested_cell.get("request_revision", -1)),
-			})
+	var requested := _request_cell_operations(targets, "till", "", allowed_actor_ids, target_plot_states)
 	if requested.is_empty():
 		return {}
 	var primary_plot_id := str(requested[0].get("plot_id", ""))
@@ -361,7 +479,7 @@ func prepare_manual_till(cell_positions: Array[Vector3], actor: Node, anchor_pos
 ## Designate every currently eligible exact cell in one field.
 func prepare_plot_till(plot_id: String, actor: Node, allowed_actor_ids := PackedStringArray()) -> Dictionary:
 	var state := get_plot(plot_id)
-	if not is_active_field(state) or not can_actor_command_plot(actor, plot_id):
+	if not is_active_field(state) or not can_actor_command_plot_state(actor, state):
 		return {}
 	var keys: Array = (state.get("cells", {}) as Dictionary).keys()
 	keys.sort_custom(func(a, b) -> bool:
@@ -369,21 +487,14 @@ func prepare_plot_till(plot_id: String, actor: Node, allowed_actor_ids := Packed
 		var grid_b := _grid_from_key(str(b))
 		return grid_a.y < grid_b.y or (grid_a.y == grid_b.y and grid_a.x < grid_b.x)
 	)
-	var targets: Array[Dictionary] = []
+	var eligible_targets: Array[Dictionary] = []
 	for key_value in keys:
 		var key := str(key_value)
 		var cell: Dictionary = (state.get("cells", {}) as Dictionary).get(key, {})
 		if str(cell.get("state", "")) != FARM_SIMULATION.STATE_UNTILLED:
 			continue
-		var requested := request_cell_operation(plot_id, key, "till", "", allowed_actor_ids)
-		var requested_cell: Dictionary = (requested.get("cells", {}) as Dictionary).get(key, {})
-		if requested_cell.is_empty():
-			continue
-		targets.append({
-			"plot_id": plot_id,
-			"cell_key": key,
-			"request_revision": int(requested_cell.get("request_revision", -1)),
-		})
+		eligible_targets.append({"plot_id": plot_id, "cell_key": key})
+	var targets := _request_cell_operations(eligible_targets, "till", "", allowed_actor_ids, {plot_id: state})
 	return {"plot_id": plot_id, "targets": targets} if not targets.is_empty() else {}
 
 
@@ -395,7 +506,7 @@ func prepare_plot_operation(plot_id: String, operation: String, crop_id: String,
 		return {}
 	var cells: Dictionary = state.get("cells", {})
 	if preferred_cell_key.is_empty() or not cells.has(preferred_cell_key) \
-			or not _cell_matches_plot_operation(plot_id, preferred_cell_key, cells[preferred_cell_key], operation, actor):
+			or not _cell_matches_plot_operation(cells[preferred_cell_key], operation, actor):
 		return {}
 	var keys: Array = cells.keys()
 	keys.sort_custom(func(a, b) -> bool:
@@ -409,28 +520,21 @@ func prepare_plot_operation(plot_id: String, operation: String, crop_id: String,
 		var grid_b := _grid_from_key(key_b)
 		return grid_a.y < grid_b.y or (grid_a.y == grid_b.y and grid_a.x < grid_b.x)
 	)
-	var targets: Array[Dictionary] = []
+	var eligible_targets: Array[Dictionary] = []
 	for key_value in keys:
 		var key := str(key_value)
 		var cell: Dictionary = cells.get(key_value, {})
-		if not _cell_matches_plot_operation(plot_id, key, cell, operation, actor):
+		if not _cell_matches_plot_operation(cell, operation, actor):
 			continue
-		var requested := request_cell_operation(plot_id, key, operation, crop_id, allowed_actor_ids)
-		var requested_cell: Dictionary = (requested.get("cells", {}) as Dictionary).get(key, {})
-		if requested_cell.is_empty():
-			continue
-		targets.append({
-			"plot_id": plot_id,
-			"cell_key": key,
-			"request_revision": int(requested_cell.get("request_revision", -1)),
-		})
+		eligible_targets.append({"plot_id": plot_id, "cell_key": key})
+	var targets := _request_cell_operations(eligible_targets, operation, crop_id, allowed_actor_ids, {plot_id: state})
 	return {"plot_id": plot_id, "targets": targets} if not targets.is_empty() else {}
 
 
-func _cell_matches_plot_operation(plot_id: String, cell_key: String, cell: Dictionary, operation: String, actor: Node) -> bool:
+func _cell_matches_plot_operation(cell: Dictionary, operation: String, actor: Node) -> bool:
 	if operation != _action_for_status(str(cell.get("state", ""))):
 		return false
-	if operation == "water" and not cell_needs_water(plot_id, cell_key):
+	if operation == "water" and not _cell_needs_water_state(cell):
 		return false
 	return _actor_can_use_operation_tool(actor, operation, cell)
 
@@ -559,24 +663,38 @@ func expand_plot(plot_id: String, cell_positions: Array, actor: Node) -> Diction
 		return {}
 	var additions: Dictionary = {}
 	var remnants: Dictionary = state.get("soil_remnants", {}).duplicate(true)
+	var pending_additions: Array[Dictionary] = []
+	var pending_keys: Dictionary = {}
 	for position_value in cell_positions:
 		var snapped := _snap_position_to_plot_grid(state, position_value as Vector3)
 		if snapped.is_empty():
 			return {}
 		var key := str(snapped.get("cell_key", ""))
-		if cells.has(key) or additions.has(key):
+		if cells.has(key) or pending_keys.has(key):
 			continue
 		var position: Vector3 = snapped.get("world_position", Vector3.ZERO)
-		if not find_plot_cell_at_world_position(position, plot_id, float(state.get("cell_size", DEFAULT_CELL_SIZE))).is_empty():
+		pending_additions.append({"key": key, "position": position, "grid_position": snapped.get("grid_position", Vector2i.ZERO)})
+		pending_keys[key] = true
+	var pending_positions: Array[Vector3] = []
+	for pending in pending_additions:
+		pending_positions.append(pending.get("position", Vector3.ZERO))
+	if pending_positions.is_empty() or not _all_field_positions_permitted(pending_positions, _actor_faction_id(actor)):
+		return {}
+	var occupied_cells := find_plot_cells_at_world_positions(pending_positions, plot_id, float(state.get("cell_size", DEFAULT_CELL_SIZE)))
+	for occupied in occupied_cells:
+		if not occupied.is_empty():
 			return {}
+	for pending in pending_additions:
+		var key := str(pending.get("key", ""))
+		var position: Vector3 = pending.get("position", Vector3.ZERO)
 		if remnants.has(key):
 			var restored: Dictionary = remnants[key].duplicate(true)
-			restored["grid_position"] = snapped.get("grid_position", Vector2i.ZERO)
+			restored["grid_position"] = pending.get("grid_position", Vector2i.ZERO)
 			restored["world_position"] = position
 			additions[key] = restored
 			remnants.erase(key)
 		else:
-			additions[key] = FARM_SIMULATION.new_cell(snapped.get("grid_position", Vector2i.ZERO), position)
+			additions[key] = FARM_SIMULATION.new_cell(pending.get("grid_position", Vector2i.ZERO), position)
 	if additions.is_empty():
 		return {}
 	var expanded_cells := cells.duplicate(true)
@@ -588,6 +706,40 @@ func expand_plot(plot_id: String, cell_positions: Array, actor: Node) -> Diction
 	state["soil_remnants"] = remnants
 	_refresh_plot_dimensions(state)
 	return _save_plot(state)
+
+
+func _can_create_field_at(world_position: Vector3, owner_faction_id: String) -> bool:
+	if _territory == null or not _territory.has_method("get_build_permission"):
+		return false
+	var permission: Dictionary = _territory.call("get_build_permission", world_position, owner_faction_id)
+	return bool(permission.get("can_build", false))
+
+
+func _all_field_positions_permitted(world_positions: Array, owner_faction_id: String) -> bool:
+	if world_positions.is_empty() or _territory == null or not _territory.has_method("get_build_permissions"):
+		return false
+	var permissions: Array = _territory.call("get_build_permissions", world_positions, owner_faction_id)
+	if permissions.size() != world_positions.size():
+		return false
+	for permission_value in permissions:
+		var permission := permission_value as Dictionary
+		if not bool(permission.get("can_build", false)):
+			return false
+	return true
+
+
+func _permitted_field_positions(world_positions: Array[Vector3], owner_faction_id: String) -> Array[Vector3]:
+	var permitted: Array[Vector3] = []
+	if world_positions.is_empty() or _territory == null or not _territory.has_method("get_build_permissions"):
+		return permitted
+	var permissions: Array = _territory.call("get_build_permissions", world_positions, owner_faction_id)
+	if permissions.size() != world_positions.size():
+		return permitted
+	for index in world_positions.size():
+		var permission: Dictionary = permissions[index]
+		if bool(permission.get("can_build", false)):
+			permitted.append(world_positions[index])
+	return permitted
 
 
 func shrink_plot(plot_id: String, cell_keys: PackedStringArray, actor: Node) -> Dictionary:
@@ -737,11 +889,18 @@ func delete_field(plot_id: String, actor: Node) -> Dictionary:
 func merge_adjacent_plots(source_plot_id: String, absorbed_plot_id: String, actor: Node) -> Dictionary:
 	if source_plot_id.is_empty() or absorbed_plot_id.is_empty() or source_plot_id == absorbed_plot_id:
 		return {}
-	var source := get_plot(source_plot_id)
-	var absorbed := get_plot(absorbed_plot_id)
+	var plots := get_plots()
+	var source: Dictionary = (plots.get(source_plot_id, {}) as Dictionary).duplicate(true)
+	var absorbed: Dictionary = (plots.get(absorbed_plot_id, {}) as Dictionary).duplicate(true)
+	return _merge_plot_states(source, absorbed, actor)
+
+
+func _merge_plot_states(source: Dictionary, absorbed: Dictionary, actor: Node) -> Dictionary:
+	var source_plot_id := str(source.get("plot_id", ""))
+	var absorbed_plot_id := str(absorbed.get("plot_id", ""))
 	if not is_active_field(source) or not is_active_field(absorbed) \
-			or not can_actor_command_plot(actor, source_plot_id) \
-			or not can_actor_command_plot(actor, absorbed_plot_id) \
+			or not can_actor_command_plot_state(actor, source) \
+			or not can_actor_command_plot_state(actor, absorbed) \
 			or _plot_has_active_work(source) \
 			or _plot_has_active_work(absorbed) \
 			or not _plots_touch(source, absorbed):
@@ -788,16 +947,17 @@ func get_mergeable_adjacent_plot_ids(source_plot_id: String, actor: Node) -> Pac
 	var result := PackedStringArray()
 	if actor == null:
 		return result
-	var source := get_plot(source_plot_id)
+	var plots := get_plots()
+	var source: Dictionary = plots.get(source_plot_id, {})
 	if not is_active_field(source) or _plot_has_active_work(source) \
-			or not can_actor_command_plot(actor, source_plot_id):
+			or not can_actor_command_plot_state(actor, source):
 		return result
-	for candidate_value in get_plots().values():
+	for candidate_value in plots.values():
 		var candidate: Dictionary = candidate_value
 		var candidate_id := str(candidate.get("plot_id", ""))
 		if candidate_id == source_plot_id or not is_active_field(candidate) \
 				or _plot_has_active_work(candidate) or not _plots_touch(source, candidate) \
-				or not can_actor_command_plot(actor, candidate_id):
+				or not can_actor_command_plot_state(actor, candidate):
 			continue
 		result.append(candidate_id)
 	return result
@@ -808,13 +968,14 @@ func has_mergeable_adjacent_plot(source_plot_id: String, actor: Node) -> bool:
 
 
 func _auto_merge_matching_adjacent(source_plot_id: String, actor: Node) -> String:
+	var plots := get_plots()
+	var source: Dictionary = (plots.get(source_plot_id, {}) as Dictionary).duplicate(true)
+	if source.is_empty() or _plot_has_active_work(source):
+		return source_plot_id
 	var changed := true
 	while changed:
 		changed = false
-		var source := get_plot(source_plot_id)
-		if source.is_empty() or _plot_has_active_work(source):
-			break
-		for candidate_value in get_plots().values():
+		for candidate_value in plots.values():
 			var candidate: Dictionary = candidate_value
 			var candidate_id := str(candidate.get("plot_id", ""))
 			if candidate_id == source_plot_id \
@@ -822,7 +983,11 @@ func _auto_merge_matching_adjacent(source_plot_id: String, actor: Node) -> Strin
 					or not _field_behavior_matches(source, candidate) \
 					or not _plots_touch(source, candidate):
 				continue
-			if not merge_adjacent_plots(source_plot_id, candidate_id, actor).is_empty():
+			var merged := _merge_plot_states(source, candidate, actor)
+			if not merged.is_empty():
+				source = merged
+				plots[source_plot_id] = merged
+				plots.erase(candidate_id)
 				changed = true
 				break
 	return source_plot_id
@@ -852,10 +1017,14 @@ func _plot_has_active_work(plot: Dictionary) -> bool:
 
 func _plots_touch(a: Dictionary, b: Dictionary) -> bool:
 	var spacing := float(a.get("cell_size", DEFAULT_CELL_SIZE))
+	var a_positions: Array[Vector3] = []
 	for a_value in (a.get("cells", {}) as Dictionary).values():
-		var a_position: Vector3 = (a_value as Dictionary).get("world_position", Vector3.ZERO)
-		for b_value in (b.get("cells", {}) as Dictionary).values():
-			var b_position: Vector3 = (b_value as Dictionary).get("world_position", Vector3.ZERO)
+		a_positions.append((a_value as Dictionary).get("world_position", Vector3.ZERO))
+	var buckets := _candidate_position_buckets(a_positions, spacing)
+	for b_value in (b.get("cells", {}) as Dictionary).values():
+		var b_position: Vector3 = (b_value as Dictionary).get("world_position", Vector3.ZERO)
+		for a_index in _nearby_candidate_indices(b_position, spacing * 1.2, spacing, buckets):
+			var a_position := a_positions[a_index]
 			var delta := Vector2(absf(a_position.x - b_position.x), absf(a_position.z - b_position.z))
 			if (absf(delta.x - spacing) < spacing * 0.2 and delta.y < spacing * 0.2) \
 					or (absf(delta.y - spacing) < spacing * 0.2 and delta.x < spacing * 0.2):
@@ -956,6 +1125,52 @@ func _refresh_plot_dimensions(state: Dictionary) -> void:
 	state["dimensions"] = maximum - minimum + Vector2i.ONE
 
 
+func _request_cell_operations(targets: Array[Dictionary], operation: String, crop_id: String, allowed_actor_ids: PackedStringArray, known_states := {}) -> Array[Dictionary]:
+	var grouped: Dictionary = {}
+	for target in targets:
+		var plot_id := str(target.get("plot_id", ""))
+		var cell_key := str(target.get("cell_key", ""))
+		if plot_id.is_empty() or cell_key.is_empty():
+			continue
+		var keys: Array = grouped.get(plot_id, [])
+		if not keys.has(cell_key):
+			keys.append(cell_key)
+			grouped[plot_id] = keys
+	var requested: Array[Dictionary] = []
+	for plot_id_value in grouped.keys():
+		var plot_id := str(plot_id_value)
+		var state: Dictionary = (known_states.get(plot_id, {}) as Dictionary).duplicate(true)
+		if state.is_empty():
+			state = get_plot(plot_id)
+		var cells: Dictionary = state.get("cells", {})
+		var direct_retired_action := bool(state.get("field_deleted", false)) and not allowed_actor_ids.is_empty()
+		if (not is_active_field(state) and not direct_retired_action) or (operation == "plant" and get_crop(crop_id) == null):
+			continue
+		var changed := false
+		for cell_key_value in grouped[plot_id]:
+			var cell_key := str(cell_key_value)
+			if not cells.has(cell_key):
+				continue
+			var cell: Dictionary = (cells[cell_key] as Dictionary).duplicate(true)
+			if operation != _action_for_status(str(cell.get("state", ""))):
+				continue
+			cell["requested_operation"] = operation
+			cell["requested_crop_id"] = crop_id if operation == "plant" else str(cell.get("crop_id", ""))
+			cell["requested_actor_ids"] = allowed_actor_ids.duplicate()
+			if allowed_actor_ids.is_empty():
+				cell.erase("request_source")
+			else:
+				cell["request_source"] = "manual"
+			cell["request_revision"] = int(cell.get("request_revision", 0)) + 1
+			cells[cell_key] = cell
+			requested.append({"plot_id": plot_id, "cell_key": cell_key, "request_revision": int(cell["request_revision"])})
+			changed = true
+		if changed:
+			state["cells"] = cells
+			_save_plot(state)
+	return requested
+
+
 func request_cell_operation(plot_id: String, cell_key: String, operation: String, crop_id := "", allowed_actor_ids := PackedStringArray()) -> Dictionary:
 	var state := get_plot(plot_id)
 	var cells: Dictionary = state.get("cells", {})
@@ -1022,7 +1237,10 @@ func get_cell_work(plot_id: String, cell_key: String) -> Dictionary:
 
 
 func cell_needs_water(plot_id: String, cell_key: String) -> bool:
-	var cell := get_cell(plot_id, cell_key)
+	return _cell_needs_water_state(get_cell(plot_id, cell_key))
+
+
+func _cell_needs_water_state(cell: Dictionary) -> bool:
 	return not cell.is_empty() and str(cell.get("state", "")) == FARM_SIMULATION.STATE_GROWING \
 			and float(cell.get("water", 0.0)) < _watering_threshold(cell)
 

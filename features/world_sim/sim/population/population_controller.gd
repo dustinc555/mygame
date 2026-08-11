@@ -284,6 +284,8 @@ func _eligible_for_assignment(record: Dictionary, settlement_id: String, domain:
 		return false
 	if not exclusivity_group.is_empty() and (record.get("assignment_exclusivity_groups", {}) as Dictionary).values().has(exclusivity_group):
 		return false
+	if not str(record.get("party_id", "")).strip_edges().is_empty():
+		return false
 	var live_actor := get_live_actor(str(record.get("actor_id", "")))
 	return live_actor == null or not live_actor.has_method("is_player_party_member") or not bool(live_actor.call("is_player_party_member"))
 
@@ -591,16 +593,29 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 	var faction_id := str(record.get("faction_id", actor.get("faction_name")))
 	actor.set("faction_name", faction_id)
 	var party_id := str(record.get("party_id", "")).strip_edges()
+	var is_player_party := party_id == PartyManager.PLAYER_PARTY_ID
+	var party_manager := root_scene.get_node_or_null("PartyManager") as PartyManager if root_scene != null else null
+	if not is_player_party and actor is WorldActor and party_manager != null and party_manager.party_members.has(actor as WorldActor):
+		party_manager.unregister_party_member(actor as WorldActor)
 	if party_id.is_empty():
 		actor.remove_meta("party_id")
 	else:
 		actor.set_meta("party_id", party_id)
+	if actor.has_method("set_player_party_member"):
+		actor.call("set_player_party_member", is_player_party)
+	if is_player_party and actor is WorldActor:
+		if party_manager != null:
+			party_manager.register_party_member(actor as WorldActor)
+	elif not party_id.is_empty():
+		update_actor_record(actor_id, {"party_id": party_id})
 	actor.set("squad_name", str(record.get("squad_name", actor.get("squad_name"))))
 	actor.set("hostile_factions", PackedStringArray(record.get("hostile_faction_ids", [])))
 	actor.set("combat_stance", int(record.get("combat_stance", actor.get("combat_stance"))))
 	actor.set("auto_heal_enabled", bool(record.get("auto_heal_enabled", actor.get("auto_heal_enabled"))))
 	actor.set("auto_burn_rustdead_enabled", bool(record.get("auto_burn_rustdead_enabled", actor.get("auto_burn_rustdead_enabled"))))
 	actor.set("life_state", int(record.get("life_state", actor.get("life_state"))))
+	if record.has("conversation_definition_path") and actor.has_method("get_conversation_definition"):
+		actor.set("conversation_definition", _load_resource(str(record.get("conversation_definition_path", ""))))
 	actor.set("starting_skill_levels", record.get("skill_levels", {}))
 	var age_years := CharacterAgeRules.age_years(int(record.get("birth_day_index", CharacterAgeRules.UNKNOWN_BIRTH_DAY)), _current_world_day())
 	actor.set_meta("population_birth_day_index", int(record.get("birth_day_index", CharacterAgeRules.UNKNOWN_BIRTH_DAY)))

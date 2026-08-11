@@ -8,6 +8,7 @@ const BUILDING_SOLVER := preload("res://features/settlements/bridge/building_pla
 const FARM_CONTROLLER := preload("res://features/farming/sim/farm_controller.gd")
 const PREVIEW_ADD_COLOR := Color(0.08, 0.92, 0.28, 0.34)
 const PREVIEW_REMOVE_COLOR := Color(0.92, 0.10, 0.08, 0.66)
+const PREVIEW_INVALID_COLOR := Color(0.95, 0.46, 0.08, 0.56)
 
 signal placement_started(crop_id: String)
 signal placement_finished(plot_id: String)
@@ -16,6 +17,7 @@ signal placement_cancelled
 var _context: BootstrapContext
 var _farm: Node
 var _farm_work: Node
+var _territory: Node
 var _active := false
 var _crop_id := "tomato"
 var _owner_faction_id := "Player"
@@ -36,6 +38,7 @@ func initialize(context: BootstrapContext) -> void:
 	_context = context
 	_farm = context.get_optional(FARM_CONTROLLER.SERVICE_ID)
 	_farm_work = context.get_optional(&"farm_work")
+	_territory = context.require(&"territory")
 	set_process_unhandled_input(true)
 
 
@@ -237,25 +240,36 @@ func _update_manual_till_preview() -> void:
 	grid["ignore_groups"] = PackedStringArray(["farm_plot"])
 	grid["ignore_characters"] = true
 	_latest_solution = SOLVER.sample_grid(_preview.get_world_3d().direct_space_state, grid)
+	_apply_territory_blocks(_latest_solution, _faction_for_actor(_target_actor))
 	var eligible: Array[Vector3] = []
+	var invalid: Array[Vector3] = []
 	var positions: Array = _latest_solution.get("positions", [])
 	var keys := PackedStringArray(_latest_solution.get("cell_keys", PackedStringArray()))
 	var blocked: Dictionary = _latest_solution.get("blocked_cells", {})
+	var occupants: Array = _farm.call("find_plot_cells_at_world_positions", positions) if _farm.has_method("find_plot_cells_at_world_positions") else []
+	if occupants.size() != positions.size():
+		_latest_solution["eligible_positions"] = []
+		_draw_mixed_preview([], positions)
+		return
 	for index in positions.size():
 		var position := positions[index] as Vector3
 		var key := keys[index] if index < keys.size() else str(index)
-		var occupant: Dictionary = _farm.find_plot_cell_at_world_position(position)
+		if blocked.has(key):
+			invalid.append(position)
+			continue
+		var occupant: Dictionary = occupants[index] if index < occupants.size() else {}
 		if occupant.is_empty():
-			if not blocked.has(key):
-				eligible.append(position)
+			eligible.append(position)
 			continue
 		var plot_id := str(occupant.get("plot_id", ""))
 		var cell_key := str(occupant.get("cell_key", ""))
-		if _farm.can_actor_command_plot(_target_actor, plot_id) \
-				and str(_farm.get_cell(plot_id, cell_key).get("state", "")) == "untilled":
+		if _farm.can_actor_command_plot_state(_target_actor, occupant.get("plot", {})) \
+				and str((occupant.get("cell", {}) as Dictionary).get("state", "")) == "untilled":
 			eligible.append(position)
+		else:
+			invalid.append(position)
 	_latest_solution["eligible_positions"] = eligible
-	_draw_green_preview(eligible)
+	_draw_mixed_preview(eligible, invalid)
 
 
 func _draw_green_preview(positions: Array) -> void:
@@ -265,6 +279,17 @@ func _draw_green_preview(positions: Array) -> void:
 func _draw_cell_preview(positions: Array, color: Color) -> void:
 	for child in _preview.get_children():
 		child.queue_free()
+	_append_cell_preview(positions, color)
+
+
+func _draw_mixed_preview(valid_positions: Array, invalid_positions: Array) -> void:
+	for child in _preview.get_children():
+		child.queue_free()
+	_append_cell_preview(invalid_positions, PREVIEW_INVALID_COLOR)
+	_append_cell_preview(valid_positions, PREVIEW_ADD_COLOR)
+
+
+func _append_cell_preview(positions: Array, color: Color) -> void:
 	for position_value in positions:
 		var cell := MeshInstance3D.new()
 		var mesh := BoxMesh.new()
@@ -318,16 +343,27 @@ func _update_field_edit_preview() -> void:
 		"ignore_groups": PackedStringArray(["farm_plot"]),
 		"ignore_characters": true,
 	})
+	_apply_territory_blocks(sampled, _faction_for_actor(_target_actor))
 	var blocked: Dictionary = sampled.get("blocked_cells", {})
 	var sampled_positions: Array = sampled.get("positions", [])
 	var sampled_keys := PackedStringArray(sampled.get("cell_keys", PackedStringArray()))
+	var occupants: Array = _farm.call("find_plot_cells_at_world_positions", sampled_positions, _edit_plot_id) if _farm.has_method("find_plot_cells_at_world_positions") else []
+	var invalid: Array[Vector3] = []
+	if occupants.size() != sampled_positions.size():
+		_latest_solution = {"eligible_positions": []}
+		_draw_mixed_preview([], sampled_positions)
+		return
 	for index in sampled_positions.size():
 		var key := sampled_keys[index] if index < sampled_keys.size() else str(index)
 		var position := sampled_positions[index] as Vector3
-		if not blocked.has(key) and _farm.find_plot_cell_at_world_position(position, _edit_plot_id).is_empty():
+		if blocked.has(key):
+			invalid.append(position)
+		elif index < occupants.size() and (occupants[index] as Dictionary).is_empty():
 			additions.append(position)
+		else:
+			invalid.append(position)
 	_latest_solution = {"eligible_positions": additions}
-	_draw_cell_preview(additions, PREVIEW_ADD_COLOR)
+	_draw_mixed_preview(additions, invalid)
 
 
 func _finalize_field_edit_drag() -> void:
@@ -387,6 +423,7 @@ func _activate_field_expansion(world_position: Vector3) -> String:
 		"ignore_groups": PackedStringArray(["farm_plot"]),
 		"ignore_characters": true,
 	})
+	_apply_territory_blocks(sampled, _faction_for_actor(_target_actor))
 	if not bool(sampled.get("valid", false)) or int(sampled.get("valid_cell_count", 0)) != 1:
 		return "That tile is blocked"
 	var positions: Array = sampled.get("positions", [])
@@ -459,7 +496,7 @@ func _screen_hit(screen_position: Vector2) -> Dictionary:
 	return BUILDING_SOLVER.terrain_hit_from_screen(camera, screen_position)
 
 
-func _update_preview() -> void:
+func _update_preview(force_resample := false) -> void:
 	if _preview == null or not is_instance_valid(_preview):
 		return
 	var grid := SOLVER.build_grid(_anchor, _drag_end, FARM_CONTROLLER.DEFAULT_CELL_SIZE)
@@ -472,33 +509,30 @@ func _update_preview() -> void:
 			rectangle_keys.append("%d:%d" % [x, z])
 	grid["cell_keys"] = rectangle_keys
 	var signature := "%s|%s|%s" % [str(_anchor), str(_drag_end), "|".join(PackedStringArray(grid.get("cell_keys", PackedStringArray())))]
-	if signature == _last_preview_signature:
+	if signature == _last_preview_signature and not force_resample:
 		return
 	_last_preview_signature = signature
 	_latest_solution = SOLVER.sample_grid(_preview.get_world_3d().direct_space_state, grid)
+	_apply_territory_blocks(_latest_solution, _owner_faction_id)
 	for child in _preview.get_children():
 		child.queue_free()
 	var blocked: Dictionary = _latest_solution.get("blocked_cells", {})
 	var positions: Array = _latest_solution.get("positions", [])
 	var cell_keys := PackedStringArray(_latest_solution.get("cell_keys", PackedStringArray()))
+	var valid_positions: Array[Vector3] = []
+	var invalid_positions: Array[Vector3] = []
 	for index in positions.size():
 		var key := cell_keys[index] if index < cell_keys.size() else str(index)
 		if blocked.has(key):
-			continue
-		var cell := MeshInstance3D.new()
-		var mesh := BoxMesh.new()
-		mesh.size = Vector3(1.16, 0.045, 1.16)
-		cell.mesh = mesh
-		cell.position = positions[index] + Vector3.UP * 0.06
-		var material := StandardMaterial3D.new()
-		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		material.albedo_color = Color(0.1, 0.85, 0.3, 0.42)
-		cell.material_override = material
-		_preview.add_child(cell)
+			invalid_positions.append(positions[index] as Vector3)
+		else:
+			valid_positions.append(positions[index] as Vector3)
+	_draw_mixed_preview(valid_positions, invalid_positions)
 
 
 
 func _finalize() -> void:
+	_update_preview(true)
 	if not bool(_latest_solution.get("valid", false)):
 		_anchor_set = false
 		return
@@ -539,6 +573,46 @@ func _selected_faction() -> String:
 			if not faction.is_empty():
 				return faction
 	return "Player"
+
+
+func _faction_for_actor(actor: Node) -> String:
+	if actor == null:
+		return ""
+	var faction_id := str(actor.get("faction_name"))
+	if faction_id.is_empty():
+		faction_id = str(actor.get("faction_id"))
+	return faction_id
+
+
+func _apply_territory_blocks(solution: Dictionary, faction_id: String) -> void:
+	var positions: Array = solution.get("positions", [])
+	var cell_keys := PackedStringArray(solution.get("cell_keys", PackedStringArray()))
+	var blocked: Dictionary = solution.get("blocked_cells", {}).duplicate(true)
+	if _territory == null or not _territory.has_method("get_build_permissions"):
+		for index in positions.size():
+			var key := cell_keys[index] if index < cell_keys.size() else str(index)
+			blocked[key] = "territory authority unavailable"
+		solution["blocked_cells"] = blocked
+		solution["valid_cell_count"] = 0
+		solution["valid"] = false
+		return
+	var permissions: Array = _territory.call("get_build_permissions", positions, faction_id)
+	if permissions.size() != positions.size():
+		for index in positions.size():
+			var key := cell_keys[index] if index < cell_keys.size() else str(index)
+			blocked[key] = "territory authority unavailable"
+		solution["blocked_cells"] = blocked
+		solution["valid_cell_count"] = 0
+		solution["valid"] = false
+		return
+	for index in positions.size():
+		var key := cell_keys[index] if index < cell_keys.size() else str(index)
+		var permission: Dictionary = permissions[index]
+		if not bool(permission.get("can_build", false)):
+			blocked[key] = "too close to another faction's town"
+	solution["blocked_cells"] = blocked
+	solution["valid_cell_count"] = maxi(0, positions.size() - blocked.size())
+	solution["valid"] = int(solution["valid_cell_count"]) > 0
 
 
 func _set_escape_hint(visible: bool) -> void:

@@ -73,6 +73,7 @@ var _stealth_cone_mesh: Mesh
 var _stealth_unit_disc_mesh: Mesh
 var _stealth_refresh_timer := 0.0
 var _npc_action_status: Label
+var _farming_action_status: Label
 var _character_creation_status: Label
 
 const STEALTH_REFRESH_INTERVAL := 0.5
@@ -104,6 +105,7 @@ func _ready() -> void:
 	_build_law_window()
 	_build_stealth_window()
 	_build_npc_instant_actions_window()
+	_build_debug_farming_window()
 	_build_character_creation_window()
 	# Everything stays closed and off until explicitly opened, one panel at a
 	# time — debug windows never flood the screen.
@@ -182,6 +184,51 @@ func _on_npc_actions_visibility_changed(panel: Control) -> void:
 	var interaction := BootstrapContext.service(WorldInteractionController.SERVICE_ID)
 	if interaction != null and interaction.has_method("cancel_npc_instant_action"):
 		interaction.call("cancel_npc_instant_action")
+
+
+func _build_debug_farming_window() -> void:
+	var vbox := _build_window("Farming Debug", Vector2(552.0, 348.0))
+	var crops_label := _make_label(vbox)
+	crops_label.text = "Crops"
+	crops_label.add_theme_font_size_override("font_size", 16)
+	var advance_button := Button.new()
+	advance_button.text = "Advance Crop"
+	advance_button.focus_mode = Control.FOCUS_NONE
+	advance_button.pressed.connect(_on_crop_debug_action_pressed.bind(WorldInteractionController.CROP_ACTION_ADVANCE))
+	vbox.add_child(advance_button)
+	var full_grow_button := Button.new()
+	full_grow_button.text = "Full Grow Crop"
+	full_grow_button.focus_mode = Control.FOCUS_NONE
+	full_grow_button.pressed.connect(_on_crop_debug_action_pressed.bind(WorldInteractionController.CROP_ACTION_FULL_GROW))
+	vbox.add_child(full_grow_button)
+	_farming_action_status = _make_label(vbox)
+	_farming_action_status.text = "Choose an action, then click a crop."
+	var interaction := BootstrapContext.service(WorldInteractionController.SERVICE_ID)
+	if interaction != null and interaction.has_signal("crop_debug_action_finished") and not interaction.crop_debug_action_finished.is_connected(_on_crop_debug_action_finished):
+		interaction.crop_debug_action_finished.connect(_on_crop_debug_action_finished)
+	var panel: Control = _window_panels.get("Farming Debug")
+	if panel != null:
+		panel.visibility_changed.connect(_on_debug_farming_visibility_changed.bind(panel))
+
+
+func _on_crop_debug_action_pressed(action_id: StringName) -> void:
+	var interaction := BootstrapContext.service(WorldInteractionController.SERVICE_ID)
+	if interaction == null or not interaction.has_method("arm_crop_debug_action") or not bool(interaction.call("arm_crop_debug_action", action_id)):
+		_farming_action_status.text = "World interaction unavailable."
+		return
+	_farming_action_status.text = "Click a planted crop. Right-click or Escape cancels."
+
+
+func _on_crop_debug_action_finished(_action_id: StringName, _success: bool, message: String) -> void:
+	_farming_action_status.text = message
+
+
+func _on_debug_farming_visibility_changed(panel: Control) -> void:
+	if panel.visible:
+		return
+	var interaction := BootstrapContext.service(WorldInteractionController.SERVICE_ID)
+	if interaction != null and interaction.has_method("cancel_crop_debug_action"):
+		interaction.call("cancel_crop_debug_action")
 
 
 func _build_character_creation_window() -> void:
@@ -1088,7 +1135,7 @@ func _apply_ghost_transform(ground_position: Vector3) -> void:
 	var zone := {"allowed": true, "reason": ""}
 	var construction := get_tree().get_first_node_in_group("construction_controller")
 	if construction != null:
-		zone = construction.call("can_place", ground_position, _ghost_faction)
+		zone = construction.call("can_place", ground_position, _ghost_faction, _ghost_footprint, _ghost_yaw)
 	_ghost_valid = bool(solution["slope_ok"]) and bool(zone["allowed"])
 	_ghost_reason = ""
 	if not bool(zone["allowed"]):
@@ -1120,11 +1167,13 @@ func _finalize_placement() -> void:
 	var building_id := _ghost_building_id
 	var faction := _ghost_faction
 	var foundation := _ghost_y_offset
+	var footprint := _ghost_footprint
+	var yaw := _ghost_yaw
 	_cancel_placement()
 	var record: Dictionary = construction.call("place_building", building_id, transform, faction, foundation)
 	if _placer_status != null:
 		if record.is_empty():
-			_placer_status.text = str(construction.call("can_place", transform.origin, faction)["reason"])
+			_placer_status.text = str(construction.call("can_place", transform.origin, faction, footprint, yaw)["reason"])
 		else:
 			_placer_status.text = "Placed %s (%s)." % [building_id, record.get("settlement_id", "?")]
 	_refresh_towns_list()

@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="CharacterRecordDefinition" format=3]
+[gd_resource type="Resource" script_class="CharacterRecordDefinition" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://features/world_sim/resources/character_record_definition.gd" id="1_ada"]
+[ext_resource type="Resource" path="res://features/conversation/resources/ada_recruitment.tres" id="2_conversation"]
 
 [resource]
 script = ExtResource("1_ada")
@@ -8,18 +9,18 @@ actor_id = "ada"
 member_name = "Ada"
 age_years = 27
 appearance = {
-"arm_length_slider": -0.01,
+"arm_length_slider": 0.04,
 "beard_color": Color(0.18, 0.08, 0.035, 1),
 "beard_style": "",
 "body_archetype": "res://features/actors/resources/character_body_archetypes/human_female.tres",
 "character_race": "res://features/actors/resources/character_races/human.tres",
 "eyebrow_color": Color(0.16, 0.07, 0.03, 1),
 "eyebrow_style": "res://features/actors/resources/character_appearance/eyebrows_female.tres",
-"hair_color": Color(0.24, 0.1, 0.035, 1),
-"hair_style": "res://features/actors/resources/character_appearance/hair_long.tres",
-"height_slider": -0.03,
+"hair_color": Color(0.58, 0.25, 0.055, 1),
+"hair_style": "res://features/actors/resources/character_appearance/hair_ponytail_2.tres",
+"height_slider": -0.06,
 "neck_length_slider": 0.01,
-"shoulder_width_slider": -0.06,
+"shoulder_width_slider": 0.08,
 "skin_color": Color(0.82, 0.58, 0.42, 1),
 "skin_color_customized": true,
 "visual_body_type": 3.0
@@ -55,21 +56,23 @@ skill_levels = {
 equipment_slots = {
 "chest": "res://features/inventory/resources/items/peasant_tunic.tres",
 "feet": "res://features/inventory/resources/items/peasant_shoes.tres",
-"legs": "res://features/inventory/resources/items/peasant_trousers.tres"
+"legs": "res://features/inventory/resources/items/peasant_trousers.tres",
+"weapon": "res://features/inventory/resources/items/hoe.tres"
 }
 inventory_entries = [{
 "contained_item_counts": {},
 "count": 1,
 "grid_position": Vector2i(0, 0),
-"item_id": "res://features/inventory/resources/items/hoe.tres",
-"metadata": {}
-}, {
-"contained_item_counts": {},
-"count": 1,
-"grid_position": Vector2i(2, 0),
 "item_id": "res://features/inventory/resources/items/watering_can.tres",
 "metadata": {"farm_water": 16.0}
+}, {
+"contained_item_counts": {},
+"count": 10,
+"grid_position": Vector2i(2, 0),
+"item_id": "res://features/inventory/resources/items/tomato_seeds.tres",
+"metadata": {}
 }]
+conversation_definition = ExtResource("2_conversation")
 personality = {
 "risk_tolerance": 0.28,
 "temperament": "grounded"

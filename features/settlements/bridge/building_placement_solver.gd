@@ -120,10 +120,7 @@ static func terrain_ray(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vec
 
 
 static func is_terrain_collider(collider) -> bool:
-	# Terrain3D registers its body directly on the PhysicsServer (no scene
-	# collider object); scene colliders under buildings/pieces/actors are not
-	# terrain.
-	if collider == null:
+	if is_native_terrain_collider(collider):
 		return true
 	if collider is CharacterBody3D:
 		return false
@@ -133,3 +130,13 @@ static func is_terrain_collider(collider) -> bool:
 			return false
 		walker = walker.get_parent()
 	return true
+
+
+## Terrain3D physics hits vary by engine/addon version: some return the live
+## extension node, while others return a non-Node PhysicsServer wrapper.
+static func is_native_terrain_collider(collider) -> bool:
+	if collider == null:
+		return true
+	if collider is Object and collider.is_class("Terrain3D"):
+		return true
+	return not (collider is Node)
