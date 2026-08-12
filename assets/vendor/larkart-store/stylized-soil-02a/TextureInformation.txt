@@ -1,0 +1,10 @@
+Texture information:
+
+_C = base color
+_N = normal map
+_M = metallic map
+_R = roughness map
+_AO = ambient occlusion map
+_H = height/displacement map
+
+Thank you for purchasing my assets! I hope you enjoy using them and find them useful for your projects. If you are satisfied with your purchase, please consider leaving a review to share your feedback.

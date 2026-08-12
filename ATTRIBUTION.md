@@ -22,6 +22,7 @@ This file is the canonical list of imported third-party assets and software used
 | Asset Pack | Author | License | Price | Source | Project Path |
 | --- | --- | --- | --- | --- | --- |
 | Soil & Stones (UJWAmw) | ScansLibrary | Fab Standard License | $3.17 | https://www.fab.com/listings/2193002b-8ebd-4cd2-9941-f438b896f63d | `scenes/zones/rustwash_basin/textures/soil_and_stones_ujwamw_4k/` |
+| Stylized Soil 02A - Material | LarkArt Store | Fab Standard License |  | https://www.fab.com/listings/39477e0b-a19e-45cf-be76-77240006462e | `assets/vendor/larkart-store/stylized-soil-02a/` |
 
 ## Software / Libraries
 

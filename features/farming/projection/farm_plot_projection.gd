@@ -4,8 +4,29 @@ class_name FarmPlotProjection
 
 const CROP_SOURCE := preload("res://assets/vendor/luceed-studio/farm-crops-01/crops01.glb")
 const FARM_SIMULATION := preload("res://features/farming/sim/farm_simulation.gd")
+const SOIL_ALBEDO := preload("res://assets/vendor/larkart-store/stylized-soil-02a/T_Soil02A_C.png")
+const SOIL_NORMAL := preload("res://assets/vendor/larkart-store/stylized-soil-02a/T_Soil02A_N.png")
+const SOIL_ROUGHNESS := preload("res://assets/vendor/larkart-store/stylized-soil-02a/T_Soil02A_R.png")
+const SOIL_AO := preload("res://assets/vendor/larkart-store/stylized-soil-02a/T_Soil02A_AO.png")
+const SOIL_MOUND_SADDLE_HEIGHT := 0.085
+const SOIL_MOUND_CROWN_HEIGHT := 0.035
+const SOIL_CROP_ROOT_HEIGHT := 0.132
+const SOIL_OUTER_TAPER_FRACTION := 0.40
+const SOIL_PERIMETER_SKIRT_DEPTH := 0.35
+const SOIL_MESH_SUBDIVISIONS := 4
+const SOIL_TEXTURE_WORLD_SCALE := 2.4
+const SOIL_ASYNC_BUILD_CELL_THRESHOLD := 64
+const SOIL_NEIGHBOR_WEST := 1 << 0
+const SOIL_NEIGHBOR_EAST := 1 << 1
+const SOIL_NEIGHBOR_NORTH := 1 << 2
+const SOIL_NEIGHBOR_SOUTH := 1 << 3
+const SOIL_NEIGHBOR_NORTHWEST := 1 << 4
+const SOIL_NEIGHBOR_NORTHEAST := 1 << 5
+const SOIL_NEIGHBOR_SOUTHEAST := 1 << 6
+const SOIL_NEIGHBOR_SOUTHWEST := 1 << 7
 
 static var _visual_cache: Dictionary = {}
+static var _soil_material_cache: StandardMaterial3D
 
 var plot_id := ""
 var _farm: Node
@@ -20,6 +41,18 @@ var _collision_root: Area3D
 var _cell_holders: Dictionary = {}
 var _visual_signatures: Dictionary = {}
 var _collision_signature := ""
+var _soil_signature := ""
+var _soil_requested_signature := "<uninitialized>"
+var _soil_build_signature := ""
+var _soil_build_active := false
+var _soil_pending_valid := false
+var _soil_pending_signature := ""
+var _soil_pending_cells: Dictionary = {}
+var _soil_pending_cell_size := 1.25
+var _soil_task_id := -1
+var _soil_reclaimed_task_count := 0
+var _soil_last_reclaim_result := FAILED
+var _soil_shutting_down := false
 var _stake_signature := ""
 var _inspected := false
 var _field_details_mode := false
@@ -32,6 +65,7 @@ func _ready() -> void:
 	add_child(_visual_root)
 	_soil_surface = MeshInstance3D.new()
 	_soil_surface.name = "ConnectedSoil"
+	_soil_surface.material_override = build_soil_material()
 	_visual_root.add_child(_soil_surface)
 	_stake_root = Node3D.new()
 	_stake_root.name = "BoundaryStakes"
@@ -55,6 +89,15 @@ func _ready() -> void:
 	_collision_root.monitorable = true
 	add_child(_collision_root)
 	_build_visual_cache()
+
+
+func _exit_tree() -> void:
+	_soil_shutting_down = true
+	_clear_pending_connected_soil_build()
+	if _soil_task_id >= 0:
+		_reclaim_connected_soil_task()
+	_soil_build_active = false
+	_soil_build_signature = ""
 
 
 func setup(state: Dictionary, farm: Node) -> void:
@@ -459,34 +502,6 @@ static func crop_visual_stage_index(cell: Dictionary) -> int:
 	)
 
 
-func _add_soil(holder: Node3D, cell: Dictionary) -> void:
-	var material := StandardMaterial3D.new()
-	var status := str(cell.get("state", ""))
-	material.albedo_color = soil_color_for_state(status)
-	var visual := _instantiate_cached_visual("Ground_Soil01")
-	if visual != null:
-		visual.name = "Soil"
-		for mesh_value in visual.find_children("*", "MeshInstance3D", true, false):
-			(mesh_value as MeshInstance3D).material_override = material
-		fit_visual_group_to_ground(visual, 1.10, 0.12)
-		visual.position.y += 0.02
-		holder.add_child(visual)
-		return
-	var mesh_instance := MeshInstance3D.new()
-	mesh_instance.name = "Soil"
-	var box := BoxMesh.new()
-	box.size = Vector3(1.12, 0.08, 1.12)
-	mesh_instance.mesh = box
-	mesh_instance.material_override = material
-	fit_mesh_to_ground(mesh_instance, 1.12, 0.08)
-	mesh_instance.position.y += 0.02
-	holder.add_child(mesh_instance)
-
-
-static func soil_color_for_state(status: String) -> Color:
-	return Color(0.33, 0.24, 0.14) if status == FARM_SIMULATION.STATE_UNTILLED else Color(0.24, 0.13, 0.07)
-
-
 func _add_crop(holder: Node3D, cell: Dictionary) -> void:
 	var crop_id := str(cell.get("crop_id", ""))
 	if crop_id.is_empty() or _farm == null:
@@ -502,45 +517,177 @@ func _add_crop(holder: Node3D, cell: Dictionary) -> void:
 	var instance := _instantiate_cached_visual(crop.get_stage_node_name(visual_stage))
 	if instance == null:
 		return
-	instance.name = "Crop"
+	var pivot := Node3D.new()
+	pivot.name = "Crop"
+	instance.name = "Visual"
+	pivot.add_child(instance)
 	var live_stage := mini(visual_stage, FARM_SIMULATION.RIPE_VISUAL_STAGE_INDEX)
 	var desired_height := lerpf(
 		0.18,
-		1.24,
+		1.0,
 		float(live_stage + 1) / float(FARM_SIMULATION.GROWTH_VISUAL_STAGE_COUNT)
 	)
-	fit_visual_group_to_ground(instance, 1.02, desired_height)
-	holder.add_child(instance)
+	var desired_diameter := lerpf(
+		0.38,
+		0.78,
+		float(live_stage + 1) / float(FARM_SIMULATION.GROWTH_VISUAL_STAGE_COUNT)
+	)
+	fit_visual_group_to_ground(instance, desired_diameter, desired_height)
+	instance.position.y += SOIL_CROP_ROOT_HEIGHT
+	var grid: Vector2i = cell.get("grid_position", Vector2i.ZERO)
+	pivot.rotation.y = deg_to_rad(float(posmod(grid.x * 17 + grid.y * 29, 15) - 7))
+	holder.add_child(pivot)
 
 
 func _add_wheat(holder: Node3D, stage: int, crop_state: String) -> void:
 	var live_stage := mini(stage, FARM_SIMULATION.RIPE_VISUAL_STAGE_INDEX)
-	var height := lerpf(0.08, 1.05, float(live_stage + 1) / float(FARM_SIMULATION.GROWTH_VISUAL_STAGE_COUNT))
-	for index in 7:
-		var stalk := MeshInstance3D.new()
-		var cylinder := CylinderMesh.new()
-		cylinder.top_radius = 0.018
-		cylinder.bottom_radius = 0.026
-		cylinder.height = height
-		stalk.mesh = cylinder
-		stalk.position = Vector3((index % 3 - 1) * 0.16, height * 0.5, (index / 3 - 1) * 0.16)
-		var material := StandardMaterial3D.new()
-		match crop_state:
-			FARM_SIMULATION.STATE_RIPE:
-				material.albedo_color = Color(0.78, 0.62, 0.18)
-			FARM_SIMULATION.STATE_WITHERED:
-				material.albedo_color = Color(0.34, 0.23, 0.10)
-			_:
-				material.albedo_color = Color(0.39, 0.61, 0.19)
-		stalk.material_override = material
-		holder.add_child(stalk)
+	var height := lerpf(0.10, 1.02, float(live_stage + 1) / float(FARM_SIMULATION.GROWTH_VISUAL_STAGE_COUNT))
+	var material := StandardMaterial3D.new()
+	material.roughness = 0.92
+	match crop_state:
+		FARM_SIMULATION.STATE_RIPE:
+			material.albedo_color = Color(0.56, 0.38, 0.09)
+		FARM_SIMULATION.STATE_WITHERED:
+			material.albedo_color = Color(0.29, 0.19, 0.075)
+		_:
+			material.albedo_color = Color(0.30, 0.49, 0.14)
+	var positions := [
+		Vector2(-0.21, -0.18), Vector2(0.0, -0.22), Vector2(0.22, -0.15),
+		Vector2(-0.24, 0.03), Vector2(0.03, 0.0), Vector2(0.24, 0.08),
+		Vector2(-0.16, 0.23), Vector2(0.08, 0.22), Vector2(0.25, 0.26),
+	]
+	var stalk_mesh := CylinderMesh.new()
+	stalk_mesh.top_radius = 0.012
+	stalk_mesh.bottom_radius = 0.022
+	stalk_mesh.height = height
+	stalk_mesh.radial_segments = 5
+	var stalk_multimesh := MultiMesh.new()
+	stalk_multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	stalk_multimesh.mesh = stalk_mesh
+	stalk_multimesh.instance_count = positions.size()
+	for index in positions.size():
+		var point: Vector2 = positions[index]
+		var height_scale := lerpf(0.86, 1.08, float(index * 7 % 9) / 8.0)
+		var basis := Basis(Vector3.UP, deg_to_rad(float(index * 37 % 13 - 6)))
+		basis = Basis(Vector3.RIGHT, deg_to_rad(float(index * 5 % 9 - 4))) * basis
+		basis = basis.scaled(Vector3(1.0, height_scale, 1.0))
+		stalk_multimesh.set_instance_transform(index, Transform3D(basis, Vector3(point.x, SOIL_CROP_ROOT_HEIGHT + height * height_scale * 0.5, point.y)))
+	var stalks := MultiMeshInstance3D.new()
+	stalks.name = "WheatStalks"
+	stalks.multimesh = stalk_multimesh
+	stalks.material_override = material
+	holder.add_child(stalks)
+	if live_stage < 3:
+		return
+	var head_height := lerpf(0.075, 0.16, float(live_stage - 2) / float(FARM_SIMULATION.RIPE_VISUAL_STAGE_INDEX - 2))
+	var head_mesh := CapsuleMesh.new()
+	head_mesh.radius = 0.034
+	head_mesh.height = head_height
+	head_mesh.radial_segments = 5
+	head_mesh.rings = 2
+	var head_multimesh := MultiMesh.new()
+	head_multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	head_multimesh.mesh = head_mesh
+	head_multimesh.instance_count = positions.size()
+	for index in positions.size():
+		var point: Vector2 = positions[index]
+		var height_scale := lerpf(0.86, 1.08, float(index * 7 % 9) / 8.0)
+		var basis := Basis(Vector3.RIGHT, deg_to_rad(float(index * 5 % 9 - 4)))
+		head_multimesh.set_instance_transform(index, Transform3D(basis, Vector3(point.x, SOIL_CROP_ROOT_HEIGHT + height * height_scale + head_height * 0.35, point.y)))
+	var heads := MultiMeshInstance3D.new()
+	heads.name = "WheatHeads"
+	heads.multimesh = head_multimesh
+	heads.material_override = material
+	holder.add_child(heads)
 
 
 func _sync_connected_soil(cells: Dictionary) -> void:
-	if _soil_surface == null:
+	if _soil_surface == null or _soil_shutting_down:
 		return
-	_soil_surface.mesh = build_connected_soil_mesh(cells_with_created_soil(cells), float(_state.get("cell_size", 1.25)))
-	_soil_surface.material_override = build_soil_material()
+	var created_cells := cells_with_created_soil(cells)
+	var signature_parts := PackedStringArray()
+	var cell_size := float(_state.get("cell_size", 1.25))
+	signature_parts.append("cell_size=%s" % cell_size)
+	for key_value in created_cells:
+		var cell: Dictionary = created_cells[key_value]
+		signature_parts.append("%s@%s" % [str(key_value), cell.get("world_position", Vector3.ZERO)])
+	signature_parts.sort()
+	var signature := "|".join(signature_parts)
+	if signature == _soil_requested_signature and (_soil_surface.mesh != null or _soil_build_active or _soil_pending_valid):
+		return
+	_soil_requested_signature = signature
+	_clear_pending_connected_soil_build()
+	if created_cells.is_empty():
+		_soil_surface.mesh = ArrayMesh.new()
+		_soil_signature = signature
+		return
+	if created_cells.size() <= SOIL_ASYNC_BUILD_CELL_THRESHOLD:
+		_soil_surface.mesh = build_connected_soil_mesh(created_cells, cell_size)
+		_soil_signature = signature
+		return
+	_soil_pending_valid = true
+	_soil_pending_signature = signature
+	_soil_pending_cells = created_cells.duplicate(true)
+	_soil_pending_cell_size = cell_size
+	if not _soil_build_active:
+		_begin_connected_soil_build()
+
+
+func _begin_connected_soil_build() -> void:
+	if _soil_shutting_down or not _soil_pending_valid:
+		return
+	var cells := _soil_pending_cells
+	var cell_size := _soil_pending_cell_size
+	_soil_build_signature = _soil_pending_signature
+	_clear_pending_connected_soil_build()
+	_soil_build_active = true
+	_soil_task_id = WorkerThreadPool.add_task(
+		_build_connected_soil_task.bind(cells, cell_size, _soil_build_signature),
+		false,
+		"FarmConnectedSoil"
+	)
+	if _soil_task_id < 0:
+		_soil_build_active = false
+		var mesh := build_connected_soil_mesh(cells, cell_size)
+		if _soil_build_signature == _soil_requested_signature:
+			_soil_surface.mesh = mesh
+			_soil_signature = _soil_build_signature
+
+
+func _build_connected_soil_task(cells: Dictionary, cell_size: float, signature: String) -> void:
+	var mesh := build_connected_soil_mesh(cells, cell_size)
+	_finish_connected_soil_build.call_deferred(signature, mesh)
+
+
+func _finish_connected_soil_build(completed_signature: String, completed_mesh: ArrayMesh) -> void:
+	if _soil_task_id >= 0:
+		_reclaim_connected_soil_task()
+	_soil_build_active = false
+	if _soil_shutting_down:
+		_clear_pending_connected_soil_build()
+		return
+	if completed_mesh != null and completed_signature == _soil_requested_signature:
+		_soil_surface.mesh = completed_mesh
+		_soil_signature = completed_signature
+	if _soil_pending_valid:
+		_begin_connected_soil_build()
+
+
+func _clear_pending_connected_soil_build() -> void:
+	_soil_pending_valid = false
+	_soil_pending_signature = ""
+	_soil_pending_cells = {}
+
+
+func _reclaim_connected_soil_task() -> void:
+	if _soil_task_id < 0:
+		return
+	_soil_last_reclaim_result = int(WorkerThreadPool.wait_for_task_completion(_soil_task_id))
+	_soil_task_id = -1
+	if _soil_last_reclaim_result != OK:
+		push_warning("Connected-soil worker task reclamation failed: %d" % _soil_last_reclaim_result)
+		return
+	_soil_reclaimed_task_count += 1
 
 
 static func cells_with_created_soil(cells: Dictionary) -> Dictionary:
@@ -718,11 +865,24 @@ static func _append_quad(vertices: PackedVector3Array, a: Vector3, b: Vector3, c
 
 
 static func build_soil_material() -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.vertex_color_use_as_albedo = true
-	material.roughness = 1.0
-	material.cull_mode = BaseMaterial3D.CULL_BACK
-	return material
+	if _soil_material_cache != null:
+		return _soil_material_cache
+	_soil_material_cache = StandardMaterial3D.new()
+	_soil_material_cache.albedo_texture = SOIL_ALBEDO
+	_soil_material_cache.albedo_color = Color(0.68, 0.58, 0.48)
+	_soil_material_cache.vertex_color_use_as_albedo = true
+	_soil_material_cache.normal_enabled = true
+	_soil_material_cache.normal_texture = SOIL_NORMAL
+	_soil_material_cache.normal_scale = 0.42
+	_soil_material_cache.roughness = 0.94
+	_soil_material_cache.roughness_texture = SOIL_ROUGHNESS
+	_soil_material_cache.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+	_soil_material_cache.ao_enabled = true
+	_soil_material_cache.ao_texture = SOIL_AO
+	_soil_material_cache.ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+	_soil_material_cache.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	_soil_material_cache.cull_mode = BaseMaterial3D.CULL_BACK
+	return _soil_material_cache
 
 
 static func build_connected_soil_mesh(cells: Dictionary, cell_size: float) -> ArrayMesh:
@@ -730,66 +890,170 @@ static func build_connected_soil_mesh(cells: Dictionary, cell_size: float) -> Ar
 	if cells.is_empty():
 		return mesh
 	var spacing := maxf(0.25, cell_size)
-	var corner_positions: Dictionary = {}
-	var corner_colors: Dictionary = {}
-	var corner_counts: Dictionary = {}
 	var cells_by_grid: Dictionary = {}
+	var corner_height_sums: Dictionary = {}
+	var corner_height_counts: Dictionary = {}
 	for cell_value in cells.values():
 		var cell: Dictionary = cell_value
 		var grid: Vector2i = cell.get("grid_position", Vector2i.ZERO)
-		cells_by_grid["%d:%d" % [grid.x, grid.y]] = cell
+		cells_by_grid[_soil_grid_key(grid)] = cell
 		var center: Vector3 = cell.get("world_position", Vector3.ZERO)
-		var color := soil_color_for_state(str(cell.get("state", "")))
-		for offset in [Vector2i.ZERO, Vector2i(1, 0), Vector2i(1, 1), Vector2i(0, 1)]:
-			var corner: Vector2i = grid + (offset as Vector2i)
-			var key := "%d:%d" % [corner.x, corner.y]
-			var point := center + Vector3((float(offset.x) - 0.5) * spacing, 0.025, (float(offset.y) - 0.5) * spacing)
-			corner_positions[key] = (corner_positions.get(key, Vector3.ZERO) as Vector3) + point
-			corner_colors[key] = (corner_colors.get(key, Color(0, 0, 0, 0)) as Color) + color
-			corner_counts[key] = int(corner_counts.get(key, 0)) + 1
-	var resolved_positions: Dictionary = {}
-	var resolved_colors: Dictionary = {}
-	for key_value in corner_positions.keys():
-		var key := str(key_value)
-		var count := maxi(1, int(corner_counts.get(key, 1)))
-		var point: Vector3 = (corner_positions[key] as Vector3) / float(count)
-		var parts := key.split(":", false, 1)
-		var corner := Vector2i(int(parts[0]), int(parts[1]))
-		var adjacent := 0
-		for offset in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i.ZERO]:
-			var candidate: Vector2i = corner + (offset as Vector2i)
-			if cells_by_grid.has("%d:%d" % [candidate.x, candidate.y]):
-				adjacent += 1
-		if adjacent < 4:
-			var noise := absi(corner.x * 73856093 ^ corner.y * 19349663)
-			point.x += (float(noise % 101) / 100.0 - 0.5) * spacing * 0.10
-			point.z += (float((noise / 101) % 101) / 100.0 - 0.5) * spacing * 0.10
-		resolved_positions[key] = point
-		resolved_colors[key] = (corner_colors[key] as Color) / float(count)
+		for corner_offset in [Vector2i.ZERO, Vector2i(1, 0), Vector2i(1, 1), Vector2i(0, 1)]:
+			var corner: Vector2i = grid + (corner_offset as Vector2i)
+			var corner_key := _soil_grid_key(corner)
+			corner_height_sums[corner_key] = float(corner_height_sums.get(corner_key, 0.0)) + center.y
+			corner_height_counts[corner_key] = int(corner_height_counts.get(corner_key, 0)) + 1
+	var corner_heights: Dictionary = {}
+	for corner_key_value in corner_height_sums:
+		var corner_key := str(corner_key_value)
+		corner_heights[corner_key] = float(corner_height_sums[corner_key]) / float(maxi(1, int(corner_height_counts[corner_key])))
 	var vertices := PackedVector3Array()
-	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
 	var colors := PackedColorArray()
-	for cell_value in cells.values():
-		var cell: Dictionary = cell_value
+	var indices := PackedInt32Array()
+	var point_indices: Dictionary = {}
+	var sorted_keys: Array = cells.keys()
+	sorted_keys.sort()
+	for key_value in sorted_keys:
+		var cell: Dictionary = cells[key_value]
+		var center: Vector3 = cell.get("world_position", Vector3.ZERO)
 		var grid: Vector2i = cell.get("grid_position", Vector2i.ZERO)
-		var keys := [
-			"%d:%d" % [grid.x, grid.y],
-			"%d:%d" % [grid.x + 1, grid.y],
-			"%d:%d" % [grid.x + 1, grid.y + 1],
-			"%d:%d" % [grid.x, grid.y + 1],
-		]
-		# Godot front faces wind clockwise when viewed from above.
-		for index in [0, 1, 2, 0, 2, 3]:
-			vertices.append(resolved_positions[keys[index]] as Vector3)
-			normals.append(Vector3.UP)
-			colors.append(resolved_colors[keys[index]] as Color)
-	var arrays: Array = []
+		var neighbor_mask := 0
+		neighbor_mask |= SOIL_NEIGHBOR_WEST if cells_by_grid.has(_soil_grid_key(grid + Vector2i.LEFT)) else 0
+		neighbor_mask |= SOIL_NEIGHBOR_EAST if cells_by_grid.has(_soil_grid_key(grid + Vector2i.RIGHT)) else 0
+		neighbor_mask |= SOIL_NEIGHBOR_NORTH if cells_by_grid.has(_soil_grid_key(grid + Vector2i.UP)) else 0
+		neighbor_mask |= SOIL_NEIGHBOR_SOUTH if cells_by_grid.has(_soil_grid_key(grid + Vector2i.DOWN)) else 0
+		neighbor_mask |= SOIL_NEIGHBOR_NORTHWEST if cells_by_grid.has(_soil_grid_key(grid + Vector2i.LEFT + Vector2i.UP)) else 0
+		neighbor_mask |= SOIL_NEIGHBOR_NORTHEAST if cells_by_grid.has(_soil_grid_key(grid + Vector2i.RIGHT + Vector2i.UP)) else 0
+		neighbor_mask |= SOIL_NEIGHBOR_SOUTHEAST if cells_by_grid.has(_soil_grid_key(grid + Vector2i.RIGHT + Vector2i.DOWN)) else 0
+		neighbor_mask |= SOIL_NEIGHBOR_SOUTHWEST if cells_by_grid.has(_soil_grid_key(grid + Vector2i.LEFT + Vector2i.DOWN)) else 0
+		var h00 := float(corner_heights.get(_soil_grid_key(grid), center.y))
+		var h10 := float(corner_heights.get(_soil_grid_key(grid + Vector2i.RIGHT), center.y))
+		var h11 := float(corner_heights.get(_soil_grid_key(grid + Vector2i.ONE), center.y))
+		var h01 := float(corner_heights.get(_soil_grid_key(grid + Vector2i.DOWN), center.y))
+		var bilinear_center := (h00 + h10 + h11 + h01) * 0.25
+		var terrain_center_correction := center.y - bilinear_center
+		var crown_scale := lerpf(0.92, 1.08, float(posmod(grid.x * 31 + grid.y * 17, 17)) / 16.0)
+		var row_size := SOIL_MESH_SUBDIVISIONS + 1
+		var cell_point_indices := PackedInt32Array()
+		cell_point_indices.resize(row_size * row_size)
+		for sub_z in row_size:
+			for sub_x in row_size:
+				var point_key := Vector2i(
+					grid.x * SOIL_MESH_SUBDIVISIONS + sub_x,
+					grid.y * SOIL_MESH_SUBDIVISIONS + sub_z
+				)
+				var point_index := int(point_indices.get(point_key, -1))
+				if point_index < 0:
+					var u := float(sub_x) / float(SOIL_MESH_SUBDIVISIONS)
+					var v := float(sub_z) / float(SOIL_MESH_SUBDIVISIONS)
+					var edge_factor := _soil_edge_factor(u, v, neighbor_mask)
+					var point := _connected_soil_point(center, spacing, u, v, h00, h10, h11, h01, terrain_center_correction, crown_scale, edge_factor)
+					var side_brightness := lerpf(0.52, 1.0, smoothstep(0.0, 0.92, edge_factor))
+					point_index = vertices.size()
+					vertices.append(point)
+					uvs.append(Vector2(point.x, point.z) / SOIL_TEXTURE_WORLD_SCALE)
+					colors.append(Color(side_brightness, side_brightness, side_brightness))
+					point_indices[point_key] = point_index
+				cell_point_indices[sub_z * row_size + sub_x] = point_index
+		for sub_z in SOIL_MESH_SUBDIVISIONS:
+			for sub_x in SOIL_MESH_SUBDIVISIONS:
+				var p00 := cell_point_indices[sub_z * row_size + sub_x]
+				var p10 := cell_point_indices[sub_z * row_size + sub_x + 1]
+				var p11 := cell_point_indices[(sub_z + 1) * row_size + sub_x + 1]
+				var p01 := cell_point_indices[(sub_z + 1) * row_size + sub_x]
+				for point_index in [p00, p10, p11, p00, p11, p01]:
+					indices.append(point_index)
+		if (neighbor_mask & SOIL_NEIGHBOR_NORTH) == 0:
+			for sub_x in SOIL_MESH_SUBDIVISIONS:
+				_append_soil_skirt_segment(vertices, uvs, colors, indices, cell_point_indices[sub_x], cell_point_indices[sub_x + 1])
+		if (neighbor_mask & SOIL_NEIGHBOR_EAST) == 0:
+			for sub_z in SOIL_MESH_SUBDIVISIONS:
+				_append_soil_skirt_segment(vertices, uvs, colors, indices, cell_point_indices[sub_z * row_size + SOIL_MESH_SUBDIVISIONS], cell_point_indices[(sub_z + 1) * row_size + SOIL_MESH_SUBDIVISIONS])
+		if (neighbor_mask & SOIL_NEIGHBOR_SOUTH) == 0:
+			for sub_x in SOIL_MESH_SUBDIVISIONS:
+				_append_soil_skirt_segment(vertices, uvs, colors, indices, cell_point_indices[row_size * row_size - 1 - sub_x], cell_point_indices[row_size * row_size - 2 - sub_x])
+		if (neighbor_mask & SOIL_NEIGHBOR_WEST) == 0:
+			for sub_z in SOIL_MESH_SUBDIVISIONS:
+				_append_soil_skirt_segment(vertices, uvs, colors, indices, cell_point_indices[(SOIL_MESH_SUBDIVISIONS - sub_z) * row_size], cell_point_indices[(SOIL_MESH_SUBDIVISIONS - sub_z - 1) * row_size])
+	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_COLOR] = colors
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var surface_tool := SurfaceTool.new()
+	surface_tool.create_from_arrays(arrays)
+	surface_tool.generate_normals()
+	surface_tool.generate_tangents()
+	return surface_tool.commit()
+
+
+static func _append_soil_skirt_segment(vertices: PackedVector3Array, uvs: PackedVector2Array, colors: PackedColorArray, indices: PackedInt32Array, top_a_index: int, top_b_index: int) -> void:
+	var top_a := vertices[top_a_index]
+	var top_b := vertices[top_b_index]
+	var bottom_a := top_a - Vector3.UP * SOIL_PERIMETER_SKIRT_DEPTH
+	var bottom_b := top_b - Vector3.UP * SOIL_PERIMETER_SKIRT_DEPTH
+	var horizontal_a := (top_a.x + top_a.z) / SOIL_TEXTURE_WORLD_SCALE
+	var horizontal_b := (top_b.x + top_b.z) / SOIL_TEXTURE_WORLD_SCALE
+	var side_top_a_index := vertices.size()
+	for point in [top_a, top_b, bottom_b, bottom_a]:
+		vertices.append(point)
+	uvs.append(Vector2(horizontal_a, 0.0))
+	uvs.append(Vector2(horizontal_b, 0.0))
+	uvs.append(Vector2(horizontal_b, SOIL_PERIMETER_SKIRT_DEPTH / SOIL_TEXTURE_WORLD_SCALE))
+	uvs.append(Vector2(horizontal_a, SOIL_PERIMETER_SKIRT_DEPTH / SOIL_TEXTURE_WORLD_SCALE))
+	colors.append(Color(0.52, 0.52, 0.52))
+	colors.append(Color(0.52, 0.52, 0.52))
+	colors.append(Color(0.34, 0.34, 0.34))
+	colors.append(Color(0.34, 0.34, 0.34))
+	# Godot treats clockwise triangle winding as front-facing. These faces point
+	# outward so back-face culling hides only the buried interior side.
+	for point_index in [side_top_a_index, side_top_a_index + 2, side_top_a_index + 1, side_top_a_index, side_top_a_index + 3, side_top_a_index + 2]:
+		indices.append(point_index)
+
+
+static func _connected_soil_point(center: Vector3, spacing: float, u: float, v: float, h00: float, h10: float, h11: float, h01: float, terrain_center_correction: float, crown_scale: float, edge_factor: float) -> Vector3:
+	var north_height := lerpf(h00, h10, u)
+	var south_height := lerpf(h01, h11, u)
+	var base_height := lerpf(north_height, south_height, v)
+	var center_weight := sin(PI * u) * sin(PI * v)
+	base_height += terrain_center_correction * center_weight
+	var x := center.x + (u - 0.5) * spacing
+	var z := center.z + (v - 0.5) * spacing
+	var cell_crown := pow(center_weight, 1.35) * SOIL_MOUND_CROWN_HEIGHT * crown_scale
+	var surface_variation := sin(x * 1.37 + z * 0.61) * cos(z * 1.11 - x * 0.47) * 0.004
+	var mound_height := (SOIL_MOUND_SADDLE_HEIGHT + cell_crown + surface_variation) * edge_factor
+	return Vector3(x, base_height + 0.012 + mound_height, z)
+
+
+static func _soil_grid_key(grid: Vector2i) -> String:
+	return "%d:%d" % [grid.x, grid.y]
+
+
+static func _soil_edge_factor(u: float, v: float, neighbor_mask: int) -> float:
+	var has_west := (neighbor_mask & SOIL_NEIGHBOR_WEST) != 0
+	var has_east := (neighbor_mask & SOIL_NEIGHBOR_EAST) != 0
+	var has_north := (neighbor_mask & SOIL_NEIGHBOR_NORTH) != 0
+	var has_south := (neighbor_mask & SOIL_NEIGHBOR_SOUTH) != 0
+	var factor := 1.0
+	if not has_west:
+		factor *= smoothstep(0.0, SOIL_OUTER_TAPER_FRACTION, u)
+	if not has_east:
+		factor *= smoothstep(0.0, SOIL_OUTER_TAPER_FRACTION, 1.0 - u)
+	if not has_north:
+		factor *= smoothstep(0.0, SOIL_OUTER_TAPER_FRACTION, v)
+	if not has_south:
+		factor *= smoothstep(0.0, SOIL_OUTER_TAPER_FRACTION, 1.0 - v)
+	if has_west and has_north and (neighbor_mask & SOIL_NEIGHBOR_NORTHWEST) == 0:
+		factor *= smoothstep(0.0, SOIL_OUTER_TAPER_FRACTION, Vector2(u, v).length())
+	if has_east and has_north and (neighbor_mask & SOIL_NEIGHBOR_NORTHEAST) == 0:
+		factor *= smoothstep(0.0, SOIL_OUTER_TAPER_FRACTION, Vector2(1.0 - u, v).length())
+	if has_east and has_south and (neighbor_mask & SOIL_NEIGHBOR_SOUTHEAST) == 0:
+		factor *= smoothstep(0.0, SOIL_OUTER_TAPER_FRACTION, Vector2(1.0 - u, 1.0 - v).length())
+	if has_west and has_south and (neighbor_mask & SOIL_NEIGHBOR_SOUTHWEST) == 0:
+		factor *= smoothstep(0.0, SOIL_OUTER_TAPER_FRACTION, Vector2(u, 1.0 - v).length())
+	return factor
 
 
 func _update_collision(cells: Dictionary) -> void:
