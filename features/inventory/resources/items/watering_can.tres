@@ -17,5 +17,5 @@ equip_slot = "weapon"
 world_scene = ExtResource("3_model")
 equipped_scene = ExtResource("3_model")
 grip_profile = ExtResource("4_grip")
-equipped_transform = Transform3D(0.65, 0, 0, 0, 0.65, 0, 0, 0, 0.65, 0, 0, 0)
+equipped_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 tool_tags = PackedStringArray("tool.water_container", "tool.watering_can")
