@@ -361,13 +361,20 @@ func _init() -> void:
 	controller.call("_reconcile_after_world_reindex")
 	var advanced_state: Dictionary = controller.get_plot(str(plot.plot_id))
 	_expect(int(advanced_state.last_simulated_minute) == 60 and float(((advanced_state.cells as Dictionary)["1:0"] as Dictionary).growth) > 0.0, "load reindex advances crops from durable elapsed world time")
-	gecs.upsert_farm_water_source_state({"source_id": "cistern", "renewable": false, "capacity": 20.0, "current_water": 5.0, "recharge_per_world_minute": 0.1, "last_processed_minute": 0})
+	gecs.upsert_farm_water_source_state({"source_id": "cistern", "owner_faction_name": "Player", "renewable": false, "capacity": 20.0, "current_water": 5.0, "recharge_per_world_minute": 0.1, "last_processed_minute": 0})
 	time.absolute_minute = 120
 	controller._on_world_reindexed()
 	controller.call("_reconcile_after_world_reindex")
 	var advanced_water: Dictionary = gecs.get_farm_water_source_states().get("cistern", {})
 	_expect(is_equal_approx(float(advanced_water.get("current_water", 0.0)), 17.0) and int(advanced_water.get("last_processed_minute", 0)) == 120, "off-screen finite water sources recharge from elapsed world time")
-	_expect(controller.has_method("draw_water_source") and is_equal_approx(float(controller.call("draw_water_source", "cistern", 4.0)), 4.0), "controller owns finite water draws")
+	var foreign_denied := {"source_id": "cistern", "owner_faction_name": "Player", "actor_faction_name": "Other", "owner_access_approved": false, "theft_approved": false}
+	var owner_authorized := {"source_id": "cistern", "owner_faction_name": "Player", "actor_faction_name": "Player", "owner_access_approved": true, "theft_approved": false}
+	var theft_authorized := {"source_id": "cistern", "owner_faction_name": "Player", "actor_faction_name": "Other", "owner_access_approved": false, "theft_approved": true}
+	var stale_authorization := {"source_id": "cistern", "owner_faction_name": "FormerOwner", "actor_faction_name": "FormerOwner", "owner_access_approved": true, "theft_approved": false}
+	_expect(is_equal_approx(float(controller.call("draw_water_source", "cistern", 4.0, foreign_denied)), 0.0), "authoritative water mutation rejects foreign draws without theft authorization")
+	_expect(is_equal_approx(float(controller.call("draw_water_source", "cistern", 4.0, stale_authorization)), 0.0), "authoritative water mutation rejects authorization for a stale owner")
+	_expect(is_equal_approx(float(controller.call("draw_water_source", "cistern", 4.0, owner_authorized)), 4.0), "authoritative water mutation accepts the owner's draw")
+	_expect(is_equal_approx(float(controller.call("draw_water_source", "cistern", 3.0, theft_authorized)), 3.0), "authoritative water mutation accepts a theft-system-approved foreign draw")
 	owner.free()
 	outsider.free()
 	controller.free()

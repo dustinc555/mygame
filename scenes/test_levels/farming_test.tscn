@@ -166,6 +166,7 @@ mesh = SubResource("SelectionMesh")
 [node name="FarmWaterSource" parent="." unique_id=1916148716 instance=ExtResource("14_water")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0, -2)
 source_id = "farming_test.cistern"
+owner_faction_name = "Player"
 renewable = false
 capacity = 80.0
 current_water = 80.0

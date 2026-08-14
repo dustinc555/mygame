@@ -41,7 +41,7 @@ class FakeFarm:
 		return (gecs.water_states.get(source_id, {}) as Dictionary).duplicate(true)
 	func get_water_source(source_id: String) -> Dictionary:
 		return (gecs.water_states.get(source_id, {}) as Dictionary).duplicate(true)
-	func draw_water_source(_source_id: String, requested: float) -> float:
+	func draw_water_source(_source_id: String, requested: float, _authorization: Dictionary) -> float:
 		return requested
 
 class FakeActor:

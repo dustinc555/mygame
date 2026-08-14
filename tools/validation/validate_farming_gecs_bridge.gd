@@ -31,9 +31,10 @@ func _run() -> void:
 	controller.remove_farm_plot_state("farm:integration")
 	_expect(not controller.get_farm_plot_states().has("farm:integration"), "remove deletes the GECS entity")
 	var water: Dictionary = controller.upsert_farm_water_source_state({
-		"source_id": "well:integration", "capacity": 25.0, "current_water": 9.0, "renewable": false,
+		"source_id": "well:integration", "owner_faction_name": "Player", "capacity": 25.0, "current_water": 9.0, "renewable": false,
 	})
 	_expect(is_equal_approx(float(water.get("current_water", 0.0)), 9.0), "water source upsert preserves finite capacity")
+	_expect(str(water.get("owner_faction_name", "")) == "Player", "water source upsert preserves durable ownership")
 	_expect(controller.get_farm_water_source_states().has("well:integration"), "water source query returns durable source")
 	print("FARMING_GECS_BRIDGE_OK")
 	root.free()
