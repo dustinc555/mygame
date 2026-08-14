@@ -537,9 +537,15 @@ func _complete_refill(actor_key: int) -> void:
 		_cancel(actor_key)
 		return
 	var capacity := _container_capacity(actor)
-	var drawn: float = source.draw_water(capacity - _container_water(actor))
+	var draw_result := {"drawn": 0.0, "message": "Water source is dry"}
+	if not source.has_method("draw_water_for_actor"):
+		_speak(actor, "Cannot take water: source has no ownership contract")
+		_cancel(actor_key)
+		return
+	draw_result = source.call("draw_water_for_actor", capacity - _container_water(actor), actor)
+	var drawn := float(draw_result.get("drawn", 0.0))
 	if drawn <= 0.0:
-		_speak(actor, "Cannot water: source is dry")
+		_speak(actor, str(draw_result.get("message", "Cannot take water")))
 		_cancel(actor_key)
 		return
 	_set_container_water(actor, _container_water(actor) + drawn)

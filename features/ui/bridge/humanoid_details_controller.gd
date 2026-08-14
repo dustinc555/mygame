@@ -83,10 +83,12 @@ var fatigue_bar_stack: Control
 var fatigue_fill: ColorRect
 var fatigue_value: Label
 var farm_growth_row: Control
+var farm_growth_label: Label
 var farm_growth_stack: Control
 var farm_growth_fill: ColorRect
 var farm_growth_value: Label
 var farm_hydration_row: Control
+var farm_hydration_label: Label
 var farm_hydration_stack: Control
 var farm_hydration_fill: ColorRect
 var farm_hydration_value: Label
@@ -216,10 +218,12 @@ func _do_initialize() -> void:
 	fatigue_fill = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack/FatigueFill")
 	fatigue_value = details_panel.get_node("Margin/DetailsVBox/FatigueRow/FatigueBarFrame/FatigueBarStack/FatigueValue")
 	farm_growth_row = details_panel.get_node("Margin/DetailsVBox/FarmGrowthRow")
+	farm_growth_label = details_panel.get_node("Margin/DetailsVBox/FarmGrowthRow/GrowthLabel")
 	farm_growth_stack = details_panel.get_node("Margin/DetailsVBox/FarmGrowthRow/GrowthBarFrame/GrowthBarStack")
 	farm_growth_fill = details_panel.get_node("Margin/DetailsVBox/FarmGrowthRow/GrowthBarFrame/GrowthBarStack/GrowthFill")
 	farm_growth_value = details_panel.get_node("Margin/DetailsVBox/FarmGrowthRow/GrowthBarFrame/GrowthBarStack/GrowthValue")
 	farm_hydration_row = details_panel.get_node("Margin/DetailsVBox/FarmHydrationRow")
+	farm_hydration_label = details_panel.get_node("Margin/DetailsVBox/FarmHydrationRow/HydrationLabel")
 	farm_hydration_stack = details_panel.get_node("Margin/DetailsVBox/FarmHydrationRow/HydrationBarFrame/HydrationBarStack")
 	farm_hydration_fill = details_panel.get_node("Margin/DetailsVBox/FarmHydrationRow/HydrationBarFrame/HydrationBarStack/HydrationFill")
 	farm_hydration_value = details_panel.get_node("Margin/DetailsVBox/FarmHydrationRow/HydrationBarFrame/HydrationBarStack/HydrationValue")
@@ -397,26 +401,38 @@ func _update_world_target_panel(target) -> void:
 func _update_farm_target_panel(target) -> void:
 	_set_vitals_visible(false)
 	_set_info_rows_visible(false)
-	faction_label.visible = false
-	work_label.visible = false
 	var world_position: Vector3 = _current_target_world_position if _has_current_target_world_position else (target.global_position if target is Node3D else Vector3.ZERO)
 	var data: Dictionary = target.call("get_details_panel_data_at", world_position)
 	name_label.text = str(data.get("title", "Soil"))
+	var subtitle := str(data.get("subtitle", ""))
+	var detail := str(data.get("detail", ""))
+	faction_label.text = subtitle
+	faction_label.visible = not subtitle.is_empty()
+	work_label.text = detail
+	work_label.visible = not detail.is_empty()
 	var crop_state := str(data.get("state", ""))
 	state_label.text = crop_state.to_upper()
 	state_label.modulate = _get_farm_state_color(crop_state)
 	var tool_requirement := str(data.get("tool_requirement", ""))
 	tool_requirement_label.text = tool_requirement
 	tool_requirement_label.visible = not tool_requirement.is_empty()
-	var show_bars := bool(data.get("show_crop_bars", false))
-	_set_farm_rows_visible(show_bars)
-	if show_bars:
+	var show_crop_bars := bool(data.get("show_crop_bars", false))
+	var show_growth_bar := bool(data.get("show_growth_bar", show_crop_bars))
+	var show_resource_bar := bool(data.get("show_resource_bar", show_crop_bars))
+	if farm_growth_row != null:
+		farm_growth_row.visible = show_growth_bar
+	if farm_hydration_row != null:
+		farm_hydration_row.visible = show_resource_bar
+	if show_growth_bar:
 		var growth_ratio := clampf(float(data.get("growth_ratio", 0.0)), 0.0, 1.0)
-		var hydration_ratio := clampf(float(data.get("hydration_ratio", 0.0)), 0.0, 1.0)
-		farm_growth_value.text = "%d%%" % int(round(growth_ratio * 100.0))
-		farm_hydration_value.text = "%d%%" % int(round(hydration_ratio * 100.0))
+		farm_growth_label.text = str(data.get("growth_label", "Growth"))
+		farm_growth_value.text = str(data.get("growth_value_text", "%d%%" % int(round(growth_ratio * 100.0))))
 		_update_fill_bar(farm_growth_stack, farm_growth_fill, growth_ratio, BAR_GOOD_COLOR)
-		_update_fill_bar(farm_hydration_stack, farm_hydration_fill, hydration_ratio, FARM_HYDRATION_COLOR)
+	if show_resource_bar:
+		var resource_ratio := clampf(float(data.get("resource_ratio", data.get("hydration_ratio", 0.0))), 0.0, 1.0)
+		farm_hydration_label.text = str(data.get("resource_label", "Hydration"))
+		farm_hydration_value.text = str(data.get("resource_value_text", "%d%%" % int(round(resource_ratio * 100.0))))
+		_update_fill_bar(farm_hydration_stack, farm_hydration_fill, resource_ratio, FARM_HYDRATION_COLOR)
 	var actions: Array = []
 	if target.has_method("get_details_panel_actions_at"):
 		actions = target.call("get_details_panel_actions_at", world_position, _get_focused_party_member()) \

@@ -4,6 +4,7 @@ extends "res://addons/gecs/ecs/component.gd"
 
 @export var source_id := ""
 @export var world_position := Vector3.ZERO
+@export var owner_faction_name := ""
 @export var capacity := 100.0
 @export var current_water := 100.0
 @export var renewable := false
@@ -15,6 +16,7 @@ func to_state() -> Dictionary:
 	return {
 		"source_id": source_id,
 		"world_position": world_position,
+		"owner_faction_name": owner_faction_name,
 		"capacity": capacity,
 		"current_water": current_water,
 		"renewable": renewable,
@@ -26,6 +28,7 @@ func to_state() -> Dictionary:
 func apply_state(state: Dictionary) -> void:
 	source_id = str(state.get("source_id", source_id))
 	world_position = state.get("world_position", world_position)
+	owner_faction_name = str(state.get("owner_faction_name", owner_faction_name))
 	capacity = maxf(0.0, float(state.get("capacity", capacity)))
 	current_water = clampf(float(state.get("current_water", current_water)), 0.0, capacity)
 	renewable = bool(state.get("renewable", renewable))

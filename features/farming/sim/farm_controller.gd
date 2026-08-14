@@ -1361,6 +1361,9 @@ func register_water_source(authored_state: Dictionary) -> Dictionary:
 	else:
 		_advance_water_sources(_absolute_minute())
 		saved = get_water_source(source_id)
+		if str(saved.get("owner_faction_name", "")).is_empty() and not str(authored_state.get("owner_faction_name", "")).is_empty():
+			saved["owner_faction_name"] = str(authored_state.get("owner_faction_name", ""))
+			saved = _gecs.upsert_farm_water_source_state(saved)
 	water_source_changed.emit(source_id, saved)
 	return saved
 
@@ -1371,10 +1374,22 @@ func get_water_source(source_id: String) -> Dictionary:
 	return (_gecs.get_farm_water_source_states().get(source_id, {}) as Dictionary).duplicate(true)
 
 
-func draw_water_source(source_id: String, requested: float) -> float:
+func draw_water_source(source_id: String, requested: float, authorization: Dictionary) -> float:
 	var state := get_water_source(source_id)
 	var amount := maxf(0.0, requested)
 	if state.is_empty() or amount <= 0.0:
+		return 0.0
+	var owner_faction_name := str(state.get("owner_faction_name", "")).strip_edges()
+	if owner_faction_name.is_empty():
+		return 0.0
+	if str(authorization.get("source_id", "")) != source_id:
+		return 0.0
+	if str(authorization.get("owner_faction_name", "")) != owner_faction_name:
+		return 0.0
+	var actor_faction_name := str(authorization.get("actor_faction_name", ""))
+	var owner_access_approved := bool(authorization.get("owner_access_approved", false))
+	var theft_approved := bool(authorization.get("theft_approved", false))
+	if actor_faction_name != owner_faction_name and not owner_access_approved and not theft_approved:
 		return 0.0
 	if bool(state.get("renewable", false)):
 		return amount

@@ -21,13 +21,13 @@ func _initialize() -> void:
 	if ResourceLoader.exists(CISTERN_SCENE_PATH):
 		var cistern_source := FileAccess.get_file_as_string(CISTERN_SCENE_PATH)
 		_expect(cistern_source.contains("Barrel_Holder.gltf"), "water cistern uses the authored barrel-holder asset")
-		_expect(cistern_source.contains("Bucket_Wooden_1.gltf"), "water cistern includes an authored wooden bucket")
+		_expect(not cistern_source.contains("Bucket_Wooden_1.gltf"), "water barrels contain no decorative fake bucket")
 	var test_source := FileAccess.get_file_as_string(FARMING_TEST_PATH)
 	_expect(test_source.contains("farm_water_cistern.tscn"), "farming test instances the authored water cistern")
 	_expect(not test_source.contains("mesh = SubResource(\"WaterMesh\")"), "farming test has no primitive water-source mesh")
 	var can_source := FileAccess.get_file_as_string(WATERING_CAN_SCENE_PATH)
-	_expect(can_source.contains("type=\"TorusMesh\" id=\"Handle\""), "watering can has a visible handle")
-	_expect(can_source.contains("position = Vector3(0, 0.46, 0)"), "watering-can grip point sits on top of its handle")
+	_expect(can_source.contains("watering_can.glb"), "watering can uses the authored medieval model")
+	_expect(can_source.contains("[node name=\"GripPoint_Primary\" type=\"Marker3D\""), "watering can keeps its authored primary grip marker")
 	_finish()
 
 
