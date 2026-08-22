@@ -101,12 +101,16 @@ func accept_work_offer(offer: Dictionary, actor: Node) -> Dictionary:
 		return {"accepted": false}
 	var actor_key := actor.get_instance_id()
 	var exit_callback := Callable(self, "_on_assigned_actor_tree_exiting").bind(actor_key)
+	var arrival_callback := Callable(self, "_on_assigned_actor_container_reached").bind(actor_key)
 	if actor.has_signal("tree_exiting") and not actor.tree_exiting.is_connected(exit_callback):
 		actor.tree_exiting.connect(exit_callback, CONNECT_ONE_SHOT)
+	if actor.has_signal("container_reached") and not actor.container_reached.is_connected(arrival_callback):
+		actor.container_reached.connect(arrival_callback)
 	_assignments[actor_key] = {
 		"platform": platform,
 		"actor": weakref(actor),
 		"exit_callback": exit_callback,
+		"arrival_callback": arrival_callback,
 	}
 	return {"accepted": true}
 
@@ -186,6 +190,16 @@ func _on_assigned_actor_tree_exiting(actor_key: int) -> void:
 	_erase_assignment(actor_key, true)
 
 
+func _on_assigned_actor_container_reached(actor: Node, container: Node, actor_key: int) -> void:
+	var assignment: Dictionary = _assignments.get(actor_key, {})
+	if actor == null or container == null or assignment.get("platform") != container \
+			or not container.has_method("has_pending_automatic_haul") \
+			or not bool(container.call("has_pending_automatic_haul", actor)):
+		return
+	container.call("resolve_pending_deposit", actor)
+	_erase_assignment(actor_key, false)
+
+
 func _erase_assignment(actor_key: int, cancel_platform: bool) -> void:
 	var assignment: Dictionary = _assignments.get(actor_key, {})
 	if assignment.is_empty():
@@ -199,4 +213,8 @@ func _erase_assignment(actor_key: int, cancel_platform: bool) -> void:
 	if actor != null and is_instance_valid(actor) and actor.has_signal("tree_exiting") and exit_callback.is_valid() \
 			and actor.tree_exiting.is_connected(exit_callback):
 		actor.tree_exiting.disconnect(exit_callback)
+	var arrival_callback: Callable = assignment.get("arrival_callback", Callable())
+	if actor != null and is_instance_valid(actor) and actor.has_signal("container_reached") and arrival_callback.is_valid() \
+			and actor.container_reached.is_connected(arrival_callback):
+		actor.container_reached.disconnect(arrival_callback)
 	_assignments.erase(actor_key)

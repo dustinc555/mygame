@@ -3,6 +3,21 @@ extends Node3D
 
 class_name SettlementFacility
 
+const FACILITY_DUTY_CONTRACT = preload("res://features/settlements/sim/facility_duty_contract.gd")
+const ACTIVE_FACILITY_DUTY_META := &"active_facility_duty"
+
+
+static func begin_actor_facility_duty(actor: Node, facility_id: String) -> void:
+	FACILITY_DUTY_CONTRACT.begin(actor, facility_id)
+
+
+static func end_actor_facility_duty(actor: Node, facility_id: String) -> void:
+	FACILITY_DUTY_CONTRACT.end(actor, facility_id)
+
+
+static func actor_has_active_facility_duty(actor: Node) -> bool:
+	return FACILITY_DUTY_CONTRACT.is_active(actor)
+
 @export var facility_id := ""
 @export var building_id := ""
 @export var display_name := "Facility"

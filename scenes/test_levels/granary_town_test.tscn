@@ -1,0 +1,249 @@
+[gd_scene format=4 uid="uid://b40yp6mnjkfpb"]
+
+[ext_resource type="Script" uid="uid://dkvh6bp4fkold" path="res://scenes/test_levels/granary_town_test.gd" id="1_scenario"]
+[ext_resource type="Script" uid="uid://wdunrxraimnq" path="res://features/core/party/party_member.gd" id="2_party"]
+[ext_resource type="Script" uid="uid://djeupw1kalndt" path="res://features/core/party/party_manager.gd" id="3_manager"]
+[ext_resource type="Script" uid="uid://bj05vts8klryg" path="res://features/core/game_bootstrap.gd" id="4_bootstrap"]
+[ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://features/inventory/resources/items/inventory_stock.gd" id="5_stock"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/hoe.tres" id="6_hoe"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/watering_can.tres" id="7_can"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/tomato_seeds.tres" id="8_tomato_seeds"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/bell_pepper_seeds.tres" id="9_bell_seeds"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/eggplant_seeds.tres" id="10_eggplant_seeds"]
+[ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://features/settlements/bridge/settlement_town.gd" id="11_town"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/settlements/granary_demo.tres" id="12_settlement"]
+[ext_resource type="PackedScene" path="res://features/settlements/bridge/settlement_granary.tscn" id="13_granary"]
+[ext_resource type="PackedScene" path="res://features/settlements/bridge/settlement_worker_house.tscn" id="14_house"]
+[ext_resource type="PackedScene" path="res://features/farming/projection/farm_water_cistern.tscn" id="16_water"]
+[ext_resource type="Script" uid="uid://b0243b3mdreof" path="res://features/world_sim/bridge/faction_territory_anchor.gd" id="17_territory"]
+[ext_resource type="Script" uid="uid://dv5ymfj63bgah" path="res://features/world/projection/world_root.gd" id="18_world"]
+
+[sub_resource type="BoxShape3D" id="FloorShape"]
+size = Vector3(64, 1, 44)
+
+[sub_resource type="StandardMaterial3D" id="FloorMaterial"]
+albedo_color = Color(0.26, 0.39, 0.2, 1)
+roughness = 0.96
+
+[sub_resource type="BoxMesh" id="FloorMesh"]
+material = SubResource("FloorMaterial")
+size = Vector3(64, 1, 44)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_r6uui"]
+transparency = 1
+cull_mode = 2
+no_depth_test = true
+shading_mode = 0
+albedo_color = Color(0.2, 0.72, 0.25, 0.2)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_pu0qr"]
+_surfaces = [{
+"aabb": AABB(-30, 0, -20, 60, 1e-05, 40),
+"format": 34359742465,
+"index_count": 12,
+"index_data": PackedByteArray("AAABAAIAAAACAAMAAAADAAQAAAAEAAEA"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 5,
+"vertex_data": PackedByteArray("AAAAAAAAAAAAAAAAAADwwQAAAAAAAKDBAADwQQAAAAAAAKDBAADwQQAAAAAAAKBBAADwwQAAAAAAAKBB")
+}]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8v1li"]
+transparency = 1
+cull_mode = 2
+no_depth_test = true
+shading_mode = 0
+albedo_color = Color(0.62, 1, 0.94, 0.34)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_wyca4"]
+_surfaces = [{
+"aabb": AABB(-31, 0, -31, 62, 1e-05, 62),
+"format": 34359738369,
+"primitive": 1,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 192,
+"vertex_data": PackedByteArray("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")
+}]
+
+[sub_resource type="Resource" id="StockHoe"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("6_hoe")
+
+[sub_resource type="Resource" id="StockCan"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("7_can")
+
+[sub_resource type="Resource" id="StockTomatoSeeds"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("8_tomato_seeds")
+quantity = 16
+
+[sub_resource type="Resource" id="StockBellSeeds"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("9_bell_seeds")
+quantity = 16
+
+[sub_resource type="Resource" id="StockEggplantSeeds"]
+script = ExtResource("5_stock")
+item_definition = ExtResource("10_eggplant_seeds")
+quantity = 16
+
+[sub_resource type="CapsuleShape3D" id="ActorShape"]
+radius = 0.4
+height = 1.1
+
+[sub_resource type="CapsuleMesh" id="ActorMesh"]
+radius = 0.4
+height = 1.9
+
+[sub_resource type="CylinderMesh" id="SelectionMesh"]
+top_radius = 0.72
+bottom_radius = 0.72
+height = 0.05
+radial_segments = 24
+rings = 2
+
+[node name="GranaryTownTest" type="Node3D" unique_id=959889699]
+script = ExtResource("18_world")
+world_id = "granary_town_test"
+start_hour = 7
+start_minute = 55
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=1395832209]
+transform = Transform3D(0.81915206, 0.45198438, -0.35312894, 0, 0.6156615, 0.7880107, 0.57357645, -0.6455006, 0.5043204, 0, 0, 0)
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="." unique_id=1847474745 groups=["terrain"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor" unique_id=1718790585]
+shape = SubResource("FloorShape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor" unique_id=1972611082]
+mesh = SubResource("FloorMesh")
+
+[node name="GranaryTown" type="Node3D" parent="." unique_id=1232676862]
+script = ExtResource("11_town")
+auto_town_border_from_footprint = false
+town_border_radius = 31.0
+settlement_definition = ExtResource("12_settlement")
+
+[node name="Facilities" type="Node3D" parent="GranaryTown" unique_id=804137013]
+
+[node name="Granary" parent="GranaryTown/Facilities" unique_id=172433472 instance=ExtResource("13_granary")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -14)
+
+[node name="Housing" type="Node3D" parent="GranaryTown" unique_id=2003504053]
+
+[node name="WorkerHouse" parent="GranaryTown/Housing" unique_id=1937705048 instance=ExtResource("14_house")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, -8.8)
+
+[node name="Fields" type="Node3D" parent="GranaryTown" unique_id=105791405]
+
+[node name="Storage" type="Node3D" parent="GranaryTown" unique_id=869968695]
+
+[node name="ActivityPoints" type="Node3D" parent="GranaryTown" unique_id=616735147]
+
+[node name="Territory" type="Node3D" parent="GranaryTown" unique_id=1444022430]
+script = ExtResource("17_territory")
+territory_id = "granary_demo.territory"
+display_name = "Granary Hamlet Territory"
+faction_id = "Player"
+linked_settlement_path = NodePath("..")
+polygon_points = PackedVector2Array(-30, -20, 30, -20, 30, 20, -30, 20)
+debug_color = Color(0.2, 0.72, 0.25, 0.2)
+
+[node name="TerritoryDebug" type="MeshInstance3D" parent="GranaryTown/Territory" unique_id=678718157]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.14, 0)
+material_override = SubResource("StandardMaterial3D_r6uui")
+cast_shadow = 0
+mesh = SubResource("ArrayMesh_pu0qr")
+
+[node name="WaterCistern" parent="GranaryTown" unique_id=49791153 instance=ExtResource("16_water")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, -8)
+source_id = "granary_demo.cistern"
+capacity = 500.0
+current_water = 500.0
+
+[node name="TownBorderDebug" type="MeshInstance3D" parent="GranaryTown" unique_id=2100527502]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
+material_override = SubResource("StandardMaterial3D_8v1li")
+cast_shadow = 0
+mesh = SubResource("ArrayMesh_wyca4")
+
+[node name="Scenario" type="Node" parent="." unique_id=1167891199]
+script = ExtResource("1_scenario")
+
+[node name="PartyMembers" type="Node3D" parent="." unique_id=833023362]
+
+[node name="Ada" type="CharacterBody3D" parent="PartyMembers" unique_id=1218109439]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.6, 18)
+script = ExtResource("2_party")
+base_color = Color(0.78, 0.38, 0.25, 1)
+member_name = "Ada"
+faction_name = "Player"
+starting_items = [SubResource("StockHoe"), SubResource("StockCan"), SubResource("StockTomatoSeeds"), SubResource("StockBellSeeds"), SubResource("StockEggplantSeeds")]
+metadata/assigned_settlement_id = "granary_demo"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Ada" unique_id=1150690870]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("ActorShape")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Ada" unique_id=396072190]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("ActorMesh")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Ada" unique_id=1579120927]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("SelectionMesh")
+
+[node name="Bram" type="CharacterBody3D" parent="PartyMembers" unique_id=1186731873]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.6, 18)
+script = ExtResource("2_party")
+base_color = Color(0.27, 0.48, 0.78, 1)
+member_name = "Bram"
+faction_name = "Player"
+starting_items = [SubResource("StockHoe"), SubResource("StockCan"), SubResource("StockTomatoSeeds"), SubResource("StockBellSeeds"), SubResource("StockEggplantSeeds")]
+metadata/assigned_settlement_id = "granary_demo"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PartyMembers/Bram" unique_id=698534877]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+shape = SubResource("ActorShape")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="PartyMembers/Bram" unique_id=452679892]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("ActorMesh")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="PartyMembers/Bram" unique_id=200732249]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("SelectionMesh")
+
+[node name="PartyManager" type="Node" parent="." unique_id=835233970]
+script = ExtResource("3_manager")
+
+[node name="GameBootstrap" type="Node" parent="." unique_id=1042797466]
+script = ExtResource("4_bootstrap")
+
+[node name="CameraRig" type="Node3D" parent="." unique_id=1680241396]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 8)
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig" unique_id=960309959]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot" unique_id=847751768]
+transform = Transform3D(1, 0, 0, 0, 0.8660254, 0.5, 0, -0.5, 0.8660254, 0, 20, 34)
+current = true
+
+[node name="TestGuide" type="CanvasLayer" parent="." unique_id=180983082]
+layer = 20
+
+[node name="Panel" type="PanelContainer" parent="TestGuide" unique_id=1715210352]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 590.0
+offset_bottom = 112.0
+
+[node name="Text" type="Label" parent="TestGuide/Panel" unique_id=1130224074]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Granary Hamlet: three 4x4 crop fields, one 08:00-20:00 Granary, and Elin's nearby cottage. Elin is Resident off-hours and Granary Worker during the shift. Enable Jobs on Ada or Bram to assist available Farm work."
+autowrap_mode = 3

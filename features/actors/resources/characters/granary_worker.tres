@@ -1,0 +1,89 @@
+[gd_resource type="Resource" script_class="CharacterRecordDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/character_record_definition.gd" id="1_character"]
+
+[resource]
+script = ExtResource("1_character")
+actor_id = "granary_worker"
+member_name = "Elin"
+age_years = 32
+appearance = {
+"arm_length_slider": 0.02,
+"beard_color": Color(0.16, 0.08, 0.035, 1),
+"beard_style": "",
+"body_archetype": "res://features/actors/resources/character_body_archetypes/human_female.tres",
+"character_race": "res://features/actors/resources/character_races/human.tres",
+"eyebrow_color": Color(0.16, 0.08, 0.04, 1),
+"eyebrow_style": "res://features/actors/resources/character_appearance/eyebrows_female.tres",
+"hair_color": Color(0.26, 0.12, 0.05, 1),
+"hair_style": "res://features/actors/resources/character_appearance/hair_buns.tres",
+"height_slider": -0.03,
+"neck_length_slider": 0.0,
+"shoulder_width_slider": 0.04,
+"skin_color": Color(0.74, 0.48, 0.32, 1),
+"skin_color_customized": true,
+"visual_body_type": 3.0
+}
+skill_levels = {
+"attribute.charisma": 28.0,
+"attribute.dexterity": 40.0,
+"attribute.endurance": 52.0,
+"attribute.perception": 42.0,
+"attribute.strength": 41.0,
+"attribute.toughness": 38.0,
+"combat.axes_one_handed": 8.0,
+"combat.daggers": 8.0,
+"combat.shields": 6.0,
+"combat.swords_one_handed": 7.0,
+"combat.unarmed": 10.0,
+"craft.blacksmithing": 8.0,
+"craft.leatherworking": 12.0,
+"craft.weaving": 18.0,
+"knowledge.archeology": 8.0,
+"knowledge.medicine": 14.0,
+"labor.construction": 24.0,
+"labor.farming": 62.0,
+"labor.fishing": 20.0,
+"labor.mining": 18.0,
+"labor.scavenging": 22.0,
+"movement.running": 34.0,
+"subterfuge.lockpicking": 6.0,
+"subterfuge.sleight_of_hand": 7.0,
+"subterfuge.sneaking": 12.0,
+"tech.robotics": 5.0
+}
+equipment_slots = {
+"chest": "res://features/inventory/resources/items/peasant_tunic.tres",
+"feet": "res://features/inventory/resources/items/peasant_shoes.tres",
+"legs": "res://features/inventory/resources/items/peasant_trousers.tres",
+"weapon": "res://features/inventory/resources/items/hoe.tres"
+}
+inventory_entries = [{
+"contained_item_counts": {},
+"count": 1,
+"grid_position": Vector2i(0, 0),
+"item_id": "res://features/inventory/resources/items/watering_can.tres",
+"metadata": {"farm_water": 16.0}
+}, {
+"contained_item_counts": {},
+"count": 16,
+"grid_position": Vector2i(2, 0),
+"item_id": "res://features/inventory/resources/items/tomato_seeds.tres",
+"metadata": {}
+}, {
+"contained_item_counts": {},
+"count": 16,
+"grid_position": Vector2i(3, 0),
+"item_id": "res://features/inventory/resources/items/bell_pepper_seeds.tres",
+"metadata": {}
+}, {
+"contained_item_counts": {},
+"count": 16,
+"grid_position": Vector2i(4, 0),
+"item_id": "res://features/inventory/resources/items/eggplant_seeds.tres",
+"metadata": {}
+}]
+personality = {
+"risk_tolerance": 0.22,
+"temperament": "steady"
+}

@@ -5,7 +5,11 @@ class_name JobSystemController
 const SERVICE_ID := &"job_system"
 const GECS_SERVICE_ID := &"gecs_world"
 const DISPATCH_INTERVAL_SECONDS := 0.5
+const MAX_ACTOR_DISPATCHES_PER_TICK := 16
+const RESERVED_ASSIGNMENT_DISPATCHES_PER_TICK := 8
+const MAX_ASSIGNMENT_OFFERS_PER_ACTOR := 24
 const DEFAULT_UNSCOPED_LOCAL_WORK_RADIUS := 90.0
+const FACILITY_DUTY_CONTRACT = preload("res://features/settlements/sim/facility_duty_contract.gd")
 const CORE_JOB_SPECS := [
 	{"entry_id": "category:farm", "category": "farm", "display_name": "Farm"},
 	{"entry_id": "category:guard", "category": "guard", "display_name": "Guard"},
@@ -17,20 +21,33 @@ const CORE_JOB_SPECS := [
 
 var root_scene: Node
 var _context: BootstrapContext
+var _settlement_controller: Node
 var _sim_time := 0.0
 var _initialized := false
 var _job_providers: Array = []
 var _actor_policies: Dictionary = {}
+var _enabled_party_actors: Dictionary = {}
+var _dispatch_actor_order: Array[int] = []
+var _known_dispatch_actor_ids: Dictionary = {}
+var _dispatch_actor_cursor := 0
+var _assignment_workers: Dictionary = {}
+var _assignment_actor_order: Array[String] = []
+var _assignment_ids_by_settlement: Dictionary = {}
+var _assignment_actor_cursor := 0
+var _assignment_cache_bound := false
 var _dispatch_remaining := 0.0
 
 
 func initialize(context: BootstrapContext) -> void:
 	_context = context
 	root_scene = context.root_scene
+	_settlement_controller = context.get_optional(&"settlement")
 	if is_inside_tree():
 		_initialized = true
 		_refresh_job_provider_cache()
 	refresh_from_gecs_state()
+	_bind_party_actor_cache()
+	_bind_assignment_worker_cache()
 
 
 func _ready() -> void:
@@ -39,6 +56,8 @@ func _ready() -> void:
 		_initialized = true
 	_refresh_job_provider_cache()
 	refresh_from_gecs_state()
+	_bind_party_actor_cache()
+	_bind_assignment_worker_cache()
 
 
 func register_job_provider(provider: Node) -> void:
@@ -58,7 +77,6 @@ func unregister_job_provider(provider: Node) -> void:
 
 
 func collect_work_offers(settlement_id := "") -> Array:
-	_refresh_job_provider_cache()
 	var offers: Array = []
 	for provider in _job_providers:
 		if not is_instance_valid(provider) or not provider.has_method("get_available_work_offers"):
@@ -69,6 +87,65 @@ func collect_work_offers(settlement_id := "") -> Array:
 				offer["provider"] = provider
 			offers.append(offer)
 	return offers
+
+
+func is_actor_work_busy(actor: Node) -> bool:
+	if actor == null or not is_instance_valid(actor):
+		return true
+	if actor.has_method("has_active_player_order") and bool(actor.call("has_active_player_order")):
+		return true
+	if actor.has_method("get_active_job_provider") and actor.call("get_active_job_provider") != null:
+		return true
+	for provider in _job_providers:
+		if is_instance_valid(provider) and provider.has_method("has_active_work_for_actor") \
+				and bool(provider.call("has_active_work_for_actor", actor)):
+			return true
+	return false
+
+
+func cancel_work_for_actor(actor: Node) -> void:
+	if actor == null:
+		return
+	for provider in _job_providers:
+		if is_instance_valid(provider) and provider.has_method("cancel_work_for_actor"):
+			provider.call("cancel_work_for_actor", actor)
+
+
+func dispatch_actor_work_for_assignment(actor: Node, settlement_id: String, allowed_entry_ids: PackedStringArray = PackedStringArray(), before_accept := Callable(), available_offers = null, settlement_states = null, offer_scope_cache = null) -> bool:
+	if actor == null or not is_instance_valid(actor) or settlement_id.is_empty() or is_actor_work_busy(actor):
+		return false
+	var candidates: Array[Dictionary] = []
+	var offers: Array = available_offers if available_offers is Array else collect_work_offers(settlement_id)
+	if not settlement_states is Dictionary:
+		var bridge := _get_gecs_world()
+		settlement_states = bridge.call("get_settlement_states") if bridge != null and bridge.has_method("get_settlement_states") else null
+	for offer_value in offers:
+		var offer: Dictionary = offer_value
+		if not _assignment_offer_matches_scope(offer, actor, settlement_id, settlement_states, offer_scope_cache):
+			continue
+		var entry_id := str(offer.get("job_entry_id", ""))
+		if entry_id.is_empty():
+			entry_id = "category:%s" % _normalize_category(str(offer.get("category", "")))
+		if not allowed_entry_ids.is_empty() and not allowed_entry_ids.has(entry_id):
+			continue
+		var candidate := offer.duplicate(false)
+		candidate["entry_id"] = entry_id
+		candidate["rank"] = allowed_entry_ids.find(entry_id) if not allowed_entry_ids.is_empty() else 0
+		candidate["distance"] = _offer_distance(actor, offer)
+		candidates.append(candidate)
+	candidates.sort_custom(_offer_precedes)
+	for offer in candidates:
+		var provider := offer.get("provider") as Node
+		if provider == null or not is_instance_valid(provider) or not provider.has_method("accept_work_offer"):
+			continue
+		if provider.has_method("can_actor_accept_work_offer") and not bool(provider.call("can_actor_accept_work_offer", offer, actor)):
+			continue
+		var result = provider.call("accept_work_offer", offer, actor)
+		if _work_offer_was_accepted(result):
+			if before_accept.is_valid():
+				before_accept.call()
+			return true
+	return false
 
 
 func get_actor_ranked_jobs(actor: Node) -> Array:
@@ -108,6 +185,7 @@ func set_actor_jobs_enabled(actor: Node, enabled: bool) -> bool:
 	var policy := _ensure_actor_policy(actor, _available_entries(actor))
 	policy["jobs_enabled"] = enabled
 	_actor_policies[actor_id] = policy
+	_set_enabled_party_actor(actor, enabled)
 	_sync_job_system_state_to_gecs()
 	return true
 
@@ -140,15 +218,16 @@ func get_actor_job_entry_rank(actor: Node, entry_id: String) -> int:
 	return 999999
 
 
-func dispatch_actor_work(actor: Node) -> bool:
+func dispatch_actor_work(actor: Node, available_offers = null, settlement_states = null, offer_scope_cache = null) -> bool:
 	if not _can_dispatch_actor(actor):
 		return false
-	var settlement_id := _local_actor_settlement_id(actor)
+	var settlement_id := _local_actor_settlement_id(actor, settlement_states)
 	var ranks := _actor_rank_map(actor)
 	var candidates: Array[Dictionary] = []
-	for offer_value in collect_work_offers():
+	var offers: Array = available_offers if available_offers is Array else collect_work_offers()
+	for offer_value in offers:
 		var offer: Dictionary = offer_value
-		if not _offer_matches_actor_scope(offer, actor, settlement_id):
+		if not _offer_matches_actor_scope(offer, actor, settlement_id, settlement_states, offer_scope_cache):
 			continue
 		if not _offer_allows_actor(offer, actor):
 			continue
@@ -157,7 +236,7 @@ func dispatch_actor_work(actor: Node) -> bool:
 			entry_id = "category:%s" % _normalize_category(str(offer.get("category", "")))
 		if not ranks.has(entry_id):
 			continue
-		var candidate := offer.duplicate(true)
+		var candidate := offer.duplicate(false)
 		candidate["entry_id"] = entry_id
 		candidate["rank"] = int(ranks[entry_id])
 		candidate["distance"] = _offer_distance(actor, offer)
@@ -188,7 +267,6 @@ func _process(delta: float) -> void:
 	if _dispatch_remaining <= 0.0:
 		_dispatch_remaining = DISPATCH_INTERVAL_SECONDS
 		_process_party_job_dispatch()
-	_sync_job_system_state_to_gecs()
 
 
 func get_sim_time() -> float:
@@ -206,6 +284,7 @@ func apply_serialized_state(state: Dictionary) -> void:
 		return
 	_sim_time = float(state.get("sim_time", _sim_time))
 	_actor_policies = (state.get("actor_policies", _actor_policies) as Dictionary).duplicate(true)
+	_bind_party_actor_cache()
 	_sync_job_system_state_to_gecs()
 
 
@@ -217,6 +296,7 @@ func refresh_from_gecs_state() -> void:
 	if not state.is_empty():
 		_sim_time = float(state.get("sim_time", _sim_time))
 		_actor_policies = (state.get("actor_policies", _actor_policies) as Dictionary).duplicate(true)
+		_bind_party_actor_cache()
 
 
 func sync_job_system_state() -> void:
@@ -267,7 +347,6 @@ func _append_provider_category_entries(entries: Array, settlement_id: String) ->
 	var known := {}
 	for entry_value in entries:
 		known[str((entry_value as Dictionary).get("entry_id", ""))] = true
-	_refresh_job_provider_cache()
 	for provider in _job_providers:
 		if not is_instance_valid(provider) or not provider.has_method("get_job_category_specs"):
 			continue
@@ -335,6 +414,7 @@ func _ensure_actor_policy(actor: Node, entries: Array) -> Dictionary:
 	policy["jobs_enabled"] = bool(policy.get("jobs_enabled", false))
 	policy["ordered_entry_ids"] = normalized_order
 	_actor_policies[actor_id] = policy
+	_set_enabled_party_actor(actor, bool(policy.get("jobs_enabled", false)))
 	if changed:
 		_sync_job_system_state_to_gecs()
 	return policy
@@ -343,9 +423,326 @@ func _ensure_actor_policy(actor: Node, entries: Array) -> Dictionary:
 func _process_party_job_dispatch() -> void:
 	if root_scene == null or not is_instance_valid(root_scene) or not root_scene.is_inside_tree():
 		return
-	for actor in root_scene.get_tree().get_nodes_in_group("party_member"):
-		if actor == root_scene or root_scene.is_ancestor_of(actor):
-			dispatch_actor_work(actor)
+	_bind_assignment_worker_cache()
+	if _enabled_party_actors.is_empty():
+		_dispatch_actor_order.clear()
+		_known_dispatch_actor_ids.clear()
+		_dispatch_actor_cursor = 0
+	if _enabled_party_actors.is_empty() and _assignment_workers.is_empty():
+		return
+	var offers := collect_work_offers()
+	var assignment_offer_index := _build_assignment_offer_index(offers)
+	var bridge := _get_gecs_world()
+	var settlement_states = bridge.call("get_settlement_states") if bridge != null and bridge.has_method("get_settlement_states") else null
+	var offer_scope_cache: Dictionary = {}
+	var attempts := 0
+	var dispatched := 0
+	var party_budget := MAX_ACTOR_DISPATCHES_PER_TICK - RESERVED_ASSIGNMENT_DISPATCHES_PER_TICK \
+			if not _assignment_workers.is_empty() else MAX_ACTOR_DISPATCHES_PER_TICK
+	while attempts < _dispatch_actor_order.size() and dispatched < party_budget:
+		if _dispatch_actor_order.is_empty():
+			break
+		_dispatch_actor_cursor %= _dispatch_actor_order.size()
+		var instance_id_value := _dispatch_actor_order[_dispatch_actor_cursor]
+		_dispatch_actor_cursor = (_dispatch_actor_cursor + 1) % _dispatch_actor_order.size()
+		attempts += 1
+		var actor_ref: WeakRef = _enabled_party_actors.get(instance_id_value)
+		var actor = actor_ref.get_ref() if actor_ref != null else null
+		if actor == null or not is_instance_valid(actor) or not actor.is_inside_tree() or not root_scene.is_ancestor_of(actor):
+			_enabled_party_actors.erase(instance_id_value)
+			continue
+		dispatched += 1
+		dispatch_actor_work(actor, offers, settlement_states, offer_scope_cache)
+	_compact_dispatch_actor_order_if_needed()
+	_process_assignment_worker_dispatch(assignment_offer_index, settlement_states, offer_scope_cache, MAX_ACTOR_DISPATCHES_PER_TICK - dispatched)
+
+
+func _build_assignment_offer_index(offers: Array) -> Dictionary:
+	var index: Dictionary = {}
+	for offer_value in offers:
+		var offer: Dictionary = offer_value
+		var settlement_id := str(offer.get("settlement_id", ""))
+		if not index.has(settlement_id):
+			index[settlement_id] = {"all": [], "by_entry": {}}
+		var row: Dictionary = index[settlement_id]
+		(row["all"] as Array).append(offer)
+		var entry_id := _offer_entry_id(offer)
+		var by_entry: Dictionary = row["by_entry"]
+		if not by_entry.has(entry_id):
+			by_entry[entry_id] = []
+		(by_entry[entry_id] as Array).append(offer)
+	return index
+
+
+func _assignment_offer_slice(index: Dictionary, assignment: Dictionary) -> Array:
+	var sources: Array[Array] = []
+	var total_size := 0
+	var settlement_ids := [str(assignment.get("settlement_id", "")), ""]
+	var allowed := PackedStringArray(assignment.get("allowed_job_entry_ids", PackedStringArray()))
+	for settlement_id in settlement_ids:
+		var row: Dictionary = index.get(settlement_id, {})
+		if row.is_empty():
+			continue
+		if allowed.is_empty():
+			var all_offers: Array = row.get("all", [])
+			if not all_offers.is_empty():
+				sources.append(all_offers)
+				total_size += all_offers.size()
+		else:
+			var by_entry: Dictionary = row.get("by_entry", {})
+			for entry_id in allowed:
+				var entry_offers: Array = by_entry.get(entry_id, [])
+				if not entry_offers.is_empty():
+					sources.append(entry_offers)
+					total_size += entry_offers.size()
+	if total_size <= 0:
+		return []
+	var result: Array = []
+	var take_count := mini(total_size, MAX_ASSIGNMENT_OFFERS_PER_ACTOR)
+	var cursor := posmod(int(assignment.get("offer_cursor", 0)), total_size)
+	for offset in take_count:
+		result.append(_offer_from_sources(sources, (cursor + offset) % total_size))
+	assignment["offer_cursor"] = (cursor + take_count) % total_size
+	return result
+
+
+func _offer_from_sources(sources: Array[Array], logical_index: int):
+	var remaining := logical_index
+	for source in sources:
+		if remaining < source.size():
+			return source[remaining]
+		remaining -= source.size()
+	return null
+
+
+func _offer_entry_id(offer: Dictionary) -> String:
+	var entry_id := str(offer.get("job_entry_id", ""))
+	return entry_id if not entry_id.is_empty() else "category:%s" % _normalize_category(str(offer.get("category", "")))
+
+
+func _process_assignment_worker_dispatch(assignment_offer_index: Dictionary, settlement_states, offer_scope_cache: Dictionary, budget: int) -> void:
+	if budget <= 0 or _assignment_actor_order.is_empty():
+		return
+	var population := _context.get_optional(&"population") if _context != null else null
+	if population == null or not population.has_method("get_live_actor"):
+		return
+	var attempts := 0
+	var dispatched := 0
+	while attempts < _assignment_actor_order.size() and dispatched < budget:
+		_assignment_actor_cursor %= _assignment_actor_order.size()
+		var actor_id := _assignment_actor_order[_assignment_actor_cursor]
+		_assignment_actor_cursor = (_assignment_actor_cursor + 1) % _assignment_actor_order.size()
+		attempts += 1
+		var assignment: Dictionary = _assignment_workers.get(actor_id, {})
+		if assignment.is_empty():
+			continue
+		var actor = population.call("get_live_actor", actor_id)
+		if actor == null or not is_instance_valid(actor) or not actor.is_inside_tree():
+			continue
+		if _is_player_party_actor(actor):
+			continue
+		dispatched += 1
+		if not _assignment_schedule_is_active(assignment):
+			_release_assignment_duty(actor, assignment, true)
+			continue
+		if is_actor_work_busy(actor):
+			continue
+		var before_accept := Callable(self, "_begin_assignment_duty").bind(actor, assignment)
+		var actor_offers := _assignment_offer_slice(assignment_offer_index, assignment)
+		var accepted := dispatch_actor_work_for_assignment(
+			actor,
+			str(assignment.get("settlement_id", "")),
+			PackedStringArray(assignment.get("allowed_job_entry_ids", PackedStringArray())),
+			before_accept,
+			actor_offers,
+			settlement_states,
+			offer_scope_cache
+		)
+		if not accepted:
+			_release_assignment_duty(actor, assignment, false)
+	_compact_assignment_actor_order_if_needed()
+
+
+func _compact_dispatch_actor_order_if_needed() -> void:
+	if _dispatch_actor_order.size() <= _enabled_party_actors.size() * 2 + 32:
+		return
+	var compacted: Array[int] = []
+	_known_dispatch_actor_ids.clear()
+	for instance_id in _dispatch_actor_order:
+		if not _enabled_party_actors.has(instance_id):
+			continue
+		compacted.append(instance_id)
+		_known_dispatch_actor_ids[instance_id] = true
+	_dispatch_actor_order = compacted
+	_dispatch_actor_cursor = 0
+
+
+func _compact_assignment_actor_order_if_needed() -> void:
+	if _assignment_actor_order.size() <= _assignment_workers.size() * 2 + 32:
+		return
+	var compacted: Array[String] = []
+	for actor_id in _assignment_actor_order:
+		if _assignment_workers.has(actor_id):
+			compacted.append(actor_id)
+	_assignment_actor_order = compacted
+	_assignment_actor_cursor = 0
+
+
+func _assignment_schedule_is_active(assignment: Dictionary) -> bool:
+	if not bool(assignment.get("schedule_enabled", false)):
+		return true
+	var world_time := _context.get_optional(&"world_time") if _context != null else null
+	if world_time == null or not world_time.has_method("get_hour"):
+		return false
+	var hour := int(world_time.call("get_hour"))
+	var open_hour := int(assignment.get("open_hour", 0))
+	var close_hour := int(assignment.get("close_hour", 24))
+	if open_hour == close_hour:
+		return true
+	return hour >= open_hour and hour < close_hour if open_hour < close_hour else hour >= open_hour or hour < close_hour
+
+
+func _begin_assignment_duty(actor: Node, assignment: Dictionary) -> void:
+	assignment["idle_projection_active"] = false
+	FACILITY_DUTY_CONTRACT.begin(actor, str(assignment.get("facility_id", "")))
+	var interaction = actor.call("get_interaction") if actor != null and actor.has_method("get_interaction") else null
+	if interaction == null:
+		return
+	if interaction.has_method("stop_seat_assignment"):
+		interaction.call("stop_seat_assignment")
+	if interaction.has_method("stop_sleep_assignment"):
+		interaction.call("stop_sleep_assignment")
+
+
+func _release_assignment_duty(actor: Node, assignment: Dictionary, cancel_active: bool) -> void:
+	if actor == null or not is_instance_valid(actor):
+		return
+	if cancel_active:
+		cancel_work_for_actor(actor)
+	var facility_id := str(assignment.get("facility_id", ""))
+	var had_duty := str(actor.get_meta(FACILITY_DUTY_CONTRACT.ACTIVE_DUTY_META, "")) == facility_id
+	FACILITY_DUTY_CONTRACT.end(actor, facility_id)
+	if not had_duty and bool(assignment.get("idle_projection_active", false)):
+		return
+	assignment["idle_projection_active"] = true
+	var settlements := _get_settlement_controller()
+	if settlements != null and settlements.has_method("refresh_actor_residence_projection"):
+		settlements.call(
+			"refresh_actor_residence_projection",
+			str(assignment.get("settlement_id", "")),
+			str(assignment.get("actor_id", "")),
+			"home_day"
+		)
+
+
+func _bind_party_actor_cache() -> void:
+	if root_scene == null or not is_instance_valid(root_scene) or not root_scene.is_inside_tree():
+		return
+	var scene_tree := root_scene.get_tree()
+	if not scene_tree.node_added.is_connected(_on_party_tree_node_added):
+		scene_tree.node_added.connect(_on_party_tree_node_added)
+	if not scene_tree.node_removed.is_connected(_on_party_tree_node_removed):
+		scene_tree.node_removed.connect(_on_party_tree_node_removed)
+	for actor in scene_tree.get_nodes_in_group("party_member"):
+		_refresh_enabled_party_actor(actor)
+
+
+func _bind_assignment_worker_cache() -> void:
+	if _assignment_cache_bound:
+		return
+	var settlements := _get_settlement_controller()
+	if settlements == null or not settlements.has_signal("settlement_state_changed"):
+		return
+	if not settlements.settlement_state_changed.is_connected(_on_assignment_settlement_state_changed):
+		settlements.settlement_state_changed.connect(_on_assignment_settlement_state_changed)
+	_assignment_cache_bound = true
+	var bridge := _get_gecs_world()
+	if bridge != null and bridge.has_method("get_settlement_states"):
+		for state_value in (bridge.call("get_settlement_states") as Dictionary).values():
+			var state: Dictionary = state_value
+			_rebuild_assignment_workers_for_settlement(str(state.get("settlement_id", "")), state)
+
+
+func _on_assignment_settlement_state_changed(settlement_id: String, state: Dictionary) -> void:
+	_rebuild_assignment_workers_for_settlement(settlement_id, state)
+
+
+func _rebuild_assignment_workers_for_settlement(settlement_id: String, state: Dictionary) -> void:
+	if settlement_id.is_empty():
+		return
+	var next_facility_by_actor: Dictionary = {}
+	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
+		var next_slot: Dictionary = slot_value
+		if str(next_slot.get("assignment_domain", "")) == "employment" and bool(next_slot.get("filled", false)) \
+				and bool(next_slot.get("uses_settlement_jobs", false)):
+			next_facility_by_actor[str(next_slot.get("occupant_actor_id", ""))] = str(next_slot.get("facility_id", next_slot.get("owner_id", "")))
+	var previous_entries: Dictionary = {}
+	var population := _context.get_optional(&"population") if _context != null else null
+	for actor_id_value in (_assignment_ids_by_settlement.get(settlement_id, PackedStringArray()) as PackedStringArray):
+		var previous_actor_id := str(actor_id_value)
+		var previous_entry: Dictionary = _assignment_workers.get(previous_actor_id, {})
+		previous_entries[previous_actor_id] = previous_entry
+		if str(next_facility_by_actor.get(previous_actor_id, "")) != str(previous_entry.get("facility_id", "")):
+			var previous_actor = population.call("get_live_actor", previous_actor_id) if population != null and population.has_method("get_live_actor") else null
+			_release_assignment_duty(previous_actor, previous_entry, true)
+		_assignment_workers.erase(previous_actor_id)
+	var actor_ids := PackedStringArray()
+	var facilities: Dictionary = state.get("facilities", {})
+	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
+		var slot: Dictionary = slot_value
+		if str(slot.get("assignment_domain", "")) != "employment" or not bool(slot.get("filled", false)) \
+				or not bool(slot.get("uses_settlement_jobs", false)):
+			continue
+		var actor_id := str(slot.get("occupant_actor_id", ""))
+		var facility_id := str(slot.get("facility_id", slot.get("owner_id", "")))
+		if actor_id.is_empty() or facility_id.is_empty():
+			continue
+		var facility: Dictionary = facilities.get(facility_id, {})
+		_assignment_workers[actor_id] = {
+			"actor_id": actor_id,
+			"settlement_id": settlement_id,
+			"facility_id": facility_id,
+			"allowed_job_entry_ids": PackedStringArray(slot.get("allowed_job_entry_ids", PackedStringArray())),
+			"schedule_enabled": bool(facility.get("door_schedule_enabled", false)),
+			"open_hour": int(facility.get("door_open_hour", 0)),
+			"close_hour": int(facility.get("door_close_hour", 24)),
+			"idle_projection_active": bool((previous_entries.get(actor_id, {}) as Dictionary).get("idle_projection_active", false)),
+		}
+		actor_ids.append(actor_id)
+		if not _assignment_actor_order.has(actor_id):
+			_assignment_actor_order.append(actor_id)
+	_assignment_ids_by_settlement[settlement_id] = actor_ids
+
+
+func _on_party_tree_node_added(node: Node) -> void:
+	if node != null and node.is_in_group("party_member"):
+		_refresh_enabled_party_actor(node)
+
+
+func _on_party_tree_node_removed(node: Node) -> void:
+	if node != null:
+		_enabled_party_actors.erase(node.get_instance_id())
+
+
+func _refresh_enabled_party_actor(actor: Node) -> void:
+	if not _is_player_party_actor(actor):
+		return
+	var actor_id := _actor_id(actor)
+	var policy: Dictionary = _actor_policies.get(actor_id, {})
+	_set_enabled_party_actor(actor, bool(policy.get("jobs_enabled", false)))
+
+
+func _set_enabled_party_actor(actor: Node, enabled: bool) -> void:
+	if actor == null:
+		return
+	var instance_id := actor.get_instance_id()
+	if enabled:
+		_enabled_party_actors[instance_id] = weakref(actor)
+		if not _known_dispatch_actor_ids.has(instance_id):
+			_known_dispatch_actor_ids[instance_id] = true
+			_dispatch_actor_order.append(instance_id)
+	else:
+		_enabled_party_actors.erase(instance_id)
 
 
 func _can_dispatch_actor(actor: Node) -> bool:
@@ -442,7 +839,27 @@ func _offer_allows_actor(offer: Dictionary, actor: Node) -> bool:
 	return allowed_actor_ids.is_empty() or allowed_actor_ids.has(_actor_id(actor))
 
 
-func _offer_matches_actor_scope(offer: Dictionary, actor: Node, settlement_id: String) -> bool:
+func _assignment_offer_matches_scope(offer: Dictionary, actor: Node, settlement_id: String, settlement_states = null, offer_scope_cache = null) -> bool:
+	if not _offer_allows_actor(offer, actor):
+		return false
+	var offer_settlement_id := str(offer.get("settlement_id", ""))
+	if not offer_settlement_id.is_empty() and offer_settlement_id != settlement_id:
+		return false
+	var actor_faction := _actor_faction_id(actor)
+	var owner_faction := str(offer.get("owner_faction_id", ""))
+	if actor_faction.is_empty() or (not owner_faction.is_empty() and owner_faction != actor_faction):
+		return false
+	var offer_id := str(offer.get("offer_id", ""))
+	var cache_key := "assignment:%s:%s:%s" % [settlement_id, _actor_id(actor), offer_id]
+	if not offer_id.is_empty() and offer_scope_cache is Dictionary and (offer_scope_cache as Dictionary).has(cache_key):
+		return bool((offer_scope_cache as Dictionary).get(cache_key, false))
+	var inside := _offer_is_inside_settlement(offer, settlement_id, actor, settlement_states)
+	if not offer_id.is_empty() and offer_scope_cache is Dictionary:
+		(offer_scope_cache as Dictionary)[cache_key] = inside
+	return inside
+
+
+func _offer_matches_actor_scope(offer: Dictionary, actor: Node, settlement_id: String, settlement_states = null, offer_scope_cache = null) -> bool:
 	var offer_settlement_id := str(offer.get("settlement_id", ""))
 	var actor_faction := _actor_faction_id(actor)
 	var owner_faction := str(offer.get("owner_faction_id", ""))
@@ -452,7 +869,16 @@ func _offer_matches_actor_scope(offer: Dictionary, actor: Node, settlement_id: S
 	if not settlement_id.is_empty():
 		if not offer_settlement_id.is_empty() and offer_settlement_id != settlement_id:
 			return false
-		if not _offer_is_inside_settlement(offer, settlement_id, actor):
+		var offer_id := str(offer.get("offer_id", ""))
+		var scope_cache_key := "%s:%s:%s" % [settlement_id, _actor_id(actor), offer_id]
+		var inside_settlement: bool
+		if not offer_id.is_empty() and offer_scope_cache is Dictionary and (offer_scope_cache as Dictionary).has(scope_cache_key):
+			inside_settlement = bool((offer_scope_cache as Dictionary).get(scope_cache_key, false))
+		else:
+			inside_settlement = _offer_is_inside_settlement(offer, settlement_id, actor, settlement_states)
+			if not offer_id.is_empty() and offer_scope_cache is Dictionary:
+				(offer_scope_cache as Dictionary)[scope_cache_key] = inside_settlement
+		if not inside_settlement:
 			return false
 		if not offer_settlement_id.is_empty():
 			return true
@@ -466,16 +892,17 @@ func _offer_matches_actor_scope(offer: Dictionary, actor: Node, settlement_id: S
 ## Jobs follows the town the actor is physically standing in. Permanent town or
 ## facility assignments remain available to the separate contract AI, but do not
 ## make autonomous category work pull a party member across the world.
-func _local_actor_settlement_id(actor: Node) -> String:
+func _local_actor_settlement_id(actor: Node, settlement_states = null) -> String:
 	if not (actor is Node3D):
 		return ""
 	var bridge := _get_gecs_world()
 	if bridge == null or not bridge.has_method("get_settlement_states"):
 		return _actor_settlement_id(actor)
-	var states: Dictionary = bridge.call("get_settlement_states")
+	var states: Dictionary = settlement_states if settlement_states is Dictionary else bridge.call("get_settlement_states")
 	if states.is_empty():
 		# Isolated test levels may scope work without bootstrapping a town record.
 		return _actor_settlement_id(actor)
+	var settlement_controller := _get_settlement_controller()
 	var actor_position := (actor as Node3D).global_position
 	var actor_faction := _actor_faction_id(actor)
 	var best_id := ""
@@ -486,6 +913,15 @@ func _local_actor_settlement_id(actor: Node) -> String:
 		if str(state.get("faction_id", "")) != actor_faction:
 			continue
 		var center = state.get("world_position")
+		var anchor = settlement_controller.call("get_settlement_anchor", settlement_id) \
+				if settlement_controller != null and settlement_controller.has_method("get_settlement_anchor") else null
+		if anchor != null and is_instance_valid(anchor) and anchor.has_method("contains_town_border_position") \
+				and bool(anchor.call("contains_town_border_position", actor_position)):
+			var anchor_distance := _horizontal_distance(actor_position, (anchor as Node3D).global_position)
+			if anchor_distance < best_distance or (is_equal_approx(anchor_distance, best_distance) and settlement_id < best_id):
+				best_id = settlement_id
+				best_distance = anchor_distance
+			continue
 		var radius := float(state.get("radius", 0.0))
 		if not center is Vector3 or radius <= 0.0:
 			continue
@@ -496,16 +932,21 @@ func _local_actor_settlement_id(actor: Node) -> String:
 	return best_id
 
 
-func _offer_is_inside_settlement(offer: Dictionary, settlement_id: String, actor: Node) -> bool:
+func _offer_is_inside_settlement(offer: Dictionary, settlement_id: String, actor: Node, settlement_states = null) -> bool:
+	var position = offer.get("world_position")
+	var settlement_controller := _get_settlement_controller()
+	var anchor = settlement_controller.call("get_settlement_anchor", settlement_id) \
+			if settlement_controller != null and settlement_controller.has_method("get_settlement_anchor") else null
+	if anchor != null and is_instance_valid(anchor) and anchor.has_method("contains_town_border_position") and position is Vector3:
+		return bool(anchor.call("contains_town_border_position", position as Vector3))
 	var bridge := _get_gecs_world()
 	if bridge == null or not bridge.has_method("get_settlement_states"):
 		return _offer_distance(actor, offer) <= DEFAULT_UNSCOPED_LOCAL_WORK_RADIUS
-	var states: Dictionary = bridge.call("get_settlement_states")
+	var states: Dictionary = settlement_states if settlement_states is Dictionary else bridge.call("get_settlement_states")
 	if states.is_empty():
 		return _offer_distance(actor, offer) <= DEFAULT_UNSCOPED_LOCAL_WORK_RADIUS
 	var state: Dictionary = states.get(settlement_id, {})
 	var center = state.get("world_position")
-	var position = offer.get("world_position")
 	var radius := float(state.get("radius", 0.0))
 	return center is Vector3 and position is Vector3 and radius > 0.0 \
 			and _horizontal_distance(center as Vector3, position as Vector3) <= radius
@@ -513,6 +954,12 @@ func _offer_is_inside_settlement(offer: Dictionary, settlement_id: String, actor
 
 func _horizontal_distance(a: Vector3, b: Vector3) -> float:
 	return Vector2(a.x - b.x, a.z - b.z).length()
+
+
+func _get_settlement_controller() -> Node:
+	if _settlement_controller == null and _context != null:
+		_settlement_controller = _context.get_optional(&"settlement")
+	return _settlement_controller
 
 
 func _actor_faction_id(actor: Node) -> String:

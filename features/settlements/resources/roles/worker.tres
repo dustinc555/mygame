@@ -6,3 +6,4 @@
 script = ExtResource("1_role")
 role_id = "worker"
 display_name = "Worker"
+uses_settlement_jobs = true

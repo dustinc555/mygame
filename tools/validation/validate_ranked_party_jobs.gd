@@ -6,6 +6,8 @@ const JOB_SYSTEM = preload("res://features/settlements/sim/job_system_controller
 class FakeGecs:
 	extends Node
 	var state: Dictionary = {}
+	var upsert_count := 0
+	var settlement_state_query_count := 0
 	var settlements := {
 		"settlement:home": {"settlement_id": "settlement:home", "faction_id": "Player", "world_position": Vector3.ZERO, "radius": 25.0},
 		"settlement:other": {"settlement_id": "settlement:other", "faction_id": "Player", "world_position": Vector3(200, 0, 0), "radius": 25.0},
@@ -14,6 +16,7 @@ class FakeGecs:
 	func get_job_system_state() -> Dictionary:
 		return state.duplicate(true)
 	func upsert_job_system_state(next_state: Dictionary) -> Dictionary:
+		upsert_count += 1
 		state = next_state.duplicate(true)
 		return state.duplicate(true)
 	func get_actor_job_contracts(actor: Node) -> Array[Dictionary]:
@@ -27,11 +30,13 @@ class FakeGecs:
 			"priority_order": 0,
 		}]
 	func get_settlement_states() -> Dictionary:
+		settlement_state_query_count += 1
 		return settlements.duplicate(true)
 
 class FakeProvider:
 	extends Node3D
 	var accepted: Array[Dictionary] = []
+	var offer_query_count := 0
 	var mine_allowed_actor_ids := PackedStringArray()
 	var rejection_messages: Dictionary = {}
 	var facility_actionable := true
@@ -42,6 +47,7 @@ class FakeProvider:
 	func get_job_category_specs(_settlement_id := "") -> Array:
 		return [{"category": "forestry", "display_name": "Forestry"}]
 	func get_available_work_offers(settlement_id := "") -> Array:
+		offer_query_count += 1
 		var offers := [
 			{"offer_id": "farm:near", "category": "farm", "settlement_id": "settlement:home", "world_position": Vector3(2, 0, 0), "urgency": 0.4},
 			{"offer_id": "mine:far", "category": "mine", "settlement_id": "settlement:home", "world_position": Vector3(8, 0, 0), "urgency": 0.2, "allowed_actor_ids": mine_allowed_actor_ids},
@@ -161,6 +167,11 @@ func _run() -> void:
 		provider.accepted.clear()
 		jobs.call("dispatch_actor_work", party)
 		_expect(provider.accepted.is_empty(), "Jobs off prevents automatic claims")
+		jobs._assignment_workers[party.stable_id] = {"actor_id": party.stable_id, "settlement_id": "settlement:home", "facility_id": "facility:worker", "allowed_job_entry_ids": PackedStringArray(), "schedule_enabled": false, "idle_projection_active": false}
+		jobs._assignment_actor_order.append(party.stable_id)
+		jobs.call("_process_party_job_dispatch")
+		_expect(provider.accepted.is_empty(), "party member in a generic Worker slot still obeys the Jobs toggle")
+		jobs._assignment_workers.erase(party.stable_id)
 		jobs.call("set_actor_jobs_enabled", party, true)
 		party.active_player_order = true
 		jobs.call("dispatch_actor_work", party)
@@ -205,6 +216,32 @@ func _run() -> void:
 	provider.accepted.clear()
 	jobs.call("dispatch_actor_work", basic_city_party)
 	_expect(provider.accepted.size() == 1 and str(provider.accepted[0].get("offer_id", "")) == "farm:basic-city", "Jobs can claim same-faction basic-city work when neither actor nor work belongs to a named settlement")
+	var extra_actors: Array[Node] = []
+	for actor_index in 30:
+		var extra_actor := FakeActor.new()
+		extra_actor.stable_id = "party:perf:%d" % actor_index
+		extra_actor.faction_name = "Player"
+		extra_actor.party = true
+		extra_actor.add_to_group("party_member")
+		scene_root.add_child(extra_actor)
+		jobs.call("set_actor_jobs_enabled", extra_actor, true)
+		extra_actors.append(extra_actor)
+	provider.offer_query_count = 0
+	gecs.settlement_state_query_count = 0
+	provider.accepted.clear()
+	jobs.call("_process_party_job_dispatch")
+	_expect(provider.offer_query_count == 1, "one dispatch batch queries providers once for all enabled party actors")
+	_expect(gecs.settlement_state_query_count == 1, "one dispatch batch snapshots settlement locality once for all actors and offers")
+	_expect(provider.accepted.size() <= 16, "one scheduler tick performs a bounded number of actor dispatches")
+	var upserts_before_idle_process := gecs.upsert_count
+	jobs.call("_process", 0.1)
+	_expect(gecs.upsert_count == upserts_before_idle_process, "idle frames do not deep-copy and persist unchanged Jobs policies")
+	jobs.call("set_actor_jobs_enabled", party, false)
+	jobs.call("set_actor_jobs_enabled", basic_city_party, false)
+	for extra_actor in extra_actors:
+		jobs.call("set_actor_jobs_enabled", extra_actor, false)
+	jobs.call("_process_party_job_dispatch")
+	_expect(jobs._dispatch_actor_order.is_empty(), "disabling all Jobs actors clears cached dispatch tombstones")
 
 	var ui_source := FileAccess.get_file_as_string("res://features/ui/projection/character_jobs_window.gd")
 	_expect(not ui_source.contains("CheckButton") and not ui_source.contains("jobs_toggle") and ui_source.contains("get_actor_ranked_jobs") and ui_source.contains("move_actor_job_entry"), "Jobs window contains priorities without a second Jobs on/off control")
