@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/props/containers/storage_crate/storage_crate.glb" id="2_model"]
+
+[node name="ProduceCrate" type="Node3D"]
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+scale = Vector3(0.92, 0.92, 0.92)

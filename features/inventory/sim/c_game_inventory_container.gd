@@ -15,3 +15,6 @@ class_name CGameInventoryContainer
 @export var accepts_input := true
 @export var is_world_container := false
 @export var is_job_work_inventory := false
+@export var storage_allow_food := true
+@export var storage_allow_materials := false
+@export var storage_item_overrides: Dictionary = {}

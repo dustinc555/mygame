@@ -1,0 +1,108 @@
+[gd_scene load_steps=21 format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/containers/bulk_storage_platform.gd" id="1_platform"]
+[ext_resource type="PackedScene" path="res://assets/models/props/furniture/storage_platform/storage_platform.glb" id="2_model"]
+[ext_resource type="Script" path="res://features/world/projection/containers/bulk_storage_display_profile.gd" id="3_profile"]
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/displays/produce_crate_display_unit.tscn" id="4_crate"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/tomato.tres" id="5_tomato"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/chili_pepper.tres" id="6_chili"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/eggplant.tres" id="7_eggplant"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/bell_pepper.tres" id="8_bell"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/french_beans.tres" id="9_beans"]
+[ext_resource type="Texture2D" path="res://assets/icons/storage_markers/tomato.svg" id="10_tomato_marker"]
+[ext_resource type="Texture2D" path="res://assets/icons/storage_markers/chili_pepper.svg" id="11_chili_marker"]
+[ext_resource type="Texture2D" path="res://assets/icons/storage_markers/eggplant.svg" id="12_eggplant_marker"]
+[ext_resource type="Texture2D" path="res://assets/icons/storage_markers/bell_pepper.svg" id="13_bell_marker"]
+[ext_resource type="Texture2D" path="res://assets/icons/storage_markers/french_beans.svg" id="14_beans_marker"]
+
+[sub_resource type="BoxShape3D" id="PlatformCollision"]
+size = Vector3(1.2, 0.3, 1.08)
+
+[sub_resource type="Resource" id="TomatoDisplayProfile"]
+script = ExtResource("3_profile")
+item_definition = ExtResource("5_tomato")
+unit_scene = ExtResource("4_crate")
+label_texture = ExtResource("10_tomato_marker")
+capacity = 900
+units_per_visual = 30
+spacing = Vector2(0.53, 0.3)
+layer_height = 0.306
+layer_columns = 2
+layer_rows = 3
+max_layers = 5
+
+[sub_resource type="Resource" id="ChiliDisplayProfile"]
+script = ExtResource("3_profile")
+item_definition = ExtResource("6_chili")
+unit_scene = ExtResource("4_crate")
+label_texture = ExtResource("11_chili_marker")
+capacity = 1200
+units_per_visual = 40
+spacing = Vector2(0.53, 0.3)
+layer_height = 0.306
+layer_columns = 2
+layer_rows = 3
+max_layers = 5
+
+[sub_resource type="Resource" id="EggplantDisplayProfile"]
+script = ExtResource("3_profile")
+item_definition = ExtResource("7_eggplant")
+unit_scene = ExtResource("4_crate")
+label_texture = ExtResource("12_eggplant_marker")
+capacity = 360
+units_per_visual = 12
+spacing = Vector2(0.53, 0.3)
+layer_height = 0.306
+layer_columns = 2
+layer_rows = 3
+max_layers = 5
+
+[sub_resource type="Resource" id="BellPepperDisplayProfile"]
+script = ExtResource("3_profile")
+item_definition = ExtResource("8_bell")
+unit_scene = ExtResource("4_crate")
+label_texture = ExtResource("13_bell_marker")
+capacity = 600
+units_per_visual = 20
+spacing = Vector2(0.53, 0.3)
+layer_height = 0.306
+layer_columns = 2
+layer_rows = 3
+max_layers = 5
+
+[sub_resource type="Resource" id="FrenchBeansDisplayProfile"]
+script = ExtResource("3_profile")
+item_definition = ExtResource("9_beans")
+unit_scene = ExtResource("4_crate")
+label_texture = ExtResource("14_beans_marker")
+capacity = 1800
+units_per_visual = 60
+spacing = Vector2(0.53, 0.3)
+layer_height = 0.306
+layer_columns = 2
+layer_rows = 3
+max_layers = 5
+
+[node name="BulkStoragePlatform" type="StaticBody3D"]
+script = ExtResource("1_platform")
+display_name = "Storage Platform"
+container_kind = "bulk_storage_platform"
+inventory_columns = 6
+inventory_rows = 5
+supports_locking = false
+interaction_distance = 1.7
+slot_distance = 1.35
+slot_count = 6
+visual_scene = ExtResource("2_model")
+collision_shape = SubResource("PlatformCollision")
+collision_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+display_surface_height = 0.285
+display_profiles = Array[Resource]([SubResource("TomatoDisplayProfile"), SubResource("ChiliDisplayProfile"), SubResource("EggplantDisplayProfile"), SubResource("BellPepperDisplayProfile"), SubResource("FrenchBeansDisplayProfile")])
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.15, 0)
+shape = SubResource("PlatformCollision")
+
+[node name="ModelRoot" type="Node3D" parent="."]
+
+[node name="DisplayRoot" type="Node3D" parent="."]

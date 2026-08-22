@@ -17,6 +17,7 @@ signal interaction_resolved(container, actor)
 @export var inventory_columns := 7
 @export var inventory_rows := 5
 @export var is_locked := false
+@export var supports_locking := true
 ## Arm's length: opening a container means standing at it, not across the room.
 @export var interaction_distance := 1.6
 @export var slot_distance := 1.3
@@ -65,6 +66,7 @@ func _ready() -> void:
 		_should_seed_starting_inventory = true
 		var inventory_data_script = load("res://features/inventory/sim/inventory_data.gd")
 		inventory = inventory_data_script.new(inventory_columns, inventory_rows, 0.0, false)
+	_configure_inventory_admission()
 	if not inventory.changed.is_connected(_on_inventory_changed):
 		inventory.changed.connect(_on_inventory_changed)
 	if not container_id.strip_edges().is_empty():
@@ -106,7 +108,7 @@ func release_interactor(member: HumanoidCharacter) -> void:
 func resolve_interaction(member: HumanoidCharacter) -> bool:
 	if member == null:
 		return false
-	if is_locked:
+	if supports_locking and is_locked:
 		return false
 	var actor_id: int = member.get_instance_id()
 	if not _pending_actor_ids.has(actor_id):
@@ -166,6 +168,10 @@ func get_theft_value() -> int:
 
 func get_theft_noise_radius() -> float:
 	return theft_noise_radius
+
+
+func _configure_inventory_admission() -> void:
+	pass
 
 
 func _get_slot_index(member: HumanoidCharacter) -> int:
@@ -240,14 +246,17 @@ func hydrate_inventory_from_gecs(stack_snapshots: Array, sequence: int) -> void:
 			definition = load(item_path) as ItemDefinition
 		if definition == null:
 			continue
-		inventory.entries.append(inventory.create_entry(
+		var stack_count := int(snapshot.get("count", 1))
+		if not inventory.hydrate_entry_with_contents(
 			definition,
 			snapshot.get("grid_position", Vector2i.ZERO),
-			int(snapshot.get("count", 1)),
+			stack_count,
 			(snapshot.get("contained_item_counts", {}) as Dictionary).duplicate(true),
 			(snapshot.get("metadata", {}) as Dictionary).duplicate(true),
-			str(snapshot.get("stack_id", ""))
-		))
+			str(snapshot.get("stack_id", "")),
+			false
+		):
+			push_warning("WorldContainer '%s' could not hydrate stock '%s' within inventory limits" % [name, definition.display_name])
 	next_stack_sequence = inventory.next_stack_sequence
 	inventory.changed.emit()
 	_inventory_sync_suspended = false

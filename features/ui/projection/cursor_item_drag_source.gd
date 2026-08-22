@@ -126,6 +126,7 @@ func _drag_label() -> String:
 		var silver_key := str(InventoryData.SILVER_ITEM.resource_path)
 		var stored := int(contained_item_counts.get(silver_key, 0))
 		return "%s %d/%d" % [item_definition.display_name, stored, int(item_definition.currency_container_capacity)]
+
 	if item_count > 1:
 		return "%s x%d" % [item_definition.display_name, item_count]
 	return item_definition.display_name

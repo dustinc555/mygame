@@ -397,6 +397,36 @@ func _on_inventory_transfer_requested(source_owner, target_owner, entry, target_
 	if source_owner != target_owner and _entry_is_silver_pouch(source_inventory, entry):
 		_show_floating_notice("Drop onto pouch")
 		return
+	if source_owner.has_method("can_release_inventory_entry") and source_owner.has_method("release_inventory_entry"):
+		var transfer_metadata := _stolen_take_metadata(source_owner, target_owner, entry.metadata)
+		var can_release := bool(source_owner.call("can_release_inventory_entry_with_metadata", entry, target_inventory, transfer_metadata)) \
+				if source_owner.has_method("can_release_inventory_entry_with_metadata") else bool(source_owner.call("can_release_inventory_entry", entry, target_inventory))
+		if not can_release:
+			_show_floating_notice("Not enough room")
+			return
+		if not _authorize_container_take(source_owner, target_owner):
+			return
+		var released := bool(source_owner.call("release_inventory_entry_with_metadata", entry, target_inventory, transfer_metadata)) \
+				if source_owner.has_method("release_inventory_entry_with_metadata") else bool(source_owner.call("release_inventory_entry", entry, target_inventory))
+		if released:
+			if target_window != null:
+				target_window.clear_warning()
+		return
+	if target_owner.has_method("can_receive_inventory_entry") and target_owner.has_method("receive_inventory_entry"):
+		var transfer_metadata := _stolen_take_metadata(source_owner, target_owner, entry.metadata)
+		var can_receive := bool(target_owner.call("can_receive_inventory_entry_with_metadata", entry, transfer_metadata)) \
+				if target_owner.has_method("can_receive_inventory_entry_with_metadata") else bool(target_owner.call("can_receive_inventory_entry", entry))
+		if not can_receive:
+			_show_floating_notice("Cannot store that here")
+			return
+		if not _authorize_container_take(source_owner, target_owner):
+			return
+		var received := bool(target_owner.call("receive_inventory_entry_with_metadata", source_inventory, entry, transfer_metadata)) \
+				if target_owner.has_method("receive_inventory_entry_with_metadata") else bool(target_owner.call("receive_inventory_entry", source_inventory, entry))
+		if received:
+			if target_window != null:
+				target_window.clear_warning()
+		return
 	# Roll the theft and mark the goods stolen only for a move that will
 	# actually commit; a full or overweight target must not fire witnesses
 	# or taint an item that stays in the source container.
@@ -431,12 +461,40 @@ func _on_inventory_quick_transfer_requested(source_owner, entry) -> void:
 	if source_inventory == null or target_inventory == null:
 		return
 	var target_cell: Vector2i = target_inventory.find_first_space(entry.definition)
-	if target_cell == Vector2i(-1, -1):
-		return
-	if _try_handle_trade(source_owner, target_owner, entry, target_cell):
+	if target_cell != Vector2i(-1, -1) and _try_handle_trade(source_owner, target_owner, entry, target_cell):
 		return
 	if source_owner != target_owner and _entry_is_silver_pouch(source_inventory, entry):
 		_show_floating_notice("Drop onto pouch")
+		return
+	if source_owner.has_method("can_release_inventory_entry") and source_owner.has_method("release_inventory_entry"):
+		var transfer_metadata := _stolen_take_metadata(source_owner, target_owner, entry.metadata)
+		var can_release := bool(source_owner.call("can_release_inventory_entry_with_metadata", entry, target_inventory, transfer_metadata)) \
+				if source_owner.has_method("can_release_inventory_entry_with_metadata") else bool(source_owner.call("can_release_inventory_entry", entry, target_inventory))
+		if not can_release:
+			_show_floating_notice("Not enough room")
+			return
+		if not _authorize_container_take(source_owner, target_owner):
+			return
+		if source_owner.has_method("release_inventory_entry_with_metadata"):
+			source_owner.call("release_inventory_entry_with_metadata", entry, target_inventory, transfer_metadata)
+		else:
+			source_owner.call("release_inventory_entry", entry, target_inventory)
+		return
+	if target_owner.has_method("can_receive_inventory_entry") and target_owner.has_method("receive_inventory_entry"):
+		var transfer_metadata := _stolen_take_metadata(source_owner, target_owner, entry.metadata)
+		var can_receive := bool(target_owner.call("can_receive_inventory_entry_with_metadata", entry, transfer_metadata)) \
+				if target_owner.has_method("can_receive_inventory_entry_with_metadata") else bool(target_owner.call("can_receive_inventory_entry", entry))
+		if not can_receive:
+			_show_floating_notice("Cannot store that here")
+			return
+		if not _authorize_container_take(source_owner, target_owner):
+			return
+		if target_owner.has_method("receive_inventory_entry_with_metadata"):
+			target_owner.call("receive_inventory_entry_with_metadata", source_inventory, entry, transfer_metadata)
+		else:
+			target_owner.call("receive_inventory_entry", source_inventory, entry)
+		return
+	if target_cell == Vector2i(-1, -1):
 		return
 	# Theft roll and stolen metadata only for a move that will commit.
 	if not source_inventory.can_move_entry_to_inventory(entry, target_inventory, target_cell):
@@ -475,6 +533,9 @@ func _owners_too_far(source_owner, target_owner) -> bool:
 func _on_inventory_item_action_requested(inventory_owner, entry, action: String) -> void:
 	if inventory_owner == null or entry == null:
 		return
+	if action == "take_all":
+		_take_all_from_storage(inventory_owner, entry)
+		return
 	if action == "eat" and inventory_owner.has_method("eat_item"):
 		inventory_owner.eat_item(entry.definition)
 		return
@@ -485,6 +546,33 @@ func _on_inventory_item_action_requested(inventory_owner, entry, action: String)
 		return
 	if action.begins_with("take_silver_"):
 		_take_silver_from_pouch(inventory_owner, entry, action)
+
+
+func _take_all_from_storage(source_owner, entry) -> void:
+	if source_owner == null or entry == null or not source_owner.has_method("release_inventory_entry_count_with_metadata"):
+		return
+	var target_window = _first_other_inventory_window(source_owner)
+	var target_owner = target_window.inventory_owner if target_window != null else _get_focused_character_owner()
+	if target_owner == null or target_owner == source_owner or not _can_transfer_between_owners(source_owner, target_owner) \
+			or _owners_too_far(source_owner, target_owner):
+		return
+	var target_inventory = _get_owner_inventory(target_owner)
+	if target_inventory == null:
+		return
+	var transfer_metadata := _stolen_take_metadata(source_owner, target_owner, entry.metadata)
+	var can_take_one := bool(source_owner.call("can_release_inventory_entry_with_metadata", entry, target_inventory, transfer_metadata)) \
+			if source_owner.has_method("can_release_inventory_entry_with_metadata") else false
+	if not can_take_one or not _authorize_container_take(source_owner, target_owner):
+		return
+	var taken := int(source_owner.call(
+		"release_inventory_entry_count_with_metadata",
+		entry,
+		target_inventory,
+		int(entry.count),
+		transfer_metadata
+	))
+	if taken > 0:
+		_refresh_inventory_windows_for(source_owner, target_owner)
 
 
 func _on_inventory_equip_requested(source_owner, entry, target_owner, slot_name: String) -> void:
@@ -630,14 +718,18 @@ func _on_inventory_unequip_requested(source_owner, slot_name: String, target_own
 	var target_inventory = _get_owner_inventory(target_owner)
 	if item == null or target_inventory == null:
 		return
+	var stack_id := source_equipment.get_equipped_stack_id(slot_name)
+	var snapshot := _stack_snapshot(stack_id)
+	var item_count := int(snapshot.get("count", 1))
+	if target_inventory.has_method("accepts_item_count") and not bool(target_inventory.call("accepts_item_count", item, item_count)):
+		_show_floating_notice("Cannot store that here")
+		return
 	if target_inventory.use_weight and target_inventory.get_total_weight() + item.unit_weight > target_inventory.max_weight:
 		_show_floating_notice("Too heavy")
 		return
 	if not target_inventory.can_place_item(item, target_cell):
 		_show_floating_notice("No room")
 		return
-	var stack_id := source_equipment.get_equipped_stack_id(slot_name)
-	var snapshot := _stack_snapshot(stack_id)
 	var removed: ItemDefinition = source_equipment.unequip_item_from_slot(slot_name)
 	if removed == null:
 		return
@@ -720,6 +812,26 @@ func _on_cursor_item_place_requested(data: Dictionary, target_owner, target_cell
 	var target_inventory = _get_owner_inventory(target_owner)
 	if target_inventory == null:
 		_keep_cursor_drag(data)
+		return
+	if target_owner.has_method("receive_cursor_item"):
+		var transfer_metadata: Dictionary = data.get("metadata", {}).duplicate(true)
+		if source_owner != null and source_owner != target_owner:
+			transfer_metadata = _stolen_take_metadata(source_owner, target_owner, transfer_metadata)
+		if target_owner.has_method("can_receive_cursor_item") and not bool(target_owner.call(
+				"can_receive_cursor_item", definition, count, data.get("contained_item_counts", {}), transfer_metadata
+		)):
+			_show_floating_notice("Cannot store that here")
+			_keep_cursor_drag(data)
+			return
+		if source_owner != null and source_owner != target_owner and not _authorize_container_take(source_owner, target_owner):
+			_keep_cursor_drag(data)
+			return
+		if bool(target_owner.call("receive_cursor_item", definition, count, data.get("contained_item_counts", {}), transfer_metadata)):
+			_consume_cursor_drag(data)
+			_refresh_inventory_windows_for(source_owner, target_owner)
+		else:
+			_show_floating_notice("Cannot store that here")
+			_keep_cursor_drag(data)
 		return
 	# Theft roll and stolen metadata only for a placement that will commit;
 	# a full or overweight target must not fire witnesses or taint the item.
@@ -1025,6 +1137,9 @@ func _stack_snapshot(stack_id: String) -> Dictionary:
 ## will actually commit.
 func _can_place_cursor_item_in_inventory(target_inventory, definition: ItemDefinition, count: int, target_cell: Vector2i, contained_item_counts: Dictionary = {}) -> bool:
 	if target_inventory == null or definition == null or count <= 0:
+		return false
+	if target_inventory.has_method("accepts_item_count") and not bool(target_inventory.call("accepts_item_count", definition, count)):
+		_show_floating_notice("Cannot store that here")
 		return false
 	if target_inventory.use_weight and target_inventory.get_total_weight() + target_inventory.get_item_weight(definition, count, contained_item_counts) > target_inventory.max_weight:
 		_show_floating_notice("Too heavy")
@@ -1380,7 +1495,7 @@ func _authorize_container_take(source_owner, acting_owner) -> bool:
 	var ownership := _get_ownership_controller()
 	var actor := _burglary_actor(acting_owner)
 	if ownership == null or actor == null or not ownership.has_method("request_take_item"):
-		return true
+		return false
 	return bool(ownership.call("request_take_item", actor, source_owner))
 
 

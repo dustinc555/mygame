@@ -94,15 +94,16 @@ func hydrate_population_entries(snapshots: Array, emit_changed := true) -> void:
 		var definition := load(item_path) as ItemDefinition
 		if definition == null:
 			continue
-		var grid_position: Vector2i = snapshot.get("grid_position", Vector2i.ZERO)
-		inventory.entries.append(inventory.create_entry(
+		if not inventory.hydrate_entry_with_contents(
 			definition,
-			grid_position,
+			snapshot.get("grid_position", Vector2i.ZERO),
 			maxi(1, int(snapshot.get("count", 1))),
 			(snapshot.get("contained_item_counts", {}) as Dictionary).duplicate(true),
 			(snapshot.get("metadata", {}) as Dictionary).duplicate(true),
-			str(snapshot.get("stack_id", ""))
-		))
+			str(snapshot.get("stack_id", "")),
+			false
+		):
+			push_warning("Actor inventory could not hydrate saved '%s' entry" % definition.display_name)
 	if emit_changed:
 		inventory.changed.emit()
 

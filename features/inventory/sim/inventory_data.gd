@@ -14,6 +14,7 @@ const META_STOLEN_EXPIRES_AT_MINUTE := "stolen_expires_at_minute"
 const META_LAW_PRISONER_KEY := "law_prisoner_key"
 const META_LAW_CASE_ID := "law_case_id"
 
+
 signal changed
 
 
@@ -41,6 +42,8 @@ var use_weight := true
 var entries: Array[InventoryEntry] = []
 var stack_id_prefix := ""
 var next_stack_sequence := 1
+var admission_validator: Callable
+var stack_limit_resolver: Callable
 
 
 static func create_stack_id() -> String:
@@ -83,6 +86,26 @@ func _init(inventory_columns: int = 10, inventory_rows: int = 6, inventory_max_w
 	use_weight = inventory_use_weight
 
 
+func set_admission_validator(validator: Callable) -> void:
+	admission_validator = validator
+
+
+func set_stack_limit_resolver(resolver: Callable) -> void:
+	stack_limit_resolver = resolver
+
+
+func get_stack_limit(definition) -> int:
+	if stack_limit_resolver.is_valid():
+		return maxi(1, int(stack_limit_resolver.call(definition)))
+	return maxi(1, int(definition.max_stack)) if definition != null else 1
+
+
+func accepts_item_count(definition, amount: int) -> bool:
+	if not admission_validator.is_valid():
+		return true
+	return bool(admission_validator.call(definition, amount))
+
+
 func get_total_weight() -> float:
 	var total := 0.0
 	for entry in entries:
@@ -95,6 +118,8 @@ func can_add_item(definition) -> bool:
 
 
 func can_add_item_count(definition, amount: int) -> bool:
+	if not accepts_item_count(definition, amount):
+		return false
 	if _is_silver_currency(definition):
 		return _can_add_silver_count(amount)
 	return _can_add_standard_item_count(definition, amount)
@@ -109,13 +134,16 @@ func _can_add_standard_item_count(definition, amount: int) -> bool:
 		return false
 	if amount <= 0:
 		return true
+	if not accepts_item_count(definition, amount):
+		return false
 	if use_weight and get_total_weight() + get_item_weight(definition, amount) > max_weight:
 		return false
 	var remaining := amount
-	if definition.max_stack > 1:
+	var stack_limit := get_stack_limit(definition)
+	if stack_limit > 1:
 		for entry in entries:
-			if _is_same_definition(entry.definition, definition) and entry.count < definition.max_stack and entry.contained_item_counts.is_empty() and entry.metadata.is_empty():
-				remaining -= min(remaining, definition.max_stack - entry.count)
+			if _is_same_definition(entry.definition, definition) and entry.count < stack_limit and entry.contained_item_counts.is_empty() and entry.metadata.is_empty():
+				remaining -= min(remaining, stack_limit - entry.count)
 				if remaining <= 0:
 					return true
 	var reserved: Array = []
@@ -124,7 +152,7 @@ func _can_add_standard_item_count(definition, amount: int) -> bool:
 		if slot == Vector2i(-1, -1):
 			return false
 		reserved.append({"definition": definition, "position": slot})
-		remaining -= min(remaining, max(definition.max_stack, 1))
+		remaining -= min(remaining, stack_limit)
 	return true
 
 
@@ -133,6 +161,8 @@ func add_item(definition) -> bool:
 
 
 func add_item_count(definition, amount: int) -> bool:
+	if not accepts_item_count(definition, amount):
+		return false
 	if _is_silver_currency(definition):
 		return _add_silver_count(amount)
 	return _add_standard_item_count(definition, amount)
@@ -148,20 +178,129 @@ func can_add_item_count_with_metadata(definition, amount: int, metadata: Diction
 	return _can_add_item_count_as_distinct_entries(definition, amount, {}, metadata)
 
 
+func get_max_addable_item_count_with_metadata(definition, requested_amount: int, metadata: Dictionary) -> int:
+	if definition == null or requested_amount <= 0:
+		return 0
+	var stack_limit := get_stack_limit(definition)
+	var grid_capacity := 0
+	if metadata.is_empty() and stack_limit > 1:
+		for entry in entries:
+			if _is_same_definition(entry.definition, definition) and entry.contained_item_counts.is_empty() and entry.metadata.is_empty():
+				grid_capacity += maxi(0, stack_limit - int(entry.count))
+	var occupied: Dictionary = {}
+	for entry in entries:
+		for y in range(entry.grid_position.y, entry.grid_position.y + entry.definition.grid_size.y):
+			for x in range(entry.grid_position.x, entry.grid_position.x + entry.definition.grid_size.x):
+				occupied[Vector2i(x, y)] = true
+	for y in range(rows - definition.grid_size.y + 1):
+		for x in range(columns - definition.grid_size.x + 1):
+			var position := Vector2i(x, y)
+			var fits := true
+			for item_y in range(position.y, position.y + definition.grid_size.y):
+				for item_x in range(position.x, position.x + definition.grid_size.x):
+					if occupied.has(Vector2i(item_x, item_y)):
+						fits = false
+						break
+				if not fits:
+					break
+			if not fits:
+				continue
+			grid_capacity += stack_limit
+			for item_y in range(position.y, position.y + definition.grid_size.y):
+				for item_x in range(position.x, position.x + definition.grid_size.x):
+					occupied[Vector2i(item_x, item_y)] = true
+			if grid_capacity >= requested_amount:
+				break
+		if grid_capacity >= requested_amount:
+			break
+	var amount := mini(requested_amount, grid_capacity)
+	if use_weight:
+		var unit_weight := get_item_weight(definition, 1)
+		if unit_weight > 0.0:
+			amount = mini(amount, maxi(0, int(floor((max_weight - get_total_weight() + 0.000001) / unit_weight))))
+	while amount > 0 and not accepts_item_count(definition, amount):
+		amount -= 1
+	return amount
+
+
 func add_item_count_with_metadata(definition, amount: int, metadata: Dictionary) -> bool:
 	if metadata.is_empty():
 		return add_item_count(definition, amount)
 	return _add_item_count_as_distinct_entries(definition, amount, {}, metadata)
 
 
+func add_prevalidated_item_count_with_metadata(definition, amount: int, metadata: Dictionary, emit_changed := true) -> bool:
+	if definition == null or amount <= 0:
+		return false
+	var remaining := amount
+	var stack_limit := get_stack_limit(definition)
+	if metadata.is_empty() and stack_limit > 1:
+		for entry in entries:
+			if not _is_same_definition(entry.definition, definition) or not entry.contained_item_counts.is_empty() \
+					or not entry.metadata.is_empty() or entry.count >= stack_limit:
+				continue
+			var added: int = min(remaining, stack_limit - int(entry.count))
+			entry.count += added
+			remaining -= added
+			if remaining <= 0:
+				if emit_changed:
+					changed.emit()
+				return true
+	var required_entries := int(ceil(float(remaining) / float(stack_limit)))
+	var positions := _available_positions_for_definition(definition, required_entries)
+	if positions.size() < required_entries:
+		return false
+	for position in positions:
+		if remaining <= 0:
+			break
+		var stack_count: int = min(remaining, stack_limit)
+		entries.append(create_entry(definition, position, stack_count, {}, metadata))
+		remaining -= stack_count
+	if emit_changed:
+		changed.emit()
+	return remaining <= 0
+
+
+func _available_positions_for_definition(definition, requested_positions: int) -> Array[Vector2i]:
+	var positions: Array[Vector2i] = []
+	if definition == null or requested_positions <= 0:
+		return positions
+	var occupied: Dictionary = {}
+	for entry in entries:
+		for y in range(entry.grid_position.y, entry.grid_position.y + entry.definition.grid_size.y):
+			for x in range(entry.grid_position.x, entry.grid_position.x + entry.definition.grid_size.x):
+				occupied[Vector2i(x, y)] = true
+	for y in range(rows - definition.grid_size.y + 1):
+		for x in range(columns - definition.grid_size.x + 1):
+			var position := Vector2i(x, y)
+			var fits := true
+			for item_y in range(position.y, position.y + definition.grid_size.y):
+				for item_x in range(position.x, position.x + definition.grid_size.x):
+					if occupied.has(Vector2i(item_x, item_y)):
+						fits = false
+						break
+				if not fits:
+					break
+			if not fits:
+				continue
+			positions.append(position)
+			for item_y in range(position.y, position.y + definition.grid_size.y):
+				for item_x in range(position.x, position.x + definition.grid_size.x):
+					occupied[Vector2i(item_x, item_y)] = true
+			if positions.size() >= requested_positions:
+				return positions
+	return positions
+
+
 func _add_standard_item_count(definition, amount: int, emit_changed := true) -> bool:
 	if not _can_add_standard_item_count(definition, amount):
 		return false
 	var remaining := amount
-	if definition.max_stack > 1:
+	var stack_limit := get_stack_limit(definition)
+	if stack_limit > 1:
 		for entry in entries:
-			if _is_same_definition(entry.definition, definition) and entry.count < definition.max_stack and entry.contained_item_counts.is_empty() and entry.metadata.is_empty():
-				var added: int = min(remaining, definition.max_stack - entry.count)
+			if _is_same_definition(entry.definition, definition) and entry.count < stack_limit and entry.contained_item_counts.is_empty() and entry.metadata.is_empty():
+				var added: int = min(remaining, stack_limit - entry.count)
 				entry.count += added
 				remaining -= added
 				if remaining <= 0:
@@ -172,7 +311,7 @@ func _add_standard_item_count(definition, amount: int, emit_changed := true) -> 
 		var slot: Vector2i = find_first_space(definition)
 		if slot == Vector2i(-1, -1):
 			return false
-		var stack_count: int = min(remaining, max(definition.max_stack, 1))
+		var stack_count: int = min(remaining, stack_limit)
 		entries.append(create_entry(definition, slot, stack_count))
 		remaining -= stack_count
 	if emit_changed:
@@ -180,22 +319,40 @@ func _add_standard_item_count(definition, amount: int, emit_changed := true) -> 
 	return true
 
 
-func can_add_entry_with_contents(definition, amount: int = 1, contained_item_counts: Dictionary = {}, _metadata: Dictionary = {}) -> bool:
+func can_add_entry_with_contents(definition, amount: int = 1, contained_item_counts: Dictionary = {}, _metadata: Dictionary = {}, bypass_admission := false) -> bool:
+	return _can_add_item_count_as_distinct_entries(definition, amount, contained_item_counts, _metadata, bypass_admission)
+
+
+func add_entry_with_contents(definition, amount: int = 1, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}, stack_id := "", emit_changed := true, bypass_admission := false) -> bool:
+	return _add_item_count_as_distinct_entries(definition, amount, contained_item_counts, metadata, emit_changed, stack_id, bypass_admission)
+
+
+## Trusted persistence restoration. Admission and current carrying limits must
+## not delete authoritative saved stock. The authored first position is kept;
+## legacy oversized stacks are split only as required by this inventory's
+## local stack contract.
+func hydrate_entry_with_contents(definition, grid_position: Vector2i, amount: int = 1, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}, stack_id := "", emit_changed := true) -> bool:
 	if definition == null or amount <= 0:
 		return false
-	if use_weight and get_total_weight() + get_item_weight(definition, amount, contained_item_counts) > max_weight:
-		return false
-	return find_first_space(definition) != Vector2i(-1, -1)
-
-
-func add_entry_with_contents(definition, amount: int = 1, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}, stack_id := "") -> bool:
-	if not can_add_entry_with_contents(definition, amount, contained_item_counts, metadata):
-		return false
-	var slot := find_first_space(definition)
-	if slot == Vector2i(-1, -1):
-		return false
-	entries.append(create_entry(definition, slot, amount, contained_item_counts, metadata, stack_id))
-	changed.emit()
+	var remaining := amount
+	var first_entry := true
+	while remaining > 0:
+		var position := grid_position if first_entry else find_first_space(definition)
+		if position == Vector2i(-1, -1):
+			position = grid_position
+		var stack_count: int = min(remaining, get_stack_limit(definition))
+		entries.append(create_entry(
+			definition,
+			position,
+			stack_count,
+			contained_item_counts if first_entry else {},
+			metadata,
+			stack_id if first_entry else ""
+		))
+		remaining -= stack_count
+		first_entry = false
+	if emit_changed:
+		changed.emit()
 	return true
 
 
@@ -216,6 +373,8 @@ func can_move_entry_to_inventory(entry, target_inventory, target_position: Vecto
 		return false
 	if target_inventory == self:
 		return true
+	if target_inventory.has_method("accepts_item_count") and not bool(target_inventory.call("accepts_item_count", entry.definition, entry.count)):
+		return false
 	if target_inventory.use_weight and target_inventory.get_total_weight() + get_entry_weight(entry) > target_inventory.max_weight:
 		return false
 	return target_inventory.can_place_item(entry.definition, target_position)
@@ -298,6 +457,61 @@ func transfer_item_count_to(definition, amount: int, target_inventory) -> bool:
 	return true
 
 
+## Atomically moves item counts while retaining per-entry ownership/theft
+## metadata. Bulk destinations may aggregate equal-metadata batches, while
+## ordinary inventories still split them according to their local stack limit.
+func transfer_item_count_to_preserving_metadata(definition, amount: int, target_inventory) -> bool:
+	if definition == null or amount <= 0 or target_inventory == null or target_inventory == self:
+		return false
+	if _is_silver_currency(definition) or not target_inventory.has_method("_add_item_count_as_distinct_entries"):
+		return false
+	if count_item(definition) < amount:
+		return false
+	var source_snapshot := _snapshot_standard_transaction()
+	var target_snapshot: Dictionary = target_inventory.call("_snapshot_standard_transaction")
+	var batches: Array[Dictionary] = []
+	var remaining := amount
+	for index in range(entries.size() - 1, -1, -1):
+		var entry = entries[index]
+		if not _is_same_definition(entry.definition, definition):
+			continue
+		var moved: int = min(remaining, entry.count)
+		var merged_batch := false
+		for batch in batches:
+			if batch.get("contained_item_counts", {}) == entry.contained_item_counts \
+					and batch.get("metadata", {}) == entry.metadata:
+				batch["count"] = int(batch.get("count", 0)) + moved
+				merged_batch = true
+				break
+		if not merged_batch:
+			batches.append({
+				"count": moved,
+				"contained_item_counts": entry.contained_item_counts.duplicate(true),
+				"metadata": entry.metadata.duplicate(true),
+			})
+		entry.count -= moved
+		remaining -= moved
+		if entry.count <= 0:
+			entries.remove_at(index)
+		if remaining <= 0:
+			break
+	for batch in batches:
+		var batch_count := int(batch.get("count", 0))
+		var contained := (batch.get("contained_item_counts", {}) as Dictionary).duplicate(true)
+		var metadata := (batch.get("metadata", {}) as Dictionary).duplicate(true)
+		var added := bool(target_inventory.call("_add_standard_item_count", definition, batch_count, false)) \
+				if contained.is_empty() and metadata.is_empty() else bool(target_inventory.call(
+						"_add_item_count_as_distinct_entries", definition, batch_count, contained, metadata, false
+				))
+		if not added:
+			_restore_standard_transaction(source_snapshot)
+			target_inventory.call("_restore_standard_transaction", target_snapshot)
+			return false
+	changed.emit()
+	target_inventory.changed.emit()
+	return true
+
+
 func _remove_standard_item_count(definition, amount: int, emit_changed := true) -> bool:
 	if definition == null or amount <= 0:
 		return false
@@ -357,9 +571,14 @@ func get_item_weight(definition, amount: int = 1, contained_item_counts: Diction
 	if definition == null or amount <= 0:
 		return 0.0
 	var total: float = float(definition.unit_weight) * float(amount)
-	var silver_count := int(contained_item_counts.get(_item_key(SILVER_ITEM), 0))
-	if silver_count > 0:
-		total += SILVER_ITEM.unit_weight * silver_count
+	for item_path_value in contained_item_counts.keys():
+		var item_path := str(item_path_value)
+		var contained_count := int(contained_item_counts[item_path_value])
+		if contained_count <= 0 or item_path.is_empty() or not ResourceLoader.exists(item_path):
+			continue
+		var contained_definition := load(item_path) as ItemDefinition
+		if contained_definition != null:
+			total += contained_definition.unit_weight * contained_count
 	return total
 
 
@@ -367,6 +586,7 @@ func get_entry_contained_item_count(entry, definition) -> int:
 	if entry == null or definition == null:
 		return 0
 	return max(0, int(entry.contained_item_counts.get(_item_key(definition), 0)))
+
 
 
 func get_entry_bandage_max_uses(entry) -> int:
@@ -566,32 +786,35 @@ func auto_sort() -> bool:
 	return true
 
 
-func _can_add_item_count_as_distinct_entries(definition, amount: int, contained_item_counts: Dictionary = {}, _metadata: Dictionary = {}) -> bool:
+func _can_add_item_count_as_distinct_entries(definition, amount: int, contained_item_counts: Dictionary = {}, _metadata: Dictionary = {}, bypass_admission := false) -> bool:
 	if definition == null or amount <= 0:
+		return false
+	if not bypass_admission and not accepts_item_count(definition, amount):
 		return false
 	if use_weight and get_total_weight() + get_item_weight(definition, amount, contained_item_counts) > max_weight:
 		return false
 	var remaining := amount
+	var stack_limit := get_stack_limit(definition)
 	var reserved: Array = []
 	while remaining > 0:
 		var slot := _find_first_space_with_reserved_entries(definition, reserved)
 		if slot == Vector2i(-1, -1):
 			return false
 		reserved.append({"definition": definition, "position": slot})
-		remaining -= min(remaining, max(definition.max_stack, 1))
+		remaining -= min(remaining, stack_limit)
 	return true
 
 
-func _add_item_count_as_distinct_entries(definition, amount: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}, emit_changed := true) -> bool:
-	if not _can_add_item_count_as_distinct_entries(definition, amount, contained_item_counts, metadata):
+func _add_item_count_as_distinct_entries(definition, amount: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}, emit_changed := true, first_stack_id := "", bypass_admission := false) -> bool:
+	if not _can_add_item_count_as_distinct_entries(definition, amount, contained_item_counts, metadata, bypass_admission):
 		return false
 	var remaining := amount
 	while remaining > 0:
 		var slot := find_first_space(definition)
 		if slot == Vector2i(-1, -1):
 			return false
-		var stack_count: int = min(remaining, max(definition.max_stack, 1))
-		entries.append(create_entry(definition, slot, stack_count, contained_item_counts if remaining == amount else {}, metadata))
+		var stack_count: int = min(remaining, get_stack_limit(definition))
+		entries.append(create_entry(definition, slot, stack_count, contained_item_counts if remaining == amount else {}, metadata, first_stack_id if remaining == amount else ""))
 		remaining -= stack_count
 	if emit_changed:
 		changed.emit()

@@ -85,6 +85,7 @@ func _get_tooltip(at_position: Vector2) -> String:
 		var stored := _entry_silver_count(entry)
 		var capacity := int(entry.definition.currency_container_capacity)
 		return "%s\n%d/%d silver coins" % [entry.definition.display_name, stored, capacity]
+
 	return entry.definition.display_name
 
 
@@ -223,6 +224,7 @@ func _entry_count_label(entry) -> String:
 		var stored := _entry_silver_count(entry)
 		var capacity := int(entry.definition.currency_container_capacity)
 		return "%d/%d" % [stored, capacity]
+
 	if entry.count > 1:
 		return str(entry.count)
 	return ""

@@ -149,6 +149,54 @@ func _run() -> void:
 		_fail("Shift+left-click leaves non-equippable inventory items unchanged")
 		return
 	inventory.remove_entry(bread_entry)
+	var bulk_scene := load("res://features/world/projection/containers/bulk_storage_platform.tscn") as PackedScene
+	var bulk_platform = bulk_scene.instantiate() if bulk_scene != null else null
+	if bulk_platform == null:
+		_fail("bulk platform fixture loads for admission-boundary interaction checks")
+		return
+	bulk_platform.container_id = "validation.inventory_equipment.bulk_platform"
+	bulk_platform.owner_faction_name = "Player"
+	bulk_platform.inventory_rows = 3
+	bulk_platform.position = ada.position
+	_root.add_child(bulk_platform)
+	await process_frame
+	var unsupported_cursor_placed := bool(inventory_controller.call(
+		"_place_cursor_item_in_inventory",
+		bulk_platform.inventory,
+		bread,
+		1,
+		Vector2i.ZERO,
+		{},
+		{}
+	))
+	if unsupported_cursor_placed or bulk_platform.inventory.count_item(bread) != 0:
+		_fail("cursor placement cannot bypass a target inventory's admission boundary")
+		return
+	var tomato := load("res://features/inventory/resources/items/tomato.tres") as ItemDefinition
+	if tomato == null or not inventory.add_item(tomato):
+		_fail("one unstacked tomato fits the character inventory for bulk packing")
+		return
+	var tomato_entry = _entry_with_definition(inventory, tomato)
+	inventory_controller.open_inventory_pair(ada, bulk_platform)
+	await process_frame
+	_shift_left_click(inventory_controller.primary_character_window, tomato_entry)
+	await process_frame
+	if inventory.count_item(tomato) != 0 or bulk_platform.get_stored_item_count(tomato) != 1 \
+			or bulk_platform.inventory.entries.size() != 1:
+		_fail("ordinary paired Shift-click packs one unstacked tomato into one physical crate")
+		return
+	var packed_crate_entry = bulk_platform.inventory.entries[0]
+	_shift_left_click(inventory_controller.secondary_inventory_window, packed_crate_entry)
+	await process_frame
+	if inventory.count_item(tomato) != 1 or bulk_platform.get_stored_item_count(tomato) != 0 \
+			or not bulk_platform.inventory.entries.is_empty():
+		_fail("ordinary paired Shift-click unpacks a physical crate into individual character items")
+		return
+	var returned_tomato = _entry_with_definition(inventory, tomato)
+	if returned_tomato != null:
+		inventory.remove_entry(returned_tomato)
+	inventory_controller.open_inventory_for_member(ada)
+	await process_frame
 	var watering_can := load("res://features/inventory/resources/items/watering_can.tres") as ItemDefinition
 	if watering_can == null or not inventory.add_item(watering_can):
 		_fail("weapon replacement fixture fits in Ada's inventory")
@@ -166,6 +214,23 @@ func _run() -> void:
 		return
 	if _entry_with_stack_id(inventory, hoe_stack_id) == null:
 		_fail("Shift+left-click returns the replaced hoe to inventory with its durable stack identity")
+		return
+	if not bool(inventory_controller.call("_can_transfer_between_owners", ada, bulk_platform)):
+		_fail("equipment admission fixture permits ordinary owner-to-container transfer")
+		return
+	if bool(inventory_controller.call("_owners_too_far", ada, bulk_platform)):
+		_fail("equipment admission fixture places the container within transfer range")
+		return
+	if not bulk_platform.inventory.can_place_item(watering_can, Vector2i.ZERO):
+		_fail("equipment admission fixture has physical grid space")
+		return
+	if bool(bulk_platform.inventory.accepts_item_count(watering_can, 1)):
+		_fail("equipment admission fixture rejects only the unsupported item policy")
+		return
+	inventory_controller.call("_on_inventory_unequip_requested", ada, "weapon", bulk_platform, Vector2i.ZERO)
+	await process_frame
+	if equipment.get_equipped_item("weapon") != watering_can or bulk_platform.inventory.count_item(watering_can) != 0:
+		_fail("equipment transfer cannot bypass a target inventory's admission boundary")
 		return
 	var clothing := load("res://features/inventory/resources/items/peasant_tunic.tres") as ItemDefinition
 	var armor := load("res://features/inventory/resources/items/knight_cuirass.tres") as ItemDefinition

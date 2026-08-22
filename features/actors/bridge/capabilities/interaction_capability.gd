@@ -280,7 +280,7 @@ func assign_open_container(container, issued_by_player := true) -> void:
 	if not _set_order(ORDER_TYPE_OPEN_CONTAINER, issued_by_player):
 		return
 	var current_container = current_container_target
-	if _is_valid_node(current_container) and current_container != container and current_container.has_method("release_interactor"):
+	if _is_valid_node(current_container) and current_container.has_method("release_interactor"):
 		current_container.call("release_interactor", actor)
 	current_container_target = container
 	if container.has_method("register_interactor"):
