@@ -9,6 +9,9 @@ signal inspector_action_requested(target, action_key: String)
 const CHARACTER_SKILLS_WINDOW_SCRIPT = preload("res://features/ui/projection/character_skills_window.gd")
 const CHARACTER_JOBS_WINDOW_SCRIPT = preload("res://features/ui/projection/character_jobs_window.gd")
 const FACILITY_PEOPLE_PROJECTION_SCRIPT = preload("res://features/ui/projection/facility_people_projection.gd")
+const STORAGE_FILTER_CHECKED = preload("res://assets/ui/storage_filter_checked.svg")
+const STORAGE_FILTER_UNCHECKED = preload("res://assets/ui/storage_filter_unchecked.svg")
+const STORAGE_FILTER_INDETERMINATE = preload("res://assets/ui/storage_filter_indeterminate.svg")
 
 const BLOOD_GLOW_CRITICAL_LOSS_PER_SECOND := 8.0
 const BAR_GOOD_COLOR := Color(0.47, 0.78, 0.43, 1.0)
@@ -96,6 +99,9 @@ var action_row: Control
 var action_buttons: Array[Button] = []
 var _farm_crop_menu: PopupMenu
 var _farm_crop_menu_target
+var _storage_filter_popup: PopupPanel
+var _storage_filter_tree: Tree
+var _storage_filter_target
 var vital_rows: Array[Control] = []
 var hunger_row: Control
 var blood_row: Control
@@ -282,6 +288,7 @@ func _update_empty_panel() -> void:
 	name_label.text = "No target"
 	faction_label.text = "Left-click a person, item, or resource"
 	work_label.text = "Inspector ready"
+	state_label.visible = true
 	state_label.text = "IDLE"
 	state_label.modulate = Color(0.58, 0.55, 0.5, 1.0)
 	_set_actions([])
@@ -301,6 +308,7 @@ func _update_humanoid_panel(target: WorldActor) -> void:
 	name_label.text = target.member_name
 	faction_label.text = target.faction_name
 	work_label.text = target.get_job_status_text() if target.has_method("get_job_status_text") else ""
+	state_label.visible = true
 	state_label.text = target.get_life_state_label().to_upper()
 	state_label.modulate = _get_life_state_color(target.life_state)
 	if target.shows_hunger_vital():
@@ -392,6 +400,7 @@ func _update_world_target_panel(target) -> void:
 	name_label.text = _get_target_display_name(target)
 	faction_label.text = _get_target_subtitle(target)
 	work_label.text = _get_target_detail(target)
+	state_label.visible = true
 	state_label.text = _get_target_state_label(target)
 	state_label.modulate = _get_target_state_color(target)
 	_set_world_target_rows(target)
@@ -400,9 +409,12 @@ func _update_world_target_panel(target) -> void:
 
 func _update_farm_target_panel(target) -> void:
 	_set_vitals_visible(false)
-	_set_info_rows_visible(false)
 	var world_position: Vector3 = _current_target_world_position if _has_current_target_world_position else (target.global_position if target is Node3D else Vector3.ZERO)
 	var data: Dictionary = target.call("get_details_panel_data_at", world_position)
+	var provider_info_rows: Array = data.get("info_rows", []) as Array
+	_set_info_rows_visible(not provider_info_rows.is_empty())
+	if not provider_info_rows.is_empty():
+		_set_info_rows(provider_info_rows)
 	name_label.text = str(data.get("title", "Soil"))
 	var subtitle := str(data.get("subtitle", ""))
 	var detail := str(data.get("detail", ""))
@@ -412,6 +424,7 @@ func _update_farm_target_panel(target) -> void:
 	work_label.visible = not detail.is_empty()
 	var crop_state := str(data.get("state", ""))
 	state_label.text = crop_state.to_upper()
+	state_label.visible = not crop_state.is_empty()
 	state_label.modulate = _get_farm_state_color(crop_state)
 	var tool_requirement := str(data.get("tool_requirement", ""))
 	tool_requirement_label.text = tool_requirement
@@ -435,17 +448,21 @@ func _update_farm_target_panel(target) -> void:
 		_update_fill_bar(farm_hydration_stack, farm_hydration_fill, resource_ratio, FARM_HYDRATION_COLOR)
 	var actions: Array = []
 	if target.has_method("get_details_panel_actions_at"):
-		actions = target.call("get_details_panel_actions_at", world_position, _get_focused_party_member()) \
-				if target is Node and target.is_in_group("farm_plot") \
-				else target.call("get_details_panel_actions_at", world_position)
+		actions = _get_details_provider_actions(target, world_position)
 	var routed_actions: Array = []
 	for action_value in actions:
 		var action: Dictionary = (action_value as Dictionary).duplicate()
 		var key := str(action.get("key", ""))
-		if key != "farm_crop_menu" and not key.begins_with(WORLD_ACTION_PREFIX):
+		if key != "farm_crop_menu" and key != "storage_filter_menu" and not key.begins_with(WORLD_ACTION_PREFIX):
 			action["key"] = WORLD_ACTION_PREFIX + key
 		routed_actions.append(action)
 	_set_actions(routed_actions)
+
+
+func _get_details_provider_actions(target, world_position: Vector3) -> Array:
+	var argument_count := 2 if target is Node and (target.is_in_group("farm_plot") or target.has_method("can_actor_edit_storage_policy")) else 1
+	return target.call("get_details_panel_actions_at", world_position, _get_focused_party_member()) \
+			if argument_count >= 2 else target.call("get_details_panel_actions_at", world_position)
 
 
 func _get_farm_state_color(crop_state: String) -> Color:
@@ -568,6 +585,9 @@ func _on_action_button_pressed(button: Button) -> void:
 	if action_key == "farm_crop_menu":
 		_open_farm_crop_menu(button)
 		return
+	if action_key == "storage_filter_menu":
+		_open_storage_filter_popup(button)
+		return
 	if action_key == ACTION_SKILLS:
 		_on_skills_button_pressed()
 		return
@@ -620,6 +640,78 @@ func _on_farm_crop_menu_selected(item_id: int) -> void:
 		return
 	var crop_id := str(_farm_crop_menu.get_item_metadata(item_index))
 	inspector_action_requested.emit(_farm_crop_menu_target, WORLD_ACTION_PREFIX + "farm_policy|" + crop_id)
+
+
+func _open_storage_filter_popup(anchor_button: Button) -> void:
+	if not _has_valid_current_target() or not current_target.has_method("get_storage_filter_options"):
+		return
+	if _storage_filter_popup == null or not is_instance_valid(_storage_filter_popup):
+		_storage_filter_popup = PopupPanel.new()
+		_storage_filter_popup.name = "StorageFilterPopup"
+		_storage_filter_tree = Tree.new()
+		_storage_filter_tree.name = "StorageFilterTree"
+		_storage_filter_tree.hide_root = true
+		_storage_filter_tree.custom_minimum_size = Vector2(300, 340)
+		_storage_filter_tree.select_mode = Tree.SELECT_ROW
+		_storage_filter_tree.add_theme_color_override("font_color", Color(0.86, 0.82, 0.72, 1.0))
+		_storage_filter_tree.add_theme_color_override("font_hovered_color", Color(1.0, 0.86, 0.42, 1.0))
+		_storage_filter_tree.add_theme_color_override("font_selected_color", Color(0.08, 0.06, 0.03, 1.0))
+		_storage_filter_tree.add_theme_color_override("font_hovered_selected_color", Color(0.08, 0.06, 0.03, 1.0))
+		_storage_filter_tree.add_theme_color_override("guide_color", Color(0.58, 0.48, 0.32, 0.55))
+		_storage_filter_tree.add_theme_icon_override("checked", STORAGE_FILTER_CHECKED)
+		_storage_filter_tree.add_theme_icon_override("unchecked", STORAGE_FILTER_UNCHECKED)
+		_storage_filter_tree.add_theme_icon_override("indeterminate", STORAGE_FILTER_INDETERMINATE)
+		_storage_filter_tree.button_clicked.connect(_on_storage_filter_button_clicked)
+		_storage_filter_popup.add_child(_storage_filter_tree)
+		(hud_layer if hud_layer != null else details_panel).add_child(_storage_filter_popup)
+	_storage_filter_target = current_target
+	_rebuild_storage_filter_tree()
+	var popup_position := Vector2i(
+		roundi(anchor_button.global_position.x),
+		roundi(anchor_button.global_position.y) - 450
+	)
+	_storage_filter_popup.popup(Rect2i(popup_position, Vector2i(320, 380)))
+
+
+func _rebuild_storage_filter_tree() -> void:
+	if _storage_filter_tree == null or _storage_filter_target == null or not is_instance_valid(_storage_filter_target):
+		return
+	_storage_filter_tree.clear()
+	var root_item := _storage_filter_tree.create_item()
+	var categories: Array = _storage_filter_target.call("get_storage_filter_options")
+	for category_value in categories:
+		var category: Dictionary = category_value
+		var category_item := _storage_filter_tree.create_item(root_item)
+		category_item.set_text(0, str(category.get("label", "Category")))
+		category_item.set_custom_color(0, Color(0.96, 0.78, 0.34, 1.0))
+		category_item.set_custom_font_size(0, 16)
+		var category_selected := bool(category.get("selected", false))
+		var category_icon := STORAGE_FILTER_INDETERMINATE if bool(category.get("indeterminate", false)) else STORAGE_FILTER_CHECKED if category_selected else STORAGE_FILTER_UNCHECKED
+		category_item.add_button(0, category_icon, 0, false, "Toggle category")
+		category_item.set_metadata(0, {"kind": "category", "key": str(category.get("category_id", "")), "selected": category_selected})
+		category_item.collapsed = false
+		for option_value in category.get("items", []) as Array:
+			var option: Dictionary = option_value
+			var item := _storage_filter_tree.create_item(category_item)
+			item.set_text(0, str(option.get("label", "Item")))
+			item.set_custom_color(0, Color(0.86, 0.82, 0.72, 1.0))
+			item.set_custom_font_size(0, 15)
+			var item_selected := bool(option.get("selected", false))
+			item.add_button(0, STORAGE_FILTER_CHECKED if item_selected else STORAGE_FILTER_UNCHECKED, 0, false, "Toggle item")
+			item.set_metadata(0, {"kind": "item", "key": str(option.get("item_key", "")), "selected": item_selected})
+
+
+func _on_storage_filter_button_clicked(item: TreeItem, _column: int, _id: int, _mouse_button_index: int) -> void:
+	if item == null or _storage_filter_tree == null or _storage_filter_target == null or not is_instance_valid(_storage_filter_target):
+		return
+	var metadata: Dictionary = item.get_metadata(0) as Dictionary
+	var actor := _get_focused_party_member()
+	var enabled := not bool(metadata.get("selected", false))
+	if str(metadata.get("kind", "")) == "category":
+		_storage_filter_target.call("set_storage_category_enabled", str(metadata.get("key", "")), enabled, actor)
+	else:
+		_storage_filter_target.call("set_storage_item_enabled", str(metadata.get("key", "")), enabled, actor)
+	_rebuild_storage_filter_tree()
 
 
 func _set_vitals_visible(is_visible: bool) -> void:

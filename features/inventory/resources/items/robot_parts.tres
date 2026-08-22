@@ -7,4 +7,4 @@ script = ExtResource("1_item")
 display_name = "Robot Parts"
 grid_size = Vector2i(2, 2)
 unit_weight = 2.2
-max_stack = 6
+max_stack = 1

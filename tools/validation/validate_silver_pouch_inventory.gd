@@ -137,10 +137,10 @@ func _validate_drag_deposits() -> void:
 	var loose_entry = source.inventory.entries[0]
 	var target_pouch = _first_pouch(target.inventory)
 	controller.call("_try_deposit_entry_into_pouch", source, target, loose_entry, target_pouch.grid_position)
-	if target.inventory.get_entry_contained_item_count(target_pouch, SILVER_ITEM) != 250:
-		_fail("Dragging coins to a pouch should fill the target pouch")
-	if source.inventory.count_item(SILVER_ITEM) != 15:
-		_fail("Coin-to-pouch overflow should remain as loose silver in the source inventory")
+	if target.inventory.get_entry_contained_item_count(target_pouch, SILVER_ITEM) != 241:
+		_fail("Dragging one unstacked coin to a pouch should deposit exactly that coin")
+	if source.inventory.count_item(SILVER_ITEM) != 24:
+		_fail("The other individual loose coins should remain in the source inventory")
 
 	source.inventory.entries.clear()
 	source.inventory.add_entry_with_contents(SILVER_POUCH_ITEM, 1, _silver_contents(80))

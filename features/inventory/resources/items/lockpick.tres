@@ -7,5 +7,5 @@ script = ExtResource("1_item")
 display_name = "Lockpick"
 grid_size = Vector2i(1, 1)
 unit_weight = 0.02
-max_stack = 20
+max_stack = 1
 tool_tags = PackedStringArray("lockpick")

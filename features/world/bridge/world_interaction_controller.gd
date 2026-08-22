@@ -671,7 +671,16 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 			var open_color = ownership_controller.call("get_open_container_color", container_actor, context_container)
 			if open_color is Color and (open_color as Color).a > 0.0:
 				container_action["color"] = open_color
-		_show_context_menu_actions(screen_position, [container_action])
+		var container_actions: Array = [container_action]
+		if context_container.has_method("get_world_context_actions"):
+			context_world_action_target = context_container
+			context_world_actions = context_container.call("get_world_context_actions", container_actor)
+			for index in range(context_world_actions.size()):
+				container_actions.append({
+					"id": ACTION_WORLD_CONTEXT_BASE + index,
+					"label": str(context_world_actions[index].get("label", "Action")),
+				})
+		_show_context_menu_actions(screen_position, container_actions)
 		return false
 	if collider is Node and collider.is_in_group("world_item") and not party_manager.selected_members.is_empty():
 		context_world_item = collider
@@ -2384,6 +2393,10 @@ func _on_party_member_container_reached(member: HumanoidCharacter, container) ->
 		return
 	if not container.resolve_interaction(member):
 		return
+	if container.has_method("resolve_pending_deposit"):
+		var deposit_result: Dictionary = container.call("resolve_pending_deposit", member)
+		if bool(deposit_result.get("handled", false)):
+			return
 	inventory_controller.open_inventory_pair(member, container)
 
 

@@ -7,4 +7,4 @@ script = ExtResource("1_item")
 display_name = "Broken Electronics"
 grid_size = Vector2i(2, 1)
 unit_weight = 0.8
-max_stack = 10
+max_stack = 1

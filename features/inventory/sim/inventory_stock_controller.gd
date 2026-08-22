@@ -537,6 +537,13 @@ func _hydrate_live_projection(container_id: String) -> void:
 			"metadata": component.metadata.duplicate(true),
 		})
 	var component = (_containers_by_id[container_id] as Dictionary)["component"]
+	if container.has_method("hydrate_storage_policy_from_gecs"):
+		container.call(
+			"hydrate_storage_policy_from_gecs",
+			bool(component.storage_allow_food),
+			bool(component.storage_allow_materials),
+			component.storage_item_overrides
+		)
 	container.call("hydrate_inventory_from_gecs", snapshots, _next_sequence_for_container(container_id, int(component.next_stack_sequence)))
 
 

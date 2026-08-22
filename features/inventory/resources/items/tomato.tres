@@ -12,6 +12,6 @@ settlement_food_units = 1.0
 icon = ExtResource("2_icon")
 grid_size = Vector2i(1, 1)
 unit_weight = 0.15
-max_stack = 20
+max_stack = 1
 nutrition_value = 55.0
 world_visual_height_meters = 0.12

@@ -2401,6 +2401,9 @@ func _sync_inventory_container(actor_id: String, container_id: String, inventory
 	component.accepts_input = true
 	component.is_world_container = is_world_container
 	component.is_job_work_inventory = is_work_inventory
+	component.storage_allow_food = bool(inventory_owner.get("storage_allow_food")) if is_world_container and _has_property(inventory_owner, "storage_allow_food") else true
+	component.storage_allow_materials = bool(inventory_owner.get("storage_allow_materials")) if is_world_container and _has_property(inventory_owner, "storage_allow_materials") else false
+	component.storage_item_overrides = (inventory_owner.get("storage_item_overrides") as Dictionary).duplicate(true) if is_world_container and _has_property(inventory_owner, "storage_item_overrides") else {}
 	_clear_item_stacks_for_container(container_id)
 	var entries: Array = inventory.get("entries") if _has_property(inventory, "entries") else []
 	for entry in entries:

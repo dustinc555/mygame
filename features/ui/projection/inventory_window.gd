@@ -20,6 +20,7 @@ signal cursor_item_equip_requested(data, target_owner, slot_name)
 
 const ACTION_EAT := 1
 const ACTION_READ := 2
+const ACTION_TAKE_ALL := 3
 const ACTION_TAKE_SILVER_1 := 101
 const ACTION_TAKE_SILVER_5 := 105
 const ACTION_TAKE_SILVER_10 := 110
@@ -125,7 +126,14 @@ func _get_drop_error(data, target_cell: Vector2i) -> String:
 		return "Too far away"
 	if _entry_is_silver_pouch(entry):
 		return "Drop onto pouch"
-	if inventory.use_weight and inventory.get_total_weight() + entry.definition.unit_weight * entry.count > inventory.max_weight:
+	if source_owner != null and source_owner.has_method("can_release_inventory_entry"):
+		return "" if bool(source_owner.call("can_release_inventory_entry", entry, inventory)) else "No room"
+	if inventory_owner != null and inventory_owner.has_method("can_receive_inventory_entry"):
+		return "" if bool(inventory_owner.call("can_receive_inventory_entry", entry)) else "No room"
+	var transfer_count := int(entry.count)
+	if source_owner != null and source_owner.has_method("get_inventory_transfer_count"):
+		transfer_count = maxi(1, int(source_owner.call("get_inventory_transfer_count", entry)))
+	if inventory.use_weight and inventory.get_total_weight() + inventory.get_item_weight(entry.definition, transfer_count, entry.contained_item_counts) > inventory.max_weight:
 		return "Too heavy"
 	if not inventory.can_place_item(entry.definition, target_cell):
 		return "No room"
@@ -168,10 +176,13 @@ func _on_inventory_item_right_clicked(entry, _local_position: Vector2, shift_pre
 		can_eat = inventory_owner.has_method("can_eat_item") and inventory_owner.can_eat_item(entry.definition)
 	var can_take_silver := _can_take_silver_from_pouch(entry)
 	var can_read: bool = entry.definition != null and entry.definition.read_behavior != ItemDefinition.ReadBehavior.NONE
-	if not can_eat and not can_take_silver and not can_read:
+	var can_take_all: bool = inventory_owner.has_method("release_inventory_entry_count_with_metadata") and int(entry.count) > 0
+	if not can_eat and not can_take_silver and not can_read and not can_take_all:
 		return
 	_context_entry = entry
 	item_menu.clear()
+	if can_take_all:
+		item_menu.add_item("Take All", ACTION_TAKE_ALL)
 	if can_eat:
 		var digesting: bool = inventory_owner.has_method("is_food_effect_active") and inventory_owner.is_food_effect_active()
 		item_menu.add_item("Eat (digesting)" if digesting else "Eat", ACTION_EAT)
@@ -365,6 +376,8 @@ func _on_item_menu_id_pressed(action_id: int) -> void:
 	if inventory_owner == null or _context_entry == null:
 		return
 	match action_id:
+		ACTION_TAKE_ALL:
+			item_action_requested.emit(inventory_owner, _context_entry, "take_all")
 		ACTION_READ:
 			item_action_requested.emit(inventory_owner, _context_entry, "read")
 		ACTION_EAT:

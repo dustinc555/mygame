@@ -249,7 +249,18 @@ func _available_entries(actor: Node) -> Array:
 				"contract": contract.duplicate(true),
 			})
 	_append_assignment_slot_entries(actor, entries)
+	_move_default_last_entries(entries)
 	return entries
+
+
+func _move_default_last_entries(entries: Array) -> void:
+	var default_last: Array = []
+	for index in range(entries.size() - 1, -1, -1):
+		var entry: Dictionary = entries[index]
+		if bool(entry.get("default_last", false)):
+			default_last.push_front(entry)
+			entries.remove_at(index)
+	entries.append_array(default_last)
 
 
 func _append_provider_category_entries(entries: Array, settlement_id: String) -> void:
@@ -435,7 +446,8 @@ func _offer_matches_actor_scope(offer: Dictionary, actor: Node, settlement_id: S
 	var offer_settlement_id := str(offer.get("settlement_id", ""))
 	var actor_faction := _actor_faction_id(actor)
 	var owner_faction := str(offer.get("owner_faction_id", ""))
-	if actor_faction.is_empty() or (not owner_faction.is_empty() and owner_faction != actor_faction):
+	var faction_neutral := bool(offer.get("faction_neutral", false))
+	if actor_faction.is_empty() or (not faction_neutral and not owner_faction.is_empty() and owner_faction != actor_faction):
 		return false
 	if not settlement_id.is_empty():
 		if not offer_settlement_id.is_empty() and offer_settlement_id != settlement_id:
@@ -446,7 +458,7 @@ func _offer_matches_actor_scope(offer: Dictionary, actor: Node, settlement_id: S
 			return true
 	if not offer_settlement_id.is_empty():
 		return false
-	if owner_faction.is_empty():
+	if owner_faction.is_empty() and not faction_neutral:
 		return false
 	return not settlement_id.is_empty() or _offer_distance(actor, offer) <= DEFAULT_UNSCOPED_LOCAL_WORK_RADIUS
 

@@ -7,4 +7,4 @@ script = ExtResource("1_item")
 display_name = "Copper Wire"
 grid_size = Vector2i(1, 1)
 unit_weight = 0.25
-max_stack = 20
+max_stack = 1
