@@ -1,0 +1,56 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_facility_instance.gd" id="1_facility"]
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/small_wood_cottage.tscn" id="2_shell"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_1.tscn" id="3_bed"]
+[ext_resource type="Script" path="res://features/settlements/resources/facility_role_slot_definition.gd" id="4_slot"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/resident.tres" id="5_resident_role"]
+[ext_resource type="Resource" path="res://features/actors/resources/characters/granary_worker.tres" id="6_worker"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chair_1.tscn" id="7_chair"]
+
+[sub_resource type="Resource" id="ResidentSlot"]
+script = ExtResource("4_slot")
+slot_id = "resident"
+role = ExtResource("5_resident_role")
+named_character = ExtResource("6_worker")
+display_name = "Elin's Home"
+authority_scope = "residence"
+
+[node name="WorkerHouse" type="Node3D"]
+script = ExtResource("1_facility")
+facility_id = "granary_demo.worker_house"
+building_id = "granary_demo.worker_house.building"
+display_name = "Worker House"
+facility_type = "housing"
+owner_faction_id = "Player"
+role_slots = Array[ExtResource("4_slot")]([SubResource("ResidentSlot")])
+door_access_policy = "private"
+door_initial_state = "open"
+housing_capacity = 1
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+auto_create_standard_roots = false
+
+[node name="BuildingSlot" type="Node3D" parent="."]
+position = Vector3(1, 0, -5.2)
+
+[node name="SmallWoodCottage" parent="BuildingSlot" instance=ExtResource("2_shell")]
+building_id = "granary_demo.worker_house.building"
+settlement_id = "granary_demo"
+building_type = "housing"
+owner_faction_id = "Player"
+
+[node name="Staff" type="Node3D" parent="."]
+
+[node name="Furniture" type="Node3D" parent="."]
+
+[node name="Bed" parent="Furniture" instance=ExtResource("3_bed")]
+position = Vector3(1, 0, -5.2)
+
+[node name="Chair" parent="Furniture" instance=ExtResource("7_chair")]
+position = Vector3(1.5, 0, -2.5)
+rotation_degrees = Vector3(0, 90, 0)
+
+[node name="ServicePoints" type="Node3D" parent="."]
+
+[node name="ActivityPoints" type="Node3D" parent="."]

@@ -2,6 +2,8 @@ extends RefCounted
 
 class_name HomeResidentProjection
 
+const FACILITY_DUTY_CONTRACT = preload("res://features/settlements/sim/facility_duty_contract.gd")
+
 var _facility: Node
 var _seats: Array[Node] = []
 var _beds: Array[Node] = []
@@ -18,6 +20,8 @@ func refresh(actor: Node, slot_record: Dictionary) -> void:
 	if actor == null or not actor.has_method("get_interaction") or int(actor.get("life_state")) == NpcRules.LifeState.DEAD:
 		return
 	if actor.has_method("has_active_player_order") and bool(actor.call("has_active_player_order")):
+		return
+	if actor.has_meta(&"active_settlement_work") or FACILITY_DUTY_CONTRACT.is_active(actor):
 		return
 	if actor.has_method("is_in_combat") and bool(actor.call("is_in_combat")):
 		return

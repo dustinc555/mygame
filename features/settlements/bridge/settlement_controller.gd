@@ -872,7 +872,7 @@ func realize_assignment_slot(settlement_id: String, assignment_domain: String, s
 		role_owner.call("sync_property_ownership")
 	if role_owner.has_method("sync_door_policy"):
 		role_owner.call("sync_door_policy")
-	refresh_assignment_slot_projection(settlement_id, assignment_domain, slot_id)
+	refresh_actor_assignment_projections(settlement_id, actor_id)
 	return is_assignment_slot_realized(settlement_id, assignment_domain, slot_id)
 
 
@@ -908,7 +908,7 @@ func _sync_assignment_owner_access(settlement_id: String, slot: Dictionary) -> v
 		role_owner.call("sync_door_policy")
 
 
-func refresh_assignment_slot_projection(settlement_id: String, assignment_domain: String, slot_id: String) -> void:
+func refresh_assignment_slot_projection(settlement_id: String, assignment_domain: String, slot_id: String, routine_activity_override := "") -> void:
 	var state: Dictionary = settlement_states.get(settlement_id, {})
 	var slot: Dictionary = (state.get("assignment_slots", {}) as Dictionary).get(_assignment_key(assignment_domain, slot_id), {})
 	var actor_id := str(slot.get("occupant_actor_id", ""))
@@ -916,14 +916,38 @@ func refresh_assignment_slot_projection(settlement_id: String, assignment_domain
 	var actor = population.call("get_live_actor", actor_id) if population != null and population.has_method("get_live_actor") else null
 	if actor == null or not is_instance_valid(actor):
 		return
-	if str(actor.get_meta(META_ASSIGNMENT_DOMAIN, "")) != assignment_domain or str(actor.get_meta(META_ASSIGNMENT_SLOT_ID, "")) != slot_id:
+	var is_primary_assignment := str(actor.get_meta(META_ASSIGNMENT_DOMAIN, "")) == assignment_domain \
+			and str(actor.get_meta(META_ASSIGNMENT_SLOT_ID, "")) == slot_id
+	# Residence remains available as a secondary relationship when employment
+	# owns the actor's primary realization; facility duty arbitrates precedence.
+	if not is_primary_assignment and assignment_domain != "residence":
 		return
 	var role_owner := _staff_role_owner(settlement_id, slot)
 	if role_owner != null and role_owner.has_method("refresh_settlement_assignment_actor"):
 		var projection_record := slot.duplicate(true)
-		if population.has_method("get_actor_routine_activity"):
+		if not routine_activity_override.is_empty():
+			projection_record["routine_activity_state"] = routine_activity_override
+		elif population.has_method("get_actor_routine_activity"):
 			projection_record["routine_activity_state"] = population.call("get_actor_routine_activity", actor_id, _get_absolute_minute())
 		role_owner.call("refresh_settlement_assignment_actor", actor, projection_record)
+
+
+func refresh_actor_assignment_projections(settlement_id: String, actor_id: String) -> void:
+	var state: Dictionary = settlement_states.get(settlement_id, {})
+	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
+		var slot: Dictionary = slot_value
+		if str(slot.get("occupant_actor_id", "")) != actor_id:
+			continue
+		refresh_assignment_slot_projection(settlement_id, str(slot.get("assignment_domain", "")), str(slot.get("slot_id", "")))
+
+
+func refresh_actor_residence_projection(settlement_id: String, actor_id: String, routine_activity := "home_day") -> void:
+	var state: Dictionary = settlement_states.get(settlement_id, {})
+	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
+		var slot: Dictionary = slot_value
+		if str(slot.get("occupant_actor_id", "")) != actor_id or str(slot.get("assignment_domain", "")) != "residence":
+			continue
+		refresh_assignment_slot_projection(settlement_id, "residence", str(slot.get("slot_id", "")), routine_activity)
 
 
 func _remove_unbound_assignment_bodies_for_settlement(settlement_id: String) -> void:

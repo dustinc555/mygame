@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SettlementDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/settlement_definition.gd" id="1_settlement"]
+[ext_resource type="Resource" path="res://features/factions/resources/factions/player_drifters.tres" id="2_faction"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/behavior_profiles/farmer_village.tres" id="3_behavior"]
+
+[resource]
+script = ExtResource("1_settlement")
+settlement_id = "granary_demo"
+display_name = "Granary Hamlet"
+faction_definition = ExtResource("2_faction")
+behavior_profile = ExtResource("3_behavior")
+world_position = Vector3(0, 0, 0)
+staff_stable_id_prefix = "npc.granary_demo"
+staff_squad_name = "Granary Hamlet"
+actor_realization_policy = "full_town"
+starting_wealth = 120.0
+starting_supplies = 80.0
+population_growth_per_day = 0.0
