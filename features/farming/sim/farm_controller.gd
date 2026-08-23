@@ -262,6 +262,8 @@ func is_active_field(value) -> bool:
 func get_plot(plot_id: String) -> Dictionary:
 	if _gecs == null:
 		return {}
+	if _gecs.has_method("get_farm_plot_state"):
+		return (_gecs.call("get_farm_plot_state", plot_id) as Dictionary).duplicate(true)
 	return (_gecs.get_farm_plot_states().get(plot_id, {}) as Dictionary).duplicate(true)
 
 
@@ -270,6 +272,8 @@ func get_plots() -> Dictionary:
 
 
 func get_cell(plot_id: String, cell_key: String) -> Dictionary:
+	if _gecs != null and _gecs.has_method("get_farm_plot_cell_record"):
+		return ((_gecs.call("get_farm_plot_cell_record", plot_id, cell_key) as Dictionary).get("cell", {}) as Dictionary).duplicate(true)
 	var cells: Dictionary = get_plot(plot_id).get("cells", {})
 	return (cells.get(cell_key, {}) as Dictionary).duplicate(true)
 
@@ -338,6 +342,8 @@ func _nearby_candidate_indices(existing: Vector3, overlap_extent: float, bucket_
 
 
 func can_actor_command_plot(actor: Node, plot_id: String) -> bool:
+	if _gecs != null and _gecs.has_method("get_farm_plot_header_state"):
+		return can_actor_command_plot_state(actor, _gecs.call("get_farm_plot_header_state", plot_id))
 	return can_actor_command_plot_state(actor, get_plot(plot_id))
 
 
@@ -1223,6 +1229,17 @@ func cancel_cell_operation(plot_id: String, cell_key: String, expected_request_r
 
 
 func get_cell_work(plot_id: String, cell_key: String) -> Dictionary:
+	if _gecs != null and _gecs.has_method("get_farm_plot_cell_record"):
+		var record: Dictionary = _gecs.call("get_farm_plot_cell_record", plot_id, cell_key)
+		var indexed_cell: Dictionary = record.get("cell", {})
+		if record.is_empty() or indexed_cell.is_empty():
+			return {}
+		var indexed_action := str(indexed_cell.get("requested_operation", ""))
+		if indexed_action.is_empty() or indexed_action != _action_for_status(str(indexed_cell.get("state", ""))):
+			return {}
+		if indexed_action == "water" and not _cell_needs_water_state(indexed_cell):
+			return {}
+		return _work_record(record, cell_key, indexed_cell, indexed_action)
 	var state := get_plot(plot_id)
 	var cells: Dictionary = state.get("cells", {})
 	if state.is_empty() or not cells.has(cell_key):
@@ -1234,6 +1251,32 @@ func get_cell_work(plot_id: String, cell_key: String) -> Dictionary:
 	if action == "water" and not cell_needs_water(plot_id, cell_key):
 		return {}
 	return _work_record(state, cell_key, cell, action)
+
+
+## One-snapshot Jobs read. The work bridge caches this result until a plot
+## mutation invalidates it; never call get_plot() once per cell here.
+func get_available_work_records(settlement_id := "") -> Array:
+	var records: Array = []
+	for state_value in get_plots().values():
+		var state: Dictionary = state_value
+		if not is_active_field(state):
+			continue
+		var plot_settlement_id := str(state.get("settlement_id", ""))
+		if not settlement_id.is_empty() and plot_settlement_id != settlement_id:
+			continue
+		for cell_key_value in (state.get("cells", {}) as Dictionary).keys():
+			var cell_key := str(cell_key_value)
+			var cell: Dictionary = (state.get("cells", {}) as Dictionary).get(cell_key_value, {})
+			var action := str(cell.get("requested_operation", ""))
+			if action.is_empty() or action != _action_for_status(str(cell.get("state", ""))):
+				continue
+			if action == "water" and not _cell_needs_water_state(cell):
+				continue
+			var work := _work_record(state, cell_key, cell, action)
+			work["settlement_id"] = plot_settlement_id
+			work["owner_faction_id"] = str(state.get("owner_faction_id", ""))
+			records.append(work)
+	return records
 
 
 func cell_needs_water(plot_id: String, cell_key: String) -> bool:
@@ -1261,11 +1304,71 @@ func get_next_work(plot_id: String, excluded_keys := PackedStringArray()) -> Dic
 
 
 func apply_work(plot_id: String, cell_key: String, action: String, seconds: float, farming_level := 0.0, expected_request_revision := -1) -> Dictionary:
-	var state := get_plot(plot_id)
-	if state.is_empty():
-		return {}
+	var results := apply_work_batch([{
+		"plot_id": plot_id,
+		"cell_key": cell_key,
+		"action": action,
+		"seconds": seconds,
+		"farming_level": farming_level,
+		"expected_request_revision": expected_request_revision,
+	}])
+	return results[0] as Dictionary if not results.is_empty() else {}
+
+
+## Apply every due projected work delta with one authoritative save per plot.
+## Results stay request-ordered so inventory rollback/completion behavior remains
+## identical to apply_work().
+func apply_work_batch(requests: Array) -> Array:
+	var results: Array = []
+	var indices_by_plot: Dictionary = {}
+	for index in requests.size():
+		results.append({})
+		var request: Dictionary = requests[index] if requests[index] is Dictionary else {}
+		var plot_id := str(request.get("plot_id", ""))
+		if plot_id.is_empty():
+			continue
+		var indices: Array = indices_by_plot.get(plot_id, [])
+		indices.append(index)
+		indices_by_plot[plot_id] = indices
+	for plot_id_value in indices_by_plot.keys():
+		var plot_id := str(plot_id_value)
+		var state := get_plot(plot_id)
+		if state.is_empty():
+			continue
+		var state_changed := false
+		var completed_results: Array[Dictionary] = []
+		for index_value in (indices_by_plot[plot_id_value] as Array):
+			var index := int(index_value)
+			var request: Dictionary = requests[index]
+			var result := _apply_work_to_state(
+				state,
+				str(request.get("cell_key", "")),
+				str(request.get("action", "")),
+				float(request.get("seconds", 0.0)),
+				float(request.get("farming_level", 0.0)),
+				int(request.get("expected_request_revision", -1))
+			)
+			results[index] = result
+			if result.is_empty():
+				continue
+			state_changed = true
+			if bool(result.get("completed", false)):
+				completed_results.append(result)
+		if not state_changed:
+			continue
+		# Partial work changes only durable progress. The live worker owns the
+		# progress presentation, so avoid rebuilding field offers and projection
+		# until a cell actually transitions state.
+		_save_plot(state, not completed_results.is_empty())
+		for result in completed_results:
+			work_completed.emit(result)
+	return results
+
+
+func _apply_work_to_state(state: Dictionary, cell_key: String, action: String, seconds: float, farming_level: float, expected_request_revision: int) -> Dictionary:
+	var plot_id := str(state.get("plot_id", ""))
 	var cells: Dictionary = state.get("cells", {})
-	if not cells.has(cell_key):
+	if plot_id.is_empty() or not cells.has(cell_key):
 		return {}
 	var cell: Dictionary = (cells[cell_key] as Dictionary).duplicate(true)
 	if action != _action_for_status(str(cell.get("state", ""))):
@@ -1309,9 +1412,6 @@ func apply_work(plot_id: String, cell_key: String, action: String, seconds: floa
 		cell = _with_field_policy_request(cell, str(state.get("crop_policy_id", "")), is_active_field(state))
 	cells[cell_key] = cell
 	state["cells"] = cells
-	_save_plot(state)
-	if bool(result.get("completed", false)):
-		work_completed.emit(result)
 	return result
 
 
@@ -1564,10 +1664,11 @@ func _watering_threshold(cell: Dictionary) -> float:
 	return crop.water_capacity * 0.45 if crop != null else 1.0
 
 
-func _save_plot(state: Dictionary) -> Dictionary:
+func _save_plot(state: Dictionary, emit_changed := true) -> Dictionary:
 	state["state_revision"] = int(state.get("state_revision", 0)) + 1
 	var saved: Dictionary = _gecs.upsert_farm_plot_state(state) if _gecs != null else state
-	plot_changed.emit(str(saved.get("plot_id", "")), saved)
+	if emit_changed:
+		plot_changed.emit(str(saved.get("plot_id", "")), saved)
 	return saved
 
 

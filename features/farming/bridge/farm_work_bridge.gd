@@ -10,6 +10,7 @@ const WATERING_CAN_CAPACITY := 16.0
 const WATER_PER_CELL := 5.0
 const INTERACTION_RANGE := 1.65
 const WORK_COMMIT_INTERVAL := 0.25
+const TRAVEL_CHECK_INTERVAL := 0.1
 const MAX_TRAVEL_SECONDS := 30.0
 const MAX_STALLED_SECONDS := 6.0
 const UNREACHABLE_RETRY_MSEC := 15000
@@ -21,6 +22,14 @@ var _gecs: Node
 var _job_system: Node
 var _assignments: Dictionary = {}
 var _unreachable_until_msec: Dictionary = {}
+var _offer_cache: Array = []
+var _offer_cache_dirty := true
+var _pending_work_commits: Array = []
+var _process_sim_time := 0.0
+var _last_process_usec := 0
+var _last_assignment_loop_usec := 0
+var _last_commit_flush_usec := 0
+var _last_tool_equip_timings: Dictionary = {}
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -28,6 +37,7 @@ func initialize(context: BootstrapContext) -> void:
 	_farm = context.get_optional(FARM_CONTROLLER.SERVICE_ID)
 	_gecs = context.get_optional(&"gecs_world")
 	_job_system = context.get_optional(&"job_system")
+	_bind_offer_cache_signals()
 	if _gecs != null and not _gecs.world_reindexed.is_connected(_on_world_reindexed):
 		_gecs.world_reindexed.connect(_on_world_reindexed)
 	add_to_group("job_provider")
@@ -37,6 +47,7 @@ func initialize(context: BootstrapContext) -> void:
 
 
 func teardown() -> void:
+	_unbind_offer_cache_signals()
 	if _gecs != null and _gecs.world_reindexed.is_connected(_on_world_reindexed):
 		_gecs.world_reindexed.disconnect(_on_world_reindexed)
 	if _job_system != null and is_instance_valid(_job_system) and _job_system.has_method("unregister_job_provider"):
@@ -57,41 +68,99 @@ func get_job_category_specs(_settlement_id := "") -> Array:
 
 func get_available_work_offers(settlement_id := "") -> Array:
 	var offers: Array = []
-	if _farm == null or not _farm.has_method("get_plots"):
+	if _farm == null:
 		return offers
-	var plots: Dictionary = _farm.get_plots()
+	_refresh_offer_cache_if_needed()
 	var claimed_cells := {}
 	for assignment_value in _assignments.values():
 		var assignment: Dictionary = assignment_value
 		claimed_cells["%s|%s" % [str(assignment.get("plot_id", "")), str(assignment.get("cell_key", ""))]] = true
-	for plot_id_value in plots.keys():
-		var plot_id := str(plot_id_value)
-		var state: Dictionary = plots[plot_id_value]
-		if _farm.has_method("is_active_field") and not bool(_farm.call("is_active_field", state)):
-			continue
-		var plot_settlement_id := str(state.get("settlement_id", ""))
+	for offer_value in _offer_cache:
+		var offer: Dictionary = offer_value
+		var plot_id := str(offer.get("plot_id", ""))
+		var cell_key := str(offer.get("cell_key", ""))
+		var plot_settlement_id := str(offer.get("settlement_id", ""))
 		if not settlement_id.is_empty() and plot_settlement_id != settlement_id:
 			continue
+		if claimed_cells.has("%s|%s" % [plot_id, cell_key]):
+			continue
+		offers.append(offer)
+	return offers
+
+
+func _refresh_offer_cache_if_needed() -> void:
+	if not _offer_cache_dirty:
+		return
+	_offer_cache_dirty = false
+	_offer_cache.clear()
+	if _farm == null:
+		return
+	if _farm.has_method("get_available_work_records"):
+		for work_value in _farm.call("get_available_work_records"):
+			_append_cached_offer(work_value as Dictionary)
+		return
+	# Compatibility for isolated providers/validators. Production FarmController
+	# uses the one-snapshot API above; this legacy path is never on its hot road.
+	if not _farm.has_method("get_plots") or not _farm.has_method("get_cell_work"):
+		return
+	for state_value in (_farm.call("get_plots") as Dictionary).values():
+		var state: Dictionary = state_value
+		if _farm.has_method("is_active_field") and not bool(_farm.call("is_active_field", state)):
+			continue
 		for cell_key_value in (state.get("cells", {}) as Dictionary).keys():
-			var cell_key := str(cell_key_value)
-			if claimed_cells.has("%s|%s" % [plot_id, cell_key]):
-				continue
-			var work: Dictionary = _farm.get_cell_work(plot_id, cell_key)
+			var work: Dictionary = _farm.call("get_cell_work", str(state.get("plot_id", "")), str(cell_key_value))
 			if work.is_empty():
 				continue
-			offers.append({
-				"offer_id": "farming:%s:%s" % [plot_id, cell_key],
-				"provider": self,
-				"category": "farm",
-				"plot_id": plot_id,
-				"cell_key": cell_key,
-				"settlement_id": plot_settlement_id,
-				"owner_faction_id": str(state.get("owner_faction_id", "")),
-				"world_position": work.get("world_position", Vector3.ZERO),
-				"allowed_actor_ids": work.get("allowed_actor_ids", PackedStringArray()),
-				"urgency": 0.5,
-			})
-	return offers
+			work["settlement_id"] = str(state.get("settlement_id", ""))
+			work["owner_faction_id"] = str(state.get("owner_faction_id", ""))
+			_append_cached_offer(work)
+
+
+func _append_cached_offer(work: Dictionary) -> void:
+	if work.is_empty():
+		return
+	var plot_id := str(work.get("plot_id", ""))
+	var cell_key := str(work.get("cell_key", ""))
+	if plot_id.is_empty() or cell_key.is_empty():
+		return
+	_offer_cache.append({
+		"offer_id": "farming:%s:%s" % [plot_id, cell_key],
+		"provider": self,
+		"category": "farm",
+		"plot_id": plot_id,
+		"cell_key": cell_key,
+		"settlement_id": str(work.get("settlement_id", "")),
+		"owner_faction_id": str(work.get("owner_faction_id", "")),
+		"world_position": work.get("world_position", Vector3.ZERO),
+		"allowed_actor_ids": work.get("allowed_actor_ids", PackedStringArray()),
+		"urgency": 0.5,
+	})
+
+
+func _bind_offer_cache_signals() -> void:
+	if _farm == null:
+		return
+	if _farm.has_signal("plot_changed") and not _farm.plot_changed.is_connected(_on_offer_source_changed):
+		_farm.plot_changed.connect(_on_offer_source_changed)
+	if _farm.has_signal("plot_removed") and not _farm.plot_removed.is_connected(_on_offer_source_removed):
+		_farm.plot_removed.connect(_on_offer_source_removed)
+
+
+func _unbind_offer_cache_signals() -> void:
+	if _farm == null:
+		return
+	if _farm.has_signal("plot_changed") and _farm.plot_changed.is_connected(_on_offer_source_changed):
+		_farm.plot_changed.disconnect(_on_offer_source_changed)
+	if _farm.has_signal("plot_removed") and _farm.plot_removed.is_connected(_on_offer_source_removed):
+		_farm.plot_removed.disconnect(_on_offer_source_removed)
+
+
+func _on_offer_source_changed(_plot_id: String, _state: Dictionary) -> void:
+	_offer_cache_dirty = true
+
+
+func _on_offer_source_removed(_plot_id: String) -> void:
+	_offer_cache_dirty = true
 
 
 func accept_work_offer(offer: Dictionary, actor: Node) -> String:
@@ -245,7 +314,9 @@ func assign_seed_processing(processor: Node3D, crop_id: String, actors: Array) -
 		_assignments[actor.get_instance_id()] = {
 			"actor": actor, "action": "process_seeds", "processor": processor,
 			"crop_id": crop_id, "expected_target": target, "progress_seconds": 0.0,
-			"stage": "work", "automatic": false, "travel_seconds": 0.0, "stalled_seconds": 0.0,
+			"stage": "work", "automatic": false, "traveling": true, "travel_check_accumulated": 0.0,
+			"last_travel_check_time": _process_sim_time,
+			"travel_seconds": 0.0, "stalled_seconds": 0.0,
 			"last_actor_position": actor.global_position,
 		}
 		_mark_settlement_work_active(actor, true)
@@ -257,11 +328,50 @@ func assign_seed_processing(processor: Node3D, crop_id: String, actors: Array) -
 
 
 func _process(delta: float) -> void:
+	var process_started := Time.get_ticks_usec()
 	if _farm == null or _assignments.is_empty():
+		_last_process_usec = 0
 		set_process(false)
 		return
+	_pending_work_commits.clear()
+	_process_sim_time += maxf(0.0, delta)
+	var assignment_loop_started := Time.get_ticks_usec()
 	for actor_key in _assignments.keys().duplicate():
-		_process_assignment(int(actor_key), delta)
+		var assignment: Dictionary = _assignments.get(actor_key, {})
+		var travel_elapsed := delta
+		if bool(assignment.get("traveling", false)):
+			if not assignment.has("last_travel_check_time"):
+				assignment["last_travel_check_time"] = _process_sim_time - maxf(0.0, delta)
+			var actor := assignment.get("actor") as Node3D
+			var player_override := actor != null and bool(assignment.get("automatic", false)) \
+					and actor.has_method("has_active_player_order") and bool(actor.call("has_active_player_order"))
+			var expected: Vector3 = assignment.get("expected_target", Vector3.ZERO)
+			var in_interaction_range := actor != null and actor.global_position.distance_to(expected) <= INTERACTION_RANGE
+			travel_elapsed = maxf(0.0, _process_sim_time - float(assignment.get("last_travel_check_time", _process_sim_time)))
+			if not player_override and not in_interaction_range \
+					and actor != null and _has_move_target(actor) \
+					and travel_elapsed + 0.000001 < TRAVEL_CHECK_INTERVAL:
+				_assignments[actor_key] = assignment
+				continue
+			assignment["last_travel_check_time"] = _process_sim_time
+			_assignments[actor_key] = assignment
+		_process_assignment(int(actor_key), delta, true, travel_elapsed)
+	_last_assignment_loop_usec = Time.get_ticks_usec() - assignment_loop_started
+	var commit_flush_started := Time.get_ticks_usec()
+	_flush_pending_work_commits()
+	_last_commit_flush_usec = Time.get_ticks_usec() - commit_flush_started
+	_last_process_usec = Time.get_ticks_usec() - process_started
+
+
+func get_last_process_msec() -> float:
+	return float(_last_process_usec) / 1000.0
+
+
+func get_last_process_breakdown() -> Dictionary:
+	return {
+		"assignment_loop_msec": float(_last_assignment_loop_usec) / 1000.0,
+		"commit_flush_msec": float(_last_commit_flush_usec) / 1000.0,
+	}
 
 
 func _assign_cell_to_actor(actor: Node3D, plot_id: String, cell_key: String, automatic := false, equipped_only := false, expected_request_revision := -1, command_targets: Array = [], replace_claimed := false, replace_actor_work := false) -> String:
@@ -329,6 +439,9 @@ func _assign_cell_to_actor(actor: Node3D, plot_id: String, cell_key: String, aut
 	work["pending_work_seconds"] = 0.0
 	work["travel_seconds"] = 0.0
 	work["stalled_seconds"] = 0.0
+	work["traveling"] = true
+	work["travel_check_accumulated"] = 0.0
+	work["last_travel_check_time"] = _process_sim_time
 	work["last_actor_position"] = actor.global_position
 	work["stage"] = "work"
 	work["automatic"] = automatic
@@ -348,7 +461,7 @@ func _assign_cell_to_actor(actor: Node3D, plot_id: String, cell_key: String, aut
 	return ""
 
 
-func _process_assignment(actor_key: int, delta: float) -> void:
+func _process_assignment(actor_key: int, delta: float, defer_commit := false, travel_elapsed := -1.0) -> void:
 	var assignment: Dictionary = _assignments.get(actor_key, {})
 	var actor := assignment.get("actor") as Node3D
 	if actor == null or not is_instance_valid(actor):
@@ -362,8 +475,15 @@ func _process_assignment(actor_key: int, delta: float) -> void:
 		_cancel(actor_key)
 		return
 	if actor.global_position.distance_to(expected) > INTERACTION_RANGE:
+		var started_travel_leg := not bool(assignment.get("traveling", false))
+		if started_travel_leg:
+			_reset_travel_state(assignment, actor)
+		else:
+			assignment["traveling"] = true
+		_assignments[actor_key] = assignment
 		_set_farming_visual(actor, false, "", expected, 0.0)
-		if _travel_timed_out(actor_key, assignment, actor, delta):
+		var timeout_delta := delta if started_travel_leg else travel_elapsed if travel_elapsed >= 0.0 else delta
+		if _travel_timed_out(actor_key, assignment, actor, timeout_delta):
 			if str(assignment.get("stage", "work")) == "work" and not str(assignment.get("plot_id", "")).is_empty():
 				_mark_temporarily_unreachable(assignment)
 			_speak(actor, "Cannot reach farming target; trying other work")
@@ -373,6 +493,8 @@ func _process_assignment(actor_key: int, delta: float) -> void:
 			_move_actor(actor, expected, not bool(assignment.get("automatic", false)))
 		return
 	_stop_actor_movement(actor)
+	assignment["traveling"] = false
+	assignment["travel_check_accumulated"] = 0.0
 	assignment["travel_seconds"] = 0.0
 	assignment["stalled_seconds"] = 0.0
 	assignment["last_actor_position"] = actor.global_position
@@ -421,25 +543,77 @@ func _process_assignment(actor_key: int, delta: float) -> void:
 			_cancel(actor_key)
 			return
 
+	var commit := {
+		"actor_key": actor_key,
+		"actor": actor,
+		"assignment": assignment,
+		"action": action,
+		"expected": expected,
+		"durable_progress": durable_progress,
+		"required": required,
+		"pending": pending,
+		"farming_level": _farming_level(actor),
+		"completion_item": completion_item,
+		"completion_amount": completion_amount,
+	}
+	if defer_commit and _farm.has_method("apply_work_batch"):
+		_pending_work_commits.append(commit)
+		return
 	var result: Dictionary = _farm.apply_work(
 		str(assignment.get("plot_id", "")),
 		str(assignment.get("cell_key", "")),
 		action,
 		pending,
-		_farming_level(actor),
+		float(commit.get("farming_level", 0.0)),
 		int(assignment.get("request_revision", -1))
 	)
+	_finalize_work_commit(commit, result)
+
+
+func _flush_pending_work_commits() -> void:
+	if _pending_work_commits.is_empty():
+		return
+	var commits := _pending_work_commits.duplicate(false)
+	_pending_work_commits.clear()
+	var requests: Array = []
+	for commit_value in commits:
+		var commit: Dictionary = commit_value
+		var assignment: Dictionary = commit.get("assignment", {})
+		requests.append({
+			"plot_id": str(assignment.get("plot_id", "")),
+			"cell_key": str(assignment.get("cell_key", "")),
+			"action": str(commit.get("action", "")),
+			"seconds": float(commit.get("pending", 0.0)),
+			"farming_level": float(commit.get("farming_level", 0.0)),
+			"expected_request_revision": int(assignment.get("request_revision", -1)),
+		})
+	var results: Array = _farm.call("apply_work_batch", requests)
+	for index in commits.size():
+		var result: Dictionary = results[index] if index < results.size() and results[index] is Dictionary else {}
+		_finalize_work_commit(commits[index], result)
+
+
+func _finalize_work_commit(commit: Dictionary, result: Dictionary) -> void:
+	var actor_key := int(commit.get("actor_key", 0))
+	var actor := commit.get("actor") as Node3D
+	var assignment: Dictionary = commit.get("assignment", {})
+	var action := str(commit.get("action", ""))
+	var completion_item = commit.get("completion_item")
+	var completion_amount := int(commit.get("completion_amount", 0))
+	if actor == null or not is_instance_valid(actor) or not _assignments.has(actor_key):
+		_rollback_completion_item(actor, action, completion_item, completion_amount)
+		return
 	if result.is_empty():
 		_rollback_completion_item(actor, action, completion_item, completion_amount)
 		_speak(actor, "Field work is no longer valid")
 		_cancel(actor_key)
 		return
-	required = maxf(0.01, float(result.get("required_seconds", required)))
+	var required := maxf(0.01, float(result.get("required_seconds", commit.get("required", 1.0))))
 	assignment["required_seconds"] = required
-	assignment["progress_seconds"] = float(result.get("progress_seconds", durable_progress))
+	assignment["progress_seconds"] = float(result.get("progress_seconds", commit.get("durable_progress", 0.0)))
 	assignment["pending_work_seconds"] = 0.0
 	_assignments[actor_key] = assignment
-	_set_farming_visual(actor, true, action, expected, float(assignment["progress_seconds"]) / required)
+	_set_farming_visual(actor, true, action, commit.get("expected", Vector3.ZERO), float(assignment["progress_seconds"]) / required)
 	if not bool(result.get("completed", false)):
 		_rollback_completion_item(actor, action, completion_item, completion_amount)
 		return
@@ -600,6 +774,7 @@ func _ensure_tool(actor: Node, tag: String, label: String) -> String:
 
 
 func _equip_carried_tool(actor: Node, equipment, entry) -> bool:
+	var profile_started := Time.get_ticks_usec()
 	var inventory = _inventory(actor)
 	if equipment == null or entry == null or inventory == null or not inventory.entries.has(entry) \
 			or not equipment.has_method("can_equip_item_to_slot") \
@@ -617,10 +792,17 @@ func _equip_carried_tool(actor: Node, equipment, entry) -> bool:
 		"stack_id": str(entry.stack_id),
 	}
 	var replaced_snapshot := _stack_snapshot(replaced_stack_id)
+	var preflight_usec := Time.get_ticks_usec() - profile_started
 	if equipment.has_method("begin_equipment_update_batch"):
 		equipment.begin_equipment_update_batch()
+	var equip_started := Time.get_ticks_usec()
 	equipment.equip_item_to_slot(entry.definition, "weapon", str(entry.stack_id))
-	if equipment.get_equipped_item("weapon") != entry.definition or not inventory.remove_entry(entry):
+	var equip_usec := Time.get_ticks_usec() - equip_started
+	var remove_started := Time.get_ticks_usec()
+	var equipped_success: bool = equipment.get_equipped_item("weapon") == entry.definition
+	var removed_success: bool = equipped_success and inventory.remove_entry(entry)
+	var remove_usec := Time.get_ticks_usec() - remove_started
+	if not equipped_success or not removed_success:
 		_restore_replaced_equipment(equipment, replaced, replaced_stack_id)
 		_end_equipment_batch(equipment)
 		return false
@@ -641,9 +823,25 @@ func _equip_carried_tool(actor: Node, equipment, entry) -> bool:
 		)
 		_end_equipment_batch(equipment)
 		return false
+	var end_batch_started := Time.get_ticks_usec()
 	_end_equipment_batch(equipment)
+	var end_batch_usec := Time.get_ticks_usec() - end_batch_started
+	var restore_started := Time.get_ticks_usec()
 	_restore_equipped_stack_contents(incoming_snapshot, "weapon")
+	var restore_usec := Time.get_ticks_usec() - restore_started
+	_last_tool_equip_timings = {
+		"preflight_msec": float(preflight_usec) / 1000.0,
+		"equip_msec": float(equip_usec) / 1000.0,
+		"inventory_remove_msec": float(remove_usec) / 1000.0,
+		"end_batch_msec": float(end_batch_usec) / 1000.0,
+		"restore_stack_msec": float(restore_usec) / 1000.0,
+		"total_msec": float(Time.get_ticks_usec() - profile_started) / 1000.0,
+	}
 	return true
+
+
+func get_last_tool_equip_timings() -> Dictionary:
+	return _last_tool_equip_timings.duplicate(true)
 
 
 func _restore_equipped_stack_contents(snapshot: Dictionary, slot_name: String) -> void:
@@ -866,6 +1064,9 @@ func _has_property(value: Object, property_name: String) -> bool:
 
 
 func _reset_travel_state(assignment: Dictionary, actor: Node3D) -> void:
+	assignment["traveling"] = true
+	assignment["travel_check_accumulated"] = 0.0
+	assignment["last_travel_check_time"] = _process_sim_time
 	assignment["travel_seconds"] = 0.0
 	assignment["stalled_seconds"] = 0.0
 	assignment["last_actor_position"] = actor.global_position
@@ -894,6 +1095,7 @@ func _append_unreachable_cells(plot_id: String, exclusions: Array[String]) -> vo
 func _on_world_reindexed() -> void:
 	_cancel_all_assignments()
 	_unreachable_until_msec.clear()
+	_offer_cache_dirty = true
 
 
 func _cancel_claimed_cell(plot_id: String, cell_key: String) -> void:
