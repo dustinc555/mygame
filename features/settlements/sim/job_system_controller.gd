@@ -4,7 +4,7 @@ class_name JobSystemController
 
 const SERVICE_ID := &"job_system"
 const GECS_SERVICE_ID := &"gecs_world"
-const DISPATCH_INTERVAL_SECONDS := 0.5
+const DISPATCH_SLOT_SECONDS := 1.0 / 60.0
 const MAX_ACTOR_DISPATCHES_PER_TICK := 16
 const RESERVED_ASSIGNMENT_DISPATCHES_PER_TICK := 8
 const MAX_ASSIGNMENT_OFFERS_PER_ACTOR := 24
@@ -36,6 +36,9 @@ var _assignment_ids_by_settlement: Dictionary = {}
 var _assignment_actor_cursor := 0
 var _assignment_cache_bound := false
 var _dispatch_remaining := 0.0
+var _assignment_dispatch_turn := false
+var _property_presence_cache: Dictionary = {}
+var _last_dispatch_usec := 0
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -119,9 +122,11 @@ func dispatch_actor_work_for_assignment(actor: Node, settlement_id: String, allo
 	if not settlement_states is Dictionary:
 		var bridge := _get_gecs_world()
 		settlement_states = bridge.call("get_settlement_states") if bridge != null and bridge.has_method("get_settlement_states") else null
+	var actor_id := _actor_id(actor)
+	var actor_faction := _actor_faction_id(actor)
 	for offer_value in offers:
 		var offer: Dictionary = offer_value
-		if not _assignment_offer_matches_scope(offer, actor, settlement_id, settlement_states, offer_scope_cache):
+		if not _assignment_offer_matches_scope(offer, actor, settlement_id, settlement_states, offer_scope_cache, actor_id, actor_faction):
 			continue
 		var entry_id := str(offer.get("job_entry_id", ""))
 		if entry_id.is_empty():
@@ -172,6 +177,11 @@ func get_actor_ranked_jobs(actor: Node) -> Array:
 func is_actor_jobs_enabled(actor: Node) -> bool:
 	if not _is_player_party_actor(actor):
 		return false
+	var actor_id := _actor_id(actor)
+	if actor_id.is_empty():
+		return false
+	if _actor_policies.has(actor_id):
+		return bool((_actor_policies.get(actor_id, {}) as Dictionary).get("jobs_enabled", false))
 	var policy := _ensure_actor_policy(actor, _available_entries(actor))
 	return bool(policy.get("jobs_enabled", false))
 
@@ -222,14 +232,17 @@ func dispatch_actor_work(actor: Node, available_offers = null, settlement_states
 	if not _can_dispatch_actor(actor):
 		return false
 	var settlement_id := _local_actor_settlement_id(actor, settlement_states)
-	var ranks := _actor_rank_map(actor)
+	var ranked_rows := get_actor_ranked_jobs(actor)
+	var ranks := _actor_rank_map(actor, ranked_rows)
+	var actor_id := _actor_id(actor)
+	var actor_faction := _actor_faction_id(actor)
 	var candidates: Array[Dictionary] = []
 	var offers: Array = available_offers if available_offers is Array else collect_work_offers()
 	for offer_value in offers:
 		var offer: Dictionary = offer_value
-		if not _offer_matches_actor_scope(offer, actor, settlement_id, settlement_states, offer_scope_cache):
+		if not _offer_matches_actor_scope(offer, actor, settlement_id, settlement_states, offer_scope_cache, actor_id, actor_faction):
 			continue
-		if not _offer_allows_actor(offer, actor):
+		if not _offer_allows_actor(offer, actor, actor_id):
 			continue
 		var entry_id := str(offer.get("job_entry_id", ""))
 		if entry_id.is_empty():
@@ -242,7 +255,7 @@ func dispatch_actor_work(actor: Node, available_offers = null, settlement_states
 		candidate["distance"] = _offer_distance(actor, offer)
 		candidates.append(candidate)
 	candidates.sort_custom(_offer_precedes)
-	var facility_rank := _highest_actionable_facility_rank(actor, ranks)
+	var facility_rank := _highest_actionable_facility_rank(actor, ranks, ranked_rows)
 	for offer in candidates:
 		if facility_rank < int(offer.get("rank", 999999)):
 			return false
@@ -253,6 +266,7 @@ func dispatch_actor_work(actor: Node, available_offers = null, settlement_states
 			continue
 		var result = provider.call("accept_work_offer", offer, actor)
 		if _work_offer_was_accepted(result):
+			_remove_offer_by_id(offers, str(offer.get("offer_id", "")))
 			return true
 	return false
 
@@ -265,8 +279,16 @@ func _process(delta: float) -> void:
 	_process_job_provider_contracts(delta)
 	_dispatch_remaining -= delta
 	if _dispatch_remaining <= 0.0:
-		_dispatch_remaining = DISPATCH_INTERVAL_SECONDS
-		_process_party_job_dispatch()
+		# One shared actor-start slot per rendered frame. Low frame rate slows
+		# discovery instead of multiplying expensive movement starts into a spike.
+		_dispatch_remaining = DISPATCH_SLOT_SECONDS
+		var dispatch_started := Time.get_ticks_usec()
+		_process_party_job_dispatch(1)
+		_last_dispatch_usec = Time.get_ticks_usec() - dispatch_started
+
+
+func get_last_dispatch_msec() -> float:
+	return float(_last_dispatch_usec) / 1000.0
 
 
 func get_sim_time() -> float:
@@ -420,8 +442,11 @@ func _ensure_actor_policy(actor: Node, entries: Array) -> Dictionary:
 	return policy
 
 
-func _process_party_job_dispatch() -> void:
+func _process_party_job_dispatch(max_dispatches := MAX_ACTOR_DISPATCHES_PER_TICK) -> void:
 	if root_scene == null or not is_instance_valid(root_scene) or not root_scene.is_inside_tree():
+		return
+	var dispatch_budget := maxi(max_dispatches, 0)
+	if dispatch_budget <= 0:
 		return
 	_bind_assignment_worker_cache()
 	if _enabled_party_actors.is_empty():
@@ -430,15 +455,21 @@ func _process_party_job_dispatch() -> void:
 		_dispatch_actor_cursor = 0
 	if _enabled_party_actors.is_empty() and _assignment_workers.is_empty():
 		return
-	var offers := collect_work_offers()
-	var assignment_offer_index := _build_assignment_offer_index(offers)
-	var bridge := _get_gecs_world()
-	var settlement_states = bridge.call("get_settlement_states") if bridge != null and bridge.has_method("get_settlement_states") else null
+	var offers: Array = []
+	var offers_loaded := false
+	var settlement_states: Variant = null
 	var offer_scope_cache: Dictionary = {}
 	var attempts := 0
 	var dispatched := 0
-	var party_budget := MAX_ACTOR_DISPATCHES_PER_TICK - RESERVED_ASSIGNMENT_DISPATCHES_PER_TICK \
-			if not _assignment_workers.is_empty() else MAX_ACTOR_DISPATCHES_PER_TICK
+	var party_budget := dispatch_budget
+	if not _assignment_workers.is_empty():
+		if _enabled_party_actors.is_empty():
+			party_budget = 0
+		elif dispatch_budget == 1:
+			party_budget = 0 if _assignment_dispatch_turn else 1
+			_assignment_dispatch_turn = not _assignment_dispatch_turn
+		else:
+			party_budget = dispatch_budget - mini(RESERVED_ASSIGNMENT_DISPATCHES_PER_TICK, dispatch_budget)
 	while attempts < _dispatch_actor_order.size() and dispatched < party_budget:
 		if _dispatch_actor_order.is_empty():
 			break
@@ -452,9 +483,33 @@ func _process_party_job_dispatch() -> void:
 			_enabled_party_actors.erase(instance_id_value)
 			continue
 		dispatched += 1
+		if not _can_dispatch_actor(actor):
+			continue
+		if not offers_loaded:
+			offers = collect_work_offers()
+			var bridge := _get_gecs_world()
+			settlement_states = bridge.call("get_settlement_states") if bridge != null and bridge.has_method("get_settlement_states") else null
+			offers_loaded = true
 		dispatch_actor_work(actor, offers, settlement_states, offer_scope_cache)
 	_compact_dispatch_actor_order_if_needed()
-	_process_assignment_worker_dispatch(assignment_offer_index, settlement_states, offer_scope_cache, MAX_ACTOR_DISPATCHES_PER_TICK - dispatched)
+	var assignment_budget := dispatch_budget - dispatched
+	if assignment_budget <= 0:
+		return
+	if not offers_loaded:
+		offers = collect_work_offers()
+		var bridge := _get_gecs_world()
+		settlement_states = bridge.call("get_settlement_states") if bridge != null and bridge.has_method("get_settlement_states") else null
+	var assignment_offer_index := _build_assignment_offer_index(offers)
+	_process_assignment_worker_dispatch(assignment_offer_index, settlement_states, offer_scope_cache, assignment_budget)
+
+
+func _remove_offer_by_id(offers: Array, offer_id: String) -> void:
+	if offer_id.is_empty():
+		return
+	for index in range(offers.size() - 1, -1, -1):
+		if str((offers[index] as Dictionary).get("offer_id", "")) == offer_id:
+			offers.remove_at(index)
+			return
 
 
 func _build_assignment_offer_index(offers: Array) -> Dictionary:
@@ -746,7 +801,7 @@ func _set_enabled_party_actor(actor: Node, enabled: bool) -> void:
 
 
 func _can_dispatch_actor(actor: Node) -> bool:
-	if not _is_player_party_actor(actor) or not is_actor_jobs_enabled(actor):
+	if not _is_player_party_actor(actor):
 		return false
 	if _has_property(actor, "life_state") and int(actor.get("life_state")) != 0:
 		return false
@@ -759,20 +814,22 @@ func _can_dispatch_actor(actor: Node) -> bool:
 	for provider in _job_providers:
 		if is_instance_valid(provider) and provider.has_method("has_active_work_for_actor") and bool(provider.call("has_active_work_for_actor", actor)):
 			return false
-	return true
+	return is_actor_jobs_enabled(actor)
 
 
-func _actor_rank_map(actor: Node) -> Dictionary:
+func _actor_rank_map(actor: Node, ranked_rows = null) -> Dictionary:
 	var ranks := {}
-	for row_value in get_actor_ranked_jobs(actor):
+	var rows: Array = ranked_rows if ranked_rows is Array else get_actor_ranked_jobs(actor)
+	for row_value in rows:
 		var row: Dictionary = row_value
 		ranks[str(row.get("entry_id", ""))] = int(row.get("priority_order", 999999))
 	return ranks
 
 
-func _highest_actionable_facility_rank(actor: Node, ranks: Dictionary) -> int:
+func _highest_actionable_facility_rank(actor: Node, ranks: Dictionary, ranked_rows = null) -> int:
 	var best_rank := 999999
-	for row_value in get_actor_ranked_jobs(actor):
+	var rows: Array = ranked_rows if ranked_rows is Array else get_actor_ranked_jobs(actor)
+	for row_value in rows:
 		var row: Dictionary = row_value
 		if str(row.get("kind", "")) != "facility_contract":
 			continue
@@ -834,23 +891,25 @@ func _is_player_party_actor(actor: Node) -> bool:
 	return actor != null and actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member"))
 
 
-func _offer_allows_actor(offer: Dictionary, actor: Node) -> bool:
+func _offer_allows_actor(offer: Dictionary, actor: Node, known_actor_id := "") -> bool:
 	var allowed_actor_ids := PackedStringArray(offer.get("allowed_actor_ids", PackedStringArray()))
-	return allowed_actor_ids.is_empty() or allowed_actor_ids.has(_actor_id(actor))
+	var actor_id := known_actor_id if not known_actor_id.is_empty() else _actor_id(actor)
+	return allowed_actor_ids.is_empty() or allowed_actor_ids.has(actor_id)
 
 
-func _assignment_offer_matches_scope(offer: Dictionary, actor: Node, settlement_id: String, settlement_states = null, offer_scope_cache = null) -> bool:
-	if not _offer_allows_actor(offer, actor):
+func _assignment_offer_matches_scope(offer: Dictionary, actor: Node, settlement_id: String, settlement_states = null, offer_scope_cache = null, known_actor_id := "", known_actor_faction := "") -> bool:
+	var actor_id := known_actor_id if not known_actor_id.is_empty() else _actor_id(actor)
+	if not _offer_allows_actor(offer, actor, actor_id):
 		return false
 	var offer_settlement_id := str(offer.get("settlement_id", ""))
 	if not offer_settlement_id.is_empty() and offer_settlement_id != settlement_id:
 		return false
-	var actor_faction := _actor_faction_id(actor)
+	var actor_faction := known_actor_faction if not known_actor_faction.is_empty() else _actor_faction_id(actor)
 	var owner_faction := str(offer.get("owner_faction_id", ""))
 	if actor_faction.is_empty() or (not owner_faction.is_empty() and owner_faction != actor_faction):
 		return false
 	var offer_id := str(offer.get("offer_id", ""))
-	var cache_key := "assignment:%s:%s:%s" % [settlement_id, _actor_id(actor), offer_id]
+	var cache_key := "assignment:%s:%s:%s" % [settlement_id, actor_id, offer_id]
 	if not offer_id.is_empty() and offer_scope_cache is Dictionary and (offer_scope_cache as Dictionary).has(cache_key):
 		return bool((offer_scope_cache as Dictionary).get(cache_key, false))
 	var inside := _offer_is_inside_settlement(offer, settlement_id, actor, settlement_states)
@@ -859,9 +918,10 @@ func _assignment_offer_matches_scope(offer: Dictionary, actor: Node, settlement_
 	return inside
 
 
-func _offer_matches_actor_scope(offer: Dictionary, actor: Node, settlement_id: String, settlement_states = null, offer_scope_cache = null) -> bool:
+func _offer_matches_actor_scope(offer: Dictionary, actor: Node, settlement_id: String, settlement_states = null, offer_scope_cache = null, known_actor_id := "", known_actor_faction := "") -> bool:
 	var offer_settlement_id := str(offer.get("settlement_id", ""))
-	var actor_faction := _actor_faction_id(actor)
+	var actor_id := known_actor_id if not known_actor_id.is_empty() else _actor_id(actor)
+	var actor_faction := known_actor_faction if not known_actor_faction.is_empty() else _actor_faction_id(actor)
 	var owner_faction := str(offer.get("owner_faction_id", ""))
 	var faction_neutral := bool(offer.get("faction_neutral", false))
 	if actor_faction.is_empty() or (not faction_neutral and not owner_faction.is_empty() and owner_faction != actor_faction):
@@ -870,7 +930,7 @@ func _offer_matches_actor_scope(offer: Dictionary, actor: Node, settlement_id: S
 		if not offer_settlement_id.is_empty() and offer_settlement_id != settlement_id:
 			return false
 		var offer_id := str(offer.get("offer_id", ""))
-		var scope_cache_key := "%s:%s:%s" % [settlement_id, _actor_id(actor), offer_id]
+		var scope_cache_key := "%s:%s:%s" % [settlement_id, actor_id, offer_id]
 		var inside_settlement: bool
 		if not offer_id.is_empty() and offer_scope_cache is Dictionary and (offer_scope_cache as Dictionary).has(scope_cache_key):
 			inside_settlement = bool((offer_scope_cache as Dictionary).get(scope_cache_key, false))
@@ -1070,9 +1130,16 @@ func _is_node_descendant_of(node: Node, ancestor: Node) -> bool:
 func _has_property(object: Object, property_name: String) -> bool:
 	if object == null:
 		return false
+	var script = object.get_script()
+	var shape_id := str((script as Script).resource_path) if script is Script and not (script as Script).resource_path.is_empty() else object.get_class()
+	var cache_key := "%s|%s" % [shape_id, property_name]
+	if _property_presence_cache.has(cache_key):
+		return bool(_property_presence_cache[cache_key])
 	for property in object.get_property_list():
 		if str(property.get("name", "")) == property_name:
+			_property_presence_cache[cache_key] = true
 			return true
+	_property_presence_cache[cache_key] = false
 	return false
 
 

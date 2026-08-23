@@ -1,0 +1,92 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scenes/test_levels/projected_100_jobs_benchmark.gd" id="1_benchmark"]
+[ext_resource type="Script" path="res://features/core/party/party_manager.gd" id="2_party_manager"]
+[ext_resource type="Script" path="res://features/core/game_bootstrap.gd" id="3_bootstrap"]
+
+[sub_resource type="BoxShape3D" id="FloorShape"]
+size = Vector3(220, 1, 120)
+
+[sub_resource type="StandardMaterial3D" id="FloorMaterial"]
+albedo_color = Color(0.31, 0.37, 0.25, 1)
+roughness = 0.96
+
+[sub_resource type="BoxMesh" id="FloorMesh"]
+material = SubResource("FloorMaterial")
+size = Vector3(220, 1, 120)
+
+[node name="FarmJobsStressTest" type="Node3D"]
+script = ExtResource("1_benchmark")
+create_farm_on_start = false
+interactive_stress_test = true
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-55, -35, 0)
+shadow_enabled = false
+
+[node name="Floor" type="StaticBody3D" parent="." groups=["terrain"]]
+position = Vector3(0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("FloorShape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+mesh = SubResource("FloorMesh")
+
+[node name="PartyMembers" type="Node3D" parent="."]
+
+[node name="PartyManager" type="Node" parent="."]
+script = ExtResource("2_party_manager")
+
+[node name="GameBootstrap" type="Node" parent="."]
+script = ExtResource("3_bootstrap")
+
+[node name="CameraRig" type="Node3D" parent="."]
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+rotation = Vector3(-0.65, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+position = Vector3(0, 0, 45)
+current = true
+far = 300.0
+
+[node name="StressHUD" type="CanvasLayer" parent="."]
+
+[node name="Panel" type="PanelContainer" parent="StressHUD"]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 650.0
+offset_bottom = 164.0
+
+[node name="Content" type="VBoxContainer" parent="StressHUD/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="StressHUD/Panel/Content"]
+layout_mode = 2
+text = "100 Projected Actors: Farm + Jobs Stress Test"
+
+[node name="Controls" type="HBoxContainer" parent="StressHUD/Panel/Content"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NoFieldJobs" type="Button" parent="StressHUD/Panel/Content/Controls"]
+layout_mode = 2
+text = "Jobs On, No Field"
+
+[node name="ActiveFieldJobs" type="Button" parent="StressHUD/Panel/Content/Controls"]
+layout_mode = 2
+text = "Jobs On, Active Field"
+
+[node name="ResetStats" type="Button" parent="StressHUD/Panel/Content/Controls"]
+layout_mode = 2
+text = "Reset Stats"
+
+[node name="StressMetrics" type="Label" parent="StressHUD/Panel/Content"]
+layout_mode = 2
+text = "Loading benchmark services..."
+
+[node name="Instructions" type="Label" parent="StressHUD/Panel/Content"]
+layout_mode = 2
+text = "Switch modes, wait for WARMUP to finish, then compare average FPS and p99 frame time."

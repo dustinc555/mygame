@@ -1223,6 +1223,55 @@ func get_farm_plot_states() -> Dictionary:
 	return states
 
 
+func get_farm_plot_state(plot_id: String) -> Dictionary:
+	var component = _farm_plot_component(plot_id)
+	return component.to_state() if component != null else {}
+
+
+func get_farm_plot_header_state(plot_id: String) -> Dictionary:
+	var component = _farm_plot_component(plot_id)
+	if component == null:
+		return {}
+	return {
+		"plot_id": component.plot_id,
+		"owner_faction_id": component.owner_faction_id,
+		"settlement_id": component.settlement_id,
+		"display_name": component.display_name,
+		"crop_policy_id": component.crop_policy_id,
+		"field_deleted": component.field_deleted,
+		"priority": component.priority,
+		"worker_policy": component.worker_policy,
+		"state_revision": component.state_revision,
+	}
+
+
+func get_farm_plot_cell_record(plot_id: String, cell_key: String) -> Dictionary:
+	var component = _farm_plot_component(plot_id)
+	if component == null or not component.cells.has(cell_key):
+		return {}
+	var record := get_farm_plot_header_state(plot_id)
+	record["cell_key"] = cell_key
+	record["cell"] = (component.cells.get(cell_key, {}) as Dictionary).duplicate(true)
+	return record
+
+
+func _farm_plot_component(plot_id: String):
+	if plot_id.is_empty():
+		return null
+	var entity = _farm_plot_entity_by_id.get(plot_id)
+	if entity != null and is_instance_valid(entity):
+		return entity.get_component(C_FARM_PLOT_STATE)
+	if world == null:
+		return null
+	# Cold recovery only. Normal reads stay O(1) through the maintained id map.
+	for candidate in world.query.with_all([C_FARM_PLOT_STATE]).execute():
+		var component = candidate.get_component(C_FARM_PLOT_STATE)
+		if component != null and str(component.plot_id) == plot_id:
+			_farm_plot_entity_by_id[plot_id] = candidate
+			return component
+	return null
+
+
 func remove_farm_plot_state(plot_id: String) -> void:
 	var entity = _farm_plot_entity_by_id.get(plot_id)
 	if entity != null and is_instance_valid(entity) and world != null:
