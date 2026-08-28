@@ -146,7 +146,7 @@ func _validate_plugin_contract() -> void:
 	for obsolete in ["_rebuild_staffing", "_staff_toggle_field", "_staff_count_field", "_appearance_profile_picker", "_character_type_set_picker", "_character_type_field", "has_barkeeper", "waiter_count", "guard_count", "staff_character_type_ids"]:
 		_expect(not dock.contains(obsolete), "Facility dock retains obsolete staffing symbol: %s" % obsolete)
 	_expect(dock.contains("ROLES_DIR") and dock.contains("CHARACTERS_DIR"), "Facility dock must discover role and character catalogs")
-	_expect(dock.contains("_tabs = TabContainer.new()"), "General, Furniture, and People must be separated into dedicated tabs")
+	_expect(dock.contains("_tabs = TabContainer.new()"), "General, Furniture, Containers, and People must be separated into dedicated tabs")
 	_expect(dock.contains("PopupPanel.new()") and dock.contains("LineEdit.new()") and dock.contains("ItemList.new()"), "Character picker must be a searchable plain list popup")
 	_expect(dock.contains("Auto Generate"), "Character picker must label generated characters explicitly")
 	_expect(not dock.contains("character_option.add_item(\"Auto\")"), "Character picker must not remain a radio-style OptionButton list")
@@ -162,7 +162,7 @@ func _validate_plugin_contract() -> void:
 		var people_scroll := people_box.get_parent() as ScrollContainer if people_box != null else null
 		var people_tab := people_scroll.get_parent() as VBoxContainer if people_scroll != null else null
 		_expect(content != null and tabs != null and tabs.get_parent() == content and content.get_child_count() == 1, "Tabs must be the single facility workspace")
-		_expect(tabs != null and tabs.get_child_count() == 3 and tabs.get_child(0).name == "General" and tabs.get_child(1).name == "Furniture" and tabs.get_child(2).name == "People", "Facility workspace must expose General, Furniture, and People tabs")
+		_expect(tabs != null and tabs.get_child_count() == 4 and tabs.get_child(0).name == "General" and tabs.get_child(1).name == "Furniture" and tabs.get_child(2).name == "Containers" and tabs.get_child(3).name == "People", "Facility workspace must expose General, Furniture, Containers, and People tabs")
 		_expect(top_row != null and top_row.get_parent() == tabs and top_row.get_child_count() == 2, "General must never exceed two side-by-side columns")
 		_expect(people_tab != null and people_tab.name == "People" and people_tab.get_parent() == tabs, "People must occupy a dedicated full-height tab")
 		_expect(people_scroll != null and people_scroll.horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED, "People must not have horizontal scrolling")

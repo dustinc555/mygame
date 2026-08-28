@@ -101,8 +101,11 @@ class FakeStore:
 	var is_locked := true
 	var inventory = null
 	var owner_faction_name := "Player"
+	var released_reservations := 0
 	func get_owner_faction_name() -> String:
 		return owner_faction_name
+	func release_item_reservation(_actor_key: int) -> void:
+		released_reservations += 1
 
 class FakeProcessor:
 	extends Node3D
@@ -117,6 +120,11 @@ class FakeProcessor:
 		return global_position
 
 var failures: Array[String] = []
+var last_delta_upserts: Array = []
+
+
+func _on_work_offer_delta(_settlement_id: String, _removed: PackedStringArray, upserted: Array) -> void:
+	last_delta_upserts = upserted.duplicate(true)
 
 
 func _initialize() -> void:
@@ -128,6 +136,7 @@ func _run() -> void:
 	var farm := FakeFarm.new()
 	root.add_child(farm)
 	root.add_child(bridge)
+	bridge.work_offer_delta.connect(_on_work_offer_delta)
 	bridge._farm = farm
 	var actor := FakeActor.new()
 	actor.carried = INVENTORY.new(2, 1, 0.0, false)
@@ -198,12 +207,17 @@ func _run() -> void:
 	stranded.global_position = Vector3(50.0, 0.0, 0.0)
 	var stranded_assignment := _assignment(stranded, "till")
 	stranded_assignment["expected_target"] = Vector3.ZERO
+	var reservation_store := FakeStore.new()
+	root.add_child(reservation_store)
+	stranded_assignment["stage"] = "fetch_tool"
+	stranded_assignment["tool_store"] = reservation_store
 	bridge._assignments[stranded.get_instance_id()] = stranded_assignment
-	for _step in 200:
+	for _step in 400:
 		bridge._process_assignment(stranded.get_instance_id(), 0.1)
 		if not bridge._assignments.has(stranded.get_instance_id()):
 			break
 	_expect(not bridge._assignments.has(stranded.get_instance_id()), "unreachable cell assignment times out and releases its worker")
+	_expect(reservation_store.released_reservations == 1, "timed-out tool travel releases its exact reservation instead of leaking it")
 	bridge._unreachable_until_msec.clear()
 
 	farm.action = "harvest"
@@ -221,6 +235,17 @@ func _run() -> void:
 	store.inventory.add_item_count(TOMATO_SEEDS, 2)
 	store.add_to_group("world_container")
 	root.add_child(store)
+	bridge._borrowed_tools[actor.get_instance_id()] = {
+		"actor_ref": weakref(actor), "store_ref": weakref(store),
+		"settlement_id": "settlement:test", "owner_faction_id": "Player",
+	}
+	var completed_assignment := _assignment(actor, "till")
+	completed_assignment["automatic"] = true
+	bridge._assignments[actor.get_instance_id()] = completed_assignment
+	last_delta_upserts.clear()
+	bridge._finish_and_continue(actor.get_instance_id())
+	_expect(last_delta_upserts.size() == 1 and str(last_delta_upserts[0].get("action", "")) == "return_borrowed_tool", "finishing a borrowed-tool batch publishes its return offer without a full provider rescan")
+	bridge._borrowed_tools.erase(actor.get_instance_id())
 	var nearest_store = _nearest_seed_store(bridge, actor)
 	_expect(nearest_store == null, "locked seed stores are never auto-accessed")
 	var processor := FakeProcessor.new()
@@ -251,8 +276,20 @@ func _run() -> void:
 	var transferred := bool(source_inventory.call("transfer_item_count_to", TOMATO_SEEDS, 1, target_inventory)) if source_inventory.has_method("transfer_item_count_to") else false
 	_expect(transferred and source_inventory.count_item(TOMATO_SEEDS) == 0 and target_inventory.count_item(TOMATO_SEEDS) == 1, "seed fetch transfers between inventories atomically")
 
+	var lod_actor := FakeActor.new()
+	root.add_child(lod_actor)
+	var lod_actor_key := lod_actor.get_instance_id()
+	var lod_assignment := _assignment(lod_actor, "till")
+	lod_assignment["automatic"] = true
+	lod_assignment["traveling"] = true
+	bridge._assignments[lod_actor_key] = lod_assignment
+	lod_actor.free()
+	bridge._process(0.1)
+	_expect(not bridge._assignments.has(lod_actor_key), "LOD-unloaded workers cancel volatile farm assignments without casting freed projections")
+
 	actor.free()
 	stranded.free()
+	reservation_store.free()
 	limited_actor.free()
 	store.free()
 	processor.free()
@@ -266,8 +303,8 @@ func _nearest_seed_store(bridge: Node, actor: Node3D):
 		if str(method.get("name", "")) != "_nearest_seed_store":
 			continue
 		var arguments: Array = method.get("args", [])
-		if arguments.size() >= 4:
-			return bridge.call("_nearest_seed_store", Vector3.ZERO, TOMATO_SEEDS, "Player", actor)
+		if arguments.size() >= 5:
+			return bridge.call("_nearest_seed_store", Vector3.ZERO, TOMATO_SEEDS, "Player", "settlement:test", actor)
 		return bridge.call("_nearest_seed_store", Vector3.ZERO, TOMATO_SEEDS, "Player")
 	return null
 

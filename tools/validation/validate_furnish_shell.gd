@@ -79,7 +79,9 @@ func _ready() -> void:
 		missing.append("counter")
 	if not rules.cluster_scenes.is_empty() and not placed_kinds.has("cluster"):
 		missing.append("cluster")
-	if not rules.utility_scenes.is_empty() and not placed_kinds.has("utility"):
+	# Only a REQUIRED utility must always appear; an optional one legitimately
+	# has nowhere to go in a small shell.
+	if not rules.utility_scenes.is_empty() and rules.utilities_required and not placed_kinds.has("utility"):
 		missing.append("utility")
 	if empty_seeds > 0 or not missing.is_empty() or _probe_failed:
 		print("FAIL validate_furnish_shell: %d empty seeds, kinds never placed: %s" % [empty_seeds, missing])
@@ -107,10 +109,22 @@ func _validate_impossible_required_utility(shell: Node3D, rules: FurnishRules) -
 	var impossible_rules := rules.duplicate(true) as FurnishRules
 	var utility_scenes: Array[PackedScene] = [impossible_scene]
 	impossible_rules.utility_scenes = utility_scenes
+	# This probe tests the REQUIRED contract, so it forces the flag on rather
+	# than inheriting whatever the rules under test chose.
+	impossible_rules.utilities_required = true
 	var furnisher = FURNISHER.new()
 	var placements: Array[Dictionary] = furnisher.furnish(shell, impossible_rules, 1)
 	if not placements.is_empty() or not str(furnisher.last_error()).begins_with("Required utility"):
 		push_error("validate_furnish_shell: impossible required utility should fail furnishing loudly")
+		_probe_failed = true
+	# The opt-out must DEGRADE, not fail: a facility whose utility is a
+	# convenience (a granary's seed barrel) still furnishes without it.
+	var optional_rules := impossible_rules.duplicate(true) as FurnishRules
+	optional_rules.utilities_required = false
+	var optional_furnisher = FURNISHER.new()
+	var optional_placements: Array[Dictionary] = optional_furnisher.furnish(shell, optional_rules, 1)
+	if optional_placements.is_empty():
+		push_error("validate_furnish_shell: utilities_required=false must furnish anyway, got '%s'" % str(optional_furnisher.last_error()))
 		_probe_failed = true
 
 

@@ -12,6 +12,9 @@ class_name FacilityRoleDefinition
 @export var uses_settlement_jobs := false
 ## Empty means every JobSystem category the actor is otherwise eligible for.
 @export var allowed_job_entry_ids := PackedStringArray()
+## Optional durable skill used when a town batch chooses the best available
+## unemployed resident for this occupation.
+@export var preferred_skill_id := ""
 
 
 func get_id() -> String:

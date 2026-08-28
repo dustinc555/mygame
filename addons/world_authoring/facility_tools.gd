@@ -13,6 +13,11 @@ const FACILITY_ICON_PATH := "res://addons/world_authoring/icons/world_building.s
 const FACILITY_DOCK := preload("res://addons/world_authoring/facility_dock.gd")
 const PLACEMENT_GHOST := preload("res://addons/world_authoring/placement_ghost.gd")
 const INSTANCE_UNPACK := preload("res://addons/world_authoring/instance_unpack.gd")
+const FIELD_PAINTER := preload("res://addons/world_authoring/field_painter.gd")
+## Loaded lazily, never preloaded: the plugin must not fail to mount because a
+## gameplay script it only reads a constant from is mid-edit.
+const FARM_CONTROLLER_PATH := "res://features/farming/sim/farm_controller.gd"
+const ITEMS_DIR := "res://features/inventory/resources/items"
 const FACILITY_FURNISHER := preload("res://features/world/projection/props/furnishing/facility_furnisher.gd")
 const FURNISH_RULES_DIR := "res://features/settlements/resources/furnishing"
 const FURNISH_GENERATED_META := "furnish_generated"
@@ -36,10 +41,18 @@ var _toolbar: HBoxContainer
 var _status_label: Label
 var _dock: Control
 var _active_facility: Node
+var _active_container: Node
 var _shell_catalog: Array[String] = []
+## path -> display name. Reading a shell's name means instantiating the whole
+## modular building (~25-80ms each); doing that for all seven shells on every
+## dock rebuild was costing a quarter second per selection change.
+var _shell_name_cache := {}
 var _furniture_catalog: Array[Dictionary] = []
+var _container_item_catalog: Array[ItemDefinition] = []
+var _container_tool_item_paths := {}
 var _pending_furniture_path := ""
 var _ghost
+var _painter
 var _unpacker
 ## Managed by the plugin router: the dock is mounted in the bottom panel only
 ## while a facility node is literally selected.
@@ -49,6 +62,7 @@ var dock_mounted := false
 func _init(plugin: EditorPlugin) -> void:
 	_plugin = plugin
 	_ghost = PLACEMENT_GHOST.new(plugin)
+	_painter = FIELD_PAINTER.new(plugin)
 	_unpacker = INSTANCE_UNPACK.new()
 	_build_toolbar()
 	_dock = FACILITY_DOCK.new()
@@ -60,16 +74,17 @@ func toolbar() -> Control:
 
 
 func handles(object: Object) -> bool:
-	return object is Node and _find_facility_ancestor(object as Node) != null
+	return object is WorldContainer or (object is Node and _find_facility_ancestor(object as Node) != null)
 
 
 func claims_node(node: Node) -> bool:
-	return node is SettlementFacilityInstance
+	return node is SettlementFacilityInstance or node is WorldContainer
 
 
 func edit(object: Object) -> void:
 	if object is Node:
 		_active_facility = _find_facility_ancestor(object as Node)
+		_active_container = object as Node if object is WorldContainer else null
 	_refresh_ui()
 
 
@@ -78,7 +93,8 @@ func refresh() -> void:
 
 
 func is_active() -> bool:
-	return _ghost.is_active() or _get_active_facility() != null
+	return _ghost.is_active() or _painter.is_active() or _get_active_facility() != null \
+			or (_active_container != null and is_instance_valid(_active_container))
 
 
 func on_selection_changed() -> void:
@@ -87,7 +103,9 @@ func on_selection_changed() -> void:
 
 func on_scene_changed(_scene_root: Node) -> void:
 	_ghost.cancel()
+	_painter.end()
 	_active_facility = null
+	_active_container = null
 	_refresh_ui()
 
 
@@ -105,11 +123,16 @@ func handle_global_input(event: InputEvent) -> bool:
 
 
 func forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
+	# Painting owns the viewport while it is live; a field footprint is drawn
+	# on the ground, so it cannot share input with the placement ghost.
+	if _painter.is_active():
+		return _painter.handle_3d_input(camera, event)
 	return _ghost.handle_3d_input(camera, event)
 
 
 func teardown() -> void:
 	_ghost.cancel()
+	_painter.end()
 	if _dock != null and is_instance_valid(_dock):
 		if dock_mounted:
 			_plugin.remove_control_from_bottom_panel(_dock)
@@ -120,6 +143,7 @@ func teardown() -> void:
 		_toolbar.free()
 		_toolbar = null
 	_active_facility = null
+	_active_container = null
 	_plugin = null
 
 
@@ -169,6 +193,14 @@ func current_shell_path(facility: Node) -> String:
 
 
 func shell_display_name(shell_path: String) -> String:
+	if _shell_name_cache.has(shell_path):
+		return str(_shell_name_cache[shell_path])
+	var name := _read_shell_display_name(shell_path)
+	_shell_name_cache[shell_path] = name
+	return name
+
+
+func _read_shell_display_name(shell_path: String) -> String:
 	var scene := load(shell_path) as PackedScene
 	var shell := scene.instantiate() as WorldBuilding if scene != null else null
 	if shell == null:
@@ -380,6 +412,213 @@ func _place_furniture_piece(facility: Node, world_transform: Transform3D) -> voi
 		_dock.set_facility(facility)
 
 
+## --- Field authoring ----------------------------------------------------------------
+
+
+static func is_field(facility: Node) -> bool:
+	return facility != null and str(facility.get("facility_type")) == "farm" and "cell_coordinates" in facility
+
+
+func is_painting_field() -> bool:
+	return _painter.is_active()
+
+
+## Crop ids offered for a field policy, read straight off FarmController's
+## registry so the dock can never drift from what the sim accepts.
+static func field_crop_options() -> Array[Dictionary]:
+	var options: Array[Dictionary] = []
+	var farm_script := load(FARM_CONTROLLER_PATH)
+	if farm_script == null:
+		return options
+	for crop_id in farm_script.CROP_PATHS:
+		var crop := load(farm_script.CROP_PATHS[crop_id]) as Resource
+		options.append({
+			"crop_id": str(crop_id),
+			"label": str(crop.get("display_name")) if crop != null else str(crop_id).capitalize(),
+		})
+	options.sort_custom(func(a, b): return str(a["label"]) < str(b["label"]))
+	return options
+
+
+func toggle_field_paint(facility: Node) -> void:
+	if _painter.is_active():
+		_painter.end()
+		_set_status("Field painting finished.")
+		_refresh_ui()
+		return
+	if not is_field(facility):
+		_set_status("Select a field facility to paint its soil.")
+		return
+	if not _can_edit_live(facility):
+		_set_status("Unpack the town first (select the town node, then Unpack Into Zone).")
+		return
+	_select_node(facility)
+	if not _painter.begin(facility as Node3D, Callable(self, "_on_field_painted")):
+		_set_status("Could not start painting.")
+		return
+	_set_status("Painting soil: drag to add cells, Shift-drag or right-drag to erase, Escape to finish.")
+	_refresh_ui()
+
+
+func _on_field_painted() -> void:
+	var summary := "%d soil cells (painted)%s" % [
+		_painter.cell_count(),
+		", %d refused by a foreign town border" % _painter.refused_count() if _painter.refused_count() > 0 else "",
+	]
+	# Deliberately NOT set_facility(): that rebuilds every dock section, which
+	# is far too heavy to run once per brush stroke.
+	if _dock != null and is_instance_valid(_dock) and _dock.has_method("refresh_field_status"):
+		_dock.refresh_field_status(summary)
+	_set_status("Field footprint: %s." % summary)
+
+
+## Terrain edits do not notify the nodes standing on them, so re-sculpting the
+## ground under a field leaves its cells at the old heights until this runs.
+func refit_field_to_terrain(facility: Node) -> void:
+	if not is_field(facility) or not facility.has_method("refit_to_terrain"):
+		return
+	facility.call("refit_to_terrain")
+	_set_status("Field re-seated on the current terrain.")
+
+
+func set_field_crop_policy(facility: Node, crop_id: String) -> void:
+	if not is_field(facility) or not _can_edit_live(facility):
+		return
+	var undo_redo := _plugin.get_undo_redo()
+	undo_redo.create_action("Set Field Crop")
+	undo_redo.add_do_property(facility, "crop_policy_id", crop_id)
+	undo_redo.add_undo_property(facility, "crop_policy_id", facility.get("crop_policy_id"))
+	undo_redo.commit_action()
+	_set_status("Crop policy: %s." % ("auto" if crop_id == "auto" else (crop_id if not crop_id.is_empty() else "manual")))
+
+
+## --- Container authoring ------------------------------------------------------
+
+func container_item_options(container_type: String) -> Array[ItemDefinition]:
+	if _container_item_catalog.is_empty():
+		for file_name in DirAccess.get_files_at(ITEMS_DIR):
+			if file_name.get_extension() != "tres":
+				continue
+			var item_path := ITEMS_DIR.path_join(file_name)
+			var item := load(item_path) as ItemDefinition
+			if item != null:
+				_container_item_catalog.append(item)
+				if _resource_declares_tool_tags(item_path):
+					_container_tool_item_paths[item_path] = true
+		_container_item_catalog.sort_custom(func(a: ItemDefinition, b: ItemDefinition) -> bool: return a.display_name.naturalnocasecmp_to(b.display_name) < 0)
+	var result: Array[ItemDefinition] = []
+	for item in _container_item_catalog:
+		if _item_matches_container_type(item, container_type):
+			result.append(item)
+	return result
+
+
+func _item_matches_container_type(item: ItemDefinition, container_type: String) -> bool:
+	if item == null:
+		return false
+	var item_id := item.item_id.strip_edges()
+	if item_id.is_empty():
+		item_id = item.resource_path
+	match container_type:
+		"seeds":
+			return item_id.begins_with("seed.")
+		"tools":
+			return item_id.begins_with("tool.") or _container_tool_item_paths.has(item.resource_path)
+		"food":
+			return item_id.begins_with("food.") or not item.food_type_id.is_empty()
+		"materials":
+			return item_id.begins_with("material.") or item_id.begins_with("ore.")
+		_:
+			return true
+
+
+func _resource_declares_tool_tags(item_path: String) -> bool:
+	var source := FileAccess.get_file_as_string(item_path)
+	for line in source.split("\n"):
+		var stripped := str(line).strip_edges()
+		if stripped.begins_with("tool_tags = PackedStringArray("):
+			return stripped.contains("\"")
+	return false
+
+
+func set_container_property(container: Node, property_name: String, value) -> void:
+	if container == null or not is_instance_valid(container) or not _can_edit_live(container):
+		return
+	var undo_redo := _plugin.get_undo_redo()
+	undo_redo.create_action("Set Container %s" % property_name.capitalize())
+	undo_redo.add_do_property(container, property_name, value)
+	undo_redo.add_do_method(self, "_notify_container_property_changed", container, property_name)
+	undo_redo.add_undo_property(container, property_name, container.get(property_name))
+	undo_redo.add_undo_method(self, "_notify_container_property_changed", container, property_name)
+	undo_redo.commit_action()
+	_active_container = container
+
+
+func _notify_container_property_changed(container: Node, property_name: String) -> void:
+	if container == null or not is_instance_valid(container):
+		return
+	_active_container = container
+	if _dock != null and is_instance_valid(_dock) and _dock.has_method("refresh_container_property"):
+		_dock.call("refresh_container_property", container, property_name)
+
+
+func set_container_starting_item_amount(container: Node, item: ItemDefinition, amount: int) -> void:
+	if container == null or item == null or not _can_edit_live(container):
+		return
+	var previous: Array[InventoryStock] = container.get("starting_items")
+	var next: Array[InventoryStock] = []
+	var replaced := false
+	for stock in previous:
+		if stock == null or stock.item_definition == null:
+			continue
+		if stock.item_definition == item:
+			replaced = true
+			if amount > 0:
+				var updated := stock.duplicate(true) as InventoryStock
+				updated.quantity = amount
+				next.append(updated)
+		else:
+			next.append(stock.duplicate(true) as InventoryStock)
+	if amount > 0 and not replaced:
+		var added := InventoryStock.new()
+		added.item_definition = item
+		added.quantity = amount
+		next.append(added)
+	set_container_property(container, "starting_items", next)
+
+
+func select_container(container: Node) -> void:
+	if container != null and is_instance_valid(container):
+		_select_node(container)
+
+
+## Keep the scene tree, viewport, and Inspector pointed at the dock selection
+## without recursively rebuilding the whole Facility workspace.
+func select_container_from_dock(container: Node) -> void:
+	if container == null or not is_instance_valid(container):
+		return
+	_active_container = container
+	_active_facility = _find_facility_ancestor(container)
+	if _plugin.has_method("select_node_without_context_refresh"):
+		_plugin.call("select_node_without_context_refresh", container)
+
+
+## Reset to a plain rectangle — the escape hatch from a painted shape.
+func reset_field_footprint(facility: Node, dimensions: Vector2i) -> void:
+	if not is_field(facility) or not _can_edit_live(facility):
+		return
+	var undo_redo := _plugin.get_undo_redo()
+	undo_redo.create_action("Reset Field Footprint")
+	undo_redo.add_do_property(facility, "dimensions", Vector2i(maxi(1, dimensions.x), maxi(1, dimensions.y)))
+	undo_redo.add_do_property(facility, "cell_coordinates", PackedVector2Array())
+	undo_redo.add_undo_property(facility, "dimensions", facility.get("dimensions"))
+	undo_redo.add_undo_property(facility, "cell_coordinates", facility.get("cell_coordinates"))
+	undo_redo.commit_action()
+	if _dock != null and is_instance_valid(_dock):
+		_dock.set_facility(facility)
+	_set_status("Field reset to a %dx%d rectangle." % [dimensions.x, dimensions.y])
+
+
 ## --- Furnish pass -------------------------------------------------------------------
 
 
@@ -406,7 +645,10 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 		return
 	var seed_value := int(facility.get("furnish_seed")) + (1 if reroll else 0)
 	var furnisher = FACILITY_FURNISHER.new()
-	var placements: Array = furnisher.furnish(building, rules, seed_value)
+	# Plugin-authored/world-generated facilities bake their starter recipe. A
+	# runtime player furnishing call uses FacilityFurnisher's default false and
+	# therefore creates empty containers.
+	var placements: Array = furnisher.furnish(building, rules, seed_value, true)
 	if placements.is_empty():
 		_set_status("Furnish failed: %s" % furnisher.last_error())
 		return
@@ -455,9 +697,21 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 				undo_redo.add_do_reference(piece)
 			node.free()
 			continue
-		node.name = "%s%d" % [kind.to_pascal_case(), counts[kind]]
+		var base_name := kind.to_pascal_case()
+		if placement.has("item_id"):
+			# "food.tomato" -> PalletTomato3: the crop lock is visible in the
+			# scene tree and rides into the stamped container_id. Item ids
+			# without a category prefix name the pallet whole.
+			var item_id := str(placement["item_id"])
+			var item_name := item_id.get_slice(".", 1) if item_id.contains(".") else item_id
+			base_name += item_name.to_pascal_case()
+		node.name = "%s%d" % [base_name, counts[kind]]
 		_stamp_furniture_ids(node, facility)
 		node.transform = placement_transform
+		if placement.has("storage_item_overrides"):
+			node.set("storage_item_overrides", placement["storage_item_overrides"])
+		if placement.has("container_type") and "container_type" in node:
+			node.set("container_type", str(placement["container_type"]))
 		if placement.has("stock"):
 			# Rolled loot bakes into the saved container node; the fresh
 			# InventoryStock resources embed in the town scene on save.
@@ -486,6 +740,27 @@ func _stamp_furniture_ids(node: Node, facility: Node) -> void:
 		var facility_id := str(facility.get("facility_id")).strip_edges()
 		if not facility_id.is_empty():
 			node.set("container_id", "%s.%s" % [facility_id, local_id])
+			if "facility_id" in node:
+				node.set("facility_id", facility_id)
+	# Haul offers are filtered by settlement, so a storage container with a
+	# blank settlement_id is invisible to its own town's work queue.
+	if "settlement_id" in node:
+		var settlement_id := _facility_settlement_id(facility)
+		if not settlement_id.is_empty():
+			node.set("settlement_id", settlement_id)
+	if "owner_faction_name" in node:
+		var owner_faction_id := _facility_owner_faction_id(facility)
+		if not owner_faction_id.is_empty():
+			node.set("owner_faction_name", owner_faction_id)
+
+
+func _facility_settlement_id(facility: Node) -> String:
+	var current := facility.get_parent()
+	while current != null:
+		if current.has_method("get_settlement_id"):
+			return str(current.call("get_settlement_id")).strip_edges()
+		current = current.get_parent()
+	return ""
 
 
 func _own_facility_placement(node: Node, owner_root: Node) -> void:
@@ -563,6 +838,21 @@ func _furnish_rule_candidates(facility: Node) -> Array[Dictionary]:
 	var facility_type := str(facility.get("facility_type")).strip_edges()
 	var candidates: Array[Dictionary] = []
 	var faction_id := _facility_faction_id(facility)
+	# Function first: several functions share one facility_type (a granary and
+	# a warehouse are both "storage"), and they do not want the same floor.
+	var function_id := _facility_function_id(facility)
+	if not faction_id.is_empty() and not function_id.is_empty():
+		candidates.append({
+			"tier": "faction_function",
+			"path": "%s/%s/%s.tres" % [FURNISH_RULES_DIR, faction_id, function_id],
+			"label": "%s/%s.tres (faction function)" % [faction_id, function_id],
+		})
+	if not function_id.is_empty():
+		candidates.append({
+			"tier": "function",
+			"path": "%s/%s.tres" % [FURNISH_RULES_DIR, function_id],
+			"label": "%s.tres (function)" % function_id,
+		})
 	if not faction_id.is_empty() and not facility_type.is_empty():
 		candidates.append({
 			"tier": "faction",
@@ -583,11 +873,22 @@ func _furnish_rule_candidates(facility: Node) -> Array[Dictionary]:
 	return candidates
 
 
+func _facility_function_id(facility: Node) -> String:
+	var function_resource: Resource = facility.get("facility_function") as Resource
+	if function_resource == null:
+		return ""
+	return str(function_resource.get("function_id")).strip_edges()
+
+
 func _facility_faction_id(facility: Node) -> String:
 	if facility.has_method("get_property_owner_faction"):
 		return str(facility.call("get_property_owner_faction")).strip_edges()
 	var value = facility.get("owner_faction_id")
 	return str(value).strip_edges() if value != null else ""
+
+
+func _facility_owner_faction_id(facility: Node) -> String:
+	return _facility_faction_id(facility)
 
 
 ## --- Function assignment ---------------------------------------------------------
@@ -708,8 +1009,11 @@ func _get_active_facility() -> Node:
 
 func _refresh_from_selection() -> void:
 	_active_facility = null
+	_active_container = null
 	for node in _plugin.get_editor_interface().get_selection().get_selected_nodes():
 		_active_facility = _find_facility_ancestor(node)
+		if node is WorldContainer:
+			_active_container = node
 		if _active_facility != null:
 			break
 	_refresh_ui()
@@ -819,14 +1123,15 @@ func _refresh_ui() -> void:
 			_status_label.text = "Facility: %s" % facility.name
 	if _dock != null and is_instance_valid(_dock):
 		_dock.set_facility(facility)
+		_dock.set_container(_active_container if _active_container != null and is_instance_valid(_active_container) else null)
 
 
-## Dock mounting is managed by the plugin router: the Facility tab exists
-## only while a composed facility node itself is selected —
-## never merely because the selection sits somewhere inside one.
+## Facility roots expose the complete workspace; directly selected containers
+## inside one also mount it so one-off stock never falls back to raw Inspector
+## resource slots.
 func wants_dock() -> bool:
 	for node in _plugin.get_editor_interface().get_selection().get_selected_nodes():
-		if node is SettlementFacilityInstance:
+		if node is SettlementFacilityInstance or node is WorldContainer:
 			return true
 	return false
 

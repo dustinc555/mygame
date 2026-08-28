@@ -7,6 +7,9 @@ const DEFAULT_CELL_SIZE := 1.25
 const MAX_PLOT_DIMENSION := 64
 const MAX_PLOT_CELLS := 4096
 const SOIL_RECOVERY_MINUTES := 2 * 24 * 60
+## Crop policy meaning "plant whatever seed stock is in reach" — a policy, not
+## a crop id, resolved per plot through the resolver a bridge installs.
+const AUTO_CROP_POLICY := "auto"
 const FARM_SIMULATION := preload("res://features/farming/sim/farm_simulation.gd")
 const CROP_PATHS := {
 	"tomato": "res://features/farming/resources/crops/tomato.tres",
@@ -18,6 +21,7 @@ const CROP_PATHS := {
 }
 
 signal plot_changed(plot_id: String, state: Dictionary)
+signal plot_cells_changed(plot_id: String, changed_cells: Dictionary, settlement_id: String)
 signal plot_removed(plot_id: String)
 signal work_completed(result: Dictionary)
 signal water_source_changed(source_id: String, state: Dictionary)
@@ -29,6 +33,7 @@ var _territory: Node
 var _crops: Dictionary = {}
 var _next_plot_sequence := 1
 var _world_reindex_pending := false
+var _auto_crop_resolver := Callable()
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -47,6 +52,26 @@ func initialize(context: BootstrapContext) -> void:
 
 func get_crop(crop_id: String) -> CropDefinition:
 	return _crops.get(crop_id) as CropDefinition
+
+
+## Seed stock lives in world containers, which the sim cannot see. A bridge
+## that can (FarmWorkBridge) installs a resolver here; the controller never
+## scans the scene itself.
+func set_auto_crop_resolver(resolver: Callable) -> void:
+	_auto_crop_resolver = resolver
+
+
+## The crop an "auto" field should currently be planting, or "" when nothing is
+## available. Resolve this ONCE per plot — never per cell; the per-minute cell
+## loop is the hot path.
+func _effective_policy_crop_id(state: Dictionary) -> String:
+	var policy := str(state.get("crop_policy_id", ""))
+	if policy != AUTO_CROP_POLICY:
+		return policy
+	if not _auto_crop_resolver.is_valid():
+		return ""
+	var resolved := str(_auto_crop_resolver.call(state))
+	return resolved if get_crop(resolved) != null else ""
 
 
 func get_crops() -> Array[CropDefinition]:
@@ -359,17 +384,33 @@ func can_actor_command_plot_state(actor: Node, state: Dictionary) -> bool:
 	return actor_faction == owner
 
 
+## System-side policy assignment for authored fields: no commanding actor, and
+## AUTO_CROP_POLICY is accepted alongside real crop ids and "" for manual.
+func set_plot_crop_policy_unchecked(plot_id: String, crop_id: String) -> Dictionary:
+	var state := get_plot(plot_id)
+	if not is_active_field(state):
+		return {}
+	if not crop_id.is_empty() and crop_id != AUTO_CROP_POLICY and get_crop(crop_id) == null:
+		return {}
+	return _apply_crop_policy_to_state(state, crop_id)
+
+
 func set_plot_crop_policy(plot_id: String, crop_id: String, actor: Node) -> Dictionary:
 	var state := get_plot(plot_id)
 	if not is_active_field(state) or not can_actor_command_plot(actor, plot_id) \
 			or (not crop_id.is_empty() and get_crop(crop_id) == null):
 		return {}
+	return _apply_crop_policy_to_state(state, crop_id)
+
+
+func _apply_crop_policy_to_state(state: Dictionary, crop_id: String) -> Dictionary:
 	state["crop_policy_id"] = crop_id
 	var crop := get_crop(crop_id)
 	state["display_name"] = "%s Field" % crop.display_name if crop != null else "Field"
+	var policy_crop_id := _effective_policy_crop_id(state)
 	var cells: Dictionary = state.get("cells", {}).duplicate(true)
 	for key in cells:
-		cells[key] = _with_field_policy_request(cells[key], crop_id)
+		cells[key] = _with_field_policy_request(cells[key], policy_crop_id)
 	state["cells"] = cells
 	return _save_plot(state)
 
@@ -1222,7 +1263,7 @@ func cancel_cell_operation(plot_id: String, cell_key: String, expected_request_r
 	cell["work_progress"] = 0.0
 	cell["claimed_by"] = ""
 	cell["request_revision"] = expected_request_revision + 1
-	cell = _with_field_policy_request(cell, str(state.get("crop_policy_id", "")), is_active_field(state))
+	cell = _with_field_policy_request(cell, _effective_policy_crop_id(state), is_active_field(state))
 	cells[cell_key] = cell
 	state["cells"] = cells
 	return _save_plot(state)
@@ -1332,9 +1373,22 @@ func apply_work_batch(requests: Array) -> Array:
 		indices_by_plot[plot_id] = indices
 	for plot_id_value in indices_by_plot.keys():
 		var plot_id := str(plot_id_value)
-		var state := get_plot(plot_id)
+		var indexed_cell_io := _gecs != null \
+				and _gecs.has_method("get_farm_plot_header_state") \
+				and _gecs.has_method("get_farm_plot_cell_record") \
+				and _gecs.has_method("upsert_farm_plot_cells")
+		var state: Dictionary = _gecs.call("get_farm_plot_header_state", plot_id) if indexed_cell_io else get_plot(plot_id)
 		if state.is_empty():
 			continue
+		if indexed_cell_io:
+			var requested_cells: Dictionary = {}
+			for index_value in (indices_by_plot[plot_id_value] as Array):
+				var request: Dictionary = requests[int(index_value)]
+				var cell_key := str(request.get("cell_key", ""))
+				var record: Dictionary = _gecs.call("get_farm_plot_cell_record", plot_id, cell_key)
+				if not record.is_empty():
+					requested_cells[cell_key] = (record.get("cell", {}) as Dictionary).duplicate(true)
+			state["cells"] = requested_cells
 		var state_changed := false
 		var completed_results: Array[Dictionary] = []
 		for index_value in (indices_by_plot[plot_id_value] as Array):
@@ -1359,9 +1413,26 @@ func apply_work_batch(requests: Array) -> Array:
 		# Partial work changes only durable progress. The live worker owns the
 		# progress presentation, so avoid rebuilding field offers and projection
 		# until a cell actually transitions state.
-		_save_plot(state, not completed_results.is_empty())
+		var changed_cell_records: Dictionary = {}
+		for index_value in (indices_by_plot[plot_id_value] as Array):
+			var changed_index := int(index_value)
+			if (results[changed_index] as Dictionary).is_empty():
+				continue
+			var changed_key := str((requests[changed_index] as Dictionary).get("cell_key", ""))
+			if (state.get("cells", {}) as Dictionary).has(changed_key):
+				changed_cell_records[changed_key] = ((state.get("cells", {}) as Dictionary)[changed_key] as Dictionary).duplicate(true)
+		var saved: Dictionary = _gecs.call("upsert_farm_plot_cells", plot_id, changed_cell_records) if indexed_cell_io else _save_plot(state, false)
+		if saved.is_empty():
+			continue
+		var changed_cells: Dictionary = {}
 		for result in completed_results:
+			var completed_cell_key := str(result.get("cell_key", ""))
+			var saved_cells: Dictionary = saved.get("cells", {})
+			if saved_cells.has(completed_cell_key):
+				changed_cells[completed_cell_key] = (saved_cells[completed_cell_key] as Dictionary).duplicate(true)
 			work_completed.emit(result)
+		if not changed_cells.is_empty():
+			plot_cells_changed.emit(plot_id, changed_cells, str(saved.get("settlement_id", "")))
 	return results
 
 
@@ -1409,7 +1480,7 @@ func _apply_work_to_state(state: Dictionary, cell_key: String, action: String, s
 		cell.erase("requested_crop_id")
 		cell.erase("requested_actor_ids")
 		cell.erase("request_source")
-		cell = _with_field_policy_request(cell, str(state.get("crop_policy_id", "")), is_active_field(state))
+		cell = _with_field_policy_request(cell, _effective_policy_crop_id(state), is_active_field(state))
 	cells[cell_key] = cell
 	state["cells"] = cells
 	return result
@@ -1518,9 +1589,17 @@ func _advance_plot(plot_id: String, target_minute: int, rain_water := 0.0) -> vo
 	if elapsed <= 0.0 and rain_water <= 0.0:
 		return
 	var cells: Dictionary = state.get("cells", {})
+	# "auto" counts as HAVING a policy for soil recovery: a managed field that
+	# has simply run out of seed does not quietly revert to wild ground.
 	var no_crop_policy := str(state.get("crop_policy_id", "")).is_empty()
+	# Both of these are plot-wide facts. Resolving them per cell is what makes
+	# this loop quadratic on big fields.
+	var policy_crop_id := _effective_policy_crop_id(state)
+	var field_active := is_active_field(state)
+	var changed_cells: Dictionary = {}
 	for key in cells.keys():
 		var cell: Dictionary = cells[key]
+		var previous_signature := _cell_delta_signature(cell)
 		var crop := get_crop(str(cell.get("crop_id", "")))
 		if crop != null:
 			if elapsed > 0.0:
@@ -1532,10 +1611,13 @@ func _advance_plot(plot_id: String, target_minute: int, rain_water := 0.0) -> vo
 			and str(cell.get("crop_id", "")).is_empty() \
 			and str(cell.get("requested_operation", "")).is_empty()
 		cell = FARM_SIMULATION.advance_soil_recovery(cell, from_minute, target_minute, recovery_eligible, SOIL_RECOVERY_MINUTES)
-		cell = _with_field_policy_request(cell, str(state.get("crop_policy_id", "")), is_active_field(state))
+		cell = _with_field_policy_request(cell, policy_crop_id, field_active)
 		cells[key] = cell
+		if _cell_delta_signature(cell) != previous_signature:
+			changed_cells[str(key)] = cell.duplicate(true)
 	state["cells"] = cells
 	var remnants: Dictionary = state.get("soil_remnants", {})
+	var initial_remnant_count := remnants.size()
 	for remnant_key in remnants.keys().duplicate():
 		var remnant: Dictionary = remnants[remnant_key]
 		remnant = FARM_SIMULATION.advance_soil_recovery(remnant, from_minute, target_minute, true, SOIL_RECOVERY_MINUTES)
@@ -1545,6 +1627,7 @@ func _advance_plot(plot_id: String, target_minute: int, rain_water := 0.0) -> vo
 			remnants.erase(remnant_key)
 	state["soil_remnants"] = remnants
 	state["last_simulated_minute"] = target_minute
+	var initial_cell_count := cells.size()
 	if bool(state.get("field_deleted", false)):
 		for key in cells.keys().duplicate():
 			var remnant_cell: Dictionary = cells[key]
@@ -1556,7 +1639,23 @@ func _advance_plot(plot_id: String, target_minute: int, rain_water := 0.0) -> vo
 		if cells.is_empty() and remnants.is_empty():
 			remove_plot(plot_id)
 			return
-	_save_plot(state)
+	var saved := _save_plot(state, false)
+	if cells.size() != initial_cell_count or remnants.size() != initial_remnant_count:
+		plot_changed.emit(plot_id, saved)
+	elif not changed_cells.is_empty():
+		plot_cells_changed.emit(plot_id, changed_cells, str(saved.get("settlement_id", "")))
+
+
+func _cell_delta_signature(cell: Dictionary) -> String:
+	return "%s|%s|%d|%s|%s|%s|%d" % [
+		str(cell.get("state", "")),
+		str(cell.get("crop_id", "")),
+		int(cell.get("stage_index", 0)),
+		str(cell.get("soil_created", false)),
+		str(cell.get("requested_operation", "")),
+		str(cell.get("requested_crop_id", "")),
+		int(cell.get("request_revision", 0)),
+	]
 
 
 func _work_record(state: Dictionary, key: String, cell: Dictionary, action: String) -> Dictionary:
@@ -1566,6 +1665,7 @@ func _work_record(state: Dictionary, key: String, cell: Dictionary, action: Stri
 	var crop := get_crop(crop_id)
 	return {
 		"plot_id": str(state.get("plot_id", "")), "cell_key": key, "action": action,
+		"settlement_id": str(state.get("settlement_id", "")), "owner_faction_id": str(state.get("owner_faction_id", "")),
 		"world_position": cell.get("world_position", Vector3.ZERO), "crop_id": crop_id,
 		"required_tool_tag": _required_tool(crop, action), "required_tool_label": _required_tool_label(crop, action),
 		"required_seconds": _seconds_for_action(crop, action), "progress_seconds": float(cell.get("work_progress", 0.0)),

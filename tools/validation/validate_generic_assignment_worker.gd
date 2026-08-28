@@ -6,6 +6,7 @@ const TOMATO := preload("res://features/inventory/resources/items/tomato.tres")
 
 class SyntheticCraftingProvider:
 	extends Node3D
+	signal work_offers_changed(settlement_id: String)
 	var offer_enabled := true
 	var active_actor: Node
 	func get_available_work_offers(settlement_id := "") -> Array:
@@ -33,9 +34,11 @@ class SyntheticCraftingProvider:
 	func clear_work() -> void:
 		offer_enabled = false
 		active_actor = null
+		work_offers_changed.emit("granary_demo")
 	func enable_work() -> void:
 		offer_enabled = true
 		active_actor = null
+		work_offers_changed.emit("granary_demo")
 
 var failures: Array[String] = []
 
@@ -83,6 +86,7 @@ func _run() -> void:
 	interaction.stop_seat_assignment()
 	worker.global_position = Vector3(0, 0.6, -8)
 	worker.inventory.add_item_count(TOMATO, 3)
+	jobs.notify_work_offers_changed("granary_demo")
 	jobs._process_party_job_dispatch()
 	var bulk_haul = context.get_optional(&"bulk_storage_haul")
 	var haul_platform = bulk_haul._assignment_platform(worker) if bulk_haul != null else null
@@ -100,12 +104,36 @@ func _run() -> void:
 	context.get_optional(&"world_time").advance_hours(2.0)
 	jobs._process_party_job_dispatch()
 	_expect(synthetic.active_actor == worker and worker.has_meta(&"active_facility_duty"), "assignment work is active before removal")
+	jobs.cancel_work_for_actor(worker)
+	synthetic.active_actor = null
+	jobs._pending_assignment_actor_ids.clear()
+	jobs._pending_assignment_actor_order.clear()
+	jobs._pending_assignment_actor_head = 0
+	var settlements = context.get_optional(&"settlement")
+	var worker_slot := _assignment_slot_for_actor(settlements.get_settlement_state("granary_demo"), "granary_worker")
+	var old_worker_instance_id: int = int(worker.get_instance_id())
+	settlements.derealize_assignment_slot("granary_demo", str(worker_slot.get("assignment_domain", "employment")), str(worker_slot.get("slot_id", "")))
+	await process_frame
+	await process_frame
+	_expect(settlements.realize_assignment_slot("granary_demo", str(worker_slot.get("assignment_domain", "employment")), str(worker_slot.get("slot_id", ""))), "assignment worker re-realizes after an LOD round trip")
+	await process_frame
+	worker = context.get_optional(&"population").get_live_actor("granary_worker")
+	jobs._process_party_job_dispatch()
+	_expect(worker != null and worker.get_instance_id() != old_worker_instance_id and synthetic.active_actor == worker, "re-realized assignment worker is immediately requeued and resumes ordinary Jobs work")
 	jobs._rebuild_assignment_workers_for_settlement("granary_demo", {"settlement_id": "granary_demo", "assignment_slots": {}, "facilities": {}})
 	_expect(synthetic.active_actor == null and not worker.has_meta(&"active_facility_duty"), "removing assignment cancels provider work and facility duty")
 	jobs.unregister_job_provider(synthetic)
 	root.remove_child(game)
 	game.free()
 	_finish()
+
+
+func _assignment_slot_for_actor(state: Dictionary, actor_id: String) -> Dictionary:
+	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
+		var slot: Dictionary = slot_value
+		if str(slot.get("occupant_actor_id", "")) == actor_id:
+			return slot
+	return {}
 
 func _expect(condition: bool, message: String) -> void:
 	if not condition:

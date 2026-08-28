@@ -53,13 +53,24 @@ class_name FurnishRules
 
 ## Function-required utility furniture (a jail's prisoner locker, a shop's
 ## strongbox): each scene placed exactly once against a ground-floor wall,
-## before the random containers roll. No loot stock — these serve the
-## facility's function, they aren't lootable set dressing.
+## before the random containers roll. Optional developer/world-generation
+## starter stock is authored separately from their reusable furniture scenes.
 @export var utility_scenes: Array[PackedScene] = []
+## Optional developer/world-generation starter recipes parallel to
+## utility_scenes. Runtime player furnishing calls the solver without starter
+## stock, so building another granary can never mint seeds or tools.
+@export var utility_stock_tables: Array[ContainerStockTable] = []
+## Whether a utility that fits nowhere fails the whole furnish. True for a
+## jail (a cell block with no prisoner locker is broken); false where the
+## utility is a convenience the town can satisfy elsewhere — a granary's seed
+## barrel is found by any farmhand through the town-wide seed store search, so
+## a cottage-sized granary should still furnish without one.
+@export var utilities_required := true
 
 ## Floor-standing lootable containers (crates/barrels), stood against solid
 ## ground-floor walls after tables claim their space.
 @export var container_scenes: Array[PackedScene] = []
+@export_enum("general", "seeds", "tools", "food", "materials") var container_type := "general"
 ## Loot recipe rolled per placed container with the furnish RNG.
 @export var container_stock: ContainerStockTable
 @export var max_containers := 4
@@ -75,3 +86,28 @@ class_name FurnishRules
 @export var min_beds := 0
 ## Bed floor footprint (width along wall, length into room).
 @export var bed_footprint := Vector2(2.0, 2.6)
+
+## Bulk storage pallets (BulkStoragePlatform wrappers), the function
+## furniture of a granary or warehouse: they stand on the floor, self-register
+## with the haul provider, and hold one crop each once stock arrives.
+@export var pallet_scenes: Array[PackedScene] = []
+## AUTO measures the shell: a hall wide enough for two rows plus a walkable
+## aisle gets rows, anything tighter lines the pallets along its walls. The
+## explicit modes force one or the other regardless of size.
+@export_enum("auto", "wall_line", "aisle_rows") var pallet_layout := "auto"
+## Walking aisle kept clear between two pallet rows.
+@export var pallet_aisle_meters := 1.4
+## Gap between neighbouring pallets within one row or wall line.
+@export var pallet_gap_meters := 0.3
+## Strip left between a pallet and the wall behind or beside it.
+@export var pallet_wall_clearance := 0.45
+## "auto" only picks rows for a room with at least this much free floor. A
+## cramped store room may be geometrically wide enough for two rows, but its
+## floor is worth more as walking space than as an aisle.
+@export var pallet_rows_min_floor_area := 45.0
+@export var max_pallets := 8
+@export var min_pallets := 0
+## Optional crop lock, cycled across the placed pallets: each pallet gets
+## storage_item_overrides admitting exactly one of these item ids. Leave it
+## empty and pallets accept any food, specializing on the first haul instead.
+@export var pallet_item_ids: PackedStringArray = []

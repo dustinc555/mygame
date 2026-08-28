@@ -301,6 +301,12 @@ func _actor_is_trying_to_cross_door(actor: Node, door: Node) -> bool:
 	var target = _current_move_target(actor)
 	if not actor is Node3D or not door is Node3D or not target is Vector3:
 		return false
+	var building := _door_building(door)
+	if building != null and building.has_method("get_occupancy_world_aabb"):
+		var actor_inside := bool(building.call("is_actor_inside", actor)) if building.has_method("is_actor_inside") else false
+		var target_inside := (building.call("get_occupancy_world_aabb") as AABB).has_point(target)
+		if actor_inside != target_inside:
+			return true
 	var normal := (door as Node3D).global_transform.basis.z.normalized()
 	var origin := (door as Node3D).global_position
 	var actor_side := normal.dot((actor as Node3D).global_position - origin)
@@ -308,6 +314,13 @@ func _actor_is_trying_to_cross_door(actor: Node, door: Node) -> bool:
 	return absf(actor_side) > 0.15 and absf(target_side) > 0.15 and actor_side * target_side < 0.0
 
 
+func _door_building(door: Node) -> Node:
+	var node := door.get_parent() if door != null else null
+	while node != null:
+		if node.has_method("is_actor_inside") and node.has_method("get_occupancy_world_aabb"):
+			return node
+		node = node.get_parent()
+	return null
 func _current_move_target(actor: Node):
 	if actor == null or not actor.has_method("has_move_target") or actor.call("has_move_target") != true:
 		return null

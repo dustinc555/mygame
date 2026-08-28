@@ -2,6 +2,8 @@ extends Node
 
 class_name BulkStorageHaulProvider
 
+signal work_offers_changed(settlement_id: String)
+
 const SERVICE_ID := &"bulk_storage_haul"
 
 var _context: BootstrapContext
@@ -184,6 +186,7 @@ func _rebuild_flat_offer_cache() -> void:
 		if platform == null or not is_instance_valid(platform):
 			continue
 		_offer_cache.append_array(_offers_by_platform.get(platform.get_instance_id(), []))
+	work_offers_changed.emit("")
 
 
 func _on_assigned_actor_tree_exiting(actor_key: int) -> void:

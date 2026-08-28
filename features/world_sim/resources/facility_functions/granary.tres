@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/facility_function_definition.gd" id="1_function"]
+
+[resource]
+script = ExtResource("1_function")
+function_id = "granary"
+display_name = "Granary"
+facility_type = "storage"
+description = "A settlement's food store: bulk storage pallets that farm hands haul harvested crops into, plus the barrels, crates, and shelves of a working store room."
+default_storage_capacity_bonus = 1.0
+expected_service_points = PackedStringArray()
+expected_activity_types = PackedStringArray("work")

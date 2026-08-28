@@ -39,6 +39,7 @@ func _ready() -> void:
 	_repair_authoring_tree()
 	super._ready()
 	if not Engine.is_editor_hint():
+		sync_property_ownership.call_deferred()
 		sync_door_policy.call_deferred()
 		if facility_type == "housing":
 			_home_resident_projection = HOME_RESIDENT_PROJECTION.new()

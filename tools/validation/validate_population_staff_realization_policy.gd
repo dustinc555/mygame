@@ -84,7 +84,7 @@ func _validate_staff_fills_under_non_full_policy() -> void:
 	for record in population.call("get_records_for_settlement", "farmer_crossing"):
 		if not (record is Dictionary):
 			continue
-		if ["barkeeper", "waiter", "guard", "barber", "warden", "ruler"].has(str(record.get("role_id", ""))):
+		if ["barkeeper", "waiter", "guard", "barber", "warden", "ruler", "farmer"].has(str(record.get("role_id", ""))):
 			staff_record_count += 1
 	if staff_record_count < required_staff:
 		_fail("Claimed staff should update generated population records to staff roles; records=%d required=%d" % [staff_record_count, required_staff])

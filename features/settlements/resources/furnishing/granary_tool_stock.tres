@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ContainerStockTable" format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/furnishing/container_stock_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://features/settlements/resources/furnishing/container_stock_entry.gd" id="2_entry"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/hoe.tres" id="3_hoe"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/scythe.tres" id="4_scythe"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/watering_can.tres" id="5_can"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/bucket.tres" id="6_bucket"]
+
+[sub_resource type="Resource" id="Entry_hoe"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("3_hoe")
+
+[sub_resource type="Resource" id="Entry_scythe"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("4_scythe")
+
+[sub_resource type="Resource" id="Entry_can"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("5_can")
+
+[sub_resource type="Resource" id="Entry_bucket"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("6_bucket")
+
+[resource]
+script = ExtResource("1_table")
+entries = Array[ContainerStockEntry]([SubResource("Entry_hoe"), SubResource("Entry_scythe"), SubResource("Entry_can"), SubResource("Entry_bucket")])

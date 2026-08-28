@@ -57,7 +57,13 @@ func is_equippable() -> bool:
 
 
 func has_tool_tag(tag: String) -> bool:
-	return not tag.is_empty() and tool_tags != null and tool_tags.has(tag)
+	var value: Variant = get("tool_tags")
+	return not tag.is_empty() and value is PackedStringArray and (value as PackedStringArray).has(tag)
+
+
+func has_any_tool_tag() -> bool:
+	var value: Variant = get("tool_tags")
+	return value is PackedStringArray and (value as PackedStringArray).size() > 0
 
 
 func is_currency_item() -> bool:

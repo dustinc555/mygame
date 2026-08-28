@@ -1241,6 +1241,10 @@ func get_farm_plot_header_state(plot_id: String) -> Dictionary:
 		"field_deleted": component.field_deleted,
 		"priority": component.priority,
 		"worker_policy": component.worker_policy,
+		"origin": component.origin,
+		"cell_size": component.cell_size,
+		"dimensions": component.dimensions,
+		"last_simulated_minute": component.last_simulated_minute,
 		"state_revision": component.state_revision,
 	}
 
@@ -1253,6 +1257,30 @@ func get_farm_plot_cell_record(plot_id: String, cell_key: String) -> Dictionary:
 	record["cell_key"] = cell_key
 	record["cell"] = (component.cells.get(cell_key, {}) as Dictionary).duplicate(true)
 	return record
+
+
+func upsert_farm_plot_cells(plot_id: String, changed_cells: Dictionary) -> Dictionary:
+	var component = _farm_plot_component(plot_id)
+	if component == null or changed_cells.is_empty():
+		return {}
+	var saved_cells: Dictionary = {}
+	for cell_key_value in changed_cells.keys():
+		var cell_key := str(cell_key_value)
+		var cell: Dictionary = changed_cells[cell_key_value]
+		if cell_key.is_empty() or cell.is_empty() or not component.cells.has(cell_key):
+			continue
+		var saved_cell := cell.duplicate(true)
+		component.cells[cell_key] = saved_cell
+		saved_cells[cell_key] = saved_cell.duplicate(true)
+	if saved_cells.is_empty():
+		return {}
+	component.state_revision += 1
+	return {
+		"plot_id": component.plot_id,
+		"settlement_id": component.settlement_id,
+		"state_revision": component.state_revision,
+		"cells": saved_cells,
+	}
 
 
 func _farm_plot_component(plot_id: String):
@@ -2442,6 +2470,8 @@ func _sync_inventory_container(actor_id: String, container_id: String, inventory
 	component.settlement_id = str(inventory_owner.get("settlement_id")) if is_world_container and _has_property(inventory_owner, "settlement_id") else ""
 	component.facility_id = str(inventory_owner.get("facility_id")) if is_world_container and _has_property(inventory_owner, "facility_id") else ""
 	component.container_kind = str(inventory_owner.get("container_kind")) if is_world_container and _has_property(inventory_owner, "container_kind") else "actor_work" if is_work_inventory else "actor"
+	component.container_type = str(inventory_owner.get("container_type")) if is_world_container and _has_property(inventory_owner, "container_type") else "general"
+	component.allowed_item_ids = PackedStringArray(inventory_owner.get("allowed_item_ids")) if is_world_container and _has_property(inventory_owner, "allowed_item_ids") else PackedStringArray()
 	component.contributes_to_town_stock = bool(inventory_owner.get("contributes_to_town_stock")) if is_world_container and _has_property(inventory_owner, "contributes_to_town_stock") else false
 	component.next_stack_sequence = int(inventory.get("next_stack_sequence")) if _has_property(inventory, "next_stack_sequence") else 1
 	component.columns = int(inventory.get("columns")) if _has_property(inventory, "columns") else 0

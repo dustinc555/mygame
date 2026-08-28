@@ -47,6 +47,7 @@ func _refresh_sleep(actor: Node, interaction) -> void:
 		if interaction.current_sleep_target == bed:
 			return
 		bed.call("release_sleeper", actor)
+	_send_home_fallback(actor)
 
 
 func _refresh_day_idle(actor: Node, interaction) -> void:
@@ -62,6 +63,21 @@ func _refresh_day_idle(actor: Node, interaction) -> void:
 		if interaction.current_seat_target == seat:
 			return
 		seat.call("release_sitter", actor)
+	_send_home_fallback(actor)
+
+
+func _send_home_fallback(actor: Node) -> void:
+	if actor == null or not actor.has_method("set_move_target") or not (_facility is Node3D):
+		return
+	var target := (_facility as Node3D).global_position
+	var anchors: Array[Node] = _beds + _seats
+	if not anchors.is_empty():
+		var anchor := anchors[0]
+		if anchor.has_method("get_interaction_position"):
+			target = anchor.call("get_interaction_position", actor)
+		elif anchor is Node3D:
+			target = (anchor as Node3D).global_position
+	actor.call("set_move_target", target, false)
 
 
 func _cache_furniture() -> void:

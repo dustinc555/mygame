@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="FurnishRules" format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/furnishing/furnish_rules.gd" id="1_rules"]
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/bulk_storage_platform.tscn" id="2_pallet"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furnishing/vignettes/granary_work_corner.tscn" id="3_work_corner"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/barrel.tscn" id="4_barrel"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/barrel_dark.tscn" id="5_barrel_dark"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/crate_wooden.tscn" id="6_crate"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_simple.tscn" id="7_shelf_simple"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_stocked.tscn" id="8_shelf_stocked"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/lighting/wall_torch.tscn" id="9_torch"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/seed_sack.tscn" id="10_seed_sack"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/tool_chest.tscn" id="11_tool_chest"]
+[ext_resource type="Resource" path="res://features/settlements/resources/furnishing/granary_seed_stock.tres" id="12_seed_stock"]
+[ext_resource type="Resource" path="res://features/settlements/resources/furnishing/granary_tool_stock.tres" id="13_tool_stock"]
+
+[resource]
+script = ExtResource("1_rules")
+counter_scenes = Array[PackedScene]([])
+cluster_scenes = Array[PackedScene]([ExtResource("3_work_corner")])
+square_meters_per_cluster = 40.0
+max_clusters = 1
+cluster_margin = 0.35
+utility_scenes = Array[PackedScene]([ExtResource("10_seed_sack"), ExtResource("11_tool_chest")])
+utility_stock_tables = Array[ContainerStockTable]([ExtResource("12_seed_stock"), ExtResource("13_tool_stock")])
+utilities_required = false
+container_scenes = Array[PackedScene]([ExtResource("4_barrel"), ExtResource("5_barrel_dark"), ExtResource("6_crate")])
+container_type = "food"
+max_containers = 4
+container_chance = 0.5
+shelf_scenes = Array[PackedScene]([ExtResource("7_shelf_simple"), ExtResource("8_shelf_stocked")])
+shelf_chance = 0.5
+shelf_mount_height = 1.6
+max_shelves = 6
+light_scenes = Array[PackedScene]([ExtResource("9_torch")])
+light_chance = 0.55
+light_mount_height = 2.1
+light_spacing_meters = 3.5
+max_lights_per_level = 6
+bed_scenes = Array[PackedScene]([])
+max_beds = 0
+pallet_scenes = Array[PackedScene]([ExtResource("2_pallet")])
+pallet_layout = "auto"
+pallet_aisle_meters = 1.4
+pallet_gap_meters = 0.3
+pallet_wall_clearance = 0.45
+max_pallets = 8
+min_pallets = 1

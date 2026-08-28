@@ -16,6 +16,7 @@ const FACTION_TOOLS := preload("res://addons/world_authoring/faction_tools.gd")
 const WORLD_TOOLS := preload("res://addons/world_authoring/world_tools.gd")
 
 var _contexts: Array = []
+var _suppress_selection_refresh := false
 ## Scene roots (instance IDs) already folded once — manual expand state is
 ## never fought after the initial collapse.
 var _folded_scene_roots := {}
@@ -64,6 +65,8 @@ func _handles(object: Object) -> bool:
 
 
 func _edit(object: Object) -> void:
+	if _suppress_selection_refresh:
+		return
 	var context = _resolve_context_for_object(object)
 	if context != null:
 		context.edit(object)
@@ -130,7 +133,26 @@ func _resolve_context_for_node(node: Node) -> RefCounted:
 
 
 func _on_selection_changed() -> void:
+	if _suppress_selection_refresh:
+		return
 	_refresh_contexts()
+
+
+## Select a dock-owned subobject in the scene tree and 3D viewport without
+## rebuilding every world-authoring context or forcing a redundant Inspector
+## edit. The dock already owns the active editing context.
+func select_node_without_context_refresh(node: Node) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	_suppress_selection_refresh = true
+	var selection := get_editor_interface().get_selection()
+	selection.clear()
+	selection.add_node(node)
+	_finish_suppressed_selection.call_deferred()
+
+
+func _finish_suppressed_selection() -> void:
+	_suppress_selection_refresh = false
 
 
 func _on_scene_changed(scene_root: Node) -> void:

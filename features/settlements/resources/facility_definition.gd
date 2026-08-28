@@ -48,7 +48,16 @@ func get_category() -> String:
 	return category
 
 
+## Instantiating the facility scene costs ~70-95ms (it pulls in the building
+## shell and its furniture), and the authoring docks ask for this once per
+## facility per rebuild. The answer only changes when the scene does.
+var _slot_spec_cache: Array[Dictionary] = []
+var _slot_spec_cache_path := ""
+
+
 func get_default_assignment_slot_specs() -> Array[Dictionary]:
+	if _slot_spec_cache_path == scene_path and not scene_path.is_empty():
+		return _slot_spec_cache.duplicate(true)
 	var specs: Array[Dictionary] = []
 	if scene_path.is_empty():
 		return specs
@@ -59,6 +68,8 @@ func get_default_assignment_slot_specs() -> Array[Dictionary]:
 			specs.append((slot as Dictionary).duplicate(true))
 	if facility != null:
 		facility.free()
+	_slot_spec_cache = specs.duplicate(true)
+	_slot_spec_cache_path = scene_path
 	return specs
 
 

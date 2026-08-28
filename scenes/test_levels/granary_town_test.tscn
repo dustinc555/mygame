@@ -12,7 +12,7 @@
 [ext_resource type="Resource" path="res://features/inventory/resources/items/eggplant_seeds.tres" id="10_eggplant_seeds"]
 [ext_resource type="Script" uid="uid://vi8lbmuj6d1r" path="res://features/settlements/bridge/settlement_town.gd" id="11_town"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/settlements/granary_demo.tres" id="12_settlement"]
-[ext_resource type="PackedScene" path="res://features/settlements/bridge/settlement_granary.tscn" id="13_granary"]
+[ext_resource type="PackedScene" path="res://features/settlements/bridge/granary_demo_facility.tscn" id="13_granary"]
 [ext_resource type="PackedScene" path="res://features/settlements/bridge/settlement_worker_house.tscn" id="14_house"]
 [ext_resource type="PackedScene" path="res://features/farming/projection/farm_water_cistern.tscn" id="16_water"]
 [ext_resource type="Script" uid="uid://b0243b3mdreof" path="res://features/world_sim/bridge/faction_territory_anchor.gd" id="17_territory"]

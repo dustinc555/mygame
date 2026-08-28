@@ -5,6 +5,9 @@ extends "res://features/settlements/bridge/settlement_anchor.gd"
 class_name SettlementTown
 
 const SETTLEMENT_GUARD_POST_SCRIPT = preload("res://features/settlements/bridge/venues/settlement_guard_post.gd")
+const TOWN_ROLE_DIR := "res://features/settlements/resources/roles"
+const FARM_TILES_PER_FARMER := 200
+
 const STAFF_ROLE_OWNER_GROUP := "settlement_staff_role_owner"
 const META_SETTLEMENT_ROLE := "settlement_staff_role"
 const META_SETTLEMENT_ROLE_INDEX := "settlement_staff_role_index"
@@ -232,7 +235,58 @@ func get_assignment_slot_specs() -> Array[Dictionary]:
 	for index in range(guard_count):
 		var actor := _get_guard_actor_for_slot(index)
 		_append_guard_slot(slots, index, actor)
+	_append_town_job_slots(slots)
 	return slots
+
+
+func _append_town_job_slots(slots: Array[Dictionary]) -> void:
+	var definition := _settlement_definition_typed()
+	if definition == null:
+		return
+	var counts: Dictionary = definition.town_job_counts.duplicate(true)
+	var estimated_farmers := _estimated_farmer_count()
+	if estimated_farmers > 0:
+		counts["farmer"] = estimated_farmers
+	else:
+		counts.erase("farmer")
+	var role_ids := counts.keys()
+	role_ids.sort()
+	for role_id_value in role_ids:
+		var role_id := str(role_id_value).strip_edges().to_lower()
+		var count := maxi(0, int(counts.get(role_id_value, 0)))
+		var role := load(TOWN_ROLE_DIR.path_join("%s.tres" % role_id)) as FacilityRoleDefinition
+		if role == null or not role.uses_settlement_jobs:
+			continue
+		for index in count:
+			slots.append({
+				"slot_id": "town.%s.%d" % [role_id, index],
+				"assignment_domain": "employment",
+				"assignment_exclusivity_group": "employment",
+				"assignment_scope": "town_labor",
+				"role_id": role_id,
+				"uses_settlement_jobs": true,
+				"allowed_job_entry_ids": role.allowed_job_entry_ids,
+				"preferred_skill_id": role.preferred_skill_id,
+				"character_type_id": role.default_character_type_id,
+				"role_index": index,
+				"display_name": _indexed_display_name(role.get_display_name(), index),
+				"population_cost": 0,
+				"replacement_delay_days": DEFAULT_REPLACEMENT_DELAY_DAYS,
+				"filled": false,
+				"authority_scope": "settlement_authority",
+			})
+
+
+## Simple structural town demand. Worker skill and failures affect throughput
+## after assignment; they do not change the baseline number of Farmer jobs.
+func _estimated_farmer_count() -> int:
+	var field_cells := 0
+	for facility in get_facility_nodes():
+		if facility.has_method("get_footprint"):
+			field_cells += (facility.call("get_footprint").get("positions", []) as Array).size()
+	if field_cells <= 0:
+		return 0
+	return int(ceil(float(field_cells) / float(FARM_TILES_PER_FARMER)))
 
 
 func get_assignment_realization_parent() -> Node3D:
@@ -243,6 +297,13 @@ func configure_settlement_assignment_actor(actor: Node, slot_id: String, slot_re
 	var role_index: int = max(0, int(slot_record.get("role_index", _role_index_from_slot_id(slot_id))))
 	var guards_root := _ensure_child_root(guards_root_path)
 	if actor == null or guards_root == null:
+		return
+	if str(slot_record.get("assignment_scope", "")) == "town_labor":
+		actor.name = _available_child_name(guards_root, _indexed_name(str(slot_record.get("role_id", "Worker")).capitalize(), role_index))
+		actor.set_meta(META_SETTLEMENT_ROLE, str(slot_record.get("role_id", "worker")))
+		actor.set_meta(META_SETTLEMENT_ROLE_INDEX, role_index)
+		actor.set_meta(META_SETTLEMENT_SLOT_ID, slot_id)
+		actor.set_meta("settlement_actor_category", "worker")
 		return
 	actor.name = _available_child_name(guards_root, _indexed_name("Guard", role_index))
 	_prepare_guard_actor(actor, role_index)

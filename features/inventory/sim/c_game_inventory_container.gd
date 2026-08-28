@@ -7,6 +7,8 @@ class_name CGameInventoryContainer
 @export var settlement_id := ""
 @export var facility_id := ""
 @export var container_kind := ""
+@export var container_type := "general"
+@export var allowed_item_ids := PackedStringArray()
 @export var contributes_to_town_stock := false
 @export var next_stack_sequence := 1
 @export var columns := 0

@@ -415,54 +415,170 @@ func _update_carried_pose() -> void:
 	carried.global_transform = CarryPoseSolver.solve_carried_transform(carrier_body, self, carry.carry_pose_profile, carried_body, carried)
 
 
+# --- Chair presentation ---
+# Sitting enters as the exact inverse of leaving: collision authority stays on
+# the reached floor anchor while the body projection moves between anchor and chair.
+const CHAIR_VISUAL_SETTLE_SECONDS := 0.22
+var _sit_down_visual_remaining := 0.0
+var _sit_down_visual_start := Vector3.INF
+var _sit_down_visual_target := Vector3.INF
+
 # --- Stand-up presentation (rising from a seat) ---
 # Rise where you sat: the Sitting_Exit clip plays in place for its full
 # length, then the character settles one small step in front of the seat —
 # instead of teleporting a body-length away mid-sit.
 var _stand_up_exit_remaining := 0.0
 var _stand_up_position := Vector3.INF
+const STAND_UP_SETTLE_SECONDS := CHAIR_VISUAL_SETTLE_SECONDS
+var _stand_up_settle_remaining := 0.0
+var _stand_up_settle_start := Vector3.INF
 
 
 func process_world_actor_movement(delta: float) -> void:
+	if _sit_down_visual_remaining > 0.0:
+		_sit_down_visual_remaining = maxf(0.0, _sit_down_visual_remaining - delta)
+		var progress := 1.0 - _sit_down_visual_remaining / CHAIR_VISUAL_SETTLE_SECONDS
+		var body := get_body_projection()
+		if body != null:
+			body.global_position = _sit_down_visual_start.lerp(_sit_down_visual_target, smoothstep(0.0, 1.0, progress))
+		velocity = Vector3.ZERO
+		if _sit_down_visual_remaining <= 0.0:
+			_finish_sit_down_visual()
+		return
 	if _stand_up_exit_remaining > 0.0:
 		velocity = Vector3.ZERO
+		return
+	if _stand_up_settle_remaining > 0.0:
+		_stand_up_settle_remaining = maxf(0.0, _stand_up_settle_remaining - delta)
+		var progress := 1.0 - _stand_up_settle_remaining / STAND_UP_SETTLE_SECONDS
+		var eased_progress := smoothstep(0.0, 1.0, progress)
+		var body := get_body_projection()
+		if body != null:
+			body.position = _stand_up_settle_start.lerp(Vector3.ZERO, eased_progress)
+		velocity = Vector3.ZERO
+		if _stand_up_settle_remaining <= 0.0:
+			_finish_stand_up_exit()
 		return
 	super.process_world_actor_movement(delta)
 
 
 func begin_stand_up_exit(final_position: Vector3) -> void:
-	_begin_pose_exit(HumanoidBodyProjection.SITTING_EXIT_ANIMATION_NAME, final_position)
+	_begin_pose_exit(HumanoidBodyProjection.SITTING_EXIT_ANIMATION_NAME, final_position, global_position)
+
+
+func begin_stand_up_exit_from(seated_visual_position: Vector3, final_position: Vector3) -> void:
+	_begin_pose_exit(HumanoidBodyProjection.SITTING_EXIT_ANIMATION_NAME, final_position, seated_visual_position)
+
+
+func begin_seated_visual(seat_position: Vector3, seat_rotation: Vector3) -> void:
+	_cancel_sit_down_visual()
+	cancel_stand_up_exit()
+	var body := get_body_projection()
+	if body == null:
+		return
+	body.global_position = seat_position
+	body.global_rotation = seat_rotation
+
+
+func begin_seated_visual_enter(seat_position: Vector3, seat_rotation: Vector3) -> void:
+	_cancel_sit_down_visual()
+	cancel_stand_up_exit()
+	var body := get_body_projection()
+	if body == null:
+		return
+	body.global_position = global_position
+	body.global_rotation = seat_rotation
+	_sit_down_visual_start = body.global_position
+	_sit_down_visual_target = seat_position
+	_sit_down_visual_remaining = CHAIR_VISUAL_SETTLE_SECONDS
+
+
+func _cancel_sit_down_visual() -> void:
+	_sit_down_visual_remaining = 0.0
+	_sit_down_visual_start = Vector3.INF
+	_sit_down_visual_target = Vector3.INF
+
+
+func _finish_sit_down_visual() -> void:
+	var body := get_body_projection()
+	if body != null and _sit_down_visual_target.is_finite():
+		body.global_position = _sit_down_visual_target
+	_cancel_sit_down_visual()
+
+
+func begin_stand_up_visual_exit() -> void:
+	_cancel_sit_down_visual()
+	var body := get_body_projection() as HumanoidBodyProjection
+	if body == null:
+		return
+	var clip_length := body.get_clip_length(HumanoidBodyProjection.SITTING_EXIT_ANIMATION_NAME)
+	_stand_up_position = global_position
+	_stand_up_settle_start = body.position
+	_stand_up_settle_remaining = 0.0
+	if clip_length <= 0.0:
+		_begin_stand_up_settle()
+		return
+	_stand_up_exit_remaining = clip_length
+	body.play_clip(HumanoidBodyProjection.SITTING_EXIT_ANIMATION_NAME, 0.0, true, 0.1)
 
 
 func cancel_stand_up_exit() -> void:
 	_stand_up_exit_remaining = 0.0
+	_stand_up_settle_remaining = 0.0
+	_stand_up_settle_start = Vector3.INF
 	_stand_up_position = Vector3.INF
 	var body := get_body_projection() as HumanoidBodyProjection
 	if body != null:
+		body.position = Vector3.ZERO
 		body.cancel_sitting_exit_animation()
 
 
 ## Waking from a bed: play the get-up clip in place, then step off the bed.
 func begin_lay_exit(final_position: Vector3) -> void:
-	_begin_pose_exit(HumanoidBodyProjection.LAY_EXIT_ANIMATION_NAME, final_position)
+	_begin_pose_exit(HumanoidBodyProjection.LAY_EXIT_ANIMATION_NAME, final_position, global_position)
 
 
-func _begin_pose_exit(clip_name: String, final_position: Vector3) -> void:
+func _begin_pose_exit(clip_name: String, final_position: Vector3, visual_start_position: Vector3) -> void:
 	var body := get_body_projection() as HumanoidBodyProjection
 	var clip_length := body.get_clip_length(clip_name) if body != null else 0.0
+	_stand_up_settle_remaining = 0.0
+	_stand_up_settle_start = Vector3.INF
 	_stand_up_position = final_position
+	# Move collision authority out of the furniture immediately. Keep only the
+	# presentation at the seated world position while the exit clip plays.
+	if body != null and final_position.is_finite():
+		global_position = final_position
+		body.global_position = visual_start_position
+		_stand_up_settle_start = body.position
 	if clip_length <= 0.0:
-		_finish_stand_up_exit()
+		_begin_stand_up_settle()
 		return
 	_stand_up_exit_remaining = clip_length
 	if body != null:
 		body.play_clip(clip_name, 0.0, true, 0.1)
 
 
+func _begin_stand_up_settle() -> void:
+	_stand_up_exit_remaining = 0.0
+	if not _stand_up_position.is_finite():
+		_finish_stand_up_exit()
+		return
+	var body := get_body_projection()
+	if body == null or not _stand_up_settle_start.is_finite() or _stand_up_settle_start.length_squared() <= 0.0004:
+		_finish_stand_up_exit()
+		return
+	_stand_up_settle_remaining = STAND_UP_SETTLE_SECONDS
+
+
 func _finish_stand_up_exit() -> void:
 	_stand_up_exit_remaining = 0.0
+	_stand_up_settle_remaining = 0.0
 	if _stand_up_position.is_finite():
 		global_position = _stand_up_position
+	var body := get_body_projection()
+	if body != null:
+		body.position = Vector3.ZERO
+	_stand_up_settle_start = Vector3.INF
 	_stand_up_position = Vector3.INF
 
 
@@ -605,11 +721,14 @@ func _update_locomotion_animation(delta: float) -> void:
 		return
 	if is_in_cell_custody():
 		return
-	# Rising from a seat: hold the exit clip to its end, then step off.
+	# Rising from a seat: hold the exit clip to its end, then visibly settle onto
+	# the collision-checked floor point chosen by the seat.
 	if _stand_up_exit_remaining > 0.0:
 		_stand_up_exit_remaining -= delta
 		if _stand_up_exit_remaining <= 0.0:
-			_finish_stand_up_exit()
+			_begin_stand_up_settle()
+		return
+	if _stand_up_settle_remaining > 0.0:
 		return
 	if is_sitting():
 		# Hold the seated pose: after the enter clip finishes, loop the sitting idle.
@@ -757,6 +876,13 @@ func get_body_projection() -> BodyProjection:
 func get_character_visual_root() -> Node3D:
 	var body := get_body_projection()
 	return body.get_visual_root() if body != null else null
+
+
+func get_follow_anchor_position() -> Vector3:
+	var body := get_body_projection()
+	if body != null and (is_sitting() or _stand_up_exit_remaining > 0.0 or _stand_up_settle_remaining > 0.0):
+		return body.global_position
+	return super.get_follow_anchor_position()
 
 
 ## Sneak toggles play the crouch enter/exit transition clips; state changes

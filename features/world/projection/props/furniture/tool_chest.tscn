@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chest_wood.tscn" id="1_chest"]
+
+[node name="ToolChest" instance=ExtResource("1_chest")]
+display_name = "Farm Tool Chest"
+container_type = "tools"
+inventory_columns = 8
+inventory_rows = 8

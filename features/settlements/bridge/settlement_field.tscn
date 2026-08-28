@@ -6,5 +6,16 @@
 [node name="SettlementField" type="Node3D"]
 script = ExtResource("1_field")
 facility_id = "settlement_field"
-display_name = "Settlement Field"
+display_name = "Field"
+facility_type = "farm"
 facility_function = ExtResource("2_function")
+dimensions = Vector2i(6, 4)
+crop_policy_id = "auto"
+auto_till_on_seed = true
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+building_root_path = NodePath("")
+staff_root_path = NodePath("")
+service_points_root_path = NodePath("")
+activity_points_root_path = NodePath("")
+auto_create_standard_roots = false

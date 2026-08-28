@@ -12,7 +12,7 @@
 [ext_resource type="Resource" uid="uid://c61gqpdemh37e" path="res://features/world_sim/resources/facility_functions/bar.tres" id="7_omktg"]
 [ext_resource type="Script" uid="uid://dtpasxx6o7akq" path="res://features/world/projection/zone_root.gd" id="7_zone_root"]
 [ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/medium_wood_hall.tscn" id="8_l7lbw"]
-[ext_resource type="Resource" path="res://features/actors/resources/characters/ada.tres" id="12_77k1n"]
+[ext_resource type="Resource" uid="uid://b0kpn5b15tqys" path="res://features/actors/resources/characters/ada.tres" id="12_77k1n"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/crate_wooden.tscn" id="15_l7lbw"]
 [ext_resource type="Script" uid="uid://b13rfopbqoquh" path="res://features/inventory/resources/items/inventory_stock.gd" id="17_pqxta"]
 [ext_resource type="Resource" uid="uid://y2dcron3ak5a" path="res://features/inventory/resources/items/bread.tres" id="18_0mjsx"]
@@ -51,28 +51,49 @@
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chair_2.tscn" id="49_xh5ub"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_2.tscn" id="50_jdtbr"]
 [ext_resource type="Script" uid="uid://ukjf4vtbquwi" path="res://features/settlements/resources/facility_role_slot_definition.gd" id="53_role_slot"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/granary.tres" id="54_bggen"]
 [ext_resource type="Resource" path="res://features/settlements/resources/roles/resident.tres" id="54_resident"]
 [ext_resource type="Resource" path="res://features/settlements/resources/roles/barkeeper.tres" id="55_barkeeper"]
 [ext_resource type="Resource" path="res://features/settlements/resources/roles/barber.tres" id="56_barber"]
+[ext_resource type="PackedScene" uid="uid://pko4u2vo611f" path="res://features/world/projection/buildings/shells/modular/medium_wood_hall_20x12.tscn" id="56_jdtbr"]
 [ext_resource type="Resource" path="res://features/settlements/resources/roles/guard.tres" id="57_guard"]
 [ext_resource type="Resource" path="res://features/settlements/resources/roles/warden.tres" id="58_warden"]
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/bulk_storage_platform.tscn" id="59_4lpkg"]
 [ext_resource type="Resource" path="res://features/settlements/resources/roles/ruler.tres" id="59_ruler"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/tomato.tres" id="61_6jy6l"]
+[ext_resource type="Texture2D" uid="uid://dp1eilihmiluh" path="res://assets/icons/storage_markers/tomato.svg" id="62_fiiko"]
+[ext_resource type="Script" uid="uid://s5c5gwuawbnx" path="res://features/world/projection/containers/bulk_storage_display_profile.gd" id="63_crkdy"]
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/displays/produce_crate_display_unit.tscn" id="64_lk5yl"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/chili_pepper.tres" id="65_ctu0q"]
+[ext_resource type="Texture2D" uid="uid://cuk54oduwlws2" path="res://assets/icons/storage_markers/chili_pepper.svg" id="66_30bxb"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/eggplant.tres" id="67_wyvsv"]
+[ext_resource type="Texture2D" uid="uid://j8la2n2rjgyj" path="res://assets/icons/storage_markers/eggplant.svg" id="68_s4vlm"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/eggplant_seeds.tres" id="69_iskxg"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/bell_pepper.tres" id="69_x5ne4"]
+[ext_resource type="Script" uid="uid://c661t2qdsta6m" path="res://features/settlements/bridge/settlement_field.gd" id="70_hqvai"]
+[ext_resource type="Texture2D" uid="uid://dsyosg7vthht7" path="res://assets/icons/storage_markers/bell_pepper.svg" id="70_wmqh0"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/hoe.tres" id="70_xj30o"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/watering_can.tres" id="71_ex0ji"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/french_beans.tres" id="71_nc438"]
+[ext_resource type="Resource" uid="uid://ctxocg83twg3t" path="res://features/world_sim/resources/facility_functions/field.tres" id="71_x4ycr"]
+[ext_resource type="Texture2D" uid="uid://b2bq0yufv6apf" path="res://assets/icons/storage_markers/french_beans.svg" id="72_dt8ex"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_simple.tscn" id="79_dp625"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ev028"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_iskxg"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_vaooy"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_5h40p"]
 _surfaces = [{
-"aabb": AABB(-8.339571, 0, -116.74548, 88.055725, 1e-05, 100.10727),
+"aabb": AABB(-56.465225, 0, -151.50409, 136.18138, 1e-05, 134.86588),
 "format": 34359738369,
 "primitive": 1,
 "uv_scale": Vector4(0, 0, 0, 0),
-"vertex_count": 256,
-"vertex_data": PackedByteArray("4m4FwQAAAACwfenCxN3KwAAAAACwfenCxN2qwAAAAACwfenCiLtVwAAAAACwfenCiLsVwAAAAACwfenCQNytvgAAAACwfenC4BEpPwAAAACwfenCeEQqQAAAAACwfenCeERqQAAAAACwfenCPCK1QAAAAACwfenCPCLVQAAAAACwfenCHpEKQQAAAACwfenCHpEaQQAAAACwfenCHpE6QQAAAACwfenCHpFKQQAAAACwfenCHpFqQQAAAACwfenCHpF6QQAAAACwfenCj0iNQQAAAACwfenCj0iVQQAAAACwfenCj0ilQQAAAACwfenCj0itQQAAAACwfenCj0i9QQAAAACwfenCj0jFQQAAAACwfenCj0jVQQAAAACwfenCj0jdQQAAAACwfenCj0jtQQAAAACwfenCj0j1QQAAAACwfenCSKQCQgAAAACwfenCSKQGQgAAAACwfenCSKQOQgAAAACwfenCSKQSQgAAAACwfenCSKQaQgAAAACwfenCSKQeQgAAAACwfenCSKQmQgAAAACwfenCSKQqQgAAAACwfenCSKQyQgAAAACwfenCSKQ2QgAAAACwfenCSKQ+QgAAAACwfenCSKRCQgAAAACwfenCSKRKQgAAAACwfenCSKROQgAAAACwfenCSKRWQgAAAACwfenCSKRaQgAAAACwfenCSKRiQgAAAACwfenCSKRmQgAAAACwfenCSKRuQgAAAACwfenCSKRyQgAAAACwfenCSKR6QgAAAACwfenCSKR+QgAAAACwfenCJFKDQgAAAACwfenCJFKFQgAAAACwfenCJFKJQgAAAACwfenCJFKLQgAAAACwfenCJFKPQgAAAACwfenCJFKRQgAAAACwfenCJFKVQgAAAACwfenCJFKXQgAAAACwfenCJFKbQgAAAACwfenCJFKdQgAAAACwfenCrG6fQgAAAACwfenCrG6fQgAAAACwfenCrG6fQgAAAACwfeXCrG6fQgAAAACwfePCrG6fQgAAAACwfd/CrG6fQgAAAACwfd3CrG6fQgAAAACwfdnCrG6fQgAAAACwfdfCrG6fQgAAAACwfdPCrG6fQgAAAACwfdHCrG6fQgAAAACwfc3CrG6fQgAAAACwfcvCrG6fQgAAAACwfcfCrG6fQgAAAACwfcXCrG6fQgAAAACwfcHCrG6fQgAAAACwfb/C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")
+"vertex_count": 364,
+"vertex_data": PackedByteArray("ZNxhwgAAAAAMgRfDZNxZwgAAAAAMgRfDZNxVwgAAAAAMgRfDZNxNwgAAAAAMgRfDZNxJwgAAAAAMgRfDZNxBwgAAAAAMgRfDZNw9wgAAAAAMgRfDZNw1wgAAAAAMgRfDZNwxwgAAAAAMgRfDZNwpwgAAAAAMgRfDZNwlwgAAAAAMgRfDZNwdwgAAAAAMgRfDZNwZwgAAAAAMgRfDZNwRwgAAAAAMgRfDZNwNwgAAAAAMgRfDZNwFwgAAAAAMgRfDZNwBwgAAAAAMgRfDyLjzwQAAAAAMgRfDyLjrwQAAAAAMgRfDyLjbwQAAAAAMgRfDyLjTwQAAAAAMgRfDyLjDwQAAAAAMgRfDyLi7wQAAAAAMgRfDyLirwQAAAAAMgRfDyLijwQAAAAAMgRfDyLiTwQAAAAAMgRfDyLiLwQAAAAAMgRfDkHF3wQAAAAAMgRfDkHFnwQAAAAAMgRfDkHFHwQAAAAAMgRfDkHE3wQAAAAAMgRfDkHEXwQAAAAAMgRfDkHEHwQAAAAAMgRfDIOPOwAAAAAAMgRfDIOOuwAAAAAAMgRfDQMZdwAAAAAAMgRfDQMYdwAAAAAAMgRfDADLuvgAAAAAMgRfDAOcIPwAAAAAMgRfDwDkiQAAAAAAMgRfDwDliQAAAAAAMgRfD4ByxQAAAAAAMgRfD4BzRQAAAAAAMgRfDcI4IQQAAAAAMgRfDcI4YQQAAAAAMgRfDcI44QQAAAAAMgRfDcI5IQQAAAAAMgRfDcI5oQQAAAAAMgRfDcI54QQAAAAAMgRfDOEeMQQAAAAAMgRfDOEeUQQAAAAAMgRfDOEekQQAAAAAMgRfDOEesQQAAAAAMgRfDOEe8QQAAAAAMgRfDOEfEQQAAAAAMgRfDOEfUQQAAAAAMgRfDOEfcQQAAAAAMgRfDOEfsQQAAAAAMgRfDOEf0QQAAAAAMgRfDnCMCQgAAAAAMgRfDnCMGQgAAAAAMgRfDnCMOQgAAAAAMgRfDnCMSQgAAAAAMgRfDnCMaQgAAAAAMgRfDnCMeQgAAAAAMgRfDnCMmQgAAAAAMgRfDnCMqQgAAAAAMgRfDnCMyQgAAAAAMgRfDnCM2QgAAAAAMgRfDnCM+QgAAAAAMgRfDnCNCQgAAAAAMgRfDnCNKQgAAAAAMgRfDnCNOQgAAAAAMgRfDnCNWQgAAAAAMgRfDnCNaQgAAAAAMgRfDnCNiQgAAAAAMgRfDnCNmQgAAAAAMgRfDnCNuQgAAAAAMgRfDnCNyQgAAAAAMgRfDnCN6QgAAAAAMgRfDnCN+QgAAAAAMgRfDzhGDQgAAAAAMgRfDzhGFQgAAAAAMgRfDzhGJQgAAAAAMgRfDzhGLQgAAAAAMgRfDzhGPQgAAAAAMgRfDzhGRQgAAAAAMgRfDzhGVQgAAAAAMgRfDzhGXQgAAAAAMgRfDzhGbQgAAAAAMgRfDzhGdQgAAAAAMgRfDrG6fQgAAAAAMgRfDrG6fQgAAAAAMgRfDrG6fQgAAAAAMgRXDrG6fQgAAAAAMgRTDrG6fQgAAAAAMgRLDrG6fQgAAAAAMgRHDrG6fQgAAAAAMgQ/DrG6fQgAAAAAMgQ7DrG6fQgAAAAAMgQzDrG6fQgAAAAAMgQvDrG6fQgAAAAAMgQnDrG6fQgAAAAAMgQjDrG6fQgAAAAAMgQbDrG6fQgAAAAAMgQXDrG6fQgAAAAAMgQPDrG6fQgAAAAAMgQLDrG6fQgAAAAAMgQDDrG6fQgAAAAAYAv/CrG6fQgAAAAAYAvvCrG6fQgAAAAAYAvnCrG6fQgAAAAAYAvXCrG6fQgAAAAAYAvPCrG6fQgAAAAAYAu/CrG6fQgAAAAAYAu3CrG6fQgAAAAAYAunCrG6fQgAAAAAYAufCrG6fQgAAAAAYAuPCrG6fQgAAAAAYAuHCrG6fQgAAAAAYAt3CrG6fQgAAAAAYAtvCrG6fQgAAAAAYAtfCrG6fQgAAAAAYAtXCrG6fQgAAAAAYAtHCrG6fQgAAAAAYAs/CrG6fQgAAAAAYAsvCrG6fQgAAAAAYAsnCrG6fQgAAAAAYAsXCrG6fQgAAAAAYAsPCrG6fQgAAAAAYAr/CrG6fQgAAAAAYAr3CrG6fQgAAAAAYArnCrG6fQgAAAAAYArfCrG6fQgAAAAAYArPCrG6fQgAAAAAYArHCrG6fQgAAAAAYAq3CrG6fQgAAAAAYAqvCrG6fQgAAAAAYAqfCrG6fQgAAAAAYAqXCrG6fQgAAAAAYAqHCrG6fQgAAAAAYAp/CrG6fQgAAAAAYApvCrG6fQgAAAAAYApnCrG6fQgAAAAAYApXCrG6fQgAAAAAYApPCrG6fQgAAAAAYAo/CrG6fQgAAAAAYAo3CrG6fQgAAAAAYAonCrG6fQgAAAAAYAofCrG6fQgAAAAAYAoPCrG6fQgAAAAAYAoHCrG6fQgAAAAAwBHrCrG6fQgAAAAAwBHbCrG6fQgAAAAAwBG7CrG6fQgAAAAAwBGrCrG6fQgAAAAAwBGLCrG6fQgAAAAAwBF7CrG6fQgAAAAAwBFbCrG6fQgAAAAAwBFLCrG6fQgAAAAAwBErCrG6fQgAAAAAwBEbCrG6fQgAAAAAwBD7CrG6fQgAAAAAwBDrCrG6fQgAAAAAwBDLCrG6fQgAAAAAwBC7CrG6fQgAAAAAwBCbCrG6fQgAAAAAwBCLCrG6fQgAAAAAwBBrCrG6fQgAAAAAwBBbCrG6fQgAAAAAwBA7CrG6fQgAAAAAwBArCrG6fQgAAAAAwBALCrG6fQgAAAABgCPzBrG6fQgAAAABgCOzBrG6fQgAAAABgCOTBrG6fQgAAAABgCNTBrG6fQgAAAABgCMzBrG6fQgAAAABgCLzBrG6fQgAAAABgCLTBrG6fQgAAAABgCKTBrG6fQgAAAABgCJzBrG6fQgAAAABgCIzBrG6fQgAAAAAQG4XBrG6bQgAAAAAQG4XBrG6ZQgAAAAAQG4XBrG6VQgAAAAAQG4XBrG6TQgAAAAAQG4XBrG6PQgAAAAAQG4XBrG6NQgAAAAAQG4XBrG6JQgAAAAAQG4XBrG6HQgAAAAAQG4XBrG6DQgAAAAAQG4XBrG6BQgAAAAAQG4XBWN16QgAAAAAQG4XBWN12QgAAAAAQG4XBWN1uQgAAAAAQG4XBWN1qQgAAAAAQG4XBWN1iQgAAAAAQG4XBWN1eQgAAAAAQG4XBWN1WQgAAAAAQG4XBWN1SQgAAAAAQG4XBWN1KQgAAAAAQG4XBWN1GQgAAAAAQG4XBWN0+QgAAAAAQG4XBWN06QgAAAAAQG4XBWN0yQgAAAAAQG4XBWN0uQgAAAAAQG4XBWN0mQgAAAAAQG4XBWN0iQgAAAAAQG4XBWN0aQgAAAAAQG4XBWN0WQgAAAAAQG4XBWN0OQgAAAAAQG4XBWN0KQgAAAAAQG4XBWN0CQgAAAAAQG4XBsLr9QQAAAAAQG4XBsLrtQQAAAAAQG4XBsLrlQQAAAAAQG4XBsLrVQQAAAAAQG4XBsLrNQQAAAAAQG4XBsLq9QQAAAAAQG4XBsLq1QQAAAAAQG4XBsLqlQQAAAAAQG4XBsLqdQQAAAAAQG4XBsLqNQQAAAAAQG4XBsLqFQQAAAAAQG4XBYHVrQQAAAAAQG4XBYHVbQQAAAAAQG4XBYHU7QQAAAAAQG4XBYHUrQQAAAAAQG4XBYHULQQAAAAAQG4XBwOr2QAAAAAAQG4XBwOq2QAAAAAAQG4XBwOqWQAAAAAAQG4XBgNUtQAAAAAAQG4XBAKvbPwAAAAAQG4XBAFSRvgAAAAAQG4XBAFWkvwAAAAAQG4XBgCpSwAAAAAAQG4XBQBWJwAAAAAAQG4XBQBXJwAAAAAAQG4XBQBXpwAAAAAAQG4XBoIoUwQAAAAAQG4XBoIokwQAAAAAQG4XBoIpEwQAAAAAQG4XBoIpUwQAAAAAQG4XBoIp0wQAAAAAQG4XBUEWCwQAAAAAQG4XBUEWSwQAAAAAQG4XBUEWawQAAAAAQG4XBUEWqwQAAAAAQG4XBUEWywQAAAAAQG4XBUEXCwQAAAAAQG4XBUEXKwQAAAAAQG4XBUEXawQAAAAAQG4XBUEXiwQAAAAAQG4XBUEXywQAAAAAQG4XBUEX6wQAAAAAQG4XBqCIFwgAAAAAQG4XBqCIJwgAAAAAQG4XBqCIRwgAAAAAQG4XBqCIVwgAAAAAQG4XBqCIdwgAAAAAQG4XBqCIhwgAAAAAQG4XBqCIpwgAAAAAQG4XBqCItwgAAAAAQG4XBqCI1wgAAAAAQG4XBqCI5wgAAAAAQG4XBqCJBwgAAAAAQG4XBqCJFwgAAAAAQG4XBqCJNwgAAAAAQG4XBqCJRwgAAAAAQG4XBqCJZwgAAAAAQG4XBqCJdwgAAAAAQG4XBZNxhwgAAAAAQG4XBZNxhwgAAAAAQG4XBZNxhwgAAAAAQG5XBZNxhwgAAAAAQG53BZNxhwgAAAAAQG63BZNxhwgAAAAAQG7XBZNxhwgAAAAAQG8XBZNxhwgAAAAAQG83BZNxhwgAAAAAQG93BZNxhwgAAAAAQG+XBZNxhwgAAAAAQG/XBZNxhwgAAAAAQG/3BZNxhwgAAAACIjQbCZNxhwgAAAACIjQrCZNxhwgAAAACIjRLCZNxhwgAAAACIjRbCZNxhwgAAAACIjR7CZNxhwgAAAACIjSLCZNxhwgAAAACIjSrCZNxhwgAAAACIjS7CZNxhwgAAAACIjTbCZNxhwgAAAACIjTrCZNxhwgAAAACIjULCZNxhwgAAAACIjUbCZNxhwgAAAACIjU7CZNxhwgAAAACIjVLCZNxhwgAAAACIjVrCZNxhwgAAAACIjV7CZNxhwgAAAACIjWbCZNxhwgAAAACIjWrCZNxhwgAAAACIjXLCZNxhwgAAAACIjXbCZNxhwgAAAACIjX7CZNxhwgAAAADERoHCZNxhwgAAAADERoXCZNxhwgAAAADERofCZNxhwgAAAADERovCZNxhwgAAAADERo3CZNxhwgAAAADERpHCZNxhwgAAAADERpPCZNxhwgAAAADERpfCZNxhwgAAAADERpnCZNxhwgAAAADERp3CZNxhwgAAAADERp/CZNxhwgAAAADERqPCZNxhwgAAAADERqXCZNxhwgAAAADERqnCZNxhwgAAAADERqvCZNxhwgAAAADERq/CZNxhwgAAAADERrHCZNxhwgAAAADERrXCZNxhwgAAAADERrfCZNxhwgAAAADERrvCZNxhwgAAAADERr3CZNxhwgAAAADERsHCZNxhwgAAAADERsPCZNxhwgAAAADERsfCZNxhwgAAAADERsnCZNxhwgAAAADERs3CZNxhwgAAAADERs/CZNxhwgAAAADERtPCZNxhwgAAAADERtXCZNxhwgAAAADERtnCZNxhwgAAAADERtvCZNxhwgAAAADERt/CZNxhwgAAAADERuHCZNxhwgAAAADERuXCZNxhwgAAAADERufCZNxhwgAAAADERuvCZNxhwgAAAADERu3CZNxhwgAAAADERvHCZNxhwgAAAADERvPCZNxhwgAAAADERvfCZNxhwgAAAADERvnCZNxhwgAAAADERv3CZNxhwgAAAADERv/CZNxhwgAAAABiowHDZNxhwgAAAABiowLDZNxhwgAAAABiowTDZNxhwgAAAABiowXDZNxhwgAAAABiowfDZNxhwgAAAABiowjDZNxhwgAAAABiowrDZNxhwgAAAABiowvDZNxhwgAAAABiow3DZNxhwgAAAABiow7DZNxhwgAAAABioxDDZNxhwgAAAABioxHDZNxhwgAAAABioxPDZNxhwgAAAABioxTDZNxhwgAAAABioxbD")
 }]
 
 [sub_resource type="Resource" id="RoleSlot_bar_proprietor"]
@@ -245,6 +266,104 @@ authority_scope = "residence"
 [sub_resource type="BoxShape3D" id="BoxShape3D_jm3eg"]
 size = Vector3(1.28, 0.72, 0.76)
 
+[sub_resource type="Resource" id="TomatoDisplayProfile"]
+script = ExtResource("63_crkdy")
+item_definition = ExtResource("61_6jy6l")
+unit_scene = ExtResource("64_lk5yl")
+label_texture = ExtResource("62_fiiko")
+capacity = 900
+units_per_visual = 30
+spacing = Vector2(0.53, 0.3)
+layer_height = 0.306
+layer_columns = 2
+layer_rows = 3
+max_layers = 5
+
+[sub_resource type="Resource" id="ChiliDisplayProfile"]
+script = ExtResource("63_crkdy")
+item_definition = ExtResource("65_ctu0q")
+unit_scene = ExtResource("64_lk5yl")
+label_texture = ExtResource("66_30bxb")
+capacity = 1200
+units_per_visual = 40
+spacing = Vector2(0.53, 0.3)
+layer_height = 0.306
+layer_columns = 2
+layer_rows = 3
+max_layers = 5
+
+[sub_resource type="Resource" id="EggplantDisplayProfile"]
+script = ExtResource("63_crkdy")
+item_definition = ExtResource("67_wyvsv")
+unit_scene = ExtResource("64_lk5yl")
+label_texture = ExtResource("68_s4vlm")
+capacity = 360
+units_per_visual = 12
+spacing = Vector2(0.53, 0.3)
+layer_height = 0.306
+layer_columns = 2
+layer_rows = 3
+max_layers = 5
+
+[sub_resource type="Resource" id="BellPepperDisplayProfile"]
+script = ExtResource("63_crkdy")
+item_definition = ExtResource("69_x5ne4")
+unit_scene = ExtResource("64_lk5yl")
+label_texture = ExtResource("70_wmqh0")
+capacity = 600
+units_per_visual = 20
+spacing = Vector2(0.53, 0.3)
+layer_height = 0.306
+layer_columns = 2
+layer_rows = 3
+max_layers = 5
+
+[sub_resource type="Resource" id="FrenchBeansDisplayProfile"]
+script = ExtResource("63_crkdy")
+item_definition = ExtResource("71_nc438")
+unit_scene = ExtResource("64_lk5yl")
+label_texture = ExtResource("72_dt8ex")
+capacity = 1800
+units_per_visual = 60
+spacing = Vector2(0.53, 0.3)
+layer_height = 0.306
+layer_columns = 2
+layer_rows = 3
+max_layers = 5
+
+[sub_resource type="BoxShape3D" id="PlatformCollision"]
+size = Vector3(1.2, 0.3, 1.08)
+
+[sub_resource type="Resource" id="Resource_ex0ji"]
+script = ExtResource("17_pqxta")
+item_definition = ExtResource("18_0mjsx")
+quantity = 5
+
+[sub_resource type="Resource" id="Resource_g1tot"]
+script = ExtResource("17_pqxta")
+item_definition = ExtResource("69_iskxg")
+quantity = 110
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_w63uq"]
+size = Vector3(1.08, 1.2, 1.16)
+
+[sub_resource type="Resource" id="Resource_0wc3m"]
+script = ExtResource("17_pqxta")
+item_definition = ExtResource("70_xj30o")
+quantity = 5
+
+[sub_resource type="Resource" id="Resource_8f8ek"]
+script = ExtResource("17_pqxta")
+item_definition = ExtResource("71_ex0ji")
+quantity = 5
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_dyfv2"]
+height = 0.9
+radius = 0.35
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_u4vfh"]
+size = Vector3(1.19, 0.31, 0.3)
+
 [node name="RustwashBasin" type="Node3D" unique_id=1310818615]
 script = ExtResource("7_zone_root")
 zone_id = "rustwash_basin"
@@ -263,9 +382,9 @@ metadata/_edit_group_ = true
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Towns/Canyon" unique_id=532431889]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_ev028")
+material_override = SubResource("StandardMaterial3D_iskxg")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_vaooy")
+mesh = SubResource("ArrayMesh_5h40p")
 
 [node name="CanyonCityRestStop" type="Node3D" parent="Towns/Canyon" unique_id=556110935]
 transform = Transform3D(0.28083363, 0, 0.9597566, 0, 1, 0, -0.9597566, 0, 0.28083363, 3.373272, 0.42611122, -37.413513)
@@ -385,9 +504,9 @@ container_id = "canyon.rest_stop.stock.1"
 settlement_id = "canyon"
 facility_id = "canyon.rest_stop"
 container_kind = "bar_stock"
-contributes_to_town_stock = true
 owner_faction_name = "Canyonites"
 starting_items = Array[ExtResource("17_pqxta")]([SubResource("Resource_hpbre"), SubResource("Resource_ystfk"), SubResource("Resource_i3ypv")])
+allowed_item_ids = PackedStringArray()
 collision_shape = SubResource("Shape_body")
 metadata/furnish_generated = true
 
@@ -397,9 +516,9 @@ container_id = "canyon.rest_stop.stock.2"
 settlement_id = "canyon"
 facility_id = "canyon.rest_stop"
 container_kind = "bar_stock"
-contributes_to_town_stock = true
 owner_faction_name = "Canyonites"
 starting_items = Array[ExtResource("17_pqxta")]([SubResource("Resource_qt4s2")])
+allowed_item_ids = PackedStringArray()
 collision_shape = SubResource("Shape_body")
 metadata/furnish_generated = true
 
@@ -409,9 +528,9 @@ container_id = "canyon.rest_stop.stock.5"
 settlement_id = "canyon"
 facility_id = "canyon.rest_stop"
 container_kind = "bar_stock"
-contributes_to_town_stock = true
 owner_faction_name = "Canyonites"
 starting_items = Array[ExtResource("17_pqxta")]([SubResource("Resource_by240")])
+allowed_item_ids = PackedStringArray()
 collision_shape = SubResource("Shape_body")
 metadata/furnish_generated = true
 
@@ -421,9 +540,9 @@ container_id = "canyon.rest_stop.stock.3"
 settlement_id = "canyon"
 facility_id = "canyon.rest_stop"
 container_kind = "bar_stock"
-contributes_to_town_stock = true
 owner_faction_name = "Canyonites"
 starting_items = Array[ExtResource("17_pqxta")]([SubResource("Resource_by240")])
+allowed_item_ids = PackedStringArray()
 collision_shape = SubResource("Shape_body")
 metadata/furnish_generated = true
 
@@ -433,9 +552,9 @@ container_id = "canyon.rest_stop.stock.4"
 settlement_id = "canyon"
 facility_id = "canyon.rest_stop"
 container_kind = "bar_stock"
-contributes_to_town_stock = true
 owner_faction_name = "Canyonites"
 starting_items = Array[ExtResource("17_pqxta")]([SubResource("Resource_favvj")])
+allowed_item_ids = PackedStringArray()
 collision_shape = SubResource("CylinderShape3D_amlfp")
 metadata/furnish_generated = true
 
@@ -627,6 +746,8 @@ container_id = "canyon.jail.prisoner_locker"
 settlement_id = "canyon"
 facility_id = "canyon.jail"
 container_kind = "prisoner_property"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
 collision_shape = SubResource("BoxShape3D_locker")
 metadata/furnish_generated = true
 
@@ -636,6 +757,8 @@ container_id = "canyon.jail.storage.1"
 settlement_id = "canyon"
 facility_id = "canyon.jail"
 container_kind = "jail_storage"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
 collision_shape = SubResource("BoxShape3D_kiev5")
 metadata/furnish_generated = true
 
@@ -743,8 +866,8 @@ container_id = "canyon.keep.storage.1"
 settlement_id = "canyon"
 facility_id = "canyon.keep"
 container_kind = "keep_storage"
-contributes_to_town_stock = true
 owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
 collision_shape = SubResource("BoxShape3D_i3ypv")
 metadata/furnish_generated = true
 
@@ -754,8 +877,8 @@ container_id = "canyon.keep.storage.2"
 settlement_id = "canyon"
 facility_id = "canyon.keep"
 container_kind = "keep_storage"
-contributes_to_town_stock = true
 owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
 collision_shape = SubResource("BoxShape3D_i3ypv")
 metadata/furnish_generated = true
 
@@ -893,6 +1016,8 @@ housing_capacity = 2
 [node name="@StaticBody3D@62766" parent="Towns/Canyon/House/Furniture" unique_id=1024638723 instance=ExtResource("43_thxgd")]
 transform = Transform3D(-0.008702911, 0, -0.9999618, 0, 1, 0, 0.9999618, 0, -0.008702911, -4.12619, 0, 0.070991516)
 container_id = "canyon.house.utility_1"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
 collision_shape = SubResource("BoxShape3D_y4ye1")
 metadata/furnish_generated = true
 
@@ -977,6 +1102,8 @@ metadata/furnish_generated = true
 [node name="Utility1" parent="Towns/Canyon/House2/Furniture" unique_id=862698253 instance=ExtResource("43_thxgd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, -3.2700014)
 container_id = "canyon.house2.utility_1"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
 collision_shape = SubResource("BoxShape3D_jm3eg")
 metadata/furnish_generated = true
 
@@ -1024,6 +1151,293 @@ transform = Transform3D(0.68179864, 0, 0.73154056, 0, 1, 0, -0.73154056, 0, 0.68
 metadata/furnish_generated = true
 
 [node name="Staff" type="Node3D" parent="Towns/Canyon/House2" unique_id=818178335]
+
+[node name="Granary" type="Node3D" parent="Towns/Canyon" unique_id=1441281894]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.963728, 0.6400461, -126.47159)
+script = ExtResource("39_xo48a")
+facility_function = ExtResource("54_bggen")
+storage_root_path = NodePath("Furniture")
+job_providers_root_path = NodePath("")
+auto_create_standard_roots = false
+facility_id = "canyon.granary"
+building_id = "canyon.granary.building"
+display_name = "Granary"
+facility_type = "storage"
+door_access_policy = "public"
+door_schedule_enabled = true
+door_close_hour = 20
+doors_keep_open_during_hours = true
+storage_capacity_bonus = 1.0
+activity_points_root_path = NodePath("ActivityPoints")
+
+[node name="BuildingSlot" type="Node3D" parent="Towns/Canyon/Granary" unique_id=1514168711]
+
+[node name="CurrentBuilding" parent="Towns/Canyon/Granary/BuildingSlot" unique_id=1981649229 instance=ExtResource("56_jdtbr")]
+building_id = "canyon.granary.building"
+settlement_id = "canyon"
+facility_id = "canyon.granary"
+building_type = "storage"
+owner_faction_id = "Canyonites"
+access_state = "public"
+public_close_hour = 20
+
+[node name="Staff" type="Node3D" parent="Towns/Canyon/Granary" unique_id=1302488425]
+
+[node name="ServicePoints" type="Node3D" parent="Towns/Canyon/Granary" unique_id=387840230]
+
+[node name="Furniture" type="Node3D" parent="Towns/Canyon/Granary" unique_id=846744647]
+
+[node name="Light1" parent="Towns/Canyon/Granary/Furniture" unique_id=2084763320 instance=ExtResource("22_ywld2")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 10.129999, 2.1, -3)
+metadata/furnish_generated = true
+
+[node name="Pallet1" parent="Towns/Canyon/Granary/Furniture" unique_id=904651178 instance=ExtResource("59_4lpkg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.75, 0, -1.24)
+display_profiles = Array[Resource]([SubResource("TomatoDisplayProfile"), SubResource("ChiliDisplayProfile"), SubResource("EggplantDisplayProfile"), SubResource("BellPepperDisplayProfile"), SubResource("FrenchBeansDisplayProfile")])
+container_id = "canyon.granary.pallet_1"
+settlement_id = "canyon"
+facility_id = "canyon.granary"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("PlatformCollision")
+metadata/furnish_generated = true
+
+[node name="Pallet2" parent="Towns/Canyon/Granary/Furniture" unique_id=1976308763 instance=ExtResource("59_4lpkg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.75, 0, 1.24)
+display_profiles = Array[Resource]([SubResource("TomatoDisplayProfile"), SubResource("ChiliDisplayProfile"), SubResource("EggplantDisplayProfile"), SubResource("BellPepperDisplayProfile"), SubResource("FrenchBeansDisplayProfile")])
+container_id = "canyon.granary.pallet_2"
+settlement_id = "canyon"
+facility_id = "canyon.granary"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("PlatformCollision")
+metadata/furnish_generated = true
+
+[node name="Pallet3" parent="Towns/Canyon/Granary/Furniture" unique_id=215226445 instance=ExtResource("59_4lpkg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, 0, -1.24)
+display_profiles = Array[Resource]([SubResource("TomatoDisplayProfile"), SubResource("ChiliDisplayProfile"), SubResource("EggplantDisplayProfile"), SubResource("BellPepperDisplayProfile"), SubResource("FrenchBeansDisplayProfile")])
+container_id = "canyon.granary.pallet_3"
+settlement_id = "canyon"
+facility_id = "canyon.granary"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("PlatformCollision")
+metadata/furnish_generated = true
+
+[node name="Pallet4" parent="Towns/Canyon/Granary/Furniture" unique_id=918926027 instance=ExtResource("59_4lpkg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, 0, 1.24)
+display_profiles = Array[Resource]([SubResource("TomatoDisplayProfile"), SubResource("ChiliDisplayProfile"), SubResource("EggplantDisplayProfile"), SubResource("BellPepperDisplayProfile"), SubResource("FrenchBeansDisplayProfile")])
+container_id = "canyon.granary.pallet_4"
+settlement_id = "canyon"
+facility_id = "canyon.granary"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("PlatformCollision")
+metadata/furnish_generated = true
+
+[node name="Pallet5" parent="Towns/Canyon/Granary/Furniture" unique_id=802907894 instance=ExtResource("59_4lpkg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.25, 0, -1.24)
+display_profiles = Array[Resource]([SubResource("TomatoDisplayProfile"), SubResource("ChiliDisplayProfile"), SubResource("EggplantDisplayProfile"), SubResource("BellPepperDisplayProfile"), SubResource("FrenchBeansDisplayProfile")])
+container_id = "canyon.granary.pallet_5"
+settlement_id = "canyon"
+facility_id = "canyon.granary"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("PlatformCollision")
+metadata/furnish_generated = true
+
+[node name="Pallet6" parent="Towns/Canyon/Granary/Furniture" unique_id=1918501240 instance=ExtResource("59_4lpkg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.25, 0, 1.24)
+display_profiles = Array[Resource]([SubResource("TomatoDisplayProfile"), SubResource("ChiliDisplayProfile"), SubResource("EggplantDisplayProfile"), SubResource("BellPepperDisplayProfile"), SubResource("FrenchBeansDisplayProfile")])
+container_id = "canyon.granary.pallet_6"
+settlement_id = "canyon"
+facility_id = "canyon.granary"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("PlatformCollision")
+metadata/furnish_generated = true
+
+[node name="Pallet7" parent="Towns/Canyon/Granary/Furniture" unique_id=2107877526 instance=ExtResource("59_4lpkg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.25, 0, -1.24)
+display_profiles = Array[Resource]([SubResource("TomatoDisplayProfile"), SubResource("ChiliDisplayProfile"), SubResource("EggplantDisplayProfile"), SubResource("BellPepperDisplayProfile"), SubResource("FrenchBeansDisplayProfile")])
+container_id = "canyon.granary.pallet_7"
+settlement_id = "canyon"
+facility_id = "canyon.granary"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("PlatformCollision")
+metadata/furnish_generated = true
+
+[node name="Pallet8" parent="Towns/Canyon/Granary/Furniture" unique_id=750136438 instance=ExtResource("59_4lpkg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.25, 0, 1.24)
+display_profiles = Array[Resource]([SubResource("TomatoDisplayProfile"), SubResource("ChiliDisplayProfile"), SubResource("EggplantDisplayProfile"), SubResource("BellPepperDisplayProfile"), SubResource("FrenchBeansDisplayProfile")])
+container_id = "canyon.granary.pallet_8"
+settlement_id = "canyon"
+facility_id = "canyon.granary"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("PlatformCollision")
+metadata/furnish_generated = true
+
+[node name="TallyTable1" parent="Towns/Canyon/Granary/Furniture" unique_id=661474452 instance=ExtResource("45_table")]
+transform = Transform3D(0.95265174, 0, -0.3040637, 0, 1, 0, 0.3040637, 0, 0.95265174, -6.393753, 0, 3.3796692)
+surface_id = "tally_table_1"
+metadata/furnish_generated = true
+
+[node name="ChairSouth1" parent="Towns/Canyon/Granary/Furniture" unique_id=1522398166 instance=ExtResource("47_hqxgy")]
+transform = Transform3D(-0.95265174, 0, 0.3040637, 0, 1, 0, -0.3040637, 0, -0.95265174, -6.7869987, 0, 4.282837)
+metadata/furnish_generated = true
+
+[node name="ChairNorth1" parent="Towns/Canyon/Granary/Furniture" unique_id=984980685 instance=ExtResource("49_xh5ub")]
+transform = Transform3D(0.95265174, 0, -0.3040637, 0, 1, 0, 0.3040637, 0, 0.95265174, -5.892267, 0, 2.532013)
+metadata/furnish_generated = true
+
+[node name="Container1" parent="Towns/Canyon/Granary/Furniture" unique_id=742221384 instance=ExtResource("15_l7lbw")]
+transform = Transform3D(0.9908792, 0, -0.13475317, 0, 1, 0, 0.13475317, 0, 0.9908792, -1.6205859, 0, -5.069994)
+container_id = "canyon.granary.container_1"
+settlement_id = "canyon"
+facility_id = "canyon.granary"
+container_kind = "farm_seed"
+container_type = "seeds"
+supports_locking = false
+starting_items = Array[ExtResource("17_pqxta")]([SubResource("Resource_ex0ji"), SubResource("Resource_g1tot")])
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("BoxShape3D_w63uq")
+metadata/furnish_generated = true
+
+[node name="Container2" parent="Towns/Canyon/Granary/Furniture" unique_id=1486475020 instance=ExtResource("15_l7lbw")]
+transform = Transform3D(0.99597263, 0, -0.089657985, 0, 1, 0, 0.089657985, 0, 0.99597263, 2.266036, 0, -5.069994)
+container_id = "canyon.granary.container_2"
+settlement_id = "canyon"
+facility_id = "canyon.granary"
+container_kind = "tool_store"
+container_type = "tools"
+contributes_to_town_stock = false
+starting_items = Array[ExtResource("17_pqxta")]([SubResource("Resource_0wc3m"), SubResource("Resource_8f8ek")])
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("BoxShape3D_w63uq")
+metadata/furnish_generated = true
+
+[node name="Container3" parent="Towns/Canyon/Granary/Furniture" unique_id=1904851059 instance=ExtResource("22_06rmy")]
+transform = Transform3D(0.9945449, 0, -0.10430916, 0, 1, 0, 0.10430916, 0, 0.9945449, -4.1222177, 0, -5.299994)
+container_id = "canyon.granary.container_3"
+settlement_id = "canyon"
+facility_id = "canyon.granary"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("CylinderShape3D_dyfv2")
+metadata/furnish_generated = true
+
+[node name="Container4" parent="Towns/Canyon/Granary/Furniture" unique_id=986435335 instance=ExtResource("22_06rmy")]
+transform = Transform3D(0.99503076, 0, -0.099567965, 0, 1, 0, 0.099567965, 0, 0.99503076, 4.3058786, 0, -5.299994)
+container_id = "canyon.granary.container_4"
+settlement_id = "canyon"
+facility_id = "canyon.granary"
+contributes_to_town_stock = false
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("CylinderShape3D_dyfv2")
+metadata/furnish_generated = true
+
+[node name="Shelf1" parent="Towns/Canyon/Granary/Furniture" unique_id=1160170980 instance=ExtResource("79_dp625")]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 9.67, 1.6, -3.0936747)
+collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
+metadata/furnish_generated = true
+
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf1" unique_id=641732038]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+shape = SubResource("BoxShape3D_u4vfh")
+
+[node name="Shelf2" parent="Towns/Canyon/Granary/Furniture" unique_id=623659606 instance=ExtResource("79_dp625")]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 9.67, 1.6, 2.9936154)
+collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
+metadata/furnish_generated = true
+
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf2" unique_id=254039695]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+shape = SubResource("BoxShape3D_u4vfh")
+
+[node name="Shelf3" parent="Towns/Canyon/Granary/Furniture" unique_id=1122026489 instance=ExtResource("79_dp625")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 2.9840164, 1.6, 5.669994)
+collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
+metadata/furnish_generated = true
+
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf3" unique_id=614995332]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+shape = SubResource("BoxShape3D_u4vfh")
+
+[node name="Shelf4" parent="Towns/Canyon/Granary/Furniture" unique_id=1986701046 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.8509886, 1.6, -5.669994)
+surface_id = "shelf_4"
+metadata/furnish_generated = true
+
+[node name="Light2" parent="Towns/Canyon/Granary/Furniture" unique_id=1340929162 instance=ExtResource("22_ywld2")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -9.669998, 2.1, 3)
+metadata/furnish_generated = true
+
+[node name="Light3" parent="Towns/Canyon/Granary/Furniture" unique_id=1553497377 instance=ExtResource("22_ywld2")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, -1, 2.1, 5.669994)
+metadata/furnish_generated = true
+
+[node name="Light4" parent="Towns/Canyon/Granary/Furniture" unique_id=701786459 instance=ExtResource("22_ywld2")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, -7, 2.1, 5.669994)
+metadata/furnish_generated = true
+
+[node name="Light5" parent="Towns/Canyon/Granary/Furniture" unique_id=1751098428 instance=ExtResource("22_ywld2")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 7, 2.1, 5.669994)
+metadata/furnish_generated = true
+
+[node name="ActivityPoints" type="Node3D" parent="Towns/Canyon/Granary" unique_id=2116930041]
+
+[node name="Field" type="Node3D" parent="Towns/Canyon" unique_id=1027566616]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20.403612, 1.005847, -111.526215)
+script = ExtResource("70_hqvai")
+dimensions = Vector2i(15, 15)
+cell_coordinates = PackedVector2Array(3, 4, 4, 4, 5, 4, 6, 4, 7, 4, 8, 4, 9, 4, 10, 4, 11, 4, 12, 4, 13, 4, 14, 4, 3, 5, 4, 5, 5, 5, 6, 5, 7, 5, 8, 5, 9, 5, 10, 5, 11, 5, 12, 5, 13, 5, 14, 5, 3, 6, 4, 6, 5, 6, 6, 6, 7, 6, 8, 6, 9, 6, 10, 6, 11, 6, 12, 6, 13, 6, 14, 6, 3, 7, 4, 7, 5, 7, 6, 7, 7, 7, 8, 7, 9, 7, 10, 7, 11, 7, 12, 7, 13, 7, 14, 7, 3, 8, 4, 8, 5, 8, 6, 8, 7, 8, 8, 8, 9, 8, 10, 8, 11, 8, 12, 8, 13, 8, 14, 8, 3, 9, 4, 9, 5, 9, 6, 9, 7, 9, 8, 9, 9, 9, 10, 9, 11, 9, 12, 9, 13, 9, 14, 9, 3, 10, 4, 10, 5, 10, 6, 10, 7, 10, 8, 10, 9, 10, 10, 10, 11, 10, 12, 10, 13, 10, 14, 10, 3, 11, 4, 11, 5, 11, 6, 11, 7, 11, 8, 11, 9, 11, 10, 11, 11, 11, 12, 11, 13, 11, 14, 11, 3, 12, 4, 12, 5, 12, 6, 12, 7, 12, 8, 12, 9, 12, 10, 12, 11, 12, 12, 12, 13, 12, 14, 12, 3, 13, 4, 13, 5, 13, 6, 13, 7, 13, 8, 13, 9, 13, 10, 13, 11, 13, 12, 13, 13, 13, 14, 13, 3, 14, 4, 14, 5, 14, 6, 14, 7, 14, 8, 14, 9, 14, 10, 14, 11, 14, 12, 14, 13, 14, 14, 14)
+facility_function = ExtResource("71_x4ycr")
+building_root_path = NodePath("")
+staff_root_path = NodePath("")
+service_points_root_path = NodePath("")
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+auto_create_standard_roots = false
+facility_id = "canyon.field"
+building_id = "canyon.field.building"
+display_name = "Field"
+facility_type = "farm"
+
+[node name="Field2" type="Node3D" parent="Towns/Canyon" unique_id=868298117]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.9656782, 0.23374367, -105.77612)
+script = ExtResource("70_hqvai")
+dimensions = Vector2i(11, 19)
+cell_coordinates = PackedVector2Array(0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0, 10, 0, 0, 1, 1, 1, 2, 1, 3, 1, 4, 1, 5, 1, 6, 1, 7, 1, 8, 1, 9, 1, 10, 1, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 7, 2, 8, 2, 9, 2, 10, 2, 0, 3, 1, 3, 2, 3, 3, 3, 4, 3, 5, 3, 6, 3, 7, 3, 8, 3, 9, 3, 10, 3, 0, 4, 1, 4, 2, 4, 3, 4, 4, 4, 5, 4, 6, 4, 7, 4, 8, 4, 9, 4, 10, 4, 0, 5, 1, 5, 2, 5, 3, 5, 4, 5, 5, 5, 6, 5, 7, 5, 8, 5, 9, 5, 10, 5, 0, 6, 1, 6, 2, 6, 3, 6, 4, 6, 5, 6, 6, 6, 7, 6, 8, 6, 9, 6, 10, 6, 0, 7, 1, 7, 2, 7, 3, 7, 4, 7, 5, 7, 6, 7, 7, 7, 8, 7, 9, 7, 10, 7, 0, 8, 1, 8, 2, 8, 3, 8, 4, 8, 5, 8, 6, 8, 7, 8, 8, 8, 9, 8, 10, 8, 0, 9, 1, 9, 2, 9, 3, 9, 4, 9, 5, 9, 6, 9, 7, 9, 8, 9, 9, 9, 10, 9, 0, 10, 1, 10, 2, 10, 3, 10, 4, 10, 5, 10, 6, 10, 7, 10, 8, 10, 9, 10, 10, 10, 0, 11, 1, 11, 2, 11, 3, 11, 4, 11, 5, 11, 6, 11, 7, 11, 8, 11, 9, 11, 10, 11, 0, 12, 1, 12, 2, 12, 3, 12, 4, 12, 5, 12, 6, 12, 7, 12, 8, 12, 9, 12, 10, 12, 0, 13, 1, 13, 2, 13, 3, 13, 4, 13, 5, 13, 6, 13, 7, 13, 8, 13, 9, 13, 10, 13, 0, 14, 1, 14, 2, 14, 3, 14, 4, 14, 5, 14, 6, 14, 7, 14, 8, 14, 9, 14, 10, 14, 0, 15, 1, 15, 2, 15, 3, 15, 4, 15, 5, 15, 6, 15, 7, 15, 8, 15, 9, 15, 10, 15, 0, 16, 1, 16, 2, 16, 3, 16, 4, 16, 5, 16, 6, 16, 7, 16, 8, 16, 9, 16, 10, 16, 0, 17, 1, 17, 2, 17, 3, 17, 4, 17, 5, 17, 6, 17, 7, 17, 8, 17, 9, 17, 10, 17, 0, 18, 1, 18, 2, 18, 3, 18, 4, 18, 5, 18, 6, 18, 7, 18, 8, 18, 9, 18, 10, 18)
+facility_function = ExtResource("71_x4ycr")
+building_root_path = NodePath("")
+staff_root_path = NodePath("")
+service_points_root_path = NodePath("")
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+auto_create_standard_roots = false
+facility_id = "canyon.field2"
+building_id = "canyon.field2.building"
+display_name = "Field"
+facility_type = "farm"
+
+[node name="Field3" type="Node3D" parent="Towns/Canyon" unique_id=1585423765]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -50.465225, 0.54001236, -145.50409)
+script = ExtResource("70_hqvai")
+dimensions = Vector2i(24, 21)
+cell_coordinates = PackedVector2Array(12, 1, 13, 1, 14, 1, 15, 1, 16, 1, 17, 1, 18, 1, 19, 1, 6, 2, 7, 2, 8, 2, 9, 2, 10, 2, 11, 2, 12, 2, 13, 2, 14, 2, 15, 2, 16, 2, 17, 2, 18, 2, 19, 2, 20, 2, 4, 3, 5, 3, 6, 3, 7, 3, 8, 3, 9, 3, 10, 3, 11, 3, 12, 3, 13, 3, 14, 3, 15, 3, 16, 3, 17, 3, 18, 3, 19, 3, 20, 3, 21, 3, 2, 4, 3, 4, 4, 4, 5, 4, 6, 4, 7, 4, 8, 4, 9, 4, 10, 4, 11, 4, 12, 4, 13, 4, 14, 4, 15, 4, 16, 4, 17, 4, 18, 4, 19, 4, 20, 4, 21, 4, 22, 4, 23, 4, 2, 5, 3, 5, 4, 5, 5, 5, 6, 5, 7, 5, 8, 5, 9, 5, 10, 5, 11, 5, 12, 5, 13, 5, 14, 5, 15, 5, 16, 5, 17, 5, 18, 5, 19, 5, 20, 5, 21, 5, 22, 5, 23, 5, 2, 6, 3, 6, 4, 6, 5, 6, 6, 6, 7, 6, 8, 6, 9, 6, 10, 6, 11, 6, 12, 6, 13, 6, 14, 6, 2, 7, 3, 7, 4, 7, 5, 7, 6, 7, 7, 7, 8, 7, 9, 7, 10, 7, 11, 7, 12, 7, 13, 7, 2, 8, 3, 8, 4, 8, 5, 8, 6, 8, 7, 8, 8, 8, 9, 8, 10, 8, 11, 8, 12, 8, 13, 8, 2, 9, 3, 9, 4, 9, 5, 9, 6, 9, 7, 9, 8, 9, 9, 9, 10, 9, 11, 9, 12, 9, 13, 9, 14, 9, 3, 10, 4, 10, 5, 10, 6, 10, 7, 10, 8, 10, 9, 10, 10, 10, 11, 10, 12, 10, 13, 10, 14, 10, 4, 11, 5, 11, 6, 11, 7, 11, 8, 11, 9, 11, 10, 11, 11, 11, 12, 11, 13, 11, 14, 11, 15, 11, 6, 12, 7, 12, 8, 12, 9, 12, 10, 12, 11, 12, 12, 12, 13, 12, 14, 12, 15, 12, 7, 13, 8, 13, 9, 13, 10, 13, 11, 13, 12, 13, 13, 13, 14, 13, 15, 13, 16, 13, 8, 14, 9, 14, 10, 14, 11, 14, 12, 14, 13, 14, 14, 14, 15, 14, 16, 14, 17, 14, 9, 15, 10, 15, 11, 15, 12, 15, 13, 15, 14, 15, 15, 15, 16, 15, 17, 15, 10, 16, 11, 16, 12, 16, 13, 16, 14, 16, 15, 16, 16, 16, 17, 16, 11, 17, 12, 17, 13, 17, 14, 17, 15, 17, 16, 17, 17, 17, 18, 17, 12, 18, 13, 18, 14, 18, 15, 18, 16, 18, 17, 18, 18, 18, 14, 19, 15, 19, 16, 19, 17, 19, 18, 19, 15, 20, 16, 20, 17, 20, 18, 20)
+facility_function = ExtResource("71_x4ycr")
+building_root_path = NodePath("")
+staff_root_path = NodePath("")
+service_points_root_path = NodePath("")
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+auto_create_standard_roots = false
+facility_id = "canyon.field3"
+building_id = "canyon.field3.building"
+display_name = "Field"
+facility_type = "farm"
 
 [node name="NestMarkers" type="Node3D" parent="." unique_id=833802370]
 

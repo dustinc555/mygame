@@ -28,6 +28,7 @@ class FakeActor:
 
 class FakeProvider:
 	extends Node3D
+	signal work_offer_delta(settlement_id: String, removed_offer_ids: PackedStringArray, upserted_offers: Array)
 	var query_count := 0
 	var probe_count := 0
 	var accepted_count := 0
@@ -44,6 +45,8 @@ class FakeProvider:
 		accepted_count += 1
 		return {"accepted": true}
 	func has_active_work_for_actor(_actor: Node) -> bool: return false
+	func emit_delta() -> void:
+		work_offer_delta.emit("town", PackedStringArray(["work:0"]), [{"offer_id": "work:new", "category": "crafting", "job_entry_id": "category:crafting", "settlement_id": "town", "owner_faction_id": "Player", "world_position": Vector3.ZERO, "provider": self}])
 
 var failures: Array[String] = []
 func _initialize() -> void: call_deferred("_run")
@@ -59,10 +62,32 @@ func _run() -> void:
 		jobs._assignment_workers[actor.stable_id] = {"actor_id": actor.stable_id, "settlement_id": "town", "facility_id": "facility:%d" % index, "allowed_job_entry_ids": PackedStringArray(), "schedule_enabled": false, "idle_projection_active": false}
 		jobs._assignment_actor_order.append(actor.stable_id)
 	jobs._process_party_job_dispatch()
+	_expect(provider.query_count == 0, "idle assignment workers must cost zero provider reads until an offer change queues them")
+	for actor_id in population.actors:
+		jobs.call("_queue_assignment_worker", str(actor_id))
+	jobs._process_party_job_dispatch()
 	_expect(provider.query_count == 1, "one offer snapshot serves all assignment workers")
-	_expect(provider.probe_count <= 16 * 24, "each assignment actor probes a bounded offer slice")
-	_expect(provider.accepted_count <= 16, "assignment dispatch is frame-budgeted")
-	_expect(jobs._assignment_actor_cursor > 0, "assignment dispatch advances a fair round-robin cursor")
+	_expect(provider.probe_count <= 16 * 24, "each queued assignment actor probes a bounded offer slice")
+	for _frame in 32:
+		if jobs._pending_assignment_actor_ids.is_empty():
+			break
+		jobs._process_party_job_dispatch()
+	_expect(provider.query_count == 1, "one provider snapshot serves the complete bounded event burst")
+	var probes_after_event := provider.probe_count
+	jobs._process_party_job_dispatch()
+	_expect(provider.query_count == 1 and provider.probe_count == probes_after_event, "failed/no-work assignment workers sleep until another offer event")
+	jobs.call("notify_work_offers_changed", "town")
+	jobs._process_party_job_dispatch()
+	_expect(provider.query_count == 2, "provider change wakes relevant idle assignment workers once")
+	for _frame in 32:
+		if jobs._pending_assignment_actor_ids.is_empty(): break
+		jobs._process_party_job_dispatch()
+	var probes_before_delta := provider.probe_count
+	provider.emit_delta()
+	jobs._process_party_job_dispatch()
+	_expect(provider.query_count == 2 and provider.probe_count > probes_before_delta, "single-offer deltas wake workers without rebuilding the provider snapshot")
+	var town_index: Dictionary = jobs._assignment_offer_index_cache.get("town", {})
+	_expect((town_index.get("all", []) as Array).size() == 300, "single-offer deltas preserve every untouched indexed offer")
 	scene_root.queue_free(); _finish()
 func _expect(condition: bool, message: String) -> void:
 	if not condition: failures.append(message)

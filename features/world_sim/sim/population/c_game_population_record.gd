@@ -21,6 +21,7 @@ class_name CGamePopulationRecord
 @export var party_id := ""
 @export var squad_name := ""
 @export var role_id := "resident"
+@export var available_for_work := false
 @export var assignments: Dictionary = {}
 @export var assignment_authority_scopes: Dictionary = {}
 @export var assignment_exclusivity_groups: Dictionary = {}
@@ -52,6 +53,7 @@ class_name CGamePopulationRecord
 @export var last_world_position_initialized := false
 @export var last_world_transform := Transform3D.IDENTITY
 @export var last_world_transform_initialized := false
+@export var residence_spawn_revision := 0
 @export var important := false
 @export var appearance_character_race := ""
 @export var appearance_body_archetype := ""
@@ -104,6 +106,8 @@ func apply_record(source: Dictionary) -> void:
 	party_id = str(source.get("party_id", party_id))
 	squad_name = str(source.get("squad_name", squad_name))
 	role_id = str(source.get("role_id", role_id))
+	var default_available := generation_source == "census" or generation_source.begins_with("assignment_auto")
+	available_for_work = bool(source.get("available_for_work", default_available))
 	assignments = (source.get("assignments", assignments) as Dictionary).duplicate(true)
 	assignment_authority_scopes = (source.get("assignment_authority_scopes", assignment_authority_scopes) as Dictionary).duplicate(true)
 	assignment_exclusivity_groups = (source.get("assignment_exclusivity_groups", assignment_exclusivity_groups) as Dictionary).duplicate(true)
@@ -133,6 +137,7 @@ func apply_record(source: Dictionary) -> void:
 	last_world_position_initialized = bool(source.get("last_world_position_initialized", last_world_position_initialized))
 	last_world_transform = source.get("last_world_transform", last_world_transform)
 	last_world_transform_initialized = bool(source.get("last_world_transform_initialized", last_world_transform_initialized))
+	residence_spawn_revision = int(source.get("residence_spawn_revision", residence_spawn_revision))
 	important = bool(source.get("important", important))
 	var appearance: Dictionary = source.get("appearance", {})
 	appearance_character_race = str(appearance.get("character_race", appearance_character_race))
@@ -174,6 +179,7 @@ func to_record() -> Dictionary:
 		"party_id": party_id,
 		"squad_name": squad_name,
 		"role_id": role_id,
+		"available_for_work": available_for_work,
 		"assignments": assignments.duplicate(true),
 		"assignment_authority_scopes": assignment_authority_scopes.duplicate(true),
 		"assignment_exclusivity_groups": assignment_exclusivity_groups.duplicate(true),
@@ -203,6 +209,7 @@ func to_record() -> Dictionary:
 		"last_world_position_initialized": last_world_position_initialized,
 		"last_world_transform": last_world_transform,
 		"last_world_transform_initialized": last_world_transform_initialized,
+		"residence_spawn_revision": residence_spawn_revision,
 		"important": important,
 		"appearance": {
 			"character_race": appearance_character_race,

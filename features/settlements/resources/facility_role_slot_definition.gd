@@ -36,6 +36,7 @@ func to_slot_spec(facility_id: String) -> Dictionary:
 		"role_id": role_id,
 		"uses_settlement_jobs": role.uses_settlement_jobs,
 		"allowed_job_entry_ids": role.allowed_job_entry_ids,
+		"preferred_skill_id": role.preferred_skill_id,
 		"preferred_actor_id": actor_id,
 		"preferred_character_path": character_path,
 		"character_type_id": effective_type_id,

@@ -235,27 +235,15 @@ func release_sleep_target_without_waking() -> void:
 func stop_seat_assignment() -> void:
 	var seat_target = current_seat_target
 	var did_stop_sitting := is_sitting
-	var stand_position = null
-	if did_stop_sitting and _is_valid_node(seat_target):
-		stand_position = current_seat_stand_position
-		if not (stand_position is Vector3):
-			if seat_target.has_method("get_stand_position"):
-				stand_position = seat_target.call("get_stand_position")
-			elif seat_target.has_method("get_interaction_position"):
-				stand_position = seat_target.call("get_interaction_position", actor)
 	if _is_valid_node(seat_target) and seat_target.has_method("release_sitter"):
 		seat_target.call("release_sitter", actor)
 	current_seat_target = null
 	current_seat_stand_position = null
 	if did_stop_sitting:
 		is_sitting = false
-		# Rise in place through the exit clip, then settle a step in front —
-		# humanoids own that presentation; anything else keeps the plain move.
-		if stand_position is Vector3 and actor.has_method("begin_stand_up_exit"):
-			actor.call("begin_stand_up_exit", stand_position)
+		if actor.has_method("begin_stand_up_visual_exit"):
+			actor.call("begin_stand_up_visual_exit")
 		else:
-			if stand_position is Vector3:
-				_set_actor_global_position(stand_position)
 			_call_void("_start_sitting_exit_animation")
 		var rotation := _actor_rotation()
 		_set_actor_rotation(Vector3(0.0, rotation.y, 0.0))
@@ -470,11 +458,15 @@ func assign_seat_target(seat, issued_by_player := true) -> void:
 	if not _set_order(ORDER_TYPE_SIT, issued_by_player):
 		return
 	current_seat_target = seat
-	current_seat_stand_position = _position()
-	if seat.has_method("can_sit_from_position") and bool(seat.call("can_sit_from_position", _position())):
-		_clear_actor_move_target()
-	else:
-		_set_actor_move_target(seat.call("get_interaction_position", actor))
+	var interaction_position = seat.call("get_safe_stand_position", actor) if seat.has_method("get_safe_stand_position") \
+			else seat.call("get_interaction_position", actor)
+	if not (interaction_position is Vector3) or not (interaction_position as Vector3).is_finite():
+		current_seat_target = null
+		current_seat_stand_position = null
+		current_order_type = ORDER_TYPE_NONE
+		return
+	current_seat_stand_position = interaction_position
+	_set_actor_move_target(interaction_position)
 
 
 func sit_at_seat_immediately(seat) -> bool:
@@ -483,19 +475,21 @@ func sit_at_seat_immediately(seat) -> bool:
 	if not _is_actor_alive():
 		return false
 	if is_sitting and current_seat_target == seat:
-		_set_actor_global_position(seat.call("get_seat_position", actor))
-		if seat.has_method("get_seat_rotation"):
-			_set_actor_global_rotation(seat.call("get_seat_rotation", actor))
+		_apply_seated_visual(seat)
 		return true
 	stop_seat_assignment()
 	_call_void("cancel_stand_up_exit")
 	if not bool(seat.call("claim_sitter", actor)):
 		return false
 	current_seat_target = seat
-	current_seat_stand_position = seat.call("get_stand_position") if seat.has_method("get_stand_position") else _position()
-	_set_actor_global_position(seat.call("get_seat_position", actor))
-	if seat.has_method("get_seat_rotation"):
-		_set_actor_global_rotation(seat.call("get_seat_rotation", actor))
+	current_seat_stand_position = seat.call("get_safe_stand_position", actor) if seat.has_method("get_safe_stand_position") else seat.call("get_interaction_position", actor)
+	if not (current_seat_stand_position is Vector3) or not (current_seat_stand_position as Vector3).is_finite():
+		seat.call("release_sitter", actor)
+		current_seat_target = null
+		current_seat_stand_position = null
+		return false
+	_set_actor_global_position(current_seat_stand_position)
+	_apply_seated_visual(seat)
 	_set_node_property("velocity", Vector3.ZERO)
 	_set_node_property("running", false)
 	_call_void("_set_sneaking_state", [false, false])
@@ -505,6 +499,18 @@ func sit_at_seat_immediately(seat) -> bool:
 	_call_void("_start_sitting_enter_animation")
 	_emit_actor_signal("state_changed")
 	return true
+
+
+func _apply_seated_visual(seat: Node, animate_entry := false) -> void:
+	var seat_position: Vector3 = seat.call("get_seat_position", actor)
+	var seat_rotation: Vector3 = seat.call("get_seat_rotation", actor) if seat.has_method("get_seat_rotation") else _actor_rotation()
+	_set_actor_global_rotation(seat_rotation)
+	if animate_entry and actor.has_method("begin_seated_visual_enter"):
+		actor.call("begin_seated_visual_enter", seat_position, seat_rotation)
+	elif actor.has_method("begin_seated_visual"):
+		actor.call("begin_seated_visual", seat_position, seat_rotation)
+	else:
+		_set_actor_global_position(seat_position)
 
 
 func assign_pickup_item(world_item, issued_by_player := true) -> void:
@@ -1197,15 +1203,9 @@ func process_seat_interaction() -> void:
 	if is_sitting:
 		_set_node_property("velocity", Vector3.ZERO)
 		return
-	var interaction_position: Vector3 = seat_target.call("get_interaction_position", actor)
-	var arrival_distance := _actor_float("interact_distance", 1.8)
-	if seat_target.has_method("get_arrival_distance"):
-		arrival_distance = maxf(arrival_distance, float(seat_target.call("get_arrival_distance")))
-	var can_snap_to_seat := false
-	if seat_target.has_method("can_sit_from_position"):
-		can_snap_to_seat = bool(seat_target.call("can_sit_from_position", _position()))
-	else:
-		can_snap_to_seat = _position().distance_to(interaction_position) <= arrival_distance
+	var interaction_position: Vector3 = current_seat_stand_position if current_seat_stand_position is Vector3 \
+			and (current_seat_stand_position as Vector3).is_finite() else seat_target.call("get_interaction_position", actor)
+	var can_snap_to_seat := _horizontal_distance_to(interaction_position) <= _move_target_arrival_distance()
 	if not can_snap_to_seat:
 		_set_actor_move_target(interaction_position)
 		return
@@ -1213,8 +1213,11 @@ func process_seat_interaction() -> void:
 	if not bool(seat_target.call("claim_sitter", actor)):
 		stop_seat_assignment()
 		return
-	_set_actor_global_position(seat_target.call("get_seat_position", actor))
-	_set_actor_global_rotation(seat_target.call("get_seat_rotation", actor))
+	# This is the real, physically reached approach point. Returning here is more
+	# reliable than any guessed chair offset and naturally uses whichever side of
+	# the chair the room layout left open.
+	current_seat_stand_position = _position()
+	_apply_seated_visual(seat_target, true)
 	_set_node_property("velocity", Vector3.ZERO)
 	_set_node_property("running", false)
 	_call_void("_set_sneaking_state", [false, false])
