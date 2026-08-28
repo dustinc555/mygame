@@ -9,6 +9,9 @@ class_name CharacterRecordDefinition
 
 @export var actor_id := ""
 @export var member_name := ""
+## Authored/manual characters are protected from automatic town assignment by
+## default. Explicit player or authored slot assignment may still place them.
+@export var available_for_work := false
 @export_range(13, 95, 1) var age_years := CharacterAgeRules.DEFAULT_ADULT_AGE
 @export var appearance: Dictionary = {}
 @export var skill_levels: Dictionary = {}
@@ -27,6 +30,7 @@ func to_record() -> Dictionary:
 	var record := {
 		"actor_id": clean_actor_id,
 		"member_name": member_name,
+		"available_for_work": available_for_work,
 		"birth_day_index": CharacterAgeRules.birth_day_for_age(age_years, 0),
 		"appearance": appearance.duplicate(true),
 		"skill_levels": skill_levels.duplicate(true),

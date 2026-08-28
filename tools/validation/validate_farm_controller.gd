@@ -7,7 +7,11 @@ class FakeGecs:
 	var states := {}
 	var water_states := {}
 	var farm_state_reads := 0
+	var full_state_writes := 0
+	var cell_state_reads := 0
+	var cell_state_writes := 0
 	func upsert_farm_plot_state(state: Dictionary) -> Dictionary:
+		full_state_writes += 1
 		states[str(state.get("plot_id", ""))] = state.duplicate(true)
 		return states[str(state.get("plot_id", ""))].duplicate(true)
 	func get_farm_plot_states() -> Dictionary:
@@ -15,6 +19,27 @@ class FakeGecs:
 		return states.duplicate(true)
 	func remove_farm_plot_state(plot_id: String) -> void:
 		states.erase(plot_id)
+	func get_farm_plot_header_state(plot_id: String) -> Dictionary:
+		var state: Dictionary = states.get(plot_id, {})
+		if state.is_empty(): return {}
+		var header := state.duplicate(true)
+		header.erase("cells")
+		header.erase("soil_remnants")
+		return header
+	func get_farm_plot_cell_record(plot_id: String, cell_key: String) -> Dictionary:
+		cell_state_reads += 1
+		var state: Dictionary = states.get(plot_id, {})
+		if state.is_empty() or not (state.get("cells", {}) as Dictionary).has(cell_key): return {}
+		return get_farm_plot_header_state(plot_id).merged({"cell_key": cell_key, "cell": (state["cells"][cell_key] as Dictionary).duplicate(true)}, true)
+	func upsert_farm_plot_cells(plot_id: String, changed_cells: Dictionary) -> Dictionary:
+		cell_state_writes += 1
+		var state: Dictionary = states.get(plot_id, {})
+		var cells: Dictionary = state.get("cells", {})
+		for key in changed_cells: cells[key] = (changed_cells[key] as Dictionary).duplicate(true)
+		state["cells"] = cells
+		state["state_revision"] = int(state.get("state_revision", 0)) + 1
+		states[plot_id] = state
+		return {"plot_id": plot_id, "settlement_id": state.get("settlement_id", ""), "state_revision": state["state_revision"], "cells": changed_cells.duplicate(true)}
 	func upsert_farm_water_source_state(state: Dictionary) -> Dictionary:
 		water_states[str(state.get("source_id", ""))] = state.duplicate(true)
 		return water_states[str(state.get("source_id", ""))].duplicate(true)
@@ -60,6 +85,16 @@ class FakeRetiringWork:
 		return active_keys.duplicate()
 
 var failures: Array[String] = []
+var plot_change_count := 0
+var cell_change_count := 0
+
+
+func _on_plot_changed(_plot_id: String, _state: Dictionary) -> void:
+	plot_change_count += 1
+
+
+func _on_plot_cells_changed(_plot_id: String, changed_cells: Dictionary, _settlement_id: String) -> void:
+	cell_change_count += changed_cells.size()
 
 
 func _init() -> void:
@@ -71,6 +106,10 @@ func _init() -> void:
 	root.add_child(time)
 	root.add_child(territory)
 	root.add_child(controller)
+	controller.plot_changed.connect(_on_plot_changed)
+	_expect(controller.has_signal("plot_cells_changed"), "FarmController exposes batched cell completion deltas")
+	if controller.has_signal("plot_cells_changed"):
+		controller.connect("plot_cells_changed", _on_plot_cells_changed)
 	controller._gecs = gecs
 	controller._world_time = time
 	controller._territory = territory
@@ -84,6 +123,14 @@ func _init() -> void:
 	var painted_positions: Array[Vector3] = [Vector3(5.0, 0, 5.0), Vector3(6.25, 0, 5.0), Vector3(6.25, 0, 6.25)]
 	var painted: Dictionary = controller.create_plot(painted_positions, Vector2i(2, 2), "tomato", "Player", "", {}, PackedStringArray(["0:0", "1:0", "1:1"]))
 	_expect((painted.get("cells", {}) as Dictionary).size() == 3 and not (painted.get("cells", {}) as Dictionary).has("0:1"), "painted plot persists only painted cells")
+	plot_change_count = 0
+	cell_change_count = 0
+	controller.call("_on_minute_changed", 1, 0, 0, 1)
+	_expect(plot_change_count == 0 and cell_change_count == 5, "world-minute initialization publishes one cell batch instead of full plots")
+	plot_change_count = 0
+	cell_change_count = 0
+	controller.call("_on_minute_changed", 2, 0, 0, 2)
+	_expect(plot_change_count == 0 and cell_change_count == 0, "unchanged world-minute catch-up emits no projection or offer invalidation")
 	var query_positions: Array[Vector3] = []
 	for index in 128:
 		query_positions.append(Vector3(float(index) * 1.25, 0.0, 50.0))
@@ -96,12 +143,20 @@ func _init() -> void:
 	controller.request_cell_operation(str(plot.plot_id), "0:0", "till")
 	var work: Dictionary = controller.get_next_work(str(plot.plot_id))
 	_expect(str(work.get("action", "")) == "till" and str(work.get("cell_key", "")) == "0:0", "individual till exposes only its requested cell")
+	plot_change_count = 0
+	cell_change_count = 0
+	gecs.full_state_writes = 0
+	gecs.cell_state_reads = 0
+	gecs.cell_state_writes = 0
 	var partial: Dictionary = controller.apply_work(str(plot.plot_id), str(work.cell_key), "till", 1.0)
 	_expect(not bool(partial.get("completed", true)), "short work preserves partial progress")
+	_expect(plot_change_count == 0 and cell_change_count == 0, "partial progress emits no offer or projection invalidation")
+	_expect(gecs.full_state_writes == 0 and gecs.cell_state_reads == 1 and gecs.cell_state_writes == 1, "worker progress persists through indexed cell IO instead of copying the full plot")
 	var persisted: Dictionary = controller.get_plot(str(plot.plot_id))
 	_expect(float((persisted.cells[work.cell_key] as Dictionary).work_progress) > 0.0, "partial progress persists in GECS state")
 	var completed: Dictionary = controller.apply_work(str(plot.plot_id), str(work.cell_key), "till", 20.0)
 	_expect(bool(completed.get("completed", false)), "enough work completes tilling")
+	_expect(plot_change_count == 0 and cell_change_count == 1, "completion emits one cell delta without broadcasting the whole plot")
 	persisted = controller.get_plot(str(plot.plot_id))
 	_expect(str((persisted.cells[work.cell_key] as Dictionary).state) == "tilled", "completed tilling changes only its cell")
 	controller.refresh_obstacle(str(plot.plot_id), str(work.cell_key), true, "temporary rock")

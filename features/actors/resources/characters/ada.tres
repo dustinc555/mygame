@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="CharacterRecordDefinition" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="CharacterRecordDefinition" format=3 uid="uid://b0kpn5b15tqys"]
 
-[ext_resource type="Script" path="res://features/world_sim/resources/character_record_definition.gd" id="1_ada"]
-[ext_resource type="Resource" path="res://features/conversation/resources/ada_recruitment.tres" id="2_conversation"]
+[ext_resource type="Script" uid="uid://d2t5ft20rp0gl" path="res://features/world_sim/resources/character_record_definition.gd" id="1_ada"]
+[ext_resource type="Resource" uid="uid://bl8ohweyk47b3" path="res://features/conversation/resources/ada_recruitment.tres" id="2_conversation"]
 
 [resource]
 script = ExtResource("1_ada")
@@ -64,7 +64,9 @@ inventory_entries = [{
 "count": 1,
 "grid_position": Vector2i(0, 0),
 "item_id": "res://features/inventory/resources/items/watering_can.tres",
-"metadata": {"farm_water": 16.0}
+"metadata": {
+"farm_water": 16.0
+}
 }, {
 "contained_item_counts": {},
 "count": 10,

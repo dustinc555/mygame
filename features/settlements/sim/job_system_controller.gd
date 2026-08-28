@@ -34,6 +34,13 @@ var _assignment_workers: Dictionary = {}
 var _assignment_actor_order: Array[String] = []
 var _assignment_ids_by_settlement: Dictionary = {}
 var _assignment_actor_cursor := 0
+var _pending_assignment_actor_ids: Dictionary = {}
+var _pending_assignment_actor_order: Array[String] = []
+var _pending_assignment_actor_head := 0
+var _assignment_offer_index_cache: Dictionary = {}
+var _assignment_settlement_states_cache: Variant = null
+var _assignment_offer_scope_cache: Dictionary = {}
+var _assignment_offer_snapshot_dirty := true
 var _assignment_cache_bound := false
 var _dispatch_remaining := 0.0
 var _assignment_dispatch_turn := false
@@ -69,14 +76,50 @@ func register_job_provider(provider: Node) -> void:
 	if not _is_job_provider_in_scope(provider):
 		return
 	if _job_providers.has(provider):
+		_connect_provider_signals(provider)
 		return
 	_job_providers.append(provider)
+	_assignment_offer_snapshot_dirty = true
+	_connect_provider_signals(provider)
+	notify_work_offers_changed("")
+
+
+func _connect_provider_signals(provider: Node) -> void:
+	if provider.has_signal("work_offers_changed"):
+		var callback := Callable(self, "notify_work_offers_changed")
+		if not provider.is_connected("work_offers_changed", callback):
+			provider.connect("work_offers_changed", callback)
+	if provider.has_signal("work_offer_delta"):
+		var delta_callback := Callable(self, "_on_work_offer_delta").bind(provider)
+		if not provider.is_connected("work_offer_delta", delta_callback):
+			provider.connect("work_offer_delta", delta_callback)
+	if provider.has_signal("work_availability_changed"):
+		var availability_callback := Callable(self, "_queue_assignment_workers_for_settlement")
+		if not provider.is_connected("work_availability_changed", availability_callback):
+			provider.connect("work_availability_changed", availability_callback)
 
 
 func unregister_job_provider(provider: Node) -> void:
+	_assignment_offer_snapshot_dirty = true
+	_disconnect_provider_signals(provider)
 	var index := _job_providers.find(provider)
 	if index >= 0:
 		_job_providers.remove_at(index)
+
+
+func _disconnect_provider_signals(provider: Node) -> void:
+	if provider != null and is_instance_valid(provider) and provider.has_signal("work_offers_changed"):
+		var callback := Callable(self, "notify_work_offers_changed")
+		if provider.is_connected("work_offers_changed", callback):
+			provider.disconnect("work_offers_changed", callback)
+	if provider != null and is_instance_valid(provider) and provider.has_signal("work_offer_delta"):
+		var delta_callback := Callable(self, "_on_work_offer_delta").bind(provider)
+		if provider.is_connected("work_offer_delta", delta_callback):
+			provider.disconnect("work_offer_delta", delta_callback)
+	if provider != null and is_instance_valid(provider) and provider.has_signal("work_availability_changed"):
+		var availability_callback := Callable(self, "_queue_assignment_workers_for_settlement")
+		if provider.is_connected("work_availability_changed", availability_callback):
+			provider.disconnect("work_availability_changed", availability_callback)
 
 
 func collect_work_offers(settlement_id := "") -> Array:
@@ -90,6 +133,73 @@ func collect_work_offers(settlement_id := "") -> Array:
 				offer["provider"] = provider
 			offers.append(offer)
 	return offers
+
+
+## Providers wake relevant idle assignment workers only when their indexed
+## offer set changes. No per-NPC polling occurs while the world is unchanged.
+func notify_work_offers_changed(settlement_id := "") -> void:
+	_assignment_offer_snapshot_dirty = true
+	_queue_assignment_workers_for_settlement(settlement_id)
+
+
+func _on_work_offer_delta(settlement_id: String, removed_offer_ids: PackedStringArray, upserted_offers: Array, provider: Node) -> void:
+	if not _assignment_offer_snapshot_dirty:
+		for offer_id in removed_offer_ids:
+			_remove_offer_from_assignment_index(str(offer_id))
+		for offer_value in upserted_offers:
+			if not (offer_value is Dictionary):
+				continue
+			var offer: Dictionary = (offer_value as Dictionary).duplicate(false)
+			if not offer.has("provider"):
+				offer["provider"] = provider
+			_upsert_assignment_offer(offer)
+	_queue_assignment_workers_for_settlement(settlement_id)
+
+
+func _queue_assignment_workers_for_settlement(settlement_id: String) -> void:
+	for actor_id_value in _assignment_workers.keys():
+		var actor_id := str(actor_id_value)
+		var assignment: Dictionary = _assignment_workers[actor_id]
+		if settlement_id.is_empty() or str(assignment.get("settlement_id", "")) == settlement_id:
+			_queue_assignment_worker(actor_id)
+
+
+func _queue_assignment_worker(actor_id: String) -> void:
+	if actor_id.is_empty() or not _assignment_workers.has(actor_id) or _pending_assignment_actor_ids.has(actor_id):
+		return
+	_pending_assignment_actor_ids[actor_id] = true
+	_pending_assignment_actor_order.append(actor_id)
+
+
+## Assignment slots survive population LOD, but their projected actor does not.
+## Re-realization is therefore a fresh idle transition and must re-enter the
+## event-driven dispatch queue even though the durable slot itself did not change.
+func notify_assignment_worker_realized(actor_id: String) -> void:
+	if actor_id.is_empty() or not _assignment_workers.has(actor_id):
+		return
+	var assignment: Dictionary = _assignment_workers[actor_id]
+	assignment["idle_projection_active"] = false
+	_assignment_workers[actor_id] = assignment
+	_queue_assignment_worker(actor_id)
+
+
+func _dequeue_assignment_worker() -> String:
+	while _pending_assignment_actor_head < _pending_assignment_actor_order.size():
+		var actor_id := _pending_assignment_actor_order[_pending_assignment_actor_head]
+		_pending_assignment_actor_head += 1
+		if not _pending_assignment_actor_ids.erase(actor_id):
+			continue
+		_compact_pending_assignment_queue_if_needed()
+		return actor_id
+	_compact_pending_assignment_queue_if_needed()
+	return ""
+
+
+func _compact_pending_assignment_queue_if_needed() -> void:
+	if _pending_assignment_actor_head <= 64 or _pending_assignment_actor_head * 2 <= _pending_assignment_actor_order.size():
+		return
+	_pending_assignment_actor_order = _pending_assignment_actor_order.slice(_pending_assignment_actor_head)
+	_pending_assignment_actor_head = 0
 
 
 func is_actor_work_busy(actor: Node) -> bool:
@@ -266,7 +376,10 @@ func dispatch_actor_work(actor: Node, available_offers = null, settlement_states
 			continue
 		var result = provider.call("accept_work_offer", offer, actor)
 		if _work_offer_was_accepted(result):
-			_remove_offer_by_id(offers, str(offer.get("offer_id", "")))
+			var accepted_offer_id := str(offer.get("offer_id", ""))
+			_remove_offer_by_id(offers, accepted_offer_id)
+			if not _assignment_offer_snapshot_dirty:
+				_remove_offer_from_assignment_index(accepted_offer_id)
 			return true
 	return false
 
@@ -453,7 +566,8 @@ func _process_party_job_dispatch(max_dispatches := MAX_ACTOR_DISPATCHES_PER_TICK
 		_dispatch_actor_order.clear()
 		_known_dispatch_actor_ids.clear()
 		_dispatch_actor_cursor = 0
-	if _enabled_party_actors.is_empty() and _assignment_workers.is_empty():
+	var has_pending_assignment_work := not _pending_assignment_actor_ids.is_empty()
+	if _enabled_party_actors.is_empty() and not has_pending_assignment_work:
 		return
 	var offers: Array = []
 	var offers_loaded := false
@@ -462,7 +576,7 @@ func _process_party_job_dispatch(max_dispatches := MAX_ACTOR_DISPATCHES_PER_TICK
 	var attempts := 0
 	var dispatched := 0
 	var party_budget := dispatch_budget
-	if not _assignment_workers.is_empty():
+	if has_pending_assignment_work:
 		if _enabled_party_actors.is_empty():
 			party_budget = 0
 		elif dispatch_budget == 1:
@@ -493,14 +607,25 @@ func _process_party_job_dispatch(max_dispatches := MAX_ACTOR_DISPATCHES_PER_TICK
 		dispatch_actor_work(actor, offers, settlement_states, offer_scope_cache)
 	_compact_dispatch_actor_order_if_needed()
 	var assignment_budget := dispatch_budget - dispatched
-	if assignment_budget <= 0:
+	if assignment_budget <= 0 or _pending_assignment_actor_ids.is_empty():
 		return
-	if not offers_loaded:
-		offers = collect_work_offers()
-		var bridge := _get_gecs_world()
-		settlement_states = bridge.call("get_settlement_states") if bridge != null and bridge.has_method("get_settlement_states") else null
-	var assignment_offer_index := _build_assignment_offer_index(offers)
-	_process_assignment_worker_dispatch(assignment_offer_index, settlement_states, offer_scope_cache, assignment_budget)
+	_refresh_assignment_offer_snapshot()
+	_process_assignment_worker_dispatch(
+		_assignment_offer_index_cache,
+		_assignment_settlement_states_cache,
+		_assignment_offer_scope_cache,
+		assignment_budget
+	)
+
+
+func _refresh_assignment_offer_snapshot() -> void:
+	if not _assignment_offer_snapshot_dirty:
+		return
+	_assignment_offer_snapshot_dirty = false
+	_assignment_offer_index_cache = _build_assignment_offer_index(collect_work_offers())
+	var bridge := _get_gecs_world()
+	_assignment_settlement_states_cache = bridge.call("get_settlement_states") if bridge != null and bridge.has_method("get_settlement_states") else null
+	_assignment_offer_scope_cache.clear()
 
 
 func _remove_offer_by_id(offers: Array, offer_id: String) -> void:
@@ -527,6 +652,33 @@ func _build_assignment_offer_index(offers: Array) -> Dictionary:
 			by_entry[entry_id] = []
 		(by_entry[entry_id] as Array).append(offer)
 	return index
+
+
+func _remove_offer_from_assignment_index(offer_id: String) -> void:
+	if offer_id.is_empty():
+		return
+	for row_value in _assignment_offer_index_cache.values():
+		var row: Dictionary = row_value
+		_remove_offer_by_id(row.get("all", []) as Array, offer_id)
+		for entry_offers_value in (row.get("by_entry", {}) as Dictionary).values():
+			_remove_offer_by_id(entry_offers_value as Array, offer_id)
+
+
+func _upsert_assignment_offer(offer: Dictionary) -> void:
+	var offer_id := str(offer.get("offer_id", ""))
+	if offer_id.is_empty():
+		return
+	_remove_offer_from_assignment_index(offer_id)
+	var settlement_id := str(offer.get("settlement_id", ""))
+	if not _assignment_offer_index_cache.has(settlement_id):
+		_assignment_offer_index_cache[settlement_id] = {"all": [], "by_entry": {}}
+	var row: Dictionary = _assignment_offer_index_cache[settlement_id]
+	(row["all"] as Array).append(offer)
+	var entry_id := _offer_entry_id(offer)
+	var by_entry: Dictionary = row["by_entry"]
+	if not by_entry.has(entry_id):
+		by_entry[entry_id] = []
+	(by_entry[entry_id] as Array).append(offer)
 
 
 func _assignment_offer_slice(index: Dictionary, assignment: Dictionary) -> Array:
@@ -576,18 +728,16 @@ func _offer_entry_id(offer: Dictionary) -> String:
 
 
 func _process_assignment_worker_dispatch(assignment_offer_index: Dictionary, settlement_states, offer_scope_cache: Dictionary, budget: int) -> void:
-	if budget <= 0 or _assignment_actor_order.is_empty():
+	if budget <= 0 or _pending_assignment_actor_ids.is_empty():
 		return
 	var population := _context.get_optional(&"population") if _context != null else null
 	if population == null or not population.has_method("get_live_actor"):
 		return
-	var attempts := 0
 	var dispatched := 0
-	while attempts < _assignment_actor_order.size() and dispatched < budget:
-		_assignment_actor_cursor %= _assignment_actor_order.size()
-		var actor_id := _assignment_actor_order[_assignment_actor_cursor]
-		_assignment_actor_cursor = (_assignment_actor_cursor + 1) % _assignment_actor_order.size()
-		attempts += 1
+	while dispatched < budget:
+		var actor_id := _dequeue_assignment_worker()
+		if actor_id.is_empty():
+			break
 		var assignment: Dictionary = _assignment_workers.get(actor_id, {})
 		if assignment.is_empty():
 			continue
@@ -659,7 +809,7 @@ func _assignment_schedule_is_active(assignment: Dictionary) -> bool:
 
 func _begin_assignment_duty(actor: Node, assignment: Dictionary) -> void:
 	assignment["idle_projection_active"] = false
-	FACILITY_DUTY_CONTRACT.begin(actor, str(assignment.get("facility_id", "")))
+	FACILITY_DUTY_CONTRACT.begin(actor, str(assignment.get("duty_scope_id", assignment.get("facility_id", ""))))
 	var interaction = actor.call("get_interaction") if actor != null and actor.has_method("get_interaction") else null
 	if interaction == null:
 		return
@@ -674,9 +824,9 @@ func _release_assignment_duty(actor: Node, assignment: Dictionary, cancel_active
 		return
 	if cancel_active:
 		cancel_work_for_actor(actor)
-	var facility_id := str(assignment.get("facility_id", ""))
-	var had_duty := str(actor.get_meta(FACILITY_DUTY_CONTRACT.ACTIVE_DUTY_META, "")) == facility_id
-	FACILITY_DUTY_CONTRACT.end(actor, facility_id)
+	var duty_scope_id := str(assignment.get("duty_scope_id", assignment.get("facility_id", "")))
+	var had_duty := str(actor.get_meta(FACILITY_DUTY_CONTRACT.ACTIVE_DUTY_META, "")) == duty_scope_id
+	FACILITY_DUTY_CONTRACT.end(actor, duty_scope_id)
 	if not had_duty and bool(assignment.get("idle_projection_active", false)):
 		return
 	assignment["idle_projection_active"] = true
@@ -725,22 +875,23 @@ func _on_assignment_settlement_state_changed(settlement_id: String, state: Dicti
 func _rebuild_assignment_workers_for_settlement(settlement_id: String, state: Dictionary) -> void:
 	if settlement_id.is_empty():
 		return
-	var next_facility_by_actor: Dictionary = {}
+	var next_duty_scope_by_actor: Dictionary = {}
 	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
 		var next_slot: Dictionary = slot_value
 		if str(next_slot.get("assignment_domain", "")) == "employment" and bool(next_slot.get("filled", false)) \
 				and bool(next_slot.get("uses_settlement_jobs", false)):
-			next_facility_by_actor[str(next_slot.get("occupant_actor_id", ""))] = str(next_slot.get("facility_id", next_slot.get("owner_id", "")))
+			next_duty_scope_by_actor[str(next_slot.get("occupant_actor_id", ""))] = _assignment_duty_scope(next_slot, settlement_id)
 	var previous_entries: Dictionary = {}
 	var population := _context.get_optional(&"population") if _context != null else null
 	for actor_id_value in (_assignment_ids_by_settlement.get(settlement_id, PackedStringArray()) as PackedStringArray):
 		var previous_actor_id := str(actor_id_value)
 		var previous_entry: Dictionary = _assignment_workers.get(previous_actor_id, {})
 		previous_entries[previous_actor_id] = previous_entry
-		if str(next_facility_by_actor.get(previous_actor_id, "")) != str(previous_entry.get("facility_id", "")):
+		if str(next_duty_scope_by_actor.get(previous_actor_id, "")) != str(previous_entry.get("duty_scope_id", previous_entry.get("facility_id", ""))):
 			var previous_actor = population.call("get_live_actor", previous_actor_id) if population != null and population.has_method("get_live_actor") else null
 			_release_assignment_duty(previous_actor, previous_entry, true)
 		_assignment_workers.erase(previous_actor_id)
+		_pending_assignment_actor_ids.erase(previous_actor_id)
 	var actor_ids := PackedStringArray()
 	var facilities: Dictionary = state.get("facilities", {})
 	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
@@ -749,24 +900,40 @@ func _rebuild_assignment_workers_for_settlement(settlement_id: String, state: Di
 				or not bool(slot.get("uses_settlement_jobs", false)):
 			continue
 		var actor_id := str(slot.get("occupant_actor_id", ""))
-		var facility_id := str(slot.get("facility_id", slot.get("owner_id", "")))
-		if actor_id.is_empty() or facility_id.is_empty():
+		var assignment_scope := str(slot.get("assignment_scope", "facility"))
+		var facility_id := str(slot.get("facility_id", ""))
+		var duty_scope_id := _assignment_duty_scope(slot, settlement_id)
+		if actor_id.is_empty() or duty_scope_id.is_empty():
 			continue
 		var facility: Dictionary = facilities.get(facility_id, {})
 		_assignment_workers[actor_id] = {
 			"actor_id": actor_id,
 			"settlement_id": settlement_id,
 			"facility_id": facility_id,
+			"duty_scope_id": duty_scope_id,
+			"assignment_scope": assignment_scope,
 			"allowed_job_entry_ids": PackedStringArray(slot.get("allowed_job_entry_ids", PackedStringArray())),
-			"schedule_enabled": bool(facility.get("door_schedule_enabled", false)),
+			"schedule_enabled": assignment_scope != "town_labor" and bool(facility.get("door_schedule_enabled", false)),
 			"open_hour": int(facility.get("door_open_hour", 0)),
 			"close_hour": int(facility.get("door_close_hour", 24)),
 			"idle_projection_active": bool((previous_entries.get(actor_id, {}) as Dictionary).get("idle_projection_active", false)),
 		}
+		var prior: Dictionary = previous_entries.get(actor_id, {})
+		if prior.is_empty() or str(prior.get("duty_scope_id", prior.get("facility_id", ""))) != duty_scope_id:
+			_queue_assignment_worker(actor_id)
 		actor_ids.append(actor_id)
 		if not _assignment_actor_order.has(actor_id):
 			_assignment_actor_order.append(actor_id)
 	_assignment_ids_by_settlement[settlement_id] = actor_ids
+
+
+func _assignment_duty_scope(slot: Dictionary, settlement_id: String) -> String:
+	var facility_id := str(slot.get("facility_id", "")).strip_edges()
+	if not facility_id.is_empty():
+		return facility_id
+	if str(slot.get("assignment_scope", "")) == "town_labor":
+		return settlement_id
+	return str(slot.get("owner_id", "")).strip_edges()
 
 
 func _on_party_tree_node_added(node: Node) -> void:
@@ -1106,6 +1273,7 @@ func _refresh_job_provider_cache() -> void:
 		if not _is_job_provider_in_scope(provider):
 			continue
 		if not refreshed_providers.has(provider):
+			_connect_provider_signals(provider)
 			refreshed_providers.append(provider)
 	_job_providers = refreshed_providers
 

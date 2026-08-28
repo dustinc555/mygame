@@ -81,6 +81,11 @@ func _seed_startup_assignments(settlement: SettlementController, population: Nod
 		var current: Dictionary = population.call("get_record_assigned_to_slot", settlement_id, str(slot.get("assignment_domain", "employment")), str(slot.get("slot_id", "")))
 		if not current.is_empty():
 			continue
+		# Town jobs convert the generated available resident pool after every
+		# residence and fixed facility post has been seeded. They never mint a
+		# dedicated filler person.
+		if str(slot.get("assignment_scope", "")) == "town_labor":
+			continue
 		var context := _assignment_generation_context(definition, base_context, slot)
 		var filler: Dictionary = population.call("ensure_assignment_filler_record", settlement_id, slot, context)
 		if not filler.is_empty():

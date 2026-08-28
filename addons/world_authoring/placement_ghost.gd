@@ -15,6 +15,12 @@ const ROTATE_DEAD_ZONE_METERS := 0.6
 const HEIGHT_STEP_METERS := 0.25
 const HEIGHT_MIN_METERS := -1.0
 const HEIGHT_MAX_METERS := 4.0
+## Terrain3D's GPU intersection renders and reads back a frame, stalling the
+## pipeline. Editor terrain has no physics collision, so placement takes that
+## path on EVERY mouse-motion event. Sample height at this interval instead and
+## slide along the last known height in between — the preview still tracks the
+## cursor every frame, it just re-reads the ground ~12 times a second.
+const TERRAIN_QUERY_INTERVAL_MSEC := 80
 
 var _plugin: EditorPlugin
 var _preview: Node3D
@@ -27,6 +33,9 @@ var _anchor := Vector3.ZERO
 var _ground := Vector3.ZERO
 var _yaw := 0.0
 var _y_offset := 0.0
+var _last_terrain_query_msec := -TERRAIN_QUERY_INTERVAL_MSEC
+var _last_terrain_point := Vector3.ZERO
+var _has_last_terrain_point := false
 
 
 func _init(plugin: EditorPlugin) -> void:
@@ -142,6 +151,7 @@ func _rotate_toward_cursor(camera: Camera3D, mouse_position: Vector2) -> void:
 
 func _begin(preview: Node3D, on_commit: Callable, on_cancel: Callable) -> bool:
 	cancel()
+	_reset_terrain_cache()
 	var root := _plugin.get_editor_interface().get_edited_scene_root() as Node3D
 	if root == null:
 		preview.free()
@@ -189,13 +199,33 @@ func _terrain_point(camera: Camera3D, mouse_position: Vector2) -> Variant:
 	var space := camera.get_world_3d().direct_space_state
 	var hit := PLACEMENT_SOLVER.terrain_ray(space, from, from + direction * RAY_LENGTH_METERS)
 	if not hit.is_empty():
+		# Physics hit: cheap and exact, so it is never throttled.
+		_remember_terrain_point(hit["position"])
 		return hit["position"]
+	var now := Time.get_ticks_msec()
+	if _has_last_terrain_point and now - _last_terrain_query_msec < TERRAIN_QUERY_INTERVAL_MSEC:
+		var slid := _slide_along_last_height(from, direction)
+		if slid != null:
+			return slid
 	var terrain := _find_terrain()
 	if terrain != null:
+		_last_terrain_query_msec = now
 		var point: Vector3 = terrain.call("get_intersection", from, direction, true)
 		if point.z < 3.4e38 and not is_nan(point.y):
+			_remember_terrain_point(point)
 			return point
-	return null
+	return _last_terrain_point if _has_last_terrain_point else null
+
+
+func _remember_terrain_point(point: Vector3) -> void:
+	_last_terrain_point = point
+	_has_last_terrain_point = true
+
+
+## Between ground samples the cursor still needs to move the preview, so the
+## ray is intersected with a horizontal plane at the last sampled height.
+func _slide_along_last_height(from: Vector3, direction: Vector3) -> Variant:
+	return Plane(Vector3.UP, _last_terrain_point.y).intersects_ray(from, direction)
 
 
 func _apply_preview_transform() -> void:
@@ -233,6 +263,11 @@ func _disable_colliders(root: Node) -> void:
 		(root as CollisionShape3D).disabled = true
 	for child in root.get_children():
 		_disable_colliders(child)
+
+
+func _reset_terrain_cache() -> void:
+	_has_last_terrain_point = false
+	_last_terrain_query_msec = -TERRAIN_QUERY_INTERVAL_MSEC
 
 
 func _free_preview() -> void:

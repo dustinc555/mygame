@@ -22,6 +22,10 @@ var _container_ids_by_facility: Dictionary = {}
 var _settlement_stock: Dictionary = {}
 var _facility_stock: Dictionary = {}
 var _live_projection_by_container_id: Dictionary = {}
+## settlement -> semantic container type -> container IDs. Physical workers
+## query this index instead of scanning the scene tree.
+var _live_container_ids_by_settlement_type: Dictionary = {}
+var _live_container_scope_by_id: Dictionary = {}
 var _definition_by_path: Dictionary = {}
 var _definition_by_item_id: Dictionary = {}
 var _display_name_by_item_id: Dictionary = {}
@@ -59,6 +63,7 @@ func rebuild_from_gecs() -> void:
 		_add_container_aggregate(str(container_id))
 	for container_id in _live_projection_by_container_id.keys():
 		_hydrate_live_projection(str(container_id))
+	_rebuild_live_container_index()
 
 
 func bind_world_container(container: Node) -> bool:
@@ -68,6 +73,7 @@ func bind_world_container(container: Node) -> bool:
 	if container_id.is_empty():
 		return false
 	_live_projection_by_container_id[container_id] = weakref(container)
+	_index_live_container(container_id, container)
 	if not _containers_by_id.has(container_id):
 		return false
 	_hydrate_live_projection(container_id)
@@ -78,6 +84,7 @@ func detach_world_container(container_id: String, container: Node) -> void:
 	var projection_ref := _live_projection_by_container_id.get(container_id) as WeakRef
 	if projection_ref != null and projection_ref.get_ref() == container:
 		_live_projection_by_container_id.erase(container_id)
+		_remove_live_container_from_index(container_id)
 
 
 ## Called after the projection has mirrored its InventoryData into GECS.
@@ -88,6 +95,7 @@ func sync_world_container(container: Node) -> void:
 	if container_id.is_empty():
 		return
 	_live_projection_by_container_id[container_id] = weakref(container)
+	_index_live_container(container_id, container)
 	_remove_indexed_container(container_id)
 	var container_entity = _gecs_world.get_inventory_container_entity(container_id)
 	if container_entity == null or not is_instance_valid(container_entity):
@@ -129,9 +137,41 @@ func get_settlement_container_snapshot(settlement_id: String) -> Array[Dictionar
 			"container_id": container_id,
 			"facility_id": str(component.facility_id),
 			"container_kind": str(component.container_kind),
+			"container_type": str(component.container_type),
 			"stock": _container_contribution(container_id),
 		})
 	result.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a["container_id"]) < str(b["container_id"]))
+	return result
+
+
+## Stable live physical candidates narrowed by settlement and semantic type.
+## Dead weak references are pruned without a global node scan.
+func get_live_container_candidates(settlement_id: String, container_types := PackedStringArray()) -> Array[Node]:
+	var result: Array[Node] = []
+	if settlement_id.is_empty():
+		return result
+	var by_type: Dictionary = _live_container_ids_by_settlement_type.get(settlement_id, {})
+	var ids := {}
+	var requested := PackedStringArray(container_types)
+	if requested.is_empty():
+		for type_ids_value in by_type.values():
+			for container_id_value in (type_ids_value as Dictionary).keys():
+				ids[str(container_id_value)] = true
+	else:
+		for type_id in requested:
+			for container_id_value in (by_type.get(str(type_id), {}) as Dictionary).keys():
+				ids[str(container_id_value)] = true
+	var ordered_ids := ids.keys()
+	ordered_ids.sort()
+	for container_id_value in ordered_ids:
+		var container_id := str(container_id_value)
+		var projection_ref := _live_projection_by_container_id.get(container_id) as WeakRef
+		var container := projection_ref.get_ref() as Node if projection_ref != null else null
+		if container == null or not is_instance_valid(container) or not container.is_inside_tree():
+			_live_projection_by_container_id.erase(container_id)
+			_remove_live_container_from_index(container_id)
+			continue
+		result.append(container)
 	return result
 
 
@@ -188,6 +228,8 @@ func ensure_seeded_container(settlement_id: String, seed: Resource) -> bool:
 	component.settlement_id = settlement_id
 	component.facility_id = str(seed.get("facility_id"))
 	component.container_kind = str(seed.get("container_kind"))
+	component.container_type = str(seed.get("container_type")) if _has_property(seed, "container_type") else "general"
+	component.allowed_item_ids = PackedStringArray(seed.get("allowed_item_ids")) if _has_property(seed, "allowed_item_ids") else PackedStringArray()
 	component.contributes_to_town_stock = bool(seed.get("contributes_to_town_stock"))
 	component.columns = int(seed.get("columns"))
 	component.rows = int(seed.get("rows"))
@@ -537,6 +579,17 @@ func _hydrate_live_projection(container_id: String) -> void:
 			"metadata": component.metadata.duplicate(true),
 		})
 	var component = (_containers_by_id[container_id] as Dictionary)["component"]
+	if container.has_method("hydrate_container_policy_from_gecs"):
+		var type_id := str(component.container_type)
+		if type_id.is_empty() or type_id == "general":
+			match str(component.container_kind):
+				"farm_seed", "seed_processing":
+					type_id = "seeds"
+				"tool_store":
+					type_id = "tools"
+				"granary":
+					type_id = "food"
+		container.call("hydrate_container_policy_from_gecs", type_id, PackedStringArray(component.allowed_item_ids))
 	if container.has_method("hydrate_storage_policy_from_gecs"):
 		container.call(
 			"hydrate_storage_policy_from_gecs",
@@ -615,6 +668,70 @@ func _remove_from_scope_index(index: Dictionary, scope_id: String, container_id:
 	ids.erase(container_id)
 	if ids.is_empty():
 		index.erase(scope_id)
+
+
+func _rebuild_live_container_index() -> void:
+	_live_container_ids_by_settlement_type.clear()
+	_live_container_scope_by_id.clear()
+	for container_id_value in _live_projection_by_container_id.keys():
+		var container_id := str(container_id_value)
+		var projection_ref := _live_projection_by_container_id.get(container_id) as WeakRef
+		var container := projection_ref.get_ref() as Node if projection_ref != null else null
+		if container == null or not is_instance_valid(container):
+			_live_projection_by_container_id.erase(container_id)
+			continue
+		_index_live_container(container_id, container)
+
+
+func _index_live_container(container_id: String, container: Node) -> void:
+	_remove_live_container_from_index(container_id)
+	if container == null or not is_instance_valid(container):
+		return
+	var settlement_id := str(container.get("settlement_id")).strip_edges()
+	if settlement_id.is_empty():
+		return
+	var container_type := str(container.get("container_type")).strip_edges().to_lower() if _has_property(container, "container_type") else ""
+	if container_type.is_empty() or container_type == "general":
+		match str(container.get("container_kind")).strip_edges().to_lower():
+			"farm_seed", "seed_processing":
+				container_type = "seeds"
+			"tool_store":
+				container_type = "tools"
+			"granary":
+				container_type = "food"
+			_:
+				container_type = "general"
+	var by_type := _live_container_ids_by_settlement_type.get(settlement_id, {}) as Dictionary
+	var ids := by_type.get(container_type, {}) as Dictionary
+	ids[container_id] = true
+	by_type[container_type] = ids
+	_live_container_ids_by_settlement_type[settlement_id] = by_type
+	_live_container_scope_by_id[container_id] = {"settlement_id": settlement_id, "container_type": container_type}
+
+
+func _remove_live_container_from_index(container_id: String) -> void:
+	var scope := _live_container_scope_by_id.get(container_id, {}) as Dictionary
+	_live_container_scope_by_id.erase(container_id)
+	if scope.is_empty():
+		return
+	var settlement_id := str(scope.get("settlement_id", ""))
+	var container_type := str(scope.get("container_type", ""))
+	var by_type := _live_container_ids_by_settlement_type.get(settlement_id, {}) as Dictionary
+	var ids := by_type.get(container_type, {}) as Dictionary
+	ids.erase(container_id)
+	if ids.is_empty():
+		by_type.erase(container_type)
+	if by_type.is_empty():
+		_live_container_ids_by_settlement_type.erase(settlement_id)
+
+
+func _has_property(value: Object, property_name: String) -> bool:
+	if value == null:
+		return false
+	for property in value.get_property_list():
+		if str(property.get("name", "")) == property_name:
+			return true
+	return false
 
 
 func _next_sequence_for_container(container_id: String, stored_sequence: int) -> int:

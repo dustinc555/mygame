@@ -53,8 +53,20 @@ func _validate_catalog_and_templates() -> void:
 		elif facility_id == "keep":
 			_expect(str(facility.door_access_policy) == "private", "Keep must explicitly remain owner-private")
 		facility.free()
+	# The field is the one placeable facility with NO building: it is a worked
+	# area of soil, so it opts out of the shell contract above by policy rather
+	# than by being hidden from the catalog.
 	var field := load("%s/field.tres" % FACILITY_DIR) as Resource
-	_expect(field != null and not field.catalog_enabled, "Field must be excluded from Add Facility")
+	_expect(field != null and field.catalog_enabled, "Field must be placeable from Add Facility")
+	_expect(field != null and int(field.shell_policy) == 1, "Field must be authored shell-less (shell_policy None)")
+	var field_scene := load(field.scene_path) as PackedScene if field != null else null
+	var field_node := field_scene.instantiate() if field_scene != null else null
+	_expect(field_node != null and field_node.has_method("get_building_root"), "Field must still be a composed facility template")
+	if field_node != null:
+		var field_slot: Node = field_node.call("get_building_root") if field_node.has_method("get_building_root") else null
+		_expect(field_slot == null or field_slot.get_child_count() == 0, "Field must author no building shell")
+		_expect(int(field_node.call("count_role_slots", "worker", "employment")) == 0, "Field must not carry its own posts — farmers are town labour")
+		field_node.free()
 	_validate_home_function_and_recipe()
 
 

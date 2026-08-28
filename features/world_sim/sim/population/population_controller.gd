@@ -2,6 +2,8 @@ extends Node
 
 class_name PopulationController
 
+const RESIDENCE_SPAWN_REVISION := 1
+
 signal population_record_changed(settlement_id: String, actor_id: String)
 signal person_died(actor_id: String)
 signal dead_projection_registered(actor_id: String)
@@ -168,19 +170,15 @@ func claim_record_for_assignment(settlement_id: String, slot: Dictionary) -> Dic
 	var preferred_actor_id := str(slot.get("preferred_actor_id", "")).strip_edges()
 	if not preferred_actor_id.is_empty():
 		var preferred := get_actor_record(preferred_actor_id)
-		if _eligible_for_assignment(preferred, settlement_id, domain, str(slot.get("assignment_exclusivity_group", ""))):
-			return assign_record_to_slot(preferred_actor_id, slot)
+		if _eligible_for_assignment(preferred, settlement_id, domain, str(slot.get("assignment_exclusivity_group", "")), true):
+			return assign_record_to_slot(preferred_actor_id, slot, true)
 	var candidates := get_records_for_settlement(settlement_id)
 	var best: Dictionary = {}
-	var best_score := -1
+	var best_score := -INF
 	for candidate in candidates:
 		if not _eligible_for_assignment(candidate, settlement_id, domain, str(slot.get("assignment_exclusivity_group", ""))):
 			continue
-		var score := 0
-		if str(candidate.get("character_type_id", "")) == str(slot.get("character_type_id", "")) and not str(slot.get("character_type_id", "")).is_empty():
-			score += 100
-		if str(candidate.get("generation_source", "")).begins_with("assignment_auto"):
-			score += 10
+		var score := score_record_for_assignment(candidate, slot)
 		var actor_id := str(candidate.get("actor_id", ""))
 		if score > best_score or (score == best_score and actor_id < str(best.get("actor_id", "~"))):
 			best = candidate
@@ -188,7 +186,63 @@ func claim_record_for_assignment(settlement_id: String, slot: Dictionary) -> Dic
 	return assign_record_to_slot(str(best.get("actor_id", "")), slot) if not best.is_empty() else {}
 
 
-func assign_record_to_slot(actor_id: String, slot: Dictionary) -> Dictionary:
+## One dirty-town transaction: fetch the settlement's residents once, then
+## bind every vacancy deterministically. A resident may hold different
+## exclusivity groups (residence + one employment) but never two jobs.
+func claim_records_for_assignments(settlement_id: String, slots: Array[Dictionary]) -> Dictionary:
+	var claimed_by_slot_id := {}
+	if settlement_id.is_empty() or slots.is_empty():
+		return claimed_by_slot_id
+	var candidates := get_records_for_settlement(settlement_id)
+	var ordered_slots := slots.duplicate(true)
+	ordered_slots.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var priority_a := int(a.get("assignment_priority", 0))
+		var priority_b := int(b.get("assignment_priority", 0))
+		return priority_a > priority_b if priority_a != priority_b else str(a.get("slot_id", "")) < str(b.get("slot_id", "")))
+	for slot in ordered_slots:
+		var domain := str(slot.get("assignment_domain", "employment")).strip_edges().to_lower()
+		var exclusivity_group := str(slot.get("assignment_exclusivity_group", ""))
+		var preferred_actor_id := str(slot.get("preferred_actor_id", "")).strip_edges()
+		var best_index := -1
+		var best_score := -INF
+		for index in candidates.size():
+			var candidate: Dictionary = candidates[index]
+			var actor_id := str(candidate.get("actor_id", ""))
+			var is_preferred := actor_id == preferred_actor_id and not preferred_actor_id.is_empty()
+			if not _eligible_for_assignment(candidate, settlement_id, domain, exclusivity_group, is_preferred):
+				continue
+			var score := score_record_for_assignment(candidate, slot)
+			if actor_id == preferred_actor_id and not preferred_actor_id.is_empty():
+				score += 1000000.0
+			var wins_tie := best_index < 0 or actor_id < str((candidates[best_index] as Dictionary).get("actor_id", "~"))
+			if score > best_score or (is_equal_approx(score, best_score) and wins_tie):
+				best_index = index
+				best_score = score
+		if best_index < 0:
+			continue
+		var selected_actor_id := str((candidates[best_index] as Dictionary).get("actor_id", ""))
+		var assigned := assign_record_to_slot(selected_actor_id, slot, selected_actor_id == preferred_actor_id and not preferred_actor_id.is_empty())
+		if assigned.is_empty():
+			continue
+		candidates[best_index] = assigned
+		claimed_by_slot_id[str(slot.get("slot_id", ""))] = assigned
+	return claimed_by_slot_id
+
+
+func score_record_for_assignment(record: Dictionary, slot: Dictionary) -> float:
+	var score := 0.0
+	var skill_id := str(slot.get("preferred_skill_id", "")).strip_edges()
+	if not skill_id.is_empty():
+		score += float((record.get("skill_levels", {}) as Dictionary).get(skill_id, SkillRules.DEFAULT_LEVEL)) * 100.0
+	var preferred_type := str(slot.get("character_type_id", "")).strip_edges()
+	if not preferred_type.is_empty() and str(record.get("character_type_id", "")) == preferred_type:
+		score += 25.0
+	if str(record.get("generation_source", "")).begins_with("assignment_auto"):
+		score += 1.0
+	return score
+
+
+func assign_record_to_slot(actor_id: String, slot: Dictionary, allow_unavailable := false) -> Dictionary:
 	var record := get_actor_record(actor_id)
 	var settlement_id := str(slot.get("settlement_id", ""))
 	var domain := str(slot.get("assignment_domain", "employment")).strip_edges().to_lower()
@@ -197,7 +251,7 @@ func assign_record_to_slot(actor_id: String, slot: Dictionary) -> Dictionary:
 	var assigned_actor_id := str(_actor_id_by_assignment_key.get(_assignment_index_key(settlement_id, domain, str(slot.get("slot_id", ""))), ""))
 	if not assigned_actor_id.is_empty() and assigned_actor_id != actor_id:
 		return {}
-	if not _eligible_for_assignment(record, settlement_id, domain, exclusivity_group):
+	if not _eligible_for_assignment(record, settlement_id, domain, exclusivity_group, allow_unavailable):
 		return {}
 	var assignments: Dictionary = (record.get("assignments", {}) as Dictionary).duplicate(true)
 	var scopes: Dictionary = (record.get("assignment_authority_scopes", {}) as Dictionary).duplicate(true)
@@ -213,19 +267,46 @@ func assign_record_to_slot(actor_id: String, slot: Dictionary) -> Dictionary:
 		"assignment_exclusivity_groups": exclusivity_groups,
 		"assignment_realized_once": realized,
 	}
-	if domain == "residence" and not bool(record.get("last_world_position_initialized", false)):
+	if domain == "residence" and (not bool(record.get("last_world_position_initialized", false)) \
+			or (str(record.get("generation_source", "")).begins_with("assignment_auto.residence") \
+			and int(record.get("residence_spawn_revision", 0)) < RESIDENCE_SPAWN_REVISION)):
 		var slot_position = slot.get("world_position", Vector3.INF)
 		if slot_position is Vector3 and slot_position != Vector3.INF:
-			var role_index := maxi(int(slot.get("role_index", 0)), 0)
-			var home_position: Vector3 = slot_position + Vector3(-0.6 if role_index % 2 == 0 else 0.6, 0.0, float(role_index / 2) * 0.8)
+			var home_position: Vector3 = slot_position
 			updates["last_world_position"] = home_position
 			updates["last_world_position_initialized"] = true
 			updates["last_world_transform"] = Transform3D(Basis.IDENTITY, home_position)
 			updates["last_world_transform_initialized"] = true
+			updates["residence_spawn_revision"] = RESIDENCE_SPAWN_REVISION
 	if domain == "employment":
 		updates["role_id"] = str(slot.get("role_id", "resident"))
 		updates["movement_state"] = {}
 	return update_actor_record(actor_id, updates)
+
+
+func repair_residence_spawn_position(actor_id: String, slot: Dictionary) -> Dictionary:
+	var record := get_actor_record(actor_id)
+	if record.is_empty() or not str(record.get("generation_source", "")).begins_with("assignment_auto.residence") \
+			or int(record.get("residence_spawn_revision", 0)) >= RESIDENCE_SPAWN_REVISION:
+		return record
+	var spawn_position = slot.get("world_position", Vector3.INF)
+	if not (spawn_position is Vector3) or spawn_position == Vector3.INF:
+		return record
+	var spawn_transform := Transform3D(Basis.IDENTITY, spawn_position)
+	var updated := update_actor_record(actor_id, {
+		"last_world_position": spawn_position,
+		"last_world_position_initialized": true,
+		"last_world_transform": spawn_transform,
+		"last_world_transform_initialized": true,
+		"residence_spawn_revision": RESIDENCE_SPAWN_REVISION,
+	})
+	var actor := get_live_actor(actor_id)
+	if actor != null and is_instance_valid(actor):
+		actor.global_position = spawn_position
+		if actor.has_method("stop_movement"):
+			actor.call("stop_movement")
+		update_realized_actor_transform(actor_id, actor.global_transform)
+	return updated
 
 
 func get_record_assigned_to_slot(settlement_id: String, assignment_domain: String, slot_id: String) -> Dictionary:
@@ -273,10 +354,12 @@ func release_all_actor_assignments(actor_id: String) -> Dictionary:
 	})
 
 
-func _eligible_for_assignment(record: Dictionary, settlement_id: String, domain: String, exclusivity_group: String) -> bool:
+func _eligible_for_assignment(record: Dictionary, settlement_id: String, domain: String, exclusivity_group: String, allow_unavailable := false) -> bool:
 	if record.is_empty() or str(record.get("settlement_id", "")) != settlement_id:
 		return false
 	if int(record.get("life_state", NpcRules.LifeState.ALIVE)) == NpcRules.LifeState.DEAD:
+		return false
+	if domain == "employment" and not allow_unavailable and not _available_for_automatic_work(record):
 		return false
 	if not str((record.get("assignments", {}) as Dictionary).get(domain, "")).is_empty():
 		return false
@@ -288,6 +371,13 @@ func _eligible_for_assignment(record: Dictionary, settlement_id: String, domain:
 		return false
 	var live_actor := get_live_actor(str(record.get("actor_id", "")))
 	return live_actor == null or not live_actor.has_method("is_player_party_member") or not bool(live_actor.call("is_player_party_member"))
+
+
+func _available_for_automatic_work(record: Dictionary) -> bool:
+	if record.has("available_for_work"):
+		return bool(record.get("available_for_work", false))
+	var source := str(record.get("generation_source", ""))
+	return source == "census" or source.begins_with("assignment_auto")
 
 
 ## A bound staff body died — mark its record dead and free the slot binding so the world sim
@@ -479,6 +569,7 @@ func ensure_authored_record(settlement_id: String, spawner_id: String, generatio
 		if int(record.get("generation_index", 0)) == generation_index:
 			return record
 	var created := _create_generated_actor_record(settlement_id, spawner_id, generation_index, context, _collect_used_names(settlement_id))
+	created["available_for_work"] = false
 	for key in overrides:
 		var value = overrides[key]
 		if value == null:
@@ -515,6 +606,7 @@ func ensure_preferred_assignment_record(settlement_id: String, slot: Dictionary,
 	created["settlement_id"] = settlement_id
 	created["generation_source"] = "assignment_preferred"
 	created["role_id"] = "resident"
+	created["available_for_work"] = bool(authored.get("available_for_work", false))
 	return _save_actor_record(actor_id, created)
 
 
@@ -532,6 +624,7 @@ func ensure_assignment_filler_record(settlement_id: String, slot: Dictionary, co
 	created["stable_id"] = actor_id
 	created["generation_source"] = "assignment_auto"
 	created["role_id"] = "resident"
+	created["available_for_work"] = true
 	return _save_actor_record(actor_id, created)
 
 
@@ -1161,6 +1254,7 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"party_id": str(context.get("party_id", "")),
 		"squad_name": str(context.get("squad_name", "")),
 		"role_id": str(context.get("role_id", "resident")),
+		"available_for_work": bool(context.get("available_for_work", true)),
 		"hostile_faction_ids": Array(context.get("hostile_faction_ids", [])),
 		"combat_stance": int(context.get("combat_stance", NpcRules.combat_stance_for_role(str(context.get("role_id", "resident"))))),
 		"auto_heal_enabled": bool(context.get("auto_heal_enabled", false)),
@@ -1189,6 +1283,7 @@ func _new_record_from_actor(actor: Node, actor_id: String, settlement_id: String
 		"generation_source": str(context.get("generation_source", "authored")),
 		"generation_index": int(context.get("generation_index", 0)),
 		"role_id": str(context.get("role_id", _actor_role(actor))),
+		"available_for_work": bool(context.get("available_for_work", false)),
 		"traits": {},
 		"personality": {},
 		"ledger_minutes_elapsed": 0,

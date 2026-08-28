@@ -1,8 +1,8 @@
-[gd_resource type="Resource" script_class="ItemDefinition" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://cens04uwmwdjn"]
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_mod"]
-[ext_resource type="Texture2D" path="res://assets/items/equipment/fantasy_steel_axe_icon.svg" id="3_icon"]
+[ext_resource type="Texture2D" uid="uid://ck1w0cvfctnmf" path="res://assets/items/equipment/fantasy_steel_axe_icon.svg" id="3_icon"]
 [ext_resource type="PackedScene" path="res://features/world/projection/equipment/axe_steel_fantasy_model.tscn" id="4_model"]
 [ext_resource type="Resource" uid="uid://ddoq1y4fkfw0i" path="res://features/actors/resources/equipment_grip_profiles/one_hand_melee.tres" id="5_grip"]
 
@@ -24,7 +24,7 @@ add = 0.32
 [sub_resource type="Resource" id="ItemStatModifier_range"]
 script = ExtResource("2_mod")
 stat_name = "attack_range"
-add = 0.40
+add = 0.4
 
 [resource]
 script = ExtResource("1_item")
@@ -40,3 +40,4 @@ grip_profile = ExtResource("5_grip")
 equipped_transform = Transform3D(0.189, 0, 0, 0, 0.189, 0, 0, 0, 0.189, 0, 0, 0)
 stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_damage"), SubResource("ItemStatModifier_cut"), SubResource("ItemStatModifier_cooldown"), SubResource("ItemStatModifier_range")])
 tool_tags = null
+access_key_ids = null

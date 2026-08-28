@@ -82,26 +82,13 @@ func _run() -> void:
 	_expect(soil_bounds.size.x > 1.1 and soil_bounds.size.z > 1.1, "created soil covers the full tilled cell without grass gaps")
 	var soil_arrays := soil_mesh.surface_get_arrays(0)
 	var soil_vertices := soil_arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
-	var soil_colors := soil_arrays[Mesh.ARRAY_COLOR] as PackedColorArray
-	var soil_indices := soil_arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
-	var soil_side_planes := [-0.625, 1.875, 0.625, 0.625]
-	var soil_side_directions := [Vector3(0.0, 0.0, -1.0), Vector3(1.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0), Vector3(-1.0, 0.0, 0.0)]
-	var soil_side_face_counts := [0, 0, 0, 0]
-	var soil_skirt_faces_point_outward := true
-	for index in range(0, soil_indices.size(), 3):
-		var a_index := soil_indices[index]
-		var b_index := soil_indices[index + 1]
-		var c_index := soil_indices[index + 2]
-		if soil_colors[a_index].r >= 0.5 and soil_colors[b_index].r >= 0.5 and soil_colors[c_index].r >= 0.5:
-			continue
-		var centroid := (soil_vertices[a_index] + soil_vertices[b_index] + soil_vertices[c_index]) / 3.0
-		var side_distances := [absf(centroid.z - soil_side_planes[0]), absf(centroid.x - soil_side_planes[1]), absf(centroid.z - soil_side_planes[2]), absf(centroid.x - soil_side_planes[3])]
-		var side_index := side_distances.find(side_distances.min())
-		var face_normal := (soil_vertices[c_index] - soil_vertices[a_index]).cross(soil_vertices[b_index] - soil_vertices[a_index]).normalized()
-		soil_side_face_counts[side_index] += 1
-		if face_normal.dot(soil_side_directions[side_index]) < 0.99:
-			soil_skirt_faces_point_outward = false
-	_expect(soil_side_face_counts == [8, 8, 8, 8] and soil_skirt_faces_point_outward, "each sealed perimeter side has clockwise outward-facing triangles that remain visible with back-face culling")
+	var minimum_ground_offset := INF
+	var maximum_ground_offset := -INF
+	for vertex in soil_vertices:
+		minimum_ground_offset = minf(minimum_ground_offset, vertex.y - 0.1)
+		maximum_ground_offset = maxf(maximum_ground_offset, vertex.y - 0.1)
+	_expect(minimum_ground_offset >= PROJECTION.SOIL_SURFACE_OFFSET - 0.0001 and minimum_ground_offset <= PROJECTION.SOIL_SURFACE_OFFSET + 0.0001, "connected soil perimeter touches the authored ground")
+	_expect(maximum_ground_offset > 0.10 and maximum_ground_offset < 0.15, "connected soil keeps its raised organic worked-earth profile")
 	var stake_positions: Array[Vector3] = PROJECTION.boundary_stake_positions(visual_cells, 1.25)
 	_expect(stake_positions.size() >= 6, "logical field is marked by sparse perimeter stakes before tilling")
 	var soil_material := PROJECTION.build_soil_material()
@@ -122,7 +109,7 @@ func _run() -> void:
 		if l_top_colors[vertex_index].r >= 0.5:
 			l_top_minimum = minf(l_top_minimum, l_top_vertices[vertex_index].y)
 			l_top_maximum = maxf(l_top_maximum, l_top_vertices[vertex_index].y)
-	_expect(l_top_maximum - l_top_minimum > 0.10 and l_top_maximum - l_top_minimum < 0.16, "worked soil keeps restrained relief instead of separate exaggerated humps")
+	_expect(l_top_maximum - l_top_minimum > 0.10 and l_top_maximum - l_top_minimum < 0.15, "flat terrain keeps connected non-flat worked-soil relief")
 	var large_field_cells := {}
 	for z in 10:
 		for x in 10:
@@ -167,17 +154,7 @@ func _run() -> void:
 		var range: Vector2 = range_value
 		maximum_sloped_shared_height_span = maxf(maximum_sloped_shared_height_span, range.y - range.x)
 	_expect(maximum_sloped_shared_height_span < 0.0001, "terrain-conforming L fields share exact edge and concave-corner heights on slopes")
-	var sealed_boundary_vertex_count := 0
-	var minimum_sealing_depth := INF
-	for vertex_index in sloped_vertices.size():
-		if sloped_colors[vertex_index].r < 0.5:
-			sealed_boundary_vertex_count += 1
-			var skirt_vertex := sloped_vertices[vertex_index]
-			for top_index in sloped_vertices.size():
-				var top_vertex := sloped_vertices[top_index]
-				if sloped_colors[top_index].r >= 0.5 and Vector2(top_vertex.x, top_vertex.z).is_equal_approx(Vector2(skirt_vertex.x, skirt_vertex.z)):
-					minimum_sealing_depth = minf(minimum_sealing_depth, top_vertex.y - skirt_vertex.y)
-	_expect(sealed_boundary_vertex_count == 48 and minimum_sealing_depth >= 0.349, "every exposed edge of terrain-conforming soil extends a dark perimeter skirt below sloped ground so its underside is never visible")
+	_expect(sloped_colors.size() == sloped_vertices.size(), "terrain-conforming soil retains one material color per ground vertex")
 	var sloped_indices := sloped_arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
 	var sloped_mesh_bridges_missing_cell := false
 	for index in range(0, sloped_indices.size(), 3):
@@ -190,6 +167,11 @@ func _run() -> void:
 	root.add_child(crop_farm)
 	var crop_projection := PROJECTION.new()
 	root.add_child(crop_projection)
+	_expect(crop_projection.has_method("update_cells_state"), "cell completions update one projection batch without full-plot synchronization")
+	_expect(PROJECTION.SOIL_ASYNC_BUILD_CELL_THRESHOLD <= 8, "ordinary Canyon soil rebuilds are coalesced off the main thread")
+	_expect(crop_projection.has_method("set_terrain_height_sampler"), "production soil accepts the authoritative Terrain3D height sampler")
+	if crop_projection.has_method("set_terrain_height_sampler"):
+		crop_projection.call("set_terrain_height_sampler", Callable(self, "_test_terrain_height"))
 	var crop_grid := Vector2i(1, 0)
 	var crop_cell := FARM_SIMULATION.complete_planting(tilled_cell.merged({"grid_position": crop_grid, "world_position": Vector3.ZERO}, true), "tomato")
 	crop_cell["stage_index"] = FARM_SIMULATION.RIPE_VISUAL_STAGE_INDEX
@@ -201,8 +183,28 @@ func _run() -> void:
 		if child.name == "Soil":
 			per_cell_soil_count += 1
 	_expect(connected_soil != null and connected_soil.mesh != null and connected_soil.mesh.get_surface_count() == 1 and per_cell_soil_count == 0, "production projection uses only its connected soil surface and never restores per-cell soil nodes")
+	_expect(connected_soil != null and connected_soil.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "tilled soil never casts a shadow")
+	var terrain_fit_ok := connected_soil != null and connected_soil.mesh != null
+	if terrain_fit_ok:
+		var terrain_arrays := connected_soil.mesh.surface_get_arrays(0)
+		var found_ground_contact := false
+		var found_raised_center := false
+		for vertex in terrain_arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array:
+			var relief := vertex.y - _test_terrain_height(vertex)
+			if relief < PROJECTION.SOIL_SURFACE_OFFSET - 0.0001 or relief > 0.15:
+				terrain_fit_ok = false
+				break
+			found_ground_contact = found_ground_contact or absf(relief - PROJECTION.SOIL_SURFACE_OFFSET) <= 0.0001
+			found_raised_center = found_raised_center or relief > 0.10
+		terrain_fit_ok = terrain_fit_ok and found_ground_contact and found_raised_center
+	_expect(terrain_fit_ok, "every soil mesh vertex uses the actual Terrain3D height instead of averaged cell-center heights")
 	var crop_pivot := crop_holder.get_node_or_null("Crop") as Node3D if crop_holder != null else null
 	var crop_visual := crop_pivot.get_node_or_null("Visual") as Node3D if crop_pivot != null else null
+	var crop_ground_position := Vector3(crop_holder.position.x, 0.0, crop_holder.position.z) if crop_holder != null else Vector3.ZERO
+	_expect(
+		crop_holder != null and is_equal_approx(crop_holder.position.y, _test_terrain_height(crop_ground_position)),
+		"crop roots use the same sampled Terrain3D ground height as their connected soil",
+	)
 	_expect(crop_pivot != null and absf(crop_pivot.rotation.y) > 0.001 and crop_pivot.position.is_equal_approx(Vector3.ZERO), "production crop rotation uses a clean pivot at the cell center")
 	var crop_minimum := Vector3(INF, INF, INF)
 	var crop_maximum := Vector3(-INF, -INF, -INF)
@@ -337,12 +339,22 @@ func _run() -> void:
 	_expect(hud_source.contains("BuildMenuButton"), "the player HUD exposes a dedicated build menu")
 	var obstruction_source := FileAccess.get_file_as_string("res://features/farming/bridge/farm_obstruction_bridge.gd")
 	_expect(obstruction_source.contains("\"cell_keys\": cell_keys"), "obstruction rescans preserve sparse painted cell identity")
+	var settlement_field_source := FileAccess.get_file_as_string("res://features/settlements/bridge/settlement_field.gd")
+	_expect(not settlement_field_source.contains("func _ensure_footprint_visual") and settlement_field_source.contains("_remove_legacy_footprint_visual"), "Fields must never create persistent green tile visuals and must remove old serialized ones")
+	var field_painter_source := FileAccess.get_file_as_string("res://addons/world_authoring/field_painter.gd")
+	_expect(field_painter_source.contains("BORDER_THICKNESS") and field_painter_source.contains("_append_border_segment"), "Editor field painting must draw only the selected footprint border")
+	var rustwash_source := FileAccess.get_file_as_string("res://scenes/zones/rustwash_basin/rustwash_basin.tscn")
+	_expect(not rustwash_source.contains("[node name=\"FootprintVisual\""), "Rustwash must not serialize developer-only field tile visuals into runtime")
 	_finish()
 
 
 func _expect(condition: bool, message: String) -> void:
 	if not condition:
 		failures.append(message)
+
+
+func _test_terrain_height(position: Vector3) -> float:
+	return 0.2 + position.x * 0.08 + position.z * 0.03
 
 
 func _optional_property(object: Object, property_name: String, default_value: Variant) -> Variant:

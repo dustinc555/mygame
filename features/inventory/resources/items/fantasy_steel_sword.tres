@@ -36,3 +36,4 @@ grip_profile = ExtResource("5_grip")
 equipped_transform = Transform3D(0.6666667, 0, 0, 0, 0.6666667, 0, 0, 0, 0.6666667, 0, 0, 0)
 stat_modifiers = Array[ExtResource("2_mod")]([SubResource("ItemStatModifier_damage"), SubResource("ItemStatModifier_cut"), SubResource("ItemStatModifier_range")])
 tool_tags = null
+access_key_ids = null

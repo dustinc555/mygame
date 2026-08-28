@@ -11,7 +11,28 @@ signal interaction_resolved(container, actor)
 @export var settlement_id := ""
 @export var facility_id := ""
 @export var container_kind := "storage"
-@export var contributes_to_town_stock := false
+## Player/developer-facing storage purpose. The physical furniture remains a
+## generic sack, barrel, chest, or crate; this value controls routing and item
+## admission. The Facility dock presents these as General/Seeds/Tools/Food/
+## Materials and keeps container_kind as the lower-level GECS routing value.
+@export_enum("general", "seeds", "tools", "food", "materials") var container_type := "general":
+	set(value):
+		container_type = value.strip_edges().to_lower()
+		if container_type not in CONTAINER_TYPES:
+			container_type = "general"
+		if container_type != "general":
+			container_kind = str(TYPE_CONTAINER_KINDS.get(container_type, container_kind))
+		elif container_kind in TYPE_CONTAINER_KINDS.values():
+			container_kind = "storage"
+		if inventory != null:
+			_configure_inventory_admission()
+		if is_inside_tree() and not Engine.is_editor_hint() and not _inventory_sync_suspended:
+			_sync_inventory_to_gecs()
+## On by default: a container standing in a settlement is part of that town's
+## stock unless someone deliberately says otherwise. Contribution still requires
+## a settlement_id (inventory_stock_controller.gd:108), so a crate out in the
+## world counts toward nothing regardless of this flag.
+@export var contributes_to_town_stock := true
 @export var next_stack_sequence := 1
 @export var furniture_type := FurnitureRules.Type.CONTAINER
 @export var inventory_columns := 7
@@ -29,6 +50,16 @@ signal interaction_resolved(container, actor)
 ## contest the thief's stealing skill even when they cannot see the attempt.
 @export var theft_noise_radius := 8.0
 @export var starting_items: Array[InventoryStock] = []
+## Optional exact filter inside the broad container type. Empty means every
+## item belonging to that type; authored starting_items remain independent.
+@export var allowed_item_ids := PackedStringArray()
+const CONTAINER_TYPES := ["general", "seeds", "tools", "food", "materials"]
+const TYPE_CONTAINER_KINDS := {
+	"seeds": "farm_seed",
+	"tools": "tool_store",
+	"food": "granary",
+	"materials": "storage",
+}
 @export var visual_scene: PackedScene:
 	set(value):
 		visual_scene = value
@@ -49,6 +80,7 @@ signal interaction_resolved(container, actor)
 var inventory
 var _assigned_slots: Dictionary = {}
 var _pending_actor_ids: Dictionary = {}
+var _item_reservations: Dictionary = {}
 var _inventory_sync_suspended := false
 var _bind_attempts := 0
 var _should_seed_starting_inventory := false
@@ -60,8 +92,11 @@ var _should_seed_starting_inventory := false
 func _ready() -> void:
 	if container_id.strip_edges().is_empty():
 		push_warning("WorldContainer '%s' needs an authored container_id; it will not sync or contribute to town stock" % name)
-	if contributes_to_town_stock and (settlement_id.strip_edges().is_empty() or container_kind.strip_edges().is_empty()):
-		push_warning("WorldContainer '%s' needs settlement_id and container_kind to contribute to town stock" % name)
+	# Only warn about a container that is IN a town but cannot be counted. Having
+	# no settlement_id is not a misconfiguration now that the flag defaults on —
+	# it just means this container is not part of any town.
+	if contributes_to_town_stock and not settlement_id.strip_edges().is_empty() and container_kind.strip_edges().is_empty():
+		push_warning("WorldContainer '%s' is in settlement '%s' but has no container_kind, so it cannot contribute to town stock" % [name, settlement_id])
 	if inventory == null:
 		_should_seed_starting_inventory = true
 		var inventory_data_script = load("res://features/inventory/sim/inventory_data.gd")
@@ -140,7 +175,20 @@ func _clamped_to_navmesh(point: Vector3) -> Vector3:
 
 
 func get_inventory_display_name() -> String:
-	return display_name
+	if container_type == "general" or display_name not in ["Container", "Sack", "Barrel", "Dark Barrel", "Wooden Chest", "Wooden Crate", "Crate"]:
+		return display_name
+	var prefix: String = str({
+		"seeds": "Seed",
+		"tools": "Tool",
+		"food": "Food",
+		"materials": "Material",
+	}.get(container_type, ""))
+	var furniture_name: String = str({
+		"Wooden Chest": "Chest",
+		"Wooden Crate": "Crate",
+		"Dark Barrel": "Barrel",
+	}.get(display_name, display_name))
+	return "%s %s" % [prefix, furniture_name] if not prefix.is_empty() else display_name
 
 
 func get_inventory_world_position() -> Vector3:
@@ -170,8 +218,180 @@ func get_theft_noise_radius() -> float:
 	return theft_noise_radius
 
 
+func can_actor_access(actor: Node) -> bool:
+	if actor == null or not is_instance_valid(actor) or (supports_locking and is_locked):
+		return false
+	var owner_faction := get_owner_faction_name()
+	if owner_faction.is_empty():
+		return true
+	var actor_faction := str(actor.get("faction_name")) if "faction_name" in actor else str(actor.get_meta("faction_id", ""))
+	return actor_faction == owner_faction
+
+
+func find_reservable_tool(required_tag: String, actor: Node):
+	_prune_item_reservations()
+	if required_tag.is_empty() or inventory == null or not can_actor_access(actor):
+		return null
+	var reserved_stack_ids := _reserved_stack_ids()
+	for entry in inventory.entries:
+		if entry == null or entry.definition == null or not entry.definition.has_tool_tag(required_tag) \
+				or reserved_stack_ids.has(str(entry.stack_id)):
+			continue
+		return entry.definition
+	return null
+
+
+func reserve_item_for_actor(definition: ItemDefinition, actor: Node, amount := 1) -> bool:
+	_prune_item_reservations()
+	if definition == null or actor == null or amount <= 0 or inventory == null or not can_actor_access(actor):
+		return false
+	var actor_key := actor.get_instance_id()
+	var existing: Dictionary = _item_reservations.get(actor_key, {})
+	if not existing.is_empty():
+		return existing.get("definition") == definition and int(existing.get("amount", 0)) == amount
+	var reserved_stack_ids := _reserved_stack_ids()
+	for entry in inventory.entries:
+		if entry == null or entry.definition != definition or int(entry.count) != amount or reserved_stack_ids.has(str(entry.stack_id)):
+			continue
+		_item_reservations[actor_key] = {
+			"actor_ref": weakref(actor),
+			"definition": definition,
+			"amount": amount,
+			"stack_id": str(entry.stack_id),
+			"contained_item_counts": entry.contained_item_counts.duplicate(true),
+			"metadata": entry.metadata.duplicate(true),
+			"checked_out": false,
+		}
+		return true
+	return false
+
+
+func get_item_reservation_snapshot(actor: Node) -> Dictionary:
+	return (_item_reservations.get(actor.get_instance_id(), {}) as Dictionary).duplicate(true) if actor != null else {}
+
+
+func release_item_reservation(actor_or_key) -> void:
+	var actor_key := int(actor_or_key) if actor_or_key is int else (actor_or_key as Node).get_instance_id() if actor_or_key is Node else 0
+	if actor_key != 0:
+		_item_reservations.erase(actor_key)
+
+
+func withdraw_reserved_item_to(definition: ItemDefinition, actor: Node, target_inventory) -> bool:
+	if actor == null or definition == null or inventory == null or target_inventory == null or not can_actor_access(actor):
+		return false
+	var actor_key := actor.get_instance_id()
+	var reservation: Dictionary = _item_reservations.get(actor_key, {})
+	if reservation.get("definition") != definition or bool(reservation.get("checked_out", false)):
+		return false
+	var entry = _inventory_entry_by_stack_id(inventory, str(reservation.get("stack_id", "")))
+	if entry == null or entry.definition != definition or int(entry.count) != int(reservation.get("amount", 0)):
+		return false
+	var target_position: Vector2i = target_inventory.find_first_space(definition)
+	if target_position == Vector2i(-1, -1) or not inventory.move_entry_to_inventory(entry, target_inventory, target_position):
+		return false
+	reservation["checked_out"] = true
+	_item_reservations[actor_key] = reservation
+	return true
+
+
+func return_borrowed_item_from(definition: ItemDefinition, actor: Node, source_inventory, stack_id: String) -> bool:
+	if actor == null or definition == null or source_inventory == null or inventory == null:
+		return false
+	var actor_key := actor.get_instance_id()
+	var reservation: Dictionary = _item_reservations.get(actor_key, {})
+	if reservation.get("definition") != definition or not bool(reservation.get("checked_out", false)) \
+			or str(reservation.get("stack_id", "")) != stack_id:
+		return false
+	var entry = _inventory_entry_by_stack_id(source_inventory, stack_id)
+	if entry == null or entry.definition != definition:
+		return false
+	var target_position: Vector2i = inventory.find_first_space(definition)
+	if target_position == Vector2i(-1, -1) or not source_inventory.move_entry_to_inventory(entry, inventory, target_position):
+		return false
+	_item_reservations.erase(actor_key)
+	return true
+
+
+func return_borrowed_equipped_item(definition: ItemDefinition, actor: Node, equipment, stack_id: String, current_snapshot: Dictionary = {}) -> bool:
+	if actor == null or definition == null or equipment == null or inventory == null:
+		return false
+	if actor.has_method("get_equipment") and actor.call("get_equipment") != equipment:
+		return false
+	var actor_key := actor.get_instance_id()
+	var reservation: Dictionary = _item_reservations.get(actor_key, {})
+	if reservation.get("definition") != definition or not bool(reservation.get("checked_out", false)) \
+			or str(reservation.get("stack_id", "")) != stack_id \
+			or equipment.get_equipped_item("weapon") != definition \
+			or str(equipment.get_equipped_stack_id("weapon")) != stack_id:
+		return false
+	var count := int(current_snapshot.get("count", reservation.get("amount", 1)))
+	var contents: Dictionary = (current_snapshot.get("contained_item_counts", reservation.get("contained_item_counts", {})) as Dictionary).duplicate(true)
+	var metadata: Dictionary = (current_snapshot.get("metadata", reservation.get("metadata", {})) as Dictionary).duplicate(true)
+	if not inventory.can_add_entry_with_contents(definition, count, contents, metadata):
+		return false
+	if equipment.has_method("begin_equipment_update_batch"):
+		equipment.begin_equipment_update_batch()
+	equipment.unequip_item_from_slot("weapon")
+	if not inventory.add_entry_with_contents(definition, count, contents, metadata, stack_id):
+		equipment.equip_item_to_slot(definition, "weapon", stack_id)
+		if equipment.has_method("end_equipment_update_batch"):
+			equipment.end_equipment_update_batch()
+		return false
+	if equipment.has_method("end_equipment_update_batch"):
+		equipment.end_equipment_update_batch()
+	_item_reservations.erase(actor_key)
+	return true
+
+
+func _inventory_entry_by_stack_id(source_inventory, stack_id: String):
+	if source_inventory == null or stack_id.is_empty():
+		return null
+	for entry in source_inventory.entries:
+		if entry != null and str(entry.stack_id) == stack_id:
+			return entry
+	return null
+
+
+func _reserved_stack_ids() -> Dictionary:
+	var result := {}
+	for reservation_value in _item_reservations.values():
+		var stack_id := str((reservation_value as Dictionary).get("stack_id", ""))
+		if not stack_id.is_empty():
+			result[stack_id] = true
+	return result
+
+
+func _prune_item_reservations() -> void:
+	for actor_key_value in _item_reservations.keys().duplicate():
+		var actor_ref := (_item_reservations[actor_key_value] as Dictionary).get("actor_ref") as WeakRef
+		if actor_ref == null or actor_ref.get_ref() == null:
+			_item_reservations.erase(actor_key_value)
+
+
 func _configure_inventory_admission() -> void:
-	pass
+	if inventory != null and inventory.has_method("set_admission_validator"):
+		inventory.call("set_admission_validator", Callable(self, "can_accept_item_count"))
+
+
+func can_accept_item_count(definition: ItemDefinition, amount: int) -> bool:
+	if definition == null or amount <= 0:
+		return false
+	var item_id := definition.item_id.strip_edges()
+	if item_id.is_empty():
+		item_id = definition.resource_path
+	if not allowed_item_ids.is_empty() and not allowed_item_ids.has(item_id):
+		return false
+	match container_type:
+		"seeds":
+			return item_id.begins_with("seed.")
+		"tools":
+			return item_id.begins_with("tool.") or definition.has_any_tool_tag()
+		"food":
+			return item_id.begins_with("food.") or not definition.food_type_id.is_empty()
+		"materials":
+			return item_id.begins_with("material.") or item_id.begins_with("ore.")
+		_:
+			return true
 
 
 func _get_slot_index(member: HumanoidCharacter) -> int:
@@ -259,6 +479,14 @@ func hydrate_inventory_from_gecs(stack_snapshots: Array, sequence: int) -> void:
 			push_warning("WorldContainer '%s' could not hydrate stock '%s' within inventory limits" % [name, definition.display_name])
 	next_stack_sequence = inventory.next_stack_sequence
 	inventory.changed.emit()
+	_inventory_sync_suspended = false
+
+
+func hydrate_container_policy_from_gecs(type_id: String, item_ids: PackedStringArray) -> void:
+	_inventory_sync_suspended = true
+	container_type = type_id
+	allowed_item_ids = item_ids.duplicate()
+	_configure_inventory_admission()
 	_inventory_sync_suspended = false
 
 

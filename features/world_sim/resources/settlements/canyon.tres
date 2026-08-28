@@ -15,6 +15,7 @@ item = ExtResource("4_bread")
 script = ExtResource("2_seed")
 container_id = "canyon.granary"
 facility_id = "canyon.granary"
+allowed_item_ids = null
 stacks = Array[Resource]([SubResource("Stack_bread")])
 
 [resource]

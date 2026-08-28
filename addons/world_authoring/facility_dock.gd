@@ -24,6 +24,7 @@ const TYPE_ICONS := {
 	"guard": "facility_jail.svg",
 	"keep": "facility_keep.svg",
 	"farm": "facility_field.svg",
+	"storage": "facility_granary.svg",
 	"shop": "facility_shop.svg",
 	"weapon_shop": "facility_shop.svg",
 	"armor_shop": "facility_shop.svg",
@@ -34,6 +35,7 @@ const TYPE_ICONS := {
 
 var _tools: RefCounted
 var _facility: Node
+var _container: Node
 var _updating := false
 var _placeholder: Label
 var _content: VBoxContainer
@@ -41,6 +43,14 @@ var _tabs: TabContainer
 var _top_row: HBoxContainer
 var _identity_box: VBoxContainer
 var _shell_list: VBoxContainer
+var _shell_title: Label
+var _shell_scroll: ScrollContainer
+var _field_box: VBoxContainer
+var _field_paint_button: Button
+var _field_crop_picker: OptionButton
+var _field_width: SpinBox
+var _field_height: SpinBox
+var _field_status: Label
 var _furniture_text: RichTextLabel
 var _furniture_browser: ItemList
 var _furniture_search: LineEdit
@@ -53,6 +63,12 @@ var _furnish_button: Button
 var _reroll_button: Button
 var _place_furniture_button: Button
 var _clear_furniture_check: CheckBox
+var _container_list: ItemList
+var _container_editor: VBoxContainer
+var _container_type_picker: OptionButton
+var _container_search: LineEdit
+var _container_items_box: VBoxContainer
+var _container_amount_controls := {}
 var _people_box: VBoxContainer
 var _people_add_button: Button
 var _icon_cache := {}
@@ -62,7 +78,7 @@ func setup(tools: RefCounted) -> void:
 	_tools = tools
 	custom_minimum_size = Vector2(0, 460)
 	_placeholder = Label.new()
-	_placeholder.text = "Select a facility (a building under a town's Facilities root) to edit it here."
+	_placeholder.text = "Select a facility or container to edit it here."
 	_placeholder.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_placeholder.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	add_child(_placeholder)
@@ -90,22 +106,28 @@ func setup(tools: RefCounted) -> void:
 	_top_row.add_child(identity_scroll)
 	var shell_column := VBoxContainer.new()
 	shell_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	shell_column.add_child(_section_title("Building Shell (click to swap)"))
+	_field_box = _build_field_section()
+	shell_column.add_child(_field_box)
+	_shell_title = _section_title("Building Shell (click to swap)")
+	shell_column.add_child(_shell_title)
 	_clear_furniture_check = CheckBox.new()
 	_clear_furniture_check.text = "Clear old furniture on swap"
 	_clear_furniture_check.tooltip_text = "Furniture is laid out against a specific shell's floor plan; carrying it into a different shell strands it. Swap is undoable either way."
 	_clear_furniture_check.button_pressed = true
 	shell_column.add_child(_clear_furniture_check)
-	var shell_scroll := ScrollContainer.new()
-	shell_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_shell_scroll = ScrollContainer.new()
+	_shell_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_shell_list = VBoxContainer.new()
 	_shell_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	shell_scroll.add_child(_shell_list)
-	shell_column.add_child(shell_scroll)
+	_shell_scroll.add_child(_shell_list)
+	shell_column.add_child(_shell_scroll)
 	_top_row.add_child(shell_column)
 	var furniture_tab := _build_furniture_column()
 	furniture_tab.name = "Furniture"
 	_tabs.add_child(furniture_tab)
+	var containers_tab := _build_containers_tab()
+	containers_tab.name = "Containers"
+	_tabs.add_child(containers_tab)
 	var people_tab := VBoxContainer.new()
 	people_tab.name = "People"
 	people_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -219,6 +241,73 @@ func _build_furniture_column() -> Control:
 	furniture_column.add_child(_furniture_text)
 	return furniture_column
 
+func _build_containers_tab() -> Control:
+	var split := HBoxContainer.new()
+	split.add_theme_constant_override("separation", 14)
+	split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var list_column := VBoxContainer.new()
+	list_column.custom_minimum_size = Vector2(240, 0)
+	list_column.add_child(_section_title("Containers in this facility"))
+	_container_list = ItemList.new()
+	_container_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_container_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_container_list.tooltip_text = "Single-click edits immediately. Double-click selects the physical node in Godot."
+	_container_list.item_selected.connect(_select_container_from_list)
+	_container_list.item_activated.connect(func(index: int):
+		var selected := _container_list.get_item_metadata(index) as Node
+		if _tools != null and _tools.has_method("select_container_from_dock"):
+			_tools.call("select_container_from_dock", selected))
+	list_column.add_child(_container_list)
+	split.add_child(list_column)
+	var editor_scroll := ScrollContainer.new()
+	editor_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	editor_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	editor_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_container_editor = VBoxContainer.new()
+	_container_editor.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_container_editor.add_theme_constant_override("separation", 8)
+	_container_editor.add_child(_section_title("Selected container"))
+	var type_row := HBoxContainer.new()
+	var type_label := Label.new()
+	type_label.text = "Container Type"
+	type_label.custom_minimum_size = Vector2(120, 0)
+	type_row.add_child(type_label)
+	_container_type_picker = OptionButton.new()
+	for option in [
+		{"label": "General", "id": "general"},
+		{"label": "Seeds", "id": "seeds"},
+		{"label": "Tools", "id": "tools"},
+		{"label": "Food", "id": "food"},
+		{"label": "Materials", "id": "materials"},
+	]:
+		_container_type_picker.add_item(str(option["label"]))
+		_container_type_picker.set_item_metadata(_container_type_picker.item_count - 1, str(option["id"]))
+	_container_type_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_container_type_picker.item_selected.connect(func(index: int):
+		if _updating or _container == null:
+			return
+		_tools.call("set_container_property", _container, "container_type", str(_container_type_picker.get_item_metadata(index))))
+	type_row.add_child(_container_type_picker)
+	_container_editor.add_child(type_row)
+	var hint := Label.new()
+	hint.text = "Starting contents are created once. Saved inventory always wins afterward."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.modulate = Color(0.72, 0.75, 0.8)
+	_container_editor.add_child(hint)
+	_container_search = LineEdit.new()
+	_container_search.placeholder_text = "Search starting contents..."
+	_container_search.clear_button_enabled = true
+	_container_search.text_changed.connect(func(_text: String): _rebuild_container_items())
+	_container_editor.add_child(_container_search)
+	_container_items_box = VBoxContainer.new()
+	_container_items_box.add_theme_constant_override("separation", 4)
+	_container_editor.add_child(_container_items_box)
+	editor_scroll.add_child(_container_editor)
+	split.add_child(editor_scroll)
+	return split
+
+
 func set_facility(facility: Node) -> void:
 	_facility = facility if facility != null and is_instance_valid(facility) else null
 	# Deferred on purpose: set_facility is reachable from this dock's own
@@ -227,23 +316,323 @@ func set_facility(facility: Node) -> void:
 	_rebuild.call_deferred()
 
 
+func set_container(container: Node) -> void:
+	_container = container if container != null and is_instance_valid(container) else null
+	if _container_list != null:
+		_rebuild_containers()
+
+
+func _select_container_from_list(index: int) -> void:
+	if _container_list == null or index < 0 or index >= _container_list.item_count:
+		return
+	var selected := _container_list.get_item_metadata(index) as Node
+	if selected == null or not is_instance_valid(selected):
+		return
+	var previous_type := str(_container.get("container_type")) if _container != null and is_instance_valid(_container) else ""
+	_container = selected
+	_container_editor.visible = true
+	var was_updating := _updating
+	_updating = true
+	var selected_type := str(_container.get("container_type"))
+	for type_index in _container_type_picker.item_count:
+		if str(_container_type_picker.get_item_metadata(type_index)) == selected_type:
+			_container_type_picker.select(type_index)
+			break
+	_updating = was_updating
+	if previous_type == selected_type and not _container_amount_controls.is_empty():
+		_updating = true
+		_sync_container_amount_controls()
+		_updating = was_updating
+	else:
+		_rebuild_container_items()
+
+
 func _rebuild() -> void:
 	if _placeholder == null:
 		return
 	if _facility != null and not is_instance_valid(_facility):
 		_facility = null
+	if _container != null and not is_instance_valid(_container):
+		_container = null
 	var has_facility := _facility != null
-	_placeholder.visible = not has_facility
-	_content.visible = has_facility
-	if not has_facility:
+	var has_context := has_facility or _container != null
+	_placeholder.visible = not has_context
+	_content.visible = has_context
+	for index in _tabs.get_tab_count():
+		var containers_only := not has_facility and _tabs.get_tab_title(index) != "Containers"
+		_tabs.set_tab_hidden(index, containers_only)
+	if not has_context:
 		return
 	_updating = true
+	if not has_facility:
+		_rebuild_containers()
+		_tabs.current_tab = 2
+		_updating = false
+		return
 	_rebuild_identity()
-	_rebuild_shell_list()
+	_rebuild_field_section()
+	# Fields have no building, so their shell grid is hidden — and building that
+	# grid is the most expensive thing in this dock. Do not pay for it unseen.
+	if not _tools.is_field(_facility):
+		_rebuild_shell_list()
+	_rebuild_containers()
 	_rebuild_people()
 	_rebuild_furniture_browser()
 	_rebuild_furniture_summary()
 	_updating = false
+
+
+func _rebuild_containers() -> void:
+	if _container_list == null or _container_editor == null:
+		return
+	var was_updating := _updating
+	_updating = true
+	_container_list.clear()
+	var containers: Array[Node] = []
+	if _facility != null:
+		_collect_world_containers(_facility, containers)
+	elif _container != null and is_instance_valid(_container):
+		containers.append(_container)
+	if _container != null and (not is_instance_valid(_container) or not containers.has(_container)):
+		_container = null
+	if _container == null and not containers.is_empty():
+		_container = containers[0]
+	for candidate in containers:
+		var type_id := str(candidate.get("container_type")) if "container_type" in candidate else "general"
+		var label := str(candidate.call("get_inventory_display_name")).strip_edges() if candidate.has_method("get_inventory_display_name") else str(candidate.name)
+		_container_list.add_item(_container_row_text(candidate, label, type_id))
+		var index := _container_list.item_count - 1
+		_container_list.set_item_metadata(index, candidate)
+		if candidate == _container:
+			_container_list.select(index)
+	_container_editor.visible = _container != null
+	if _container != null:
+		var selected_type := str(_container.get("container_type"))
+		for index in _container_type_picker.item_count:
+			if str(_container_type_picker.get_item_metadata(index)) == selected_type:
+				_container_type_picker.select(index)
+				break
+	_rebuild_container_items()
+	_updating = was_updating
+
+
+func _collect_world_containers(node: Node, result: Array[Node]) -> void:
+	if node == null:
+		return
+	if node is WorldContainer:
+		result.append(node)
+	for child in node.get_children():
+		_collect_world_containers(child, result)
+
+
+func _rebuild_container_items() -> void:
+	if _container_items_box == null:
+		return
+	for child in _container_items_box.get_children():
+		_container_items_box.remove_child(child)
+		child.queue_free()
+	_container_amount_controls.clear()
+	if _container == null or _tools == null or not _tools.has_method("container_item_options"):
+		return
+	var quantities := {}
+	for stock in (_container.get("starting_items") as Array):
+		if stock != null and stock.get("item_definition") != null:
+			quantities[str(stock.get("item_definition").resource_path)] = int(stock.get("quantity"))
+	var search := _container_search.text.strip_edges().to_lower()
+	var options: Array = _tools.call("container_item_options", str(_container.get("container_type")))
+	for item_value in options:
+		var item := item_value as ItemDefinition
+		if item == null or (not search.is_empty() and not item.display_name.to_lower().contains(search) and not item.item_id.to_lower().contains(search)):
+			continue
+		var row := HBoxContainer.new()
+		var label := Label.new()
+		label.text = item.display_name
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(label)
+		var amount := SpinBox.new()
+		amount.min_value = 0
+		amount.max_value = 999
+		amount.step = 1
+		amount.custom_minimum_size = Vector2(100, 0)
+		amount.value = int(quantities.get(item.resource_path, 0))
+		amount.value_changed.connect(_on_container_item_amount_changed.bind(item))
+		row.add_child(amount)
+		_container_items_box.add_child(row)
+		_container_amount_controls[item.resource_path] = amount
+
+
+## Container mutations already changed the authoritative node through
+## UndoRedo. Refresh only the controls that display that property; never route
+## a single arrow click through the full Facility workspace rebuild.
+func refresh_container_property(container: Node, property_name: String) -> void:
+	if container == null or not is_instance_valid(container) or container != _container:
+		return
+	var was_updating := _updating
+	_updating = true
+	_refresh_container_row(container)
+	match property_name:
+		"container_type":
+			var selected_type := str(container.get("container_type"))
+			for index in _container_type_picker.item_count:
+				if str(_container_type_picker.get_item_metadata(index)) == selected_type:
+					_container_type_picker.select(index)
+					break
+			_updating = was_updating
+			_rebuild_container_items()
+			return
+		"starting_items":
+			_sync_container_amount_controls()
+	_updating = was_updating
+
+
+func _refresh_container_row(container: Node) -> void:
+	for index in _container_list.item_count:
+		if _container_list.get_item_metadata(index) != container:
+			continue
+		var type_id := str(container.get("container_type")) if "container_type" in container else "general"
+		var label := str(container.call("get_inventory_display_name")).strip_edges() if container.has_method("get_inventory_display_name") else str(container.name)
+		_container_list.set_item_text(index, _container_row_text(container, label, type_id))
+		return
+
+
+func _container_row_text(container: Node, label: String, type_id: String) -> String:
+	return "%s  ·  %s  ·  %s" % [str(container.name), label, type_id.capitalize()]
+
+
+func _sync_container_amount_controls() -> void:
+	var quantities := {}
+	for stock in (_container.get("starting_items") as Array):
+		if stock != null and stock.get("item_definition") != null:
+			quantities[str(stock.get("item_definition").resource_path)] = int(stock.get("quantity"))
+	for path_value in _container_amount_controls:
+		var control := _container_amount_controls[path_value] as SpinBox
+		if control != null:
+			control.value = int(quantities.get(str(path_value), 0))
+
+
+func _on_container_item_amount_changed(value: float, item: ItemDefinition) -> void:
+	if _updating or _container == null:
+		return
+	_tools.call("set_container_starting_item_amount", _container, item, int(value))
+
+
+## A field is the one facility with no building: its "shell" is an area of
+## soil, so the shell grid is replaced by footprint and crop controls.
+func _build_field_section() -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	box.visible = false
+	box.add_child(_section_title("Field"))
+	var size_row := HBoxContainer.new()
+	var width_label := Label.new()
+	width_label.text = "Size"
+	size_row.add_child(width_label)
+	_field_width = SpinBox.new()
+	_field_width.min_value = 1
+	_field_width.max_value = 64
+	_field_width.tooltip_text = "Bounding box width in cells (1.25m each)."
+	size_row.add_child(_field_width)
+	_field_height = SpinBox.new()
+	_field_height.min_value = 1
+	_field_height.max_value = 64
+	_field_height.tooltip_text = "Bounding box depth in cells (1.25m each)."
+	size_row.add_child(_field_height)
+	var reset := Button.new()
+	reset.text = "Reset To Rectangle"
+	reset.tooltip_text = "Discard the painted shape and fill the whole bounding box."
+	reset.pressed.connect(_on_field_reset)
+	size_row.add_child(reset)
+	box.add_child(size_row)
+	var crop_row := HBoxContainer.new()
+	var crop_label := Label.new()
+	crop_label.text = "Crop"
+	crop_row.add_child(crop_label)
+	_field_crop_picker = OptionButton.new()
+	_field_crop_picker.tooltip_text = "Auto plants whatever seed stock is in reach. Manual queues no planting at all."
+	_field_crop_picker.item_selected.connect(_on_field_crop_selected)
+	crop_row.add_child(_field_crop_picker)
+	box.add_child(crop_row)
+	var refit := Button.new()
+	refit.text = "Refit To Terrain"
+	refit.tooltip_text = "Re-seat the soil cells on the ground. Terrain edits do not notify the field, so run this after re-sculpting under it."
+	refit.pressed.connect(_on_field_refit)
+	box.add_child(refit)
+	_field_paint_button = Button.new()
+	_field_paint_button.text = "Paint Soil"
+	_field_paint_button.tooltip_text = "Drag on the ground to add cells. Shift-drag or right-drag erases. Escape finishes."
+	_field_paint_button.pressed.connect(_on_field_paint_pressed)
+	box.add_child(_field_paint_button)
+	_field_status = Label.new()
+	_field_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_field_status)
+	return box
+
+
+func _rebuild_field_section() -> void:
+	if _field_box == null:
+		return
+	var is_field: bool = _tools.is_field(_facility)
+	_field_box.visible = is_field
+	# A field has no building, so the shell grid would only invite a mistake.
+	if _shell_title != null:
+		_shell_title.visible = not is_field
+	if _shell_scroll != null:
+		_shell_scroll.visible = not is_field
+	if _clear_furniture_check != null:
+		_clear_furniture_check.visible = not is_field
+	if not is_field:
+		return
+	var dimensions: Vector2i = _facility.get("dimensions")
+	_field_width.value = dimensions.x
+	_field_height.value = dimensions.y
+	var policy := str(_facility.get("crop_policy_id"))
+	_field_crop_picker.clear()
+	_field_crop_picker.add_item("Auto (whatever seed is in reach)")
+	_field_crop_picker.set_item_metadata(0, "auto")
+	_field_crop_picker.add_item("Manual only")
+	_field_crop_picker.set_item_metadata(1, "")
+	var selected := 0 if policy == "auto" else (1 if policy.is_empty() else -1)
+	for option in _tools.field_crop_options():
+		_field_crop_picker.add_item(str(option["label"]))
+		var index := _field_crop_picker.item_count - 1
+		_field_crop_picker.set_item_metadata(index, str(option["crop_id"]))
+		if str(option["crop_id"]) == policy:
+			selected = index
+	_field_crop_picker.select(maxi(selected, 0))
+	_field_paint_button.text = "Finish Painting" if _tools.is_painting_field() else "Paint Soil"
+	var painted := PackedVector2Array(_facility.get("cell_coordinates"))
+	var cells := painted.size() if not painted.is_empty() else dimensions.x * dimensions.y
+	_field_status.text = "%d soil cells (%s). Seeds a real farm plot on load." % [
+		cells,
+		"painted" if not painted.is_empty() else "full rectangle",
+	]
+
+
+## Painting updates only the one label it can change. A full _rebuild() here
+## would re-run every section for each brush stroke.
+func refresh_field_status(text: String) -> void:
+	if _field_status != null and is_instance_valid(_field_status):
+		_field_status.text = text
+
+
+func _on_field_paint_pressed() -> void:
+	_tools.toggle_field_paint(_facility)
+
+
+func _on_field_refit() -> void:
+	_tools.refit_field_to_terrain(_facility)
+
+
+func _on_field_crop_selected(index: int) -> void:
+	if _updating or _facility == null:
+		return
+	_tools.set_field_crop_policy(_facility, str(_field_crop_picker.get_item_metadata(index)))
+
+
+func _on_field_reset() -> void:
+	if _facility == null:
+		return
+	_tools.reset_field_footprint(_facility, Vector2i(int(_field_width.value), int(_field_height.value)))
 
 
 func _rebuild_identity() -> void:

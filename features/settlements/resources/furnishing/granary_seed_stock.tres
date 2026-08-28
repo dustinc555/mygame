@@ -1,0 +1,50 @@
+[gd_resource type="Resource" script_class="ContainerStockTable" format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/furnishing/container_stock_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://features/settlements/resources/furnishing/container_stock_entry.gd" id="2_entry"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/tomato_seeds.tres" id="3_tomato"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/chili_pepper_seeds.tres" id="4_chili"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/eggplant_seeds.tres" id="5_eggplant"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/bell_pepper_seeds.tres" id="6_bell"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/french_beans_seeds.tres" id="7_beans"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/wheat_seeds.tres" id="8_wheat"]
+
+[sub_resource type="Resource" id="Entry_tomato"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("3_tomato")
+min_quantity = 24
+max_quantity = 24
+
+[sub_resource type="Resource" id="Entry_chili"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("4_chili")
+min_quantity = 24
+max_quantity = 24
+
+[sub_resource type="Resource" id="Entry_eggplant"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("5_eggplant")
+min_quantity = 24
+max_quantity = 24
+
+[sub_resource type="Resource" id="Entry_bell"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("6_bell")
+min_quantity = 24
+max_quantity = 24
+
+[sub_resource type="Resource" id="Entry_beans"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("7_beans")
+min_quantity = 24
+max_quantity = 24
+
+[sub_resource type="Resource" id="Entry_wheat"]
+script = ExtResource("2_entry")
+item_definition = ExtResource("8_wheat")
+min_quantity = 24
+max_quantity = 24
+
+[resource]
+script = ExtResource("1_table")
+entries = Array[ContainerStockEntry]([SubResource("Entry_tomato"), SubResource("Entry_chili"), SubResource("Entry_eggplant"), SubResource("Entry_bell"), SubResource("Entry_beans"), SubResource("Entry_wheat")])

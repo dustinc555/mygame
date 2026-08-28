@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/sack.tscn" id="1_sack"]
+
+[node name="SeedSack" instance=ExtResource("1_sack")]
+display_name = "Seed Sack"
+container_type = "seeds"

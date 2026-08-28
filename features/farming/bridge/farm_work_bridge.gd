@@ -2,17 +2,22 @@ extends Node
 
 class_name FarmWorkBridge
 
+signal work_offers_changed(settlement_id: String)
+signal work_offer_delta(settlement_id: String, removed_offer_ids: PackedStringArray, upserted_offers: Array)
+signal work_availability_changed(settlement_id: String)
+
 const SERVICE_ID := &"farm_work"
 const WATER_META := "farm_water"
 const ACTIVE_SETTLEMENT_WORK_META := &"active_settlement_work"
+## How far an "auto" field looks for seed stock when choosing its crop.
+const AUTO_CROP_SEED_RADIUS := 60.0
 const BUCKET_CAPACITY := 10.0
 const WATERING_CAN_CAPACITY := 16.0
 const WATER_PER_CELL := 5.0
 const INTERACTION_RANGE := 1.65
 const WORK_COMMIT_INTERVAL := 0.25
 const TRAVEL_CHECK_INTERVAL := 0.1
-const MAX_TRAVEL_SECONDS := 30.0
-const MAX_STALLED_SECONDS := 6.0
+const MAX_STALLED_SECONDS := 30.0
 const UNREACHABLE_RETRY_MSEC := 15000
 const FARM_CONTROLLER := preload("res://features/farming/sim/farm_controller.gd")
 
@@ -20,9 +25,15 @@ var _context: BootstrapContext
 var _farm: Node
 var _gecs: Node
 var _job_system: Node
+var _stock_controller: Node
 var _assignments: Dictionary = {}
+## actor instance ID -> exact checked-out tool and its origin container. Loans
+## survive across consecutive farm cells; a low-urgency return offer appears
+## only after no ordinary Farm offer can be accepted.
+var _borrowed_tools: Dictionary = {}
 var _unreachable_until_msec: Dictionary = {}
 var _offer_cache: Array = []
+var _offer_by_cell: Dictionary = {}
 var _offer_cache_dirty := true
 var _pending_work_commits: Array = []
 var _process_sim_time := 0.0
@@ -37,12 +48,20 @@ func initialize(context: BootstrapContext) -> void:
 	_farm = context.get_optional(FARM_CONTROLLER.SERVICE_ID)
 	_gecs = context.get_optional(&"gecs_world")
 	_job_system = context.get_optional(&"job_system")
+	_stock_controller = context.get_optional(InventoryStockController.SERVICE_ID)
 	_bind_offer_cache_signals()
 	if _gecs != null and not _gecs.world_reindexed.is_connected(_on_world_reindexed):
 		_gecs.world_reindexed.connect(_on_world_reindexed)
+	if _stock_controller != null and _stock_controller.has_signal("stock_changed") \
+			and not _stock_controller.stock_changed.is_connected(_on_stock_changed):
+		_stock_controller.stock_changed.connect(_on_stock_changed)
 	add_to_group("job_provider")
 	if _job_system != null and _job_system.has_method("register_job_provider"):
 		_job_system.register_job_provider(self)
+	# The sim cannot see world containers; lend it our view of seed stock so
+	# "auto" fields can resolve a crop.
+	if _farm != null and _farm.has_method("set_auto_crop_resolver"):
+		_farm.call("set_auto_crop_resolver", Callable(self, "resolve_auto_crop"))
 	set_process(false)
 
 
@@ -50,10 +69,16 @@ func teardown() -> void:
 	_unbind_offer_cache_signals()
 	if _gecs != null and _gecs.world_reindexed.is_connected(_on_world_reindexed):
 		_gecs.world_reindexed.disconnect(_on_world_reindexed)
+	if _stock_controller != null and is_instance_valid(_stock_controller) and _stock_controller.has_signal("stock_changed") \
+			and _stock_controller.stock_changed.is_connected(_on_stock_changed):
+		_stock_controller.stock_changed.disconnect(_on_stock_changed)
 	if _job_system != null and is_instance_valid(_job_system) and _job_system.has_method("unregister_job_provider"):
 		_job_system.unregister_job_provider(self)
+	if _farm != null and is_instance_valid(_farm) and _farm.has_method("set_auto_crop_resolver"):
+		_farm.call("set_auto_crop_resolver", Callable())
 	_cancel_all_assignments()
 	_job_system = null
+	_stock_controller = null
 	_gecs = null
 	_farm = null
 
@@ -85,6 +110,7 @@ func get_available_work_offers(settlement_id := "") -> Array:
 		if claimed_cells.has("%s|%s" % [plot_id, cell_key]):
 			continue
 		offers.append(offer)
+	_append_borrowed_tool_return_offers(offers, settlement_id)
 	return offers
 
 
@@ -93,6 +119,7 @@ func _refresh_offer_cache_if_needed() -> void:
 		return
 	_offer_cache_dirty = false
 	_offer_cache.clear()
+	_offer_by_cell.clear()
 	if _farm == null:
 		return
 	if _farm.has_method("get_available_work_records"):
@@ -116,14 +143,14 @@ func _refresh_offer_cache_if_needed() -> void:
 			_append_cached_offer(work)
 
 
-func _append_cached_offer(work: Dictionary) -> void:
+func _append_cached_offer(work: Dictionary) -> Dictionary:
 	if work.is_empty():
-		return
+		return {}
 	var plot_id := str(work.get("plot_id", ""))
 	var cell_key := str(work.get("cell_key", ""))
 	if plot_id.is_empty() or cell_key.is_empty():
-		return
-	_offer_cache.append({
+		return {}
+	var offer := {
 		"offer_id": "farming:%s:%s" % [plot_id, cell_key],
 		"provider": self,
 		"category": "farm",
@@ -134,7 +161,90 @@ func _append_cached_offer(work: Dictionary) -> void:
 		"world_position": work.get("world_position", Vector3.ZERO),
 		"allowed_actor_ids": work.get("allowed_actor_ids", PackedStringArray()),
 		"urgency": 0.5,
-	})
+	}
+	_offer_cache.append(offer)
+	_offer_by_cell["%s|%s" % [plot_id, cell_key]] = offer
+	return offer
+
+
+func _append_borrowed_tool_return_offers(offers: Array, requested_settlement_id: String) -> void:
+	for actor_key_value in _borrowed_tools.keys().duplicate():
+		var actor_key := int(actor_key_value)
+		if _assignments.has(actor_key):
+			continue
+		var loan: Dictionary = _borrowed_tools[actor_key]
+		var actor_ref := loan.get("actor_ref") as WeakRef
+		var store_ref := loan.get("store_ref") as WeakRef
+		var actor := actor_ref.get_ref() as Node if actor_ref != null else null
+		var store := store_ref.get_ref() as Node3D if store_ref != null else null
+		if actor == null or not is_instance_valid(actor):
+			_borrowed_tools.erase(actor_key)
+			continue
+		if store == null or not is_instance_valid(store):
+			# The tool remains with the worker; only the vanished origin contract
+			# is forgotten, so no item is destroyed or recreated.
+			_borrowed_tools.erase(actor_key)
+			continue
+		var settlement_id := str(loan.get("settlement_id", ""))
+		if not requested_settlement_id.is_empty() and settlement_id != requested_settlement_id:
+			continue
+		var offer := _borrowed_tool_return_offer(actor_key)
+		if not offer.is_empty():
+			offers.append(offer)
+
+
+func _borrowed_tool_return_offer(actor_key: int) -> Dictionary:
+	var loan: Dictionary = _borrowed_tools.get(actor_key, {})
+	var actor_ref := loan.get("actor_ref") as WeakRef
+	var store_ref := loan.get("store_ref") as WeakRef
+	var actor := actor_ref.get_ref() as Node if actor_ref != null else null
+	var store := store_ref.get_ref() as Node3D if store_ref != null else null
+	if actor == null or store == null or not is_instance_valid(actor) or not is_instance_valid(store):
+		return {}
+	return {
+		"offer_id": "farming:return_tool:%s" % _actor_work_id(actor),
+		"provider": self,
+		"category": "farm",
+		"job_entry_id": "category:farm",
+		"action": "return_borrowed_tool",
+		"settlement_id": str(loan.get("settlement_id", "")),
+		"owner_faction_id": str(loan.get("owner_faction_id", "")),
+		"world_position": store.global_position,
+		"allowed_actor_ids": PackedStringArray([_actor_work_id(actor)]),
+		"urgency": -1.0,
+	}
+
+
+func _begin_borrowed_tool_return(actor: Node) -> String:
+	if actor == null or not (actor is Node3D):
+		return "Worker unavailable"
+	var actor_key := actor.get_instance_id()
+	var loan: Dictionary = _borrowed_tools.get(actor_key, {})
+	if loan.is_empty() or _assignments.has(actor_key):
+		return "No borrowed tool to return"
+	var store_ref := loan.get("store_ref") as WeakRef
+	var store := store_ref.get_ref() as Node3D if store_ref != null else null
+	if store == null or not is_instance_valid(store):
+		_borrowed_tools.erase(actor_key)
+		return "Borrowed tool origin is gone"
+	_stow_weapon(actor)
+	var target: Vector3 = store.get_interaction_position(actor) if store.has_method("get_interaction_position") else store.global_position
+	_assignments[actor_key] = {
+		"actor": actor,
+		"action": "return_borrowed_tool",
+		"stage": "return_tool",
+		"expected_target": target,
+		"automatic": true,
+		"traveling": true,
+		"last_travel_check_time": _process_sim_time,
+		"travel_seconds": 0.0,
+		"stalled_seconds": 0.0,
+		"last_actor_position": (actor as Node3D).global_position,
+	}
+	_mark_settlement_work_active(actor, true)
+	set_process(true)
+	_move_actor(actor, target, false)
+	return "Worker assigned to return tool"
 
 
 func _bind_offer_cache_signals() -> void:
@@ -142,6 +252,8 @@ func _bind_offer_cache_signals() -> void:
 		return
 	if _farm.has_signal("plot_changed") and not _farm.plot_changed.is_connected(_on_offer_source_changed):
 		_farm.plot_changed.connect(_on_offer_source_changed)
+	if _farm.has_signal("plot_cells_changed") and not _farm.plot_cells_changed.is_connected(_on_offer_cells_changed):
+		_farm.plot_cells_changed.connect(_on_offer_cells_changed)
 	if _farm.has_signal("plot_removed") and not _farm.plot_removed.is_connected(_on_offer_source_removed):
 		_farm.plot_removed.connect(_on_offer_source_removed)
 
@@ -151,21 +263,62 @@ func _unbind_offer_cache_signals() -> void:
 		return
 	if _farm.has_signal("plot_changed") and _farm.plot_changed.is_connected(_on_offer_source_changed):
 		_farm.plot_changed.disconnect(_on_offer_source_changed)
+	if _farm.has_signal("plot_cells_changed") and _farm.plot_cells_changed.is_connected(_on_offer_cells_changed):
+		_farm.plot_cells_changed.disconnect(_on_offer_cells_changed)
 	if _farm.has_signal("plot_removed") and _farm.plot_removed.is_connected(_on_offer_source_removed):
 		_farm.plot_removed.disconnect(_on_offer_source_removed)
 
 
-func _on_offer_source_changed(_plot_id: String, _state: Dictionary) -> void:
+func _on_offer_source_changed(_plot_id: String, state: Dictionary) -> void:
 	_offer_cache_dirty = true
+	work_offers_changed.emit(str(state.get("settlement_id", "")))
+
+
+func _on_offer_cells_changed(plot_id: String, changed_cells: Dictionary, settlement_id: String) -> void:
+	_refresh_offer_cache_if_needed()
+	var removed_ids := PackedStringArray()
+	var upserted: Array = []
+	for cell_key_value in changed_cells.keys():
+		var cell_key := str(cell_key_value)
+		var cache_key := "%s|%s" % [plot_id, cell_key]
+		var previous: Dictionary = _offer_by_cell.get(cache_key, {})
+		if not previous.is_empty():
+			var previous_id := str(previous.get("offer_id", ""))
+			removed_ids.append(previous_id)
+			_remove_cached_offer(previous_id)
+		var next_work: Dictionary = _farm.call("get_cell_work", plot_id, cell_key) if _farm != null and _farm.has_method("get_cell_work") else {}
+		if not next_work.is_empty():
+			var next_offer := _append_cached_offer(next_work)
+			if not next_offer.is_empty():
+				upserted.append(next_offer)
+	work_offer_delta.emit(settlement_id, removed_ids, upserted)
+
+
+func _remove_cached_offer(offer_id: String) -> void:
+	if offer_id.is_empty():
+		return
+	for index in range(_offer_cache.size() - 1, -1, -1):
+		if str((_offer_cache[index] as Dictionary).get("offer_id", "")) == offer_id:
+			var removed: Dictionary = _offer_cache[index]
+			_offer_by_cell.erase("%s|%s" % [str(removed.get("plot_id", "")), str(removed.get("cell_key", ""))])
+			_offer_cache.remove_at(index)
+			return
 
 
 func _on_offer_source_removed(_plot_id: String) -> void:
 	_offer_cache_dirty = true
+	work_offers_changed.emit("")
+
+
+func _on_stock_changed(settlement_id: String, _facility_id: String) -> void:
+	work_availability_changed.emit(settlement_id)
 
 
 func accept_work_offer(offer: Dictionary, actor: Node) -> String:
 	if actor == null:
 		return "Select a worker first"
+	if str(offer.get("action", "")) == "return_borrowed_tool":
+		return _begin_borrowed_tool_return(actor)
 	return assign_cell(str(offer.get("plot_id", "")), str(offer.get("cell_key", "")), [actor], true)
 
 
@@ -342,7 +495,10 @@ func _process(delta: float) -> void:
 		if bool(assignment.get("traveling", false)):
 			if not assignment.has("last_travel_check_time"):
 				assignment["last_travel_check_time"] = _process_sim_time - maxf(0.0, delta)
-			var actor := assignment.get("actor") as Node3D
+			var actor := _live_node_3d(assignment.get("actor"))
+			if actor == null:
+				_cancel(int(actor_key))
+				continue
 			var player_override := actor != null and bool(assignment.get("automatic", false)) \
 					and actor.has_method("has_active_player_order") and bool(actor.call("has_active_player_order"))
 			var expected: Vector3 = assignment.get("expected_target", Vector3.ZERO)
@@ -397,13 +553,11 @@ func _assign_cell_to_actor(actor: Node3D, plot_id: String, cell_key: String, aut
 		return "Cell is reserved for another selected worker"
 	var tool_tag := str(work.get("required_tool_tag", ""))
 	var tool_label := str(work.get("required_tool_label", "tool"))
-	var tool_failure := _require_equipped_tool(actor, tool_tag, tool_label) if equipped_only else _ensure_tool(actor, tool_tag, tool_label)
-	if not tool_failure.is_empty():
-		_speak(actor, tool_failure)
-		return tool_failure
+	var owner_faction_id := str(work.get("owner_faction_id", ""))
+	var settlement_id := str(work.get("settlement_id", ""))
 	var seed_store: Node3D = null
 	if str(work.get("action", "")) == "plant" and not _has_item(actor, work.get("seed_item"), 1):
-		seed_store = _nearest_seed_store(actor.global_position, work.get("seed_item"), str(_farm.get_plot(plot_id).get("owner_faction_id", "")), actor)
+		seed_store = _nearest_seed_store(actor.global_position, work.get("seed_item"), owner_faction_id, settlement_id, actor)
 		if seed_store == null:
 			var message := "Cannot plant: no %s in pockets or seed storage" % _item_name(work.get("seed_item"), "seeds")
 			_speak(actor, message)
@@ -434,6 +588,30 @@ func _assign_cell_to_actor(actor: Node3D, plot_id: String, cell_key: String, aut
 		if not replace_claimed:
 			return "Cell is already assigned"
 		_cancel_claimed_cell(plot_id, cell_key)
+	var tool_loan := {}
+	var tool_failure := ""
+	if equipped_only:
+		tool_failure = _require_equipped_tool(actor, tool_tag, tool_label)
+	elif tool_tag.is_empty() or _actor_has_tool(actor, tool_tag):
+		tool_failure = _ensure_tool(actor, tool_tag, tool_label)
+	elif automatic and _is_town_worker(actor, settlement_id):
+		if _borrowed_tools.has(actor_key):
+			tool_failure = "Return borrowed tool before switching tools"
+		else:
+			tool_loan = _nearest_tool_store(
+				actor.global_position,
+				tool_tag,
+				owner_faction_id,
+				settlement_id,
+				actor
+			)
+			if tool_loan.is_empty():
+				tool_failure = "Cannot %s: no %s in town tool storage" % [_verb_for_tag(tool_tag), tool_label]
+	else:
+		tool_failure = "Cannot %s: no %s" % [_verb_for_tag(tool_tag), tool_label]
+	if not tool_failure.is_empty():
+		_speak(actor, tool_failure)
+		return tool_failure
 	work["actor"] = actor
 	work["expected_target"] = work.get("world_position", Vector3.ZERO)
 	work["pending_work_seconds"] = 0.0
@@ -447,13 +625,25 @@ func _assign_cell_to_actor(actor: Node3D, plot_id: String, cell_key: String, aut
 	work["automatic"] = automatic
 	if not command_targets.is_empty():
 		work["command_targets"] = command_targets.duplicate(true)
-	if seed_store != null:
+	if not tool_loan.is_empty():
+		work["stage"] = "fetch_tool"
+		work["tool_store"] = tool_loan.get("store")
+		work["borrowed_tool"] = tool_loan.get("definition")
+		var tool_store := tool_loan.get("store") as Node3D
+		work["expected_target"] = tool_store.get_interaction_position(actor) if tool_store.has_method("get_interaction_position") else tool_store.global_position
+	elif seed_store != null:
 		work["stage"] = "fetch_seed"
 		work["seed_store"] = seed_store
 		work["expected_target"] = seed_store.get_interaction_position(actor) if seed_store.has_method("get_interaction_position") else seed_store.global_position
 	_assignments[actor_key] = work
 	_mark_settlement_work_active(actor, true)
 	set_process(true)
+	if not tool_loan.is_empty():
+		# Town employment reserves and checks out the exact stack immediately.
+		# The worker still travels and works physically, but storage-path failures
+		# can no longer prevent a calculated farmer from starting.
+		_complete_tool_fetch(actor_key)
+		return "" if _assignments.has(actor_key) else "Cannot check out required tool"
 	if str(work.get("action", "")) == "water":
 		_prepare_water_assignment(actor_key)
 	_move_actor(actor, work.get("expected_target", Vector3.ZERO), not automatic)
@@ -463,8 +653,8 @@ func _assign_cell_to_actor(actor: Node3D, plot_id: String, cell_key: String, aut
 
 func _process_assignment(actor_key: int, delta: float, defer_commit := false, travel_elapsed := -1.0) -> void:
 	var assignment: Dictionary = _assignments.get(actor_key, {})
-	var actor := assignment.get("actor") as Node3D
-	if actor == null or not is_instance_valid(actor):
+	var actor := _live_node_3d(assignment.get("actor"))
+	if actor == null:
 		_cancel(actor_key)
 		return
 	if bool(assignment.get("automatic", false)) and actor.has_method("has_active_player_order") and bool(actor.call("has_active_player_order")):
@@ -487,7 +677,7 @@ func _process_assignment(actor_key: int, delta: float, defer_commit := false, tr
 			if str(assignment.get("stage", "work")) == "work" and not str(assignment.get("plot_id", "")).is_empty():
 				_mark_temporarily_unreachable(assignment)
 			_speak(actor, "Cannot reach farming target; trying other work")
-			_finish_and_continue(actor_key, false)
+			_cancel(actor_key)
 			return
 		if not _has_move_target(actor):
 			_move_actor(actor, expected, not bool(assignment.get("automatic", false)))
@@ -502,8 +692,14 @@ func _process_assignment(actor_key: int, delta: float, defer_commit := false, tr
 	if str(assignment.get("stage", "work")) == "refill":
 		_complete_refill(actor_key)
 		return
+	if str(assignment.get("stage", "work")) == "fetch_tool":
+		_complete_tool_fetch(actor_key)
+		return
 	if str(assignment.get("stage", "work")) == "fetch_seed":
 		_complete_seed_fetch(actor_key)
+		return
+	if str(assignment.get("stage", "work")) == "return_tool":
+		_complete_tool_return(actor_key)
 		return
 	var action := str(assignment.get("action", ""))
 	if action == "process_seeds":
@@ -595,7 +791,7 @@ func _flush_pending_work_commits() -> void:
 
 func _finalize_work_commit(commit: Dictionary, result: Dictionary) -> void:
 	var actor_key := int(commit.get("actor_key", 0))
-	var actor := commit.get("actor") as Node3D
+	var actor := _live_node_3d(commit.get("actor"))
 	var assignment: Dictionary = commit.get("assignment", {})
 	var action := str(commit.get("action", ""))
 	var completion_item = commit.get("completion_item")
@@ -641,13 +837,14 @@ func _travel_timed_out(actor_key: int, assignment: Dictionary, actor: Node3D, de
 	assignment["stalled_seconds"] = 0.0 if moved >= 0.05 else float(assignment.get("stalled_seconds", 0.0)) + maxf(0.0, delta)
 	assignment["last_actor_position"] = actor.global_position
 	_assignments[actor_key] = assignment
-	return float(assignment["travel_seconds"]) >= MAX_TRAVEL_SECONDS \
-			or float(assignment["stalled_seconds"]) >= MAX_STALLED_SECONDS
+	# Distance is not failure. Long routes remain valid while the actor is making
+	# progress; only an actually stalled route times out.
+	return float(assignment["stalled_seconds"]) >= MAX_STALLED_SECONDS
 
 
 func _finish_and_continue(actor_key: int, completed := true) -> void:
 	var assignment: Dictionary = _assignments.get(actor_key, {})
-	var actor := assignment.get("actor") as Node3D
+	var actor := _live_node_3d(assignment.get("actor"))
 	var command_targets: Array = assignment.get("command_targets", [])
 	_assignments.erase(actor_key)
 	if actor != null and is_instance_valid(actor) and not command_targets.is_empty():
@@ -657,12 +854,19 @@ func _finish_and_continue(actor_key: int, completed := true) -> void:
 	_mark_settlement_work_active(actor, false)
 	_set_farming_visual(actor, false, "", Vector3.ZERO, 0.0)
 	_refresh_process_state()
+	var return_offer := _borrowed_tool_return_offer(actor_key)
+	if not return_offer.is_empty():
+		work_offer_delta.emit(
+			str(return_offer.get("settlement_id", "")),
+			PackedStringArray(),
+			[return_offer]
+		)
 
 
 func _process_seed_assignment(actor_key: int, delta: float) -> void:
 	var assignment: Dictionary = _assignments.get(actor_key, {})
-	var actor := assignment.get("actor") as Node3D
-	var processor := assignment.get("processor") as Node
+	var actor := _live_node_3d(assignment.get("actor"))
+	var processor := _live_node(assignment.get("processor"))
 	if actor == null or processor == null or not is_instance_valid(processor):
 		_cancel(actor_key)
 		return
@@ -684,7 +888,7 @@ func _process_seed_assignment(actor_key: int, delta: float) -> void:
 
 func _prepare_water_assignment(actor_key: int) -> void:
 	var assignment: Dictionary = _assignments.get(actor_key, {})
-	var actor := assignment.get("actor") as Node3D
+	var actor := _live_node_3d(assignment.get("actor"))
 	if actor == null:
 		return
 	if _container_water(actor) >= WATER_PER_CELL:
@@ -705,7 +909,7 @@ func _prepare_water_assignment(actor_key: int) -> void:
 
 func _complete_refill(actor_key: int) -> void:
 	var assignment: Dictionary = _assignments.get(actor_key, {})
-	var actor := assignment.get("actor") as Node3D
+	var actor := _live_node_3d(assignment.get("actor"))
 	var source = assignment.get("water_source")
 	if actor == null or source == null or not is_instance_valid(source):
 		_cancel(actor_key)
@@ -730,16 +934,71 @@ func _complete_refill(actor_key: int) -> void:
 	_move_actor(actor, assignment["expected_target"], not bool(assignment.get("automatic", false)))
 
 
+func _complete_tool_fetch(actor_key: int) -> void:
+	var assignment: Dictionary = _assignments.get(actor_key, {})
+	var actor := _live_node_3d(assignment.get("actor"))
+	var store := _live_node(assignment.get("tool_store"))
+	var definition := assignment.get("borrowed_tool") as ItemDefinition
+	if actor == null or store == null or not is_instance_valid(store) or definition == null:
+		_release_assignment_tool_reservation(actor_key, assignment)
+		_cancel(actor_key)
+		return
+	var owner_faction_id := str(assignment.get("owner_faction_id", ""))
+	if not _can_actor_access_store(actor, store, owner_faction_id):
+		_release_assignment_tool_reservation(actor_key, assignment)
+		_speak(actor, "Cannot borrow tool: storage is locked or private")
+		_cancel(actor_key)
+		return
+	var inventory = _inventory(actor)
+	var reservation: Dictionary = store.call("get_item_reservation_snapshot", actor) if store.has_method("get_item_reservation_snapshot") else {}
+	if inventory == null or reservation.is_empty() or not store.has_method("withdraw_reserved_item_to") \
+			or not bool(store.call("withdraw_reserved_item_to", definition, actor, inventory)):
+		_release_assignment_tool_reservation(actor_key, assignment)
+		_speak(actor, "Cannot borrow tool: it is no longer available")
+		_cancel(actor_key)
+		return
+	var equipment = actor.get_equipment() if actor.has_method("get_equipment") else null
+	var previous_definition = equipment.get_equipped_item("weapon") if equipment != null else null
+	var previous_stack_id := str(equipment.get_equipped_stack_id("weapon")) if equipment != null and equipment.has_method("get_equipped_stack_id") else ""
+	_borrowed_tools[actor_key] = {
+		"actor_ref": weakref(actor),
+		"store_ref": weakref(store),
+		"definition": definition,
+		"stack_id": str(reservation.get("stack_id", "")),
+		"previous_definition": previous_definition,
+		"previous_stack_id": previous_stack_id,
+		"settlement_id": str(assignment.get("settlement_id", "")),
+		"owner_faction_id": owner_faction_id,
+	}
+	var tool_failure := _ensure_tool(actor, str(assignment.get("required_tool_tag", "")), str(assignment.get("required_tool_label", "tool")))
+	if not tool_failure.is_empty():
+		if store.has_method("return_borrowed_item_from"):
+			store.call("return_borrowed_item_from", definition, actor, inventory, str(reservation.get("stack_id", "")))
+		_borrowed_tools.erase(actor_key)
+		_speak(actor, tool_failure)
+		_cancel(actor_key)
+		return
+	var seed_store := _live_node_3d(assignment.get("seed_store"))
+	if seed_store != null and is_instance_valid(seed_store) and not _has_item(actor, assignment.get("seed_item"), 1):
+		assignment["stage"] = "fetch_seed"
+		assignment["expected_target"] = seed_store.get_interaction_position(actor) if seed_store.has_method("get_interaction_position") else seed_store.global_position
+	else:
+		assignment["stage"] = "work"
+		assignment["expected_target"] = assignment.get("world_position", Vector3.ZERO)
+	_reset_travel_state(assignment, actor)
+	_assignments[actor_key] = assignment
+	_move_actor(actor, assignment["expected_target"], not bool(assignment.get("automatic", false)))
+
+
 func _complete_seed_fetch(actor_key: int) -> void:
 	var assignment: Dictionary = _assignments.get(actor_key, {})
-	var actor := assignment.get("actor") as Node3D
-	var store := assignment.get("seed_store") as Node
+	var actor := _live_node_3d(assignment.get("actor"))
+	var store := _live_node(assignment.get("seed_store"))
 	var seed_item = assignment.get("seed_item")
 	if actor == null or store == null or not is_instance_valid(store) or store.get("inventory") == null:
 		_cancel(actor_key)
 		return
-	var plot: Dictionary = _farm.get_plot(str(assignment.get("plot_id", "")))
-	if not _can_actor_access_store(actor, store, str(plot.get("owner_faction_id", ""))):
+	if not _can_actor_access_store(actor, store, str(assignment.get("owner_faction_id", ""))):
 		_speak(actor, "Cannot plant: seed storage is locked or private")
 		_cancel(actor_key)
 		return
@@ -754,6 +1013,57 @@ func _complete_seed_fetch(actor_key: int) -> void:
 	_reset_travel_state(assignment, actor)
 	_assignments[actor_key] = assignment
 	_move_actor(actor, assignment["expected_target"], not bool(assignment.get("automatic", false)))
+
+
+func _complete_tool_return(actor_key: int) -> void:
+	var assignment: Dictionary = _assignments.get(actor_key, {})
+	var actor := _live_node(assignment.get("actor"))
+	var loan: Dictionary = _borrowed_tools.get(actor_key, {})
+	var store_ref := loan.get("store_ref") as WeakRef
+	var store := store_ref.get_ref() as Node if store_ref != null else null
+	var definition := loan.get("definition") as ItemDefinition
+	var borrowed_stack_id := str(loan.get("stack_id", ""))
+	if actor == null or not is_instance_valid(actor):
+		_assignments.erase(actor_key)
+		_borrowed_tools.erase(actor_key)
+		_refresh_process_state()
+		return
+	if store == null or not is_instance_valid(store) or definition == null:
+		# Origin furniture disappeared. Keep the real tool with the worker and
+		# end only the loan contract.
+		_borrowed_tools.erase(actor_key)
+		_cancel(actor_key)
+		return
+	var inventory = _inventory(actor)
+	var equipment = actor.get_equipment() if actor.has_method("get_equipment") else null
+	var returned := false
+	if equipment != null and equipment.get_equipped_item("weapon") == definition \
+			and str(equipment.get_equipped_stack_id("weapon")) == borrowed_stack_id \
+			and store.has_method("return_borrowed_equipped_item"):
+		returned = bool(store.call("return_borrowed_equipped_item", definition, actor, equipment, borrowed_stack_id, _stack_snapshot(borrowed_stack_id)))
+	elif inventory != null and store.has_method("return_borrowed_item_from"):
+		returned = bool(store.call("return_borrowed_item_from", definition, actor, inventory, borrowed_stack_id))
+	if not returned:
+		_cancel(actor_key)
+		return
+	var previous_definition := loan.get("previous_definition") as ItemDefinition
+	var previous_stack_id := str(loan.get("previous_stack_id", ""))
+	if previous_definition != null:
+		var previous_entry = _find_inventory_entry_by_stack_id(inventory, previous_stack_id, previous_definition)
+		if previous_entry != null and equipment != null:
+			_equip_carried_tool(actor, equipment, previous_entry)
+	_borrowed_tools.erase(actor_key)
+	_assignments.erase(actor_key)
+	_mark_settlement_work_active(actor, false)
+	_set_farming_visual(actor, false, "", Vector3.ZERO, 0.0)
+	_refresh_process_state()
+	var settlement_id := str(loan.get("settlement_id", ""))
+	work_offer_delta.emit(
+		settlement_id,
+		PackedStringArray(["farming:return_tool:%s" % _actor_work_id(actor)]),
+		[]
+	)
+	work_availability_changed.emit(settlement_id)
 
 
 func _ensure_tool(actor: Node, tag: String, label: String) -> String:
@@ -938,6 +1248,17 @@ func _find_tool_entry(actor: Node, tag: String):
 	return null
 
 
+func _find_inventory_entry_by_stack_id(inventory, stack_id: String, definition: ItemDefinition):
+	if inventory == null:
+		return null
+	for entry in inventory.entries:
+		if entry == null or entry.definition != definition:
+			continue
+		if stack_id.is_empty() or str(entry.stack_id) == stack_id:
+			return entry
+	return null
+
+
 func _water_entry(actor: Node):
 	return _find_tool_entry(actor, "tool.water_container")
 
@@ -1001,12 +1322,55 @@ func _nearest_water_source(position: Vector3):
 	return best
 
 
-func _nearest_seed_store(position: Vector3, seed_item, owner_faction_id: String, actor: Node = null) -> Node3D:
+## Resolver for a plot whose crop policy is "auto": the crop whose seeds this
+## field can actually reach the most of. Returning "" is a valid answer — the
+## field then queues no planting work rather than asking for seed nobody has.
+func resolve_auto_crop(state: Dictionary) -> String:
+	if _farm == null:
+		return ""
+	var origin: Vector3 = state.get("origin", Vector3.ZERO)
+	var owner_faction_id := str(state.get("owner_faction_id", ""))
+	var settlement_id := str(state.get("settlement_id", ""))
+	var best_crop_id := ""
+	var best_count := 0
+	for crop in _farm.call("get_crops"):
+		if crop == null or crop.seed_item == null:
+			continue
+		var count := _reachable_seed_count(origin, crop.seed_item, owner_faction_id, settlement_id)
+		# Ties break on the crop list's own order (sorted by display name), so
+		# an auto field is deterministic rather than flickering between crops.
+		if count > best_count:
+			best_count = count
+			best_crop_id = str(crop.crop_id)
+	return best_crop_id
+
+
+func _reachable_seed_count(position: Vector3, seed_item, owner_faction_id: String, settlement_id: String) -> int:
+	var total := 0
+	for container_value in _seed_container_candidates(settlement_id):
+		var container := container_value as Node3D
+		if container == null:
+			continue
+		var container_owner := str(container.call("get_owner_faction_name")) if container.has_method("get_owner_faction_name") else ""
+		if not owner_faction_id.is_empty() and not container_owner.is_empty() and container_owner != owner_faction_id:
+			continue
+		var inventory = container.get("inventory")
+		if inventory == null:
+			continue
+		if position.distance_squared_to(container.global_position) > AUTO_CROP_SEED_RADIUS * AUTO_CROP_SEED_RADIUS:
+			continue
+		for entry in inventory.entries:
+			if entry != null and entry.definition == seed_item:
+				total += int(entry.count)
+	return total
+
+
+func _nearest_seed_store(position: Vector3, seed_item, owner_faction_id: String, settlement_id: String, actor: Node = null) -> Node3D:
 	var best: Node3D = null
 	var best_distance := INF
-	for container_value in get_tree().get_nodes_in_group("world_container"):
+	for container_value in _seed_container_candidates(settlement_id):
 		var container := container_value as Node3D
-		if container == null or str(container.get("container_kind")) not in ["farm_seed", "seed_processing"]:
+		if container == null:
 			continue
 		if actor != null and not _can_actor_access_store(actor, container, owner_faction_id):
 			continue
@@ -1020,6 +1384,62 @@ func _nearest_seed_store(position: Vector3, seed_item, owner_faction_id: String,
 			best = container
 			best_distance = distance
 	return best
+
+
+func _seed_container_candidates(settlement_id: String) -> Array[Node]:
+	if settlement_id.is_empty():
+		return []
+	var stock_controller := BootstrapContext.service(InventoryStockController.SERVICE_ID)
+	if stock_controller == null or not stock_controller.has_method("get_live_container_candidates"):
+		return []
+	var candidates: Array[Node] = []
+	candidates.assign(stock_controller.call("get_live_container_candidates", settlement_id, PackedStringArray(["seeds"])))
+	return candidates
+
+
+func _nearest_tool_store(position: Vector3, tool_tag: String, owner_faction_id: String, settlement_id: String, actor: Node) -> Dictionary:
+	if actor == null or tool_tag.is_empty() or settlement_id.is_empty():
+		return {}
+	var candidates := _tool_container_candidates(settlement_id)
+	candidates.sort_custom(func(a: Node, b: Node) -> bool:
+		return position.distance_squared_to((a as Node3D).global_position) < position.distance_squared_to((b as Node3D).global_position))
+	for store in candidates:
+		if not (store is Node3D) or not _can_actor_access_store(actor, store, owner_faction_id) \
+				or not store.has_method("find_reservable_tool") or not store.has_method("reserve_item_for_actor"):
+			continue
+		var definition := store.call("find_reservable_tool", tool_tag, actor) as ItemDefinition
+		if definition != null and bool(store.call("reserve_item_for_actor", definition, actor, 1)):
+			return {"store": store, "definition": definition}
+	return {}
+
+
+func _tool_container_candidates(settlement_id: String) -> Array[Node]:
+	if settlement_id.is_empty():
+		return []
+	var stock_controller := BootstrapContext.service(InventoryStockController.SERVICE_ID)
+	if stock_controller == null or not stock_controller.has_method("get_live_container_candidates"):
+		return []
+	var candidates: Array[Node] = []
+	candidates.assign(stock_controller.call("get_live_container_candidates", settlement_id, PackedStringArray(["tools"])))
+	return candidates
+
+
+func _actor_has_tool(actor: Node, tool_tag: String) -> bool:
+	if actor == null or tool_tag.is_empty():
+		return tool_tag.is_empty()
+	var equipment = actor.get_equipment() if actor.has_method("get_equipment") else null
+	var equipped = equipment.get_equipped_item("weapon") if equipment != null else null
+	return (equipped != null and equipped.has_tool_tag(tool_tag)) or _find_tool_entry(actor, tool_tag) != null
+
+
+func _is_town_worker(actor: Node, settlement_id: String) -> bool:
+	if actor == null or settlement_id.is_empty():
+		return false
+	if actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member")):
+		return false
+	if str(actor.get_meta("settlement_id", "")) == settlement_id:
+		return true
+	return _has_property(actor, "settlement_id") and str(actor.get("settlement_id")) == settlement_id
 
 
 func _expected_harvest_yield(actor: Node, work: Dictionary) -> int:
@@ -1167,9 +1587,9 @@ func _has_conflicting_player_order(actor: Node, expected: Vector3) -> bool:
 
 func _cancel(actor_key: int) -> void:
 	var assignment: Dictionary = _assignments.get(actor_key, {})
-	var actor = assignment.get("actor")
-	if actor != null and not is_instance_valid(actor):
-		actor = null
+	var settlement_id := str(assignment.get("settlement_id", ""))
+	_release_assignment_tool_reservation(actor_key, assignment)
+	var actor := _live_node(assignment.get("actor"))
 	if actor != null and not bool(assignment.get("automatic", false)):
 		_cancel_command_target({
 			"plot_id": assignment.get("plot_id", ""),
@@ -1181,6 +1601,27 @@ func _cancel(actor_key: int) -> void:
 	_set_farming_visual(actor, false, "", Vector3.ZERO, 0.0)
 	_assignments.erase(actor_key)
 	_refresh_process_state()
+	if not settlement_id.is_empty():
+		work_offers_changed.emit(settlement_id)
+
+
+func _release_assignment_tool_reservation(actor_key: int, assignment: Dictionary) -> void:
+	if str(assignment.get("stage", "")) != "fetch_tool":
+		return
+	var store := _live_node(assignment.get("tool_store"))
+	if store != null and is_instance_valid(store) and store.has_method("release_item_reservation"):
+		store.call("release_item_reservation", actor_key)
+
+
+static func _live_node(value: Variant) -> Node:
+	if value == null or not is_instance_valid(value):
+		return null
+	return value as Node
+
+
+static func _live_node_3d(value: Variant) -> Node3D:
+	var node := _live_node(value)
+	return node as Node3D if node is Node3D else null
 
 
 func _actor_work_id(actor: Node) -> String:

@@ -39,6 +39,7 @@ var _exterior_regions := {}
 var _last_error := ""
 var _pending_required_clusters: Array = []
 var _pending_required_utilities: Array = []
+var _include_starting_stock := false
 
 
 func last_error() -> String:
@@ -51,8 +52,9 @@ func last_error() -> String:
 ## shelves, upper floors get beds + shelves. Rules may allow ground-floor beds
 ## for one-storey homes.
 ## Empty array + last_error() on failure.
-func furnish(building: Node3D, rules: FurnishRules, seed_value: int) -> Array[Dictionary]:
+func furnish(building: Node3D, rules: FurnishRules, seed_value: int, include_starting_stock := false) -> Array[Dictionary]:
 	_last_error = ""
+	_include_starting_stock = include_starting_stock
 	_pending_required_clusters = rules.required_cluster_scenes.duplicate()
 	_pending_required_utilities = rules.utility_scenes.duplicate()
 	var pieces := _collect_pieces(building)
@@ -72,7 +74,7 @@ func furnish(building: Node3D, rules: FurnishRules, seed_value: int) -> Array[Di
 		var scene: PackedScene = _pending_required_clusters[0]
 		_last_error = "Required cluster '%s' fits on no storey of this shell." % str(scene.resource_path).get_file()
 		return []
-	if not _pending_required_utilities.is_empty():
+	if not _pending_required_utilities.is_empty() and rules.utilities_required:
 		var scene: PackedScene = _pending_required_utilities[0]
 		_last_error = "Required utility '%s' fits nowhere on the ground floor." % str(scene.resource_path).get_file()
 		return []
@@ -81,6 +83,7 @@ func furnish(building: Node3D, rules: FurnishRules, seed_value: int) -> Array[Di
 		var kind := str(placement.get("kind", ""))
 		kind_counts[kind] = int(kind_counts.get(kind, 0)) + 1
 	for requirement in [
+		["pallet", rules.min_pallets],
 		["bed", rules.min_beds],
 		["container", rules.min_containers],
 		["shelf", rules.min_shelves],
@@ -153,6 +156,10 @@ func _furnish_level(pieces: Array[Dictionary], rules: FurnishRules, rng: RandomN
 		var counter := _place_counter(anchors, rules, rng)
 		if not counter.is_empty():
 			placements.append(counter)
+		# Pallets first: they ARE the facility's function (a granary without
+		# them is not a granary), so in a shell too small for everything they
+		# win the floor over support furniture like a seed barrel.
+		placements.append_array(_place_pallets(anchors, rules, rng, placements))
 		# Function-required wall storage claims its anchor before room layouts.
 		placements.append_array(_place_utilities(anchors, rules, rng, placements))
 		placements.append_array(_place_clusters(rules, rng, placements))
@@ -523,9 +530,9 @@ func _place_beds(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNum
 ## WALK_ONLY on the grid, so the FREE-state requirement keeps them out of
 ## traffic without any explicit door logic. Each placed container carries a
 ## stock list rolled from the rules' loot table, baked into the saved node.
-## Utility pieces: one guaranteed wall placement per scene (no chance roll,
-## no stock) — a jail without its prisoner locker isn't furnished, so the
-## sweep tries every wall anchor before giving up on a piece.
+## Utility pieces: one guaranteed wall placement per scene. Optional starter
+## stock is baked only when the caller explicitly enables developer/world
+## generation; runtime player furnishing stays empty.
 func _place_utilities(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, existing: Array[Dictionary]) -> Array[Dictionary]:
 	var placements: Array[Dictionary] = []
 	if _pending_required_utilities.is_empty():
@@ -556,6 +563,11 @@ func _place_utilities(anchors: Array[Dictionary], rules: FurnishRules, rng: Rand
 				"transform": utility_transform,
 				"reach_probe": Vector3(probe.x, 0.0, probe.y),
 			}
+			var utility_index := rules.utility_scenes.find(scene)
+			if _include_starting_stock and utility_index >= 0 and utility_index < rules.utility_stock_tables.size():
+				var stock_table := rules.utility_stock_tables[utility_index]
+				if stock_table != null:
+					placement["stock"] = stock_table.roll(rng)
 			# Same rule as containers: the stamp must not strand any earlier
 			# placement's reach probe, or the whole level gets rejected by
 			# the final walkability guard.
@@ -568,6 +580,231 @@ func _place_utilities(anchors: Array[Dictionary], rules: FurnishRules, rng: Rand
 			_pending_required_utilities.remove_at(scene_index)
 			break
 	return placements
+
+
+## Bulk storage pallets — the one archetype whose layout the SHELL decides
+## rather than the rules file. A hall wide enough for two rows plus a
+## walkable aisle gets rows down its long axis; anything tighter lines its
+## pallets along the walls instead, which is what a cottage-sized store
+## wants. "auto" measures; the explicit modes override.
+func _place_pallets(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, existing: Array[Dictionary]) -> Array[Dictionary]:
+	var placements: Array[Dictionary] = []
+	if rules.pallet_scenes.is_empty() or rules.max_pallets <= 0:
+		return placements
+	var footprints := {}
+	var span := Vector2.ZERO
+	for scene in rules.pallet_scenes:
+		var footprint := _container_footprint(scene)
+		footprints[scene] = footprint
+		# Row/line spacing must clear the BIGGEST pallet in the pool, or a
+		# large one lands flush against its neighbour.
+		span = Vector2(maxf(span.x, footprint.x), maxf(span.y, footprint.y))
+	var layout := str(rules.pallet_layout)
+	if layout == "auto":
+		layout = "aisle_rows" if _aisle_rows_fit(rules, span) else "wall_line"
+	if layout == "aisle_rows":
+		placements = _place_pallet_rows(rules, rng, footprints, span, existing)
+		# Rows that survive the fit math can still lose to furniture already
+		# on the floor. An empty granary is worse than a lined-up one.
+		if placements.is_empty():
+			layout = "wall_line"
+	if layout == "wall_line":
+		placements = _place_pallet_wall_line(anchors, rules, rng, footprints, span, existing)
+	_assign_pallet_items(placements, rules)
+	return placements
+
+
+## Rows need two things: the room's SHORT span must clear two rows plus the
+## aisle and both wall strips, and there must be enough free floor left that
+## an aisle is a better use of it than open walking space. The area gate is
+## what keeps a cottage-sized store room lining its walls even when its
+## bounding box looks wide enough.
+func _aisle_rows_fit(rules: FurnishRules, span: Vector2) -> bool:
+	var rect := _main_region_rect()
+	if rect.size.x <= 0.0 or rect.size.y <= 0.0:
+		return false
+	var needed := span.y * 2.0 + rules.pallet_aisle_meters + rules.pallet_wall_clearance * 2.0
+	if minf(rect.size.x, rect.size.y) < needed:
+		return false
+	return _count_state(STATE_FREE) * CELL * CELL >= rules.pallet_rows_min_floor_area
+
+
+## Rows run along the room's long axis. Capacity is SCANNED, not computed:
+## an L-shaped hall's bounding box covers floor that isn't there, so each row
+## line is dry-fitted first and rows that land in the void drop out. The
+## pallet budget is then dealt round-robin across the surviving rows, centre
+## outward, so a cap of 8 in a 12-slot hall reads as two tidy rows of four
+## rather than one long row and an empty aisle.
+func _place_pallet_rows(rules: FurnishRules, rng: RandomNumberGenerator, footprints: Dictionary, span: Vector2, existing: Array[Dictionary]) -> Array[Dictionary]:
+	var placements: Array[Dictionary] = []
+	var rect := _main_region_rect()
+	if rect.size.x <= 0.0 or rect.size.y <= 0.0:
+		return placements
+	var rows_along_x := rect.size.x >= rect.size.y
+	var long_span := rect.size.x if rows_along_x else rect.size.y
+	var short_span := rect.size.y if rows_along_x else rect.size.x
+	var row_pitch := maxf(span.y + rules.pallet_aisle_meters, CELL)
+	var column_pitch := maxf(span.x + rules.pallet_gap_meters, CELL)
+	var rows_fit := int(floor((short_span - rules.pallet_wall_clearance * 2.0 + rules.pallet_aisle_meters) / row_pitch))
+	var columns_fit := int(floor((long_span - rules.pallet_wall_clearance * 2.0 + rules.pallet_gap_meters) / column_pitch))
+	if rows_fit < 1 or columns_fit < 1:
+		return placements
+	# Shape the block like the room rather than filling every row that fits:
+	# a budget of 8 in a long hall wants two rows of four flanking a central
+	# aisle, not four stubby rows clumped in the middle of an empty floor.
+	var aspect := long_span / maxf(short_span, CELL)
+	var rows := clampi(int(round(sqrt(rules.max_pallets / maxf(aspect, 0.01)))), 1, rows_fit)
+	var columns := clampi(int(ceil(float(rules.max_pallets) / float(rows))), 1, columns_fit)
+	# A budget too big for that many columns opens more rows again.
+	rows = clampi(int(ceil(float(rules.max_pallets) / float(columns))), rows, rows_fit)
+	var center := rect.get_center()
+	var center_long := center.x if rows_along_x else center.y
+	var center_short := center.y if rows_along_x else center.x
+	var first_long := center_long - (columns * span.x + (columns - 1) * rules.pallet_gap_meters) * 0.5 + span.x * 0.5
+	var first_short := center_short - (rows * span.y + (rows - 1) * rules.pallet_aisle_meters) * 0.5 + span.y * 0.5
+	var yaw := 0.0 if rows_along_x else PI * 0.5
+	var footprint: Vector2 = footprints[rules.pallet_scenes[0]]
+	# Pass one: which slots are real floor?
+	var open_slots: Array = []
+	for row in range(rows):
+		var short_offset := first_short + row * row_pitch
+		var slots: Array[Vector2] = []
+		for column in range(columns):
+			var long_offset := first_long + column * column_pitch
+			var point := Vector2(long_offset, short_offset) if rows_along_x else Vector2(short_offset, long_offset)
+			var probe_transform := Transform3D(Basis(Vector3.UP, yaw), Vector3(point.x, 0.0, point.y))
+			if _region_is(probe_transform, footprint, 0.0, [STATE_FREE]):
+				slots.append(point)
+		if not slots.is_empty():
+			# Centre outward, so a partly-filled row sits in the middle of its
+			# run instead of hugging one end wall.
+			var midpoint: Vector2 = slots[slots.size() / 2]
+			slots.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.distance_squared_to(midpoint) < b.distance_squared_to(midpoint))
+			open_slots.append(slots)
+	if open_slots.is_empty():
+		return placements
+	# Pass two: deal the budget round-robin so every row fills evenly.
+	var depth := 0
+	while placements.size() < rules.max_pallets:
+		var dealt := false
+		for row_index in range(open_slots.size()):
+			if placements.size() >= rules.max_pallets:
+				break
+			var slots: Array = open_slots[row_index]
+			if depth >= slots.size():
+				continue
+			dealt = true
+			var point: Vector2 = slots[depth]
+			var short_offset := point.y if rows_along_x else point.x
+			# Every gap between consecutive rows IS an aisle, so reaching
+			# toward the room centre always lands the work side in walkable
+			# space; the outermost rows reach into their wall clearance.
+			var toward := signf(center_short - short_offset)
+			if is_zero_approx(toward):
+				toward = 1.0
+			var probe_offset := Vector2(0.0, toward) if rows_along_x else Vector2(toward, 0.0)
+			var probe: Vector2 = point + probe_offset * (span.y * 0.5 + CELL * 2.0)
+			var scene: PackedScene = rules.pallet_scenes[rng.randi_range(0, rules.pallet_scenes.size() - 1)]
+			var placement := _try_stamp_pallet(scene, footprints[scene], point, yaw, probe, existing + placements)
+			if not placement.is_empty():
+				placements.append(placement)
+		if not dealt:
+			break
+		depth += 1
+	return placements
+
+
+## Cramped shells: pallets stand against solid walls, axis-aligned (no
+## container-style wobble — a store room reads as deliberate), stepping along
+## each wall face until the run leaves the wall or meets other furniture.
+func _place_pallet_wall_line(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, footprints: Dictionary, span: Vector2, existing: Array[Dictionary]) -> Array[Dictionary]:
+	var placements: Array[Dictionary] = []
+	var candidates := anchors.filter(func(anchor): return anchor["category"] == "wall")
+	for index in range(candidates.size() - 1, 0, -1):
+		var swap := rng.randi_range(0, index)
+		var held = candidates[index]
+		candidates[index] = candidates[swap]
+		candidates[swap] = held
+	var step := span.x + rules.pallet_gap_meters
+	for anchor in candidates:
+		if placements.size() >= rules.max_pallets:
+			break
+		var normal: Vector2 = anchor["normal"]
+		var along: Vector2 = anchor["along"]
+		var yaw := atan2(normal.x, normal.y)
+		# Centre of the wall face outward, alternating sides, so a run grows
+		# symmetrically instead of drifting toward one corner.
+		for slot in range(-2, 3):
+			if placements.size() >= rules.max_pallets:
+				break
+			var scene: PackedScene = rules.pallet_scenes[rng.randi_range(0, rules.pallet_scenes.size() - 1)]
+			var footprint: Vector2 = footprints[scene]
+			var point: Vector2 = anchor["position"] + normal * (WALL_THICKNESS * 0.5 + footprint.y * 0.5 + rules.pallet_wall_clearance) + along * (slot * step)
+			var probe: Vector2 = point + normal * (footprint.y * 0.5 + CELL * 2.0)
+			var placement := _try_stamp_pallet(scene, footprint, point, yaw, probe, existing + placements)
+			if not placement.is_empty():
+				placements.append(placement)
+	return placements
+
+
+## One pallet fit attempt. Unlike crates there is no breathing-margin test:
+## pallets are MEANT to stand shoulder to shoulder, and the row/line spacing
+## already guarantees the gap. The footprint must be free floor and the stamp
+## must not strand any earlier placement's reach probe.
+func _try_stamp_pallet(scene: PackedScene, footprint: Vector2, point: Vector2, yaw: float, probe: Vector2, already_placed: Array[Dictionary]) -> Dictionary:
+	var pallet_transform := Transform3D(Basis(Vector3.UP, yaw), Vector3(point.x, 0.0, point.y))
+	if not _region_is(pallet_transform, footprint, 0.0, [STATE_FREE]):
+		return {}
+	_stamp_oriented_box(pallet_transform, footprint, 0.0, STATE_OCCUPIED, [STATE_FREE])
+	var placement := {
+		"kind": "pallet",
+		"scene": scene,
+		"transform": pallet_transform,
+		"reach_probe": Vector3(probe.x, 0.0, probe.y),
+	}
+	var check: Array[Dictionary] = already_placed.duplicate()
+	check.append(placement)
+	if not _walkability_holds(check):
+		_stamp_oriented_box(pallet_transform, footprint, 0.0, STATE_FREE, [STATE_OCCUPIED])
+		return {}
+	return placement
+
+
+## Optional crop lock: cycle the authored item ids across the placed pallets,
+## each admitting exactly one of them. With no ids authored the pallets stay
+## open and specialize on whatever the town hauls in first.
+func _assign_pallet_items(placements: Array[Dictionary], rules: FurnishRules) -> void:
+	if rules.pallet_item_ids.is_empty():
+		return
+	for index in range(placements.size()):
+		var item_id := str(rules.pallet_item_ids[index % rules.pallet_item_ids.size()])
+		var overrides := {}
+		for candidate in rules.pallet_item_ids:
+			overrides[str(candidate)] = str(candidate) == item_id
+		placements[index]["item_id"] = item_id
+		placements[index]["storage_item_overrides"] = overrides
+
+
+## World-space bounding rect of the main interior region — the room the
+## pallet layout gets measured against.
+func _main_region_rect() -> Rect2:
+	if _main_region < 0:
+		return Rect2()
+	var min_cell := Vector2i(_grid_width, _grid_height)
+	var max_cell := Vector2i(-1, -1)
+	for y in range(_grid_height):
+		for x in range(_grid_width):
+			if _region_labels[y * _grid_width + x] != _main_region:
+				continue
+			min_cell.x = mini(min_cell.x, x)
+			min_cell.y = mini(min_cell.y, y)
+			max_cell.x = maxi(max_cell.x, x)
+			max_cell.y = maxi(max_cell.y, y)
+	if max_cell.x < 0:
+		return Rect2()
+	var from := _cell_center(min_cell) - Vector2.ONE * CELL * 0.5
+	var to := _cell_center(max_cell) + Vector2.ONE * CELL * 0.5
+	return Rect2(from, to - from)
 
 
 func _place_containers(anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, existing: Array[Dictionary]) -> Array[Dictionary]:
@@ -609,8 +846,9 @@ func _place_containers(anchors: Array[Dictionary], rules: FurnishRules, rng: Ran
 			"scene": scene,
 			"transform": container_transform,
 			"reach_probe": Vector3(probe.x, 0.0, probe.y),
+			"container_type": rules.container_type,
 		}
-		if rules.container_stock != null:
+		if _include_starting_stock and rules.container_stock != null:
 			placement["stock"] = rules.container_stock.roll(rng)
 		var check: Array[Dictionary] = existing + placements
 		check.append(placement)

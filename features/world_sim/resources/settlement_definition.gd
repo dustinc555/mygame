@@ -28,6 +28,9 @@ class_name SettlementDefinition
 @export var staff_stable_id_prefix := ""
 @export var staff_squad_name := ""
 @export var use_settlement_population_for_guards := true
+## Durable town-scoped occupation demand. These slots convert existing
+## available residents; they never mint population. Example: {"farmer": 2}.
+@export var town_job_counts: Dictionary = {}
 
 @export_group("Realization")
 ## "" inherits the realization default; otherwise one of

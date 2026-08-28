@@ -8,6 +8,6 @@ script = ExtResource("1_script")
 facility_id = "field"
 display_name = "Field"
 scene_path = "res://features/settlements/bridge/settlement_field.tscn"
-catalog_enabled = false
+catalog_enabled = true
 shell_policy = 1
 function = ExtResource("2_function")

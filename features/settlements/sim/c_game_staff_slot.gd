@@ -5,7 +5,11 @@ class_name CGameStaffSlot
 @export var slot_id := ""
 @export var settlement_id := ""
 @export var assignment_domain := "employment"
+@export var assignment_scope := "facility"
 @export var role_id := ""
+@export var uses_settlement_jobs := false
+@export var allowed_job_entry_ids := PackedStringArray()
+@export var preferred_skill_id := ""
 @export var character_type_id := ""
 @export var filled := false
 @export var population_cost := 1
@@ -36,7 +40,11 @@ func apply_slot(source: Dictionary) -> void:
 	slot_id = str(source.get("slot_id", slot_id))
 	settlement_id = str(source.get("settlement_id", settlement_id))
 	assignment_domain = str(source.get("assignment_domain", assignment_domain))
+	assignment_scope = str(source.get("assignment_scope", assignment_scope))
 	role_id = str(source.get("role_id", role_id))
+	uses_settlement_jobs = bool(source.get("uses_settlement_jobs", uses_settlement_jobs))
+	allowed_job_entry_ids = PackedStringArray(source.get("allowed_job_entry_ids", allowed_job_entry_ids))
+	preferred_skill_id = str(source.get("preferred_skill_id", preferred_skill_id))
 	character_type_id = str(source.get("character_type_id", character_type_id))
 	filled = bool(source.get("filled", filled))
 	population_cost = int(source.get("population_cost", population_cost))
@@ -62,7 +70,11 @@ func to_slot() -> Dictionary:
 		"slot_id": slot_id,
 		"settlement_id": settlement_id,
 		"assignment_domain": assignment_domain,
+		"assignment_scope": assignment_scope,
 		"role_id": role_id,
+		"uses_settlement_jobs": uses_settlement_jobs,
+		"allowed_job_entry_ids": allowed_job_entry_ids,
+		"preferred_skill_id": preferred_skill_id,
 		"character_type_id": character_type_id,
 		"filled": filled,
 		"population_cost": population_cost,
