@@ -75,6 +75,8 @@ func _run() -> void:
 	_interactions.initialize(context)
 	_doors.door_command_resolved.connect(func(result: Dictionary) -> void: _results.append(result))
 	_validate_facility_door_policy()
+	_validate_no_keeper_business_door()
+	_validate_concurrent_command_removal()
 	await _setup_projected_access_door(root)
 	_validate_lock_and_access()
 	_validate_npc_auto_open()
@@ -134,6 +136,37 @@ func _validate_facility_door_policy() -> void:
 	_doors.register_door({"door_id": "validation.default_facility.front", "building_id": "validation.default_facility", "default_open": true})
 	var door_default: Dictionary = _doors.get_door_state("validation.default_facility.front")
 	_expect(bool(door_default.get("is_open", false)) and not bool(door_default.get("is_locked", true)), "Door Default initial state must preserve DoorDefinition defaults.")
+
+
+func _validate_concurrent_command_removal() -> void:
+	_doors.register_door({"door_id": "validation.concurrent.a", "default_open": true})
+	_doors.register_door({"door_id": "validation.concurrent.b", "default_open": true})
+	var first: Dictionary = _doors.submit_command("validator.actor", "validation.concurrent.a", "close", {})
+	var second: Dictionary = _doors.submit_command("validator.actor", "validation.concurrent.b", "close", {})
+	_expect(bool(first.get("accepted", false)) and bool(second.get("accepted", false)), "Concurrent door commands must both be accepted.")
+	_expect(bool(_doors.begin_command(str(first.get("command_id", ""))).get("started", false)) \
+			and bool(_doors.begin_command(str(second.get("command_id", ""))).get("started", false)), "Concurrent door commands must both begin.")
+	var result_count := _results.size()
+	_gecs_world.world.process(0.1)
+	_expect(_results.size() == result_count + 2, "Removing one completed door command must not invalidate the other command column index.")
+
+
+func _validate_no_keeper_business_door() -> void:
+	_doors.configure_building_doors("validation.unstaffed", {
+		"public_access": true,
+		"keeper_actor_id": "",
+		"initial_state": "locked",
+		"open_hour": 8,
+		"close_hour": 20,
+		"kept_open": true,
+	})
+	_doors.register_door({"door_id": "validation.unstaffed.front", "building_id": "validation.unstaffed", "default_locked": true})
+	_doors._on_world_hour_changed(8, 0, 8)
+	var opened: Dictionary = _doors.get_door_state("validation.unstaffed.front")
+	_expect(bool(opened.get("is_open", false)) and not bool(opened.get("is_locked", true)), "No-keeper kept-open facilities must physically open for business.")
+	_doors._on_world_hour_changed(20, 0, 20)
+	var closed: Dictionary = _doors.get_door_state("validation.unstaffed.front")
+	_expect(not bool(closed.get("is_open", true)) and bool(closed.get("is_locked", false)), "No-keeper facilities must close and lock after business.")
 
 
 func _register_actor(root: Node, actor_id: String) -> void:

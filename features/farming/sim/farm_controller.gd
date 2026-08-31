@@ -30,6 +30,7 @@ var _context: BootstrapContext
 var _gecs: Node
 var _world_time: Node
 var _territory: Node
+var _inventory_stock: Node
 var _crops: Dictionary = {}
 var _next_plot_sequence := 1
 var _world_reindex_pending := false
@@ -41,6 +42,7 @@ func initialize(context: BootstrapContext) -> void:
 	_gecs = context.get_optional(&"gecs_world")
 	_world_time = context.get_optional(&"world_time")
 	_territory = context.require(&"territory")
+	_inventory_stock = context.get_optional(&"inventory_stock")
 	for crop_id in CROP_PATHS:
 		_crops[crop_id] = load(CROP_PATHS[crop_id])
 	_recover_sequence()
@@ -1342,6 +1344,148 @@ func get_next_work(plot_id: String, excluded_keys := PackedStringArray()) -> Dic
 		if not work.is_empty():
 			return work
 	return {}
+
+
+## World-sim labor advances exact durable cells without projected actors,
+## movement, animation, or per-NPC ticking. One call loads the farm snapshot
+## once, spends a deterministic settlement budget, and saves each changed plot
+## once. Actor-reserved manual requests remain projection-only.
+func advance_world_sim_work(settlement_id: String, labor_seconds: float, plots_snapshot: Dictionary = {}) -> Dictionary:
+	var summary := {
+		"settlement_id": settlement_id,
+		"labor_seconds": maxf(labor_seconds, 0.0),
+		"spent_labor_seconds": 0.0,
+		"remaining_labor_seconds": maxf(labor_seconds, 0.0),
+		"changed_cells": 0,
+		"completed_actions": 0,
+		"consumed_seeds": 0,
+		"stored_produce": 0,
+	}
+	if settlement_id.is_empty() or labor_seconds <= 0.0:
+		return summary
+	var remaining := labor_seconds
+	var plots := plots_snapshot if not plots_snapshot.is_empty() else get_plots()
+	var plot_ids: Array = plots.keys()
+	plot_ids.sort()
+	for plot_id_value in plot_ids:
+		var plot_id := str(plot_id_value)
+		var state: Dictionary = plots[plot_id_value]
+		if str(state.get("settlement_id", "")) != settlement_id or not is_active_field(state):
+			continue
+		var cells: Dictionary = state.get("cells", {})
+		var cell_keys: Array = cells.keys()
+		cell_keys.sort_custom(func(a, b) -> bool:
+			var grid_a := _grid_from_key(str(a))
+			var grid_b := _grid_from_key(str(b))
+			return grid_a.y < grid_b.y or (grid_a.y == grid_b.y and grid_a.x < grid_b.x)
+		)
+		var changed := false
+		var changed_cell_records: Dictionary = {}
+		var completed_results: Array[Dictionary] = []
+		var plot_transactions: Array[Dictionary] = []
+		var plot_spent_labor := 0.0
+		var plot_changed_cells := 0
+		var plot_completed_actions := 0
+		var plot_consumed_seeds := 0
+		var plot_stored_produce := 0
+		for cell_key_value in cell_keys:
+			var cell_key := str(cell_key_value)
+			var cell: Dictionary = (state.get("cells", {}) as Dictionary).get(cell_key_value, {})
+			if not PackedStringArray(cell.get("requested_actor_ids", PackedStringArray())).is_empty():
+				continue
+			var action := str(cell.get("requested_operation", ""))
+			if action.is_empty() or action != _action_for_status(str(cell.get("state", ""))):
+				continue
+			if action == "water" and not _cell_needs_water_state(cell):
+				continue
+			var work := _work_record(state, cell_key, cell, action)
+			var required := maxf(0.01, float(work.get("required_seconds", 1.0)))
+			var needed := maxf(0.0, required - float(cell.get("work_progress", 0.0)))
+			# Watering is projection detail off-screen. If a field has already
+			# published valid water work, complete it without stealing the coarse
+			# town labor budget from tilling, planting, and harvesting.
+			var free_maintenance := action == "water"
+			if not free_maintenance and remaining <= 0.0:
+				continue
+			var contribution := needed if free_maintenance else minf(remaining, needed)
+			if contribution <= 0.0:
+				continue
+			var transaction_item: ItemDefinition = null
+			var transaction_delta := 0
+			var reaches_completion := contribution + float(cell.get("work_progress", 0.0)) >= required - 0.000001
+			if reaches_completion and action == "plant":
+				transaction_item = work.get("seed_item") as ItemDefinition
+				transaction_delta = -1
+			elif reaches_completion and action == "harvest":
+				transaction_item = work.get("produce_item") as ItemDefinition
+				var crop := get_crop(str(cell.get("crop_id", "")))
+				transaction_delta = int(FARM_SIMULATION.complete_harvest(cell, crop.to_sim_profile(), 0.0).get("yield", 0)) \
+						if crop != null else 0
+			if transaction_delta != 0 and not _transact_world_sim_stock(settlement_id, transaction_item, transaction_delta):
+				continue
+			var result := _apply_work_to_state(
+				state,
+				cell_key,
+				action,
+				contribution,
+				0.0,
+				int(cell.get("request_revision", -1))
+			)
+			if result.is_empty():
+				if transaction_delta != 0:
+					_transact_world_sim_stock(settlement_id, transaction_item, -transaction_delta)
+				continue
+			if reaches_completion and not bool(result.get("completed", false)):
+				if transaction_delta != 0:
+					_transact_world_sim_stock(settlement_id, transaction_item, -transaction_delta)
+				continue
+			if not free_maintenance:
+				remaining -= contribution
+				plot_spent_labor += contribution
+			changed = true
+			changed_cell_records[cell_key] = ((state.get("cells", {}) as Dictionary)[cell_key] as Dictionary).duplicate(true)
+			plot_changed_cells += 1
+			if transaction_delta != 0:
+				plot_transactions.append({"item": transaction_item, "delta": transaction_delta})
+			if bool(result.get("completed", false)):
+				plot_completed_actions += 1
+				if action == "plant":
+					plot_consumed_seeds += 1
+				elif action == "harvest":
+					plot_stored_produce += maxi(transaction_delta, 0)
+				completed_results.append(result)
+		if not changed:
+			continue
+		var saved: Dictionary = _gecs.call("upsert_farm_plot_cells", plot_id, changed_cell_records) \
+				if _gecs != null and _gecs.has_method("upsert_farm_plot_cells") \
+				else _save_plot(state, false)
+		if saved.is_empty():
+			for transaction_index in range(plot_transactions.size() - 1, -1, -1):
+				var transaction: Dictionary = plot_transactions[transaction_index]
+				_transact_world_sim_stock(settlement_id, transaction.get("item") as ItemDefinition, -int(transaction.get("delta", 0)))
+			remaining += plot_spent_labor
+			continue
+		summary["changed_cells"] = int(summary["changed_cells"]) + plot_changed_cells
+		summary["completed_actions"] = int(summary["completed_actions"]) + plot_completed_actions
+		summary["consumed_seeds"] = int(summary["consumed_seeds"]) + plot_consumed_seeds
+		summary["stored_produce"] = int(summary["stored_produce"]) + plot_stored_produce
+		var completed_cells: Dictionary = {}
+		for result in completed_results:
+			var completed_key := str(result.get("cell_key", ""))
+			if (saved.get("cells", {}) as Dictionary).has(completed_key):
+				completed_cells[completed_key] = ((saved.get("cells", {}) as Dictionary)[completed_key] as Dictionary).duplicate(true)
+			work_completed.emit(result)
+		if not completed_cells.is_empty():
+			plot_cells_changed.emit(plot_id, completed_cells, settlement_id)
+	summary["spent_labor_seconds"] = labor_seconds - remaining
+	summary["remaining_labor_seconds"] = remaining
+	return summary
+
+
+func _transact_world_sim_stock(settlement_id: String, definition: ItemDefinition, count_delta: int) -> bool:
+	return _inventory_stock != null and definition != null \
+			and _inventory_stock.has_method("transact_item_count") \
+			and bool(_inventory_stock.call("transact_item_count", settlement_id, definition, count_delta))
 
 
 func apply_work(plot_id: String, cell_key: String, action: String, seconds: float, farming_level := 0.0, expected_request_revision := -1) -> Dictionary:

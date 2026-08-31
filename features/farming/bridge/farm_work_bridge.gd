@@ -366,6 +366,20 @@ func cancel_work_for_actor(actor: Node) -> bool:
 	return true
 
 
+## Population LOD destroys the worker projection. Return town-owned borrowed
+## tools while both the actor and origin container still exist, then discard
+## only the volatile assignment.
+func prepare_actor_for_derealization(actor: Node) -> void:
+	if actor == null or not is_instance_valid(actor):
+		return
+	var actor_key := actor.get_instance_id()
+	if _borrowed_tools.has(actor_key):
+		_complete_tool_return(actor_key)
+		return
+	if _assignments.has(actor_key):
+		_cancel(actor_key)
+
+
 func assign_cell(plot_id: String, cell_key: String, actors: Array, automatic := false) -> String:
 	if _farm == null or _farm.get_cell_work(plot_id, cell_key).is_empty():
 		return "Cell work is no longer valid"
@@ -1346,6 +1360,16 @@ func resolve_auto_crop(state: Dictionary) -> String:
 
 
 func _reachable_seed_count(position: Vector3, seed_item, owner_faction_id: String, settlement_id: String) -> int:
+	# Crop policy belongs to durable world state, so it must continue resolving
+	# when every physical container projection is outside LOD. The settlement
+	# stock index is authoritative and O(1); live geometry remains relevant only
+	# when a projected worker chooses the exact store it will walk to below.
+	if _stock_controller != null and _stock_controller.has_method("get_settlement_stock_snapshot") and seed_item != null:
+		var stock: Dictionary = _stock_controller.call("get_settlement_stock_snapshot", settlement_id)
+		var item_id := str(seed_item.get("item_id")).strip_edges()
+		if item_id.is_empty():
+			item_id = str(seed_item.get("resource_path"))
+		return int((stock.get("items", {}) as Dictionary).get(item_id, 0))
 	var total := 0
 	for container_value in _seed_container_candidates(settlement_id):
 		var container := container_value as Node3D

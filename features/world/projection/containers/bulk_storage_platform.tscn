@@ -84,9 +84,12 @@ layer_rows = 3
 max_layers = 5
 
 [node name="BulkStoragePlatform" type="StaticBody3D"]
+collision_layer = 1
 script = ExtResource("1_platform")
 display_name = "Storage Platform"
 container_kind = "bulk_storage_platform"
+container_type = "food"
+contributes_to_town_stock = true
 inventory_columns = 6
 inventory_rows = 5
 supports_locking = false
@@ -102,6 +105,12 @@ display_profiles = Array[Resource]([SubResource("TomatoDisplayProfile"), SubReso
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 position = Vector3(0, 0.15, 0)
 shape = SubResource("PlatformCollision")
+
+[node name="NavigationObstacle3D" type="NavigationObstacle3D" parent="."]
+height = 2.0
+vertices = PackedVector3Array(-0.6, 0, -0.54, 0.6, 0, -0.54, 0.6, 0, 0.54, -0.6, 0, 0.54)
+avoidance_enabled = false
+affect_navigation_mesh = true
 
 [node name="ModelRoot" type="Node3D" parent="."]
 

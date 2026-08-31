@@ -1657,7 +1657,10 @@ static func appearance_from_record(record: Dictionary):
 
 func _equipment_slots_from_actor(actor: Node) -> Dictionary:
 	var slots := {}
-	var equipped = actor.get("equipped_items")
+	var equipment = actor.call("get_equipment") if actor.has_method("get_equipment") else null
+	var equipped = equipment.call("get_equipped_items") \
+			if equipment != null and equipment.has_method("get_equipped_items") \
+			else actor.get("equipped_items")
 	if equipped is Dictionary:
 		for slot in equipped.keys():
 			var path := _resource_path(equipped[slot])

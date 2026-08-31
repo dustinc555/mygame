@@ -221,6 +221,15 @@ func _validate_farm_bridge_tool_route(hoe: ItemDefinition, sword: ItemDefinition
 	_expect(store.inventory.count_item(hoe) == 1 and actor.inventory.count_item(hoe) == 0, "Tool return must restore the hoe to its origin chest exactly once")
 	_expect(actor.equipment.equipped == sword and actor.inventory.count_item(sword) == 0, "Tool return must restore the worker's exact prior equipment")
 	_expect(not (bridge.get("_borrowed_tools") as Dictionary).has(actor_key), "Completed return must close the loan contract")
+	farm.required_tool_tag = "tool.hoe"
+	var lod_result: String = bridge.call("_assign_cell_to_actor", actor, "farm:test", "0:0", true)
+	_expect(lod_result.is_empty() and store.inventory.count_item(hoe) == 0, "LOD cleanup fixture must begin with a checked-out town hoe")
+	_expect(bridge.has_method("prepare_actor_for_derealization"), "Farm provider must expose deterministic LOD cleanup")
+	if bridge.has_method("prepare_actor_for_derealization"):
+		bridge.call("prepare_actor_for_derealization", actor)
+	_expect(store.inventory.count_item(hoe) == 1 \
+			and not (bridge.get("_borrowed_tools") as Dictionary).has(actor_key) \
+			and not (bridge.get("_assignments") as Dictionary).has(actor_key), "LOD cleanup must return a borrowed town tool before the worker projection disappears")
 	BootstrapContext.active = null
 	for node in [stock_index, store, actor, bridge, farm]:
 		node.queue_free()

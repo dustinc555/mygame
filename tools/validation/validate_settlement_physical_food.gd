@@ -3,6 +3,8 @@ extends SceneTree
 const SAVE_PATH := "user://settlement_physical_food_validation.tres"
 const FOOD := preload("res://features/inventory/resources/items/food.tres")
 const BREAD := preload("res://features/inventory/resources/items/bread.tres")
+const EGGPLANT := preload("res://features/inventory/resources/items/eggplant.tres")
+const TOMATO_SEEDS := preload("res://features/inventory/resources/items/tomato_seeds.tres")
 
 var _failed := false
 var _stock_events := 0
@@ -78,6 +80,22 @@ func _run() -> void:
 	_expect(_stack_count(gecs, "depletion.a.stack.1") == 1, "depletion did not choose lowest container/stack id")
 	_expect(_stack_exists(gecs, "depletion.b.stack.1"), "depletion touched later eligible container")
 
+	_seed_test_container(stock, "routing", "routing.a_seeds", "", null, 0, "seeds", true)
+	_seed_test_container(stock, "routing", "routing.b_private", "", null, 0, "general", false)
+	_seed_test_container(stock, "routing", "routing.c_blocked_food", "", null, 0, "food", true, "bulk_storage_platform")
+	_seed_test_container(stock, "routing", "routing.d_general", "", null, 0, "general", true, "storage")
+	_seed_test_container(stock, "routing", "routing.z_food", "", null, 0, "food", true)
+	var blocked_record: Dictionary = (stock.get("_containers_by_id") as Dictionary).get("routing.c_blocked_food", {})
+	blocked_record["component"].storage_item_overrides = {"food.eggplant": false}
+	_expect(stock.transact_item_count("routing", EGGPLANT, 1), "produce routing transaction failed")
+	_expect(stock.transact_item_count("routing", TOMATO_SEEDS, 1), "seed routing transaction failed")
+	_expect(_container_item_count(stock, "routing.a_seeds", TOMATO_SEEDS) == 1 \
+			and _container_item_count(stock, "routing.a_seeds", EGGPLANT) == 0, "seed storage accepted harvested produce")
+	_expect(_container_item_count(stock, "routing.z_food", EGGPLANT) == 1, "harvested produce did not route to physical food storage")
+	_expect(_container_item_count(stock, "routing.c_blocked_food", EGGPLANT) == 0, "manifestation ignored the pallet's authored item filter")
+	_expect(_container_item_count(stock, "routing.d_general", EGGPLANT) == 0, "general storage manifested food without the authored Food type")
+	_expect(_container_item_count(stock, "routing.b_private", EGGPLANT) == 0, "settlement transaction used storage excluded from town stock")
+
 	population.counts["surf_city"] = 200
 	food.refresh_status("surf_city")
 	var low_status: Dictionary = food.get_status("surf_city")
@@ -104,7 +122,7 @@ func _run() -> void:
 	quit(1 if _failed else 0)
 
 
-func _seed_test_container(stock: Node, settlement_id: String, container_id: String, stack_id: String, item: ItemDefinition, count: int) -> void:
+func _seed_test_container(stock: Node, settlement_id: String, container_id: String, stack_id: String, item: ItemDefinition, count: int, container_type := "general", contributes_to_town_stock := true, container_kind := "granary") -> void:
 	var seed_script = load("res://features/world_sim/resources/settlement_storage_seed.gd")
 	var stack_script = load("res://features/world_sim/resources/settlement_storage_stack_seed.gd")
 	var stack = stack_script.new()
@@ -114,11 +132,20 @@ func _seed_test_container(stock: Node, settlement_id: String, container_id: Stri
 	var seed = seed_script.new()
 	seed.container_id = container_id
 	seed.facility_id = container_id
+	seed.container_kind = container_kind
+	seed.container_type = container_type
+	seed.contributes_to_town_stock = contributes_to_town_stock
 	seed.columns = 10
 	seed.rows = 10
-	var stacks: Array[Resource] = [stack]
+	var stacks: Array[Resource] = []
+	if item != null and count > 0:
+		stacks.append(stack)
 	seed.stacks = stacks
 	_expect(stock.ensure_seeded_container(settlement_id, seed), "test container seed failed: %s" % container_id)
+
+
+func _container_item_count(stock: Node, container_id: String, item: ItemDefinition) -> int:
+	return int((stock.call("_inventory_from_gecs", container_id) as InventoryData).count_item(item))
 
 
 func _container_exists(gecs: Node, container_id: String) -> bool:

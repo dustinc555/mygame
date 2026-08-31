@@ -9,6 +9,7 @@ class SyntheticCraftingProvider:
 	signal work_offers_changed(settlement_id: String)
 	var offer_enabled := true
 	var active_actor: Node
+	var derealization_prepared := false
 	func get_available_work_offers(settlement_id := "") -> Array:
 		if not offer_enabled or (not settlement_id.is_empty() and settlement_id != "granary_demo"):
 			return []
@@ -31,6 +32,9 @@ class SyntheticCraftingProvider:
 			return false
 		active_actor = null
 		return true
+	func prepare_actor_for_derealization(actor: Node) -> void:
+		derealization_prepared = true
+		cancel_work_for_actor(actor)
 	func clear_work() -> void:
 		offer_enabled = false
 		active_actor = null
@@ -104,8 +108,6 @@ func _run() -> void:
 	context.get_optional(&"world_time").advance_hours(2.0)
 	jobs._process_party_job_dispatch()
 	_expect(synthetic.active_actor == worker and worker.has_meta(&"active_facility_duty"), "assignment work is active before removal")
-	jobs.cancel_work_for_actor(worker)
-	synthetic.active_actor = null
 	jobs._pending_assignment_actor_ids.clear()
 	jobs._pending_assignment_actor_order.clear()
 	jobs._pending_assignment_actor_head = 0
@@ -115,6 +117,7 @@ func _run() -> void:
 	settlements.derealize_assignment_slot("granary_demo", str(worker_slot.get("assignment_domain", "employment")), str(worker_slot.get("slot_id", "")))
 	await process_frame
 	await process_frame
+	_expect(synthetic.derealization_prepared and synthetic.active_actor == null, "assignment LOD asks providers to finish volatile work before freeing the worker")
 	_expect(settlements.realize_assignment_slot("granary_demo", str(worker_slot.get("assignment_domain", "employment")), str(worker_slot.get("slot_id", ""))), "assignment worker re-realizes after an LOD round trip")
 	await process_frame
 	worker = context.get_optional(&"population").get_live_actor("granary_worker")

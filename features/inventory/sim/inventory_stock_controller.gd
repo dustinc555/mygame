@@ -228,7 +228,10 @@ func ensure_seeded_container(settlement_id: String, seed: Resource) -> bool:
 	component.settlement_id = settlement_id
 	component.facility_id = str(seed.get("facility_id"))
 	component.container_kind = str(seed.get("container_kind"))
-	component.container_type = str(seed.get("container_type")) if _has_property(seed, "container_type") else "general"
+	var seeded_type := str(seed.get("container_type")) if _has_property(seed, "container_type") else "general"
+	if seeded_type.is_empty() or seeded_type == "general":
+		seeded_type = str({"granary": "food", "farm_seed": "seeds", "seed_processing": "seeds", "tool_store": "tools"}.get(component.container_kind, "general"))
+	component.container_type = seeded_type
 	component.allowed_item_ids = PackedStringArray(seed.get("allowed_item_ids")) if _has_property(seed, "allowed_item_ids") else PackedStringArray()
 	component.contributes_to_town_stock = bool(seed.get("contributes_to_town_stock"))
 	component.columns = int(seed.get("columns"))
@@ -329,6 +332,8 @@ func add_item_counts(settlement_id: String, item_counts: Dictionary, facility_id
 		if definition == null or remaining <= 0:
 			continue
 		for container_id in container_ids:
+			if not _container_accepts_definition(container_id, definition):
+				continue
 			var inventory: InventoryData = plans.get(container_id, _inventory_from_gecs(container_id))
 			var accepted := _maximum_add_count(inventory, definition, remaining)
 			if accepted <= 0:
@@ -377,6 +382,8 @@ func transact_item_count(settlement_id: String, definition: ItemDefinition, coun
 	if count_delta > 0:
 		var remaining_to_add := count_delta
 		for container_id in container_ids:
+			if not _container_accepts_definition(container_id, definition):
+				continue
 			var inventory := _inventory_from_gecs(container_id)
 			var accepted := _maximum_add_count(inventory, definition, remaining_to_add)
 			if accepted <= 0:
@@ -551,10 +558,48 @@ func _eligible_container_ids(settlement_id: String, facility_id: String) -> Arra
 	for container_id_value in (source as Dictionary).keys():
 		var container_id := str(container_id_value)
 		var record := _containers_by_id.get(container_id, {}) as Dictionary
-		if not record.is_empty() and bool(record["component"].accepts_input) and str(record["component"].settlement_id) == settlement_id:
+		if not record.is_empty() and bool(record["component"].accepts_input) \
+				and bool(record["component"].contributes_to_town_stock) \
+				and str(record["component"].settlement_id) == settlement_id:
 			result.append(container_id)
 	result.sort()
 	return result
+
+
+func _container_accepts_definition(container_id: String, definition: ItemDefinition) -> bool:
+	var record := _containers_by_id.get(container_id, {}) as Dictionary
+	if record.is_empty() or definition == null:
+		return false
+	var component = record.get("component")
+	if component == null:
+		return false
+	var item_id := _item_id(definition)
+	var allowed := PackedStringArray(component.allowed_item_ids)
+	if not allowed.is_empty() and not allowed.has(item_id) and not allowed.has(definition.resource_path):
+		return false
+	var required_type := "general"
+	if item_id.begins_with("seed."):
+		required_type = "seeds"
+	elif item_id.begins_with("tool.") or definition.has_any_tool_tag():
+		required_type = "tools"
+	elif item_id.begins_with("food.") or not definition.food_type_id.is_empty():
+		required_type = "food"
+	elif item_id.begins_with("material.") or item_id.begins_with("ore."):
+		required_type = "materials"
+	if str(component.container_type) != required_type:
+		return false
+	if str(component.container_kind) != "bulk_storage_platform":
+		return true
+	var overrides := component.storage_item_overrides as Dictionary
+	if overrides.has(item_id):
+		return bool(overrides[item_id])
+	if overrides.has(definition.resource_path):
+		return bool(overrides[definition.resource_path])
+	if item_id.begins_with("food.") or not definition.food_type_id.is_empty():
+		return bool(component.storage_allow_food)
+	if item_id.begins_with("material.") or item_id.begins_with("ore."):
+		return bool(component.storage_allow_materials)
+	return false
 
 
 func _hydrate_live_projection(container_id: String) -> void:

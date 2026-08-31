@@ -15,16 +15,23 @@ func query() -> QueryBuilder:
 
 
 func process(entities: Array, components: Array, delta: float) -> void:
-	var commands: Array = components[0]
+	# Resolving a command removes its entity from the archetype immediately.
+	# Snapshot the live component column alongside System's entity snapshot so
+	# concurrent completions cannot shift indices underneath this fixed-step loop.
+	var commands: Array = (components[0] as Array).duplicate()
 	if commands.is_empty() or controller == null:
 		return
+	var command_count := mini(entities.size(), commands.size())
 	_fixed_accumulator = minf(_fixed_accumulator + maxf(delta, 0.0), FIXED_DOOR_TICK_SECONDS * float(MAX_FIXED_STEPS_PER_FRAME))
 	var steps := 0
 	while _fixed_accumulator >= FIXED_DOOR_TICK_SECONDS and steps < MAX_FIXED_STEPS_PER_FRAME:
-		for index in range(commands.size()):
+		for index in range(command_count):
+			var entity = entities[index]
+			if entity == null or not is_instance_valid(entity):
+				continue
 			var command = commands[index]
 			if command != null:
-				_tick_command(entities[index], command, FIXED_DOOR_TICK_SECONDS)
+				_tick_command(entity, command, FIXED_DOOR_TICK_SECONDS)
 		_fixed_accumulator -= FIXED_DOOR_TICK_SECONDS
 		steps += 1
 

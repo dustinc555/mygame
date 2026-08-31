@@ -39,8 +39,21 @@ func _run() -> void:
 		_fail("Granary rules must live at furnishing/<function_id>.tres to resolve from the dock")
 	if rules.pallet_scenes.is_empty():
 		_fail("Granary rules author no pallet scenes")
+	else:
+		var pallet := (rules.pallet_scenes[0] as PackedScene).instantiate()
+		if str(pallet.get("container_type")) != "food" or not bool(pallet.get("contributes_to_town_stock")):
+			_fail("A hand-placed storage pallet must default to authoritative Food storage")
+		var nav_obstacle := pallet.get_node_or_null("NavigationObstacle3D") as NavigationObstacle3D
+		if not (pallet is CollisionObject3D) or int((pallet as CollisionObject3D).collision_layer) != 1 \
+				or nav_obstacle == null or not nav_obstacle.affect_navigation_mesh:
+			_fail("Storage pallet must physically collide and author a baked navigation obstruction")
+		pallet.free()
 	if int(rules.min_pallets) < 1:
 		_fail("A granary that furnishes with no pallet is non-functional; min_pallets must be >= 1")
+	var facility_tools_source := FileAccess.get_file_as_string("res://addons/world_authoring/facility_tools.gd")
+	var hand_place_body := facility_tools_source.get_slice("func _place_furniture_piece", 1).get_slice("func _on_field_painted", 0)
+	if not hand_place_body.contains("_stamp_furniture_ids(node, facility)"):
+		_fail("Hand-placed container furniture is not stamped into its facility/settlement")
 	var big := await _furnish_shell(BIG_SHELL_PATH, furnisher_script, rules, 1)
 	var big_again := await _furnish_shell(BIG_SHELL_PATH, furnisher_script, rules, 1)
 	var small := await _furnish_shell(SMALL_SHELL_PATH, furnisher_script, rules, 1)
@@ -100,6 +113,8 @@ func _validate_pallets(placements: Array, label: String, minimum: int) -> void:
 		var origin: Vector3 = (pallet["transform"] as Transform3D).origin
 		if absf(origin.y) > 0.01:
 			_fail("%s: pallet floats off the floor plane at y=%f" % [label, origin.y])
+		if str(pallet.get("container_type", "")) != "food":
+			_fail("%s: furnished granary pallet must be stamped as Food storage" % label)
 	# A granary is a store room, not a bunk house.
 	if not placements.filter(func(p): return p["kind"] == "bed").is_empty():
 		_fail("%s: granary furnished a bed" % label)
