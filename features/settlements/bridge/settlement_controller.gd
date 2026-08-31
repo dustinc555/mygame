@@ -287,6 +287,20 @@ func get_all_settlement_states() -> Array[Dictionary]:
 	return states
 
 
+## Narrow cached snapshots for coarse world simulation. This deliberately omits
+## facilities, events, borders, and every other settlement payload that farm
+## labor does not consume.
+func get_world_sim_labor_snapshots() -> Array[Dictionary]:
+	var snapshots: Array[Dictionary] = []
+	for settlement_id_value in settlement_states.keys():
+		var state: Dictionary = settlement_states[settlement_id_value]
+		snapshots.append({
+			"settlement_id": str(settlement_id_value),
+			"assignment_slots": (state.get("assignment_slots", {}) as Dictionary).duplicate(true),
+		})
+	return snapshots
+
+
 func set_settlement_owner(settlement_id: String, faction_id: String, reason := "manual") -> Dictionary:
 	if settlement_id.is_empty() or not settlement_states.has(settlement_id):
 		return {}
@@ -1039,6 +1053,9 @@ func derealize_assignment_slot(settlement_id: String, assignment_domain: String,
 		return
 	if actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member")):
 		return
+	var jobs := _context.get_optional(&"job_system") if _context != null else null
+	if jobs != null and jobs.has_method("prepare_actor_for_derealization"):
+		jobs.call("prepare_actor_for_derealization", actor)
 	if pop.has_method("unregister_actor"):
 		pop.call("unregister_actor", actor)
 	actor.queue_free()

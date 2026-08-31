@@ -400,6 +400,7 @@ func _place_furniture_piece(facility: Node, world_transform: Transform3D) -> voi
 		undo_redo.add_do_reference(furniture_root)
 	var node := furniture_scene.instantiate() as Node3D
 	node.name = _unique_child_name(furniture_root, scene_path.get_file().get_basename().to_pascal_case())
+	_stamp_furniture_ids(node, facility)
 	undo_redo.add_do_method(furniture_root, "add_child", node)
 	undo_redo.add_do_method(node, "set_owner", owner_root)
 	undo_redo.add_do_property(node, "global_transform", world_transform)

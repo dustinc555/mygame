@@ -193,7 +193,10 @@ func _daily_production(definition: SettlementDefinition, state: Dictionary) -> f
 func _production_outputs(definition: SettlementDefinition, state: Dictionary) -> Array:
 	var outputs: Array = []
 	var profile := definition.get_behavior_profile() as SettlementBehaviorProfile
-	if profile != null:
+	var settlement_id := str(state.get("settlement_id", definition.settlement_id))
+	var physical_farming := _gecs != null and _gecs.has_method("has_active_farm_plot_for_settlement") \
+			and bool(_gecs.call("has_active_farm_plot_for_settlement", settlement_id))
+	if profile != null and not physical_farming:
 		outputs.append_array(Array(profile.get("food_outputs_per_day")))
 	for record in (state.get("facilities", {}) as Dictionary).values():
 		if record is Dictionary and bool(record.get("enabled", true)):

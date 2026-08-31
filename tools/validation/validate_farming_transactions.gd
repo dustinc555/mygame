@@ -47,6 +47,8 @@ class FakeFarm:
 		}
 	func get_crop(_crop_id: String):
 		return TOMATO_CROP
+	func get_crops() -> Array:
+		return [TOMATO_CROP]
 	func can_actor_command_plot(_actor: Node, _plot_id: String) -> bool:
 		return allow_commands
 	func cancel_cell_operation(_plot_id: String, _cell_key: String, _revision: int, _actor_id: String) -> Dictionary:
@@ -119,6 +121,11 @@ class FakeProcessor:
 	func get_interaction_position(_actor: Node) -> Vector3:
 		return global_position
 
+class FakeStockController:
+	extends Node
+	func get_settlement_stock_snapshot(_settlement_id: String) -> Dictionary:
+		return {"items": {"seed.tomato": 12}}
+
 var failures: Array[String] = []
 var last_delta_upserts: Array = []
 
@@ -138,6 +145,9 @@ func _run() -> void:
 	root.add_child(bridge)
 	bridge.work_offer_delta.connect(_on_work_offer_delta)
 	bridge._farm = farm
+	var stock_controller := FakeStockController.new()
+	root.add_child(stock_controller)
+	bridge._stock_controller = stock_controller
 	var actor := FakeActor.new()
 	actor.carried = INVENTORY.new(2, 1, 0.0, false)
 	actor.carried.add_item_count(TOMATO_SEEDS, 1)
@@ -275,6 +285,7 @@ func _run() -> void:
 	source_inventory.add_item_count(TOMATO_SEEDS, 1)
 	var transferred := bool(source_inventory.call("transfer_item_count_to", TOMATO_SEEDS, 1, target_inventory)) if source_inventory.has_method("transfer_item_count_to") else false
 	_expect(transferred and source_inventory.count_item(TOMATO_SEEDS) == 0 and target_inventory.count_item(TOMATO_SEEDS) == 1, "seed fetch transfers between inventories atomically")
+	_expect(bridge.resolve_auto_crop({"settlement_id": "settlement:test"}) == "tomato", "auto crop policy resolves from durable settlement seed stock while every container projection is unloaded")
 
 	var lod_actor := FakeActor.new()
 	root.add_child(lod_actor)
@@ -293,6 +304,7 @@ func _run() -> void:
 	limited_actor.free()
 	store.free()
 	processor.free()
+	stock_controller.free()
 	bridge.free()
 	farm.free()
 	_finish()

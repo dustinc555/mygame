@@ -418,9 +418,16 @@ func _on_world_hour_changed(_absolute_hour: int, _day_index: int, hour: int) -> 
 		if state.scheduled_actor_id.is_empty():
 			# No keeper to perform the ceremony: the building flips its own
 			# lock state at the hour.
-			if opens and state.is_locked:
-				state.is_locked = false
-				_commit_state_change(state)
+			if opens:
+				var changed := false
+				if state.is_locked:
+					state.is_locked = false
+					changed = true
+				if state.kept_open and not state.is_open:
+					state.is_open = true
+					changed = true
+				if changed:
+					_commit_state_change(state)
 			elif closes and (state.is_open or not state.is_locked):
 				state.is_open = false
 				state.is_locked = true

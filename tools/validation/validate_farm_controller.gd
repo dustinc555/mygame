@@ -10,6 +10,7 @@ class FakeGecs:
 	var full_state_writes := 0
 	var cell_state_reads := 0
 	var cell_state_writes := 0
+	var fail_cell_writes := false
 	func upsert_farm_plot_state(state: Dictionary) -> Dictionary:
 		full_state_writes += 1
 		states[str(state.get("plot_id", ""))] = state.duplicate(true)
@@ -33,6 +34,8 @@ class FakeGecs:
 		return get_farm_plot_header_state(plot_id).merged({"cell_key": cell_key, "cell": (state["cells"][cell_key] as Dictionary).duplicate(true)}, true)
 	func upsert_farm_plot_cells(plot_id: String, changed_cells: Dictionary) -> Dictionary:
 		cell_state_writes += 1
+		if fail_cell_writes:
+			return {}
 		var state: Dictionary = states.get(plot_id, {})
 		var cells: Dictionary = state.get("cells", {})
 		for key in changed_cells: cells[key] = (changed_cells[key] as Dictionary).duplicate(true)
@@ -52,6 +55,20 @@ class FakeTime:
 	var absolute_minute := 0
 	func get_absolute_minute() -> int:
 		return absolute_minute
+
+class FakeStock:
+	extends Node
+	var counts := {"seed.tomato": 1}
+	var reject_additions := false
+	func transact_item_count(_settlement_id: String, definition: ItemDefinition, count_delta: int, _facility_id := "") -> bool:
+		if reject_additions and count_delta > 0:
+			return false
+		var item_id := definition.item_id if not definition.item_id.is_empty() else definition.resource_path
+		var next := int(counts.get(item_id, 0)) + count_delta
+		if next < 0:
+			return false
+		counts[item_id] = next
+		return true
 
 class FakeTerritory:
 	extends Node
@@ -102,9 +119,11 @@ func _init() -> void:
 	var gecs := FakeGecs.new()
 	var time := FakeTime.new()
 	var territory := FakeTerritory.new()
+	var stock := FakeStock.new()
 	root.add_child(gecs)
 	root.add_child(time)
 	root.add_child(territory)
+	root.add_child(stock)
 	root.add_child(controller)
 	controller.plot_changed.connect(_on_plot_changed)
 	_expect(controller.has_signal("plot_cells_changed"), "FarmController exposes batched cell completion deltas")
@@ -113,6 +132,7 @@ func _init() -> void:
 	controller._gecs = gecs
 	controller._world_time = time
 	controller._territory = territory
+	controller._inventory_stock = stock
 	for crop_id in controller.CROP_PATHS:
 		controller._crops[crop_id] = load(controller.CROP_PATHS[crop_id])
 	var positions: Array[Vector3] = [Vector3.ZERO, Vector3(1.25, 0, 0)]
@@ -143,6 +163,61 @@ func _init() -> void:
 	controller.request_cell_operation(str(plot.plot_id), "0:0", "till")
 	var work: Dictionary = controller.get_next_work(str(plot.plot_id))
 	_expect(str(work.get("action", "")) == "till" and str(work.get("cell_key", "")) == "0:0", "individual till exposes only its requested cell")
+	var world_positions: Array[Vector3] = [Vector3(20.0, 0.0, 20.0)]
+	var world_plot: Dictionary = controller.create_plot(world_positions, Vector2i.ONE, "", "Player", "world_town")
+	controller.request_cell_operation(str(world_plot.get("plot_id", "")), "0:0", "till")
+	_expect(controller.has_method("advance_world_sim_work"), "FarmController exposes one aggregate world-sim labor entry point")
+	if controller.has_method("advance_world_sim_work"):
+		var world_summary: Dictionary = controller.call("advance_world_sim_work", "world_town", 60.0)
+		var world_cell: Dictionary = controller.get_cell(str(world_plot.get("plot_id", "")), "0:0")
+		_expect(str(world_cell.get("state", "")) == "tilled" and int(world_summary.get("completed_actions", 0)) == 1, "aggregate labor completes exact durable farm cells")
+	var reserved_positions: Array[Vector3] = [Vector3(30.0, 0.0, 30.0)]
+	var reserved_plot: Dictionary = controller.create_plot(reserved_positions, Vector2i.ONE, "", "Player", "world_town")
+	controller.request_cell_operation(str(reserved_plot.get("plot_id", "")), "0:0", "till", "", PackedStringArray(["selected.actor"]))
+	var reserved_before: Dictionary = controller.get_cell(str(reserved_plot.get("plot_id", "")), "0:0")
+	if controller.has_method("advance_world_sim_work"):
+		controller.call("advance_world_sim_work", "world_town", 60.0)
+		_expect(controller.get_cell(str(reserved_plot.get("plot_id", "")), "0:0") == reserved_before, "world sim never mutates actor-reserved manual work")
+	controller.remove_plot(str(world_plot.get("plot_id", "")))
+	controller.remove_plot(str(reserved_plot.get("plot_id", "")))
+	var maintenance_positions: Array[Vector3] = [Vector3(35.0, 0.0, 35.0), Vector3(36.25, 0.0, 35.0), Vector3(37.5, 0.0, 35.0)]
+	var maintenance_plot: Dictionary = controller.create_plot(maintenance_positions, Vector2i(3, 1), "tomato", "Player", "world_town")
+	var maintenance_state: Dictionary = controller.get_plot(str(maintenance_plot.get("plot_id", "")))
+	for cell_key in ["0:0", "1:0"]:
+		maintenance_state["cells"][cell_key] = controller.FARM_SIMULATION.complete_planting(
+			controller.FARM_SIMULATION.complete_tilling(maintenance_state["cells"][cell_key]),
+			"tomato",
+			0.0
+		)
+	controller.call("_save_plot", maintenance_state)
+	controller.request_cell_operation(str(maintenance_plot.get("plot_id", "")), "0:0", "water")
+	controller.request_cell_operation(str(maintenance_plot.get("plot_id", "")), "1:0", "water")
+	controller.request_cell_operation(str(maintenance_plot.get("plot_id", "")), "2:0", "till")
+	var maintenance_summary: Dictionary = controller.advance_world_sim_work("world_town", 4.0)
+	_expect(float(controller.get_cell(str(maintenance_plot.get("plot_id", "")), "0:0").get("water", 0.0)) > 0.0 \
+			and float(controller.get_cell(str(maintenance_plot.get("plot_id", "")), "1:0").get("water", 0.0)) > 0.0, "off-screen watering instantly maintains every thirsty crop")
+	_expect(str(controller.get_cell(str(maintenance_plot.get("plot_id", "")), "2:0").get("state", "")) == "tilled" \
+			and is_equal_approx(float(maintenance_summary.get("spent_labor_seconds", 0.0)), 4.0), "off-screen watering spends no labor needed for field development")
+	controller.remove_plot(str(maintenance_plot.get("plot_id", "")))
+	var stock_positions: Array[Vector3] = [Vector3(40.0, 0.0, 40.0)]
+	var stock_plot: Dictionary = controller.create_plot(stock_positions, Vector2i.ONE, "tomato", "Player", "world_town")
+	controller.request_cell_operation(str(stock_plot.get("plot_id", "")), "0:0", "till")
+	controller.advance_world_sim_work("world_town", 60.0)
+	controller.advance_world_sim_work("world_town", 60.0)
+	_expect(str(controller.get_cell(str(stock_plot.get("plot_id", "")), "0:0").get("state", "")) == "growing" and int(stock.counts.get("seed.tomato", 0)) == 0, "world-sim planting consumes durable seed stock exactly once")
+	controller.debug_crop_action_at(stock_positions[0], true)
+	controller.request_cell_operation(str(stock_plot.get("plot_id", "")), "0:0", "harvest")
+	stock.reject_additions = true
+	controller.advance_world_sim_work("world_town", 60.0)
+	_expect(str(controller.get_cell(str(stock_plot.get("plot_id", "")), "0:0").get("state", "")) == "ripe" and int(stock.counts.get("food.tomato", 0)) == 0, "world-sim harvest preserves the ripe crop when durable storage is full")
+	stock.reject_additions = false
+	gecs.fail_cell_writes = true
+	var failed_commit_summary: Dictionary = controller.advance_world_sim_work("world_town", 60.0)
+	_expect(str(controller.get_cell(str(stock_plot.get("plot_id", "")), "0:0").get("state", "")) == "ripe" and int(stock.counts.get("food.tomato", 0)) == 0 and int(failed_commit_summary.get("completed_actions", 0)) == 0, "failed farm persistence rolls back world-sim produce and reports no completion")
+	gecs.fail_cell_writes = false
+	controller.advance_world_sim_work("world_town", 60.0)
+	_expect(str(controller.get_cell(str(stock_plot.get("plot_id", "")), "0:0").get("state", "")) == "tilled" and int(stock.counts.get("food.tomato", 0)) > 0, "world-sim harvesting deposits durable produce before clearing the crop")
+	controller.remove_plot(str(stock_plot.get("plot_id", "")))
 	plot_change_count = 0
 	cell_change_count = 0
 	gecs.full_state_writes = 0
@@ -435,6 +510,8 @@ func _init() -> void:
 	controller.free()
 	gecs.free()
 	time.free()
+	territory.free()
+	stock.free()
 	_finish()
 
 

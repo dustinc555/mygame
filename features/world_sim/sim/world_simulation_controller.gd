@@ -17,6 +17,7 @@ var actor_query_controller: ActorQueryController
 var gecs_world_controller: GecsWorldController
 var population_realization_controller: PopulationRealizationController
 var ledger_simulation_controller: LedgerSimulationController
+var farm_world_simulation_controller: Node
 var faction_controller: FactionController
 var law_order_controller: LawOrderController
 var world_event_choice_controller: WorldEventChoiceController
@@ -110,6 +111,8 @@ func perform_world_sim_debug_action(action_key: String) -> String:
 			return _format_population_summary()
 		"ledger_summary":
 			return _format_ledger_summary()
+		"farm_summary":
+			return _format_farm_summary()
 		"actor_ai":
 			return _format_actor_ai(parts[1] if parts.size() > 1 else "")
 		_:
@@ -196,6 +199,7 @@ func _try_initialize() -> void:
 	gecs_world_controller = _context.get_optional(GecsWorldController.SERVICE_ID)
 	population_realization_controller = _context.get_optional(PopulationRealizationController.SERVICE_ID)
 	ledger_simulation_controller = _context.get_optional(LedgerSimulationController.SERVICE_ID)
+	farm_world_simulation_controller = _context.get_optional(&"farm_world_simulation")
 	faction_controller = _context.get_optional(FactionController.SERVICE_ID)
 	law_order_controller = _context.get_optional(LawOrderController.SERVICE_ID)
 	world_event_choice_controller = _context.get_optional(WorldEventChoiceController.SERVICE_ID)
@@ -294,6 +298,22 @@ func _format_ledger_summary() -> String:
 		int(summary.get("elapsed_minutes", 0)),
 		int(summary.get("updated_actor_count", 0)),
 		str(summary.get("batches", {})),
+	]
+
+
+func _format_farm_summary() -> String:
+	if farm_world_simulation_controller == null:
+		return "Farm world simulation controller is not available"
+	var summary: Dictionary = farm_world_simulation_controller.call("get_last_summary")
+	return "Farm world sim elapsed=%d eligible=%d advanced=%d farmers=%d actions=%d cells=%d seeds=%d produce=%d" % [
+		int(summary.get("elapsed_world_minutes", 0)),
+		int(summary.get("eligible_settlements", 0)),
+		int(summary.get("advanced_settlements", 0)),
+		int(summary.get("assigned_farmers", 0)),
+		int(summary.get("completed_actions", 0)),
+		int(summary.get("changed_cells", 0)),
+		int(summary.get("consumed_seeds", 0)),
+		int(summary.get("stored_produce", 0)),
 	]
 
 

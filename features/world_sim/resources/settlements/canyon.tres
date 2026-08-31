@@ -2,21 +2,6 @@
 
 [ext_resource type="Resource" uid="uid://bdqbw1l1nr1rw" path="res://features/factions/resources/factions/canyonites.tres" id="1_0cjtd"]
 [ext_resource type="Script" uid="uid://di0ofuc41m0a8" path="res://features/world_sim/resources/settlement_definition.gd" id="1_47tud"]
-[ext_resource type="Script" uid="uid://bq8faoetmfpb7" path="res://features/world_sim/resources/settlement_storage_seed.gd" id="2_seed"]
-[ext_resource type="Script" uid="uid://dn6hi2dfhg5ub" path="res://features/world_sim/resources/settlement_storage_stack_seed.gd" id="3_stack"]
-[ext_resource type="Resource" uid="uid://y2dcron3ak5a" path="res://features/inventory/resources/items/bread.tres" id="4_bread"]
-
-[sub_resource type="Resource" id="Stack_bread"]
-script = ExtResource("3_stack")
-stack_id = "canyon.granary.stack.1"
-item = ExtResource("4_bread")
-
-[sub_resource type="Resource" id="Seed_granary"]
-script = ExtResource("2_seed")
-container_id = "canyon.granary"
-facility_id = "canyon.granary"
-allowed_item_ids = null
-stacks = Array[Resource]([SubResource("Stack_bread")])
 
 [resource]
 script = ExtResource("1_47tud")
@@ -24,6 +9,5 @@ settlement_id = "canyon"
 display_name = "Canyon"
 faction_definition = ExtResource("1_0cjtd")
 world_position = Vector3(-2.5942535, -0.007736206, -313.2602)
-storage_seeds = Array[Resource]([SubResource("Seed_granary")])
 known_settlement_ids = PackedStringArray()
 starting_supplies = 2.5

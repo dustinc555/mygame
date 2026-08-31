@@ -224,6 +224,20 @@ func cancel_work_for_actor(actor: Node) -> void:
 			provider.call("cancel_work_for_actor", actor)
 
 
+## LOD teardown is stronger than ordinary cancellation: providers may need to
+## settle projection-owned resources before the actor node is serialized/freed.
+func prepare_actor_for_derealization(actor: Node) -> void:
+	if actor == null or not is_instance_valid(actor):
+		return
+	for provider in _job_providers:
+		if not is_instance_valid(provider):
+			continue
+		if provider.has_method("prepare_actor_for_derealization"):
+			provider.call("prepare_actor_for_derealization", actor)
+		elif provider.has_method("cancel_work_for_actor"):
+			provider.call("cancel_work_for_actor", actor)
+
+
 func dispatch_actor_work_for_assignment(actor: Node, settlement_id: String, allowed_entry_ids: PackedStringArray = PackedStringArray(), before_accept := Callable(), available_offers = null, settlement_states = null, offer_scope_cache = null) -> bool:
 	if actor == null or not is_instance_valid(actor) or settlement_id.is_empty() or is_actor_work_busy(actor):
 		return false

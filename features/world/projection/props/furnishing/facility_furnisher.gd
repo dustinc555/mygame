@@ -610,6 +610,8 @@ func _place_pallets(anchors: Array[Dictionary], rules: FurnishRules, rng: Random
 			layout = "wall_line"
 	if layout == "wall_line":
 		placements = _place_pallet_wall_line(anchors, rules, rng, footprints, span, existing)
+	for placement in placements:
+		placement["container_type"] = rules.container_type
 	_assign_pallet_items(placements, rules)
 	return placements
 

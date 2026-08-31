@@ -1228,6 +1228,19 @@ func get_farm_plot_state(plot_id: String) -> Dictionary:
 	return component.to_state() if component != null else {}
 
 
+func has_active_farm_plot_for_settlement(settlement_id: String) -> bool:
+	if settlement_id.is_empty():
+		return false
+	for entity in _farm_plot_entity_by_id.values():
+		if entity == null or not is_instance_valid(entity):
+			continue
+		var component = entity.get_component(C_FARM_PLOT_STATE)
+		if component != null and str(component.settlement_id) == settlement_id \
+				and not bool(component.field_deleted) and not component.cells.is_empty():
+			return true
+	return false
+
+
 func get_farm_plot_header_state(plot_id: String) -> Dictionary:
 	var component = _farm_plot_component(plot_id)
 	if component == null:

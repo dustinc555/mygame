@@ -4,7 +4,7 @@ extends RefCounted
 ##
 ## Sim: the durable world-simulation systems that advance far/off-camera state --
 ## the simulation aggregate, population, territory, roads, world events,
-## squads, encounters, and the O(1) ledger (faction identity/diplomacy lives
+## squads, encounters, off-screen farm labor, and the O(1) ledger (faction identity/diplomacy lives
 ## in features/factions). Bridge: the world status surface and
 ## the realization controller that decides which records become live bodies.
 ##
@@ -21,6 +21,7 @@ const WORLD_SIM_SQUAD := preload("res://features/world_sim/sim/world_sim_squad_c
 const FACTION_WORLD_SIM := preload("res://features/world_sim/sim/faction_world_sim_controller.gd")
 const ENCOUNTER := preload("res://features/world_sim/sim/encounter_controller.gd")
 const LEDGER_SIMULATION := preload("res://features/world_sim/sim/ledger_simulation_controller.gd")
+const FARM_WORLD_SIMULATION := preload("res://features/world_sim/sim/farm_world_simulation_controller.gd")
 const WORLD_STATUS := preload("res://features/world_sim/bridge/world_status_controller.gd")
 const POPULATION_REALIZATION := preload("res://features/world_sim/bridge/population_realization_controller.gd")
 
@@ -38,6 +39,7 @@ const SIM := [
 	{"name": "FactionWorldSimController", "script": FACTION_WORLD_SIM, "service": FACTION_WORLD_SIM.SERVICE_ID},
 	{"name": "EncounterController", "script": ENCOUNTER, "service": ENCOUNTER.SERVICE_ID},
 	{"name": "LedgerSimulationController", "script": LEDGER_SIMULATION, "service": LEDGER_SIMULATION.SERVICE_ID},
+	{"name": "FarmWorldSimulationController", "script": FARM_WORLD_SIMULATION, "service": FARM_WORLD_SIMULATION.SERVICE_ID},
 ]
 const BRIDGE := [
 	{"name": "WorldStatusController", "script": WORLD_STATUS, "service": WORLD_STATUS.SERVICE_ID},
