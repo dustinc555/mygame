@@ -413,7 +413,7 @@ func _start_tile_bake(coord: Vector2i) -> void:
 	_tiles[coord]["state"] = TileState.BAKING
 	# Duplicate parsed geometry on the main thread; worker tasks must not
 	# share one mutable resource.
-	var geometry: NavigationMeshSourceGeometryData3D = _scene_geometry.duplicate()
+	var geometry := _copy_scene_geometry()
 	var task_id := WorkerThreadPool.add_task(
 		_task_bake_tile.bind(coord, _terrains.duplicate(), geometry),
 		false, "WorldNavigationTile")
@@ -489,11 +489,20 @@ func _cache_dir() -> String:
 ## --- FULL_SCENE mode (test levels without terrain) ---------------------------
 
 
+func _copy_scene_geometry() -> NavigationMeshSourceGeometryData3D:
+	# Generic Resource.duplicate() can reject valid parsed indexed geometry
+	# through set_indices() on some Godot builds. Native merge preserves the
+	# parsed data in a separate resource for each worker task.
+	var geometry := NavigationMeshSourceGeometryData3D.new()
+	geometry.merge(_scene_geometry)
+	return geometry
+
+
 func _start_full_scene_bake() -> void:
 	_parse_world_geometry()
 	_full_scene_baking = true
 	var task_id := WorkerThreadPool.add_task(
-		_task_bake_full_scene.bind(_scene_geometry.duplicate(), settings.postprocess_enabled),
+		_task_bake_full_scene.bind(_copy_scene_geometry(), settings.postprocess_enabled),
 		false, "WorldNavigationFullScene")
 	_inflight[task_id] = {"coord": Vector2i.ZERO, "elapsed": 0.0}
 

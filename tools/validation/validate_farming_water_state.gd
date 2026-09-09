@@ -18,9 +18,24 @@ func _run() -> void:
 		_finish(false)
 		return
 	var component = script.new()
-	component.apply_state({"source_id": "river_barrel", "capacity": 100.0, "current_water": 42.5, "renewable": false})
+	component.apply_state({
+		"source_id": "river_barrel",
+		"settlement_id": "river_town",
+		"source_kind": "storage",
+		"capacity": 100.0,
+		"current_water": 42.5,
+		"reserved_incoming_water": 12.0,
+		"reserved_outgoing_water": 7.5,
+		"renewable": false,
+	})
 	var restored: Dictionary = component.to_state()
-	var passed := str(restored.get("source_id", "")) == "river_barrel" and is_equal_approx(float(restored.get("current_water", 0.0)), 42.5) and not bool(restored.get("renewable", true))
+	var passed := str(restored.get("source_id", "")) == "river_barrel" \
+			and str(restored.get("settlement_id", "")) == "river_town" \
+			and str(restored.get("source_kind", "")) == "storage" \
+			and is_equal_approx(float(restored.get("current_water", 0.0)), 42.5) \
+			and is_equal_approx(float(restored.get("reserved_incoming_water", 0.0)), 12.0) \
+			and is_equal_approx(float(restored.get("reserved_outgoing_water", 0.0)), 7.5) \
+			and not bool(restored.get("renewable", true))
 	if not passed:
 		push_error("finite water capacity round-trips through GECS")
 	component = null

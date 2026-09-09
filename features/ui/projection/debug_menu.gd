@@ -13,6 +13,12 @@ var _radius_slider: HSlider
 var _radius_label: Label
 var _retention_spin: SpinBox
 var _retention_label: Label
+var _time_skip_amount: SpinBox
+var _time_skip_unit: OptionButton
+var _time_skip_button: Button
+var _time_skip_cancel: Button
+var _time_skip_status: Label
+var _time_skip_service: WeakRef
 
 var _navmesh_check: CheckButton
 var _tiles_check: CheckButton
@@ -99,6 +105,7 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_TOP_LEFT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_lod_window()
+	_build_time_skip_window()
 	_build_nav_window()
 	_build_placer_window()
 	_build_towns_window()
@@ -124,6 +131,77 @@ func _build_lod_window() -> void:
 	_retention_spin = _make_spin_box(vbox, 0.0, 3600.0, 1.0, _on_retention_changed)
 	_retention_spin.set_value_no_signal(_current_retention_seconds())
 	_update_retention_label(_retention_spin.value)
+
+
+func _build_time_skip_window() -> void:
+	var vbox := _build_window("Time Skip", Vector2(12.0, 348.0))
+	var row := HBoxContainer.new()
+	vbox.add_child(row)
+	_time_skip_amount = SpinBox.new()
+	_time_skip_amount.name = "TimeSkipAmount"
+	_time_skip_amount.min_value = 0.01
+	_time_skip_amount.max_value = 8760.0
+	_time_skip_amount.step = 0.01
+	_time_skip_amount.value = 1.0
+	row.add_child(_time_skip_amount)
+	_time_skip_unit = OptionButton.new()
+	_time_skip_unit.name = "TimeSkipUnit"
+	_time_skip_unit.add_item("Hours")
+	_time_skip_unit.add_item("Days")
+	row.add_child(_time_skip_unit)
+	_time_skip_button = Button.new()
+	_time_skip_button.name = "TimeSkipButton"
+	_time_skip_button.text = "Skip"
+	_time_skip_button.pressed.connect(_on_time_skip_pressed)
+	row.add_child(_time_skip_button)
+	_time_skip_cancel = Button.new()
+	_time_skip_cancel.text = "Cancel"
+	_time_skip_cancel.disabled = true
+	_time_skip_cancel.pressed.connect(_cancel_time_skip)
+	row.add_child(_time_skip_cancel)
+	_time_skip_status = _make_label(vbox)
+	_time_skip_status.text = "Simulate being away; resources and failures still apply."
+	var service := BootstrapContext.service(&"debug_time_skip")
+	if service != null:
+		_time_skip_service = weakref(service)
+		service.connect("status_changed", _on_time_skip_status_changed)
+	var panel: Control = _window_panels.get("Time Skip")
+	panel.visibility_changed.connect(func():
+		if not panel.is_visible_in_tree():
+			_cancel_time_skip()
+	)
+
+
+func _on_time_skip_pressed() -> void:
+	var service = _time_skip_service.get_ref() if _time_skip_service != null else null
+	if service == null:
+		_time_skip_status.text = "World simulation unavailable."
+		return
+	_time_skip_amount.apply()
+	var result: Dictionary = service.call("request_skip", _time_skip_amount.value, _time_skip_unit.get_item_text(_time_skip_unit.selected))
+	if not bool(result.get("accepted", false)):
+		_time_skip_status.text = str(result.get("message", "Skip rejected."))
+
+
+func _cancel_time_skip() -> void:
+	var service = _time_skip_service.get_ref() if _time_skip_service != null else null
+	if service != null:
+		service.call("cancel")
+
+
+func _on_time_skip_status_changed(message: String, active: bool) -> void:
+	_time_skip_status.text = message
+	_time_skip_button.disabled = active
+	_time_skip_amount.editable = not active
+	_time_skip_unit.disabled = active
+	_time_skip_cancel.disabled = not active
+	# Debug tuning cannot persist changed LOD settings during the transient lease.
+	_radius_slider.editable = not active
+	_retention_spin.editable = not active
+
+
+func _exit_tree() -> void:
+	_cancel_time_skip()
 
 
 func _build_nav_window() -> void:
@@ -1078,6 +1156,8 @@ func _cancel_placement() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		_cancel_time_skip()
 	if _ghost == null or not is_instance_valid(_ghost):
 		return
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:

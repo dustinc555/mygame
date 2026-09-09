@@ -536,6 +536,9 @@ func _unrealize_actor(actor: Node, population_controller: Node) -> void:
 		return
 	if actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member")):
 		return
+	var jobs := BootstrapContext.service(&"job_system")
+	if jobs != null and jobs.has_method("prepare_actor_for_derealization"):
+		jobs.call("prepare_actor_for_derealization", actor)
 	if population_controller != null and population_controller.has_method("unregister_actor"):
 		population_controller.call("unregister_actor", actor)
 	actor.queue_free()

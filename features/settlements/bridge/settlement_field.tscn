@@ -9,6 +9,7 @@ facility_id = "settlement_field"
 display_name = "Field"
 facility_type = "farm"
 facility_function = ExtResource("2_function")
+composition = 1
 dimensions = Vector2i(6, 4)
 crop_policy_id = "auto"
 auto_till_on_seed = true

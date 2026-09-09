@@ -244,6 +244,30 @@ func _run() -> void:
 		"catalog_id": "woodbrick_house",
 		"foundation_height": 0.5,
 	})
+	bridge.upsert_farm_water_source_state({
+		"source_id": "roundtrip_town.well_1",
+		"settlement_id": "roundtrip_town",
+		"source_kind": "well",
+		"world_position": Vector3(4.0, 1.0, -6.0),
+		"owner_faction_name": "RoundtripFaction",
+		"capacity": 100.0,
+		"current_water": 40.0,
+		"renewable": false,
+		"recharge_per_world_minute": 1.0,
+		"last_processed_minute": 1530,
+	})
+	bridge.upsert_liquid_container_state({
+		"liquid_container_id": "roundtrip_town.tank",
+		"settlement_id": "roundtrip_town",
+		"facility_id": "roundtrip_town.tank_facility",
+		"world_position": Vector3(8.0, 1.0, -6.0),
+		"owner_faction_name": "RoundtripFaction",
+		"assigned_liquid_id": "water",
+		"capacity_liters": 20.0,
+		"current_liters": 6.0,
+		"reserved_incoming_liters": 0.0,
+		"reserved_outgoing_liters": 0.0,
+	})
 
 	if not bool(bridge.save_gecs_world(SAVE_PATH, false)):
 		_fail("GECS bridge should save the validation world")
@@ -384,6 +408,22 @@ func _validate_loaded_state(bridge: Node, world_time: Node) -> void:
 			_fail("GECS load should normalize legacy woodbrick_house catalog IDs once")
 		if (building.get("world_transform", Transform3D.IDENTITY) as Transform3D).origin.distance_to(Vector3(7.0, 2.0, -3.0)) > 0.001:
 			_fail("GECS save/load should preserve exact building transforms")
+
+	var tank_state: Dictionary = bridge.call("get_liquid_container_state", "roundtrip_town.tank")
+	if str(tank_state.get("settlement_id", "")) != "roundtrip_town" or str(tank_state.get("facility_id", "")) != "roundtrip_town.tank_facility":
+		_fail("GECS save/load should preserve liquid-container ownership")
+	if str(tank_state.get("assigned_liquid_id", "")) != "water":
+		_fail("GECS save/load should preserve a tank's assigned liquid")
+	if absf(float(tank_state.get("current_liters", 0.0)) - 6.0) > 0.01 or absf(float(tank_state.get("capacity_liters", 0.0)) - 20.0) > 0.01:
+		_fail("GECS save/load should preserve exact tank contents")
+	var water_totals: Dictionary = bridge.call("get_farm_water_totals_for_settlement", "roundtrip_town")
+	if absf(float(water_totals.get("well_output_per_day", 0.0)) - 1440.0) > 0.01:
+		_fail("GECS water totals should restore daily well output")
+	if absf(float(water_totals.get("stored_water", 0.0))) > 0.01 or absf(float(water_totals.get("storage_capacity", 0.0))) > 0.01:
+		_fail("Farm-water totals should not duplicate generic tank stock")
+	bridge.call("remove_liquid_container_state", "roundtrip_town.tank")
+	if not (bridge.call("get_liquid_container_state", "roundtrip_town.tank") as Dictionary).is_empty():
+		_fail("GECS liquid containers should support explicit durable removal")
 
 	var event_count := 0
 	for _entity in bridge.get("world").query.with_all([bridge.get("C_SETTLEMENT_EVENT")]).execute():

@@ -36,6 +36,30 @@ func _run() -> void:
 	_expect(is_equal_approx(float(water.get("current_water", 0.0)), 9.0), "water source upsert preserves finite capacity")
 	_expect(str(water.get("owner_faction_name", "")) == "Player", "water source upsert preserves durable ownership")
 	_expect(controller.get_farm_water_source_states().has("well:integration"), "water source query returns durable source")
+	controller.upsert_farm_water_source_state({
+		"source_id": "well:totals", "settlement_id": "town", "source_kind": "well",
+		"owner_faction_name": "Player", "capacity": 25.0, "current_water": 9.0,
+		"recharge_per_world_minute": 2.0,
+	})
+	var water_totals: Dictionary = controller.get_farm_water_totals_for_settlement("town")
+	_expect(is_equal_approx(float(water_totals.get("well_output_per_day", 0.0)), 2880.0), "water ledger aggregate updates on source upsert")
+	controller.remove_farm_water_source_state("well:totals")
+	water_totals = controller.get_farm_water_totals_for_settlement("town")
+	_expect(is_equal_approx(float(water_totals.get("well_output_per_day", -1.0)), 0.0), "water ledger aggregate updates on source removal")
+	controller.upsert_farm_plot_state({
+		"plot_id": "farm:totals", "settlement_id": "town", "owner_faction_id": "Player",
+		"cells": {
+			"0:0": {"state": "growing", "crop_id": "wheat"},
+			"1:0": {"state": "growing", "crop_id": "barley"},
+		},
+	})
+	var crop_counts: Dictionary = controller.get_growing_farm_crop_counts_for_settlement("town")
+	_expect(int(crop_counts.get("wheat", 0)) == 1 and int(crop_counts.get("barley", 0)) == 1, "crop ledger aggregate updates on plot upsert")
+	controller.upsert_farm_plot_cells("farm:totals", {"0:0": {"state": "harvestable", "crop_id": "wheat"}})
+	crop_counts = controller.get_growing_farm_crop_counts_for_settlement("town")
+	_expect(int(crop_counts.get("wheat", 0)) == 0 and int(crop_counts.get("barley", 0)) == 1, "crop ledger aggregate updates from changed cells")
+	controller.remove_farm_plot_state("farm:totals")
+	_expect(controller.get_growing_farm_crop_counts_for_settlement("town").is_empty(), "crop ledger aggregate updates on plot removal")
 	print("FARMING_GECS_BRIDGE_OK")
 	root.free()
 	if _ecs_placeholder != null:

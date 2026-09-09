@@ -45,6 +45,11 @@ func _process(delta: float) -> void:
 	_tick(TICK_INTERVAL)
 
 
+## Canonical skip adapter; retain the same encounter cadence and consequences.
+func advance_offscreen_seconds(seconds: float) -> void:
+	_process(seconds)
+
+
 func _tick(dt: float) -> void:
 	var gecs := _get_gecs_world()
 	if gecs == null or not gecs.has_method("get_world_sim_squads"):

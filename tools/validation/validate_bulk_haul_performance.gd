@@ -1,7 +1,7 @@
 extends SceneTree
 ## Run: godot --headless --path . --script res://tools/validation/validate_bulk_haul_performance.gd
 
-const PROVIDER_PATH := "res://features/inventory/bridge/bulk_storage_haul_provider.gd"
+const PROVIDER_PATH := "res://features/inventory/bridge/haul_provider.gd"
 const PLATFORM_COUNT := 300
 const ACTOR_READ_COUNT := 300
 

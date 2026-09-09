@@ -69,6 +69,7 @@ const C_WORLD_SIM_SQUAD_PATH := "res://features/world_sim/sim/c_game_world_sim_s
 const C_BUILDING_RECORD_PATH := "res://features/world/sim/c_game_building_record.gd"
 const C_FARM_PLOT_STATE_PATH := "res://features/farming/sim/c_game_farm_plot_state.gd"
 const C_FARM_WATER_SOURCE_STATE_PATH := "res://features/farming/sim/c_game_farm_water_source_state.gd"
+const C_LIQUID_CONTAINER_STATE_PATH := "res://features/inventory/sim/c_game_liquid_container_state.gd"
 const CONSTRUCTION_CATALOG_ID_LOAD_MIGRATIONS := {
 	"woodbrick_house": "medium_wood_l_hall",
 }
@@ -106,6 +107,9 @@ var _world_sim_squad_entity_by_id: Dictionary = {}
 var _building_entity_by_id: Dictionary = {}
 var _farm_plot_entity_by_id: Dictionary = {}
 var _farm_water_source_entity_by_id: Dictionary = {}
+var _liquid_container_entity_by_id: Dictionary = {}
+var _farm_water_totals_by_settlement: Dictionary = {}
+var _growing_crop_counts_by_settlement: Dictionary = {}
 var _world_time_entity
 var _law_order_entity
 var _faction_state_entity
@@ -204,6 +208,7 @@ var C_WORLD_SIM_SQUAD
 var C_BUILDING_RECORD
 var C_FARM_PLOT_STATE
 var C_FARM_WATER_SOURCE_STATE
+var C_LIQUID_CONTAINER_STATE
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -910,6 +915,32 @@ func get_population_record(actor_id: String) -> Dictionary:
 	return _population_record_from_entity(entity)
 
 
+## Narrow authoritative snapshot for the minute ledger. Do not hydrate inventory,
+## equipment, appearance or rebuild assignment indexes for an accounting tick.
+func get_population_ledger_records() -> Dictionary:
+	var records := {}
+	for entity in _population_entity_by_actor_id.values():
+		if not is_instance_valid(entity):
+			continue
+		var c = entity.get_component(C_POPULATION_RECORD)
+		if c == null:
+			continue
+		var vitals = entity.get_component(C_VITALS)
+		records[str(c.actor_id)] = {
+			"actor_id": c.actor_id, "settlement_id": c.settlement_id,
+			"role_id": c.role_id, "assignments": c.assignments.duplicate(),
+			"realization_state": c.realization_state,
+			"life_state": vitals.life_state if vitals != null and bool(vitals.vitals_seeded) else c.life_state,
+			"ledger_activity_state": c.ledger_activity_state,
+			"ledger_minutes_elapsed": c.ledger_minutes_elapsed,
+			"ledger_work_minutes": c.ledger_work_minutes,
+			"ledger_rest_minutes": c.ledger_rest_minutes,
+			"ledger_activity_minutes": c.ledger_activity_minutes.duplicate(),
+			"last_ledger_absolute_minute": c.last_ledger_absolute_minute,
+		}
+	return records
+
+
 func get_population_records() -> Dictionary:
 	var records: Dictionary = {}
 	if world == null:
@@ -1202,8 +1233,11 @@ func upsert_farm_plot_state(state: Dictionary) -> Dictionary:
 		world.add_entity(entity, [C_FARM_PLOT_STATE.new()])
 		_farm_plot_entity_by_id[plot_id] = entity
 	var component = entity.get_component(C_FARM_PLOT_STATE)
+	_adjust_farm_plot_aggregate(component.to_state(), -1)
 	component.apply_state(state)
-	return component.to_state()
+	var saved: Dictionary = component.to_state()
+	_adjust_farm_plot_aggregate(saved, 1)
+	return saved
 
 
 func get_farm_plot_states() -> Dictionary:
@@ -1221,6 +1255,40 @@ func get_farm_plot_states() -> Dictionary:
 		states[plot_id] = state
 		_farm_plot_entity_by_id[plot_id] = entity
 	return states
+
+
+## Private simulation snapshots share untouched cells; the simulation replaces
+## each changed cell instead of mutating a borrowed dictionary.
+func get_farm_plot_ids() -> Array:
+	return _farm_plot_entity_by_id.keys()
+
+
+func get_farm_plot_simulation_state(plot_id: String) -> Dictionary:
+	var c = _farm_plot_component(plot_id)
+	if c == null:
+		return {}
+	var state := get_farm_plot_header_state(plot_id)
+	state["cells"] = c.cells.duplicate()
+	state["soil_remnants"] = c.soil_remnants.duplicate()
+	return state
+
+## Transfers an exclusively owned simulation snapshot into GECS. Callers must
+## not retain/mutate it afterwards; only detached changes are published.
+func commit_farm_plot_simulation(state: Dictionary, simulated_keys: Array) -> Dictionary:
+	var c = _farm_plot_component(str(state.get("plot_id", "")))
+	if c == null:
+		return {}
+	var cells: Dictionary = state.get("cells", {})
+	for key in simulated_keys:
+		if c.cells.has(key):
+			_adjust_growing_crop_cell(str(c.settlement_id), bool(c.field_deleted), c.cells[key], -1)
+			if cells.has(key):
+				_adjust_growing_crop_cell(str(c.settlement_id), bool(c.field_deleted), cells[key], 1)
+	c.cells = cells
+	c.soil_remnants = state.get("soil_remnants", {})
+	c.last_simulated_minute = int(state.get("last_simulated_minute", c.last_simulated_minute))
+	c.state_revision += 1
+	return get_farm_plot_header_state(str(c.plot_id))
 
 
 func get_farm_plot_state(plot_id: String) -> Dictionary:
@@ -1282,8 +1350,20 @@ func upsert_farm_plot_cells(plot_id: String, changed_cells: Dictionary) -> Dicti
 		var cell: Dictionary = changed_cells[cell_key_value]
 		if cell_key.is_empty() or cell.is_empty() or not component.cells.has(cell_key):
 			continue
+		_adjust_growing_crop_cell(
+			str(component.settlement_id),
+			bool(component.field_deleted),
+			component.cells.get(cell_key, {}) as Dictionary,
+			-1
+		)
 		var saved_cell := cell.duplicate(true)
 		component.cells[cell_key] = saved_cell
+		_adjust_growing_crop_cell(
+			str(component.settlement_id),
+			bool(component.field_deleted),
+			saved_cell,
+			1
+		)
 		saved_cells[cell_key] = saved_cell.duplicate(true)
 	if saved_cells.is_empty():
 		return {}
@@ -1316,6 +1396,9 @@ func _farm_plot_component(plot_id: String):
 func remove_farm_plot_state(plot_id: String) -> void:
 	var entity = _farm_plot_entity_by_id.get(plot_id)
 	if entity != null and is_instance_valid(entity) and world != null:
+		var component = entity.get_component(C_FARM_PLOT_STATE)
+		if component != null:
+			_adjust_farm_plot_aggregate(component.to_state(), -1)
 		world.remove_entity(entity)
 	_farm_plot_entity_by_id.erase(plot_id)
 
@@ -1335,8 +1418,11 @@ func upsert_farm_water_source_state(state: Dictionary) -> Dictionary:
 		world.add_entity(entity, [C_FARM_WATER_SOURCE_STATE.new()])
 		_farm_water_source_entity_by_id[source_id] = entity
 	var component = entity.get_component(C_FARM_WATER_SOURCE_STATE)
+	_adjust_farm_water_aggregate(component.to_state(), -1.0)
 	component.apply_state(state)
-	return component.to_state()
+	var saved: Dictionary = component.to_state()
+	_adjust_farm_water_aggregate(saved, 1.0)
+	return saved
 
 
 func get_farm_water_source_states() -> Dictionary:
@@ -1353,6 +1439,177 @@ func get_farm_water_source_states() -> Dictionary:
 			states[source_id] = state
 			_farm_water_source_entity_by_id[source_id] = entity
 	return states
+
+
+func get_farm_water_source_state(source_id: String) -> Dictionary:
+	var component = _farm_water_source_component(source_id)
+	return component.to_state() if component != null else {}
+
+
+func _farm_water_source_component(source_id: String):
+	if source_id.is_empty():
+		return null
+	var entity = _farm_water_source_entity_by_id.get(source_id)
+	if entity != null and is_instance_valid(entity):
+		return entity.get_component(C_FARM_WATER_SOURCE_STATE)
+	if world == null:
+		return null
+	# Cold recovery only. Normal reads stay O(1) through the maintained id map.
+	for candidate in world.query.with_all([C_FARM_WATER_SOURCE_STATE]).execute():
+		var component = candidate.get_component(C_FARM_WATER_SOURCE_STATE)
+		if component != null and str(component.source_id) == source_id:
+			_farm_water_source_entity_by_id[source_id] = candidate
+			return component
+	return null
+
+
+func remove_farm_water_source_state(source_id: String) -> void:
+	var entity = _farm_water_source_entity_by_id.get(source_id)
+	if (entity == null or not is_instance_valid(entity)) and _farm_water_source_component(source_id) != null:
+		entity = _farm_water_source_entity_by_id.get(source_id)
+	if entity != null and is_instance_valid(entity) and world != null:
+		var component = entity.get_component(C_FARM_WATER_SOURCE_STATE)
+		if component != null:
+			_adjust_farm_water_aggregate(component.to_state(), -1.0)
+		world.remove_entity(entity)
+	_farm_water_source_entity_by_id.erase(source_id)
+
+
+func upsert_liquid_container_state(state: Dictionary) -> Dictionary:
+	_try_initialize()
+	if world == null or state.is_empty():
+		return {}
+	var liquid_container_id := str(state.get("liquid_container_id", "")).strip_edges()
+	if liquid_container_id.is_empty():
+		return {}
+	var entity = _liquid_container_entity_by_id.get(liquid_container_id)
+	if entity == null or not is_instance_valid(entity):
+		entity = _entity_script.new()
+		entity.name = _entity_node_name("LiquidContainer", liquid_container_id)
+		entity.id = _entity_id("liquid_container", liquid_container_id)
+		world.add_entity(entity, [C_LIQUID_CONTAINER_STATE.new()])
+		_liquid_container_entity_by_id[liquid_container_id] = entity
+	var component = entity.get_component(C_LIQUID_CONTAINER_STATE)
+	component.apply_state(state)
+	return component.to_state()
+
+
+func get_liquid_container_states() -> Dictionary:
+	var states: Dictionary = {}
+	if world == null:
+		return states
+	for entity in world.query.with_all([C_LIQUID_CONTAINER_STATE]).execute():
+		var component = entity.get_component(C_LIQUID_CONTAINER_STATE)
+		if component == null:
+			continue
+		var state: Dictionary = component.to_state()
+		var liquid_container_id := str(state.get("liquid_container_id", ""))
+		if not liquid_container_id.is_empty():
+			states[liquid_container_id] = state
+			_liquid_container_entity_by_id[liquid_container_id] = entity
+	return states
+
+
+func get_liquid_container_state(liquid_container_id: String) -> Dictionary:
+	var component = _liquid_container_component(liquid_container_id)
+	return component.to_state() if component != null else {}
+
+
+func _liquid_container_component(liquid_container_id: String):
+	if liquid_container_id.is_empty():
+		return null
+	var entity = _liquid_container_entity_by_id.get(liquid_container_id)
+	if entity != null and is_instance_valid(entity):
+		return entity.get_component(C_LIQUID_CONTAINER_STATE)
+	if world == null:
+		return null
+	for candidate in world.query.with_all([C_LIQUID_CONTAINER_STATE]).execute():
+		var component = candidate.get_component(C_LIQUID_CONTAINER_STATE)
+		if component != null and str(component.liquid_container_id) == liquid_container_id:
+			_liquid_container_entity_by_id[liquid_container_id] = candidate
+			return component
+	return null
+
+
+func remove_liquid_container_state(liquid_container_id: String) -> void:
+	var entity = _liquid_container_entity_by_id.get(liquid_container_id)
+	if (entity == null or not is_instance_valid(entity)) and _liquid_container_component(liquid_container_id) != null:
+		entity = _liquid_container_entity_by_id.get(liquid_container_id)
+	if entity != null and is_instance_valid(entity) and world != null:
+		world.remove_entity(entity)
+	_liquid_container_entity_by_id.erase(liquid_container_id)
+
+
+func get_farm_water_totals_for_settlement(settlement_id: String) -> Dictionary:
+	var totals := {"well_output_per_day": 0.0, "stored_water": 0.0, "storage_capacity": 0.0}
+	if settlement_id.is_empty():
+		return totals
+	return (_farm_water_totals_by_settlement.get(settlement_id, totals) as Dictionary).duplicate(true)
+
+
+func get_growing_farm_crop_counts_for_settlement(settlement_id: String) -> Dictionary:
+	if settlement_id.is_empty():
+		return {}
+	return (_growing_crop_counts_by_settlement.get(settlement_id, {}) as Dictionary).duplicate(true)
+
+
+func _adjust_farm_water_aggregate(state: Dictionary, direction: float) -> void:
+	if state.is_empty():
+		return
+	var settlement_id := str(state.get("settlement_id", "")).strip_edges()
+	if settlement_id.is_empty():
+		return
+	var totals := (_farm_water_totals_by_settlement.get(settlement_id, {
+		"well_output_per_day": 0.0,
+		"stored_water": 0.0,
+		"storage_capacity": 0.0,
+	}) as Dictionary).duplicate(true)
+	if str(state.get("source_kind", "storage")) == "well":
+		totals["well_output_per_day"] = maxf(0.0, float(totals["well_output_per_day"]) \
+				+ direction * maxf(0.0, float(state.get("recharge_per_world_minute", 0.0))) * 1440.0)
+	else:
+		totals["stored_water"] = maxf(0.0, float(totals["stored_water"]) \
+				+ direction * maxf(0.0, float(state.get("current_water", 0.0))))
+		totals["storage_capacity"] = maxf(0.0, float(totals["storage_capacity"]) \
+				+ direction * maxf(0.0, float(state.get("capacity", 0.0))))
+	if float(totals["well_output_per_day"]) <= 0.001 \
+			and float(totals["stored_water"]) <= 0.001 \
+			and float(totals["storage_capacity"]) <= 0.001:
+		_farm_water_totals_by_settlement.erase(settlement_id)
+	else:
+		_farm_water_totals_by_settlement[settlement_id] = totals
+
+
+func _adjust_farm_plot_aggregate(state: Dictionary, direction: int) -> void:
+	if state.is_empty():
+		return
+	var settlement_id := str(state.get("settlement_id", "")).strip_edges()
+	var deleted := bool(state.get("field_deleted", false))
+	for cell_value in (state.get("cells", {}) as Dictionary).values():
+		_adjust_growing_crop_cell(settlement_id, deleted, cell_value as Dictionary, direction)
+
+
+func _adjust_growing_crop_cell(
+		settlement_id: String,
+		field_deleted: bool,
+		cell: Dictionary,
+		direction: int
+) -> void:
+	if settlement_id.is_empty() or field_deleted or str(cell.get("state", "")) != "growing":
+		return
+	var crop_id := str(cell.get("crop_id", "")).strip_edges()
+	if crop_id.is_empty():
+		return
+	var counts := (_growing_crop_counts_by_settlement.get(settlement_id, {}) as Dictionary).duplicate()
+	var next_count := maxi(0, int(counts.get(crop_id, 0)) + direction)
+	if next_count == 0:
+		counts.erase(crop_id)
+	else:
+		counts[crop_id] = next_count
+	if counts.is_empty():
+		_growing_crop_counts_by_settlement.erase(settlement_id)
+	else:
+		_growing_crop_counts_by_settlement[settlement_id] = counts
 
 
 func upsert_settlement_state(settlement_id: String, state: Dictionary) -> Dictionary:
@@ -2276,6 +2533,7 @@ func _load_component_scripts() -> void:
 	C_BUILDING_RECORD = load(C_BUILDING_RECORD_PATH) if C_BUILDING_RECORD == null else C_BUILDING_RECORD
 	C_FARM_PLOT_STATE = load(C_FARM_PLOT_STATE_PATH) if C_FARM_PLOT_STATE == null else C_FARM_PLOT_STATE
 	C_FARM_WATER_SOURCE_STATE = load(C_FARM_WATER_SOURCE_STATE_PATH) if C_FARM_WATER_SOURCE_STATE == null else C_FARM_WATER_SOURCE_STATE
+	C_LIQUID_CONTAINER_STATE = load(C_LIQUID_CONTAINER_STATE_PATH) if C_LIQUID_CONTAINER_STATE == null else C_LIQUID_CONTAINER_STATE
 
 
 func _component_scripts_loaded() -> bool:
@@ -2328,6 +2586,7 @@ func _component_scripts_loaded() -> bool:
 		C_BUILDING_RECORD,
 		C_FARM_PLOT_STATE,
 		C_FARM_WATER_SOURCE_STATE,
+		C_LIQUID_CONTAINER_STATE,
 	]:
 		if component_script == null:
 			return false
@@ -3357,6 +3616,9 @@ func _clear_world_entities() -> void:
 	_building_entity_by_id.clear()
 	_farm_plot_entity_by_id.clear()
 	_farm_water_source_entity_by_id.clear()
+	_liquid_container_entity_by_id.clear()
+	_farm_water_totals_by_settlement.clear()
+	_growing_crop_counts_by_settlement.clear()
 	_actor_spatial_nodes_by_cell.clear()
 	_actor_spatial_index_valid = false
 	_world_time_entity = null
@@ -3381,6 +3643,8 @@ func _rebuild_entity_indexes() -> void:
 	_population_squad_by_actor_id.clear()
 	_corpse_actor_ids_by_cell.clear()
 	_corpse_cell_by_actor_id.clear()
+	_farm_water_totals_by_settlement.clear()
+	_growing_crop_counts_by_settlement.clear()
 	for entity in world.query.with_all([C_IDENTITY]).execute():
 		var identity = entity.get_component(C_IDENTITY)
 		if identity == null:
@@ -3415,10 +3679,16 @@ func _rebuild_entity_indexes() -> void:
 		var farm_plot = entity.get_component(C_FARM_PLOT_STATE)
 		if farm_plot != null:
 			_farm_plot_entity_by_id[str(farm_plot.plot_id)] = entity
+			_adjust_farm_plot_aggregate(farm_plot.to_state(), 1)
 	for entity in world.query.with_all([C_FARM_WATER_SOURCE_STATE]).execute():
 		var farm_water = entity.get_component(C_FARM_WATER_SOURCE_STATE)
 		if farm_water != null:
 			_farm_water_source_entity_by_id[str(farm_water.source_id)] = entity
+			_adjust_farm_water_aggregate(farm_water.to_state(), 1.0)
+	for entity in world.query.with_all([C_LIQUID_CONTAINER_STATE]).execute():
+		var liquid_container = entity.get_component(C_LIQUID_CONTAINER_STATE)
+		if liquid_container != null:
+			_liquid_container_entity_by_id[str(liquid_container.liquid_container_id)] = entity
 	var food_status_script = load(C_SETTLEMENT_FOOD_STATUS_PATH)
 	for entity in world.query.with_all([food_status_script]).execute():
 		var food_status = entity.get_component(food_status_script)

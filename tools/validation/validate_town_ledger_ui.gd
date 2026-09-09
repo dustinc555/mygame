@@ -2,10 +2,14 @@ extends SceneTree
 
 const WINDOW := preload("res://features/settlements/projection/town_ledger_window.tscn")
 
+var _ecs_placeholder: Node
 var _failed := false
 
 
 func _init() -> void:
+	if not Engine.has_singleton("ECS"):
+		_ecs_placeholder = Node.new()
+		Engine.register_singleton("ECS", _ecs_placeholder)
 	call_deferred("_run")
 
 
@@ -22,12 +26,23 @@ func _run() -> void:
 	_assert(controller_source.contains("LEDGER_METADATA_KEY") and not controller_source.contains("_ledger_component"), "Ledger truth must live on durable stack metadata")
 	_assert(controller_source.contains("_queue_settlement_refresh") and controller_source.contains("_flush_queued_settlement_refreshes.call_deferred"), "Population signal bursts must coalesce to one ledger refresh per settlement")
 	_assert(controller_source.contains("maxi(physical_beds, maxi(0, int(building.get(\"housing_capacity\", 0))))"), "Ledger housing must honor the larger physical or authored capacity")
+	var ledger_script = load("res://features/settlements/bridge/town_ledger_controller.gd")
+	_assert(ledger_script != null, "Town Ledger read model must load with runtime dependencies available")
+	var ledger_probe = ledger_script.new()
+	get_root().add_child(ledger_probe)
+	ledger_probe.set("_active_stack_ids_by_settlement", {"test_town": {"stack:test": true}})
+	ledger_probe.call("_on_farm_water_source_changed", "test_town.well_1", {"settlement_id": "test_town"})
+	ledger_probe.call("_on_farm_water_source_changed", "test_town.well_1", {"settlement_id": "test_town"})
+	var queued_refreshes := ledger_probe.get("_queued_refresh_settlement_ids") as Dictionary
+	_assert(queued_refreshes.size() == 1 and queued_refreshes.has("test_town"), "Water mutations must reach and coalesce in the active-ledger refresh queue")
+	ledger_probe.free()
 	get_root().size = Vector2i(900, 700)
 	var window := WINDOW.instantiate() as TownLedgerWindow
 	get_root().add_child(window)
 	window.setup("stack:test", {
 		"settlement_name": "Test Town", "record_state": "outdated", "reported_at_text": "Day 4, 09:30",
 		"overview": {"population": 3, "housing_capacity": 5, "food_outlook": "Running low", "provisions": 4.0, "reserve": "2.0 days", "daily_use": 3.0, "daily_output": 1.0, "daily_balance": -2.0},
+		"water": {"well_output_per_day": 120.0, "stored_water": 80.0, "storage_capacity": 200.0, "crop_demand_per_day": 150.0, "daily_shortfall": 30.0},
 		"people": [{"name": "Mara", "job": "Warden", "workplace": "Town Jail"}],
 		"buildings": [
 			{"name": "Town Jail", "purpose": "Jail", "owner": "Mara"},
@@ -44,7 +59,7 @@ func _run() -> void:
 		for child in window.find_children("*", "TabContainer", true, false):
 			tabs = child as TabContainer
 			break
-	_assert(tabs != null and tabs.get_tab_count() == 5, "Ledger UI must render five distinct report sections")
+	_assert(tabs != null and tabs.get_tab_count() == 6, "Ledger UI must render six distinct report sections")
 	if tabs != null:
 		var names: Array[String] = []
 		for index in range(tabs.get_tab_count()):
@@ -57,7 +72,7 @@ func _run() -> void:
 					if page is PanelContainer:
 						var paper := page.get_theme_stylebox("panel") as StyleBoxFlat
 						_assert(paper != null and paper.bg_color.a > 0.99, "Ledger paper must be opaque")
-		_assert(names == ["Overview", "People", "Buildings", "Food", "Stores"], "Ledger section order is wrong: %s" % [names])
+		_assert(names == ["Overview", "People", "Buildings", "Food", "Water", "Stores"], "Ledger section order is wrong: %s" % [names])
 		var selected := tabs.get_theme_stylebox("tab_selected") as StyleBoxFlat
 		var unselected := tabs.get_theme_stylebox("tab_unselected") as StyleBoxFlat
 		_assert(selected != null and _contrast_ratio(tabs.get_theme_color("font_selected_color"), selected.bg_color) >= 4.5, "Selected ledger tab lacks readable contrast")
@@ -68,6 +83,8 @@ func _run() -> void:
 			rendered_text += (page_text as RichTextLabel).text
 	for required in ["Name", "Job", "Workplace", "Purpose", "Owner", "Food", "Stock", "Made/day", "Used/day", "Remaining", "Item", "Quantity"]:
 		_assert(rendered_text.contains(required), "Ledger is missing player-facing column '%s'" % required)
+	for water_metric in ["Well output/day", "Stored reserve", "Storage capacity", "Crop demand/day", "Daily shortfall"]:
+		_assert(rendered_text.contains(water_metric), "Ledger is missing water metric '%s'" % water_metric)
 	for redundant_column in ["Status", "Condition"]:
 		_assert(not rendered_text.contains(redundant_column), "Ledger must not show redundant column '%s'" % redundant_column)
 	for forbidden in ["res://", "realized", "realization_state", "slot_id", "container_id", ".stock."]:
@@ -97,10 +114,12 @@ func _run() -> void:
 	_assert(window.position.x + window.size.x <= 1066.0 and window.position.y + window.size.y <= 605.0, "Ledger cover must stay inside its safe viewport inset")
 	if _failed:
 		window.free()
+		_cleanup_ecs()
 		quit(1)
 		return
 	print("TOWN_LEDGER_UI_OK")
 	window.free()
+	_cleanup_ecs()
 	quit()
 
 
@@ -109,6 +128,13 @@ func _assert(condition: bool, message: String) -> void:
 		return
 	_failed = true
 	push_error(message)
+
+
+func _cleanup_ecs() -> void:
+	if _ecs_placeholder != null:
+		Engine.unregister_singleton("ECS")
+		_ecs_placeholder.free()
+		_ecs_placeholder = null
 
 
 func _contrast_ratio(foreground: Color, background: Color) -> float:

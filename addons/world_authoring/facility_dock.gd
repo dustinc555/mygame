@@ -65,7 +65,9 @@ var _place_furniture_button: Button
 var _clear_furniture_check: CheckBox
 var _container_list: ItemList
 var _container_editor: VBoxContainer
+var _container_type_label: Label
 var _container_type_picker: OptionButton
+var _container_hint: Label
 var _container_search: LineEdit
 var _container_items_box: VBoxContainer
 var _container_amount_controls := {}
@@ -269,32 +271,20 @@ func _build_containers_tab() -> Control:
 	_container_editor.add_theme_constant_override("separation", 8)
 	_container_editor.add_child(_section_title("Selected container"))
 	var type_row := HBoxContainer.new()
-	var type_label := Label.new()
-	type_label.text = "Container Type"
-	type_label.custom_minimum_size = Vector2(120, 0)
-	type_row.add_child(type_label)
+	_container_type_label = Label.new()
+	_container_type_label.text = "Container Type"
+	_container_type_label.custom_minimum_size = Vector2(120, 0)
+	type_row.add_child(_container_type_label)
 	_container_type_picker = OptionButton.new()
-	for option in [
-		{"label": "General", "id": "general"},
-		{"label": "Seeds", "id": "seeds"},
-		{"label": "Tools", "id": "tools"},
-		{"label": "Food", "id": "food"},
-		{"label": "Materials", "id": "materials"},
-	]:
-		_container_type_picker.add_item(str(option["label"]))
-		_container_type_picker.set_item_metadata(_container_type_picker.item_count - 1, str(option["id"]))
 	_container_type_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_container_type_picker.item_selected.connect(func(index: int):
-		if _updating or _container == null:
-			return
-		_tools.call("set_container_property", _container, "container_type", str(_container_type_picker.get_item_metadata(index))))
+	_container_type_picker.item_selected.connect(_on_container_type_selected)
 	type_row.add_child(_container_type_picker)
 	_container_editor.add_child(type_row)
-	var hint := Label.new()
-	hint.text = "Starting contents are created once. Saved inventory always wins afterward."
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.modulate = Color(0.72, 0.75, 0.8)
-	_container_editor.add_child(hint)
+	_container_hint = Label.new()
+	_container_hint.text = "Starting contents are created once. Saved inventory always wins afterward."
+	_container_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_container_hint.modulate = Color(0.72, 0.75, 0.8)
+	_container_editor.add_child(_container_hint)
 	_container_search = LineEdit.new()
 	_container_search.placeholder_text = "Search starting contents..."
 	_container_search.clear_button_enabled = true
@@ -328,16 +318,13 @@ func _select_container_from_list(index: int) -> void:
 	var selected := _container_list.get_item_metadata(index) as Node
 	if selected == null or not is_instance_valid(selected):
 		return
-	var previous_type := str(_container.get("container_type")) if _container != null and is_instance_valid(_container) else ""
+	var previous_type := _container_assignment_id(_container)
 	_container = selected
 	_container_editor.visible = true
 	var was_updating := _updating
 	_updating = true
-	var selected_type := str(_container.get("container_type"))
-	for type_index in _container_type_picker.item_count:
-		if str(_container_type_picker.get_item_metadata(type_index)) == selected_type:
-			_container_type_picker.select(type_index)
-			break
+	var selected_type := _container_assignment_id(_container)
+	_configure_container_type_picker()
 	_updating = was_updating
 	if previous_type == selected_type and not _container_amount_controls.is_empty():
 		_updating = true
@@ -345,6 +332,52 @@ func _select_container_from_list(index: int) -> void:
 		_updating = was_updating
 	else:
 		_rebuild_container_items()
+
+
+func _container_assignment_id(container: Node) -> String:
+	if container == null or not is_instance_valid(container):
+		return ""
+	if container is LiquidContainer:
+		return str(container.get("assigned_liquid_id"))
+	return str(container.get("container_type"))
+
+
+func _configure_container_type_picker() -> void:
+	_container_type_picker.clear()
+	var liquid_container := _container is LiquidContainer
+	var options: Array = [
+		{"label": "Unassigned", "id": ""},
+		{"label": "Water", "id": "water"},
+		{"label": "Beer", "id": "beer"},
+		{"label": "Oil", "id": "oil"},
+	] if liquid_container else [
+		{"label": "General", "id": "general"},
+		{"label": "Seeds", "id": "seeds"},
+		{"label": "Tools", "id": "tools"},
+		{"label": "Food", "id": "food"},
+		{"label": "Materials", "id": "materials"},
+	]
+	_container_type_label.text = "Liquid Type" if liquid_container else "Container Type"
+	_container_hint.text = "A Tank holds one assigned liquid at a time." if liquid_container else "Starting contents are created once. Saved inventory always wins afterward."
+	_container_search.visible = not liquid_container
+	_container_items_box.visible = not liquid_container
+	var selected_id := _container_assignment_id(_container)
+	for option in options:
+		_container_type_picker.add_item(str(option["label"]))
+		var option_index := _container_type_picker.item_count - 1
+		_container_type_picker.set_item_metadata(option_index, str(option["id"]))
+		if str(option["id"]) == selected_id:
+			_container_type_picker.select(option_index)
+
+
+func _on_container_type_selected(index: int) -> void:
+	if _updating or _container == null:
+		return
+	var type_id := str(_container_type_picker.get_item_metadata(index))
+	if _container is LiquidContainer:
+		_tools.call("set_liquid_container_assignment", _container, type_id)
+	else:
+		_tools.call("set_container_property", _container, "container_type", type_id)
 
 
 func _rebuild() -> void:
@@ -360,7 +393,8 @@ func _rebuild() -> void:
 	_content.visible = has_context
 	for index in _tabs.get_tab_count():
 		var containers_only := not has_facility and _tabs.get_tab_title(index) != "Containers"
-		_tabs.set_tab_hidden(index, containers_only)
+		var furniture_unsupported := has_facility and _tabs.get_tab_title(index) == "Furniture" and not bool(_facility.call("supports_furniture"))
+		_tabs.set_tab_hidden(index, containers_only or furniture_unsupported)
 	if not has_context:
 		return
 	_updating = true
@@ -371,9 +405,9 @@ func _rebuild() -> void:
 		return
 	_rebuild_identity()
 	_rebuild_field_section()
-	# Fields have no building, so their shell grid is hidden — and building that
+	# Non-building facilities have no shell, so their shell grid is hidden — and building that
 	# grid is the most expensive thing in this dock. Do not pay for it unseen.
-	if not _tools.is_field(_facility):
+	if bool(_facility.call("supports_building_shell")):
 		_rebuild_shell_list()
 	_rebuild_containers()
 	_rebuild_people()
@@ -398,7 +432,9 @@ func _rebuild_containers() -> void:
 	if _container == null and not containers.is_empty():
 		_container = containers[0]
 	for candidate in containers:
-		var type_id := str(candidate.get("container_type")) if "container_type" in candidate else "general"
+		var type_id := _container_assignment_id(candidate)
+		if type_id.is_empty() and candidate is LiquidContainer:
+			type_id = "unassigned"
 		var label := str(candidate.call("get_inventory_display_name")).strip_edges() if candidate.has_method("get_inventory_display_name") else str(candidate.name)
 		_container_list.add_item(_container_row_text(candidate, label, type_id))
 		var index := _container_list.item_count - 1
@@ -407,11 +443,7 @@ func _rebuild_containers() -> void:
 			_container_list.select(index)
 	_container_editor.visible = _container != null
 	if _container != null:
-		var selected_type := str(_container.get("container_type"))
-		for index in _container_type_picker.item_count:
-			if str(_container_type_picker.get_item_metadata(index)) == selected_type:
-				_container_type_picker.select(index)
-				break
+		_configure_container_type_picker()
 	_rebuild_container_items()
 	_updating = was_updating
 
@@ -419,9 +451,9 @@ func _rebuild_containers() -> void:
 func _collect_world_containers(node: Node, result: Array[Node]) -> void:
 	if node == null:
 		return
-	if node is WorldContainer:
+	if node is WorldContainer or node is LiquidContainer:
 		result.append(node)
-	for child in node.get_children():
+	for child in node.get_children(true):
 		_collect_world_containers(child, result)
 
 
@@ -433,6 +465,8 @@ func _rebuild_container_items() -> void:
 		child.queue_free()
 	_container_amount_controls.clear()
 	if _container == null or _tools == null or not _tools.has_method("container_item_options"):
+		return
+	if _container is LiquidContainer:
 		return
 	var quantities := {}
 	for stock in (_container.get("starting_items") as Array):
@@ -471,12 +505,8 @@ func refresh_container_property(container: Node, property_name: String) -> void:
 	_updating = true
 	_refresh_container_row(container)
 	match property_name:
-		"container_type":
-			var selected_type := str(container.get("container_type"))
-			for index in _container_type_picker.item_count:
-				if str(_container_type_picker.get_item_metadata(index)) == selected_type:
-					_container_type_picker.select(index)
-					break
+		"container_type", "assigned_liquid_id":
+			_configure_container_type_picker()
 			_updating = was_updating
 			_rebuild_container_items()
 			return
@@ -489,7 +519,9 @@ func _refresh_container_row(container: Node) -> void:
 	for index in _container_list.item_count:
 		if _container_list.get_item_metadata(index) != container:
 			continue
-		var type_id := str(container.get("container_type")) if "container_type" in container else "general"
+		var type_id := _container_assignment_id(container)
+		if type_id.is_empty() and container is LiquidContainer:
+			type_id = "unassigned"
 		var label := str(container.call("get_inventory_display_name")).strip_edges() if container.has_method("get_inventory_display_name") else str(container.name)
 		_container_list.set_item_text(index, _container_row_text(container, label, type_id))
 		return
@@ -500,6 +532,8 @@ func _container_row_text(container: Node, label: String, type_id: String) -> Str
 
 
 func _sync_container_amount_controls() -> void:
+	if _container is LiquidContainer:
+		return
 	var quantities := {}
 	for stock in (_container.get("starting_items") as Array):
 		if stock != null and stock.get("item_definition") != null:
@@ -572,14 +606,15 @@ func _rebuild_field_section() -> void:
 	if _field_box == null:
 		return
 	var is_field: bool = _tools.is_field(_facility)
+	var has_building_shell := bool(_facility.call("supports_building_shell"))
 	_field_box.visible = is_field
-	# A field has no building, so the shell grid would only invite a mistake.
+	# Generated and single-object facilities have no building shell.
 	if _shell_title != null:
-		_shell_title.visible = not is_field
+		_shell_title.visible = has_building_shell
 	if _shell_scroll != null:
-		_shell_scroll.visible = not is_field
+		_shell_scroll.visible = has_building_shell
 	if _clear_furniture_check != null:
-		_clear_furniture_check.visible = not is_field
+		_clear_furniture_check.visible = has_building_shell
 	if not is_field:
 		return
 	var dimensions: Vector2i = _facility.get("dimensions")
@@ -1288,7 +1323,7 @@ func _rebuild_furniture_browser() -> void:
 	_rebuild_furnisher_row()
 	var entries: Array = _tools.get_furniture_catalog()
 	_populate_furniture_categories(entries)
-	var placeable := _facility is SettlementFacilityInstance
+	var placeable := _facility is SettlementFacilityInstance and bool(_facility.call("supports_furniture"))
 	var blocked_tooltip := "" if placeable else "Hand placement needs a composed facility (bar/jail/keep)."
 	_furniture_browser.tooltip_text = blocked_tooltip
 	_place_furniture_button.disabled = not placeable

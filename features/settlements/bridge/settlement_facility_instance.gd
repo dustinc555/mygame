@@ -6,6 +6,13 @@ class_name SettlementFacilityInstance
 
 const HOME_RESIDENT_PROJECTION := preload("res://features/settlements/bridge/home_resident_projection.gd")
 
+enum FacilityComposition {
+	BUILDING,
+	GENERATED,
+	SINGLE_OBJECT,
+}
+
+@export_enum("Building", "Generated", "Single Object") var composition: int = FacilityComposition.BUILDING
 @export var facility_function: Resource:
 	set(value):
 		facility_function = value
@@ -65,22 +72,40 @@ func sync_property_ownership() -> void:
 	var owner_character := get_property_owner_character()
 	var owner_faction := get_property_owner_faction()
 	_stamp_property_ownership(self, owner_character, owner_faction)
+	_sync_durable_context(self)
 
 
 func _stamp_property_ownership(node: Node, owner_character: HumanoidCharacter, owner_faction: String) -> void:
 	if node != self and node is WorldActor:
 		return
 	if node != self:
-		if not owner_faction.is_empty() and "owner_faction_name" in node:
+		if "owner_faction_name" in node:
 			node.set("owner_faction_name", owner_faction)
 		if owner_character != null and "owner_character_path" in node:
 			node.set("owner_character_path", node.get_path_to(owner_character))
-	for child in node.get_children():
+	for child in node.get_children(true):
 		_stamp_property_ownership(child, owner_character, owner_faction)
+
+
+func _sync_durable_context(node: Node) -> void:
+	if node != self and node is WorldActor:
+		return
+	if node != self and node.has_method("sync_durable_context"):
+		node.call("sync_durable_context")
+	for child in node.get_children(true):
+		_sync_durable_context(child)
 
 
 func get_building_root() -> Node3D:
 	return get_node_or_null(building_root_path) as Node3D
+
+
+func supports_building_shell() -> bool:
+	return composition == FacilityComposition.BUILDING
+
+
+func supports_furniture() -> bool:
+	return composition == FacilityComposition.BUILDING
 
 
 func get_current_building() -> WorldBuilding:

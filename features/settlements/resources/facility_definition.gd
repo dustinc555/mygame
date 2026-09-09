@@ -18,11 +18,21 @@ enum ShellPolicy {
 	NONE,
 }
 
+enum FacilityComposition {
+	BUILDING,
+	GENERATED,
+	SINGLE_OBJECT,
+}
+
 @export var facility_id := ""
 @export var display_name := ""
 @export_file("*.tscn") var scene_path := ""
 @export var icon: Texture2D
 @export var catalog_enabled := true
+## How the facility realizes its physical form. This is generic composition,
+## not gameplay type: functions such as water, housing, or farming stay on the
+## linked FacilityFunctionDefinition.
+@export_enum("Building", "Generated", "Single Object") var composition: int = FacilityComposition.BUILDING
 ## New compositions receive the one global default shell unless explicitly
 ## authored as shell-less. No facility owns a shell path.
 @export_enum("Default", "None") var shell_policy: int = ShellPolicy.DEFAULT

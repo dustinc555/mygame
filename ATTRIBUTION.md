@@ -39,4 +39,4 @@ LimboAI is fetched from the official Godot 4.6 GDExtension release archive so na
 
 ## Import Policy
 
-Imported assets must be listed here before they are committed or retained in the project. If an imported asset cannot be tied to an approved source, author, and license, remove it until that information is available.
+Third-party imported assets must be listed here before they are committed or retained in the project. Project-authored and generated assets do not require attribution entries; keep their provenance in internal asset notes instead.

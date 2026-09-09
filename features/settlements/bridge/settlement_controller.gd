@@ -296,6 +296,7 @@ func get_world_sim_labor_snapshots() -> Array[Dictionary]:
 		var state: Dictionary = settlement_states[settlement_id_value]
 		snapshots.append({
 			"settlement_id": str(settlement_id_value),
+			"faction_id": str(state.get("faction_id", "")),
 			"assignment_slots": (state.get("assignment_slots", {}) as Dictionary).duplicate(true),
 		})
 	return snapshots
@@ -313,6 +314,12 @@ func set_settlement_owner(settlement_id: String, faction_id: String, reason := "
 	if building_registry != null:
 		for building in building_registry.get_buildings_for_settlement(settlement_id):
 			building_registry.update_building(str(building.get("building_id", "")), {"owner_faction_id": next_owner})
+	var farming := _context.get_optional(&"farming") if _context != null else null
+	if farming != null and farming.has_method("reassign_settlement_water_owner"):
+		farming.call("reassign_settlement_water_owner", settlement_id, next_owner)
+	var liquid_storage := _context.get_optional(&"liquid_storage") if _context != null else null
+	if liquid_storage != null and liquid_storage.has_method("reassign_settlement_owner"):
+		liquid_storage.call("reassign_settlement_owner", settlement_id, next_owner)
 	_refresh_live_settlement_ownership(settlement_id)
 	state["last_action"] = "Owner changed: %s" % (next_owner if not next_owner.is_empty() else "None")
 	_record_event({

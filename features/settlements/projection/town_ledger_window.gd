@@ -73,7 +73,7 @@ func _build() -> void:
 	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_style_tabs()
 	column.add_child(_tabs)
-	for section in ["Overview", "People", "Buildings", "Food", "Stores"]:
+	for section in ["Overview", "People", "Buildings", "Food", "Water", "Stores"]:
 		var spread := _build_spread(section)
 		_tabs.add_child(spread)
 	_render()
@@ -248,6 +248,7 @@ func _render() -> void:
 	_render_people(_report.get("people", []) as Array)
 	_render_table_spread("buildings", ["Name", "Purpose", "Owner"], _report.get("buildings", []) as Array, ["name", "purpose", "owner"], "No buildings are entered in this ledger.")
 	_render_food(_report.get("food", []) as Array)
+	_render_water(_report.get("water", {}) as Dictionary)
 	_render_table_spread("stores", ["Item", "Quantity"], _report.get("stores", []) as Array, ["item", "quantity"], "No non-food goods are recorded in town stores.")
 
 
@@ -306,6 +307,18 @@ func _render_food(rows: Array) -> void:
 	if not split[1].is_empty():
 		right = _table(headers, split[1], fields, "", weights)
 	_set_page_text("food", 1, right)
+
+
+func _render_water(water: Dictionary) -> void:
+	_set_page_text("water", 0, _key_value_rows([
+		["Well output/day", "%.1f L" % float(water.get("well_output_per_day", 0.0))],
+		["Stored reserve", "%.1f L" % float(water.get("stored_water", 0.0))],
+		["Storage capacity", "%.1f L" % float(water.get("storage_capacity", 0.0))],
+	]))
+	_set_page_text("water", 1, _key_value_rows([
+		["Crop demand/day", "%.1f L" % float(water.get("crop_demand_per_day", 0.0))],
+		["Daily shortfall", "%.1f L" % float(water.get("daily_shortfall", 0.0))],
+	]))
 
 
 func _render_table_spread(key: String, headers: Array[String], rows: Array, fields: Array[String], empty_text: String) -> void:

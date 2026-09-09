@@ -151,6 +151,18 @@ func get_live_actor(actor_id: String) -> Node:
 	return actor as Node
 
 
+func count_live_non_party_actors() -> int:
+	var count := 0
+	for actor_id in _live_actor_by_id.keys():
+		var actor := get_live_actor(str(actor_id))
+		if actor == null or actor.is_queued_for_deletion():
+			continue
+		if actor.has_method("is_player_party_member") and bool(actor.call("is_player_party_member")):
+			continue
+		count += 1
+	return count
+
+
 func update_actor_record(actor_id: String, updates: Dictionary) -> Dictionary:
 	if actor_id.is_empty() or not _has_actor_record(actor_id):
 		return {}
@@ -881,18 +893,20 @@ func update_realized_actor_transform(actor_id: String, world_transform: Transfor
 
 
 func advance_ledger_minutes(minutes: int, absolute_minute := -1) -> Dictionary:
-	_refresh_actor_records_cache()
+	var ledger_bridge := _get_gecs_world()
+	var ledger_records: Dictionary = ledger_bridge.call("get_population_ledger_records") if ledger_bridge != null and ledger_bridge.has_method("get_population_ledger_records") else actor_records.duplicate(true)
 	var summary := {"elapsed_minutes": max(0, minutes), "updated_actor_count": 0, "batches": {}}
 	if minutes <= 0:
 		return summary
-	for actor_id in actor_records.keys():
-		var record: Dictionary = actor_records[actor_id]
+	for actor_id in ledger_records.keys():
+		var record: Dictionary = ledger_records[actor_id]
 		var activity := _ledger_activity_for_record(record, absolute_minute)
 		if str(record.get("realization_state", "ledger")) == "realized":
 			if str(record.get("ledger_activity_state", "")) != activity:
 				record["ledger_activity_state"] = activity
 				record["last_ledger_absolute_minute"] = absolute_minute
-				actor_records[actor_id] = record
+				if actor_records.has(actor_id):
+					(actor_records[actor_id] as Dictionary).merge(record, true)
 				var realized_bridge := _get_gecs_world()
 				if realized_bridge != null and realized_bridge.has_method("update_population_ledger_state"):
 					realized_bridge.call("update_population_ledger_state", str(actor_id), record)
@@ -907,7 +921,8 @@ func advance_ledger_minutes(minutes: int, absolute_minute := -1) -> Dictionary:
 			record["ledger_work_minutes"] = int(record.get("ledger_work_minutes", 0)) + minutes
 		elif activity == "resting":
 			record["ledger_rest_minutes"] = int(record.get("ledger_rest_minutes", 0)) + minutes
-		actor_records[actor_id] = record
+		if actor_records.has(actor_id):
+			(actor_records[actor_id] as Dictionary).merge(record, true)
 		var bridge := _get_gecs_world()
 		if bridge != null and bridge.has_method("update_population_ledger_state"):
 			bridge.call("update_population_ledger_state", str(actor_id), record)

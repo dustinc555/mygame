@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/facility_function_definition.gd" id="1_function"]
+
+[resource]
+script = ExtResource("1_function")
+function_id = "well_1"
+display_name = "Well 1"
+facility_type = "generic"
+description = "A roofed public draw well. Workers draw finite water from its recharging well buffer and haul it into town storage."
+expected_service_points = PackedStringArray()
+expected_activity_types = PackedStringArray("work")

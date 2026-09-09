@@ -10,8 +10,8 @@ class FakeFarm:
 	func get_plots() -> Dictionary:
 		plot_reads += 1
 		return {"snapshot": {}}
-	func advance_world_sim_work(settlement_id: String, labor_seconds: float, _plots_snapshot := {}) -> Dictionary:
-		calls.append({"settlement_id": settlement_id, "labor_seconds": labor_seconds})
+	func advance_world_sim_cycle(settlement_id: String, owner_faction_name: String, labor_seconds: float, _plots_snapshot := {}) -> Dictionary:
+		calls.append({"settlement_id": settlement_id, "owner_faction_name": owner_faction_name, "labor_seconds": labor_seconds})
 		return {"completed_actions": int(floor(labor_seconds)), "changed_cells": 1}
 
 class FakeSettlements:
@@ -34,6 +34,12 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	var production_settlements = load("res://features/settlements/bridge/settlement_controller.gd").new()
+	production_settlements.settlement_states = {"town": _town_state("farmer.a", "", "")}
+	var production_snapshots: Array = production_settlements.get_world_sim_labor_snapshots()
+	_expect(production_snapshots.size() == 1 and str(production_snapshots[0].get("faction_id", "")) == "Player",
+			"production labor snapshots preserve the faction needed for water access")
+	production_settlements.free()
 	var script := load(CONTROLLER_PATH) as Script
 	_expect(script != null and script.can_instantiate(), "world sim owns an instantiable farm progression controller")
 	if script == null or not script.can_instantiate():
@@ -53,7 +59,9 @@ func _run() -> void:
 	settlements.states = [_town_state("farmer.a", "farmer.b", "farmer.c")]
 	var first: Dictionary = controller.call("advance_world_sim_minutes", 60)
 	_expect(farm.calls.size() == 1 and str(farm.calls[0].get("settlement_id", "")) == "town", "unrealized town fields advance through world sim")
-	_expect(is_equal_approx(float(farm.calls[0].get("labor_seconds", 0.0)), 14.4), "three durable farmers contribute one cheap aggregate labor budget")
+	if not farm.calls.is_empty():
+		_expect(str(farm.calls[0].get("owner_faction_name", "")) == "Player", "world sim supplies settlement ownership to the durable Well-to-Tank cycle")
+		_expect(is_equal_approx(float(farm.calls[0].get("labor_seconds", 0.0)), 14.4), "three durable farmers contribute one cheap aggregate labor budget")
 	_expect(int(first.get("advanced_settlements", 0)) == 1, "world sim reports its changed-town count for human inspection")
 	farm.calls.clear()
 	farm.plot_reads = 0
@@ -90,7 +98,7 @@ func _town_state(first: String, second: String, third: String, settlement_id := 
 			"allowed_job_entry_ids": PackedStringArray(["category:farm", "category:haul"]),
 		}
 		index += 1
-	return {"settlement_id": settlement_id, "assignment_slots": slots}
+	return {"settlement_id": settlement_id, "faction_id": "Player", "assignment_slots": slots}
 
 
 func _expect(condition: bool, message: String) -> void:

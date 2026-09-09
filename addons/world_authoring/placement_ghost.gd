@@ -156,11 +156,7 @@ func _begin(preview: Node3D, on_commit: Callable, on_cancel: Callable) -> bool:
 	if root == null:
 		preview.free()
 		return false
-	_disable_colliders(preview)
-	preview.visible = false
-	# Owner intentionally stays null: the preview is editor-transient and
-	# must never pack into the scene file.
-	root.add_child(preview)
+	_mount_preview(root, preview)
 	_preview = preview
 	_on_commit = on_commit
 	_on_cancel = on_cancel
@@ -169,6 +165,16 @@ func _begin(preview: Node3D, on_commit: Callable, on_cancel: Callable) -> bool:
 	_yaw = 0.0
 	_y_offset = 0.0
 	return true
+
+
+func _mount_preview(parent: Node, preview: Node3D) -> void:
+	preview.visible = false
+	# Owner intentionally stays null: the preview is editor-transient and
+	# must never pack into the scene file.
+	parent.add_child(preview)
+	# Single-object facilities create their internal mesh and collider when
+	# they enter the tree, so collision must be disabled after mounting.
+	_disable_colliders(preview)
 
 
 func _commit() -> void:
@@ -197,7 +203,8 @@ func _terrain_point(camera: Camera3D, mouse_position: Vector2) -> Variant:
 	var from := camera.project_ray_origin(mouse_position)
 	var direction := camera.project_ray_normal(mouse_position)
 	var space := camera.get_world_3d().direct_space_state
-	var hit := PLACEMENT_SOLVER.terrain_ray(space, from, from + direction * RAY_LENGTH_METERS)
+	var excluded_roots: Array[Node] = [_preview]
+	var hit := PLACEMENT_SOLVER.terrain_ray(space, from, from + direction * RAY_LENGTH_METERS, excluded_roots)
 	if not hit.is_empty():
 		# Physics hit: cheap and exact, so it is never throttled.
 		_remember_terrain_point(hit["position"])
@@ -261,7 +268,9 @@ func _disable_colliders(root: Node) -> void:
 		(root as CollisionObject3D).collision_mask = 0
 	if root is CollisionShape3D:
 		(root as CollisionShape3D).disabled = true
-	for child in root.get_children():
+	# Single-object facilities realize their configured scene internally. Include
+	# internal children so the placement ray cannot hit the preview itself.
+	for child in root.get_children(true):
 		_disable_colliders(child)
 
 

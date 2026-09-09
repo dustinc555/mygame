@@ -62,6 +62,11 @@ func _process(delta: float) -> void:
 	_advance_squads(TICK_INTERVAL)
 
 
+## Skip uses the ordinary cadence, including plugin ticks and durable travel.
+func advance_offscreen_seconds(seconds: float) -> void:
+	_process(seconds)
+
+
 func _advance_squads(dt: float) -> void:
 	var bridge := _get_gecs_world()
 	if bridge == null or not bridge.has_method("get_world_sim_squads"):
@@ -92,7 +97,8 @@ func _advance_squads(dt: float) -> void:
 ## owner_id -> realized so the mover can freeze realized squads.
 func _update_lod_swap(bridge: Node, squads: Array, anchors: Array[Vector3], radius: float) -> Dictionary:
 	var realized_map: Dictionary = {}
-	if anchors.is_empty():
+	var realization := _realization_controller()
+	if anchors.is_empty() and (realization == null or not bool(realization.call("is_far_simulation_active"))):
 		return realized_map
 	for plugin in get_world_sim_plugins():
 		if not plugin.has_method("update_lod_swap"):
@@ -136,6 +142,13 @@ func _update_lod_swap(bridge: Node, squads: Array, anchors: Array[Vector3], radi
 					bridge.upsert_world_sim_squad(record)
 			realized_map[squad_id] = faction_real
 	return realized_map
+
+
+## Same LOD swap without moving squads or running their ordinary live tick.
+func refresh_projection_handoff() -> void:
+	var bridge := _get_gecs_world()
+	if bridge != null:
+		_update_lod_swap(bridge, bridge.call("get_world_sim_squads"), _lod_anchors(), _lod_radius())
 
 
 func _lod_anchors() -> Array[Vector3]:

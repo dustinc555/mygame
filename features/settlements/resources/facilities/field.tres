@@ -9,5 +9,6 @@ facility_id = "field"
 display_name = "Field"
 scene_path = "res://features/settlements/bridge/settlement_field.tscn"
 catalog_enabled = true
+composition = 1
 shell_policy = 1
 function = ExtResource("2_function")

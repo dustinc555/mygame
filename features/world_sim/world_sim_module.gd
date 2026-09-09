@@ -24,6 +24,7 @@ const LEDGER_SIMULATION := preload("res://features/world_sim/sim/ledger_simulati
 const FARM_WORLD_SIMULATION := preload("res://features/world_sim/sim/farm_world_simulation_controller.gd")
 const WORLD_STATUS := preload("res://features/world_sim/bridge/world_status_controller.gd")
 const POPULATION_REALIZATION := preload("res://features/world_sim/bridge/population_realization_controller.gd")
+const DEBUG_TIME_SKIP := preload("res://features/world_sim/bridge/debug_time_skip_controller.gd")
 
 const CORE := []
 const PROJECTION := []
@@ -44,4 +45,5 @@ const SIM := [
 const BRIDGE := [
 	{"name": "WorldStatusController", "script": WORLD_STATUS, "service": WORLD_STATUS.SERVICE_ID},
 	{"name": "PopulationRealizationController", "script": POPULATION_REALIZATION, "service": POPULATION_REALIZATION.SERVICE_ID},
+	{"name": "DebugTimeSkipController", "script": DEBUG_TIME_SKIP, "service": DEBUG_TIME_SKIP.SERVICE_ID},
 ]

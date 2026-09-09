@@ -46,6 +46,8 @@ var _corpse_projection_root: Node3D
 var _resync_anchors: Array[Vector3] = []
 var _mandatory_work_pending := 0
 var _last_resync_camera_position := Vector3.INF
+var _far_simulation_owner: WeakRef
+var _projection_restore_pending := false
 
 const LOADING_SERVICE := &"navigation_loading_overlay"
 const LOADING_OWNER_ID := "population_realization"
@@ -81,6 +83,16 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _far_simulation_owner != null:
+		if _far_simulation_owner.get_ref() == null:
+			_far_simulation_owner = null
+			_projection_restore_pending = true
+			_resync_remaining = 0.0
+		else:
+			return
+	if _projection_restore_pending:
+		step_projection_handoff()
+		return
 	if not _initialized or root_scene == null:
 		return
 	if get_tree().paused and not is_realization_loading_active():
@@ -147,6 +159,8 @@ func unregister_settlement(settlement: Node) -> void:
 
 
 func should_realize_actor(settlement: Node, actor_record: Dictionary, policy := "") -> bool:
+	if is_far_simulation_active():
+		return false
 	var effective_policy := policy if not str(policy).is_empty() else _policy_for_settlement(settlement)
 	match effective_policy:
 		POLICY_FULL_TOWN:
@@ -429,7 +443,7 @@ func _remove_dead_person_from_active_party(actor_id: String) -> void:
 
 
 func _resync_corpses(anchors: Array[Vector3]) -> void:
-	if anchors.is_empty():
+	if anchors.is_empty() and not is_far_simulation_active():
 		return
 	var bridge := _get_gecs_world()
 	var population := _get_population_controller()
@@ -650,6 +664,8 @@ func _settlement_id(settlement: Node) -> String:
 
 func get_realization_anchor_positions() -> Array[Vector3]:
 	var anchors: Array[Vector3] = []
+	if is_far_simulation_active():
+		return anchors
 	var camera := _get_player_camera()
 	if camera != null:
 		anchors.append(camera.global_position)
@@ -662,6 +678,8 @@ func get_primary_realization_anchor() -> Vector3:
 
 
 func is_position_within_realization_range(position: Vector3, include_hysteresis := false) -> bool:
+	if is_far_simulation_active():
+		return false
 	var anchors := get_realization_anchor_positions()
 	if anchors.is_empty():
 		return DisplayServer.get_name() == "headless"
@@ -708,6 +726,8 @@ func set_realization_retention_seconds(value: float) -> void:
 
 
 func should_keep_realized(cache_key: String, near: bool, realized: bool) -> bool:
+	if is_far_simulation_active():
+		return false
 	if cache_key.is_empty():
 		return near
 	if near:
@@ -781,3 +801,44 @@ func _get_player_camera() -> Camera3D:
 
 func _get_gecs_world() -> Node:
 	return _context.get_optional(GecsWorldController.SERVICE_ID) if _context != null else null
+
+
+## Transient projection lease: authored/persisted LOD settings never change.
+func begin_far_simulation(owner_node: Node) -> bool:
+	if not is_instance_valid(owner_node) or is_far_simulation_active() or _projection_restore_pending:
+		return false
+	_far_simulation_owner = weakref(owner_node)
+	return true
+
+
+func is_far_simulation_active() -> bool:
+	return _far_simulation_owner != null and _far_simulation_owner.get_ref() != null
+
+
+func end_far_simulation(owner_node: Node) -> void:
+	if _far_simulation_owner == null or _far_simulation_owner.get_ref() != owner_node:
+		return
+	_far_simulation_owner = null
+	_projection_restore_pending = true
+	_resync_remaining = 0.0
+
+
+## The lease holder drives ordinary budgeted LOD while the world is paused.
+func step_projection_handoff() -> bool:
+	var anchors := get_realization_anchor_positions()
+	var squads := _context.get_optional(&"world_sim_squad") if _context != null else null
+	if squads != null:
+		squads.call("refresh_projection_handoff")
+	_mandatory_work_pending = 0
+	_resync_population_spawners(anchors)
+	_resync_settlement_assignments(anchors)
+	_resync_corpses(anchors)
+	_update_loading_request()
+	if not is_far_simulation_active():
+		_projection_restore_pending = _mandatory_work_pending > 0
+		return _mandatory_work_pending == 0
+	var population := _get_population_controller()
+	if population == null:
+		return false
+	# Verify actual bodies: unsupported projection owners reject safely.
+	return int(population.call("count_live_non_party_actors")) == 0

@@ -63,18 +63,23 @@ func advance_world_sim_minutes(elapsed_world_minutes: int) -> Dictionary:
 		summary["assigned_farmers"] = int(summary["assigned_farmers"]) + farmer_ids.size()
 		if _any_worker_realized(farmer_ids):
 			continue
-		labor_by_settlement[settlement_id] = float(elapsed_world_minutes) * float(farmer_ids.size()) * WORK_SECONDS_PER_FARMER_WORLD_MINUTE
+		labor_by_settlement[settlement_id] = {
+			"owner_faction_name": str(state.get("faction_id", "")),
+			"labor_seconds": float(elapsed_world_minutes) * float(farmer_ids.size()) * WORK_SECONDS_PER_FARMER_WORLD_MINUTE,
+		}
 	var plots_snapshot: Dictionary = farm_controller.call("get_plots") \
 			if not labor_by_settlement.is_empty() and farm_controller.has_method("get_plots") else {}
 	for settlement_id_value in labor_by_settlement.keys():
 		var settlement_id := str(settlement_id_value)
+		var budget := labor_by_settlement[settlement_id_value] as Dictionary
 		var result: Dictionary = farm_controller.call(
-			"advance_world_sim_work",
+			"advance_world_sim_cycle",
 			settlement_id,
-			float(labor_by_settlement[settlement_id_value]),
+			str(budget.get("owner_faction_name", "")),
+			float(budget.get("labor_seconds", 0.0)),
 			plots_snapshot
-		) if farm_controller.has_method("advance_world_sim_work") else {}
-		if int(result.get("changed_cells", 0)) <= 0:
+		) if farm_controller.has_method("advance_world_sim_cycle") else {}
+		if int(result.get("changed_cells", 0)) <= 0 and float(result.get("hauled_water", 0.0)) <= 0.001:
 			continue
 		summary["advanced_settlements"] = int(summary["advanced_settlements"]) + 1
 		summary["completed_actions"] = int(summary["completed_actions"]) + int(result.get("completed_actions", 0))

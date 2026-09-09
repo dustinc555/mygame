@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/facility_function_definition.gd" id="1_function"]
+
+[resource]
+script = ExtResource("1_function")
+function_id = "tank"
+display_name = "Tank"
+facility_type = "generic"
+description = "A standalone liquid-storage tank. Assign one liquid type while empty; its physical contents contribute to settlement stock."
+expected_service_points = PackedStringArray()
+expected_activity_types = PackedStringArray()

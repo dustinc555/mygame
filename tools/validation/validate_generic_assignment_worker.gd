@@ -92,7 +92,7 @@ func _run() -> void:
 	worker.inventory.add_item_count(TOMATO, 3)
 	jobs.notify_work_offers_changed("granary_demo")
 	jobs._process_party_job_dispatch()
-	var bulk_haul = context.get_optional(&"bulk_storage_haul")
+	var bulk_haul = context.get_optional(&"haul")
 	var haul_platform = bulk_haul._assignment_platform(worker) if bulk_haul != null else null
 	_expect(haul_platform != null, "generic assignment worker claims the ordinary Haul category")
 	if haul_platform != null:

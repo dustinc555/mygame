@@ -822,6 +822,10 @@ func process_container_interaction() -> void:
 	# Within reach: stop pressing toward the slot and open where we stand.
 	if _actor_bool("_has_move_target", false):
 		_clear_actor_move_target()
+	# Timed targets retain order ownership until completion or interruption.
+	if container.has_method("begin_timed_interaction"):
+		container.call("begin_timed_interaction", actor)
+		return
 	current_container_target = null
 	current_order_type = ORDER_TYPE_NONE
 	_emit_actor_signal("container_reached", [actor, container])
