@@ -564,10 +564,10 @@ func _restore_standard_transaction(snapshot: Dictionary) -> void:
 func get_entry_weight(entry) -> float:
 	if entry == null:
 		return 0.0
-	return get_item_weight(entry.definition, entry.count, entry.contained_item_counts)
+	return get_item_weight(entry.definition, entry.count, entry.contained_item_counts, entry.metadata)
 
 
-func get_item_weight(definition, amount: int = 1, contained_item_counts: Dictionary = {}) -> float:
+func get_item_weight(definition, amount: int = 1, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> float:
 	if definition == null or amount <= 0:
 		return 0.0
 	var total: float = float(definition.unit_weight) * float(amount)
@@ -579,6 +579,10 @@ func get_item_weight(definition, amount: int = 1, contained_item_counts: Diction
 		var contained_definition := load(item_path) as ItemDefinition
 		if contained_definition != null:
 			total += contained_definition.unit_weight * contained_count
+	# farm_water is authoritative; carried_liquids.water is a compatibility
+	# mirror (or migration fallback), never a second quantity of water.
+	var liquids := metadata.get("carried_liquids", {}) as Dictionary
+	total += maxf(0.0, float(metadata.get("farm_water", liquids.get("water", 0.0))))
 	return total
 
 
@@ -786,12 +790,12 @@ func auto_sort() -> bool:
 	return true
 
 
-func _can_add_item_count_as_distinct_entries(definition, amount: int, contained_item_counts: Dictionary = {}, _metadata: Dictionary = {}, bypass_admission := false) -> bool:
+func _can_add_item_count_as_distinct_entries(definition, amount: int, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}, bypass_admission := false) -> bool:
 	if definition == null or amount <= 0:
 		return false
 	if not bypass_admission and not accepts_item_count(definition, amount):
 		return false
-	if use_weight and get_total_weight() + get_item_weight(definition, amount, contained_item_counts) > max_weight:
+	if use_weight and get_total_weight() + get_item_weight(definition, amount, contained_item_counts, metadata) > max_weight:
 		return false
 	var remaining := amount
 	var stack_limit := get_stack_limit(definition)

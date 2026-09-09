@@ -12,10 +12,15 @@ const TOWN_TEMPLATE_PATH := "res://features/settlements/bridge/settlement_town.t
 const TOWN_TOOLS_PATH := "res://addons/world_authoring/town_tools.gd"
 const ZONE_TOOLS_PATH := "res://addons/world_authoring/zone_tools.gd"
 const PLACEMENT_GHOST_PATH := "res://addons/world_authoring/placement_ghost.gd"
+const PLACEMENT_SOLVER_PATH := "res://features/settlements/bridge/building_placement_solver.gd"
 const PLUGIN_SCRIPT_PATH := "res://addons/world_authoring/plugin.gd"
 const SETTLEMENT_DEFINITION_SCRIPT_PATH := "res://features/world_sim/resources/settlement_definition.gd"
 const ROUND_TRIP_PATH := "user://validate_town_authoring_round_trip.tscn"
 const KEEP_DEFINITION_PATH := "res://features/settlements/resources/facilities/keep.tres"
+const SINGLE_OBJECT_FACILITY_PATHS := [
+	"res://features/settlements/bridge/settlement_tank.tscn",
+	"res://features/settlements/bridge/settlement_well_1.tscn",
+]
 ## Towns are minimal by design: a bare root. Facilities are direct town
 ## children (flat model, 2026-07-07) — no container roots at all.
 
@@ -32,6 +37,8 @@ func _run() -> void:
 	_validate_template_is_minimal()
 	_validate_new_town_round_trip()
 	_validate_facility_add_remove()
+	_validate_single_object_placement_preview_collision()
+	await _validate_placement_preview_ray_runtime()
 	_validate_minimal_definition()
 	_finish()
 
@@ -83,6 +90,93 @@ func _validate_facility_add_remove() -> void:
 		_fail("Removed facility still present in saved town scene")
 	stripped.free()
 	DirAccess.remove_absolute(ROUND_TRIP_PATH)
+
+
+## Placement previews must never raycast against themselves. Single-object
+## facilities realize their colliders as internal children, so this guards the
+## exact Add Facility regression that pulled Tank and Well toward the camera.
+func _validate_single_object_placement_preview_collision() -> void:
+	var ghost := (load(PLACEMENT_GHOST_PATH) as Script).new(null) as RefCounted
+	var solver := load(PLACEMENT_SOLVER_PATH) as Script
+	var ghost_text := _read_text(PLACEMENT_GHOST_PATH)
+	if not ghost_text.contains("excluded_roots: Array[Node] = [_preview]"):
+		_fail("Placement ray must explicitly exclude its preview root")
+	for scene_path in SINGLE_OBJECT_FACILITY_PATHS:
+		var scene := load(scene_path) as PackedScene
+		var preview := scene.instantiate() as Node3D if scene != null else null
+		if preview == null:
+			_fail("Single-object placement preview must instantiate: %s" % scene_path)
+			continue
+		if not ghost.has_method("_mount_preview"):
+			_fail("Placement ghost must mount previews before disabling their internal colliders")
+			preview.free()
+			continue
+		ghost.call("_mount_preview", root, preview)
+		var colliders: Array[Node] = []
+		_collect_colliders(preview, colliders)
+		if colliders.is_empty():
+			_fail("Single-object placement preview must contain collision: %s" % scene_path)
+		else:
+			for collider in colliders:
+				var excluded_roots: Array[Node] = [preview]
+				if not bool(solver.call("collider_belongs_to_excluded_root", collider, excluded_roots)):
+					_fail("Placement solver must reject every preview collider: %s" % scene_path)
+				if collider is CollisionObject3D and ((collider as CollisionObject3D).collision_layer != 0 or (collider as CollisionObject3D).collision_mask != 0):
+					_fail("Placement preview collision object stayed active: %s" % scene_path)
+				if collider is CollisionShape3D and not (collider as CollisionShape3D).disabled:
+					_fail("Placement preview collision shape stayed active: %s" % scene_path)
+		root.remove_child(preview)
+		preview.free()
+
+
+## Reproduces the camera-pull bug with an active preview collider physically
+## between the ray origin and terrain. The solver must skip the whole preview
+## subtree and return the actual ground body behind it.
+func _validate_placement_preview_ray_runtime() -> void:
+	var solver := load(PLACEMENT_SOLVER_PATH) as Script
+	var world := Node3D.new()
+	root.add_child(world)
+	var preview := Node3D.new()
+	world.add_child(preview)
+	var preview_body := StaticBody3D.new()
+	preview_body.position = Vector3(0.0, 2.0, 0.0)
+	preview.add_child(preview_body)
+	var preview_shape := CollisionShape3D.new()
+	var preview_box := BoxShape3D.new()
+	preview_box.size = Vector3(4.0, 0.5, 4.0)
+	preview_shape.shape = preview_box
+	preview_body.add_child(preview_shape)
+
+	var terrain_body := StaticBody3D.new()
+	terrain_body.position = Vector3(0.0, -0.25, 0.0)
+	world.add_child(terrain_body)
+	var terrain_shape := CollisionShape3D.new()
+	var terrain_box := BoxShape3D.new()
+	terrain_box.size = Vector3(20.0, 0.5, 20.0)
+	terrain_shape.shape = terrain_box
+	terrain_body.add_child(terrain_shape)
+
+	await physics_frame
+	await physics_frame
+	var space := world.get_world_3d().direct_space_state
+	var from := Vector3(0.0, 5.0, 0.0)
+	var to := Vector3(0.0, -5.0, 0.0)
+	var raw_hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, to))
+	if raw_hit.get("collider") != preview_body:
+		_fail("Placement regression setup must hit the preview before terrain")
+	var excluded_roots: Array[Node] = [preview]
+	var terrain_hit: Dictionary = solver.call("terrain_ray", space, from, to, excluded_roots)
+	if terrain_hit.get("collider") != terrain_body:
+		_fail("Placement ray did not skip the active preview collider and reach terrain")
+	world.queue_free()
+	await process_frame
+
+
+func _collect_colliders(node: Node, output: Array[Node]) -> void:
+	if node is CollisionObject3D or node is CollisionShape3D:
+		output.append(node)
+	for child in node.get_children(true):
+		_collect_colliders(child, output)
 
 
 func _validate_icon() -> void:

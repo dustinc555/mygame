@@ -55,6 +55,11 @@ func _process(delta: float) -> void:
 	_tick()
 
 
+## Canonical skip adapter; live processing is paused by the lease holder.
+func advance_offscreen_seconds(seconds: float) -> void:
+	_process(seconds)
+
+
 func _tick() -> void:
 	var gecs := _get_gecs_world()
 	var factions := _get_faction_controller()

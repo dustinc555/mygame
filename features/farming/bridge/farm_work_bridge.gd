@@ -20,12 +20,14 @@ const TRAVEL_CHECK_INTERVAL := 0.1
 const MAX_STALLED_SECONDS := 30.0
 const UNREACHABLE_RETRY_MSEC := 15000
 const FARM_CONTROLLER := preload("res://features/farming/sim/farm_controller.gd")
+const LIQUID_CARRIER := preload("res://features/inventory/bridge/liquid_haul_carrier.gd")
 
 var _context: BootstrapContext
 var _farm: Node
 var _gecs: Node
 var _job_system: Node
 var _stock_controller: Node
+var _haul_provider: Node
 var _assignments: Dictionary = {}
 ## actor instance ID -> exact checked-out tool and its origin container. Loans
 ## survive across consecutive farm cells; a low-urgency return offer appears
@@ -49,6 +51,7 @@ func initialize(context: BootstrapContext) -> void:
 	_gecs = context.get_optional(&"gecs_world")
 	_job_system = context.get_optional(&"job_system")
 	_stock_controller = context.get_optional(InventoryStockController.SERVICE_ID)
+	_haul_provider = context.get_optional(&"haul")
 	_bind_offer_cache_signals()
 	if _gecs != null and not _gecs.world_reindexed.is_connected(_on_world_reindexed):
 		_gecs.world_reindexed.connect(_on_world_reindexed)
@@ -79,6 +82,7 @@ func teardown() -> void:
 	_cancel_all_assignments()
 	_job_system = null
 	_stock_controller = null
+	_haul_provider = null
 	_gecs = null
 	_farm = null
 
@@ -160,7 +164,8 @@ func _append_cached_offer(work: Dictionary) -> Dictionary:
 		"owner_faction_id": str(work.get("owner_faction_id", "")),
 		"world_position": work.get("world_position", Vector3.ZERO),
 		"allowed_actor_ids": work.get("allowed_actor_ids", PackedStringArray()),
-		"urgency": 0.5,
+		# Preserve living/ripe crops before spending labor on more ground.
+		"urgency": 1.0 if str(work.get("action", "")) == "water" else 0.9 if str(work.get("action", "")) == "harvest" else 0.5,
 	}
 	_offer_cache.append(offer)
 	_offer_by_cell["%s|%s" % [plot_id, cell_key]] = offer
@@ -609,18 +614,25 @@ func _assign_cell_to_actor(actor: Node3D, plot_id: String, cell_key: String, aut
 	elif tool_tag.is_empty() or _actor_has_tool(actor, tool_tag):
 		tool_failure = _ensure_tool(actor, tool_tag, tool_label)
 	elif automatic and _is_town_worker(actor, settlement_id):
-		if _borrowed_tools.has(actor_key):
-			tool_failure = "Return borrowed tool before switching tools"
-		else:
-			tool_loan = _nearest_tool_store(
-				actor.global_position,
-				tool_tag,
-				owner_faction_id,
-				settlement_id,
-				actor
-			)
-			if tool_loan.is_empty():
-				tool_failure = "Cannot %s: no %s in town tool storage" % [_verb_for_tag(tool_tag), tool_label]
+		tool_loan = _nearest_tool_store(
+			actor.global_position,
+			tool_tag,
+			owner_faction_id,
+			settlement_id,
+			actor
+		)
+		if tool_loan.is_empty():
+			tool_failure = "Cannot %s: no %s in town tool storage" % [_verb_for_tag(tool_tag), tool_label]
+		elif _borrowed_tools.has(actor_key):
+			# Tool switching is a prerequisite of this chosen work, not idle-only
+			# housekeeping that can be starved by another field's endless tilling.
+			# Reacquire from current offers after return; do not hold the next tool
+			# or a stale cell claim throughout the trip to the loan's origin.
+			var next_store := _live_node(tool_loan.get("store"))
+			if next_store != null and next_store.has_method("release_item_reservation"):
+				next_store.call("release_item_reservation", actor_key)
+			var return_result := _begin_borrowed_tool_return(actor)
+			return "" if return_result == "Worker assigned to return tool" else return_result
 	else:
 		tool_failure = "Cannot %s: no %s" % [_verb_for_tag(tool_tag), tool_label]
 	if not tool_failure.is_empty():
@@ -765,7 +777,17 @@ func _process_assignment(actor_key: int, delta: float, defer_commit := false, tr
 		"farming_level": _farming_level(actor),
 		"completion_item": completion_item,
 		"completion_amount": completion_amount,
+		"water_liters": minf(WATER_PER_CELL, _container_water(actor)) if completing and action == "water" else 0.0,
+		"water_stack_id": _water_stack_id(actor) if completing and action == "water" else "",
+		"water_before": _container_water(actor) if completing and action == "water" else 0.0,
+		"water_entry": _water_entry(actor) if completing and action == "water" else null,
+		"water_inventory": _inventory(actor) if completing and action == "water" else null,
 	}
+	if action == "water" and float(commit.get("water_liters", 0.0)) > 0.0 \
+			and not _debit_water_before_commit(commit, actor):
+		_speak(actor, "Cannot water: container changed")
+		_cancel(actor_key)
+		return
 	if defer_commit and _farm.has_method("apply_work_batch"):
 		_pending_work_commits.append(commit)
 		return
@@ -775,7 +797,9 @@ func _process_assignment(actor_key: int, delta: float, defer_commit := false, tr
 		action,
 		pending,
 		float(commit.get("farming_level", 0.0)),
-		int(assignment.get("request_revision", -1))
+		int(assignment.get("request_revision", -1)),
+		float(commit.get("water_liters", 0.0)),
+		false
 	)
 	_finalize_work_commit(commit, result)
 
@@ -796,22 +820,32 @@ func _flush_pending_work_commits() -> void:
 			"seconds": float(commit.get("pending", 0.0)),
 			"farming_level": float(commit.get("farming_level", 0.0)),
 			"expected_request_revision": int(assignment.get("request_revision", -1)),
+			"water_liters": float(commit.get("water_liters", 0.0)),
+			"publish_notifications": false,
 		})
 	var results: Array = _farm.call("apply_work_batch", requests)
 	for index in commits.size():
 		var result: Dictionary = results[index] if index < results.size() and results[index] is Dictionary else {}
-		_finalize_work_commit(commits[index], result)
+		_settle_commit_water_if_needed(commits[index], result)
+	_publish_work_notifications(results)
+	for index in commits.size():
+		var result: Dictionary = results[index] if index < results.size() and results[index] is Dictionary else {}
+		_finalize_work_commit(commits[index], result, false)
 
 
-func _finalize_work_commit(commit: Dictionary, result: Dictionary) -> void:
+func _finalize_work_commit(commit: Dictionary, result: Dictionary, publish_notifications := true) -> void:
 	var actor_key := int(commit.get("actor_key", 0))
 	var actor := _live_node_3d(commit.get("actor"))
 	var assignment: Dictionary = commit.get("assignment", {})
 	var action := str(commit.get("action", ""))
 	var completion_item = commit.get("completion_item")
 	var completion_amount := int(commit.get("completion_amount", 0))
+	_settle_commit_water_if_needed(commit, result, actor)
+	if publish_notifications:
+		_publish_work_notifications([result])
 	if actor == null or not is_instance_valid(actor) or not _assignments.has(actor_key):
-		_rollback_completion_item(actor, action, completion_item, completion_amount)
+		if result.is_empty() or not bool(result.get("completed", false)):
+			_rollback_completion_item(actor, action, completion_item, completion_amount)
 		return
 	if result.is_empty():
 		_rollback_completion_item(actor, action, completion_item, completion_amount)
@@ -827,9 +861,74 @@ func _finalize_work_commit(commit: Dictionary, result: Dictionary) -> void:
 	if not bool(result.get("completed", false)):
 		_rollback_completion_item(actor, action, completion_item, completion_amount)
 		return
-	if action == "water":
-		_set_container_water(actor, maxf(0.0, _container_water(actor) - WATER_PER_CELL))
 	_finish_and_continue(actor_key)
+
+
+func _settle_commit_water_if_needed(commit: Dictionary, result: Dictionary, actor: Node = null) -> void:
+	if bool(commit.get("water_settled", false)) or str(commit.get("action", "")) != "water" \
+			or float(commit.get("water_debited_liters", 0.0)) <= 0.0:
+		return
+	_settle_committed_water(commit, result, actor if actor != null else _live_node_3d(commit.get("actor")))
+	commit["water_settled"] = true
+
+
+func _publish_work_notifications(results: Array) -> void:
+	if _farm != null and _farm.has_method("publish_work_notifications"):
+		_farm.call("publish_work_notifications", results)
+
+
+func _debit_water_before_commit(commit: Dictionary, actor: Node) -> bool:
+	var requested := maxf(0.0, float(commit.get("water_liters", 0.0)))
+	var before := maxf(0.0, float(commit.get("water_before", 0.0)))
+	if requested <= 0.0 or before + 0.001 < requested:
+		return false
+	var changed := _set_committed_water(commit, actor, before - requested, false)
+	if changed:
+		commit["water_debited_liters"] = requested
+	return changed
+
+
+func _settle_committed_water(commit: Dictionary, result: Dictionary, actor: Node) -> void:
+	var debited := maxf(0.0, float(commit.get("water_debited_liters", 0.0)))
+	var applied := clampf(float(result.get("water_applied", 0.0)), 0.0, debited)
+	_set_committed_water(commit, actor, maxf(0.0, float(commit.get("water_before", 0.0)) - applied), false)
+	_notify_committed_water(commit)
+
+
+func _set_committed_water(commit: Dictionary, actor: Node, amount: float, emit_changed := true) -> bool:
+	var entry = commit.get("water_entry")
+	var inventory = commit.get("water_inventory")
+	var stack_id := str(commit.get("water_stack_id", ""))
+	if entry != null and inventory != null and inventory.entries.has(entry) \
+			and str(entry.stack_id) == stack_id:
+		var metadata: Dictionary = entry.metadata.duplicate(true)
+		metadata[WATER_META] = maxf(0.0, amount)
+		return inventory.set_entry_metadata(entry, metadata, emit_changed)
+	if actor != null and is_instance_valid(actor):
+		var current_entry = _water_entry(actor)
+		var current_inventory = _inventory(actor)
+		if current_entry != null and current_inventory != null and current_inventory.entries.has(current_entry) \
+				and str(current_entry.stack_id) == stack_id:
+			commit["water_entry"] = current_entry
+			commit["water_inventory"] = current_inventory
+			var current_metadata: Dictionary = current_entry.metadata.duplicate(true)
+			current_metadata[WATER_META] = maxf(0.0, amount)
+			return current_inventory.set_entry_metadata(current_entry, current_metadata, emit_changed)
+	var snapshot := _stack_snapshot(stack_id)
+	if snapshot.is_empty() or _gecs == null or not _gecs.has_method("upsert_item_stack_record"):
+		return false
+	var metadata: Dictionary = snapshot.get("metadata", {}).duplicate(true)
+	metadata[WATER_META] = maxf(0.0, amount)
+	snapshot["metadata"] = metadata
+	_gecs.call("upsert_item_stack_record", snapshot)
+	return true
+
+
+func _notify_committed_water(commit: Dictionary) -> void:
+	var entry = commit.get("water_entry")
+	var inventory = commit.get("water_inventory")
+	if entry != null and inventory != null and inventory.entries.has(entry):
+		inventory.changed.emit()
 
 
 func _rollback_completion_item(actor: Node, action: String, item, amount: int) -> void:
@@ -907,18 +1006,24 @@ func _prepare_water_assignment(actor_key: int) -> void:
 		return
 	if _container_water(actor) >= WATER_PER_CELL:
 		return
-	var source: Node3D = _nearest_water_source(actor.global_position) as Node3D
+	var source: Node3D = _nearest_water_source(
+		actor.global_position,
+		str(assignment.get("settlement_id", "")),
+		actor,
+		str(assignment.get("owner_faction_id", ""))
+	) as Node3D
 	if source == null:
 		_speak(actor, "Cannot water: no water source")
 		_cancel(actor_key)
 		return
 	assignment["stage"] = "refill"
 	assignment["water_source"] = source
-	assignment["expected_target"] = source.global_position
+	var target: Vector3 = source.get_interaction_position(actor) if source.has_method("get_interaction_position") else source.global_position
+	assignment["expected_target"] = target
 	_reset_travel_state(assignment, actor)
 	_assignments[actor_key] = assignment
-	_set_farming_visual(actor, false, "", source.global_position, 0.0)
-	_move_actor(actor, source.global_position, not bool(assignment.get("automatic", false)))
+	_set_farming_visual(actor, false, "", target, 0.0)
+	_move_actor(actor, target, not bool(assignment.get("automatic", false)))
 
 
 func _complete_refill(actor_key: int) -> void:
@@ -928,19 +1033,41 @@ func _complete_refill(actor_key: int) -> void:
 	if actor == null or source == null or not is_instance_valid(source):
 		_cancel(actor_key)
 		return
+	var carrier := {
+		"water_entry": _water_entry(actor),
+		"water_inventory": _inventory(actor),
+		"water_stack_id": _water_stack_id(actor),
+		"water_before": _container_water(actor),
+	}
 	var capacity := _container_capacity(actor)
+	var carried_before := float(carrier["water_before"])
+	var requested := maxf(0.0, capacity - carried_before)
+	var inventory = carrier.get("water_inventory")
+	if inventory != null and bool(inventory.get("use_weight")):
+		requested = minf(requested, maxf(0.0, float(inventory.get("max_weight")) - float(inventory.call("get_total_weight"))))
 	var draw_result := {"drawn": 0.0, "message": "Water source is dry"}
-	if not source.has_method("draw_water_for_actor"):
+	if not source.has_method("draw_water_for_actor") or not source.has_method("available_water"):
 		_speak(actor, "Cannot take water: source has no ownership contract")
 		_cancel(actor_key)
 		return
-	draw_result = source.call("draw_water_for_actor", capacity - _container_water(actor), actor)
-	var drawn := float(draw_result.get("drawn", 0.0))
+	requested = minf(requested, maxf(0.0, float(source.call("available_water"))))
+	# Stage the matching carrier credit before the source mutation emits so
+	# observers cannot persist a transient loss of water.
+	if requested <= 0.001 or not _set_committed_water(carrier, actor, carried_before + requested, false):
+		_speak(actor, "Cannot take water: source is dry")
+		_cancel(actor_key)
+		return
+	draw_result = source.call("draw_water_for_actor", requested, actor)
+	var drawn := clampf(float(draw_result.get("drawn", 0.0)), 0.0, requested)
+	_set_committed_water(carrier, actor, carried_before + drawn, false)
+	_notify_committed_water(carrier)
 	if drawn <= 0.0:
 		_speak(actor, str(draw_result.get("message", "Cannot take water")))
 		_cancel(actor_key)
 		return
-	_set_container_water(actor, _container_water(actor) + drawn)
+	if not _assignments.has(actor_key):
+		return
+	assignment = _assignments.get(actor_key, {})
 	assignment["stage"] = "work"
 	assignment["expected_target"] = assignment.get("world_position", Vector3.ZERO)
 	_reset_travel_state(assignment, actor)
@@ -1274,6 +1401,10 @@ func _find_inventory_entry_by_stack_id(inventory, stack_id: String, definition: 
 
 
 func _water_entry(actor: Node):
+	# Work consumes the tool in hand. A spare carried vessel is not the
+	# watering can whose exact equipped stack was refilled or claimed.
+	if _equipped_water_definition(actor) != null:
+		return null
 	return _find_tool_entry(actor, "tool.water_container")
 
 
@@ -1288,26 +1419,42 @@ func _container_capacity(actor: Node) -> float:
 func _container_water(actor: Node) -> float:
 	var entry = _water_entry(actor)
 	if entry != null:
-		return float(entry.metadata.get(WATER_META, 0.0))
+		return LIQUID_CARRIER.water_from_metadata(entry.metadata)
 	var snapshot := _equipped_water_snapshot(actor)
-	return float((snapshot.get("metadata", {}) as Dictionary).get(WATER_META, 0.0))
+	return LIQUID_CARRIER.water_from_metadata(snapshot.get("metadata", {}))
 
 
-func _set_container_water(actor: Node, amount: float) -> void:
+func _set_container_water(actor: Node, amount: float, emit_changed := true) -> bool:
 	var entry = _water_entry(actor)
 	var inventory = _inventory(actor)
 	var clamped := clampf(amount, 0.0, _container_capacity(actor))
-	if entry != null and inventory != null:
-		entry.metadata[WATER_META] = clamped
-		inventory.changed.emit()
-		return
+	if entry != null and inventory != null and inventory.entries.has(entry):
+		var metadata: Dictionary = LIQUID_CARRIER.metadata_with_water(entry.metadata, clamped)
+		return inventory.set_entry_metadata(entry, metadata, emit_changed)
 	var snapshot := _equipped_water_snapshot(actor)
 	if snapshot.is_empty() or _gecs == null or not _gecs.has_method("upsert_item_stack_record"):
-		return
-	var metadata: Dictionary = snapshot.get("metadata", {}).duplicate(true)
-	metadata[WATER_META] = clamped
+		return false
+	var metadata: Dictionary = LIQUID_CARRIER.metadata_with_water(snapshot.get("metadata", {}), clamped)
 	snapshot["metadata"] = metadata
 	_gecs.call("upsert_item_stack_record", snapshot)
+	return true
+
+
+func _emit_inventory_changed(actor: Node) -> void:
+	var entry = _water_entry(actor)
+	var inventory = _inventory(actor)
+	if entry != null and inventory != null and inventory.entries.has(entry):
+		inventory.changed.emit()
+
+
+func _water_stack_id(actor: Node) -> String:
+	var entry = _water_entry(actor)
+	if entry != null:
+		return str(entry.stack_id)
+	var equipment = actor.get_equipment() if actor != null and actor.has_method("get_equipment") else null
+	if equipment != null and _equipped_water_definition(actor) != null and equipment.has_method("get_equipped_stack_id"):
+		return str(equipment.get_equipped_stack_id("weapon"))
+	return ""
 
 
 func _equipped_water_definition(actor: Node):
@@ -1323,11 +1470,18 @@ func _equipped_water_snapshot(actor: Node) -> Dictionary:
 	return _stack_snapshot(str(equipment.get_equipped_stack_id("weapon")))
 
 
-func _nearest_water_source(position: Vector3):
+func _nearest_water_source(position: Vector3, settlement_id: String, actor: Node = null, required_faction_id := ""):
 	var best = null
 	var best_distance := INF
-	for source in get_tree().get_nodes_in_group("farm_water_source"):
-		if source == null or source.available_water() <= 0.0:
+	var candidates: Array[Node] = []
+	if _haul_provider != null and _haul_provider.has_method("get_source_candidates"):
+		candidates.append_array(_haul_provider.call("get_source_candidates", settlement_id, "water") as Array[Node])
+	for source in candidates:
+		if source == null \
+				or str(source.get("settlement_id")) != settlement_id \
+				or source.available_water() <= 0.0:
+			continue
+		if actor != null and not _can_actor_access_store(actor, source, required_faction_id):
 			continue
 		var distance: float = position.distance_squared_to(source.global_position)
 		if distance < best_distance:

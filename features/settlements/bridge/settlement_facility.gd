@@ -115,9 +115,10 @@ func get_property_owner_faction() -> String:
 		var registry := BootstrapContext.service(&"building_registry")
 		if registry != null and not building_id.strip_edges().is_empty():
 			var record: Dictionary = registry.call("get_building", building_id)
-			var canonical_owner := str(record.get("owner_faction_id", "")).strip_edges()
-			if not canonical_owner.is_empty():
-				return canonical_owner
+			# An existing record with an empty owner is authoritatively unowned.
+			# Only fall back to authored ancestry when no durable record exists.
+			if not record.is_empty():
+				return str(record.get("owner_faction_id", "")).strip_edges()
 	if not owner_faction_id.strip_edges().is_empty():
 		return owner_faction_id
 	var settlement := _find_settlement_ancestor()

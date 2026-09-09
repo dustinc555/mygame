@@ -10,8 +10,11 @@ signal pause_changed(manual_paused: bool, world_paused: bool)
 signal minute_changed(absolute_minute: int, day_index: int, hour: int, minute: int)
 signal hour_changed(absolute_hour: int, day_index: int, hour: int)
 signal day_changed(day_index: int)
+## Continuous canonical time, including the fractional tail after minute events.
+signal world_minutes_advanced(absolute_minutes: float)
 
 const MINUTES_PER_DAY := 24.0 * 60.0
+const DEFAULT_REAL_SECONDS_PER_GAME_MINUTE := 1.0
 const SPEED_LABELS: Array[String] = ["Slow", "Normal", "Fast", "Very Fast"]
 const SPEED_SCALES: Array[float] = [0.5, 1.0, 3.0, 8.0]
 const PAUSE_REASON_MANUAL := "manual"
@@ -21,7 +24,7 @@ const PAUSE_REASON_LOADING := "loading"
 
 @export_range(0, 23, 1) var start_hour := 6
 @export_range(0, 59, 1) var start_minute := 0
-@export var real_seconds_per_game_minute := 1.0
+@export var real_seconds_per_game_minute := DEFAULT_REAL_SECONDS_PER_GAME_MINUTE
 @export_range(0, 3, 1) var default_speed_index := 1
 @export var server_authoritative_mode := false
 
@@ -239,6 +242,7 @@ func _advance_minutes(minutes: float, catch_up_vitals: bool) -> void:
 		if bridge != null and bridge.has_method("catch_up_vitals"):
 			bridge.call("catch_up_vitals", minutes * maxf(real_seconds_per_game_minute, 0.01))
 	_emit_time_boundaries()
+	world_minutes_advanced.emit(total_world_minutes)
 	_emit_time_changed(false)
 	sync_world_time_state()
 

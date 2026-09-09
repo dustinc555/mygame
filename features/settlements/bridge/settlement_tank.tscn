@@ -1,0 +1,17 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_single_object_facility.gd" id="1_facility"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/tank.tscn" id="2_tank"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/tank.tres" id="3_function"]
+
+[node name="TankFacility" type="Node3D"]
+script = ExtResource("1_facility")
+facility_id = "tank"
+building_id = "tank"
+display_name = "Tank"
+facility_type = "generic"
+facility_function = ExtResource("3_function")
+composition = 2
+dimensions = Vector2i(2, 2)
+object_scene = ExtResource("2_tank")
+auto_create_standard_roots = false

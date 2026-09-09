@@ -366,6 +366,8 @@ static func _apply_facility_identity(facility: Node, town: Node, definition: Fac
 	facility.name = identity["node_name"]
 	var facility_id := str(identity["facility_id"])
 	facility.set("facility_id", facility_id)
+	if "composition" in facility:
+		facility.set("composition", definition.composition)
 	if "building_id" in facility:
 		facility.set("building_id", identity["building_id"])
 	var owner_faction_id := str(facility.get("owner_faction_id")).strip_edges()

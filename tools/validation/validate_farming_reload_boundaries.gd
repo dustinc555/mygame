@@ -24,6 +24,7 @@ class FakeTime:
 class FakeFarm:
 	extends Node
 	signal plot_changed(plot_id: String, state: Dictionary)
+	signal plot_cells_changed(plot_id: String, changed_cells: Dictionary, settlement_id: String)
 	signal plot_removed(plot_id: String)
 	signal water_source_changed(source_id: String, state: Dictionary)
 	var plots: Dictionary = {}

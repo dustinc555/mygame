@@ -2,7 +2,7 @@ extends SceneTree
 ## Run: godot --headless --path . --script res://tools/validation/validate_bulk_automatic_haul.gd
 
 const PLATFORM_PATH := "res://features/world/projection/containers/bulk_storage_platform.tscn"
-const PROVIDER_PATH := "res://features/inventory/bridge/bulk_storage_haul_provider.gd"
+const PROVIDER_PATH := "res://features/inventory/bridge/haul_provider.gd"
 const TOMATO := preload("res://features/inventory/resources/items/tomato.tres")
 const EGGPLANT := preload("res://features/inventory/resources/items/eggplant.tres")
 

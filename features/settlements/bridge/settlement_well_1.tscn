@@ -1,0 +1,23 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_single_object_facility.gd" id="1_facility"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/well_1.tres" id="2_function"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/water/well_1.tscn" id="3_object"]
+
+[node name="SettlementWell1" type="Node3D"]
+script = ExtResource("1_facility")
+facility_id = "well_1"
+building_id = "well_1"
+display_name = "Well 1"
+facility_type = "generic"
+facility_function = ExtResource("2_function")
+composition = 2
+dimensions = Vector2i(2, 2)
+object_scene = ExtResource("3_object")
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+building_root_path = NodePath("")
+staff_root_path = NodePath("")
+service_points_root_path = NodePath("")
+activity_points_root_path = NodePath("")
+auto_create_standard_roots = false

@@ -76,7 +76,7 @@ func _exit_tree() -> void:
 func _on_bootstrap_context_ready(context: BootstrapContext) -> void:
 	if Engine.is_editor_hint() or context == null:
 		return
-	var provider := context.get_optional(&"bulk_storage_haul")
+	var provider := context.get_optional(&"haul")
 	if provider == _haul_provider:
 		return
 	if _haul_provider != null and is_instance_valid(_haul_provider) and _haul_provider.has_method("unregister_platform"):

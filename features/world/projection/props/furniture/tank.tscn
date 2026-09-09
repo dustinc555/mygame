@@ -1,0 +1,22 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/containers/liquid_container.gd" id="1_container"]
+[ext_resource type="PackedScene" path="res://assets/world/props/water/tank/tank.glb" id="2_model"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape_tank"]
+height = 3.5
+radius = 2.0
+
+[node name="Tank" type="StaticBody3D"]
+script = ExtResource("1_container")
+display_name = "Tank"
+liquid_container_id = "tank"
+capacity_liters = 12000.0
+current_liters = 0.0
+interaction_distance = 2.8
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 1.75, 0)
+shape = SubResource("CylinderShape_tank")

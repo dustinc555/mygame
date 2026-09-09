@@ -105,7 +105,7 @@ static func terrain_hit_from_screen(camera: Camera3D, screen_position: Vector2) 
 
 ## Ray to TERRAIN only: hits whose collider belongs to a building piece or an
 ## actor are excluded and the ray re-cast.
-static func terrain_ray(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3) -> Dictionary:
+static func terrain_ray(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3, excluded_roots: Array[Node] = []) -> Dictionary:
 	var exclude: Array[RID] = []
 	for _attempt in range(TERRAIN_RAY_RETRIES):
 		var query := PhysicsRayQueryParameters3D.create(from, to)
@@ -113,10 +113,26 @@ static func terrain_ray(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vec
 		var result := space.intersect_ray(query)
 		if result.is_empty():
 			return {}
+		if collider_belongs_to_excluded_root(result.get("collider"), excluded_roots):
+			exclude.append(result["rid"])
+			continue
 		if is_terrain_collider(result.get("collider")):
 			return result
 		exclude.append(result["rid"])
 	return {}
+
+
+## Placement ghosts pass their preview root here so a preview can never become
+## the ground it is trying to follow, even if a newly realized internal
+## collider has not finished disabling in PhysicsServer yet.
+static func collider_belongs_to_excluded_root(collider, excluded_roots: Array[Node]) -> bool:
+	var walker := collider as Node
+	while walker != null:
+		for root in excluded_roots:
+			if walker == root:
+				return true
+		walker = walker.get_parent()
+	return false
 
 
 static func is_terrain_collider(collider) -> bool:

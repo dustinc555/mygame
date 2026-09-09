@@ -9,6 +9,8 @@ const FACILITY_DIR := "res://features/settlements/resources/facilities"
 const TOWN_TOOLS := "res://addons/world_authoring/town_tools.gd"
 const FACILITY_TOOLS := "res://addons/world_authoring/facility_tools.gd"
 const FACILITY_DOCK := "res://addons/world_authoring/facility_dock.gd"
+const GENERATED := 1
+const SINGLE_OBJECT := 2
 
 var _failures: Array[String] = []
 
@@ -31,6 +33,7 @@ func _validate_catalog_and_templates() -> void:
 	for facility_id in FACILITY_IDS:
 		var definition := load("%s/%s.tres" % [FACILITY_DIR, facility_id]) as Resource
 		_expect(definition != null and definition.catalog_enabled, "%s must be catalog-enabled" % facility_id)
+		_expect(definition != null and int(definition.composition) == 0, "%s must use the building composition" % facility_id)
 		_expect(definition != null and int(definition.shell_policy) == 0, "%s must use the global default shell policy" % facility_id)
 		var scene := load(definition.scene_path) as PackedScene
 		var facility := scene.instantiate() if scene != null else null
@@ -58,15 +61,42 @@ func _validate_catalog_and_templates() -> void:
 	# than by being hidden from the catalog.
 	var field := load("%s/field.tres" % FACILITY_DIR) as Resource
 	_expect(field != null and field.catalog_enabled, "Field must be placeable from Add Facility")
+	_expect(field != null and int(field.composition) == GENERATED, "Field must use the generated composition")
 	_expect(field != null and int(field.shell_policy) == 1, "Field must be authored shell-less (shell_policy None)")
 	var field_scene := load(field.scene_path) as PackedScene if field != null else null
 	var field_node := field_scene.instantiate() if field_scene != null else null
 	_expect(field_node != null and field_node.has_method("get_building_root"), "Field must still be a composed facility template")
 	if field_node != null:
+		_expect(int(field_node.get("composition")) == GENERATED, "Field template must expose the generated composition")
+		_expect(not bool(field_node.call("supports_furniture")), "Generated facilities must reject furniture")
 		var field_slot: Node = field_node.call("get_building_root") if field_node.has_method("get_building_root") else null
 		_expect(field_slot == null or field_slot.get_child_count() == 0, "Field must author no building shell")
 		_expect(int(field_node.call("count_role_slots", "worker", "employment")) == 0, "Field must not carry its own posts — farmers are town labour")
+		root.add_child(field_node)
+		_expect(field_node.call("get_editor_guide") == null, "Field editor boundary must never exist during gameplay")
+		root.remove_child(field_node)
 		field_node.free()
+	for facility_id in ["tank", "well_1"]:
+		var definition := load("%s/%s.tres" % [FACILITY_DIR, facility_id]) as Resource
+		_expect(definition != null and int(definition.composition) == SINGLE_OBJECT, "%s must use the single-object composition" % facility_id)
+		var scene := load(definition.scene_path) as PackedScene if definition != null else null
+		var facility := scene.instantiate() if scene != null else null
+		if facility == null:
+			_expect(false, "%s single-object facility must instantiate" % facility_id)
+			continue
+		root.add_child(facility)
+		_expect(int(facility.get("composition")) == SINGLE_OBJECT, "%s template must expose the single-object composition" % facility_id)
+		_expect(facility.has_method("get_single_object"), "%s must use the generic single-object facility host" % facility_id)
+		_expect(not bool(facility.call("supports_furniture")), "%s must reject furniture" % facility_id)
+		_expect(facility.get_node_or_null("Furniture") == null, "%s must not manufacture a Furniture root" % facility_id)
+		_expect(facility.get_child_count(false) == 0, "%s must remain one leaf in the authored scene tree" % facility_id)
+		var realized_object: Node = facility.call("get_single_object")
+		_expect(realized_object != null, "%s must realize its configured object internally" % facility_id)
+		if facility_id == "tank" and realized_object != null:
+			facility.set("object_property_overrides", {"assigned_liquid_id": "water"})
+			_expect(str(realized_object.get("assigned_liquid_id")) == "water", "single-object facility configuration must apply generically to its realized object")
+		root.remove_child(facility)
+		facility.free()
 	_validate_home_function_and_recipe()
 
 
@@ -203,6 +233,7 @@ func _validate_plugin_contracts() -> void:
 	_expect(not tools_text.contains("\"res://features/world/projection/props/furnishing/vignettes\","), "manual furniture catalog must not scan furnisher vignettes")
 	_expect(tools_text.contains("node is FurnitureVignette") and not tools_text.contains("bool(node.get(\"unpack_on_furnish\"))"), "editor furnish must use typed vignette unpacking")
 	_expect(tools_text.contains("_stamp_furniture_ids") and tools_text.contains("node.set(\"container_id\""), "generated containers must receive stable facility-scoped IDs before placement")
+	_expect(tools_text.count("supports_furniture") >= 2, "all furniture entry points must use the generic facility composition capability")
 	var town_tools_text := FileAccess.get_file_as_string(TOWN_TOOLS)
 	_expect(town_tools_text.contains("definition.catalog_enabled"), "TownTools catalog must filter disabled definitions")
 	_expect(town_tools_text.count("_apply_facility_identity(facility, town, definition)") == 2, "direct-file and live add paths must share facility identity helper")

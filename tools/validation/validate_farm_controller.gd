@@ -10,6 +10,9 @@ class FakeGecs:
 	var full_state_writes := 0
 	var cell_state_reads := 0
 	var cell_state_writes := 0
+	var water_state_reads := 0
+	var water_state_exact_reads := 0
+	var water_state_writes := 0
 	var fail_cell_writes := false
 	func upsert_farm_plot_state(state: Dictionary) -> Dictionary:
 		full_state_writes += 1
@@ -44,10 +47,17 @@ class FakeGecs:
 		states[plot_id] = state
 		return {"plot_id": plot_id, "settlement_id": state.get("settlement_id", ""), "state_revision": state["state_revision"], "cells": changed_cells.duplicate(true)}
 	func upsert_farm_water_source_state(state: Dictionary) -> Dictionary:
+		water_state_writes += 1
 		water_states[str(state.get("source_id", ""))] = state.duplicate(true)
 		return water_states[str(state.get("source_id", ""))].duplicate(true)
 	func get_farm_water_source_states() -> Dictionary:
+		water_state_reads += 1
 		return water_states.duplicate(true)
+	func get_farm_water_source_state(source_id: String) -> Dictionary:
+		water_state_exact_reads += 1
+		return (water_states.get(source_id, {}) as Dictionary).duplicate(true)
+	func remove_farm_water_source_state(source_id: String) -> void:
+		water_states.erase(source_id)
 
 class FakeTime:
 	extends Node
@@ -125,6 +135,9 @@ func _init() -> void:
 	root.add_child(territory)
 	root.add_child(stock)
 	root.add_child(controller)
+	var controller_source := FileAccess.get_file_as_string("res://features/farming/sim/farm_controller.gd")
+	var register_source_body := controller_source.get_slice("func register_water_source", 1).get_slice("func get_water_source", 0)
+	_expect(not register_source_body.contains("_advance_water_sources("), "rebinding one projected water source never scans every durable source")
 	controller.plot_changed.connect(_on_plot_changed)
 	_expect(controller.has_signal("plot_cells_changed"), "FarmController exposes batched cell completion deltas")
 	if controller.has_signal("plot_cells_changed"):
@@ -190,14 +203,137 @@ func _init() -> void:
 			0.0
 		)
 	controller.call("_save_plot", maintenance_state)
+	controller.register_water_source({
+		"source_id": "world_town.water_tank",
+		"settlement_id": "world_town",
+		"source_kind": "storage",
+		"owner_faction_name": "Player",
+		"renewable": false,
+		"capacity": 20.0,
+		"current_water": 6.0,
+		"recharge_per_world_minute": 0.0,
+		"last_processed_minute": 0,
+	})
+	controller.register_water_source({
+		"source_id": "world_town.well_1",
+		"settlement_id": "world_town",
+		"source_kind": "well",
+		"owner_faction_name": "Player",
+		"renewable": false,
+		"capacity": 120.0,
+		"current_water": 120.0,
+		"recharge_per_world_minute": 1.0,
+		"last_processed_minute": 0,
+	})
+	controller.register_water_source({
+		"source_id": "identity_source",
+		"settlement_id": "old_town",
+		"source_kind": "storage",
+		"owner_faction_name": "FormerOwner",
+		"renewable": false,
+		"capacity": 10.0,
+		"current_water": 4.0,
+	})
+	controller.register_water_source({
+		"source_id": "identity_source",
+		"settlement_id": "new_town",
+		"source_kind": "well",
+		"owner_faction_name": "NewOwner",
+		"renewable": false,
+		"capacity": 10.0,
+		"current_water": 10.0,
+	})
+	var reassigned_source: Dictionary = controller.get_water_source("identity_source")
+	_expect(str(reassigned_source.get("settlement_id", "")) == "new_town" \
+			and str(reassigned_source.get("source_kind", "")) == "well" \
+			and str(reassigned_source.get("owner_faction_name", "")) == "NewOwner" \
+			and is_equal_approx(float(reassigned_source.get("current_water", 0.0)), 4.0), "projected water-source identity updates without resetting durable water")
+	_expect(controller.has_method("reassign_settlement_water_owner"), "water infrastructure exposes durable settlement capture")
+	if controller.has_method("reassign_settlement_water_owner"):
+		_expect(int(controller.call("reassign_settlement_water_owner", "new_town", "CapturedOwner")) == 1 \
+				and str(controller.get_water_source("identity_source").get("owner_faction_name", "")) == "CapturedOwner", \
+				"settlement capture updates off-screen durable water ownership")
+	_expect(controller.has_method("remove_water_source"), "water infrastructure exposes explicit durable demolition")
+	if controller.has_method("remove_water_source"):
+		controller.call("remove_water_source", "identity_source")
+		_expect(controller.get_water_source("identity_source").is_empty(), "explicit water-source demolition removes durable state")
+	_expect(controller.has_method("get_settlement_water_status"), "FarmController exposes settlement water ledger metrics")
+	if controller.has_method("get_settlement_water_status"):
+		var water_status: Dictionary = controller.call("get_settlement_water_status", "world_town")
+		_expect(is_equal_approx(float(water_status.get("well_output_per_day", -1.0)), 288.0), "water ledger totals capped same-town well recharge per day")
+		_expect(is_equal_approx(float(water_status.get("stored_water", -1.0)), 6.0) and is_equal_approx(float(water_status.get("storage_capacity", -1.0)), 20.0), "water ledger totals same-town tank reserve and capacity")
+		_expect(is_equal_approx(float(water_status.get("crop_demand_per_day", -1.0)), 34.56), "water ledger derives daily demand from growing crop cells")
+		_expect(is_equal_approx(float(water_status.get("daily_shortfall", -1.0)), 0.0), "water ledger reports the daily supply shortfall")
+	controller.register_water_source({
+		"source_id": "world_town.aaa_raider_tank",
+		"settlement_id": "world_town",
+		"source_kind": "storage",
+		"owner_faction_name": "Raiders",
+		"renewable": false,
+		"capacity": 10.0,
+		"current_water": 10.0,
+	})
 	controller.request_cell_operation(str(maintenance_plot.get("plot_id", "")), "0:0", "water")
 	controller.request_cell_operation(str(maintenance_plot.get("plot_id", "")), "1:0", "water")
 	controller.request_cell_operation(str(maintenance_plot.get("plot_id", "")), "2:0", "till")
+	gecs.water_state_writes = 0
+	var water_signal_saw_durable_crop := [false]
+	controller.water_source_changed.connect(func(source_id: String, _source_state: Dictionary) -> void:
+		if source_id == "world_town.water_tank":
+			water_signal_saw_durable_crop[0] = float(controller.get_cell(
+					str(maintenance_plot.get("plot_id", "")), "0:0").get("water", 0.0)) > 0.0
+	, CONNECT_ONE_SHOT)
 	var maintenance_summary: Dictionary = controller.advance_world_sim_work("world_town", 4.0)
-	_expect(float(controller.get_cell(str(maintenance_plot.get("plot_id", "")), "0:0").get("water", 0.0)) > 0.0 \
-			and float(controller.get_cell(str(maintenance_plot.get("plot_id", "")), "1:0").get("water", 0.0)) > 0.0, "off-screen watering instantly maintains every thirsty crop")
+	_expect(is_equal_approx(float(controller.get_cell(str(maintenance_plot.get("plot_id", "")), "0:0").get("water", 0.0)), 5.0) \
+			and is_equal_approx(float(controller.get_cell(str(maintenance_plot.get("plot_id", "")), "1:0").get("water", 0.0)), 1.0), "off-screen watering applies only exact liters drawn from town storage")
+	_expect(is_equal_approx(float(controller.get_water_source("world_town.water_tank").get("current_water", -1.0)), 0.0) \
+			and is_equal_approx(float(maintenance_summary.get("consumed_water", -1.0)), 6.0), "off-screen crop water is conserved against durable storage")
+	_expect(is_equal_approx(float(controller.get_water_source("world_town.aaa_raider_tank").get("current_water", -1.0)), 10.0), "off-screen farming cannot drain another faction's storage")
+	_expect(gecs.water_state_writes == 1, "off-screen watering persists one batched storage mutation instead of one write per cell")
+	_expect(water_signal_saw_durable_crop[0], "off-screen watering publishes storage changes only after matching crop cells are durable")
+	gecs.water_state_reads = 0
+	gecs.water_state_exact_reads = 0
+	controller.get_water_source("world_town.water_tank")
+	_expect(gecs.water_state_reads == 0 and gecs.water_state_exact_reads == 1, "exact water-source reads use the maintained durable index")
 	_expect(str(controller.get_cell(str(maintenance_plot.get("plot_id", "")), "2:0").get("state", "")) == "tilled" \
 			and is_equal_approx(float(maintenance_summary.get("spent_labor_seconds", 0.0)), 4.0), "off-screen watering spends no labor needed for field development")
+	var storage_authorization := {"source_id": "world_town.water_tank", "owner_faction_name": "Player", "actor_faction_name": "Player", "owner_access_approved": true, "theft_approved": false}
+	controller.call("deposit_water_source", "world_town.water_tank", 5.0, storage_authorization)
+	controller.call("reserve_water_source_outgoing", "world_town.water_tank", 2.0, storage_authorization)
+	var reserved_tank_state: Dictionary = controller.get_water_source("world_town.water_tank")
+	var unreserved_draw: Dictionary = controller.call("_draw_settlement_storage", "world_town", "Player", 2.0)
+	_expect(is_equal_approx(float(unreserved_draw.get("drawn", 0.0)), 2.0) \
+			and is_equal_approx(float(controller.get_water_source("world_town.water_tank").get("current_water", -1.0)), 3.0) \
+			and is_equal_approx(float(controller.get_water_source("world_town.water_tank").get("reserved_outgoing_water", -1.0)), 2.0), "off-screen watering draws only unreserved water without consuming haul reservations")
+	controller.call("_restore_water_transactions", unreserved_draw.get("transactions", []), 2.0)
+	reserved_tank_state = controller.get_water_source("world_town.water_tank")
+	_expect(is_equal_approx(float(reserved_tank_state.get("current_water", -1.0)), 5.0) \
+			and is_equal_approx(float(reserved_tank_state.get("reserved_outgoing_water", -1.0)), 2.0), "off-screen rollback restores water without changing haul reservations")
+	var renewable_storage := reserved_tank_state.duplicate(true)
+	renewable_storage["source_id"] = "world_town.renewable_storage"
+	renewable_storage["renewable"] = true
+	renewable_storage["current_water"] = 0.0
+	renewable_storage["reserved_outgoing_water"] = 0.0
+	gecs.upsert_farm_water_source_state(renewable_storage)
+	controller.call("_rebuild_water_storage_index")
+	var renewable_draw: Dictionary = controller.call("_draw_settlement_storage", "world_town", "Player", 7.0)
+	_expect(is_equal_approx(float(renewable_draw.get("drawn", 0.0)), 7.0) \
+			and is_equal_approx(float(controller.get_water_source("world_town.renewable_storage").get("current_water", -1.0)), 0.0), "off-screen legacy renewable storage matches projected unlimited draws")
+	controller.remove_water_source("world_town.renewable_storage")
+	controller.call("release_water_source_outgoing", "world_town.water_tank", 2.0)
+	var failed_water_state: Dictionary = controller.get_plot(str(maintenance_plot.get("plot_id", "")))
+	failed_water_state["cells"]["0:0"]["water"] = 0.0
+	controller.call("_save_plot", failed_water_state)
+	var tank_state: Dictionary = controller.get_water_source("world_town.water_tank")
+	tank_state["current_water"] = 5.0
+	gecs.upsert_farm_water_source_state(tank_state)
+	controller.request_cell_operation(str(maintenance_plot.get("plot_id", "")), "0:0", "water")
+	gecs.fail_cell_writes = true
+	var failed_water_summary: Dictionary = controller.advance_world_sim_work("world_town", 0.1)
+	gecs.fail_cell_writes = false
+	_expect(is_equal_approx(float(controller.get_cell(str(maintenance_plot.get("plot_id", "")), "0:0").get("water", -1.0)), 0.0) \
+			and is_equal_approx(float(controller.get_water_source("world_town.water_tank").get("current_water", -1.0)), 5.0) \
+			and is_equal_approx(float(failed_water_summary.get("consumed_water", -1.0)), 0.0), "failed farm persistence restores water to durable storage")
 	controller.remove_plot(str(maintenance_plot.get("plot_id", "")))
 	var stock_positions: Array[Vector3] = [Vector3(40.0, 0.0, 40.0)]
 	var stock_plot: Dictionary = controller.create_plot(stock_positions, Vector2i.ONE, "tomato", "Player", "world_town")
@@ -491,7 +627,7 @@ func _init() -> void:
 	controller.call("_reconcile_after_world_reindex")
 	var advanced_state: Dictionary = controller.get_plot(str(plot.plot_id))
 	_expect(int(advanced_state.last_simulated_minute) == 60 and float(((advanced_state.cells as Dictionary)["1:0"] as Dictionary).growth) > 0.0, "load reindex advances crops from durable elapsed world time")
-	gecs.upsert_farm_water_source_state({"source_id": "cistern", "owner_faction_name": "Player", "renewable": false, "capacity": 20.0, "current_water": 5.0, "recharge_per_world_minute": 0.1, "last_processed_minute": 0})
+	gecs.upsert_farm_water_source_state({"source_id": "cistern", "source_kind": "well", "owner_faction_name": "Player", "renewable": false, "capacity": 20.0, "current_water": 5.0, "recharge_per_world_minute": 0.1, "last_processed_minute": 0})
 	time.absolute_minute = 120
 	controller._on_world_reindexed()
 	controller.call("_reconcile_after_world_reindex")
@@ -505,6 +641,21 @@ func _init() -> void:
 	_expect(is_equal_approx(float(controller.call("draw_water_source", "cistern", 4.0, stale_authorization)), 0.0), "authoritative water mutation rejects authorization for a stale owner")
 	_expect(is_equal_approx(float(controller.call("draw_water_source", "cistern", 4.0, owner_authorized)), 4.0), "authoritative water mutation accepts the owner's draw")
 	_expect(is_equal_approx(float(controller.call("draw_water_source", "cistern", 3.0, theft_authorized)), 3.0), "authoritative water mutation accepts a theft-system-approved foreign draw")
+	_expect(controller.has_method("deposit_water_source"), "controller exposes exact conserved water deposits")
+	if controller.has_method("deposit_water_source"):
+		var deposited := float(controller.call("deposit_water_source", "cistern", 15.0, owner_authorized))
+		_expect(is_equal_approx(deposited, 10.0) and is_equal_approx(float(controller.get_water_source("cistern").get("current_water", 0.0)), 20.0), "water deposit accepts only free storage capacity")
+	gecs.upsert_farm_water_source_state({
+		"source_id": "renewable_source",
+		"owner_faction_name": "Player",
+		"renewable": true,
+		"capacity": 0.0,
+		"current_water": 0.0,
+	})
+	var renewable_authorized := {"source_id": "renewable_source", "owner_faction_name": "Player", "actor_faction_name": "Player", "owner_access_approved": true, "theft_approved": false}
+	var renewable_reserved := float(controller.call("reserve_water_source_outgoing", "renewable_source", 8.0, renewable_authorized))
+	var renewable_drawn := float(controller.call("draw_reserved_water_source", "renewable_source", renewable_reserved, renewable_authorized))
+	_expect(is_equal_approx(renewable_reserved, 8.0) and is_equal_approx(renewable_drawn, 8.0), "legacy renewable sources remain usable through reserved hauling")
 	owner.free()
 	outsider.free()
 	controller.free()

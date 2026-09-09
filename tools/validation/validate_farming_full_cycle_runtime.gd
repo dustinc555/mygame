@@ -2,6 +2,7 @@ extends SceneTree
 ## Run: godot --headless --path . --script res://tools/validation/validate_farming_full_cycle_runtime.gd
 
 var _root: Node
+var _max_observed_water := 0.0
 
 
 func _initialize() -> void:
@@ -58,11 +59,16 @@ func _run() -> void:
 	if water_result.begins_with("Cannot"):
 		_fail("worker accepted water order: %s" % water_result)
 		return
+	var assigned_water := float(work.call("_container_water", worker))
+	if not is_equal_approx(assigned_water, 7.0):
+		_fail("assigning water work preserves carried water: %.2f" % assigned_water)
+		return
 	var watered := await _wait_for_water(farm, plot_id, before_water, 18.0)
 	if not watered:
-		_fail("worker watered the cell from a finite carried container: result=%s before=%.2f after=%.2f active=%s position=%s can_count=%d capacity=%.2f carried=%.2f" % [
+		_fail("worker watered the cell from a finite carried container: result=%s before=%.2f max=%.2f after=%.2f active=%s position=%s can_count=%d capacity=%.2f carried=%.2f" % [
 			water_result,
 			before_water,
+			_max_observed_water,
 			float(_cell(farm, plot_id).get("water", 0.0)),
 			str(work.has_active_work_for_actor(worker)),
 			str(worker.global_position),
@@ -206,9 +212,12 @@ func _order_and_wait(farm: Node, work: Node, worker: Node, plot_id: String, acti
 
 
 func _wait_for_water(farm: Node, plot_id: String, before: float, seconds: float) -> bool:
+	_max_observed_water = before
 	for _step in int(seconds * 10.0):
 		await create_timer(0.1).timeout
-		if float(_cell(farm, plot_id).get("water", 0.0)) > before + 1.0:
+		var current := float(_cell(farm, plot_id).get("water", 0.0))
+		_max_observed_water = maxf(_max_observed_water, current)
+		if current > before + 1.0:
 			return true
 	return false
 

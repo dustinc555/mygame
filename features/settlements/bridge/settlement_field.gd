@@ -40,6 +40,7 @@ const SEED_RETRIES := 30
 
 var _plot_id := ""
 var _terrain_cache: Node
+var _editor_guide: MultiMeshInstance3D
 
 
 ## Re-seat the footprint on the current ground. Terrain edits do not notify the
@@ -62,6 +63,8 @@ func _repair_authoring_tree() -> void:
 	super._repair_authoring_tree()
 	if not is_inside_tree():
 		return
+	if Engine.is_editor_hint():
+		_rebuild_editor_guide()
 	# Real field work is published by FarmController. Fields own no fake staff,
 	# ambient stand-around points, or abstract facility job provider.
 
@@ -69,6 +72,7 @@ func _repair_authoring_tree() -> void:
 func _apply_field_defaults() -> void:
 	if facility_function == null:
 		facility_function = FIELD_FUNCTION
+	composition = FacilityComposition.GENERATED
 	building_root_path = NodePath("")
 	staff_root_path = NodePath("")
 	service_points_root_path = NodePath("")
@@ -114,13 +118,64 @@ func _footprint_coordinates() -> Array[Vector2i]:
 
 
 ## Old editor builds accidentally serialized this developer visualization into
-## production scenes. Remove it in both editor and runtime; only FieldPainter
-## owns temporary footprint feedback now.
+## production scenes. Remove it in both editor and runtime; the replacement
+## editor guide is internal and ownerless, while gameplay uses its own overlay.
 func _remove_legacy_footprint_visual() -> void:
 	var visual := get_node_or_null("FootprintVisual")
 	if visual != null:
 		remove_child(visual)
 		visual.queue_free()
+
+
+func get_editor_guide() -> MultiMeshInstance3D:
+	return _editor_guide if is_instance_valid(_editor_guide) else null
+
+
+## Persistent authoring feedback, but never persistent scene data. The guide is
+## internal and ownerless so every saved field is visible in the editor while
+## the field remains a single leaf in the Scene tree. Runtime selection owns a
+## separate overlay and this node is never created outside the editor.
+func _rebuild_editor_guide() -> void:
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	if get_editor_guide() == null:
+		var tile := BoxMesh.new()
+		tile.size = Vector3(CELL_SIZE + 0.06, 0.05, 0.06)
+		var material := StandardMaterial3D.new()
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.albedo_color = Color(0.35, 0.75, 0.28, 0.55)
+		tile.material = material
+		var multi_mesh := MultiMesh.new()
+		multi_mesh.transform_format = MultiMesh.TRANSFORM_3D
+		multi_mesh.mesh = tile
+		_editor_guide = MultiMeshInstance3D.new()
+		_editor_guide.name = "FieldEditorBoundary"
+		_editor_guide.multimesh = multi_mesh
+		add_child(_editor_guide, false, Node.INTERNAL_MODE_FRONT)
+	var occupied := {}
+	for coordinate in _footprint_coordinates():
+		occupied[coordinate] = true
+	var segments: Array[Transform3D] = []
+	var edges := [
+		{"neighbor": Vector2i(0, -1), "offset": Vector3(0.0, 0.0, -CELL_SIZE * 0.5), "rotation": 0.0},
+		{"neighbor": Vector2i(0, 1), "offset": Vector3(0.0, 0.0, CELL_SIZE * 0.5), "rotation": 0.0},
+		{"neighbor": Vector2i(-1, 0), "offset": Vector3(-CELL_SIZE * 0.5, 0.0, 0.0), "rotation": PI * 0.5},
+		{"neighbor": Vector2i(1, 0), "offset": Vector3(CELL_SIZE * 0.5, 0.0, 0.0), "rotation": PI * 0.5},
+	]
+	for coordinate in occupied:
+		var cell_transform := cell_local_transform(coordinate, 0.07)
+		for edge in edges:
+			if occupied.has(coordinate + (edge["neighbor"] as Vector2i)):
+				continue
+			segments.append(Transform3D(
+				Basis(Vector3.UP, float(edge["rotation"])),
+				cell_transform.origin + (edge["offset"] as Vector3)
+			))
+	var multi_mesh := _editor_guide.multimesh
+	multi_mesh.instance_count = segments.size()
+	for index in segments.size():
+		multi_mesh.set_instance_transform(index, segments[index])
 
 
 ## A cell's transform in this field's local space, lifted to sit ON the terrain

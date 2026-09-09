@@ -7,6 +7,8 @@ const DEFAULT_CELL_SIZE := 1.25
 const MAX_PLOT_DIMENSION := 64
 const MAX_PLOT_CELLS := 4096
 const SOIL_RECOVERY_MINUTES := 2 * 24 * 60
+const WORLD_SIM_WATER_HAUL_LITERS_PER_SECOND := 10.0
+const MIN_NORMAL_SECONDS_PER_RECHARGED_LITER := 5.0
 ## Crop policy meaning "plant whatever seed stock is in reach" — a policy, not
 ## a crop id, resolved per plot through the resolver a bridge installs.
 const AUTO_CROP_POLICY := "auto"
@@ -25,16 +27,28 @@ signal plot_cells_changed(plot_id: String, changed_cells: Dictionary, settlement
 signal plot_removed(plot_id: String)
 signal work_completed(result: Dictionary)
 signal water_source_changed(source_id: String, state: Dictionary)
+signal water_source_removed(source_id: String, previous_state: Dictionary)
 
 var _context: BootstrapContext
 var _gecs: Node
 var _world_time: Node
 var _territory: Node
 var _inventory_stock: Node
+var _liquid_storage: Node
 var _crops: Dictionary = {}
 var _next_plot_sequence := 1
 var _world_reindex_pending := false
 var _auto_crop_resolver := Callable()
+var _water_storage_ids_by_scope: Dictionary = {}
+var _water_well_ids_by_scope: Dictionary = {}
+## Only groundwater providers participate in fractional clock ticks, never tanks.
+var _recharging_water_source_ids: Dictionary = {}
+var _well_yield_by_source: Dictionary = {}
+var _well_yield_by_settlement: Dictionary = {}
+# Derived work index only: a matching durable revision and resolved policy prove
+# skipped cells have neither crops nor soil timers nor pending policy changes.
+# Every external plot mutation invalidates it; load/removal clear identity reuse.
+var _minute_cell_index: Dictionary = {}
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -43,11 +57,16 @@ func initialize(context: BootstrapContext) -> void:
 	_world_time = context.get_optional(&"world_time")
 	_territory = context.require(&"territory")
 	_inventory_stock = context.get_optional(&"inventory_stock")
+	_liquid_storage = context.get_optional(LiquidStorageController.SERVICE_ID)
 	for crop_id in CROP_PATHS:
 		_crops[crop_id] = load(CROP_PATHS[crop_id])
 	_recover_sequence()
+	_rebuild_water_storage_index()
 	if _world_time != null and not _world_time.minute_changed.is_connected(_on_minute_changed):
 		_world_time.minute_changed.connect(_on_minute_changed)
+	if _world_time != null and _world_time.has_signal("world_minutes_advanced") \
+			and not _world_time.is_connected("world_minutes_advanced", _on_world_minutes_advanced):
+		_world_time.connect("world_minutes_advanced", _on_world_minutes_advanced)
 	if _gecs != null and not _gecs.world_reindexed.is_connected(_on_world_reindexed):
 		_gecs.world_reindexed.connect(_on_world_reindexed)
 
@@ -274,6 +293,7 @@ func _grid_from_key(key: String) -> Vector2i:
 
 
 func remove_plot(plot_id: String) -> void:
+	_minute_cell_index.erase(plot_id)
 	if _gecs == null:
 		return
 	_gecs.remove_farm_plot_state(plot_id)
@@ -290,12 +310,64 @@ func get_plot(plot_id: String) -> Dictionary:
 	if _gecs == null:
 		return {}
 	if _gecs.has_method("get_farm_plot_state"):
-		return (_gecs.call("get_farm_plot_state", plot_id) as Dictionary).duplicate(true)
+		return _gecs.call("get_farm_plot_state", plot_id) as Dictionary
 	return (_gecs.get_farm_plot_states().get(plot_id, {}) as Dictionary).duplicate(true)
 
 
 func get_plots() -> Dictionary:
 	return _gecs.get_farm_plot_states() if _gecs != null else {}
+
+
+func get_settlement_water_status(settlement_id: String) -> Dictionary:
+	var status := {
+		"well_output_per_day": 0.0,
+		"stored_water": 0.0,
+		"storage_capacity": 0.0,
+		"crop_demand_per_day": 0.0,
+		"daily_shortfall": 0.0,
+	}
+	if _gecs == null or settlement_id.is_empty():
+		return status
+	if _gecs.has_method("get_farm_water_totals_for_settlement"):
+		status.merge(_gecs.call("get_farm_water_totals_for_settlement", settlement_id) as Dictionary, true)
+		# GECS's raw aggregate is authored yield; gameplay applies a rate cap.
+		status["well_output_per_day"] = float(_well_yield_by_settlement.get(settlement_id, 0.0)) * 1440.0
+	else:
+		for source_value in _gecs.get_farm_water_source_states().values():
+			var source := source_value as Dictionary
+			if str(source.get("settlement_id", "")) != settlement_id:
+				continue
+			if str(source.get("source_kind", "storage")) == "well":
+				var recharge_per_minute := _water_source_recharge_per_minute(source)
+				status["well_output_per_day"] = float(status["well_output_per_day"]) + recharge_per_minute * 1440.0
+			else:
+				status["stored_water"] = float(status["stored_water"]) + maxf(0.0, float(source.get("current_water", 0.0)))
+				status["storage_capacity"] = float(status["storage_capacity"]) + maxf(0.0, float(source.get("capacity", 0.0)))
+	if _liquid_storage != null:
+		var liquid_totals := _liquid_storage.call("get_settlement_liquid_totals", settlement_id, "water") as Dictionary
+		status["stored_water"] = float(status["stored_water"]) + float(liquid_totals.get("stored_liters", 0.0))
+		status["storage_capacity"] = float(status["storage_capacity"]) + float(liquid_totals.get("capacity_liters", 0.0))
+	var growing_crop_counts: Dictionary = _gecs.call("get_growing_farm_crop_counts_for_settlement", settlement_id) \
+			if _gecs.has_method("get_growing_farm_crop_counts_for_settlement") else {}
+	if not _gecs.has_method("get_growing_farm_crop_counts_for_settlement"):
+		for plot_value in get_plots().values():
+			var plot := plot_value as Dictionary
+			if str(plot.get("settlement_id", "")) != settlement_id:
+				continue
+			for cell_value in (plot.get("cells", {}) as Dictionary).values():
+				var cell := cell_value as Dictionary
+				if str(cell.get("state", "")) == FARM_SIMULATION.STATE_GROWING:
+					var crop_id := str(cell.get("crop_id", ""))
+					growing_crop_counts[crop_id] = int(growing_crop_counts.get(crop_id, 0)) + 1
+	for crop_id_value in growing_crop_counts:
+		var crop := get_crop(str(crop_id_value))
+		if crop != null:
+			status["crop_demand_per_day"] = float(status["crop_demand_per_day"]) + maxf(0.0, crop.water_per_growth_minute) * 1440.0 * int(growing_crop_counts[crop_id_value])
+	status["daily_shortfall"] = maxf(
+		0.0,
+		float(status["crop_demand_per_day"]) - float(status["well_output_per_day"])
+	)
+	return status
 
 
 func get_cell(plot_id: String, cell_key: String) -> Dictionary:
@@ -1350,6 +1422,85 @@ func get_next_work(plot_id: String, excluded_keys := PackedStringArray()) -> Dic
 ## movement, animation, or per-NPC ticking. One call loads the farm snapshot
 ## once, spends a deterministic settlement budget, and saves each changed plot
 ## once. Actor-reserved manual requests remain projection-only.
+func advance_world_sim_cycle(settlement_id: String, owner_faction_name: String, labor_seconds: float, plots_snapshot: Dictionary = {}) -> Dictionary:
+	var plots := plots_snapshot if not plots_snapshot.is_empty() else get_plots()
+	var water_demand := 0.0
+	for state_value in plots.values():
+		var state := state_value as Dictionary
+		if str(state.get("settlement_id", "")) != settlement_id or not is_active_field(state):
+			continue
+		water_demand += _world_sim_water_request_liters(state, (state.get("cells", {}) as Dictionary).keys())
+	var stored_water := 0.0
+	if _liquid_storage != null and _liquid_storage.has_method("get_settlement_liquid_container_states"):
+		for tank_value in _liquid_storage.call("get_settlement_liquid_container_states", settlement_id, "water"):
+			var tank := tank_value as Dictionary
+			if str(tank.get("owner_faction_name", "")) == owner_faction_name:
+				stored_water += maxf(0.0, float(tank.get("current_liters", 0.0)) - float(tank.get("reserved_outgoing_liters", 0.0)))
+	var haul_budget := minf(maxf(0.0, water_demand - stored_water), maxf(0.0, labor_seconds) * WORLD_SIM_WATER_HAUL_LITERS_PER_SECOND)
+	var hauled := _haul_world_sim_water(settlement_id, owner_faction_name, haul_budget)
+	var haul_labor := hauled / WORLD_SIM_WATER_HAUL_LITERS_PER_SECOND
+	var result := advance_world_sim_work(settlement_id, maxf(0.0, labor_seconds - haul_labor), plots)
+	result["labor_seconds"] = maxf(0.0, labor_seconds)
+	result["spent_labor_seconds"] = float(result.get("spent_labor_seconds", 0.0)) + haul_labor
+	result["remaining_labor_seconds"] = maxf(0.0, labor_seconds - float(result.get("spent_labor_seconds", 0.0)))
+	result["hauled_water"] = hauled
+	return result
+
+
+func _haul_world_sim_water(settlement_id: String, owner_faction_name: String, requested_liters: float) -> float:
+	if requested_liters <= 0.001 or _liquid_storage == null \
+			or not _liquid_storage.has_method("get_settlement_liquid_container_states") \
+			or not _liquid_storage.has_method("deposit_staged"):
+		return 0.0
+	var remaining := requested_liters
+	var transactions: Array = []
+	var tanks: Array = _liquid_storage.call("get_settlement_liquid_container_states", settlement_id, "water")
+	var scope := _water_storage_scope_key(settlement_id, owner_faction_name)
+	var well_ids := (_water_well_ids_by_scope.get(scope, []) as Array).duplicate()
+	for tank_value in tanks:
+		if remaining <= 0.001:
+			break
+		var tank := tank_value as Dictionary
+		if str(tank.get("owner_faction_name", "")) != owner_faction_name:
+			continue
+		var tank_id := str(tank.get("liquid_container_id", ""))
+		var free := maxf(0.0, float(tank.get("capacity_liters", 0.0)) - float(tank.get("current_liters", 0.0)) - float(tank.get("reserved_incoming_liters", 0.0)))
+		while free > 0.001 and remaining > 0.001:
+			var transferred := false
+			for well_id_value in well_ids:
+				var well_id := str(well_id_value)
+				var well := _advance_water_source_state(get_water_source(well_id), _water_clock_minute(), false)
+				var available := remaining if bool(well.get("renewable", false)) else maxf(0.0, float(well.get("current_water", 0.0)) - float(well.get("reserved_outgoing_water", 0.0)))
+				var offered := minf(remaining, minf(free, available))
+				if offered <= 0.001:
+					continue
+				var authorization := _liquid_owner_authorization(owner_faction_name)
+				authorization["liquid_container_id"] = tank_id
+				var transaction := _liquid_storage.call("deposit_staged", tank_id, "water", offered, authorization) as Dictionary
+				var deposited := float(transaction.get("liters", 0.0))
+				if deposited <= 0.001:
+					continue
+				if not bool(well.get("renewable", false)):
+					var previous_well := well.duplicate(true)
+					well["current_water"] = maxf(0.0, float(well.get("current_water", 0.0)) - deposited)
+					var saved_well: Dictionary = _gecs.upsert_farm_water_source_state(well) if _gecs != null else {}
+					if saved_well.is_empty():
+						_liquid_storage.call("rollback_staged_deposit", transaction)
+						continue
+					_reindex_water_source(previous_well, saved_well)
+					water_source_changed.emit(well_id, saved_well)
+				transactions.append(transaction)
+				remaining -= deposited
+				free -= deposited
+				transferred = true
+				break
+			if not transferred:
+				break
+	if not transactions.is_empty() and _liquid_storage.has_method("publish_staged_transactions"):
+		_liquid_storage.call("publish_staged_transactions", transactions)
+	return requested_liters - remaining
+
+
 func advance_world_sim_work(settlement_id: String, labor_seconds: float, plots_snapshot: Dictionary = {}) -> Dictionary:
 	var summary := {
 		"settlement_id": settlement_id,
@@ -1359,6 +1510,7 @@ func advance_world_sim_work(settlement_id: String, labor_seconds: float, plots_s
 		"changed_cells": 0,
 		"completed_actions": 0,
 		"consumed_seeds": 0,
+		"consumed_water": 0.0,
 		"stored_produce": 0,
 	}
 	if settlement_id.is_empty() or labor_seconds <= 0.0:
@@ -1387,7 +1539,16 @@ func advance_world_sim_work(settlement_id: String, labor_seconds: float, plots_s
 		var plot_changed_cells := 0
 		var plot_completed_actions := 0
 		var plot_consumed_seeds := 0
+		var plot_consumed_water := 0.0
 		var plot_stored_produce := 0
+		var plot_water_reservation := _draw_settlement_storage(
+			settlement_id,
+			str(state.get("owner_faction_id", "")),
+			_world_sim_water_request_liters(state, cell_keys),
+			false
+		)
+		var reserved_water := float(plot_water_reservation.get("drawn", 0.0))
+		var available_reserved_water := reserved_water
 		for cell_key_value in cell_keys:
 			var cell_key := str(cell_key_value)
 			var cell: Dictionary = (state.get("cells", {}) as Dictionary).get(cell_key_value, {})
@@ -1401,9 +1562,6 @@ func advance_world_sim_work(settlement_id: String, labor_seconds: float, plots_s
 			var work := _work_record(state, cell_key, cell, action)
 			var required := maxf(0.01, float(work.get("required_seconds", 1.0)))
 			var needed := maxf(0.0, required - float(cell.get("work_progress", 0.0)))
-			# Watering is projection detail off-screen. If a field has already
-			# published valid water work, complete it without stealing the coarse
-			# town labor budget from tilling, planting, and harvesting.
 			var free_maintenance := action == "water"
 			if not free_maintenance and remaining <= 0.0:
 				continue
@@ -1423,13 +1581,19 @@ func advance_world_sim_work(settlement_id: String, labor_seconds: float, plots_s
 						if crop != null else 0
 			if transaction_delta != 0 and not _transact_world_sim_stock(settlement_id, transaction_item, transaction_delta):
 				continue
+			var offered_water := 0.0
+			if reaches_completion and action == "water":
+				offered_water = minf(5.0, available_reserved_water)
+				if offered_water <= 0.0:
+					continue
 			var result := _apply_work_to_state(
 				state,
 				cell_key,
 				action,
 				contribution,
 				0.0,
-				int(cell.get("request_revision", -1))
+				int(cell.get("request_revision", -1)),
+				offered_water
 			)
 			if result.is_empty():
 				if transaction_delta != 0:
@@ -1439,6 +1603,8 @@ func advance_world_sim_work(settlement_id: String, labor_seconds: float, plots_s
 				if transaction_delta != 0:
 					_transact_world_sim_stock(settlement_id, transaction_item, -transaction_delta)
 				continue
+			var applied_water := float(result.get("water_applied", 0.0))
+			available_reserved_water -= applied_water
 			if not free_maintenance:
 				remaining -= contribution
 				plot_spent_labor += contribution
@@ -1447,6 +1613,8 @@ func advance_world_sim_work(settlement_id: String, labor_seconds: float, plots_s
 			plot_changed_cells += 1
 			if transaction_delta != 0:
 				plot_transactions.append({"item": transaction_item, "delta": transaction_delta})
+			if applied_water > 0.0:
+				plot_consumed_water += applied_water
 			if bool(result.get("completed", false)):
 				plot_completed_actions += 1
 				if action == "plant":
@@ -1455,6 +1623,7 @@ func advance_world_sim_work(settlement_id: String, labor_seconds: float, plots_s
 					plot_stored_produce += maxi(transaction_delta, 0)
 				completed_results.append(result)
 		if not changed:
+			_restore_water_transactions(plot_water_reservation.get("transactions", []) as Array, reserved_water, false)
 			continue
 		var saved: Dictionary = _gecs.call("upsert_farm_plot_cells", plot_id, changed_cell_records) \
 				if _gecs != null and _gecs.has_method("upsert_farm_plot_cells") \
@@ -1463,11 +1632,16 @@ func advance_world_sim_work(settlement_id: String, labor_seconds: float, plots_s
 			for transaction_index in range(plot_transactions.size() - 1, -1, -1):
 				var transaction: Dictionary = plot_transactions[transaction_index]
 				_transact_world_sim_stock(settlement_id, transaction.get("item") as ItemDefinition, -int(transaction.get("delta", 0)))
+			_restore_water_transactions(plot_water_reservation.get("transactions", []) as Array, reserved_water, false)
 			remaining += plot_spent_labor
 			continue
+		var water_transactions := plot_water_reservation.get("transactions", []) as Array
+		_restore_water_transactions(water_transactions, maxf(0.0, available_reserved_water), false)
+		_publish_water_transactions(water_transactions)
 		summary["changed_cells"] = int(summary["changed_cells"]) + plot_changed_cells
 		summary["completed_actions"] = int(summary["completed_actions"]) + plot_completed_actions
 		summary["consumed_seeds"] = int(summary["consumed_seeds"]) + plot_consumed_seeds
+		summary["consumed_water"] = float(summary["consumed_water"]) + plot_consumed_water
 		summary["stored_produce"] = int(summary["stored_produce"]) + plot_stored_produce
 		var completed_cells: Dictionary = {}
 		for result in completed_results:
@@ -1482,13 +1656,32 @@ func advance_world_sim_work(settlement_id: String, labor_seconds: float, plots_s
 	return summary
 
 
+func _world_sim_water_request_liters(state: Dictionary, cell_keys: Array) -> float:
+	var requested := 0.0
+	var cells := state.get("cells", {}) as Dictionary
+	for cell_key_value in cell_keys:
+		var cell_key := str(cell_key_value)
+		var cell := cells.get(cell_key_value, {}) as Dictionary
+		if not PackedStringArray(cell.get("requested_actor_ids", PackedStringArray())).is_empty():
+			continue
+		if str(cell.get("requested_operation", "")) != "water" \
+				or _action_for_status(str(cell.get("state", ""))) != "water" \
+				or not _cell_needs_water_state(cell):
+			continue
+		var work := _work_record(state, cell_key, cell, "water")
+		var required := maxf(0.01, float(work.get("required_seconds", 1.0)))
+		if required - float(cell.get("work_progress", 0.0)) > 0.0:
+			requested += 5.0
+	return requested
+
+
 func _transact_world_sim_stock(settlement_id: String, definition: ItemDefinition, count_delta: int) -> bool:
 	return _inventory_stock != null and definition != null \
 			and _inventory_stock.has_method("transact_item_count") \
 			and bool(_inventory_stock.call("transact_item_count", settlement_id, definition, count_delta))
 
 
-func apply_work(plot_id: String, cell_key: String, action: String, seconds: float, farming_level := 0.0, expected_request_revision := -1) -> Dictionary:
+func apply_work(plot_id: String, cell_key: String, action: String, seconds: float, farming_level := 0.0, expected_request_revision := -1, water_liters := 0.0, publish_notifications := true) -> Dictionary:
 	var results := apply_work_batch([{
 		"plot_id": plot_id,
 		"cell_key": cell_key,
@@ -1496,6 +1689,8 @@ func apply_work(plot_id: String, cell_key: String, action: String, seconds: floa
 		"seconds": seconds,
 		"farming_level": farming_level,
 		"expected_request_revision": expected_request_revision,
+		"water_liters": water_liters,
+		"publish_notifications": publish_notifications,
 	}])
 	return results[0] as Dictionary if not results.is_empty() else {}
 
@@ -1544,13 +1739,14 @@ func apply_work_batch(requests: Array) -> Array:
 				str(request.get("action", "")),
 				float(request.get("seconds", 0.0)),
 				float(request.get("farming_level", 0.0)),
-				int(request.get("expected_request_revision", -1))
+				int(request.get("expected_request_revision", -1)),
+				float(request.get("water_liters", 0.0))
 			)
 			results[index] = result
 			if result.is_empty():
 				continue
 			state_changed = true
-			if bool(result.get("completed", false)):
+			if bool(result.get("completed", false)) and bool(request.get("publish_notifications", true)):
 				completed_results.append(result)
 		if not state_changed:
 			continue
@@ -1567,6 +1763,8 @@ func apply_work_batch(requests: Array) -> Array:
 				changed_cell_records[changed_key] = ((state.get("cells", {}) as Dictionary)[changed_key] as Dictionary).duplicate(true)
 		var saved: Dictionary = _gecs.call("upsert_farm_plot_cells", plot_id, changed_cell_records) if indexed_cell_io else _save_plot(state, false)
 		if saved.is_empty():
+			for index_value in (indices_by_plot[plot_id_value] as Array):
+				results[int(index_value)] = {}
 			continue
 		var changed_cells: Dictionary = {}
 		for result in completed_results:
@@ -1580,7 +1778,33 @@ func apply_work_batch(requests: Array) -> Array:
 	return results
 
 
-func _apply_work_to_state(state: Dictionary, cell_key: String, action: String, seconds: float, farming_level: float, expected_request_revision: int) -> Dictionary:
+## Bridge-owned inventory transactions settle before these signals are exposed.
+func publish_work_notifications(results: Array) -> void:
+	var changed_cells_by_plot: Dictionary = {}
+	var settlement_by_plot: Dictionary = {}
+	for result_value in results:
+		var result: Dictionary = result_value if result_value is Dictionary else {}
+		if result.is_empty() or not bool(result.get("completed", false)):
+			continue
+		var plot_id := str(result.get("plot_id", ""))
+		var cell_key := str(result.get("cell_key", ""))
+		if plot_id.is_empty() or cell_key.is_empty():
+			continue
+		var cell := get_cell(plot_id, cell_key)
+		if cell.is_empty():
+			continue
+		var changed_cells: Dictionary = changed_cells_by_plot.get(plot_id, {})
+		changed_cells[cell_key] = cell.duplicate(true)
+		changed_cells_by_plot[plot_id] = changed_cells
+		if not settlement_by_plot.has(plot_id):
+			settlement_by_plot[plot_id] = str(get_plot(plot_id).get("settlement_id", ""))
+		work_completed.emit(result)
+	for plot_id_value in changed_cells_by_plot.keys():
+		var plot_id := str(plot_id_value)
+		plot_cells_changed.emit(plot_id, changed_cells_by_plot[plot_id], str(settlement_by_plot.get(plot_id, "")))
+
+
+func _apply_work_to_state(state: Dictionary, cell_key: String, action: String, seconds: float, farming_level: float, expected_request_revision: int, water_liters := 0.0) -> Dictionary:
 	var plot_id := str(state.get("plot_id", ""))
 	var cells: Dictionary = state.get("cells", {})
 	if plot_id.is_empty() or not cells.has(cell_key):
@@ -1600,8 +1824,13 @@ func _apply_work_to_state(state: Dictionary, cell_key: String, action: String, s
 		return {}
 	var required := _seconds_for_action(crop, action)
 	var progress := minf(required, float(cell.get("work_progress", 0.0)) + maxf(0.0, seconds))
+	var water_applied := 0.0
+	if action == "water" and progress >= required:
+		water_applied = minf(maxf(0.0, water_liters), maxf(0.0, crop.water_capacity - float(cell.get("water", 0.0))))
+		if water_applied <= 0.0:
+			return {}
 	cell["work_progress"] = progress
-	var result := {"completed": false, "plot_id": plot_id, "cell_key": cell_key, "action": action, "required_seconds": required, "progress_seconds": progress}
+	var result := {"completed": false, "plot_id": plot_id, "cell_key": cell_key, "action": action, "required_seconds": required, "progress_seconds": progress, "water_applied": water_applied}
 	if progress >= required:
 		result["completed"] = true
 		cell["work_progress"] = 0.0
@@ -1611,7 +1840,7 @@ func _apply_work_to_state(state: Dictionary, cell_key: String, action: String, s
 			"plant":
 				cell = FARM_SIMULATION.complete_planting(cell, crop_id, crop.water_capacity * 0.2)
 			"water":
-				cell["water"] = crop.water_capacity
+				cell["water"] = float(cell.get("water", 0.0)) + water_applied
 			"harvest":
 				var harvest := FARM_SIMULATION.complete_harvest(cell, crop.to_sim_profile(), farming_level, _absolute_minute())
 				cell = harvest.get("cell", cell)
@@ -1670,15 +1899,32 @@ func register_water_source(authored_state: Dictionary) -> Dictionary:
 	var source_id := str(authored_state.get("source_id", "")).strip_edges()
 	if source_id.is_empty():
 		return {}
-	var saved := get_water_source(source_id)
-	if saved.is_empty():
-		saved = _gecs.upsert_farm_water_source_state(authored_state)
+	var previous := get_water_source(source_id)
+	var saved := previous
+	if previous.is_empty():
+		var initial := authored_state.duplicate(true)
+		# New projections cannot earn recharge for the pre-registration fraction.
+		initial["last_processed_minute"] = _water_clock_minute()
+		saved = _gecs.upsert_farm_water_source_state(initial)
 	else:
-		_advance_water_sources(_absolute_minute())
-		saved = get_water_source(source_id)
-		if str(saved.get("owner_faction_name", "")).is_empty() and not str(authored_state.get("owner_faction_name", "")).is_empty():
-			saved["owner_faction_name"] = str(authored_state.get("owner_faction_name", ""))
+		previous = _advance_water_source_state(previous, _water_clock_minute(), false)
+		saved = previous.duplicate(true)
+		var authored_changed := false
+		for key in ["owner_faction_name", "settlement_id", "source_kind"]:
+			var authored_value := str(authored_state.get(key, "")).strip_edges()
+			if authored_state.has(key) and str(saved.get(key, "")) != authored_value:
+				saved[key] = authored_value
+				authored_changed = true
+		if not saved.has("public_water_access"):
+			saved["public_water_access"] = bool(authored_state.get("public_water_access", false))
+			authored_changed = true
+		for key in ["world_position", "capacity", "renewable", "recharge_per_world_minute"]:
+			if authored_state.has(key) and saved.get(key) != authored_state.get(key):
+				saved[key] = authored_state[key]
+				authored_changed = true
+		if authored_changed:
 			saved = _gecs.upsert_farm_water_source_state(saved)
+	_reindex_water_source(previous, saved)
 	water_source_changed.emit(source_id, saved)
 	return saved
 
@@ -1686,45 +1932,445 @@ func register_water_source(authored_state: Dictionary) -> Dictionary:
 func get_water_source(source_id: String) -> Dictionary:
 	if _gecs == null or source_id.strip_edges().is_empty():
 		return {}
+	if _gecs.has_method("get_farm_water_source_state"):
+		return (_gecs.call("get_farm_water_source_state", source_id) as Dictionary).duplicate(true)
 	return (_gecs.get_farm_water_source_states().get(source_id, {}) as Dictionary).duplicate(true)
 
 
-func draw_water_source(source_id: String, requested: float, authorization: Dictionary) -> float:
+func reassign_settlement_water_owner(settlement_id: String, owner_faction_name: String) -> int:
+	var normalized_settlement := settlement_id.strip_edges()
+	var normalized_owner := owner_faction_name.strip_edges()
+	if normalized_settlement.is_empty() or _gecs == null \
+			or not _gecs.has_method("get_farm_water_source_states"):
+		return 0
+	var changed := 0
+	for state_value in (_gecs.get_farm_water_source_states() as Dictionary).values():
+		var previous := (state_value as Dictionary).duplicate(true)
+		if str(previous.get("settlement_id", "")) != normalized_settlement \
+				or str(previous.get("owner_faction_name", "")) == normalized_owner:
+			continue
+		var next := previous.duplicate(true)
+		next["owner_faction_name"] = normalized_owner
+		var saved: Dictionary = _gecs.upsert_farm_water_source_state(next)
+		if saved.is_empty():
+			continue
+		_reindex_water_source(previous, saved)
+		water_source_changed.emit(str(saved.get("source_id", "")), saved)
+		changed += 1
+	return changed
+
+
+func remove_water_source(source_id: String) -> bool:
+	var previous := get_water_source(source_id)
+	if previous.is_empty() or _gecs == null or not _gecs.has_method("remove_farm_water_source_state"):
+		return false
+	_gecs.call("remove_farm_water_source_state", source_id)
+	_reindex_water_source(previous, {})
+	water_source_removed.emit(source_id, previous)
+	return true
+
+
+func _draw_settlement_storage(
+		settlement_id: String,
+		owner_faction_name: String,
+		requested: float,
+		publish_changes := true
+) -> Dictionary:
+	if _gecs == null or settlement_id.is_empty() or owner_faction_name.is_empty() or requested <= 0.0:
+		return {}
+	var remaining := requested
+	var transactions: Array[Dictionary] = []
+	if _liquid_storage != null:
+		var draw_method := &"draw_from_settlement" if publish_changes else &"draw_from_settlement_staged"
+		var liquid_draw := _liquid_storage.call(draw_method, settlement_id, owner_faction_name, \
+				"water", remaining, _liquid_owner_authorization(owner_faction_name)) as Dictionary \
+				if _liquid_storage.has_method(draw_method) else {}
+		for transaction_value in (liquid_draw.get("transactions", []) as Array):
+			var transaction := (transaction_value as Dictionary).duplicate(true)
+			transaction["storage_kind"] = "liquid"
+			transactions.append(transaction)
+		remaining -= maxf(0.0, float(liquid_draw.get("drawn", 0.0)))
+	var scope := _water_storage_scope_key(settlement_id, owner_faction_name)
+	var cursor := 0
+	while remaining > 0.001:
+		var source_ids := _water_storage_ids_by_scope.get(scope, []) as Array
+		if cursor >= source_ids.size():
+			break
+		var source_id := str(source_ids[cursor])
+		var state := get_water_source(source_id)
+		if str(state.get("settlement_id", "")) != settlement_id \
+				or str(state.get("owner_faction_name", "")) != owner_faction_name \
+				or str(state.get("source_kind", "storage")) != "storage":
+			cursor += 1
+			continue
+		var renewable := bool(state.get("renewable", false))
+		var available := remaining if renewable else maxf(0.0, float(state.get("current_water", 0.0)) - float(state.get("reserved_outgoing_water", 0.0)))
+		var drawn := minf(remaining, available)
+		if drawn <= 0.0:
+			cursor += 1
+			continue
+		var previous_state: Dictionary = {}
+		if not renewable:
+			previous_state = state.duplicate(true)
+			state["current_water"] = maxf(0.0, float(state.get("current_water", 0.0)) - drawn)
+			var saved: Dictionary = _gecs.upsert_farm_water_source_state(state)
+			if saved.is_empty():
+				cursor += 1
+				continue
+			_reindex_water_source(previous_state, saved)
+			if publish_changes:
+				water_source_changed.emit(source_id, saved)
+		transactions.append({
+			"storage_kind": "legacy_water",
+			"source_id": source_id,
+			"owner_faction_name": owner_faction_name,
+			"liters": drawn,
+			"previous_state": previous_state,
+		})
+		remaining -= drawn
+	var total_drawn := requested - remaining
+	return {"drawn": total_drawn, "transactions": transactions} if total_drawn > 0.0 else {}
+
+
+func _restore_water_transactions(transactions: Array, liters: float, publish_changes := true) -> void:
+	var remaining := maxf(0.0, liters)
+	for index in range(transactions.size() - 1, -1, -1):
+		if remaining <= 0.0:
+			break
+		var transaction := transactions[index] as Dictionary
+		var restored := minf(remaining, maxf(0.0, float(transaction.get("liters", 0.0))))
+		if str(transaction.get("storage_kind", "legacy_water")) == "liquid" and _liquid_storage != null:
+			var restore_method := &"restore_transactions" if publish_changes else &"restore_transactions_staged"
+			var actual := float(_liquid_storage.call(restore_method, [transaction], restored, \
+					_liquid_owner_authorization(str(transaction.get("owner_faction_name", ""))))) \
+					if _liquid_storage.has_method(restore_method) else 0.0
+			remaining -= actual
+		else:
+			remaining -= _restore_water_source(str(transaction.get("source_id", "")), restored, publish_changes)
+
+
+func _publish_water_transactions(transactions: Array) -> void:
+	var liquid_transactions: Array = []
+	var legacy_previous_by_id: Dictionary = {}
+	for transaction_value in transactions:
+		var transaction := transaction_value as Dictionary
+		if str(transaction.get("storage_kind", "legacy_water")) == "liquid":
+			liquid_transactions.append(transaction)
+			continue
+		var source_id := str(transaction.get("source_id", ""))
+		if not source_id.is_empty() and not legacy_previous_by_id.has(source_id):
+			var previous_state := transaction.get("previous_state", {}) as Dictionary
+			if not previous_state.is_empty():
+				legacy_previous_by_id[source_id] = previous_state.duplicate(true)
+	if not liquid_transactions.is_empty() and _liquid_storage != null \
+			and _liquid_storage.has_method("publish_staged_transactions"):
+		_liquid_storage.call("publish_staged_transactions", liquid_transactions)
+	for source_id_value in legacy_previous_by_id.keys():
+		var source_id := str(source_id_value)
+		var previous := legacy_previous_by_id[source_id_value] as Dictionary
+		var current := get_water_source(source_id)
+		if previous != current:
+			water_source_changed.emit(source_id, current)
+
+
+func _liquid_owner_authorization(owner_faction_name: String) -> Dictionary:
+	var owner := owner_faction_name.strip_edges()
+	return {
+		"owner_faction_name": owner,
+		"actor_faction_name": owner,
+		"owner_access_approved": not owner.is_empty(),
+		"theft_approved": false,
+	}
+
+
+func _water_storage_scope_key(settlement_id: String, owner_faction_name: String) -> String:
+	return "%s\n%s" % [settlement_id, owner_faction_name]
+
+
+func _rebuild_water_storage_index() -> void:
+	_water_storage_ids_by_scope.clear()
+	_water_well_ids_by_scope.clear()
+	_recharging_water_source_ids.clear()
+	_well_yield_by_source.clear()
+	_well_yield_by_settlement.clear()
+	if _gecs == null or not _gecs.has_method("get_farm_water_source_states"):
+		return
+	for state_value in _gecs.get_farm_water_source_states().values():
+		_reindex_water_source({}, state_value as Dictionary)
+
+
+func _reindex_water_source(previous: Dictionary, saved: Dictionary) -> void:
+	var source_id := str(previous.get("source_id", saved.get("source_id", "")))
+	var old_yield: Dictionary = _well_yield_by_source.get(source_id, {})
+	var settlement_id := str(saved.get("settlement_id", ""))
+	var rate := _water_source_recharge_per_minute(saved)
+	var new_yield := {"settlement_id": settlement_id, "rate": rate} if rate > 0.0 and not settlement_id.is_empty() else {}
+	if old_yield != new_yield:
+		if not old_yield.is_empty():
+			var old_settlement: String = old_yield.settlement_id
+			_well_yield_by_settlement[old_settlement] = maxf(0.0, float(_well_yield_by_settlement.get(old_settlement, 0.0)) - float(old_yield.rate))
+		_well_yield_by_source.erase(source_id)
+		if not new_yield.is_empty():
+			_well_yield_by_source[source_id] = new_yield
+			_well_yield_by_settlement[settlement_id] = float(_well_yield_by_settlement.get(settlement_id, 0.0)) + rate
+	if not saved.is_empty() and _water_source_recharge_per_minute(saved) > 0.0:
+		_recharging_water_source_ids[source_id] = true
+	else:
+		_recharging_water_source_ids.erase(source_id)
+	_update_water_source_index(_water_storage_ids_by_scope, source_id, _legacy_storage_index_key(previous), _legacy_storage_index_key(saved))
+	_update_water_source_index(_water_well_ids_by_scope, source_id, _well_index_key(previous), _well_index_key(saved))
+
+
+func _update_water_source_index(index: Dictionary, source_id: String, previous_key: String, saved_key: String) -> void:
+	if previous_key == saved_key:
+		return
+	if not previous_key.is_empty():
+		var previous_ids := index.get(previous_key, []) as Array
+		previous_ids.erase(source_id)
+		if previous_ids.is_empty():
+			index.erase(previous_key)
+		else:
+			index[previous_key] = previous_ids
+	if saved_key.is_empty():
+		return
+	var ids := index.get(saved_key, []) as Array
+	if not ids.has(source_id):
+		ids.append(source_id)
+		ids.sort()
+	index[saved_key] = ids
+
+
+func _legacy_storage_index_key(state: Dictionary) -> String:
+	if state.is_empty() or str(state.get("source_kind", "storage")) != "storage":
+		return ""
+	var available := bool(state.get("renewable", false)) \
+			or float(state.get("current_water", 0.0)) - float(state.get("reserved_outgoing_water", 0.0)) > 0.001
+	var settlement_id := str(state.get("settlement_id", ""))
+	var owner_faction_name := str(state.get("owner_faction_name", ""))
+	if not available or settlement_id.is_empty() or owner_faction_name.is_empty():
+		return ""
+	return _water_storage_scope_key(settlement_id, owner_faction_name)
+
+
+func _well_index_key(state: Dictionary) -> String:
+	if state.is_empty() or str(state.get("source_kind", "storage")) == "storage":
+		return ""
+	var settlement_id := str(state.get("settlement_id", ""))
+	var owner_faction_name := str(state.get("owner_faction_name", ""))
+	return _water_storage_scope_key(settlement_id, owner_faction_name) \
+			if not settlement_id.is_empty() and not owner_faction_name.is_empty() else ""
+
+
+func _restore_water_source(source_id: String, liters: float, publish_changes := true) -> float:
+	if _gecs == null or source_id.is_empty() or liters <= 0.0:
+		return 0.0
+	var state := get_water_source(source_id)
+	if state.is_empty() or bool(state.get("renewable", false)):
+		return 0.0
+	var previous_state := state.duplicate(true)
+	var before := float(state.get("current_water", 0.0))
+	state["current_water"] = minf(float(state.get("capacity", 0.0)), before + liters)
+	var saved: Dictionary = _gecs.upsert_farm_water_source_state(state)
+	if saved.is_empty():
+		return 0.0
+	_reindex_water_source(previous_state, saved)
+	if publish_changes:
+		water_source_changed.emit(source_id, saved)
+	return maxf(0.0, float(saved.get("current_water", before)) - before)
+
+
+func draw_water_source(source_id: String, requested: float, authorization: Dictionary, publish_changes := true) -> float:
 	var state := get_water_source(source_id)
 	var amount := maxf(0.0, requested)
-	if state.is_empty() or amount <= 0.0:
-		return 0.0
-	var owner_faction_name := str(state.get("owner_faction_name", "")).strip_edges()
-	if owner_faction_name.is_empty():
-		return 0.0
-	if str(authorization.get("source_id", "")) != source_id:
-		return 0.0
-	if str(authorization.get("owner_faction_name", "")) != owner_faction_name:
-		return 0.0
-	var actor_faction_name := str(authorization.get("actor_faction_name", ""))
-	var owner_access_approved := bool(authorization.get("owner_access_approved", false))
-	var theft_approved := bool(authorization.get("theft_approved", false))
-	if actor_faction_name != owner_faction_name and not owner_access_approved and not theft_approved:
+	if state.is_empty() or amount <= 0.0 or not _water_source_authorized(source_id, state, authorization):
 		return 0.0
 	if bool(state.get("renewable", false)):
 		return amount
-	var drawn := minf(amount, maxf(0.0, float(state.get("current_water", 0.0))))
+	var drawn := minf(amount, maxf(0.0, float(state.get("current_water", 0.0)) - float(state.get("reserved_outgoing_water", 0.0))))
 	if drawn <= 0.0:
 		return 0.0
+	var previous_state := state.duplicate(true)
 	state["current_water"] = float(state.get("current_water", 0.0)) - drawn
 	var saved: Dictionary = _gecs.upsert_farm_water_source_state(state)
+	if saved.is_empty():
+		return 0.0
+	_reindex_water_source(previous_state, saved)
+	if publish_changes:
+		water_source_changed.emit(source_id, saved)
+	return drawn
+
+
+func deposit_water_source(source_id: String, offered: float, authorization: Dictionary, publish_changes := true) -> float:
+	var state := get_water_source(source_id)
+	var amount := maxf(0.0, offered)
+	if state.is_empty() or amount <= 0.0 or not _water_source_authorized(source_id, state, authorization):
+		return 0.0
+	var capacity_liters := maxf(0.0, float(state.get("capacity", 0.0)))
+	var current_liters := clampf(float(state.get("current_water", 0.0)), 0.0, capacity_liters)
+	var deposited := minf(amount, maxf(0.0, capacity_liters - current_liters - float(state.get("reserved_incoming_water", 0.0))))
+	if deposited <= 0.0:
+		return 0.0
+	var previous_state := state.duplicate(true)
+	state["current_water"] = current_liters + deposited
+	var saved: Dictionary = _gecs.upsert_farm_water_source_state(state)
+	if saved.is_empty():
+		return 0.0
+	_reindex_water_source(previous_state, saved)
+	if publish_changes:
+		water_source_changed.emit(source_id, saved)
+	return deposited
+
+
+func reserve_water_source_outgoing(source_id: String, requested: float, authorization: Dictionary) -> float:
+	var state := get_water_source(source_id)
+	var amount := maxf(0.0, requested)
+	if state.is_empty() or amount <= 0.0 or not _water_source_authorized(source_id, state, authorization):
+		return 0.0
+	if bool(state.get("renewable", false)):
+		return amount
+	var available := maxf(0.0, float(state.get("current_water", 0.0)) - float(state.get("reserved_outgoing_water", 0.0)))
+	var reserved := minf(amount, available)
+	if reserved <= 0.0:
+		return 0.0
+	var previous_state := state.duplicate(true)
+	state["reserved_outgoing_water"] = float(state.get("reserved_outgoing_water", 0.0)) + reserved
+	var saved: Dictionary = _gecs.upsert_farm_water_source_state(state)
+	if saved.is_empty():
+		return 0.0
+	_reindex_water_source(previous_state, saved)
+	water_source_changed.emit(source_id, saved)
+	return reserved
+
+
+func release_water_source_outgoing(source_id: String, liters: float) -> float:
+	var state := get_water_source(source_id)
+	var released := minf(maxf(0.0, liters), float(state.get("reserved_outgoing_water", 0.0)))
+	if state.is_empty() or released <= 0.0:
+		return 0.0
+	var previous_state := state.duplicate(true)
+	state["reserved_outgoing_water"] = float(state.get("reserved_outgoing_water", 0.0)) - released
+	var saved: Dictionary = _gecs.upsert_farm_water_source_state(state)
+	if saved.is_empty():
+		return 0.0
+	_reindex_water_source(previous_state, saved)
+	water_source_changed.emit(source_id, saved)
+	return released
+
+
+func draw_reserved_water_source(source_id: String, requested: float, authorization: Dictionary) -> float:
+	var state := get_water_source(source_id)
+	var amount := maxf(0.0, requested)
+	if state.is_empty() or amount <= 0.0 or not _water_source_authorized(source_id, state, authorization):
+		return 0.0
+	if bool(state.get("renewable", false)):
+		return amount
+	var drawn := minf(amount, minf(float(state.get("reserved_outgoing_water", 0.0)), float(state.get("current_water", 0.0))))
+	if drawn <= 0.0:
+		return 0.0
+	var previous_state := state.duplicate(true)
+	state["reserved_outgoing_water"] = float(state.get("reserved_outgoing_water", 0.0)) - drawn
+	state["current_water"] = float(state.get("current_water", 0.0)) - drawn
+	var saved: Dictionary = _gecs.upsert_farm_water_source_state(state)
+	if saved.is_empty():
+		return 0.0
+	_reindex_water_source(previous_state, saved)
 	water_source_changed.emit(source_id, saved)
 	return drawn
 
 
+func reserve_water_source_incoming(source_id: String, requested: float, authorization: Dictionary) -> float:
+	var state := get_water_source(source_id)
+	var amount := maxf(0.0, requested)
+	if state.is_empty() or amount <= 0.0 or str(state.get("source_kind", "")) != "storage" \
+			or not _water_source_authorized(source_id, state, authorization):
+		return 0.0
+	var free := maxf(0.0, float(state.get("capacity", 0.0)) - float(state.get("current_water", 0.0)) \
+			- float(state.get("reserved_incoming_water", 0.0)))
+	var reserved := minf(amount, free)
+	if reserved <= 0.0:
+		return 0.0
+	state["reserved_incoming_water"] = float(state.get("reserved_incoming_water", 0.0)) + reserved
+	var saved: Dictionary = _gecs.upsert_farm_water_source_state(state)
+	if saved.is_empty():
+		return 0.0
+	water_source_changed.emit(source_id, saved)
+	return reserved
+
+
+func release_water_source_incoming(source_id: String, liters: float) -> float:
+	var state := get_water_source(source_id)
+	var released := minf(maxf(0.0, liters), float(state.get("reserved_incoming_water", 0.0)))
+	if state.is_empty() or released <= 0.0:
+		return 0.0
+	state["reserved_incoming_water"] = float(state.get("reserved_incoming_water", 0.0)) - released
+	var saved: Dictionary = _gecs.upsert_farm_water_source_state(state)
+	if saved.is_empty():
+		return 0.0
+	water_source_changed.emit(source_id, saved)
+	return released
+
+
+func deposit_reserved_water_source(source_id: String, offered: float, authorization: Dictionary) -> float:
+	var state := get_water_source(source_id)
+	var amount := maxf(0.0, offered)
+	if state.is_empty() or amount <= 0.0 or str(state.get("source_kind", "")) != "storage" \
+			or not _water_source_authorized(source_id, state, authorization):
+		return 0.0
+	var deposited := minf(amount, minf(float(state.get("reserved_incoming_water", 0.0)), \
+			maxf(0.0, float(state.get("capacity", 0.0)) - float(state.get("current_water", 0.0)))))
+	if deposited <= 0.0:
+		return 0.0
+	var previous_state := state.duplicate(true)
+	state["reserved_incoming_water"] = float(state.get("reserved_incoming_water", 0.0)) - deposited
+	state["current_water"] = float(state.get("current_water", 0.0)) + deposited
+	var saved: Dictionary = _gecs.upsert_farm_water_source_state(state)
+	if saved.is_empty():
+		return 0.0
+	_reindex_water_source(previous_state, saved)
+	water_source_changed.emit(source_id, saved)
+	return deposited
+
+
+func clear_all_water_reservations() -> void:
+	if _gecs == null or not _gecs.has_method("get_farm_water_source_states"):
+		return
+	for state_value in _gecs.get_farm_water_source_states().values():
+		var state := state_value as Dictionary
+		if float(state.get("reserved_incoming_water", 0.0)) <= 0.001 \
+				and float(state.get("reserved_outgoing_water", 0.0)) <= 0.001:
+			continue
+		var previous_state := state.duplicate(true)
+		state["reserved_incoming_water"] = 0.0
+		state["reserved_outgoing_water"] = 0.0
+		var saved: Dictionary = _gecs.upsert_farm_water_source_state(state)
+		if not saved.is_empty():
+			_reindex_water_source(previous_state, saved)
+			water_source_changed.emit(str(saved.get("source_id", "")), saved)
+
+
+func _water_source_authorized(source_id: String, state: Dictionary, authorization: Dictionary) -> bool:
+	var owner_faction_name := str(state.get("owner_faction_name", "")).strip_edges()
+	if owner_faction_name.is_empty() or str(authorization.get("source_id", "")) != source_id \
+			or str(authorization.get("owner_faction_name", "")) != owner_faction_name:
+		return false
+	var actor_faction_name := str(authorization.get("actor_faction_name", ""))
+	if bool(authorization.get("public_access_approved", false)):
+		return bool(state.get("public_water_access", false)) and not actor_faction_name.is_empty()
+	return actor_faction_name == owner_faction_name \
+			or bool(authorization.get("owner_access_approved", false)) \
+			or bool(authorization.get("theft_approved", false))
+
+
 func _on_minute_changed(absolute_minute: int, _day: int, _hour: int, _minute: int) -> void:
-	for plot_id in get_plots().keys():
+	var ids: Array = _gecs.get_farm_plot_ids() if _gecs != null and _gecs.has_method("get_farm_plot_ids") else get_plots().keys()
+	for plot_id in ids:
+		# Re-read each plot after the preceding plot's synchronous subscribers.
 		_advance_plot(str(plot_id), absolute_minute)
 	_advance_water_sources(absolute_minute)
 
 
 func _advance_plot(plot_id: String, target_minute: int, rain_water := 0.0) -> void:
-	var state := get_plot(plot_id)
+	var state: Dictionary = _gecs.get_farm_plot_simulation_state(plot_id) if _gecs != null and _gecs.has_method("get_farm_plot_simulation_state") else get_plot(plot_id)
 	if state.is_empty():
 		return
 	state = _reconcile_deleted_requests(state)
@@ -1741,30 +2387,42 @@ func _advance_plot(plot_id: String, target_minute: int, rain_water := 0.0) -> vo
 	var policy_crop_id := _effective_policy_crop_id(state)
 	var field_active := is_active_field(state)
 	var changed_cells: Dictionary = {}
-	for key in cells.keys():
+	var simulated_keys: Array = []
+	var index: Dictionary = _minute_cell_index.get(plot_id, {})
+	var keys: Array = index.get("keys", []) if int(index.get("revision", -1)) == int(state.get("state_revision", 0)) and str(index.get("policy", "")) == policy_crop_id else cells.keys()
+	var next_keys: Array = []
+	for key in keys:
 		var cell: Dictionary = cells[key]
-		var previous_signature := _cell_delta_signature(cell)
+		if str(cell.get("crop_id", "")).is_empty() and not bool(cell.get("soil_created", false)) \
+				and int(cell.get("soil_recovery_started_minute", -2)) == -1:
+			var policy_cell := _with_field_policy_request(cell, policy_crop_id, field_active, false)
+			if is_same(cell, policy_cell):
+				continue
+		next_keys.append(key)
+		var previous := cell
 		var crop := get_crop(str(cell.get("crop_id", "")))
 		if crop != null:
 			if elapsed > 0.0:
-				cell = FARM_SIMULATION.advance_cell(cell, crop.to_sim_profile(), elapsed)
+				cell = FARM_SIMULATION.advance_cell(cell, crop.to_sim_profile(), elapsed, 0.0, false)
 			if rain_water > 0.0:
 				cell = FARM_SIMULATION.apply_rain(cell, rain_water, crop.water_capacity)
 		var recovery_eligible := no_crop_policy \
 			and str(cell.get("state", "")) == FARM_SIMULATION.STATE_TILLED \
 			and str(cell.get("crop_id", "")).is_empty() \
 			and str(cell.get("requested_operation", "")).is_empty()
-		cell = FARM_SIMULATION.advance_soil_recovery(cell, from_minute, target_minute, recovery_eligible, SOIL_RECOVERY_MINUTES)
-		cell = _with_field_policy_request(cell, policy_crop_id, field_active)
+		cell = FARM_SIMULATION.advance_soil_recovery(cell, from_minute, target_minute, recovery_eligible, SOIL_RECOVERY_MINUTES, false)
+		cell = _with_field_policy_request(cell, policy_crop_id, field_active, false)
 		cells[key] = cell
-		if _cell_delta_signature(cell) != previous_signature:
+		if not is_same(previous, cell):
+			simulated_keys.append(key)
+		if not is_same(previous, cell) and _cell_presentation_changed(previous, cell):
 			changed_cells[str(key)] = cell.duplicate(true)
 	state["cells"] = cells
 	var remnants: Dictionary = state.get("soil_remnants", {})
 	var initial_remnant_count := remnants.size()
 	for remnant_key in remnants.keys().duplicate():
 		var remnant: Dictionary = remnants[remnant_key]
-		remnant = FARM_SIMULATION.advance_soil_recovery(remnant, from_minute, target_minute, true, SOIL_RECOVERY_MINUTES)
+		remnant = FARM_SIMULATION.advance_soil_recovery(remnant, from_minute, target_minute, true, SOIL_RECOVERY_MINUTES, false)
 		if bool(remnant.get("soil_created", false)):
 			remnants[remnant_key] = remnant
 		else:
@@ -1779,28 +2437,31 @@ func _advance_plot(plot_id: String, target_minute: int, rain_water := 0.0) -> vo
 					and str(remnant_cell.get("crop_id", "")).is_empty() \
 					and str(remnant_cell.get("requested_operation", "")).is_empty():
 				cells.erase(key)
+				if not simulated_keys.has(key):
+					simulated_keys.append(key)
+				next_keys.erase(key)
 		state["cells"] = cells
 		if cells.is_empty() and remnants.is_empty():
 			remove_plot(plot_id)
 			return
-	var saved := _save_plot(state, false)
+	var saved: Dictionary = _gecs.commit_farm_plot_simulation(state, simulated_keys) if _gecs != null and _gecs.has_method("commit_farm_plot_simulation") else _save_plot(state, false)
+	_minute_cell_index[plot_id] = {"revision": int(saved.get("state_revision", 0)), "policy": policy_crop_id, "keys": next_keys}
 	if cells.size() != initial_cell_count or remnants.size() != initial_remnant_count:
-		plot_changed.emit(plot_id, saved)
+		plot_changed.emit(plot_id, get_plot(plot_id))
 	elif not changed_cells.is_empty():
 		plot_cells_changed.emit(plot_id, changed_cells, str(saved.get("settlement_id", "")))
 
 
-func _cell_delta_signature(cell: Dictionary) -> String:
-	return "%s|%s|%d|%s|%s|%s|%d" % [
-		str(cell.get("state", "")),
-		str(cell.get("crop_id", "")),
-		int(cell.get("stage_index", 0)),
-		str(cell.get("soil_created", false)),
-		str(cell.get("requested_operation", "")),
-		str(cell.get("requested_crop_id", "")),
-		int(cell.get("request_revision", 0)),
-	]
-
+func _cell_presentation_changed(previous: Dictionary, cell: Dictionary) -> bool:
+	return (
+		previous.get("state", "") != cell.get("state", "")
+		or previous.get("crop_id", "") != cell.get("crop_id", "")
+		or previous.get("stage_index", 0) != cell.get("stage_index", 0)
+		or previous.get("soil_created", false) != cell.get("soil_created", false)
+		or previous.get("requested_operation", "") != cell.get("requested_operation", "")
+		or previous.get("requested_crop_id", "") != cell.get("requested_crop_id", "")
+		or previous.get("request_revision", 0) != cell.get("request_revision", 0)
+	)
 
 func _work_record(state: Dictionary, key: String, cell: Dictionary, action: String) -> Dictionary:
 	var crop_id := str(cell.get("requested_crop_id", "")) if action == "plant" else str(cell.get("crop_id", ""))
@@ -1820,10 +2481,12 @@ func _work_record(state: Dictionary, key: String, cell: Dictionary, action: Stri
 	}
 
 
-func _with_field_policy_request(cell: Dictionary, crop_policy_id: String, field_active := true) -> Dictionary:
-	var next := cell.duplicate(true)
+func _with_field_policy_request(cell: Dictionary, crop_policy_id: String, field_active := true, deep_copy := true) -> Dictionary:
+	var next := cell.duplicate(true) if deep_copy else cell
 	if not field_active:
 		if str(next.get("request_source", "")) == "field_policy":
+			if not deep_copy:
+				next = next.duplicate()
 			next.erase("requested_operation")
 			next.erase("requested_crop_id")
 			next.erase("requested_actor_ids")
@@ -1852,6 +2515,8 @@ func _with_field_policy_request(cell: Dictionary, crop_policy_id: String, field_
 		return next
 	if desired_action.is_empty():
 		if current_source == "field_policy":
+			if not deep_copy:
+				next = next.duplicate()
 			next.erase("requested_operation")
 			next.erase("requested_crop_id")
 			next.erase("requested_actor_ids")
@@ -1860,6 +2525,8 @@ func _with_field_policy_request(cell: Dictionary, crop_policy_id: String, field_
 	if current_action == desired_action \
 			and (desired_action != "plant" or str(next.get("requested_crop_id", "")) == desired_crop_id):
 		return next
+	if not deep_copy:
+		next = next.duplicate()
 	next["requested_operation"] = desired_action
 	next["requested_crop_id"] = desired_crop_id if desired_action == "plant" else str(next.get("crop_id", ""))
 	next["requested_actor_ids"] = PackedStringArray()
@@ -1950,6 +2617,7 @@ func _reconcile_deleted_requests(state: Dictionary) -> Dictionary:
 
 
 func _on_world_reindexed() -> void:
+	_minute_cell_index.clear()
 	if _world_reindex_pending:
 		return
 	_world_reindex_pending = true
@@ -1959,6 +2627,7 @@ func _on_world_reindexed() -> void:
 func _reconcile_after_world_reindex() -> void:
 	_world_reindex_pending = false
 	_recover_sequence()
+	_rebuild_water_storage_index()
 	var target_minute := _absolute_minute()
 	for plot_id in get_plots().keys():
 		var state := get_plot(str(plot_id))
@@ -1967,26 +2636,65 @@ func _reconcile_after_world_reindex() -> void:
 			_advance_plot(str(plot_id), target_minute)
 		else:
 			plot_changed.emit(str(plot_id), state)
-	_advance_water_sources(target_minute)
+	_advance_water_sources(_water_clock_minute())
 
 
-func _advance_water_sources(target_minute: int) -> void:
+func _water_clock_minute() -> float:
+	var continuous = _world_time.get("total_world_minutes") if _world_time != null else null
+	return float(continuous) if continuous != null else float(_absolute_minute())
+
+
+func _water_source_recharge_per_minute(state: Dictionary) -> float:
+	if bool(state.get("renewable", false)) or str(state.get("source_kind", "storage")) != "well":
+		return 0.0
+	var authored := maxf(0.0, float(state.get("recharge_per_world_minute", float(state.get("recharge_per_world_hour", 0.0)) / 60.0)))
+	var conversion = _world_time.get("real_seconds_per_game_minute") if _world_time != null else null
+	# Missing clocks are legacy test/preview contexts; match the canonical default
+	# without importing the clock's GECS dependency graph into this controller.
+	var seconds_per_minute := maxf(float(conversion) if conversion != null else 1.0, 0.01)
+	return minf(authored, seconds_per_minute / MIN_NORMAL_SECONDS_PER_RECHARGED_LITER)
+
+
+func _on_world_minutes_advanced(target_minute: float) -> void:
+	if _world_reindex_pending:
+		return
+	# Exact reads avoid copying all tanks/plots for every fractional clock update.
+	# Keep full wells' cursors current as well: unused yield must never be banked.
+	for source_id in _recharging_water_source_ids.keys():
+		var state := get_water_source(str(source_id))
+		if target_minute > float(state.get("last_processed_minute", target_minute)):
+			_advance_water_source_state(state, target_minute)
+
+
+func _advance_water_sources(target_minute: float) -> void:
 	if _gecs == null or not _gecs.has_method("get_farm_water_source_states"):
 		return
 	for state_value in _gecs.get_farm_water_source_states().values():
-		var state: Dictionary = state_value
-		var last_minute := int(state.get("last_processed_minute", target_minute))
-		var elapsed := maxi(0, target_minute - last_minute)
-		if elapsed <= 0:
-			water_source_changed.emit(str(state.get("source_id", "")), state)
-			continue
-		if not bool(state.get("renewable", false)):
-			var capacity := maxf(0.0, float(state.get("capacity", 0.0)))
-			var recharge_per_minute := maxf(0.0, float(state.get("recharge_per_world_minute", float(state.get("recharge_per_world_hour", 0.0)) / 60.0)))
-			state["current_water"] = minf(capacity, maxf(0.0, float(state.get("current_water", 0.0))) + recharge_per_minute * float(elapsed))
-		state["last_processed_minute"] = target_minute
-		var saved: Dictionary = _gecs.upsert_farm_water_source_state(state)
-		water_source_changed.emit(str(saved.get("source_id", "")), saved)
+		_advance_water_source_state(state_value as Dictionary, target_minute)
+
+
+func _advance_water_source_state(state_value: Dictionary, target_minute: float, publish_change := true) -> Dictionary:
+	var state := state_value.duplicate(true)
+	if state.is_empty():
+		return {}
+	var source_id := str(state.get("source_id", ""))
+	var last_minute := float(state.get("last_processed_minute", target_minute))
+	var elapsed := maxf(0.0, target_minute - last_minute)
+	if elapsed <= 0:
+		if publish_change:
+			water_source_changed.emit(source_id, state)
+		return state
+	var previous_state := state.duplicate(true)
+	if not bool(state.get("renewable", false)):
+		var capacity := maxf(0.0, float(state.get("capacity", 0.0)))
+		var recharge_per_minute := _water_source_recharge_per_minute(state)
+		state["current_water"] = minf(capacity, maxf(0.0, float(state.get("current_water", 0.0))) + recharge_per_minute * elapsed)
+	state["last_processed_minute"] = target_minute
+	var saved: Dictionary = _gecs.upsert_farm_water_source_state(state)
+	_reindex_water_source(previous_state, saved)
+	if publish_change and saved.get("current_water") != previous_state.get("current_water"):
+		water_source_changed.emit(source_id, saved)
+	return saved
 
 
 func _recover_sequence() -> void:

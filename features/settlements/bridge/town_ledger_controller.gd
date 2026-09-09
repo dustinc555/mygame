@@ -18,6 +18,8 @@ var _buildings: BuildingRegistry
 var _stock: InventoryStockController
 var _time: WorldTimeController
 var _gecs: GecsWorldController
+var _farm: FarmController
+var _liquid_storage: LiquidStorageController
 var _active_stack_ids_by_settlement: Dictionary = {}
 var _active_settlement_by_stack_id: Dictionary = {}
 var _queued_refresh_settlement_ids: Dictionary = {}
@@ -32,6 +34,8 @@ func initialize(context: BootstrapContext) -> void:
 	_stock = context.require(InventoryStockController.SERVICE_ID) as InventoryStockController
 	_time = context.require(WorldTimeController.SERVICE_ID) as WorldTimeController
 	_gecs = context.require(GecsWorldController.SERVICE_ID) as GecsWorldController
+	_farm = context.require(FarmController.SERVICE_ID) as FarmController
+	_liquid_storage = context.require(LiquidStorageController.SERVICE_ID) as LiquidStorageController
 	_lifecycle.item_location_changed.connect(_on_item_location_changed)
 	_settlements.settlement_event_recorded.connect(_on_settlement_event)
 	_settlements.settlement_state_changed.connect(_on_settlement_state_changed)
@@ -41,6 +45,12 @@ func initialize(context: BootstrapContext) -> void:
 	_buildings.building_created.connect(_on_building_changed)
 	_buildings.building_updated.connect(_on_building_changed)
 	_gecs.world_reindexed.connect(_reconcile_all_ledgers)
+	_farm.plot_changed.connect(_on_farm_plot_changed)
+	_farm.plot_cells_changed.connect(_on_farm_plot_cells_changed)
+	_farm.plot_removed.connect(_on_farm_plot_removed)
+	_farm.water_source_changed.connect(_on_farm_water_source_changed)
+	_farm.water_source_removed.connect(_on_farm_water_source_removed)
+	_liquid_storage.liquid_stock_changed.connect(_on_liquid_stock_changed)
 	call_deferred("_reconcile_all_ledgers")
 
 
@@ -200,6 +210,7 @@ func _refresh_stack(stack_id: String, settlement_id: String) -> void:
 	var food_rows: Array[Dictionary] = []
 	var stock := _stock.get_settlement_stock_snapshot(settlement_id)
 	var food := _food.get_status(settlement_id)
+	var water := _farm.get_settlement_water_status(settlement_id)
 	var item_counts := stock.get("items", {}) as Dictionary
 	var produced_counts := food.get("last_produced_item_counts", {}) as Dictionary
 	var consumed_counts := food.get("last_consumed_item_counts", {}) as Dictionary
@@ -259,6 +270,7 @@ func _refresh_stack(stack_id: String, settlement_id: String) -> void:
 		"people": people_rows,
 		"buildings": building_rows,
 		"food": food_rows,
+		"water": water,
 		"stores": store_rows,
 	}
 	var ledger := _ledger_state(record)
@@ -342,3 +354,28 @@ func _on_population_record_changed(settlement_id: String, _actor_id: String) -> 
 
 func _on_building_changed(building_id: String) -> void:
 	_queue_settlement_refresh(str(_buildings.get_building(building_id).get("settlement_id", "")))
+
+
+func _on_farm_plot_changed(_plot_id: String, state: Dictionary) -> void:
+	_queue_settlement_refresh(str(state.get("settlement_id", "")))
+
+
+func _on_farm_plot_cells_changed(_plot_id: String, _changed_cells: Dictionary, settlement_id: String) -> void:
+	_queue_settlement_refresh(settlement_id)
+
+
+func _on_farm_plot_removed(_plot_id: String) -> void:
+	for settlement_id in _active_stack_ids_by_settlement.keys():
+		_queue_settlement_refresh(str(settlement_id))
+
+
+func _on_farm_water_source_changed(_source_id: String, state: Dictionary) -> void:
+	_queue_settlement_refresh(str(state.get("settlement_id", "")))
+
+
+func _on_farm_water_source_removed(_source_id: String, previous_state: Dictionary) -> void:
+	_queue_settlement_refresh(str(previous_state.get("settlement_id", "")))
+
+
+func _on_liquid_stock_changed(settlement_id: String, _facility_id: String, _liquid_id: String) -> void:
+	_queue_settlement_refresh(settlement_id)

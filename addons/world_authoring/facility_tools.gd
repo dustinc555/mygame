@@ -1,13 +1,11 @@
 @tool
 extends RefCounted
 
-## Facility concept tool context for the world_authoring plugin. A facility
-## is a composed SettlementFacilityInstance placed under a town: a function
-## root with a BuildingSlot shell child and Furniture root. The
-## Facility bottom dock activates whenever the selection sits inside one and
-## edits the function assignment and the building shell — the shell swap is
-## the whole point: shells stay neutral scenes, the facility decides which
-## one fills its slot.
+## Facility concept tool context for the world_authoring plugin. Facilities
+## share one SettlementFacilityInstance contract but declare their composition:
+## buildings own a shell and furniture, generated facilities own generated
+## content, and single-object facilities realize one configured scene. The
+## bottom dock exposes only the capabilities supported by that composition.
 
 const FACILITY_ICON_PATH := "res://addons/world_authoring/icons/world_building.svg"
 const FACILITY_DOCK := preload("res://addons/world_authoring/facility_dock.gd")
@@ -74,17 +72,18 @@ func toolbar() -> Control:
 
 
 func handles(object: Object) -> bool:
-	return object is WorldContainer or (object is Node and _find_facility_ancestor(object as Node) != null)
+	return object is WorldContainer or object is LiquidContainer \
+			or (object is Node and _find_facility_ancestor(object as Node) != null)
 
 
 func claims_node(node: Node) -> bool:
-	return node is SettlementFacilityInstance or node is WorldContainer
+	return node is SettlementFacilityInstance or node is WorldContainer or node is LiquidContainer
 
 
 func edit(object: Object) -> void:
 	if object is Node:
 		_active_facility = _find_facility_ancestor(object as Node)
-		_active_container = object as Node if object is WorldContainer else null
+		_active_container = object as Node if object is WorldContainer or object is LiquidContainer else null
 	_refresh_ui()
 
 
@@ -219,6 +218,9 @@ func swap_shell(facility: Node, shell_path: String, clear_furniture := true) -> 
 		return
 	if not (facility is SettlementFacilityInstance):
 		_set_status("Select a composed facility to swap its shell.")
+		return
+	if not bool(facility.call("supports_building_shell")):
+		_set_status("%s is not a building facility." % facility.name)
 		return
 	var shell_scene := load(shell_path) as PackedScene if not shell_path.is_empty() else null
 	if not shell_path.is_empty() and shell_scene == null:
@@ -357,6 +359,9 @@ func begin_furniture_placement(facility: Node, scene_path: String) -> void:
 	if not (facility is SettlementFacilityInstance):
 		_set_status("Select a composed facility (e.g. a bar) to add furniture.")
 		return
+	if not bool(facility.call("supports_furniture")):
+		_set_status("%s does not support furniture." % facility.name)
+		return
 	if not _can_edit_live(facility):
 		_set_status("Unpack the town first (select the town node, then Unpack Into Zone).")
 		return
@@ -386,7 +391,7 @@ func _place_furniture_piece(facility: Node, world_transform: Transform3D) -> voi
 	_pending_furniture_path = ""
 	var furniture_scene := load(scene_path) as PackedScene
 	var owner_root := _plugin.get_editor_interface().get_edited_scene_root()
-	if furniture_scene == null or owner_root == null or facility == null or not is_instance_valid(facility):
+	if furniture_scene == null or owner_root == null or facility == null or not is_instance_valid(facility) or not bool(facility.call("supports_furniture")):
 		return
 	var undo_redo := _plugin.get_undo_redo()
 	undo_redo.create_action("Add Furniture Piece")
@@ -547,12 +552,34 @@ func set_container_property(container: Node, property_name: String, value) -> vo
 		return
 	var undo_redo := _plugin.get_undo_redo()
 	undo_redo.create_action("Set Container %s" % property_name.capitalize())
-	undo_redo.add_do_property(container, property_name, value)
+	var facility := _find_facility_ancestor(container)
+	var single_object := facility != null and facility.has_method("is_single_object") and bool(facility.call("is_single_object", container))
+	if single_object:
+		var previous_overrides: Dictionary = facility.get("object_property_overrides").duplicate(true)
+		var next_overrides := previous_overrides.duplicate(true)
+		next_overrides[property_name] = value
+		undo_redo.add_do_property(facility, "object_property_overrides", next_overrides)
+		undo_redo.add_undo_property(facility, "object_property_overrides", previous_overrides)
+	else:
+		undo_redo.add_do_property(container, property_name, value)
+		undo_redo.add_undo_property(container, property_name, container.get(property_name))
 	undo_redo.add_do_method(self, "_notify_container_property_changed", container, property_name)
-	undo_redo.add_undo_property(container, property_name, container.get(property_name))
 	undo_redo.add_undo_method(self, "_notify_container_property_changed", container, property_name)
 	undo_redo.commit_action()
 	_active_container = container
+
+
+func set_liquid_container_assignment(container: Node, liquid_id: String) -> void:
+	if not container is LiquidContainer or not _can_edit_live(container):
+		return
+	var normalized := liquid_id.strip_edges().to_lower()
+	var has_stock := float(container.get("current_liters")) > 0.001 \
+			or float(container.get("reserved_incoming_liters")) > 0.001 \
+			or float(container.get("reserved_outgoing_liters")) > 0.001
+	if has_stock and str(container.get("assigned_liquid_id")) != normalized:
+		_set_status("Empty the Tank before changing its liquid type.")
+		return
+	set_container_property(container, "assigned_liquid_id", normalized)
 
 
 func _notify_container_property_changed(container: Node, property_name: String) -> void:
@@ -600,8 +627,9 @@ func select_container_from_dock(container: Node) -> void:
 		return
 	_active_container = container
 	_active_facility = _find_facility_ancestor(container)
+	var selection_target := _active_facility if _active_facility != null and _active_facility.has_method("is_single_object") and bool(_active_facility.call("is_single_object", container)) else container
 	if _plugin.has_method("select_node_without_context_refresh"):
-		_plugin.call("select_node_without_context_refresh", container)
+		_plugin.call("select_node_without_context_refresh", selection_target)
 
 
 ## Reset to a plain rectangle — the escape hatch from a painted shape.
@@ -631,6 +659,9 @@ func reset_field_footprint(facility: Node, dimensions: Vector2i) -> void:
 func furnish_facility(facility: Node, reroll := false) -> void:
 	if not (facility is SettlementFacilityInstance):
 		_set_status("Select a composed facility (e.g. a bar) to furnish.")
+		return
+	if not bool(facility.call("supports_furniture")):
+		_set_status("%s does not support furniture." % facility.name)
 		return
 	if not _can_edit_live(facility):
 		_set_status("Unpack the town first (select the town node, then Unpack Into Zone).")
@@ -735,14 +766,20 @@ func _stamp_furniture_ids(node: Node, facility: Node) -> void:
 	if node == null:
 		return
 	var local_id := str(node.name).to_snake_case()
+	var facility_id := str(facility.get("facility_id")).strip_edges()
 	if "surface_id" in node:
 		node.set("surface_id", local_id)
 	if "container_id" in node:
-		var facility_id := str(facility.get("facility_id")).strip_edges()
 		if not facility_id.is_empty():
 			node.set("container_id", "%s.%s" % [facility_id, local_id])
 			if "facility_id" in node:
 				node.set("facility_id", facility_id)
+	if "liquid_container_id" in node and not facility_id.is_empty():
+		node.set("liquid_container_id", "%s.%s" % [facility_id, local_id])
+		if "facility_id" in node:
+			node.set("facility_id", facility_id)
+	if "source_id" in node and not facility_id.is_empty():
+		node.set("source_id", "%s.%s" % [facility_id, local_id])
 	# Haul offers are filtered by settlement, so a storage container with a
 	# blank settlement_id is invisible to its own town's work queue.
 	if "settlement_id" in node:
@@ -1013,7 +1050,7 @@ func _refresh_from_selection() -> void:
 	_active_container = null
 	for node in _plugin.get_editor_interface().get_selection().get_selected_nodes():
 		_active_facility = _find_facility_ancestor(node)
-		if node is WorldContainer:
+		if node is WorldContainer or node is LiquidContainer:
 			_active_container = node
 		if _active_facility != null:
 			break
@@ -1132,7 +1169,7 @@ func _refresh_ui() -> void:
 ## resource slots.
 func wants_dock() -> bool:
 	for node in _plugin.get_editor_interface().get_selection().get_selected_nodes():
-		if node is SettlementFacilityInstance or node is WorldContainer:
+		if node is SettlementFacilityInstance or node is WorldContainer or node is LiquidContainer:
 			return true
 	return false
 

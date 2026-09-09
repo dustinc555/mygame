@@ -96,8 +96,10 @@ static func complete_planting(cell: Dictionary, crop_id: String, starting_water 
 	return next
 
 
-static func advance_cell(cell: Dictionary, crop: Dictionary, elapsed_minutes: float, rain_water := 0.0) -> Dictionary:
-	var next := cell.duplicate(true)
+static func advance_cell(cell: Dictionary, crop: Dictionary, elapsed_minutes: float, rain_water := 0.0, deep_copy := true) -> Dictionary:
+	if not deep_copy and (elapsed_minutes <= 0.0 or str(cell.get("state", STATE_UNTILLED)) not in [STATE_GROWING, STATE_RIPE]):
+		return cell
+	var next := cell.duplicate(deep_copy)
 	if elapsed_minutes <= 0.0:
 		return next
 	var state := str(next.get("state", STATE_UNTILLED))
@@ -180,8 +182,14 @@ static func complete_harvest(cell: Dictionary, crop: Dictionary, farming_level: 
 	return {"cell": reset, "yield": output}
 
 
-static func advance_soil_recovery(cell: Dictionary, from_minute: int, target_minute: int, eligible: bool, recovery_minutes: int) -> Dictionary:
-	var next := cell.duplicate(true)
+static func advance_soil_recovery(cell: Dictionary, from_minute: int, target_minute: int, eligible: bool, recovery_minutes: int, deep_copy := true) -> Dictionary:
+	if not deep_copy:
+		if not bool(cell.get("soil_created", false)) or not eligible:
+			if cell.has("soil_recovery_started_minute") and int(cell["soil_recovery_started_minute"]) == -1:
+				return cell
+		elif int(cell.get("soil_recovery_started_minute", -1)) >= 0 and target_minute - int(cell["soil_recovery_started_minute"]) < maxi(1, recovery_minutes):
+			return cell
+	var next := cell.duplicate(deep_copy)
 	if not bool(next.get("soil_created", false)):
 		next["soil_recovery_started_minute"] = -1
 		return next

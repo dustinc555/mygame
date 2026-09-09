@@ -158,6 +158,7 @@ func sync_property_ownership() -> void:
 	_stamp_property_ownership(self, ruler, get_property_owner_faction())
 	if ruler == null:
 		_clear_property_owner_character(self)
+	_sync_durable_context(self)
 
 
 func _clear_property_owner_character(node: Node) -> void:
