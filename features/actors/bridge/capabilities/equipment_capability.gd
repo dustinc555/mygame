@@ -68,10 +68,25 @@ func get_equipped_stack_id(slot_name: String) -> String:
 func can_equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> bool:
 	if definition == null or not definition.is_equippable():
 		return false
+	if not definition.compatible_races.is_empty() and not definition.fits_race(_get_actor_race_id()):
+		return false
 	var actor_slot_names := _get_actor_equipment_slot_names()
 	if not actor_slot_names.is_empty() and not actor_slot_names.has(slot_name):
 		return false
 	return definition.can_equip_to_slot(slot_name)
+
+
+func _get_actor_race_id() -> String:
+	if actor == null:
+		return ""
+	var appearance := actor.get("appearance_data") as CharacterAppearanceData
+	if appearance == null:
+		return ""
+	if appearance.character_race != null:
+		return str(appearance.character_race.get("race_id"))
+	if appearance.body_archetype != null and appearance.body_archetype.has_method("get_race_id"):
+		return str(appearance.body_archetype.get_race_id())
+	return ""
 
 
 func equip_item_to_slot(definition: ItemDefinition, slot_name: String, stack_id := "") -> ItemDefinition:
@@ -192,6 +207,8 @@ func seed_starting_equipment_from_actor() -> void:
 		if not item_definition.is_equippable():
 			_add_item_to_actor_inventory(item_definition)
 			continue
+		# Reseeding can follow live-record hydration. Occupied slots already
+		# represent real items; never turn skipped starting gear into new stock.
 		if get_equipped_item(item_definition.equip_slot) == null and can_equip_item_to_slot(item_definition, item_definition.equip_slot):
 			equipped_items[item_definition.equip_slot] = item_definition
 			var actor_id := str(actor.get("stable_id")).strip_edges()

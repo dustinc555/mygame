@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://assets/items/equipment/bestiary/skeleton_helm/icon.svg" id="2_icon"]
+[ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/skeleton_helm/equipped.tscn" id="3_equipped"]
+[ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/skeleton_helm/dropped.tscn" id="4_world"]
+[ext_resource type="Script" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="5_visual"]
+
+[sub_resource type="Resource" id="Visual_authored_rig"]
+script = ExtResource("5_visual")
+body_archetype_id = "skeleton"
+visual_scene = ExtResource("3_equipped")
+visual_layer = "armor"
+visual_coverage = "head"
+replaces_body_slots = PackedStringArray()
+visual_notes = "Authored skeleton rig only; original Armature coordinates and skin binds preserved. No body/anatomy hiding."
+
+[resource]
+script = ExtResource("1_item")
+item_id = "bestiary.skeleton_helm"
+display_name = "Skeleton Helm"
+icon = ExtResource("2_icon")
+grid_size = Vector2i(2, 2)
+unit_weight = 1.5
+max_stack = 1
+equip_slot = "head"
+alternate_equip_slots = PackedStringArray()
+compatible_races = PackedStringArray("skeleton")
+world_scene = ExtResource("4_world")
+equipped_scene = ExtResource("3_equipped")
+equipped_visuals = Array[Resource]([SubResource("Visual_authored_rig")])

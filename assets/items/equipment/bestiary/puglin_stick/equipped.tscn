@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/items/equipment/bestiary/puglin_stick/puglin_stick_static.res" id="1_h2qis"]
+
+[node name="PuglinStick" type="Node3D" unique_id=147274904]
+
+[node name="GripPoint_Primary" type="Marker3D" parent="." unique_id=1588494871]
+
+[node name="Puglin_Stick" type="MeshInstance3D" parent="." unique_id=1791063470]
+mesh = ExtResource("1_h2qis")

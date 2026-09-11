@@ -1,0 +1,19 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/items/equipment/bestiary/hellwarden_cuirass/hellwarden_gorget_static.res" id="1_uvabm"]
+[ext_resource type="ArrayMesh" path="res://assets/items/equipment/bestiary/hellwarden_cuirass/hellwarden_pauldrons_static.res" id="2_mtufb"]
+[ext_resource type="ArrayMesh" path="res://assets/items/equipment/bestiary/hellwarden_cuirass/hellwarden_torso_static.res" id="3_3v302"]
+
+[node name="HellwardenCuirassDropped" type="Node3D" unique_id=1701476869]
+
+[node name="Hellwarden_Gorget" type="MeshInstance3D" parent="." unique_id=493400613]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.4747231, 0.03581643)
+mesh = ExtResource("1_uvabm")
+
+[node name="Hellwarden_Pauldrons" type="MeshInstance3D" parent="." unique_id=1191342852]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.4747231, 0.03581643)
+mesh = ExtResource("2_mtufb")
+
+[node name="Hellwarden_Torso" type="MeshInstance3D" parent="." unique_id=1274687063]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.4747231, 0.03581643)
+mesh = ExtResource("3_3v302")

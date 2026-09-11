@@ -19,8 +19,8 @@ func _initialize() -> void:
 func _run_validation() -> void:
 	var failures: Array[String] = []
 
-	var actor := _make_actor([HATCHET])
-	var equipment := actor.get_equipment()
+	var actor = _make_actor([HATCHET])
+	var equipment = actor.get_equipment()
 	_expect(failures, "equipment capability present", equipment != null)
 	if equipment == null:
 		_finish(failures)
@@ -28,13 +28,23 @@ func _run_validation() -> void:
 
 	_expect(failures, "starting hatchet seeded to weapon slot", actor.get_equipped_item("weapon") == HATCHET)
 	_expect(failures, "starting hatchet has durable stack ID", not equipment.get_equipped_stack_id("weapon").is_empty())
+	# Live character-type changes reseed slots that were already hydrated.
+	var inventory = actor.get_inventory().inventory
+	var original_stack_id: String = equipment.get_equipped_stack_id("weapon")
+	var carried_before: int = inventory.count_item(HATCHET)
+	equipment.seed_starting_equipment_from_actor()
+	equipment.seed_starting_equipment_from_actor()
+	_expect(failures, "reseeding does not duplicate equipped gear into inventory", inventory.count_item(HATCHET) == carried_before)
+	_expect(failures, "reseeding preserves equipped item identity", equipment.get_equipped_item("weapon") == HATCHET and equipment.get_equipped_stack_id("weapon") == original_stack_id)
 
 	# equip replaces, weight, unequip
-	var replaced := actor.equip_item_to_slot(BRONZE_SWORD, "weapon")
+	var replaced = actor.equip_item_to_slot(BRONZE_SWORD, "weapon")
 	_expect(failures, "equip replaces previous", replaced == HATCHET)
 	_expect(failures, "sword now equipped", actor.get_equipped_item("weapon") == BRONZE_SWORD)
 	_expect(failures, "equipped weight matches sword", is_equal_approx(actor.get_equipped_weight(), BRONZE_SWORD.unit_weight))
-	var removed := actor.unequip_item_from_slot("weapon")
+	equipment.seed_starting_equipment_from_actor()
+	_expect(failures, "occupied slots do not grant discarded starting gear", inventory.count_item(HATCHET) == carried_before and actor.get_equipped_item("weapon") == BRONZE_SWORD)
+	var removed = actor.unequip_item_from_slot("weapon")
 	_expect(failures, "unequip returns sword", removed == BRONZE_SWORD)
 	_expect(failures, "empty after unequip", actor.get_equipped_item("weapon") == null)
 
@@ -55,15 +65,16 @@ func _run_validation() -> void:
 	_expect(failures, "batch emits once on end", batch.n == 1)
 
 	# Stats reads the equipment modifier layer (cross-capability link)
-	var modifiers := equipment.get_stat_modifiers()
+	var modifiers = equipment.get_stat_modifiers()
 	_expect(failures, "stat modifiers surfaced from equipped items", modifiers.size() == HATCHET.stat_modifiers.size())
 
 	actor.free()
 	_finish(failures)
 
 
-func _make_actor(starting_equipment: Array) -> WorldActor:
-	var actor := WorldActor.new()
+func _make_actor(starting_equipment: Array):
+	# Load after autoload initialization, not during SceneTree script compilation.
+	var actor = load("res://features/actors/bridge/world_actor.gd").new()
 	actor.stable_id = "validation.equipment_actor"
 	root.add_child(actor)
 	actor.starting_equipment = starting_equipment
@@ -77,7 +88,7 @@ func _make_actor(starting_equipment: Array) -> WorldActor:
 
 func _finish(failures: Array[String]) -> void:
 	if failures.is_empty():
-		print("PASS: EquipmentCapability sane (11 checks)")
+		print("PASS: EquipmentCapability including idempotent reseeding")
 		quit(0)
 	else:
 		for f in failures:

@@ -1,0 +1,14 @@
+{
+	"catalog_discovery": "Top-level production items directory + equipment_manifest.json",
+	"equipped_triangles": 23026,
+	"equipped_vertices": 16780,
+	"items": 15,
+	"max_saved_grip_roundtrip_error_m": 0.000000961096020546393,
+	"result": "PASS",
+	"scenes_loaded": 30,
+	"skeleton_greaves_identical": true,
+	"source_identical_gpu_textures": 18,
+	"svg_icons_loaded": 15,
+	"weapons": 6,
+	"wearables": 9
+}

@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/items/equipment/bestiary/hellwarden_sword/hellwarden_sword_static.res" id="1_aqosh"]
+
+[node name="HellwardenSwordDropped" type="Node3D" unique_id=61721349]
+
+[node name="Hellwarden_Sword" type="MeshInstance3D" parent="." unique_id=404867355]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.009272456, 0.1282115, -0.57314974)
+mesh = ExtResource("1_aqosh")
