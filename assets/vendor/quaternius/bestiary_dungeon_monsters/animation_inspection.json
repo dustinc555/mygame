@@ -1,0 +1,219 @@
+{
+  "blender_version": "5.2.1 LTS",
+  "models": [
+    {
+      "name": "Hellwarden",
+      "source_sha256": "3b67a54ca6945ccedcb93b91eca01de6877ef75f9398d0404dd6db6045d4e88f",
+      "actions": [],
+      "action_count": 0,
+      "objects": [
+        {
+          "name": "Armature",
+          "type": "ARMATURE",
+          "bones": 382,
+          "active_action": null,
+          "nla_tracks": []
+        },
+        {
+          "name": "metarig",
+          "type": "ARMATURE",
+          "bones": 54,
+          "active_action": null,
+          "nla_tracks": []
+        }
+      ],
+      "glb": {
+        "path": "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Hellwarden.glb",
+        "archive_member": "Bestiary - Dungeon Monsters Kit[Source]/Exports/GLB (Godot-Unreal)/Hellwarden.glb",
+        "sha256": "c5cd178c9003a4fdec9138e65b24fa46a7430745c5c4ee652a14f573cd13f576",
+        "animations": [],
+        "clip_count": 0,
+        "skin_count": 1,
+        "mesh_count": 8
+      },
+      "object_count": 137
+    },
+    {
+      "name": "Imp",
+      "source_sha256": "94668577aba75011f7be35d62386785176a2e591c8adc83913e648db9969ad13",
+      "actions": [],
+      "action_count": 0,
+      "objects": [
+        {
+          "name": "Armature",
+          "type": "ARMATURE",
+          "bones": 346,
+          "active_action": null,
+          "nla_tracks": []
+        },
+        {
+          "name": "metarig",
+          "type": "ARMATURE",
+          "bones": 48,
+          "active_action": null,
+          "nla_tracks": []
+        }
+      ],
+      "glb": {
+        "path": "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Imp.glb",
+        "archive_member": "Bestiary - Dungeon Monsters Kit[Source]/Exports/GLB (Godot-Unreal)/Imp.glb",
+        "sha256": "cfc689f3162f0cfe72d0d4637ae348dc54b3e34083b1c96d2721b95176186df0",
+        "animations": [],
+        "clip_count": 0,
+        "skin_count": 1,
+        "mesh_count": 5
+      },
+      "object_count": 124
+    },
+    {
+      "name": "Lycan",
+      "source_sha256": "6b804d2a7db6ea4eb940bb7541eaae917abb25c0620785d890eb9b7602e08e2c",
+      "actions": [],
+      "action_count": 0,
+      "objects": [
+        {
+          "name": "Armature",
+          "type": "ARMATURE",
+          "bones": 388,
+          "active_action": null,
+          "nla_tracks": []
+        },
+        {
+          "name": "metarig",
+          "type": "ARMATURE",
+          "bones": 54,
+          "active_action": null,
+          "nla_tracks": []
+        }
+      ],
+      "glb": {
+        "path": "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Lycan.glb",
+        "archive_member": "Bestiary - Dungeon Monsters Kit[Source]/Exports/GLB (Godot-Unreal)/Lycan.glb",
+        "sha256": "132e6aebdf216e056de35f0db300b88ea91373c54c8a0f46fc4009f2a0a57fe0",
+        "animations": [],
+        "clip_count": 0,
+        "skin_count": 1,
+        "mesh_count": 1
+      },
+      "object_count": 130
+    },
+    {
+      "name": "Puglin",
+      "source_sha256": "3aa0fd8785d12dbc76878b849ac027427b3f9589b2b60ff217ae8dfab948aedd",
+      "actions": [],
+      "action_count": 0,
+      "objects": [
+        {
+          "name": "Armature",
+          "type": "ARMATURE",
+          "bones": 346,
+          "active_action": null,
+          "nla_tracks": []
+        },
+        {
+          "name": "metarig",
+          "type": "ARMATURE",
+          "bones": 48,
+          "active_action": null,
+          "nla_tracks": []
+        }
+      ],
+      "glb": {
+        "path": "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Puglin.glb",
+        "archive_member": "Bestiary - Dungeon Monsters Kit[Source]/Exports/GLB (Godot-Unreal)/Puglin.glb",
+        "sha256": "8d0a87d7165e5da0761418491511d2187e46de359e2f65110538f8b91a48e6af",
+        "animations": [],
+        "clip_count": 0,
+        "skin_count": 1,
+        "mesh_count": 3
+      },
+      "object_count": 122
+    },
+    {
+      "name": "Skeleton_A",
+      "source_sha256": "e861c2bf4cd6c0fe82bbf88656cd295ef296596c940f34675c0d4af8feb4374a",
+      "actions": [],
+      "action_count": 0,
+      "objects": [
+        {
+          "name": "Armature",
+          "type": "ARMATURE",
+          "bones": 382,
+          "active_action": null,
+          "nla_tracks": []
+        }
+      ],
+      "glb": {
+        "path": "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Skeleton_A.glb",
+        "archive_member": "Bestiary - Dungeon Monsters Kit[Source]/Exports/GLB (Godot-Unreal)/Skeleton_A.glb",
+        "sha256": "c97b92e5deb02fe850ea71134ef02f041280490ec724f454a984dd3220ea053c",
+        "animations": [],
+        "clip_count": 0,
+        "skin_count": 1,
+        "mesh_count": 5
+      },
+      "object_count": 133
+    },
+    {
+      "name": "Skeleton_B",
+      "source_sha256": "a98592166368599b1a56a4cf55ad1ea81af2f13f6ee16a90a9c02e6ceac3a50e",
+      "actions": [],
+      "action_count": 0,
+      "objects": [
+        {
+          "name": "Armature",
+          "type": "ARMATURE",
+          "bones": 382,
+          "active_action": null,
+          "nla_tracks": []
+        }
+      ],
+      "glb": {
+        "path": "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Skeleton_B.glb",
+        "archive_member": "Bestiary - Dungeon Monsters Kit[Source]/Exports/GLB (Godot-Unreal)/Skeleton_B.glb",
+        "sha256": "4482749784c46f598e84d5bb513a1dc79ef94e6a704de8131e3c0a07e5566b6f",
+        "animations": [],
+        "clip_count": 0,
+        "skin_count": 1,
+        "mesh_count": 4
+      },
+      "object_count": 132
+    },
+    {
+      "name": "Tidebreaker",
+      "source_sha256": "9a332d25bdd043bccbf0e47666c520570f6d8342eff016d76e68e7dd33d6beb4",
+      "actions": [],
+      "action_count": 0,
+      "objects": [
+        {
+          "name": "Armature",
+          "type": "ARMATURE",
+          "bones": 382,
+          "active_action": null,
+          "nla_tracks": []
+        },
+        {
+          "name": "metarig",
+          "type": "ARMATURE",
+          "bones": 54,
+          "active_action": null,
+          "nla_tracks": []
+        }
+      ],
+      "glb": {
+        "path": "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Tidebreaker.glb",
+        "archive_member": "Bestiary - Dungeon Monsters Kit[Source]/Exports/GLB (Godot-Unreal)/Tidebreaker.glb",
+        "sha256": "3de8e0b5372d3eb21594ef67bf6707d22483aca2577307b73e4d719638450e0d",
+        "animations": [],
+        "clip_count": 0,
+        "skin_count": 1,
+        "mesh_count": 2
+      },
+      "object_count": 131
+    }
+  ],
+  "archive_sha256": "852ab630657e2ae9eee9e996296c2fd710dd545057509648082602ab7fa1d006",
+  "archive_name": "Bestiary - Dungeon Monsters Kit[Source].zip",
+  "source_scripts_enabled": false,
+  "export_policy": "Original GLBs preserved byte-for-byte: all seven source blends contain zero actions and no assigned/NLA animation."
+}

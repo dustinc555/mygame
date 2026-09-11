@@ -1,0 +1,17 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/items/equipment/bestiary/materials/tidebreaker_0_albedo_texture.res" id="1_blldv"]
+[ext_resource type="Texture2D" path="res://assets/items/equipment/bestiary/materials/tidebreaker_0_metallic_texture.res" id="2_dbs1j"]
+[ext_resource type="Texture2D" path="res://assets/items/equipment/bestiary/materials/tidebreaker_0_normal_texture.res" id="3_a2sxf"]
+
+[resource]
+resource_name = "MI_Tidebreaker"
+cull_mode = 2
+albedo_texture = ExtResource("1_blldv")
+metallic = 1.0
+metallic_texture = ExtResource("2_dbs1j")
+metallic_texture_channel = 2
+roughness_texture = ExtResource("2_dbs1j")
+roughness_texture_channel = 1
+normal_enabled = true
+normal_texture = ExtResource("3_a2sxf")

@@ -1989,27 +1989,8 @@ func _setup_equipped_bone_visuals(visual_root: Node3D) -> void:
 
 
 func _add_bone_equipment_slot(skeleton: Skeleton3D, slot_name: String, item: ItemDefinition) -> void:
-	if item == null:
-		return
-	var equipped_scene := item.get_equipped_scene_for_body_archetype(get_resolved_body_archetype())
-	if equipped_scene == null:
-		return
-	var instance := equipped_scene.instantiate()
-	if not (instance is Node3D):
-		instance.queue_free()
-		return
-	var socket_id := _get_equipment_socket_id(item, slot_name)
-	var fallback_bone_name := _get_equipment_attachment_bone(item, slot_name)
-	var socket := _get_or_create_humanoid_grip_socket(skeleton, socket_id, fallback_bone_name)
-	if socket == null:
-		instance.queue_free()
-		return
-	var slot_visual := Node3D.new()
-	slot_visual.name = _get_bone_equipment_visual_name(slot_name)
-	socket.add_child(slot_visual)
-	var model_root := instance as Node3D
-	model_root.transform = item.equipped_transform * _get_item_grip_transform(model_root, item, slot_name).affine_inverse()
-	slot_visual.add_child(model_root)
+	var mount_helper = preload("res://features/actors/projection/equipment_mount_helper.gd").new(_get_grip_socket_profile(), get_resolved_body_archetype(), show_grip_socket_markers)
+	mount_helper.mount(skeleton, slot_name, item)
 
 
 func _get_bone_attachment_name(slot_name: String) -> String:

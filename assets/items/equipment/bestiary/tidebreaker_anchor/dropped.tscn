@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/items/equipment/bestiary/tidebreaker_anchor/tidebreaker_anchor_static.res" id="1_gsclg"]
+
+[node name="TidebreakerAnchorDropped" type="Node3D" unique_id=645101593]
+
+[node name="Tidebreaker_Anchor" type="MeshInstance3D" parent="." unique_id=258544919]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.024611235, 0.47608608, -0.34240562)
+mesh = ExtResource("1_gsclg")

@@ -1,0 +1,87 @@
+{
+  "godot_version": "4.7.2-stable (nixpkgs)",
+  "model_count": 7,
+  "models": [
+    {
+      "bones": 65,
+      "clips": [],
+      "material_texture_paths": [
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Hellwarden.glb::PortableCompressedTexture2D_hl0je",
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Hellwarden.glb::PortableCompressedTexture2D_veulx",
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Hellwarden.glb::PortableCompressedTexture2D_hyhjx"
+      ],
+      "meshes": 8,
+      "name": "Hellwarden",
+      "skeletons": 1
+    },
+    {
+      "bones": 55,
+      "clips": [],
+      "material_texture_paths": [
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Imp.glb::PortableCompressedTexture2D_dv44s",
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Imp.glb::PortableCompressedTexture2D_582ru",
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Imp.glb::PortableCompressedTexture2D_tj77i"
+      ],
+      "meshes": 5,
+      "name": "Imp",
+      "skeletons": 1
+    },
+    {
+      "bones": 71,
+      "clips": [],
+      "material_texture_paths": [
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Lycan.glb::PortableCompressedTexture2D_nxeg8",
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Lycan.glb::PortableCompressedTexture2D_bp8xm",
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Lycan.glb::PortableCompressedTexture2D_hyonk"
+      ],
+      "meshes": 1,
+      "name": "Lycan",
+      "skeletons": 1
+    },
+    {
+      "bones": 55,
+      "clips": [],
+      "material_texture_paths": [
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Puglin.glb::PortableCompressedTexture2D_doogc",
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Puglin.glb::PortableCompressedTexture2D_v6axa",
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Puglin.glb::PortableCompressedTexture2D_klv45"
+      ],
+      "meshes": 3,
+      "name": "Puglin",
+      "skeletons": 1
+    },
+    {
+      "bones": 65,
+      "clips": [],
+      "material_texture_paths": [
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Skeleton_A.glb::PortableCompressedTexture2D_c1i3c",
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Skeleton_A.glb::PortableCompressedTexture2D_3070d"
+      ],
+      "meshes": 5,
+      "name": "Skeleton_A",
+      "skeletons": 1
+    },
+    {
+      "bones": 65,
+      "clips": [],
+      "material_texture_paths": [
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Skeleton_B.glb::PortableCompressedTexture2D_kdf8l",
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Skeleton_B.glb::PortableCompressedTexture2D_i28wo"
+      ],
+      "meshes": 4,
+      "name": "Skeleton_B",
+      "skeletons": 1
+    },
+    {
+      "bones": 65,
+      "clips": [],
+      "material_texture_paths": [
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Tidebreaker.glb::PortableCompressedTexture2D_orn2h",
+        "res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Tidebreaker.glb::PortableCompressedTexture2D_ptpr5"
+      ],
+      "meshes": 2,
+      "name": "Tidebreaker",
+      "skeletons": 1
+    }
+  ]
+}
