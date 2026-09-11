@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/items/equipment/bestiary/skeleton_greaves/skeleton_greaves_static.res" id="1_mkaij"]
+
+[node name="SkeletonGreavesDropped" type="Node3D" unique_id=338050897]
+
+[node name="Skeleton_Greaves" type="MeshInstance3D" parent="." unique_id=1942379921]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00029088557, -0.08574293, -0.037134826)
+mesh = ExtResource("1_mkaij")

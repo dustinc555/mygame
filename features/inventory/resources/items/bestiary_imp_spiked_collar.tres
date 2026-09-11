@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://assets/items/equipment/bestiary/imp_spiked_collar/icon.svg" id="2_icon"]
+[ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/imp_spiked_collar/equipped.tscn" id="3_equipped"]
+[ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/imp_spiked_collar/dropped.tscn" id="4_world"]
+[ext_resource type="Script" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="5_visual"]
+
+[sub_resource type="Resource" id="Visual_authored_rig"]
+script = ExtResource("5_visual")
+body_archetype_id = "imp"
+visual_scene = ExtResource("3_equipped")
+visual_layer = "armor"
+visual_coverage = "torso"
+replaces_body_slots = PackedStringArray()
+visual_notes = "Authored imp rig only; original Armature coordinates and skin binds preserved. No body/anatomy hiding."
+
+[resource]
+script = ExtResource("1_item")
+item_id = "bestiary.imp_spiked_collar"
+display_name = "Imp Spiked Collar"
+icon = ExtResource("2_icon")
+grid_size = Vector2i(2, 1)
+unit_weight = 0.7
+max_stack = 1
+equip_slot = "chest"
+alternate_equip_slots = PackedStringArray()
+compatible_races = PackedStringArray("imp")
+world_scene = ExtResource("4_world")
+equipped_scene = ExtResource("3_equipped")
+equipped_visuals = Array[Resource]([SubResource("Visual_authored_rig")])

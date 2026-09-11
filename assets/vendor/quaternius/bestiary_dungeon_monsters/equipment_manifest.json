@@ -1,0 +1,460 @@
+{
+  "schema_version": 1,
+  "source_license": "Quaternius Asset License (QAL) v1.0; derivatives for this game only, not a standalone asset pack.",
+  "models": {
+    "Hellwarden.glb": {
+      "race_id": "hellwarden",
+      "removable_meshes": [
+        "Hellwarden_Sword",
+        "Hellwarden_Torso",
+        "Hellwarden_Gorget",
+        "Hellwarden_Pauldrons",
+        "Hellwarden_Hips",
+        "Hellwarden_Cuisses"
+      ],
+      "default_items": [
+        "res://features/inventory/resources/items/bestiary_hellwarden_sword.tres",
+        "res://features/inventory/resources/items/bestiary_hellwarden_cuirass.tres",
+        "res://features/inventory/resources/items/bestiary_hellwarden_leg_armor.tres"
+      ]
+    },
+    "Imp.glb": {
+      "race_id": "imp",
+      "removable_meshes": [
+        "Imp_Mace",
+        "Imp_Chains",
+        "Imp_Shorts",
+        "Imp_SpikedCollar"
+      ],
+      "default_items": [
+        "res://features/inventory/resources/items/bestiary_imp_mace.tres",
+        "res://features/inventory/resources/items/bestiary_imp_shackles.tres",
+        "res://features/inventory/resources/items/bestiary_imp_shorts.tres",
+        "res://features/inventory/resources/items/bestiary_imp_spiked_collar.tres"
+      ]
+    },
+    "Lycan.glb": {
+      "race_id": "lycan",
+      "removable_meshes": [],
+      "default_items": []
+    },
+    "Puglin.glb": {
+      "race_id": "puglin",
+      "removable_meshes": [
+        "Puglin_Stick"
+      ],
+      "default_items": [
+        "res://features/inventory/resources/items/bestiary_puglin_stick.tres"
+      ]
+    },
+    "Skeleton_A.glb": {
+      "display_name": "Skeleton",
+      "race_id": "skeleton",
+      "removable_meshes": [
+        "Skeleton_Axe",
+        "Skeleton_Greaves",
+        "Skeleton_HelmHorns",
+        "Skeleton_Pauldron"
+      ],
+      "default_items": [
+        "res://features/inventory/resources/items/bestiary_skeleton_axe.tres",
+        "res://features/inventory/resources/items/bestiary_skeleton_greaves.tres",
+        "res://features/inventory/resources/items/bestiary_skeleton_horned_helm.tres",
+        "res://features/inventory/resources/items/bestiary_skeleton_pauldrons.tres"
+      ]
+    },
+    "Skeleton_B.glb": {
+      "equipment_variant_of": "Skeleton_A.glb",
+      "race_id": "skeleton",
+      "removable_meshes": [
+        "Skeleton_Sword",
+        "Skeleton_Helm",
+        "Skeleton_Greaves"
+      ],
+      "default_items": [
+        "res://features/inventory/resources/items/bestiary_skeleton_sword.tres",
+        "res://features/inventory/resources/items/bestiary_skeleton_helm.tres",
+        "res://features/inventory/resources/items/bestiary_skeleton_greaves.tres"
+      ]
+    },
+    "Tidebreaker.glb": {
+      "race_id": "tidebreaker",
+      "removable_meshes": [
+        "Tidebreaker_Anchor"
+      ],
+      "default_items": [
+        "res://features/inventory/resources/items/bestiary_tidebreaker_anchor.tres"
+      ]
+    }
+  },
+  "items": [
+    {
+      "item_id": "bestiary.hellwarden_sword",
+      "path": "res://features/inventory/resources/items/bestiary_hellwarden_sword.tres",
+      "race": "hellwarden",
+      "compatible_races": [],
+      "source_model": "Hellwarden.glb",
+      "source_meshes": [
+        "Hellwarden_Sword"
+      ],
+      "slot": "weapon",
+      "display_name": "Hellwarden Sword",
+      "unit_weight": 5.2,
+      "grid_size": [
+        1,
+        5
+      ],
+      "stat_modifiers": {
+        "attack_damage": 15.0,
+        "cut_ratio": 0.5,
+        "attack_range": 0.75
+      },
+      "equipped_scene": "res://assets/items/equipment/bestiary/hellwarden_sword/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/hellwarden_sword/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/hellwarden_sword/icon.svg"
+    },
+    {
+      "item_id": "bestiary.imp_mace",
+      "path": "res://features/inventory/resources/items/bestiary_imp_mace.tres",
+      "race": "imp",
+      "compatible_races": [],
+      "source_model": "Imp.glb",
+      "source_meshes": [
+        "Imp_Mace"
+      ],
+      "slot": "weapon",
+      "display_name": "Imp Mace",
+      "unit_weight": 2.4,
+      "grid_size": [
+        2,
+        3
+      ],
+      "stat_modifiers": {
+        "attack_damage": 7.0,
+        "cut_ratio": -0.15,
+        "attack_range": 0.25
+      },
+      "equipped_scene": "res://assets/items/equipment/bestiary/imp_mace/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/imp_mace/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/imp_mace/icon.svg"
+    },
+    {
+      "item_id": "bestiary.puglin_stick",
+      "path": "res://features/inventory/resources/items/bestiary_puglin_stick.tres",
+      "race": "puglin",
+      "compatible_races": [],
+      "source_model": "Puglin.glb",
+      "source_meshes": [
+        "Puglin_Stick"
+      ],
+      "slot": "weapon",
+      "display_name": "Puglin Stick",
+      "unit_weight": 0.8,
+      "grid_size": [
+        1,
+        3
+      ],
+      "stat_modifiers": {
+        "attack_damage": 3.0,
+        "cut_ratio": -0.2,
+        "attack_range": 0.15
+      },
+      "equipped_scene": "res://assets/items/equipment/bestiary/puglin_stick/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/puglin_stick/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/puglin_stick/icon.svg"
+    },
+    {
+      "item_id": "bestiary.skeleton_axe",
+      "path": "res://features/inventory/resources/items/bestiary_skeleton_axe.tres",
+      "race": "skeleton",
+      "compatible_races": [],
+      "source_model": "Skeleton_A.glb",
+      "source_meshes": [
+        "Skeleton_Axe"
+      ],
+      "slot": "weapon",
+      "display_name": "Skeleton Axe",
+      "unit_weight": 2.8,
+      "grid_size": [
+        2,
+        3
+      ],
+      "stat_modifiers": {
+        "attack_damage": 9.0,
+        "cut_ratio": 0.3,
+        "attack_range": 0.3
+      },
+      "equipped_scene": "res://assets/items/equipment/bestiary/skeleton_axe/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/skeleton_axe/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/skeleton_axe/icon.svg"
+    },
+    {
+      "item_id": "bestiary.skeleton_sword",
+      "path": "res://features/inventory/resources/items/bestiary_skeleton_sword.tres",
+      "race": "skeleton",
+      "compatible_races": [],
+      "source_model": "Skeleton_B.glb",
+      "source_meshes": [
+        "Skeleton_Sword"
+      ],
+      "slot": "weapon",
+      "display_name": "Skeleton Sword",
+      "unit_weight": 2.6,
+      "grid_size": [
+        1,
+        4
+      ],
+      "stat_modifiers": {
+        "attack_damage": 8.0,
+        "cut_ratio": 0.45,
+        "attack_range": 0.45
+      },
+      "equipped_scene": "res://assets/items/equipment/bestiary/skeleton_sword/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/skeleton_sword/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/skeleton_sword/icon.svg"
+    },
+    {
+      "item_id": "bestiary.tidebreaker_anchor",
+      "path": "res://features/inventory/resources/items/bestiary_tidebreaker_anchor.tres",
+      "race": "tidebreaker",
+      "compatible_races": [],
+      "source_model": "Tidebreaker.glb",
+      "source_meshes": [
+        "Tidebreaker_Anchor"
+      ],
+      "slot": "weapon",
+      "display_name": "Tidebreaker Anchor",
+      "unit_weight": 12.0,
+      "grid_size": [
+        3,
+        5
+      ],
+      "stat_modifiers": {
+        "attack_damage": 18.0,
+        "cut_ratio": -0.2,
+        "attack_range": 0.8
+      },
+      "equipped_scene": "res://assets/items/equipment/bestiary/tidebreaker_anchor/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/tidebreaker_anchor/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/tidebreaker_anchor/icon.svg"
+    },
+    {
+      "item_id": "bestiary.hellwarden_cuirass",
+      "path": "res://features/inventory/resources/items/bestiary_hellwarden_cuirass.tres",
+      "race": "hellwarden",
+      "compatible_races": [
+        "hellwarden"
+      ],
+      "source_model": "Hellwarden.glb",
+      "source_meshes": [
+        "Hellwarden_Torso",
+        "Hellwarden_Gorget",
+        "Hellwarden_Pauldrons"
+      ],
+      "slot": "chest",
+      "display_name": "Hellwarden Cuirass",
+      "unit_weight": 7.0,
+      "grid_size": [
+        3,
+        3
+      ],
+      "stat_modifiers": {},
+      "equipped_scene": "res://assets/items/equipment/bestiary/hellwarden_cuirass/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/hellwarden_cuirass/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/hellwarden_cuirass/icon.svg"
+    },
+    {
+      "item_id": "bestiary.hellwarden_leg_armor",
+      "path": "res://features/inventory/resources/items/bestiary_hellwarden_leg_armor.tres",
+      "race": "hellwarden",
+      "compatible_races": [
+        "hellwarden"
+      ],
+      "source_model": "Hellwarden.glb",
+      "source_meshes": [
+        "Hellwarden_Hips",
+        "Hellwarden_Cuisses"
+      ],
+      "slot": "legs",
+      "display_name": "Hellwarden Leg Armor",
+      "unit_weight": 4.5,
+      "grid_size": [
+        2,
+        3
+      ],
+      "stat_modifiers": {},
+      "equipped_scene": "res://assets/items/equipment/bestiary/hellwarden_leg_armor/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/hellwarden_leg_armor/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/hellwarden_leg_armor/icon.svg"
+    },
+    {
+      "item_id": "bestiary.imp_shackles",
+      "path": "res://features/inventory/resources/items/bestiary_imp_shackles.tres",
+      "race": "imp",
+      "compatible_races": [
+        "imp"
+      ],
+      "source_model": "Imp.glb",
+      "source_meshes": [
+        "Imp_Chains"
+      ],
+      "slot": "hands",
+      "display_name": "Imp Shackles",
+      "unit_weight": 1.8,
+      "grid_size": [
+        2,
+        2
+      ],
+      "stat_modifiers": {},
+      "equipped_scene": "res://assets/items/equipment/bestiary/imp_shackles/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/imp_shackles/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/imp_shackles/icon.svg"
+    },
+    {
+      "item_id": "bestiary.imp_shorts",
+      "path": "res://features/inventory/resources/items/bestiary_imp_shorts.tres",
+      "race": "imp",
+      "compatible_races": [
+        "imp"
+      ],
+      "source_model": "Imp.glb",
+      "source_meshes": [
+        "Imp_Shorts"
+      ],
+      "slot": "legs",
+      "display_name": "Imp Shorts",
+      "unit_weight": 0.4,
+      "grid_size": [
+        2,
+        2
+      ],
+      "stat_modifiers": {},
+      "equipped_scene": "res://assets/items/equipment/bestiary/imp_shorts/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/imp_shorts/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/imp_shorts/icon.svg"
+    },
+    {
+      "item_id": "bestiary.imp_spiked_collar",
+      "path": "res://features/inventory/resources/items/bestiary_imp_spiked_collar.tres",
+      "race": "imp",
+      "compatible_races": [
+        "imp"
+      ],
+      "source_model": "Imp.glb",
+      "source_meshes": [
+        "Imp_SpikedCollar"
+      ],
+      "slot": "chest",
+      "display_name": "Imp Spiked Collar",
+      "unit_weight": 0.7,
+      "grid_size": [
+        2,
+        1
+      ],
+      "stat_modifiers": {},
+      "equipped_scene": "res://assets/items/equipment/bestiary/imp_spiked_collar/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/imp_spiked_collar/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/imp_spiked_collar/icon.svg"
+    },
+    {
+      "item_id": "bestiary.skeleton_greaves",
+      "path": "res://features/inventory/resources/items/bestiary_skeleton_greaves.tres",
+      "race": "skeleton",
+      "compatible_races": [
+        "skeleton"
+      ],
+      "source_model": "Skeleton_A.glb",
+      "source_meshes": [
+        "Skeleton_Greaves"
+      ],
+      "slot": "legs",
+      "display_name": "Skeleton Greaves",
+      "unit_weight": 2.2,
+      "grid_size": [
+        2,
+        2
+      ],
+      "stat_modifiers": {},
+      "equipped_scene": "res://assets/items/equipment/bestiary/skeleton_greaves/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/skeleton_greaves/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/skeleton_greaves/icon.svg"
+    },
+    {
+      "item_id": "bestiary.skeleton_horned_helm",
+      "path": "res://features/inventory/resources/items/bestiary_skeleton_horned_helm.tres",
+      "race": "skeleton",
+      "compatible_races": [
+        "skeleton"
+      ],
+      "source_model": "Skeleton_A.glb",
+      "source_meshes": [
+        "Skeleton_HelmHorns"
+      ],
+      "slot": "head",
+      "display_name": "Skeleton Horned Helm",
+      "unit_weight": 1.8,
+      "grid_size": [
+        2,
+        2
+      ],
+      "stat_modifiers": {},
+      "equipped_scene": "res://assets/items/equipment/bestiary/skeleton_horned_helm/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/skeleton_horned_helm/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/skeleton_horned_helm/icon.svg"
+    },
+    {
+      "item_id": "bestiary.skeleton_pauldrons",
+      "path": "res://features/inventory/resources/items/bestiary_skeleton_pauldrons.tres",
+      "race": "skeleton",
+      "compatible_races": [
+        "skeleton"
+      ],
+      "source_model": "Skeleton_A.glb",
+      "source_meshes": [
+        "Skeleton_Pauldron"
+      ],
+      "slot": "chest",
+      "display_name": "Skeleton Pauldrons",
+      "unit_weight": 2.4,
+      "grid_size": [
+        3,
+        1
+      ],
+      "stat_modifiers": {},
+      "equipped_scene": "res://assets/items/equipment/bestiary/skeleton_pauldrons/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/skeleton_pauldrons/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/skeleton_pauldrons/icon.svg"
+    },
+    {
+      "item_id": "bestiary.skeleton_helm",
+      "path": "res://features/inventory/resources/items/bestiary_skeleton_helm.tres",
+      "race": "skeleton",
+      "compatible_races": [
+        "skeleton"
+      ],
+      "source_model": "Skeleton_B.glb",
+      "source_meshes": [
+        "Skeleton_Helm"
+      ],
+      "slot": "head",
+      "display_name": "Skeleton Helm",
+      "unit_weight": 1.5,
+      "grid_size": [
+        2,
+        2
+      ],
+      "stat_modifiers": {},
+      "equipped_scene": "res://assets/items/equipment/bestiary/skeleton_helm/equipped.tscn",
+      "world_scene": "res://assets/items/equipment/bestiary/skeleton_helm/dropped.tscn",
+      "icon": "res://assets/items/equipment/bestiary/skeleton_helm/icon.svg"
+    }
+  ],
+  "notes": [
+    "Hellwarden chest combines torso, gorget and pauldrons; legs combine hips and cuisses because the production slots have no neck/shoulder/waist slots.",
+    "Imp shackles contain wrist and ankle cuffs in one authored mesh; hands is their primary equipment slot. Spiked collar is upper-body armor in chest.",
+    "Skeleton greaves are one shared item for Skeleton_A and Skeleton_B.",
+    "Body, Hellwarden_Skull, and Puglin_Tusks are anatomy, not items; Lycan has no removable equipment.",
+    "All source weapons are rigidly weighted to hand_r; static equipped meshes are inverse(shared default right_hand_one_hand) * source inverse-bind * source vertices. Identity GripPoint_Primary then shared socket reproduces original authored hand-relative fit.",
+    "Weapon values are provisional content balance; armor currently has no invented stat modifiers, matching existing clothing definitions."
+  ]
+}

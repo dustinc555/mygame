@@ -15,6 +15,7 @@ This file is the canonical list of imported third-party assets and software used
 | Fantasy Props MegaKit | Quaternius | CC0 1.0 Universal | $0.00 | https://quaternius.com/packs/fantasypropsmegakit.html | `assets/vendor/quaternius/fantasy_props_megakit/` |
 | Medieval Village MegaKit Source | Quaternius | CC0 1.0 Universal | Source pack | https://quaternius.com/packs/medievalvillagemegakit.html | `assets/vendor/quaternius/medieval_village_megakit/` |
 | Sci-Fi Essentials Kit | Quaternius | CC0 1.0 Universal | $0.00 | https://quaternius.com/packs/scifiessentialskit.html | `assets/vendor/quaternius/sci_fi_essentials_kit/` |
+| Bestiary - Dungeon Monsters Kit (Source) | Quaternius | Quaternius Asset License (QAL) v1.0 — not CC0 | Purchased | https://quaternius.com/packs/bestiarydungeonmonsterskit.html | `assets/vendor/quaternius/bestiary_dungeon_monsters/` |
 | Farm Crops 01 | Luceed Studio | Unity Asset Store Standard EULA, Single Entity | Purchased | https://assetstore.unity.com/packages/3d/vegetation/plants/farm-crops-01-304324 | `assets/vendor/luceed-studio/farm-crops-01/` |
 
 ## Terrain / Materials
@@ -33,7 +34,7 @@ This file is the canonical list of imported third-party assets and software used
 
 ## License Notes
 
-Quaternius marks these packs as CC0 on their pack pages. GECS includes a CC0 1.0 Universal license file in `addons/gecs/LICENSE`. LimboAI includes an MIT license file in `addons/limboai/LICENSE.md` after running `setup_limboai.sh`. CC0 1.0 Universal license text: https://creativecommons.org/publicdomain/zero/1.0/
+The Quaternius packs listed as CC0 above use CC0; Bestiary - Dungeon Monsters Kit instead uses the bundled QAL v1.0 (`assets/vendor/quaternius/bestiary_dungeon_monsters/License_Source.txt`). QAL permits commercial products and project collaborators, but prohibits redistribution of the assets themselves as standalone assets or packs. Do not publish this purchased asset family as a public asset collection. GECS includes a CC0 1.0 Universal license file in `addons/gecs/LICENSE`. LimboAI includes an MIT license file in `addons/limboai/LICENSE.md` after running `setup_limboai.sh`. CC0 1.0 Universal license text: https://creativecommons.org/publicdomain/zero/1.0/
 
 LimboAI is fetched from the official Godot 4.6 GDExtension release archive so native extension binaries are available without a local C++ build while staying out of git history. Revisit this if the project adopts a dedicated binary artifact or build pipeline. Fab assets use the license selected and purchased through Fab; keep the listing URL and purchase price in the relevant attribution row.
 

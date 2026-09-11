@@ -34,6 +34,8 @@ enum ReadBehavior {
 @export_range(0, 100, 1) var bandage_max_uses := 0
 @export var equip_slot := EQUIP_SLOT_NONE
 @export var alternate_equip_slots: PackedStringArray = PackedStringArray()
+## Empty means unrestricted. Fit affects equipping only, never carrying or trading.
+@export var compatible_races: PackedStringArray = PackedStringArray()
 @export var world_scene: PackedScene
 @export var world_visual_height_meters := 0.0
 @export var world_visual_long_axis_meters := 0.0
@@ -84,6 +86,10 @@ func can_equip_to_slot(slot_name: String) -> bool:
 	if equip_slot == slot_name:
 		return true
 	return alternate_equip_slots != null and alternate_equip_slots.has(slot_name)
+
+
+func fits_race(race_id: String) -> bool:
+	return compatible_races.is_empty() or compatible_races.has(race_id)
 
 
 func get_equipment_visual_for_body_archetype(body_archetype: Resource) -> Resource:

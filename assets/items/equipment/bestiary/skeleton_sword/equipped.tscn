@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/items/equipment/bestiary/skeleton_sword/skeleton_sword_static.res" id="1_ocdpk"]
+
+[node name="SkeletonSword" type="Node3D" unique_id=227150806]
+
+[node name="GripPoint_Primary" type="Marker3D" parent="." unique_id=1288840927]
+
+[node name="Skeleton_Sword" type="MeshInstance3D" parent="." unique_id=895908969]
+mesh = ExtResource("1_ocdpk")

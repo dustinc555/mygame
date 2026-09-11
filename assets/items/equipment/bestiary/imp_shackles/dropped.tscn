@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/items/equipment/bestiary/imp_shackles/imp_chains_static.res" id="1_rcb5b"]
+
+[node name="ImpShacklesDropped" type="Node3D" unique_id=1046573852]
+
+[node name="Imp_Chains" type="MeshInstance3D" parent="." unique_id=874276330]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.3841858e-07, -0.12191311, 0.04743606)
+mesh = ExtResource("1_rcb5b")

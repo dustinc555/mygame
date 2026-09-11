@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://assets/items/equipment/bestiary/skeleton_axe/icon.svg" id="2_icon"]
+[ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/skeleton_axe/equipped.tscn" id="3_equipped"]
+[ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/skeleton_axe/dropped.tscn" id="4_world"]
+[ext_resource type="Resource" path="res://features/actors/resources/equipment_grip_profiles/one_hand_melee.tres" id="5_grip"]
+[ext_resource type="Script" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="6_stat"]
+
+[sub_resource type="Resource" id="Stat_0"]
+script = ExtResource("6_stat")
+stat_name = "attack_damage"
+add = 9.0
+
+[sub_resource type="Resource" id="Stat_1"]
+script = ExtResource("6_stat")
+stat_name = "cut_ratio"
+add = 0.3
+
+[sub_resource type="Resource" id="Stat_2"]
+script = ExtResource("6_stat")
+stat_name = "attack_range"
+add = 0.3
+
+[resource]
+script = ExtResource("1_item")
+item_id = "bestiary.skeleton_axe"
+display_name = "Skeleton Axe"
+icon = ExtResource("2_icon")
+grid_size = Vector2i(2, 3)
+unit_weight = 2.8
+max_stack = 1
+equip_slot = "weapon"
+alternate_equip_slots = PackedStringArray()
+compatible_races = PackedStringArray()
+world_scene = ExtResource("4_world")
+equipped_scene = ExtResource("3_equipped")
+grip_profile = ExtResource("5_grip")
+stat_modifiers = Array[ExtResource("6_stat")]([SubResource("Stat_0"), SubResource("Stat_1"), SubResource("Stat_2")])

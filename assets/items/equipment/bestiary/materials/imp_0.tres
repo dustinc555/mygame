@@ -1,0 +1,23 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/items/equipment/bestiary/materials/imp_0_albedo_texture.res" id="1_pijni"]
+[ext_resource type="Texture2D" path="res://assets/items/equipment/bestiary/materials/imp_0_emission_texture.res" id="2_w37as"]
+[ext_resource type="Texture2D" path="res://assets/items/equipment/bestiary/materials/imp_0_metallic_texture.res" id="3_6avau"]
+[ext_resource type="Texture2D" path="res://assets/items/equipment/bestiary/materials/imp_0_normal_texture.res" id="4_y15j7"]
+
+[resource]
+resource_name = "MI_Imp"
+cull_mode = 2
+albedo_texture = ExtResource("1_pijni")
+metallic = 1.0
+metallic_texture = ExtResource("3_6avau")
+metallic_texture_channel = 2
+roughness_texture = ExtResource("3_6avau")
+roughness_texture_channel = 1
+emission_enabled = true
+emission = Color(1, 1, 1, 1)
+emission_energy_multiplier = 2.0
+emission_operator = 1
+emission_texture = ExtResource("2_w37as")
+normal_enabled = true
+normal_texture = ExtResource("4_y15j7")
