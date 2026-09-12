@@ -39,7 +39,10 @@
       "default_items": []
     },
     "Puglin.glb": {
-      "race_id": "puglin",
+      "race_definition": "res://features/actors/resources/character_races/puglin.tres",
+      "preview_items": [
+        "res://features/inventory/resources/items/bronze_sword.tres"
+      ],
       "removable_meshes": [
         "Puglin_Stick"
       ],

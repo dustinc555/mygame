@@ -29,10 +29,14 @@ const EQUIPMENT_SLOT_LABELS := {
 
 
 func get_equipment_slot_names() -> Array[String]:
+	if appearance_data != null and appearance_data.character_race != null:
+		return appearance_data.character_race.get_equipment_slots()
 	return EQUIPMENT_SLOTS.duplicate()
 
 
 func get_equipment_slot_label(slot_name: String) -> String:
+	if appearance_data != null and appearance_data.character_race != null:
+		return appearance_data.character_race.get_slot_label(slot_name)
 	return str(EQUIPMENT_SLOT_LABELS.get(slot_name, slot_name.capitalize()))
 
 # ---------------------------------------------------------------------------

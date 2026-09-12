@@ -26,6 +26,19 @@ func _run() -> void:
 		if explorer.monsters[index].name != "Lycan":
 			_expect(not explorer.equipment_preview.options.is_empty(), "equipped monsters expose actual item choices")
 		var preview = explorer.equipment_preview
+		if explorer.monsters[index].name == "Puglin":
+			var race = load("res://features/actors/resources/character_races/puglin.tres")
+			var body = race.default_male_archetype
+			_expect(preview.wearer.appearance_data.character_race == race, "Puglin uses the canonical race, not a preview copy")
+			_expect(preview.wearer.appearance_data.body_archetype == body and preview._projection._body_archetype == body, "Puglin rendering and equipment share the canonical body")
+			_expect(explorer.model.scene_file_path == body.visual_scene.resource_path, "Puglin explorer uses the canonical body scene")
+			_expect(preview.wearer.get_equipment_slot_names() == race.get_equipment_slots(), "Puglin slots come from the race")
+			var bronze = load("res://features/inventory/resources/items/bronze_sword.tres")
+			_expect(preview.options.weapon.has(bronze), "bronze sword remains available for grip inspection")
+			preview.equipment.equip_item_to_slot(bronze, "weapon")
+			var socket: Node3D = preview._projection._slot_visuals.weapon.get_parent()
+			_expect(socket.transform.is_equal_approx(body.grip_socket_profile.right_hand_one_hand), "Puglin weapon socket uses its body's grip profile")
+			_expect(not explorer.model.get_node("Armature/Skeleton3D/Puglin_Stick").visible, "canonical body contains no visible decorative stick")
 		var current_clip: String = explorer.clips[explorer._selected_clip].name
 		for slot in preview.options:
 			var original = preview.equipment.get_equipped_item(slot)

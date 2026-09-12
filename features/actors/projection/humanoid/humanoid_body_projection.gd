@@ -12,6 +12,7 @@ class_name HumanoidBodyProjection
 # Migrated in increment A1: animation library setup/copy, clip playback, idle-clip
 # selection, foot-ground IK. Rustdead clip overrides live in RustdeadBodyProjection.
 
+const REST_RETARGET = preload("res://features/actors/projection/humanoid/humanoid_animation_retarget.gd")
 const DEFAULT_MOVE_BLEND_SECONDS := 0.12
 const COMBAT_ANIMATION_SET_SCRIPT = preload("res://features/actors/resources/characters/combat_animation_set.gd")
 const COMBAT_ATTACK_ANIMATION_SCRIPT = preload("res://features/actors/resources/characters/combat_attack_animation.gd")
@@ -1141,7 +1142,7 @@ func _copy_character_animations(animation_library: AnimationLibrary, target_skel
 	# scale the pelvis/root position tracks so feet land on the floor instead
 	# of the vendor mannequin's heights. See AnimationPositionScale.
 	var ual1_names := animation_library.get_animation_list()
-	AnimationPositionScale.scale_animation_names(animation_library, ual1_names, AnimationPositionScale.ratio_between(_find_skeleton(ual1_source), target_skeleton))
+	_adapt_animation_names(animation_library, ual1_names, _find_skeleton(ual1_source), target_skeleton)
 	ual1_source.queue_free()
 
 	var ual2_source: Node = UAL2_ANIMATION_SOURCE_SCENE.instantiate()
@@ -1163,8 +1164,27 @@ func _copy_character_animations(animation_library: AnimationLibrary, target_skel
 	for animation_name in animation_library.get_animation_list():
 		if not (animation_name in ual1_names):
 			ual2_names.append(animation_name)
-	AnimationPositionScale.scale_animation_names(animation_library, ual2_names, AnimationPositionScale.ratio_between(_find_skeleton(ual2_source), target_skeleton))
+	_adapt_animation_names(animation_library, ual2_names, _find_skeleton(ual2_source), target_skeleton)
 	ual2_source.queue_free()
+
+
+func _adapt_animation_names(library: AnimationLibrary, names, source: Skeleton3D, target: Skeleton3D) -> void:
+	# Existing bodies retain their authored legacy transfer. Differently bound
+	# rigs opt into rest-space transfer on the canonical body resource.
+	var archetype := get_resolved_body_archetype()
+	if archetype == null or not bool(archetype.get("rest_aware_animation")):
+		AnimationPositionScale.scale_animation_names(library, names, AnimationPositionScale.ratio_between(source, target))
+		return
+	var snapshot := REST_RETARGET.capture_source(source)
+	var target_root := target.get_parent()
+	# The runtime player is parented to the complete authored visual wrapper.
+	while target_root.get_parent() != null and not target_root.has_node(CHARACTER_ANIMATION_PLAYER_NAME):
+		target_root = target_root.get_parent()
+	for animation_name in names:
+		snapshot["animation"] = library.get_animation(animation_name)
+		var transferred := REST_RETARGET.retarget(snapshot, target_root, target)
+		library.remove_animation(animation_name)
+		library.add_animation(animation_name, transferred)
 
 
 func _copy_animation(source_player: AnimationPlayer, animation_library: AnimationLibrary, animation_name: String) -> void:
@@ -1869,6 +1889,12 @@ func _setup_head_attachment_visual(visual_root: Node3D, character_skeleton: Skel
 	var age_years := appearance_data.visual_age_years if appearance_data != null else CharacterVisualRules.DEFAULT_ADULT_AGE
 	var source_root := CharacterVisualAssembler.instantiate_head_attachment(style_resource, age_years, color)
 	if source_root == null:
+		return
+	# Skinned head styles must share the live body's rest axes. A matching
+	# legacy Male/Female selector alone does not establish a wearable fit.
+	var style_skeleton := _find_skeleton(source_root)
+	if REST_RETARGET.requires_rest_transfer(style_skeleton, character_skeleton):
+		source_root.free()
 		return
 	source_root.name = "%s%s" % [APPEARANCE_HEAD_ATTACHMENT_PREFIX, slot_label]
 	if character_skeleton != null and _setup_shared_skeleton_head_attachment_visual(visual_root, character_skeleton, source_root, color, false):

@@ -191,7 +191,8 @@ func select_monster(index: int) -> void:
 	if is_instance_valid(model):
 		_pivot.remove_child(model)
 		model.queue_free()
-	var packed := load(str(monsters[index].path)) as PackedScene
+	var body_archetype: CharacterBodyArchetypeDefinition = equipment_preview.get_body_archetype(str(monsters[index].path).get_file().get_basename())
+	var packed := body_archetype.visual_scene if body_archetype != null else load(str(monsters[index].path)) as PackedScene
 	if packed == null:
 		_title.text = "Unable to load " + str(monsters[index].name)
 		return
