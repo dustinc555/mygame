@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CharacterRaceDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/actors/resources/character_races/character_race_definition.gd" id="1_script"]
+[ext_resource type="Resource" path="res://features/actors/resources/character_body_archetypes/puglin.tres" id="2_body"]
+[ext_resource type="Resource" path="res://features/world/resources/bleed_fluids/human_blood.tres" id="3_fluid"]
+
+[resource]
+script = ExtResource("1_script")
+race_id = "puglin"
+display_name = "Puglin"
+equipment_slots = PackedStringArray("weapon", "offhand")
+bleed_fluid = ExtResource("3_fluid")
+default_male_archetype = ExtResource("2_body")
+default_female_archetype = ExtResource("2_body")

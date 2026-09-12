@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CharacterBodyArchetypeDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/actors/resources/character_body_archetypes/character_body_archetype_definition.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://features/actors/projection/bestiary/puglin_body.tscn" id="2_visual"]
+[ext_resource type="Resource" path="res://features/actors/resources/humanoid_grip_socket_profiles/puglin.tres" id="3_grip"]
+
+[resource]
+script = ExtResource("1_script")
+archetype_id = "puglin"
+display_name = "Puglin"
+race_id = "puglin"
+visual_scene = ExtResource("2_visual")
+grip_socket_profile = ExtResource("3_grip")
+rest_aware_animation = true
+visual_body_type = 2

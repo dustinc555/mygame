@@ -5,6 +5,8 @@
 [node name="PuglinStick" type="Node3D" unique_id=147274904]
 
 [node name="GripPoint_Primary" type="Marker3D" parent="." unique_id=1588494871]
+transform = Transform3D(0.9780623, -0.20829794, 0.0024970868, 0.19734952, 0.93035907, 0.30900678, -0.06668869, -0.3017353, 0.95105654, 0.011197567, 0.027971774, 0.011999963)
 
 [node name="Puglin_Stick" type="MeshInstance3D" parent="." unique_id=1791063470]
+transform = Transform3D(0.62000245, 0.0002932081, 0.0009024495, 0.00029321248, 0.6562844, 0.1116755, 0.0009024576, 0.11167559, 0.96371317, 0.01821466, 0.016925834, -0.0055471854)
 mesh = ExtResource("1_h2qis")

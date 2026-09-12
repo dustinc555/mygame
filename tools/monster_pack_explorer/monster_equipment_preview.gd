@@ -6,6 +6,8 @@ class PreviewWearer extends Node3D:
 	var starting_equipment: Array = []
 	var inventory := InventoryData.new()
 	func get_equipment_slot_names() -> Array[String]:
+		if appearance_data.character_race != null and not appearance_data.character_race.equipment_slots.is_empty():
+			return appearance_data.character_race.get_equipment_slots()
 		return ["head", "chest", "undershirt", "legs", "feet", "hands", "weapon", "offhand", "backpack"]
 
 var equipment := EquipmentCapability.new()
@@ -28,6 +30,18 @@ func _ready() -> void:
 func setup_panel(panel: VBoxContainer) -> void:
 	_panel = panel
 
+func _get_race(data: Dictionary) -> CharacterRaceDefinition:
+	var path := str(data.get("race_definition", ""))
+	if not path.is_empty(): return load(path) as CharacterRaceDefinition
+	# Imported-only creatures are not registered gameplay races.
+	var race := CharacterRaceDefinition.new()
+	race.race_id = str(data.get("race_id", ""))
+	return race
+
+func get_body_archetype(model_name: String) -> CharacterBodyArchetypeDefinition:
+	var data: Dictionary = manifest.get("models", {}).get(model_name + ".glb", {})
+	return _get_race(data).default_male_archetype as CharacterBodyArchetypeDefinition
+
 func select_model(model_name: String, model: Node3D) -> void:
 	if is_instance_valid(_projection):
 		_projection.free()
@@ -38,17 +52,17 @@ func select_model(model_name: String, model: Node3D) -> void:
 		_loadouts[_model_name] = saved
 	_model_name = model_name
 	var data: Dictionary = manifest.get("models", {}).get(model_name + ".glb", {})
-	var race_id := str(data.get("race_id", ""))
-	var race := CharacterRaceDefinition.new()
-	race.race_id = race_id
+	var race := _get_race(data)
+	var race_id := race.race_id
 	wearer.appearance_data.character_race = race
+	wearer.appearance_data.body_archetype = get_body_archetype(model_name)
 	equipment.begin_equipment_update_batch()
 	for slot in equipment.get_equipped_items().keys(): equipment.unequip_item_from_slot(slot)
 	options.clear()
 	# Skeleton variants share one race and therefore the same equipment choices.
 	for candidate in manifest.get("models", {}).values():
-		if str(candidate.get("race_id", "")) != race_id: continue
-		for path in candidate.get("default_items", []):
+		if _get_race(candidate).race_id != race_id: continue
+		for path in candidate.get("default_items", []) + candidate.get("preview_items", []):
 			var item := load(str(path)) as ItemDefinition
 			if item == null or not equipment.can_equip_item_to_slot(item, item.equip_slot): continue
 			if not options.has(item.equip_slot): options[item.equip_slot] = []
@@ -65,7 +79,7 @@ func select_model(model_name: String, model: Node3D) -> void:
 	if script != null:
 		_projection = script.new()
 		model.add_child(_projection)
-		_projection.configure(model, equipment, PackedStringArray(data.get("removable_meshes", [])))
+		_projection.configure(model, equipment, PackedStringArray(data.get("removable_meshes", [])), wearer.appearance_data.body_archetype)
 	_rebuild_panel()
 
 func _rebuild_panel() -> void:

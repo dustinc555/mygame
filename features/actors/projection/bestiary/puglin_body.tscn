@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/bestiary_dungeon_monsters/glb/Puglin.glb" id="1_model"]
+
+[node name="PuglinBody" instance=ExtResource("1_model")]
+
+[node name="Puglin_Stick" parent="Armature/Skeleton3D" index="1"]
+visible = false
+
+[editable path="Armature/Skeleton3D"]
