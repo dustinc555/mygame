@@ -50,10 +50,17 @@ meshes or invented clothing were extracted.
   Vertices and directional attributes were converted from source bind space into
   the shared default `right_hand_one_hand` socket's local grip space:
   `v_equipped = inverse(shared_socket) * source_inverse_bind * v_source`.
-  `GripPoint_Primary` and `ItemDefinition.equipped_transform` are identity;
+  At extraction, `GripPoint_Primary` and `ItemDefinition.equipped_transform` were identity;
   `one_hand_melee.tres` supplies the existing grip contract. Do not apply the old
   humanoid FBX weapon scale of 0.189: these assets already use meters. The source
   hand-rest and shared-socket transforms are recorded in `extraction_verification.json`.
+  Puglin Stick now has an authored primary grip marker calibrated to the canonical
+  Puglin hand profile. Its model wrapper narrows the handle cross-section and
+  centers it for the shared one-hand grip on human male/female and Puglin.
+  One item visual is reused across bodies; body-wide alignment corrections stay
+  in their canonical grip profiles. The dropped scene instances the
+  same equipped visual, recentered on the floor, so its shape cannot diverge.
+  The extracted mesh and vendor source remain unchanged.
 - **Wearables:** original full root/Armature/Skeleton3D coordinates, bone names,
   rest transforms, source vertices/weights, and Skin binds are preserved. Only
   the item's selected mesh nodes remain. Each definition provides both its
