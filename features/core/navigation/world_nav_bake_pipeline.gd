@@ -52,7 +52,7 @@ static func build_template(settings: WorldNavigationSettings, tiled: bool) -> Na
 	if tiled:
 		# border_size is world units: trim exactly the erosion border added
 		# around the tile so polygons end flush at the true tile edge.
-		mesh.border_size = settings.cell_size * TILE_BORDER_CELLS
+		mesh.border_size = tile_border_size(settings)
 	return mesh
 
 
@@ -62,6 +62,35 @@ static func clamped_tile_size(settings: WorldNavigationSettings) -> float:
 
 static func tile_coord(position: Vector3, tile_size: float) -> Vector2i:
 	return Vector2i(int(floorf(position.x / tile_size)), int(floorf(position.z / tile_size)))
+
+
+static func tile_border_size(settings: WorldNavigationSettings) -> float:
+	return settings.cell_size * TILE_BORDER_CELLS
+
+
+## Tiles whose expanded bake volumes touch this world-space bound. Include
+## border contact (even a point), negative coordinates and multi-tile shapes.
+static func affected_tile_coords(world_bounds: AABB, settings: WorldNavigationSettings) -> Array[Vector2i]:
+	var bounds := world_bounds.abs()
+	var result: Array[Vector2i] = []
+	var height := settings.tile_height * 0.5
+	if bounds.end.y < -height or bounds.position.y > height:
+		return result
+	var tile := clamped_tile_size(settings)
+	# Broad phase includes a guard cell because Vector3/AABB rounding at a
+	# signed grid edge is not exactly invertible. The authoritative bake AABB
+	# below decides actual contact; do not tune an independent border epsilon.
+	var expanded := bounds.grow(tile_border_size(settings))
+	var lo := tile_coord(expanded.position, tile) - Vector2i.ONE
+	var hi := tile_coord(expanded.end, tile) + Vector2i.ONE
+	for x in range(lo.x, hi.x + 1):
+		for z in range(lo.y, hi.y + 1):
+			var coord := Vector2i(x, z)
+			var bake_bounds := tile_bake_aabb(coord, settings)
+			# AABB.intersects excludes boundary contact and zero-size points.
+			if bounds.end.x >= bake_bounds.position.x and bounds.position.x <= bake_bounds.end.x and bounds.end.z >= bake_bounds.position.z and bounds.position.z <= bake_bounds.end.z:
+				result.append(coord)
+	return result
 
 
 ## Every tile overlapping actual terrain region data across all terrains.
@@ -91,7 +120,7 @@ static func enumerate_world_tiles(terrains: Array, settings: WorldNavigationSett
 ## The expanded bake volume for one tile (erosion border included).
 static func tile_bake_aabb(coord: Vector2i, settings: WorldNavigationSettings) -> AABB:
 	var tile := clamped_tile_size(settings)
-	var border := settings.cell_size * TILE_BORDER_CELLS
+	var border := tile_border_size(settings)
 	var origin := Vector3(coord.x * tile - border, -settings.tile_height * 0.5, coord.y * tile - border)
 	return AABB(origin, Vector3(tile + border * 2.0, settings.tile_height, tile + border * 2.0))
 
