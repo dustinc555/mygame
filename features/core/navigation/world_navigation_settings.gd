@@ -2,10 +2,13 @@ extends Resource
 
 class_name WorldNavigationSettings
 
-## Authoring surface for runtime navmesh tile baking. Edit the default
+## Shared authoring surface for offline prebaking and runtime tile patches.
+## Edit the default
 ## resource at features/core/navigation/resources/world_navigation_settings.tres,
 ## or tune live in game via the debug menu (Navigation section) and copy the
-## winners back here. Hover any property in the inspector for its trade-off.
+## values back to that resource. Hover a property for its units and trade-off.
+
+@export_group("Clearance")
 
 ## Walkable area is eroded by this much around every obstacle. INVARIANT:
 ## must be >= the character capsule radius (0.45) or the navmesh promises
@@ -14,21 +17,26 @@ class_name WorldNavigationSettings
 ## doorways while clearing the 0.45m physical capsule.
 @export_range(0.2, 0.6, 0.01) var agent_radius := 0.5
 
-## Actor capsule height for ceiling clearance.
+## Ceiling clearance reserved by the baker, in meters. This must fit the
+## physical body; it is not NavigationAgent3D.height (crowd avoidance).
 @export_range(1.0, 2.5, 0.05) var agent_height := 1.5
 
-## Steepest walkable slope. Must stay at or below CharacterBody3D's physical
-## climb limit (floor_max_angle ~45) or paths cross ground actors cannot
-## walk and orders fail mid-route. Stair ramp colliders are ~33 degrees.
+## Steepest baked walkable slope, in degrees. Must stay at or below the
+## actor's physical floor limit (WorldActor.max_walkable_slope_degrees).
 @export_range(30.0, 75.0, 1.0) var agent_max_slope := 40.0
 
-## Highest step an agent climbs without a ramp (thresholds, curbs). Also
-## rounded to voxels: effective climb = floor(agent_max_climb / cell_height).
+## Maximum vertical connection between bake voxels, in meters. This is a
+## Recast setting, NOT a CharacterBody3D step-up implementation. WorldActor
+## uses floor snapping and real ramps; an exposed ledge this high is not
+## guaranteed walkable. Keep physical traversal tests when changing it.
+## Rounded down to a multiple of cell_height by the baker.
 @export_range(0.1, 0.6, 0.05) var agent_max_climb := 0.3
+
+@export_group("Bake Resolution")
 
 ## Voxel size of the bake. THE bake-time knob: per-tile cost scales with
 ## (tile_size / cell_size)^2. Coarser cells erase narrow corridors and snag
-## agents on small ground bumps; 0.1 (operator-tuned 2026-07-04) walks clean.
+## agents on small ground bumps. The default .tres overrides this to 0.1m.
 @export_range(0.05, 0.5, 0.01) var cell_size := 0.16
 
 ## Voxel height of the bake. Finer values make agent_max_climb resolve more
@@ -43,10 +51,13 @@ class_name WorldNavigationSettings
 ## Vertical extent of each tile bake.
 @export_range(64.0, 512.0, 32.0) var tile_height := 256.0
 
-## How many tile bakes may run on worker threads at once. The whole world
-## bakes once at startup behind the loading screen; more workers = shorter
-## load.
+@export_group("Scheduling")
+
+## Concurrent worker limit for initial cache misses and local tile patches.
+## Matching prebaked tiles are loaded, not rebuilt on every startup.
 @export_range(1, 8, 1) var max_concurrent_bakes := 4
+
+@export_group("Terrain and Diagnostics")
 
 ## false: whole terrain is walkable, filtered by agent_max_slope.
 ## true: only areas painted navigable with Terrain3D's editor brush.
