@@ -15,13 +15,13 @@ class_name WorldNavigationController
 ## 2. No/stale cache: bake the whole world once behind the loading gate.
 ## After the gate releases the game NEVER gates again; dynamic changes (a
 ## building or furniture StaticBody3D entering/leaving the tree) re-bake only
-## the tiles the object touches, instantly and in the background.
+## the tiles the object touches, queued for background baking.
 ##
 ## Tuning lives in a WorldNavigationSettings resource; the Nav Debug window
 ## tunes the live game and draws the navmesh and tile grid.
 ##
-## Scenes must NOT ship their own NavigationRegion3D or saved NavigationMesh
-## resources; collision is the source of truth.
+## Scenes must NOT ship hand-authored NavigationRegion3D nodes. Generated
+## NavigationMesh resources belong in the world cache; collision is the source.
 ##
 ## Modes, chosen once on activation:
 ## - DORMANT: the scene ships an authored NavigationRegion3D (legacy zones).
@@ -41,24 +41,68 @@ signal initial_navigation_ready
 enum Mode { INACTIVE, DORMANT, TILED, FULL_SCENE }
 enum TileState { QUEUED, BAKING, BAKED }
 
+# Main-thread-owned state. Dirtiness advances even while a worker is baking;
+# only a result for the latest requested revision may replace the live mesh.
+class Tile:
+	extends RefCounted
+	var state: int = TileState.QUEUED
+	var requested_revision := 1
+	var baking_revision := 0
+	var installed_revision := 0
+	var region: NavigationRegion3D
+	var debug_mesh: MeshInstance3D
+	var debug_frame: MeshInstance3D
+
+
+class BakeTask:
+	extends RefCounted
+	var task_id := -1
+	var coord := Vector2i.ZERO
+	var generation := 0
+	# Tile request revision for tiled work; source revision for full-scene.
+	var revision := 0
+	var elapsed := 0.0
+	var tiled := true
+	var worker_joined := false
+
+	# Worker callables belong to this RefCounted task, never the controller:
+	# Godot locks an Object while calling it and rejects free() before the
+	# controller's _exit_tree can join if its own method is still executing.
+	func bake_tile(template: NavigationMesh, snapshot: WorldNavigationSettings, terrains: Array, geometry: NavigationMeshSourceGeometryData3D, completion: Callable) -> void:
+		var nav_mesh: NavigationMesh = PIPELINE.bake_tile(template, coord, snapshot, terrains, geometry)
+		completion.call_deferred(self, nav_mesh)
+
+	func bake_full_scene(template: NavigationMesh, geometry: NavigationMeshSourceGeometryData3D, postprocess: bool, completion: Callable) -> void:
+		var nav_mesh: NavigationMesh = template.duplicate()
+		if geometry.has_data():
+			NavigationServer3D.bake_from_source_geometry_data(nav_mesh, geometry)
+			if postprocess:
+				PIPELINE.POSTPROCESS.apply(nav_mesh)
+		completion.call_deferred(self, nav_mesh)
+
+
 @export var settings: WorldNavigationSettings
 
 var root_scene: Node
 var last_bake_seconds := 0.0
 
 var _mode: int = Mode.INACTIVE
+var _shutting_down := false
 var _template: NavigationMesh
 var _scene_geometry: NavigationMeshSourceGeometryData3D
 var _terrains: Array[Node] = []
 var _geometry_dirty := true
+var _source_revision := 1
 
 # Tile bookkeeping. Key: Vector2i grid coordinate.
-var _tiles := {}
-var _inflight := {}
+var _tiles: Dictionary[Vector2i, Tile] = {}
+var _inflight: Dictionary[int, BakeTask] = {}
+var _settings_generation := 0
 var _initial_ready := false
 # Nav-relevant geometry changes seen before tiles are seeded (scene-load
 # runtime mutation, e.g. furniture freeing imported collision hulls).
-var _pending_dirty_positions: Array[Vector3] = []
+var _pending_dirty_bounds: Array[AABB] = []
+var _pending_added_nodes: Dictionary[int, WeakRef] = {}
 
 # Debug visualization.
 var _debug_root: Node3D
@@ -105,7 +149,7 @@ func _ready() -> void:
 
 
 func _schedule_activation() -> void:
-	if _mode != Mode.INACTIVE:
+	if _shutting_down or _mode != Mode.INACTIVE:
 		return
 	# Defer one frame so scene _ready content (ZoneLoader towns, settlement
 	# buildings) exists before the mode decision and first parse.
@@ -113,7 +157,7 @@ func _schedule_activation() -> void:
 
 
 func _activate() -> void:
-	if _mode != Mode.INACTIVE or root_scene == null:
+	if _mode != Mode.INACTIVE or not _can_bake():
 		return
 	if settings == null:
 		settings = load(DEFAULT_SETTINGS_PATH)
@@ -136,35 +180,77 @@ func _activate() -> void:
 	else:
 		_seed_world_tiles()
 		_load_world_cache()
-		for position in _pending_dirty_positions:
-			_dirty_tiles_at(position)
-		_pending_dirty_positions.clear()
+		_dirty_bounds(_pending_dirty_bounds)
 		if pending_tile_count() == 0 and not _initial_ready:
 			_initial_ready = true
 			initial_navigation_ready.emit()
+	_pending_dirty_bounds.clear()
 	set_process(true)
+
+
+func _exit_tree() -> void:
+	_shutting_down = true
+	set_process(false)
+	var tree := get_tree()
+	if tree.node_added.is_connected(_on_scene_node_added):
+		tree.node_added.disconnect(_on_scene_node_added)
+	if tree.node_removed.is_connected(_on_scene_node_removed):
+		tree.node_removed.disconnect(_on_scene_node_removed)
+	# The worker callable uses this controller to enqueue its result. Keep
+	# the controller (and terrain readers) alive until every worker returns.
+	_wait_for_inflight_bakes()
+	_inflight.clear()
+	_full_scene_baking = false
+	_pending_added_nodes.clear()
+	_pending_dirty_bounds.clear()
+
+
+func _can_bake() -> bool:
+	return (
+		not _shutting_down and not is_queued_for_deletion() and is_inside_tree()
+		and is_instance_valid(root_scene) and root_scene.is_inside_tree()
+		and not root_scene.is_queued_for_deletion()
+	)
 
 
 ## --- Public API -------------------------------------------------------------
 
 
 func notify_world_geometry_changed() -> void:
+	if _shutting_down or _mode == Mode.DORMANT:
+		return
 	_geometry_dirty = true
+	_source_revision += 1
 	for coord in _tiles:
 		_mark_tile_dirty(coord)
 
 
-## Content spawned or moved at a known position (e.g. town ground snap):
-## re-dirties only the 3x3 tile neighborhood around it.
-func notify_content_changed_at(global_position: Vector3) -> void:
-	if _mode == Mode.FULL_SCENE:
-		_geometry_dirty = true
+## Explicit local mutation boundary for moves, resizes and collision edits.
+## Supply bounds BEFORE and AFTER the edit, in world space. For add/remove,
+## pass the same occupied bounds twice. No editor/property polling is done.
+func notify_geometry_changed(old_world_bounds: AABB, new_world_bounds: AABB) -> void:
+	if _shutting_down or _mode == Mode.DORMANT:
 		return
-	var tile := PIPELINE.clamped_tile_size(settings)
-	var center := PIPELINE.tile_coord(global_position, tile)
-	for dx in range(-1, 2):
-		for dz in range(-1, 2):
-			_mark_tile_dirty(Vector2i(center.x + dx, center.y + dz))
+	_geometry_dirty = true
+	_source_revision += 1
+	if _mode == Mode.FULL_SCENE:
+		return
+	if _mode == Mode.INACTIVE:
+		_pending_dirty_bounds.append(old_world_bounds)
+		_pending_dirty_bounds.append(new_world_bounds)
+		return
+	_dirty_bounds([old_world_bounds, new_world_bounds])
+
+
+## Position-only compatibility keeps the old conservative neighborhood by
+## treating the containing tile as the unknown footprint. Extent/move-aware
+## callers should use notify_geometry_changed for smaller, accurate patches.
+func notify_content_changed_at(global_position: Vector3) -> void:
+	var effective_settings: WorldNavigationSettings = settings if settings != null else load(DEFAULT_SETTINGS_PATH)
+	var size := PIPELINE.clamped_tile_size(effective_settings)
+	var coord := PIPELINE.tile_coord(global_position, size)
+	var bounds := AABB(Vector3(coord.x * size, -effective_settings.tile_height * 0.5, coord.y * size), Vector3(size, effective_settings.tile_height, size))
+	notify_geometry_changed(bounds, bounds)
 
 
 func is_baking() -> bool:
@@ -175,9 +261,13 @@ func is_baking() -> bool:
 func is_idle() -> bool:
 	if is_baking():
 		return false
+	if not _pending_added_nodes.is_empty() or not _pending_dirty_bounds.is_empty():
+		return false
+	if (_mode == Mode.TILED or _mode == Mode.FULL_SCENE) and _geometry_dirty:
+		return false
 	if _mode == Mode.TILED:
 		for coord in _tiles:
-			if _tiles[coord]["state"] != TileState.BAKED:
+			if _tiles[coord].state != TileState.BAKED:
 				return false
 	return true
 
@@ -209,7 +299,7 @@ func gate_tiles_pending() -> int:
 func baked_tile_count() -> int:
 	var count := 0
 	for coord in _tiles:
-		if _tiles[coord]["state"] == TileState.BAKED:
+		if _tiles[coord].state == TileState.BAKED:
 			count += 1
 	return count
 
@@ -221,7 +311,7 @@ func pending_tile_count() -> int:
 func bake_elapsed_seconds() -> float:
 	var oldest := 0.0
 	for task_id in _inflight:
-		oldest = maxf(oldest, _inflight[task_id]["elapsed"])
+		oldest = maxf(oldest, _inflight[task_id].elapsed)
 	return oldest
 
 
@@ -244,10 +334,10 @@ func save_world_cache() -> int:
 		return 0
 	var saved := 0
 	for coord in _tiles:
-		var tile: Dictionary = _tiles[coord]
-		if tile["state"] != TileState.BAKED:
+		var tile: Tile = _tiles[coord]
+		if tile.state != TileState.BAKED:
 			continue
-		var region: NavigationRegion3D = tile["region"]
+		var region := tile.region
 		if region != null and is_instance_valid(region) and region.navigation_mesh != null:
 			if PIPELINE.save_tile(cache_dir, coord, region.navigation_mesh):
 				saved += 1
@@ -258,8 +348,9 @@ func save_world_cache() -> int:
 ## Rebuilds the bake template from `settings` and rebakes the world.
 ## Call after mutating settings at runtime (Nav Debug live tuning).
 func apply_settings() -> void:
-	if _mode != Mode.TILED and _mode != Mode.FULL_SCENE:
+	if not _can_bake() or (_mode != Mode.TILED and _mode != Mode.FULL_SCENE):
 		return
+	_settings_generation += 1
 	_template = PIPELINE.build_template(settings, _mode == Mode.TILED)
 	_sync_map_cell_size()
 	_geometry_dirty = true
@@ -297,12 +388,21 @@ func is_tile_debug_enabled() -> bool:
 
 
 func _process(delta: float) -> void:
+	if not _can_bake() or (_mode != Mode.TILED and _mode != Mode.FULL_SCENE):
+		return
+	_flush_pending_node_changes()
 	for task_id in _inflight:
-		_inflight[task_id]["elapsed"] += delta
+		_inflight[task_id].elapsed += delta
 	if _mode == Mode.FULL_SCENE:
 		if _geometry_dirty and not _full_scene_baking:
 			_start_full_scene_bake()
 		return
+	# Cached/empty tiles can leave only a source change to consume. Refresh
+	# it once even when there is no tile work; is_idle includes this work.
+	if _geometry_dirty:
+		_parse_world_geometry()
+		if _geometry_dirty:
+			return
 	while _inflight.size() < settings.max_concurrent_bakes:
 		var next := _pick_next_tile()
 		if next == Vector2i(2147483647, 2147483647):
@@ -331,7 +431,8 @@ func _load_world_cache() -> void:
 		if nav_mesh == null:
 			continue
 		_assign_tile_mesh(coord, nav_mesh)
-		_tiles[coord]["state"] = TileState.BAKED
+		_tiles[coord].state = TileState.BAKED
+		_tiles[coord].installed_revision = _tiles[coord].requested_revision
 		loaded += 1
 	if loaded == 0:
 		return
@@ -342,12 +443,8 @@ func _load_world_cache() -> void:
 func _dirty_runtime_spawned_tiles() -> void:
 	var bodies: Array[Node3D] = []
 	_collect_runtime_static_bodies(_nav_root(), false, bodies)
-	var tile := PIPELINE.clamped_tile_size(settings)
 	for body in bodies:
-		var center := PIPELINE.tile_coord(body.global_position, tile)
-		for dx in range(-1, 2):
-			for dz in range(-1, 2):
-				_mark_tile_dirty(Vector2i(center.x + dx, center.y + dz))
+		_dirty_tiles_for_node(body)
 
 
 ## Runtime-spawned = any branch whose node has no owner (code-added scenes,
@@ -367,7 +464,7 @@ func _pick_next_tile() -> Vector2i:
 	var anchor := _camera_anchor()
 	var anchor_flat := Vector3(anchor.x, 0.0, anchor.z) if anchor != Vector3.INF else Vector3.ZERO
 	for coord in _tiles:
-		if _tiles[coord]["state"] != TileState.QUEUED:
+		if _tiles[coord].state != TileState.QUEUED or _tile_has_worker(coord):
 			continue
 		# Nearest-to-camera first so the visible world fills in early.
 		var distance: float = _tile_center(coord).distance_to(anchor_flat)
@@ -383,64 +480,87 @@ func _pick_next_tile() -> Vector2i:
 func _ensure_tile(coord: Vector2i) -> void:
 	if _tiles.has(coord):
 		return
-	_tiles[coord] = {
-		"state": TileState.QUEUED,
-		"region": null,
-		"debug_mesh": null,
-		"debug_frame": null,
-	}
+	_tiles[coord] = Tile.new()
 
 
 func _mark_tile_dirty(coord: Vector2i) -> void:
 	if not _tiles.has(coord):
 		return
-	if _tiles[coord]["state"] == TileState.BAKED:
-		_tiles[coord]["state"] = TileState.QUEUED
-		_refresh_tile_debug(coord)
+	var tile: Tile = _tiles[coord]
+	tile.requested_revision += 1
+	if tile.state != TileState.BAKING:
+		tile.state = TileState.QUEUED
+	_refresh_tile_debug(coord)
 
 
 func _free_tile(coord: Vector2i) -> void:
-	var tile: Dictionary = _tiles[coord]
-	for key in ["region", "debug_mesh", "debug_frame"]:
-		var node: Node = tile[key]
+	var tile: Tile = _tiles[coord]
+	for node in [tile.region, tile.debug_mesh, tile.debug_frame]:
 		if node != null and is_instance_valid(node):
 			node.queue_free()
 
 
 func _start_tile_bake(coord: Vector2i) -> void:
-	if _geometry_dirty:
-		_parse_world_geometry()
-	_tiles[coord]["state"] = TileState.BAKING
+	if not _can_bake() or _mode != Mode.TILED or not _tiles.has(coord) or _tiles[coord].state != TileState.QUEUED or _tile_has_worker(coord):
+		return
+	if _geometry_dirty and not _parse_world_geometry():
+		return
+	var tile: Tile = _tiles[coord]
+	tile.state = TileState.BAKING
+	tile.baking_revision = tile.requested_revision
+	var task := BakeTask.new()
+	task.coord = coord
+	task.generation = _settings_generation
+	task.revision = tile.baking_revision
 	# Duplicate parsed geometry on the main thread; worker tasks must not
-	# share one mutable resource.
+	# share mutable geometry/settings or read the controller's live template.
 	var geometry := _copy_scene_geometry()
-	var task_id := WorkerThreadPool.add_task(
-		_task_bake_tile.bind(coord, _terrains.duplicate(), geometry),
+	task.task_id = WorkerThreadPool.add_task(
+		task.bake_tile.bind(_template, settings.duplicate(), _terrains.duplicate(), geometry, _finish_tile_bake),
 		false, "WorldNavigationTile")
-	_inflight[task_id] = {"coord": coord, "elapsed": 0.0}
+	_inflight[task.task_id] = task
 
 
-func _task_bake_tile(coord: Vector2i, terrains: Array, geometry: NavigationMeshSourceGeometryData3D) -> void:
-	var nav_mesh: NavigationMesh = PIPELINE.bake_tile(_template, coord, settings, terrains, geometry)
-	_finish_tile_bake.call_deferred(coord, nav_mesh)
+func _tile_has_worker(coord: Vector2i) -> bool:
+	for task_id in _inflight:
+		var task := _inflight[task_id]
+		if task.tiled and task.coord == coord:
+			return true
+	return false
 
 
-func _finish_tile_bake(coord: Vector2i, nav_mesh: NavigationMesh) -> void:
-	for task_id in _inflight.keys():
-		if _inflight[task_id]["coord"] == coord:
-			last_bake_seconds = _inflight[task_id]["elapsed"]
-			_inflight.erase(task_id)
-			break
+func _complete_bake_task(task: BakeTask) -> bool:
+	if _inflight.get(task.task_id) != task:
+		return false
+	# A deferred result can arrive just before the worker returns. Join the
+	# exact task (also releases WorkerThreadPool bookkeeping), not a coord.
+	_join_bake_task(task)
+	_inflight.erase(task.task_id)
+	last_bake_seconds = task.elapsed
+	return true
+
+
+func _finish_tile_bake(task: BakeTask, nav_mesh: NavigationMesh) -> void:
+	if not _complete_bake_task(task):
+		return
+	if not _can_bake():
+		return
+	_flush_pending_node_changes()
+	if task.generation != _settings_generation or not _tiles.has(task.coord):
+		return
+	var coord := task.coord
 	if settings.log_timing:
 		print("WorldNavigationController: tile %s baked in %.2fs (%d polys)" % [coord, last_bake_seconds, nav_mesh.get_polygon_count()])
-	if not _tiles.has(coord):
-		bake_finished.emit()
-		return
-	var tile: Dictionary = _tiles[coord]
-	# A re-dirty while baking keeps the tile QUEUED for another pass.
-	if tile["state"] == TileState.BAKING:
-		tile["state"] = TileState.BAKED
-	_assign_tile_mesh(coord, nav_mesh if nav_mesh.get_polygon_count() > 0 else null)
+	var tile: Tile = _tiles[coord]
+	if task.revision == tile.requested_revision:
+		tile.state = TileState.BAKED
+		tile.installed_revision = task.revision
+		_assign_tile_mesh(coord, nav_mesh if nav_mesh.get_polygon_count() > 0 else null)
+	else:
+		# Keep the previous mesh until a current result is available. Never
+		# briefly install geometry we already know has been superseded.
+		tile.state = TileState.QUEUED
+		_refresh_tile_debug(coord)
 	if not _initial_ready and pending_tile_count() == 0:
 		_initial_ready = true
 		initial_navigation_ready.emit()
@@ -448,9 +568,9 @@ func _finish_tile_bake(coord: Vector2i, nav_mesh: NavigationMesh) -> void:
 
 
 func _assign_tile_mesh(coord: Vector2i, nav_mesh: NavigationMesh) -> void:
-	var tile: Dictionary = _tiles[coord]
+	var tile: Tile = _tiles[coord]
 	if nav_mesh != null:
-		var region: NavigationRegion3D = tile["region"]
+		var region := tile.region
 		if region == null or not is_instance_valid(region):
 			region = NavigationRegion3D.new()
 			region.name = "Tile_%d_%d" % [coord.x, coord.y]
@@ -458,10 +578,10 @@ func _assign_tile_mesh(coord: Vector2i, nav_mesh: NavigationMesh) -> void:
 			# cell-aligned so neighbors match exactly.
 			region.use_edge_connections = true
 			add_child(region)
-			tile["region"] = region
+			tile.region = region
 		region.navigation_mesh = nav_mesh
-	elif tile["region"] != null and is_instance_valid(tile["region"]):
-		(tile["region"] as NavigationRegion3D).navigation_mesh = null
+	elif is_instance_valid(tile.region):
+		tile.region.navigation_mesh = null
 	_refresh_tile_debug(coord)
 
 
@@ -499,33 +619,38 @@ func _copy_scene_geometry() -> NavigationMeshSourceGeometryData3D:
 
 
 func _start_full_scene_bake() -> void:
-	_parse_world_geometry()
+	if not _can_bake() or _mode != Mode.FULL_SCENE or _full_scene_baking:
+		return
+	if not _parse_world_geometry():
+		return
 	_full_scene_baking = true
-	var task_id := WorkerThreadPool.add_task(
-		_task_bake_full_scene.bind(_copy_scene_geometry(), settings.postprocess_enabled),
+	var task := BakeTask.new()
+	task.tiled = false
+	task.generation = _settings_generation
+	task.revision = _source_revision
+	task.task_id = WorkerThreadPool.add_task(
+		task.bake_full_scene.bind(_template, _copy_scene_geometry(), settings.postprocess_enabled, _finish_full_scene_bake),
 		false, "WorldNavigationFullScene")
-	_inflight[task_id] = {"coord": Vector2i.ZERO, "elapsed": 0.0}
+	_inflight[task.task_id] = task
 
 
-func _task_bake_full_scene(geometry: NavigationMeshSourceGeometryData3D, postprocess: bool) -> void:
-	var nav_mesh: NavigationMesh = _template.duplicate()
-	if geometry.has_data():
-		NavigationServer3D.bake_from_source_geometry_data(nav_mesh, geometry)
-		if postprocess:
-			PIPELINE.POSTPROCESS.apply(nav_mesh)
-	_finish_full_scene_bake.call_deferred(nav_mesh)
-
-
-func _finish_full_scene_bake(nav_mesh: NavigationMesh) -> void:
-	_inflight.clear()
+func _finish_full_scene_bake(task: BakeTask, nav_mesh: NavigationMesh) -> void:
+	if not _complete_bake_task(task):
+		return
 	_full_scene_baking = false
+	if not _can_bake():
+		return
+	_flush_pending_node_changes()
+	if task.generation != _settings_generation or task.revision != _source_revision:
+		_geometry_dirty = true
+		return
 	var first := not _full_scene_bake_completed
 	_full_scene_bake_completed = true
-	if nav_mesh.get_polygon_count() > 0 and is_instance_valid(_full_scene_region):
-		_full_scene_region.navigation_mesh = nav_mesh
-		_has_navmesh = true
-	elif first:
-		push_warning("WorldNavigationController: full-scene bake produced no navmesh (no bakeable collision in scene); releasing the startup gate without navigation.")
+	_has_navmesh = nav_mesh.get_polygon_count() > 0
+	if is_instance_valid(_full_scene_region):
+		_full_scene_region.navigation_mesh = nav_mesh if _has_navmesh else null
+	if first and not _has_navmesh:
+		print("WorldNavigationController: no bakeable collision; releasing the startup gate without navigation.")
 	if first:
 		initial_navigation_ready.emit()
 	bake_finished.emit()
@@ -539,6 +664,8 @@ func _finish_full_scene_bake(nav_mesh: NavigationMesh) -> void:
 ## content — e.g. a building placed as a sibling of a zone — must bake and
 ## patch exactly like zone content. Hierarchy is irrelevant to nav.
 func _nav_root() -> Node:
+	if not is_instance_valid(root_scene):
+		return null
 	# Teardown-safe: node-removed signals keep firing while this controller
 	# itself is leaving the tree, when get_tree() is already null.
 	if not is_inside_tree():
@@ -549,38 +676,53 @@ func _nav_root() -> Node:
 	return root_scene
 
 
-func _parse_world_geometry() -> void:
+func _parse_world_geometry() -> bool:
 	# Main-thread only: parse_source_geometry_data walks the scene tree, so
 	# the nav root must actually be IN the tree (scene switches can tick a
 	# bake while the world is detaching). Stays dirty and retries otherwise.
 	var nav_root := _nav_root()
-	if nav_root == null or not nav_root.is_inside_tree():
-		return
+	if not _can_bake() or not is_instance_valid(nav_root) or not nav_root.is_inside_tree():
+		return false
 	_scene_geometry = NavigationMeshSourceGeometryData3D.new()
 	NavigationServer3D.parse_source_geometry_data(_template, _scene_geometry, nav_root)
 	_scan_terrains()
 	_geometry_dirty = false
+	return true
 
 
 func _on_scene_node_added(node: Node) -> void:
 	if not _is_nav_relevant(node):
 		return
 	# Spawners add_child() FIRST and position the node AFTERWARD, so the
-	# position at signal time is garbage (often the origin). Defer the tile
-	# dirtying to end of frame, when the final transform is set.
-	_dirty_tiles_for_node.call_deferred(node)
+	# bounds are resolved at end of frame. Never retain a disposable Node
+	# in a queued callback; a spawn can be removed again in the same frame.
+	_pending_added_nodes[node.get_instance_id()] = weakref(node)
+	if _pending_added_nodes.size() == 1:
+		_flush_pending_node_changes.call_deferred()
+
+
+func _flush_pending_node_changes() -> void:
+	if _shutting_down or _pending_added_nodes.is_empty():
+		return
+	var pending := _pending_added_nodes.values()
+	_pending_added_nodes.clear()
+	for reference: WeakRef in pending:
+		var node = reference.get_ref()
+		if is_instance_valid(node) and not node.is_queued_for_deletion() and _is_nav_relevant(node):
+			_dirty_tiles_for_node(node)
 
 
 func _on_scene_node_removed(node: Node) -> void:
 	if not _is_nav_relevant(node):
 		return
-	# Removal must read the position NOW, while the node still has one.
+	_pending_added_nodes.erase(node.get_instance_id())
+	# Removal must read bounds NOW, while the node still has its transform.
 	_dirty_tiles_for_node(node)
 
 
 func _is_nav_relevant(node: Node) -> bool:
 	# Scene-teardown removals are not nav events; the whole map is going away.
-	if not is_inside_tree():
+	if not _can_bake() or not is_instance_valid(node):
 		return false
 	if _mode != Mode.TILED and _mode != Mode.FULL_SCENE:
 		return false
@@ -590,40 +732,49 @@ func _is_nav_relevant(node: Node) -> bool:
 		return false
 	if not (node is StaticBody3D or node.is_class("Terrain3D")):
 		return false
-	return root_scene != null and _nav_root().is_ancestor_of(node)
+	var nav_root := _nav_root()
+	return is_instance_valid(nav_root) and nav_root.is_ancestor_of(node)
 
 
 func _dirty_tiles_for_node(node: Node) -> void:
-	_geometry_dirty = true
-	if _mode == Mode.FULL_SCENE or not (node is Node3D):
-		return
 	if not is_instance_valid(node):
-		# Freed before the deferred call: conservative full re-dirty is the
-		# only safe answer for an unknown position.
+		return
+	# Terrain edits have no finite StaticBody footprint here. The existing
+	# explicit world invalidation remains the conservative fallback.
+	if not (node is StaticBody3D):
 		notify_world_geometry_changed()
 		return
-	var position := (node as Node3D).global_position
-	# Geometry can change during scene load, before tiles are seeded (e.g.
-	# furniture freeing its imported collision hulls in _ready). Losing that
-	# dirt would leave stale cached tiles; apply it after activation instead.
-	if _mode == Mode.INACTIVE or _tiles.is_empty():
-		_pending_dirty_positions.append(position)
-		return
-	_dirty_tiles_at(position)
+	var bounds := _static_body_world_bounds(node as StaticBody3D)
+	notify_geometry_changed(bounds, bounds)
 
 
-func _dirty_tiles_at(position: Vector3) -> void:
-	var tile := PIPELINE.clamped_tile_size(settings)
-	var center := PIPELINE.tile_coord(position, tile)
-	# Instant patch: re-dirty only the tiles the object's volume touches.
-	for dx in range(-1, 2):
-		for dz in range(-1, 2):
-			_mark_tile_dirty(Vector2i(center.x + dx, center.y + dz))
+func _static_body_world_bounds(body: StaticBody3D) -> AABB:
+	var bounds := AABB(body.global_position, Vector3.ZERO)
+	var has_shape := false
+	# Registered shape owners include CollisionPolygon3D and transformed
+	# CollisionShape3D children, not merely the body's origin or visual mesh.
+	for owner_id in body.get_shape_owners():
+		var transform := body.global_transform * body.shape_owner_get_transform(owner_id)
+		for index in range(body.shape_owner_get_shape_count(owner_id)):
+			var shape := body.shape_owner_get_shape(owner_id, index)
+			var shape_bounds: AABB = transform * shape.get_debug_mesh().get_aabb()
+			bounds = bounds.merge(shape_bounds) if has_shape else shape_bounds
+			has_shape = true
+	return bounds
+
+
+func _dirty_bounds(bounds: Array[AABB]) -> void:
+	var affected := {}
+	for world_bounds in bounds:
+		for coord in PIPELINE.affected_tile_coords(world_bounds, settings):
+			affected[coord] = true
+	for coord in affected:
+		_mark_tile_dirty(coord)
 
 
 func _scan_terrains() -> void:
 	_terrains.clear()
-	if root_scene == null:
+	if not is_instance_valid(root_scene):
 		return
 	_collect_terrains(_nav_root(), _terrains)
 	for terrain in _terrains:
@@ -635,9 +786,14 @@ func _scan_terrains() -> void:
 
 
 func _wait_for_inflight_bakes() -> void:
-	for task_id in _inflight.keys():
-		WorkerThreadPool.wait_for_task_completion(task_id)
-	_inflight.clear()
+	for task: BakeTask in _inflight.values():
+		_join_bake_task(task)
+
+
+func _join_bake_task(task: BakeTask) -> void:
+	if not task.worker_joined:
+		WorkerThreadPool.wait_for_task_completion(task.task_id)
+		task.worker_joined = true
 
 
 func _collect_terrains(node: Node, result: Array[Node]) -> void:
@@ -672,20 +828,20 @@ func _rebuild_all_debug() -> void:
 func _refresh_tile_debug(coord: Vector2i) -> void:
 	if _debug_root == null or not is_instance_valid(_debug_root):
 		return
-	var tile: Dictionary = _tiles[coord]
-	for key in ["debug_mesh", "debug_frame"]:
-		var old: Node = tile[key]
+	var tile: Tile = _tiles[coord]
+	for old in [tile.debug_mesh, tile.debug_frame]:
 		if old != null and is_instance_valid(old):
 			old.queue_free()
-		tile[key] = null
+	tile.debug_mesh = null
+	tile.debug_frame = null
 	if _navmesh_debug_enabled:
-		var region: NavigationRegion3D = tile["region"]
+		var region := tile.region
 		if region != null and is_instance_valid(region) and region.navigation_mesh != null:
-			tile["debug_mesh"] = _make_navmesh_debug_node(region.navigation_mesh)
-			_debug_root.add_child(tile["debug_mesh"])
+			tile.debug_mesh = _make_navmesh_debug_node(region.navigation_mesh)
+			_debug_root.add_child(tile.debug_mesh)
 	if _tile_debug_enabled:
-		tile["debug_frame"] = _make_tile_frame_node(coord, tile["state"] == TileState.BAKED)
-		_debug_root.add_child(tile["debug_frame"])
+		tile.debug_frame = _make_tile_frame_node(coord, tile.state == TileState.BAKED)
+		_debug_root.add_child(tile.debug_frame)
 
 
 func _make_navmesh_debug_node(nav_mesh: NavigationMesh) -> MeshInstance3D:
@@ -710,7 +866,9 @@ func _make_tile_frame_node(coord: Vector2i, baked: bool) -> MeshInstance3D:
 
 
 func _camera_anchor() -> Vector3:
-	var camera: Camera3D = root_scene.get_node_or_null("CameraRig/CameraPivot/Camera3D") as Camera3D
+	var camera: Camera3D
+	if is_instance_valid(root_scene):
+		camera = root_scene.get_node_or_null("CameraRig/CameraPivot/Camera3D") as Camera3D
 	if camera == null:
 		var viewport := get_viewport()
 		if viewport != null:

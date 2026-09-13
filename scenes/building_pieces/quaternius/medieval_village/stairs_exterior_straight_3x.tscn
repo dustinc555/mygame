@@ -70,37 +70,28 @@ shape = SubResource("WalkRampShape")
 collision_layer = 32
 collision_mask = 0
 
-[node name="Flight01" type="Node3D" parent="NavShapingRails"]
-transform = Transform3D(1, 0, 0, 0, 0.342681014, 0, 0, 0, 1, 0, -0.13388799, 2.0816584)
-
-[node name="West" type="CollisionShape3D" parent="NavShapingRails/Flight01"]
-transform = Transform3D(1, 0, 0, 0, 0.8963, -0.4436, 0, 0.4436, 0.8963, -0.95, 0.31, 0.5)
+[node name="Flight01West" type="CollisionShape3D" parent="NavShapingRails"]
+transform = Transform3D(1, 0, 0, 0, 0.307145, -0.1520133, 0, 0.4436, 0.8963, -0.95, -0.027656876, 2.5816584)
 shape = SubResource("NavRailShape")
 
-[node name="East" type="CollisionShape3D" parent="NavShapingRails/Flight01"]
-transform = Transform3D(1, 0, 0, 0, 0.8963, -0.4436, 0, 0.4436, 0.8963, 0.95, 0.31, 0.5)
+[node name="Flight01East" type="CollisionShape3D" parent="NavShapingRails"]
+transform = Transform3D(1, 0, 0, 0, 0.307145, -0.1520133, 0, 0.4436, 0.8963, 0.95, -0.027656876, 2.5816584)
 shape = SubResource("NavRailShape")
 
-[node name="Flight02" type="Node3D" parent="NavShapingRails"]
-transform = Transform3D(1, 0, 0, 0, 0.342681014, 0, 0, 0, 1, 0, 0.20681326, 0.07283375)
-
-[node name="West" type="CollisionShape3D" parent="NavShapingRails/Flight02"]
-transform = Transform3D(1, 0, 0, 0, 0.8963, -0.4436, 0, 0.4436, 0.8963, -0.95, 0.31, 0.5)
+[node name="Flight02West" type="CollisionShape3D" parent="NavShapingRails"]
+transform = Transform3D(1, 0, 0, 0, 0.307145, -0.1520133, 0, 0.4436, 0.8963, -0.95, 0.31304437, 0.5728338)
 shape = SubResource("NavRailShape")
 
-[node name="East" type="CollisionShape3D" parent="NavShapingRails/Flight02"]
-transform = Transform3D(1, 0, 0, 0, 0.8963, -0.4436, 0, 0.4436, 0.8963, 0.95, 0.31, 0.5)
+[node name="Flight02East" type="CollisionShape3D" parent="NavShapingRails"]
+transform = Transform3D(1, 0, 0, 0, 0.307145, -0.1520133, 0, 0.4436, 0.8963, 0.95, 0.31304437, 0.5728338)
 shape = SubResource("NavRailShape")
 
-[node name="Flight03" type="Node3D" parent="NavShapingRails"]
-transform = Transform3D(1, 0, 0, 0, 0.342681014, 0, 0, 0, 1, 0, 0.5475145, -1.9359908)
-
-[node name="West" type="CollisionShape3D" parent="NavShapingRails/Flight03"]
-transform = Transform3D(1, 0, 0, 0, 0.8963, -0.4436, 0, 0.4436, 0.8963, -0.95, 0.31, 0.5)
+[node name="Flight03West" type="CollisionShape3D" parent="NavShapingRails"]
+transform = Transform3D(1, 0, 0, 0, 0.307145, -0.1520133, 0, 0.4436, 0.8963, -0.95, 0.6537456, -1.4359908)
 shape = SubResource("NavRailShape")
 
-[node name="East" type="CollisionShape3D" parent="NavShapingRails/Flight03"]
-transform = Transform3D(1, 0, 0, 0, 0.8963, -0.4436, 0, 0.4436, 0.8963, 0.95, 0.31, 0.5)
+[node name="Flight03East" type="CollisionShape3D" parent="NavShapingRails"]
+transform = Transform3D(1, 0, 0, 0, 0.307145, -0.1520133, 0, 0.4436, 0.8963, 0.95, 0.6537456, -1.4359908)
 shape = SubResource("NavRailShape")
 
 [node name="SnapPoints" type="Node3D" parent="."]

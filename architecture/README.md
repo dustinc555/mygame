@@ -41,8 +41,7 @@ flowchart TD
     Intent --> Systems[GECS Systems / Controller APIs<br/>validate and apply consequences]
     Intent --> Actuator[WorldActor / HumanoidCharacter<br/>movement, combat, interaction,<br/>equipment, needs, animation]
 
-    Actuator --> NavFacade[Navigation Facade<br/>project wrapper around movement targets]
-    NavFacade --> GodotNav[Godot NavigationAgent3D<br/>pathfinding only]
+    Actuator --> GodotNav[ActorNavigationFollower<br/>extends NavigationAgent3D<br/>waypoints, avoidance, stuck recovery]
     GodotNav --> Actuator
 
     Systems --> State
@@ -101,6 +100,7 @@ We visualize this codebase as a **dependency & coupling graph**, not as taxonomy
 ## Where Docs Live
 - `AGENT.md` is the short coding-agent rule file.
 - `architecture/README.md` is this human design overview.
+- `architecture/navigation.md` maps the actual baker, tile lifecycle, actor movement and settings, with focused verification commands and explicit remaining limits.
 - `architecture/dependency-graph/` is the interactive dependency & coupling graph — how we visualize architecture (checks truth-rule + tick/cadence violations, cycles, hubs).
 - `architecture/core_attributes/` defines shared stat layers and progression rules.
 - `architecture/combat/initiative.md` defines shared melee initiative.
