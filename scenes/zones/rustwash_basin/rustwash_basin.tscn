@@ -83,15 +83,28 @@
 [ext_resource type="PackedScene" path="res://features/world/projection/props/water/well_1.tscn" id="78_0wc3m"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/well_1.tres" id="79_8f8ek"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_simple.tscn" id="79_dp625"]
+[ext_resource type="PackedScene" path="res://features/world/bridge/resource_nodes/copper_node.tscn" id="84_x5ne4"]
+[ext_resource type="Script" uid="uid://bc3qsplgqok1n" path="res://features/world/bridge/resource_nodes/mining_resource_node.gd" id="85_wmqh0"]
+[ext_resource type="Resource" uid="uid://c24tlcnkcfnv4" path="res://features/inventory/resources/items/copper_ore.tres" id="86_nc438"]
+[ext_resource type="Resource" path="res://features/world/resources/resource_deposits/copper.tres" id="87_dt8ex"]
+[ext_resource type="PackedScene" path="res://features/world/bridge/resource_nodes/scrap_pile_node.tscn" id="88_mtwgh"]
+[ext_resource type="Script" uid="uid://delvnk0p4x4gn" path="res://features/world/bridge/resource_nodes/scavenging_resource_node.gd" id="89_6k85d"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/scrap_metal.tres" id="90_f1g53"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/copper_wire.tres" id="91_ett8w"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/broken_electronics.tres" id="92_4knvt"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/robot_parts.tres" id="93_m7xvw"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/rusted_junk.tres" id="94_dp625"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/moldy_boot.tres" id="95_we6b1"]
+[ext_resource type="Resource" path="res://features/world/resources/resource_deposits/scrap_pile.tres" id="96_hamu5"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0wc3m"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_w63uq"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_8f8ek"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_dyfv2"]
 _surfaces = [{
 "aabb": AABB(-26.771624, 0, -138.93472, 106.48778, 1e-05, 122.29651),
 "format": 34359738369,
@@ -387,9 +400,9 @@ metadata/_edit_group_ = true
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Towns/Canyon" unique_id=532431889]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_0wc3m")
+material_override = SubResource("StandardMaterial3D_w63uq")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_8f8ek")
+mesh = SubResource("ArrayMesh_dyfv2")
 
 [node name="CanyonCityRestStop" type="Node3D" parent="Towns/Canyon" unique_id=556110935]
 transform = Transform3D(0.28083363, 0, 0.9597566, 0, 1, 0, -0.9597566, 0, 0.28083363, 3.373272, 0.42611122, -37.413513)
@@ -1350,7 +1363,7 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 9.67
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf1" unique_id=1319952556]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf1" unique_id=1791368511]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1359,7 +1372,7 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 9.67
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf2" unique_id=1758914554]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf2" unique_id=1766563662]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1368,7 +1381,7 @@ transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 2.98
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf3" unique_id=1369011213]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf3" unique_id=162622776]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1503,3 +1516,24 @@ current = true
 
 [node name="Terrain" parent="." unique_id=664859720 instance=ExtResource("5_wjgve")]
 top_level = true
+
+[node name="CopperVein" type="StaticBody3D" parent="." unique_id=1798274993 instance=ExtResource("84_x5ne4")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -99.29777, -0.44872665, -384.2333)
+script = ExtResource("85_wmqh0")
+display_name = "Medium Copper Vein"
+item_definition = ExtResource("86_nc438")
+interaction_radius = 1.35
+slot_distance = 2.8
+slot_count = 4
+resource_node_id = "deposit_864ec7b53524ba967b6a7ce50a782fe5"
+deposit_definition = ExtResource("87_dt8ex")
+
+[node name="ScrapPile" type="StaticBody3D" parent="." unique_id=882806224 instance=ExtResource("88_mtwgh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -82.89324, -0.14691734, -368.52826)
+script = ExtResource("89_6k85d")
+slot_distance = 3.1
+useful_loot = Array[Resource]([ExtResource("90_f1g53"), ExtResource("91_ett8w"), ExtResource("92_4knvt")])
+rare_loot = Array[Resource]([ExtResource("93_m7xvw")])
+junk_loot = Array[Resource]([ExtResource("94_dp625"), ExtResource("95_we6b1")])
+resource_node_id = "deposit_22aec349d797e076182aa5783a7c1cb6"
+deposit_definition = ExtResource("96_hamu5")

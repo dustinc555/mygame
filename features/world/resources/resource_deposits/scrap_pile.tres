@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ResourceDepositDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/world/resources/resource_deposit_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+deposit_type_id = "scrap_pile"
+display_name = "Scrap Pile"
+category = "Scrap"
+description = "Independent scrap deposit. Stock renews after depletion, in in-game weeks."
+scene_path = "res://features/world/bridge/resource_nodes/scrap_pile_node.tscn"
+refill_enabled = true
+refill_min_weeks = 1.0
+refill_max_weeks = 2.0
+min_stock = 2
+max_stock = 4

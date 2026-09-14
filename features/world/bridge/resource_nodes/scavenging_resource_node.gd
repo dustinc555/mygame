@@ -1,4 +1,4 @@
-extends StaticBody3D
+extends "res://features/world/bridge/resource_nodes/resource_deposit_node.gd"
 
 class_name ScavengingResourceNode
 
@@ -16,8 +16,9 @@ enum PileSize {
 @export var slow_scavenge_seconds := 12.0
 @export var fast_scavenge_seconds := 5.0
 @export var levels_to_fast_speed := 30
-@export var randomize_charges_on_ready := true
-@export var current_charges := -1
+var current_charges: int:
+	get:
+		return get_stock()
 @export_range(0.0, 1.0, 0.01) var min_useful_chance := 0.05
 @export_range(0.0, 1.0, 0.01) var max_useful_chance := 0.82
 @export_range(0.0, 1.0, 0.01) var junk_chance_on_failure := 0.55
@@ -28,7 +29,6 @@ enum PileSize {
 @export var interaction_radius := 1.8
 @export var slot_distance := 2.4
 @export var slot_count := 6
-@export var resource_node_id := ""
 @export var show_charge_count := false:
 	set(value):
 		show_charge_count = value
@@ -45,12 +45,15 @@ var _rng := RandomNumberGenerator.new()
 var _label: Label3D
 
 
+func _init() -> void:
+	deposit_definition = preload("res://features/world/resources/resource_deposits/scrap_pile.tres")
+
+
 func _ready() -> void:
+	super._ready()
 	add_to_group("scavenging_resource")
 	_rng.randomize()
 	_label = get_node_or_null("Label3D") as Label3D
-	if randomize_charges_on_ready or current_charges < 0:
-		_roll_charges()
 	_update_label()
 
 
@@ -91,17 +94,8 @@ func release_scavenger(member: Node) -> void:
 	_assigned_slots.erase(member.get_instance_id())
 
 
-func is_depleted() -> bool:
-	return current_charges <= 0
-
-
 func set_show_charge_count(value: bool) -> void:
 	show_charge_count = value
-	_update_label()
-
-
-func reset_charges() -> void:
-	_roll_charges()
 	_update_label()
 
 
@@ -137,19 +131,23 @@ func get_rare_loot_chance(actor) -> float:
 
 
 func complete_scavenge_attempt(actor) -> Dictionary:
-	if is_depleted():
-		_update_label()
-		return {"message": "Depleted", "item": null, "quantity": 0, "depleted": true, "useful": false, "dropped": false}
-	current_charges = maxi(0, current_charges - 1)
+	return _complete_deposit_attempt(actor)
+
+
+func deliver_deposit_attempt(actor: Node, _inventory, metadata: Dictionary) -> Dictionary:
+	if not _claim_deposit_delivery(actor):
+		return {"success": false, "message": "Unavailable"}
 	var result := _roll_loot(actor)
 	var definition := result.get("item") as ItemDefinition
 	var quantity := int(result.get("quantity", 1))
 	var delivery := ""
 	if definition != null and quantity > 0:
-		delivery = _deliver_loot(actor, definition, quantity)
+		delivery = _deliver_loot(actor, definition, quantity, metadata)
 	var message := _build_result_message(definition, quantity, delivery, bool(result.get("useful", false)))
 	_update_label()
 	return {
+		"success": true,
+		"inventory_changed": delivery == "inventory",
 		"message": message,
 		"item": definition,
 		"quantity": quantity if definition != null else 0,
@@ -157,21 +155,6 @@ func complete_scavenge_attempt(actor) -> Dictionary:
 		"useful": bool(result.get("useful", false)),
 		"dropped": delivery == "dropped",
 	}
-
-
-func _roll_charges() -> void:
-	var charge_range := _get_charge_range()
-	current_charges = _rng.randi_range(charge_range.x, charge_range.y)
-
-
-func _get_charge_range() -> Vector2i:
-	match pile_size:
-		PileSize.SMALL:
-			return Vector2i(1, 2)
-		PileSize.LARGE:
-			return Vector2i(4, 7)
-		_:
-			return Vector2i(2, 4)
 
 
 func _roll_loot(actor) -> Dictionary:
@@ -191,15 +174,15 @@ func _pick_loot(loot: Array[Resource]) -> ItemDefinition:
 	return loot[_rng.randi_range(0, loot.size() - 1)] as ItemDefinition
 
 
-func _deliver_loot(actor, definition: ItemDefinition, quantity: int) -> String:
+func _deliver_loot(actor, definition: ItemDefinition, quantity: int, metadata: Dictionary) -> String:
 	var actor_inventory: InventoryData = actor.inventory if actor != null and actor.get("inventory") != null else null
-	if actor_inventory != null and actor_inventory.add_item_count(definition, quantity):
+	if actor_inventory != null and actor_inventory.add_item_count_with_metadata(definition, quantity, metadata):
 		return "inventory"
-	_drop_loot(definition, quantity)
+	_drop_loot(definition, quantity, metadata)
 	return "dropped"
 
 
-func _drop_loot(definition: ItemDefinition, quantity: int) -> void:
+func _drop_loot(definition: ItemDefinition, quantity: int, metadata: Dictionary) -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
@@ -208,6 +191,7 @@ func _drop_loot(definition: ItemDefinition, quantity: int) -> void:
 		return
 	var world_item := WORLD_ITEM_SCENE.instantiate() as WorldItem
 	parent.add_child(world_item)
+	world_item.item_metadata = metadata
 	world_item.setup(definition, quantity)
 	var angle := _rng.randf_range(0.0, TAU)
 	var distance := _rng.randf_range(1.0, 1.8)
@@ -227,12 +211,8 @@ func _build_result_message(definition: ItemDefinition, quantity: int, delivery: 
 func _update_label() -> void:
 	if _label == null:
 		return
-	if is_depleted():
-		_label.text = "%s\nDepleted" % display_name
-	elif show_charge_count:
-		_label.text = "%s\n%d charges" % [display_name, current_charges]
-	else:
-		_label.text = display_name
+	# Idle world metrics belong in selected-object Details, not floating labels.
+	_label.visible = false
 
 
 func _get_strength_speed_bonus(actor) -> float:

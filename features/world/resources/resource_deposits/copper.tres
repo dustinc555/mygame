@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ResourceDepositDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/world/resources/resource_deposit_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+deposit_type_id = "copper"
+display_name = "Copper Vein"
+category = "Ore"
+description = "Independent ore deposit. Stock renews after depletion, in in-game weeks."
+scene_path = "res://features/world/bridge/resource_nodes/copper_node.tscn"
+refill_enabled = true
+refill_min_weeks = 1.0
+refill_max_weeks = 2.0
+min_stock = 40
+max_stock = 40

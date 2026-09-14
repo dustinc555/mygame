@@ -1,4 +1,4 @@
-extends StaticBody3D
+extends "res://features/world/bridge/resource_nodes/resource_deposit_node.gd"
 
 class_name MiningResourceNode
 
@@ -12,15 +12,10 @@ class_name MiningResourceNode
 @export var required_tool_label := "Pickaxe"
 @export_range(0.0, 1.0, 0.01) var locked_attempt_xp_multiplier := 0.35
 @export_range(0.0, 2.0, 0.01) var vein_quality := 1.0
-@export var depletion_enabled := false
-@export var max_ore_yield := 0
 @export var mining_noise_radius := 12.0
 @export var interaction_radius := 1.8
 @export var slot_distance := 3.2
 @export var slot_count := 6
-@export var owner_character_path: NodePath
-@export var owner_faction_name := ""
-@export var resource_node_id := ""
 
 const STRENGTH_SPEED_BONUS_CAP := 0.12
 const STRENGTH_SPEED_BONUS_CURVE := 45.0
@@ -28,7 +23,12 @@ const STRENGTH_SPEED_BONUS_CURVE := 45.0
 var _assigned_slots: Dictionary = {}
 
 
+func _init() -> void:
+	deposit_definition = preload("res://features/world/resources/resource_deposits/copper.tres")
+
+
 func _ready() -> void:
+	super._ready()
 	add_to_group("mining_resource")
 
 
@@ -76,15 +76,24 @@ func get_effective_mine_duration(actor) -> float:
 	return maxf(skill_seconds / (1.0 + strength_bonus), 0.1)
 
 
-func get_explicit_owner_character() -> Node:
-	return get_node_or_null(owner_character_path) as Node
+func complete_mining_attempt(actor: Node, inventory) -> Dictionary:
+	return _complete_deposit_attempt(actor, inventory)
 
 
-func get_owner_faction_name() -> String:
-	if not owner_faction_name.is_empty():
-		return owner_faction_name
-	var owner_character := get_explicit_owner_character()
-	return owner_character.faction_name if owner_character != null else ""
+func can_complete_deposit_attempt(actor: Node) -> bool:
+	if not can_produce_ore_for(actor):
+		return false
+	if required_tool_tag.is_empty():
+		return true
+	var tool = actor.get_equipped_item(ItemDefinition.EQUIP_SLOT_WEAPON) if actor.has_method("get_equipped_item") else null
+	return tool != null and tool.has_tool_tag(required_tool_tag)
+
+
+func deliver_deposit_attempt(actor: Node, inventory, metadata: Dictionary) -> Dictionary:
+	if not _claim_deposit_delivery(actor):
+		return {"success": false, "message": "Unavailable"}
+	var delivered: bool = inventory != null and item_definition != null and inventory.add_item_count_with_metadata(item_definition, 1, metadata)
+	return {"success": delivered, "message": "" if delivered else "Inventory full"}
 
 
 func _get_strength_speed_bonus(actor) -> float:

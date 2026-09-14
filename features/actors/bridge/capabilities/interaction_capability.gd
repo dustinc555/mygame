@@ -58,8 +58,18 @@ var current_seat_stand_position = null
 var current_container_target: Node
 var current_trade_target: Node
 var current_conversation_target: Node
-var current_mining_node: Node
-var current_scavenging_node: Node
+var _mining_node_ref: WeakRef
+var _scavenging_node_ref: WeakRef
+var current_mining_node: Node:
+	get:
+		return _mining_node_ref.get_ref() if _mining_node_ref != null else null
+	set(value):
+		_mining_node_ref = weakref(value) if is_instance_valid(value) else null
+var current_scavenging_node: Node:
+	get:
+		return _scavenging_node_ref.get_ref() if _scavenging_node_ref != null else null
+	set(value):
+		_scavenging_node_ref = weakref(value) if is_instance_valid(value) else null
 var current_pickup_item: Node
 # Cached pickup approach point: computing it can cost navmesh closest-point
 # queries (tabletop/shelf access solving), so it refreshes only when the item
@@ -312,8 +322,10 @@ func assign_conversation_target(target_character, issued_by_player := true) -> v
 
 
 func assign_mining_resource(resource_node, issued_by_player := true) -> void:
+	if not is_instance_valid(resource_node):
+		return
 	var mining_node := resource_node as Node
-	if mining_node == null:
+	if mining_node == null or mining_node.is_depleted():
 		return
 	if not _set_order(ORDER_TYPE_MINE, issued_by_player):
 		return
@@ -713,10 +725,12 @@ func get_scavenging_progress_ratio() -> float:
 
 
 func process_mining(delta: float) -> void:
-	var mining_node := current_mining_node as Node
+	var mining_node := current_mining_node
 	if mining_node == null:
+		if mining_active or current_order_type == ORDER_TYPE_MINE:
+			stop_mining_assignment()
 		return
-	if not ensure_mining_tool_equipped(mining_node, order_was_player_issued):
+	if mining_node.is_depleted() or not ensure_mining_tool_equipped(mining_node, order_was_player_issued):
 		stop_mining_assignment()
 		return
 	var mining_position: Vector3 = mining_node.get_mining_position(actor)
@@ -731,40 +745,37 @@ func process_mining(delta: float) -> void:
 	var mining_inventory = _work_inventory_override()
 	if mining_inventory == null:
 		mining_inventory = _inventory()
-	var progress_before := get_stored_mining_progress(mining_node)
-	if progress_before >= 1.0:
-		if mining_node.can_produce_ore_for(actor):
-			if mining_inventory != null and mining_inventory.add_item(mining_node.item_definition):
-				progress_before = 0.0
-			else:
-				store_mining_progress(mining_node, 1.0)
-				mining_active = false
-				_emit_actor_signal("mining_changed")
-				return
-		else:
-			show_mining_requirement_notice(mining_node)
-			progress_before = 0.0
+	var progress := get_stored_mining_progress(mining_node)
 	mining_active = true
-	var progress_delta := minf(delta / duration, maxf(1.0 - progress_before, 0.0))
+	var progress_delta := minf(delta / duration, maxf(1.0 - progress, 0.0))
 	award_mining_progress_xp(progress_delta, mining_node.get_locked_attempt_xp_multiplier_for(actor))
-	var progress := progress_before + progress_delta
+	progress += progress_delta
 	if progress >= 1.0:
 		if mining_node.can_produce_ore_for(actor):
-			if mining_inventory != null and mining_inventory.add_item(mining_node.item_definition):
+			# New completions and inventory-full retries share one authoritative take.
+			var result: Dictionary = mining_node.complete_mining_attempt(actor, mining_inventory)
+			if result.get("success", false):
 				progress = 0.0
 			else:
-				progress = 1.0
 				mining_active = false
+				if str(result.get("message", "")) != "Inventory full":
+					store_mining_progress(mining_node, progress)
+					stop_mining_assignment()
+					return
 		else:
 			progress = 0.0
 			show_mining_requirement_notice(mining_node)
 	store_mining_progress(mining_node, progress)
+	if mining_node.is_depleted():
+		stop_mining_assignment()
 	_emit_actor_signal("mining_changed")
 
 
 func process_scavenging(delta: float) -> void:
-	var scavenging_node := current_scavenging_node as Node
+	var scavenging_node := current_scavenging_node
 	if scavenging_node == null:
+		if scavenging_active or current_order_type == ORDER_TYPE_SCAVENGE:
+			stop_scavenging_assignment()
 		return
 	if scavenging_node.is_depleted():
 		show_scavenging_notice("Depleted", Color(0.75, 0.72, 0.62, 1.0), true)
@@ -786,6 +797,9 @@ func process_scavenging(delta: float) -> void:
 	var progress := progress_before + progress_delta
 	if progress >= 1.0:
 		var result: Dictionary = scavenging_node.complete_scavenge_attempt(actor)
+		if not result.get("success", false):
+			stop_scavenging_assignment()
+			return
 		progress = 0.0
 		var message := str(result.get("message", ""))
 		if not message.is_empty():
