@@ -18,6 +18,8 @@ const BUILDING_REGISTRY := preload("res://features/world/sim/building_registry.g
 const BUILDING_PROJECTION_BRIDGE := preload("res://features/world/bridge/building_projection_bridge.gd")
 const BUILDING_OCCUPANCY := preload("res://features/world/bridge/building_occupancy_controller.gd")
 
+const RESOURCE_DEPOSITS := preload("res://features/world/sim/resource_deposit_controller.gd")
+
 const CORE := []
 const PROJECTION := [
 	{"name": "BuildingVisibilityController", "script": BUILDING_VISIBILITY, "service": BUILDING_VISIBILITY.SERVICE_ID},
@@ -27,6 +29,7 @@ const PROJECTION := [
 	{"name": "TerrainCameraController", "script": TERRAIN_CAMERA, "service": TERRAIN_CAMERA.SERVICE_ID},
 ]
 const SIM := [
+	{"name": "ResourceDepositController", "script": RESOURCE_DEPOSITS, "service": RESOURCE_DEPOSITS.SERVICE_ID},
 	{"name": "BuildingRegistry", "script": BUILDING_REGISTRY, "service": BUILDING_REGISTRY.SERVICE_ID},
 ]
 const BRIDGE := [

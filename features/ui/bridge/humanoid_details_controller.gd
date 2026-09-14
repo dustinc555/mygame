@@ -521,7 +521,7 @@ func _get_world_target_actions(target) -> Array:
 	if _is_building_target(target):
 		actions.append({"key": ACTION_PEOPLE, "label": facility_people_projection.get_action_label(target)})
 	if target is Node and target.is_in_group("mining_resource"):
-		actions.append({"key": ACTION_MINE, "label": "Mine"})
+		actions.append({"key": ACTION_MINE, "label": "Mine", "disabled": _is_depleted_resource(target)})
 	if target is Node and target.is_in_group("world_container"):
 		var is_locked := bool(target.get("is_locked"))
 		actions.append({"key": ACTION_UNLOCK_CONTAINER if is_locked else ACTION_OPEN_CONTAINER, "label": "Unlock" if is_locked else "Open"})
@@ -968,14 +968,22 @@ func _get_target_requirement_text(target) -> String:
 	return ""
 
 
+func _is_depleted_resource(target) -> bool:
+	return target is Node \
+			and (target.is_in_group("mining_resource") or target.is_in_group("scavenging_resource")) \
+			and target.has_method("is_depleted") and bool(target.call("is_depleted"))
+
+
 func _get_target_state_text(target) -> String:
 	if _is_building_target(target):
 		return _get_building_status_text(target)
+	if _is_depleted_resource(target):
+		return "Depleted"
 	if target is Node and target.is_in_group("mining_resource"):
+		if target.has_method("get_stock"):
+			return "%d ore remaining" % int(target.call("get_stock"))
 		return "Mineable"
 	if target is Node and target.is_in_group("scavenging_resource"):
-		if target.has_method("is_depleted") and target.is_depleted():
-			return "Depleted"
 		var charges := _get_int_property(target, "current_charges", -1)
 		return "Unknown" if charges < 0 else "%d charges" % charges
 	if target is Node and target.is_in_group("world_container"):
@@ -992,11 +1000,11 @@ func _get_target_state_label(target) -> String:
 	if _is_building_target(target):
 		var owner_text := _get_building_owner_text(target)
 		return owner_text if not owner_text.is_empty() else "Unowned"
+	if _is_depleted_resource(target):
+		return "DEPLETED"
 	if target is Node and target.is_in_group("mining_resource"):
 		return "VEIN"
 	if target is Node and target.is_in_group("scavenging_resource"):
-		if target.has_method("is_depleted") and target.is_depleted():
-			return "DEPLETED"
 		return "SCRAP"
 	if target is Node and target.is_in_group("world_container"):
 		return "LOCKED" if bool(target.get("is_locked")) else "CACHE"

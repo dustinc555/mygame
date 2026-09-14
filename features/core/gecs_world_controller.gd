@@ -69,6 +69,7 @@ const C_WORLD_SIM_SQUAD_PATH := "res://features/world_sim/sim/c_game_world_sim_s
 const C_BUILDING_RECORD_PATH := "res://features/world/sim/c_game_building_record.gd"
 const C_FARM_PLOT_STATE_PATH := "res://features/farming/sim/c_game_farm_plot_state.gd"
 const C_FARM_WATER_SOURCE_STATE_PATH := "res://features/farming/sim/c_game_farm_water_source_state.gd"
+const C_RESOURCE_DEPOSIT_STATE_PATH := "res://features/world/sim/c_game_resource_deposit_state.gd"
 const C_LIQUID_CONTAINER_STATE_PATH := "res://features/inventory/sim/c_game_liquid_container_state.gd"
 const CONSTRUCTION_CATALOG_ID_LOAD_MIGRATIONS := {
 	"woodbrick_house": "medium_wood_l_hall",
@@ -107,6 +108,7 @@ var _world_sim_squad_entity_by_id: Dictionary = {}
 var _building_entity_by_id: Dictionary = {}
 var _farm_plot_entity_by_id: Dictionary = {}
 var _farm_water_source_entity_by_id: Dictionary = {}
+var _resource_deposit_entity_by_id: Dictionary = {}
 var _liquid_container_entity_by_id: Dictionary = {}
 var _farm_water_totals_by_settlement: Dictionary = {}
 var _growing_crop_counts_by_settlement: Dictionary = {}
@@ -208,6 +210,7 @@ var C_WORLD_SIM_SQUAD
 var C_BUILDING_RECORD
 var C_FARM_PLOT_STATE
 var C_FARM_WATER_SOURCE_STATE
+var C_RESOURCE_DEPOSIT_STATE
 var C_LIQUID_CONTAINER_STATE
 
 
@@ -1475,6 +1478,46 @@ func remove_farm_water_source_state(source_id: String) -> void:
 	_farm_water_source_entity_by_id.erase(source_id)
 
 
+func upsert_resource_deposit_state(state: Dictionary) -> Dictionary:
+	_try_initialize()
+	var deposit_id := str(state.get("deposit_id", ""))
+	if world == null or deposit_id.strip_edges().is_empty():
+		return {}
+	var entity = _resource_deposit_entity_by_id.get(deposit_id)
+	if not is_instance_valid(entity):
+		entity = _entity_script.new()
+		entity.name = _entity_node_name("ResourceDeposit", deposit_id)
+		entity.id = _entity_id("resource_deposit", deposit_id)
+		world.add_entity(entity, [C_RESOURCE_DEPOSIT_STATE.new()])
+		_resource_deposit_entity_by_id[deposit_id] = entity
+	var component = entity.get_component(C_RESOURCE_DEPOSIT_STATE)
+	component.apply_state(state)
+	return component.to_state()
+
+
+func get_resource_deposit_state(deposit_id: String) -> Dictionary:
+	var entity = _resource_deposit_entity_by_id.get(deposit_id)
+	if not is_instance_valid(entity):
+		return {}
+	return entity.get_component(C_RESOURCE_DEPOSIT_STATE).to_state()
+
+
+func get_resource_deposit_states() -> Dictionary:
+	var states: Dictionary = {}
+	for deposit_id in _resource_deposit_entity_by_id:
+		var state := get_resource_deposit_state(deposit_id)
+		if not state.is_empty():
+			states[deposit_id] = state
+	return states
+
+
+func remove_resource_deposit_state(deposit_id: String) -> void:
+	var entity = _resource_deposit_entity_by_id.get(deposit_id)
+	_resource_deposit_entity_by_id.erase(deposit_id)
+	if is_instance_valid(entity) and world != null:
+		world.remove_entity(entity)
+
+
 func upsert_liquid_container_state(state: Dictionary) -> Dictionary:
 	_try_initialize()
 	if world == null or state.is_empty():
@@ -2533,6 +2576,7 @@ func _load_component_scripts() -> void:
 	C_BUILDING_RECORD = load(C_BUILDING_RECORD_PATH) if C_BUILDING_RECORD == null else C_BUILDING_RECORD
 	C_FARM_PLOT_STATE = load(C_FARM_PLOT_STATE_PATH) if C_FARM_PLOT_STATE == null else C_FARM_PLOT_STATE
 	C_FARM_WATER_SOURCE_STATE = load(C_FARM_WATER_SOURCE_STATE_PATH) if C_FARM_WATER_SOURCE_STATE == null else C_FARM_WATER_SOURCE_STATE
+	C_RESOURCE_DEPOSIT_STATE = load(C_RESOURCE_DEPOSIT_STATE_PATH) if C_RESOURCE_DEPOSIT_STATE == null else C_RESOURCE_DEPOSIT_STATE
 	C_LIQUID_CONTAINER_STATE = load(C_LIQUID_CONTAINER_STATE_PATH) if C_LIQUID_CONTAINER_STATE == null else C_LIQUID_CONTAINER_STATE
 
 
@@ -2586,6 +2630,7 @@ func _component_scripts_loaded() -> bool:
 		C_BUILDING_RECORD,
 		C_FARM_PLOT_STATE,
 		C_FARM_WATER_SOURCE_STATE,
+		C_RESOURCE_DEPOSIT_STATE,
 		C_LIQUID_CONTAINER_STATE,
 	]:
 		if component_script == null:
@@ -3616,6 +3661,7 @@ func _clear_world_entities() -> void:
 	_building_entity_by_id.clear()
 	_farm_plot_entity_by_id.clear()
 	_farm_water_source_entity_by_id.clear()
+	_resource_deposit_entity_by_id.clear()
 	_liquid_container_entity_by_id.clear()
 	_farm_water_totals_by_settlement.clear()
 	_growing_crop_counts_by_settlement.clear()
@@ -3689,6 +3735,10 @@ func _rebuild_entity_indexes() -> void:
 		var liquid_container = entity.get_component(C_LIQUID_CONTAINER_STATE)
 		if liquid_container != null:
 			_liquid_container_entity_by_id[str(liquid_container.liquid_container_id)] = entity
+	for entity in world.query.with_all([C_RESOURCE_DEPOSIT_STATE]).execute():
+		var deposit = entity.get_component(C_RESOURCE_DEPOSIT_STATE)
+		if deposit != null:
+			_resource_deposit_entity_by_id[str(deposit.deposit_id)] = entity
 	var food_status_script = load(C_SETTLEMENT_FOOD_STATUS_PATH)
 	for entity in world.query.with_all([food_status_script]).execute():
 		var food_status = entity.get_component(food_status_script)

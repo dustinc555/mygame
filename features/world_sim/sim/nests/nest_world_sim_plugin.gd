@@ -688,7 +688,6 @@ func _scrap_scene_for_size(size_id: String) -> PackedScene:
 
 
 func _configure_nest_scrap_pile(pile: ScavengingResourceNode, size_id: String, nest_size_id: String) -> void:
-	pile.randomize_charges_on_ready = true
 	pile.show_charge_count = false
 	match size_id:
 		SCRAP_SIZE_MEDIUM:

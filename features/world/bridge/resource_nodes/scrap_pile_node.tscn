@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://features/world/bridge/resource_nodes/scavenging_resource_node.gd" id="1_node"]
 [ext_resource type="PackedScene" path="res://assets/items/scrap/mesh_scrap_1.glb" id="2_model"]
@@ -9,11 +9,14 @@
 [ext_resource type="Resource" path="res://features/inventory/resources/items/rusted_junk.tres" id="7_rusted"]
 [ext_resource type="Resource" path="res://features/inventory/resources/items/moldy_boot.tres" id="8_boot"]
 
+[ext_resource type="Resource" path="res://features/world/resources/resource_deposits/scrap_pile.tres" id="99_deposit"]
+
 [sub_resource type="BoxShape3D" id="BoxShape3D_scrap"]
 size = Vector3(4.8, 1.6, 4.8)
 
 [node name="ScrapPileNode" type="StaticBody3D"]
 script = ExtResource("1_node")
+deposit_definition = ExtResource("99_deposit")
 display_name = "Scrap Pile"
 pile_size = 1
 scavenging_difficulty = 10
