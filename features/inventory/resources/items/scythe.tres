@@ -30,6 +30,7 @@ grid_size = Vector2i(2, 4)
 unit_weight = 3.5
 equip_slot = "weapon"
 alternate_equip_slots = null
+compatible_races = null
 world_scene = ExtResource("4_model")
 equipped_scene = ExtResource("4_model")
 grip_profile = ExtResource("5_grip")

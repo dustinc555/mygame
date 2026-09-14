@@ -76,6 +76,12 @@ func _make_visible(_visible: bool) -> void:
 	_refresh_contexts()
 
 
+func _apply_changes() -> void:
+	for context in _contexts:
+		if context.has_method("apply_changes"):
+			context.apply_changes()
+
+
 func _process(delta: float) -> void:
 	for context in _contexts:
 		context.process(delta)

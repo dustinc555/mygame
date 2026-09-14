@@ -35,6 +35,7 @@ grid_size = Vector2i(2, 2)
 unit_weight = 0.9
 equip_slot = "legs"
 alternate_equip_slots = null
+compatible_races = null
 world_scene = ExtResource("3_male")
 equipped_visuals = Array[Resource]([SubResource("EquipmentVisual_human_male"), SubResource("EquipmentVisual_human_female")])
 tool_tags = null

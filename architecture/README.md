@@ -101,6 +101,7 @@ We visualize this codebase as a **dependency & coupling graph**, not as taxonomy
 - `AGENT.md` is the short coding-agent rule file.
 - `architecture/README.md` is this human design overview.
 - `architecture/navigation.md` maps the actual baker, tile lifecycle, actor movement and settings, with focused verification commands and explicit remaining limits.
+- `architecture/resource_deposits.md` shows the Zone editor's placement/tuning controls and the shared saved-stock/refill ownership.
 - `architecture/dependency-graph/` is the interactive dependency & coupling graph — how we visualize architecture (checks truth-rule + tick/cadence violations, cycles, hubs).
 - `architecture/core_attributes/` defines shared stat layers and progression rules.
 - `architecture/combat/initiative.md` defines shared melee initiative.

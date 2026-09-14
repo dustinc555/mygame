@@ -1062,13 +1062,16 @@ func _process_guard_post_shuffle(service_area: BarServiceArea, slot_state: Dicti
 
 
 func _resolve_best_resource(job_index: int, job, slot_state: Dictionary, worker: WorldActor):
-	var resources := _resolve_nodes(job.resource_paths)
+	var resources: Array = []
+	for candidate in _resolve_nodes(job.resource_paths):
+		if candidate is MiningResourceNode and not candidate.is_depleted():
+			resources.append(candidate)
 	if resources.is_empty():
 		return null
 	var claimed: Dictionary = {}
 	for other_slot in _active_slots.get(job_index, []):
 		var other_resource = other_slot.get("claimed_resource")
-		if other_slot == slot_state or other_resource == null:
+		if other_slot == slot_state or not is_instance_valid(other_resource):
 			continue
 		claimed[other_resource.get_instance_id()] = true
 	var best_node

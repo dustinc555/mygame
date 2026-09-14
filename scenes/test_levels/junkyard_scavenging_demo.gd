@@ -29,11 +29,6 @@ func _process(_delta: float) -> void:
 
 func perform_sneak_demo_action(key: String, _actors: Array = []) -> String:
 	match key:
-		"reset_piles":
-			for pile in _get_scrap_piles():
-				pile.reset_charges()
-				pile.set_show_charge_count(show_charge_labels)
-			return "Scrap piles reset"
 		"toggle_charge_labels":
 			show_charge_labels = not show_charge_labels
 			for pile in _get_scrap_piles():
@@ -202,7 +197,8 @@ func _ensure_demo_buttons() -> void:
 	var buttons := Node3D.new()
 	buttons.name = "DemoButtons"
 	add_child(buttons)
-	_make_button(buttons, "ResetPilesButton", Vector3(-12.6, 0.22, -9.8), "reset_piles", "Reset Piles", Color(0.35, 0.66, 0.36, 1.0))
+	# Stock now follows the durable world-time refill policy. Do not expose a
+	# scene-local reset that can disagree with saved or unloaded deposits.
 	_make_button(buttons, "ChargeLabelsButton", Vector3(-10.7, 0.22, -9.8), "toggle_charge_labels", "Toggle Charges", Color(0.72, 0.58, 0.25, 1.0))
 	_make_button(buttons, "NoiseButton", Vector3(-8.8, 0.22, -9.8), "toggle_noise_radius", "Toggle Noise", Color(0.56, 0.35, 0.94, 1.0))
 	_make_button(buttons, "NoviceButton", Vector3(-6.9, 0.22, -9.8), "select_novice", "Select Novice", Color(0.68, 0.45, 0.28, 1.0))
