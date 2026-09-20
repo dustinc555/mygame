@@ -48,6 +48,18 @@ class TestCombatActor:
 
 
 
+class OpenGroundSlots:
+	extends "res://features/combat/sim/game_combat_slot_system.gd"
+
+	# Component fixture, not physical navigation proof: only query boundaries
+	# are replaced; production assignment, reservations and budget stay intact.
+	func _resolve_position(_actor: Node3D, _target: Node3D, candidate: Vector3, _require_strike: bool) -> Vector3:
+		return candidate
+
+	func _can_strike(_actor: Node3D, _target: Node3D) -> bool:
+		return true
+
+
 var _failures: Array[String] = []
 var _actors: Array[Node] = []
 
@@ -59,12 +71,12 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_slot_assignment_caps_and_spreads_waiters()
-	_test_no_slot_no_attack()
-	_test_valid_slot_starts_one_side()
-	_test_symmetric_duel_keeps_alternating()
-	_test_out_of_range_returns_to_move_to_target()
-	_test_leash_blocks_impact()
-	_test_humanoid_dies_from_resolution_damage()
+	await _test_no_slot_no_attack()
+	await _test_valid_slot_starts_one_side()
+	await _test_symmetric_duel_keeps_alternating()
+	_test_out_of_range_retains_approach_reservation()
+	await _test_leash_blocks_impact()
+	await _test_humanoid_dies_from_resolution_damage()
 	_cleanup_actors()
 	_clear_script_refs()
 	if _failures.is_empty():
@@ -86,18 +98,24 @@ func _test_slot_assignment_caps_and_spreads_waiters() -> void:
 		var attacker := _make_record("attacker_%d" % index, Vector3(cos(angle), 0.0, sin(angle)) * 0.9)
 		attacker["state"].current_target_actor_id = "target"
 		records.append(attacker)
-	var slot_system = GAME_COMBAT_SLOT_SYSTEM.new()
-	slot_system._process_pairs(_slot_components(records))
+	var slot_system = OpenGroundSlots.new()
+	for _tick in range(12):
+		slot_system.process([], _slot_components(records), 0.1)
 	slot_system.free()
 	var active_count := 0
 	var waiting_count := 0
-	var occupied := {}
+	var destinations: Array[Vector3] = []
 	var wait_positions: Array[Vector3] = []
 	for index in range(1, records.size()):
 		var slot = records[index]["slot"]
-		if int(slot.slot_state) == SLOT_STATE_FIGHTING:
+		if not slot.position_valid:
+			_failures.append("attacker_requires_valid_destination index=%d" % index)
+		for destination in destinations:
+			if slot.slot_position.distance_to(destination) < 0.9:
+				_failures.append("reserved_destinations_should_not_stack index=%d" % index)
+		destinations.append(slot.slot_position)
+		if int(slot.slot_index) >= 0:
 			active_count += 1
-			occupied[int(slot.slot_index)] = true
 		elif int(slot.slot_state) == SLOT_STATE_WAITING:
 			waiting_count += 1
 			wait_positions.append(slot.wait_position)
@@ -105,9 +123,7 @@ func _test_slot_assignment_caps_and_spreads_waiters() -> void:
 		_failures.append("expected_three_active_slots got=%d" % active_count)
 	if waiting_count != 2:
 		_failures.append("expected_two_waiters got=%d" % waiting_count)
-	for slot_index in range(3):
-		if not bool(occupied.get(slot_index, false)):
-			_failures.append("missing_active_slot_index_%d" % slot_index)
+
 	if wait_positions.size() == 2 and wait_positions[0].distance_to(wait_positions[1]) <= 0.1:
 		_failures.append("waiters_should_not_stack distance=%.3f" % wait_positions[0].distance_to(wait_positions[1]))
 	_cleanup_actors()
@@ -125,6 +141,7 @@ func _test_symmetric_duel_keeps_alternating() -> void:
 	_make_ready_slot(b, "a", 0, "b")
 	var records: Array[Dictionary] = [a, b]
 	var resolution = GAME_COMBAT_RESOLUTION_SYSTEM.new()
+	await _sync_physics_bodies()
 	# Four starts require three authored handoff pauses plus attack durations.
 	var deadline: float = 4.0 * (GAME_COMBAT_RESOLUTION_SYSTEM.TURN_HANDOFF_WAIT_SECONDS + 0.2)
 	for _step in range(int(ceil(deadline / 0.05))):
@@ -139,23 +156,31 @@ func _test_symmetric_duel_keeps_alternating() -> void:
 	_cleanup_actors()
 
 
-func _test_out_of_range_returns_to_move_to_target() -> void:
+func _test_out_of_range_retains_approach_reservation() -> void:
 	var a := _make_record("a", Vector3(5.0, 0.0, 0.0))
 	var b := _make_record("b", Vector3.ZERO)
 	a["state"].current_target_actor_id = "b"
 	_make_ready_slot(a, "b", 0, "a")
 	var records: Array[Dictionary] = [a, b]
-	var slot_system = GAME_COMBAT_SLOT_SYSTEM.new()
-	slot_system._process_pairs(_slot_components(records))
+	var slot_system = OpenGroundSlots.new()
+	slot_system.process([], _slot_components(records), 0.1)
+	var destination: Vector3 = a["slot"].slot_position
+	for _tick in range(8):
+		slot_system.process([], _slot_components(records), 0.1)
 	slot_system.free()
-	if int(a["slot"].slot_state) != SLOT_STATE_MOVE_TO_TARGET or int(a["slot"].slot_index) != -1:
-		_failures.append("out_of_range_should_return_to_move_to_target state=%d slot=%d" % [int(a["slot"].slot_state), int(a["slot"].slot_index)])
+	if not a["slot"].position_valid or int(a["slot"].slot_index) < 0:
+		_failures.append("out_of_range_must_retain_approach_reservation")
+	if int(a["slot"].slot_state) == SLOT_STATE_FIGHTING:
+		_failures.append("out_of_range_reservation_must_not_allow_fighting")
+	if not a["slot"].slot_position.is_equal_approx(destination) or destination.distance_to(b["spatial"].world_position) < 0.9:
+		_failures.append("approach_must_keep_destination_not_target_center")
 	_cleanup_actors()
 
 
 func _test_no_slot_no_attack() -> void:
 	var a := _make_record("a", Vector3.ZERO)
 	var b := _make_record("b", Vector3(0.9, 0.0, 0.0))
+	await _sync_physics_bodies()
 	a["state"].current_target_actor_id = "b"
 	b["state"].current_target_actor_id = "a"
 	var records: Array[Dictionary] = [a, b]
@@ -170,6 +195,7 @@ func _test_no_slot_no_attack() -> void:
 func _test_valid_slot_starts_one_side() -> void:
 	var a := _make_record("a", Vector3.ZERO)
 	var b := _make_record("b", Vector3(0.9, 0.0, 0.0))
+	await _sync_physics_bodies()
 	_make_ready_slot(a, "b", 0, "a")
 	var records: Array[Dictionary] = [a, b]
 	var resolution = GAME_COMBAT_RESOLUTION_SYSTEM.new()
@@ -185,6 +211,7 @@ func _test_valid_slot_starts_one_side() -> void:
 func _test_leash_blocks_impact() -> void:
 	var a := _make_record("a", Vector3.ZERO)
 	var b := _make_record("b", Vector3(0.9, 0.0, 0.0))
+	await _sync_physics_bodies()
 	_make_ready_slot(a, "b", 0, "a")
 	var records: Array[Dictionary] = [a, b]
 	var resolution = GAME_COMBAT_RESOLUTION_SYSTEM.new()
@@ -210,6 +237,7 @@ func _test_humanoid_dies_from_resolution_damage() -> void:
 	var inputs_script = load("res://features/actors/sim/c_game_actor_vitals_inputs.gd")
 	var a := _make_record("a", Vector3.ZERO)
 	var b := _make_record("b", Vector3(0.9, 0.0, 0.0))
+	await _sync_physics_bodies()
 	# One clean landed hit must be lethal: a symmetric duel stalls its turn token once the victim is
 	# downed, so the victim must cross hp <= death_point (-max_hp) on the FIRST impact, not accumulate.
 	a["config"].blunt_damage = 250.0
@@ -246,6 +274,15 @@ func _make_record(actor_id: String, position: Vector3) -> Dictionary:
 	actor.name = actor_id
 	actor.stable_id = actor_id
 	actor.position = position
+	# Resolution keeps real strike rays; no override of its obstruction gate.
+	var collider := CollisionShape3D.new()
+	collider.name = "CollisionShape3D"
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.35
+	capsule.height = 1.8
+	collider.shape = capsule
+	collider.position.y = 0.9
+	actor.add_child(collider)
 	root.add_child(actor)
 	actor.set_physics_process(false)
 	actor.global_position = position
@@ -308,6 +345,7 @@ func _slot_components(records: Array[Dictionary]) -> Array:
 		_collect(records, "state"),
 		_collect(records, "slot"),
 		_collect(records, "action"),
+		_collect(records, "node"),
 	]
 
 
@@ -328,6 +366,12 @@ func _collect(records: Array[Dictionary], key: String) -> Array:
 	for record in records:
 		values.append(record[key])
 	return values
+
+
+func _sync_physics_bodies() -> void:
+	# Register the query bodies before assertions requiring a real strike.
+	await physics_frame
+	await physics_frame
 
 
 func _cleanup_actors() -> void:

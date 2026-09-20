@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="CombatAnimationSet" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://features/actors/resources/characters/combat_animation_set.gd" id="1_set"]
+[ext_resource type="Script" path="res://features/actors/resources/characters/combat_attack_animation.gd" id="2_attack"]
+
+[sub_resource type="Resource" id="Attack_bite"]
+script = ExtResource("2_attack")
+attack_id = "bite"
+animation_names = PackedStringArray("Zombie_Bite")
+weight = 1.0
+impact_ratio = 0.45
+hit_reaction_names = PackedStringArray("Hit_Head", "Hit_Chest")
+
+[sub_resource type="Resource" id="Attack_claw"]
+script = ExtResource("2_attack")
+attack_id = "claw"
+animation_names = PackedStringArray("Zombie_Scratch")
+weight = 1.0
+impact_ratio = 0.45
+hit_reaction_names = PackedStringArray("Hit_Chest", "Hit_Shoulder_L")
+
+[resource]
+script = ExtResource("1_set")
+stance_id = "unarmed"
+idle_animation_name = "Zombie_Idle"
+block_animation_name = "Sword_Block"
+fallback_hit_reaction_names = PackedStringArray("Hit_Chest", "Hit_Head", "Hit_Stomach")
+attacks = [SubResource("Attack_bite"), SubResource("Attack_claw")]

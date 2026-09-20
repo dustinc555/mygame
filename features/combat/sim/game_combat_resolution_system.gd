@@ -13,6 +13,7 @@ const C_VITALS = preload("res://features/actors/sim/c_game_actor_vitals.gd")
 const C_CONFIG = preload("res://features/combat/sim/c_game_combat_config.gd")
 const C_ACTION = preload("res://features/combat/sim/c_game_combat_action.gd")
 const C_SLOT = preload("res://features/combat/sim/c_game_combat_slot_state.gd")
+const COMBAT_NAVIGATION = preload("res://features/combat/bridge/combat_navigation.gd")
 
 const COMBAT_RANGE_HYSTERESIS := 0.18
 const FIXED_COMBAT_TICK_SECONDS := 1.0 / 20.0
@@ -144,6 +145,8 @@ func _try_start_slot_action(index: int, nodes: Array, identities: Array, spatial
 	if not _slot_pair_is_fighting(actor_id, target_actor_id, spatials, configs, slots, actor_index_by_id):
 		return
 	var target_actor := _actor_from_node_component(nodes[target_index])
+	if not COMBAT_NAVIGATION.can_strike(actor as Node3D, target_actor as Node3D):
+		return
 	var spec := actor.call("get_system_combat_attack_spec") as Dictionary if actor.has_method("get_system_combat_attack_spec") else {}
 	_start_action(action, actor, target_actor, target_actor_id, cfg, spec)
 	if combat_response_system != null:
@@ -198,6 +201,10 @@ func _resolve_action_impact(attacker_index: int, nodes: Array, identities: Array
 	var attacker_actor := _actor_from_node_component(nodes[attacker_index])
 	var target_actor := _actor_from_node_component(nodes[target_index])
 	if attacker_actor == null or target_actor == null:
+		return
+	# Query again at impact: neither a slot assignment nor clear windup permits
+	# damage, wakeup, hostility or attribution through newly obstructing geometry.
+	if not COMBAT_NAVIGATION.can_strike(attacker_actor as Node3D, target_actor as Node3D):
 		return
 	var attacker_cfg = configs[attacker_index]
 	var target_cfg = configs[target_index]

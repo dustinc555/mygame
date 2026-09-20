@@ -800,6 +800,9 @@ func _update_locomotion_animation(delta: float) -> void:
 ## True when this fighter should stand their ground in the combat idle: a live
 ## combat target within striking distance (main's rule + hysteresis).
 func _should_hold_combat_idle_animation() -> bool:
+	# Close-range flanking is still walking, not an idle pose sliding sideways.
+	if _system_move_active and not _system_move_settled:
+		return false
 	var target := get_current_combat_target()
 	if target == null or not (target is Node3D):
 		return false

@@ -71,6 +71,11 @@
       "timeout_seconds": 300,
       "reason": "Helper has two bounded 120-second readiness waits plus twelve physical approach cases; do not cut off its own diagnosis at 90 seconds."
     },
+    "tests/validation/validate_combat_navigation_runtime.gd": {
+      "mode": "case",
+      "timeout_seconds": 370,
+      "reason": "Real actors pursue around a production well and wall, resolve aligned/crowded approaches, and release destroyed targets; preserve its bounded physical waits."
+    },
     "tests/validation/validate_law_jail_arrest.gd": {
       "mode": "case",
       "reason": "Independent exact-officer live attack, real positive damage, retaliation and nonlethal knockout with controlled native combat rolls."

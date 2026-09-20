@@ -9,6 +9,8 @@ const C_CONFIG = preload("res://features/combat/sim/c_game_combat_config.gd")
 const C_STATE = preload("res://features/combat/sim/c_game_combat_state.gd")
 const C_SLOT = preload("res://features/combat/sim/c_game_combat_slot_state.gd")
 const C_ACTION = preload("res://features/combat/sim/c_game_combat_action.gd")
+const C_NODE = preload("res://features/actors/bridge/c_game_actor_node.gd")
+const COMBAT_NAVIGATION = preload("res://features/combat/bridge/combat_navigation.gd")
 
 const FIGHT_STATE_NONE := 0
 const FIGHT_STATE_MOVE_TO_TARGET := 1
@@ -20,16 +22,29 @@ const FIXED_SLOT_TICK_SECONDS := 0.1
 const MAX_FIXED_STEPS_PER_FRAME := 3
 const ENTER_RANGE_BUFFER := 0.12
 const EXIT_RANGE_BUFFER := 0.48
+# Bounded tactical work, independent of per-frame navigation following.
+const MAX_POSITION_QUERIES_PER_FRAME := 12
+const POSITION_RECHECK_SECONDS := 0.65
+const TARGET_REPOSITION_DISTANCE := 0.45
+const POSITION_ARRIVAL_DISTANCE := 0.3
+const PERSONAL_SPACE_PADDING := 0.05
+const WAIT_RING_EXTRA := 1.1
+const OCCUPANCY_CELL_SIZE := 3.0
+const APPROACH_ANGLES := [0.0, PI / 4.0, -PI / 4.0, PI / 2.0, -PI / 2.0, 3.0 * PI / 4.0, -3.0 * PI / 4.0, PI]
 
 var _fixed_accumulator := 0.0
+var _position_queries_left := 0
+var _decision_cursor := 0
+
 
 
 func query() -> QueryBuilder:
-	return q.with_all([C_IDENTITY, C_SPATIAL, C_VITALS, C_CONFIG, C_STATE, C_SLOT, C_ACTION]).iterate(
-		[C_IDENTITY, C_SPATIAL, C_VITALS, C_CONFIG, C_STATE, C_SLOT, C_ACTION])
+	return q.with_all([C_IDENTITY, C_SPATIAL, C_VITALS, C_CONFIG, C_STATE, C_SLOT, C_ACTION, C_NODE]).iterate(
+		[C_IDENTITY, C_SPATIAL, C_VITALS, C_CONFIG, C_STATE, C_SLOT, C_ACTION, C_NODE])
 
 
 func process(_entities: Array, components: Array, delta: float) -> void:
+	_position_queries_left = MAX_POSITION_QUERIES_PER_FRAME
 	_fixed_accumulator = minf(_fixed_accumulator + maxf(delta, 0.0), FIXED_SLOT_TICK_SECONDS * float(MAX_FIXED_STEPS_PER_FRAME))
 	var fixed_steps := 0
 	while _fixed_accumulator >= FIXED_SLOT_TICK_SECONDS and fixed_steps < MAX_FIXED_STEPS_PER_FRAME:
@@ -46,6 +61,7 @@ func _process_pairs(components: Array) -> void:
 	var states: Array = components[4]
 	var slots: Array = components[5]
 	var actions: Array = components[6]
+	var nodes: Array = components[7]
 	var count := identities.size()
 	if count == 0:
 		return
@@ -55,116 +71,199 @@ func _process_pairs(components: Array) -> void:
 		if identity != null and not str(identity.actor_id).is_empty():
 			index_by_actor_id[str(identity.actor_id)] = i
 
-	for i in range(count):
-		_validate_existing_state(i, identities, spatials, vitals, configs, states, slots, actions, index_by_actor_id)
-
-	var active_counts_by_target := {}
-	var occupied_slots_by_target := {}
+	var active_indices: Array[int] = []
+	var active_counts := {}
+	var occupancy := {}
 	for i in range(count):
 		var slot = slots[i]
-		if slot == null or int(slot.slot_state) != FIGHT_STATE_FIGHTING:
+		var desired := _desired_target_actor_id(states[i])
+		var target_index := int(index_by_actor_id.get(desired, -1))
+		if target_index < 0 or target_index == i or not _can_use_pair(i, target_index, spatials, vitals, configs) or _actor(nodes[i]) == null or _actor(nodes[target_index]) == null:
+			slot.clear()
 			continue
-		var target_id := str(slot.slot_target_actor_id)
-		if target_id.is_empty():
-			continue
-		active_counts_by_target[target_id] = int(active_counts_by_target.get(target_id, 0)) + 1
-		var occupied: Dictionary = occupied_slots_by_target.get(target_id, {})
-		if int(slot.slot_index) >= 0:
-			occupied[int(slot.slot_index)] = true
-		occupied_slots_by_target[target_id] = occupied
-
+		if str(slot.slot_target_actor_id) != desired:
+			slot.clear()
+			slot.slot_target_actor_id = desired
+		_tick_clock(slot)
+		slot.position_recheck_remaining = maxf(0.0, float(slot.position_recheck_remaining) - FIXED_SLOT_TICK_SECONDS)
+		_update_geometry_cache(slot, spatials[i].world_position, spatials[target_index].world_position, configs[i], configs[target_index])
+		var actor := _actor(nodes[i])
+		var path_failed := actor != null and actor.has_method("has_combat_navigation_failed") and bool(actor.call("has_combat_navigation_failed"))
+		if path_failed or (slot.position_valid and slot.position_target_origin.distance_to(spatials[target_index].world_position) > TARGET_REPOSITION_DISTANCE):
+			slot.position_valid = false
+			slot.position_recheck_remaining = 0.0
+			if path_failed:
+				slot.position_search_cursor = (int(slot.position_search_cursor) + 1) % APPROACH_ANGLES.size()
+		if slot.position_valid and int(slot.slot_index) >= 0:
+			active_counts[desired] = int(active_counts.get(desired, 0)) + 1
+		active_indices.append(i)
+	# One local spatial index for actual settled bodies and reserved destinations.
+	# Approaching actors yield locally through RVO; they must not evict a front
+	# fighter merely because they arrived already overlapping it.
 	for i in range(count):
-		_assign_or_update_state(i, identities, spatials, vitals, configs, states, slots, index_by_actor_id, active_counts_by_target, occupied_slots_by_target)
+		if vitals[i].life_state != NpcRules.LifeState.ALIVE or _actor(nodes[i]) == null:
+			continue
+		var slot = slots[i]
+		if _desired_target_actor_id(states[i]).is_empty() or int(slot.slot_state) == FIGHT_STATE_FIGHTING:
+			_add_occupant(occupancy, i, spatials[i].world_position, false)
+		if slot.position_valid:
+			_add_occupant(occupancy, i, slot.slot_position, true)
+	# Preserve settled assignments; among new arrivals, give the near fighter
+	# first choice so the rear one goes around instead of displacing the front.
+	active_indices.sort_custom(func(a: int, b: int) -> bool:
+		var ta: int = index_by_actor_id[str(slots[a].slot_target_actor_id)]
+		var tb: int = index_by_actor_id[str(slots[b].slot_target_actor_id)]
+		return spatials[a].world_position.distance_squared_to(spatials[ta].world_position) < spatials[b].world_position.distance_squared_to(spatials[tb].world_position)
+	)
+	if active_indices.is_empty():
+		return
+	var start := _decision_cursor % active_indices.size()
+	for offset in active_indices.size():
+		var ordinal := (start + offset) % active_indices.size()
+		var i := active_indices[ordinal]
+		var slot = slots[i]
+		var target_index: int = index_by_actor_id[str(slot.slot_target_actor_id)]
+		var wants_active: bool = (slot.position_valid and int(slot.slot_index) >= 0) or int(active_counts.get(str(slot.slot_target_actor_id), 0)) < maxi(1, int(configs[target_index].active_attack_slots))
+		# WARNING [ANTI-ORBIT]: settle on entering a valid stance, within the query budget.
+		# Waiting for the periodic recheck lets moving duelists pass and chase again.
+		var can_settle_now: bool = wants_active and _can_hold_stance(i, target_index, spatials, configs, slots) and (not slot.position_valid or _horizontal_distance(spatials[i].world_position, slot.slot_position) > WorldActor.COMBAT_ARRIVAL_DISTANCE) and _position_is_free(i, spatials[i].world_position, configs, slots, occupancy)
+		if (slot.position_recheck_remaining <= 0.0 or can_settle_now) and _position_queries_left > 0 and not actions[i].action_active:
+			var had_active: bool = slot.position_valid and int(slot.slot_index) >= 0
+			if had_active:
+				active_counts[str(slot.slot_target_actor_id)] = int(active_counts.get(str(slot.slot_target_actor_id), 0)) - 1
+			_choose_position(i, target_index, wants_active, nodes, spatials, configs, slots, occupancy)
+			if wants_active and not slot.position_valid and _position_queries_left > 0:
+				_choose_position(i, target_index, false, nodes, spatials, configs, slots, occupancy)
+			if slot.position_valid and int(slot.slot_index) >= 0:
+				active_counts[str(slot.slot_target_actor_id)] = int(active_counts.get(str(slot.slot_target_actor_id), 0)) + 1
+			_decision_cursor = (ordinal + 1) % active_indices.size()
+		_update_arrival(i, target_index, nodes, spatials, configs, slots)
 
 
-func _validate_existing_state(index: int, identities: Array, spatials: Array, vitals: Array, configs: Array, states: Array, slots: Array, _actions: Array, index_by_actor_id: Dictionary) -> void:
+func _choose_position(index: int, target_index: int, active: bool, nodes: Array, spatials: Array, configs: Array, slots: Array, occupancy: Dictionary) -> void:
 	var slot = slots[index]
-	if slot == null or int(slot.slot_state) == FIGHT_STATE_NONE:
+	var actor := _actor(nodes[index])
+
+	var target := _actor(nodes[target_index])
+	var center: Vector3 = spatials[target_index].world_position
+	var origin: Vector3 = spatials[index].world_position
+	var offset := origin - center
+	var base_angle := atan2(offset.z, offset.x)
+	var radius := maxf(float(slot.engage_distance), float(configs[index].navigation_agent_radius) + float(configs[target_index].navigation_agent_radius) + PERSONAL_SPACE_PADDING)
+	if not active:
+		radius += WAIT_RING_EXTRA
+	# WARNING [ANTI-ORBIT]: prefer a valid current stance, then the retained world point.
+	# Finishing an obsolete flank can sustain mutual circling instead of fighting.
+	# It must pass the same occupancy, standing and strike checks as any point;
+	# an overlapping rear attacker cannot use this to avoid going around.
+	var candidates: Array[Vector3] = []
+	candidates.append(origin if active and _can_hold_stance(index, target_index, spatials, configs, slots) else Vector3.INF)
+	# Otherwise keep the existing world point before seeking a new approach.
+	if slot.position_valid and active == (int(slot.slot_index) >= 0):
+		candidates.append(slot.slot_position)
+	else:
+		candidates.append(Vector3.INF)
+	for step in APPROACH_ANGLES.size():
+		var angle := base_angle + float(APPROACH_ANGLES[(step + int(slot.position_search_cursor)) % APPROACH_ANGLES.size()])
+		candidates.append(center + Vector3(cos(angle), 0.0, sin(angle)) * radius)
+	slot.position_valid = false
+	for candidate_index in candidates.size():
+		var candidate := candidates[candidate_index]
+		if not candidate.is_finite() or not _position_is_free(index, candidate, configs, slots, occupancy):
+			continue
+		if _position_queries_left <= 0:
+			break
+		_position_queries_left -= 1
+		var resolved := _resolve_position(actor, target, candidate, active)
+
+		if not resolved.is_finite() or not _position_is_free(index, resolved, configs, slots, occupancy):
+			continue
+		if active and _horizontal_distance(resolved, center) > _enter_range(configs[index], configs[target_index]) - WorldActor.COMBAT_ARRIVAL_DISTANCE:
+			continue
+		slot.position_valid = true
+		slot.slot_position = resolved
+		slot.wait_position = resolved
+		slot.position_target_origin = center
+		var direction := resolved - center
+		direction.y = 0.0
+		slot.pair_axis = direction.normalized()
+		slot.slot_angle = atan2(direction.z, direction.x)
+		if candidate_index >= 2:
+			var chosen_index := (candidate_index - 2 + int(slot.position_search_cursor)) % APPROACH_ANGLES.size()
+			slot.slot_index = chosen_index if active else -1
+			slot.wait_index = -1 if active else chosen_index
+		elif candidate_index == 0:
+			slot.slot_index = maxi(0, int(slot.slot_index))
+			slot.wait_index = -1
+		# WARNING [ANTI-ORBIT]: reset after success; retain the WORLD POINT, not the angle.
+		# Reapplying a flank angle to a moving bearing makes opponents orbit each other.
+		# Regression guards: tests/unit/test_combat_positioning.gd (reposition + settle).
+		slot.position_search_cursor = 0
+		slot.position_recheck_remaining = POSITION_RECHECK_SECONDS
+		_add_occupant(occupancy, index, resolved, true)
 		return
-	_tick_clock(slot)
-	var actor_id := _actor_id_at(index, identities)
-	var target_id := str(slot.slot_target_actor_id)
-	var desired := _desired_target_actor_id(states[index])
-	if actor_id.is_empty() or desired.is_empty() or desired == actor_id:
-		slot.clear()
-		return
-	if target_id.is_empty() or target_id != desired or not index_by_actor_id.has(target_id):
-		_set_move_to_target(slot, desired)
-		return
-	var target_index: int = index_by_actor_id[target_id]
-	if not _can_use_pair(index, target_index, spatials, vitals, configs):
-		slot.clear()
-		return
-	var actor_pos: Vector3 = spatials[index].world_position
-	var target_pos: Vector3 = spatials[target_index].world_position
-	_update_geometry_cache(slot, actor_pos, target_pos, configs[index], configs[target_index])
-	var distance := _horizontal_distance(actor_pos, target_pos)
-	if distance > _exit_range(configs[index], configs[target_index]):
-		_set_move_to_target(slot, target_id)
-		return
-	if int(slot.slot_state) == FIGHT_STATE_MOVE_TO_TARGET and distance <= _enter_range(configs[index], configs[target_index]):
-		_set_state(slot, FIGHT_STATE_SEEKING_SLOT)
+	slot.slot_index = -1
+	slot.position_search_cursor = (int(slot.position_search_cursor) + 1) % APPROACH_ANGLES.size()
+	slot.position_recheck_remaining = POSITION_RECHECK_SECONDS
 
 
-func _assign_or_update_state(index: int, identities: Array, spatials: Array, vitals: Array, configs: Array, states: Array, slots: Array, index_by_actor_id: Dictionary, active_counts_by_target: Dictionary, occupied_slots_by_target: Dictionary) -> void:
+func _can_hold_stance(index: int, target_index: int, spatials: Array, configs: Array, slots: Array) -> bool:
+	var origin: Vector3 = spatials[index].world_position
+	var center: Vector3 = spatials[target_index].world_position
+	var distance := _horizontal_distance(origin, center)
+	var clearance := float(configs[index].navigation_agent_radius) + float(configs[target_index].navigation_agent_radius) + PERSONAL_SPACE_PADDING
+	return distance >= maxf(float(slots[index].min_pair_distance), clearance) and distance <= _enter_range(configs[index], configs[target_index]) - WorldActor.COMBAT_ARRIVAL_DISTANCE and absf(origin.y - center.y) <= float(configs[index].move_target_vertical_tolerance)
+
+
+func _update_arrival(index: int, target_index: int, nodes: Array, spatials: Array, configs: Array, slots: Array) -> void:
 	var slot = slots[index]
-	if slot == null:
+	if not slot.position_valid:
+		_set_state(slot, FIGHT_STATE_MOVE_TO_TARGET)
 		return
-	var actor_id := _actor_id_at(index, identities)
-	var desired := _desired_target_actor_id(states[index])
-	if actor_id.is_empty() or desired.is_empty() or desired == actor_id or not index_by_actor_id.has(desired):
-		slot.clear()
+	if int(slot.slot_index) < 0:
+		_set_state(slot, FIGHT_STATE_WAITING)
 		return
-	var target_index: int = index_by_actor_id[desired]
-	if not _can_use_pair(index, target_index, spatials, vitals, configs):
-		slot.clear()
-		return
-	var actor_pos: Vector3 = spatials[index].world_position
-	var target_pos: Vector3 = spatials[target_index].world_position
-	_update_geometry_cache(slot, actor_pos, target_pos, configs[index], configs[target_index])
-	var distance := _horizontal_distance(actor_pos, target_pos)
-	if distance > _enter_range(configs[index], configs[target_index]):
-		_set_move_to_target(slot, desired)
-		return
-	if int(slot.slot_state) == FIGHT_STATE_FIGHTING and str(slot.slot_target_actor_id) == desired:
-		return
-	_set_state(slot, FIGHT_STATE_SEEKING_SLOT)
-	var target_cfg = configs[target_index]
-	var target_slot_count := maxi(int(target_cfg.active_attack_slots), 1)
-	var occupied: Dictionary = occupied_slots_by_target.get(desired, {})
-	var active_count := int(active_counts_by_target.get(desired, 0))
-	if active_count >= target_slot_count:
-		_set_waiting(slot, desired)
-		return
-	var desired_slot := _slot_index_for_direction_count(actor_pos, target_pos, target_slot_count)
-	var slot_index := _nearest_free_slot_for_count(occupied, desired_slot, target_slot_count)
-	if slot_index < 0:
-		_set_waiting(slot, desired)
-		return
-	slot.slot_target_actor_id = desired
-	slot.slot_index = slot_index
-	slot.wait_index = -1
-	slot.slot_angle = _angle_for_slot_index(slot_index, target_slot_count)
-	slot.pair_axis = _axis_for_angle(float(slot.slot_angle))
-	# The turn token (tempo_*) is owned by the resolution system on a canonical per-pair slot;
-	# do not seed it here, or each fighter's own slot ends up holding a separate, crossed token.
-	_set_state(slot, FIGHT_STATE_FIGHTING)
-	occupied[slot_index] = true
-	occupied_slots_by_target[desired] = occupied
-	active_counts_by_target[desired] = active_count + 1
+	var origin: Vector3 = spatials[index].world_position
+	var target_position: Vector3 = spatials[target_index].world_position
+	var arrived := _horizontal_distance(origin, slot.slot_position) <= POSITION_ARRIVAL_DISTANCE and absf(origin.y - target_position.y) <= float(configs[index].move_target_vertical_tolerance)
+	var in_range := _horizontal_distance(origin, target_position) <= _enter_range(configs[index], configs[target_index])
+	_set_state(slot, FIGHT_STATE_FIGHTING if arrived and in_range and _can_strike(_actor(nodes[index]), _actor(nodes[target_index])) else FIGHT_STATE_SEEKING_SLOT)
 
 
-func _set_move_to_target(slot, target_id: String) -> void:
-	slot.slot_target_actor_id = target_id
-	slot.slot_index = -1
-	slot.wait_index = -1
-	_set_state(slot, FIGHT_STATE_MOVE_TO_TARGET)
+func _add_occupant(occupancy: Dictionary, index: int, position: Vector3, reserved: bool) -> void:
+	var cell := Vector2i(floori(position.x / OCCUPANCY_CELL_SIZE), floori(position.z / OCCUPANCY_CELL_SIZE))
+	if not occupancy.has(cell):
+		occupancy[cell] = []
+	occupancy[cell].append({"index": index, "position": position, "reserved": reserved})
 
 
-func _set_waiting(slot, target_id: String) -> void:
-	slot.slot_target_actor_id = target_id
-	slot.slot_index = -1
-	_set_state(slot, FIGHT_STATE_WAITING)
+func _position_is_free(index: int, position: Vector3, configs: Array, slots: Array, occupancy: Dictionary) -> bool:
+	var cell := Vector2i(floori(position.x / OCCUPANCY_CELL_SIZE), floori(position.z / OCCUPANCY_CELL_SIZE))
+	for x in range(cell.x - 1, cell.x + 2):
+		for z in range(cell.y - 1, cell.y + 2):
+			for entry in occupancy.get(Vector2i(x, z), []):
+				var other := int(entry.index)
+				if other == index or absf(position.y - (entry.position as Vector3).y) > float(configs[index].move_target_vertical_tolerance):
+					continue
+				if entry.reserved and (not slots[other].position_valid or slots[other].slot_position != entry.position):
+					continue
+				var clearance := float(configs[index].navigation_agent_radius) + float(configs[other].navigation_agent_radius) + PERSONAL_SPACE_PADDING
+				if _horizontal_distance(position, entry.position) < clearance:
+					return false
+	return true
+
+
+func _actor(component) -> Node3D:
+	var actor: Node = component.get_actor() if component != null else null
+	return actor as Node3D if actor != null and actor.is_inside_tree() and not actor.is_queued_for_deletion() else null
+
+
+func _resolve_position(actor: Node3D, target: Node3D, candidate: Vector3, require_strike: bool) -> Vector3:
+	return COMBAT_NAVIGATION.find_reachable_position(actor, target, candidate, require_strike)
+
+
+func _can_strike(actor: Node3D, target: Node3D) -> bool:
+	return COMBAT_NAVIGATION.can_strike(actor, target)
 
 
 func _tick_clock(slot) -> void:
@@ -182,15 +281,13 @@ func _set_state(slot, next_state: int) -> void:
 func _update_geometry_cache(slot, actor_pos: Vector3, target_pos: Vector3, cfg, target_cfg) -> void:
 	var direction := actor_pos - target_pos
 	direction.y = 0.0
-	if direction.length_squared() > 0.0001:
+	if not slot.position_valid and direction.length_squared() > 0.0001:
 		slot.pair_axis = direction.normalized()
 	var ideal := maxf(minf(float(cfg.attack_range), float(target_cfg.attack_range)), 0.55)
 	slot.engage_distance = ideal
 	slot.min_pair_distance = maxf(0.35, ideal - ENTER_RANGE_BUFFER)
 	slot.max_pair_distance = _enter_range(cfg, target_cfg)
 	slot.leash_distance = _exit_range(cfg, target_cfg)
-	slot.slot_position = target_pos
-	slot.wait_position = actor_pos
 	slot.pair_anchor_position = (actor_pos + target_pos) * 0.5
 
 
@@ -211,8 +308,7 @@ func _can_use_pair(index: int, target_index: int, spatials: Array, vitals: Array
 		return false
 	if vit.life_state != NpcRules.LifeState.ALIVE or target_vit.life_state != NpcRules.LifeState.ALIVE:
 		return false
-	if absf(spatials[index].world_position.y - spatials[target_index].world_position.y) > float(cfg.move_target_vertical_tolerance):
-		return false
+	# Vertical strike tolerance must not prevent navigation to another floor.
 	return not bool(cfg.protected_from_combat) and not bool(target_cfg.protected_from_combat)
 
 
@@ -221,46 +317,6 @@ func _desired_target_actor_id(state) -> String:
 		return ""
 	var system_target := str(state.system_target_actor_id)
 	return system_target if not system_target.is_empty() else str(state.current_target_actor_id)
-
-
-func _actor_id_at(index: int, identities: Array) -> String:
-	var identity = identities[index]
-	return str(identity.actor_id) if identity != null else ""
-
-
-func _slot_index_for_direction_count(actor_pos: Vector3, target_pos: Vector3, slot_count: int) -> int:
-	slot_count = maxi(slot_count, 1)
-	var direction := actor_pos - target_pos
-	direction.y = 0.0
-	if direction.length_squared() <= 0.0001:
-		return 0
-	var angle := atan2(direction.z, direction.x)
-	if angle < 0.0:
-		angle += TAU
-	return int(round(angle / TAU * float(slot_count))) % slot_count
-
-
-func _nearest_free_slot_for_count(occupied_slots: Dictionary, desired_slot: int, slot_count: int) -> int:
-	slot_count = maxi(slot_count, 1)
-	desired_slot = posmod(desired_slot, slot_count)
-	if not bool(occupied_slots.get(desired_slot, false)):
-		return desired_slot
-	for offset in range(1, slot_count):
-		var right_slot := (desired_slot + offset) % slot_count
-		if not bool(occupied_slots.get(right_slot, false)):
-			return right_slot
-		var left_slot := posmod(desired_slot - offset, slot_count)
-		if not bool(occupied_slots.get(left_slot, false)):
-			return left_slot
-	return -1
-
-
-func _angle_for_slot_index(slot_index: int, slot_count: int) -> float:
-	return TAU * float(posmod(slot_index, maxi(slot_count, 1))) / float(maxi(slot_count, 1))
-
-
-func _axis_for_angle(angle: float) -> Vector3:
-	return Vector3(cos(angle), 0.0, sin(angle)).normalized()
 
 
 func _horizontal_distance(a: Vector3, b: Vector3) -> float:

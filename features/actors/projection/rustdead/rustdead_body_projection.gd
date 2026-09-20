@@ -8,6 +8,7 @@ class_name RustdeadBodyProjection
 const RUSTDEAD_IDLE_ANIMATION_NAME := "Zombie_Idle"
 const RUSTDEAD_WALK_ANIMATION_NAME := "Zombie_Walk_Fwd"
 const RUSTDEAD_RUN_ANIMATION_NAME := "Zombie_Run_Fwd"
+const RUSTDEAD_COMBAT_ANIMATION_SET = preload("res://features/actors/resources/characters/rustdead_combat_animation_set.tres")
 const RUSTDEAD_ANIMATION_NAMES: Array[String] = [
 	"Zombie_Idle", "Zombie_Walk_Fwd", "Zombie_Run_Fwd",
 	"Zombie_Bite", "Zombie_Scratch", "Zombie_Spawn",
@@ -63,6 +64,14 @@ func setup_visual() -> void:
 	super.setup_visual()
 	if actor != null and _actor.is_cinder_burned():
 		apply_cinder_burned_visuals()
+
+
+func get_combat_animation_set(stance_id: String):
+	# Select real zombie clips before the actor calculates attack/impact timing.
+	# Their import/retargeting remains in _copy_character_animations below.
+	if stance_id == UNARMED_STANCE_ID:
+		return RUSTDEAD_COMBAT_ANIMATION_SET
+	return super.get_combat_animation_set(stance_id)
 
 
 func play_clip(animation_name: String, speed_ratio: float = 0.0, force_restart: bool = false, blend_seconds: float = DEFAULT_MOVE_BLEND_SECONDS) -> bool:

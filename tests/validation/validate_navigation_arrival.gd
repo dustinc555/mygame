@@ -223,8 +223,13 @@ func _settings_and_authority() -> void:
 		actor.process_world_actor_movement(1.0 / 60.0)
 	_expect(actor.position.x > 0.1, "Player navigation order must outrank combat movement")
 	actor.set_active_player_order(false)
+	var combat_start := actor.position
 	actor.process_world_actor_movement(1.0 / 60.0)
-	_expect(is_equal_approx(actor.velocity.x, -1.0), "Combat must resume when player authority is released")
+	_expect(actor.has_move_target() and actor.get_move_target() == Vector3(-4, 0, 0), "Combat must resume through the same navigation target when player authority is released")
+	for frame in range(45):
+		await physics_frame
+		actor.process_world_actor_movement(1.0 / 60.0)
+	_expect(actor.position.x < combat_start.x - 0.1, "Resumed combat must physically follow its route, not just submit a target")
 	actor.set_system_movement_bridge(0, false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, false, 0)
 	# Replace the live target without an intervening stop; no stale route may win.
 	actor.navigation_target_desired_distance = 0.35

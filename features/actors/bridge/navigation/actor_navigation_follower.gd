@@ -15,6 +15,7 @@ var move_target := Vector3.ZERO
 var has_move_target := false
 var safe_velocity := Vector3.ZERO
 var has_safe_velocity := false
+var arrival_distance_override := -1.0
 
 var _body: CharacterBody3D
 var _target_synced := false
@@ -59,8 +60,9 @@ func _enter_tree() -> void:
 	_reset_stuck_tracking()
 
 
-func set_move_target(target: Vector3) -> void:
+func set_move_target(target: Vector3, arrival_distance := -1.0) -> void:
 	var target_changed := not has_move_target or move_target.distance_squared_to(target) > TARGET_CHANGE_DISTANCE_SQUARED
+	arrival_distance_override = arrival_distance
 	move_target = target
 	has_move_target = true
 	if not target_changed:
@@ -75,6 +77,7 @@ func set_move_target(target: Vector3) -> void:
 
 func clear_move_target() -> void:
 	has_move_target = false
+	arrival_distance_override = -1.0
 	_target_synced = false
 	_query_grace_remaining = 0.0
 	_zero_waypoint_blocked = false
@@ -138,7 +141,7 @@ func _get_point_move_direction(point: Vector3) -> Vector3:
 
 
 func _sync_target_if_needed() -> void:
-	target_desired_distance = _body.navigation_target_desired_distance
+	target_desired_distance = _arrival_distance()
 	if _target_synced and _synced_target.distance_squared_to(move_target) <= TARGET_CHANGE_DISTANCE_SQUARED:
 		return
 	target_position = move_target
@@ -150,7 +153,11 @@ func _sync_target_if_needed() -> void:
 
 func _is_close_to_move_target() -> bool:
 	var to_target := move_target - _body.global_position
-	return Vector2(to_target.x, to_target.z).length() <= _body.navigation_target_desired_distance and absf(to_target.y) <= _body.move_target_vertical_tolerance
+	return Vector2(to_target.x, to_target.z).length() <= _arrival_distance() and absf(to_target.y) <= _body.move_target_vertical_tolerance
+
+
+func _arrival_distance() -> float:
+	return arrival_distance_override if arrival_distance_override >= 0.0 else _body.navigation_target_desired_distance
 
 
 func _is_final_position_close_enough() -> bool:
