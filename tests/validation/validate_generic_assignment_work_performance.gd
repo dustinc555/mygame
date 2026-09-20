@@ -69,10 +69,14 @@ func _run() -> void:
 	jobs._process_party_job_dispatch()
 	_expect(provider.query_count == 1, "one offer snapshot serves all assignment workers")
 	_expect(provider.probe_count <= 16 * 24, "each queued assignment actor probes a bounded offer slice")
-	for _frame in 32:
+	# Time-budget yields need not fill the count cap; still require progress
+	# every tick and a finite drain with at least one actor per tick.
+	for _frame in 300:
 		if jobs._pending_assignment_actor_ids.is_empty():
 			break
+		var pending_before: int = jobs._pending_assignment_actor_ids.size()
 		jobs._process_party_job_dispatch()
+		_expect(jobs._pending_assignment_actor_ids.size() < pending_before, "every nonempty dispatch makes progress")
 	_expect(provider.query_count == 1, "one provider snapshot serves the complete bounded event burst")
 	_expect(jobs._pending_assignment_actor_ids.is_empty(), "complete event burst drains every pending worker")
 	_expect(provider.accepted_count == 0, "rejecting provider accepts no worker")
@@ -82,7 +86,7 @@ func _run() -> void:
 	jobs.call("notify_work_offers_changed", "town")
 	jobs._process_party_job_dispatch()
 	_expect(provider.query_count == 2, "provider change wakes relevant idle assignment workers once")
-	for _frame in 32:
+	for _frame in 300:
 		if jobs._pending_assignment_actor_ids.is_empty(): break
 		jobs._process_party_job_dispatch()
 	var probes_before_delta := provider.probe_count
@@ -91,7 +95,7 @@ func _run() -> void:
 	_expect(provider.query_count == 2 and provider.probe_count > probes_before_delta, "single-offer deltas wake workers without rebuilding the provider snapshot")
 	var town_index: Dictionary = jobs._assignment_offer_index_cache.get("town", {})
 	_expect((town_index.get("all", []) as Array).size() == 300, "single-offer deltas preserve every untouched indexed offer")
-	for _frame in 32:
+	for _frame in 300:
 		if jobs._pending_assignment_actor_ids.is_empty(): break
 		jobs._process_party_job_dispatch()
 	_expect(jobs._pending_assignment_actor_ids.is_empty(), "delta event burst drains pending workers")

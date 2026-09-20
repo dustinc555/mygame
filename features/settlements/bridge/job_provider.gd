@@ -226,6 +226,8 @@ func _process_passive_player_party_server_contracts(delta: float) -> void:
 
 
 func create_assigned_work_ai_job(worker: WorldActor, job_label := ""):
+	if not _can_execute_worker_duty(worker):
+		return null
 	var assignment := _find_worker_slot(worker)
 	if assignment.is_empty():
 		return null
@@ -252,6 +254,10 @@ func create_assigned_work_ai_job(worker: WorldActor, job_label := ""):
 
 
 func tick_worker_job_from_ai(worker: WorldActor, delta: float, _ai_job = null) -> Dictionary:
+	# Revoke before the priority-order early return: holding a claim is work too.
+	if not _can_execute_worker_duty(worker):
+		pause_worker_job(worker, false)
+		return {"active": false, "ended": true, "blocker": "Assignment duty is not granted"}
 	# Workers engaged in higher-duty orders (hauling a prisoner to a cell, carrying,
 	# healing) are off-limits: job movement commands would cancel that order and
 	# tug-of-war the actor. Jobs resume when the order completes. (Main enforced
@@ -298,15 +304,12 @@ func pause_worker_job(worker: WorldActor, caused_by_player: bool = false) -> voi
 func cancel_work_for_actor(worker: WorldActor) -> void:
 	if not is_instance_valid(worker):
 		return
-	var owned_movement := worker.get_active_job_provider() == self and not worker.has_active_player_order()
 	pause_worker_job(worker, false)
 	var bridge := _get_gecs_world()
 	var entity = bridge.get_actor_entity(worker) if bridge != null else null
 	var ai = entity.get_component(CGameAiState) if entity != null else null
 	if ai != null and ai.active_job != null and ai.active_job.source == self:
 		ai.finish_job(AiTaskStep.StepStatus.CANCELLED)
-	if owned_movement:
-		worker.stop_movement()
 
 
 func prepare_actor_for_derealization(worker: WorldActor) -> void:
@@ -457,6 +460,8 @@ func _handle_selected_job_accept(worker: WorldActor, job_index: int, context: Di
 
 
 func _assign_worker_to_open_slot(worker: WorldActor, job_index: int) -> Dictionary:
+	if not _can_execute_worker_duty(worker):
+		return {"allowed": false, "reason": "Assignment duty is not granted"}
 	_initialize_slots()
 	var evaluation := _evaluate_job_request(worker, job_index)
 	if not evaluation.get("allowed", false):
@@ -509,6 +514,8 @@ func accept_contract_work(worker: WorldActor, offered_contract: Dictionary) -> b
 func start_contract_shift(worker: WorldActor, contract: Dictionary):
 	if worker == null or contract.is_empty():
 		return null
+	if not _can_execute_worker_duty(worker):
+		return null
 	var job_index := int(contract.get("job_index", -1))
 	if job_index < 0 or job_index >= jobs.size():
 		return null
@@ -526,9 +533,11 @@ func start_contract_shift(worker: WorldActor, contract: Dictionary):
 
 
 func get_contract_work_status(worker: WorldActor, contract: Dictionary) -> Dictionary:
-	_initialize_slots()
 	if worker == null or contract.is_empty():
 		return {"actionable": false, "reason": "No worker or contract"}
+	if not _can_execute_worker_duty(worker):
+		return {"actionable": false, "reason": "Assignment duty is not granted"}
+	_initialize_slots()
 	var job_index := int(contract.get("job_index", -1))
 	if job_index < 0 or job_index >= jobs.size():
 		return {"actionable": false, "reason": "Job index is invalid"}
@@ -597,9 +606,12 @@ func _create_job_contract_for_worker(worker: WorldActor, job_index: int) -> Dict
 
 
 func _claim_worker_slot(worker: WorldActor, job_index: int, request_ai_job := true) -> Dictionary:
-	_initialize_slots()
 	if worker == null or job_index < 0 or job_index >= jobs.size():
 		return {"allowed": false, "reason": "No job configured"}
+	# Every automatic assignment path ends here, including legacy direct claims.
+	if not _can_execute_worker_duty(worker):
+		return {"allowed": false, "reason": "Assignment duty is not granted"}
+	_initialize_slots()
 	var slot_index := _find_open_slot(job_index)
 	if slot_index < 0:
 		return {"allowed": false, "reason": "No openings right now"}
@@ -756,6 +768,9 @@ func _process_slot(job_index: int, job, slot_state: Dictionary, delta: float) ->
 		return
 	if not is_instance_valid(worker) or worker.life_state != NpcRules.LifeState.ALIVE:
 		slot_state["last_ai_blocker"] = "Worker is not alive"
+		_end_slot_assignment(job_index, slot_state, false)
+		return
+	if not _can_execute_worker_duty(worker):
 		_end_slot_assignment(job_index, slot_state, false)
 		return
 	if worker.get_active_job_provider() != self:
@@ -983,6 +998,18 @@ func _server_customer_service_distance(service_area: BarServiceArea, worker: Wor
 
 func _is_player_party_worker(worker: WorldActor) -> bool:
 	return worker != null and worker.has_method("is_player_party_member") and bool(worker.call("is_player_party_member"))
+
+
+func _can_execute_worker_duty(worker: WorldActor) -> bool:
+	if not is_instance_valid(worker):
+		return false
+	# Voluntary party contracts retain their existing policy, not NPC employment.
+	if _is_player_party_worker(worker):
+		return true
+	var controller := _job_system_controller if is_instance_valid(_job_system_controller) else _get_job_system_controller()
+	if controller == null:
+		return false
+	return controller.has_method("can_execute_assignment_duty") and bool(controller.call("can_execute_assignment_duty", worker))
 
 
 func _is_worker_listening_for_server_shift(worker: WorldActor) -> bool:
@@ -1286,9 +1313,16 @@ func _end_slot_assignment(_job_index: int, slot_state: Dictionary, _caused_by_pl
 	if service_area != null and is_instance_valid(service_seat) and service_area.has_method("release_waiter_customer_service"):
 		service_area.release_waiter_customer_service(service_seat)
 	if worker != null and worker.get_active_job_provider() == self:
-		if not worker.has_active_player_order():
+		# Cleanup owns only provider movement, never a newer player/law/combat order.
+		var order_type: int = worker.get_current_order_type()
+		var owns_mining: bool = is_instance_valid(released.get("claimed_resource")) and worker.get_assigned_mining_node() == released.get("claimed_resource")
+		var interaction: InteractionCapability = worker.get_interaction()
+		var law_move: bool = interaction != null and interaction.has_direct_law_move()
+		var carrying: bool = worker.has_method("get_carried_character") and worker.call("get_carried_character") != null
+		var owns_movement: bool = not worker.has_active_player_order() and not worker.is_in_combat() and not law_move and not carrying and (order_type == InteractionCapability.ORDER_TYPE_NONE or order_type == InteractionCapability.ORDER_TYPE_MOVE or (order_type == InteractionCapability.ORDER_TYPE_MINE and owns_mining))
+		if owns_movement:
 			worker.stop_movement()
-		if worker.has_method("stop_mining_assignment"):
+		if owns_mining and not worker.has_active_player_order():
 			worker.stop_mining_assignment()
 		worker.end_job_assignment()
 	_sync_gecs_state()

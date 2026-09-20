@@ -102,6 +102,9 @@ class FakeActor:
 
 var failures: Array[String] = []
 
+class WorkClock extends Node:
+	func get_hour() -> int: return 10
+
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -120,6 +123,9 @@ func _run() -> void:
 	scene_root.add_child(jobs)
 	context.register(&"gecs_world", gecs)
 	context.register(&"job_system", jobs)
+	var work_clock := WorkClock.new()
+	scene_root.add_child(work_clock)
+	context.register(&"world_time", work_clock)
 	var population := FixturePopulation.new()
 	scene_root.add_child(population)
 	context.register(&"population", population)

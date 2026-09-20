@@ -30,6 +30,8 @@ const GUARD_SHUFFLE_SECONDS := Vector2(14.0, 32.0)
 
 var _guard_post_by_actor_id: Dictionary = {}
 var _guard_shuffle_remaining_by_actor_id: Dictionary = {}
+# Projection-owned routine moves, never law custody/sentence targets.
+var _routine_duty_target_by_actor_id: Dictionary = {}
 var _pending_sentence_announcements: Array[Dictionary] = []
 var _cached_cells: Array[Node] = []
 var _cached_cell_by_id: Dictionary = {}
@@ -130,39 +132,79 @@ func get_property_owner_faction() -> String:
 
 func _process_warden_home_return() -> void:
 	var warden := get_warden_actor() as HumanoidCharacter
-	if warden == null or warden.life_state != NpcRules.LifeState.ALIVE:
+	if warden == null:
 		return
-	if warden.is_in_combat() or _is_actor_hauling(warden) or _is_warden_sentence_delivery_active(warden):
-		if warden.has_method("is_on_counter_duty") and bool(warden.call("is_on_counter_duty")):
-			warden.call("end_counter_duty")
+	if _has_priority_jail_activity(warden) or not _can_execute_assignment_duty(warden):
+		release_settlement_assignment_duty(warden)
 		return
 	var post := get_warden_service_point()
 	if post == null:
+		release_settlement_assignment_duty(warden)
 		return
 	var home_position: Vector3 = post.call("get_work_position") if post.has_method("get_work_position") else post.global_position
 	if _horizontal_distance(warden.global_position, home_position) <= _warden_home_arrival_distance(warden):
-		if warden.has_method("clear_law_custody_return"):
-			warden.call("clear_law_custody_return")
-		if warden.has_method("clear_law_sentence_move"):
-			warden.call("clear_law_sentence_move")
-		if warden.has_method("_clear_actor_move_target"):
-			warden.call("_clear_actor_move_target")
+		_clear_routine_duty_movement(warden)
 		warden.velocity = Vector3.ZERO
-		# At the desk with nothing more important to do: hold the counter
-		# idle facing the visitor side, same duty pose as the barkeeper.
 		if not (post.has_method("claim_worker") and not post.call("claim_worker", warden)):
-			if warden.has_method("is_on_counter_duty") and not bool(warden.call("is_on_counter_duty")):
-				var face_position: Vector3 = post.call("get_customer_position") if post.has_method("get_customer_position") else post.global_position + (post as Node3D).global_basis.z
-				warden.call("begin_counter_duty", face_position)
+			if not warden.is_on_counter_duty():
+				var face_position: Vector3 = post.call("get_customer_position") if post.has_method("get_customer_position") else post.global_position + post.global_basis.z
+				warden.begin_counter_duty(face_position)
 		return
-	if warden.has_method("is_on_counter_duty") and bool(warden.call("is_on_counter_duty")):
-		warden.call("end_counter_duty")
-	if warden.has_method("clear_law_sentence_move"):
-		warden.call("clear_law_sentence_move")
-	if warden.has_method("assign_law_custody_return_target"):
-		warden.call("assign_law_custody_return_target", home_position)
-	else:
-		warden.set_move_target(home_position, false)
+	warden.end_counter_duty()
+	# A desk commute is not custody: law moves outrank Jobs and would prevent
+	# the scheduler from handing this actor back to their actual residence.
+	_set_routine_duty_movement(warden, home_position)
+
+
+func _can_execute_assignment_duty(actor: Node) -> bool:
+	var jobs := BootstrapContext.service(&"job_system")
+	return jobs != null and jobs.has_method("can_execute_assignment_duty") and bool(jobs.call("can_execute_assignment_duty", actor))
+
+
+func _has_priority_jail_activity(actor: HumanoidCharacter) -> bool:
+	if actor.life_state != NpcRules.LifeState.ALIVE or actor.is_in_combat() or actor.has_active_player_order() or _is_actor_hauling(actor):
+		return true
+	if actor == get_warden_actor() and _is_warden_sentence_delivery_active(actor):
+		return true
+	var interaction := actor.get_interaction()
+	return interaction != null and (interaction.is_law_custody_returning() or interaction.is_law_sentence_moving())
+
+
+## Jobs owns grants and schedules; the jail only releases its local projection.
+## Real law moves (including post-custody exit) must survive a shift ending.
+func release_settlement_assignment_duty(actor: Node) -> void:
+	if actor == null or not is_instance_valid(actor):
+		return
+	var actor_id := actor.get_instance_id()
+	var post: Node = _guard_post_by_actor_id.get(actor_id)
+	if is_instance_valid(post) and post.has_method("release_worker"):
+		post.call("release_worker", actor)
+	_guard_post_by_actor_id.erase(actor_id)
+	_guard_shuffle_remaining_by_actor_id.erase(actor_id)
+	var desk := get_warden_service_point()
+	if is_instance_valid(desk) and desk.has_method("release_worker"):
+		desk.call("release_worker", actor)
+	var humanoid := actor as HumanoidCharacter
+	if humanoid != null:
+		humanoid.end_counter_duty()
+		_clear_routine_duty_movement(humanoid)
+
+
+func _set_routine_duty_movement(actor: HumanoidCharacter, target: Vector3) -> void:
+	_routine_duty_target_by_actor_id[actor.get_instance_id()] = target
+	actor.set_move_target(target, false)
+
+
+func _clear_routine_duty_movement(actor: HumanoidCharacter) -> void:
+	var actor_id := actor.get_instance_id()
+	var target: Variant = _routine_duty_target_by_actor_id.get(actor_id)
+	_routine_duty_target_by_actor_id.erase(actor_id)
+	if not (target is Vector3) or _has_priority_jail_activity(actor):
+		return
+	# A home/player/law handoff may already have replaced the old target.
+	if actor.has_move_target() and actor.get_move_target().is_equal_approx(target):
+		actor._clear_actor_move_target()
+		actor.velocity = Vector3.ZERO
 
 
 ## The warden's duty spot is discovered, never designated — mirroring how
@@ -526,8 +568,9 @@ func _process_sentence_announcements(delta: float) -> void:
 		_assign_warden_sentence_move(warden, route_target)
 		return
 	_face_warden_toward_actor(warden, actor)
-	if warden.has_method("clear_law_sentence_move"):
-		warden.call("clear_law_sentence_move")
+	var interaction := warden.get_interaction()
+	if interaction != null:
+		interaction.clear_law_sentence_move()
 	if _open_sentence_conversation(warden, actor, str(entry.get("message", ""))) and _notify_sentence_delivered(actor):
 		_pending_sentence_announcements.pop_front()
 
@@ -810,7 +853,8 @@ func _can_claim_resident_for_staff(actor: Node) -> bool:
 func _process_guard_post_assignment(guard: HumanoidCharacter, delta: float) -> void:
 	if guard == null:
 		return
-	if guard.is_in_combat() or _is_actor_hauling(guard):
+	if _has_priority_jail_activity(guard) or not _can_execute_assignment_duty(guard):
+		release_settlement_assignment_duty(guard)
 		return
 	var actor_id := guard.get_instance_id()
 	var post = _guard_post_by_actor_id.get(actor_id)
@@ -830,7 +874,9 @@ func _process_guard_post_assignment(guard: HumanoidCharacter, delta: float) -> v
 		return
 	var work_position: Vector3 = post.call("get_work_position")
 	if guard.global_position.distance_to(work_position) > guard.interact_distance:
-		guard.set_move_target(work_position, false)
+		_set_routine_duty_movement(guard, work_position)
+	else:
+		_clear_routine_duty_movement(guard)
 
 
 func _claim_guard_post_for(guard: HumanoidCharacter):

@@ -176,7 +176,7 @@ func get_available_work_offers(settlement_id := "") -> Array:
 
 
 func can_actor_accept_work_offer(offer: Dictionary, actor: Node) -> bool:
-	if actor == null or _assignments.has(actor.get_instance_id()):
+	if actor == null or not is_actor_work_schedule_active(actor) or _assignments.has(actor.get_instance_id()):
 		return false
 	if offer.get("platform") != null:
 		var platform := offer.get("platform") as Node
@@ -194,6 +194,10 @@ func can_actor_accept_work_offer(offer: Dictionary, actor: Node) -> bool:
 		return true
 	var source := _nearest_source(destination, resource_id, actor)
 	return source != null and _transfer_capacity(source, resource_id, actor) > EPSILON
+
+
+func is_actor_work_schedule_active(actor: Node) -> bool:
+	return _job_system == null or bool(_job_system.call("is_actor_work_schedule_active", actor))
 
 
 func accept_work_offer(offer: Dictionary, actor: Node) -> Dictionary:
@@ -310,6 +314,9 @@ func _connect_actor(actor: Node, actor_key: int, arrival_method: String) -> Dict
 
 
 func _on_platform_arrival(actor: Node, container: Node, actor_key: int) -> void:
+	if not is_actor_work_schedule_active(actor):
+		cancel_work_for_actor(actor)
+		return
 	var assignment: Dictionary = _assignments.get(actor_key, {})
 	var platform := assignment.get("platform") as Node
 	if actor == null or container != platform or platform == null or not is_instance_valid(platform):
@@ -320,6 +327,9 @@ func _on_platform_arrival(actor: Node, container: Node, actor_key: int) -> void:
 
 
 func _on_transfer_arrival(actor: Node, container: Node, actor_key: int) -> void:
+	if not is_actor_work_schedule_active(actor):
+		cancel_work_for_actor(actor)
+		return
 	var assignment: Dictionary = _assignments.get(actor_key, {})
 	if assignment.is_empty() or actor == null or container == null:
 		return
@@ -393,7 +403,7 @@ func _refresh_endpoint_offers(endpoint_id: String, endpoint: Node) -> void:
 		return
 	var meta: Dictionary = _endpoint_meta.get(endpoint_id, {})
 	var settlement_id := str(meta.get("settlement_id", ""))
-	var owner := str(meta.get("owner_faction_name", ""))
+	var owner_faction := str(meta.get("owner_faction_name", ""))
 	for resource_value in meta.get("resource_ids", PackedStringArray()):
 		var resource_id := str(resource_value)
 		if _endpoint_free_capacity(endpoint, resource_id) <= EPSILON:
@@ -405,7 +415,7 @@ func _refresh_endpoint_offers(endpoint_id: String, endpoint: Node) -> void:
 			"job_entry_id": "category:haul",
 			"display_name": "Haul %s" % resource_id.capitalize(),
 			"settlement_id": settlement_id,
-			"owner_faction_id": owner,
+			"owner_faction_id": owner_faction,
 			"faction_neutral": false,
 			"world_position": endpoint.global_position if endpoint is Node3D else Vector3.ZERO,
 			"urgency": _destination_urgency(endpoint, resource_id),
@@ -464,7 +474,7 @@ func _nearest_source(destination: Node, resource_id: String, actor: Node) -> Nod
 	var destination_id := str(destination.call("get_haul_endpoint_id"))
 	var meta: Dictionary = _endpoint_meta.get(destination_id, {})
 	var settlement_id := str(meta.get("settlement_id", ""))
-	var owner := str(meta.get("owner_faction_name", ""))
+	var owner_faction := str(meta.get("owner_faction_name", ""))
 	var best: Node
 	var best_distance := INF
 	for endpoint_id_value in (_endpoint_ids_by_settlement.get(settlement_id, {}) as Dictionary).keys():
@@ -473,9 +483,9 @@ func _nearest_source(destination: Node, resource_id: String, actor: Node) -> Nod
 			continue
 		var source := _endpoint_by_id(endpoint_id)
 		var source_meta: Dictionary = _endpoint_meta.get(endpoint_id, {})
-		if source == null or str(source_meta.get("owner_faction_name", "")) != owner \
+		if source == null or str(source_meta.get("owner_faction_name", "")) != owner_faction \
 				or not (source_meta.get("resource_ids", PackedStringArray()) as PackedStringArray).has(resource_id) \
-				or _endpoint_available(source, resource_id) <= EPSILON or not _actor_can_access_owner(actor, owner):
+				or _endpoint_available(source, resource_id) <= EPSILON or not _actor_can_access_owner(actor, owner_faction):
 			continue
 		var distance: float = destination.global_position.distance_squared_to(source.global_position) \
 				if destination is Node3D and source is Node3D else 0.0
@@ -489,16 +499,16 @@ func _can_actor_use_destination(destination: Node, resource_id: String, actor: N
 	if destination == null or not is_instance_valid(destination) or _endpoint_free_capacity(destination, resource_id) <= EPSILON:
 		return false
 	var endpoint_id := str(destination.call("get_haul_endpoint_id"))
-	var owner := str((_endpoint_meta.get(endpoint_id, {}) as Dictionary).get("owner_faction_name", ""))
-	return _actor_can_access_owner(actor, owner)
+	var owner_faction := str((_endpoint_meta.get(endpoint_id, {}) as Dictionary).get("owner_faction_name", ""))
+	return _actor_can_access_owner(actor, owner_faction)
 
 
-func _actor_can_access_owner(actor: Node, owner: String) -> bool:
-	if actor == null or owner.is_empty():
+func _actor_can_access_owner(actor: Node, owner_faction: String) -> bool:
+	if actor == null or owner_faction.is_empty():
 		return false
 	if actor.has_method("is_authorized_for_owner"):
-		return bool(actor.call("is_authorized_for_owner", null, owner))
-	return str(actor.get("faction_name")) == owner
+		return bool(actor.call("is_authorized_for_owner", null, owner_faction))
+	return str(actor.get("faction_name")) == owner_faction
 
 
 func _endpoint_available(endpoint: Node, resource_id: String) -> float:

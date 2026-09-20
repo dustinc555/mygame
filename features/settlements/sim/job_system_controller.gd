@@ -8,8 +8,12 @@ const DISPATCH_SLOT_SECONDS := 1.0 / 60.0
 const MAX_ACTOR_DISPATCHES_PER_TICK := 16
 const RESERVED_ASSIGNMENT_DISPATCHES_PER_TICK := 8
 const MAX_ASSIGNMENT_OFFERS_PER_ACTOR := 24
+## Soft budget checked between actors; one actor transition is non-preemptive.
+const ASSIGNMENT_DISPATCH_BUDGET_USEC := 500
 const DEFAULT_UNSCOPED_LOCAL_WORK_RADIUS := 90.0
 const FACILITY_DUTY_CONTRACT = preload("res://features/settlements/sim/facility_duty_contract.gd")
+const WORK_SCHEDULE = preload("res://features/settlements/resources/work_schedule.gd")
+const DEFAULT_WORK_SCHEDULE = preload("res://features/settlements/resources/default_work_schedule.tres")
 const CORE_JOB_SPECS := [
 	{"entry_id": "category:farm", "category": "farm", "display_name": "Farm"},
 	{"entry_id": "category:guard", "category": "guard", "display_name": "Guard"},
@@ -238,6 +242,37 @@ func cancel_work_for_actor(actor: Node) -> void:
 			provider.call("cancel_work_for_actor", actor)
 
 
+## Providers check this before advancing automatic work. Shift expiry is
+## immediate even when the budgeted Home transition is still queued.
+func is_actor_work_schedule_active(actor: Node) -> bool:
+	if _is_player_party_actor(actor):
+		return true
+	var assignment: Dictionary = _assignment_workers.get(_actor_id(actor), {})
+	return assignment.is_empty() or _assignment_schedule_is_active(assignment)
+
+
+## Role executors may perform duty, never grant it to themselves. A clock
+## match alone is insufficient: Jobs owns the active employment contract.
+func can_execute_assignment_duty(actor: Node) -> bool:
+	if actor == null or not is_instance_valid(actor) or _has_priority_order(actor):
+		return false
+	if _has_property(actor, "life_state") and int(actor.get("life_state")) != NpcRules.LifeState.ALIVE:
+		return false
+	if _is_player_party_actor(actor):
+		return true
+	var actor_id := _actor_id(actor)
+	var assignment: Dictionary = _assignment_workers.get(actor_id, {})
+	if assignment.is_empty() or not _assignment_schedule_is_active(assignment):
+		return false
+	var granted := str(actor.get_meta(FACILITY_DUTY_CONTRACT.ACTIVE_DUTY_META, "")) == str(assignment.get("duty_scope_id", ""))
+	if not granted:
+		# An executor can request reconsideration after an interruption, but
+		# only the budgeted Jobs dispatcher can authorize resumption.
+		assignment["idle_projection_active"] = false
+		_queue_assignment_worker(actor_id)
+	return granted
+
+
 ## LOD teardown is stronger than ordinary cancellation: providers may need to
 ## settle projection-owned resources before the actor node is serialized/freed.
 func prepare_actor_for_derealization(actor: Node) -> void:
@@ -254,6 +289,8 @@ func prepare_actor_for_derealization(actor: Node) -> void:
 
 func dispatch_actor_work_for_assignment(actor: Node, settlement_id: String, allowed_entry_ids: PackedStringArray = PackedStringArray(), before_accept := Callable(), available_offers = null, settlement_states = null, offer_scope_cache = null) -> bool:
 	if actor == null or not is_instance_valid(actor) or settlement_id.is_empty() or is_actor_work_busy(actor):
+		return false
+	if not is_actor_work_schedule_active(actor):
 		return false
 	var candidates: Array[Dictionary] = []
 	var offers: Array = available_offers if available_offers is Array else collect_work_offers(settlement_id)
@@ -766,11 +803,15 @@ func _process_assignment_worker_dispatch(assignment_offer_index: Dictionary, set
 	if population == null or not population.has_method("get_live_actor"):
 		return
 	var dispatched := 0
+	var started_usec := Time.get_ticks_usec()
 	while dispatched < budget:
+		if dispatched > 0 and Time.get_ticks_usec() - started_usec >= ASSIGNMENT_DISPATCH_BUDGET_USEC:
+			break
 		var actor_id := _dequeue_assignment_worker()
 		if actor_id.is_empty():
 			break
 		var assignment: Dictionary = _assignment_workers.get(actor_id, {})
+		dispatched += 1
 		if assignment.is_empty():
 			continue
 		var actor = population.call("get_live_actor", actor_id)
@@ -778,11 +819,32 @@ func _process_assignment_worker_dispatch(assignment_offer_index: Dictionary, set
 			continue
 		if _is_player_party_actor(actor):
 			continue
-		dispatched += 1
+		var callback := Callable(self, "_on_assignment_actor_woke").bind(actor_id)
+		if actor.has_signal("life_state_changed") and not actor.is_connected("life_state_changed", callback):
+			actor.connect("life_state_changed", callback)
 		if not _assignment_schedule_is_active(assignment):
 			_release_assignment_duty(actor, assignment, true)
 			continue
+		if _has_priority_order(actor):
+			_release_assignment_duty(actor, assignment, true)
+			continue
+		if _has_property(actor, "life_state") and int(actor.get("life_state")) == NpcRules.LifeState.ASLEEP:
+			var interaction = actor.call("get_interaction") if actor.has_method("get_interaction") else null
+			if interaction != null:
+				interaction.stop_sleep_assignment()
+			continue
+		if _has_property(actor, "life_state") and int(actor.get("life_state")) != NpcRules.LifeState.ALIVE:
+			continue
 		if is_actor_work_busy(actor):
+			continue
+		if not bool(assignment.get("uses_settlement_jobs", true)):
+			if not bool(assignment.get("idle_projection_active", false)) or str(assignment.get("idle_activity", "")) != "working":
+				_begin_assignment_duty(actor, assignment)
+				assignment["idle_projection_active"] = true
+				assignment["idle_activity"] = "working"
+				var settlements := _get_settlement_controller()
+				if settlements != null:
+					settlements.call("refresh_assignment_slot_projection", str(assignment.get("settlement_id", "")), "employment", str(assignment.get("slot_id", "")), "working")
 			continue
 		var before_accept := Callable(self, "_begin_assignment_duty").bind(actor, assignment)
 		var actor_offers := _assignment_offer_slice(assignment_offer_index, assignment)
@@ -831,12 +893,17 @@ func _assignment_schedule_is_active(assignment: Dictionary) -> bool:
 	var world_time := _context.get_optional(&"world_time") if _context != null else null
 	if world_time == null or not world_time.has_method("get_hour"):
 		return false
-	var hour := int(world_time.call("get_hour"))
-	var open_hour := int(assignment.get("open_hour", 0))
-	var close_hour := int(assignment.get("close_hour", 24))
-	if open_hour == close_hour:
-		return true
-	return hour >= open_hour and hour < close_hour if open_hour < close_hour else hour >= open_hour or hour < close_hour
+	return WORK_SCHEDULE.is_active(assignment.get("work_schedule", {}), int(world_time.call("get_hour")))
+
+
+func _home_activity() -> String:
+	var clock := _context.get_optional(&"world_time") if _context != null else null
+	return WORK_SCHEDULE.home_activity(int(clock.call("get_hour"))) if clock != null and clock.has_method("get_hour") else "home_day"
+
+
+func _on_assignment_actor_woke(_previous: int, current: int, actor_id: String) -> void:
+	if current == NpcRules.LifeState.ALIVE:
+		notify_assignment_worker_realized(actor_id)
 
 
 func _begin_assignment_duty(actor: Node, assignment: Dictionary) -> void:
@@ -851,6 +918,13 @@ func _begin_assignment_duty(actor: Node, assignment: Dictionary) -> void:
 		interaction.call("stop_sleep_assignment")
 
 
+func _has_priority_order(actor: Node) -> bool:
+	if (actor.has_method("has_active_player_order") and bool(actor.call("has_active_player_order"))) or (actor.has_method("is_in_combat") and bool(actor.call("is_in_combat"))):
+		return true
+	var interaction = actor.call("get_interaction") if actor.has_method("get_interaction") else null
+	return interaction != null and interaction.has_method("has_direct_law_move") and bool(interaction.call("has_direct_law_move"))
+
+
 func _release_assignment_duty(actor: Node, assignment: Dictionary, cancel_active: bool) -> void:
 	if actor == null or not is_instance_valid(actor):
 		return
@@ -859,16 +933,23 @@ func _release_assignment_duty(actor: Node, assignment: Dictionary, cancel_active
 	var duty_scope_id := str(assignment.get("duty_scope_id", assignment.get("facility_id", "")))
 	var had_duty := str(actor.get_meta(FACILITY_DUTY_CONTRACT.ACTIVE_DUTY_META, "")) == duty_scope_id
 	FACILITY_DUTY_CONTRACT.end(actor, duty_scope_id)
-	if not had_duty and bool(assignment.get("idle_projection_active", false)):
+	var settlements := _get_settlement_controller()
+	if (had_duty or cancel_active) and settlements != null and settlements.has_method("release_actor_employment_duty"):
+		settlements.call("release_actor_employment_duty", str(assignment.get("settlement_id", "")), str(assignment.get("actor_id", "")), str(assignment.get("slot_id", "")))
+	if _has_priority_order(actor):
+		assignment["idle_projection_active"] = false
+		return
+	var activity := _home_activity()
+	if not had_duty and bool(assignment.get("idle_projection_active", false)) and str(assignment.get("idle_activity", "")) == activity:
 		return
 	assignment["idle_projection_active"] = true
-	var settlements := _get_settlement_controller()
+	assignment["idle_activity"] = activity
 	if settlements != null and settlements.has_method("refresh_actor_residence_projection"):
 		settlements.call(
 			"refresh_actor_residence_projection",
 			str(assignment.get("settlement_id", "")),
 			str(assignment.get("actor_id", "")),
-			"home_day"
+			activity
 		)
 
 
@@ -910,8 +991,7 @@ func _rebuild_assignment_workers_for_settlement(settlement_id: String, state: Di
 	var next_duty_scope_by_actor: Dictionary = {}
 	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
 		var next_slot: Dictionary = slot_value
-		if str(next_slot.get("assignment_domain", "")) == "employment" and bool(next_slot.get("filled", false)) \
-				and bool(next_slot.get("uses_settlement_jobs", false)):
+		if str(next_slot.get("assignment_domain", "")) == "employment" and bool(next_slot.get("filled", false)):
 			next_duty_scope_by_actor[str(next_slot.get("occupant_actor_id", ""))] = _assignment_duty_scope(next_slot, settlement_id)
 	var previous_entries: Dictionary = {}
 	var population := _context.get_optional(&"population") if _context != null else null
@@ -925,11 +1005,10 @@ func _rebuild_assignment_workers_for_settlement(settlement_id: String, state: Di
 		_assignment_workers.erase(previous_actor_id)
 		_pending_assignment_actor_ids.erase(previous_actor_id)
 	var actor_ids := PackedStringArray()
-	var facilities: Dictionary = state.get("facilities", {})
+
 	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
 		var slot: Dictionary = slot_value
-		if str(slot.get("assignment_domain", "")) != "employment" or not bool(slot.get("filled", false)) \
-				or not bool(slot.get("uses_settlement_jobs", false)):
+		if str(slot.get("assignment_domain", "")) != "employment" or not bool(slot.get("filled", false)):
 			continue
 		var actor_id := str(slot.get("occupant_actor_id", ""))
 		var assignment_scope := str(slot.get("assignment_scope", "facility"))
@@ -937,21 +1016,26 @@ func _rebuild_assignment_workers_for_settlement(settlement_id: String, state: Di
 		var duty_scope_id := _assignment_duty_scope(slot, settlement_id)
 		if actor_id.is_empty() or duty_scope_id.is_empty():
 			continue
-		var facility: Dictionary = facilities.get(facility_id, {})
+		var schedule: Dictionary = slot.get("work_schedule", {})
+		if schedule.is_empty():
+			schedule = DEFAULT_WORK_SCHEDULE.to_record()
 		_assignment_workers[actor_id] = {
 			"actor_id": actor_id,
+			"slot_id": str(slot.get("slot_id", "")),
+			"uses_settlement_jobs": bool(slot.get("uses_settlement_jobs", false)),
 			"settlement_id": settlement_id,
 			"facility_id": facility_id,
 			"duty_scope_id": duty_scope_id,
 			"assignment_scope": assignment_scope,
 			"allowed_job_entry_ids": PackedStringArray(slot.get("allowed_job_entry_ids", PackedStringArray())),
-			"schedule_enabled": assignment_scope != "town_labor" and bool(facility.get("door_schedule_enabled", false)),
-			"open_hour": int(facility.get("door_open_hour", 0)),
-			"close_hour": int(facility.get("door_close_hour", 24)),
+			"schedule_enabled": true,
+			"work_schedule": schedule.duplicate(true),
 			"idle_projection_active": bool((previous_entries.get(actor_id, {}) as Dictionary).get("idle_projection_active", false)),
+			"idle_activity": str((previous_entries.get(actor_id, {}) as Dictionary).get("idle_activity", "")),
 		}
 		var prior: Dictionary = previous_entries.get(actor_id, {})
-		if prior.is_empty() or str(prior.get("duty_scope_id", prior.get("facility_id", ""))) != duty_scope_id:
+		if prior.is_empty() or str(prior.get("duty_scope_id", prior.get("facility_id", ""))) != duty_scope_id or prior.get("work_schedule", {}) != schedule or bool(prior.get("uses_settlement_jobs", false)) != bool(slot.get("uses_settlement_jobs", false)):
+			_assignment_workers[actor_id]["idle_projection_active"] = false
 			_queue_assignment_worker(actor_id)
 		actor_ids.append(actor_id)
 		if not _assignment_actor_order.has(actor_id):

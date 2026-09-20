@@ -1,8 +1,10 @@
-[gd_resource type="Resource" script_class="FacilityRoleDefinition" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="FacilityRoleDefinition" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://features/settlements/resources/facility_role_definition.gd" id="1_role"]
+[ext_resource type="Resource" path="res://features/settlements/resources/always_on_work_schedule.tres" id="2_schedule"]
 
 [resource]
 script = ExtResource("1_role")
 role_id = "warden"
 display_name = "Warden"
+work_schedule = ExtResource("2_schedule")
