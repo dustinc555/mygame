@@ -88,7 +88,7 @@ func _run() -> void:
 	_expect(synthetic.active_actor == worker, "generic assignment worker claims a non-farming JobSystem offer")
 	_expect(worker.has_meta(&"active_facility_duty"), "duty precedence starts only after generic work acceptance")
 	synthetic.clear_work()
-	jobs._process_party_job_dispatch()
+	await _settle_dispatch(jobs)
 	await process_frame
 	var interaction = worker.get_interaction()
 	var home = game.get_node("GranaryTown/Housing/WorkerHouse")
@@ -104,14 +104,14 @@ func _run() -> void:
 	worker.global_position = Vector3(0, 0.6, -8)
 	worker.inventory.add_item_count(TOMATO, 3)
 	jobs.notify_work_offers_changed("granary_demo")
-	jobs._process_party_job_dispatch()
+	await _settle_dispatch(jobs)
 	var bulk_haul = context.get_optional(&"haul")
 	var haul_platform = bulk_haul._assignment_platform(worker) if bulk_haul != null else null
 	_expect(haul_platform != null, "generic assignment worker claims the ordinary Haul category")
 	if haul_platform != null:
 		worker.container_reached.emit(worker, haul_platform)
 		_expect(worker.inventory.count_item(TOMATO) == 0 and haul_platform.get_stored_item_count(TOMATO) == 3, "Haul provider owns NPC arrival and authoritative deposit")
-	var overnight := {"schedule_enabled": true, "open_hour": 20, "close_hour": 6}
+	var overnight := {"schedule_enabled": true, "work_schedule": {"start_hour": 20, "end_hour": 6}}
 	_expect(not jobs._assignment_schedule_is_active(overnight), "overnight assignment is closed during daytime")
 	context.get_optional(&"world_time").advance_hours(12.0)
 	_expect(jobs._assignment_schedule_is_active(overnight), "overnight assignment is open after 20:00")
@@ -119,7 +119,7 @@ func _run() -> void:
 	_expect(not jobs._assignment_schedule_is_active(overnight), "overnight assignment closes at 06:00")
 	synthetic.enable_work()
 	context.get_optional(&"world_time").advance_hours(2.0)
-	jobs._process_party_job_dispatch()
+	await _settle_dispatch(jobs)
 	_expect(synthetic.active_actor == worker and worker.has_meta(&"active_facility_duty"), "assignment work is active before removal")
 	jobs._process_party_job_dispatch()
 	_expect(jobs._pending_assignment_actor_ids.is_empty(), "active-worker queue drains before LOD without injected clears")
@@ -133,23 +133,23 @@ func _run() -> void:
 	_expect(settlements.realize_assignment_slot("granary_demo", str(worker_slot.get("assignment_domain", "employment")), str(worker_slot.get("slot_id", ""))), "assignment worker re-realizes after an LOD round trip")
 	await process_frame
 	worker = context.get_optional(&"population").get_live_actor("granary_worker")
-	jobs._process_party_job_dispatch()
+	await _settle_dispatch(jobs)
 	_expect(worker != null and worker.get_instance_id() != old_worker_instance_id and synthetic.active_actor == worker, "re-realized assignment worker is immediately requeued and resumes ordinary Jobs work")
 	await _validate_three_worker_lod(context, synthetic)
 	worker = context.require(&"population").get_live_actor("granary_worker")
 	synthetic.target_actor_id = "granary_worker"
 	synthetic.enable_work()
-	jobs._process_party_job_dispatch()
+	await _settle_dispatch(jobs)
 	_expect(synthetic.active_actor == worker, "provider removal starts with active accepted work")
 	jobs.unregister_job_provider(synthetic)
 	synthetic.free()
 	await process_frame
-	jobs._process_party_job_dispatch()
+	await _settle_dispatch(jobs)
 	_expect(not worker.has_meta(&"active_facility_duty"), "removing the active provider must release obsolete duty on next dispatch")
 	# A different lifetime: the destination disappears while the worker carries real stock.
 	worker.inventory.add_item_count(TOMATO, 2)
 	jobs.notify_work_offers_changed("granary_demo")
-	jobs._process_party_job_dispatch()
+	await _settle_dispatch(jobs)
 	var removed_target = bulk_haul._assignment_platform(worker)
 	_expect(removed_target != null, "target-loss fixture must start a pending real haul")
 	if removed_target != null:
@@ -185,7 +185,7 @@ func _validate_three_worker_lod(context: BootstrapContext, provider: SyntheticCr
 			continue
 		provider.target_actor_id = actor_id
 		provider.enable_work()
-		jobs._process_party_job_dispatch()
+		await _settle_dispatch(jobs)
 		_expect(provider.active_actor == actor, "each worker accepts normal category work before LOD: " + actor_id)
 		var old_instance_id := actor.get_instance_id()
 		var before: Dictionary = population.get_actor_record(actor_id)
@@ -195,14 +195,14 @@ func _validate_three_worker_lod(context: BootstrapContext, provider: SyntheticCr
 		settlements.realize_assignment_slot("granary_demo", "employment", str(slot.slot_id))
 		await process_frame
 		actor = population.get_live_actor(actor_id)
-		jobs._process_party_job_dispatch()
+		await _settle_dispatch(jobs)
 		_expect(actor != null and actor.get_instance_id() != old_instance_id and provider.active_actor == actor, "real settlement re-realization requeues and dispatches each permanent worker")
 		var after: Dictionary = population.get_actor_record(actor_id)
 		_expect(after.get("assignments") == before.get("assignments") and after.get("member_name") == before.get("member_name"), "real LOD preserves stable identity and one residence/employment mapping")
 		provider.clear_work()
 		actor.inventory.add_item_count(TOMATO, 1)
 		jobs.notify_work_offers_changed("granary_demo")
-		jobs._process_party_job_dispatch()
+		await _settle_dispatch(jobs)
 		var platform = haul._assignment_platform(actor)
 		_expect(platform != null, "re-realized worker can start productive ordinary haul")
 		if platform != null:
@@ -211,6 +211,16 @@ func _validate_three_worker_lod(context: BootstrapContext, provider: SyntheticCr
 			_expect(actor.inventory.count_item(TOMATO) == 0 and platform.get_stored_item_count(TOMATO) == stock_before + 1, "each restored worker transfers actual inventory to stock, not just a requeue notification")
 			completed += 1
 	_expect(completed == 3, "all three restored workers must complete the real stock deposit")
+
+
+func _settle_dispatch(jobs: Node) -> void:
+	# Waking is an authoritative asynchronous transition; dispatch is budgeted.
+	for frame in 120:
+		await physics_frame
+		jobs._process_party_job_dispatch()
+		if frame >= 2 and jobs._pending_assignment_actor_ids.is_empty():
+			return
+	_expect(false, "assignment dispatch drains after wake/realization within two seconds")
 
 
 func _assignment_slot_for_actor(state: Dictionary, actor_id: String) -> Dictionary:

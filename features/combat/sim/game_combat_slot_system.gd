@@ -140,7 +140,7 @@ func _process_pairs(components: Array) -> void:
 		_update_arrival(i, target_index, nodes, spatials, configs, slots)
 
 
-func _choose_position(index: int, target_index: int, active: bool, nodes: Array, spatials: Array, configs: Array, slots: Array, occupancy: Dictionary) -> void:
+func _choose_position(index: int, target_index: int, engaging: bool, nodes: Array, spatials: Array, configs: Array, slots: Array, occupancy: Dictionary) -> void:
 	var slot = slots[index]
 	var actor := _actor(nodes[index])
 
@@ -150,16 +150,16 @@ func _choose_position(index: int, target_index: int, active: bool, nodes: Array,
 	var offset := origin - center
 	var base_angle := atan2(offset.z, offset.x)
 	var radius := maxf(float(slot.engage_distance), float(configs[index].navigation_agent_radius) + float(configs[target_index].navigation_agent_radius) + PERSONAL_SPACE_PADDING)
-	if not active:
+	if not engaging:
 		radius += WAIT_RING_EXTRA
 	# WARNING [ANTI-ORBIT]: prefer a valid current stance, then the retained world point.
 	# Finishing an obsolete flank can sustain mutual circling instead of fighting.
 	# It must pass the same occupancy, standing and strike checks as any point;
 	# an overlapping rear attacker cannot use this to avoid going around.
 	var candidates: Array[Vector3] = []
-	candidates.append(origin if active and _can_hold_stance(index, target_index, spatials, configs, slots) else Vector3.INF)
+	candidates.append(origin if engaging and _can_hold_stance(index, target_index, spatials, configs, slots) else Vector3.INF)
 	# Otherwise keep the existing world point before seeking a new approach.
-	if slot.position_valid and active == (int(slot.slot_index) >= 0):
+	if slot.position_valid and engaging == (int(slot.slot_index) >= 0):
 		candidates.append(slot.slot_position)
 	else:
 		candidates.append(Vector3.INF)
@@ -174,11 +174,11 @@ func _choose_position(index: int, target_index: int, active: bool, nodes: Array,
 		if _position_queries_left <= 0:
 			break
 		_position_queries_left -= 1
-		var resolved := _resolve_position(actor, target, candidate, active)
+		var resolved := _resolve_position(actor, target, candidate, engaging)
 
 		if not resolved.is_finite() or not _position_is_free(index, resolved, configs, slots, occupancy):
 			continue
-		if active and _horizontal_distance(resolved, center) > _enter_range(configs[index], configs[target_index]) - WorldActor.COMBAT_ARRIVAL_DISTANCE:
+		if engaging and _horizontal_distance(resolved, center) > _enter_range(configs[index], configs[target_index]) - WorldActor.COMBAT_ARRIVAL_DISTANCE:
 			continue
 		slot.position_valid = true
 		slot.slot_position = resolved
@@ -190,8 +190,8 @@ func _choose_position(index: int, target_index: int, active: bool, nodes: Array,
 		slot.slot_angle = atan2(direction.z, direction.x)
 		if candidate_index >= 2:
 			var chosen_index := (candidate_index - 2 + int(slot.position_search_cursor)) % APPROACH_ANGLES.size()
-			slot.slot_index = chosen_index if active else -1
-			slot.wait_index = -1 if active else chosen_index
+			slot.slot_index = chosen_index if engaging else -1
+			slot.wait_index = -1 if engaging else chosen_index
 		elif candidate_index == 0:
 			slot.slot_index = maxi(0, int(slot.slot_index))
 			slot.wait_index = -1
@@ -299,7 +299,7 @@ func _exit_range(cfg, target_cfg) -> float:
 	return _enter_range(cfg, target_cfg) + EXIT_RANGE_BUFFER
 
 
-func _can_use_pair(index: int, target_index: int, spatials: Array, vitals: Array, configs: Array) -> bool:
+func _can_use_pair(index: int, target_index: int, _spatials: Array, vitals: Array, configs: Array) -> bool:
 	var vit = vitals[index]
 	var target_vit = vitals[target_index]
 	var cfg = configs[index]

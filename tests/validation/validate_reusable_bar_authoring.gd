@@ -173,17 +173,19 @@ func _validate_operator_instantiated_bar() -> void:
 	_furnish_validation_bar(bar, furnishings)
 	if bar.has_method("_repair_authoring_tree"):
 		bar.call("_repair_authoring_tree")
-	if not await _sync_and_realize_bar_assignments(bar):
+	if not _sync_and_realize_bar_assignments(bar):
 		return
 	await _wait_frames(20)
 	await _wait_for_furnished_navigation()
 	_validate_inferred_defaults(bar)
 	_validate_staff(bar, assigned_waiter, assigned_guard)
 	_validate_role_points(bar)
+	# Exercise the real approach before visitor-capacity checks deliberately
+	# leave two stationary test visitors on the same chair exit point.
+	await _validate_barber_seating(bar)
 	_validate_furniture_authoring(bar)
 	_validate_bar_visit_capacity(bar, assigned_waiter, assigned_guard)
 	_validate_player_waiter_order_action(bar)
-	_validate_barber_seating(bar)
 	_validate_seated_talk_range(bar)
 	_validate_barkeeper_stock(bar)
 	_validate_waiter_order_job(bar, assigned_waiter, assigned_guard)
@@ -579,6 +581,9 @@ func _validate_furniture_authoring(bar: Node) -> void:
 		visit_point.set("visit_seats_root_path", old_visit_seats_root_path)
 		visit_point.set("revisit_cooldown_seconds", old_revisit_cooldown)
 		empty_furniture.queue_free()
+	# Later checks discover furniture immediately, before deferred frees run.
+	furniture.remove_child(direct_seat)
+	furniture.remove_child(legacy_root)
 	direct_seat.queue_free()
 	legacy_root.queue_free()
 
@@ -643,17 +648,38 @@ func _validate_barber_seating(bar: Node) -> void:
 	if barber == null:
 		return
 	barber.get_interaction().stop_seat_assignment()
-	var seat = bar.call("_barber_seat_for_actor", barber)
+	var seat := bar.call("_barber_seat_for_actor", barber) as Node3D
 	if seat == null:
 		_fail("Assigned barber should find an existing bar chair")
 		return
 	bar.call("_send_barber_to_seat", barber)
-	barber.get_interaction().process_seat_interaction()
+	# Routine duty must physically reach the chair; only initial placement may snap.
+	for _frame in range(900):
+		if not is_instance_valid(barber) or not is_instance_valid(seat):
+			_fail("Barber and chair must stay realized during the seating journey actor_valid=%s seat_valid=%s frame=%d" % [is_instance_valid(barber), is_instance_valid(seat), _frame])
+			return
+		if barber.is_sitting():
+			break
+		await physics_frame
+	print("BARBER_SEATING_TRACE seated=%s target=%s seat=%s position=%s grant=%s" % [barber.is_sitting(), barber.get_current_seat_target(), seat, barber.global_position, barber.get_meta(&"active_facility_duty", "")])
+	if not barber.is_sitting():
+		print("BARBER_MOVE_TRACE stand=%s move=%s has_move=%s order=%s velocity=%s" % [barber.get_interaction().current_seat_stand_position, barber.get_move_target(), barber.has_move_target(), barber.get_interaction().current_order_type, barber.velocity])
+		for collision_index in barber.get_slide_collision_count():
+			print("BARBER_COLLISION_TRACE collider=%s" % barber.get_slide_collision(collision_index).get_collider())
+		var actors := BootstrapContext.service(&"actor_query")
+		if actors != null:
+			for nearby in actors.get_nearby_actors(barber.global_position, 3.0):
+				print("BARBER_NEIGHBOR_TRACE actor=%s position=%s seated=%s" % [nearby.stable_id, nearby.global_position, nearby.is_sitting()])
 	if not barber.is_sitting():
 		_fail("Barber should sit in a normal bar chair instead of standing at a guard/service marker")
 	if seat.has_method("get_sitter") and seat.call("get_sitter") != barber:
 		_fail("Barber's chosen chair should be occupied by the barber")
 	var body := barber.get_body_projection() as Node3D
+	# The normal sitting entry blends the body after the physical arrival.
+	for _frame in range(180):
+		if body == null or body.global_position.distance_to(seat.call("get_seat_position", barber)) <= 0.05:
+			break
+		await physics_frame
 	if body == null or body.global_position.distance_to(seat.call("get_seat_position", barber)) > 0.05:
 		_fail("Barber visual body should occupy the selected chair, not teleport its physics root")
 	var approach = barber.get_interaction().current_seat_stand_position
@@ -1361,7 +1387,7 @@ func _validate_standalone_bar_stock() -> void:
 	bar.set("standalone_stock_ratio", 0.25)
 	if bar.has_method("_repair_authoring_tree"):
 		bar.call("_repair_authoring_tree")
-	if not await _sync_and_realize_bar_assignments(bar):
+	if not _sync_and_realize_bar_assignments(bar):
 		bars.remove_child(bar)
 		bar.queue_free()
 		return
@@ -1625,10 +1651,10 @@ func _collect_townie_visitors(bar: Node, excluded: Array) -> Array[HumanoidChara
 	return visitors
 
 
-func _collect_townie_visitors_recursive(root: Node, bar: Node, excluded: Array, visitors: Array[HumanoidCharacter]) -> void:
-	if root == null:
+func _collect_townie_visitors_recursive(subtree: Node, bar: Node, excluded: Array, visitors: Array[HumanoidCharacter]) -> void:
+	if subtree == null:
 		return
-	for child in root.get_children():
+	for child in subtree.get_children():
 		var actor := child as HumanoidCharacter
 		if actor != null and not excluded.has(actor) and bool(bar.call("can_actor_visit_facility", actor)):
 			visitors.append(actor)

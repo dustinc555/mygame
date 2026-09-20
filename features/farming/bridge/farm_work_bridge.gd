@@ -406,7 +406,7 @@ func assign_cell(plot_id: String, cell_key: String, actors: Array, automatic := 
 	return first_failure if not first_failure.is_empty() else "No selected worker can take this cell"
 
 
-func assign_cell_sequence(targets: Array, actor: Node, manual := true) -> String:
+func assign_cell_sequence(targets: Array, actor: Node, _manual := true) -> String:
 	if actor == null or not is_instance_valid(actor) or not (actor is Node3D):
 		return "Select a worker first"
 	if targets.is_empty():
@@ -687,6 +687,9 @@ func _process_assignment(actor_key: int, delta: float, defer_commit := false, tr
 	if actor == null:
 		_cancel(actor_key)
 		return
+	if bool(assignment.get("automatic", false)) and _job_system != null and not _job_system.is_actor_work_schedule_active(actor):
+		_cancel(actor_key)
+		return
 	if bool(assignment.get("automatic", false)) and actor.has_method("has_active_player_order") and bool(actor.call("has_active_player_order")):
 		_cancel(actor_key)
 		return
@@ -905,9 +908,9 @@ func _set_committed_water(commit: Dictionary, actor: Node, amount: float, emit_c
 	var stack_id := str(commit.get("water_stack_id", ""))
 	if entry != null and inventory != null and inventory.entries.has(entry) \
 			and str(entry.stack_id) == stack_id:
-		var metadata: Dictionary = entry.metadata.duplicate(true)
-		metadata[WATER_META] = maxf(0.0, amount)
-		return inventory.set_entry_metadata(entry, metadata, emit_changed)
+		var entry_metadata: Dictionary = entry.metadata.duplicate(true)
+		entry_metadata[WATER_META] = maxf(0.0, amount)
+		return inventory.set_entry_metadata(entry, entry_metadata, emit_changed)
 	if actor != null and is_instance_valid(actor):
 		var current_entry = _water_entry(actor)
 		var current_inventory = _inventory(actor)
@@ -959,7 +962,7 @@ func _travel_timed_out(actor_key: int, assignment: Dictionary, actor: Node3D, de
 	return float(assignment["stalled_seconds"]) >= MAX_STALLED_SECONDS
 
 
-func _finish_and_continue(actor_key: int, completed := true) -> void:
+func _finish_and_continue(actor_key: int, _completed := true) -> void:
 	var assignment: Dictionary = _assignments.get(actor_key, {})
 	var actor := _live_node_3d(assignment.get("actor"))
 	var command_targets: Array = assignment.get("command_targets", [])
@@ -1433,8 +1436,8 @@ func _set_container_water(actor: Node, amount: float, emit_changed := true) -> b
 	var inventory = _inventory(actor)
 	var clamped := clampf(amount, 0.0, _container_capacity(actor))
 	if entry != null and inventory != null and inventory.entries.has(entry):
-		var metadata: Dictionary = LIQUID_CARRIER.metadata_with_water(entry.metadata, clamped)
-		return inventory.set_entry_metadata(entry, metadata, emit_changed)
+		var entry_metadata: Dictionary = LIQUID_CARRIER.metadata_with_water(entry.metadata, clamped)
+		return inventory.set_entry_metadata(entry, entry_metadata, emit_changed)
 	var snapshot := _equipped_water_snapshot(actor)
 	if snapshot.is_empty() or _gecs == null or not _gecs.has_method("upsert_item_stack_record"):
 		return false

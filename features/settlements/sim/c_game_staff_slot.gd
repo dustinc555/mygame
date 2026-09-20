@@ -8,6 +8,7 @@ class_name CGameStaffSlot
 @export var assignment_scope := "facility"
 @export var role_id := ""
 @export var uses_settlement_jobs := false
+@export var work_schedule: Dictionary = {}
 @export var allowed_job_entry_ids := PackedStringArray()
 @export var preferred_skill_id := ""
 @export var character_type_id := ""
@@ -43,6 +44,7 @@ func apply_slot(source: Dictionary) -> void:
 	assignment_scope = str(source.get("assignment_scope", assignment_scope))
 	role_id = str(source.get("role_id", role_id))
 	uses_settlement_jobs = bool(source.get("uses_settlement_jobs", uses_settlement_jobs))
+	work_schedule = (source.get("work_schedule", {}) as Dictionary).duplicate(true)
 	allowed_job_entry_ids = PackedStringArray(source.get("allowed_job_entry_ids", allowed_job_entry_ids))
 	preferred_skill_id = str(source.get("preferred_skill_id", preferred_skill_id))
 	character_type_id = str(source.get("character_type_id", character_type_id))
@@ -73,6 +75,7 @@ func to_slot() -> Dictionary:
 		"assignment_scope": assignment_scope,
 		"role_id": role_id,
 		"uses_settlement_jobs": uses_settlement_jobs,
+		"work_schedule": work_schedule.duplicate(true),
 		"allowed_job_entry_ids": allowed_job_entry_ids,
 		"preferred_skill_id": preferred_skill_id,
 		"character_type_id": character_type_id,

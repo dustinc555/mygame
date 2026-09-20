@@ -131,8 +131,8 @@ func sync_door_policy(retries_remaining := 30) -> void:
 	var building := get_current_building()
 	if building == null or building.building_id.strip_edges().is_empty():
 		return
-	var owner := get_property_owner_character()
-	var owner_actor_id := str(owner.get("stable_id")).strip_edges() if owner != null and "stable_id" in owner else ""
+	var property_owner := get_property_owner_character()
+	var owner_actor_id := str(property_owner.get("stable_id")).strip_edges() if property_owner != null and "stable_id" in property_owner else ""
 	var private_access := door_access_policy == "private"
 	var authorized_actor_ids: Array[String] = []
 	if private_access and not owner_actor_id.is_empty():
@@ -179,6 +179,12 @@ func configure_settlement_assignment_actor(actor: Node, slot_id: String, slot_re
 func refresh_settlement_assignment_actor(actor: Node, slot_record: Dictionary) -> void:
 	if _home_resident_projection != null:
 		_home_resident_projection.refresh(actor, slot_record)
+
+
+## Specialized facilities override this to retire their executor-owned claims.
+## Jobs alone decides when duty starts/stops; residence is a separate relation.
+func release_settlement_assignment_duty(_actor: Node) -> void:
+	pass
 
 
 func _residence_actor_ids() -> Array[String]:

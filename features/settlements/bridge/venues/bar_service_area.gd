@@ -684,12 +684,13 @@ func _process_guard_staff(delta: float) -> void:
 		if guard == null or guard.life_state != NpcRules.LifeState.ALIVE:
 			_release_guard_post_for(guard)
 			continue
-		if guard.is_in_combat():
-			continue
 		_process_guard_post_assignment(guard, delta)
 
 
 func _process_guard_post_assignment(guard: WorldActor, delta: float) -> void:
+	if not _can_execute_staff_duty(guard):
+		_release_guard_post_for(guard)
+		return
 	var actor_id := guard.get_instance_id()
 	var post = _guard_post_by_actor_id.get(actor_id)
 	if post == null or not is_instance_valid(post) or (post.has_method("is_available_for") and not post.is_available_for(guard)):
@@ -738,6 +739,9 @@ func _try_shuffle_guard_post(guard: WorldActor, current_post):
 ## and on completed trades (Counter_Give).
 func _process_owner_counter_duty() -> void:
 	var owner_character := get_owner_character()
+	if not _can_execute_staff_duty(owner_character):
+		_release_counter_duty()
+		return
 	if owner_character != _counter_duty_owner:
 		_release_counter_duty()
 		_counter_duty_owner = owner_character
@@ -859,6 +863,10 @@ func _release_guard_post_for(guard: WorldActor) -> void:
 
 
 func _continue_waiter_service(waiter: HumanoidCharacter) -> void:
+	if not _can_execute_staff_duty(waiter):
+		release_staff_duty(waiter)
+		_clear_waiter_service()
+		return
 	if waiter == null or not is_instance_valid(waiter) or waiter.life_state != NpcRules.LifeState.ALIVE:
 		_clear_waiter_service()
 		return
@@ -903,6 +911,8 @@ func _find_waiter_for_service(seat) -> HumanoidCharacter:
 	for waiter in get_waiter_characters():
 		if waiter == null or waiter.life_state != NpcRules.LifeState.ALIVE:
 			continue
+		if not _can_execute_staff_duty(waiter):
+			continue
 		if waiter.is_in_combat():
 			continue
 		var distance := waiter.global_position.distance_squared_to(target_position)
@@ -938,6 +948,9 @@ func _clear_waiter_service() -> void:
 
 
 func _return_waiter_to_service_point(waiter: HumanoidCharacter) -> void:
+	if not _can_execute_staff_duty(waiter):
+		release_staff_duty(waiter)
+		return
 	if waiter == null or waiter.life_state != NpcRules.LifeState.ALIVE or waiter.is_in_combat():
 		return
 	var service_point = get_available_waiter_point(waiter)
@@ -950,6 +963,30 @@ func _return_waiter_to_service_point(waiter: HumanoidCharacter) -> void:
 	var work_position: Vector3 = service_point.get_work_position()
 	if waiter.global_position.distance_to(work_position) > waiter.interact_distance:
 		waiter.set_move_target(work_position, false)
+
+
+## Jobs owns both schedule eligibility and the actual scoped execution grant.
+func _can_execute_staff_duty(actor: WorldActor) -> bool:
+	var jobs := BootstrapContext.service(&"job_system")
+	return jobs != null and bool(jobs.call("can_execute_assignment_duty", actor))
+
+
+## Release only venue-owned claims, never player, combat, or law orders.
+## Settlement invokes this before projecting Home at the shared shift boundary.
+func release_staff_duty(actor: WorldActor) -> void:
+	if actor == null or not is_instance_valid(actor):
+		return
+	if actor == _counter_duty_owner:
+		_release_counter_duty()
+	_release_guard_post_for(actor)
+	if actor is HumanoidCharacter:
+		release_waiter_point(actor)
+	if _pending_waiter_order.get("claimed_by") == actor:
+		_pending_waiter_order["claimed_by"] = null
+		_pending_waiter_order["claimed_at"] = 0.0
+		_pending_waiter_order["status"] = "pending"
+	if _active_service_waiter == actor:
+		_clear_waiter_service()
 
 
 func _is_service_point_role(point, role: String) -> bool:

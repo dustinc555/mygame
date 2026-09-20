@@ -96,6 +96,10 @@ const WAITER_POINTS_ROOT_PATH := NodePath("WaiterPoints")
 @export_group("")
 
 
+# Runtime-only claims owned by this role executor, never residence/player seats.
+var _barber_seat_by_actor_id: Dictionary = {}
+
+
 func _ready() -> void:
 	add_to_group(STAFF_ROLE_OWNER_GROUP)
 	_repair_authoring_tree()
@@ -186,15 +190,52 @@ func configure_settlement_assignment_actor(actor: Node, slot_id: String, slot_re
 	if role not in ["barkeeper", "waiter", "guard", "barber"]:
 		return
 	actor.name = _available_child_name(staff_root, _role_node_base_name(role))
-	_prepare_claimed_resident_for_role(actor, role, role_index)
+	var initial_placement := not bool(slot_record.get("preserve_durable_transform", false))
+	_prepare_claimed_resident_for_role(actor, role, role_index, initial_placement)
 	actor.set_meta(META_SETTLEMENT_SLOT_ID, slot_id)
 	if role == "barkeeper":
 		_ensure_merchant_role(actor)
 		_ensure_job_provider(actor)
 	elif role == "barber":
-		_send_barber_to_seat(actor)
+		_send_barber_to_seat(actor, initial_placement)
 	_send_actor_to_service_point(actor, role)
 	_sync_bar_authoring()
+
+
+func refresh_settlement_assignment_actor(actor: Node, slot_record: Dictionary) -> void:
+	super.refresh_settlement_assignment_actor(actor, slot_record)
+	if str(slot_record.get("role_id", "")) == "barber":
+		_send_barber_to_seat(actor)
+
+
+func release_settlement_assignment_duty(actor: Node) -> void:
+	if actor == null or not is_instance_valid(actor):
+		return
+	var service_area := get_bar_service_area()
+	if service_area != null and service_area.has_method("release_staff_duty") and actor is WorldActor:
+		service_area.call("release_staff_duty", actor)
+	var actor_id := actor.get_instance_id()
+	var seat = _barber_seat_by_actor_id.get(actor_id)
+	_barber_seat_by_actor_id.erase(actor_id)
+	if seat == null or not is_instance_valid(seat):
+		return
+	# A later player/custody order owns interaction state, even in our chair.
+	if actor.has_method("has_active_player_order") and bool(actor.call("has_active_player_order")):
+		return
+	if actor.has_method("is_in_combat") and bool(actor.call("is_in_combat")):
+		return
+	var interaction = actor.call("get_interaction") if actor.has_method("get_interaction") else null
+	if interaction != null and interaction.has_direct_law_move():
+		return
+	if actor.has_method("get_current_seat_target") and actor.call("get_current_seat_target") == seat and interaction != null:
+		interaction.stop_seat_assignment()
+	elif seat.has_method("release_sitter"):
+		seat.call("release_sitter", actor)
+
+
+func _can_execute_staff_duty(actor: Node) -> bool:
+	var jobs := BootstrapContext.service(&"job_system")
+	return jobs != null and bool(jobs.call("can_execute_assignment_duty", actor))
 
 
 func _apply_bar_defaults() -> void:
@@ -1095,14 +1136,15 @@ func _can_claim_resident_for_staff(actor: Node) -> bool:
 	return true
 
 
-func _prepare_claimed_resident_for_role(actor: Node, role: String, role_index: int) -> void:
+func _prepare_claimed_resident_for_role(actor: Node, role: String, role_index: int, initial_placement := true) -> void:
 	if actor == null:
 		return
 	actor.set_meta(META_GENERATED, true)
 	if role == "barber":
 		actor.set_meta("barber_service_price", 1)
 	_apply_staff_role_defaults(actor, _display_name_for_role(role, role_index), _color_for_role(role), _conversation_for_role(role), _indexed_name(role, role_index), role_index)
-	if actor is Node3D:
+	# Spawn placement is not permission to execute duty or relocate a returning NPC.
+	if initial_placement and actor is Node3D:
 		(actor as Node3D).position = _local_position_for_role(role, role_index)
 
 
@@ -1277,14 +1319,20 @@ func _is_sittable_furniture(node: Node) -> bool:
 	return node != null and node.has_method("claim_sitter") and node.has_method("get_seat_position")
 
 
-func _send_barber_to_seat(actor: Node) -> void:
+func _send_barber_to_seat(actor: Node, initial_placement := false) -> void:
 	if actor == null or Engine.is_editor_hint():
+		return
+	if not _can_execute_staff_duty(actor):
+		release_settlement_assignment_duty(actor)
 		return
 	if actor.has_method("is_sitting") and bool(actor.call("is_sitting")):
 		return
 	var seat := _barber_seat_for_actor(actor)
-	if seat != null and _seat_bar_occupant(actor, seat):
-		return
+	if seat != null:
+		if _barber_seat_by_actor_id.get(actor.get_instance_id()) == seat and actor.has_method("get_current_seat_target") and actor.call("get_current_seat_target") == seat:
+			return
+		if _seat_bar_occupant(actor, seat, initial_placement):
+			_barber_seat_by_actor_id[actor.get_instance_id()] = seat
 
 
 func _barber_seat_for_actor(actor: Node) -> Node:
@@ -1296,11 +1344,12 @@ func _barber_seat_for_actor(actor: Node) -> Node:
 	return _nearest_available_seat(actor, seats, target_position)
 
 
-func _seat_bar_occupant(actor: Node, seat: Node) -> bool:
+func _seat_bar_occupant(actor: Node, seat: Node, initial_placement := false) -> bool:
 	if actor == null or seat == null:
 		return false
 	var interaction = actor.get_interaction() if actor.has_method("get_interaction") else null
-	if interaction != null and interaction.sit_at_seat_immediately(seat):
+	# Only initial realization may place a body; routine duty uses navigation.
+	if initial_placement and interaction != null and interaction.sit_at_seat_immediately(seat):
 		return true
 	if actor.has_method("assign_seat_target"):
 		actor.call("assign_seat_target", seat, false)
@@ -1338,6 +1387,8 @@ func _barber_idle_position() -> Vector3:
 
 func _send_actor_to_service_point(actor: Node, role: String) -> void:
 	if actor == null or Engine.is_editor_hint() or not actor.has_method("set_move_target"):
+		return
+	if not _can_execute_staff_duty(actor):
 		return
 	var service_area := get_bar_service_area()
 	if service_area == null:

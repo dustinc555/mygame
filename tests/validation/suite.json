@@ -71,6 +71,11 @@
       "timeout_seconds": 300,
       "reason": "Helper has two bounded 120-second readiness waits plus twelve physical approach cases; do not cut off its own diagnosis at 90 seconds."
     },
+    "tests/validation/validate_town_work_schedule_runtime.gd": {
+      "mode": "case",
+      "timeout_seconds": 560,
+      "reason": "Physical town farmer work, evening return, bed sleep, overnight realization and next-day work; bounded internal watchdog."
+    },
     "tests/validation/validate_combat_navigation_runtime.gd": {
       "mode": "case",
       "timeout_seconds": 370,

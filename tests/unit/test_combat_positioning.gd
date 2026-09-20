@@ -15,10 +15,10 @@ const COMPONENTS := [
 # Only the physical query boundary is replaced. Assignment, reservations, state
 # transitions and time run through the production system. Physics has its own tests.
 class OpenGroundSlots extends SLOT_SYSTEM:
-	func _resolve_position(_actor: Node3D, _target: Node3D, candidate: Vector3, _require_strike: bool) -> Vector3:
+	func _resolve_position(_source_actor: Node3D, _target: Node3D, candidate: Vector3, _require_strike: bool) -> Vector3:
 		return candidate
 
-	func _can_strike(_actor: Node3D, _target: Node3D) -> bool:
+	func _can_strike(_source_actor: Node3D, _target: Node3D) -> bool:
 		return true
 
 
@@ -166,7 +166,7 @@ func test_small_target_drift_leaves_arrival_margin_inside_strike_range() -> void
 
 class BlockedSlots extends OpenGroundSlots:
 	var query_count := 0
-	func _resolve_position(_actor: Node3D, _target: Node3D, _candidate: Vector3, _require_strike: bool) -> Vector3:
+	func _resolve_position(_source_actor: Node3D, _target: Node3D, _candidate: Vector3, _require_strike: bool) -> Vector3:
 		query_count += 1
 		return Vector3.INF
 

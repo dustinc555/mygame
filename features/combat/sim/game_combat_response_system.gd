@@ -328,7 +328,7 @@ func _record_external_aggression(encounter, attacker_actor_id: String, target_ac
 		root_combat_started.emit(attacker_actor_id, target_actor_id, origin, str(encounter.encounter_id))
 
 
-func _recruit_social_allies(encounter, attacker_actor_id: String, protected_actor_id: String, attacker_entry: Dictionary, protected_entry: Dictionary, origin: Vector3, radius: float, actor_cache: Dictionary, spatial_buckets: Dictionary) -> void:
+func _recruit_social_allies(encounter, attacker_actor_id: String, protected_actor_id: String, attacker_entry: Dictionary, protected_entry: Dictionary, origin: Vector3, radius: float, _actor_cache: Dictionary, spatial_buckets: Dictionary) -> void:
 	var attacker_side := int(encounter.side_of(attacker_actor_id))
 	var protected_side := int(encounter.side_of(protected_actor_id))
 	if attacker_side == 0 or protected_side == 0 or attacker_side == protected_side:

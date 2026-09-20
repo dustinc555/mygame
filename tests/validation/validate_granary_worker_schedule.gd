@@ -67,8 +67,9 @@ func _run() -> void:
 		crop_policies[str(plot.get("crop_policy_id", ""))] = true
 	_expect(crop_policies.size() == 3, "runtime fields keep three distinct crop policies")
 	var worker_assignment: Dictionary = jobs._assignment_workers.get("granary_worker", {})
-	_expect(bool(worker_assignment.get("schedule_enabled", false)) and int(worker_assignment.get("open_hour", -1)) == 8 \
-			and int(worker_assignment.get("close_hour", -1)) == 20, "existing facility hours drive assignment availability")
+	var work_schedule: Dictionary = worker_assignment.get("work_schedule", {})
+	_expect(bool(worker_assignment.get("schedule_enabled", false)) and int(work_schedule.get("start_hour", -1)) == 8 \
+			and int(work_schedule.get("end_hour", -1)) == 20, "explicit employment hours drive assignment availability independently of doors")
 	var ada = level.get_node("PartyMembers/Ada")
 	_expect(not _town_has_physically_tilled_cell(farming), "physical work phase starts without any preexisting town soil")
 	var party_enabled: bool = jobs != null and bool(jobs.set_actor_jobs_enabled(ada, true))
