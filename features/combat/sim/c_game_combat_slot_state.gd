@@ -27,6 +27,13 @@ enum FightState {
 @export var tempo_actor_id := ""
 @export var tempo_wait_remaining := 0.0
 
+# Projection-local route/reservation scratch. Revalidated after load or LOD;
+# a saved slot ID never proves that a live standing position is still usable.
+var position_valid := false
+var position_target_origin := Vector3.ZERO
+var position_recheck_remaining := 0.0
+var position_search_cursor := 0
+
 
 func clear() -> void:
 	slot_state = FightState.NONE
@@ -45,6 +52,10 @@ func clear() -> void:
 	state_seconds = 0.0
 	tempo_actor_id = ""
 	tempo_wait_remaining = 0.0
+	position_valid = false
+	position_target_origin = Vector3.ZERO
+	position_recheck_remaining = 0.0
+	position_search_cursor = 0
 
 
 func is_active() -> bool:

@@ -628,8 +628,15 @@ var _system_desired_velocity: Vector3 = Vector3.ZERO
 var _system_look_target: Vector3 = Vector3.ZERO
 var _system_move_settled: bool = false
 var _system_collision_focus_id: int = 0
-var _system_collision_exception_focus_id: int = 0
-var _system_collision_exception_peer: CollisionObject3D
+
+var _combat_navigation_owned := false
+var _combat_navigation_destination := Vector3.INF
+var _combat_navigation_failed := false
+# A failed path is retried only after this delay or a changed tactical position.
+var _combat_navigation_retry_seconds := 0.0
+# Stay inside the combat enter-range buffer even when approaching head-on.
+const COMBAT_ARRIVAL_DISTANCE := 0.08
+const COMBAT_PATH_RETRY_SECONDS := 0.75
 
 ## System-set combat bridge from GameCombatResolutionSystem.
 var _system_combat_action_active: bool = false
@@ -685,6 +692,19 @@ func has_move_target() -> bool:
 
 func get_move_target() -> Vector3:
 	return _move_target
+
+
+## Shared navigation exposes combat travel to doors and locomotion, but its
+## tactical reservations must never restore as independent movement orders.
+func get_persistent_movement_state() -> Dictionary:
+	var persist_target := has_move_target() and not _combat_navigation_owned
+	return {
+		"has_move_target": persist_target,
+		"move_target": get_move_target() if persist_target else Vector3.ZERO,
+		"running": is_running_requested(),
+		"sneaking": is_sneaking(),
+		"issued_by_player": has_active_player_order(),
+	}
 
 
 ## Returns whether the mode change was accepted. Sneaking and running are
@@ -1002,28 +1022,41 @@ func process_world_actor_movement(delta: float) -> void:
 	# Player orders outrank combat: while one is active the nav path drives, and the
 	# GECS targeting system (which reads player_order_active off the config component)
 	# drops this actor's target so combat AI resumes only after the order completes.
-	if life_state == NpcRules.LifeState.ALIVE and not _active_player_order and (_system_move_active or is_in_combat()):
-		process_system_combat_movement(delta)
-		return
+	var combat_motion := not _active_player_order and (_system_move_active or is_in_combat())
+	if combat_motion:
+		_prepare_combat_navigation(delta)
+	elif _combat_navigation_owned:
+		_clear_actor_move_target()
+	_process_navigation_motion(delta, combat_motion)
+
+
+func _process_navigation_motion(delta: float, combat_motion: bool) -> void:
 	_apply_floor_motion(delta)
 	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
 	var desired_direction := Vector3.ZERO
 	if _navigation_agent.has_move_target:
 		desired_direction = _navigation_agent.get_move_direction(delta)
 		if desired_direction.length_squared() > 0.0001:
-			var target_speed := _get_actor_move_speed()
+			var target_speed := move_speed if combat_motion else _get_actor_move_speed()
 			horizontal_velocity = horizontal_velocity.lerp(desired_direction * target_speed, minf(1.0, acceleration * delta))
-			look_at(global_position + desired_direction, Vector3.UP)
+			if not combat_motion:
+				look_at(global_position + desired_direction, Vector3.UP)
 		else:
 			horizontal_velocity = horizontal_velocity.lerp(Vector3.ZERO, minf(1.0, acceleration * delta))
 	else:
 		horizontal_velocity = horizontal_velocity.lerp(Vector3.ZERO, minf(1.0, acceleration * delta))
+	if combat_motion and not _navigation_agent.has_move_target:
+		horizontal_velocity = Vector3.ZERO
 	if _navigation_agent.avoidance_enabled and _navigation_agent.has_move_target and desired_direction.length_squared() > 0.0001:
-		_navigation_agent.max_speed = maxf(_get_actor_move_speed(), 0.0)
+		_navigation_agent.max_speed = maxf(move_speed if combat_motion else _get_actor_move_speed(), 0.0)
 		_submit_navigation_avoidance_velocity(horizontal_velocity)
 		if _navigation_agent.has_safe_velocity:
 			horizontal_velocity.x = _navigation_agent.safe_velocity.x
 			horizontal_velocity.z = _navigation_agent.safe_velocity.z
+	else:
+		_submit_navigation_avoidance_velocity(Vector3.ZERO)
+	if combat_motion:
+		_face_system_movement_target()
 	velocity.x = horizontal_velocity.x
 	velocity.z = horizontal_velocity.z
 	move_and_slide()
@@ -1048,8 +1081,8 @@ func _get_actor_move_speed() -> float:
 
 # Soft-body crowd model: actors live on their own physics layer so rays and areas
 # still find them, but their mask excludes that layer — actors never hard-collide
-# with EACH OTHER (no capsule wedging in melee piles; separation steering and the
-# combat ring slots own spacing). They still hard-collide with the world (layer 1)
+# with EACH OTHER (no capsule wedging in melee piles; shared local avoidance and
+# reserved combat positions own spacing). They still hard-collide with the world (layer 1)
 # and with closed door blockers (layer 4, DOOR_BLOCKER_COLLISION_LAYER).
 const ACTOR_COLLISION_LAYER := 1 << 1
 const ACTOR_COLLISION_MASK := 1 | 8
@@ -1067,30 +1100,44 @@ func _configure_world_actor_movement() -> void:
 
 # InteractionCapability uses this hook to move without replacing its work order.
 func _set_actor_move_target(target: Vector3) -> void:
+	_combat_navigation_owned = false
+	_combat_navigation_destination = Vector3.INF
+	_combat_navigation_failed = false
 	_navigation_agent.set_move_target(target)
 
 
 func _clear_actor_move_target() -> void:
+	_combat_navigation_owned = false
+	_combat_navigation_destination = Vector3.INF
+	_combat_navigation_failed = false
 	_navigation_agent.clear_move_target()
 	_submit_navigation_avoidance_velocity(Vector3.ZERO)
 
 
-## Combat approach/positioning actuation driven by GameCombatMovementSystem through
-## set_system_movement_bridge(). Replaces navigation-agent movement while this actor
-## has a live combat target, so fighters close distance and face their opponent.
-func process_system_combat_movement(delta: float) -> void:
-	_apply_floor_motion(delta)
-	_update_system_movement_collision_exception(_system_move_active, _system_collision_focus_id)
-	if _system_move_active:
-		velocity.x = 0.0 if _system_move_settled else _system_desired_velocity.x
-		velocity.z = 0.0 if _system_move_settled else _system_desired_velocity.z
-	else:
-		velocity.x = 0.0
-		velocity.z = 0.0
-	_face_system_movement_target()
-	move_and_slide()
-	rotation.x = lerp_angle(rotation.x, 0.0, minf(1.0, 10.0 * delta))
-	rotation.z = lerp_angle(rotation.z, 0.0, minf(1.0, 10.0 * delta))
+## Combat owns only the destination, arrival tolerance and facing. The same
+## navigation, avoidance, floor motion and stuck recovery execute every route.
+func _prepare_combat_navigation(delta: float) -> void:
+	_combat_navigation_retry_seconds = maxf(0.0, _combat_navigation_retry_seconds - delta)
+	if not _system_move_active or _system_move_settled or not _system_move_target.is_finite():
+		_clear_actor_move_target()
+		_combat_navigation_owned = true
+		return
+	var changed := not _combat_navigation_owned or _combat_navigation_destination.distance_squared_to(_system_move_target) > 0.0025
+	_combat_navigation_owned = true
+	if changed:
+		_combat_navigation_destination = _system_move_target
+		_combat_navigation_failed = false
+		_navigation_agent.set_move_target(_system_move_target, COMBAT_ARRIVAL_DISTANCE)
+	elif not _navigation_agent.has_move_target:
+		var offset := _system_move_target - global_position
+		var arrived := Vector2(offset.x, offset.z).length() <= COMBAT_ARRIVAL_DISTANCE and absf(offset.y) <= move_target_vertical_tolerance
+		if not arrived and _combat_navigation_retry_seconds <= 0.0:
+			_combat_navigation_failed = false
+			_navigation_agent.set_move_target(_system_move_target, COMBAT_ARRIVAL_DISTANCE)
+
+
+func has_combat_navigation_failed() -> bool:
+	return _combat_navigation_owned and _combat_navigation_failed
 
 
 # GameCombatMovementSystem supplies look_target; the current combat target covers the
@@ -1107,33 +1154,6 @@ func _face_system_movement_target() -> void:
 		look_at(look_position, Vector3.UP)
 
 
-# While actively moving into a fight slot, ignore collision with the focused opponent so
-# fighters can settle into attack range instead of shoving each other around.
-func _update_system_movement_collision_exception(active: bool, focus_id: int) -> void:
-	if active and focus_id != 0 and focus_id == _system_collision_exception_focus_id and _system_collision_exception_peer != null and is_instance_valid(_system_collision_exception_peer):
-		return
-	var next_peer: CollisionObject3D = null
-	if active and focus_id != 0:
-		var focus := instance_from_id(focus_id) as CollisionObject3D
-		if focus != null and focus != self and is_instance_valid(focus):
-			next_peer = focus
-	if next_peer == _system_collision_exception_peer:
-		return
-	_clear_system_movement_collision_exception()
-	if next_peer != null:
-		add_collision_exception_with(next_peer)
-		_system_collision_exception_focus_id = focus_id
-		_system_collision_exception_peer = next_peer
-
-
-func _clear_system_movement_collision_exception() -> void:
-	if _system_collision_exception_peer != null:
-		if is_instance_valid(_system_collision_exception_peer):
-			remove_collision_exception_with(_system_collision_exception_peer)
-		_system_collision_exception_peer = null
-	_system_collision_exception_focus_id = 0
-
-
 ## Camera/follow anchor. Subclasses with ragdolls may return a bone anchor instead.
 func get_follow_anchor_position() -> Vector3:
 	return global_position
@@ -1144,8 +1164,12 @@ func _get_move_target_arrival_distance() -> float:
 	return navigation_target_desired_distance
 
 
-func _on_navigation_movement_finished(_reached: bool) -> void:
+func _on_navigation_movement_finished(reached: bool) -> void:
 	_submit_navigation_avoidance_velocity(Vector3.ZERO)
+	if _combat_navigation_owned:
+		_combat_navigation_failed = not reached
+		_combat_navigation_retry_seconds = COMBAT_PATH_RETRY_SECONDS
+		return
 	# Arrival or failure releases player-order authority so combat AI can resume.
 	_active_player_order = false
 	_clear_move_order_state()
@@ -1824,7 +1848,7 @@ func _on_order_changed(order_type: int, issued_by_player: bool) -> void:
 		_system_combat_action_active = false
 		_system_combat_reaction_remaining = 0.0
 		_system_combat_focus_id = 0
-		_clear_system_movement_collision_exception()
+
 		# A player order is an explicit disengage: drop all grudges so the member
 		# doesn't boomerang back to an old enemy when the order completes. Attack
 		# commands re-add their own grudge (assign_attack_target marks it before

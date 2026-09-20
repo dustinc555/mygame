@@ -52,6 +52,7 @@ func _run() -> void:
 	await _clicked("group two-flight ascent", _actors, [low + Vector3(-0.7, 0, 0), low + Vector3(0.7, 0, 0)], high)
 	await _clicked("group upper landing descent", _actors, [high + Vector3(-0.7, 0, 0), high + Vector3(0.7, 0, 0)], low)
 	_expect(_completed == 8, "all eight direct and click scenarios complete")
+	await _combat_pursuit(low, high)
 	_world.dispose()
 	await process_frame
 	print("STAIR_NAV_VALIDATION_%s cases=%d" % ["OK" if _failures.is_empty() else "FAILED", _completed])
@@ -100,6 +101,65 @@ func _clicked(label: String, actors: Array[HumanoidCharacter], starts: Array[Vec
 		var delta := actor.global_position - targets[index]
 		_expect(not actor.has_move_target() and Vector2(delta.x, delta.z).length() <= actor.navigation_target_desired_distance + 0.05 and absf(delta.y) < 0.8 and actor.global_position.distance_to(initial[index]) > 1.0, label + " each actor physically arrives and stops")
 	_completed += 1
+
+func _combat_pursuit(low: Vector3, high: Vector3) -> void:
+	# Reuse the grounded production actors and both existing stair flights.
+	# No manual steering after the public attack command: a slot route must
+	# accept the walkable inclines and let ordinary body physics climb them.
+	var attacker: HumanoidCharacter = _actors[0]
+	var target: HumanoidCharacter = _actors[1]
+	for actor in _actors:
+		actor.max_hp = 100000.0
+		actor.hp = 100000.0
+		actor.hostile_factions = PackedStringArray()
+		actor.set_combat_stance(NpcRules.CombatStance.PASSIVE)
+	attacker.faction_name = "StairAttacker"
+	target.faction_name = "StairDefender"
+	target.player_party_member = false
+	target.remove_from_group("party_member")
+	await _place(attacker, low)
+	await _place(target, high)
+	var attacker_start: Vector3 = attacker.global_position
+	var target_start: Vector3 = target.global_position
+	_expect(target_start.y - attacker_start.y > 1.0, "combat stair pursuit begins on distinct physical floors")
+	var gecs: GecsWorldController = BootstrapContext.service(GecsWorldController.SERVICE_ID) as GecsWorldController
+	_expect(gecs != null, "combat stair pursuit requires the real GECS bootstrap")
+	if gecs == null:
+		return
+	var resolution: Node = gecs.find_child("GameCombatResolutionSystem", true, false)
+	_expect(resolution != null and resolution.has_signal("impact_resolved"), "combat stair pursuit requires authoritative impact attribution")
+	if resolution == null or not resolution.has_signal("impact_resolved"):
+		return
+	var impacts: Array[Dictionary] = []
+	var on_impact: Callable = func(attacker_id: String, target_id: String, sequence: int, outcome: String, damage: float) -> void:
+		if attacker_id == attacker.stable_id and target_id == target.stable_id:
+			impacts.append({"sequence": sequence, "outcome": outcome, "damage": damage})
+	resolution.connect("impact_resolved", on_impact)
+	_expect(attacker.assign_attack_target(target), "public attack command accepts the stationary upper-landing target")
+	var ascended: bool = false
+	var fighting: bool = false
+	var target_max_displacement: float = 0.0
+	var deadline: int = Time.get_ticks_msec() + 35000
+	while Time.get_ticks_msec() < deadline:
+		await physics_frame
+		target_max_displacement = maxf(target_max_displacement, target.global_position.distance_to(target_start))
+		var on_upper_floor: bool = attacker.is_on_floor() and absf(attacker.global_position.y - target_start.y) < 0.4 and attacker.global_position.y - attacker_start.y > 1.0
+		ascended = ascended or on_upper_floor
+		var entity: Variant = gecs.get_actor_entity(attacker)
+		var slot: CGameCombatSlotState = entity.get_component(CGameCombatSlotState) as CGameCombatSlotState if entity != null else null
+		if slot != null and slot.slot_target_actor_id == target.stable_id and slot.slot_state == CGameCombatSlotState.FightState.FIGHTING:
+			fighting = fighting or (on_upper_floor and attacker.global_position.distance_to(target.global_position) <= attacker.get_attack_range() + 0.3)
+		if ascended and fighting and not impacts.is_empty():
+			break
+	resolution.disconnect("impact_resolved", on_impact)
+	_expect(ascended, "combat attacker must physically ascend both stair flights to the upper floor")
+	_expect(fighting, "combat attacker must reach FIGHTING with the exact upper-landing target in physical range")
+	# A miss is still an actual timed resolution; do not make navigation depend
+	# on a random hit roll or replace the production combat timing.
+	_expect(not impacts.is_empty(), "combat stair pursuit must resolve at least one attributed attacker impact")
+	_expect(target_max_displacement <= 0.35 and not target.has_move_target(), "passive upper-landing target must stay stationary throughout pursuit")
+	_expect(attacker.life_state == NpcRules.LifeState.ALIVE and target.life_state == NpcRules.LifeState.ALIVE, "combat stair subjects must survive the pursuit and first impact")
+	print("STAIR_COMBAT_PURSUIT ascended=%s fighting=%s impacts=%s target_displacement=%s attacker=%s target=%s" % [ascended, fighting, impacts, target_max_displacement, attacker.global_position, target.global_position])
 
 func _expect(condition: bool, message: String) -> void:
 	if not condition:

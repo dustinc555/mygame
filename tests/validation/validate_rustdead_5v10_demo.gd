@@ -286,6 +286,31 @@ func _validate_rustdead_animation_library(rustdead_members: Array[HumanoidCharac
 	for animation_name in REQUIRED_RUSTDEAD_ANIMATIONS:
 		if not animation_player.has_animation(animation_name):
 			_fail("Rustdead animation library missing %s" % animation_name)
+	# Clip presence alone missed the human punch fallback. Exercise selection and
+	# actual playback on every production Rustdead body without changing its RNG.
+	for rustdead in rustdead_members:
+		var projection := rustdead.get_body_projection() as HumanoidBodyProjection
+		var player := projection.get_primary_animation_player()
+		var rng_state: int = rustdead._combat_rng.state
+		rustdead._combat_rng.seed = 8123
+		var selected: Dictionary = {}
+		for index in range(32):
+			var spec := rustdead.get_system_combat_attack_spec()
+			var names: PackedStringArray = spec.get("animation_names", PackedStringArray())
+			if names.size() != 1 or not names[0] in ["Zombie_Bite", "Zombie_Scratch"]:
+				_fail("Rustdead selected a non-zombie attack: %s" % str(names))
+				break
+			var clip_name := str(names[0])
+			selected[clip_name] = true
+			var seconds := rustdead.play_system_combat_action_clip(clip_name)
+			if player.current_animation != clip_name or projection.get_current_clip() != clip_name:
+				_fail("Rustdead failed to play selected attack %s" % clip_name)
+			if not is_equal_approx(seconds, float(spec.get("total_seconds", 0.0))):
+				_fail("Rustdead attack timing does not match played clip %s" % clip_name)
+		rustdead._combat_rng.state = rng_state
+		projection.stop_clip()
+		if not selected.has("Zombie_Bite") or not selected.has("Zombie_Scratch"):
+			_fail("Rustdead must be able to select both bite and claw attacks")
 
 
 func _validate_rustdead_cinder_burn_rules(party_members: Array[WorldActor], rustdead_members: Array[HumanoidCharacter]) -> void:
