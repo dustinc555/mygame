@@ -360,6 +360,9 @@ func contains_town_border_position(world_position: Vector3, extra_margin := 0.0)
 				clampf(point.x, bounds_min.x, bounds_max.x),
 				clampf(point.y, bounds_min.y, bounds_max.y)
 			)
+			# An interior point has zero distance; an affine round trip can add rounding error.
+			if point == nearest:
+				return true
 			var nearest_world := to_global(Vector3(nearest.x, local.y, nearest.y))
 			var flat_position := Vector2(world_position.x, world_position.z)
 			var flat_nearest := Vector2(nearest_world.x, nearest_world.z)

@@ -1,0 +1,126 @@
+{
+  "roots": ["tests/validation", "tests/benchmarks"],
+  "defaults": {
+    "jobs": 4,
+    "timeout_seconds": 90
+  },
+  "tests": {
+    "tests/validation/test_case.gd": {
+      "mode": "helper",
+      "reason": "Shared Node-based lifecycle adapter for autoload-dependent feature tests."
+    },
+    "tests/validation/test_host.gd": {
+      "mode": "helper",
+      "reason": "Normal scene entry loads a selected feature test after project autoload initialization."
+    },
+    "tests/validation/law_order_cases.gd": {
+      "mode": "helper",
+      "reason": "Shared fixture and named law/jail cases, run by the law entrypoints and inherited Home/party lifecycle validators."
+    },
+    "tests/validation/granary_navigation_cases.gd": {
+      "mode": "helper",
+      "reason": "Case collection invoked by validate_granary_navigation.gd."
+    },
+    "tests/validation/helpers/test_actor_capability.gd": {
+      "mode": "helper",
+      "reason": "Fixture capability used by validate_actor_capability_scaffold.gd."
+    },
+    "tests/validation/helpers/combat_fixture.gd": {
+      "mode": "helper",
+      "reason": "Shared staff realization, combat authorization, inventory snapshots and world cleanup called by combat, law and Home validators; no standalone test entrypoint."
+    },
+    "tests/validation/helpers/law_combat_resolution_fixture.gd": {
+      "mode": "helper",
+      "reason": "Test-only subclass installed by jail fixtures; controls native RNG at synchronous inherited combat boundaries without changing gameplay rules."
+    },
+    "tests/validation/helpers/navigation_fixture.gd": {
+      "mode": "helper",
+      "reason": "Controlled world, baker and physical actor fixture instantiated by navigation, construction and bootstrap validators; no standalone test entrypoint."
+    },
+    "tests/validation/puglin_runtime_projection_cases.gd": {
+      "mode": "helper",
+      "reason": "Case collection invoked by validate_puglin_runtime_projection.gd."
+    },
+    "tests/validation/town_ledger_visual_test.gd": {
+      "mode": "manual",
+      "reason": "Interactive preview scene; has no automated assertions or terminating test entrypoint."
+    },
+    "tests/validation/validate_field_editor_guide.gd": {
+      "mode": "editor",
+      "editor_plugins": false,
+      "reason": "Checks editor-only field geometry, not addon UIs. Disable unrelated editor plugins before startup in its disposable worker; retain tool execution and all error checks."
+    },
+    "tests/validation/validate_bulk_haul_performance.gd": {
+      "serial": true,
+      "reason": "Measures CPU timings; do not compete with other suite processes."
+    },
+    "tests/validation/validate_bulk_take_all_runtime.gd": {
+      "serial": true,
+      "reason": "Contains runtime performance assertions."
+    },
+    "tests/validation/validate_two_towns_live_density_performance.gd": {
+      "serial": true,
+      "reason": "Measures an aggregate spatial-query time budget."
+    },
+    "tests/validation/validate_debug_time_skip_canyon.gd": {
+      "serial": true,
+      "timeout_seconds": 180,
+      "reason": "Measured skip must run alone; allow startup and teardown around its unchanged internal 60-second gate."
+    },
+    "tests/validation/validate_granary_navigation.gd": {
+      "timeout_seconds": 300,
+      "reason": "Helper has two bounded 120-second readiness waits plus twelve physical approach cases; do not cut off its own diagnosis at 90 seconds."
+    },
+    "tests/validation/validate_law_jail_arrest.gd": {
+      "mode": "case",
+      "reason": "Independent exact-officer live attack, real positive damage, retaliation and nonlethal knockout with controlled native combat rolls."
+    },
+    "tests/validation/validate_law_jail_bail.gd": {
+      "mode": "case",
+      "reason": "Independent real custody and exact funded/unfunded bail transactions, plus same-prisoner/same-stack re-arrest after sentence release; shared intake and payment helpers."
+    },
+    "tests/validation/validate_law_jail_sentence.gd": {
+      "mode": "case",
+      "serial": true,
+      "timeout_seconds": 180,
+      "reason": "Two independent physical sentence/return cases retain the existing 1500/900 physics-tick bounds each."
+    },
+    "tests/validation/validate_law_jail_prisoner_recreation.gd": {
+      "mode": "case",
+      "serial": true,
+      "timeout_seconds": 180,
+      "reason": "Independent actual prisoner destruction/recreation, exact property release, plus delivery of a sentence queued before projection loss."
+    },
+    "tests/validation/validate_law_order_jail.gd": {
+      "mode": "case",
+      "serial": true,
+      "timeout_seconds": 270,
+      "reason": "Five fresh-world custody/law cases, including natural recovery and the complete physical arrest-to-release route (160 seconds in the focused quality run). Keep this bounded outer watchdog separate from unchanged gameplay waits. Standalone bail, sentence and recreation cases share the same collection; combat policy owns its own cases."
+    },
+    "tests/validation/validate_ragdoll_flat_stability.gd": {
+      "serial": true,
+      "timeout_seconds": 180,
+      "reason": "Six real-physics scenarios took 90.8 seconds; allow the full matrix and loading/cleanup without competing suite processes. Internal stability limits are unchanged."
+    },
+    "tests/validation/validate_ragdoll_pyramid_smoke.gd": {
+      "serial": true,
+      "timeout_seconds": 360,
+      "reason": "Sixteen real-physics scenarios took 239.1 seconds; allow the full matrix and loading/cleanup without competing suite processes. Internal stability limits are unchanged."
+    },
+    "tests/validation/validate_generic_assignment_work_performance.gd": {
+      "serial": true,
+      "reason": "Measures generic assignment work timings."
+    },
+    "tests/benchmarks/validate_combat_skirmish_engagement.gd": {
+      "reason": "Opt-in 20v20 performance/optimization benchmark; excluded from the normal feature suite."
+    },
+    "tests/validation/validate_resource_deposits.gd": {
+      "serial": true,
+      "reason": "Contains refill-budget and percentile timing assertions."
+    },
+    "tests/validation/test_run_tests.py": {
+      "serial": true,
+      "reason": "Checks worker overlap and bounded subprocess cancellation without competing Godot processes."
+    }
+  }
+}

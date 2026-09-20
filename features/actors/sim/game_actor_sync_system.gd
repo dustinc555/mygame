@@ -120,6 +120,8 @@ func _sync_vitals(component: CGameActorVitals, actor: WorldActor) -> void:
 	# reference = truth-rule violation). Unblocked once quadbot was de-staled — see cleanup.md S5.
 	component.death_profile = actor.get_death_profile() as CGameActorVitals.DeathProfile
 	var is_robot := component.death_profile == CGameActorVitals.DeathProfile.ROBOT
+	if not is_robot:
+		vitals.bind_authoritative_state(component)
 	# Node authors max/base + the recovery modifier (refresh_max_blood_from_toughness lives node-side);
 	# the system reads these as thresholds, so they always flow node->component.
 	component.max_hp = actor.max_hp
@@ -167,6 +169,12 @@ func _sync_vitals_inputs(component: CGameActorVitalsInputs, actor: WorldActor) -
 	var stats := actor.get_stats()
 	if stats == null:
 		return
+	var revision := stats.get_vitals_inputs_revision()
+	var source_id := stats.get_instance_id()
+	if not component.dirty and component.stats_source_instance_id == source_id and component.stats_inputs_revision == revision:
+		return
 	component.toughness = stats.get_stat_value("toughness")
 	component.healing_rate = stats.get_stat_value("healing_rate")
+	component.stats_source_instance_id = source_id
+	component.stats_inputs_revision = revision
 	component.dirty = false

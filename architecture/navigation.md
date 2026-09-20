@@ -48,8 +48,8 @@ Godot can finish its native path before the body reaches the actor's arrival tol
 
 From the project root:
 
-- `godot --headless --path . --script res://tools/validation/validate_navigation_arrival.gd` — real actor arrival, interrupts, retargeting, unreachable/stuck routes, disposal and authority. Add `-- --benchmark` for the movement CPU fixture.
-- `godot --headless --path . --script res://tools/validation/validate_navigation_lifecycle.gd` — stale results, settings resets, old/new bounds, local isolation, empty results and teardown.
-- `godot --headless --path . --script res://tools/validation/validate_granary_navigation.gd` — actual World1/Mira, each entry and exit reset independently, after local rebaking. Add `-- --cached` to test existing cached navigation instead.
+- `godot --headless --path . --script res://tests/validation/validate_navigation_arrival.gd` — real actor arrival, interrupts, retargeting, unreachable/stuck routes, disposal and authority. Add `-- --benchmark` for the movement CPU fixture.
+- `godot --headless --path . --script res://tests/validation/validate_navigation_lifecycle.gd` — stale results, settings resets, old/new bounds, local isolation, empty results and teardown.
+- `godot --headless --path . --script res://tests/validation/validate_granary_navigation.gd` — actual World1/Mira, each entry and exit reset independently, after local rebaking. Add `-- --cached` to test existing cached navigation instead.
 
 The granary case runner is also used in the live game. A nonempty path, a registered shape count, or arrival through the opposite doorway alone is not a traversal pass.

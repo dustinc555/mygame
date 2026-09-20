@@ -2,6 +2,10 @@ extends "res://addons/gecs/ecs/system.gd"
 
 class_name GameCombatResolutionSystem
 
+## Value-only attribution after an accepted canonical/legacy impact, never a
+## refused windup or an out-of-leash swing. Consumers cannot mutate its source.
+signal impact_resolved(attacker_actor_id: String, target_actor_id: String, action_sequence: int, outcome: String, damage: float)
+
 const C_NODE = preload("res://features/actors/bridge/c_game_actor_node.gd")
 const C_IDENTITY = preload("res://features/actors/sim/c_game_actor_identity.gd")
 const C_SPATIAL = preload("res://features/actors/sim/c_game_actor_spatial.gd")
@@ -200,7 +204,7 @@ func _resolve_action_impact(attacker_index: int, nodes: Array, identities: Array
 	var incoming := _transform_incoming_damage(target_actor, attacker_actor, action.action_blunt_damage, action.action_cut_damage)
 	var blunt := float(incoming.get("blunt_damage", 0.0))
 	var cut := float(incoming.get("cut_damage", 0.0))
-	var receive_context := _prepare_receive_attack(target_actor, attacker_actor, blunt, cut)
+	var receive_context := _prepare_receive_attack(target_actor, attacker_actor, target_vit)
 	if not bool(receive_context.get("accepted", true)):
 		return
 	var can_actively_defend := bool(receive_context.get("can_actively_defend", true))
@@ -228,10 +232,14 @@ func _resolve_action_impact(attacker_index: int, nodes: Array, identities: Array
 		var grit := CombatMath.apply_toughness_grit(final_blunt, final_cut, float(target_cfg.toughness))
 		final_blunt = float(grit.get("blunt_damage", 0.0))
 		final_cut = float(grit.get("cut_damage", 0.0))
-		var clamped := _clamp_final_damage(target_actor, attacker_actor, final_blunt, final_cut)
+		var law_pair := false
+		if combat_response_system is GameCombatResponseSystem:
+			law_pair = combat_response_system.is_law_enforcement_pair(_actor_id_at(attacker_index, identities), _actor_id_at(target_index, identities))
+		var clamped := _clamp_final_damage(target_actor, attacker_actor, final_blunt, final_cut, target_vit, law_pair)
 		final_blunt = float(clamped.get("blunt_damage", 0.0))
 		final_cut = float(clamped.get("cut_damage", 0.0))
 	var reaction_seconds := 0.0
+	var delivered := false
 	if target_vit.death_profile == CGameActorVitals.DeathProfile.HUMANOID:
 		# S4 FLIP: realized humanoid vitals are GECS-owned. Deal the resolved damage straight into the
 		# component (the exact mutation apply_resolved_damage did node-side) and re-derive life_state via
@@ -240,6 +248,7 @@ func _resolve_action_impact(attacker_index: int, nodes: Array, identities: Array
 		target_vit.blunt_damage += maxf(final_blunt, 0.0)
 		target_vit.open_cut_damage += maxf(final_cut, 0.0)
 		VitalsStateMachine.recalculate(target_vit, float(target_cfg.toughness))
+		delivered = true
 		# Presentation only: outcome text + reaction clip on the node; damage stays component-owned.
 		var reacting_actor := target_actor as WorldActor
 		if reacting_actor != null:
@@ -247,6 +256,10 @@ func _resolve_action_impact(attacker_index: int, nodes: Array, identities: Array
 	elif target_actor.has_method("handle_system_combat_resolution"):
 		# Robots/quadbots keep their node-side death model (S5) — unchanged reflected path.
 		reaction_seconds = float(target_actor.call("handle_system_combat_resolution", attacker_actor, outcome, action.action_attack_id, action.action_hit_reaction_names, action.action_is_critical, bool(target_cfg.has_shield), final_blunt, final_cut, can_actively_defend))
+		delivered = true
+	if not delivered:
+		return
+	impact_resolved.emit(_actor_id_at(attacker_index, identities), _actor_id_at(target_index, identities), int(action.action_sequence), outcome, maxf(final_blunt, 0.0) + maxf(final_cut, 0.0))
 	if reaction_seconds > 0.0:
 		var target_action = actions[target_index]
 		if target_action != null:
@@ -455,13 +468,25 @@ func _transform_incoming_damage(target_actor: Node, attacker_actor: Node, blunt:
 	return {"blunt_damage": maxf(blunt, 0.0), "cut_damage": maxf(cut, 0.0)}
 
 
-func _prepare_receive_attack(target_actor: Node, attacker_actor: Node, blunt: float, cut: float) -> Dictionary:
-	if target_actor != null and target_actor.has_method("prepare_system_combat_receive_attack"):
-		return target_actor.call("prepare_system_combat_receive_attack", attacker_actor, blunt, cut) as Dictionary
-	return {"accepted": target_actor != null and attacker_actor != null, "can_actively_defend": true}
+func _prepare_receive_attack(target_actor: Node, attacker_actor: Node, target_vitals: CGameActorVitals) -> Dictionary:
+	var target := target_actor as WorldActor
+	if target == null or attacker_actor == null or target_vitals == null or target.is_protected_from_combat() or target_vitals.life_state == NpcRules.LifeState.DEAD:
+		return {"accepted": false, "can_actively_defend": false}
+	# Defend eligibility belongs to the state at impact, before a sleeping victim
+	# wakes. Waking changes GECS truth; the normal actor sync presents the edge.
+	var can_defend := target_vitals.life_state == NpcRules.LifeState.ALIVE
+	if target_vitals.life_state == NpcRules.LifeState.ASLEEP:
+		target_vitals.life_state = NpcRules.LifeState.ALIVE
+	target.set_sneaking_enabled(false)
+	return {"accepted": true, "can_actively_defend": can_defend}
 
 
-func _clamp_final_damage(target_actor: Node, attacker_actor: Node, blunt: float, cut: float) -> Dictionary:
+func _clamp_final_damage(target_actor: Node, attacker_actor: Node, blunt: float, cut: float, vitals: CGameActorVitals, law_pair: bool) -> Dictionary:
+	if law_pair and vitals.death_profile == CGameActorVitals.DeathProfile.HUMANOID:
+		# Established arrest rule: convert cutting force to blunt and stop total
+		# wounds at max HP + 1 (KO). The canonical component owns the clamp.
+		var available := maxf(0.0, vitals.max_hp + 1.0 - VitalsMath.total_wound_damage(vitals.blunt_damage, vitals.open_cut_damage, vitals.bandaged_cut_damage))
+		return {"blunt_damage": minf(maxf(blunt, 0.0) + maxf(cut, 0.0), available), "cut_damage": 0.0}
 	if target_actor != null and target_actor.has_method("clamp_system_final_combat_damage"):
 		return target_actor.call("clamp_system_final_combat_damage", attacker_actor, blunt, cut) as Dictionary
 	return {"blunt_damage": maxf(blunt, 0.0), "cut_damage": maxf(cut, 0.0)}

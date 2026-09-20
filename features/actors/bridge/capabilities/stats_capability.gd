@@ -25,8 +25,10 @@ const XP_FLUSH_INTERVAL_SECONDS := 1.0
 ## Emitted when a skill/attribute level changes. VitalsCapability connects to
 ## refresh toughness-derived max blood.
 signal skill_level_changed(skill_id: String)
-## Emitted for any level or XP change so persistence can mirror full progress.
+## Batched presentation notification; durable progress must not wait for it.
 signal skill_progress_changed(skill_id: String)
+## Synchronous narrow authority notification after the raw level/XP has changed.
+signal skill_authority_changed(skill_id: String)
 
 # --- Raw skill/attribute storage -------------------------------------------
 
@@ -52,6 +54,12 @@ var _starting_skill_levels_applied := false
 var _pending_progress_signal_by_skill: Dictionary = {}
 var _pending_level_signal_by_skill: Dictionary = {}
 var _xp_flush_remaining := XP_FLUSH_INTERVAL_SECONDS
+
+# Transient dependency snapshot for the GECS vitals-input bridge, not a second
+# stat resolver. Flat ordered triples contain only stat name, add and mul values.
+var _vitals_inputs_revision := 0
+var _vitals_toughness_level := -1
+var _vitals_modifier_values: Array = []
 
 
 func _init() -> void:
@@ -109,6 +117,7 @@ func set_skill_level(skill_id: String, level: int, clear_xp := true) -> void:
 	flush_pending_xp()
 	_ensure_skill_set()
 	skill_set.set_skill_level(skill_id, level, clear_xp)
+	skill_authority_changed.emit(skill_id)
 	skill_level_changed.emit(skill_id)
 	skill_progress_changed.emit(skill_id)
 
@@ -124,6 +133,7 @@ func add_skill_xp(skill_id: String, amount: float, reason := "") -> int:
 	_pending_progress_signal_by_skill[skill_id] = true
 	if levels > 0:
 		_pending_level_signal_by_skill[skill_id] = true
+	skill_authority_changed.emit(skill_id)
 	return levels
 
 
@@ -153,12 +163,16 @@ func hydrate_skill_progress(skill_levels: Dictionary, skill_xp: Dictionary) -> v
 	physics_process_enabled = false
 	_ensure_skill_set()
 	var skill_ids := {}
+	# Sparse saves omit default skills. Reset entries created after the save too.
+	for entry in skill_set.entries:
+		if entry != null:
+			skill_ids[str(entry.get("skill_id"))] = true
 	for skill_id in skill_levels:
 		skill_ids[str(skill_id)] = true
 	for skill_id in skill_xp:
 		skill_ids[str(skill_id)] = true
 	for skill_id in skill_ids:
-		skill_set.set_skill_progress(str(skill_id), int(skill_levels.get(skill_id, SkillRules.DEFAULT_LEVEL)), float(skill_xp.get(skill_id, 0.0)))
+		skill_set.set_skill_progress(str(skill_id), int(skill_levels.get(skill_id, SkillRules.get_default_level(str(skill_id)))), float(skill_xp.get(skill_id, 0.0)))
 
 
 func get_skill_xp(skill_id: String) -> float:
@@ -183,6 +197,41 @@ func get_skill_entry_snapshot(skill_id: String) -> Dictionary:
 # ---------------------------------------------------------------------------
 # Effective stat resolution (the layered model)
 # ---------------------------------------------------------------------------
+
+## Check raw dependencies without constructing modifier dictionaries or applying
+## layers. Signals alone miss batched XP/equipment changes, silent hydration and
+## public resource/array edits. Unchanged checks allocate no snapshot containers.
+## Keep this dependency list alongside the resolver: if the currently empty
+## racial/body/injury hooks gain inputs, include those changing sources here too.
+func get_vitals_inputs_revision() -> int:
+	var level := get_skill_level(SkillRules.ATTRIBUTE_TOUGHNESS)
+	var changed := level != _vitals_toughness_level
+	_vitals_toughness_level = level
+	var offset := 0
+	if _equipment != null:
+		var equipped := _equipment.get_equipped_items()
+		for slot in equipped:
+			var item := equipped[slot] as ItemDefinition
+			if item == null:
+				continue
+			for modifier in item.stat_modifiers:
+				if modifier == null or (modifier.stat_name != "toughness" and modifier.stat_name != "healing_rate"):
+					continue
+				if _vitals_modifier_values.size() < offset + 3:
+					_vitals_modifier_values.resize(offset + 3)
+				if _vitals_modifier_values[offset] != modifier.stat_name or _vitals_modifier_values[offset + 1] != modifier.add or _vitals_modifier_values[offset + 2] != modifier.mul:
+					_vitals_modifier_values[offset] = modifier.stat_name
+					_vitals_modifier_values[offset + 1] = modifier.add
+					_vitals_modifier_values[offset + 2] = modifier.mul
+					changed = true
+				offset += 3
+	if _vitals_modifier_values.size() != offset:
+		_vitals_modifier_values.resize(offset)
+		changed = true
+	if changed:
+		_vitals_inputs_revision += 1
+	return _vitals_inputs_revision
+
 
 func get_stat_value(stat_name: String, include_secondary_modifiers: bool = true) -> float:
 	var value := _get_base_stat_value(stat_name)

@@ -13,6 +13,8 @@ const ACTION_PLACE_IN := "place_in"
 var _reserved_by: HumanoidCharacter
 var _reserved_body: HumanoidCharacter
 var _burning_body: HumanoidCharacter
+var _burning_actor_id := ""
+var _population_ref: WeakRef
 var _burn_remaining := 0.0
 var _burn_effect: Node3D
 var _burn_light: Light3D
@@ -32,6 +34,13 @@ func _process(delta: float) -> void:
 	_burn_remaining = maxf(0.0, _burn_remaining - delta)
 	_update_burn_effect()
 	if _burn_remaining <= 0.0:
+		_finish_burning_body()
+
+
+func _exit_tree() -> void:
+	# Acceptance consumes the body. The flame timer is presentation, so losing
+	# the furnace projection must settle rather than strand its accepted corpse.
+	if _burning_body != null or not _burning_actor_id.is_empty():
 		_finish_burning_body()
 
 
@@ -123,6 +132,15 @@ func place_carried_body(carrier: HumanoidCharacter, body: HumanoidCharacter) -> 
 		return false
 	release_reservation(carrier, body)
 	_burning_body = body
+	_burning_actor_id = str(body.get_meta("actor_record_id", body.stable_id)).strip_edges()
+	_population_ref = null
+	for controller in get_tree().get_nodes_in_group("population_controller"):
+		if not controller.get_actor_record(_burning_actor_id).is_empty():
+			_population_ref = weakref(controller)
+			break
+	# Furnace fire is an explicit death command, unlike ordinary lethal damage.
+	body.get_vitals().set_life_state(NpcRules.LifeState.DEAD)
+	body.stop_movement()
 	_burn_remaining = maxf(0.05, burn_seconds)
 	body.global_position = get_body_position()
 	body.rotation = get_body_rotation()
@@ -180,25 +198,28 @@ func _finish_burning_body() -> void:
 	var body := _burning_body
 	_burning_body = null
 	_set_burn_effect_active(false)
-	if body == null or not is_instance_valid(body):
-		return
-	_record_cremated_body(body)
-	_remove_from_party_managers(body)
-	body.queue_free()
+	_record_cremated_body(body if is_instance_valid(body) else null)
+	_burning_actor_id = ""
+	_population_ref = null
+	if is_instance_valid(body):
+		_remove_from_party_managers(body)
+		body.queue_free()
 
 
 func _record_cremated_body(body: HumanoidCharacter) -> void:
-	var actor_id := str(body.get_meta("actor_record_id", "")).strip_edges()
-	if actor_id.is_empty():
-		actor_id = str(body.get("stable_id")).strip_edges()
-	if actor_id.is_empty() or not is_inside_tree():
+	var controller = _population_ref.get_ref() if _population_ref != null else null
+	if controller == null or _burning_actor_id.is_empty():
 		return
-	for controller in get_tree().get_nodes_in_group("population_controller"):
-		if controller != null and controller.has_method("set_person_body_state"):
-			controller.call("set_person_body_state", actor_id, "cremated", "", true)
-			if controller.has_method("unregister_actor"):
-				controller.call("unregister_actor", body)
-			return
+	# Unregister snapshots inventory/equipment. Destroy contents AFTER that
+	# snapshot, otherwise it resurrects everything the furnace just burned.
+	if is_instance_valid(body) and body.is_inside_tree():
+		controller.unregister_actor(body)
+	var record: Dictionary = controller.get_actor_record(_burning_actor_id)
+	var vitals: Dictionary = record.get("vitals", {}).duplicate(true)
+	vitals["life_state"] = NpcRules.LifeState.DEAD
+	vitals["dying_timer_remaining"] = 0.0
+	controller.update_actor_record(_burning_actor_id, {"life_state": NpcRules.LifeState.DEAD, "vitals": vitals})
+	controller.set_person_body_state(_burning_actor_id, "cremated", "", true)
 
 
 func _remove_from_party_managers(body: HumanoidCharacter) -> void:

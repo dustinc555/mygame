@@ -762,10 +762,12 @@ func furnish_facility(facility: Node, reroll := false) -> void:
 		_dock.set_facility(facility)
 
 
-func _stamp_furniture_ids(node: Node, facility: Node) -> void:
+func _stamp_furniture_ids(node: Node, facility: Node, parent_local_id := "") -> void:
 	if node == null:
 		return
 	var local_id := str(node.name).to_snake_case()
+	if not parent_local_id.is_empty():
+		local_id = "%s.%s" % [parent_local_id, local_id]
 	var facility_id := str(facility.get("facility_id")).strip_edges()
 	if "surface_id" in node:
 		node.set("surface_id", local_id)
@@ -790,6 +792,11 @@ func _stamp_furniture_ids(node: Node, facility: Node) -> void:
 		var owner_faction_id := _facility_owner_faction_id(facility)
 		if not owner_faction_id.is_empty():
 			node.set("owner_faction_name", owner_faction_id)
+	# Vignettes compose authored surfaces/containers below the placement root.
+	# Include that root in every descendant ID so separate dining sets cannot
+	# alias the same durable tabletop host when saved or restored.
+	for child in node.get_children():
+		_stamp_furniture_ids(child, facility, local_id)
 
 
 func _facility_settlement_id(facility: Node) -> String:
@@ -804,6 +811,20 @@ func _facility_settlement_id(facility: Node) -> String:
 func _own_facility_placement(node: Node, owner_root: Node) -> void:
 	node.owner = owner_root
 	_own_restored_children(node, owner_root)
+	_enable_furnishing_identity_overrides(node, owner_root)
+
+
+func _enable_furnishing_identity_overrides(node: Node, owner_root: Node) -> bool:
+	var has_identity := "surface_id" in node or "container_id" in node or "liquid_container_id" in node or "source_id" in node
+	for child in node.get_children():
+		if _enable_furnishing_identity_overrides(child, owner_root):
+			has_identity = true
+	# Keep instance ownership intact; claiming imported descendants serializes
+	# duplicate nodes. Editable instance paths persist only our gameplay ID
+	# overrides through nested scenes without unpacking purchased models.
+	if has_identity and not node.scene_file_path.is_empty():
+		owner_root.set_editable_instance(node, true)
+	return has_identity
 
 
 func _facility_building(facility: Node) -> Node3D:

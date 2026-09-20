@@ -329,17 +329,9 @@ func join_defense_against(threat: Node) -> void:
 
 func get_query_actors(query_position: Vector3 = Vector3.ZERO, radius := -1.0, include_party := true) -> Array:
 	var query_controller := _query_controller()
-	if query_controller != null:
-		if radius >= 0.0 and query_controller.has_method("get_nearby_actors"):
-			return query_controller.call("get_nearby_actors", query_position, radius, include_party)
-		if query_controller.has_method("get_alive_actors"):
-			return query_controller.call("get_alive_actors", include_party)
-	if not _is_inside_tree():
+	if query_controller == null:
 		return []
-	var tree := (actor as Node).get_tree()
-	var combat_actors := tree.get_nodes_in_group(COMBAT_COORDINATOR.COMBAT_ACTOR_GROUP)
-	return combat_actors if not combat_actors.is_empty() else tree.get_nodes_in_group("npc_character")
-
+	return query_controller.get_nearby_actors(query_position, radius, include_party) if radius >= 0.0 else query_controller.get_alive_actors(include_party)
 
 func get_query_actors_limited(query_position: Vector3, radius: float, max_count: int, include_party := true) -> Array:
 	var query_controller := _query_controller()
@@ -383,10 +375,10 @@ func candidate_entries_to_actors(entries: Array) -> Array:
 	return result
 
 
-func _query_controller() -> Node:
-	if actor != null and is_instance_valid(actor) and actor.has_method("_get_runtime_controller"):
-		return actor.call("_get_runtime_controller", "actor_query_controller") as Node
-	return null
+func _query_controller() -> ActorQueryController:
+	if actor == null or not is_instance_valid(actor):
+		return null
+	return BootstrapContext.service(ActorQueryController.SERVICE_ID) as ActorQueryController
 
 
 func _should_help_against(protected_actor: Node, threat: Node, allow_public_intervention: bool) -> bool:
@@ -414,7 +406,7 @@ func _has_hostility_with(target: Node) -> bool:
 
 
 func _can_see_actor_for_combat(target: Node) -> bool:
-	return _call_bool("can_see_actor_for_combat", [target], true)
+	return _call_bool("can_see_actor_for_combat", [target], false)
 
 
 func _active_combat_target() -> Node:

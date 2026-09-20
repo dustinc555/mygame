@@ -10,7 +10,7 @@ extends RefCounted
 ## the call site (VitalsCapability._set_life_state / _enter_* keep owning signals + the dying timer).
 ##
 ## Faithful port of features/actors/bridge/capabilities/vitals_capability.gd. Oracle for the repoint:
-## tools/validation/validate_vitals_capability.gd (must stay green) + tools/validation/validate_vitals_math.gd.
+## tests/validation/validate_vitals_capability.gd (must stay green) + tests/validation/validate_vitals_math.gd.
 
 # Coma / dying tuning (was VitalsCapability.COMA_* / DYING_*). Rates that depend on world rules
 # (bleed/clot/recovery/blood) are read from NpcRules so there is one source of truth.

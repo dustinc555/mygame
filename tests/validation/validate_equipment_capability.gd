@@ -1,0 +1,108 @@
+extends SceneTree
+
+## Focused sanity check for EquipmentCapability (post-migration design).
+## Run: godot --headless --path . --script res://tests/validation/validate_equipment_capability.gd
+##
+## Capability owns equipped_items; the actor delegates. Cross-capability reactions
+## go out as `equipment_changed`. Stats reads the equipment modifier layer via its
+## typed handle (covered here too). A base WorldActor exposes no slot list, which
+## permits any equippable item into its own declared slot.
+
+const HATCHET = preload("res://features/inventory/resources/items/hatchet.tres")
+const BRONZE_SWORD = preload("res://features/inventory/resources/items/bronze_sword.tres")
+
+
+func _initialize() -> void:
+	_run_validation.call_deferred()
+
+
+func _run_validation() -> void:
+	var failures: Array[String] = []
+
+	var actor = _make_actor([HATCHET])
+	var equipment = actor.get_equipment()
+	_expect(failures, "equipment capability present", equipment != null)
+	if equipment == null:
+		_finish(failures)
+		return
+
+	_expect(failures, "starting hatchet seeded to weapon slot", actor.get_equipped_item("weapon") == HATCHET)
+	_expect(failures, "starting hatchet has durable stack ID", not equipment.get_equipped_stack_id("weapon").is_empty())
+	# Live character-type changes reseed slots that were already hydrated.
+	var inventory = actor.get_inventory().inventory
+	var original_stack_id: String = equipment.get_equipped_stack_id("weapon")
+	var carried_before: int = inventory.count_item(HATCHET)
+	equipment.seed_starting_equipment_from_actor()
+	equipment.seed_starting_equipment_from_actor()
+	_expect(failures, "reseeding does not duplicate equipped gear into inventory", inventory.count_item(HATCHET) == carried_before)
+	_expect(failures, "reseeding preserves equipped item identity", equipment.get_equipped_item("weapon") == HATCHET and equipment.get_equipped_stack_id("weapon") == original_stack_id)
+
+	# equip replaces, weight, unequip
+	var replaced = actor.equip_item_to_slot(BRONZE_SWORD, "weapon")
+	_expect(failures, "equip replaces previous", replaced == HATCHET)
+	_expect(failures, "sword now equipped", actor.get_equipped_item("weapon") == BRONZE_SWORD)
+	_expect(failures, "equipped weight matches sword", is_equal_approx(actor.get_equipped_weight(), BRONZE_SWORD.unit_weight))
+	equipment.seed_starting_equipment_from_actor()
+	_expect(failures, "occupied slots do not grant discarded starting gear", inventory.count_item(HATCHET) == carried_before and actor.get_equipped_item("weapon") == BRONZE_SWORD)
+	var removed = actor.unequip_item_from_slot("weapon")
+	_expect(failures, "unequip returns sword", removed == BRONZE_SWORD)
+	_expect(failures, "empty after unequip", actor.get_equipped_item("weapon") == null)
+
+	# equipment_changed signal fires on equip
+	var emitted := {"hit": false}
+	equipment.equipment_changed.connect(func(_slots): emitted.hit = true)
+	actor.equip_item_to_slot(BRONZE_SWORD, "weapon")
+	_expect(failures, "equipment_changed emitted on equip", emitted.hit)
+
+	# batch defers to a single emit
+	actor.unequip_item_from_slot("weapon")
+	var batch := {"n": 0}
+	equipment.equipment_changed.connect(func(_slots): batch.n += 1)
+	equipment.begin_equipment_update_batch()
+	actor.equip_item_to_slot(HATCHET, "weapon")
+	_expect(failures, "batch defers signal", batch.n == 0)
+	equipment.end_equipment_update_batch()
+	_expect(failures, "batch emits once on end", batch.n == 1)
+
+	# Stats reads the equipment modifier layer (cross-capability link)
+	var modifiers = equipment.get_stat_modifiers()
+	_expect(failures, "stat modifiers surfaced from equipped items", modifiers.size() == HATCHET.stat_modifiers.size())
+	actor.unequip_item_from_slot("weapon")
+	var stats = actor.get_stats()
+	var base_damage: float = stats.get_stat_value("attack_damage")
+	var boosted: ItemDefinition = HATCHET.duplicate()
+	var modifier := ItemStatModifier.new()
+	modifier.stat_name = "attack_damage"
+	modifier.add = 7.0
+	boosted.stat_modifiers = [modifier]
+	actor.equip_item_to_slot(boosted, "weapon")
+	_expect(failures, "Stats consumes nonzero equipment modifier", is_equal_approx(stats.get_stat_value("attack_damage"), base_damage + 7.0))
+	actor.unequip_item_from_slot("weapon")
+	_expect(failures, "Stats removes unequipped modifier", is_equal_approx(stats.get_stat_value("attack_damage"), base_damage))
+
+	actor.free()
+	_finish(failures)
+
+
+func _make_actor(starting_equipment: Array):
+	# Load after autoload initialization, not during SceneTree script compilation.
+	var actor = load("res://features/actors/bridge/world_actor.gd").new()
+	actor.stable_id = "validation.equipment_actor"
+	actor.starting_equipment = starting_equipment
+	root.add_child(actor)
+	return actor
+
+
+func _finish(failures: Array[String]) -> void:
+	if failures.is_empty():
+		print("PASS: EquipmentCapability including idempotent reseeding")
+		quit(0)
+	else:
+		for f in failures:
+			printerr("FAIL: ", f)
+		quit(1)
+
+
+func _expect(failures: Array[String], label: String, condition: bool) -> void:
+	if not condition:
+		failures.append(label)

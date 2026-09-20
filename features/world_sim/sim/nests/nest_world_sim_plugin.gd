@@ -909,12 +909,24 @@ func _spawn_nest_actor(marker: NestPlacementMarker, state: Dictionary, nest_type
 	var origin := marker.global_position if spawn_origin == Vector3.INF else spawn_origin
 	actor.position = _spawn_position_near_origin(origin, marker_id, squad_id, member_index)
 	actor.rotation.y = _make_rng("actor_yaw:%s:%s:%d" % [marker_id, squad_id, member_index]).randf_range(0.0, TAU)
+	var tier_is_new := not (state.get("rustdead_tiers_by_actor", {}) as Dictionary).has(actor_id)
 	if str(state.get("nest_type_id", "")) == "rustdead":
-		_configure_rustdead_actor(actor, marker_id, member_index)
+		_configure_rustdead_actor(actor, marker_id, member_index, state)
 	_add_basic_actor_children(actor, Color(0.42, 0.08, 0.07, 1.0))
 	var population := _get_population_controller()
 	var existing_record: Dictionary = population.call("get_actor_record", actor_id) if population != null and population.has_method("get_actor_record") else {}
 	if not existing_record.is_empty() and population.has_method("apply_record_to_actor"):
+		# Generic generated people carry placeholder level-one skills. Seed a
+		# Rustdead tier once into the population authority before hydration;
+		# subsequent realization must retain trained skills and injuries.
+		if tier_is_new and str(state.get("nest_type_id", "")) == "rustdead" and _has_placeholder_nest_skills(existing_record):
+			var vitals: Dictionary = existing_record.get("vitals", {}).duplicate(true)
+			var previous_max := float(vitals.get("max_hp", 100.0))
+			var previous_hp := float(vitals.get("hp", previous_max))
+			vitals["max_hp"] = actor.max_hp
+			vitals["hp"] = actor.max_hp if previous_hp >= previous_max else minf(previous_hp, actor.max_hp)
+			population.update_actor_record(actor_id, {"skill_levels": actor.starting_skill_levels.duplicate(true), "vitals": vitals})
+			existing_record = population.get_actor_record(actor_id)
 		population.call("apply_record_to_actor", actor, existing_record)
 	_ensure_actor_root().add_child(actor)
 	if actor.has_method("request_spawn_grounding_refresh"):
@@ -922,12 +934,29 @@ func _spawn_nest_actor(marker: NestPlacementMarker, state: Dictionary, nest_type
 	return actor
 
 
-func _configure_rustdead_actor(actor: HumanoidCharacter, marker_id: String, member_index: int) -> void:
+func _has_placeholder_nest_skills(record: Dictionary) -> bool:
+	if str(record.get("role_id", "")) != "nest_member":
+		return false
+	for level in (record.get("skill_levels", {}) as Dictionary).values():
+		if int(level) != SkillRules.DEFAULT_LEVEL:
+			return false
+	for xp in (record.get("skill_xp", {}) as Dictionary).values():
+		if float(xp) > 0.0:
+			return false
+	return true
+
+
+func _configure_rustdead_actor(actor: HumanoidCharacter, marker_id: String, member_index: int, state: Dictionary) -> void:
 	var rng := _make_rng("rustdead_actor:%s:%d" % [marker_id, member_index])
 	var body_type := VISUAL_BODY_TYPE_FEMALE if member_index % 3 == 1 else VISUAL_BODY_TYPE_MALE
 	var marker_state: Dictionary = _nest_states.get(marker_id, {})
 	var nest_size_id := str(marker_state.get("size_id", SCRAP_SIZE_SMALL))
 	var tier := RUSTDEAD_TIER_LIBRARY.pick_tier_for_nest_size(nest_size_id, rng)
+	var tiers: Dictionary = state.get("rustdead_tiers_by_actor", {})
+	if tiers.has(actor.stable_id):
+		tier = RUSTDEAD_TIER_LIBRARY.get_tier_by_id(str(tiers[actor.stable_id]))
+	tiers[actor.stable_id] = str(tier.get_id())
+	state["rustdead_tiers_by_actor"] = tiers
 	actor.member_name = str(tier.get("display_name")) if tier != null else "Rustdead"
 	if actor.has_method("set_rustdead_tier_definition"):
 		actor.call("set_rustdead_tier_definition", tier)
@@ -993,13 +1022,13 @@ func _reissue_patrol_jobs(marker: NestPlacementMarker, state: Dictionary) -> voi
 			continue
 		if actor.get_current_combat_target() != null:
 			continue
-		if actor.has_active_ai_job_from_source(NEST_PATROL_SOURCE_ID) or actor.has_active_ai_job_from_source(NEST_ASSAULT_SOURCE_ID):
+		if _has_active_nest_job(actor):
 			continue
 		if not patrol_squad_ids.has(actor.world_squad_id):
 			continue
 		if str(patrol_leader_ids.get(actor.world_squad_id, "")) != actor.stable_id:
 			continue
-		actor.request_ai_job(_make_patrol_job(actor, marker, state))
+		_request_nest_job(actor, _make_patrol_job(actor, marker, state))
 
 
 func _patrol_leader_ids_by_squad(state: Dictionary, patrol_squad_ids: Array) -> Dictionary:
@@ -1011,6 +1040,33 @@ func _patrol_leader_ids_by_squad(state: Dictionary, patrol_squad_ids: Array) -> 
 		if patrol_squad_ids.has(actor.world_squad_id) and not leaders.has(actor.world_squad_id):
 			leaders[actor.world_squad_id] = actor.stable_id
 	return leaders
+
+
+# Nest orchestration submits to the existing GECS job/driver authority. Actor
+# wrappers disappeared in the migration; they must not silently swallow patrols.
+func _has_active_nest_job(actor: HumanoidCharacter) -> bool:
+	var bridge := _get_gecs_world()
+	var entity = bridge.get_actor_entity(actor) if bridge != null else null
+	var ai = entity.get_component(CGameAiState) if entity != null else null
+	return ai != null and ai.active_job != null and ai.active_source_id in [NEST_PATROL_SOURCE_ID, NEST_ASSAULT_SOURCE_ID]
+
+
+func _request_nest_job(actor: HumanoidCharacter, job) -> bool:
+	var bridge := _get_gecs_world()
+	if bridge == null or not is_instance_valid(actor) or not actor.is_inside_tree() or actor.is_queued_for_deletion() or actor.has_active_player_order() or job == null:
+		return false
+	var entity = bridge.get_actor_entity(actor)
+	var ai = entity.get_component(CGameAiState) if entity != null else null
+	if ai == null or not job.is_valid_for(actor) or not job.should_replace(ai.active_job, actor):
+		return false
+	if ai.active_job != null:
+		ai.finish_job(AiTaskStep.StepStatus.CANCELLED)
+	var driver := AiJobDriver.new()
+	job.status = AI_JOB_SCRIPT.JobStatus.RUNNING
+	job.job_id = "%s:%s" % [job.package_id, actor.stable_id]
+	driver.setup(actor, job)
+	bridge.set_actor_ai_job(actor, job, driver)
+	return ai.active_job == job and ai.active_driver == driver
 
 
 func _make_patrol_job(actor: HumanoidCharacter, marker: NestPlacementMarker, _state: Dictionary):
@@ -1165,7 +1221,7 @@ func _request_assault_job_for_actor(actor_id: String, marker_id: String, target_
 		return
 	if actor.life_state != NpcRules.LifeState.ALIVE or actor.get_current_combat_target() != null:
 		return
-	actor.request_ai_job(_make_assault_job(actor, marker, state, target_settlement_id, target_position))
+	_request_nest_job(actor, _make_assault_job(actor, marker, state, target_settlement_id, target_position))
 
 
 func _process_weekly_repopulation(day_index: int) -> void:

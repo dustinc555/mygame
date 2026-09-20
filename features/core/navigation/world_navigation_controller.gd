@@ -25,8 +25,8 @@ class_name WorldNavigationController
 ##
 ## Modes, chosen once on activation:
 ## - DORMANT: the scene ships an authored NavigationRegion3D (legacy zones).
-## - TILED: Terrain3D present (the open world).
-## - FULL_SCENE: no terrain (test levels); one whole-scene bake, re-baked
+## - TILED: Terrain3D or static geometry exceeding the safe bake cell extent.
+## - FULL_SCENE: small static scenes; one whole-scene bake, re-baked
 ##   when geometry changes.
 
 const SERVICE_ID := &"world_navigation"
@@ -170,9 +170,13 @@ func _activate() -> void:
 	get_tree().node_added.connect(_on_scene_node_added)
 	get_tree().node_removed.connect(_on_scene_node_removed)
 	_scan_terrains()
-	_mode = Mode.TILED if not _terrains.is_empty() else Mode.FULL_SCENE
+	_template = PIPELINE.build_template(settings, false)
+	if _terrains.is_empty():
+		_parse_world_geometry()
+	_mode = Mode.TILED if not _terrains.is_empty() or _static_geometry_needs_tiles() else Mode.FULL_SCENE
 	_template = PIPELINE.build_template(settings, _mode == Mode.TILED)
 	if _mode == Mode.FULL_SCENE:
+		_geometry_dirty = true
 		_full_scene_region = NavigationRegion3D.new()
 		_full_scene_region.name = "WorldNavigationRegion"
 		_full_scene_region.use_edge_connections = false
@@ -338,9 +342,14 @@ func save_world_cache() -> int:
 		if tile.state != TileState.BAKED:
 			continue
 		var region := tile.region
-		if region != null and is_instance_valid(region) and region.navigation_mesh != null:
-			if PIPELINE.save_tile(cache_dir, coord, region.navigation_mesh):
-				saved += 1
+		var nav_mesh: NavigationMesh = region.navigation_mesh if is_instance_valid(region) else null
+		# A completed empty tile is known baked data, not a missing cache
+		# entry. Persist an empty mesh so reload does not rebake world margins
+		# (and so a formerly walkable tile cannot leave stale polygons on disk).
+		if nav_mesh == null:
+			nav_mesh = _template.duplicate()
+		if PIPELINE.save_tile(cache_dir, coord, nav_mesh):
+			saved += 1
 	PIPELINE.save_manifest(cache_dir, settings, saved)
 	return saved
 
@@ -410,8 +419,25 @@ func _process(delta: float) -> void:
 		_start_tile_bake(next)
 
 
+func _static_geometry_needs_tiles() -> bool:
+	if _scene_geometry == null or not _scene_geometry.has_data():
+		return false
+	var size := _scene_geometry.get_bounds().size
+	var limit := settings.cell_size * PIPELINE.MAX_BAKE_CELLS_PER_SIDE
+	return maxf(size.x, size.z) > limit
+
+
 func _seed_world_tiles() -> void:
-	for coord in PIPELINE.enumerate_world_tiles(_terrains, settings):
+	var coords := PIPELINE.enumerate_world_tiles(_terrains, settings)
+	# Large static worlds (including DemoWorld) need the same bounded worker,
+	# cache and local-change route as terrain worlds. Do not coarsen clearance
+	# or remove their floor to fit an unsafe whole-scene bake.
+	if _terrains.is_empty():
+		if _geometry_dirty:
+			_parse_world_geometry()
+		if _scene_geometry != null and _scene_geometry.has_data():
+			coords = PIPELINE.affected_tile_coords(_scene_geometry.get_bounds(), settings)
+	for coord in coords:
 		_ensure_tile(coord)
 	if _tiles.is_empty():
 		_initial_ready = true
@@ -430,7 +456,7 @@ func _load_world_cache() -> void:
 		var nav_mesh: NavigationMesh = PIPELINE.load_tile(cache_dir, coord)
 		if nav_mesh == null:
 			continue
-		_assign_tile_mesh(coord, nav_mesh)
+		_assign_tile_mesh(coord, nav_mesh if nav_mesh.get_polygon_count() > 0 else null)
 		_tiles[coord].state = TileState.BAKED
 		_tiles[coord].installed_revision = _tiles[coord].requested_revision
 		loaded += 1

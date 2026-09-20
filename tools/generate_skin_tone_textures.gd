@@ -5,12 +5,19 @@ const DETAIL_MIN := 0.42
 const DETAIL_MAX := 1.7
 const DEFAULT_RACE_IDS := ["human", "rustdead"]
 
+# Repair missing files without recoloring or rewriting any existing output:
+# --skin-race=rustdead --missing-only
+var _missing_only := false
+var _generated_count := 0
+var _skipped_count := 0
+
 
 func _initialize() -> void:
 	call_deferred("_run")
 
 
 func _run() -> void:
+	_missing_only = OS.get_cmdline_user_args().has("--missing-only")
 	for race_id in _get_requested_race_ids():
 		var output_dir := ProjectSettings.globalize_path(SKIN_TEXTURE_BUILDER.get_generated_skin_texture_dir(race_id))
 		var error := DirAccess.make_dir_recursive_absolute(output_dir)
@@ -18,14 +25,12 @@ func _run() -> void:
 			push_error("Could not create generated skin texture directory: %s" % SKIN_TEXTURE_BUILDER.get_generated_skin_texture_dir(race_id))
 			quit(1)
 			return
-		var variants := [SKIN_TEXTURE_BUILDER.BODY_VARIANT_HEROIC]
-		if race_id == SKIN_TEXTURE_BUILDER.HUMAN_RACE_ID:
-			variants.append(SKIN_TEXTURE_BUILDER.BODY_VARIANT_REGULAR)
-			variants.append(SKIN_TEXTURE_BUILDER.BODY_VARIANT_TEEN)
-		for body_variant in variants:
-			_generate_for_body_type(race_id, SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_MALE, body_variant)
-			_generate_for_body_type(race_id, SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_FEMALE, body_variant)
-	print("GENERATED_SKIN_TONE_TEXTURES_OK")
+		for body_variant in SKIN_TEXTURE_BUILDER.get_supported_body_variants():
+			for body_type in [SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_MALE, SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_FEMALE]:
+				if not _generate_for_body_type(race_id, body_type, body_variant):
+					quit(1)
+					return
+	print("GENERATED_SKIN_TONE_TEXTURES_OK generated=%d skipped=%d" % [_generated_count, _skipped_count])
 	quit(0)
 
 
@@ -61,14 +66,23 @@ func _is_supported_race_id(race_id: String) -> bool:
 	return race_id == SKIN_TEXTURE_BUILDER.HUMAN_RACE_ID or race_id == SKIN_TEXTURE_BUILDER.RUSTDEAD_RACE_ID
 
 
-func _generate_for_body_type(race_id: String, body_type: int, body_variant: String) -> void:
+func _generate_for_body_type(race_id: String, body_type: int, body_variant: String) -> bool:
+	var tones: Array = SKIN_TEXTURE_BUILDER.get_skin_tones_for_race(race_id)
+	var tone_indices: Array[int] = []
+	for tone_index in range(tones.size()):
+		var output_path := SKIN_TEXTURE_BUILDER.get_generated_skin_texture_path(race_id, body_type, tone_index, body_variant)
+		if _missing_only and FileAccess.file_exists(output_path):
+			_skipped_count += 1
+		else:
+			tone_indices.append(tone_index)
+	if tone_indices.is_empty():
+		return true
 	var source_texture_path: String = SKIN_TEXTURE_BUILDER.get_source_texture_path(body_type, body_variant)
 	var source_texture := load(source_texture_path) as Texture2D
 	var base_image := _get_readable_image(source_texture)
 	if base_image == null:
 		push_error("Could not read base skin texture for race '%s' body type %d" % [race_id, body_type])
-		quit(1)
-		return
+		return false
 	_resize_to_working_size(base_image)
 	var width := base_image.get_width()
 	var height := base_image.get_height()
@@ -76,16 +90,16 @@ func _generate_for_body_type(race_id: String, body_type: int, body_variant: Stri
 	var mask := PackedFloat32Array()
 	mask.resize(width * height)
 	var average := _calculate_average_skin_color(base_image, mask, width, height)
-	var tones: Array = SKIN_TEXTURE_BUILDER.get_skin_tones_for_race(race_id)
-	for tone_index in range(tones.size()):
+	for tone_index in tone_indices:
 		var texture_image := _build_skin_image(race_id, body_type, tone_index, base_bytes, mask, average, width, height, tones[tone_index])
 		var output_path := SKIN_TEXTURE_BUILDER.get_generated_skin_texture_path(race_id, body_type, tone_index, body_variant)
 		var save_error := texture_image.save_png(output_path)
 		if save_error != OK:
 			push_error("Could not save generated skin texture: %s" % output_path)
-			quit(1)
-			return
+			return false
+		_generated_count += 1
 		print("generated %s" % output_path)
+	return true
 
 
 func _build_skin_image(race_id: String, body_type: int, tone_index: int, base_bytes: PackedByteArray, mask: PackedFloat32Array, average: Vector3, width: int, height: int, skin_color: Color) -> Image:

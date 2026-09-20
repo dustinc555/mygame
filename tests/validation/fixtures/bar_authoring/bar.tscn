@@ -1,0 +1,52 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://features/settlements/bridge/settlement_bar.tscn" id="1_bar"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bar_counter.tscn" id="2_counter"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/bar_table.tscn" id="3_table"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/stool_chair.tscn" id="4_seat"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/barrel.tscn" id="5_stock"]
+
+[node name="ControlledBar" instance=ExtResource("1_bar")]
+door_schedule_enabled = false
+metadata/fixture_description = "Production facility and props on the fixture floor. The validator removes the inherited design shell before tree entry; hall furnishing/navigation is not this generic contract's oracle."
+
+[node name="GuardPost" parent="GuardPosts" index="0"]
+position = Vector3(-9, 0, -3)
+rotation = Vector3(0, 0, 0)
+metadata/facility_last_default_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 0, -3)
+
+[node name="GuardPost2" parent="GuardPosts" index="1"]
+position = Vector3(9, 0, -3)
+rotation = Vector3(0, 0, 0)
+metadata/facility_last_default_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, -3)
+
+[node name="GuardPost3" parent="GuardPosts" index="2"]
+position = Vector3(0, 0, 11)
+rotation = Vector3(0, 0, 0)
+metadata/facility_last_default_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 11)
+
+[node name="Counter" parent="Furniture" instance=ExtResource("2_counter")]
+position = Vector3(0, 0, -6)
+
+[node name="TableA" parent="Furniture" instance=ExtResource("3_table")]
+position = Vector3(-5, 0, 3)
+
+[node name="SeatA" parent="Furniture" instance=ExtResource("4_seat")]
+position = Vector3(-5, 0, 5)
+rotation_degrees = Vector3(0, 180, 0)
+
+[node name="SeatB" parent="Furniture" instance=ExtResource("4_seat")]
+position = Vector3(-5, 0, 1)
+
+[node name="TableB" parent="Furniture" instance=ExtResource("3_table")]
+position = Vector3(5, 0, 3)
+
+[node name="SeatC" parent="Furniture" instance=ExtResource("4_seat")]
+position = Vector3(5, 0, 5)
+rotation_degrees = Vector3(0, 180, 0)
+
+[node name="SeatD" parent="Furniture" instance=ExtResource("4_seat")]
+position = Vector3(5, 0, 1)
+
+[node name="Stock" parent="Furniture" instance=ExtResource("5_stock")]
+position = Vector3(-10, 0, -7)

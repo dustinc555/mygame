@@ -101,8 +101,9 @@ func _assign_actor_to_standing_point(actor: Node, point: Node) -> bool:
 
 func _release_visit_target(actor: Node, target: Node) -> void:
 	if _is_sittable_target(target):
-		if actor.has_method("stop_seat_assignment"):
-			actor.call("stop_seat_assignment")
+		var interaction = actor.call("get_interaction") if actor.has_method("get_interaction") else null
+		if interaction != null and interaction.has_method("stop_seat_assignment"):
+			interaction.call("stop_seat_assignment")
 		elif target.has_method("release_sitter"):
 			target.call("release_sitter", actor)
 		return

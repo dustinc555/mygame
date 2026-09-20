@@ -42,6 +42,7 @@ var _authorized_response_pairs: Dictionary = {}
 var _active_authority_target_keys: Dictionary = {}
 var _responder_ids_by_authority: Dictionary = {}
 var _law_response_actor_ids: Dictionary = {}
+var _law_response_pairs: Dictionary = {}
 var _available_actor_ids: Dictionary = {}
 var _read_indexes_dirty := false
 var _diplomatic_states: Dictionary = {}
@@ -110,6 +111,13 @@ func get_response_depth(responder_actor_id: String, target_actor_id: String) -> 
 
 
 func get_response_context(responder_actor_id: String, target_actor_id: String) -> Dictionary:
+	# Authority is independent of transient social-encounter membership. Guards
+	# can arrive from another encounter; responding to their authorized attack
+	# must not create another assault charge merely because the indexes differ.
+	if _authorized_response_pairs.has(_actor_pair_key(responder_actor_id, target_actor_id)):
+		return {"response_depth": 0, "authorized_response": true}
+	if _authorized_response_pairs.has(_actor_pair_key(target_actor_id, responder_actor_id)):
+		return {"response_depth": 1, "authorized_response": false}
 	var responder_encounter_id := str(_encounter_id_by_actor.get(responder_actor_id, ""))
 	var target_encounter_id := str(_encounter_id_by_actor.get(target_actor_id, ""))
 	if not responder_encounter_id.is_empty() and responder_encounter_id == target_encounter_id:
@@ -121,9 +129,11 @@ func get_response_context(responder_actor_id: String, target_actor_id: String) -
 				"encounter_id": responder_encounter_id,
 				"authorized_response": false,
 			}
-	if _authorized_response_pairs.has(_actor_pair_key(responder_actor_id, target_actor_id)):
-		return {"response_depth": 0, "authorized_response": true}
 	return {}
+
+
+func is_law_enforcement_pair(responder_actor_id: String, target_actor_id: String) -> bool:
+	return _law_response_pairs.has(_actor_pair_key(responder_actor_id, target_actor_id))
 
 
 func has_active_law_response(actor_id: String) -> bool:
@@ -227,6 +237,9 @@ func _consume_event(event, actor_cache: Dictionary, spatial_buckets: Dictionary)
 
 
 func _handle_attack_event(event, actor_cache: Dictionary, spatial_buckets: Dictionary) -> void:
+	# Legal counterattacks are not new root aggression. Preserve the distinct
+	# authorized-response bit for initial encounter-side placement below.
+	var legal_response := bool(event.authorized_response) or int(event.response_depth) > 0
 	var attacker_id := str(event.attacker_actor_id)
 	var protected_id := str(event.protected_actor_id)
 	var attacker_entry: Dictionary = actor_cache.get(attacker_id, {})
@@ -238,11 +251,11 @@ func _handle_attack_event(event, actor_cache: Dictionary, spatial_buckets: Dicti
 	var encounter = null
 	if attacker_encounter != null and protected_encounter != null:
 		if str(attacker_encounter.encounter_id) != str(protected_encounter.encounter_id):
-			_record_external_aggression(attacker_encounter, attacker_id, protected_id, event.origin, bool(event.authorized_response))
+			_record_external_aggression(attacker_encounter, attacker_id, protected_id, event.origin, legal_response)
 			return
 		encounter = attacker_encounter
 	elif attacker_encounter != null:
-		_record_external_aggression(attacker_encounter, attacker_id, protected_id, event.origin, bool(event.authorized_response))
+		_record_external_aggression(attacker_encounter, attacker_id, protected_id, event.origin, legal_response)
 		return
 	elif protected_encounter != null:
 		encounter = protected_encounter
@@ -256,7 +269,7 @@ func _handle_attack_event(event, actor_cache: Dictionary, spatial_buckets: Dicti
 		return
 	encounter.origin = event.origin
 	encounter.remaining_ticks = ENCOUNTER_LIFETIME_TICKS
-	_commit_attack(encounter, attacker_id, protected_id, event.origin, bool(event.authorized_response))
+	_commit_attack(encounter, attacker_id, protected_id, event.origin, legal_response)
 	_recruit_social_allies(encounter, attacker_id, protected_id, attacker_entry, protected_entry, event.origin, float(event.radius), actor_cache, spatial_buckets)
 
 
@@ -478,6 +491,7 @@ func _tick_and_reindex_intents() -> void:
 	_active_authority_target_keys.clear()
 	_responder_ids_by_authority.clear()
 	_law_response_actor_ids.clear()
+	_law_response_pairs.clear()
 	var removals: Array = []
 	for entity in _world.query.with_all([C_INTENT]).execute():
 		var intent = entity.get_component(C_INTENT)
@@ -536,12 +550,14 @@ func _index_authority_read(intent) -> void:
 		_responder_ids_by_authority[authority_id] = responder_ids
 	if int(intent.kind) == C_INTENT.Kind.LAW_ENFORCEMENT:
 		_law_response_actor_ids[str(intent.responder_actor_id)] = true
+		_law_response_pairs[_actor_pair_key(str(intent.responder_actor_id), str(intent.target_actor_id))] = true
 
 
 func _rebuild_authority_read_indexes() -> void:
 	_active_authority_target_keys.clear()
 	_responder_ids_by_authority.clear()
 	_law_response_actor_ids.clear()
+	_law_response_pairs.clear()
 	for entity in _world.query.with_all([C_INTENT]).execute():
 		var intent = entity.get_component(C_INTENT)
 		if intent != null and int(intent.remaining_ticks) > 0:
@@ -675,7 +691,23 @@ func _has_public_duty(entry: Dictionary, settlement_id: String, authority_factio
 	var identity = entry.get("identity")
 	var faction = entry.get("faction")
 	var settlement = entry.get("settlement")
-	return not settlement_id.is_empty() and not authority_faction_id.is_empty() and identity != null and faction != null and settlement != null and str(settlement.settlement_id) == settlement_id and str(faction.faction_id) == authority_faction_id and identity.authority_scopes.has("settlement_authority")
+	if settlement_id.is_empty() or authority_faction_id.is_empty() or identity == null or faction == null or settlement == null:
+		return false
+	if str(faction.faction_id) != authority_faction_id or not identity.authority_scopes.has("settlement_authority"):
+		return false
+	# Political leadership is authority, not a standing arrest assignment.
+	if str(identity.role_id) == "ruler":
+		return false
+	if str(settlement.settlement_id) == settlement_id:
+		return true
+	# A visiting same-faction officer has no local resident assignment. Bound
+	# its authority by the real town border, queried through the existing index.
+	var settlements := BootstrapContext.service(SettlementController.SERVICE_ID) as SettlementController
+	var spatial = entry.get("spatial")
+	if settlements == null or spatial == null:
+		return false
+	var anchor: Node = settlements.get_settlement_anchor(settlement_id)
+	return anchor != null and anchor.has_method("contains_town_border_position") and bool(anchor.call("contains_town_border_position", spatial.world_position))
 
 
 func _refresh_diplomacy() -> void:

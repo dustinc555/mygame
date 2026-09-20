@@ -127,6 +127,8 @@ var _initialized := false
 const WORLD_BRAIN_LOG_CAP := 200
 signal world_event_logged(entry)
 signal world_reindexed
+## Derived item indexes refresh from completed record writes, not a world scan.
+signal item_stack_changed(stack_id: String)
 signal population_life_state_changed(actor_id: String, previous_state: int, next_state: int)
 var _world_brain_log: Array[Dictionary] = []
 var _actor_spatial_nodes_by_cell: Dictionary = {}
@@ -275,6 +277,8 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 		_ensure_actor_combat_components(entity)
 	_write_actor_components(entity, actor, actor_id, settlement_id, context)
 	_hydrate_live_vitals_from_population(entity, actor_id)
+	if actor is WorldActor and actor.get_vitals() != null:
+		actor.get_vitals().bind_authoritative_state(entity.get_component(C_VITALS))
 	_actor_id_by_instance_id[actor.get_instance_id()] = actor_id
 	_actor_spatial_index_valid = false
 	sync_actor_inventory(actor)
@@ -348,6 +352,11 @@ func unregister_actor(actor: Node) -> void:
 		final_world_transform = (actor as Node3D).global_transform
 		has_final_world_transform = true
 	if entity != null and is_instance_valid(entity):
+		var ai_state = entity.get_component(C_AI_STATE)
+		if ai_state != null:
+			ai_state.finish_job(AiTaskStep.StepStatus.CANCELLED)
+		if actor is WorldActor and actor.get_vitals() != null:
+			actor.get_vitals().unbind_authoritative_state()
 		var population_entity = _population_entity_by_actor_id.get(actor_id)
 		var population = population_entity.get_component(C_POPULATION_RECORD) if population_entity != null and is_instance_valid(population_entity) else null
 		if population != null:
@@ -378,6 +387,9 @@ func _disconnect_actor_gecs_sync(actor: Node) -> void:
 		var inventory_callback := sync_actor_inventory.bind(actor)
 		if world_actor.get_inventory().inventory_changed.is_connected(inventory_callback):
 			world_actor.get_inventory().inventory_changed.disconnect(inventory_callback)
+	var merchant_role := actor.get_node_or_null("MerchantRole") as MerchantRole
+	if merchant_role != null and merchant_role.shop_inventory_changed.is_connected(sync_actor_inventory.bind(actor)):
+		merchant_role.shop_inventory_changed.disconnect(sync_actor_inventory.bind(actor))
 	if world_actor.get_equipment() != null:
 		var equipment_callback := _on_actor_equipment_changed.bind(actor)
 		if world_actor.get_equipment().equipment_changed.is_connected(equipment_callback):
@@ -1854,6 +1866,11 @@ func get_assignment_slots(settlement_id := "", assignment_domain := "") -> Array
 func sync_actor_inventory(actor: Node) -> void:
 	if actor == null or not is_instance_valid(actor):
 		return
+	var merchant_role := actor.get_node_or_null("MerchantRole") as MerchantRole
+	# A load refreshes shop/UI observers without mirroring the pre-load actor
+	# bags back into GECS before population hydration has finished.
+	if merchant_role != null and merchant_role.is_inventory_sync_suspended():
+		return
 	_try_initialize()
 	if world == null:
 		return
@@ -1868,6 +1885,12 @@ func sync_actor_inventory(actor: Node) -> void:
 	var work_inventory = actor.get("_work_inventory_override") if _has_property(actor, "_work_inventory_override") else null
 	if work_inventory != null:
 		_sync_inventory_container(actor_id, "%s.work_inventory" % actor_id, actor, work_inventory, true)
+	if merchant_role != null:
+		merchant_role.bind_inventory_state(self, actor_id)
+		var stock_callback := sync_actor_inventory.bind(actor)
+		if not merchant_role.shop_inventory_changed.is_connected(stock_callback):
+			merchant_role.shop_inventory_changed.connect(stock_callback)
+		_sync_inventory_container(actor_id, "%s.shop_inventory" % actor_id, actor, merchant_role.get_shop_inventory(), false)
 	_sync_equipment_slots(actor_id, actor)
 
 
@@ -1892,6 +1915,7 @@ func get_item_stack_entity(stack_id: String):
 
 func register_item_stack_entity(stack_id: String, entity) -> void:
 	_item_stack_entity_by_id[stack_id] = entity
+	item_stack_changed.emit(stack_id)
 
 
 func remove_item_stack_entity(stack_id: String) -> void:
@@ -1899,6 +1923,7 @@ func remove_item_stack_entity(stack_id: String) -> void:
 	_item_stack_entity_by_id.erase(stack_id)
 	if entity != null and is_instance_valid(entity) and world != null:
 		world.remove_entity(entity)
+	item_stack_changed.emit(stack_id)
 
 
 func get_inventory_container_entity(container_id: String):
@@ -1937,6 +1962,7 @@ func upsert_item_stack_record(record: Dictionary) -> Dictionary:
 	component.stack_id = stack_id
 	component.container_id = str(record.get("container_id", "world"))
 	component.owner_actor_id = str(record.get("owner_actor_id", ""))
+	component.owner_faction_name = str(record.get("owner_faction_name", ""))
 	component.item_definition_path = item_path
 	component.count = maxi(1, int(record.get("count", 1)))
 	component.grid_position = record.get("grid_position", Vector2i.ZERO)
@@ -1947,6 +1973,7 @@ func upsert_item_stack_record(record: Dictionary) -> Dictionary:
 	component.placement_host_id = str(record.get("placement_host_id", ""))
 	component.placement_slot_id = str(record.get("placement_slot_id", ""))
 	component.location_settlement_id = str(record.get("location_settlement_id", ""))
+	item_stack_changed.emit(stack_id)
 	return get_item_stack(stack_id)
 
 
@@ -1964,6 +1991,7 @@ func get_inventory_stacks(container_id := "") -> Array[Dictionary]:
 			"stack_id": str(component.stack_id),
 			"container_id": str(component.container_id),
 			"owner_actor_id": str(component.owner_actor_id),
+			"owner_faction_name": str(component.owner_faction_name),
 			"item_definition_path": str(component.item_definition_path),
 			"count": int(component.count),
 			"grid_position": component.grid_position,
@@ -1987,6 +2015,7 @@ func get_item_stack(stack_id: String) -> Dictionary:
 		"stack_id": str(component.stack_id),
 		"container_id": str(component.container_id),
 		"owner_actor_id": str(component.owner_actor_id),
+		"owner_faction_name": str(component.owner_faction_name),
 		"item_definition_path": str(component.item_definition_path),
 		"count": int(component.count),
 		"grid_position": component.grid_position,
@@ -2437,11 +2466,34 @@ func load_gecs_world(filepath: String) -> bool:
 	if entities.is_empty():
 		return false
 	_migrate_loaded_construction_catalog_ids(entities)
+	# Keep only runtime handles by durable identity. Removed components can stay
+	# alive in observers; they must stop receiving commands as soon as load begins.
+	var retained_actors: Dictionary = {}
+	for actor_id in _actor_entity_by_actor_id:
+		var actor := _actor_from_entity(_actor_entity_by_actor_id[actor_id]) as WorldActor
+		if actor != null and _actor_record_id(actor) == actor_id and actor.get_vitals() != null:
+			actor.get_vitals().unbind_authoritative_state()
+			retained_actors[actor_id] = weakref(actor)
 	_clear_world_entities()
 	for entity in entities:
 		if entity != null:
 			world.add_entity(entity)
 	_rebuild_entity_indexes()
+	# Rebind before load observers or callers can issue a medical command. Do
+	# not register again: registration would copy pre-load actor state over it.
+	for actor_id in retained_actors:
+		var actor = retained_actors[actor_id].get_ref()
+		var entity = _actor_entity_by_actor_id.get(actor_id)
+		if actor == null or actor.is_queued_for_deletion() or entity == null:
+			continue
+		var node_component = entity.get_component(C_NODE)
+		if node_component == null:
+			continue
+		node_component.actor = actor
+		node_component.actor_path = actor.get_path()
+		node_component.instance_id = actor.get_instance_id()
+		_actor_id_by_instance_id[actor.get_instance_id()] = actor_id
+		actor.get_vitals().bind_authoritative_state(entity.get_component(C_VITALS))
 	world_reindexed.emit()
 	return true
 
@@ -2836,6 +2888,7 @@ func _sync_item_stack(actor_id: String, container_id: String, entry) -> void:
 	component.placement_host_id = ""
 	component.placement_slot_id = ""
 	component.location_settlement_id = ""
+	item_stack_changed.emit(stack_id)
 
 
 func _sync_equipment_slots(actor_id: String, actor: Node) -> void:
@@ -2927,6 +2980,7 @@ func _ensure_equipment_item_stack(actor_id: String, slot_name: String, item_path
 	stack_component.placement_host_id = ""
 	stack_component.placement_slot_id = slot_name
 	stack_component.location_settlement_id = ""
+	item_stack_changed.emit(stack_id)
 
 
 func _sync_record_inventory_entries(actor_id: String, inventory_entries) -> void:
@@ -2971,6 +3025,7 @@ func _sync_item_stack_from_snapshot(actor_id: String, container_id: String, snap
 	component.grid_position = snapshot.get("grid_position", Vector2i.ZERO)
 	component.contained_item_counts = (snapshot.get("contained_item_counts", {}) as Dictionary).duplicate(true)
 	component.metadata = (snapshot.get("metadata", {}) as Dictionary).duplicate(true)
+	item_stack_changed.emit(stack_id)
 
 
 func _populate_record_inventory_and_equipment(record: Dictionary) -> Dictionary:
@@ -3131,10 +3186,7 @@ func _clear_item_stacks_for_container(container_id: String) -> void:
 		if component != null and str(component.container_id) == container_id:
 			remove_ids.append(str(stack_id))
 	for stack_id in remove_ids:
-		var entity = _item_stack_entity_by_id.get(stack_id)
-		if entity != null and is_instance_valid(entity) and world != null:
-			world.remove_entity(entity)
-		_item_stack_entity_by_id.erase(stack_id)
+		remove_item_stack_entity(stack_id)
 
 
 func _clear_equipment_slots_for_actor(actor_id: String) -> void:
@@ -3207,8 +3259,10 @@ func _query_spatial_actor_nodes(position: Vector3, radius: float, radius_squared
 			if not (actors is Array):
 				continue
 			for actor_value in actors:
-				var actor := actor_value as Node
-				if actor == null or not is_instance_valid(actor) or not (actor is Node3D):
+				if not is_instance_valid(actor_value):
+					continue
+				var actor := actor_value as Node3D
+				if actor == null or not actor.is_inside_tree() or actor.is_queued_for_deletion():
 					continue
 				var actor_key := actor.get_instance_id()
 				if checked_actor_ids.has(actor_key):
@@ -3279,8 +3333,10 @@ func _query_spatial_cell(position: Vector3, radius_squared: float, include_party
 	if not (actors is Array):
 		return
 	for actor_value in actors:
-		var actor := actor_value as Node
-		if actor == null or not is_instance_valid(actor) or not (actor is Node3D):
+		if not is_instance_valid(actor_value):
+			continue
+		var actor := actor_value as Node3D
+		if actor == null or not actor.is_inside_tree() or actor.is_queued_for_deletion():
 			continue
 		var actor_key := actor.get_instance_id()
 		if checked_actor_ids.has(actor_key):

@@ -26,6 +26,7 @@ const PORTRAIT_SKIP_NODE_NAMES := {
 
 var member: WorldActor
 var _portrait_refresh_queued := false
+var _snapshot_tree: SceneTree
 
 @onready var viewport: SubViewport = $Margin/VBox/PortraitViewportContainer/SubViewport
 @onready var portrait_camera: Camera3D = $Margin/VBox/PortraitViewportContainer/SubViewport/Camera3D
@@ -56,11 +57,12 @@ func setup(target_member: WorldActor) -> void:
 
 
 func _exit_tree() -> void:
+	_cancel_snapshot()
 	_disconnect_member_appearance_changed()
 
 
 func apply_state(is_selected: bool, is_followed: bool) -> void:
-	if name_label == null or member == null:
+	if name_label == null or not is_instance_valid(member):
 		return
 	name_label.text = member.member_name
 	if is_selected or is_followed:
@@ -77,7 +79,7 @@ func refresh_portrait() -> void:
 
 
 func _deferred_setup() -> void:
-	if member == null or name_label == null:
+	if not is_instance_valid(member) or name_label == null:
 		return
 	name_label.text = member.member_name
 	call_deferred("_rebuild_portrait")
@@ -85,13 +87,13 @@ func _deferred_setup() -> void:
 
 func _deferred_refresh_portrait() -> void:
 	_portrait_refresh_queued = false
-	if not is_inside_tree() or member == null or portrait_root == null:
+	if not is_inside_tree() or not is_instance_valid(member) or portrait_root == null:
 		return
 	_rebuild_portrait()
 
 
 func _connect_member_appearance_changed() -> void:
-	if member == null or not member.has_signal("appearance_changed"):
+	if not is_instance_valid(member) or not member.has_signal("appearance_changed"):
 		return
 	var changed_callable := Callable(self, "_on_member_appearance_changed")
 	if not member.is_connected("appearance_changed", changed_callable):
@@ -99,7 +101,7 @@ func _connect_member_appearance_changed() -> void:
 
 
 func _disconnect_member_appearance_changed() -> void:
-	if member == null or not is_instance_valid(member) or not member.has_signal("appearance_changed"):
+	if not is_instance_valid(member) or not member.has_signal("appearance_changed"):
 		return
 	var changed_callable := Callable(self, "_on_member_appearance_changed")
 	if member.is_connected("appearance_changed", changed_callable):
@@ -111,17 +113,20 @@ func _on_member_appearance_changed() -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
-	if member == null:
+	if not is_instance_valid(member):
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		portrait_pressed.emit(member, event.double_click, event.alt_pressed)
 
 
 func _rebuild_portrait() -> void:
+	_cancel_snapshot()
+	if not is_inside_tree() or is_queued_for_deletion() or not is_instance_valid(portrait_root):
+		return
 	for child in portrait_root.get_children():
 		portrait_root.remove_child(child)
 		child.queue_free()
-	if member == null:
+	if not is_instance_valid(member):
 		return
 	var visual_root := member.get_character_visual_root()
 	if visual_root != null:
@@ -208,7 +213,7 @@ func _get_portrait_idle_animation_name(animation_player: AnimationPlayer) -> Str
 
 
 func _is_robot_member() -> bool:
-	var race = member.get("character_race") if member != null else null
+	var race = member.get("character_race") if is_instance_valid(member) else null
 	if race == null:
 		return false
 	return str(race.get("race_id")) == "quadbot"
@@ -263,10 +268,32 @@ func _transform_aabb(bounds: AABB, transform: Transform3D) -> AABB:
 
 
 func _capture_snapshot() -> void:
-	if not is_inside_tree():
+	_cancel_snapshot()
+	if not is_inside_tree() or is_queued_for_deletion():
 		return
-	await get_tree().process_frame
-	await RenderingServer.frame_post_draw
+	# Node-bound callbacks disconnect on teardown; suspended coroutines do not.
+	_snapshot_tree = get_tree()
+	_snapshot_tree.process_frame.connect(_on_snapshot_frame, CONNECT_ONE_SHOT)
+
+
+func _on_snapshot_frame() -> void:
+	_snapshot_tree = null
+	if not is_inside_tree() or is_queued_for_deletion():
+		return
+	RenderingServer.frame_post_draw.connect(_finish_snapshot, CONNECT_ONE_SHOT)
+
+
+func _cancel_snapshot() -> void:
+	if _snapshot_tree != null and _snapshot_tree.process_frame.is_connected(_on_snapshot_frame):
+		_snapshot_tree.process_frame.disconnect(_on_snapshot_frame)
+	_snapshot_tree = null
+	if RenderingServer.frame_post_draw.is_connected(_finish_snapshot):
+		RenderingServer.frame_post_draw.disconnect(_finish_snapshot)
+
+
+func _finish_snapshot() -> void:
+	if not is_inside_tree() or is_queued_for_deletion() or not is_instance_valid(viewport) or not is_instance_valid(portrait_image):
+		return
 	var image := viewport.get_texture().get_image()
 	if image == null:
 		return

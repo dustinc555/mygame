@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>mygame / test report</title>
+<style>
+:root { color-scheme:dark; --bg:#111416; --panel:#181c1f; --line:#343b40; --ink:#e9ecee; --muted:#a4afb6; --accent:#b6d7e5; --pass:#9dcead; --fail:#f3a49d; --warn:#e5c18b; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 "Segoe UI","Helvetica Neue",Arial,sans-serif; }
+main { max-width:1160px; margin:auto; padding:36px 28px 56px; }
+h1 { margin:0 0 6px; font-size:clamp(25px,4vw,34px); line-height:1.2; font-weight:600; letter-spacing:-.035em; }
+h2 { margin:0; font-size:17px; font-weight:600; } h3 { margin:20px 0 8px; font-size:14px; }
+p { margin:0; } .eyebrow { color:var(--muted); font-size:11px; letter-spacing:.14em; text-transform:uppercase; margin-bottom:10px; }
+.muted, #run-meta, footer { color:var(--muted); } #run-meta { font-size:13px; overflow-wrap:anywhere; }
+#scope { margin:24px 0 16px; padding:16px 18px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+#scope-title { font-size:16px; font-weight:600; } #scope-detail, #scope-note { margin-top:5px; font-size:13px; }
+#scope-note { color:var(--warn); } #scope-note:empty { display:none; }
+#metrics { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+.metric { padding:12px 16px; border-right:1px solid var(--line); } .metric:last-child { border:0; }
+.metric strong { display:block; font-size:23px; font-weight:600; font-variant-numeric:tabular-nums; line-height:1.25; }
+.metric span { color:var(--muted); font-size:12px; } .passed { color:var(--pass); } .failed { color:var(--fail); }
+.timeout, .blocked, .interrupted { color:var(--warn); }
+.section-heading { display:flex; justify-content:space-between; align-items:baseline; gap:16px; margin:28px 0 12px; }
+#visible-count { font-size:12px; text-align:right; color:var(--muted); }
+.toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:end; margin-bottom:14px; }
+label { display:grid; gap:5px; color:var(--muted); font-size:12px; } .search { flex:1; min-width:180px; }
+input, select, button { min-height:44px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink); font:inherit; padding:9px 12px; }
+input { width:100%; } select { min-width:170px; } button { cursor:pointer; font-size:13px; } button:hover { border-color:var(--muted); }
+:focus-visible { outline:2px solid var(--accent); outline-offset:3px; } input::placeholder { color:#8c99a1; }
+#results { border-top:1px solid var(--line); } details.result { border-bottom:1px solid var(--line); }
+summary { display:grid; grid-template-columns:12px 86px minmax(0,1fr) 74px; align-items:start; gap:12px; padding:15px 10px; cursor:pointer; list-style:none; }
+summary::-webkit-details-marker { display:none; } summary::before { content:'›'; color:var(--muted); font-size:20px; line-height:24px; }
+details[open] > summary::before { content:'⌄'; } summary:hover { background:#1b2023; }
+.badge { font-size:10px; letter-spacing:.06em; text-transform:uppercase; font-weight:700; border:1px solid currentColor; border-radius:4px; padding:3px 7px; width:fit-content; max-width:100%; overflow-wrap:anywhere; }
+.path { font-size:13px; color:var(--ink); overflow-wrap:anywhere; } code, pre { font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace; }
+.identity { min-width:0; } .meta { display:block; margin-top:4px; font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+.first { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--fail); font-size:12px; margin-top:5px; }
+.seconds { font-size:12px; text-align:right; white-space:nowrap; color:var(--muted); font-variant-numeric:tabular-nums; padding-top:2px; }
+.detail { margin:0 10px 18px 120px; font-size:13px; overflow-wrap:anywhere; } .detail p { margin:8px 0; }
+a { color:var(--accent); text-underline-offset:3px; } a:hover { color:var(--ink); }
+pre { margin:8px 0; padding:12px 14px; border:1px solid var(--line); border-radius:6px; background:#0e1113; white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; line-height:1.6; }
+ul { padding-left:20px; } li { margin:6px 0; } #empty { padding:32px 12px; text-align:center; color:var(--muted); }
+footer { font-size:12px; margin-top:24px; border-top:1px solid var(--line); padding-top:16px; } [hidden] { display:none !important; }
+@media (max-width:640px) {
+  main { padding:24px 16px 36px; } #metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .metric:nth-child(3) { border-right:0; } .metric:nth-child(-n+3) { border-bottom:1px solid var(--line); }
+  .toolbar label { flex:1 1 100%; } summary { grid-template-columns:10px minmax(0,1fr) auto; gap:8px; padding:14px 0; }
+  .badge { grid-column:2; } .seconds { grid-column:3; grid-row:1; } .identity { grid-column:2 / -1; }
+  .detail { margin:0 0 18px 18px; } .section-heading { align-items:center; } #scope { padding:14px; }
+}
+</style>
+</head>
+<body>
+<main>
+<header><p class="eyebrow">Local validation · saved report</p><h1>mygame / test report</h1><p id="run-meta">Reading saved run…</p></header>
+<section id="scope" aria-label="Run scope"><p id="scope-title">Run data not loaded</p><p id="scope-detail"></p><p id="scope-note" role="status"></p></section>
+<section id="metrics" aria-label="Reported test outcomes"></section>
+<section aria-labelledby="results-heading">
+<div class="section-heading"><h2 id="results-heading">Results &amp; inventory</h2><p id="visible-count" role="status" aria-live="polite"></p></div>
+<div class="toolbar"><label class="search">Search entries<input id="search" type="search" placeholder="Path, feature, error or audit…" autocomplete="off"></label><label>Status<select id="status"><option value="">All entries</option></select></label><label>Audit<select id="assessment"><option value="">All assessments</option></select></label><button id="reset" type="button">Clear filters</button><button id="expand" type="button">Expand visible</button></div>
+<div id="results"></div><p id="empty" hidden>No entries match these filters. Clear filters to see every recorded entry.</p>
+</section>
+<footer>Saved snapshot, not a live run. Inventory entries are not test passes. Commands are recorded text; nothing is executed by this report.</footer>
+<noscript><p>JavaScript is required to display the saved results. No network connection is needed.</p></noscript>
+</main>
+<script type="application/json" id="report-data">__TEST_REPORT_JSON__</script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const list = value => Array.isArray(value) ? value : [];
+const numeric = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+const duration = value => numeric(value) ? `${value.toFixed(2)} s` : '—';
+const labels = {passed:'Passed', failed:'Failed', timeout:'Timeout', blocked:'Blocked', interrupted:'Interrupted', inventory:'Inventory'};
+const assessments = {keep:'Keep', repair_test:'Repair test', coverage_gap:'Extend coverage', investigate_game:'Investigate gameplay', uncertain:'Decision / diagnosis', support:'Helper / cases', manual:'Manual preview', unreviewed:'No dated audit'};
+function el(tag, text, className) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = String(text);
+  if (className) node.className = className;
+  return node;
+}
+function field(parent, label, value, tag = 'p') {
+  if (value === undefined || value === null || value === '') return;
+  parent.append(el('h3', label), el(tag, value));
+}
+// Permit only relative local links; never interpret report strings as markup.
+function safeLog(value) {
+  if (typeof value !== 'string' || !value || value.trim() !== value) return null;
+  if (/^(?:[a-z][a-z0-9+.-]*:|[\\/#?])|[\u0000-\u001f\u007f\\]/i.test(value)) return null;
+  try { const url = new URL(value, location.href); return url.origin === location.origin && url.protocol === location.protocol ? value : null; }
+  catch { return null; }
+}
+function resultRow(result, inventory = false) {
+  const status = inventory ? 'inventory' : String(result.status || 'unknown');
+  const assessment = result.audit?.assessment || 'unreviewed';
+  const row = el('details', undefined, 'result'), summary = el('summary'), identity = el('span', undefined, 'identity');
+  const errors = list(result.errors), color = Object.hasOwn(labels, status) ? status : 'muted';
+  identity.append(el('code', result.path || '(path not recorded)', 'path'));
+  const meta = [`Mode: ${result.mode || 'not recorded'}`];
+  if (result.mode === 'editor' && result.editor_plugins === false) meta.push('Addon UIs disabled for this test');
+  if (!inventory && result.exit_code !== undefined && result.exit_code !== null) meta.push(`exit ${result.exit_code}`);
+  meta.push(Object.hasOwn(assessments, assessment) ? assessments[assessment] : assessment);
+  identity.append(el('span', meta.join(' · '), 'meta'));
+  if (errors.length) identity.append(el('span', errors[0], 'first'));
+  else if (result.reason) identity.append(el('span', result.reason, 'meta'));
+  summary.append(el('span', Object.hasOwn(labels, status) ? labels[status] : status, `badge ${color}`), identity, el('span', inventory ? 'Not run' : duration(result.seconds), 'seconds'));
+  const detail = el('div', undefined, 'detail');
+  field(detail, 'Reason', result.reason); field(detail, 'Stop reason', result.stop_reason);
+  if (errors.length) field(detail, `First errors · ${errors.length} stored${numeric(result.error_count) ? ` / ${result.error_count} reported` : ''}`, errors.join('\n'), 'pre');
+  else if (!inventory) detail.append(el('p', numeric(result.error_count) ? `Reported errors: ${result.error_count}. No error excerpt stored.` : 'No error excerpt stored.', 'muted'));
+  const audit = result.audit;
+  if (audit && typeof audit === 'object') {
+    field(detail, 'Dated audit · not a current runtime verdict', audit.reviewed_at);
+    if (audit.source_changed) detail.append(el('p', 'This validator changed after the audit. Recheck these notes.', 'timeout'));
+    field(detail, 'Feature', audit.feature); field(detail, 'Assessment', Object.hasOwn(assessments, assessment) ? assessments[assessment] : assessment);
+    field(detail, 'Audit summary', audit.summary); field(detail, 'Recommended action', audit.recommended_action);
+    if (list(audit.evidence).length) {
+      const evidence = el('ul');
+      list(audit.evidence).forEach(item => {
+        const citation = el('li', `${item.path || '(path not recorded)'}${item.line == null ? '' : `:${item.line}`}${item.note ? ` — ${item.note}` : ''}`);
+        if (item.excerpt) citation.append(el('pre', item.excerpt));
+        evidence.append(citation);
+      });
+      detail.append(el('h3', 'Evidence'), evidence);
+    }
+  }
+  if (result.rerun_command) field(detail, 'Run this test against the checkout', result.rerun_command, 'pre');
+  if (result.command_text) field(detail, 'Command used · temporary workspace', result.command_text, 'pre');
+  else if (list(result.command).length) field(detail, 'Recorded arguments', result.command.join(' '), 'pre');
+  const href = safeLog(result.log);
+  if (href) { const link = el('a', 'Open log →'); link.setAttribute('href', href); link.rel = 'noopener noreferrer'; detail.append(link, el('span', `  ${result.log}`, 'muted')); }
+  else if (!inventory) detail.append(el('p', result.log ? 'Log link unavailable: expected a relative local URL.' : 'No log recorded.', 'muted'));
+  row.append(summary, detail);
+  return {row, status, assessment, search:row.textContent.toLowerCase()};
+}
+try {
+  const report = JSON.parse($('report-data').textContent);
+  if (!report || !Array.isArray(report.results)) throw new Error('The saved data must contain a results array.');
+  const scope = report.scope || {}, results = report.results, inventory = list(scope.non_tests);
+  const counts = report.counts || {}, statuses = Object.keys(labels).filter(key => key !== 'inventory');
+  const actual = Object.create(null); results.forEach(result => { const key = String(result.status || 'unknown'); actual[key] = (actual[key] || 0) + 1; });
+  const benchmarks = scope.suite === 'benchmarks', full = !benchmarks && scope.full_suite === true, complete = report.complete === true;
+  $('run-meta').textContent = `${report.project || 'mygame'} · Started ${report.started_at || 'not recorded'} · Elapsed ${duration(report.duration_seconds)}`;
+  $('scope-title').textContent = `${benchmarks ? 'Opt-in benchmarks' : full ? 'Full suite selected' : 'Filtered / partial selection'} · ${complete ? 'Run complete' : 'Run incomplete'}`;
+  $('scope-detail').textContent = `${numeric(scope.selected) ? scope.selected : 'Unknown'} / ${numeric(scope.discovered) ? scope.discovered : 'unknown'} ${benchmarks ? 'benchmarks' : 'tests'} selected · ${results.length} result records · ${inventory.length} inventory entries`;
+  const warnings = [];
+  if (report.audit_warning) warnings.push(report.audit_warning);
+  if (benchmarks) warnings.push('Performance / optimization measurements; excluded from the normal feature suite.');
+  else if (!full) warnings.push('This selection is not full-suite validation.');
+  if (!complete) warnings.push('The run is incomplete; do not treat these results as a full-suite pass.');
+  if (numeric(scope.selected) && results.length !== scope.selected) warnings.push('Stored result count differs from selected test count.');
+  if (full && scope.selected !== scope.discovered) warnings.push('Scope counts disagree with the full-suite flag.');
+  if (statuses.some(key => numeric(counts[key]) && counts[key] !== (actual[key] || 0))) warnings.push('Reported outcomes differ from stored results; filters use stored records.');
+  $('scope-note').textContent = warnings.join(' ');
+  [['Recorded', results.length, ''], ...statuses.map(key => [labels[key], numeric(counts[key]) ? counts[key] : actual[key] || 0, key])].forEach(([label, count, color]) => {
+    const metric = el('div', undefined, 'metric'); metric.append(el('strong', count, color), el('span', label)); $('metrics').append(metric);
+  });
+  const entries = [...results.map(result => resultRow(result)), ...inventory.map(result => resultRow(result, true))];
+  const rank = {failed:0, timeout:1, blocked:2, interrupted:3, passed:5, inventory:6};
+  entries.sort((a, b) => (rank[a.status] ?? 4) - (rank[b.status] ?? 4));
+  entries.forEach(entry => $('results').append(entry.row));
+  const allStatuses = [...new Set([...statuses, ...entries.map(entry => entry.status)])];
+  allStatuses.forEach(status => { const option = el('option', `${Object.hasOwn(labels, status) ? labels[status] : status} (${entries.filter(entry => entry.status === status).length})`); option.value = status; $('status').append(option); });
+  [...new Set(entries.map(entry => entry.assessment))].forEach(assessment => {
+    const option = el('option', `${Object.hasOwn(assessments, assessment) ? assessments[assessment] : assessment} (${entries.filter(entry => entry.assessment === assessment).length})`);
+    option.value = assessment; $('assessment').append(option);
+  });
+  function syncExpansion() {
+    const visible = entries.filter(entry => !entry.row.hidden);
+    $('expand').disabled = visible.length === 0;
+    $('expand').textContent = visible.length && visible.every(entry => entry.row.open) ? 'Collapse visible' : 'Expand visible';
+  }
+  function filter() {
+    const terms = $('search').value.trim().toLowerCase().split(/\s+/).filter(Boolean), status = $('status').value, assessment = $('assessment').value;
+    entries.forEach(entry => { entry.row.hidden = Boolean(status && entry.status !== status) || Boolean(assessment && entry.assessment !== assessment) || !terms.every(term => entry.search.includes(term)); });
+    const visible = entries.filter(entry => !entry.row.hidden).length;
+    $('visible-count').textContent = `${visible} of ${entries.length} entries`;
+    $('empty').hidden = visible !== 0; syncExpansion();
+  }
+  $('results').addEventListener('toggle', syncExpansion, true);
+  $('search').addEventListener('input', filter); $('status').addEventListener('change', filter); $('assessment').addEventListener('change', filter);
+  $('reset').addEventListener('click', () => { $('search').value = ''; $('status').value = ''; $('assessment').value = ''; filter(); $('search').focus(); });
+  $('expand').addEventListener('click', () => {
+    const visible = entries.filter(entry => !entry.row.hidden), open = visible.some(entry => !entry.row.open);
+    visible.forEach(entry => { entry.row.open = open; }); syncExpansion();
+  });
+  filter();
+} catch (error) {
+  $('run-meta').textContent = 'Saved report unavailable'; $('scope-title').textContent = 'Unable to read run data';
+  $('scope-note').textContent = error.message; document.querySelector('.toolbar').hidden = true;
+}
+</script>
+</body>
+</html>

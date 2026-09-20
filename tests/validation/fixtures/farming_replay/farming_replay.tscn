@@ -1,0 +1,181 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/world_root.gd" id="1_world"]
+[ext_resource type="Script" path="res://features/core/game_bootstrap.gd" id="2_bootstrap"]
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_town.gd" id="3_town"]
+[ext_resource type="Script" path="res://features/world_sim/resources/settlement_definition.gd" id="4_definition"]
+[ext_resource type="Script" path="res://features/world_sim/resources/settlement_behavior_profile.gd" id="5_behavior"]
+[ext_resource type="Resource" path="res://features/factions/resources/factions/player_drifters.tres" id="6_faction"]
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_field.gd" id="7_field"]
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_facility_instance.gd" id="8_facility"]
+[ext_resource type="Script" path="res://features/settlements/resources/facility_role_slot_definition.gd" id="9_slot"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/farmer.tres" id="10_role"]
+[ext_resource type="Script" path="res://features/world_sim/resources/character_record_definition.gd" id="11_character"]
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/container.tscn" id="12_container"]
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/bulk_storage_platform.tscn" id="13_pallet"]
+[ext_resource type="Script" path="res://features/inventory/resources/items/inventory_stock.gd" id="14_stock"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/eggplant_seeds.tres" id="15_seeds"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/eggplant.tres" id="16_produce"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/food.tres" id="17_generic"]
+[ext_resource type="Script" path="res://features/world_sim/resources/settlement_food_output.gd" id="18_output"]
+[ext_resource type="PackedScene" path="res://features/farming/projection/farm_water_cistern.tscn" id="19_water"]
+[ext_resource type="PackedScene" path="res://features/core/party/party_member.tscn" id="20_party"]
+[ext_resource type="Script" path="res://features/core/party/party_manager.gd" id="21_manager"]
+
+[sub_resource type="Resource" id="FallbackFood"]
+script = ExtResource("18_output")
+item = ExtResource("17_generic")
+count = 7
+
+[sub_resource type="Resource" id="Behavior"]
+script = ExtResource("5_behavior")
+profile_id = "farming_replay"
+daily_upkeep_hour = 6
+food_units_per_person_per_day = 1.0
+food_outputs_per_day = Array[Resource]([SubResource("FallbackFood")])
+
+[sub_resource type="Resource" id="Settlement"]
+script = ExtResource("4_definition")
+settlement_id = "farming_replay"
+display_name = "Farming replay fixture"
+faction_definition = ExtResource("6_faction")
+behavior_profile = SubResource("Behavior")
+generation_seed = 2026
+actor_realization_policy = "full_town"
+population_growth_per_day = 0.0
+
+[sub_resource type="Resource" id="FarmerA"]
+script = ExtResource("11_character")
+actor_id = "farming_replay.farmer_a"
+member_name = "Fixture Farmer A"
+skill_levels = {"labor.farming": 0.0}
+equipment_slots = {"weapon": "res://features/inventory/resources/items/hoe.tres"}
+inventory_entries = [{"item_id": "res://features/inventory/resources/items/watering_can.tres", "count": 1, "grid_position": Vector2i(0, 0), "metadata": {"farm_water": 0.0}}]
+
+[sub_resource type="Resource" id="FarmerB"]
+script = ExtResource("11_character")
+actor_id = "farming_replay.farmer_b"
+member_name = "Fixture Farmer B"
+skill_levels = {"labor.farming": 0.0}
+equipment_slots = {"weapon": "res://features/inventory/resources/items/hoe.tres"}
+inventory_entries = [{"item_id": "res://features/inventory/resources/items/watering_can.tres", "count": 1, "grid_position": Vector2i(0, 0), "metadata": {"farm_water": 0.0}}]
+
+[sub_resource type="Resource" id="SlotA"]
+script = ExtResource("9_slot")
+slot_id = "farmer_a"
+role = ExtResource("10_role")
+named_character = SubResource("FarmerA")
+
+[sub_resource type="Resource" id="SlotB"]
+script = ExtResource("9_slot")
+slot_id = "farmer_b"
+role = ExtResource("10_role")
+named_character = SubResource("FarmerB")
+
+[sub_resource type="Resource" id="SeedStock"]
+script = ExtResource("14_stock")
+item_definition = ExtResource("15_seeds")
+quantity = 64
+
+[sub_resource type="Resource" id="FoodStock"]
+script = ExtResource("14_stock")
+item_definition = ExtResource("16_produce")
+quantity = 12
+
+[sub_resource type="BoxShape3D" id="FloorShape"]
+size = Vector3(32, 1, 32)
+
+
+[node name="FarmingReplay" type="Node3D"]
+script = ExtResource("1_world")
+world_id = "farming_replay"
+start_hour = 8
+start_minute = 0
+
+[node name="Floor" type="StaticBody3D" parent="." groups=["terrain"]]
+position = Vector3(0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("FloorShape")
+
+[node name="Town" type="Node3D" parent="."]
+script = ExtResource("3_town")
+settlement_definition = SubResource("Settlement")
+auto_town_border_from_footprint = false
+town_border_radius = 15.0
+
+[node name="Facilities" type="Node3D" parent="Town"]
+
+[node name="Farm" type="Node3D" parent="Town/Facilities"]
+position = Vector3(-3, 0, -3)
+script = ExtResource("7_field")
+facility_id = "farming_replay.field"
+owner_faction_id = "Player"
+dimensions = Vector2i(2, 2)
+crop_policy_id = "eggplant"
+
+[node name="Worksite" type="Node3D" parent="Town/Facilities"]
+position = Vector3(0, 0, 5)
+script = ExtResource("8_facility")
+facility_id = "farming_replay.worksite"
+facility_type = "storage"
+owner_faction_id = "Player"
+role_slots = Array[ExtResource("9_slot")]([SubResource("SlotA"), SubResource("SlotB")])
+door_schedule_enabled = false
+
+[node name="Seeds" parent="Town" instance=ExtResource("12_container")]
+position = Vector3(-6, 0.5, 2)
+container_id = "farming_replay.seeds"
+settlement_id = "farming_replay"
+container_type = "seeds"
+owner_faction_name = "Player"
+starting_items = Array[ExtResource("14_stock")]([SubResource("SeedStock")])
+
+[node name="Produce" parent="Town" instance=ExtResource("13_pallet")]
+position = Vector3(5, 0, 2)
+container_id = "farming_replay.produce"
+settlement_id = "farming_replay"
+owner_faction_name = "Player"
+storage_item_overrides = {"food.bell_pepper": false, "food.chili_pepper": false, "food.eggplant": true, "food.french_beans": false, "food.tomato": false}
+starting_items = Array[ExtResource("14_stock")]([SubResource("FoodStock")])
+
+[node name="FoodReserve" parent="Town" instance=ExtResource("12_container")]
+position = Vector3(8, 0.5, 2)
+container_id = "farming_replay.food_reserve"
+settlement_id = "farming_replay"
+container_type = "food"
+owner_faction_name = "Player"
+allowed_item_ids = PackedStringArray("food.generic")
+
+[node name="Water" parent="Town" instance=ExtResource("19_water")]
+position = Vector3(-8, 0, -3)
+source_id = "farming_replay.water"
+settlement_id = "farming_replay"
+owner_faction_name = "Player"
+source_kind = "storage"
+renewable = false
+capacity = 500.0
+current_water = 500.0
+recharge_per_world_hour = 0.0
+
+[node name="PartyMembers" type="Node3D" parent="."]
+
+[node name="Observer" parent="PartyMembers" instance=ExtResource("20_party")]
+position = Vector3(10, 0, 10)
+member_name = "Fixture Observer"
+faction_name = "Player"
+
+[node name="PartyManager" type="Node" parent="."]
+script = ExtResource("21_manager")
+
+[node name="GameBootstrap" type="Node" parent="."]
+script = ExtResource("2_bootstrap")
+
+[node name="CameraRig" type="Node3D" parent="."]
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+position = Vector3(0, 12, 12)
+rotation_degrees = Vector3(-45, 0, 0)
+current = true

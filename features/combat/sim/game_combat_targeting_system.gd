@@ -79,6 +79,7 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		# Ordered actors disengage but remain valid targets for their enemies.
 		var player_order_active := factions[i] != null and bool(factions[i].player_order_active)
 		if vit_i == null or cfg_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat or player_order_active:
+			state_i.commanded_target_actor_id = ""
 			state_i.system_target_id = 0
 			state_i.system_target_actor_id = ""
 			state_i.system_target_retarget_remaining = 0.0
@@ -133,6 +134,19 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		if vit_i == null or cfg_i == null or fac_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat or bool(fac_i.player_order_active):
 			_write_node_target(node_actor, 0, process_frame)
 			continue
+		var commanded_id := str(state_i.commanded_target_actor_id)
+		if not commanded_id.is_empty():
+			var commanded_index := int(index_by_actor_id.get(commanded_id, -1))
+			if commanded_index < 0 or commanded_index == i or vitals[commanded_index] == null or configs[commanded_index] == null or int(vitals[commanded_index].life_state) != alive_value or bool(configs[commanded_index].protected_from_combat):
+				state_i.commanded_target_actor_id = ""
+			else:
+				# An exact attack command is not a hint to threat scoring. Keep
+				# ordinary visibility/vertical gates, but never substitute a decoy.
+				if absf(spatials[commanded_index].world_position.y - spatials[i].world_position.y) <= float(cfg_i.move_target_vertical_tolerance) and _can_see_target(nodes, states, i, commanded_index):
+					state_i.system_target_id = instance_ids[commanded_index]
+					state_i.system_target_actor_id = commanded_id
+				_write_node_target(node_actor, state_i.system_target_id, process_frame)
+				continue
 		var stance_i := int(cfg_i.combat_stance)
 		if stance_i == NpcRules.CombatStance.PASSIVE:
 			_write_node_target(node_actor, 0, process_frame)
@@ -147,19 +161,19 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		var grudges_i: PackedInt64Array = state_i.personal_hostile_ids
 		var grudge_actor_ids_i: PackedStringArray = state_i.personal_hostile_actor_ids
 		var private_j := _forced_authority_target_index(actor_id_i, response_intents_by_actor_id, law_candidates_by_actor, index_by_actor_id, vitals, configs, i, alive_value, true)
-		if private_j >= 0:
+		if private_j >= 0 and _can_see_target(nodes, states, i, private_j):
 			state_i.system_target_id = instance_ids[private_j]
 			state_i.system_target_actor_id = actor_ids[private_j]
 			_write_node_target(node_actor, state_i.system_target_id, process_frame)
 			continue
 		var lock_j := _engagement_lock_index(i, slots, index_by_actor_id, vitals, configs, factions, instance_ids, actor_ids, alive_value, hostile_relation_pairs, fac_i, grudges_i, grudge_actor_ids_i, tactical_opponents, law_opponents.is_empty(), require_grudge)
-		if lock_j >= 0:
+		if lock_j >= 0 and _can_see_target(nodes, states, i, lock_j):
 			state_i.system_target_id = instance_ids[lock_j]
 			state_i.system_target_actor_id = actor_ids[lock_j]
 			_write_node_target(node_actor, state_i.system_target_id, process_frame)
 			continue
 		var law_fallback_j := _forced_authority_target_index(actor_id_i, response_intents_by_actor_id, law_candidates_by_actor, index_by_actor_id, vitals, configs, i, alive_value, false)
-		if law_fallback_j >= 0:
+		if law_fallback_j >= 0 and _can_see_target(nodes, states, i, law_fallback_j):
 			state_i.system_target_id = instance_ids[law_fallback_j]
 			state_i.system_target_actor_id = actor_ids[law_fallback_j]
 			_write_node_target(node_actor, state_i.system_target_id, process_frame)
@@ -219,6 +233,8 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 					var score := _target_score(i, j, distance, attack_range, actor_id_i, current_target_actor_id, actor_ids, states, pressure_by_target_actor_id)
 					if score >= best_score:
 						continue
+					if not _can_see_target(nodes, states, i, j):
+						continue
 					best_score = score
 					best_j = j
 				if occupant_checks > MAX_TARGET_OCCUPANT_CHECKS or candidate_checks > MAX_TARGET_CANDIDATE_CHECKS:
@@ -237,6 +253,18 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 
 	if shadow_enabled:
 		_record_shadow(states, count)
+
+
+## Non-sneaking targets retain the cheap component-only fast path. A sneaking
+## projection must satisfy the same perception contract as ordinary actor AI.
+func _can_see_target(nodes: Array, states: Array, observer_index: int, target_index: int) -> bool:
+	if states[target_index] == null or not bool(states[target_index].sneaking):
+		return true
+	var observer = nodes[observer_index].actor if nodes[observer_index] != null else null
+	var target = nodes[target_index].actor if nodes[target_index] != null else null
+	if not is_instance_valid(observer) or not is_instance_valid(target):
+		return false
+	return observer.has_method("can_see_actor_for_combat") and bool(observer.call("can_see_actor_for_combat", target))
 
 
 func _build_response_intents_by_actor_id() -> Dictionary:

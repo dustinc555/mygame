@@ -48,6 +48,33 @@ func apply_job(job) -> void:
 	}
 
 
+## Finalize the command held by this component, not an optional actor brain.
+## Detach first so cancellation callbacks cannot erase a newly submitted job.
+func finish_job(step_status: int) -> void:
+	var finished_job = active_job
+	var finished_driver = active_driver
+	clear_job()
+	if finished_job == null:
+		return
+	match step_status:
+		AiTaskStep.StepStatus.SUCCEEDED:
+			finished_job.status = AiJob.JobStatus.SUCCEEDED
+		AiTaskStep.StepStatus.FAILED:
+			finished_job.status = AiJob.JobStatus.FAILED
+		_:
+			finished_job.status = AiJob.JobStatus.CANCELLED
+	last_completed_job = finished_job.get_debug_snapshot()
+	if is_instance_valid(finished_driver):
+		# A projection may be gone before its next system tick. Cancellation
+		# still releases step-owned resources, but must not dereference it.
+		if finished_driver is AiJobDriver and not is_instance_valid(finished_driver.owner):
+			finished_driver.owner = null
+		if step_status != AiTaskStep.StepStatus.SUCCEEDED:
+			finished_driver.cancel()
+		if finished_driver.has_method("dispose"):
+			finished_driver.dispose()
+
+
 func clear_job() -> void:
 	active_job = null
 	active_driver = null

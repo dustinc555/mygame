@@ -1,0 +1,64 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://tests/validation/helpers/navigation_fixture.gd" id="1_fixture"]
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/medium_wood_hall_20x12.tscn" id="2_hall"]
+[ext_resource type="PackedScene" path="res://features/core/party/party_member.tscn" id="3_actor"]
+
+[sub_resource type="ConvexPolygonShape3D" id="GroundShape"]
+points = PackedVector3Array(-192, -2.24, -24, -192, -1.52, 24, 192, -0.32, -24, 192, 0.4, 24, -192, -4, -24, -192, -4, 24, 192, -4, -24, 192, -4, 24)
+
+[node name="GranaryNavigationFixture" type="Node3D"]
+script = ExtResource("1_fixture")
+
+[node name="Ground" type="StaticBody3D" parent="."]
+metadata/description = "Fixed uneven approach: y = -0.92 + 0.005*x + 0.015*z. The 384m strip selects real tiled baking at the shared 0.1m resolution, leaving remote tiles to prove a local-only refresh."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("GroundShape")
+
+[node name="Hall" parent="." instance=ExtResource("2_hall")]
+building_id = "granary_navigation.hall"
+
+[node name="Approaches" type="Node3D" parent="Hall"]
+
+[node name="West" type="Node3D" parent="Hall/Approaches"]
+
+[node name="DoorPlane" type="Marker3D" parent="Hall/Approaches/West"]
+position = Vector3(-9.8, 0, -1)
+
+[node name="Inside" type="Marker3D" parent="Hall/Approaches/West"]
+position = Vector3(-7.5, 0.2, -1)
+
+[node name="HeadOn" type="Marker3D" parent="Hall/Approaches/West"]
+position = Vector3(-16.8, -1.019, -1)
+
+[node name="SideNorth" type="Marker3D" parent="Hall/Approaches/West"]
+position = Vector3(-10.9, -1.042, -4.5)
+
+[node name="SideSouth" type="Marker3D" parent="Hall/Approaches/West"]
+position = Vector3(-10.9, -0.922, 3.5)
+
+[node name="East" type="Node3D" parent="Hall/Approaches"]
+
+[node name="DoorPlane" type="Marker3D" parent="Hall/Approaches/East"]
+position = Vector3(9.8, 0, -1)
+
+[node name="Inside" type="Marker3D" parent="Hall/Approaches/East"]
+position = Vector3(7.5, 0.2, -1)
+
+[node name="HeadOn" type="Marker3D" parent="Hall/Approaches/East"]
+position = Vector3(16.8, -0.851, -1)
+
+[node name="SideNorth" type="Marker3D" parent="Hall/Approaches/East"]
+position = Vector3(10.9, -0.933, -4.5)
+
+[node name="SideSouth" type="Marker3D" parent="Hall/Approaches/East"]
+position = Vector3(10.9, -0.813, 3.5)
+
+[node name="PartyMembers" type="Node3D" parent="."]
+
+[node name="NavigationActor" parent="PartyMembers" instance=ExtResource("3_actor")]
+position = Vector3(-20, 0, -8)
+stable_id = "granary_navigation.actor"
+member_name = "Navigation Actor"
+player_party_member = true

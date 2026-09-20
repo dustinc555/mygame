@@ -5,6 +5,9 @@ class_name CGameItemStack
 @export var stack_id := ""
 @export var container_id := ""
 @export var owner_actor_id := ""
+## Explicit WorldItem stamp, separate from holder identity and stolen metadata.
+## Empty means no stamp; facility inheritance remains a projection contract.
+@export var owner_faction_name := ""
 @export var item_definition_path := ""
 @export var count := 1
 @export var grid_position := Vector2i.ZERO

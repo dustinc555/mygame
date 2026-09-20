@@ -36,3 +36,11 @@ navcache/
 # Playwright local state (browser traces/screenshots/page snapshots). Never commit.
 .playwright/
 .playwright-mcp/
+
+# Local test reports, isolated user data, and Python bytecode.
+/test-results/
+/.test-results/
+# Legacy GUT generated editor preferences (current GUT uses user://).
+/.gut_editor_config.json
+/.gut_editor_shortcuts.cfg
+__pycache__/

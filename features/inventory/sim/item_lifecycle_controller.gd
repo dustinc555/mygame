@@ -10,7 +10,7 @@ const ENTITY_SCRIPT := preload("res://addons/gecs/ecs/entity.gd")
 const C_ITEM_COMMAND := preload("res://features/inventory/sim/c_game_item_lifecycle_command.gd")
 const FIXED_TICK_SECONDS := 1.0 / 20.0
 var _gecs: GecsWorldController
-var _records_by_stack_id: Dictionary = {}
+var _host_by_stack_id: Dictionary = {}
 var _stack_ids_by_host: Dictionary = {}
 var _pending_command_by_stack_id: Dictionary = {}
 var _next_command_sequence := 1
@@ -20,6 +20,7 @@ var _tick_accumulator := 0.0
 func initialize(context: BootstrapContext) -> void:
 	_gecs = context.require(GecsWorldController.SERVICE_ID) as GecsWorldController
 	_gecs.world_reindexed.connect(_rebuild_indexes)
+	_gecs.item_stack_changed.connect(_on_item_stack_changed)
 	_rebuild_indexes()
 
 
@@ -48,12 +49,8 @@ func _drain_commands() -> void:
 
 
 func get_stack_record(stack_id: String) -> Dictionary:
-	var record := _records_by_stack_id.get(stack_id, {}) as Dictionary
-	if record.is_empty() and _gecs != null:
-		record = _gecs.get_item_stack(stack_id)
-		if not record.is_empty():
-			_index_record(record)
-	return record.duplicate(true)
+	# GECS already supplies an indexed, detached record; do not cache another copy.
+	return _gecs.get_item_stack(stack_id) if is_instance_valid(_gecs) else {}
 
 
 func get_stack_records_for_host(host_id: String) -> Array[Dictionary]:
@@ -61,7 +58,9 @@ func get_stack_records_for_host(host_id: String) -> Array[Dictionary]:
 	if host_id.is_empty():
 		return result
 	for stack_id in (_stack_ids_by_host.get(host_id, {}) as Dictionary).keys():
-		result.append((_records_by_stack_id.get(stack_id, {}) as Dictionary).duplicate(true))
+		var record := get_stack_record(str(stack_id))
+		if not record.is_empty():
+			result.append(record)
 	return result
 
 
@@ -73,6 +72,17 @@ func submit_world_stack(record: Dictionary) -> Dictionary:
 	command.operation = C_ITEM_COMMAND.Operation.UPSERT_WORLD
 	command.record = record.duplicate(true)
 	return _enqueue_command(stack_id, command, true)
+
+
+## A projection may exist before this accepted creation reaches the fixed tick.
+## Read the actual pending command, not the absence of a durable stack record.
+func has_pending_world_stack(stack_id: String) -> bool:
+	var entity = _pending_command_by_stack_id.get(stack_id)
+	if entity == null or not is_instance_valid(entity):
+		return false
+	var command = entity.get_component(C_ITEM_COMMAND)
+	return command != null and int(command.operation) == C_ITEM_COMMAND.Operation.UPSERT_WORLD \
+			and str(command.record.get("location_kind", "")) in ["world_loose", "world_placed", "tabletop_slot"]
 
 
 func submit_inventory(stack_id: String, owner_actor_id: String, container_id: String) -> Dictionary:
@@ -183,8 +193,6 @@ func resolve_command(entity, command) -> void:
 			record = _gecs.upsert_item_stack_record(command.record)
 		C_ITEM_COMMAND.Operation.SET_LOCATION:
 			record = _gecs.get_item_stack(command.stack_id)
-			if record.is_empty():
-				record = get_stack_record(command.stack_id)
 			if not record.is_empty():
 				var canonical_kind := str(record.get("location_kind", ""))
 				var superseded_inventory_move: bool = str(command.location_kind) == "inventory" and canonical_kind in ["inventory", "equipment"]
@@ -207,27 +215,39 @@ func resolve_command(entity, command) -> void:
 			if not record.is_empty():
 				record["metadata"] = command.metadata.duplicate(true)
 				record = _gecs.upsert_item_stack_record(record)
+	# Completion listeners may enqueue another command for this exact stack.
+	# The committed command must no longer be a coalescing target at publication.
+	_pending_command_by_stack_id.erase(command.stack_id)
 	if not record.is_empty():
-		_index_record(record)
 		if int(command.operation) == C_ITEM_COMMAND.Operation.UPDATE_METADATA:
 			item_metadata_changed.emit(command.stack_id, (record.get("metadata", {}) as Dictionary).duplicate(true))
 		else:
 			item_location_changed.emit(command.stack_id, record.duplicate(true))
-	_pending_command_by_stack_id.erase(command.stack_id)
 	if entity != null and is_instance_valid(entity) and _gecs.world != null:
 		_gecs.world.remove_entity(entity)
 
 
+func _on_item_stack_changed(stack_id: String) -> void:
+	# Index only host membership, without copying every changed inventory payload.
+	# Cache maintenance is not a second command-completion publication.
+	var entity = _gecs.get_item_stack_entity(stack_id)
+	var component = entity.get_component(_gecs.C_ITEM_STACK) if is_instance_valid(entity) else null
+	var host_id := ""
+	if component != null:
+		host_id = str(component.placement_host_id)
+		if host_id.is_empty():
+			host_id = str(component.metadata.get("tabletop_origin_host_id", ""))
+	_set_stack_host(stack_id, host_id)
+
+
 func _rebuild_indexes() -> void:
-	_records_by_stack_id.clear()
+	_host_by_stack_id.clear()
 	_stack_ids_by_host.clear()
 	_pending_command_by_stack_id.clear()
-	if _gecs == null:
+	if _gecs == null or _gecs.world == null:
 		return
-	for record in _gecs.get_inventory_stacks():
-		_index_record(record)
-	if _gecs.world == null:
-		return
+	for entity in _gecs.world.query.with_all([_gecs.C_ITEM_STACK]).execute():
+		_on_item_stack_changed(str(entity.get_component(_gecs.C_ITEM_STACK).stack_id))
 	for entity in _gecs.world.query.with_all([C_ITEM_COMMAND]).execute():
 		var command = entity.get_component(C_ITEM_COMMAND)
 		if command == null or str(command.stack_id).is_empty():
@@ -236,32 +256,21 @@ func _rebuild_indexes() -> void:
 		_next_command_sequence = maxi(_next_command_sequence, int(str(command.command_id).get_slice(":", str(command.command_id).get_slice_count(":") - 1)) + 1)
 
 
-func _index_record(record: Dictionary) -> void:
-	var stack_id := str(record.get("stack_id", ""))
+func _set_stack_host(stack_id: String, host_id: String) -> void:
 	if stack_id.is_empty():
 		return
-	var previous := _records_by_stack_id.get(stack_id, {}) as Dictionary
-	_remove_host_index(stack_id, previous)
-	_records_by_stack_id[stack_id] = record.duplicate(true)
-	var metadata := record.get("metadata", {}) as Dictionary
-	var host_id := str(record.get("placement_host_id", ""))
-	if host_id.is_empty():
-		host_id = str(metadata.get("tabletop_origin_host_id", ""))
+	var previous := str(_host_by_stack_id.get(stack_id, ""))
+	if previous == host_id:
+		return
+	if not previous.is_empty():
+		var old_ids := _stack_ids_by_host.get(previous, {}) as Dictionary
+		old_ids.erase(stack_id)
+		if old_ids.is_empty():
+			_stack_ids_by_host.erase(previous)
+		_host_by_stack_id.erase(stack_id)
 	if host_id.is_empty():
 		return
+	_host_by_stack_id[stack_id] = host_id
 	var ids := _stack_ids_by_host.get(host_id, {}) as Dictionary
 	ids[stack_id] = true
 	_stack_ids_by_host[host_id] = ids
-
-
-func _remove_host_index(stack_id: String, record: Dictionary) -> void:
-	if record.is_empty():
-		return
-	var metadata := record.get("metadata", {}) as Dictionary
-	var host_id := str(record.get("placement_host_id", ""))
-	if host_id.is_empty():
-		host_id = str(metadata.get("tabletop_origin_host_id", ""))
-	var ids := _stack_ids_by_host.get(host_id, {}) as Dictionary
-	ids.erase(stack_id)
-	if ids.is_empty():
-		_stack_ids_by_host.erase(host_id)

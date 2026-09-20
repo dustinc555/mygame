@@ -944,9 +944,10 @@ func realize_assignment_slot(settlement_id: String, assignment_domain: String, s
 
 func _staff_role_owner(settlement_id: String, slot: Dictionary) -> Node:
 	var owners: Dictionary = _staff_role_owners_by_settlement.get(settlement_id, {})
-	var owner: Node = owners.get(str(slot.get("owner_id", "")))
-	if owner != null and is_instance_valid(owner):
-		return owner
+	# Facility projections can disappear while their durable slots remain.
+	var owner = owners.get(str(slot.get("owner_id", "")))
+	if is_instance_valid(owner) and not owner.is_queued_for_deletion():
+		return owner as Node
 	var anchor := get_settlement_anchor(settlement_id)
 	if anchor == null:
 		return null

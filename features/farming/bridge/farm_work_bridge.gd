@@ -602,11 +602,8 @@ func _assign_cell_to_actor(actor: Node3D, plot_id: String, cell_key: String, aut
 			return ""
 		if not replace_actor_work:
 			return "Selected worker is already busy"
-		_cancel(actor_key)
-	if cell_is_claimed:
-		if not replace_claimed:
-			return "Cell is already assigned"
-		_cancel_claimed_cell(plot_id, cell_key)
+	if cell_is_claimed and not replace_claimed:
+		return "Cell is already assigned"
 	var tool_loan := {}
 	var tool_failure := ""
 	if equipped_only:
@@ -638,6 +635,13 @@ func _assign_cell_to_actor(actor: Node3D, plot_id: String, cell_key: String, aut
 	if not tool_failure.is_empty():
 		_speak(actor, tool_failure)
 		return tool_failure
+	# A rejected replacement is not a cancellation command. Tool eligibility
+	# and the transactional equip/stow must succeed before withdrawing either
+	# the requesting actor's sequence or another worker's claim.
+	if actor_was_busy:
+		_cancel(actor_key)
+	if cell_is_claimed:
+		_cancel_claimed_cell(plot_id, cell_key)
 	work["actor"] = actor
 	work["expected_target"] = work.get("world_position", Vector3.ZERO)
 	work["pending_work_seconds"] = 0.0

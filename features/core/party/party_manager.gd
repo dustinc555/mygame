@@ -14,17 +14,26 @@ var party_members: Array[WorldActor] = []
 var selected_members: Array[WorldActor] = []
 var followed_member: WorldActor
 
+# Population/GECS owns membership. These IDs retain only selection/follow
+# intent while its disposable projection is absent; no Node survives LOD.
+var _unrealized_selected_ids := PackedStringArray()
+var _unrealized_followed_id := ""
+
 
 func _ready() -> void:
 	add_to_group("party_manager")
 
 
 func set_party_members(members: Array) -> void:
+	_unrealized_selected_ids.clear()
+	_unrealized_followed_id = ""
 	var previous_members := party_members.duplicate()
 	var previous_selected := selected_members.duplicate()
 	var previous_followed := followed_member
 	var next_members: Array[WorldActor] = []
 	for member in members:
+		if not is_instance_valid(member):
+			continue
 		var actor := member as WorldActor
 		if actor != null and is_instance_valid(actor) and not next_members.has(actor):
 			next_members.append(actor)
@@ -39,6 +48,7 @@ func set_party_members(members: Array) -> void:
 			party_member_removed.emit(previous_member)
 	for member in party_members:
 		member.set_meta("party_id", PLAYER_PARTY_ID)
+		_track_projection(member)
 		party_membership_changed.emit(member, PLAYER_PARTY_ID)
 		member.set_player_party_member(true)
 	_prune_selection_to_party()
@@ -52,12 +62,14 @@ func set_party_members(members: Array) -> void:
 
 
 func clear_selection() -> void:
+	_unrealized_selected_ids.clear()
 	selected_members.clear()
 	_sync_member_states()
 	selection_changed.emit()
 
 
 func select_only(member: WorldActor) -> void:
+	_unrealized_selected_ids.clear()
 	selected_members.clear()
 	selected_members.append(member)
 	_sync_member_states()
@@ -73,21 +85,24 @@ func add_selection(member: WorldActor) -> void:
 
 
 func set_selection(members: Array) -> void:
+	_unrealized_selected_ids.clear()
 	selected_members.clear()
 	for member in members:
-		if member is WorldActor and not selected_members.has(member):
+		if is_instance_valid(member) and member is WorldActor and not selected_members.has(member):
 			selected_members.append(member)
 	_sync_member_states()
 	selection_changed.emit()
 
 
 func set_followed_member(member: WorldActor) -> void:
+	_unrealized_followed_id = ""
 	followed_member = member
 	_sync_member_states()
 	follow_changed.emit()
 
 
 func clear_followed_member() -> void:
+	_unrealized_followed_id = ""
 	if followed_member == null:
 		return
 	followed_member = null
@@ -98,11 +113,7 @@ func clear_followed_member() -> void:
 func register_party_member(member: WorldActor) -> void:
 	if member == null or party_members.has(member):
 		return
-	for index in range(party_members.size() - 1, -1, -1):
-		var existing := party_members[index]
-		if existing == null or not is_instance_valid(existing):
-			party_members.remove_at(index)
-			selected_members.erase(existing)
+	_track_projection(member)
 	var stable_id := _stable_member_id(member)
 	if not stable_id.is_empty():
 		for index in party_members.size():
@@ -133,11 +144,54 @@ func register_party_member(member: WorldActor) -> void:
 				follow_changed.emit()
 			return
 	party_members.append(member)
+	var was_selected := _unrealized_selected_ids.has(stable_id)
+	var was_followed := not stable_id.is_empty() and _unrealized_followed_id == stable_id
+	if was_selected:
+		_unrealized_selected_ids.remove_at(_unrealized_selected_ids.find(stable_id))
+		selected_members.append(member)
+	if was_followed:
+		_unrealized_followed_id = ""
+		followed_member = member
 	member.set_meta("party_id", PLAYER_PARTY_ID)
 	party_membership_changed.emit(member, PLAYER_PARTY_ID)
 	member.set_player_party_member(true)
 	_sync_member_states()
 	party_member_added.emit(member)
+	if was_selected:
+		selection_changed.emit()
+	if was_followed:
+		follow_changed.emit()
+
+
+func _track_projection(member: WorldActor) -> void:
+	var on_exit := _on_projection_exiting.bind(member)
+	if not member.tree_exiting.is_connected(on_exit):
+		member.tree_exiting.connect(on_exit, CONNECT_ONE_SHOT)
+
+
+func _on_projection_exiting(member: WorldActor) -> void:
+	# tree_exiting runs while the body is still valid, before consumers can
+	# receive a freed typed argument. A superseded body's exit is a no-op.
+	if not party_members.has(member):
+		return
+	var stable_id := _stable_member_id(member)
+	var was_selected := selected_members.has(member)
+	var was_followed := followed_member == member
+	if was_selected and not stable_id.is_empty() and not _unrealized_selected_ids.has(stable_id):
+		_unrealized_selected_ids.append(stable_id)
+	if was_followed:
+		_unrealized_followed_id = stable_id
+	party_members.erase(member)
+	selected_members.erase(member)
+	if was_followed:
+		followed_member = null
+	# This signal removes projection UI/caches. Unlike explicit departure,
+	# do not change the actor flag, metadata or durable membership signal.
+	party_member_removed.emit(member)
+	if was_selected:
+		selection_changed.emit()
+	if was_followed:
+		follow_changed.emit()
 
 
 func _stable_member_id(member: WorldActor) -> String:
