@@ -6,8 +6,9 @@ class_name SettlementCensus
 ## PopulationController record, and a town's population is the count of its
 ## living records. Owns the born-settled seeding pass (day zero mints a
 ## record for every staff slot plus occupancy-driven surplus, honoring the
-## definition's generation_seed and authored residents) and the daily growth
-## tick (food/fear/housing-gated record minting plus fear decay). Backfill
+## definition's generation_seed and authored residents). The daily tick
+## currently reconciles living records and decays fear. Births/arrivals and
+## food/fear/housing-gated growth remain an explicit design TODO. Backfill
 ## poaching lives with the slot truth in SettlementController; theatre
 ## realization picks from these records, so the crowd is the census.
 

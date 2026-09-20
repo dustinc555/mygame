@@ -3,10 +3,15 @@ class_name RustdeadBodyProjection
 
 # Rustdead (zombie) humanoid visual adapter. PRESENTATION ONLY -- never owns truth.
 #
-# Holds rustdead-specific presentation: remapped zombie clips, the extra zombie
-# clip set, automatic eyebrow policy, and cinder-burn visuals. Rustdead constants
-# are read through the untyped `actor` at runtime (the actor is a
-# RustdeadHumanoidCharacter, which defines them).
+# Holds remapped zombie clips, automatic eyebrow policy and cinder visuals.
+# Animation constants belong to this projection, never to the actor's vitals.
+const RUSTDEAD_IDLE_ANIMATION_NAME := "Zombie_Idle"
+const RUSTDEAD_WALK_ANIMATION_NAME := "Zombie_Walk_Fwd"
+const RUSTDEAD_RUN_ANIMATION_NAME := "Zombie_Run_Fwd"
+const RUSTDEAD_ANIMATION_NAMES: Array[String] = [
+	"Zombie_Idle", "Zombie_Walk_Fwd", "Zombie_Run_Fwd",
+	"Zombie_Bite", "Zombie_Scratch", "Zombie_Spawn",
+]
 
 const CINDER_BURNED_MATERIAL_META := "cinder_burned"
 const CINDER_SCORCH_OVERLAY_META := "cinder_scorch_overlay"
@@ -21,13 +26,40 @@ var _cinder_burn_fire_seed := 0.0
 var _cinder_burn_visual_rng := RandomNumberGenerator.new()
 
 
+func configure_appearance(data: CharacterAppearanceData) -> void:
+	super.configure_appearance(data)
+	# Population skin color describes the person independently of nest tier.
+	# Constrain only this disposable projection to the authored tier palette;
+	# do not rewrite the person's saved appearance or change shared materials.
+	var tier: Resource = actor.call("get_rustdead_tier_definition") if actor != null else null
+	if tier == null:
+		return
+	var indices: PackedInt32Array = tier.get("skin_tone_indices")
+	if indices.is_empty():
+		return
+	appearance_data.skin_color_customized = true
+	var color := appearance_data.skin_color
+	if indices.has(SKIN_TEXTURE_BUILDER.get_nearest_skin_tone_index(color, SKIN_TEXTURE_BUILDER.RUSTDEAD_RACE_ID)):
+		return
+	var tones: Array = SKIN_TEXTURE_BUILDER.get_skin_tones_for_race(SKIN_TEXTURE_BUILDER.RUSTDEAD_RACE_ID)
+	var closest_distance := INF
+	for index in indices:
+		var tone: Color = tones[index]
+		var distance := Vector3(color.r, color.g, color.b).distance_squared_to(Vector3(tone.r, tone.g, tone.b))
+		if distance < closest_distance:
+			closest_distance = distance
+			appearance_data.skin_color = tone
+
+
 func _exit_tree() -> void:
 	clear_cinder_burned_visuals()
-	_free_rustdead_visual_root_for_exit()
+	_free_rustdead_visual_root()
 	clear_cinder_burn_effect()
 
 
 func setup_visual() -> void:
+	# Rebuilds need the same mesh-before-material teardown as actor exit.
+	_free_rustdead_visual_root()
 	super.setup_visual()
 	if actor != null and _actor.is_cinder_burned():
 		apply_cinder_burned_visuals()
@@ -46,36 +78,37 @@ func has_clip(animation_name: String) -> bool:
 
 
 func _resolve_rustdead_clip_name(animation_name: String) -> String:
-	if animation_name == _actor.IDLE_ANIMATION_NAME or animation_name == _actor.TIRED_IDLE_ANIMATION_NAME or animation_name == _actor.UNARMED_COMBAT_IDLE_ANIMATION_NAME:
-		return _actor.RUSTDEAD_IDLE_ANIMATION_NAME
-	elif animation_name == _actor.WALK_ANIMATION_NAME:
-		return _actor.RUSTDEAD_WALK_ANIMATION_NAME
-	elif animation_name == _actor.JOG_ANIMATION_NAME:
-		return _actor.RUSTDEAD_RUN_ANIMATION_NAME
+	if animation_name == IDLE_ANIMATION_NAME or animation_name == TIRED_IDLE_ANIMATION_NAME or animation_name == UNARMED_COMBAT_IDLE_ANIMATION_NAME:
+		return RUSTDEAD_IDLE_ANIMATION_NAME
+	elif animation_name == WALK_ANIMATION_NAME:
+		return RUSTDEAD_WALK_ANIMATION_NAME
+	elif animation_name == JOG_ANIMATION_NAME:
+		return RUSTDEAD_RUN_ANIMATION_NAME
 	return animation_name
 
 
 func _get_clip_speed(animation_name: String, speed_ratio: float) -> float:
-	if animation_name == _actor.RUSTDEAD_WALK_ANIMATION_NAME:
+	if animation_name == RUSTDEAD_WALK_ANIMATION_NAME:
 		return lerpf(0.72, 1.08, speed_ratio)
-	elif animation_name == _actor.RUSTDEAD_RUN_ANIMATION_NAME:
+	elif animation_name == RUSTDEAD_RUN_ANIMATION_NAME:
 		return lerpf(0.82, 1.22, speed_ratio)
 	return super._get_clip_speed(animation_name, speed_ratio)
 
 
-func _copy_character_animations(animation_library: AnimationLibrary) -> void:
-	super._copy_character_animations(animation_library)
-	var ual2_source: Node = _actor.UAL2_ANIMATION_SOURCE_SCENE.instantiate()
+func _copy_character_animations(animation_library: AnimationLibrary, target_skeleton: Skeleton3D) -> void:
+	super._copy_character_animations(animation_library, target_skeleton)
+	var ual2_source: Node = UAL2_ANIMATION_SOURCE_SCENE.instantiate()
 	var ual2_player := _find_animation_player(ual2_source)
 	if ual2_player != null:
-		_copy_named_animations(ual2_player, animation_library, _actor.RUSTDEAD_ANIMATION_NAMES)
+		_copy_named_animations(ual2_player, animation_library, RUSTDEAD_ANIMATION_NAMES)
+		_adapt_animation_names(animation_library, RUSTDEAD_ANIMATION_NAMES, _find_skeleton(ual2_source), target_skeleton)
 	ual2_source.queue_free()
 
 
 func get_available_idle_clip_names() -> Array[String]:
-	if has_clip(_actor.RUSTDEAD_IDLE_ANIMATION_NAME):
+	if has_clip(RUSTDEAD_IDLE_ANIMATION_NAME):
 		var names: Array[String] = []
-		names.append(String(_actor.RUSTDEAD_IDLE_ANIMATION_NAME))
+		names.append(String(RUSTDEAD_IDLE_ANIMATION_NAME))
 		return names
 	return super.get_available_idle_clip_names()
 
@@ -247,7 +280,7 @@ func _update_cinder_burn_effect(remaining_seconds: float, duration_seconds: floa
 			light.light_energy = intensity * (1.4 + 0.8 * sin(elapsed * 12.0 + _cinder_burn_fire_seed))
 
 
-func _free_rustdead_visual_root_for_exit() -> void:
+func _free_rustdead_visual_root() -> void:
 	var visual_root := get_visual_root()
 	if visual_root == null:
 		return

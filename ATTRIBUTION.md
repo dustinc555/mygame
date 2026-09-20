@@ -31,6 +31,7 @@ This file is the canonical list of imported third-party assets and software used
 | --- | --- | --- | --- | --- | --- |
 | GECS | csprance | CC0 1.0 Universal | $0.00 | https://github.com/csprance/gecs | `addons/gecs/` |
 | LimboAI v1.7.0 | Serhii Snitsaruk and contributors | MIT | $0.00 | https://github.com/limbonaut/limboai | `addons/limboai/` downloaded by `setup_limboai.sh` |
+| GUT v9.6.1 | Tom "Butch" Wesley and contributors | MIT | $0.00 | https://github.com/bitwes/Gut/releases/tag/v9.6.1 | `addons/gut/` (release addon only; bundled `LICENSE.md`) |
 
 ## License Notes
 

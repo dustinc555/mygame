@@ -37,7 +37,18 @@ func _do_initialize() -> void:
 		return
 	_party_manager = root_scene.get_node_or_null("PartyManager") as PartyManager
 	_camera = root_scene.get_node_or_null("CameraRig/CameraPivot/Camera3D") as Camera3D
+	if _party_manager != null and not _party_manager.party_member_removed.is_connected(_on_party_projection_removed):
+		_party_manager.party_member_removed.connect(_on_party_projection_removed)
 	_initialized = _party_manager != null and _camera != null and _occupancy != null and _projection_bridge != null
+
+
+func _on_party_projection_removed(actor: WorldActor) -> void:
+	# PartyManager releases projections at tree_exiting, while typed references
+	# are still valid. A camera latch must not extend the body's lifetime.
+	if _visibility_actor == actor:
+		_visibility_actor = null
+	if _latched_focus_actor == actor:
+		_latched_focus_actor = null
 
 
 func _process(_delta: float) -> void:

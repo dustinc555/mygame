@@ -884,6 +884,11 @@ func get_character_visual_root() -> Node3D:
 
 func get_follow_anchor_position() -> Vector3:
 	var body := get_body_projection()
+	var humanoid_body := body as HumanoidBodyProjection
+	if humanoid_body != null and humanoid_body.is_ragdoll_active():
+		var ragdoll_anchor: Variant = humanoid_body.get_ragdoll_anchor_position()
+		if ragdoll_anchor is Vector3:
+			return ragdoll_anchor
 	if body != null and (is_sitting() or _stand_up_exit_remaining > 0.0 or _stand_up_settle_remaining > 0.0):
 		return body.global_position
 	return super.get_follow_anchor_position()
@@ -1254,6 +1259,8 @@ func play_system_combat_hit_reaction(attacker: Node, outcome: String, attack_id:
 	var body := _body as HumanoidBodyProjection
 	match outcome:
 		"dodged":
+			if can_actively_defend:
+				spend_fatigue(NpcRules.FATIGUE_DODGE_COST)
 			if body == null:
 				return 0.0
 			for candidate in DODGE_ANIMATION_CANDIDATES:
@@ -1261,6 +1268,8 @@ func play_system_combat_hit_reaction(attacker: Node, outcome: String, attack_id:
 					return body.play_combat_reaction_clip(candidate, COMBAT_ACTION_BLEND_SECONDS)
 			return 0.0
 		"blocked":
+			if can_actively_defend:
+				spend_fatigue(NpcRules.FATIGUE_BLOCK_COST)
 			if body == null or not can_actively_defend:
 				return 0.0
 			var block_clip := body.pick_block_reaction_clip(has_shield_block, _get_current_combat_animation_set(), HumanoidBodyProjection.SHIELD_BLOCK_ANIMATION_NAMES, HumanoidBodyProjection.BLOCK_ANIMATION_NAME)

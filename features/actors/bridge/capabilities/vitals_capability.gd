@@ -2,10 +2,9 @@ extends "res://features/actors/bridge/capabilities/actor_capability.gd"
 
 class_name VitalsCapability
 
-## Owns one concern: actor vitals and life/death state.
-##
-## State lives here, not on the actor node. WorldActor exposes compatibility
-## properties and thin delegations only.
+## Public medical commands and the projected view of actor vitals. Registered
+## humanoid commands mutate the injected GECS component before emitting signals.
+## Both commands and simulation use VitalsStateMachine; WorldActor only delegates.
 ##
 ## Dependency shape follows StatsCapability: one typed handle acquired in
 ## `ready()`. Vitals reads Stats for toughness and healing rates; Stats never
@@ -49,14 +48,18 @@ var dying_timer_remaining := 0.0
 var _stats: StatsCapability
 var _base_max_blood_for_toughness := 0.0
 var _last_max_blood_toughness_level := -INF
-# S4 FLIP: for realized humanoids the GECS GameVitalsSystem owns vitals and this capability is a
-# read-only observer (GameActorSyncSystem reflects the component back onto our raw fields each tick).
+# GameVitalsSystem owns periodic simulation. GameActorSyncSystem reflects its
+# component each tick; public commands mutate that same component, not this view.
 # Robots/quadbots keep their node-side death model (S5), so they stay self-driven.
 var _system_owned := false
 ## Which death model this actor uses (HUMANOID = GECS-system-owned vitals; ROBOT = node-owned).
 ## The actor pushes this in as DATA at capability creation, so this capability never type-checks
 ## the actor's class (`is RobotActor`) — that back-edge kept the actor<->capability cycle alive.
 var death_profile: int = CGameActorVitals.DeathProfile.HUMANOID
+var fire_only_death := false
+var held_externally_hold := false
+# Injected by the GECS bridge; never retain a removed projection's component.
+var _authority_ref: WeakRef
 
 
 func _init() -> void:
@@ -74,6 +77,7 @@ func ready() -> void:
 
 
 func teardown() -> void:
+	unbind_authoritative_state()
 	if _stats != null and _stats.skill_level_changed.is_connected(_on_skill_level_changed):
 		_stats.skill_level_changed.disconnect(_on_skill_level_changed)
 	_stats = null
@@ -82,8 +86,10 @@ func teardown() -> void:
 
 func process(delta: float) -> void:
 	# Observer for system-owned (realized humanoid) actors: GameVitalsSystem ticks bleeding/dying/
-	# recovery on the component; this node just reflects it. Robots still self-drive here.
-	if _system_owned:
+	# recovery on the component; this node just reflects it. RobotActor owns its own oil tick.
+	if _system_owned or death_profile == CGameActorVitals.DeathProfile.ROBOT:
+		# RobotActor owns its hull/oil tick. Organic healing would refill oil
+		# and revive an offline robot during QuadBotCharacter.super._process().
 		return
 	process_bleeding(delta)
 	process_dying(delta)
@@ -116,104 +122,132 @@ func configure_vitals(config: Dictionary) -> void:
 # ---------------------------------------------------------------------------
 
 func set_life_state(value: int) -> void:
-	var next_state := clampi(value, NpcRules.LifeState.ALIVE, NpcRules.LifeState.DYING)
-	_set_life_state(next_state)
+	var previous := life_state
+	var state = _command_state()
+	var next := clampi(value, NpcRules.LifeState.ALIVE, NpcRules.LifeState.DYING)
+	# Voluntary sleep/wake is requested through InteractionCapability and
+	# validated by GameVitalsSystem. A projected rest assignment is not a
+	# medical command and must not bypass that existing authority.
+	if state != self and next in [NpcRules.LifeState.ALIVE, NpcRules.LifeState.ASLEEP]:
+		_set_life_state(next)
+		return
+	state.life_state = next
+	if state.life_state == NpcRules.LifeState.DEAD:
+		state.dying_timer_remaining = 0.0
+	_reflect_command_result(state, previous)
 
 
 func set_max_hp(value: float) -> void:
-	var previous_max := maxf(max_hp, 1.0)
-	var was_full := hp >= previous_max - 0.05
-	max_hp = maxf(value, 1.0)
-	if was_full:
-		hp = max_hp
-	else:
-		hp = minf(hp, max_hp)
-	recalculate_vitals()
+	var state = _command_state()
+	var previous_max := maxf(state.max_hp, 1.0)
+	var was_full: bool = state.hp >= previous_max - 0.05
+	state.max_hp = maxf(value, 1.0)
+	state.hp = state.max_hp if was_full else minf(state.hp, state.max_hp)
+	_recalculate_command_state(state)
 
 
 func set_hp(value: float) -> void:
-	hp = value
-	var non_blunt_wounds := open_cut_damage + bandaged_cut_damage
-	blunt_damage = maxf(0.0, max_hp - hp - non_blunt_wounds)
-	recalculate_vitals()
+	var state = _command_state()
+	state.hp = value
+	state.blunt_damage = maxf(0.0, state.max_hp - state.hp - state.open_cut_damage - state.bandaged_cut_damage)
+	_recalculate_command_state(state)
 
 
 func set_base_max_blood(value: float) -> void:
-	base_max_blood = maxf(value, 0.0)
-	_base_max_blood_for_toughness = 0.0
+	var state = _command_state()
+	state.base_max_blood = maxf(value, 0.0)
+	_base_max_blood_for_toughness = maxf(state.base_max_blood if state.base_max_blood > 0.0 else state.max_blood, 1.0)
 	refresh_max_blood_from_toughness(true)
 
 
 func set_max_blood(value: float) -> void:
-	var previous_max := maxf(max_blood, 1.0)
-	var was_full := blood >= previous_max - 0.05
-	max_blood = maxf(value, 1.0)
-	_capture_base_max_blood_for_toughness()
-	if was_full:
-		blood = max_blood
-	else:
-		blood = clampf(blood, get_blood_death_point(), max_blood)
-	recalculate_vitals()
+	var state = _command_state()
+	var was_full: bool = state.blood >= maxf(state.max_blood, 1.0) - 0.05
+	state.max_blood = maxf(value, 1.0)
+	state.blood = state.max_blood if was_full else clampf(state.blood, VitalsMath.blood_death_point(state.max_blood), state.max_blood)
+	_recalculate_command_state(state)
 
 
 func set_blood(value: float) -> void:
-	blood = clampf(value, get_blood_death_point(), max_blood)
-	recalculate_vitals()
+	var state = _command_state()
+	state.blood = clampf(value, VitalsMath.blood_death_point(state.max_blood), state.max_blood)
+	_recalculate_command_state(state)
 
 
 func set_blunt_damage(value: float) -> void:
-	blunt_damage = maxf(value, 0.0)
-	recalculate_vitals()
+	var state = _command_state()
+	state.blunt_damage = maxf(value, 0.0)
+	_recalculate_command_state(state)
 
 
 func set_open_cut_damage(value: float) -> void:
-	open_cut_damage = maxf(value, 0.0)
-	recalculate_vitals()
+	var state = _command_state()
+	state.open_cut_damage = maxf(value, 0.0)
+	_recalculate_command_state(state)
 
 
 func set_bandaged_cut_damage(value: float) -> void:
-	bandaged_cut_damage = maxf(value, 0.0)
-	recalculate_vitals()
+	var state = _command_state()
+	state.bandaged_cut_damage = maxf(value, 0.0)
+	_recalculate_command_state(state)
 
 
 func set_bleed_rate(value: float) -> void:
-	bleed_rate = maxf(value, 0.0)
+	var state = _command_state()
+	state.bleed_rate = maxf(value, 0.0)
+	_reflect_command_result(state, life_state)
 
 
 func set_bleed_burst_rate(value: float) -> void:
-	bleed_burst_rate = maxf(value, 0.0)
+	var state = _command_state()
+	state.bleed_burst_rate = maxf(value, 0.0)
+	_reflect_command_result(state, life_state)
 
 
 func set_recovery_multiplier(value: float) -> void:
-	recovery_multiplier = maxf(value, RECOVERY_MULTIPLIER_GROUND)
+	var state = _command_state()
+	state.recovery_multiplier = maxf(value, RECOVERY_MULTIPLIER_GROUND)
+	_reflect_command_result(state, life_state)
 
 # ---------------------------------------------------------------------------
 # Wounds / blood
 # ---------------------------------------------------------------------------
 
 func apply_resolved_damage(blunt_amount: float, cut_amount: float) -> void:
-	blunt_damage += maxf(blunt_amount, 0.0)
-	open_cut_damage += maxf(cut_amount, 0.0)
-	recalculate_vitals()
+	var state = _command_state()
+	state.blunt_damage += maxf(blunt_amount, 0.0)
+	state.open_cut_damage += maxf(cut_amount, 0.0)
+	_recalculate_command_state(state)
 
 
 func apply_blood_loss(amount: float) -> void:
-	if amount <= 0.0 or life_state == NpcRules.LifeState.DEAD:
+	var state = _command_state()
+	if amount <= 0.0 or state.life_state == NpcRules.LifeState.DEAD:
 		return
-	blood = VitalsMath.apply_blood_loss(blood, amount, max_blood)
-	recalculate_vitals()
+	state.blood = VitalsMath.apply_blood_loss(state.blood, amount, state.max_blood)
+	_recalculate_command_state(state)
 
 
 func force_kill() -> void:
-	hp = get_death_point(max_hp)
-	blood = get_blood_death_point()
-	_enter_dead_state()
+	var previous := life_state
+	var state = _command_state()
+	if state.life_state == NpcRules.LifeState.DEAD:
+		return
+	state.hp = VitalsMath.death_point(state.max_hp)
+	state.blunt_damage = maxf(0.0, state.max_hp - state.hp - state.open_cut_damage - state.bandaged_cut_damage)
+	state.blood = VitalsMath.blood_death_point(state.max_blood)
+	state.dying_timer_remaining = 0.0
+	state.life_state = NpcRules.LifeState.UNCONSCIOUS if state.fire_only_death else NpcRules.LifeState.DEAD
+	_reflect_command_result(state, previous)
 
 
 func force_unconscious() -> void:
-	if life_state == NpcRules.LifeState.DEAD:
+	var previous := life_state
+	var state = _command_state()
+	if state.life_state == NpcRules.LifeState.DEAD:
 		return
-	_enter_unconscious_state()
+	state.life_state = NpcRules.LifeState.UNCONSCIOUS
+	_reflect_command_result(state, previous)
 
 
 func get_total_wound_damage() -> float:
@@ -254,81 +288,72 @@ func get_base_max_blood() -> float:
 # ---------------------------------------------------------------------------
 
 func recalculate_vitals() -> void:
-	hp = VitalsMath.hp_from_wounds(max_hp, get_total_wound_damage())
-	if life_state == NpcRules.LifeState.DEAD:
-		return
-	var target := VitalsMath.resolve_life_state(life_state, hp, blood, max_hp, max_blood, _get_toughness())
-	if target == NpcRules.LifeState.DYING:
-		_enter_dying_state()
-		return
-	if target == NpcRules.LifeState.RECOVERY_COMA:
-		_enter_recovery_coma_state()
-		return
-	if target == NpcRules.LifeState.UNCONSCIOUS:
-		_enter_unconscious_state()
-		return
-	dying_timer_remaining = 0.0
-	if target == NpcRules.LifeState.ALIVE:
-		_set_life_state(NpcRules.LifeState.ALIVE)
+	_recalculate_command_state(_command_state())
 
 
 func process_bleeding(delta: float) -> void:
-	if life_state == NpcRules.LifeState.DEAD:
-		return
-	var total_bleed_rate := get_bleed_rate()
-	if total_bleed_rate <= 0.0:
-		return
-	apply_blood_loss(VitalsMath.bleed_blood_loss(bleed_rate, bleed_burst_rate, delta))
+	var previous := life_state
+	var state = _command_state()
+	VitalsStateMachine.process_bleeding(state, _get_toughness(), delta)
+	_reflect_command_result(state, previous)
 
 
 func process_dying(delta: float) -> void:
-	if life_state != NpcRules.LifeState.DYING:
-		return
-	if not _has_lethal_dying_vitals():
-		_enter_recovery_coma_state()
-		return
-	dying_timer_remaining = maxf(0.0, dying_timer_remaining - delta)
-	if dying_timer_remaining <= 0.0:
-		_enter_dead_state()
+	var previous := life_state
+	var state = _command_state()
+	VitalsStateMachine.process_dying(state, delta)
+	_reflect_command_result(state, previous)
 
 
 func process_recovery(delta: float) -> void:
-	if life_state == NpcRules.LifeState.DEAD:
+	var previous := life_state
+	var state = _command_state()
+	VitalsStateMachine.process_recovery(state, _get_toughness(), _get_healing_rate(), delta)
+	_reflect_command_result(state, previous)
+
+
+## Registration/load bind the canonical component. Robots retain their own death model.
+func bind_authoritative_state(component: CGameActorVitals) -> void:
+	if component == null or death_profile == CGameActorVitals.DeathProfile.ROBOT:
 		return
-	if blunt_damage <= 0.0 and bandaged_cut_damage <= 0.0 and open_cut_damage <= 0.0 and bleed_burst_rate <= 0.0 and bleed_rate <= 0.0 and blood >= max_blood and not is_recoverable_downed_state():
+	if _authority_ref != null and _authority_ref.get_ref() == component:
 		return
-	# Preserve the original early-out: when there is no healing this tick, skip the wound update AND
-	# the recalculate, exactly as before the VitalsMath extraction (recovery_step is pure and would
-	# otherwise fall through to recalculate_vitals, which can transition a downed actor's life_state).
-	if _get_healing_rate() * recovery_multiplier * delta <= 0.0:
-		return
-	var step := VitalsMath.recovery_step(blunt_damage, open_cut_damage, bandaged_cut_damage, bleed_rate, bleed_burst_rate, blood, max_blood, _get_healing_rate(), recovery_multiplier, delta)
-	blunt_damage = step["blunt_damage"]
-	open_cut_damage = step["open_cut_damage"]
-	bandaged_cut_damage = step["bandaged_cut_damage"]
-	bleed_rate = step["bleed_rate"]
-	bleed_burst_rate = step["bleed_burst_rate"]
-	blood = step["blood"]
-	recalculate_vitals()
+	if not component.vitals_seeded:
+		for field in CGameActorVitals.DURABLE_FIELDS:
+			component.set(field, get(field))
+		component.vitals_seeded = true
+	component.fire_only_death = fire_only_death
+	_authority_ref = weakref(component)
+	if component.base_max_blood > 0.0:
+		_base_max_blood_for_toughness = component.base_max_blood
+	_reflect_command_result(component, life_state)
+	# Tier/loaded skills may have been applied before registration. Reconcile
+	# the shared toughness formula once, preserving injured blood quantities.
+	if component.life_state != NpcRules.LifeState.DEAD:
+		refresh_max_blood_from_toughness(true)
 
 
-func _enter_unconscious_state() -> void:
-	_set_life_state(NpcRules.LifeState.UNCONSCIOUS)
+func unbind_authoritative_state() -> void:
+	_authority_ref = null
 
 
-func _enter_recovery_coma_state() -> void:
-	_set_life_state(NpcRules.LifeState.RECOVERY_COMA)
+func _command_state():
+	var component = _authority_ref.get_ref() if _authority_ref != null else null
+	return component if component != null else self
 
 
-func _enter_dying_state() -> void:
-	if life_state != NpcRules.LifeState.DYING:
-		dying_timer_remaining = maxf(dying_timer_remaining, get_dying_seconds())
-	_set_life_state(NpcRules.LifeState.DYING)
+func _recalculate_command_state(state) -> void:
+	var previous := life_state
+	VitalsStateMachine.recalculate(state, _get_toughness())
+	_reflect_command_result(state, previous)
 
 
-func _enter_dead_state() -> void:
-	dying_timer_remaining = 0.0
-	_set_life_state(NpcRules.LifeState.DEAD)
+func _reflect_command_result(state, previous: int) -> void:
+	if state != self:
+		state.copy_durable_state_to(self)
+	var next_state := life_state
+	life_state = previous
+	_set_life_state(next_state)
 
 
 func _set_life_state(next_state: int) -> void:
@@ -415,15 +440,12 @@ func refresh_max_blood_from_toughness(force := false) -> void:
 	var toughness_level := _get_toughness()
 	if not force and is_equal_approx(toughness_level, _last_max_blood_toughness_level):
 		return
-	var previous_max_blood := maxf(max_blood, 1.0)
-	var was_full := blood >= previous_max_blood - 0.05
-	max_blood = SkillRules.get_max_blood_for_toughness(_base_max_blood_for_toughness, toughness_level)
-	if was_full:
-		blood = max_blood
-	else:
-		blood = clampf(blood, get_blood_death_point(), max_blood)
+	var state = _command_state()
+	var was_full: bool = state.blood >= maxf(state.max_blood, 1.0) - 0.05
+	state.max_blood = SkillRules.get_max_blood_for_toughness(_base_max_blood_for_toughness, toughness_level)
+	state.blood = state.max_blood if was_full else clampf(state.blood, VitalsMath.blood_death_point(state.max_blood), state.max_blood)
 	_last_max_blood_toughness_level = toughness_level
-	recalculate_vitals()
+	_recalculate_command_state(state)
 
 
 func _on_skill_level_changed(skill_id: String) -> void:

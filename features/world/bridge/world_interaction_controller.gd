@@ -457,7 +457,7 @@ func _handle_crop_debug_action_input(event: InputEvent) -> bool:
 	if event.button_index != MOUSE_BUTTON_LEFT:
 		return false
 	var picked := _pick_inspectable_result(event.position)
-	var farm := BootstrapContext.service(FarmController.SERVICE_ID)
+	var farm := _context.get_optional(FarmController.SERVICE_ID) if _context != null else null
 	if picked.is_empty() or farm == null or not farm.has_method("debug_crop_action_at"):
 		crop_debug_action_finished.emit(_pending_crop_debug_action, false, "Click a planted crop")
 		return true

@@ -380,7 +380,7 @@ func can_move_entry_to_inventory(entry, target_inventory, target_position: Vecto
 	return target_inventory.can_place_item(entry.definition, target_position)
 
 
-func move_entry_to_inventory(entry, target_inventory, target_position: Vector2i) -> bool:
+func move_entry_to_inventory(entry, target_inventory, target_position: Vector2i, emit_changed := true) -> bool:
 	if not can_move_entry_to_inventory(entry, target_inventory, target_position):
 		return false
 	if target_inventory == self:
@@ -388,8 +388,45 @@ func move_entry_to_inventory(entry, target_inventory, target_position: Vector2i)
 
 	entries.erase(entry)
 	target_inventory.entries.append(InventoryEntry.new(entry.definition, target_position, entry.count, entry.contained_item_counts, entry.metadata, entry.stack_id))
+	if emit_changed:
+		changed.emit()
+		target_inventory.changed.emit()
+	return true
+
+
+## Move this exact goods stack for silver paid by its receiver. Publish only
+## the complete bilateral exchange; any refusal restores live entry identity
+## as well as currency pouch contents, metadata and stack allocation state.
+func trade_entry_to_inventory(entry, target_inventory: InventoryData, target_position: Vector2i, silver_price: int) -> bool:
+	if not can_move_entry_to_inventory(entry, target_inventory, target_position):
+		return false
+	return exchange_for_silver(target_inventory, silver_price, func() -> bool:
+		return move_entry_to_inventory(entry, target_inventory, target_position, false)
+	)
+
+
+## One transaction boundary for grid trades, cursor sales and bought equipment.
+## move_goods may only mutate these inventories with notifications suppressed.
+## finish_goods commits the slot/cursor only after all inventory/payment work.
+## It returns false without side effects if a durable commit cannot be prepared;
+## on true, there are no remaining fallible operations before publication.
+func exchange_for_silver(payer: InventoryData, silver_price: int, move_goods: Callable, finish_goods := Callable()) -> bool:
+	if silver_price < 0 or payer == null or payer == self or not move_goods.is_valid() \
+			or payer.count_item(SILVER_ITEM) < silver_price:
+		return false
+	var source_snapshot := _snapshot_standard_transaction()
+	var payer_snapshot := payer._snapshot_standard_transaction()
+	var paid := silver_price == 0 or payer._remove_silver_count(silver_price, false)
+	if not paid or not bool(move_goods.call()) or not _add_silver_count(silver_price, false):
+		_restore_standard_transaction(source_snapshot)
+		payer._restore_standard_transaction(payer_snapshot)
+		return false
+	if finish_goods.is_valid() and not bool(finish_goods.call()):
+		_restore_standard_transaction(source_snapshot)
+		payer._restore_standard_transaction(payer_snapshot)
+		return false
 	changed.emit()
-	target_inventory.changed.emit()
+	payer.changed.emit()
 	return true
 
 
@@ -549,14 +586,25 @@ func _snapshot_standard_transaction() -> Dictionary:
 			entry.metadata,
 			entry.stack_id
 		))
-	return {"entries": copied_entries, "next_stack_sequence": next_stack_sequence}
+	return {"entries": copied_entries, "original_entries": entries.duplicate(), "next_stack_sequence": next_stack_sequence}
 
 
 func _restore_standard_transaction(snapshot: Dictionary) -> void:
 	var restored: Array[InventoryEntry] = []
-	for entry in snapshot.get("entries", []):
-		if entry is InventoryEntry:
-			restored.append(entry)
+	var original_entries: Array = snapshot.get("original_entries", [])
+	var saved_entries: Array = snapshot.get("entries", [])
+	for index in range(saved_entries.size()):
+		var saved = saved_entries[index]
+		if not (saved is InventoryEntry):
+			continue
+		var entry = original_entries[index] if index < original_entries.size() else saved
+		entry.definition = saved.definition
+		entry.grid_position = saved.grid_position
+		entry.count = saved.count
+		entry.contained_item_counts = saved.contained_item_counts.duplicate(true)
+		entry.metadata = saved.metadata.duplicate(true)
+		entry.stack_id = saved.stack_id
+		restored.append(entry)
 	entries = restored
 	next_stack_sequence = int(snapshot.get("next_stack_sequence", next_stack_sequence))
 
@@ -915,7 +963,7 @@ func _can_add_silver_count(amount: int) -> bool:
 	return not use_weight or get_total_weight() + added_weight <= max_weight
 
 
-func _add_silver_count(amount: int) -> bool:
+func _add_silver_count(amount: int, emit_changed := true) -> bool:
 	if amount <= 0:
 		return true
 	if not _can_add_silver_count(amount):
@@ -933,7 +981,8 @@ func _add_silver_count(amount: int) -> bool:
 		remaining -= added_to_existing
 		did_change = true
 		if remaining <= 0:
-			changed.emit()
+			if emit_changed:
+				changed.emit()
 			return true
 
 	var pouch_capacity := _silver_pouch_capacity()
@@ -950,12 +999,12 @@ func _add_silver_count(amount: int) -> bool:
 		if not _add_standard_item_count(SILVER_ITEM, remaining, false):
 			return false
 		did_change = true
-	if did_change:
+	if did_change and emit_changed:
 		changed.emit()
 	return true
 
 
-func _remove_silver_count(amount: int) -> bool:
+func _remove_silver_count(amount: int, emit_changed := true) -> bool:
 	if amount <= 0:
 		return false
 	if count_item(SILVER_ITEM) < amount:
@@ -973,7 +1022,8 @@ func _remove_silver_count(amount: int) -> bool:
 		if entry.count <= 0:
 			entries.remove_at(index)
 		if remaining <= 0:
-			changed.emit()
+			if emit_changed:
+				changed.emit()
 			return true
 	for index in range(entries.size() - 1, -1, -1):
 		var entry = entries[index]
@@ -987,9 +1037,10 @@ func _remove_silver_count(amount: int) -> bool:
 		remaining -= removed_from_pouch
 		did_change = true
 		if remaining <= 0:
-			changed.emit()
+			if emit_changed:
+				changed.emit()
 			return true
-	if did_change:
+	if did_change and emit_changed:
 		changed.emit()
 	return remaining <= 0
 

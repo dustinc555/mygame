@@ -50,20 +50,21 @@ func register(service_id: StringName, node: Node) -> void:
 	if node == null:
 		push_error("BootstrapContext.register: null node for service '%s'" % service_id)
 		return
-	if _services.has(service_id) and _services[service_id] != node:
+	var existing := get_optional(service_id)
+	if existing != null and existing != node:
 		push_error("BootstrapContext.register: service '%s' already registered" % service_id)
 		return
 	_services[service_id] = node
 
 
 func has_service(service_id: StringName) -> bool:
-	return _services.has(service_id)
+	return get_optional(service_id) != null
 
 
 ## Resolve a required dependency. Logs an error if it is missing so wiring gaps
 ## surface during validation instead of failing silently far away.
 func require(service_id: StringName) -> Node:
-	var node := _services.get(service_id, null) as Node
+	var node := get_optional(service_id)
 	if node == null:
 		push_error("BootstrapContext.require: no service registered for '%s'" % service_id)
 	return node
@@ -71,7 +72,11 @@ func require(service_id: StringName) -> Node:
 
 ## Resolve an optional dependency. Returns null without logging when absent.
 func get_optional(service_id: StringName) -> Node:
-	return _services.get(service_id, null) as Node
+	var value = _services.get(service_id, null)
+	if not is_instance_valid(value):
+		return null
+	var node := value as Node
+	return node if node != null and not node.is_queued_for_deletion() else null
 
 
 ## Null-safe service resolution for leaf scene nodes. Returns null when no context

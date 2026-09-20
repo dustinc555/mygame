@@ -12,6 +12,10 @@ var last_direct_attacker_id := 0
 var personal_hostile_ids: PackedInt64Array = PackedInt64Array()
 @export var personal_hostile_actor_ids: PackedStringArray = PackedStringArray()
 
+# Explicit command identity is separate from threat scoring and engagement locks.
+# Cleared on replacement, disengage, or target invalidation; never stores a Node.
+@export var commanded_target_actor_id := ""
+
 # Written by the batched targeting system (S2.1). Runtime id is a bridge cache only.
 var system_target_id := 0
 @export var system_target_actor_id := ""

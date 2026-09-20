@@ -6,7 +6,7 @@
 
 [node name="RoofModularFlatTiles6Mid" type="Node3D" unique_id=1869713232]
 script = ExtResource("1_piece")
-piece_id = "roof_modular_flattiles_6_mid"
+piece_id = "roof_modular_flat_tiles_6_mid"
 display_name = "Roof Modular FlatTiles 6 Mid"
 category = "roof"
 grid_size_cells = Vector3i(4, 3, 2)

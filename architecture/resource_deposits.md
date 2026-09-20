@@ -57,9 +57,9 @@ Create a reusable deposit scene using the existing mining/scavenging facade. Dup
 
 Run from the project root, serially:
 
-- `godot --headless --path . --script res://tools/validation/validate_zone_authoring.gd`
-- `godot --headless --path . --script res://tools/validation/validate_resource_deposit_definitions.gd`
-- `godot --headless --path . --script res://tools/validation/validate_resource_deposits.gd`
+- `godot --headless --path . --script res://tests/validation/validate_zone_authoring.gd`
+- `godot --headless --path . --script res://tests/validation/validate_resource_deposit_definitions.gd`
+- `godot --headless --path . --script res://tests/validation/validate_resource_deposits.gd`
 
 The authoring check covers all catalog scenes, transformed-zone placement, independent identities, duplicate repair, Undo/Redo, and scene round trips. The runtime check covers saved stock/deadlines, clock-load ordering, projection destruction/rebinding, real timed mining/scavenging transactions, denial/full-inventory behavior, and bounded simultaneous refills. It measures the resource drain, not overall gameplay FPS.
 

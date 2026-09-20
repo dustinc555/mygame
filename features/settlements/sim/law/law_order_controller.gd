@@ -67,6 +67,9 @@ func initialize(context: BootstrapContext) -> void:
 	var combat_started_callable := Callable(self, "_on_root_combat_started")
 	if not _combat_responses.root_combat_started.is_connected(combat_started_callable):
 		_combat_responses.root_combat_started.connect(combat_started_callable)
+	var gecs := context.require(GecsWorldController.SERVICE_ID) as GecsWorldController
+	if not gecs.population_life_state_changed.is_connected(_on_population_life_state_changed):
+		gecs.population_life_state_changed.connect(_on_population_life_state_changed)
 	_connect_world_time()
 	refresh_from_gecs_state()
 
@@ -119,10 +122,10 @@ func report_theft_if_witnessed(actor: WorldActor, item, witnesses: Array = []) -
 func report_player_assault(attacker: HumanoidCharacter, victim: HumanoidCharacter) -> Dictionary:
 	if attacker == null or victim == null or not attacker.is_player_party_member():
 		return {}
-	if victim.is_player_party_member():
+	if victim.is_player_party_member() or victim.life_state == NpcRules.LifeState.DEAD:
 		return {}
 	var response_context: Dictionary = _combat_responses.get_response_context(_actor_key(attacker), _actor_key(victim)) if _combat_responses != null else {}
-	if int(response_context.get("response_depth", 0)) > 0:
+	if int(response_context.get("response_depth", 0)) > 0 or bool(response_context.get("authorized_response", false)):
 		return {}
 	var settlement := _find_containing_settlement(victim)
 	var faction_id := _settlement_faction_id(settlement)
@@ -149,7 +152,7 @@ func report_player_assault(attacker: HumanoidCharacter, victim: HumanoidCharacte
 func _on_root_combat_started(attacker_actor_id: String, protected_actor_id: String, origin: Vector3, _encounter_id: String) -> void:
 	var attacker := _actor_query.get_actor_by_stable_id(attacker_actor_id) as WorldActor if _actor_query != null else null
 	var victim := _actor_query.get_actor_by_stable_id(protected_actor_id) as WorldActor if _actor_query != null else null
-	if attacker == null or victim == null:
+	if attacker == null or victim == null or victim.life_state == NpcRules.LifeState.DEAD:
 		return
 	var settlement := _find_containing_settlement(victim)
 	var enforcing_faction := _settlement_faction_id(settlement)
@@ -162,6 +165,11 @@ func _on_root_combat_started(attacker_actor_id: String, protected_actor_id: Stri
 	if _is_law_soldier_responder(victim) and victim.faction_name == enforcing_faction and _is_law_actor_attached_to_settlement(victim, settlement):
 		witnesses.append(victim)
 	if witnesses.is_empty():
+		# The victim is still a witness under the existing player-assault policy.
+		# Keep its provisional case private; that policy owns death cleanup and
+		# response-depth refusal instead of inventing a second root-event policy.
+		if attacker is HumanoidCharacter and victim is HumanoidCharacter:
+			report_player_assault(attacker, victim)
 		return
 	report_crime(attacker, enforcing_faction, settlement_id, CRIME_ASSAULT, 35, witnesses[0], victim, {
 		"public": true,
@@ -257,6 +265,11 @@ func report_crime(actor: WorldActor, faction_id: String, settlement_id: String, 
 	if witness_keys.is_empty() and witness != null:
 		witness_keys.append(_actor_key(witness))
 	var is_public := bool(crime_context.get("public", true))
+	# Live transient victims also need death notification; canonical population
+	# events cover permanent people even while their projection is unloaded.
+	if not is_public and target is WorldActor and str(crime_context.get("provisional_victim_key", "")) == _actor_key(target):
+		if not target.died.is_connected(handle_actor_death):
+			target.died.connect(handle_actor_death)
 	var crime_record := {
 		"crime_type": crime_type,
 		"severity": max(1, severity),
@@ -296,9 +309,15 @@ func report_crime(actor: WorldActor, faction_id: String, settlement_id: String, 
 
 
 func handle_actor_death(actor: WorldActor) -> void:
-	if actor == null:
+	if actor == null or actor.life_state != NpcRules.LifeState.DEAD:
 		return
-	_prune_victim_only_crimes_for_dead_actor(actor)
+	_on_population_life_state_changed(_actor_key(actor), -1, NpcRules.LifeState.DEAD)
+
+
+func _on_population_life_state_changed(actor_id: String, _previous_state: int, next_state: int) -> void:
+	if next_state != NpcRules.LifeState.DEAD:
+		return
+	_prune_victim_only_crimes_for_dead_actor_id(actor_id)
 	_save_law_order_state_to_gecs()
 
 
@@ -964,7 +983,10 @@ func get_bailable_prisoners(payer: WorldActor, jail: Node) -> Array[Dictionary]:
 func get_bail_cost(payer: WorldActor, jail: Node) -> int:
 	var total := 0
 	for entry in get_bailable_prisoners(payer, jail):
-		total += BAIL_BASE_COST + BAIL_COST_PER_SEVERITY * int((entry["record"] as Dictionary).get("severity", 1))
+		# report_crime and warrant recomputation keep the accumulated crime
+		# severity in bad_person_points; severity exists only on each crime.
+		var severity := maxi(1, int((entry["record"] as Dictionary).get("bad_person_points", 1)))
+		total += BAIL_BASE_COST + BAIL_COST_PER_SEVERITY * severity
 	return total
 
 
@@ -1374,8 +1396,7 @@ func _clear_actor_law_meta(actor: WorldActor) -> void:
 	actor.get_legal_status().clear_warrant_display()
 
 
-func _prune_victim_only_crimes_for_dead_actor(victim: WorldActor) -> void:
-	var victim_key := _actor_key(victim)
+func _prune_victim_only_crimes_for_dead_actor_id(victim_key: String) -> void:
 	if victim_key.is_empty():
 		return
 	for actor_key in warrants.keys():

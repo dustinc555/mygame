@@ -565,7 +565,6 @@ func is_displaying_work_inventory() -> bool:
 # ---------------------------------------------------------------------------
 
 const NavigationFollower = preload("res://features/actors/bridge/navigation/actor_navigation_follower.gd")
-const SNEAK_MOVE_SPEED_MULTIPLIER := 0.5
 
 @export_group("Movement")
 ## Walking and running speeds in meters/second.
@@ -849,33 +848,52 @@ func has_hostility_with(other: Node) -> bool:
 	return is_hostile_to(other_actor) or other_actor.is_hostile_to(self)
 
 
-## Player/AI attack order. The GECS targeting system owns actual target choice;
-## an order records a personal grudge so targeting immediately treats the mark as
-## hostile and acquires it by proximity. A dedicated focus-fire order component is
-## the eventual richer home for this.
+## A direct attack preserves the exact requested identity in GECS; grudges still
+## drive ordinary autonomous acquisition after that command ends.
 func assign_attack_target(target_actor: Node, _issued_by_player: bool = true, _notify_target: bool = true, _notify_allies: bool = true) -> bool:
 	if target_actor == null or target_actor == self or not is_instance_valid(target_actor):
 		return false
-	mark_hostile(target_actor)
-	# An attack command ends whatever interaction order was running AND releases the
-	# player-order combat suppression — otherwise a lingering order keeps targeting
-	# suppressed and the attack silently never happens.
+	var target := target_actor as WorldActor
+	var state := _get_combat_command_state()
+	if target == null or state == null or target.stable_id.is_empty():
+		return false
+	if life_state != NpcRules.LifeState.ALIVE or is_protected_from_combat() or target.life_state != NpcRules.LifeState.ALIVE or target.is_protected_from_combat():
+		return false
+	# Validate before canceling the old order. MOVE has no assignment-specific
+	# cleanup in begin_combat_order, so its navigation target must end here too.
 	var interaction := get_interaction()
 	if interaction != null:
 		interaction.begin_combat_order()
-	_active_player_order = false
+	stop_movement()
+	mark_hostile(target)
+	state.commanded_target_actor_id = target.stable_id
+	state.system_target_retarget_remaining = 0.0
 	return true
+
+
+func _get_combat_command_state() -> CGameCombatState:
+	var bridge := BootstrapContext.service(&"gecs_world")
+	if bridge == null:
+		return null
+	var entity = bridge.call("get_actor_entity", self)
+	return entity.get_component(CGameCombatState) as CGameCombatState if entity != null else null
 
 
 func clear_personal_hostility(other: Node) -> void:
 	if other == null:
 		return
 	_personal_hostile_ids.erase(other.get_instance_id())
+	var state := _get_combat_command_state()
+	if state != null and other is WorldActor and state.commanded_target_actor_id == other.stable_id:
+		state.commanded_target_actor_id = ""
 
 
 func clear_all_personal_hostility() -> void:
 	_personal_hostile_ids.clear()
 	_last_direct_attacker_id = 0
+	var state := _get_combat_command_state()
+	if state != null:
+		state.commanded_target_actor_id = ""
 
 
 # Returns the BASE attack range, not get_stat_value("attack_range"): the GECS combat
@@ -1024,7 +1042,7 @@ func _apply_floor_motion(delta: float) -> void:
 
 func _get_actor_move_speed() -> float:
 	if sneaking:
-		return move_speed * SNEAK_MOVE_SPEED_MULTIPLIER
+		return move_speed * SkillRules.get_sneak_move_speed_multiplier(float(get_skill_level(SkillRules.SUBTERFUGE_SNEAKING)))
 	return run_speed if running else move_speed
 
 
@@ -1255,6 +1273,19 @@ func get_actor_capability(id: StringName) -> ActorCapability:
 # (commit b6adab8); the reorganize left these as return-false/feet-height
 # stubs, which silently disabled the whole sneak perception system,
 # eye/arrow indicators included. Future home: PerceptionCapability.
+## Combat acquisition must ask perception instead of assuming a missing method sees.
+func can_see_actor_for_combat(other: Node) -> bool:
+	if other == null or not is_instance_valid(other) or other == self:
+		return false
+	var target := other as WorldActor
+	if target == null or target.life_state != NpcRules.LifeState.ALIVE or target.is_protected_from_combat():
+		return false
+	if not target.sneaking:
+		return true
+	var perception := BootstrapContext.service(PerceptionController.SERVICE_ID) as PerceptionController
+	return perception != null and bool(perception.evaluate_observer(self, target).get("clearly_seen", false))
+
+
 func can_participate_in_perception() -> bool:
 	return life_state == NpcRules.LifeState.ALIVE and is_inside_tree()
 

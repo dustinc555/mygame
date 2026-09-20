@@ -134,7 +134,7 @@ python3 tools/asset_pipeline/static_glb_pipeline.py install \
 Run the fast production guard:
 
 ```bash
-python3 tools/validation/validate_static_glb_pipeline.py
+python3 tests/validate_static_glb_pipeline.py
 ```
 
 Compare an existing render set directly:

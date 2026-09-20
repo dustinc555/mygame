@@ -1,5 +1,7 @@
 # cleanup.md — actor architecture standard + transfer context
 
+> Test-file references use the current `tests/` locations. Checkpoint outcomes and migration observations below remain historical; this path update does not claim they were rerun.
+
 > A context dump for continuing on another machine, and a definition of what the actor
 > layer **must be**. This is not a step list and not a sequence of "slices to do." It states
 > the law the code must satisfy, the hard facts about where it is now, and the constraints
@@ -193,7 +195,7 @@ Detailed step log + handoff prompts live in `plans/migration.md` (gitignored —
 git; this section is the durable summary that does).
 
 **Tree state at last checkpoint:** import exits 0 errors; all 6 capability validators pass
-(`tools/validation/validate_{stats,vitals,carry,custody,equipment,inventory}_capability.gd`);
+(`tests/validate_{stats,vitals,carry,custody,equipment,inventory}_capability.gd`);
 `scenes/test_levels/movement_controls_test.tscn` boots clean — humanoids render on live skeletons and
 walk on right-click (user visually verified). Safe commit point.
 
@@ -264,12 +266,12 @@ combat/job reflection; vendor scene updates.
 
 ### ✅ PHASE 1 — DONE & VALIDATED (commit-ready)
 Loadout→score→config pipeline, typed, no reflection. Files:
-- `architecture/combat/ARCHITECTURE.md` (the standard) · `features/combat/sim/combat_math.gd` (+ `tools/validation/validate_combat_math.gd`)
+- `architecture/combat/ARCHITECTURE.md` (the standard) · `features/combat/sim/combat_math.gd` (+ `tests/validate_combat_math.gd`)
 - `features/combat/sim/c_game_combat_loadout.gd` (NEW source component) · `features/combat/sim/game_combat_score_system.gd` (NEW derive system)
 - `WorldActor.write_combat_loadout()` + helpers (faithful `main` port, typed via `get_stats()`/`get_equipment()`, grip-based shield)
 - `game_combat_state_sync_system.gd`: dead score-getter block deleted; calls `_author_loadout()` (typed `as WorldActor`)
 - `gecs_world_controller.gd`: `C_COMBAT_LOADOUT` added to actor entity set + `_ensure` + `_component_scripts_loaded`; `GameCombatScoreSystem` registered AFTER state-sync, BEFORE targeting/resolution
-- `tools/validation/validate_combat_score_pipeline.gd` (NEW behavioral gate)
+- `tests/validate_combat_score_pipeline.gd` (NEW behavioral gate)
 
 **Validation (all green):** `validate_combat_score_pipeline` PASS(13) · `validate_combat_math` PASS ·
 `validate_visible_gecs_slot_combat` OK (didn't break it) · editor import + boot clean · 20v20 FPS no
@@ -299,7 +301,7 @@ regression vs clean-HEAD (avg 120/120, min 106→116).
   `apply_record_to_actor` does NOT restore vitals (the LOD reconcile gap = #1 risk). Robot/quadbot = hot spot
   (different death model, oil-not-blood, get-up) → death-rule profiles + node FX observers, sequenced LAST.
 - **Staged: S1** extract pure `VitalsMath` + repoint `VitalsCapability` (behavior-preserving, like `CombatMath`;
-  oracle = existing `tools/validation/validate_vitals_capability.gd` + new `validate_vitals_math.gd`) →
+  oracle = existing `tests/validate_vitals_capability.gd` + new `validate_vitals_math.gd`) →
   **S2** expand `CGameActorVitals` + node-authored inputs component → **S3** add `GameVitalsSystem` (calls
   `VitalsMath`; register after resolution, before state_sync; parity by construction) → **S4 (DANGEROUS, gated,
   owner-only)** the flip: system authoritative, capability→observer, resolution mutates wounds, delete reflected
@@ -308,7 +310,7 @@ regression vs clean-HEAD (avg 120/120, min 106→116).
 - **✅ S1 DONE & VALIDATED.** `features/actors/sim/vitals_math.gd` (NEW, pure, mine — thresholds/hp/precedence/
   bleed/recovery/dying math). `vitals_capability.gd` repointed at it (gpt-5.5 mechanical + my fix: restored the
   `process_recovery` `healing_step<=0` early-return gpt-5.5 dropped — it skips recalculate, matters for downed+
-  zero-heal edge). `tools/validation/validate_vitals_math.gd` (NEW) PASS(20). Oracle
+  zero-heal edge). `tests/validate_vitals_math.gd` (NEW) PASS(20). Oracle
   `validate_vitals_capability.gd` PASS(8) EXIT=0 → behavior preserved. Editor import clean; graph regen'd.
   NOTE: `validate_vitals_capability` emits pre-existing `Identifier not found: ECS` stderr noise (standalone
   isolation via c_game_combat_loadout→component→entity chain; NOT from S1; non-fatal, cached bytecode runs to PASS).

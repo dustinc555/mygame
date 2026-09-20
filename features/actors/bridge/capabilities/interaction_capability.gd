@@ -83,8 +83,11 @@ var current_place_bed_stand_position = null
 var current_place_cell_target: Node
 var current_place_cell_waypoints: Array = []
 var current_place_furnace_target: Node
-var auto_burn_reserved_furnace: Node
-var auto_burn_reserved_target: Node
+var rustdead_disposal = preload("res://features/actors/projection/rustdead/rustdead_disposal.gd").new()
+var auto_burn_reserved_furnace: Node:
+	get: return rustdead_disposal.furnace()
+var auto_burn_reserved_target: Node:
+	get: return rustdead_disposal.target()
 
 var _vitals: VitalsCapability
 
@@ -97,7 +100,35 @@ func bind_vitals(vitals: VitalsCapability) -> void:
 	_vitals = vitals
 
 
+func ready() -> void:
+	actor.state_changed.connect(_on_disposal_inputs_changed)
+	actor.inventory_changed.connect(_on_disposal_inputs_changed)
+	rustdead_disposal.bind(self)
+
+
+func _on_disposal_inputs_changed() -> void:
+	rustdead_disposal.changed(self)
+
+
+func physics_process(_delta: float) -> void:
+	rustdead_disposal.tick(self)
+
+
+func try_assign_auto_burn_action() -> bool:
+	return rustdead_disposal.try_assign(self)
+
+
+func burn_target_with_cinder_flask(target, show_notices := true) -> bool:
+	return rustdead_disposal.burn(self, target, show_notices)
+
+
 func teardown() -> void:
+	if is_instance_valid(actor):
+		if actor.state_changed.is_connected(_on_disposal_inputs_changed):
+			actor.state_changed.disconnect(_on_disposal_inputs_changed)
+		if actor.inventory_changed.is_connected(_on_disposal_inputs_changed):
+			actor.inventory_changed.disconnect(_on_disposal_inputs_changed)
+	rustdead_disposal.teardown(self)
 	release_sleep_target_without_waking()
 	_vitals = null
 	super.teardown()
@@ -169,7 +200,7 @@ func stop_heal_assignment() -> void:
 func stop_finish_off_assignment() -> void:
 	var finish_target = current_finish_off_target
 	if auto_burn_reserved_target == finish_target:
-		_call_void("_release_auto_burn_target_reservation")
+		rustdead_disposal.release_target(self)
 	current_finish_off_target = null
 	if current_order_type == ORDER_TYPE_FINISH_OFF:
 		_clear_actor_move_target()
@@ -179,11 +210,11 @@ func stop_finish_off_assignment() -> void:
 func stop_carry_assignment() -> void:
 	var carry_target = current_carry_target
 	var auto_burn_target = auto_burn_reserved_target
-	if auto_burn_target == carry_target:
+	if is_instance_valid(auto_burn_target) and auto_burn_target == carry_target:
 		if _node_property("_carried_character") == auto_burn_target:
-			_call_void("_release_auto_burn_target_reservation")
+			rustdead_disposal.release_target(self)
 		else:
-			_call_void("_release_auto_burn_reservations")
+			rustdead_disposal.release(self)
 	current_carry_target = null
 	if current_order_type == ORDER_TYPE_CARRY:
 		_clear_actor_move_target()
@@ -432,7 +463,7 @@ func assign_place_carried_in_furnace_target(furnace, issued_by_player := true) -
 	current_place_furnace_target = furnace
 	var reserved_furnace = auto_burn_reserved_furnace
 	if reserved_furnace != null and reserved_furnace != furnace:
-		_call_void("_release_auto_burn_furnace_reservation")
+		rustdead_disposal.release_furnace(self)
 	_set_actor_move_target(furnace.call("get_interaction_position", actor))
 
 
@@ -953,10 +984,11 @@ func process_finish_off_interaction() -> void:
 	if not _is_finish_off_target_valid(finish_target):
 		stop_finish_off_assignment()
 		return
-	if try_complete_finish_off_interaction():
+	if try_complete_finish_off_interaction() or current_finish_off_target != finish_target:
 		return
-	var target_position_value = _call("_get_downed_target_interaction_position", [finish_target])
-	var target_position: Vector3 = target_position_value if target_position_value is Vector3 else Vector3.INF
+	# Follow the same physical body anchor that the reach check uses. The old
+	# actor callback no longer exists and silently canceled every distant order.
+	var target_position: Vector3 = finish_target.get_follow_anchor_position() if finish_target.has_method("get_follow_anchor_position") else _position_of(finish_target)
 	if target_position == Vector3.INF:
 		stop_finish_off_assignment()
 		return
@@ -971,9 +1003,9 @@ func try_complete_finish_off_interaction(extra_distance := 0.0) -> bool:
 		return false
 	_clear_actor_move_target()
 	if _node_call_bool(finish_target, "requires_fire_to_die"):
-		_call_void("burn_target_with_cinder_flask", [finish_target, order_was_player_issued])
+		var burned := burn_target_with_cinder_flask(finish_target, order_was_player_issued)
 		stop_finish_off_assignment()
-		return true
+		return burned
 	_call_node_void(finish_target, "force_kill", [actor])
 	_call_void("_show_world_notice", ["Finished", Color(0.95, 0.2, 0.2, 1.0)])
 	stop_finish_off_assignment()
@@ -1091,11 +1123,13 @@ func process_place_in_cell_interaction() -> void:
 		_call_void("_attach_carried_character", [carried])
 		stop_place_in_cell_assignment()
 		return
-	notify_law_custody_placed(carried)
 	_clear_actor_move_target()
 	current_place_cell_target = null
 	_clear_place_cell_waypoints()
 	current_order_type = ORDER_TYPE_NONE
+	# Completing custody synchronously assigns the escort's return walk.
+	# Finish the placement first so its cleanup cannot erase that new order.
+	notify_law_custody_placed(carried)
 	_emit_actor_signal("state_changed")
 	_emit_node_signal(carried, "state_changed")
 
@@ -1123,12 +1157,11 @@ func process_place_in_furnace_interaction() -> void:
 		_call_void("_attach_carried_character", [carried])
 		_call_void("_show_world_notice", ["Furnace unavailable", Color(1.0, 0.78, 0.38, 1.0)])
 		stop_place_in_furnace_assignment()
-		_call_void("_set_auto_burn_backoff", [_actor_float("auto_burn_failed_backoff_seconds", 5.0)])
 		return
 	_clear_actor_move_target()
 	current_place_furnace_target = null
 	current_order_type = ORDER_TYPE_NONE
-	_call_void("_release_auto_burn_reservations")
+	rustdead_disposal.release(self)
 	_call_void("_show_world_notice", ["Burning", Color(1.0, 0.45, 0.12, 1.0)])
 	_emit_actor_signal("state_changed")
 	_emit_node_signal(carried, "state_changed")
@@ -1327,7 +1360,7 @@ func release_place_furnace_reservation() -> void:
 	if _is_valid_node(furnace) and furnace.has_method("release_reservation"):
 		furnace.call("release_reservation", actor, _node_property("_carried_character"))
 	if auto_burn_reserved_furnace == furnace:
-		auto_burn_reserved_furnace = null
+		rustdead_disposal.release_furnace(self)
 
 
 func notify_law_custody_placed(placed_actor) -> void:
@@ -1554,6 +1587,8 @@ func _get_resource_progress_key(resource_node) -> String:
 ## A new order cancels whatever assignment was active (one active order at a time);
 ## sitting survives unless the new order needs the actor standing (preserve_seat).
 func _set_order(order_type: int, issued_by_player: bool, preserve_seat := false) -> bool:
+	if issued_by_player:
+		rustdead_disposal.cancel(self)
 	_cancel_active_assignment(order_type, preserve_seat)
 	current_order_type = order_type
 	order_was_player_issued = issued_by_player
@@ -1608,6 +1643,7 @@ func _cancel_active_assignment(next_order_type: int, preserve_seat: bool) -> voi
 ## Combat orders (player attack commands) end any interaction assignment; combat
 ## itself is owned by the GECS systems, so no order type is set here.
 func begin_combat_order() -> void:
+	rustdead_disposal.cancel(self)
 	_cancel_active_assignment(ORDER_TYPE_NONE, false)
 	current_order_type = ORDER_TYPE_NONE
 	order_was_player_issued = false

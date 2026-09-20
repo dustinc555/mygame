@@ -17,15 +17,21 @@ func process(entities: Array, components: Array, delta: float) -> void:
 	for index in range(entities.size()):
 		var actor := _resolve_actor(nodes[index])
 		var ai_state = ai_states[index]
-		if actor == null or ai_state == null or ai_state.active_job == null or ai_state.active_driver == null:
+		if ai_state == null or ai_state.active_job == null:
 			continue
-		var result: int = ai_state.active_driver.tick(delta)
-		ai_state.current_step_index = int(ai_state.active_driver.get("current_step_index")) if ai_state.active_driver != null else 0
+		if actor == null or actor.is_queued_for_deletion() or not is_instance_valid(ai_state.active_driver):
+			ai_state.finish_job(AI_TASK_STEP_SCRIPT.StepStatus.CANCELLED)
+			continue
+		var driver = ai_state.active_driver
+		var result: int = driver.tick(delta)
+		# A step may submit a different command synchronously.
+		if ai_state.active_driver != driver:
+			continue
+		ai_state.current_step_index = int(driver.get("current_step_index"))
 		ai_state.last_step_status = result
 		match result:
 			AI_TASK_STEP_SCRIPT.StepStatus.SUCCEEDED, AI_TASK_STEP_SCRIPT.StepStatus.FAILED, AI_TASK_STEP_SCRIPT.StepStatus.CANCELLED:
-				if actor.has_method("finish_active_ai_job_from_gecs"):
-					actor.call("finish_active_ai_job_from_gecs", result)
+				ai_state.finish_job(result)
 
 
 func _resolve_actor(actor_component) -> Node:

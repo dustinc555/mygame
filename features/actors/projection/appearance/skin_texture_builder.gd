@@ -25,6 +25,21 @@ const REGULAR_MALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universa
 const REGULAR_FEMALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Female_Dark_BaseColor_png.png"
 const TEEN_MALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Teen_Male_Dark_BaseColor.png"
 const TEEN_FEMALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Teen_Female_Dark_BaseColor_png.png"
+## Source coverage is shared by every generated palette, including Rustdead.
+const SOURCE_TEXTURE_PATHS_BY_VARIANT := {
+	BODY_VARIANT_HEROIC: {
+		VISUAL_BODY_TYPE_MALE: MALE_DARK_TEXTURE_PATH,
+		VISUAL_BODY_TYPE_FEMALE: FEMALE_DARK_TEXTURE_PATH,
+	},
+	BODY_VARIANT_REGULAR: {
+		VISUAL_BODY_TYPE_MALE: REGULAR_MALE_DARK_TEXTURE_PATH,
+		VISUAL_BODY_TYPE_FEMALE: REGULAR_FEMALE_DARK_TEXTURE_PATH,
+	},
+	BODY_VARIANT_TEEN: {
+		VISUAL_BODY_TYPE_MALE: TEEN_MALE_DARK_TEXTURE_PATH,
+		VISUAL_BODY_TYPE_FEMALE: TEEN_FEMALE_DARK_TEXTURE_PATH,
+	},
+}
 const NATURAL_SKIN_TONES := [
 	Color(0.94, 0.78, 0.66, 1.0),
 	Color(0.88, 0.68, 0.54, 1.0),
@@ -124,15 +139,15 @@ static func get_generated_skin_texture_path(race_id: String, body_type: int, ton
 	return "%s/%s_skin_tone_%02d.png" % [texture_dir, body_id, clampi(tone_index, 0, get_skin_tone_count(race_id) - 1)]
 
 
+static func get_supported_body_variants() -> Array[String]:
+	var variants: Array[String] = []
+	variants.assign(SOURCE_TEXTURE_PATHS_BY_VARIANT.keys())
+	return variants
+
+
 static func get_source_texture_path(body_type: int, body_variant := BODY_VARIANT_HEROIC) -> String:
-	var is_female := _normalize_body_type(body_type) == VISUAL_BODY_TYPE_FEMALE
-	match body_variant:
-		BODY_VARIANT_REGULAR:
-			return REGULAR_FEMALE_DARK_TEXTURE_PATH if is_female else REGULAR_MALE_DARK_TEXTURE_PATH
-		BODY_VARIANT_TEEN:
-			return TEEN_FEMALE_DARK_TEXTURE_PATH if is_female else TEEN_MALE_DARK_TEXTURE_PATH
-		_:
-			return FEMALE_DARK_TEXTURE_PATH if is_female else MALE_DARK_TEXTURE_PATH
+	var sources: Dictionary = SOURCE_TEXTURE_PATHS_BY_VARIANT.get(body_variant, SOURCE_TEXTURE_PATHS_BY_VARIANT[BODY_VARIANT_HEROIC])
+	return str(sources[_normalize_body_type(body_type)])
 
 
 static func detect_body_variant(root: Node) -> String:

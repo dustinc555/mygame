@@ -6,7 +6,7 @@
 
 [node name="RoofFrontWood4" type="Node3D" unique_id=2112194500]
 script = ExtResource("1_6wj00")
-piece_id = "roof_front_wood4"
+piece_id = "roof_front_wood_4"
 display_name = "Roof Front Wood4"
 category = "roof_front"
 grid_size_cells = Vector3i(3, 2, 1)

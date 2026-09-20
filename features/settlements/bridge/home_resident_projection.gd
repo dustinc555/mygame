@@ -71,12 +71,14 @@ func _send_home_fallback(actor: Node) -> void:
 		return
 	var target := (_facility as Node3D).global_position
 	var anchors: Array[Node] = _beds + _seats
-	if not anchors.is_empty():
-		var anchor := anchors[0]
+	for anchor in anchors:
+		if not is_instance_valid(anchor):
+			continue
 		if anchor.has_method("get_interaction_position"):
 			target = anchor.call("get_interaction_position", actor)
 		elif anchor is Node3D:
 			target = (anchor as Node3D).global_position
+		break
 	actor.call("set_move_target", target, false)
 
 

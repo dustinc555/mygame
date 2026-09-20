@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Local Git gate. Install with: python3 tests/pre_commit.py --install
+set -euo pipefail
+root="$(git rev-parse --show-toplevel)"
+exec "${PYTHON:-python3}" "$root/tests/pre_commit.py"

@@ -11,36 +11,93 @@ const C_CONFIG = preload("res://features/combat/sim/c_game_combat_config.gd")
 const C_STATE = preload("res://features/combat/sim/c_game_combat_state.gd")
 const C_LOADOUT = preload("res://features/combat/sim/c_game_combat_loadout.gd")
 
+# Maximum refresh interval in engine process frames (>= 1), not GECS batch calls.
 static var config_sync_interval_frames := 120
-static var _config_sync_frames_remaining := 0
 static var profile_enabled := OS.get_cmdline_args().has("--gecs-combat-profile")
 static var _profile_calls := 0
 static var _profile_usec := 0
 
+# Projection-only scheduling: no serialized components or retained actor nodes.
+class ConfigRefresh:
+	var actor_id: int
+	var phase: int
+	var seen_frame: int
+	var authored_frame := -1
+
+var _config_refreshes: Dictionary[int, ConfigRefresh] = {}
+var _phase_population := PackedInt32Array()
+var _config_frame := -1
+
 
 func query() -> QueryBuilder:
+	process_empty = true # Reclaim departed projections even when the query empties.
 	return q.with_all([C_NODE, C_CONFIG, C_STATE]).iterate([C_NODE, C_CONFIG, C_STATE])
 
 
 func process(entities: Array, components: Array, _delta: float) -> void:
 	var profile_start := Time.get_ticks_usec() if profile_enabled else 0
+	var frame := Engine.get_process_frames()
+	_begin_config_frame(frame)
+	if entities.is_empty():
+		_record_profile(profile_start, false)
+		return
 	var nodes: Array = components[0]
 	var configs: Array = components[1]
 	var states: Array = components[2]
-	var sync_config := _config_sync_frames_remaining <= 0
-	if sync_config:
-		_config_sync_frames_remaining = maxi(config_sync_interval_frames, 1)
-	else:
-		_config_sync_frames_remaining -= 1
+	var sync_config := false
 	for index in range(entities.size()):
 		var actor := _resolve_actor(nodes[index])
 		if actor == null:
 			continue
-		if sync_config:
+		if _config_refresh_due(configs[index], actor.get_instance_id(), frame):
+			sync_config = true
 			_sync_config(configs[index], actor)
 			_author_loadout(entities[index], actor)
 		_sync_state(states[index], actor)
 	_record_profile(profile_start, sync_config)
+
+
+func _begin_config_frame(frame: int) -> void:
+	if frame == _config_frame:
+		return
+	_config_frame = frame
+	var interval := maxi(config_sync_interval_frames, 1)
+	if _phase_population.size() != interval:
+		# An explicit tuning change rehydrates and redistributes the live actors.
+		_config_refreshes.clear()
+		_phase_population.resize(interval)
+		_phase_population.fill(0)
+	for config_id in _config_refreshes.keys():
+		var refresh := _config_refreshes[config_id]
+		if refresh.seen_frame < frame - 1:
+			_phase_population[refresh.phase] -= 1
+			_config_refreshes.erase(config_id)
+
+
+func _config_refresh_due(config, actor_id: int, frame: int) -> bool:
+	var config_id: int = config.get_instance_id()
+	var refresh := _config_refreshes.get(config_id) as ConfigRefresh
+	if refresh != null and refresh.actor_id != actor_id:
+		_phase_population[refresh.phase] -= 1
+		refresh = null # The same entity may have a newly realized projection.
+	var first_seen := refresh == null
+	if first_seen:
+		refresh = ConfigRefresh.new()
+		refresh.actor_id = actor_id
+		refresh.phase = 0
+		# Least-populated phases give a deterministic ceiling, unlike ID hashes.
+		# Phases stay fixed through query reorder/churn: every actor gets one turn
+		# per interval, without rounding N/interval up to extra work every frame.
+		for phase in range(1, _phase_population.size()):
+			if _phase_population[phase] < _phase_population[refresh.phase]:
+				refresh.phase = phase
+		_phase_population[refresh.phase] += 1
+		_config_refreshes[config_id] = refresh
+	refresh.seen_frame = frame
+	if refresh.authored_frame != frame and (first_seen or frame % _phase_population.size() == refresh.phase):
+		refresh.authored_frame = frame
+		return true
+	return false
 
 
 func _resolve_actor(actor_component) -> Node:

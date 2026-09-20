@@ -4,6 +4,7 @@ class_name DoorInteractionController
 
 const SERVICE_ID := &"door_interactions"
 const APPROACH_TIMEOUT_MSEC := 30000
+const INTERACTION_DISTANCE := 1.5
 const DOOR_LOCK_RULES := preload("res://features/doors/sim/door_lock_rules.gd")
 const SKILL_RULES := preload("res://features/skills/sim/skill_rules.gd")
 
@@ -96,14 +97,19 @@ func request_actor_action(actor: Node, door: Node, action: String, issued_by_pla
 	if interaction_position == Vector3.INF:
 		_doors.cancel_command(str(submission.get("command_id", "")), "interaction_position_missing")
 		return false
-	actor.call("set_move_target", interaction_position, issued_by_player)
-	if not issued_by_player:
-		if not _actor_move_target_matches(actor, interaction_position):
-			# A genuine priority order (hauling a prisoner, combat) refused the
-			# move; drop the command and let the keeper reconcile retry later.
-			_doors.cancel_command(str(submission.get("command_id", "")), "actor_busy")
-			return false
-		_set_door_duty_order(actor, true)
+	# An automatic open/unlock already in reach is part of the current route,
+	# not a new movement order. In particular, custody must retain its carrier,
+	# prisoner and cell assignment while crossing a closed doorway.
+	var in_stride := resume_target is Vector3 and action in ["open", "unlock"] \
+		and _actor_move_target_matches(actor, resume_target) \
+		and (actor as Node3D).global_position.distance_to(interaction_position) <= INTERACTION_DISTANCE
+	if not in_stride:
+		actor.call("set_move_target", interaction_position, issued_by_player)
+		if not issued_by_player:
+			if not _actor_move_target_matches(actor, interaction_position):
+				_doors.cancel_command(str(submission.get("command_id", "")), "actor_busy")
+				return false
+			_set_door_duty_order(actor, true)
 	var command_id := str(submission.get("command_id", ""))
 	var info := {
 		"actor_id": actor_id,
@@ -113,6 +119,7 @@ func request_actor_action(actor: Node, door: Node, action: String, issued_by_pla
 		"issued_by_player": issued_by_player,
 		"interaction_position": interaction_position,
 		"resume_target": resume_target,
+		"in_stride": in_stride,
 		"follow_up_action": follow_up_action,
 		"queued_at_msec": Time.get_ticks_msec(),
 	}
@@ -150,7 +157,7 @@ func _physics_process(_delta: float) -> void:
 			_doors.cancel_command(command_id, "approach_timed_out")
 			_approaches_by_command_id.erase(command_id)
 			continue
-		if (actor as Node3D).global_position.distance_to(target) <= 1.5:
+		if (actor as Node3D).global_position.distance_to(target) <= INTERACTION_DISTANCE:
 			_doors.begin_command(command_id)
 			_approaches_by_command_id.erase(command_id)
 
@@ -164,7 +171,8 @@ func _on_door_command_resolved(result: Dictionary) -> void:
 	var actor: Node = (_gecs_world.get_actor_by_stable_id(str(result.get("actor_id", ""))) as Node) if _gecs_world != null else null
 	if actor == null or not is_instance_valid(actor):
 		return
-	if not bool(info.get("issued_by_player", true)):
+	var in_stride := bool(info.get("in_stride", false))
+	if not in_stride and not bool(info.get("issued_by_player", true)):
 		_set_door_duty_order(actor, false)
 	if str(result.get("action", "")) == "lockpick":
 		var xp := float(result.get("skill_xp", 0.0))
@@ -176,6 +184,10 @@ func _on_door_command_resolved(result: Dictionary) -> void:
 		var door = _weak_door(info)
 		if law_order != null and door != null and law_order.has_method("report_lockpicking_if_witnessed"):
 			law_order.call("report_lockpicking_if_witnessed", actor, door)
+	# A replacement route owns the actor now; never restore or extend the old
+	# route just because its in-range door command finished on a later tick.
+	if in_stride and not _actor_move_target_matches(actor, info.resume_target):
+		return
 	var follow_up := str(info.get("follow_up_action", ""))
 	if not follow_up.is_empty() and str(result.get("result_code", "")) == "closed":
 		var chained_door = _weak_door(info)
@@ -187,7 +199,7 @@ func _on_door_command_resolved(result: Dictionary) -> void:
 		if door != null:
 			request_actor_action(actor, door, "open", false, info.get("resume_target", null))
 		return
-	if str(result.get("result_code", "")) == "opened":
+	if str(result.get("result_code", "")) == "opened" and not in_stride:
 		var resume_target = info.get("resume_target", null)
 		if resume_target is Vector3:
 			actor.call("set_move_target", resume_target, bool(info.get("issued_by_player", true)))

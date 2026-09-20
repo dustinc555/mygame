@@ -28,6 +28,7 @@ const DURABLE_FIELDS := [
 	&"recovery_multiplier",
 	&"dying_timer_remaining",
 	&"death_profile",
+	&"fire_only_death",
 ]
 
 # --- Life / health ----------------------------------------------------------
@@ -60,6 +61,8 @@ var held_externally_hold := false
 
 # --- Which death model GameVitalsSystem runs for this actor ------------------
 @export var death_profile := DeathProfile.HUMANOID
+# Species rule travels with injuries through ledger simulation and save/load.
+@export var fire_only_death := false
 
 # --- Flip bookkeeping -------------------------------------------------------
 # False until the sync has seeded this component from the live node once (post-realization the entity

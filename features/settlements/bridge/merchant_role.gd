@@ -11,6 +11,9 @@ class_name MerchantRole
 
 var shop_inventory: InventoryData
 var _stock_seeded := false
+var _gecs_world: Node
+var _container_id := ""
+var _inventory_sync_suspended := false
 var _pending_trader_ids: Dictionary = {}
 
 signal shop_inventory_changed
@@ -18,7 +21,7 @@ signal shop_inventory_changed
 
 func _ready() -> void:
 	_ensure_shop_inventory()
-	call_deferred("_seed_shop_inventory")
+	call_deferred("_initialize_shop_inventory")
 
 
 func get_shop_inventory() -> InventoryData:
@@ -50,14 +53,70 @@ func _ensure_shop_inventory() -> void:
 	shop_inventory.changed.connect(_on_shop_inventory_changed)
 
 
+func _initialize_shop_inventory() -> void:
+	# Roles may be attached after actor registration. Reuse the same shared
+	# inventory binding rather than persisting individual trade gestures.
+	var bridge := BootstrapContext.service(GecsWorldController.SERVICE_ID)
+	if bridge != null:
+		bridge.call("sync_actor_inventory", get_parent())
+	else:
+		_seed_shop_inventory()
+
+
+func bind_inventory_state(bridge: Node, actor_id: String) -> void:
+	var container_id := "%s.shop_inventory" % actor_id
+	if _gecs_world == bridge and _container_id == container_id:
+		return
+	if is_instance_valid(_gecs_world) and _gecs_world.world_reindexed.is_connected(_restore_shop_inventory):
+		_gecs_world.world_reindexed.disconnect(_restore_shop_inventory)
+	_gecs_world = bridge
+	_container_id = container_id
+	_gecs_world.world_reindexed.connect(_restore_shop_inventory)
+	_ensure_shop_inventory()
+	if not _restore_shop_inventory():
+		shop_inventory.configure_stack_allocator(_container_id, shop_inventory.next_stack_sequence)
+		_seed_shop_inventory()
+
+
+func is_inventory_sync_suspended() -> bool:
+	return _inventory_sync_suspended
+
+
+func _restore_shop_inventory() -> bool:
+	var entity = _gecs_world.call("get_inventory_container_entity", _container_id)
+	if entity == null:
+		return false
+	var container = entity.get_component(_gecs_world.C_INVENTORY_CONTAINER)
+	if container == null:
+		return false
+	# Container existence, not a nonempty stack list, distinguishes initialized
+	# stock. Hydration must never grant the authored starting goods again.
+	_inventory_sync_suspended = true
+	_stock_seeded = true
+	shop_inventory.entries.clear()
+	shop_inventory.columns = int(container.columns)
+	shop_inventory.rows = int(container.rows)
+	shop_inventory.max_weight = float(container.max_weight)
+	shop_inventory.configure_stack_allocator(_container_id, int(container.next_stack_sequence))
+	for snapshot in _gecs_world.call("get_inventory_stacks", _container_id):
+		var definition := load(str(snapshot.item_definition_path)) as ItemDefinition
+		if not shop_inventory.hydrate_entry_with_contents(definition, snapshot.grid_position, int(snapshot.count), snapshot.contained_item_counts, snapshot.metadata, str(snapshot.stack_id), false):
+			push_error("MerchantRole could not restore stock '%s'" % str(snapshot.stack_id))
+	shop_inventory.changed.emit()
+	_inventory_sync_suspended = false
+	return true
+
+
 func _seed_shop_inventory() -> void:
 	if _stock_seeded:
 		return
 	_stock_seeded = true
 	_ensure_shop_inventory()
+	_inventory_sync_suspended = true
 	for stock in initial_stock:
-		if stock.item_definition != null and stock.quantity > 0:
+		if stock != null and stock.item_definition != null and stock.quantity > 0:
 			shop_inventory.add_item_count(stock.item_definition, stock.quantity)
+	_inventory_sync_suspended = false
 
 
 func _on_shop_inventory_changed() -> void:

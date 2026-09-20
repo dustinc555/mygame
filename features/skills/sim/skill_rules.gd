@@ -16,6 +16,11 @@ const CHECK_CHANCE_EVEN_MAX := 0.65
 const CHECK_CHANCE_HIGH_MAX := 0.9
 const TOUGHNESS_MAX_BLOOD_BONUS_CAP := 0.5
 const TOUGHNESS_MAX_BLOOD_BONUS_CURVE := 45.0
+## Sneak locomotion relative to authored walking speed; preserved skill curve.
+const SNEAK_MOVE_SPEED_MIN_MULTIPLIER := 0.45
+const SNEAK_MOVE_SPEED_MAX_MULTIPLIER := 1.45
+const SNEAK_MOVE_SPEED_MASTER_LEVEL := 80.0
+const SNEAK_MOVE_SPEED_CURVE := 0.75
 
 ## Named competence tiers on the 1-100 skill scale; spawners roll stat
 ## bands by tier (civilians beginner-intermediate, guard martial stats
@@ -90,6 +95,11 @@ static func get_diminishing_bonus(level: float, cap: float, curve: float = 35.0)
 
 static func get_toughness_max_blood_bonus(level: float) -> float:
 	return get_diminishing_bonus(level, TOUGHNESS_MAX_BLOOD_BONUS_CAP, TOUGHNESS_MAX_BLOOD_BONUS_CURVE)
+
+
+static func get_sneak_move_speed_multiplier(level: float) -> float:
+	var ratio := clampf((level - float(DEFAULT_LEVEL)) / maxf(SNEAK_MOVE_SPEED_MASTER_LEVEL - float(DEFAULT_LEVEL), 0.001), 0.0, 1.0)
+	return lerpf(SNEAK_MOVE_SPEED_MIN_MULTIPLIER, SNEAK_MOVE_SPEED_MAX_MULTIPLIER, pow(ratio, SNEAK_MOVE_SPEED_CURVE))
 
 
 static func get_max_blood_for_toughness(base_max_blood: float, toughness_level: float) -> float:

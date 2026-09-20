@@ -490,10 +490,9 @@ func _apply_staff_role_defaults(staff: Node, _member_name: String, _color: Color
 	if conversation != null and _has_property(staff, "conversation_definition"):
 		staff.set("conversation_definition", conversation)
 	_sync_staff_member(staff, role)
-	# Bar staff defend themselves but never respond like soldiers — the actor
-	# default is AGGRESSIVE (raiders/guards), wrong for waiters and barkeepers.
+	# Indexed staff names remain identity; combat rules consume the base role.
 	if _has_property(staff, "combat_stance"):
-		staff.set("combat_stance", NpcRules.combat_stance_for_role(role))
+		staff.set("combat_stance", NpcRules.combat_stance_for_role(_role_base(role)))
 
 
 func _ensure_merchant_role(barkeeper: Node) -> void:

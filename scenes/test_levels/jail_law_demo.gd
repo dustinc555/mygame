@@ -51,11 +51,6 @@ func _ensure_demo_settlement() -> void:
 		add_child(settlement)
 	settlement.set("settlement_definition", _make_demo_settlement_definition())
 	settlement.set("resident_root_path", NodePath("Residents"))
-	settlement.set("guard_count", 1)
-	settlement.set("guard_post_count", 1)
-	settlement.set("guard_name", "City Guard")
-	settlement.set("staff_stable_id_prefix", "npc.jail_demo_town.town")
-	settlement.set("staff_squad_name", "JailDemoTown")
 	# The demo floor IS the town: the auto footprint border would box only the
 	# jail facility and leave the vase/witness area outside law jurisdiction.
 	settlement.set("auto_town_border_from_footprint", false)
@@ -84,6 +79,11 @@ func _make_demo_settlement_definition() -> Resource:
 	definition.set("settlement_id", DEMO_SETTLEMENT_ID)
 	definition.set("display_name", "Jail Demo Town")
 	definition.set("faction_definition", FARMERS_FACTION)
+	definition.set("guard_count", 1)
+	definition.set("guard_post_count", 1)
+	definition.set("guard_name", "City Guard")
+	definition.set("staff_stable_id_prefix", "npc.jail_demo_town.town")
+	definition.set("staff_squad_name", "JailDemoTown")
 	var stack: Resource = STORAGE_STACK_SEED_SCRIPT.new()
 	stack.set("stack_id", "%s.granary.stack.1" % DEMO_SETTLEMENT_ID)
 	stack.set("item", BREAD)

@@ -4,7 +4,7 @@ class_name CGameActorVitalsInputs
 
 const DURABLE_FIELDS := [&"toughness", &"healing_rate"]
 
-# Per-actor vitals INPUTS authored by the node (from StatsCapability) on an event (skill change),
+# Per-actor vitals INPUTS authored by the node when StatsCapability inputs change,
 # read only by GameVitalsSystem. This is the one legitimate node->component direction (same pattern
 # as CGameCombatLoadout): the node pushes these typed, the system never reflects into the node.
 #
@@ -12,10 +12,15 @@ const DURABLE_FIELDS := [&"toughness", &"healing_rate"]
 # a wounded actor that leaves LOD keeps bleeding/healing for a bounded window with no live node,
 # because the system reads toughness/healing_rate from here, not from the (gone) StatsCapability.
 #
-# `dirty` is set true by the authoring side whenever an input changes; the node re-authors and clears
-# it, so derivation that depends on these (e.g. toughness -> max_blood) stays off the hot path.
+# `dirty` forces explicit re-authoring; the transient source revision detects ordinary changes.
+# Neither the binding nor pending commands belong to durable save/LOD state.
 
 @export var dirty := true
+
+# Disposable source binding, deliberately excluded from durable state. A new
+# component or StatsCapability must author on its first pass, even after loading.
+var stats_source_instance_id := 0
+var stats_inputs_revision := -1
 
 # Drives coma/dying thresholds and the toughness->max_blood curve (SkillRules.get_max_blood_for_toughness).
 @export var toughness := 0.0
@@ -40,9 +45,11 @@ func copy_durable_state_to(target) -> void:
 		return
 	for field in DURABLE_FIELDS:
 		target.set(field, get(field))
+	target.stats_inputs_revision = -1
 
 
 func apply_durable_state(source: Dictionary) -> void:
+	stats_inputs_revision = -1
 	for field in DURABLE_FIELDS:
 		if source.has(field):
 			set(field, source[field])
