@@ -70,6 +70,10 @@ func can_sleep_from_position(world_position: Vector3) -> bool:
 	var local_position := global_transform.affine_inverse() * world_position
 	if absf(local_position.y) > sleep_vertical_tolerance:
 		return false
+	# A restored sleeper can start on the mattress. It is not a standing
+	# approach: retain an outside interaction point for the eventual wake.
+	if absf(local_position.x) <= _bed_half_extents.x and absf(local_position.z) <= _bed_half_extents.y:
+		return false
 	var outside_x := maxf(absf(local_position.x) - _bed_half_extents.x, 0.0)
 	var outside_z := maxf(absf(local_position.z) - _bed_half_extents.y, 0.0)
 	return Vector2(outside_x, outside_z).length() <= sleep_arrival_distance

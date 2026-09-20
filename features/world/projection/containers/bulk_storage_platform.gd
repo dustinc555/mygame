@@ -336,6 +336,10 @@ func resolve_pending_deposit(actor: Node) -> Dictionary:
 		return {"handled": false, "amount": 0}
 	var pending_value = _pending_deposits[actor_instance_id]
 	var pending: Dictionary = pending_value as Dictionary if pending_value is Dictionary else {"item_path": str(pending_value)}
+	if bool(pending.get("automatic", false)) and is_instance_valid(_haul_provider) \
+			and not bool(_haul_provider.call("is_actor_work_schedule_active", actor)):
+		_clear_pending_deposit(actor_instance_id)
+		return {"handled": true, "amount": 0, "reason": "off_shift"}
 	var item_path := str(pending.get("item_path", ""))
 	var max_amount := int(pending.get("max_amount", 0))
 	_clear_pending_deposit(actor_instance_id)
@@ -531,7 +535,7 @@ func hydrate_storage_policy_from_gecs(food_enabled: bool, materials_enabled: boo
 	storage_item_overrides = overrides.duplicate(true)
 
 
-func _storage_category_option(category_id: String, label: String, item_paths: Array, category_enabled: bool) -> Dictionary:
+func _storage_category_option(category_id: String, label: String, item_paths: Array, _category_enabled: bool) -> Dictionary:
 	var items: Array = []
 	var enabled_count := 0
 	for item_path in item_paths:

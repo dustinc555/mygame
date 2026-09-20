@@ -3,6 +3,8 @@ extends Node
 class_name PopulationController
 
 const RESIDENCE_SPAWN_REVISION := 1
+const WORK_SCHEDULE = preload("res://features/settlements/resources/work_schedule.gd")
+const DEFAULT_WORK_SCHEDULE = preload("res://features/settlements/resources/default_work_schedule.tres")
 
 signal population_record_changed(settlement_id: String, actor_id: String)
 signal person_died(actor_id: String)
@@ -449,6 +451,8 @@ func apply_offscreen_squad_casualties(squad_id: String, survivor_count: int, wor
 		var actor_id := str(living_records[index].get("actor_id", ""))
 		var hash_value := absi(hash(actor_id))
 		var angle := TAU * float(hash_value % 360) / 360.0
+		# Intentionally discard the angle's hash bucket before choosing a radius.
+		@warning_ignore("integer_division")
 		var radius := 0.75 + float((hash_value / 360) % 100) / 100.0
 		var corpse_position := world_position + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
 		mark_record_dead(actor_id, null, Transform3D(Basis(), corpse_position))
@@ -1826,12 +1830,16 @@ func _ledger_activity_for_record(record: Dictionary, absolute_minute: int) -> St
 	var hour := int(floor(float(max(absolute_minute, 0) % 1440) / 60.0)) if absolute_minute >= 0 else 12
 	var assignments: Dictionary = record.get("assignments", {})
 	var has_home := not str(assignments.get("residence", "")).is_empty()
-	if hour >= 22 or hour < 6:
-		return "home_sleep" if has_home else "resting"
-	if not str(assignments.get("employment", "")).is_empty():
-		return "working"
-	if has_home:
-		return "home_day"
+	var employment_id := str(assignments.get("employment", ""))
+	if not employment_id.is_empty():
+		var world := _get_gecs_world()
+		var slot: Dictionary = world.call("get_assignment_slot", str(record.get("settlement_id", "")), "employment", employment_id) if world != null and world.has_method("get_assignment_slot") else {}
+		var schedule: Dictionary = slot.get("work_schedule", {})
+		if WORK_SCHEDULE.is_active(schedule if not schedule.is_empty() else DEFAULT_WORK_SCHEDULE.to_record(), hour):
+			return "working"
+		return WORK_SCHEDULE.home_activity(hour, has_home)
+	if has_home or hour >= 22 or hour < 6:
+		return WORK_SCHEDULE.home_activity(hour, has_home)
 	var role_id := str(record.get("role_id", "resident")).to_lower()
 	if ["worker", "waiter", "barkeeper", "merchant", "guard", "barber", "warden", "ruler", "mayor"].has(role_id):
 		return "working"

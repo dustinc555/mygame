@@ -38,6 +38,10 @@ func refresh(actor: Node, slot_record: Dictionary) -> void:
 
 func _refresh_sleep(actor: Node, interaction) -> void:
 	if int(actor.get("life_state")) == NpcRules.LifeState.ASLEEP:
+		# Saved sleep has no live furniture claim after realization. Wake once
+		# so the normal physical approach can reclaim a bed on reconciliation.
+		if not is_instance_valid(interaction.current_sleep_target):
+			interaction.stop_sleep_assignment()
 		return
 	for bed in _beds:
 		if bed == null or not is_instance_valid(bed) or not bool(bed.call("claim_sleeper", actor)):

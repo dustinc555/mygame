@@ -945,9 +945,9 @@ func realize_assignment_slot(settlement_id: String, assignment_domain: String, s
 func _staff_role_owner(settlement_id: String, slot: Dictionary) -> Node:
 	var owners: Dictionary = _staff_role_owners_by_settlement.get(settlement_id, {})
 	# Facility projections can disappear while their durable slots remain.
-	var owner = owners.get(str(slot.get("owner_id", "")))
-	if is_instance_valid(owner) and not owner.is_queued_for_deletion():
-		return owner as Node
+	var role_owner = owners.get(str(slot.get("owner_id", "")))
+	if is_instance_valid(role_owner) and not role_owner.is_queued_for_deletion():
+		return role_owner as Node
 	var anchor := get_settlement_anchor(settlement_id)
 	if anchor == null:
 		return null
@@ -1008,8 +1008,31 @@ func refresh_actor_assignment_projections(settlement_id: String, actor_id: Strin
 		refresh_assignment_slot_projection(settlement_id, str(slot.get("assignment_domain", "")), str(slot.get("slot_id", "")))
 
 
+## Jobs revokes employment before Home or a higher-priority order takes over.
+## The role owner releases only its own task claims; no venue-type branching.
+func release_actor_employment_duty(settlement_id: String, actor_id: String, slot_id: String) -> void:
+	var state: Dictionary = settlement_states.get(settlement_id, {})
+	var slot: Dictionary = (state.get("assignment_slots", {}) as Dictionary).get(_assignment_key("employment", slot_id), {})
+	var population := _get_population_controller()
+	var actor = population.call("get_live_actor", actor_id) if population != null and population.has_method("get_live_actor") else null
+	if actor == null or str(slot.get("occupant_actor_id", "")) != actor_id:
+		return
+	var role_owner := _staff_role_owner(settlement_id, slot)
+	if role_owner != null and role_owner.has_method("release_settlement_assignment_duty"):
+		role_owner.call("release_settlement_assignment_duty", actor)
+
+
 func refresh_actor_residence_projection(settlement_id: String, actor_id: String, routine_activity := "home_day") -> void:
 	var state: Dictionary = settlement_states.get(settlement_id, {})
+	var population := _get_population_controller()
+	var actor = population.call("get_live_actor", actor_id) if population != null and population.has_method("get_live_actor") else null
+	var jobs := _context.get_optional(&"job_system") if _context != null else null
+	if actor != null and jobs != null and not bool(jobs.call("is_actor_work_schedule_active", actor)):
+		for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
+			var employment: Dictionary = slot_value
+			if str(employment.get("occupant_actor_id", "")) != actor_id or str(employment.get("assignment_domain", "")) != "employment":
+				continue
+			release_actor_employment_duty(settlement_id, actor_id, str(employment.get("slot_id", "")))
 	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
 		var slot: Dictionary = slot_value
 		if str(slot.get("occupant_actor_id", "")) != actor_id or str(slot.get("assignment_domain", "")) != "residence":
@@ -1026,10 +1049,10 @@ func _remove_unbound_assignment_bodies_for_settlement(settlement_id: String) -> 
 			expected_actor_ids[actor_id] = true
 	var cleaned_parents := {}
 	var population := _get_population_controller()
-	for owner in (_staff_role_owners_by_settlement.get(settlement_id, {}) as Dictionary).values():
-		if owner == null or not is_instance_valid(owner) or not owner.has_method("get_assignment_realization_parent"):
+	for role_owner in (_staff_role_owners_by_settlement.get(settlement_id, {}) as Dictionary).values():
+		if role_owner == null or not is_instance_valid(role_owner) or not role_owner.has_method("get_assignment_realization_parent"):
 			continue
-		var parent := owner.call("get_assignment_realization_parent") as Node
+		var parent := role_owner.call("get_assignment_realization_parent") as Node
 		if parent == null or cleaned_parents.has(parent):
 			continue
 		cleaned_parents[parent] = true
@@ -1152,9 +1175,9 @@ func _collect_staff_role_owners(root: Node) -> Array[Node]:
 	return owners
 
 
-func _staff_role_owner_id(owner: Node, settlement_id: String) -> String:
-	if owner != null and owner.has_method("get_facility_id"):
-		var facility_id := str(owner.call("get_facility_id")).strip_edges()
+func _staff_role_owner_id(role_owner: Node, settlement_id: String) -> String:
+	if role_owner != null and role_owner.has_method("get_facility_id"):
+		var facility_id := str(role_owner.call("get_facility_id")).strip_edges()
 		if not facility_id.is_empty():
 			return facility_id
 	return settlement_id

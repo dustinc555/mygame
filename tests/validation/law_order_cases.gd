@@ -200,7 +200,6 @@ func _validate_player_assault_local_law_response() -> void:
 	var player := _get_player()
 	var law := _get_law_controller()
 	var town := _scene.get_node_or_null("CustodyTown") if _scene != null else null
-	var jail := _get_jail()
 	var city_guard := _city_guard
 	var jail_guard := _jail_guard
 	var warden := _warden
@@ -629,6 +628,9 @@ func _validate_sentence_delivery(player: HumanoidCharacter, elevated_post := fal
 		_close_active_conversation()
 		var warden_returned := await _wait_until(func() -> bool: return _is_warden_at_home_post(jail, warden), 900)
 		if not warden_returned:
+			var jobs := BootstrapContext.service(&"job_system")
+			print("JAIL_PRIORITY_TRACE life=%s combat=%s target=%s hauling=%s pending=%s interaction_return=%s interaction_sentence=%s order=%s" % [warden.life_state, warden.is_in_combat(), warden.get_current_combat_target(), jail._is_actor_hauling(warden), jail._is_warden_sentence_delivery_active(warden), warden.get_interaction().is_law_custody_returning(), warden.get_interaction().is_law_sentence_moving(), warden.get_interaction().current_order_type])
+			print("JAIL_DUTY_TRACE actor=%s grant=%s allowed=%s priority=%s player=%s busy=%s assignment=%s" % [warden.stable_id, warden.get_meta(&"active_facility_duty", ""), jobs.can_execute_assignment_duty(warden), jail._has_priority_jail_activity(warden), warden.has_active_player_order(), jobs.is_actor_work_busy(warden), jobs._assignment_workers.get(warden.stable_id, {})])
 			var post := _get_warden_home_post(jail)
 			_fail("Warden should return to the warden post after sentencing warden_pos=%s post_pos=%s law_returning=%s sentence_move=%s has_move=%s move_target=%s" % [str(warden.global_position), str(post.global_position if post != null else Vector3.ZERO), str(warden.call("is_law_custody_returning") if warden.has_method("is_law_custody_returning") else false), str(warden.call("is_law_sentence_moving") if warden.has_method("is_law_sentence_moving") else false), str(warden.get("_has_move_target")), str(warden.get("_move_target"))])
 		if absf(warden.global_position.y - warden_ground_y) > 0.08:
@@ -1341,11 +1343,11 @@ func _validate_jail_cell_authoring(jail: Node) -> void:
 	await process_frame
 
 
-func _validate_guard_post_preserves_combat(owner: Node, guard: HumanoidCharacter, target: HumanoidCharacter, label: String) -> void:
-	if owner == null or guard == null or target == null:
+func _validate_guard_post_preserves_combat(post_owner: Node, guard: HumanoidCharacter, target: HumanoidCharacter, label: String) -> void:
+	if post_owner == null or guard == null or target == null:
 		_fail("%s guard-post combat validation requires owner, guard, and target" % label)
 		return
-	if not owner.has_method("_process_guard_post_assignment"):
+	if not post_owner.has_method("_process_guard_post_assignment"):
 		if label == "Town":
 			return
 		_fail("%s should expose guard-post assignment for validation" % label)
@@ -1358,10 +1360,10 @@ func _validate_guard_post_preserves_combat(owner: Node, guard: HumanoidCharacter
 	if not await _wait_until(func() -> bool: return guard.get_current_combat_target() == target, 120):
 		_fail("%s guard must acquire the nearby live target before guard-post preservation is exercised" % label)
 		return
-	if owner is SettlementJail:
-		owner.call("_process_guard_post_assignment", guard, 0.0)
+	if post_owner is SettlementJail:
+		post_owner.call("_process_guard_post_assignment", guard, 0.0)
 	else:
-		owner.call("_process_guard_post_assignment", guard)
+		post_owner.call("_process_guard_post_assignment", guard)
 	if guard.get_current_combat_target() != target or not guard.is_in_combat():
 		_fail("%s guard-post assignment should not cancel active combat" % label)
 	FIXTURE.reset_order(guard)

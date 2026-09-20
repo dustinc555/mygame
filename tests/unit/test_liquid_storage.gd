@@ -4,6 +4,8 @@ extends GutTest
 ## Disk/GECS restoration and physical hauling remain validation scenarios.
 
 class MemoryLedger extends Node:
+	# LiquidStorageController connects to this production ledger contract.
+	@warning_ignore("unused_signal")
 	signal world_reindexed
 	var states: Dictionary = {}
 	var reject_writes := false

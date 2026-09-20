@@ -3,6 +3,8 @@ extends Node
 class_name FarmWorldSimulationController
 
 const SERVICE_ID := &"farm_world_simulation"
+const WORK_SCHEDULE = preload("res://features/settlements/resources/work_schedule.gd")
+const DEFAULT_WORK_SCHEDULE = preload("res://features/settlements/resources/default_work_schedule.tres")
 ## One assigned farmer contributes a small coarse labor budget per world minute.
 ## This is intentionally cheap world truth, not projected NPC playback.
 const WORK_SECONDS_PER_FARMER_WORLD_MINUTE := 0.08
@@ -31,9 +33,10 @@ func get_last_summary() -> Dictionary:
 	return _last_summary.duplicate(true)
 
 
-## Cheap world-sim entry point. Cost scales with settlements and changed farm
-## cells, never elapsed minute replay or live NPC count.
-func advance_world_sim_minutes(elapsed_world_minutes: int) -> Dictionary:
+## Cheap world-sim entry point. Cost scales with assignment slots and changed farm
+## cells, never elapsed minute replay. Omitted end time requires the context clock;
+## validators may supply an explicit absolute end minute without booting a world.
+func advance_world_sim_minutes(elapsed_world_minutes: int, end_world_minute: int = -1) -> Dictionary:
 	var summary := {
 		"elapsed_world_minutes": maxi(elapsed_world_minutes, 0),
 		"eligible_settlements": 0,
@@ -47,6 +50,14 @@ func advance_world_sim_minutes(elapsed_world_minutes: int) -> Dictionary:
 	if elapsed_world_minutes <= 0 or farm_controller == null or settlement_controller == null:
 		_last_summary = summary
 		return summary
+	if end_world_minute < 0:
+		var world_time := _context.get_optional(&"world_time") if _context != null else null
+		if world_time == null or not world_time.has_method("get_absolute_minute"):
+			summary["skipped_reason"] = "missing_world_time"
+			_last_summary = summary
+			return summary
+		end_world_minute = int(world_time.call("get_absolute_minute"))
+	var from_world_minute := end_world_minute - elapsed_world_minutes
 	var states: Array = settlement_controller.call("get_world_sim_labor_snapshots") \
 			if settlement_controller.has_method("get_world_sim_labor_snapshots") \
 			else settlement_controller.call("get_all_settlement_states") if settlement_controller.has_method("get_all_settlement_states") else []
@@ -56,16 +67,22 @@ func advance_world_sim_minutes(elapsed_world_minutes: int) -> Dictionary:
 			continue
 		var state: Dictionary = state_value
 		var settlement_id := str(state.get("settlement_id", ""))
-		var farmer_ids := _farm_worker_ids(state)
+		var farmer_schedules := _farm_worker_schedules(state)
+		var farmer_ids := PackedStringArray(farmer_schedules.keys())
 		if settlement_id.is_empty() or farmer_ids.is_empty():
 			continue
 		summary["eligible_settlements"] = int(summary["eligible_settlements"]) + 1
 		summary["assigned_farmers"] = int(summary["assigned_farmers"]) + farmer_ids.size()
 		if _any_worker_realized(farmer_ids):
 			continue
+		var scheduled_minutes := 0
+		for schedule in farmer_schedules.values():
+			scheduled_minutes += WORK_SCHEDULE.active_minutes(schedule, from_world_minute, end_world_minute)
+		if scheduled_minutes <= 0:
+			continue
 		labor_by_settlement[settlement_id] = {
 			"owner_faction_name": str(state.get("faction_id", "")),
-			"labor_seconds": float(elapsed_world_minutes) * float(farmer_ids.size()) * WORK_SECONDS_PER_FARMER_WORLD_MINUTE,
+			"labor_seconds": float(scheduled_minutes) * WORK_SECONDS_PER_FARMER_WORLD_MINUTE,
 		}
 	var plots_snapshot: Dictionary = farm_controller.call("get_plots") \
 			if not labor_by_settlement.is_empty() and farm_controller.has_method("get_plots") else {}
@@ -106,12 +123,13 @@ func _try_initialize() -> void:
 	_initialized = true
 
 
-func _on_hour_changed(_absolute_hour: int, _day_index: int, _hour: int) -> void:
-	advance_world_sim_minutes(60)
+func _on_hour_changed(absolute_hour: int, _day_index: int, _hour: int) -> void:
+	# During catch-up the clock already holds the final time, not this boundary.
+	advance_world_sim_minutes(60, absolute_hour * 60)
 
 
-func _farm_worker_ids(state: Dictionary) -> PackedStringArray:
-	var actor_ids := PackedStringArray()
+func _farm_worker_schedules(state: Dictionary) -> Dictionary:
+	var schedules: Dictionary = {}
 	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
 		if not (slot_value is Dictionary):
 			continue
@@ -122,9 +140,11 @@ func _farm_worker_ids(state: Dictionary) -> PackedStringArray:
 				and bool(slot.get("filled", false)) \
 				and bool(slot.get("uses_settlement_jobs", false)) \
 				and allowed.has("category:farm") \
-				and not actor_id.is_empty():
-			actor_ids.append(actor_id)
-	return actor_ids
+				and not actor_id.is_empty() and not schedules.has(actor_id):
+			var schedule = slot.get("work_schedule", {})
+			schedules[actor_id] = schedule if schedule is Dictionary and not schedule.is_empty() \
+					else DEFAULT_WORK_SCHEDULE.to_record()
+	return schedules
 
 
 func _any_worker_realized(actor_ids: PackedStringArray) -> bool:
