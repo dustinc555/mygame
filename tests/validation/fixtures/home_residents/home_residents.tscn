@@ -1,0 +1,207 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/world_root.gd" id="1_world"]
+[ext_resource type="Script" path="res://features/core/game_bootstrap.gd" id="2_bootstrap"]
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_town.gd" id="3_town"]
+[ext_resource type="Script" path="res://features/world_sim/resources/settlement_definition.gd" id="4_definition"]
+[ext_resource type="Resource" path="res://features/factions/resources/factions/farmers.tres" id="5_faction"]
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_facility_instance.gd" id="6_home"]
+[ext_resource type="Script" path="res://features/settlements/resources/facility_role_slot_definition.gd" id="7_slot"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/resident.tres" id="8_resident"]
+[ext_resource type="Script" path="res://features/world_sim/resources/character_record_definition.gd" id="9_character"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chair_2.tscn" id="10_chair"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_2.tscn" id="11_bed"]
+[ext_resource type="PackedScene" path="res://features/core/party/party_member.tscn" id="12_party"]
+[ext_resource type="Script" path="res://features/core/party/party_manager.gd" id="13_manager"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/bar_table.tscn" id="14_table"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/home.tres" id="15_function"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/world_building.gd" id="16_building"]
+[ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village_woodbrick/door_wood_flat.tscn" id="17_door"]
+
+[sub_resource type="Resource" id="Settlement"]
+script = ExtResource("4_definition")
+settlement_id = "home_residents"
+display_name = "Home resident fixture"
+faction_definition = ExtResource("5_faction")
+guard_count = 1
+generation_seed = 1701
+actor_realization_policy = "full_town"
+population_growth_per_day = 0.0
+
+[sub_resource type="Resource" id="ResidentA"]
+script = ExtResource("9_character")
+actor_id = "home_residents.resident_a"
+member_name = "Fixture Resident A"
+available_for_work = false
+
+[sub_resource type="Resource" id="ResidentB"]
+script = ExtResource("9_character")
+actor_id = "home_residents.resident_b"
+member_name = "Fixture Resident B"
+available_for_work = false
+
+[sub_resource type="Resource" id="SlotA"]
+script = ExtResource("7_slot")
+slot_id = "resident_a"
+role = ExtResource("8_resident")
+named_character = SubResource("ResidentA")
+authority_scope = "residence"
+
+[sub_resource type="Resource" id="SlotB"]
+script = ExtResource("7_slot")
+slot_id = "resident_b"
+role = ExtResource("8_resident")
+named_character = SubResource("ResidentB")
+authority_scope = "residence"
+
+[sub_resource type="BoxShape3D" id="FloorShape"]
+size = Vector3(40, 1, 40)
+
+[sub_resource type="BoxShape3D" id="InteriorShape"]
+size = Vector3(16, 4, 16)
+
+[sub_resource type="BoxShape3D" id="LongWallShape"]
+size = Vector3(16, 3, 0.3)
+
+[sub_resource type="BoxShape3D" id="FrontWallShape"]
+size = Vector3(7.3, 3, 0.3)
+
+[node name="HomeResidents" type="Node3D"]
+script = ExtResource("1_world")
+world_id = "home_residents"
+start_hour = 12
+start_minute = 0
+
+[node name="Floor" type="StaticBody3D" parent="." groups=["terrain"]]
+position = Vector3(0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("FloorShape")
+
+[node name="Town" type="Node3D" parent="."]
+script = ExtResource("3_town")
+settlement_definition = SubResource("Settlement")
+auto_town_border_from_footprint = false
+town_border_radius = 25.0
+
+[node name="Facilities" type="Node3D" parent="Town"]
+
+[node name="Home" type="Node3D" parent="Town/Facilities"]
+script = ExtResource("6_home")
+facility_function = ExtResource("15_function")
+facility_type = "housing"
+housing_capacity = 2
+facility_id = "home_residents.home"
+building_id = "home_residents.home.building"
+owner_faction_id = "Farmers"
+role_slots = Array[ExtResource("7_slot")]([SubResource("SlotA"), SubResource("SlotB")])
+door_access_policy = "private"
+door_schedule_enabled = false
+
+[node name="BuildingSlot" type="Node3D" parent="Town/Facilities/Home"]
+
+[node name="CurrentBuilding" type="Node3D" parent="Town/Facilities/Home/BuildingSlot"]
+script = ExtResource("16_building")
+display_name = "Controlled Home room"
+building_id = "home_residents.home.building"
+interior_area_path = NodePath("Interior")
+metadata/description = "One continuous physical floor; broad furniture aisles. Generic Home rules do not depend on cottage floor seams or exterior guard entry."
+
+[node name="Interior" type="Area3D" parent="Town/Facilities/Home/BuildingSlot/CurrentBuilding"]
+position = Vector3(0, 1.5, 0)
+collision_layer = 0
+collision_mask = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Town/Facilities/Home/BuildingSlot/CurrentBuilding/Interior"]
+shape = SubResource("InteriorShape")
+
+[node name="Walls" type="StaticBody3D" parent="Town/Facilities/Home/BuildingSlot/CurrentBuilding"]
+
+[node name="Back" type="CollisionShape3D" parent="Town/Facilities/Home/BuildingSlot/CurrentBuilding/Walls"]
+position = Vector3(0, 1.5, -8)
+shape = SubResource("LongWallShape")
+
+[node name="Left" type="CollisionShape3D" parent="Town/Facilities/Home/BuildingSlot/CurrentBuilding/Walls"]
+position = Vector3(-8, 1.5, 0)
+rotation_degrees = Vector3(0, 90, 0)
+shape = SubResource("LongWallShape")
+
+[node name="Right" type="CollisionShape3D" parent="Town/Facilities/Home/BuildingSlot/CurrentBuilding/Walls"]
+position = Vector3(8, 1.5, 0)
+rotation_degrees = Vector3(0, 90, 0)
+shape = SubResource("LongWallShape")
+
+[node name="FrontLeft" type="CollisionShape3D" parent="Town/Facilities/Home/BuildingSlot/CurrentBuilding/Walls"]
+position = Vector3(-4.35, 1.5, 8)
+shape = SubResource("FrontWallShape")
+
+[node name="FrontRight" type="CollisionShape3D" parent="Town/Facilities/Home/BuildingSlot/CurrentBuilding/Walls"]
+position = Vector3(4.35, 1.5, 8)
+shape = SubResource("FrontWallShape")
+
+[node name="Door" parent="Town/Facilities/Home/BuildingSlot/CurrentBuilding" instance=ExtResource("17_door")]
+position = Vector3(-0.5142, 0, 8.110794)
+
+[node name="Furniture" type="Node3D" parent="Town/Facilities/Home"]
+
+[node name="ChairA" parent="Town/Facilities/Home/Furniture" instance=ExtResource("10_chair")]
+position = Vector3(-4, 0, -3)
+
+[node name="ChairB" parent="Town/Facilities/Home/Furniture" instance=ExtResource("10_chair")]
+position = Vector3(0, 0, -3)
+
+[node name="Table" parent="Town/Facilities/Home/Furniture" instance=ExtResource("14_table")]
+position = Vector3(-2, 0, -1.5)
+surface_id = "home_residents.table"
+
+[node name="Bed" parent="Town/Facilities/Home/Furniture" instance=ExtResource("11_bed")]
+position = Vector3(-4, 0, -5.5)
+
+[node name="PartyMembers" type="Node3D" parent="."]
+
+[node name="Intruder" parent="PartyMembers" instance=ExtResource("12_party")]
+position = Vector3(-3, 0, 12)
+stable_id = "home_residents.intruder"
+member_name = "Fixture Intruder"
+combat_stance = 2
+fatigue_enabled = false
+
+[node name="Companion" parent="PartyMembers" instance=ExtResource("12_party")]
+position = Vector3(0, 0, 12)
+stable_id = "home_residents.companion"
+member_name = "Fixture Companion"
+combat_stance = 1
+fatigue_enabled = false
+
+[node name="PassiveCompanion" parent="PartyMembers" instance=ExtResource("12_party")]
+position = Vector3(3, 0, 12)
+stable_id = "home_residents.passive"
+member_name = "Fixture Passive Companion"
+combat_stance = 2
+fatigue_enabled = false
+
+[node name="IntrusionPositions" type="Node3D" parent="."]
+
+[node name="Intruder" type="Marker3D" parent="IntrusionPositions"]
+position = Vector3(1, 0, 1)
+
+[node name="Companion" type="Marker3D" parent="IntrusionPositions"]
+position = Vector3(2.5, 0, 1)
+
+[node name="PassiveCompanion" type="Marker3D" parent="IntrusionPositions"]
+position = Vector3(4, 0, 1)
+
+[node name="PartyManager" type="Node" parent="."]
+script = ExtResource("13_manager")
+
+[node name="GameBootstrap" type="Node" parent="."]
+script = ExtResource("2_bootstrap")
+
+[node name="CameraRig" type="Node3D" parent="."]
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+position = Vector3(0, 12, 12)
+rotation_degrees = Vector3(-45, 0, 0)
+current = true

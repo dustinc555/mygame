@@ -1,5 +1,7 @@
 # Vitals → GECS Ownership Migration (the plan)
 
+> Test-file references use the current `tests/validation/` locations. Checkpoint outcomes and migration observations below remain historical; this path update does not claim they were rerun.
+
 > Epic: move durable actor vitals (hp, wounds, bleed, blood, life_state, dying timer) from the
 > node-side `VitalsCapability` into GECS as the single source of truth, with a `GameVitalsSystem`
 > owning the per-tick simulation and the node reduced to a one-way sim→node observer.
@@ -75,7 +77,7 @@ recomputes in the same tick, or death lands a frame late.
   `hp_from_wounds`, thresholds (`coma_point`/`death_point`/`blood_death_point`/`dying_seconds`),
   `resolve_life_state` (the recalculate precedence), `bleed_step`, `dying_step`, `recovery_step`.
   The capability keeps the side-effecting `_set_life_state` (signals); VitalsMath stays pure.
-  **Oracle:** existing `tools/validation/validate_vitals_capability.gd` (behavior preservation) +
+  **Oracle:** existing `tests/validation/validate_vitals_capability.gd` (behavior preservation) +
   new `validate_vitals_math.gd`. *(gpt-5.5 does the mechanical extraction; I spec + own the gate.)*
 - **S2 — Expand `CGameActorVitals`** to all durable fields + add node-authored
   `CGameActorVitalsInputs`. Node authors both on event (mirror the `CGameCombatLoadout` pattern).

@@ -20,6 +20,10 @@ func setup(target_owner, target_job) -> void:
 
 
 func tick(delta: float) -> int:
+	# Terminal drivers stay terminal until setup installs another job. Without
+	# this guard a cancelled READY patrol starts again on its next GECS tick.
+	if last_status in [AI_TASK_STEP_SCRIPT.StepStatus.SUCCEEDED, AI_TASK_STEP_SCRIPT.StepStatus.FAILED, AI_TASK_STEP_SCRIPT.StepStatus.CANCELLED]:
+		return last_status
 	if job == null or current_step_index >= steps.size():
 		last_status = AI_TASK_STEP_SCRIPT.StepStatus.SUCCEEDED
 		return last_status
@@ -42,6 +46,8 @@ func tick(delta: float) -> int:
 
 
 func cancel() -> void:
+	if last_status == AI_TASK_STEP_SCRIPT.StepStatus.CANCELLED:
+		return
 	var last_started_index := mini(current_step_index, steps.size() - 1)
 	for index in range(last_started_index, -1, -1):
 		var step = steps[index]

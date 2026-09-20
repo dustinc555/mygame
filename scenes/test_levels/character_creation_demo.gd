@@ -46,9 +46,6 @@ func spawn_created_character(appearance: Resource, character_name := "", age_yea
 	member.appearance_data.visual_age_years = age_years
 	member.set_meta("population_birth_day_index", CharacterAgeRules.birth_day_for_age(age_years, _current_world_day()))
 	member.set_meta("population_age_years", age_years)
-	member.character_race = member.appearance_data.character_race
-	member.body_archetype = member.appearance_data.body_archetype
-	member.visual_body_type = member.appearance_data.visual_body_type
 	member.starting_items = [_make_stock(SILVER_ITEM, 10)]
 	member.starting_equipment = [PEASANT_TUNIC, PEASANT_TROUSERS, PEASANT_SHOES, IRON_SWORD, ROUND_SHIELD]
 	party_root.add_child(member)

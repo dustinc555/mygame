@@ -1,0 +1,68 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/world_root.gd" id="1_world"]
+[ext_resource type="Script" path="res://features/core/game_bootstrap.gd" id="2_bootstrap"]
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_town.gd" id="3_town"]
+[ext_resource type="Script" path="res://features/world_sim/resources/settlement_definition.gd" id="4_definition"]
+[ext_resource type="Resource" path="res://features/factions/resources/factions/farmers.tres" id="5_faction"]
+[ext_resource type="PackedScene" path="res://features/core/party/party_member.tscn" id="6_party"]
+[ext_resource type="Script" path="res://features/core/party/party_manager.gd" id="7_manager"]
+
+[sub_resource type="Resource" id="Settlement"]
+script = ExtResource("4_definition")
+settlement_id = "bar_authoring"
+display_name = "Bar authoring fixture"
+faction_definition = ExtResource("5_faction")
+generation_seed = 371
+actor_realization_policy = "full_town"
+population_growth_per_day = 0.0
+
+[sub_resource type="BoxShape3D" id="FloorShape"]
+size = Vector3(80, 1, 80)
+
+[node name="BarAuthoringFixture" type="Node3D"]
+script = ExtResource("1_world")
+world_id = "bar_authoring"
+start_hour = 10
+start_minute = 0
+
+[node name="Floor" type="StaticBody3D" parent="." groups=["terrain"]]
+position = Vector3(0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("FloorShape")
+
+[node name="Town" type="Node3D" parent="."]
+script = ExtResource("3_town")
+settlement_definition = SubResource("Settlement")
+auto_town_border_from_footprint = false
+town_border_radius = 38.0
+resident_root_path = NodePath("Residents")
+
+[node name="Residents" type="Node3D" parent="Town"]
+
+[node name="Bars" type="Node3D" parent="Town"]
+
+[node name="PartyMembers" type="Node3D" parent="."]
+
+[node name="Worker" parent="PartyMembers" instance=ExtResource("6_party")]
+position = Vector3(0, 0, 10)
+stable_id = "bar_authoring.party_worker"
+member_name = "Fixture Worker"
+faction_name = "Player"
+player_party_member = true
+
+[node name="PartyManager" type="Node" parent="."]
+script = ExtResource("7_manager")
+
+[node name="GameBootstrap" type="Node" parent="."]
+script = ExtResource("2_bootstrap")
+
+[node name="CameraRig" type="Node3D" parent="."]
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+position = Vector3(0, 16, 16)
+rotation_degrees = Vector3(-45, 0, 0)
+current = true

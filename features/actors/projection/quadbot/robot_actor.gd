@@ -24,6 +24,25 @@ var _bleed_drip_progress := 0.0
 var _bleed_pool_progress := 0.0
 
 
+func _ready() -> void:
+	super._ready()
+	# Robots have hull/oil, not organic hunger or fatigue.
+	get_needs().configure_enabled(false, false)
+
+
+## GECS resolves hit/block/grit and robot cut conversion before this callback.
+## Keep the settled damage in the robot hull/oil authority, not organic wounds.
+func handle_system_combat_resolution(attacker: Node, outcome: String, attack_id: String, hit_reaction_names: PackedStringArray, is_critical: bool, has_shield_block: bool, final_blunt: float, final_cut: float, can_actively_defend: bool) -> float:
+	if life_state == NpcRules.LifeState.DEAD:
+		return 0.0
+	var vitals := get_vitals()
+	vitals.blunt_damage += maxf(final_blunt, 0.0)
+	vitals.open_cut_damage += maxf(final_cut, 0.0)
+	_recalculate_vitals()
+	_on_resolved_damage(final_blunt, final_cut)
+	return play_system_combat_hit_reaction(attacker, outcome, attack_id, hit_reaction_names, is_critical, has_shield_block, can_actively_defend, final_blunt + final_cut)
+
+
 func receive_attack(attacker: Node, blunt_damage: float, cut_damage: float, attack_id: String = "", hit_reaction_names: Array[String] = [], is_critical := false) -> String:
 	var converted_blunt := maxf(blunt_damage, 0.0) + maxf(cut_damage, 0.0) * CUT_TO_BLUNT_DAMAGE_MULTIPLIER
 	var combat_capability := get_actor_capability(&"combat") as CombatCapability

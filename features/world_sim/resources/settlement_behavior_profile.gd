@@ -4,8 +4,17 @@ class_name SettlementBehaviorProfile
 
 @export var profile_id := ""
 @export var display_name := "Settlement Behavior"
+
+@export_group("Food")
+## In-game hour for daily food production and consumption (0 = midnight, 23 = 11 PM).
+## A settlement that already processed the day will not process it again.
+@export_range(0, 23, 1) var daily_upkeep_hour := 6
+## Food units consumed per living resident each in-game day.
 @export var food_units_per_person_per_day := 1.0
+## Concrete item/count outputs used when the settlement has no active physical farm.
 @export var food_outputs_per_day: Array[Resource] = []
+
+@export_group("")
 @export_range(0.0, 1.0, 0.01) var base_aggression := 0.0
 @export var can_initiate_food_raids := false
 @export_range(0.0, 1.0, 0.01) var food_raid_pressure_threshold := 0.28
@@ -25,7 +34,6 @@ class_name SettlementBehaviorProfile
 @export var raid_target_population_defense_weight := 1.0
 @export var raid_target_armed_defense_weight := 4.0
 @export var raid_target_supply_defense_weight := 18.0
-@export_range(0, 23, 1) var daily_upkeep_hour := 6
 @export var action_cooldown_hours := 6.0
 @export var require_action_time_window := false
 @export_range(0, 23, 1) var action_window_start_hour := 0

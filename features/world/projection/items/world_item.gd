@@ -87,6 +87,8 @@ func apply_lifecycle_record(record: Dictionary) -> void:
 	quantity = maxi(1, int(record.get("count", 1)))
 	contained_item_counts = (record.get("contained_item_counts", {}) as Dictionary).duplicate(true)
 	item_metadata = (record.get("metadata", {}) as Dictionary).duplicate(true)
+	# Always replace the stamp, including empty/legacy records on retained nodes.
+	owner_faction_name = str(record.get("owner_faction_name", ""))
 	location_kind = str(record.get("location_kind", "world_loose"))
 	placement_host_id = str(record.get("placement_host_id", ""))
 	placement_slot_id = str(record.get("placement_slot_id", ""))

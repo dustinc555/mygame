@@ -1,0 +1,188 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/core/game_bootstrap.gd" id="1_bootstrap"]
+[ext_resource type="Script" path="res://features/core/party/party_manager.gd" id="2_party"]
+[ext_resource type="PackedScene" path="res://features/core/party/party_member.tscn" id="3_actor"]
+[ext_resource type="Script" path="res://features/actors/projection/humanoid/faction_humanoid.gd" id="4_npc"]
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_town.gd" id="5_town"]
+[ext_resource type="Script" path="res://features/world_sim/resources/settlement_definition.gd" id="6_definition"]
+[ext_resource type="Resource" path="res://features/factions/resources/factions/farmers.tres" id="7_faction"]
+[ext_resource type="PackedScene" path="res://features/settlements/bridge/settlement_jail.tscn" id="8_jail"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/jail_cell.tscn" id="9_cell"]
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/prisoner_locker_container.tscn" id="10_locker"]
+[ext_resource type="Script" path="res://features/settlements/bridge/venues/settlement_guard_post.gd" id="11_post"]
+[ext_resource type="PackedScene" path="res://features/world/projection/items/world_item.tscn" id="12_item"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/expensive_vase.tres" id="13_vase"]
+[ext_resource type="Script" path="res://features/world_sim/resources/settlement_storage_seed.gd" id="14_storage"]
+[ext_resource type="Script" path="res://features/world_sim/resources/settlement_storage_stack_seed.gd" id="15_stack"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/bread.tres" id="16_bread"]
+
+[ext_resource type="Script" path="res://features/settlements/resources/facility_role_slot_definition.gd" id="17_slot"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/warden.tres" id="18_warden"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/guard.tres" id="19_guard"]
+
+[sub_resource type="Resource" id="WardenSlot"]
+script = ExtResource("17_slot")
+slot_id = "warden_desk"
+role = ExtResource("18_warden")
+display_name = "Warden"
+authority_scope = "settlement_authority"
+
+[sub_resource type="Resource" id="GuardSlot"]
+script = ExtResource("17_slot")
+slot_id = "custody_guard_a"
+role = ExtResource("19_guard")
+display_name = "Jail Guard"
+authority_scope = "settlement_authority"
+
+[sub_resource type="BoxShape3D" id="FloorShape"]
+size = Vector3(100, 1, 32)
+
+[sub_resource type="BoxMesh" id="FloorMesh"]
+size = Vector3(100, 1, 32)
+
+[sub_resource type="Resource" id="FoodStack"]
+script = ExtResource("15_stack")
+stack_id = "jail_custody.granary.stack.1"
+item = ExtResource("16_bread")
+count = 20
+
+[sub_resource type="Resource" id="FoodStorage"]
+script = ExtResource("14_storage")
+container_id = "jail_custody.granary"
+facility_id = "jail_custody.granary"
+columns = 10
+rows = 10
+stacks = Array[ExtResource("15_stack")]([SubResource("FoodStack")])
+
+[sub_resource type="Resource" id="TownDefinition"]
+script = ExtResource("6_definition")
+settlement_id = "jail_custody"
+display_name = "Custody Fixture Town"
+faction_definition = ExtResource("7_faction")
+generation_seed = 1701
+actor_realization_policy = "full_town"
+guard_count = 1
+guard_post_count = 1
+guard_name = "Custody Officer"
+staff_stable_id_prefix = "npc.jail_custody.town"
+staff_squad_name = "CustodyTown"
+storage_seeds = Array[ExtResource("14_storage")]([SubResource("FoodStorage")])
+
+[node name="CustodyWorld" type="Node3D"]
+metadata/description = "Test-owned town, fixed roster seed and ground. Real reusable jail, cell, locker and actor assets; no dependency on authored demo or zone layouts. Ground also covers isolated witness probes at x=44/70."
+
+[node name="Floor" type="StaticBody3D" parent="."]
+position = Vector3(30, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("FloorShape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+mesh = SubResource("FloorMesh")
+
+[node name="PartyMembers" type="Node3D" parent="."]
+
+[node name="Mira" parent="PartyMembers" instance=ExtResource("3_actor")]
+position = Vector3(-10, 0.6, -7)
+member_name = "Mira"
+stable_id = "player.jail_custody.mira"
+fatigue_enabled = false
+starting_skill_levels = {"subterfuge.sleight_of_hand": 5}
+
+[node name="PartyManager" type="Node" parent="."]
+script = ExtResource("2_party")
+
+[node name="GameBootstrap" type="Node" parent="."]
+script = ExtResource("1_bootstrap")
+
+[node name="CustodyTown" type="Node3D" parent="."]
+script = ExtResource("5_town")
+settlement_definition = SubResource("TownDefinition")
+auto_town_border_from_footprint = false
+town_border_radius = 26.0
+editor_show_debug_shape = false
+resident_root_path = NodePath("Residents")
+
+[node name="Facilities" type="Node3D" parent="CustodyTown"]
+
+[node name="Jail" parent="CustodyTown/Facilities" instance=ExtResource("8_jail")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 10, 0, 4)
+role_slots = Array[ExtResource("17_slot")]([SubResource("WardenSlot"), SubResource("GuardSlot")])
+facility_id = "jail_custody.jail"
+building_id = "jail_custody.jail.building"
+display_name = "Custody Fixture Jail"
+owner_faction_id = "Farmers"
+warden_name = "Custody Warden"
+staff_stable_id_prefix = "npc.jail_custody.jail"
+staff_squad_name = "CustodyTown"
+
+[node name="Cell1" parent="CustodyTown/Facilities/Jail/Furniture" instance=ExtResource("9_cell")]
+position = Vector3(-4.2, 0.05, -2.8)
+cell_id = "cell_01"
+lock_difficulty = 5
+
+[node name="Cell2" parent="CustodyTown/Facilities/Jail/Furniture" instance=ExtResource("9_cell")]
+position = Vector3(-1.6, 0.05, -2.8)
+cell_id = "cell_02"
+lock_difficulty = 35
+
+[node name="Cell3" parent="CustodyTown/Facilities/Jail/Furniture" instance=ExtResource("9_cell")]
+position = Vector3(1, 0.05, -2.8)
+cell_id = "cell_03"
+lock_difficulty = 90
+
+[node name="PrisonerLocker" parent="CustodyTown/Facilities/Jail/Furniture" instance=ExtResource("10_locker")]
+position = Vector3(5.2, 0.1, -3.8)
+rotation = Vector3(0, 1.5707963, 0)
+container_id = "jail_custody.jail.prisoner_locker"
+settlement_id = "jail_custody"
+facility_id = "jail_custody.jail"
+contributes_to_town_stock = false
+lock_difficulty = 90
+
+[node name="GuardPost" type="Node3D" parent="CustodyTown/Facilities/Jail/Furniture"]
+position = Vector3(-4.7, 0.05, 0.2)
+script = ExtResource("11_post")
+
+[node name="WardenPost" type="Node3D" parent="CustodyTown/Facilities/Jail/Furniture"]
+position = Vector3(3, 0.05, 2)
+script = ExtResource("11_post")
+
+[node name="Residents" type="Node3D" parent="CustodyTown"]
+
+[node name="Witness" parent="CustodyTown/Residents" instance=ExtResource("3_actor")]
+position = Vector3(-12, 0.6, -7)
+script = ExtResource("4_npc")
+member_name = "Custody Witness"
+stable_id = "npc.jail_custody.witness"
+faction_name = "Farmers"
+fatigue_enabled = false
+combat_stance = 2
+starting_skill_levels = {"attribute.perception": 40}
+
+[node name="OwnedVase" parent="CustodyTown" instance=ExtResource("12_item")]
+position = Vector3(-7, 0.45, -6)
+item_definition = ExtResource("13_vase")
+owner_faction_name = "Farmers"
+theft_value = 18
+theft_difficulty = 1
+theft_noise_radius = 0.0
+metadata/description = "Owned physical prop behind the theft approach, not coincident with the outgoing custody route. It must remain untouched after the refused theft."
+
+[node name="GuardPosts" type="Node3D" parent="CustodyTown"]
+
+[node name="GuardPost" type="Node3D" parent="CustodyTown/GuardPosts"]
+position = Vector3(-7, 0.05, -2)
+script = ExtResource("11_post")
+metadata/settlement_guard_post_generated = true
+metadata/settlement_guard_post_index = 0
+
+[node name="CameraRig" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.851, 0.525, 0, -0.525, 0.851, 0, 6.5, -11)
+
+[node name="CameraPivot" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+current = true
+fov = 55.0

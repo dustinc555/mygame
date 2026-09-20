@@ -461,7 +461,7 @@ func _on_inventory_quick_transfer_requested(source_owner, entry) -> void:
 	if source_inventory == null or target_inventory == null:
 		return
 	var target_cell: Vector2i = target_inventory.find_first_space(entry.definition)
-	if target_cell != Vector2i(-1, -1) and _try_handle_trade(source_owner, target_owner, entry, target_cell):
+	if _try_handle_trade(source_owner, target_owner, entry, target_cell):
 		return
 	if source_owner != target_owner and _entry_is_silver_pouch(source_inventory, entry):
 		_show_floating_notice("Drop onto pouch")
@@ -523,11 +523,22 @@ func _show_floating_notice(message: String) -> void:
 
 
 func _owners_too_far(source_owner, target_owner) -> bool:
-	if source_owner == null or target_owner == null:
-		return false
-	if source_owner.has_method("get_inventory_world_position") and target_owner.has_method("get_inventory_world_position"):
-		return source_owner.get_inventory_world_position().distance_to(target_owner.get_inventory_world_position()) > 5.0
-	return false
+	var source_position = _get_inventory_owner_position(source_owner)
+	var target_position = _get_inventory_owner_position(target_owner)
+	return source_position is Vector3 and target_position is Vector3 and source_position.distance_to(target_position) > 5.0
+
+
+func _get_inventory_owner_position(inventory_owner) -> Variant:
+	if not is_instance_valid(inventory_owner):
+		return null
+	if inventory_owner is Node and inventory_owner.is_queued_for_deletion():
+		return null
+	if inventory_owner.has_method("get_inventory_world_position"):
+		var position_value = inventory_owner.get_inventory_world_position()
+		return position_value if position_value is Vector3 else null
+	if inventory_owner is Node3D and inventory_owner.is_inside_tree():
+		return inventory_owner.global_position
+	return null
 
 
 func _on_inventory_item_action_requested(inventory_owner, entry, action: String) -> void:
@@ -599,7 +610,8 @@ func _on_inventory_equip_requested(source_owner, entry, target_owner, slot_name:
 			and not _can_store_replaced_after_entry_removal(source_inventory, entry, replaced_item, replaced_stack_id):
 		_show_floating_notice("No room for equipped item")
 		return
-	if not _try_pay_for_equipment_transfer(source_owner, target_owner, entry):
+	if source_owner != target_owner and (_get_merchant_role(source_owner) != null or _get_merchant_role(target_owner) != null):
+		_try_buy_and_equip(source_owner, target_owner, entry, slot_name)
 		return
 	var replaced = target_equipment.equip_item_to_slot(entry.definition, slot_name, str(entry.stack_id))
 	if not source_inventory.remove_entry(entry):
@@ -795,8 +807,7 @@ func _on_cursor_item_place_requested(data: Dictionary, target_owner, target_cell
 		_refresh_inventory_windows_for(source_owner, target_owner)
 		return
 	if target_role != null and source_role == null and source_owner != target_owner:
-		if _try_sell_cursor_item(source_owner, target_owner, definition, count, target_cell, target_role, data.get("metadata", {})):
-			_consume_cursor_drag(data)
+		if _try_sell_cursor_item(data, target_owner, target_cell, target_role):
 			_refresh_inventory_windows_for(source_owner, target_owner)
 		else:
 			_keep_cursor_drag(data)
@@ -956,15 +967,10 @@ func _spawn_world_item(source_owner, definition: ItemDefinition, count: int, con
 
 func _get_world_drop_position(source_owner) -> Variant:
 	var drop_owner = source_owner if source_owner != null else _get_focused_character_owner()
-	if drop_owner == null:
+	var origin_value = _get_inventory_owner_position(drop_owner)
+	if not (origin_value is Vector3) or not is_instance_valid(drop_owner):
 		return null
-	var origin := Vector3.ZERO
-	if drop_owner.has_method("get_inventory_world_position"):
-		origin = drop_owner.get_inventory_world_position()
-	elif drop_owner is Node3D:
-		origin = (drop_owner as Node3D).global_position
-	else:
-		return null
+	var origin: Vector3 = origin_value
 	var forward := Vector3.FORWARD
 	if drop_owner is Node3D:
 		forward = -(drop_owner as Node3D).global_transform.basis.z.normalized()
@@ -1150,18 +1156,24 @@ func _can_place_cursor_item_in_inventory(target_inventory, definition: ItemDefin
 	return true
 
 
-func _place_cursor_item_in_inventory(target_inventory, definition: ItemDefinition, count: int, target_cell: Vector2i, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> bool:
+func _place_cursor_item_in_inventory(target_inventory, definition: ItemDefinition, count: int, target_cell: Vector2i, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}, emit_changed := true) -> bool:
 	if not _can_place_cursor_item_in_inventory(target_inventory, definition, count, target_cell, contained_item_counts):
 		return false
 	var item_metadata := metadata.duplicate(true)
 	var stack_id := str(item_metadata.get(META_DURABLE_STACK_ID, ""))
 	item_metadata.erase(META_DURABLE_STACK_ID)
 	target_inventory.entries.append(target_inventory.create_entry(definition, target_cell, count, contained_item_counts, item_metadata, stack_id))
-	target_inventory.changed.emit()
+	if emit_changed:
+		target_inventory.changed.emit()
 	return true
 
 
-func _try_sell_cursor_item(source_owner, merchant_owner, definition: ItemDefinition, count: int, target_cell: Vector2i, merchant_role, metadata: Dictionary = {}) -> bool:
+func _try_sell_cursor_item(data: Dictionary, merchant_owner, target_cell: Vector2i, merchant_role: MerchantRole) -> bool:
+	var source_owner = data.get("source_owner")
+	var definition := data.get("item_definition") as ItemDefinition
+	var count := int(data.get("count", 1))
+	var metadata: Dictionary = data.get("metadata", {})
+	var contents: Dictionary = data.get("contained_item_counts", {})
 	if source_owner == null or merchant_owner == null or definition == null or count <= 0:
 		return false
 	if not _can_sell_metadata_to_merchant(source_owner, merchant_owner, metadata):
@@ -1170,63 +1182,101 @@ func _try_sell_cursor_item(source_owner, merchant_owner, definition: ItemDefinit
 	if not _item_is_sellable(definition):
 		_show_floating_notice("Cannot trade")
 		return false
-	var price: int = merchant_role.get_buy_price(definition)
+	var price := merchant_role.get_buy_price(definition)
 	if price < 0:
 		_show_floating_notice("Cannot trade")
 		return false
 	price *= count
-	var merchant_inventory = _get_owner_inventory(merchant_owner)
-	if merchant_inventory == null or not merchant_inventory.can_place_item(definition, target_cell):
-		_show_floating_notice("Merchant does not have space")
+	var merchant_inventory: InventoryData = _get_owner_inventory(merchant_owner)
+	var seller_inventory: InventoryData = _get_owner_inventory(source_owner)
+	if seller_inventory == null or not _can_place_cursor_item_in_inventory(merchant_inventory, definition, count, target_cell, contents):
 		return false
 	if merchant_inventory.count_item(SILVER_ITEM) < price:
 		_show_floating_notice("Cannot afford")
 		return false
-	if not source_owner.inventory.can_add_item_count(SILVER_ITEM, price):
+	var move_goods := func() -> bool:
+		return _place_cursor_item_in_inventory(merchant_inventory, definition, count, target_cell, contents, metadata, false)
+	var finish_goods := func() -> bool:
+		_consume_cursor_drag(data)
+		return true
+	if not seller_inventory.exchange_for_silver(merchant_inventory, price, move_goods, finish_goods):
 		_show_floating_notice("Not enough space")
 		return false
-	merchant_inventory.remove_item_count(SILVER_ITEM, price)
-	source_owner.inventory.add_item_count(SILVER_ITEM, price)
-	var item_metadata := metadata.duplicate(true)
-	var stack_id := str(item_metadata.get(META_DURABLE_STACK_ID, ""))
-	item_metadata.erase(META_DURABLE_STACK_ID)
-	merchant_inventory.entries.append(merchant_inventory.create_entry(definition, target_cell, count, {}, item_metadata, stack_id))
-	merchant_inventory.changed.emit()
 	return true
 
 
-func _try_pay_for_equipment_transfer(source_owner, target_owner, entry) -> bool:
-	if source_owner == target_owner:
-		return true
-	var source_role = _get_merchant_role(source_owner)
-	var target_role = _get_merchant_role(target_owner)
-	if source_role == null and target_role == null:
-		return true
-	if source_role != null and target_role == null:
-		if not _item_is_sellable(entry.definition):
-			_show_floating_notice("Cannot trade")
+func _try_buy_and_equip(source_owner, target_owner, entry, slot_name: String) -> bool:
+	var source_role := _get_merchant_role(source_owner)
+	if source_role == null or _get_merchant_role(target_owner) != null or not _item_is_sellable(entry.definition) or entry.count != 1:
+		_show_floating_notice("Cannot trade")
+		return false
+	var source_inventory: InventoryData = _get_owner_inventory(source_owner)
+	var target_inventory: InventoryData = _get_owner_inventory(target_owner)
+	var equipment := _get_owner_equipment(target_owner)
+	var price := source_role.get_sell_price(entry.definition)
+	if source_inventory == null or target_inventory == null or equipment == null or not source_inventory.entries.has(entry):
+		return false
+	if price < 0 or target_inventory.count_item(SILVER_ITEM) < price:
+		_show_floating_notice("Cannot afford")
+		return false
+	var replaced := equipment.get_equipped_item(slot_name)
+	var replaced_id := equipment.get_equipped_stack_id(slot_name)
+	var replaced_snapshot := _stack_snapshot(replaced_id)
+	var move_goods := func() -> bool:
+		source_inventory.entries.erase(entry)
+		return replaced == null or target_inventory.add_entry_with_contents(replaced,
+			int(replaced_snapshot.get("count", 1)), replaced_snapshot.get("contained_item_counts", {}),
+			replaced_snapshot.get("metadata", {}), replaced_id, false)
+	var finish_goods := func() -> bool:
+		if not _preserve_purchased_equipment_stack(entry, target_owner, slot_name):
 			return false
-		var price: int = source_role.get_sell_price(entry.definition) * entry.count
-		var source_inventory = _get_owner_inventory(source_owner)
-		if price < 0 or target_owner.inventory.count_item(SILVER_ITEM) < price:
-			_show_floating_notice("Cannot afford")
-			return false
-		if source_inventory == null or not source_inventory.can_add_item_count(SILVER_ITEM, price):
-			_show_floating_notice("Merchant does not have space")
-			return false
-		target_owner.inventory.remove_item_count(SILVER_ITEM, price)
-		source_inventory.add_item_count(SILVER_ITEM, price)
+		equipment.equip_item_to_slot(entry.definition, slot_name, str(entry.stack_id))
 		return true
-	_show_floating_notice("Cannot trade")
-	return false
+	if not source_inventory.exchange_for_silver(target_inventory, price, move_goods, finish_goods):
+		_show_floating_notice("Not enough space")
+		return false
+	_refresh_inventory_windows_for(source_owner, target_owner)
+	return true
+
+
+## Equipment slots retain identity, not item payload. Preserve the bought stack
+## in GECS before equipment observers synchronize that slot or a later unequip
+## asks _stack_snapshot for contents/metadata. Merchant stock may be new to GECS.
+func _preserve_purchased_equipment_stack(entry, target_owner, slot_name: String) -> bool:
+	var gecs := _context.get_optional(GecsWorldController.SERVICE_ID) if _context != null else null
+	if gecs == null:
+		return true
+	var actor = _get_inventory_owner_actor(target_owner)
+	if not (actor is WorldActor) or str(actor.stable_id).is_empty() or entry.definition.resource_path.is_empty():
+		return false
+	var record: Dictionary = gecs.call("upsert_item_stack_record", {
+		"stack_id": str(entry.stack_id),
+		"container_id": "",
+		"owner_actor_id": str(actor.stable_id),
+		"item_definition_path": entry.definition.resource_path,
+		"count": int(entry.count),
+		"grid_position": entry.grid_position,
+		"contained_item_counts": entry.contained_item_counts.duplicate(true),
+		"metadata": entry.metadata.duplicate(true),
+		"location_kind": "equipment",
+		"world_transform": Transform3D.IDENTITY,
+		"placement_host_id": "",
+		"placement_slot_id": slot_name,
+		"location_settlement_id": "",
+	})
+	return not record.is_empty()
 
 
 func _can_transfer_between_owners(source_owner, target_owner) -> bool:
-	if source_owner != null and source_owner.has_method("can_transfer_display_inventory_to"):
-		if not source_owner.can_transfer_display_inventory_to(target_owner):
+	# Actor inventory access rules live in the capability; leaf containers can
+	# implement the same contract directly without an actor compatibility shim.
+	var source_access = source_owner.get_inventory() if source_owner is WorldActor else source_owner
+	var target_access = target_owner.get_inventory() if target_owner is WorldActor else target_owner
+	if source_access != null and source_access.has_method("can_transfer_display_inventory_to"):
+		if not source_access.can_transfer_display_inventory_to(target_owner):
 			return false
-	if target_owner != null and target_owner.has_method("can_receive_inventory_transfer_from"):
-		if not target_owner.can_receive_inventory_transfer_from(source_owner):
+	if target_access != null and target_access.has_method("can_receive_inventory_transfer_from"):
+		if not target_access.can_receive_inventory_transfer_from(source_owner):
 			return false
 	return true
 
@@ -1253,23 +1303,15 @@ func _buy_from_merchant(merchant_owner, buyer_owner, entry, target_cell: Vector2
 		return true
 	price *= entry.count
 	var merchant_inventory = _get_owner_inventory(merchant_owner)
-	if merchant_inventory == null:
+	var buyer_inventory = _get_owner_inventory(buyer_owner)
+	if merchant_inventory == null or buyer_inventory == null:
 		_show_floating_notice("Cannot trade")
 		return true
-	if buyer_owner.inventory.count_item(SILVER_ITEM) < price:
+	if buyer_inventory.count_item(SILVER_ITEM) < price:
 		_show_floating_notice("Cannot afford")
 		return true
-	if not buyer_owner.inventory.can_place_item(entry.definition, target_cell):
+	if not merchant_inventory.trade_entry_to_inventory(entry, buyer_inventory, target_cell, price):
 		_show_floating_notice("Not enough space")
-		return true
-	if not merchant_inventory.can_add_item_count(SILVER_ITEM, price):
-		_show_floating_notice("Merchant does not have space")
-		return true
-	if not buyer_owner.inventory.remove_item_count(SILVER_ITEM, price):
-		_show_floating_notice("Cannot afford")
-		return true
-	merchant_inventory.add_item_count(SILVER_ITEM, price)
-	merchant_inventory.move_entry_to_inventory(entry, buyer_owner.inventory, target_cell)
 	return true
 
 
@@ -1290,18 +1332,11 @@ func _sell_to_merchant(seller_owner, merchant_owner, entry, target_cell: Vector2
 	if merchant_inventory == null or seller_inventory == null:
 		_show_floating_notice("Cannot trade")
 		return true
-	if not merchant_inventory.can_place_item(entry.definition, target_cell):
-		_show_floating_notice("Merchant does not have space")
-		return true
 	if merchant_inventory.count_item(SILVER_ITEM) < price:
 		_show_floating_notice("Cannot afford")
 		return true
-	if not seller_owner.inventory.can_add_item_count(SILVER_ITEM, price):
+	if not seller_inventory.trade_entry_to_inventory(entry, merchant_inventory, target_cell, price):
 		_show_floating_notice("Not enough space")
-		return true
-	merchant_inventory.remove_item_count(SILVER_ITEM, price)
-	seller_owner.inventory.add_item_count(SILVER_ITEM, price)
-	seller_inventory.move_entry_to_inventory(entry, merchant_inventory, target_cell)
 	return true
 
 
@@ -1470,9 +1505,18 @@ func _item_is_sellable(definition: ItemDefinition) -> bool:
 	return definition != null and bool(definition.sellable)
 
 
-func _get_merchant_role(inventory_owner):
-	if inventory_owner != null and inventory_owner.has_method("get_merchant_role"):
-		return inventory_owner.get_merchant_role()
+func _get_merchant_role(inventory_owner) -> MerchantRole:
+	if inventory_owner == null:
+		return null
+	var role: MerchantRole
+	if inventory_owner.has_method("get_merchant_role"):
+		role = inventory_owner.get_merchant_role() as MerchantRole
+	elif inventory_owner is Node:
+		# Population actors compose the same role without a merchant subclass.
+		role = inventory_owner.get_node_or_null("MerchantRole") as MerchantRole
+	# Only stock displayed by this role is commerce, never a work/personal bag.
+	if role != null and _get_owner_inventory(inventory_owner) == role.get_shop_inventory():
+		return role
 	return null
 
 

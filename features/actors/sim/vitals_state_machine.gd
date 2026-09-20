@@ -25,7 +25,7 @@ const MAX_CATCH_UP_COARSE_STEPS := 120
 ## refresh) by diffing life_state. Keeping signals at the call site keeps this layer pure data.
 ##
 ## Faithful-port oracle: features/actors/bridge/capabilities/vitals_capability.gd.
-## Parity gate: tools/validation/validate_vitals_system.gd.
+## Parity gate: tests/validation/validate_vitals_system.gd.
 
 # ---------------------------------------------------------------------------
 # recalculate_vitals (the setter-equivalent: re-derive hp from wounds, then life_state)
@@ -36,6 +36,10 @@ static func recalculate(v, toughness: float) -> void:
 	if v.life_state == NpcRules.LifeState.DEAD:
 		return
 	var target := VitalsMath.resolve_life_state(v.life_state, v.hp, v.blood, v.max_hp, v.max_blood, toughness)
+	if target == NpcRules.LifeState.DYING and v.fire_only_death:
+		v.dying_timer_remaining = 0.0
+		v.life_state = NpcRules.LifeState.UNCONSCIOUS
+		return
 	if target == NpcRules.LifeState.DYING:
 		enter_dying(v, toughness)
 		return
@@ -107,6 +111,10 @@ static func process_bleeding(v, toughness: float, delta: float) -> void:
 
 static func process_dying(v, delta: float) -> void:
 	if v.life_state != NpcRules.LifeState.DYING:
+		return
+	if v.fire_only_death:
+		v.dying_timer_remaining = 0.0
+		v.life_state = NpcRules.LifeState.UNCONSCIOUS
 		return
 	if not VitalsMath.has_lethal_dying_vitals(v.hp, v.blood, v.max_hp, v.max_blood):
 		# Pulled back from the brink (e.g. blood restored) -> stabilise into coma, not death.

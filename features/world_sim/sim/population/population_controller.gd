@@ -92,7 +92,12 @@ func unregister_actor(actor: Node) -> void:
 	var bridge := _get_gecs_world()
 	var record: Dictionary = bridge.call("get_population_record", actor_id) if bridge != null and bridge.has_method("get_population_record") else _get_actor_record_mutable(actor_id)
 	if not record.is_empty():
-		record = _merge_actor_state_into_record(record, actor, str(record.get("settlement_id", "")), {})
+		# Identity, skills, items and medical state are already authoritative in
+		# GECS. Needs and movement still have an explicit live-capability handoff.
+		var needs = actor.call("get_needs") if actor.has_method("get_needs") else null
+		if needs != null and needs.has_method("durable_state"):
+			record["needs_state"] = needs.call("durable_state")
+		record["movement_state"] = _movement_state_from_actor(actor)
 		record["realization_state"] = "ledger"
 		record.erase("live_node_path")
 		if actor is Node3D:
@@ -1353,19 +1358,23 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 	var needs = actor.call("get_needs") if actor.has_method("get_needs") else null
 	if needs != null and needs.has_method("durable_state"):
 		record["needs_state"] = needs.call("durable_state")
-	record["movement_state"] = {
-		"has_move_target": bool(actor.call("has_move_target")) if actor.has_method("has_move_target") else false,
-		"move_target": actor.call("get_move_target") if actor.has_method("get_move_target") else Vector3.ZERO,
-		"running": bool(actor.call("is_running_requested")) if actor.has_method("is_running_requested") else false,
-		"sneaking": bool(actor.call("is_sneaking")) if actor.has_method("is_sneaking") else false,
-		"issued_by_player": bool(actor.call("has_active_player_order")) if actor.has_method("has_active_player_order") else false,
-	}
+	record["movement_state"] = _movement_state_from_actor(actor)
 	if actor is Node3D:
 		record["last_world_position"] = (actor as Node3D).global_position
 		record["last_world_position_initialized"] = true
 		record["last_world_transform"] = (actor as Node3D).global_transform
 		record["last_world_transform_initialized"] = true
 	return record
+
+
+func _movement_state_from_actor(actor: Node) -> Dictionary:
+	return {
+		"has_move_target": bool(actor.call("has_move_target")) if actor.has_method("has_move_target") else false,
+		"move_target": actor.call("get_move_target") if actor.has_method("get_move_target") else Vector3.ZERO,
+		"running": bool(actor.call("is_running_requested")) if actor.has_method("is_running_requested") else false,
+		"sneaking": bool(actor.call("is_sneaking")) if actor.has_method("is_sneaking") else false,
+		"issued_by_player": bool(actor.call("has_active_player_order")) if actor.has_method("has_active_player_order") else false,
+	}
 
 
 func _register_actor_with_query_controller(actor: Node) -> void:
@@ -1384,18 +1393,23 @@ func _connect_actor_skill_changes(actor: Node, actor_id: String) -> void:
 	if stats == null:
 		return
 	_disconnect_actor_skill_changes(actor, actor_id)
-	var callback := _on_actor_skill_level_changed.bind(actor_id)
-	stats.skill_progress_changed.connect(callback)
-	_skill_change_callable_by_actor_id[actor_id] = callback
+	var authority_callback := _on_actor_skill_authority_changed.bind(actor_id)
+	var level_callback := _on_actor_skill_level_changed.bind(actor_id)
+	stats.skill_authority_changed.connect(authority_callback)
+	stats.skill_level_changed.connect(level_callback)
+	_skill_change_callable_by_actor_id[actor_id] = {"authority": authority_callback, "level": level_callback}
 
 
 func _disconnect_actor_skill_changes(actor: Node, actor_id: String) -> void:
-	var callback: Callable = _skill_change_callable_by_actor_id.get(actor_id, Callable())
-	if callback.is_null():
+	var callbacks: Dictionary = _skill_change_callable_by_actor_id.get(actor_id, {})
+	if callbacks.is_empty():
 		return
-	var stats = actor.call("get_stats") if actor != null and actor.has_method("get_stats") else null
-	if stats != null and stats.skill_progress_changed.is_connected(callback):
-		stats.skill_progress_changed.disconnect(callback)
+	var stats = actor.call("get_stats") if is_instance_valid(actor) and actor.has_method("get_stats") else null
+	if stats != null:
+		if stats.skill_authority_changed.is_connected(callbacks["authority"]):
+			stats.skill_authority_changed.disconnect(callbacks["authority"])
+		if stats.skill_level_changed.is_connected(callbacks["level"]):
+			stats.skill_level_changed.disconnect(callbacks["level"])
 	_skill_change_callable_by_actor_id.erase(actor_id)
 
 
@@ -1447,7 +1461,7 @@ func _sync_live_corpse_transforms() -> void:
 		bridge.call("update_population_corpse_transform", str(actor_id_value), (actor as Node3D).global_transform)
 
 
-func _on_actor_skill_level_changed(skill_id: String, actor_id: String) -> void:
+func _on_actor_skill_authority_changed(skill_id: String, actor_id: String) -> void:
 	var actor = _live_actor_by_id.get(actor_id)
 	var stats = actor.call("get_stats") if actor != null and is_instance_valid(actor) and actor.has_method("get_stats") else null
 	if stats == null:
@@ -1470,8 +1484,15 @@ func _on_actor_skill_level_changed(skill_id: String, actor_id: String) -> void:
 		skill_xp[skill_id] = xp
 	else:
 		skill_xp.erase(skill_id)
-	if skill_id == SkillRules.ATTRIBUTE_TOUGHNESS:
-		_refresh_actor_visual_context(actor, record, level)
+
+
+func _on_actor_skill_level_changed(skill_id: String, actor_id: String) -> void:
+	if skill_id != SkillRules.ATTRIBUTE_TOUGHNESS:
+		return
+	var actor = _live_actor_by_id.get(actor_id)
+	if is_instance_valid(actor) and actor_records.has(actor_id):
+		# Body/UI rebuilds retain the existing batched level-notification cadence.
+		_refresh_actor_visual_context(actor, actor_records[actor_id])
 
 
 func _unregister_actor_from_query_controller(actor: Node) -> void:
@@ -1681,6 +1702,9 @@ func _equipment_slots_from_actor(actor: Node) -> Dictionary:
 			var path := _resource_path(equipped[slot])
 			if not path.is_empty():
 				slots[str(slot)] = path
+		# Live slots are authoritative, including an empty loadout. Starting
+		# gear must not reappear after unequipping it and unloading the actor.
+		return slots
 	var starting_equipment = actor.get("starting_equipment")
 	if starting_equipment is Array:
 		for item in starting_equipment:

@@ -201,6 +201,19 @@ func get_follow_anchor_position() -> Vector3:
 	return global_position
 
 
+func _resolve_combat_damage_bases(weapon_item: ItemDefinition, toughness: float) -> Dictionary:
+	if weapon_item != null:
+		return super._resolve_combat_damage_bases(weapon_item, toughness)
+	# The shared authoring/scoring route still owns stat scaling, but robots use
+	# their authored natural weapon rather than the generic humanoid fists.
+	var profile := get_body_weapon_damage_profile()
+	var body_multiplier := (1.0 + toughness * COMBAT_BODY_TOUGHNESS_BASE_WEIGHT) * _combat_damage_stat_multiplier()
+	return {
+		"blunt_base": maxf(float(profile.get("blunt_base", 0.0)), 0.0) * body_multiplier,
+		"cut_base": maxf(float(profile.get("cut_base", 0.0)), 0.0) * body_multiplier,
+	}
+
+
 func get_body_weapon_damage_profile() -> Dictionary:
 	return {"blunt_base": 8.0, "cut_base": 4.0}
 

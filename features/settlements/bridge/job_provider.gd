@@ -28,15 +28,39 @@ const PLAYER_PARTY_JOB_ACTION_RADIUS := 35.0
 
 var _worker_records: Dictionary = {}
 var _active_slots: Dictionary = {}
+var _next_assignment_generation := 0
 var _sim_time := 0.0
 var _pending_job_offers: Dictionary = {}
 var _rng := RandomNumberGenerator.new()
 var _job_system_controller: Node
 
 
+# The shared GECS component calls dispose on every terminal path, including
+# cancellation before the first tick. Only this claimed generation is released.
+class ContractDriver extends AiJobDriver:
+	var provider_ref: WeakRef
+
+	func dispose() -> void:
+		var provider = provider_ref.get_ref() if provider_ref != null else null
+		if is_instance_valid(provider) and job != null:
+			provider.call("_release_ai_assignment", int(job.data.get("provider_assignment_generation", 0)))
+		provider_ref = null
+
+
+func _release_ai_assignment(generation: int) -> void:
+	if generation <= 0:
+		return
+	for job_index in _active_slots:
+		for slot in _active_slots[job_index]:
+			if int(slot.get("assignment_generation", 0)) == generation:
+				_end_slot_assignment(int(job_index), slot, false)
+				return
+
+
 func _ready() -> void:
 	add_to_group("job_provider")
 	_rng.randomize()
+	_restore_gecs_worker_records()
 	_initialize_slots()
 	_sync_gecs_state()
 	_job_system_controller = _get_job_system_controller()
@@ -44,7 +68,30 @@ func _ready() -> void:
 		_job_system_controller.call("register_job_provider", self)
 
 
+func _restore_gecs_worker_records() -> void:
+	# A newly realized provider must read durable pay before publishing its
+	# empty projection, which would otherwise delete those GECS records.
+	var bridge := _get_gecs_world()
+	if bridge == null or bridge.world == null:
+		return
+	for entity in bridge.world.query.with_all([CGameJobWorkerRecord]).execute():
+		var record = entity.get_component(CGameJobWorkerRecord)
+		if str(record.provider_id) != _provider_id():
+			continue
+		_worker_records[str(record.worker_actor_id)] = {
+			"owed_currency": int(record.owed_currency),
+			"total_worked_seconds": float(record.total_worked_seconds),
+			"break_until_time": float(record.break_until_time),
+			"current_shift_seconds": 0.0, "last_job_index": -1,
+		}
+
+
 func _exit_tree() -> void:
+	for slots in _active_slots.values():
+		for slot in slots:
+			var worker = slot.get("worker")
+			if is_instance_valid(worker):
+				cancel_work_for_actor(worker)
 	if _job_system_controller != null and is_instance_valid(_job_system_controller) and _job_system_controller.has_method("unregister_job_provider"):
 		_job_system_controller.call("unregister_job_provider", self)
 	_job_system_controller = null
@@ -200,6 +247,7 @@ func create_assigned_work_ai_job(worker: WorldActor, job_label := ""):
 	ai_job.debug_label = "Working: %s" % job_label if not job_label.is_empty() else "Working: %s" % job_definition.get_display_name()
 	ai_job.debug_reason = "%s assigned %s" % [get_provider_name(), job_definition.get_display_name()]
 	ai_job.steps = [AI_ASSIGNED_WORK_STEP_SCRIPT.new()]
+	ai_job.data["provider_assignment_generation"] = int((assignment.get("slot_state", {}) as Dictionary).get("assignment_generation", 0))
 	return ai_job
 
 
@@ -245,6 +293,24 @@ func pause_worker_job(worker: WorldActor, caused_by_player: bool = false) -> voi
 				continue
 			_end_slot_assignment(job_index, slot_state, caused_by_player)
 			return
+
+
+func cancel_work_for_actor(worker: WorldActor) -> void:
+	if not is_instance_valid(worker):
+		return
+	var owned_movement := worker.get_active_job_provider() == self and not worker.has_active_player_order()
+	pause_worker_job(worker, false)
+	var bridge := _get_gecs_world()
+	var entity = bridge.get_actor_entity(worker) if bridge != null else null
+	var ai = entity.get_component(CGameAiState) if entity != null else null
+	if ai != null and ai.active_job != null and ai.active_job.source == self:
+		ai.finish_job(AiTaskStep.StepStatus.CANCELLED)
+	if owned_movement:
+		worker.stop_movement()
+
+
+func prepare_actor_for_derealization(worker: WorldActor) -> void:
+	cancel_work_for_actor(worker)
 
 
 func _initialize_slots() -> void:
@@ -398,6 +464,48 @@ func _assign_worker_to_open_slot(worker: WorldActor, job_index: int) -> Dictiona
 	return _claim_worker_slot(worker, job_index, true)
 
 
+## Called only after shared Jobs ranking selects this named contract.
+## Install its existing work step on the live GECS driver, not a retired actor brain.
+func accept_contract_work(worker: WorldActor, offered_contract: Dictionary) -> bool:
+	if not is_instance_valid(worker) or worker.is_queued_for_deletion() or worker.life_state != NpcRules.LifeState.ALIVE or worker.is_in_combat() or worker.has_active_player_order():
+		return false
+	if worker.get_active_job_provider() != null or not _find_worker_slot(worker).is_empty():
+		return false
+	var bridge := _get_gecs_world()
+	if bridge == null:
+		return false
+	var current_contract: Dictionary = {}
+	for contract in bridge.get_actor_job_contracts(worker):
+		if str(contract.get("contract_id", "")) == str(offered_contract.get("contract_id", "")) and str(contract.get("provider_id", "")) == _provider_id() and str(contract.get("status", "")) == "active":
+			current_contract = contract
+			break
+	if current_contract.is_empty() or not bool(get_contract_work_status(worker, current_contract).get("actionable", false)):
+		return false
+	var job_index := int(current_contract.get("job_index", -1))
+	if _find_open_slot(job_index) < 0 or float(_get_worker_record(worker).get("break_until_time", 0.0)) > _sim_time:
+		return false
+	var entity = bridge.get_actor_entity(worker)
+	var ai = entity.get_component(CGameAiState) if entity != null else null
+	if ai == null:
+		return false
+	var proposal := AiJob.new()
+	proposal.job_type = AiJob.JobType.ASSIGNED_WORK
+	proposal.priority = AiJob.priority_for_type(proposal.job_type)
+	if not proposal.should_replace(ai.active_job, worker):
+		return false
+	if ai.active_job != null:
+		ai.finish_job(AiTaskStep.StepStatus.CANCELLED)
+	var job = start_contract_shift(worker, current_contract)
+	if job == null:
+		return false
+	var driver := ContractDriver.new()
+	driver.provider_ref = weakref(self)
+	job.status = AiJob.JobStatus.RUNNING
+	driver.setup(worker, job)
+	bridge.set_actor_ai_job(worker, job, driver)
+	return ai.active_job == job and ai.active_driver == driver
+
+
 func start_contract_shift(worker: WorldActor, contract: Dictionary):
 	if worker == null or contract.is_empty():
 		return null
@@ -498,6 +606,8 @@ func _claim_worker_slot(worker: WorldActor, job_index: int, request_ai_job := tr
 	var job = jobs[job_index]
 	var slot_state: Dictionary = _active_slots[job_index][slot_index]
 	var work_inventory := InventoryData.new(DEFAULT_WORK_INVENTORY_COLUMNS, DEFAULT_WORK_INVENTORY_ROWS, 0.0, false)
+	_next_assignment_generation += 1
+	slot_state["assignment_generation"] = _next_assignment_generation
 	slot_state["worker"] = worker
 	slot_state["work_inventory"] = work_inventory
 	slot_state["claimed_resource"] = null
@@ -860,6 +970,9 @@ func _move_worker_to_service_position(worker: WorldActor, target_position: Vecto
 	if worker.global_position.distance_to(target_position) > arrival_distance:
 		worker.set_move_target(target_position, false)
 		return false
+	# Work reach is wider than navigation arrival. Stop the approach here so
+	# preparation cannot walk the worker into/behind the occupied counter.
+	worker.stop_movement()
 	return true
 
 
@@ -1155,39 +1268,29 @@ func _get_total_item_count(work_inventory: InventoryData) -> int:
 
 
 func _end_slot_assignment(_job_index: int, slot_state: Dictionary, _caused_by_player: bool) -> void:
-	var worker: WorldActor = slot_state.get("worker")
-	if worker != null and is_instance_valid(worker):
-		worker.end_job_assignment()
-		if worker.has_method("stop_mining_assignment"):
-			worker.stop_mining_assignment()
-	var guard_post = slot_state.get("target_guard_post")
-	if guard_post != null and is_instance_valid(guard_post) and guard_post.has_method("release_worker"):
+	var released := slot_state.duplicate(false)
+	# Detach every field before signals can reuse the slot for a newer job.
+	slot_state.clear()
+	slot_state.merge(_new_slot_state(int(released.get("slot_index", 0))))
+	var worker = released.get("worker")
+	if not is_instance_valid(worker):
+		worker = null
+	var guard_post = released.get("target_guard_post")
+	if is_instance_valid(guard_post) and guard_post.has_method("release_worker"):
 		guard_post.release_worker(worker)
-	var service_point = slot_state.get("target_service_point")
-	if service_point != null and is_instance_valid(service_point) and service_point.has_method("release_worker"):
+	var service_point = released.get("target_service_point")
+	if is_instance_valid(service_point) and service_point.has_method("release_worker"):
 		service_point.release_worker(worker)
 	var service_area := _resolve_bar_service_area()
-	var service_seat = slot_state.get("target_service_seat")
-	if service_area != null and service_seat != null and is_instance_valid(service_seat) and service_area.has_method("release_waiter_customer_service"):
+	var service_seat = released.get("target_service_seat")
+	if service_area != null and is_instance_valid(service_seat) and service_area.has_method("release_waiter_customer_service"):
 		service_area.release_waiter_customer_service(service_seat)
-	if worker != null:
-		var record := _get_worker_record(worker)
-		record["current_shift_seconds"] = float(record.get("current_shift_seconds", 0.0))
-	slot_state["worker"] = null
-	slot_state["work_inventory"] = null
-	slot_state["claimed_resource"] = null
-	slot_state["target_container"] = null
-	slot_state["target_guard_post"] = null
-	slot_state["target_service_point"] = null
-	slot_state["target_service_seat"] = null
-	slot_state["target_service_customer"] = null
-	slot_state["target_service_order_id"] = ""
-	slot_state["server_state"] = SERVER_STATE_IDLE
-	slot_state["server_state_elapsed"] = 0.0
-	slot_state["server_order_text"] = ""
-	slot_state["guard_shuffle_remaining"] = _next_guard_shuffle_seconds()
-	slot_state["accrued_interval_time"] = 0.0
-	slot_state["last_work_active"] = false
+	if worker != null and worker.get_active_job_provider() == self:
+		if not worker.has_active_player_order():
+			worker.stop_movement()
+		if worker.has_method("stop_mining_assignment"):
+			worker.stop_mining_assignment()
+		worker.end_job_assignment()
 	_sync_gecs_state()
 
 
@@ -1353,15 +1456,9 @@ func _get_gecs_world() -> Node:
 func _get_job_system_controller() -> Node:
 	if not is_inside_tree():
 		return null
-	var current: Node = self
-	while current != null:
-		if current.is_in_group("job_system_controller"):
-			return current
-		for child in current.get_children():
-			if child != self and child.is_in_group("job_system_controller"):
-				return child
-		current = current.get_parent()
-	return null
+	# Authored leaf providers can appear after bootstrap, whose controllers are
+	# not necessarily direct siblings of any facility ancestor.
+	return BootstrapContext.service(JobSystemController.SERVICE_ID)
 
 
 func _sync_gecs_state() -> void:

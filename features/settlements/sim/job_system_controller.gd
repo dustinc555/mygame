@@ -50,6 +50,9 @@ var _last_dispatch_usec := 0
 
 func initialize(context: BootstrapContext) -> void:
 	_context = context
+	var world_time := context.get_optional(&"world_time")
+	if world_time != null and world_time.has_signal("hour_changed") and not world_time.hour_changed.is_connected(_on_assignment_schedule_hour_changed):
+		world_time.hour_changed.connect(_on_assignment_schedule_hour_changed)
 	root_scene = context.root_scene
 	_settlement_controller = context.get_optional(&"settlement")
 	if is_inside_tree():
@@ -105,6 +108,9 @@ func unregister_job_provider(provider: Node) -> void:
 	var index := _job_providers.find(provider)
 	if index >= 0:
 		_job_providers.remove_at(index)
+		# Removed work is an availability change too. Idle assignment actors
+		# otherwise keep a drained queue and stale facility duty forever.
+		_queue_assignment_workers_for_settlement("")
 
 
 func _disconnect_provider_signals(provider: Node) -> void:
@@ -162,6 +168,14 @@ func _queue_assignment_workers_for_settlement(settlement_id: String) -> void:
 		var assignment: Dictionary = _assignment_workers[actor_id]
 		if settlement_id.is_empty() or str(assignment.get("settlement_id", "")) == settlement_id:
 			_queue_assignment_worker(actor_id)
+
+
+func _on_assignment_schedule_hour_changed(_absolute_hour: int, _day: int, _hour: int) -> void:
+	# Clock boundaries change availability even with a drained work queue.
+	# Include busy workers: schedule release precedes the busy gate.
+	for actor_id in _assignment_workers:
+		if bool((_assignment_workers[actor_id] as Dictionary).get("schedule_enabled", false)):
+			_queue_assignment_worker(str(actor_id))
 
 
 func _queue_assignment_worker(actor_id: String) -> void:
@@ -378,13 +392,17 @@ func dispatch_actor_work(actor: Node, available_offers = null, settlement_states
 		candidate["rank"] = int(ranks[entry_id])
 		candidate["distance"] = _offer_distance(actor, offer)
 		candidates.append(candidate)
+	_append_facility_contract_candidates(actor, ranks, ranked_rows, candidates)
 	candidates.sort_custom(_offer_precedes)
-	var facility_rank := _highest_actionable_facility_rank(actor, ranks, ranked_rows)
 	for offer in candidates:
-		if facility_rank < int(offer.get("rank", 999999)):
-			return false
-		var provider := offer.get("provider") as Node
-		if provider == null or not is_instance_valid(provider) or not provider.has_method("accept_work_offer"):
+		var provider = offer.get("provider")
+		if not is_instance_valid(provider):
+			continue
+		if str(offer.get("kind", "")) == "facility_contract":
+			if provider.has_method("accept_contract_work") and bool(provider.call("accept_contract_work", actor, offer["contract"])):
+				return true
+			continue
+		if not provider.has_method("accept_work_offer"):
 			continue
 		if provider.has_method("can_actor_accept_work_offer") and not bool(provider.call("can_actor_accept_work_offer", offer, actor)):
 			continue
@@ -1007,20 +1025,25 @@ func _actor_rank_map(actor: Node, ranked_rows = null) -> Dictionary:
 	return ranks
 
 
-func _highest_actionable_facility_rank(actor: Node, ranks: Dictionary, ranked_rows = null) -> int:
-	var best_rank := 999999
-	var rows: Array = ranked_rows if ranked_rows is Array else get_actor_ranked_jobs(actor)
+func _append_facility_contract_candidates(actor: Node, ranks: Dictionary, rows: Array, candidates: Array[Dictionary]) -> void:
+	# Named contracts and category offers compete in the same ranked dispatch.
+	# The provider owns eligibility and execution; a role is not just a veto.
 	for row_value in rows:
 		var row: Dictionary = row_value
 		if str(row.get("kind", "")) != "facility_contract":
 			continue
-		var provider := _resolve_contract_provider(row.get("contract", {}) as Dictionary)
-		if provider == null:
+		var contract: Dictionary = row.get("contract", {})
+		var provider := _resolve_contract_provider(contract)
+		if provider == null or not provider.has_method("get_contract_work_status"):
 			continue
-		var status: Dictionary = provider.call("get_contract_work_status", actor, row.get("contract", {})) if provider.has_method("get_contract_work_status") else {"actionable": true}
-		if bool(status.get("actionable", true)):
-			best_rank = mini(best_rank, int(ranks.get(str(row.get("entry_id", "")), 999999)))
-	return best_rank
+		var status: Dictionary = provider.call("get_contract_work_status", actor, contract)
+		if not bool(status.get("actionable", false)):
+			continue
+		var entry_id := str(row.get("entry_id", ""))
+		candidates.append({
+			"kind": "facility_contract", "entry_id": entry_id, "offer_id": entry_id,
+			"rank": int(ranks.get(entry_id, 999999)), "provider": provider, "contract": contract,
+		})
 
 
 func _resolve_contract_provider(contract: Dictionary) -> Node:

@@ -1,0 +1,42 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://tests/validation/fixtures/farming_replay/farming_replay.tscn" id="1_base"]
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_field.gd" id="2_field"]
+[ext_resource type="Script" path="res://features/inventory/resources/items/inventory_stock.gd" id="3_stock"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/eggplant_seeds.tres" id="4_seeds"]
+
+[sub_resource type="BoxShape3D" id="FloorShape"]
+size = Vector3(64, 1, 64)
+
+[sub_resource type="Resource" id="SeedStock"]
+script = ExtResource("3_stock")
+item_definition = ExtResource("4_seeds")
+quantity = 512
+
+[node name="FarmingReplayLoad" instance=ExtResource("1_base")]
+world_id = "farming_replay_load"
+
+[node name="CollisionShape3D" parent="Floor" index="0"]
+shape = SubResource("FloorShape")
+
+[node name="Town" parent="." index="1"]
+town_border_radius = 45.0
+
+[node name="Farm" parent="Town/Facilities" index="0"]
+position = Vector3(-22, 0, -22)
+dimensions = Vector2i(12, 11)
+
+[node name="SecondFarm" type="Node3D" parent="Town/Facilities"]
+position = Vector3(2, 0, -22)
+script = ExtResource("2_field")
+facility_id = "farming_replay.second_field"
+owner_faction_id = "Player"
+dimensions = Vector2i(11, 19)
+crop_policy_id = "eggplant"
+
+[node name="Seeds" parent="Town" index="1"]
+starting_items = Array[ExtResource("3_stock")]([SubResource("SeedStock")])
+
+[node name="Water" parent="Town" index="4"]
+capacity = 10000.0
+current_water = 10000.0
