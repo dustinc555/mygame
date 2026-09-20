@@ -3668,7 +3668,7 @@ func _sync_live_scene_state_for_save() -> void:
 			var needs = actor.call("get_needs") if actor.has_method("get_needs") else null
 			if needs != null and needs.has_method("durable_state"):
 				population.needs_state = needs.call("durable_state")
-			population.movement_state = {
+			population.movement_state = actor.call("get_persistent_movement_state") if actor.has_method("get_persistent_movement_state") else {
 				"has_move_target": bool(actor.call("has_move_target")) if actor.has_method("has_move_target") else false,
 				"move_target": actor.call("get_move_target") if actor.has_method("get_move_target") else Vector3.ZERO,
 				"running": bool(actor.call("is_running_requested")) if actor.has_method("is_running_requested") else false,

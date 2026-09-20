@@ -104,7 +104,7 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 	var spatial_buckets := {}
 	for i in range(count):
 		var node_actor = nodes[i].actor if nodes[i] != null else null
-		var iid: int = node_actor.get_instance_id() if node_actor != null and is_instance_valid(node_actor) else 0
+		var iid: int = node_actor.get_instance_id() if is_instance_valid(node_actor) and node_actor.is_inside_tree() and not node_actor.is_queued_for_deletion() else 0
 		instance_ids[i] = iid
 		actor_ids[i] = str(identities[i].actor_id) if identities[i] != null else ""
 		if not actor_ids[i].is_empty():
@@ -137,12 +137,13 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		var commanded_id := str(state_i.commanded_target_actor_id)
 		if not commanded_id.is_empty():
 			var commanded_index := int(index_by_actor_id.get(commanded_id, -1))
-			if commanded_index < 0 or commanded_index == i or vitals[commanded_index] == null or configs[commanded_index] == null or int(vitals[commanded_index].life_state) != alive_value or bool(configs[commanded_index].protected_from_combat):
+			if commanded_index < 0 or commanded_index == i or instance_ids[commanded_index] == 0 or vitals[commanded_index] == null or configs[commanded_index] == null or int(vitals[commanded_index].life_state) != alive_value or bool(configs[commanded_index].protected_from_combat):
 				state_i.commanded_target_actor_id = ""
 			else:
 				# An exact attack command is not a hint to threat scoring. Keep
-				# ordinary visibility/vertical gates, but never substitute a decoy.
-				if absf(spatials[commanded_index].world_position.y - spatials[i].world_position.y) <= float(cfg_i.move_target_vertical_tolerance) and _can_see_target(nodes, states, i, commanded_index):
+				# ordinary visibility, but never substitute a decoy. Strike height
+				# is not a pursuit limit: navigation can reach another floor.
+				if _can_see_target(nodes, states, i, commanded_index):
 					state_i.system_target_id = instance_ids[commanded_index]
 					state_i.system_target_actor_id = commanded_id
 				_write_node_target(node_actor, state_i.system_target_id, process_frame)
@@ -210,7 +211,8 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 					if vit_j == null or cfg_j == null or vit_j.life_state != alive_value or cfg_j.protected_from_combat:
 						continue
 					var pos_j: Vector3 = spatials[j].world_position
-					if absf(pos_j.y - pos_i.y) > vtol:
+					var known_pursuit := actor_ids[j] == current_target_actor_id or grudges_i.has(instance_ids[j]) or grudge_actor_ids_i.has(actor_ids[j])
+					if absf(pos_j.y - pos_i.y) > vtol and not known_pursuit:
 						continue
 					# Defensive fighters let a player-ordered opponent disengage
 					# (they defend; they don't hound someone who is leaving).
@@ -258,12 +260,14 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 ## Non-sneaking targets retain the cheap component-only fast path. A sneaking
 ## projection must satisfy the same perception contract as ordinary actor AI.
 func _can_see_target(nodes: Array, states: Array, observer_index: int, target_index: int) -> bool:
-	if states[target_index] == null or not bool(states[target_index].sneaking):
-		return true
 	var observer = nodes[observer_index].actor if nodes[observer_index] != null else null
 	var target = nodes[target_index].actor if nodes[target_index] != null else null
 	if not is_instance_valid(observer) or not is_instance_valid(target):
 		return false
+	if not observer.is_inside_tree() or not target.is_inside_tree() or observer.is_queued_for_deletion() or target.is_queued_for_deletion():
+		return false
+	if states[target_index] == null or not bool(states[target_index].sneaking):
+		return true
 	return observer.has_method("can_see_actor_for_combat") and bool(observer.call("can_see_actor_for_combat", target))
 
 

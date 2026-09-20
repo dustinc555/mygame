@@ -1368,6 +1368,8 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 
 
 func _movement_state_from_actor(actor: Node) -> Dictionary:
+	if actor.has_method("get_persistent_movement_state"):
+		return actor.call("get_persistent_movement_state")
 	return {
 		"has_move_target": bool(actor.call("has_move_target")) if actor.has_method("has_move_target") else false,
 		"move_target": actor.call("get_move_target") if actor.has_method("get_move_target") else Vector3.ZERO,
