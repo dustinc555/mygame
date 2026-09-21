@@ -31,11 +31,12 @@ var _snapshot_tree: SceneTree
 @onready var viewport: SubViewport = $Margin/VBox/PortraitViewportContainer/SubViewport
 @onready var portrait_camera: Camera3D = $Margin/VBox/PortraitViewportContainer/SubViewport/Camera3D
 @onready var portrait_root: Node3D = $Margin/VBox/PortraitViewportContainer/SubViewport/PortraitRoot
-@onready var portrait_image: TextureRect = $Margin/VBox/PortraitImage
+@onready var portrait_image: PortraitImage = $Margin/VBox/PortraitImage
 @onready var name_label: Label = $Margin/VBox/Name
 
 
 func _ready() -> void:
+	portrait_image.capture_size_changed.connect(refresh_portrait)
 	focus_mode = Control.FOCUS_NONE
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	add_theme_color_override("font_color", Color(0.92, 0.92, 0.92, 1.0))
@@ -136,6 +137,7 @@ func _rebuild_portrait() -> void:
 			continue
 		_add_portrait_copy(child)
 	_frame_portrait_camera()
+	portrait_image.prepare_capture(viewport)
 	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 	call_deferred("_capture_snapshot")
 

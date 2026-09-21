@@ -21,6 +21,10 @@ const PORTRAIT_SKIP_NODE_NAMES := {
 }
 
 var _buttons: Array[Button] = []
+var _left_actor: Node
+var _right_actor: Node
+var _portrait_refresh_queued := false
+var _snapshot_tree: SceneTree
 
 @onready var speaker_label: Label = $Margin/Layout/CenterColumn/SpeakerLabel
 @onready var transcript_label: RichTextLabel = $Margin/Layout/CenterColumn/Transcript
@@ -29,18 +33,20 @@ var _buttons: Array[Button] = []
 @onready var left_viewport: SubViewport = $Margin/Layout/LeftPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport
 @onready var left_portrait_camera: Camera3D = $Margin/Layout/LeftPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport/Camera3D
 @onready var left_portrait_root: Node3D = $Margin/Layout/LeftPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport/PortraitRoot
-@onready var left_portrait_image: TextureRect = $Margin/Layout/LeftPortraitPanel/Margin/VBox/PortraitImage
+@onready var left_portrait_image: PortraitImage = $Margin/Layout/LeftPortraitPanel/Margin/VBox/PortraitImage
 @onready var right_name_label: Label = $Margin/Layout/RightPortraitPanel/Margin/VBox/Name
 @onready var right_viewport: SubViewport = $Margin/Layout/RightPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport
 @onready var right_portrait_camera: Camera3D = $Margin/Layout/RightPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport/Camera3D
 @onready var right_portrait_root: Node3D = $Margin/Layout/RightPortraitPanel/Margin/VBox/PortraitViewportContainer/SubViewport/PortraitRoot
-@onready var right_portrait_image: TextureRect = $Margin/Layout/RightPortraitPanel/Margin/VBox/PortraitImage
+@onready var right_portrait_image: PortraitImage = $Margin/Layout/RightPortraitPanel/Margin/VBox/PortraitImage
 
 var _response_style := StyleBoxFlat.new()
 var _response_hover_style := StyleBoxFlat.new()
 
 
 func _ready() -> void:
+	left_portrait_image.capture_size_changed.connect(_queue_portrait_refresh)
+	right_portrait_image.capture_size_changed.connect(_queue_portrait_refresh)
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -57,6 +63,12 @@ func _ready() -> void:
 
 
 func show_conversation(speaker_name: String, transcript: String, responses: Array, left_actor, right_actor) -> void:
+	_disconnect_portrait_actors()
+	_left_actor = left_actor
+	_right_actor = right_actor
+	for actor in [_left_actor, _right_actor]:
+		if is_instance_valid(actor) and actor.has_signal("appearance_changed") and not actor.is_connected("appearance_changed", _queue_portrait_refresh):
+			actor.connect("appearance_changed", _queue_portrait_refresh)
 	speaker_label.text = speaker_name
 	transcript_label.text = transcript
 	left_name_label.text = _get_actor_name(left_actor, "Speaker")
@@ -97,6 +109,12 @@ func show_conversation(speaker_name: String, transcript: String, responses: Arra
 
 func hide_conversation() -> void:
 	visible = false
+	_cancel_snapshot()
+	_disconnect_portrait_actors()
+	_left_actor = null
+	_right_actor = null
+	left_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	right_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	for button in _buttons:
 		button.queue_free()
 	_buttons.clear()
@@ -120,10 +138,12 @@ func _get_actor_name(actor, fallback: String) -> String:
 	return fallback
 
 
-func _rebuild_portrait(actor, portrait_root: Node3D, viewport: SubViewport, portrait_image: TextureRect, portrait_camera: Camera3D, visual_yaw_offset: float) -> void:
+func _rebuild_portrait(actor, portrait_root: Node3D, viewport: SubViewport, portrait_image: PortraitImage, portrait_camera: Camera3D, visual_yaw_offset: float) -> void:
+	_cancel_snapshot()
 	_clear_portrait_root(portrait_root)
 	portrait_image.texture = null
-	if actor == null:
+	if not is_instance_valid(actor):
+		viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		return
 	var visual_root: Node = actor.get_character_visual_root() if actor.has_method("get_character_visual_root") else null
 	if visual_root != null:
@@ -133,8 +153,9 @@ func _rebuild_portrait(actor, portrait_root: Node3D, viewport: SubViewport, port
 			continue
 		_add_portrait_copy(child, portrait_root, visual_yaw_offset)
 	_frame_portrait_camera(portrait_root, portrait_camera)
+	portrait_image.prepare_capture(viewport)
 	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
-	call_deferred("_capture_snapshot", viewport, portrait_image)
+	call_deferred("_capture_snapshot")
 
 
 func _frame_portrait_camera(portrait_root: Node3D, portrait_camera: Camera3D) -> void:
@@ -258,12 +279,66 @@ func _transform_aabb(bounds: AABB, transform: Transform3D) -> AABB:
 	return transformed_bounds
 
 
-func _capture_snapshot(viewport: SubViewport, portrait_image: TextureRect) -> void:
-	if not is_inside_tree():
+func _queue_portrait_refresh() -> void:
+	if not visible or _portrait_refresh_queued:
 		return
-	await get_tree().process_frame
-	await RenderingServer.frame_post_draw
+	_portrait_refresh_queued = true
+	_refresh_portraits.call_deferred()
+
+
+func _refresh_portraits() -> void:
+	_portrait_refresh_queued = false
+	if not is_inside_tree() or not visible or is_queued_for_deletion():
+		return
+	_rebuild_portrait(_left_actor, left_portrait_root, left_viewport, left_portrait_image, left_portrait_camera, PORTRAIT_INWARD_YAW)
+	_rebuild_portrait(_right_actor, right_portrait_root, right_viewport, right_portrait_image, right_portrait_camera, -PORTRAIT_INWARD_YAW)
+
+
+func _disconnect_portrait_actors() -> void:
+	for actor in [_left_actor, _right_actor]:
+		if is_instance_valid(actor) and actor.has_signal("appearance_changed") and actor.is_connected("appearance_changed", _queue_portrait_refresh):
+			actor.disconnect("appearance_changed", _queue_portrait_refresh)
+
+
+func _exit_tree() -> void:
+	_cancel_snapshot()
+	_disconnect_portrait_actors()
+
+
+func _capture_snapshot() -> void:
+	_cancel_snapshot()
+	if not is_inside_tree() or not visible or is_queued_for_deletion():
+		return
+	_snapshot_tree = get_tree()
+	_snapshot_tree.process_frame.connect(_on_snapshot_frame, CONNECT_ONE_SHOT)
+
+
+func _on_snapshot_frame() -> void:
+	_snapshot_tree = null
+	if is_inside_tree() and visible and not is_queued_for_deletion():
+		RenderingServer.frame_post_draw.connect(_finish_snapshots, CONNECT_ONE_SHOT)
+
+
+func _cancel_snapshot() -> void:
+	if _snapshot_tree != null and _snapshot_tree.process_frame.is_connected(_on_snapshot_frame):
+		_snapshot_tree.process_frame.disconnect(_on_snapshot_frame)
+	_snapshot_tree = null
+	if RenderingServer.frame_post_draw.is_connected(_finish_snapshots):
+		RenderingServer.frame_post_draw.disconnect(_finish_snapshots)
+
+
+func _finish_snapshots() -> void:
+	if not is_inside_tree() or not visible or is_queued_for_deletion():
+		return
+	_finish_snapshot(left_viewport, left_portrait_image, left_portrait_root)
+	_finish_snapshot(right_viewport, right_portrait_image, right_portrait_root)
+
+
+func _finish_snapshot(viewport: SubViewport, portrait_image: TextureRect, portrait_root: Node3D) -> void:
+	if portrait_root.get_child_count() == 0:
+		return
 	var image := viewport.get_texture().get_image()
-	if image == null:
-		return
-	portrait_image.texture = ImageTexture.create_from_image(image)
+	if image != null:
+		portrait_image.texture = ImageTexture.create_from_image(image)
+	viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_clear_portrait_root(portrait_root)
