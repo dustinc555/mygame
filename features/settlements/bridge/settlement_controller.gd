@@ -42,6 +42,7 @@ var settlement_states: Dictionary = {}
 var settlement_anchors: Dictionary = {}
 var event_log: Array[Dictionary] = []
 var _staff_role_owners_by_settlement: Dictionary = {}
+var _pending_assignment_reconciliations: Dictionary = {}
 var _initialized := false
 
 
@@ -146,6 +147,7 @@ func assign_actor_to_assignment_slot(settlement_id: String, assignment_domain: S
 	state["assignment_slots"] = slots
 	state["assignment_vacancies"] = vacancies
 	settlement_states[settlement_id] = state
+	_refresh_assignment_population(settlement_id)
 	_apply_assignment_record_authorship(settlement_id, slot)
 	_save_assignment_slot_to_gecs(settlement_id, slot)
 	_save_settlement_state_to_gecs(settlement_id, state)
@@ -176,6 +178,7 @@ func release_actor_facility_assignments(actor_id: String, is_replacement := fals
 			state = settlement_states[settlement_id]
 			state["assignment_slots"] = slots
 			settlement_states[settlement_id] = state
+			_refresh_assignment_population(settlement_id)
 			_notify_state_changed(settlement_id)
 
 
@@ -206,7 +209,16 @@ func _on_person_died(actor_id: String) -> void:
 	var settlement_id := str(record.get("settlement_id", ""))
 	if settlement_id.is_empty() or not settlement_states.has(settlement_id):
 		return
-	_set_population_total(settlement_id, int(population.call("count_alive_records_for_settlement", settlement_id)))
+	var corpse = population.call("get_live_actor", actor_id) if population.has_method("get_live_actor") else null
+	if is_instance_valid(corpse) and (not str(corpse.get_meta(META_SETTLEMENT_SLOT_ID, "")).is_empty() or not str(corpse.get_meta(META_ASSIGNMENT_SLOT_ID, "")).is_empty()):
+		# Neither the slot marker nor a role-name fallback may bind a replacement
+		# to this corpse on a later structural reconciliation.
+		corpse.set_meta(META_SETTLEMENT_SLOT_ID, "")
+		corpse.name = "Corpse"
+	var remaining := int(population.call("count_alive_records_for_settlement", settlement_id))
+	var reason := "resident_death" if str(record.get("role_id", "resident")) == "resident" else "staff_death"
+	if not _record_population_death_if_needed(settlement_id, actor_id, corpse, reason, remaining):
+		_set_population_total(settlement_id, remaining)
 
 
 func set_population_total(settlement_id: String, value: int, reason := "manual") -> Dictionary:
@@ -422,6 +434,12 @@ func _try_initialize() -> void:
 		building_registry.building_updated.connect(_on_building_registry_changed)
 	if not building_registry.registry_rebuilt.is_connected(_on_building_registry_rebuilt):
 		building_registry.registry_rebuilt.connect(_on_building_registry_rebuilt)
+	# Facilities without a building shell and residence furniture also affect
+	# slots. Filter scene lifecycle events before doing any ancestry lookup.
+	if not get_tree().node_added.is_connected(_on_assignment_scene_node_changed):
+		get_tree().node_added.connect(_on_assignment_scene_node_changed)
+	if not get_tree().node_removed.is_connected(_on_assignment_scene_node_changed):
+		get_tree().node_removed.connect(_on_assignment_scene_node_changed)
 	_collect_world_definitions()
 	var hour_changed_callable := Callable(self, "_on_hour_changed")
 	if world_time.has_signal("hour_changed") and not world_time.is_connected("hour_changed", hour_changed_callable):
@@ -519,18 +537,10 @@ func _create_settlement_state(definition: Resource, anchor: Node3D) -> void:
 func _on_hour_changed(_absolute_hour: int, _day_index: int, _hour: int) -> void:
 	for settlement_id in settlement_definitions.keys():
 		var sid := str(settlement_id)
-		# Assignment is world-sim knowledge and runs O(1) for EVERY town, near or far — a faraway
-		# bar knows who tends it without the player ever visiting. It's a cheap ledger bind: no
-		# subtree walk, no live bodies.
+		# Definitions are reconciled by registration and mutation events, not time.
+		# Keep replacement deadlines advancing for near AND far settlements; actor
+		# projection remains the population realization controller's responsibility.
 		_assign_from_ledger(sid)
-		# The expensive work — the full subtree walk + GECS re-save to reconcile slot definitions
-		# and dead bodies, plus putting live staff bodies in place — only matters where the player
-		# can see them. Gating keeps the hourly cost O(near towns), not O(all towns).
-		if not _settlement_is_within_lod_exit(sid):
-			continue
-		_sync_settlement_assignment_slots(sid)
-		_assign_from_ledger(sid)
-		_sync_settlement_resident_deaths(sid)
 
 
 func _settlement_distance(source_settlement_id: String, target_settlement_id: String) -> float:
@@ -783,13 +793,8 @@ func _assign_from_ledger(settlement_id: String, ignore_delay := false) -> void:
 		return
 	state["assignment_slots"] = slots
 	state["assignment_vacancies"] = vacancies
-	var assigned := 0
-	for sid_key in slots.keys():
-		if str((slots[sid_key] as Dictionary).get("assignment_domain", "")) == "employment" and bool((slots[sid_key] as Dictionary).get("filled", false)):
-			assigned += max(0, int((slots[sid_key] as Dictionary).get("population_cost", 1)))
-	state["population_assigned"] = assigned
 	settlement_states[settlement_id] = state
-	_refresh_population_availability(settlement_id)
+	_refresh_assignment_population(settlement_id)
 	_save_settlement_state_to_gecs(settlement_id, state)
 func get_assignment_slots_for_realization(settlement_id: String) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
@@ -1192,7 +1197,7 @@ func _collect_staff_role_owners_recursive(node: Node, owners: Array[Node]) -> vo
 		_collect_staff_role_owners_recursive(child, owners)
 
 
-func _record_population_death_if_needed(settlement_id: String, actor_key: String, actor: Node, reason: String) -> bool:
+func _record_population_death_if_needed(settlement_id: String, actor_key: String, actor: Node, reason: String, remaining_population := -1) -> bool:
 	if actor_key.strip_edges().is_empty() or not settlement_states.has(settlement_id):
 		return false
 	var state: Dictionary = settlement_states[settlement_id]
@@ -1209,7 +1214,7 @@ func _record_population_death_if_needed(settlement_id: String, actor_key: String
 	# Violence scares the town: fear gates population growth and decays daily
 	# (the census owns the decay).
 	state["fear"] = clampf(float(state.get("fear", 0.0)) + FEAR_PER_DEATH, 0.0, 1.0)
-	_set_population_total(settlement_id, max(0, int(state.get("population", 0)) - 1))
+	_set_population_total(settlement_id, remaining_population if remaining_population >= 0 else max(0, int(state.get("population", 0)) - 1))
 	_record_event({
 		"type": "population_death",
 		"settlement_id": settlement_id,
@@ -1233,6 +1238,17 @@ func _set_population_total(settlement_id: String, value: int) -> void:
 	_save_settlement_state_to_gecs(settlement_id, state)
 	if int(state.get("population", 0)) != previous_population:
 		_resync_population_spawners_for_settlement(settlement_id)
+
+
+func _refresh_assignment_population(settlement_id: String) -> void:
+	var state: Dictionary = settlement_states.get(settlement_id, {})
+	var assigned := 0
+	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
+		var slot: Dictionary = slot_value
+		if str(slot.get("assignment_domain", "")) == "employment" and bool(slot.get("filled", false)):
+			assigned += maxi(0, int(slot.get("population_cost", 1)))
+	state["population_assigned"] = assigned
+	_refresh_population_availability(settlement_id)
 
 
 func _refresh_population_availability(settlement_id: String) -> void:
@@ -1282,6 +1298,43 @@ func _on_building_registry_changed(building_id: String) -> void:
 	call_deferred("_apply_building_registry_change", building_id)
 
 
+func _on_assignment_scene_node_changed(node: Node) -> void:
+	if not node.has_method("get_assignment_slot_specs") and not node.has_method("get_footprint") \
+			and not (node.has_method("get_interaction_position") and (node.has_method("claim_sleeper") or node.has_method("claim_sitter"))):
+		return
+	var ancestor := node
+	while ancestor != null:
+		for settlement_id in settlement_anchors:
+			if settlement_anchors[settlement_id] == ancestor:
+				# Match the registry callback's deferred phase so a constructed
+				# facility and its building record cause one discovery pass.
+				call_deferred("_queue_assignment_reconciliation", str(settlement_id))
+				return
+		ancestor = ancestor.get_parent()
+
+
+## Coalesce construction/registry bursts after the live scene has finished
+## changing. This is projection discovery only; GECS retains assignment truth.
+func _queue_assignment_reconciliation(settlement_id: String) -> void:
+	if not settlement_states.has(settlement_id) or _pending_assignment_reconciliations.has(settlement_id):
+		return
+	_pending_assignment_reconciliations[settlement_id] = true
+	call_deferred("_reconcile_changed_assignment_slots", settlement_id)
+
+
+func _reconcile_changed_assignment_slots(settlement_id: String) -> void:
+	if not _pending_assignment_reconciliations.erase(settlement_id):
+		return
+	# A scene event may have queued us before the deferred registry-load
+	# callback. Never publish pre-load bindings over the restored GECS state.
+	refresh_from_gecs_state()
+	var anchor := get_settlement_anchor(settlement_id)
+	if anchor != null and anchor.is_inside_tree() and not anchor.is_queued_for_deletion():
+		_sync_settlement_assignment_slots(settlement_id)
+		_assign_from_ledger(settlement_id)
+	_notify_state_changed(settlement_id)
+
+
 func _apply_building_registry_change(building_id: String) -> void:
 	refresh_from_gecs_state()
 	var record := building_registry.get_building(building_id)
@@ -1289,7 +1342,7 @@ func _apply_building_registry_change(building_id: String) -> void:
 	if settlement_id.is_empty() or not settlement_states.has(settlement_id):
 		return
 	_refresh_settlement_housing_capacity(settlement_id)
-	_notify_state_changed(settlement_id)
+	_queue_assignment_reconciliation(settlement_id)
 
 
 func _on_building_registry_rebuilt() -> void:
@@ -1302,7 +1355,7 @@ func _refresh_housing_after_registry_rebuild() -> void:
 	refresh_from_gecs_state()
 	for settlement_id in settlement_states.keys():
 		_refresh_settlement_housing_capacity(str(settlement_id))
-		_notify_state_changed(str(settlement_id))
+		_queue_assignment_reconciliation(str(settlement_id))
 
 
 func _recalculate_facility_totals(settlement_id: String) -> void:

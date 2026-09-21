@@ -55,6 +55,11 @@ var _pending_wake_notice := false
 var current_seat_target: Node
 # Vector3 when a stand position is known, null otherwise (readers check `is Vector3`).
 var current_seat_stand_position = null
+# Disposable approach state, never persisted. Keep the expensive floor/door
+# clearance result only while this order and its geometry remain unchanged.
+var _seat_approach_transform := Transform3D.IDENTITY
+var _seat_approach_map := RID()
+var _seat_approach_map_iteration := -1
 var current_container_target: Node
 var current_trade_target: Node
 var current_conversation_target: Node
@@ -130,6 +135,7 @@ func teardown() -> void:
 			actor.inventory_changed.disconnect(_on_disposal_inputs_changed)
 	rustdead_disposal.teardown(self)
 	release_sleep_target_without_waking()
+	stop_seat_assignment()
 	_vitals = null
 	super.teardown()
 
@@ -280,6 +286,8 @@ func stop_seat_assignment() -> void:
 		seat_target.call("release_sitter", actor)
 	current_seat_target = null
 	current_seat_stand_position = null
+	_seat_approach_map = RID()
+	_seat_approach_map_iteration = -1
 	if did_stop_sitting:
 		is_sitting = false
 		if actor.has_method("begin_stand_up_visual_exit"):
@@ -491,6 +499,8 @@ func assign_sleep_target(bed, issued_by_player := true) -> void:
 func assign_seat_target(seat, issued_by_player := true) -> void:
 	if not _has_node_methods(seat, ["get_interaction_position", "claim_sitter", "get_seat_position", "get_seat_rotation"]):
 		return
+	if seat.is_queued_for_deletion():
+		return
 	if not _is_actor_alive():
 		return
 	var current_seat = current_seat_target
@@ -498,18 +508,43 @@ func assign_seat_target(seat, issued_by_player := true) -> void:
 		if current_seat == seat:
 			return
 		stop_seat_assignment()
+	elif current_seat == seat and current_order_type == ORDER_TYPE_SIT and _seat_approach_geometry_is_current(seat):
+		# Home reconciliation is not a new order. Preserve the running path and
+		# player ownership, but let an explicitly stopped/failed route retry.
+		if _call_bool("has_move_target") or _horizontal_distance_to(current_seat_stand_position) <= _move_target_arrival_distance():
+			if issued_by_player and not order_was_player_issued:
+				_set_order(ORDER_TYPE_SIT, true)
+			return
+	elif current_seat != null and current_seat != seat:
+		stop_seat_assignment()
 	if not _set_order(ORDER_TYPE_SIT, issued_by_player):
 		return
 	current_seat_target = seat
 	var interaction_position = seat.call("get_safe_stand_position", actor) if seat.has_method("get_safe_stand_position") \
 			else seat.call("get_interaction_position", actor)
 	if not (interaction_position is Vector3) or not (interaction_position as Vector3).is_finite():
-		current_seat_target = null
-		current_seat_stand_position = null
-		current_order_type = ORDER_TYPE_NONE
+		stop_seat_assignment()
 		return
 	current_seat_stand_position = interaction_position
+	_seat_approach_transform = seat.global_transform if seat is Node3D else Transform3D.IDENTITY
+	_seat_approach_map = _seat_navigation_map()
+	_seat_approach_map_iteration = NavigationServer3D.map_get_iteration_id(_seat_approach_map) if _seat_approach_map.is_valid() else 0
 	_set_actor_move_target(interaction_position)
+
+
+func _seat_navigation_map() -> RID:
+	return (actor as Node3D).get_world_3d().navigation_map if actor is Node3D and actor.is_inside_tree() else RID()
+
+
+func _seat_approach_geometry_is_current(seat: Node) -> bool:
+	if not (current_seat_stand_position is Vector3) or not (current_seat_stand_position as Vector3).is_finite():
+		return false
+	if seat is Node3D and not _seat_approach_transform.is_equal_approx(seat.global_transform):
+		return false
+	var navigation_map := _seat_navigation_map()
+	if navigation_map != _seat_approach_map:
+		return false
+	return _seat_approach_map_iteration == (NavigationServer3D.map_get_iteration_id(navigation_map) if navigation_map.is_valid() else 0)
 
 
 func sit_at_seat_immediately(seat) -> bool:
@@ -1251,9 +1286,16 @@ func process_seat_interaction() -> void:
 	if not _has_node_methods(seat_target, ["get_interaction_position", "claim_sitter", "get_seat_position", "get_seat_rotation"]):
 		stop_seat_assignment()
 		return
+	if seat_target.is_queued_for_deletion():
+		stop_seat_assignment()
+		return
 	if is_sitting:
 		_set_node_property("velocity", Vector3.ZERO)
 		return
+	if not _seat_approach_geometry_is_current(seat_target):
+		assign_seat_target(seat_target, order_was_player_issued)
+		if current_seat_target == null:
+			return
 	var interaction_position: Vector3 = current_seat_stand_position if current_seat_stand_position is Vector3 \
 			and (current_seat_stand_position as Vector3).is_finite() else seat_target.call("get_interaction_position", actor)
 	var can_snap_to_seat := _horizontal_distance_to(interaction_position) <= _move_target_arrival_distance()
