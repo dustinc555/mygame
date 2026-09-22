@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MerchantProfile" format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/merchant_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "General Trader"
+buys_any_sellable_item = true
+stock = {
+"res://features/inventory/resources/items/scrap_metal.tres": {"quantity": 20, "replenishes": true},
+"res://features/inventory/resources/items/copper_wire.tres": {"quantity": 10, "replenishes": true},
+"res://features/inventory/resources/items/copper_ore.tres": {"quantity": 10, "replenishes": true},
+"res://features/inventory/resources/items/hoe.tres": {"quantity": 2, "replenishes": true},
+"res://features/inventory/resources/items/hatchet.tres": {"quantity": 2, "replenishes": true},
+"res://features/inventory/resources/items/watering_can.tres": {"quantity": 2, "replenishes": true},
+"res://features/inventory/resources/items/eggplant_seeds.tres": {"quantity": 12, "replenishes": true},
+"res://features/inventory/resources/items/tomato_seeds.tres": {"quantity": 12, "replenishes": true},
+"res://features/inventory/resources/items/eggplant.tres": {"quantity": 8, "replenishes": true}
+}

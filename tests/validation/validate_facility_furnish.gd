@@ -158,8 +158,8 @@ func _validate_layout(placements: Array, label: String, rules: Resource) -> void
 		else:
 			claimed_wall_faces[wall_face_key] = true
 		exterior_entry_lights += 1 if bool(placement.get("exterior_entry_light", false)) else 0
-	if exterior_entry_lights != 1:
-		_fail("%s: expected exactly one exterior entry light, got %d" % [label, exterior_entry_lights])
+	if exterior_entry_lights != 2:
+		_fail("%s: expected one light at each of the hall's two exterior entrances, got %d" % [label, exterior_entry_lights])
 
 
 ## Regressions that shipped once and must never again: shelves mounted over

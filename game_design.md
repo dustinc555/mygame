@@ -49,6 +49,8 @@
 - `SILVER` is stackable up to `100` per stack.
 
 ## Containers
+- Author the physical furniture first (barrel, dark barrel, chest, crate or sack), then choose its Container Type in the Inspector or Facility → Containers: General, Seeds, Tools, Food, Materials or Weapons. Purpose controls admission, not the mesh, inventory dimensions, identity or ownership. Changing it never discards existing contents.
+- Purpose-specific legacy scenes remain loadable for authored worlds but are not separate furniture catalog entries. The old primitive Barrel Container now uses the real barrel mesh while retaining its original inventory capacity and stable references.
 - Containers can be opened by any party member or NPC.
 - Containers default to unlocked, but can be locked.
 - Right-clicking an unlocked container shows `Open`.
@@ -98,6 +100,26 @@
 - `Trade` is resolved by the first selected party member to reach the merchant.
 - Party-to-party transfer is normal item transfer.
 - Merchant trade uses configured buy and sell prices per merchant.
+
+### General Trader And Shop Authoring
+- Facility Sign is one placeable object with a Sign Type dropdown: Auto, Tavern, Food, Weapons, Armor, Potions or Blacksmith. Auto resolves from the owning facility when mounted (shops use Food); a Sign Scene Override takes precedence. Inspector changes update only that sign, work with undo, and persist into the game.
+- Rugs preserve the vendor geometry and combine the cloth atlas's UV1 fabric with its UV2 motif. Shared fabric/pattern colors are editable in `features/world/projection/props/materials/rug.tres`; vendor originals remain untouched.
+- Add Facility → Shop places a reusable shop; it is not automatically added to any town. The bar's neutral building shell is reused, not its inn services.
+- The trader works at a discovered counter from 08:00 to 20:00 and lives upstairs. Employment and residence are separate relationships of the same persistent GECS character. Missing furniture must not spawn hidden replacements.
+- General traders buy any tradable non-currency item. Initial stock focuses on scrap, materials, ore, tools, seeds, and eggplants. Other presets specialize in scrap, weapons, armor, or clothing.
+- The Facility dock's Shop tab selects a preset and provides searchable per-item target quantity and Replenishes controls. Overrides are local to the placed shop, not edits to shared presets. Prices and defaults remain editable resources.
+- Preset resources live under `features/settlements/resources/merchants/`. Their default buy/sell prices currently start at 1/2 silver per item; stock entries may override those prices. These are explicit balance settings, not an item-value simulation. Scheduled shops recheck Jobs duty at transaction time, so leaving a trade window open cannot extend opening hours.
+- Stock, silver, and the initialized business policy belong to the character. Changing town, workplace, or scene projection does not create a new person or grant stock again. A different replacement merchant does not inherit the previous merchant's goods automatically.
+- World simulation currently supplies replenishing goods every three game days at 08:00, with editable cadence. Refill only deficits up to target; preserve player-sold excess goods and unique non-replenishing items. Saved empty inventory is initialized, not an invitation to seed again. Goods replenishment never resets silver.
+- Authoring defaults apply when a business is first initialized; existing saved traders retain their inventory and durable policy.
+- Furniture catalog props reuse the original vendor models through scenes in `features/world/projection/props/furniture/`. Cabinet, Dresser 1, Workbench Drawers, both Nightstands, both Bookcases, Shelf Small, Shelf Arch, Metal Crate and Empty Farm Crate are real containers. Cabinet defaults to an 8×5 inventory, Dresser 1 to 7×5, and Nightstand Drawer to 4×3; capacity and accepted container type remain Inspector-editable. Open shelving cannot lock. Empty containers do not create merchant stock.
+- Rope 1/2/3 are editor-placeable item displays backed by collectible, persistent inventory items, not uncollectible scenery. Desk books and candles use the same existing item-slot system. Peg Rack is wall decoration. Canyon's authored shop separates its downstairs counter/storage/display space from the proprietor's upstairs bed, nightstand, dresser, cabinet and writing desk; loose goods retain Canyonite ownership. The shop furnishing recipe also includes cabinets and small shelves in its ground-floor container pool.
+
+### Intended Economy And Property Direction (Not In Current Shop Scope)
+- Significant characters are independent world entities, not disposable roles owned by a town. A canyonite may travel, move home, establish a different shop, offer jobs, or organize a caravan while retaining identity and property.
+- Trader NPCs will do business with each other and dispatch caravans carrying real inventory. Those deliveries should replace abstract cadence supply at the same character-owned inventory boundary, not introduce another wallet or trade system. Caravan simulation is not part of the initial shop implementation.
+- Characters/entities own buildings within towns; town jurisdiction is distinct from ownership. A renewable lease functions as tax paid to the ruler. The ruler can revoke the holding even during a lease.
+- NPC lease renewal and taxation are handwaved for now. Do not add lease expiry, taxation, revocation, or autonomous relocation merely to ship a placeable shop. Money-replenishment policy remains undecided.
 
 ## Out Of Scope For Now
 - Pathfinding details.

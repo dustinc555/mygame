@@ -214,9 +214,13 @@ func claim_records_for_assignments(settlement_id: String, slots: Array[Dictionar
 		return claimed_by_slot_id
 	var candidates := get_records_for_settlement(settlement_id)
 	var ordered_slots := slots.duplicate(true)
+	var housing_employers := {}
+	for slot in slots:
+		var employer := str(slot.get("resident_employment_slot_id", ""))
+		if not employer.is_empty(): housing_employers[employer] = true
 	ordered_slots.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var priority_a := int(a.get("assignment_priority", 0))
-		var priority_b := int(b.get("assignment_priority", 0))
+		var priority_a := 100 if housing_employers.has(str(a.get("slot_id", ""))) else 90 if not str(a.get("resident_employment_slot_id", "")).is_empty() else int(a.get("assignment_priority", 0))
+		var priority_b := 100 if housing_employers.has(str(b.get("slot_id", ""))) else 90 if not str(b.get("resident_employment_slot_id", "")).is_empty() else int(b.get("assignment_priority", 0))
 		return priority_a > priority_b if priority_a != priority_b else str(a.get("slot_id", "")) < str(b.get("slot_id", "")))
 	for slot in ordered_slots:
 		var domain := str(slot.get("assignment_domain", "employment")).strip_edges().to_lower()
@@ -227,6 +231,8 @@ func claim_records_for_assignments(settlement_id: String, slots: Array[Dictionar
 		for index in candidates.size():
 			var candidate: Dictionary = candidates[index]
 			var actor_id := str(candidate.get("actor_id", ""))
+			if not _matches_resident_employment(candidate, slot):
+				continue
 			var is_preferred := actor_id == preferred_actor_id and not preferred_actor_id.is_empty()
 			if not _eligible_for_assignment(candidate, settlement_id, domain, exclusivity_group, is_preferred):
 				continue
@@ -263,6 +269,8 @@ func score_record_for_assignment(record: Dictionary, slot: Dictionary) -> float:
 
 func assign_record_to_slot(actor_id: String, slot: Dictionary, allow_unavailable := false) -> Dictionary:
 	var record := get_actor_record(actor_id)
+	if not _matches_resident_employment(record, slot):
+		return {}
 	var settlement_id := str(slot.get("settlement_id", ""))
 	var domain := str(slot.get("assignment_domain", "employment")).strip_edges().to_lower()
 	var scope := str(slot.get("authority_scope", "")).strip_edges()
@@ -301,6 +309,11 @@ func assign_record_to_slot(actor_id: String, slot: Dictionary, allow_unavailable
 		updates["role_id"] = str(slot.get("role_id", "resident"))
 		updates["movement_state"] = {}
 	return update_actor_record(actor_id, updates)
+
+
+func _matches_resident_employment(record: Dictionary, slot: Dictionary) -> bool:
+	var employer := str(slot.get("resident_employment_slot_id", ""))
+	return employer.is_empty() or str((record.get("assignments", {}) as Dictionary).get("employment", "")) == employer
 
 
 func repair_residence_spawn_position(actor_id: String, slot: Dictionary) -> Dictionary:

@@ -1,0 +1,17 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/container.tscn" id="1_container"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/FarmCrate_Empty.gltf" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="Body"]
+size = Vector3(0.713845, 0.243777, 0.414160)
+
+[node name="FarmCrateEmpty" instance=ExtResource("1_container")]
+display_name = "Open Produce Crate"
+inventory_columns = 5
+inventory_rows = 3
+supports_locking = false
+visual_scene = ExtResource("2_model")
+visual_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.000000, 0.015985, -0.000000)
+collision_shape = SubResource("Body")
+collision_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000000, 0.121889, 0.000000)

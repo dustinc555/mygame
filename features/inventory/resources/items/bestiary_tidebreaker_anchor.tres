@@ -1,11 +1,11 @@
-[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://cgjybr7icqnyc"]
 
-[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
-[ext_resource type="Texture2D" path="res://assets/items/equipment/bestiary/tidebreaker_anchor/icon.svg" id="2_icon"]
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Texture2D" uid="uid://wadta0amy0tp" path="res://assets/items/equipment/bestiary/tidebreaker_anchor/icon.svg" id="2_icon"]
 [ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/tidebreaker_anchor/equipped.tscn" id="3_equipped"]
 [ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/tidebreaker_anchor/dropped.tscn" id="4_world"]
-[ext_resource type="Resource" path="res://features/actors/resources/equipment_grip_profiles/one_hand_melee.tres" id="5_grip"]
-[ext_resource type="Script" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="6_stat"]
+[ext_resource type="Resource" uid="uid://ddoq1y4fkfw0i" path="res://features/actors/resources/equipment_grip_profiles/one_hand_melee.tres" id="5_grip"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="6_stat"]
 
 [sub_resource type="Resource" id="Stat_0"]
 script = ExtResource("6_stat")
@@ -24,12 +24,11 @@ add = 0.8
 
 [resource]
 script = ExtResource("1_item")
-item_id = "bestiary.tidebreaker_anchor"
 display_name = "Tidebreaker Anchor"
+item_id = "bestiary.tidebreaker_anchor"
 icon = ExtResource("2_icon")
 grid_size = Vector2i(3, 5)
 unit_weight = 12.0
-max_stack = 1
 equip_slot = "weapon"
 alternate_equip_slots = PackedStringArray()
 compatible_races = PackedStringArray()
@@ -37,3 +36,5 @@ world_scene = ExtResource("4_world")
 equipped_scene = ExtResource("3_equipped")
 grip_profile = ExtResource("5_grip")
 stat_modifiers = Array[ExtResource("6_stat")]([SubResource("Stat_0"), SubResource("Stat_1"), SubResource("Stat_2")])
+tool_tags = PackedStringArray()
+access_key_ids = PackedStringArray()

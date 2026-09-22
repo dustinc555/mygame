@@ -9,6 +9,9 @@ const DEFAULT_COLOR := Color(0.1, 0.85, 1.0, 1.0)
 const ACCEPT_COLOR := Color(0.25, 1.0, 0.35, 1.0)
 const SIDE_COLOR := Color(1.0, 0.25, 0.15, 1.0)
 const DOT_COLOR := Color(1.0, 0.9, 0.2, 1.0)
+# Session-only toolbar state; newly placed pieces inherit it without modifying
+# authored scene properties. The edited-root check still limits it to shells.
+static var _editor_preview_enabled := true
 
 @export var snap_id := ""
 @export var display_name := ""
@@ -52,10 +55,13 @@ func make_snap_point_resource() -> Resource:
 
 func _rebuild_visual() -> void:
 	_clear_visual()
-	if Engine.is_editor_hint():
-		if not editor_show_visual:
-			return
-	elif not runtime_show_visual:
+	# Shell-authoring guides, never town decoration or gameplay HUD. Keep the
+	# legacy runtime export readable without allowing it to leak guides.
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	if not editor_show_visual or not _editor_preview_enabled:
+		return
+	if not is_shell_authoring_context(EditorInterface.get_edited_scene_root()):
 		return
 	var visual_root := Node3D.new()
 	visual_root.name = VISUAL_NAME
@@ -65,6 +71,19 @@ func _rebuild_visual() -> void:
 	_add_axis_line(visual_root, Vector3.RIGHT, axis_length * 0.45, SIDE_COLOR)
 	_add_center_dot(visual_root)
 	_add_label(visual_root)
+
+
+func is_shell_authoring_context(edited_root: Node) -> bool:
+	return edited_root is WorldBuilding and edited_root.is_ancestor_of(self)
+
+
+func set_editor_preview_enabled(enabled: bool) -> void:
+	_editor_preview_enabled = enabled
+	var visual := get_node_or_null(VISUAL_NAME)
+	if not enabled:
+		_clear_visual()
+	elif visual == null:
+		_rebuild_visual()
 
 
 func _clear_visual() -> void:

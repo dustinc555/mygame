@@ -3,7 +3,7 @@
 [ext_resource type="PackedScene" path="res://features/settlements/bridge/settlement_bar.tscn" id="1_bar"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bar_counter.tscn" id="2_counter"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/bar_table.tscn" id="3_table"]
-[ext_resource type="PackedScene" path="res://features/world/projection/props/stool_chair.tscn" id="4_seat"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chair_1.tscn" id="4_seat"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/barrel.tscn" id="5_stock"]
 
 [node name="ControlledBar" instance=ExtResource("1_bar")]

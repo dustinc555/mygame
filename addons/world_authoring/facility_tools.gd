@@ -12,6 +12,7 @@ const FACILITY_DOCK := preload("res://addons/world_authoring/facility_dock.gd")
 const PLACEMENT_GHOST := preload("res://addons/world_authoring/placement_ghost.gd")
 const INSTANCE_UNPACK := preload("res://addons/world_authoring/instance_unpack.gd")
 const FIELD_PAINTER := preload("res://addons/world_authoring/field_painter.gd")
+const SCENE_THUMBNAIL := preload("res://addons/world_authoring/scene_thumbnail.gd")
 ## Loaded lazily, never preloaded: the plugin must not fail to mount because a
 ## gameplay script it only reads a constant from is mid-edit.
 const FARM_CONTROLLER_PATH := "res://features/farming/sim/farm_controller.gd"
@@ -34,6 +35,8 @@ const WORLD_BUILDING_SCRIPT_PATH := "res://features/world/projection/buildings/w
 const DEFAULT_SHELL_PATH := "res://features/world/projection/buildings/shells/modular/medium_wood_hall.tscn"
 const GUARD_POST_GHOST_COLOR := Color(0.35, 0.78, 1.0, 0.55)
 
+signal item_catalog_changed
+
 var _plugin: EditorPlugin
 var _toolbar: HBoxContainer
 var _status_label: Label
@@ -47,8 +50,16 @@ var _shell_catalog: Array[String] = []
 var _shell_name_cache := {}
 var _furniture_catalog: Array[Dictionary] = []
 var _container_item_catalog: Array[ItemDefinition] = []
-var _container_tool_item_paths := {}
+var _item_catalog_requested := false
+var _item_catalog_ready := false
+var _item_catalog_pending: Array[String] = []
+var _item_catalog_loading := ""
+var _item_catalog_revision := 0
+var _item_catalog_loading_revision := 0
 var _pending_furniture_path := ""
+var _thumbnail_stage: SubViewport
+var _thumbnails := {}
+var _thumbnail_requests := {}
 var _ghost
 var _painter
 var _unpacker
@@ -65,6 +76,9 @@ func _init(plugin: EditorPlugin) -> void:
 	_build_toolbar()
 	_dock = FACILITY_DOCK.new()
 	_dock.setup(self)
+	_plugin.get_undo_redo().version_changed.connect(_on_content_changed)
+	_plugin.get_undo_redo().history_changed.connect(_on_content_changed)
+	EditorInterface.get_resource_filesystem().filesystem_changed.connect(_on_catalog_changed)
 
 
 func toolbar() -> Control:
@@ -88,7 +102,55 @@ func edit(object: Object) -> void:
 
 
 func refresh() -> void:
+	_dock.refresh()
 	_refresh_from_selection()
+
+
+func _on_content_changed() -> void:
+	# Selection is not an edit. Only authored changes/undo invalidate sections;
+	# the dock coalesces these notifications and builds its visible tab only.
+	if is_instance_valid(_dock):
+		_dock.refresh()
+
+
+func _on_catalog_changed() -> void:
+	_furniture_catalog.clear()
+	_shell_catalog.clear()
+	_shell_name_cache.clear()
+	_container_item_catalog.clear()
+	_item_catalog_requested = false
+	_item_catalog_ready = false
+	_item_catalog_revision += 1
+	_item_catalog_pending.clear()
+	# Let an in-flight resource finish; process discards it after invalidation.
+	item_catalog_changed.emit()
+	_thumbnails.clear()
+	# Cancel previews of old assets before their callbacks can refill the cache.
+	if is_instance_valid(_thumbnail_stage):
+		_thumbnail_stage.free()
+	_thumbnail_stage = null
+	_thumbnail_requests.clear()
+	_on_content_changed()
+
+
+func request_furniture_preview(path: String, callback: Callable) -> void:
+	if _thumbnails.has(path):
+		callback.call(path, _thumbnails[path])
+		return
+	if _thumbnail_requests.has(path):
+		return
+	_thumbnail_requests[path] = true
+	if not is_instance_valid(_thumbnail_stage):
+		_thumbnail_stage = SCENE_THUMBNAIL.new()
+		_plugin.add_child(_thumbnail_stage)
+	_thumbnail_stage.request(path, _on_thumbnail_ready.bind(path, callback))
+
+
+func _on_thumbnail_ready(texture: Texture2D, path: String, callback: Callable) -> void:
+	_thumbnail_requests.erase(path)
+	_thumbnails[path] = texture
+	if callback.is_valid():
+		callback.call(path, texture)
 
 
 func is_active() -> bool:
@@ -109,7 +171,30 @@ func on_scene_changed(_scene_root: Node) -> void:
 
 
 func process(_delta: float) -> void:
-	pass
+	# Resource dependencies include equipped models. Never synchronously load
+	# the whole item library in a Shop/Containers click (measured ~2 seconds).
+	var deadline := Time.get_ticks_usec() + 2000
+	while Time.get_ticks_usec() < deadline:
+		if not _item_catalog_loading.is_empty():
+			var status := ResourceLoader.load_threaded_get_status(_item_catalog_loading)
+			if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+				return
+			if status == ResourceLoader.THREAD_LOAD_LOADED:
+				var item := ResourceLoader.load_threaded_get(_item_catalog_loading) as ItemDefinition
+				if _item_catalog_requested and _item_catalog_loading_revision == _item_catalog_revision and item != null:
+					_container_item_catalog.append(item)
+			_item_catalog_loading = ""
+		if _item_catalog_pending.is_empty():
+			if _item_catalog_requested and not _item_catalog_ready:
+				_item_catalog_ready = true
+				_container_item_catalog.sort_custom(func(a: ItemDefinition, b: ItemDefinition) -> bool: return a.display_name.naturalnocasecmp_to(b.display_name) < 0)
+				item_catalog_changed.emit()
+				_dock.refresh("Containers")
+			return
+		_item_catalog_loading = _item_catalog_pending.pop_back()
+		_item_catalog_loading_revision = _item_catalog_revision
+		if ResourceLoader.load_threaded_request(_item_catalog_loading) != OK:
+			_item_catalog_loading = ""
 
 
 func shortcut_input(_event: InputEvent) -> bool:
@@ -130,6 +215,11 @@ func forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 
 
 func teardown() -> void:
+	_plugin.get_undo_redo().version_changed.disconnect(_on_content_changed)
+	_plugin.get_undo_redo().history_changed.disconnect(_on_content_changed)
+	EditorInterface.get_resource_filesystem().filesystem_changed.disconnect(_on_catalog_changed)
+	if is_instance_valid(_thumbnail_stage):
+		_thumbnail_stage.free()
 	_ghost.cancel()
 	_painter.end()
 	if _dock != null and is_instance_valid(_dock):
@@ -335,7 +425,11 @@ func get_furniture_catalog() -> Array[Dictionary]:
 				continue
 			# *_model.tscn are raw visual halves of container wrappers, not
 			# placeable furniture.
-			if file_name.ends_with("_model.tscn"):
+			# The empty base container and flame sprite are implementation
+			# helpers, not independently usable pieces of furniture.
+			# Compatibility presets remain loadable for old scenes, but authors
+			# place a physical container and choose its storage type instead.
+			if file_name.ends_with("_model.tscn") or file_name in ["container.tscn", "flame_glow.tscn", "barrel_container.tscn", "weapon_chest_container.tscn", "seed_barrel.tscn", "seed_sack.tscn", "tool_chest.tscn"]:
 				continue
 			_furniture_catalog.append({
 				"path": str(dir_path).path_join(file_name),
@@ -369,7 +463,6 @@ func begin_furniture_placement(facility: Node, scene_path: String) -> void:
 	if furniture_scene == null:
 		_set_status("Failed to load %s." % scene_path)
 		return
-	_pending_furniture_path = scene_path
 	# Keep the facility selected so the editor keeps forwarding viewport input
 	# to this context while the ghost is live.
 	_select_node(facility)
@@ -378,6 +471,8 @@ func begin_furniture_placement(facility: Node, scene_path: String) -> void:
 	if not _ghost.begin_scene(furniture_scene, committed, _on_furniture_placement_cancelled):
 		_set_status("Could not start placement (no edited scene).")
 		return
+	# Starting a replacement ghost cancels the previous one first.
+	_pending_furniture_path = scene_path
 	_set_status("Placing %s: hold left-click to anchor, drag rotates, scroll = height, release places. Right-click cancels." % scene_path.get_file().get_basename())
 
 
@@ -500,18 +595,17 @@ func set_field_crop_policy(facility: Node, crop_id: String) -> void:
 
 ## --- Container authoring ------------------------------------------------------
 
+func is_item_catalog_loading() -> bool:
+	return not _item_catalog_ready
+
 func container_item_options(container_type: String) -> Array[ItemDefinition]:
-	if _container_item_catalog.is_empty():
+	if not _item_catalog_requested:
+		_item_catalog_requested = true
 		for file_name in DirAccess.get_files_at(ITEMS_DIR):
-			if file_name.get_extension() != "tres":
-				continue
-			var item_path := ITEMS_DIR.path_join(file_name)
-			var item := load(item_path) as ItemDefinition
-			if item != null:
-				_container_item_catalog.append(item)
-				if _resource_declares_tool_tags(item_path):
-					_container_tool_item_paths[item_path] = true
-		_container_item_catalog.sort_custom(func(a: ItemDefinition, b: ItemDefinition) -> bool: return a.display_name.naturalnocasecmp_to(b.display_name) < 0)
+			if file_name.get_extension() == "tres":
+				_item_catalog_pending.append(ITEMS_DIR.path_join(file_name))
+	if not _item_catalog_pending.is_empty() or not _item_catalog_loading.is_empty():
+		return []
 	var result: Array[ItemDefinition] = []
 	for item in _container_item_catalog:
 		if _item_matches_container_type(item, container_type):
@@ -522,29 +616,7 @@ func container_item_options(container_type: String) -> Array[ItemDefinition]:
 func _item_matches_container_type(item: ItemDefinition, container_type: String) -> bool:
 	if item == null:
 		return false
-	var item_id := item.item_id.strip_edges()
-	if item_id.is_empty():
-		item_id = item.resource_path
-	match container_type:
-		"seeds":
-			return item_id.begins_with("seed.")
-		"tools":
-			return item_id.begins_with("tool.") or _container_tool_item_paths.has(item.resource_path)
-		"food":
-			return item_id.begins_with("food.") or not item.food_type_id.is_empty()
-		"materials":
-			return item_id.begins_with("material.") or item_id.begins_with("ore.")
-		_:
-			return true
-
-
-func _resource_declares_tool_tags(item_path: String) -> bool:
-	var source := FileAccess.get_file_as_string(item_path)
-	for line in source.split("\n"):
-		var stripped := str(line).strip_edges()
-		if stripped.begins_with("tool_tags = PackedStringArray("):
-			return stripped.contains("\"")
-	return false
+	return WorldContainer.item_matches_storage_type(item, container_type)
 
 
 func set_container_property(container: Node, property_name: String, value) -> void:
@@ -999,6 +1071,20 @@ func set_facility_property(facility: Node, property_name: String, value) -> void
 		_dock.set_facility(facility)
 
 
+func set_shop_property(facility: Node, property_name: String, value: Variant, panel: Control) -> void:
+	if facility == null or not _can_edit_live(facility):
+		_set_status("Town is a locked instance — use Edit In Zone on the town first.")
+		return
+	var undo_redo := _plugin.get_undo_redo()
+	undo_redo.create_action("Set Shop %s" % property_name)
+	undo_redo.add_do_property(facility, property_name, value)
+	undo_redo.add_undo_property(facility, property_name, facility.get(property_name))
+	# Deferred local refresh is safe inside a SpinBox/button signal and on undo.
+	undo_redo.add_do_method(panel, "call_deferred", "refresh")
+	undo_redo.add_undo_method(panel, "call_deferred", "refresh")
+	undo_redo.commit_action()
+
+
 func select_facility_node(node: Node) -> void:
 	if node != null and is_instance_valid(node):
 		_select_node(node)
@@ -1105,6 +1191,9 @@ func _can_edit_live(facility: Node) -> bool:
 
 func _select_node(node: Node) -> void:
 	var selection := _plugin.get_editor_interface().get_selection()
+	var selected := selection.get_selected_nodes()
+	if selected.size() == 1 and selected[0] == node:
+		return
 	selection.clear()
 	selection.add_node(node)
 	_plugin.get_editor_interface().edit_node(node)
@@ -1185,12 +1274,10 @@ func _refresh_ui() -> void:
 		_dock.set_container(_active_container if _active_container != null and is_instance_valid(_active_container) else null)
 
 
-## Facility roots expose the complete workspace; directly selected containers
-## inside one also mount it so one-off stock never falls back to raw Inspector
-## resource slots.
+## Keep the workspace mounted while selecting/rotating furniture within it.
 func wants_dock() -> bool:
 	for node in _plugin.get_editor_interface().get_selection().get_selected_nodes():
-		if node is SettlementFacilityInstance or node is WorldContainer or node is LiquidContainer:
+		if handles(node):
 			return true
 	return false
 

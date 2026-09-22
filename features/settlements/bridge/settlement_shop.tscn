@@ -1,0 +1,41 @@
+[gd_scene format=3]
+[ext_resource type="Script" path="res://features/settlements/bridge/settlement_shop.gd" id="1"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/shop.tres" id="2"]
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/medium_wood_hall.tscn" id="3"]
+[ext_resource type="Script" path="res://features/settlements/resources/facility_role_slot_definition.gd" id="4"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/merchant.tres" id="5"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bar_counter.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_1.tscn" id="7"]
+
+[sub_resource type="Resource" id="MerchantSlot"]
+script = ExtResource("4")
+slot_id = "proprietor"
+role = ExtResource("5")
+display_name = "Trader"
+authority_scope = "facility_staff"
+[node name="SettlementShop" type="Node3D"]
+script = ExtResource("1")
+role_slots = Array[ExtResource("4")]([SubResource("MerchantSlot")])
+facility_function = ExtResource("2")
+display_name = "General Trade Shop"
+facility_type = "shop"
+door_access_policy = "public"
+door_initial_state = "open"
+door_schedule_enabled = true
+door_open_hour = 8
+door_close_hour = 20
+doors_keep_open_during_hours = true
+service_points_root_path = NodePath("")
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+[node name="BuildingSlot" type="Node3D" parent="."]
+[node name="CurrentBuilding" parent="BuildingSlot" instance=ExtResource("3")]
+building_type = "shop"
+[node name="Staff" type="Node3D" parent="."]
+[node name="Furniture" type="Node3D" parent="."]
+[node name="TradeCounter" parent="Furniture" instance=ExtResource("6")]
+position = Vector3(2, 0, 2)
+facility_role_ids = Array[String](["merchant"])
+[node name="ProprietorBed" parent="Furniture" instance=ExtResource("7")]
+position = Vector3(-3, 3, 2)
+

@@ -150,9 +150,7 @@ func _furnish_level(pieces: Array[Dictionary], rules: FurnishRules, rng: RandomN
 	var claimed_wall_faces := {}
 	var placements: Array[Dictionary] = []
 	if level_index == 0:
-		var exterior_light := _place_exterior_entry_light(walls, anchors, rules, rng, claimed_wall_faces)
-		if not exterior_light.is_empty():
-			placements.append(exterior_light)
+		placements.append_array(_place_exterior_entry_lights(walls, anchors, rules, rng, claimed_wall_faces))
 		var counter := _place_counter(anchors, rules, rng)
 		if not counter.is_empty():
 			placements.append(counter)
@@ -914,15 +912,24 @@ func _place_shelves(anchors: Array[Dictionary], rules: FurnishRules, rng: Random
 	return placements
 
 
-## One guaranteed light marks the exterior of the primary ground-floor door.
+## Each distinct exterior ground-floor entrance gets a light. Overlapping
+## wall/frame pieces describe one opening, not additional entrances.
 ## Prefer the exterior face of an adjacent solid wall. Compact shells whose
 ## door neighbors are windows fall back to the door piece beside its opening.
-func _place_exterior_entry_light(walls: Array[Dictionary], anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, claimed_wall_faces: Dictionary) -> Dictionary:
+func _place_exterior_entry_lights(walls: Array[Dictionary], anchors: Array[Dictionary], rules: FurnishRules, rng: RandomNumberGenerator, claimed_wall_faces: Dictionary) -> Array[Dictionary]:
+	var placements: Array[Dictionary] = []
 	if rules.light_scenes.is_empty():
-		return {}
+		return placements
+	var lit_entrances: Array[Vector2] = []
 	var door_anchors := anchors.filter(func(anchor): return anchor["category"] == "wall_door")
 	door_anchors.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a["name"]) < str(b["name"]))
 	for interior_anchor in door_anchors:
+		var interior_side := float(_exterior_door_interior_sides.get(int(interior_anchor["wall_node_id"]), 0.0))
+		if not is_equal_approx(interior_side, float(interior_anchor["side"])):
+			continue
+		var door_position: Vector2 = interior_anchor["position"]
+		if lit_entrances.any(func(position: Vector2): return position.distance_to(door_position) < 0.1):
+			continue
 		var door_wall: Dictionary = {}
 		for wall in walls:
 			if wall["node"].get_instance_id() == int(interior_anchor["wall_node_id"]):
@@ -931,7 +938,7 @@ func _place_exterior_entry_light(walls: Array[Dictionary], anchors: Array[Dictio
 		if door_wall.is_empty():
 			continue
 		var exterior_normal: Vector2 = -(interior_anchor["normal"] as Vector2)
-		var exterior_anchor := _adjacent_exterior_wall_anchor(door_wall, walls, exterior_normal)
+		var exterior_anchor := _adjacent_exterior_wall_anchor(door_wall, walls, exterior_normal, claimed_wall_faces)
 		if exterior_anchor.is_empty():
 			var exterior_side := -float(interior_anchor["side"])
 			exterior_anchor = {
@@ -947,17 +954,18 @@ func _place_exterior_entry_light(walls: Array[Dictionary], anchors: Array[Dictio
 		var origin := anchor_position + normal * (WALL_THICKNESS * 0.5 + 0.03)
 		var yaw := atan2(normal.x, normal.y)
 		claimed_wall_faces[wall_face_key] = true
-		return {
+		lit_entrances.append(door_position)
+		placements.append({
 			"kind": "light",
 			"scene": rules.light_scenes[rng.randi_range(0, rules.light_scenes.size() - 1)],
 			"transform": Transform3D(Basis(Vector3.UP, yaw), Vector3(origin.x, rules.light_mount_height, origin.y)),
 			"wall_face_key": wall_face_key,
 			"exterior_entry_light": true,
-		}
-	return {}
+		})
+	return placements
 
 
-func _adjacent_exterior_wall_anchor(door_wall: Dictionary, walls: Array[Dictionary], exterior_normal: Vector2) -> Dictionary:
+func _adjacent_exterior_wall_anchor(door_wall: Dictionary, walls: Array[Dictionary], exterior_normal: Vector2, claimed_wall_faces: Dictionary) -> Dictionary:
 	var door_transform: Transform3D = door_wall["transform"]
 	var door_center := Vector2(door_transform.origin.x, door_transform.origin.z)
 	var door_along := Vector2(door_transform.basis.x.x, door_transform.basis.x.z).normalized()
@@ -983,6 +991,8 @@ func _adjacent_exterior_wall_anchor(door_wall: Dictionary, walls: Array[Dictiona
 		var wall_normal3 := wall_transform.basis.z.normalized()
 		var wall_normal := Vector2(wall_normal3.x, wall_normal3.z)
 		var side := 1.0 if wall_normal.dot(exterior_normal) >= 0.0 else -1.0
+		if claimed_wall_faces.has(_wall_face_key(wall, side)):
+			continue
 		best = {
 			"wall_face_key": _wall_face_key(wall, side),
 			"position": wall_center,

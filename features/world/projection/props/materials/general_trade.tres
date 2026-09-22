@@ -1,0 +1,11 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3]
+
+[ext_resource type="Shader" path="res://features/world/projection/props/materials/general_trade.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" path="res://features/world/projection/props/materials/general_trade.svg" id="2_emblem"]
+
+[resource]
+resource_name = "GeneralTradePaint"
+shader = ExtResource("1_shader")
+shader_parameter/emblem = ExtResource("2_emblem")
+shader_parameter/wood_color = Color(0.12, 0.09, 0.065, 1)
+shader_parameter/paint_color = Color(0.90, 0.84, 0.68, 1)

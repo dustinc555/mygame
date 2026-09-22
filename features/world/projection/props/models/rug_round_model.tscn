@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Rug_Round.gltf" id="1_model"]
+[ext_resource type="Material" path="res://features/world/projection/props/materials/rug.tres" id="2_material"]
+
+[node name="Rug_Round" instance=ExtResource("1_model")]
+
+[node name="Rug_Round" parent="." index="0"]
+material_override = ExtResource("2_material")

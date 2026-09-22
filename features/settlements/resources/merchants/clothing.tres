@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="MerchantProfile" format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/merchant_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Clothing Trader"
+buys_any_sellable_item = false
+stock = {
+"res://features/inventory/resources/items/peasant_tunic.tres": {"quantity": 3, "replenishes": true},
+"res://features/inventory/resources/items/peasant_trousers.tres": {"quantity": 3, "replenishes": true},
+"res://features/inventory/resources/items/peasant_shoes.tres": {"quantity": 3, "replenishes": true}
+}
