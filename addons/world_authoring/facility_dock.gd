@@ -73,7 +73,10 @@ var _container_items_box: VBoxContainer
 var _container_amount_controls := {}
 var _people_box: VBoxContainer
 var _people_add_button: Button
+var _shop_panel: VBoxContainer
 var _icon_cache := {}
+var _refresh_pending := false
+var _dirty_tabs := {}
 
 
 func setup(tools: RefCounted) -> void:
@@ -167,6 +170,12 @@ func setup(tools: RefCounted) -> void:
 	_people_box.add_theme_constant_override("separation", 5)
 	people_scroll.add_child(_people_box)
 	people_tab.add_child(people_scroll)
+	_shop_panel = preload("res://addons/world_authoring/shop_panel.gd").new()
+	_shop_panel.name = "Shop"
+	_shop_panel.setup(_tools)
+	_tabs.add_child(_shop_panel)
+	_tabs.tab_changed.connect(func(_index: int): _queue_refresh())
+	visibility_changed.connect(_queue_refresh)
 
 
 ## Dedicated Furniture column: generation (Furnish/Reroll) and hand placement
@@ -299,17 +308,42 @@ func _build_containers_tab() -> Control:
 
 
 func set_facility(facility: Node) -> void:
-	_facility = facility if facility != null and is_instance_valid(facility) else null
+	var next := facility if is_instance_valid(facility) else null
+	if (is_instance_valid(_facility) and _facility == next) or (_facility == null and next == null):
+		return
+	_facility = next
+	refresh()
+
+
+func refresh(section := "") -> void:
+	if section.is_empty():
+		for title in ["General", "Furniture", "Containers", "People", "Shop"]:
+			_dirty_tabs[title] = true
+	else:
+		_dirty_tabs[section] = true
+	_queue_refresh()
+
+
+func _queue_refresh() -> void:
 	# Deferred on purpose: set_facility is reachable from this dock's own
 	# button signals (shell swap -> refresh); rebuilding synchronously would
 	# free the pressed button while its signal is still on the stack.
-	_rebuild.call_deferred()
+	if not _refresh_pending:
+		_refresh_pending = true
+		_flush_refresh.call_deferred()
+
+
+func _flush_refresh() -> void:
+	_refresh_pending = false
+	_rebuild()
 
 
 func set_container(container: Node) -> void:
-	_container = container if container != null and is_instance_valid(container) else null
-	if _container_list != null:
-		_rebuild_containers()
+	var next := container if is_instance_valid(container) else null
+	if (is_instance_valid(_container) and _container == next) or (_container == null and next == null):
+		return
+	_container = next
+	refresh("Containers")
 
 
 func _select_container_from_list(index: int) -> void:
@@ -350,13 +384,11 @@ func _configure_container_type_picker() -> void:
 		{"label": "Water", "id": "water"},
 		{"label": "Beer", "id": "beer"},
 		{"label": "Oil", "id": "oil"},
-	] if liquid_container else [
-		{"label": "General", "id": "general"},
-		{"label": "Seeds", "id": "seeds"},
-		{"label": "Tools", "id": "tools"},
-		{"label": "Food", "id": "food"},
-		{"label": "Materials", "id": "materials"},
 	]
+	if not liquid_container:
+		options.clear()
+		for type_id in WorldContainer.CONTAINER_TYPES:
+			options.append({"label": str(type_id).capitalize(), "id": type_id})
 	_container_type_label.text = "Liquid Type" if liquid_container else "Container Type"
 	_container_hint.text = "A Tank holds one assigned liquid at a time." if liquid_container else "Starting contents are created once. Saved inventory always wins afterward."
 	_container_search.visible = not liquid_container
@@ -383,6 +415,8 @@ func _on_container_type_selected(index: int) -> void:
 func _rebuild() -> void:
 	if _placeholder == null:
 		return
+	if not is_visible_in_tree():
+		return
 	if _facility != null and not is_instance_valid(_facility):
 		_facility = null
 	if _container != null and not is_instance_valid(_container):
@@ -394,25 +428,29 @@ func _rebuild() -> void:
 	for index in _tabs.get_tab_count():
 		var containers_only := not has_facility and _tabs.get_tab_title(index) != "Containers"
 		var furniture_unsupported := has_facility and _tabs.get_tab_title(index) == "Furniture" and not bool(_facility.call("supports_furniture"))
-		_tabs.set_tab_hidden(index, containers_only or furniture_unsupported)
+		var shop_unsupported := _tabs.get_tab_title(index) == "Shop" and (not has_facility or not _facility.has_method("effective_stock"))
+		_tabs.set_tab_hidden(index, containers_only or furniture_unsupported or shop_unsupported)
 	if not has_context:
 		return
-	_updating = true
 	if not has_facility:
-		_rebuild_containers()
 		_tabs.current_tab = 2
-		_updating = false
+	var title := _tabs.get_tab_title(_tabs.current_tab)
+	if not _dirty_tabs.has(title):
 		return
-	_rebuild_identity()
-	_rebuild_field_section()
-	# Non-building facilities have no shell, so their shell grid is hidden — and building that
-	# grid is the most expensive thing in this dock. Do not pay for it unseen.
-	if bool(_facility.call("supports_building_shell")):
-		_rebuild_shell_list()
-	_rebuild_containers()
-	_rebuild_people()
-	_rebuild_furniture_browser()
-	_rebuild_furniture_summary()
+	_dirty_tabs.erase(title)
+	_updating = true
+	match title:
+		"General":
+			_rebuild_identity()
+			_rebuild_field_section()
+			if bool(_facility.call("supports_building_shell")):
+				_rebuild_shell_list()
+		"Furniture":
+			_rebuild_furniture_browser()
+			_rebuild_furniture_summary()
+		"Containers": _rebuild_containers()
+		"People": _rebuild_people()
+		"Shop": _shop_panel.set_shop(_facility if _facility.has_method("effective_stock") else null)
 	_updating = false
 
 
@@ -928,7 +966,7 @@ func _rebuild_shell_list() -> void:
 		no_shell.text += "  (current)"
 	no_shell.pressed.connect(func(): _tools.swap_shell(_facility, "", _clear_furniture_check.button_pressed))
 	_shell_list.add_child(no_shell)
-	for shell_path_value in _tools.rescan_shell_catalog():
+	for shell_path_value in _tools.get_shell_catalog():
 		var shell_path := str(shell_path_value)
 		var button := Button.new()
 		var basename := shell_path.get_file().get_basename()
@@ -1249,8 +1287,17 @@ func _assignment_key(character: Resource, role: Resource) -> String:
 func _scene_named_assignment_counts() -> Dictionary:
 	var counts := {}
 	var root := EditorInterface.get_edited_scene_root()
-	if root != null:
-		_collect_named_assignment_counts(root, counts)
+	if root != null and root.is_inside_tree():
+		# Role owners register themselves. Never inspect every mesh, collider and
+		# snap label in the town just to validate the handful of staff slots.
+		var owners := root.get_tree().get_nodes_in_group("settlement_staff_role_owner")
+		# Empty facilities may receive their first role slot through UndoRedo.
+		for facility in root.get_tree().get_nodes_in_group("settlement_facility"):
+			if not owners.has(facility):
+				owners.append(facility)
+		for node in owners:
+			if node == root or root.is_ancestor_of(node):
+				_collect_named_assignment_counts(node, counts)
 	return counts
 
 
@@ -1260,8 +1307,7 @@ func _collect_named_assignment_counts(node: Node, counts: Dictionary) -> void:
 			var key := _assignment_key(slot.get("named_character") as Resource, slot.get("role") as Resource) if slot != null else ""
 			if not key.is_empty():
 				counts[key] = int(counts.get(key, 0)) + 1
-	for child in node.get_children():
-		_collect_named_assignment_counts(child, counts)
+
 
 
 func _inline_message(text: String, error: bool) -> Label:
@@ -1333,9 +1379,12 @@ func _rebuild_furniture_browser() -> void:
 	var category := ""
 	if _furniture_category != null and _furniture_category.selected > 0:
 		category = str(_furniture_category.get_item_metadata(_furniture_category.selected))
+	var selected_path := ""
+	var selected := _furniture_browser.get_selected_items()
+	if not selected.is_empty():
+		selected_path = str(_furniture_browser.get_item_metadata(selected[0]))
 	_furniture_browser.clear()
 	var fallback_icon := get_theme_icon("PackedScene", "EditorIcons")
-	var previewer := EditorInterface.get_resource_previewer()
 	for entry in entries:
 		if not category.is_empty() and str(entry["category"]) != category:
 			continue
@@ -1344,10 +1393,12 @@ func _rebuild_furniture_browser() -> void:
 		var path := str(entry["path"])
 		var index := _furniture_browser.add_item(str(entry["name"]), fallback_icon)
 		_furniture_browser.set_item_metadata(index, path)
+		if path == selected_path:
+			_furniture_browser.select(index)
 		_furniture_browser.set_item_tooltip(index, "%s\nDouble-click to place." % path)
 		if not placeable:
 			_furniture_browser.set_item_disabled(index, true)
-		previewer.queue_resource_preview(path, self, "_on_furniture_preview_ready", path)
+		_tools.request_furniture_preview(path, _on_furniture_preview_ready)
 
 
 ## Category dropdown is rebuilt from the catalog (never hardcoded) while
@@ -1372,10 +1423,10 @@ func _populate_furniture_categories(entries: Array) -> void:
 			_furniture_category.selected = _furniture_category.item_count - 1
 
 
-## Async thumbnail arrival from the editor's resource previewer: items are
+## Async thumbnail arrival from the cached geometry renderer: items are
 ## matched back by path metadata because the grid may have been refiltered
 ## while the preview rendered.
-func _on_furniture_preview_ready(path: String, preview: Texture2D, _thumbnail: Texture2D, _userdata: Variant) -> void:
+func _on_furniture_preview_ready(path: String, preview: Texture2D) -> void:
 	if preview == null:
 		return
 	for index in range(_furniture_browser.item_count):

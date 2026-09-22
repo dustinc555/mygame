@@ -18,6 +18,8 @@ class_name CGameStaffSlot
 @export var facility_id := ""
 @export var building_id := ""
 @export var preferred_actor_id := ""
+## Optional proprietor residence: reserve it for the employee, not a second NPC.
+@export var resident_employment_slot_id := ""
 @export var preferred_character_path := ""
 @export var occupant_actor_id := ""
 @export var authority_scope := ""
@@ -54,6 +56,7 @@ func apply_slot(source: Dictionary) -> void:
 	facility_id = str(source.get("facility_id", facility_id))
 	building_id = str(source.get("building_id", building_id))
 	preferred_actor_id = str(source.get("preferred_actor_id", preferred_actor_id))
+	resident_employment_slot_id = str(source.get("resident_employment_slot_id", resident_employment_slot_id))
 	preferred_character_path = str(source.get("preferred_character_path", preferred_character_path))
 	occupant_actor_id = str(source.get("occupant_actor_id", source.get("actor_id", occupant_actor_id)))
 	authority_scope = str(source.get("authority_scope", authority_scope))
@@ -85,6 +88,7 @@ func to_slot() -> Dictionary:
 		"facility_id": facility_id,
 		"building_id": building_id,
 		"preferred_actor_id": preferred_actor_id,
+		"resident_employment_slot_id": resident_employment_slot_id,
 		"preferred_character_path": preferred_character_path,
 		"occupant_actor_id": occupant_actor_id,
 		"authority_scope": authority_scope,

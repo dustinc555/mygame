@@ -44,24 +44,15 @@ func request(scene_path: String, callback: Callable) -> void:
 
 func _process(_delta: float) -> void:
 	if not _active.is_empty():
-		# Transform uploads have had a frame to settle. Explicit drawing also
-		# works when the editor window is behind another app, without focusing it.
-		RenderingServer.force_draw(false)
-		var image := get_texture().get_image()
-		var texture := ImageTexture.create_from_image(image) if image != null and not image.is_empty() else null
-		var callback: Callable = _active.callback
-		_active.clear()
-		_visuals.free()
-		_visuals = null
-		render_target_update_mode = SubViewport.UPDATE_DISABLED
-		if callback.is_valid():
-			callback.call(texture)
+		return
 	if _jobs.is_empty():
 		set_process(false)
 		return
 	var job: Dictionary = _jobs.pop_front()
 	var packed := load(str(job.path)) as PackedScene
 	if packed == null:
+		if job.callback.is_valid():
+			job.callback.call(null)
 		return
 	var source := packed.instantiate()
 	_visuals = Node3D.new()
@@ -89,6 +80,24 @@ func _process(_delta: float) -> void:
 	_camera.make_current()
 	_active = job
 	render_target_update_mode = SubViewport.UPDATE_ONCE
+	# Let the normal editor frame draw the preview. force_draw redraws the
+	# entire town as well, turning a thumbnail queue into repeated stalls.
+	RenderingServer.frame_post_draw.connect(_capture, CONNECT_ONE_SHOT)
+
+func _capture() -> void:
+	var image := get_texture().get_image()
+	var texture := ImageTexture.create_from_image(image) if image != null and not image.is_empty() else null
+	var callback: Callable = _active.callback
+	_active.clear()
+	_visuals.queue_free()
+	_visuals = null
+	render_target_update_mode = SubViewport.UPDATE_DISABLED
+	if callback.is_valid():
+		callback.call(texture)
+
+func _exit_tree() -> void:
+	if RenderingServer.frame_post_draw.is_connected(_capture):
+		RenderingServer.frame_post_draw.disconnect(_capture)
 
 static func _copy_meshes(node: Node, parent_transform: Transform3D, destination: Node3D) -> void:
 	var transform := parent_transform
@@ -104,5 +113,18 @@ static func _copy_meshes(node: Node, parent_transform: Transform3D, destination:
 		for surface in range(node.mesh.get_surface_count()):
 			mesh.set_surface_override_material(surface, node.get_surface_override_material(surface))
 		destination.add_child(mesh)
+	# Containers and props author their model as data; their ModelRoot is empty
+	# until _ready. Copy that data explicitly rather than running gameplay nodes
+	# in the preview viewport (which would register storage/collisions/services).
+	for property in node.get_property_list():
+		if property.name != "visual_scene":
+			continue
+		var packed := node.get("visual_scene") as PackedScene
+		if packed != null:
+			var visual := packed.instantiate()
+			var visual_transform: Transform3D = node.get("visual_transform")
+			_copy_meshes(visual, transform * visual_transform, destination)
+			visual.free()
+		break
 	for child in node.get_children(true):
 		_copy_meshes(child, transform, destination)

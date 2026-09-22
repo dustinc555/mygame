@@ -20,3 +20,7 @@ class_name CGameInventoryContainer
 @export var storage_allow_food := true
 @export var storage_allow_materials := false
 @export var storage_item_overrides: Dictionary = {}
+## Merchant business belongs to owner_actor_id, not its current town/facility.
+## Cadence supply can later be replaced by caravan deliveries to this container.
+@export var merchant_policy: Dictionary = {}
+@export var merchant_next_restock_minute := -1

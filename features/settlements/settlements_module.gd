@@ -18,6 +18,7 @@ const JOB_SYSTEM := preload("res://features/settlements/sim/job_system_controlle
 const CONSTRUCTION := preload("res://features/settlements/sim/construction_controller.gd")
 const CENSUS := preload("res://features/settlements/sim/settlement_census.gd")
 const FOOD := preload("res://features/settlements/sim/settlement_food_controller.gd")
+const MERCHANT_SUPPLY := preload("res://features/settlements/sim/merchant_supply_controller.gd")
 const TOWN_LEDGER := preload("res://features/settlements/bridge/town_ledger_controller.gd")
 const ITEM_READ := preload("res://features/settlements/bridge/item_read_controller.gd")
 const LEDGER_UI := preload("res://features/settlements/bridge/town_ledger_ui_bridge.gd")
@@ -35,6 +36,7 @@ const SIM := [
 	{"name": "ConstructionController", "script": CONSTRUCTION, "service": CONSTRUCTION.SERVICE_ID},
 	{"name": "SettlementCensus", "script": CENSUS, "service": CENSUS.SERVICE_ID},
 	{"name": "SettlementFoodController", "script": FOOD, "service": FOOD.SERVICE_ID},
+	{"name": "MerchantSupplyController", "script": MERCHANT_SUPPLY, "service": MERCHANT_SUPPLY.SERVICE_ID},
 ]
 const BRIDGE := [
 	{"name": "SettlementController", "script": SETTLEMENT, "service": SETTLEMENT.SERVICE_ID},

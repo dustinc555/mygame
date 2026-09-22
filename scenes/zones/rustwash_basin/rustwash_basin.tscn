@@ -83,19 +83,32 @@
 [ext_resource type="PackedScene" path="res://features/world/projection/props/water/well_1.tscn" id="78_0wc3m"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/well_1.tres" id="79_8f8ek"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_simple.tscn" id="79_dp625"]
+[ext_resource type="Script" uid="uid://c3i5pqrwjhihq" path="res://features/settlements/bridge/settlement_shop.gd" id="80_30bxb"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/shop.tres" id="81_wyvsv"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/merchant.tres" id="82_s4vlm"]
+[ext_resource type="Resource" path="res://features/settlements/resources/roles/mercenary.tres" id="83_wyvsv"]
 [ext_resource type="PackedScene" path="res://features/world/bridge/resource_nodes/copper_node.tscn" id="84_x5ne4"]
-[ext_resource type="Script" uid="uid://bc3qsplgqok1n" path="res://features/world/bridge/resource_nodes/mining_resource_node.gd" id="85_wmqh0"]
-[ext_resource type="Resource" uid="uid://c24tlcnkcfnv4" path="res://features/inventory/resources/items/copper_ore.tres" id="86_nc438"]
-[ext_resource type="Resource" path="res://features/world/resources/resource_deposits/copper.tres" id="87_dt8ex"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/facility_sign.tscn" id="85_ctu0q"]
 [ext_resource type="PackedScene" path="res://features/world/bridge/resource_nodes/scrap_pile_node.tscn" id="88_mtwgh"]
-[ext_resource type="Script" uid="uid://delvnk0p4x4gn" path="res://features/world/bridge/resource_nodes/scavenging_resource_node.gd" id="89_6k85d"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/scrap_metal.tres" id="90_f1g53"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/copper_wire.tres" id="91_ett8w"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/broken_electronics.tres" id="92_4knvt"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/robot_parts.tres" id="93_m7xvw"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/rusted_junk.tres" id="94_dp625"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/moldy_boot.tres" id="95_we6b1"]
-[ext_resource type="Resource" path="res://features/world/resources/resource_deposits/scrap_pile.tres" id="96_hamu5"]
+[ext_resource type="PackedScene" uid="uid://ga5kynoi81uo" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Crate_Wooden.gltf" id="88_x5ne4"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/pouch_small.tscn" id="90_mtwgh"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/rug_round.tscn" id="90_nc438"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/sack.tscn" id="93_mtwgh"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/seed_sack.tscn" id="96_f1g53"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/barrel_dark.tscn" id="97_skkg0"]
+[ext_resource type="PackedScene" uid="uid://da5ps7evd1rcl" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Barrel_Dark.gltf" id="98_ti0p1"]
+[ext_resource type="PackedScene" uid="uid://caj7rtce0yyxd" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Barrel.gltf" id="99_mmxot"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bookcase_1.tscn" id="shop_bookcase"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/cabinet.tscn" id="shop_cabinet"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/desk.tscn" id="shop_desk"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/dresser_1.tscn" id="shop_dresser"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/crate_metal.tscn" id="shop_iron_crate"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/nightstand_drawer.tscn" id="shop_nightstand"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/peg_rack.tscn" id="shop_pegs"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/rope_1.tscn" id="shop_rope1"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/rope_2.tscn" id="shop_rope2"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/rope_3.tscn" id="shop_rope3"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_small.tscn" id="shop_small_shelf"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_w63uq"]
 transparency = 1
@@ -106,12 +119,12 @@ albedo_color = Color(0.62, 1, 0.94, 0.34)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_dyfv2"]
 _surfaces = [{
-"aabb": AABB(-26.771624, 0, -138.93472, 106.48778, 1e-05, 122.29651),
+"aabb": AABB(-26.771624, 0, -138.93472, 106.48778, 1e-05, 129.83075),
 "format": 34359738369,
 "primitive": 1,
 "uv_scale": Vector4(0, 0, 0, 0),
-"vertex_count": 308,
-"vertex_data": PackedByteArray("SSzWwQAAAABK7wrDSSzGwQAAAABK7wrDSSy+wQAAAABK7wrDSSyuwQAAAABK7wrDSSymwQAAAABK7wrDSSyWwQAAAABK7wrDSSyOwQAAAABK7wrDklh8wQAAAABK7wrDklhswQAAAABK7wrDklhMwQAAAABK7wrDklg8wQAAAABK7wrDklgcwQAAAABK7wrDklgMwQAAAABK7wrDJLHYwAAAAABK7wrDJLG4wAAAAABK7wrDSGJxwAAAAABK7wrDSGIxwAAAAABK7wrDIIlFvwAAAABK7wrDgNtpPgAAAABK7wrDuJ0OQAAAAABK7wrDuJ1OQAAAAABK7wrD3E6nQAAAAABK7wrD3E7HQAAAAABK7wrDbqcDQQAAAABK7wrDbqcTQQAAAABK7wrDbqczQQAAAABK7wrDbqdDQQAAAABK7wrDbqdjQQAAAABK7wrDbqdzQQAAAABK7wrDt9OJQQAAAABK7wrDt9ORQQAAAABK7wrDt9OhQQAAAABK7wrDt9OpQQAAAABK7wrDt9O5QQAAAABK7wrDt9PBQQAAAABK7wrDt9PRQQAAAABK7wrDt9PZQQAAAABK7wrDt9PpQQAAAABK7wrDt9PxQQAAAABK7wrD3OkAQgAAAABK7wrD3OkEQgAAAABK7wrD3OkMQgAAAABK7wrD3OkQQgAAAABK7wrD3OkYQgAAAABK7wrD3OkcQgAAAABK7wrD3OkkQgAAAABK7wrD3OkoQgAAAABK7wrD3OkwQgAAAABK7wrD3Ok0QgAAAABK7wrD3Ok8QgAAAABK7wrD3OlAQgAAAABK7wrD3OlIQgAAAABK7wrD3OlMQgAAAABK7wrD3OlUQgAAAABK7wrD3OlYQgAAAABK7wrD3OlgQgAAAABK7wrD3OlkQgAAAABK7wrD3OlsQgAAAABK7wrD3OlwQgAAAABK7wrD3Ol4QgAAAABK7wrD3Ol8QgAAAABK7wrD7nSCQgAAAABK7wrD7nSEQgAAAABK7wrD7nSIQgAAAABK7wrD7nSKQgAAAABK7wrD7nSOQgAAAABK7wrD7nSQQgAAAABK7wrD7nSUQgAAAABK7wrD7nSWQgAAAABK7wrD7nSaQgAAAABK7wrD7nScQgAAAABK7wrDrG6fQgAAAABK7wrDrG6fQgAAAABK7wrDrG6fQgAAAABK7wjDrG6fQgAAAABK7wfDrG6fQgAAAABK7wXDrG6fQgAAAABK7wTDrG6fQgAAAABK7wLDrG6fQgAAAABK7wHDrG6fQgAAAACU3v/CrG6fQgAAAACU3v3CrG6fQgAAAACU3vnCrG6fQgAAAACU3vfCrG6fQgAAAACU3vPCrG6fQgAAAACU3vHCrG6fQgAAAACU3u3CrG6fQgAAAACU3uvCrG6fQgAAAACU3ufCrG6fQgAAAACU3uXCrG6fQgAAAACU3uHCrG6fQgAAAACU3t/CrG6fQgAAAACU3tvCrG6fQgAAAACU3tnCrG6fQgAAAACU3tXCrG6fQgAAAACU3tPCrG6fQgAAAACU3s/CrG6fQgAAAACU3s3CrG6fQgAAAACU3snCrG6fQgAAAACU3sfCrG6fQgAAAACU3sPCrG6fQgAAAACU3sHCrG6fQgAAAACU3r3CrG6fQgAAAACU3rvCrG6fQgAAAACU3rfCrG6fQgAAAACU3rXCrG6fQgAAAACU3rHCrG6fQgAAAACU3q/CrG6fQgAAAACU3qvCrG6fQgAAAACU3qnCrG6fQgAAAACU3qXCrG6fQgAAAACU3qPCrG6fQgAAAACU3p/CrG6fQgAAAACU3p3CrG6fQgAAAACU3pnCrG6fQgAAAACU3pfCrG6fQgAAAACU3pPCrG6fQgAAAACU3pHCrG6fQgAAAACU3o3CrG6fQgAAAACU3ovCrG6fQgAAAACU3ofCrG6fQgAAAACU3oXCrG6fQgAAAACU3oHCrG6fQgAAAAAovX/CrG6fQgAAAAAovXfCrG6fQgAAAAAovXPCrG6fQgAAAAAovWvCrG6fQgAAAAAovWfCrG6fQgAAAAAovV/CrG6fQgAAAAAovVvCrG6fQgAAAAAovVPCrG6fQgAAAAAovU/CrG6fQgAAAAAovUfCrG6fQgAAAAAovUPCrG6fQgAAAAAovTvCrG6fQgAAAAAovTfCrG6fQgAAAAAovS/CrG6fQgAAAAAovSvCrG6fQgAAAAAovSPCrG6fQgAAAAAovR/CrG6fQgAAAAAovRfCrG6fQgAAAAAovRPCrG6fQgAAAAAovQvCrG6fQgAAAAAovQfCrG6fQgAAAABQev/BrG6fQgAAAABQevfBrG6fQgAAAABQeufBrG6fQgAAAABQet/BrG6fQgAAAABQes/BrG6fQgAAAABQesfBrG6fQgAAAABQerfBrG6fQgAAAABQeq/BrG6fQgAAAABQep/BrG6fQgAAAABQepfBrG6fQgAAAABQeofBrG6fQgAAAAAQG4XBrG6bQgAAAAAQG4XBrG6ZQgAAAAAQG4XBrG6VQgAAAAAQG4XBrG6TQgAAAAAQG4XBrG6PQgAAAAAQG4XBrG6NQgAAAAAQG4XBrG6JQgAAAAAQG4XBrG6HQgAAAAAQG4XBrG6DQgAAAAAQG4XBrG6BQgAAAAAQG4XBWN16QgAAAAAQG4XBWN12QgAAAAAQG4XBWN1uQgAAAAAQG4XBWN1qQgAAAAAQG4XBWN1iQgAAAAAQG4XBWN1eQgAAAAAQG4XBWN1WQgAAAAAQG4XBWN1SQgAAAAAQG4XBWN1KQgAAAAAQG4XBWN1GQgAAAAAQG4XBWN0+QgAAAAAQG4XBWN06QgAAAAAQG4XBWN0yQgAAAAAQG4XBWN0uQgAAAAAQG4XBWN0mQgAAAAAQG4XBWN0iQgAAAAAQG4XBWN0aQgAAAAAQG4XBWN0WQgAAAAAQG4XBWN0OQgAAAAAQG4XBWN0KQgAAAAAQG4XBWN0CQgAAAAAQG4XBsLr9QQAAAAAQG4XBsLrtQQAAAAAQG4XBsLrlQQAAAAAQG4XBsLrVQQAAAAAQG4XBsLrNQQAAAAAQG4XBsLq9QQAAAAAQG4XBsLq1QQAAAAAQG4XBsLqlQQAAAAAQG4XBsLqdQQAAAAAQG4XBsLqNQQAAAAAQG4XBsLqFQQAAAAAQG4XBYHVrQQAAAAAQG4XBYHVbQQAAAAAQG4XBYHU7QQAAAAAQG4XBYHUrQQAAAAAQG4XBYHULQQAAAAAQG4XBwOr2QAAAAAAQG4XBwOq2QAAAAAAQG4XBwOqWQAAAAAAQG4XBgNUtQAAAAAAQG4XBAKvbPwAAAAAQG4XBAFSRvgAAAAAQG4XBAFWkvwAAAAAQG4XBgCpSwAAAAAAQG4XBQBWJwAAAAAAQG4XBQBXJwAAAAAAQG4XBQBXpwAAAAAAQG4XBoIoUwQAAAAAQG4XBoIokwQAAAAAQG4XBoIpEwQAAAAAQG4XBoIpUwQAAAAAQG4XBoIp0wQAAAAAQG4XBUEWCwQAAAAAQG4XBUEWSwQAAAAAQG4XBUEWawQAAAAAQG4XBUEWqwQAAAAAQG4XBUEWywQAAAAAQG4XBUEXCwQAAAAAQG4XBUEXKwQAAAAAQG4XBSCzWwQAAAAAQG4XBSSzWwQAAAAAQG4XBSSzWwQAAAAAQG5XBSSzWwQAAAAAQG53BSSzWwQAAAAAQG63BSSzWwQAAAAAQG7XBSSzWwQAAAAAQG8XBSSzWwQAAAAAQG83BSSzWwQAAAAAQG93BSSzWwQAAAAAQG+XBSSzWwQAAAAAQG/XBSSzWwQAAAAAQG/3BSSzWwQAAAACIjQbCSSzWwQAAAACIjQrCSSzWwQAAAACIjRLCSSzWwQAAAACIjRbCSSzWwQAAAACIjR7CSSzWwQAAAACIjSLCSSzWwQAAAACIjSrCSSzWwQAAAACIjS7CSSzWwQAAAACIjTbCSSzWwQAAAACIjTrCSSzWwQAAAACIjULCSSzWwQAAAACIjUbCSSzWwQAAAACIjU7CSSzWwQAAAACIjVLCSSzWwQAAAACIjVrCSSzWwQAAAACIjV7CSSzWwQAAAACIjWbCSSzWwQAAAACIjWrCSSzWwQAAAACIjXLCSSzWwQAAAACIjXbCSSzWwQAAAACIjX7CSSzWwQAAAADERoHCSSzWwQAAAADERoXCSSzWwQAAAADERofCSSzWwQAAAADERovCSSzWwQAAAADERo3CSSzWwQAAAADERpHCSSzWwQAAAADERpPCSSzWwQAAAADERpfCSSzWwQAAAADERpnCSSzWwQAAAADERp3CSSzWwQAAAADERp/CSSzWwQAAAADERqPCSSzWwQAAAADERqXCSSzWwQAAAADERqnCSSzWwQAAAADERqvCSSzWwQAAAADERq/CSSzWwQAAAADERrHCSSzWwQAAAADERrXCSSzWwQAAAADERrfCSSzWwQAAAADERrvCSSzWwQAAAADERr3CSSzWwQAAAADERsHCSSzWwQAAAADERsPCSSzWwQAAAADERsfCSSzWwQAAAADERsnCSSzWwQAAAADERs3CSSzWwQAAAADERs/CSSzWwQAAAADERtPCSSzWwQAAAADERtXCSSzWwQAAAADERtnCSSzWwQAAAADERtvCSSzWwQAAAADERt/CSSzWwQAAAADERuHCSSzWwQAAAADERuXCSSzWwQAAAADERufCSSzWwQAAAADERuvCSSzWwQAAAADERu3CSSzWwQAAAADERvHCSSzWwQAAAADERvPCSSzWwQAAAADERvfCSSzWwQAAAADERvnCSSzWwQAAAADERv3CSSzWwQAAAADERv/CSSzWwQAAAABiowHDSSzWwQAAAABiowLDSSzWwQAAAABiowTDSSzWwQAAAABiowXDSSzWwQAAAABiowfDSSzWwQAAAABiowjDSSzWwQAAAABiowrD")
+"vertex_count": 320,
+"vertex_data": PackedByteArray("SSzWwQAAAABK7wrDSSzGwQAAAABK7wrDSSy+wQAAAABK7wrDSSyuwQAAAABK7wrDSSymwQAAAABK7wrDSSyWwQAAAABK7wrDSSyOwQAAAABK7wrDklh8wQAAAABK7wrDklhswQAAAABK7wrDklhMwQAAAABK7wrDklg8wQAAAABK7wrDklgcwQAAAABK7wrDklgMwQAAAABK7wrDJLHYwAAAAABK7wrDJLG4wAAAAABK7wrDSGJxwAAAAABK7wrDSGIxwAAAAABK7wrDIIlFvwAAAABK7wrDgNtpPgAAAABK7wrDuJ0OQAAAAABK7wrDuJ1OQAAAAABK7wrD3E6nQAAAAABK7wrD3E7HQAAAAABK7wrDbqcDQQAAAABK7wrDbqcTQQAAAABK7wrDbqczQQAAAABK7wrDbqdDQQAAAABK7wrDbqdjQQAAAABK7wrDbqdzQQAAAABK7wrDt9OJQQAAAABK7wrDt9ORQQAAAABK7wrDt9OhQQAAAABK7wrDt9OpQQAAAABK7wrDt9O5QQAAAABK7wrDt9PBQQAAAABK7wrDt9PRQQAAAABK7wrDt9PZQQAAAABK7wrDt9PpQQAAAABK7wrDt9PxQQAAAABK7wrD3OkAQgAAAABK7wrD3OkEQgAAAABK7wrD3OkMQgAAAABK7wrD3OkQQgAAAABK7wrD3OkYQgAAAABK7wrD3OkcQgAAAABK7wrD3OkkQgAAAABK7wrD3OkoQgAAAABK7wrD3OkwQgAAAABK7wrD3Ok0QgAAAABK7wrD3Ok8QgAAAABK7wrD3OlAQgAAAABK7wrD3OlIQgAAAABK7wrD3OlMQgAAAABK7wrD3OlUQgAAAABK7wrD3OlYQgAAAABK7wrD3OlgQgAAAABK7wrD3OlkQgAAAABK7wrD3OlsQgAAAABK7wrD3OlwQgAAAABK7wrD3Ol4QgAAAABK7wrD3Ol8QgAAAABK7wrD7nSCQgAAAABK7wrD7nSEQgAAAABK7wrD7nSIQgAAAABK7wrD7nSKQgAAAABK7wrD7nSOQgAAAABK7wrD7nSQQgAAAABK7wrD7nSUQgAAAABK7wrD7nSWQgAAAABK7wrD7nSaQgAAAABK7wrD7nScQgAAAABK7wrDrG6fQgAAAABK7wrDrG6fQgAAAABK7wrDrG6fQgAAAABK7wjDrG6fQgAAAABK7wfDrG6fQgAAAABK7wXDrG6fQgAAAABK7wTDrG6fQgAAAABK7wLDrG6fQgAAAABK7wHDrG6fQgAAAACU3v/CrG6fQgAAAACU3v3CrG6fQgAAAACU3vnCrG6fQgAAAACU3vfCrG6fQgAAAACU3vPCrG6fQgAAAACU3vHCrG6fQgAAAACU3u3CrG6fQgAAAACU3uvCrG6fQgAAAACU3ufCrG6fQgAAAACU3uXCrG6fQgAAAACU3uHCrG6fQgAAAACU3t/CrG6fQgAAAACU3tvCrG6fQgAAAACU3tnCrG6fQgAAAACU3tXCrG6fQgAAAACU3tPCrG6fQgAAAACU3s/CrG6fQgAAAACU3s3CrG6fQgAAAACU3snCrG6fQgAAAACU3sfCrG6fQgAAAACU3sPCrG6fQgAAAACU3sHCrG6fQgAAAACU3r3CrG6fQgAAAACU3rvCrG6fQgAAAACU3rfCrG6fQgAAAACU3rXCrG6fQgAAAACU3rHCrG6fQgAAAACU3q/CrG6fQgAAAACU3qvCrG6fQgAAAACU3qnCrG6fQgAAAACU3qXCrG6fQgAAAACU3qPCrG6fQgAAAACU3p/CrG6fQgAAAACU3p3CrG6fQgAAAACU3pnCrG6fQgAAAACU3pfCrG6fQgAAAACU3pPCrG6fQgAAAACU3pHCrG6fQgAAAACU3o3CrG6fQgAAAACU3ovCrG6fQgAAAACU3ofCrG6fQgAAAACU3oXCrG6fQgAAAACU3oHCrG6fQgAAAAAovX/CrG6fQgAAAAAovXfCrG6fQgAAAAAovXPCrG6fQgAAAAAovWvCrG6fQgAAAAAovWfCrG6fQgAAAAAovV/CrG6fQgAAAAAovVvCrG6fQgAAAAAovVPCrG6fQgAAAAAovU/CrG6fQgAAAAAovUfCrG6fQgAAAAAovUPCrG6fQgAAAAAovTvCrG6fQgAAAAAovTfCrG6fQgAAAAAovS/CrG6fQgAAAAAovSvCrG6fQgAAAAAovSPCrG6fQgAAAAAovR/CrG6fQgAAAAAovRfCrG6fQgAAAAAovRPCrG6fQgAAAAAovQvCrG6fQgAAAAAovQfCrG6fQgAAAABQev/BrG6fQgAAAABQevfBrG6fQgAAAABQeufBrG6fQgAAAABQet/BrG6fQgAAAABQes/BrG6fQgAAAABQesfBrG6fQgAAAABQerfB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")
 }]
 
 [sub_resource type="Resource" id="RoleSlot_bar_proprietor"]
@@ -381,6 +394,43 @@ radius = 0.35
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_u4vfh"]
 size = Vector3(1.19, 0.31, 0.3)
+
+[sub_resource type="Resource" id="MerchantSlot"]
+script = ExtResource("53_role_slot")
+slot_id = "proprietor"
+role = ExtResource("82_s4vlm")
+display_name = "Trader"
+
+[sub_resource type="Resource" id="Resource_s4vlm"]
+script = ExtResource("53_role_slot")
+slot_id = "person_482161a3"
+role = ExtResource("83_wyvsv")
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_nc438"]
+size = Vector3(1.08, 1.2, 1.16)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_dt8ex"]
+size = Vector3(1.28, 0.72, 0.76)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_f1g53"]
+size = Vector3(0.68, 0.82, 0.62)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ett8w"]
+size = Vector3(0.68, 0.82, 0.62)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_4knvt"]
+size = Vector3(0.23, 0.13, 0.17)
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_dkuua"]
+height = 0.89
+radius = 0.35
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_bdr3j"]
+height = 0.9
+radius = 0.35
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_iiekn"]
+size = Vector3(1.08, 1.2, 1.16)
 
 [node name="RustwashBasin" type="Node3D" unique_id=1310818615]
 script = ExtResource("7_zone_root")
@@ -1363,7 +1413,7 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 9.67
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf1" unique_id=1791368511]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf1" unique_id=2094872398]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1372,7 +1422,7 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 9.67
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf2" unique_id=1766563662]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf2" unique_id=1779301435]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1381,7 +1431,7 @@ transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 2.98
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf3" unique_id=162622776]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf3" unique_id=312578567]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1479,6 +1529,659 @@ facility_id = "canyon.well_1"
 building_id = "canyon.well_1.building"
 display_name = "Well 1"
 
+[node name="General Store" type="Node3D" parent="Towns/Canyon" unique_id=195203722]
+transform = Transform3D(-0.98532546, 0, -0.17068556, 0, 1, 0, 0.17068556, 0, -0.98532546, 36.97399, 0.23843098, -21.813171)
+script = ExtResource("80_30bxb")
+stock_overrides = {
+"res://features/inventory/resources/items/bandage.tres": {
+"quantity": 5,
+"replenishes": true
+},
+"res://features/inventory/resources/items/bell_pepper.tres": {
+"quantity": 0,
+"replenishes": false
+},
+"res://features/inventory/resources/items/bell_pepper_seeds.tres": {
+"quantity": 10,
+"replenishes": false
+},
+"res://features/inventory/resources/items/broken_electronics.tres": {
+"quantity": 3,
+"replenishes": true
+},
+"res://features/inventory/resources/items/bronze_axe.tres": {
+"quantity": 1,
+"replenishes": true
+},
+"res://features/inventory/resources/items/bronze_sword.tres": {
+"quantity": 1,
+"replenishes": true
+},
+"res://features/inventory/resources/items/bucket.tres": {
+"quantity": 4,
+"replenishes": true
+},
+"res://features/inventory/resources/items/candlestick.tres": {
+"quantity": 0,
+"replenishes": true
+},
+"res://features/inventory/resources/items/chili_pepper_seeds.tres": {
+"quantity": 5,
+"replenishes": false
+},
+"res://features/inventory/resources/items/cinder_flask.tres": {
+"quantity": 20,
+"replenishes": true
+},
+"res://features/inventory/resources/items/eggplant_seeds.tres": {
+"quantity": 30,
+"replenishes": true
+},
+"res://features/inventory/resources/items/french_beans_seeds.tres": {
+"quantity": 5,
+"replenishes": false
+},
+"res://features/inventory/resources/items/hoe.tres": {
+"quantity": 5,
+"replenishes": true
+},
+"res://features/inventory/resources/items/iron_axe.tres": {
+"quantity": 1,
+"replenishes": true
+},
+"res://features/inventory/resources/items/iron_axe_double.tres": {
+"quantity": 1,
+"replenishes": true
+},
+"res://features/inventory/resources/items/iron_dagger.tres": {
+"quantity": 1,
+"replenishes": true
+}
+}
+starting_silver = 1000
+facility_function = ExtResource("81_wyvsv")
+service_points_root_path = NodePath("")
+storage_root_path = NodePath("")
+job_providers_root_path = NodePath("")
+facility_id = "canyon.shop"
+building_id = "canyon.shop.building"
+display_name = "Canyon Trading Station"
+facility_type = "shop"
+role_slots = Array[ExtResource("53_role_slot")]([SubResource("MerchantSlot"), SubResource("Resource_s4vlm")])
+door_access_policy = "public"
+door_initial_state = "open"
+door_schedule_enabled = true
+door_close_hour = 20
+doors_keep_open_during_hours = true
+
+[node name="BuildingSlot" type="Node3D" parent="Towns/Canyon/General Store" unique_id=1267214957]
+
+[node name="CurrentBuilding" parent="Towns/Canyon/General Store/BuildingSlot" unique_id=683718988 instance=ExtResource("8_l7lbw")]
+building_id = "canyon.shop.building"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+building_type = "shop"
+owner_faction_id = "Canyonites"
+access_state = "public"
+public_close_hour = 20
+
+[node name="Staff" type="Node3D" parent="Towns/Canyon/General Store" unique_id=1707392911]
+
+[node name="Furniture" type="Node3D" parent="Towns/Canyon/General Store" unique_id=1780422003]
+
+[node name="SalesCabinet" parent="Towns/Canyon/General Store/Furniture" unique_id=1229267689 instance=ExtResource("shop_cabinet")]
+transform = Transform3D(7.54979e-08, 0, 1, 0, 1, 0, -1, 0, 7.54979e-08, -5.4, 0, 2.8)
+container_id = "canyon.shop.sales_cabinet"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+
+[node name="SupplyCabinet" parent="Towns/Canyon/General Store/Furniture" unique_id=711591558 instance=ExtResource("shop_cabinet")]
+transform = Transform3D(7.54979e-08, 0, -1, 0, 1, 0, 1, 0, 7.54979e-08, 5.4, 0, 3.2)
+container_id = "canyon.shop.supply_cabinet"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+
+[node name="StockBookcase" parent="Towns/Canyon/General Store/Furniture" unique_id=177375447 instance=ExtResource("shop_bookcase")]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 3.1, 0, 5.45)
+container_id = "canyon.shop.stock_bookcase"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+
+[node name="SmallDisplayShelf" parent="Towns/Canyon/General Store/Furniture" unique_id=987033103 instance=ExtResource("shop_small_shelf")]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -3.3, 0, 5.5)
+container_id = "canyon.shop.small_display_shelf"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+
+[node name="IronboundStockCrate" parent="Towns/Canyon/General Store/Furniture" unique_id=472517985 instance=ExtResource("shop_iron_crate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.9, 0, 4.9)
+container_id = "canyon.shop.ironbound_stock_crate"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+
+[node name="RopeDisplay1" parent="Towns/Canyon/General Store/Furniture" unique_id=906879237 instance=ExtResource("shop_rope1")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.3, 1.14, 1.7)
+surface_id = "rope_display_1"
+owner_faction_name = "Canyonites"
+
+[node name="RopeDisplay2" parent="Towns/Canyon/General Store/Furniture" unique_id=702076120 instance=ExtResource("shop_rope2")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.4, 0.02, 4.5)
+surface_id = "rope_display_2"
+owner_faction_name = "Canyonites"
+
+[node name="RopeDisplay3" parent="Towns/Canyon/General Store/Furniture" unique_id=581603562 instance=ExtResource("shop_rope3")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.7, 0.02, 3.3)
+surface_id = "rope_display_3"
+owner_faction_name = "Canyonites"
+
+[node name="ProprietorDresser" parent="Towns/Canyon/General Store/Furniture" unique_id=966439614 instance=ExtResource("shop_dresser")]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 3, 3, 5.45)
+container_id = "canyon.shop.proprietor_dresser"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+contributes_to_town_stock = false
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+
+[node name="ProprietorNightstand" parent="Towns/Canyon/General Store/Furniture" unique_id=1553418364 instance=ExtResource("shop_nightstand")]
+transform = Transform3D(7.54979e-08, 0, -1, 0, 1, 0, 1, 0, 7.54979e-08, 5.3, 3, 2.7)
+container_id = "canyon.shop.proprietor_nightstand"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+contributes_to_town_stock = false
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+
+[node name="HomeCabinet" parent="Towns/Canyon/General Store/Furniture" unique_id=1200945898 instance=ExtResource("shop_cabinet")]
+transform = Transform3D(7.54979e-08, 0, 1, 0, 1, 0, -1, 0, 7.54979e-08, -5.4, 3, 1.4)
+container_id = "canyon.shop.home_cabinet"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+contributes_to_town_stock = false
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+
+[node name="WritingDesk" parent="Towns/Canyon/General Store/Furniture" unique_id=1492807661 instance=ExtResource("shop_desk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6, 3, 5.1)
+surface_id = "writing_desk"
+
+[node name="WritingChair" parent="Towns/Canyon/General Store/Furniture" unique_id=1390146435 instance=ExtResource("47_hqxgy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6, 3, 3.9)
+
+[node name="HomeRug" parent="Towns/Canyon/General Store/Furniture" unique_id=2055518843 instance=ExtResource("90_nc438")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.015, 2.8)
+
+[node name="CoatPegs" parent="Towns/Canyon/General Store/Furniture" unique_id=316280534 instance=ExtResource("shop_pegs")]
+transform = Transform3D(7.54979e-08, 0, 1, 0, 1, 0, -1, 0, 7.54979e-08, -5.75, 4.7, 1.4)
+
+[node name="TradeCounter" parent="Towns/Canyon/General Store/Furniture" unique_id=548263940 instance=ExtResource("29_hpbre")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 1.7)
+facility_role_ids = Array[String](["merchant"])
+
+[node name="ProprietorBed" parent="Towns/Canyon/General Store/Furniture" unique_id=1411427378 instance=ExtResource("40_amlfp")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 4.45, 3, 1.1)
+
+[node name="CrateWooden" parent="Towns/Canyon/General Store/Furniture" unique_id=87695102 instance=ExtResource("15_l7lbw")]
+transform = Transform3D(-0.9853257, 0, 0.1706856, 0, 1, 0, -0.1706856, 0, -0.9853257, -5.096695, 0.017066479, 0.7867737)
+container_id = "canyon.shop.crate_wooden"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("BoxShape3D_nc438")
+
+[node name="ChestWood" parent="Towns/Canyon/General Store/Furniture" unique_id=342760764 instance=ExtResource("43_thxgd")]
+transform = Transform3D(-0.9853257, 0, 0.1706856, 0, 1, 0, -0.1706856, 0, -0.9853257, -3.9885178, 0.04906583, 0.52667236)
+container_id = "canyon.shop.chest_wood"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("BoxShape3D_dt8ex")
+
+[node name="Sack" parent="Towns/Canyon/General Store/Furniture" unique_id=488686552 instance=ExtResource("93_mtwgh")]
+transform = Transform3D(-0.9853257, 0, 0.1706856, 0, 1, 0, -0.1706856, 0, -0.9853257, -5.462372, 0.0062532425, 1.430481)
+container_id = "canyon.shop.sack"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("BoxShape3D_f1g53")
+
+[node name="ShelfStocked" parent="Towns/Canyon/General Store/Furniture" unique_id=1092598366 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(0.99888486, 0, 0.04722534, 0, 1, 0, -0.04722534, 0, 0.99888486, -2.7779388, 1.8370218, 0.07525635)
+surface_id = "shelf_stocked"
+
+[node name="SeedSack" parent="Towns/Canyon/General Store/Furniture" unique_id=1266222908 instance=ExtResource("96_f1g53")]
+transform = Transform3D(-0.9853257, 0, 0.1706856, 0, 1, 0, -0.1706856, 0, -0.9853257, -3.030571, 0.0029067993, 0.6600647)
+container_id = "canyon.shop.seed_sack"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+container_kind = "farm_seed"
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("BoxShape3D_ett8w")
+
+[node name="RugRound" parent="Towns/Canyon/General Store/Furniture" unique_id=1116006642 instance=ExtResource("90_nc438")]
+transform = Transform3D(-0.9853258, 0, 0.17068562, 0, 1, 0, -0.17068562, 0, -0.9853258, -1.2624588, 0.0143818855, 4.337219)
+
+[node name="PouchSmall" parent="Towns/Canyon/General Store/Furniture" unique_id=1033132785 instance=ExtResource("90_mtwgh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.3, 1.1323, 1.7)
+container_id = "canyon.shop.pouch_small"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+contributes_to_town_stock = false
+supports_locking = false
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+collision_shape = SubResource("BoxShape3D_4knvt")
+
+[node name="FacilitySign" parent="Towns/Canyon/General Store/Furniture" unique_id=1953394455 instance=ExtResource("85_ctu0q")]
+transform = Transform3D(0.124159575, 0, -0.9922628, 0, 1, 0, 0.9922628, 0, 0.124159575, -2.538437, 1.5168443, 6.0209045)
+sign_type = "general_trade"
+
+[node name="Light1" parent="Towns/Canyon/General Store/Furniture" unique_id=1337156076 instance=ExtResource("22_ywld2")]
+transform = Transform3D(-1.0000001, 0, -8.7422784e-08, 0, 1, 0, 8.7422784e-08, 0, -1.0000001, 1.0000001, 2.1, -4.22997)
+metadata/furnish_generated = true
+
+[node name="Light2" parent="Towns/Canyon/General Store/Furniture" unique_id=569727577 instance=ExtResource("22_ywld2")]
+transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, -3.0000005, 2.1, 6.230001)
+metadata/furnish_generated = true
+
+[node name="Container1" parent="Towns/Canyon/General Store/Furniture" unique_id=1500850941 instance=ExtResource("97_skkg0")]
+transform = Transform3D(0.9916603, 0, -0.12888014, 0, 1, 0, 0.12888014, 0, 0.9916603, 4.7501626, 0, -3.39997)
+container_id = "canyon.shop.container_1"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+metadata/furnish_generated = true
+
+[node name="CollisionShape3D" parent="Towns/Canyon/General Store/Furniture/Container1" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.445, 0)
+shape = SubResource("CylinderShape3D_dkuua")
+
+[node name="Barrel_Dark2" type="Node3D" parent="Towns/Canyon/General Store/Furniture/Container1/ModelRoot" index="0" unique_id=1639418772 instance=ExtResource("98_ti0p1")]
+
+[node name="Container2" parent="Towns/Canyon/General Store/Furniture" unique_id=2146523035 instance=ExtResource("22_06rmy")]
+transform = Transform3D(0.08898711, 0, 0.9960329, 0, 1, 0, -0.9960329, 0, 0.08898711, -5.4000006, 0, 5.2761855)
+container_id = "canyon.shop.container_2"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+metadata/furnish_generated = true
+
+[node name="CollisionShape3D" parent="Towns/Canyon/General Store/Furniture/Container2" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+shape = SubResource("CylinderShape3D_bdr3j")
+
+[node name="Barrel2" type="Node3D" parent="Towns/Canyon/General Store/Furniture/Container2/ModelRoot" index="0" unique_id=656258196 instance=ExtResource("99_mmxot")]
+
+[node name="Container3" parent="Towns/Canyon/General Store/Furniture" unique_id=1916547025 instance=ExtResource("15_l7lbw")]
+transform = Transform3D(-0.9991457, 0, -0.04132921, 0, 1, 0, 0.04132921, 0, -0.9991457, 4.6, 0, -1.2)
+container_id = "canyon.shop.container_3"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+metadata/furnish_generated = true
+
+[node name="CollisionShape3D" parent="Towns/Canyon/General Store/Furniture/Container3" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+shape = SubResource("BoxShape3D_iiekn")
+
+[node name="Crate_Wooden2" type="Node3D" parent="Towns/Canyon/General Store/Furniture/Container3/ModelRoot" index="0" unique_id=1785253927 instance=ExtResource("88_x5ne4")]
+
+[node name="Container4" parent="Towns/Canyon/General Store/Furniture" unique_id=290980064 instance=ExtResource("22_06rmy")]
+transform = Transform3D(0.9965099, 0, -0.08347566, 0, 1, 0, 0.08347566, 0, 0.9965099, 5.0775385, 0, 0.48922125)
+container_id = "canyon.shop.container_4"
+settlement_id = "canyon"
+facility_id = "canyon.shop"
+owner_faction_name = "Canyonites"
+allowed_item_ids = PackedStringArray()
+metadata/furnish_generated = true
+
+[node name="CollisionShape3D" parent="Towns/Canyon/General Store/Furniture/Container4" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+shape = SubResource("CylinderShape3D_bdr3j")
+
+[node name="Barrel2" type="Node3D" parent="Towns/Canyon/General Store/Furniture/Container4/ModelRoot" index="0" unique_id=1926770763 instance=ExtResource("99_mmxot")]
+
+[node name="Shelf1" parent="Towns/Canyon/General Store/Furniture" unique_id=1415947144 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, -4.9180274, 1.6, -3.76997)
+surface_id = "shelf_1"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf1" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf1" index="2"]
+surface_id = "shelf_1.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf1/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf1/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf2" parent="Towns/Canyon/General Store/Furniture" unique_id=26570774 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, -3.0338407, 1.6, -3.76997)
+surface_id = "shelf_2"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf2" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf2" index="2"]
+surface_id = "shelf_2.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf2/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf2/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf3" parent="Towns/Canyon/General Store/Furniture" unique_id=658033875 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, 4.9848914, 1.6, -3.76997)
+surface_id = "shelf_3"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf3" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf3" index="2"]
+surface_id = "shelf_3.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf3/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf3/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf4" parent="Towns/Canyon/General Store/Furniture" unique_id=1835970107 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.3711392e-08, 0, -1.0000001, 0, 1, 0, 1.0000001, 0, -4.3711392e-08, 5.7700005, 1.6, -2.9188678)
+surface_id = "shelf_4"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf4" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf4" index="2"]
+surface_id = "shelf_4.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf4/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf4/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf5" parent="Towns/Canyon/General Store/Furniture" unique_id=850082757 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.3711392e-08, 0, -1.0000001, 0, 1, 0, 1.0000001, 0, -4.3711392e-08, 5.7700005, 1.6, 0.9917265)
+surface_id = "shelf_5"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf5" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf5" index="2"]
+surface_id = "shelf_5.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf5/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf5/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf6" parent="Towns/Canyon/General Store/Furniture" unique_id=1194560527 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.3711392e-08, 0, -1.0000001, 0, 1, 0, 1.0000001, 0, -4.3711392e-08, 5.7700005, 1.6, 5.1185164)
+surface_id = "shelf_6"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf6" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf6" index="2"]
+surface_id = "shelf_6.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf6/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf6/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf7" parent="Towns/Canyon/General Store/Furniture" unique_id=96134073 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.3711392e-08, 0, 1.0000001, 0, 1, 0, -1.0000001, 0, -4.3711392e-08, -5.7700005, 1.6, -2.963073)
+surface_id = "shelf_7"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf7" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf7" index="2"]
+surface_id = "shelf_7.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf7/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf7/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf8" parent="Towns/Canyon/General Store/Furniture" unique_id=1626960162 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.3711392e-08, 0, 1.0000001, 0, 1, 0, -1.0000001, 0, -4.3711392e-08, -5.7700005, 1.6, 2.9367697)
+surface_id = "shelf_8"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf8" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf8" index="2"]
+surface_id = "shelf_8.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf8/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf8/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Light3" parent="Towns/Canyon/General Store/Furniture" unique_id=1884923508 instance=ExtResource("22_ywld2")]
+transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, 2.3000002, 2.1, -3.76997)
+metadata/furnish_generated = true
+
+[node name="Light4" parent="Towns/Canyon/General Store/Furniture" unique_id=84251041 instance=ExtResource("22_ywld2")]
+transform = Transform3D(-1.0000001, 0, -1.5099582e-07, 0, 1, 0, 1.5099582e-07, 0, -1.0000001, -4.8892064, 2.1, -0.34077886)
+metadata/furnish_generated = true
+
+[node name="Light5" parent="Towns/Canyon/General Store/Furniture" unique_id=153678739 instance=ExtResource("22_ywld2")]
+transform = Transform3D(-1.0000001, 0, -1.5099582e-07, 0, 1, 0, 1.5099582e-07, 0, -1.0000001, 2.8892062, 2.1, -0.34077886)
+metadata/furnish_generated = true
+
+[node name="Light6" parent="Towns/Canyon/General Store/Furniture" unique_id=1924962224 instance=ExtResource("22_ywld2")]
+transform = Transform3D(-1.0000001, 0, -1.5099582e-07, 0, 1, 0, 1.5099582e-07, 0, -1.0000001, -0.88920605, 2.1, -0.34077886)
+metadata/furnish_generated = true
+
+[node name="Light7" parent="Towns/Canyon/General Store/Furniture" unique_id=1631265349 instance=ExtResource("22_ywld2")]
+transform = Transform3D(-4.3711392e-08, 0, 1.0000001, 0, 1, 0, -1.0000001, 0, -4.3711392e-08, -5.7700005, 2.1, 5.000031)
+metadata/furnish_generated = true
+
+[node name="Shelf9" parent="Towns/Canyon/General Store/Furniture" unique_id=430348834 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, 5.067014, 4.6, -3.76997)
+surface_id = "shelf_9"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf9" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf9" index="2"]
+surface_id = "shelf_9.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf9/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf9/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf10" parent="Towns/Canyon/General Store/Furniture" unique_id=1875901941 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.3711392e-08, 0, -1.0000001, 0, 1, 0, 1.0000001, 0, -4.3711392e-08, 5.7700005, 4.6, -3.0098104)
+surface_id = "shelf_10"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf10" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf10" index="2"]
+surface_id = "shelf_10.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf10/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf10/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf11" parent="Towns/Canyon/General Store/Furniture" unique_id=875347837 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.3711392e-08, 0, -1.0000001, 0, 1, 0, 1.0000001, 0, -4.3711392e-08, 5.7700005, 4.6, 2.9521358)
+surface_id = "shelf_11"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf11" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf11" index="2"]
+surface_id = "shelf_11.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf11/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf11/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf12" parent="Towns/Canyon/General Store/Furniture" unique_id=2030791435 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.3711392e-08, 0, -1.0000001, 0, 1, 0, 1.0000001, 0, -4.3711392e-08, 5.7700005, 4.6, 4.9984174)
+surface_id = "shelf_12"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf12" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf12" index="2"]
+surface_id = "shelf_12.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf12/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf12/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf13" parent="Towns/Canyon/General Store/Furniture" unique_id=1118066777 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-1.0000001, 0, 8.7422784e-08, 0, 1, 0, -8.7422784e-08, 0, -1.0000001, -5.0016923, 4.6, 5.770031)
+surface_id = "shelf_13"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf13" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf13" index="2"]
+surface_id = "shelf_13.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf13/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf13/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf14" parent="Towns/Canyon/General Store/Furniture" unique_id=2134175853 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.3711392e-08, 0, 1.0000001, 0, 1, 0, -1.0000001, 0, -4.3711392e-08, -5.7700005, 4.6, -3.1013045)
+surface_id = "shelf_14"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf14" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf14" index="2"]
+surface_id = "shelf_14.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf14/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf14/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf15" parent="Towns/Canyon/General Store/Furniture" unique_id=104451673 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.3711392e-08, 0, 1.0000001, 0, 1, 0, -1.0000001, 0, -4.3711392e-08, -5.7700005, 4.6, 2.8722146)
+surface_id = "shelf_15"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf15" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf15" index="2"]
+surface_id = "shelf_15.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf15/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf15/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Shelf16" parent="Towns/Canyon/General Store/Furniture" unique_id=126915347 instance=ExtResource("42_xh5ub")]
+transform = Transform3D(-4.3711392e-08, 0, 1.0000001, 0, 1, 0, -1.0000001, 0, -4.3711392e-08, -5.7700005, 4.6, 5.023312)
+surface_id = "shelf_16"
+metadata/furnish_generated = true
+
+[node name="BodyCollision" parent="Towns/Canyon/General Store/Furniture/Shelf16" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
+
+[node name="TabletopSurface" parent="Towns/Canyon/General Store/Furniture/Shelf16" index="2"]
+surface_id = "shelf_16.tabletop_surface"
+owner_faction_name = "Canyonites"
+
+[node name="BottleLeft" parent="Towns/Canyon/General Store/Furniture/Shelf16/TabletopSurface" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.11, 0.19)
+
+[node name="CandleRight" parent="Towns/Canyon/General Store/Furniture/Shelf16/TabletopSurface" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.11, 0.2)
+
+[node name="Light9" parent="Towns/Canyon/General Store/Furniture" unique_id=1094429138 instance=ExtResource("22_ywld2")]
+transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, -5.0000005, 5.1, -3.76997)
+metadata/furnish_generated = true
+
+[node name="Light10" parent="Towns/Canyon/General Store/Furniture" unique_id=572669249 instance=ExtResource("22_ywld2")]
+transform = Transform3D(-4.3711392e-08, 0, -1.0000001, 0, 1, 0, 1.0000001, 0, -4.3711392e-08, 5.7700005, 5.1, -0.9999696)
+metadata/furnish_generated = true
+
+[node name="Light11" parent="Towns/Canyon/General Store/Furniture" unique_id=1864053043 instance=ExtResource("22_ywld2")]
+transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, 3.0000005, 5.1, -3.76997)
+metadata/furnish_generated = true
+
+[node name="Light12" parent="Towns/Canyon/General Store/Furniture" unique_id=1396391961 instance=ExtResource("22_ywld2")]
+transform = Transform3D(-1.0000001, 0, 8.7422784e-08, 0, 1, 0, -8.7422784e-08, 0, -1.0000001, -1.0000001, 5.1, 5.770031)
+metadata/furnish_generated = true
+
 [node name="NestMarkers" type="Node3D" parent="." unique_id=833802370]
 
 [node name="POIs" type="Node3D" parent="." unique_id=1667664784]
@@ -1517,23 +2220,31 @@ current = true
 [node name="Terrain" parent="." unique_id=664859720 instance=ExtResource("5_wjgve")]
 top_level = true
 
-[node name="CopperVein" type="StaticBody3D" parent="." unique_id=1798274993 instance=ExtResource("84_x5ne4")]
+[node name="CopperVein" parent="." unique_id=1798274993 instance=ExtResource("84_x5ne4")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -99.29777, -0.44872665, -384.2333)
-script = ExtResource("85_wmqh0")
-display_name = "Medium Copper Vein"
-item_definition = ExtResource("86_nc438")
-interaction_radius = 1.35
-slot_distance = 2.8
-slot_count = 4
 resource_node_id = "deposit_864ec7b53524ba967b6a7ce50a782fe5"
-deposit_definition = ExtResource("87_dt8ex")
 
-[node name="ScrapPile" type="StaticBody3D" parent="." unique_id=882806224 instance=ExtResource("88_mtwgh")]
+[node name="ScrapPile" parent="." unique_id=882806224 instance=ExtResource("88_mtwgh")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -82.89324, -0.14691734, -368.52826)
-script = ExtResource("89_6k85d")
-slot_distance = 3.1
-useful_loot = Array[Resource]([ExtResource("90_f1g53"), ExtResource("91_ett8w"), ExtResource("92_4knvt")])
-rare_loot = Array[Resource]([ExtResource("93_m7xvw")])
-junk_loot = Array[Resource]([ExtResource("94_dp625"), ExtResource("95_we6b1")])
 resource_node_id = "deposit_22aec349d797e076182aa5783a7c1cb6"
-deposit_definition = ExtResource("96_hamu5")
+
+[editable path="Towns/Canyon/General Store/Furniture/Container1"]
+[editable path="Towns/Canyon/General Store/Furniture/Container2"]
+[editable path="Towns/Canyon/General Store/Furniture/Container3"]
+[editable path="Towns/Canyon/General Store/Furniture/Container4"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf1"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf2"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf3"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf4"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf5"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf6"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf7"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf8"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf9"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf10"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf11"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf12"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf13"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf14"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf15"]
+[editable path="Towns/Canyon/General Store/Furniture/Shelf16"]

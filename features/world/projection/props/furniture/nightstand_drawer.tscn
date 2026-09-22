@@ -1,0 +1,17 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/container.tscn" id="1_container"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Nightstand_Drawer.gltf" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="Body"]
+size = Vector3(0.721816, 0.895083, 0.491177)
+
+[node name="NightstandDrawer" instance=ExtResource("1_container")]
+display_name = "Nightstand Drawer"
+inventory_columns = 4
+inventory_rows = 3
+supports_locking = true
+visual_scene = ExtResource("2_model")
+visual_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.000000, 0.005811, -0.000000)
+collision_shape = SubResource("Body")
+collision_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000000, 0.447542, 0.000000)

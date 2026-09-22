@@ -19,6 +19,7 @@
 [ext_resource type="Script" uid="uid://dx67lteoodr2x" path="res://features/world/projection/buildings/modular_building_piece.gd" id="17_clr0h"]
 [ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/balcony_cross_corner.tscn" id="18_c33i8"]
 [ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/balcony_simple_straight.tscn" id="19_jkh1i"]
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/shells/modular/timber_patio_canopy.tscn" id="20_patio_canopy"]
 
 [node name="MediumWoodHall" type="Node3D" unique_id=1695141653]
 script = ExtResource("1_script")
@@ -27,6 +28,9 @@ building_type = "generic"
 metadata/_custom_type_script = "uid://dnecyfqr28huh"
 
 [node name="Pieces" type="Node3D" parent="." unique_id=806390245]
+
+[node name="PatioCanopy" parent="Pieces" instance=ExtResource("20_patio_canopy")]
+position = Vector3(0, 6, 0)
 
 [node name="GroundFrontAWall" parent="Pieces" unique_id=1029589704 instance=ExtResource("5_winwall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 6)
@@ -581,25 +585,25 @@ authorized_key_ids = PackedStringArray()
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0.22531796, 2.975412, -2.9967837)
 
 [node name="WallPlasterStraight" parent="Pieces" unique_id=1719844217 instance=ExtResource("15_giefj")]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -4.8892055, 0.0010477304, -0.11079404)
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 0.9600661514, 0, 8.742278e-08, 0, -1, -4.8892055, 0.0020121816, -0.11079404)
 
 [node name="WallPlasterStraight2" parent="Pieces" unique_id=179545899 instance=ExtResource("15_giefj")]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -2.8892055, 0.0010477304, -0.11079422)
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 0.9600661514, 0, 8.742278e-08, 0, -1, -2.8892055, 0.0020121816, -0.11079422)
 
 [node name="WallPlasterStraight22" parent="Pieces" unique_id=1964145543 instance=ExtResource("15_giefj")]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -0.88920546, 0.0010477304, -0.110794395)
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 0.9600661514, 0, 8.742278e-08, 0, -1, -0.88920546, 0.0020121816, -0.110794395)
 
 [node name="WallPlasterStraight222" parent="Pieces" unique_id=1520744371 instance=ExtResource("15_giefj")]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 4.8892055, 0.0010477128, -0.1107941)
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 0.9600661514, 0, 8.742278e-08, 0, -1, 4.8892055, 0.0020121816, -0.1107941)
 
 [node name="WallPlasterStraight2222" parent="Pieces" unique_id=1700213239 instance=ExtResource("15_giefj")]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 2.8892055, 0.0010477128, -0.11079392)
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 0.9600661514, 0, 8.742278e-08, 0, -1, 2.8892055, 0.0020121816, -0.11079392)
 
 [node name="CornerInteriorSmall" parent="Pieces" unique_id=441151467 instance=ExtResource("17_c33i8")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.29429245, 0.061344385, 0.29999983)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.29429245, 0, 0.29999983)
 
 [node name="CornerInteriorSmall2" parent="Pieces" unique_id=316613020 instance=ExtResource("17_c33i8")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4841185, 0.061344385, 0.3000005)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4841185, 0, 0.3000005)
 
 [node name="BalconyCrossCorner" parent="Pieces" unique_id=1097083188 instance=ExtResource("18_c33i8")]
 transform = Transform3D(-1, 0, -2.6226834e-07, 0, 1, 0, 2.6226834e-07, 0, -1, -5.0000005, 6, 5)

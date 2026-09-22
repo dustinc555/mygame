@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="FurnishRules" format=3 uid="uid://ci1i1o6t4dxok"]
+
+[ext_resource type="Script" uid="uid://cvs0spbb0takq" path="res://features/settlements/resources/furnishing/furnish_rules.gd" id="1"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bar_counter.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_1.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/lighting/wall_torch.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_stocked.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/barrel.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/barrel_dark.tscn" id="7"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/crate_wooden.tscn" id="8"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/cabinet.tscn" id="9"]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_small.tscn" id="10"]
+[ext_resource type="Script" uid="uid://binw0mrkk6ac2" path="res://features/settlements/resources/furnishing/container_stock_table.gd" id="11_ftk28"]
+
+[resource]
+script = ExtResource("1")
+counter_scenes = Array[PackedScene]([ExtResource("2")])
+max_clusters = 0
+shelf_scenes = Array[PackedScene]([ExtResource("5")])
+light_scenes = Array[PackedScene]([ExtResource("4")])
+container_scenes = Array[PackedScene]([ExtResource("6"), ExtResource("7"), ExtResource("8"), ExtResource("9"), ExtResource("10")])
+max_containers = 6
+container_chance = 0.75
+bed_scenes = Array[PackedScene]([ExtResource("3")])
+max_beds = 1
+bed_chance = 1.0
+min_beds = 1
+pallet_item_ids = PackedStringArray()

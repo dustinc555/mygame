@@ -1930,6 +1930,24 @@ func get_inventory_container_entity(container_id: String):
 	return _inventory_container_entity_by_id.get(container_id)
 
 
+func get_merchant_container_ids() -> Array[String]:
+	var result: Array[String] = []
+	for container_id in _inventory_container_entity_by_id:
+		var entity = _inventory_container_entity_by_id[container_id]
+		var container = entity.get_component(C_INVENTORY_CONTAINER)
+		if container != null and not container.merchant_policy.is_empty():
+			result.append(str(container_id))
+	return result
+
+
+## Merchant supply uses the same container/stack persistence as player trades,
+## including while the owning character has no scene projection.
+func sync_merchant_inventory(actor_id: String, inventory: InventoryData) -> void:
+	_try_initialize()
+	if world != null and not actor_id.is_empty():
+		_sync_inventory_container(actor_id, "%s.shop_inventory" % actor_id, null, inventory, false)
+
+
 func register_inventory_container_entity(container_id: String, entity) -> void:
 	_inventory_container_entity_by_id[container_id] = entity
 

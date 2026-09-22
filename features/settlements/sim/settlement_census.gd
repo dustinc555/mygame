@@ -87,6 +87,12 @@ func _seed_startup_assignments(settlement: SettlementController, population: Nod
 		# dedicated filler person.
 		if str(slot.get("assignment_scope", "")) == "town_labor":
 			continue
+		var employee_slot := str(slot.get("resident_employment_slot_id", ""))
+		if not employee_slot.is_empty():
+			var employee: Dictionary = population.call("get_record_assigned_to_slot", settlement_id, "employment", employee_slot)
+			if not employee.is_empty():
+				settlement.assign_actor_to_assignment_slot(settlement_id, "residence", str(slot.slot_id), str(employee.actor_id))
+			continue
 		var context := _assignment_generation_context(definition, base_context, slot)
 		var filler: Dictionary = population.call("ensure_assignment_filler_record", settlement_id, slot, context)
 		if not filler.is_empty():

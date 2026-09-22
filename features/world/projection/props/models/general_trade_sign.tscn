@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Sign_Pub.gltf" id="1_model"]
+[ext_resource type="Material" path="res://features/world/projection/props/materials/general_trade.tres" id="2_paint"]
+
+[node name="GeneralTradeSign" instance=ExtResource("1_model")]
+
+[node name="Sign_Pub" parent="." index="0"]
+surface_material_override/2 = ExtResource("2_paint")

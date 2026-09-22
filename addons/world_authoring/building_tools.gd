@@ -85,7 +85,7 @@ func refresh() -> void:
 
 
 func is_active() -> bool:
-	return get_active_building() != null
+	return _can_author_building(get_active_building())
 
 
 func on_selection_changed() -> void:
@@ -94,6 +94,7 @@ func on_selection_changed() -> void:
 
 func on_scene_changed(_scene_root: Node) -> void:
 	_refresh_active_building_context()
+	_apply_snap_marker_visibility(_snap_points_button.button_pressed)
 
 
 func process(_delta: float) -> void:
@@ -552,8 +553,6 @@ func _refresh_active_building_context() -> void:
 	_active_building = _find_world_building_from_selection()
 	if _active_building == null:
 		_active_building = _find_world_building_from_edited_scene_root()
-	if _can_author_building(_active_building):
-		_normalize_modular_piece_hierarchy(_active_building)
 	_refresh_toolbar()
 
 
@@ -801,12 +800,9 @@ func _refresh_toolbar() -> void:
 	for child in _toolbar.get_children():
 		if child is MenuButton:
 			(child as MenuButton).disabled = not can_author
-	var selected_piece := _get_selected_modular_piece()
+	var selected_piece := _get_selected_modular_piece() if can_author else null
 	_rotate_button.disabled = selected_piece == null or not can_author
 	_fix_hierarchy_button.disabled = not can_author
-	# Markers rebuild visible whenever a piece (re)enters the tree, so re-assert
-	# the toggle on every refresh to keep newly spawned pieces in line.
-	_apply_snap_marker_visibility(_snap_points_button.button_pressed)
 
 
 func _on_snap_points_toggled(show_markers: bool) -> void:
@@ -817,15 +813,13 @@ func _on_snap_points_toggled(show_markers: bool) -> void:
 ## the editor_show_snap_markers export, so toggling leaves no scene diffs.
 func _apply_snap_marker_visibility(show_markers: bool) -> void:
 	var building := get_active_building()
-	if building == null or not building.is_inside_tree():
+	if not _can_author_building(building) or not building.is_inside_tree():
 		return
 	for piece in building.get_tree().get_nodes_in_group("modular_building_piece"):
 		if not building.is_ancestor_of(piece) or not piece.has_method("get_snap_markers"):
 			continue
 		for marker in piece.call("get_snap_markers"):
-			var visual: Node = (marker as Node).get_node_or_null(ModularBuildingSnapMarker.VISUAL_NAME)
-			if visual is Node3D:
-				(visual as Node3D).visible = show_markers
+			(marker as ModularBuildingSnapMarker).set_editor_preview_enabled(show_markers)
 
 
 func _piece_auto_snap_enabled(piece: Node) -> bool:

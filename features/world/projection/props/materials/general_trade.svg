@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="768" viewBox="0 0 512 384">
+  <!-- Original trade emblem: broad, balanced scales readable at town-camera distance. -->
+  <g fill="#fff" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M256 55 L256 297 M111 114 Q256 85 401 114" fill="none" stroke-width="17"/>
+    <path d="M111 119 L66 209 M111 119 L157 209 M401 119 L355 209 M401 119 L446 209" fill="none" stroke-width="9"/>
+    <path d="M59 210 L164 210 Q156 253 112 256 Q69 254 59 210 Z M348 210 L453 210 Q443 254 402 256 Q360 254 348 210 Z" stroke-width="5"/>
+    <path d="M256 38 L272 56 L256 76 L240 56 Z" stroke-width="5"/>
+    <path d="M244 281 L268 281 L281 302 L314 314 L314 327 L198 327 L198 314 L231 302 Z" stroke-width="5"/>
+  </g>
+</svg>

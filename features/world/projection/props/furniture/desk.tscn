@@ -1,0 +1,29 @@
+[gd_scene load_steps=8 format=3]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Desk.gltf" id="1"]
+[ext_resource type="Script" path="res://features/world/projection/props/tabletop_furniture.gd" id="2"]
+[ext_resource type="Script" path="res://features/world/projection/props/tabletop_item_spawner.gd" id="3"]
+[ext_resource type="Script" path="res://features/world/projection/props/tabletop_item_slot.gd" id="4"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/book_1.tres" id="5"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/candle_2.tres" id="6"]
+[sub_resource type="BoxShape3D" id="Body"]
+size = Vector3(1.863333, 0.843794, 0.778892)
+[node name="Desk" type="StaticBody3D"]
+script = ExtResource("2")
+[node name="Model" parent="." instance=ExtResource("1")]
+position = Vector3(0, 0.001408, 0)
+[node name="BodyCollision" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.421897, 0)
+shape = SubResource("Body")
+[node name="TabletopSurface" type="Node3D" parent="."]
+script = ExtResource("3")
+tabletop_half_extents = Vector2(0.93, 0.39)
+[node name="Book" type="Marker3D" parent="TabletopSurface"]
+position = Vector3(-0.3, 0.843794, 0)
+script = ExtResource("4")
+slot_id = "book"
+required_item = ExtResource("5")
+[node name="Candle" type="Marker3D" parent="TabletopSurface"]
+position = Vector3(0.65, 0.843794, -0.15)
+script = ExtResource("4")
+slot_id = "candle"
+required_item = ExtResource("6")

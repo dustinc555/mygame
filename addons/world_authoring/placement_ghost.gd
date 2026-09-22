@@ -73,9 +73,14 @@ func begin_marker(radius: float, color: Color, on_commit: Callable, on_cancel :=
 
 func cancel() -> void:
 	var had_preview := is_active()
+	var callback := _on_cancel
 	_free_preview()
-	if had_preview and _on_cancel.is_valid():
-		_on_cancel.call()
+	# Lambdas capture the owning tools and catalogs. Release both callbacks
+	# before invoking either, including when that callback begins a new preview.
+	_on_commit = Callable()
+	_on_cancel = Callable()
+	if had_preview and callback.is_valid():
+		callback.call()
 
 
 func handle_3d_input(camera: Camera3D, event: InputEvent) -> int:
@@ -179,9 +184,12 @@ func _mount_preview(parent: Node, preview: Node3D) -> void:
 
 func _commit() -> void:
 	var world_transform := _preview.global_transform
+	var callback := _on_commit
 	_free_preview()
-	if _on_commit.is_valid():
-		_on_commit.call(world_transform)
+	_on_commit = Callable()
+	_on_cancel = Callable()
+	if callback.is_valid():
+		callback.call(world_transform)
 
 
 func _update_preview_position(camera: Camera3D, mouse_position: Vector2) -> void:

@@ -1,0 +1,14 @@
+[gd_scene load_steps=5 format=3]
+[ext_resource type="Script" path="res://features/world/projection/props/placed_item_display.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Rope_2.gltf" id="2"]
+[ext_resource type="Script" path="res://features/world/projection/props/tabletop_item_slot.gd" id="3"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/rope_2.tres" id="4"]
+[node name="Rope2" type="Node3D"]
+script = ExtResource("1")
+visual_scene = ExtResource("2")
+visual_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000000, 0.003281, 0.000000)
+tabletop_half_extents = Vector2(0.403911, 0.422500)
+[node name="Rope" type="Marker3D" parent="."]
+script = ExtResource("3")
+slot_id = "rope"
+required_item = ExtResource("4")

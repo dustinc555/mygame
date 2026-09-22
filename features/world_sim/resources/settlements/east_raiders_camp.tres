@@ -47,4 +47,3 @@ guard_post_count = 1
 guard_name = "East Raider Guard"
 staff_stable_id_prefix = "npc.east_raiders_camp.staff"
 staff_squad_name = "EastRaiders"
-town_job_counts = null
