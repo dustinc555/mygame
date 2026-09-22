@@ -577,6 +577,10 @@ func _container_accepts_definition(container_id: String, definition: ItemDefinit
 	var allowed := PackedStringArray(component.allowed_item_ids)
 	if not allowed.is_empty() and not allowed.has(item_id) and not allowed.has(definition.resource_path):
 		return false
+	# Weapon-purpose storage is opt-in. Preserve existing general-container
+	# routing, including dual-purpose tools, when adding this new destination.
+	if str(component.container_type) == "weapons":
+		return definition.can_equip_to_slot(ItemDefinition.EQUIP_SLOT_WEAPON)
 	var required_type := "general"
 	if item_id.begins_with("seed."):
 		required_type = "seeds"

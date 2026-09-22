@@ -511,7 +511,7 @@ func assign_seat_target(seat, issued_by_player := true) -> void:
 	elif current_seat == seat and current_order_type == ORDER_TYPE_SIT and _seat_approach_geometry_is_current(seat):
 		# Home reconciliation is not a new order. Preserve the running path and
 		# player ownership, but let an explicitly stopped/failed route retry.
-		if _call_bool("has_move_target") or _horizontal_distance_to(current_seat_stand_position) <= _move_target_arrival_distance():
+		if _call_bool("has_move_target") or _has_reached_seat_approach(current_seat_stand_position):
 			if issued_by_player and not order_was_player_issued:
 				_set_order(ORDER_TYPE_SIT, true)
 			return
@@ -1281,6 +1281,12 @@ func get_bed_rest_target() -> Node:
 	return current_sleep_target if is_in_bed_rest() else null
 
 
+func _has_reached_seat_approach(position: Vector3) -> bool:
+	# A chair on another floor is not reached merely by standing below it.
+	return _horizontal_distance_to(position) <= _move_target_arrival_distance() \
+			and absf(_position().y - position.y) <= _actor_float("move_target_vertical_tolerance", 0.75)
+
+
 func process_seat_interaction() -> void:
 	var seat_target = current_seat_target
 	if not _has_node_methods(seat_target, ["get_interaction_position", "claim_sitter", "get_seat_position", "get_seat_rotation"]):
@@ -1298,7 +1304,7 @@ func process_seat_interaction() -> void:
 			return
 	var interaction_position: Vector3 = current_seat_stand_position if current_seat_stand_position is Vector3 \
 			and (current_seat_stand_position as Vector3).is_finite() else seat_target.call("get_interaction_position", actor)
-	var can_snap_to_seat := _horizontal_distance_to(interaction_position) <= _move_target_arrival_distance()
+	var can_snap_to_seat := _has_reached_seat_approach(interaction_position)
 	if not can_snap_to_seat:
 		_set_actor_move_target(interaction_position)
 		return

@@ -201,3 +201,25 @@ func test_seated_refresh_never_searches_or_moves_body() -> void:
 	f.interaction.assign_seat_target(f.seat, false)
 	assert_eq(f.seat.searches, 1)
 	assert_eq(f.actor.position, seated_position)
+
+func test_upstairs_seat_requires_vertical_arrival_before_sitting() -> void:
+	var f := _fixture()
+	f.seat.position = Vector3(0, 3, 0)
+	f.actor.position = Vector3(1, 0, 0)
+	f.interaction.assign_seat_target(f.seat, false)
+	f.interaction.process_seat_interaction()
+	assert_false(f.interaction.is_sitting, "An upstairs chair cannot be reached through its floor")
+	assert_true(f.actor.moving, "Keep the stair route active")
+	f.actor.position.y = 3.0
+	f.interaction.process_seat_interaction()
+	assert_true(f.interaction.is_sitting, "The same approach completes on the correct floor")
+
+func test_stopped_upstairs_approach_can_retry_despite_matching_horizontal_position() -> void:
+	var f := _fixture()
+	f.seat.position = Vector3(0, 3, 0)
+	f.actor.position = Vector3(1, 0, 0)
+	f.interaction.assign_seat_target(f.seat, false)
+	f.actor.moving = false
+	f.interaction.assign_seat_target(f.seat, false)
+	assert_eq(f.seat.searches, 2)
+	assert_true(f.actor.moving)

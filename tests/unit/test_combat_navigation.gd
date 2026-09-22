@@ -30,6 +30,9 @@ func before_each() -> void:
 	add_child(_viewport)
 	_root = Node3D.new()
 	_viewport.add_child(_root)
+	# Tiny fixture geometry must be installed before queries, independent of
+	# worker scheduling and preceding tests. Production maps stay asynchronous.
+	NavigationServer3D.map_set_use_async_iterations(_root.get_world_3d().navigation_map, false)
 	_add_box(Vector3(0, -0.1, 0), Vector3(30, 0.2, 30))
 	_add_region(-5.0, 5.0)
 	_actor = _add_actor(Vector3(-2, 0.7, 0))
@@ -269,6 +272,7 @@ func _add_box(origin: Vector3, size: Vector3, layer: int = 1) -> StaticBody3D:
 
 func _add_region(min_x: float, max_x: float, height: float = 0.0) -> NavigationRegion3D:
 	var region := NavigationRegion3D.new()
+	NavigationServer3D.region_set_use_async_iterations(region.get_rid(), false)
 	var mesh := NavigationMesh.new()
 	mesh.vertices = PackedVector3Array([Vector3(min_x, height, -5), Vector3(max_x, height, -5), Vector3(max_x, height, 5), Vector3(min_x, height, 5)])
 	mesh.add_polygon(PackedInt32Array([0, 1, 2, 3]))

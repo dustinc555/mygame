@@ -1,0 +1,6 @@
+[gd_scene load_steps=3 format=3]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/prop.tscn" id="1"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Peg_Rack.gltf" id="2"]
+[node name="PegRack" instance=ExtResource("1")]
+display_name = "Peg Rack"
+visual_scene = ExtResource("2")

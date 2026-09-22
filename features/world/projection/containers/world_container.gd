@@ -14,8 +14,8 @@ signal interaction_resolved(container, actor)
 ## Player/developer-facing storage purpose. The physical furniture remains a
 ## generic sack, barrel, chest, or crate; this value controls routing and item
 ## admission. The Facility dock presents these as General/Seeds/Tools/Food/
-## Materials and keeps container_kind as the lower-level GECS routing value.
-@export_enum("general", "seeds", "tools", "food", "materials") var container_type := "general":
+## Materials/Weapons and keeps container_kind as the lower-level GECS routing value.
+@export_enum("general", "seeds", "tools", "food", "materials", "weapons") var container_type := "general":
 	set(value):
 		container_type = value.strip_edges().to_lower()
 		if container_type not in CONTAINER_TYPES:
@@ -53,12 +53,13 @@ signal interaction_resolved(container, actor)
 ## Optional exact filter inside the broad container type. Empty means every
 ## item belonging to that type; authored starting_items remain independent.
 @export var allowed_item_ids := PackedStringArray()
-const CONTAINER_TYPES := ["general", "seeds", "tools", "food", "materials"]
+const CONTAINER_TYPES := ["general", "seeds", "tools", "food", "materials", "weapons"]
 const TYPE_CONTAINER_KINDS := {
 	"seeds": "farm_seed",
 	"tools": "tool_store",
 	"food": "granary",
 	"materials": "storage",
+	"weapons": "storage",
 }
 @export var visual_scene: PackedScene:
 	set(value):
@@ -182,6 +183,7 @@ func get_inventory_display_name() -> String:
 		"tools": "Tool",
 		"food": "Food",
 		"materials": "Material",
+		"weapons": "Weapon",
 	}.get(container_type, ""))
 	var furniture_name: String = str({
 		"Wooden Chest": "Chest",
@@ -381,7 +383,18 @@ func can_accept_item_count(definition: ItemDefinition, amount: int) -> bool:
 		item_id = definition.resource_path
 	if not allowed_item_ids.is_empty() and not allowed_item_ids.has(item_id):
 		return false
-	match container_type:
+	return item_matches_storage_type(definition, container_type)
+
+
+## One admission rule for the Inspector/dock and live inventory. Changing a
+## purpose only changes future admission; existing stacks are never discarded.
+static func item_matches_storage_type(definition: ItemDefinition, type_id: String) -> bool:
+	if definition == null:
+		return false
+	var item_id := definition.item_id.strip_edges()
+	if item_id.is_empty():
+		item_id = definition.resource_path
+	match type_id:
 		"seeds":
 			return item_id.begins_with("seed.")
 		"tools":
@@ -390,6 +403,8 @@ func can_accept_item_count(definition: ItemDefinition, amount: int) -> bool:
 			return item_id.begins_with("food.") or not definition.food_type_id.is_empty()
 		"materials":
 			return item_id.begins_with("material.") or item_id.begins_with("ore.")
+		"weapons":
+			return definition.can_equip_to_slot(ItemDefinition.EQUIP_SLOT_WEAPON)
 		_:
 			return true
 

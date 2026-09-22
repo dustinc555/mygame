@@ -5,6 +5,11 @@
     "timeout_seconds": 90
   },
   "tests": {
+    "tests/validation/validate_general_trader.gd": {
+      "mode": "case",
+      "timeout_seconds": 180,
+      "reason": "Real shop prefab: generated proprietor, counter and upstairs movement, opening hours, world-time supply and durable ownership."
+    },
     "tests/validation/test_case.gd": {
       "mode": "helper",
       "reason": "Shared Node-based lifecycle adapter for autoload-dependent feature tests."

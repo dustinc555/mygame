@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="MerchantProfile" format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/merchant_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Armor Trader"
+buys_any_sellable_item = false
+stock = {
+"res://features/inventory/resources/items/knight_armet.tres": {"quantity": 1, "replenishes": true},
+"res://features/inventory/resources/items/knight_gauntlets.tres": {"quantity": 1, "replenishes": true},
+"res://features/inventory/resources/items/round_shield.tres": {"quantity": 2, "replenishes": true}
+}

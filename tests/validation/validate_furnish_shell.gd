@@ -20,6 +20,9 @@ const FURNISHER := preload("res://features/world/projection/props/furnishing/fac
 var _shell_path := "res://features/world/projection/buildings/shells/modular/medium_brick_round_tower.tscn"
 var _rules_path := "res://features/settlements/resources/furnishing/jail.tres"
 var _seed_count := 4
+## Authored fixture expectation; medium_wood_hall has two exterior entrances.
+## Pass --entrances=2 for that shell rather than deriving the oracle from the solver.
+var _expected_entrances := 1
 var _dump_grid := false
 var _probe_failed := false
 
@@ -32,6 +35,8 @@ func _ready() -> void:
 			_rules_path = arg.get_slice("=", 1)
 		elif arg.begins_with("--seeds="):
 			_seed_count = maxi(1, int(arg.get_slice("=", 1)))
+		elif arg.begins_with("--entrances="):
+			_expected_entrances = maxi(0, int(arg.get_slice("=", 1)))
 		elif arg == "--grid":
 			_dump_grid = true
 	var shell_scene := load(_shell_path) as PackedScene
@@ -64,8 +69,8 @@ func _ready() -> void:
 					_probe_failed = true
 				claimed_wall_faces[wall_face_key] = true
 			exterior_entry_lights += 1 if bool(placement.get("exterior_entry_light", false)) else 0
-		if not rules.light_scenes.is_empty() and exterior_entry_lights != 1:
-			push_error("validate_furnish_shell: seed %d expected one exterior entry light, got %d" % [seed_value, exterior_entry_lights])
+		if not rules.light_scenes.is_empty() and exterior_entry_lights != _expected_entrances:
+			push_error("validate_furnish_shell: seed %d expected %d exterior entry lights, got %d" % [seed_value, _expected_entrances, exterior_entry_lights])
 			_probe_failed = true
 		for requirement in [["pallet", rules.min_pallets], ["bed", rules.min_beds], ["container", rules.min_containers], ["shelf", rules.min_shelves], ["light", rules.min_lights]]:
 			if int(counts.get(requirement[0], 0)) < int(requirement[1]):

@@ -1,0 +1,17 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/container.tscn" id="1_container"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Dresser_1.gltf" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="Body"]
+size = Vector3(1.461239, 1.110751, 0.414628)
+
+[node name="Dresser1" instance=ExtResource("1_container")]
+display_name = "Dresser"
+inventory_columns = 7
+inventory_rows = 5
+supports_locking = true
+visual_scene = ExtResource("2_model")
+visual_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.000000, 0.017383, -0.000938)
+collision_shape = SubResource("Body")
+collision_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000000, 0.555375, 0.000000)

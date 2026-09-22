@@ -36,4 +36,3 @@ known_settlement_ids = PackedStringArray("farmer_crossing")
 default_target_settlement_id = "farmer_crossing"
 raid_squad_template = ExtResource("4_raiders")
 defense_squad_template = ExtResource("4_raiders")
-town_job_counts = null

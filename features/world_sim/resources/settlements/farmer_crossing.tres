@@ -35,4 +35,3 @@ known_settlement_ids = PackedStringArray("raider_camp")
 default_target_settlement_id = "raider_camp"
 raid_squad_template = ExtResource("4_militia")
 defense_squad_template = ExtResource("4_militia")
-town_job_counts = null

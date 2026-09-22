@@ -1,0 +1,17 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/container.tscn" id="1_container"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Workbench_Drawers.gltf" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="Body"]
+size = Vector3(0.423106, 0.242340, 0.299028)
+
+[node name="WorkbenchDrawers" instance=ExtResource("1_container")]
+display_name = "Workbench Drawers"
+inventory_columns = 4
+inventory_rows = 3
+supports_locking = true
+visual_scene = ExtResource("2_model")
+visual_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.515957, -0.884161, 0.345507)
+collision_shape = SubResource("Body")
+collision_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000000, 0.121170, 0.000000)

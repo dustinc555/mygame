@@ -40,4 +40,3 @@ guard_post_count = 1
 guard_name = "Paradise Enforcer"
 staff_stable_id_prefix = "npc.paradise_hills.staff"
 staff_squad_name = "ParadiseHills"
-town_job_counts = null

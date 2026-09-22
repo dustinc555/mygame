@@ -1,0 +1,17 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/container.tscn" id="1_container"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Crate_Metal.gltf" id="2_model"]
+
+[sub_resource type="BoxShape3D" id="Body"]
+size = Vector3(0.863898, 0.867887, 0.865921)
+
+[node name="CrateMetal" instance=ExtResource("1_container")]
+display_name = "Ironbound Crate"
+inventory_columns = 6
+inventory_rows = 5
+supports_locking = true
+visual_scene = ExtResource("2_model")
+visual_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000000, -0.002630, -0.000000)
+collision_shape = SubResource("Body")
+collision_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000000, 0.433943, 0.000000)

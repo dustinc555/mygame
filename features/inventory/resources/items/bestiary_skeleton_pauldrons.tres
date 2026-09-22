@@ -1,10 +1,11 @@
-[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://dur6gq4pq7xa5"]
 
-[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
-[ext_resource type="Texture2D" path="res://assets/items/equipment/bestiary/skeleton_pauldrons/icon.svg" id="2_icon"]
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Texture2D" uid="uid://cbsnswl8dtade" path="res://assets/items/equipment/bestiary/skeleton_pauldrons/icon.svg" id="2_icon"]
 [ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/skeleton_pauldrons/equipped.tscn" id="3_equipped"]
 [ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/skeleton_pauldrons/dropped.tscn" id="4_world"]
-[ext_resource type="Script" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="5_visual"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="5_46myl"]
+[ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="5_visual"]
 
 [sub_resource type="Resource" id="Visual_authored_rig"]
 script = ExtResource("5_visual")
@@ -17,15 +18,16 @@ visual_notes = "Authored skeleton rig only; original Armature coordinates and sk
 
 [resource]
 script = ExtResource("1_item")
-item_id = "bestiary.skeleton_pauldrons"
 display_name = "Skeleton Pauldrons"
+item_id = "bestiary.skeleton_pauldrons"
 icon = ExtResource("2_icon")
 grid_size = Vector2i(3, 1)
 unit_weight = 2.4
-max_stack = 1
 equip_slot = "chest"
 alternate_equip_slots = PackedStringArray()
 compatible_races = PackedStringArray("skeleton")
 world_scene = ExtResource("4_world")
 equipped_scene = ExtResource("3_equipped")
 equipped_visuals = Array[Resource]([SubResource("Visual_authored_rig")])
+tool_tags = PackedStringArray()
+access_key_ids = PackedStringArray()

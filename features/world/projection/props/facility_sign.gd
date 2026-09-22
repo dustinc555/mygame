@@ -3,14 +3,12 @@ extends Node3D
 
 class_name FacilitySign
 
-## Drag-and-forget facility sign: one furniture piece that renders whichever
-## Sign_* model matches the facility it hangs in. At runtime it walks its
-## ancestors for the owning SettlementFacility and swaps its model to the
-## mapped sign (bar -> Sign_Pub); unmapped facility types and signs placed
-## outside a facility keep the authored default. Sign icon textures always go
-## through ModelRepairs (the icon lives in UV2 with a white-mask albedo).
+## One placeable sign, with the same selection in the editor and game.
+## Auto resolves only its ancestors, never scans or rebuilds the town.
+## Sign icon textures use UV2 with a white-mask albedo.
 
 const SIGNS_DIR := "res://assets/vendor/quaternius/fantasy_props_megakit/gltf"
+const GENERAL_TRADE_SIGN := preload("res://features/world/projection/props/models/general_trade_sign.tscn")
 const SIGN_BY_FACILITY_TYPE := {
 	"bar": "Sign_Pub",
 	"tavern": "Sign_Pub",
@@ -21,31 +19,76 @@ const SIGN_BY_FACILITY_TYPE := {
 	"armor_shop": "Sign_Armory_2",
 	"potion_shop": "Sign_Potions",
 }
+const SIGN_MODELS := {
+	"tavern": "Sign_Pub",
+	"food": "Sign_Food",
+	"weapons": "Sign_Armory",
+	"armor": "Sign_Armory_2",
+	"potions": "Sign_Potions",
+	"blacksmith": "Sign_Blacksmith",
+}
 
 @export var furniture_type := FurnitureRules.Type.DECOR
+## Auto follows the owning facility when mounted. Explicit types travel with
+## the sign when it is moved elsewhere; the selected model is disposable.
+@export_enum("auto", "general_trade", "tavern", "food", "weapons", "armor", "potions", "blacksmith") var sign_type := "auto":
+	set(value):
+		if sign_type == value:
+			return
+		sign_type = value
+		_queue_refresh()
 ## Authored override wins over facility resolution (e.g. a specific sign on
 ## a generic building).
-@export var sign_scene_override: PackedScene
+@export var sign_scene_override: PackedScene:
+	set(value):
+		if sign_scene_override == value:
+			return
+		sign_scene_override = value
+		_queue_refresh()
+
+var _refresh_pending := false
+var _applied_scene: PackedScene
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PARENTED or what == NOTIFICATION_ENTER_TREE:
+		_queue_refresh()
+
+
+func _queue_refresh() -> void:
+	if not is_inside_tree() or _refresh_pending:
+		return
+	_refresh_pending = true
+	call_deferred("_resolve_and_apply_sign")
 
 
 func _ready() -> void:
 	add_to_group(FurnitureRules.FURNITURE_GROUP)
 	add_to_group("facility_sign")
-	if Engine.is_editor_hint():
-		_repair_current_model()
-		return
 	_resolve_and_apply_sign()
 
 
 func _resolve_and_apply_sign() -> void:
-	var sign_scene := sign_scene_override
-	if sign_scene == null:
-		var facility_type := _find_owning_facility_type()
-		if SIGN_BY_FACILITY_TYPE.has(facility_type):
-			sign_scene = load("%s/%s.gltf" % [SIGNS_DIR, SIGN_BY_FACILITY_TYPE[facility_type]]) as PackedScene
-	if sign_scene != null:
-		_swap_model(sign_scene)
+	_refresh_pending = false
+	if not is_inside_tree():
+		return
+	var sign_scene := get_sign_scene()
+	if sign_scene == _applied_scene and get_node_or_null("Model") != null:
+		return
+	_swap_model(sign_scene)
+	_applied_scene = sign_scene
 	_repair_current_model()
+
+
+func get_sign_scene() -> PackedScene:
+	if sign_scene_override != null:
+		return sign_scene_override
+	if sign_type == "general_trade":
+		return GENERAL_TRADE_SIGN
+	var model_name := str(SIGN_MODELS.get(sign_type, "Sign_Pub"))
+	if sign_type == "auto":
+		model_name = str(SIGN_BY_FACILITY_TYPE.get(_find_owning_facility_type(), "Sign_Pub"))
+	return load("%s/%s.gltf" % [SIGNS_DIR, model_name]) as PackedScene
 
 
 func _find_owning_facility_type() -> String:
