@@ -25,11 +25,15 @@ var _tools: RefCounted
 var _town: Node
 var _updating := false
 var _placeholder: Label
-var _content: HBoxContainer
+var _content: TabContainer
 var _definition_box: VBoxContainer
+var _population_fields: VBoxContainer
+var _economy_fields: VBoxContainer
 var _population_text: RichTextLabel
 var _validation_text: RichTextLabel
 var _facility_list: ItemList
+var _active_tab := 0
+var _page_scroll_positions: Dictionary = {}
 
 
 func setup(tools: RefCounted) -> void:
@@ -40,16 +44,36 @@ func setup(tools: RefCounted) -> void:
 	_placeholder.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_placeholder.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	add_child(_placeholder)
-	_content = HBoxContainer.new()
-	_content.add_theme_constant_override("separation", 14)
+	_content = TabContainer.new()
+	_content.use_hidden_tabs_for_min_size = false
+	_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_content.visible = false
 	add_child(_content)
-	_build_definition_column()
-	_build_population_column()
-	_build_facilities_column()
+	# Pages live for the dock's lifetime. Tab switches only change visibility;
+	# they never rebuild controls, scan town content, or write a resource.
+	_definition_box = _build_scroll_page("General")
+	_build_population_page()
+	_economy_fields = _build_scroll_page("Economy")
+	_build_markers_page()
+	_build_facilities_page()
+	_content.tab_changed.connect(_on_tab_changed)
+
+
+func _on_tab_changed(index: int) -> void:
+	var previous := _content.get_tab_control(_active_tab) as ScrollContainer
+	if previous != null:
+		_page_scroll_positions[_active_tab] = previous.scroll_vertical
+	_active_tab = index
+	var page := _content.get_tab_control(index) as ScrollContainer
+	if page != null:
+		# Restore after container layout; hidden ScrollContainers may be clamped.
+		page.set_deferred("scroll_vertical", int(_page_scroll_positions.get(index, 0)))
 
 
 func set_town(town: Node) -> void:
+	if town != _town:
+		_page_scroll_positions.clear()
 	_town = town if town != null and is_instance_valid(town) else null
 	_rebuild()
 
@@ -58,23 +82,26 @@ func refresh() -> void:
 	_rebuild()
 
 
-## --- Column construction -----------------------------------------------------
+## --- Page construction -------------------------------------------------------
 
 
-func _build_definition_column() -> void:
+func _build_scroll_page(title: String) -> VBoxContainer:
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(360, 0)
+	scroll.name = title
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_definition_box = VBoxContainer.new()
-	_definition_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_definition_box)
+	var content := VBoxContainer.new()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(content)
 	_content.add_child(scroll)
+	return content
 
 
-func _build_population_column() -> void:
-	var column := VBoxContainer.new()
-	column.custom_minimum_size = Vector2(300, 0)
-	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+func _build_population_page() -> void:
+	var column := _build_scroll_page("Population")
+	_population_fields = VBoxContainer.new()
+	column.add_child(_population_fields)
 	column.add_child(_section_title("Population (day-zero demand)"))
 	_population_text = RichTextLabel.new()
 	_population_text.bbcode_enabled = true
@@ -86,17 +113,12 @@ func _build_population_column() -> void:
 	_validation_text.bbcode_enabled = true
 	_validation_text.fit_content = true
 	column.add_child(_validation_text)
-	_content.add_child(column)
 
 
-func _build_facilities_column() -> void:
-	var column := VBoxContainer.new()
-	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	# Facility placement lives in ONE place: the Town toolbar's Add Facility
-	# menu. This dock only reports and navigates.
+func _build_markers_page() -> void:
+	var column := _build_scroll_page("Markers")
 	column.add_child(_section_title("Markers"))
-	var marker_row := HBoxContainer.new()
+	var marker_row := HFlowContainer.new()
 	var road_button := Button.new()
 	road_button.text = "Place Road Spawn"
 	road_button.pressed.connect(func(): _tools.begin_spawn_marker_placement("RoadSpawn"))
@@ -105,7 +127,23 @@ func _build_facilities_column() -> void:
 	defense_button.text = "Place Defense Spawn"
 	defense_button.pressed.connect(func(): _tools.begin_spawn_marker_placement("DefenseSpawn"))
 	marker_row.add_child(defense_button)
+	var guard_button := Button.new()
+	guard_button.text = "Add Guard Spot"
+	guard_button.pressed.connect(func(): _tools.begin_guard_post_placement())
+	marker_row.add_child(guard_button)
 	column.add_child(marker_row)
+	var hint := Label.new()
+	hint.text = "Guard spots: drag to aim, release to place. Rotate the placed node to change facing."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(hint)
+
+
+func _build_facilities_page() -> void:
+	var column := VBoxContainer.new()
+	column.name = "Facilities"
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Facility placement remains on the Town toolbar's Add Facility menu.
 	column.add_child(_section_title("Current Facilities"))
 	_facility_list = ItemList.new()
 	_facility_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -145,53 +183,58 @@ func _rebuild() -> void:
 
 
 func _rebuild_definition_fields(definition: Resource) -> void:
-	for child in _definition_box.get_children():
-		child.free()
+	for section in [_definition_box, _population_fields, _economy_fields]:
+		for child in section.get_children():
+			child.free()
 	var header := _section_title("%s  —  %s" % [str(definition.get("display_name")), _definition_home_label(definition)])
 	_definition_box.add_child(header)
 	_definition_box.add_child(_text_field("Display Name", str(definition.get("display_name")),
 		func(value: String): _write(definition, "display_name", value)))
-	_definition_box.add_child(_option_field("Occupancy", OCCUPANCY_LABELS, int(definition.get("occupancy_state")),
+	_population_fields.add_child(_option_field("Occupancy", OCCUPANCY_LABELS, int(definition.get("occupancy_state")),
 		func(index: int): _write(definition, "occupancy_state", index)))
 	var policy_labels := ["(inherit default)", "full_town", "important_plus_near", "near_player"]
 	var policy_index: int = max(0, REALIZATION_POLICIES.find(str(definition.get("actor_realization_policy"))))
-	_definition_box.add_child(_option_field("Realization", policy_labels, policy_index,
+	_population_fields.add_child(_option_field("Realization", policy_labels, policy_index,
 		func(index: int): _write(definition, "actor_realization_policy", REALIZATION_POLICIES[index])))
 	for picker in PROFILE_PICKERS:
 		_definition_box.add_child(_profile_picker(definition, picker))
 	var effective_realizer := definition.call("get_character_realizer") as Resource if definition.has_method("get_character_realizer") else null
 	var realizer_status := Label.new()
 	realizer_status.text = "Effective Realizer: %s (%s)" % [effective_realizer.resource_path.get_file().get_basename().capitalize() if effective_realizer != null else "INVALID", "town" if definition.get("population_appearance_profile") != null else "faction"]
+	realizer_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	realizer_status.modulate = Color(0.72, 0.9, 0.72) if effective_realizer != null and effective_realizer.get("actor_script") != null and not str(effective_realizer.get("profile_id")).strip_edges().is_empty() and effective_realizer.has_method("create_appearance") else Color(1.0, 0.42, 0.35)
 	_definition_box.add_child(realizer_status)
 	var effective_types := definition.call("get_character_type_set") as Resource if definition.has_method("get_character_type_set") else null
 	var type_status := Label.new()
 	type_status.text = "Effective Character Types: %s (%s)" % [effective_types.resource_path.get_file().get_basename().capitalize() if effective_types != null else "INVALID", "town" if definition.get("character_type_set") != null else "faction"]
+	type_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	type_status.modulate = Color(0.72, 0.9, 0.72) if effective_types != null and effective_types.has_method("resolve_character_type") and effective_types.call("resolve_character_type", "", "resident") != null else Color(1.0, 0.42, 0.35)
 	_definition_box.add_child(type_status)
-	_definition_box.add_child(_section_title("Staffing"))
-	_definition_box.add_child(_int_field("Guards", int(definition.get("guard_count")), 0, 24,
+	_population_fields.add_child(_section_title("Staffing"))
+	_population_fields.add_child(_int_field("Guards", int(definition.get("guard_count")), 0, 24,
 		func(value: int): _write(definition, "guard_count", value)))
-	_definition_box.add_child(_int_field("Guard Posts", int(definition.get("guard_post_count")), 0, 24,
-		func(value: int): _write(definition, "guard_post_count", value)))
-	_definition_box.add_child(_text_field("Guard Name", str(definition.get("guard_name")),
+	var guard_hint := Label.new()
+	guard_hint.text = "Place patrol positions with Markers → Add Guard Spot."
+	guard_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_population_fields.add_child(guard_hint)
+	_population_fields.add_child(_text_field("Guard Name", str(definition.get("guard_name")),
 		func(value: String): _write(definition, "guard_name", value)))
-	_definition_box.add_child(_text_field("Staff Id Prefix", str(definition.get("staff_stable_id_prefix")),
+	_population_fields.add_child(_text_field("Staff Id Prefix", str(definition.get("staff_stable_id_prefix")),
 		func(value: String): _write(definition, "staff_stable_id_prefix", value)))
-	_definition_box.add_child(_text_field("Staff Squad", str(definition.get("staff_squad_name")),
+	_population_fields.add_child(_text_field("Staff Squad", str(definition.get("staff_squad_name")),
 		func(value: String): _write(definition, "staff_squad_name", value)))
-	_definition_box.add_child(_check_field("Guards from population", bool(definition.get("use_settlement_population_for_guards")),
+	_population_fields.add_child(_check_field("Guards from population", bool(definition.get("use_settlement_population_for_guards")),
 		func(value: bool): _write(definition, "use_settlement_population_for_guards", value)))
-	_definition_box.add_child(_section_title("Population Seeding"))
-	_definition_box.add_child(_int_field("Generation Seed (0 = random)", int(definition.get("generation_seed")), 0, 999999999,
+	_population_fields.add_child(_section_title("Population Seeding"))
+	_population_fields.add_child(_int_field("Generation Seed (0 = random)", int(definition.get("generation_seed")), 0, 999999999,
 		func(value: int): _write(definition, "generation_seed", value)))
-	_definition_box.add_child(_section_title("Economy"))
-	_definition_box.add_child(_float_field("Starting Wealth", float(definition.get("starting_wealth")),
-		func(value: float): _write(definition, "starting_wealth", value)))
-	_definition_box.add_child(_float_field("Starting Supplies", float(definition.get("starting_supplies")),
-		func(value: float): _write(definition, "starting_supplies", value)))
-	_definition_box.add_child(_float_field("Growth / Day", float(definition.get("population_growth_per_day")),
+	_population_fields.add_child(_float_field("Growth / Day", float(definition.get("population_growth_per_day")),
 		func(value: float): _write(definition, "population_growth_per_day", value)))
+	_economy_fields.add_child(_section_title("Economy"))
+	_economy_fields.add_child(_float_field("Starting Wealth", float(definition.get("starting_wealth")),
+		func(value: float): _write(definition, "starting_wealth", value)))
+	_economy_fields.add_child(_float_field("Starting Supplies", float(definition.get("starting_supplies")),
+		func(value: float): _write(definition, "starting_supplies", value)))
 
 
 func _rebuild_population_preview(definition: Resource) -> void:
@@ -229,8 +272,7 @@ func _rebuild_validation(definition: Resource, demand: Dictionary, total_staff: 
 	var occupancy := int(definition.get("occupancy_state"))
 	if occupancy > 0 and int(demand["housing"]) <= 0 and total_staff > 0:
 		warnings.append("Populated town with zero housing capacity — place housing.")
-	if int(definition.get("guard_count")) > 0 and int(definition.get("guard_post_count")) <= 0 and not bool(demand["has_keep"]):
-		warnings.append("Guards authored but no guard posts or keep — guards have nowhere to stand.")
+
 	if str(definition.get("settlement_id")).strip_edges().is_empty():
 		warnings.append("Definition has no settlement_id.")
 	var town_3d := _town as Node3D
@@ -343,6 +385,7 @@ func _definition_home_label(definition: Resource) -> String:
 func _section_title(text: String) -> Label:
 	var label := Label.new()
 	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.add_theme_color_override("font_color", Color(0.75, 0.82, 0.9))
 	return label
 
@@ -395,6 +438,8 @@ func _check_field(label_text: String, value: bool, on_changed: Callable) -> Cont
 
 func _option_field(label_text: String, options: Array, selected_index: int, on_changed: Callable) -> Control:
 	var option := OptionButton.new()
+	option.fit_to_longest_item = false
+	option.clip_text = true
 	for entry in options:
 		option.add_item(str(entry))
 	option.selected = clampi(selected_index, 0, options.size() - 1)

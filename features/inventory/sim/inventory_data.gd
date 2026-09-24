@@ -405,6 +405,47 @@ func trade_entry_to_inventory(entry, target_inventory: InventoryData, target_pos
 	)
 
 
+## Purchase a quantity from one catalog variant, retaining exact stack state.
+## Roll back the entire batch if any item or the payment cannot fit.
+func trade_entries_to_inventory(goods: Array, amount: int, target: InventoryData, silver_price: int) -> bool:
+	if goods.is_empty() or amount <= 0 or target == null or target == self:
+		return false
+	var first = goods[0]
+	if first == null or first.definition == null:
+		return false
+	var available := 0
+	var seen: Dictionary = {}
+	for entry in goods:
+		if entry == null or not entries.has(entry) or seen.has(entry.stack_id):
+			return false
+		if entry.definition != first.definition or entry.metadata != first.metadata or entry.contained_item_counts != first.contained_item_counts:
+			return false
+		seen[entry.stack_id] = true
+		available += entry.count
+	if available < amount:
+		return false
+	return exchange_for_silver(target, silver_price, func() -> bool:
+		var remaining := amount
+		for entry in goods:
+			if remaining == 0:
+				break
+			var taken: int = mini(remaining, entry.count)
+			# A filled container is indivisible. Full transfers retain exact IDs;
+			# a split retains its source ID and allocates a new destination ID.
+			if taken < entry.count and not entry.contained_item_counts.is_empty():
+				return false
+			var whole: bool = taken == entry.count
+			if not target.add_entry_with_contents(entry.definition, taken, entry.contained_item_counts, entry.metadata, entry.stack_id if whole else "", false):
+				return false
+			if whole:
+				entries.erase(entry)
+			else:
+				entry.count -= taken
+			remaining -= taken
+		return true
+	)
+
+
 ## One transaction boundary for grid trades, cursor sales and bought equipment.
 ## move_goods may only mutate these inventories with notifications suppressed.
 ## finish_goods commits the slot/cursor only after all inventory/payment work.
@@ -825,15 +866,19 @@ func auto_sort() -> bool:
 		return true
 	var existing_entries := entries.duplicate()
 	existing_entries.sort_custom(_sort_entries_for_packing)
-	entries.clear()
+	# Plan against an empty grid without moving any live entries. A failed pack
+	# must leave positions, array order and stack identities exactly unchanged.
+	var planned := InventoryData.new()
+	planned.columns = columns
+	planned.rows = rows
 	for entry in existing_entries:
-		var slot := find_first_space(entry.definition)
+		var slot := planned.find_first_space(entry.definition)
 		if slot == Vector2i(-1, -1):
-			entries = existing_entries
-			changed.emit()
 			return false
-		entry.grid_position = slot
-		entries.append(entry)
+		planned.entries.append(InventoryEntry.new(entry.definition, slot, 1, {}, {}, entry.stack_id))
+	for index in range(existing_entries.size()):
+		existing_entries[index].grid_position = planned.entries[index].grid_position
+	entries.assign(existing_entries)
 	changed.emit()
 	return true
 
@@ -910,6 +955,8 @@ func _sort_entries_for_packing(a, b) -> bool:
 	var a_area: int = a.definition.grid_size.x * a.definition.grid_size.y
 	var b_area: int = b.definition.grid_size.x * b.definition.grid_size.y
 	if a_area == b_area:
+		if a.definition.grid_size.y != b.definition.grid_size.y:
+			return a.definition.grid_size.y > b.definition.grid_size.y
 		return a.definition.display_name < b.definition.display_name
 	return a_area > b_area
 

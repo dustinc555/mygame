@@ -14,6 +14,7 @@ const DEFAULT_UNSCOPED_LOCAL_WORK_RADIUS := 90.0
 const FACILITY_DUTY_CONTRACT = preload("res://features/settlements/sim/facility_duty_contract.gd")
 const WORK_SCHEDULE = preload("res://features/settlements/resources/work_schedule.gd")
 const DEFAULT_WORK_SCHEDULE = preload("res://features/settlements/resources/default_work_schedule.tres")
+const GUARD_DUTY = preload("res://features/settlements/bridge/guard_duty_projection.gd")
 const CORE_JOB_SPECS := [
 	{"entry_id": "category:farm", "category": "farm", "display_name": "Farm"},
 	{"entry_id": "category:guard", "category": "guard", "display_name": "Guard"},
@@ -50,6 +51,8 @@ var _dispatch_remaining := 0.0
 var _assignment_dispatch_turn := false
 var _property_presence_cache: Dictionary = {}
 var _last_dispatch_usec := 0
+var guard_duty := GUARD_DUTY.new()
+var _guard_posts_bound := false
 
 
 func initialize(context: BootstrapContext) -> void:
@@ -278,6 +281,7 @@ func can_execute_assignment_duty(actor: Node) -> bool:
 func prepare_actor_for_derealization(actor: Node) -> void:
 	if actor == null or not is_instance_valid(actor):
 		return
+	release_guard_duty(actor)
 	for provider in _job_providers:
 		if not is_instance_valid(provider):
 			continue
@@ -467,6 +471,30 @@ func _process(delta: float) -> void:
 		var dispatch_started := Time.get_ticks_usec()
 		_process_party_job_dispatch(1)
 		_last_dispatch_usec = Time.get_ticks_usec() - dispatch_started
+	var population := _context.get_optional(&"population") if _context != null else null
+	guard_duty.tick(self, population, _guard_world_minute(), _sim_time)
+	if guard_duty.dirty:
+		_sync_job_system_state_to_gecs()
+		guard_duty.dirty = false
+
+
+func _guard_world_minute() -> float:
+	var clock := _context.get_optional(&"world_time") if _context != null else null
+	return float(clock.get_absolute_minute()) if clock != null and clock.has_method("get_absolute_minute") else 0.0
+
+
+func process_guard_duty(actor: WorldActor) -> void:
+	if is_instance_valid(actor):
+		guard_duty.step(actor, self, _guard_world_minute())
+
+
+func release_guard_duty(actor: Node) -> void:
+	if is_instance_valid(actor) and actor is WorldActor:
+		guard_duty.release(_actor_id(actor), actor)
+
+
+func _job_system_state() -> Dictionary:
+	return {"state_id": "job_system", "sim_time": _sim_time, "actor_policies": _actor_policies.duplicate(true), "guard_patrols": guard_duty.patrols.duplicate(true)}
 
 
 func get_last_dispatch_msec() -> float:
@@ -479,7 +507,7 @@ func get_sim_time() -> float:
 
 func serialize_state() -> Dictionary:
 	_sync_job_system_state_to_gecs()
-	return {"state_id": "job_system", "sim_time": _sim_time, "actor_policies": _actor_policies.duplicate(true)}
+	return _job_system_state()
 
 
 func apply_serialized_state(state: Dictionary) -> void:
@@ -488,6 +516,7 @@ func apply_serialized_state(state: Dictionary) -> void:
 		return
 	_sim_time = float(state.get("sim_time", _sim_time))
 	_actor_policies = (state.get("actor_policies", _actor_policies) as Dictionary).duplicate(true)
+	guard_duty.restore(state.get("guard_patrols", {}), _context.get_optional(&"population") if _context != null else null)
 	_bind_party_actor_cache()
 	_sync_job_system_state_to_gecs()
 
@@ -500,6 +529,7 @@ func refresh_from_gecs_state() -> void:
 	if not state.is_empty():
 		_sim_time = float(state.get("sim_time", _sim_time))
 		_actor_policies = (state.get("actor_policies", _actor_policies) as Dictionary).duplicate(true)
+		guard_duty.restore(state.get("guard_patrols", {}), _context.get_optional(&"population") if _context != null else null)
 		_bind_party_actor_cache()
 
 
@@ -928,6 +958,7 @@ func _has_priority_order(actor: Node) -> bool:
 func _release_assignment_duty(actor: Node, assignment: Dictionary, cancel_active: bool) -> void:
 	if actor == null or not is_instance_valid(actor):
 		return
+	release_guard_duty(actor)
 	if cancel_active:
 		cancel_work_for_actor(actor)
 	var duty_scope_id := str(assignment.get("duty_scope_id", assignment.get("facility_id", "")))
@@ -961,6 +992,10 @@ func _bind_party_actor_cache() -> void:
 		scene_tree.node_added.connect(_on_party_tree_node_added)
 	if not scene_tree.node_removed.is_connected(_on_party_tree_node_removed):
 		scene_tree.node_removed.connect(_on_party_tree_node_removed)
+	if not _guard_posts_bound:
+		_guard_posts_bound = true
+		for post in scene_tree.get_nodes_in_group("facility_guard_post"):
+			guard_duty.register_post(post)
 	for actor in scene_tree.get_nodes_in_group("party_member"):
 		_refresh_enabled_party_actor(actor)
 
@@ -988,6 +1023,7 @@ func _on_assignment_settlement_state_changed(settlement_id: String, state: Dicti
 func _rebuild_assignment_workers_for_settlement(settlement_id: String, state: Dictionary) -> void:
 	if settlement_id.is_empty():
 		return
+	guard_duty.set_settlement(settlement_id, state, _context.get_optional(&"population") if _context != null else null)
 	var next_duty_scope_by_actor: Dictionary = {}
 	for slot_value in (state.get("assignment_slots", {}) as Dictionary).values():
 		var next_slot: Dictionary = slot_value
@@ -1053,6 +1089,8 @@ func _assignment_duty_scope(slot: Dictionary, settlement_id: String) -> String:
 
 
 func _on_party_tree_node_added(node: Node) -> void:
+	if node is FacilityGuardPost:
+		guard_duty.register_post.call_deferred(node)
 	if node != null and node.is_in_group("party_member"):
 		_refresh_enabled_party_actor(node)
 
@@ -1060,6 +1098,10 @@ func _on_party_tree_node_added(node: Node) -> void:
 func _on_party_tree_node_removed(node: Node) -> void:
 	if node != null:
 		_enabled_party_actors.erase(node.get_instance_id())
+		if node is FacilityGuardPost:
+			guard_duty.unregister_post(node)
+		elif node is WorldActor:
+			release_guard_duty(node)
 
 
 func _refresh_enabled_party_actor(actor: Node) -> void:
@@ -1365,7 +1407,7 @@ func _work_offer_was_accepted(result: Variant) -> bool:
 func _sync_job_system_state_to_gecs() -> void:
 	var bridge := _get_gecs_world()
 	if bridge != null and bridge.has_method("upsert_job_system_state"):
-		bridge.call("upsert_job_system_state", {"state_id": "job_system", "sim_time": _sim_time, "actor_policies": _actor_policies.duplicate(true)})
+		bridge.call("upsert_job_system_state", _job_system_state())
 
 
 func _expire_missed_job_contracts() -> void:

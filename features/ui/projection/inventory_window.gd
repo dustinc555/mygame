@@ -16,6 +16,10 @@ signal equipment_drop_requested(source_owner, slot_name)
 signal cursor_item_place_requested(data, target_owner, target_cell)
 signal cursor_item_equip_requested(data, target_owner, slot_name)
 
+signal trade_confirmed
+signal trade_cancelled
+signal trade_item_requested(inventory_owner, entry, amount: int)
+
 @export var transfer_distance := 5.0
 
 const ACTION_EAT := 1
@@ -27,20 +31,38 @@ const ACTION_TAKE_SILVER_10 := 110
 const ACTION_TAKE_SILVER_HALF := 150
 const ACTION_TAKE_SILVER_QUARTER := 125
 const NO_POUCH_DEPOSIT := "__no_pouch_deposit__"
+const GRAB_OPEN = preload("res://assets/ui/cursor_grab.svg")
+const GRAB_CLOSED = preload("res://assets/ui/cursor_grabbing.svg")
+# Cursor images are global in Godot; only the currently hovered/grabbed header
+# owns these overrides, and releases them before another UI uses the shapes.
+static var _grab_cursor_owner: WeakRef
 
 var inventory_owner
 var _dragging := false
+var _header_hovered := false
 var _drag_offset := Vector2.ZERO
 var _equipment_section: VBoxContainer
-var _equipment_grid: GridContainer
+var _equipment_grid: Control
 var _equipment_slots: Dictionary = {}
 
-@onready var title_label: Label = $Margin/WindowVBox/TitleBar/TitleBarHBox/Title
-@onready var auto_sort_button: Button = $Margin/WindowVBox/TitleBar/TitleBarHBox/AutoSortButton
+var trade_session: RefCounted
+var trade_side := -1
+var trade_owners: Array = []
+var trade_footer: HBoxContainer
+var trade_total: Label
+var trade_button: Button
+var grid_scroll: ScrollContainer
+var _height_source: Control
+
+@onready var grab_area: Control = $Margin/WindowVBox/TitleBar/TitleBarHBox/GrabArea
+@onready var title_label: Label = $Margin/WindowVBox/TitleBar/TitleBarHBox/GrabArea/Title
+@onready var auto_sort_button: Button = $Margin/WindowVBox/Body/BodyVBox/BagActions/AutoSortButton
+@onready var bag_actions: HBoxContainer = $Margin/WindowVBox/Body/BodyVBox/BagActions
 @onready var close_button: Button = $Margin/WindowVBox/TitleBar/TitleBarHBox/CloseButton
-@onready var warning_label: Label = $Margin/WindowVBox/WarningLabel
-@onready var weight_label: Label = $Margin/WindowVBox/WeightLabel
-@onready var inventory_grid: InventoryGridControl = $Margin/WindowVBox/InventoryGrid
+@onready var body_vbox: VBoxContainer = $Margin/WindowVBox/Body/BodyVBox
+
+@onready var weight_label: Label = $Margin/WindowVBox/Body/BodyVBox/BagActions/WeightLabel
+@onready var inventory_grid: InventoryGridControl = $Margin/WindowVBox/Body/BodyVBox/InventoryGrid
 @onready var title_bar: PanelContainer = $Margin/WindowVBox/TitleBar
 @onready var item_menu: PopupMenu = $ItemMenu
 
@@ -48,10 +70,17 @@ var _context_entry
 
 
 func _ready() -> void:
+	title_label.add_theme_font_size_override("font_size", 16)
+	auto_sort_button.tooltip_text = "Sort inventory"
+	close_button.text = "×"
+	close_button.tooltip_text = "Close"
+	weight_label.add_theme_font_size_override("font_size", 12)
 	_ensure_equipment_section()
 	auto_sort_button.pressed.connect(_on_auto_sort_pressed)
 	close_button.pressed.connect(_on_close_pressed)
-	title_bar.gui_input.connect(_on_title_bar_gui_input)
+	grab_area.gui_input.connect(_on_title_bar_gui_input)
+	grab_area.mouse_entered.connect(_on_header_mouse_entered)
+	grab_area.mouse_exited.connect(_on_header_mouse_exited)
 	inventory_grid.drop_validator = Callable(self, "_can_accept_drop")
 	inventory_grid.drop_handler = Callable(self, "_handle_drop")
 	inventory_grid.drop_error_provider = Callable(self, "_get_drop_error")
@@ -60,6 +89,14 @@ func _ready() -> void:
 	inventory_grid.invalid_drop_attempted.connect(_on_invalid_drop_attempted)
 	inventory_grid.item_dropped_outside.connect(_on_inventory_item_dropped_outside)
 	item_menu.id_pressed.connect(_on_item_menu_id_pressed)
+	grid_scroll = ScrollContainer.new()
+	grid_scroll.name = "InventoryScroll"
+	grid_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	grid_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	grid_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_vbox.add_child(grid_scroll)
+	inventory_grid.reparent(grid_scroll)
+	grid_scroll.custom_minimum_size = inventory_grid.custom_minimum_size
 
 
 func setup(target_owner) -> void:
@@ -71,39 +108,88 @@ func setup(target_owner) -> void:
 
 
 func refresh() -> void:
-	if inventory_owner == null:
+	if not is_instance_valid(inventory_owner):
 		return
 	title_label.text = _get_owner_inventory_title()
 	var inventory = _get_owner_inventory()
-	if _owner_shows_weight():
+	var merchant := MerchantRole.for_display(inventory_owner)
+	if trade_session != null:
+		inventory = trade_session.views[trade_side]
+	inventory_grid.show()
+	grid_scroll.show()
+	bag_actions.show()
+	auto_sort_button.visible = trade_session == null and merchant == null
+	if _owner_shows_weight() and merchant == null:
 		weight_label.visible = true
-		weight_label.text = "Weight: %.1f / %.1f" % [inventory.get_total_weight(), inventory.max_weight]
+		weight_label.text = "%.1f / %.1f" % [inventory.get_total_weight(), inventory.max_weight]
+		weight_label.tooltip_text = "Carried weight / capacity"
 	else:
 		weight_label.visible = false
 	inventory_grid.set_inventory_data(inventory)
+	var grid_size: Vector2 = inventory_grid.custom_minimum_size
+	grid_scroll.custom_minimum_size = Vector2(grid_size.x + (14 if grid_size.y > 256 else 0), minf(grid_size.y, 256))
+	# Align the action row to the drawn cells, not extra width from equipment
+	# or the window title. Sort occupies two cell columns at the same scale.
+	bag_actions.custom_minimum_size.x = InventoryGridControl.ITEM_GEOMETRY.grid_pixel_size(Vector2i(inventory.columns, inventory.rows), inventory_grid.cell_size, inventory_grid.cell_gap).x
+	auto_sort_button.custom_minimum_size = Vector2(inventory_grid.cell_size.x * 2 + inventory_grid.cell_gap, inventory_grid.cell_size.y)
 	inventory_grid.set_meta("source_owner", inventory_owner)
 	_refresh_equipment_slots()
+	if merchant != null:
+		_equipment_section.hide()
+	if trade_session != null:
+		weight_label.show()
+		var purse := "%d silver" % trade_session.inventories[trade_side].count_item(InventoryData.SILVER_ITEM)
+		weight_label.text = "%s · %s" % [weight_label.text, purse] if trade_side == 0 else purse
+		var net: int = trade_session.net_silver()
+		trade_total.text = "Pay %d silver" % net if net >= 0 else "Receive %d silver" % -net
+		trade_button.disabled = trade_session.offers.is_empty() or not trade_session.is_current()
 	call_deferred("fit_to_content")
 
-
-func show_warning(message: String) -> void:
-	warning_label.text = message
-	warning_label.visible = true
-	call_deferred("fit_to_content")
-
-
-func clear_warning() -> void:
-	warning_label.visible = false
-	warning_label.text = ""
-	call_deferred("fit_to_content")
+func bind_trade(session: RefCounted, side: int, owners: Array) -> void:
+	if session == null:
+		match_height_to(null)
+	trade_session = session
+	trade_side = side
+	trade_owners = owners
+	inventory_grid.entry_tooltip_provider = Callable()
+	inventory_grid.entry_state_provider = Callable()
+	if session != null:
+		inventory_grid.entry_tooltip_provider = func(entry): return session.entry_tooltip(side, entry)
+		inventory_grid.entry_state_provider = func(entry): return session.entry_state(side, entry)
+		if trade_footer == null:
+			trade_footer = HBoxContainer.new()
+			trade_footer.name = "TradeActions"
+			body_vbox.add_child(trade_footer)
+			trade_total = Label.new()
+			trade_total.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			trade_total.add_theme_font_size_override("font_size", 13)
+			trade_footer.add_child(trade_total)
+			var cancel := Button.new()
+			cancel.name = "CancelTradeButton"
+			cancel.text = "Reset"
+			cancel.pressed.connect(func(): trade_cancelled.emit())
+			trade_footer.add_child(cancel)
+			trade_button = Button.new()
+			trade_button.name = "TradeButton"
+			trade_button.text = "Trade"
+			trade_button.pressed.connect(func(): trade_confirmed.emit())
+			trade_footer.add_child(trade_button)
+	if trade_footer != null:
+		trade_footer.visible = session != null and side == 1
+	refresh()
 
 
 func _can_accept_drop(data, target_cell: Vector2i) -> bool:
-	clear_warning()
 	return _get_drop_error(data, target_cell) == ""
 
 
 func _get_drop_error(data, target_cell: Vector2i) -> String:
+	if trade_session != null:
+		if data is Dictionary and data.get("equipment_owner") == trade_owners[0] and data.has("equip_slot"):
+			return trade_session.drop_error(0, trade_session.equipment_entry(data.equip_slot), trade_side, target_cell)
+		if not data is Dictionary or not data.has("entry"):
+			return "Unavailable"
+		return trade_session.drop_error(trade_owners.find(data.get("source_owner")), data.entry, trade_side, target_cell)
 	if inventory_owner == null or typeof(data) != TYPE_DICTIONARY:
 		return ""
 	var pouch_deposit_error := _get_pouch_deposit_error(data, target_cell)
@@ -124,8 +210,6 @@ func _get_drop_error(data, target_cell: Vector2i) -> String:
 		return "No room"
 	if _owners_too_far(source_owner, inventory_owner):
 		return "Too far away"
-	if _entry_is_silver_pouch(entry):
-		return "Drop onto pouch"
 	if source_owner != null and source_owner.has_method("can_release_inventory_entry"):
 		return "" if bool(source_owner.call("can_release_inventory_entry", entry, inventory)) else "No room"
 	if inventory_owner != null and inventory_owner.has_method("can_receive_inventory_entry"):
@@ -152,19 +236,34 @@ func _handle_drop(data, target_cell: Vector2i) -> void:
 
 
 func _on_close_pressed() -> void:
+	_cancel_header_grab()
 	close_requested.emit(inventory_owner)
 
 
 func _on_auto_sort_pressed() -> void:
 	if inventory_owner == null:
 		return
-	clear_warning()
 	if not _get_owner_inventory().auto_sort():
-		show_warning("Sort failed")
+		notice_requested.emit("Sort failed")
 
 
 func _on_inventory_item_right_clicked(entry, _local_position: Vector2, shift_pressed: bool) -> void:
 	if inventory_owner == null or entry == null:
+		return
+	if trade_session != null:
+		_context_entry = entry
+		item_menu.clear()
+		if trade_session.entry_state(trade_side, entry) == "incoming":
+			item_menu.add_item("Withdraw", 200)
+		else:
+			if not entry.definition.sellable or entry.definition.is_currency_item() or int(trade_session.quote.call(trade_side, entry)) < 0:
+				return
+			var verb := "Buy" if trade_side == 1 else "Sell"
+			item_menu.add_item(verb + " 1", 201)
+			if entry.count > 1:
+				item_menu.add_item(verb + " stack", 202)
+		item_menu.position = Vector2i(get_viewport().get_mouse_position())
+		item_menu.popup()
 		return
 	if shift_pressed:
 		quick_transfer_requested.emit(inventory_owner, entry)
@@ -214,9 +313,22 @@ func _on_invalid_drop_attempted(message: String) -> void:
 
 
 func _on_inventory_item_dropped_outside(source_owner, entry) -> void:
-	if Rect2(global_position, size).has_point(get_global_mouse_position()):
+	if trade_session != null:
+		return
+	if is_pointer_over_inventory_window(self):
 		return
 	item_drop_requested.emit(source_owner, entry)
+
+
+static func is_pointer_over_inventory_window(control: Control) -> bool:
+	var parent_node := control.get_parent()
+	if parent_node == null:
+		return false
+	var mouse_position := control.get_global_mouse_position()
+	for child in parent_node.get_children():
+		if child is InventoryWindow and child.is_visible_in_tree() and child.get_global_rect().has_point(mouse_position):
+			return true
+	return false
 
 
 func _on_title_bar_gui_input(event: InputEvent) -> void:
@@ -227,12 +339,63 @@ func _on_title_bar_gui_input(event: InputEvent) -> void:
 		_dragging = mouse_button.pressed
 		if _dragging:
 			_drag_offset = get_global_mouse_position() - position
+		_update_header_cursor()
+		# Mouse-button events do not refresh Godot's cursor until the next motion.
+		if _header_hovered or _dragging:
+			DisplayServer.cursor_set_shape(DisplayServer.CURSOR_DRAG if _dragging else DisplayServer.CURSOR_MOVE)
 		accept_event()
 		return
 
 	if event is InputEventMouseMotion and _dragging:
 		position = _clamp_position_to_viewport(get_global_mouse_position() - _drag_offset)
 		accept_event()
+
+
+func _on_header_mouse_entered() -> void:
+	_header_hovered = true
+	_update_header_cursor()
+
+
+func _on_header_mouse_exited() -> void:
+	_header_hovered = false
+	if not _dragging:
+		_release_header_cursor()
+
+
+func _update_header_cursor() -> void:
+	grab_area.mouse_default_cursor_shape = Control.CURSOR_DRAG if _dragging else Control.CURSOR_MOVE
+	if _header_hovered or _dragging:
+		_grab_cursor_owner = weakref(self)
+		Input.set_custom_mouse_cursor(GRAB_OPEN, Input.CURSOR_MOVE, Vector2(16, 16))
+		Input.set_custom_mouse_cursor(GRAB_CLOSED, Input.CURSOR_DRAG, Vector2(16, 16))
+	else:
+		_release_header_cursor()
+
+
+func _release_header_cursor() -> void:
+	if _grab_cursor_owner != null and _grab_cursor_owner.get_ref() == self:
+		Input.set_custom_mouse_cursor(null, Input.CURSOR_MOVE)
+		Input.set_custom_mouse_cursor(null, Input.CURSOR_DRAG)
+		_grab_cursor_owner = null
+
+
+func _cancel_header_grab() -> void:
+	_dragging = false
+	_header_hovered = false
+	if is_instance_valid(grab_area):
+		grab_area.mouse_default_cursor_shape = Control.CURSOR_MOVE
+	_release_header_cursor()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_cancel_header_grab()
+	elif what == NOTIFICATION_VISIBILITY_CHANGED and is_node_ready() and not is_visible_in_tree():
+		_cancel_header_grab()
+
+
+func _exit_tree() -> void:
+	_cancel_header_grab()
 
 
 func _get_owner_display_name() -> String:
@@ -276,24 +439,16 @@ func _owner_shows_equipment() -> bool:
 func _ensure_equipment_section() -> void:
 	if _equipment_section != null:
 		return
-	var window_vbox := $Margin/WindowVBox as VBoxContainer
+
 	_equipment_section = VBoxContainer.new()
 	_equipment_section.name = "EquipmentSection"
 	_equipment_section.visible = false
 	_equipment_section.add_theme_constant_override("separation", 4)
-	var heading := Label.new()
-	heading.name = "EquipmentHeading"
-	heading.text = "Equipment"
-	heading.add_theme_font_size_override("font_size", 11)
-	_equipment_section.add_child(heading)
-	_equipment_grid = GridContainer.new()
-	_equipment_grid.name = "EquipmentGrid"
-	_equipment_grid.columns = 4
-	_equipment_grid.add_theme_constant_override("h_separation", 5)
-	_equipment_grid.add_theme_constant_override("v_separation", 5)
+	_equipment_grid = preload("res://features/ui/projection/equipment_layout.gd").new()
+	_equipment_grid.name = "EquipmentLayout"
 	_equipment_section.add_child(_equipment_grid)
-	window_vbox.add_child(_equipment_section)
-	window_vbox.move_child(_equipment_section, 1)
+	body_vbox.add_child(_equipment_section)
+	body_vbox.move_child(_equipment_section, 0)
 
 
 func _refresh_equipment_slots() -> void:
@@ -322,7 +477,37 @@ func _refresh_equipment_slots() -> void:
 		var slot_label := slot_name.capitalize()
 		if inventory_owner.has_method("get_equipment_slot_label"):
 			slot_label = inventory_owner.get_equipment_slot_label(slot_name)
-		slot_control.setup(inventory_owner, slot_name, slot_label)
+		slot_control.item_provider = Callable()
+		slot_control.drag_provider = Callable()
+		slot_control.drop_validator = Callable()
+		if trade_session != null and trade_side == 0:
+			slot_control.item_provider = func(slot):
+				var entry = trade_session.equipment_entry(slot)
+				return entry.definition if entry != null else null
+			slot_control.drag_provider = _trade_equipment_drag
+			slot_control.drop_validator = _trade_equipment_accepts
+		slot_control.setup(inventory_owner, slot_name, slot_label, inventory_grid)
+	_equipment_grid.arrange()
+
+func _trade_equipment_drag(slot: String) -> Dictionary:
+	var entry = trade_session.equipment_entry(slot)
+	if entry == null:
+		return {}
+	if not trade_session.offer_for(entry).is_empty():
+		return {"source_owner": inventory_owner, "entry": entry}
+	return {"equipment_owner": inventory_owner, "equip_slot": slot, "item_definition": entry.definition}
+
+func _trade_equipment_accepts(slot: String, data) -> bool:
+	if not data is Dictionary:
+		return false
+	if data.has("entry"):
+		var side := trade_owners.find(data.get("source_owner"))
+		if side == 1 or not trade_session.offer_for(data.entry).is_empty():
+			return trade_session.equipment_drop_error(side, data.entry, slot).is_empty()
+		return side == 0 and trade_session.owned_equipment_error(data.entry, slot).is_empty()
+	if data.get("equipment_owner") == inventory_owner and data.has("equip_slot"):
+		return trade_session.owned_equipment_error(trade_session.equipment_entry(data.equip_slot), slot).is_empty()
+	return false
 
 
 func _get_equipment_drop_to_grid_error(data: Dictionary, target_cell: Vector2i) -> String:
@@ -345,8 +530,6 @@ func _get_cursor_item_drop_error(data: Dictionary, target_cell: Vector2i) -> Str
 	var contained_item_counts: Dictionary = data.get("contained_item_counts", {})
 	if source_owner != inventory_owner and _owners_too_far(source_owner, inventory_owner):
 		return "Too far away"
-	if source_owner != null and source_owner != inventory_owner and _definition_is_silver_pouch(definition):
-		return "Drop onto pouch"
 	var inventory = _get_owner_inventory()
 	if inventory.use_weight and inventory.get_total_weight() + inventory.get_item_weight(definition, count, contained_item_counts) > inventory.max_weight:
 		return "Too heavy"
@@ -367,13 +550,19 @@ func _on_equipment_slot_drop_requested(slot_name: String, data) -> void:
 
 
 func _on_equipment_slot_drag_dropped_outside(slot_name: String) -> void:
-	if Rect2(global_position, size).has_point(get_global_mouse_position()):
+	if trade_session != null:
+		return
+	if is_pointer_over_inventory_window(self):
 		return
 	equipment_drop_requested.emit(inventory_owner, slot_name)
 
 
 func _on_item_menu_id_pressed(action_id: int) -> void:
 	if inventory_owner == null or _context_entry == null:
+		return
+	if trade_session != null:
+		if action_id in [200, 201, 202]:
+			trade_item_requested.emit(inventory_owner, _context_entry, 0 if action_id == 200 else (1 if action_id == 201 else -1))
 		return
 	match action_id:
 		ACTION_TAKE_ALL:
@@ -441,14 +630,6 @@ func _drag_data_is_silver_or_pouch(data: Dictionary) -> bool:
 	return str(definition.currency_id) == str(InventoryData.SILVER_ITEM.currency_id)
 
 
-func _entry_is_silver_pouch(entry) -> bool:
-	return entry != null and _definition_is_silver_pouch(entry.definition)
-
-
-func _definition_is_silver_pouch(definition) -> bool:
-	return definition != null and str(definition.currency_id) == str(InventoryData.SILVER_ITEM.currency_id) and int(definition.currency_container_capacity) > 0
-
-
 func _drag_data_silver_amount(data: Dictionary) -> int:
 	if data.has("entry") and data["entry"] != null:
 		var entry = data["entry"]
@@ -471,10 +652,23 @@ func clamp_to_viewport() -> void:
 	position = _clamp_position_to_viewport(position)
 
 
+func match_height_to(source: Control) -> void:
+	if is_instance_valid(_height_source) and _height_source.resized.is_connected(fit_to_content):
+		_height_source.resized.disconnect(fit_to_content)
+	_height_source = source
+	if is_instance_valid(_height_source):
+		_height_source.resized.connect(fit_to_content, CONNECT_DEFERRED)
+	fit_to_content()
+
+
 func fit_to_content() -> void:
 	if not is_inside_tree():
 		return
-	size = get_combined_minimum_size()
+
+	var fitted_size := get_combined_minimum_size()
+	if is_instance_valid(_height_source):
+		fitted_size.y = maxf(fitted_size.y, _height_source.size.y)
+	size = fitted_size
 	clamp_to_viewport()
 
 
