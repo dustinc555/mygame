@@ -65,8 +65,12 @@ class Staff extends HumanoidCharacter:
 		seat.claim_sitter(self)
 	func get_current_seat_target() -> Node: return get_interaction().current_seat_target
 
-class Point extends Node3D:
+@warning_ignore("missing_tool")
+class Point extends FacilityGuardPost:
 	var worker: WorldActor
+	func get_pool_key(_owners: Dictionary) -> String: return "character:owner"
+	func get_assigned_worker() -> WorldActor: return worker
+	func is_worker_at_post(actor: WorldActor) -> bool: return actor.global_position.distance_to(get_work_position()) <= stand_radius
 	func get_work_position() -> Vector3: return Vector3(10, 0, 0)
 	func get_customer_position() -> Vector3: return Vector3.ZERO
 	func is_available_for(actor: WorldActor) -> bool: return worker == null or worker == actor
@@ -116,6 +120,8 @@ func _fixture() -> Dictionary:
 	bar.guard_posts_root_path = NodePath("Points")
 	var point := Point.new()
 	points.add_child(point)
+	jobs.guard_duty.assignments["staff"] = "character:owner"
+	jobs.guard_duty.register_post(point)
 	bar._barkeeper_counter = point
 	bar._barkeeper_counter_lookup_complete = true
 	jobs._assignment_workers["staff"] = {"schedule_enabled": true, "work_schedule": {}, "duty_scope_id": "bar"}
@@ -142,7 +148,7 @@ func test_shift_end_releases_counter_and_guard_claims() -> void:
 	f.bar._process_guard_post_assignment(f.actor, 0.1)
 	assert_null(f.point.worker)
 	assert_false(f.actor.is_on_counter_duty())
-	assert_true(f.bar._guard_post_by_actor_id.is_empty())
+	assert_true(f.jobs.guard_duty._claims.is_empty())
 	assert_eq(f.actor.moves, 1, "Closing must not issue another move")
 
 func test_authored_night_shift_reopens_legacy_waiter_execution() -> void:

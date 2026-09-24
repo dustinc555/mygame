@@ -1090,7 +1090,7 @@ func select_facility_node(node: Node) -> void:
 		_select_node(node)
 
 
-## Ghost-place an authored guard stand spot under the facility's GuardPosts root.
+## Ghost-place private security furniture; scope remains editable in the Inspector.
 func begin_guard_post_placement(facility: Node) -> void:
 	if facility == null or not _can_edit_live(facility):
 		_set_status("Town is a locked instance — use Edit In Zone on the town first.")
@@ -1098,37 +1098,17 @@ func begin_guard_post_placement(facility: Node) -> void:
 	_select_node(facility)
 	var committed := func(world_transform: Transform3D) -> void:
 		_place_guard_post(facility, world_transform)
-	if not _ghost.begin_marker(0.8, GUARD_POST_GHOST_COLOR, committed, func(): _set_status("Placement cancelled.")):
+	if not _ghost.begin_scene(GUARD_POST_SCENE, committed, func(): _set_status("Placement cancelled.")):
 		_set_status("Could not start placement (no edited scene).")
 		return
-	_set_status("Click terrain to place a guard post; right-click cancels.")
+	_set_status("Place mercenary spot: hold left-click and drag to face the arrow; release places. Right-click cancels.")
 
 
 func _place_guard_post(facility: Node, world_transform: Transform3D) -> void:
-	var owner_root := _plugin.get_editor_interface().get_edited_scene_root()
-	var facility_3d := facility as Node3D
-	if facility_3d == null or owner_root == null:
+	var post := preload("res://addons/world_authoring/guard_post_placement.gd").place(_plugin, facility as Node3D, "Furniture", world_transform, "Private Security")
+	if post == null:
 		return
-	var posts_root := facility.get_node_or_null("GuardPosts") as Node3D
-	var undo_redo := _plugin.get_undo_redo()
-	undo_redo.create_action("Place Guard Post")
-	if posts_root == null:
-		posts_root = Node3D.new()
-		posts_root.name = "GuardPosts"
-		undo_redo.add_do_method(facility, "add_child", posts_root)
-		undo_redo.add_do_method(posts_root, "set_owner", owner_root)
-		undo_redo.add_undo_method(facility, "remove_child", posts_root)
-		undo_redo.add_do_reference(posts_root)
-	var post := GUARD_POST_SCENE.instantiate() as Node3D
-	post.name = _unique_child_name(posts_root, "GuardPost")
-	var parent_global := posts_root.global_transform if posts_root.is_inside_tree() else facility_3d.global_transform
-	post.transform = parent_global.affine_inverse() * world_transform
-	undo_redo.add_do_method(posts_root, "add_child", post)
-	undo_redo.add_do_method(post, "set_owner", owner_root)
-	undo_redo.add_undo_method(posts_root, "remove_child", post)
-	undo_redo.add_do_reference(post)
-	undo_redo.commit_action()
-	_select_node(facility)
+	_select_node(post)
 	_set_status("Placed %s." % post.name)
 	if _dock != null and is_instance_valid(_dock):
 		_dock.set_facility(facility)

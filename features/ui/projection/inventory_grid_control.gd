@@ -7,14 +7,21 @@ signal item_right_clicked(entry, local_position, shift_pressed)
 signal invalid_drop_attempted(message)
 signal item_dropped_outside(source_owner, entry)
 
-@export var cell_size := Vector2(30.0, 30.0)
-@export var cell_gap := 2.0
-@export var item_padding := 4.0
+const ITEM_GEOMETRY = preload("res://features/ui/projection/inventory_item_geometry.gd")
+const DEFAULT_CELL_SIZE := ITEM_GEOMETRY.DEFAULT_CELL_SIZE
+const DEFAULT_CELL_GAP := ITEM_GEOMETRY.DEFAULT_CELL_GAP
+const DEFAULT_ITEM_PADDING := ITEM_GEOMETRY.DEFAULT_ITEM_PADDING
+
+@export var cell_size := DEFAULT_CELL_SIZE
+@export var cell_gap := DEFAULT_CELL_GAP
+@export var item_padding := DEFAULT_ITEM_PADDING
 
 var inventory_data
 var drop_validator: Callable
 var drop_handler: Callable
 var drop_error_provider: Callable
+var entry_tooltip_provider: Callable
+var entry_state_provider: Callable
 var _preview_visible := false
 var _preview_rect := Rect2()
 var _last_invalid_drop_message := ""
@@ -40,26 +47,26 @@ func _draw() -> void:
 	for y in range(inventory_data.rows):
 		for x in range(inventory_data.columns):
 			var rect := _cell_rect(Vector2i(x, y))
-			draw_rect(rect, Color(0.12, 0.12, 0.14, 0.9), true)
-			draw_rect(rect, Color(0.24, 0.24, 0.28, 1.0), false, 1.0)
+			draw_rect(rect, Color(0.065, 0.06, 0.048), true)
+			draw_rect(rect, Color(0.23, 0.205, 0.16), false, 1.0)
 
 	for entry in inventory_data.entries:
 		var item_rect := _item_rect(entry)
-		draw_rect(item_rect, Color(0.22, 0.18, 0.12, 0.96), true)
-		draw_rect(item_rect, Color(0.92, 0.74, 0.32, 1.0), false, 2.0)
+		draw_rect(item_rect, Color(0.16, 0.14, 0.095), true)
+		draw_rect(item_rect, Color(0.49, 0.40, 0.24), false, 1.0)
 		if entry.definition.icon != null:
 			var content_rect := item_rect.grow(-item_padding)
-			var texture_size: Vector2 = entry.definition.icon.get_size()
-			var scale_factor := minf(content_rect.size.x / texture_size.x, content_rect.size.y / texture_size.y)
-			var draw_size: Vector2 = texture_size * scale_factor
-			var draw_position: Vector2 = content_rect.position + (content_rect.size - draw_size) * 0.5
-			draw_texture_rect(entry.definition.icon, Rect2(draw_position, draw_size), false)
+			draw_texture_rect(entry.definition.icon, fit_icon_rect(entry.definition.icon, content_rect), false)
 		else:
 			draw_string(get_theme_default_font(), item_rect.position + Vector2(6, 20), entry.definition.display_name, HORIZONTAL_ALIGNMENT_LEFT, item_rect.size.x - 12, 16, Color(0.94, 0.94, 0.94, 1.0))
 		var count_label := _entry_count_label(entry)
 		if not count_label.is_empty():
 			_draw_count_label(item_rect, count_label)
 		_draw_bandage_uses_bar(entry, item_rect)
+		if entry_state_provider.is_valid():
+			var state: String = entry_state_provider.call(entry)
+			if state == "incoming":
+				draw_rect(item_rect, Color(1.0, 0.85, 0.35), false, 2.0)
 
 	if _preview_visible:
 		draw_rect(_preview_rect, Color(1.0, 0.85, 0.35, 0.22), true)
@@ -81,6 +88,8 @@ func _get_tooltip(at_position: Vector2) -> String:
 	var entry = _entry_at_local_position(at_position)
 	if entry == null or entry.definition == null:
 		return ""
+	if entry_tooltip_provider.is_valid():
+		return entry_tooltip_provider.call(entry)
 	if inventory_data != null and inventory_data.has_method("is_entry_currency_container") and bool(inventory_data.call("is_entry_currency_container", entry)):
 		var stored := _entry_silver_count(entry)
 		var capacity := int(entry.definition.currency_container_capacity)
@@ -94,13 +103,7 @@ func _get_drag_data(at_position: Vector2):
 	if entry == null:
 		return null
 
-	var preview := PanelContainer.new()
-	preview.custom_minimum_size = Vector2(max(72.0, cell_size.x * entry.definition.grid_size.x), max(32.0, cell_size.y * entry.definition.grid_size.y))
-	var label := Label.new()
-	label.text = entry.definition.display_name if entry.definition.icon == null else entry.definition.display_name
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	preview.add_child(label)
+	var preview := preload("res://features/ui/projection/item_drag_preview.gd").create(entry.definition, _entry_count_label(entry), _item_rect(entry).size, item_padding)
 	set_drag_preview(preview)
 	_active_drag_data = {
 		"entry": entry,
@@ -111,20 +114,16 @@ func _get_drag_data(at_position: Vector2):
 
 
 func _can_drop_data(at_position: Vector2, data) -> bool:
-	if drop_validator.is_null():
+	var definition := _drag_definition(data)
+	if drop_validator.is_null() or definition == null:
 		_clear_preview()
 		_last_invalid_drop_message = ""
 		return false
-	var target_cell := _position_to_cell(at_position)
+	var target_cell := _drop_cell(at_position, definition)
 	var is_valid: bool = drop_validator.call(data, target_cell)
-	if is_valid and typeof(data) == TYPE_DICTIONARY and data.has("entry"):
+	if is_valid:
 		_preview_visible = true
-		_preview_rect = _item_rect_from_data(data["entry"], target_cell)
-		_last_invalid_drop_message = ""
-		queue_redraw()
-	elif is_valid and typeof(data) == TYPE_DICTIONARY and data.has("cursor_item") and data.has("item_definition"):
-		_preview_visible = true
-		_preview_rect = _item_rect_from_definition(data["item_definition"], target_cell)
+		_preview_rect = _item_rect_from_definition(definition, target_cell)
 		_last_invalid_drop_message = ""
 		queue_redraw()
 	else:
@@ -138,9 +137,26 @@ func _can_drop_data(at_position: Vector2, data) -> bool:
 
 func _drop_data(at_position: Vector2, data) -> void:
 	_clear_preview()
-	if drop_handler.is_null():
+	var definition := _drag_definition(data)
+	if drop_handler.is_null() or definition == null:
 		return
-	drop_handler.call(data, _position_to_cell(at_position))
+	drop_handler.call(data, _drop_cell(at_position, definition))
+
+
+func _drag_definition(data) -> ItemDefinition:
+	if not data is Dictionary:
+		return null
+	if data.get("entry") != null:
+		return data["entry"].definition as ItemDefinition
+	return data.get("item_definition") as ItemDefinition
+
+
+func _drop_cell(at_position: Vector2, definition: ItemDefinition) -> Vector2i:
+	# The ghost is centered on the pointer. Snap its top-left to the nearest
+	# grid origin; validation, highlight and commit all use this same cell.
+	var origin := at_position - item_pixel_size(definition, cell_size, cell_gap) * 0.5
+	var stride := cell_size + Vector2.ONE * cell_gap
+	return Vector2i(roundi(origin.x / stride.x), roundi(origin.y / stride.y))
 
 
 func _notification(what: int) -> void:
@@ -175,11 +191,19 @@ func _cell_rect(cell: Vector2i) -> Rect2:
 
 
 func _item_rect(entry) -> Rect2:
-	var item_position := Vector2(entry.grid_position.x, entry.grid_position.y) * (cell_size + Vector2.ONE * cell_gap)
-	var grid_cells := Vector2(entry.definition.grid_size.x, entry.definition.grid_size.y)
-	var item_size := grid_cells * cell_size
-	item_size += Vector2.ONE * cell_gap * Vector2(maxi(entry.definition.grid_size.x - 1, 0), maxi(entry.definition.grid_size.y - 1, 0))
-	return Rect2(item_position, item_size)
+	return _item_rect_from_definition(entry.definition, entry.grid_position)
+
+
+static func item_pixel_size(definition: ItemDefinition, cells := DEFAULT_CELL_SIZE, gap := DEFAULT_CELL_GAP) -> Vector2:
+	return ITEM_GEOMETRY.item_pixel_size(definition, cells, gap)
+
+
+static func grid_pixel_size(dimensions: Vector2i, cells := DEFAULT_CELL_SIZE, gap := DEFAULT_CELL_GAP) -> Vector2:
+	return ITEM_GEOMETRY.grid_pixel_size(dimensions, cells, gap)
+
+
+static func fit_icon_rect(texture: Texture2D, content_rect: Rect2) -> Rect2:
+	return ITEM_GEOMETRY.fit_icon_rect(texture, content_rect)
 
 
 func _position_to_cell(local_position: Vector2) -> Vector2i:
@@ -194,19 +218,12 @@ func _entry_at_local_position(local_position: Vector2):
 
 
 func _item_rect_from_data(entry, grid_position: Vector2i) -> Rect2:
-	var item_position := Vector2(grid_position.x, grid_position.y) * (cell_size + Vector2.ONE * cell_gap)
-	var grid_cells := Vector2(entry.definition.grid_size.x, entry.definition.grid_size.y)
-	var item_size := grid_cells * cell_size
-	item_size += Vector2.ONE * cell_gap * Vector2(maxi(entry.definition.grid_size.x - 1, 0), maxi(entry.definition.grid_size.y - 1, 0))
-	return Rect2(item_position, item_size)
+	return _item_rect_from_definition(entry.definition, grid_position)
 
 
 func _item_rect_from_definition(definition: ItemDefinition, grid_position: Vector2i) -> Rect2:
 	var item_position := Vector2(grid_position.x, grid_position.y) * (cell_size + Vector2.ONE * cell_gap)
-	var grid_cells := Vector2(definition.grid_size.x, definition.grid_size.y)
-	var item_size := grid_cells * cell_size
-	item_size += Vector2.ONE * cell_gap * Vector2(maxi(definition.grid_size.x - 1, 0), maxi(definition.grid_size.y - 1, 0))
-	return Rect2(item_position, item_size)
+	return Rect2(item_position, item_pixel_size(definition, cell_size, cell_gap))
 
 
 func _clear_preview() -> void:
@@ -236,9 +253,17 @@ func _entry_silver_count(entry) -> int:
 	return int(inventory_data.call("get_entry_contained_item_count", entry, InventoryData.SILVER_ITEM))
 
 
-func _draw_count_label(item_rect: Rect2, count_label: String) -> void:
+func _count_label_font_size(item_rect: Rect2, count_label: String) -> int:
 	var font := get_theme_default_font()
 	var font_size := 14
+	while font_size > 1 and font.get_string_size(count_label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x > item_rect.size.x - 12.0:
+		font_size -= 1
+	return font_size
+
+
+func _draw_count_label(item_rect: Rect2, count_label: String) -> void:
+	var font := get_theme_default_font()
+	var font_size := _count_label_font_size(item_rect, count_label)
 	var text_size := font.get_string_size(count_label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size)
 	var backplate := Rect2(item_rect.position + Vector2(4.0, item_rect.size.y - text_size.y - 8.0), text_size + Vector2(8.0, 5.0))
 	draw_rect(backplate, Color(0.02, 0.018, 0.012, 0.78), true)

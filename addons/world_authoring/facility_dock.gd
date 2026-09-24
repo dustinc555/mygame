@@ -174,8 +174,26 @@ func setup(tools: RefCounted) -> void:
 	_shop_panel.name = "Shop"
 	_shop_panel.setup(_tools)
 	_tabs.add_child(_shop_panel)
+	_tabs.add_child(_build_markers_tab())
 	_tabs.tab_changed.connect(func(_index: int): _queue_refresh())
 	visibility_changed.connect(_queue_refresh)
+
+
+func _build_markers_tab() -> Control:
+	var markers := VBoxContainer.new()
+	markers.name = "Markers"
+	markers.add_theme_constant_override("separation", 8)
+	var button := Button.new()
+	button.text = "Add Mercenary Spot"
+	button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	button.tooltip_text = "Place a private security position for this facility's owner."
+	button.pressed.connect(func(): _tools.begin_guard_post_placement(_facility))
+	markers.add_child(button)
+	var hint := Label.new()
+	hint.text = "Drag to set facing. Rotate the arrow to adjust it."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	markers.add_child(hint)
+	return markers
 
 
 ## Dedicated Furniture column: generation (Furnish/Reroll) and hand placement
@@ -427,7 +445,7 @@ func _rebuild() -> void:
 	_content.visible = has_context
 	for index in _tabs.get_tab_count():
 		var containers_only := not has_facility and _tabs.get_tab_title(index) != "Containers"
-		var furniture_unsupported := has_facility and _tabs.get_tab_title(index) == "Furniture" and not bool(_facility.call("supports_furniture"))
+		var furniture_unsupported := has_facility and _tabs.get_tab_title(index) in ["Furniture", "Markers"] and not bool(_facility.call("supports_furniture"))
 		var shop_unsupported := _tabs.get_tab_title(index) == "Shop" and (not has_facility or not _facility.has_method("effective_stock"))
 		_tabs.set_tab_hidden(index, containers_only or furniture_unsupported or shop_unsupported)
 	if not has_context:

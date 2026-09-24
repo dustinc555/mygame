@@ -20,7 +20,7 @@ const META_SETTLEMENT_SLOT_ID := "settlement_staff_slot_id"
 const SENTENCE_ROUTE_STALL_SECONDS := 6.0
 const SENTENCE_ROUTE_PROGRESS_EPSILON := 0.12
 const SENTENCE_STALLED_DELIVERY_DISTANCE := 3.0
-const GUARD_SHUFFLE_SECONDS := Vector2(14.0, 32.0)
+
 
 @export var warden_name := "Warden"
 @export var guard_name := "Jail Guard"
@@ -28,8 +28,7 @@ const GUARD_SHUFFLE_SECONDS := Vector2(14.0, 32.0)
 @export var staff_squad_name := ""
 @export var sync_staff_from_owner := true
 
-var _guard_post_by_actor_id: Dictionary = {}
-var _guard_shuffle_remaining_by_actor_id: Dictionary = {}
+
 # Projection-owned routine moves, never law custody/sentence targets.
 var _routine_duty_target_by_actor_id: Dictionary = {}
 var _pending_sentence_announcements: Array[Dictionary] = []
@@ -56,8 +55,7 @@ func _process(delta: float) -> void:
 		return
 	_process_sentence_announcements(delta)
 	_process_warden_home_return()
-	for guard in get_guard_actors():
-		_process_guard_post_assignment(guard as HumanoidCharacter, delta)
+	# Guard patrols are executed once by Jobs across the entire town.
 
 
 func _repair_authoring_tree() -> void:
@@ -175,12 +173,9 @@ func _has_priority_jail_activity(actor: HumanoidCharacter) -> bool:
 func release_settlement_assignment_duty(actor: Node) -> void:
 	if actor == null or not is_instance_valid(actor):
 		return
-	var actor_id := actor.get_instance_id()
-	var post: Node = _guard_post_by_actor_id.get(actor_id)
-	if is_instance_valid(post) and post.has_method("release_worker"):
-		post.call("release_worker", actor)
-	_guard_post_by_actor_id.erase(actor_id)
-	_guard_shuffle_remaining_by_actor_id.erase(actor_id)
+	var jobs := BootstrapContext.service(&"job_system")
+	if jobs != null and jobs.has_method("release_guard_duty"):
+		jobs.release_guard_duty(actor)
 	var desk := get_warden_service_point()
 	if is_instance_valid(desk) and desk.has_method("release_worker"):
 		desk.call("release_worker", actor)
@@ -850,69 +845,10 @@ func _can_claim_resident_for_staff(actor: Node) -> bool:
 	return true
 
 
-func _process_guard_post_assignment(guard: HumanoidCharacter, delta: float) -> void:
-	if guard == null:
-		return
-	if _has_priority_jail_activity(guard) or not _can_execute_assignment_duty(guard):
-		release_settlement_assignment_duty(guard)
-		return
-	var actor_id := guard.get_instance_id()
-	var post = _guard_post_by_actor_id.get(actor_id)
-	if post == null or not is_instance_valid(post) or (post.has_method("is_available_for") and not post.call("is_available_for", guard)):
-		post = _claim_guard_post_for(guard)
-		if post == null:
-			return
-	# Same rotation the bar runs: guards shuffle to another free post on a
-	# random cadence, so hand-placed extra posts all get manned over time
-	# instead of the surplus standing empty forever.
-	var remaining := float(_guard_shuffle_remaining_by_actor_id.get(actor_id, _next_guard_shuffle_seconds())) - delta
-	if remaining <= 0.0:
-		post = _try_shuffle_guard_post(guard, post)
-		remaining = _next_guard_shuffle_seconds()
-	_guard_shuffle_remaining_by_actor_id[actor_id] = remaining
-	if not post.has_method("get_work_position"):
-		return
-	var work_position: Vector3 = post.call("get_work_position")
-	if guard.global_position.distance_to(work_position) > guard.interact_distance:
-		_set_routine_duty_movement(guard, work_position)
-	else:
-		_clear_routine_duty_movement(guard)
-
-
-func _claim_guard_post_for(guard: HumanoidCharacter):
-	for post in get_guard_posts():
-		if post == null:
-			continue
-		if post.has_method("is_available_for") and not post.call("is_available_for", guard):
-			continue
-		if post.has_method("claim_worker") and not post.call("claim_worker", guard):
-			continue
-		_guard_post_by_actor_id[guard.get_instance_id()] = post
-		_guard_shuffle_remaining_by_actor_id[guard.get_instance_id()] = _next_guard_shuffle_seconds()
-		return post
-	return null
-
-
-func _try_shuffle_guard_post(guard: HumanoidCharacter, current_post):
-	var posts := get_guard_posts()
-	if posts.size() <= 1:
-		return current_post
-	for post in posts:
-		if post == null or post == current_post:
-			continue
-		if post.has_method("is_available_for") and not post.call("is_available_for", guard):
-			continue
-		if post.has_method("claim_worker") and not post.call("claim_worker", guard):
-			continue
-		if current_post != null and current_post.has_method("release_worker"):
-			current_post.call("release_worker", guard)
-		_guard_post_by_actor_id[guard.get_instance_id()] = post
-		return post
-	return current_post
-
-
-func _next_guard_shuffle_seconds() -> float:
-	return randf_range(GUARD_SHUFFLE_SECONDS.x, GUARD_SHUFFLE_SECONDS.y)
+func _process_guard_post_assignment(guard: HumanoidCharacter, _delta: float) -> void:
+	var jobs := BootstrapContext.service(&"job_system")
+	if jobs != null and jobs.has_method("process_guard_duty"):
+		jobs.process_guard_duty(guard)
 
 
 ## Typed vitals writes: the old property-name reflection here was invisible

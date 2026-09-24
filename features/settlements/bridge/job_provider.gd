@@ -867,11 +867,13 @@ func _process_guard_post(_job_index: int, _job, slot_state: Dictionary, worker: 
 		slot_state["guard_shuffle_remaining"] = _next_guard_shuffle_seconds()
 	post = _process_guard_post_shuffle(service_area, slot_state, worker, post, delta)
 	var work_position: Vector3 = post.get_work_position()
-	if worker.global_position.distance_to(work_position) > worker.interact_distance:
-		worker.set_move_target(work_position, false)
+	var arrived: bool = post.is_worker_at_post(worker) if post.has_method("is_worker_at_post") else worker.global_position.distance_to(work_position) <= worker.interact_distance
+	if not arrived:
+		if not worker.has_move_target() or not worker.get_move_target().is_equal_approx(work_position):
+			worker.set_move_target(work_position, false)
 		return false
-	if post.has_method("is_worker_at_post"):
-		return post.is_worker_at_post(worker)
+	if post.has_method("get_facing_direction"):
+		worker.look_at(worker.global_position + post.get_facing_direction(), Vector3.UP)
 	return true
 
 
