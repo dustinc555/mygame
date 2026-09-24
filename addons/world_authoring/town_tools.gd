@@ -11,10 +11,9 @@ extends RefCounted
 ## edits the town's own scene file and refreshes the instance, so per-town
 ## scenes stay the single source of truth.
 ##
-## By design towns stay minimal (root + Facilities): no authored
-## ActivityPoints/GuardPosts roots — guard posts come from the definition's
-## guard_post_count, activity points live inside facility scenes. The only
-## authored markers are the RoadSpawn / DefenseSpawn nodes.
+## Town guard spots are authored under GuardPosts, independently of staff count.
+## Facility spots can join the town patrol pool or their proprietor's private pool.
+## Other town markers are RoadSpawn / DefenseSpawn.
 
 const TOWN_ICON_PATH := "res://addons/world_authoring/icons/town.svg"
 const FACILITIES_DIR := "res://features/settlements/resources/facilities"
@@ -215,9 +214,24 @@ func _on_placement_cancelled() -> void:
 ## --- Spawn marker placement --------------------------------------------------
 
 
-## marker_name is "RoadSpawn" or "DefenseSpawn"; the ghost click creates or
-## moves the named marker at the town root and keeps the anchor's exported
-## spawn path pointing at it.
+## Town-wide patrol positions, independent of any building's staffing.
+func begin_guard_post_placement() -> void:
+	var town := _get_active_town() as Node3D
+	if town == null or not _can_edit_town_live(town):
+		_set_status("Use Edit In Zone on the town before placing guard spots.")
+		return
+	_select_node(town)
+	var placement = preload("res://addons/world_authoring/guard_post_placement.gd")
+	var committed := func(world_transform: Transform3D) -> void:
+		var post: Node3D = placement.place(_plugin, town, "GuardPosts", world_transform, "Town Guard")
+		if post != null:
+			_select_node(post)
+			_set_status("Guard spot placed. Rotate its arrow and set Hold Minutes in the Inspector.")
+	if _ghost.begin_scene(placement.SCENE, committed, _on_placement_cancelled):
+		_set_status("Place guard spot: hold left-click and drag to face the arrow; release places.")
+
+
+## marker_name is RoadSpawn or DefenseSpawn; placement updates the town anchor.
 func begin_spawn_marker_placement(marker_name: String) -> void:
 	var town := _get_active_town() as Node3D
 	if town == null or not MARKER_GHOST_COLORS.has(marker_name):

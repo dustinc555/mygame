@@ -599,14 +599,9 @@ func _repair_guard_authoring_tree() -> void:
 		return
 	# Guard roots exist only when guards are actually authored: a town with
 	# zero guard counts stays a minimal root + Facilities scene.
-	var effective_posts: int = max(guard_count, guard_post_count)
 	var wants_guards := guard_count > 0 and (Engine.is_editor_hint() or not use_settlement_population_for_guards)
 	var guards_root := _ensure_child_root(guards_root_path) if wants_guards else get_node_or_null(guards_root_path)
-	var posts_root := _ensure_child_root(guard_posts_root_path) if effective_posts > 0 else get_node_or_null(guard_posts_root_path)
-	if posts_root != null:
-		for index in range(effective_posts):
-			_ensure_guard_post(posts_root, index)
-		_trim_generated_children(posts_root, "GuardPost", effective_posts)
+	# Posts are authored independently of headcount. Never reposition or trim them.
 	if guards_root != null and (Engine.is_editor_hint() or not use_settlement_population_for_guards):
 		for index in range(guard_count):
 			_ensure_guard_actor(guards_root, index)

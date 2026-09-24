@@ -39,6 +39,12 @@ func get_equipment_slot_label(slot_name: String) -> String:
 		return appearance_data.character_race.get_slot_label(slot_name)
 	return str(EQUIPMENT_SLOT_LABELS.get(slot_name, slot_name.capitalize()))
 
+
+func get_equipment_slot_grid_size(slot_name: String) -> Vector2i:
+	if appearance_data != null and appearance_data.character_race != null:
+		return appearance_data.character_race.get_slot_grid_size(slot_name)
+	return CharacterRaceDefinition.default_slot_grid_size(slot_name)
+
 # ---------------------------------------------------------------------------
 # Properties subclasses reference directly
 # ---------------------------------------------------------------------------

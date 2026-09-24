@@ -79,8 +79,7 @@ var _barkeeper_counter_lookup_complete := false
 var _owner_conversation_gesture_played := false
 var _conversation_controller: ConversationController
 var _conversation_controller_lookup_pending := true
-var _guard_post_by_actor_id: Dictionary = {}
-var _guard_shuffle_remaining_by_actor_id: Dictionary = {}
+
 var _next_waiter_order_prompt_seconds := 0.0
 var _pending_waiter_order: Dictionary = {}
 var _seat_order_cooldown_until: Dictionary = {}
@@ -99,11 +98,11 @@ func _ready() -> void:
 	_sync_trade_inventory()
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 	_process_waiter_service()
-	_process_guard_staff(delta)
+
 	_process_owner_counter_duty()
 
 
@@ -253,15 +252,11 @@ func call_waiter_for_customer(customer: HumanoidCharacter) -> Dictionary:
 
 
 func get_available_guard_post(worker: WorldActor, excluded_post = null):
-	var available_posts: Array = []
-	for post in _collect_nodes(guard_posts_root_path):
-		if post == null or post == excluded_post:
-			continue
-		if post.has_method("is_available_for") and post.is_available_for(worker):
-			available_posts.append(post)
-	if available_posts.is_empty():
+	var jobs := BootstrapContext.service(&"job_system")
+	var proprietor := get_owner_character()
+	if jobs == null or proprietor == null:
 		return null
-	return available_posts[_rng.randi_range(0, available_posts.size() - 1)]
+	return jobs.guard_duty.find_available_post("character:" + proprietor.stable_id, worker, excluded_post)
 
 
 func get_service_point():
@@ -679,59 +674,11 @@ func _process_waiter_service() -> void:
 		_continue_waiter_service(_active_service_waiter)
 
 
-func _process_guard_staff(delta: float) -> void:
-	for guard in get_guard_characters():
-		if guard == null or guard.life_state != NpcRules.LifeState.ALIVE:
-			_release_guard_post_for(guard)
-			continue
-		_process_guard_post_assignment(guard, delta)
 
-
-func _process_guard_post_assignment(guard: WorldActor, delta: float) -> void:
-	if not _can_execute_staff_duty(guard):
-		_release_guard_post_for(guard)
-		return
-	var actor_id := guard.get_instance_id()
-	var post = _guard_post_by_actor_id.get(actor_id)
-	if post == null or not is_instance_valid(post) or (post.has_method("is_available_for") and not post.is_available_for(guard)):
-		post = _claim_guard_post_for(guard)
-		if post == null:
-			return
-	var remaining := float(_guard_shuffle_remaining_by_actor_id.get(actor_id, _next_guard_shuffle_seconds())) - delta
-	if remaining <= 0.0:
-		post = _try_shuffle_guard_post(guard, post)
-		remaining = _next_guard_shuffle_seconds()
-	_guard_shuffle_remaining_by_actor_id[actor_id] = remaining
-	if post == null or not post.has_method("get_work_position"):
-		return
-	var work_position: Vector3 = post.get_work_position()
-	if guard.global_position.distance_to(work_position) > guard.interact_distance:
-		guard.set_move_target(work_position, false)
-
-
-func _claim_guard_post_for(guard: WorldActor):
-	var post = get_available_guard_post(guard)
-	if post == null:
-		return null
-	if post.has_method("claim_worker") and not post.claim_worker(guard):
-		return null
-	_guard_post_by_actor_id[guard.get_instance_id()] = post
-	_guard_shuffle_remaining_by_actor_id[guard.get_instance_id()] = _next_guard_shuffle_seconds()
-	return post
-
-
-func _try_shuffle_guard_post(guard: WorldActor, current_post):
-	if get_guard_posts().size() <= 1:
-		return current_post
-	var next_post = get_available_guard_post(guard, current_post)
-	if next_post == null:
-		return current_post
-	if next_post.has_method("claim_worker") and not next_post.claim_worker(guard):
-		return current_post
-	if current_post != null and current_post.has_method("release_worker"):
-		current_post.release_worker(guard)
-	_guard_post_by_actor_id[guard.get_instance_id()] = next_post
-	return next_post
+func _process_guard_post_assignment(guard: WorldActor, _delta: float) -> void:
+	var jobs := BootstrapContext.service(&"job_system")
+	if jobs != null and jobs.has_method("process_guard_duty"):
+		jobs.process_guard_duty(guard)
 
 
 ## The owner works their counter by default: walk to the barkeeper service
@@ -852,14 +799,9 @@ func _release_counter_duty() -> void:
 
 
 func _release_guard_post_for(guard: WorldActor) -> void:
-	if guard == null:
-		return
-	var actor_id := guard.get_instance_id()
-	var post = _guard_post_by_actor_id.get(actor_id)
-	if post != null and is_instance_valid(post) and post.has_method("release_worker"):
-		post.release_worker(guard)
-	_guard_post_by_actor_id.erase(actor_id)
-	_guard_shuffle_remaining_by_actor_id.erase(actor_id)
+	var jobs := BootstrapContext.service(&"job_system")
+	if jobs != null and jobs.has_method("release_guard_duty"):
+		jobs.release_guard_duty(guard)
 
 
 func _continue_waiter_service(waiter: HumanoidCharacter) -> void:
@@ -1049,11 +991,6 @@ func _node_key(node) -> String:
 		return ""
 	return str(node.get_path())
 
-
-func _next_guard_shuffle_seconds() -> float:
-	var min_seconds := maxf(1.0, guard_shuffle_min_seconds)
-	var max_seconds := maxf(min_seconds, guard_shuffle_max_seconds)
-	return randf_range(min_seconds, max_seconds)
 
 
 func _now_seconds() -> float:

@@ -55,6 +55,22 @@ func is_available_for_trade() -> bool:
 	return trade_availability.is_null() or (trade_availability.is_valid() and bool(trade_availability.call()))
 
 
+## Commerce is the role's stock, never the actor's personal/work inventory.
+static func for_display(inventory_owner) -> MerchantRole:
+	if not is_instance_valid(inventory_owner) or not inventory_owner.has_method("get_inventory_for_display"):
+		return null
+	var role: MerchantRole
+	if inventory_owner.has_method("get_merchant_role"):
+		var candidate = inventory_owner.get_merchant_role()
+		if is_instance_valid(candidate):
+			role = candidate as MerchantRole
+	elif inventory_owner is Node:
+		role = inventory_owner.get_node_or_null("MerchantRole") as MerchantRole
+	if is_instance_valid(role) and not role.is_queued_for_deletion() and inventory_owner.get_inventory_for_display() == role.get_shop_inventory():
+		return role
+	return null
+
+
 func _ensure_shop_inventory() -> void:
 	if shop_inventory != null:
 		return

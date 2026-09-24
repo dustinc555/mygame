@@ -1,57 +1,143 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://features/ui/projection/inventory_window.gd" id="1_win"]
 [ext_resource type="Script" path="res://features/ui/projection/inventory_grid_control.gd" id="2_grid"]
+[ext_resource type="Theme" path="res://features/ui/projection/inventory_theme.tres" id="3_theme"]
+
+
+[sub_resource type="StyleBoxFlat" id="TitleBar"]
+content_margin_left = 12.0
+content_margin_top = 2.0
+content_margin_right = 4.0
+content_margin_bottom = 2.0
+bg_color = Color(0.125, 0.115, 0.093, 1)
+border_width_bottom = 1
+border_color = Color(0.32, 0.28, 0.20, 1)
+
+[sub_resource type="StyleBoxEmpty" id="HeaderButton"]
+
+[sub_resource type="StyleBoxFlat" id="BagButton"]
+content_margin_left = 6.0
+content_margin_top = 2.0
+content_margin_right = 6.0
+content_margin_bottom = 2.0
+bg_color = Color(0.14, 0.125, 0.095, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.36, 0.30, 0.20, 1)
+
+[sub_resource type="StyleBoxFlat" id="BagButtonActive"]
+content_margin_left = 6.0
+content_margin_top = 2.0
+content_margin_right = 6.0
+content_margin_bottom = 2.0
+bg_color = Color(0.22, 0.185, 0.12, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.65, 0.51, 0.30, 1)
+
+[sub_resource type="StyleBoxFlat" id="HeaderButtonHover"]
+bg_color = Color(0.24, 0.21, 0.15, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_left = 2
+corner_radius_bottom_right = 2
 
 [node name="InventoryWindow" type="PanelContainer"]
 custom_minimum_size = Vector2(360, 0)
 offset_right = 360.0
 offset_bottom = 290.0
 script = ExtResource("1_win")
+theme = ExtResource("3_theme")
 
 [node name="Margin" type="MarginContainer" parent="."]
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 12
+theme_override_constants/margin_left = 0
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 0
+theme_override_constants/margin_bottom = 0
 
 [node name="WindowVBox" type="VBoxContainer" parent="Margin"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 0
 
 [node name="TitleBar" type="PanelContainer" parent="Margin/WindowVBox"]
 layout_mode = 2
-mouse_default_cursor_shape = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("TitleBar")
 
 [node name="TitleBarHBox" type="HBoxContainer" parent="Margin/WindowVBox/TitleBar"]
 layout_mode = 2
+theme_override_constants/separation = 4
+mouse_filter = 2
 
-[node name="Title" type="Label" parent="Margin/WindowVBox/TitleBar/TitleBarHBox"]
+[node name="GrabArea" type="HBoxContainer" parent="Margin/WindowVBox/TitleBar/TitleBarHBox"]
 layout_mode = 2
 size_flags_horizontal = 3
+mouse_filter = 0
+mouse_default_cursor_shape = 13
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Margin/WindowVBox/TitleBar/TitleBarHBox/GrabArea"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
 text = "Inventory"
 
-[node name="AutoSortButton" type="Button" parent="Margin/WindowVBox/TitleBar/TitleBarHBox"]
-layout_mode = 2
-text = "Auto Sort"
 
 [node name="CloseButton" type="Button" parent="Margin/WindowVBox/TitleBar/TitleBarHBox"]
+custom_minimum_size = Vector2(28, 28)
 layout_mode = 2
-text = "X"
+theme_override_styles/normal = SubResource("HeaderButton")
+theme_override_styles/hover = SubResource("HeaderButtonHover")
+theme_override_styles/pressed = SubResource("HeaderButtonHover")
+theme_override_styles/focus = SubResource("HeaderButtonHover")
+text = "×"
 
-[node name="WarningLabel" type="Label" parent="Margin/WindowVBox"]
-visible = false
+[node name="Body" type="MarginContainer" parent="Margin/WindowVBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.32, 0.32, 1)
-text = "Too far away"
+size_flags_vertical = 3
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
 
-[node name="WeightLabel" type="Label" parent="Margin/WindowVBox"]
+[node name="BodyVBox" type="VBoxContainer" parent="Margin/WindowVBox/Body"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+
+[node name="BagActions" type="HBoxContainer" parent="Margin/WindowVBox/Body/BodyVBox"]
+custom_minimum_size = Vector2(318, 30)
+layout_mode = 2
+size_flags_horizontal = 0
+
+[node name="WeightLabel" type="Label" parent="Margin/WindowVBox/Body/BodyVBox/BagActions"]
 layout_mode = 2
 text = "Weight"
 
-[node name="InventoryGrid" type="Control" parent="Margin/WindowVBox"]
+[node name="Spacer" type="Control" parent="Margin/WindowVBox/Body/BodyVBox/BagActions"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="AutoSortButton" type="Button" parent="Margin/WindowVBox/Body/BodyVBox/BagActions"]
+custom_minimum_size = Vector2(62, 30)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("BagButton")
+theme_override_styles/hover = SubResource("BagButtonActive")
+theme_override_styles/pressed = SubResource("BagButtonActive")
+theme_override_styles/focus = SubResource("BagButtonActive")
+text = "Sort"
+
+[node name="InventoryGrid" type="Control" parent="Margin/WindowVBox/Body/BodyVBox"]
 custom_minimum_size = Vector2(318, 190)
 layout_mode = 2
+size_flags_horizontal = 0
 script = ExtResource("2_grid")
 
 [node name="ItemMenu" type="PopupMenu" parent="."]

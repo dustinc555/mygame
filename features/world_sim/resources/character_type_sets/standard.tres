@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="CharacterTypeSet" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="CharacterTypeSet" format=3 uid="uid://clyogl1gl5cec"]
 
-[ext_resource type="Script" path="res://features/world_sim/resources/character_type_set.gd" id="1_set"]
+[ext_resource type="Script" uid="uid://cfqg2ontgfete" path="res://features/world_sim/resources/character_type_set.gd" id="1_set"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/character_types/civilian.tres" id="2_civilian"]
 [ext_resource type="Resource" path="res://features/world_sim/resources/character_types/soldier.tres" id="3_soldier"]
 
@@ -12,6 +12,7 @@ default_character_type = ExtResource("2_civilian")
 character_types = Array[Resource]([ExtResource("2_civilian"), ExtResource("3_soldier")])
 role_character_type_ids = {
 "guard": "soldier",
+"mercenary": "soldier",
 "soldier": "soldier",
 "warden": "soldier"
 }

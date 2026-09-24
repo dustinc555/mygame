@@ -84,15 +84,10 @@ func _make_drag_data() -> Dictionary:
 
 
 func _make_drag_preview() -> Control:
-	var preview := PanelContainer.new()
-	preview.custom_minimum_size = Vector2(96.0, 36.0)
-	var label := Label.new()
-	label.text = _drag_label()
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 12)
-	preview.add_child(label)
-	return preview
+	var count_text := str(item_count) if item_count > 1 else ""
+	if item_definition.currency_container_capacity > 0:
+		count_text = "%d/%d" % [int(contained_item_counts.get(str(InventoryData.SILVER_ITEM.resource_path), 0)), item_definition.currency_container_capacity]
+	return preload("res://features/ui/projection/item_drag_preview.gd").create(item_definition, count_text)
 
 
 func _notification(what: int) -> void:
@@ -133,14 +128,7 @@ func _drag_label() -> String:
 
 
 func _mouse_is_over_inventory_window() -> bool:
-	var parent_node := get_parent()
-	if parent_node == null:
-		return false
-	var mouse_position := get_global_mouse_position()
-	for child in parent_node.get_children():
-		if child is InventoryWindow and child.visible and Rect2(child.global_position, child.size).has_point(mouse_position):
-			return true
-	return false
+	return InventoryWindow.is_pointer_over_inventory_window(self)
 
 
 func _clear_item() -> void:

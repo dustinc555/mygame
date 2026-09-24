@@ -98,7 +98,7 @@ func test_canyon_writing_chair_seated_facing_points_toward_desk() -> void:
 	# Inspect authored placements without starting the town simulation.
 	var state := load("res://scenes/zones/rustwash_basin/rustwash_basin.tscn").get_state() as SceneState
 	var placements := {}
-	var furniture_path := "Towns/Canyon/General Store/Furniture/"
+	var furniture_path := "Towns/Canyon/CanyonTradeStation/Furniture/"
 	for index in range(state.get_node_count()):
 		var path := str(state.get_node_path(index)).trim_prefix("./")
 		if path not in [furniture_path + "WritingChair", furniture_path + "WritingDesk"]:

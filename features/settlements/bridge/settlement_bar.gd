@@ -296,13 +296,14 @@ func _ensure_staff() -> void:
 
 
 func _ensure_guard_and_service_points() -> void:
-	var guard_posts := _ensure_root(guard_posts_root_path)
-	_migrate_legacy_guard_post_names(guard_posts)
-	var effective_guard_post_count := _effective_guard_post_count()
-	for guard_index in range(effective_guard_post_count):
-		var post_name := _guard_post_name(guard_index)
-		_ensure_guard_post(guard_posts, post_name, _layout_default_transform(guard_posts_root_path, post_name, _guard_post_transform(guard_index)))
-	_trim_generated_children(guard_posts, "GuardPost", effective_guard_post_count)
+	# Retain legacy authored spots, but never generate/move/delete them from staff
+	# counts. Existing bar security belongs to the proprietor, not the town roster.
+	var guard_posts := get_node_or_null(guard_posts_root_path)
+	if guard_posts != null:
+		for post in guard_posts.get_children():
+			if post is FacilityGuardPost and not post.has_meta("guard_scope_migrated"):
+				post.guard_scope = "Private Security"
+				post.set_meta("guard_scope_migrated", true)
 	var effective_waiter_point_count := _effective_waiter_point_count()
 	var service_points := get_node_or_null(WAITER_POINTS_ROOT_PATH)
 	if effective_waiter_point_count <= 0:

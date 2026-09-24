@@ -1,6 +1,8 @@
 extends GutTest
 
-class DutyJobs extends Node:
+class DutyJobs extends JobSystemController:
+	func _ready() -> void: pass
+	func _process(_delta: float) -> void: pass
 	var granted := false
 	var checked_actor: Node
 	func can_execute_assignment_duty(actor: Node) -> bool:
@@ -48,17 +50,21 @@ class Jail extends SettlementJail:
 	func _open_sentence_conversation(_warden: HumanoidCharacter, _actor: WorldActor, _message: String) -> bool: return true
 	func _notify_sentence_delivered(_actor: WorldActor) -> bool: return true
 
-class Point extends Node3D:
-	var worker: Node
+@warning_ignore("missing_tool")
+class Point extends FacilityGuardPost:
+	var worker: WorldActor
+	func get_pool_key(_owners: Dictionary) -> String: return "town:test"
+	func get_assigned_worker() -> WorldActor: return worker
+	func is_worker_at_post(actor: WorldActor) -> bool: return actor.global_position.distance_to(get_work_position()) <= stand_radius
 	var work_position := Vector3(10, 0, 0)
 	func get_work_position() -> Vector3: return work_position
 	func get_customer_position() -> Vector3: return Vector3(11, 0, 0)
-	func is_available_for(actor: Node) -> bool: return worker == null or worker == actor
-	func claim_worker(actor: Node) -> bool:
+	func is_available_for(actor: WorldActor) -> bool: return worker == null or worker == actor
+	func claim_worker(actor: WorldActor) -> bool:
 		if not is_available_for(actor): return false
 		worker = actor
 		return true
-	func release_worker(actor: Node) -> void:
+	func release_worker(actor: WorldActor) -> void:
 		if worker == actor: worker = null
 
 var _previous_context: BootstrapContext
@@ -77,12 +83,16 @@ func _fixture() -> Dictionary:
 	var context := BootstrapContext.new(host)
 	context.register(&"job_system", jobs)
 	BootstrapContext.active = context
+	jobs._context = context
 	var jail := Jail.new()
 	host.add_child(jail)
 	var actor := Staff.new()
+	actor.stable_id = "guard"
 	host.add_child(actor)
 	var point := Point.new()
 	jail.add_child(point)
+	jobs.guard_duty.assignments["guard"] = "town:test"
+	jobs.guard_duty.register_post(point)
 	jail.warden = actor
 	jail._cached_warden_post = point
 	jail._cached_guard_posts.append(point)
@@ -123,14 +133,14 @@ func test_granted_guard_claims_post_and_moves() -> void:
 	assert_eq(f.actor.moves, 1)
 	assert_eq(f.point.worker, f.actor)
 
-func test_release_clears_guard_claim_timer_and_owned_movement() -> void:
+func test_release_clears_guard_claim_and_owned_movement() -> void:
 	var f := _fixture()
 	f.jobs.granted = true
 	f.jail._process_guard_post_assignment(f.actor, 0.1)
 	f.jail.release_settlement_assignment_duty(f.actor)
 	assert_null(f.point.worker)
-	assert_true(f.jail._guard_post_by_actor_id.is_empty())
-	assert_true(f.jail._guard_shuffle_remaining_by_actor_id.is_empty())
+	assert_true(f.jobs.guard_duty._claims.is_empty())
+	assert_true(f.jobs.guard_duty._moves.is_empty())
 	assert_false(f.actor.has_move_target())
 	assert_eq(f.actor.clears, 1)
 
@@ -164,7 +174,7 @@ func test_grant_loss_releases_guard_without_reissuing_move() -> void:
 	assert_eq(f.actor.moves, 1)
 	assert_false(f.actor.has_move_target())
 	assert_null(f.point.worker)
-	assert_true(f.jail._guard_post_by_actor_id.is_empty())
+	assert_true(f.jobs.guard_duty._claims.is_empty())
 
 func test_release_preserves_replacement_home_movement() -> void:
 	var f := _fixture()

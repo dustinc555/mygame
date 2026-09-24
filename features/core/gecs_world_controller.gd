@@ -1879,6 +1879,15 @@ func sync_actor_inventory(actor: Node) -> void:
 		actor_id = _actor_id_for_actor(actor, _actor_settlement_id(actor))
 	if actor_id.is_empty():
 		return
+	# A batched bag-to-equipment move has already removed its bag entry.
+	# Preserve the exact stack data before rebuilding that container below.
+	var equipped_stacks: Dictionary = {}
+	if actor is WorldActor:
+		var equipment := (actor as WorldActor).get_equipment()
+		if equipment != null:
+			for slot in equipment.get_equipped_items():
+				var stack_id := equipment.get_equipped_stack_id(slot)
+				equipped_stacks[stack_id] = get_item_stack(stack_id)
 	var inventory = actor.get("inventory")
 	if inventory != null:
 		_sync_inventory_container(actor_id, "%s.inventory" % actor_id, actor, inventory, false)
@@ -1891,7 +1900,7 @@ func sync_actor_inventory(actor: Node) -> void:
 		if not merchant_role.shop_inventory_changed.is_connected(stock_callback):
 			merchant_role.shop_inventory_changed.connect(stock_callback)
 		_sync_inventory_container(actor_id, "%s.shop_inventory" % actor_id, actor, merchant_role.get_shop_inventory(), false)
-	_sync_equipment_slots(actor_id, actor)
+	_sync_equipment_slots(actor_id, actor, equipped_stacks)
 
 
 func sync_world_container(container: Node) -> void:
@@ -2909,7 +2918,7 @@ func _sync_item_stack(actor_id: String, container_id: String, entry) -> void:
 	item_stack_changed.emit(stack_id)
 
 
-func _sync_equipment_slots(actor_id: String, actor: Node) -> void:
+func _sync_equipment_slots(actor_id: String, actor: Node, preserved_stacks: Dictionary = {}) -> void:
 	var previous_stack_ids: Dictionary = {}
 	for slot in get_equipment_slots(actor_id):
 		previous_stack_ids[str(slot.get("slot_name", ""))] = str(slot.get("stack_id", ""))
@@ -2939,7 +2948,7 @@ func _sync_equipment_slots(actor_id: String, actor: Node) -> void:
 		component.stack_id = str(equipment.get_equipped_stack_id(slot_name))
 		if component.stack_id.is_empty():
 			component.stack_id = str(previous_stack_ids.get(slot_name, "%s.equipment.%s" % [actor_id, slot_name]))
-		_ensure_equipment_item_stack(actor_id, slot_name, item_path, component.stack_id)
+		_ensure_equipment_item_stack(actor_id, slot_name, item_path, component.stack_id, preserved_stacks.get(component.stack_id, {}))
 
 
 func _sync_record_equipment_slots(actor_id: String, equipment_slots) -> void:
@@ -2977,7 +2986,7 @@ func _sync_record_equipment_slots(actor_id: String, equipment_slots) -> void:
 		_equipment_slot_entity_by_key.erase(key)
 
 
-func _ensure_equipment_item_stack(actor_id: String, slot_name: String, item_path: String, stack_id: String) -> void:
+func _ensure_equipment_item_stack(actor_id: String, slot_name: String, item_path: String, stack_id: String, preserved: Dictionary = {}) -> void:
 	if actor_id.is_empty() or slot_name.is_empty() or item_path.is_empty() or stack_id.is_empty():
 		return
 	var stack_entity = _item_stack_entity_by_id.get(stack_id)
@@ -2988,6 +2997,9 @@ func _ensure_equipment_item_stack(actor_id: String, slot_name: String, item_path
 		world.add_entity(stack_entity, [C_ITEM_STACK.new()])
 		_item_stack_entity_by_id[stack_id] = stack_entity
 	var stack_component = stack_entity.get_component(C_ITEM_STACK)
+	if not preserved.is_empty():
+		stack_component.metadata = preserved.get("metadata", {}).duplicate(true)
+		stack_component.contained_item_counts = preserved.get("contained_item_counts", {}).duplicate(true)
 	stack_component.stack_id = stack_id
 	stack_component.container_id = ""
 	stack_component.owner_actor_id = actor_id
