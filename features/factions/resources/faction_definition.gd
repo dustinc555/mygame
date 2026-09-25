@@ -14,6 +14,10 @@ class_name FactionDefinition
 @export var open_access := true
 @export_range(-100, 100, 1) var accepted_reputation_threshold := 0
 @export var permanently_hostile := false
+## Race ID -> relative chance. Empty preserves the character realizer's races.
+@export var race_weights: Dictionary[String, float] = {}
+## Chance per patrol leg to approach hostile settlement outskirts, not its center.
+@export_range(0.0, 1.0, 0.001) var settlement_approach_chance := 0.01
 ## World-sim faction config (editor-driven). Whether this faction seeds nests, and
 ## which zones it is active in (empty = active everywhere).
 @export var spawns_nests := false

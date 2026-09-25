@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="ContainerStockTable" format=3 uid="uid://d3fjapry2n2mg"]
+
+[ext_resource type="Resource" uid="uid://y2dcron3ak5a" path="res://features/inventory/resources/items/bread.tres" id="bread"]
+[ext_resource type="Script" uid="uid://bjfw3acss3ann" path="res://features/settlements/resources/furnishing/container_stock_entry.gd" id="entry"]
+[ext_resource type="Resource" uid="uid://cighg4y750kcr" path="res://features/inventory/resources/items/food.tres" id="food"]
+[ext_resource type="Resource" uid="uid://bhx1scgadb5d7" path="res://features/inventory/resources/items/silver.tres" id="silver"]
+[ext_resource type="Script" uid="uid://binw0mrkk6ac2" path="res://features/settlements/resources/furnishing/container_stock_table.gd" id="table"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/tomato_seeds.tres" id="tomato_seeds"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/wheat_seeds.tres" id="wheat_seeds"]
+
+[sub_resource type="Resource" id="Entry_food"]
+script = ExtResource("entry")
+item_definition = ExtResource("food")
+max_quantity = 2
+
+[sub_resource type="Resource" id="Entry_bread"]
+script = ExtResource("entry")
+item_definition = ExtResource("bread")
+chance = 0.7
+max_quantity = 2
+
+[sub_resource type="Resource" id="Entry_wheat_seeds"]
+script = ExtResource("entry")
+item_definition = ExtResource("wheat_seeds")
+chance = 0.5
+max_quantity = 4
+
+[sub_resource type="Resource" id="Entry_tomato_seeds"]
+script = ExtResource("entry")
+item_definition = ExtResource("tomato_seeds")
+chance = 0.4
+max_quantity = 4
+
+[sub_resource type="Resource" id="Entry_silver"]
+script = ExtResource("entry")
+item_definition = ExtResource("silver")
+chance = 0.15
+max_quantity = 8
+
+[resource]
+script = ExtResource("table")
+entries = Array[ExtResource("entry")]([SubResource("Entry_food"), SubResource("Entry_bread"), SubResource("Entry_wheat_seeds"), SubResource("Entry_tomato_seeds"), SubResource("Entry_silver")])
+weighted_draws = 1

@@ -47,9 +47,9 @@ static var _available_races_cache: Array[Resource] = []
 @export var neck_length_range := Vector2(-0.10, 0.10)
 
 
-func create_appearance(rng: RandomNumberGenerator) -> Resource:
+func create_appearance(rng: RandomNumberGenerator, race_weights: Dictionary = {}) -> Resource:
 	var appearance = CHARACTER_APPEARANCE_DATA_SCRIPT.new()
-	var race := _pick_race(rng)
+	var race := _pick_race(rng, race_weights)
 	var body_type := _pick_body_type(rng)
 	var use_human_catalog := race != null and str(race.get("race_id")).strip_edges().to_lower() == "human"
 	appearance.character_race = race
@@ -66,8 +66,9 @@ func create_appearance(rng: RandomNumberGenerator) -> Resource:
 		appearance.beard_style = _pick_style_for_body(available_beard_styles, body_type, rng)
 	appearance.eyebrow_style = _pick_style_for_body(CharacterAppearanceCatalog.get_eyebrow_styles(), body_type, rng) if use_human_catalog else null
 	appearance.eyebrow_color = hair_color
-	appearance.skin_color_customized = true
-	appearance.skin_color = _pick_color(SKIN_TEXTURE_BUILDER.NATURAL_SKIN_TONES, rng)
+	var tones: Array = race.get("skin_tones") if race != null else []
+	appearance.skin_color_customized = use_human_catalog or not tones.is_empty()
+	appearance.skin_color = _pick_color(tones if not tones.is_empty() else SKIN_TEXTURE_BUILDER.NATURAL_SKIN_TONES, rng)
 	appearance.height_slider = _center_biased_range(height_range, rng)
 	appearance.shoulder_width_slider = _center_biased_range(shoulder_range, rng)
 	appearance.arm_length_slider = _center_biased_range(arm_length_range, rng)
@@ -113,7 +114,22 @@ func get_realization_signature() -> String:
 	return "|".join(parts)
 
 
-func _pick_race(rng: RandomNumberGenerator) -> Resource:
+func _pick_race(rng: RandomNumberGenerator, weights: Dictionary = {}) -> Resource:
+	if not weights.is_empty():
+		var candidates: Array[Resource] = []
+		var total := 0.0
+		for race in _get_available_races():
+			var weight := maxf(0.0, float(weights.get(str(race.get("race_id")), 0.0)))
+			if weight > 0.0:
+				candidates.append(race)
+				total += weight
+		if total > 0.0:
+			var draw := rng.randf() * total
+			for race in candidates:
+				draw -= float(weights[str(race.get("race_id"))])
+				if draw < 0.0:
+					return race
+			return candidates.back()
 	var races := allowed_races.duplicate()
 	if races.is_empty():
 		races.append(HUMAN_RACE)

@@ -179,7 +179,7 @@ func _rebuild_identity(definition: Resource) -> void:
 		func(value: bool): _write(definition, "open_access", value)))
 	_identity_box.add_child(_int_field("Accepted Rep Threshold", int(definition.get("accepted_reputation_threshold")), -100, 100,
 		func(value: int): _write(definition, "accepted_reputation_threshold", value)))
-	_identity_box.add_child(_check_field("Permanently Hostile", bool(definition.get("permanently_hostile")),
+	_identity_box.add_child(_check_field("Hostile to All Other Factions", bool(definition.get("permanently_hostile")),
 		func(value: bool): _write(definition, "permanently_hostile", value)))
 	_identity_box.add_child(_section_title("Standing Hostilities (faction ids, comma-separated)"))
 	_identity_box.add_child(_text_field("Hostile To", _ids_text(definition, "default_hostile_faction_ids"),
@@ -206,6 +206,23 @@ func _rebuild_profiles(definition: Resource) -> void:
 	type_status.modulate = Color(0.72, 0.9, 0.72) if type_set != null and type_set.has_method("resolve_character_type") and type_set.call("resolve_character_type", "", "resident") != null else Color(1.0, 0.42, 0.35)
 	_profiles_box.add_child(type_status)
 	_profiles_box.add_child(_section_title("World Sim"))
+	_profiles_box.add_child(_float_field("Settlement Approach Chance", float(definition.get("settlement_approach_chance")), 0.0, 1.0, 0.001,
+		func(value: float): _write(definition, "settlement_approach_chance", value)))
+	_profiles_box.add_child(_section_title("Spawn Race Weights (relative chances)"))
+	var race_dir := "res://features/actors/resources/character_races"
+	for file in DirAccess.get_files_at(race_dir):
+		if not file.ends_with(".tres"):
+			continue
+		var race := load(race_dir.path_join(file)) as Resource
+		if race == null or race.get("race_id") == null:
+			continue
+		var race_id := str(race.get("race_id"))
+		var weights: Dictionary = definition.get("race_weights")
+		_profiles_box.add_child(_float_field(str(race.get("display_name")), float(weights.get(race_id, 0.0)), 0.0, 100.0, 0.05,
+			func(value: float):
+				var updated: Dictionary = definition.get("race_weights").duplicate()
+				updated[race_id] = value
+				_write(definition, "race_weights", updated)))
 	_profiles_box.add_child(_check_field("Spawns Nests", bool(definition.get("spawns_nests")),
 		func(value: bool): _write(definition, "spawns_nests", value)))
 	_profiles_box.add_child(_int_field("Squad Size", int(definition.get("default_squad_size")), 1, 20,

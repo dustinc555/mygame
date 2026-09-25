@@ -4,6 +4,8 @@ extends PanelContainer
 ## Zone workspace: scope/header plus independent Overview, Towns and Resources
 ## pages. The tool context owns edits and placement; this view owns no game state.
 const RESOURCE_BROWSER := preload("res://addons/world_authoring/zone_resource_browser.gd")
+const CAMP_PANEL := preload("res://addons/world_authoring/camp_panel.gd")
+var _camp_panel: Control
 
 var _tools: RefCounted
 var _zone: Node3D
@@ -52,6 +54,9 @@ func setup(tools: RefCounted) -> void:
 	_resource_browser.name = "Resources"
 	_resource_browser.setup(tools)
 	_tabs.add_child(_resource_browser)
+	_camp_panel = CAMP_PANEL.new()
+	_camp_panel.setup(tools)
+	_tabs.add_child(_camp_panel)
 
 func set_zone(zone: Node3D) -> void:
 	var next := zone if is_instance_valid(zone) else null
@@ -60,6 +65,7 @@ func set_zone(zone: Node3D) -> void:
 	_zone = next
 	refresh()
 	_resource_browser.set_zone(_zone)
+	_camp_panel.set_zone(_zone)
 
 func refresh() -> void:
 	if not is_instance_valid(_zone):
@@ -78,6 +84,17 @@ func refresh() -> void:
 		if is_instance_valid(town):
 			_town_list.add_item(str(town.name))
 	_updating = false
+	if _camp_panel != null:
+		_camp_panel.set_zone(_zone)
+
+func show_camps(camp: Node = null) -> void:
+	_tabs.current_tab = 3
+	_camp_panel.set_zone(_zone)
+	if camp != null:
+		_camp_panel.select_camp(camp)
+
+func refresh_camp_property(camp: Node, property: String) -> void:
+	_camp_panel.refresh_property(camp, property)
 
 func show_resources() -> void:
 	_tabs.current_tab = 2

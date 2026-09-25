@@ -79,9 +79,14 @@ func _advance_squads(dt: float) -> void:
 	for plugin in get_world_sim_plugins():
 		if plugin.has_method("world_sim_tick"):
 			plugin.call("world_sim_tick", dt, bridge, squads, reference, radius)
+	# Plugins may add members or retire squads. Never overwrite those changes
+	# with the snapshot taken before their lifecycle work.
+	squads = bridge.get_world_sim_squads()
 	# Always on: a raid squad manifests as real characters whenever the player is in range
 	# and folds back to data (kills kept) when they leave. No longer behind a debug toggle.
 	var realized: Dictionary = _update_lod_swap(bridge, squads, anchors, radius)
+	# LOD handoff can resolve casualties and update live centroids too.
+	squads = bridge.get_world_sim_squads()
 	for record in squads:
 		if int(record.get("member_count", 0)) <= 0:
 			continue
@@ -250,6 +255,10 @@ func _advance_one(bridge: Node, record: Dictionary, dt: float) -> void:
 
 
 func _patrol_point(record: Dictionary) -> Vector3:
+	if str(record.get("owner_kind", "")) == "camp":
+		var camps := get_world_sim_plugin("camps")
+		if camps != null:
+			return camps.call("get_patrol_target", record)
 	var home: Vector3 = record.get("home_position", record.get("position", Vector3.ZERO))
 	var radius := float(record.get("patrol_radius", 40.0))
 	var angle := _rng.randf() * TAU

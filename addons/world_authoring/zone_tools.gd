@@ -38,6 +38,7 @@ var dock_mounted := false
 var _resource_catalog: Array = []
 var _placing_resource: Resource
 var _resource_after_open: Resource
+var _camp_after_open := false
 var _resource_previews := {}
 var _preview_requests := {}
 var _thumbnail_stage: SubViewport
@@ -70,7 +71,7 @@ func handles(object: Object) -> bool:
 
 
 func claims_node(node: Node) -> bool:
-	return _is_script_node(node, ZONE_SCRIPT)
+	return _is_script_node(node, ZONE_SCRIPT) or node is CampMarker
 
 
 func edit(_object: Object) -> void:
@@ -94,6 +95,8 @@ func on_selection_changed() -> void:
 			if _ghost.is_active() and (selected.size() != 1 or selected[0] != _edited_zone_root()):
 				_ghost.cancel()
 			for node in selected:
+				if node is CampMarker:
+					_dock.show_camps(node)
 				if RESOURCE_AUTHORING.is_deposit(node):
 					_dock.select_resource_definition(node.get("deposit_definition") as Resource)
 
@@ -103,7 +106,10 @@ func on_scene_changed(scene_root: Node) -> void:
 	if not _pending_open_zone_path.is_empty() and scene_root != null \
 			and scene_root.scene_file_path == _pending_open_zone_path:
 		_pending_open_zone_path = ""
-		if _resource_after_open != null:
+		if _camp_after_open:
+			_camp_after_open = false
+			begin_camp_placement.call_deferred()
+		elif _resource_after_open != null:
 			var definition := _resource_after_open
 			_resource_after_open = null
 			begin_resource_placement.call_deferred(definition)
@@ -430,6 +436,8 @@ func wants_dock() -> bool:
 	for node in _plugin.get_editor_interface().get_selection().get_selected_nodes():
 		if _is_script_node(node, ZONE_SCRIPT):
 			return true
+		if node is CampMarker and _find_zone_ancestor(node) != null:
+			return true
 		if RESOURCE_AUTHORING.is_deposit(node) and _find_zone_ancestor(node) != null:
 			return true
 	return false
@@ -480,9 +488,56 @@ func set_zone_property(zone: Node, property: String, value: Variant) -> void:
 	undo.create_action("Edit Zone %s" % property, UndoRedo.MERGE_DISABLE, zone)
 	undo.add_do_property(zone, property, value)
 	undo.add_undo_property(zone, property, zone.get(property))
+	if zone is CampMarker:
+		undo.add_do_method(_dock, "refresh_camp_property", zone, property)
+		undo.add_undo_method(_dock, "refresh_camp_property", zone, property)
+	else:
+		undo.add_do_method(_dock, "refresh")
+		undo.add_undo_method(_dock, "refresh")
+	undo.commit_action()
+
+
+func begin_camp_placement() -> void:
+	var zone := _active_zone()
+	if zone == null or _plugin == null:
+		return
+	if zone != _plugin.get_editor_interface().get_edited_scene_root():
+		if zone.scene_file_path.is_empty():
+			_set_status("Save and open the zone scene before placing camps.")
+			return
+		_camp_after_open = true
+		_pending_open_zone_path = zone.scene_file_path
+		_plugin.get_editor_interface().open_scene_from_path(zone.scene_file_path)
+		return
+	_ghost.cancel()
+	_select_node(zone)
+	_dock.set_zone(zone)
+	_dock.show_camps()
+	_ghost.begin_marker(1.0, Color(0.95, 0.65, 0.24, 0.8), _commit_camp_placement, func(): _set_status(""))
+	_set_status("Click terrain to place a camp. Esc cancels.")
+
+
+func _commit_camp_placement(world_transform: Transform3D) -> void:
+	var zone := _edited_zone_root()
+	if zone == null:
+		return
+	var marker := CampMarker.new()
+	marker.name = "Camp"
+	marker.camp_id = "camp_" + ResourceUID.id_to_text(ResourceUID.create_id()).trim_prefix("uid://")
+	marker.transform = zone.global_transform.affine_inverse() * world_transform
+	var undo := _plugin.get_undo_redo()
+	undo.create_action("Place Camp", UndoRedo.MERGE_DISABLE, zone)
+	undo.add_do_method(zone, "add_child", marker, true)
+	undo.add_do_property(marker, "owner", zone)
+	undo.add_undo_method(zone, "remove_child", marker)
+	undo.add_do_reference(marker)
 	undo.add_do_method(_dock, "refresh")
 	undo.add_undo_method(_dock, "refresh")
 	undo.commit_action()
+	_select_node(marker)
+	_dock.show_camps(marker)
+	_set_status("Camp placed. Configure its owner, population and patrol range in Camps.")
+
 
 func begin_resource_placement(definition: Resource) -> void:
 	var zone := _active_zone()

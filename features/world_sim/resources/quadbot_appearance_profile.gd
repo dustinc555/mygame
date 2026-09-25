@@ -6,7 +6,7 @@ const QUADBOT_RACE := preload("res://features/actors/resources/character_races/q
 const QUADBOT_BODY_ARCHETYPE := preload("res://features/actors/resources/character_body_archetypes/quadbot.tres")
 
 
-func create_appearance(_rng: RandomNumberGenerator) -> Resource:
+func create_appearance(_rng: RandomNumberGenerator, _race_weights: Dictionary = {}) -> Resource:
 	var appearance = CHARACTER_APPEARANCE_DATA_SCRIPT.new()
 	appearance.character_race = QUADBOT_RACE
 	appearance.body_archetype = QUADBOT_BODY_ARCHETYPE

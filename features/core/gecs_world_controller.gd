@@ -71,6 +71,7 @@ const C_FARM_PLOT_STATE_PATH := "res://features/farming/sim/c_game_farm_plot_sta
 const C_FARM_WATER_SOURCE_STATE_PATH := "res://features/farming/sim/c_game_farm_water_source_state.gd"
 const C_RESOURCE_DEPOSIT_STATE_PATH := "res://features/world/sim/c_game_resource_deposit_state.gd"
 const C_LIQUID_CONTAINER_STATE_PATH := "res://features/inventory/sim/c_game_liquid_container_state.gd"
+const C_CAMP_STATE := preload("res://features/camps/sim/c_game_camp_state.gd")
 const CONSTRUCTION_CATALOG_ID_LOAD_MIGRATIONS := {
 	"woodbrick_house": "medium_wood_l_hall",
 }
@@ -110,6 +111,7 @@ var _farm_plot_entity_by_id: Dictionary = {}
 var _farm_water_source_entity_by_id: Dictionary = {}
 var _resource_deposit_entity_by_id: Dictionary = {}
 var _liquid_container_entity_by_id: Dictionary = {}
+var _camp_entity_by_id: Dictionary = {}
 var _farm_water_totals_by_settlement: Dictionary = {}
 var _growing_crop_counts_by_settlement: Dictionary = {}
 var _world_time_entity
@@ -1490,6 +1492,35 @@ func remove_farm_water_source_state(source_id: String) -> void:
 	_farm_water_source_entity_by_id.erase(source_id)
 
 
+func upsert_camp_state(state: Dictionary) -> Dictionary:
+	_try_initialize()
+	var camp_id := str(state.get("camp_id", ""))
+	if world == null or camp_id.is_empty():
+		return {}
+	var entity = _camp_entity_by_id.get(camp_id)
+	if not is_instance_valid(entity):
+		entity = _entity_script.new()
+		entity.name = _entity_node_name("Camp", camp_id)
+		entity.id = _entity_id("camp", camp_id)
+		world.add_entity(entity, [C_CAMP_STATE.new()])
+		_camp_entity_by_id[camp_id] = entity
+	var component = entity.get_component(C_CAMP_STATE)
+	component.apply_state(state)
+	return component.to_state()
+
+
+func get_camp_state(camp_id: String) -> Dictionary:
+	var entity = _camp_entity_by_id.get(camp_id)
+	return entity.get_component(C_CAMP_STATE).to_state() if is_instance_valid(entity) else {}
+
+
+func get_camp_states() -> Dictionary:
+	var states: Dictionary = {}
+	for camp_id in _camp_entity_by_id:
+		states[camp_id] = get_camp_state(camp_id)
+	return states
+
+
 func upsert_resource_deposit_state(state: Dictionary) -> Dictionary:
 	_try_initialize()
 	var deposit_id := str(state.get("deposit_id", ""))
@@ -2710,6 +2741,7 @@ func _component_scripts_loaded() -> bool:
 		C_FARM_PLOT_STATE,
 		C_FARM_WATER_SOURCE_STATE,
 		C_RESOURCE_DEPOSIT_STATE,
+		C_CAMP_STATE,
 		C_LIQUID_CONTAINER_STATE,
 	]:
 		if component_script == null:
@@ -3748,6 +3780,7 @@ func _clear_world_entities() -> void:
 	_farm_plot_entity_by_id.clear()
 	_farm_water_source_entity_by_id.clear()
 	_resource_deposit_entity_by_id.clear()
+	_camp_entity_by_id.clear()
 	_liquid_container_entity_by_id.clear()
 	_farm_water_totals_by_settlement.clear()
 	_growing_crop_counts_by_settlement.clear()
@@ -3825,6 +3858,10 @@ func _rebuild_entity_indexes() -> void:
 		var deposit = entity.get_component(C_RESOURCE_DEPOSIT_STATE)
 		if deposit != null:
 			_resource_deposit_entity_by_id[str(deposit.deposit_id)] = entity
+	for entity in world.query.with_all([C_CAMP_STATE]).execute():
+		var camp = entity.get_component(C_CAMP_STATE)
+		if camp != null:
+			_camp_entity_by_id[str(camp.camp_id)] = entity
 	var food_status_script = load(C_SETTLEMENT_FOOD_STATUS_PATH)
 	for entity in world.query.with_all([food_status_script]).execute():
 		var food_status = entity.get_component(food_status_script)

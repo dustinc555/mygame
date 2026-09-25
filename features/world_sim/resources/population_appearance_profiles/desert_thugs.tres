@@ -1,0 +1,14 @@
+[gd_resource type="Resource" format=3]
+[ext_resource type="Script" path="res://features/world_sim/resources/population_appearance_profile.gd" id="1"]
+[ext_resource type="Script" path="res://features/actors/projection/humanoid/faction_humanoid.gd" id="2"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/peasant_tunic.tres" id="3"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/peasant_trousers.tres" id="4"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/peasant_shoes.tres" id="5"]
+[resource]
+script = ExtResource("1")
+profile_id = "desert_thugs"
+display_name = "Desert Thugs"
+actor_script = ExtResource("2")
+chest_items = Array[Resource]([ExtResource("3")])
+leg_items = Array[Resource]([ExtResource("4")])
+feet_items = Array[Resource]([ExtResource("5")])

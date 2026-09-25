@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3]
+[ext_resource type="PackedScene" path="res://features/world/projection/props/lighting/wall_torch.tscn" id="1"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/CampfireTripod.gltf" id="2"]
+[node name="CampfireTripod" instance=ExtResource("1")]
+[node name="Model" parent="."]
+visible = false
+[node name="CampModel" parent="." instance=ExtResource("2")]
+[node name="FlameGlow" parent="."]
+position = Vector3(0, 0.2, 0)
+[node name="Light" parent="."]
+position = Vector3(0, 0.6, 0)
