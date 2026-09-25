@@ -6,10 +6,12 @@ extends NavigationAgent3D
 ## before/after physical movement; no WorldActor dependency or separate tick.
 ## Keep the direct child name NavigationAgent3D: quadbot downed handling uses it.
 signal movement_finished(reached: bool)
+signal movement_blocked
 
 const MIN_HORIZONTAL_WAYPOINT_DISTANCE_SQUARED := 0.0025
 const TARGET_CHANGE_DISTANCE_SQUARED := 0.0025
 const QUERY_GRACE_SECONDS := 0.25
+const RECOVERY_WAYPOINT_DISTANCE := 0.15
 
 var move_target := Vector3.ZERO
 var has_move_target := false
@@ -26,12 +28,17 @@ var _stuck_origin := Vector3.ZERO
 var _stuck_target_distance := INF
 var _stuck_seconds := 0.0
 var _stuck_repath_attempts := 0
+var _progress_path := PackedVector3Array()
+var _remaining_lengths := PackedFloat32Array()
+var _recovery_path_index := -1
+var _passage_recovery := true
 
 
 func _init(body: CharacterBody3D) -> void:
 	_body = body
 	name = "NavigationAgent3D"
 	velocity_computed.connect(_on_velocity_computed)
+	path_changed.connect(_cache_progress_path)
 
 
 func configure() -> void:
@@ -53,6 +60,9 @@ func configure() -> void:
 
 func _enter_tree() -> void:
 	# Native map/path state is disposable across tree removal/re-entry.
+	_progress_path.clear()
+	_remaining_lengths.clear()
+	_recovery_path_index = -1
 	_target_synced = false
 	_query_grace_remaining = QUERY_GRACE_SECONDS if has_move_target else 0.0
 	_zero_waypoint_blocked = false
@@ -60,13 +70,15 @@ func _enter_tree() -> void:
 	_reset_stuck_tracking()
 
 
-func set_move_target(target: Vector3, arrival_distance := -1.0) -> void:
-	var target_changed := not has_move_target or move_target.distance_squared_to(target) > TARGET_CHANGE_DISTANCE_SQUARED
+func set_move_target(target: Vector3, arrival_distance := -1.0, passage_recovery := true) -> void:
+	var target_changed := not has_move_target or move_target.distance_squared_to(target) > TARGET_CHANGE_DISTANCE_SQUARED or _passage_recovery != passage_recovery
+	_passage_recovery = passage_recovery
 	arrival_distance_override = arrival_distance
 	move_target = target
 	has_move_target = true
 	if not target_changed:
 		return
+	_recovery_path_index = -1
 	_target_synced = false
 	_query_grace_remaining = QUERY_GRACE_SECONDS
 	_zero_waypoint_blocked = false
@@ -76,6 +88,7 @@ func set_move_target(target: Vector3, arrival_distance := -1.0) -> void:
 
 
 func clear_move_target() -> void:
+	_recovery_path_index = -1
 	has_move_target = false
 	arrival_distance_override = -1.0
 	_target_synced = false
@@ -100,6 +113,13 @@ func get_move_direction(delta: float) -> Vector3:
 func _get_navigation_move_direction(delta: float) -> Vector3:
 	_zero_waypoint_blocked = false
 	_sync_target_if_needed()
+	if _recovery_path_index >= 0:
+		# Keep the native query current, but advance recovery waypoints in XZ.
+		# A smaller native 3D tolerance can never be reached when the path's
+		# height offset differs from the physical body's origin on a ramp.
+		get_next_path_position()
+		if _is_final_position_close_enough():
+			return _get_recovery_move_direction()
 	if is_navigation_finished():
 		if _is_close_to_move_target():
 			_finish_movement(true)
@@ -115,6 +135,16 @@ func _get_navigation_move_direction(delta: float) -> Vector3:
 			_finish_movement(false)
 		return Vector3.ZERO
 	return _get_path_move_direction(next_path_position)
+
+
+func _get_recovery_move_direction() -> Vector3:
+	while _recovery_path_index < _progress_path.size():
+		var point := _progress_path[_recovery_path_index]
+		var offset := Vector2(point.x - _body.global_position.x, point.z - _body.global_position.z)
+		if offset.length() > RECOVERY_WAYPOINT_DISTANCE:
+			return _get_point_move_direction(point)
+		_recovery_path_index += 1
+	return _get_point_move_direction(move_target)
 
 
 func _get_path_move_direction(next_path_position: Vector3) -> Vector3:
@@ -191,15 +221,42 @@ func _reset_stuck_tracking() -> void:
 	_stuck_seconds = 0.0
 
 
+func _cache_progress_path() -> void:
+	if not _passage_recovery:
+		return
+	_progress_path = get_current_navigation_path()
+	if _recovery_path_index >= 0:
+		_recovery_path_index = 0
+	_remaining_lengths.resize(_progress_path.size())
+	var remaining := 0.0
+	for index in range(_progress_path.size() - 1, -1, -1):
+		_remaining_lengths[index] = remaining
+		if index > 0:
+			var segment := _progress_path[index] - _progress_path[index - 1]
+			remaining += Vector2(segment.x, segment.z).length()
+	# Repath changes the route length, not whether the actor actually advanced.
+	# Retain the retry count; just establish a comparable distance baseline.
+	_reset_stuck_tracking()
+
+
 func _get_stuck_target_distance(from: Vector3) -> float:
 	if not has_move_target:
 		return INF
+	# Remaining route length, not displacement: lateral oscillation is not
+	# advancement, and legitimate detours may lead away from the final target.
+	var index := get_current_navigation_path_index()
+	if _recovery_path_index >= 0:
+		index = _recovery_path_index
+	if _passage_recovery and _target_synced and index >= 0 and index < _progress_path.size():
+		return Vector2(from.x - _progress_path[index].x, from.z - _progress_path[index].z).length() + _remaining_lengths[index]
 	return Vector2(from.x - move_target.x, from.z - move_target.z).length()
 
 
 func _has_made_stuck_progress() -> bool:
 	var position := _body.global_position
-	if Vector2(position.x - _stuck_origin.x, position.z - _stuck_origin.z).length() >= _body.stuck_min_progress:
+	# Tactical repositioning deliberately circles a moving opponent. Preserve
+	# its displacement-based recovery; passage recovery is for travel orders.
+	if not _passage_recovery and Vector2(position.x - _stuck_origin.x, position.z - _stuck_origin.z).length() >= _body.stuck_min_progress:
 		return true
 	var target_distance := _get_stuck_target_distance(position)
 	return _stuck_target_distance < INF and target_distance <= _stuck_target_distance - _body.stuck_min_progress
@@ -209,7 +266,12 @@ func _handle_stuck() -> void:
 	if _is_close_to_move_target():
 		_finish_movement(true)
 		return
+	if _passage_recovery:
+		movement_blocked.emit()
 	if _is_final_position_close_enough() and _stuck_repath_attempts < _body.stuck_repath_attempt_limit:
+		# Crowd avoidance may push the body beside a jamb. Ordinary waypoint
+		# tolerance can then skip the corner on every retry and hit the wall again.
+		_recovery_path_index = 0 if _passage_recovery else -1
 		_target_synced = false
 		_stuck_repath_attempts += 1
 		_reset_stuck_tracking()
