@@ -352,6 +352,7 @@ func _create_navigation_follower() -> NavigationFollower:
 	var follower := NavigationFollower.new(self)
 	add_child(follower)
 	follower.movement_finished.connect(_on_navigation_movement_finished)
+	follower.movement_blocked.connect(_on_navigation_blocked)
 	return follower
 
 
@@ -398,6 +399,9 @@ func apply_population_runtime_state(needs_state: Dictionary, movement_state: Dic
 
 
 func _exit_tree() -> void:
+	if _navigation_yield_active:
+		_navigation_yield_active = false
+		_navigation_agent.clear_move_target()
 	for cap in _capabilities.values():
 		(cap as ActorCapability).teardown()
 	_capabilities.clear()
@@ -601,7 +605,7 @@ const NavigationFollower = preload("res://features/actors/bridge/navigation/acto
 @export var navigation_time_horizon_agents := 0.7
 @export_subgroup("Stuck Recovery")
 @export var stuck_check_seconds := 2.0
-## Minimum horizontal travel or approach progress in meters per stuck check.
+## Minimum advancement along the route in meters per stuck check.
 @export var stuck_min_progress := 0.12
 @export var stuck_repath_attempt_limit := 8
 @export_group("")
@@ -609,6 +613,8 @@ const NavigationFollower = preload("res://features/actors/bridge/navigation/acto
 var gravity := ProjectSettings.get_setting("physics/3d/default_gravity") as float
 
 var _navigation_agent := _create_navigation_follower()
+var _navigation_yield_active := false
+var _navigation_yield_return := Vector3.ZERO
 # Read by InteractionCapability through reflection and by humanoid presentation.
 # These aliases retain the existing interface without duplicating target state.
 var _move_target: Vector3:
@@ -658,6 +664,11 @@ const DOOR_BLOCKER_COLLISION_LAYER := 8
 func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
 	if is_in_cell_custody():
 		return
+	# Ordinary duty may repeat its post target while temporarily stepping aside.
+	# Retain it without replacing the sidestep; explicit commands always interrupt.
+	if _navigation_yield_active and not issued_by_player:
+		_navigation_yield_return = target
+		return
 	# ASLEEP is voluntary bed rest. A direct player move wakes the actor first;
 	# unconscious/downed states use different life states and remain immobile.
 	if issued_by_player and life_state == NpcRules.LifeState.ASLEEP:
@@ -697,7 +708,7 @@ func get_move_target() -> Vector3:
 ## Shared navigation exposes combat travel to doors and locomotion, but its
 ## tactical reservations must never restore as independent movement orders.
 func get_persistent_movement_state() -> Dictionary:
-	var persist_target := has_move_target() and not _combat_navigation_owned
+	var persist_target := has_move_target() and not _combat_navigation_owned and not _navigation_yield_active
 	return {
 		"has_move_target": persist_target,
 		"move_target": get_move_target() if persist_target else Vector3.ZERO,
@@ -996,6 +1007,8 @@ func is_in_combat() -> bool:
 ## Real movement actuator (ported from the pre-migration WorldActor). Nav-driven
 ## locomotion with acceleration, RVO avoidance, and stuck detection.
 func process_world_actor_movement(delta: float) -> void:
+	if _navigation_yield_active and not _can_continue_navigation_yield():
+		_clear_actor_move_target()
 	var carry := get_carry()
 	if carry != null and carry.is_carried():
 		velocity = Vector3.ZERO
@@ -1100,6 +1113,7 @@ func _configure_world_actor_movement() -> void:
 
 # InteractionCapability uses this hook to move without replacing its work order.
 func _set_actor_move_target(target: Vector3) -> void:
+	_navigation_yield_active = false
 	_combat_navigation_owned = false
 	_combat_navigation_destination = Vector3.INF
 	_combat_navigation_failed = false
@@ -1107,6 +1121,7 @@ func _set_actor_move_target(target: Vector3) -> void:
 
 
 func _clear_actor_move_target() -> void:
+	_navigation_yield_active = false
 	_combat_navigation_owned = false
 	_combat_navigation_destination = Vector3.INF
 	_combat_navigation_failed = false
@@ -1117,6 +1132,7 @@ func _clear_actor_move_target() -> void:
 ## Combat owns only the destination, arrival tolerance and facing. The same
 ## navigation, avoidance, floor motion and stuck recovery execute every route.
 func _prepare_combat_navigation(delta: float) -> void:
+	_navigation_yield_active = false
 	_combat_navigation_retry_seconds = maxf(0.0, _combat_navigation_retry_seconds - delta)
 	if not _system_move_active or _system_move_settled or not _system_move_target.is_finite():
 		_clear_actor_move_target()
@@ -1127,13 +1143,13 @@ func _prepare_combat_navigation(delta: float) -> void:
 	if changed:
 		_combat_navigation_destination = _system_move_target
 		_combat_navigation_failed = false
-		_navigation_agent.set_move_target(_system_move_target, COMBAT_ARRIVAL_DISTANCE)
+		_navigation_agent.set_move_target(_system_move_target, COMBAT_ARRIVAL_DISTANCE, false)
 	elif not _navigation_agent.has_move_target:
 		var offset := _system_move_target - global_position
 		var arrived := Vector2(offset.x, offset.z).length() <= COMBAT_ARRIVAL_DISTANCE and absf(offset.y) <= move_target_vertical_tolerance
 		if not arrived and _combat_navigation_retry_seconds <= 0.0:
 			_combat_navigation_failed = false
-			_navigation_agent.set_move_target(_system_move_target, COMBAT_ARRIVAL_DISTANCE)
+			_navigation_agent.set_move_target(_system_move_target, COMBAT_ARRIVAL_DISTANCE, false)
 
 
 func has_combat_navigation_failed() -> bool:
@@ -1166,6 +1182,8 @@ func _get_move_target_arrival_distance() -> float:
 
 func _on_navigation_movement_finished(reached: bool) -> void:
 	_submit_navigation_avoidance_velocity(Vector3.ZERO)
+	if _navigation_yield_active:
+		return # A sidestep never completes or clears the owner's work order.
 	if _combat_navigation_owned:
 		_combat_navigation_failed = not reached
 		_combat_navigation_retry_seconds = COMBAT_PATH_RETRY_SECONDS
@@ -1179,6 +1197,54 @@ func _clear_move_order_state() -> void:
 	var interaction := get_interaction()
 	if interaction != null and interaction.current_order_type == InteractionCapability.ORDER_TYPE_MOVE:
 		interaction.current_order_type = InteractionCapability.ORDER_TYPE_NONE
+
+
+func can_navigation_yield() -> bool:
+	if _navigation_yield_active or has_move_target() or has_active_player_order():
+		return false
+	return _can_continue_navigation_yield()
+
+
+func _can_continue_navigation_yield() -> bool:
+	if life_state != NpcRules.LifeState.ALIVE or is_sitting() or is_carried() or is_ragdoll_active() or is_in_cell_custody() or is_in_combat() or _system_move_active:
+		return false
+	var interaction := get_interaction()
+	if interaction != null and interaction.current_order_type != InteractionCapability.ORDER_TYPE_NONE:
+		return false
+	var carry := get_carry()
+	return carry == null or not carry.is_carrying_someone()
+
+
+func begin_navigation_yield(target: Vector3) -> bool:
+	if not target.is_finite() or not can_navigation_yield():
+		return false
+	_navigation_yield_return = global_position
+	_navigation_yield_active = true
+	_navigation_agent.set_move_target(target, 0.15)
+	return true
+
+
+func is_navigation_yielding() -> bool:
+	return _navigation_yield_active
+
+
+func end_navigation_yield() -> void:
+	if not _navigation_yield_active:
+		return
+	_navigation_yield_active = false
+	if not _can_continue_navigation_yield():
+		_navigation_agent.clear_move_target()
+		return
+	# Resume through the normal actuator without changing employment or claims.
+	_navigation_agent.set_move_target(_navigation_yield_return)
+
+
+func _on_navigation_blocked() -> void:
+	if _navigation_yield_active or is_in_combat():
+		return
+	var recovery := BootstrapContext.service(&"navigation_recovery")
+	if recovery != null:
+		recovery.request_passage(self)
 
 
 func _submit_navigation_avoidance_velocity(desired_velocity: Vector3) -> void:
