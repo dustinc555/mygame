@@ -32,6 +32,10 @@ var _progress_path := PackedVector3Array()
 var _remaining_lengths := PackedFloat32Array()
 var _recovery_path_index := -1
 var _passage_recovery := true
+var _movement_route: RefCounted
+var _route_owner: WeakRef
+var _route_target := Vector3.INF
+var _route_retry := 0
 
 
 func _init(body: CharacterBody3D) -> void:
@@ -78,6 +82,8 @@ func set_move_target(target: Vector3, arrival_distance := -1.0, passage_recovery
 	has_move_target = true
 	if not target_changed:
 		return
+	_route_target = Vector3.INF
+	_route_retry = 0
 	_recovery_path_index = -1
 	_target_synced = false
 	_query_grace_remaining = QUERY_GRACE_SECONDS
@@ -102,6 +108,8 @@ func get_move_direction(delta: float) -> Vector3:
 	if _is_close_to_move_target():
 		_finish_movement(true)
 		return Vector3.ZERO
+	if _body.use_navigation_pathing:
+		_refresh_movement_route()
 	if _body.use_navigation_pathing and NavigationServer3D.map_get_iteration_id(get_navigation_map()) > 0:
 		return _get_navigation_move_direction(delta)
 	_query_grace_remaining = maxf(0.0, _query_grace_remaining - delta)
@@ -126,15 +134,83 @@ func _get_navigation_move_direction(delta: float) -> Vector3:
 		elif _is_final_position_close_enough():
 			return _get_point_move_direction(get_final_position())
 		else:
+			if _expand_movement_route():
+				return Vector3.ZERO
 			_finish_movement(false)
 		return Vector3.ZERO
 	var next_path_position := get_next_path_position()
 	if not _is_final_position_close_enough():
+		if _expand_movement_route():
+			return Vector3.ZERO
 		_query_grace_remaining = maxf(0.0, _query_grace_remaining - delta)
 		if _query_grace_remaining <= 0.0:
 			_finish_movement(false)
 		return Vector3.ZERO
 	return _get_path_move_direction(next_path_position)
+
+
+func _exit_tree() -> void:
+	_release_movement_route()
+	_route_owner = null
+	_route_target = Vector3.INF
+
+
+func _release_movement_route() -> void:
+	if _movement_route == null:
+		return
+	# Change the native reference before releasing the last RID owner.
+	if get_navigation_map() == _movement_route.map:
+		set_navigation_map(_body.get_world_3d().navigation_map)
+	_movement_route = null
+	_target_synced = false
+
+
+func _refresh_movement_route() -> void:
+	var source := _body.get_world_3d().navigation_map
+	var owner = _route_owner.get_ref() if _route_owner != null else null
+	var changed := _route_target != move_target
+	if _movement_route != null:
+		if get_navigation_map() != _movement_route.map:
+			# An explicit external override wins; do not silently take it back.
+			_release_movement_route()
+			_route_target = move_target
+			return
+		if not is_instance_valid(owner) or not owner.is_inside_tree():
+			_release_movement_route()
+			changed = true
+		elif _movement_route.source_map != source or _movement_route.iteration != NavigationServer3D.map_get_iteration_id(source):
+			changed = true
+			_route_retry = 0
+	if not changed:
+		return
+	_route_target = move_target
+	if not is_instance_valid(owner):
+		owner = get_tree().get_first_node_in_group("world_navigation_controller")
+		_route_owner = weakref(owner) if owner != null else null
+	# Authored/foreign maps keep their original native behavior.
+	if owner == null or (_movement_route == null and get_navigation_map() != source):
+		return
+	var route = owner.get_movement_route(source, _body.global_position, move_target, _route_retry)
+	if route == null:
+		_release_movement_route()
+		return
+	if route == _movement_route:
+		return
+	set_navigation_map(route.map)
+	# RVO is world-wide even though pathfinding uses a shared local view.
+	# Otherwise actors using different routes would not avoid one another.
+	NavigationServer3D.agent_set_map(get_rid(), source)
+	_movement_route = route
+	_target_synced = false
+
+
+func _expand_movement_route() -> bool:
+	if _movement_route == null or _route_retry >= 2:
+		return false
+	_route_retry += 1
+	_route_target = Vector3.INF
+	_refresh_movement_route()
+	return true
 
 
 func _get_recovery_move_direction() -> Vector3:

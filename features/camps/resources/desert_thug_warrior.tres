@@ -1,7 +1,9 @@
-[gd_resource type="Resource" format=3]
-[ext_resource type="Script" path="res://features/world_sim/resources/character_type_definition.gd" id="1"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/hatchet.tres" id="2"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/round_shield.tres" id="3"]
+[gd_resource type="Resource" script_class="CharacterTypeDefinition" format=3 uid="uid://cvc6ckksln3eb"]
+
+[ext_resource type="Script" uid="uid://x6vk23ab1rfc" path="res://features/world_sim/resources/character_type_definition.gd" id="1"]
+[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://features/inventory/resources/items/hatchet.tres" id="2"]
+[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://features/inventory/resources/items/round_shield.tres" id="3"]
+
 [resource]
 script = ExtResource("1")
 type_id = "desert_thug_warrior"

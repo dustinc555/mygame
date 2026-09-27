@@ -1072,10 +1072,53 @@ func _process_navigation_motion(delta: float, combat_motion: bool) -> void:
 		_face_system_movement_target()
 	velocity.x = horizontal_velocity.x
 	velocity.z = horizontal_velocity.z
-	move_and_slide()
+	if not _can_keep_stationary_floor():
+		move_and_slide()
 	rotation.x = lerp_angle(rotation.x, 0.0, minf(1.0, 10.0 * delta))
 	rotation.z = lerp_angle(rotation.z, 0.0, minf(1.0, 10.0 * delta))
 	_navigation_agent.update_stuck_state(delta, desired_direction)
+
+
+## A motionless capsule on a static floor needs support/overlap checks,
+## not a full swept-body solve on every physics tick. Moving actors, sliding
+## slopes, platforms, missing support and new obstructions keep native slide handling.
+## No timers: removal of the floor or a new obstacle is observed this tick.
+func _can_keep_stationary_floor() -> bool:
+	if not velocity.is_zero_approx() or not is_on_floor() or not floor_stop_on_slope or not get_platform_velocity().is_zero_approx():
+		return false
+	var collision := _get_main_collision_shape()
+	if collision == null or collision.disabled or not collision.shape is CapsuleShape3D or not global_basis.is_equal_approx(global_basis.orthonormalized()):
+		return false
+	if absf(global_basis.y.y - 1.0) > 0.001 or not collision.basis.is_equal_approx(Basis.IDENTITY):
+		return false
+	var capsule := collision.shape as CapsuleShape3D
+	# The support point on a slope is on the lower hemisphere, not directly
+	# below the capsule center. Keep the exact previously solved floor normal.
+	var normal := get_floor_normal()
+	var floor_point := collision.global_position - Vector3.UP * (capsule.height * 0.5 - capsule.radius) - normal * capsule.radius
+	var ray := PhysicsRayQueryParameters3D.create(floor_point + Vector3.UP * 0.02, floor_point - Vector3.UP * 0.02, collision_mask)
+	ray.exclude = [get_rid()]
+	var space := get_world_3d().direct_space_state
+	var support := space.intersect_ray(ray)
+	if support.is_empty() or (support.normal as Vector3).dot(normal) < 0.9999:
+		return false
+	if absf((support.position - floor_point).dot(normal)) > safe_margin * 2.0:
+		return false
+	# Terrain3D also supplies static bodies directly through PhysicsServer3D.
+	var support_rid: RID = support.rid
+	if PhysicsServer3D.body_get_mode(support_rid) != PhysicsServer3D.BODY_MODE_STATIC:
+		return false
+	var linear: Vector3 = PhysicsServer3D.body_get_state(support_rid, PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY)
+	var angular: Vector3 = PhysicsServer3D.body_get_state(support_rid, PhysicsServer3D.BODY_STATE_ANGULAR_VELOCITY)
+	if not linear.is_zero_approx() or not angular.is_zero_approx():
+		return false
+	var overlap := PhysicsShapeQueryParameters3D.new()
+	overlap.shape = collision.shape
+	overlap.transform = collision.global_transform
+	overlap.transform.origin += Vector3.UP * 0.002
+	overlap.collision_mask = collision_mask
+	overlap.exclude = [get_rid()]
+	return space.intersect_shape(overlap, 1).is_empty()
 
 
 func _apply_floor_motion(delta: float) -> void:

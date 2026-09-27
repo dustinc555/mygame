@@ -1,7 +1,7 @@
 extends RefCounted
 
 ## Pure camp rules. Callers persist the mutated dictionary in GECS.
-static func advance_lifecycle(state: Dictionary, survivors: int, now: float) -> int:
+static func advance_lifecycle(state: Dictionary, survivors: int, now: float, replacement_survivors: int = -1) -> int:
 	var status := str(state.get("status", "occupied"))
 	if status == "empty":
 		return 0
@@ -14,7 +14,9 @@ static func advance_lifecycle(state: Dictionary, survivors: int, now: float) -> 
 		if now >= float(state["cleared_at"]) + float(state.get("cleanup_delay", 10080.0)):
 			state["status"] = "empty"
 		return 0
-	var missing := maxi(0, int(state.get("population_limit", 0)) - survivors)
+	# Extra commanded squads keep ownership alive, but do not alter the normal
+	# resident/patrol replacement target or become an endless source of fighters.
+	var missing := maxi(0, int(state.get("population_limit", 0)) - (survivors if replacement_survivors < 0 else replacement_survivors))
 	if missing == 0:
 		state["replacement_due"] = -1.0
 		return 0

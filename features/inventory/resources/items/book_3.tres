@@ -1,13 +1,20 @@
-[gd_resource type="Resource" script_class="ItemDefinition" format=3]
-[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1"]
-[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Book_3.gltf" id="2"]
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://b736alhkppka1"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1"]
+[ext_resource type="PackedScene" uid="uid://cm2t1pay1phby" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Book_3.gltf" id="2"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_66w4l"]
+
 [resource]
 script = ExtResource("1")
 display_name = "Green Lineage Book"
 item_id = "book.lineage_green"
 grid_size = Vector2i(2, 2)
 unit_weight = 0.75
+alternate_equip_slots = PackedStringArray()
+compatible_races = PackedStringArray()
 world_scene = ExtResource("2")
 world_visual_long_axis_meters = 0.3
+tool_tags = PackedStringArray()
+access_key_ids = PackedStringArray()
 read_behavior = 1
 read_title = "Green Lineage Book"

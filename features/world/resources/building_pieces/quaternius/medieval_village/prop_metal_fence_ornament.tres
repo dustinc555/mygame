@@ -1,8 +1,8 @@
-[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://crykis3lx8h5u"]
 
 [ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/prop_metal_fence_ornament.tscn" id="1_2aqfx"]
-[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_6tx4x"]
-[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_MetalFence_Ornament.gltf" id="3_ohn64"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_6tx4x"]
+[ext_resource type="PackedScene" uid="uid://dw0aug31iylpk" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_MetalFence_Ornament.gltf" id="3_ohn64"]
 
 [resource]
 script = ExtResource("2_6tx4x")

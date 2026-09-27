@@ -932,6 +932,22 @@ func get_population_record(actor_id: String) -> Dictionary:
 	return _population_record_from_entity(entity)
 
 
+## LOD only needs existence, current life and whether a saved transform exists.
+## Full inventory/equipment hydration belongs to realization, not presence checks.
+func get_population_presence(actor_id: String) -> Dictionary:
+	var entity = _population_entity_by_actor_id.get(actor_id)
+	if entity == null or not is_instance_valid(entity):
+		return {}
+	var population = entity.get_component(C_POPULATION_RECORD)
+	if population == null:
+		return {}
+	var vitals = entity.get_component(C_VITALS)
+	return {
+		"life_state": vitals.life_state if vitals != null and bool(vitals.vitals_seeded) else population.life_state,
+		"last_world_transform_initialized": population.last_world_transform_initialized,
+	}
+
+
 ## Narrow authoritative snapshot for the minute ledger. Do not hydrate inventory,
 ## equipment, appearance or rebuild assignment indexes for an accounting tick.
 func get_population_ledger_records() -> Dictionary:

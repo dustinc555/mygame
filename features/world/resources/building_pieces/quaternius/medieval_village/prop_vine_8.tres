@@ -1,8 +1,8 @@
-[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://dde6ni5lql8n7"]
 
 [ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/prop_vine_8.tscn" id="1_mbmag"]
-[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_05fvm"]
-[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Vine8.gltf" id="3_x632e"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_05fvm"]
+[ext_resource type="PackedScene" uid="uid://dh3fbddgw0gn6" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Vine8.gltf" id="3_x632e"]
 
 [resource]
 script = ExtResource("2_05fvm")

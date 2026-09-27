@@ -8,6 +8,7 @@ const CLOSED_DOOR_MASK := 8
 const ENDPOINT_EPSILON := 0.05
 const NAV_HEIGHT_EPSILON := 0.25 # Recast floor voxel quantization, checked against real ground.
 const FLOOR_CONTACT_LIFT := 0.02
+const NAV_QUERIES := preload("res://features/core/navigation/world_navigation_queries.gd")
 
 
 ## Obstruction only: combat components retain reach, timing and turn ownership.
@@ -44,14 +45,14 @@ static func find_reachable_position(actor: Node3D, target: Node3D, candidate: Ve
 	var origin_offset := _floor_origin_offset(actor, shape)
 	var candidate_floor := candidate - origin_offset
 	var actor_floor := actor.global_position - origin_offset
-	var destination := NavigationServer3D.map_get_closest_point(map, candidate_floor)
-	var start := NavigationServer3D.map_get_closest_point(map, actor_floor)
+	var destination := NAV_QUERIES.closest_point(actor, map, candidate_floor)
+	var start := NAV_QUERIES.closest_point(actor, map, actor_floor)
 	# Avoidance can put a live body just outside the baked clearance boundary.
 	# Permit a body-width recovery to the mesh, not a remote destination snap.
 	var recovery_radius := maxf(shape.shape.get_debug_mesh().get_aabb().size.x, ENDPOINT_EPSILON)
 	if not _near_floor_hint(destination, candidate_floor) or Vector2(start.x - actor_floor.x, start.z - actor_floor.z).length() > recovery_radius or absf(start.y - actor_floor.y) > NAV_HEIGHT_EPSILON:
 		return Vector3.INF
-	var path := NavigationServer3D.map_get_path(map, start, destination, true)
+	var path := NAV_QUERIES.path(actor, map, start, destination)
 	if path.is_empty() or path[0].distance_to(start) > ENDPOINT_EPSILON or path[path.size() - 1].distance_to(destination) > ENDPOINT_EPSILON:
 		return Vector3.INF
 	var ground := _ground_floor(actor, destination)

@@ -1,5 +1,7 @@
-[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3]
-[ext_resource type="Script" path="res://features/world_sim/resources/facility_function_definition.gd" id="1"]
+[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3 uid="uid://ccvns4k70q4ak"]
+
+[ext_resource type="Script" uid="uid://cugx5hdqn8thn" path="res://features/world_sim/resources/facility_function_definition.gd" id="1"]
+
 [resource]
 script = ExtResource("1")
 function_id = "shop"
@@ -7,3 +9,4 @@ display_name = "Shop"
 facility_type = "shop"
 description = "An independent trader's workplace with upstairs residence."
 expected_service_points = PackedStringArray("counter")
+expected_activity_types = PackedStringArray()

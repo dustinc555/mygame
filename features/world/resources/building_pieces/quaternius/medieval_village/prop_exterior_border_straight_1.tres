@@ -1,8 +1,8 @@
-[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://irncuu70d07b"]
 
 [ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/prop_exterior_border_straight_1.tscn" id="1_h4w3x"]
-[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_e2jva"]
-[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_ExteriorBorder_Straight1.gltf" id="3_mwuek"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_e2jva"]
+[ext_resource type="PackedScene" uid="uid://cn5jcy6ms0as2" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_ExteriorBorder_Straight1.gltf" id="3_mwuek"]
 
 [resource]
 script = ExtResource("2_e2jva")

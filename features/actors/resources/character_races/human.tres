@@ -21,6 +21,18 @@ equipment_slot_labels = {
 "undershirt": "Undershirt",
 "weapon": "Weapon"
 }
+equipment_slot_grid_sizes = Dictionary[String, Vector2i]({
+"backpack": Vector2i(2, 3),
+"chest": Vector2i(2, 3),
+"feet": Vector2i(2, 2),
+"hands": Vector2i(2, 2),
+"head": Vector2i(2, 2),
+"legs": Vector2i(2, 2),
+"offhand": Vector2i(2, 3),
+"undershirt": Vector2i(2, 2),
+"weapon": Vector2i(2, 3)
+})
 bleed_fluid = ExtResource("4_fluid")
 default_male_archetype = ExtResource("2_male")
 default_female_archetype = ExtResource("3_female")
+skin_mesh_names = PackedStringArray()

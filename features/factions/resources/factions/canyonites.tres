@@ -2,12 +2,12 @@
 
 [ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://features/factions/resources/faction_definition.gd" id="1_065xx"]
 [ext_resource type="Texture2D" uid="uid://badch4qn3pi6y" path="res://features/factions/resources/icons/canyon.svg" id="1_lr0s0"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/behavior_profiles/settler_common_town.tres" id="2_behavior"]
-[ext_resource type="Resource" path="res://features/factions/resources/personality_profiles/settler_common.tres" id="3_personality"]
-[ext_resource type="Resource" path="res://features/factions/resources/law_profiles/settler_common_law.tres" id="4_law"]
+[ext_resource type="Resource" uid="uid://ddmaegaonwrn3" path="res://features/world_sim/resources/behavior_profiles/settler_common_town.tres" id="2_behavior"]
+[ext_resource type="Resource" uid="uid://c5mjyvm07dl0i" path="res://features/factions/resources/personality_profiles/settler_common.tres" id="3_personality"]
+[ext_resource type="Resource" uid="uid://cpo84jdo6y1ho" path="res://features/factions/resources/law_profiles/settler_common_law.tres" id="4_law"]
 [ext_resource type="Resource" uid="uid://4464sf7u02lx" path="res://features/world_sim/resources/population_name_profiles/farmer_names.tres" id="5_names"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/settler_common.tres" id="6_appearance"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/character_type_sets/standard.tres" id="99_types"]
+[ext_resource type="Resource" uid="uid://dbeb04ypqtu8o" path="res://features/world_sim/resources/population_appearance_profiles/settler_common.tres" id="6_appearance"]
+[ext_resource type="Resource" uid="uid://clyogl1gl5cec" path="res://features/world_sim/resources/character_type_sets/standard.tres" id="99_types"]
 
 [resource]
 script = ExtResource("1_065xx")

@@ -1,13 +1,20 @@
-[gd_resource type="Resource" script_class="ItemDefinition" load_steps=4 format=3]
-[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1"]
-[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Rope_3.gltf" id="2"]
-[ext_resource type="Texture2D" path="res://assets/items/rope_3_icon.png" id="3"]
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://dbv1a56kktl6h"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1"]
+[ext_resource type="PackedScene" uid="uid://dbgolxxpjtm3a" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Rope_3.gltf" id="2"]
+[ext_resource type="Texture2D" uid="uid://bk5tyf86oigg1" path="res://assets/items/rope_3_icon.png" id="3"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="3_wj85u"]
+
 [resource]
 script = ExtResource("1")
-item_id = "material.rope_3"
 display_name = "Rope Coil 3"
+item_id = "material.rope_3"
+icon = ExtResource("3")
 grid_size = Vector2i(2, 2)
 unit_weight = 1.5
 max_stack = 5
-icon = ExtResource("3")
+alternate_equip_slots = PackedStringArray()
+compatible_races = PackedStringArray()
 world_scene = ExtResource("2")
+tool_tags = PackedStringArray()
+access_key_ids = PackedStringArray()

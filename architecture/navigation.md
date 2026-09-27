@@ -44,6 +44,18 @@ Runtime static-body additions/removals use this local path automatically. Moves,
 
 Godot can finish its native path before the body reaches the actor's arrival tolerance. At that point `NavigationAgent3D.velocity` stops forwarding new desired velocity. `WorldActor._submit_navigation_avoidance_velocity()` sends movement and zero-velocity stops to `NavigationServer3D.agent_set_velocity()` directly while retaining the normal RVO callback and physical collision. Do not disable crowd avoidance or loosen arrival tolerances to conceal this lifecycle difference.
 
+## Shared movement routing
+
+`WorldNavigationController.get_movement_route()` owns a bounded pool in `world_navigation_routes.gd`. Nearby orders with the same start/destination tile pair share a small native map using the existing baked meshes. Longer orders share a coarse tile corridor plus its adjacent tiles. This is a derived query view, not another bake, movement solver or source of durable state. Each actor still follows its own native polygon path and collides normally; physics frequency and combat timing are unchanged.
+
+The follower assigns this map to native path queries but explicitly keeps its avoidance-agent RID on the original world map. Otherwise actors taking different routes would stop avoiding one another. Route handles retain their native RIDs through cache eviction and handover. World-map identity/iteration changes discard cached views; a removed provider restores the native world destination, and an explicit foreign-map override wins.
+
+`WorldInteractionController` treats held-button repeats separately from fresh clicks. An unchanged held destination keeps the existing member targets only while selection and move authority still match. A fresh click, changed destination, interrupted member or changed selection remains a real order. Destination projection uses the existing tile-local nearest-point helper. Formation selection and shared squad combat decisions are not implemented by this change.
+
+**Limits:** tile adjacency is a coarse hint, not proof of connected floors. A native rejection retries a broader corridor, then uses the original world map; do not clone/rebuild the entire world for this fallback. Nearest-point queries outside the local search also retain their original full-map fallback. Coarse graph construction and exceptional full-map queries still depend on world size. This improves ordinary nearby orders; it is not a guarantee that all navigation costs stay constant as the world grows. The map/corridor retention limit is `CACHE_LIMIT` in `world_navigation_routes.gd`; changing it affects derived memory/reuse on the next launch, not gameplay range.
+
+`tests/unit/test_shared_navigation_routes.gd` covers local region isolation, distant geometry, corridor detours, unreachable targets, invalidation, native RVO across separate views, map overrides, tree re-entry and RID lifetime. `test_repeated_move_orders.gd` protects held repeats and interruptions. Production movement/frame-time comparisons must still exercise one selected actor and six selected actors with changing and held destinations; record worst frames as well as averages.
+
 ## Focused verification
 
 From the project root:

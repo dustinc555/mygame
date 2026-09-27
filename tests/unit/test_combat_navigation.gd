@@ -22,6 +22,7 @@ var _viewport: SubViewport
 var _root: Node3D
 var _actor: CharacterBody3D
 var _target: CharacterBody3D
+var _navigation: WorldNavigationController
 
 
 func before_each() -> void:
@@ -30,6 +31,13 @@ func before_each() -> void:
 	add_child(_viewport)
 	_root = Node3D.new()
 	_viewport.add_child(_root)
+	# Exercise the production local-query route, not just the legacy fallback.
+	_navigation = WorldNavigationController.new()
+	_navigation.settings = WorldNavigationSettings.new()
+	_navigation.settings.tile_size = 32.0
+	_navigation._mode = WorldNavigationController.Mode.TILED
+	_root.add_child(_navigation)
+	_navigation.set_process(false)
 	# Tiny fixture geometry must be installed before queries, independent of
 	# worker scheduling and preceding tests. Production maps stay asynchronous.
 	NavigationServer3D.map_set_use_async_iterations(_root.get_world_3d().navigation_map, false)
@@ -278,6 +286,10 @@ func _add_region(min_x: float, max_x: float, height: float = 0.0) -> NavigationR
 	mesh.add_polygon(PackedInt32Array([0, 1, 2, 3]))
 	region.navigation_mesh = mesh
 	_root.add_child(region)
+	var tile := WorldNavigationController.Tile.new()
+	tile.region = region
+	tile.state = WorldNavigationController.TileState.BAKED
+	_navigation._tiles[Vector2i(int(floorf(min_x / 32.0)), 0)] = tile
 	return region
 
 

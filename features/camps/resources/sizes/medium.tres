@@ -1,10 +1,6 @@
-[gd_resource type="Resource" load_steps=2 format=3]
+[gd_resource type="Resource" format=3 uid="uid://f7malanoehvq"]
 
-[ext_resource type="Script" path="res://features/camps/resources/camp_size.gd" id="size"]
+[ext_resource type="Script" uid="uid://cwk7y82wtrr6l" path="res://features/camps/resources/camp_size.gd" id="size"]
 
 [resource]
 script = ExtResource("size")
-display_name = "Medium"
-population = 16
-footprint_radius = 8.0
-furnishing_multiplier = 1.0

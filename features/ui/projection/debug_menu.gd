@@ -3,6 +3,8 @@ extends Control
 class_name DebugMenu
 
 const C_COMBAT_RESPONSE_INTENT := preload("res://features/combat/sim/c_game_combat_response_intent.gd")
+const WORLD_SIM_MENU := preload("res://features/world_sim/projection/world_sim_debug_menu.gd")
+const CAMP_ATTACK_PANEL := preload("res://features/camps/projection/camp_attack_debug_panel.gd")
 
 ## Dev-only debug windows, shown only while the GameDebug sentinel is true.
 ## Independent draggable debug windows opened from the Escape menu.
@@ -106,6 +108,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_lod_window()
 	_build_time_skip_window()
+	_build_world_sim_window()
 	_build_nav_window()
 	_build_placer_window()
 	_build_towns_window()
@@ -118,6 +121,18 @@ func _ready() -> void:
 	# time — debug windows never flood the screen.
 	for panel in _windows:
 		panel.hide()
+
+
+func _build_world_sim_window() -> void:
+	var content := _build_window("World Sim", Vector2(12.0, 88.0))
+	content.custom_minimum_size.x = 660.0
+	var scroll := content.get_parent() as ScrollContainer
+	scroll.custom_minimum_size.x = 660.0
+	var browser := WORLD_SIM_MENU.new()
+	content.add_child(browser)
+	# Each action owns its form and calls its feature's simulation API.
+	# Add future actions here without growing this window's height.
+	browser.add_action("camp.spawn_attack", "Squads", "Spawn Attack", CAMP_ATTACK_PANEL.new())
 
 
 func _build_lod_window() -> void:
