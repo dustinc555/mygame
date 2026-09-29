@@ -79,7 +79,7 @@ func spawn_debug_party_character(appearance: Resource, character_name: String, a
 	member.appearance_data = canonical_appearance
 	member.set_meta("population_birth_day_index", CharacterAgeRules.birth_day_for_age(age_years, _current_world_day()))
 	member.set_meta("population_age_years", age_years)
-	member.set_meta("party_id", PartyManager.PLAYER_PARTY_ID)
+	WorldActor.set_profile_metadata(member, &"party_id", PartyManager.PLAYER_PARTY_ID)
 	member.set_meta(DEFER_POPULATION_REGISTRATION_META, true)
 	member.starting_items = [_make_stock(SILVER_ITEM, 10)]
 	member.starting_equipment = [PEASANT_TUNIC, PEASANT_TROUSERS, PEASANT_SHOES, IRON_SWORD, ROUND_SHIELD]

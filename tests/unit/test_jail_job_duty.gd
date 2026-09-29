@@ -21,7 +21,7 @@ class Staff extends HumanoidCharacter:
 	func _process(_delta: float) -> void: pass
 	func _physics_process(_delta: float) -> void: pass
 	func get_interaction() -> InteractionCapability: return interaction
-	func set_move_target(destination: Vector3, _issued_by_player: bool = true) -> void:
+	func set_move_target(destination: Vector3, _issued_by_player: bool = true, _continue_order: bool = false) -> void:
 		moves += 1
 		target = destination
 	func has_move_target() -> bool: return target.is_finite()

@@ -44,13 +44,63 @@ Runtime static-body additions/removals use this local path automatically. Moves,
 
 Godot can finish its native path before the body reaches the actor's arrival tolerance. At that point `NavigationAgent3D.velocity` stops forwarding new desired velocity. `WorldActor._submit_navigation_avoidance_velocity()` sends movement and zero-velocity stops to `NavigationServer3D.agent_set_velocity()` directly while retaining the normal RVO callback and physical collision. Do not disable crowd avoidance or loosen arrival tolerances to conceal this lifecycle difference.
 
-## Shared movement routing
+## Stationary actors
 
-`WorldNavigationController.get_movement_route()` owns a bounded pool in `world_navigation_routes.gd`. Nearby orders with the same start/destination tile pair share a small native map using the existing baked meshes. Longer orders share a coarse tile corridor plus its adjacent tiles. This is a derived query view, not another bake, movement solver or source of durable state. Each actor still follows its own native polygon path and collides normally; physics frequency and combat timing are unchanged.
+`WorldActor._process_navigation_motion()` skips repeated floor snapping, zero-velocity avoidance submissions, stuck-state resets and upright-rotation writes only when an upright, motionless actor has no navigation target or combat movement and still passes `_can_keep_stationary_floor()`. Entering this state submits the stop once. A new command, combat movement, residual velocity or invalid support uses the ordinary movement path immediately; the actor and its other capabilities remain active.
+
+Support is checked every physics tick against live collision: a short ray must find the solved static surface, its velocity and normal must still be valid, and the capsule must not overlap a new obstruction. Slopes, platforms, removed/lowered floors and unsupported shapes retain native movement handling when those conditions fail. Do not replace these checks with cached contacts or an idle timer: terrain and other untracked collision changes do not yet supply complete actor wake notifications.
+
+`tests/unit/test_stationary_actor_floor.gd` covers resting work, command/combat wake-up and changed physical support. This is a shared actor path, not a camp-specific lower-fidelity body or a replacement for normal movement validation.
+
+## Background route requests and player orders
+
+`WorldNavigationController.request_paths()` submits native path searches through `navigation_query_jobs.gd`. Workers own value snapshots and retain the `World3D`, not actor nodes or GECS components. The main thread polls completed batches without waiting, then publishes complete results only for the current command ticket. Actor removal, explicit stop and replacement commands cancel old tickets; map identity/iteration checks reject obsolete geometry.
+
+Player routes have reserved worker admission **and** use Godot's high-priority worker tasks. Reserving an application slot alone does not bypass Godot's low-priority backlog. Background requests still have an execution lane. Batches are bounded by destination count, not request count: a tactical request with many candidates yields between chunks and publishes its complete ordered candidate array afterward. A destination may require a second native search for whole-map fallback.
+
+Actual body routes are marked `movement_route` by the shared follower, including autonomous pursuit and ordinary NPC travel. The queue separates them from tactical position searches so a backlog of possible fighting positions cannot occupy every background worker and leave bodies waiting at old route endpoints. Movement can borrow spare background capacity, but leaves a lane for queued position searches; a single background worker alternates between the two. Neither class consumes the player's reserved capacity. This changes request scheduling, not worker count, movement speed, collision or permission to attack.
+
+In the Godot FileSystem, open `features/core/navigation/resources/world_navigation_settings.tres`, then expand **Runtime Path Queries** in the Inspector. `path_query_workers` limits concurrent batches, `path_query_player_workers` reserves player admission, `path_query_batch_size` limits destinations per batch, and `path_query_capacity` bounds outstanding request keys. These are advanced throughput controls, not movement-speed or combat-timing controls. Runtime edits are read on the next request; already running batches finish normally. Saved defaults apply on the next launch.
+
+`WorldInteractionController` distinguishes a fresh click from continuation of the same held gesture and selection. Unchanged held targets are reused only while movement authority still matches. A useful in-flight held route is allowed to finish instead of being discarded every repeat; its result is consumed before submitting the next correction. A fresh click, reversal, interruption or changed selection supersedes it. The actor's latest goal remains authoritative even while following an intermediate held route.
+
+The follower retains a valid current route during replacement. It never continues past that route's endpoint toward an unqueried goal, joins across an unproven corner, or backtracks to an abandoned worker start. If a late replacement cannot be joined safely, it brakes and requests from its current position. Stop, blocked routes, navigation-layer changes and provider removal retain their ordinary cancellation and fallback behavior.
+
+`test_navigation_query_jobs.gd` covers off-thread execution, player admission and actual global-pool priority, movement/position fairness, small worker configurations, bounded chunks, result ordering and cancellation. `test_async_navigation_follower.gd` covers real pursuit request classification, held publication races and route handoff safety; `test_repeated_move_orders.gd` covers selection and command ownership. `validate_player_navigation.gd` exercises actual solo/six-member clicks, held turns before release, stop and arrival, including sustained delayed background work. Its imposed worker delays isolate the failure mechanism; they are not measurements of a populated town battle.
+
+## Combat fighting positions
+
+`GameCombatSlotSystem` proposes fighting positions around the target. New ring points provide horizontal locations, not reliable floor heights: `CombatNavigation.ground_position_hint()` resolves their local physical support using the attacker's body-origin offset and existing `move_target_vertical_tolerance`. The current stance and retained reservation remain exact positions and are not moved by this step.
+
+Grounding runs once when a route batch is submitted, not every time its pending result is checked. It does not approve a destination: returned routes still require current floor contact, standing clearance, connectivity and an unobstructed strike where applicable. A changed or removed floor can therefore reject a completed worker result. Synchronous fallback uses the same grounding and acceptance rules. Defend behavior, target selection and attack timing are unchanged.
+
+`test_combat_navigation.gd` covers sloped front positions, body offsets, distant/disconnected floors and live support changes. The `sloped_defend` case in `validate_combat_navigation_runtime.gd` verifies that an ordinary hostile NPC autonomously approaches and attacks a defending party member through the production navigation and combat systems.
+
+## Pursuit and its leash
+
+Pursuit and approval to strike are separate. `GameCombatMovementSystem` can approach a live opponent through the ordinary navigation follower while `GameCombatSlotSystem` searches for a fighting position. It stops outside the opponent's body; this does not grant an attack slot or bypass physical strike checks. An already clear, reachable current stance can be approved without first waiting for a ring-position batch.
+
+`WorldActor` continues the same combat navigation order while the opponent moves. A useful route or completed result is not discarded merely because that opponent has taken another step. Switching opponents still replaces the order, and map, clearance, connectivity and current-position checks still reject unusable results.
+
+Recovery measures the body's progress, not destination updates or completed route calculations. Continuing pursuit and held steering preserve the stuck timer, retry count and precise-corner recovery; a changed goal or route rebases the distance comparison from the last physical progress point. A fresh command resets recovery. This applies to both threaded routes and native fallback, so an approaching opponent cannot make a stationary pursuer appear to advance. The actor's existing **Recovery** settings still control the interval and retry limit.
+
+Replacing a blocked retained route consumes that same retry budget, even while the newest correction is pending. A fresh command always gets its first replacement attempt, including when retries are disabled; repeatedly following blocked replacements cannot keep an unchanged pursuit alive indefinitely. Reporting a failed approach returns control to combat positioning rather than dropping the opponent or granting a remote strike.
+
+`GameCombatTargetingSystem` retains an aggressive fighter's chosen opponent within the shared **fighter-to-target** leash, independently of an approved melee position. It is not a radius around the camp, spawn point or start of combat. Fresh enemy detection keeps its existing shorter range. Invalid, dead, protected or no-longer-visible targets release normally; Defend and explicit player movement retain their existing behavior. Exact player attack orders are not limited by the autonomous leash.
+
+Tune the saved default in the Godot Inspector at `features/combat/resources/combat_pursuit_settings.tres`: **Leash Distance**, in meters. The default is 100 m; the boundary is inclusive and uses horizontal distance. In-game, **Esc → Debug - Combat** exposes the same setting as a runtime-only override, read on the next target check. It does not change attack reach, speed or attack timing.
+
+The same panel's **Show pursuit leashes** toggle is off by default. Cyan lines connect fighters to their current opponents; gold circles show the pursuit boundary around each fighter. Labels show current activity and actual distance. The overlay uses indexed lookup, limits itself to nearby fighters, and stops processing when disabled.
+
+`test_combat_leash.gd` exercises target commitment, release, player authority and the runtime control. The `continuous_pursuit` case in `validate_combat_navigation_runtime.gd` requires physical enemies to follow and turn while the defending player keeps moving; catching up only after the player stops is not a pass.
+
+## Native fallback and shared movement routing
+
+When threaded queries are unavailable or disabled, `WorldNavigationController.get_movement_route()` owns a bounded pool in `world_navigation_routes.gd`. Nearby orders with the same start/destination tile pair share a small native map using the existing baked meshes. Longer orders share a coarse tile corridor plus its adjacent tiles. This is a derived query view, not another bake, movement solver or source of durable state. Each actor still follows its own native polygon path and collides normally; physics frequency and combat timing are unchanged.
 
 The follower assigns this map to native path queries but explicitly keeps its avoidance-agent RID on the original world map. Otherwise actors taking different routes would stop avoiding one another. Route handles retain their native RIDs through cache eviction and handover. World-map identity/iteration changes discard cached views; a removed provider restores the native world destination, and an explicit foreign-map override wins.
 
-`WorldInteractionController` treats held-button repeats separately from fresh clicks. An unchanged held destination keeps the existing member targets only while selection and move authority still match. A fresh click, changed destination, interrupted member or changed selection remains a real order. Destination projection uses the existing tile-local nearest-point helper. Formation selection and shared squad combat decisions are not implemented by this change.
+Destination projection uses the existing tile-local nearest-point helper. Formation selection and shared squad combat decisions are not implemented by this change.
 
 **Limits:** tile adjacency is a coarse hint, not proof of connected floors. A native rejection retries a broader corridor, then uses the original world map; do not clone/rebuild the entire world for this fallback. Nearest-point queries outside the local search also retain their original full-map fallback. Coarse graph construction and exceptional full-map queries still depend on world size. This improves ordinary nearby orders; it is not a guarantee that all navigation costs stay constant as the world grows. The map/corridor retention limit is `CACHE_LIMIT` in `world_navigation_routes.gd`; changing it affects derived memory/reuse on the next launch, not gameplay range.
 

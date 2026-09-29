@@ -13,6 +13,9 @@ const WINDOW_BG := Color(0.12, 0.12, 0.14, 1.0)
 const WINDOW_BORDER := Color(0.42, 0.38, 0.28, 1.0)
 const TITLE_BAR_BG := Color(0.18, 0.17, 0.15, 1.0)
 const TITLE_BAR_BORDER := Color(0.34, 0.30, 0.22, 1.0)
+const ESCAPE_MENU_WIDTH := 340.0
+const ESCAPE_MENU_MAX_HEIGHT := 560.0
+const ESCAPE_MENU_SCREEN_MARGIN := 24.0
 
 var root: Node
 var _context: BootstrapContext
@@ -37,6 +40,7 @@ var debug_menu: Control
 var escape_menu_panel: PanelContainer
 var escape_menu_resume_button: Button
 var escape_menu_debug_buttons: VBoxContainer
+var escape_menu_debug_scroll: ScrollContainer
 var pause_button: Button
 var slow_button: Button
 var normal_button: Button
@@ -457,10 +461,8 @@ func _setup_escape_menu() -> void:
 	escape_menu_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	escape_menu_panel.add_theme_stylebox_override("panel", _make_window_style())
 	escape_menu_panel.set_anchors_preset(Control.PRESET_CENTER)
-	escape_menu_panel.offset_left = -170.0
-	escape_menu_panel.offset_top = -180.0
-	escape_menu_panel.offset_right = 170.0
-	escape_menu_panel.offset_bottom = 180.0
+	escape_menu_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	escape_menu_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 14)
 	margin.add_theme_constant_override("margin_top", 12)
@@ -489,10 +491,34 @@ func _setup_escape_menu() -> void:
 	escape_menu_resume_button.focus_mode = Control.FOCUS_NONE
 	escape_menu_resume_button.pressed.connect(_on_escape_menu_resume_pressed)
 	column.add_child(escape_menu_resume_button)
+	escape_menu_debug_scroll = ScrollContainer.new()
+	escape_menu_debug_scroll.name = "DebugScroll"
+	escape_menu_debug_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	escape_menu_debug_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_child(escape_menu_debug_scroll)
 	escape_menu_debug_buttons = VBoxContainer.new()
+	escape_menu_debug_buttons.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	escape_menu_debug_buttons.add_theme_constant_override("separation", 6)
-	column.add_child(escape_menu_debug_buttons)
+	escape_menu_debug_scroll.add_child(escape_menu_debug_buttons)
 	pause_overlay.add_child(escape_menu_panel)
+	pause_overlay.resized.connect(_layout_escape_menu, CONNECT_DEFERRED)
+	escape_menu_panel.minimum_size_changed.connect(_layout_escape_menu, CONNECT_DEFERRED)
+	escape_menu_debug_buttons.minimum_size_changed.connect(_layout_escape_menu, CONNECT_DEFERRED)
+	_layout_escape_menu()
+
+
+func _layout_escape_menu() -> void:
+	if escape_menu_panel == null or pause_overlay == null:
+		return
+	escape_menu_debug_scroll.visible = escape_menu_debug_buttons.get_child_count() > 0
+	var minimum := escape_menu_panel.get_combined_minimum_size()
+	var content_height := minimum.y
+	if escape_menu_debug_scroll.visible:
+		# Only the entries scroll; the title, Resume and panel margins stay fixed.
+		content_height += maxf(0.0, escape_menu_debug_buttons.get_combined_minimum_size().y - escape_menu_debug_scroll.get_combined_minimum_size().y)
+	var available := (pause_overlay.size - Vector2.ONE * ESCAPE_MENU_SCREEN_MARGIN * 2.0).max(Vector2.ZERO)
+	escape_menu_panel.size = Vector2(maxf(ESCAPE_MENU_WIDTH, minimum.x), minf(content_height, ESCAPE_MENU_MAX_HEIGHT)).min(available)
+	escape_menu_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER, Control.PRESET_MODE_KEEP_SIZE)
 
 
 ## One button per debug panel — opening the menu never floods the screen;

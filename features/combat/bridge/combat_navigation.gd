@@ -32,6 +32,22 @@ static func can_strike(actor: Node3D, target: Node3D, from_position: Vector3 = V
 	return actor.get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 
+## A new tactical XZ hint has no floor height yet. Resolve it locally before
+## routing; this is not acceptance and does not relax the exact checks below.
+static func ground_position_hint(actor: Node3D, hint: Vector3, vertical_tolerance: float) -> Vector3:
+	if not is_instance_valid(actor) or not actor.is_inside_tree() or actor.is_queued_for_deletion() or not hint.is_finite() or not is_finite(vertical_tolerance) or vertical_tolerance < 0.0:
+		return Vector3.INF
+	var shape := _body_shape(actor)
+	if shape == null:
+		return Vector3.INF
+	var offset := _floor_origin_offset(actor, shape)
+	var floor_hint := hint - offset
+	var ground := _ground_floor(actor, floor_hint, maxf(vertical_tolerance, ENDPOINT_EPSILON))
+	if not ground.is_finite() or absf(ground.y - floor_hint.y) > vertical_tolerance:
+		return Vector3.INF
+	return ground + offset
+
+
 static func find_reachable_position(actor: Node3D, target: Node3D, candidate: Vector3, require_strike: bool = true) -> Vector3:
 	if not _live_pair(actor, target) or not candidate.is_finite():
 		return Vector3.INF
@@ -54,6 +70,26 @@ static func find_reachable_position(actor: Node3D, target: Node3D, candidate: Ve
 		return Vector3.INF
 	var path := NAV_QUERIES.path(actor, map, start, destination)
 	if path.is_empty() or path[0].distance_to(start) > ENDPOINT_EPSILON or path[path.size() - 1].distance_to(destination) > ENDPOINT_EPSILON:
+		return Vector3.INF
+	return accept_path(actor, target, candidate, path, require_strike)
+
+
+## Worker output is only a route proposal. Occupancy, ground and obstructions
+## must be checked against the CURRENT physics world on the main thread.
+static func accept_path(actor: Node3D, target: Node3D, candidate: Vector3, path: PackedVector3Array, require_strike: bool = true) -> Vector3:
+	if not _live_pair(actor, target) or not candidate.is_finite() or path.is_empty():
+		return Vector3.INF
+	var shape := _body_shape(actor)
+	if shape == null:
+		return Vector3.INF
+	var world := actor.get_world_3d()
+	var origin_offset := _floor_origin_offset(actor, shape)
+	var candidate_floor := candidate - origin_offset
+	var actor_floor := actor.global_position - origin_offset
+	var start := path[0]
+	var destination := path[-1]
+	var recovery_radius := maxf(shape.shape.get_debug_mesh().get_aabb().size.x, ENDPOINT_EPSILON)
+	if not _near_floor_hint(destination, candidate_floor) or Vector2(start.x - actor_floor.x, start.z - actor_floor.z).length() > recovery_radius or absf(start.y - actor_floor.y) > NAV_HEIGHT_EPSILON:
 		return Vector3.INF
 	var ground := _ground_floor(actor, destination)
 	if not ground.is_finite() or absf(ground.y - candidate_floor.y) > ENDPOINT_EPSILON:
@@ -104,12 +140,17 @@ static func _floor_origin_offset(actor: Node3D, shape: CollisionShape3D) -> Vect
 	return Vector3.UP * -local_bounds.position.y
 
 
+static func floor_origin_offset(actor: Node3D) -> Vector3:
+	var shape := _body_shape(actor)
+	return _floor_origin_offset(actor, shape) if shape != null else Vector3.ZERO
+
+
 static func _near_floor_hint(point: Vector3, hint: Vector3) -> bool:
 	return Vector2(point.x - hint.x, point.z - hint.z).length() <= ENDPOINT_EPSILON and absf(point.y - hint.y) <= NAV_HEIGHT_EPSILON
 
 
-static func _ground_floor(actor: Node3D, nav_floor: Vector3) -> Vector3:
-	var query := PhysicsRayQueryParameters3D.create(nav_floor + Vector3.UP * NAV_HEIGHT_EPSILON, nav_floor - Vector3.UP * NAV_HEIGHT_EPSILON, SOLID_WORLD_MASK)
+static func _ground_floor(actor: Node3D, nav_floor: Vector3, half_height: float = NAV_HEIGHT_EPSILON) -> Vector3:
+	var query := PhysicsRayQueryParameters3D.create(nav_floor + Vector3.UP * half_height, nav_floor - Vector3.UP * half_height, SOLID_WORLD_MASK)
 	if actor is CollisionObject3D:
 		query.exclude = [actor.get_rid()]
 	query.hit_from_inside = true

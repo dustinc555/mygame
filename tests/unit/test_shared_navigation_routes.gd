@@ -1,5 +1,11 @@
 extends "res://tests/unit/test_local_navigation_queries.gd"
 
+# These tests cover the native fallback selected when worker queries are off.
+# The default threaded follower has separate real-server lifecycle coverage.
+func before_each() -> void:
+	await super.before_each()
+	_navigation.settings.threaded_queries_enabled = false
+
 class QuietActor extends WorldActor:
 	func _enter_tree() -> void: pass
 	func _ready() -> void:

@@ -1,6 +1,14 @@
 extends GutTest
 
 class GroundedActor extends WorldActor:
+	var floor_motion_calls := 0
+	var avoidance_submissions := 0
+	func _apply_floor_motion(delta: float) -> void:
+		floor_motion_calls += 1
+		super._apply_floor_motion(delta)
+	func _submit_navigation_avoidance_velocity(desired_velocity: Vector3) -> void:
+		avoidance_submissions += 1
+		super._submit_navigation_avoidance_velocity(desired_velocity)
 	func _enter_tree() -> void:
 		pass
 	func _ready() -> void:
@@ -50,6 +58,35 @@ func _can_rest() -> bool:
 
 func test_stationary_flat_supported_body_can_rest() -> void:
 	assert_true(_can_rest())
+
+func test_resting_body_stops_repeating_navigation_work() -> void:
+	for tick in range(6):
+		_actor._process_navigation_motion(1.0 / 60.0, false)
+	assert_eq(_actor.floor_motion_calls, 0, "Validated support does not need repeated floor snapping")
+	assert_eq(_actor.avoidance_submissions, 1, "Publish a stop once, not every stationary tick")
+	assert_true(_actor.is_on_floor())
+
+func test_new_destination_leaves_stationary_navigation_immediately() -> void:
+	_actor._process_navigation_motion(1.0 / 60.0, false)
+	var before := _actor.floor_motion_calls
+	_actor._navigation_agent.set_move_target(Vector3(3, 0.9, 0))
+	_actor._process_navigation_motion(1.0 / 60.0, false)
+	assert_eq(_actor.floor_motion_calls, before + 1, "A command must not wait for an idle timer")
+
+func test_resting_body_falls_after_support_is_removed() -> void:
+	_actor._process_navigation_motion(1.0 / 60.0, false)
+	var before := _actor.global_position.y
+	_floor.queue_free()
+	for tick in range(8):
+		await get_tree().physics_frame
+		_actor._process_navigation_motion(1.0 / 60.0, false)
+	assert_lt(_actor.global_position.y, before - 0.01, "Support loss resumes real gravity and collision movement")
+
+func test_combat_keeps_movement_and_facing_work_active() -> void:
+	_actor._process_navigation_motion(1.0 / 60.0, false)
+	var before := _actor.floor_motion_calls
+	_actor._process_navigation_motion(1.0 / 60.0, true)
+	assert_eq(_actor.floor_motion_calls, before + 1)
 
 func test_movement_always_runs_native_slide() -> void:
 	_actor.velocity = Vector3(0.01, 0, 0)

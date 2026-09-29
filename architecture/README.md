@@ -76,6 +76,14 @@ flowchart TD
 - `PopulationController` owns persistent actor records.
 - `ActorQueryController` is used for broad live actor lookup. Do not scan every humanoid every frame.
 
+### Realized actor profile and movement work
+
+`GameActorSyncSystem` copies identity, faction, party and settlement fields when the actor's `simulation_profile_changed` signal fires, rather than copying unchanged values every world tick. `GecsWorldController` owns registration and binding. Ordinary exported-property assignments emit the signal; profile metadata writers use `WorldActor.set_profile_metadata(actor, key, value)` (null removes a key). Use that boundary for `actor_record_id`, `actor_role_id`, `settlement_staff_role`, `settlement_id` and `party_id`, and `set_settlement_authority()` for the authority group. Raw metadata/group edits bypass the bridge.
+
+Bindings follow the current body/entity pair. Departure and replacement disconnect the old projection; a late old-body exit cannot unregister its replacement. Save/load disconnects the old entity, restores the loaded profile into any retained body, then binds the new entity. This prevents a later name or faction edit from overwriting loaded fields with stale projection data.
+
+This does **not** suspend the entire actor. Dynamic position, vitals and medical-input synchronization still runs normally; perception, needs, combat and animation keep their existing owners and clocks. Stationary actors can skip redundant navigation work without becoming untargetable or requiring a replacement body when commanded. The physical eligibility and fallback rules are documented in `navigation.md` under Stationary actors. There is no idle timer or reduced update-frequency setting for these two shortcuts.
+
 ## How World State Works
 - Resources define reusable data like items, factions, races, skills, jobs, and facilities.
 - Scene nodes place things in the world like towns, roads, activity points, containers, and NPCs.

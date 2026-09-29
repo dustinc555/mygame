@@ -2,7 +2,8 @@ extends "res://addons/gecs/ecs/system.gd"
 
 class_name GameActorSyncSystem
 
-## Mirrors live WorldActor node state into GECS components each tick.
+## Dynamic state bridge. Identity/faction/settlement copies are event-driven;
+## movement and medical synchronization remain independent of that profile.
 ##
 ## Reads are TYPED off WorldActor (Phase 3 — no more actor.get("...") duck-typing).
 ## `get_meta`/`has_meta` remain: node metadata is a legitimate Godot API, not the
@@ -16,27 +17,78 @@ const C_SPATIAL = preload("res://features/actors/sim/c_game_actor_spatial.gd")
 const C_VITALS = preload("res://features/actors/sim/c_game_actor_vitals.gd")
 const C_VITALS_INPUTS = preload("res://features/actors/sim/c_game_actor_vitals_inputs.gd")
 
+var _profile_bindings: Dictionary = {}
+
+
+func bind_actor(entity: Entity, actor: WorldActor, restore_saved_profile := false) -> void:
+	unbind_actor(actor)
+	if restore_saved_profile:
+		_restore_profile(entity, actor)
+	var callback := _sync_profile.bind(weakref(entity), weakref(actor))
+	_profile_bindings[actor.get_instance_id()] = callback
+	actor.simulation_profile_changed.connect(callback)
+	actor.tree_exiting.connect(unbind_actor.bind(actor), CONNECT_ONE_SHOT)
+	if not restore_saved_profile:
+		callback.call()
+
+
+func unbind_actor(actor: WorldActor) -> void:
+	var id := actor.get_instance_id()
+	if not _profile_bindings.has(id):
+		return
+	var callback: Callable = _profile_bindings[id]
+	if actor.simulation_profile_changed.is_connected(callback):
+		actor.simulation_profile_changed.disconnect(callback)
+	var on_exit := unbind_actor.bind(actor)
+	if actor.tree_exiting.is_connected(on_exit):
+		actor.tree_exiting.disconnect(on_exit)
+	_profile_bindings.erase(id)
+
+
+func _restore_profile(entity: Entity, actor: WorldActor) -> void:
+	# Restore while disconnected: the old body's fields cannot overwrite the
+	# loaded components, including when a later edit changes only one field.
+	var identity: CGameActorIdentity = entity.get_component(C_IDENTITY)
+	var faction: CGameActorFaction = entity.get_component(C_FACTION)
+	var settlement: CGameActorSettlement = entity.get_component(C_SETTLEMENT)
+	actor.stable_id = identity.stable_id
+	actor.member_name = identity.member_name
+	actor.set_settlement_authority(identity.authority_scopes.has("settlement_authority"))
+	WorldActor.set_profile_metadata(actor, &"actor_record_id", identity.actor_id)
+	WorldActor.set_profile_metadata(actor, &"actor_role_id", identity.role_id)
+	WorldActor.set_profile_metadata(actor, &"settlement_id", settlement.settlement_id)
+	WorldActor.set_profile_metadata(actor, &"party_id", faction.party_id if not faction.party_id.is_empty() else null)
+	actor.faction_name = faction.faction_id
+	actor.squad_name = faction.squad_name
+	actor.hostile_factions = faction.hostile_faction_ids
+	actor.combat_stance = faction.combat_stance
+	actor.player_party_member = faction.player_party_member
+
+
+func _sync_profile(entity_ref: WeakRef, actor_ref: WeakRef) -> void:
+	var entity := entity_ref.get_ref() as Entity
+	var actor := actor_ref.get_ref() as WorldActor
+	if entity == null or actor == null or actor.is_queued_for_deletion():
+		return
+	_sync_identity(entity.get_component(C_IDENTITY), actor)
+	_sync_faction(entity.get_component(C_FACTION), actor)
+	_sync_settlement(entity.get_component(C_SETTLEMENT), actor)
+
 
 func query() -> QueryBuilder:
-	return q.with_all([C_NODE, C_IDENTITY, C_FACTION, C_SETTLEMENT, C_SPATIAL, C_VITALS, C_VITALS_INPUTS]).iterate([C_NODE, C_IDENTITY, C_FACTION, C_SETTLEMENT, C_SPATIAL, C_VITALS, C_VITALS_INPUTS])
+	return q.with_all([C_NODE, C_SPATIAL, C_VITALS, C_VITALS_INPUTS]).iterate([C_NODE, C_SPATIAL, C_VITALS, C_VITALS_INPUTS])
 
 
 func process(entities: Array, components: Array, _delta: float) -> void:
 	var nodes: Array = components[0]
-	var identities: Array = components[1]
-	var factions: Array = components[2]
-	var settlements: Array = components[3]
-	var spatials: Array = components[4]
-	var vitals: Array = components[5]
-	var vitals_inputs: Array = components[6]
+	var spatials: Array = components[1]
+	var vitals: Array = components[2]
+	var vitals_inputs: Array = components[3]
 	for index in range(entities.size()):
 		var actor := _resolve_actor(nodes[index] as CGameActorNode)
 		if actor == null:
 			entities[index].enabled = false
 			continue
-		_sync_identity(identities[index] as CGameActorIdentity, actor)
-		_sync_faction(factions[index] as CGameActorFaction, actor)
-		_sync_settlement(settlements[index] as CGameActorSettlement, actor)
 		_sync_spatial(spatials[index] as CGameActorSpatial, actor)
 		_sync_vitals(vitals[index] as CGameActorVitals, actor)
 		_sync_vitals_inputs(vitals_inputs[index] as CGameActorVitalsInputs, actor)

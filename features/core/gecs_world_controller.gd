@@ -151,6 +151,7 @@ var _entity_script
 var _ecs_script
 var _gecs_io_script
 var _actor_sync_system_script
+var _actor_sync_system
 var _ai_job_system_script
 var _combat_state_sync_system_script
 var _combat_response_system_script
@@ -263,11 +264,11 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 		return ""
 	if actor.has_method("set"):
 		actor.set("stable_id", actor_id)
-	actor.set_meta("actor_record_id", actor_id)
+	WorldActor.set_profile_metadata(actor, &"actor_record_id", actor_id)
 	if not settlement_id.is_empty():
-		actor.set_meta("settlement_id", settlement_id)
+		WorldActor.set_profile_metadata(actor, &"settlement_id", settlement_id)
 	if context.has("role_id"):
-		actor.set_meta("actor_role_id", str(context.get("role_id", "resident")))
+		WorldActor.set_profile_metadata(actor, &"actor_role_id", str(context.get("role_id", "resident")))
 	var entity = _actor_entity_by_actor_id.get(actor_id)
 	if entity == null or not is_instance_valid(entity):
 		entity = _entity_script.new()
@@ -277,6 +278,14 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 		_actor_entity_by_actor_id[actor_id] = entity
 	else:
 		_ensure_actor_combat_components(entity)
+		var previous := _actor_from_entity(entity) as WorldActor
+		if previous != null and previous != actor:
+			_disconnect_actor_gecs_sync(previous)
+			if _actor_sync_system != null:
+				_actor_sync_system.unbind_actor(previous)
+			if previous.get_vitals() != null:
+				previous.get_vitals().unbind_authoritative_state()
+			_actor_id_by_instance_id.erase(previous.get_instance_id())
 	_write_actor_components(entity, actor, actor_id, settlement_id, context)
 	_hydrate_live_vitals_from_population(entity, actor_id)
 	if actor is WorldActor and actor.get_vitals() != null:
@@ -285,6 +294,8 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 	_actor_spatial_index_valid = false
 	sync_actor_inventory(actor)
 	_connect_actor_gecs_sync(actor)
+	if actor is WorldActor and _actor_sync_system != null:
+		_actor_sync_system.bind_actor(entity, actor)
 	return actor_id
 
 
@@ -347,7 +358,15 @@ func unregister_actor(actor: Node) -> void:
 	if actor_id.is_empty():
 		return
 	_disconnect_actor_gecs_sync(actor)
+	if actor is WorldActor and _actor_sync_system != null:
+		_actor_sync_system.unbind_actor(actor)
 	var entity = _actor_entity_by_actor_id.get(actor_id)
+	if entity != null and is_instance_valid(entity):
+		var node_component = entity.get_component(C_NODE)
+		if node_component != null and node_component.instance_id != actor.get_instance_id():
+			# A replaced body's later exit cannot remove the current projection.
+			_actor_id_by_instance_id.erase(actor.get_instance_id())
+			return
 	var final_world_transform := Transform3D.IDENTITY
 	var has_final_world_transform := false
 	if actor is Node3D:
@@ -2547,6 +2566,8 @@ func load_gecs_world(filepath: String) -> bool:
 		var actor := _actor_from_entity(_actor_entity_by_actor_id[actor_id]) as WorldActor
 		if actor != null and _actor_record_id(actor) == actor_id and actor.get_vitals() != null:
 			actor.get_vitals().unbind_authoritative_state()
+			if _actor_sync_system != null:
+				_actor_sync_system.unbind_actor(actor)
 			retained_actors[actor_id] = weakref(actor)
 	_clear_world_entities()
 	for entity in entities:
@@ -2568,6 +2589,8 @@ func load_gecs_world(filepath: String) -> bool:
 		node_component.instance_id = actor.get_instance_id()
 		_actor_id_by_instance_id[actor.get_instance_id()] = actor_id
 		actor.get_vitals().bind_authoritative_state(entity.get_component(C_VITALS))
+		if _actor_sync_system != null:
+			_actor_sync_system.bind_actor(entity, actor, true)
 	world_reindexed.emit()
 	return true
 
@@ -2786,6 +2809,7 @@ func _try_initialize() -> void:
 		world.name = "GameECSWorld"
 		add_child(world)
 		var actor_sync = _actor_sync_system_script.new()
+		_actor_sync_system = actor_sync
 		actor_sync.name = "GameActorSyncSystem"
 		world.add_system(actor_sync)
 		var combat_state_sync = _combat_state_sync_system_script.new()

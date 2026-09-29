@@ -57,6 +57,22 @@ class_name WorldNavigationSettings
 ## Matching prebaked tiles are loaded, not rebuilt on every startup.
 @export_range(1, 8, 1) var max_concurrent_bakes := 4
 
+@export_group("Runtime Path Queries")
+
+## Background native path queries. Actor collision and scene changes remain on
+## the main thread. Changes apply to subsequently submitted movement commands.
+@export var threaded_queries_enabled := true
+## Concurrent path batches, separate from background navmesh baking.
+@export_range(1, 8, 1) var path_query_workers := 4
+## Workers reserved for direct player orders when at least two workers exist.
+## Remaining workers keep ordinary AI routes progressing during held input.
+@export_range(1, 4, 1) var path_query_player_workers := 1
+## Destination paths per task, including chunks of multi-candidate combat work.
+## A restricted-region miss may also retry that destination on the whole map.
+@export_range(1, 16, 1) var path_query_batch_size := 4
+## Maximum distinct outstanding actor requests; repeated commands coalesce.
+@export_range(32, 4096, 32) var path_query_capacity := 512
+
 @export_group("Terrain and Diagnostics")
 
 ## false: whole terrain is walkable, filtered by agent_max_slope.

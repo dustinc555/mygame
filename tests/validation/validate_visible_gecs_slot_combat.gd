@@ -53,6 +53,9 @@ class OpenGroundSlots:
 
 	# Component fixture, not physical navigation proof: only query boundaries
 	# are replaced; production assignment, reservations and budget stay intact.
+	func _ground_candidates(_actor: Node3D, candidates: Array[Vector3], _vertical_tolerance: float) -> Array[Vector3]:
+		return candidates
+
 	func _resolve_position(_actor: Node3D, _target: Node3D, candidate: Vector3, _require_strike: bool) -> Vector3:
 		return candidate
 

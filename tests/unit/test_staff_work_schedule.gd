@@ -53,7 +53,7 @@ class Staff extends HumanoidCharacter:
 	func _ready() -> void: pass
 	func _process(_delta: float) -> void: pass
 	func _physics_process(_delta: float) -> void: pass
-	func set_move_target(_target: Vector3, _issued_by_player: bool = true) -> void: moves += 1
+	func set_move_target(_target: Vector3, _issued_by_player: bool = true, _continue_order: bool = false) -> void: moves += 1
 	func is_in_combat() -> bool: return fighting
 	func has_active_player_order() -> bool: return player_order
 	func is_player_party_member() -> bool: return false

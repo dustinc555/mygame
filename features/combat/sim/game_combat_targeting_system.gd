@@ -20,6 +20,7 @@ const C_FACTION_STATE = preload("res://features/world_sim/sim/c_game_faction_sta
 const C_RESPONSE_INTENT = preload("res://features/combat/sim/c_game_combat_response_intent.gd")
 const C_ENCOUNTER = preload("res://features/combat/sim/c_game_combat_encounter.gd")
 
+
 const FIGHT_STATE_SEEKING_SLOT := 2
 const FIGHT_STATE_FIGHTING := 3
 const SHADOW_REPORT_INTERVAL := 120
@@ -36,6 +37,9 @@ static var default_targeting_interval_seconds := 0.5
 static var _report_calls := 0
 static var _cmp_total := 0
 static var _cmp_match := 0
+
+# Keep runtime edits live rather than folding Resource property reads as const.
+var _pursuit_settings = preload("res://features/combat/resources/combat_pursuit_settings.tres")
 
 
 func query() -> QueryBuilder:
@@ -137,7 +141,7 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		var commanded_id := str(state_i.commanded_target_actor_id)
 		if not commanded_id.is_empty():
 			var commanded_index := int(index_by_actor_id.get(commanded_id, -1))
-			if commanded_index < 0 or commanded_index == i or instance_ids[commanded_index] == 0 or vitals[commanded_index] == null or configs[commanded_index] == null or int(vitals[commanded_index].life_state) != alive_value or bool(configs[commanded_index].protected_from_combat):
+			if commanded_index < 0 or commanded_index == i or instance_ids[commanded_index] == 0 or vitals[commanded_index] == null or configs[commanded_index] == null or int(vitals[commanded_index].life_state) != alive_value or bool(configs[commanded_index].protected_from_combat) or (not fac_i.player_party_member and not _within_pursuit_leash(i, commanded_index, spatials)):
 				state_i.commanded_target_actor_id = ""
 			else:
 				# An exact attack command is not a hint to threat scoring. Keep
@@ -162,19 +166,32 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		var grudges_i: PackedInt64Array = state_i.personal_hostile_ids
 		var grudge_actor_ids_i: PackedStringArray = state_i.personal_hostile_actor_ids
 		var private_j := _forced_authority_target_index(actor_id_i, response_intents_by_actor_id, law_candidates_by_actor, index_by_actor_id, vitals, configs, i, alive_value, true)
-		if private_j >= 0 and _can_see_target(nodes, states, i, private_j):
+		if private_j >= 0 and _within_pursuit_leash(i, private_j, spatials) and _can_see_target(nodes, states, i, private_j):
 			state_i.system_target_id = instance_ids[private_j]
 			state_i.system_target_actor_id = actor_ids[private_j]
 			_write_node_target(node_actor, state_i.system_target_id, process_frame)
 			continue
+		# Acquisition commits an aggressive fighter to this opponent, independent
+		# of whether a melee position is currently available. Resolve the known ID
+		# directly: a generous leash must not enlarge every fresh-enemy scan.
+		var pursuit_j := int(index_by_actor_id.get(previous_system_target_actor_id, -1))
+		if stance_i == NpcRules.CombatStance.AGGRESSIVE and pursuit_j >= 0 and pursuit_j != i:
+			var pursuit_vitals = vitals[pursuit_j]
+			var pursuit_config = configs[pursuit_j]
+			var authorized := law_opponents.is_empty() or law_opponents.has(actor_ids[pursuit_j])
+			if authorized and pursuit_vitals != null and pursuit_config != null and pursuit_vitals.life_state == alive_value and not pursuit_config.protected_from_combat and _within_pursuit_leash(i, pursuit_j, spatials) and _can_see_target(nodes, states, i, pursuit_j):
+				state_i.system_target_id = instance_ids[pursuit_j]
+				state_i.system_target_actor_id = actor_ids[pursuit_j]
+				_write_node_target(node_actor, state_i.system_target_id, process_frame)
+				continue
 		var lock_j := _engagement_lock_index(i, slots, index_by_actor_id, vitals, configs, factions, instance_ids, actor_ids, alive_value, hostile_relation_pairs, fac_i, grudges_i, grudge_actor_ids_i, tactical_opponents, law_opponents.is_empty(), require_grudge)
-		if lock_j >= 0 and _can_see_target(nodes, states, i, lock_j):
+		if lock_j >= 0 and _within_pursuit_leash(i, lock_j, spatials) and _can_see_target(nodes, states, i, lock_j):
 			state_i.system_target_id = instance_ids[lock_j]
 			state_i.system_target_actor_id = actor_ids[lock_j]
 			_write_node_target(node_actor, state_i.system_target_id, process_frame)
 			continue
 		var law_fallback_j := _forced_authority_target_index(actor_id_i, response_intents_by_actor_id, law_candidates_by_actor, index_by_actor_id, vitals, configs, i, alive_value, false)
-		if law_fallback_j >= 0 and _can_see_target(nodes, states, i, law_fallback_j):
+		if law_fallback_j >= 0 and _within_pursuit_leash(i, law_fallback_j, spatials) and _can_see_target(nodes, states, i, law_fallback_j):
 			state_i.system_target_id = instance_ids[law_fallback_j]
 			state_i.system_target_actor_id = actor_ids[law_fallback_j]
 			_write_node_target(node_actor, state_i.system_target_id, process_frame)
@@ -184,10 +201,11 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		var base_radius: float = _target_scan_radius(cfg_i, fac_i, attack_range)
 		if not tactical_opponents.is_empty():
 			base_radius = maxf(base_radius, NpcRules.NPC_ALERT_PROXIMITY_RADIUS)
-		# Aggressive actors with a live grudge chase it beyond their normal scan
-		# radius (guards pursue); the grudge decaying is the give-up condition.
+		# Live grudges allow reacquisition beyond the ordinary scan radius.
+		# An already committed opponent uses the shared leash above instead.
 		var pursuit_active := stance_i == NpcRules.CombatStance.AGGRESSIVE and (grudges_i.size() > 0 or grudge_actor_ids_i.size() > 0)
 		var radius := maxf(base_radius, NpcRules.COMBAT_PURSUIT_RANGE) if pursuit_active else base_radius
+		radius = minf(radius, _pursuit_settings.leash_distance)
 		var radius_sq := radius * radius
 		var base_radius_sq := base_radius * base_radius
 		var center_cell := _target_cell(pos_i)
@@ -438,6 +456,10 @@ func _engagement_lock_index(i: int, slots: Array, index_by_actor_id: Dictionary,
 	if not encounter_opponents.has(actor_ids[j]) and not _is_hostile(fac_i, factions[j], grudges_i, instance_ids[j], grudge_actor_ids_i, actor_ids[j], hostile_relation_pairs, require_grudge):
 		return -1
 	return j
+
+
+func _within_pursuit_leash(i: int, j: int, spatials: Array) -> bool:
+	return _pursuit_settings.contains(spatials[i].world_position, spatials[j].world_position)
 
 
 func _target_scan_radius(cfg, faction, attack_range: float) -> float:

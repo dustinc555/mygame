@@ -891,18 +891,20 @@ func issue_move_command_at_world(target: Vector3, show_indicator: bool = true, s
 		member_ids.append(member.get_instance_id())
 	# Only held input may reuse an order. A deliberate new click must still
 	# interrupt combat, seating or work, including at the previous destination.
-	if repeat_existing and member_ids == _move_group_ids and target.distance_squared_to(_move_group_destination) <= 0.0025:
+	var continue_group := repeat_existing and member_ids == _move_group_ids
+	if continue_group and target.distance_squared_to(_move_group_destination) <= 0.0025:
 		var unchanged := true
 		for member in party_manager.selected_members:
 			var previous: Vector3 = _move_group_targets.get(member.get_instance_id(), Vector3.INF)
-			if not member.has_active_player_order() or not member.has_move_target() or member.get_move_target() != previous or member._combat_navigation_owned:
+			if not _can_continue_move_order(member, previous):
 				unchanged = false
 				break
 		if unchanged:
 			return true
 	_move_group_ids = member_ids
 	_move_group_destination = target
-	_move_group_targets.clear()
+	var previous_targets := _move_group_targets
+	_move_group_targets = {}
 	var center := Vector3.ZERO
 	for member in party_manager.selected_members:
 		center += member.global_position
@@ -927,10 +929,15 @@ func issue_move_command_at_world(target: Vector3, show_indicator: bool = true, s
 			member.call("stop_mining_assignment")
 		if member.has_method("stop_container_interaction"):
 			member.call("stop_container_interaction")
-		member.set_move_target(member_target)
+		var continuing := continue_group and _can_continue_move_order(member, previous_targets.get(member.get_instance_id(), Vector3.INF))
+		member.set_move_target(member_target, true, continuing)
 		_move_group_targets[member.get_instance_id()] = member_target
 		member_index += 1
 	return true
+
+
+func _can_continue_move_order(member: WorldActor, previous: Vector3) -> bool:
+	return member.has_active_player_order() and member.has_move_target() and member.get_move_target() == previous and not member._combat_navigation_owned
 
 
 func _get_cross_level_move_offset(member_index: int, selected_count: int) -> Vector3:

@@ -10,6 +10,7 @@ const C_CONFIG = preload("res://features/combat/sim/c_game_combat_config.gd")
 const C_ACTION = preload("res://features/combat/sim/c_game_combat_action.gd")
 const C_SLOT = preload("res://features/combat/sim/c_game_combat_slot_state.gd")
 const C_MOVEMENT = preload("res://features/actors/sim/c_game_movement_state.gd")
+const COMBAT_NAVIGATION = preload("res://features/combat/bridge/combat_navigation.gd")
 
 const SLOT_POSITION_SETTLE_DISTANCE := WorldActor.COMBAT_ARRIVAL_DISTANCE
 # Cap only against genuine real-frame hitches (e.g. a 100ms+ stall), NOT against game time_scale.
@@ -68,6 +69,7 @@ func _process_actor_movement(index: int, process_frame: int, _delta: float, node
 	movement.combat_settled = false
 	movement.collision_focus_instance_id = 0
 	movement.desired_velocity = Vector3.ZERO
+	movement.combat_arrival_distance = SLOT_POSITION_SETTLE_DISTANCE
 	var actor := _actor_from_node_component(nodes[index])
 	if actor == null:
 		return
@@ -96,22 +98,34 @@ func _process_actor_movement(index: int, process_frame: int, _delta: float, node
 	var pos: Vector3 = spatials[index].world_position
 	var target_center: Vector3 = spatials[target_index].world_position
 	var focus_id := target_actor.get_instance_id() if target_actor != null else 0
-	var move_pos: Vector3 = slot.slot_position if slot.position_valid else pos
+	# A reserved strike position is not a prerequisite for pursuit. Use the same
+	# safe navigation follower to approach the target's floor, stopping outside
+	# their body. Slot approval and live strike checks still own attack permission.
+	var move_pos: Vector3 = slot.slot_position
+	if not slot.position_valid:
+		move_pos = target_center - COMBAT_NAVIGATION.floor_origin_offset(target_actor) + COMBAT_NAVIGATION.floor_origin_offset(actor)
+		var clearance := float(cfg.navigation_agent_radius) + float(target_cfg.navigation_agent_radius) + GameCombatSlotSystem.PERSONAL_SPACE_PADDING
+		var approach_distance := maxf(float(slot.engage_distance), clearance)
+		var target_offset := target_center - pos
+		var near_target := Vector2(target_offset.x, target_offset.z).length() <= approach_distance + SLOT_POSITION_SETTLE_DISTANCE
+		# A nearby target through a wall is not an arrival; follow the route around.
+		if not near_target or COMBAT_NAVIGATION.can_strike(actor, target_actor):
+			movement.combat_arrival_distance = approach_distance
 	movement.move_target_position = move_pos
 	movement.look_target_position = target_center
 	movement.collision_focus_instance_id = focus_id
 	var move_offset := move_pos - pos
 	move_offset.y = 0.0
 	var move_distance := move_offset.length()
-	var arrived := move_distance <= SLOT_POSITION_SETTLE_DISTANCE and absf(move_pos.y - pos.y) <= float(cfg.move_target_vertical_tolerance)
-	movement.combat_settled = not slot.position_valid or action.action_active or action.reaction_remaining > 0.0 or arrived
-	_write_node_movement(actor, process_frame, true, move_pos, Vector3.ZERO, target_center, movement.combat_settled, focus_id)
+	var arrived: bool = move_distance <= movement.combat_arrival_distance and absf(move_pos.y - pos.y) <= float(cfg.move_target_vertical_tolerance)
+	movement.combat_settled = action.action_active or action.reaction_remaining > 0.0 or arrived
+	_write_node_movement(actor, process_frame, true, move_pos, Vector3.ZERO, target_center, movement.combat_settled, focus_id, movement.combat_arrival_distance)
 
 
-func _write_node_movement(actor: Node, process_frame: int, is_active: bool, move_target := Vector3.ZERO, desired_velocity := Vector3.ZERO, look_target := Vector3.ZERO, settled := false, collision_focus_id := 0) -> void:
+func _write_node_movement(actor: Node, process_frame: int, is_active: bool, move_target := Vector3.ZERO, desired_velocity := Vector3.ZERO, look_target := Vector3.ZERO, settled := false, collision_focus_id := 0, arrival_distance := SLOT_POSITION_SETTLE_DISTANCE) -> void:
 	var world_actor := actor as WorldActor
 	if world_actor != null:
-		world_actor.set_system_movement_bridge(process_frame, is_active, move_target, desired_velocity, look_target, settled, collision_focus_id)
+		world_actor.set_system_movement_bridge(process_frame, is_active, move_target, desired_velocity, look_target, settled, collision_focus_id, arrival_distance)
 	elif actor.has_method("set"):
 		actor.set("_system_movement_active", is_active)
 		actor.set("_system_movement_target_position", move_target)
@@ -126,7 +140,7 @@ func _refresh_node_movement_bridges(process_frame: int, nodes: Array, movements:
 		var actor := _actor_from_node_component(nodes[i])
 		var movement = movements[i]
 		if actor != null and movement != null:
-			_write_node_movement(actor, process_frame, bool(movement.system_movement_active), movement.move_target_position, movement.desired_velocity, movement.look_target_position, bool(movement.combat_settled), int(movement.collision_focus_instance_id))
+			_write_node_movement(actor, process_frame, bool(movement.system_movement_active), movement.move_target_position, movement.desired_velocity, movement.look_target_position, bool(movement.combat_settled), int(movement.collision_focus_instance_id), float(movement.combat_arrival_distance))
 
 
 func _actor_from_node_component(node_component) -> Node:
