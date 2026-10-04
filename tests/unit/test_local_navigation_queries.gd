@@ -129,6 +129,16 @@ func test_other_world_does_not_use_this_world_tiles() -> void:
 	NavigationServer3D.free_rid(region)
 	NavigationServer3D.free_rid(other_map)
 
+func test_overland_movement_uses_world_graph_without_a_clipped_local_first_search() -> void:
+	_navigation.settings.threaded_queries_enabled = true
+	var world := _root.get_world_3d()
+	_navigation.request_paths("overland", world, _map, Vector3(16, 0, 16), PackedVector3Array([Vector3(650, 0, 650)]), 1, true, true)
+	assert_true(_navigation.query_jobs._pending.overland.request.regions.is_empty(), "A distant destination needs the world graph, not an enclosing local rectangle")
+	_navigation.request_paths("nearby", world, _map, Vector3(16, 0, 16), PackedVector3Array([Vector3(48, 0, 16)]), 1, true, true)
+	assert_false(_navigation.query_jobs._pending.nearby.request.regions.is_empty(), "Nearby movement retains the local optimization")
+	_navigation.request_paths("tactical", world, _map, Vector3(16, 0, 16), PackedVector3Array([Vector3(650, 0, 650)]))
+	assert_false(_navigation.query_jobs._pending.tactical.request.regions.is_empty(), "Tactical candidate searches retain their existing policy")
+
 func _add_tile(coord: Vector2i) -> void:
 	var region := NavigationRegion3D.new()
 	NavigationServer3D.region_set_use_async_iterations(region.get_rid(), false)

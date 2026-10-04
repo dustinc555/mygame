@@ -33,6 +33,7 @@ class Batch extends RefCounted:
 			parameters.navigation_layers = request.get("layers", 1)
 			parameters.metadata_flags = 0
 			parameters.included_regions = request.get("regions", [])
+			parameters.path_search_max_polygons = maxi(1, int(request.get("max_polygons", parameters.path_search_max_polygons)))
 			var output := NavigationPathQueryResult3D.new()
 			for destination: Vector3 in request.targets:
 				parameters.target_position = destination

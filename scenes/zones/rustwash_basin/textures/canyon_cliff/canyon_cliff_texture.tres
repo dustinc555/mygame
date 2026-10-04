@@ -1,0 +1,14 @@
+[gd_resource type="Terrain3DTextureAsset" format=3]
+
+[ext_resource type="Texture2D" path="res://scenes/zones/rustwash_basin/textures/canyon_cliff/canyon_cliff_albedo_height.res" id="1_omvn2"]
+[ext_resource type="Texture2D" path="res://scenes/zones/rustwash_basin/textures/canyon_cliff/canyon_cliff_normal_roughness.res" id="2_m4w8i"]
+
+[resource]
+name = "Canyon - weathered stratified rock"
+albedo_color = Color(0.94, 0.94, 0.93, 1)
+albedo_texture = ExtResource("1_omvn2")
+normal_texture = ExtResource("2_m4w8i")
+normal_depth = 1.05
+ao_strength = 0.6
+uv_scale = 0.075
+detiling_shift = 0.12

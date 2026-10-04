@@ -35,7 +35,7 @@ const PIPELINE := preload("res://features/core/navigation/world_nav_bake_pipelin
 const DEFAULT_SETTINGS_PATH := "res://features/core/navigation/resources/world_navigation_settings.tres"
 
 signal bake_finished
-## The startup bake/cache-load is complete; the loading gate releases.
+## The startup tiles are queryable in the native map; the loading gate releases.
 signal initial_navigation_ready
 
 enum Mode { INACTIVE, DORMANT, TILED, FULL_SCENE }
@@ -105,6 +105,13 @@ var query_jobs: RefCounted
 var _inflight: Dictionary[int, BakeTask] = {}
 var _settings_generation := 0
 var _initial_ready := false
+# Startup-only, bounded native query checks. A nonzero map iteration can still
+# describe the empty/partial map from before the cached regions were installed.
+const INITIAL_QUERIES_PER_FRAME := 32
+var _initial_probe_iteration := -1
+var _initial_probe_regions: Array[NavigationRegion3D] = []
+var _initial_probe_index := 0
+var _initial_probe_blocked := false
 # Nav-relevant geometry changes seen before tiles are seeded (scene-load
 # runtime mutation, e.g. furniture freeing imported collision hulls).
 var _pending_dirty_bounds: Array[AABB] = []
@@ -191,9 +198,6 @@ func _activate() -> void:
 		_seed_world_tiles()
 		_load_world_cache()
 		_dirty_bounds(_pending_dirty_bounds)
-		if pending_tile_count() == 0 and not _initial_ready:
-			_initial_ready = true
-			initial_navigation_ready.emit()
 	_pending_dirty_bounds.clear()
 	set_process(true)
 
@@ -284,8 +288,17 @@ func request_paths(key: String, world: World3D, map: RID, start: Vector3, target
 	var bounds := AABB(start, Vector3.ZERO)
 	for point in targets:
 		bounds = bounds.expand(point)
+	# A nearby rectangle is a useful broad phase; an overland rectangle can
+	# cut out the real canyon/obstacle detour and waste a large failed search.
+	# Use the existing world graph directly beyond one tile's travel span.
+	var regions: Array[RID] = []
+	if not movement_route or maxf(bounds.size.x, bounds.size.z) <= PIPELINE.clamped_tile_size(settings):
+		regions = get_query_regions(map, bounds.grow(8.0))
 	set_process(true) # Legacy/authored maps still need the worker mailbox pumped.
-	return query_jobs.submit(key, {"world": world, "map": map, "iteration": NavigationServer3D.map_get_iteration_id(map), "start": start, "targets": targets, "layers": layers, "regions": get_query_regions(map, bounds.grow(8.0)), "player_order": player_order, "movement_route": movement_route})
+	var request := {"world": world, "map": map, "iteration": NavigationServer3D.map_get_iteration_id(map), "start": start, "targets": targets, "layers": layers, "regions": regions, "player_order": player_order, "movement_route": movement_route}
+	if movement_route:
+		request["max_polygons"] = maxi(1, settings.movement_path_max_polygons)
+	return query_jobs.submit(key, request)
 
 
 ## Retained for native-agent fallback when no query service is available.
@@ -359,9 +372,7 @@ func is_idle() -> bool:
 
 
 func is_initial_navigation_pending() -> bool:
-	if _mode == Mode.FULL_SCENE:
-		return not _has_navmesh and not _full_scene_bake_completed
-	return _mode == Mode.TILED and not _initial_ready
+	return (_mode == Mode.TILED or _mode == Mode.FULL_SCENE) and not _initial_ready
 
 
 ## Determinate loading progress for the startup gate overlay.
@@ -373,13 +384,64 @@ func initial_tiles_total() -> int:
 	return _tiles.size()
 
 
-## >0 only during the startup bake; after that the game never gates.
+## Includes native map installation after baking/loading. Dynamic patches never
+## reopen the startup gate once the initial map was usable.
 func gate_tiles_pending() -> int:
-	if _mode == Mode.FULL_SCENE:
-		return 0 if (_has_navmesh or _full_scene_bake_completed) else 1
-	if _mode != Mode.TILED or _initial_ready:
+	if _initial_ready or _mode == Mode.DORMANT:
 		return 0
-	return pending_tile_count()
+	if _mode == Mode.INACTIVE:
+		return 1 if is_instance_valid(root_scene) else 0
+	return maxi(pending_tile_count(), 1) if _mode == Mode.TILED else 1
+
+
+func _poll_initial_navigation() -> void:
+	if _initial_ready:
+		return
+	if not is_idle() or (_mode == Mode.FULL_SCENE and not _full_scene_bake_completed):
+		_initial_probe_iteration = -1
+		return
+	var map := get_viewport().find_world_3d().navigation_map
+	var iteration := NavigationServer3D.map_get_iteration_id(map)
+	if iteration != _initial_probe_iteration:
+		_initial_probe_iteration = iteration
+		_initial_probe_regions.clear()
+		_initial_probe_index = 0
+		_initial_probe_blocked = false
+		if _mode == Mode.FULL_SCENE and _has_navmesh:
+			_initial_probe_regions.append(_full_scene_region)
+		elif _mode == Mode.TILED:
+			for tile: Tile in _tiles.values():
+				if is_instance_valid(tile.region) and tile.region.navigation_mesh != null and tile.region.navigation_mesh.get_polygon_count() > 0:
+					_initial_probe_regions.append(tile.region)
+	if _initial_probe_blocked:
+		return # Retry only when the native map publishes another iteration.
+	var parameters := NavigationPathQueryParameters3D.new()
+	parameters.map = map
+	parameters.path_search_max_polygons = 1
+	parameters.metadata_flags = NavigationPathQueryParameters3D.PATH_METADATA_INCLUDE_RIDS
+	var result := NavigationPathQueryResult3D.new()
+	var end := mini(_initial_probe_index + INITIAL_QUERIES_PER_FRAME, _initial_probe_regions.size())
+	while _initial_probe_index < end:
+		var region := _initial_probe_regions[_initial_probe_index]
+		var mesh := region.navigation_mesh
+		var vertices := mesh.get_vertices()
+		var polygon := mesh.get_polygon(0)
+		# Use a mesh vertex, not a triangle centroid: native closest-point
+		# projection loses precision inside long, thin sloped triangles.
+		var point := region.global_transform * vertices[polygon[0]]
+		parameters.start_position = point
+		parameters.target_position = point
+		parameters.included_regions = [region.get_rid()]
+		NavigationServer3D.query_path(parameters, result)
+		var path := result.get_path()
+		if path.is_empty() or path[0].distance_to(point) > 0.001 or not result.get_path_rids().has(region.get_rid()):
+			_initial_probe_blocked = true
+			return
+		_initial_probe_index += 1
+	if _initial_probe_index == _initial_probe_regions.size():
+		_initial_probe_regions.clear()
+		_initial_ready = true
+		initial_navigation_ready.emit()
 
 
 func baked_tile_count() -> int:
@@ -489,6 +551,7 @@ func _process(delta: float) -> void:
 	if _mode == Mode.FULL_SCENE:
 		if _geometry_dirty and not _full_scene_baking:
 			_start_full_scene_bake()
+		_poll_initial_navigation()
 		return
 	# Cached/empty tiles can leave only a source change to consume. Refresh
 	# it once even when there is no tile work; is_idle includes this work.
@@ -501,6 +564,7 @@ func _process(delta: float) -> void:
 		if next == Vector2i(2147483647, 2147483647):
 			break
 		_start_tile_bake(next)
+	_poll_initial_navigation()
 
 
 func _static_geometry_needs_tiles() -> bool:
@@ -523,9 +587,7 @@ func _seed_world_tiles() -> void:
 			coords = PIPELINE.affected_tile_coords(_scene_geometry.get_bounds(), settings)
 	for coord in coords:
 		_ensure_tile(coord)
-	if _tiles.is_empty():
-		_initial_ready = true
-		initial_navigation_ready.emit()
+
 
 
 ## Loads prebaked tiles from the world's navcache, then re-dirties tiles
@@ -671,22 +733,22 @@ func _finish_tile_bake(task: BakeTask, nav_mesh: NavigationMesh) -> void:
 		# briefly install geometry we already know has been superseded.
 		tile.state = TileState.QUEUED
 		_refresh_tile_debug(coord)
-	if not _initial_ready and pending_tile_count() == 0:
-		_initial_ready = true
-		initial_navigation_ready.emit()
 	bake_finished.emit()
 
 
 func _assign_tile_mesh(coord: Vector2i, nav_mesh: NavigationMesh) -> void:
+	_initial_probe_iteration = -1
 	var tile: Tile = _tiles[coord]
 	if nav_mesh != null:
 		var region := tile.region
 		if region == null or not is_instance_valid(region):
 			region = NavigationRegion3D.new()
 			region.name = "Tile_%d_%d" % [coord.x, coord.y]
-			# Cross-tile pathing requires edge connections; borders are
-			# cell-aligned so neighbors match exactly.
-			region.use_edge_connections = true
+			# The shared baker makes cell-aligned, matching borders. Native
+			# exact-edge merging still joins these when margin connections are
+			# off. The optional margin pass compares all unmatched world edges
+			# pairwise and can take minutes on detailed terrain.
+			region.use_edge_connections = false
 			add_child(region)
 			tile.region = region
 		region.navigation_mesh = nav_mesh
@@ -759,10 +821,9 @@ func _finish_full_scene_bake(task: BakeTask, nav_mesh: NavigationMesh) -> void:
 	_has_navmesh = nav_mesh.get_polygon_count() > 0
 	if is_instance_valid(_full_scene_region):
 		_full_scene_region.navigation_mesh = nav_mesh if _has_navmesh else null
+	_initial_probe_iteration = -1
 	if first and not _has_navmesh:
 		print("WorldNavigationController: no bakeable collision; releasing the startup gate without navigation.")
-	if first:
-		initial_navigation_ready.emit()
 	bake_finished.emit()
 
 

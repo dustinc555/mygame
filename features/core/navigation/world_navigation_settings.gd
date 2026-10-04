@@ -45,7 +45,7 @@ class_name WorldNavigationSettings
 
 ## Edge length of one navmesh tile. Smaller = faster individual bakes and
 ## finer dynamic patching, more regions/edges on the map. Borders are
-## cell-aligned so neighboring tiles stitch via edge connections.
+## cell-aligned so neighboring tiles join by exact shared edges.
 @export_range(32.0, 128.0, 16.0) var tile_size := 64.0
 
 ## Vertical extent of each tile bake.
@@ -73,6 +73,13 @@ class_name WorldNavigationSettings
 ## Maximum distinct outstanding actor requests; repeated commands coalesce.
 @export_range(32, 4096, 32) var path_query_capacity := 512
 
+## Maximum polygons visited by one movement route search (worker or native
+## agent fallback). Long overland routes need more than the engine's 4096
+## default. Tactical candidate searches retain that smaller default. Raising
+## this allows longer detours but increases worst-case query cost; applies on
+## the next movement request, without rebaking. Zero is never unlimited.
+@export_range(4096, 1048576, 4096) var movement_path_max_polygons := 65536
+
 @export_group("Terrain and Diagnostics")
 
 ## false: whole terrain is walkable, filtered by agent_max_slope.
@@ -80,7 +87,7 @@ class_name WorldNavigationSettings
 @export var require_navigable_paint := false
 
 ## Godot #85548 workaround (vertex rounding + degenerate/overlap removal).
-## Also keeps tile border vertices cell-aligned so edge connections match.
+## Also keeps tile border vertices cell-aligned for exact native joins.
 @export var postprocess_enabled := true
 
 ## Print each tile bake's duration to the console.

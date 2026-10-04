@@ -94,25 +94,23 @@ func test_rope_variants_author_real_items_and_have_preview_geometry() -> void:
 		visuals.free()
 		rope.free()
 
-func test_canyon_writing_chair_seated_facing_points_toward_desk() -> void:
-	# Inspect authored placements without starting the town simulation.
-	var state := load("res://scenes/zones/rustwash_basin/rustwash_basin.tscn").get_state() as SceneState
-	var placements := {}
-	var furniture_path := "Towns/Canyon/CanyonTradeStation/Furniture/"
-	for index in range(state.get_node_count()):
-		var path := str(state.get_node_path(index)).trim_prefix("./")
-		if path not in [furniture_path + "WritingChair", furniture_path + "WritingDesk"]:
-			continue
-		for property in range(state.get_node_property_count(index)):
-			if state.get_node_property_name(index, property) == &"transform":
-				placements[path.get_file()] = state.get_node_property_value(index, property)
-	assert_has(placements, "WritingChair")
-	assert_has(placements, "WritingDesk")
-	if placements.size() != 2:
-		return
+func test_chair_seated_facing_respects_placement_and_parent_rotation() -> void:
+	# Core seating behavior, independent of any town's authored furniture.
+	var parent := Node3D.new()
+	add_child_autofree(parent)
 	var chair := load(FURNITURE + "chair_1.tscn").instantiate() as SittableSeat
-	add_child_autofree(chair)
-	chair.transform = placements.WritingChair
-	var facing := Basis.from_euler(chair.get_seat_rotation()) * Vector3.FORWARD
-	var toward_desk: Vector3 = placements.WritingDesk.origin - chair.position
-	assert_gt(facing.dot(toward_desk.normalized()), 0.99, "The occupied chair faces the desk, not the room")
+	parent.add_child(chair)
+	for placement in [
+		{"parent_yaw": 0.0, "chair_yaw": 0.0, "facing": Vector3.BACK},
+		{"parent_yaw": 0.0, "chair_yaw": 90.0, "facing": Vector3.RIGHT},
+		{"parent_yaw": 90.0, "chair_yaw": 90.0, "facing": Vector3.FORWARD},
+		{"parent_yaw": -90.0, "chair_yaw": 0.0, "facing": Vector3.LEFT},
+	]:
+		parent.rotation_degrees.y = placement.parent_yaw
+		chair.rotation_degrees.y = placement.chair_yaw
+		var facing := Basis.from_euler(chair.get_seat_rotation()) * Vector3.FORWARD
+		assert_almost_eq(facing, placement.facing, Vector3.ONE * 0.001)
+	chair.seated_yaw_offset_degrees = 0.0
+	parent.rotation = Vector3.ZERO
+	chair.rotation = Vector3.ZERO
+	assert_almost_eq(Basis.from_euler(chair.get_seat_rotation()) * Vector3.FORWARD, Vector3.FORWARD, Vector3.ONE * 0.001, "Authored facing offset remains configurable")

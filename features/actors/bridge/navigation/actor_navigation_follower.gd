@@ -219,6 +219,8 @@ func _refresh_movement_route() -> void:
 	# Authored/foreign maps keep their original native behavior.
 	if owner == null or (_movement_route == null and get_navigation_map() != source):
 		return
+	if owner.settings != null and owner.get_viewport().find_world_3d().navigation_map == source:
+		path_search_max_polygons = maxi(1, owner.settings.movement_path_max_polygons)
 	var route = owner.get_movement_route(source, _body.global_position, move_target, _route_retry)
 	if route == null:
 		_release_movement_route()

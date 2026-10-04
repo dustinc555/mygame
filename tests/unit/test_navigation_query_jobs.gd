@@ -273,3 +273,81 @@ func test_map_changed_during_query_is_returned_as_obsolete_not_accepted() -> voi
 	NavigationServer3D.map_force_update(_world.navigation_map)
 	var result := await _result("move", ticket)
 	assert_ne(result.iteration, NavigationServer3D.map_get_iteration_id(_world.navigation_map), "Consumers must reject a result from a different map revision")
+
+class QuietActor extends WorldActor:
+	func _enter_tree() -> void: pass
+	func _ready() -> void:
+		set_process(false)
+		set_physics_process(false)
+		navigation_path_height_offset = 0.0
+		_navigation_agent.configure()
+
+func _long_route_fixture() -> WorldNavigationController:
+	# Synthetic corridor: gameplay navigation must not depend on World1.
+	var mesh := NavigationMesh.new()
+	var vertices := PackedVector3Array()
+	for x in range(4301):
+		vertices.append(Vector3(x, 0, 0))
+		vertices.append(Vector3(x, 0, 1))
+	mesh.vertices = vertices
+	for x in range(4300):
+		mesh.add_polygon(PackedInt32Array([x * 2, x * 2 + 1, x * 2 + 3, x * 2 + 2]))
+	NavigationServer3D.region_set_navigation_mesh(_region, mesh)
+	NavigationServer3D.map_force_update(_world.navigation_map)
+	var viewport := SubViewport.new()
+	viewport.world_3d = _world
+	add_child(viewport)
+	var navigation := WorldNavigationController.new()
+	navigation.settings = WorldNavigationSettings.new()
+	navigation.query_jobs = _jobs
+	viewport.add_child(navigation)
+	navigation.set_process(false)
+	return navigation
+
+func test_movement_route_can_cross_more_than_default_4096_polygons() -> void:
+	var navigation := _long_route_fixture()
+	var finish := Vector3(4299.5, 0, 0.5)
+	var ticket := navigation.request_paths("long-move", _world, _world.navigation_map, Vector3(0.5, 0, 0.5), PackedVector3Array([finish]), 1, true, true)
+	assert_gt(ticket, 0)
+	var result := await _result("long-move", ticket)
+	assert_false(result.is_empty())
+	if not result.is_empty():
+		var path: PackedVector3Array = result.paths[0]
+		assert_false(path.is_empty())
+		if not path.is_empty():
+			assert_almost_eq(path[-1], finish, Vector3.ONE * 0.001, "An accepted move must not be clipped at the tactical search budget")
+	navigation.get_parent().queue_free()
+	await get_tree().process_frame
+
+func test_native_agent_fallback_can_cross_more_than_default_4096_polygons() -> void:
+	var navigation := _long_route_fixture()
+	navigation.settings.threaded_queries_enabled = false
+	var actor := QuietActor.new()
+	actor.position = Vector3(0.5, 0, 0.5)
+	navigation.get_parent().add_child(actor)
+	var finish := Vector3(4299.5, 0, 0.5)
+	actor.set_move_target(finish)
+	await get_tree().physics_frame
+	actor._navigation_agent.get_move_direction(0.016)
+	assert_almost_eq(actor._navigation_agent.get_final_position(), finish, Vector3.ONE * 0.001, "Turning worker queries off must not truncate the same move")
+	navigation.get_parent().queue_free()
+	await get_tree().process_frame
+
+func test_movement_budget_is_bounded_configurable_and_not_used_for_tactics() -> void:
+	var navigation := _long_route_fixture()
+	var finish := Vector3(4299.5, 0, 0.5)
+	for scenario in [
+		{"movement": false, "player": true, "budget": 65536, "reaches": false},
+		{"movement": true, "player": false, "budget": 65536, "reaches": true},
+		{"movement": true, "player": true, "budget": 4096, "reaches": false},
+		{"movement": true, "player": true, "budget": 0, "reaches": false},
+	]:
+		navigation.settings.movement_path_max_polygons = scenario.budget
+		var ticket := navigation.request_paths("budget", _world, _world.navigation_map, Vector3(0.5, 0, 0.5), PackedVector3Array([finish]), 1, scenario.player, scenario.movement)
+		var result := await _result("budget", ticket)
+		assert_false(result.is_empty())
+		if not result.is_empty():
+			var path: PackedVector3Array = result.paths[0]
+			assert_eq(not path.is_empty() and path[-1].distance_to(finish) < 0.001, scenario.reaches, str(scenario))
+	navigation.get_parent().queue_free()
+	await get_tree().process_frame
