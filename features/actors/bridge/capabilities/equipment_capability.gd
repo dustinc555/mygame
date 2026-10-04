@@ -73,7 +73,14 @@ func can_equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> bo
 	var actor_slot_names := _get_actor_equipment_slot_names()
 	if not actor_slot_names.is_empty() and not actor_slot_names.has(slot_name):
 		return false
-	return definition.can_equip_to_slot(slot_name)
+	if not definition.can_equip_to_slot(slot_name):
+		return false
+	if definition.grid_size.x < 1 or definition.grid_size.y < 1:
+		return false
+	var capacity := CharacterRaceDefinition.default_slot_grid_size(slot_name)
+	if is_instance_valid(actor) and actor.has_method("get_equipment_slot_grid_size"):
+		capacity = actor.get_equipment_slot_grid_size(slot_name)
+	return definition.grid_size.x <= capacity.x and definition.grid_size.y <= capacity.y
 
 
 func _get_actor_race_id() -> String:

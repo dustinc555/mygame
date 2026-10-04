@@ -380,18 +380,39 @@ func _expect_preview_clothing_matches_actor(editor, actor: HumanoidCharacter, la
 		_fail("Cannot check preview clothing for %s; actor missing" % label)
 		return
 	var body_archetype := _get_actor_resolved_body_archetype(actor)
+	var body_root: Node3D = editor._get_preview_body_root()
+	if body_root == null:
+		_fail("Preview body is missing for %s" % label)
+		return
+	var body_path := body_root.scene_file_path
 	for slot_name in CLOTHING_EQUIPMENT_SLOTS:
 		var item := actor.get_equipped_item(slot_name)
 		if item == null:
 			continue
-		if item.get_equipped_scene_for_body_archetype(body_archetype) == null:
+		if item.get_equipped_scene_for_body_archetype(body_archetype, body_path) == null:
 			continue
 		if not editor.preview_has_clothing_slot(slot_name):
 			_fail("Preview is missing %s clothing for %s" % [slot_name, label])
-		var equipment_visual := item.get_equipment_visual_for_body_archetype(body_archetype)
+		var equipment_visual := item.get_equipment_visual_for_body_archetype(body_archetype, body_path)
 		if equipment_visual != null and float(equipment_visual.get("surface_offset_ratio")) > 0.0:
 			if float(editor.get_preview_clothing_surface_offset(slot_name)) <= 0.0:
 				_fail("Preview did not apply clothing surface offset for %s on %s" % [slot_name, label])
+		elif equipment_visual != null and equipment_visual.body_fits.has(body_path):
+			if not is_zero_approx(editor.get_preview_clothing_surface_offset(slot_name)):
+				_fail("Preview inflated an already fitted garment for %s on %s" % [slot_name, label])
+			var slot := "Equipped_" + slot_name.capitalize()
+			var actor_slot := actor.get_body_projection().get_visual_root().find_child(slot, true, false)
+			var preview_slot: Node = editor._preview_model.find_child(slot, true, false)
+			if actor_slot == null or preview_slot == null:
+				_fail("Cannot compare fitted garment for %s on %s" % [slot_name, label])
+				continue
+			var live := actor_slot.find_children("*", "MeshInstance3D", true, false)
+			var preview := preview_slot.find_children("*", "MeshInstance3D", true, false)
+			if live.size() != preview.size():
+				_fail("Fitted garment mesh count differs for %s on %s" % [slot_name, label])
+			for index in mini(live.size(), preview.size()):
+				if live[index].mesh != preview[index].mesh:
+					_fail("Preview did not share the actor's fitted mesh for %s on %s" % [slot_name, label])
 
 
 func _first_preview_clothing_slot(actor: HumanoidCharacter) -> String:

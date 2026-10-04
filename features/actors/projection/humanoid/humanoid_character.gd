@@ -879,17 +879,12 @@ func _setup_body_projection() -> void:
 		equipment.equipment_changed.connect(_on_equipment_changed)
 
 
-## Bone-held equipment refreshes only its attachment. Clothing can change the
-## fitted body silhouette, so those slots still use the full visual rebuild.
+## The projection updates the changed slots without replacing the live body.
 func _on_equipment_changed(changed_slots: Array) -> void:
 	var body := get_body_projection()
 	if body == null:
 		return
-	if body is HumanoidBodyProjection \
-			and (body as HumanoidBodyProjection).can_refresh_bone_equipment_only(changed_slots):
-		(body as HumanoidBodyProjection).refresh_bone_equipment_slots(changed_slots)
-		return
-	body.rebuild_visual_for_equipment()
+	body.refresh_equipment_slots(changed_slots)
 
 
 func get_body_projection() -> BodyProjection:

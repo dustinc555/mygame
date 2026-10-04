@@ -3,12 +3,17 @@ class_name BestiaryEquipmentProjection
 
 ## Disposable view of EquipmentCapability. Never owns items, stacks, or the model.
 const MOUNT_HELPER = preload("res://features/actors/projection/equipment_mount_helper.gd")
+const CLOTHING_FITTER = preload("res://features/actors/projection/appearance/clothing_fitter.gd")
 var _model: Node3D
 var _equipment: EquipmentCapability
 var _body_archetype: Resource
 var _skeleton: Skeleton3D
 var _removable_meshes := PackedStringArray()
 var _slot_visuals: Dictionary = {}
+var _clothing_fit_errors: Dictionary[String, String] = {}
+
+func get_clothing_fit_error(slot: String) -> String:
+	return _clothing_fit_errors.get(slot, "")
 
 func configure(model: Node3D, equipment: EquipmentCapability, removable_meshes: PackedStringArray, body_archetype: Resource = null) -> void:
 	_disconnect()
@@ -24,6 +29,7 @@ func configure(model: Node3D, equipment: EquipmentCapability, removable_meshes: 
 
 func _exit_tree() -> void:
 	_disconnect()
+	_clothing_fit_errors.clear()
 	# The model may itself be exiting; freeing its children synchronously here
 	# mutates a locked child list. Hide immediately and defer destruction.
 	for visual in _slot_visuals.values():
@@ -38,6 +44,7 @@ func _disconnect() -> void:
 	_equipment = null
 
 func _clear_visuals() -> void:
+	_clothing_fit_errors.clear()
 	for visual in _slot_visuals.values():
 		if is_instance_valid(visual): visual.free()
 	_slot_visuals.clear()
@@ -46,7 +53,7 @@ func refresh() -> void:
 	_clear_visuals()
 	if not is_instance_valid(_model): return
 	_hide_bundled_meshes(_model)
-	if _equipment == null or not is_instance_valid(_skeleton): return
+	if _equipment == null: return
 	for slot in _equipment.get_equipped_items():
 		_refresh_slot(str(slot))
 
@@ -58,12 +65,17 @@ func _on_equipment_changed(changed_slots: Array) -> void:
 		_refresh_slot(str(slot))
 
 func _refresh_slot(slot: String) -> void:
+	_clothing_fit_errors.erase(slot)
 	var previous: Node = _slot_visuals.get(slot)
 	if is_instance_valid(previous): previous.free()
 	_slot_visuals.erase(slot)
-	if _equipment == null or not is_instance_valid(_skeleton): return
+	if _equipment == null: return
 	var item := _equipment.get_equipped_item(slot)
 	if item == null: return
+	if not is_instance_valid(_skeleton):
+		if item.has_clothing_binding():
+			_clothing_fit_errors[slot] = "Clothing requires a live body skeleton"
+		return
 	var visual: Node3D
 	if slot == "weapon" or slot == "offhand":
 		var profile: Resource = _body_archetype.get("grip_socket_profile") if _body_archetype != null else null
@@ -86,21 +98,45 @@ func _find_skeleton(node: Node) -> Skeleton3D:
 	return null
 
 func _mount_clothing(item: ItemDefinition, slot: String) -> Node3D:
-	var scene := item.get_equipped_scene_for_body_archetype(_body_archetype)
-	if scene == null: return null
+	var body_scene_path := _model.scene_file_path
+	var scene := item.get_equipped_scene_for_body_archetype(_body_archetype, body_scene_path)
+	if scene == null:
+		if item.has_clothing_binding():
+			_clothing_fit_errors[slot] = "No compatible clothing source/body profile for %s" % body_scene_path
+		return null
 	var instance := scene.instantiate()
 	if not instance is Node3D:
 		instance.free()
+		if item.has_clothing_binding():
+			_clothing_fit_errors[slot] = "Clothing source must be a Node3D scene"
 		return null
 	var source := instance as Node3D
+	var item_transform := item.equipped_transform
+	var variant := item.get_equipment_visual_for_body_archetype(_body_archetype, body_scene_path)
+	if variant != null: item_transform = variant.get("equipped_transform")
+	var binding: Resource = variant.get("clothing_binding") if variant != null else null
+	if binding != null:
+		var profile: Resource = _body_archetype.get_wardrobe_profile(body_scene_path) if _body_archetype != null else null
+		var result := CLOTHING_FITTER.fit(source, binding, profile, _skeleton)
+		source.free()
+		if not result.error.is_empty():
+			_clothing_fit_errors[slot] = result.error
+			return null
+		var fitted: Node3D = result.visual
+		fitted.name = "Equipped%sVisual" % slot.capitalize()
+		fitted.transform = _relative_transform(_model, _skeleton) * item_transform
+		_model.add_child(fitted)
+		var fitted_meshes: Array[MeshInstance3D] = []
+		_collect_meshes(fitted, fitted_meshes)
+		for mesh in fitted_meshes:
+			# Preserve the fitter's target-named inverse binds, not source rests.
+			mesh.skeleton = mesh.get_path_to(_skeleton)
+		return fitted
 	var meshes: Array[MeshInstance3D] = []
 	_collect_meshes(source, meshes)
 	var visual := Node3D.new()
 	visual.name = "Equipped%sVisual" % slot.capitalize()
 	_model.add_child(visual)
-	var item_transform := item.equipped_transform
-	var variant := item.get_equipment_visual_for_body_archetype(_body_archetype)
-	if variant != null: item_transform = variant.get("equipped_transform")
 	for mesh in meshes:
 		if mesh.mesh == null: continue
 		var source_skeleton := mesh.get_node_or_null(mesh.skeleton) as Skeleton3D

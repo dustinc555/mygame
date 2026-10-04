@@ -1,0 +1,384 @@
+{
+  "schema_version": 1,
+  "cage_id": "humanoid_v1",
+  "cage_source_body_id": "male_regular",
+  "registration": {
+    "weld_decimals": 6,
+    "stiffness": [
+      12.0,
+      6.0,
+      3.0,
+      1.0,
+      0.3
+    ],
+    "iterations_per_stage": 3,
+    "candidate_triangles": 32,
+    "skin_weight_penalty": 0.004,
+    "opposed_normal_penalty": 0.01
+  },
+  "binding": {
+    "influences": 12,
+    "squared_distance_epsilon": 1e-06,
+    "bind_transform_tolerance": 1e-05,
+    "skin_weight_penalty": 0.004
+  },
+  "bodies": [
+    {
+      "id": "male_regular",
+      "enabled": true,
+      "body_scene_path": "res://assets/characters/humans/frontier_regular/male_regular.glb",
+      "registration_source_path": "res://assets/characters/humans/frontier_regular/male_regular.glb",
+      "registration_mesh": "RegularMale"
+    },
+    {
+      "id": "male_heroic",
+      "enabled": true,
+      "body_scene_path": "res://assets/characters/humans/frontier_variants/male_heroic.glb",
+      "registration_source_path": "res://assets/characters/humans/frontier_variants/male_heroic.glb",
+      "registration_mesh": "SuperHero_Male"
+    },
+    {
+      "id": "male_teen",
+      "enabled": true,
+      "body_scene_path": "res://assets/characters/humans/frontier_variants/male_teen.glb",
+      "registration_source_path": "res://assets/characters/humans/frontier_variants/male_teen.glb",
+      "registration_mesh": "Teen_Male"
+    },
+    {
+      "id": "female_regular",
+      "enabled": true,
+      "body_scene_path": "res://assets/characters/humans/frontier_regular/female_regular.glb",
+      "registration_source_path": "res://assets/characters/humans/frontier_regular/female_regular.glb",
+      "registration_mesh": "Female_Regular",
+      "preserve_foot_shape": true
+    },
+    {
+      "id": "female_heroic",
+      "enabled": true,
+      "body_scene_path": "res://assets/characters/humans/frontier_variants/female_heroic.glb",
+      "registration_source_path": "res://assets/characters/humans/frontier_variants/female_heroic.glb",
+      "registration_mesh": "Superhero_Female",
+      "preserve_foot_shape": true
+    },
+    {
+      "id": "female_teen",
+      "enabled": true,
+      "body_scene_path": "res://assets/characters/humans/frontier_variants/female_teen.glb",
+      "registration_source_path": "res://assets/characters/humans/frontier_variants/female_teen.glb",
+      "registration_mesh": "Teen_Female",
+      "preserve_foot_shape": true
+    },
+    {
+      "id": "original_male_regular",
+      "enabled": true,
+      "body_scene_path": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.gltf",
+      "registration_source_path": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.gltf",
+      "registration_mesh": "RegularMale"
+    }
+  ],
+  "garments": [
+    {
+      "id": "knight_armet",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Head_Armet.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.004,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_armet.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "knight_cuirass",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Body_Armor.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.018,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_cuirass.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "knight_gambeson",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Body_Cloth.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.0,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_gambeson.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "knight_gauntlets",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Arms.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.014,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_gauntlets.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "knight_greaves",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Legs_Armor.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.016,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_greaves.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "knight_horned_helm",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Head_Horns.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.004,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_horned_helm.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "knight_sabatons",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Feet_Armor.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.012,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_sabatons.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "noble_crown",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Head_Crown.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.004,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/noble_crown.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "noble_doublet",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Body.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.01,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/noble_doublet.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes.",
+      "legacy_equipped_transform": "Transform3D(1.045, 0, 0, 0, 1, 0, 0, 0, 1.065, 0, 0, 0)"
+    },
+    {
+      "id": "noble_shoes",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Feet.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.012,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/noble_shoes.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "noble_sleeves",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Arms.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.014,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/noble_sleeves.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "noble_trousers",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Legs.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.016,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/noble_trousers.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "peasant_shoes",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Feet.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.018,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/peasant_shoes.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "peasant_trousers",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Legs.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.016,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/peasant_trousers.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "peasant_tunic",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Body.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.018,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/peasant_tunic.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "ranger_boots",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Feet_Boots.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.012,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/ranger_boots.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "ranger_hood",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Head_Hood.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.004,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/ranger_hood.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "ranger_jerkin",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Body.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.018,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/ranger_jerkin.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "ranger_leggings",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Legs.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.016,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/ranger_leggings.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "traveler_hide_boots",
+      "enabled": true,
+      "source_scene_path": "res://assets/items/equipment/traveler_hide_boots/male_regular.glb",
+      "reference_body_id": "male_regular",
+      "clearance_ratio": 0.0,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/traveler_hide_boots.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "traveler_hide_gloves",
+      "enabled": true,
+      "source_scene_path": "res://assets/items/equipment/traveler_hide_gloves/male_regular.glb",
+      "reference_body_id": "male_regular",
+      "clearance_ratio": 0.0,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/traveler_hide_gloves.tres"
+      ],
+      "notes": "Full-finger gauntlets with modeled movement room and baked hand clearance; zero extra inflation preserves fine lacing. One source, unchanged jacket."
+    },
+    {
+      "id": "traveler_leather_jacket",
+      "enabled": true,
+      "source_scene_path": "res://assets/items/equipment/traveler_leather_jacket/body_fits/male_regular.glb",
+      "reference_body_id": "male_regular",
+      "clearance_ratio": 0.0,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/traveler_leather_jacket.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "traveler_trousers",
+      "enabled": true,
+      "source_scene_path": "res://assets/items/equipment/traveler_trousers/male_regular.glb",
+      "reference_body_id": "male_regular",
+      "clearance_ratio": 0.002,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/traveler_trousers.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "wizard_robes",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Body.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.018,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/wizard_robes.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "wizard_shoes",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Feet.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.012,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/wizard_shoes.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "wizard_sleeves",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Arms.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.014,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/wizard_sleeves.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    },
+    {
+      "id": "wizard_trousers",
+      "enabled": true,
+      "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Legs.gltf",
+      "reference_body_id": "original_male_regular",
+      "clearance_ratio": 0.016,
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/wizard_trousers.tres"
+      ],
+      "notes": "Preserve source cut and skin weights; no per-body garment meshes."
+    }
+  ],
+  "notes": [
+    "One authored source per garment. Generated native resources are disposable, never source geometry.",
+    "clearance_ratio is historical source ease times original reference-body height in skeleton units. It is not target-body inflation.",
+    "legacy_equipped_transform is provenance only; gameplay integration owns that transform."
+  ]
+}

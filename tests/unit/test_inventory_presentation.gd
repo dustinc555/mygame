@@ -55,6 +55,26 @@ func test_equipped_art_preserves_bag_scale_when_slot_size_changes() -> void:
 	assert_eq(icon.size, Vector2(22, 22), "A larger equipment target must not enlarge the item")
 	assert_eq(owner.item.grid_size, Vector2i(1, 4), "Presentation must not mutate the item footprint")
 
+func test_equipment_slot_does_not_expand_for_oversized_saved_gear() -> void:
+	var owner := EquippedOwner.new()
+	add_child_autofree(owner)
+	var slot := EquipmentSlotControl.new()
+	add_child_autofree(slot)
+	slot.setup(owner, "legs", "Legs")
+	var empty_size := slot.custom_minimum_size
+	owner.item = ItemDefinition.new()
+	owner.item.grid_size = Vector2i(4, 5)
+	owner.item.equip_slot = "legs"
+	slot.refresh()
+	assert_eq(slot.custom_minimum_size, empty_size, "Saved oversized gear must not enlarge its slot")
+	assert_eq(slot.size, empty_size)
+	assert_true(slot.clip_contents, "Old oversized art cannot cover neighboring drop targets")
+	assert_eq(owner.item.grid_size, Vector2i(4, 5), "Never shrink the item to bypass capacity")
+	owner.item = null
+	slot.refresh()
+	assert_eq(slot.custom_minimum_size, empty_size)
+
+
 func test_equipped_sword_occupies_its_original_cells_without_clipping() -> void:
 	var owner := EquippedOwner.new()
 	add_child_autofree(owner)

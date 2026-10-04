@@ -1,32 +1,20 @@
-[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://b75mggsohab01"]
 
-[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
-[ext_resource type="Script" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="2_visual"]
-[ext_resource type="Texture2D" path="res://assets/items/equipment/traveler_leather_jacket/traveler_leather_jacket.svg" id="3_icon"]
-[ext_resource type="PackedScene" path="res://assets/items/equipment/traveler_leather_jacket/male_traveler_jacket.glb" id="4_male"]
-[ext_resource type="PackedScene" path="res://assets/items/equipment/traveler_leather_jacket/female_traveler_jacket.glb" id="5_female"]
-[ext_resource type="Resource" path="res://features/actors/resources/character_body_archetypes/human_male.tres" id="6_body_male"]
-[ext_resource type="Resource" path="res://features/actors/resources/character_body_archetypes/human_female.tres" id="7_body_female"]
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="2_visual"]
+[ext_resource type="Texture2D" uid="uid://bv0ivjle5ruqj" path="res://assets/items/equipment/traveler_leather_jacket/traveler_leather_jacket.png" id="3_icon"]
+[ext_resource type="PackedScene" uid="uid://c3cnlu8ip2r0b" path="res://assets/items/equipment/traveler_leather_jacket/body_fits/male_regular.glb" id="4_male"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="6_m1i5p"]
+[ext_resource type="Resource" uid="uid://duvoo861qbw6c" path="res://assets/items/equipment/wardrobe_bindings/traveler_leather_jacket.res" id="wardrobe_binding"]
 
-[sub_resource type="Resource" id="Visual_male"]
+[sub_resource type="Resource" id="Visual_shared"]
 script = ExtResource("2_visual")
-body_archetype = ExtResource("6_body_male")
 visual_scene = ExtResource("4_male")
-surface_offset_ratio = 0.0
+clothing_binding = ExtResource("wardrobe_binding")
 visual_layer = "outerwear"
 visual_coverage = "torso,arms"
 replaces_body_slots = PackedStringArray()
-visual_notes = "Full-sleeve jacket fitted to the regular adult human male. Leaves hands and body geometry intact. Do not combine with legacy whole-arm hands pieces."
-
-[sub_resource type="Resource" id="Visual_female"]
-script = ExtResource("2_visual")
-body_archetype = ExtResource("7_body_female")
-visual_scene = ExtResource("5_female")
-surface_offset_ratio = 0.0
-visual_layer = "outerwear"
-visual_coverage = "torso,arms"
-replaces_body_slots = PackedStringArray()
-visual_notes = "Full-sleeve jacket fitted to the regular adult human female. Leaves hands and body geometry intact. Do not combine with legacy whole-arm hands pieces."
+visual_notes = "Full-sleeve jacket adapted from one source through shared body registration. Leaves hands and body geometry intact. Do not combine with legacy whole-arm hands pieces."
 
 [resource]
 script = ExtResource("1_item")
@@ -35,12 +23,10 @@ item_id = "traveler_leather_jacket"
 icon = ExtResource("3_icon")
 grid_size = Vector2i(2, 3)
 unit_weight = 2.0
-max_stack = 1
 equip_slot = "chest"
 alternate_equip_slots = PackedStringArray()
 compatible_races = PackedStringArray("human")
 world_scene = ExtResource("4_male")
-equipped_visuals = Array[Resource]([SubResource("Visual_male"), SubResource("Visual_female")])
-
+equipped_visuals = Array[Resource]([SubResource("Visual_shared")])
 tool_tags = PackedStringArray()
 access_key_ids = PackedStringArray()

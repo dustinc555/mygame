@@ -626,6 +626,57 @@ func test_reset_discards_rearrangement_that_depends_on_a_sale() -> void:
 	assert_true(controller.trade_session._layout_valid(controller.trade_session.views))
 	assert_eq(buyer.inventory.count_item(SEEDS), 1)
 
+func test_oversized_purchase_cannot_enter_equipment_preview_or_charge_silver() -> void:
+	var sword: ItemDefinition = load("res://features/inventory/resources/items/steel_sword.tres")
+	buyer.equipment.equip_item_to_slot(sword, "weapon", "owned-sword")
+	var oversized := sword.duplicate() as ItemDefinition
+	oversized.grid_size = Vector2i(3, 4)
+	assert_true(stock.add_item_count(oversized, 1))
+	var goods = stock.entries[-1]
+	controller._cancel_trade()
+	controller._on_inventory_equip_requested(merchant, goods, buyer, "weapon")
+	assert_true(controller.trade_session.offers.is_empty())
+	assert_same(controller.primary_character_window._equipment_slots["weapon"]._get_equipped_item(), sword)
+	assert_eq(buyer.equipment.get_equipped_stack_id("weapon"), "owned-sword")
+	assert_true(stock.entries.has(goods))
+	assert_eq(buyer.inventory.count_item(SILVER), 20)
+	assert_eq(stock.count_item(SILVER), 50)
+
+
+func test_oversized_owned_item_is_refused_during_trade_without_losing_gear() -> void:
+	var sword: ItemDefinition = load("res://features/inventory/resources/items/steel_sword.tres")
+	buyer.equipment.equip_item_to_slot(sword, "weapon", "owned-sword")
+	var oversized := sword.duplicate() as ItemDefinition
+	oversized.grid_size = Vector2i(3, 4)
+	assert_true(buyer.inventory.add_item_count(oversized, 1))
+	var entry = buyer.inventory.entries[-1]
+	controller._cancel_trade()
+	controller._on_inventory_equip_requested(buyer, entry, buyer, "weapon")
+	assert_true(controller.trade_session.offers.is_empty())
+	assert_same(buyer.get_equipped_item("weapon"), sword)
+	assert_eq(buyer.equipment.get_equipped_stack_id("weapon"), "owned-sword")
+	assert_true(buyer.inventory.entries.has(entry))
+	assert_true(controller.trade_session.is_current())
+
+
+func test_oversized_normal_equip_and_quick_equip_preserve_inventory() -> void:
+	controller._on_inventory_window_close_requested(merchant)
+	var sword: ItemDefinition = load("res://features/inventory/resources/items/steel_sword.tres")
+	buyer.equipment.equip_item_to_slot(sword, "weapon", "owned-sword")
+	var oversized := sword.duplicate() as ItemDefinition
+	oversized.grid_size = Vector2i(3, 4)
+	assert_true(buyer.inventory.add_item_count(oversized, 1))
+	var entry = buyer.inventory.entries[-1]
+	var position: Vector2i = entry.grid_position
+	controller._on_inventory_equip_requested(buyer, entry, buyer, "weapon")
+	controller._on_inventory_quick_equip_requested(buyer, entry)
+	assert_same(buyer.get_equipped_item("weapon"), sword)
+	assert_eq(buyer.equipment.get_equipped_stack_id("weapon"), "owned-sword")
+	assert_true(buyer.inventory.entries.has(entry))
+	assert_eq(entry.grid_position, position)
+	assert_eq(buyer.inventory.count_item(SILVER), 20)
+
+
 func test_trade_error_does_not_shift_any_inventory_controls() -> void:
 	assert_true(buyer.inventory.remove_item_count(SILVER, 19))
 	controller._cancel_trade()

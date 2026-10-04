@@ -290,6 +290,10 @@ func refresh_foot_ground_alignment() -> void:
 	pass
 
 
+func set_preview_ground_height(_world_y: float) -> void:
+	pass
+
+
 func get_visual_foot_anchor_y() -> float:
 	return INF
 
@@ -310,6 +314,10 @@ func refresh_grip_sockets_for_body() -> void:
 
 func rebuild_visual_for_equipment() -> void:
 	setup_visual()
+
+
+func refresh_equipment_slots(_changed_slots: Array) -> void:
+	rebuild_visual_for_equipment()
 
 
 func can_refresh_bone_equipment_only(_changed_slots: Array) -> bool:

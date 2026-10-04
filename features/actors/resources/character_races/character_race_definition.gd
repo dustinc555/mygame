@@ -6,12 +6,12 @@ class_name CharacterRaceDefinition
 const DEFAULT_SLOT_GRID_SIZES: Dictionary[String, Vector2i] = {
 	"head": Vector2i(2, 2),
 	"chest": Vector2i(2, 3),
-	"legs": Vector2i(2, 2),
+	"legs": Vector2i(2, 3),
 	"feet": Vector2i(2, 2),
 	"hands": Vector2i(2, 2),
-	"undershirt": Vector2i(2, 2),
+	"undershirt": Vector2i(2, 3),
 	"backpack": Vector2i(2, 3),
-	"weapon": Vector2i(2, 3),
+	"weapon": Vector2i(2, 5),
 	"offhand": Vector2i(2, 3),
 }
 
@@ -19,8 +19,8 @@ const DEFAULT_SLOT_GRID_SIZES: Dictionary[String, Vector2i] = {
 @export var display_name := "Race"
 @export var equipment_slots: PackedStringArray = PackedStringArray()
 @export var equipment_slot_labels: Dictionary = {}
-## Width/height in square UI cells for this race's equipment areas.
-## These size the presentation, not bag footprints or equipment eligibility.
+## Fixed width/height in inventory cells for this race's equipment slots.
+## Both the visible area and equip limits use these sizes; items never resize slots.
 @export var equipment_slot_grid_sizes: Dictionary[String, Vector2i] = DEFAULT_SLOT_GRID_SIZES.duplicate()
 @export var bleed_fluid: Resource
 @export var default_male_archetype: Resource

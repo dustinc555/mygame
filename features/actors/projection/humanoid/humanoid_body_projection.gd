@@ -22,6 +22,7 @@ const HUMAN_RACE = preload("res://features/actors/resources/character_races/huma
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://features/actors/resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://features/actors/resources/character_body_archetypes/human_female.tres")
 const SKIN_TEXTURE_BUILDER = preload("res://features/actors/projection/appearance/skin_texture_builder.gd")
+const CLOTHING_FITTER = preload("res://features/actors/projection/appearance/clothing_fitter.gd")
 const DEFAULT_MALE_EYEBROW_STYLE = preload("res://features/actors/resources/character_appearance/eyebrows_regular.tres")
 const DEFAULT_FEMALE_EYEBROW_STYLE = preload("res://features/actors/resources/character_appearance/eyebrows_female.tres")
 const MALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf")
@@ -194,9 +195,17 @@ var _rng := RandomNumberGenerator.new()
 var _character_animation_player: AnimationPlayer
 var _character_animation_players: Array[AnimationPlayer] = []
 var _character_skeleton: Skeleton3D
+var _clothing_body_scene_path := ""
+var _clothing_surface_offset_base := 0.0
+var _clothing_fit_errors: Dictionary[String, String] = {}
 var _bone_pose_position_offsets: Dictionary = {}
 var _visual_foot_anchor_correction_y := 0.0
 var _visual_foot_ground_correction_y := 0.0
+var _preview_ground_height := NAN
+const FOOTWEAR_SUPPORT = preload("res://features/actors/projection/humanoid/footwear_support_samples.gd")
+const SOLE_CONTACT_CLEARANCE_METERS := 0.002
+var _footwear_support := FOOTWEAR_SUPPORT.new()
+var _footwear_support_dirty := true
 var _current_character_animation := ""
 var _idle_animation_change_remaining := 0.0
 var _crouch_enter_animation_remaining := 0.0
@@ -227,6 +236,8 @@ func bind_actor(owner_actor: Node3D) -> void:
 
 
 func setup_visual() -> void:
+	_footwear_support_dirty = true
+	process_priority = 100 # After ordinary AnimationPlayer evaluation.
 	var old_visual := get_visual_root()
 	if old_visual != null:
 		old_visual.free()
@@ -240,6 +251,7 @@ func setup_visual() -> void:
 	_character_animation_player = null
 	_character_animation_players.clear()
 	_character_skeleton = null
+	_clothing_fit_errors.clear()
 	_bone_pose_position_offsets.clear()
 	_visual_foot_anchor_correction_y = 0.0
 	_visual_foot_ground_correction_y = 0.0
@@ -270,13 +282,11 @@ func setup_visual() -> void:
 	var character_skeleton := _find_skeleton(model_root)
 	_character_skeleton = character_skeleton
 	_bone_pose_position_offsets = _get_bone_pose_position_offsets(resolved_body_archetype)
-	_setup_equipped_clothing_visuals(_visual_root, character_skeleton, resolved_body_archetype, body_mesh, visual_fit_scale)
-	# No authored eyebrows: apply the automatic per-body-type style with hair-matched
-	# color — the same defaulting the character creator applies on save. The base
-	# mesh brows are an untinted gray placeholder and read as white in game light.
+	_setup_equipped_clothing_visuals(_visual_root, character_skeleton, resolved_body_archetype, body_mesh, visual_fit_scale, model_root.scene_file_path)
+	# Share the creator's hair-matched default. Fitted embedded styles are reused;
+	# older bodies still get the external replacement for their placeholder brows.
 	if appearance_data != null and appearance_data.eyebrow_style == null:
 		apply_automatic_eyebrow_style()
-	set_base_eyebrow_visuals_visible(model_root, appearance_data == null or appearance_data.eyebrow_style == null)
 	_setup_head_attachment_visuals(_visual_root, character_skeleton)
 	_setup_humanoid_grip_sockets(_visual_root)
 	_setup_equipped_bone_visuals(_visual_root)
@@ -325,6 +335,21 @@ func rebuild_visual_for_appearance() -> void:
 	setup_visual()
 
 
+## Update creator proportions without replacing the body, clothing or animation.
+func refresh_body_proportions() -> void:
+	var previous_offsets := _bone_pose_position_offsets
+	_bone_pose_position_offsets = _get_bone_pose_position_offsets(get_resolved_body_archetype())
+	if is_instance_valid(_character_skeleton):
+		# Zero-valued sliders disappear from the offset dictionary. Undo their old
+		# translation explicitly so dragging back to zero also resets the live mesh.
+		for bone_name: String in previous_offsets:
+			if _bone_pose_position_offsets.has(bone_name): continue
+			var index := _character_skeleton.find_bone(bone_name)
+			if index >= 0:
+				_character_skeleton.set_bone_pose_position(index, _character_skeleton.get_bone_rest(index).origin)
+	apply_bone_pose_offsets()
+
+
 func apply_appearance_materials(root: Node, body_type: int) -> void:
 	if appearance_data == null:
 		return
@@ -347,12 +372,7 @@ func _get_bone_pose_position_offsets(target_body_archetype: Resource) -> Diction
 
 
 func set_base_eyebrow_visuals_visible(root: Node, visible_flag: bool) -> void:
-	if root == null:
-		return
-	if root is MeshInstance3D and str(root.name).to_lower().contains("eyebrow"):
-		(root as MeshInstance3D).visible = visible_flag
-	for child in root.get_children():
-		set_base_eyebrow_visuals_visible(child, visible_flag)
+	CharacterVisualAssembler.set_base_eyebrows_visible(root, visible_flag)
 
 
 # --- Ragdoll / downed visuals ---
@@ -1782,6 +1802,8 @@ func _reset_sitting_idle_animation_timer() -> void:
 func set_preview_clothes_visible(visible_flag: bool) -> void:
 	_preview_clothes_visible = visible_flag
 	set_equipped_clothing_visuals_visible(visible_flag)
+	_footwear_support_dirty = true
+	refresh_foot_ground_alignment()
 
 
 func set_equipped_clothing_visuals_visible(visible_flag: bool) -> void:
@@ -1805,6 +1827,46 @@ func rebuild_visual_for_equipment() -> void:
 	if not _actor.is_inside_tree():
 		return
 	setup_visual()
+
+
+func refresh_equipment_slots(changed_slots: Array) -> void:
+	if "feet" in changed_slots: _footwear_support_dirty = true
+	if not _actor.is_inside_tree() or changed_slots.is_empty():
+		return
+	var visual_root := get_visual_root()
+	if visual_root == null or not is_instance_valid(_character_skeleton):
+		rebuild_visual_for_equipment()
+		return
+	for slot in changed_slots:
+		if not CLOTHING_EQUIPMENT_SLOTS.has(str(slot)) and not BONE_EQUIPMENT_SLOTS.has(str(slot)):
+			rebuild_visual_for_equipment()
+			return
+	for slot in changed_slots:
+		var slot_name := str(slot)
+		if BONE_EQUIPMENT_SLOTS.has(slot_name):
+			_refresh_bone_equipment_slot(_character_skeleton, slot_name)
+		else:
+			_remove_clothing_equipment_slot(slot_name)
+			_setup_equipped_clothing_slot(visual_root, _character_skeleton, get_resolved_body_archetype(), slot_name)
+			var clothing := visual_root.get_node_or_null("Equipped_%s" % slot_name.capitalize()) as Node3D
+			if clothing != null:
+				clothing.visible = _preview_clothes_visible
+				_ensure_non_null_visual_materials(clothing)
+	if "feet" in changed_slots: refresh_foot_ground_alignment()
+
+
+func _remove_clothing_equipment_slot(slot_name: String) -> void:
+	_clothing_fit_errors.erase(slot_name)
+	var existing := get_visual_root().get_node_or_null("Equipped_%s" % slot_name.capitalize())
+	if existing == null:
+		return
+	# Legacy clothing may own a player; never retain it after the garment leaves.
+	for player in _character_animation_players.duplicate():
+		if is_instance_valid(player) and existing.is_ancestor_of(player):
+			_character_animation_players.erase(player)
+			if _character_animation_player == player:
+				_character_animation_player = null
+	existing.free()
 
 
 func can_refresh_bone_equipment_only(changed_slots: Array) -> bool:
@@ -1847,32 +1909,64 @@ func _remove_bone_equipment_slot(skeleton: Skeleton3D, slot_name: String) -> voi
 		legacy_attachment.free()
 
 
-func _setup_equipped_clothing_visuals(visual_root: Node3D, character_skeleton: Skeleton3D, visual_body_archetype: Resource, body_mesh: MeshInstance3D, visual_fit_scale: float) -> void:
-	var surface_offset_base := _get_clothing_surface_offset_base(body_mesh, visual_fit_scale)
+func _setup_equipped_clothing_visuals(visual_root: Node3D, character_skeleton: Skeleton3D, visual_body_archetype: Resource, body_mesh: MeshInstance3D, visual_fit_scale: float, body_scene_path: String) -> void:
+	_clothing_surface_offset_base = _get_clothing_surface_offset_base(body_mesh, visual_fit_scale)
+	_clothing_body_scene_path = body_scene_path
 	for slot_name in CLOTHING_EQUIPMENT_SLOTS:
-		var item: ItemDefinition = _actor.get_equipped_item(slot_name)
-		if item == null:
-			continue
-		var equipment_visual := item.get_equipment_visual_for_body_archetype(visual_body_archetype)
-		var equipped_scene := item.get_equipped_scene_for_body_archetype(visual_body_archetype)
-		if equipped_scene == null:
-			continue
-		var instance := equipped_scene.instantiate()
-		if not (instance is Node3D):
-			instance.queue_free()
-			continue
-		var model_root := instance as Node3D
-		model_root.name = "Equipped_%s" % slot_name.capitalize()
-		var visual_transform := item.equipped_transform
-		var surface_offset_ratio := 0.0
-		if equipment_visual != null:
-			visual_transform = equipment_visual.get("equipped_transform")
-			surface_offset_ratio = float(equipment_visual.get("surface_offset_ratio"))
-		var surface_offset := surface_offset_base * surface_offset_ratio
-		if character_skeleton != null and _setup_shared_skeleton_clothing_visual(visual_root, character_skeleton, model_root, visual_transform, surface_offset):
-			model_root.free()
-			continue
-		_setup_legacy_clothing_visual(visual_root, model_root, visual_transform, surface_offset)
+		_setup_equipped_clothing_slot(visual_root, character_skeleton, visual_body_archetype, slot_name)
+
+
+func get_clothing_fit_error(slot_name: String) -> String:
+	return _clothing_fit_errors.get(slot_name, "")
+
+
+func _setup_equipped_clothing_slot(visual_root: Node3D, character_skeleton: Skeleton3D, visual_body_archetype: Resource, slot_name: String) -> void:
+	_clothing_fit_errors.erase(slot_name)
+	var item: ItemDefinition = _actor.get_equipped_item(slot_name)
+	if item == null:
+		return
+	var equipment_visual := item.get_equipment_visual_for_body_archetype(visual_body_archetype, _clothing_body_scene_path)
+	var equipped_scene := item.get_equipped_scene_for_body_archetype(visual_body_archetype, _clothing_body_scene_path)
+	if equipped_scene == null:
+		if item.has_clothing_binding():
+			_clothing_fit_errors[slot_name] = "No compatible clothing source/body profile for %s" % _clothing_body_scene_path
+		return
+	var instance := equipped_scene.instantiate()
+	if not (instance is Node3D):
+		instance.free()
+		if item.has_clothing_binding():
+			_clothing_fit_errors[slot_name] = "Clothing source must be a Node3D scene"
+		return
+	var model_root := instance as Node3D
+	model_root.name = "Equipped_%s" % slot_name.capitalize()
+	var visual_transform := item.equipped_transform
+	var surface_offset_ratio := 0.0
+	if equipment_visual != null:
+		visual_transform = equipment_visual.get("equipped_transform")
+		surface_offset_ratio = float(equipment_visual.get("surface_offset_ratio"))
+	var surface_offset := _clothing_surface_offset_base * surface_offset_ratio
+	var binding: Resource = equipment_visual.get("clothing_binding") if equipment_visual != null else null
+	if binding != null:
+		var profile: Resource = visual_body_archetype.get_wardrobe_profile(_clothing_body_scene_path) if visual_body_archetype != null else null
+		var result := CLOTHING_FITTER.fit(model_root, binding, profile, character_skeleton)
+		model_root.free()
+		if not result.error.is_empty():
+			_clothing_fit_errors[slot_name] = result.error
+			return
+		var fitted: Node3D = result.visual
+		# Generated vertices/binds already use the target rig's coordinates.
+		# Its ancestor transform supplies body scale/yaw; clearance is baked once.
+		fitted.transform = _get_node3d_transform_relative_to_root(visual_root, character_skeleton) * visual_transform
+		visual_root.add_child(fitted)
+		var meshes: Array[MeshInstance3D] = []
+		_collect_mesh_instances(fitted, meshes)
+		for mesh in meshes:
+			mesh.skeleton = mesh.get_path_to(character_skeleton)
+		return
+	if character_skeleton != null and _setup_shared_skeleton_clothing_visual(visual_root, character_skeleton, model_root, visual_transform, surface_offset):
+		model_root.free()
+		return
+	_setup_legacy_clothing_visual(visual_root, model_root, visual_transform, surface_offset)
 
 
 func _setup_head_attachment_visuals(visual_root: Node3D, character_skeleton: Skeleton3D) -> void:
@@ -1886,6 +1980,8 @@ func _setup_head_attachment_visuals(visual_root: Node3D, character_skeleton: Ske
 func _setup_head_attachment_visual(visual_root: Node3D, character_skeleton: Skeleton3D, style_resource: Resource, color: Color, slot_label: String) -> void:
 	if visual_root == null or style_resource == null:
 		return
+	if CharacterVisualAssembler.apply_embedded_head_attachment(visual_root, style_resource, color):
+		return
 	var age_years := appearance_data.visual_age_years if appearance_data != null else CharacterVisualRules.DEFAULT_ADULT_AGE
 	var source_root := CharacterVisualAssembler.instantiate_head_attachment(style_resource, age_years, color)
 	if source_root == null:
@@ -1896,6 +1992,10 @@ func _setup_head_attachment_visual(visual_root: Node3D, character_skeleton: Skel
 	if REST_RETARGET.requires_rest_transfer(style_skeleton, character_skeleton):
 		source_root.free()
 		return
+	# External eyebrow styles include their own lashes. Hide the complete embedded
+	# pair only after a compatible replacement exists, never on a refused style.
+	if slot_label == "Eyebrows":
+		set_base_eyebrow_visuals_visible(visual_root, false)
 	source_root.name = "%s%s" % [APPEARANCE_HEAD_ATTACHMENT_PREFIX, slot_label]
 	if character_skeleton != null and _setup_shared_skeleton_head_attachment_visual(visual_root, character_skeleton, source_root, color, false):
 		source_root.free()
@@ -2224,6 +2324,9 @@ func _inflate_mesh_instance(mesh_instance: MeshInstance3D, surface_offset: float
 
 # --- Foot IK / grounding ---
 
+func _process(_delta: float) -> void:
+	refresh_foot_ground_alignment()
+
 func apply_bone_pose_offsets() -> void:
 	var skeleton: Skeleton3D = _character_skeleton
 	if skeleton == null or not is_instance_valid(skeleton):
@@ -2255,27 +2358,72 @@ func _apply_visual_foot_anchor_correction(visual_root: Node3D, desired_correctio
 	_visual_foot_anchor_correction_y = desired_correction
 
 
+func set_preview_ground_height(world_y: float) -> void:
+	# A nonphysical studio owns its visible floor. NAN restores physical support.
+	_preview_ground_height = world_y
+	refresh_foot_ground_alignment()
+
+
 func refresh_foot_ground_alignment() -> void:
-	if actor == null or not is_instance_valid(actor) or not _actor.is_inside_tree():
+	if not is_instance_valid(_actor) or not _actor.is_inside_tree():
 		return
-	if _is_ragdoll_active or _character_skeleton == null or not is_instance_valid(_character_skeleton):
+	if _is_ragdoll_active or not is_instance_valid(_character_skeleton):
 		return
 	var skeleton: Skeleton3D = _character_skeleton
 	var visual_root := get_visual_root()
 	if visual_root == null or not visual_root.is_inside_tree() or not skeleton.is_inside_tree():
 		return
+	# Nonphysical previews may explicitly align to the capsule's reference floor.
+	# Live actors require actual support; never pull a jump, seat or corpse down.
+	var preview := is_finite(_preview_ground_height) or _actor.process_mode == Node.PROCESS_MODE_DISABLED
+	if _actor.life_state != NpcRules.LifeState.ALIVE or _actor.is_sitting() or _actor.is_carried() or _actor.is_in_bed_rest() or _actor.is_in_cell_custody() or _is_getting_up or (not preview and not _actor.is_on_floor()):
+		visual_root.global_position.y -= _visual_foot_ground_correction_y
+		_visual_foot_ground_correction_y = 0.0
+		return
+	if _footwear_support_dirty:
+		var roots: Array[Node] = []
+		if visual_root.get_child_count() > 0: roots.append(visual_root.get_child(0))
+		var footwear := visual_root.get_node_or_null("Equipped_Feet")
+		if footwear != null and _preview_clothes_visible: roots.append(footwear)
+		_footwear_support.rebuild(roots, skeleton)
+		_footwear_support_dirty = false
 	skeleton.force_update_all_bone_transforms()
-	var foot_y := _get_skeleton_foot_anchor_global_y(skeleton)
-	if foot_y == INF:
-		return
-	var ground_y := get_visual_ground_y()
-	var desired_correction := clampf(ground_y - foot_y, -CHARACTER_VISUAL_FOOT_GROUND_CORRECTION_MAX_DOWN, CHARACTER_VISUAL_FOOT_GROUND_CORRECTION_MAX_UP)
-	var correction_delta: float = desired_correction - _visual_foot_ground_correction_y
-	if absf(correction_delta) <= 0.001:
-		return
-	visual_root.position.y += correction_delta
+	var points := _footwear_support.posed_points(skeleton)
+	if points.is_empty(): return
+	var ground_y := get_visual_ground_y() - CHARACTER_VISUAL_FOOT_CLEARANCE
+	if is_finite(_preview_ground_height): ground_y = _preview_ground_height
+	var desired_correction := 0.0
+	var support_planes: Dictionary = {}
+	for index in points.size():
+		var side: int = _footwear_support.samples[index].side
+		if support_planes.has(side): continue
+		var point: Vector3 = points[index]
+		# One short physical-floor ray per foot, excluding the collision actor.
+		var from := Vector3(point.x, ground_y + CHARACTER_VISUAL_FOOT_GROUND_CORRECTION_MAX_UP, point.z)
+		var to := Vector3(point.x, ground_y - CHARACTER_VISUAL_FOOT_GROUND_CORRECTION_MAX_UP, point.z)
+		var query := PhysicsRayQueryParameters3D.create(from, to, _actor.collision_mask, [_actor.get_rid()])
+		var hit := _actor.get_world_3d().direct_space_state.intersect_ray(query)
+		if not hit.is_empty() and hit.normal.y >= cos(_actor.floor_max_angle):
+			support_planes[side] = hit
+		elif preview:
+			support_planes[side] = {"position":Vector3(0,ground_y,0), "normal":Vector3.UP}
+		else:
+			support_planes[side] = {}
+	for index in points.size():
+		var point: Vector3 = points[index]
+		var plane: Dictionary = support_planes[_footwear_support.samples[index].side]
+		if plane.is_empty(): continue
+		var normal: Vector3 = plane.normal
+		var origin: Vector3 = plane.position
+		var support_y := origin.y - (normal.x * (point.x - origin.x) + normal.z * (point.z - origin.z)) / normal.y
+		# Remove our previous lift from the measurement: repeated refreshes must
+		# converge, not alternate between corrected and uncorrected placement.
+		var uncorrected_y: float = point.y - _visual_foot_ground_correction_y
+		desired_correction = maxf(desired_correction, support_y + SOLE_CONTACT_CLEARANCE_METERS - uncorrected_y)
+	desired_correction = minf(desired_correction, CHARACTER_VISUAL_FOOT_GROUND_CORRECTION_MAX_UP)
+	var correction_delta := desired_correction - _visual_foot_ground_correction_y
+	visual_root.global_position.y += correction_delta
 	_visual_foot_ground_correction_y = desired_correction
-	skeleton.force_update_all_bone_transforms()
 
 
 func _get_skeleton_foot_anchor_global_y(skeleton: Skeleton3D) -> float:

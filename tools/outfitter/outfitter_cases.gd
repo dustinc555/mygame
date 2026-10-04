@@ -61,7 +61,7 @@ func _camera_cases(viewer) -> void:
 					check(viewer.status.text == "No hand socket authored for this body.", "Missing socket warning")
 				else:
 					check(stage.tracking == socket and stage.focus.is_equal_approx(socket.global_position), "Hand reacquired on new body")
-					# A real wearable can replace the skeleton/socket, unlike a no-op None.
+					# Real clothing changes must retain the hand camera and live socket.
 					for item in viewer.catalog.items:
 						if item.equip_slot == "weapon" or not viewer.incompatibility(item, item.equip_slot).is_empty(): continue
 						viewer.equip_item(item, item.equip_slot)
@@ -127,12 +127,17 @@ func run(tree: SceneTree) -> void:
 			check(body.get_resolved_body_archetype() == bodies[body_index], "Canonical saved body identity")
 			check(load(viewer.selected_body.resource_path) == viewer.selected_body, "Saved body, not synthesized")
 			check(actor.get("appearance_data").character_race == viewer.selected_race, "Canonical race identity")
+			var slot_count := 0
+			for item in viewer.catalog.items:
+				if item.can_equip_to_slot(viewer.selected_slot): slot_count += 1
 			viewer.filter_equipment("")
-			check(viewer.equipment_list.item_count == expected, "Empty search includes all")
+			check(viewer.equipment_list.item_count == slot_count, "Empty search includes only the selected slot")
+			for item in viewer._visible_items:
+				check(item.can_equip_to_slot(viewer.selected_slot), "Unrelated equipment is hidden")
 			viewer.filter_equipment("nonexistent-outfitter-item")
 			check(viewer.equipment_list.item_count == 0, "Search filters")
 			viewer.filter_equipment("")
-			check(viewer.equipment_list.item_count == expected, "Clear search restores all")
+			check(viewer.equipment_list.item_count == slot_count, "Clear search restores the selected slot")
 			var player := body.get_primary_animation_player()
 			check(player != null, "Production animation player")
 			check(viewer.select_animation("Idle"), "Idle available")
