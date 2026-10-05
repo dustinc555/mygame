@@ -3,6 +3,8 @@ extends StaticBody3D
 
 class_name WorldContainer
 
+const NAVIGATION_QUERIES := preload("res://features/core/navigation/world_navigation_queries.gd")
+
 signal inventory_changed
 signal interaction_resolved(container, actor)
 
@@ -80,6 +82,9 @@ const TYPE_CONTAINER_KINDS := {
 
 var inventory
 var _assigned_slots: Dictionary = {}
+var _approach_points: Dictionary[Vector3, Vector3] = {}
+var _approach_map := RID()
+var _approach_map_iteration := -1
 var _pending_actor_ids: Dictionary = {}
 var _item_reservations: Dictionary = {}
 var _inventory_sync_suspended := false
@@ -163,16 +168,30 @@ func get_interaction_position(member: HumanoidCharacter) -> Vector3:
 	# Wall-hugging containers put ring slots inside walls or the container's
 	# own navmesh carve; an off-mesh move target strands the actor short of
 	# it forever. Hand out the nearest walkable point instead.
-	return _clamped_to_navmesh(slot)
+	if Engine.is_editor_hint() or not is_inside_tree():
+		return slot
+	var map := get_world_3d().navigation_map
+	var iteration := NavigationServer3D.map_get_iteration_id(map) if map.is_valid() else 0
+	if iteration == 0:
+		return slot
+	if map != _approach_map or iteration != _approach_map_iteration:
+		_approach_points.clear()
+		_approach_map = map
+		_approach_map_iteration = iteration
+	# The exact world-space point includes placement and slot-setting changes.
+	# Cache each slot, not each actor: multi-member approaches reuse their own
+	# points without retaining disposable actor projections or rerunning queries.
+	if _approach_points.has(slot):
+		return _approach_points[slot]
+	if _approach_points.size() >= maxi(slot_count, 1):
+		_approach_points.clear()
+	var projected := _clamped_to_navmesh(slot)
+	_approach_points[slot] = projected
+	return projected
 
 
 func _clamped_to_navmesh(point: Vector3) -> Vector3:
-	if Engine.is_editor_hint() or not is_inside_tree():
-		return point
-	var map := get_world_3d().navigation_map
-	if not map.is_valid() or NavigationServer3D.map_get_iteration_id(map) == 0:
-		return point
-	return NavigationServer3D.map_get_closest_point(map, point)
+	return NAVIGATION_QUERIES.closest_point(self, get_world_3d().navigation_map, point)
 
 
 func get_inventory_display_name() -> String:

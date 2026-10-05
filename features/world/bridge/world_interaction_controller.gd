@@ -10,11 +10,8 @@ const CROP_ACTION_FULL_GROW := &"full_grow_crop"
 signal npc_instant_action_finished(action_id: StringName, target: WorldActor, success: bool, message: String)
 signal crop_debug_action_finished(action_id: StringName, success: bool, message: String)
 
-# Characters get click priority within this many screen pixels of the cursor;
-# precise capsule hits indoors (behind counters, under low ceilings) are
-# otherwise nearly impossible.
-const ACTOR_CLICK_SCREEN_RADIUS := 26.0
-
+const ACTOR_BODY_PICKER = preload("res://features/world/bridge/actor_body_picker.gd")
+const CLICK_RAY_LENGTH := 500.0
 const MOVE_COMMAND_INDICATOR_SCENE = preload("res://features/world/projection/effects/move_command_indicator.tscn")
 const WORLD_TEXT_NOTICE_SCENE = preload("res://features/world/projection/effects/world_text_notice.tscn")
 const PARTY_PORTRAIT_CARD_SCENE = preload("res://features/ui/projection/party_portrait_card.tscn")
@@ -39,6 +36,8 @@ const ACTION_STAND_UP := 15
 const ACTION_PLACE_IN_BED := 16
 const ACTION_PICKUP_ITEM := 17
 const ACTION_READ_ITEM := 18
+const ACTION_PICKPOCKET := 19
+const ACTION_LOOT := 20
 const ACTION_WORLD_CONTEXT_BASE := 10000
 const SQUAD_MENU_RENAME := 1
 const ALL_SQUADS_FILTER := ""
@@ -278,6 +277,7 @@ func _register_party_member(member: WorldActor) -> void:
 		member.connect("container_reached", Callable(self, "_on_party_member_container_reached"))
 	if member.has_signal("trade_target_reached"):
 		member.connect("trade_target_reached", Callable(self, "_on_party_member_trade_target_reached"))
+	member.npc_inventory_target_reached.connect(_on_npc_inventory_target_reached)
 	if member.has_signal("conversation_target_reached"):
 		member.connect("conversation_target_reached", Callable(self, "_on_party_member_conversation_target_reached"))
 	if member.has_signal("center_notice_requested"):
@@ -645,6 +645,9 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 	if collider is HumanoidCharacter and not party_manager.selected_members.is_empty():
 		context_humanoid = collider
 		var humanoid_actions: Array = []
+		var inventory_action := OwnershipController.get_character_inventory_action(_get_focused_party_member(), collider)
+		if not inventory_action.is_empty():
+			humanoid_actions.append({"id": ACTION_LOOT if inventory_action == "loot" else ACTION_PICKPOCKET, "label": inventory_action.capitalize()})
 		if collider.is_downed_state():
 			_append_downed_target_actions(humanoid_actions, collider)
 		elif collider.life_state == NpcRules.LifeState.DEAD or collider.life_state == NpcRules.LifeState.ASLEEP:
@@ -990,7 +993,10 @@ func _pick_ground_hit(screen_position: Vector2) -> Dictionary:
 	var hidden_piece_rids: Array[RID] = []
 	var result := _raycast_from_screen(screen_position)
 	for _attempt in range(8):
-		if result.is_empty() or not _is_camera_hidden_modular_collider(result.get("collider")):
+		if result.is_empty():
+			break
+		var hit_collider: Object = result.get("collider")
+		if not _is_camera_hidden_modular_collider(hit_collider) and _resolve_actor_collider(hit_collider) == null:
 			break
 		hidden_piece_rids.append(result["rid"])
 		result = _raycast_from_screen(screen_position, hidden_piece_rids)
@@ -1043,15 +1049,28 @@ func _raycast_building_child_hit(screen_position: Vector2, building: Object) -> 
 
 
 func _raycast_target_from_screen(screen_position: Vector2) -> Dictionary:
-	var excluded_rids: Array[RID] = []
+	var ray_from := camera.project_ray_origin(screen_position)
+	var ray_to := ray_from + camera.project_ray_normal(screen_position) * CLICK_RAY_LENGTH
+	var body_pick := ACTOR_BODY_PICKER.pick(get_tree().get_nodes_in_group("world_actor"), camera, ray_from, ray_to)
+	var body_hit: Dictionary = body_pick["hit"]
+	var excluded_rids: Array[RID] = body_pick["exclude"]
 	var result := {}
 	for _attempt in range(6):
 		result = _raycast_from_screen(screen_position, excluded_rids, true)
 		if result.is_empty():
 			break
 		var collider: Object = result["collider"]
+		# Hidden building pieces stay solid for movement but never own a click.
+		if _is_camera_hidden_modular_collider(collider):
+			if not _exclude_collider_rid(collider, excluded_rids):
+				result = {}
+				break
+			continue
 		var occupied_seat := _find_sittable_seat(collider)
-		if occupied_seat != null and occupied_seat.has_method("is_occupied") and bool(occupied_seat.call("is_occupied")):
+		# A chair's coarse collider may enclose its sitter. Only pass through
+		# it when this exact ray also hits that sitter's posed body.
+		if occupied_seat != null and occupied_seat.has_method("get_sitter") \
+				and not body_hit.is_empty() and occupied_seat.call("get_sitter") == body_hit["collider"]:
 			if not _exclude_collider_rid(collider, excluded_rids):
 				result = {}
 				break
@@ -1059,14 +1078,7 @@ func _raycast_target_from_screen(screen_position: Vector2) -> Dictionary:
 		var actor_collider := _resolve_actor_collider(collider)
 		if actor_collider != null:
 			result["collider"] = actor_collider
-			return result
-		# Geometry hidden by the camera (upper-level furniture, see-through
-		# walls) is never a click target; the ray passes through it.
-		if _is_camera_hidden_modular_collider(collider):
-			if not _exclude_collider_rid(collider, excluded_rids):
-				result = {}
-				break
-			continue
+			break
 		var obscured_item_hit := _raycast_obscured_world_item_hit(screen_position, collider)
 		if not obscured_item_hit.is_empty():
 			result = obscured_item_hit
@@ -1075,19 +1087,11 @@ func _raycast_target_from_screen(screen_position: Vector2) -> Dictionary:
 			break
 		if not _exclude_collider_rid(collider, excluded_rids):
 			break
-	# Characters take click priority: a visible live actor near the cursor
-	# beats the furniture/floor hit that would otherwise swallow the click.
-	# Direct hits on pickup items keep their click — items are small and an
-	# exact hit on one is always intentional.
-	var keeps_click := false
-	if not result.is_empty():
-		var hit_collider: Object = result.get("collider")
-		keeps_click = _resolve_actor_collider(hit_collider) != null \
-				or _resolve_world_item_collider(hit_collider) != null
-	if not keeps_click:
-		var nearby_actor := _pick_actor_near_screen_position(screen_position)
-		if nearby_actor != null:
-			return {"collider": nearby_actor, "position": nearby_actor.global_position}
+	# Only the closest actual body/world intersection wins. No fixed-pixel
+	# halo, chest-distance priority, or invisible standing movement capsule.
+	if not body_hit.is_empty() and (result.is_empty() \
+			or ray_from.distance_squared_to(body_hit["position"]) < ray_from.distance_squared_to(result["position"])):
+		return body_hit
 	return result
 
 
@@ -1108,60 +1112,6 @@ func _exclude_collider_rid(collider: Object, excluded_rids: Array[RID]) -> bool:
 		return false
 	excluded_rids.append(collider_rid)
 	return true
-
-
-## Screen-space fat pick: the closest live actor whose chest projects within
-## a small radius of the cursor and who is actually visible from the camera
-## (hidden geometry and other characters don't count as cover — walls do).
-func _pick_actor_near_screen_position(screen_position: Vector2) -> WorldActor:
-	var camera := get_viewport().get_camera_3d()
-	if camera == null:
-		return null
-	var best: WorldActor = null
-	var best_distance := ACTOR_CLICK_SCREEN_RADIUS
-	for actor_node in get_tree().get_nodes_in_group("world_actor"):
-		var actor := actor_node as WorldActor
-		if actor == null or not actor.is_inside_tree():
-			continue
-		var chest: Vector3 = actor.global_position + Vector3(0.0, 1.2, 0.0)
-		if camera.is_position_behind(chest):
-			continue
-		var distance := camera.unproject_position(chest).distance_to(screen_position)
-		if distance >= best_distance:
-			continue
-		if not _actor_clickable_from_camera(actor, camera, chest):
-			continue
-		best_distance = distance
-		best = actor
-	return best
-
-
-func _actor_clickable_from_camera(actor: WorldActor, camera: Camera3D, chest: Vector3) -> bool:
-	var world := camera.get_world_3d()
-	if world == null:
-		return true
-	var exclusions: Array[RID] = []
-	if actor is CollisionObject3D:
-		exclusions.append((actor as CollisionObject3D).get_rid())
-	for _attempt in range(6):
-		var query := PhysicsRayQueryParameters3D.create(camera.global_position, chest)
-		query.exclude = exclusions
-		query.collide_with_areas = false
-		var hit := world.direct_space_state.intersect_ray(query)
-		if hit.is_empty():
-			return true
-		var hit_collider: Object = hit.get("collider")
-		var seat := _find_sittable_seat(hit_collider)
-		var occupied_by_actor: bool = seat != null \
-				and seat.has_method("get_sitter") \
-				and seat.call("get_sitter") == actor
-		var see_through: bool = hit_collider is CharacterBody3D \
-				or occupied_by_actor \
-				or _is_camera_hidden_modular_collider(hit_collider) \
-				or _should_skip_building_target_hit(hit_collider, int(hit.get("shape", -1)))
-		if not see_through or not _exclude_collider_rid(hit_collider, exclusions):
-			return false
-	return false
 
 
 func _raycast_obscured_world_item_hit(screen_position: Vector2, collider: Object) -> Dictionary:
@@ -1257,7 +1207,7 @@ func _resolve_actor_collider(collider: Object) -> WorldActor:
 
 func _raycast_from_screen(screen_position: Vector2, excluded_rids: Array[RID] = [], include_areas := false) -> Dictionary:
 	var ray_origin := camera.project_ray_origin(screen_position)
-	var ray_end := ray_origin + camera.project_ray_normal(screen_position) * 500.0
+	var ray_end := ray_origin + camera.project_ray_normal(screen_position) * CLICK_RAY_LENGTH
 	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
 	query.exclude = excluded_rids
 	query.collide_with_areas = include_areas
@@ -2134,6 +2084,11 @@ func _on_context_menu_id_pressed(action_id: int) -> void:
 		_perform_world_context_action(action_id - ACTION_WORLD_CONTEXT_BASE)
 		return
 	match action_id:
+		ACTION_PICKPOCKET, ACTION_LOOT:
+			var actor := _get_focused_party_member()
+			var action := "loot" if action_id == ACTION_LOOT else "pickpocket"
+			if actor != null and OwnershipController.get_character_inventory_action(actor, context_humanoid) == action:
+				actor.get_interaction().assign_npc_inventory_target(context_humanoid, action)
 		ACTION_INVENTORY:
 			var focused_member := _get_focused_party_member()
 			if focused_member != null and context_member != null and focused_member != context_member:
@@ -2426,6 +2381,11 @@ func _on_party_member_container_reached(member: HumanoidCharacter, container) ->
 		if bool(deposit_result.get("handled", false)):
 			return
 	inventory_controller.open_inventory_pair(member, container)
+
+
+func _on_npc_inventory_target_reached(member: HumanoidCharacter, target: HumanoidCharacter, action: String) -> void:
+	if inventory_controller != null:
+		inventory_controller.open_npc_inventory(member, target, action)
 
 
 func _on_party_member_trade_target_reached(member: HumanoidCharacter, target) -> void:

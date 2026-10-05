@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://bhmb0mbmqy60f"]
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
-[ext_resource type="Texture2D" uid="uid://b2vo81souhnry" path="res://assets/items/farming/watering_can.svg" id="2_icon"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/watering_can.png" id="2_icon"]
 [ext_resource type="PackedScene" path="res://features/world/projection/equipment/watering_can_model.tscn" id="3_model"]
 [ext_resource type="Resource" uid="uid://ddoq1y4fkfw0i" path="res://features/actors/resources/equipment_grip_profiles/one_hand_melee.tres" id="4_grip"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="5_gsjqh"]

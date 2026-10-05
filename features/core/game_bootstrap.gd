@@ -21,6 +21,7 @@ extends Node
 
 const CORE_SERVICES_MODULE := preload("res://features/core/core_services_module.gd")
 const WORLD_MODULE := preload("res://features/world/world_module.gd")
+const WORLD_MAP_MODULE := preload("res://features/world_map/world_map_module.gd")
 const WORLD_SIM_MODULE := preload("res://features/world_sim/world_sim_module.gd")
 const FACTIONS_MODULE := preload("res://features/factions/factions_module.gd")
 const ACTORS_MODULE := preload("res://features/actors/actors_module.gd")
@@ -41,6 +42,7 @@ const MODULES := [
 	CORE_SERVICES_MODULE,
 	WORLD_MODULE,
 	FACTIONS_MODULE,
+	WORLD_MAP_MODULE,
 	WORLD_SIM_MODULE,
 	ACTORS_MODULE,
 	AI_MODULE,

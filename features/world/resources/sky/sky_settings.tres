@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="WorldSkySettings" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://features/world/resources/sky/sky_settings.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/sky/mineral_giant/mineral_giant_surface.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/vendor/solar_system_scope/celestial_surfaces/8k_moon.jpg" id="3"]
+[ext_resource type="Texture2D" path="res://assets/sky/mineral_giant/mineral_giant_rings.png" id="4"]
+
+[resource]
+script = ExtResource("1")
+planet_axial_tilt_degrees = -9.0
+planet_surface = ExtResource("2")
+moon_surface = ExtResource("3")
+ring_density = 0.7
+ring_brightness = 0.85
+ring_profile = ExtResource("4")

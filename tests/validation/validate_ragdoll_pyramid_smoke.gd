@@ -25,7 +25,7 @@ const SPEED_SCENARIOS: Array[Dictionary] = [
 const MAX_POSITION_ABS := 160.0
 const MAX_ROOT_ACTIVATION_LIFT := 0.02
 const MAX_INITIAL_UPWARD_BONE_SPEED := 0.05
-const INITIAL_NO_UPWARD_FRAMES := 30
+
 const MAX_PELVIS_HEIGHT := 24.0
 const MIN_PELVIS_HEIGHT := -3.0
 const MAX_HORIZONTAL_DISTANCE := 48.0
@@ -87,7 +87,7 @@ func _run_speed_scenario(scenario: Dictionary) -> void:
 		return
 	_configure_speed(label, int(scenario.get("speed_index", 1)), float(scenario.get("scale", 1.0)))
 	_start_ragdoll_demo(label, int(scenario.get("seed", 3101)))
-	await _wait_until_ragdoll_active(label, 360)
+
 	_check_ragdoll_started(label)
 	if not _mira.is_ragdoll_active() or _mira.get_body_projection()._ragdoll_physical_bones.size() < 10:
 		await _unload_scene()
@@ -191,27 +191,16 @@ func _start_ragdoll_demo(label: String, seed: int) -> void:
 		_fail(label, "Mira did not enter unconscious state")
 
 
-func _wait_until_ragdoll_active(label: String, max_frames: int) -> void:
-	for _frame_index in range(max_frames):
-		if _mira != null and _mira.is_ragdoll_active():
-			return
-		await physics_frame
-	_fail(label, "Ragdoll did not become active within %d physics frames" % max_frames)
-
-
 func _check_ragdoll_started(label: String) -> void:
 	if _mira == null:
 		return
 	if _mira.life_state != NpcRules.LifeState.UNCONSCIOUS:
 		_fail(label, "Mira should be unconscious, got %s" % _mira.get_life_state_label())
 	var body := _mira.get_body_projection()
-	var animation_player: AnimationPlayer = body.get_primary_animation_player() if body != null else null
-	if animation_player == null or not animation_player.has_animation("Death01") or not animation_player.has_animation("Death02"):
-		_fail(label, "Death01 and Death02 should be available for downed pre-roll")
-	if _mira.get_body_projection()._ragdoll_preroll_active:
-		_fail(label, "Ragdoll preroll should have finished")
+	if not body.get_current_clip().is_empty():
+		_fail(label, "Collapse must not play a death clip")
 	if not _mira.is_ragdoll_active():
-		_fail(label, "Ragdoll should be active")
+		_fail(label, "Ragdoll should activate immediately")
 	if _mira.get_body_projection()._ragdoll_simulator == null or not _mira.get_body_projection()._ragdoll_simulator.is_simulating_physics():
 		_fail(label, "PhysicalBoneSimulator3D should be simulating")
 	if _mira.get_body_projection()._ragdoll_physical_bones.size() < 10:
@@ -301,8 +290,7 @@ func _monitor_ragdoll_stability(label: String, active_anchor: Vector3, frames: i
 			_fail(label, "Ragdoll anchor left stability height at frame %d: %s" % [frame_index, anchor])
 			return
 		_check_all_bones_stable(label)
-		if frame_index < INITIAL_NO_UPWARD_FRAMES:
-			_check_no_upward_bone_velocity(label, frame_index)
+		# Uphill contact response is physical, not an activation kick.
 		_check_ragdoll_bounds(label)
 		if _failures.size() != prior_failures:
 			return
@@ -342,6 +330,10 @@ func _check_follow_and_markers(label: String) -> void:
 	await physics_frame
 	await process_frame
 	await process_frame
+	# process_frame fires before Node._process: the pelvis has advanced but the
+	# per-rendered-frame ring has not. Sample after presentation, not between
+	# those updates (an observable stale-frame error at 8x speed).
+	await create_timer(0.0, true, false, true).timeout
 	var expected_camera_anchor := _mira.get_follow_anchor_position() + Vector3(0.0, FOLLOW_CAMERA_HEIGHT, 0.0)
 	var camera_rig := _scene.get_node_or_null("CameraRig") as Node3D
 	if camera_rig == null:

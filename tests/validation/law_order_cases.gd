@@ -600,6 +600,15 @@ func _recreate_prisoner(player: HumanoidCharacter, legal_property: Dictionary, s
 
 
 func _validate_sentence_delivery(player: HumanoidCharacter, elevated_post := false) -> void:
+	# The optional scene only exists while watching this party prisoner.
+	var party := _scene.get_node("PartyManager") as PartyManager
+	party.select_only(player)
+	party.set_followed_member(player)
+	if not await _wait_until(func() -> bool:
+		var camera := player.get_viewport().get_camera_3d()
+		return camera != null and camera.is_position_in_frustum(player.get_follow_anchor_position()), 180):
+		_fail("Sentence scene fixture must be watching its party prisoner")
+		return
 	var jail := _get_jail()
 	var law := _get_law_controller()
 	var warden := _warden

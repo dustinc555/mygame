@@ -14,6 +14,16 @@ class BagOwner extends Node:
 	func shows_inventory_equipment() -> bool:
 		return false
 
+func _portrait_item() -> ItemDefinition:
+	# Keep geometry assertions independent of changes to production artwork.
+	var item := ItemDefinition.new()
+	item.grid_size = Vector2i(1, 4)
+	item.equip_slot = "weapon"
+	var image := Image.create(40, 160, false, Image.FORMAT_RGBA8)
+	image.fill(Color.WHITE)
+	item.icon = ImageTexture.create_from_image(image)
+	return item
+
 func test_sort_aligns_to_drawn_cells_not_expanded_window() -> void:
 	for columns in [6, 10]:
 		var owner := BagOwner.new()
@@ -40,19 +50,19 @@ func test_sort_aligns_to_drawn_cells_not_expanded_window() -> void:
 func test_equipped_art_preserves_bag_scale_when_slot_size_changes() -> void:
 	var owner := EquippedOwner.new()
 	add_child_autofree(owner)
-	owner.item = load("res://features/inventory/resources/items/steel_sword.tres")
+	owner.item = _portrait_item()
 	var slot := EquipmentSlotControl.new()
 	add_child_autofree(slot)
 	slot.setup(owner, "weapon", "Weapon")
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var icon: TextureRect = slot.find_child("EquipmentIcon", true, false)
-	# The existing 1x4 bag footprint is 30x126 with four pixels of padding.
-	# Its square source art therefore draws at 22x22, not at the slot's width.
-	assert_eq(icon.size, Vector2(22, 22))
+	# A 1x4 bag footprint is 30x126 with four pixels of padding.
+	# The 1:4 picture fits its 22-pixel content width at 22x88.
+	assert_eq(icon.size, Vector2(22, 88))
 	slot.size = Vector2(180, 180)
 	await get_tree().process_frame
-	assert_eq(icon.size, Vector2(22, 22), "A larger equipment target must not enlarge the item")
+	assert_eq(icon.size, Vector2(22, 88), "A larger equipment target must not enlarge the item")
 	assert_eq(owner.item.grid_size, Vector2i(1, 4), "Presentation must not mutate the item footprint")
 
 func test_equipment_slot_does_not_expand_for_oversized_saved_gear() -> void:
@@ -92,7 +102,7 @@ func test_equipped_sword_occupies_its_original_cells_without_clipping() -> void:
 func test_unequipped_slot_can_resize_before_its_icon_refreshes() -> void:
 	var owner := EquippedOwner.new()
 	add_child_autofree(owner)
-	var sword: ItemDefinition = load("res://features/inventory/resources/items/steel_sword.tres")
+	var sword := _portrait_item()
 	owner.item = sword
 	var slot := EquipmentSlotControl.new()
 	add_child_autofree(slot)
@@ -110,7 +120,7 @@ func test_unequipped_slot_can_resize_before_its_icon_refreshes() -> void:
 	owner.item = sword
 	slot.setup(owner, "weapon", "Weapon")
 	assert_same(slot._icon.texture, sword.icon)
-	assert_eq(slot._icon.size, Vector2(22, 22))
+	assert_eq(slot._icon.size, Vector2(22, 88))
 
 func test_resize_clears_stale_equipment_art_after_owner_is_freed() -> void:
 	var owner := EquippedOwner.new()
@@ -127,11 +137,11 @@ func test_resize_clears_stale_equipment_art_after_owner_is_freed() -> void:
 func test_split_drag_keeps_the_inventory_footprint_scale() -> void:
 	var source := CursorItemDragSource.new()
 	add_child_autofree(source)
-	source.item_definition = load("res://features/inventory/resources/items/steel_sword.tres")
+	source.item_definition = _portrait_item()
 	var preview := source._make_drag_preview()
 	autofree(preview)
 	var icon: TextureRect = preview.find_child("ItemIcon", true, false)
-	assert_eq(icon.size, Vector2(22, 22), "Split/cursor drag must use the same art scale as bag and equipment")
+	assert_eq(icon.size, Vector2(22, 88), "Split/cursor drag must use the same art scale as bag and equipment")
 
 func test_inventory_panel_is_opaque() -> void:
 	var window = WINDOW.instantiate()

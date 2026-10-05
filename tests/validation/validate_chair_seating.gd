@@ -1,11 +1,11 @@
-extends SceneTree
+extends "res://tests/validation/test_case.gd"
 
 const DEMO_PATH := "res://scenes/test_levels/chair_seating_demo.tscn"
 const INTERACTION_PATH := "res://features/actors/bridge/capabilities/interaction_capability.gd"
 const HUMANOID_PATH := "res://features/actors/projection/humanoid/humanoid_character.gd"
 const BAR_PATH := "res://features/settlements/bridge/settlement_bar.gd"
 const VISIT_PATH := "res://features/settlements/bridge/facility_visit_activity_point.gd"
-const WORLD_INTERACTION_PATH := "res://features/world/bridge/world_interaction_controller.gd"
+
 
 const PAIRS := [
 	["Chair1", "Actors/Chair1Actor"],
@@ -33,6 +33,7 @@ func _run() -> void:
 	await create_timer(4.0).timeout
 
 	_validate_seats(demo, "initial seating")
+	_validate_seated_picking(demo)
 	for pair in PAIRS:
 		var seat := demo.get_node("Chairs/%s" % pair[0])
 		var actor := demo.get_node(pair[1])
@@ -125,7 +126,7 @@ func _validate_source_contracts() -> void:
 	var humanoid := FileAccess.get_file_as_string(HUMANOID_PATH)
 	var bar := FileAccess.get_file_as_string(BAR_PATH)
 	var visit := FileAccess.get_file_as_string(VISIT_PATH)
-	var world_interaction := FileAccess.get_file_as_string(WORLD_INTERACTION_PATH)
+
 	_expect(interaction.contains("is_sitting and current_seat_target == seat"), "Immediate seating must be idempotent for an occupied seat")
 	_expect(interaction.contains("_call_void(\"cancel_stand_up_exit\")"), "Immediate seating must cancel a pending stand-up exit")
 	_expect(interaction.contains("begin_seated_visual"), "Seating must move only the visual body onto the chair")
@@ -135,10 +136,25 @@ func _validate_source_contracts() -> void:
 	_expect(humanoid.contains("func cancel_stand_up_exit()"), "Humanoid presentation must expose pending stand-up cancellation")
 	_expect(not bar.contains("actor.has_method(\"sit_at_seat_immediately\")"), "Bar seating must not call the removed actor-owned immediate-seat API")
 	_expect(not visit.contains("actor.has_method(\"sit_at_seat_immediately\")"), "Facility visits must not call the removed actor-owned immediate-seat API")
-	_expect(world_interaction.contains("var occupied_seat := _find_sittable_seat(collider)"), "World clicks must identify occupied seats before resolving click targets")
-	_expect(world_interaction.contains("seat.call(\"get_sitter\") == actor"), "An occupied seat must be transparent only when testing visibility of its sitter")
-	var raycast_target_source := world_interaction.get_slice("func _raycast_target_from_screen", 1).get_slice("func _find_sittable_seat", 0)
-	_expect(raycast_target_source.find("var occupied_seat := _find_sittable_seat(collider)") < raycast_target_source.find("var actor_collider := _resolve_actor_collider(collider)"), "Occupied seat collision must be skipped before actor click resolution")
+
+
+func _validate_seated_picking(demo: Node) -> void:
+	var picker := WorldInteractionController.new()
+	demo.add_child(picker)
+	var camera := demo.get_node("Camera3D") as Camera3D
+	var original_camera := camera.global_transform
+	picker.camera = camera
+	for pair in PAIRS:
+		var actor := demo.get_node(pair[1]) as HumanoidCharacter
+		var body := actor.get_body_projection() as HumanoidBodyProjection
+		var skeleton := body.get_skeleton()
+		var chest := skeleton.global_transform * skeleton.get_bone_global_pose(skeleton.find_bone("spine_03")).origin
+		camera.global_position = chest + actor.global_basis.z * 4.0 + Vector3.UP
+		camera.look_at(chest)
+		_expect(picker._pick_inspectable_target(camera.unproject_position(chest)) == actor,
+				"%s visible seated body must own its click, not its separate movement capsule" % pair[0])
+	camera.global_transform = original_camera
+	picker.free()
 
 
 func _validate_seats(demo: Node, phase: String) -> void:

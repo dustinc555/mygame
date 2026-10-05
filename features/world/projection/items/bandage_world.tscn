@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="PackedScene" path="res://assets/items/medical/bandages.glb" id="1_model"]
+[ext_resource type="PackedScene" path="res://assets/items/medical/packed_bandage/packed_bandage.glb" id="1_model"]
 
 [node name="BandageWorld" type="Node3D"]
 

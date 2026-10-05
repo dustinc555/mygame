@@ -45,6 +45,7 @@ class Jail extends SettlementJail:
 	func _is_warden_sentence_delivery_active(_warden: HumanoidCharacter) -> bool:
 		return sentence_active
 	func _has_pending_sentence_notification(_actor: HumanoidCharacter) -> bool: return true
+	func _can_present_sentence(_actor: WorldActor) -> bool: return true
 	func _ensure_sentence_route(entry: Dictionary, _actor: WorldActor, _warden: HumanoidCharacter) -> Dictionary:
 		return entry
 	func _open_sentence_conversation(_warden: HumanoidCharacter, _actor: WorldActor, _message: String) -> bool: return true

@@ -4,7 +4,7 @@ const FACTION_HUMANOID_SCRIPT := preload("res://features/actors/projection/human
 const RUSTDEAD_HUMANOID_SCRIPT := preload("res://features/actors/projection/rustdead/rustdead_humanoid_character.gd")
 
 const VISUAL_BODY_TYPE_MALE := 2
-const RAGDOLL_WAIT_FRAMES := 540
+
 
 var _failures: Array[String] = []
 
@@ -15,8 +15,8 @@ func _initialize() -> void:
 
 func _run() -> void:
 	await _validate_registered_medical_commands()
-	await _validate_repeated_lethal_vitals_do_not_restart_downed_preroll()
-	await _validate_cinder_burn_keeps_pending_downed_ragdoll()
+	await _validate_repeated_lethal_vitals_preserve_ragdoll()
+	await _validate_cinder_burn_preserves_ragdoll()
 	if _failures.is_empty():
 		print("RUSTDEAD_DOWNED_RAGDOLL_OK")
 		quit(0)
@@ -171,7 +171,7 @@ func _validate_registered_medical_commands() -> void:
 	print("RUSTDEAD_MEDICAL_BOUNDARY_EXECUTED failures=%d nonfire_fixed_ticks=1200" % (_failures.size() - before))
 
 
-func _validate_repeated_lethal_vitals_do_not_restart_downed_preroll() -> void:
+func _validate_repeated_lethal_vitals_preserve_ragdoll() -> void:
 	var scene := Node3D.new()
 	root.add_child(scene)
 	_add_controllers_and_floor(scene)
@@ -184,21 +184,21 @@ func _validate_repeated_lethal_vitals_do_not_restart_downed_preroll() -> void:
 		_fail("Rustdead force_kill should leave actor downed, got %s" % rustdead.get_life_state_label())
 		await _free_scene(scene)
 		return
-	if not rustdead.get_body_projection().get("_ragdoll_preroll_active") and not rustdead.get_body_projection().is_ragdoll_active():
-		_fail("Downed Rustdead should start ragdoll preroll or ragdoll immediately")
-	if rustdead.get_body_projection().get("_ragdoll_preroll_active"):
-		await physics_frame
-		if not _ray_hits_actor(rustdead):
-			_fail("Player picking must still select Rustdead while downed preroll is playing")
-		var before_remaining := float(rustdead.get_body_projection().get("_ragdoll_preroll_remaining"))
-		for _index in range(24):
-			rustdead._recalculate_vitals()
-			await physics_frame
-		if rustdead.get_body_projection().get("_ragdoll_preroll_active") and float(rustdead.get_body_projection().get("_ragdoll_preroll_remaining")) >= before_remaining - 0.05:
-			_fail("Repeated lethal Rustdead vitals should not restart downed preroll")
-	await _wait_until_ragdoll_active("Repeated lethal vitals", rustdead, RAGDOLL_WAIT_FRAMES)
+	var body := rustdead.get_body_projection()
+	if not body.is_ragdoll_active():
+		_fail("Downed Rustdead should start ragdoll immediately")
+		await _free_scene(scene)
+		return
+	await physics_frame
+	if not _ray_hits_actor(rustdead):
+		_fail("Player picking must still select the falling Rustdead")
+	var pelvis: PhysicalBone3D = body._ragdoll_physical_bones["pelvis"]
 	for _index in range(16):
+		var before := pelvis.global_transform
+		var velocity_before := pelvis.linear_velocity
 		rustdead._recalculate_vitals()
+		if body._ragdoll_physical_bones["pelvis"] != pelvis or not pelvis.global_transform.is_equal_approx(before) or not pelvis.linear_velocity.is_equal_approx(velocity_before):
+			_fail("Repeated lethal vitals must not restart or kick the existing ragdoll")
 		await process_frame
 	if not rustdead.get_body_projection().is_ragdoll_active():
 		_fail("Repeated lethal Rustdead vitals should not cancel active ragdoll")
@@ -206,21 +206,28 @@ func _validate_repeated_lethal_vitals_do_not_restart_downed_preroll() -> void:
 		_fail("Unburned Rustdead should remain downed after lethal vitals, got %s" % rustdead.get_life_state_label())
 	if not rustdead.can_be_destroyed_by_cinder():
 		_fail("Downed unburned Rustdead should remain available for Cinder Flask destruction")
-	print("RUSTDEAD_DOWNED_PREROLL_PICK_AND_RAGDOLL_EXECUTED")
+	print("RUSTDEAD_IMMEDIATE_RAGDOLL_PICK_AND_REPEATED_VITALS_EXECUTED")
 	await _free_scene(scene)
 
 
-func _validate_cinder_burn_keeps_pending_downed_ragdoll() -> void:
+func _validate_cinder_burn_preserves_ragdoll() -> void:
 	var scene := Node3D.new()
 	root.add_child(scene)
 	_add_controllers_and_floor(scene)
 	var attacker := _add_humanoid(scene, "CinderAttacker", Vector3(-1.5, 0.0, 0.0))
-	var rustdead := _add_rustdead(scene, "CinderPrerollRustdead", Vector3.ZERO)
+	var rustdead := _add_rustdead(scene, "CinderRagdollRustdead", Vector3.ZERO)
 	await _wait_process_frames(8)
 	rustdead.cinder_burn_duration_seconds = 0.1
 	rustdead.force_kill(attacker)
 	await _wait_process_frames(2)
-	var was_preroll_active: bool = rustdead.get_body_projection().get("_ragdoll_preroll_active")
+	var body := rustdead.get_body_projection()
+	if not body.is_ragdoll_active():
+		_fail("Rustdead must already be physically downed before fire destruction")
+		await _free_scene(scene)
+		return
+	var pelvis: PhysicalBone3D = body._ragdoll_physical_bones["pelvis"]
+	var before := pelvis.global_transform
+	var velocity_before := pelvis.linear_velocity
 	if not rustdead.has_method("begin_cinder_burn"):
 		_fail("Production Rustdead must implement the advertised cinder action")
 		await _free_scene(scene)
@@ -231,26 +238,12 @@ func _validate_cinder_burn_keeps_pending_downed_ragdoll() -> void:
 		return
 	if rustdead.life_state != NpcRules.LifeState.DEAD:
 		_fail("Cinder burn should immediately mark Rustdead dead")
-	if was_preroll_active and not rustdead.get_body_projection().get("_ragdoll_preroll_active") and not rustdead.get_body_projection().is_ragdoll_active():
-		_fail("Cinder burn should not cancel pending downed ragdoll preroll")
-	await _wait_until_ragdoll_active("Cinder burn preroll", rustdead, RAGDOLL_WAIT_FRAMES)
-	if rustdead.get_body_projection().get("_ragdoll_preroll_active"):
-		_fail("Cinder-burned Rustdead preroll should finish")
+	if body._ragdoll_physical_bones["pelvis"] != pelvis or not pelvis.global_transform.is_equal_approx(before) or not pelvis.linear_velocity.is_equal_approx(velocity_before):
+		_fail("Fire destruction must preserve physical pose and momentum")
 	if not rustdead.get_body_projection().is_ragdoll_active():
 		_fail("Cinder-burned Rustdead should still enter ragdoll")
-	print("RUSTDEAD_CINDER_PREROLL_AND_RAGDOLL_EXECUTED")
+	print("RUSTDEAD_CINDER_PRESERVES_RAGDOLL_EXECUTED")
 	await _free_scene(scene)
-
-
-func _wait_until_ragdoll_active(label: String, actor: HumanoidCharacter, max_frames: int) -> void:
-	for _index in range(max_frames):
-		if actor == null or not is_instance_valid(actor):
-			_fail("%s actor was freed before ragdoll activation" % label)
-			return
-		if actor.get_body_projection().is_ragdoll_active():
-			return
-		await physics_frame
-	_fail("%s Rustdead ragdoll did not become active within %d frames" % [label, max_frames])
 
 
 func _ray_hits_actor(actor: HumanoidCharacter) -> bool:
@@ -259,7 +252,8 @@ func _ray_hits_actor(actor: HumanoidCharacter) -> bool:
 	# of requiring that disabled capsule to remain a physical obstacle.
 	var camera := Camera3D.new()
 	actor.get_parent().add_child(camera)
-	var anchor := actor.global_position + Vector3(0.0, 1.2, 0.0)
+	var torso: PhysicalBone3D = actor.get_body_projection()._ragdoll_physical_bones["spine_03"]
+	var anchor := torso.global_position
 	camera.global_position = anchor + Vector3(0.0, 0.0, -3.0)
 	camera.look_at(anchor)
 	camera.make_current()

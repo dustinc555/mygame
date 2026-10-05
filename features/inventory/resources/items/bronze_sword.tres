@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_mod"]
-[ext_resource type="Texture2D" uid="uid://dxqtrnuot6cc3" path="res://assets/items/equipment/bronze_sword_icon.svg" id="3_icon"]
+[ext_resource type="Texture2D" uid="uid://mjxjouuyx4uc" path="res://assets/items/icons/bronze_sword.png" id="3_icon"]
 [ext_resource type="PackedScene" uid="uid://b38rcyscygtol" path="res://features/world/projection/equipment/sword_bronze_model.tscn" id="4_model"]
 [ext_resource type="Resource" uid="uid://ddoq1y4fkfw0i" path="res://features/actors/resources/equipment_grip_profiles/one_hand_melee.tres" id="5_grip"]
 

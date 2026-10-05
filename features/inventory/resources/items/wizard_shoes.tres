@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://b3ikm30xb3mq2"]
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
-[ext_resource type="Texture2D" uid="uid://cct0nisfg1vmy" path="res://assets/items/equipment/peasant_feet.svg" id="2_icon"]
+[ext_resource type="Texture2D" uid="uid://bptlekkogcrvb" path="res://assets/items/icons/wizard_shoes.png" id="2_icon"]
 [ext_resource type="PackedScene" uid="uid://hg8qrloe23dr" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Feet.gltf" id="3_male"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="5_jufdn"]
 [ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="5_visual"]
@@ -19,7 +19,7 @@ replaces_body_slots = PackedStringArray()
 script = ExtResource("1_item")
 display_name = "Wizard Shoes"
 icon = ExtResource("2_icon")
-grid_size = Vector2i(2, 1)
+grid_size = Vector2i(2, 2)
 unit_weight = 0.8
 equip_slot = "feet"
 alternate_equip_slots = PackedStringArray()

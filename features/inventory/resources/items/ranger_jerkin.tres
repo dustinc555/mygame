@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_mod"]
-[ext_resource type="Texture2D" uid="uid://bosyyrgtbife5" path="res://assets/items/equipment/ranger_chest.svg" id="3_icon"]
+[ext_resource type="Texture2D" uid="uid://cqmhyx0uwo7wa" path="res://assets/items/icons/ranger_jerkin.png" id="3_icon"]
 [ext_resource type="PackedScene" uid="uid://c2aqdtf7r52vk" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Body.gltf" id="4_male"]
 [ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="6_visual"]
 [ext_resource type="Resource" uid="uid://d1kdijpr1yecj" path="res://assets/items/equipment/wardrobe_bindings/ranger_jerkin.res" id="wardrobe_binding"]

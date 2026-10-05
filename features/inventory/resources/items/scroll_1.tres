@@ -4,8 +4,11 @@
 [ext_resource type="PackedScene" uid="uid://bqm7t11k5bsfb" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Scroll_1.gltf" id="2"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_6682r"]
 
+[ext_resource type="Texture2D" path="res://assets/items/icons/scroll_1.png" id="mesh_icon"]
+
 [resource]
 script = ExtResource("1")
+icon = ExtResource("mesh_icon")
 display_name = "Sealed Scroll"
 item_id = "document.scroll_1"
 unit_weight = 0.15

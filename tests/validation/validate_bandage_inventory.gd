@@ -39,7 +39,7 @@ func _validate_bandage_resource() -> void:
 	if BANDAGE.icon == null:
 		_fail("Bandage should have an inventory icon")
 	if BANDAGE.world_scene == null:
-		_fail("Bandage should have a Meshy world scene")
+		_fail("Bandage should have a world scene")
 
 
 func _validate_bandage_uses() -> void:

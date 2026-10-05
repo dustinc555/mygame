@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1"]
 [ext_resource type="PackedScene" uid="uid://ccdmi1042ciad" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Rope_1.gltf" id="2"]
-[ext_resource type="Texture2D" uid="uid://qhpj8i7nikkf" path="res://assets/items/rope_1_icon.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/rope_1.png" id="3"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="3_x62l3"]
 
 [resource]

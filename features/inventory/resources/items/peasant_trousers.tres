@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_mod"]
-[ext_resource type="Texture2D" uid="uid://bkjtg4w50aav0" path="res://assets/items/equipment/peasant_legs.svg" id="3_icon"]
+[ext_resource type="Texture2D" uid="uid://cpa0gjfwtksxh" path="res://assets/items/icons/peasant_trousers.png" id="3_icon"]
 [ext_resource type="PackedScene" uid="uid://br4y2e145h3pj" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Legs.gltf" id="4_male"]
 [ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="6_visual"]
 [ext_resource type="Resource" uid="uid://l2kocr4gwxem" path="res://assets/items/equipment/wardrobe_bindings/peasant_trousers.res" id="wardrobe_binding"]

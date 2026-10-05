@@ -89,5 +89,5 @@ offset_left = 20.0
 offset_top = 20.0
 offset_right = 680.0
 offset_bottom = 112.0
-text = "Ragdoll pyramid test: Mira starts unconscious on the pyramid face. The death pre-roll should pose the body, then ragdoll physics should slide or roll her down to the floor."
+text = "Ragdoll pyramid test: Mira collapses directly from her current pose. Ragdoll physics should slide or roll her down the pyramid without a death animation or launch."
 autowrap_mode = 3

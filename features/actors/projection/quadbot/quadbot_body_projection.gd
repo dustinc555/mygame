@@ -299,11 +299,16 @@ func play_combat_reaction_clip(_animation_name: String, _blend_seconds: float) -
 	return 0.0
 
 
-func enter_downed_visuals(is_dead: bool) -> bool:
+func enter_downed_visuals(is_dead: bool, inherited_velocity := Vector3.ZERO) -> bool:
 	if actor == null:
 		return false
+	if is_ragdoll_active():
+		return true
 	_actor._apply_downed_collision_shape()
-	return start_ragdoll_simulation(is_dead)
+	if start_ragdoll_simulation(is_dead, inherited_velocity):
+		return true
+	_actor._restore_downed_collision_shape()
+	return false
 
 
 func restore_from_downed_visuals() -> void:
@@ -339,8 +344,8 @@ func cancel_get_up_visuals() -> void:
 	_actor.set("_get_up_animation_total", 0.0)
 
 
-func start_ragdoll_simulation(is_dead: bool) -> bool:
-	return _start_visual_ragdoll(is_dead)
+func start_ragdoll_simulation(is_dead: bool, inherited_velocity := Vector3.ZERO) -> bool:
+	return _start_visual_ragdoll(is_dead, inherited_velocity)
 
 
 func stop_ragdoll_simulation(reset_pose: bool) -> void:
@@ -451,18 +456,18 @@ func _clip_speed(animation_name: String, speed_ratio: float) -> float:
 	return 1.0
 
 
-func _start_visual_ragdoll(_is_dead: bool) -> bool:
+func _start_visual_ragdoll(_is_dead: bool, inherited_velocity: Vector3) -> bool:
+	if is_ragdoll_active():
+		return true
 	if _visual_root == null or not is_instance_valid(_visual_root):
 		return false
 	stop_clip(true)
-	_ragdoll_active = true
 	_current_clip = ""
-	if _start_quadbot_skeleton_ragdoll():
-		return true
-	return false
+	_ragdoll_active = _start_quadbot_skeleton_ragdoll(inherited_velocity)
+	return _ragdoll_active
 
 
-func _start_quadbot_skeleton_ragdoll() -> bool:
+func _start_quadbot_skeleton_ragdoll(inherited_velocity: Vector3) -> bool:
 	if actor == null or not _ensure_quadbot_runtime_ragdoll():
 		return false
 	if _ragdoll_skeleton != null and is_instance_valid(_ragdoll_skeleton):
@@ -474,7 +479,7 @@ func _start_quadbot_skeleton_ragdoll() -> bool:
 	_sync_quadbot_ragdoll_physical_bones_to_current_pose()
 	_reset_quadbot_ragdoll_body_velocities()
 	_ragdoll_simulator.physical_bones_start_simulation()
-	_reset_quadbot_ragdoll_body_velocities()
+	_reset_quadbot_ragdoll_body_velocities(inherited_velocity)
 	_apply_quadbot_pending_ragdoll_impulse()
 	return true
 
@@ -604,12 +609,12 @@ func _sync_quadbot_ragdoll_physical_bones_to_current_pose() -> void:
 			physical_bone.transform = _ragdoll_skeleton.get_bone_global_pose(bone_index)
 
 
-func _reset_quadbot_ragdoll_body_velocities() -> void:
+func _reset_quadbot_ragdoll_body_velocities(inherited_velocity := Vector3.ZERO) -> void:
 	for physical_bone_value in _ragdoll_physical_bones.values():
 		var physical_bone := physical_bone_value as PhysicalBone3D
 		if physical_bone == null or not is_instance_valid(physical_bone):
 			continue
-		physical_bone.linear_velocity = Vector3.ZERO
+		physical_bone.linear_velocity = inherited_velocity
 		physical_bone.angular_velocity = Vector3.ZERO
 		if physical_bone.has_method("set_upward_velocity_suppression_frames"):
 			physical_bone.call("set_upward_velocity_suppression_frames", RAGDOLL_UPWARD_VELOCITY_SUPPRESSION_FRAMES)

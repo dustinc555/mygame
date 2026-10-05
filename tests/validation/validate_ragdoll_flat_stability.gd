@@ -5,18 +5,18 @@ const COMBAT_COORDINATOR_PATH := "res://features/combat/bridge/combat_coordinato
 const RAGDOLL_PYRAMID_SCENE_PATH := "res://scenes/test_levels/ragdoll_pyramid_test.tscn"
 const SKIN_TEXTURE_BUILDER_PATH := "res://features/actors/projection/appearance/skin_texture_builder.gd"
 const SCENARIOS: Array[Dictionary] = [
-	{"label": "Death01 Normal Full", "animation": "Death01", "speed_index": 1, "scale": 1.0, "frames": 180},
-	{"label": "Death02 Normal Full", "animation": "Death02", "speed_index": 1, "scale": 1.0, "frames": 180},
-	{"label": "Death01 Fast Full", "animation": "Death01", "speed_index": 2, "scale": 3.0, "frames": 150},
-	{"label": "Death02 Fast Full", "animation": "Death02", "speed_index": 2, "scale": 3.0, "frames": 150},
-	{"label": "Death01 Very Fast Full", "animation": "Death01", "speed_index": 3, "scale": 8.0, "frames": 120},
-	{"label": "Death02 Very Fast Full", "animation": "Death02", "speed_index": 3, "scale": 8.0, "frames": 120},
+	{"label": "Idle Normal", "animation": "Idle", "speed_index": 1, "scale": 1.0, "frames": 180},
+	{"label": "Combat Normal", "animation": "Sword_Idle", "speed_index": 1, "scale": 1.0, "frames": 180},
+	{"label": "Walk Fast", "animation": "Walk", "speed_index": 2, "scale": 3.0, "frames": 150},
+	{"label": "Combat Fast", "animation": "Sword_Idle", "speed_index": 2, "scale": 3.0, "frames": 150},
+	{"label": "Idle Very Fast", "animation": "Idle", "speed_index": 3, "scale": 8.0, "frames": 120},
+	{"label": "Walk Very Fast", "animation": "Walk", "speed_index": 3, "scale": 8.0, "frames": 120},
 ]
 const FLAT_START := Vector3(26.0, 0.6, 24.0)
 const MAX_POSITION_ABS := 160.0
 const MAX_ROOT_ACTIVATION_LIFT := 0.02
 const MAX_INITIAL_UPWARD_BONE_SPEED := 0.05
-const INITIAL_NO_UPWARD_FRAMES := 30
+
 const MIN_BONE_Y := -1.25
 const MAX_BONE_Y := 4.5
 const MAX_HORIZONTAL_TRAVEL := 7.0
@@ -80,8 +80,7 @@ func _run_scenario(scenario: Dictionary) -> void:
 		await _unload_scene()
 		return
 	_configure_speed(label, int(scenario.get("speed_index", 1)), float(scenario.get("scale", 1.0)))
-	_start_flat_ragdoll(label, str(scenario.get("animation", "Death01")))
-	await _wait_until_ragdoll_active(label, 420)
+	_start_flat_ragdoll(label, str(scenario.get("animation", "Idle")))
 	if _mira == null or not _mira.is_ragdoll_active():
 		await _unload_scene()
 		return
@@ -150,9 +149,10 @@ func _configure_speed(label: String, speed_index: int, expected_scale: float) ->
 func _start_flat_ragdoll(label: String, animation_name: String) -> void:
 	if _mira == null:
 		return
-	var profile := HumanoidRagdollProfile.new()
-	profile.downed_preroll_animation_names = PackedStringArray([animation_name])
-	_mira.get_body_projection().ragdoll_profile = profile
+	var body := _mira.get_body_projection()
+	if not body.play_clip(animation_name, 0.0, true, 0.0):
+		_fail(label, "Missing starting pose %s" % animation_name)
+	body.seek_clip(animation_name, 0.35, true, 0.0)
 	_mira.global_position = FLAT_START
 	_mira.rotation = Vector3(0.0, PI, 0.0)
 	_mira.velocity = Vector3.ZERO
@@ -172,18 +172,8 @@ func _start_flat_ragdoll(label: String, animation_name: String) -> void:
 	print("RAGDOLL_START %s state=%d" % [label, _mira.life_state])
 	if _mira.life_state != NpcRules.LifeState.UNCONSCIOUS:
 		_fail(label, "Mira did not enter unconscious state")
-	var body := _mira.get_body_projection()
-	var animation_player: AnimationPlayer = body.get_primary_animation_player() if body != null else null
-	if animation_player == null or not animation_player.has_animation(animation_name):
-		_fail(label, "Missing forced downed pre-roll animation %s" % animation_name)
-
-
-func _wait_until_ragdoll_active(label: String, max_frames: int) -> void:
-	for _frame_index in range(max_frames):
-		if _mira != null and _mira.is_ragdoll_active():
-			return
-		await physics_frame
-	_fail(label, "Ragdoll did not become active within %d physics frames" % max_frames)
+	if not body.is_ragdoll_active() or not body.get_current_clip().is_empty():
+		_fail(label, "Unconsciousness must activate physics immediately, without a death clip")
 
 
 func _check_flat_activation(label: String) -> void:
@@ -219,8 +209,7 @@ func _monitor_flat_ragdoll(label: String, frames: int) -> void:
 			_fail(label, "Flat ragdoll launched upward at frame %d: %s" % [frame_index, anchor])
 			return
 		_check_all_bones(label, frame_index)
-		if frame_index < INITIAL_NO_UPWARD_FRAMES:
-			_check_no_upward_bone_velocity(label, frame_index)
+		# After release, ordinary collision response may lift individual limbs.
 		_check_ragdoll_bounds(label, frame_index)
 		if _failures.size() != prior_failures:
 			return

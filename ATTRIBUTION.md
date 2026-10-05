@@ -25,6 +25,21 @@ This file is the canonical list of imported third-party assets and software used
 | Soil & Stones (UJWAmw) | ScansLibrary | Fab Standard License | $3.17 | https://www.fab.com/listings/2193002b-8ebd-4cd2-9941-f438b896f63d | `scenes/zones/rustwash_basin/textures/soil_and_stones_ujwamw_4k/` |
 | Stylized Soil 02A - Material | LarkArt Store | Fab Standard License |  | https://www.fab.com/listings/39477e0b-a19e-45cf-be76-77240006462e | `assets/vendor/larkart-store/stylized-soil-02a/` |
 | Cliff Side | James Ray Cock and Dario Barresi (photography), Jenelle van Heerden (processing), via Poly Haven | CC0 1.0 Universal | $0.00 | https://polyhaven.com/a/cliff_side | Source: `assets/vendor/polyhaven/cliff_side/`; packed Terrain3D maps: `scenes/zones/rustwash_basin/textures/canyon_cliff/` |
+| Rough Linen | colormass (photography), Rico Cilliers (processing), via Poly Haven | CC0 1.0 Universal | $0.00 | https://polyhaven.com/a/rough_linen | Source: `assets/vendor/polyhaven/rough_linen/`; ivory cloth derivative: `assets/items/medical/packed_bandage/` |
+
+## Sky / Celestial Surfaces
+
+| Asset Pack | Author | License | Price | Source | Project Path |
+| --- | --- | --- | --- | --- | --- |
+| Jupiter, Moon and Saturn Ring maps | Solar System Scope / INOVE | CC BY 4.0 (credit, license link and modification notice required) | $0.00 | https://solarsystemscope.com/textures/ | `assets/vendor/solar_system_scope/celestial_surfaces/` |
+
+The Moon map is used with project-authored lighting and atmospheric treatment.
+Original vendor pixels are unchanged; Godot imports generate GPU compression and mipmaps.
+The Jupiter and Saturn Ring maps are retained as source references but are no longer
+assigned to the sky. The active giant and rings are original project-authored images
+under `assets/sky/mineral_giant/`, created without those maps or other source photographs.
+Include the asset directory's `ATTRIBUTION.md` in the distributed game's credits.
+License: https://creativecommons.org/licenses/by/4.0/
 
 ## Software / Libraries
 

@@ -6,6 +6,8 @@ class_name OwnershipUtils
 static func get_explicit_owner(target):
 	if target == null:
 		return null
+	if target is WorldActor:
+		return target
 	if target.has_method("get_explicit_owner_character"):
 		return target.get_explicit_owner_character()
 	return null
@@ -14,6 +16,8 @@ static func get_explicit_owner(target):
 static func get_owner_faction_name(target) -> String:
 	if target == null:
 		return ""
+	if target is WorldActor:
+		return target.faction_name
 	if target.has_method("get_owner_faction_name"):
 		return str(target.get_owner_faction_name())
 	return ""

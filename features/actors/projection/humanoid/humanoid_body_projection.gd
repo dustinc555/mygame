@@ -16,7 +16,7 @@ const REST_RETARGET = preload("res://features/actors/projection/humanoid/humanoi
 const DEFAULT_MOVE_BLEND_SECONDS := 0.12
 const COMBAT_ANIMATION_SET_SCRIPT = preload("res://features/actors/resources/characters/combat_animation_set.gd")
 const COMBAT_ATTACK_ANIMATION_SCRIPT = preload("res://features/actors/resources/characters/combat_attack_animation.gd")
-const HUMANOID_RAGDOLL_PROFILE_SCRIPT = preload("res://features/actors/resources/characters/humanoid_ragdoll_profile.gd")
+const DEFAULT_RAGDOLL_PROFILE = preload("res://features/actors/resources/characters/humanoid_ragdoll_profile.tres")
 const STABLE_PHYSICAL_BONE_SCRIPT = preload("res://features/actors/projection/stable_physical_bone.gd")
 const HUMAN_RACE = preload("res://features/actors/resources/character_races/human.tres")
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://features/actors/resources/character_body_archetypes/human_male.tres")
@@ -98,7 +98,7 @@ const MOVE_ANIMATION_BLEND_SECONDS := 0.12
 const RAGDOLL_COLLIDER_LENGTH_SCALE := 0.82
 const RAGDOLL_MAX_LINEAR_SPEED := 10.0
 const RAGDOLL_MAX_ANGULAR_SPEED := 18.0
-const RAGDOLL_UPWARD_VELOCITY_SUPPRESSION_FRAMES := 90
+
 const CLOTHING_EQUIPMENT_SLOTS := ["undershirt", "hands", "chest", "legs", "feet", "backpack", "head"]
 const APPEARANCE_HEAD_ATTACHMENT_PREFIX := "Appearance"
 const BONE_EQUIPMENT_SLOTS := {
@@ -181,11 +181,7 @@ var _ragdoll_physical_bones: Dictionary = {}
 var _is_ragdoll_active := false
 var _last_ragdoll_impulse := Vector3.ZERO
 var _last_ragdoll_impulse_remaining := 0.0
-var _ragdoll_upward_velocity_suppression_frames := 0
-var _ragdoll_preroll_active := false
-var _ragdoll_preroll_is_dead := false
-var _ragdoll_preroll_animation_name := ""
-var _ragdoll_preroll_remaining := 0.0
+
 var _is_getting_up := false
 var _get_up_animation_name := ""
 var _get_up_animation_remaining := 0.0
@@ -388,7 +384,7 @@ func get_ragdoll_profile():
 	if ragdoll_profile != null:
 		return ragdoll_profile
 	if _default_ragdoll_profile == null:
-		_default_ragdoll_profile = HUMANOID_RAGDOLL_PROFILE_SCRIPT.new()
+		_default_ragdoll_profile = DEFAULT_RAGDOLL_PROFILE
 	return _default_ragdoll_profile
 
 
@@ -416,28 +412,25 @@ func remember_ragdoll_impulse(impulse: Vector3, seconds: float) -> void:
 	_last_ragdoll_impulse_remaining = seconds if impulse.length_squared() > 0.0001 else 0.0
 
 
-func enter_downed_visuals(is_dead: bool) -> bool:
-	_cancel_ragdoll_preroll()
+func enter_downed_visuals(is_dead: bool, inherited_velocity := Vector3.ZERO) -> bool:
+	if is_ragdoll_active():
+		return true
 	_clear_get_up_state()
 	stop_clip(true)
-	if _begin_downed_ragdoll_preroll(is_dead):
-		return true
 	_actor._apply_downed_collision_shape()
-	if not start_ragdoll_simulation(is_dead):
+	if not start_ragdoll_simulation(is_dead, inherited_velocity):
 		_actor._restore_downed_collision_shape()
 		return false
 	return true
 
 
 func restore_from_downed_visuals() -> void:
-	_cancel_ragdoll_preroll()
 	_clear_get_up_state()
 	stop_ragdoll_simulation(true)
 	_actor._restore_downed_collision_shape()
 
 
 func begin_get_up_visuals() -> void:
-	_cancel_ragdoll_preroll()
 	_clear_get_up_state()
 	prepare_ragdoll_get_up()
 	_is_getting_up = true
@@ -451,9 +444,6 @@ func begin_get_up_visuals() -> void:
 
 
 func process_downed_visuals(delta: float) -> bool:
-	if _ragdoll_preroll_active:
-		_process_downed_ragdoll_preroll(delta)
-		return false
 	if not _is_getting_up:
 		return false
 	return _process_get_up_animation(delta)
@@ -479,7 +469,9 @@ func _clear_get_up_state() -> void:
 	_get_up_animation_total = 0.0
 
 
-func start_ragdoll_simulation(_is_dead: bool) -> bool:
+func start_ragdoll_simulation(_is_dead: bool, inherited_velocity := Vector3.ZERO) -> bool:
+	if is_ragdoll_active():
+		return true
 	if not _ensure_runtime_ragdoll():
 		return false
 	_is_ragdoll_active = true
@@ -489,21 +481,16 @@ func start_ragdoll_simulation(_is_dead: bool) -> bool:
 	_ragdoll_simulator.influence = 1.0
 	_ragdoll_simulator.physical_bones_add_collision_exception(_actor.get_rid())
 	_configure_ragdoll_internal_collision_exceptions()
-	_sync_ragdoll_physical_bones_to_current_pose()
-	_prepare_ragdoll_activation()
 	_reset_ragdoll_body_velocities()
+	# Native startup snapshots the displayed skeleton and applies body_offset.
 	_ragdoll_simulator.physical_bones_start_simulation()
-	_reset_ragdoll_body_velocities()
+	_reset_ragdoll_body_velocities(inherited_velocity)
 	_apply_pending_ragdoll_impulse()
-	_clamp_ragdoll_upward_velocities()
 	return true
 
 
-## Cancels any pending downed-visual transitions (ragdoll preroll, get-up) —
-## cell custody and similar hard pose owners must clear these or the deferred
-## transition fires later and stomps the owned pose.
+## Custody and beds own their poses; cancel an unfinished get-up before takeover.
 func cancel_downed_visual_transitions() -> void:
-	_cancel_ragdoll_preroll()
 	_clear_get_up_state()
 
 
@@ -517,8 +504,6 @@ func stop_ragdoll_simulation(reset_pose: bool) -> void:
 		if reset_pose:
 			_ragdoll_skeleton.reset_bone_poses()
 	_is_ragdoll_active = false
-	_ragdoll_upward_velocity_suppression_frames = 0
-	_set_ragdoll_bone_upward_velocity_suppression(0)
 
 
 func prepare_ragdoll_get_up() -> void:
@@ -527,12 +512,6 @@ func prepare_ragdoll_get_up() -> void:
 	if anchor_position is Vector3:
 		_actor.global_position = Vector3(anchor_position.x, _actor.global_position.y, anchor_position.z)
 	_actor.rotation = Vector3(0.0, _actor.rotation.y, 0.0)
-
-
-func stabilize_ragdoll(_delta: float) -> void:
-	var upward_velocity_suppression_frames: int = _ragdoll_upward_velocity_suppression_frames
-	if upward_velocity_suppression_frames > 0:
-		_ragdoll_upward_velocity_suppression_frames = maxi(0, upward_velocity_suppression_frames - 1)
 
 
 func is_ragdoll_active() -> bool:
@@ -575,71 +554,12 @@ func _choose_get_up_animation() -> String:
 	return ""
 
 
-func _choose_downed_preroll_animation() -> String:
-	var profile = get_ragdoll_profile()
-	if profile != null and profile.has_method("choose_downed_preroll_animation"):
-		return profile.choose_downed_preroll_animation(_character_animation_player, _rng)
-	return ""
-
-
-func _choose_downed_preroll_duration(animation_length: float) -> float:
-	var profile = get_ragdoll_profile()
-	if profile != null and profile.has_method("choose_downed_preroll_duration"):
-		return profile.choose_downed_preroll_duration(animation_length, _rng)
-	return animation_length
-
-
 func _get_ragdoll_profile_float(property_name: String, fallback: float) -> float:
 	var profile = get_ragdoll_profile()
 	if profile == null:
 		return fallback
 	var value = profile.get(property_name)
 	return float(value) if value != null else fallback
-
-
-func _begin_downed_ragdoll_preroll(is_dead: bool) -> bool:
-	if _character_animation_player == null:
-		return false
-	var animation_name := _choose_downed_preroll_animation()
-	if animation_name.is_empty():
-		return false
-	var animation_length: float = clip_length(animation_name)
-	var preroll_duration := _choose_downed_preroll_duration(animation_length)
-	if preroll_duration <= 0.0:
-		return false
-	_ragdoll_preroll_active = true
-	_ragdoll_preroll_is_dead = is_dead
-	_ragdoll_preroll_animation_name = animation_name
-	_ragdoll_preroll_remaining = preroll_duration
-	if not play_clip(animation_name, 0.0, true, 0.0):
-		_cancel_ragdoll_preroll()
-		return false
-	return true
-
-
-func _process_downed_ragdoll_preroll(delta: float) -> void:
-	_ragdoll_preroll_remaining = maxf(0.0, _ragdoll_preroll_remaining - delta)
-	if _ragdoll_preroll_remaining > 0.0 and _character_animation_player != null and _character_animation_player.is_playing():
-		return
-	_finish_downed_ragdoll_preroll()
-
-
-func _finish_downed_ragdoll_preroll() -> void:
-	if not _ragdoll_preroll_active:
-		return
-	var was_dead: bool = _ragdoll_preroll_is_dead
-	_cancel_ragdoll_preroll()
-	stop_clip(true)
-	_actor._apply_downed_collision_shape()
-	if not start_ragdoll_simulation(was_dead):
-		_actor._restore_downed_collision_shape()
-
-
-func _cancel_ragdoll_preroll() -> void:
-	_ragdoll_preroll_active = false
-	_ragdoll_preroll_is_dead = false
-	_ragdoll_preroll_animation_name = ""
-	_ragdoll_preroll_remaining = 0.0
 
 
 func _process_get_up_animation(delta: float) -> bool:
@@ -658,6 +578,14 @@ func _ensure_runtime_ragdoll() -> bool:
 	if _ragdoll_skeleton == null:
 		return false
 	if _ragdoll_simulator == null or not is_instance_valid(_ragdoll_simulator):
+		# Godot binds joint zero/parent frames when physical bones enter the tree.
+		# Do that in anatomical rest, not in an arbitrary attack or fall pose.
+		# Restore synchronously: no rendered frame ever sees the rest pose.
+		var poses: Array[Transform3D] = []
+		for index in range(_ragdoll_skeleton.get_bone_count()):
+			poses.append(_ragdoll_skeleton.get_bone_pose(index))
+		_ragdoll_skeleton.reset_bone_poses()
+		_ragdoll_skeleton.force_update_all_bone_transforms()
 		_ragdoll_simulator = _ragdoll_skeleton.get_node_or_null("HumanoidRagdollSimulator") as PhysicalBoneSimulator3D
 		if _ragdoll_simulator == null:
 			_ragdoll_simulator = PhysicalBoneSimulator3D.new()
@@ -665,7 +593,10 @@ func _ensure_runtime_ragdoll() -> bool:
 			_ragdoll_skeleton.add_child(_ragdoll_simulator)
 		_ragdoll_simulator.active = false
 		_ragdoll_simulator.influence = 1.0
-	_create_missing_ragdoll_physical_bones()
+		_create_missing_ragdoll_physical_bones()
+		for index in range(poses.size()):
+			_ragdoll_skeleton.set_bone_pose(index, poses[index])
+		_ragdoll_skeleton.force_update_all_bone_transforms()
 	return not _ragdoll_physical_bones.is_empty()
 
 
@@ -700,7 +631,7 @@ func _build_ragdoll_physical_bone(profile, bone_name: String, bone_index: int) -
 	physical_bone.bounce = float(profile.get("bounce"))
 	physical_bone.linear_damp_mode = PhysicalBone3D.DAMP_MODE_REPLACE
 	physical_bone.angular_damp_mode = PhysicalBone3D.DAMP_MODE_REPLACE
-	physical_bone.can_sleep = false
+	physical_bone.can_sleep = true
 	physical_bone.collision_layer = int(profile.get("collision_layer"))
 	physical_bone.collision_mask = int(profile.get("collision_mask"))
 	physical_bone.joint_type = int(profile.get_bone_joint_type(bone_name)) as PhysicalBone3D.JointType
@@ -724,11 +655,32 @@ func _build_ragdoll_physical_bone(profile, bone_name: String, bone_index: int) -
 		shape.shape = capsule
 		physical_bone.body_offset = Transform3D(body_basis, body_basis.y * center_distance)
 	physical_bone.add_child(shape)
+	# The rig flexes around bone-local X and runs along local Y. Godot hinges
+	# around joint Z and cone-twists around joint X; collider axes are unrelated.
+	var joint_axes := Basis.IDENTITY if physical_bone.joint_type == PhysicalBone3D.JOINT_TYPE_6DOF else Basis(Vector3.UP, Vector3.BACK, Vector3.RIGHT)
+	physical_bone.joint_offset = Transform3D(
+		body_basis.inverse() * joint_axes,
+		physical_bone.body_offset.affine_inverse().origin)
+	physical_bone.configure_world_scale(_ragdoll_skeleton.global_basis.get_scale().x)
 	return physical_bone
 
 
 func _apply_ragdoll_joint_constraints(profile, physical_bone: PhysicalBone3D, bone_name: String) -> void:
 	match int(profile.get_bone_joint_type(bone_name)):
+		PhysicalBone3D.JOINT_TYPE_6DOF:
+			var lower: Vector3 = profile.get_bone_angular_lower_degrees(bone_name)
+			var upper: Vector3 = profile.get_bone_angular_upper_degrees(bone_name)
+			for axis in range(3):
+				var prefix := "joint_constraints/%s/" % ["x", "y", "z"][axis]
+				physical_bone.set(prefix + "linear_limit_enabled", true)
+				physical_bone.set(prefix + "linear_limit_lower", 0.0)
+				physical_bone.set(prefix + "linear_limit_upper", 0.0)
+				physical_bone.set(prefix + "angular_limit_enabled", true)
+				physical_bone.set(prefix + "angular_limit_lower", lower[axis])
+				physical_bone.set(prefix + "angular_limit_upper", upper[axis])
+				physical_bone.set(prefix + "angular_limit_softness", profile.angular_limit_softness)
+				physical_bone.set(prefix + "angular_restitution", 0.0)
+				physical_bone.set(prefix + "erp", profile.angular_limit_error_reduction)
 		PhysicalBone3D.JOINT_TYPE_CONE:
 			var swing_span := float(profile.get_bone_cone_swing_span_degrees(bone_name)) if profile.has_method("get_bone_cone_swing_span_degrees") else 45.0
 			var twist_span := float(profile.get_bone_cone_twist_span_degrees(bone_name)) if profile.has_method("get_bone_cone_twist_span_degrees") else 25.0
@@ -738,9 +690,10 @@ func _apply_ragdoll_joint_constraints(profile, physical_bone: PhysicalBone3D, bo
 			physical_bone.set("joint_constraints/softness", _get_ragdoll_profile_float("cone_softness", 0.65))
 			physical_bone.set("joint_constraints/relaxation", _get_ragdoll_profile_float("cone_relaxation", 0.8))
 		PhysicalBone3D.JOINT_TYPE_HINGE:
+			var limits: Vector2 = profile.get_bone_hinge_limits_degrees(bone_name)
 			physical_bone.set("joint_constraints/angular_limit_enabled", true)
-			physical_bone.set("joint_constraints/angular_limit_lower", _get_ragdoll_profile_float("hinge_limit_lower_degrees", -12.0))
-			physical_bone.set("joint_constraints/angular_limit_upper", _get_ragdoll_profile_float("hinge_limit_upper_degrees", 95.0))
+			physical_bone.set("joint_constraints/angular_limit_lower", limits.x)
+			physical_bone.set("joint_constraints/angular_limit_upper", limits.y)
 			physical_bone.set("joint_constraints/angular_limit_bias", _get_ragdoll_profile_float("hinge_bias", 0.25))
 			physical_bone.set("joint_constraints/angular_limit_softness", _get_ragdoll_profile_float("hinge_softness", 0.75))
 			physical_bone.set("joint_constraints/angular_limit_relaxation", _get_ragdoll_profile_float("hinge_relaxation", 0.8))
@@ -761,43 +714,13 @@ func _configure_ragdoll_internal_collision_exceptions() -> void:
 			PhysicsServer3D.body_add_collision_exception(bones[second_index].get_rid(), bones[first_index].get_rid())
 
 
-func _reset_ragdoll_body_velocities() -> void:
+func _reset_ragdoll_body_velocities(inherited_velocity := Vector3.ZERO) -> void:
 	for physical_bone_value in _ragdoll_physical_bones.values():
 		var physical_bone := physical_bone_value as PhysicalBone3D
 		if physical_bone == null or not is_instance_valid(physical_bone):
 			continue
-		physical_bone.linear_velocity = Vector3.ZERO
+		physical_bone.linear_velocity = inherited_velocity.limit_length(RAGDOLL_MAX_LINEAR_SPEED)
 		physical_bone.angular_velocity = Vector3.ZERO
-
-
-func _sync_ragdoll_physical_bones_to_current_pose() -> void:
-	if _ragdoll_skeleton == null or not is_instance_valid(_ragdoll_skeleton):
-		return
-	_ragdoll_skeleton.force_update_all_bone_transforms()
-	for bone_name_value in _ragdoll_physical_bones.keys():
-		var bone_name := str(bone_name_value)
-		var physical_bone := _ragdoll_physical_bones.get(bone_name, null) as PhysicalBone3D
-		if physical_bone == null or not is_instance_valid(physical_bone):
-			continue
-		var bone_index: int = _ragdoll_skeleton.find_bone(bone_name)
-		if bone_index < 0:
-			continue
-		physical_bone.transform = _ragdoll_skeleton.get_bone_global_pose(bone_index)
-
-
-func _prepare_ragdoll_activation() -> void:
-	_actor.velocity.y = minf(_actor.velocity.y, 0.0)
-	_ragdoll_upward_velocity_suppression_frames = RAGDOLL_UPWARD_VELOCITY_SUPPRESSION_FRAMES
-	_set_ragdoll_bone_upward_velocity_suppression(RAGDOLL_UPWARD_VELOCITY_SUPPRESSION_FRAMES)
-	if _ragdoll_skeleton != null and is_instance_valid(_ragdoll_skeleton):
-		_ragdoll_skeleton.force_update_all_bone_transforms()
-
-
-func _set_ragdoll_bone_upward_velocity_suppression(frame_count: int) -> void:
-	for physical_bone_value in _ragdoll_physical_bones.values():
-		var physical_bone := physical_bone_value as PhysicalBone3D
-		if physical_bone != null and is_instance_valid(physical_bone) and physical_bone.has_method("set_upward_velocity_suppression_frames"):
-			physical_bone.call("set_upward_velocity_suppression_frames", frame_count)
 
 
 func _get_ragdoll_body_basis(profile, bone_name: String, bone_index: int) -> Basis:
@@ -822,9 +745,7 @@ func _get_ragdoll_child_vector(profile, bone_index: int) -> Vector3:
 	var best_vector := Vector3.ZERO
 	var best_length_squared := 0.0
 	for child_index in _ragdoll_skeleton.get_bone_children(bone_index):
-		var child_name: String = _ragdoll_skeleton.get_bone_name(child_index)
-		if not profile.has_physical_bone(child_name):
-			continue
+		# Nonphysical toes, fingers and neck still define anatomical extents.
 		var child_vector: Vector3 = _ragdoll_skeleton.get_bone_rest(child_index).origin
 		var child_length_squared: float = child_vector.length_squared()
 		if child_length_squared > best_length_squared:
@@ -906,14 +827,6 @@ func _apply_pending_ragdoll_impulse() -> void:
 			physical_bone.apply_central_impulse(ragdoll_impulse * 0.35)
 	_last_ragdoll_impulse = Vector3.ZERO
 	_last_ragdoll_impulse_remaining = 0.0
-
-
-func _clamp_ragdoll_upward_velocities() -> void:
-	for physical_bone_value in _ragdoll_physical_bones.values():
-		var physical_bone := physical_bone_value as PhysicalBone3D
-		if physical_bone == null or not is_instance_valid(physical_bone):
-			continue
-		physical_bone.linear_velocity = _get_non_upward_ragdoll_vector(physical_bone.linear_velocity)
 
 
 func _get_non_upward_ragdoll_vector(vector: Vector3) -> Vector3:

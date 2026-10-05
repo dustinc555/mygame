@@ -62,6 +62,7 @@ var _seat_approach_map := RID()
 var _seat_approach_map_iteration := -1
 var current_container_target: Node
 var current_trade_target: Node
+var current_npc_inventory_action := ""
 var current_conversation_target: Node
 var _mining_node_ref: WeakRef
 var _scavenging_node_ref: WeakRef
@@ -181,6 +182,7 @@ func stop_trade_interaction() -> void:
 		if merchant_role != null:
 			merchant_role.release_trader(actor)
 	current_trade_target = null
+	current_npc_inventory_action = ""
 	if current_order_type == ORDER_TYPE_TRADE:
 		_clear_actor_move_target()
 		current_order_type = ORDER_TYPE_NONE
@@ -336,10 +338,28 @@ func assign_trade_target(target_character, issued_by_player := true) -> void:
 		if current_role != null:
 			current_role.release_trader(actor)
 	current_trade_target = target_character
+	current_npc_inventory_action = ""
 	var merchant_role := target_character.get_node_or_null("MerchantRole") as MerchantRole
 	if merchant_role != null:
 		merchant_role.register_trader(actor)
 	_set_actor_move_target(target_character.call("get_interaction_position", actor))
+
+
+## Share the ordinary character approach, but never register a thief as a
+## merchant customer or reinterpret this intent as trade on arrival.
+func assign_npc_inventory_target(target: HumanoidCharacter, action: String) -> void:
+	if OwnershipController.get_character_inventory_action(actor, target) != action or action.is_empty():
+		return
+	stop_trade_interaction()
+	if not _set_order(ORDER_TYPE_TRADE, true):
+		return
+	current_trade_target = target
+	current_npc_inventory_action = action
+	_set_actor_move_target(target.get_interaction_position(actor))
+
+
+func get_trade_interaction_distance() -> float:
+	return _actor_float("trade_interaction_distance", 3.0)
 
 
 func assign_conversation_target(target_character, issued_by_player := true) -> void:
@@ -916,14 +936,22 @@ func process_trade_interaction() -> void:
 	if not _is_valid_node(target) or not target.has_method("get_interaction_position"):
 		stop_trade_interaction()
 		return
+	if not current_npc_inventory_action.is_empty() and OwnershipController.get_character_inventory_action(actor, target) != current_npc_inventory_action:
+		stop_trade_interaction()
+		return
 	var interaction_position: Vector3 = target.call("get_interaction_position", actor)
 	var target_position := _position_of(target)
-	if _position().distance_to(target_position) > _actor_float("trade_interaction_distance", 3.0):
+	if _position().distance_to(target_position) > get_trade_interaction_distance():
 		_set_actor_move_target(interaction_position)
 		return
 	_clear_actor_move_target()
 	current_trade_target = null
 	current_order_type = ORDER_TYPE_NONE
+	if not current_npc_inventory_action.is_empty():
+		var action := current_npc_inventory_action
+		current_npc_inventory_action = ""
+		_emit_actor_signal("npc_inventory_target_reached", [actor, target, action])
+		return
 	_emit_actor_signal("trade_target_reached", [actor, target])
 
 

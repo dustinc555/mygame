@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://dt4g0pl7su2ia"]
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
-[ext_resource type="Texture2D" uid="uid://dq4l3goaa2t5k" path="res://assets/items/equipment/ranger_hood.svg" id="2_icon"]
+[ext_resource type="Texture2D" uid="uid://w8siejnb8am4" path="res://assets/items/icons/noble_crown.png" id="2_icon"]
 [ext_resource type="PackedScene" uid="uid://djuidx5mhllqo" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Head_Crown.gltf" id="3_male"]
 [ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="5_visual"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="8_md2ae"]
